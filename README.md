@@ -1,2 +1,0 @@
-# AOV-saga
-Landing page

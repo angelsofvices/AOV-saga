@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="description" content="The Long Return — pilot your ship through the void. Dodge cosmic shrapnel. Collect Astralite gems. Make it home." />
+  <title>The Long Return · The AOV Saga</title>
+
+  <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#050310">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://angelsofvices.com/return.html">
+  <meta property="og:title" content="The Long Return — The AOV Saga">
+  <meta property="og:description" content="An Astralnaut. A ship. One hundred gems. The journey home.">
+  <meta property="og:image" content="https://angelsofvices.com/icons/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --void: #050310;
+      --gold: #e8c878;
+      --gold-bright: #f5dc9c;
+      --gold-deep: #b8923f;
+      --gold-pale: #f4e3b3;
+      --emerald: #2fe6a8;
+      --crimson: #e85a5a;
+      --ivory: #f3ecdc;
+      --mist: #b8aec8;
+      --mist-deep: #6f6582;
+      --border-soft: rgba(232, 200, 120, 0.08);
+      --border-gold: rgba(232, 200, 120, 0.28);
+
+      --font-display: 'Cinzel', serif;
+      --font-body: 'Cormorant Garamond', serif;
+      --font-meta: 'Inter', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--void);
+      color: var(--ivory);
+      position: relative;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .cosmos {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 50% 100%, rgba(184, 124, 255, 0.15) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 0%, rgba(232, 200, 120, 0.1) 0%, transparent 50%),
+        linear-gradient(180deg, #050310 0%, #0a0618 50%, #050310 100%);
+    }
+
+    .stars {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden;
+    }
+
+    .stars::before, .stars::after {
+      content: ''; position: absolute; inset: -50%;
+      background-image:
+        radial-gradient(1px 1px at 23% 17%, rgba(243, 236, 220, 0.9), transparent),
+        radial-gradient(1px 1px at 67% 41%, rgba(232, 200, 120, 0.75), transparent),
+        radial-gradient(1.5px 1.5px at 84% 73%, rgba(243, 236, 220, 0.85), transparent),
+        radial-gradient(1px 1px at 12% 83%, rgba(243, 236, 220, 0.6), transparent),
+        radial-gradient(1px 1px at 45% 28%, rgba(184, 124, 255, 0.5), transparent),
+        radial-gradient(1px 1px at 91% 12%, rgba(243, 236, 220, 0.7), transparent),
+        radial-gradient(1px 1px at 38% 64%, rgba(232, 200, 120, 0.55), transparent),
+        radial-gradient(2px 2px at 76% 88%, rgba(243, 236, 220, 0.95), transparent);
+      background-size: 600px 600px;
+      animation: starscroll 40s linear infinite;
+      opacity: 0.85;
+    }
+    .stars::after { background-size: 950px 950px; animation-duration: 60s; opacity: 0.4; }
+
+    @keyframes starscroll {
+      from { transform: translate3d(0, 0, 0); }
+      to { transform: translate3d(0, 600px, 0); }
+    }
+
+    #game-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 50;
+      padding: 16px 20px;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(5, 3, 16, 0.55) 0%, transparent 100%);
+    }
+
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 600px;
+      margin: 0 auto;
+      gap: 12px;
+    }
+
+    .lives {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .heart {
+      width: 18px;
+      height: 18px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .heart.lost {
+      opacity: 0.18;
+      transform: scale(0.85);
+    }
+
+    .heart svg { width: 100%; height: 100%; }
+
+    .gem-counter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .gem-icon {
+      width: 14px;
+      height: 14px;
+      filter: drop-shadow(0 0 6px var(--gold));
+    }
+
+    .gem-count {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      color: var(--gold-bright);
+      font-weight: 600;
+    }
+
+    .gem-count .total {
+      font-size: 0.65em;
+      color: var(--mist);
+      letter-spacing: 0.16em;
+    }
+
+    .hud-back {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      text-decoration: none;
+      pointer-events: auto;
+      padding: 6px 10px;
+      border: 1px solid var(--border-soft);
+      border-radius: 2px;
+      transition: all 0.3s ease;
+    }
+
+    .hud-back:hover, .hud-back:active { color: var(--gold); border-color: var(--gold); }
+
+    .journey-bar {
+      position: fixed;
+      top: 60px;
+      left: 20px;
+      right: 20px;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    .journey-track {
+      height: 2px;
+      background: rgba(243, 236, 220, 0.08);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .journey-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold-deep), var(--gold-bright));
+      width: 0%;
+      transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+      box-shadow: 0 0 10px var(--gold);
+    }
+
+    .intro {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      background: var(--void);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      transition: opacity 1.2s ease, visibility 1.2s ease;
+    }
+
+    .intro.dismissed {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .intro-content {
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .intro-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.85;
+      margin-bottom: 24px;
+    }
+
+    .intro-title {
+      font-family: var(--font-display);
+      font-size: clamp(2.4rem, 10vw, 3.4rem);
+      letter-spacing: 0.1em;
+      line-height: 1;
+      margin-bottom: 28px;
+      background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-bright) 50%, var(--gold-deep) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .intro-passages p {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: 1.1rem;
+      color: var(--ivory);
+      line-height: 1.7;
+      margin-bottom: 14px;
+      opacity: 0.85;
+    }
+
+    .intro-instruct {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      margin: 28px 0;
+      line-height: 1.9;
+    }
+
+    .intro-instruct strong { color: var(--gold); }
+
+    .btn {
+      font-family: var(--font-meta);
+      font-size: 0.7rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      padding: 14px 28px;
+      border: 1px solid;
+      border-radius: 2px;
+      background: transparent;
+      color: var(--ivory);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold-pale) 0%, var(--gold) 50%, var(--gold-deep) 100%);
+      border-color: var(--gold);
+      color: var(--void);
+    }
+
+    .btn-primary:hover, .btn-primary:active {
+      transform: translateY(-1px);
+      box-shadow: 0 0 24px rgba(232, 200, 120, 0.4);
+    }
+
+    .btn-ghost {
+      border-color: var(--border-soft);
+      color: var(--mist);
+    }
+
+    .btn-ghost:hover, .btn-ghost:active {
+      border-color: var(--mist);
+      color: var(--ivory);
+    }
+
+    .end-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 1s ease, visibility 1s ease;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .end-screen.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .end-screen.win {
+      background:
+        radial-gradient(circle at 50% 50%, rgba(232, 200, 120, 0.3) 0%, transparent 70%),
+        rgba(5, 3, 16, 0.92);
+    }
+
+    .end-screen.lose {
+      background:
+        radial-gradient(circle at 50% 50%, rgba(184, 124, 255, 0.18) 0%, transparent 70%),
+        rgba(5, 3, 16, 0.95);
+    }
+
+    .end-content {
+      max-width: 460px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .end-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 24px;
+    }
+
+    .end-screen.lose .end-eyebrow { color: var(--mist); }
+
+    .end-title {
+      font-family: var(--font-display);
+      font-size: clamp(2.6rem, 11vw, 4rem);
+      letter-spacing: 0.1em;
+      line-height: 1;
+      margin-bottom: 28px;
+      background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-bright) 50%, var(--gold-deep) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 24px rgba(232, 200, 120, 0.4));
+    }
+
+    .end-screen.lose .end-title {
+      background: linear-gradient(180deg, var(--mist) 0%, var(--mist-deep) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      filter: drop-shadow(0 0 18px rgba(184, 174, 200, 0.3));
+    }
+
+    .end-passages {
+      margin-bottom: 32px;
+    }
+
+    .end-passages p {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: 1.1rem;
+      color: var(--ivory);
+      line-height: 1.7;
+      margin-bottom: 14px;
+      opacity: 0.9;
+    }
+
+    .end-stats {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      margin-bottom: 28px;
+      padding: 14px;
+      border-top: 1px solid var(--border-soft);
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .end-stats strong { color: var(--gold); font-weight: 500; }
+
+    .end-actions .btn {
+      width: 100%;
+      max-width: 280px;
+      margin: 8px auto;
+      display: block;
+    }
+
+    .hit-flash {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      pointer-events: none;
+      background: rgba(232, 90, 90, 0.25);
+      opacity: 0;
+    }
+
+    .hit-flash.flash {
+      animation: hit-pulse 0.5s ease;
+    }
+
+    @keyframes hit-pulse {
+      0% { opacity: 0; }
+      20% { opacity: 0.9; }
+      100% { opacity: 0; }
+    }
+
+    .touch-hint {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, 80px);
+      z-index: 30;
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      pointer-events: none;
+      opacity: 0;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .touch-hint.show {
+      animation: hint-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes hint-pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.85; }
+    }
+
+    .tier-toast {
+      position: fixed;
+      top: 35%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.8);
+      z-index: 80;
+      padding: 16px 32px;
+      background: rgba(5, 3, 16, 0.85);
+      border: 1px solid rgba(184, 124, 255, 0.7);
+      border-radius: 2px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 0 24px rgba(184, 124, 255, 0.3);
+    }
+
+    .tier-toast.show {
+      animation: tier-toast-pulse 2.2s ease forwards;
+    }
+
+    @keyframes tier-toast-pulse {
+      0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+      25%  { transform: translate(-50%, -50%) scale(1); }
+      80%  { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+    }
+
+    .tier-toast-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: rgba(184, 124, 255, 1);
+      margin-bottom: 6px;
+    }
+
+    .tier-toast-title {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ivory);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stars::before, .stars::after { animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cosmos"></div>
+  <div class="stars"></div>
+
+  <canvas id="game-canvas"></canvas>
+
+  <div class="hud">
+    <div class="hud-row">
+      <div class="lives" id="lives"></div>
+      <div class="gem-counter">
+        <svg class="gem-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 1 L14 6 L8 15 L2 6 Z" fill="#e8c878" stroke="#f5dc9c" stroke-width="0.6"/>
+          <path d="M8 1 L11 6 L8 8 L5 6 Z" fill="#f4e3b3" opacity="0.7"/>
+        </svg>
+        <span class="gem-count" id="gem-count">0<span class="total"> / 100</span></span>
+      </div>
+      <a href="/" class="hud-back">Home</a>
+    </div>
+  </div>
+
+  <div class="journey-bar">
+    <div class="journey-track">
+      <div class="journey-fill" id="journey-fill"></div>
+    </div>
+  </div>
+
+  <div class="touch-hint" id="touch-hint">Drag to fly</div>
+  <div class="hit-flash" id="hit-flash"></div>
+
+  <div class="tier-toast" id="tier-toast">
+    <div class="tier-toast-eyebrow" id="tier-toast-eyebrow">Speed Increases</div>
+    <div class="tier-toast-title" id="tier-toast-title">The Void Tightens</div>
+  </div>
+
+  <div class="end-screen win" id="win-screen">
+    <div class="end-content">
+      <div class="end-eyebrow">One Hundred Gems · The Long Return</div>
+      <h1 class="end-title">Home.</h1>
+      <div class="end-passages">
+        <p>The ship breaks the dark.</p>
+        <p>Aenor rises.</p>
+        <p>The Astralnaut returns — gems gathered, void survived, the long silence ended.</p>
+      </div>
+      <div class="end-stats" id="win-stats">Lives Remaining · <strong>—</strong></div>
+      <div class="end-actions">
+        <a href="/saga.html" class="btn btn-primary">Read the Saga</a>
+        <button class="btn btn-ghost" data-restart>Begin Again</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="end-screen lose" id="lose-screen">
+    <div class="end-content">
+      <div class="end-eyebrow">Lost in the Void</div>
+      <h1 class="end-title">The Silence Took You.</h1>
+      <div class="end-passages">
+        <p>The ship is gone.</p>
+        <p>Aenor cannot find what does not return.</p>
+        <p>The void keeps its own.</p>
+      </div>
+      <div class="end-stats" id="lose-stats">Gems Gathered · <strong>—</strong></div>
+      <div class="end-actions">
+        <button class="btn btn-primary" data-restart>Try Again</button>
+        <a href="/" class="btn btn-ghost">Return Home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="intro" id="intro">
+    <div class="intro-content">
+      <div class="intro-eyebrow">A Micro-Saga</div>
+      <h1 class="intro-title">The Long Return</h1>
+      <div class="intro-passages">
+        <p>You are an Astralnaut. Your ship is far from home.</p>
+        <p>Gather one hundred Astralite gems. Survive the void.</p>
+      </div>
+      <div class="intro-instruct">
+        <strong>Drag</strong> to fly the ship<br>
+        <strong>Dodge</strong> the cosmic shrapnel<br>
+        <strong>Five lives</strong> · One way home
+      </div>
+      <button class="btn btn-primary" id="intro-start">Begin</button>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    const GOAL = 100;
+    const MAX_LIVES = 5;
+    const INVULN_MS = 1500;
+    const SHIP_RADIUS = 16;
+    const HITBOX_FORGIVENESS = 4;
+
+    const state = {
+      gems: 0,
+      lives: MAX_LIVES,
+      running: false,
+      gameOver: false,
+      shipX: 0,
+      shipY: 0,
+      targetX: 0,
+      targetY: 0,
+      lastTime: 0,
+      timeAlive: 0,
+      projectiles: [],
+      gemsArr: [],
+      lastProjectile: 0,
+      lastGem: 0,
+      invulnUntil: 0,
+      shipShake: 0,
+    };
+
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    let dpr = window.devicePixelRatio || 1;
+    let cw = 0, ch = 0;
+
+    function resizeCanvas() {
+      dpr = window.devicePixelRatio || 1;
+      cw = window.innerWidth;
+      ch = window.innerHeight;
+      canvas.width = cw * dpr;
+      canvas.height = ch * dpr;
+      canvas.style.width = cw + 'px';
+      canvas.style.height = ch + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (!state.running) {
+        state.shipX = cw / 2;
+        state.shipY = ch * 0.75;
+        state.targetX = state.shipX;
+        state.targetY = state.shipY;
+      }
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', resizeCanvas);
+
+    let isDragging = false;
+
+    function getEventPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      let clientX, clientY;
+      if (e.touches && e.touches[0]) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function startDrag(e) {
+      if (!state.running) return;
+      isDragging = true;
+      const pos = getEventPos(e);
+      state.targetX = pos.x;
+      state.targetY = pos.y;
+      hideTouchHint();
+      e.preventDefault();
+    }
+
+    function moveDrag(e) {
+      if (!isDragging || !state.running) return;
+      const pos = getEventPos(e);
+      state.targetX = pos.x;
+      state.targetY = pos.y;
+      e.preventDefault();
+    }
+
+    function endDrag() {
+      isDragging = false;
+    }
+
+    canvas.addEventListener('touchstart', startDrag, { passive: false });
+    canvas.addEventListener('touchmove', moveDrag, { passive: false });
+    canvas.addEventListener('touchend', endDrag);
+    canvas.addEventListener('touchcancel', endDrag);
+    canvas.addEventListener('mousedown', startDrag);
+    canvas.addEventListener('mousemove', moveDrag);
+    canvas.addEventListener('mouseup', endDrag);
+    canvas.addEventListener('mouseleave', endDrag);
+
+    function getTier() {
+      // Tier 0: 0-19 gems, Tier 1: 20-39, Tier 2: 40-59, Tier 3: 60-79, Tier 4: 80-100
+      return Math.min(4, Math.floor(state.gems / 20));
+    }
+
+    // Difficulty per tier — speed, spawn rate, drift
+    const TIER_CONFIG = [
+      { projSpeed: 140, projInterval: 1.05, gemInterval: 1.45, drift: 30,  doubleChance: 0.0  },  // 0-19
+      { projSpeed: 200, projInterval: 0.85, gemInterval: 1.35, drift: 55,  doubleChance: 0.1  },  // 20-39
+      { projSpeed: 270, projInterval: 0.65, gemInterval: 1.25, drift: 80,  doubleChance: 0.2  },  // 40-59
+      { projSpeed: 350, projInterval: 0.5,  gemInterval: 1.15, drift: 105, doubleChance: 0.35 },  // 60-79
+      { projSpeed: 440, projInterval: 0.4,  gemInterval: 1.1,  drift: 130, doubleChance: 0.5  },  // 80-100
+    ];
+
+    function spawnProjectile() {
+      const cfg = TIER_CONFIG[getTier()];
+      const speed = cfg.projSpeed + Math.random() * 40 - 20; // small variance
+      const size = 6 + Math.random() * 7;
+      const drift = (Math.random() - 0.5) * cfg.drift;
+      state.projectiles.push({
+        x: Math.random() * cw,
+        y: -20,
+        vx: drift,
+        vy: speed,
+        size,
+        rotation: Math.random() * Math.PI,
+        rotationSpeed: (Math.random() - 0.5) * 4,
+      });
+    }
+
+    function spawnGem() {
+      state.gemsArr.push({
+        x: 30 + Math.random() * (cw - 60),
+        y: -20,
+        vy: 90 + Math.random() * 60,
+        size: 14,
+        pulse: Math.random() * Math.PI * 2,
+      });
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+
+      state.timeAlive += dt;
+
+      const followSpeed = 12;
+      state.shipX += (state.targetX - state.shipX) * Math.min(1, dt * followSpeed);
+      state.shipY += (state.targetY - state.shipY) * Math.min(1, dt * followSpeed);
+
+      state.shipX = Math.max(SHIP_RADIUS, Math.min(cw - SHIP_RADIUS, state.shipX));
+      state.shipY = Math.max(SHIP_RADIUS + 80, Math.min(ch - SHIP_RADIUS - 20, state.shipY));
+
+      const cfg = TIER_CONFIG[getTier()];
+      const projInterval = cfg.projInterval;
+      const gemInterval = cfg.gemInterval;
+
+      if (state.timeAlive - state.lastProjectile > projInterval) {
+        spawnProjectile();
+        state.lastProjectile = state.timeAlive;
+        if (Math.random() < cfg.doubleChance) {
+          setTimeout(() => state.running && spawnProjectile(), 150);
+        }
+      }
+
+      if (state.timeAlive - state.lastGem > gemInterval) {
+        spawnGem();
+        state.lastGem = state.timeAlive;
+      }
+
+      for (let i = state.projectiles.length - 1; i >= 0; i--) {
+        const p = state.projectiles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.rotation += p.rotationSpeed * dt;
+
+        if (p.y > ch + 40 || p.x < -40 || p.x > cw + 40) {
+          state.projectiles.splice(i, 1);
+          continue;
+        }
+
+        if (state.timeAlive * 1000 > state.invulnUntil) {
+          const dx = p.x - state.shipX;
+          const dy = p.y - state.shipY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < SHIP_RADIUS + p.size - HITBOX_FORGIVENESS) {
+            takeHit();
+            state.projectiles.splice(i, 1);
+          }
+        }
+      }
+
+      for (let i = state.gemsArr.length - 1; i >= 0; i--) {
+        const g = state.gemsArr[i];
+        g.y += g.vy * dt;
+        g.pulse += dt * 4;
+
+        if (g.y > ch + 30) {
+          state.gemsArr.splice(i, 1);
+          continue;
+        }
+
+        const dx = g.x - state.shipX;
+        const dy = g.y - state.shipY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < SHIP_RADIUS + g.size) {
+          collectGem();
+          state.gemsArr.splice(i, 1);
+        }
+      }
+
+      state.shipShake = Math.max(0, state.shipShake - dt * 6);
+    }
+
+    function drawShip() {
+      const isInvuln = state.timeAlive * 1000 < state.invulnUntil;
+      const flickerOpacity = isInvuln ? (Math.sin(state.timeAlive * 30) * 0.3 + 0.6) : 1;
+
+      const shakeX = (Math.random() - 0.5) * state.shipShake;
+      const shakeY = (Math.random() - 0.5) * state.shipShake;
+
+      ctx.save();
+      ctx.translate(state.shipX + shakeX, state.shipY + shakeY);
+      ctx.globalAlpha = flickerOpacity;
+
+      const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 50);
+      glowGrad.addColorStop(0, 'rgba(95, 168, 255, 0.45)');
+      glowGrad.addColorStop(1, 'rgba(95, 168, 255, 0)');
+      ctx.fillStyle = glowGrad;
+      ctx.fillRect(-50, -50, 100, 100);
+
+      ctx.beginPath();
+      ctx.moveTo(0, -22);
+      ctx.lineTo(15, 14);
+      ctx.lineTo(0, 8);
+      ctx.lineTo(-15, 14);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(95, 168, 255, 0.35)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(140, 200, 255, 1)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, -16);
+      ctx.lineTo(8, 10);
+      ctx.lineTo(0, 4);
+      ctx.lineTo(-8, 10);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(180, 220, 255, 0.55)';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(0, -6, 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(220, 240, 255, 1)';
+      ctx.fill();
+
+      const enginePulse = 1 + Math.sin(state.timeAlive * 12) * 0.15;
+      const engineGrad = ctx.createRadialGradient(0, 14, 0, 0, 14, 12 * enginePulse);
+      engineGrad.addColorStop(0, 'rgba(220, 240, 255, 1)');
+      engineGrad.addColorStop(0.5, 'rgba(95, 168, 255, 0.75)');
+      engineGrad.addColorStop(1, 'rgba(95, 168, 255, 0)');
+      ctx.fillStyle = engineGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 14, 7 * enginePulse, 5 * enginePulse, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawProjectile(p) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+
+      ctx.beginPath();
+      const points = 6;
+      for (let i = 0; i < points; i++) {
+        const angle = (i / points) * Math.PI * 2;
+        const r = p.size * (0.7 + Math.sin(i * 1.7) * 0.3);
+        const x = Math.cos(angle) * r;
+        const y = Math.sin(angle) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.size);
+      grad.addColorStop(0, 'rgba(184, 124, 255, 0.7)');
+      grad.addColorStop(1, 'rgba(111, 101, 130, 0.4)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(184, 174, 200, 0.85)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawGem(g) {
+      const pulseScale = 1 + Math.sin(g.pulse) * 0.08;
+      ctx.save();
+      ctx.translate(g.x, g.y);
+      ctx.scale(pulseScale, pulseScale);
+
+      const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, g.size * 1.8);
+      glowGrad.addColorStop(0, 'rgba(232, 200, 120, 0.5)');
+      glowGrad.addColorStop(1, 'rgba(232, 200, 120, 0)');
+      ctx.fillStyle = glowGrad;
+      ctx.fillRect(-g.size * 2, -g.size * 2, g.size * 4, g.size * 4);
+
+      ctx.beginPath();
+      ctx.moveTo(0, -g.size);
+      ctx.lineTo(g.size * 0.7, 0);
+      ctx.lineTo(0, g.size);
+      ctx.lineTo(-g.size * 0.7, 0);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(232, 200, 120, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(245, 220, 156, 1)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, -g.size * 0.6);
+      ctx.lineTo(g.size * 0.4, 0);
+      ctx.lineTo(0, g.size * 0.6);
+      ctx.lineTo(-g.size * 0.4, 0);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(244, 227, 179, 0.6)';
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, cw, ch);
+      state.projectiles.forEach(drawProjectile);
+      state.gemsArr.forEach(drawGem);
+      drawShip();
+    }
+
+    function takeHit() {
+      state.lives--;
+      state.invulnUntil = state.timeAlive * 1000 + INVULN_MS;
+      state.shipShake = 12;
+      flashHit();
+      updateLivesUI();
+
+      if (state.lives <= 0) {
+        triggerLose();
+      }
+    }
+
+    function collectGem() {
+      const prevTier = getTier();
+      state.gems = Math.min(state.gems + 1, GOAL);
+      const newTier = getTier();
+      updateGemUI();
+
+      if (newTier > prevTier && state.gems < GOAL) {
+        showTierToast();
+      }
+
+      if (state.gems >= GOAL) {
+        triggerWin();
+      }
+    }
+
+    const $hitFlash = document.getElementById('hit-flash');
+    function flashHit() {
+      $hitFlash.classList.remove('flash');
+      void $hitFlash.offsetWidth;
+      $hitFlash.classList.add('flash');
+    }
+
+    const $tierToast = document.getElementById('tier-toast');
+    const $tierToastEyebrow = document.getElementById('tier-toast-eyebrow');
+    const $tierToastTitle = document.getElementById('tier-toast-title');
+    const TIER_PHRASES = [
+      null, // tier 0 (no toast at start)
+      { eyebrow: 'Twenty Gems · Phase Two',   title: 'The Crossing' },
+      { eyebrow: 'Forty Gems · Phase Three',  title: 'The Deep Black' },
+      { eyebrow: 'Sixty Gems · Phase Four',   title: 'The Far Reach' },
+      { eyebrow: 'Eighty Gems · Phase Five',  title: 'Approach to Aenor' },
+    ];
+
+    function showTierToast() {
+      const tier = getTier();
+      const phrase = TIER_PHRASES[tier];
+      if (!phrase) return;
+      $tierToastEyebrow.textContent = phrase.eyebrow;
+      $tierToastTitle.textContent = phrase.title;
+      $tierToast.classList.remove('show');
+      void $tierToast.offsetWidth;
+      $tierToast.classList.add('show');
+    }
+
+    const $lives = document.getElementById('lives');
+    const $gemCount = document.getElementById('gem-count');
+    const $journeyFill = document.getElementById('journey-fill');
+
+    function buildHearts() {
+      $lives.innerHTML = '';
+      for (let i = 0; i < MAX_LIVES; i++) {
+        const heart = document.createElement('div');
+        heart.className = 'heart';
+        heart.innerHTML = `
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 21 C 5 16, 1 12, 1 7.5 C 1 4.5, 3.5 2, 6.5 2 C 8.5 2, 10.5 3.5, 12 5 C 13.5 3.5, 15.5 2, 17.5 2 C 20.5 2, 23 4.5, 23 7.5 C 23 12, 19 16, 12 21 Z"
+                  fill="#e8c878" stroke="#f5dc9c" stroke-width="0.8"/>
+          </svg>
+        `;
+        $lives.appendChild(heart);
+      }
+    }
+
+    function updateLivesUI() {
+      const hearts = $lives.querySelectorAll('.heart');
+      hearts.forEach((h, i) => {
+        if (i >= state.lives) h.classList.add('lost');
+        else h.classList.remove('lost');
+      });
+    }
+
+    function updateGemUI() {
+      $gemCount.innerHTML = `${state.gems}<span class="total"> / ${GOAL}</span>`;
+      $journeyFill.style.width = `${(state.gems / GOAL) * 100}%`;
+    }
+
+    const $winScreen = document.getElementById('win-screen');
+    const $loseScreen = document.getElementById('lose-screen');
+    const $winStats = document.getElementById('win-stats');
+    const $loseStats = document.getElementById('lose-stats');
+
+    function triggerWin() {
+      state.running = false;
+      state.gameOver = true;
+      $winStats.innerHTML = `Lives Remaining · <strong>${state.lives}</strong>`;
+      setTimeout(() => $winScreen.classList.add('active'), 500);
+    }
+
+    function triggerLose() {
+      state.running = false;
+      state.gameOver = true;
+      $loseStats.innerHTML = `Gems Gathered · <strong>${state.gems} / ${GOAL}</strong>`;
+      setTimeout(() => $loseScreen.classList.add('active'), 600);
+    }
+
+    document.querySelectorAll('[data-restart]').forEach(btn => {
+      btn.addEventListener('click', restart);
+    });
+
+    function restart() {
+      state.gems = 0;
+      state.lives = MAX_LIVES;
+      state.projectiles = [];
+      state.gemsArr = [];
+      state.timeAlive = 0;
+      state.lastProjectile = 0;
+      state.lastGem = 0;
+      state.invulnUntil = 0;
+      state.shipShake = 0;
+      state.gameOver = false;
+      state.shipX = cw / 2;
+      state.shipY = ch * 0.75;
+      state.targetX = state.shipX;
+      state.targetY = state.shipY;
+      $winScreen.classList.remove('active');
+      $loseScreen.classList.remove('active');
+      buildHearts();
+      updateLivesUI();
+      updateGemUI();
+      state.running = true;
+      showTouchHint();
+    }
+
+    const $touchHint = document.getElementById('touch-hint');
+    let hintHideTimeout;
+    function showTouchHint() {
+      $touchHint.classList.add('show');
+      clearTimeout(hintHideTimeout);
+      hintHideTimeout = setTimeout(hideTouchHint, 4000);
+    }
+    function hideTouchHint() {
+      $touchHint.classList.remove('show');
+    }
+
+    const $intro = document.getElementById('intro');
+    document.getElementById('intro-start').addEventListener('click', () => {
+      $intro.classList.add('dismissed');
+      buildHearts();
+      updateLivesUI();
+      updateGemUI();
+      state.running = true;
+      state.lastTime = performance.now();
+      requestAnimationFrame(loop);
+      showTouchHint();
+    });
+
+    function loop(now) {
+      const dt = Math.min(0.05, (now - state.lastTime) / 1000);
+      state.lastTime = now;
+      update(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    buildHearts();
+    updateLivesUI();
+    updateGemUI();
+  </script>
+</body>
+</html>

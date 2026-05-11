@@ -70,7 +70,7 @@
     }
 
     .cosmos {
-      position: fixed; inset: 0; z-index: -2; pointer-events: none;
+      position: fixed; inset: 0; z-index: -3; pointer-events: none;
       background:
         radial-gradient(ellipse at 50% 0%, rgba(232, 200, 120, 0.12) 0%, transparent 50%),
         radial-gradient(ellipse at 30% 50%, rgba(95, 168, 255, 0.1) 0%, transparent 55%),
@@ -79,7 +79,7 @@
     }
 
     .stars {
-      position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden;
+      position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden;
     }
 
     .stars::before {
@@ -100,6 +100,45 @@
     @keyframes drift {
       from { transform: translate3d(0, 0, 0); }
       to { transform: translate3d(-300px, -300px, 0); }
+    }
+
+    /* ============ Battlefield (planet scene backdrop) ============
+       Fixed-position painted scene that fills the viewport behind the arena.
+       Portrait crop on mobile, landscape crop on desktop.
+       JS sets --scene-portrait + --scene-landscape per match (random pick). */
+    .battlefield-scene {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-image: var(--scene-portrait, none);
+      opacity: 0;
+      transition: opacity 1.4s ease;
+      filter: saturate(0.9) brightness(0.82);
+    }
+
+    .battlefield-scene.active { opacity: 1; }
+
+    @media (min-width: 721px) {
+      .battlefield-scene { background-image: var(--scene-landscape, none); }
+    }
+
+    /* Vignette + top/bottom darkening so HUD elements stay readable on top of the scene */
+    .battlefield-scene::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at center, transparent 30%, rgba(5, 3, 16, 0.45) 100%),
+        linear-gradient(180deg, rgba(5, 3, 16, 0.35) 0%, transparent 22%, transparent 78%, rgba(5, 3, 16, 0.35) 100%);
+      pointer-events: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .battlefield-scene { transition: none; }
     }
 
     /* ============ TOP NAV ============ */
@@ -258,7 +297,7 @@
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--border-soft);
       border-radius: 6px;
-      overflow: hidden;
+      /* overflow: visible — attack sprites need to lunge beyond the panel toward the opponent */
       transition: opacity 0.4s ease, border-color 0.4s ease;
     }
 
@@ -494,6 +533,56 @@
 
     .fighter-cpu.hit .card-img {
       animation: hit-shake 0.4s ease, card-float-alt 4.5s ease-in-out infinite 0.4s;
+    }
+
+    /* ============ Attack-sprite layer ============
+       A second image inside each card-stage. Hidden by default.
+       On attack, fades in, lunges toward the opponent, fades out.
+       Uses /characters/char_<name>.png. Falls back to card art as placeholder
+       until you ship transparent attack-pose sprites. */
+    .attack-sprite {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 5;
+      filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
+      --lunge-distance: 60%;
+      --lunge-duration: 600ms;
+    }
+
+    .attack-sprite.tier-1 { --lunge-distance: 30%;  --lunge-duration: 450ms; }
+    .attack-sprite.tier-2 { --lunge-distance: 60%;  --lunge-duration: 600ms; }
+    .attack-sprite.tier-3 { --lunge-distance: 110%; --lunge-duration: 750ms; }
+
+    .fighter-cpu .attack-sprite.attacking {
+      animation: attack-lunge-down var(--lunge-duration) cubic-bezier(0.3, 0, 0.3, 1);
+    }
+    .fighter-player .attack-sprite.attacking {
+      animation: attack-lunge-up var(--lunge-duration) cubic-bezier(0.3, 0, 0.3, 1);
+    }
+
+    @keyframes attack-lunge-down {
+      0%   { opacity: 0;   transform: translateY(0)                                  scale(0.95); }
+      15%  { opacity: 1;   transform: translateY(calc(var(--lunge-distance) * 0.25)) scale(1); }
+      50%  { opacity: 1;   transform: translateY(var(--lunge-distance))              scale(1.06); }
+      85%  { opacity: 0.7; transform: translateY(calc(var(--lunge-distance) * 0.30)) scale(1); }
+      100% { opacity: 0;   transform: translateY(0)                                  scale(0.95); }
+    }
+
+    @keyframes attack-lunge-up {
+      0%   { opacity: 0;   transform: translateY(0)                                  scale(0.95); }
+      15%  { opacity: 1;   transform: translateY(calc(var(--lunge-distance) * -0.25)) scale(1); }
+      50%  { opacity: 1;   transform: translateY(calc(var(--lunge-distance) * -1))    scale(1.06); }
+      85%  { opacity: 0.7; transform: translateY(calc(var(--lunge-distance) * -0.30)) scale(1); }
+      100% { opacity: 0;   transform: translateY(0)                                  scale(0.95); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .attack-sprite.attacking { animation: none; opacity: 0.5; }
     }
 
     /* Center divider */
@@ -787,6 +876,7 @@
 
   <div class="cosmos"></div>
   <div class="stars"></div>
+  <div class="battlefield-scene" id="battlefield-scene"></div>
 
   <div class="nav-bar">
     <div class="brand">The Training Yard</div>
@@ -801,6 +891,7 @@
       <span class="side-label">Opponent</span>
       <div class="card-stage">
         <img class="card-img loading" id="cpu-img" alt="">
+        <img class="attack-sprite" id="cpu-attack-sprite" alt="" aria-hidden="true">
       </div>
       <div class="fighter-info">
         <div class="info-head">
@@ -835,6 +926,7 @@
       <span class="side-label">You</span>
       <div class="card-stage">
         <img class="card-img loading" id="player-img" alt="">
+        <img class="attack-sprite" id="player-attack-sprite" alt="" aria-hidden="true">
       </div>
       <div class="fighter-info">
         <div class="info-head">
@@ -968,7 +1060,7 @@
       { id: 'RZ-025', name: 'Oatheus',   img: 'card_oatheus.png',   tier: 'V',  hp: 350, atk: 350, def: 350, spd: 350, spc: 350, type1: 'Ultramaxborn', type2: 'Ultramaxborn', class1: 'Beastmaster', class2: 'Cleric',      alignment: 'neutral' },
       { id: 'RZ-026', name: 'Obsidius',  img: 'card_obsidius.png',  tier: 'V',  hp: 380, atk: 220, def: 280, spd: 320, spc: 400, type1: 'Ultramaxborn', type2: 'Spiritborn',   class1: 'Cleric',      class2: 'Mage',        alignment: 'virtue' },
       { id: 'RZ-027', name: 'Omegoran',  img: 'card_omegoran.png',  tier: 'V',  hp: 360, atk: 400, def: 280, spd: 260, spc: 400, type1: 'Ultramaxborn', type2: 'Voidborn',     class1: 'Beastmaster', class2: 'Mage',        alignment: 'vice' },
-      { id: 'RZ-029', name: 'Rakoron',   img: 'card_raxaron.png',   tier: 'V',  hp: 380, atk: 400, def: 300, spd: 260, spc: 260, type1: 'Ultramaxborn', type2: 'Beastborn',    class1: 'Beastmaster', class2: 'Warrior',     alignment: 'vice' },
+      { id: 'RZ-029', name: 'Rakoron',   img: 'card_rakoron.png',   tier: 'V',  hp: 380, atk: 400, def: 300, spd: 260, spc: 260, type1: 'Ultramaxborn', type2: 'Beastborn',    class1: 'Beastmaster', class2: 'Warrior',     alignment: 'vice' },
       { id: 'RZ-040', name: 'Voltyran',  img: 'card_voltyran.png',  tier: 'V',  hp: 300, atk: 360, def: 260, spd: 420, spc: 260, type1: 'Ultramaxborn', type2: 'Beastborn',    class1: 'Assassin',    class2: 'Beastmaster', alignment: 'vice' },
 
       // ===== Tier IV — Legend (1250) =====
@@ -980,7 +1072,7 @@
       { id: 'RZ-004', name: 'Apexaur',   img: 'card_apexaur.png',   tier: 'III', hp: 280, atk: 260, def: 220, spd: 120, spc: 120, type1: 'Creatureborn', type2: 'Beastborn',    class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
       { id: 'RZ-005', name: 'Aurexion',  img: 'card_aurexion.png',  tier: 'III', hp: 180, atk: 230, def: 170, spd: 200, spc: 220, type1: 'Humanoidborn', type2: 'Auraborn',     class1: 'Warrior',     class2: 'Mage',        alignment: 'virtue' },
       { id: 'RZ-008', name: 'Cerebrion', img: 'card_cerebrion.png', tier: 'III', hp: 180, atk: 120, def: 160, spd: 140, spc: 400, type1: 'Voidborn',     type2: 'Spiritborn',   class1: 'Mage',        class2: 'Cleric',      alignment: 'virtue' },
-      { id: 'RZ-009', name: 'Drakaryx',  img: 'card_dracaryx.png',  tier: 'III', hp: 260, atk: 270, def: 210, spd: 160, spc: 100, type1: 'Beastborn',    type2: 'Humanoidborn', class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
+      { id: 'RZ-009', name: 'Drakaryx',  img: 'card_drakaryx.png',  tier: 'III', hp: 260, atk: 270, def: 210, spd: 160, spc: 100, type1: 'Beastborn',    type2: 'Humanoidborn', class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
       { id: 'RZ-014', name: 'Feliux',    img: 'card_feliux.png',    tier: 'III', hp: 180, atk: 240, def: 140, spd: 280, spc: 160, type1: 'Spiritborn',   type2: 'Mechborn',     class1: 'Assassin',    class2: 'Ranger',      alignment: 'neutral' },
       { id: 'RZ-015', name: 'Floravex',  img: 'card_floravex.png',  tier: 'III', hp: 240, atk: 150, def: 210, spd: 140, spc: 260, type1: 'Natureborn',   type2: 'Voidborn',     class1: 'Cleric',      class2: 'Warrior',     alignment: 'virtue' },
       { id: 'RZ-018', name: 'Gravelor',  img: 'card_gravelor.png',  tier: 'III', hp: 300, atk: 190, def: 330, spd:  60, spc: 120, type1: 'Humanoidborn', type2: 'Natureborn',   class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
@@ -1006,6 +1098,32 @@
       { id: 'RZ-030', name: 'Rustbyte',  img: 'card_rustbyte.png',  tier: 'I',  hp: 120, atk:  90, def: 110, spd:  80, spc: 100, type1: 'Mechborn',     type2: 'Humanoidborn', class1: 'Warrior',     class2: 'Cleric',      alignment: 'neutral' },
       { id: 'RZ-041', name: 'Wynwyrm',   img: 'card_wynwyrm.png',   tier: 'I',  hp: 130, atk:  70, def: 100, spd:  80, spc: 120, type1: 'Natureborn',   type2: 'Spiritborn',   class1: 'Cleric',      class2: 'Warrior',     alignment: 'virtue' },
     ];
+
+    // ============ SCENE DATABASE ============
+    // Planet battlefields. Each match picks one at random.
+    // Drop more scenes here as you produce them — they auto-enter the rotation.
+    // Each scene needs both portrait (mobile) + landscape (desktop) crops.
+    const SCENES = [
+      { id: 'origon',  name: 'Origon',  portrait: '/scenes/scene_origon_portrait.png',  landscape: '/scenes/scene_origon_landscape.png'  },
+      // { id: 'viridia', name: 'Viridia', portrait: '/scenes/scene_viridia_portrait.png', landscape: '/scenes/scene_viridia_landscape.png' },
+      // { id: 'zyraxis', name: 'Zyraxis', portrait: '/scenes/scene_zyraxis_portrait.png', landscape: '/scenes/scene_zyraxis_landscape.png' },
+      // { id: 'aethryx', name: 'Aethryx', portrait: '/scenes/scene_aethryx_portrait.png', landscape: '/scenes/scene_aethryx_landscape.png' },
+    ];
+
+    function pickRandomScene() {
+      return SCENES[Math.floor(Math.random() * SCENES.length)];
+    }
+
+    function renderScene(scene) {
+      if (!scene) return;
+      const el = document.getElementById('battlefield-scene');
+      if (!el) return;
+      document.documentElement.style.setProperty('--scene-portrait',  `url("${scene.portrait}")`);
+      document.documentElement.style.setProperty('--scene-landscape', `url("${scene.landscape}")`);
+      // Force reflow before activating so the fade-in transition fires
+      void el.offsetWidth;
+      el.classList.add('active');
+    }
 
     // ============ COMBAT MECHANICS ============
     // Each card has 3 gems available; A1/A2/A3 *applies* 1/2/3 of them.
@@ -1070,24 +1188,27 @@
       else if (hpPct <= 50) fill.classList.add('yellow');
       else if (hpPct <= 75) fill.classList.add('green');
 
-      // Set image
+      // Idle state always shows the full card art (the trading-card avatar).
+      // Attack-pose character sprites are loaded separately during attacks
+      // — see playAttackSprite() below.
       const img = $(prefix + '-img');
-      const imgSrc = `/cards/${card.img}`;
-      if (img.src !== window.location.origin + imgSrc) {
+      const cardSrc = `/cards/${card.img}`;
+      if (img.dataset.cardId !== card.id) {
+        img.dataset.cardId = card.id;
         img.classList.remove('loaded');
         img.classList.add('loading');
         img.alt = card.name;
+        img.style.background = '';
         img.onload = () => {
           img.classList.remove('loading');
           img.classList.add('loaded');
         };
         img.onerror = () => {
-          // Fallback if image missing — show placeholder text in alt
           img.classList.remove('loading');
           img.classList.add('loaded');
           img.style.background = 'rgba(232, 200, 120, 0.1)';
         };
-        img.src = imgSrc;
+        img.src = cardSrc;
       }
 
       // Alignment color
@@ -1115,6 +1236,39 @@
       const container = $((side === 'cpu' ? 'cpu' : 'player') + '-gems');
       if (!container) return;
       container.querySelectorAll('.fighter-gem').forEach(g => g.classList.remove('applied'));
+    }
+
+    // Play the attack-sprite slide for `side` at intensity `tier` (1/2/3).
+    // Loads /characters/char_<name>.png on demand; falls back to /cards/<card.img>
+    // as placeholder until you ship transparent attack-pose sprites.
+    function playAttackSprite(side, tier) {
+      const sprite = $((side === 'cpu' ? 'cpu' : 'player') + '-attack-sprite');
+      if (!sprite) return;
+      const card = side === 'cpu' ? state.cpu : state.player;
+      if (!card) return;
+
+      const charSrc = `/characters/char_${card.name.toLowerCase()}.png`;
+      const cardSrc = `/cards/${card.img}`;
+
+      // Lazy-load the sprite source per card; fall back to card art if char missing.
+      if (sprite.dataset.cardId !== card.id) {
+        sprite.dataset.cardId = card.id;
+        sprite.onerror = () => {
+          sprite.onerror = null; // prevent loop if card art also missing
+          sprite.src = cardSrc;
+        };
+        sprite.src = charSrc;
+      }
+
+      // Reset, force reflow, then trigger the tier-scaled lunge.
+      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
+      void sprite.offsetWidth;
+      sprite.classList.add('attacking', 'tier-' + tier);
+
+      // Auto-clear the classes after animation finishes (longest = 750ms for tier 3).
+      setTimeout(() => {
+        sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
+      }, 800);
     }
 
     function updateAttackButtons() {
@@ -1171,6 +1325,9 @@
 
       // Highlight the attacker's gems briefly — applied, not spent.
       applyGems(attackerSide, attackTier);
+
+      // Slide the attacker's character sprite forward (action stance, returns automatically).
+      playAttackSprite(attackerSide, attackTier);
 
       log(`<strong>${attacker.name}</strong> applies <span style="color:var(--gold-bright)">A${attackTier}</span> against <strong>${defender.name}</strong>.`, 'event');
 
@@ -1240,9 +1397,11 @@
     function startMatch() {
       const playerCard = pickRandomCard(null);
       const cpuCard = pickRandomCard(playerCard.id);
+      const scene = pickRandomScene();
 
       state.player = playerCard;
       state.cpu = cpuCard;
+      state.scene = scene;
       state.busy = false;
       state.gameOver = false;
 
@@ -1253,11 +1412,12 @@
       $('log').innerHTML = '';
       $('arena').style.display = 'flex';
 
+      renderScene(scene);
       renderFighter('cpu', cpuCard, cpuCard.hp);
       renderFighter('player', playerCard, playerCard.hp);
 
       state.currentTurn = determineFirstTurn();
-      log(`<strong>${playerCard.name}</strong> faces <strong>${cpuCard.name}</strong>.`, 'event');
+      log(`<strong>${playerCard.name}</strong> faces <strong>${cpuCard.name}</strong> on <strong>${scene.name}</strong>.`, 'event');
       log(`Higher SPD attacks first. ${state.currentTurn === 'player' ? playerCard.name : cpuCard.name} acts.`, 'event');
 
       setActingFighter(state.currentTurn);

@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Stadium POC — The AOV Saga Battlegrounds 2.5D mobile UI prototype." />
+  <title>Battlegrounds Stadium POC · The AOV Saga</title>
+
+  <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
+  <meta name="theme-color" content="#050310">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============ Foundations ============ */
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --void: #050310;
+      --void-2: #0a0618;
+      --gold: #e8c878;
+      --gold-bright: #f5dc9c;
+      --gold-deep: #b8923f;
+      --gold-pale: #f4e3b3;
+      --emerald: #2fe6a8;
+      --crimson: #e85a5a;
+      --cosmic-blue: #5fa8ff;
+      --virtue: #5fa8ff;
+      --vice: #e85a5a;
+      --neutral: #b8aec8;
+      --unknown: #b87cff;
+      --mage-purple: #a875e8;
+      --ivory: #f3ecdc;
+      --mist: #b8aec8;
+      --mist-deep: #6f6582;
+      --border-soft: rgba(232, 200, 120, 0.08);
+      --border: rgba(232, 200, 120, 0.18);
+      --border-gold: rgba(232, 200, 120, 0.28);
+      --glass: rgba(20, 12, 38, 0.55);
+      --glass-strong: rgba(28, 16, 54, 0.72);
+
+      --font-display: 'Cinzel', serif;
+      --font-body: 'Cormorant Garamond', serif;
+      --font-meta: 'Inter', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--void);
+      color: var(--ivory);
+      position: relative;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ============ Cosmic backdrop layers ============ */
+    .cosmos {
+      position: fixed; inset: 0; z-index: -3; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(232, 200, 120, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 30% 50%, rgba(95, 168, 255, 0.1) 0%, transparent 55%),
+        radial-gradient(ellipse at 70% 50%, rgba(232, 90, 90, 0.08) 0%, transparent 55%),
+        linear-gradient(180deg, #050310 0%, #0a0618 50%, #050310 100%);
+    }
+    .stars {
+      position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden;
+    }
+    .stars::before {
+      content: ''; position: absolute; inset: -50%;
+      background-image:
+        radial-gradient(1px 1px at 23% 17%, rgba(243, 236, 220, 0.7), transparent),
+        radial-gradient(1px 1px at 67% 41%, rgba(232, 200, 120, 0.6), transparent),
+        radial-gradient(1px 1px at 84% 73%, rgba(243, 236, 220, 0.7), transparent),
+        radial-gradient(1px 1px at 12% 83%, rgba(243, 236, 220, 0.5), transparent),
+        radial-gradient(1px 1px at 45% 28%, rgba(184, 124, 255, 0.4), transparent),
+        radial-gradient(1px 1px at 91% 12%, rgba(243, 236, 220, 0.5), transparent),
+        radial-gradient(2px 2px at 76% 88%, rgba(243, 236, 220, 0.7), transparent);
+      background-size: 700px 700px;
+      animation: drift 320s linear infinite;
+      opacity: 0.7;
+    }
+    @keyframes drift {
+      from { transform: translate3d(0, 0, 0); }
+      to   { transform: translate3d(-300px, -300px, 0); }
+    }
+
+    /* Painted Origon backdrop */
+    .battlefield-scene {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-image: url('/scenes/scene_origon_portrait.png');
+      opacity: 0.55;
+      filter: saturate(0.85) brightness(0.7) blur(1px);
+    }
+    @media (min-width: 721px) {
+      .battlefield-scene { background-image: url('/scenes/scene_origon_landscape.png'); }
+    }
+    .battlefield-scene::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at center 60%, transparent 30%, rgba(5, 3, 16, 0.55) 100%),
+        linear-gradient(180deg, rgba(5, 3, 16, 0.55) 0%, transparent 22%, transparent 78%, rgba(5, 3, 16, 0.5) 100%);
+    }
+
+    /* ============ Stadium frame (left + right pillars w/ lights) ============ */
+    .stadium-frame {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .stadium-frame::before,
+    .stadium-frame::after {
+      content: '';
+      position: absolute;
+      top: 12%;
+      bottom: 14%;
+      width: 6%;
+      background:
+        linear-gradient(180deg, transparent 0%, rgba(232, 200, 120, 0.12) 8%, rgba(232, 200, 120, 0.16) 50%, rgba(232, 200, 120, 0.12) 92%, transparent 100%),
+        repeating-linear-gradient(180deg,
+          rgba(232, 200, 120, 0.18) 0px,
+          rgba(232, 200, 120, 0.18) 2px,
+          transparent 2px,
+          transparent 70px);
+      border-left: 1px solid rgba(232, 200, 120, 0.15);
+      border-right: 1px solid rgba(232, 200, 120, 0.15);
+      box-shadow: 0 0 50px rgba(232, 200, 120, 0.10) inset;
+    }
+    .stadium-frame::before { left: 0; }
+    .stadium-frame::after  { right: 0; }
+
+    /* Spotlight glow above arena */
+    .stadium-lights {
+      position: fixed;
+      top: 6%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 18%;
+      background:
+        radial-gradient(ellipse 60% 100% at 50% 0%, rgba(243, 236, 220, 0.14) 0%, transparent 70%),
+        radial-gradient(ellipse 80% 60% at 50% 30%, rgba(95, 168, 255, 0.07) 0%, transparent 75%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ============ Arena ============ */
+    .arena {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    /* ============ Top HUD (opponent gem pool + log toggle) ============ */
+    .hud-top {
+      padding: 14px 14px 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 50;
+    }
+    .pool {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: rgba(5, 3, 16, 0.55);
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .pool-label {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.8;
+    }
+    .pool-gems {
+      display: flex;
+      gap: 3px;
+    }
+    .pool-gem {
+      width: 7px;
+      height: 7px;
+      transform: rotate(45deg);
+      background: linear-gradient(135deg, var(--gold-bright), var(--gold-deep));
+      box-shadow: 0 0 4px rgba(232, 200, 120, 0.5);
+    }
+    .pool-gem.spent { opacity: 0.18; box-shadow: none; }
+
+    .brand-tag {
+      font-family: var(--font-display);
+      font-size: 0.55rem;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.7;
+    }
+
+    /* ============ Opponent team zone (top, foreshortened) ============ */
+    .zone {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 4%;
+      padding: 0 6%;
+      pointer-events: none;
+    }
+    .zone-opponent {
+      flex: 0 0 auto;
+      height: 28vh;
+      transform-origin: center bottom;
+    }
+    .zone-player {
+      flex: 0 0 auto;
+      height: 38vh;
+      transform-origin: center top;
+    }
+
+    /* ============ Card sprite slot (the "Pokemon" on the floor) ============ */
+    .slot {
+      position: relative;
+      height: 100%;
+      aspect-ratio: 5 / 7;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      pointer-events: auto;
+      transition: transform 0.45s cubic-bezier(0.3, 0.1, 0.3, 1), filter 0.3s ease;
+    }
+    .slot-img {
+      width: 100%;
+      height: 88%;
+      object-fit: contain;
+      filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
+      animation: float-idle 5s ease-in-out infinite;
+      will-change: transform;
+    }
+    @keyframes float-idle {
+      0%, 100% { transform: translateY(0) rotate(-0.6deg); }
+      50%      { transform: translateY(-5px) rotate(0.6deg); }
+    }
+
+    /* Active vs reserve states */
+    .slot.is-active {
+      z-index: 2;
+    }
+    .slot.is-reserve {
+      transform: scale(0.74) translateY(8%);
+      opacity: 0.72;
+      filter: saturate(0.75);
+    }
+    .slot.is-reserve .slot-img {
+      animation-name: float-idle-alt;
+      animation-duration: 6s;
+    }
+    @keyframes float-idle-alt {
+      0%, 100% { transform: translateY(0) rotate(0.6deg); }
+      50%      { transform: translateY(-3px) rotate(-0.6deg); }
+    }
+    .slot.is-fallen .slot-img {
+      filter: grayscale(0.9) brightness(0.4);
+      animation: none;
+    }
+
+    /* The "shadow disc" on the floor under each sprite — sells the standing-on-platform feel */
+    .slot::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 12%;
+      right: 12%;
+      height: 14px;
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55) 0%, transparent 70%);
+      filter: blur(2px);
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .slot.is-reserve::after { opacity: 0.4; }
+
+    /* Opponent perspective scaling — far end of platform */
+    .zone-opponent .slot.is-active {
+      transform: scale(0.92);
+    }
+    .zone-opponent .slot.is-reserve {
+      transform: scale(0.66) translateY(8%);
+    }
+
+    /* Player perspective scaling — near end (full size) */
+    .zone-player .slot.is-active {
+      transform: scale(1);
+    }
+    .zone-player .slot.is-reserve {
+      transform: scale(0.78) translateY(8%);
+    }
+
+    /* ============ HP + Name label above each sprite ============ */
+    .slot-label {
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 110%;
+      pointer-events: none;
+      text-align: center;
+    }
+    .slot-name {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      color: var(--ivory);
+      text-shadow: 0 0 8px rgba(5, 3, 16, 0.9), 0 0 3px rgba(5, 3, 16, 1);
+      line-height: 1;
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+    .hp-bar {
+      position: relative;
+      height: 6px;
+      background: rgba(5, 3, 16, 0.7);
+      border: 1px solid rgba(232, 200, 120, 0.25);
+      border-radius: 1px;
+      overflow: hidden;
+      backdrop-filter: blur(4px);
+    }
+    .hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--virtue), var(--cosmic-blue));
+      width: 100%;
+      transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.45s ease;
+      box-shadow: 0 0 6px rgba(95, 168, 255, 0.5);
+    }
+    .hp-fill.green  { background: linear-gradient(90deg, #0f8a66, var(--emerald)); box-shadow: 0 0 6px rgba(47,230,168,0.45); }
+    .hp-fill.yellow { background: linear-gradient(90deg, var(--gold-deep), var(--gold)); box-shadow: 0 0 6px rgba(232,200,120,0.45); }
+    .hp-fill.red    { background: linear-gradient(90deg, var(--vice), #ff8b3d); box-shadow: 0 0 8px rgba(232,90,90,0.55); }
+
+    /* Reserve sprites get smaller HP bars to match scale */
+    .slot.is-reserve .slot-name { font-size: 0.6rem; opacity: 0.85; }
+
+    /* ============ Platform (the angled stage they stand on) ============ */
+    .platform-wrap {
+      position: relative;
+      flex: 0 0 auto;
+      height: 14vh;
+      margin: 0 4%;
+      pointer-events: none;
+    }
+    .platform {
+      position: absolute;
+      inset: 0;
+      /* Trapezoidal floor — narrow at top (far) wider at bottom (near) */
+      clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+      background:
+        radial-gradient(ellipse at 50% 90%, rgba(232, 200, 120, 0.35) 0%, rgba(232, 200, 120, 0.05) 35%, transparent 65%),
+        linear-gradient(180deg,
+          rgba(95, 168, 255, 0.18) 0%,
+          rgba(28, 16, 54, 0.65) 100%
+        );
+      box-shadow:
+        0 -2px 0 rgba(232, 200, 120, 0.25) inset,
+        0 2px 0 rgba(232, 200, 120, 0.35) inset;
+    }
+    .platform::before {
+      /* Grid pattern hint of depth */
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(232, 200, 120, 0.10) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(232, 200, 120, 0.08) 1px, transparent 1px);
+      background-size: 18% 33%;
+      opacity: 0.6;
+    }
+
+    /* AOV insignia in platform center */
+    .platform-insignia {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: clamp(56px, 14vw, 100px);
+      aspect-ratio: 1;
+      transform: translate(-50%, -55%);
+      opacity: 0.85;
+      pointer-events: none;
+    }
+
+    /* Glow ring around the active fighter on the platform */
+    .platform-glow {
+      position: absolute;
+      bottom: -10px;
+      width: 60%;
+      height: 20px;
+      left: 20%;
+      background: radial-gradient(ellipse at center, rgba(232, 200, 120, 0.5) 0%, transparent 60%);
+      filter: blur(4px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    .platform-glow.active { opacity: 1; }
+
+    /* ============ Bottom HUD (player gem pool + actions) ============ */
+    .hud-bottom {
+      padding: 8px 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 50;
+      background: linear-gradient(180deg, transparent 0%, rgba(5, 3, 16, 0.55) 70%);
+    }
+    .hud-row-pool {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .action-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .action-btn {
+      padding: 12px 6px 14px;
+      background: var(--glass-strong);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      color: inherit;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .action-btn:not(:disabled):active,
+    .action-btn:not(:disabled):hover {
+      border-color: var(--gold);
+      transform: translateY(-1px);
+      box-shadow: 0 0 18px rgba(232, 200, 120, 0.25);
+    }
+    .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .action-name {
+      font-family: var(--font-display);
+      font-size: 0.74rem;
+      letter-spacing: 0.06em;
+      color: var(--gold-bright);
+      line-height: 1.15;
+      min-height: 2.3em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .action-gems {
+      display: flex;
+      gap: 4px;
+      justify-content: center;
+      margin-top: 6px;
+    }
+    .action-gem {
+      width: 7px;
+      height: 7px;
+      transform: rotate(45deg);
+      background: linear-gradient(135deg, var(--gold-bright), var(--gold-deep));
+      box-shadow: 0 0 3px var(--gold);
+      display: inline-block;
+    }
+
+    /* ============ Attack animation — sprite lunges along platform axis ============ */
+    /* Tier scaling: A1 = subtle, A2 = medium, A3 = full lunge */
+    .slot.attacking {
+      animation-timing-function: cubic-bezier(0.3, 0.1, 0.3, 1);
+      z-index: 10;
+    }
+
+    /* Player attacking — lunge UP (toward opponent at top) */
+    .zone-player .slot.attacking.tier-1 { animation: player-lunge-1 480ms; }
+    .zone-player .slot.attacking.tier-2 { animation: player-lunge-2 620ms; }
+    .zone-player .slot.attacking.tier-3 { animation: player-lunge-3 780ms; }
+
+    @keyframes player-lunge-1 {
+      0%   { transform: scale(1) translateY(0); }
+      40%  { transform: scale(1.08) translateY(-22vh); }
+      100% { transform: scale(1) translateY(0); }
+    }
+    @keyframes player-lunge-2 {
+      0%   { transform: scale(1) translateY(0); }
+      40%  { transform: scale(1.15) translateY(-32vh); }
+      100% { transform: scale(1) translateY(0); }
+    }
+    @keyframes player-lunge-3 {
+      0%   { transform: scale(1) translateY(0); }
+      40%  { transform: scale(1.22) translateY(-42vh); }
+      100% { transform: scale(1) translateY(0); }
+    }
+
+    /* Opponent attacking — lunge DOWN (toward player at bottom, scale up since they're rushing toward camera) */
+    .zone-opponent .slot.attacking.tier-1 { animation: opp-lunge-1 480ms; }
+    .zone-opponent .slot.attacking.tier-2 { animation: opp-lunge-2 620ms; }
+    .zone-opponent .slot.attacking.tier-3 { animation: opp-lunge-3 780ms; }
+
+    @keyframes opp-lunge-1 {
+      0%   { transform: scale(0.92) translateY(0); }
+      40%  { transform: scale(1.02) translateY(22vh); }
+      100% { transform: scale(0.92) translateY(0); }
+    }
+    @keyframes opp-lunge-2 {
+      0%   { transform: scale(0.92) translateY(0); }
+      40%  { transform: scale(1.10) translateY(32vh); }
+      100% { transform: scale(0.92) translateY(0); }
+    }
+    @keyframes opp-lunge-3 {
+      0%   { transform: scale(0.92) translateY(0); }
+      40%  { transform: scale(1.18) translateY(42vh); }
+      100% { transform: scale(0.92) translateY(0); }
+    }
+
+    /* Hit shake on defender */
+    @keyframes hit-shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-5px); }
+      40% { transform: translateX(5px); }
+      60% { transform: translateX(-3px); }
+      80% { transform: translateX(3px); }
+    }
+    .slot.hit .slot-img {
+      animation: hit-shake 0.35s ease, float-idle 5s ease-in-out infinite 0.35s;
+    }
+    /* Vice-red impact flash */
+    .slot.hit::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(232, 90, 90, 0.65) 0%, transparent 65%);
+      mix-blend-mode: screen;
+      animation: hit-flash 0.4s ease;
+      pointer-events: none;
+    }
+    @keyframes hit-flash {
+      0%, 100% { opacity: 0; }
+      40%      { opacity: 1; }
+    }
+
+    /* Floating damage number */
+    .damage-flyup {
+      position: absolute;
+      top: 35%;
+      left: 50%;
+      transform: translate(-50%, 0);
+      font-family: var(--font-display);
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--vice);
+      text-shadow: 0 0 18px var(--vice), 0 0 5px rgba(0,0,0,1);
+      pointer-events: none;
+      z-index: 20;
+      animation: damage-rise 1.3s cubic-bezier(0.2, 0.6, 0.2, 1) forwards;
+    }
+    @keyframes damage-rise {
+      0%   { opacity: 0; transform: translate(-50%, 14px) scale(0.7); }
+      18%  { opacity: 1; transform: translate(-50%, -10px) scale(1.2); }
+      100% { opacity: 0; transform: translate(-50%, -80px) scale(1); }
+    }
+
+    /* ============ Screen shake on A3 ============ */
+    @keyframes screen-shake {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(-4px, 2px); }
+      40% { transform: translate(4px, -2px); }
+      60% { transform: translate(-3px, -1px); }
+      80% { transform: translate(3px, 1px); }
+    }
+    .arena.shake { animation: screen-shake 0.32s ease; }
+
+    /* ============ Reduced motion ============ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition-duration: 0.1s !important; }
+    }
+
+    /* ============ Mobile portrait tweaks ============ */
+    @media (max-width: 540px) {
+      .zone-opponent { height: 24vh; }
+      .zone-player { height: 32vh; }
+      .platform-wrap { height: 12vh; }
+      .slot-name { font-size: 0.62rem; }
+      .action-name { font-size: 0.66rem; }
+    }
+
+    /* Tablet+ */
+    @media (min-width: 720px) {
+      .zone-opponent { height: 30vh; }
+      .zone-player { height: 40vh; }
+      .platform-wrap { height: 16vh; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cosmos"></div>
+  <div class="stars"></div>
+  <div class="battlefield-scene"></div>
+  <div class="stadium-lights"></div>
+  <div class="stadium-frame"></div>
+
+  <main class="arena" id="arena">
+
+    <!-- TOP HUD: opponent gem pool + brand stripe -->
+    <div class="hud-top">
+      <div class="pool">
+        <span class="pool-label">Opp</span>
+        <div class="pool-gems" id="opp-pool"></div>
+      </div>
+      <div class="brand-tag">Origon · Round 1</div>
+    </div>
+
+    <!-- OPPONENT TEAM ZONE -->
+    <div class="zone zone-opponent" id="zone-opponent">
+      <!-- 3 slots: reserve, active, reserve -->
+      <div class="slot is-reserve" data-side="cpu" data-slot="reserve-left">
+        <div class="slot-label">
+          <div class="slot-name">Voltyran</div>
+          <div class="hp-bar"><div class="hp-fill"></div></div>
+        </div>
+        <img class="slot-img" src="/cards/card_voltyran.png" alt="Voltyran">
+      </div>
+      <div class="slot is-active" data-side="cpu" data-slot="active" id="slot-cpu-active">
+        <div class="slot-label">
+          <div class="slot-name">Drakaryx</div>
+          <div class="hp-bar"><div class="hp-fill" id="hp-cpu"></div></div>
+        </div>
+        <img class="slot-img" src="/cards/card_drakaryx.png" alt="Drakaryx">
+      </div>
+      <div class="slot is-reserve" data-side="cpu" data-slot="reserve-right">
+        <div class="slot-label">
+          <div class="slot-name">Mutaryn</div>
+          <div class="hp-bar"><div class="hp-fill"></div></div>
+        </div>
+        <img class="slot-img" src="/cards/card_mutaryn.png" alt="Mutaryn">
+      </div>
+    </div>
+
+    <!-- ARENA PLATFORM -->
+    <div class="platform-wrap">
+      <div class="platform">
+        <svg class="platform-insignia" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- AOV Ultramax-style compass with crimson X -->
+          <defs>
+            <radialGradient id="rim" cx="50%" cy="50%" r="50%">
+              <stop offset="60%" stop-color="#e8c878" stop-opacity="0"/>
+              <stop offset="85%" stop-color="#e8c878" stop-opacity="0.85"/>
+              <stop offset="100%" stop-color="#b8923f" stop-opacity="0.6"/>
+            </radialGradient>
+            <linearGradient id="xgrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%"  stop-color="#ff8b8b"/>
+              <stop offset="50%" stop-color="#e85a5a"/>
+              <stop offset="100%" stop-color="#7e2424"/>
+            </linearGradient>
+          </defs>
+          <circle cx="50" cy="50" r="48" fill="url(#rim)"/>
+          <circle cx="50" cy="50" r="44" fill="none" stroke="#e8c878" stroke-width="1.5" opacity="0.7"/>
+          <!-- 4 compass points -->
+          <g stroke="#e8c878" stroke-width="1" opacity="0.6">
+            <line x1="50" y1="6"  x2="50" y2="18"/>
+            <line x1="50" y1="82" x2="50" y2="94"/>
+            <line x1="6"  y1="50" x2="18" y2="50"/>
+            <line x1="82" y1="50" x2="94" y2="50"/>
+          </g>
+          <!-- Crimson X -->
+          <g stroke="url(#xgrad)" stroke-width="6" stroke-linecap="round">
+            <line x1="28" y1="28" x2="72" y2="72"/>
+            <line x1="72" y1="28" x2="28" y2="72"/>
+          </g>
+        </svg>
+        <div class="platform-glow active"></div>
+      </div>
+    </div>
+
+    <!-- PLAYER TEAM ZONE -->
+    <div class="zone zone-player" id="zone-player">
+      <div class="slot is-reserve" data-side="player" data-slot="reserve-left">
+        <div class="slot-label">
+          <div class="slot-name">Aionis</div>
+          <div class="hp-bar"><div class="hp-fill"></div></div>
+        </div>
+        <img class="slot-img" src="/cards/card_aionis.png" alt="Aionis">
+      </div>
+      <div class="slot is-active" data-side="player" data-slot="active" id="slot-player-active">
+        <div class="slot-label">
+          <div class="slot-name">Aurexion</div>
+          <div class="hp-bar"><div class="hp-fill" id="hp-player"></div></div>
+        </div>
+        <img class="slot-img" src="/cards/card_aurexion.png" alt="Aurexion">
+      </div>
+      <div class="slot is-reserve" data-side="player" data-slot="reserve-right">
+        <div class="slot-label">
+          <div class="slot-name">Wynwyrm</div>
+          <div class="hp-bar"><div class="hp-fill"></div></div>
+        </div>
+        <img class="slot-img" src="/cards/card_wynwyrm.png" alt="Wynwyrm">
+      </div>
+    </div>
+
+    <!-- BOTTOM HUD: player gem pool + attack buttons -->
+    <div class="hud-bottom">
+      <div class="hud-row-pool">
+        <div class="pool">
+          <span class="pool-label">You</span>
+          <div class="pool-gems" id="player-pool"></div>
+        </div>
+        <div class="brand-tag" style="font-size:0.5rem;opacity:0.55;">POC · 2.5D Stadium</div>
+      </div>
+
+      <div class="action-bar">
+        <button class="action-btn" data-tier="1">
+          <div class="action-name">Vector Drive</div>
+          <div class="action-gems"><span class="action-gem"></span></div>
+        </button>
+        <button class="action-btn" data-tier="2">
+          <div class="action-name">Astral Projection</div>
+          <div class="action-gems"><span class="action-gem"></span><span class="action-gem"></span></div>
+        </button>
+        <button class="action-btn" data-tier="3">
+          <div class="action-name">Divine Intuition</div>
+          <div class="action-gems"><span class="action-gem"></span><span class="action-gem"></span><span class="action-gem"></span></div>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    'use strict';
+
+    // ============ Minimal state for POC ============
+    // Real combat math lives in battlegrounds.html. Here we just demonstrate
+    // the attack-animation loop for the 2.5D stadium camera.
+    const state = {
+      playerHP: 180,
+      playerMaxHP: 180,
+      cpuHP: 260,
+      cpuMaxHP: 260,
+      playerGems: 9,
+      cpuGems: 9,
+      busy: false,
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function renderPool(elId, count, max) {
+      const el = $(elId);
+      el.innerHTML = '';
+      for (let i = 0; i < max; i++) {
+        const g = document.createElement('div');
+        g.className = 'pool-gem' + (i >= count ? ' spent' : '');
+        el.appendChild(g);
+      }
+    }
+
+    function updateHPBar(fillId, current, max) {
+      const fill = $(fillId);
+      const pct = Math.max(0, (current / max) * 100);
+      fill.style.width = pct + '%';
+      fill.classList.remove('green', 'yellow', 'red');
+      if (pct <= 25)      fill.classList.add('red');
+      else if (pct <= 50) fill.classList.add('yellow');
+      else if (pct <= 75) fill.classList.add('green');
+    }
+
+    function showDamage(side, amount) {
+      const slot = side === 'player' ? $('slot-player-active') : $('slot-cpu-active');
+      const fly = document.createElement('div');
+      fly.className = 'damage-flyup';
+      fly.textContent = '−' + amount;
+      slot.appendChild(fly);
+      setTimeout(() => fly.remove(), 1400);
+      slot.classList.add('hit');
+      setTimeout(() => slot.classList.remove('hit'), 420);
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // POC damage formula — same shape as training.html
+    const TIER_MULT = { 1: 0.33, 2: 0.66, 3: 0.99 };
+    function calcDmg(atk, def, tier) {
+      const red = def <= 100 ? 1.0 : def <= 200 ? 0.75 : def <= 300 ? 0.5 : 0.25;
+      return Math.ceil(atk * TIER_MULT[tier] * red);
+    }
+
+    async function playerAttack(tier) {
+      if (state.busy) return;
+      state.busy = true;
+      document.querySelectorAll('.action-btn').forEach(b => b.disabled = true);
+
+      const sprite = $('slot-player-active');
+      // A3 also kicks the camera
+      if (tier === 3) $('arena').classList.add('shake');
+
+      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
+      void sprite.offsetWidth;
+      sprite.classList.add('attacking', 'tier-' + tier);
+
+      await sleep(360);
+      // Aurexion stats: ATK 230, opponent Drakaryx DEF 210
+      const dmg = calcDmg(230, 210, tier);
+      state.cpuHP = Math.max(0, state.cpuHP - dmg);
+      showDamage('cpu', dmg);
+      updateHPBar('hp-cpu', state.cpuHP, state.cpuMaxHP);
+
+      await sleep(900);
+
+      // Spend gems visually
+      state.playerGems = Math.max(0, state.playerGems - tier);
+      renderPool('player-pool', state.playerGems, 9);
+
+      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
+      $('arena').classList.remove('shake');
+
+      // CPU counter
+      if (state.cpuHP > 0) {
+        await cpuCounter();
+      } else {
+        $('slot-cpu-active').classList.add('is-fallen');
+      }
+
+      state.busy = false;
+      document.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
+    }
+
+    async function cpuCounter() {
+      await sleep(400);
+      const tier = Math.min(3, state.cpuGems > 0 ? (Math.random() < 0.5 ? 2 : 3) : 1);
+      const sprite = $('slot-cpu-active');
+      if (tier === 3) $('arena').classList.add('shake');
+      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
+      void sprite.offsetWidth;
+      sprite.classList.add('attacking', 'tier-' + tier);
+
+      await sleep(360);
+      // Drakaryx ATK 270, Aurexion DEF 170
+      const dmg = calcDmg(270, 170, tier);
+      state.playerHP = Math.max(0, state.playerHP - dmg);
+      showDamage('player', dmg);
+      updateHPBar('hp-player', state.playerHP, state.playerMaxHP);
+
+      await sleep(900);
+      state.cpuGems = Math.max(0, state.cpuGems - tier);
+      renderPool('opp-pool', state.cpuGems, 9);
+
+      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
+      $('arena').classList.remove('shake');
+
+      if (state.playerHP <= 0) {
+        $('slot-player-active').classList.add('is-fallen');
+      }
+    }
+
+    // Wire up the attack buttons
+    document.querySelectorAll('.action-btn').forEach(btn => {
+      btn.addEventListener('click', () => playerAttack(parseInt(btn.dataset.tier, 10)));
+    });
+
+    // Init
+    renderPool('player-pool', state.playerGems, 9);
+    renderPool('opp-pool', state.cpuGems, 9);
+    updateHPBar('hp-player', state.playerHP, state.playerMaxHP);
+    updateHPBar('hp-cpu', state.cpuHP, state.cpuMaxHP);
+  </script>
+</body>
+</html>

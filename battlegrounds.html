@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="The Battlegrounds — 3v3 combat prototype of The AOV™ Saga: Rizing Powers TCG. Champion select, gem commitment, the gamble rule. The true TCG, played." />
+  <title>The Battlegrounds · The AOV Saga</title>
+
+  <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#050310">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://angelsofvices.com/battlegrounds.html">
+  <meta property="og:title" content="The Battlegrounds — The AOV Saga">
+  <meta property="og:description" content="3v3 combat prototype with champion select, gem commitment, and the gamble rule. The true Rizing Powers experience, prototyped.">
+  <meta property="og:image" content="https://angelsofvices.com/icons/og-image.jpg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============ Foundations (shared with training.html) ============ */
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --void: #050310;
+      --void-2: #0a0618;
+      --gold: #e8c878;
+      --gold-bright: #f5dc9c;
+      --gold-deep: #b8923f;
+      --gold-pale: #f4e3b3;
+      --emerald: #2fe6a8;
+      --crimson: #e85a5a;
+      --cosmic-blue: #5fa8ff;
+      --virtue: #5fa8ff;
+      --vice: #e85a5a;
+      --neutral: #b8aec8;
+      --unknown: #b87cff;
+      --mage-purple: #a875e8;
+      --ivory: #f3ecdc;
+      --mist: #b8aec8;
+      --mist-deep: #6f6582;
+      --border-soft: rgba(232, 200, 120, 0.08);
+      --border: rgba(232, 200, 120, 0.18);
+      --border-gold: rgba(232, 200, 120, 0.28);
+      --glass: rgba(20, 12, 38, 0.55);
+      --glass-strong: rgba(28, 16, 54, 0.72);
+
+      --font-display: 'Cinzel', serif;
+      --font-body: 'Cormorant Garamond', serif;
+      --font-meta: 'Inter', sans-serif;
+    }
+
+    html, body {
+      min-height: 100%;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--void);
+      color: var(--ivory);
+      position: relative;
+      min-height: 100vh;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .cosmos {
+      position: fixed; inset: 0; z-index: -3; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(232, 200, 120, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 30% 50%, rgba(95, 168, 255, 0.1) 0%, transparent 55%),
+        radial-gradient(ellipse at 70% 50%, rgba(232, 90, 90, 0.08) 0%, transparent 55%),
+        linear-gradient(180deg, #050310 0%, #0a0618 50%, #050310 100%);
+    }
+
+    .stars {
+      position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden;
+    }
+
+    .stars::before {
+      content: ''; position: absolute; inset: -50%;
+      background-image:
+        radial-gradient(1px 1px at 23% 17%, rgba(243, 236, 220, 0.7), transparent),
+        radial-gradient(1px 1px at 67% 41%, rgba(232, 200, 120, 0.6), transparent),
+        radial-gradient(1px 1px at 84% 73%, rgba(243, 236, 220, 0.7), transparent),
+        radial-gradient(1px 1px at 12% 83%, rgba(243, 236, 220, 0.5), transparent),
+        radial-gradient(1px 1px at 45% 28%, rgba(184, 124, 255, 0.4), transparent),
+        radial-gradient(1px 1px at 91% 12%, rgba(243, 236, 220, 0.5), transparent),
+        radial-gradient(2px 2px at 76% 88%, rgba(243, 236, 220, 0.7), transparent);
+      background-size: 700px 700px;
+      animation: drift 320s linear infinite;
+      opacity: 0.7;
+    }
+
+    @keyframes drift {
+      from { transform: translate3d(0, 0, 0); }
+      to   { transform: translate3d(-300px, -300px, 0); }
+    }
+
+    /* Battlefield scene (used in Steps 2+) */
+    .battlefield-scene {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-image: var(--scene-portrait, none);
+      opacity: 0;
+      transition: opacity 1.4s ease;
+      filter: saturate(0.9) brightness(0.82);
+    }
+    .battlefield-scene.active { opacity: 1; }
+    @media (min-width: 721px) {
+      .battlefield-scene { background-image: var(--scene-landscape, none); }
+    }
+    .battlefield-scene::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at center, transparent 30%, rgba(5, 3, 16, 0.45) 100%),
+        linear-gradient(180deg, rgba(5, 3, 16, 0.35) 0%, transparent 22%, transparent 78%, rgba(5, 3, 16, 0.35) 100%);
+      pointer-events: none;
+    }
+
+    /* ============ Nav ============ */
+    .nav-bar {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(5, 3, 16, 0.7), transparent);
+      pointer-events: none;
+    }
+    .brand {
+      font-family: var(--font-display);
+      font-size: 0.65rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.8;
+    }
+    .nav-back {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      text-decoration: none;
+      pointer-events: auto;
+      padding: 6px 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: 2px;
+      transition: all 0.3s ease;
+    }
+    .nav-back:hover, .nav-back:active { color: var(--gold); border-color: var(--gold); }
+
+    /* ============ Buttons ============ */
+    .btn {
+      font-family: var(--font-meta);
+      font-size: 0.7rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      padding: 14px 26px;
+      border: 1px solid;
+      border-radius: 2px;
+      background: transparent;
+      color: var(--ivory);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+      pointer-events: auto;
+    }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold-pale) 0%, var(--gold) 50%, var(--gold-deep) 100%);
+      border-color: var(--gold);
+      color: var(--void);
+    }
+    .btn-primary:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 24px rgba(232, 200, 120, 0.4);
+    }
+    .btn-ghost { border-color: var(--border-soft); color: var(--mist); }
+    .btn-ghost:hover { border-color: var(--mist); color: var(--ivory); }
+
+    /* ============ Intro screen ============ */
+    .intro {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      background: var(--void);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      transition: opacity 1s ease, visibility 1s ease;
+    }
+    .intro.dismissed {
+      opacity: 0; visibility: hidden; pointer-events: none;
+    }
+    .intro-content { max-width: 480px; width: 100%; text-align: center; }
+    .intro-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.85;
+      margin-bottom: 22px;
+    }
+    .intro-title {
+      font-family: var(--font-display);
+      font-size: clamp(2.2rem, 9vw, 3.2rem);
+      letter-spacing: 0.1em;
+      line-height: 1;
+      margin-bottom: 26px;
+      background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-bright) 50%, var(--gold-deep) 100%);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+    }
+    .intro-passages p {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: 1.05rem;
+      color: var(--ivory);
+      line-height: 1.7;
+      margin-bottom: 12px;
+      opacity: 0.85;
+    }
+    .intro-instruct {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      margin: 24px 0;
+      line-height: 1.9;
+    }
+    .intro-instruct strong { color: var(--gold); }
+
+    /* ============ Champion-select screen (Step 1) ============ */
+    .select-screen {
+      min-height: 100vh;
+      padding: 64px 14px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .select-header {
+      width: 100%;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .select-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.75;
+      margin-bottom: 10px;
+    }
+    .select-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 6vw, 2.2rem);
+      letter-spacing: 0.1em;
+      color: var(--ivory);
+      margin-bottom: 8px;
+    }
+    .select-sub {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: 1rem;
+      color: var(--mist);
+      opacity: 0.9;
+      margin-bottom: 18px;
+    }
+
+    /* Tier filter pills */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+    .filter-pill {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: 2px;
+      background: rgba(5, 3, 16, 0.45);
+      color: var(--mist);
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .filter-pill:hover { color: var(--ivory); border-color: var(--mist); }
+    .filter-pill.active { color: var(--void); background: var(--gold); border-color: var(--gold); }
+
+    /* Card grid — responsive columns */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+    @media (min-width: 540px) { .card-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media (min-width: 720px) { .card-grid { grid-template-columns: repeat(5, 1fr); gap: 14px; } }
+    @media (min-width: 1000px){ .card-grid { grid-template-columns: repeat(6, 1fr); } }
+
+    .card-pick {
+      position: relative;
+      background: var(--glass);
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      font-family: inherit;
+      color: inherit;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-pick:hover, .card-pick:active {
+      border-color: var(--gold);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(232, 200, 120, 0.18);
+    }
+    .card-pick[data-alignment="virtue"]  { --pick-accent: var(--virtue); }
+    .card-pick[data-alignment="vice"]    { --pick-accent: var(--vice); }
+    .card-pick[data-alignment="neutral"] { --pick-accent: var(--neutral); }
+    .card-pick[data-alignment="unknown"] { --pick-accent: var(--unknown); }
+
+    .card-pick::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--pick-accent, var(--gold)), transparent);
+      opacity: 0.45;
+    }
+
+    .card-pick-img {
+      width: 100%;
+      aspect-ratio: 5 / 7;
+      object-fit: contain;
+      filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.45));
+    }
+    .card-pick-name {
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      color: var(--ivory);
+      line-height: 1.1;
+    }
+    .card-pick-tier {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--pick-accent, var(--mist));
+      opacity: 0.85;
+    }
+
+    /* ============ Team-confirmation screen (Step 1) ============ */
+    .confirm-screen {
+      min-height: 100vh;
+      padding: 64px 14px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 880px;
+      margin: 0 auto;
+    }
+    .confirm-content { width: 100%; }
+    .confirm-header {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+    .confirm-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.75;
+      margin-bottom: 10px;
+    }
+    .confirm-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 6vw, 2.2rem);
+      letter-spacing: 0.1em;
+      color: var(--ivory);
+      margin-bottom: 8px;
+    }
+    .confirm-sub {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: 0.95rem;
+      color: var(--mist);
+      opacity: 0.9;
+    }
+
+    .team {
+      width: 100%;
+      margin-bottom: 18px;
+    }
+    .team-label {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.75;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .team-row {
+      display: grid;
+      grid-template-columns: 1fr 1.25fr 1fr;
+      gap: 10px;
+      align-items: end;
+    }
+    .team-slot {
+      background: var(--glass);
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      padding: 8px 6px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    .team-slot-img {
+      width: 100%;
+      aspect-ratio: 5 / 7;
+      object-fit: contain;
+      filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.5));
+    }
+    .team-slot-name {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      color: var(--ivory);
+      margin-top: 4px;
+      line-height: 1.1;
+    }
+    .team-slot-meta {
+      font-family: var(--font-meta);
+      font-size: 0.46rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--mist);
+      margin-top: 2px;
+    }
+    .team-slot.is-active {
+      border-color: var(--border-gold);
+      box-shadow: 0 6px 24px rgba(232, 200, 120, 0.18);
+    }
+    .team-slot.is-active .team-slot-meta { color: var(--gold); }
+    .team-slot.is-reserve { opacity: 0.7; transform: scale(0.92); }
+
+    @media (min-width: 600px) {
+      .team-slot-name { font-size: 0.92rem; }
+      .team-slot-meta { font-size: 0.52rem; }
+    }
+
+    .team-vs {
+      font-family: var(--font-display);
+      font-size: 0.8rem;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.7;
+      text-align: center;
+      padding: 14px 0;
+      position: relative;
+    }
+    .team-vs::before, .team-vs::after {
+      content: '';
+      display: inline-block;
+      width: 28%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      vertical-align: middle;
+      margin: 0 12px;
+      opacity: 0.5;
+    }
+
+    .confirm-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-top: 22px;
+    }
+    .confirm-actions .btn { width: 100%; max-width: 280px; }
+
+    /* ============ Battlefield placeholder (Step 2+ will populate) ============ */
+    .arena {
+      min-height: 100vh;
+      padding: 60px 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .arena-placeholder {
+      max-width: 460px;
+      text-align: center;
+      padding: 32px;
+      border: 1px dashed var(--border-soft);
+      border-radius: 4px;
+      background: rgba(5, 3, 16, 0.55);
+    }
+    .arena-placeholder h3 {
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      letter-spacing: 0.18em;
+      color: var(--gold);
+      margin-bottom: 12px;
+    }
+    .arena-placeholder p {
+      font-family: var(--font-body);
+      font-style: italic;
+      color: var(--mist);
+      line-height: 1.6;
+    }
+    .arena-placeholder code {
+      font-family: var(--font-meta);
+      font-size: 0.78rem;
+      color: var(--gold-bright);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition-duration: 0.1s !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cosmos"></div>
+  <div class="stars"></div>
+  <div class="battlefield-scene" id="battlefield-scene"></div>
+
+  <div class="nav-bar">
+    <div class="brand">The Battlegrounds</div>
+    <a href="/games.html" class="nav-back">← Games</a>
+  </div>
+
+  <!-- ============ INTRO ============ -->
+  <div class="intro" id="intro">
+    <div class="intro-content">
+      <div class="intro-eyebrow">Prototype 03</div>
+      <h1 class="intro-title">The Battlegrounds</h1>
+      <div class="intro-passages">
+        <p>Three Rizers per side. One champion of your choosing.</p>
+        <p>Commit your gems wisely — when a Rizer falls, what they carried passes to your enemy.</p>
+      </div>
+      <div class="intro-instruct">
+        <strong>3v3 combat</strong> — pick 1 champion · 2 random allies join<br>
+        <strong>9 gems each</strong>, shared across all three Rizers<br>
+        <strong>Commit 1–3 gems</strong> per active card to unlock A1/A2/A3<br>
+        <strong>The Gamble Rule</strong> — committed gems transfer to the opponent on death<br>
+        Last team standing wins
+      </div>
+      <button class="btn btn-primary" id="intro-start">Pick Your Champion</button>
+    </div>
+  </div>
+
+  <!-- ============ STEP 1A — CHAMPION SELECT ============ -->
+  <section class="select-screen" id="select-screen" hidden>
+    <div class="select-header">
+      <div class="select-eyebrow">Step 1 of 2</div>
+      <h2 class="select-title">Pick Your Champion</h2>
+      <div class="select-sub">Your active card. Two random allies will join your team.</div>
+    </div>
+    <div class="filter-bar" id="filter-bar">
+      <button class="filter-pill active" data-filter="all">All</button>
+      <button class="filter-pill" data-filter="I">Prime</button>
+      <button class="filter-pill" data-filter="II">Core</button>
+      <button class="filter-pill" data-filter="III">Champion</button>
+      <button class="filter-pill" data-filter="IV">Legend</button>
+      <button class="filter-pill" data-filter="V">Apex</button>
+    </div>
+    <div class="card-grid" id="card-grid"><!-- populated by JS --></div>
+  </section>
+
+  <!-- ============ STEP 1B — TEAM CONFIRMATION ============ -->
+  <section class="confirm-screen" id="confirm-screen" hidden>
+    <div class="confirm-content">
+      <div class="confirm-header">
+        <div class="confirm-eyebrow">Step 2 of 2</div>
+        <h2 class="confirm-title">Confirm Battle</h2>
+        <div class="confirm-sub">Your champion leads. Reserves join in if your active falls.</div>
+      </div>
+
+      <div class="team team-opponent">
+        <div class="team-label">Opponent Team</div>
+        <div class="team-row" id="opponent-team-preview"></div>
+      </div>
+
+      <div class="team-vs">vs</div>
+
+      <div class="team team-player">
+        <div class="team-label">Your Team</div>
+        <div class="team-row" id="player-team-preview"></div>
+      </div>
+
+      <div class="confirm-actions">
+        <button class="btn btn-primary" id="confirm-begin">Begin Battle</button>
+        <button class="btn btn-ghost" id="confirm-back">← Back to Select</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STEP 2+ — BATTLEFIELD (placeholder) ============ -->
+  <main class="arena" id="arena" hidden>
+    <div class="arena-placeholder">
+      <h3>Battlefield · Step 2</h3>
+      <p>The 3v3 battlefield will render here. Active cards center-stage, reserves on either side, gem pools flanking, commitment modal and combat log wired in.</p>
+      <p style="margin-top:12px;font-size:0.78rem;">
+        Active player team: <code id="dbg-player">—</code><br>
+        Active opponent team: <code id="dbg-opponent">—</code>
+      </p>
+    </div>
+  </main>
+
+  <script>
+    'use strict';
+
+    // ============ CARD DATABASE ============
+    // Identical to training.html. Both prototypes share the 42-card roster.
+    const TIER_NAMES = { 'I': 'Prime', 'II': 'Core', 'III': 'Champion', 'IV': 'Legend', 'V': 'Apex', 'VI': 'Divine' };
+
+    const CARDS = [
+      // Tier VI — Divine (Anciuxor, excluded from random/picks)
+      { id: 'RZ-003', name: 'Anciuxor',  img: 'card_anciuxor.png',  tier: 'VI', hp: 666, atk: 666, def: 666, spd: 666, spc: 666, type1: 'Ultramaxborn', type2: 'Ultramaxborn', class1: 'Cleric',      class2: 'Warrior',     alignment: 'unknown', excludeFromRandom: true },
+
+      // Tier V — Apex
+      { id: 'RZ-001', name: 'Aionis',    img: 'card_aionis.png',    tier: 'V',  hp: 360, atk: 200, def: 240, spd: 400, spc: 400, type1: 'Ultramaxborn', type2: 'Voidborn',     class1: 'Mage',        class2: 'Cleric',      alignment: 'neutral' },
+      { id: 'RZ-002', name: 'Ambrevon',  img: 'card_ambrevon.png',  tier: 'V',  hp: 340, atk: 320, def: 340, spd: 260, spc: 340, type1: 'Ultramaxborn', type2: 'Humanoidborn', class1: 'Warrior',     class2: 'Mage',        alignment: 'virtue' },
+      { id: 'RZ-006', name: 'Azurel',    img: 'card_azurel.png',    tier: 'V',  hp: 320, atk: 260, def: 300, spd: 320, spc: 400, type1: 'Ultramaxborn', type2: 'Extraborn',    class1: 'Mage',        class2: 'Cleric',      alignment: 'neutral' },
+      { id: 'RZ-010', name: 'Egnellahc', img: 'card_egnellahc.png', tier: 'V',  hp: 280, atk: 200, def: 360, spd: 360, spc: 400, type1: 'Ultramaxborn', type2: 'Humanoidborn', class1: 'Mage',        class2: 'Cleric',      alignment: 'unknown' },
+      { id: 'RZ-012', name: 'Emeralix',  img: 'card_emeralix.png',  tier: 'V',  hp: 400, atk: 220, def: 360, spd: 240, spc: 380, type1: 'Ultramaxborn', type2: 'Natureborn',   class1: 'Cleric',      class2: 'Warrior',     alignment: 'virtue' },
+      { id: 'RZ-013', name: 'Eurakeon',  img: 'card_eurakeon.png',  tier: 'V',  hp: 300, atk: 260, def: 280, spd: 300, spc: 460, type1: 'Ultramaxborn', type2: 'Voidborn',     class1: 'Mage',        class2: 'Cleric',      alignment: 'unknown' },
+      { id: 'RZ-021', name: 'Ivirium',   img: 'card_ivirium.png',   tier: 'V',  hp: 320, atk: 260, def: 340, spd: 300, spc: 380, type1: 'Ultramaxborn', type2: 'Auraborn',     class1: 'Cleric',      class2: 'Mage',        alignment: 'neutral' },
+      { id: 'RZ-022', name: 'Mutaryn',   img: 'card_mutaryn.png',   tier: 'V',  hp: 340, atk: 360, def: 260, spd: 300, spc: 340, type1: 'Ultramaxborn', type2: 'Creatureborn', class1: 'Beastmaster', class2: 'Mage',        alignment: 'neutral' },
+      { id: 'RZ-024', name: 'Oathane',   img: 'card_oathane.png',   tier: 'V',  hp: 320, atk: 300, def: 320, spd: 300, spc: 360, type1: 'Ultramaxborn', type2: 'Mechborn',     class1: 'Cleric',      class2: 'Warrior',     alignment: 'neutral' },
+      { id: 'RZ-025', name: 'Oatheus',   img: 'card_oatheus.png',   tier: 'V',  hp: 350, atk: 350, def: 350, spd: 350, spc: 350, type1: 'Ultramaxborn', type2: 'Ultramaxborn', class1: 'Beastmaster', class2: 'Cleric',      alignment: 'neutral' },
+      { id: 'RZ-026', name: 'Obsidius',  img: 'card_obsidius.png',  tier: 'V',  hp: 380, atk: 220, def: 280, spd: 320, spc: 400, type1: 'Ultramaxborn', type2: 'Spiritborn',   class1: 'Cleric',      class2: 'Mage',        alignment: 'virtue' },
+      { id: 'RZ-027', name: 'Omegoran',  img: 'card_omegoran.png',  tier: 'V',  hp: 360, atk: 400, def: 280, spd: 260, spc: 400, type1: 'Ultramaxborn', type2: 'Voidborn',     class1: 'Beastmaster', class2: 'Mage',        alignment: 'vice' },
+      { id: 'RZ-029', name: 'Rakoron',   img: 'card_rakoron.png',   tier: 'V',  hp: 380, atk: 400, def: 300, spd: 260, spc: 260, type1: 'Ultramaxborn', type2: 'Beastborn',    class1: 'Beastmaster', class2: 'Warrior',     alignment: 'vice' },
+      { id: 'RZ-040', name: 'Voltyran',  img: 'card_voltyran.png',  tier: 'V',  hp: 300, atk: 360, def: 260, spd: 420, spc: 260, type1: 'Ultramaxborn', type2: 'Beastborn',    class1: 'Assassin',    class2: 'Beastmaster', alignment: 'vice' },
+
+      // Tier IV — Legend
+      { id: 'RZ-007', name: 'Celestryx', img: 'card_celestryx.png', tier: 'IV', hp: 260, atk: 210, def: 185, spd: 305, spc: 290, type1: 'Ultramaxborn', type2: 'Auraborn',     class1: 'Mage',        class2: 'Ranger',      alignment: 'virtue' },
+      { id: 'RZ-011', name: 'Elzoran',   img: 'card_elzoran.png',   tier: 'IV', hp: 275, atk: 250, def: 200, spd: 175, spc: 350, type1: 'Ultramaxborn', type2: 'Beastborn',    class1: 'Mage',        class2: 'Beastmaster', alignment: 'vice' },
+      { id: 'RZ-037', name: 'Vengrizz',  img: 'card_vengrizz.png',  tier: 'IV', hp: 360, atk: 320, def: 210, spd:  90, spc: 270, type1: 'Ultramaxborn', type2: 'Creatureborn', class1: 'Warrior',     class2: 'Beastmaster', alignment: 'vice' },
+
+      // Tier III — Champion
+      { id: 'RZ-004', name: 'Apexaur',   img: 'card_apexaur.png',   tier: 'III', hp: 280, atk: 260, def: 220, spd: 120, spc: 120, type1: 'Creatureborn', type2: 'Beastborn',    class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
+      { id: 'RZ-005', name: 'Aurexion',  img: 'card_aurexion.png',  tier: 'III', hp: 180, atk: 230, def: 170, spd: 200, spc: 220, type1: 'Humanoidborn', type2: 'Auraborn',     class1: 'Warrior',     class2: 'Mage',        alignment: 'virtue' },
+      { id: 'RZ-008', name: 'Cerebrion', img: 'card_cerebrion.png', tier: 'III', hp: 180, atk: 120, def: 160, spd: 140, spc: 400, type1: 'Voidborn',     type2: 'Spiritborn',   class1: 'Mage',        class2: 'Cleric',      alignment: 'virtue' },
+      { id: 'RZ-009', name: 'Drakaryx',  img: 'card_drakaryx.png',  tier: 'III', hp: 260, atk: 270, def: 210, spd: 160, spc: 100, type1: 'Beastborn',    type2: 'Humanoidborn', class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
+      { id: 'RZ-014', name: 'Feliux',    img: 'card_feliux.png',    tier: 'III', hp: 180, atk: 240, def: 140, spd: 280, spc: 160, type1: 'Spiritborn',   type2: 'Mechborn',     class1: 'Assassin',    class2: 'Ranger',      alignment: 'neutral' },
+      { id: 'RZ-015', name: 'Floravex',  img: 'card_floravex.png',  tier: 'III', hp: 240, atk: 150, def: 210, spd: 140, spc: 260, type1: 'Natureborn',   type2: 'Voidborn',     class1: 'Cleric',      class2: 'Warrior',     alignment: 'virtue' },
+      { id: 'RZ-018', name: 'Gravelor',  img: 'card_gravelor.png',  tier: 'III', hp: 300, atk: 190, def: 330, spd:  60, spc: 120, type1: 'Humanoidborn', type2: 'Natureborn',   class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
+      { id: 'RZ-028', name: 'Omniris',   img: 'card_omniris.png',   tier: 'III', hp: 170, atk: 140, def: 165, spd: 185, spc: 340, type1: 'Auraborn',     type2: 'Humanoidborn', class1: 'Mage',        class2: 'Cleric',      alignment: 'neutral' },
+      { id: 'RZ-032', name: 'Sharkfin',  img: 'card_sharkfin.png',  tier: 'III', hp: 220, atk: 240, def: 190, spd: 150, spc: 200, type1: 'Mechborn',     type2: 'Humanoidborn', class1: 'Warrior',     class2: 'Ranger',      alignment: 'neutral' },
+      { id: 'RZ-033', name: 'Sigilmor',  img: 'card_sigilmor.png',  tier: 'III', hp: 205, atk: 185, def: 210, spd: 150, spc: 250, type1: 'Extraborn',    type2: 'Voidborn',     class1: 'Cleric',      class2: 'Mage',        alignment: 'neutral' },
+      { id: 'RZ-034', name: 'Skybeam',   img: 'card_skybeam.png',   tier: 'III', hp: 200, atk: 300, def: 180, spd: 220, spc: 100, type1: 'Beastborn',    type2: 'Mechborn',     class1: 'Beastmaster', class2: 'Ranger',      alignment: 'virtue' },
+      { id: 'RZ-038', name: 'Veylith',   img: 'card_veylith.png',   tier: 'III', hp: 180, atk: 120, def: 100, spd: 260, spc: 340, type1: 'Spiritborn',   type2: 'Voidborn',     class1: 'Mage',        class2: 'Assassin',    alignment: 'unknown' },
+      { id: 'RZ-039', name: 'Voltigrax', img: 'card_voltigrax.png', tier: 'III', hp: 170, atk: 230, def: 150, spd: 200, spc: 250, type1: 'Beastborn',    type2: 'Creatureborn', class1: 'Mage',        class2: 'Ranger',      alignment: 'neutral' },
+      { id: 'RZ-042', name: 'Xytabyte',  img: 'card_xytabyte.png',  tier: 'III', hp: 180, atk: 260, def: 150, spd: 280, spc: 130, type1: 'Mechborn',     type2: 'Beastborn',    class1: 'Assassin',    class2: 'Ranger',      alignment: 'neutral' },
+
+      // Tier II — Core
+      { id: 'RZ-016', name: 'Frostphen', img: 'card_frostphen.png', tier: 'II', hp: 160, atk: 170, def: 155, spd: 135, spc: 130, type1: 'Natureborn',   type2: 'Spiritborn',   class1: 'Beastmaster', class2: 'Warrior',     alignment: 'neutral' },
+      { id: 'RZ-017', name: 'Gearbyte',  img: 'card_gearbyte.png',  tier: 'II', hp: 200, atk: 220, def: 160, spd:  90, spc:  80, type1: 'Mechborn',     type2: 'Humanoidborn', class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
+      { id: 'RZ-019', name: 'Grimhog',   img: 'card_grimhog.png',   tier: 'II', hp: 220, atk: 230, def: 140, spd: 110, spc:  50, type1: 'Creatureborn', type2: 'Beastborn',    class1: 'Warrior',     class2: 'Beastmaster', alignment: 'neutral' },
+      { id: 'RZ-020', name: 'Impyxid',   img: 'card_impyxid.png',   tier: 'II', hp: 135, atk: 160, def: 125, spd: 190, spc: 140, type1: 'Spiritborn',   type2: 'Humanoidborn', class1: 'Assassin',    class2: 'Ranger',      alignment: 'neutral' },
+      { id: 'RZ-031', name: 'Scrapjaw',  img: 'card_scrapjaw.png',  tier: 'II', hp: 135, atk: 160, def: 110, spd: 185, spc: 160, type1: 'Humanoidborn', type2: 'Creatureborn', class1: 'Assassin',    class2: 'Ranger',      alignment: 'neutral' },
+      { id: 'RZ-035', name: 'Strixel',   img: 'card_strixel.png',   tier: 'II', hp: 170, atk: 180, def: 120, spd: 200, spc:  80, type1: 'Creatureborn', type2: 'Beastborn',    class1: 'Ranger',      class2: 'Assassin',    alignment: 'neutral' },
+      { id: 'RZ-036', name: 'Vampella',  img: 'card_vampella.png',  tier: 'II', hp: 165, atk: 175, def: 110, spd: 145, spc: 155, type1: 'Beastborn',    type2: 'Spiritborn',   class1: 'Beastmaster', class2: 'Ranger',      alignment: 'vice' },
+
+      // Tier I — Prime
+      { id: 'RZ-023', name: 'Noxiclaw',  img: 'card_noxiclaw.png',  tier: 'I',  hp:  90, atk:  85, def:  80, spd: 140, spc: 105, type1: 'Creatureborn', type2: 'Spiritborn',   class1: 'Ranger',      class2: 'Assassin',    alignment: 'neutral' },
+      { id: 'RZ-030', name: 'Rustbyte',  img: 'card_rustbyte.png',  tier: 'I',  hp: 120, atk:  90, def: 110, spd:  80, spc: 100, type1: 'Mechborn',     type2: 'Humanoidborn', class1: 'Warrior',     class2: 'Cleric',      alignment: 'neutral' },
+      { id: 'RZ-041', name: 'Wynwyrm',   img: 'card_wynwyrm.png',   tier: 'I',  hp: 130, atk:  70, def: 100, spd:  80, spc: 120, type1: 'Natureborn',   type2: 'Spiritborn',   class1: 'Cleric',      class2: 'Warrior',     alignment: 'virtue' },
+    ];
+
+    // ============ MOVE DATABASE (signatures per card) ============
+    // Same as training.html — battlegrounds reuses move names in attack buttons.
+    const MOVES = {
+      Aionis:     ["Chronopulse",          "Fate of Time",           "Eternal Rewind"],
+      Ambrevon:   ["Golden Ascension",     "Royal Reignfall",        "Perfection Incarnate"],
+      Anciuxor:   ["Divine Verdict",       "Realm Severance",        "Divine Transplacement"],
+      Apexaur:    ["Dynobite Crush",       "Ancient Charge",         "Dune Breaker"],
+      Aurexion:   ["Vector Drive",         "Astral Projection",      "Divine Intuition"],
+      Azurel:     ["Cosmic Calculation",   "Neural Collapse",        "Singularity Override"],
+      Celestryx:  ["Ethereal Gaze",        "Halo Collapse",          "Eternal Rapture"],
+      Cerebrion:  ["Neural Override",      "Synaptic Collapse",      "Mindveil Distortion"],
+      Drakaryx:   ["Claws of Chaos",       "Winguard Tornado",       "Skybreaker Slam"],
+      Egnellahc:  ["Fractured Verse",      "Astral Suppression",     "Mind Absolute"],
+      Elzoran:    ["Elemental Eclipse",    "Telekenetic Rend",       "Helm of Chaos"],
+      Emeralix:   ["Verdant Regenesis",    "Ecoseismic Captivation", "Poisonthorn Dominion"],
+      Eurakeon:   ["Fractured Thought",    "Identity Annexation",    "Inevitable Erasure"],
+      Feliux:     ["Phantom Lunge",        "Silent Swingfall",       "Ghostwire Boom Cannon"],
+      Floravex:   ["Sweet Life",           "Catastrophic Harvest",   "Wild Bloom Plague"],
+      Frostphen:  ["Glacial Rebirth",      "Frostflare Wings",       "Permafrost Song"],
+      Gearbyte:   ["Hydraulic Press",      "Extendo Throw",          "Engine Overload"],
+      Gravelor:   ["Rockhammer Smash",     "Runic Absorption",       "Colossal Burial"],
+      Grimhog:    ["Feral Snout",          "Hellflame Stampede",     "Graveyard Playpen"],
+      Impyxid:    ["Hellskip",             "Flareshot Arrow",        "Chaotic Giggle"],
+      Ivirium:    ["Aura Equlization",     "Harmonic Dissonance",    "Divine Mediation"],
+      Mutaryn:    ["Predatory Shift",      "Perfect Evolution",      "Apex Metamorphisis"],
+      Noxiclaw:   ["Night Prowl",          "Phantom Pur",            "Mischievous Grin"],
+      Oathane:    ["Equilibrium Pulse",    "Systemic Override",      "Absolute Reset"],
+      Oatheus:    ["Celestial Decree",     "Orbital Judgement",      "Divine Rapture"],
+      Obsidius:   ["Veilsplit",            "Onyx Binding",           "Reality Dissociation"],
+      Omegoran:   ["Voidfang Guillotine",  "Cataclysmic Roar",       "The Final Armageddon"],
+      Omniris:    ["Omnivision",           "Psychequake",            "Primordial Devastation"],
+      Rakoron:    ["Predator's Chains",    "Territorial Bloodshed",  "Corefall Unleashed"],
+      Rustbyte:   ["Potty Mouth",          "Clank Tap",              "Overclock Tantrum"],
+      Scrapjaw:   ["Scrapdash",            "Daggerslash Howl",       "Revolver of the Hunt"],
+      Sharkfin:   ["Infrared Laser Beam",  "Jaws of Doom",           "Shark Tail Tornado"],
+      Sigilmor:   ["Sigil Smash",          "Unbound Shift",          "Ancient Invasion"],
+      Skybeam:    ["Clawdive",             "Sky Sight Ambush",       "Techwing Burst"],
+      Strixel:    ["Nightshade Invasion",  "Lunar Leech",            "Bearhug Devastation"],
+      Vampella:   ["Crimson Lure",         "Bloodbind Hex",          "Eclipse Fangstorm"],
+      Vengrizz:   ["Bear Hug Destruction", "Rock N' Roll Rampage",   "Teddy Tantrum"],
+      Veylith:    ["Phase Latch",          "Soul Override",          "Total Assimilation"],
+      Voltigrax:  ["Static Pounce",        "Thunderclaw",            "Primitive Hunt"],
+      Voltyran:   ["Static Impulsivity",   "Voltagious Rend",        "Thunderfall Execution"],
+      Wynwyrm:    ["Mendsong",             "Veilward",               "Hallowed Pulse"],
+      Xytabyte:   ["Razorfang Poison",     "Web Cannon Barrage",     "Execution Protocol"],
+    };
+
+    function getMove(cardName, tier) {
+      const list = MOVES[cardName];
+      return (list && list[tier - 1]) || ('A' + tier);
+    }
+
+    // ============ SCENES ============
+    const SCENES = [
+      { id: 'origon',  name: 'Origon',  portrait: '/scenes/scene_origon_portrait.png',  landscape: '/scenes/scene_origon_landscape.png'  },
+    ];
+    function pickRandomScene() { return SCENES[Math.floor(Math.random() * SCENES.length)]; }
+    function renderScene(scene) {
+      if (!scene) return;
+      const el = document.getElementById('battlefield-scene');
+      if (!el) return;
+      document.documentElement.style.setProperty('--scene-portrait',  `url("${scene.portrait}")`);
+      document.documentElement.style.setProperty('--scene-landscape', `url("${scene.landscape}")`);
+      void el.offsetWidth;
+      el.classList.add('active');
+    }
+
+    // ============ COMBAT HELPERS (used in Steps 4+) ============
+    const ATTACK_MULTIPLIERS = { 1: 0.33, 2: 0.66, 3: 0.99 };
+    function defReduction(def) {
+      if (def <= 100) return 1.0;
+      if (def <= 200) return 0.75;
+      if (def <= 300) return 0.50;
+      return 0.25;
+    }
+    function calculateDamage(attacker, defender, attackTier) {
+      const rawDmg = attacker.atk * ATTACK_MULTIPLIERS[attackTier];
+      const reduction = defReduction(defender.def);
+      return Math.ceil(rawDmg * reduction);
+    }
+
+    // ============ STATE ============
+    // Step 1 only uses playerTeam + opponentTeam. Steps 2+ will extend this.
+    const state = {
+      playerTeam: null,         // [active, reserve1, reserve2]
+      opponentTeam: null,
+      playerActiveIdx: 0,
+      opponentActiveIdx: 0,
+      playerGems: 9,
+      opponentGems: 9,
+      currentFilter: 'all',
+      // commitment + combat state added in later steps
+    };
+
+    // ============ HELPERS ============
+    const $ = (id) => document.getElementById(id);
+
+    function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+    // Random pick of N unique cards, excluding any IDs given and any flagged excludeFromRandom (Anciuxor).
+    function pickRandomCards(count, excludeIds) {
+      excludeIds = excludeIds || [];
+      const pool = CARDS.filter(c => !c.excludeFromRandom && excludeIds.indexOf(c.id) === -1);
+      // Fisher-Yates shuffle
+      const shuffled = pool.slice();
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled.slice(0, count).map(deepCopy);
+    }
+
+    // ============ STEP 1A — CHAMPION SELECT GRID ============
+    function renderCardGrid() {
+      const grid = $('card-grid');
+      grid.innerHTML = '';
+      const filter = state.currentFilter;
+      const pickable = CARDS
+        .filter(c => !c.excludeFromRandom)
+        .filter(c => filter === 'all' || c.tier === filter)
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      pickable.forEach(card => {
+        const btn = document.createElement('button');
+        btn.className = 'card-pick';
+        btn.dataset.cardId = card.id;
+        btn.dataset.alignment = card.alignment;
+        btn.setAttribute('aria-label', `Pick ${card.name}, Tier ${card.tier} ${TIER_NAMES[card.tier]}`);
+        btn.innerHTML = `
+          <img class="card-pick-img" src="/cards/${card.img}" alt="${card.name}" loading="lazy">
+          <div class="card-pick-name">${card.name}</div>
+          <div class="card-pick-tier">${TIER_NAMES[card.tier] || card.tier}</div>
+        `;
+        btn.addEventListener('click', () => selectChampion(card));
+        grid.appendChild(btn);
+      });
+    }
+
+    // Filter pill clicks
+    document.querySelectorAll('.filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        state.currentFilter = pill.dataset.filter;
+        renderCardGrid();
+      });
+    });
+
+    // ============ STEP 1B — TEAM ASSEMBLY + CONFIRMATION ============
+    function selectChampion(card) {
+      // Player's champion + 2 random allies.
+      const playerActive = deepCopy(card);
+      const playerReserves = pickRandomCards(2, [card.id]);
+
+      // Opponent gets 3 random Rizers, excluding the player's entire team.
+      const excluded = [card.id, playerReserves[0].id, playerReserves[1].id];
+      const opponentTeam = pickRandomCards(3, excluded);
+
+      state.playerTeam = [playerActive, playerReserves[0], playerReserves[1]];
+      state.opponentTeam = opponentTeam;
+      state.playerActiveIdx = 0;
+      state.opponentActiveIdx = 0;
+
+      renderTeamPreview('player-team-preview', state.playerTeam);
+      renderTeamPreview('opponent-team-preview', state.opponentTeam);
+
+      $('select-screen').hidden = true;
+      $('confirm-screen').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Render a 3-slot preview row. Active card is center-stage (index 0).
+    function renderTeamPreview(elId, team) {
+      const el = $(elId);
+      el.innerHTML = '';
+      // Visual layout: reserve(1)  ACTIVE(0)  reserve(2)
+      const order = [team[1], team[0], team[2]];
+      const slotKind = ['is-reserve', 'is-active', 'is-reserve'];
+      order.forEach((card, i) => {
+        const slot = document.createElement('div');
+        slot.className = 'team-slot ' + slotKind[i];
+        slot.dataset.alignment = card.alignment;
+        slot.innerHTML = `
+          <img class="team-slot-img" src="/cards/${card.img}" alt="${card.name}">
+          <div class="team-slot-name">${card.name}</div>
+          <div class="team-slot-meta">${i === 1 ? 'Active' : 'Reserve'} · Tier ${card.tier}</div>
+        `;
+        el.appendChild(slot);
+      });
+    }
+
+    // ============ NAVIGATION ============
+    $('intro-start').addEventListener('click', () => {
+      $('intro').classList.add('dismissed');
+      $('select-screen').hidden = false;
+      renderCardGrid();
+      // Soft-render a battlefield scene so the cosmic backdrop is alive.
+      renderScene(pickRandomScene());
+    });
+
+    $('confirm-back').addEventListener('click', () => {
+      $('confirm-screen').hidden = true;
+      $('select-screen').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    $('confirm-begin').addEventListener('click', () => {
+      // Steps 2+ will replace this stub with the real battlefield render.
+      $('confirm-screen').hidden = true;
+      $('arena').hidden = false;
+      $('dbg-player').textContent = state.playerTeam.map(c => c.name).join(' · ');
+      $('dbg-opponent').textContent = state.opponentTeam.map(c => c.name).join(' · ');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+  </script>
+</body>
+</html>

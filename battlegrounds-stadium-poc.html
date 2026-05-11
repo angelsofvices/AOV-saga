@@ -118,33 +118,9 @@
         linear-gradient(180deg, rgba(5, 3, 16, 0.55) 0%, transparent 22%, transparent 78%, rgba(5, 3, 16, 0.5) 100%);
     }
 
-    /* ============ Stadium frame (left + right pillars w/ lights) ============ */
-    .stadium-frame {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-    }
-    .stadium-frame::before,
-    .stadium-frame::after {
-      content: '';
-      position: absolute;
-      top: 12%;
-      bottom: 14%;
-      width: 6%;
-      background:
-        linear-gradient(180deg, transparent 0%, rgba(232, 200, 120, 0.12) 8%, rgba(232, 200, 120, 0.16) 50%, rgba(232, 200, 120, 0.12) 92%, transparent 100%),
-        repeating-linear-gradient(180deg,
-          rgba(232, 200, 120, 0.18) 0px,
-          rgba(232, 200, 120, 0.18) 2px,
-          transparent 2px,
-          transparent 70px);
-      border-left: 1px solid rgba(232, 200, 120, 0.15);
-      border-right: 1px solid rgba(232, 200, 120, 0.15);
-      box-shadow: 0 0 50px rgba(232, 200, 120, 0.10) inset;
-    }
-    .stadium-frame::before { left: 0; }
-    .stadium-frame::after  { right: 0; }
+    /* Stadium frame removed — let the platform speak for itself against the cosmic backdrop.
+       Future iteration: commission a painted stadium scene asset for proper architecture. */
+    .stadium-frame { display: none; }
 
     /* Spotlight glow above arena */
     .stadium-lights {
@@ -260,6 +236,11 @@
       filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
       animation: float-idle 5s ease-in-out infinite;
       will-change: transform;
+      /* Suppress iOS Safari's built-in long-press image preview so ours takes precedence */
+      -webkit-touch-callout: none;
+      -webkit-user-drag: none;
+      user-drag: none;
+      pointer-events: none;
     }
     @keyframes float-idle {
       0%, 100% { transform: translateY(0) rotate(-0.6deg); }
@@ -274,6 +255,26 @@
       transform: scale(0.74) translateY(8%);
       opacity: 0.72;
       filter: saturate(0.75);
+    }
+    .slot.is-reserve:hover,
+    .slot.is-reserve:active {
+      opacity: 0.95;
+      filter: saturate(0.95);
+      transform: scale(0.78) translateY(5%);
+    }
+
+    /* Selected target — gold pulse ring on opponent's targeted card */
+    .slot.is-target {
+      filter: drop-shadow(0 0 14px rgba(232, 200, 120, 0.65));
+    }
+    .slot.is-target .slot-name { color: var(--gold-bright); }
+    .slot.is-target .slot-img {
+      animation-name: target-pulse;
+      animation-duration: 2.2s;
+    }
+    @keyframes target-pulse {
+      0%, 100% { transform: translateY(0) rotate(-0.6deg) scale(1); filter: drop-shadow(0 0 6px rgba(232, 200, 120, 0.5)); }
+      50%      { transform: translateY(-6px) rotate(0.6deg) scale(1.03); filter: drop-shadow(0 0 14px rgba(232, 200, 120, 0.9)); }
     }
     .slot.is-reserve .slot-img {
       animation-name: float-idle-alt;
@@ -594,6 +595,86 @@
     }
     .arena.shake { animation: screen-shake 0.32s ease; }
 
+    /* ============ Long-press card preview modal ============ */
+    .card-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(5, 3, 16, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.22s ease, visibility 0.22s ease;
+      pointer-events: none;
+    }
+    .card-modal.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+    .card-modal-image {
+      max-width: 92vw;
+      max-height: 88vh;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 12px 40px rgba(0, 0, 0, 0.7));
+      transform: scale(0.92);
+      transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+      -webkit-touch-callout: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+    }
+    .card-modal.open .card-modal-image { transform: scale(1); }
+    .card-modal-close {
+      position: absolute;
+      top: max(18px, env(safe-area-inset-top));
+      right: max(18px, env(safe-area-inset-right));
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(5, 3, 16, 0.7);
+      color: var(--gold);
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .card-modal-close:hover, .card-modal-close:active {
+      border-color: var(--gold);
+      color: var(--gold-bright);
+      transform: scale(1.08);
+    }
+    .card-modal-hint {
+      position: absolute;
+      bottom: max(22px, env(safe-area-inset-bottom));
+      left: 0; right: 0;
+      text-align: center;
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.65;
+    }
+
+    /* Subtle long-press feedback while user is holding (before threshold fires) */
+    .slot.long-pressing {
+      transition: transform 0.4s ease, filter 0.4s ease;
+      filter: drop-shadow(0 0 10px rgba(232, 200, 120, 0.45)) brightness(1.08);
+    }
+    .slot.long-pressing.is-active { transform: scale(1.03); }
+    .slot.long-pressing.is-reserve { transform: scale(0.78) translateY(5%); }
+
     /* ============ Reduced motion ============ */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition-duration: 0.1s !important; }
@@ -632,34 +713,11 @@
         <span class="pool-label">Opp</span>
         <div class="pool-gems" id="opp-pool"></div>
       </div>
-      <div class="brand-tag">Origon · Round 1</div>
+      <div class="brand-tag" id="status-line">Tap reserve to swap · Tap opp to target</div>
     </div>
 
-    <!-- OPPONENT TEAM ZONE -->
-    <div class="zone zone-opponent" id="zone-opponent">
-      <!-- 3 slots: reserve, active, reserve -->
-      <div class="slot is-reserve" data-side="cpu" data-slot="reserve-left">
-        <div class="slot-label">
-          <div class="slot-name">Voltyran</div>
-          <div class="hp-bar"><div class="hp-fill"></div></div>
-        </div>
-        <img class="slot-img" src="/cards/card_voltyran.png" alt="Voltyran">
-      </div>
-      <div class="slot is-active" data-side="cpu" data-slot="active" id="slot-cpu-active">
-        <div class="slot-label">
-          <div class="slot-name">Drakaryx</div>
-          <div class="hp-bar"><div class="hp-fill" id="hp-cpu"></div></div>
-        </div>
-        <img class="slot-img" src="/cards/card_drakaryx.png" alt="Drakaryx">
-      </div>
-      <div class="slot is-reserve" data-side="cpu" data-slot="reserve-right">
-        <div class="slot-label">
-          <div class="slot-name">Mutaryn</div>
-          <div class="hp-bar"><div class="hp-fill"></div></div>
-        </div>
-        <img class="slot-img" src="/cards/card_mutaryn.png" alt="Mutaryn">
-      </div>
-    </div>
+    <!-- OPPONENT TEAM ZONE (JS-rendered — tap any card to target it) -->
+    <div class="zone zone-opponent" id="zone-opponent"></div>
 
     <!-- ARENA PLATFORM -->
     <div class="platform-wrap">
@@ -697,30 +755,8 @@
       </div>
     </div>
 
-    <!-- PLAYER TEAM ZONE -->
-    <div class="zone zone-player" id="zone-player">
-      <div class="slot is-reserve" data-side="player" data-slot="reserve-left">
-        <div class="slot-label">
-          <div class="slot-name">Aionis</div>
-          <div class="hp-bar"><div class="hp-fill"></div></div>
-        </div>
-        <img class="slot-img" src="/cards/card_aionis.png" alt="Aionis">
-      </div>
-      <div class="slot is-active" data-side="player" data-slot="active" id="slot-player-active">
-        <div class="slot-label">
-          <div class="slot-name">Aurexion</div>
-          <div class="hp-bar"><div class="hp-fill" id="hp-player"></div></div>
-        </div>
-        <img class="slot-img" src="/cards/card_aurexion.png" alt="Aurexion">
-      </div>
-      <div class="slot is-reserve" data-side="player" data-slot="reserve-right">
-        <div class="slot-label">
-          <div class="slot-name">Wynwyrm</div>
-          <div class="hp-bar"><div class="hp-fill"></div></div>
-        </div>
-        <img class="slot-img" src="/cards/card_wynwyrm.png" alt="Wynwyrm">
-      </div>
-    </div>
+    <!-- PLAYER TEAM ZONE (JS-rendered — tap a reserve to swap active, free) -->
+    <div class="zone zone-player" id="zone-player"></div>
 
     <!-- BOTTOM HUD: player gem pool + attack buttons -->
     <div class="hud-bottom">
@@ -750,24 +786,147 @@
 
   </main>
 
+  <!-- ============ Card preview modal (long-press to open) ============ -->
+  <div class="card-modal" id="card-modal" aria-hidden="true">
+    <button class="card-modal-close" id="card-modal-close" aria-label="Close preview">✕</button>
+    <img class="card-modal-image" id="card-modal-image" alt="">
+    <div class="card-modal-hint">Tap anywhere to dismiss</div>
+  </div>
+
   <script>
     'use strict';
 
-    // ============ Minimal state for POC ============
-    // Real combat math lives in battlegrounds.html. Here we just demonstrate
-    // the attack-animation loop for the 2.5D stadium camera.
+    // ============ POC card stats (subset) ============
+    // Real game pulls from training.html's CARDS database; POC inlines them.
+    const CARDS = {
+      Aurexion: { atk: 230, def: 170, hp: 180, spd: 200, img: 'card_aurexion.png' },
+      Aionis:   { atk: 200, def: 240, hp: 360, spd: 400, img: 'card_aionis.png'   },
+      Wynwyrm:  { atk:  70, def: 100, hp: 130, spd:  80, img: 'card_wynwyrm.png'  },
+      Drakaryx: { atk: 270, def: 210, hp: 260, spd: 160, img: 'card_drakaryx.png' },
+      Voltyran: { atk: 360, def: 260, hp: 300, spd: 420, img: 'card_voltyran.png' },
+      Mutaryn:  { atk: 360, def: 260, hp: 340, spd: 300, img: 'card_mutaryn.png'  },
+    };
+
+    // ============ State ============
+    // teamOrder[0]=left reserve · [1]=center active · [2]=right reserve.
+    // Swap is "free" — taps the tapped reserve into position [1].
+    // Target is the opponent card the player intends to attack next turn.
     const state = {
-      playerHP: 180,
-      playerMaxHP: 180,
-      cpuHP: 260,
-      cpuMaxHP: 260,
-      playerGems: 9,
-      cpuGems: 9,
+      player: {
+        teamOrder: ['Aionis', 'Aurexion', 'Wynwyrm'],
+        hp: { Aurexion: 180, Aionis: 360, Wynwyrm: 130 },
+        gems: 9,
+      },
+      cpu: {
+        teamOrder: ['Voltyran', 'Drakaryx', 'Mutaryn'],
+        hp: { Drakaryx: 260, Voltyran: 300, Mutaryn: 340 },
+        gems: 9,
+      },
+      target: 'Drakaryx',  // defaults to opponent's active
       busy: false,
     };
 
     const $ = (id) => document.getElementById(id);
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+    function activeOf(side) { return state[side].teamOrder[1]; }
+    function isAlive(side, name) { return state[side].hp[name] > 0; }
+    function aliveCount(side) { return state[side].teamOrder.filter(n => isAlive(side, n)).length; }
+
+    // ============ Damage math ============
+    const TIER_MULT = { 1: 0.33, 2: 0.66, 3: 0.99 };
+    function defReduction(def) {
+      if (def <= 100) return 1.0;
+      if (def <= 200) return 0.75;
+      if (def <= 300) return 0.50;
+      return 0.25;
+    }
+    function calcDmg(atkName, defName, tier) {
+      const a = CARDS[atkName], d = CARDS[defName];
+      return Math.ceil(a.atk * TIER_MULT[tier] * defReduction(d.def));
+    }
+
+    // ============ Slot rendering ============
+    function renderTeam(side) {
+      const zone = $('zone-' + (side === 'player' ? 'player' : 'opponent'));
+      zone.innerHTML = '';
+      state[side].teamOrder.forEach((name, idx) => {
+        const c = CARDS[name];
+        const isActive = idx === 1;
+        const fallen = !isAlive(side, name);
+        const isTarget = side === 'cpu' && state.target === name && !fallen;
+
+        const slot = document.createElement('div');
+        slot.className = 'slot ' +
+          (isActive ? 'is-active' : 'is-reserve') +
+          (fallen ? ' is-fallen' : '') +
+          (isTarget ? ' is-target' : '');
+        slot.dataset.side = side;
+        slot.dataset.card = name;
+        if (isActive) slot.id = `slot-${side}-active`;
+
+        const hpPct = Math.max(0, (state[side].hp[name] / c.hp) * 100);
+        const hpClass = hpPct <= 25 ? 'red' : hpPct <= 50 ? 'yellow' : hpPct <= 75 ? 'green' : '';
+
+        slot.innerHTML = `
+          <div class="slot-label">
+            <div class="slot-name">${name}</div>
+            <div class="hp-bar"><div class="hp-fill ${hpClass}" style="width:${hpPct}%"></div></div>
+          </div>
+          <img class="slot-img" src="/cards/${c.img}" alt="${name}">
+        `;
+
+        // Wire interaction. Every alive card supports long-press → preview.
+        // Quick tap fires the card's primary action:
+        //  · Player reserve → swap to active (free)
+        //  · Opponent card → set as target
+        //  · Player active (no quick action) → still long-press-previewable
+        if (!fallen) {
+          slot.style.cursor = 'pointer';
+          let onTap = null;
+          if (side === 'player' && !isActive) {
+            onTap = () => swapActive(name);
+          } else if (side === 'cpu') {
+            onTap = () => setTarget(name);
+          }
+          attachLongPress(slot, () => openCardModal(name), onTap);
+        }
+
+        zone.appendChild(slot);
+      });
+    }
+
+    // Free swap — tapped reserve becomes active, old active slides into that slot.
+    function swapActive(name) {
+      if (state.busy) return;
+      if (!isAlive('player', name)) return;
+      const order = state.player.teamOrder;
+      const idx = order.indexOf(name);
+      if (idx === 1) return; // already active
+      [order[1], order[idx]] = [order[idx], order[1]];
+      renderTeam('player');
+      flashStatus(`Swapped → ${name} now active`);
+    }
+
+    // Set target on opponent side
+    function setTarget(name) {
+      if (state.busy) return;
+      if (!isAlive('cpu', name)) return;
+      state.target = name;
+      renderTeam('cpu');
+      flashStatus(`Target: ${name}`);
+    }
+
+    function flashStatus(text) {
+      const el = $('status-line');
+      el.textContent = text;
+      clearTimeout(flashStatus._t);
+      flashStatus._t = setTimeout(() => {
+        el.textContent = 'Tap reserve to swap · Tap opp to target';
+      }, 1800);
+    }
+
+    // ============ Pool / damage UI ============
     function renderPool(elId, count, max) {
       const el = $(elId);
       el.innerHTML = '';
@@ -778,18 +937,9 @@
       }
     }
 
-    function updateHPBar(fillId, current, max) {
-      const fill = $(fillId);
-      const pct = Math.max(0, (current / max) * 100);
-      fill.style.width = pct + '%';
-      fill.classList.remove('green', 'yellow', 'red');
-      if (pct <= 25)      fill.classList.add('red');
-      else if (pct <= 50) fill.classList.add('yellow');
-      else if (pct <= 75) fill.classList.add('green');
-    }
-
-    function showDamage(side, amount) {
-      const slot = side === 'player' ? $('slot-player-active') : $('slot-cpu-active');
+    function showDamage(side, cardName, amount) {
+      const slot = document.querySelector(`.slot[data-side="${side}"][data-card="${cardName}"]`);
+      if (!slot) return;
       const fly = document.createElement('div');
       fly.className = 'damage-flyup';
       fly.textContent = '−' + amount;
@@ -799,93 +949,207 @@
       setTimeout(() => slot.classList.remove('hit'), 420);
     }
 
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-    // POC damage formula — same shape as training.html
-    const TIER_MULT = { 1: 0.33, 2: 0.66, 3: 0.99 };
-    function calcDmg(atk, def, tier) {
-      const red = def <= 100 ? 1.0 : def <= 200 ? 0.75 : def <= 300 ? 0.5 : 0.25;
-      return Math.ceil(atk * TIER_MULT[tier] * red);
-    }
-
+    // ============ Combat: SPD-aware, target-aware ============
+    // Player attacks the current target. SPD compares attacker.spd vs target.spd.
+    // Faster strikes first. If target lives, target counter-attacks the player's active.
     async function playerAttack(tier) {
       if (state.busy) return;
+      const playerName = activeOf('player');
+      const targetName = state.target;
+      if (!isAlive('cpu', targetName)) return;
+      if (!isAlive('player', playerName)) return;
+
       state.busy = true;
       document.querySelectorAll('.action-btn').forEach(b => b.disabled = true);
 
-      const sprite = $('slot-player-active');
-      // A3 also kicks the camera
-      if (tier === 3) $('arena').classList.add('shake');
+      const playerSpd = CARDS[playerName].spd;
+      const targetSpd = CARDS[targetName].spd;
+      const playerFirst = playerSpd > targetSpd ||
+        (playerSpd === targetSpd && Math.random() < 0.5);
 
-      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
-      void sprite.offsetWidth;
-      sprite.classList.add('attacking', 'tier-' + tier);
+      flashStatus(`SPD ${playerName} ${playerSpd} vs ${targetName} ${targetSpd} — ${playerFirst ? playerName : targetName} strikes first`);
 
-      await sleep(360);
-      // Aurexion stats: ATK 230, opponent Drakaryx DEF 210
-      const dmg = calcDmg(230, 210, tier);
-      state.cpuHP = Math.max(0, state.cpuHP - dmg);
-      showDamage('cpu', dmg);
-      updateHPBar('hp-cpu', state.cpuHP, state.cpuMaxHP);
-
-      await sleep(900);
-
-      // Spend gems visually
-      state.playerGems = Math.max(0, state.playerGems - tier);
-      renderPool('player-pool', state.playerGems, 9);
-
-      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
-      $('arena').classList.remove('shake');
-
-      // CPU counter
-      if (state.cpuHP > 0) {
-        await cpuCounter();
+      // Sequence the two attacks
+      if (playerFirst) {
+        await executeAttack('player', playerName, targetName, tier);
+        if (isAlive('cpu', targetName) && isAlive('player', playerName)) {
+          await sleep(380);
+          const cpuTier = pickCpuTier();
+          await executeAttack('cpu', targetName, playerName, cpuTier);
+        }
       } else {
-        $('slot-cpu-active').classList.add('is-fallen');
+        const cpuTier = pickCpuTier();
+        await executeAttack('cpu', targetName, playerName, cpuTier);
+        if (isAlive('player', playerName) && isAlive('cpu', targetName)) {
+          await sleep(380);
+          await executeAttack('player', playerName, targetName, tier);
+        }
       }
+
+      // Auto-bump fallen cards out of active slot if needed
+      autoPromoteIfFallen('player');
+      autoPromoteIfFallen('cpu');
+      renderTeam('player');
+      renderTeam('cpu');
 
       state.busy = false;
       document.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
     }
 
-    async function cpuCounter() {
-      await sleep(400);
-      const tier = Math.min(3, state.cpuGems > 0 ? (Math.random() < 0.5 ? 2 : 3) : 1);
-      const sprite = $('slot-cpu-active');
+    // One attack action — animates attacker, applies damage to defender.
+    async function executeAttack(attackerSide, attackerName, defenderName, tier) {
+      const defenderSide = attackerSide === 'player' ? 'cpu' : 'player';
+
+      const sprite = document.querySelector(`.slot[data-side="${attackerSide}"][data-card="${attackerName}"]`);
+      if (!sprite) return;
+
       if (tier === 3) $('arena').classList.add('shake');
       sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
       void sprite.offsetWidth;
       sprite.classList.add('attacking', 'tier-' + tier);
 
       await sleep(360);
-      // Drakaryx ATK 270, Aurexion DEF 170
-      const dmg = calcDmg(270, 170, tier);
-      state.playerHP = Math.max(0, state.playerHP - dmg);
-      showDamage('player', dmg);
-      updateHPBar('hp-player', state.playerHP, state.playerMaxHP);
 
-      await sleep(900);
-      state.cpuGems = Math.max(0, state.cpuGems - tier);
-      renderPool('opp-pool', state.cpuGems, 9);
+      const dmg = calcDmg(attackerName, defenderName, tier);
+      state[defenderSide].hp[defenderName] = Math.max(0, state[defenderSide].hp[defenderName] - dmg);
+      showDamage(defenderSide, defenderName, dmg);
 
+      // Update the defender's HP bar in-place
+      const defSlot = document.querySelector(`.slot[data-side="${defenderSide}"][data-card="${defenderName}"]`);
+      if (defSlot) {
+        const fill = defSlot.querySelector('.hp-fill');
+        const maxHp = CARDS[defenderName].hp;
+        const pct = Math.max(0, (state[defenderSide].hp[defenderName] / maxHp) * 100);
+        fill.style.width = pct + '%';
+        fill.classList.remove('green', 'yellow', 'red');
+        if (pct <= 25)      fill.classList.add('red');
+        else if (pct <= 50) fill.classList.add('yellow');
+        else if (pct <= 75) fill.classList.add('green');
+        if (pct === 0) defSlot.classList.add('is-fallen');
+      }
+
+      // Spend the gem
+      state[attackerSide].gems = Math.max(0, state[attackerSide].gems - tier);
+      renderPool(attackerSide === 'player' ? 'player-pool' : 'opp-pool', state[attackerSide].gems, 9);
+
+      await sleep(820);
       sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
       $('arena').classList.remove('shake');
-
-      if (state.playerHP <= 0) {
-        $('slot-player-active').classList.add('is-fallen');
-      }
     }
 
-    // Wire up the attack buttons
+    function pickCpuTier() {
+      // Simple AI: if it can finish the player target in one shot, do that.
+      const playerName = activeOf('player');
+      for (let t = 1; t <= 3; t++) {
+        if (calcDmg(state.target, playerName, t) >= state.player.hp[playerName]) return t;
+      }
+      return 3;
+    }
+
+    // If the active card fell, promote the next alive reserve into the center slot.
+    function autoPromoteIfFallen(side) {
+      const order = state[side].teamOrder;
+      if (isAlive(side, order[1])) return;
+      const aliveReserve = order.find(n => isAlive(side, n));
+      if (!aliveReserve) return;
+      const idx = order.indexOf(aliveReserve);
+      [order[1], order[idx]] = [order[idx], order[1]];
+      if (side === 'cpu') state.target = order[1]; // re-target the new active
+    }
+
+    // ============ Long-press detection ============
+    // Holds the pointer 450ms with <12px of movement → fires onLongPress.
+    // Quick release → fires onTap (if provided).
+    // Drag/scroll cancels everything.
+    const LONG_PRESS_MS = 450;
+    const MOVE_TOLERANCE = 12;
+
+    function attachLongPress(el, onLongPress, onTap) {
+      let timer = null;
+      let startX = 0, startY = 0;
+      let fired = false;
+      let active = false;
+
+      function start(e) {
+        // Only respond to primary pointer
+        if (e.button !== undefined && e.button !== 0) return;
+        const t = e;
+        startX = t.clientX;
+        startY = t.clientY;
+        fired = false;
+        active = true;
+        el.classList.add('long-pressing');
+        timer = setTimeout(() => {
+          if (!active) return;
+          fired = true;
+          el.classList.remove('long-pressing');
+          onLongPress();
+        }, LONG_PRESS_MS);
+      }
+      function move(e) {
+        if (!active) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.hypot(dx, dy) > MOVE_TOLERANCE) cancel();
+      }
+      function end() {
+        if (!active) return;
+        const wasFired = fired;
+        cancel();
+        if (!wasFired && onTap) onTap();
+      }
+      function cancel() {
+        active = false;
+        if (timer) { clearTimeout(timer); timer = null; }
+        el.classList.remove('long-pressing');
+      }
+
+      el.addEventListener('pointerdown', start);
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', end);
+      el.addEventListener('pointerleave', cancel);
+      el.addEventListener('pointercancel', cancel);
+      // Block the iOS Safari context menu since we own the long-press
+      el.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    // ============ Card preview modal ============
+    function openCardModal(cardName) {
+      const c = CARDS[cardName];
+      if (!c) return;
+      const modal = $('card-modal');
+      const img = $('card-modal-image');
+      img.src = '/cards/' + c.img;
+      img.alt = cardName;
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeCardModal() {
+      const modal = $('card-modal');
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    // Tap-anywhere-to-dismiss
+    $('card-modal').addEventListener('click', closeCardModal);
+    $('card-modal-close').addEventListener('click', e => {
+      e.stopPropagation();
+      closeCardModal();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeCardModal();
+    });
+
+    // ============ Wire up + init ============
     document.querySelectorAll('.action-btn').forEach(btn => {
       btn.addEventListener('click', () => playerAttack(parseInt(btn.dataset.tier, 10)));
     });
 
-    // Init
-    renderPool('player-pool', state.playerGems, 9);
-    renderPool('opp-pool', state.cpuGems, 9);
-    updateHPBar('hp-player', state.playerHP, state.playerMaxHP);
-    updateHPBar('hp-cpu', state.cpuHP, state.cpuMaxHP);
+    renderTeam('player');
+    renderTeam('cpu');
+    renderPool('player-pool', state.player.gems, 9);
+    renderPool('opp-pool', state.cpu.gems, 9);
   </script>
 </body>
 </html>

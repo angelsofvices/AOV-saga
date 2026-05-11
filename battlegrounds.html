@@ -518,39 +518,476 @@
     }
     .confirm-actions .btn { width: 100%; max-width: 280px; }
 
-    /* ============ Battlefield placeholder (Step 2+ will populate) ============ */
+    /* ============ Stadium battlefield (validated in POC) ============ */
     .arena {
-      min-height: 100vh;
-      padding: 60px 12px 14px;
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    /* Spotlight glow above arena */
+    .stadium-lights {
+      position: fixed;
+      top: 6%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 18%;
+      background:
+        radial-gradient(ellipse 60% 100% at 50% 0%, rgba(243, 236, 220, 0.14) 0%, transparent 70%),
+        radial-gradient(ellipse 80% 60% at 50% 30%, rgba(95, 168, 255, 0.07) 0%, transparent 75%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Top HUD */
+    .hud-top {
+      padding: 14px 14px 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 50;
+    }
+    .pool {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: rgba(5, 3, 16, 0.55);
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .pool-label {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.8;
+    }
+    .pool-gems { display: flex; gap: 3px; }
+    .pool-gem {
+      width: 7px;
+      height: 7px;
+      transform: rotate(45deg);
+      background: linear-gradient(135deg, var(--gold-bright), var(--gold-deep));
+      box-shadow: 0 0 4px rgba(232, 200, 120, 0.5);
+    }
+    .pool-gem.spent { opacity: 0.18; box-shadow: none; }
+
+    .brand-tag {
+      font-family: var(--font-display);
+      font-size: 0.55rem;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.7;
+    }
+
+    /* Team zones */
+    .zone {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 4%;
+      padding: 0 6%;
+      pointer-events: none;
+    }
+    .zone-opponent { flex: 0 0 auto; height: 28vh; transform-origin: center bottom; }
+    .zone-player   { flex: 0 0 auto; height: 38vh; transform-origin: center top; }
+
+    /* Card sprite slot */
+    .slot {
+      position: relative;
+      height: 100%;
+      aspect-ratio: 5 / 7;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      pointer-events: auto;
+      transition: transform 0.45s cubic-bezier(0.3, 0.1, 0.3, 1), filter 0.3s ease;
+    }
+    .slot-img {
+      width: 100%;
+      height: 88%;
+      object-fit: contain;
+      filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
+      animation: float-idle 5s ease-in-out infinite;
+      will-change: transform;
+      -webkit-touch-callout: none;
+      -webkit-user-drag: none;
+      user-drag: none;
+      pointer-events: none;
+    }
+    @keyframes float-idle {
+      0%, 100% { transform: translateY(0) rotate(-0.6deg); }
+      50%      { transform: translateY(-5px) rotate(0.6deg); }
+    }
+    @keyframes float-idle-alt {
+      0%, 100% { transform: translateY(0) rotate(0.6deg); }
+      50%      { transform: translateY(-3px) rotate(-0.6deg); }
+    }
+
+    .slot.is-active { z-index: 2; }
+    .slot.is-reserve {
+      transform: scale(0.74) translateY(8%);
+      opacity: 0.72;
+      filter: saturate(0.75);
+    }
+    .slot.is-reserve:hover,
+    .slot.is-reserve:active {
+      opacity: 0.95;
+      filter: saturate(0.95);
+      transform: scale(0.78) translateY(5%);
+    }
+    .slot.is-fallen .slot-img { filter: grayscale(0.9) brightness(0.4); animation: none; }
+
+    /* Floor shadow under each sprite */
+    .slot::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 12%;
+      right: 12%;
+      height: 14px;
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55) 0%, transparent 70%);
+      filter: blur(2px);
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .slot.is-reserve::after { opacity: 0.4; }
+
+    /* Per-zone perspective */
+    .zone-opponent .slot.is-active  { transform: scale(0.92); }
+    .zone-opponent .slot.is-reserve { transform: scale(0.66) translateY(8%); }
+    .zone-player   .slot.is-active  { transform: scale(1); }
+    .zone-player   .slot.is-reserve { transform: scale(0.78) translateY(8%); }
+
+    /* Target indicator (opponent) */
+    .slot.is-target { filter: drop-shadow(0 0 14px rgba(232, 200, 120, 0.65)); }
+    .slot.is-target .slot-name { color: var(--gold-bright); }
+    .slot.is-target .slot-img {
+      animation-name: target-pulse;
+      animation-duration: 2.2s;
+    }
+    @keyframes target-pulse {
+      0%, 100% { transform: translateY(0) rotate(-0.6deg) scale(1); filter: drop-shadow(0 0 6px rgba(232, 200, 120, 0.5)); }
+      50%      { transform: translateY(-6px) rotate(0.6deg) scale(1.03); filter: drop-shadow(0 0 14px rgba(232, 200, 120, 0.9)); }
+    }
+
+    /* HP + name label above each sprite */
+    .slot-label {
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 110%;
+      pointer-events: none;
+      text-align: center;
+    }
+    .slot-name {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      color: var(--ivory);
+      text-shadow: 0 0 8px rgba(5, 3, 16, 0.9), 0 0 3px rgba(5, 3, 16, 1);
+      line-height: 1;
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+    .slot.is-reserve .slot-name { font-size: 0.6rem; opacity: 0.85; }
+    .hp-bar {
+      position: relative;
+      height: 6px;
+      background: rgba(5, 3, 16, 0.7);
+      border: 1px solid rgba(232, 200, 120, 0.25);
+      border-radius: 1px;
+      overflow: hidden;
+      backdrop-filter: blur(4px);
+    }
+    .hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--virtue), var(--cosmic-blue));
+      width: 100%;
+      transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.45s ease;
+      box-shadow: 0 0 6px rgba(95, 168, 255, 0.5);
+    }
+    .hp-fill.green  { background: linear-gradient(90deg, #0f8a66, var(--emerald)); box-shadow: 0 0 6px rgba(47,230,168,0.45); }
+    .hp-fill.yellow { background: linear-gradient(90deg, var(--gold-deep), var(--gold)); box-shadow: 0 0 6px rgba(232,200,120,0.45); }
+    .hp-fill.red    { background: linear-gradient(90deg, var(--vice), #ff8b3d); box-shadow: 0 0 8px rgba(232,90,90,0.55); }
+
+    /* Wager indicator (current commitment level for this card) */
+    .wager {
+      display: flex;
+      justify-content: center;
+      gap: 2px;
+      margin-top: 3px;
+    }
+    .wager-dot {
+      width: 5px;
+      height: 5px;
+      transform: rotate(45deg);
+      background: rgba(232, 200, 120, 0.2);
+      transition: all 0.3s ease;
+    }
+    .wager-dot.lit {
+      background: linear-gradient(135deg, var(--gold-bright), var(--gold-deep));
+      box-shadow: 0 0 4px var(--gold);
+    }
+
+    /* Arena platform — angled trapezoid w/ AOV insignia */
+    .platform-wrap {
+      position: relative;
+      flex: 0 0 auto;
+      height: 14vh;
+      margin: 0 4%;
+      pointer-events: none;
+    }
+    .platform {
+      position: absolute;
+      inset: 0;
+      clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+      background:
+        radial-gradient(ellipse at 50% 90%, rgba(232, 200, 120, 0.35) 0%, rgba(232, 200, 120, 0.05) 35%, transparent 65%),
+        linear-gradient(180deg, rgba(95, 168, 255, 0.18) 0%, rgba(28, 16, 54, 0.65) 100%);
+      box-shadow:
+        0 -2px 0 rgba(232, 200, 120, 0.25) inset,
+        0 2px 0 rgba(232, 200, 120, 0.35) inset;
+    }
+    .platform::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right,  rgba(232, 200, 120, 0.10) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(232, 200, 120, 0.08) 1px, transparent 1px);
+      background-size: 18% 33%;
+      opacity: 0.6;
+    }
+    .platform-insignia {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: clamp(56px, 14vw, 100px);
+      aspect-ratio: 1;
+      transform: translate(-50%, -55%);
+      opacity: 0.85;
+      pointer-events: none;
+    }
+
+    /* Bottom HUD: player gem pool + attack buttons */
+    .hud-bottom {
+      padding: 8px 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 50;
+      background: linear-gradient(180deg, transparent 0%, rgba(5, 3, 16, 0.55) 70%);
+    }
+    .hud-row-pool {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .action-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .action-btn {
+      padding: 12px 6px 14px;
+      background: var(--glass-strong);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      color: inherit;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .action-btn:not(:disabled):active,
+    .action-btn:not(:disabled):hover {
+      border-color: var(--gold);
+      transform: translateY(-1px);
+      box-shadow: 0 0 18px rgba(232, 200, 120, 0.25);
+    }
+    .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .action-name {
+      font-family: var(--font-display);
+      font-size: 0.74rem;
+      letter-spacing: 0.06em;
+      color: var(--gold-bright);
+      line-height: 1.15;
+      min-height: 2.3em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .action-gems {
+      display: flex;
+      gap: 4px;
+      justify-content: center;
+      margin-top: 6px;
+    }
+    .action-gem {
+      width: 7px;
+      height: 7px;
+      transform: rotate(45deg);
+      background: linear-gradient(135deg, var(--gold-bright), var(--gold-deep));
+      box-shadow: 0 0 3px var(--gold);
+      display: inline-block;
+    }
+
+    /* Attack lunge animations (tier-scaled) */
+    .slot.attacking {
+      animation-timing-function: cubic-bezier(0.3, 0.1, 0.3, 1);
+      z-index: 10;
+    }
+    .zone-player .slot.attacking.tier-1 { animation: player-lunge-1 480ms; }
+    .zone-player .slot.attacking.tier-2 { animation: player-lunge-2 620ms; }
+    .zone-player .slot.attacking.tier-3 { animation: player-lunge-3 780ms; }
+    @keyframes player-lunge-1 { 0%{transform:scale(1) translateY(0);} 40%{transform:scale(1.08) translateY(-22vh);} 100%{transform:scale(1) translateY(0);} }
+    @keyframes player-lunge-2 { 0%{transform:scale(1) translateY(0);} 40%{transform:scale(1.15) translateY(-32vh);} 100%{transform:scale(1) translateY(0);} }
+    @keyframes player-lunge-3 { 0%{transform:scale(1) translateY(0);} 40%{transform:scale(1.22) translateY(-42vh);} 100%{transform:scale(1) translateY(0);} }
+
+    .zone-opponent .slot.attacking.tier-1 { animation: opp-lunge-1 480ms; }
+    .zone-opponent .slot.attacking.tier-2 { animation: opp-lunge-2 620ms; }
+    .zone-opponent .slot.attacking.tier-3 { animation: opp-lunge-3 780ms; }
+    @keyframes opp-lunge-1 { 0%{transform:scale(0.92) translateY(0);} 40%{transform:scale(1.02) translateY(22vh);} 100%{transform:scale(0.92) translateY(0);} }
+    @keyframes opp-lunge-2 { 0%{transform:scale(0.92) translateY(0);} 40%{transform:scale(1.10) translateY(32vh);} 100%{transform:scale(0.92) translateY(0);} }
+    @keyframes opp-lunge-3 { 0%{transform:scale(0.92) translateY(0);} 40%{transform:scale(1.18) translateY(42vh);} 100%{transform:scale(0.92) translateY(0);} }
+
+    /* Hit shake + flash */
+    @keyframes hit-shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-5px); } 40% { transform: translateX(5px); }
+      60% { transform: translateX(-3px); } 80% { transform: translateX(3px); }
+    }
+    .slot.hit .slot-img { animation: hit-shake 0.35s ease, float-idle 5s ease-in-out infinite 0.35s; }
+    .slot.hit::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center, rgba(232, 90, 90, 0.65) 0%, transparent 65%);
+      mix-blend-mode: screen;
+      animation: hit-flash 0.4s ease;
+      pointer-events: none;
+    }
+    @keyframes hit-flash { 0%, 100% { opacity: 0; } 40% { opacity: 1; } }
+
+    /* Floating damage number */
+    .damage-flyup {
+      position: absolute;
+      top: 35%; left: 50%;
+      transform: translate(-50%, 0);
+      font-family: var(--font-display);
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--vice);
+      text-shadow: 0 0 18px var(--vice), 0 0 5px rgba(0,0,0,1);
+      pointer-events: none;
+      z-index: 20;
+      animation: damage-rise 1.3s cubic-bezier(0.2, 0.6, 0.2, 1) forwards;
+    }
+    @keyframes damage-rise {
+      0%   { opacity: 0; transform: translate(-50%, 14px) scale(0.7); }
+      18%  { opacity: 1; transform: translate(-50%, -10px) scale(1.2); }
+      100% { opacity: 0; transform: translate(-50%, -80px) scale(1); }
+    }
+
+    /* Screen shake on A3 */
+    @keyframes screen-shake {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); }
+      60% { transform: translate(-3px, -1px); } 80% { transform: translate(3px, 1px); }
+    }
+    .arena.shake { animation: screen-shake 0.32s ease; }
+
+    /* Long-press card preview modal */
+    .card-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(5, 3, 16, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.22s ease, visibility 0.22s ease;
+      pointer-events: none;
+    }
+    .card-modal.open { opacity: 1; visibility: visible; pointer-events: auto; }
+    .card-modal-image {
+      max-width: 92vw;
+      max-height: 88vh;
+      object-fit: contain;
+      filter: drop-shadow(0 12px 40px rgba(0, 0, 0, 0.7));
+      transform: scale(0.92);
+      transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+      -webkit-touch-callout: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+    }
+    .card-modal.open .card-modal-image { transform: scale(1); }
+    .card-modal-close {
+      position: absolute;
+      top: max(18px, env(safe-area-inset-top));
+      right: max(18px, env(safe-area-inset-right));
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(5, 3, 16, 0.7);
+      color: var(--gold);
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .arena-placeholder {
-      max-width: 460px;
+    .card-modal-hint {
+      position: absolute;
+      bottom: max(22px, env(safe-area-inset-bottom));
+      left: 0; right: 0;
       text-align: center;
-      padding: 32px;
-      border: 1px dashed var(--border-soft);
-      border-radius: 4px;
-      background: rgba(5, 3, 16, 0.55);
-    }
-    .arena-placeholder h3 {
-      font-family: var(--font-display);
-      font-size: 1.2rem;
-      letter-spacing: 0.18em;
-      color: var(--gold);
-      margin-bottom: 12px;
-    }
-    .arena-placeholder p {
-      font-family: var(--font-body);
-      font-style: italic;
-      color: var(--mist);
-      line-height: 1.6;
-    }
-    .arena-placeholder code {
       font-family: var(--font-meta);
-      font-size: 0.78rem;
-      color: var(--gold-bright);
+      font-size: 0.55rem;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.65;
+    }
+
+    /* Long-press visual feedback */
+    .slot.long-pressing {
+      transition: transform 0.4s ease, filter 0.4s ease;
+      filter: drop-shadow(0 0 10px rgba(232, 200, 120, 0.45)) brightness(1.08);
+    }
+    .slot.long-pressing.is-active { transform: scale(1.03); }
+    .slot.long-pressing.is-reserve { transform: scale(0.78) translateY(5%); }
+
+    /* Mobile portrait tweaks */
+    @media (max-width: 540px) {
+      .zone-opponent { height: 24vh; }
+      .zone-player { height: 32vh; }
+      .platform-wrap { height: 12vh; }
+      .slot-name { font-size: 0.62rem; }
+      .action-name { font-size: 0.66rem; }
+    }
+    @media (min-width: 720px) {
+      .zone-opponent { height: 30vh; }
+      .zone-player { height: 40vh; }
+      .platform-wrap { height: 16vh; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -636,16 +1073,90 @@
   </section>
 
   <!-- ============ STEP 2+ — BATTLEFIELD (placeholder) ============ -->
+  <!-- ============ STEP 2 — STADIUM BATTLEFIELD ============ -->
+  <div class="stadium-lights" hidden id="stadium-lights"></div>
   <main class="arena" id="arena" hidden>
-    <div class="arena-placeholder">
-      <h3>Battlefield · Step 2</h3>
-      <p>The 3v3 battlefield will render here. Active cards center-stage, reserves on either side, gem pools flanking, commitment modal and combat log wired in.</p>
-      <p style="margin-top:12px;font-size:0.78rem;">
-        Active player team: <code id="dbg-player">—</code><br>
-        Active opponent team: <code id="dbg-opponent">—</code>
-      </p>
+
+    <!-- Top HUD: opponent gem pool + status line -->
+    <div class="hud-top">
+      <div class="pool">
+        <span class="pool-label">Opp</span>
+        <div class="pool-gems" id="opp-pool"></div>
+      </div>
+      <div class="brand-tag" id="status-line">Tap reserve to swap · Tap opp to target</div>
+    </div>
+
+    <!-- Opponent team zone (JS-rendered) -->
+    <div class="zone zone-opponent" id="zone-opponent"></div>
+
+    <!-- Arena platform -->
+    <div class="platform-wrap">
+      <div class="platform">
+        <svg class="platform-insignia" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="rim" cx="50%" cy="50%" r="50%">
+              <stop offset="60%" stop-color="#e8c878" stop-opacity="0"/>
+              <stop offset="85%" stop-color="#e8c878" stop-opacity="0.85"/>
+              <stop offset="100%" stop-color="#b8923f" stop-opacity="0.6"/>
+            </radialGradient>
+            <linearGradient id="xgrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%"  stop-color="#ff8b8b"/>
+              <stop offset="50%" stop-color="#e85a5a"/>
+              <stop offset="100%" stop-color="#7e2424"/>
+            </linearGradient>
+          </defs>
+          <circle cx="50" cy="50" r="48" fill="url(#rim)"/>
+          <circle cx="50" cy="50" r="44" fill="none" stroke="#e8c878" stroke-width="1.5" opacity="0.7"/>
+          <g stroke="#e8c878" stroke-width="1" opacity="0.6">
+            <line x1="50" y1="6"  x2="50" y2="18"/>
+            <line x1="50" y1="82" x2="50" y2="94"/>
+            <line x1="6"  y1="50" x2="18" y2="50"/>
+            <line x1="82" y1="50" x2="94" y2="50"/>
+          </g>
+          <g stroke="url(#xgrad)" stroke-width="6" stroke-linecap="round">
+            <line x1="28" y1="28" x2="72" y2="72"/>
+            <line x1="72" y1="28" x2="28" y2="72"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Player team zone (JS-rendered) -->
+    <div class="zone zone-player" id="zone-player"></div>
+
+    <!-- Bottom HUD: player gem pool + attack buttons -->
+    <div class="hud-bottom">
+      <div class="hud-row-pool">
+        <div class="pool">
+          <span class="pool-label">You</span>
+          <div class="pool-gems" id="player-pool"></div>
+        </div>
+        <div class="brand-tag" style="font-size:0.5rem;opacity:0.55;" id="round-tag">Round 1</div>
+      </div>
+
+      <div class="action-bar" id="action-bar">
+        <button class="action-btn" data-tier="1" id="atk-a1">
+          <div class="action-name">A1</div>
+          <div class="action-gems"><span class="action-gem"></span></div>
+        </button>
+        <button class="action-btn" data-tier="2" id="atk-a2">
+          <div class="action-name">A2</div>
+          <div class="action-gems"><span class="action-gem"></span><span class="action-gem"></span></div>
+        </button>
+        <button class="action-btn" data-tier="3" id="atk-a3">
+          <div class="action-name">A3</div>
+          <div class="action-gems"><span class="action-gem"></span><span class="action-gem"></span><span class="action-gem"></span></div>
+        </button>
+      </div>
     </div>
   </main>
+
+  <!-- Card preview modal (long-press to open) -->
+  <div class="card-modal" id="card-modal" aria-hidden="true">
+    <button class="card-modal-close" id="card-modal-close" aria-label="Close preview">✕</button>
+    <img class="card-modal-image" id="card-modal-image" alt="">
+    <div class="card-modal-hint">Tap anywhere to dismiss</div>
+  </div>
 
   <script>
     'use strict';
@@ -917,13 +1428,344 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    $('confirm-begin').addEventListener('click', () => {
-      // Steps 2+ will replace this stub with the real battlefield render.
+    // ============ STEP 2/3 — STADIUM BATTLEFIELD + WAGER (auto-commit) ============
+    // Extend state with combat fields at battle start.
+    // teamSlots[side]: 3-card layout — [0]=left reserve, [1]=active, [2]=right reserve
+    function beginBattle() {
+      // Promote the picked team into 3-slot layout (player champion goes to active center)
+      const playerTeam = state.playerTeam.slice();
+      const opponentTeam = state.opponentTeam.slice();
+
+      state.combat = {
+        player: {
+          slots: [playerTeam[1], playerTeam[0], playerTeam[2]],  // reserve, ACTIVE (champion), reserve
+          hp:    { [playerTeam[0].name]: playerTeam[0].hp, [playerTeam[1].name]: playerTeam[1].hp, [playerTeam[2].name]: playerTeam[2].hp },
+          wager: { [playerTeam[0].name]: 0, [playerTeam[1].name]: 0, [playerTeam[2].name]: 0 },
+          gems: 9,
+        },
+        cpu: {
+          slots: [opponentTeam[1], opponentTeam[0], opponentTeam[2]],
+          hp:    { [opponentTeam[0].name]: opponentTeam[0].hp, [opponentTeam[1].name]: opponentTeam[1].hp, [opponentTeam[2].name]: opponentTeam[2].hp },
+          wager: { [opponentTeam[0].name]: 0, [opponentTeam[1].name]: 0, [opponentTeam[2].name]: 0 },
+          gems: 9,
+        },
+        target: opponentTeam[0].name,  // default to opponent's active
+        scene: pickRandomScene(),
+        busy: false,
+      };
+
+      // Show battlefield, render initial state
       $('confirm-screen').hidden = true;
       $('arena').hidden = false;
-      $('dbg-player').textContent = state.playerTeam.map(c => c.name).join(' · ');
-      $('dbg-opponent').textContent = state.opponentTeam.map(c => c.name).join(' · ');
+      $('stadium-lights').hidden = false;
+      renderScene(state.combat.scene);
+      renderTeam('player');
+      renderTeam('cpu');
+      renderPool('player-pool', state.combat.player.gems, 9);
+      renderPool('opp-pool', state.combat.cpu.gems, 9);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ============ Combat helpers ============
+    function activeOf(side) { return state.combat[side].slots[1]; }
+    function isAlive(side, name) { return state.combat[side].hp[name] > 0; }
+    function aliveCount(side) { return state.combat[side].slots.filter(c => isAlive(side, c.name)).length; }
+
+    const ATTACK_MULT = { 1: 0.33, 2: 0.66, 3: 0.99 };
+    function defReduction(def) {
+      if (def <= 100) return 1.0;
+      if (def <= 200) return 0.75;
+      if (def <= 300) return 0.50;
+      return 0.25;
+    }
+    function calcDmg(attacker, defender, tier) {
+      return Math.ceil(attacker.atk * ATTACK_MULT[tier] * defReduction(defender.def));
+    }
+
+    // ============ Slot render ============
+    function renderTeam(side) {
+      const zone = $('zone-' + (side === 'player' ? 'player' : 'opponent'));
+      zone.innerHTML = '';
+      state.combat[side].slots.forEach((card, idx) => {
+        const isActive = idx === 1;
+        const fallen = !isAlive(side, card.name);
+        const isTarget = side === 'cpu' && state.combat.target === card.name && !fallen;
+        const wager = state.combat[side].wager[card.name];
+
+        const slot = document.createElement('div');
+        slot.className = 'slot ' +
+          (isActive ? 'is-active' : 'is-reserve') +
+          (fallen ? ' is-fallen' : '') +
+          (isTarget ? ' is-target' : '');
+        slot.dataset.side = side;
+        slot.dataset.card = card.name;
+        if (isActive) slot.id = `slot-${side}-active`;
+
+        const maxHp = card.hp;
+        const curHp = state.combat[side].hp[card.name];
+        const hpPct = Math.max(0, (curHp / maxHp) * 100);
+        const hpClass = hpPct <= 25 ? 'red' : hpPct <= 50 ? 'yellow' : hpPct <= 75 ? 'green' : '';
+
+        // Wager dots — 3 dots, lit up to current wager level
+        const wagerHtml = `
+          <div class="wager">
+            <span class="wager-dot${wager >= 1 ? ' lit' : ''}"></span>
+            <span class="wager-dot${wager >= 2 ? ' lit' : ''}"></span>
+            <span class="wager-dot${wager >= 3 ? ' lit' : ''}"></span>
+          </div>`;
+
+        slot.innerHTML = `
+          <div class="slot-label">
+            <div class="slot-name">${card.name}</div>
+            <div class="hp-bar"><div class="hp-fill ${hpClass}" style="width:${hpPct}%"></div></div>
+            ${wagerHtml}
+          </div>
+          <img class="slot-img" src="/cards/${card.img}" alt="${card.name}">
+        `;
+
+        // Interaction: long-press → preview · tap → side-specific action
+        if (!fallen) {
+          slot.style.cursor = 'pointer';
+          let onTap = null;
+          if (side === 'player' && !isActive) onTap = () => swapActive(card.name);
+          else if (side === 'cpu') onTap = () => setTarget(card.name);
+          attachLongPress(slot, () => openCardModal(card), onTap);
+        }
+
+        zone.appendChild(slot);
+      });
+
+      // Update attack-button labels to current active's moves
+      if (side === 'player') updateMoveLabels();
+    }
+
+    function updateMoveLabels() {
+      const active = activeOf('player');
+      if (!active) return;
+      [1, 2, 3].forEach(tier => {
+        const btn = $('atk-a' + tier);
+        const nameEl = btn.querySelector('.action-name');
+        nameEl.textContent = getMove(active.name, tier);
+      });
+    }
+
+    // ============ Swap + target (free actions) ============
+    function swapActive(name) {
+      if (state.combat.busy) return;
+      if (!isAlive('player', name)) return;
+      const slots = state.combat.player.slots;
+      const idx = slots.findIndex(c => c.name === name);
+      if (idx === 1) return;
+      [slots[1], slots[idx]] = [slots[idx], slots[1]];
+      renderTeam('player');
+      flashStatus(`Swapped → ${name} now active`);
+    }
+    function setTarget(name) {
+      if (state.combat.busy) return;
+      if (!isAlive('cpu', name)) return;
+      state.combat.target = name;
+      renderTeam('cpu');
+      flashStatus(`Target: ${name}`);
+    }
+    function flashStatus(text) {
+      const el = $('status-line');
+      el.textContent = text;
+      clearTimeout(flashStatus._t);
+      flashStatus._t = setTimeout(() => {
+        el.textContent = 'Tap reserve to swap · Tap opp to target';
+      }, 1800);
+    }
+
+    // ============ Pool render ============
+    function renderPool(elId, count, max) {
+      const el = $(elId);
+      el.innerHTML = '';
+      for (let i = 0; i < max; i++) {
+        const g = document.createElement('div');
+        g.className = 'pool-gem' + (i >= count ? ' spent' : '');
+        el.appendChild(g);
+      }
+    }
+
+    function showDamage(side, cardName, amount) {
+      const slot = document.querySelector(`.slot[data-side="${side}"][data-card="${cardName}"]`);
+      if (!slot) return;
+      const fly = document.createElement('div');
+      fly.className = 'damage-flyup';
+      fly.textContent = '−' + amount;
+      slot.appendChild(fly);
+      setTimeout(() => fly.remove(), 1400);
+      slot.classList.add('hit');
+      setTimeout(() => slot.classList.remove('hit'), 420);
+    }
+
+    // ============ Combat flow: target-aware, SPD-aware ============
+    async function playerAttack(tier) {
+      if (state.combat.busy) return;
+      const playerCard = activeOf('player');
+      const targetName = state.combat.target;
+      if (!playerCard || !isAlive('player', playerCard.name)) return;
+      if (!targetName || !isAlive('cpu', targetName)) return;
+
+      state.combat.busy = true;
+      document.querySelectorAll('.action-btn').forEach(b => b.disabled = true);
+
+      const targetCard = state.combat.cpu.slots.find(c => c.name === targetName);
+      const playerFirst = playerCard.spd > targetCard.spd ||
+        (playerCard.spd === targetCard.spd && Math.random() < 0.5);
+
+      flashStatus(`SPD ${playerCard.name} ${playerCard.spd} vs ${targetCard.name} ${targetCard.spd} — ${playerFirst ? playerCard.name : targetCard.name} strikes first`);
+
+      if (playerFirst) {
+        await executeAttack('player', playerCard, targetCard, tier);
+        if (isAlive('cpu', targetCard.name) && isAlive('player', playerCard.name)) {
+          await sleep(380);
+          await executeAttack('cpu', targetCard, playerCard, pickCpuTier(targetCard, playerCard));
+        }
+      } else {
+        await executeAttack('cpu', targetCard, playerCard, pickCpuTier(targetCard, playerCard));
+        if (isAlive('player', playerCard.name) && isAlive('cpu', targetCard.name)) {
+          await sleep(380);
+          await executeAttack('player', playerCard, targetCard, tier);
+        }
+      }
+
+      autoPromoteIfFallen('player');
+      autoPromoteIfFallen('cpu');
+      renderTeam('player');
+      renderTeam('cpu');
+
+      state.combat.busy = false;
+      document.querySelectorAll('.action-btn').forEach(b => b.disabled = false);
+    }
+
+    async function executeAttack(attackerSide, attackerCard, defenderCard, tier) {
+      const defenderSide = attackerSide === 'player' ? 'cpu' : 'player';
+
+      // ============ AUTO-COMMIT WAGER ============
+      // High-water mark: wager rises to max(current, tier). Only goes up.
+      const currentWager = state.combat[attackerSide].wager[attackerCard.name];
+      if (tier > currentWager) {
+        state.combat[attackerSide].wager[attackerCard.name] = tier;
+      }
+
+      const sprite = document.querySelector(`.slot[data-side="${attackerSide}"][data-card="${attackerCard.name}"]`);
+      if (!sprite) return;
+
+      if (tier === 3) $('arena').classList.add('shake');
+      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
+      void sprite.offsetWidth;
+      sprite.classList.add('attacking', 'tier-' + tier);
+
+      await sleep(360);
+
+      const dmg = calcDmg(attackerCard, defenderCard, tier);
+      state.combat[defenderSide].hp[defenderCard.name] = Math.max(0, state.combat[defenderSide].hp[defenderCard.name] - dmg);
+      showDamage(defenderSide, defenderCard.name, dmg);
+
+      // Update defender HP bar in-place
+      const defSlot = document.querySelector(`.slot[data-side="${defenderSide}"][data-card="${defenderCard.name}"]`);
+      if (defSlot) {
+        const fill = defSlot.querySelector('.hp-fill');
+        const pct = Math.max(0, (state.combat[defenderSide].hp[defenderCard.name] / defenderCard.hp) * 100);
+        fill.style.width = pct + '%';
+        fill.classList.remove('green', 'yellow', 'red');
+        if (pct <= 25)      fill.classList.add('red');
+        else if (pct <= 50) fill.classList.add('yellow');
+        else if (pct <= 75) fill.classList.add('green');
+        if (pct === 0) defSlot.classList.add('is-fallen');
+      }
+
+      await sleep(820);
+      sprite.classList.remove('attacking', 'tier-1', 'tier-2', 'tier-3');
+      $('arena').classList.remove('shake');
+    }
+
+    function pickCpuTier(attackerCard, defenderCard) {
+      const defHp = state.combat.player.hp[defenderCard.name];
+      // Try cheapest finisher first
+      for (let t = 1; t <= 3; t++) {
+        if (calcDmg(attackerCard, defenderCard, t) >= defHp) return t;
+      }
+      return 3;
+    }
+
+    function autoPromoteIfFallen(side) {
+      const slots = state.combat[side].slots;
+      if (isAlive(side, slots[1].name)) return;
+      const aliveReserve = slots.find(c => isAlive(side, c.name));
+      if (!aliveReserve) return;
+      const idx = slots.findIndex(c => c.name === aliveReserve.name);
+      [slots[1], slots[idx]] = [slots[idx], slots[1]];
+      if (side === 'cpu') state.combat.target = slots[1].name;
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // ============ Long-press card preview ============
+    const LONG_PRESS_MS = 450;
+    const MOVE_TOLERANCE = 12;
+    function attachLongPress(el, onLongPress, onTap) {
+      let timer = null, startX = 0, startY = 0, fired = false, active = false;
+      function start(e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        startX = e.clientX; startY = e.clientY;
+        fired = false; active = true;
+        el.classList.add('long-pressing');
+        timer = setTimeout(() => {
+          if (!active) return;
+          fired = true;
+          el.classList.remove('long-pressing');
+          onLongPress();
+        }, LONG_PRESS_MS);
+      }
+      function move(e) {
+        if (!active) return;
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) > MOVE_TOLERANCE) cancel();
+      }
+      function end() {
+        if (!active) return;
+        const wasFired = fired;
+        cancel();
+        if (!wasFired && onTap) onTap();
+      }
+      function cancel() {
+        active = false;
+        if (timer) { clearTimeout(timer); timer = null; }
+        el.classList.remove('long-pressing');
+      }
+      el.addEventListener('pointerdown', start);
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', end);
+      el.addEventListener('pointerleave', cancel);
+      el.addEventListener('pointercancel', cancel);
+      el.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    function openCardModal(card) {
+      const modal = $('card-modal');
+      const img = $('card-modal-image');
+      img.src = '/cards/' + card.img;
+      img.alt = card.name;
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+    function closeCardModal() {
+      const modal = $('card-modal');
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+    $('card-modal').addEventListener('click', closeCardModal);
+    $('card-modal-close').addEventListener('click', e => { e.stopPropagation(); closeCardModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCardModal(); });
+
+    // ============ Wire up: confirm-begin → battlefield ============
+    document.querySelectorAll('.action-btn').forEach(btn => {
+      btn.addEventListener('click', () => playerAttack(parseInt(btn.dataset.tier, 10)));
+    });
+
+    $('confirm-begin').addEventListener('click', () => {
+      beginBattle();
     });
 
   </script>

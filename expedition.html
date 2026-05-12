@@ -1036,6 +1036,55 @@
     const ELZ_DISPLAY_W = 112;
     const ELZ_DISPLAY_H = 72;
 
+    // ============ Combat sheet (animation_combat_player.png) ============
+    // 1536×1024 sprite sheet, 5 rows × 4 frames each. Each row is one combat
+    // animation: PUNCH, KICK, BLAST, SWORD, BLASTER. The leftmost ~350px of
+    // every row is a row-label glyph (PUNCH / KICK / BLAST / SWORD SWING /
+    // BLASTER SHOT) which we skip by starting frame col 0 at x≈485.
+    //   Measured from the contact-sheet probe:
+    //     row 0 (PUNCH)   y=  0..203
+    //     row 1 (KICK)    y=204..407
+    //     row 2 (BLAST)   y=408..611
+    //     row 3 (SWORD)   y=612..815
+    //     row 4 (BLASTER) y=816..1019
+    //     col centers (cross-row average): [485, 755, 1025, 1295]
+    //   frameW=280 fits each pose with margin; frameH=204 captures full row.
+    //   Background is a flat dark gray (RGB ~65,65,68); chromaKeyColor strips
+    //   it pre-bake so the character renders cleanly over grass / snow.
+    const COMBAT_SHEET = {
+      frameW: 280,
+      frameH: 204,
+      cols: [485, 755, 1025, 1295],
+      // rowBases keyed by action name so the slicer can return a labelled map.
+      rowBases: {
+        punch:   203,
+        kick:    407,
+        blast:   611,
+        sword:   815,
+        blaster: 1019,
+      },
+    };
+    // Combat display canvas — wider + taller than the walk box so punch/kick
+    // extensions and the blaster's gun arm fit without crushing. Beams on
+    // the BLAST and BLASTER rows extend past the right edge of their source
+    // frame and will clip a touch on the rightmost pose; can widen those two
+    // rows specifically in a Phase B.5 pass.
+    const CHAR_W_COMBAT = 80;
+    const CHAR_H_COMBAT = 60;
+    // Offsets re-anchor the wider/taller combat canvas onto the walk-box's
+    // foot position so toggling into a combat action doesn't make the
+    // character visually jump.
+    const COMBAT_OFFSET_X = (CHAR_W_COMBAT - CHAR_W) / 2;        // 24
+    const COMBAT_OFFSET_Y = CHAR_H - CHAR_H_COMBAT;              // -15 (combat sprite is 15px taller — push UP)
+
+    // Combat animation timing. 4 frames per action × 60ms each = 240ms total
+    // per move. Snappy enough that combo chains feel responsive; long enough
+    // that the wind-up → strike → impact arc reads on screen.
+    const COMBAT_FRAMES   = 4;
+    const COMBAT_FRAME_MS = 60;
+    const COMBAT_TOTAL_MS = COMBAT_FRAMES * COMBAT_FRAME_MS;     // 240
+
+
     // Aurexion walk sheet — calibrated from animation_walk_aurexion.png.
     // His sheet has 5 frames per direction (an expanded jet-boot animation),
     // but we use the first 4 to match the 4-frame cycle every other NPC uses.
@@ -1443,6 +1492,11 @@
       // Elzoran fly sheet — 4×4 directional. He's a flying NPC (no walk
       // asset), so this same sheet drives every facing — he hovers always.
       elzoranSheet: { src: '/assets/animation_fly_elzoran.png', raw: true },
+      // Combat sheet — 5 rows × 4 frames (PUNCH / KICK / BLAST / SWORD /
+      // BLASTER). Sliced via sliceCombatSheet() at boot. Loaded raw because
+      // we need the original 1536×1024 source for the per-frame chroma key
+      // pass before downsampling each frame to CHAR_W_COMBAT × CHAR_H_COMBAT.
+      combatSheet: { src: '/assets/animation_combat_player.png', raw: true },
     };
 
     // After load, ASSETS[key] is a ready-to-blit HTMLCanvasElement at the target size.
@@ -1504,6 +1558,8 @@
       ASSETS.eurakeonFrames = sliceEurakeonSheet(ASSETS.eurakeonSheet);
       ASSETS.aurexionFrames = sliceAurexionSheet(ASSETS.aurexionSheet);
       ASSETS.elzoranFrames     = sliceElzoranSheet(ASSETS.elzoranSheet);
+      // Combat — { punch:[c0..c3], kick:[…], blast:[…], sword:[…], blaster:[…] }
+      ASSETS.combatFrames      = sliceCombatSheet(ASSETS.combatSheet);
       // NOTE: idle-without-smoke variant is a WIP — masking purple removed the
       // plasma orbs the user wants to keep. The right filter is "moving dark
       // smoke wisps" only; needs a different approach (probably frame-diff
@@ -1935,6 +1991,66 @@
     // Eurakeon reads as a larger presence. Source is white-bg, so the shared
     // chromaKeyWhite() pass produces transparent alpha around his silhouette
     // before the frame goes into the rotation.
+    // Color-chroma helper — alpha-out every pixel within `threshold` of the
+    // target RGB. Used by the combat sheet slicer where the BG is a flat
+    // dark gray (~65,65,68) rather than white, so chromaKeyWhite would miss
+    // it. Computes Manhattan distance per pixel for speed.
+    function chromaKeyColor(canvas, r, g, b, threshold) {
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const dr = data[i]   - r;
+        const dg = data[i+1] - g;
+        const db = data[i+2] - b;
+        const dist = Math.abs(dr) + Math.abs(dg) + Math.abs(db);
+        if (dist <= threshold) data[i+3] = 0;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Combat sheet slicer — same two-stage pattern as Aur/Elz: source-res
+    // chroma on the whole sheet, then per-frame NEAREST bake into the
+    // CHAR_W_COMBAT × CHAR_H_COMBAT display canvas. Returns a map keyed by
+    // action name (punch / kick / blast / sword / blaster), each value an
+    // array of 4 frame canvases.
+    function sliceCombatSheet(sheetImg) {
+      // Pass 1: copy whole sheet to a source-res work canvas + chroma the
+      // gray BG. (Threshold 35 strips the BG including JPEG ringing without
+      // eating into the character's dark armor outlines.)
+      const work = document.createElement('canvas');
+      work.width  = sheetImg.naturalWidth  || sheetImg.width;
+      work.height = sheetImg.naturalHeight || sheetImg.height;
+      const wctx = work.getContext('2d');
+      wctx.imageSmoothingEnabled = false;
+      wctx.drawImage(sheetImg, 0, 0);
+      chromaKeyColor(work, 65, 65, 68, 35);
+
+      // Pass 2: slice per row × 4 frames, NEAREST-bake to display size.
+      const result = { punch: [], kick: [], blast: [], sword: [], blaster: [] };
+      const actions = Object.keys(result);
+      for (const action of actions) {
+        const baseY = COMBAT_SHEET.rowBases[action];
+        const cropY = baseY - COMBAT_SHEET.frameH + 1;
+        for (let i = 0; i < COMBAT_FRAMES; i++) {
+          const centerX = COMBAT_SHEET.cols[i];
+          const cropX = centerX - COMBAT_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width  = CHAR_W_COMBAT;
+          c.height = CHAR_H_COMBAT;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            work,
+            cropX, cropY, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH,
+            0, 0, CHAR_W_COMBAT, CHAR_H_COMBAT
+          );
+          result[action].push(c);
+        }
+      }
+      return result;
+    }
+
     function sliceEurakeonSheet(sheetImg) {
       const directions = ['up', 'left', 'right', 'down'];
       const result = { up: [], left: [], right: [], down: [] };
@@ -2350,6 +2466,13 @@
       idlePoseTime:  0,   // seconds spent in the current pose (advances toward IDLE_POSE_DURATION)
       idleAnimTime:  0,   // seconds for within-pose micro-animation (cycles via IDLE_ANIM_FPS)
       idleAnimFrame: 0,   // 0..3 — current col within the current pose row
+      // Combat action state (Phase B). When non-null, the renderer draws
+      // from ASSETS.combatFrames[combatAction] at frame [combatPhase] instead
+      // of the walk/fly sheet. Cleared automatically by update() once the
+      // 4-frame animation has elapsed (COMBAT_TOTAL_MS).
+      combatAction:    null,   // null | 'punch' | 'kick' | 'sword' | 'blaster' | 'blast'
+      combatPhase:     0,      // 0..(COMBAT_FRAMES-1)
+      combatStartedAt: 0,      // performance.now() at action start; 0 when idle
     };
 
     // ============ Input state ============
@@ -2443,11 +2566,13 @@
         const seq = combatChain.map(e => e.btn).join('');
         if (seq === 'aba') {
           console.log('[combat] SWORD SWING (combo: A→B→A)');
+          fireCombatAction('sword');
           combatChain.length = 0;   // consume the chain
           return;
         }
         if (seq === 'bab') {
           console.log('[combat] BLASTER SHOT (combo: B→A→B)');
+          fireCombatAction('blaster');
           combatChain.length = 0;
           return;
         }
@@ -2467,6 +2592,16 @@
       }
       // Single input — basic punch or kick.
       console.log('[combat] ' + (btn === 'a' ? 'PUNCH' : 'KICK'));
+      fireCombatAction(btn === 'a' ? 'punch' : 'kick');
+    }
+
+    // Set the player into a combat animation. Snappy / interruptible — calling
+    // again mid-animation restarts at frame 0 with the new action. The
+    // ticker in update() clears the action when COMBAT_TOTAL_MS has elapsed.
+    function fireCombatAction(action) {
+      player.combatAction    = action;
+      player.combatPhase     = 0;
+      player.combatStartedAt = nowMs();
     }
 
     // ============ L / R / L+R disambiguation ============
@@ -3165,6 +3300,21 @@
       // the 300ms threshold is crossed (not waiting for next input event).
       pollLRHold();
 
+      // Combat animation ticker. Advances player.combatPhase based on elapsed
+      // wall time (not dt-summed) so the animation runs at COMBAT_FRAME_MS
+      // regardless of game tick rate. When phase exceeds the frame count,
+      // the action is cleared and rendering returns to walk/fly.
+      if (player.combatAction) {
+        const elapsed = nowMs() - player.combatStartedAt;
+        const phase = Math.floor(elapsed / COMBAT_FRAME_MS);
+        if (phase >= COMBAT_FRAMES) {
+          player.combatAction = null;
+          player.combatPhase  = 0;
+        } else {
+          player.combatPhase = phase;
+        }
+      }
+
       // Combine keyboard + joystick — either source can drive movement.
       const moveLeft  = keyInput.left  || joyInput.left;
       const moveRight = keyInput.right || joyInput.right;
@@ -3445,16 +3595,39 @@
           // Cry balloon — drawn after the NPC sprite so it sits on top in z.
           drawCryBalloon(npc, screenX, screenY);
         } else if (d.kind === 'player') {
-          // Dispatch on player.mode + movement — each branch pulls from its
-          // own frame set:
+          // Dispatch on player.combatAction → player.mode → idle/walk/fly:
+          //   combat (any action) → ASSETS.combatFrames[action] (80×60 canvas,
+          //                         X off -24, Y off -15 to keep feet aligned
+          //                         with walk canvas; mirrored if facing left)
           //   idle (walk mode, no input) → ASSETS.idleFrames[pose][col]
-          //                                (40×40 canvas, X off -4, Y off +5
-          //                                to keep feet aligned with walk canvas)
+          //                                (40×40 canvas, X off -4, Y off +5)
           //   walk → ASSETS.charFrames    (32×45 canvas, drawn at screenX,Y)
-          //   fly  → ASSETS.flyFrames     (56×45 canvas, drawn at screenX-FLY_OFFSET_X
-          //                                so the wider canvas stays centered on
-          //                                the player's feet — no sideways jump
-          //                                when toggling into fly mode)
+          //   fly  → ASSETS.flyFrames     (56×45 canvas, drawn at screenX-FLY_OFFSET_X)
+          // Combat takes precedence so a punch fires visibly even mid-walk.
+          if (player.combatAction && ASSETS.combatFrames) {
+            const frames = ASSETS.combatFrames[player.combatAction];
+            const sprite = frames && frames[player.combatPhase];
+            if (sprite) {
+              const drawX = screenX - COMBAT_OFFSET_X;
+              const drawY = screenY + COMBAT_OFFSET_Y;
+              if (player.facing === 'left') {
+                // Horizontal flip for left-facing. Combat sheet is right-only;
+                // mirror around the canvas's vertical centerline.
+                ctx.save();
+                ctx.translate(drawX + CHAR_W_COMBAT, drawY);
+                ctx.scale(-1, 1);
+                ctx.drawImage(sprite, 0, 0);
+                ctx.restore();
+              } else {
+                // Right / up / down all play right-facing for now. Up/down
+                // dedicated sprites can be added in a Phase B.5 pass.
+                ctx.drawImage(sprite, drawX, drawY);
+              }
+            }
+            // Combat draws over everything else this frame — skip the
+            // walk/idle/fly fall-through.
+            continue;
+          }
           const isIdle = (player.mode === 'walk' && !player.isMoving);
           if (isIdle && ASSETS.idleFrames) {
             const pose   = ASSETS.idleFrames[player.idlePose];

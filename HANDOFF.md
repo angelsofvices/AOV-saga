@@ -1,183 +1,263 @@
-# AOV™ Saga · Viridia Expedition — Session 3 Handoff
+# AOV™ Saga · Viridia Expedition — Master Handoff
 
-**Paste this into a new chat to continue without losing context.**
+**Single source of truth. Replaces all prior handoffs.**
+**Last updated:** May 12, 2026 — end of merged session (asset polish + polish-pass combat-input + pre-combat bug sweep)
+**Paste this into a new chat to continue.**
 
 ---
 
-## What this is
+## 1. What this is
 
-The Creator is building **The AOV™ Saga**, a fantasy/sci-fi multimedia IP at `angelsofvices.com` (GitHub `angelsofvices/AOV-saga`, auto-deploys to Netlify on push). Workspace folder: `/Users/mctherockstar/Desktop/AOV™  LLC./The AOV™ Saga/***UPDATE WEBSITE/` — all final files live there.
+The Creator is building **The AOV™ Saga**, a fantasy/sci-fi multimedia IP at `angelsofvices.com` (GitHub `angelsofvices/AOV-saga`, auto-deploys to Netlify on push). Workspace folder on his Mac: `/Users/mctherockstar/Desktop/AOV™  LLC./The AOV™ Saga/***UPDATE WEBSITE/`. The site has four playable prototypes:
 
-`expedition.html` is the active prototype — a 2D top-down RPG of the world Viridia, now **live on the site** as **Prototype 04 · The Expedition** at `/expedition.html`. Three other games live in the same site: `return.html` (arcade dodger, Prototype 01), `training.html` (1v1 TCG, Prototype 02), `battlegrounds.html` (3v3 TCG, Prototype 03).
+| # | Title | File | Status |
+|---|---|---|---|
+| 01 | The Long Return | `return.html` | Playable (arcade dodger) |
+| 02 | The Training Yard | `training.html` | Playable (1v1 TCG) |
+| 03 | The Battlegrounds | `battlegrounds.html` | Playable (3v3 TCG) |
+| **04** | **The Expedition** | `expedition.html` | **Playable — active build target** |
 
-## Naming conventions (don't mix up)
+**The Expedition** is the active prototype: a 2D top-down RPG of the world Viridia. ~3,656 lines of HTML/CSS/JS, all inline. Two regions live (Central with town + 4 NPCs, North with snow tiles + nothing else yet). GBA-style controller chassis (`controller_main.png`, `controller_frame.png`) wraps a 7×7 viewport.
 
-- **The Expedition** — Prototype 04, the Viridia open-world exploration RPG (`expedition.html`).
-- **Codex** — RESERVED for the future cards/stats page that will list every Rizer's full statline. Do **not** name the expedition prototype "Codex Awakening" — that name was retired this session.
-- **Aetherstride** — the UFO terminal inside the expedition.
-- **Aethryx Expanse** — the universe-level map opened from Aetherstride. Destinations: Viridia, Zyraxis, Origon.
+## 2. Naming locks (do not rename)
 
-## Current state of `expedition.html` (~3300 lines)
+- **The Expedition** — Prototype 04, the Viridia open-world RPG (`expedition.html`).
+- **Codex** — RESERVED for the future cards/stats page (`codex.html`). Not a feature of the Expedition. Don't repurpose this name.
+- **Aetherstride** — the UFO terminal inside the Expedition.
+- **Aethryx Expanse** — universe-level map from Aetherstride. Destinations: Viridia / Zyraxis / Origon.
+- **Rizers** / **RZ badge** — playable characters; the on-screen badge shows the active one. Tie-in to Rizing Powers TCG.
+- **SPC** — Special / Stamina pool. In-game resource. Distinct from the TCG card mechanic of the same name.
 
-### Shipped this session (session 3)
+## 3. State of `expedition.html`
 
-- **Elzoran "smoke" fix.** It was never a smoke effect — the slicer's `chromaKeyExteriorWhite` only kills near-white pixels CONNECTED to a canvas edge, leaving ~90k enclosed near-white speckles between wings/around orbs that read as a swirling dust aura on grass. Added `killNearWhiteSpeckles(work, 230)` after the label-wipes in `sliceElzoranSheet`. Threshold 230 is safe — Elz palette has no pure white anywhere (blue body, orange wings, gold crest, green wing tips, red eyes, purple orbs, orange flame all sit well below that).
-- **Player wing clipping on UP fly.** Adjacent UP-row frames overlap in source `animation_fly_player.png` — frame 2's crop window catches frame 3's left wing tip as a disconnected fragment after bake. Added `keepCenterConnected` helper: at source-res, seeds an 8-connected flood at the bottom-center column (player body) and zeros alpha on every opaque pixel not reachable. Applied to `sliceFlySheet` per frame BEFORE the NEAREST bake-down. Restructured the slicer to two stages (source-res chroma+flood, then bake) so connectivity is computed at full fidelity (45px dest would break thin pixel chains).
-- **Elzoran sprite sharpness.** Was 84×56 baked with bilinear at ~4× downsample = blurry mess. Bumped to **112×72 with NEAREST**. Source aspect (~1.55) preserved. Updated `ELZ_DISPLAY_W/H` constants and switched `sliceElzoranSheet` from `imageSmoothingEnabled = true / quality = 'high'` to `imageSmoothingEnabled = false`.
-- **Elzoran wing clipping (UP and RIGHT).** Same root cause as player — adjacent frames overlap. Wired `keepCenterConnected` into `sliceElzoranSheet` per frame: each frame is now copied to a per-frame source-res work canvas, flooded from center, then NEAREST-baked to 112×72. Wings on all four facings stay intact, neighbor-frame fragments dropped.
-- **Snow tile wired.** `assets/tile_snow.png` (1254×1254) added to `ASSET_SPECS` as `snow:` with the same inner-crop convention as grass (x=100, y=100, w=1054, h=1054 — eliminates near-white edge AA gutter). North-region tile dispatch in `drawTiles` now uses `ASSETS.snow`. Procedural `makeIceTileCanvas` retained as a fallback that only runs if the asset fails to load.
-- **Prototype 04 went live on `games.html`.** Card moved out of the "Forthcoming / In Development" section into "Available Now / Playable Prototypes". Wrapping element changed `<article>` → `<a href="/expedition.html">`. Status text "Forthcoming" → "Playable", class `forthcoming` → `live`. CTA reads "Begin the Expedition →". Card title is **"The Expedition"** (renamed from "Codex Awakening" — Codex name reserved). The empty Forthcoming section was deleted since Prototype 04 was its only card.
-- **Backups folder.** Created `backups/` in workspace with `BACKUPS.md` documenting the convention. First snapshot lives at `backups/2026-05-12_1230_prototype-04-launch/` (folder + tarball). Convention: `YYYY-MM-DD_HHMM_<label>/` with both a directory and a `.tar.gz` sibling. **Take a snapshot before every push.**
+**3,656 lines, 163 KB. node --check green.** Below is everything that's wired and working in the current build.
 
-### Helpers added this session
+### Shipped & working
 
-- `killNearWhiteSpeckles(canvas, threshold)` — strict per-pixel near-white kill, runs after the flood-fill exterior chroma to catch enclosed islands.
-- `keepCenterConnected(canvas, seedX)` — 8-connected flood from the bottom-center column. Returns nothing — mutates canvas, zeroing alpha on every opaque pixel not reachable from the seed. Use it AT SOURCE RES, before bake-down.
+- **Map**: 40×40 tiles. Viewport 7×7 (224×224 logical px). Camera centers on player + clamps + Math.round() snap (no shimmer).
+- **Two regions**: Central (grass + town + 4 NPCs + UFO) and North (snow tiles, empty otherwise). Region hot-swap via `transitionRegion()`. NPCs gated by `region` field.
+- **Player walk + fly + idle**:
+  - Walk sheet `animation_walk_player.png` (4×4).
+  - Fly sheet `animation_fly_player.png` (4×4) baked at 56×45 NEAREST. Slicer applies `keepCenterConnected` per frame at source res to suppress neighbor-frame wing-tip bleed (fixes UP-row clipping).
+  - Idle sheet `animation_idle_player.png` — 4 poses × 4 micro-frames. Each pose plays 15s, halts on the final sleeping pose, micro-anim keeps Z-bobbing. Resets on movement input.
+- **4 NPCs** (Central only): Voltyran (gold/forge, 42×40), Eurakeon (shadow/dragon, 84×80 = 2× Vol), Aurexion (cosmic, 45×63 = 1.4× player, bilinear bake + flood-fill chroma), Elzoran (sky/wind, 112×72 NEAREST, slicer applies `killNearWhiteSpeckles` + `keepCenterConnected`). Touch-cry interaction via `INTERACT_PAD=3`.
+- **Procedural town** (Central): seeded RNG `TOWN_SEED=0x5a6e`, largest-first rejection sampling. 1 huge + 3 big + 6 med + 9 small houses (all 1.5× scaled). 28 trees (96×96, 3×3 tile collider footprint = 1 tile center).
+- **UFO landmark** at tile (25,5) — `obj_ufo.png`, 224×60. Walk adjacent → "INTERACT · TAP ENTER/A" prompt → A opens **Aetherstride · UFO Terminal** modal.
+- **Aetherstride modal**: Faction selector (8 slots — 4 wired Vol/Eur/Aur/Elz toggleable In Viridia / Docked, 4 locked placeholders) + Destinations stack (Viridia / Zyraxis / Origon).
+- **Map modal** (Select): `obj_map.png` background. Player-head map marker generated at boot from walk-sheet DOWN row (face crop, gold-ring pulse). Cosmic-blue arrow-controlled cursor hidden until first arrow press.
+- **Hub modal** (Menu): 2×3 grid with 6 icons — `icon-rizers`, `icon-codex`, `icon-astralpack`, `icon-profile`, `icon-save`, `icon-options`. All have art wired this session.
+- **Pause modal** (Start): standard pause.
+- **Modal nav**: arrow keys cycle focus on buttons (Hub/Pause/Aethryx) or move cursor (Map). Enter triggers focused button. Escape closes any. Same modal-trigger key toggles its modal closed.
+- **Chassis fade on modal open**: when any modal opens, the controller chassis and the game canvas both fade to opacity 0 (0.18s) so the menu is on a clean surface. They restore on close.
+- **Snow tile**: `assets/tile_snow.png` is wired in `ASSET_SPECS` as `snow:` with the same inner-crop (x=100, y=100, w=1054, h=1054) as grass. Procedural `makeIceTileCanvas` retained as a fallback that only runs if asset load fails.
+- **Backup convention** (`backups/BACKUPS.md`): every push gets a snapshot folder + tarball in `backups/YYYY-MM-DD_HHMM_<label>/`. `backups/` is local-only, never pushed (add to `.gitignore`).
 
-### Helpers from earlier sessions, still in place but UNUSED
+### Combat & input layer (Phase A — wired, code-correct, deployment playtest pending)
 
-- `makeElzoranIdleFrames(flyFrames)` / `cloneCanvas(srcCanvas)` / `alphaOutMagenta(canvas)` — built for the (incorrect) "remove smoke when idle" idea before we figured out the speckles were the real cause. Left in place because they're harmless and might inspire a future per-pixel filter, but **NOT WIRED**. Safe to delete if cleaning up dead code.
+The whole input scheme was rewritten this session per `EXPEDITION_SPEC.md`. The old B-button tap/hold/double-tap classifier is gone; run mode is gone; movement is one speed.
 
-## Asset inventory (in `/assets/`)
+Current bindings:
 
-```
-animation_walk_player.png      walk sheet (4×4)
-animation_run_player.png       run sheet (4×4)
-animation_fly_player.png       fly sheet (4×4) — slicer now applies keepCenterConnected
-animation_idle_player.png      idle sheet (4 poses × 4 micro-frames)
-animation_walk_voltyran.png    Vol walk
-animation_walk_eurakeon.png    Eur walk
-animation_walk_aurexion.png    Aur walk (5 frames/row; we use 4)
-animation_fly_elzoran.png      Elz fly — slicer now applies speckle-kill + keepCenterConnected, bakes at 112×72 NEAREST
-character_player.png           player static (unused)
-character_voltyran.png         Vol static (unused)
-character_eurakeon.png         Eur static (unused)
-character_aurexion.png         Aur static (unused)
-character_elzoran.png          Elz static (unused but kept — used as the resolution reference for the sharpness bump)
-controller_main.png            chassis art (screen-area alpha=0)
-controller_frame.png           = main.png (CSS background)
-obj_tree.png                   tree, 96×96 visual, 1-tile trunk collider
-obj_ufo.png                    UFO landmark, content bbox (15,369,996,269), 224×60 display
-obj_map.png                    Viridia regional map (1122×1402, 4:5 portrait)
-obj_hill.png, obj_mountain.png, obj_volcano.png, obj_house.png   — NOT YET WIRED
-obj_chest1.png .. obj_chest4.png   — NOT YET WIRED
-entry_smlhouse.png             3-tile visual base, 1.5× → 144×144
-entry_medhouse.png             4-tile, 1.5× → 192×192
-entry_bighouse.png             5-tile, 1.5× → 240×240 (needs chroma — white BG)
-entry_hugehouse.png            8×6 tile, 1.5× → 384×288 (has alpha)
-tile_grass.png                 32×32 base grass (inner-crop 100..1154 of 1254×1254 source)
-tile_snow.png                  32×32 base snow — North region (same inner-crop convention as grass)
-tile_path.png                  NOT YET WIRED
-icons/rizers.png               wired
-icons/codex.png                wired (the icon; the page itself is forthcoming)
-icons/astralpack.png           wired
-icons/profile.png              wired
-icons/save.png                 NOT YET in folder
-icons/options.png              NOT YET in folder
-```
+| Input | Action |
+|---|---|
+| D-pad / WASD / Arrows | Movement (one speed) |
+| Drag finger across D-pad | Live turn (slide Up → Right → Down → Left without lifting) |
+| **A** | Context: interact (UFO / region exit / close Aethryx) → else **Punch** |
+| **B** | **Kick** |
+| **L** alone (after 80ms grace) | Special 1 (TBD — currently `console.log` only) |
+| **R** alone (after 80ms grace) | Special 2 (TBD — currently `console.log` only) |
+| **L + R** tap (release < 300ms) | Fly toggle |
+| **L + R** hold (> 300ms) | Ultimate (TBD — currently `console.log` only) |
+| **Start** | Pause modal |
+| **Select** | Map modal |
+| **Menu** (center) | Hub modal |
+| **X** / **Y** | Reserved (combat placeholders) |
+| Tap RZ badge | Swap active character (NOT YET BUILT — no HUD layer) |
+| **Menu** (double-tap) | Toggle HUD on/off (NOT YET BUILT) |
 
-## Architecture patterns (don't break)
+**Combo detection** (`pushCombatInput` → `combatChain`):
+- **A→B** within 250ms → "AB combo" (effect TBD per spec)
+- **A→B→A** within 250ms each gap → **Sword Swing**
+- **B→A→B** within 250ms each gap → **Blaster Shot**
 
-**Asset loading.** `ASSET_SPECS` table → `loadAllAssets()` bakes each PNG to an offscreen canvas at target size. `raw:true` skips baking (sprite sheets get sliced after). `crop:{x,y,w,h}` samples only that source region. `chroma:true` applies `chromaKeyWhite` after bake (white-BG PNGs).
+All combos currently console-log only. Animation rendering is Phase B.
 
-**Sprite sheet slicing.** Each character has a SHEET constant (`SHEET`, `VOLTYRAN_SHEET`, `EURAKEON_SHEET`, `RUN_SHEET`, `FLY_SHEET`, `IDLE_SHEET`, `AUREXION_SHEET`, `ELZORAN_FLY_SHEET`) with frameW/frameH/cols/rowBases. Slicers iterate, crop, `chromaKeyWhite()`, push into `{up,left,right,down}` arrays. Idle is different — its rows are POSES (not directions), so it uses `colsByRow` (per-row) + an array-of-arrays result.
+**Input wiring details:**
+- `applyHotzone(name, pressed)` is the single dispatch. Modal-open inputs are suppressed (world is paused).
+- A is context-sensitive: closes Aethryx if open, else transitions region if at edge, else opens Aethryx if UFO adjacent, else `pushCombatInput('a')`.
+- B always routes through `pushCombatInput('b')` on press.
+- L / R route through `onLPress`/`onLRelease`/`onRPress`/`onRRelease` → 80ms grace state machine that disambiguates L-alone, R-alone, L+R-tap, L+R-hold.
+- `pollLRHold()` polled from `update()` each frame to detect hold-past-threshold for Ult.
+- Keyboard equivalents: `Shift` = B/Kick, `F` = fly toggle (single key, no L+R required on desktop).
 
-**Two-stage slicing for fly sheets.** When a sheet has frame-edge bleed (player UP, Elz UP/RIGHT), the slicer must:
-1. Copy the frame to a SOURCE-RES work canvas first.
+### NOT yet built (Phase B+ from the spec)
+
+- **Combat sprite slicer / rendering**. `assets/animation_combat_player.png` (1536×1024, 5 rows × 4 cols) is on disk. Phase B builds the slicer + render path. See `EXPEDITION_SPEC.md` Section 2 for grid specs.
+- **HUD overlay**: health bar, SPC pool, Item slot, RZ badge, Weapon HUD. Phase D.
+- **Specials / Ult effects**. Currently console-log only.
+- **Health system**. Phase J.
+- **Party / character swap**. Phase G.
+- **Inventory modal**. Phase F.
+- **Chests** (obj_chest1..4 already on disk). Phase I.
+- **HUD toggle** (double-tap Menu hides HUD). Phase H.
+- **`tile_path.png`** is on disk but not in `ASSET_SPECS` yet.
+
+## 4. Architecture rules (don't break)
+
+**Asset loading.** `ASSET_SPECS` table → `loadAllAssets()` bakes each PNG to an offscreen canvas at target size. `raw:true` skips baking (sheets are sliced separately). `crop:{x,y,w,h}` samples just that source region. `chroma:true` applies `chromaKeyWhite` after bake.
+
+**Sprite sheet slicing.** Each character has a SHEET constant with `frameW`/`frameH`/`cols`/`rowBases`. Idle is the exception: its rows are POSES (not directions), so it uses `colsByRow` + array-of-arrays result.
+
+**Two-stage slicing for fly sheets.** When a sheet has frame-edge bleed (player UP row, Elz UP/RIGHT rows), the slicer must:
+1. Copy each frame to a SOURCE-RES work canvas.
 2. Run chroma + `keepCenterConnected` at source resolution (bake-down would break thin pixel chains).
 3. NEAREST-bake the cleaned source frame to display size.
 
-**Flood-fill chroma.** `chromaKeyExteriorWhite(canvas, threshold)` does DFS flood from canvas edges marking near-white pixels as alpha=0. Used for Aur (near-white armor would be killed by strict chroma) and Elzoran (whose sheet has inter-row label text + interior near-white speckles). Helper `chromaKeyWhite(canvas)` is the strict per-pixel version. Helper `killNearWhiteSpeckles(canvas, threshold)` is the strict pass that runs AFTER `chromaKeyExteriorWhite` to kill enclosed near-white islands the flood can't reach (the cause of Elz's "smoke aura").
+**Chroma helpers.**
+- `chromaKeyExteriorWhite(canvas, threshold)` — flood-fill from edges, kills near-white connected to canvas edge. Used for Aur (near-white armor would die under strict chroma) and Elz (label text + interior near-white).
+- `chromaKeyWhite(canvas)` — strict per-pixel near-white kill. Default for clean white-BG sheets.
+- `killNearWhiteSpeckles(canvas, threshold)` — strict pass that runs AFTER `chromaKeyExteriorWhite` to kill enclosed near-white islands the flood can't reach. Fixes the "smoke aura" Elz had on grass.
+- `keepCenterConnected(canvas, seedX)` — 8-connected flood from bottom-center column. Zeros alpha on every opaque pixel not reachable from the player body. Run AT SOURCE RES, before bake-down.
 
-**Bilinear bake — DEPRECATED.** Aur still uses bilinear bake. Elz used to and looked blurry; switched to NEAREST at 112×72 this session. The lesson: at ~4× downsample bilinear is fuzzy garbage. Prefer NEAREST + slightly larger dest size when sharpness matters. If a future character looks blurry, check the smoothing flag first.
+**Bilinear bake.** Currently only Aur. Lesson learned this session: at ~4× downsample bilinear smears the pixel art. Prefer NEAREST + slightly larger dest size when sharpness matters. Elz was switched from 84×56 bilinear → 112×72 NEAREST and looks dramatically better.
 
-**Collision.** `rectIntersect(a,b)` is the primitive. Player `playerFootbox(x,y)` returns a small bottom-aligned rect. `blocked(x,y)` checks foot-box vs map bounds, COLLIDERS, and active NPC body-boxes. NPCs use `npcBodyBox(npc)` / `npcBodyBoxAt(npc,x,y)` / `npcBlocked(npc,x,y)`. Body-box scales with `npc.h / NPC_H` so the bigger NPCs still have a feet-only collision box.
+**Collision.** `rectIntersect(a,b)` is the primitive. `playerFootbox(x,y)` returns a small bottom-aligned rect. `blocked(x,y)` checks foot-box vs map bounds, COLLIDERS, and active NPC body-boxes. NPC body-box scales with `npc.h / NPC_H`.
 
-**Camera.** `updateCamera()` centers viewport on player, clamps to world bounds, `Math.round()`-snapped to eliminate tile-edge shimmer.
+**Camera.** `updateCamera()` centers on player, clamps to world bounds, `Math.round()`-snaps to kill tile-edge shimmer.
 
-**Y-sort rendering.** `drawWorld()` collects all sprites (trees, houses, UFO, NPCs, player) with `feetY` keys, sorts ascending, draws lowest-first.
+**Y-sort rendering.** `drawWorld()` collects all sprites with `feetY` keys, sorts ascending, draws lowest-first.
 
-**Modal system.** `modalState.current` tracks active modal name. `openModal/closeModal/toggleModal`. Game loop skips `update`/`updateNPCs`/`updateInteractions`/`updateUfoAdjacency`/`updateCamera` when modal open (render still runs so the world stays drawn behind pause).
+**Modal system.** `modalState.current` tracks active modal name. `openModal` / `closeModal` / `toggleModal`. Open: adds `body.modal-open` class → chassis + canvas fade out via CSS. Close: removes class → both fade back in. Game loop skips `update`/`updateNPCs`/`updateInteractions`/`updateUfoAdjacency`/`updateCamera` while modal open; `render()` still runs so the (frozen) world stays visible at fade-in / fade-out boundaries.
 
-**Region system.** `REGIONS = { central, north }`. `currentRegion` state. `MAP_DATA` and `COLLIDERS` are mutable refs swapped by `transitionRegion()`. NPCs check `(npc.region || 'central') !== currentRegion` to bail. Player x preserved across transitions; y re-anchors to opposite border.
+**Region system.** `REGIONS = { central, north }`. `currentRegion` state. `MAP_DATA` and `COLLIDERS` are mutable refs swapped by `transitionRegion()`. NPCs check `(npc.region || 'central') !== currentRegion` to bail out of update/collision/draw/interact. Player x preserved across transitions; y re-anchors to opposite border.
 
-**B state machine.** `bState` has both transient (`pressedAt`, `lastTapAt`, `anyDown`) and sustained (`runEnabled`, `flyEnabled`, `movedSinceToggle`) fields. Hold = live run. Tap = sustain run. Double-tap = sustain fly.
+**Input state machine.** `bState = { flyEnabled }` (just one flag now — old B-button machine deleted). `currentRunMode()` returns `'fly'` or `'walk'` (run gone). `lrState` handles L/R disambiguation with 80ms grace and 300ms hold threshold.
 
-**Conventions.**
-- Workspace folder is the deploy folder. Save all final outputs there.
-- Always run `node --check` (via the Python wrapper) on inline JS after edits.
-- Use `Edit` not `Write` for partial changes; preserve existing comments + structure. (When the workspace path has `***` in it, Edit/Read can be blocked by glob expansion — fall back to bash + Python `replace`.)
-- When user uploads a new image, probe with PIL+numpy first to measure bbox/dimensions before writing slicer constants.
-- **Take a backup snapshot before every push to GitHub.** See `backups/BACKUPS.md`.
-- Don't over-explain in chat. The user is fast and wants iteration.
+**Workspace conventions.**
+- Workspace folder = deploy folder. Save final outputs there.
+- Run `node --check` (Python wrapper that extracts inline `<script>` blocks) after every edit. Keep expedition.html green.
+- Use `Edit` not `Write` for partial changes; preserve comments and structure.
+- File tools (`Read`/`Edit`/`Grep`) may be blocked by `***` glob expansion in path — fall back to `mcp__workspace__bash` + Python text replace if needed.
+- Probe new images with PIL+numpy first (measure bbox, frame positions, transparency) before writing slicer constants.
+- **Take a backup snapshot before every push** — see `backups/BACKUPS.md`.
 
-## Key constants (most-touched)
+## 5. Key constants
 
 ```
 TILE_SIZE = 32
 MAP_WIDTH = MAP_HEIGHT = 40
-VIEWPORT_TILES_W = VIEWPORT_TILES_H = 7
-CHAR_W = 32, CHAR_H = 45                  (player walk box)
-CHAR_W_FLY = 56, CHAR_H_FLY = 45          (player fly box)
-NPC_W = 42, NPC_H = 40                    (Vol baseline)
-EUR_DISPLAY_W = 84, EUR_DISPLAY_H = 80    (Eur 2×)
-AUR_DISPLAY_W = 45, AUR_DISPLAY_H = 63    (1.4× player)
-ELZ_DISPLAY_W = 112, ELZ_DISPLAY_H = 72   (4× original 60×40, NEAREST bake)
-TREE_W = TREE_H = 96                      (1.5× from 64)
+VIEWPORT_TILES_W = VIEWPORT_TILES_H = 7    // 224×224 logical px viewport
+
+CHAR_W = 32, CHAR_H = 45                    // player walk box
+CHAR_W_FLY = 56, CHAR_H_FLY = 45            // player fly box (wings extend horizontally)
+CHAR_W_IDLE = 40, CHAR_H_IDLE = 40          // idle pose canvas
+
+NPC_W = 42, NPC_H = 40                      // Vol baseline
+EUR_DISPLAY_W = 84, EUR_DISPLAY_H = 80      // 2× Vol
+AUR_DISPLAY_W = 45, AUR_DISPLAY_H = 63      // 1.4× player
+ELZ_DISPLAY_W = 112, ELZ_DISPLAY_H = 72     // ~4× original 60×40, NEAREST bake
+
+TREE_W = TREE_H = 96                        // 1.5× from 64
 UFO_W = 224, UFO_H = 60
 UFO_TILE_X = 25, UFO_TILE_Y = 5
-HOUSE_TYPES['house-sml/med/big/huge']     (1.5× scaled)
+
 TOWN_SEED = 0x5a6e
-RUN_SCALE = 1.5, FLY_SCALE = 2.25
-TAP_MAX_MS = 240, DOUBLE_TAP_WINDOW = 380
+FLY_SCALE = 2.25
+COMBO_WINDOW_MS = 250
+LR_GRACE_MS = 80
+LR_HOLD_THRESHOLD = 300
 IDLE_POSE_DURATION = 15, IDLE_ANIM_FPS = 4
-INTERACT_PAD = 3                          (NPC touch tolerance)
+INTERACT_PAD = 3
 ```
 
-## Recent decisions (don't re-litigate)
+## 6. Asset inventory (`/assets/`)
+
+```
+animation_walk_player.png        walk sheet (4×4)
+animation_fly_player.png         fly sheet (4×4) — slicer applies keepCenterConnected
+animation_idle_player.png        idle sheet (4 poses × 4 micro-frames)
+animation_walk_voltyran.png      Vol walk
+animation_walk_eurakeon.png      Eur walk
+animation_walk_aurexion.png      Aur walk (5 cols; uses first 4)
+animation_fly_elzoran.png        Elz fly — speckle-kill + keepCenterConnected, 112×72 NEAREST
+animation_combat_player.png      Combat sheet (5 rows × 4 cols) — NOT YET WIRED, Phase B
+character_*.png                  Static portraits (mostly unused, kept as reference)
+controller_main.png / _frame.png Chassis art (screen pre-chroma'd)
+obj_tree.png                     96×96 visual, 1-tile collider
+obj_ufo.png                      Content bbox crop applied
+obj_map.png                      Viridia regional map (1122×1402)
+obj_hill / mountain / volcano / house .png   NOT YET WIRED
+obj_chest1..4.png                NOT YET WIRED (Phase I)
+entry_smlhouse / medhouse / bighouse / hugehouse .png   wired
+tile_grass.png                   32×32 base (inner-crop 100..1154)
+tile_snow.png                    32×32 base (same inner-crop convention)
+tile_path.png                    NOT YET WIRED
+icons/rizers.png                 wired
+icons/codex.png                  wired
+icons/astralpack.png             wired
+icons/profile.png                wired
+icons/save.png                   wired (this session)
+icons/options.png                wired (this session)
+```
+
+## 7. Locked decisions (don't relitigate)
 
 - Map is **40×40 tiles**.
-- Buildings + trees are at **1.5× scale**.
-- Aurexion is **1.4× player**. Eur is **2× Vol**. Elzoran is **112×72** (4× original).
-- Run/fly is hybrid hold+toggle. Hold=run, tap=sustain run, double-tap=sustain fly.
-- A/Enter same key toggles its modal (Aetherstride). Y/X/M same.
-- Map marker = player head crop, NOT a gold dot.
-- Map cursor (blue crosshair) HIDDEN until first arrow keypress.
-- UFO menu = **Aetherstride · UFO Terminal** → **The Aethryx Expanse** (the map name). Destinations: Viridia/Zyraxis/Origon (Aethryx is the expanse).
-- Faction has 8 slots, 4 wired (Vol/Eur/Aur/Elz) + 4 locked. Toggle each between **In Viridia** and **Docked**.
-- North region has snow tile (real asset wired) + zero objects/NPCs yet.
-- **Prototype 04 is "The Expedition"**, not "Codex Awakening". Codex naming reserved for the future cards/stats page.
+- Buildings + trees are at **1.5×** scale.
+- Aurexion is **1.4× player**. Eurakeon is **2× Vol**. Elzoran is **112×72** NEAREST.
+- Movement is **one speed** (run removed in Phase A combat rewrite).
+- Fly is toggled by **L+R tap** (release < 300ms). L+R hold = Ult. Keyboard: `F`.
+- A is **context-sensitive**: interact → else Punch. B is always **Kick**.
+- Combo detection emits SWORD on `A→B→A`, BLASTER on `B→A→B`, AB-combo on `A→B` or `B→A`.
+- Modal open → chassis + canvas fade out. Close → fade back.
+- Aetherstride (UFO terminal) → Aethryx Expanse (the map). Destinations: Viridia / Zyraxis / Origon.
+- Faction has 8 slots: 4 wired + 4 locked placeholders.
+- North region currently has snow tile only (no NPCs/objects yet).
+- **Prototype 04** title is **"The Expedition"**. Codex name reserved for the cards/stats page.
 
-## Open questions / things the user is still working on
+## 8. Open questions (from the combat spec)
 
-- **Locked hub icons**: save.png, options.png — user is designing.
-- **Locked Faction slots**: 4 future NPCs.
-- **Locked destinations**: Zyraxis, Origon (their own region builds).
-- **North region content**: zero objects/NPCs. Just snow tiles. Future: ice-themed obj_* assets, ice NPCs. Add to `REGIONS.north.objects` and tag NPCs with `region:'north'`.
-- **Aur 5th frame**: unused, currently cycle uses first 4.
-- **Profile / Codex / Astralpack / Rizers icons**: wired into hub but tapping them doesn't open sub-modals yet.
-- **Codex page itself**: forthcoming. Will be the "all cards & stats" page. Has nothing to do with the expedition prototype.
+See `EXPEDITION_SPEC.md` for the full design doc — it has open questions for every subsystem. Highlights:
 
-## Workflow tips
+- What does the standalone **A→B / B→A** 2-input combo DO that ABA/BAB don't?
+- Which animations are **Special 1 (L)** and **Special 2 (R)**? (Blast / Sword / Blaster are candidates.)
+- **Health**: max value, damage source pre-enemies, death state?
+- **SPC**: what does the "3" on the HUD mean? Charges? Seconds? Regen rate?
+- **Party**: 9 characters out of which 9 of the 42-card roster? Per-character state shared or independent?
+- **Weapon HUD**: meaning of "applies to ammo/melee"?
+- **Chests**: Wood / Silver / Gold loot tables?
 
-When the user sends a new image, **first analyze it with Python/PIL** to measure dimensions, transparency, bbox of content, distinct frame positions, etc., before making code changes.
+## 9. Bug list (cleared this session)
 
-When changing sprite-sheet calibration, **dump the sliced frames to `outputs/probe/` (or similar) and `Read` a few visually** to verify before claiming a fix.
+- ✅ Elz "smoke" aura — caused by enclosed near-white speckles surviving flood-fill chroma. Fixed via `killNearWhiteSpeckles(work, 230)` post-flood.
+- ✅ Player wing clipping on UP fly — adjacent-frame wing-tip bleed in source sheet. Fixed via `keepCenterConnected` at source res.
+- ✅ Elz wing clipping on UP/RIGHT — same root cause; same fix applied to Elz slicer.
+- ✅ Elz blurry — was 84×56 bilinear at ~4× downsample. Now 112×72 NEAREST.
+- ✅ Snow tile wired (was procedural placeholder, now real asset).
+- ✅ Prototype 04 marked Playable on `games.html`, linked to `/expedition.html`.
+- ✅ Save / options hub icons wired (new PNGs on disk).
+- ✅ `hz-b` and `hz-analog` hotzones re-aligned onto their visible button art.
+- ✅ Chassis + canvas hide when any modal opens.
+- ✅ Run-mode dead code fully removed (RUN_SHEET, RUN_WALK_ORDER, RUN_SCALE, runFrames, sliceRunSheet, runSheet asset, renderer branches, keyInput.run, joyInput.run). Saved ~80 lines + boot-time slicing.
 
-Run `node --check` (via the Python wrapper) on every edit. Keep `expedition.html` green.
+## 10. Next-up priority (post-push)
 
-**Before any push to GitHub**: snapshot to `backups/YYYY-MM-DD_HHMM_<label>/` per `backups/BACKUPS.md`. The user has lost sessions before — backups are non-negotiable.
+1. **Verify the input layer on the deployed site**. The polish-pass session reported "B does nothing" on the preview-pane only — Section 4.1 of the deprecated polish handoff documented the preview is sandboxed and can't load assets. Once deployed, console-log `[combat] PUNCH` / `[combat] KICK` / `[combat] SWORD SWING (combo: A→B→A)` / etc. should appear when buttons are pressed. If they don't, investigate `applyHotzone` dispatch.
+2. **Phase B — combat sprite slicer**. Probe `animation_combat_player.png` with PIL+numpy (the file is JPEG-encoded despite .png extension, no alpha — needs chroma cleanup). Left ~300px of each row is a text label, skip via start-x offset. Bake 5 frame sets × 4 frames each. See `EXPEDITION_SPEC.md` §2 for grid specs.
+3. **Phase C — combat rendering**. Wire `player.combatAction` state. Render from combat sheet when active, lock facing, allow movement during animation.
+4. **Phase D — HUD overlay**. Static for now: Health bar (10 segments + heart icon), SPC pool (lightning + "3"), Item HUD, RZ badge ("3/9"), Weapon HUD.
+5. **Phase E+** — Specials → Inventory → Party → HUD toggle → Chests → Enemies/Damage.
 
-If `Read`/`Edit`/`Grep` get blocked because of `***` in the path, fall back to `mcp__workspace__bash` + Python text replace. The `***` is a glob wildcard for the file tools.
+Defer until later (not bugs, not blockers):
+- Atmospheric animation (Fix 6 from old handoff — grass sway + particles, ~80 lines CSS).
+- `tile_path.png` integration + hand-placed paths in town.
+- North region content (assets pending).
+- 4 additional faction NPCs (locked slots).
+- Stub no-ops `syncB` / `maybeClearToggles` cleanup.
 
 ---
 
-**Last shipped:** Elz smoke fix (speckle-kill) + player wing clipping fix (keepCenterConnected) + Elz sharpness (112×72 NEAREST) + Elz wing clipping fix (UP/RIGHT via keepCenterConnected) + snow tile wired + Prototype 04 "The Expedition" live on games.html + backups folder convention.
+## Change log
 
-**Next up (in priority order):**
-1. Build ice-region content (NPCs/objects) when assets land
-2. Build out remaining 4 faction NPCs
-3. Wire save/options hub icons when assets land
-4. Wire chest objects (obj_chest1..4) as interactables
-5. Add tile_path.png and hand-place paths in town
-6. Build the actual `/codex.html` cards-and-stats page (separate from expedition)
+- **2026-05-12 (session 3 / merged final):** Unified handoff. Combined asset polish (Elz smoke/wing/sharpness, snow tile, Prototype 04 playable on games.html) with polish-pass input rewrite (D-pad alignment, drag-to-turn, function swap, run-mode removal, Phase A combat input). Bug-fix pass shipped: save/options icons, hz-b + hz-analog alignment, chassis fade on modal, run-mode dead code purge.
+

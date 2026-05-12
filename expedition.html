@@ -278,9 +278,8 @@
       touch-action: none;
       -webkit-tap-highlight-color: transparent;
       z-index: 3;
-      /* DEBUG: outline shows hotzone bounds for alignment work. Remove
-         after Fix 1 is locked in. */
-      outline: 2px solid rgba(255, 0, 0, 0.7); background: rgba(255,0,0,0.15);
+      /* Uncomment for debug visualization of hot zones: */
+      /* outline: 2px solid rgba(255, 0, 0, 0.7); background: rgba(255,0,0,0.15); */
     }
     .hotzone:active {
       /* Subtle visual feedback on press — semi-translucent gold flash. */
@@ -288,12 +287,15 @@
       border-radius: 8px;
     }
 
-    /* D-pad (left side, cross shape) — ORIGINAL values, debug outlines on
-       to measure offset vs the art. */
-    /* D-pad (left side, cross shape) — Fix 1 v3, measured per-arrow against
-       the controller_frame.png art using debug-outlined screenshot.
-       Original values (kept for rollback reference):
-         up    64.5% / down 80% / left/right 72% (all at left 16% / left 6% / left 31%) */
+    /* D-pad (left side, cross shape) — Fix 1 (Nov 2026 polish pass).
+       Per-arrow alignment measured against controller_frame.png art using
+       debug-outlined screenshots. Each arrow's hotzone now sits on its
+       visible stub instead of in the dead zone between stubs.
+       Original values (pre-fix, kept for rollback reference):
+         hz-up    { left: 16%; top: 64.5%; }
+         hz-down  { left: 16%; top: 80%;   }
+         hz-left  { left:  6%; top: 72%;   }
+         hz-right { left: 31%; top: 72%;   } */
     .hz-up    { left: 16%; top: 59.5%; width: 16%; height: 7%; }
     .hz-down  { left: 16%; top: 71%;   width: 16%; height: 7%; }
     .hz-left  { left:  7%; top: 65%;   width: 11%; height: 7%; }
@@ -2924,6 +2926,95 @@
     }
 
     document.querySelectorAll('.hotzone').forEach(bindHotzone);
+
+    // ============ Fix 2: D-pad drag-to-turn ============
+    // Track which hotzone each in-flight finger is currently OVER (separate
+    // from hotzoneTouches which tracks the hotzone it STARTED on). On every
+    // touchmove, if the finger has crossed onto a different D-pad arrow,
+    // release the previous arrow and press the new one — so sliding from
+    // Up to Right (around the cross) smoothly turns the character without
+    // requiring a finger lift.
+    //
+    // Restricted to D-pad arrows (up/down/left/right). Face buttons, shoulders,
+    // and menu buttons don't fire-on-slide since they're discrete-tap actions.
+    const DPAD_NAMES = new Set(['up', 'down', 'left', 'right']);
+    // identifier -> currently-pressed D-pad name (or null if finger has left
+    // the D-pad area entirely)
+    const dpadDragState = new Map();
+
+    // Seed dragState from any D-pad touchstart so touchmove knows what was
+    // pressed first. Listening at the document level captures every touch
+    // regardless of which hotzone it started on.
+    document.addEventListener('touchstart', (e) => {
+      for (const t of e.changedTouches) {
+        const startName = hotzoneTouches.get(t.identifier);
+        if (startName && DPAD_NAMES.has(startName)) {
+          dpadDragState.set(t.identifier, startName);
+        }
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      for (const t of e.changedTouches) {
+        // Only act on touches that started on the D-pad.
+        if (!dpadDragState.has(t.identifier)) continue;
+        const current = dpadDragState.get(t.identifier);
+        // Find what's under the finger right now. elementFromPoint walks the
+        // hit-test stack; .hotzone elements sit at z-index 3 above the
+        // controller frame's ::after overlay, so they're the topmost hit.
+        const el = document.elementFromPoint(t.clientX, t.clientY);
+        const hz = el && el.closest && el.closest('.hotzone');
+        const overName = hz && hz.dataset.hot;
+        // If finger is still on the same D-pad arrow, nothing to do.
+        if (overName === current) continue;
+        // If finger has moved onto a DIFFERENT D-pad arrow, swap: release
+        // the previous one, press the new one. Diagonals are not synthesized
+        // — the finger is over exactly one arrow at a time.
+        if (overName && DPAD_NAMES.has(overName)) {
+          // Release the old direction first so movement state is clean.
+          if (current) {
+            hotzoneTouches.delete(t.identifier);
+            // Only release if no OTHER touch is still on the old hotzone.
+            let stillHeld = false;
+            for (const v of hotzoneTouches.values()) {
+              if (v === current) { stillHeld = true; break; }
+            }
+            if (!stillHeld) applyHotzone(current, false);
+          }
+          // Press the new direction. Register the touch as belonging to the
+          // new hotzone so a later touchend releases the correct one.
+          hotzoneTouches.set(t.identifier, overName);
+          dpadDragState.set(t.identifier, overName);
+          applyHotzone(overName, true);
+        } else {
+          // Finger has moved OFF the D-pad entirely (into a gap or off the
+          // controller). Release the previous direction so the character
+          // doesn't keep walking. Keep tracking the touch so it re-grabs
+          // a direction if the finger slides back onto an arrow.
+          if (current) {
+            hotzoneTouches.delete(t.identifier);
+            let stillHeld = false;
+            for (const v of hotzoneTouches.values()) {
+              if (v === current) { stillHeld = true; break; }
+            }
+            if (!stillHeld) applyHotzone(current, false);
+            dpadDragState.set(t.identifier, null);
+          }
+        }
+      }
+    }, { passive: true });
+
+    // Clean up the drag-state map when the finger lifts. The per-hotzone
+    // touchend release in bindHotzone() handles the actual button release;
+    // this listener just prevents stale identifiers from accumulating in
+    // dpadDragState.
+    const clearDpadDrag = (e) => {
+      for (const t of e.changedTouches) {
+        dpadDragState.delete(t.identifier);
+      }
+    };
+    document.addEventListener('touchend',    clearDpadDrag, { passive: true });
+    document.addEventListener('touchcancel', clearDpadDrag, { passive: true });
 
     // ============ Update (per-frame movement + animation) ============
     // Frame-rate independent: position += direction × speed × deltaTime.

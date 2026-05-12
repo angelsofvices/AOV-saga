@@ -2433,100 +2433,264 @@
     // tap-then-hold to activate, so it deserves a noticeable speed bump too.
     const FLY_SCALE = 2.25;
 
-    // ============ B-button state machine (hybrid hold + toggle) ============
-    // Hold B (or Shift) → live run while held (instant — no settle time).
-    //   On release: hold > TAP_MAX_MS → just stops (no toggle activation).
-    //                hold ≤ TAP_MAX_MS → counts as a tap (see below).
-    // Single tap → activate sustain run (persists until idle reset).
-    // Double-tap within DOUBLE_TAP_WINDOW → activate sustain fly.
-    // Sustains auto-clear once the player has moved AND then stopped, giving
-    // the "run-for-this-walking-session" feel without sticky modes.
+    // ============ Combat & movement input (Phase A — May 2026) ============
+    // PHASE A REWRITE NOTES — this section was the B-button state machine
+    // (single-tap run sustain, double-tap fly sustain, debounced commits).
+    // The schematic combat plan changed all of that:
+    //   - Run mode is removed entirely. Movement is one speed.
+    //   - B is now Kick (combat). The old tap/hold/double-tap classifier
+    //     for B is gone; B is a simple discrete press.
+    //   - Fly is now toggled by L+R simultaneous TAP (release before
+    //     LR_HOLD_THRESHOLD).
+    //   - L+R HOLD (past LR_HOLD_THRESHOLD) = Ult.
+    //   - L alone = Special 1 (after LR_GRACE_MS to confirm R isn't coming).
+    //   - R alone = Special 2 (after LR_GRACE_MS).
+    //   - A = context-sensitive: interact if interactable in range,
+    //     else Punch.
+    //   - A→B / A→B→A / B→A→B chains within COMBO_WINDOW_MS detect combo
+    //     moves (Sword Swing on ABA, Blaster Shot on BAB).
     //
-    // currentRunMode() reads three signals each frame: flyEnabled (fly), the
-    // live-hold pressedAt (run), and runEnabled (run sustain). All gated on
-    // isMoving so a stationary player still gets idle pose progression.
-    const TAP_MAX_MS         = 240;   // press shorter than this counts as a click
-    const DOUBLE_TAP_WINDOW  = 380;   // second click must arrive within this of the first
-    const bState = {
-      pressedAt:        0,    // performance.now() of the current press, or 0 if not held
-      lastTapAt:        0,    // performance.now() of the last quick-release (a click)
-      anyDown:          false,
-      runEnabled:       false,
-      flyEnabled:       false,
-      movedSinceToggle: false,
-    };
+    // Phase A scope is INPUT DETECTION + CONSOLE LOGGING only. No
+    // animations, no SPC pool, no actual special-attack effects yet. Once
+    // combo detection feels right in playtest, Phase B adds animations.
+    //
+    // The run sprite sheet, RUN_SCALE constant, and renderer run-branch
+    // are kept as dead code paths (player.mode never returns 'run' now).
+    // They can be dead-code-eliminated in a later cleanup pass once we're
+    // sure run isn't coming back.
+
+    // Tunable input windows. All in milliseconds.
+    const COMBO_WINDOW_MS    = 250;   // max gap between taps in an A↔B chain
+    const LR_GRACE_MS        =  80;   // wait before firing L or R alone, in case the other is coming
+    const LR_HOLD_THRESHOLD  = 300;   // L+R held longer than this = Ult; shorter = Fly toggle
+
     function nowMs() { return performance.now(); }
-    function onBPress() {
-      bState.pressedAt = nowMs();
-    }
-    function onBRelease() {
-      const t = nowMs();
-      const dur = t - bState.pressedAt;
-      bState.pressedAt = 0;
-      if (dur <= 0 || dur > TAP_MAX_MS) return;   // a hold or no-op — clicks only here
-      // Quick release → a click. Decide single vs double based on lastTapAt.
-      const isDouble = bState.lastTapAt > 0 && (t - bState.lastTapAt) < DOUBLE_TAP_WINDOW;
-      if (isDouble) {
-        bState.flyEnabled = true;
-        bState.runEnabled = false;
-        bState.lastTapAt  = 0;     // consume — next single click starts a fresh chain
-      } else {
-        bState.runEnabled = true;
-        bState.flyEnabled = false;
-        bState.lastTapAt  = t;
-      }
-      bState.movedSinceToggle = false;
-    }
-    // Reset the entire B state — used by blur / modal-open / mode-clears so a
-    // stale toggle from before doesn't accidentally persist afterwards.
+
+    // Fly state. Previously toggled by B-button double-tap; now toggled by
+    // L+R simultaneous tap. The renderer reads bState.flyEnabled to pick
+    // the fly sprite sheet, so keeping the name preserves the existing
+    // render dispatch.
+    const bState = {
+      flyEnabled: false,
+    };
     function resetBState() {
-      bState.pressedAt        = 0;
-      bState.lastTapAt        = 0;
-      bState.anyDown          = false;
-      bState.runEnabled       = false;
-      bState.flyEnabled       = false;
-      bState.movedSinceToggle = false;
+      bState.flyEnabled = false;
     }
-    // Sync the composite anyDown state from the two raw input flags and emit
-    // edge events. Called whenever either input changes.
-    function syncB() {
-      const down = keyInput.run || joyInput.run;
-      if (down && !bState.anyDown) onBPress();
-      else if (!down && bState.anyDown) onBRelease();
-      bState.anyDown = down;
+
+    // syncB used to fold raw B-button input into the tap/hold state
+    // machine. It still exists because several call sites (modal-open,
+    // window-blur, etc.) call it. In the new architecture it's a no-op
+    // wrapper — kick is fired directly from applyHotzone now. Kept as a
+    // stub so external call sites don't crash. Will be removed in
+    // Phase B cleanup.
+    function syncB() { /* no-op — see comment above */ }
+
+    // ============ A/B combat combo detection ============
+    // Track the last few A/B presses and their timestamps. When a press
+    // arrives, look back at the chain and emit the highest-tier combo
+    // that fits. A press alone → "punch" / "kick". A→B within window →
+    // "ab_combo" (effect TBD). A→B→A → "sword". B→A→B → "blaster".
+    //
+    // Chain is auto-truncated on any pause longer than COMBO_WINDOW_MS,
+    // and after a 3-input combo fires (so the third input doesn't also
+    // anchor a new chain).
+    const combatChain = [];   // array of { btn: 'a'|'b', t: nowMs() }
+
+    function pushCombatInput(btn) {
+      const t = nowMs();
+      // Prune any stale entries beyond the combo window.
+      while (combatChain.length > 0 && (t - combatChain[combatChain.length - 1].t) > COMBO_WINDOW_MS) {
+        // The most-recent entry is older than the window — the whole
+        // chain has gone stale.
+        combatChain.length = 0;
+        break;
+      }
+      combatChain.push({ btn, t });
+      // Cap chain length at 3 — we only need the last 3 inputs to detect
+      // ABA or BAB. Anything older drops off.
+      if (combatChain.length > 3) combatChain.shift();
+      // Classify what just happened.
+      if (combatChain.length === 3) {
+        const seq = combatChain.map(e => e.btn).join('');
+        if (seq === 'aba') {
+          console.log('[combat] SWORD SWING (combo: A→B→A)');
+          combatChain.length = 0;   // consume the chain
+          return;
+        }
+        if (seq === 'bab') {
+          console.log('[combat] BLASTER SHOT (combo: B→A→B)');
+          combatChain.length = 0;
+          return;
+        }
+        // 3-input chain that isn't ABA or BAB (e.g., AAA, BBB, AAB, BBA).
+        // Drop the oldest input and let this one anchor a new sub-chain.
+        combatChain.shift();
+      }
+      if (combatChain.length === 2) {
+        const seq = combatChain.map(e => e.btn).join('');
+        if (seq === 'ab' || seq === 'ba') {
+          // Two-input combo. The spec marks this as "A/B = combo (effect
+          // TBD)." For Phase A we log it but don't consume the chain —
+          // a third input within window can still upgrade to ABA/BAB.
+          console.log('[combat] A/B combo (so far): ' + seq.toUpperCase());
+          return;
+        }
+      }
+      // Single input — basic punch or kick.
+      console.log('[combat] ' + (btn === 'a' ? 'PUNCH' : 'KICK'));
     }
-    // Decide the current movement mode. Three sources can activate run/fly:
-    //   1. flyEnabled sustain (double-tap toggled) → fly (continuous: wings
-    //      flap even while hovering)
-    //   2. Live-hold: button currently down + player moving → run (instant
-    //      response; the same press that triggers this will, on release,
-    //      either also activate the toggle if it was a tap or just end if
-    //      it was a long hold — see onBRelease)
-    //   3. runEnabled sustain (single-tap toggled) → run while moving
-    // Run is always gated on isMoving so a stationary player doesn't freeze
-    // mid-stride; idle pose progression takes over when standing still.
+
+    // ============ L / R / L+R disambiguation ============
+    // Both shoulders can fire alone (Special 1 / Special 2) OR together
+    // (Fly toggle / Ult). To distinguish, every L or R press starts an
+    // 80ms grace period. If the other shoulder also goes down within
+    // that window, it's a paired input — we then watch the held duration
+    // to decide tap (fly) vs hold (Ult). If grace expires alone, fire
+    // the corresponding Special.
+    //
+    // State table:
+    //   lDown / rDown — raw input flags (set by applyHotzone)
+    //   lPressedAt / rPressedAt — timestamps of the respective press
+    //   pairLocked — true once we've detected L+R within grace; we then
+    //     watch for either (a) one of them releasing before
+    //     LR_HOLD_THRESHOLD (→ fly toggle), or (b) both still held past
+    //     the threshold (→ ult). Reset on full release.
+    //   pairFired — true once the current L+R session has triggered
+    //     (fly or ult); used to suppress duplicate triggers.
+    //   pendingSingleTimer — setTimeout id for the "L alone after grace"
+    //     or "R alone after grace" deferred fire. Canceled if the pair
+    //     locks first.
+    const lrState = {
+      lDown:               false,
+      rDown:               false,
+      lPressedAt:          0,
+      rPressedAt:          0,
+      pairLocked:          false,
+      pairFired:           false,
+      pendingSingleTimer:  0,
+      pendingSingleSide:   null,   // 'l' or 'r' — which side is queued to fire
+    };
+
+    function clearPendingSingle() {
+      if (lrState.pendingSingleTimer) {
+        clearTimeout(lrState.pendingSingleTimer);
+        lrState.pendingSingleTimer = 0;
+        lrState.pendingSingleSide  = null;
+      }
+    }
+
+    function fireSpecialDeferred(side) {
+      // Schedule a single-shoulder special to fire after LR_GRACE_MS.
+      // If the other shoulder presses in that window, the pair-detection
+      // branch will cancel this timer and lock the pair instead.
+      clearPendingSingle();
+      lrState.pendingSingleSide = side;
+      lrState.pendingSingleTimer = setTimeout(() => {
+        lrState.pendingSingleTimer = 0;
+        lrState.pendingSingleSide  = null;
+        if (side === 'l') console.log('[combat] SPECIAL 1 (L)');
+        else              console.log('[combat] SPECIAL 2 (R)');
+      }, LR_GRACE_MS);
+    }
+
+    function onLPress() {
+      lrState.lDown = true;
+      lrState.lPressedAt = nowMs();
+      if (lrState.rDown && !lrState.pairLocked) {
+        // R is already down within grace of L going down → pair locked.
+        const gap = lrState.lPressedAt - lrState.rPressedAt;
+        if (gap <= LR_GRACE_MS) {
+          clearPendingSingle();   // cancel any deferred R-alone fire
+          lrState.pairLocked = true;
+          lrState.pairFired  = false;
+          // Tap-vs-hold is decided on release / threshold, not here.
+          return;
+        }
+      }
+      // No pair yet — defer Special 1 fire until grace elapses.
+      fireSpecialDeferred('l');
+    }
+    function onRPress() {
+      lrState.rDown = true;
+      lrState.rPressedAt = nowMs();
+      if (lrState.lDown && !lrState.pairLocked) {
+        const gap = lrState.rPressedAt - lrState.lPressedAt;
+        if (gap <= LR_GRACE_MS) {
+          clearPendingSingle();   // cancel any deferred L-alone fire
+          lrState.pairLocked = true;
+          lrState.pairFired  = false;
+          return;
+        }
+      }
+      fireSpecialDeferred('r');
+    }
+    function onLRelease() {
+      lrState.lDown = false;
+      if (lrState.pairLocked && !lrState.pairFired) {
+        // Releasing one shoulder during a paired session — check held duration.
+        const t = nowMs();
+        const heldFor = t - Math.max(lrState.lPressedAt, lrState.rPressedAt);
+        if (heldFor < LR_HOLD_THRESHOLD) {
+          // Tap = fly toggle.
+          bState.flyEnabled = !bState.flyEnabled;
+          console.log('[combat] FLY TOGGLE → ' + (bState.flyEnabled ? 'ON' : 'OFF'));
+          lrState.pairFired = true;
+        }
+        // (If heldFor >= threshold, Ult would have already fired via the
+        // poll loop — see pollLRHold below.)
+      }
+      // Pair fully released?
+      if (!lrState.lDown && !lrState.rDown) {
+        lrState.pairLocked = false;
+        lrState.pairFired  = false;
+      }
+    }
+    function onRRelease() {
+      lrState.rDown = false;
+      if (lrState.pairLocked && !lrState.pairFired) {
+        const t = nowMs();
+        const heldFor = t - Math.max(lrState.lPressedAt, lrState.rPressedAt);
+        if (heldFor < LR_HOLD_THRESHOLD) {
+          bState.flyEnabled = !bState.flyEnabled;
+          console.log('[combat] FLY TOGGLE → ' + (bState.flyEnabled ? 'ON' : 'OFF'));
+          lrState.pairFired = true;
+        }
+      }
+      if (!lrState.lDown && !lrState.rDown) {
+        lrState.pairLocked = false;
+        lrState.pairFired  = false;
+      }
+    }
+
+    // Polled each frame from update() — checks if L+R have been held
+    // past LR_HOLD_THRESHOLD without firing yet, and if so emits Ult.
+    function pollLRHold() {
+      if (!lrState.pairLocked || lrState.pairFired) return;
+      if (!lrState.lDown || !lrState.rDown) return;
+      const t = nowMs();
+      const heldFor = t - Math.max(lrState.lPressedAt, lrState.rPressedAt);
+      if (heldFor >= LR_HOLD_THRESHOLD) {
+        console.log('[combat] ULT (L+R hold)');
+        lrState.pairFired = true;
+      }
+    }
+    // Decide the current movement mode. Two sources can activate special modes:
+    //   1. flyEnabled (L+R tap toggle) → fly
+    //   2. Otherwise → walk
+    // Run mode was removed in the Phase A combat-input rewrite (May 2026).
+    // The run sprite sheet, RUN_SCALE constant, and renderer's run branch
+    // are left intact as dead code paths — player.mode never returns 'run'
+    // anymore, so they simply never execute. Slated for cleanup once the
+    // combat system is fully wired.
     function currentRunMode() {
       if (bState.flyEnabled) return 'fly';
-      if (player && player.isMoving) {
-        // Hold OR toggle satisfies live-run while moving.
-        if (bState.anyDown && bState.pressedAt > 0) return 'run';
-        if (bState.runEnabled) return 'run';
-      }
       return 'walk';
     }
-    // Called from update() after isMoving is determined. Once a toggle is
-    // active and the player has actually moved this session, the moment they
-    // STOP moving the toggle clears — yielding the "until idle reset" behavior.
-    function maybeClearToggles(inputActive) {
-      if (!bState.runEnabled && !bState.flyEnabled) return;
-      if (inputActive) {
-        bState.movedSinceToggle = true;
-      } else if (bState.movedSinceToggle) {
-        bState.runEnabled       = false;
-        bState.flyEnabled       = false;
-        bState.movedSinceToggle = false;
-      }
-    }
+    // No-op stub. Previously: auto-cleared run/fly sustains once the
+    // player stopped moving. Now fly is a manual toggle (L+R tap to enter,
+    // L+R tap to exit) and there is no run sustain to clear. Kept as a
+    // stub so the call site in update() doesn't need to change.
+    function maybeClearToggles(_inputActive) { /* no-op — see comment above */ }
 
     function setKey(e, value) {
       // While any modal is open, the keyboard is reserved for menu nav —
@@ -2541,10 +2705,21 @@
       if (k === 'ArrowDown'  || k === 's' || k === 'S') { keyInput.down  = value; return true; }
       if (k === 'ArrowLeft'  || k === 'a' || k === 'A') { keyInput.left  = value; return true; }
       if (k === 'ArrowRight' || k === 'd' || k === 'D') { keyInput.right = value; return true; }
-      // Shift = desktop run/fly modifier (matches the controller's B binding —
-      // hold for run, double-tap-then-hold for fly). The B state machine
-      // handles classification; here we just track the raw key state.
-      if (k === 'Shift')                                { keyInput.run   = value; syncB(); return true; }
+      // Shift = kick (combat B). Only fire on press, not release. Phase A
+      // routes this through pushCombatInput so combo detection works the
+      // same on desktop as on the touch controller.
+      if (k === 'Shift') {
+        if (value) pushCombatInput('b');
+        return true;
+      }
+      // F = fly toggle (formerly the controller's B-button double-tap).
+      // Fires once on press, ignores release. e.repeat is filtered in the
+      // keydown wrapper to avoid auto-fire from a held key.
+      if ((k === 'f' || k === 'F') && value) {
+        bState.flyEnabled = !bState.flyEnabled;
+        console.log('[combat] FLY TOGGLE (keyboard F) → ' + (bState.flyEnabled ? 'ON' : 'OFF'));
+        return true;
+      }
       return false;
     }
 
@@ -2593,19 +2768,31 @@
         joyInput[name] = pressed;
         return;
       }
-      // B = hold-to-run, OR tap-then-hold-to-fly. Tracks both press and
-      // release like a movement key; the B state machine classifies the
-      // pattern. Soft pulse on press only. Suppressed while a modal is open
-      // so the player can't sprint or fly through a pause.
+      // B = Kick. Combat input. Fires on press only (not release) so a
+      // long hold doesn't repeat. Suppressed while a modal is open. Routed
+      // through pushCombatInput so A/B combo detection works.
       if (name === 'b') {
-        if (pressed) haptic(6);
-        if (modalState.current) {
-          joyInput.run = false;
-          syncB();
-          return;
+        if (pressed) {
+          haptic(6);
+          if (modalState.current) return;
+          pushCombatInput('b');
         }
-        joyInput.run = pressed;
-        syncB();
+        return;
+      }
+      // L / R shoulders — route through the 80ms-grace disambiguation
+      // state machine so L+R simultaneous (fly tap / Ult hold) can be
+      // distinguished from L-alone / R-alone (Special 1 / Special 2).
+      // Suppressed while a modal is open.
+      if (name === 'l') {
+        if (pressed) haptic(6);
+        if (modalState.current) return;
+        if (pressed) onLPress(); else onLRelease();
+        return;
+      }
+      if (name === 'r') {
+        if (pressed) haptic(6);
+        if (modalState.current) return;
+        if (pressed) onRPress(); else onRRelease();
         return;
       }
       // Modal-trigger buttons fire on PRESS only, not release. Tapping the
@@ -2630,26 +2817,32 @@
           toggleModal('pause');
           return;
         }
-        // A = context-sensitive interact. Toggles the Aethryx Expanse modal
-        // when at the UFO, jumps to the adjacent region when at a border,
-        // etc. Future: NPC dialogue, chest open, etc.
+        // A = context-sensitive (May 2026 Phase A). If there's an
+        // interactable in range — UFO adjacent, region exit ready, or
+        // the Aethryx modal is currently open and A should close it —
+        // do the interaction. Otherwise, A is Punch (combat) and routes
+        // through pushCombatInput for combo detection.
         if (name === 'a') {
+          // Aethryx open → A closes it (existing behavior preserved).
           if (modalState.current === 'aethryx') {
             closeModal();
             return;
           }
-          // Region edge — explicit confirm via A/Enter (matches the
-          // walk-through transition path).
+          // Region edge → A transitions (existing behavior preserved).
           const exit = regionExitReady();
           if (exit === 'north') { transitionRegion('north');   return; }
           if (exit === 'south') { transitionRegion('central'); return; }
+          // UFO adjacent → A opens Aethryx (existing behavior preserved).
           if (ufoState.adjacent) {
             openModal('aethryx');
             return;
           }
+          // No interactable in range → Punch.
+          pushCombatInput('a');
+          return;
         }
         // X and Y are reserved for future combat wiring. Other buttons
-        // (analog stub, l, r) are placeholders — log for visibility.
+        // (analog stub) are placeholders — log for visibility.
         console.log('[hotzone] press:', name);
       }
     }
@@ -3045,6 +3238,10 @@
     // ============ Update (per-frame movement + animation) ============
     // Frame-rate independent: position += direction × speed × deltaTime.
     function update(dt) {
+      // Poll the L+R hold detector once per frame so Ult fires the moment
+      // the 300ms threshold is crossed (not waiting for next input event).
+      pollLRHold();
+
       // Combine keyboard + joystick — either source can drive movement.
       const moveLeft  = keyInput.left  || joyInput.left;
       const moveRight = keyInput.right || joyInput.right;

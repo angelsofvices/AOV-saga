@@ -2610,17 +2610,23 @@
       }
       // Modal-trigger buttons fire on PRESS only, not release. Tapping the
       // same button while its modal is open toggles it closed.
+      //
+      // Note (Fix — Nov 2026): X↔Select and Y↔Start were swapped. Select now
+      // opens the Map (previously bound to X), Start now opens the Pause
+      // modal (previously bound to Y). X and Y are intentionally left as
+      // empty placeholders so they can be rewired for combat actions in a
+      // follow-up pass.
       if (pressed) {
         haptic(12);
         if (name === 'menu') {
           toggleModal('hub');
           return;
         }
-        if (name === 'x') {
+        if (name === 'select') {
           toggleModal('map');
           return;
         }
-        if (name === 'y') {
+        if (name === 'start') {
           toggleModal('pause');
           return;
         }
@@ -2642,7 +2648,8 @@
             return;
           }
         }
-        // Other buttons are placeholders — log for future wiring.
+        // X and Y are reserved for future combat wiring. Other buttons
+        // (analog stub, l, r) are placeholders — log for visibility.
         console.log('[hotzone] press:', name);
       }
     }
@@ -3004,13 +3011,32 @@
       }
     }, { passive: true });
 
-    // Clean up the drag-state map when the finger lifts. The per-hotzone
-    // touchend release in bindHotzone() handles the actual button release;
-    // this listener just prevents stale identifiers from accumulating in
-    // dpadDragState.
+    // Clean up the drag-state map AND release the D-pad direction when the
+    // finger lifts. This is the global counterpart to the per-hotzone
+    // touchend listener in bindHotzone() — needed because drag-to-turn
+    // re-assigns a touch from arrow A to arrow B during slide, but the
+    // touchend event fires against arrow A's element (where the touch
+    // started). If the finger lifts while NOT over arrow A, arrow A's
+    // listener never fires and the direction stays pressed forever ("keep
+    // walking" bug). This document-level handler catches every release and
+    // ensures the active D-pad direction is released cleanly.
     const clearDpadDrag = (e) => {
       for (const t of e.changedTouches) {
-        dpadDragState.delete(t.identifier);
+        // If this touch was tracked as a D-pad drag, release whatever
+        // direction it was currently holding.
+        if (dpadDragState.has(t.identifier)) {
+          const heldName = hotzoneTouches.get(t.identifier);
+          if (heldName && DPAD_NAMES.has(heldName)) {
+            hotzoneTouches.delete(t.identifier);
+            // Only release the direction if no other finger is still on it.
+            let stillHeld = false;
+            for (const v of hotzoneTouches.values()) {
+              if (v === heldName) { stillHeld = true; break; }
+            }
+            if (!stillHeld) applyHotzone(heldName, false);
+          }
+          dpadDragState.delete(t.identifier);
+        }
       }
     };
     document.addEventListener('touchend',    clearDpadDrag, { passive: true });

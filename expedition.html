@@ -1,0 +1,3419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="description" content="The Viridia Expedition — explorable 2D RPG prototype of The AOV™ Saga. Session 1: foundation." />
+  <title>The Viridia Expedition · The AOV Saga</title>
+
+  <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#050310">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://angelsofvices.com/expedition.html">
+  <meta property="og:title" content="The Viridia Expedition — The AOV Saga">
+  <meta property="og:description" content="Session 1 of a 2D RPG prototype exploring the world of Viridia.">
+  <meta property="og:image" content="https://angelsofvices.com/icons/og-image.jpg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============ Foundations (shared with the rest of the saga site) ============ */
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --void: #050310;
+      --void-2: #0a0618;
+      --gold: #e8c878;
+      --gold-bright: #f5dc9c;
+      --gold-deep: #b8923f;
+      --gold-pale: #f4e3b3;
+      --cosmic-blue: #5fa8ff;
+      --vice: #e85a5a;
+      --ivory: #f3ecdc;
+      --mist: #b8aec8;
+      --mist-deep: #6f6582;
+      --border-soft: rgba(232, 200, 120, 0.08);
+      --border: rgba(232, 200, 120, 0.18);
+      --border-gold: rgba(232, 200, 120, 0.28);
+      --glass: rgba(20, 12, 38, 0.55);
+      --glass-strong: rgba(28, 16, 54, 0.72);
+
+      --font-display: 'Cinzel', serif;
+      --font-body: 'Cormorant Garamond', serif;
+      --font-meta: 'Inter', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--void);
+      color: var(--ivory);
+      position: relative;
+      min-height: 100vh;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;  /* prevents pinch-zoom + scroll-bounce on mobile */
+    }
+
+    [hidden] { display: none !important; }
+
+    /* ============ Cosmic backdrop ============ */
+    .cosmos {
+      position: fixed; inset: 0; z-index: -3; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(232, 200, 120, 0.10) 0%, transparent 50%),
+        radial-gradient(ellipse at 30% 50%, rgba(95, 168, 255, 0.08) 0%, transparent 55%),
+        radial-gradient(ellipse at 70% 80%, rgba(184, 124, 255, 0.06) 0%, transparent 55%),
+        linear-gradient(180deg, #050310 0%, #0a0618 50%, #050310 100%);
+    }
+    .stars {
+      position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden;
+    }
+    .stars::before {
+      content: ''; position: absolute; inset: -50%;
+      background-image:
+        radial-gradient(1px 1px at 23% 17%, rgba(243, 236, 220, 0.6), transparent),
+        radial-gradient(1px 1px at 67% 41%, rgba(232, 200, 120, 0.5), transparent),
+        radial-gradient(1px 1px at 84% 73%, rgba(243, 236, 220, 0.6), transparent),
+        radial-gradient(1px 1px at 12% 83%, rgba(243, 236, 220, 0.4), transparent),
+        radial-gradient(1px 1px at 45% 28%, rgba(184, 124, 255, 0.35), transparent);
+      background-size: 700px 700px;
+      animation: drift 320s linear infinite;
+      opacity: 0.55;
+    }
+    @keyframes drift {
+      from { transform: translate3d(0, 0, 0); }
+      to   { transform: translate3d(-300px, -300px, 0); }
+    }
+
+    /* ============ Top nav ============ */
+    .nav-bar {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(5, 3, 16, 0.7), transparent);
+      pointer-events: none;
+    }
+    .nav-back {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      text-decoration: none;
+      pointer-events: auto;
+      padding: 6px 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: 2px;
+      transition: all 0.3s ease;
+    }
+    .nav-back:hover, .nav-back:active { color: var(--gold); border-color: var(--gold); }
+
+    /* ============ Loading screen ============ */
+    .loading {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--void);
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+    .loading.done {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .loading-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.55em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.7;
+      margin-bottom: 18px;
+    }
+    .loading-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 7vw, 2.4rem);
+      letter-spacing: 0.12em;
+      background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-bright) 50%, var(--gold-deep) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 22px;
+    }
+    .loading-bar {
+      width: 220px;
+      height: 4px;
+      background: rgba(232, 200, 120, 0.12);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .loading-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--gold-deep), var(--gold-bright));
+      transition: width 0.3s ease;
+      box-shadow: 0 0 12px rgba(232, 200, 120, 0.5);
+    }
+    .loading-status {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      margin-top: 14px;
+      min-height: 12px;
+    }
+
+    /* (Old stage CSS removed — replaced by .device chassis above.) */
+
+    /* ============ Device chassis (controller frame + screen + hotzones) ============
+       The whole viewport becomes a handheld-style "device" — controller PNG fills
+       most of the screen, game canvas sits at the screen rectangle, hotzone divs
+       overlay each button/D-pad arrow for touch input. */
+    .device {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;   /* cosmos + stars show through the letterbox region */
+      overflow: hidden;
+    }
+    /* Chassis preserves the controller's native 768:1376 aspect — no distortion.
+       Scales to fit whichever viewport dimension is the limit. overflow:hidden
+       so any canvas pixels extending past the chassis bounds get clipped. */
+    .device-chassis {
+      position: relative;
+      width: min(100vw, calc(100vh * 768 / 1376));
+      aspect-ratio: 768 / 1376;
+      overflow: hidden;
+    }
+    /* Controller frame PNG — rendered ON TOP of the canvas via a pseudo-element.
+       Uses controller_frame.png which is the source art with its placeholder green
+       screen rectangle chroma-keyed to transparent. The opaque controller art (frame,
+       buttons, cosmic backdrop) sits at z-index 2 over the canvas (z-index 1), and
+       the transparent screen cutout reveals the game canvas behind it.
+       pointer-events:none lets touches pass through to the hotzones below. */
+    .device-chassis::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url('/assets/controller_frame.png');
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* Game canvas — sits BEHIND the controller frame, sized to exactly fill the
+       screen-cutout bbox measured from controller_main.png's green placeholder.
+       The cutout is kept TIGHT to the original gold trim — the trim stays
+       visible all the way around. To make the play area feel bigger, the camera
+       viewport is now tighter (fewer tiles visible at once) rather than the
+       cutout being larger.
+         The gold trim has a curved bottom "bay" — alpha=0 only extends to
+         y=745 at the corners but dips down to y=779 in the center column.
+         Sizing the canvas to the corner bbox left visible dead space in the
+         bay (the user complaint). The full interior bbox is:
+            top: y=84,  bottom: y=779,  height = 696
+            left: x=58, right:  x=710,  width  = 653
+         → CSS percentages:
+            left:   58/768   = 7.5521%
+            top:    84/1376  = 6.1047%
+            width:  653/768  = 85.0260%
+            height: 696/1376 = 50.5814%
+       The canvas is RECTANGULAR (covers the full corner-bbox), but the
+       chassis frame at z-index:2 paints its gold-trim curves on top, so the
+       canvas pixels outside the visible curved cutout are masked away. Net
+       effect: the game now fills every visible cosmetic-frame interior pixel.
+       Cutout aspect 0.938 — slight vertical stretch of the 224×224 canvas
+       (~5%), which pixel art absorbs cleanly. */
+    .device-screen {
+      position: absolute;
+      left: 7.5521%;
+      top: 6.1047%;
+      width: 85.0260%;
+      height: 50.5814%;
+      z-index: 1;
+    }
+    .device-screen canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+
+    /* Hotzones — invisible touch targets sitting on top of each button in the art.
+       z-index:3 keeps them ABOVE the ::after controller-frame overlay so taps land.
+       `data-hot` attribute drives the JS handler. */
+    .hotzone {
+      position: absolute;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 3;
+      /* Uncomment for debug visualization of hot zones: */
+      /* outline: 1px solid rgba(255, 0, 0, 0.4); background: rgba(255,0,0,0.05); */
+    }
+    .hotzone:active {
+      /* Subtle visual feedback on press — semi-translucent gold flash. */
+      background: rgba(232, 200, 120, 0.10);
+      border-radius: 8px;
+    }
+
+    /* D-pad (left side, cross shape) */
+    .hz-up    { left: 16%; top: 64.5%; width: 16%; height: 7%; }
+    .hz-down  { left: 16%; top: 80%;   width: 16%; height: 7%; }
+    .hz-left  { left:  6%; top: 72%;   width: 11%; height: 7%; }
+    .hz-right { left: 31%; top: 72%;   width: 11%; height: 7%; }
+
+    /* Face buttons (right side, diamond — X top, Y left, A right, B bottom) */
+    .hz-x { left: 73%; top: 64.5%; width: 11%; height: 6%; }
+    .hz-y { left: 60%; top: 71.5%; width: 11%; height: 6%; }
+    .hz-a { left: 85%; top: 71.5%; width: 11%; height: 6%; }
+    .hz-b { left: 73%; top: 78.5%; width: 11%; height: 6%; }
+
+    /* Shoulders */
+    .hz-l { left:  3%; top: 1.5%; width: 14%; height: 5%; }
+    .hz-r { left: 83%; top: 1.5%; width: 14%; height: 5%; }
+
+    /* Bottom row: analog stub, MENU, START, SELECT */
+    .hz-analog { left:  8%; top: 87%;   width: 16%; height: 8%; border-radius: 50%; }
+    .hz-menu   { left: 42%; top: 89%;   width: 16%; height: 9%; }
+    .hz-start  { left:  8%; top: 95.5%; width: 18%; height: 4%; }
+    .hz-select { left: 74%; top: 95.5%; width: 18%; height: 4%; }
+
+    /* ============ Modal overlays (Hub / Map / Pause) ============
+       Three button-triggered views layered above the device chassis. All share
+       a common dim+fade pattern. The chassis remains visible through pause
+       (lighter dim) but hidden behind hub + map (stronger backdrop). Each
+       modal has an [data-asset] slot where the user's real art will live. */
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 150;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(5, 3, 16, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .modal-pause .modal-backdrop {
+      background: rgba(5, 3, 16, 0.55);   /* lighter — game still readable */
+    }
+    .modal-panel {
+      position: relative;
+      width: 100%;
+      max-width: 460px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: var(--glass-strong);
+      border: 1px solid var(--border-gold);
+      border-radius: 4px;
+      padding: 28px 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 1px rgba(232,200,120,0.4);
+      transform: translateY(8px);
+      transition: transform 0.25s ease;
+    }
+    .modal.open .modal-panel { transform: translateY(0); }
+    .modal-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.55em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.8;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .modal-title {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-align: center;
+      background: linear-gradient(180deg, var(--gold-pale), var(--gold-bright) 50%, var(--gold-deep));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 22px;
+    }
+    .modal-close {
+      position: absolute;
+      top: 10px; right: 12px;
+      width: 32px; height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--mist);
+      font-family: var(--font-meta);
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-close:hover, .modal-close:active {
+      color: var(--gold);
+      border-color: var(--gold);
+    }
+
+    /* Hub menu — 2-column grid, 3 rows: RIZERS / CODEX / ASTRALPACK / PROFILE / SAVE / OPTIONS */
+    .hub-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .hub-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 14px;
+      background: rgba(10, 6, 24, 0.65);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--ivory);
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+    .hub-item:hover, .hub-item:active {
+      border-color: var(--gold);
+      background: rgba(20, 12, 38, 0.85);
+    }
+    .hub-icon {
+      width: 40px; height: 40px;
+      flex-shrink: 0;
+      border: 1px dashed var(--border-gold);
+      border-radius: 4px;
+      background-color: rgba(232, 200, 120, 0.05);
+      background-size: contain;
+      background-position: center;
+      background-repeat: no-repeat;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-meta);
+      font-size: 0.45rem;
+      letter-spacing: 0.2em;
+      color: var(--mist-deep);
+    }
+    /* Wired hub icons — once art is in place, swap the dashed placeholder border
+       for a clean solid one and hide the "ART" placeholder text via transparent
+       color. Adding a new icon = add a new selector here pointing at the file. */
+    .hub-icon[data-asset="icon-codex"],
+    .hub-icon[data-asset="icon-rizers"],
+    .hub-icon[data-asset="icon-astralpack"],
+    .hub-icon[data-asset="icon-profile"] {
+      border-style: solid;
+      border-color: var(--border);
+      background-color: transparent;
+      color: transparent;
+    }
+    .hub-icon[data-asset="icon-codex"]      { background-image: url('/assets/icons/codex.png'); }
+    .hub-icon[data-asset="icon-rizers"]     { background-image: url('/assets/icons/rizers.png'); }
+    .hub-icon[data-asset="icon-astralpack"] { background-image: url('/assets/icons/astralpack.png'); }
+    .hub-icon[data-asset="icon-profile"]    { background-image: url('/assets/icons/profile.png'); }
+
+    /* Map — Viridia world map illustration. The 4:5 aspect-ratio matches the
+       source PNG exactly (1122×1402), so the image fills the panel edge-to-edge
+       with no letterboxing. background-size: cover gracefully crops if a
+       future panel ever stretches off-ratio. */
+    .map-canvas {
+      position: relative;
+      aspect-ratio: 4 / 5;
+      border: 1px solid var(--border-gold);
+      border-radius: 3px;
+      background-color: var(--void-2);
+      background-image: linear-gradient(180deg, rgba(95,168,255,0.06), rgba(184,124,255,0.06));
+      overflow: hidden;
+    }
+    .map-canvas[data-asset="map-viridia"] {
+      /* The ?v=2 query bumps the cache key so a re-exported map shows up on
+         the next page load instead of being served from the browser's image
+         cache. Bump this version (?v=3, ?v=4, …) any time obj_map.png is
+         re-saved with new artwork. */
+      background-image:
+        linear-gradient(180deg, rgba(95,168,255,0.04), rgba(184,124,255,0.04)),
+        url('/assets/obj_map.png?v=2');
+      background-size: cover, cover;
+      background-position: center, center;
+      background-repeat: no-repeat, no-repeat;
+    }
+    .map-placeholder {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--mist-deep);
+      text-align: center;
+      padding: 24px;
+    }
+    /* Map marker — player headshot inside a pulsing gold ring. The background-
+       image data URL is set by setMapMarkerHeadshot() at boot from a cropped
+       region of the walk sheet (DOWN row, frame 0 — face visible). */
+    .map-marker {
+      position: absolute;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background-color: var(--void-2);
+      background-size: 240% 240%;
+      background-position: center 12%;
+      background-repeat: no-repeat;
+      border: 2px solid var(--gold-bright);
+      box-shadow: 0 0 0 2px rgba(232,200,120,0.25), 0 0 16px rgba(232,200,120,0.7);
+      animation: marker-pulse 1.6s ease-in-out infinite;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+    @keyframes marker-pulse {
+      0%, 100% { box-shadow: 0 0 0 2px rgba(232,200,120,0.25), 0 0 16px rgba(232,200,120,0.7); }
+      50%      { box-shadow: 0 0 0 6px rgba(232,200,120,0.0),  0 0 22px rgba(232,200,120,1.0); }
+    }
+    /* Map cursor — distinct from .map-marker. Cosmic-blue crosshair the
+       player moves with arrow keys while the map modal is open. Defaults
+       to the canvas center on open. */
+    .map-cursor {
+      position: absolute;
+      width: 22px; height: 22px;
+      border: 2px solid var(--cosmic-blue);
+      border-radius: 3px;
+      box-shadow: 0 0 12px rgba(95,168,255,0.6), inset 0 0 4px rgba(95,168,255,0.4);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      transition: left 0.12s ease, top 0.12s ease, opacity 0.18s ease;
+      left: 50%; top: 50%;
+      opacity: 0;            /* hidden by default — only appears after the player moves it */
+    }
+    .map-cursor.visible { opacity: 1; }
+    .map-cursor::before,
+    .map-cursor::after {
+      content: '';
+      position: absolute;
+      background: var(--cosmic-blue);
+      box-shadow: 0 0 6px rgba(95,168,255,0.8);
+    }
+    .map-cursor::before { left: 50%; top: -6px;  width: 2px; height: 6px;  transform: translateX(-50%); }
+    .map-cursor::after  { left: 50%; bottom: -6px; width: 2px; height: 6px;  transform: translateX(-50%); }
+    .map-label {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--mist);
+      text-align: center;
+      margin-top: 12px;
+    }
+
+    /* Aethryx faction grid — 4 cols × 2 rows of NPC roster slots. Each slot
+       shows the NPC's short name + active/docked status. Tap to toggle. */
+    .aethryx-section-label {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      margin: 4px 0 8px;
+    }
+    .faction-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .faction-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px 4px;
+      background: rgba(10, 6, 24, 0.55);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--ivory);
+      font-family: var(--font-display);
+      font-size: 0.62rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .faction-slot:hover, .faction-slot:active,
+    .faction-slot:focus,
+    .faction-slot:focus-visible {
+      border-color: var(--gold);
+      color: var(--gold-bright);
+      outline: none;
+      box-shadow: 0 0 12px rgba(232, 200, 120, 0.35);
+    }
+    .hub-item:focus,
+    .hub-item:focus-visible,
+    .pause-btn:focus,
+    .pause-btn:focus-visible {
+      outline: none;
+      border-color: var(--gold);
+      color: var(--gold-bright);
+      box-shadow: 0 0 12px rgba(232, 200, 120, 0.35);
+    }
+    .faction-slot .faction-name {
+      font-size: 0.72rem;
+      color: var(--gold-bright);
+    }
+    .faction-slot .faction-status {
+      font-family: var(--font-meta);
+      font-size: 0.42rem;
+      letter-spacing: 0.18em;
+      color: var(--mist);
+    }
+    /* Docked state — slot dimmed, status reads "Docked". */
+    .faction-slot.docked {
+      background: rgba(10, 6, 24, 0.30);
+      border-color: var(--border-soft);
+    }
+    .faction-slot.docked .faction-name   { color: var(--mist-deep); }
+    .faction-slot.docked .faction-status { color: var(--mist-deep); }
+    /* Locked state — disabled, deep dim. */
+    .faction-slot.locked {
+      background: rgba(10, 6, 24, 0.20);
+      border-color: rgba(232, 200, 120, 0.05);
+      cursor: not-allowed;
+    }
+    .faction-slot.locked .faction-name,
+    .faction-slot.locked .faction-status {
+      color: rgba(184, 174, 200, 0.30);
+    }
+
+    /* Pause — compact panel with stacked actions */
+    .pause-stack {
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .pause-btn {
+      padding: 14px 20px;
+      background: rgba(10, 6, 24, 0.65);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--ivory);
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .pause-btn:hover, .pause-btn:active {
+      border-color: var(--gold);
+      color: var(--gold-bright);
+    }
+    .pause-btn.primary {
+      background: linear-gradient(180deg, rgba(232,200,120,0.18), rgba(232,200,120,0.06));
+      border-color: var(--gold);
+      color: var(--gold-bright);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stars::before { animation: none; }
+      .map-marker { animation: none; }
+      .modal, .modal-panel { transition: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cosmos"></div>
+  <div class="stars"></div>
+
+  <div class="nav-bar">
+    <a href="/games.html" class="nav-back">← Games</a>
+  </div>
+
+  <!-- ============ Loading screen ============ -->
+  <div class="loading" id="loading">
+    <div class="loading-eyebrow">Prototype 04 · Session 1</div>
+    <div class="loading-title">The Viridia Expedition</div>
+    <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+    <div class="loading-status" id="loading-status">Preparing the wilds…</div>
+  </div>
+
+  <!-- ============ Device chassis (controller frame + game screen + hotzones) ============ -->
+  <div class="device">
+    <div class="device-chassis" id="device-chassis">
+
+      <!-- Game canvas — rendered through the controller's screen rectangle -->
+      <div class="device-screen">
+        <canvas id="game"></canvas>
+      </div>
+
+      <!-- D-pad hotzones (wired to movement) -->
+      <button class="hotzone hz-up"    data-hot="up"    aria-label="Up"></button>
+      <button class="hotzone hz-down"  data-hot="down"  aria-label="Down"></button>
+      <button class="hotzone hz-left"  data-hot="left"  aria-label="Left"></button>
+      <button class="hotzone hz-right" data-hot="right" aria-label="Right"></button>
+
+      <!-- Face buttons (visual only for now — wired in future sessions) -->
+      <button class="hotzone hz-x" data-hot="x" aria-label="X"></button>
+      <button class="hotzone hz-y" data-hot="y" aria-label="Y"></button>
+      <button class="hotzone hz-a" data-hot="a" aria-label="A"></button>
+      <button class="hotzone hz-b" data-hot="b" aria-label="B"></button>
+
+      <!-- Shoulders (visual only) -->
+      <button class="hotzone hz-l" data-hot="l" aria-label="L"></button>
+      <button class="hotzone hz-r" data-hot="r" aria-label="R"></button>
+
+      <!-- Bottom row (visual only — analog stub, MENU, START, SELECT) -->
+      <button class="hotzone hz-analog" data-hot="analog" aria-label="Analog"></button>
+      <button class="hotzone hz-menu"   data-hot="menu"   aria-label="Menu"></button>
+      <button class="hotzone hz-start"  data-hot="start"  aria-label="Start"></button>
+      <button class="hotzone hz-select" data-hot="select" aria-label="Select"></button>
+
+    </div>
+  </div>
+
+  <!-- ============ Hub menu modal (MENU button) ============
+       Asset slots: each .hub-icon expects user-supplied art. Drop a CSS
+       background-image rule keyed by [data-asset="..."] when ready. -->
+  <div class="modal" id="modal-hub" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <div class="modal-eyebrow">The Astralpack</div>
+      <div class="modal-title">Inventory</div>
+      <div class="hub-grid">
+        <button class="hub-item" data-hub="rizers">
+          <span class="hub-icon" data-asset="icon-rizers">ART</span>
+          <span>Rizers</span>
+        </button>
+        <button class="hub-item" data-hub="codex">
+          <span class="hub-icon" data-asset="icon-codex">ART</span>
+          <span>Codex</span>
+        </button>
+        <button class="hub-item" data-hub="astralpack">
+          <span class="hub-icon" data-asset="icon-astralpack">ART</span>
+          <span>Astralpack</span>
+        </button>
+        <button class="hub-item" data-hub="profile">
+          <span class="hub-icon" data-asset="icon-profile">ART</span>
+          <span>Profile</span>
+        </button>
+        <button class="hub-item" data-hub="save">
+          <span class="hub-icon" data-asset="icon-save">ART</span>
+          <span>Save</span>
+        </button>
+        <button class="hub-item" data-hub="options">
+          <span class="hub-icon" data-asset="icon-options">ART</span>
+          <span>Options</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Map modal (X button) ============
+       Viridia map illustration is set via CSS background on .map-canvas
+       (background-image: obj_map.png). The .map-marker is positioned
+       dynamically by JS to show the player's current world location. -->
+  <div class="modal" id="modal-map" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <div class="modal-eyebrow">Star Chart</div>
+      <div class="modal-title">Viridia</div>
+      <div class="map-canvas" data-asset="map-viridia">
+        <div class="map-marker" id="map-marker"></div>
+        <div class="map-cursor" id="map-cursor"></div>
+      </div>
+      <div class="map-label" id="map-location">The Clearing</div>
+    </div>
+  </div>
+
+  <!-- ============ Aetherstride UFO modal ============
+       Opens when player taps A while adjacent to the UFO. Pulls up the
+       Aethryx Expanse map — interplanetary travel selector PLUS the player's
+       Faction roster (8 slots total: 4 wired + 4 locked). Tapping a faction
+       slot toggles that NPC between "In Viridia" (active in level) and
+       "Docked" (parked in the ship — invisible, no AI, no collision). -->
+  <div class="modal" id="modal-aethryx" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" style="max-width: 380px;">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <div class="modal-eyebrow">Aetherstride · UFO Terminal</div>
+      <div class="modal-title">The Aethryx Expanse</div>
+
+      <div class="aethryx-section-label">Faction · 8 slots</div>
+      <div class="faction-grid" id="faction-grid">
+        <button class="faction-slot" data-npc="voltyran"><span class="faction-name">Vol</span><span class="faction-status">In Viridia</span></button>
+        <button class="faction-slot" data-npc="eurakeon"><span class="faction-name">Eur</span><span class="faction-status">In Viridia</span></button>
+        <button class="faction-slot" data-npc="aurexion"><span class="faction-name">Aur</span><span class="faction-status">In Viridia</span></button>
+        <button class="faction-slot" data-npc="elzoran"><span class="faction-name">Elz</span><span class="faction-status">In Viridia</span></button>
+        <button class="faction-slot locked" disabled><span class="faction-name">?</span><span class="faction-status">Locked</span></button>
+        <button class="faction-slot locked" disabled><span class="faction-name">?</span><span class="faction-status">Locked</span></button>
+        <button class="faction-slot locked" disabled><span class="faction-name">?</span><span class="faction-status">Locked</span></button>
+        <button class="faction-slot locked" disabled><span class="faction-name">?</span><span class="faction-status">Locked</span></button>
+      </div>
+
+      <div class="aethryx-section-label" style="margin-top: 14px;">Destinations</div>
+      <div class="pause-stack">
+        <button class="pause-btn" disabled style="opacity:0.65; cursor:not-allowed;">Viridia — Current</button>
+        <button class="pause-btn" disabled style="opacity:0.35; cursor:not-allowed;">Zyraxis · locked</button>
+        <button class="pause-btn" disabled style="opacity:0.35; cursor:not-allowed;">Origon · locked</button>
+      </div>
+      <div class="map-label" style="margin-top: 12px; font-size: 0.42rem;">Beacon dormant — the lanes between worlds still cooling.</div>
+    </div>
+  </div>
+
+  <!-- ============ Pause modal (Y button) ============
+       Lighter dim so the world stays partially visible behind. Wired so a
+       second tap of Y resumes — and Resume / Hub buttons inside also work. -->
+  <div class="modal modal-pause" id="modal-pause" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" style="max-width: 320px;">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <div class="modal-eyebrow">The Expedition Halts</div>
+      <div class="modal-title">Paused</div>
+      <div class="pause-stack">
+        <button class="pause-btn primary" data-close>Resume</button>
+        <button class="pause-btn" data-pause-action="hub">Open Astralpack</button>
+        <button class="pause-btn" data-pause-action="map">View Map</button>
+        <button class="pause-btn" data-pause-action="exit" onclick="window.location.href='/games.html'">Leave Viridia</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    // ============ Engine constants ============
+    // Logical tile size in pixels. 32 is the engine standard the world is built around.
+    // The canvas backing store renders at logical resolution then CSS scales it up.
+    const TILE_SIZE = 32;
+
+    // World dimensions in tiles — the FULL playable map. Larger than the viewport
+    // so the camera has something to follow as the player walks. Bumped to 40×40
+    // after the 1.5× building scale-up to give the procedurally placed town
+    // (1 huge + 3 big + 6 med + 9 sml + NPC/UFO safe zones + scattered trees)
+    // room to feel like a real small town rather than wall-to-wall houses.
+    const MAP_WIDTH = 40;
+    const MAP_HEIGHT = 40;
+
+    // Viewport dimensions in tiles — what's actually visible on screen at once.
+    // The canvas backing store renders at this resolution, then CSS scales it
+    // up to fill the controller's screen cutout. A SMALLER viewport (fewer
+    // tiles) makes each tile look bigger inside the same cutout — i.e., the
+    // game world "zooms in." 7×7 tiles gives a noticeable zoom over 10×10
+    // while still showing enough surroundings to navigate.
+    const VIEWPORT_TILES_W = 7;
+    const VIEWPORT_TILES_H = 7;
+    const VIEWPORT_W = VIEWPORT_TILES_W * TILE_SIZE;   // 224 logical px
+    const VIEWPORT_H = VIEWPORT_TILES_H * TILE_SIZE;   // 224 logical px
+
+    // Object dimensions (multiples of tile size).
+    const TREE_W = 96;  // 3 tiles wide visually (scaled 1.5× from the original 2-tile footprint so trees stand taller next to the player + 1.5× houses)
+    const TREE_H = 96;  // 3 tiles tall visually
+
+    // UFO landmark — Aetherstride terminal (gateway to "The Aethryx Expanse").
+    // Wide sideview silhouette. Sized to match the source's natural 3.7:1
+    // aspect — at 224×60 the bake is ~4.4× downsample on both axes from the
+    // content-bbox crop, so the UFO reads dimensional rather than squashed
+    // flat. Hardcoded at a fixed world position so it's a reliable landmark;
+    // procgen reserves its zone so houses don't overlap.
+    const UFO_W      = 224;
+    const UFO_H      = 60;
+    const UFO_TILE_X = 25;
+    const UFO_TILE_Y = 5;
+
+    // House types — visual W,H in logical pixels (= tile count × TILE_SIZE).
+    // Each entry maps to one of the four entry_*house.png assets. Sizes were
+    // bumped 1.5× from the initial 3/4/5/8-tile widths so the buildings tower
+    // over humanoid NPCs and players. tileW/tileH stay coarse (procgen reserves
+    // these tile-blocks for collision spacing); the rendered footprint may
+    // slightly overlap the reserve tiles, which is intended — roofs naturally
+    // hang past their reserved patch and Y-sort keeps everything readable.
+    const HOUSE_TYPES = {
+      'house-sml':  { w: Math.round(3 * TILE_SIZE * 1.5), h: Math.round(3 * TILE_SIZE * 1.5), tileW: 5, tileH: 5, asset: 'houseSml'  },  // 144×144
+      'house-med':  { w: Math.round(4 * TILE_SIZE * 1.5), h: Math.round(4 * TILE_SIZE * 1.5), tileW: 6, tileH: 6, asset: 'houseMed'  },  // 192×192
+      'house-big':  { w: Math.round(5 * TILE_SIZE * 1.5), h: Math.round(5 * TILE_SIZE * 1.5), tileW: 8, tileH: 8, asset: 'houseBig'  },  // 240×240
+      'house-huge': { w: Math.round(8 * TILE_SIZE * 1.5), h: Math.round(6 * TILE_SIZE * 1.5), tileW: 12, tileH: 9, asset: 'houseHuge' },  // 384×288
+    };
+    // Character — width matches a tile, height matches the sheet's true aspect ratio (200:280 = 0.714).
+    const CHAR_W = 32;
+    const CHAR_H = 45;
+
+    // NPC dimensions — slightly burlier than the player so Voltyran reads as
+    // a distinct presence rather than a copy. 42×40 matches the source
+    // content's 1.060 aspect ratio with the player's height bracket.
+    const NPC_W = 42;
+    const NPC_H = 40;
+    // Eurakeon-specific display size. He reads as a larger, more imposing
+    // presence than Voltyran — baked at 2x Voltyran's footprint (84×80). The
+    // slicer uses these constants so the source 240×280 frame is scaled to
+    // the bigger destination canvas directly — no double-scaling at draw time.
+    const EUR_DISPLAY_W = 84;
+    const EUR_DISPLAY_H = 80;
+    // Aurexion display size — 1.4× the player's footprint (32×45 → 45×63).
+    // Tall slim humanoid; reads as the commanding astralnaut of the trio
+    // (Voltyran is shorter/stocky, Eurakeon is non-humanoid). The slicer's
+    // bilinear smoothing keeps the gold trim + helmet legible at this size.
+    const AUR_DISPLAY_W = 45;
+    const AUR_DISPLAY_H = 63;
+
+    // ============ Sprite-sheet layout (animation_walk_player.png) ============
+    // Calibrated to the v3 character's actual content bbox (not the
+    // body-center). The character has bushy hair that extends well past the
+    // torso on the LEFT/RIGHT/UP rows, so the OLD body-centered cols
+    // [305, 546, 789, 1032] were clipping the hair-side of every frame by
+    // 7-38px (the user saw it as "cut off when walking right"). New cols are
+    // the cross-row bbox-center per column, so each row's full silhouette
+    // (hair + body) fits inside the frameW=200 crop with ~16-21px of margin.
+    //   Re-measured per-row content bboxes:
+    //     UP    y=50..299    cols [(257,417),(517,675),(767,923),(1013,1167)]
+    //     LEFT  y=339..587   cols [(259,403),(511,659),(768,911),(1016,1161)]
+    //     RIGHT y=648..890   cols [(266,412),(519,662),(784,925),(1029,1170)]
+    //     DOWN  y=942..1196  cols [(256,414),(507,666),(763,922),(1011,1169)]
+    //   Per-col cross-row span centers: [336, 591, 844, 1090].
+    //   rowBases = content y1 + ~4px buffer (kept from feet-clipping fix).
+    const SHEET = {
+      frameW: 200,
+      frameH: 280,
+      cols: [336, 591, 844, 1090],
+      rowBases: {                    // feet-y of each row's sprite (content y1 + ~4px buffer)
+        up:    303,
+        left:  591,
+        right: 894,
+        down: 1200,
+      },
+    };
+
+    // Animation pace — 8 frames per second through a 4-frame walk cycle (so a step every 125ms).
+    const ANIM_FPS = 8;
+    const ANIM_FRAMES = 4;
+
+    // Voltyran sheet layout — calibrated from the source PNG via per-row content
+    // detection. Same general structure as SHEET (label column + 4 frame columns)
+    // but row baselines and frame widths differ slightly because his stance is
+    // wider / squatter than the player's.
+    const VOLTYRAN_SHEET = {
+      frameW: 220,
+      frameH: 280,
+      cols: [310, 550, 790, 1030],   // averaged column centers across all rows
+      rowBases: {
+        up:    310,
+        left:  596,
+        right: 892,
+        down: 1180,
+      },
+    };
+
+    // Voltyran's walk-cycle order. His source sheet appears to have 4 distinct
+    // step poses per row (no rest variants like the player's down row had), so
+    // a plain [0,1,2,3] cycle works without remapping or mirroring. Kept as a
+    // table so per-direction tweaks remain easy.
+    const VOLTYRAN_WALK_ORDER = {
+      up:    [0, 1, 2, 3],
+      down:  [0, 1, 2, 3],
+      left:  [0, 1, 2, 3],
+      right: [0, 1, 2, 3],
+    };
+
+    // Eurakeon walk sheet — calibrated from animation_walk_eurakeon.png via the
+    // same row/column content-density probe used for the player + Voltyran
+    // sheets. His silhouette spreads wider than the others (purple-flame wings
+    // span far on the LEFT/RIGHT rows, max bbox-span 239px on col 3). frameW
+    // bumped 240 → 260 so the widest frame fits with a 10-12px margin instead
+    // of running flush against the crop edge (which was clipping fire wisps).
+    //   Measured content baselines (+3px margin) — feet/tail bottom of each row:
+    //     UP    y=50..292    baseline ~295
+    //     LEFT  y=341..596   baseline ~599
+    //     RIGHT y=647..898   baseline ~901
+    //     DOWN  y=942..1174  baseline ~1177
+    //   Cross-row bbox-center per column: [325, 575, 828, 1074].
+    const EURAKEON_SHEET = {
+      frameW: 260,
+      frameH: 280,
+      cols: [325, 575, 828, 1074],
+      rowBases: {
+        up:    295,
+        left:  599,
+        right: 901,
+        down: 1177,
+      },
+    };
+
+    // Eurakeon walk-cycle order. Same shape as Voltyran's — 4 distinct poses
+    // per row, no remapping needed. Table kept around for per-direction tweaks.
+    const EURAKEON_WALK_ORDER = {
+      up:    [0, 1, 2, 3],
+      down:  [0, 1, 2, 3],
+      left:  [0, 1, 2, 3],
+      right: [0, 1, 2, 3],
+    };
+
+    // Elzoran fly sheet — calibrated from animation_fly_elzoran.png. He's a
+    // FLYING NPC (no walk asset), so this same sheet drives all 4 facings —
+    // he hovers in place, never touches the ground.
+    //   Measured content bboxes (4 rows × 4 frame cols):
+    //     UP    y= 89..298   centers [197, 549, 875, 1194]
+    //     LEFT  y=362..539   centers [174, 527, 852, 1144]
+    //     RIGHT y=612..792   centers [201, 505, 835, 1189]
+    //     DOWN  y=877..1063  centers [175, 499, 827, 1157]
+    //   Averaged per-col centers: [187, 520, 847, 1171].
+    //   frameW=340 holds the widest col (col 3 right edge=1331 → 10px buffer).
+    //   frameH=220 holds the tallest row (UP=210 → 10px buffer).
+    const ELZORAN_FLY_SHEET = {
+      frameW: 340,
+      frameH: 220,
+      cols: [187, 520, 847, 1171],
+      rowBases: {
+        up:    302,
+        left:  543,
+        right: 796,
+        down: 1067,
+      },
+    };
+    const ELZORAN_WALK_ORDER = {
+      up:    [0, 1, 2, 3],
+      down:  [0, 1, 2, 3],
+      left:  [0, 1, 2, 3],
+      right: [0, 1, 2, 3],
+    };
+    // Elzoran display size — 112×72 (~4× the original 60×40 footprint). The
+    // root reference (character_elzoran.png, 1024×1024 with content 941×765)
+    // packs dense detail: face, scale plates, wing veins, plasma orbs, gold
+    // trim. The previous 84×56 bake was hitting a ~4× downsample with
+    // bilinear smoothing, which blurred everything into a smear. 112×72 keeps
+    // the source aspect (~1.55:1) and pairs with NEAREST resampling so the
+    // pixel-art reads crisp.
+    const ELZ_DISPLAY_W = 112;
+    const ELZ_DISPLAY_H = 72;
+
+    // Aurexion walk sheet — calibrated from animation_walk_aurexion.png.
+    // His sheet has 5 frames per direction (an expanded jet-boot animation),
+    // but we use the first 4 to match the 4-frame cycle every other NPC uses.
+    //   Measured content bboxes (per-row, with the 5-col layout):
+    //     UP    y=65..316    cols at x≈224, 430, 638, 853, 1071
+    //     LEFT  y=388..592   cols at x≈243, 445, 659, 876, 1091
+    //     RIGHT y=664..871   cols at x≈227, 436, 651, 873, 1092
+    //     DOWN  y=943..1154  cols at x≈225, 430, 639, 862, 1080
+    //   Averaged centers (cols 0-3 only): [230, 435, 647, 866]
+    //   rowBases = content y1 + ~4px buffer
+    const AUREXION_SHEET = {
+      frameW: 200,
+      frameH: 260,
+      cols: [230, 435, 647, 866],
+      rowBases: {
+        up:    320,
+        left:  596,
+        right: 875,
+        down: 1158,
+      },
+    };
+    const AUREXION_WALK_ORDER = {
+      up:    [0, 1, 2, 3],
+      down:  [0, 1, 2, 3],
+      left:  [0, 1, 2, 3],
+      right: [0, 1, 2, 3],
+    };
+
+    // ============ Run sheet (animation_run_player.png) ============
+    // Same 4-row × 4-frame layout as the walk sheet, but the running pose is
+    // wider/stretched horizontally than walking — content widths up to 190px
+    // (vs 169 for walk). frameW bumped to 220 to give every frame ~15-22px of
+    // margin. frameH bumped to 250 to capture the slightly shorter run pose
+    // (UP/DOWN rows still come in at ~232px tall; LEFT/RIGHT at ~200px).
+    //   Measured content bboxes:
+    //     UP    y=105..338   cols [(256,399),(491,634),(750,887),(990,1132)]
+    //     LEFT  y=400..596   cols [(232,398),(476,649),(724,905),(976,1137)]
+    //     RIGHT y=678..882   cols [(241,407),(483,656),(734,905),(992,1165)]
+    //     DOWN  y=937..1168  cols [(248,394),(491,633),(742,888),(993,1142)]
+    //   Per-col cross-row span centers: [319, 566, 814, 1070].
+    const RUN_SHEET = {
+      frameW: 220,
+      frameH: 250,
+      cols: [319, 566, 814, 1070],
+      rowBases: {
+        up:    342,
+        left:  600,
+        right: 886,
+        down: 1172,
+      },
+    };
+
+    const RUN_WALK_ORDER = {
+      up:    [0, 1, 2, 3],
+      down:  [0, 1, 2, 3],
+      left:  [0, 1, 2, 3],
+      right: [0, 1, 2, 3],
+    };
+
+    // ============ Fly sheet (animation_fly_player.png) ============
+    // Wings extend far past the body on every row — max content span is 269px
+    // (col 0, wings flared). frameW bumped to 280 to keep wings inside the
+    // crop with margin. Source aspect is 280/230 ≈ 1.22 (landscape) so the
+    // dest canvas is also widened (CHAR_W_FLY × CHAR_H_FLY = 56 × 45) so
+    // wings don't get crushed horizontally. The renderer positions the fly
+    // canvas with an X offset so feet stay at the same world position as
+    // walking (see FLY_OFFSET_X below).
+    //   Measured content bboxes:
+    //     UP    y=104..315   cols [(185,449),(468,715),(733,955),(972,1195)]
+    //     LEFT  y=405..579   cols [(201,433),(490,713),(778,983),(1027,1224)]
+    //     RIGHT y=698..866   cols [(181,418),(494,701),(741,945),(982,1183)]
+    //     DOWN  y=963..1144  cols [(184,443),(469,721),(742,972),(997,1218)]
+    //   Per-col cross-row span centers: [315, 595, 858, 1098].
+    const FLY_SHEET = {
+      frameW: 280,
+      frameH: 230,
+      cols: [315, 595, 858, 1098],
+      rowBases: {
+        up:    319,
+        left:  583,
+        right: 870,
+        down: 1148,
+      },
+    };
+
+    const FLY_WALK_ORDER = {
+      up:    [0, 1, 2, 3],
+      down:  [0, 1, 2, 3],
+      left:  [0, 1, 2, 3],
+      right: [0, 1, 2, 3],
+    };
+
+    // Fly canvas dims. Wider than walk's CHAR_W to fit the wing-spread without
+    // squashing, but height stays at CHAR_H so vertical feet alignment matches
+    // walking. The X offset re-centers the wider canvas on the player's feet
+    // when rendering, so the player doesn't visually "jump sideways" when
+    // toggling into fly mode.
+    const CHAR_W_FLY  = 56;
+    const CHAR_H_FLY  = CHAR_H;            // 45 — match walk for vertical consistency
+    const FLY_OFFSET_X = (CHAR_W_FLY - CHAR_W) / 2;   // 12 — center the wider canvas on the walk-canvas X axis
+
+    // ============ Idle sheet (animation_idle_player.png) ============
+    // Unlike the walk/run/fly sheets where rows = directions, this sheet's 4
+    // rows are 4 different IDLE POSES (top to bottom). The 4 columns are 4
+    // micro-animation frames per pose (looped). The player progresses through
+    // poses every IDLE_POSE_DURATION seconds — pose 0 (standing) → pose 1
+    // → pose 2 → pose 3 → pose 0 …
+    //   Pose heights vary (some sitting/crouching), so frameH is sized to the
+    //   shortest pose-to-pose gap to avoid bleed from the row above. With
+    //   rowBases at content-y1+~4 and the row 3 gap being 250px, frameH=240
+    //   is safe across all rows.
+    //   Measured per-row content bboxes:
+    //     row 0  y=102..324   cols [(286,412),(521,647),(756,882),(984,1113)]   (standing tall, h=223)
+    //     row 1  y=485..596   cols [(222,441),(477,695),(729,945),(973,1192)]   (shorter pose, h=112)
+    //     row 2  y=720..893   cols [(247,398),(496,647),(761,914),(1015,1166)]  (mid-height, h=171)
+    //     row 3  y=1027..1139 cols [(217,431),(484,690),(744,948),(988,1192)]   (shorter pose, h=113)
+    //   Cols are stored PER-ROW (not cross-row averaged) — pose 0's content is
+    //   noticeably right-shifted vs the other rows, and using averaged centers
+    //   was causing the standing-breathe cycle to visibly drift left across
+    //   its 4 frames. Per-row centers keep each pose's micro-anim in place.
+    const IDLE_SHEET = {
+      frameW: 240,
+      frameH: 240,
+      rowBases: [328, 600, 894, 1143],     // pose 0 (top) .. pose 3 (bottom) feet y
+      colsByRow: [
+        [349, 584, 819, 1048],             // pose 0 (standing) — content sits right of the other rows
+        [331, 586, 837, 1082],             // pose 1
+        [322, 571, 837, 1090],             // pose 2
+        [324, 587, 846, 1090],             // pose 3
+      ],
+    };
+
+    // Idle canvas dims. Square (40×40) to match the idle source aspect (1.0)
+    // so no horizontal squash. Offsets re-anchor the idle canvas onto the
+    // walk-canvas foot position so toggling walk ↔ idle doesn't move the
+    // visual character around — feet stay put, head sits where its pose lands.
+    const CHAR_W_IDLE   = 40;
+    const CHAR_H_IDLE   = 40;
+    const IDLE_OFFSET_X = (CHAR_W_IDLE - CHAR_W) / 2;   // 4
+    const IDLE_OFFSET_Y = CHAR_H - CHAR_H_IDLE;         // 5  (idle canvas is shorter, push it down so feet line up)
+
+    // Pose cycle timing. 15 seconds per pose, cycling top-to-bottom and
+    // wrapping. Within each pose, the 4 cols cycle at IDLE_ANIM_FPS for the
+    // small in-pose flourish (breathing, blinking, etc).
+    const IDLE_POSE_DURATION = 15;   // seconds per pose row
+    const IDLE_ANIM_FPS      = 4;    // within-pose micro-animation rate
+
+    // Per-direction walk-cycle ordering. With the v2 character sheet, every
+    // row has 4 visually distinct walk poses (the previous fix for the down-
+    // row "glide" via mirrored frames is no longer needed). Linear [0,1,2,3]
+    // now works cleanly for all four directions.
+    const WALK_ORDER = {
+      up:    [0, 1, 2, 3],
+      down:  [0, 1, 2, 3],
+      left:  [0, 1, 2, 3],
+      right: [0, 1, 2, 3],
+    };
+
+    // ============ Map data ============
+    // Procedurally generated town layout. Largest-first rejection sampling so
+    // houses don't overlap each other (or NPC/player spawn safe zones), with
+    // a 1-tile spacing padding between footprints. Trees fill remaining gaps
+    // for natural greenery. Seeded RNG so layout is reproducible across page
+    // loads — bump TOWN_SEED to roll a new arrangement.
+    //
+    // Counts per spec: 1 huge (8×6), 3 big (5×5), 6 medium (4×4), 9 small (3×3).
+    const TOWN_SEED = 0x5a6e;
+    function seededRng(seed) {
+      // Tiny LCG — good enough for layout determinism; not crypto.
+      let s = seed >>> 0;
+      return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 0x100000000; };
+    }
+    function generateTownLayout() {
+      const rng = seededRng(TOWN_SEED);
+      const objects = [];
+      const placed  = [];   // {x, y, w, h} in TILE coords, with 1-tile pad already baked in
+
+      // Reserve safe zones around player center + each NPC spawn so houses
+      // don't land on top of where the player or NPCs first appear.
+      const playerTileX = Math.floor((MAP_WIDTH  * TILE_SIZE / 2) / TILE_SIZE);
+      const playerTileY = Math.floor((MAP_HEIGHT * TILE_SIZE / 2) / TILE_SIZE);
+      const reserveZones = [
+        { x: playerTileX - 3, y: playerTileY - 3, w: 6, h: 6 },   // player spawn
+        { x:  5 - 2, y:  6 - 2, w: 5, h: 5 },                      // Eur spawn (~160,200 → tile 5,6)
+        { x: 12 - 2, y: 10 - 2, w: 5, h: 5 },                      // Vol spawn (~400,320 → tile 12,10)
+        { x: 21 - 2, y: 22 - 2, w: 5, h: 5 },                      // Aur spawn (~700,720 → tile 21,22)
+        { x:  7 - 2, y: 27 - 2, w: 5, h: 5 },                      // Elzoran spawn (~240,880 → tile 7,27)
+        { x: UFO_TILE_X - 1, y: UFO_TILE_Y - 1, w: 7 + 2, h: 2 + 2 },  // UFO (7×2 tiles at 224×60) + 1-tile pad
+      ];
+      for (const z of reserveZones) placed.push(z);
+      // UFO is a hardcoded landmark — emit it as a world object so it renders
+      // and collides like trees/houses. Player taps A while adjacent to open
+      // the Aethryx Expanse modal (interplanetary travel hub).
+      objects.push({ x: UFO_TILE_X, y: UFO_TILE_Y, type: 'ufo' });
+
+      // Largest-first ordering so the huge/big houses can find their spots
+      // while there's still open space; the small ones slot into leftover gaps.
+      const houseQueue = [
+        { type: 'house-huge', tileW: HOUSE_TYPES['house-huge'].tileW, tileH: HOUSE_TYPES['house-huge'].tileH, count: 1 },
+        { type: 'house-big',  tileW: HOUSE_TYPES['house-big' ].tileW, tileH: HOUSE_TYPES['house-big' ].tileH, count: 3 },
+        { type: 'house-med',  tileW: HOUSE_TYPES['house-med' ].tileW, tileH: HOUSE_TYPES['house-med' ].tileH, count: 6 },
+        { type: 'house-sml',  tileW: HOUSE_TYPES['house-sml' ].tileW, tileH: HOUSE_TYPES['house-sml' ].tileH, count: 9 },
+      ];
+      function tryPlace(tileW, tileH, padding) {
+        for (let attempt = 0; attempt < 400; attempt++) {
+          const x = 1 + Math.floor(rng() * (MAP_WIDTH  - tileW - 2));
+          const y = 1 + Math.floor(rng() * (MAP_HEIGHT - tileH - 2));
+          let overlap = false;
+          for (const other of placed) {
+            if (x < other.x + other.w + padding &&
+                x + tileW + padding > other.x &&
+                y < other.y + other.h + padding &&
+                y + tileH + padding > other.y) {
+              overlap = true; break;
+            }
+          }
+          if (!overlap) return { x, y };
+        }
+        return null;
+      }
+      for (const h of houseQueue) {
+        for (let i = 0; i < h.count; i++) {
+          const spot = tryPlace(h.tileW, h.tileH, 1);
+          if (!spot) { console.warn('Town gen: could not place', h.type, i); continue; }
+          objects.push({ x: spot.x, y: spot.y, type: h.type });
+          placed.push({ x: spot.x, y: spot.y, w: h.tileW, h: h.tileH });
+        }
+      }
+      // Trees fill the remaining gaps. 28 trees on a 40×40 world gives a
+      // pleasant scatter without choking the town. Reserve is 3×3 tiles to
+      // match the bumped TREE_W/TREE_H visual footprint.
+      for (let i = 0; i < 28; i++) {
+        const spot = tryPlace(3, 3, 0);
+        if (!spot) continue;
+        objects.push({ x: spot.x, y: spot.y, type: 'tree' });
+        placed.push({ x: spot.x, y: spot.y, w: 3, h: 3 });
+      }
+      return objects;
+    }
+
+    // ============ Region system ============
+    // Multi-region world. Each region has its own tiles + objects. Tile types:
+    //   0 = grass (default — Central / Viridia)
+    //   1 = ice   (North region)
+    // Walking past the top of Central transitions to North, and vice versa
+    // (entering from the south of North returns to Central). MAP_DATA and
+    // COLLIDERS are mutable refs that get hot-swapped by transitionRegion().
+    function makeRegionTiles(tileType) {
+      const rows = [];
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        const row = [];
+        for (let x = 0; x < MAP_WIDTH; x++) row.push(tileType);
+        rows.push(row);
+      }
+      return rows;
+    }
+    const REGIONS = {
+      central: {
+        id: 'central',
+        name: 'Viridia · Central',
+        width:  MAP_WIDTH,
+        height: MAP_HEIGHT,
+        tiles:   makeRegionTiles(0),     // grass
+        objects: generateTownLayout(),
+      },
+      north: {
+        id: 'north',
+        name: 'Viridia · North',
+        width:  MAP_WIDTH,
+        height: MAP_HEIGHT,
+        tiles:   makeRegionTiles(1),     // ice — placeholder, no assets yet
+        objects: [],
+      },
+    };
+    let currentRegion = 'central';
+    let MAP_DATA = REGIONS[currentRegion];
+
+    // ============ Collision colliders ============
+    // Solid bounding boxes the player's foot-box cannot overlap. Derived from
+    // MAP_DATA.objects at boot. Each tree's collider is just its TRUNK (bottom-
+    // center 1×1 tile of the 2×2 visual footprint) so the player can walk past
+    // a tree's foliage canopy at the top without bumping into invisible air.
+    // Sized in LOGICAL pixels, matching the player's movement coordinate space.
+    function buildColliders(mapData) {
+      const out = [];
+      for (const obj of mapData.objects) {
+        if (obj.type === 'tree') {
+          // Trunk = the bottom-center 1×1 tile of the visual footprint. Formula
+          // is now derived from TREE_W/TREE_H so it scales cleanly if tree
+          // dimensions change again (was hardcoded to a 2×2 layout before).
+          out.push({
+            x: obj.x * TILE_SIZE + (TREE_W - TILE_SIZE) / 2,
+            y: obj.y * TILE_SIZE + (TREE_H - TILE_SIZE),
+            w: TILE_SIZE,
+            h: TILE_SIZE - 4,
+          });
+        } else if (HOUSE_TYPES[obj.type]) {
+          // Houses: collider = the bottom 2/3 of the visual footprint. The
+          // top third (roof) is walk-behindable so the player can stand at
+          // the back wall without bumping invisible air past the visible roof.
+          const dims = HOUSE_TYPES[obj.type];
+          const colliderH = Math.round(dims.h * 0.66);
+          out.push({
+            x: obj.x * TILE_SIZE,
+            y: obj.y * TILE_SIZE + (dims.h - colliderH),
+            w: dims.w,
+            h: colliderH,
+          });
+        } else if (obj.type === 'ufo') {
+          // UFO: collider = bottom half (landing struts area). Top half is
+          // hull/dome, walk-behindable like a tree canopy.
+          out.push({
+            x: obj.x * TILE_SIZE,
+            y: obj.y * TILE_SIZE + UFO_H / 2,
+            w: UFO_W,
+            h: UFO_H / 2,
+          });
+        }
+      }
+      return out;
+    }
+    let COLLIDERS = buildColliders(MAP_DATA);   // rebuilt by transitionRegion()
+
+    // Axis-aligned bbox intersection test — used by both collision and (later) Y-sort.
+    function rectIntersect(a, b) {
+      return a.x < b.x + b.w &&
+             a.x + a.w > b.x &&
+             a.y < b.y + b.h &&
+             a.y + a.h > b.y;
+    }
+
+    // Player's collision footprint is a small rectangle at the bottom of the
+    // sprite — only feet collide, not the head/torso. This lets the player
+    // walk "behind" things above them without getting stuck on the canopy.
+    const FOOT_W = 18;
+    const FOOT_H = 10;
+    function playerFootbox(x, y) {
+      return {
+        x: x + (CHAR_W - FOOT_W) / 2,
+        y: y + CHAR_H - FOOT_H,
+        w: FOOT_W,
+        h: FOOT_H,
+      };
+    }
+
+    // Returns true if the player's foot-box would be invalid at (x, y) — either
+    // off the map, overlapping a solid object collider, or overlapping an NPC.
+    function blocked(x, y) {
+      const box = playerFootbox(x, y);
+      // Map bounds (foot-box, not full sprite — head can poke above the map line).
+      if (box.x < 0) return true;
+      if (box.y < 0) return true;
+      if (box.x + box.w > MAP_WIDTH  * TILE_SIZE) return true;
+      if (box.y + box.h > MAP_HEIGHT * TILE_SIZE) return true;
+      // Static object colliders (trees etc.).
+      for (const c of COLLIDERS) {
+        if (rectIntersect(box, c)) return true;
+      }
+      // Dynamic NPC bodies — recomputed every check because they're moving.
+      for (const npc of NPCS) {
+        if (npc.active === false) continue;   // docked NPCs don't collide
+        if ((npc.region || 'central') !== currentRegion) continue;   // wrong region
+        if (rectIntersect(box, npcBodyBox(npc))) return true;
+      }
+      return false;
+    }
+
+    // ============ Asset registry ============
+    // Source images live at /assets/. Each entry knows its target size — the loader
+    // produces a cached offscreen canvas at that size, so render-time draws are 1:1
+    // (no GPU scaling per frame even from large source PNGs).
+    const ASSET_SPECS = {
+      // Grass tile — bake from the INTERIOR of the source PNG, skipping the lighter outer
+      // pixels that would otherwise sample into the tile's edges and create visible
+      // "gutter" lines when tiled. The crop pulls the central 1054×1054 region of the
+      // 1254×1254 source. Result: each 32×32 tile is built from consistent inner-green
+      // content, so adjacent tiles meet seamlessly.
+      grass: {
+        src: '/assets/tile_grass.png',
+        w: TILE_SIZE, h: TILE_SIZE,
+        crop: { x: 100, y: 100, w: 1054, h: 1054 },
+      },
+      // North-region snow tile. Same 1254×1254 source convention as grass —
+      // the outer ~100px on every side is anti-aliased near-white that bleeds
+      // into adjacent tiles when tiled, so we inner-crop to the central
+      // 1054×1054 of saturated content. Replaces the procedural ice tile that
+      // shipped before the real asset was ready.
+      snow: {
+        src: '/assets/tile_snow.png',
+        w: TILE_SIZE, h: TILE_SIZE,
+        crop: { x: 100, y: 100, w: 1054, h: 1054 },
+      },
+      tree:  { src: '/assets/obj_tree.png',       w: TREE_W,    h: TREE_H    },
+      // Houses — entry_*house.png. The sml/med variants ship with transparent
+      // alpha already, so they bake clean. The big/huge variants are RGB white-
+      // background, so they need a post-bake chromaKeyWhite pass (chroma: true).
+      houseSml:  { src: '/assets/entry_smlhouse.png',  w: HOUSE_TYPES['house-sml' ].w, h: HOUSE_TYPES['house-sml' ].h },
+      houseMed:  { src: '/assets/entry_medhouse.png',  w: HOUSE_TYPES['house-med' ].w, h: HOUSE_TYPES['house-med' ].h },
+      houseBig:  { src: '/assets/entry_bighouse.png',  w: HOUSE_TYPES['house-big' ].w, h: HOUSE_TYPES['house-big' ].h, chroma: true },
+      houseHuge: { src: '/assets/entry_hugehouse.png', w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // re-exported with alpha — no chroma needed
+      // UFO landmark — ships with transparent alpha, no chroma needed. Crop
+      // the source to its content bbox before baking; the raw PNG is
+      // 1024×1024 with the UFO occupying only y=369..637 (~26% of the
+      // vertical area). Without the crop, the bake would render the UFO at
+      // 1/4 its potential size, making it look flat. With the crop, the
+      // silhouette fills the target canvas at its natural aspect.
+      ufo: {
+        src: '/assets/obj_ufo.png',
+        w: UFO_W, h: UFO_H,
+        crop: { x: 15, y: 369, w: 996, h: 269 },
+      },
+      // The walk sprite sheet — sliced into 16 frame canvases after load (4 directions × 4 frames).
+      // Renamed to ..._player.png to match the rest of the assets/ folder convention
+      // (character_player.png, character_voltyran.png, character_eurakeon.png, etc.).
+      sheet: { src: '/assets/animation_walk_player.png', raw: true },
+      // Run sprite sheet — same 4×4 layout, used while the player holds B/Shift.
+      // Sliced via sliceRunSheet() at boot using RUN_SHEET coords, baked to
+      // CHAR_W × CHAR_H so it slots straight into the walk render path.
+      runSheet: { src: '/assets/animation_run_player.png', raw: true },
+      // Fly sprite sheet — same 4×4 layout, used while the player is in fly
+      // mode (tap-then-hold B/Shift). Baked at CHAR_W_FLY × CHAR_H_FLY (wider
+      // canvas) so the extended wings aren't horizontally crushed.
+      flySheet: { src: '/assets/animation_fly_player.png', raw: true },
+      // Idle sprite sheet — 4 rows × 4 columns, but rows are POSES (cycled
+      // every 15s) not directions. Cols are micro-animation frames within
+      // each pose. Sliced into ASSETS.idleFrames[pose][frame].
+      idleSheet: { src: '/assets/animation_idle_player.png', raw: true },
+      // Voltyran walk sheet — sliced into 16 frame canvases at boot, same
+      // pipeline as the player sheet but with VOLTYRAN_SHEET coords. Stored
+      // under ASSETS.voltyranFrames = { up:[…], left:[…], right:[…], down:[…] }.
+      voltyranSheet: { src: '/assets/animation_walk_voltyran.png', raw: true },
+      // Eurakeon walk sheet — sliced into 16 frame canvases at boot, same
+      // pipeline as the player + Voltyran sheets but with EURAKEON_SHEET coords.
+      // Stored under ASSETS.eurakeonFrames = { up:[…], left:[…], right:[…], down:[…] }.
+      eurakeonSheet: { src: '/assets/animation_walk_eurakeon.png', raw: true },
+      // Aurexion walk sheet — 4×4 directional walk (Aur's sheet ships with 5
+      // frames per row but we use the first 4 to keep the cycle uniform with
+      // the other NPCs). Sliced via sliceAurexionSheet at boot.
+      aurexionSheet: { src: '/assets/animation_walk_aurexion.png', raw: true },
+      // Elzoran fly sheet — 4×4 directional. He's a flying NPC (no walk
+      // asset), so this same sheet drives every facing — he hovers always.
+      elzoranSheet: { src: '/assets/animation_fly_elzoran.png', raw: true },
+    };
+
+    // After load, ASSETS[key] is a ready-to-blit HTMLCanvasElement at the target size.
+    // ASSETS.charFrames is set after sheet slicing — { up:[c0,c1,c2,c3], left:[…], right:[…], down:[…] }
+    const ASSETS = {};
+
+    // ============ Asset loader ============
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Failed to load: ' + src));
+        img.src = src;
+      });
+    }
+
+    // Draw a source image into an offscreen canvas at target size and return that canvas.
+    // Crisp pixel-art scaling: imageSmoothingEnabled = false.
+    // If `crop` is provided, only that source region is sampled (skips e.g. lighter edge pixels).
+    function bakeToTileCanvas(img, w, h, crop) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      if (crop) {
+        ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, w, h);
+      } else {
+        ctx.drawImage(img, 0, 0, w, h);
+      }
+      return c;
+    }
+
+    async function loadAllAssets(onProgress) {
+      const keys = Object.keys(ASSET_SPECS);
+      let loaded = 0;
+      for (const key of keys) {
+        const spec = ASSET_SPECS[key];
+        if (onProgress) onProgress(loaded / keys.length, `Loading ${key}…`);
+        const img = await loadImage(spec.src);
+        if (spec.raw) {
+          // Don't bake — keep raw image for later slicing.
+          ASSETS[key] = img;
+        } else {
+          const baked = bakeToTileCanvas(img, spec.w, spec.h, spec.crop);
+          // Optional white-background chroma key (for source PNGs that ship
+          // without alpha, e.g. entry_bighouse.png / entry_hugehouse.png).
+          if (spec.chroma) chromaKeyWhite(baked);
+          ASSETS[key] = baked;
+        }
+        loaded++;
+      }
+      // After all images load, slice both sprite sheets into frame canvases.
+      if (onProgress) onProgress(0.92, 'Cutting frames…');
+      ASSETS.charFrames     = sliceCharSheet(ASSETS.sheet);
+      ASSETS.runFrames      = sliceRunSheet(ASSETS.runSheet);
+      ASSETS.flyFrames      = sliceFlySheet(ASSETS.flySheet);
+      ASSETS.idleFrames     = sliceIdleSheet(ASSETS.idleSheet);
+      ASSETS.voltyranFrames = sliceVoltyranSheet(ASSETS.voltyranSheet);
+      ASSETS.eurakeonFrames = sliceEurakeonSheet(ASSETS.eurakeonSheet);
+      ASSETS.aurexionFrames = sliceAurexionSheet(ASSETS.aurexionSheet);
+      ASSETS.elzoranFrames     = sliceElzoranSheet(ASSETS.elzoranSheet);
+      // NOTE: idle-without-smoke variant is a WIP — masking purple removed the
+      // plasma orbs the user wants to keep. The right filter is "moving dark
+      // smoke wisps" only; needs a different approach (probably frame-diff
+      // against an averaged base, or a clean idle asset). Helpers below
+      // (makeElzoranIdleFrames / alphaOutMagenta) left in place for the next
+      // pass to iterate on.
+      // ASSETS.elzoranIdleFrames = makeElzoranIdleFrames(ASSETS.elzoranFrames);
+      if (onProgress) onProgress(1, 'Stepping into the world…');
+    }
+
+    // ============ Sprite-sheet slicer ============
+    // Extract 16 character frames (4 directions × 4 walk-cycle steps) from the master sheet.
+    // Each frame is cropped from the sheet at 200×280, then baked into a CHAR_W×CHAR_H canvas
+    // and white-chroma-keyed so the (originally white) background becomes transparent.
+    function sliceCharSheet(sheetImg) {
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = SHEET.rowBases[dir];
+        const cropY = baseY - SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = SHEET.cols[i];
+          const cropX = centerX - SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width = CHAR_W;
+          c.height = CHAR_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, SHEET.frameW, SHEET.frameH,
+            0, 0, CHAR_W, CHAR_H
+          );
+          chromaKeyWhite(c);
+          result[dir].push(c);
+        }
+      }
+      // (v2 sheet has 4 distinct down-row poses — no synthesized mirror needed.
+      // mirrorCanvas() is still defined below for future use if any direction
+      // needs a single-frame source augmented into an alternating cycle.)
+      return result;
+    }
+
+    // Same slicer pattern, but reading from the Voltyran sheet's coordinates
+    // and baking each frame at NPC display size (42×40). Voltyran's source is
+    // also white-background, so the same chroma-key pass produces transparent
+    // alpha around his silhouette.
+    function sliceVoltyranSheet(sheetImg) {
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = VOLTYRAN_SHEET.rowBases[dir];
+        const cropY = baseY - VOLTYRAN_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = VOLTYRAN_SHEET.cols[i];
+          const cropX = centerX - VOLTYRAN_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width = NPC_W;
+          c.height = NPC_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, VOLTYRAN_SHEET.frameW, VOLTYRAN_SHEET.frameH,
+            0, 0, NPC_W, NPC_H
+          );
+          chromaKeyWhite(c);
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+    // Run sheet slicer — same pipeline as the walk slicer, baked at CHAR_W ×
+    // CHAR_H so the player renderer can pull from ASSETS.runFrames using the
+    // exact same code path that consumes ASSETS.charFrames.
+    function sliceRunSheet(sheetImg) {
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = RUN_SHEET.rowBases[dir];
+        const cropY = baseY - RUN_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = RUN_SHEET.cols[i];
+          const cropX = centerX - RUN_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width  = CHAR_W;
+          c.height = CHAR_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, RUN_SHEET.frameW, RUN_SHEET.frameH,
+            0, 0, CHAR_W, CHAR_H
+          );
+          chromaKeyWhite(c);
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+    // Center-flood retention — used by the fly slicer to suppress wing-tip
+    // fragments from NEIGHBORING frames that bleed into the current crop
+    // window (most visible on UP row frames 1-3, where adjacent poses' wing
+    // tips overlap into the next frame's crop). Seeds an 8-connected flood
+    // at the bottom-center column (player body/feet) and zeroes alpha on
+    // any opaque pixel not reachable from the seed. Run AFTER chromaKeyWhite
+    // and BEFORE bake-down so connectivity is computed at source resolution
+    // (small dest canvases break thin pixel chains).
+    function keepCenterConnected(canvas, seedX) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+      const ALPHA_T = 30;
+      const keep = new Uint8Array(w * h);
+      const stack = [];
+      // Seed: a vertical strip up the bottom-center column. The player's
+      // body+feet live here regardless of facing/pose, and stray fragments
+      // from neighbor frames live at the LEFT/RIGHT edges so the seed never
+      // accidentally lands on a fragment.
+      const sx0 = Math.max(0, seedX - 2);
+      const sx1 = Math.min(w - 1, seedX + 2);
+      for (let dy = 0; dy < Math.floor(h / 2); dy++) {
+        const sy = h - 1 - dy;
+        for (let sx = sx0; sx <= sx1; sx++) {
+          const idx = sy * w + sx;
+          if (data[idx * 4 + 3] >= ALPHA_T && !keep[idx]) {
+            keep[idx] = 1;
+            stack.push(idx);
+          }
+        }
+      }
+      while (stack.length) {
+        const i = stack.pop();
+        const x = i % w, y = (i - x) / w;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+            const ni = ny * w + nx;
+            if (keep[ni]) continue;
+            if (data[ni * 4 + 3] >= ALPHA_T) {
+              keep[ni] = 1;
+              stack.push(ni);
+            }
+          }
+        }
+      }
+      for (let i = 0; i < w * h; i++) {
+        if (!keep[i]) data[i * 4 + 3] = 0;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Fly sheet slicer — bakes at the WIDER fly canvas (CHAR_W_FLY × CHAR_H_FLY)
+    // so the extended wings aren't horizontally crushed. The renderer offsets
+    // this canvas by FLY_OFFSET_X when drawing so the player's feet line up
+    // with the same world position as when walking.
+    function sliceFlySheet(sheetImg) {
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = FLY_SHEET.rowBases[dir];
+        const cropY = baseY - FLY_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = FLY_SHEET.cols[i];
+          const cropX = centerX - FLY_SHEET.frameW / 2;
+          // Stage 1 — copy frame to a SOURCE-RES work canvas so the chroma
+          // + center-flood operate on full-fidelity pixels (the bake-down
+          // would break thin wing chains at 56×45). This kills neighbor-
+          // frame wing-tip bleed (UP rows 1-3) without touching the
+          // player's own wings.
+          const work = document.createElement('canvas');
+          work.width  = FLY_SHEET.frameW;
+          work.height = FLY_SHEET.frameH;
+          const wctx = work.getContext('2d');
+          wctx.imageSmoothingEnabled = false;
+          wctx.drawImage(
+            sheetImg,
+            cropX, cropY, FLY_SHEET.frameW, FLY_SHEET.frameH,
+            0, 0, FLY_SHEET.frameW, FLY_SHEET.frameH
+          );
+          chromaKeyWhite(work);
+          keepCenterConnected(work, Math.floor(FLY_SHEET.frameW / 2));
+          // Stage 2 — bake the cleaned source frame down to the fly canvas
+          // size (NEAREST keeps the pixel-art crisp).
+          const c = document.createElement('canvas');
+          c.width  = CHAR_W_FLY;
+          c.height = CHAR_H_FLY;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            work,
+            0, 0, FLY_SHEET.frameW, FLY_SHEET.frameH,
+            0, 0, CHAR_W_FLY, CHAR_H_FLY
+          );
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+    // Idle sheet slicer — rows are POSES (not directions), so the return shape
+    // is an array-of-arrays: ASSETS.idleFrames[pose][frame]. Each frame is
+    // baked at CHAR_W_IDLE × CHAR_H_IDLE (square 40×40) since the source idle
+    // crops are square — keeps aspect 1:1 so no horizontal squash.
+    function sliceIdleSheet(sheetImg) {
+      const result = [];
+      for (let r = 0; r < IDLE_SHEET.rowBases.length; r++) {
+        const baseY = IDLE_SHEET.rowBases[r];
+        const cropY = baseY - IDLE_SHEET.frameH;
+        const rowCols = IDLE_SHEET.colsByRow[r];
+        const row = [];
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = rowCols[i];
+          const cropX = centerX - IDLE_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width  = CHAR_W_IDLE;
+          c.height = CHAR_H_IDLE;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, IDLE_SHEET.frameW, IDLE_SHEET.frameH,
+            0, 0, CHAR_W_IDLE, CHAR_H_IDLE
+          );
+          chromaKeyWhite(c);
+          row.push(c);
+        }
+        result.push(row);
+      }
+      return result;
+    }
+
+    // Strict near-white kill pass — eliminates the small enclosed near-white
+    // blobs that the exterior flood-fill misses (e.g. negative space between
+    // wings and body in Elzoran's sheet that read in-game as a "dust/smoke"
+    // aura on grass). Dragon palette has no pure white, so threshold 230 is
+    // safe; orbs (purple), body (blue), wings (orange), crest (gold), eyes
+    // (red), flame (orange) all sit well below this in at least one channel.
+    function killNearWhiteSpeckles(canvas, threshold) {
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const t = threshold;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 0 && data[i] >= t && data[i + 1] >= t && data[i + 2] >= t) {
+          data[i + 3] = 0;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Elzoran fly sheet slicer — flood-fill chroma + speckle-kill at SOURCE
+    // resolution, then per-frame NEAREST downsample to ELZ_DISPLAY_W ×
+    // ELZ_DISPLAY_H (112×72). NEAREST keeps the pixel-art crisp at the ~3×
+    // downsample ratio; bilinear at this ratio was visibly blurring the face
+    // and wing-vein detail. Flood-fill handles the white BG; speckle-kill
+    // catches the enclosed near-white islands the flood can't reach.
+    function sliceElzoranSheet(sheetImg) {
+      const work = document.createElement('canvas');
+      work.width  = sheetImg.naturalWidth  || sheetImg.width;
+      work.height = sheetImg.naturalHeight || sheetImg.height;
+      const wctx = work.getContext('2d');
+      wctx.drawImage(sheetImg, 0, 0);
+      chromaKeyExteriorWhite(work, 245);
+      // Erase the row-label glyphs (UP FLY / LEFT FLY / RIGHT FLY / DOWN FLY)
+      // that sit in the inter-row strips on the left margin. Flood-fill chroma
+      // can't reach them (dark text enclosed by white), so they survive as
+      // visible "smears" in the col-0 crops without an explicit wipe. The
+      // zones below were measured via PIL — they only cover empty inter-row
+      // white space + the labels, never the dragon content.
+      wctx.clearRect(0, 300, 140,  62);  // between UP and LEFT  (LEFT FLY)
+      wctx.clearRect(0, 540, 140,  72);  // between LEFT and RIGHT (RIGHT FLY)
+      wctx.clearRect(0, 795, 140,  82);  // between RIGHT and DOWN (DOWN FLY)
+      // Kill any remaining near-white pixels enclosed by dragon body parts.
+      // The flood-fill above only reaches BG connected to the canvas edge,
+      // leaving small enclosed white regions that look like smoke specks
+      // on a grass BG in-game. Threshold 230 spares all palette colors.
+      killNearWhiteSpeckles(work, 230);
+
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = ELZORAN_FLY_SHEET.rowBases[dir];
+        const cropY = baseY - ELZORAN_FLY_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = ELZORAN_FLY_SHEET.cols[i];
+          const cropX = centerX - ELZORAN_FLY_SHEET.frameW / 2;
+          // Per-frame source-res work canvas — required so keepCenterConnected
+          // can flood at full fidelity. Frames in this sheet overlap (rows
+          // UP and RIGHT in particular, where the adjacent pose's wing tip
+          // reaches into the current crop window); the center-flood retains
+          // only pixels connected to Elzoran's body, dropping the neighbor
+          // wing fragments that would otherwise survive as floating bits.
+          const fw = document.createElement('canvas');
+          fw.width  = ELZORAN_FLY_SHEET.frameW;
+          fw.height = ELZORAN_FLY_SHEET.frameH;
+          const fwctx = fw.getContext('2d');
+          fwctx.imageSmoothingEnabled = false;
+          fwctx.drawImage(
+            work,
+            cropX, cropY, ELZORAN_FLY_SHEET.frameW, ELZORAN_FLY_SHEET.frameH,
+            0, 0, ELZORAN_FLY_SHEET.frameW, ELZORAN_FLY_SHEET.frameH
+          );
+          keepCenterConnected(fw, Math.floor(ELZORAN_FLY_SHEET.frameW / 2));
+          // Bake the cleaned frame down to display size (NEAREST keeps the
+          // pixel-art crisp; see the slicer header comment for ratio notes).
+          const c = document.createElement('canvas');
+          c.width  = ELZ_DISPLAY_W;
+          c.height = ELZ_DISPLAY_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            fw,
+            0, 0, ELZORAN_FLY_SHEET.frameW, ELZORAN_FLY_SHEET.frameH,
+            0, 0, ELZ_DISPLAY_W, ELZ_DISPLAY_H
+          );
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+    // Build Elzoran's IDLE frame set by cloning each fly frame and alpha-
+    // masking out the purple plasma orbs at his hands. The dragon body
+    // (blue), wings (orange), fire (orange), gold trim, and red eyes all
+    // sit outside the magenta color range, so they're preserved untouched.
+    // Result: same body pose, no smoke aura — used when npc.isMoving=false.
+    function makeElzoranIdleFrames(flyFrames) {
+      const out = { up: [], left: [], right: [], down: [] };
+      for (const dir of ['up', 'left', 'right', 'down']) {
+        for (const frame of flyFrames[dir]) {
+          const c = cloneCanvas(frame);
+          alphaOutMagenta(c);
+          out[dir].push(c);
+        }
+      }
+      return out;
+    }
+    // Clone a canvas pixel-for-pixel so we can mutate one without affecting
+    // the original.
+    function cloneCanvas(srcCanvas) {
+      const c = document.createElement('canvas');
+      c.width  = srcCanvas.width;
+      c.height = srcCanvas.height;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(srcCanvas, 0, 0);
+      return c;
+    }
+    // Alpha-out magenta/purple pixels (R high, G low, B high, R≈B). Removes
+    // Elzoran's plasma orbs without touching his blue body, gold trim,
+    // orange wings/fire, or red eyes.
+    function alphaOutMagenta(canvas) {
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        if (r > 95 && g < 100 && b > 95 && Math.abs(r - b) < 110) {
+          data[i + 3] = 0;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Aurexion walk sheet slicer — two-pass:
+    //   1. Copy the full sheet into a work canvas at SOURCE resolution and
+    //      run a single flood-fill chroma pass to alpha-out the BG. This
+    //      works at the sheet level (not per-frame) since the inter-frame
+    //      BG is one big connected white region.
+    //   2. Slice each frame from the work canvas with bilinear-downsample
+    //      into AUR_DISPLAY_W × AUR_DISPLAY_H. NEAREST would drop ~12-14×
+    //      worth of source detail; the bilinear average keeps the armor
+    //      and jet-flame highlights legible at the smaller display size.
+    function sliceAurexionSheet(sheetImg) {
+      // Pass 1: source-res flood-fill chroma on the entire sheet.
+      const work = document.createElement('canvas');
+      work.width  = sheetImg.naturalWidth  || sheetImg.width;
+      work.height = sheetImg.naturalHeight || sheetImg.height;
+      const wctx = work.getContext('2d');
+      wctx.drawImage(sheetImg, 0, 0);
+      chromaKeyExteriorWhite(work, 245);
+
+      // Pass 2: slice + bilinear bake.
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = AUREXION_SHEET.rowBases[dir];
+        const cropY = baseY - AUREXION_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = AUREXION_SHEET.cols[i];
+          const cropX = centerX - AUREXION_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width  = AUR_DISPLAY_W;
+          c.height = AUR_DISPLAY_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = true;
+          cctx.imageSmoothingQuality = 'high';
+          cctx.drawImage(
+            work,
+            cropX, cropY, AUREXION_SHEET.frameW, AUREXION_SHEET.frameH,
+            0, 0, AUR_DISPLAY_W, AUR_DISPLAY_H
+          );
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+    // Flood-fill chroma key — alpha out near-white pixels that are CONNECTED
+    // from the canvas edges (i.e., the actual background). Pixels matching
+    // the threshold but enclosed by a darker outline (e.g. interior white
+    // armor) stay opaque. Iterative DFS so we don't blow the call stack on
+    // large canvases.
+    function chromaKeyExteriorWhite(canvas, threshold) {
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const W = canvas.width, H = canvas.height;
+      const isNW = (idx) =>
+        data[idx] >= threshold && data[idx + 1] >= threshold && data[idx + 2] >= threshold;
+      const visited = new Uint8Array(W * H);
+      const stack = [];
+      // Seed from any near-white edge pixel (all 4 sides of the canvas).
+      for (let x = 0; x < W; x++) {
+        const top = x, bot = (H - 1) * W + x;
+        if (!visited[top] && isNW(top * 4)) { visited[top] = 1; stack.push(top); }
+        if (!visited[bot] && isNW(bot * 4)) { visited[bot] = 1; stack.push(bot); }
+      }
+      for (let y = 0; y < H; y++) {
+        const left = y * W, right = y * W + (W - 1);
+        if (!visited[left]  && isNW(left  * 4)) { visited[left]  = 1; stack.push(left);  }
+        if (!visited[right] && isNW(right * 4)) { visited[right] = 1; stack.push(right); }
+      }
+      // 4-connected DFS.
+      while (stack.length) {
+        const p = stack.pop();
+        const x = p % W, y = (p - x) / W;
+        if (x > 0)     { const n = p - 1; if (!visited[n] && isNW(n * 4)) { visited[n] = 1; stack.push(n); } }
+        if (x < W - 1) { const n = p + 1; if (!visited[n] && isNW(n * 4)) { visited[n] = 1; stack.push(n); } }
+        if (y > 0)     { const n = p - W; if (!visited[n] && isNW(n * 4)) { visited[n] = 1; stack.push(n); } }
+        if (y < H - 1) { const n = p + W; if (!visited[n] && isNW(n * 4)) { visited[n] = 1; stack.push(n); } }
+      }
+      // Alpha out the flooded BG region.
+      for (let p = 0; p < W * H; p++) {
+        if (visited[p]) data[p * 4 + 3] = 0;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Eurakeon walk sheet slicer — same slicer pattern as the player + Voltyran,
+    // but bakes at EUR_DISPLAY_W × EUR_DISPLAY_H (2x Voltyran's footprint) so
+    // Eurakeon reads as a larger presence. Source is white-bg, so the shared
+    // chromaKeyWhite() pass produces transparent alpha around his silhouette
+    // before the frame goes into the rotation.
+    function sliceEurakeonSheet(sheetImg) {
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = EURAKEON_SHEET.rowBases[dir];
+        const cropY = baseY - EURAKEON_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = EURAKEON_SHEET.cols[i];
+          const cropX = centerX - EURAKEON_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width  = EUR_DISPLAY_W;
+          c.height = EUR_DISPLAY_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, EURAKEON_SHEET.frameW, EURAKEON_SHEET.frameH,
+            0, 0, EUR_DISPLAY_W, EUR_DISPLAY_H
+          );
+          chromaKeyWhite(c);
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+    // Returns a new canvas with the source canvas flipped horizontally.
+    // Used to synthesize an opposite-foot walk frame from a single source pose.
+    function mirrorCanvas(srcCanvas) {
+      const m = document.createElement('canvas');
+      m.width = srcCanvas.width;
+      m.height = srcCanvas.height;
+      const ctx = m.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(srcCanvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(srcCanvas, 0, 0);
+      return m;
+    }
+
+    // Convert near-white pixels to transparent. Source sheet has solid white BG.
+    function chromaKeyWhite(canvas) {
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        // Strict threshold: only near-pure white becomes transparent.
+        // Keeps any white *highlights* within the character art intact.
+        if (r > 240 && g > 240 && b > 240) {
+          data[i + 3] = 0;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // ============ Canvas setup ============
+    // Canvas backing store is the VIEWPORT in logical pixels — not the full
+    // world. The camera offset decides which slice of the (larger) world gets
+    // drawn into this backing store each frame.
+    const canvas = document.getElementById('game');
+    canvas.width  = VIEWPORT_W;   // 320 — what fits on screen at once
+    canvas.height = VIEWPORT_H;   // 320
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    // ============ Camera ============
+    // World-space top-left corner of the visible viewport. Updated each frame
+    // by updateCamera() to track the player while staying within world bounds.
+    const camera = { x: 0, y: 0 };
+
+    // ============ NPCs ============
+    // Each NPC wanders freely: picks a random direction, walks in it until
+    // either a per-direction timer expires or movement gets blocked by a
+    // collider (tree, world bound, other NPC, or the player). On block /
+    // timer-out, it picks a fresh direction (biased away from the current
+    // one so it doesn't stutter). Occasionally it picks 'idle' and stands
+    // still for a beat. No scripted interaction — just ambient life.
+    const NPCS = [
+      {
+        id: 'voltyran',
+        framesKey: 'voltyranFrames',
+        walkOrder: VOLTYRAN_WALK_ORDER,
+        x: 400, y: 320,
+        w: NPC_W, h: NPC_H,
+        speed: 40,                 // px / second (player is 96)
+        facing: 'down',            // starting direction (used for first render)
+        animFps: 6,
+        animTime: 0,
+        animFrame: 0,
+        currentDir: 'down',        // 'up' | 'down' | 'left' | 'right' | 'idle'
+        dirTimer: 0,               // 0 forces a re-pick on the very first frame
+        // Cries — pseudo-archaic lines themed to Voltyran's golden/forge/sun
+        // presence. One is picked at random on each fresh touch.
+        cries: [
+          "Hail, wanderer. The forge yet burns.",
+          "By gilded oath, I bid thee welcome.",
+          "Mine blade hungers for righteous strife.",
+          "Yon path is fraught — tread with valor.",
+          "The sun's spear cleaveth even shadow.",
+        ],
+      },
+      // Eurakeon — second NPC, spawns up-and-left of player so the player has
+      // to actually look around to find both. Same wander system as Voltyran,
+      // but baked at 2x footprint (EUR_DISPLAY_W × EUR_DISPLAY_H) so he reads
+      // as a larger, more imposing presence. Speed slightly slower than
+      // Voltyran to read as a different rhythm of movement.
+      {
+        id: 'eurakeon',
+        framesKey: 'eurakeonFrames',
+        walkOrder: EURAKEON_WALK_ORDER,
+        x: 160, y: 200,
+        w: EUR_DISPLAY_W, h: EUR_DISPLAY_H,
+        speed: 34,
+        facing: 'down',
+        animFps: 6,
+        animTime: 0,
+        animFrame: 0,
+        currentDir: 'down',
+        dirTimer: 0,
+        // Cries — pseudo-archaic lines themed to Eurakeon's shadow/dragon/
+        // eldritch presence. One is picked at random on each fresh touch.
+        cries: [
+          "Sssoul-wanderer… thy heart echoes.",
+          "The veil thinneth where thou treadest.",
+          "Beware the hush 'twixt the stars.",
+          "Eldritch tides bear thee hither.",
+          "From the unwoven night, I see thee.",
+        ],
+      },
+      // Aurexion — third NPC, the astralnaut expeditioner. Slim humanoid
+      // silhouette, so he gets a footprint between Voltyran and Eurakeon
+      // (AUR_DISPLAY_W × AUR_DISPLAY_H = 70×80). Spawns in the SE quadrant
+      // of the 32×32 world so all three NPCs are in different regions and
+      // the player has to actually walk around to meet everyone. His cries
+      // pool carries the meta-welcome to The Viridia Expedition's playtest.
+      {
+        id: 'aurexion',
+        framesKey: 'aurexionFrames',
+        walkOrder: AUREXION_WALK_ORDER,
+        x: 700, y: 720,
+        w: AUR_DISPLAY_W, h: AUR_DISPLAY_H,
+        speed: 38,
+        facing: 'down',
+        animFps: 6,
+        animTime: 0,
+        animFrame: 0,
+        currentDir: 'down',
+        dirTimer: 0,
+        cries: [
+          "Welcome, voyager, to the first dawn of Viridia.",
+          "Cosmic charts brought me here — and now thee.",
+          "Mind the stars, friend. They watch our every step.",
+          "Our expedition begins, traveler. Glad of thy arrival.",
+          "Across the void I came, to greet thee at the threshold.",
+        ],
+      },
+      // Elzoran — fourth NPC, a sky-bound flier. Uses the fly sheet for all
+      // facings (he never lands). Spawns in the SW quadrant of the 40×40
+      // world, opposite Aurexion in the SE. Slightly faster than the rest
+      // because he's flying, not walking.
+      {
+        id: 'elzoran',
+        framesKey: 'elzoranFrames',
+        walkOrder: ELZORAN_WALK_ORDER,
+        x: 240, y: 880,
+        w: ELZ_DISPLAY_W, h: ELZ_DISPLAY_H,
+        speed: 46,
+        facing: 'down',
+        animFps: 7,
+        animTime: 0,
+        animFrame: 0,
+        currentDir: 'down',
+        dirTimer: 0,
+        cries: [
+          "Skybound greetings, ground-walker.",
+          "I trace the wind's secret lanes.",
+          "Look up oft, traveler — there is news in the clouds.",
+          "Glide with me, when thy feet weary.",
+          "Thunderhalls echo with thy step, even now.",
+        ],
+      },
+    ];
+
+    // ============ UFO interaction (Aethryx Expanse gateway) ============
+    // The UFO sits at a hardcoded tile position. When the player's foot-box
+    // (expanded by INTERACT_PAD) overlaps the UFO's footprint, a "TAP A"
+    // prompt appears above the UFO. Pressing A while adjacent opens the
+    // Aethryx Expanse modal (interplanetary travel menu — currently stubbed).
+    const ufoState = {
+      adjacent: false,    // true when player is close enough to interact
+    };
+    function ufoBodyBox() {
+      return {
+        x: UFO_TILE_X * TILE_SIZE,
+        y: UFO_TILE_Y * TILE_SIZE,
+        w: UFO_W,
+        h: UFO_H,
+      };
+    }
+    function updateUfoAdjacency() {
+      const ib = playerInteractBox(player.x, player.y);
+      ufoState.adjacent = rectIntersect(ib, ufoBodyBox());
+    }
+
+    // ============ NPC interaction (touch cry) ============
+    // When the player's foot-box (expanded by INTERACT_PAD on every side) overlaps
+    // an NPC's body-box, a small olden-language line from that NPC's cries pool
+    // appears above their head. The active NPC + line stay locked until either
+    // (a) the player walks away, or (b) the player touches a different NPC, at
+    // which point a new line is rolled. The line only re-rolls on the EDGE
+    // between not-touching and touching — sliding along an NPC doesn't spam.
+    const INTERACT_PAD = 3;   // logical pixels — adjacency tolerance
+    const interactState = {
+      activeNpcId: null,    // id of the npc currently being touched (or null)
+      line:        null,    // currently-displayed cry, or null
+    };
+    function playerInteractBox(x, y) {
+      const fb = playerFootbox(x, y);
+      return {
+        x: fb.x - INTERACT_PAD,
+        y: fb.y - INTERACT_PAD,
+        w: fb.w + INTERACT_PAD * 2,
+        h: fb.h + INTERACT_PAD * 2,
+      };
+    }
+    function updateInteractions() {
+      const ib = playerInteractBox(player.x, player.y);
+      let touched = null;
+      for (const npc of NPCS) {
+        if (npc.active === false) continue;
+        if ((npc.region || 'central') !== currentRegion) continue;
+        if (rectIntersect(ib, npcBodyBox(npc))) { touched = npc; break; }
+      }
+      if (!touched) {
+        if (interactState.activeNpcId !== null) {
+          interactState.activeNpcId = null;
+          interactState.line        = null;
+        }
+        return;
+      }
+      // Edge — first frame of touching this specific NPC. Roll a new cry.
+      if (touched.id !== interactState.activeNpcId) {
+        interactState.activeNpcId = touched.id;
+        const pool = touched.cries && touched.cries.length ? touched.cries : null;
+        interactState.line = pool ? pool[Math.floor(Math.random() * pool.length)] : null;
+      }
+    }
+
+    // Draw the cry balloon above an NPC's head when interactState targets it.
+    // Canvas-drawn so it sits inside the same render pipeline as the world.
+    // Auto-widths to the text, clamps to the viewport, with a gold border + dark
+    // glass background matching the rest of the site's chrome.
+    function drawCryBalloon(npc, screenX, screenY) {
+      if (!interactState.line || interactState.activeNpcId !== npc.id) return;
+      const text = interactState.line;
+      ctx.font = "8px 'Cinzel', serif";
+      const padX = 5, padY = 4;
+      const textW = Math.ceil(ctx.measureText(text).width);
+      let boxW = textW + padX * 2;
+      const boxH = 14;
+      let boxX = Math.round(screenX + npc.w / 2 - boxW / 2);
+      let boxY = Math.round(screenY - boxH - 3);
+      // Clamp to viewport (the canvas) so the balloon never gets cut off.
+      if (boxX < 2) boxX = 2;
+      if (boxX + boxW > VIEWPORT_W - 2) boxX = VIEWPORT_W - 2 - boxW;
+      if (boxY < 2) boxY = Math.round(screenY + npc.h + 3); // flip below if no room above
+      // Background pill — semi-opaque void glass.
+      ctx.fillStyle   = 'rgba(10, 6, 24, 0.88)';
+      ctx.strokeStyle = '#e8c878';
+      ctx.lineWidth   = 1;
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxW - 1, boxH - 1);
+      // Text — gold, vertically centered.
+      ctx.fillStyle    = '#f4e3b3';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign    = 'left';
+      ctx.fillText(text, boxX + padX, boxY + boxH / 2 + 0.5);
+    }
+
+    // ====== Wander helpers ======
+    // Compute an NPC's body-box at an arbitrary (x, y) — same shape as the
+    // resting one, just at hypothetical coords. Used to test would-be moves.
+    // Body-box scales with NPC height: at Voltyran's 42×40, this resolves to
+    // a 34×16 feet-rect inset 4px from the sides and tucked 18px from the top.
+    // Bigger NPCs (like Eurakeon at 84×80) get a proportionally bigger box so
+    // collision still tracks the visible silhouette rather than a tiny patch
+    // at the center.
+    function npcBodyBoxAt(npc, x, y) {
+      const s = npc.h / NPC_H;  // scale factor relative to base NPC size
+      return {
+        x: x + 4 * s,
+        y: y + npc.h - 18 * s,
+        w: npc.w - 8 * s,
+        h: 16 * s,
+      };
+    }
+
+    // True if the NPC's body-box at (x, y) would overlap anything solid:
+    // world bound, tree collider, another NPC, or the player's foot-box.
+    function npcBlocked(npc, x, y) {
+      const box = npcBodyBoxAt(npc, x, y);
+      if (box.x < 0) return true;
+      if (box.y < 0) return true;
+      if (box.x + box.w > MAP_WIDTH  * TILE_SIZE) return true;
+      if (box.y + box.h > MAP_HEIGHT * TILE_SIZE) return true;
+      for (const c of COLLIDERS) {
+        if (rectIntersect(box, c)) return true;
+      }
+      for (const other of NPCS) {
+        if (other === npc) continue;
+        if (other.active === false) continue;
+        if (rectIntersect(box, npcBodyBox(other))) return true;
+      }
+      if (rectIntersect(box, playerFootbox(player.x, player.y))) return true;
+      return false;
+    }
+
+    // Pick a new wander direction. 12% chance to idle, otherwise a uniform
+    // pick among the 4 cardinals — but never the SAME direction we just had
+    // (that produces more interesting wandering and avoids the NPC stuttering
+    // forward against the same wall over and over).
+    function pickNpcDirection(npc) {
+      if (Math.random() < 0.12) {
+        npc.currentDir = 'idle';
+      } else {
+        const all = ['up', 'down', 'left', 'right'];
+        const choices = all.filter(d => d !== npc.currentDir);
+        npc.currentDir = choices[Math.floor(Math.random() * choices.length)];
+      }
+      // Hold this direction for 1.2 – 3.5 seconds before considering a re-pick.
+      npc.dirTimer = 1.2 + Math.random() * 2.3;
+    }
+
+    // NPC collision rect — same idea as the player's foot-box, but a bit
+    // larger and centered on the sprite. Blocks the player from walking through.
+    // Scales with NPC height (see npcBodyBoxAt) so bigger NPCs still collide
+    // along their full feet line rather than a tiny baseline patch.
+    function npcBodyBox(npc) {
+      const s = npc.h / NPC_H;
+      return {
+        x: npc.x + 4 * s,
+        y: npc.y + npc.h - 18 * s,
+        w: npc.w - 8 * s,
+        h: 16 * s,
+      };
+    }
+
+    function updateNPCs(dt) {
+      for (const npc of NPCS) {
+        // Docked NPCs (parked in the Aetherstride ship UI) skip all AI +
+        // rendering + collision. Toggled via the Aethryx Expanse faction menu.
+        if (npc.active === false) continue;
+        // Region scoping — NPCs only update in their home region (default
+        // 'central' if not specified).
+        if ((npc.region || 'central') !== currentRegion) continue;
+        // Tick down the direction timer. When it expires, pick a fresh one.
+        npc.dirTimer -= dt;
+        if (npc.dirTimer <= 0) pickNpcDirection(npc);
+
+        // Translate current direction into a movement vector + facing.
+        let dx = 0, dy = 0;
+        if (npc.currentDir === 'right') { dx =  1; npc.facing = 'right'; }
+        if (npc.currentDir === 'left')  { dx = -1; npc.facing = 'left';  }
+        if (npc.currentDir === 'down')  { dy =  1; npc.facing = 'down';  }
+        if (npc.currentDir === 'up')    { dy = -1; npc.facing = 'up';    }
+        // 'idle' leaves dx/dy zero and keeps the current facing.
+
+        if (dx !== 0 || dy !== 0) {
+          // Animate walk cycle while in motion.
+          npc.animTime += dt;
+          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
+          // Axis-separated movement with collision (same idea as the player):
+          // attempt X first, then Y, so an NPC bumping into a wall slides along
+          // it instead of getting stuck. If a move is blocked, abandon the
+          // current direction and pick a new one on the next frame.
+          const tryX = npc.x + dx * npc.speed * dt;
+          if (!npcBlocked(npc, tryX, npc.y)) {
+            npc.x = tryX;
+          } else if (dx !== 0) {
+            npc.dirTimer = 0;  // re-pick next frame
+          }
+          const tryY = npc.y + dy * npc.speed * dt;
+          if (!npcBlocked(npc, npc.x, tryY)) {
+            npc.y = tryY;
+          } else if (dy !== 0) {
+            npc.dirTimer = 0;
+          }
+        } else {
+          // Idle pose — freeze on the rest frame.
+          npc.animTime = 0;
+          npc.animFrame = 0;
+        }
+      }
+    }
+
+    // ============ Player state ============
+    // Position is the TOP-LEFT corner of the sprite, in logical pixels.
+    // Spawn the player at the center of the map.
+    const player = {
+      x: (MAP_WIDTH  * TILE_SIZE - CHAR_W) / 2,   // → 144 in a 10-wide map
+      y: (MAP_HEIGHT * TILE_SIZE - CHAR_H) / 2,   // → 137.5 with CHAR_H=45
+      speed: 96,         // logical pixels per second (≈ 3 tiles per second)
+      facing: 'down',    // direction the sprite faces; defaults to 'down' on spawn
+      animTime: 0,       // seconds of accumulated walk-cycle time
+      animFrame: 0,      // 0..3 — current frame within the walk cycle
+      mode: 'walk',      // 'walk' | 'run' | 'fly' — drives speed, anim FPS, and frame set
+      isMoving: false,   // true on any frame where the player is inputting movement (renderer reads this)
+      // Idle state — activates when mode='walk' and no input. idlePose 0..3
+      // is the current row of animation_idle_player.png; it advances every
+      // IDLE_POSE_DURATION seconds. idleAnimTime ticks the within-pose loop.
+      idlePose:      0,
+      idlePoseTime:  0,   // seconds spent in the current pose (advances toward IDLE_POSE_DURATION)
+      idleAnimTime:  0,   // seconds for within-pose micro-animation (cycles via IDLE_ANIM_FPS)
+      idleAnimFrame: 0,   // 0..3 — current col within the current pose row
+    };
+
+    // ============ Input state ============
+    // Two independent input sources — keyboard (desktop) and joystick (mobile).
+    // Combined via OR in update(), so both can coexist if needed. `run` is the
+    // raw B-button state (hold). The B state machine below converts it into a
+    // mode signal (walk / run / fly) by also tracking double-tap timing.
+    const keyInput = { up: false, down: false, left: false, right: false, run: false };
+    const joyInput = { up: false, down: false, left: false, right: false, run: false };
+
+    // Run multiplier. Applied to both movement speed (so the player covers more
+    // ground per frame) AND the walk-cycle animation FPS (so feet visibly keep
+    // up with the faster traversal — otherwise running looks like sliding).
+    const RUN_SCALE = 1.5;
+    // Fly multiplier. Faster than run because flight is a privileged state —
+    // tap-then-hold to activate, so it deserves a noticeable speed bump too.
+    const FLY_SCALE = 2.25;
+
+    // ============ B-button state machine (hybrid hold + toggle) ============
+    // Hold B (or Shift) → live run while held (instant — no settle time).
+    //   On release: hold > TAP_MAX_MS → just stops (no toggle activation).
+    //                hold ≤ TAP_MAX_MS → counts as a tap (see below).
+    // Single tap → activate sustain run (persists until idle reset).
+    // Double-tap within DOUBLE_TAP_WINDOW → activate sustain fly.
+    // Sustains auto-clear once the player has moved AND then stopped, giving
+    // the "run-for-this-walking-session" feel without sticky modes.
+    //
+    // currentRunMode() reads three signals each frame: flyEnabled (fly), the
+    // live-hold pressedAt (run), and runEnabled (run sustain). All gated on
+    // isMoving so a stationary player still gets idle pose progression.
+    const TAP_MAX_MS         = 240;   // press shorter than this counts as a click
+    const DOUBLE_TAP_WINDOW  = 380;   // second click must arrive within this of the first
+    const bState = {
+      pressedAt:        0,    // performance.now() of the current press, or 0 if not held
+      lastTapAt:        0,    // performance.now() of the last quick-release (a click)
+      anyDown:          false,
+      runEnabled:       false,
+      flyEnabled:       false,
+      movedSinceToggle: false,
+    };
+    function nowMs() { return performance.now(); }
+    function onBPress() {
+      bState.pressedAt = nowMs();
+    }
+    function onBRelease() {
+      const t = nowMs();
+      const dur = t - bState.pressedAt;
+      bState.pressedAt = 0;
+      if (dur <= 0 || dur > TAP_MAX_MS) return;   // a hold or no-op — clicks only here
+      // Quick release → a click. Decide single vs double based on lastTapAt.
+      const isDouble = bState.lastTapAt > 0 && (t - bState.lastTapAt) < DOUBLE_TAP_WINDOW;
+      if (isDouble) {
+        bState.flyEnabled = true;
+        bState.runEnabled = false;
+        bState.lastTapAt  = 0;     // consume — next single click starts a fresh chain
+      } else {
+        bState.runEnabled = true;
+        bState.flyEnabled = false;
+        bState.lastTapAt  = t;
+      }
+      bState.movedSinceToggle = false;
+    }
+    // Reset the entire B state — used by blur / modal-open / mode-clears so a
+    // stale toggle from before doesn't accidentally persist afterwards.
+    function resetBState() {
+      bState.pressedAt        = 0;
+      bState.lastTapAt        = 0;
+      bState.anyDown          = false;
+      bState.runEnabled       = false;
+      bState.flyEnabled       = false;
+      bState.movedSinceToggle = false;
+    }
+    // Sync the composite anyDown state from the two raw input flags and emit
+    // edge events. Called whenever either input changes.
+    function syncB() {
+      const down = keyInput.run || joyInput.run;
+      if (down && !bState.anyDown) onBPress();
+      else if (!down && bState.anyDown) onBRelease();
+      bState.anyDown = down;
+    }
+    // Decide the current movement mode. Three sources can activate run/fly:
+    //   1. flyEnabled sustain (double-tap toggled) → fly (continuous: wings
+    //      flap even while hovering)
+    //   2. Live-hold: button currently down + player moving → run (instant
+    //      response; the same press that triggers this will, on release,
+    //      either also activate the toggle if it was a tap or just end if
+    //      it was a long hold — see onBRelease)
+    //   3. runEnabled sustain (single-tap toggled) → run while moving
+    // Run is always gated on isMoving so a stationary player doesn't freeze
+    // mid-stride; idle pose progression takes over when standing still.
+    function currentRunMode() {
+      if (bState.flyEnabled) return 'fly';
+      if (player && player.isMoving) {
+        // Hold OR toggle satisfies live-run while moving.
+        if (bState.anyDown && bState.pressedAt > 0) return 'run';
+        if (bState.runEnabled) return 'run';
+      }
+      return 'walk';
+    }
+    // Called from update() after isMoving is determined. Once a toggle is
+    // active and the player has actually moved this session, the moment they
+    // STOP moving the toggle clears — yielding the "until idle reset" behavior.
+    function maybeClearToggles(inputActive) {
+      if (!bState.runEnabled && !bState.flyEnabled) return;
+      if (inputActive) {
+        bState.movedSinceToggle = true;
+      } else if (bState.movedSinceToggle) {
+        bState.runEnabled       = false;
+        bState.flyEnabled       = false;
+        bState.movedSinceToggle = false;
+      }
+    }
+
+    function setKey(e, value) {
+      // While any modal is open, the keyboard is reserved for menu nav —
+      // arrow keys move focus / cursor, not the player. Returning false
+      // here also avoids "leaking" a held movement key into the game when
+      // the modal closes (the openModal block already zeroes keyInput).
+      if (modalState.current) return false;
+      // Returns true if the key matched a movement / run key (so we can
+      // preventDefault and avoid page scroll).
+      const k = e.key;
+      if (k === 'ArrowUp'    || k === 'w' || k === 'W') { keyInput.up    = value; return true; }
+      if (k === 'ArrowDown'  || k === 's' || k === 'S') { keyInput.down  = value; return true; }
+      if (k === 'ArrowLeft'  || k === 'a' || k === 'A') { keyInput.left  = value; return true; }
+      if (k === 'ArrowRight' || k === 'd' || k === 'D') { keyInput.right = value; return true; }
+      // Shift = desktop run/fly modifier (matches the controller's B binding —
+      // hold for run, double-tap-then-hold for fly). The B state machine
+      // handles classification; here we just track the raw key state.
+      if (k === 'Shift')                                { keyInput.run   = value; syncB(); return true; }
+      return false;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (setKey(e, true) && !e.repeat) e.preventDefault();
+    });
+    window.addEventListener('keyup', (e) => {
+      if (setKey(e, false)) e.preventDefault();
+    });
+    // If the window loses focus mid-press (alt-tab, etc), drop all input — otherwise
+    // the key would appear "stuck" until they tap that same key on return.
+    window.addEventListener('blur', () => {
+      keyInput.up = keyInput.down = keyInput.left = keyInput.right = false;
+      keyInput.run = false;
+      joyInput.run = false;
+      resetBState();
+    });
+
+    // ============ Hotzone controller (GBA-style chassis) ============
+    // Each .hotzone button on the controller frame has a `data-hot` attribute
+    // identifying which control it represents. D-pad arrows are wired to
+    // joyInput (which the game loop reads). Face buttons / shoulders / menu /
+    // start / select are reserved for future sessions — they capture touches
+    // (preventing accidental page scroll) but don't drive any game logic yet.
+
+    // Maps each in-flight touch identifier to the hotzone it started on, so
+    // releases tear down the correct hotzone even when fingers swap order.
+    const hotzoneTouches = new Map();
+
+    // Haptic feedback — short pulse on every PRESS (not release). Tuned so the
+    // hand barely registers it consciously but every tap "feels real" via the
+    // Vibration API. Movement buttons get a softer pulse than menu/face buttons
+    // since holding the D-pad shouldn't feel like rapid-fire taps. Graceful no-op
+    // on devices without vibration support (most iOS browsers).
+    function haptic(intensity) {
+      if (!('vibrate' in navigator)) return;
+      try { navigator.vibrate(intensity); } catch (_) { /* swallow */ }
+    }
+
+    function applyHotzone(name, pressed) {
+      // Movement directions wire into the shared input state. Soft pulse on press.
+      if (name === 'up' || name === 'down' || name === 'left' || name === 'right') {
+        if (pressed) haptic(6);
+        // Movement is suppressed while a modal is open — the world is paused.
+        if (modalState.current) return;
+        joyInput[name] = pressed;
+        return;
+      }
+      // B = hold-to-run, OR tap-then-hold-to-fly. Tracks both press and
+      // release like a movement key; the B state machine classifies the
+      // pattern. Soft pulse on press only. Suppressed while a modal is open
+      // so the player can't sprint or fly through a pause.
+      if (name === 'b') {
+        if (pressed) haptic(6);
+        if (modalState.current) {
+          joyInput.run = false;
+          syncB();
+          return;
+        }
+        joyInput.run = pressed;
+        syncB();
+        return;
+      }
+      // Modal-trigger buttons fire on PRESS only, not release. Tapping the
+      // same button while its modal is open toggles it closed.
+      if (pressed) {
+        haptic(12);
+        if (name === 'menu') {
+          toggleModal('hub');
+          return;
+        }
+        if (name === 'x') {
+          toggleModal('map');
+          return;
+        }
+        if (name === 'y') {
+          toggleModal('pause');
+          return;
+        }
+        // A = context-sensitive interact. Toggles the Aethryx Expanse modal
+        // when at the UFO, jumps to the adjacent region when at a border,
+        // etc. Future: NPC dialogue, chest open, etc.
+        if (name === 'a') {
+          if (modalState.current === 'aethryx') {
+            closeModal();
+            return;
+          }
+          // Region edge — explicit confirm via A/Enter (matches the
+          // walk-through transition path).
+          const exit = regionExitReady();
+          if (exit === 'north') { transitionRegion('north');   return; }
+          if (exit === 'south') { transitionRegion('central'); return; }
+          if (ufoState.adjacent) {
+            openModal('aethryx');
+            return;
+          }
+        }
+        // Other buttons are placeholders — log for future wiring.
+        console.log('[hotzone] press:', name);
+      }
+    }
+
+    // ============ Modal management ============
+    // Three independent modal panels (hub, map, pause) but only one can be
+    // open at a time. modalState.current tracks which is active (or null).
+    // While a modal is open: the game loop SKIPS update() (so player can't
+    // move), but render() still runs (so the world stays drawn behind pause).
+    // All open / close paths share these helpers so behavior stays consistent.
+    const modalState = { current: null };
+
+    function openModal(name) {
+      // Close any currently-open modal first.
+      if (modalState.current && modalState.current !== name) {
+        closeModal();
+      }
+      const el = document.getElementById('modal-' + name);
+      if (!el) return;
+      el.hidden = false;
+      // Force a reflow so the .open class transition actually animates.
+      // Without this, removing [hidden] and adding .open in the same tick
+      // skips the fade-in.
+      void el.offsetWidth;
+      el.classList.add('open');
+      modalState.current = name;
+      // Per-modal open hooks (e.g., update map marker position).
+      if (name === 'map') { updateMapMarker(); resetMapCursor(); }
+      if (name === 'aethryx') refreshFactionUI();
+      // Auto-focus the first interactive button so arrow nav has a starting
+      // point. Slight delay so the modal's fade-in transition lands first.
+      if (name === 'hub' || name === 'pause' || name === 'aethryx') {
+        setTimeout(() => {
+          const firstBtn = el.querySelector(
+            '.hub-item, .pause-btn:not([disabled]), .faction-slot:not([disabled])'
+          );
+          if (firstBtn) firstBtn.focus();
+        }, 60);
+      }
+      // Drop any in-flight movement so the player doesn't keep walking when
+      // the modal closes (could otherwise feel like the world "remembered"
+      // the keypress through the pause). Run modifier also clears so the
+      // player isn't stuck in a sprint they didn't ask for after a pause.
+      keyInput.up = keyInput.down = keyInput.left = keyInput.right = false;
+      joyInput.up = joyInput.down = joyInput.left = joyInput.right = false;
+      keyInput.run = false;
+      joyInput.run = false;
+      resetBState();
+      player.mode = 'walk';
+    }
+
+    function closeModal() {
+      if (!modalState.current) return;
+      const el = document.getElementById('modal-' + modalState.current);
+      modalState.current = null;
+      if (!el) return;
+      el.classList.remove('open');
+      // Wait for the fade-out to finish before re-hiding so the transition
+      // is visible. 280ms = 250ms transition + small buffer.
+      setTimeout(() => {
+        if (!modalState.current) el.hidden = true;
+      }, 280);
+    }
+
+    function toggleModal(name) {
+      if (modalState.current === name) closeModal();
+      else openModal(name);
+    }
+
+    // ============ Faction UI (Aethryx Expanse modal) ============
+    // Each .faction-slot[data-npc=…] mirrors an NPC entry. The slot's
+    // active|docked class follows the npc.active flag. Tapping a slot
+    // toggles the flag — the engine's updateNPCs / blocked / updateInteractions
+    // / drawWorld all respect it, so the NPC vanishes from the level cleanly.
+    function refreshFactionUI() {
+      const grid = document.getElementById('faction-grid');
+      if (!grid) return;
+      grid.querySelectorAll('.faction-slot[data-npc]').forEach(slot => {
+        const id = slot.dataset.npc;
+        const npc = NPCS.find(n => n.id === id);
+        if (!npc) return;
+        const isActive = npc.active !== false;
+        slot.classList.toggle('docked', !isActive);
+        const statusEl = slot.querySelector('.faction-status');
+        if (statusEl) statusEl.textContent = isActive ? 'In Viridia' : 'Docked';
+      });
+    }
+    // Bind clicks once at boot — slots are static DOM, no need to re-bind on open.
+    document.querySelectorAll('.faction-slot[data-npc]').forEach(slot => {
+      slot.addEventListener('click', () => {
+        const id = slot.dataset.npc;
+        const npc = NPCS.find(n => n.id === id);
+        if (!npc) return;
+        npc.active = !(npc.active !== false);  // toggle (treats undefined as true)
+        refreshFactionUI();
+        haptic(8);
+      });
+    });
+
+    // Map marker — position the "you are here" dot inside the map placeholder
+    // based on player's normalized position within the world bounds.
+    function updateMapMarker() {
+      const marker = document.getElementById('map-marker');
+      if (!marker) return;
+      const worldW = MAP_WIDTH  * TILE_SIZE;
+      const worldH = MAP_HEIGHT * TILE_SIZE;
+      const nx = (player.x + CHAR_W / 2) / worldW;
+      const ny = (player.y + CHAR_H / 2) / worldH;
+      marker.style.left = (nx * 100).toFixed(2) + '%';
+      marker.style.top  = (ny * 100).toFixed(2) + '%';
+    }
+
+    // Wire modal close buttons + backdrop taps. Every element with [data-close]
+    // (the X button, the dimmed backdrop, the Resume button) closes the modal.
+    document.querySelectorAll('.modal').forEach((modalEl) => {
+      modalEl.addEventListener('click', (e) => {
+        if (e.target.closest('[data-close]')) {
+          closeModal();
+        }
+      });
+    });
+
+    // Pause-modal action buttons that switch to a different modal (e.g.,
+    // "Open Astralpack" from pause should close pause + open hub).
+    document.querySelectorAll('[data-pause-action]').forEach((btn) => {
+      const action = btn.dataset.pauseAction;
+      if (action !== 'hub' && action !== 'map') return;   // 'exit' navigates away
+      btn.addEventListener('click', () => {
+        closeModal();
+        // Give the close transition a moment before opening the next modal.
+        setTimeout(() => openModal(action), 180);
+      });
+    });
+
+    // Hub item taps — placeholder for future feature wiring. Each item logs
+    // for now so it's clear which button was pressed during testing.
+    document.querySelectorAll('[data-hub]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        console.log('[hub] select:', btn.dataset.hub);
+        // Placeholder: each of these will open its own sub-view in future sessions.
+      });
+    });
+
+    // Keyboard shortcuts — Escape closes any open modal. M/X/Y also trigger
+    // the same modals as the controller buttons (useful for desktop testing).
+    // Return/Enter mirrors the A button (context-sensitive interact —
+    // currently opens the Aethryx Expanse modal when adjacent to the UFO).
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      if (e.key === 'Escape' && modalState.current) {
+        closeModal();
+        e.preventDefault();
+        return;
+      }
+      // Modal hotkeys only fire when no modal is open OR when toggling the
+      // same one. (Letting them swap freely while open would race with the
+      // close transition.)
+      if (e.key === 'm' || e.key === 'M') { toggleModal('hub');   e.preventDefault(); }
+      if (e.key === 'x' || e.key === 'X') { toggleModal('map');   e.preventDefault(); }
+      if (e.key === 'y' || e.key === 'Y') { toggleModal('pause'); e.preventDefault(); }
+      // Enter/Return → A button (interact). Fires through applyHotzone so the
+      // same toggle logic the controller's A button uses applies: open when
+      // adjacent to an interactable, close when the resulting modal is already
+      // on screen. (Mirrors the Y-and-Y / X-and-X / M-and-M close-on-same-key
+      // pattern the user expects.)
+      if (e.key === 'Enter') {
+        applyHotzone('a', true);
+        e.preventDefault();
+      }
+      // Arrow keys — modal navigation when a modal is open. Hub + Pause +
+      // Aethryx cycle focus through their buttons; Map slides a cosmic-blue
+      // cursor across the chart. Movement keys are ignored while a modal
+      // is open (see setKey early-return).
+      if (modalState.current) {
+        const arrow = arrowKeyName(e.key);
+        if (arrow) {
+          handleModalArrow(arrow);
+          e.preventDefault();
+        }
+      }
+    });
+
+    function arrowKeyName(k) {
+      if (k === 'ArrowUp')    return 'up';
+      if (k === 'ArrowDown')  return 'down';
+      if (k === 'ArrowLeft')  return 'left';
+      if (k === 'ArrowRight') return 'right';
+      return null;
+    }
+    function handleModalArrow(dir) {
+      const m = modalState.current;
+      if (m === 'hub')     modalArrowFocus('hub',     dir, 2);   // 2-col grid
+      if (m === 'pause')   modalArrowFocus('pause',   dir, 1);   // stack
+      if (m === 'aethryx') modalArrowFocus('aethryx', dir, 4);   // 4-col faction grid
+      if (m === 'map')     moveMapCursor(dir);
+    }
+    function modalArrowFocus(modalName, dir, cols) {
+      const panel = document.querySelector('#modal-' + modalName + ' .modal-panel');
+      if (!panel) return;
+      // Focusable: hub items, enabled pause buttons, enabled faction slots.
+      const btns = Array.from(panel.querySelectorAll(
+        '.hub-item, .pause-btn:not([disabled]), .faction-slot:not([disabled])'
+      ));
+      if (btns.length === 0) return;
+      let idx = btns.indexOf(document.activeElement);
+      if (idx === -1) idx = 0;
+      if (dir === 'left')  idx = Math.max(0,            idx - 1);
+      if (dir === 'right') idx = Math.min(btns.length-1, idx + 1);
+      if (dir === 'up')    idx = Math.max(0,            idx - cols);
+      if (dir === 'down')  idx = Math.min(btns.length-1, idx + cols);
+      btns[idx].focus();
+    }
+
+    // ============ Map cursor (X modal arrow nav) ============
+    // mapCursor is normalized to 0..1 inside the map canvas. Reset to the
+    // central region (0.5, 0.5) every time the map modal opens. Arrow keys
+    // shift it MAP_CURSOR_STEP per press, clamped to the canvas bounds.
+    const mapCursor = { x: 0.5, y: 0.5 };
+    const MAP_CURSOR_STEP = 0.06;
+    function updateMapCursorUI() {
+      const c = document.getElementById('map-cursor');
+      if (!c) return;
+      c.style.left = (mapCursor.x * 100).toFixed(2) + '%';
+      c.style.top  = (mapCursor.y * 100).toFixed(2) + '%';
+    }
+    function moveMapCursor(dir) {
+      if (dir === 'up')    mapCursor.y = Math.max(0, mapCursor.y - MAP_CURSOR_STEP);
+      if (dir === 'down')  mapCursor.y = Math.min(1, mapCursor.y + MAP_CURSOR_STEP);
+      if (dir === 'left')  mapCursor.x = Math.max(0, mapCursor.x - MAP_CURSOR_STEP);
+      if (dir === 'right') mapCursor.x = Math.min(1, mapCursor.x + MAP_CURSOR_STEP);
+      updateMapCursorUI();
+      // Reveal the cursor on first interaction — keeps it from competing with
+      // the "you are here" headshot marker when the map first opens.
+      const c = document.getElementById('map-cursor');
+      if (c) c.classList.add('visible');
+    }
+    function resetMapCursor() {
+      mapCursor.x = 0.5;
+      mapCursor.y = 0.5;
+      updateMapCursorUI();
+      const c = document.getElementById('map-cursor');
+      if (c) c.classList.remove('visible');
+    }
+
+    function bindHotzone(el) {
+      const name = el.dataset.hot;
+      if (!name) return;
+
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+          hotzoneTouches.set(t.identifier, name);
+        }
+        applyHotzone(name, true);
+      }, { passive: false });
+
+      const release = (e) => {
+        e.preventDefault();
+        let stillHeld = false;
+        for (const t of e.changedTouches) {
+          hotzoneTouches.delete(t.identifier);
+        }
+        // If any other touch is still on this same hotzone, keep it pressed.
+        for (const v of hotzoneTouches.values()) {
+          if (v === name) { stillHeld = true; break; }
+        }
+        if (!stillHeld) applyHotzone(name, false);
+      };
+      el.addEventListener('touchend',    release, { passive: false });
+      el.addEventListener('touchcancel', release, { passive: false });
+
+      // Desktop fallback: mousedown / mouseup also drive the hotzones, useful
+      // for testing the controller layout on a non-touch device.
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        applyHotzone(name, true);
+      });
+      const mouseRelease = () => applyHotzone(name, false);
+      el.addEventListener('mouseup',    mouseRelease);
+      el.addEventListener('mouseleave', mouseRelease);
+    }
+
+    document.querySelectorAll('.hotzone').forEach(bindHotzone);
+
+    // ============ Update (per-frame movement + animation) ============
+    // Frame-rate independent: position += direction × speed × deltaTime.
+    function update(dt) {
+      // Combine keyboard + joystick — either source can drive movement.
+      const moveLeft  = keyInput.left  || joyInput.left;
+      const moveRight = keyInput.right || joyInput.right;
+      const moveUp    = keyInput.up    || joyInput.up;
+      const moveDown  = keyInput.down  || joyInput.down;
+
+      let dx = 0, dy = 0;
+      if (moveLeft)  dx -= 1;
+      if (moveRight) dx += 1;
+      if (moveUp)    dy -= 1;
+      if (moveDown)  dy += 1;
+
+      // Determine facing direction this frame. Horizontal beats vertical on diagonals
+      // (classic JRPG feel). If no input, preserve last-known facing.
+      let newFacing = null;
+      if (dx < 0) newFacing = 'left';
+      else if (dx > 0) newFacing = 'right';
+      else if (dy < 0) newFacing = 'up';
+      else if (dy > 0) newFacing = 'down';
+      if (newFacing) player.facing = newFacing;
+
+      // Movement-input flag. Set BEFORE the run/fly mode is computed so the
+      // click-to-sustain logic can see whether the player is moving this frame.
+      const inputActive = dx !== 0 || dy !== 0;
+      player.isMoving = inputActive;
+
+      // Normalize diagonal so 45° travel isn't √2 faster than cardinal.
+      if (dx !== 0 && dy !== 0) {
+        const invSqrt2 = 0.7071067811865475;
+        dx *= invSqrt2;
+        dy *= invSqrt2;
+      }
+
+      // Click-to-sustain run/fly: if a sustain toggle is active and the player
+      // has moved during this session, clear the toggle the moment they stop.
+      // Must run BEFORE currentRunMode() so the cleared toggles take effect
+      // immediately this frame (no one-frame run/fly flash on stop).
+      maybeClearToggles(inputActive);
+
+      // Movement mode. 'walk' → base speed. 'run' → 1.5×. 'fly' → 2.25×.
+      // Same scale modifies animation FPS so feet (or wings) keep visual pace.
+      player.mode = currentRunMode();
+      const modeScale = (player.mode === 'fly') ? FLY_SCALE
+                      : (player.mode === 'run') ? RUN_SCALE
+                      : 1;
+      const speed = player.speed * modeScale;
+
+      // Axis-separated movement with collision. Applying X and Y in two passes
+      // (rather than one combined step) is what produces "sliding" — pressing
+      // diagonally into a wall lets you keep moving along the unblocked axis.
+      const moveStepX = dx * speed * dt;
+      const moveStepY = dy * speed * dt;
+
+      const tryX = player.x + moveStepX;
+      if (!blocked(tryX, player.y)) {
+        player.x = tryX;
+      }
+      const tryY = player.y + moveStepY;
+      if (!blocked(player.x, tryY)) {
+        player.y = tryY;
+      }
+
+      // Region transition — walking THROUGH a region border (e.g., pressing
+      // up at the top edge of Central) hot-swaps the active region and
+      // re-anchors the player at the opposite border of the new region.
+      if (attemptRegionTransition(moveUp, moveDown)) return;
+
+      // Animation step: advance the walk cycle whenever the player is INPUTTING
+      // movement — even if collision blocked them this frame. "Marching in place"
+      // against a wall reads as natural feedback ("I'm trying to walk, I just
+      // can't go forward") rather than a frozen sprite that feels unresponsive.
+      // Animation FPS scales with the mode so feet/wings keep pace with the
+      // faster movement (otherwise running looks like a low-fps slide).
+      // Fly mode advances the cycle ALL THE TIME — wings flap even while idle.
+      if (inputActive || player.mode === 'fly') {
+        const animFps = ANIM_FPS * modeScale;
+        player.animTime += dt;
+        player.animFrame = Math.floor(player.animTime * animFps) % ANIM_FRAMES;
+      } else {
+        player.animTime = 0;
+        player.animFrame = 0;
+      }
+
+      // Idle progression — runs ONLY while standing still in walk mode (not
+      // run/fly). Each pose plays for IDLE_POSE_DURATION seconds; on rollover
+      // the pose advances top → bottom and HALTS on the final pose (the
+      // sleeping one) — no wrap. The within-pose micro-anim still cycles its
+      // 4 cols at IDLE_ANIM_FPS regardless of pose, so even on the final
+      // sleeping pose the Z bobs up and out forever until input arrives.
+      // Any movement resets the cycle back to pose 0 so the next idle session
+      // starts fresh at the top of the sheet.
+      const idleActive = !inputActive && player.mode === 'walk';
+      if (idleActive) {
+        player.idlePoseTime += dt;
+        if (player.idlePoseTime >= IDLE_POSE_DURATION) {
+          if (player.idlePose < IDLE_SHEET.rowBases.length - 1) {
+            player.idlePoseTime -= IDLE_POSE_DURATION;
+            player.idlePose    += 1;
+            player.idleAnimTime = 0;
+          } else {
+            // Already on the final pose — clamp the timer so it doesn't grow
+            // unboundedly across long sleep sessions.
+            player.idlePoseTime = IDLE_POSE_DURATION;
+          }
+        }
+        player.idleAnimTime += dt;
+        player.idleAnimFrame = Math.floor(player.idleAnimTime * IDLE_ANIM_FPS) % ANIM_FRAMES;
+      } else {
+        player.idlePose       = 0;
+        player.idlePoseTime   = 0;
+        player.idleAnimTime   = 0;
+        player.idleAnimFrame  = 0;
+      }
+    }
+
+    // ============ Camera update ============
+    // Centers the viewport on the player, then clamps so it never reveals
+    // anything outside the world bounds (no void-edge peeking).
+    //
+    // The camera position is ROUNDED to integer pixels. Without this, the
+    // player's fractional sub-pixel coordinates flow into the camera and then
+    // into every tile draw call. Drawing at fractional offsets triggers the
+    // canvas's anti-aliased sampling — which exposes tile edges as visible
+    // seam outlines that "shimmer" as the camera scrolls. Snapping to whole
+    // pixels makes the seams disappear entirely (every tile lines up exactly).
+    function updateCamera() {
+      const targetX = player.x + CHAR_W / 2 - VIEWPORT_W / 2;
+      const targetY = player.y + CHAR_H / 2 - VIEWPORT_H / 2;
+      const maxCamX = MAP_WIDTH  * TILE_SIZE - VIEWPORT_W;
+      const maxCamY = MAP_HEIGHT * TILE_SIZE - VIEWPORT_H;
+      camera.x = Math.round(Math.max(0, Math.min(maxCamX, targetX)));
+      camera.y = Math.round(Math.max(0, Math.min(maxCamY, targetY)));
+    }
+
+    // ============ Render ============
+    function drawTiles() {
+      // Tile the 32×32 grass across the map. Each cell gets a deterministic rotation
+      // (0°, 90°, 180°, 270°) based on its (x, y) position — this breaks up the obvious
+      // repeat pattern without sacrificing pixel-art crispness or needing new assets.
+      // CAMERA: only loop over tiles inside the viewport (saves drawing the whole
+      // 20×20 world when only 10×10 is ever visible).
+      const half = TILE_SIZE / 2;
+      const startX = Math.max(0, Math.floor(camera.x / TILE_SIZE));
+      const endX   = Math.min(MAP_WIDTH  - 1, Math.floor((camera.x + VIEWPORT_W - 1) / TILE_SIZE));
+      const startY = Math.max(0, Math.floor(camera.y / TILE_SIZE));
+      const endY   = Math.min(MAP_HEIGHT - 1, Math.floor((camera.y + VIEWPORT_H - 1) / TILE_SIZE));
+      for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+          // Deterministic per-tile rotation index, 0-3. Coprime multipliers (7, 13)
+          // mod 4 keep the pattern visually random without obvious row/column repeats.
+          const rot = ((x * 7 + y * 13) & 3) * (Math.PI / 2);
+          const cx = x * TILE_SIZE + half - camera.x;
+          const cy = y * TILE_SIZE + half - camera.y;
+          // Tile type dispatch: 0 = grass (Central), 1 = ice (North).
+          const tType = MAP_DATA.tiles[y][x];
+          const tileAsset = (tType === 1) ? ASSETS.snow    : ASSETS.grass;
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(rot);
+          ctx.drawImage(tileAsset, -half, -half);
+          ctx.restore();
+        }
+      }
+    }
+
+    // Y-sort sprite rendering: every overlapping object (player + trees + future
+    // NPCs) is sorted by its "feet Y" (the bottom edge of its visual footprint)
+    // and drawn lowest-feet-first. Result: a sprite whose feet are FURTHER DOWN
+    // the screen is rendered LAST and appears in front, matching the 3/4-view
+    // intuition that "lower on screen = closer to the viewer."
+    // CAMERA: positions are stored in WORLD coords; subtract camera.x/y to get
+    // screen coords at draw time. Off-screen sprites are culled.
+    function drawWorld() {
+      // Collect drawables with their sort key. World-space coords kept here.
+      const drawables = [];
+      for (const obj of MAP_DATA.objects) {
+        if (obj.type === 'tree') {
+          drawables.push({
+            kind: 'tree',
+            x: obj.x * TILE_SIZE,
+            y: obj.y * TILE_SIZE,
+            feetY: obj.y * TILE_SIZE + TREE_H,
+          });
+        } else if (HOUSE_TYPES[obj.type]) {
+          const dims = HOUSE_TYPES[obj.type];
+          drawables.push({
+            kind: 'house',
+            type: obj.type,
+            x: obj.x * TILE_SIZE,
+            y: obj.y * TILE_SIZE,
+            feetY: obj.y * TILE_SIZE + dims.h,   // bottom of visual = feet line
+            w: dims.w,
+            h: dims.h,
+            assetKey: dims.asset,
+          });
+        } else if (obj.type === 'ufo') {
+          drawables.push({
+            kind: 'ufo',
+            x: obj.x * TILE_SIZE,
+            y: obj.y * TILE_SIZE,
+            feetY: obj.y * TILE_SIZE + UFO_H,
+          });
+        }
+      }
+      for (const npc of NPCS) {
+        if (npc.active === false) continue;   // docked: invisible in level
+        if ((npc.region || 'central') !== currentRegion) continue;   // different region
+        drawables.push({
+          kind: 'npc',
+          npc: npc,
+          x: npc.x,
+          y: npc.y,
+          feetY: npc.y + npc.h,
+        });
+      }
+      drawables.push({
+        kind: 'player',
+        x: player.x,
+        y: player.y,
+        feetY: player.y + CHAR_H,
+      });
+      drawables.sort((a, b) => a.feetY - b.feetY);
+
+      for (const d of drawables) {
+        // World → screen transform.
+        const screenX = Math.round(d.x - camera.x);
+        const screenY = Math.round(d.y - camera.y);
+
+        if (d.kind === 'tree') {
+          // Cull trees fully outside the viewport.
+          if (screenX + TREE_W < 0 || screenX > VIEWPORT_W) continue;
+          if (screenY + TREE_H < 0 || screenY > VIEWPORT_H) continue;
+          ctx.drawImage(ASSETS.tree, screenX, screenY);
+        } else if (d.kind === 'house') {
+          if (screenX + d.w < 0 || screenX > VIEWPORT_W) continue;
+          if (screenY + d.h < 0 || screenY > VIEWPORT_H) continue;
+          const sprite = ASSETS[d.assetKey];
+          if (sprite) ctx.drawImage(sprite, screenX, screenY);
+        } else if (d.kind === 'ufo') {
+          if (screenX + UFO_W < 0 || screenX > VIEWPORT_W) continue;
+          if (screenY + UFO_H < 0 || screenY > VIEWPORT_H) continue;
+          if (ASSETS.ufo) ctx.drawImage(ASSETS.ufo, screenX, screenY);
+          // When the player's adjacent, paint a "TAP A" prompt above the UFO.
+          if (ufoState.adjacent) {
+            const text  = 'INTERACT · TAP ENTER/A';
+            ctx.font = "7px 'Cinzel', serif";
+            const padX = 5, padY = 3;
+            const tw = Math.ceil(ctx.measureText(text).width);
+            const bw = tw + padX * 2, bh = 13;
+            let bx = Math.round(screenX + UFO_W / 2 - bw / 2);
+            let by = Math.round(screenY - bh - 3);
+            if (bx < 2) bx = 2;
+            if (bx + bw > VIEWPORT_W - 2) bx = VIEWPORT_W - 2 - bw;
+            if (by < 2) by = Math.round(screenY + UFO_H + 3);
+            ctx.fillStyle   = 'rgba(10, 6, 24, 0.88)';
+            ctx.strokeStyle = '#e8c878';
+            ctx.lineWidth   = 1;
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+            ctx.fillStyle    = '#f4e3b3';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign    = 'left';
+            ctx.fillText(text, bx + padX, by + bh / 2 + 0.5);
+          }
+        } else if (d.kind === 'npc') {
+          const npc = d.npc;
+          if (screenX + npc.w < 0 || screenX > VIEWPORT_W) continue;
+          if (screenY + npc.h < 0 || screenY > VIEWPORT_H) continue;
+          // Look up the NPC's frame set, then pick the current walk-cycle
+          // frame for its current facing via its walkOrder mapping.
+          const frameSet = ASSETS[npc.framesKey];
+          if (frameSet) {
+            const frames = frameSet[npc.facing];
+            const order  = npc.walkOrder[npc.facing];
+            if (frames && order) {
+              const sprite = frames[order[npc.animFrame]];
+              if (sprite) ctx.drawImage(sprite, screenX, screenY);
+            }
+          }
+          // Cry balloon — drawn after the NPC sprite so it sits on top in z.
+          drawCryBalloon(npc, screenX, screenY);
+        } else if (d.kind === 'player') {
+          // Dispatch on player.mode + movement — each branch pulls from its
+          // own frame set:
+          //   idle (walk mode, no input) → ASSETS.idleFrames[pose][col]
+          //                                (40×40 canvas, X off -4, Y off +5
+          //                                to keep feet aligned with walk canvas)
+          //   walk → ASSETS.charFrames    (32×45 canvas, drawn at screenX,Y)
+          //   run  → ASSETS.runFrames     (32×45 canvas, drawn at screenX,Y)
+          //   fly  → ASSETS.flyFrames     (56×45 canvas, drawn at screenX-FLY_OFFSET_X
+          //                                so the wider canvas stays centered on
+          //                                the player's feet — no sideways jump
+          //                                when toggling into fly mode)
+          const isIdle = (player.mode === 'walk' && !player.isMoving);
+          if (isIdle && ASSETS.idleFrames) {
+            const pose   = ASSETS.idleFrames[player.idlePose];
+            const sprite = pose && pose[player.idleAnimFrame];
+            if (sprite) ctx.drawImage(sprite, screenX - IDLE_OFFSET_X, screenY + IDLE_OFFSET_Y);
+          } else {
+            let frameSet, order, drawX = screenX;
+            if (player.mode === 'fly') {
+              frameSet = ASSETS.flyFrames;
+              order    = FLY_WALK_ORDER[player.facing];
+              drawX    = screenX - FLY_OFFSET_X;
+            } else if (player.mode === 'run') {
+              frameSet = ASSETS.runFrames;
+              order    = RUN_WALK_ORDER[player.facing];
+            } else {
+              frameSet = ASSETS.charFrames;
+              order    = WALK_ORDER[player.facing];
+            }
+            if (frameSet && order) {
+              const frames = frameSet[player.facing];
+              const sprite = frames && frames[order[player.animFrame]];
+              if (sprite) ctx.drawImage(sprite, drawX, screenY);
+            }
+          }
+        }
+      }
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawTiles();
+      drawWorld();
+    }
+
+    // ============ Game loop ============
+    let lastTime = 0;
+    function loop(now) {
+      // First frame has no dt; just record the timestamp and bail.
+      if (lastTime === 0) { lastTime = now; requestAnimationFrame(loop); return; }
+      let dt = (now - lastTime) / 1000;
+      lastTime = now;
+      // Cap dt to avoid huge jumps on tab-resume (capped to 50ms ≈ 20fps frame).
+      if (dt > 0.05) dt = 0.05;
+      // Skip world updates while a modal is open — the player can't walk,
+      // NPC patrols freeze, animation stays on the current frame, time stands
+      // still. render() still runs so the (frozen) world remains visible
+      // behind the pause modal.
+      if (!modalState.current) {
+        update(dt);
+        updateNPCs(dt);
+        updateInteractions();
+        updateUfoAdjacency();
+        updateCamera();
+      }
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    // ============ Boot ============
+    async function boot() {
+      const fillEl = document.getElementById('loading-fill');
+      const statusEl = document.getElementById('loading-status');
+      try {
+        await loadAllAssets((progress, message) => {
+          fillEl.style.width = (progress * 100) + '%';
+          statusEl.textContent = message;
+        });
+      } catch (e) {
+        statusEl.textContent = 'Asset load failed — ' + e.message;
+        console.error(e);
+        return;
+      }
+
+      // Generate the player headshot for the map marker — cropped from the
+      // walk sheet's DOWN row frame 0 (face visible). Saved as a data URL
+      // and inlined onto the .map-marker background.
+      setMapMarkerHeadshot();
+      // North-region tile — wired to the real snow asset (assets/tile_snow.png).
+      // The procedural makeIceTileCanvas fallback is retained below in case
+      // the asset fails to load; falls back to it only when ASSETS.snow is
+      // missing.
+      if (!ASSETS.snow) ASSETS.snow = makeIceTileCanvas();
+
+      // Reveal the stage
+      const loadingEl = document.getElementById('loading');
+      setTimeout(() => { loadingEl.classList.add('done'); }, 250);
+
+      // Kick off the game loop
+      requestAnimationFrame(loop);
+    }
+
+    // Procedural ice tile — fallback used if /assets/tile_snow.png fails to
+    // load. Deterministic frost pattern at the base color; rendered into a
+    // 32×32 canvas exactly like the real snow asset so the renderer doesn't
+    // care which one it gets.
+    function makeIceTileCanvas() {
+      const c = document.createElement('canvas');
+      c.width = TILE_SIZE; c.height = TILE_SIZE;
+      const cctx = c.getContext('2d');
+      // Base — icy blue vertical gradient.
+      const g = cctx.createLinearGradient(0, 0, 0, TILE_SIZE);
+      g.addColorStop(0, '#c8e0f0');
+      g.addColorStop(1, '#9eb8d0');
+      cctx.fillStyle = g;
+      cctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      // Frost highlights (warm-white specks).
+      cctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      cctx.fillRect( 4,  5, 2, 2);
+      cctx.fillRect(20,  8, 1, 1);
+      cctx.fillRect( 8, 24, 1, 1);
+      cctx.fillRect(25, 18, 2, 1);
+      cctx.fillRect(14,  3, 1, 1);
+      // Cool-blue cracks/specks.
+      cctx.fillStyle = 'rgba(40, 80, 120, 0.55)';
+      cctx.fillRect( 2, 14, 1, 1);
+      cctx.fillRect(16, 22, 1, 2);
+      cctx.fillRect(28,  6, 1, 1);
+      cctx.fillRect(11, 28, 2, 1);
+      return c;
+    }
+
+    // ============ Region transition ============
+    // Hot-swap MAP_DATA + COLLIDERS to a new region and re-anchor the player
+    // at the opposite border (so coming in from the south of north places
+    // them at the bottom of north, etc.). Resets animation/idle/B state
+    // since the player's context just changed.
+    function transitionRegion(toRegion) {
+      if (!REGIONS[toRegion] || toRegion === currentRegion) return;
+      const from = currentRegion;
+      currentRegion = toRegion;
+      MAP_DATA   = REGIONS[currentRegion];
+      COLLIDERS  = buildColliders(MAP_DATA);
+      if (from === 'central' && toRegion === 'north') {
+        player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of north
+      } else if (from === 'north' && toRegion === 'central') {
+        player.y = 6;                                       // enter from north of central
+      }
+      // Reset transient state so the new region starts clean.
+      player.animTime = 0; player.animFrame = 0;
+      player.idlePose = 0; player.idlePoseTime = 0; player.idleAnimTime = 0; player.idleAnimFrame = 0;
+      resetBState();
+      updateCamera();
+    }
+    // Detect whether the player is at a region border AND pressing into it.
+    // Called from update() once per frame. Also exposed for the A/Enter
+    // interact button so the player can confirm a transition manually.
+    function attemptRegionTransition(moveUp, moveDown) {
+      if (currentRegion === 'central' && player.y <= 4 && moveUp) {
+        transitionRegion('north');
+        return true;
+      }
+      if (currentRegion === 'north' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 4 && moveDown) {
+        transitionRegion('central');
+        return true;
+      }
+      return false;
+    }
+    function regionExitReady() {
+      if (currentRegion === 'central' && player.y <= 8) return 'north';
+      if (currentRegion === 'north'   && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'south';
+      return null;
+    }
+
+    // Crop the player's head from the walk sheet (DOWN row frame 0, top
+    // portion = head + hair). Bakes it into a small canvas, converts to a
+    // data URL, then sets it as the .map-marker background. Called once at
+    // boot after assets load.
+    function setMapMarkerHeadshot() {
+      const sheetImg = ASSETS.sheet;
+      const marker   = document.getElementById('map-marker');
+      if (!sheetImg || !marker) return;
+      // Source region: DOWN row frame 0 head zone. The walk sheet's DOWN
+      // content y range is 942..1196; head sits in the top third (y~942-1080).
+      // Frame 0 x range is centered on SHEET.cols[0]=336, frameW=200 → x=236..436.
+      // Tighter head crop: x=276..396, y=940..1080.
+      const SRC = { x: 276, y: 940, w: 120, h: 140 };
+      const SIZE = 64;   // bake at 64×64 for crisp scaling at the 32px CSS size
+      const c = document.createElement('canvas');
+      c.width = SIZE; c.height = SIZE;
+      const cctx = c.getContext('2d');
+      cctx.imageSmoothingEnabled = true;
+      cctx.imageSmoothingQuality = 'high';
+      // Aspect-preserving fit, centered.
+      const scale = Math.min(SIZE / SRC.w, SIZE / SRC.h);
+      const dW = Math.round(SRC.w * scale);
+      const dH = Math.round(SRC.h * scale);
+      const dX = Math.floor((SIZE - dW) / 2);
+      const dY = Math.floor((SIZE - dH) / 2);
+      cctx.drawImage(sheetImg, SRC.x, SRC.y, SRC.w, SRC.h, dX, dY, dW, dH);
+      // Chroma-out the sheet's near-white BG so the head reads on the dark
+      // map background instead of carrying a white halo into the circle.
+      chromaKeyExteriorWhite(c, 235);
+      const url = c.toDataURL();
+      marker.style.backgroundImage    = `url(${url})`;
+      marker.style.backgroundSize     = 'cover';
+      marker.style.backgroundPosition = 'center';
+    }
+
+    boot();
+  </script>
+</body>
+</html>

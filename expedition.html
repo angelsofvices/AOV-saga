@@ -1993,6 +1993,54 @@
     // at the LEFT of the frame and the blast extends right). Finds every
     // 8-connected opaque blob, retains only the LARGEST, drops the rest.
     // Robust to off-center characters and frame-bleed fragments.
+    // Multi-component retention — keep ALL connected blobs whose area is at
+    // least minSize. Used by the combat slicer because sword/blast/blaster
+    // climax frames have the character body AND a separate effect blob
+    // (slash arc, plasma beam) — keepLargestComponent only retained the
+    // bigger one and dropped the other. This keeps both as long as both
+    // pass the size threshold; smaller bleed fragments still get dropped.
+    function keepLargeComponents(canvas, minSize) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+      const ALPHA_T = 30;
+      const labels = new Int32Array(w * h);
+      const sizes  = [0];
+      let nextLabel = 1;
+      for (let i = 0; i < w * h; i++) {
+        if (labels[i] > 0) continue;
+        if (data[i * 4 + 3] < ALPHA_T) continue;
+        const stack = [i];
+        labels[i] = nextLabel;
+        let size = 0;
+        while (stack.length) {
+          const idx = stack.pop();
+          size++;
+          const x = idx % w, y = (idx - x) / w;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (dx === 0 && dy === 0) continue;
+              const nx = x + dx, ny = y + dy;
+              if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+              const ni = ny * w + nx;
+              if (labels[ni] > 0) continue;
+              if (data[ni * 4 + 3] < ALPHA_T) continue;
+              labels[ni] = nextLabel;
+              stack.push(ni);
+            }
+          }
+        }
+        sizes.push(size);
+        nextLabel++;
+      }
+      for (let i = 0; i < w * h; i++) {
+        const lbl = labels[i];
+        if (lbl === 0 || sizes[lbl] < minSize) data[i * 4 + 3] = 0;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
     function keepLargestComponent(canvas) {
       const ctx = canvas.getContext('2d');
       const w = canvas.width, h = canvas.height;
@@ -2484,7 +2532,11 @@
           const fwctx = fw.getContext('2d');
           fwctx.imageSmoothingEnabled = false;
           fwctx.drawImage(work, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
-          keepLargestComponent(fw);
+          // Multi-component retention so the character body AND the
+          // separate effect blob (sword arc, plasma beam) both survive.
+          // 400-px threshold is well above any bleed fragment from
+          // the neighbor frame and well below the character body size.
+          keepLargeComponents(fw, 400);
           // NEAREST-bake to dest. Dest height padded to CHAR_H_COMBAT for
           // foot-alignment consistency; image fills from the BOTTOM up so
           // feet land at the bottom edge of the canvas regardless of pose.

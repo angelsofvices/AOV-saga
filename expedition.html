@@ -1585,6 +1585,18 @@
         tiles:   makeRegionTiles(2),     // HQ floor (dispatch in drawTiles)
         objects: [],
       },
+      // South Central — transition zone between Central grass and South lava.
+      // Same 40x40 tile footprint. Placeholder tile type 0 (grass) for now;
+      // swap in a dedicated "scorched / patchy" tile once the art lands.
+      // Empty objects array — leave blank for now per design note.
+      southcentral: {
+        id: 'southcentral',
+        name: 'Viridia · South Central',
+        width:  MAP_WIDTH,
+        height: MAP_HEIGHT,
+        tiles:   makeRegionTiles(0),     // grass placeholder
+        objects: [],
+      },
       south: {
         id: 'south',
         name: 'Viridia · Southern Lava Fields',
@@ -3526,8 +3538,10 @@
         const exit = regionExitReady();
         if (exit === 'north') { transitionRegion('north');   return true; }
         if (exit === 'south') { transitionRegion('central'); return true; }
-        if (exit === 'south-enter')        { transitionRegion('south');   return true; }
-        if (exit === 'central-from-south') { transitionRegion('central'); return true; }
+        if (exit === 'southcentral-enter')       { transitionRegion('southcentral'); return true; }
+        if (exit === 'central-from-southcentral') { transitionRegion('central');      return true; }
+        if (exit === 'south-enter')              { transitionRegion('south');        return true; }
+        if (exit === 'southcentral-from-south')  { transitionRegion('southcentral'); return true; }
         if (exit === 'hq')    { transitionRegion('hq');      return true; }
         if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
         if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
@@ -3680,8 +3694,10 @@
           const exit = regionExitReady();
           if (exit === 'north') { transitionRegion('north');   return; }
           if (exit === 'south') { transitionRegion('central'); return; }
-          if (exit === 'south-enter')        { transitionRegion('south');   return; }
-          if (exit === 'central-from-south') { transitionRegion('central'); return; }
+          if (exit === 'southcentral-enter')       { transitionRegion('southcentral'); return; }
+          if (exit === 'central-from-southcentral') { transitionRegion('central');      return; }
+          if (exit === 'south-enter')              { transitionRegion('south');        return; }
+          if (exit === 'southcentral-from-south')  { transitionRegion('southcentral'); return; }
           if (exit === 'hq')    { transitionRegion('hq');      return; }
           if (exit === 'central-from-hq') { transitionRegion('central'); return; }
           if (hugeHouseState.adjacent) { transitionRegion('hq'); return; }
@@ -4850,10 +4866,14 @@
         player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of north
       } else if (from === 'north' && toRegion === 'central') {
         player.y = 6;                                       // enter from north of central
-      } else if (from === 'central' && toRegion === 'south') {
-        player.y = 6;                                       // enter from north of south
-      } else if (from === 'south' && toRegion === 'central') {
+      } else if (from === 'central' && toRegion === 'southcentral') {
+        player.y = 6;                                       // enter from north of southcentral
+      } else if (from === 'southcentral' && toRegion === 'central') {
         player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of central
+      } else if (from === 'southcentral' && toRegion === 'south') {
+        player.y = 6;                                       // enter from north of south
+      } else if (from === 'south' && toRegion === 'southcentral') {
+        player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of southcentral
       } else if (from === 'central' && toRegion === 'hq') {
         // Stash the Central position so the HQ→Central return drops the
         // player right back at the gate they came from.
@@ -4884,15 +4904,23 @@
         return true;
       }
       if (currentRegion === 'central' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 4 && moveDown) {
-        transitionRegion('south');
+        transitionRegion('southcentral');
         return true;
       }
       if (currentRegion === 'north' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 4 && moveDown) {
         transitionRegion('central');
         return true;
       }
-      if (currentRegion === 'south' && player.y <= 4 && moveUp) {
+      if (currentRegion === 'southcentral' && player.y <= 4 && moveUp) {
         transitionRegion('central');
+        return true;
+      }
+      if (currentRegion === 'southcentral' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 4 && moveDown) {
+        transitionRegion('south');
+        return true;
+      }
+      if (currentRegion === 'south' && player.y <= 4 && moveUp) {
+        transitionRegion('southcentral');
         return true;
       }
       if (currentRegion === 'hq' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 4 && moveDown) {
@@ -4932,9 +4960,11 @@
 
     function regionExitReady() {
       if (currentRegion === 'central' && player.y <= 8) return 'north';
-      if (currentRegion === 'central' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'south-enter';
+      if (currentRegion === 'central' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'southcentral-enter';
       if (currentRegion === 'north'   && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'south';
-      if (currentRegion === 'south'   && player.y <= 8) return 'central-from-south';
+      if (currentRegion === 'southcentral' && player.y <= 8) return 'central-from-southcentral';
+      if (currentRegion === 'southcentral' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'south-enter';
+      if (currentRegion === 'south'   && player.y <= 8) return 'southcentral-from-south';
       if (currentRegion === 'hq'      && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'central-from-hq';
       return null;
     }

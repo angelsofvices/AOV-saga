@@ -471,6 +471,34 @@
        source PNG exactly (1122×1402), so the image fills the panel edge-to-edge
        with no letterboxing. background-size: cover gracefully crops if a
        future panel ever stretches off-ratio. */
+    .astralpack-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 8px;
+      margin-top: 12px;
+    }
+    .astralpack-slot {
+      aspect-ratio: 1;
+      border: 1px solid var(--border-gold);
+      border-radius: 6px;
+      background-color: rgba(232, 200, 120, 0.04);
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .astralpack-slot canvas {
+      image-rendering: pixelated;
+      width: 70%; height: 70%; object-fit: contain;
+    }
+    .astralpack-slot .qty {
+      position: absolute; bottom: 3px; right: 5px;
+      font-family: var(--font-meta); font-size: 0.5rem; color: var(--gold);
+      background: rgba(10, 6, 24, 0.8); padding: 1px 4px; border-radius: 3px;
+    }
+    .astralpack-slot .name {
+      position: absolute; bottom: -14px; left: 0; right: 0;
+      text-align: center; font-family: var(--font-meta); font-size: 0.4rem;
+      color: var(--mist-deep); letter-spacing: 0.1em;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
     .npc-info-body { display: flex; gap: 14px; margin-top: 12px; align-items: flex-start; }
     .npc-info-portrait {
       width: 112px; height: 112px; flex-shrink: 0;
@@ -841,6 +869,19 @@
     </div>
   </div>
 
+  <!-- ============ Astralpack inventory modal ============
+       Opens from the Hub icon. Grid of items collected. -->
+  <div class="modal" id="modal-astralpack" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" style="max-width: 360px;">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <div class="modal-eyebrow">Inventory</div>
+      <div class="modal-title">Astralpack</div>
+      <div class="astralpack-grid" id="astralpack-grid"></div>
+      <div class="map-label" id="astralpack-empty" style="margin-top: 12px;">Your pack is empty. Find items in the world.</div>
+    </div>
+  </div>
+
   <!-- ============ NPC info modal ============
        A-near-NPC opens this. Portrait, name, archetype, bio, voicelines. -->
   <div class="modal" id="modal-npc-info" hidden>
@@ -961,6 +1002,8 @@
       lastWorldX:  0,
       lastWorldY:  0,
     };
+    // Potion adjacency — set every frame by updatePotionAdjacency.
+    const potionState = { adjacent: false, obj: null };
 
 
     // Character — width matches a tile, height matches the sheet's true aspect ratio (200:280 = 0.714).
@@ -972,11 +1015,33 @@
     // content's 1.060 aspect ratio with the player's height bracket.
     const NPC_W = 42;
     const NPC_H = 40;
+    // ============ Tomb / gargoyle decorations (obj_tombstones.png) ============
+    // 2x2 grid of stone props for the south lava region: two tombstones
+    // (top row) plus two gargoyle statues (bottom row). Each cell crops to
+    // the tight content bbox of one quadrant, baked to TOMB_W × TOMB_H.
+    const TOMB_W = 48;
+    const TOMB_H = 48;
+    const TOMB_SHEET = [
+      // [variantName, srcX, srcY, srcW, srcH]
+      { name: 'rip',        sx: 158, sy: 154, sw: 322, sh: 300 },
+      { name: 'cross',      sx: 589, sy: 145, sw: 296, sh: 310 },
+      { name: 'gargoyle_l', sx: 148, sy: 615, sw: 320, sh: 296 },
+      { name: 'gargoyle_r', sx: 563, sy: 617, sw: 342, sh: 294 },
+    ];
+
+    // ============ Potion (animation_live_potion.png) ============
+    // Sheet has 4 rows × 6 cols of aura-animation frames (24 total). For
+    // first cut we bake a SINGLE frame (top-left) as the static world
+    // sprite. Animation cycle deferred. Display at 32×32 — small floor pickup.
+    const POTION_W = 32;
+    const POTION_H = 32;
+    const POTION_SHEET = { cropX: 60, cropY: 70, cropW: 200, cropH: 156 };
+
     // Voltyran display size — 1.2x the baseline so he reads as the anchor
     // elder of the four. Eurakeon's 2x scale still references NPC_W /
     // NPC_H (unchanged) so this bump only affects Vol.
-    const VOL_DISPLAY_W = 50;
-    const VOL_DISPLAY_H = 48;
+    const VOL_DISPLAY_W = 60;   // bumped 1.2x again (was 50; was 42 before that)
+    const VOL_DISPLAY_H = 58;   // bumped 1.2x again (was 48)
 
     // ============ Enemy display sizes ============
     // First import: idle stance only (single static pose). Walk/attack sheets
@@ -1171,11 +1236,14 @@
       // [srcX, srcW] per (action, frameIndex). Width is multiple of 4 so
       // bakeScale=4 produces an integer dest width (no half-pixel seams).
       frames: {
-        punch:   [[320,200],[536,204],[757,216],[960,272]],
-        kick:    [[302,200],[523,200],[786,236],[974,196]],
-        blast:   [[310,192],[538,224],[730,272],[940,396]],   // f3 wide for blue beam
-        sword:   [[329,212],[530,220],[730,272],[940,360]],   // f3 wide for slash arc
-        blaster: [[332,208],[570,412],[680,300],[940,512]],   // f3 widest for plasma blast
+        // Each f3 srcX shifted past f2 content end so neighbor character
+        // bleed isn't captured. Widths set so the effect tail (arc / beam /
+        // blast) still fits with margin to the right.
+        punch:   [[320,200],[536,204],[757,216],[975,260]],
+        kick:    [[302,200],[523,200],[786,236],[1015,195]],
+        blast:   [[310,192],[538,224],[730,272],[1010,328]],   // f3 starts past f2
+        sword:   [[329,212],[530,220],[730,272],[1010,290]],   // f3 starts past f2
+        blaster: [[332,208],[570,412],[680,300],[1010,445]],   // f3 starts past f2
       },
     };
     // Dest canvas height — 204/4 = 51, padded to 56 to match the fly canvas
@@ -1529,6 +1597,12 @@
     let currentRegion = 'central';
     let MAP_DATA = REGIONS[currentRegion];
 
+    // Seed potions in central + south for pickup testing.
+    REGIONS.central.objects.push({ type: 'potion', x: 16, y: 18 });
+    REGIONS.central.objects.push({ type: 'potion', x: 24, y: 22 });
+    REGIONS.south.objects.push(  { type: 'potion', x:  9, y: 26 });
+    REGIONS.south.objects.push(  { type: 'potion', x: 28, y: 12 });
+
     // ============ Collision colliders ============
     // Solid bounding boxes the player's foot-box cannot overlap. Derived from
     // MAP_DATA.objects at boot. Each tree's collider is just its TRUNK (bottom-
@@ -1737,6 +1811,11 @@
       moriSheet:    { src: '/assets/animation_walk_mori.png',    raw: true },
       daemonSheet:  { src: '/assets/animation_walk_daemon.png',  raw: true },
       khronisSheet: { src: '/assets/animation_walk_khronis.png', raw: true },
+      // Tomb / gargoyle atlas — 2×2 grid sliced via sliceTombSheet at boot.
+      tombSheet:   { src: '/assets/obj_tombstones.png',       raw: true },
+      // Potion sheet — animated aura PNG; we bake the top-left frame as
+      // ASSETS.potion (static for now).
+      potionSheet: { src: '/assets/animation_live_potion.png', raw: true },
     };
 
     // After load, ASSETS[key] is a ready-to-blit HTMLCanvasElement at the target size.
@@ -1810,6 +1889,8 @@
       ASSETS.moriFrames    = sliceMoriSheet(ASSETS.moriSheet);
       ASSETS.daemonFrames  = sliceDaemonSheet(ASSETS.daemonSheet);
       ASSETS.khronisFrames = sliceKhronisSheet(ASSETS.khronisSheet);
+      ASSETS.tombFrames    = sliceTombSheet(ASSETS.tombSheet);
+      ASSETS.potion        = bakePotionSprite(ASSETS.potionSheet);
 
       // Post-process the lava tile to a darker ash/cave look (variant C).
       // See LAVA_BRIGHTNESS / LAVA_SATURATION above to tune.
@@ -1977,6 +2058,39 @@
       return result;
     }
 
+    // Tomb sheet slicer — produces ASSETS.tombFrames as an ARRAY of canvases
+    // baked at TOMB_W × TOMB_H. Variants in order: rip, cross, gargoyle_l,
+    // gargoyle_r.
+    function sliceTombSheet(sheetImg) {
+      const out = [];
+      for (const v of TOMB_SHEET) {
+        const c = document.createElement('canvas');
+        c.width = TOMB_W; c.height = TOMB_H;
+        const cctx = c.getContext('2d');
+        cctx.imageSmoothingEnabled = false;
+        cctx.drawImage(sheetImg, v.sx, v.sy, v.sw, v.sh, 0, 0, TOMB_W, TOMB_H);
+        out.push(c);
+      }
+      return out;
+    }
+
+    // Bake a single potion frame (top-left of the sheet) into a 32x32 canvas.
+    // Animation cycle deferred — for now just a recognizable pickup sprite.
+    function bakePotionSprite(sheetImg) {
+      const c = document.createElement('canvas');
+      c.width = POTION_W; c.height = POTION_H;
+      const cctx = c.getContext('2d');
+      cctx.imageSmoothingEnabled = false;
+      cctx.drawImage(
+        sheetImg,
+        POTION_SHEET.cropX, POTION_SHEET.cropY,
+        POTION_SHEET.cropW, POTION_SHEET.cropH,
+        0, 0, POTION_W, POTION_H
+      );
+      return c;
+    }
+
+
 
 
     // Center-flood retention — used by the fly slicer to suppress wing-tip
@@ -1999,7 +2113,7 @@
     // (slash arc, plasma beam) — keepLargestComponent only retained the
     // bigger one and dropped the other. This keeps both as long as both
     // pass the size threshold; smaller bleed fragments still get dropped.
-    function keepLargeComponents(canvas, minSize) {
+    function keepLargeComponents(canvas, minSize, minLeftFrac) {
       const ctx = canvas.getContext('2d');
       const w = canvas.width, h = canvas.height;
       const imgData = ctx.getImageData(0, 0, w, h);
@@ -2007,6 +2121,7 @@
       const ALPHA_T = 30;
       const labels = new Int32Array(w * h);
       const sizes  = [0];
+      const sumX   = [0];   // sum of x coords per blob (for centroid)
       let nextLabel = 1;
       for (let i = 0; i < w * h; i++) {
         if (labels[i] > 0) continue;
@@ -2014,10 +2129,12 @@
         const stack = [i];
         labels[i] = nextLabel;
         let size = 0;
+        let sx   = 0;
         while (stack.length) {
           const idx = stack.pop();
           size++;
           const x = idx % w, y = (idx - x) / w;
+          sx += x;
           for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
               if (dx === 0 && dy === 0) continue;
@@ -2032,11 +2149,19 @@
           }
         }
         sizes.push(size);
+        sumX.push(sx);
         nextLabel++;
       }
+      // minLeftFrac (default 0): drop any blob whose centroid x < minLeftFrac * w.
+      // Defends against neighbor-frame character bleed creeping in at the
+      // left edge of wide combat crops.
+      const cutoffX = (minLeftFrac || 0) * w;
       for (let i = 0; i < w * h; i++) {
         const lbl = labels[i];
-        if (lbl === 0 || sizes[lbl] < minSize) data[i * 4 + 3] = 0;
+        if (lbl === 0) { data[i * 4 + 3] = 0; continue; }
+        if (sizes[lbl] < minSize) { data[i * 4 + 3] = 0; continue; }
+        const cxBlob = sumX[lbl] / sizes[lbl];
+        if (cxBlob < cutoffX) { data[i * 4 + 3] = 0; }
       }
       ctx.putImageData(imgData, 0, 0);
     }
@@ -2534,9 +2659,11 @@
           fwctx.drawImage(work, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
           // Multi-component retention so the character body AND the
           // separate effect blob (sword arc, plasma beam) both survive.
-          // 400-px threshold is well above any bleed fragment from
-          // the neighbor frame and well below the character body size.
-          keepLargeComponents(fw, 400);
+          // 400-px threshold is well above any bleed fragment; the 0.08
+          // left-frac filter drops any blob whose centroid sits in the
+          // leftmost 8% of the crop (defense vs neighbor character bleed
+          // even when the source crop boundaries shift slightly).
+          keepLargeComponents(fw, 400, 0.08);
           // NEAREST-bake to dest. Dest height padded to CHAR_H_COMBAT for
           // foot-alignment consistency; image fills from the BOTTOM up so
           // feet land at the bottom edge of the canvas regardless of pose.
@@ -2961,6 +3088,27 @@
       }
     }
 
+    // Potion adjacency check — runs per frame.
+    function updatePotionAdjacency() {
+      potionState.adjacent = false;
+      potionState.obj      = null;
+      const pb = playerInteractBox(player.x, player.y);
+      for (const obj of MAP_DATA.objects) {
+        if (obj.type !== 'potion' || obj.collected) continue;
+        const box = {
+          x: obj.x * TILE_SIZE - 4,
+          y: obj.y * TILE_SIZE - 4,
+          w: POTION_W + 8,
+          h: POTION_H + 8,
+        };
+        if (rectIntersect(pb, box)) {
+          potionState.adjacent = true;
+          potionState.obj      = obj;
+          return;
+        }
+      }
+    }
+
     function updateUfoAdjacency() {
       const ib = playerInteractBox(player.x, player.y);
       ufoState.adjacent = rectIntersect(ib, ufoBodyBox());
@@ -3183,6 +3331,11 @@
       combatAction:    null,   // null | 'punch' | 'kick' | 'sword' | 'blaster' | 'blast'
       combatPhase:     0,      // 0..(COMBAT_FRAMES-1)
       combatStartedAt: 0,      // performance.now() at action start; 0 when idle
+      // Suppress the idle-pose state machine for IDLE_DELAY_AFTER_COMBAT_MS
+      // after a combat action ends (set by combat ticker).
+      idleSuppressedUntil: 0,
+      // Inventory — list of { id, name, qty, iconKey } items collected.
+      inventory: [],
     };
 
     // ============ Input state ============
@@ -3378,6 +3531,9 @@
         if (exit === 'hq')    { transitionRegion('hq');      return true; }
         if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
         if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
+        if (potionState.adjacent && potionState.obj) {
+          pickUpPotion(potionState.obj); return true;
+        }
         if (interactState.activeNpcId) {
           const _npc = NPCS.find(n => n.id === interactState.activeNpcId);
           if (_npc) { openNpcInfoModal(_npc); return true; }
@@ -3529,6 +3685,9 @@
           if (exit === 'hq')    { transitionRegion('hq');      return; }
           if (exit === 'central-from-hq') { transitionRegion('central'); return; }
           if (hugeHouseState.adjacent) { transitionRegion('hq'); return; }
+          if (potionState.adjacent && potionState.obj) {
+            pickUpPotion(potionState.obj); return;
+          }
           if (interactState.activeNpcId) {
             const _npc = NPCS.find(n => n.id === interactState.activeNpcId);
             if (_npc) { openNpcInfoModal(_npc); return; }
@@ -3611,6 +3770,53 @@
     // / drawWorld all respect it, so the NPC vanishes from the level cleanly.
     // ============ NPC info modal ============
     // Open the read-only info panel for a given NPC.
+    // Pick up a world potion: mark obj.collected so it stops rendering,
+    // bump or add to player.inventory.
+    function pickUpPotion(obj) {
+      obj.collected = true;
+      const existing = player.inventory.find(it => it.id === 'potion');
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        player.inventory.push({ id: 'potion', name: 'Live Potion', qty: 1, iconKey: 'potion' });
+      }
+      haptic(14);
+      const total = player.inventory.find(it => it.id === 'potion').qty;
+      console.log('[inventory] picked up Live Potion (qty: ' + total + ')');
+    }
+
+    // Build + open the Astralpack inventory modal.
+    function openAstralpackModal() {
+      const grid     = document.getElementById('astralpack-grid');
+      const emptyMsg = document.getElementById('astralpack-empty');
+      if (grid) {
+        grid.innerHTML = '';
+        const items = player.inventory || [];
+        for (const item of items) {
+          const slot = document.createElement('div');
+          slot.className = 'astralpack-slot';
+          const iconCanvas = ASSETS[item.iconKey];
+          if (iconCanvas instanceof HTMLCanvasElement) {
+            const c = document.createElement('canvas');
+            c.width = iconCanvas.width; c.height = iconCanvas.height;
+            c.getContext('2d').drawImage(iconCanvas, 0, 0);
+            slot.appendChild(c);
+          }
+          if (item.qty > 1) {
+            const q = document.createElement('span');
+            q.className = 'qty'; q.textContent = '×' + item.qty;
+            slot.appendChild(q);
+          }
+          const n = document.createElement('span');
+          n.className = 'name'; n.textContent = item.name;
+          slot.appendChild(n);
+          grid.appendChild(slot);
+        }
+        if (emptyMsg) emptyMsg.style.display = items.length ? 'none' : 'block';
+      }
+      openModal('astralpack');
+    }
+
     function openNpcInfoModal(npc) {
       if (!npc) return;
       const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text || ''; };
@@ -3730,6 +3936,11 @@
       haptic(20);
       closeModal();
     }
+    // Hub icons → modals. Astralpack first; Codex / Profile / Save / Options next.
+    document.querySelectorAll('.hub-item[data-hub="astralpack"]').forEach(btn => {
+      btn.addEventListener('click', () => { closeModal(); openAstralpackModal(); });
+    });
+
     const summonBtn = document.getElementById('summon-faction-btn');
     if (summonBtn) {
       summonBtn.addEventListener('click', summonFactionToShip);
@@ -4335,6 +4546,14 @@
             variant: obj.variant || 0,
             feetY: obj.y * TILE_SIZE + TOMB_H,
           });
+        } else if (obj.type === 'potion' && !obj.collected) {
+          drawables.push({
+            kind: 'potion',
+            x: obj.x * TILE_SIZE,
+            y: obj.y * TILE_SIZE,
+            obj: obj,
+            feetY: obj.y * TILE_SIZE + POTION_H,
+          });
         }
       }
       for (const npc of NPCS) {
@@ -4371,6 +4590,10 @@
           if (screenY + d.h < 0 || screenY > VIEWPORT_H) continue;
           const sprite = ASSETS[d.assetKey];
           if (sprite) ctx.drawImage(sprite, screenX, screenY);
+        } else if (d.kind === 'potion') {
+          if (screenX + POTION_W < 0 || screenX > VIEWPORT_W) continue;
+          if (screenY + POTION_H < 0 || screenY > VIEWPORT_H) continue;
+          if (ASSETS.potion) ctx.drawImage(ASSETS.potion, screenX, screenY);
         } else if (d.kind === 'tomb') {
           if (screenX + TOMB_W < 0 || screenX > VIEWPORT_W) continue;
           if (screenY + TOMB_H < 0 || screenY > VIEWPORT_H) continue;
@@ -4517,6 +4740,7 @@
         updateInteractions();
         updateUfoAdjacency();
         updateHugeHouseAdjacency();
+        updatePotionAdjacency();
         updateCamera();
       }
       render();

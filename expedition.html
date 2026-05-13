@@ -1069,13 +1069,15 @@
     // the BLAST and BLASTER rows extend past the right edge of their source
     // frame and will clip a touch on the rightmost pose; can widen those two
     // rows specifically in a Phase B.5 pass.
-    const CHAR_W_COMBAT = 80;
-    const CHAR_H_COMBAT = 60;
-    // Offsets re-anchor the wider/taller combat canvas onto the walk-box's
-    // foot position so toggling into a combat action doesn't make the
-    // character visually jump.
-    const COMBAT_OFFSET_X = (CHAR_W_COMBAT - CHAR_W) / 2;        // 24
-    const COMBAT_OFFSET_Y = CHAR_H - CHAR_H_COMBAT;              // -15 (combat sprite is 15px taller — push UP)
+    // Combat canvas matches the fly canvas dimensions exactly — 56×45.
+    // 80×60 was the first cut and read as 2.5× the walk box width on
+    // screen, dwarfing the world tiles. 56×45 stays in the walk/fly
+    // sprite family so combat reads as the same character firing a move,
+    // not a different character.
+    const CHAR_W_COMBAT = 56;
+    const CHAR_H_COMBAT = 45;            // matches CHAR_H — feet stay flush with walk
+    const COMBAT_OFFSET_X = (CHAR_W_COMBAT - CHAR_W) / 2;        // 12 (same as FLY_OFFSET_X)
+    const COMBAT_OFFSET_Y = 0;                                   // height matches walk — no Y nudge
 
     // Combat animation timing. 4 frames per action × 60ms each = 240ms total
     // per move. Snappy enough that combo chains feel responsive; long enough
@@ -2026,7 +2028,12 @@
       wctx.drawImage(sheetImg, 0, 0);
       chromaKeyColor(work, 65, 65, 68, 35);
 
-      // Pass 2: slice per row × 4 frames, NEAREST-bake to display size.
+      // Pass 2: slice per row × 4 frames. Each frame goes through a per-frame
+      // SOURCE-RES work canvas so keepCenterConnected can flood from center
+      // and discard adjacent-frame character bleed (cols are spaced 270px
+      // apart with frameW=280 → 10px overlap, plus characters in adjacent
+      // frames extend toward each other and were rendering as a "doubled
+      // player" effect). After the flood, NEAREST-bake to display size.
       const result = { punch: [], kick: [], blast: [], sword: [], blaster: [] };
       const actions = Object.keys(result);
       for (const action of actions) {
@@ -2035,14 +2042,27 @@
         for (let i = 0; i < COMBAT_FRAMES; i++) {
           const centerX = COMBAT_SHEET.cols[i];
           const cropX = centerX - COMBAT_SHEET.frameW / 2;
+          // Per-frame source-res scratch canvas
+          const fw = document.createElement('canvas');
+          fw.width  = COMBAT_SHEET.frameW;
+          fw.height = COMBAT_SHEET.frameH;
+          const fwctx = fw.getContext('2d');
+          fwctx.imageSmoothingEnabled = false;
+          fwctx.drawImage(
+            work,
+            cropX, cropY, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH,
+            0, 0, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH
+          );
+          keepCenterConnected(fw, Math.floor(COMBAT_SHEET.frameW / 2));
+          // NEAREST-bake the cleaned source frame down to display size
           const c = document.createElement('canvas');
           c.width  = CHAR_W_COMBAT;
           c.height = CHAR_H_COMBAT;
           const cctx = c.getContext('2d');
           cctx.imageSmoothingEnabled = false;
           cctx.drawImage(
-            work,
-            cropX, cropY, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH,
+            fw,
+            0, 0, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH,
             0, 0, CHAR_W_COMBAT, CHAR_H_COMBAT
           );
           result[action].push(c);
@@ -3596,9 +3616,9 @@
           drawCryBalloon(npc, screenX, screenY);
         } else if (d.kind === 'player') {
           // Dispatch on player.combatAction → player.mode → idle/walk/fly:
-          //   combat (any action) → ASSETS.combatFrames[action] (80×60 canvas,
-          //                         X off -24, Y off -15 to keep feet aligned
-          //                         with walk canvas; mirrored if facing left)
+          //   combat (any action) → ASSETS.combatFrames[action] (56×45 canvas,
+          //                         X off -12, Y off 0 — matches the fly
+          //                         canvas anchor; mirrored if facing left)
           //   idle (walk mode, no input) → ASSETS.idleFrames[pose][col]
           //                                (40×40 canvas, X off -4, Y off +5)
           //   walk → ASSETS.charFrames    (32×45 canvas, drawn at screenX,Y)

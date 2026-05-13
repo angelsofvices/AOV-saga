@@ -3227,51 +3227,19 @@
 
     function setKey(e, value) {
       // While any modal is open, the keyboard is reserved for menu nav —
-      // arrow keys move focus / cursor, not the player. Returning false
-      // here also avoids "leaking" a held movement key into the game when
-      // the modal closes (the openModal block already zeroes keyInput).
+      // arrow keys move focus / cursor, modal-hotkeys (D/F/G + Escape) get
+      // handled in the SECOND keydown listener below.
       if (modalState.current) return false;
-      // Returns true if the key matched a movement / run key (so we can
-      // preventDefault and avoid page scroll).
       const k = e.key;
-      if (k === 'ArrowUp'    || k === 'w' || k === 'W') { keyInput.up    = value; return true; }
-      if (k === 'ArrowDown'  || k === 's' || k === 'S') { keyInput.down  = value; return true; }
-      if (k === 'ArrowLeft'  || k === 'a' || k === 'A') { keyInput.left  = value; return true; }
-      if (k === 'ArrowRight' || k === 'd' || k === 'D') { keyInput.right = value; return true; }
-      // Y button (PUNCH) — desktop keys: Y letter OR period (.) for the
-      // gamepad-style layout. Press only.
-      if ((k === 'y' || k === 'Y' || k === '.') && value) {
-        pushCombatInput('y');
-        return true;
-      }
-      // X button (KICK) — desktop keys: X letter OR comma (,). Comma sits
-      // right under the period on a standard layout so combos read as
-      // Y→X→Y = . then , then . — neat thumb-roll for sword swings.
-      if ((k === 'x' || k === 'X' || k === ',') && value) {
-        pushCombatInput('x');
-        return true;
-      }
-      // Shift = B button (run). Press → onBPress. Release → onBRelease.
-      // Hold = run, double-tap = fly. Tap timing handled inside the B
-      // state machine.
-      if (k === 'Shift') {
-        if (value) onBPress(); else onBRelease();
-        return true;
-      }
-      // R = Return to Ship hotkey (same as the R shoulder button).
-      if ((k === 'r' || k === 'R') && value) {
-        returnToShip();
-        return true;
-      }
-      // F = fly toggle shortcut for desktop testing (skip the double-tap
-      // dance). Same effect as a controller B double-tap.
-      if ((k === 'f' || k === 'F') && value) {
-        bState.flyEnabled = !bState.flyEnabled;
-        console.log('[input] FLY TOGGLE (keyboard F) → ' + (bState.flyEnabled ? 'ON' : 'OFF'));
-        return true;
-      }
-      // Enter / Space = A button (interact). Press only.
-      if ((k === 'Enter' || k === ' ') && value) {
+      // ============ Movement ============
+      // Arrows only — WASD removed because A/D are now button hotkeys.
+      if (k === 'ArrowUp')    { keyInput.up    = value; return true; }
+      if (k === 'ArrowDown')  { keyInput.down  = value; return true; }
+      if (k === 'ArrowLeft')  { keyInput.left  = value; return true; }
+      if (k === 'ArrowRight') { keyInput.right = value; return true; }
+      // ============ Face buttons (1:1 with controller letters) ============
+      // A — Interact (UFO / region exit / Aethryx close). Press only.
+      if ((k === 'a' || k === 'A') && value && !e.repeat) {
         if (modalState.current === 'aethryx') { closeModal(); return true; }
         const exit = regionExitReady();
         if (exit === 'north') { transitionRegion('north');   return true; }
@@ -3282,6 +3250,34 @@
         if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
         if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
         if (ufoState.adjacent) { openModal('aethryx');       return true; }
+        return true;
+      }
+      // B — hold=run, double-tap=fly. Fires on press AND release so the
+      // tap-vs-hold classifier can run. Filter e.repeat so a held key
+      // doesn't keep resetting bState.pressedAt.
+      if ((k === 'b' || k === 'B')) {
+        if (value && !e.repeat)      { onBPress();   return true; }
+        if (!value)                  { onBRelease(); return true; }
+        return true;
+      }
+      // Y — Punch (combat). Press only.
+      if ((k === 'y' || k === 'Y') && value && !e.repeat) {
+        pushCombatInput('y');
+        return true;
+      }
+      // X — Kick (combat). Press only.
+      if ((k === 'x' || k === 'X') && value && !e.repeat) {
+        pushCombatInput('x');
+        return true;
+      }
+      // ============ Shoulders ============
+      // L — no-op for now (reserved for future specials / Ult).
+      if ((k === 'l' || k === 'L') && value && !e.repeat) {
+        return true;   // consume the key so it doesn't fall through
+      }
+      // R — Return to Ship (warp to UFO from any region).
+      if ((k === 'r' || k === 'R') && value && !e.repeat) {
+        returnToShip();
         return true;
       }
       return false;
@@ -3640,24 +3636,18 @@
         e.preventDefault();
         return;
       }
-      // Modal hotkeys. NOTE (Nov 2026 remap): X and Y are now COMBAT
-      // (kick / punch) so they no longer open modals. M still opens the
-      // hub. Map and Pause use [ and ] respectively (left-bracket = Map,
-      // since Select button opens map; right-bracket = Pause, since Start
-      // button opens pause). Keeps modal-via-keyboard access without
-      // stealing the combat inputs.
-      if (e.key === 'm' || e.key === 'M') { toggleModal('hub');   e.preventDefault(); }
-      if (e.key === '[')                  { toggleModal('map');   e.preventDefault(); }
-      if (e.key === ']')                  { toggleModal('pause'); e.preventDefault(); }
-      // Enter/Return → A button (interact). Fires through applyHotzone so the
-      // same toggle logic the controller's A button uses applies: open when
-      // adjacent to an interactable, close when the resulting modal is already
-      // on screen. (Mirrors the Y-and-Y / X-and-X / M-and-M close-on-same-key
-      // pattern the user expects.)
-      if (e.key === 'Enter') {
-        applyHotzone('a', true);
-        e.preventDefault();
-      }
+      // Modal hotkeys — match the on-screen controller layout for easy
+      // recall. Bottom-row buttons (Start / Menu / Select) map to home-row
+      // letters under the right hand: D / F / G.
+      //   D → Start  (Pause modal)
+      //   F → Menu   (Hub modal)
+      //   G → Select (Map modal)
+      const mk = e.key;
+      if (mk === 'd' || mk === 'D') { toggleModal('pause'); e.preventDefault(); }
+      if (mk === 'f' || mk === 'F') { toggleModal('hub');   e.preventDefault(); }
+      if (mk === 'g' || mk === 'G') { toggleModal('map');   e.preventDefault(); }
+      // (Enter/Space no longer mapped to A — the A key itself is now the
+      // interact binding, per the controller-matched keyboard layout.)
       // Arrow keys — modal navigation when a modal is open. Hub + Pause +
       // Aethryx cycle focus through their buttons; Map slides a cosmic-blue
       // cursor across the chart. Movement keys are ignored while a modal

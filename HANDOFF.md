@@ -1,4 +1,4 @@
-# AOV™ Saga · Viridia Expedition — Master Handoff
+# AOV™ Saga · Viridian Expedition — Master Handoff
 
 **Single source of truth. Replaces all prior handoffs.**
 **Last updated:** May 12, 2026 — end of merged session (asset polish + polish-pass combat-input + pre-combat bug sweep)

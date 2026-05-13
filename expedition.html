@@ -1757,6 +1757,10 @@
       ASSETS.moriFrames    = sliceMoriSheet(ASSETS.moriSheet);
       ASSETS.daemonFrames  = sliceDaemonSheet(ASSETS.daemonSheet);
       ASSETS.khronisFrames = sliceKhronisSheet(ASSETS.khronisSheet);
+
+      // Post-process the lava tile to a darker ash/cave look (variant C).
+      // See LAVA_BRIGHTNESS / LAVA_SATURATION above to tune.
+      if (ASSETS.lava) postProcessLavaTile(ASSETS.lava);
       // Combat — { punch:[c0..c3], kick:[…], blast:[…], sword:[…], blaster:[…] }
       ASSETS.combatFrames      = sliceCombatSheet(ASSETS.combatSheet);
       // NOTE: idle-without-smoke variant is a WIP — masking purple removed the
@@ -2486,6 +2490,37 @@
     }
 
     // Convert near-white pixels to transparent. Source sheet has solid white BG.
+    // ============ Lava tile post-process (variant C — ashy cave) ============
+    // The raw tile_lava.png reads as bright active magma — too high contrast
+    // against the lower-saturation player + enemy sprites and makes the
+    // south region feel like a hazard floor rather than a region you walk
+    // around in. This post-process drops the tile to brightness 0.40 and
+    // saturation 0.50 so it reads as cooled magma in a dark cave with
+    // residual ember glow. Both knobs exposed so the look can be tuned
+    // without touching pipeline code.
+    const LAVA_BRIGHTNESS = 0.40;   // 0..1 — multiplies RGB after desat
+    const LAVA_SATURATION = 0.50;   // 0..1 — 0=fully gray, 1=untouched
+
+    function postProcessLavaTile(canvas) {
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const sat   = LAVA_SATURATION;
+      const bright = LAVA_BRIGHTNESS;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2];
+        // Rec. 601 luma → gray midpoint we desaturate toward.
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        const dr = gray + (r - gray) * sat;
+        const dg = gray + (g - gray) * sat;
+        const db = gray + (b - gray) * sat;
+        data[i]   = Math.min(255, dr * bright);
+        data[i+1] = Math.min(255, dg * bright);
+        data[i+2] = Math.min(255, db * bright);
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
     function chromaKeyWhite(canvas) {
       const ctx = canvas.getContext('2d');
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);

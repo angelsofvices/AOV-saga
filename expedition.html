@@ -806,6 +806,8 @@
         <button class="faction-slot locked" disabled><span class="faction-name">?</span><span class="faction-status">Locked</span></button>
       </div>
 
+      <button class="pause-btn primary" id="summon-faction-btn" style="margin-top: 12px; width: 100%;">⟁ Summon Faction to Ship</button>
+
       <div class="aethryx-section-label" style="margin-top: 14px;">Destinations</div>
       <div class="pause-stack">
         <button class="pause-btn" disabled style="opacity:0.65; cursor:not-allowed;">Viridia — Current</button>
@@ -3044,6 +3046,79 @@
         haptic(8);
       });
     });
+
+    // ============ Summon Faction to Ship ============
+    // Teleports all 4 wired NPCs (Vol / Eur / Aur / Elz) to grouped positions
+    // around the player's current spot, in the player's current region. NPCs
+    // un-dock if they were docked, face the player, then resume their normal
+    // autonomous wander after a brief 0.5s pause.
+    //
+    // Layout: 4 cardinal directions around the player, ~72 px out (≈2 tiles).
+    // Each NPC faces inward toward the player so the spawn reads as a group
+    // rallying to the ship.
+    //
+    // Collision: each spot is npcBlocked-checked. If the ideal position is
+    // occupied (tree, house, another NPC, player), the function searches a
+    // small spiral around the target until a free spot is found. Falls back
+    // to the ideal position if 32 attempts fail (better visible-but-clipped
+    // than invisible).
+    function summonFactionToShip() {
+      const wiredIds = ['voltyran', 'eurakeon', 'aurexion', 'elzoran'];
+      // [dx, dy, faceTowardPlayer] for N / E / S / W
+      const offsets = [
+        { dx:   0, dy: -72, facing: 'down'  },   // N — faces down toward player
+        { dx:  72, dy:   0, facing: 'left'  },   // E — faces left toward player
+        { dx:   0, dy:  72, facing: 'up'    },   // S — faces up toward player
+        { dx: -72, dy:   0, facing: 'right' },   // W — faces right toward player
+      ];
+      const worldW = MAP_WIDTH  * TILE_SIZE;
+      const worldH = MAP_HEIGHT * TILE_SIZE;
+      // Spiral search offsets — tried if the ideal spot is blocked.
+      const spiral = [
+        [0,0], [16,0], [-16,0], [0,16], [0,-16],
+        [24,16], [-24,16], [24,-16], [-24,-16],
+        [32,0], [-32,0], [0,32], [0,-32],
+        [48,24], [-48,24], [48,-24], [-48,-24],
+        [16,40], [-16,40], [16,-40], [-16,-40],
+      ];
+      const placed = [];
+      for (let i = 0; i < wiredIds.length; i++) {
+        const npc = NPCS.find(n => n.id === wiredIds[i]);
+        if (!npc) continue;
+        const off = offsets[i];
+        const ideal_x = player.x + off.dx;
+        const ideal_y = player.y + off.dy;
+        // Update region BEFORE collision-checking (npcBlocked uses the
+        // active+region gate via npcBodyBox lookups for other NPCs)
+        npc.region = currentRegion;
+        npc.active = true;
+        let nx = ideal_x, ny = ideal_y, found = false;
+        for (const [sdx, sdy] of spiral) {
+          const tx = Math.max(0, Math.min(worldW - npc.w, ideal_x + sdx));
+          const ty = Math.max(0, Math.min(worldH - npc.h, ideal_y + sdy));
+          if (!npcBlocked(npc, tx, ty)) {
+            nx = tx; ny = ty; found = true; break;
+          }
+        }
+        npc.x = nx;
+        npc.y = ny;
+        // Face the player so the group reads as "rallying to the ship."
+        npc.facing    = off.facing;
+        npc.currentDir = 'idle';   // hold idle for half a second
+        npc.dirTimer  = 0.5;       // then re-pick a wander direction
+        npc.animFrame = 0;
+        npc.animTime  = 0;
+        placed.push(`${wiredIds[i]}@(${Math.round(nx)},${Math.round(ny)})${found ? '' : ' [fallback]'}`);
+      }
+      console.log('[summon] faction spawned:', placed.join(', '));
+      refreshFactionUI();
+      haptic(20);
+      closeModal();
+    }
+    const summonBtn = document.getElementById('summon-faction-btn');
+    if (summonBtn) {
+      summonBtn.addEventListener('click', summonFactionToShip);
+    }
 
     // Map marker — position the "you are here" dot inside the map placeholder
     // based on player's normalized position within the world bounds.

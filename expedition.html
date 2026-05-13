@@ -1038,46 +1038,52 @@
 
     // ============ Combat sheet (animation_combat_player.png) ============
     // 1536×1024 sprite sheet, 5 rows × 4 frames each. Each row is one combat
-    // animation: PUNCH, KICK, BLAST, SWORD, BLASTER. The leftmost ~350px of
-    // every row is a row-label glyph (PUNCH / KICK / BLAST / SWORD SWING /
-    // BLASTER SHOT) which we skip by starting frame col 0 at x≈485.
-    //   Measured from the contact-sheet probe:
-    //     row 0 (PUNCH)   y=  0..203
-    //     row 1 (KICK)    y=204..407
-    //     row 2 (BLAST)   y=408..611
-    //     row 3 (SWORD)   y=612..815
-    //     row 4 (BLASTER) y=816..1019
-    //     col centers (cross-row average): [485, 755, 1025, 1295]
-    //   frameW=280 fits each pose with margin; frameH=204 captures full row.
-    //   Background is a flat dark gray (RGB ~65,65,68); chromaKeyColor strips
-    //   it pre-bake so the character renders cleanly over grass / snow.
+    // animation: PUNCH, KICK, BLAST, SWORD, BLASTER. Each row's leftmost
+    // ~350px is a label glyph that the per-frame crops sit east of.
+    //
+    // Phase B.5: PER-FRAME variable source crop (was uniform 280×204). Each
+    // frame defines its own (srcX, srcW) so beam/effect frames (BLAST f3,
+    // SWORD f3, BLASTER f3) can capture the FULL beam tail without clipping
+    // — the BLASTER plasma blast extends to source x≈1428, ~370px past the
+    // character body. All frames bake at the SAME 4× downsample so character
+    // size stays consistent across the animation; the destination canvas
+    // width varies per frame (taller frames stay 51px = 204/4 source-pinned).
+    //
+    // Character body anchor lands at dest x=COMBAT_ANCHOR_X in every frame,
+    // independent of canvas width. The renderer aligns this anchor to the
+    // walk-box centerline so the character doesn't drift sideways during
+    // the animation.
+    //
+    // Source row Y bands (all 204 px tall):
+    //   PUNCH    y= 0..203    KICK     y=204..407    BLAST    y=408..611
+    //   SWORD    y=612..815   BLASTER  y=816..1019
+    //
+    // Per-frame [srcX, srcW] from the blob probe + 10px right margin so
+    // beam tails fade out cleanly:
     const COMBAT_SHEET = {
-      frameW: 280,
       frameH: 204,
-      cols: [485, 755, 1025, 1295],
-      // rowBases keyed by action name so the slicer can return a labelled map.
-      rowBases: {
-        punch:   203,
-        kick:    407,
-        blast:   611,
-        sword:   815,
-        blaster: 1019,
+      bakeScale: 4,                   // src→dest divisor (NEAREST), gives a 51-px tall dest
+      anchorOffset: 120,              // src px from charBodyX to crop left edge → dest 30
+      rowBases: { punch: 203, kick: 407, blast: 611, sword: 815, blaster: 1019 },
+      // [srcX, srcW] per (action, frameIndex). Width is multiple of 4 so
+      // bakeScale=4 produces an integer dest width (no half-pixel seams).
+      frames: {
+        punch:   [[320,200],[536,204],[757,216],[960,272]],
+        kick:    [[302,200],[523,200],[786,236],[974,196]],
+        blast:   [[310,192],[538,224],[730,272],[940,396]],   // f3 wide for blue beam
+        sword:   [[329,212],[530,220],[730,272],[940,360]],   // f3 wide for slash arc
+        blaster: [[332,208],[570,412],[680,300],[940,512]],   // f3 widest for plasma blast
       },
     };
-    // Combat display canvas — wider + taller than the walk box so punch/kick
-    // extensions and the blaster's gun arm fit without crushing. Beams on
-    // the BLAST and BLASTER rows extend past the right edge of their source
-    // frame and will clip a touch on the rightmost pose; can widen those two
-    // rows specifically in a Phase B.5 pass.
-    // Combat canvas matches the fly canvas dimensions exactly — 56×45.
-    // 80×60 was the first cut and read as 2.5× the walk box width on
-    // screen, dwarfing the world tiles. 56×45 stays in the walk/fly
-    // sprite family so combat reads as the same character firing a move,
-    // not a different character.
-    const CHAR_W_COMBAT = 56;
-    const CHAR_H_COMBAT = 45;            // matches CHAR_H — feet stay flush with walk
-    const COMBAT_OFFSET_X = (CHAR_W_COMBAT - CHAR_W) / 2;        // 12 (same as FLY_OFFSET_X)
-    const COMBAT_OFFSET_Y = 0;                                   // height matches walk — no Y nudge
+    // Dest canvas height — 204/4 = 51, padded to 56 to match the fly canvas
+    // height for clean foot-alignment math. Width is per-frame (each baked
+    // canvas has .width set from its srcW/4).
+    const CHAR_H_COMBAT  = 56;
+    // Character body anchor X within the dest canvas. Always 30 — that's
+    // (anchorOffset / bakeScale) = 120/4 = 30, the dest position the
+    // character body lands at after slicing. Consistent across all frames
+    // so the character doesn't drift even as the canvas grows for beams.
+    const COMBAT_ANCHOR_X = 30;
 
     // Combat animation timing. 4 frames per action × 60ms each = 240ms total
     // per move. Snappy enough that combo chains feel responsive; long enough
@@ -2070,14 +2076,13 @@
     // action name (punch / kick / blast / sword / blaster), each value an
     // array of 4 frame canvases.
     function sliceCombatSheet(sheetImg) {
-      // Pass 1: copy whole sheet to a source-res work canvas + chroma the
-      // gray BG. Threshold 95 strips both the flat-gray background AND the
-      // soft dust/smoke halo that the artist drew around action frames
-      // (sword swing, blaster, blast — all have a low-saturation gray haze
-      // extending well past the character that read as a giant gray box on
+      // Pass 1: copy the whole sheet to a source-res work canvas and chroma
+      // out the gray BG. Threshold 95 catches both the flat BG AND the soft
+      // dust/smoke halo the artist drew around action frames (sword, blast,
+      // blaster all had low-saturation gray haze that read as a gray box on
       // grass at threshold 35). Higher threshold can graze the very darkest
-      // character shadows but the largest-component pass below cleans that
-      // up by retaining only the connected character + their effect.
+      // character shadows but the largest-component pass below cleans those
+      // up by keeping only the character + their connected effect.
       const work = document.createElement('canvas');
       work.width  = sheetImg.naturalWidth  || sheetImg.width;
       work.height = sheetImg.naturalHeight || sheetImg.height;
@@ -2086,51 +2091,44 @@
       wctx.drawImage(sheetImg, 0, 0);
       chromaKeyColor(work, 65, 65, 68, 95);
 
-      // Pass 2: slice per row × 4 frames. Each frame goes through a per-frame
-      // SOURCE-RES work canvas so keepLargestComponent can isolate the
-      // character + their effect from adjacent-frame bleed (cols are spaced
-      // 270px apart with frameW=280 → 10px overlap, plus characters in
-      // neighbor frames extend toward each other). After the cleanup pass,
-      // NEAREST-bake to display size.
+      // Pass 2: slice using per-frame variable (srcX, srcW) so beam/effect
+      // frames capture their full visual rather than getting clipped at a
+      // fixed frame boundary. All frames bake at the SAME 4× downsample so
+      // character size stays consistent across the animation; the dest
+      // canvas WIDTH varies per frame (height fixed at CHAR_H_COMBAT).
+      // Each frame goes through a per-frame source-res scratch canvas so
+      // keepLargestComponent can isolate the character + connected effect
+      // from any adjacent-frame bleed, then NEAREST-bake to dest size.
       const result = { punch: [], kick: [], blast: [], sword: [], blaster: [] };
       const actions = Object.keys(result);
+      const scale = COMBAT_SHEET.bakeScale;
+      const srcH  = COMBAT_SHEET.frameH;
       for (const action of actions) {
         const baseY = COMBAT_SHEET.rowBases[action];
-        const cropY = baseY - COMBAT_SHEET.frameH + 1;
+        const srcY  = baseY - srcH + 1;
+        const frameSpec = COMBAT_SHEET.frames[action];
         for (let i = 0; i < COMBAT_FRAMES; i++) {
-          const centerX = COMBAT_SHEET.cols[i];
-          const cropX = centerX - COMBAT_SHEET.frameW / 2;
-          // Per-frame source-res scratch canvas
+          const [srcX, srcW] = frameSpec[i];
+          const destW = Math.floor(srcW / scale);
+          // Per-frame source-res scratch
           const fw = document.createElement('canvas');
-          fw.width  = COMBAT_SHEET.frameW;
-          fw.height = COMBAT_SHEET.frameH;
+          fw.width  = srcW;
+          fw.height = srcH;
           const fwctx = fw.getContext('2d');
           fwctx.imageSmoothingEnabled = false;
-          fwctx.drawImage(
-            work,
-            cropX, cropY, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH,
-            0, 0, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH
-          );
-          // keepLargestComponent (not keepCenterConnected) — combat-sheet
-          // characters are NOT centered horizontally per-row (BLASTER sits
-          // at the left of each frame, projecting blast to the right; PUNCH
-          // is more centered; etc). A fixed center-seed flood would miss
-          // the character on off-center rows. Largest-component is robust
-          // to character position: the character + their connected effect
-          // is always the biggest blob; bleed fragments from neighbor
-          // frames are smaller and get dropped.
+          fwctx.drawImage(work, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
           keepLargestComponent(fw);
-          // NEAREST-bake the cleaned source frame down to display size
+          // NEAREST-bake to dest. Dest height padded to CHAR_H_COMBAT for
+          // foot-alignment consistency; image fills from the BOTTOM up so
+          // feet land at the bottom edge of the canvas regardless of pose.
           const c = document.createElement('canvas');
-          c.width  = CHAR_W_COMBAT;
+          c.width  = destW;
           c.height = CHAR_H_COMBAT;
           const cctx = c.getContext('2d');
           cctx.imageSmoothingEnabled = false;
-          cctx.drawImage(
-            fw,
-            0, 0, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH,
-            0, 0, CHAR_W_COMBAT, CHAR_H_COMBAT
-          );
+          const destH_natural = Math.floor(srcH / scale);   // 51
+          const destY = CHAR_H_COMBAT - destH_natural;       // 5 — feet flush to bottom
+          cctx.drawImage(fw, 0, 0, srcW, srcH, 0, destY, destW, destH_natural);
           result[action].push(c);
         }
       }
@@ -3682,9 +3680,11 @@
           drawCryBalloon(npc, screenX, screenY);
         } else if (d.kind === 'player') {
           // Dispatch on player.combatAction → player.mode → idle/walk/fly:
-          //   combat (any action) → ASSETS.combatFrames[action] (56×45 canvas,
-          //                         X off -12, Y off 0 — matches the fly
-          //                         canvas anchor; mirrored if facing left)
+          //   combat (any action) → ASSETS.combatFrames[action]
+          //                         (variable-width × 56 canvas — width grows
+          //                         for beam frames; character anchored at
+          //                         dest x=COMBAT_ANCHOR_X aligned to walk
+          //                         box centerline; mirrored if facing left)
           //   idle (walk mode, no input) → ASSETS.idleFrames[pose][col]
           //                                (40×40 canvas, X off -4, Y off +5)
           //   walk → ASSETS.charFrames    (32×45 canvas, drawn at screenX,Y)
@@ -3694,20 +3694,27 @@
             const frames = ASSETS.combatFrames[player.combatAction];
             const sprite = frames && frames[player.combatPhase];
             if (sprite) {
-              const drawX = screenX - COMBAT_OFFSET_X;
-              const drawY = screenY + COMBAT_OFFSET_Y;
+              // Per-frame canvas width — varies because beam frames capture
+              // a wider source crop. Anchor X within each canvas is the
+              // constant COMBAT_ANCHOR_X so the character body stays in
+              // the same screen-space spot frame-to-frame.
+              const cw = sprite.width;
+              const charCenterX = screenX + CHAR_W / 2;          // walk-box centerline
               if (player.facing === 'left') {
-                // Horizontal flip for left-facing. Combat sheet is right-only;
-                // mirror around the canvas's vertical centerline.
+                // Mirror horizontally. Anchor for the mirrored canvas is
+                // (cw - COMBAT_ANCHOR_X) so the character body still lands
+                // at charCenterX. Beam extends LEFT of character.
+                const drawX = charCenterX - (cw - COMBAT_ANCHOR_X);
                 ctx.save();
-                ctx.translate(drawX + CHAR_W_COMBAT, drawY);
+                ctx.translate(drawX + cw, screenY);
                 ctx.scale(-1, 1);
                 ctx.drawImage(sprite, 0, 0);
                 ctx.restore();
               } else {
-                // Right / up / down all play right-facing for now. Up/down
-                // dedicated sprites can be added in a Phase B.5 pass.
-                ctx.drawImage(sprite, drawX, drawY);
+                // Right / up / down all play right-facing. Up/down dedicated
+                // sprites can be added in a Phase B.6 pass.
+                const drawX = charCenterX - COMBAT_ANCHOR_X;
+                ctx.drawImage(sprite, drawX, screenY);
               }
             }
             // Combat draws over everything else this frame — skip the

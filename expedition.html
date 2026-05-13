@@ -892,30 +892,34 @@
       'house-huge': { w: Math.round(8 * TILE_SIZE * 1.5), h: Math.round(6 * TILE_SIZE * 1.5), tileW: 12, tileH: 9, asset: 'houseHuge' },  // 384×288
     };
 
-    // Faction HQ (huge house) — bespoke colliders so the COURTYARD is walkable
-    // while the building, fountains, hedges, and perimeter walls stay solid.
-    // Coords are LOCAL to the 384×288 sprite (translated by obj.x/obj.y at
-    // build time). Player enters through the gold gate at the bottom-center
-    // of the perimeter wall — that gap is intentionally collider-free.
-    const HUGE_HOUSE_COLLIDERS = [
-      // ===== Castle building base (walls + steps) =====
-      // Top of building (dome / roof) intentionally left collider-free so
-      // player can stand near the back wall with the dome rendering above.
-      { x:  20, y: 140, w: 344, h:  70 },
-      // ===== Fountains (each is a small solid pool) =====
-      { x: 155, y: 215, w:  65, h:  50 },   // center fountain
-      { x:  30, y: 195, w:  50, h:  35 },   // left side pool
-      { x: 305, y: 195, w:  50, h:  35 },   // right side pool
-      // ===== Tree / topiary blobs in the courtyard =====
-      { x:   5, y: 205, w:  45, h:  55 },   // bottom-left greenery
-      { x: 335, y: 205, w:  45, h:  55 },   // bottom-right greenery
-      // ===== Perimeter wall (with gate gap in the middle) =====
-      { x:   0, y: 215, w:  25, h:  65 },   // outer wall — left
-      { x: 359, y: 215, w:  25, h:  65 },   // outer wall — right
-      { x:   0, y: 258, w: 145, h:  22 },   // bottom wall — left of gate
-      { x: 238, y: 258, w: 146, h:  22 },   // bottom wall — right of gate
-      // (Gap x=145-238 at y=258-280 is the OPEN GATE — walkable.)
+    // ============ Faction HQ region ============
+    // Walk up to the huge house in Central + tap A → enter HQ. Inside, the
+    // same hugehouse art is rendered at 1280x1024 (3.33x its Central size)
+    // as a single background sprite — courtyard finally has walking room.
+    // Player spawns just outside the gate; walk south off the region to
+    // exit back to Central.
+    const HQ_BG_W = 1280;
+    const HQ_BG_H = 1024;
+    const HQ_COLLIDERS = [
+      { x:   67, y: 467, w: 1146, h: 233 },   // building base
+      { x:  517, y: 717, w:  217, h: 167 },   // center fountain
+      { x:  100, y: 650, w:  167, h: 117 },   // left side pool
+      { x: 1017, y: 650, w:  167, h: 117 },   // right side pool
+      { x:   17, y: 683, w:  150, h: 183 },   // left greenery
+      { x: 1117, y: 683, w:  150, h: 183 },   // right greenery
+      { x:    0, y: 717, w:   83, h: 217 },   // outer wall left
+      { x: 1197, y: 717, w:   83, h: 217 },   // outer wall right
+      { x:    0, y: 860, w:  483, h:  73 },   // bottom wall left
+      { x:  793, y: 860, w:  487, h:  73 },   // bottom wall right
     ];
+    const hugeHouseState = {
+      adjacent:    false,
+      obj:         null,
+      lastWorldX:  0,
+      lastWorldY:  0,
+    };
+
+
     // Character — width matches a tile, height matches the sheet's true aspect ratio (200:280 = 0.714).
     const CHAR_W = 32;
     const CHAR_H = 45;
@@ -1397,6 +1401,14 @@
         tiles:   makeRegionTiles(1),     // ice — placeholder, no assets yet
         objects: [],
       },
+      hq: {
+        id: 'hq',
+        name: 'Faction HQ · Courtyard',
+        width:  MAP_WIDTH,
+        height: MAP_HEIGHT,
+        tiles:   makeRegionTiles(2),     // HQ floor (dispatch in drawTiles)
+        objects: [],
+      },
     };
     let currentRegion = 'central';
     let MAP_DATA = REGIONS[currentRegion];
@@ -1409,6 +1421,15 @@
     // Sized in LOGICAL pixels, matching the player's movement coordinate space.
     function buildColliders(mapData) {
       const out = [];
+      // HQ region — colliders come from the static HQ_COLLIDERS table, not
+      // from per-object derivation (the region has no placed objects; the
+      // courtyard art is rendered as a single background sprite).
+      if (mapData.id === 'hq') {
+        for (const c of HQ_COLLIDERS) {
+          out.push({ x: c.x, y: c.y, w: c.w, h: c.h });
+        }
+        return out;
+      }
       for (const obj of mapData.objects) {
         if (obj.type === 'tree') {
           // Trunk = the bottom-center 1×1 tile of the visual footprint. Formula
@@ -1420,25 +1441,10 @@
             w: TILE_SIZE,
             h: TILE_SIZE - 4,
           });
-        } else if (obj.type === 'house-huge') {
-          // Faction HQ — courtyard is walkable, so use the bespoke collider
-          // map (building base + fountains + hedges + perimeter wall with
-          // gate gap) instead of the single "bottom 2/3" footprint that
-          // applies to the other house types.
-          const baseX = obj.x * TILE_SIZE;
-          const baseY = obj.y * TILE_SIZE;
-          for (const c of HUGE_HOUSE_COLLIDERS) {
-            out.push({
-              x: baseX + c.x,
-              y: baseY + c.y,
-              w: c.w,
-              h: c.h,
-            });
-          }
         } else if (HOUSE_TYPES[obj.type]) {
-          // Other houses: collider = the bottom 2/3 of the visual footprint.
-          // The top third (roof) is walk-behindable so the player can stand
-          // at the back wall without bumping invisible air past the roof.
+          // Houses: collider = the bottom 2/3 of the visual footprint. The
+          // top third (roof) is walk-behindable so the player can stand at
+          // the back wall without bumping invisible air past the visible roof.
           const dims = HOUSE_TYPES[obj.type];
           const colliderH = Math.round(dims.h * 0.66);
           out.push({
@@ -2446,6 +2452,33 @@
         h: UFO_H,
       };
     }
+    // Adjacency check for the huge house in Central — sets hugeHouseState.adjacent
+    // when the player's foot-box overlaps a band just south of the building's
+    // bottom edge (where the gold gate is). Caches the obj ref so the A-press
+    // handler can read its world position.
+    function updateHugeHouseAdjacency() {
+      hugeHouseState.adjacent = false;
+      hugeHouseState.obj      = null;
+      if (currentRegion !== 'central') return;
+      const dims = HOUSE_TYPES['house-huge'];
+      for (const obj of MAP_DATA.objects) {
+        if (obj.type !== 'house-huge') continue;
+        // Interact zone: a band along the SOUTH bottom edge of the sprite,
+        // where the gate is visually. Centered on the bottom half of the
+        // building, extending a tile-and-a-half south into the open grass.
+        const ix = obj.x * TILE_SIZE + dims.w * 0.30;
+        const iy = obj.y * TILE_SIZE + dims.h - 8;
+        const iw = dims.w * 0.40;
+        const ih = TILE_SIZE * 1.5;
+        const interactBox = { x: ix, y: iy, w: iw, h: ih };
+        if (rectIntersect(playerFootbox(player.x, player.y), interactBox)) {
+          hugeHouseState.adjacent = true;
+          hugeHouseState.obj      = obj;
+        }
+        break;   // there's only one house-huge per region
+      }
+    }
+
     function updateUfoAdjacency() {
       const ib = playerInteractBox(player.x, player.y);
       ufoState.adjacent = rectIntersect(ib, ufoBodyBox());
@@ -2878,11 +2911,13 @@
       }
       // Enter / Space = A button (interact). Press only.
       if ((k === 'Enter' || k === ' ') && value) {
-        // Reproduce the A-button context flow.
         if (modalState.current === 'aethryx') { closeModal(); return true; }
         const exit = regionExitReady();
         if (exit === 'north') { transitionRegion('north');   return true; }
         if (exit === 'south') { transitionRegion('central'); return true; }
+        if (exit === 'hq')    { transitionRegion('hq');      return true; }
+        if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
+        if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
         if (ufoState.adjacent) { openModal('aethryx');       return true; }
         return true;
       }
@@ -2990,8 +3025,10 @@
           const exit = regionExitReady();
           if (exit === 'north') { transitionRegion('north');   return; }
           if (exit === 'south') { transitionRegion('central'); return; }
-          if (ufoState.adjacent) { openModal('aethryx');       return; }
-          // No interactable in range — A is interact-only now.
+          if (exit === 'hq')    { transitionRegion('hq');      return; }
+          if (exit === 'central-from-hq') { transitionRegion('central'); return; }
+          if (hugeHouseState.adjacent) { transitionRegion('hq'); return; }
+          if (ufoState.adjacent)       { openModal('aethryx');  return; }
           return;
         }
         console.log('[hotzone] press:', name);
@@ -3686,12 +3723,27 @@
           const cy = y * TILE_SIZE + half - camera.y;
           // Tile type dispatch: 0 = grass (Central), 1 = ice (North).
           const tType = MAP_DATA.tiles[y][x];
-          const tileAsset = (tType === 1) ? ASSETS.snow    : ASSETS.grass;
+          // Tile types: 0=grass (Central), 1=snow (North), 2=HQ floor
+          let tileAsset;
+          if      (tType === 2) tileAsset = ASSETS.hqFloor;
+          else if (tType === 1) tileAsset = ASSETS.snow;
+          else                   tileAsset = ASSETS.grass;
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(rot);
           ctx.drawImage(tileAsset, -half, -half);
           ctx.restore();
+        }
+      }
+      // HQ region — draw the hugehouse art as a single big sprite filling
+      // the top 1024 px (32 tiles) of the world. Renders AFTER tiles so the
+      // building covers the floor, but BEFORE Y-sorted sprites so the player
+      // can stand "in front of" it where Y-sort places them.
+      if (currentRegion === 'hq' && ASSETS.houseHuge) {
+        const sx = -camera.x;
+        const sy = -camera.y;
+        if (sx + HQ_BG_W >= 0 && sx < VIEWPORT_W && sy + HQ_BG_H >= 0 && sy < VIEWPORT_H) {
+          ctx.drawImage(ASSETS.houseHuge, sx, sy, HQ_BG_W, HQ_BG_H);
         }
       }
     }
@@ -3909,6 +3961,7 @@
         updateNPCs(dt);
         updateInteractions();
         updateUfoAdjacency();
+        updateHugeHouseAdjacency();
         updateCamera();
       }
       render();
@@ -3939,6 +3992,9 @@
       // the asset fails to load; falls back to it only when ASSETS.snow is
       // missing.
       if (!ASSETS.snow) ASSETS.snow = makeIceTileCanvas();
+      // HQ floor tile — stone-path color so the area beneath the courtyard
+      // art (and the south apron outside the gate) blends as paving.
+      ASSETS.hqFloor = makeHqFloorTileCanvas();
 
       // Reveal the stage
       const loadingEl = document.getElementById('loading');
@@ -3946,6 +4002,28 @@
 
       // Kick off the game loop
       requestAnimationFrame(loop);
+    }
+
+    // Procedural HQ floor tile — warm stone color matching the courtyard
+    // paving so the bottom apron (outside the gate) blends seamlessly into
+    // the hugehouse art above. 32x32 with a few subtle paver hints.
+    function makeHqFloorTileCanvas() {
+      const c = document.createElement('canvas');
+      c.width = TILE_SIZE; c.height = TILE_SIZE;
+      const cctx = c.getContext('2d');
+      const g = cctx.createLinearGradient(0, 0, 0, TILE_SIZE);
+      g.addColorStop(0, '#b5a890');
+      g.addColorStop(1, '#9b8e76');
+      cctx.fillStyle = g;
+      cctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      // A few darker grout flecks so it doesn't look like solid blocks.
+      cctx.fillStyle = 'rgba(60, 50, 35, 0.25)';
+      cctx.fillRect( 6,  4, 1, 1);
+      cctx.fillRect(20,  9, 1, 1);
+      cctx.fillRect(11, 18, 1, 1);
+      cctx.fillRect(26, 22, 1, 1);
+      cctx.fillRect(15, 27, 1, 1);
+      return c;
     }
 
     // Procedural ice tile — fallback used if /assets/tile_snow.png fails to
@@ -3993,6 +4071,20 @@
         player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of north
       } else if (from === 'north' && toRegion === 'central') {
         player.y = 6;                                       // enter from north of central
+      } else if (from === 'central' && toRegion === 'hq') {
+        // Stash the Central position so the HQ→Central return drops the
+        // player right back at the gate they came from.
+        hugeHouseState.lastWorldX = player.x;
+        hugeHouseState.lastWorldY = player.y;
+        // Spawn just south of the HQ gate gap — center x is roughly 640
+        // (mid of 483..793 gap), Y just below the perimeter wall.
+        player.x = 640 - CHAR_W / 2;
+        player.y = 950;
+      } else if (from === 'hq' && toRegion === 'central') {
+        // Drop player back where they were in Central, just south of the
+        // hugehouse gate.
+        player.x = hugeHouseState.lastWorldX || (MAP_WIDTH  * TILE_SIZE) / 2 - CHAR_W / 2;
+        player.y = hugeHouseState.lastWorldY || (MAP_HEIGHT * TILE_SIZE) / 2 - CHAR_H / 2;
       }
       // Reset transient state so the new region starts clean.
       player.animTime = 0; player.animFrame = 0;
@@ -4012,11 +4104,16 @@
         transitionRegion('central');
         return true;
       }
+      if (currentRegion === 'hq' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 4 && moveDown) {
+        transitionRegion('central');
+        return true;
+      }
       return false;
     }
     function regionExitReady() {
       if (currentRegion === 'central' && player.y <= 8) return 'north';
       if (currentRegion === 'north'   && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'south';
+      if (currentRegion === 'hq'      && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'central-from-hq';
       return null;
     }
 

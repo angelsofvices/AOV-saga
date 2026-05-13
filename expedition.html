@@ -858,6 +858,10 @@
       </div>
 
       <button class="pause-btn primary" id="summon-faction-btn" style="margin-top: 12px; width: 100%;">⟁ Summon Faction to Ship</button>
+      <button class="pause-btn"         id="store-loot-btn"      style="margin-top:  8px; width: 100%;">⟁ Store Loot in Ship</button>
+      <div class="map-label" style="margin-top: 6px; text-align: center;">
+        Ship Cargo · <span id="ship-cargo-count">0</span> items
+      </div>
 
       <div class="aethryx-section-label" style="margin-top: 14px;">Destinations</div>
       <div class="pause-stack">
@@ -1004,6 +1008,15 @@
     };
     // Potion adjacency — set every frame by updatePotionAdjacency.
     const potionState = { adjacent: false, obj: null };
+    // Ship cargo — items the player has off-loaded at the UFO. Same shape
+    // as player.inventory ({ id, name, qty, iconKey }) so the same render
+    // path can show either. Persists for the session.
+    const shipStorage = [];
+    function shipStorageCount() {
+      let n = 0;
+      for (const it of shipStorage) n += it.qty;
+      return n;
+    }
 
 
     // Character — width matches a tile, height matches the sheet's true aspect ratio (200:280 = 0.714).
@@ -1033,9 +1046,12 @@
     // Sheet has 4 rows × 6 cols of aura-animation frames (24 total). For
     // first cut we bake a SINGLE frame (top-left) as the static world
     // sprite. Animation cycle deferred. Display at 32×32 — small floor pickup.
-    const POTION_W = 32;
-    const POTION_H = 32;
-    const POTION_SHEET = { cropX: 60, cropY: 70, cropW: 200, cropH: 156 };
+    // Potion display — 14×20 to read as a bottle vs the 32×45 player.
+    // Source crop tightened around just the bottle (excludes the wider
+    // aura swirl) so the bake doesn't squash it.
+    const POTION_W = 14;
+    const POTION_H = 20;
+    const POTION_SHEET = { cropX: 95, cropY: 80, cropW: 110, cropH: 140 };
 
     // Voltyran display size — 1.2x the baseline so he reads as the anchor
     // elder of the four. Eurakeon's 2x scale still references NPC_W /
@@ -3739,7 +3755,7 @@
       modalState.current = name;
       // Per-modal open hooks (e.g., update map marker position).
       if (name === 'map') { updateMapMarker(); resetMapCursor(); }
-      if (name === 'aethryx') refreshFactionUI();
+      if (name === 'aethryx') { refreshFactionUI(); refreshShipCargoLabel(); }
       // Auto-focus the first interactive button so arrow nav has a starting
       // point. Slight delay so the modal's fade-in transition lands first.
       if (name === 'hub' || name === 'pause' || name === 'aethryx') {
@@ -3799,6 +3815,29 @@
       haptic(14);
       const total = player.inventory.find(it => it.id === 'potion').qty;
       console.log('[inventory] picked up Live Potion (qty: ' + total + ')');
+    }
+
+    // Move every item in player.inventory into shipStorage, summing
+    // quantities. Empties player.inventory so the player has carry room
+    // for fresh pickups. Items are not lost — they live in shipStorage
+    // and can later be viewed / withdrawn.
+    function storeLootInShip() {
+      let moved = 0;
+      for (const item of player.inventory) {
+        moved += item.qty;
+        const existing = shipStorage.find(s => s.id === item.id);
+        if (existing) existing.qty += item.qty;
+        else          shipStorage.push({ id: item.id, name: item.name, qty: item.qty, iconKey: item.iconKey });
+      }
+      player.inventory.length = 0;
+      haptic(20);
+      console.log('[loot] stored ' + moved + ' items in ship; cargo total now ' + shipStorageCount());
+      // Refresh the Aethryx label so the cargo count updates while the modal stays open.
+      refreshShipCargoLabel();
+    }
+    function refreshShipCargoLabel() {
+      const el = document.getElementById('ship-cargo-count');
+      if (el) el.textContent = shipStorageCount();
     }
 
     // Build + open the Astralpack inventory modal.
@@ -3960,6 +3999,10 @@
     const summonBtn = document.getElementById('summon-faction-btn');
     if (summonBtn) {
       summonBtn.addEventListener('click', summonFactionToShip);
+    }
+    const storeBtn = document.getElementById('store-loot-btn');
+    if (storeBtn) {
+      storeBtn.addEventListener('click', storeLootInShip);
     }
 
     // Map modal — Return to Ship button. Mobile convenience: thumb-tap

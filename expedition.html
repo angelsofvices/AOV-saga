@@ -328,8 +328,10 @@
         0 0 6px rgba(95, 168, 255, 0.14);
       border-radius: 2px;
     }
-    .hud-hearts { top: 4.5%; }
-    .hud-energy { top: 8.2%; }
+    /* Stacked tight — hearts directly above bolts, no vertical gap so they
+       read as one composite "vitality" readout in the top-center band. */
+    .hud-hearts { top: 4.2%; }
+    .hud-energy { top: 5.8%; }
     .heart-pip, .bolt-pip {
       image-rendering: pixelated;
       image-rendering: -moz-crisp-edges;
@@ -3578,7 +3580,13 @@
     // Each fire is { x, y, region, frame, frameTime } — tile-aligned. The
     // animation cycles 7 frames at FIRE_FPS. Player overlap with FIRE_HIT_BOX
     // calls playerTakeHit(1), which respects the invuln window.
-    const FIRE_W = 22, FIRE_H = 22;     // visible hit area; sprite is 32x32 with transparent margin
+    // Tight to the visible flame after Dec-2026 re-slice (purple only, no
+    // grass base). Flame occupies the bottom ~28px of the 32×32 sprite,
+    // centered horizontally with effective width ~22px. Hitbox sits in the
+    // center-bottom: 14px wide × 18px tall, leaving a 9px transparent margin
+    // on the left/right and a 14px gap at the top (no damage from the wispy
+    // smoke trail — only the body of the flame burns).
+    const FIRE_W = 14, FIRE_H = 18;     // tight contact hitbox
     const FIRE_FPS = 8;                  // 7 frames at 8fps = ~0.9s per loop
     const FIRE_FRAMES = 7;
     const FIRES = [
@@ -3602,9 +3610,12 @@
           f.frameTime -= step;
           f.frame = (f.frame + 1) % FIRE_FRAMES;
         }
-        // Collision — tight box centered on the fire base (the flame top is
-        // a feint; only the base burns).
-        const fbox = { x: f.x + (32 - FIRE_W) / 2, y: f.y + (32 - FIRE_H) / 2 + 4,
+        // Collision — tight box anchored to the flame's BASE (bottom of the
+        // 32-tall sprite cell). The flame is bottom-aligned in the cell after
+        // the purple-only re-slice, so the hitbox bottom matches the sprite
+        // bottom (with a small 2px floor margin for grass clearance).
+        const fbox = { x: f.x + (32 - FIRE_W) / 2,
+                       y: f.y + 32 - FIRE_H - 2,
                        w: FIRE_W, h: FIRE_H };
         if (rectIntersect(hitbox, fbox)) {
           playerTakeHit(1);
@@ -3623,15 +3634,16 @@
       3: { colors: ['W','O'],   countMin: 2, countMax: 3 },
       4: { colors: ['P','Blk'], countMin: 1, countMax: 2 },
     };
+    // All four chests live in the central region for now, scattered around
+    // the spawn so they're visible/findable during early testing. Tiers
+    // still scale the loot (1=R/B common → 4=P/Blk legendary) so the player
+    // sees the full gem spectrum without traversing the whole world.
+    // Coordinates in TILES (multiplied by TILE_SIZE=32 for world pixels).
     const CHESTS = [
-      // Central region — entry-tier sample chest near the spawn.
-      { id: 'c1-central', x: 14*32, y: 18*32, region: 'central',     tier: 1, opened: false },
-      // South-central — mid-tier chest tucked between the fires.
-      { id: 'c2-sc',      x: 24*32, y:  8*32, region: 'southcentral',tier: 2, opened: false },
-      // South lava — rare-tier chest amid the gravestones.
-      { id: 'c3-south',   x:  8*32, y: 18*32, region: 'south',       tier: 3, opened: false },
-      // North snow — legendary-tier chest.
-      { id: 'c4-north',   x: 22*32, y: 14*32, region: 'north',       tier: 4, opened: false },
+      { id: 'c1-central', x:  8*32, y: 10*32, region: 'central', tier: 1, opened: false },
+      { id: 'c2-central', x: 26*32, y: 11*32, region: 'central', tier: 2, opened: false },
+      { id: 'c3-central', x: 12*32, y: 28*32, region: 'central', tier: 3, opened: false },
+      { id: 'c4-central', x: 30*32, y: 26*32, region: 'central', tier: 4, opened: false },
     ];
     const chestState = { adjacent: false, chest: null };
     function chestBox(c) { return { x: c.x, y: c.y, w: CHEST_W, h: CHEST_H }; }
@@ -4216,6 +4228,26 @@
             console.log('[energy] fly drained — landing');
           }
         }
+      }
+      // ===== Active-regen contexts (override the spend-delay gate) =====
+      // (a) Astral Force Field — while the block animation is running, the
+      //     player is "channeling" energy and gains 1/sec regardless of when
+      //     they last spent. Sword-and-board feel: turtling up tops you off.
+      // (b) Idle nap pose (idlePose === 3, the bottom-row "lying down" idle)
+      //     fully restores energy across the 15s nap. Set rate to 1/sec so
+      //     a full empty pool refills inside one nap rotation.
+      const activeRegen =
+        (player.block && player.block.active) ? 1.0 :
+        (player.mode === 'walk' && player.idlePose === 3) ? 1.0 :
+        0;
+      if (activeRegen > 0 && s.energy < s.energyMax) {
+        player.energyRegenAccum += activeRegen * dtSec;
+        if (player.energyRegenAccum >= 1) {
+          const gain = Math.floor(player.energyRegenAccum);
+          s.energy = Math.min(s.energyMax, s.energy + gain);
+          player.energyRegenAccum -= gain;
+        }
+        return;   // skip the passive-regen branch — active regen takes precedence
       }
       // Passive regen — only after ENERGY_REGEN_DELAY_MS since last spend.
       const t = nowMs();

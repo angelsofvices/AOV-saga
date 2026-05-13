@@ -891,6 +891,31 @@
       'house-big':  { w: Math.round(5 * TILE_SIZE * 1.5), h: Math.round(5 * TILE_SIZE * 1.5), tileW: 8, tileH: 8, asset: 'houseBig'  },  // 240×240
       'house-huge': { w: Math.round(8 * TILE_SIZE * 1.5), h: Math.round(6 * TILE_SIZE * 1.5), tileW: 12, tileH: 9, asset: 'houseHuge' },  // 384×288
     };
+
+    // Faction HQ (huge house) — bespoke colliders so the COURTYARD is walkable
+    // while the building, fountains, hedges, and perimeter walls stay solid.
+    // Coords are LOCAL to the 384×288 sprite (translated by obj.x/obj.y at
+    // build time). Player enters through the gold gate at the bottom-center
+    // of the perimeter wall — that gap is intentionally collider-free.
+    const HUGE_HOUSE_COLLIDERS = [
+      // ===== Castle building base (walls + steps) =====
+      // Top of building (dome / roof) intentionally left collider-free so
+      // player can stand near the back wall with the dome rendering above.
+      { x:  20, y: 140, w: 344, h:  70 },
+      // ===== Fountains (each is a small solid pool) =====
+      { x: 155, y: 215, w:  65, h:  50 },   // center fountain
+      { x:  30, y: 195, w:  50, h:  35 },   // left side pool
+      { x: 305, y: 195, w:  50, h:  35 },   // right side pool
+      // ===== Tree / topiary blobs in the courtyard =====
+      { x:   5, y: 205, w:  45, h:  55 },   // bottom-left greenery
+      { x: 335, y: 205, w:  45, h:  55 },   // bottom-right greenery
+      // ===== Perimeter wall (with gate gap in the middle) =====
+      { x:   0, y: 215, w:  25, h:  65 },   // outer wall — left
+      { x: 359, y: 215, w:  25, h:  65 },   // outer wall — right
+      { x:   0, y: 258, w: 145, h:  22 },   // bottom wall — left of gate
+      { x: 238, y: 258, w: 146, h:  22 },   // bottom wall — right of gate
+      // (Gap x=145-238 at y=258-280 is the OPEN GATE — walkable.)
+    ];
     // Character — width matches a tile, height matches the sheet's true aspect ratio (200:280 = 0.714).
     const CHAR_W = 32;
     const CHAR_H = 45;
@@ -900,6 +925,11 @@
     // content's 1.060 aspect ratio with the player's height bracket.
     const NPC_W = 42;
     const NPC_H = 40;
+    // Voltyran display size — 1.2x the baseline so he reads as the anchor
+    // elder of the four. Eurakeon's 2x scale still references NPC_W /
+    // NPC_H (unchanged) so this bump only affects Vol.
+    const VOL_DISPLAY_W = 50;
+    const VOL_DISPLAY_H = 48;
     // Eurakeon-specific display size. He reads as a larger, more imposing
     // presence than Voltyran — baked at 2x Voltyran's footprint (84×80). The
     // slicer uses these constants so the source 240×280 frame is scaled to
@@ -1390,10 +1420,25 @@
             w: TILE_SIZE,
             h: TILE_SIZE - 4,
           });
+        } else if (obj.type === 'house-huge') {
+          // Faction HQ — courtyard is walkable, so use the bespoke collider
+          // map (building base + fountains + hedges + perimeter wall with
+          // gate gap) instead of the single "bottom 2/3" footprint that
+          // applies to the other house types.
+          const baseX = obj.x * TILE_SIZE;
+          const baseY = obj.y * TILE_SIZE;
+          for (const c of HUGE_HOUSE_COLLIDERS) {
+            out.push({
+              x: baseX + c.x,
+              y: baseY + c.y,
+              w: c.w,
+              h: c.h,
+            });
+          }
         } else if (HOUSE_TYPES[obj.type]) {
-          // Houses: collider = the bottom 2/3 of the visual footprint. The
-          // top third (roof) is walk-behindable so the player can stand at
-          // the back wall without bumping invisible air past the visible roof.
+          // Other houses: collider = the bottom 2/3 of the visual footprint.
+          // The top third (roof) is walk-behindable so the player can stand
+          // at the back wall without bumping invisible air past the roof.
           const dims = HOUSE_TYPES[obj.type];
           const colliderH = Math.round(dims.h * 0.66);
           out.push({
@@ -2285,7 +2330,7 @@
         framesKey: 'voltyranFrames',
         walkOrder: VOLTYRAN_WALK_ORDER,
         x: 400, y: 320,
-        w: NPC_W, h: NPC_H,
+        w: VOL_DISPLAY_W, h: VOL_DISPLAY_H,
         speed: 40,                 // px / second (player is 96)
         facing: 'down',            // starting direction (used for first render)
         animFps: 6,
@@ -3304,6 +3349,42 @@
     }
 
     document.querySelectorAll('.hotzone').forEach(bindHotzone);
+
+    // ============ Tap-to-interact on world objects ============
+    // Tapping a sprite that's currently showing an INTERACT prompt is
+    // equivalent to pressing A. First wired interactable: the UFO.
+    function worldFromTap(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const sx   = canvas.width  / rect.width;
+      const sy   = canvas.height / rect.height;
+      const cx   = (clientX - rect.left) * sx;
+      const cy   = (clientY - rect.top)  * sy;
+      return { x: cx + camera.x, y: cy + camera.y };
+    }
+    function handleWorldTap(e) {
+      if (modalState.current) return;
+      let cx, cy;
+      if (e.changedTouches && e.changedTouches.length) {
+        cx = e.changedTouches[0].clientX;
+        cy = e.changedTouches[0].clientY;
+      } else {
+        cx = e.clientX;
+        cy = e.clientY;
+      }
+      const wp = worldFromTap(cx, cy);
+      if (ufoState.adjacent) {
+        const ux = UFO_TILE_X * TILE_SIZE;
+        const uy = UFO_TILE_Y * TILE_SIZE;
+        if (wp.x >= ux && wp.x < ux + UFO_W && wp.y >= uy && wp.y < uy + UFO_H) {
+          haptic(12);
+          openModal('aethryx');
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+    canvas.addEventListener('click',      handleWorldTap);
+    canvas.addEventListener('touchstart', handleWorldTap, { passive: false });
 
     // ============ Fix 2: D-pad drag-to-turn ============
     // Track which hotzone each in-flight finger is currently OVER (separate

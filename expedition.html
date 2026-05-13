@@ -285,20 +285,71 @@
       box-shadow: 0 0 3px rgba(95, 200, 255, 0.6);
     }
     .hud-bar-text { font-size: 4.5px; color: var(--gold-pale); min-width: 28px; text-align: right; }
+    /* Gem credit counter — moved to top-right corner Dec 2026 to make room
+       for the heart/energy pip rows in the top-center band. Shows total
+       credit value across all 8 colors; per-color breakdown is in Astralpack. */
     .hud-gems-panel {
-      top: 6.7%; left: 50%; transform: translateX(-50%);
+      top: 6.7%; right: 9%;
       display: flex; flex-direction: column; align-items: center;
-      padding: 2px 8px 3px; min-width: 15%;
+      padding: 2px 8px 3px; min-width: 14%;
     }
-    .hud-gem-icon {
-      font-size: 9px; color: #b08bff;
-      text-shadow: 0 0 4px rgba(168, 124, 255, 0.7); line-height: 1;
+    .hud-gem-icon-img {
+      width: 14px; height: 16px;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      filter: drop-shadow(0 0 3px rgba(255, 110, 90, 0.55));
+      line-height: 1;
     }
     .hud-gem-count {
       font-family: var(--font-display, 'Cinzel', serif);
       font-size: 7px; color: var(--gold-bright); letter-spacing: 0.05em;
     }
     .hud-gem-label { font-size: 3.5px; letter-spacing: 0.25em; color: var(--mist-deep, #7a7390); }
+
+    /* ============ Heart + Energy pip rows (Dec 2026) ============
+       Top-center stack: hearts on top (with beat-pulse when full), energy
+       bolts directly below. Each row is a horizontal flex of 10 <img>
+       elements that swap src between full/grey state based on stats.
+       pointer-events:none — they're informational, not interactive. */
+    .hud-hearts, .hud-energy {
+      position: absolute;
+      left: 50%; transform: translateX(-50%);
+      display: flex;
+      gap: 1.5px;
+      pointer-events: none;
+      padding: 1px 4px;
+      background: linear-gradient(135deg,
+        rgba(10, 6, 24, 0.28) 0%,
+        rgba(20, 14, 44, 0.16) 50%,
+        rgba(10, 6, 24, 0.28) 100%);
+      border: 1px solid rgba(232, 200, 120, 0.42);
+      box-shadow:
+        0 0 0 1px rgba(95, 168, 255, 0.08) inset,
+        0 0 6px rgba(95, 168, 255, 0.14);
+      border-radius: 2px;
+    }
+    .hud-hearts { top: 4.5%; }
+    .hud-energy { top: 8.2%; }
+    .heart-pip, .bolt-pip {
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      display: block;
+      flex-shrink: 0;
+    }
+    .heart-pip { width: 11px; height: 10px; }
+    .bolt-pip  { width:  7px; height: 11px; }
+    /* Subtle beat-pulse on the heart row ONLY when at full HP. Stops the
+       instant any heart goes grey, providing visceral "you're hurt" feedback
+       without needing a separate damage flash. ~1.05s loop, low scale delta. */
+    @keyframes hudHeartBeat {
+      0%, 100% { transform: translateX(-50%) scale(1.00); }
+      30%      { transform: translateX(-50%) scale(1.06); }
+      45%      { transform: translateX(-50%) scale(1.02); }
+      60%      { transform: translateX(-50%) scale(1.05); }
+    }
+    .hud-hearts.full {
+      animation: hudHeartBeat 1.05s ease-in-out infinite;
+    }
     .hud-enemy-warning {
       top: 6.7%; right: 9%;
       display: flex; flex-direction: column; align-items: center;
@@ -960,6 +1011,8 @@
            space, NOT screen-percent. pointer-events:none on the wrapper +
            every child so taps still land on the hotzones below. -->
       <div class="hud-overlay" id="hud-overlay">
+          <!-- Player name/level chip (top-left). Heart/energy bars removed in
+               Dec 2026 — moved to the top-center pip rows below. -->
           <div class="hud-player-panel">
             <div class="hud-portrait" id="hud-portrait"></div>
             <div class="hud-stats">
@@ -967,22 +1020,22 @@
                 <span class="hud-name">PLAYER</span>
                 <span class="hud-lv">LV.<span id="hud-level">1</span></span>
               </div>
-              <div class="hud-bar hud-hp">
-                <span class="hud-bar-glyph">♥</span>
-                <div class="hud-bar-segments" id="hud-hp-segments"></div>
-                <span class="hud-bar-text" id="hud-hp-text">500 / 500</span>
-              </div>
-              <div class="hud-bar hud-astral">
-                <span class="hud-bar-glyph">⚡</span>
-                <div class="hud-bar-segments" id="hud-astral-segments"></div>
-                <span class="hud-bar-text" id="hud-astral-text">5 / 5</span>
-              </div>
             </div>
           </div>
+          <!-- Heart pip row (top-center). 10 pips, each shows red or grey based
+               on player.stats.hp. When at full HP, container gets .full class
+               which runs the beat-pulse keyframe. -->
+          <div class="hud-hearts full" id="hud-hearts"></div>
+          <!-- Energy bolt pip row (directly under hearts). Same 10-pip layout.
+               No beat anim — bolts stay calm to differentiate from hearts. -->
+          <div class="hud-energy" id="hud-energy"></div>
+          <!-- Gem credit counter (top-right). Shows running total of gem-tier
+               credits accumulated. R=10, B=20, G=40, Y=80, W=160, O=320,
+               P=640, Blk=1080. Per-color breakdown lives in Astralpack modal. -->
           <div class="hud-gems-panel">
-            <span class="hud-gem-icon">◆</span>
-            <span class="hud-gem-count"><span id="hud-gems-current">0</span> / <span id="hud-gems-max">9</span></span>
-            <span class="hud-gem-label">ASTRAL GEMS</span>
+            <img class="hud-gem-icon-img" id="hud-gem-icon-img" alt="" />
+            <span class="hud-gem-count" id="hud-gems-current">0</span>
+            <span class="hud-gem-label">CREDITS</span>
           </div>
           <div class="hud-enemy-warning" id="hud-enemy-warning" hidden>
             <span class="hud-enemy-flame">▲</span>
@@ -2151,6 +2204,44 @@
       // Potion sheet — animated aura PNG; we bake the top-left frame as
       // ASSETS.potion (static for now).
       potionSheet: { src: '/assets/animation_live_potion.png', raw: true },
+      // ===== HUD pip icons (hearts + energy bolts) =====
+      // Each is a pre-sliced 1-bit-mask PNG (transparent BG). Rendered via
+      // <img> in the HUD overlay; we DON'T bake to canvas — direct <img>
+      // src swap lets CSS animations (beat pulse) ride them.
+      heartRed:    { src: '/assets/hud_heart_red.png',   raw: true },
+      heartGrey:   { src: '/assets/hud_heart_grey.png',  raw: true },
+      boltYellow:  { src: '/assets/hud_bolt_yellow.png', raw: true },
+      boltGrey:    { src: '/assets/hud_bolt_grey.png',   raw: true },
+      // ===== Gem sprites (HUD icon + in-world pickup) =====
+      // HUD: only Red shown as the counter icon glyph next to total credits.
+      // World: 8 separate colors dropped from chests; player walks over to collect.
+      gemHudR:    { src: '/assets/hud_gem_R.png',   raw: true },
+      gemWorldR:  { src: '/assets/world_gem_R.png', raw: true },
+      gemWorldB:  { src: '/assets/world_gem_B.png', raw: true },
+      gemWorldG:  { src: '/assets/world_gem_G.png', raw: true },
+      gemWorldY:  { src: '/assets/world_gem_Y.png', raw: true },
+      gemWorldW:  { src: '/assets/world_gem_W.png', raw: true },
+      gemWorldO:  { src: '/assets/world_gem_O.png', raw: true },
+      gemWorldP:  { src: '/assets/world_gem_P.png', raw: true },
+      gemWorldBlk:{ src: '/assets/world_gem_Blk.png', raw: true },
+      // ===== Fire hazard frames (7-frame purple-flame animation) =====
+      // Placed in southcentral region tiles. Player overlap → -1 heart with
+      // 1.5s invuln. Loaded raw + drawn directly by render loop.
+      fireF0: { src: '/assets/hazard_fire_f0.png', raw: true },
+      fireF1: { src: '/assets/hazard_fire_f1.png', raw: true },
+      fireF2: { src: '/assets/hazard_fire_f2.png', raw: true },
+      fireF3: { src: '/assets/hazard_fire_f3.png', raw: true },
+      fireF4: { src: '/assets/hazard_fire_f4.png', raw: true },
+      fireF5: { src: '/assets/hazard_fire_f5.png', raw: true },
+      fireF6: { src: '/assets/hazard_fire_f6.png', raw: true },
+      // ===== Chest sprites (4 tiers) =====
+      // chest1 → spawns R/B gems (common). chest2 → G/Y. chest3 → W/O.
+      // chest4 → P/Blk (rarest). Walk to + press A to open. Each chest is
+      // one-shot — opening sets opened=true and the sprite stays.
+      chest1Sprite: { src: '/assets/obj_chest1_sprite.png', raw: true },
+      chest2Sprite: { src: '/assets/obj_chest2_sprite.png', raw: true },
+      chest3Sprite: { src: '/assets/obj_chest3_sprite.png', raw: true },
+      chest4Sprite: { src: '/assets/obj_chest4_sprite.png', raw: true },
     };
 
     // After load, ASSETS[key] is a ready-to-blit HTMLCanvasElement at the target size.
@@ -3483,6 +3574,137 @@
       ufoState.adjacent = rectIntersect(ib, ufoBodyBox());
     }
 
+    // ============ Fire hazard entities (Dec 2026) ============
+    // Each fire is { x, y, region, frame, frameTime } — tile-aligned. The
+    // animation cycles 7 frames at FIRE_FPS. Player overlap with FIRE_HIT_BOX
+    // calls playerTakeHit(1), which respects the invuln window.
+    const FIRE_W = 22, FIRE_H = 22;     // visible hit area; sprite is 32x32 with transparent margin
+    const FIRE_FPS = 8;                  // 7 frames at 8fps = ~0.9s per loop
+    const FIRE_FRAMES = 7;
+    const FIRES = [
+      // South-central region — 4 fire patches between Central and South lava.
+      // Coordinates are world pixels (tile units * TILE_SIZE = 32).
+      { x: 7*32,  y:  9*32, region: 'southcentral', frame: 0, frameTime: 0 },
+      { x: 18*32, y: 12*32, region: 'southcentral', frame: 2, frameTime: 0 },
+      { x: 11*32, y: 20*32, region: 'southcentral', frame: 4, frameTime: 0 },
+      { x: 22*32, y: 24*32, region: 'southcentral', frame: 1, frameTime: 0 },
+      { x:  5*32, y: 25*32, region: 'southcentral', frame: 5, frameTime: 0 },
+      { x: 16*32, y:  6*32, region: 'southcentral', frame: 3, frameTime: 0 },
+    ];
+    function updateHazards(dt) {
+      const hitbox = playerFootbox(player.x, player.y);
+      for (const f of FIRES) {
+        if (f.region !== currentRegion) continue;
+        // Animate every frame, even if off-screen — cheap.
+        f.frameTime += dt;
+        const step = 1 / FIRE_FPS;
+        while (f.frameTime >= step) {
+          f.frameTime -= step;
+          f.frame = (f.frame + 1) % FIRE_FRAMES;
+        }
+        // Collision — tight box centered on the fire base (the flame top is
+        // a feint; only the base burns).
+        const fbox = { x: f.x + (32 - FIRE_W) / 2, y: f.y + (32 - FIRE_H) / 2 + 4,
+                       w: FIRE_W, h: FIRE_H };
+        if (rectIntersect(hitbox, fbox)) {
+          playerTakeHit(1);
+        }
+      }
+    }
+
+    // ============ Chest entities (Dec 2026) ============
+    // Each chest is { id, x, y, region, tier, opened }. Tier maps to gem
+    // table — chest1 → R/B, chest2 → G/Y, chest3 → W/O, chest4 → P/Blk.
+    // Walk up and press A to open: spawns 2-4 gems around the chest position.
+    const CHEST_W = 32, CHEST_H = 32;
+    const CHEST_LOOT_TABLE = {
+      1: { colors: ['R','B'],   countMin: 3, countMax: 5 },
+      2: { colors: ['G','Y'],   countMin: 2, countMax: 4 },
+      3: { colors: ['W','O'],   countMin: 2, countMax: 3 },
+      4: { colors: ['P','Blk'], countMin: 1, countMax: 2 },
+    };
+    const CHESTS = [
+      // Central region — entry-tier sample chest near the spawn.
+      { id: 'c1-central', x: 14*32, y: 18*32, region: 'central',     tier: 1, opened: false },
+      // South-central — mid-tier chest tucked between the fires.
+      { id: 'c2-sc',      x: 24*32, y:  8*32, region: 'southcentral',tier: 2, opened: false },
+      // South lava — rare-tier chest amid the gravestones.
+      { id: 'c3-south',   x:  8*32, y: 18*32, region: 'south',       tier: 3, opened: false },
+      // North snow — legendary-tier chest.
+      { id: 'c4-north',   x: 22*32, y: 14*32, region: 'north',       tier: 4, opened: false },
+    ];
+    const chestState = { adjacent: false, chest: null };
+    function chestBox(c) { return { x: c.x, y: c.y, w: CHEST_W, h: CHEST_H }; }
+    function updateChestAdjacency() {
+      chestState.adjacent = false;
+      chestState.chest    = null;
+      const ib = playerInteractBox(player.x, player.y);
+      for (const c of CHESTS) {
+        if (c.region !== currentRegion) continue;
+        if (c.opened) continue;
+        if (rectIntersect(ib, chestBox(c))) {
+          chestState.adjacent = true;
+          chestState.chest    = c;
+          return;
+        }
+      }
+    }
+    function openChest(c) {
+      if (c.opened) return;
+      c.opened = true;
+      const tbl = CHEST_LOOT_TABLE[c.tier] || CHEST_LOOT_TABLE[1];
+      const count = tbl.countMin + Math.floor(Math.random() * (tbl.countMax - tbl.countMin + 1));
+      console.log('[chest] opened tier-' + c.tier + ' → spawning ' + count + ' gems');
+      for (let i = 0; i < count; i++) {
+        const color = tbl.colors[Math.floor(Math.random() * tbl.colors.length)];
+        // Spawn within ~36px radius around chest center, random angle.
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 14 + Math.random() * 22;
+        GEM_DROPS.push({
+          color,
+          x: c.x + CHEST_W/2 + Math.cos(ang) * dist - 7,
+          y: c.y + CHEST_H/2 + Math.sin(ang) * dist - 9,
+          region: c.region,
+          spawnTime: nowMs(),
+          bobPhase: Math.random() * Math.PI * 2,
+        });
+      }
+      haptic(16);
+    }
+
+    // ============ Gem drop entities (in-world pickups) ============
+    // Spawned by openChest. Each is { color, x, y, region, spawnTime, bobPhase }.
+    // Auto-collect on player overlap after a brief grace period (so they
+    // don't pop instantly while still spawning). Adds to player.stats.gems
+    // and increments gemCredits.
+    const GEM_W = 14, GEM_H = 18;
+    const GEM_PICKUP_GRACE_MS = 400;   // gems are uncollectable for first 400ms
+    const GEM_DROPS = [];
+    function updateGemDrops(dt) {
+      const hb = playerFootbox(player.x, player.y);
+      const t  = nowMs();
+      for (let i = GEM_DROPS.length - 1; i >= 0; i--) {
+        const g = GEM_DROPS[i];
+        if (g.region !== currentRegion) continue;
+        g.bobPhase += dt * 4;   // bob speed
+        if (t - g.spawnTime < GEM_PICKUP_GRACE_MS) continue;
+        const gbox = { x: g.x, y: g.y, w: GEM_W, h: GEM_H };
+        if (rectIntersect(hb, gbox)) {
+          collectGem(g.color);
+          GEM_DROPS.splice(i, 1);
+        }
+      }
+    }
+    function collectGem(color) {
+      const s = player.stats;
+      if (!(color in s.gems)) return;
+      s.gems[color] += 1;
+      const tier = GEM_TIER[color] || 0;
+      s.gemCredits += tier;
+      console.log('[gem] +1 ' + color + ' (+' + tier + ' credits → ' + s.gemCredits + ')');
+      haptic(6);
+    }
+
     // ============ NPC interaction (touch cry) ============
     // When the player's foot-box (expanded by INTERACT_PAD on every side) overlaps
     // an NPC's body-box, a small olden-language line from that NPC's cries pool
@@ -3707,14 +3929,25 @@
       inventory: [],
       stats: {
         level:           1,
-        hp:              500,
-        hpMax:           500,
-        hpSegments:      5,
-        astralEnergy:    5,
-        astralEnergyMax: 5,
-        astralGems:      0,
-        astralGemsMax:   9,
+        // Discrete heart system — 10 pips, each = 1 hit. Replaces the old 500hp bar.
+        hp:              10,
+        hpMax:           10,
+        // Discrete energy bolts — 10 pips. Punch=1, Kick=2, Sword/Blaster combo=4,
+        // Fly drains 0.1/sec. Regen +1 per 2s after 3s of no spending.
+        energy:          10,
+        energyMax:       10,
+        // Per-color gem inventory (R/B/G/Y/W/O/P/Blk). Each color has a tier-credit
+        // value (10/20/40/80/160/320/640/1080). Total credits = sum(count * tier).
+        gems: { R:0, B:0, G:0, Y:0, W:0, O:0, P:0, Blk:0 },
+        gemCredits: 0,   // running total of (color count * tier value) for HUD readout
       },
+      // Invulnerability window after taking a hit — prevents stunlock when stepping
+      // into multi-tile hazards like fire pits. ms timestamp of expiry.
+      invulnUntil: 0,
+      // Energy spend tracking — refreshed whenever energy is consumed. Regen tick
+      // only fires once lastEnergySpendAt + ENERGY_REGEN_DELAY_MS has elapsed.
+      lastEnergySpendAt: 0,
+      energyRegenAccum: 0,   // fractional accumulator so 0.1/sec drain works smoothly
       objective: { text: 'Find the Astral Fragment', current: 0, max: 1 },
       hudEnabled: true,
       // Astral Force Field state. While block.active, the player is rooted
@@ -3730,6 +3963,26 @@
     // mode signal (walk / run / fly) by also tracking double-tap timing.
     const keyInput = { up: false, down: false, left: false, right: false };
     const joyInput = { up: false, down: false, left: false, right: false };
+
+    // ============ Hearts + Energy economy (Dec 2026) ============
+    // Costs charged to player.stats.energy. Action is blocked silently if
+    // current energy < cost (no animation plays, no decrement happens).
+    const ENERGY_COST = { punch: 1, kick: 2, sword: 4, blaster: 4, blast: 4 };
+    // Continuous fly drain — energy per second while fly mode is engaged.
+    // 3 per 30s = 0.1/sec → fully charged → empty after 100s of nonstop flight.
+    const FLY_DRAIN_PER_SEC = 0.1;
+    // Regen tuning: after 3s of no spending, regen +1 every 2s. Empty → full
+    // takes 3 + 20 = 23s of standing still. Tight enough to feel scarce.
+    const ENERGY_REGEN_DELAY_MS = 3000;
+    const ENERGY_REGEN_PER_SEC  = 0.5;   // +1 every 2 sec
+    // Damage invulnerability — short hit-stun window so a single fire tile
+    // doesn't stunlock the heart bar to 0 in a single second.
+    const INVULN_MS = 1500;
+
+    // Gem tier credit values — each gem of that color is worth this many
+    // 'credits' in the running total. Doubling progression for R..P, then
+    // a slight bump for Blk (1080 instead of 1280) per design spec.
+    const GEM_TIER = { R: 10, B: 20, G: 40, Y: 80, W: 160, O: 320, P: 640, Blk: 1080 };
 
     // Run multiplier — applied while B is held. Faster than walk, slower than
     // fly. Affects both movement speed and walk-cycle animation FPS so feet
@@ -3910,9 +4163,72 @@
     // again mid-animation restarts at frame 0 with the new action. The
     // ticker in update() clears the action when COMBAT_TOTAL_MS has elapsed.
     function fireCombatAction(action) {
+      // Energy gate — block silently if not enough juice. Caller already
+      // logged the input; we just refuse to spawn the anim + decrement.
+      const cost = ENERGY_COST[action] || 0;
+      if (cost > 0) {
+        if (player.stats.energy < cost) {
+          console.log('[energy] blocked ' + action + ' (need ' + cost + ', have ' + player.stats.energy + ')');
+          return;
+        }
+        player.stats.energy = Math.max(0, player.stats.energy - cost);
+        player.lastEnergySpendAt = nowMs();
+      }
       player.combatAction    = action;
       player.combatPhase     = 0;
       player.combatStartedAt = nowMs();
+    }
+
+    // Apply N hearts of damage to the player, respecting the invuln window.
+    // Returns true if damage actually landed. Caller should check return for
+    // hit-feedback (camera shake, sfx, etc.) — for now just decrements.
+    function playerTakeHit(amount) {
+      const t = nowMs();
+      if (t < player.invulnUntil) return false;
+      amount = Math.max(1, amount | 0);
+      player.stats.hp = Math.max(0, player.stats.hp - amount);
+      player.invulnUntil = t + INVULN_MS;
+      console.log('[combat] player took ' + amount + ' damage, hp=' + player.stats.hp + '/' + player.stats.hpMax);
+      if (player.stats.hp <= 0) {
+        console.log('[combat] player KO (placeholder — game over hook TODO)');
+        // Soft-revive at full HP for now so testing continues. Replace with
+        // proper game-over screen + respawn-to-UFO logic in a later pass.
+        player.stats.hp = player.stats.hpMax;
+      }
+      return true;
+    }
+
+    // Energy regen + fly-drain ticker. Called once per frame from the main
+    // update loop. dtSec = seconds since last frame.
+    function tickEnergyEconomy(dtSec) {
+      const s = player.stats;
+      // Fly drain — only while sustained-fly mode is engaged (bState.flyEnabled).
+      // We use the actual fly-active check from getMovementMode() so the drain
+      // matches the wing animation: airborne == draining.
+      if (typeof bState !== 'undefined' && bState && bState.flyEnabled) {
+        const drain = FLY_DRAIN_PER_SEC * dtSec;
+        if (drain > 0 && s.energy > 0) {
+          s.energy = Math.max(0, s.energy - drain);
+          player.lastEnergySpendAt = nowMs();
+          // Out of fuel → drop fly mode so the player gracefully grounds.
+          if (s.energy <= 0) {
+            bState.flyEnabled = false;
+            console.log('[energy] fly drained — landing');
+          }
+        }
+      }
+      // Passive regen — only after ENERGY_REGEN_DELAY_MS since last spend.
+      const t = nowMs();
+      if (t - player.lastEnergySpendAt >= ENERGY_REGEN_DELAY_MS && s.energy < s.energyMax) {
+        player.energyRegenAccum += ENERGY_REGEN_PER_SEC * dtSec;
+        if (player.energyRegenAccum >= 1) {
+          const gain = Math.floor(player.energyRegenAccum);
+          s.energy = Math.min(s.energyMax, s.energy + gain);
+          player.energyRegenAccum -= gain;
+        }
+      } else if (s.energy >= s.energyMax) {
+        player.energyRegenAccum = 0;
+      }
     }
 
     // ============ L/R wiped (Nov 2026 remap) ============
@@ -3962,6 +4278,9 @@
         if (exit === 'hq')    { transitionRegion('hq');      return true; }
         if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
         if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
+        if (chestState.adjacent && chestState.chest) {
+          openChest(chestState.chest); return true;
+        }
         if (potionState.adjacent && potionState.obj) {
           pickUpPotion(potionState.obj); return true;
         }
@@ -4118,6 +4437,9 @@
           if (exit === 'hq')    { transitionRegion('hq');      return; }
           if (exit === 'central-from-hq') { transitionRegion('central'); return; }
           if (hugeHouseState.adjacent) { transitionRegion('hq'); return; }
+          if (chestState.adjacent && chestState.chest) {
+            openChest(chestState.chest); return;
+          }
           if (potionState.adjacent && potionState.obj) {
             pickUpPotion(potionState.obj); return;
           }
@@ -4218,6 +4540,28 @@
       console.log('[inventory] picked up Live Potion (qty: ' + total + ')');
     }
 
+    // Consume one Live Potion from inventory: +1 heart (clamped to hpMax),
+    // qty -= 1; remove from inventory when qty hits zero. Returns true on
+    // success, false if no potion in inventory or already at full HP.
+    function consumePotion() {
+      const idx = player.inventory.findIndex(it => it.id === 'potion');
+      if (idx === -1) {
+        console.log('[potion] no potions in pack');
+        return false;
+      }
+      if (player.stats.hp >= player.stats.hpMax) {
+        console.log('[potion] already at full HP');
+        return false;
+      }
+      const item = player.inventory[idx];
+      player.stats.hp = Math.min(player.stats.hpMax, player.stats.hp + 1);
+      item.qty -= 1;
+      if (item.qty <= 0) player.inventory.splice(idx, 1);
+      haptic(12);
+      console.log('[potion] consumed +1 heart (hp=' + player.stats.hp + '/' + player.stats.hpMax + ', remaining=' + (item.qty > 0 ? item.qty : 0) + ')');
+      return true;
+    }
+
     // Move every item in player.inventory into shipStorage, summing
     // quantities. Empties player.inventory so the player has carry room
     // for fresh pickups. Items are not lost — they live in shipStorage
@@ -4242,6 +4586,9 @@
     }
 
     // Build + open the Astralpack inventory modal.
+    // Each potion slot is clickable: tapping it consumes the potion (+1 heart)
+    // and re-renders. Gem breakdown is appended below items as a small grid
+    // showing per-color counts.
     function openAstralpackModal() {
       const grid     = document.getElementById('astralpack-grid');
       const emptyMsg = document.getElementById('astralpack-empty');
@@ -4266,9 +4613,43 @@
           const n = document.createElement('span');
           n.className = 'name'; n.textContent = item.name;
           slot.appendChild(n);
+          // Potions are consumable on click — heal +1 heart.
+          if (item.id === 'potion') {
+            slot.style.cursor = 'pointer';
+            slot.title = 'Tap to drink (+1 heart)';
+            slot.addEventListener('click', () => {
+              if (consumePotion()) openAstralpackModal();  // re-render
+            });
+          }
           grid.appendChild(slot);
         }
-        if (emptyMsg) emptyMsg.style.display = items.length ? 'none' : 'block';
+        // Gem breakdown — append below items if any gems collected.
+        const gemTotal = Object.values(player.stats.gems).reduce((a,b)=>a+b, 0);
+        if (gemTotal > 0) {
+          const header = document.createElement('div');
+          header.style.cssText = 'grid-column: 1 / -1; padding: 6px 0 2px; font-size: 9px; letter-spacing: 0.2em; color: var(--gold-bright); text-align: center;';
+          header.textContent = '— GEMS ( ' + player.stats.gemCredits.toLocaleString() + ' CREDITS ) —';
+          grid.appendChild(header);
+          for (const color of ['R','B','G','Y','W','O','P','Blk']) {
+            const count = player.stats.gems[color] || 0;
+            if (count === 0) continue;
+            const slot = document.createElement('div');
+            slot.className = 'astralpack-slot';
+            const img = document.createElement('img');
+            img.src = '/assets/world_gem_' + color + '.png';
+            img.style.cssText = 'width: 18px; height: 22px; image-rendering: pixelated; margin: 4px auto;';
+            slot.appendChild(img);
+            const q = document.createElement('span');
+            q.className = 'qty'; q.textContent = '×' + count;
+            slot.appendChild(q);
+            const n = document.createElement('span');
+            n.className = 'name'; n.textContent = color + ' (' + GEM_TIER[color] + ')';
+            slot.appendChild(n);
+            grid.appendChild(slot);
+          }
+        }
+        const hasAnything = items.length > 0 || gemTotal > 0;
+        if (emptyMsg) emptyMsg.style.display = hasAnything ? 'none' : 'block';
       }
       openModal('astralpack');
     }
@@ -4770,12 +5151,40 @@
     // catches any sustained-walk leak that slips through both the per-element
     // listener and the document-level cleanup. Cheap — runs once per frame.
     // ============ Exploration HUD refresh ============
+    // Cache holds last-rendered values so we only touch the DOM when something
+    // actually changed. Pip rows track hp/energy as integers; the pip <img>
+    // elements live inside #hud-hearts and #hud-energy.
     const hudCache = {
-      hp: -1, hpMax: -1, ae: -1, aeMax: -1, level: -1,
-      gems: -1, gemsMax: -1,
+      hp: -1, hpMax: -1, energy: -1, energyMax: -1, level: -1,
+      credits: -1,
       enemyVisible: null, enemyLv: -1,
       objText: '', objCur: -1, objMax: -1,
     };
+    // Helper: ensure the pip container has the right number of <img> children,
+    // then swap each one's src between full and empty asset paths. The asset
+    // paths are baked into ASSETS so we know they're preloaded — but we
+    // reference them as URL strings via the loaded image src.
+    function renderPipRow(containerId, current, max, fullSrc, emptySrc, pipClass) {
+      const root = document.getElementById(containerId);
+      if (!root) return;
+      // Reconcile child count to max.
+      while (root.children.length < max) {
+        const img = document.createElement('img');
+        img.className = pipClass;
+        img.alt = '';
+        root.appendChild(img);
+      }
+      while (root.children.length > max) root.lastChild.remove();
+      const cur = Math.max(0, Math.min(max, current | 0));
+      for (let i = 0; i < max; i++) {
+        const want = i < cur ? fullSrc : emptySrc;
+        const img = root.children[i];
+        if (img.dataset.src !== want) {
+          img.src = want;
+          img.dataset.src = want;
+        }
+      }
+    }
     function refreshHud() {
       const s = player.stats;
       if (!s) return;
@@ -4784,28 +5193,32 @@
         if (el) el.textContent = s.level;
         hudCache.level = s.level;
       }
+      // Hearts row.
       if (hudCache.hp !== s.hp || hudCache.hpMax !== s.hpMax) {
-        renderHudSegments('hud-hp-segments', s.hpSegments, s.hp / s.hpMax);
-        const txt = document.getElementById('hud-hp-text');
-        if (txt) txt.textContent = s.hp + ' / ' + s.hpMax;
+        renderPipRow('hud-hearts', s.hp, s.hpMax,
+          '/assets/hud_heart_red.png', '/assets/hud_heart_grey.png', 'heart-pip');
+        // Beat-pulse only at full HP. Toggle .full class on the row.
+        const row = document.getElementById('hud-hearts');
+        if (row) row.classList.toggle('full', s.hp >= s.hpMax);
         hudCache.hp = s.hp; hudCache.hpMax = s.hpMax;
       }
-      if (hudCache.ae !== s.astralEnergy || hudCache.aeMax !== s.astralEnergyMax) {
-        renderHudSegments('hud-astral-segments', s.astralEnergyMax, s.astralEnergy / s.astralEnergyMax);
-        const txt = document.getElementById('hud-astral-text');
-        if (txt) txt.textContent = s.astralEnergy + ' / ' + s.astralEnergyMax;
-        hudCache.ae = s.astralEnergy; hudCache.aeMax = s.astralEnergyMax;
+      // Energy row. We render the integer-floor of energy so the pip count
+      // matches what the player feels — a half-spent bolt reads as empty.
+      const energyInt = Math.floor(s.energy);
+      if (hudCache.energy !== energyInt || hudCache.energyMax !== s.energyMax) {
+        renderPipRow('hud-energy', energyInt, s.energyMax,
+          '/assets/hud_bolt_yellow.png', '/assets/hud_bolt_grey.png', 'bolt-pip');
+        hudCache.energy = energyInt; hudCache.energyMax = s.energyMax;
       }
-      if (hudCache.gems !== s.astralGems) {
+      // Gem credit total.
+      if (hudCache.credits !== s.gemCredits) {
         const el = document.getElementById('hud-gems-current');
-        if (el) el.textContent = s.astralGems;
-        hudCache.gems = s.astralGems;
+        if (el) el.textContent = s.gemCredits.toLocaleString();
+        hudCache.credits = s.gemCredits;
       }
-      if (hudCache.gemsMax !== s.astralGemsMax) {
-        const el = document.getElementById('hud-gems-max');
-        if (el) el.textContent = s.astralGemsMax;
-        hudCache.gemsMax = s.astralGemsMax;
-      }
+      // Gem icon — set once on first refresh.
+      const ico = document.getElementById('hud-gem-icon-img');
+      if (ico && !ico.src) ico.src = '/assets/hud_gem_R.png';
       const slack = TILE_SIZE * 2;
       let visibleEnemy = null;
       for (const npc of NPCS) {
@@ -5174,6 +5587,38 @@
           });
         }
       }
+      // Fire hazards — animated 7-frame purple flames (southcentral region).
+      for (const f of FIRES) {
+        if (f.region !== currentRegion) continue;
+        drawables.push({
+          kind: 'fire',
+          x: f.x, y: f.y,
+          feetY: f.y + 32 - 2,   // slight bias toward back so player draws above when overlapping
+          fireRef: f,
+        });
+      }
+      // Chests — pickable interactives. Closed only — once opened, the
+      // chest stays drawn (so the player can see what was looted) but the
+      // adjacency check skips it.
+      for (const c of CHESTS) {
+        if (c.region !== currentRegion) continue;
+        drawables.push({
+          kind: 'chest',
+          x: c.x, y: c.y,
+          feetY: c.y + CHEST_H,
+          chestRef: c,
+        });
+      }
+      // Gem drops — spawned by chest opens. Float-bob applied at draw time.
+      for (const g of GEM_DROPS) {
+        if (g.region !== currentRegion) continue;
+        drawables.push({
+          kind: 'gemDrop',
+          x: g.x, y: g.y,
+          feetY: g.y + GEM_H,
+          gemRef: g,
+        });
+      }
       for (const npc of NPCS) {
         if (npc.active === false) continue;   // docked: invisible in level
         if ((npc.region || 'central') !== currentRegion) continue;   // different region
@@ -5212,6 +5657,62 @@
           if (screenX + POTION_W < 0 || screenX > VIEWPORT_W) continue;
           if (screenY + POTION_H < 0 || screenY > VIEWPORT_H) continue;
           if (ASSETS.potion) ctx.drawImage(ASSETS.potion, screenX, screenY);
+        } else if (d.kind === 'fire') {
+          // 7-frame purple-flame anim. Each frame is a 32×32 raw sprite
+          // (transparent BG already), no chroma needed.
+          if (screenX + 32 < 0 || screenX > VIEWPORT_W) continue;
+          if (screenY + 32 < 0 || screenY > VIEWPORT_H) continue;
+          const f = d.fireRef;
+          const key = 'fireF' + f.frame;
+          const img = ASSETS[key];
+          if (img) ctx.drawImage(img, screenX, screenY);
+        } else if (d.kind === 'chest') {
+          if (screenX + CHEST_W < 0 || screenX > VIEWPORT_W) continue;
+          if (screenY + CHEST_H < 0 || screenY > VIEWPORT_H) continue;
+          const c = d.chestRef;
+          const img = ASSETS['chest' + c.tier + 'Sprite'];
+          if (img) {
+            ctx.drawImage(img, screenX, screenY);
+            // Opened state — overlay a faint "EMPTY" hint via reduced alpha.
+            if (c.opened) {
+              ctx.globalAlpha = 0.45;
+              ctx.fillStyle = 'rgba(0,0,0,0.3)';
+              ctx.fillRect(screenX, screenY, CHEST_W, CHEST_H);
+              ctx.globalAlpha = 1.0;
+            }
+          }
+          // "TAP A" prompt when adjacent + unopened.
+          if (!c.opened && chestState.chest === c) {
+            const text = 'OPEN · TAP A';
+            ctx.font = "7px 'Cinzel', serif";
+            const padX = 4, padY = 3;
+            const tw = Math.ceil(ctx.measureText(text).width);
+            const bw = tw + padX * 2, bh = 12;
+            let bx = Math.round(screenX + CHEST_W / 2 - bw / 2);
+            let by = Math.round(screenY - bh - 3);
+            if (bx < 2) bx = 2;
+            if (bx + bw > VIEWPORT_W - 2) bx = VIEWPORT_W - 2 - bw;
+            if (by < 2) by = Math.round(screenY + CHEST_H + 3);
+            ctx.fillStyle = 'rgba(10,6,24,0.88)';
+            ctx.strokeStyle = '#e8c878';
+            ctx.lineWidth = 1;
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.strokeRect(bx+0.5, by+0.5, bw-1, bh-1);
+            ctx.fillStyle = '#f4e3b3';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'left';
+            ctx.fillText(text, bx + padX, by + bh / 2 + 0.5);
+          }
+        } else if (d.kind === 'gemDrop') {
+          const g = d.gemRef;
+          // Gentle vertical bob — 2px amplitude, offset by bobPhase so all
+          // gems aren't synchronized.
+          const bobOff = Math.round(Math.sin(g.bobPhase) * 2);
+          if (screenX + GEM_W < 0 || screenX > VIEWPORT_W) continue;
+          if (screenY + GEM_H + 4 < 0 || screenY > VIEWPORT_H) continue;
+          const key = 'gemWorld' + g.color;
+          const img = ASSETS[key];
+          if (img) ctx.drawImage(img, screenX, screenY + bobOff);
         } else if (d.kind === 'tomb') {
           if (screenX + TOMB_W < 0 || screenX > VIEWPORT_W) continue;
           if (screenY + TOMB_H < 0 || screenY > VIEWPORT_H) continue;
@@ -5379,6 +5880,13 @@
         updateUfoAdjacency();
         updateHugeHouseAdjacency();
         updatePotionAdjacency();
+        // Dec 2026: heart + energy systems. Energy regen / fly drain ticks
+        // every frame; hazard collision damages player when overlapping a
+        // fire tile (with invuln window to prevent stunlock).
+        tickEnergyEconomy(dt);
+        updateHazards(dt);
+        updateChestAdjacency();
+        updateGemDrops(dt);
         updateCamera();
       }
       render();

@@ -2247,6 +2247,16 @@
       fireF4: { src: '/assets/hazard_fire_f4.png', raw: true },
       fireF5: { src: '/assets/hazard_fire_f5.png', raw: true },
       fireF6: { src: '/assets/hazard_fire_f6.png', raw: true },
+      // Player portrait sprite — used as the IDLE pose 0 (standing still,
+      // canonical forward-facing stance). Source PNG is 1024×1024 with a
+      // transparent BG and content bbox (259,109)–(761,868). Baked to the
+      // walk-canvas dims (32×45) so the renderer can blit it at the same
+      // screen coordinates as walk frames without offset math.
+      playerIdle: {
+        src: '/assets/character_player.png',
+        w: 32, h: 45,
+        crop: { x: 259, y: 109, w: 503, h: 760 },
+      },
       // ===== Hurt-reaction animation (5 frames) =====
       // 1=IDLE, 2=HIT FLASH (red overlay), 3=WINCE, 4=RECOVERY HOP, 5=RESET.
       // Pre-baked to 32×45 with transparent BG (matches walk-canvas dims),
@@ -6121,13 +6131,16 @@
           }
           const isIdle = (player.mode === 'walk' && !player.isMoving);
           if (isIdle && ASSETS.idleFrames) {
-            // Idle pose 0 → force forward-facing standing pose instead of the
-            // idle-sheet pose 0 (which has a slight 3/4 left twist that read as
-            // 'turned away from camera' per Dec 2026 feedback). Use walk-down
-            // frame 0 — the canonical straight-forward standing posture.
-            // Poses 1..3 (arms-out, looking-around, nap) still come from the
-            // idle sheet so the long-idle flavor animations are preserved.
-            if (player.idlePose === 0 && ASSETS.charFrames && ASSETS.charFrames.down) {
+            // Idle pose 0 → use the dedicated portrait sprite (character_player.png)
+            // baked into ASSETS.playerIdle. This is the canonical straight-forward
+            // standing pose — replaces the slightly-twisted idle-sheet pose 0 AND
+            // the walk-down-frame-0 fallback. Poses 1..3 (arms-out, looking-around,
+            // nap) still pull from the idle sheet so the long-idle flavor anims
+            // are preserved.
+            if (player.idlePose === 0 && ASSETS.playerIdle) {
+              ctx.drawImage(ASSETS.playerIdle, screenX, screenY);
+            } else if (player.idlePose === 0 && ASSETS.charFrames && ASSETS.charFrames.down) {
+              // Fallback if portrait failed to load — use walk-down frame 0.
               const sprite = ASSETS.charFrames.down[0];
               if (sprite) ctx.drawImage(sprite, screenX, screenY);
             } else {

@@ -1216,6 +1216,11 @@
         </li>
       </ul>
       <div class="map-label" style="margin-top: 12px;">More settings coming.</div>
+      <!-- Reset Game — destructive. Confirmed via window.confirm before wiping. -->
+      <button class="pause-btn" id="options-reset-btn"
+              style="margin-top: 18px; width: 100%; border-color: rgba(255, 100, 100, 0.6); color: #ff9090;">
+        Reset Game (load from 0)
+      </button>
     </div>
   </div>
 
@@ -4998,6 +5003,90 @@
       }
       openModal('options');
     }
+    // Reset Game — wipes ALL transient state (stats, inventory, gems, ship
+    // storage, chests, follower, region, position, NPCs) and respawns the
+    // player at the central spawn point. Persistent assets (sliced sheets)
+    // stay loaded — only runtime mutables reset. Confirms before firing.
+    function resetGame() {
+      // ===== Player stats =====
+      player.stats.hp        = player.stats.hpMax;
+      player.stats.energy    = player.stats.energyMax;
+      player.stats.level     = 1;
+      player.stats.gems      = { R:0, B:0, G:0, Y:0, W:0, O:0, P:0, Blk:0 };
+      player.stats.gemCredits = 0;
+      // ===== Position / region =====
+      currentRegion = 'central';
+      MAP_DATA      = REGIONS[currentRegion];
+      if (typeof buildColliders === 'function') {
+        try { COLLIDERS = buildColliders(MAP_DATA); } catch (e) { /* noop */ }
+      }
+      player.x = (MAP_WIDTH  * TILE_SIZE - CHAR_W) / 2;
+      player.y = (MAP_HEIGHT * TILE_SIZE - CHAR_H) / 2;
+      player.facing = 'down';
+      // ===== Inventory + ship cargo =====
+      player.inventory.length = 0;
+      shipStorage.length      = 0;
+      // ===== Transient combat / movement state =====
+      player.invulnUntil = 0;
+      player.lastEnergySpendAt = 0;
+      player.energyRegenAccum  = 0;
+      player.combatAction = null; player.combatPhase = 0; player.combatStartedAt = 0;
+      player.idleSuppressedUntil = 0;
+      player.block.active = false; player.block.phase = 'idle';
+      player.block.frame  = 0;     player.block.frameTime = 0;
+      player.hurt.active  = false; player.hurt.frame  = 0; player.hurt.frameTime = 0;
+      player.spc = 0;
+      player.animTime = 0; player.animFrame = 0;
+      player.idlePose = 0; player.idlePoseTime = 0;
+      player.idleAnimTime = 0; player.idleAnimFrame = 0;
+      // ===== Input mode =====
+      if (typeof bState !== 'undefined' && bState) {
+        bState.runEnabled = false;
+        bState.flyEnabled = false;
+      }
+      // ===== Companion =====
+      followerNpcId = null;
+      // ===== Chests — reset all 'opened' flags =====
+      for (const c of CHESTS) { c.opened = false; }
+      // ===== Gem drops — clear everything spawned in world =====
+      GEM_DROPS.length = 0;
+      // ===== Potions — reset collected flags so they respawn in-world =====
+      for (const region of Object.values(REGIONS)) {
+        if (!region.objects) continue;
+        for (const obj of region.objects) {
+          if (obj.type === 'potion') obj.collected = false;
+        }
+      }
+      // ===== Fire frame counters — reset so the animation starts from frame 0 =====
+      for (const f of FIRES) { f.frame = 0; f.frameTime = 0; }
+      // ===== NPCs — set all to active, clear walk timers =====
+      for (const npc of NPCS) {
+        npc.active = true;
+        npc.dirTimer  = 0;
+        npc.currentDir = 'idle';
+        npc.animTime = 0; npc.animFrame = 0;
+      }
+      // ===== Objective =====
+      if (player.objective) {
+        player.objective.current = 0;
+      }
+      // ===== UI refreshes =====
+      if (typeof refreshFactionUI === 'function') { try { refreshFactionUI(); } catch (e) {} }
+      if (typeof refreshHud === 'function')        { try { refreshHud(); }        catch (e) {} }
+      console.log('[reset] game state wiped — respawned at central spawn');
+    }
+    // Bind the Reset button — confirms before destruction so accidental taps
+    // can't wipe the run. Closes the Options modal on success.
+    document.querySelectorAll('#options-reset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ok = window.confirm('Reset game from 0? All progress, inventory, and gems will be wiped.');
+        if (!ok) return;
+        resetGame();
+        haptic(24);
+        closeModal();
+      });
+    });
+
     document.querySelectorAll('#options-hud-toggle').forEach(t => {
       t.addEventListener('click', () => {
         player.hudEnabled = !player.hudEnabled;

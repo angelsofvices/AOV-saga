@@ -934,6 +934,26 @@
     // NPC_H (unchanged) so this bump only affects Vol.
     const VOL_DISPLAY_W = 50;
     const VOL_DISPLAY_H = 48;
+
+    // ============ Enemy display sizes ============
+    // First import: idle stance only (single static pose). Walk/attack sheets
+    // come later. Sizes preserve source content aspect ratios:
+    //   Mori    — basic enemy, taller-than-wide tan humanoid (368×621 src) → 36×60
+    //   Daemon  — mid-tier enemy, horned dark figure (491×573 src)        → 48×56
+    //   Khronis — BOSS, winged demonic colossus (957×907 src)             → 96×91
+    const MORI_W    = 36;  const MORI_H    = 60;
+    const DAEMON_W  = 48;  const DAEMON_H  = 56;
+    const KHRONIS_W = 96;  const KHRONIS_H = 91;
+    // Static-frame walk order — same sprite for every facing × every frame
+    // so the existing NPC render path (frames[facing][order[animFrame]])
+    // works without modification. Used for idle-only enemy imports until
+    // their proper directional sheets land.
+    const STATIC_ENEMY_ORDER = {
+      up:    [0, 0, 0, 0],
+      down:  [0, 0, 0, 0],
+      left:  [0, 0, 0, 0],
+      right: [0, 0, 0, 0],
+    };
     // Eurakeon-specific display size. He reads as a larger, more imposing
     // presence than Voltyran — baked at 2x Voltyran's footprint (84×80). The
     // slicer uses these constants so the source 240×280 frame is scaled to
@@ -1170,6 +1190,51 @@
       down:  [0, 1, 2, 3],
       left:  [0, 1, 2, 3],
       right: [0, 1, 2, 3],
+    };
+
+    // ============ Mori walk sheet (animation_walk_mori.png) ============
+    // 4-row × 4-col walk sheet, white BG. Same pattern as Voltyran/Eurakeon
+    // but the row labels (UP/LEFT/RIGHT/DOWN glyphs) sit in col 0; the four
+    // frame poses are cols 1-4. Centers averaged across rows, frameW=220
+    // covers the widest pose with margin, frameH=246 spans the row band.
+    const MORI_SHEET = {
+      frameW: 220,
+      frameH: 246,
+      cols: [295, 533, 779, 1030],
+      rowBases: {
+        up:    273,
+        left:  558,
+        right: 864,
+        down: 1158,
+      },
+    };
+    const MORI_WALK_ORDER = {
+      up: [0, 1, 2, 3], down: [0, 1, 2, 3], left: [0, 1, 2, 3], right: [0, 1, 2, 3],
+    };
+
+    // ============ Daemon walk sheet (animation_walk_daemon.png) ============
+    // 4 rows × 4 frames, white BG, same convention as Mori. Mid-tier enemy.
+    const DAEMON_SHEET = {
+      frameW: 230,
+      frameH: 232,
+      cols: [294, 553, 808, 1059],
+      rowBases: { up: 273, left: 571, right: 870, down: 1179 },
+    };
+    const DAEMON_WALK_ORDER = {
+      up: [0, 1, 2, 3], down: [0, 1, 2, 3], left: [0, 1, 2, 3], right: [0, 1, 2, 3],
+    };
+
+    // ============ Khronis walk sheet (animation_walk_khronis.png) ============
+    // 4 rows × 4 frames, white BG. BOSS — bigger frame footprint (260 wide,
+    // 246 tall) so the wings spread can render without crushing.
+    const KHRONIS_SHEET = {
+      frameW: 260,
+      frameH: 246,
+      cols: [309, 567, 821, 1073],
+      rowBases: { up: 306, left: 585, right: 867, down: 1175 },
+    };
+    const KHRONIS_WALK_ORDER = {
+      up: [0, 1, 2, 3], down: [0, 1, 2, 3], left: [0, 1, 2, 3], right: [0, 1, 2, 3],
     };
 
     // ============ Run sheet (animation_run_player.png) ============
@@ -1409,6 +1474,14 @@
         tiles:   makeRegionTiles(2),     // HQ floor (dispatch in drawTiles)
         objects: [],
       },
+      south: {
+        id: 'south',
+        name: 'Viridia · Southern Lava Fields',
+        width:  MAP_WIDTH,
+        height: MAP_HEIGHT,
+        tiles:   makeRegionTiles(3),     // lava (dispatch in drawTiles)
+        objects: [],
+      },
     };
     let currentRegion = 'central';
     let MAP_DATA = REGIONS[currentRegion];
@@ -1537,6 +1610,13 @@
         w: TILE_SIZE, h: TILE_SIZE,
         crop: { x: 100, y: 100, w: 1054, h: 1054 },
       },
+      // South-region lava tile. Dark cracked basalt with bright orange magma
+      // veins. Same 1254×1254 convention so the inner-crop convention holds.
+      lava: {
+        src: '/assets/tile_lava.png',
+        w: TILE_SIZE, h: TILE_SIZE,
+        crop: { x: 100, y: 100, w: 1054, h: 1054 },
+      },
       tree:  { src: '/assets/obj_tree.png',       w: TREE_W,    h: TREE_H    },
       // Houses — entry_*house.png. The sml/med variants ship with transparent
       // alpha already, so they bake clean. The big/huge variants are RGB white-
@@ -1587,11 +1667,23 @@
       // Elzoran fly sheet — 4×4 directional. He's a flying NPC (no walk
       // asset), so this same sheet drives every facing — he hovers always.
       elzoranSheet: { src: '/assets/animation_fly_elzoran.png', raw: true },
+      // Enemy idle stances. Single-pose static art — the bake crops to the
+      // tight content bbox so empty source pixels aren't wasted, then
+      // scales to display size preserving aspect.
+      moriIdle:    { src: '/assets/character_mori.png',    w: MORI_W,    h: MORI_H,    crop: { x: 375, y: 208, w: 368, h: 621 } },
+      daemonIdle:  { src: '/assets/character_daemon.png',  w: DAEMON_W,  h: DAEMON_H,  crop: { x: 295, y: 253, w: 491, h: 573 } },
+      khronisIdle: { src: '/assets/character_khronis.png', w: KHRONIS_W, h: KHRONIS_H, crop: { x:  64, y: 117, w: 957, h: 907 } },
       // Combat sheet — 5 rows × 4 frames (PUNCH / KICK / BLAST / SWORD /
       // BLASTER). Sliced via sliceCombatSheet() at boot. Loaded raw because
       // we need the original 1536×1024 source for the per-frame chroma key
       // pass before downsampling each frame to CHAR_W_COMBAT × CHAR_H_COMBAT.
       combatSheet: { src: '/assets/animation_combat_player.png', raw: true },
+      // Enemy walk sheets — 4 directions × 4 frames, white BG. Sliced at
+      // boot via sliceMoriSheet / sliceDaemonSheet / sliceKhronisSheet
+      // (mirror the Voltyran slicer pattern).
+      moriSheet:    { src: '/assets/animation_walk_mori.png',    raw: true },
+      daemonSheet:  { src: '/assets/animation_walk_daemon.png',  raw: true },
+      khronisSheet: { src: '/assets/animation_walk_khronis.png', raw: true },
     };
 
     // After load, ASSETS[key] is a ready-to-blit HTMLCanvasElement at the target size.
@@ -1654,6 +1746,17 @@
       ASSETS.eurakeonFrames = sliceEurakeonSheet(ASSETS.eurakeonSheet);
       ASSETS.aurexionFrames = sliceAurexionSheet(ASSETS.aurexionSheet);
       ASSETS.elzoranFrames     = sliceElzoranSheet(ASSETS.elzoranSheet);
+      // Enemy idle frame sets — wrap each static sprite into the
+      // {up,down,left,right} array shape the NPC renderer expects. Same
+      // sprite for every facing → enemy stands at attention regardless of
+      // direction. Replace with proper directional sheets in Phase D.
+      // All three enemies now have real walk sheets — slice each. The
+      // moriIdle / daemonIdle / khronisIdle static character files are
+      // retained in ASSETS as portrait/reference art but no longer drive
+      // the NPC renderer.
+      ASSETS.moriFrames    = sliceMoriSheet(ASSETS.moriSheet);
+      ASSETS.daemonFrames  = sliceDaemonSheet(ASSETS.daemonSheet);
+      ASSETS.khronisFrames = sliceKhronisSheet(ASSETS.khronisSheet);
       // Combat — { punch:[c0..c3], kick:[…], blast:[…], sword:[…], blaster:[…] }
       ASSETS.combatFrames      = sliceCombatSheet(ASSETS.combatSheet);
       // NOTE: idle-without-smoke variant is a WIP — masking purple removed the
@@ -1728,6 +1831,96 @@
       }
       return result;
     }
+
+    // Mori walk sheet slicer — mirrors the Voltyran slicer (white-BG strict
+    // chroma + NEAREST bake to display size). Frame layout: 4 directional
+    // rows × 4 frames each. The row-label glyphs sit in col 0 of each row;
+    // we skip them by starting the frame iteration at MORI_SHEET.cols[0].
+    function sliceMoriSheet(sheetImg) {
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = MORI_SHEET.rowBases[dir];
+        const cropY = baseY - MORI_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = MORI_SHEET.cols[i];
+          const cropX = centerX - MORI_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width  = MORI_W;
+          c.height = MORI_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, MORI_SHEET.frameW, MORI_SHEET.frameH,
+            0, 0, MORI_W, MORI_H
+          );
+          chromaKeyWhite(c);
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+    // Daemon walk sheet slicer — same pattern as Mori (white-BG strict
+    // chroma + NEAREST bake to display size). 4 directional rows × 4
+    // frames each, label glyphs in col 0 skipped via DAEMON_SHEET.cols.
+    function sliceDaemonSheet(sheetImg) {
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = DAEMON_SHEET.rowBases[dir];
+        const cropY = baseY - DAEMON_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = DAEMON_SHEET.cols[i];
+          const cropX = centerX - DAEMON_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width  = DAEMON_W;
+          c.height = DAEMON_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, DAEMON_SHEET.frameW, DAEMON_SHEET.frameH,
+            0, 0, DAEMON_W, DAEMON_H
+          );
+          chromaKeyWhite(c);
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+    // Khronis walk sheet slicer — BOSS. Same pipeline as Daemon but with
+    // bigger source frame (260×246) and bigger display canvas (96×91) so
+    // the wing-spread reads as imposing.
+    function sliceKhronisSheet(sheetImg) {
+      const directions = ['up', 'left', 'right', 'down'];
+      const result = { up: [], left: [], right: [], down: [] };
+      for (const dir of directions) {
+        const baseY = KHRONIS_SHEET.rowBases[dir];
+        const cropY = baseY - KHRONIS_SHEET.frameH;
+        for (let i = 0; i < ANIM_FRAMES; i++) {
+          const centerX = KHRONIS_SHEET.cols[i];
+          const cropX = centerX - KHRONIS_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width  = KHRONIS_W;
+          c.height = KHRONIS_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, KHRONIS_SHEET.frameW, KHRONIS_SHEET.frameH,
+            0, 0, KHRONIS_W, KHRONIS_H
+          );
+          chromaKeyWhite(c);
+          result[dir].push(c);
+        }
+      }
+      return result;
+    }
+
+
 
     // Center-flood retention — used by the fly slicer to suppress wing-tip
     // fragments from NEIGHBORING frames that bleed into the current crop
@@ -2434,6 +2627,86 @@
           "Thunderhalls echo with thy step, even now.",
         ],
       },
+      // ============ Enemies (idle import — Nov 2026) ============
+      // Mori, Daemon, Khronis — the three hostile beings of the southern
+      // lava region (still WIP). Imported as STATIC IDLE poses so the user
+      // can verify positioning + scale. Each has speed=0 and an effectively
+      // infinite dirTimer so the wander pickNpcDirection never moves them
+      // off their spawn. region:'central' for now so they're visible while
+      // the south region is built; flip to region:'south' once that lands.
+      // Also enemy:true so future combat AI can target them.
+      {
+        // Mori has a real walk sheet now — wanders the lava fields slowly,
+        // same wander system as Vol/Eur. Spawned in the south region.
+        id: 'mori_1',
+        framesKey: 'moriFrames',
+        walkOrder: MORI_WALK_ORDER,
+        x: 320, y: 320,
+        w: MORI_W, h: MORI_H,
+        speed: 22,                  // slower than Vol — undead shuffle
+        facing: 'down',
+        animFps: 4,
+        animTime: 0,
+        animFrame: 0,
+        currentDir: 'down',
+        dirTimer: 0,
+        region: 'south',
+        enemy: true,
+        cries: [
+          "Hsssss…",
+          "…",
+          "Mrgh.",
+          "Your warmth… mine.",
+        ],
+      },
+      {
+        // Daemon — mid-tier enemy, walks the lava fields with intent.
+        id: 'daemon_1',
+        framesKey: 'daemonFrames',
+        walkOrder: DAEMON_WALK_ORDER,
+        x: 600, y: 640,
+        w: DAEMON_W, h: DAEMON_H,
+        speed: 32,                    // faster than Mori, steadier gait
+        facing: 'down',
+        animFps: 5,
+        animTime: 0,
+        animFrame: 0,
+        currentDir: 'down',
+        dirTimer: 0,
+        region: 'south',
+        enemy: true,
+        cries: [
+          "Mortal…",
+          "Your soul flickers.",
+          "Step closer. I dare you.",
+          "I taste your fear.",
+        ],
+      },
+      {
+        // Khronis — BOSS, slow lumbering tread. Big silhouette + slow speed
+        // reads as menace. Stays in the deep south of the region.
+        id: 'khronis_boss',
+        framesKey: 'khronisFrames',
+        walkOrder: KHRONIS_WALK_ORDER,
+        x: 880, y: 960,
+        w: KHRONIS_W, h: KHRONIS_H,
+        speed: 18,                    // slowest in the field — boss tread
+        facing: 'down',
+        animFps: 3,                   // matches the slow gait
+        animTime: 0,
+        animFrame: 0,
+        currentDir: 'down',
+        dirTimer: 0,
+        region: 'south',
+        enemy: true,
+        boss: true,
+        cries: [
+          "I AM KHRONIS.",
+          "The end of all expedition.",
+          "Turn back, mortal.",
+          "I have outlived your kind.",
+        ],
+      },
     ];
 
     // ============ UFO interaction (Aethryx Expanse gateway) ============
@@ -2915,6 +3188,8 @@
         const exit = regionExitReady();
         if (exit === 'north') { transitionRegion('north');   return true; }
         if (exit === 'south') { transitionRegion('central'); return true; }
+        if (exit === 'south-enter')        { transitionRegion('south');   return true; }
+        if (exit === 'central-from-south') { transitionRegion('central'); return true; }
         if (exit === 'hq')    { transitionRegion('hq');      return true; }
         if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
         if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
@@ -3025,6 +3300,8 @@
           const exit = regionExitReady();
           if (exit === 'north') { transitionRegion('north');   return; }
           if (exit === 'south') { transitionRegion('central'); return; }
+          if (exit === 'south-enter')        { transitionRegion('south');   return; }
+          if (exit === 'central-from-south') { transitionRegion('central'); return; }
           if (exit === 'hq')    { transitionRegion('hq');      return; }
           if (exit === 'central-from-hq') { transitionRegion('central'); return; }
           if (hugeHouseState.adjacent) { transitionRegion('hq'); return; }
@@ -3723,9 +4000,10 @@
           const cy = y * TILE_SIZE + half - camera.y;
           // Tile type dispatch: 0 = grass (Central), 1 = ice (North).
           const tType = MAP_DATA.tiles[y][x];
-          // Tile types: 0=grass (Central), 1=snow (North), 2=HQ floor
+          // Tile types: 0=grass (Central), 1=snow (North), 2=HQ floor, 3=lava (South)
           let tileAsset;
-          if      (tType === 2) tileAsset = ASSETS.hqFloor;
+          if      (tType === 3) tileAsset = ASSETS.lava;
+          else if (tType === 2) tileAsset = ASSETS.hqFloor;
           else if (tType === 1) tileAsset = ASSETS.snow;
           else                   tileAsset = ASSETS.grass;
           ctx.save();
@@ -4071,6 +4349,10 @@
         player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of north
       } else if (from === 'north' && toRegion === 'central') {
         player.y = 6;                                       // enter from north of central
+      } else if (from === 'central' && toRegion === 'south') {
+        player.y = 6;                                       // enter from north of south
+      } else if (from === 'south' && toRegion === 'central') {
+        player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of central
       } else if (from === 'central' && toRegion === 'hq') {
         // Stash the Central position so the HQ→Central return drops the
         // player right back at the gate they came from.
@@ -4100,7 +4382,15 @@
         transitionRegion('north');
         return true;
       }
+      if (currentRegion === 'central' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 4 && moveDown) {
+        transitionRegion('south');
+        return true;
+      }
       if (currentRegion === 'north' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 4 && moveDown) {
+        transitionRegion('central');
+        return true;
+      }
+      if (currentRegion === 'south' && player.y <= 4 && moveUp) {
         transitionRegion('central');
         return true;
       }
@@ -4112,7 +4402,9 @@
     }
     function regionExitReady() {
       if (currentRegion === 'central' && player.y <= 8) return 'north';
+      if (currentRegion === 'central' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'south-enter';
       if (currentRegion === 'north'   && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'south';
+      if (currentRegion === 'south'   && player.y <= 8) return 'central-from-south';
       if (currentRegion === 'hq'      && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'central-from-hq';
       return null;
     }

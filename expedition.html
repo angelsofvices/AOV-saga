@@ -1643,6 +1643,59 @@
     // any opaque pixel not reachable from the seed. Run AFTER chromaKeyWhite
     // and BEFORE bake-down so connectivity is computed at source resolution
     // (small dest canvases break thin pixel chains).
+    // Largest-component retention — alternative to keepCenterConnected for
+    // sheets where the character isn't reliably horizontally centered in
+    // each frame (e.g. the combat sheet, where BLASTER row characters sit
+    // at the LEFT of the frame and the blast extends right). Finds every
+    // 8-connected opaque blob, retains only the LARGEST, drops the rest.
+    // Robust to off-center characters and frame-bleed fragments.
+    function keepLargestComponent(canvas) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+      const ALPHA_T = 30;
+      const labels = new Int32Array(w * h);   // 0 = unlabeled
+      const sizes  = [0];                     // index 0 unused
+      let nextLabel = 1;
+      for (let i = 0; i < w * h; i++) {
+        if (labels[i] > 0) continue;
+        if (data[i * 4 + 3] < ALPHA_T) continue;
+        // Iterative 8-connected flood from this pixel
+        const stack = [i];
+        labels[i] = nextLabel;
+        let size = 0;
+        while (stack.length) {
+          const idx = stack.pop();
+          size++;
+          const x = idx % w, y = (idx - x) / w;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (dx === 0 && dy === 0) continue;
+              const nx = x + dx, ny = y + dy;
+              if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+              const ni = ny * w + nx;
+              if (labels[ni] > 0) continue;
+              if (data[ni * 4 + 3] < ALPHA_T) continue;
+              labels[ni] = nextLabel;
+              stack.push(ni);
+            }
+          }
+        }
+        sizes.push(size);
+        nextLabel++;
+      }
+      if (nextLabel === 1) return;   // nothing opaque
+      let largest = 1;
+      for (let i = 2; i < sizes.length; i++) {
+        if (sizes[i] > sizes[largest]) largest = i;
+      }
+      for (let i = 0; i < w * h; i++) {
+        if (labels[i] !== largest) data[i * 4 + 3] = 0;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
     function keepCenterConnected(canvas, seedX) {
       const ctx = canvas.getContext('2d');
       const w = canvas.width, h = canvas.height;
@@ -2018,22 +2071,27 @@
     // array of 4 frame canvases.
     function sliceCombatSheet(sheetImg) {
       // Pass 1: copy whole sheet to a source-res work canvas + chroma the
-      // gray BG. (Threshold 35 strips the BG including JPEG ringing without
-      // eating into the character's dark armor outlines.)
+      // gray BG. Threshold 95 strips both the flat-gray background AND the
+      // soft dust/smoke halo that the artist drew around action frames
+      // (sword swing, blaster, blast — all have a low-saturation gray haze
+      // extending well past the character that read as a giant gray box on
+      // grass at threshold 35). Higher threshold can graze the very darkest
+      // character shadows but the largest-component pass below cleans that
+      // up by retaining only the connected character + their effect.
       const work = document.createElement('canvas');
       work.width  = sheetImg.naturalWidth  || sheetImg.width;
       work.height = sheetImg.naturalHeight || sheetImg.height;
       const wctx = work.getContext('2d');
       wctx.imageSmoothingEnabled = false;
       wctx.drawImage(sheetImg, 0, 0);
-      chromaKeyColor(work, 65, 65, 68, 35);
+      chromaKeyColor(work, 65, 65, 68, 95);
 
       // Pass 2: slice per row × 4 frames. Each frame goes through a per-frame
-      // SOURCE-RES work canvas so keepCenterConnected can flood from center
-      // and discard adjacent-frame character bleed (cols are spaced 270px
-      // apart with frameW=280 → 10px overlap, plus characters in adjacent
-      // frames extend toward each other and were rendering as a "doubled
-      // player" effect). After the flood, NEAREST-bake to display size.
+      // SOURCE-RES work canvas so keepLargestComponent can isolate the
+      // character + their effect from adjacent-frame bleed (cols are spaced
+      // 270px apart with frameW=280 → 10px overlap, plus characters in
+      // neighbor frames extend toward each other). After the cleanup pass,
+      // NEAREST-bake to display size.
       const result = { punch: [], kick: [], blast: [], sword: [], blaster: [] };
       const actions = Object.keys(result);
       for (const action of actions) {
@@ -2053,7 +2111,15 @@
             cropX, cropY, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH,
             0, 0, COMBAT_SHEET.frameW, COMBAT_SHEET.frameH
           );
-          keepCenterConnected(fw, Math.floor(COMBAT_SHEET.frameW / 2));
+          // keepLargestComponent (not keepCenterConnected) — combat-sheet
+          // characters are NOT centered horizontally per-row (BLASTER sits
+          // at the left of each frame, projecting blast to the right; PUNCH
+          // is more centered; etc). A fixed center-seed flood would miss
+          // the character on off-center rows. Largest-component is robust
+          // to character position: the character + their connected effect
+          // is always the biggest blob; bleed fragments from neighbor
+          // frames are smaller and get dropped.
+          keepLargestComponent(fw);
           // NEAREST-bake the cleaned source frame down to display size
           const c = document.createElement('canvas');
           c.width  = CHAR_W_COMBAT;

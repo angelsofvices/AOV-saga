@@ -158,6 +158,11 @@
       background-clip: text;
       color: transparent;
       margin-bottom: 22px;
+      /* On narrow viewports the title wraps to two lines — without text-align
+         center, each wrapped line left-aligns within its flex column slot,
+         which reads visually as left-justified instead of centered. */
+      text-align: center;
+      width: 100%;
     }
     .loading-bar {
       width: 220px;
@@ -248,12 +253,10 @@
       );
       pointer-events: none;
     }
-    .hud-player-panel {
-      top: 6.7%; left: 9%;
-      display: flex; gap: 4px;
-      padding: 3px 5px 3px 3px;
-      min-width: 28%;
-    }
+    /* Dec 2026: hidden — name/level chip removed from in-game HUD. Stats
+       (HP/energy/credits) all live in the centered pip rows + Astralpack
+       modal now. Kept in DOM so refreshHud() doesn't NPE on lookups. */
+    .hud-player-panel { display: none !important; }
     .hud-portrait {
       width: 18px; height: 18px;
       border-radius: 3px;
@@ -285,14 +288,11 @@
       box-shadow: 0 0 3px rgba(95, 200, 255, 0.6);
     }
     .hud-bar-text { font-size: 4.5px; color: var(--gold-pale); min-width: 28px; text-align: right; }
-    /* Gem credit counter — moved to top-right corner Dec 2026 to make room
-       for the heart/energy pip rows in the top-center band. Shows total
-       credit value across all 8 colors; per-color breakdown is in Astralpack. */
-    .hud-gems-panel {
-      top: 6.7%; right: 9%;
-      display: flex; flex-direction: column; align-items: center;
-      padding: 2px 8px 3px; min-width: 14%;
-    }
+    /* Gem credit counter — HIDDEN from in-game HUD (Dec 2026 polish).
+       Credits + per-color breakdown live in the Astralpack modal only.
+       Kept in DOM as display:none so refreshHud()'s element lookups still
+       resolve without throwing. */
+    .hud-gems-panel { display: none !important; }
     .hud-gem-icon-img {
       width: 14px; height: 16px;
       image-rendering: pixelated;
@@ -376,12 +376,9 @@
     .hud-enemy-flame { font-size: 8px; color: #ff5050; text-shadow: 0 0 4px rgba(255, 80, 80, 0.8); line-height: 1; }
     .hud-enemy-text { font-size: 4.5px; letter-spacing: 0.2em; color: #ff8888; text-align: center; line-height: 1.15; margin-top: 1px; }
     .hud-enemy-lv { font-size: 4.5px; letter-spacing: 0.1em; color: var(--gold-pale); margin-top: 1px; }
-    .hud-objective-panel {
-      top: 15%; left: 9%;
-      display: flex; gap: 4px;
-      padding: 3px 6px;
-      max-width: 32%;
-    }
+    /* Dec 2026: hidden — objective tracker removed from in-game HUD.
+       Will re-enable inside the pause/menu modal in a later pass. */
+    .hud-objective-panel { display: none !important; }
     .hud-objective-icon { font-size: 6px; color: var(--gold); flex-shrink: 0; }
     .hud-objective-label { font-size: 3.5px; letter-spacing: 0.25em; color: var(--gold-bright); }
     .hud-objective-text { font-size: 5px; color: var(--gold-pale); line-height: 1.1; margin-top: 1px; }
@@ -1387,8 +1384,10 @@
     // Potion display — 14×20 to read as a bottle vs the 32×45 player.
     // Source crop tightened around just the bottle (excludes the wider
     // aura swirl) so the bake doesn't squash it.
-    const POTION_W = 14;
-    const POTION_H = 20;
+    // Dec 2026: shrunk to half (was 14×20). Smaller in-world footprint so
+    // multiple potions can sit on a tile without crowding the player sprite.
+    const POTION_W = 7;
+    const POTION_H = 10;
     const POTION_SHEET = { cropX: 95, cropY: 80, cropW: 110, cropH: 140 };
 
     // Voltyran display size — 1.2x the baseline so he reads as the anchor
@@ -6122,9 +6121,20 @@
           }
           const isIdle = (player.mode === 'walk' && !player.isMoving);
           if (isIdle && ASSETS.idleFrames) {
-            const pose   = ASSETS.idleFrames[player.idlePose];
-            const sprite = pose && pose[player.idleAnimFrame];
-            if (sprite) ctx.drawImage(sprite, screenX - IDLE_OFFSET_X, screenY + IDLE_OFFSET_Y);
+            // Idle pose 0 → force forward-facing standing pose instead of the
+            // idle-sheet pose 0 (which has a slight 3/4 left twist that read as
+            // 'turned away from camera' per Dec 2026 feedback). Use walk-down
+            // frame 0 — the canonical straight-forward standing posture.
+            // Poses 1..3 (arms-out, looking-around, nap) still come from the
+            // idle sheet so the long-idle flavor animations are preserved.
+            if (player.idlePose === 0 && ASSETS.charFrames && ASSETS.charFrames.down) {
+              const sprite = ASSETS.charFrames.down[0];
+              if (sprite) ctx.drawImage(sprite, screenX, screenY);
+            } else {
+              const pose   = ASSETS.idleFrames[player.idlePose];
+              const sprite = pose && pose[player.idleAnimFrame];
+              if (sprite) ctx.drawImage(sprite, screenX - IDLE_OFFSET_X, screenY + IDLE_OFFSET_Y);
+            }
           } else {
             let frameSet, order, drawX = screenX;
             if (player.mode === 'fly') {

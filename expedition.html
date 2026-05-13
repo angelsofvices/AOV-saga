@@ -2243,6 +2243,15 @@
       fireF4: { src: '/assets/hazard_fire_f4.png', raw: true },
       fireF5: { src: '/assets/hazard_fire_f5.png', raw: true },
       fireF6: { src: '/assets/hazard_fire_f6.png', raw: true },
+      // ===== Hurt-reaction animation (5 frames) =====
+      // 1=IDLE, 2=HIT FLASH (red overlay), 3=WINCE, 4=RECOVERY HOP, 5=RESET.
+      // Pre-baked to 32×45 with transparent BG (matches walk-canvas dims),
+      // so the render just blits them at the same coords as walk frames.
+      hurtF0: { src: '/assets/hurt_f0.png', raw: true },
+      hurtF1: { src: '/assets/hurt_f1.png', raw: true },
+      hurtF2: { src: '/assets/hurt_f2.png', raw: true },
+      hurtF3: { src: '/assets/hurt_f3.png', raw: true },
+      hurtF4: { src: '/assets/hurt_f4.png', raw: true },
       // ===== Chest sprites (4 tiers) =====
       // chest1 → spawns R/B gems (common). chest2 → G/Y. chest3 → W/O.
       // chest4 → P/Blk (rarest). Walk to + press A to open. Each chest is
@@ -3867,11 +3876,108 @@
       };
     }
 
+    // ============ Companion follow system (Dec 2026) ============
+    // Faction NPCs (Voltyran / Eurakeon / Aurexion / Elzoran) can be toggled
+    // into a follow-the-player state from the NPC info modal. Only ONE
+    // follower at a time — toggling another swaps. Future passes will add
+    // combat aid, gem-finding, healing, and other passives keyed off the
+    // companion's archetype. For now: just natural pursuit.
+    //
+    // Pursuit tuning:
+    //   FOLLOW_KEEP_RANGE  — pixels at which the follower stops closing in.
+    //                        Keeps them from overlapping the player sprite.
+    //   FOLLOW_CATCHUP_DIST— if NPC falls farther than this from player, they
+    //                        get a temporary 1.6× speed bump to catch up
+    //                        (matches the player's run speed).
+    //   FOLLOW_TELEPORT_DIST — if they get LOST (off-region region-swap
+    //                        edge case, or impossible pathing), snap them
+    //                        next to the player.
+    const FOLLOW_KEEP_RANGE    = 36;
+    const FOLLOW_CATCHUP_DIST  = 96;
+    const FOLLOW_TELEPORT_DIST = 280;
+    let followerNpcId = null;   // id string of the currently-following NPC, or null.
+
+    function isFactionMember(npc) {
+      // Treat any NPC with a 'Faction' subtitle prefix as a faction member.
+      // Matches Voltyran/Eurakeon/Aurexion/Elzoran (subtitle 'Rizer · Faction').
+      return !!(npc && npc.subtitle && npc.subtitle.includes('Faction'));
+    }
+
+    function setFollower(npcId) {
+      // Switch the active follower. Clears any prior follower and stops their
+      // wander timer so they don't snap back to their old path immediately.
+      const old = NPCS.find(n => n.id === followerNpcId);
+      if (old) { old.dirTimer = 0; }   // re-roll wander when un-followed
+      followerNpcId = npcId;
+      const next = NPCS.find(n => n.id === npcId);
+      if (next) {
+        next.region  = currentRegion;   // sync them into the player's region
+        next.dirTimer = 0;
+      }
+      console.log('[follow] follower → ' + (npcId || 'none'));
+    }
+    function clearFollower() { setFollower(null); }
+
     function updateNPCs(dt) {
       for (const npc of NPCS) {
         // Docked NPCs (parked in the Aetherstride ship UI) skip all AI +
         // rendering + collision. Toggled via the Aethryx Expanse faction menu.
         if (npc.active === false) continue;
+        // ===== Follower-pursuit override =====
+        // If this NPC is the active companion, replace wander AI with a
+        // simple steering-toward-player pursuit. Region is forced to match
+        // the player every frame so they stay with you across transitions.
+        if (npc.id === followerNpcId) {
+          npc.region = currentRegion;
+          // Vector from NPC body-center to player body-center.
+          const npcCx    = npc.x + npc.w / 2;
+          const npcCy    = npc.y + npc.h / 2;
+          const playerCx = player.x + CHAR_W / 2;
+          const playerCy = player.y + CHAR_H / 2;
+          const vx = playerCx - npcCx;
+          const vy = playerCy - npcCy;
+          const dist = Math.hypot(vx, vy);
+          // Teleport reset — if absurdly far (region edge case), snap.
+          if (dist > FOLLOW_TELEPORT_DIST) {
+            npc.x = player.x - CHAR_W;   // drop them just to the left of player
+            npc.y = player.y;
+            npc.animTime = 0; npc.animFrame = 0;
+            continue;
+          }
+          // Keep-range — within the buffer, stop and freeze the walk cycle.
+          if (dist <= FOLLOW_KEEP_RANGE) {
+            npc.animTime = 0;
+            npc.animFrame = 0;
+            // Face the player so they read as engaged, not zoned out.
+            if (Math.abs(vx) > Math.abs(vy)) {
+              npc.facing = vx > 0 ? 'right' : 'left';
+            } else {
+              npc.facing = vy > 0 ? 'down' : 'up';
+            }
+            continue;
+          }
+          // Pursuit — move toward the player. Speed scales up when behind
+          // catch-up distance so they don't fall too far back during a run/fly.
+          const speedMul = dist > FOLLOW_CATCHUP_DIST ? 1.6 : 1.0;
+          const speed    = npc.speed * speedMul;
+          const nx       = vx / dist;
+          const ny       = vy / dist;
+          // Update facing to dominant movement axis.
+          if (Math.abs(vx) > Math.abs(vy)) {
+            npc.facing = vx > 0 ? 'right' : 'left';
+          } else {
+            npc.facing = vy > 0 ? 'down' : 'up';
+          }
+          // Advance walk cycle while moving.
+          npc.animTime += dt;
+          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
+          // Axis-separated movement, same as wander logic, so collisions slide.
+          const tryX = npc.x + nx * speed * dt;
+          if (!npcBlocked(npc, tryX, npc.y)) npc.x = tryX;
+          const tryY = npc.y + ny * speed * dt;
+          if (!npcBlocked(npc, npc.x, tryY)) npc.y = tryY;
+          continue;
+        }
         // Region scoping — NPCs only update in their home region (default
         // 'central' if not specified).
         if ((npc.region || 'central') !== currentRegion) continue;
@@ -3972,6 +4078,11 @@
       // Astral Force Field state. While block.active, the player is rooted
       // and the block animation plays.
       block: { active: false, phase: 'idle', frame: 0, frameTime: 0 },
+      // Hit-reaction animation state. Triggered by playerTakeHit() — overrides
+      // walk/idle/fly rendering for HURT_TOTAL_MS while it plays through 5
+      // frames. invuln continues for the full INVULN_MS window beyond the
+      // visual reaction (so the player keeps i-frames after the wince fades).
+      hurt: { active: false, frame: 0, frameTime: 0 },
       spc: 0,                // Special charge — fills on successful block (TODO)
     };
 
@@ -3997,6 +4108,11 @@
     // Damage invulnerability — short hit-stun window so a single fire tile
     // doesn't stunlock the heart bar to 0 in a single second.
     const INVULN_MS = 1500;
+    // Hurt animation tuning — 5 frames at 80ms each = 400ms total visual
+    // reaction. Invuln continues silently for the remaining 1100ms after the
+    // reset frame so the player still has i-frames before another hit lands.
+    const HURT_FRAMES   = 5;
+    const HURT_FRAME_MS = 80;
 
     // Gem tier credit values — each gem of that color is worth this many
     // 'credits' in the running total. Doubling progression for R..P, then
@@ -4199,14 +4315,21 @@
     }
 
     // Apply N hearts of damage to the player, respecting the invuln window.
-    // Returns true if damage actually landed. Caller should check return for
-    // hit-feedback (camera shake, sfx, etc.) — for now just decrements.
+    // Returns true if damage actually landed. Kicks off the 5-frame hurt
+    // animation (red flash → wince → recovery hop → reset) which overrides
+    // walk/idle/fly rendering for HURT_FRAMES * HURT_FRAME_MS = 400ms.
     function playerTakeHit(amount) {
       const t = nowMs();
       if (t < player.invulnUntil) return false;
       amount = Math.max(1, amount | 0);
       player.stats.hp = Math.max(0, player.stats.hp - amount);
       player.invulnUntil = t + INVULN_MS;
+      // Start hurt anim from frame 0 — restart even if a previous one was
+      // still playing (last hit wins, no anim queueing).
+      player.hurt.active    = true;
+      player.hurt.frame     = 0;
+      player.hurt.frameTime = 0;
+      haptic(18);
       console.log('[combat] player took ' + amount + ' damage, hp=' + player.stats.hp + '/' + player.stats.hpMax);
       if (player.stats.hp <= 0) {
         console.log('[combat] player KO (placeholder — game over hook TODO)');
@@ -4215,6 +4338,24 @@
         player.stats.hp = player.stats.hpMax;
       }
       return true;
+    }
+
+    // Advance the hurt animation clock. Called once per frame from update().
+    // dtSec = seconds since last frame. When the 5-frame cycle completes the
+    // hurt state goes idle and rendering returns to walk/idle/fly/etc.
+    function tickHurtAnim(dtSec) {
+      if (!player.hurt.active) return;
+      player.hurt.frameTime += dtSec * 1000;
+      while (player.hurt.frameTime >= HURT_FRAME_MS) {
+        player.hurt.frameTime -= HURT_FRAME_MS;
+        player.hurt.frame++;
+        if (player.hurt.frame >= HURT_FRAMES) {
+          player.hurt.active    = false;
+          player.hurt.frame     = 0;
+          player.hurt.frameTime = 0;
+          return;
+        }
+      }
     }
 
     // Energy regen + fly-drain ticker. Called once per frame from the main
@@ -4715,6 +4856,29 @@
           li.textContent = line;
           criesEl.appendChild(li);
         }
+      }
+      // ===== Follow toggle (faction members only) =====
+      // Drop a single button at the bottom of the modal panel. Re-created on
+      // every open so the label reflects the current follower state.
+      const panel = criesEl ? criesEl.parentElement : null;
+      const existing = panel && panel.querySelector('.npc-follow-btn');
+      if (existing) existing.remove();
+      if (panel && isFactionMember(npc)) {
+        const btn = document.createElement('button');
+        btn.className = 'npc-follow-btn pause-btn';
+        btn.style.cssText = 'margin-top: 14px; width: 100%;';
+        const isFollowing = followerNpcId === npc.id;
+        const hasOtherFollower = followerNpcId && followerNpcId !== npc.id;
+        btn.textContent = isFollowing ? 'Stop Following'
+                        : hasOtherFollower ? 'Make Companion (replaces current)'
+                        : 'Make Companion';
+        btn.addEventListener('click', () => {
+          if (followerNpcId === npc.id) clearFollower();
+          else                          setFollower(npc.id);
+          haptic(10);
+          openNpcInfoModal(npc);   // re-render the modal to flip the label
+        });
+        panel.appendChild(btn);
       }
       openModal('npc-info');
     }
@@ -5813,6 +5977,16 @@
           //   run  → ASSETS.runFrames     (32×45 canvas, drawn at screenX,Y)
           //   fly  → ASSETS.flyFrames     (56×45 canvas, drawn at screenX-FLY_OFFSET_X)
           // Combat takes precedence so a punch fires visibly even mid-walk.
+          // Hurt animation — TOP priority. Plays for ~400ms after each hit,
+          // overriding walk/idle/block/combat so the player visibly reacts.
+          // Falls through to normal rendering once the 5 frames complete.
+          if (player.hurt.active) {
+            const sprite = ASSETS['hurtF' + player.hurt.frame];
+            if (sprite) {
+              ctx.drawImage(sprite, screenX, screenY);
+            }
+            continue;
+          }
           if (player.block && player.block.active && ASSETS.blockCharge) {
             const set = (player.block.phase === 'charging') ? ASSETS.blockCharge
                       : (player.block.phase === 'max')      ? ASSETS.blockMax
@@ -5923,6 +6097,7 @@
         // every frame; hazard collision damages player when overlapping a
         // fire tile (with invuln window to prevent stunlock).
         tickEnergyEconomy(dt);
+        tickHurtAnim(dt);
         updateHazards(dt);
         updateChestAdjacency();
         updateGemDrops(dt);

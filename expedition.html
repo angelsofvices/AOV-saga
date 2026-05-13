@@ -4416,8 +4416,9 @@
       // Same scale modifies animation FPS so feet/wings keep visual pace
       // with traversal.
       player.mode = currentRunMode();
-      const modeScale = (player.mode === 'fly') ? FLY_SCALE
-                       : (player.mode === 'run') ? RUN_SCALE
+      const modeScale = (player.mode === 'block') ? 0
+                       : (player.mode === 'fly')   ? FLY_SCALE
+                       : (player.mode === 'run')   ? RUN_SCALE
                        : 1;
       const speed = player.speed * modeScale;
 
@@ -4714,6 +4715,21 @@
           //   run  → ASSETS.runFrames     (32×45 canvas, drawn at screenX,Y)
           //   fly  → ASSETS.flyFrames     (56×45 canvas, drawn at screenX-FLY_OFFSET_X)
           // Combat takes precedence so a punch fires visibly even mid-walk.
+          // Block (Astral Force Field) — highest-priority render. Plays
+          // ASSETS.blockCharge → blockMax (loops) → blockFade. Centered
+          // on the walk-box centerline so the bubble surrounds player.
+          if (player.block.active && ASSETS.blockCharge) {
+            const set = (player.block.phase === 'charging') ? ASSETS.blockCharge
+                      : (player.block.phase === 'max')      ? ASSETS.blockMax
+                      : ASSETS.blockFade;
+            const sprite = set && set[player.block.frame];
+            if (sprite) {
+              const drawX = screenX - BLOCK_OFFSET_X;
+              const drawY = screenY + BLOCK_OFFSET_Y;
+              ctx.drawImage(sprite, drawX, drawY);
+            }
+            continue;
+          }
           if (player.combatAction && ASSETS.combatFrames) {
             const frames = ASSETS.combatFrames[player.combatAction];
             const sprite = frames && frames[player.combatPhase];

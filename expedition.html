@@ -3254,6 +3254,11 @@
         if (value) onBPress(); else onBRelease();
         return true;
       }
+      // R = Return to Ship hotkey (same as the R shoulder button).
+      if ((k === 'r' || k === 'R') && value) {
+        returnToShip();
+        return true;
+      }
       // F = fly toggle shortcut for desktop testing (skip the double-tap
       // dance). Same effect as a controller B double-tap.
       if ((k === 'f' || k === 'F') && value) {
@@ -3357,11 +3362,18 @@
         }
         return;
       }
-      // L / R — wiped clean. Soft haptic so the tap still feels alive but
-      // no game action fires. Reserved for future specials / Ult once the
-      // combat design locks them in.
-      if (name === 'l' || name === 'r') {
+      // L — wiped clean for now (reserved for future specials / Ult).
+      if (name === 'l') {
         if (pressed) haptic(4);
+        return;
+      }
+      // R — Return to Ship hotkey. Fires on press only. Modal-open suppresses.
+      if (name === 'r') {
+        if (pressed) {
+          haptic(6);
+          if (modalState.current) return;
+          returnToShip();
+        }
         return;
       }
       // Modal-trigger buttons fire on PRESS only, not release. Tapping the
@@ -4492,6 +4504,35 @@
       }
       return false;
     }
+    // ============ Return to Ship (R hotkey) ============
+    // Snaps the player back to Central, dropped just south of the UFO and
+    // facing up so the Aetherstride is right there in their view. Works
+    // from any region. Used by the R button + R key.
+    function returnToShip() {
+      if (currentRegion !== 'central') {
+        // transitionRegion handles MAP_DATA/COLLIDERS swap + resets idle/B
+        // state. We override its default spawn Y afterward.
+        transitionRegion('central');
+      }
+      // Place player just south of the UFO (UFO is at tile 25,5 = world 800,160;
+      // 224 wide × 60 tall). Bottom-center of UFO is at world (912, 220);
+      // drop player ~10 px below that, centered horizontally.
+      player.x = UFO_TILE_X * TILE_SIZE + UFO_W / 2 - CHAR_W / 2;
+      player.y = UFO_TILE_Y * TILE_SIZE + UFO_H + 10;
+      player.facing = 'up';
+      // Reset transient anim state so the arrival reads clean.
+      player.animTime = 0; player.animFrame = 0;
+      player.idlePose = 0; player.idlePoseTime = 0;
+      player.idleAnimTime = 0; player.idleAnimFrame = 0;
+      // Clear any held movement input — finger-lift might race with the
+      // teleport otherwise.
+      joyInput.up = joyInput.down = joyInput.left = joyInput.right = false;
+      keyInput.up = keyInput.down = keyInput.left = keyInput.right = false;
+      updateCamera();
+      haptic(20);
+      console.log('[input] RETURN TO SHIP');
+    }
+
     function regionExitReady() {
       if (currentRegion === 'central' && player.y <= 8) return 'north';
       if (currentRegion === 'central' && player.y >= MAP_HEIGHT * TILE_SIZE - CHAR_H - 8) return 'south-enter';

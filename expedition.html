@@ -183,30 +183,76 @@
       min-height: 12px;
     }
 
-    /* ============ Exploration HUD overlay ============ */
-    .device-screen { position: relative; }
+    /* ============ Exploration HUD overlay (digital / holographic) ============
+       Positioned over the chassis at z-index:4 so it sits ABOVE the controller
+       frame pseudo-element. Panels are translucent with thin gold lines and
+       sacred-tech corner brackets — no backdrop blur (too solid, kills the
+       holographic feel). Subtle cyan inner glow + breathing pulse on accents. */
     .hud-overlay {
       position: absolute; inset: 0;
-      pointer-events: none; z-index: 2;
+      pointer-events: none; z-index: 4;
       font-family: var(--font-meta, 'Cinzel', serif);
       color: var(--gold-pale);
     }
+    .hud-overlay.hidden { display: none; }
+    body.modal-open .hud-overlay { opacity: 0; pointer-events: none; transition: opacity 0.18s ease; }
+
+    /* Shared digital-panel base */
     .hud-player-panel, .hud-gems-panel, .hud-enemy-warning, .hud-objective-panel {
       position: absolute;
-      background: rgba(10, 6, 24, 0.78);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      border: 1px solid rgba(232, 200, 120, 0.45);
-      border-radius: 5px;
-      box-shadow: 0 0 0 1px rgba(95, 168, 255, 0.06) inset, 0 4px 12px rgba(0, 0, 0, 0.5);
+      background: linear-gradient(135deg,
+        rgba(10, 6, 24, 0.32) 0%,
+        rgba(20, 14, 44, 0.20) 50%,
+        rgba(10, 6, 24, 0.32) 100%);
+      border: 1px solid rgba(232, 200, 120, 0.55);
+      box-shadow:
+        0 0 0 1px rgba(95, 168, 255, 0.10) inset,
+        0 0 8px rgba(95, 168, 255, 0.18),
+        0 0 14px rgba(232, 200, 120, 0.10);
       transition: opacity 0.18s ease;
     }
-    body.modal-open .hud-overlay { opacity: 0; pointer-events: none; }
+    /* Sacred-tech corner brackets — drawn as ::before / ::after pseudo-
+       elements clipped to top-left and bottom-right corners. */
+    .hud-player-panel::before, .hud-gems-panel::before,
+    .hud-enemy-warning::before, .hud-objective-panel::before,
+    .hud-player-panel::after,  .hud-gems-panel::after,
+    .hud-enemy-warning::after, .hud-objective-panel::after {
+      content: '';
+      position: absolute;
+      width: 8px; height: 8px;
+      border-color: var(--gold-bright);
+      pointer-events: none;
+    }
+    .hud-player-panel::before, .hud-gems-panel::before,
+    .hud-enemy-warning::before, .hud-objective-panel::before {
+      top: -1px; left: -1px;
+      border-top: 1.5px solid var(--gold-bright);
+      border-left: 1.5px solid var(--gold-bright);
+    }
+    .hud-player-panel::after,  .hud-gems-panel::after,
+    .hud-enemy-warning::after, .hud-objective-panel::after {
+      bottom: -1px; right: -1px;
+      border-bottom: 1.5px solid var(--gold-bright);
+      border-right: 1.5px solid var(--gold-bright);
+    }
+    /* Scan-line overlay — purely visual for the holographic feel. */
+    .hud-overlay::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 1px,
+        rgba(95, 168, 255, 0.025) 1px,
+        rgba(95, 168, 255, 0.025) 2px
+      );
+      pointer-events: none;
+    }
     .hud-player-panel {
-      top: 2.5%; left: 2%;
+      top: 6.7%; left: 9%;
       display: flex; gap: 4px;
       padding: 3px 5px 3px 3px;
-      min-width: 36%;
+      min-width: 28%;
     }
     .hud-portrait {
       width: 18px; height: 18px;
@@ -240,9 +286,9 @@
     }
     .hud-bar-text { font-size: 4.5px; color: var(--gold-pale); min-width: 28px; text-align: right; }
     .hud-gems-panel {
-      top: 2.5%; left: 50%; transform: translateX(-50%);
+      top: 6.7%; left: 50%; transform: translateX(-50%);
       display: flex; flex-direction: column; align-items: center;
-      padding: 2px 8px 3px; min-width: 18%;
+      padding: 2px 8px 3px; min-width: 15%;
     }
     .hud-gem-icon {
       font-size: 9px; color: #b08bff;
@@ -254,11 +300,14 @@
     }
     .hud-gem-label { font-size: 3.5px; letter-spacing: 0.25em; color: var(--mist-deep, #7a7390); }
     .hud-enemy-warning {
-      top: 2.5%; right: 2%;
+      top: 6.7%; right: 9%;
       display: flex; flex-direction: column; align-items: center;
       padding: 2px 6px;
       border-color: rgba(255, 90, 90, 0.6);
       animation: hudEnemyPulse 1.4s ease-in-out infinite;
+    }
+    .hud-enemy-warning::before, .hud-enemy-warning::after {
+      border-color: rgba(255, 120, 120, 0.9);
     }
     @keyframes hudEnemyPulse {
       0%, 100% { box-shadow: 0 0 0 1px rgba(255, 90, 90, 0.15) inset, 0 4px 12px rgba(140, 0, 0, 0.4); }
@@ -268,10 +317,10 @@
     .hud-enemy-text { font-size: 4.5px; letter-spacing: 0.2em; color: #ff8888; text-align: center; line-height: 1.15; margin-top: 1px; }
     .hud-enemy-lv { font-size: 4.5px; letter-spacing: 0.1em; color: var(--gold-pale); margin-top: 1px; }
     .hud-objective-panel {
-      top: 18%; left: 2%;
+      top: 15%; left: 9%;
       display: flex; gap: 4px;
       padding: 3px 6px;
-      max-width: 38%;
+      max-width: 32%;
     }
     .hud-objective-icon { font-size: 6px; color: var(--gold); flex-shrink: 0; }
     .hud-objective-label { font-size: 3.5px; letter-spacing: 0.25em; color: var(--gold-bright); }
@@ -566,6 +615,53 @@
        source PNG exactly (1122×1402), so the image fills the panel edge-to-edge
        with no letterboxing. background-size: cover gracefully crops if a
        future panel ever stretches off-ratio. */
+    .options-list {
+      list-style: none;
+      padding: 0;
+      margin: 12px 0 0 0;
+    }
+    .options-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(232, 200, 120, 0.2);
+    }
+    .options-row:last-child { border-bottom: 0; }
+    .options-label {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      color: var(--gold-bright);
+      text-transform: uppercase;
+    }
+    .options-toggle {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(10, 6, 24, 0.6);
+      border: 1px solid rgba(232, 200, 120, 0.4);
+      border-radius: 14px;
+      padding: 3px 8px 3px 4px;
+      cursor: pointer;
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.15em;
+      color: var(--gold-bright);
+    }
+    .options-toggle-knob {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--cosmic-blue);
+      box-shadow: 0 0 6px rgba(95, 168, 255, 0.7);
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .options-toggle[aria-pressed="false"] .options-toggle-knob {
+      background: var(--mist-deep, #7a7390);
+      box-shadow: none;
+    }
+    .options-toggle[aria-pressed="false"] .options-toggle-text::after {
+      content: '';
+    }
+
     .astralpack-grid {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 8px;
       margin-top: 12px;
@@ -843,7 +939,14 @@
       <!-- Game canvas — rendered through the controller's screen rectangle -->
       <div class="device-screen">
         <canvas id="game"></canvas>
-        <div class="hud-overlay" id="hud-overlay">
+      </div>
+
+      <!-- HUD overlay — sits ABOVE the controller-frame pseudo-element
+           (z-index: 4) so the gold trim doesn't cover the panels. Positioned
+           relative to .device-chassis so coordinates are in chassis-percent
+           space, NOT screen-percent. pointer-events:none on the wrapper +
+           every child so taps still land on the hotzones below. -->
+      <div class="hud-overlay" id="hud-overlay">
           <div class="hud-player-panel">
             <div class="hud-portrait" id="hud-portrait"></div>
             <div class="hud-stats">
@@ -1017,6 +1120,27 @@
       <div class="modal-title">Astralpack</div>
       <div class="astralpack-grid" id="astralpack-grid"></div>
       <div class="map-label" id="astralpack-empty" style="margin-top: 12px;">Your pack is empty. Find items in the world.</div>
+    </div>
+  </div>
+
+  <!-- ============ Options modal ============
+       Settings panel. First switch: HUD on/off. -->
+  <div class="modal" id="modal-options" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" style="max-width: 340px;">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <div class="modal-eyebrow">Settings</div>
+      <div class="modal-title">Options</div>
+      <ul class="options-list">
+        <li class="options-row">
+          <span class="options-label">HUD Display</span>
+          <button class="options-toggle" id="options-hud-toggle" aria-pressed="true">
+            <span class="options-toggle-knob"></span>
+            <span class="options-toggle-text">ON</span>
+          </button>
+        </li>
+      </ul>
+      <div class="map-label" style="margin-top: 12px;">More settings coming.</div>
     </div>
   </div>
 
@@ -1578,6 +1702,16 @@
     const CHAR_W_FLY  = 56;
     const CHAR_H_FLY  = CHAR_H;            // 45 — match walk for vertical consistency
     const FLY_OFFSET_X = (CHAR_W_FLY - CHAR_W) / 2;   // 12 — center the wider canvas on the walk-canvas X axis
+
+    // Hoverboard (run) canvas — bigger than walk because the hoverboard
+    // extends BELOW the player's feet and a bit to each side. Bake target
+    // sized so the CHARACTER body in the bake reads at the same scale as
+    // walk + fly (≈32×45 of visible body); board + trail fill the extra
+    // canvas room below + to the sides.
+    const CHAR_W_RUN  = 80;
+    const CHAR_H_RUN  = 88;
+    const RUN_OFFSET_X = (CHAR_W_RUN - CHAR_W) / 2;   // 24
+    const RUN_OFFSET_Y = CHAR_H - CHAR_H_RUN;          // -43  (push UP so feet still land at walk-box feet)
 
     // ============ Idle sheet (animation_idle_player.png) ============
     // Unlike the walk/run/fly sheets where rows = directions, this sheet's 4
@@ -2499,14 +2633,14 @@
           const centerX = RUN_SHEET.cols[i];
           const cropX = centerX - RUN_SHEET.frameW / 2;
           const c = document.createElement('canvas');
-          c.width  = CHAR_W;
-          c.height = CHAR_H;
+          c.width  = CHAR_W_RUN;
+          c.height = CHAR_H_RUN;
           const cctx = c.getContext('2d');
           cctx.imageSmoothingEnabled = false;
           cctx.drawImage(
             sheetImg,
             cropX, cropY, RUN_SHEET.frameW, RUN_SHEET.frameH,
-            0, 0, CHAR_W, CHAR_H
+            0, 0, CHAR_W_RUN, CHAR_H_RUN
           );
           chromaKeyWhite(c);
           result[dir].push(c);
@@ -3569,6 +3703,7 @@
         astralGemsMax:   9,
       },
       objective: { text: 'Find the Astral Fragment', current: 0, max: 1 },
+      hudEnabled: true,
       // Astral Force Field state. While block.active, the player is rooted
       // and the block animation plays.
       block: { active: false, phase: 'idle', frame: 0, frameTime: 0 },
@@ -4247,6 +4382,34 @@
     // Hub icons → modals. Astralpack first; Codex / Profile / Save / Options next.
     document.querySelectorAll('.hub-item[data-hub="astralpack"]').forEach(btn => {
       btn.addEventListener('click', () => { closeModal(); openAstralpackModal(); });
+    });
+    document.querySelectorAll('.hub-item[data-hub="options"]').forEach(btn => {
+      btn.addEventListener('click', () => { closeModal(); openOptionsModal(); });
+    });
+
+    function applyHudVisibility() {
+      const el = document.getElementById('hud-overlay');
+      if (el) el.classList.toggle('hidden', !player.hudEnabled);
+    }
+    function openOptionsModal() {
+      // Sync toggle state with player.hudEnabled before showing.
+      const t = document.getElementById('options-hud-toggle');
+      if (t) {
+        t.setAttribute('aria-pressed', player.hudEnabled ? 'true' : 'false');
+        const txt = t.querySelector('.options-toggle-text');
+        if (txt) txt.textContent = player.hudEnabled ? 'ON' : 'OFF';
+      }
+      openModal('options');
+    }
+    document.querySelectorAll('#options-hud-toggle').forEach(t => {
+      t.addEventListener('click', () => {
+        player.hudEnabled = !player.hudEnabled;
+        t.setAttribute('aria-pressed', player.hudEnabled ? 'true' : 'false');
+        const txt = t.querySelector('.options-toggle-text');
+        if (txt) txt.textContent = player.hudEnabled ? 'ON' : 'OFF';
+        applyHudVisibility();
+        haptic(8);
+      });
     });
 
     const summonBtn = document.getElementById('summon-faction-btn');
@@ -5155,6 +5318,9 @@
             } else if (player.mode === 'run') {
               frameSet = ASSETS.runFrames;
               order    = RUN_WALK_ORDER[player.facing];
+              drawX    = screenX - RUN_OFFSET_X;
+              // Vertical offset applied below at draw time so the wider
+              // run canvas doesn't shift feet alignment when toggling.
             } else {
               frameSet = ASSETS.charFrames;
               order    = WALK_ORDER[player.facing];
@@ -5162,7 +5328,12 @@
             if (frameSet && order) {
               const frames = frameSet[player.facing];
               const sprite = frames && frames[order[player.animFrame]];
-              if (sprite) ctx.drawImage(sprite, drawX, screenY);
+              if (sprite) {
+                // Run mode draws taller (hoverboard) — apply Y offset so
+                // character feet still land at the walk-box feet line.
+                const drawY = (player.mode === 'run') ? (screenY + RUN_OFFSET_Y) : screenY;
+                ctx.drawImage(sprite, drawX, drawY);
+              }
             }
           }
         }
@@ -5234,6 +5405,7 @@
       const loadingEl = document.getElementById('loading');
       setTimeout(() => { loadingEl.classList.add('done'); }, 250);
 
+      applyHudVisibility();
       refreshHud();
       // Kick off the game loop
       requestAnimationFrame(loop);

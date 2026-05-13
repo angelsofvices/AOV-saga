@@ -1078,12 +1078,23 @@
     // Dest canvas height — 204/4 = 51, padded to 56 to match the fly canvas
     // height for clean foot-alignment math. Width is per-frame (each baked
     // canvas has .width set from its srcW/4).
-    const CHAR_H_COMBAT  = 56;
+    // Dest canvas height — natural source/4 = 51 (204/4). Padded to 64 so
+    // raised-sword and overhead-cast frames have headroom; the natural image
+    // sits flush to the BOTTOM of the canvas, so the 13 px of top padding
+    // becomes spare room above the character's standard pose. Without this
+    // headroom, sword/blast frames where the character extends to source
+    // y=0 visually clip when the renderer aligns combat feet to walk feet.
+    const CHAR_H_COMBAT  = 64;
     // Character body anchor X within the dest canvas. Always 30 — that's
     // (anchorOffset / bakeScale) = 120/4 = 30, the dest position the
     // character body lands at after slicing. Consistent across all frames
     // so the character doesn't drift even as the canvas grows for beams.
     const COMBAT_ANCHOR_X = 30;
+    // Y offset for the combat canvas — push UP so combat feet align with
+    // the walk-box feet (otherwise the taller combat canvas hangs below
+    // walk-box bottom and the character appears to "drop" 19px when an
+    // attack fires, which reads as the head being cropped at the top).
+    const COMBAT_OFFSET_Y = CHAR_H - CHAR_H_COMBAT;   // 45 - 64 = -19
 
     // Combat animation timing. 4 frames per action × 60ms each = 240ms total
     // per move. Snappy enough that combo chains feel responsive; long enough
@@ -3328,21 +3339,13 @@
           hotzoneTouches.set(t.identifier, overName);
           dpadDragState.set(t.identifier, overName);
           applyHotzone(overName, true);
-        } else {
-          // Finger has moved OFF the D-pad entirely (into a gap or off the
-          // controller). Release the previous direction so the character
-          // doesn't keep walking. Keep tracking the touch so it re-grabs
-          // a direction if the finger slides back onto an arrow.
-          if (current) {
-            hotzoneTouches.delete(t.identifier);
-            let stillHeld = false;
-            for (const v of hotzoneTouches.values()) {
-              if (v === current) { stillHeld = true; break; }
-            }
-            if (!stillHeld) applyHotzone(current, false);
-            dpadDragState.set(t.identifier, null);
-          }
         }
+        // Else: finger is in the gap between arrows. STICKY behavior —
+        // keep the previously-pressed direction held so the slide between
+        // arrows feels smooth (no stutter, no momentary stop). The
+        // direction will only release when (a) the finger reaches a new
+        // arrow (handled above), or (b) the finger lifts entirely
+        // (handled by clearDpadDrag on touchend).
       }
     }, { passive: true });
 
@@ -3357,25 +3360,42 @@
     // ensures the active D-pad direction is released cleanly.
     const clearDpadDrag = (e) => {
       for (const t of e.changedTouches) {
-        // If this touch was tracked as a D-pad drag, release whatever
-        // direction it was currently holding.
-        if (dpadDragState.has(t.identifier)) {
-          const heldName = hotzoneTouches.get(t.identifier);
-          if (heldName && DPAD_NAMES.has(heldName)) {
-            hotzoneTouches.delete(t.identifier);
-            // Only release the direction if no other finger is still on it.
-            let stillHeld = false;
-            for (const v of hotzoneTouches.values()) {
-              if (v === heldName) { stillHeld = true; break; }
-            }
-            if (!stillHeld) applyHotzone(heldName, false);
+        // Always look up the touch in hotzoneTouches first — defends against
+        // the case where dpadDragState's seed listener missed the touch
+        // (e.g. modal opened/closed mid-press, touchstart raced with the
+        // seed). Without this, a held direction can persist after release
+        // ("sustained walk" bug). Release unconditionally if the touch is
+        // tracked as holding a D-pad direction.
+        const heldName = hotzoneTouches.get(t.identifier);
+        if (heldName && DPAD_NAMES.has(heldName)) {
+          hotzoneTouches.delete(t.identifier);
+          let stillHeld = false;
+          for (const v of hotzoneTouches.values()) {
+            if (v === heldName) { stillHeld = true; break; }
           }
-          dpadDragState.delete(t.identifier);
+          if (!stillHeld) applyHotzone(heldName, false);
         }
+        dpadDragState.delete(t.identifier);
       }
     };
     document.addEventListener('touchend',    clearDpadDrag, { passive: true });
     document.addEventListener('touchcancel', clearDpadDrag, { passive: true });
+
+    // Belt-and-suspenders: every game frame, check that joyInput directions
+    // match what hotzoneTouches says is held. If a direction is set in
+    // joyInput but no touch is on it AND no key is, force-clear it. This
+    // catches any sustained-walk leak that slips through both the per-element
+    // listener and the document-level cleanup. Cheap — runs once per frame.
+    function reconcileJoyInput() {
+      for (const dir of DPAD_NAMES) {
+        if (!joyInput[dir]) continue;
+        let touchHeld = false;
+        for (const v of hotzoneTouches.values()) {
+          if (v === dir) { touchHeld = true; break; }
+        }
+        if (!touchHeld) joyInput[dir] = false;
+      }
+    }
 
     // ============ Update (per-frame movement + animation) ============
     // Frame-rate independent: position += direction × speed × deltaTime.
@@ -3383,6 +3403,9 @@
       // Poll the L+R hold detector once per frame so Ult fires the moment
       // the 300ms threshold is crossed (not waiting for next input event).
       pollLRHold();
+      // Reconcile joystick input against actual touches every frame —
+      // defensive cleanup for sustained-walk leak.
+      reconcileJoyInput();
 
       // Combat animation ticker. Advances player.combatPhase based on elapsed
       // wall time (not dt-summed) so the animation runs at COMBAT_FRAME_MS
@@ -3700,13 +3723,14 @@
               // the same screen-space spot frame-to-frame.
               const cw = sprite.width;
               const charCenterX = screenX + CHAR_W / 2;          // walk-box centerline
+              const drawY = screenY + COMBAT_OFFSET_Y;            // push UP so combat feet = walk feet
               if (player.facing === 'left') {
                 // Mirror horizontally. Anchor for the mirrored canvas is
                 // (cw - COMBAT_ANCHOR_X) so the character body still lands
                 // at charCenterX. Beam extends LEFT of character.
                 const drawX = charCenterX - (cw - COMBAT_ANCHOR_X);
                 ctx.save();
-                ctx.translate(drawX + cw, screenY);
+                ctx.translate(drawX + cw, drawY);
                 ctx.scale(-1, 1);
                 ctx.drawImage(sprite, 0, 0);
                 ctx.restore();
@@ -3714,7 +3738,7 @@
                 // Right / up / down all play right-facing. Up/down dedicated
                 // sprites can be added in a Phase B.6 pass.
                 const drawX = charCenterX - COMBAT_ANCHOR_X;
-                ctx.drawImage(sprite, drawX, screenY);
+                ctx.drawImage(sprite, drawX, drawY);
               }
             }
             // Combat draws over everything else this frame — skip the

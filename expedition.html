@@ -1614,6 +1614,18 @@
       'house-big':  { w: Math.round(5 * TILE_SIZE * 1.5), h: Math.round(5 * TILE_SIZE * 1.5), tileW: 8, tileH: 8, asset: 'houseBig'  },  // 240×240
       'house-huge': { w: Math.round(8 * TILE_SIZE * 1.5), h: Math.round(6 * TILE_SIZE * 1.5), tileW: 12, tileH: 9, asset: 'houseHuge' },  // 384×288
     };
+    // Per-house alpha-bbox insets (Dec 2026) — fraction of sprite dimensions
+    // that's transparent margin OUTSIDE the actual building art. Probed
+    // directly from each PNG's non-transparent bbox. Used by buildColliders
+    // to construct a collider that hugs the building outline tightly,
+    // Pokemon-style: player can walk on the surrounding grass margin but
+    // can't enter the building footprint anywhere.
+    const HOUSE_INSETS = {
+      'house-sml':  { l: 0.035, r: 0.034, t: 0.061, b: 0.089 },
+      'house-med':  { l: 0.020, r: 0.010, t: 0.061, b: 0.104 },
+      'house-big':  { l: 0.038, r: 0.038, t: 0.046, b: 0.089 },
+      'house-huge': { l: 0.000, r: 0.000, t: 0.012, b: 0.000 },
+    };
 
     // ============ Faction HQ region ============
     // Walk up to the huge house in Central + tap A → enter HQ. Inside, the
@@ -2368,24 +2380,21 @@
             h: TILE_SIZE - 4,
           });
         } else if (HOUSE_TYPES[obj.type]) {
-          // Houses: collider TIGHTENED Dec 2026 so it traces the actual wall
-          // footprint, not the surrounding land/grass under the roof's
-          // perspective shadow. Previously the collider was 100% sprite-width
-          // × 66% height, which blocked walking up to the visible walls
-          // (players couldn't reach gems sitting just outside the foundation).
-          // New: 84% width (8% inset each side) × 50% height (bottom half).
-          // Matches the visible wall area; top half (roof + sky padding) and
-          // the ~8% grass-margin on each side stay walk-through.
+          // Houses: collider traces the BUILDING OUTLINE Pokemon-style
+          // (Dec 2026 v2). Uses per-PNG alpha-bbox insets so the collider
+          // matches the non-transparent silhouette of each house sprite.
+          // Player can walk on the grass margin AROUND the building but
+          // cannot enter the building's footprint at all — roof + walls
+          // are all solid, no walk-through. Combined with the new z-layer
+          // system (characters always over buildings), this gives the
+          // realistic "bump into walls" feel without visual clipping.
           const dims = HOUSE_TYPES[obj.type];
-          const colliderW = Math.round(dims.w * 0.84);
-          const colliderH = Math.round(dims.h * 0.50);
-          const xInset    = Math.round((dims.w - colliderW) / 2);
-          out.push({
-            x: obj.x * TILE_SIZE + xInset,
-            y: obj.y * TILE_SIZE + (dims.h - colliderH),
-            w: colliderW,
-            h: colliderH,
-          });
+          const ins  = HOUSE_INSETS[obj.type] || { l:0, r:0, t:0, b:0 };
+          const cx = obj.x * TILE_SIZE + Math.round(dims.w * ins.l);
+          const cy = obj.y * TILE_SIZE + Math.round(dims.h * ins.t);
+          const cw = Math.round(dims.w * (1 - ins.l - ins.r));
+          const ch = Math.round(dims.h * (1 - ins.t - ins.b));
+          out.push({ x: cx, y: cy, w: cw, h: ch });
         } else if (obj.type === 'ufo') {
           // UFO: collider = bottom half (landing struts area). Top half is
           // hull/dome, walk-behindable like a tree canopy.

@@ -2110,16 +2110,24 @@
       // player must tap A to open instead of walking through. Open chests
       // become walk-through (decorative). buildColliders is re-invoked
       // after openChest so the cleared collider drops out immediately.
-      if (typeof CHESTS !== 'undefined' && Array.isArray(CHESTS)) {
-        for (const c of CHESTS) {
-          if (c.opened) continue;
-          if ((c.region || 'central') !== mapData.id) continue;
-          out.push({
-            x: c.x, y: c.y,
-            w: (typeof CHEST_W !== 'undefined') ? CHEST_W : 32,
-            h: (typeof CHEST_H !== 'undefined') ? CHEST_H : 32,
-          });
+      // try/catch handles the FIRST call during module init: CHESTS is
+      // declared as a const LATER in this scope so `typeof CHESTS` would
+      // throw ReferenceError in TDZ (let/const TDZ applies even to typeof).
+      // After init the const exists, so subsequent calls take the fast path.
+      try {
+        if (Array.isArray(CHESTS)) {
+          const cw = (typeof CHEST_W !== 'undefined') ? CHEST_W : 32;
+          const ch = (typeof CHEST_H !== 'undefined') ? CHEST_H : 32;
+          for (const c of CHESTS) {
+            if (c.opened) continue;
+            if ((c.region || 'central') !== mapData.id) continue;
+            out.push({ x: c.x, y: c.y, w: cw, h: ch });
+          }
         }
+      } catch (_) {
+        // CHESTS not yet initialized — module-init bootstrap call. The
+        // first transitionRegion or openChest re-runs buildColliders later
+        // when CHESTS exists, so this branch's miss is harmless.
       }
       return out;
     }
@@ -3764,6 +3772,11 @@
       { id: 'c3-central', x: 12*32, y: 28*32, region: 'central', tier: 3, opened: false },
       { id: 'c4-central', x: 30*32, y: 26*32, region: 'central', tier: 4, opened: false },
     ];
+    // Rebuild colliders now that CHESTS exists — the initial COLLIDERS
+    // assignment at module-init couldn't include chests (CHESTS was in TDZ).
+    // Without this, the player could walk through chests until they crossed
+    // a region boundary (which re-runs buildColliders).
+    COLLIDERS = buildColliders(MAP_DATA);
     const chestState = { adjacent: false, chest: null };
     function chestBox(c) { return { x: c.x, y: c.y, w: CHEST_W, h: CHEST_H }; }
     function updateChestAdjacency() {

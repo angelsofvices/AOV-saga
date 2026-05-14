@@ -480,10 +480,19 @@
     .hud-hearts.full {
       animation: hudHeartBeat 1.05s ease-in-out infinite;
     }
+    /* Enemy live-alert — relocated Dec 2026 below the energy bar row so it
+       sits in the same top-center "vitals" column as hearts + bolts. Now
+       displays as a horizontal pill (flex-row) instead of vertical stack
+       so the icon + text + LV fit on one line under the bolts. Centered
+       via the same auto-margin technique used for hearts/energy. */
     .hud-enemy-warning {
-      top: 6.7%; right: 9%;
-      display: flex; flex-direction: column; align-items: center;
-      padding: 2px 6px;
+      position: absolute;
+      top: 12.4%;
+      left: 0; right: 0;
+      margin-left: auto; margin-right: auto;
+      width: fit-content;
+      display: flex; flex-direction: row; align-items: center; gap: 5px;
+      padding: 2px 8px;
       border-color: rgba(255, 90, 90, 0.6);
       animation: hudEnemyPulse 1.4s ease-in-out infinite;
     }
@@ -495,8 +504,8 @@
       50%      { box-shadow: 0 0 0 1px rgba(255, 90, 90, 0.45) inset, 0 6px 16px rgba(255, 60, 60, 0.55); }
     }
     .hud-enemy-flame { font-size: 8px; color: #ff5050; text-shadow: 0 0 4px rgba(255, 80, 80, 0.8); line-height: 1; }
-    .hud-enemy-text { font-size: 4.5px; letter-spacing: 0.2em; color: #ff8888; text-align: center; line-height: 1.15; margin-top: 1px; }
-    .hud-enemy-lv { font-size: 4.5px; letter-spacing: 0.1em; color: var(--gold-pale); margin-top: 1px; }
+    .hud-enemy-text { font-size: 5px; letter-spacing: 0.2em; color: #ff8888; text-align: center; line-height: 1; white-space: nowrap; }
+    .hud-enemy-lv { font-size: 5px; letter-spacing: 0.1em; color: var(--gold-pale); line-height: 1; }
     /* Dec 2026: hidden — objective tracker removed from in-game HUD.
        Will re-enable inside the pause/menu modal in a later pass. */
     .hud-objective-panel { display: none !important; }
@@ -1291,7 +1300,7 @@
           </div>
           <div class="hud-enemy-warning" id="hud-enemy-warning" hidden>
             <span class="hud-enemy-flame">▲</span>
-            <span class="hud-enemy-text">ENEMY<br/>NEARBY</span>
+            <span class="hud-enemy-text">ENEMY NEARBY</span>
             <span class="hud-enemy-lv">LV.<span id="hud-enemy-lv-num">?</span></span>
           </div>
           <div class="hud-objective-panel" id="hud-objective-panel">
@@ -2359,15 +2368,22 @@
             h: TILE_SIZE - 4,
           });
         } else if (HOUSE_TYPES[obj.type]) {
-          // Houses: collider = the bottom 2/3 of the visual footprint. The
-          // top third (roof) is walk-behindable so the player can stand at
-          // the back wall without bumping invisible air past the visible roof.
+          // Houses: collider TIGHTENED Dec 2026 so it traces the actual wall
+          // footprint, not the surrounding land/grass under the roof's
+          // perspective shadow. Previously the collider was 100% sprite-width
+          // × 66% height, which blocked walking up to the visible walls
+          // (players couldn't reach gems sitting just outside the foundation).
+          // New: 84% width (8% inset each side) × 50% height (bottom half).
+          // Matches the visible wall area; top half (roof + sky padding) and
+          // the ~8% grass-margin on each side stay walk-through.
           const dims = HOUSE_TYPES[obj.type];
-          const colliderH = Math.round(dims.h * 0.66);
+          const colliderW = Math.round(dims.w * 0.84);
+          const colliderH = Math.round(dims.h * 0.50);
+          const xInset    = Math.round((dims.w - colliderW) / 2);
           out.push({
-            x: obj.x * TILE_SIZE,
+            x: obj.x * TILE_SIZE + xInset,
             y: obj.y * TILE_SIZE + (dims.h - colliderH),
-            w: dims.w,
+            w: colliderW,
             h: colliderH,
           });
         } else if (obj.type === 'ufo') {

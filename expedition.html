@@ -6508,12 +6508,24 @@
     // CAMERA: positions are stored in WORLD coords; subtract camera.x/y to get
     // screen coords at draw time. Off-screen sprites are culled.
     function drawWorld() {
-      // Collect drawables with their sort key. World-space coords kept here.
+      // Z-layer system (Dec 2026): every drawable has a `layer` field that
+      // takes precedence over feetY in the sort. Used to FORCE buildings to
+      // always render UNDER characters/enemies, so a player or NPC walking
+      // through (or behind) a house's footprint never gets hidden by the
+      // roof or walls.
+      //   LAYER_BACKGROUND (0) — houses, ufo (large structures only)
+      //   LAYER_PROPS      (1) — trees, tombs, potions, fire, chests, gemDrops
+      //   LAYER_FOREGROUND (2) — player, NPCs (always above buildings/props)
+      // Within each layer, feetY sort still applies so e.g. two NPCs sort
+      // by their feet line normally.
+      const LAYER_BG = 0, LAYER_PROPS = 1, LAYER_FG = 2;
+
       const drawables = [];
       for (const obj of MAP_DATA.objects) {
         if (obj.type === 'tree') {
           drawables.push({
             kind: 'tree',
+            layer: LAYER_PROPS,
             x: obj.x * TILE_SIZE,
             y: obj.y * TILE_SIZE,
             feetY: obj.y * TILE_SIZE + TREE_H,
@@ -6522,6 +6534,7 @@
           const dims = HOUSE_TYPES[obj.type];
           drawables.push({
             kind: 'house',
+            layer: LAYER_BG,
             type: obj.type,
             x: obj.x * TILE_SIZE,
             y: obj.y * TILE_SIZE,
@@ -6533,6 +6546,7 @@
         } else if (obj.type === 'ufo') {
           drawables.push({
             kind: 'ufo',
+            layer: LAYER_BG,
             x: obj.x * TILE_SIZE,
             y: obj.y * TILE_SIZE,
             feetY: obj.y * TILE_SIZE + UFO_H,
@@ -6540,6 +6554,7 @@
         } else if (obj.type === 'tomb') {
           drawables.push({
             kind: 'tomb',
+            layer: LAYER_PROPS,
             x: obj.x * TILE_SIZE,
             y: obj.y * TILE_SIZE,
             variant: obj.variant || 0,
@@ -6548,6 +6563,7 @@
         } else if (obj.type === 'potion' && !obj.collected) {
           drawables.push({
             kind: 'potion',
+            layer: LAYER_PROPS,
             x: obj.x * TILE_SIZE,
             y: obj.y * TILE_SIZE,
             obj: obj,
@@ -6560,8 +6576,9 @@
         if (f.region !== currentRegion) continue;
         drawables.push({
           kind: 'fire',
+          layer: LAYER_PROPS,
           x: f.x, y: f.y,
-          feetY: f.y + 32 - 2,   // slight bias toward back so player draws above when overlapping
+          feetY: f.y + 32 - 2,
           fireRef: f,
         });
       }
@@ -6572,6 +6589,7 @@
         if (c.region !== currentRegion) continue;
         drawables.push({
           kind: 'chest',
+          layer: LAYER_PROPS,
           x: c.x, y: c.y,
           feetY: c.y + CHEST_H,
           chestRef: c,
@@ -6582,6 +6600,7 @@
         if (g.region !== currentRegion) continue;
         drawables.push({
           kind: 'gemDrop',
+          layer: LAYER_PROPS,
           x: g.x, y: g.y,
           feetY: g.y + GEM_H,
           gemRef: g,
@@ -6592,6 +6611,7 @@
         if ((npc.region || 'central') !== currentRegion) continue;   // different region
         drawables.push({
           kind: 'npc',
+          layer: LAYER_FG,
           npc: npc,
           x: npc.x,
           y: npc.y,
@@ -6600,11 +6620,13 @@
       }
       drawables.push({
         kind: 'player',
+        layer: LAYER_FG,
         x: player.x,
         y: player.y,
         feetY: player.y + CHAR_H,
       });
-      drawables.sort((a, b) => a.feetY - b.feetY);
+      // Sort by layer first, then by feetY within layer.
+      drawables.sort((a, b) => (a.layer - b.layer) || (a.feetY - b.feetY));
 
       for (const d of drawables) {
         // World → screen transform.

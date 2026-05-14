@@ -1745,16 +1745,18 @@
     //   Source: 1536×1024, 4 directional rows × 5 frames each. We use the
     //   first 4 frames to match the universal 4-frame cycle (frame 5 left
     //   unused — could become a runStartup pose later).
-    //   frameW BUMPED 230 → 320 (Dec 2026): LEFT row content is up to 303px
-    //   wide and RIGHT row up to 266px — the motion-blur trail extends past
-    //   the old 230-wide window, causing visible clipping in those facings.
-    //   320 covers both with margin. UP/DOWN rows (max 168 wide) just bake
-    //   with extra transparent padding — no visual change.
+    //   frameW RE-TUNED 320 → 240 (Dec 2026 v2): the 320 bump fixed the
+    //   LEFT/RIGHT trail-clipping but introduced a worse bug — adjacent
+    //   frames started bleeding into each other because column spacing is
+    //   only 239-260px. The 320-wide crop centered on each column captured
+    //   ~80px of the next frame's body, causing visible ghosting / clipping
+    //   artifacts when scaling down. 240 matches the minimum center
+    //   spacing exactly, guaranteeing no cross-frame contamination.
+    //   Content extending past 240 (rare frame-4 outliers, not in cycle)
+    //   gets clipped — acceptable tradeoff vs. neighbor-frame bleed.
     //   frameH=245 spans the row band (~193–237px tall).
-    //   Cross-row averaged frame centers (using clean UP+DOWN rows since
-    //   LEFT/RIGHT trail effects blur the blob detection).
     const RUN_SHEET = {
-      frameW: 320,
+      frameW: 240,
       frameH: 245,
       cols: [248, 487, 740, 1000],
       rowBases: { up: 263, left: 469, right: 717, down: 992 },
@@ -1810,13 +1812,14 @@
     // sized so the CHARACTER body in the bake reads at the same scale as
     // walk + fly (≈32×45 of visible body); board + trail fill the extra
     // canvas room below + to the sides.
-    // CHAR_W_RUN BUMPED 56 → 80 (Dec 2026) to match the wider frameW=320 —
-    // ratio 320/80 = 4.0 keeps the body proportional to walk (32px body in
-    // 230px source ≈ 8px of canvas at 56-wide, ≈ 8px at 80-wide). This
-    // preserves the LEFT/RIGHT motion-blur trail without horizontal squash.
-    const CHAR_W_RUN  = 80;
+    // CHAR_W_RUN RE-TUNED 80 → 60 (Dec 2026 v2) to track the frameW=240
+    // adjustment. Ratio 240/60 = 4.0 preserves the original body-to-canvas
+    // proportion from the 230/56 era. Wide enough that LEFT/RIGHT trails
+    // sit comfortably without horizontal squash, narrow enough that the
+    // bake doesn't pull pixels from adjacent frames in the source sheet.
+    const CHAR_W_RUN  = 60;
     const CHAR_H_RUN  = 64;
-    const RUN_OFFSET_X = (CHAR_W_RUN - CHAR_W) / 2;   // 24 — was 12 before width bump
+    const RUN_OFFSET_X = (CHAR_W_RUN - CHAR_W) / 2;   // 14
     const RUN_OFFSET_Y = CHAR_H - CHAR_H_RUN;          // -19
 
     // ============ Idle sheet (animation_idle_player.png) ============
@@ -3726,11 +3729,14 @@
     // table — chest1 → R/B, chest2 → G/Y, chest3 → W/O, chest4 → P/Blk.
     // Walk up and press A to open: spawns 2-4 gems around the chest position.
     const CHEST_W = 32, CHEST_H = 32;
+    // Loot table — each chest tier defines the gem-color pool, gem count
+    // range, and potion count range. Higher tiers = rarer gems + more
+    // potions (since clearing harder territory expects bigger rewards).
     const CHEST_LOOT_TABLE = {
-      1: { colors: ['R','B'],   countMin: 3, countMax: 5 },
-      2: { colors: ['G','Y'],   countMin: 2, countMax: 4 },
-      3: { colors: ['W','O'],   countMin: 2, countMax: 3 },
-      4: { colors: ['P','Blk'], countMin: 1, countMax: 2 },
+      1: { colors: ['R','B'],   countMin: 3, countMax: 5, potionMin: 1, potionMax: 1 },
+      2: { colors: ['G','Y'],   countMin: 2, countMax: 4, potionMin: 1, potionMax: 2 },
+      3: { colors: ['W','O'],   countMin: 2, countMax: 3, potionMin: 2, potionMax: 2 },
+      4: { colors: ['P','Blk'], countMin: 1, countMax: 2, potionMin: 2, potionMax: 3 },
     };
     // All four chests live in the central region for now, scattered around
     // the spawn so they're visible/findable during early testing. Tiers
@@ -3764,7 +3770,10 @@
       c.opened = true;
       const tbl = CHEST_LOOT_TABLE[c.tier] || CHEST_LOOT_TABLE[1];
       const count = tbl.countMin + Math.floor(Math.random() * (tbl.countMax - tbl.countMin + 1));
-      console.log('[chest] opened tier-' + c.tier + ' → spawning ' + count + ' gems');
+      const potionCount = (tbl.potionMin || 0) +
+        Math.floor(Math.random() * ((tbl.potionMax || 0) - (tbl.potionMin || 0) + 1));
+      console.log('[chest] opened tier-' + c.tier + ' → ' + count + ' gems, ' + potionCount + ' potions');
+      // ===== Gem drops =====
       for (let i = 0; i < count; i++) {
         const color = tbl.colors[Math.floor(Math.random() * tbl.colors.length)];
         // Spawn within ~36px radius around chest center, random angle.
@@ -3778,6 +3787,33 @@
           spawnTime: nowMs(),
           bobPhase: Math.random() * Math.PI * 2,
         });
+      }
+      // ===== Potion drops =====
+      // Pushed into the current region's objects array as standard potion
+      // pickups — same code path as pre-placed potions (walk + A to grab,
+      // collider blocks movement). Position in TILE units to match the
+      // existing potion-object shape; place around the chest's tile.
+      if (potionCount > 0 && REGIONS[c.region]) {
+        const objs = REGIONS[c.region].objects;
+        const chestTileX = Math.round(c.x / TILE_SIZE);
+        const chestTileY = Math.round(c.y / TILE_SIZE);
+        // Scatter pattern: try a small ring of offsets around the chest tile.
+        const offsets = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+        let placed = 0;
+        for (const [ox, oy] of offsets) {
+          if (placed >= potionCount) break;
+          const tx = chestTileX + ox;
+          const ty = chestTileY + oy;
+          // Skip if out-of-bounds (treat 40×40 as world tile limit).
+          if (tx < 0 || ty < 0 || tx >= MAP_WIDTH || ty >= MAP_HEIGHT) continue;
+          objs.push({ type: 'potion', x: tx, y: ty, collected: false });
+          placed++;
+        }
+        // Refresh colliders for the current region so new potion blockers
+        // register immediately (matches the pickUpPotion → buildColliders pattern).
+        if (c.region === currentRegion) {
+          COLLIDERS = buildColliders(MAP_DATA);
+        }
       }
       haptic(16);
     }
@@ -4201,10 +4237,10 @@
     // a slight bump for Blk (1080 instead of 1280) per design spec.
     const GEM_TIER = { R: 10, B: 20, G: 40, Y: 80, W: 160, O: 320, P: 640, Blk: 1080 };
 
-    // Run multiplier — applied while B is held. Faster than walk, slower than
-    // fly. Affects both movement speed and walk-cycle animation FPS so feet
-    // visibly keep up with the faster traversal.
-    const RUN_SCALE = 1.5;
+    // Run (hoverboard) multiplier — matched to FLY_SCALE in Dec 2026 so the
+    // two privileged traversal modes feel like alternates of the same
+    // velocity, just visually different (hoverboard vs wings).
+    const RUN_SCALE = 2.5;
     // Fly multiplier — bumps both movement speed and wing-flap animation FPS
     // so flight reads as the privileged traversal mode. (Walk = base 1×.)
     const FLY_SCALE = 2.5;   // bumped Dec 2026 (was 2.25)
@@ -4275,7 +4311,12 @@
     // DOUBLE_TAP_WINDOW). Anything longer than TAP_MAX_MS is treated as
     // a hold (run mode).
     const TAP_MAX_MS        = 240;
-    const DOUBLE_TAP_WINDOW = 350;
+    // Shortened from 350 → 180 (Dec 2026) so the single-tap run-toggle fires
+    // much faster — the old delay introduced a perceptible "wait" between
+    // pressing B and the hoverboard appearing. 180ms is still wide enough
+    // for a deliberate double-tap (fly toggle) but tight enough that a
+    // single tap feels instant.
+    const DOUBLE_TAP_WINDOW = 180;
     function onBPress() {
       bState.anyDown   = true;
       bState.pressedAt = nowMs();

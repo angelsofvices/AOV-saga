@@ -311,9 +311,17 @@
        bolts directly below. Each row is a horizontal flex of 10 <img>
        elements that swap src between full/grey state based on stats.
        pointer-events:none — they're informational, not interactive. */
+    /* Centering technique CHANGED Dec 2026 — was `left: 50%; transform:
+       translateX(-50%)` but that combo was visibly right-shifting on mobile
+       Safari (suspected interaction between iOS Safari's transform handling
+       and the .full class's beat-animation keyframes). The bulletproof
+       replacement: `left: 0; right: 0; width: fit-content; margin: 0 auto`.
+       Pure layout, no transform involved — guaranteed center on every device. */
     .hud-hearts, .hud-energy {
       position: absolute;
-      left: 50%; transform: translateX(-50%);
+      left: 0; right: 0;
+      margin-left: auto; margin-right: auto;
+      width: fit-content;
       display: flex;
       gap: 1.5px;
       pointer-events: none;
@@ -349,12 +357,14 @@
     .bolt-pip  { width: 11px; height: 16px; }
     /* Subtle beat-pulse on the heart row ONLY when at full HP. Stops the
        instant any heart goes grey, providing visceral "you're hurt" feedback
-       without needing a separate damage flash. ~1.05s loop, low scale delta. */
+       without needing a separate damage flash. ~1.05s loop, low scale delta.
+       NOTE: keyframes scale only — no translateX needed, the row is centered
+       via margin auto in the base rule. */
     @keyframes hudHeartBeat {
-      0%, 100% { transform: translateX(-50%) scale(1.00); }
-      30%      { transform: translateX(-50%) scale(1.06); }
-      45%      { transform: translateX(-50%) scale(1.02); }
-      60%      { transform: translateX(-50%) scale(1.05); }
+      0%, 100% { transform: scale(1.00); }
+      30%      { transform: scale(1.06); }
+      45%      { transform: scale(1.02); }
+      60%      { transform: scale(1.05); }
     }
     .hud-hearts.full {
       animation: hudHeartBeat 1.05s ease-in-out infinite;
@@ -6139,18 +6149,25 @@
           }
           const isIdle = (player.mode === 'walk' && !player.isMoving);
           if (isIdle && ASSETS.idleFrames) {
-            // Idle pose 0 → use the dedicated portrait sprite (character_player.png)
-            // baked into ASSETS.playerIdle. This is the canonical straight-forward
-            // standing pose — replaces the slightly-twisted idle-sheet pose 0 AND
-            // the walk-down-frame-0 fallback. Poses 1..3 (arms-out, looking-around,
-            // nap) still pull from the idle sheet so the long-idle flavor anims
-            // are preserved.
-            if (player.idlePose === 0 && ASSETS.playerIdle) {
-              ctx.drawImage(ASSETS.playerIdle, screenX, screenY);
-            } else if (player.idlePose === 0 && ASSETS.charFrames && ASSETS.charFrames.down) {
-              // Fallback if portrait failed to load — use walk-down frame 0.
-              const sprite = ASSETS.charFrames.down[0];
-              if (sprite) ctx.drawImage(sprite, screenX, screenY);
+            // Idle pose 0 → Pokemon-style: face the direction the player was
+            // last moving. If they stopped facing DOWN (toward the camera),
+            // use the dedicated portrait sprite (character_player.png) which
+            // is a polished forward-facing pose. For UP/LEFT/RIGHT, freeze
+            // on the walk-cycle frame 0 of that direction — much less silly
+            // than always snapping to forward when they were just walking
+            // sideways. Poses 1..3 (arms-out, looking-around, nap) still
+            // pull from the idle sheet so the long-idle flavor anims play.
+            if (player.idlePose === 0) {
+              if (player.facing === 'down' && ASSETS.playerIdle) {
+                ctx.drawImage(ASSETS.playerIdle, screenX, screenY);
+              } else if (ASSETS.charFrames && ASSETS.charFrames[player.facing]) {
+                const sprite = ASSETS.charFrames[player.facing][0];
+                if (sprite) ctx.drawImage(sprite, screenX, screenY);
+              } else if (ASSETS.charFrames && ASSETS.charFrames.down) {
+                // Fallback — shouldn't hit but safe-guards the render.
+                const sprite = ASSETS.charFrames.down[0];
+                if (sprite) ctx.drawImage(sprite, screenX, screenY);
+              }
             } else {
               const pose   = ASSETS.idleFrames[player.idlePose];
               const sprite = pose && pose[player.idleAnimFrame];

@@ -1745,27 +1745,25 @@
     //   Source: 1536×1024, 4 directional rows × 5 frames each. We use the
     //   first 4 frames to match the universal 4-frame cycle (frame 5 left
     //   unused — could become a runStartup pose later).
-    //   frameW RE-TUNED 320 → 240 (Dec 2026 v2): the 320 bump fixed the
-    //   LEFT/RIGHT trail-clipping but introduced a worse bug — adjacent
-    //   frames started bleeding into each other because column spacing is
-    //   only 239-260px. The 320-wide crop centered on each column captured
-    //   ~80px of the next frame's body, causing visible ghosting / clipping
-    //   artifacts when scaling down. 240 matches the minimum center
-    //   spacing exactly, guaranteeing no cross-frame contamination.
-    //   Content extending past 240 (rare frame-4 outliers, not in cycle)
-    //   gets clipped — acceptable tradeoff vs. neighbor-frame bleed.
-    //   frameH RE-TUNED 245 → 200 (Dec 2026 v3): row spacing between UP
-    //   (feet=263) and LEFT (feet=469) is only 206. With frameH=245, the
-    //   top 39px of each LEFT crop pulled in content from the UP row above —
-    //   visible as a ghost character above the player's head when facing
-    //   LEFT/RIGHT. 200 fits inside the inter-row gap with a 6px safety
-    //   margin and still captures the full character (which is ~210 tall
-    //   at the bottom of each row).
+    //   Per-direction frame metrics (Dec 2026 v4) — a single shared frameH
+    //   couldn't capture all four facings without either clipping hair
+    //   (UP/DOWN have tall characters with spiky hair, ~237-240 px) or
+    //   bleeding adjacent-row content (LEFT/RIGHT only ~190 tall, but a
+    //   240-tall crop would grab UP row content above them).
+    //   Probed content heights:
+    //     UP    : 237 (needs frameH ≥ 240) — feet=263, top of hair ≈ y=17
+    //     DOWN  : 235 (needs frameH ≥ 240) — feet=992, top ≈ y=749
+    //     LEFT  : 187 (needs frameH ~ 195) — feet=469, top ≈ y=274
+    //     RIGHT : 190 (needs frameH ~ 200) — feet=717, top ≈ y=519
+    //   frameW stays uniform at 240 (= min inter-column spacing).
     const RUN_SHEET = {
       frameW: 240,
-      frameH: 200,
       cols: [248, 487, 740, 1000],
       rowBases: { up: 263, left: 469, right: 717, down: 992 },
+      // Per-direction frame heights — used by sliceRunSheet to crop only as
+      // much vertical space as that facing's character occupies. Prevents
+      // both head-clipping (too-small H) and adjacent-row bleed (too-big H).
+      frameHByDir: { up: 246, down: 244, left: 196, right: 200 },
     };
     const RUN_WALK_ORDER = {
       up: [0, 1, 2, 3], down: [0, 1, 2, 3], left: [0, 1, 2, 3], right: [0, 1, 2, 3],
@@ -2862,9 +2860,29 @@
     function sliceRunSheet(sheetImg) {
       const directions = ['up', 'left', 'right', 'down'];
       const result = { up: [], left: [], right: [], down: [] };
+      // Bake target uses the TALLEST direction's height as the canvas anchor
+      // — every direction renders into the same dest canvas size so the
+      // game-loop draw code stays uniform. Shorter directions (LEFT/RIGHT)
+      // pad the unused top space with transparency, leaving feet at the
+      // bottom of the canvas regardless of facing.
+      const maxFrameH = Math.max(
+        RUN_SHEET.frameHByDir.up,
+        RUN_SHEET.frameHByDir.down,
+        RUN_SHEET.frameHByDir.left,
+        RUN_SHEET.frameHByDir.right
+      );
       for (const dir of directions) {
+        const dirFrameH = RUN_SHEET.frameHByDir[dir] || maxFrameH;
         const baseY = RUN_SHEET.rowBases[dir];
-        const cropY = baseY - RUN_SHEET.frameH;
+        const cropY = baseY - dirFrameH;
+        // Per-direction dest height (proportional to source) so the character
+        // scales identically regardless of facing — short character in a
+        // short frame; tall character in a tall frame; feet always at canvas
+        // bottom. Dest = round(CHAR_H_RUN * dirFrameH / maxFrameH).
+        const destH = Math.round(CHAR_H_RUN * (dirFrameH / maxFrameH));
+        // Bottom-anchor: shorter dirs paste lower in the canvas so feet
+        // align across all directions when rendered at the same screen Y.
+        const destYOff = CHAR_H_RUN - destH;
         for (let i = 0; i < ANIM_FRAMES; i++) {
           const centerX = RUN_SHEET.cols[i];
           const cropX = centerX - RUN_SHEET.frameW / 2;
@@ -2875,8 +2893,8 @@
           cctx.imageSmoothingEnabled = false;
           cctx.drawImage(
             sheetImg,
-            cropX, cropY, RUN_SHEET.frameW, RUN_SHEET.frameH,
-            0, 0, CHAR_W_RUN, CHAR_H_RUN
+            cropX, cropY, RUN_SHEET.frameW, dirFrameH,
+            0, destYOff, CHAR_W_RUN, destH
           );
           chromaKeyWhite(c);
           result[dir].push(c);

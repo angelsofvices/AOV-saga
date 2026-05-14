@@ -188,6 +188,117 @@
       min-height: 12px;
     }
 
+    /* ============ Intro sequence (Dec 2026) ============
+       Studio splash → logo → title/start. Each .intro-screen is fullscreen,
+       stacks via z-index, and fades via opacity transitions controlled by
+       the JS state machine (advanceIntro()). Intro itself sits at z-index
+       300 so it's above the loading screen (200) and chassis (1-4). */
+    .intro {
+      position: fixed; inset: 0;
+      z-index: 300;
+      background: #050310;
+      display: block;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+    .intro.done {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .intro-screen {
+      position: absolute; inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      padding: 24px;
+      cursor: pointer;
+    }
+    .intro-screen[hidden] { display: none; }
+    .intro-screen.visible { opacity: 1; }
+    .intro-screen img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      filter: drop-shadow(0 0 28px rgba(232, 200, 120, 0.18));
+    }
+
+    /* Stage 3 — title screen layout: art on top, menu below */
+    .intro-title { cursor: default; padding: 24px 16px; }
+    .intro-title-art {
+      max-height: 70vh;
+      margin-bottom: 20px;
+    }
+    .intro-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      max-width: 280px;
+    }
+    .intro-btn {
+      font-family: var(--font-display, 'Cinzel', serif);
+      font-size: 0.95rem;
+      letter-spacing: 0.18em;
+      color: var(--gold-bright, #f4e3b3);
+      background: rgba(10, 6, 24, 0.6);
+      border: 1px solid rgba(232, 200, 120, 0.5);
+      border-radius: 4px;
+      padding: 12px 18px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    }
+    .intro-btn:hover, .intro-btn:active, .intro-btn:focus-visible {
+      background: rgba(232, 200, 120, 0.14);
+      border-color: var(--gold-bright, #f4e3b3);
+      outline: none;
+      transform: scale(1.02);
+    }
+    .intro-btn[disabled] {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .intro-footer {
+      margin-top: 22px;
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist, #8c8aa3);
+      opacity: 0.7;
+    }
+
+    /* Skip button — top-right corner, subtle until hover */
+    .intro-skip {
+      position: absolute;
+      top: 14px; right: 14px;
+      z-index: 5;
+      background: rgba(10, 6, 24, 0.5);
+      border: 1px solid rgba(232, 200, 120, 0.35);
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--gold-pale, #c8c2dc);
+      cursor: pointer;
+      opacity: 0.6;
+      transition: opacity 0.15s ease, background 0.15s ease;
+    }
+    .intro-skip:hover, .intro-skip:active, .intro-skip:focus-visible {
+      opacity: 1;
+      background: rgba(232, 200, 120, 0.15);
+      outline: none;
+    }
+    .intro-skip.hidden { display: none; }
+
     /* ============ Exploration HUD overlay (digital / holographic) ============
        Positioned over the chassis at z-index:4 so it sits ABOVE the controller
        frame pseudo-element. Panels are translucent with thin gold lines and
@@ -1100,8 +1211,37 @@
     <a href="/games.html" class="nav-back">← Games</a>
   </div>
 
+  <!-- ============ Intro sequence (Dec 2026) ============
+       Three-screen boot intro: studio splash → logo reveal → start screen.
+       Sits above everything (z-index 300+) and fades out once the player
+       picks NEW GAME / CONTINUE. SKIP control in the corner lets returning
+       players bypass straight to the start screen menu. -->
+  <div class="intro" id="intro">
+    <!-- Stage 1: AOV Gaming Co. studio splash (cinematic angel/dragon art) -->
+    <div class="intro-screen intro-studio" id="intro-studio" data-stage="studio">
+      <img src="/assets/intro_studio.png" alt="AOV Gaming Co." />
+    </div>
+    <!-- Stage 2: AOV Gaming pixel-art logo reveal -->
+    <div class="intro-screen intro-logo" id="intro-logo" data-stage="logo" hidden>
+      <img src="/assets/intro_logo.png" alt="AOV Gaming" />
+    </div>
+    <!-- Stage 3: Title / Start screen with NEW GAME / CONTINUE / OPTIONS -->
+    <div class="intro-screen intro-title" id="intro-title" data-stage="title" hidden>
+      <img class="intro-title-art" src="/assets/intro_title.png" alt="AOV Saga · The Expedition" />
+      <div class="intro-menu">
+        <button class="intro-btn" id="intro-newgame" data-action="newgame">★ New Game</button>
+        <button class="intro-btn" id="intro-continue" data-action="continue" disabled
+                title="Save system coming soon">Continue</button>
+        <button class="intro-btn" id="intro-options" data-action="options">Options</button>
+      </div>
+      <div class="intro-footer">© 2026 The AOV™ Saga</div>
+    </div>
+    <!-- Skip control — always visible during stages 1 & 2, hides on stage 3 -->
+    <button class="intro-skip" id="intro-skip" aria-label="Skip intro">SKIP ▸</button>
+  </div>
+
   <!-- ============ Loading screen ============ -->
-  <div class="loading" id="loading">
+  <div class="loading" id="loading" hidden>
     <div class="loading-eyebrow">Prototype 04 · Session 1</div>
     <div class="loading-title">The Viridian Expedition</div>
     <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
@@ -7001,7 +7141,118 @@
       marker.style.backgroundPosition = 'center';
     }
 
-    boot();
+    // ============ Intro sequence state machine (Dec 2026) ============
+    // Stage flow: studio (3s) → logo (2.2s) → title (wait for user).
+    // Tap on stage 1 or 2 advances early. SKIP button jumps straight to title.
+    // NEW GAME / CONTINUE in title screen hide the intro overlay and call
+    // boot() to start the existing asset-loading + game flow.
+    // CONTINUE is disabled (greyed) until a save system lands.
+    const INTRO_STUDIO_MS = 3000;
+    const INTRO_LOGO_MS   = 2200;
+    const introState = { stage: 'studio', timer: 0, started: false };
+
+    function showIntroScreen(id) {
+      const screens = ['intro-studio', 'intro-logo', 'intro-title'];
+      for (const s of screens) {
+        const el = document.getElementById(s);
+        if (!el) continue;
+        if (s === id) {
+          el.hidden = false;
+          // Force reflow before adding .visible so the opacity transition fires.
+          void el.offsetWidth;
+          el.classList.add('visible');
+        } else {
+          el.classList.remove('visible');
+          el.hidden = true;
+        }
+      }
+      // Hide SKIP button once we reach the title screen (it's the user's
+      // intended destination — they should pick a menu option, not skip past).
+      const skip = document.getElementById('intro-skip');
+      if (skip) skip.classList.toggle('hidden', id === 'intro-title');
+    }
+
+    function advanceIntro(toStage) {
+      if (introState.timer) { clearTimeout(introState.timer); introState.timer = 0; }
+      introState.stage = toStage;
+      showIntroScreen('intro-' + toStage);
+      if (toStage === 'studio') {
+        introState.timer = setTimeout(() => advanceIntro('logo'), INTRO_STUDIO_MS);
+      } else if (toStage === 'logo') {
+        introState.timer = setTimeout(() => advanceIntro('title'), INTRO_LOGO_MS);
+      }
+      // Stage 'title' waits for user input — no auto-advance.
+    }
+
+    function dismissIntro(then) {
+      const root = document.getElementById('intro');
+      if (!root) { if (then) then(); return; }
+      root.classList.add('done');
+      // Wait for fade-out before fully removing.
+      setTimeout(() => { root.style.display = 'none'; if (then) then(); }, 550);
+    }
+
+    function startGameFlow() {
+      // Reveal loading screen + kick off asset loader (the existing boot path).
+      const loadingEl = document.getElementById('loading');
+      if (loadingEl) loadingEl.hidden = false;
+      dismissIntro(() => boot());
+    }
+
+    function initIntro() {
+      // Stage 1/2: any tap on the screen advances early.
+      document.querySelectorAll('#intro-studio, #intro-logo').forEach(el => {
+        el.addEventListener('click', () => {
+          haptic(8);
+          if (introState.stage === 'studio') advanceIntro('logo');
+          else if (introState.stage === 'logo') advanceIntro('title');
+        });
+      });
+      // SKIP button → straight to title (skips both studio + logo).
+      const skip = document.getElementById('intro-skip');
+      if (skip) {
+        skip.addEventListener('click', () => {
+          haptic(8);
+          advanceIntro('title');
+        });
+      }
+      // Title screen buttons.
+      const ng = document.getElementById('intro-newgame');
+      if (ng) ng.addEventListener('click', () => {
+        haptic(14);
+        // NEW GAME — fresh boot. resetGame() runs AFTER boot completes
+        // (boot loads assets first). For now, plain boot is enough since
+        // module-init already initializes everything to defaults.
+        startGameFlow();
+      });
+      const op = document.getElementById('intro-options');
+      if (op) op.addEventListener('click', () => {
+        haptic(10);
+        // Reveal a lightweight version of options BEFORE the game boots.
+        // Easiest: still boot the game, then auto-open the Options modal
+        // once boot finishes. Stash an intent flag.
+        window.__bootOpenOptions = true;
+        startGameFlow();
+      });
+      // Kick off stage 1.
+      advanceIntro('studio');
+    }
+
+    // Open Options modal automatically if the intro flagged the intent.
+    // Hooked into the existing boot completion path via a setTimeout retry.
+    function _checkBootOpenOptions() {
+      if (!window.__bootOpenOptions) return;
+      if (typeof openOptionsModal !== 'function') {
+        setTimeout(_checkBootOpenOptions, 200);
+        return;
+      }
+      window.__bootOpenOptions = false;
+      openOptionsModal();
+    }
+    setTimeout(_checkBootOpenOptions, 1500);
+
+    // Start the intro sequence on page load instead of booting straight in.
+    initIntro();
   </script>
 </body>
 </html>

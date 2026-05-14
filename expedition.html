@@ -1764,6 +1764,13 @@
       // much vertical space as that facing's character occupies. Prevents
       // both head-clipping (too-small H) and adjacent-row bleed (too-big H).
       frameHByDir: { up: 246, down: 244, left: 196, right: 200 },
+      // Per-direction horizontal shift applied to the frame centers (Dec 2026
+      // v5). RIGHT-facing motion-blur trails extend LEFT of the body (opposite
+      // to movement direction). Probe revealed RIGHT frame 0 content center
+      // is at x=184 but the body-calibrated col is at x=248 — a 64px right-
+      // shift was clipping 76px of the trail. Shift RIGHT cols left by 30
+      // to recapture most of the trail without bleeding into prior frame.
+      colShiftByDir: { up: 0, down: 0, left: 0, right: -30 },
     };
     const RUN_WALK_ORDER = {
       up: [0, 1, 2, 3], down: [0, 1, 2, 3], left: [0, 1, 2, 3], right: [0, 1, 2, 3],
@@ -2883,8 +2890,9 @@
         // Bottom-anchor: shorter dirs paste lower in the canvas so feet
         // align across all directions when rendered at the same screen Y.
         const destYOff = CHAR_H_RUN - destH;
+        const colShift = (RUN_SHEET.colShiftByDir && RUN_SHEET.colShiftByDir[dir]) || 0;
         for (let i = 0; i < ANIM_FRAMES; i++) {
-          const centerX = RUN_SHEET.cols[i];
+          const centerX = RUN_SHEET.cols[i] + colShift;
           const cropX = centerX - RUN_SHEET.frameW / 2;
           const c = document.createElement('canvas');
           c.width  = CHAR_W_RUN;

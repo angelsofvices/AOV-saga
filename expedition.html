@@ -4752,9 +4752,72 @@
     // Vibration API. Movement buttons get a softer pulse than menu/face buttons
     // since holding the D-pad shouldn't feel like rapid-fire taps. Graceful no-op
     // on devices without vibration support (most iOS browsers).
-    function haptic(intensity) {
-      if (!('vibrate' in navigator)) return;
-      try { navigator.vibrate(intensity); } catch (_) { /* swallow */ }
+    // ============ Haptic feedback (Dec 2026 — upgraded for iOS support) ============
+    // Dual-strategy haptic system:
+    //   (1) ANDROID: navigator.vibrate() — works in Chrome/Firefox/Edge on Android.
+    //       Bumped minimum duration to be actually perceptible (was 4-12ms which
+    //       barely registers; new floor 15ms with category-based scaling).
+    //   (2) iOS Safari: navigator.vibrate is silently ignored — falls back to the
+    //       Web Audio click trick. A near-zero-duration silent oscillator pulse
+    //       triggers the Taptic Engine on most iPhone models in Safari when the
+    //       AudioContext was created from a user gesture. Audio level is 0 so
+    //       there's no sound — just the haptic tick.
+    // The AudioContext is lazy-initialized on the first user-gesture-driven
+    // haptic call (touchstart/click), satisfying Safari's autoplay restrictions.
+    let _hapticAudioCtx = null;
+    function _ensureHapticAudio() {
+      if (_hapticAudioCtx) return _hapticAudioCtx;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try {
+        _hapticAudioCtx = new AC();
+        return _hapticAudioCtx;
+      } catch (_) { return null; }
+    }
+    function _iosHapticTick(strength) {
+      // strength: 'light' | 'medium' | 'heavy' — controls click envelope.
+      const ctx = _ensureHapticAudio();
+      if (!ctx) return false;
+      try {
+        if (ctx.state === 'suspended') ctx.resume();
+        const t = ctx.currentTime;
+        // Brief click via square-wave with sharp envelope. Frequency near 0
+        // and gain at near-zero so the click is INAUDIBLE but registers as
+        // a tap to the Taptic Engine on iPhones that support it.
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'square';
+        o.frequency.value = strength === 'heavy' ? 60 : strength === 'medium' ? 40 : 20;
+        g.gain.setValueAtTime(0.00001, t);
+        g.gain.linearRampToValueAtTime(0.0001, t + 0.001);
+        g.gain.linearRampToValueAtTime(0.00001, t + (strength === 'heavy' ? 0.020 : strength === 'medium' ? 0.012 : 0.006));
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(t);
+        o.stop(t + 0.025);
+        return true;
+      } catch (_) { return false; }
+    }
+    // Main haptic entry — every button press funnels through here. Accepts
+    // legacy numeric intensity (back-compat) or a named strength string.
+    function haptic(intensityOrStrength) {
+      // Map numeric intensity → category for the iOS fallback + min-duration bump.
+      let ms, strength;
+      if (typeof intensityOrStrength === 'string') {
+        strength = intensityOrStrength;
+        ms = strength === 'heavy' ? 35 : strength === 'medium' ? 20 : 12;
+      } else {
+        const n = intensityOrStrength | 0;
+        if (n >= 20)      { strength = 'heavy';  ms = Math.max(35, n); }
+        else if (n >= 10) { strength = 'medium'; ms = Math.max(20, n); }
+        else              { strength = 'light';  ms = Math.max(12, n); }
+      }
+      // Android path — real vibration motor.
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate(ms); } catch (_) { /* swallow */ }
+      }
+      // iOS path — Taptic Engine via Web Audio click trick.
+      _iosHapticTick(strength);
     }
 
     function applyHotzone(name, pressed) {

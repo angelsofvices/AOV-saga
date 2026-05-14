@@ -2267,14 +2267,12 @@
       fireF6: { src: '/assets/hazard_fire_f6.png', raw: true },
       // Player portrait sprite — used as the IDLE pose 0 (standing still,
       // canonical forward-facing stance). Source PNG is 1024×1024 with a
-      // transparent BG and content bbox (259,109)–(761,868). Baked to the
-      // walk-canvas dims (32×45) so the renderer can blit it at the same
-      // screen coordinates as walk frames without offset math.
-      playerIdle: {
-        src: '/assets/character_player.png',
-        w: 32, h: 45,
-        crop: { x: 259, y: 109, w: 503, h: 760 },
-      },
+      // transparent BG and content bbox (259,109)–(761,868). Loaded RAW —
+      // a custom slicer (slicePlayerIdle, below) bakes the character at a
+      // SMALLER scale into a 32×45 canvas, bottom-center anchored, so the
+      // visible body proportion matches the walk-frame body proportion
+      // (otherwise the portrait fills the whole canvas and reads ~2× too big).
+      playerIdle: { src: '/assets/character_player.png', raw: true },
       // ===== Hurt-reaction animation (5 frames) =====
       // 1=IDLE, 2=HIT FLASH (red overlay), 3=WINCE, 4=RECOVERY HOP, 5=RESET.
       // Pre-baked to 32×45 with transparent BG (matches walk-canvas dims),
@@ -2350,6 +2348,10 @@
       ASSETS.flyFrames      = sliceFlySheet(ASSETS.flySheet);
       ASSETS.runFrames      = sliceRunSheet(ASSETS.runSheet);
       ASSETS.idleFrames     = sliceIdleSheet(ASSETS.idleSheet);
+      // Re-bake the playerIdle portrait through the custom slicer so it sits
+      // at walk-frame body proportions inside a 32×45 canvas instead of
+      // filling the whole canvas at ~2× scale. Overwrites the raw HTMLImage.
+      if (ASSETS.playerIdle) ASSETS.playerIdle = slicePlayerIdle(ASSETS.playerIdle);
       ASSETS.voltyranFrames = sliceVoltyranSheet(ASSETS.voltyranSheet);
       ASSETS.eurakeonFrames = sliceEurakeonSheet(ASSETS.eurakeonSheet);
       ASSETS.aurexionFrames = sliceAurexionSheet(ASSETS.aurexionSheet);
@@ -2391,6 +2393,32 @@
     // Extract 16 character frames (4 directions × 4 walk-cycle steps) from the master sheet.
     // Each frame is cropped from the sheet at 200×280, then baked into a CHAR_W×CHAR_H canvas
     // and white-chroma-keyed so the (originally white) background becomes transparent.
+    // Custom slicer for the idle portrait. Source character_player.png has the
+    // hero alpha-cropped tight to a 1024×1024 transparent canvas. If we bake
+    // straight to 32×45 the body fills the whole canvas — ~2× the visual size
+    // of a walk-frame body, which is what triggered the "too big" feedback.
+    // Instead: scale the source so the BODY HEIGHT matches the walk-frame body
+    // height (~38 px tall in 45-px canvas), preserve aspect, then paste into
+    // 32×45 anchored to bottom-center. Feet line up with walk frames.
+    function slicePlayerIdle(srcImg) {
+      const SRC_BBOX = { x: 259, y: 109, w: 503, h: 760 };   // tight content bbox of source
+      const TARGET_BODY_H = 38;                              // px tall in dest (≈ walk body height)
+      const TARGET_BODY_W = Math.round(SRC_BBOX.w * (TARGET_BODY_H / SRC_BBOX.h));   // ≈25
+      const c = document.createElement('canvas');
+      c.width  = CHAR_W;   // 32
+      c.height = CHAR_H;   // 45
+      const cctx = c.getContext('2d');
+      cctx.imageSmoothingEnabled = false;
+      const dx = Math.round((CHAR_W - TARGET_BODY_W) / 2);
+      const dy = CHAR_H - TARGET_BODY_H;
+      cctx.drawImage(
+        srcImg,
+        SRC_BBOX.x, SRC_BBOX.y, SRC_BBOX.w, SRC_BBOX.h,
+        dx, dy, TARGET_BODY_W, TARGET_BODY_H
+      );
+      return c;
+    }
+
     function sliceCharSheet(sheetImg) {
       const directions = ['up', 'left', 'right', 'down'];
       const result = { up: [], left: [], right: [], down: [] };

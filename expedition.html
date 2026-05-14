@@ -1394,11 +1394,20 @@
     // Potion display — 14×20 to read as a bottle vs the 32×45 player.
     // Source crop tightened around just the bottle (excludes the wider
     // aura swirl) so the bake doesn't squash it.
-    // Dec 2026: shrunk to half (was 14×20). Smaller in-world footprint so
-    // multiple potions can sit on a tile without crowding the player sprite.
-    const POTION_W = 7;
-    const POTION_H = 10;
-    const POTION_SHEET = { cropX: 95, cropY: 80, cropW: 110, cropH: 140 };
+    // Dec 2026: re-sized to preserve aspect of the FULL source frame (166×145
+    // with horizontal aura swirl around the bottle). Old 7×10 dest was a
+    // tall-skinny aspect (0.7) that didn't fit the actual content — the
+    // POTION_SHEET crop was tightened to compensate, which clipped the aura
+    // off the left/right sides. New 14×12 keeps the visual footprint small
+    // but matches the natural aura-included aspect (1.167 ≈ source 1.145)
+    // so nothing gets cropped at bake time.
+    const POTION_W = 14;
+    const POTION_H = 12;
+    // Crop EXPANDED Dec 2026 to capture the full aura swirl around the bottle
+    // — the prior 110×140 was tighter than the actual content (true bbox is
+    // x=63-228, y=77-221 = 166×145), which chopped off the horizontal aura
+    // tails on every render. POTION_W/H also bumped to match new aspect.
+    const POTION_SHEET = { cropX: 63, cropY: 77, cropW: 166, cropH: 145 };
 
     // Voltyran display size — 1.2x the baseline so he reads as the anchor
     // elder of the four. Eurakeon's 2x scale still references NPC_W /
@@ -2078,6 +2087,19 @@
             y: obj.y * TILE_SIZE + TOMB_H - 18,
             w: TOMB_W - 16,
             h: 14,
+          });
+        } else if (obj.type === 'potion' && !obj.collected) {
+          // Potion collider (Dec 2026) — pickups now BLOCK movement and
+          // require an explicit A-press to collect (the adjacency check in
+          // updatePotionAdjacency still fires within INTERACT_PAD of the
+          // collider, so the prompt + A handler work as before). Collected
+          // potions don't get colliders — buildColliders is re-invoked after
+          // pickUpPotion to drop the now-stale rect.
+          out.push({
+            x: obj.x * TILE_SIZE,
+            y: obj.y * TILE_SIZE,
+            w: POTION_W,
+            h: POTION_H,
           });
         }
       }
@@ -4369,6 +4391,22 @@
         player.stats.energy = Math.max(0, player.stats.energy - cost);
         player.lastEnergySpendAt = nowMs();
       }
+      // Lock-on facing override — when a target is locked, snap player facing
+      // toward it so every attack reads as 'aimed at the enemy' instead of
+      // firing in the last-walked direction. Dominant axis wins (treat as
+      // 4-way facing since sprite sheet is 4-directional).
+      if (typeof getLockedNpc === 'function') {
+        const tgt = getLockedNpc();
+        if (tgt) {
+          const dx = (tgt.x + tgt.w / 2) - (player.x + CHAR_W / 2);
+          const dy = (tgt.y + tgt.h / 2) - (player.y + CHAR_H / 2);
+          if (Math.abs(dx) > Math.abs(dy)) {
+            player.facing = dx > 0 ? 'right' : 'left';
+          } else {
+            player.facing = dy > 0 ? 'down' : 'up';
+          }
+        }
+      }
       player.combatAction    = action;
       player.combatPhase     = 0;
       player.combatStartedAt = nowMs();
@@ -4769,6 +4807,10 @@
     // bump or add to player.inventory.
     function pickUpPotion(obj) {
       obj.collected = true;
+      // Refresh colliders so the now-collected potion's blocking rect drops
+      // out of the COLLIDERS list — otherwise the invisible bounding box
+      // keeps blocking movement at the pickup spot.
+      COLLIDERS = buildColliders(MAP_DATA);
       const existing = player.inventory.find(it => it.id === 'potion');
       if (existing) {
         existing.qty += 1;
@@ -5101,6 +5143,8 @@
       }
       // ===== Companion =====
       followerNpcId = null;
+      // ===== Lock-on =====
+      if (typeof clearLockOn === 'function') clearLockOn();
       // ===== Chests — reset all 'opened' flags =====
       for (const c of CHESTS) { c.opened = false; }
       // ===== Gem drops — clear everything spawned in world =====
@@ -5111,6 +5155,12 @@
         for (const obj of region.objects) {
           if (obj.type === 'potion') obj.collected = false;
         }
+      }
+      // Re-build colliders for the current region AFTER potion reset so the
+      // newly-uncollected potions get their blocking rects back. (Potions now
+      // have collision per Dec 2026 — see buildColliders potion case.)
+      if (typeof buildColliders === 'function') {
+        try { COLLIDERS = buildColliders(MAP_DATA); } catch (e) { /* noop */ }
       }
       // ===== Fire frame counters — reset so the animation starts from frame 0 =====
       for (const f of FIRES) { f.frame = 0; f.frameTime = 0; }
@@ -6232,10 +6282,112 @@
       }
     }
 
+    // ============ Tap-lock-on + tap-NPC interaction (Dec 2026) ============
+    // Tapping the canvas hit-tests against NPCs in the current region.
+    //   - Tap an ENEMY → lock-on (crosshair circle, attacks redirect facing)
+    //   - Tap a FACTION NPC → open their info modal (companion toggle inside)
+    //   - Tap empty ground while locked → clear lock-on
+    // World coords are derived from screen coords by:
+    //   1. getBoundingClientRect on the canvas (CSS-rendered size + pos)
+    //   2. Scale (clientX - rect.left) to canvas-internal coords (VIEWPORT_W)
+    //   3. Add camera offset to get world coords
+    const lockOn = { active: false, npcId: null };
+    function clearLockOn() {
+      if (lockOn.active) console.log('[lock-on] cleared');
+      lockOn.active = false;
+      lockOn.npcId  = null;
+    }
+    function getLockedNpc() {
+      if (!lockOn.active) return null;
+      return NPCS.find(n => n.id === lockOn.npcId &&
+                            (n.region || 'central') === currentRegion &&
+                            n.active !== false) || null;
+    }
+    // Pointer→world conversion. Returns { wx, wy } or null if pointer was outside.
+    function pointerToWorld(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      if (clientX < rect.left || clientX > rect.right) return null;
+      if (clientY < rect.top  || clientY > rect.bottom) return null;
+      const cx = (clientX - rect.left) / rect.width  * canvas.width;
+      const cy = (clientY - rect.top)  / rect.height * canvas.height;
+      return { wx: cx + camera.x, wy: cy + camera.y };
+    }
+    // Find the NPC at world point (full sprite bbox hit-test). Returns NPC or null.
+    function npcAtWorld(wx, wy) {
+      for (const npc of NPCS) {
+        if (npc.active === false) continue;
+        if ((npc.region || 'central') !== currentRegion) continue;
+        if (wx < npc.x || wx > npc.x + npc.w) continue;
+        if (wy < npc.y || wy > npc.y + npc.h) continue;
+        return npc;
+      }
+      return null;
+    }
+    function handleCanvasTap(clientX, clientY) {
+      // Skip while a modal is open — those swallow taps via their backdrop.
+      if (modalState.current) return;
+      const pt = pointerToWorld(clientX, clientY);
+      if (!pt) return;
+      const hit = npcAtWorld(pt.wx, pt.wy);
+      if (!hit) {
+        // Empty ground tap — clear any active lock-on.
+        if (lockOn.active) clearLockOn();
+        return;
+      }
+      if (hit.enemy) {
+        // Toggle lock-on if tapping the same enemy again.
+        if (lockOn.active && lockOn.npcId === hit.id) {
+          clearLockOn();
+        } else {
+          lockOn.active = true;
+          lockOn.npcId  = hit.id;
+          haptic(8);
+          console.log('[lock-on] target = ' + hit.id);
+        }
+        return;
+      }
+      // Faction / non-enemy NPC tap → open info modal (which holds the
+      // Make-Companion toggle for faction members).
+      if (typeof openNpcInfoModal === 'function') {
+        openNpcInfoModal(hit);
+        haptic(10);
+      }
+    }
+    // Canvas pointer listener — single pointerdown handles both mouse + touch.
+    canvas.addEventListener('pointerdown', (e) => {
+      handleCanvasTap(e.clientX, e.clientY);
+    }, { passive: true });
+
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawTiles();
       drawWorld();
+      // Lock-on crosshair — drawn LAST so it sits on top of every world layer.
+      const locked = getLockedNpc();
+      if (locked) {
+        const cx = Math.round(locked.x + locked.w / 2 - camera.x);
+        const cy = Math.round(locked.y + locked.h / 2 - camera.y);
+        const r  = Math.max(12, Math.round(Math.max(locked.w, locked.h) * 0.55));
+        // Pulsing radius — gentle breath so the target reads as "alive".
+        const t = nowMs() / 1000;
+        const pulse = 1 + 0.08 * Math.sin(t * 4);
+        const rr = Math.round(r * pulse);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 80, 80, 0.95)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
+        // Inner crosshair tick marks at 0/90/180/270.
+        ctx.strokeStyle = 'rgba(255, 120, 120, 0.85)';
+        ctx.lineWidth = 1;
+        const tick = 4;
+        ctx.beginPath();
+        ctx.moveTo(cx - rr - tick, cy); ctx.lineTo(cx - rr + tick, cy);
+        ctx.moveTo(cx + rr - tick, cy); ctx.lineTo(cx + rr + tick, cy);
+        ctx.moveTo(cx, cy - rr - tick); ctx.lineTo(cx, cy - rr + tick);
+        ctx.moveTo(cx, cy + rr - tick); ctx.lineTo(cx, cy + rr + tick);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // ============ Game loop ============
@@ -6374,6 +6526,8 @@
       currentRegion = toRegion;
       MAP_DATA   = REGIONS[currentRegion];
       COLLIDERS  = buildColliders(MAP_DATA);
+      // Clear any active lock-on — target almost certainly isn't in the new region.
+      if (typeof clearLockOn === 'function') clearLockOn();
       if (from === 'central' && toRegion === 'north') {
         player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of north
       } else if (from === 'north' && toRegion === 'central') {

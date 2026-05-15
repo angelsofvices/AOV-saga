@@ -25,6 +25,11 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
+    /* Force the [hidden] attribute to win over our explicit display:flex
+       on .gameover-screen / .battle / .pick-screen. Author CSS otherwise
+       beats the user-agent rule and previously hidden sections leaked
+       into view (esp. the gameover panel during live battles). */
+    [hidden] { display: none !important; }
     body {
       font-family: var(--font-meta);
       background: radial-gradient(ellipse at top, #1c1432 0%, var(--void) 65%);
@@ -493,7 +498,7 @@
     <div class="title-eyebrow">Prototype 05 · Session 1</div>
     <h1 class="title-h1">Cardmaster Showdown</h1>
     <div class="title-divider"><span class="line"></span><span class="diamond"></span><span class="line"></span></div>
-    <p class="title-tagline">Rizing Powers of Zyrex · 1v1 vs AI · 9 random cards · 9 starting gems</p>
+    <p class="title-tagline">Rizing Powers of Zyrex · 1v1 vs AI · 9 random cards · 15 starting gems</p>
     <div style="display:flex;gap:12px;margin-top:8px;">
       <button class="btn-primary" id="btn-play">Play</button>
       <button class="btn-secondary" id="btn-rules" style="padding:14px 24px;font-size:0.7rem;">Rules</button>
@@ -505,7 +510,7 @@
     <div class="modal-panel" style="max-width: 540px;">
       <h3>Rules · Cardmaster Showdown</h3>
       <div style="font-size:0.78rem;line-height:1.6;">
-        <p style="margin-top:4px;"><strong style="color:var(--gold-bright);">Gem economy.</strong> You and the AI each start with <strong>9 gems</strong>. <em>Attacks are free.</em> Gems are only spent on <strong>SPC</strong> (3 gems each).</p>
+        <p style="margin-top:4px;"><strong style="color:var(--gold-bright);">Gem economy.</strong> You and the AI each start with <strong>15 gems</strong>. <em>Attacks are free.</em> Gems are only spent on <strong>SPC</strong> (3g) and <strong>Revive</strong> (1-5g by tier).</p>
         <p><strong style="color:var(--gold-bright);">Attacks (free).</strong></p>
         <ul style="padding-left:18px;margin:6px 0;">
           <li><strong>A1</strong> — ATK ×0.33. Always hits.</li>
@@ -513,11 +518,11 @@
           <li><strong>A3</strong> — ATK ×0.99. Roll 1d6 vs opponent's 1d6 — must roll <em>higher</em> to land.</li>
         </ul>
         <p><strong style="color:var(--gold-bright);">SPC (3 gems).</strong> One-time per card. Adds 25% of the card's SPC stat to one chosen stat (HP / ATK / DEF / SPD), permanent for the match.</p>
-        <p><strong style="color:var(--crimson);">SPC steal.</strong> When a card carrying SPC <strong>falls</strong>, the 3 gems on it transfer to the <em>opponent's</em> pool. They can SPC their own cards with your bet. Pick your SPC moments carefully.</p>
+        <p><strong style="color:var(--gold-bright);">Revive (1-5 gems).</strong> Bring back a fallen card at 50% HP. Cost = card tier (T1=1g … T5=5g). Marked Risen ✦.</p>
+        <p><strong style="color:var(--crimson);">Gem steal.</strong> EVERY gem invested in a card (SPC + revive) transfers to the <em>opponent's</em> pool when it falls. They can use your gems on their own cards. Pick your bets carefully.</p>
         <p><strong style="color:var(--gold-bright);">Turn order.</strong> Higher SPD always acts first. No exceptions. First-turn opening is decided by an opening 1d6 roll.</p>
         <p><strong style="color:var(--gold-bright);">DEF reduction.</strong> Five brackets (10 / 20 / 30 / 40 / 50%), capped at DEF 300.</p>
         <p><strong style="color:var(--gold-bright);">Switch.</strong> Bring in any reserve any time. If your reserve's SPD beats the opponent's active, they also attack this turn (Pokemon momentum).</p>
-        <p><strong style="color:var(--gold-bright);">Revive.</strong> Cost = card tier (T1=1g … T5=5g). Returns at 50% HP, marked Risen ✦.</p>
         <p style="margin-top:10px;"><strong style="color:var(--gold-bright);">Win.</strong> Defeat all 9 of your opponent's cards.</p>
       </div>
       <div class="modal-actions">
@@ -534,7 +539,7 @@
         <span class="player-tag-inline">AI Opponent</span>
         <div class="gem-tracker">
           <div class="gem-icon"></div>
-          <span class="gem-count" id="p2-gems">9</span>
+          <span class="gem-count" id="p2-gems">15</span>
           <span class="gem-label">Gems</span>
         </div>
         <div class="reserve-row" id="p2-reserves"></div>
@@ -550,7 +555,7 @@
         <span class="player-tag-inline">You</span>
         <div class="gem-tracker">
           <div class="gem-icon"></div>
-          <span class="gem-count" id="p1-gems">9</span>
+          <span class="gem-count" id="p1-gems">15</span>
           <span class="gem-label">Gems</span>
         </div>
         <div class="reserve-row" id="p1-reserves"></div>
@@ -562,10 +567,10 @@
   <!-- ============ Game over ============ -->
   <section class="gameover-screen" id="gameover-screen" hidden>
     <div class="title-eyebrow">Match Concluded</div>
-    <h1 id="gameover-title">— Wins —</h1>
+    <h1 id="gameover-title"></h1>
     <p class="subtitle" id="gameover-mvps"></p>
     <button class="btn-primary" id="btn-rematch">Rematch</button>
-    <button class="btn-secondary" id="btn-back-title">Back to Title</button>
+    <button class="btn-secondary" id="btn-back-title">Back to Games</button>
   </section>
 
 </main>
@@ -688,7 +693,7 @@ const ROSTER = [
   { id:'ZX-036', name:'Wynwyrm',    tier:1, hp:130, atk: 70, def:100, spd: 80, spc:120, a1:'Membrane',             a2:'Veilward',               a3:'Hallowed Plea' },
 ];
 const TEAM_SIZE = 9;
-const STARTING_GEMS = 9;
+const STARTING_GEMS = 15;
 const SPC_COST = 3;
 const DICE_SIDES = 6;
 
@@ -716,7 +721,7 @@ function newCardRuntime(roster) {
     hp: roster.hp, hpMax: roster.hp,
     atk: roster.atk, def: roster.def, spd: roster.spd, spc: roster.spc,
     spcUsed: false, risen: false,
-    spcGemsApplied: 0,  // gems sunk into SPC on this card; STOLEN by opponent on death
+    gemsOnCard: 0,      // ALL gems sunk into this card (SPC + revive). STOLEN by opponent on death.
     a1: roster.a1, a2: roster.a2, a3: roster.a3,
   };
 }
@@ -863,7 +868,7 @@ function renderCard(side) {
   if (!c) { root.innerHTML = '<em style="color:var(--mist-deep);">No active card</em>'; return; }
   const hpPct = Math.max(0, c.hp / c.hpMax) * 100;
   const hpClass = hpPct < 25 ? 'critical' : hpPct < 50 ? 'low' : '';
-  const committed = c.spcGemsApplied || 0;
+  const committed = c.gemsOnCard || 0;
   // Stat boosts vs base — show inline if SPC has been applied.
   const boostHp  = c.hpMax - c.base.hp;
   const boostAtk = c.atk   - c.base.atk;
@@ -871,7 +876,7 @@ function renderCard(side) {
   const boostSpd = c.spd   - c.base.spd;
   const anyBoost = boostHp || boostAtk || boostDef || boostSpd;
   root.innerHTML = `
-    <div class="gems-committed-badge ${committed === 0 ? 'zero' : ''}" title="${committed} SPC gems on this card — STOLEN by opponent if it falls">✦ ${committed}</div>
+    <div class="gems-committed-badge ${committed === 0 ? 'zero' : ''}" title="${committed} gems on this card (SPC + revive) — STOLEN by opponent if it falls">✦ ${committed}</div>
     <div class="battle-card-status">
       <span class="battle-card-name">${c.name}${c.risen ? ' ✦' : ''}</span>
       <span style="font-family:var(--font-meta);font-size:0.55rem;letter-spacing:0.2em;padding:1px 6px;border-radius:999px;background:rgba(232,200,120,0.12);color:var(--gold-bright);border:1px solid rgba(232,200,120,0.3);">T${c.tier}</span>
@@ -1033,14 +1038,15 @@ function applyDamage(targetSide, dmg, label) {
   pushLog('damage', `${label}: ${dmg} dmg → ${target.name} (${target.hp}/${target.hpMax})`);
   popupDamage(targetSide, '−' + dmg);
   if (target.hp <= 0) {
-    // SPC gem STEAL — if the fallen card had SPC committed, those gems
-    // transfer to the opponent's pool (NOT destroyed, NOT returned to the
-    // owner). This is the core risk/reward swing of the v5 economy.
-    const stolen = target.spcGemsApplied || 0;
+    // GEM STEAL — every gem invested in this card (SPC + revive) transfers
+    // to the opponent's pool when it falls. Gems aren't destroyed, they
+    // change hands. This is the swing of the v5 economy: any gem-bet on
+    // a card is a gem-bet against losing it.
+    const stolen = target.gemsOnCard || 0;
     const stealerSide = opp(targetSide);
     if (stolen > 0) {
       b[stealerSide].gems += stolen;
-      target.spcGemsApplied = 0;
+      target.gemsOnCard = 0;
       pushLog('damage', `${target.name} FALLEN — ${b[stealerSide].name} STEALS ${stolen} gems!`);
       popupDamage(targetSide, '−' + stolen + 'g', 'miss');
       popupDamage(stealerSide, '+' + stolen + 'g', 'heal');
@@ -1146,10 +1152,11 @@ document.getElementById('spc-cancel').addEventListener('click', () => {
 function applySpcBoost(side, stat, boost) {
   const p = state.battle[side];
   const c = activeOf(side);
-  // Pay the SPC cost from pool — this gem can be STOLEN by the opponent
-  // when this card falls (recorded on card.spcGemsApplied).
+  // Pay the SPC cost from pool — these gems are now ON this card and
+  // will be STOLEN by the opponent if it falls (along with any revive
+  // gems already invested in it).
   p.gems -= SPC_COST;
-  c.spcGemsApplied = (c.spcGemsApplied || 0) + SPC_COST;
+  c.gemsOnCard = (c.gemsOnCard || 0) + SPC_COST;
   if (stat === 'hp') { c.hpMax += boost; c.hp += boost; }
   else if (stat === 'atk') c.atk += boost;
   else if (stat === 'def') c.def += boost;
@@ -1256,9 +1263,11 @@ function doRevive(side, idx, cost) {
   p.gems -= cost;
   c.hp = Math.ceil(c.hpMax / 2);
   c.risen = true;
+  // Revive gems also go ON the card — if it falls again, opponent steals.
+  c.gemsOnCard = (c.gemsOnCard || 0) + cost;
   p.fallen = p.fallen.filter(i => i !== idx);
   if (!p.risen.includes(idx)) p.risen.push(idx);
-  pushLog('heal', `${p.name} REVIVED ${c.name} (-${cost} gems · ${c.hp} HP).`);
+  pushLog('heal', `${p.name} REVIVED ${c.name} (-${cost} gems · ${c.hp} HP · ${c.gemsOnCard}g on card).`);
   popupDamage(side, '+' + Math.ceil(c.hpMax/2), 'heal');
   if (b.awaitingShift === side) {
     p.activeIdx = idx;
@@ -1372,9 +1381,9 @@ function endMatch(winnerSide) {
 
 document.getElementById('btn-rematch').addEventListener('click', () => initMatch());
 document.getElementById('btn-back-title').addEventListener('click', () => {
-  show('gameover-screen', false); show('title-screen', true);
-  document.querySelector('.app').classList.remove('battle-mode');
-  state.phase = 'title';
+  // Per Dec 2026 user request — back button now exits to the games index,
+  // not the local title screen. Players who want to replay use Rematch.
+  window.location.href = '/games.html';
 });
 
 </script>

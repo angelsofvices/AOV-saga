@@ -598,6 +598,16 @@
   </div>
 </div>
 
+<!-- ============ Reveal-card modal (player picks starting card) ============ -->
+<div class="modal-backdrop" id="modal-card-select">
+  <div class="modal-panel" style="max-width: 720px;">
+    <h3 id="card-select-title">Choose your starting card</h3>
+    <p id="card-select-help">Pick one of your 9 random cards to bring out first.</p>
+    <div id="card-select-grid"
+         style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:14px 0;max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <!-- ============ Opening choice modal (PLAY or PASS) ============ -->
 <div class="modal-backdrop" id="modal-open-choice">
   <div class="modal-panel">
@@ -781,7 +791,8 @@ function initMatch() {
   show('title-screen', false);
   show('battle-screen', false);
   show('gameover-screen', false);
-  // Roll random teams + initialize battle struct.
+  // Roll random teams + initialize battle struct. activeIdx defaults to 0
+  // but will be overwritten by the per-player card-pick step before play.
   state.battle = {
     p1: { name: 'You', side: 'p1', gems: STARTING_GEMS, team: randomTeam().map(newCardRuntime),
           activeIdx: 0, fallen: [], risen: [] },
@@ -790,6 +801,78 @@ function initMatch() {
     log: [], turn: null, awaitingShift: null, winner: null,
   };
   openOpeningDice();
+}
+
+// AI picks its starting card. Heuristic: highest combined stat-total card,
+// with tiny tiebreak toward higher SPD (initiative).
+function aiPickStartingCard(p) {
+  let bestIdx = 0, bestScore = -1;
+  p.team.forEach((c, i) => {
+    const score = c.hp + c.atk + c.def + c.spd + c.spc + c.spd * 0.05;
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
+  });
+  return bestIdx;
+}
+
+// Run the two card-pick steps in sequence: chooser side first, then opponent.
+// After both picks, kick off the battle.
+function runStartingCardPicks(firstSide, onDone) {
+  const secondSide = opp(firstSide);
+  pickStartingCard(firstSide, () => {
+    pickStartingCard(secondSide, () => {
+      onDone();
+    });
+  });
+}
+
+function pickStartingCard(side, onDone) {
+  const p = state.battle[side];
+  if (side === 'p2') {
+    // AI auto-pick.
+    const idx = aiPickStartingCard(p);
+    p.activeIdx = idx;
+    pushLog('system', `AI reveals ${p.team[idx].name} (T${p.team[idx].tier} · SPD ${p.team[idx].spd}).`);
+    setTimeout(onDone, 850);
+    return;
+  }
+  // Player side — show the card-select modal.
+  const modal = document.getElementById('modal-card-select');
+  const grid = document.getElementById('card-select-grid');
+  const oppActive = state.battle.p2.team[state.battle.p2.activeIdx];
+  const oppRevealed = (state.battle.p2.activeIdx !== 0 || state.phase !== 'opening')
+                     && state.battle.log.some(l => l.msg.includes('AI reveals'));
+  document.getElementById('card-select-help').textContent = oppRevealed
+    ? `AI revealed ${oppActive.name} (T${oppActive.tier} · SPD ${oppActive.spd}). Pick your starting card.`
+    : 'Pick one of your 9 random cards to bring out first.';
+  grid.innerHTML = '';
+  p.team.forEach((c, i) => {
+    const cell = document.createElement('button');
+    cell.className = 'card-cell-pick';
+    cell.style.cssText = 'background:rgba(20,14,44,0.5);border:1px solid rgba(232,200,120,0.3);border-radius:6px;padding:8px;cursor:pointer;display:flex;flex-direction:column;gap:4px;text-align:left;transition:all 0.15s ease;';
+    cell.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-family:var(--font-meta);font-size:0.55rem;letter-spacing:0.2em;padding:1px 6px;border-radius:999px;background:rgba(232,200,120,0.12);color:var(--gold-bright);border:1px solid rgba(232,200,120,0.3);">T${c.tier}</span>
+        <span style="font-family:var(--font-meta);font-size:0.5rem;color:var(--mist-deep);letter-spacing:0.1em;">${c.id}</span>
+      </div>
+      <div style="font-family:var(--font-display);font-size:0.78rem;letter-spacing:0.05em;color:var(--gold-pale);text-transform:uppercase;">${c.name}</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:2px;font-family:var(--font-meta);font-size:0.55rem;color:var(--mist-deep);margin-top:2px;">
+        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">HP</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.hp}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">ATK</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.atk}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">DEF</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.def}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">SPD</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.spd}</div></div>
+        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">SPC</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.spc}</div></div>
+      </div>`;
+    cell.onmouseover = () => { cell.style.borderColor = 'var(--gold-bright)'; cell.style.background = 'rgba(232,200,120,0.10)'; };
+    cell.onmouseout  = () => { cell.style.borderColor = 'rgba(232,200,120,0.3)'; cell.style.background = 'rgba(20,14,44,0.5)'; };
+    cell.onclick = () => {
+      p.activeIdx = i;
+      pushLog('system', `You reveal ${c.name} (T${c.tier} · SPD ${c.spd}).`);
+      modal.classList.remove('show');
+      onDone();
+    };
+    grid.appendChild(cell);
+  });
+  modal.classList.add('show');
 }
 
 // ============ Opening dice roll ============
@@ -888,7 +971,9 @@ function resolveOpeningChoice(chooser, choice) {
   document.getElementById('open-choice-continue').hidden = false;
   document.getElementById('open-choice-continue').onclick = () => {
     document.getElementById('modal-open-choice').classList.remove('show');
-    startBattle();
+    // First-actor reveals their card first, then the opponent reveals (and
+    // can react to what they saw). Then battle begins.
+    runStartingCardPicks(firstActor, () => startBattle());
   };
 }
 

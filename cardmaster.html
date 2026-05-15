@@ -34,7 +34,9 @@
       -webkit-font-smoothing: antialiased;
       letter-spacing: 0.01em;
     }
-    .app { max-width: 1200px; margin: 0 auto; padding: 16px; }
+    .app { max-width: 1200px; margin: 0 auto; padding: 12px 16px; }
+    /* Battle screen overrides app padding so it fits closer to viewport edges. */
+    .app.battle-mode { max-width: 1080px; padding: 8px 12px; }
     .nav {
       display: flex; justify-content: space-between; align-items: center;
       padding: 12px 20px; border-bottom: 1px solid rgba(232, 200, 120, 0.15);
@@ -115,7 +117,7 @@
     /* ============ Battle screen ============ */
     .battle {
       display: grid; grid-template-rows: auto auto auto auto;
-      gap: 12px; padding: 8px 0;
+      gap: 8px; padding: 4px 0;
     }
     .battle-side {
       display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
@@ -144,9 +146,11 @@
       position: relative;
       overflow: visible;
     }
-    /* Card art image — fills the card frame, preserves portrait aspect. */
+    /* Card art image — fills the card frame, preserves portrait aspect.
+       max-height capped so the battle screen fits in one viewport on
+       most devices without scrolling. */
     .card-art {
-      display: block; width: 100%; max-height: 360px;
+      display: block; width: 100%; max-height: 220px;
       object-fit: contain;
       border-radius: 6px;
       filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6));
@@ -376,10 +380,10 @@
     .move-btn.danger { border-color: var(--crimson); color: var(--crimson); }
 
     .battle-log {
-      max-height: 220px; overflow-y: auto;
-      padding: 12px 16px; border: 1px solid rgba(232, 200, 120, 0.2); border-radius: 6px;
+      max-height: 110px; overflow-y: auto;
+      padding: 8px 14px; border: 1px solid rgba(232, 200, 120, 0.2); border-radius: 6px;
       background: rgba(10, 6, 24, 0.6);
-      font-family: var(--font-meta); font-size: 0.72rem; line-height: 1.55;
+      font-family: var(--font-meta); font-size: 0.7rem; line-height: 1.45;
     }
     .battle-log .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(232, 200, 120, 0.06); }
     .battle-log .log-entry.system { color: var(--gold-pale); }
@@ -489,26 +493,36 @@
     <div class="title-eyebrow">Prototype 05 · Session 1</div>
     <h1 class="title-h1">Cardmaster Showdown</h1>
     <div class="title-divider"><span class="line"></span><span class="diamond"></span><span class="line"></span></div>
-    <p class="title-tagline">Rizing Powers of Zyrex · 1v1 vs AI · Random 9-card teams · Spend gems wisely · Switch in like Pokemon</p>
-    <button class="btn-primary" id="btn-play">Play</button>
-
-    <div class="rules-summary">
-      <h4>The gem bet</h4>
-      <ul>
-        <li>You start with <strong>27 gems</strong> in your pool. Gems are <em>applied</em> to your cards when their attacks land — they're not spent on use.</li>
-        <li><strong>A1</strong> lands → <strong>1 gem committed</strong>. <strong>A2</strong> → 2 committed. <strong>A3</strong> → 3 committed (only if dice roll beats opponent's).</li>
-        <li>When a card <strong>falls</strong>, every gem committed to it is <strong>lost forever</strong>. The bigger your bet, the bigger the loss.</li>
-        <li><strong>SPC</strong> — free, one-time. Adds 25% of SPC value to one chosen stat permanently.</li>
-        <li><strong>DEF reduction</strong> — 5 brackets (10/20/30/40/50%), capped at DEF 300.</li>
-        <li><strong>Switch</strong> — swap in any reserve any time. SPD beats opponent's active = also attacks this turn.</li>
-        <li><strong>Revive</strong> — gem cost = card tier (T1=1g … T5=5g). Returns at 50% HP, marked Risen.</li>
-      </ul>
-      <h4 style="margin-top: 10px;">Win conditions</h4>
-      <ul>
-        <li>Defeat all 9 of your opponent's cards, <strong>OR</strong> drain their total gems (pool + committed) to zero.</li>
-      </ul>
+    <p class="title-tagline">Rizing Powers of Zyrex · 1v1 vs AI · Random 9-card teams</p>
+    <div style="display:flex;gap:12px;margin-top:8px;">
+      <button class="btn-primary" id="btn-play">Play</button>
+      <button class="btn-secondary" id="btn-rules" style="padding:14px 24px;font-size:0.7rem;">Rules</button>
     </div>
   </section>
+
+  <!-- ============ Rules overlay (toggleable) ============ -->
+  <div class="modal-backdrop" id="modal-rules">
+    <div class="modal-panel" style="max-width: 540px;">
+      <h3>Rules · Cardmaster Showdown</h3>
+      <div style="font-size:0.78rem;line-height:1.6;">
+        <p style="margin-top:4px;"><strong style="color:var(--gold-bright);">The gem bet.</strong> You and the AI each start with <strong>27 gems</strong>. Gems are <em>committed</em> to your cards when their attacks land — never spent on use, never destroyed by misses.</p>
+        <ul style="padding-left:18px;margin:6px 0;">
+          <li><strong>A1</strong> lands → 1 gem committed.</li>
+          <li><strong>A2</strong> lands → 2 gems committed.</li>
+          <li><strong>A3</strong> lands (dice 1d6 must beat opponent's) → 3 gems committed.</li>
+          <li>When a card <strong>falls</strong>, every gem committed to it is <strong>lost forever</strong>.</li>
+        </ul>
+        <p><strong style="color:var(--gold-bright);">SPC.</strong> Free, one-time per match. Adds 25% of the card's SPC stat permanently to one chosen stat (HP / ATK / DEF / SPD).</p>
+        <p><strong style="color:var(--gold-bright);">DEF reduction.</strong> Five brackets (10 / 20 / 30 / 40 / 50%), capped at DEF 300.</p>
+        <p><strong style="color:var(--gold-bright);">Switch.</strong> Bring in any reserve any time. If your reserve's SPD beats the opponent's active, they also attack this turn (Pokemon momentum).</p>
+        <p><strong style="color:var(--gold-bright);">Revive.</strong> Cost = card tier (T1=1g … T5=5g). Returns at 50% HP, marked Risen ✦.</p>
+        <p style="margin-top:10px;"><strong style="color:var(--gold-bright);">Win.</strong> Defeat all 9 of your opponent's cards, OR drain their total gems (pool + committed across living cards) to zero.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="rules-close">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============ Battle screen ============ -->
   <section class="battle" id="battle-screen" hidden>
@@ -519,7 +533,9 @@
         <div class="gem-tracker">
           <div class="gem-icon"></div>
           <span class="gem-count" id="p2-gems">27</span>
-          <span class="gem-label">Available</span>
+          <span class="gem-label">Pool</span>
+          <span style="margin-left:8px;font-family:var(--font-meta);font-size:0.55rem;letter-spacing:0.15em;color:var(--mist-deep);">TOTAL</span>
+          <span style="font-family:var(--font-display);font-size:0.95rem;color:var(--gold-bright);" id="p2-gems-total">27</span>
         </div>
         <div class="reserve-row" id="p2-reserves"></div>
       </div>
@@ -535,7 +551,9 @@
         <div class="gem-tracker">
           <div class="gem-icon"></div>
           <span class="gem-count" id="p1-gems">27</span>
-          <span class="gem-label">Available</span>
+          <span class="gem-label">Pool</span>
+          <span style="margin-left:8px;font-family:var(--font-meta);font-size:0.55rem;letter-spacing:0.15em;color:var(--mist-deep);">TOTAL</span>
+          <span style="font-family:var(--font-display);font-size:0.95rem;color:var(--gold-bright);" id="p1-gems-total">27</span>
         </div>
         <div class="reserve-row" id="p1-reserves"></div>
       </div>
@@ -721,6 +739,16 @@ function opp(side) { return side === 'p1' ? 'p2' : 'p1'; }
 
 // ============ Title ============
 document.getElementById('btn-play').addEventListener('click', () => initMatch());
+document.getElementById('btn-rules').addEventListener('click', () => {
+  document.getElementById('modal-rules').classList.add('show');
+});
+document.getElementById('rules-close').addEventListener('click', () => {
+  document.getElementById('modal-rules').classList.remove('show');
+});
+// Click backdrop to close.
+document.getElementById('modal-rules').addEventListener('click', (e) => {
+  if (e.target.id === 'modal-rules') e.currentTarget.classList.remove('show');
+});
 
 function initMatch() {
   state.phase = 'opening';
@@ -782,6 +810,7 @@ function openOpeningDice() {
 function startBattle() {
   state.phase = 'battle';
   show('battle-screen', true);
+  document.querySelector('.app').classList.add('battle-mode');
   pushLog('system', `Match begin. ${state.battle[state.battle.turn].name} acts first.`);
   renderBattle();
   // If AI goes first, kick off its turn.
@@ -811,6 +840,8 @@ function renderBattle() {
   const b = state.battle;
   document.getElementById('p1-gems').textContent = b.p1.gems;
   document.getElementById('p2-gems').textContent = b.p2.gems;
+  document.getElementById('p1-gems-total').textContent = totalGems('p1');
+  document.getElementById('p2-gems-total').textContent = totalGems('p2');
   renderCard('p1');
   renderCard('p2');
   renderReserves('p1');
@@ -860,13 +891,24 @@ function renderReserves(side) {
   const root = document.getElementById(side + '-reserves');
   root.innerHTML = '';
   const p = state.battle[side];
+  // For the AI (p2), hide reserve identities — only show backs of cards
+  // for fresh reserves, and reveal name only for fallen + risen (visible)
+  // and the currently-active card (in play).
+  const hidden = (side === 'p2');
   p.team.forEach((c, i) => {
     const el = document.createElement('div');
     el.className = 'reserve-card';
-    if (i === p.activeIdx) el.classList.add('active');
-    if (p.fallen.includes(i)) el.classList.add('fallen');
-    if (c.risen) el.classList.add('risen');
-    el.textContent = c.name + ' T' + c.tier;
+    const isActive = i === p.activeIdx;
+    const isFallen = p.fallen.includes(i);
+    const isRisen  = c.risen;
+    if (isActive) el.classList.add('active');
+    if (isFallen) el.classList.add('fallen');
+    if (isRisen)  el.classList.add('risen');
+    // Reveal name when active (in play), fallen (revealed by death), or
+    // risen (revealed by revive). Fresh hidden reserves on the AI side
+    // show ?? so the player doesn't know what's coming.
+    const reveal = !hidden || isActive || isFallen || isRisen;
+    el.textContent = reveal ? (c.name + ' T' + c.tier) : '?? T?';
     root.appendChild(el);
   });
 }
@@ -1363,6 +1405,7 @@ function endMatch(winnerSide) {
 document.getElementById('btn-rematch').addEventListener('click', () => initMatch());
 document.getElementById('btn-back-title').addEventListener('click', () => {
   show('gameover-screen', false); show('title-screen', true);
+  document.querySelector('.app').classList.remove('battle-mode');
   state.phase = 'title';
 });
 

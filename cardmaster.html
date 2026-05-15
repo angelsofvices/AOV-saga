@@ -133,7 +133,7 @@
 
     /* ===== Levitating card ===== */
     .battle-card {
-      padding: 12px; border-radius: 8px;
+      padding: 8px; border-radius: 10px;
       background: linear-gradient(160deg, rgba(20, 14, 44, 0.85), rgba(10, 6, 24, 0.65));
       border: 1px solid rgba(232, 200, 120, 0.35);
       box-shadow:
@@ -142,7 +142,52 @@
         0 0 24px rgba(232, 200, 120, 0.08);
       animation: cardLevitate 3.6s ease-in-out infinite;
       position: relative;
-      overflow: hidden;
+      overflow: visible;
+    }
+    /* Card art image — fills the card frame, preserves portrait aspect. */
+    .card-art {
+      display: block; width: 100%; max-height: 360px;
+      object-fit: contain;
+      border-radius: 6px;
+      filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6));
+    }
+    .card-art-fallback {
+      width: 100%; aspect-ratio: 5/7;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-size: 1.6rem; letter-spacing: 0.15em;
+      color: var(--gold-bright);
+      background: linear-gradient(135deg, var(--navy-mid), var(--void));
+      border: 1px solid rgba(232, 200, 120, 0.3);
+    }
+    /* Committed-gems badge — sits over the top-left of the card, shows gems
+       currently bet on this card. Pulses softly to draw attention. */
+    .gems-committed-badge {
+      position: absolute; top: -8px; left: -8px;
+      min-width: 32px; height: 32px; padding: 0 8px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #b08bff, #6e3fc1);
+      color: #fff;
+      font-family: var(--font-display); font-weight: 700; font-size: 0.95rem;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 12px rgba(168, 124, 255, 0.5), 0 4px 10px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      z-index: 5;
+      animation: gemPulse 2.2s ease-in-out infinite;
+    }
+    @keyframes gemPulse {
+      0%, 100% { box-shadow: 0 0 8px rgba(168, 124, 255, 0.4), 0 4px 10px rgba(0, 0, 0, 0.5); }
+      50%      { box-shadow: 0 0 16px rgba(168, 124, 255, 0.8), 0 4px 10px rgba(0, 0, 0, 0.5); }
+    }
+    .gems-committed-badge.zero { display: none; }
+    /* HP bar overlay sits under the card image. */
+    .battle-card-hp {
+      margin-top: 8px;
+    }
+    /* Status row — name + tier above the card. */
+    .battle-card-status {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 4px 6px; margin-bottom: 4px;
     }
     @keyframes cardLevitate {
       0%, 100% { transform: translateY(-3px); box-shadow:
@@ -448,15 +493,19 @@
     <button class="btn-primary" id="btn-play">Play</button>
 
     <div class="rules-summary">
-      <h4>House rules</h4>
+      <h4>The gem bet</h4>
       <ul>
-        <li><strong>A1</strong> — 1 gem, ATK ×0.33, no risk.</li>
-        <li><strong>A2</strong> — 2 gems, ATK ×0.66, balanced.</li>
-        <li><strong>A3</strong> — 3 gems, ATK ×0.99, dice roll required (must beat opponent's 1d6).</li>
+        <li>You start with <strong>27 gems</strong> in your pool. Gems are <em>applied</em> to your cards when their attacks land — they're not spent on use.</li>
+        <li><strong>A1</strong> lands → <strong>1 gem committed</strong>. <strong>A2</strong> → 2 committed. <strong>A3</strong> → 3 committed (only if dice roll beats opponent's).</li>
+        <li>When a card <strong>falls</strong>, every gem committed to it is <strong>lost forever</strong>. The bigger your bet, the bigger the loss.</li>
         <li><strong>SPC</strong> — free, one-time. Adds 25% of SPC value to one chosen stat permanently.</li>
         <li><strong>DEF reduction</strong> — 5 brackets (10/20/30/40/50%), capped at DEF 300.</li>
-        <li><strong>Switch</strong> — swap in any reserve card at any time. Costs the turn unless your reserve's SPD beats the opponent's active.</li>
+        <li><strong>Switch</strong> — swap in any reserve any time. SPD beats opponent's active = also attacks this turn.</li>
         <li><strong>Revive</strong> — gem cost = card tier (T1=1g … T5=5g). Returns at 50% HP, marked Risen.</li>
+      </ul>
+      <h4 style="margin-top: 10px;">Win conditions</h4>
+      <ul>
+        <li>Defeat all 9 of your opponent's cards, <strong>OR</strong> drain their total gems (pool + committed) to zero.</li>
       </ul>
     </div>
   </section>
@@ -470,7 +519,7 @@
         <div class="gem-tracker">
           <div class="gem-icon"></div>
           <span class="gem-count" id="p2-gems">27</span>
-          <span class="gem-label">Gems</span>
+          <span class="gem-label">Available</span>
         </div>
         <div class="reserve-row" id="p2-reserves"></div>
       </div>
@@ -486,7 +535,7 @@
         <div class="gem-tracker">
           <div class="gem-icon"></div>
           <span class="gem-count" id="p1-gems">27</span>
-          <span class="gem-label">Gems</span>
+          <span class="gem-label">Available</span>
         </div>
         <div class="reserve-row" id="p1-reserves"></div>
       </div>
@@ -650,6 +699,7 @@ function newCardRuntime(roster) {
     hp: roster.hp, hpMax: roster.hp,
     atk: roster.atk, def: roster.def, spd: roster.spd, spc: roster.spc,
     spcUsed: false, risen: false,
+    gemsCommitted: 0,   // gems currently committed to this card (lost when fallen)
     a1: roster.a1, a2: roster.a2, a3: roster.a3,
   };
 }
@@ -771,30 +821,38 @@ function renderBattle() {
   renderLog();
 }
 
+// Map roster names → card art file slug. Most match `card_<lowercase>.png`;
+// a few have spelling differences in the source files we map manually.
+const CARD_ART_REMAP = { oathare: 'oathane' };
+function cardArtPath(name) {
+  const slug = name.toLowerCase().replace(/[^a-z]/g, '');
+  return `/cards/card_${CARD_ART_REMAP[slug] || slug}.png`;
+}
+
 function renderCard(side) {
   const c = activeOf(side);
   const root = document.getElementById(side + '-card');
   if (!c) { root.innerHTML = '<em style="color:var(--mist-deep);">No active card</em>'; return; }
   const hpPct = Math.max(0, c.hp / c.hpMax) * 100;
   const hpClass = hpPct < 25 ? 'critical' : hpPct < 50 ? 'low' : '';
+  const committed = c.gemsCommitted || 0;
+  // Stat boosts vs base — show inline if SPC has been applied.
+  const boostHp  = c.hpMax - c.base.hp;
+  const boostAtk = c.atk   - c.base.atk;
+  const boostDef = c.def   - c.base.def;
+  const boostSpd = c.spd   - c.base.spd;
+  const anyBoost = boostHp || boostAtk || boostDef || boostSpd;
   root.innerHTML = `
-    <div class="battle-card-header">
+    <div class="gems-committed-badge ${committed === 0 ? 'zero' : ''}" title="Gems committed to this card — lost if it falls">${committed}</div>
+    <div class="battle-card-status">
       <span class="battle-card-name">${c.name}${c.risen ? ' ✦' : ''}</span>
       <span style="font-family:var(--font-meta);font-size:0.55rem;letter-spacing:0.2em;padding:1px 6px;border-radius:999px;background:rgba(232,200,120,0.12);color:var(--gold-bright);border:1px solid rgba(232,200,120,0.3);">T${c.tier}</span>
     </div>
-    <div class="hp-bar-wrap"><div class="hp-bar-fill ${hpClass}" style="width:${hpPct}%"></div></div>
-    <div class="hp-text">${c.hp} / ${c.hpMax} HP</div>
-    <div class="stat-grid">
-      <div class="stat-cell"><div class="lbl">ATK</div><div class="val">${c.atk}</div></div>
-      <div class="stat-cell"><div class="lbl">DEF</div><div class="val">${c.def}</div></div>
-      <div class="stat-cell"><div class="lbl">SPD</div><div class="val">${c.spd}</div></div>
-      <div class="stat-cell ${c.spcUsed ? 'spc-spent' : ''}"><div class="lbl">SPC</div><div class="val">${c.spcUsed ? 0 : c.spc}</div></div>
-      <div class="stat-cell"><div class="lbl">ID</div><div class="val" style="font-size:0.6rem;">${c.id.replace('ZX-','')}</div></div>
-    </div>
-    <div class="moves">
-      <div class="move-row"><span class="move-name">A1 · ${c.a1}</span><span class="move-cost">1g · ${Math.ceil(c.atk*0.33)}</span></div>
-      <div class="move-row"><span class="move-name">A2 · ${c.a2}</span><span class="move-cost">2g · ${Math.ceil(c.atk*0.66)}</span></div>
-      <div class="move-row"><span class="move-name">A3 · ${c.a3}</span><span class="move-cost">3g · ${Math.ceil(c.atk*0.99)} (1d6)</span></div>
+    <img class="card-art" src="${cardArtPath(c.name)}" alt="${c.name}"
+         onerror="this.outerHTML='<div class=card-art-fallback>${c.name}</div>'" />
+    <div class="battle-card-hp">
+      <div class="hp-bar-wrap"><div class="hp-bar-fill ${hpClass}" style="width:${hpPct}%"></div></div>
+      <div class="hp-text">${c.hp} / ${c.hpMax} HP${anyBoost ? ' <span style="color:var(--cosmic-blue)">(SPC)</span>' : ''}</div>
     </div>`;
 }
 
@@ -908,19 +966,42 @@ function doAttack(kind) {
   if (me.gems < cost) return;
 
   if (kind === 'a3') {
-    me.gems -= cost;
-    pushLog('system', `${me.name} commits A3 — ${myCard.a3} (3 gems).`);
+    // Dec 2026 economy: commit DEFERRED to landing. A3 reserves the gems
+    // (visually shows as still-in-pool) until the dice resolve. Miss → no
+    // commit, no loss. Hit → gems move from pool onto the attacker card.
+    pushLog('system', `${me.name} risks A3 — ${myCard.a3} (3 gems on the line).`);
     renderBattle();
-    openA3Modal(meSide, themSide);
+    openA3Modal(meSide, themSide, cost);
     return;
   }
 
-  me.gems -= cost;
+  // A1 / A2 always land. Commit gems immediately on swing.
   animateAttack(meSide, themSide);
   setTimeout(() => {
+    commitGems(meSide, cost);
     const dmg = computeDamage(myCard, theirCard, kind);
-    applyDamage(themSide, dmg, `${me.name} ${myCard.name} → ${kind.toUpperCase()} ${myCard[kind]}`);
+    applyDamage(themSide, dmg, `${me.name} ${myCard.name} → ${kind.toUpperCase()} ${myCard[kind]} (+${cost}g committed)`);
   }, 200);
+}
+
+// Move gems from player's available pool onto the active card. The gems are
+// "applied" to the card and will be lost if/when it falls — this is the
+// strategic risk of the new economy.
+function commitGems(side, amount) {
+  const p = state.battle[side];
+  const c = activeOf(side);
+  const real = Math.min(amount, p.gems);
+  p.gems -= real;
+  c.gemsCommitted = (c.gemsCommitted || 0) + real;
+  return real;
+}
+
+// Total gems still alive for a player = available pool + sum committed across
+// all surviving (non-fallen) cards. Used by the win-condition check.
+function totalGems(side) {
+  const p = state.battle[side];
+  const committed = p.team.reduce((s, c, i) => s + (p.fallen.includes(i) ? 0 : (c.gemsCommitted || 0)), 0);
+  return p.gems + committed;
 }
 
 function computeDamage(attacker, defender, kind) {
@@ -938,9 +1019,28 @@ function applyDamage(targetSide, dmg, label) {
   pushLog('damage', `${label}: ${dmg} dmg → ${target.name} (${target.hp}/${target.hpMax})`);
   popupDamage(targetSide, '−' + dmg);
   if (target.hp <= 0) {
-    pushLog('system', `${target.name} has FALLEN.`);
+    const lost = target.gemsCommitted || 0;
+    if (lost > 0) {
+      pushLog('damage', `${target.name} FALLEN — ${lost} gems lost!`);
+      popupDamage(targetSide, '−' + lost + 'g', 'miss');
+      target.gemsCommitted = 0;
+    } else {
+      pushLog('system', `${target.name} has FALLEN.`);
+    }
     const tp = b[targetSide];
     tp.fallen.push(tp.activeIdx);
+    // ===== Win checks =====
+    // (a) All cards fallen → opponent wins.
+    if (tp.team.every((_, i) => tp.fallen.includes(i))) {
+      // Could revive — but only if they have gems. If both no reserves and
+      // no revives, the other applyDamage path handles it. Here we've added
+      // the FALL itself; check below.
+    }
+    // (b) Total gems drained → opponent wins.
+    if (totalGems(targetSide) <= 0) {
+      pushLog('system', `${tp.name} has no gems left — match concedes.`);
+      endMatch(opp(targetSide)); return;
+    }
     const haveReserves = tp.team.some((_, i) => i !== tp.activeIdx && !tp.fallen.includes(i));
     const canRevive = tp.fallen.some(i => tp.gems >= reviveCost(tp.team[i].tier));
     if (!haveReserves && !canRevive) { endMatch(opp(targetSide)); return; }
@@ -1042,7 +1142,7 @@ function applySpcBoost(side, stat, boost) {
 }
 
 // ============ A3 dice modal ============
-function openA3Modal(attackerSide, defenderSide) {
+function openA3Modal(attackerSide, defenderSide, cost) {
   const b = state.battle;
   const att = activeOf(attackerSide); const def = activeOf(defenderSide);
   const modal = document.getElementById('modal-a3');
@@ -1058,16 +1158,15 @@ function openA3Modal(attackerSide, defenderSide) {
   rollBtn.hidden = false; contBtn.hidden = true;
   modal.classList.add('show');
 
-  // If AI is the attacker, auto-roll after a beat.
   if (attackerSide === 'p2') {
     rollBtn.hidden = true;
-    setTimeout(() => doA3Roll(attackerSide, defenderSide, modal, contBtn), 700);
+    setTimeout(() => doA3Roll(attackerSide, defenderSide, modal, contBtn, cost), 700);
   } else {
-    rollBtn.onclick = () => doA3Roll(attackerSide, defenderSide, modal, contBtn);
+    rollBtn.onclick = () => doA3Roll(attackerSide, defenderSide, modal, contBtn, cost);
   }
 }
 
-function doA3Roll(attackerSide, defenderSide, modal, contBtn) {
+function doA3Roll(attackerSide, defenderSide, modal, contBtn, cost) {
   const b = state.battle;
   const att = activeOf(attackerSide); const def = activeOf(defenderSide);
   const aCell = document.getElementById('dice-attacker');
@@ -1079,7 +1178,7 @@ function doA3Roll(attackerSide, defenderSide, modal, contBtn) {
     document.getElementById('dice-defender-roll').textContent = dRoll;
     aCell.classList.remove('rolling'); dCell.classList.remove('rolling');
     const hit = aRoll > dRoll;
-    document.getElementById('dice-result').textContent = hit ? 'HIT — apply damage' : 'MISS — no damage';
+    document.getElementById('dice-result').textContent = hit ? 'HIT — commit + damage' : 'MISS — no commit';
     aCell.classList.add(hit ? 'winner' : 'loser');
     dCell.classList.add(hit ? 'loser' : 'winner');
     document.getElementById('dice-roll').hidden = true;
@@ -1089,18 +1188,18 @@ function doA3Roll(attackerSide, defenderSide, modal, contBtn) {
       if (hit) {
         animateAttack(attackerSide, defenderSide);
         setTimeout(() => {
+          commitGems(attackerSide, cost);
           const dmg = computeDamage(att, def, 'a3');
-          applyDamage(defenderSide, dmg, `${b[attackerSide].name} ${att.name} → A3 ${att.a3} (rolled ${aRoll} vs ${dRoll})`);
+          applyDamage(defenderSide, dmg, `${b[attackerSide].name} ${att.name} → A3 ${att.a3} (rolled ${aRoll}>${dRoll}, +${cost}g committed)`);
         }, 200);
       } else {
-        pushLog('miss', `${att.name}'s A3 missed (rolled ${aRoll} vs ${dRoll}).`);
+        pushLog('miss', `${att.name}'s A3 missed (rolled ${aRoll} vs ${dRoll}) — gems safe.`);
         popupDamage(defenderSide, 'MISS', 'miss');
         b.turn = opp(b.turn);
         renderBattle();
         if (b.turn === 'p2') setTimeout(aiTurn, 700);
       }
     };
-    // If AI was attacker, auto-continue after brief pause.
     if (attackerSide === 'p2') setTimeout(() => contBtn.click(), 1300);
   }, 600);
 }

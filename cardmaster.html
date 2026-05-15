@@ -579,7 +579,7 @@
 <div class="modal-backdrop" id="modal-open-dice">
   <div class="modal-panel">
     <h3>Roll for Opening</h3>
-    <p>Both players roll 1d6. Higher roll opens the match.</p>
+    <p>Both players roll 1d6. Higher roll wins the choice — PLAY first or PASS the open to your opponent.</p>
     <div class="dice-display">
       <div class="dice-cell" id="open-dice-you">
         <div class="dice-label">You</div>
@@ -593,7 +593,29 @@
     <p id="open-dice-result" style="text-align: center; min-height: 24px; font-family: var(--font-display); letter-spacing: 0.15em; color: var(--gold-bright);"></p>
     <div class="modal-actions">
       <button class="btn-primary" id="open-dice-roll">Roll</button>
-      <button class="btn-secondary" id="open-dice-continue" hidden>Begin Match</button>
+      <button class="btn-secondary" id="open-dice-continue" hidden>Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Opening choice modal (PLAY or PASS) ============ -->
+<div class="modal-backdrop" id="modal-open-choice">
+  <div class="modal-panel">
+    <h3 id="open-choice-title">You won the opening</h3>
+    <p id="open-choice-help">Set the tone — take the first move, or pass and force your opponent to commit first.</p>
+    <div class="dice-display" style="grid-template-columns: 1fr 1fr; gap: 12px;">
+      <button class="stat-pick-btn" id="open-choice-play" style="padding: 18px;">
+        <span style="font-size: 1.05rem; letter-spacing: 0.18em;">PLAY</span>
+        <span class="delta">Take first action</span>
+      </button>
+      <button class="stat-pick-btn" id="open-choice-pass" style="padding: 18px;">
+        <span style="font-size: 1.05rem; letter-spacing: 0.18em;">PASS</span>
+        <span class="delta">Force opponent to commit</span>
+      </button>
+    </div>
+    <p id="open-choice-result" style="text-align: center; min-height: 24px; font-family: var(--font-display); letter-spacing: 0.15em; color: var(--gold-bright); margin-top: 14px;"></p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="open-choice-continue" hidden>Begin Match</button>
     </div>
   </div>
 </div>
@@ -788,7 +810,6 @@ function openOpeningDice() {
     youCell.classList.add('rolling'); aiCell.classList.add('rolling');
     setTimeout(() => {
       let y = rollD(DICE_SIDES), a = rollD(DICE_SIDES);
-      // Re-roll on tie (opening must have a winner)
       while (y === a) { y = rollD(DICE_SIDES); a = rollD(DICE_SIDES); }
       document.getElementById('open-dice-you-roll').textContent = y;
       document.getElementById('open-dice-ai-roll').textContent = a;
@@ -797,16 +818,76 @@ function openOpeningDice() {
       youCell.classList.add(youWin ? 'winner' : 'loser');
       aiCell.classList.add(youWin ? 'loser' : 'winner');
       const winnerSide = youWin ? 'p1' : 'p2';
-      state.battle.turn = winnerSide;
+      // Stash the dice winner — actual turn order depends on the
+      // PLAY/PASS choice they make in the next modal.
+      state._openingWinner = winnerSide;
       document.getElementById('open-dice-result').textContent =
-        youWin ? `You roll ${y} vs AI ${a} — you go first.`
-               : `AI rolls ${a} vs your ${y} — AI goes first.`;
+        youWin ? `You roll ${y} vs AI ${a} — you choose.`
+               : `AI rolls ${a} vs your ${y} — AI chooses.`;
       document.getElementById('open-dice-roll').hidden = true;
       document.getElementById('open-dice-continue').hidden = false;
     }, 600);
   };
   document.getElementById('open-dice-continue').onclick = () => {
     modal.classList.remove('show');
+    openOpeningChoice();
+  };
+}
+
+// ============ Opening PLAY/PASS choice ============
+// Winner of the opening dice picks PLAY (act first) or PASS (let opponent
+// commit first — useful for intel / counter-play). After the choice, normal
+// SPD-based turn order takes over for the rest of the match.
+function openOpeningChoice() {
+  const winner = state._openingWinner;
+  const modal = document.getElementById('modal-open-choice');
+  const title = document.getElementById('open-choice-title');
+  const help  = document.getElementById('open-choice-help');
+  const playBtn = document.getElementById('open-choice-play');
+  const passBtn = document.getElementById('open-choice-pass');
+  const resultEl = document.getElementById('open-choice-result');
+  const contBtn = document.getElementById('open-choice-continue');
+  resultEl.textContent = '';
+  contBtn.hidden = true;
+  modal.classList.add('show');
+
+  if (winner === 'p1') {
+    title.textContent = 'You won the opening';
+    help.textContent = 'Set the tone — take the first move, or pass and force your opponent to commit first.';
+    playBtn.style.opacity = '1'; playBtn.style.pointerEvents = 'auto';
+    passBtn.style.opacity = '1'; passBtn.style.pointerEvents = 'auto';
+    playBtn.onclick = () => resolveOpeningChoice('p1', 'play');
+    passBtn.onclick = () => resolveOpeningChoice('p1', 'pass');
+  } else {
+    title.textContent = 'AI won the opening';
+    help.textContent = 'AI is choosing whether to play first or pass…';
+    playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none';
+    passBtn.style.opacity = '0.5'; passBtn.style.pointerEvents = 'none';
+    // AI weighting: 75% PLAY (initiative) / 25% PASS (intel & counter-play).
+    setTimeout(() => {
+      const aiChoice = Math.random() < 0.75 ? 'play' : 'pass';
+      // Highlight whichever the AI picked.
+      const picked = aiChoice === 'play' ? playBtn : passBtn;
+      picked.style.opacity = '1';
+      picked.style.borderColor = 'var(--gold-bright)';
+      resolveOpeningChoice('p2', aiChoice);
+    }, 1100);
+  }
+}
+
+function resolveOpeningChoice(chooser, choice) {
+  const battle = state.battle;
+  // PLAY = chooser acts first. PASS = opposite side acts first.
+  const firstActor = (choice === 'play') ? chooser : opp(chooser);
+  battle.turn = firstActor;
+  const choiceLabel = choice.toUpperCase();
+  const chooserName = battle[chooser].name;
+  const firstActorName = battle[firstActor].name;
+  document.getElementById('open-choice-result').textContent =
+    `${chooserName} chose ${choiceLabel} — ${firstActorName} goes first.`;
+  document.getElementById('open-choice-continue').hidden = false;
+  document.getElementById('open-choice-continue').onclick = () => {
+    document.getElementById('modal-open-choice').classList.remove('show');
     startBattle();
   };
 }

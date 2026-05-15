@@ -791,16 +791,36 @@ function initMatch() {
   show('title-screen', false);
   show('battle-screen', false);
   show('gameover-screen', false);
-  // Roll random teams + initialize battle struct. activeIdx defaults to 0
-  // but will be overwritten by the per-player card-pick step before play.
   state.battle = {
     p1: { name: 'You', side: 'p1', gems: STARTING_GEMS, team: randomTeam().map(newCardRuntime),
           activeIdx: 0, fallen: [], risen: [] },
     p2: { name: 'AI',  side: 'p2', gems: STARTING_GEMS, team: randomTeam().map(newCardRuntime),
           activeIdx: 0, fallen: [], risen: [] },
     log: [], turn: null, awaitingShift: null, winner: null,
+    // pickedStarting — each side must pick its starting card BEFORE acting.
+    // turnTo() (below) gates each turn on this flag, prompting the picker
+    // first if needed. Implements the user's interleaved opening sequence.
+    pickedStarting: { p1: false, p2: false },
   };
   openOpeningDice();
+}
+
+// turnTo(side) — gates each turn on the starting-card pick. If the side
+// hasn't picked yet, show the picker first and trigger their action after.
+// Once both sides have picked, this is just a render + AI-trigger.
+function turnTo(side) {
+  const b = state.battle;
+  b.turn = side;
+  if (!b.pickedStarting[side]) {
+    pickStartingCard(side, () => {
+      b.pickedStarting[side] = true;
+      renderBattle();
+      if (side === 'p2') setTimeout(aiTurn, 700);
+    });
+    return;
+  }
+  renderBattle();
+  if (side === 'p2') setTimeout(aiTurn, 700);
 }
 
 // AI picks its starting card. Heuristic: highest combined stat-total card,
@@ -812,17 +832,6 @@ function aiPickStartingCard(p) {
     if (score > bestScore) { bestScore = score; bestIdx = i; }
   });
   return bestIdx;
-}
-
-// Run the two card-pick steps in sequence: chooser side first, then opponent.
-// After both picks, kick off the battle.
-function runStartingCardPicks(firstSide, onDone) {
-  const secondSide = opp(firstSide);
-  pickStartingCard(firstSide, () => {
-    pickStartingCard(secondSide, () => {
-      onDone();
-    });
-  });
 }
 
 function pickStartingCard(side, onDone) {
@@ -960,7 +969,8 @@ function openOpeningChoice() {
 
 function resolveOpeningChoice(chooser, choice) {
   const battle = state.battle;
-  // PLAY = chooser acts first. PASS = opposite side acts first.
+  // PLAY  → chooser acts first (auto-priority, no SPD check on first move).
+  // PASS  → opponent reveals + acts first; chooser picks AFTER seeing them.
   const firstActor = (choice === 'play') ? chooser : opp(chooser);
   battle.turn = firstActor;
   const choiceLabel = choice.toUpperCase();
@@ -971,21 +981,18 @@ function resolveOpeningChoice(chooser, choice) {
   document.getElementById('open-choice-continue').hidden = false;
   document.getElementById('open-choice-continue').onclick = () => {
     document.getElementById('modal-open-choice').classList.remove('show');
-    // First-actor reveals their card first, then the opponent reveals (and
-    // can react to what they saw). Then battle begins.
-    runStartingCardPicks(firstActor, () => startBattle());
+    // turnTo gates pick-then-act for the first actor. After they act and
+    // turn passes via turnTo(opp(...)), the opponent's pick is gated next.
+    show('battle-screen', true);
+    document.querySelector('.app').classList.add('battle-mode');
+    state.phase = 'battle';
+    pushLog('system', `Match begin. ${chooserName} chose ${choiceLabel} — ${firstActorName} acts first.`);
+    turnTo(firstActor);
   };
 }
 
-function startBattle() {
-  state.phase = 'battle';
-  show('battle-screen', true);
-  document.querySelector('.app').classList.add('battle-mode');
-  pushLog('system', `Match begin. ${state.battle[state.battle.turn].name} acts first.`);
-  renderBattle();
-  // If AI goes first, kick off its turn.
-  if (state.battle.turn === 'p2') setTimeout(aiTurn, 900);
-}
+// startBattle() removed in v5.7 — opening flow now goes through turnTo()
+// directly via resolveOpeningChoice's continue handler.
 
 // ============ Logging ============
 function pushLog(type, msg) {
@@ -1230,10 +1237,8 @@ function applyDamage(targetSide, dmg, label) {
     if (targetSide === 'p2') setTimeout(aiHandleShift, 800);
     return;
   }
-  // Pass turn
-  b.turn = opp(b.turn);
-  renderBattle();
-  if (b.turn === 'p2') setTimeout(aiTurn, 700);
+  // Pass turn — turnTo handles starting-card pick gate if needed.
+  turnTo(opp(b.turn));
 }
 
 // ============ Switch modal ============
@@ -1286,8 +1291,8 @@ function doSwitch(side, newIdx, forced) {
     pushLog('system', `${newActive.name} is slower — switch uses the turn.`);
     b.turn = oppSide;
   }
-  renderBattle();
-  if (b.turn === 'p2') setTimeout(aiTurn, 700);
+  // turnTo honors the starting-card-pick gate if it's still pending.
+  turnTo(b.turn);
 }
 
 // ============ SPC modal ============
@@ -1386,9 +1391,7 @@ function doA3Roll(attackerSide, defenderSide, modal, contBtn) {
       } else {
         pushLog('miss', `${att.name}'s A3 missed (rolled ${aRoll} vs ${dRoll}).`);
         popupDamage(defenderSide, 'MISS', 'miss');
-        b.turn = opp(b.turn);
-        renderBattle();
-        if (b.turn === 'p2') setTimeout(aiTurn, 700);
+        turnTo(opp(b.turn));
       }
     };
     if (attackerSide === 'p2') setTimeout(() => contBtn.click(), 1300);
@@ -1445,8 +1448,7 @@ function doRevive(side, idx, cost) {
   } else {
     b.turn = opp(b.turn);
   }
-  renderBattle();
-  if (b.turn === 'p2') setTimeout(aiTurn, 700);
+  turnTo(b.turn);
 }
 
 // ============ AI logic ============

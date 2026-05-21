@@ -532,7 +532,7 @@
           <li><strong>A1</strong> — free light attack. 33% ATK. Always available.</li>
           <li><strong>Draw</strong> — skip your attack to bank +1 gem on the card.</li>
           <li><strong>A2</strong> — 2 gems. Stat swing: boost one of your stats or weaken the opponent’s by 11% × tier. Repeatable.</li>
-          <li><strong>A3</strong> — 3 gems. Heavy: 99% ATK damage + a self stat swing + inflicts a random status. Once per match.</li>
+          <li><strong>A3</strong> — 3 gems. Heavy: 99% ATK damage + a self stat swing + inflicts a random status. Then it recharges over 3 turns before that card can fire it again.</li>
         </ul>
         <p><strong style="color:var(--gold-bright);">The gamble.</strong> Trade A1-for-A1 (safe, small) or spend turns drawing gems — you eat free hits while you set up the bigger A2 / A3 payoff.</p>
         <p><strong style="color:var(--crimson);">Astralite status effects.</strong> Gems run on unstable astralites. A3 inflicts one, and spending gems has a 15% chance of backfiring on you: <em>Overcook</em> (HP burn), <em>Undershock</em> (−33% ability damage), <em>Brainlock</em> (A1 only), <em>Gridfreeze</em> (skip a turn), <em>Souldrift</em> (stats fade — lethal).</p>
@@ -723,6 +723,7 @@ const TEAM_SIZE = 9;
 const CARD_START_GEMS = 1;   // every card enters play carrying 1 gem
 const A2_COST = 2;           // A2 stat swing — 1 draw on top of the start gem
 const A3_COST = 3;           // A3 ultimate — 2 draws on top of the start gem
+const A3_COOLDOWN = 4;       // A3 re-locks on use; "ready in N" counts 3-2-1 over the card's next 3 turns
 const DICE_SIDES = 6;        // opening roll only
 const MISHAP_CHANCE = 0.15;  // chance gem-spending backfires into a status
 
@@ -772,7 +773,7 @@ function newCardRuntime(roster) {
     hp: roster.hp, hpMax: roster.hp,
     atk: roster.atk, def: roster.def, spd: roster.spd, spc: roster.spc,
     gems: CARD_START_GEMS,   // per-card gem bank — draws add here
-    a3Used: false,           // A3 ultimate is once per match per card
+    a3Cd: 0,                 // A3 cooldown — the card's own turns left before A3 re-arms
     statuses: [],            // [{ type, turns }]
     a1: roster.a1, a2: roster.a2, a3: roster.a3,
   };
@@ -842,6 +843,8 @@ function beginTurn(side) {
   const b = state.battle;
   if (!b || b.winner) return;
   b.acting = false;
+  const cdCard = activeOf(side);
+  if (cdCard && cdCard.a3Cd > 0) cdCard.a3Cd--;   // A3 cooldown ticks down on the card's own turn
   const outcome = tickStatuses(side);
   if (b.winner) return;            // a status kill ended the match
   if (outcome === 'fell') return;  // handleFall already routed the turn
@@ -1208,8 +1211,11 @@ function renderActions() {
   const a2 = mkBtn('move-btn spc', '', () => doA2(), c.gems < A2_COST || brain);
   a2.innerHTML = `<span>A2 · ${c.a2}</span><span class="move-cost-pill">${A2_COST} gems · ${swingPct}% swing</span>`;
 
-  const a3 = mkBtn('move-btn a3', '', () => doA3(), c.gems < A3_COST || c.a3Used || brain);
-  a3.innerHTML = `<span>A3 · ${c.a3}${c.a3Used ? ' ✓' : ''}</span><span class="move-cost-pill">${A3_COST} gems · ${computeDamage(c, foe, 'a3')} dmg + status</span>`;
+  const a3Cool = c.a3Cd > 0;
+  const a3 = mkBtn('move-btn a3', '', () => doA3(), c.gems < A3_COST || a3Cool || brain);
+  a3.innerHTML = a3Cool
+    ? `<span>A3 · ${c.a3}</span><span class="move-cost-pill">recharging · ready in ${c.a3Cd}</span>`
+    : `<span>A3 · ${c.a3}</span><span class="move-cost-pill">${A3_COST} gems · ${computeDamage(c, foe, 'a3')} dmg + status</span>`;
 
   bar.appendChild(a1); bar.appendChild(draw); bar.appendChild(a2); bar.appendChild(a3);
 
@@ -1306,7 +1312,7 @@ function doA3() {
   if (b.winner || b.acting || b.turn !== 'p1') return;
   const c = activeOf('p1');
   if (hasStatus(c, 'brainlock')) { pushLog('system', `${c.name} is brainlocked — A1 only.`); return; }
-  if (c.a3Used) { pushLog('system', `${c.name} has already spent its A3.`); return; }
+  if (c.a3Cd > 0) { pushLog('system', `${c.name}'s A3 is recharging — ready in ${c.a3Cd}.`); return; }
   if (c.gems < A3_COST) { pushLog('system', `Not enough gems for A3 (need ${A3_COST}).`); return; }
   openSwingModal('a3', 'p1');
 }
@@ -1410,7 +1416,7 @@ function resolveSwing(kind, side, mode, stat) {
   } else {
     const themSide = opp(side);
     c.gems -= A3_COST;
-    c.a3Used = true;
+    c.a3Cd = A3_COOLDOWN;   // A3 re-locks — beginTurn ticks it down before the next render
     pushLog('spc', `${b[side].name}'s ${c.name} unleashes A3 — ${c.a3}!`);
     applySwing(side, 'self', stat, `A3 ${c.a3}`);
     inflictStatus(themSide, randomStatusKey());
@@ -1531,7 +1537,7 @@ function aiTurn() {
   const a3Dmg = computeDamage(myCard, theirCard, 'a3');
 
   // 2. A3 — finisher, or a 50% power play once it can afford it.
-  if (!brain && !myCard.a3Used && myCard.gems >= A3_COST) {
+  if (!brain && myCard.a3Cd === 0 && myCard.gems >= A3_COST) {
     if (a3Dmg >= theirCard.hp || Math.random() < 0.5) {
       pushLog('ai', `AI commits — ${myCard.name} charges its A3.`);
       setTimeout(aiResolveA3, 430);

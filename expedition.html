@@ -3069,45 +3069,45 @@
       return c;
     }
 
-    // Solion's Everflame idle — a 4-frame front-facing idle animation of the
-    // player wielding the sword (animation_idle_solionsword_on.png, 1536x1024,
-    // 4 frames). Each frame's content bbox is auto-detected and baked feet-
-    // anchored into a SWORD_IDLE_W x SWORD_IDLE_H canvas (a touch larger than
-    // the walk box so the blade + flame have room above the head).
-    const SWORD_IDLE_W = 48, SWORD_IDLE_H = 64;
+    // Solion's Everflame idle — a 4-frame front idle of the player wielding the
+    // sword (animation_idle_solionsword_on.png, 1536x1024, 4 frames). The flame
+    // animates dramatically frame-to-frame, so EVERY frame is cropped with the
+    // identical rect and identical transform: the character stays pinned at a
+    // constant size and position while only the flame flickers (no jitter).
+    const SWORD_IDLE_W = 72, SWORD_IDLE_H = 54;
     function sliceSwordIdle(sheetImg) {
       const SW = sheetImg.naturalWidth  || sheetImg.width;
       const SH = sheetImg.naturalHeight || sheetImg.height;
       const FRAMES = 4;
-      const cellW = SW / FRAMES;
+      const cellW = Math.floor(SW / FRAMES);
       const sc = document.createElement('canvas');
       sc.width = SW; sc.height = SH;
       const sctx = sc.getContext('2d');
       sctx.drawImage(sheetImg, 0, 0);
       const px = sctx.getImageData(0, 0, SW, SH).data;
+      // Union vertical extent across the whole sheet (flame-top to feet).
+      let uy0 = SH, uy1 = -1;
+      for (let y = 0; y < SH; y++) {
+        let any = false;
+        for (let x = 0; x < SW; x++) {
+          if (px[(y * SW + x) * 4 + 3] > 60) { any = true; break; }
+        }
+        if (any) { if (y < uy0) uy0 = y; if (y > uy1) uy1 = y; }
+      }
+      if (uy1 < 0) { uy0 = 0; uy1 = SH - 1; }
+      const cropH = uy1 - uy0 + 1;
+      // One shared transform for all 4 frames — feet-anchored, centred.
+      const scale = Math.min(SWORD_IDLE_W / cellW, SWORD_IDLE_H / cropH);
+      const dw = cellW * scale, dh = cropH * scale;
+      const dx = (SWORD_IDLE_W - dw) / 2;
+      const dy = SWORD_IDLE_H - dh;
       const out = [];
       for (let f = 0; f < FRAMES; f++) {
-        const cx0 = Math.round(f * cellW), cx1 = Math.round((f + 1) * cellW);
-        let bx0 = 1e9, by0 = 1e9, bx1 = -1, by1 = -1;
-        for (let y = 0; y < SH; y++) {
-          for (let x = cx0; x < cx1; x++) {
-            if (px[(y * SW + x) * 4 + 3] > 16) {
-              if (x < bx0) bx0 = x; if (x > bx1) bx1 = x;
-              if (y < by0) by0 = y; if (y > by1) by1 = y;
-            }
-          }
-        }
         const cv = document.createElement('canvas');
         cv.width = SWORD_IDLE_W; cv.height = SWORD_IDLE_H;
         const cc = cv.getContext('2d');
         cc.imageSmoothingEnabled = false;
-        if (bx1 >= 0) {
-          const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
-          const scale = Math.min(SWORD_IDLE_W / bw, SWORD_IDLE_H / bh) * 0.98;
-          const dw = bw * scale, dh = bh * scale;
-          cc.drawImage(sc, bx0, by0, bw, bh,
-                       (SWORD_IDLE_W - dw) / 2, SWORD_IDLE_H - dh, dw, dh);
-        }
+        cc.drawImage(sc, f * cellW, uy0, cellW, cropH, dx, dy, dw, dh);
         out.push(cv);
       }
       return out;

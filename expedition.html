@@ -1933,19 +1933,6 @@
       },
     };
 
-    // Player-2 jog sheet — animation_walk_player2.png is a 4-row x 5-column
-    // grid (up / down / left / right, 5 jog frames each) with its own art and
-    // palette. Calibrated from the PNG via per-cell content detection. Used by
-    // the South Central encounter challenger so it never looks like the player.
-    const PLAYER2_SHEET = {
-      frameW: 260,
-      frameH: 312,
-      cols: [140, 373, 632, 867, 1076],   // 5 jog-frame column centres
-      rowBases: { up: 316, down: 618, left: 875, right: 1143 },
-    };
-    const PLAYER2_FRAMES = 5;     // jog frames per direction
-    const P2_DRAW_W      = 38;    // bake width — keeps the source aspect (no squish)
-
     // Animation pace — 8 frames per second through a 4-frame walk cycle (so a step every 125ms).
     const ANIM_FPS = 8;
     const ANIM_FRAMES = 4;
@@ -2397,7 +2384,7 @@
         { x: 12 - 2, y: 10 - 2, w: 5, h: 5 },                      // Vol spawn (~400,320 → tile 12,10)
         { x: 21 - 2, y: 22 - 2, w: 5, h: 5 },                      // Aur spawn (~700,720 → tile 21,22)
         { x:  7 - 2, y: 27 - 2, w: 5, h: 5 },                      // Elzoran spawn (~240,880 → tile 7,27)
-        { x: UFO_TILE_X - 1, y: UFO_TILE_Y - 1, w: 7 + 2, h: 2 + 2 },  // UFO (7×2 tiles at 224×60) + 1-tile pad
+        { x: UFO_TILE_X - 2, y: UFO_TILE_Y - 1, w: 11, h: 11 },  // UFO + clear landing pad below — keeps trees/houses off the ship-respawn point
       ];
       for (const z of reserveZones) placed.push(z);
       // UFO is a hardcoded landmark — emit it as a world object so it renders
@@ -2775,7 +2762,6 @@
       // (character_player.png, character_voltyran.png, character_eurakeon.png, etc.).
       sheet: { src: '/assets/animation_walk_player.png', raw: true },
       // Player-2 jog sheet — drives the South Central encounter challenger.
-      player2Sheet: { src: '/assets/animation_walk_player2.png', raw: true },
       // Fly sprite sheet — same 4×4 layout, used while the player is in fly
       // mode (tap-then-hold B/Shift). Baked at CHAR_W_FLY × CHAR_H_FLY (wider
       // canvas) so the extended wings aren't horizontally crushed.
@@ -2937,7 +2923,6 @@
       // After all images load, slice both sprite sheets into frame canvases.
       if (onProgress) onProgress(0.92, 'Cutting frames…');
       ASSETS.charFrames     = sliceCharSheet(ASSETS.sheet);
-      ASSETS.player2Frames  = slicePlayer2Sheet(ASSETS.player2Sheet);
       ASSETS.flyFrames      = sliceFlySheet(ASSETS.flySheet);
       ASSETS.runFrames      = sliceRunSheet(ASSETS.runSheet);
       ASSETS.idleFrames     = sliceIdleSheet(ASSETS.idleSheet);
@@ -3038,34 +3023,6 @@
       // (v2 sheet has 4 distinct down-row poses — no synthesized mirror needed.
       // mirrorCanvas() is still defined below for future use if any direction
       // needs a single-frame source augmented into an alternating cycle.)
-      return result;
-    }
-
-    // Player-2 jog-sheet slicer — same idea as sliceCharSheet but 5 jog frames
-    // per row, PLAYER2_SHEET coordinates, baked at P2_DRAW_W x CHAR_H so the
-    // source aspect is preserved. The flood-filled white background is cleared
-    // by the shared chromaKeyWhite pass, exactly like the player sheet.
-    function slicePlayer2Sheet(sheetImg) {
-      const directions = ['up', 'down', 'left', 'right'];
-      const result = { up: [], down: [], left: [], right: [] };
-      for (const dir of directions) {
-        const cropY = PLAYER2_SHEET.rowBases[dir] - PLAYER2_SHEET.frameH;
-        for (let i = 0; i < PLAYER2_FRAMES; i++) {
-          const cropX = PLAYER2_SHEET.cols[i] - PLAYER2_SHEET.frameW / 2;
-          const c = document.createElement('canvas');
-          c.width = P2_DRAW_W;
-          c.height = CHAR_H;
-          const cctx = c.getContext('2d');
-          cctx.imageSmoothingEnabled = false;
-          cctx.drawImage(
-            sheetImg,
-            cropX, cropY, PLAYER2_SHEET.frameW, PLAYER2_SHEET.frameH,
-            0, 0, P2_DRAW_W, CHAR_H
-          );
-          chromaKeyWhite(c);
-          result[dir].push(c);
-        }
-      }
       return result;
     }
 
@@ -4019,14 +3976,13 @@
         // 5 tiles, then chases them down and triggers the 1v1 battle overlay.
         // Spent after a battle; re-armed by resetEncounters() on region re-entry.
         id: 'challenger_p2',
-        framesKey: 'player2Frames',
-        walkOrder: { up: [0,1,2,3,4], down: [0,1,2,3,4], left: [0,1,2,3,4], right: [0,1,2,3,4] },
+        framesKey: 'charFrames',
+        walkOrder: WALK_ORDER,
         x: 20 * 32, y: 22 * 32,
-        w: P2_DRAW_W, h: CHAR_H,
+        w: CHAR_W, h: CHAR_H,
         speed: 48,
         facing: 'down',
         animFps: 9,
-        animFrames: 5,
         animTime: 0,
         animFrame: 0,
         currentDir: 'down',
@@ -4738,7 +4694,7 @@
               npc.facing = dy > 0 ? 'down' : 'up';
             }
             npc.animTime += dt;
-            npc.animFrame = Math.floor(npc.animTime * (npc.animFps || 6)) % (npc.animFrames || ANIM_FRAMES);
+            npc.animFrame = Math.floor(npc.animTime * (npc.animFps || 6)) % ANIM_FRAMES;
             const tryX = npc.x + dx * dodgeSpeed * dt;
             if (!npcBlocked(npc, tryX, npc.y)) npc.x = tryX;
             const tryY = npc.y + dy * dodgeSpeed * dt;
@@ -4801,7 +4757,7 @@
           }
           // Advance walk cycle while moving.
           npc.animTime += dt;
-          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % (npc.animFrames || ANIM_FRAMES);
+          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
           // Axis-separated movement, same as wander logic, so collisions slide.
           const tryX = npc.x + nx * speed * dt;
           if (!npcBlocked(npc, tryX, npc.y)) npc.x = tryX;
@@ -4840,7 +4796,7 @@
               if (Math.abs(evx) > Math.abs(evy)) npc.facing = evx > 0 ? 'right' : 'left';
               else                               npc.facing = evy > 0 ? 'down' : 'up';
               npc.animTime += dt;
-              npc.animFrame = Math.floor(npc.animTime * npc.animFps) % (npc.animFrames || ANIM_FRAMES);
+              npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
               const etx = npc.x + enx * epace * dt;
               if (!npcBlocked(npc, etx, npc.y)) npc.x = etx;
               const ety = npc.y + eny * epace * dt;
@@ -4868,7 +4824,7 @@
         if (dx !== 0 || dy !== 0) {
           // Animate walk cycle while in motion.
           npc.animTime += dt;
-          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % (npc.animFrames || ANIM_FRAMES);
+          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
           // Axis-separated movement with collision (same idea as the player):
           // attempt X first, then Y, so an NPC bumping into a wall slides along
           // it instead of getting stuck. If a move is blocked, abandon the

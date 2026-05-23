@@ -830,6 +830,70 @@
       border: 0;
       background: #05030f;
     }
+    /* Encounter result panel — covers the iframe on win / loss. */
+    .encounter-result {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 13px;
+      padding: 32px;
+      text-align: center;
+      background: radial-gradient(ellipse at 50% 38%, rgba(40, 30, 8, 0.55), transparent 70%), #07040f;
+    }
+    .encounter-result[hidden] { display: none; }
+    .encounter-result-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.62rem;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      color: var(--gold, #e8c878);
+    }
+    .encounter-result.lose .encounter-result-eyebrow { color: var(--crimson, #d34c4c); }
+    .encounter-result-title {
+      font-family: var(--font-display);
+      font-size: 1.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: linear-gradient(180deg, var(--gold-pale, #f3ecdc), var(--gold-bright, #f4d98a) 55%, var(--gold-deep, #b8923c));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .encounter-result.lose .encounter-result-title {
+      background: none;
+      color: var(--mist, #b9b3c9);
+    }
+    .encounter-result-xp {
+      font-family: var(--font-display);
+      font-size: 2.4rem;
+      color: var(--gold-bright, #f4d98a);
+      text-shadow: 0 0 18px rgba(232, 200, 120, 0.5);
+    }
+    .encounter-result-xp[hidden] { display: none; }
+    .encounter-result-msg {
+      font-size: 0.84rem;
+      color: var(--mist, #b9b3c9);
+      max-width: 360px;
+      line-height: 1.55;
+    }
+    .encounter-result-btn {
+      margin-top: 8px;
+      font-family: var(--font-meta);
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #1a1208;
+      background: linear-gradient(180deg, var(--gold-bright, #f4d98a), var(--gold-deep, #b8923c));
+      border: 0;
+      border-radius: 4px;
+      padding: 14px 30px;
+      cursor: pointer;
+    }
+    .encounter-result-btn:hover, .encounter-result-btn:active { filter: brightness(1.1); }
 
     /* Hub menu — 2-column grid, 3 rows: RIZERS / CODEX / ASTRALPACK / PROFILE / SAVE / OPTIONS */
     .hub-grid {
@@ -1642,6 +1706,13 @@
         <button class="encounter-exit" id="encounter-exit">Return to Expedition &#10142;</button>
       </div>
       <iframe class="encounter-frame" id="encounter-frame" title="Encounter Battle" src="about:blank"></iframe>
+      <div class="encounter-result win" id="encounter-result" hidden>
+        <div class="encounter-result-eyebrow" id="encounter-result-eyebrow">Victory</div>
+        <div class="encounter-result-title" id="encounter-result-title">Challenger Bested</div>
+        <div class="encounter-result-xp" id="encounter-result-xp">+0 XP</div>
+        <div class="encounter-result-msg" id="encounter-result-msg"></div>
+        <button class="encounter-result-btn" id="encounter-result-btn">Continue</button>
+      </div>
     </div>
   </div>
 
@@ -1861,6 +1932,19 @@
         down: 1200,
       },
     };
+
+    // Player-2 jog sheet — animation_walk_player2.png is a 4-row x 5-column
+    // grid (up / down / left / right, 5 jog frames each) with its own art and
+    // palette. Calibrated from the PNG via per-cell content detection. Used by
+    // the South Central encounter challenger so it never looks like the player.
+    const PLAYER2_SHEET = {
+      frameW: 260,
+      frameH: 312,
+      cols: [140, 373, 632, 867, 1076],   // 5 jog-frame column centres
+      rowBases: { up: 316, down: 618, left: 875, right: 1143 },
+    };
+    const PLAYER2_FRAMES = 5;     // jog frames per direction
+    const P2_DRAW_W      = 38;    // bake width — keeps the source aspect (no squish)
 
     // Animation pace — 8 frames per second through a 4-frame walk cycle (so a step every 125ms).
     const ANIM_FPS = 8;
@@ -2690,6 +2774,8 @@
       // Renamed to ..._player.png to match the rest of the assets/ folder convention
       // (character_player.png, character_voltyran.png, character_eurakeon.png, etc.).
       sheet: { src: '/assets/animation_walk_player.png', raw: true },
+      // Player-2 jog sheet — drives the South Central encounter challenger.
+      player2Sheet: { src: '/assets/animation_walk_player2.png', raw: true },
       // Fly sprite sheet — same 4×4 layout, used while the player is in fly
       // mode (tap-then-hold B/Shift). Baked at CHAR_W_FLY × CHAR_H_FLY (wider
       // canvas) so the extended wings aren't horizontally crushed.
@@ -2851,6 +2937,7 @@
       // After all images load, slice both sprite sheets into frame canvases.
       if (onProgress) onProgress(0.92, 'Cutting frames…');
       ASSETS.charFrames     = sliceCharSheet(ASSETS.sheet);
+      ASSETS.player2Frames  = slicePlayer2Sheet(ASSETS.player2Sheet);
       ASSETS.flyFrames      = sliceFlySheet(ASSETS.flySheet);
       ASSETS.runFrames      = sliceRunSheet(ASSETS.runSheet);
       ASSETS.idleFrames     = sliceIdleSheet(ASSETS.idleSheet);
@@ -2951,6 +3038,34 @@
       // (v2 sheet has 4 distinct down-row poses — no synthesized mirror needed.
       // mirrorCanvas() is still defined below for future use if any direction
       // needs a single-frame source augmented into an alternating cycle.)
+      return result;
+    }
+
+    // Player-2 jog-sheet slicer — same idea as sliceCharSheet but 5 jog frames
+    // per row, PLAYER2_SHEET coordinates, baked at P2_DRAW_W x CHAR_H so the
+    // source aspect is preserved. The flood-filled white background is cleared
+    // by the shared chromaKeyWhite pass, exactly like the player sheet.
+    function slicePlayer2Sheet(sheetImg) {
+      const directions = ['up', 'down', 'left', 'right'];
+      const result = { up: [], down: [], left: [], right: [] };
+      for (const dir of directions) {
+        const cropY = PLAYER2_SHEET.rowBases[dir] - PLAYER2_SHEET.frameH;
+        for (let i = 0; i < PLAYER2_FRAMES; i++) {
+          const cropX = PLAYER2_SHEET.cols[i] - PLAYER2_SHEET.frameW / 2;
+          const c = document.createElement('canvas');
+          c.width = P2_DRAW_W;
+          c.height = CHAR_H;
+          const cctx = c.getContext('2d');
+          cctx.imageSmoothingEnabled = false;
+          cctx.drawImage(
+            sheetImg,
+            cropX, cropY, PLAYER2_SHEET.frameW, PLAYER2_SHEET.frameH,
+            0, 0, P2_DRAW_W, CHAR_H
+          );
+          chromaKeyWhite(c);
+          result[dir].push(c);
+        }
+      }
       return result;
     }
 
@@ -3904,13 +4019,14 @@
         // 5 tiles, then chases them down and triggers the 1v1 battle overlay.
         // Spent after a battle; re-armed by resetEncounters() on region re-entry.
         id: 'challenger_p2',
-        framesKey: 'charFrames',
-        walkOrder: WALK_ORDER,
+        framesKey: 'player2Frames',
+        walkOrder: { up: [0,1,2,3,4], down: [0,1,2,3,4], left: [0,1,2,3,4], right: [0,1,2,3,4] },
         x: 20 * 32, y: 22 * 32,
-        w: CHAR_W, h: CHAR_H,
+        w: P2_DRAW_W, h: CHAR_H,
         speed: 48,
         facing: 'down',
         animFps: 9,
+        animFrames: 5,
         animTime: 0,
         animFrame: 0,
         currentDir: 'down',
@@ -4622,7 +4738,7 @@
               npc.facing = dy > 0 ? 'down' : 'up';
             }
             npc.animTime += dt;
-            npc.animFrame = Math.floor(npc.animTime * (npc.animFps || 6)) % ANIM_FRAMES;
+            npc.animFrame = Math.floor(npc.animTime * (npc.animFps || 6)) % (npc.animFrames || ANIM_FRAMES);
             const tryX = npc.x + dx * dodgeSpeed * dt;
             if (!npcBlocked(npc, tryX, npc.y)) npc.x = tryX;
             const tryY = npc.y + dy * dodgeSpeed * dt;
@@ -4685,7 +4801,7 @@
           }
           // Advance walk cycle while moving.
           npc.animTime += dt;
-          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
+          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % (npc.animFrames || ANIM_FRAMES);
           // Axis-separated movement, same as wander logic, so collisions slide.
           const tryX = npc.x + nx * speed * dt;
           if (!npcBlocked(npc, tryX, npc.y)) npc.x = tryX;
@@ -4724,7 +4840,7 @@
               if (Math.abs(evx) > Math.abs(evy)) npc.facing = evx > 0 ? 'right' : 'left';
               else                               npc.facing = evy > 0 ? 'down' : 'up';
               npc.animTime += dt;
-              npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
+              npc.animFrame = Math.floor(npc.animTime * npc.animFps) % (npc.animFrames || ANIM_FRAMES);
               const etx = npc.x + enx * epace * dt;
               if (!npcBlocked(npc, etx, npc.y)) npc.x = etx;
               const ety = npc.y + eny * epace * dt;
@@ -4752,7 +4868,7 @@
         if (dx !== 0 || dy !== 0) {
           // Animate walk cycle while in motion.
           npc.animTime += dt;
-          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
+          npc.animFrame = Math.floor(npc.animTime * npc.animFps) % (npc.animFrames || ANIM_FRAMES);
           // Axis-separated movement with collision (same idea as the player):
           // attempt X first, then Y, so an NPC bumping into a wall slides along
           // it instead of getting stuck. If a move is blocked, abandon the
@@ -4810,6 +4926,7 @@
       inventory: [],
       stats: {
         level:           1,
+        xp:              0,    // earned from encounter victories (111 per tier beaten)
         // Discrete heart system — 10 pips, each = 1 hit. Replaces the old 500hp bar.
         hp:              10,
         hpMax:           10,
@@ -5980,6 +6097,11 @@
     if (encounterExitBtn) {
       encounterExitBtn.addEventListener('click', () => closeModal());
     }
+    // Encounter battle result — The Training Yard iframe posts win/loss + tier.
+    window.addEventListener('message', (ev) => {
+      const d = ev.data;
+      if (d && d.type === 'encounterResult') handleEncounterResult(d);
+    });
 
     // Map modal — Return to Ship button. Mobile convenience: thumb-tap
     // friendly equivalent of the R shoulder hotkey. Closes the map modal
@@ -7328,9 +7450,62 @@
     function openEncounterBattle(npc) {
       const nameEl = document.getElementById('encounter-foe-name');
       if (nameEl) nameEl.textContent = (npc && npc.displayName) ? npc.displayName : 'Challenger';
+      const result = document.getElementById('encounter-result');
+      if (result) result.hidden = true;            // clear any prior result panel
       const frame = document.getElementById('encounter-frame');
-      if (frame) frame.src = '/training.html';
+      if (frame) frame.src = '/training.html?encounter=1';
       openModal('battle');
+    }
+
+    // Encounter XP — 111 XP per tier of the card beaten (roman I-VI -> 1-6).
+    const ENCOUNTER_TIER_NUM    = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 };
+    const ENCOUNTER_XP_PER_TIER = 111;
+
+    // Battle result posted back from the training-yard iframe.
+    function handleEncounterResult(data) {
+      if (modalState.current !== 'battle') return;   // overlay already dismissed
+      if (data.won) showEncounterVictory(data.tier);
+      else          showEncounterDefeat();
+    }
+
+    function showEncounterVictory(tier) {
+      const n = ENCOUNTER_TIER_NUM[tier] || 1;
+      const gain = ENCOUNTER_XP_PER_TIER * n;
+      player.stats.xp = (player.stats.xp || 0) + gain;
+      const panel = document.getElementById('encounter-result');
+      if (!panel) return;
+      panel.className = 'encounter-result win';
+      document.getElementById('encounter-result-eyebrow').textContent = 'Victory';
+      document.getElementById('encounter-result-title').textContent   = 'Challenger Bested';
+      const xpEl = document.getElementById('encounter-result-xp');
+      xpEl.hidden = false;
+      xpEl.textContent = '+' + gain + ' XP';
+      document.getElementById('encounter-result-msg').textContent =
+        ENCOUNTER_XP_PER_TIER + ' XP × Tier ' + tier + ' card.  Total XP: ' + player.stats.xp + '.';
+      const btn = document.getElementById('encounter-result-btn');
+      btn.textContent = 'Continue';
+      btn.onclick = () => closeModal();
+      panel.hidden = false;
+    }
+
+    function showEncounterDefeat() {
+      const panel = document.getElementById('encounter-result');
+      if (!panel) return;
+      panel.className = 'encounter-result lose';
+      document.getElementById('encounter-result-eyebrow').textContent = 'Defeat';
+      document.getElementById('encounter-result-title').textContent   = 'Bested';
+      document.getElementById('encounter-result-xp').hidden = true;
+      document.getElementById('encounter-result-msg').textContent =
+        'The challenger stands over you. You retreat to the Aetherstride to rest and recover.';
+      const btn = document.getElementById('encounter-result-btn');
+      btn.textContent = 'Rest at the Ship';
+      btn.onclick = () => {
+        player.stats.hp     = player.stats.hpMax;      // a rest fully restores
+        player.stats.energy = player.stats.energyMax;
+        closeModal();
+        returnToShip();
+      };
+      panel.hidden = false;
     }
     // Drop the challenger somewhere clear in the region interior. Random each
     // call so re-entering South Central produces a fresh encounter layout.

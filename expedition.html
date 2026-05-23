@@ -763,6 +763,74 @@
       border-color: var(--gold);
     }
 
+    /* ============ Encounter battle overlay (placeholder 1v1) ============ */
+    .modal-battle { padding: 0; }
+    .modal-battle .modal-backdrop { background: rgba(2, 1, 8, 0.97); }
+    .encounter-shell {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+    }
+    .encounter-bar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 14px;
+      background: var(--glass-strong);
+      border-bottom: 1px solid var(--border-gold);
+    }
+    .encounter-foe { display: flex; align-items: center; gap: 10px; }
+    .encounter-foe-pic {
+      width: 40px; height: 40px;
+      object-fit: cover;
+      border-radius: 50%;
+      border: 1px solid var(--border-gold);
+      background: #100a22;
+    }
+    .encounter-foe-meta { display: flex; flex-direction: column; line-height: 1.25; }
+    .encounter-foe-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.5rem;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.8;
+    }
+    .encounter-foe-name {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      letter-spacing: 0.1em;
+      color: #ece6f4;
+    }
+    .encounter-exit {
+      font-family: var(--font-meta);
+      font-size: 0.62rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--gold);
+      background: transparent;
+      border: 1px solid var(--border-gold);
+      border-radius: 3px;
+      padding: 9px 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .encounter-exit:hover, .encounter-exit:active {
+      background: rgba(232, 200, 120, 0.14);
+      color: #f4d98a;
+    }
+    .encounter-frame {
+      flex: 1 1 auto;
+      width: 100%;
+      border: 0;
+      background: #05030f;
+    }
+
     /* Hub menu — 2-column grid, 3 rows: RIZERS / CODEX / ASTRALPACK / PROFILE / SAVE / OPTIONS */
     .hub-grid {
       display: grid;
@@ -1556,6 +1624,24 @@
         <button class="pause-btn" data-pause-action="map">View Map</button>
         <button class="pause-btn" data-pause-action="exit" onclick="window.location.href='/games.html'">Leave Viridia</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ Encounter battle overlay — placeholder 1v1 (The Training Yard) ============ -->
+  <div class="modal modal-battle" id="modal-battle" hidden>
+    <div class="modal-backdrop"></div>
+    <div class="encounter-shell">
+      <div class="encounter-bar">
+        <div class="encounter-foe">
+          <img class="encounter-foe-pic" src="/assets/character_player2.png" alt="">
+          <div class="encounter-foe-meta">
+            <span class="encounter-foe-eyebrow">Encounter</span>
+            <span class="encounter-foe-name" id="encounter-foe-name">Challenger</span>
+          </div>
+        </div>
+        <button class="encounter-exit" id="encounter-exit">Return to Expedition &#10142;</button>
+      </div>
+      <iframe class="encounter-frame" id="encounter-frame" title="Encounter Battle" src="about:blank"></iframe>
     </div>
   </div>
 
@@ -3803,7 +3889,47 @@
     // timer-out, it picks a fresh direction (biased away from the current
     // one so it doesn't stutter). Occasionally it picks 'idle' and stands
     // still for a beat. No scripted interaction — just ambient life.
+    // ============ Random encounter tuning ============
+    // The South Central challenger locks on within ENCOUNTER_SIGHT_TILES and
+    // opens the placeholder 1v1 battle once it closes to ENCOUNTER_CONTACT_DIST.
+    const ENCOUNTER_SIGHT_TILES  = 5;
+    const ENCOUNTER_SIGHT_DIST   = ENCOUNTER_SIGHT_TILES * TILE_SIZE;   // 160px
+    const ENCOUNTER_CONTACT_DIST = 38;   // centre-to-centre px that fires the battle
+
     const NPCS = [
+      {
+        // ===== Encounter challenger (Prototype-4 random-encounter test) =====
+        // Wanders South Central with the player's own walk sprite (charFrames).
+        // Roams via the standard wander AI until the player comes within
+        // 5 tiles, then chases them down and triggers the 1v1 battle overlay.
+        // Spent after a battle; re-armed by resetEncounters() on region re-entry.
+        id: 'challenger_p2',
+        framesKey: 'charFrames',
+        walkOrder: WALK_ORDER,
+        x: 20 * 32, y: 22 * 32,
+        w: CHAR_W, h: CHAR_H,
+        speed: 48,
+        facing: 'down',
+        animFps: 9,
+        animTime: 0,
+        animFrame: 0,
+        currentDir: 'down',
+        dirTimer: 0,
+        region: 'southcentral',
+        isEncounter: true,
+        encounter: { mode: 'roam', defeated: false },
+        displayName: 'Rival Challenger',
+        subtitle:    'Challenger · Encounter',
+        archetype:   'Wandering Duelist',
+        bio:         'A drifting challenger prowling the South Central wastes, hunting anyone willing — or unwilling — to duel.',
+        portraitAsset: 'character_player2.png',
+        cries: [
+          "Hey — you! Let us settle this.",
+          "Nowhere left to run. Face me.",
+          "I have been waiting for a real match.",
+          "Ready thy deck. Now.",
+        ],
+      },
       {
         id: 'voltyran',
         framesKey: 'voltyranFrames',
@@ -4566,6 +4692,47 @@
           const tryY = npc.y + ny * speed * dt;
           if (!npcBlocked(npc, npc.x, tryY)) npc.y = tryY;
           continue;
+        }
+        // ===== Encounter-challenger override =====
+        // A wandering duelist. While roaming it uses ordinary wander AI; once
+        // the player closes within ENCOUNTER_SIGHT_DIST it locks on, runs the
+        // player down at their own pace (so they can't be outrun inside the
+        // region), and on contact opens the placeholder 1v1 battle. A spent
+        // challenger reverts to harmless wandering until the player leaves and
+        // re-enters South Central (resetEncounters re-arms it).
+        if (npc.isEncounter) {
+          if ((npc.region || 'central') !== currentRegion) continue;
+          const enc = npc.encounter;
+          if (!enc.defeated) {
+            const ecx = npc.x + npc.w / 2,     ecy = npc.y + npc.h / 2;
+            const pcx = player.x + CHAR_W / 2, pcy = player.y + CHAR_H / 2;
+            const evx = pcx - ecx, evy = pcy - ecy;
+            const edist = Math.hypot(evx, evy);
+            if (enc.mode === 'roam' && edist <= ENCOUNTER_SIGHT_DIST) enc.mode = 'chase';
+            if (enc.mode === 'chase') {
+              if (edist <= ENCOUNTER_CONTACT_DIST) {
+                enc.mode = 'roam';
+                enc.defeated = true;          // spent until the region is re-entered
+                openEncounterBattle(npc);
+                continue;
+              }
+              // Close in — at least 1.5x the challenger's own pace, and never
+              // below 1.1x the player's current travel speed, so a fleeing
+              // player still gets caught somewhere inside the region.
+              const epace = Math.max(npc.speed * 1.5, (player._moveSpeed || 0) * 1.1);
+              const enx = evx / edist, eny = evy / edist;
+              if (Math.abs(evx) > Math.abs(evy)) npc.facing = evx > 0 ? 'right' : 'left';
+              else                               npc.facing = evy > 0 ? 'down' : 'up';
+              npc.animTime += dt;
+              npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
+              const etx = npc.x + enx * epace * dt;
+              if (!npcBlocked(npc, etx, npc.y)) npc.x = etx;
+              const ety = npc.y + eny * epace * dt;
+              if (!npcBlocked(npc, npc.x, ety)) npc.y = ety;
+              continue;
+            }
+          }
+          // roam or defeated — fall through to the generic wander AI below.
         }
         // Region scoping — NPCs only update in their home region (default
         // 'central' if not specified).
@@ -5352,6 +5519,12 @@
 
     function closeModal() {
       if (!modalState.current) return;
+      // Battle overlay — unload The Training Yard iframe so a rematch always
+      // starts the game fresh (and so it isn't left running behind the scenes).
+      if (modalState.current === 'battle') {
+        const frame = document.getElementById('encounter-frame');
+        if (frame) frame.src = 'about:blank';
+      }
       const el = document.getElementById('modal-' + modalState.current);
       modalState.current = null;
       document.body.classList.remove('modal-open');
@@ -5800,6 +5973,12 @@
     const storeBtn = document.getElementById('store-loot-btn');
     if (storeBtn) {
       storeBtn.addEventListener('click', storeLootInShip);
+    }
+    // Encounter battle overlay — "Return to Expedition" closes the iframe and
+    // unfreezes the world (closeModal unloads the battle iframe; see closeModal).
+    const encounterExitBtn = document.getElementById('encounter-exit');
+    if (encounterExitBtn) {
+      encounterExitBtn.addEventListener('click', () => closeModal());
     }
 
     // Map modal — Return to Ship button. Mobile convenience: thumb-tap
@@ -7142,6 +7321,43 @@
     // at the opposite border (so coming in from the south of north places
     // them at the bottom of north, etc.). Resets animation/idle/B state
     // since the player's context just changed.
+    // ============ Random encounter helpers ============
+    // Open the placeholder 1v1 battle. Routes through the modal system so the
+    // whole expedition world freezes (the game loop skips updates while a
+    // modal is open) and input is captured by the battle iframe.
+    function openEncounterBattle(npc) {
+      const nameEl = document.getElementById('encounter-foe-name');
+      if (nameEl) nameEl.textContent = (npc && npc.displayName) ? npc.displayName : 'Challenger';
+      const frame = document.getElementById('encounter-frame');
+      if (frame) frame.src = '/training.html';
+      openModal('battle');
+    }
+    // Drop the challenger somewhere clear in the region interior. Random each
+    // call so re-entering South Central produces a fresh encounter layout.
+    function placeEncounterRandomly(npc) {
+      for (let tries = 0; tries < 40; tries++) {
+        const tx = 6  + Math.floor(Math.random() * (MAP_WIDTH  - 12));
+        const ty = 11 + Math.floor(Math.random() * (MAP_HEIGHT - 17));
+        const x = tx * TILE_SIZE, y = ty * TILE_SIZE;
+        if (!npcBlocked(npc, x, y)) { npc.x = x; npc.y = y; return; }
+      }
+      npc.x = (MAP_WIDTH  / 2) * TILE_SIZE;
+      npc.y = (MAP_HEIGHT / 2) * TILE_SIZE;
+    }
+    // Re-arm every encounter challenger — the "rematch" on region re-entry.
+    function resetEncounters() {
+      for (const npc of NPCS) {
+        if (!npc.isEncounter) continue;
+        npc.encounter.mode = 'roam';
+        npc.encounter.defeated = false;
+        npc.currentDir = 'idle';
+        npc.dirTimer = 0;
+        npc.animTime = 0;
+        npc.animFrame = 0;
+        placeEncounterRandomly(npc);
+      }
+    }
+
     function transitionRegion(toRegion) {
       if (!REGIONS[toRegion] || toRegion === currentRegion) return;
       const from = currentRegion;
@@ -7181,6 +7397,9 @@
       player.animTime = 0; player.animFrame = 0;
       player.idlePose = 0; player.idlePoseTime = 0; player.idleAnimTime = 0; player.idleAnimFrame = 0;
       resetBState();
+      // Re-arm South Central's wandering challenger on every entry — this is
+      // the "rematch": leave the region and return to face a fresh encounter.
+      if (toRegion === 'southcentral') resetEncounters();
       updateCamera();
     }
     // Detect whether the player is at a region border AND pressing into it.

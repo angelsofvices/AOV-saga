@@ -1755,7 +1755,7 @@
       <div class="modal-title">Workstation</div>
       <div class="ws-item">
         <div class="ws-item-info">
-          <span class="ws-item-name">Iron Sword</span>
+          <span class="ws-item-name">Solion's Everflame</span>
           <span class="ws-item-status" id="ws-sword-status">Free — ready to forge</span>
         </div>
         <button class="ws-build-btn" id="ws-sword-btn">Build &amp; Equip</button>
@@ -1793,8 +1793,9 @@
     // Object dimensions (multiples of tile size).
     const TREE_W = 96;  // 3 tiles wide visually (scaled 1.5× from the original 2-tile footprint so trees stand taller next to the player + 1.5× houses)
     const TREE_H = 96;  // 3 tiles tall visually
-    // Crafting workstation — in-world render size for obj_craftstation.png.
-    const WS_W = 120, WS_H = 80;
+    // Crafting workstation — in-world render size for obj_craftstation.png
+    // (kept at the source 3:2 aspect; larger = less downscale = crisper).
+    const WS_W = 240, WS_H = 160;
 
     // UFO landmark — Aetherstride terminal (gateway to "The Aethryx Expanse").
     // Wide sideview silhouette. Sized to match the source's natural 3.7:1
@@ -2840,6 +2841,7 @@
       // every 15s) not directions. Cols are micro-animation frames within
       // each pose. Sliced into ASSETS.idleFrames[pose][frame].
       idleSheet: { src: '/assets/animation_idle_player.png', raw: true },
+      swordIdleSheet: { src: '/assets/animation_idle_solionsword_on.png', raw: true },
       // Voltyran walk sheet — sliced into 16 frame canvases at boot, same
       // pipeline as the player sheet but with VOLTYRAN_SHEET coords. Stored
       // under ASSETS.voltyranFrames = { up:[…], left:[…], right:[…], down:[…] }.
@@ -2997,6 +2999,7 @@
       // at walk-frame body proportions inside a 32×45 canvas instead of
       // filling the whole canvas at ~2× scale. Overwrites the raw HTMLImage.
       if (ASSETS.playerIdle) ASSETS.playerIdle = slicePlayerIdle(ASSETS.playerIdle);
+      if (ASSETS.swordIdleSheet) ASSETS.swordIdleFrames = sliceSwordIdle(ASSETS.swordIdleSheet);
       ASSETS.voltyranFrames = sliceVoltyranSheet(ASSETS.voltyranSheet);
       ASSETS.eurakeonFrames = sliceEurakeonSheet(ASSETS.eurakeonSheet);
       ASSETS.aurexionFrames = sliceAurexionSheet(ASSETS.aurexionSheet);
@@ -3015,6 +3018,7 @@
       ASSETS.tombFrames    = sliceTombSheet(ASSETS.tombSheet);
       ASSETS.potion        = bakePotionSprite(ASSETS.potionSheet);
       ASSETS.sword         = bakeSwordIcon();
+      loadSwordIcon();
       const __blockSlice   = sliceBlockSheet(ASSETS.blockSheet);
       ASSETS.blockCharge   = __blockSlice.charge;
       ASSETS.blockMax      = __blockSlice.max;
@@ -3063,6 +3067,50 @@
         dx, dy, TARGET_BODY_W, TARGET_BODY_H
       );
       return c;
+    }
+
+    // Solion's Everflame idle — a 4-frame front-facing idle animation of the
+    // player wielding the sword (animation_idle_solionsword_on.png, 1536x1024,
+    // 4 frames). Each frame's content bbox is auto-detected and baked feet-
+    // anchored into a SWORD_IDLE_W x SWORD_IDLE_H canvas (a touch larger than
+    // the walk box so the blade + flame have room above the head).
+    const SWORD_IDLE_W = 48, SWORD_IDLE_H = 64;
+    function sliceSwordIdle(sheetImg) {
+      const SW = sheetImg.naturalWidth  || sheetImg.width;
+      const SH = sheetImg.naturalHeight || sheetImg.height;
+      const FRAMES = 4;
+      const cellW = SW / FRAMES;
+      const sc = document.createElement('canvas');
+      sc.width = SW; sc.height = SH;
+      const sctx = sc.getContext('2d');
+      sctx.drawImage(sheetImg, 0, 0);
+      const px = sctx.getImageData(0, 0, SW, SH).data;
+      const out = [];
+      for (let f = 0; f < FRAMES; f++) {
+        const cx0 = Math.round(f * cellW), cx1 = Math.round((f + 1) * cellW);
+        let bx0 = 1e9, by0 = 1e9, bx1 = -1, by1 = -1;
+        for (let y = 0; y < SH; y++) {
+          for (let x = cx0; x < cx1; x++) {
+            if (px[(y * SW + x) * 4 + 3] > 16) {
+              if (x < bx0) bx0 = x; if (x > bx1) bx1 = x;
+              if (y < by0) by0 = y; if (y > by1) by1 = y;
+            }
+          }
+        }
+        const cv = document.createElement('canvas');
+        cv.width = SWORD_IDLE_W; cv.height = SWORD_IDLE_H;
+        const cc = cv.getContext('2d');
+        cc.imageSmoothingEnabled = false;
+        if (bx1 >= 0) {
+          const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+          const scale = Math.min(SWORD_IDLE_W / bw, SWORD_IDLE_H / bh) * 0.98;
+          const dw = bw * scale, dh = bh * scale;
+          cc.drawImage(sc, bx0, by0, bw, bh,
+                       (SWORD_IDLE_W - dw) / 2, SWORD_IDLE_H - dh, dw, dh);
+        }
+        out.push(cv);
+      }
+      return out;
     }
 
     function sliceCharSheet(sheetImg) {
@@ -4523,7 +4571,7 @@
     // A single interactable bench in Central, south-west of the ship. Walk up
     // and tap A to open the build menu. First buildable item: a free Iron
     // Sword — build it into the Astralpack, or return it to the workstation.
-    const WORKSTATION = { x: 29 * 32, y: 10 * 32, region: 'central' };
+    const WORKSTATION = { x: 27 * 32, y: 9 * 32, region: 'central' };
     const workstationState = { adjacent: false };
     function workstationBox() {
       return {
@@ -4543,7 +4591,7 @@
     function hasSword() { return player.inventory.some(it => it.id === 'sword'); }
     function buildSword() {
       if (hasSword()) return;
-      player.inventory.push({ id: 'sword', name: 'Iron Sword', qty: 1, iconKey: 'sword' });
+      player.inventory.push({ id: 'sword', name: "Solion's Everflame", qty: 1, iconKey: 'sword' });
       console.log('[workstation] built Iron Sword -> Astralpack');
     }
     function returnSword() {
@@ -4578,6 +4626,18 @@
       g.fillStyle = '#6b4a2a'; g.fillRect(18, 30, 4, 7);    // grip
       g.fillStyle = '#d8a64a'; g.fillRect(16, 36, 8, 3);    // pommel
       return c;
+    }
+    // Swap the baked placeholder for the real Everflame art once it loads.
+    // If assets/item_everflame.png is absent, the placeholder simply stays.
+    function loadSwordIcon() {
+      const img = new Image();
+      img.onload = () => {
+        const cv = document.createElement('canvas');
+        cv.width = 48; cv.height = 48;
+        cv.getContext('2d').drawImage(img, 0, 0, 48, 48);
+        ASSETS.sword = cv;
+      };
+      img.src = '/assets/item_everflame.png';
     }
 
     // Rebuild colliders now that CHESTS exists — the initial COLLIDERS
@@ -7362,7 +7422,14 @@
             // sideways. Poses 1..3 (arms-out, looking-around, nap) still
             // pull from the idle sheet so the long-idle flavor anims play.
             if (player.idlePose === 0) {
-              if (player.facing === 'down' && ASSETS.playerIdle) {
+              if (player.facing === 'down' && hasSword() && ASSETS.swordIdleFrames) {
+                // Solion's Everflame equipped — animated front idle. Drawn in a
+                // larger frame, offset so the feet still land on the walk box.
+                const swf = ASSETS.swordIdleFrames;
+                const fr  = swf[player.idleAnimFrame % swf.length];
+                if (fr) ctx.drawImage(fr, screenX - (SWORD_IDLE_W - CHAR_W) / 2,
+                                          screenY - (SWORD_IDLE_H - CHAR_H));
+              } else if (player.facing === 'down' && ASSETS.playerIdle) {
                 ctx.drawImage(ASSETS.playerIdle, screenX, screenY);
               } else if (ASSETS.charFrames && ASSETS.charFrames[player.facing]) {
                 const sprite = ASSETS.charFrames[player.facing][0];

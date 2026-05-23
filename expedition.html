@@ -4766,12 +4766,11 @@
           continue;
         }
         // ===== Encounter-challenger override =====
-        // A wandering duelist. While roaming it uses ordinary wander AI; once
-        // the player closes within ENCOUNTER_SIGHT_DIST it locks on, runs the
-        // player down at their own pace (so they can't be outrun inside the
-        // region), and on contact opens the placeholder 1v1 battle. A spent
-        // challenger reverts to harmless wandering until the player leaves and
-        // re-enters South Central (resetEncounters re-arms it).
+        // A wandering duelist — it never chases. It roams with the ordinary
+        // wander AI; the battle fires only when the player is within 5 tiles
+        // AND the challenger already happens to be facing toward them, so the
+        // player can slip past behind its back. Spent after a battle until the
+        // player leaves and re-enters South Central (resetEncounters re-arms it).
         if (npc.isEncounter) {
           if ((npc.region || 'central') !== currentRegion) continue;
           const enc = npc.encounter;
@@ -4779,32 +4778,20 @@
             const ecx = npc.x + npc.w / 2,     ecy = npc.y + npc.h / 2;
             const pcx = player.x + CHAR_W / 2, pcy = player.y + CHAR_H / 2;
             const evx = pcx - ecx, evy = pcy - ecy;
-            const edist = Math.hypot(evx, evy);
-            if (enc.mode === 'roam' && edist <= ENCOUNTER_SIGHT_DIST) enc.mode = 'chase';
-            if (enc.mode === 'chase') {
-              if (edist <= ENCOUNTER_CONTACT_DIST) {
-                enc.mode = 'roam';
+            if (Math.hypot(evx, evy) <= ENCOUNTER_SIGHT_DIST) {
+              const facingPlayer =
+                (npc.facing === 'right' && evx > 0 && Math.abs(evx) >= Math.abs(evy)) ||
+                (npc.facing === 'left'  && evx < 0 && Math.abs(evx) >= Math.abs(evy)) ||
+                (npc.facing === 'down'  && evy > 0 && Math.abs(evy) >= Math.abs(evx)) ||
+                (npc.facing === 'up'    && evy < 0 && Math.abs(evy) >= Math.abs(evx));
+              if (facingPlayer) {
                 enc.defeated = true;          // spent until the region is re-entered
                 openEncounterBattle(npc);
                 continue;
               }
-              // Close in — at least 1.5x the challenger's own pace, and never
-              // below 1.1x the player's current travel speed, so a fleeing
-              // player still gets caught somewhere inside the region.
-              const epace = Math.max(npc.speed * 1.5, (player._moveSpeed || 0) * 1.1);
-              const enx = evx / edist, eny = evy / edist;
-              if (Math.abs(evx) > Math.abs(evy)) npc.facing = evx > 0 ? 'right' : 'left';
-              else                               npc.facing = evy > 0 ? 'down' : 'up';
-              npc.animTime += dt;
-              npc.animFrame = Math.floor(npc.animTime * npc.animFps) % ANIM_FRAMES;
-              const etx = npc.x + enx * epace * dt;
-              if (!npcBlocked(npc, etx, npc.y)) npc.x = etx;
-              const ety = npc.y + eny * epace * dt;
-              if (!npcBlocked(npc, npc.x, ety)) npc.y = ety;
-              continue;
             }
           }
-          // roam or defeated — fall through to the generic wander AI below.
+          // not triggered — fall through to the generic wander AI below.
         }
         // Region scoping — NPCs only update in their home region (default
         // 'central' if not specified).
@@ -7027,15 +7014,25 @@
           const npc = d.npc;
           if (screenX + npc.w < 0 || screenX > VIEWPORT_W) continue;
           if (screenY + npc.h < 0 || screenY > VIEWPORT_H) continue;
-          // Look up the NPC's frame set, then pick the current walk-cycle
-          // frame for its current facing via its walkOrder mapping.
-          const frameSet = ASSETS[npc.framesKey];
-          if (frameSet) {
-            const frames = frameSet[npc.facing];
-            const order  = npc.walkOrder[npc.facing];
-            if (frames && order) {
-              const sprite = frames[order[npc.animFrame]];
-              if (sprite) ctx.drawImage(sprite, screenX, screenY);
+          // The encounter challenger is rigged exactly like the player: when
+          // standing idle and facing the camera it uses the same forward idle
+          // portrait the player's own pose-0 idle uses. Walking — and idle in
+          // the other facings — already draws from charFrames just like the
+          // player, so no further special-casing is needed.
+          if (npc.isEncounter && npc.currentDir === 'idle' &&
+              npc.facing === 'down' && ASSETS.playerIdle) {
+            ctx.drawImage(ASSETS.playerIdle, screenX, screenY);
+          } else {
+            // Look up the NPC's frame set, then pick the current walk-cycle
+            // frame for its current facing via its walkOrder mapping.
+            const frameSet = ASSETS[npc.framesKey];
+            if (frameSet) {
+              const frames = frameSet[npc.facing];
+              const order  = npc.walkOrder[npc.facing];
+              if (frames && order) {
+                const sprite = frames[order[npc.animFrame]];
+                if (sprite) ctx.drawImage(sprite, screenX, screenY);
+              }
             }
           }
           // Cry balloon — drawn after the NPC sprite so it sits on top in z.

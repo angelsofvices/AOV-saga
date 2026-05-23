@@ -894,6 +894,36 @@
       cursor: pointer;
     }
     .encounter-result-btn:hover, .encounter-result-btn:active { filter: brightness(1.1); }
+    /* Crafting workstation modal */
+    .ws-item {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 14px; padding: 12px 14px; margin-top: 6px;
+      background: var(--glass-strong, rgba(20,14,38,0.7));
+      border: 1px solid var(--border-gold, rgba(232,200,120,0.4));
+      border-radius: 4px;
+    }
+    .ws-item-info { display: flex; flex-direction: column; gap: 3px; }
+    .ws-item-name {
+      font-family: var(--font-display); font-size: 0.95rem;
+      letter-spacing: 0.06em; color: var(--gold-bright, #f4d98a);
+    }
+    .ws-item-status {
+      font-family: var(--font-meta); font-size: 0.56rem; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--mist, #b9b3c9);
+    }
+    .ws-build-btn {
+      flex: 0 0 auto;
+      font-family: var(--font-meta); font-size: 0.62rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #1a1208;
+      background: linear-gradient(180deg, var(--gold-bright, #f4d98a), var(--gold-deep, #b8923c));
+      border: 0; border-radius: 4px; padding: 11px 16px; cursor: pointer;
+      transition: filter 0.15s ease;
+    }
+    .ws-build-btn:hover, .ws-build-btn:active { filter: brightness(1.1); }
+    .ws-build-btn.returned {
+      background: transparent; color: var(--gold, #e8c878);
+      border: 1px solid var(--border-gold, rgba(232,200,120,0.5));
+    }
 
     /* Hub menu — 2-column grid, 3 rows: RIZERS / CODEX / ASTRALPACK / PROFILE / SAVE / OPTIONS */
     .hub-grid {
@@ -1716,6 +1746,23 @@
     </div>
   </div>
 
+  <!-- ============ Crafting workstation modal ============ -->
+  <div class="modal" id="modal-workstation" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" style="max-width: 360px;">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <div class="modal-eyebrow">Crafting</div>
+      <div class="modal-title">Workstation</div>
+      <div class="ws-item">
+        <div class="ws-item-info">
+          <span class="ws-item-name">Iron Sword</span>
+          <span class="ws-item-status" id="ws-sword-status">Free — ready to forge</span>
+        </div>
+        <button class="ws-build-btn" id="ws-sword-btn">Build &amp; Equip</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     'use strict';
 
@@ -1746,6 +1793,8 @@
     // Object dimensions (multiples of tile size).
     const TREE_W = 96;  // 3 tiles wide visually (scaled 1.5× from the original 2-tile footprint so trees stand taller next to the player + 1.5× houses)
     const TREE_H = 96;  // 3 tiles tall visually
+    // Crafting workstation — in-world render size for obj_craftstation.png.
+    const WS_W = 120, WS_H = 80;
 
     // UFO landmark — Aetherstride terminal (gateway to "The Aethryx Expanse").
     // Wide sideview silhouette. Sized to match the source's natural 3.7:1
@@ -2621,6 +2670,14 @@
         // first transitionRegion or openChest re-runs buildColliders later
         // when CHESTS exists, so this branch's miss is harmless.
       }
+      // Workstation collider — the bench base blocks movement (tap A to open).
+      // Same TDZ guard as chests: WORKSTATION is declared later in this scope.
+      try {
+        if (typeof WORKSTATION !== 'undefined' &&
+            (WORKSTATION.region || 'central') === mapData.id) {
+          out.push(workstationBox());
+        }
+      } catch (_) {}
       return out;
     }
     let COLLIDERS = buildColliders(MAP_DATA);   // rebuilt by transitionRegion()
@@ -2746,6 +2803,7 @@
         crop: { x: 100, y: 100, w: 1054, h: 1054 },
       },
       tree:  { src: '/assets/obj_tree.png',       w: TREE_W,    h: TREE_H    },
+      craftstation: { src: '/assets/obj_craftstation.png', w: WS_W, h: WS_H },
       // Houses — entry_*house.png. The sml/med variants ship with transparent
       // alpha already, so they bake clean. The big/huge variants are RGB white-
       // background, so they need a post-bake chromaKeyWhite pass (chroma: true).
@@ -2956,6 +3014,7 @@
       ASSETS.khronisFrames = sliceKhronisSheet(ASSETS.khronisSheet);
       ASSETS.tombFrames    = sliceTombSheet(ASSETS.tombSheet);
       ASSETS.potion        = bakePotionSprite(ASSETS.potionSheet);
+      ASSETS.sword         = bakeSwordIcon();
       const __blockSlice   = sliceBlockSheet(ASSETS.blockSheet);
       ASSETS.blockCharge   = __blockSlice.charge;
       ASSETS.blockMax      = __blockSlice.max;
@@ -4459,6 +4518,68 @@
       { id: 'c3-central', x: 12*32, y: 28*32, region: 'central', tier: 3, opened: false },
       { id: 'c4-central', x: 30*32, y: 26*32, region: 'central', tier: 4, opened: false },
     ];
+
+    // ============ Crafting workstation ============
+    // A single interactable bench in Central, south-west of the ship. Walk up
+    // and tap A to open the build menu. First buildable item: a free Iron
+    // Sword — build it into the Astralpack, or return it to the workstation.
+    const WORKSTATION = { x: 29 * 32, y: 10 * 32, region: 'central' };
+    const workstationState = { adjacent: false };
+    function workstationBox() {
+      return {
+        x: WORKSTATION.x + 12,
+        y: WORKSTATION.y + Math.round(WS_H * 0.45),
+        w: WS_W - 24,
+        h: Math.round(WS_H * 0.5),
+      };
+    }
+    function updateWorkstationAdjacency() {
+      workstationState.adjacent = false;
+      if (WORKSTATION.region !== currentRegion) return;
+      if (rectIntersect(playerInteractBox(player.x, player.y), workstationBox())) {
+        workstationState.adjacent = true;
+      }
+    }
+    function hasSword() { return player.inventory.some(it => it.id === 'sword'); }
+    function buildSword() {
+      if (hasSword()) return;
+      player.inventory.push({ id: 'sword', name: 'Iron Sword', qty: 1, iconKey: 'sword' });
+      console.log('[workstation] built Iron Sword -> Astralpack');
+    }
+    function returnSword() {
+      const i = player.inventory.findIndex(it => it.id === 'sword');
+      if (i >= 0) player.inventory.splice(i, 1);
+      console.log('[workstation] returned Iron Sword -> workstation');
+    }
+    // Refresh the workstation modal for the current sword state.
+    function renderWorkstation() {
+      const built    = hasSword();
+      const statusEl = document.getElementById('ws-sword-status');
+      const btn      = document.getElementById('ws-sword-btn');
+      if (statusEl) statusEl.textContent = built ? 'Equipped — in your Astralpack'
+                                                 : 'Free — ready to forge';
+      if (btn) {
+        btn.textContent = built ? 'Return to Workstation' : 'Build & Equip';
+        btn.classList.toggle('returned', built);
+        btn.onclick = () => {
+          if (hasSword()) returnSword(); else buildSword();
+          renderWorkstation();
+        };
+      }
+    }
+    // Simple baked sword icon for the Astralpack (no art asset needed).
+    function bakeSwordIcon() {
+      const c = document.createElement('canvas');
+      c.width = 40; c.height = 40;
+      const g = c.getContext('2d');
+      g.fillStyle = '#9aa4b2'; g.fillRect(18, 4, 4, 22);    // blade
+      g.fillStyle = '#e9eef4'; g.fillRect(18, 4, 2, 22);    // blade highlight
+      g.fillStyle = '#d8a64a'; g.fillRect(11, 26, 18, 4);   // crossguard
+      g.fillStyle = '#6b4a2a'; g.fillRect(18, 30, 4, 7);    // grip
+      g.fillStyle = '#d8a64a'; g.fillRect(16, 36, 8, 3);    // pommel
+      return c;
+    }
+
     // Rebuild colliders now that CHESTS exists — the initial COLLIDERS
     // assignment at module-init couldn't include chests (CHESTS was in TDZ).
     // Without this, the player could walk through chests until they crossed
@@ -5389,6 +5510,7 @@
         if (exit === 'hq')    { transitionRegion('hq');      return true; }
         if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
         if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
+        if (workstationState.adjacent) { openModal('workstation'); return true; }
         if (chestState.adjacent && chestState.chest) {
           openChest(chestState.chest); return true;
         }
@@ -5611,6 +5733,7 @@
           if (exit === 'hq')    { transitionRegion('hq');      return; }
           if (exit === 'central-from-hq') { transitionRegion('central'); return; }
           if (hugeHouseState.adjacent) { transitionRegion('hq'); return; }
+          if (workstationState.adjacent) { openModal('workstation'); return; }
           if (chestState.adjacent && chestState.chest) {
             openChest(chestState.chest); return;
           }
@@ -5653,6 +5776,7 @@
       // Per-modal open hooks (e.g., update map marker position).
       if (name === 'map') { updateMapMarker(); resetMapCursor(); }
       if (name === 'aethryx') { refreshFactionUI(); refreshShipCargoLabel(); }
+      if (name === 'workstation') { renderWorkstation(); }
       // Auto-focus the first interactive button so arrow nav has a starting
       // point. Slight delay so the modal's fade-in transition lands first.
       if (name === 'hub' || name === 'pause' || name === 'aethryx') {
@@ -6967,6 +7091,15 @@
           chestRef: c,
         });
       }
+      // Workstation — single interactable crafting bench (Central).
+      if (WORKSTATION.region === currentRegion) {
+        drawables.push({
+          kind: 'workstation',
+          layer: LAYER_PROPS,
+          x: WORKSTATION.x, y: WORKSTATION.y,
+          feetY: WORKSTATION.y + WS_H,
+        });
+      }
       // Gem drops — spawned by chest opens. Float-bob applied at draw time.
       for (const g of GEM_DROPS) {
         if (g.region !== currentRegion) continue;
@@ -7063,6 +7196,32 @@
             ctx.fillStyle = '#f4e3b3';
             ctx.textBaseline = 'middle';
             ctx.textAlign = 'left';
+            ctx.fillText(text, bx + padX, by + bh / 2 + 0.5);
+          }
+        } else if (d.kind === 'workstation') {
+          if (screenX + WS_W < 0 || screenX > VIEWPORT_W ||
+              screenY + WS_H < 0 || screenY > VIEWPORT_H) continue;
+          if (ASSETS.craftstation) ctx.drawImage(ASSETS.craftstation, screenX, screenY);
+          // "BUILD · TAP A" prompt when the player is adjacent.
+          if (workstationState.adjacent) {
+            const text = 'BUILD · TAP A';
+            ctx.font = "7px 'Cinzel', serif";
+            const padX = 5;
+            const tw = Math.ceil(ctx.measureText(text).width);
+            const bw = tw + padX * 2, bh = 13;
+            let bx = Math.round(screenX + WS_W / 2 - bw / 2);
+            let by = Math.round(screenY - bh - 3);
+            if (bx < 2) bx = 2;
+            if (bx + bw > VIEWPORT_W - 2) bx = VIEWPORT_W - 2 - bw;
+            if (by < 2) by = Math.round(screenY + WS_H + 3);
+            ctx.fillStyle   = 'rgba(10, 6, 24, 0.88)';
+            ctx.strokeStyle = '#e8c878';
+            ctx.lineWidth   = 1;
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+            ctx.fillStyle    = '#f4e3b3';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign    = 'left';
             ctx.fillText(text, bx + padX, by + bh / 2 + 0.5);
           }
         } else if (d.kind === 'gemDrop') {
@@ -7381,6 +7540,7 @@
         tickHurtAnim(dt);
         updateHazards(dt);
         updateChestAdjacency();
+        updateWorkstationAdjacency();
         updateGemDrops(dt);
         updateCamera();
       }

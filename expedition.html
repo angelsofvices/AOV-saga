@@ -2527,19 +2527,19 @@
       }
       for (const obj of mapData.objects) {
         if (obj.type === 'tree') {
-          // Tree collider TIGHTENED Dec 2026 to match the visible foliage
-          // outline (was just the trunk, which let the player walk INTO the
-          // canopy). Probed obj_tree.png alpha bbox: foliage spans ~87% of
-          // the sprite (6-8% transparent margin per side). Collider uses the
-          // same insets so the player bumps the entire visible tree.
-          const TREE_INSET_X = Math.round(TREE_W * 0.065);
-          const TREE_INSET_T = Math.round(TREE_H * 0.055);
-          const TREE_INSET_B = Math.round(TREE_H * 0.077);
+          // Tree collider — trunk + dense lower-canopy core only: a small
+          // bottom-centred box that sits entirely inside the visible pixels.
+          // A round canopy in a full-size box collides in its transparent
+          // corners ("invisible spread"); the airy upper canopy is instead
+          // walk-behindable (z-sort draws it over the player).
+          const TREE_COL_W = Math.round(TREE_W * 0.46);
+          const TREE_COL_H = Math.round(TREE_H * 0.32);
+          const TREE_COL_B = Math.round(TREE_H * 0.06);   // gap below the trunk base
           out.push({
-            x: obj.x * TILE_SIZE + TREE_INSET_X,
-            y: obj.y * TILE_SIZE + TREE_INSET_T,
-            w: TREE_W - TREE_INSET_X * 2,
-            h: TREE_H - TREE_INSET_T - TREE_INSET_B,
+            x: obj.x * TILE_SIZE + Math.round((TREE_W - TREE_COL_W) / 2),
+            y: obj.y * TILE_SIZE + TREE_H - TREE_COL_H - TREE_COL_B,
+            w: TREE_COL_W,
+            h: TREE_COL_H,
           });
         } else if (HOUSE_TYPES[obj.type]) {
           // Houses: collider traces the BUILDING OUTLINE Pokemon-style
@@ -2556,7 +2556,14 @@
           const cy = obj.y * TILE_SIZE + Math.round(dims.h * ins.t);
           const cw = Math.round(dims.w * (1 - ins.l - ins.r));
           const ch = Math.round(dims.h * (1 - ins.t - ins.b));
-          out.push({ x: cx, y: cy, w: cw, h: ch });
+          // Extra pull-in so the collider sits just inside the wall pixels
+          // rather than on the sprite's outer bbox — trims the slight
+          // "invisible spread". The top gets a bigger bite to clear the empty
+          // corners above a pitched/gabled roof.
+          const HX = Math.round(dims.w * 0.035);
+          const HT = Math.round(dims.h * 0.085);
+          const HB = Math.round(dims.h * 0.030);
+          out.push({ x: cx + HX, y: cy + HT, w: cw - HX * 2, h: ch - HT - HB });
         } else if (obj.type === 'ufo') {
           // UFO: collider = bottom half (landing struts area). Top half is
           // hull/dome, walk-behindable like a tree canopy.
@@ -2761,6 +2768,7 @@
       // Renamed to ..._player.png to match the rest of the assets/ folder convention
       // (character_player.png, character_voltyran.png, character_eurakeon.png, etc.).
       sheet: { src: '/assets/animation_walk_player.png', raw: true },
+      player2Sheet: { src: '/assets/animation_walk_player2.png', raw: true },
       // Player-2 jog sheet — drives the South Central encounter challenger.
       // Fly sprite sheet — same 4×4 layout, used while the player is in fly
       // mode (tap-then-hold B/Shift). Baked at CHAR_W_FLY × CHAR_H_FLY (wider
@@ -2923,6 +2931,7 @@
       // After all images load, slice both sprite sheets into frame canvases.
       if (onProgress) onProgress(0.92, 'Cutting frames…');
       ASSETS.charFrames     = sliceCharSheet(ASSETS.sheet);
+      ASSETS.player2Frames  = slicePlayer2Sheet(ASSETS.player2Sheet);
       ASSETS.flyFrames      = sliceFlySheet(ASSETS.flySheet);
       ASSETS.runFrames      = sliceRunSheet(ASSETS.runSheet);
       ASSETS.idleFrames     = sliceIdleSheet(ASSETS.idleSheet);
@@ -3023,6 +3032,93 @@
       // (v2 sheet has 4 distinct down-row poses — no synthesized mirror needed.
       // mirrorCanvas() is still defined below for future use if any direction
       // needs a single-frame source augmented into an alternating cycle.)
+      return result;
+    }
+
+    // Player-2 walk sheet — animation_walk_player2.png is a clean 4x4 grid
+    // (rows up / left / right / down, 4 frames each) with row labels baked
+    // into the sheet's left margin. This slicer locates the real sprite grid
+    // from the white gaps between cells (so the labels and any uneven spacing
+    // don't matter), then bakes every frame feet-anchored at CHAR_W x CHAR_H —
+    // rigged exactly like the player's own walk frames.
+    function slicePlayer2Sheet(sheetImg) {
+      const ROWDIRS = ['up', 'left', 'right', 'down'];
+      const result  = { up: [], left: [], right: [], down: [] };
+      const SW = sheetImg.naturalWidth  || sheetImg.width;
+      const SH = sheetImg.naturalHeight || sheetImg.height;
+      const sc = document.createElement('canvas');
+      sc.width = SW; sc.height = SH;
+      const sctx = sc.getContext('2d');
+      sctx.drawImage(sheetImg, 0, 0);
+      const px = sctx.getImageData(0, 0, SW, SH).data;
+      const isInk = (x, y) => {
+        const i = (y * SW + x) * 4;
+        return px[i] < 232 || px[i + 1] < 232 || px[i + 2] < 232;
+      };
+      // Ink counts down each column and across each row.
+      const colCount = new Array(SW).fill(0);
+      const rowCount = new Array(SH).fill(0);
+      for (let y = 0; y < SH; y++) {
+        for (let x = 0; x < SW; x++) {
+          if (isInk(x, y)) { colCount[x]++; rowCount[y]++; }
+        }
+      }
+      // Content blocks = runs of the profile above a small gap threshold.
+      function blocks(profile, gap, minSize) {
+        const res = []; let run = false, s = 0;
+        for (let i = 0; i < profile.length; i++) {
+          if (profile[i] > gap && !run) { run = true; s = i; }
+          else if (profile[i] <= gap && run) { run = false; if (i - s >= minSize) res.push([s, i - 1]); }
+        }
+        if (run && profile.length - s >= minSize) res.push([s, profile.length - 1]);
+        return res;
+      }
+      const widest = arr => arr.slice()
+        .sort((a, b) => (b[1] - b[0]) - (a[1] - a[0])).slice(0, 4)
+        .sort((a, b) => a[0] - b[0]);
+      const colBlk = widest(blocks(colCount, 25, 45));   // 4 sprite columns (drops the label column)
+      const rowBlk = widest(blocks(rowCount, 25, 45));   // 4 sprite rows
+      // Per-cell tight bounding box of the sprite.
+      const cells = []; let refH = 1;
+      for (let r = 0; r < 4; r++) {
+        cells.push([]);
+        for (let c = 0; c < 4; c++) {
+          const cb = colBlk[c] || [0, 0], rb = rowBlk[r] || [0, 0];
+          let bx0 = 1e9, by0 = 1e9, bx1 = -1, by1 = -1;
+          for (let y = rb[0]; y <= rb[1]; y++) {
+            for (let x = cb[0]; x <= cb[1]; x++) {
+              if (isInk(x, y)) {
+                if (x < bx0) bx0 = x; if (x > bx1) bx1 = x;
+                if (y < by0) by0 = y; if (y > by1) by1 = y;
+              }
+            }
+          }
+          const box = bx1 >= 0 ? { x0: bx0, y0: by0, x1: bx1, y1: by1 } : null;
+          cells[r].push(box);
+          if (box && box.y1 - box.y0 > refH) refH = box.y1 - box.y0;
+        }
+      }
+      // One uniform feet-anchored crop for every frame -> bake at CHAR_W x CHAR_H.
+      const FILL  = 0.88;
+      const cropH = refH / FILL;
+      const cropW = cropH * (CHAR_W / CHAR_H);
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          const cv = document.createElement('canvas');
+          cv.width = CHAR_W; cv.height = CHAR_H;
+          const cc = cv.getContext('2d');
+          cc.imageSmoothingEnabled = false;
+          const b = cells[r][c];
+          if (b) {
+            const cx = (b.x0 + b.x1) / 2;
+            const sx = cx - cropW / 2;
+            const sy = b.y1 + cropH * (1 - FILL) / 2 - cropH;
+            cc.drawImage(sc, sx, sy, cropW, cropH, 0, 0, CHAR_W, CHAR_H);
+            chromaKeyWhite(cv);
+          }
+          result[ROWDIRS[r]].push(cv);
+        }
+      }
       return result;
     }
 
@@ -3976,7 +4072,7 @@
         // 5 tiles, then chases them down and triggers the 1v1 battle overlay.
         // Spent after a battle; re-armed by resetEncounters() on region re-entry.
         id: 'challenger_p2',
-        framesKey: 'charFrames',
+        framesKey: 'player2Frames',
         walkOrder: WALK_ORDER,
         x: 20 * 32, y: 22 * 32,
         w: CHAR_W, h: CHAR_H,
@@ -7014,25 +7110,17 @@
           const npc = d.npc;
           if (screenX + npc.w < 0 || screenX > VIEWPORT_W) continue;
           if (screenY + npc.h < 0 || screenY > VIEWPORT_H) continue;
-          // The encounter challenger is rigged exactly like the player: when
-          // standing idle and facing the camera it uses the same forward idle
-          // portrait the player's own pose-0 idle uses. Walking — and idle in
-          // the other facings — already draws from charFrames just like the
-          // player, so no further special-casing is needed.
-          if (npc.isEncounter && npc.currentDir === 'idle' &&
-              npc.facing === 'down' && ASSETS.playerIdle) {
-            ctx.drawImage(ASSETS.playerIdle, screenX, screenY);
-          } else {
-            // Look up the NPC's frame set, then pick the current walk-cycle
-            // frame for its current facing via its walkOrder mapping.
-            const frameSet = ASSETS[npc.framesKey];
-            if (frameSet) {
-              const frames = frameSet[npc.facing];
-              const order  = npc.walkOrder[npc.facing];
-              if (frames && order) {
-                const sprite = frames[order[npc.animFrame]];
-                if (sprite) ctx.drawImage(sprite, screenX, screenY);
-              }
+          // Look up the NPC's frame set, then pick the current walk-cycle
+          // frame for its current facing via its walkOrder mapping. The
+          // encounter challenger draws from player2Frames here — sliced and
+          // baked the same way as the player's own walk frames.
+          const frameSet = ASSETS[npc.framesKey];
+          if (frameSet) {
+            const frames = frameSet[npc.facing];
+            const order  = npc.walkOrder[npc.facing];
+            if (frames && order) {
+              const sprite = frames[order[npc.animFrame]];
+              if (sprite) ctx.drawImage(sprite, screenX, screenY);
             }
           }
           // Cry balloon — drawn after the NPC sprite so it sits on top in z.

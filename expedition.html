@@ -4782,11 +4782,10 @@
     // DOUBLE_TAP_WINDOW). Anything longer than TAP_MAX_MS is treated as
     // a hold (run mode).
     const TAP_MAX_MS        = 240;
-    // Shortened from 350 → 180 (Dec 2026) so the single-tap run-toggle fires
-    // much faster — the old delay introduced a perceptible "wait" between
-    // pressing B and the hoverboard appearing. 180ms is still wide enough
-    // for a deliberate double-tap (fly toggle) but tight enough that a
-    // single tap feels instant.
+    // The single-tap run-toggle now fires INSTANTLY (applied optimistically in
+    // onBRelease, rolled back if a double-tap follows), so this window no
+    // longer gates run responsiveness — it only sets how long after the first
+    // tap a second tap still counts as a double-tap (fly toggle).
     const DOUBLE_TAP_WINDOW = 180;
     function onBPress() {
       bState.anyDown   = true;
@@ -4804,22 +4803,21 @@
       }
       // Not a tap (held past TAP_MAX_MS but didn't reach block threshold) — consume.
       if (heldFor > TAP_MAX_MS) return;
-      // Quick tap — check double-tap.
+      // Quick tap. The run-toggle is applied IMMEDIATELY on the first tap so
+      // the hoverboard responds the instant B is released — no deferred-timer
+      // wait on keyboard or controller. If a second tap lands inside
+      // DOUBLE_TAP_WINDOW it's a double-tap (fly toggle), so we roll the
+      // optimistic run-toggle back and the gesture nets to fly only.
       const sinceLastTap = nowMs() - bState.lastTapAt;
       if (sinceLastTap <= DOUBLE_TAP_WINDOW && bState.lastTapAt > 0) {
-        cancelPendingTap();
+        bState.runEnabled = !bState.runEnabled;   // undo the first tap's optimistic run flip
         bState.flyEnabled = !bState.flyEnabled;
         console.log('[input] FLY TOGGLE → ' + (bState.flyEnabled ? 'ON' : 'OFF'));
         bState.lastTapAt = 0;
       } else {
-        bState.lastTapAt = nowMs();
-        cancelPendingTap();
-        bState.pendingTapTimer = setTimeout(() => {
-          bState.runEnabled = !bState.runEnabled;
-          console.log('[input] RUN TOGGLE → ' + (bState.runEnabled ? 'ON' : 'OFF'));
-          bState.pendingTapTimer = 0;
-          bState.lastTapAt = 0;
-        }, DOUBLE_TAP_WINDOW + 10);
+        bState.lastTapAt  = nowMs();
+        bState.runEnabled = !bState.runEnabled;   // instant — no setTimeout delay
+        console.log('[input] RUN TOGGLE → ' + (bState.runEnabled ? 'ON' : 'OFF'));
       }
     }
     // Polled per frame — engages BLOCK when B is held past the threshold.

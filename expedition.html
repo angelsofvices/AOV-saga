@@ -4441,15 +4441,14 @@
     // Pursuit tuning:
     //   FOLLOW_KEEP_RANGE  — pixels at which the follower stops closing in.
     //                        Keeps them from overlapping the player sprite.
-    //   FOLLOW_CATCHUP_DIST— if NPC falls farther than this from player, they
-    //                        get a temporary 1.6× speed bump to catch up
-    //                        (matches the player's run speed).
-    //   FOLLOW_TELEPORT_DIST — if they get LOST (off-region region-swap
-    //                        edge case, or impossible pathing), snap them
-    //                        next to the player.
+    //   FOLLOW_CATCHUP_DIST— past this gap the follower adds a 1.5× catch-up
+    //                        bump to reel a widened gap back in. Inside it,
+    //                        they simply match the player's travel speed.
+    // The companion matches the player's pace through walk / run / fly and is
+    // never teleported during normal play — it only re-snaps on a discrete
+    // region transition (a level change), handled in the follower block below.
     const FOLLOW_KEEP_RANGE    = 36;
     const FOLLOW_CATCHUP_DIST  = 96;
-    const FOLLOW_TELEPORT_DIST = 280;
     let followerNpcId = null;   // id string of the currently-following NPC, or null.
 
     function isFactionMember(npc) {
@@ -4507,10 +4506,20 @@
         }
         // ===== Follower-pursuit override =====
         // If this NPC is the active companion, replace wander AI with a
-        // simple steering-toward-player pursuit. Region is forced to match
-        // the player every frame so they stay with you across transitions.
+        // pursuit that matches the player's current travel speed, so they
+        // keep pace through walk / run / fly without ever teleporting.
         if (npc.id === followerNpcId) {
-          npc.region = currentRegion;
+          // Region transition — the player crossed into a new region. That's
+          // a discrete level change, not "falling behind", so snap the
+          // companion in beside the player once. Normal movement (below)
+          // never repositions them.
+          if (npc.region !== currentRegion) {
+            npc.region = currentRegion;
+            npc.x = player.x - CHAR_W;
+            npc.y = player.y;
+            npc.animTime = 0; npc.animFrame = 0;
+            continue;
+          }
           // Vector from NPC body-center to player body-center.
           const npcCx    = npc.x + npc.w / 2;
           const npcCy    = npc.y + npc.h / 2;
@@ -4519,13 +4528,6 @@
           const vx = playerCx - npcCx;
           const vy = playerCy - npcCy;
           const dist = Math.hypot(vx, vy);
-          // Teleport reset — if absurdly far (region edge case), snap.
-          if (dist > FOLLOW_TELEPORT_DIST) {
-            npc.x = player.x - CHAR_W;   // drop them just to the left of player
-            npc.y = player.y;
-            npc.animTime = 0; npc.animFrame = 0;
-            continue;
-          }
           // Keep-range — within the buffer, stop and freeze the walk cycle.
           if (dist <= FOLLOW_KEEP_RANGE) {
             npc.animTime = 0;
@@ -4538,12 +4540,17 @@
             }
             continue;
           }
-          // Pursuit — move toward the player. Speed scales up when behind
-          // catch-up distance so they don't fall too far back during a run/fly.
-          const speedMul = dist > FOLLOW_CATCHUP_DIST ? 1.6 : 1.0;
-          const speed    = npc.speed * speedMul;
-          const nx       = vx / dist;
-          const ny       = vy / dist;
+          // Pursuit — match the player's current speed so the trailing gap
+          // holds steady through walk / run / fly. Never slower than the
+          // companion's own walk speed (so they still close in while the
+          // player stands still). Past the catch-up distance, a 1.5× bump
+          // reels in any gap that opened — the player rounding a wall, a
+          // brief block — so they never trail off-screen or need a teleport.
+          const playerSpeed = player._moveSpeed || 0;
+          let speed = Math.max(npc.speed, playerSpeed);
+          if (dist > FOLLOW_CATCHUP_DIST) speed *= 1.5;
+          const nx = vx / dist;
+          const ny = vy / dist;
           // Update facing to dominant movement axis.
           if (Math.abs(vx) > Math.abs(vy)) {
             npc.facing = vx > 0 ? 'right' : 'left';
@@ -6374,6 +6381,9 @@
                        : (player.mode === 'run')   ? RUN_SCALE
                        : 1;
       const speed = player.speed * modeScale;
+      // Exposed so companion NPCs can match the player's exact travel speed —
+      // keeps a follower in pace through walk / run / fly with no teleport.
+      player._moveSpeed = inputActive ? speed : 0;
 
       // Axis-separated movement with collision. Applying X and Y in two passes
       // (rather than one combined step) is what produces "sliding" — pressing

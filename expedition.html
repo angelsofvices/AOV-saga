@@ -3069,68 +3069,33 @@
       return c;
     }
 
-    // Solion's Everflame idle — a 4-frame front idle of the player wielding the
-    // sword (animation_idle_solionsword_on.png, 1536x1024, 4 frames). The flame
-    // animates wildly AND the artist drew the character at a different x in
-    // every cell, so each frame is re-anchored on the character itself: the
-    // hair (bright teal — never the gold flame) gives a reliable x-centre, and
-    // the feet give the baseline. All 4 bake to the same size, hair-centred and
-    // feet-anchored, so the character is pinned and only the flame flickers.
-    const SWORD_IDLE_W = 88, SWORD_IDLE_H = 64;
+    // Solion's Everflame idle — 4-frame front idle of the player wielding the
+    // sword (animation_idle_solionsword_on.png, 1536x1024). The artist drew the
+    // character at a DIFFERENT x in every cell, so the per-frame hair x-centres
+    // are HARDCODED from a measured calibration (like slicePlayerIdle's bbox) —
+    // no fragile runtime pixel detection. Every frame bakes to the same size,
+    // hair-centred and feet-anchored, so the character is pinned at one size
+    // and one position — only the flame flickers.
+    const SWORD_IDLE_W = 84, SWORD_IDLE_H = 58;
     function sliceSwordIdle(sheetImg) {
-      const SW = sheetImg.naturalWidth  || sheetImg.width;
-      const SH = sheetImg.naturalHeight || sheetImg.height;
-      const FRAMES = 4;
-      const cellW = Math.floor(SW / FRAMES);
-      const sc = document.createElement('canvas');
-      sc.width = SW; sc.height = SH;
-      const sctx = sc.getContext('2d');
-      sctx.drawImage(sheetImg, 0, 0);
-      const px = sctx.getImageData(0, 0, SW, SH).data;
-      const isHair = (i) => px[i+3] > 120 && px[i+2] > px[i] + 40 &&
-                            px[i+2] > 120 && px[i+1] > px[i];
-      // Content bottom = the feet baseline (lowest opaque row on the sheet).
-      let feetY = SH - 1;
-      for (let y = SH - 1; y >= 0; y--) {
-        let any = false;
-        for (let x = 0; x < SW; x++) { if (px[(y*SW+x)*4+3] > 80) { any = true; break; } }
-        if (any) { feetY = y; break; }
-      }
-      // Per frame: the hair x-centre (topmost teal cluster) + sheet-wide hair top.
-      const charX = [];
-      let hairTop = SH;
-      for (let f = 0; f < FRAMES; f++) {
-        const cs = f * cellW;
-        let top = -1;
-        for (let y = 0; y < SH && top < 0; y++) {
-          for (let x = cs; x < cs + cellW; x++) {
-            if (isHair((y*SW+x)*4)) { top = y; break; }
-          }
-        }
-        if (top < 0) { charX.push(cs + cellW / 2); continue; }
-        if (top < hairTop) hairTop = top;
-        let hx0 = SW, hx1 = -1;
-        const yEnd = Math.min(SH, top + 90);
-        for (let y = top; y < yEnd; y++) {
-          for (let x = cs; x < cs + cellW; x++) {
-            if (isHair((y*SW+x)*4)) { if (x < hx0) hx0 = x; if (x > hx1) hx1 = x; }
-          }
-        }
-        charX.push(hx1 >= 0 ? (hx0 + hx1) / 2 : cs + cellW / 2);
-      }
-      // Consistent scale — character (hair-top to feet) baked to ~40px so it
-      // matches the normal player; same scale + anchoring for all 4 frames.
-      const scale = 40 / Math.max(1, feetY - hairTop);
+      const HAIR_CX  = [328, 167, 187, 97];   // cell-relative hair x-centre, per frame
+      const FEET_Y   = 629;                   // feet baseline (source px)
+      const CHAR_TOP = 382;                   // hair top (source px)
+      const TARGET_H = 36;                    // baked character height (≈ the player)
+      const SWv = sheetImg.naturalWidth  || sheetImg.width;
+      const SHv = sheetImg.naturalHeight || sheetImg.height;
+      const cellW = SWv / 4;
+      const scale = TARGET_H / (FEET_Y - CHAR_TOP);
       const out = [];
-      for (let f = 0; f < FRAMES; f++) {
+      for (let f = 0; f < 4; f++) {
         const cv = document.createElement('canvas');
         cv.width = SWORD_IDLE_W; cv.height = SWORD_IDLE_H;
         const cc = cv.getContext('2d');
         cc.imageSmoothingEnabled = false;
-        const cs = f * cellW;
-        const destX = SWORD_IDLE_W / 2 - (charX[f] - cs) * scale;
-        const destY = SWORD_IDLE_H - feetY * scale;
-        cc.drawImage(sc, cs, 0, cellW, SH, destX, destY, cellW * scale, SH * scale);
+        const destX = SWORD_IDLE_W / 2 - HAIR_CX[f] * scale;
+        const destY = SWORD_IDLE_H - FEET_Y * scale;
+        cc.drawImage(sheetImg, f * cellW, 0, cellW, SHv,
+                     destX, destY, cellW * scale, SHv * scale);
         out.push(cv);
       }
       return out;

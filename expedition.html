@@ -3071,10 +3071,12 @@
 
     // Solion's Everflame idle — a 4-frame front idle of the player wielding the
     // sword (animation_idle_solionsword_on.png, 1536x1024, 4 frames). The flame
-    // animates dramatically frame-to-frame, so EVERY frame is cropped with the
-    // identical rect and identical transform: the character stays pinned at a
-    // constant size and position while only the flame flickers (no jitter).
-    const SWORD_IDLE_W = 72, SWORD_IDLE_H = 54;
+    // animates wildly AND the artist drew the character at a different x in
+    // every cell, so each frame is re-anchored on the character itself: the
+    // hair (bright teal — never the gold flame) gives a reliable x-centre, and
+    // the feet give the baseline. All 4 bake to the same size, hair-centred and
+    // feet-anchored, so the character is pinned and only the flame flickers.
+    const SWORD_IDLE_W = 88, SWORD_IDLE_H = 64;
     function sliceSwordIdle(sheetImg) {
       const SW = sheetImg.naturalWidth  || sheetImg.width;
       const SH = sheetImg.naturalHeight || sheetImg.height;
@@ -3085,29 +3087,50 @@
       const sctx = sc.getContext('2d');
       sctx.drawImage(sheetImg, 0, 0);
       const px = sctx.getImageData(0, 0, SW, SH).data;
-      // Union vertical extent across the whole sheet (flame-top to feet).
-      let uy0 = SH, uy1 = -1;
-      for (let y = 0; y < SH; y++) {
+      const isHair = (i) => px[i+3] > 120 && px[i+2] > px[i] + 40 &&
+                            px[i+2] > 120 && px[i+1] > px[i];
+      // Content bottom = the feet baseline (lowest opaque row on the sheet).
+      let feetY = SH - 1;
+      for (let y = SH - 1; y >= 0; y--) {
         let any = false;
-        for (let x = 0; x < SW; x++) {
-          if (px[(y * SW + x) * 4 + 3] > 60) { any = true; break; }
-        }
-        if (any) { if (y < uy0) uy0 = y; if (y > uy1) uy1 = y; }
+        for (let x = 0; x < SW; x++) { if (px[(y*SW+x)*4+3] > 80) { any = true; break; } }
+        if (any) { feetY = y; break; }
       }
-      if (uy1 < 0) { uy0 = 0; uy1 = SH - 1; }
-      const cropH = uy1 - uy0 + 1;
-      // One shared transform for all 4 frames — feet-anchored, centred.
-      const scale = Math.min(SWORD_IDLE_W / cellW, SWORD_IDLE_H / cropH);
-      const dw = cellW * scale, dh = cropH * scale;
-      const dx = (SWORD_IDLE_W - dw) / 2;
-      const dy = SWORD_IDLE_H - dh;
+      // Per frame: the hair x-centre (topmost teal cluster) + sheet-wide hair top.
+      const charX = [];
+      let hairTop = SH;
+      for (let f = 0; f < FRAMES; f++) {
+        const cs = f * cellW;
+        let top = -1;
+        for (let y = 0; y < SH && top < 0; y++) {
+          for (let x = cs; x < cs + cellW; x++) {
+            if (isHair((y*SW+x)*4)) { top = y; break; }
+          }
+        }
+        if (top < 0) { charX.push(cs + cellW / 2); continue; }
+        if (top < hairTop) hairTop = top;
+        let hx0 = SW, hx1 = -1;
+        const yEnd = Math.min(SH, top + 90);
+        for (let y = top; y < yEnd; y++) {
+          for (let x = cs; x < cs + cellW; x++) {
+            if (isHair((y*SW+x)*4)) { if (x < hx0) hx0 = x; if (x > hx1) hx1 = x; }
+          }
+        }
+        charX.push(hx1 >= 0 ? (hx0 + hx1) / 2 : cs + cellW / 2);
+      }
+      // Consistent scale — character (hair-top to feet) baked to ~40px so it
+      // matches the normal player; same scale + anchoring for all 4 frames.
+      const scale = 40 / Math.max(1, feetY - hairTop);
       const out = [];
       for (let f = 0; f < FRAMES; f++) {
         const cv = document.createElement('canvas');
         cv.width = SWORD_IDLE_W; cv.height = SWORD_IDLE_H;
         const cc = cv.getContext('2d');
         cc.imageSmoothingEnabled = false;
-        cc.drawImage(sc, f * cellW, uy0, cellW, cropH, dx, dy, dw, dh);
+        const cs = f * cellW;
+        const destX = SWORD_IDLE_W / 2 - (charX[f] - cs) * scale;
+        const destY = SWORD_IDLE_H - feetY * scale;
+        cc.drawImage(sc, cs, 0, cellW, SH, destX, destY, cellW * scale, SH * scale);
         out.push(cv);
       }
       return out;

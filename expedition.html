@@ -3069,36 +3069,34 @@
       return c;
     }
 
-    // Solion's Everflame idle — 4-frame front idle of the player wielding the
-    // sword (animation_idle_solionsword_on.png, 1536x1024). The artist drew the
-    // character at a DIFFERENT x in every cell, so the per-frame hair x-centres
-    // are HARDCODED from a measured calibration (like slicePlayerIdle's bbox) —
-    // no fragile runtime pixel detection. Every frame bakes to the same size,
-    // hair-centred and feet-anchored, so the character is pinned at one size
-    // and one position — only the flame flickers.
+    // Solion's Everflame idle — the player wielding the sword, front-facing.
+    // The source (animation_idle_solionsword_on.png) is a 4-frame flicker, but
+    // the artist drew the CHARACTER itself at a different x in every frame
+    // (not just the flame) — so animating it makes the player visibly slide,
+    // and no anchor can fix that because the player genuinely moves in the
+    // source art. We therefore bake ONE static frame: the player holds a fixed
+    // flaming-sword stance and never moves. Returned as a 1-element array so
+    // the render path is unchanged (idleAnimFrame % 1 is always 0).
     const SWORD_IDLE_W = 84, SWORD_IDLE_H = 58;
     function sliceSwordIdle(sheetImg) {
-      const HAIR_CX  = [328, 167, 187, 97];   // cell-relative hair x-centre, per frame
-      const FEET_Y   = 629;                   // feet baseline (source px)
-      const CHAR_TOP = 382;                   // hair top (source px)
-      const TARGET_H = 36;                    // baked character height (≈ the player)
+      const PICK     = 2;     // source frame chosen as the static idle pose
+      const HAIR_CX  = 187;   // that frame's cell-relative hair x-centre
+      const FEET_Y   = 629;   // feet baseline (source px)
+      const CHAR_TOP = 382;   // hair top (source px)
+      const TARGET_H = 36;    // baked character height (≈ the player)
       const SWv = sheetImg.naturalWidth  || sheetImg.width;
       const SHv = sheetImg.naturalHeight || sheetImg.height;
       const cellW = SWv / 4;
       const scale = TARGET_H / (FEET_Y - CHAR_TOP);
-      const out = [];
-      for (let f = 0; f < 4; f++) {
-        const cv = document.createElement('canvas');
-        cv.width = SWORD_IDLE_W; cv.height = SWORD_IDLE_H;
-        const cc = cv.getContext('2d');
-        cc.imageSmoothingEnabled = false;
-        const destX = SWORD_IDLE_W / 2 - HAIR_CX[f] * scale;
-        const destY = SWORD_IDLE_H - FEET_Y * scale;
-        cc.drawImage(sheetImg, f * cellW, 0, cellW, SHv,
-                     destX, destY, cellW * scale, SHv * scale);
-        out.push(cv);
-      }
-      return out;
+      const cv = document.createElement('canvas');
+      cv.width = SWORD_IDLE_W; cv.height = SWORD_IDLE_H;
+      const cc = cv.getContext('2d');
+      cc.imageSmoothingEnabled = false;
+      const destX = SWORD_IDLE_W / 2 - HAIR_CX * scale;
+      const destY = SWORD_IDLE_H - FEET_Y * scale;
+      cc.drawImage(sheetImg, PICK * cellW, 0, cellW, SHv,
+                   destX, destY, cellW * scale, SHv * scale);
+      return [cv];
     }
 
     function sliceCharSheet(sheetImg) {

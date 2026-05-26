@@ -1147,6 +1147,16 @@
       color: var(--mist-deep); letter-spacing: 0.1em;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    /* Sword equip toggle — tap the sword in the Astralpack to switch the
+       sword-idle stance on / off. */
+    .astralpack-slot .equip-state {
+      position: absolute; top: 3px; left: 5px;
+      font-family: var(--font-meta); font-size: 0.46rem; letter-spacing: 0.08em;
+      padding: 1px 4px; border-radius: 3px;
+      background: rgba(10, 6, 24, 0.82); color: var(--mist-deep);
+    }
+    .astralpack-slot.equipped { border-color: var(--gold-bright, #f4d98a); }
+    .astralpack-slot.equipped .equip-state { color: var(--gold-bright, #f4d98a); }
 
     .npc-info-body { display: flex; gap: 14px; margin-top: 12px; align-items: flex-start; }
     .npc-info-portrait {
@@ -4575,22 +4585,27 @@
       }
     }
     function hasSword() { return player.inventory.some(it => it.id === 'sword'); }
+    // Sword equipped-state — toggled from the Astralpack. Only meaningful while
+    // the sword is in the pack; controls the sword-idle vs regular-idle stance.
+    let swordEquipped = true;
     function buildSword() {
       if (hasSword()) return;
       player.inventory.push({ id: 'sword', name: "Solion's Everflame", qty: 1, iconKey: 'sword' });
-      console.log('[workstation] built Iron Sword -> Astralpack');
+      swordEquipped = true;   // freshly forged — equipped by default
+      console.log('[workstation] built the Everflame -> Astralpack');
     }
     function returnSword() {
       const i = player.inventory.findIndex(it => it.id === 'sword');
       if (i >= 0) player.inventory.splice(i, 1);
-      console.log('[workstation] returned Iron Sword -> workstation');
+      swordEquipped = false;
+      console.log('[workstation] returned the Everflame -> workstation');
     }
     // Refresh the workstation modal for the current sword state.
     function renderWorkstation() {
       const built    = hasSword();
       const statusEl = document.getElementById('ws-sword-status');
       const btn      = document.getElementById('ws-sword-btn');
-      if (statusEl) statusEl.textContent = built ? 'Equipped — in your Astralpack'
+      if (statusEl) statusEl.textContent = built ? 'Stored in your Astralpack'
                                                  : 'Free — ready to forge';
       if (btn) {
         btn.textContent = built ? 'Return to Workstation' : 'Build & Equip';
@@ -5973,6 +5988,20 @@
             slot.title = 'Tap to drink (+1 heart)';
             slot.addEventListener('click', () => {
               if (consumePotion()) openAstralpackModal();  // re-render
+            });
+          } else if (item.id === 'sword') {
+            // Tap the sword to toggle the equipped stance (sword-idle) on/off.
+            slot.classList.toggle('equipped', swordEquipped);
+            const st = document.createElement('span');
+            st.className = 'equip-state';
+            st.textContent = swordEquipped ? 'ON' : 'OFF';
+            slot.appendChild(st);
+            slot.style.cursor = 'pointer';
+            slot.title = swordEquipped ? 'Tap to sheathe the sword'
+                                       : 'Tap to equip the sword';
+            slot.addEventListener('click', () => {
+              swordEquipped = !swordEquipped;
+              openAstralpackModal();   // re-render
             });
           }
           grid.appendChild(slot);
@@ -7408,7 +7437,7 @@
             // sideways. Poses 1..3 (arms-out, looking-around, nap) still
             // pull from the idle sheet so the long-idle flavor anims play.
             if (player.idlePose === 0) {
-              if (player.facing === 'down' && hasSword() && ASSETS.swordIdleFrames) {
+              if (player.facing === 'down' && hasSword() && swordEquipped && ASSETS.swordIdleFrames) {
                 // Solion's Everflame equipped — animated front idle. Drawn in a
                 // larger frame, offset so the feet still land on the walk box.
                 const swf = ASSETS.swordIdleFrames;

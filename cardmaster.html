@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description" content="Cardmaster Showdown — 1v1 TCG vs AI. 9 random cards per side, gem economy, SPD turn order, dice-roll specials, switch in/out like Pokemon." />
-  <title>Cardmaster Showdown · The AOV Saga</title>
+  <meta name="description" content="Cardmaster Showdown v3 — Rizing Powers of Zyrex TCG · 3v3 active field, possession turns, 5-stat cards, Astralite statuses, backfire control-theory." />
+  <title>Cardmaster Showdown · v3 · The AOV Saga</title>
   <meta name="theme-color" content="#1A1A2E">
   <style>
     :root {
@@ -20,15 +20,12 @@
       --crimson: #d34c4c;
       --emerald: #4ec97c;
       --cosmic-blue: #6fa3e8;
+      --purple: #b08bff;
       --font-display: 'Cinzel', 'Trajan Pro', serif;
       --font-meta: 'Inter', sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
-    /* Force the [hidden] attribute to win over our explicit display:flex
-       on .gameover-screen / .battle / .pick-screen. Author CSS otherwise
-       beats the user-agent rule and previously hidden sections leaked
-       into view (esp. the gameover panel during live battles). */
     [hidden] { display: none !important; }
     body {
       font-family: var(--font-meta);
@@ -39,13 +36,12 @@
       -webkit-font-smoothing: antialiased;
       letter-spacing: 0.01em;
     }
-    .app { max-width: 1200px; margin: 0 auto; padding: 12px 16px; }
-    /* Battle screen overrides app padding so it fits closer to viewport edges. */
-    .app.battle-mode { max-width: 1080px; padding: 8px 12px; }
+    .app { max-width: 1280px; margin: 0 auto; padding: 12px 16px; }
+    .app.battle-mode { max-width: 1280px; padding: 6px 10px; }
     .nav {
       display: flex; justify-content: space-between; align-items: center;
       padding: 12px 20px; border-bottom: 1px solid rgba(232, 200, 120, 0.15);
-      margin-bottom: 18px;
+      margin-bottom: 14px;
     }
     .nav-back {
       font-family: var(--font-meta); font-size: 0.65rem; letter-spacing: 0.3em;
@@ -77,7 +73,7 @@
     .title-tagline {
       font-family: var(--font-meta); font-size: 0.7rem; letter-spacing: 0.3em;
       text-transform: uppercase; color: var(--mist); opacity: 0.85;
-      max-width: 540px; line-height: 1.6;
+      max-width: 600px; line-height: 1.6;
     }
     .title-divider { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
     .title-divider .line { width: 60px; height: 1px;
@@ -93,9 +89,7 @@
       transition: background 0.15s ease, transform 0.1s ease;
       margin-top: 10px;
     }
-    .btn-primary:hover, .btn-primary:active {
-      background: rgba(232, 200, 120, 0.15); transform: scale(1.02);
-    }
+    .btn-primary:hover, .btn-primary:active { background: rgba(232, 200, 120, 0.15); transform: scale(1.02); }
     .btn-secondary {
       font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.25em;
       text-transform: uppercase; color: var(--mist); background: transparent;
@@ -103,316 +97,248 @@
       padding: 8px 16px; cursor: pointer;
     }
     .btn-secondary:hover { background: rgba(232, 200, 120, 0.06); color: var(--gold-bright); }
-    .btn-primary[disabled], .btn-secondary[disabled] {
-      opacity: 0.35; cursor: not-allowed; pointer-events: none;
-    }
-    .rules-summary {
-      max-width: 720px; margin: 16px auto 0;
-      text-align: left; padding: 16px 20px;
-      background: rgba(20, 14, 44, 0.4); border: 1px solid rgba(232, 200, 120, 0.18);
-      border-radius: 6px; font-size: 0.78rem; line-height: 1.65;
-    }
-    .rules-summary h4 {
-      font-family: var(--font-display); letter-spacing: 0.15em;
-      color: var(--gold-bright); font-size: 0.85rem; margin-bottom: 6px;
-    }
-    .rules-summary ul { padding-left: 18px; }
-    .rules-summary li { margin: 2px 0; }
+    .btn-primary[disabled], .btn-secondary[disabled] { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 
-    /* ============ Battle screen ============ */
-    .battle {
-      display: grid; grid-template-rows: auto auto auto auto;
-      gap: 8px; padding: 4px 0;
-    }
+    /* ============ Battle field (3v3) ============ */
+    .battle { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
     .battle-side {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-      padding: 10px; border: 1px solid rgba(232, 200, 120, 0.25);
+      display: grid;
+      grid-template-columns: 220px 1fr 1fr 1fr;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid rgba(232, 200, 120, 0.22);
       border-radius: 8px;
       background: linear-gradient(135deg, rgba(20, 14, 44, 0.6), rgba(10, 6, 24, 0.4));
       transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      align-items: stretch;
     }
-    .battle-side.active-turn {
-      border-color: var(--gold-bright);
-      box-shadow: 0 0 18px rgba(232, 200, 120, 0.18);
-    }
+    .battle-side.active-turn { border-color: var(--gold-bright); box-shadow: 0 0 18px rgba(232, 200, 120, 0.18); }
     .battle-side.p1-side { border-left: 3px solid var(--cosmic-blue); }
     .battle-side.p2-side { border-left: 3px solid var(--crimson); }
 
-    /* ===== Levitating card ===== */
-    .battle-card {
+    .player-meta { display: flex; flex-direction: column; gap: 6px; align-items: stretch; padding: 4px; min-width: 0; }
+    .player-tag-inline {
+      font-family: var(--font-display); font-size: 0.78rem; letter-spacing: 0.18em;
+      color: var(--gold-bright); text-transform: uppercase; text-align: center;
+    }
+    .gem-tracker {
+      display: flex; align-items: center; gap: 8px; justify-content: center;
+      padding: 6px 10px; border-radius: 6px;
+      background: rgba(10, 6, 24, 0.5); border: 1px solid rgba(232, 200, 120, 0.2);
+    }
+    .gem-icon { width: 12px; height: 12px; background: linear-gradient(135deg, var(--purple), #6e3fc1); transform: rotate(45deg); box-shadow: 0 0 6px rgba(168, 124, 255, 0.5); }
+    .gem-count { font-family: var(--font-display); font-size: 1.1rem; letter-spacing: 0.05em; color: var(--gold-bright); }
+    .gem-label { font-family: var(--font-meta); font-size: 0.55rem; letter-spacing: 0.2em; color: var(--mist-deep); text-transform: uppercase; }
+
+    .reserve-list { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; padding-right: 2px; }
+    .reserve-chip {
+      display: flex; justify-content: space-between; align-items: center; gap: 6px;
+      padding: 4px 8px; border-radius: 4px;
+      background: rgba(20, 14, 44, 0.55); border: 1px solid rgba(232, 200, 120, 0.18);
+      font-family: var(--font-meta); font-size: 0.62rem; letter-spacing: 0.1em;
+      color: var(--mist); text-transform: uppercase;
+    }
+    .reserve-chip .tier-pill {
+      font-family: var(--font-display); font-size: 0.55rem; letter-spacing: 0.06em;
+      color: var(--gold-pale);
+    }
+    .reserve-chip.fallen { opacity: 0.35; text-decoration: line-through; }
+    .reserve-chip.risen { border-color: var(--cosmic-blue); }
+    .reserve-chip.shift-target { border-color: var(--emerald); cursor: pointer; box-shadow: 0 0 6px rgba(78,201,124,0.4); }
+    .reserve-chip.shift-target:hover { background: rgba(78,201,124,0.16); }
+    .reserve-chip.revive-target { border-color: var(--cosmic-blue); cursor: pointer; }
+    .reserve-chip.revive-target:hover { background: rgba(111,163,232,0.16); }
+
+    /* ===== Active card slot ===== */
+    .slot {
+      position: relative; min-width: 0;
       padding: 8px; border-radius: 10px;
       background: linear-gradient(160deg, rgba(20, 14, 44, 0.85), rgba(10, 6, 24, 0.65));
       border: 1px solid rgba(232, 200, 120, 0.35);
-      box-shadow:
-        0 0 0 1px rgba(95, 168, 255, 0.06) inset,
-        0 14px 32px rgba(0, 0, 0, 0.55),
-        0 0 24px rgba(232, 200, 120, 0.08);
-      animation: cardLevitate 3.6s ease-in-out infinite;
-      position: relative;
-      overflow: visible;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.5);
+      display: flex; flex-direction: column; gap: 4px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
     }
-    /* Card art image — fills the card frame, preserves portrait aspect.
-       max-height capped so the battle screen fits in one viewport on
-       most devices without scrolling. */
+    .slot.empty {
+      background: rgba(20, 14, 44, 0.3);
+      border-style: dashed; border-color: rgba(232, 200, 120, 0.15);
+      min-height: 200px;
+    }
+    .slot.selectable { cursor: pointer; }
+    .slot.selectable:hover { border-color: var(--gold-bright); transform: translateY(-2px); box-shadow: 0 16px 30px rgba(0,0,0,0.55), 0 0 18px rgba(232,200,120,0.18); }
+    .slot.selected { border-color: var(--gold-bright); box-shadow: 0 0 0 2px var(--gold-bright) inset, 0 16px 30px rgba(0,0,0,0.55), 0 0 22px rgba(232,200,120,0.25); }
+    .slot.target { cursor: crosshair; border-color: var(--crimson); box-shadow: 0 0 14px rgba(211,76,76,0.45); }
+    .slot.target:hover { background: linear-gradient(160deg, rgba(60,14,44,0.85), rgba(40,6,24,0.65)); }
+    .slot.acted { opacity: 0.55; }
+    .slot.acted::after {
+      content: 'ACTED'; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%) rotate(-12deg);
+      font-family: var(--font-display); letter-spacing: 0.2em; font-size: 0.95rem;
+      color: var(--mist-deep);
+      border: 2px solid var(--mist-deep); padding: 2px 12px; border-radius: 4px;
+      background: rgba(0,0,0,0.45);
+      pointer-events: none;
+    }
+
+    .slot-name { font-family: var(--font-display); font-size: 0.82rem; letter-spacing: 0.06em; color: var(--gold-bright); text-align: center; }
+    .slot-tier-types {
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font-meta); font-size: 0.52rem; letter-spacing: 0.12em;
+      color: var(--mist-deep); text-transform: uppercase;
+    }
+    .slot-tier-types .tier { color: var(--gold-pale); }
+
     .card-art {
-      display: block; width: 100%; max-height: 220px;
+      display: block; width: 100%;
       object-fit: contain;
+      max-height: 180px;
       border-radius: 6px;
-      filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6));
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.55));
     }
     .card-art-fallback {
       width: 100%; aspect-ratio: 5/7;
       border-radius: 6px;
       display: flex; align-items: center; justify-content: center;
-      font-family: var(--font-display); font-size: 1.6rem; letter-spacing: 0.15em;
+      font-family: var(--font-display); font-size: 1.3rem; letter-spacing: 0.12em;
       color: var(--gold-bright);
       background: linear-gradient(135deg, var(--navy-mid), var(--void));
       border: 1px solid rgba(232, 200, 120, 0.3);
     }
-    /* Committed-gems badge — sits over the top-left of the card, shows gems
-       currently bet on this card. Pulses softly to draw attention. */
-    .gems-committed-badge {
-      position: absolute; top: -8px; left: -8px;
-      min-width: 32px; height: 32px; padding: 0 8px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #b08bff, #6e3fc1);
-      color: #fff;
-      font-family: var(--font-display); font-weight: 700; font-size: 0.95rem;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 12px rgba(168, 124, 255, 0.5), 0 4px 10px rgba(0, 0, 0, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      z-index: 5;
-      animation: gemPulse 2.2s ease-in-out infinite;
+
+    .hp-bar-wrap {
+      height: 10px; background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(232, 200, 120, 0.3); border-radius: 4px;
+      overflow: hidden; margin: 3px 0;
     }
-    @keyframes gemPulse {
-      0%, 100% { box-shadow: 0 0 8px rgba(168, 124, 255, 0.4), 0 4px 10px rgba(0, 0, 0, 0.5); }
-      50%      { box-shadow: 0 0 16px rgba(168, 124, 255, 0.8), 0 4px 10px rgba(0, 0, 0, 0.5); }
+    .hp-bar-fill { height: 100%; background: linear-gradient(90deg, #6fdc8c, #4ec97c, #2c8849); transition: width 0.4s ease, background 0.4s ease; }
+    .hp-bar-fill.low { background: linear-gradient(90deg, #ffb84e, #ff7a3d); }
+    .hp-bar-fill.critical { background: linear-gradient(90deg, #ff5a5a, #d34c4c); }
+    .hp-text { font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.08em; color: var(--mist); text-align: right; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; margin-top: 4px; }
+    .stat-cell {
+      padding: 2px; text-align: center;
+      background: rgba(20, 14, 44, 0.6);
+      border: 1px solid rgba(232, 200, 120, 0.18); border-radius: 2px;
     }
-    .gems-committed-badge.zero { display: none; }
-    /* HP bar overlay sits under the card image. */
-    .battle-card-hp {
-      margin-top: 8px;
+    .stat-cell .lbl { font-family: var(--font-meta); font-size: 0.45rem; letter-spacing: 0.1em; color: var(--mist-deep); text-transform: uppercase; }
+    .stat-cell .val { font-family: var(--font-display); font-size: 0.7rem; color: var(--gold-bright); font-weight: 600; }
+    .stat-cell.buffed .val { color: var(--emerald); }
+    .stat-cell.debuffed .val { color: var(--crimson); }
+    .stat-cell.spc-spent .val { color: var(--mist-deep); text-decoration: line-through; }
+
+    /* Status chips under each active card */
+    .status-row { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; justify-content: center; min-height: 14px; }
+    .status-chip {
+      font-family: var(--font-meta); font-size: 0.48rem; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 1px 5px; border-radius: 999px;
+      color: var(--sc); border: 1px solid var(--sc); background: rgba(10, 6, 24, 0.78);
     }
-    /* Status row — name + tier above the card. */
-    .battle-card-status {
-      display: flex; justify-content: space-between; align-items: baseline;
-      padding: 4px 6px; margin-bottom: 4px;
-    }
-    @keyframes cardLevitate {
-      0%, 100% { transform: translateY(-3px); box-shadow:
-          0 0 0 1px rgba(95, 168, 255, 0.06) inset,
-          0 18px 36px rgba(0, 0, 0, 0.55),
-          0 0 24px rgba(232, 200, 120, 0.10); }
-      50%      { transform: translateY(3px);  box-shadow:
-          0 0 0 1px rgba(95, 168, 255, 0.06) inset,
-          0 10px 22px rgba(0, 0, 0, 0.55),
-          0 0 18px rgba(232, 200, 120, 0.06); }
-    }
-    .battle-card::before {
-      content: ''; position: absolute; inset: 0;
-      background: radial-gradient(circle at 20% 0%, rgba(232, 200, 120, 0.08), transparent 50%);
-      pointer-events: none;
-    }
-    /* Attack jolt — applied transiently on attack */
-    .battle-card.attack-forward { animation: attackForward 0.45s ease-out; }
-    .battle-card.attack-hit     { animation: attackHit 0.45s ease-out; }
+
+    /* Combat animations */
+    .slot.attack-forward { animation: attackForward 0.4s ease-out; }
+    .slot.attack-hit { animation: attackHit 0.4s ease-out; }
     @keyframes attackForward {
-      0%   { transform: translateY(-3px); }
-      30%  { transform: translateY(-3px) translateX(20px) scale(1.04); filter: brightness(1.4); }
-      100% { transform: translateY(-3px) translateX(0)    scale(1); }
-    }
-    .battle-side.p2-side .battle-card.attack-forward { animation: attackForwardP2 0.45s ease-out; }
-    @keyframes attackForwardP2 {
-      0%   { transform: translateY(-3px); }
-      30%  { transform: translateY(-3px) translateX(-20px) scale(1.04); filter: brightness(1.4); }
-      100% { transform: translateY(-3px) translateX(0)    scale(1); }
+      0% { transform: translateY(0); }
+      30% { transform: translateY(0) scale(1.05); filter: brightness(1.4); }
+      100% { transform: translateY(0) scale(1); }
     }
     @keyframes attackHit {
-      0%, 100% { transform: translateY(-3px) translateX(0); }
-      15%      { transform: translateY(-3px) translateX(-6px); filter: brightness(0.6) hue-rotate(20deg); }
-      30%      { transform: translateY(-3px) translateX( 6px); }
-      45%      { transform: translateY(-3px) translateX(-3px); }
-      60%      { transform: translateY(-3px) translateX( 3px); }
+      0%,100% { transform: translateX(0); }
+      15% { transform: translateX(-5px); filter: brightness(0.6) hue-rotate(20deg); }
+      30% { transform: translateX(5px); }
+      45% { transform: translateX(-3px); }
+      60% { transform: translateX(3px); }
     }
-    .battle-card.spc-flash { animation: spcFlash 0.85s ease-out; }
+    .slot.spc-flash { animation: spcFlash 0.7s ease-out; }
     @keyframes spcFlash {
-      0%, 100% { box-shadow:
-        0 0 0 1px rgba(95, 168, 255, 0.06) inset,
-        0 14px 32px rgba(0, 0, 0, 0.55),
-        0 0 24px rgba(232, 200, 120, 0.08); }
-      40% { box-shadow:
-        0 0 0 1px rgba(95, 168, 255, 0.4) inset,
-        0 0 36px rgba(95, 168, 255, 0.7),
-        0 0 60px rgba(95, 168, 255, 0.4);
-        filter: brightness(1.4) saturate(1.3); }
+      0%,100% { box-shadow: 0 12px 24px rgba(0,0,0,0.5); }
+      40% { box-shadow: 0 0 30px rgba(95,168,255,0.7), 0 0 60px rgba(95,168,255,0.4); filter: brightness(1.5) saturate(1.3); }
     }
 
     /* Floating damage popup */
     .damage-popup {
-      position: absolute; top: 30%; left: 50%;
-      transform: translate(-50%, 0);
-      font-family: var(--font-display); font-size: 1.6rem; font-weight: 700;
-      color: var(--crimson); text-shadow: 0 0 8px rgba(0, 0, 0, 0.85), 0 0 16px rgba(255, 60, 60, 0.5);
+      position: absolute; top: 30%; left: 50%; transform: translate(-50%, 0);
+      font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;
+      color: var(--crimson); text-shadow: 0 0 8px rgba(0,0,0,0.85), 0 0 16px rgba(255,60,60,0.5);
       pointer-events: none; z-index: 10;
-      animation: damagePopup 1.2s ease-out forwards;
+      animation: damagePopup 1.1s ease-out forwards;
     }
-    .damage-popup.miss { color: var(--mist-deep); font-size: 1.2rem; }
+    .damage-popup.miss { color: var(--mist-deep); font-size: 1rem; }
+    .damage-popup.crit { color: #ffd166; font-size: 1.7rem; }
     .damage-popup.heal { color: var(--emerald); }
     @keyframes damagePopup {
-      0%   { opacity: 0; transform: translate(-50%, 8px) scale(0.6); }
-      20%  { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
-      80%  { opacity: 1; transform: translate(-50%, -36px) scale(1); }
+      0% { opacity: 0; transform: translate(-50%, 8px) scale(0.6); }
+      20% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
+      80% { opacity: 1; transform: translate(-50%, -36px) scale(1); }
       100% { opacity: 0; transform: translate(-50%, -52px) scale(0.95); }
     }
 
-    .battle-card-header {
-      display: flex; justify-content: space-between; align-items: baseline;
-      margin-bottom: 6px;
-    }
-    .battle-card-name {
-      font-family: var(--font-display); font-size: 1.05rem;
-      letter-spacing: 0.08em; color: var(--gold-bright);
-    }
-    .hp-bar-wrap {
-      height: 12px; background: rgba(0, 0, 0, 0.5);
-      border: 1px solid rgba(232, 200, 120, 0.3); border-radius: 4px;
-      overflow: hidden; margin: 6px 0;
-    }
-    .hp-bar-fill {
-      height: 100%; background: linear-gradient(90deg, #6fdc8c, #4ec97c, #2c8849);
-      transition: width 0.4s ease, background 0.4s ease;
-    }
-    .hp-bar-fill.low { background: linear-gradient(90deg, #ffb84e, #ff7a3d); }
-    .hp-bar-fill.critical { background: linear-gradient(90deg, #ff5a5a, #d34c4c); }
-    .hp-text {
-      font-family: var(--font-meta); font-size: 0.65rem; letter-spacing: 0.1em;
-      color: var(--mist); text-align: right;
-    }
-    .stat-grid {
-      display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
-      margin-top: 8px;
-    }
-    .stat-cell {
-      padding: 4px; text-align: center;
-      background: rgba(20, 14, 44, 0.6);
-      border: 1px solid rgba(232, 200, 120, 0.18); border-radius: 3px;
-    }
-    .stat-cell .lbl {
-      font-family: var(--font-meta); font-size: 0.5rem; letter-spacing: 0.15em;
-      color: var(--mist-deep); text-transform: uppercase;
-    }
-    .stat-cell .val {
-      font-family: var(--font-display); font-size: 0.85rem;
-      color: var(--gold-bright); font-weight: 600;
-    }
-    .stat-cell.spc-spent .val { color: var(--mist-deep); text-decoration: line-through; }
-    .moves {
-      margin-top: 10px;
-      display: flex; flex-direction: column; gap: 4px;
-      font-family: var(--font-meta); font-size: 0.65rem;
-    }
-    .moves .move-row {
-      display: flex; justify-content: space-between; padding: 3px 6px;
-      background: rgba(20, 14, 44, 0.4); border-radius: 3px;
-    }
-    .moves .move-row .move-name { color: var(--gold-pale); }
-    .moves .move-row .move-cost { color: var(--mist-deep); font-size: 0.6rem; }
-    .reserve-row {
-      display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 4px 0;
-    }
-    .reserve-card {
-      padding: 4px 8px; border-radius: 3px;
-      background: rgba(20, 14, 44, 0.5); border: 1px solid rgba(232, 200, 120, 0.2);
-      font-family: var(--font-meta); font-size: 0.55rem; letter-spacing: 0.12em;
-      color: var(--mist); text-transform: uppercase; cursor: default;
-      display: flex; gap: 6px; align-items: center;
-    }
-    .reserve-card.fallen { opacity: 0.35; text-decoration: line-through; }
-    .reserve-card.risen { border-color: var(--cosmic-blue); color: var(--cosmic-blue); }
-    .reserve-card.active { border-color: var(--gold-bright); color: var(--gold-bright); }
-    .gem-tracker {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 12px; border-radius: 6px;
-      background: rgba(10, 6, 24, 0.5); border: 1px solid rgba(232, 200, 120, 0.2);
-    }
-    .gem-icon {
-      width: 12px; height: 12px; background: linear-gradient(135deg, #b08bff, #6e3fc1);
-      transform: rotate(45deg); box-shadow: 0 0 6px rgba(168, 124, 255, 0.5);
-    }
-    .gem-count {
-      font-family: var(--font-display); font-size: 1.1rem; letter-spacing: 0.05em;
-      color: var(--gold-bright);
-    }
-    .gem-label {
-      font-family: var(--font-meta); font-size: 0.55rem; letter-spacing: 0.2em;
-      color: var(--mist-deep); text-transform: uppercase;
-    }
-    .player-meta {
-      display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
-    }
-    .player-tag-inline {
-      font-family: var(--font-display); font-size: 0.7rem; letter-spacing: 0.2em;
-      color: var(--gold-bright); text-transform: uppercase;
-    }
+    /* Action bar */
     .actions-bar {
-      display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
-      padding: 12px; border: 1px solid rgba(232, 200, 120, 0.25); border-radius: 8px;
+      display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center;
+      padding: 10px; border: 1px solid rgba(232, 200, 120, 0.25); border-radius: 8px;
       background: linear-gradient(180deg, rgba(20, 14, 44, 0.6), rgba(10, 6, 24, 0.5));
-      min-height: 90px; align-items: center;
+      min-height: 84px;
     }
     .actions-bar.disabled { opacity: 0.45; pointer-events: none; }
+    .action-hint {
+      font-family: var(--font-meta); font-size: 0.72rem; letter-spacing: 0.16em;
+      color: var(--mist); text-transform: uppercase; text-align: center;
+    }
+    .action-hint .accent { color: var(--gold-bright); }
     .move-btn {
-      flex: 1 1 100px; min-width: 100px; max-width: 220px;
-      font-family: var(--font-display); font-size: 0.78rem; letter-spacing: 0.12em;
+      font-family: var(--font-display); font-size: 0.72rem; letter-spacing: 0.12em;
       text-transform: uppercase; color: var(--gold-bright);
       background: rgba(20, 14, 44, 0.7); border: 1px solid var(--gold); border-radius: 5px;
-      padding: 12px 14px; cursor: pointer; transition: all 0.15s ease;
-      display: flex; flex-direction: column; gap: 3px; text-align: center;
+      padding: 10px 14px; cursor: pointer; transition: all 0.15s ease;
+      display: flex; flex-direction: column; gap: 2px; text-align: center;
+      min-width: 90px;
     }
-    .move-btn .move-cost-pill {
-      font-family: var(--font-meta); font-size: 0.55rem;
-      letter-spacing: 0.2em; color: var(--mist-deep);
-    }
-    .move-btn:hover, .move-btn:active {
-      background: rgba(232, 200, 120, 0.18); transform: translateY(-1px);
-    }
+    .move-btn .move-cost-pill { font-family: var(--font-meta); font-size: 0.5rem; letter-spacing: 0.18em; color: var(--mist-deep); }
+    .move-btn:hover, .move-btn:active { background: rgba(232, 200, 120, 0.18); transform: translateY(-1px); }
     .move-btn[disabled] { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
-    .move-btn.spc { border-color: var(--cosmic-blue); color: var(--cosmic-blue); }
-    .move-btn.spc:hover { background: rgba(95, 168, 255, 0.15); }
-    .move-btn.shift { border-color: var(--emerald); color: var(--emerald); }
-    .move-btn.shift:hover { background: rgba(78, 201, 124, 0.15); }
-    .move-btn.revive { border-color: var(--cosmic-blue); color: var(--cosmic-blue); }
-    .move-btn.danger { border-color: var(--crimson); color: var(--crimson); }
-    .move-btn.draw { border-color: #b08bff; color: #c9a8ff; }
-    .move-btn.draw:hover, .move-btn.draw:active { background: rgba(176, 139, 255, 0.16); }
+    .move-btn.a1 { border-color: var(--gold-pale); }
+    .move-btn.a2 { border-color: var(--purple); color: #c9a8ff; }
+    .move-btn.a2:hover { background: rgba(176,139,255,0.16); }
     .move-btn.a3 { border-color: var(--crimson); color: #ff8a6a; }
-    .move-btn.a3:hover, .move-btn.a3:active { background: rgba(211, 76, 76, 0.16); }
-    /* Astralite status-effect chips, shown beneath the active card. */
-    .status-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; justify-content: center; }
-    .status-chip {
-      font-family: var(--font-meta); font-size: 0.5rem; letter-spacing: 0.12em;
-      text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
-      color: var(--sc); border: 1px solid var(--sc); background: rgba(10, 6, 24, 0.78);
-    }
-    .swing-section-label {
-      font-family: var(--font-meta); font-size: 0.58rem; letter-spacing: 0.22em;
-      text-transform: uppercase; color: var(--mist-deep); margin: 12px 0 2px;
-    }
+    .move-btn.a3:hover { background: rgba(211,76,76,0.16); }
+    .move-btn.spc { border-color: var(--cosmic-blue); color: var(--cosmic-blue); }
+    .move-btn.spc:hover { background: rgba(95,168,255,0.15); }
+    .move-btn.shift { border-color: var(--emerald); color: var(--emerald); }
+    .move-btn.shift:hover { background: rgba(78,201,124,0.15); }
+    .move-btn.cancel { border-color: var(--mist-deep); color: var(--mist); }
+    .move-btn.cancel:hover { background: rgba(128,128,128,0.15); }
 
+    /* End-possession banner */
+    .possession-banner {
+      text-align: center; padding: 8px 14px;
+      font-family: var(--font-display); font-size: 0.8rem; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--gold-bright);
+      border: 1px solid rgba(232,200,120,0.3); border-radius: 6px;
+      background: rgba(10, 6, 24, 0.45);
+    }
+    .possession-banner.p1 { color: var(--cosmic-blue); border-color: rgba(111,163,232,0.45); }
+    .possession-banner.p2 { color: var(--crimson); border-color: rgba(211,76,76,0.45); }
+
+    /* Battle log */
     .battle-log {
-      max-height: 110px; overflow-y: auto;
+      max-height: 130px; overflow-y: auto;
       padding: 8px 14px; border: 1px solid rgba(232, 200, 120, 0.2); border-radius: 6px;
       background: rgba(10, 6, 24, 0.6);
-      font-family: var(--font-meta); font-size: 0.7rem; line-height: 1.45;
+      font-family: var(--font-meta); font-size: 0.68rem; line-height: 1.45;
     }
     .battle-log .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(232, 200, 120, 0.06); }
     .battle-log .log-entry.system { color: var(--gold-pale); }
     .battle-log .log-entry.damage { color: var(--crimson); }
-    .battle-log .log-entry.heal   { color: var(--emerald); }
-    .battle-log .log-entry.miss   { color: var(--mist-deep); font-style: italic; }
-    .battle-log .log-entry.spc    { color: var(--cosmic-blue); }
+    .battle-log .log-entry.heal { color: var(--emerald); }
+    .battle-log .log-entry.miss { color: var(--mist-deep); font-style: italic; }
+    .battle-log .log-entry.spc { color: var(--cosmic-blue); }
     .battle-log .log-entry.status { color: #c98ee8; }
-    .battle-log .log-entry.ai     { color: var(--mist); font-style: italic; opacity: 0.85; }
+    .battle-log .log-entry.backfire { color: #ff8a6a; font-style: italic; }
+    .battle-log .log-entry.ai { color: var(--mist); font-style: italic; opacity: 0.85; }
+    .battle-log .log-entry.type-strong { color: #ffd166; }
+    .battle-log .log-entry.type-weak { color: #6fa3e8; font-style: italic; }
 
     /* ============ Modals ============ */
     .modal-backdrop {
@@ -422,16 +348,19 @@
     }
     .modal-backdrop.show { display: flex; }
     .modal-panel {
-      max-width: 460px; width: 100%; padding: 24px;
+      max-width: 520px; width: 100%; padding: 24px;
       background: linear-gradient(135deg, var(--navy), var(--void));
       border: 1px solid var(--gold); border-radius: 8px;
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
+      max-height: 90vh; overflow-y: auto;
     }
     .modal-panel h3 {
       font-family: var(--font-display); font-size: 1.05rem; letter-spacing: 0.15em;
       color: var(--gold-bright); margin-bottom: 8px; text-transform: uppercase;
     }
     .modal-panel p { font-size: 0.78rem; line-height: 1.5; margin-bottom: 12px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
     .stat-pick-grid {
       display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0;
     }
@@ -442,11 +371,26 @@
       font-size: 0.85rem; letter-spacing: 0.1em; cursor: pointer;
       display: flex; flex-direction: column; gap: 4px; text-align: center;
     }
-    .stat-pick-btn .delta {
-      font-family: var(--font-meta); font-size: 0.65rem;
-      color: var(--emerald); letter-spacing: 0.05em;
-    }
+    .stat-pick-btn .delta { font-family: var(--font-meta); font-size: 0.65rem; color: var(--emerald); letter-spacing: 0.05em; }
     .stat-pick-btn:hover { background: rgba(232, 200, 120, 0.15); border-color: var(--gold-bright); }
+
+    /* Faction pick grid (opening) */
+    .faction-pick {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px; margin: 14px 0;
+    }
+    .faction-card {
+      padding: 8px; border-radius: 6px;
+      background: rgba(20,14,44,0.55); border: 1px solid rgba(232,200,120,0.22);
+      cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .faction-card:hover { border-color: var(--gold-bright); transform: translateY(-2px); }
+    .faction-card.selected { border-color: var(--gold-bright); box-shadow: 0 0 0 2px var(--gold-bright) inset; background: rgba(232,200,120,0.1); }
+    .faction-card img { width: 100%; max-height: 140px; object-fit: contain; border-radius: 4px; }
+    .faction-card .fc-name { font-family: var(--font-display); font-size: 0.72rem; letter-spacing: 0.06em; color: var(--gold-bright); text-align: center; }
+    .faction-card .fc-meta { font-family: var(--font-meta); font-size: 0.52rem; letter-spacing: 0.1em; color: var(--mist-deep); text-align: center; text-transform: uppercase; }
+    .faction-card .fc-stats { display: flex; gap: 6px; justify-content: center; font-family: var(--font-meta); font-size: 0.55rem; color: var(--mist); }
 
     .dice-display {
       display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0;
@@ -456,29 +400,30 @@
       background: rgba(20, 14, 44, 0.6); border: 1px solid rgba(232, 200, 120, 0.3);
       border-radius: 8px;
     }
-    .dice-cell .roller {
-      font-family: var(--font-display); font-size: 2.6rem;
-      color: var(--gold-bright); padding: 8px 0;
-      transition: transform 0.2s ease;
-    }
+    .dice-cell .roller { font-family: var(--font-display); font-size: 2.6rem; color: var(--gold-bright); padding: 8px 0; transition: transform 0.2s ease; }
     .dice-cell.rolling .roller { animation: diceRoll 0.6s ease-out; }
     @keyframes diceRoll {
-      0%   { transform: rotate(0deg) scale(1); }
-      50%  { transform: rotate(180deg) scale(1.3); }
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.3); }
       100% { transform: rotate(360deg) scale(1); }
     }
     .dice-cell.winner { border-color: var(--emerald); box-shadow: 0 0 16px rgba(78, 201, 124, 0.4); }
-    .dice-cell.loser  { border-color: var(--crimson); opacity: 0.7; }
-    .dice-label {
-      font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.2em;
-      text-transform: uppercase; color: var(--mist-deep);
-    }
-    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .dice-cell.loser { border-color: var(--crimson); opacity: 0.7; }
+    .dice-label { font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mist-deep); }
 
-    /* ============ Game-over ============ */
+    /* Rules overlay */
+    .rules-overlay { font-size: 0.78rem; line-height: 1.6; }
+    .rules-overlay h4 { font-family: var(--font-display); letter-spacing: 0.14em; color: var(--gold-bright); font-size: 0.78rem; text-transform: uppercase; margin: 12px 0 4px; }
+    .rules-overlay ul { padding-left: 18px; margin: 4px 0; }
+    .rules-overlay li { margin: 2px 0; }
+    .rules-overlay .accent { color: var(--gold-bright); font-weight: 600; }
+    .rules-overlay .stat { color: var(--cosmic-blue); }
+    .rules-overlay .crimson { color: var(--crimson); }
+
+    /* ============ MVP / Game-over ============ */
     .gameover-screen {
-      text-align: center; padding: 40px 20px;
-      display: flex; flex-direction: column; align-items: center; gap: 16px;
+      text-align: center; padding: 30px 20px;
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
     }
     .gameover-screen h1 {
       font-family: var(--font-display); font-size: clamp(2rem, 7vw, 3.5rem);
@@ -486,16 +431,36 @@
       background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold) 50%, var(--gold-deep) 100%);
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
-    .gameover-screen .subtitle {
-      font-family: var(--font-meta); font-size: 0.7rem; letter-spacing: 0.3em;
-      text-transform: uppercase; color: var(--mist);
+    .gameover-screen .subtitle { font-family: var(--font-meta); font-size: 0.7rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--mist); }
+    .mvp-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+    .mvp-card {
+      width: 200px; padding: 12px;
+      background: linear-gradient(160deg, rgba(20,14,44,0.85), rgba(10,6,24,0.65));
+      border: 1px solid var(--gold); border-radius: 10px;
+      display: flex; flex-direction: column; gap: 6px; align-items: center;
+      position: relative;
     }
+    .mvp-card.gold { border-color: #ffd166; box-shadow: 0 0 22px rgba(255,209,102,0.35); }
+    .mvp-card.silver { border-color: #c0c8d6; box-shadow: 0 0 16px rgba(192,200,214,0.25); }
+    .mvp-card.bronze { border-color: #cd7f32; box-shadow: 0 0 14px rgba(205,127,50,0.25); }
+    .mvp-rank { position: absolute; top: -10px; right: -10px; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; color: var(--void); background: var(--gold-bright); border: 2px solid var(--void); }
+    .mvp-card.gold .mvp-rank { background: #ffd166; }
+    .mvp-card.silver .mvp-rank { background: #c0c8d6; }
+    .mvp-card.bronze .mvp-rank { background: #cd7f32; color: #fff; }
+    .mvp-card img { width: 100%; max-height: 200px; object-fit: contain; border-radius: 6px; }
+    .mvp-card .mvp-name { font-family: var(--font-display); letter-spacing: 0.08em; color: var(--gold-bright); font-size: 0.9rem; }
+    .mvp-card .mvp-meta { font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.1em; color: var(--mist); text-transform: uppercase; text-align: center; }
 
     /* ============ Mobile ============ */
-    @media (max-width: 720px) {
-      .battle-side { grid-template-columns: 1fr; }
-      .actions-bar { padding: 10px 8px; }
-      .move-btn { flex-basis: 80px; min-width: 80px; padding: 10px; font-size: 0.7rem; }
+    @media (max-width: 900px) {
+      .battle-side { grid-template-columns: 1fr 1fr 1fr; }
+      .battle-side .player-meta { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; }
+      .battle-side .player-meta .reserve-list { flex-direction: row; max-height: none; overflow-x: auto; flex: 1 1 auto; }
+      .move-btn { min-width: 70px; padding: 8px 10px; font-size: 0.65rem; }
+    }
+    @media (max-width: 560px) {
+      .battle-side { grid-template-columns: 1fr 1fr; }
+      .slot:nth-of-type(3) { grid-column: 1 / -1; }
     }
   </style>
 </head>
@@ -503,176 +468,192 @@
 
 <nav class="nav">
   <a class="nav-back" href="/games.html">← Games</a>
-  <span class="nav-title">Cardmaster Showdown</span>
+  <span class="nav-title">Cardmaster Showdown · v3</span>
   <span style="width: 80px;"></span>
 </nav>
 
-<main class="app">
+<main class="app" id="app">
 
   <!-- ============ Title screen ============ -->
   <section class="title-screen" id="title-screen">
-    <div class="title-eyebrow">Prototype 05 · Session 1</div>
+    <div class="title-eyebrow">Prototype 05 · v3 · Rizing Powers of Zyrex</div>
     <h1 class="title-h1">Cardmaster Showdown</h1>
     <div class="title-divider"><span class="line"></span><span class="diamond"></span><span class="line"></span></div>
-    <p class="title-tagline">Rizing Powers of Zyrex · 1v1 vs AI · 9 random cards · v2 gem rules</p>
+    <p class="title-tagline">3v3 active field · Possession turns · 5-stat cards · Astralite statuses · Backfire control-theory</p>
     <div style="display:flex;gap:12px;margin-top:8px;">
       <button class="btn-primary" id="btn-play">Play</button>
-      <button class="btn-secondary" id="btn-rules" style="padding:14px 24px;font-size:0.7rem;">Rules</button>
+      <button class="btn-secondary" id="btn-rules" style="padding:14px 24px;font-size:0.7rem;">Rules v6.7</button>
     </div>
   </section>
-
-  <!-- ============ Rules overlay (toggleable) ============ -->
-  <div class="modal-backdrop" id="modal-rules">
-    <div class="modal-panel" style="max-width: 540px;">
-      <h3>Rules · Cardmaster Showdown</h3>
-      <div style="font-size:0.78rem;line-height:1.6;">
-        <p style="margin-top:4px;"><strong style="color:var(--gold-bright);">Per-card gems.</strong> Every card enters play carrying <strong>1 gem</strong>. Gems live on the card, not in a shared pool. Spend a turn on <strong>Draw</strong> to bank +1 gem toward that card’s abilities.</p>
-        <p><strong style="color:var(--gold-bright);">Each turn, pick ONE.</strong></p>
-        <ul style="padding-left:18px;margin:6px 0;">
-          <li><strong>A1</strong> — free light attack. 33% ATK. Always available.</li>
-          <li><strong>Draw</strong> — skip your attack to bank +1 gem on the card.</li>
-          <li><strong>A2</strong> — 2 gems. Stat swing: boost one of your stats or weaken the opponent’s by 11% × tier. Repeatable.</li>
-          <li><strong>A3</strong> — 3 gems. Heavy: 99% ATK damage + a self stat swing + inflicts a random status. Then it recharges over 3 turns before that card can fire it again.</li>
-        </ul>
-        <p><strong style="color:var(--gold-bright);">The gamble.</strong> Trade A1-for-A1 (safe, small) or spend turns drawing gems — you eat free hits while you set up the bigger A2 / A3 payoff.</p>
-        <p><strong style="color:var(--crimson);">Astralite status effects.</strong> Gems run on unstable astralites. A3 inflicts one, and spending gems has a 15% chance of backfiring on you: <em>Overcook</em> (HP burn), <em>Undershock</em> (−33% ability damage), <em>Brainlock</em> (A1 only), <em>Gridfreeze</em> (skip a turn), <em>Souldrift</em> (stats fade — lethal).</p>
-        <p><strong style="color:var(--gold-bright);">Opening.</strong> One 1d6 roll decides who picks PLAY (act first) or PASS. After that, turns alternate.</p>
-        <p><strong style="color:var(--gold-bright);">DEF reduction.</strong> Five brackets (10 / 20 / 30 / 40 / 50%), capped at DEF 300.</p>
-        <p><strong style="color:var(--gold-bright);">Switch.</strong> Bring in any reserve. If its SPD beats the opponent’s active card, it also attacks this turn.</p>
-        <p style="margin-top:10px;"><strong style="color:var(--gold-bright);">Win.</strong> Defeat all 9 of your opponent’s cards.</p>
-      </div>
-      <div class="modal-actions">
-        <button class="btn-secondary" id="rules-close">Close</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ============ Battle screen ============ -->
   <section class="battle" id="battle-screen" hidden>
     <div class="battle-side p2-side" id="p2-side">
-      <div class="battle-card" id="p2-card"></div>
       <div class="player-meta">
         <span class="player-tag-inline">AI Opponent</span>
-        <div class="gem-tracker">
-          <div class="gem-icon"></div>
-          <span class="gem-count" id="p2-gems">15</span>
-          <span class="gem-label">Card Gems</span>
-        </div>
-        <div class="reserve-row" id="p2-reserves"></div>
+        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p2-gems">27</span><span class="gem-label">Gems</span></div>
+        <div class="reserve-list" id="p2-reserves"></div>
       </div>
+      <div class="slot empty" id="p2-slot-0"></div>
+      <div class="slot empty" id="p2-slot-1"></div>
+      <div class="slot empty" id="p2-slot-2"></div>
     </div>
 
+    <div class="possession-banner" id="possession-banner">— Awaiting possession —</div>
     <div class="battle-log" id="battle-log"></div>
-
-    <div class="actions-bar" id="actions-bar"></div>
+    <div class="actions-bar" id="actions-bar"><div class="action-hint">—</div></div>
 
     <div class="battle-side p1-side" id="p1-side">
       <div class="player-meta">
         <span class="player-tag-inline">You</span>
-        <div class="gem-tracker">
-          <div class="gem-icon"></div>
-          <span class="gem-count" id="p1-gems">15</span>
-          <span class="gem-label">Card Gems</span>
-        </div>
-        <div class="reserve-row" id="p1-reserves"></div>
+        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p1-gems">27</span><span class="gem-label">Gems</span></div>
+        <div class="reserve-list" id="p1-reserves"></div>
       </div>
-      <div class="battle-card" id="p1-card"></div>
+      <div class="slot empty" id="p1-slot-0"></div>
+      <div class="slot empty" id="p1-slot-1"></div>
+      <div class="slot empty" id="p1-slot-2"></div>
     </div>
   </section>
 
-  <!-- ============ Game over ============ -->
+  <!-- ============ Game over / MVP ============ -->
   <section class="gameover-screen" id="gameover-screen" hidden>
     <div class="title-eyebrow">Match Concluded</div>
     <h1 id="gameover-title"></h1>
-    <p class="subtitle" id="gameover-mvps"></p>
-    <button class="btn-primary" id="btn-rematch">Rematch</button>
-    <button class="btn-secondary" id="btn-back-title">Back to Games</button>
+    <p class="subtitle" id="gameover-sub">— Match MVPs —</p>
+    <div class="mvp-row" id="mvp-row"></div>
+    <div style="display:flex;gap:12px;margin-top:18px;">
+      <button class="btn-primary" id="btn-rematch">Rematch</button>
+      <button class="btn-secondary" id="btn-back-title">Back to Title</button>
+    </div>
   </section>
 
 </main>
 
-<!-- ============ Opening dice roll modal (first turn) ============ -->
+<!-- ============ Rules overlay ============ -->
+<div class="modal-backdrop" id="modal-rules">
+  <div class="modal-panel" style="max-width: 620px;">
+    <h3>Rules · Rizing Powers of Zyrex v6.7</h3>
+    <div class="rules-overlay">
+      <h4>Field</h4>
+      <p>9-card faction per side: <span class="accent">3 ACTIVE</span> on the field + <span class="accent">6 in deck</span>. Eliminate all 9 of the opponent's cards to win.</p>
+      <h4>Turn structure — Possession</h4>
+      <p>Each round, compare the <span class="accent">highest-SPD active card</span> on each team. Higher wins possession. Every active card on the possessing team takes <span class="accent">one move</span>, then possession passes.</p>
+      <h4>Stats</h4>
+      <p><span class="stat">SPD</span> · <span class="stat">HP</span> · <span class="stat">DEF</span> · <span class="stat">ATK</span> · <span class="stat">SPC</span></p>
+      <h4>Moves</h4>
+      <ul>
+        <li><span class="accent">A1</span> — 1 gem · ATK × 0.33 · Type 1 only · no status · safe</li>
+        <li><span class="accent">A2</span> — 2 gems · ATK × 0.66 · Type 2 only · can inflict status · can backfire</li>
+        <li><span class="accent">A3</span> — 3 gems · ATK × 0.99 · best-of-both types · higher status proc · can backfire</li>
+        <li><span class="accent">SPC</span> — free · one-time permanent <span class="accent">SPC ÷ 10 flat boost</span> to one stat</li>
+        <li><span class="accent">Shift</span> — swap an active card with a reserve · shifted-in card can't attack same turn</li>
+      </ul>
+      <h4>DEF reduction (linear)</h4>
+      <p><span class="accent">Reduction % = DEF ÷ 10</span>. DEF 100 → 10%, DEF 500 → 50%, DEF 999 → 99.9%. Damage always lands (min 1).</p>
+      <h4>Astralite statuses</h4>
+      <p>A2 / A3 can inflict one of five: <span class="crimson">Overcook</span> (DoT) · <span class="crimson">Undershock</span> (stat debuff) · <span class="crimson">Brainlock</span> (A1 only, 2 turns) · <span class="crimson">Gridfreeze</span> (skip 1 turn) · <span class="crimson">Souldrift</span> (stats fade — lethal).</p>
+      <p>Strength = <span class="accent">Tier × 5.5%</span>. A2 proc = <span class="accent">Tier × 5.5%</span>. A3 proc = <span class="accent">Tier × 11%</span>.</p>
+      <h4>Backfire (control-theory)</h4>
+      <p><span class="accent">(Tier × 10) − (SPC ÷ 10)</span>, min 1%. A2/A3 only. On backfire, the status hits the attacker; damage still lands on target. A1 never backfires.</p>
+      <h4>Type chart (10 cyclic types)</h4>
+      <p>Each type strong vs 2, weak vs 2. A1 uses Type 1, A2 uses Type 2, A3 uses best-of-both. Multipliers: 4× / 2× / 1× / 0.5× / 0.25×.</p>
+      <h4>Gems &amp; Revive</h4>
+      <p><span class="accent">27 team-wide gems per match.</span> Revive a fallen card for <span class="accent">Tier gems</span> (I=1 … X=10), returns at 50% HP with the <span class="crimson">Risen</span> mark.</p>
+      <h4>Win</h4>
+      <p>All 9 opponent cards FALLEN. MVPs: top 3 from the winning team ranked by performance.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="rules-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Opening dice roll ============ -->
 <div class="modal-backdrop" id="modal-open-dice">
   <div class="modal-panel">
     <h3>Roll for Opening</h3>
-    <p>Both players roll 1d6. Higher roll wins the choice — PLAY first or PASS the open to your opponent.</p>
+    <p>Both players roll 1d6. Higher roll picks <span style="color:var(--gold-bright);">PLAY</span> (act first) or <span style="color:var(--gold-bright);">PASS</span>.</p>
     <div class="dice-display">
-      <div class="dice-cell" id="open-dice-you">
-        <div class="dice-label">You</div>
-        <div class="roller" id="open-dice-you-roll">?</div>
-      </div>
-      <div class="dice-cell" id="open-dice-ai">
-        <div class="dice-label">AI</div>
-        <div class="roller" id="open-dice-ai-roll">?</div>
-      </div>
+      <div class="dice-cell" id="open-dice-you"><div class="dice-label">You</div><div class="roller" id="open-dice-you-roll">?</div></div>
+      <div class="dice-cell" id="open-dice-ai"><div class="dice-label">AI</div><div class="roller" id="open-dice-ai-roll">?</div></div>
     </div>
     <p id="open-dice-result" style="text-align: center; min-height: 24px; font-family: var(--font-display); letter-spacing: 0.15em; color: var(--gold-bright);"></p>
     <div class="modal-actions">
-      <button class="btn-primary" id="open-dice-roll">Roll</button>
-      <button class="btn-secondary" id="open-dice-continue" hidden>Continue</button>
+      <button class="btn-primary" id="open-dice-roll" style="padding:12px 24px;font-size:0.78rem;">Roll</button>
+      <button class="btn-primary" id="open-dice-continue" style="padding:12px 24px;font-size:0.78rem;" hidden>Continue</button>
     </div>
   </div>
 </div>
 
-<!-- ============ Reveal-card modal (player picks starting card) ============ -->
-<div class="modal-backdrop" id="modal-card-select">
-  <div class="modal-panel" style="max-width: 720px;">
-    <h3 id="card-select-title">Choose your starting card</h3>
-    <p id="card-select-help">Pick one of your 9 random cards to bring out first.</p>
-    <div id="card-select-grid"
-         style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:14px 0;max-height:60vh;overflow-y:auto;"></div>
-  </div>
-</div>
-
-<!-- ============ Opening choice modal (PLAY or PASS) ============ -->
+<!-- ============ PLAY/PASS choice ============ -->
 <div class="modal-backdrop" id="modal-open-choice">
   <div class="modal-panel">
-    <h3 id="open-choice-title">You won the opening</h3>
-    <p id="open-choice-help">Set the tone — take the first move, or pass and force your opponent to commit first.</p>
-    <div class="dice-display" style="grid-template-columns: 1fr 1fr; gap: 12px;">
-      <button class="stat-pick-btn" id="open-choice-play" style="padding: 18px;">
-        <span style="font-size: 1.05rem; letter-spacing: 0.18em;">PLAY</span>
-        <span class="delta">Take first action</span>
-      </button>
-      <button class="stat-pick-btn" id="open-choice-pass" style="padding: 18px;">
-        <span style="font-size: 1.05rem; letter-spacing: 0.18em;">PASS</span>
-        <span class="delta">Force opponent to commit</span>
-      </button>
-    </div>
-    <p id="open-choice-result" style="text-align: center; min-height: 24px; font-family: var(--font-display); letter-spacing: 0.15em; color: var(--gold-bright); margin-top: 14px;"></p>
-    <div class="modal-actions">
-      <button class="btn-primary" id="open-choice-continue" hidden>Begin Match</button>
+    <h3 id="open-choice-title">You Won the Roll</h3>
+    <p>PLAY = act first this round. PASS = your opponent acts first (you see their starters before committing).</p>
+    <div class="modal-actions" style="justify-content: center;">
+      <button class="btn-primary" id="open-choice-play" style="padding:12px 24px;font-size:0.78rem;">PLAY first</button>
+      <button class="btn-primary" id="open-choice-pass" style="padding:12px 24px;font-size:0.78rem;">PASS</button>
     </div>
   </div>
 </div>
 
-<!-- ============ A2 / A3 stat-swing modal ============ -->
-<div class="modal-backdrop" id="modal-swing">
-  <div class="modal-panel">
-    <h3 id="swing-title">A2 — Stat Swing</h3>
-    <p id="swing-help">Choose where the swing lands.</p>
-    <div id="swing-self-block">
-      <div class="swing-section-label">Boost your card</div>
-      <div class="stat-pick-grid" id="swing-self-grid"></div>
-    </div>
-    <div id="swing-opp-block">
-      <div class="swing-section-label">Weaken the opponent</div>
-      <div class="stat-pick-grid" id="swing-opp-grid"></div>
-    </div>
+<!-- ============ Faction draft (pick 9 from 23) ============ -->
+<div class="modal-backdrop" id="modal-faction">
+  <div class="modal-panel" style="max-width: 880px;">
+    <h3 id="faction-title">Build your faction · Pick 9 of 23</h3>
+    <p id="faction-hint">Tap to select. Need <span id="faction-count">9</span> more.</p>
+    <div class="faction-pick" id="faction-grid"></div>
     <div class="modal-actions">
-      <button class="btn-secondary" id="swing-cancel">Cancel</button>
+      <button class="btn-secondary" id="faction-random">Randomize</button>
+      <button class="btn-primary" id="faction-confirm" style="padding:12px 24px;font-size:0.78rem;" disabled>Confirm Faction</button>
     </div>
   </div>
 </div>
 
-<!-- ============ Switch / Revive modal ============ -->
-<div class="modal-backdrop" id="modal-switch">
-  <div class="modal-panel">
-    <h3 id="switch-title">Switch Card</h3>
-    <p id="switch-help">Choose a reserve card to bring in. If their SPD > opponent's active, they also attack this turn.</p>
-    <div id="switch-list" style="display: flex; flex-direction: column; gap: 6px; margin: 12px 0; max-height: 50vh; overflow-y: auto;"></div>
+<!-- ============ Starter pick (pick 3 active from your 9) ============ -->
+<div class="modal-backdrop" id="modal-starters">
+  <div class="modal-panel" style="max-width: 760px;">
+    <h3 id="starters-title">Pick your 3 starting active cards</h3>
+    <p id="starters-hint">These cards open the match on the field. The remaining 6 wait in reserve.</p>
+    <div class="faction-pick" id="starters-grid"></div>
     <div class="modal-actions">
-      <button class="btn-secondary" id="switch-cancel">Cancel</button>
+      <button class="btn-primary" id="starters-confirm" style="padding:12px 24px;font-size:0.78rem;" disabled>Confirm Starters</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SPC boost stat picker ============ -->
+<div class="modal-backdrop" id="modal-spc">
+  <div class="modal-panel">
+    <h3 id="spc-title">SPC Boost</h3>
+    <p id="spc-sub">Apply <span class="accent" id="spc-amount" style="color:var(--cosmic-blue);">+0</span> flat to which stat? <span style="color:var(--mist-deep);font-size:0.7rem;">(one-time, permanent)</span></p>
+    <div class="stat-pick-grid" id="spc-grid"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="spc-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ A2 target stat picker ============ -->
+<div class="modal-backdrop" id="modal-a2stat">
+  <div class="modal-panel">
+    <h3>A2 — Pick the stat to debuff</h3>
+    <p>Target's stat fades by <span class="accent" id="a2-pct" style="color:var(--purple);">0%</span> on hit (after damage). The damage portion is independent.</p>
+    <div class="stat-pick-grid" id="a2-grid"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="a2-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Revive modal ============ -->
+<div class="modal-backdrop" id="modal-revive">
+  <div class="modal-panel">
+    <h3>Revive a fallen card</h3>
+    <p>Spend <span class="accent" id="revive-cost" style="color:var(--cosmic-blue);">0</span> gems to revive · returns to reserve at 50% HP with the <span style="color:var(--crimson);">Risen</span> mark.</p>
+    <div id="revive-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="revive-cancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -680,942 +661,1182 @@
 <script>
 'use strict';
 
-// ============ Card roster (36 locked) ============
-const ROSTER = [
-  { id:'ZX-001', name:'Ambrevon',   tier:5, hp:340, atk:320, def:340, spd:260, spc:340, a1:'Golden Ascension',     a2:'Royal Reignfall',        a3:'Perfection Incarnate' },
-  { id:'ZX-002', name:'Apexaur',    tier:3, hp:280, atk:260, def:220, spd:120, spc:120, a1:'Dynobite Crush',       a2:'Ancient Charge',         a3:'Dune Breaker' },
-  { id:'ZX-003', name:'Aurexion',   tier:3, hp:180, atk:230, def:170, spd:200, spc:220, a1:'Vector Drive',         a2:'Astral Projection',      a3:'Divine Intuition' },
-  { id:'ZX-004', name:'Azurel',     tier:5, hp:320, atk:260, def:300, spd:320, spc:400, a1:'Cosmic Calculation',   a2:'Neural Collapse',        a3:'Singularity Override' },
-  { id:'ZX-005', name:'Celestryx',  tier:4, hp:260, atk:210, def:185, spd:305, spc:290, a1:'Ethereal Gaze',        a2:'Halo Collapse',          a3:'Eternal Rapture' },
-  { id:'ZX-006', name:'Cerebrion',  tier:3, hp:180, atk:120, def:160, spd:140, spc:400, a1:'Neural Override',      a2:'Synaptic Collapse',      a3:'Mindveil Distortion' },
-  { id:'ZX-007', name:'Drakaryx',   tier:3, hp:260, atk:270, def:210, spd:160, spc:100, a1:'Claws of Chaos',       a2:'Winguard Tornado',       a3:'Skybreaker Slam' },
-  { id:'ZX-008', name:'Elzoran',    tier:4, hp:275, atk:250, def:200, spd:175, spc:350, a1:'Elemental Eclipse',    a2:'Telekinetic Rend',       a3:'Helm of Chaos' },
-  { id:'ZX-009', name:'Emeralix',   tier:5, hp:400, atk:220, def:360, spd:240, spc:380, a1:'Verdant Regenesis',    a2:'Ecoseismic Captivation', a3:'Poisonthorn Dominion' },
-  { id:'ZX-010', name:'Eurakeon',   tier:5, hp:300, atk:260, def:280, spd:300, spc:460, a1:'Fractured Thought',    a2:'Identity Annexation',    a3:'Inevitable Erasure' },
-  { id:'ZX-011', name:'Floravex',   tier:3, hp:240, atk:150, def:210, spd:140, spc:260, a1:'Sweet Life',           a2:'Catastrophic Harvest',   a3:'Wild Bloom Plague' },
-  { id:'ZX-012', name:'Frostphen',  tier:1, hp:160, atk:170, def:155, spd:135, spc:130, a1:'Glacial Rebirth',      a2:'Frostflare Wings',       a3:'Permafrost Song' },
-  { id:'ZX-013', name:'Gearbyte',   tier:1, hp:200, atk:220, def:160, spd: 90, spc: 80, a1:'Hydraulic Press',      a2:'Extendo Throw',          a3:'Engine Overload' },
-  { id:'ZX-014', name:'Gravelor',   tier:3, hp:300, atk:190, def:330, spd: 60, spc:120, a1:'Rockhammer Smash',     a2:'Runic Absorption',       a3:'Colossal Burial' },
-  { id:'ZX-015', name:'Grimhog',    tier:1, hp:220, atk:230, def:140, spd:110, spc: 50, a1:'Feral Snout',          a2:'Hellflame Stampede',     a3:'Graveyard Playpen' },
-  { id:'ZX-016', name:'Impyxid',    tier:1, hp:135, atk:160, def:125, spd:190, spc:140, a1:'Hellskip',             a2:'Flareshot Arrow',        a3:'Chaotic Giggle' },
-  { id:'ZX-017', name:'Ivirium',    tier:5, hp:320, atk:260, def:340, spd:300, spc:380, a1:'Aura Equilization',    a2:'Harmonic Dissonance',    a3:'Divine Mediation' },
-  { id:'ZX-018', name:'Mutaryn',    tier:5, hp:340, atk:360, def:260, spd:300, spc:340, a1:'Predatory Shift',      a2:'Perfect Evolution',      a3:'Apex Metamorphisis' },
-  { id:'ZX-019', name:'Noxiclaw',   tier:1, hp: 90, atk: 85, def: 80, spd:140, spc:105, a1:'Night Prowl',          a2:'Phantom Pur',            a3:'Mischievous Grin' },
-  { id:'ZX-020', name:'Oathare',    tier:5, hp:320, atk:300, def:320, spd:300, spc:360, a1:'Equilibrium Pulse',    a2:'Systemic Override',      a3:'Absolute Reset' },
-  { id:'ZX-021', name:'Oatheus',    tier:5, hp:350, atk:350, def:350, spd:350, spc:350, a1:'Celestial Decree',     a2:'Orbital Judgement',      a3:'Divine Rapture' },
-  { id:'ZX-022', name:'Omniris',    tier:3, hp:170, atk:140, def:165, spd:185, spc:340, a1:'Omnivision',           a2:'Psychequake',            a3:'Primordial Devastation' },
-  { id:'ZX-023', name:'Rakoron',    tier:5, hp:380, atk:400, def:300, spd:260, spc:260, a1:"Predator's Chains",    a2:'Territorial Bloodshed',  a3:'Corefall Unleashed' },
-  { id:'ZX-024', name:'Rustbyte',   tier:1, hp:120, atk: 90, def:110, spd: 80, spc:100, a1:'Potty Mouth',          a2:'Clank Tap',              a3:'Overclock Tantrum' },
-  { id:'ZX-025', name:'Scrapjaw',   tier:1, hp:135, atk:160, def:110, spd:185, spc:160, a1:'Scrapdash',            a2:'Daggerslash Howl',       a3:'Revolver of the Hunt' },
-  { id:'ZX-026', name:'Sharkfin',   tier:3, hp:220, atk:240, def:190, spd:150, spc:200, a1:'Infrared Laser Beam',  a2:'Jaws of Doom',           a3:'Shark Tail Tornado' },
-  { id:'ZX-027', name:'Sigilmor',   tier:3, hp:205, atk:185, def:210, spd:150, spc:250, a1:'Sigil Smash',          a2:'Unbound Shift',          a3:'Ancient Invasion' },
-  { id:'ZX-028', name:'Skybeam',    tier:3, hp:200, atk:300, def:180, spd:220, spc:100, a1:'Clawdive',             a2:'Sky Sight Ambush',       a3:'Techwing Burst' },
-  { id:'ZX-029', name:'Strixel',    tier:1, hp:170, atk:180, def:120, spd:200, spc: 80, a1:'Nightshade Invasion',  a2:'Lunar Leech',            a3:'Bearhug Devastation' },
-  { id:'ZX-030', name:'Vengrizz',   tier:4, hp:360, atk:320, def:210, spd: 90, spc:270, a1:'Bear Hug Destruction', a2:"Rock N' Roll Rampage",   a3:'Teddy Tantrum' },
-  { id:'ZX-031', name:'Veylith',    tier:3, hp:180, atk:120, def:100, spd:260, spc:340, a1:'Phase Latch',          a2:'Soul Override',          a3:'Total Assimilation' },
-  { id:'ZX-032', name:'Voltigrax',  tier:3, hp:170, atk:230, def:150, spd:250, spc:200, a1:'Static Pounce',        a2:'Thunderclaw',            a3:'Primitive Hunt' },
-  { id:'ZX-033', name:'Voltyran',   tier:5, hp:300, atk:360, def:260, spd:420, spc:260, a1:'Static Impulsivity',   a2:'Voltagious Rend',        a3:'Thunderfall Execution' },
-  { id:'ZX-034', name:'Xytabyte',   tier:3, hp:180, atk:260, def:150, spd:280, spc:130, a1:'Razorfang Poison',     a2:'Web Cannon Barrage',     a3:'Execution Protocol' },
-  { id:'ZX-035', name:'Feliux',     tier:3, hp:180, atk:240, def:140, spd:280, spc:160, a1:'Phantom Sneak',        a2:'Shell Storm Clash',      a3:'Chainfire Storm Cannon' },
-  { id:'ZX-036', name:'Wynwyrm',    tier:1, hp:130, atk: 70, def:100, spd: 80, spc:120, a1:'Membrane',             a2:'Veilward',               a3:'Hallowed Plea' },
-];
-const TEAM_SIZE = 9;
-const CARD_START_GEMS = 1;   // every card enters play carrying 1 gem
-const A2_COST = 2;           // A2 stat swing — 1 draw on top of the start gem
-const A3_COST = 3;           // A3 ultimate — 2 draws on top of the start gem
-const A3_COOLDOWN = 4;       // A3 re-locks on use; "ready in N" counts 3-2-1 over the card's next 3 turns
-const DICE_SIDES = 6;        // opening roll only
-const MISHAP_CHANCE = 0.15;  // chance gem-spending backfires into a status
+// ============ Rules constants (v6.7 locked) ============
+const FACTION_SIZE  = 9;
+const ACTIVE_SIZE   = 3;
+const RESERVE_SIZE  = 6;
+const TEAM_GEM_POOL = 27;
+const A1_GEM = 1, A2_GEM = 2, A3_GEM = 3;
+const A1_MULT = 0.33, A2_MULT = 0.66, A3_MULT = 0.99;
 
-/* ============================================================================
-   ASTRALITE STATUS EFFECTS  (RPZ TCG v2)
-   ----------------------------------------------------------------------------
-   Gems run on unstable astralites. Spending gems (A2 / A3) can backfire, and
-   every A3 ultimate inflicts one of these on the opponent.
-     overcook   — burns 10% HP at the start of each turn (3 turns)
-     undershock — ability damage reduced 33% (2 turns)
-     brainlock  — locked to A1 only, no A2 / A3 (2 turns)
-     gridfreeze — skips the next turn (1 turn)
-     souldrift  — all stats fade each turn; uncured = removed (3 turns)
-   ============================================================================ */
+// ============ Type chart (cyclic 10) ============
+const TYPES = ['Aura','Beast','Creature','Extraterrestrial','Humanoid-Noid','Nature','Tech','Spirit','Ultramax','Unknown-Void'];
+const TYPE_STRONG_VS = {
+  'Aura':              ['Spirit','Unknown-Void'],
+  'Beast':             ['Creature','Spirit'],
+  'Creature':          ['Nature','Aura'],
+  'Extraterrestrial':  ['Aura','Nature'],
+  'Humanoid-Noid':     ['Beast','Ultramax'],
+  'Nature':            ['Tech','Unknown-Void'],
+  'Tech':              ['Humanoid-Noid','Extraterrestrial'],
+  'Spirit':            ['Humanoid-Noid','Tech'],
+  'Ultramax':          ['Extraterrestrial','Beast'],
+  'Unknown-Void':      ['Ultramax','Creature']
+};
+// Inverse-built: types that are weak (resistant on defense) against a given attack type
+// Defender RESISTS X when X is on its weak-vs list (i.e., defender type's STRONG_VS includes X). We compute live.
+
+// Return multiplier from a single attack type vs a single defender type:
+// vulnerable (defender weak to attack) = 2 · neutral = 1 · resistant (defender strong vs attack) = 0.5
+function _atkVsDefSingle(atk, defType) {
+  if (TYPE_STRONG_VS[atk] && TYPE_STRONG_VS[atk].includes(defType)) return 2;     // attack strong vs defender → vulnerable
+  if (TYPE_STRONG_VS[defType] && TYPE_STRONG_VS[defType].includes(atk)) return 0.5; // defender strong vs attacker → resistant
+  return 1;
+}
+// Defender has Type 1 + Type 2 (may be same). Compute combined multiplier per rules table.
+function typeMultiplier(atkType, defT1, defT2) {
+  const m1 = _atkVsDefSingle(atkType, defT1);
+  const m2 = _atkVsDefSingle(atkType, defT2);
+  // Rules: both vulnerable=4·vuln+neutral=2·both neutral=1·resist+neutral=0.5·both resist=0.25·cancel(strong+resist)=1
+  // Pure same-type cards cannot cancel — if defT1===defT2 and both produce 2, total = 4 (already what we get below)
+  // We multiply m1 * m2 directly — but cap cancellation: (2 and 0.5) → 1 per rules. Multiplication already gives 1 for that.
+  return m1 * m2;
+}
+function typeLabel(m) {
+  if (m >= 4) return 'devastating';
+  if (m >= 2) return 'super effective';
+  if (m <= 0.25) return 'almost no effect';
+  if (m <= 0.5) return 'not very effective';
+  return null;
+}
+
+// ============ Status effects ============
 const STATUSES = {
-  overcook:   { label: 'Overcook',   turns: 3, color: '#ff7a3c', blurb: 'burns 10% HP each turn' },
-  undershock: { label: 'Undershock', turns: 2, color: '#6fa3e8', blurb: 'ability damage -33%' },
-  brainlock:  { label: 'Brainlock',  turns: 2, color: '#c98ee8', blurb: 'locked to A1 only' },
-  gridfreeze: { label: 'Gridfreeze', turns: 1, color: '#7cd9e8', blurb: 'skips next turn' },
-  souldrift:  { label: 'Souldrift',  turns: 3, color: '#b06fe8', blurb: 'all stats fade - lethal' },
+  overcook:   { label:'Overcook',   color:'#ff8a6a', kind:'dot',   tag:'HP burns each turn' },
+  undershock: { label:'Undershock', color:'#b08bff', kind:'debuff',tag:'A stat is suppressed' },
+  brainlock:  { label:'Brainlock',  color:'#c98ee8', kind:'lock',  tag:'A1 only, 2 turns', fixedTurns:2 },
+  gridfreeze: { label:'Gridfreeze', color:'#6fa3e8', kind:'skip',  tag:'Skip 1 turn', fixedTurns:1 },
+  souldrift:  { label:'Souldrift',  color:'#ff5a5a', kind:'fade',  tag:'All stats fade each turn — lethal' }
 };
 const STATUS_KEYS = Object.keys(STATUSES);
 function randomStatusKey() { return STATUS_KEYS[Math.floor(Math.random() * STATUS_KEYS.length)]; }
-function tierSwing(tier) { return 0.11 * tier; }   // A2 / A3 stat swing = 11% x tier
+
+// ============ Tier maths ============
+const ROMAN = {I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10};
+function tierInt(card) { return ROMAN[card.tier_roman] || card.tier || 1; }
+function statusPct(tier)  { return tier * 5.5 / 100; }     // Status strength
+function procA2Pct(tier)  { return tier * 5.5 / 100; }
+function procA3Pct(tier)  { return Math.min(tier * 11 / 100, 1.0); }
+function backfirePct(tier, spc) {
+  const raw = (tier * 10) - (spc / 10);
+  return Math.max(0.01, raw / 100);
+}
+function spcBoost(spc)    { return Math.floor(spc / 10); }
+function reviveCost(tier) { return tier; }
+function defReduction(def) { return Math.min(def / 1000, 0.999); } // DEF/10 percent → /1000 as multiplier
+
+// ============ Roster (loaded from JSON inline) ============
+const ROSTER = [
+  {id:'abyssion',  name:'Abyssion',  art:'cards_v2/card_abyssion.png',  tier:9,  tier_roman:'IX',  class:'Demigod',         type1:'Ultramax',      type2:'Unknown-Void', hp:600, atk:666, def:555, spd:456, spc:720, archetype:'Beastmaster'},
+  {id:'abyssylyx', name:'Abyssylyx', art:'cards_v2/card_abyssylyx.png', tier:6,  tier_roman:'VI',  class:'Pseudoimmortal',  type1:'Aura',          type2:'Beast',        hp:372, atk:396, def:330, spd:432, spc:468, archetype:'Beastmaster'},
+  {id:'anciuxor',  name:'Anciuxor',  art:'cards_v2/card_anciuxor.png',  tier:10, tier_roman:'X',   class:'God',             type1:'Ultramax',      type2:'Ultramax',     hp:666, atk:666, def:666, spd:666, spc:666, archetype:'God'},
+  {id:'andrehart', name:'Andre Hart',art:'cards_v2/card_andrehart.png', tier:4,  tier_roman:'IV',  class:'Legend',          type1:'Humanoid-Noid', type2:'Aura',         hp:240, atk:305, def:227, spd:267, spc:293, archetype:'Warrior'},
+  {id:'audrellius',name:'Audrellius',art:'cards_v2/card_audrelliusX.png',tier:5, tier_roman:'V',   class:'Legend',          type1:'Humanoid-Noid', type2:'Aura',         hp:366, atk:333, def:366, spd:300, spc:300, archetype:'Warrior'},
+  {id:'aurellyn',  name:'Aurellyn',  art:'cards_v2/card_aurellyn.png',  tier:6,  tier_roman:'VI',  class:'Pseudoimmortal',  type1:'Humanoid-Noid', type2:'Aura',         hp:408, atk:352, def:344, spd:399, spc:495, archetype:'Cleric'},
+  {id:'aurexion',  name:'Aurexion',  art:'cards_v2/card_aurexion.png',  tier:5,  tier_roman:'V',   class:'Legend',          type1:'Humanoid-Noid', type2:'Aura',         hp:333, atk:333, def:333, spd:333, spc:333, archetype:'Cleric'},
+  {id:'diviniara', name:'Diviniara', art:'cards_v2/card_diviniara.png', tier:6,  tier_roman:'VI',  class:'Pseudoimmortal',  type1:'Aura',          type2:'Beast',        hp:420, atk:348, def:402, spd:348, spc:480, archetype:'Cleric'},
+  {id:'egnellahc', name:'Egnellahc', art:'cards_v2/card_egnellahc.png', tier:7,  tier_roman:'VII', class:'Pseudoimmortal',  type1:'Humanoid-Noid', type2:'Spirit',       hp:407, atk:291, def:525, spd:525, spc:583, archetype:'Mage'},
+  {id:'elzoran',   name:'Elzoran',   art:'cards_v2/card_elzoran.png',   tier:5,  tier_roman:'V',   class:'Legend',          type1:'Beast',         type2:'Nature',       hp:366, atk:333, def:266, spd:234, spc:466, archetype:'Beastmaster'},
+  {id:'khronis',   name:'Khronis',   art:'cards_v2/card_khronis.png',   tier:6,  tier_roman:'VI',  class:'Pseudoimmortal',  type1:'Beast',         type2:'Unknown-Void', hp:510, atk:498, def:360, spd:294, spc:336, archetype:'Beastmaster'},
+  {id:'leonoror',  name:'Leonoror',  art:'cards_v2/card_leonoror.png',  tier:6,  tier_roman:'VI',  class:'Pseudoimmortal',  type1:'Aura',          type2:'Beast',        hp:462, atk:444, def:384, spd:336, spc:372, archetype:'Warrior'},
+  {id:'lucienis',  name:'Lucienis',  art:'cards_v2/card_lucienis.png',  tier:8,  tier_roman:'VIII',class:'Immortal',        type1:'Humanoid-Noid', type2:'Aura',         hp:533, atk:533, def:533, spd:533, spc:532, archetype:'Cleric'},
+  {id:'natura',    name:'Natura',    art:'cards_v2/card_natura.png',    tier:8,  tier_roman:'VIII',class:'Immortal',        type1:'Nature',        type2:'Creature',     hp:666, atk:366, def:633, spd:466, spc:533, archetype:'Beastmaster'},
+  {id:'omegoran',  name:'Omegoran',  art:'cards_v2/card_omegoran.png',  tier:7,  tier_roman:'VII', class:'Pseudoimmortal',  type1:'Beast',         type2:'Unknown-Void', hp:493, atk:549, def:383, spd:357, spc:549, archetype:'Beastmaster'},
+  {id:'ovauron',   name:'Ovauron',   art:'cards_v2/card_ovauron.png',   tier:9,  tier_roman:'IX',  class:'Demigod',         type1:'Ultramax',      type2:'Unknown-Void', hp:800, atk:666, def:720, spd:300, spc:511, archetype:'Beastmaster'},
+  {id:'phoenaris', name:'Phoenaris', art:'cards_v2/card_pheonaris.png', tier:6,  tier_roman:'VI',  class:'Pseudoimmortal',  type1:'Aura',          type2:'Beast',        hp:366, atk:462, def:312, spd:420, spc:438, archetype:'Beastmaster'},
+  {id:'phrenetic', name:'Phrenetic', art:'cards_v2/card_phrenetic.png', tier:4,  tier_roman:'IV',  class:'Legend',          type1:'Unknown-Void',  type2:'Spirit',       hp:240, atk:218, def:186, spd:288, spc:400, archetype:'Mage'},
+  {id:'royalesus', name:'Royalesus', art:'cards_v2/card_royalesus.png', tier:6,  tier_roman:'VI',  class:'Pseudoimmortal',  type1:'Aura',          type2:'Beast',        hp:432, atk:366, def:360, spd:480, spc:360, archetype:'Cleric'},
+  {id:'sharkfin',  name:'Sharkfin',  art:'cards_v2/card_sharkfin.png',  tier:3,  tier_roman:'III', class:'Core',            type1:'Tech',          type2:'Humanoid-Noid',hp:220, atk:239, def:190, spd:150, spc:200, archetype:'Beastmaster'},
+  {id:'theia',     name:'Theia',     art:'cards_v2/card_theia.png',     tier:8,  tier_roman:'VIII',class:'Immortal',        type1:'Humanoid-Noid', type2:'Aura',         hp:533, atk:566, def:433, spd:599, spc:533, archetype:'Cleric'},
+  {id:'voltyran',  name:'Voltyran',  art:'cards_v2/card_voltaryn.png',  tier:6,  tier_roman:'VI',  class:'Pseudoimmortal',  type1:'Creature',      type2:'Beast',        hp:374, atk:450, def:324, spd:525, spc:325, archetype:'Beastmaster'},
+  {id:'vydexeus',  name:'Vydexeus',  art:'cards_v2/card_vydexeus.png',  tier:7,  tier_roman:'VII', class:'Pseudoimmortal',  type1:'Tech',          type2:'Spirit',       hp:466, atk:433, def:433, spd:433, spc:566, archetype:'Mage'}
+];
 
 // ============ State ============
 const state = {
-  phase: 'title',
   battle: null,
+  selection: { side:null, slot:null, mode:null /* 'pick'|'target'|'a2stat'|'spc'|'shift'|'revive' */, kind:null /* 'a1'|'a2'|'a3'|'spc'|'shift'|'revive' */ },
+  faction: { all:[], userPicks:[], aiPicks:[] },
+  starters: { userPicks:[] },
+  opening: { winner:null, mode:null /* 'play'|'pass' */, userRoll:0, aiRoll:0 },
+  _pendingPossession: null
 };
 
-// ============ Utility ============
-function rollD(sides) { return 1 + Math.floor(Math.random() * sides); }
-function defReductionPct(def) {
-  const d = Math.min(def, 300);
-  if (d <= 60) return 0.10;
-  if (d <= 120) return 0.20;
-  if (d <= 180) return 0.30;
-  if (d <= 240) return 0.40;
-  return 0.50;
+// ============ Utilities ============
+function rollD(n) { return 1 + Math.floor(Math.random() * n); }
+function $(id) { return document.getElementById(id); }
+function show(id, on) { const el = $(id); if (el) el.hidden = !on; }
+function showModal(id, on) {
+  const el = $(id);
+  if (!el) return;
+  el.classList.toggle('show', on);
 }
-function hasStatus(c, type) { return !!(c && c.statuses && c.statuses.some(s => s.type === type)); }
-
-function newCardRuntime(roster) {
-  return {
-    base: roster, name: roster.name, tier: roster.tier, id: roster.id,
-    hp: roster.hp, hpMax: roster.hp,
-    atk: roster.atk, def: roster.def, spd: roster.spd, spc: roster.spc,
-    gems: CARD_START_GEMS,   // per-card gem bank — draws add here
-    a3Cd: 0,                 // A3 cooldown — the card's own turns left before A3 re-arms
-    statuses: [],            // [{ type, turns }]
-    a1: roster.a1, a2: roster.a2, a3: roster.a3,
-  };
-}
-
-function randomTeam() {
-  // Pick 9 unique cards from the 36-card pool.
-  const pool = [...ROSTER];
-  const team = [];
-  while (team.length < TEAM_SIZE && pool.length > 0) {
-    const idx = Math.floor(Math.random() * pool.length);
-    team.push(pool.splice(idx, 1)[0]);
-  }
-  return team;
-}
-
-function show(id, on) { const el = document.getElementById(id); if (el) el.hidden = !on; }
-function activeOf(side) { return state.battle[side].team[state.battle[side].activeIdx]; }
+function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 function opp(side) { return side === 'p1' ? 'p2' : 'p1'; }
+function activeCard(side, slot) {
+  const a = state.battle[side].active[slot];
+  return (a == null || a < 0) ? null : state.battle[side].faction[a];
+}
+function tagStat(c, stat) {
+  // returns the live stat after buffs/debuffs (additive modifiers)
+  const base = c['_base_'+stat] != null ? c['_base_'+stat] : c[stat];
+  return Math.max(0, base + (c.mods?.[stat] || 0));
+}
+function setBase(c) {
+  // call once at faction-init: snapshot bases
+  ['hp','atk','def','spd','spc'].forEach(k => { c['_base_'+k] = c[k]; });
+  c.maxHp = c.hp;
+  c.mods = { hp:0, atk:0, def:0, spd:0, spc:0 };
+  c.statuses = []; // [{key, turnsLeft, debuffStat:null}]
+  c.fallen = false;
+  c.risen = false;
+  c.spcUsed = false;
+  c.enteredThisTurn = false;
+  c.stats = { kills:0, dmgDealt:0, dmgTaken:0, statusesInflicted:0, backfires:0, movesUsed:0 };
+}
 
-// ============ Title ============
-document.getElementById('btn-play').addEventListener('click', () => initMatch());
-document.getElementById('btn-rules').addEventListener('click', () => {
-  document.getElementById('modal-rules').classList.add('show');
-});
-document.getElementById('rules-close').addEventListener('click', () => {
-  document.getElementById('modal-rules').classList.remove('show');
-});
-document.getElementById('modal-rules').addEventListener('click', (e) => {
-  if (e.target.id === 'modal-rules') e.currentTarget.classList.remove('show');
-});
+// ============ Title binding ============
+$('btn-play').onclick = () => { startMatch(); };
+$('btn-rules').onclick = () => showModal('modal-rules', true);
+$('rules-close').onclick = () => showModal('modal-rules', false);
+$('btn-rematch').onclick = () => { show('gameover-screen', false); startMatch(); };
+$('btn-back-title').onclick = () => { show('gameover-screen', false); show('battle-screen', false); show('title-screen', true); };
 
-function initMatch() {
-  state.phase = 'opening';
+// ============ Match lifecycle ============
+function startMatch() {
   show('title-screen', false);
-  show('battle-screen', false);
-  show('gameover-screen', false);
-  const app = document.querySelector('.app');
-  if (app) app.classList.remove('battle-mode');
-  state.battle = {
-    p1: { name: 'You', side: 'p1', team: randomTeam().map(newCardRuntime), activeIdx: 0, fallen: [] },
-    p2: { name: 'AI',  side: 'p2', team: randomTeam().map(newCardRuntime), activeIdx: 0, fallen: [] },
-    log: [], turn: null, awaitingShift: null, winner: null, acting: false,
-    pickedStarting: { p1: false, p2: false },
-  };
-  openOpeningDice();
+  // Reset
+  state.faction = { all:[], userPicks:[], aiPicks:[] };
+  state.starters = { userPicks:[] };
+  state.opening = { winner:null, mode:null, userRoll:0, aiRoll:0 };
+  // Open faction draft
+  openFactionDraft();
 }
 
-// turnTo(side) — gates the starting-card pick, then begins the turn.
-function turnTo(side) {
-  const b = state.battle;
-  if (!b || b.winner) return;
-  b.turn = side;
-  if (!b.pickedStarting[side]) {
-    pickStartingCard(side, () => {
-      b.pickedStarting[side] = true;
-      beginTurn(side);
-    });
-    return;
-  }
-  beginTurn(side);
-}
-
-// beginTurn — tick the active card's astralite statuses, then hand off to the
-// player / AI, skip a frozen card, or resolve a status death.
-function beginTurn(side) {
-  const b = state.battle;
-  if (!b || b.winner) return;
-  b.acting = false;
-  const cdCard = activeOf(side);
-  if (cdCard && cdCard.a3Cd > 0) cdCard.a3Cd--;   // A3 cooldown ticks down on the card's own turn
-  const outcome = tickStatuses(side);
-  if (b.winner) return;            // a status kill ended the match
-  if (outcome === 'fell') return;  // handleFall already routed the turn
-  renderBattle();
-  if (outcome === 'skip') {
-    setTimeout(() => { if (!b.winner) turnTo(opp(side)); }, 1000);
-    return;
-  }
-  if (side === 'p2') setTimeout(aiTurn, 700);
-}
-
-// tickStatuses — process every status on the side's active card at the start
-// of its turn. Returns 'fell' | 'skip' | 'ok'.
-function tickStatuses(side) {
-  const c = activeOf(side);
-  if (!c) return 'ok';
-  if (!c.statuses) c.statuses = [];
-  if (c.statuses.length === 0) return 'ok';
-  let skip = false, souldrifted = false;
-  const kept = [];
-  for (const st of c.statuses) {
-    if (st.type === 'gridfreeze') {
-      skip = true;
-      pushLog('status', `${c.name} is GRIDFROZEN — skips this turn.`);
-      continue;   // gridfreeze spends itself on the skip
-    }
-    if (st.type === 'overcook') {
-      const burn = Math.max(1, Math.ceil(c.hp * 0.10));
-      c.hp = Math.max(0, c.hp - burn);
-      pushLog('status', `${c.name} OVERCOOK — burns ${burn} HP.`);
-      popupDamage(side, '-' + burn, 'miss');
-    }
-    if (st.type === 'souldrift') {
-      c.atk = Math.max(1, Math.round(c.atk * 0.85));
-      c.def = Math.max(1, Math.round(c.def * 0.85));
-      c.spd = Math.max(1, Math.round(c.spd * 0.85));
-      const hpCut = Math.max(1, Math.ceil(c.hpMax * 0.15));
-      c.hpMax = Math.max(1, c.hpMax - hpCut);
-      if (c.hp > c.hpMax) c.hp = c.hpMax;
-      pushLog('status', `${c.name} SOULDRIFTS — every stat fades.`);
-    }
-    st.turns -= 1;
-    if (st.turns > 0) kept.push(st);
-    else if (st.type === 'souldrift') souldrifted = true;
-  }
-  c.statuses = kept;
-  if (c.hp <= 0) {
-    pushLog('system', `${c.name} succumbs to its astralite affliction.`);
-    handleFall(side);
-    return 'fell';
-  }
-  if (souldrifted) {
-    pushLog('system', `${c.name} SOULDRIFTED away — lost to the match.`);
-    c.hp = 0;
-    handleFall(side);
-    return 'fell';
-  }
-  return skip ? 'skip' : 'ok';
-}
-
-// handleFall — the side's active card has fallen. Force a shift, or end the
-// match if there are no reserves left.
-function handleFall(targetSide) {
-  const b = state.battle;
-  const tp = b[targetSide];
-  if (!tp.fallen.includes(tp.activeIdx)) tp.fallen.push(tp.activeIdx);
-  const haveReserves = tp.team.some((_, i) => i !== tp.activeIdx && !tp.fallen.includes(i));
-  if (!haveReserves) { endMatch(opp(targetSide)); return; }
-  b.awaitingShift = targetSide;
-  renderBattle();
-  if (targetSide === 'p2') setTimeout(aiHandleShift, 800);
-}
-
-// AI picks its starting card. Heuristic: highest combined stat-total card.
-function aiPickStartingCard(p) {
-  let bestIdx = 0, bestScore = -1;
-  p.team.forEach((c, i) => {
-    const score = c.hp + c.atk + c.def + c.spd + c.spc + c.spd * 0.05;
-    if (score > bestScore) { bestScore = score; bestIdx = i; }
-  });
-  return bestIdx;
-}
-
-function pickStartingCard(side, onDone) {
-  const p = state.battle[side];
-  if (side === 'p2') {
-    // AI auto-pick.
-    const idx = aiPickStartingCard(p);
-    p.activeIdx = idx;
-    pushLog('system', `AI reveals ${p.team[idx].name} (T${p.team[idx].tier} · SPD ${p.team[idx].spd}).`);
-    setTimeout(onDone, 850);
-    return;
-  }
-  // Player side — show the card-select modal.
-  const modal = document.getElementById('modal-card-select');
-  const grid = document.getElementById('card-select-grid');
-  const oppActive = state.battle.p2.team[state.battle.p2.activeIdx];
-  const oppRevealed = (state.battle.p2.activeIdx !== 0 || state.phase !== 'opening')
-                     && state.battle.log.some(l => l.msg.includes('AI reveals'));
-  document.getElementById('card-select-help').textContent = oppRevealed
-    ? `AI revealed ${oppActive.name} (T${oppActive.tier} · SPD ${oppActive.spd}). Pick your starting card.`
-    : 'Pick one of your 9 random cards to bring out first.';
+// ===== Faction draft (pick 9 of 23) =====
+function openFactionDraft() {
+  state.faction.userPicks = [];
+  const grid = $('faction-grid');
   grid.innerHTML = '';
-  p.team.forEach((c, i) => {
-    const cell = document.createElement('button');
-    cell.className = 'card-cell-pick';
-    cell.style.cssText = 'background:rgba(20,14,44,0.5);border:1px solid rgba(232,200,120,0.3);border-radius:6px;padding:8px;cursor:pointer;display:flex;flex-direction:column;gap:4px;text-align:left;transition:all 0.15s ease;';
-    cell.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-family:var(--font-meta);font-size:0.55rem;letter-spacing:0.2em;padding:1px 6px;border-radius:999px;background:rgba(232,200,120,0.12);color:var(--gold-bright);border:1px solid rgba(232,200,120,0.3);">T${c.tier}</span>
-        <span style="font-family:var(--font-meta);font-size:0.5rem;color:var(--mist-deep);letter-spacing:0.1em;">${c.id}</span>
-      </div>
-      <div style="font-family:var(--font-display);font-size:0.78rem;letter-spacing:0.05em;color:var(--gold-pale);text-transform:uppercase;">${c.name}</div>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:2px;font-family:var(--font-meta);font-size:0.55rem;color:var(--mist-deep);margin-top:2px;">
-        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">HP</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.hp}</div></div>
-        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">ATK</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.atk}</div></div>
-        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">DEF</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.def}</div></div>
-        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">SPD</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.spd}</div></div>
-        <div style="text-align:center;"><div style="font-size:0.45rem;letter-spacing:0.1em;">SPC</div><div style="color:var(--mist);font-weight:600;font-size:0.62rem;">${c.spc}</div></div>
-      </div>`;
-    cell.onmouseover = () => { cell.style.borderColor = 'var(--gold-bright)'; cell.style.background = 'rgba(232,200,120,0.10)'; };
-    cell.onmouseout  = () => { cell.style.borderColor = 'rgba(232,200,120,0.3)'; cell.style.background = 'rgba(20,14,44,0.5)'; };
-    cell.onclick = () => {
-      p.activeIdx = i;
-      pushLog('system', `You reveal ${c.name} (T${c.tier} · SPD ${c.spd}).`);
-      modal.classList.remove('show');
-      onDone();
+  ROSTER.forEach((c) => {
+    const card = document.createElement('div');
+    card.className = 'faction-card';
+    card.dataset.id = c.id;
+    card.innerHTML = `
+      <img src="${c.art}" alt="${c.name}" onerror="this.style.display='none'">
+      <div class="fc-name">${c.name}</div>
+      <div class="fc-meta">T${c.tier_roman} · ${c.type1} / ${c.type2}</div>
+      <div class="fc-stats">HP ${c.hp} · ATK ${c.atk} · SPC ${c.spc}</div>
+    `;
+    card.onclick = () => {
+      const idx = state.faction.userPicks.indexOf(c.id);
+      if (idx >= 0) { state.faction.userPicks.splice(idx, 1); card.classList.remove('selected'); }
+      else if (state.faction.userPicks.length < FACTION_SIZE) { state.faction.userPicks.push(c.id); card.classList.add('selected'); }
+      $('faction-count').textContent = Math.max(0, FACTION_SIZE - state.faction.userPicks.length);
+      $('faction-confirm').disabled = state.faction.userPicks.length !== FACTION_SIZE;
     };
-    grid.appendChild(cell);
+    grid.appendChild(card);
   });
-  modal.classList.add('show');
+  $('faction-count').textContent = FACTION_SIZE;
+  $('faction-confirm').disabled = true;
+  showModal('modal-faction', true);
 }
+$('faction-random').onclick = () => {
+  state.faction.userPicks = [];
+  const pool = ROSTER.map(c => c.id);
+  // Shuffle
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i+1)); [pool[i],pool[j]] = [pool[j],pool[i]]; }
+  state.faction.userPicks = pool.slice(0, FACTION_SIZE);
+  // Reflect in UI
+  document.querySelectorAll('#faction-grid .faction-card').forEach(el => {
+    el.classList.toggle('selected', state.faction.userPicks.includes(el.dataset.id));
+  });
+  $('faction-count').textContent = 0;
+  $('faction-confirm').disabled = false;
+};
+$('faction-confirm').onclick = () => {
+  // AI picks the remaining 9 (or any 9 if pool >= 18; with 23, give AI 9 random non-overlapping where possible)
+  const remaining = ROSTER.filter(c => !state.faction.userPicks.includes(c.id)).map(c => c.id);
+  for (let i = remaining.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i+1)); [remaining[i],remaining[j]] = [remaining[j],remaining[i]]; }
+  state.faction.aiPicks = remaining.slice(0, FACTION_SIZE);
+  // If AI pool short (it won't be with 23 vs 9), refill from any
+  if (state.faction.aiPicks.length < FACTION_SIZE) {
+    const all = ROSTER.map(c => c.id);
+    for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i+1)); [all[i],all[j]] = [all[j],all[i]]; }
+    while (state.faction.aiPicks.length < FACTION_SIZE) {
+      const next = all.shift();
+      if (!state.faction.aiPicks.includes(next)) state.faction.aiPicks.push(next);
+    }
+  }
+  showModal('modal-faction', false);
+  openDiceRoll();
+};
 
-// ============ Opening dice roll ============
-function openOpeningDice() {
-  const modal = document.getElementById('modal-open-dice');
-  document.getElementById('open-dice-you-roll').textContent = '?';
-  document.getElementById('open-dice-ai-roll').textContent = '?';
-  document.getElementById('open-dice-result').textContent = '';
-  document.getElementById('open-dice-roll').hidden = false;
-  document.getElementById('open-dice-continue').hidden = true;
-  document.getElementById('open-dice-you').classList.remove('winner','loser');
-  document.getElementById('open-dice-ai').classList.remove('winner','loser');
-  modal.classList.add('show');
-
-  document.getElementById('open-dice-roll').onclick = () => {
-    const youCell = document.getElementById('open-dice-you');
-    const aiCell  = document.getElementById('open-dice-ai');
-    youCell.classList.add('rolling'); aiCell.classList.add('rolling');
-    setTimeout(() => {
-      let y = rollD(DICE_SIDES), a = rollD(DICE_SIDES);
-      while (y === a) { y = rollD(DICE_SIDES); a = rollD(DICE_SIDES); }
-      document.getElementById('open-dice-you-roll').textContent = y;
-      document.getElementById('open-dice-ai-roll').textContent = a;
-      youCell.classList.remove('rolling'); aiCell.classList.remove('rolling');
-      const youWin = y > a;
-      youCell.classList.add(youWin ? 'winner' : 'loser');
-      aiCell.classList.add(youWin ? 'loser' : 'winner');
-      const winnerSide = youWin ? 'p1' : 'p2';
-      state._openingWinner = winnerSide;
-      document.getElementById('open-dice-result').textContent =
-        youWin ? `You roll ${y} vs AI ${a} — you choose.`
-               : `AI rolls ${a} vs your ${y} — AI chooses.`;
-      document.getElementById('open-dice-roll').hidden = true;
-      document.getElementById('open-dice-continue').hidden = false;
-    }, 600);
-  };
-  document.getElementById('open-dice-continue').onclick = () => {
-    modal.classList.remove('show');
-    openOpeningChoice();
-  };
+// ===== Dice roll opening =====
+function openDiceRoll() {
+  $('open-dice-you-roll').textContent = '?';
+  $('open-dice-ai-roll').textContent = '?';
+  $('open-dice-you').classList.remove('winner','loser','rolling');
+  $('open-dice-ai').classList.remove('winner','loser','rolling');
+  $('open-dice-result').textContent = '';
+  $('open-dice-roll').hidden = false;
+  $('open-dice-continue').hidden = true;
+  showModal('modal-open-dice', true);
 }
-
-// ============ Opening PLAY/PASS choice ============
-function openOpeningChoice() {
-  const winner = state._openingWinner;
-  const modal = document.getElementById('modal-open-choice');
-  const title = document.getElementById('open-choice-title');
-  const help  = document.getElementById('open-choice-help');
-  const playBtn = document.getElementById('open-choice-play');
-  const passBtn = document.getElementById('open-choice-pass');
-  const resultEl = document.getElementById('open-choice-result');
-  const contBtn = document.getElementById('open-choice-continue');
-  resultEl.textContent = '';
-  contBtn.hidden = true;
-  modal.classList.add('show');
-
-  if (winner === 'p1') {
-    title.textContent = 'You won the opening';
-    help.textContent = 'Set the tone — take the first move, or pass and force your opponent to commit first.';
-    playBtn.style.opacity = '1'; playBtn.style.pointerEvents = 'auto';
-    passBtn.style.opacity = '1'; passBtn.style.pointerEvents = 'auto';
-    playBtn.onclick = () => resolveOpeningChoice('p1', 'play');
-    passBtn.onclick = () => resolveOpeningChoice('p1', 'pass');
+$('open-dice-roll').onclick = () => {
+  $('open-dice-roll').hidden = true;
+  $('open-dice-you').classList.add('rolling');
+  $('open-dice-ai').classList.add('rolling');
+  const settle = () => {
+    let u = rollD(6), a = rollD(6);
+    while (u === a) { u = rollD(6); a = rollD(6); } // re-roll ties for v3 simplicity
+    state.opening.userRoll = u; state.opening.aiRoll = a;
+    $('open-dice-you-roll').textContent = u;
+    $('open-dice-ai-roll').textContent = a;
+    $('open-dice-you').classList.remove('rolling');
+    $('open-dice-ai').classList.remove('rolling');
+    const userWon = u > a;
+    state.opening.winner = userWon ? 'p1' : 'p2';
+    if (userWon) { $('open-dice-you').classList.add('winner'); $('open-dice-ai').classList.add('loser'); $('open-dice-result').textContent = 'You won the roll'; }
+    else { $('open-dice-you').classList.add('loser'); $('open-dice-ai').classList.add('winner'); $('open-dice-result').textContent = 'AI won the roll'; }
+    $('open-dice-continue').hidden = false;
+  };
+  setTimeout(settle, 700);
+};
+$('open-dice-continue').onclick = () => {
+  showModal('modal-open-dice', false);
+  if (state.opening.winner === 'p1') {
+    $('open-choice-title').textContent = 'You Won the Roll';
+    showModal('modal-open-choice', true);
   } else {
-    title.textContent = 'AI won the opening';
-    help.textContent = 'AI is choosing whether to play first or pass…';
-    playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none';
-    passBtn.style.opacity = '0.5'; passBtn.style.pointerEvents = 'none';
-    setTimeout(() => {
-      const aiChoice = Math.random() < 0.75 ? 'play' : 'pass';
-      const picked = aiChoice === 'play' ? playBtn : passBtn;
-      picked.style.opacity = '1';
-      picked.style.borderColor = 'var(--gold-bright)';
-      resolveOpeningChoice('p2', aiChoice);
-    }, 1100);
+    // AI picks PLAY most of the time (75%)
+    state.opening.mode = Math.random() < 0.75 ? 'play' : 'pass';
+    log('system', `AI won the roll — chose ${state.opening.mode.toUpperCase()}.`);
+    openStartersPick();
   }
-}
+};
+$('open-choice-play').onclick = () => { state.opening.mode = 'play'; showModal('modal-open-choice', false); openStartersPick(); };
+$('open-choice-pass').onclick = () => { state.opening.mode = 'pass'; showModal('modal-open-choice', false); openStartersPick(); };
 
-function resolveOpeningChoice(chooser, choice) {
-  const battle = state.battle;
-  const firstActor = (choice === 'play') ? chooser : opp(chooser);
-  battle.turn = firstActor;
-  const choiceLabel = choice.toUpperCase();
-  const chooserName = battle[chooser].name;
-  const firstActorName = battle[firstActor].name;
-  document.getElementById('open-choice-result').textContent =
-    `${chooserName} chose ${choiceLabel} — ${firstActorName} goes first.`;
-  document.getElementById('open-choice-continue').hidden = false;
-  document.getElementById('open-choice-continue').onclick = () => {
-    document.getElementById('modal-open-choice').classList.remove('show');
-    show('battle-screen', true);
-    document.querySelector('.app').classList.add('battle-mode');
-    state.phase = 'battle';
-    pushLog('system', `Match begin. ${chooserName} chose ${choiceLabel} — ${firstActorName} acts first.`);
-    turnTo(firstActor);
+// ===== Starters pick (3 of 9) =====
+function openStartersPick() {
+  state.starters.userPicks = [];
+  const grid = $('starters-grid');
+  grid.innerHTML = '';
+  state.faction.userPicks.forEach(id => {
+    const c = ROSTER.find(r => r.id === id);
+    const card = document.createElement('div');
+    card.className = 'faction-card';
+    card.dataset.id = c.id;
+    card.innerHTML = `
+      <img src="${c.art}" alt="${c.name}" onerror="this.style.display='none'">
+      <div class="fc-name">${c.name}</div>
+      <div class="fc-meta">T${c.tier_roman} · ${c.type1} / ${c.type2}</div>
+      <div class="fc-stats">SPD ${c.spd} · HP ${c.hp}</div>
+    `;
+    card.onclick = () => {
+      const idx = state.starters.userPicks.indexOf(c.id);
+      if (idx >= 0) { state.starters.userPicks.splice(idx, 1); card.classList.remove('selected'); }
+      else if (state.starters.userPicks.length < ACTIVE_SIZE) { state.starters.userPicks.push(c.id); card.classList.add('selected'); }
+      $('starters-confirm').disabled = state.starters.userPicks.length !== ACTIVE_SIZE;
+    };
+    grid.appendChild(card);
+  });
+  $('starters-confirm').disabled = true;
+  showModal('modal-starters', true);
+}
+$('starters-confirm').onclick = () => {
+  // AI auto-picks 3: top-3 by SPD from its 9
+  const aiAll = state.faction.aiPicks.map(id => ROSTER.find(r => r.id === id));
+  aiAll.sort((a,b) => b.spd - a.spd);
+  const aiStarters = aiAll.slice(0, ACTIVE_SIZE).map(c => c.id);
+  showModal('modal-starters', false);
+  initBattle(state.starters.userPicks, aiStarters);
+};
+
+// ============ Battle init ============
+function initBattle(userStarters, aiStarters) {
+  document.querySelector('.app').classList.add('battle-mode');
+  show('battle-screen', true);
+  show('gameover-screen', false);
+
+  const buildSide = (factionIds, starters) => {
+    const faction = factionIds.map(id => {
+      const c = clone(ROSTER.find(r => r.id === id));
+      setBase(c);
+      return c;
+    });
+    const active = starters.map(sid => faction.findIndex(c => c.id === sid));
+    const reserve = faction.map((_,i) => i).filter(i => !active.includes(i));
+    return { faction, active, reserve, fallen: [], gems: TEAM_GEM_POOL };
   };
+
+  state.battle = {
+    p1: buildSide(state.faction.userPicks, userStarters),
+    p2: buildSide(state.faction.aiPicks, aiStarters),
+    round: 0,
+    possession: null,
+    acted: [false,false,false],
+    log: [],
+    winner: null,
+    awaitingShiftFor: null
+  };
+
+  // Opening rules: if opening.mode === 'play', the roll winner acts first this round.
+  // If 'pass', the OTHER team acts first.
+  const winner = state.opening.winner;
+  state.battle.possession = state.opening.mode === 'play' ? winner : opp(winner);
+
+  log('system', `Match begins. ${state.battle.possession === 'p1' ? 'You' : 'AI'} take possession.`);
+  render();
+  beginPossession();
 }
 
-// ============ Logging ============
-function pushLog(type, msg) {
-  state.battle.log.push({ type, msg, t: Date.now() });
-  if (state.battle.log.length > 200) state.battle.log.shift();
-  renderLog();
-}
-function renderLog() {
-  const log = document.getElementById('battle-log');
-  log.innerHTML = '';
-  for (const e of state.battle.log) {
-    const el = document.createElement('div');
-    el.className = 'log-entry ' + e.type;
-    el.textContent = e.msg;
-    log.appendChild(el);
-  }
-  log.scrollTop = log.scrollHeight;
-}
-
-// ============ Render ============
-function renderBattle() {
+// ============ Possession (turn) lifecycle ============
+function beginPossession() {
   const b = state.battle;
-  if (!b) return;
-  const g1 = activeOf('p1'), g2 = activeOf('p2');
-  document.getElementById('p1-gems').textContent = g1 ? g1.gems : 0;
-  document.getElementById('p2-gems').textContent = g2 ? g2.gems : 0;
-  renderCard('p1');
-  renderCard('p2');
-  renderReserves('p1');
-  renderReserves('p2');
+  if (b.winner) return;
+  // Determine actual possession by highest-SPD active card on each team. Opening override only applies to round 0.
+  if (b.round > 0) {
+    const p1Spd = highestActiveSpd('p1');
+    const p2Spd = highestActiveSpd('p2');
+    if (p1Spd > p2Spd) b.possession = 'p1';
+    else if (p2Spd > p1Spd) b.possession = 'p2';
+    // tie: keep previous possession holder swap (alternate)
+    else b.possession = opp(b.possession || 'p1');
+  }
+  b.round++;
+  b.acted = [false, false, false];
+  // Apply status ticks for ALL active cards of the possessing team at start of their possession
+  for (let s = 0; s < ACTIVE_SIZE; s++) {
+    const c = activeCard(b.possession, s);
+    if (!c || c.fallen) continue;
+    tickStatuses(c);
+    // Clear the "entered this turn" flag on the NON-possessing team's just-entered cards (now they CAN attack)
+  }
+  // Anything just-shifted-in on the OTHER team: clear flag so they can attack next time it's their possession
+  // (We do this on the OWN team at start of their possession instead — see executeMove for the gate.)
+  // Actually: the rule is "shifted-in card does NOT attack the same turn it enters". So we set enteredThisTurn=true
+  // on the new card when it shifts in (during this team's possession), and clear it when this team's possession ENDS.
+  log('system', `Round ${b.round} · ${b.possession === 'p1' ? 'Your' : 'AI'} possession (highest SPD).`);
+  updatePossessionBanner();
+  render();
+  checkWin();
+  if (b.winner) { endMatch(); return; }
+  if (b.possession === 'p2') {
+    setTimeout(aiTurn, 700);
+  } else {
+    clearSelection();
+    setActionsHint('Pick an active card to act with — or revive a fallen card.');
+  }
+}
+
+function highestActiveSpd(side) {
+  let best = -1;
+  for (let s = 0; s < ACTIVE_SIZE; s++) {
+    const c = activeCard(side, s);
+    if (c && !c.fallen) best = Math.max(best, tagStat(c, 'spd'));
+  }
+  return best;
+}
+
+function endPossession() {
+  const b = state.battle;
+  if (b.winner) return;
+  // Clear enteredThisTurn for the side whose possession just ended
+  const just = b.possession;
+  for (let s = 0; s < ACTIVE_SIZE; s++) {
+    const c = activeCard(just, s);
+    if (c) c.enteredThisTurn = false;
+  }
+  b.possession = opp(just);
+  setTimeout(beginPossession, 500);
+}
+
+// Check whether all active cards on possessing team have acted (or are unable to act)
+function maybeAdvancePossession() {
+  const b = state.battle;
+  let any = false;
+  for (let s = 0; s < ACTIVE_SIZE; s++) {
+    if (b.acted[s]) continue;
+    const c = activeCard(b.possession, s);
+    if (c && !c.fallen) { any = true; break; }
+  }
+  if (!any) endPossession();
+}
+
+// ============ Status processing ============
+function tickStatuses(c) {
+  if (!c.statuses || !c.statuses.length) return;
+  const surviving = [];
+  for (const st of c.statuses) {
+    const spec = STATUSES[st.key];
+    if (!spec) continue;
+    if (spec.kind === 'dot') {
+      const burn = Math.max(1, Math.ceil(c.maxHp * st.pct));
+      c.hp = Math.max(0, c.hp - burn);
+      log('status', `${c.name} burns from Overcook (−${burn} HP).`);
+    } else if (spec.kind === 'fade') {
+      // Souldrift: reduce all stats by pct of base; if HP hits 0 from the fade, card is removed.
+      ['hp','atk','def','spd','spc'].forEach(k => {
+        const base = c['_base_'+k] || 0;
+        c.mods[k] -= Math.ceil(base * st.pct);
+      });
+      const dmg = Math.max(1, Math.ceil(c.maxHp * st.pct));
+      c.hp = Math.max(0, c.hp - dmg);
+      log('status', `${c.name} fades from Souldrift (stats decay).`);
+    } else if (spec.kind === 'debuff') {
+      // already-applied at inflict; persists. Stat damage doesn't double-tick.
+    }
+    if (spec.fixedTurns != null) {
+      st.turnsLeft = (st.turnsLeft ?? spec.fixedTurns) - 1;
+      if (st.turnsLeft > 0) surviving.push(st);
+      else log('status', `${c.name} shakes off ${spec.label}.`);
+    } else {
+      surviving.push(st);
+    }
+    if (c.hp <= 0) {
+      c.fallen = true;
+      log('damage', `${c.name} falls from status damage!`);
+      moveToFallen(findSide(c));
+      break;
+    }
+  }
+  c.statuses = surviving;
+}
+
+function findSide(card) {
+  if (state.battle.p1.faction.some(c => c === card)) return 'p1';
+  return 'p2';
+}
+
+function moveToFallen(side) {
+  const s = state.battle[side];
+  for (let slot = 0; slot < ACTIVE_SIZE; slot++) {
+    const idx = s.active[slot];
+    if (idx == null || idx < 0) continue;
+    if (s.faction[idx].fallen) {
+      s.fallen.push(idx);
+      // Auto-fill from reserve if available
+      const next = s.reserve.shift();
+      if (next != null) {
+        s.active[slot] = next;
+        s.faction[next].enteredThisTurn = true;
+        log('system', `${s.faction[next].name} shifts in to take the open slot.`);
+      } else {
+        s.active[slot] = -1;
+      }
+    }
+  }
+}
+
+// ============ Damage resolution ============
+function computeDamage(attacker, defender, kind) {
+  const tier = tierInt(attacker);
+  let mult;
+  if (kind === 'a1') mult = A1_MULT;
+  else if (kind === 'a2') mult = A2_MULT;
+  else mult = A3_MULT;
+  // Choose attack type
+  let typeMult = 1;
+  const a1Type = attacker.type1;
+  const a2Type = attacker.type2;
+  if (kind === 'a1') {
+    typeMult = typeMultiplier(a1Type, defender.type1, defender.type2);
+  } else if (kind === 'a2') {
+    typeMult = typeMultiplier(a2Type, defender.type1, defender.type2);
+  } else {
+    // A3: best of both
+    const m1 = typeMultiplier(a1Type, defender.type1, defender.type2);
+    const m2 = typeMultiplier(a2Type, defender.type1, defender.type2);
+    typeMult = Math.max(m1, m2);
+  }
+  // Damage = ATK * moveMult, round up
+  let dmg = Math.ceil(tagStat(attacker, 'atk') * mult);
+  // Type multiplier
+  dmg = Math.ceil(dmg * typeMult);
+  // DEF reduction
+  const reduction = defReduction(tagStat(defender, 'def'));
+  dmg = Math.ceil(dmg * (1 - reduction));
+  dmg = Math.max(1, dmg);
+  return { dmg, typeMult, reduction };
+}
+
+function applyDamage(attacker, defender, kind) {
+  const r = computeDamage(attacker, defender, kind);
+  defender.hp = Math.max(0, defender.hp - r.dmg);
+  attacker.stats.dmgDealt += r.dmg;
+  defender.stats.dmgTaken += r.dmg;
+  // Type-effective log
+  const lbl = typeLabel(r.typeMult);
+  if (lbl === 'devastating' || lbl === 'super effective') log('type-strong', `It's ${lbl}! (${r.typeMult}×)`);
+  else if (lbl === 'not very effective' || lbl === 'almost no effect') log('type-weak', `${lbl[0].toUpperCase()+lbl.slice(1)}. (${r.typeMult}×)`);
+  log('damage', `${attacker.name} hits ${defender.name} for ${r.dmg} (DEF -${Math.round(r.reduction*100)}%).`);
+  // Floating popup
+  const defSide = findSide(defender);
+  const defSlot = state.battle[defSide].active.indexOf(state.battle[defSide].faction.indexOf(defender));
+  popDamage(defSide, defSlot, r.dmg, r.typeMult >= 2 ? 'crit' : '');
+  if (defender.hp <= 0) {
+    defender.fallen = true;
+    log('damage', `${defender.name} falls!`);
+    attacker.stats.kills += 1;
+    moveToFallen(defSide);
+  }
+  return r;
+}
+
+function popDamage(side, slot, n, cls) {
+  const el = $(side + '-slot-' + slot);
+  if (!el) return;
+  const pop = document.createElement('div');
+  pop.className = 'damage-popup ' + (cls || '');
+  pop.textContent = '−' + n;
+  el.appendChild(pop);
+  setTimeout(() => pop.remove(), 1100);
+}
+
+// ============ Status application ============
+function tryProcStatus(attacker, defender, kind, isBackfire) {
+  const tier = tierInt(attacker);
+  const procPct = kind === 'a2' ? procA2Pct(tier) : procA3Pct(tier);
+  if (Math.random() > procPct) return false;
+  // Pick a random status
+  const key = randomStatusKey();
+  const pct = statusPct(tier);
+  const st = { key, pct, turnsLeft: STATUSES[key].fixedTurns };
+  if (key === 'undershock') {
+    // Debuff one random opponent stat (or attacker if backfire)
+    const stats = ['hp','atk','def','spd','spc'];
+    const stat = stats[Math.floor(Math.random()*stats.length)];
+    st.debuffStat = stat;
+    const target = isBackfire ? attacker : defender;
+    const amt = Math.ceil((target['_base_'+stat] || 0) * pct);
+    target.mods[stat] -= amt;
+    log('status', `${target.name} suffers Undershock (−${amt} ${stat.toUpperCase()}).`);
+  } else {
+    const target = isBackfire ? attacker : defender;
+    target.statuses = target.statuses || [];
+    // Don't stack same status — refresh duration
+    const existing = target.statuses.findIndex(s => s.key === key);
+    if (existing >= 0) target.statuses[existing] = st;
+    else target.statuses.push(st);
+    log('status', `${target.name} inflicted with ${STATUSES[key].label} (${Math.round(pct*100)}%).`);
+  }
+  if (!isBackfire) attacker.stats.statusesInflicted += 1;
+  return true;
+}
+
+// ============ Move execution ============
+function executeMove(side, slot, kind, target) {
+  // target = { side, slot } for a1/a2/a3
+  const c = activeCard(side, slot);
+  if (!c || c.fallen) return false;
+  if (c.enteredThisTurn) return false;
+  if (state.battle.acted[slot]) return false;
+  // Brainlock gate
+  if (c.statuses.some(s => s.key === 'brainlock') && kind !== 'a1' && kind !== 'shift' && kind !== 'spc') {
+    log('status', `${c.name} is Brainlocked — A1 only.`);
+    return false;
+  }
+  // Gridfreeze (skip turn)
+  if (c.statuses.some(s => s.key === 'gridfreeze')) {
+    log('status', `${c.name} is Gridfrozen — skips this turn.`);
+    state.battle.acted[slot] = true;
+    // Consume the gridfreeze
+    const i = c.statuses.findIndex(s => s.key === 'gridfreeze');
+    if (i >= 0) c.statuses.splice(i, 1);
+    advanceAfterMove(side);
+    return true;
+  }
+  // Gem cost & resolve
+  const teamGems = state.battle[side].gems;
+  if (kind === 'a1') {
+    if (teamGems < A1_GEM) { log('miss', `${c.name} can't afford A1.`); return false; }
+    state.battle[side].gems -= A1_GEM;
+    animateAttack(side, slot, target);
+    const t = activeCard(target.side, target.slot);
+    if (!t || t.fallen) { log('miss', 'No target.'); return false; }
+    applyDamage(c, t, 'a1');
+    c.stats.movesUsed += 1;
+  } else if (kind === 'a2' || kind === 'a3') {
+    const cost = kind === 'a2' ? A2_GEM : A3_GEM;
+    if (teamGems < cost) { log('miss', `${c.name} can't afford ${kind.toUpperCase()}.`); return false; }
+    state.battle[side].gems -= cost;
+    animateAttack(side, slot, target);
+    const t = activeCard(target.side, target.slot);
+    if (!t || t.fallen) { log('miss', 'No target.'); return false; }
+    // Damage always lands
+    applyDamage(c, t, kind);
+    // Backfire check
+    const bf = Math.random() < backfirePct(tierInt(c), c.spc);
+    if (bf) {
+      log('backfire', `${c.name}'s astralite destabilizes — backfire!`);
+      c.stats.backfires += 1;
+      // Status hits attacker instead of target
+      if (!t.fallen) tryProcStatus(c, t, kind, true);
+    } else {
+      if (!t.fallen) tryProcStatus(c, t, kind, false);
+    }
+    c.stats.movesUsed += 1;
+  } else if (kind === 'spc') {
+    // handled in modal flow — should not call directly
+    return false;
+  } else if (kind === 'shift') {
+    return false; // handled via shift flow
+  }
+  state.battle.acted[slot] = true;
+  checkWin();
+  if (state.battle.winner) { endMatch(); return true; }
+  render();
+  advanceAfterMove(side);
+  return true;
+}
+
+function advanceAfterMove(side) {
+  setTimeout(() => {
+    if (state.battle.winner) return;
+    if (side === 'p2') {
+      // AI continues until all 3 acted or no playable
+      maybeAdvancePossession();
+      if (state.battle.possession === 'p2' && !state.battle.winner) setTimeout(aiTurn, 500);
+    } else {
+      maybeAdvancePossession();
+      if (state.battle.possession === 'p1' && !state.battle.winner) {
+        clearSelection();
+        setActionsHint('Pick another active card to act with.');
+      }
+    }
+  }, 350);
+}
+
+function animateAttack(side, slot, target) {
+  const el = $(side + '-slot-' + slot);
+  if (el) { el.classList.add('attack-forward'); setTimeout(() => el.classList.remove('attack-forward'), 450); }
+  const tEl = $(target.side + '-slot-' + target.slot);
+  if (tEl) { setTimeout(() => { tEl.classList.add('attack-hit'); setTimeout(() => tEl.classList.remove('attack-hit'), 450); }, 200); }
+}
+
+// ============ SPC boost flow ============
+function openSpcModal(side, slot) {
+  const c = activeCard(side, slot);
+  if (!c || c.spcUsed) return;
+  const amt = spcBoost(c.spc);
+  $('spc-amount').textContent = '+' + amt;
+  const grid = $('spc-grid');
+  grid.innerHTML = '';
+  ['hp','atk','def','spd','spc'].forEach(stat => {
+    const btn = document.createElement('button');
+    btn.className = 'stat-pick-btn';
+    btn.innerHTML = `<div>${stat.toUpperCase()}</div><div class="delta">+${amt}</div>`;
+    btn.onclick = () => {
+      c.mods[stat] += amt;
+      if (stat === 'hp') { c.maxHp += amt; c.hp += amt; } // HP boost also restores
+      c.spcUsed = true;
+      const el = $(side + '-slot-' + slot);
+      if (el) { el.classList.add('spc-flash'); setTimeout(() => el.classList.remove('spc-flash'), 700); }
+      log('spc', `${c.name} uses SPC boost: +${amt} ${stat.toUpperCase()} (permanent).`);
+      showModal('modal-spc', false);
+      state.battle.acted[slot] = true;
+      c.stats.movesUsed += 1;
+      render();
+      advanceAfterMove(side);
+    };
+    grid.appendChild(btn);
+  });
+  showModal('modal-spc', true);
+}
+$('spc-cancel').onclick = () => { showModal('modal-spc', false); clearSelection(); render(); };
+
+// ============ Shift flow ============
+function beginShift(side, slot) {
+  state.selection = { side, slot, mode:'shift', kind:'shift' };
+  setActionsHint('Pick a reserve card below to swap in. (Shift consumes the slot\'s turn.)');
+  render();
+}
+function doShift(side, slot, reserveFactionIdx) {
+  const b = state.battle[side];
+  const outIdx = b.active[slot];
+  const outCard = b.faction[outIdx];
+  b.active[slot] = reserveFactionIdx;
+  // Remove from reserve, push outgoing to reserve
+  const ri = b.reserve.indexOf(reserveFactionIdx);
+  if (ri >= 0) b.reserve.splice(ri, 1);
+  if (outIdx >= 0) b.reserve.push(outIdx);
+  b.faction[reserveFactionIdx].enteredThisTurn = true;
+  log('system', `${outCard.name} shifts out · ${b.faction[reserveFactionIdx].name} steps onto the field.`);
+  state.battle.acted[slot] = true;
+  state.battle[side].faction[reserveFactionIdx].stats.movesUsed += 1;
+  clearSelection();
+  render();
+  advanceAfterMove(side);
+}
+
+// ============ Revive flow ============
+function openReviveModal(side) {
+  const b = state.battle[side];
+  if (!b.fallen.length) return;
+  $('revive-cost').textContent = '(tier ÷ each)';
+  const list = $('revive-list');
+  list.innerHTML = '';
+  for (const fIdx of b.fallen) {
+    const c = b.faction[fIdx];
+    const cost = reviveCost(tierInt(c));
+    const row = document.createElement('div');
+    row.className = 'reserve-chip revive-target';
+    row.style.cursor = b.gems >= cost ? 'pointer' : 'not-allowed';
+    row.style.opacity = b.gems >= cost ? '1' : '0.35';
+    row.innerHTML = `<span>${c.name}</span><span class="tier-pill">T${c.tier_roman} · ${cost} gems</span>`;
+    if (b.gems >= cost) {
+      row.onclick = () => doRevive(side, fIdx);
+    }
+    list.appendChild(row);
+  }
+  showModal('modal-revive', true);
+}
+$('revive-cancel').onclick = () => { showModal('modal-revive', false); clearSelection(); render(); };
+
+function doRevive(side, fIdx) {
+  const b = state.battle[side];
+  const c = b.faction[fIdx];
+  const cost = reviveCost(tierInt(c));
+  if (b.gems < cost) return;
+  b.gems -= cost;
+  // Restore stats
+  c.fallen = false;
+  c.risen = true;
+  c.hp = Math.ceil(c.maxHp * 0.5);
+  c.statuses = [];
+  // Move from fallen → reserve
+  const i = b.fallen.indexOf(fIdx);
+  if (i >= 0) b.fallen.splice(i, 1);
+  b.reserve.push(fIdx);
+  log('spc', `${c.name} is revived (Risen, 50% HP).`);
+  showModal('modal-revive', false);
+  // Revive is a free action (doesn't consume a card's turn)
+  render();
+}
+
+// ============ Rendering ============
+function render() {
+  if (!state.battle) return;
+  $('p1-gems').textContent = state.battle.p1.gems;
+  $('p2-gems').textContent = state.battle.p2.gems;
+  ['p1','p2'].forEach(side => {
+    for (let s = 0; s < ACTIVE_SIZE; s++) renderSlot(side, s);
+    renderReserves(side);
+  });
+  // Active-turn glow
+  $('p1-side').classList.toggle('active-turn', state.battle.possession === 'p1');
+  $('p2-side').classList.toggle('active-turn', state.battle.possession === 'p2');
+  // Actions
   renderActions();
-  document.getElementById('p1-side').classList.toggle('active-turn', b.turn === 'p1' && !b.awaitingShift);
-  document.getElementById('p2-side').classList.toggle('active-turn', b.turn === 'p2' && !b.awaitingShift);
-  renderLog();
+  updatePossessionBanner();
 }
 
-// Map roster names → card art file slug.
-const CARD_ART_REMAP = { oathare: 'oathane' };
-function cardArtPath(name) {
-  const slug = name.toLowerCase().replace(/[^a-z]/g, '');
-  return `/cards/card_${CARD_ART_REMAP[slug] || slug}.png`;
-}
+function renderSlot(side, slot) {
+  const el = $(side + '-slot-' + slot);
+  if (!el) return;
+  const c = activeCard(side, slot);
+  el.className = 'slot';
+  el.innerHTML = '';
+  if (!c || c.fallen) {
+    el.classList.add('empty');
+    el.innerHTML = '<div class="slot-name" style="color:var(--mist-deep);opacity:0.6;">— Empty —</div>';
+    return;
+  }
+  // Selectable: own active card on possession, not already acted, not entered this turn
+  const ours = side === state.battle.possession;
+  const canSelect = ours && !state.battle.acted[slot] && !c.enteredThisTurn && !state.battle.winner && side === 'p1';
+  if (canSelect) el.classList.add('selectable');
+  if (state.battle.acted[slot] && ours) el.classList.add('acted');
+  // If we are in target mode and this is the opposite side, mark as target
+  if (state.selection.mode === 'target' && side !== state.selection.side) el.classList.add('target');
+  if (state.selection.side === side && state.selection.slot === slot && state.selection.mode === 'pick') el.classList.add('selected');
 
-function renderCard(side) {
-  const c = activeOf(side);
-  const root = document.getElementById(side + '-card');
-  if (!c) { root.innerHTML = '<em style="color:var(--mist-deep);">No active card</em>'; return; }
-  const hpPct = Math.max(0, c.hp / c.hpMax) * 100;
-  const hpClass = hpPct < 25 ? 'critical' : hpPct < 50 ? 'low' : '';
-  const statusChips = (c.statuses || []).map(s => {
-    const d = STATUSES[s.type];
-    return `<span class="status-chip" style="--sc:${d.color}" title="${d.label} — ${d.blurb}">${d.label} ${s.turns}</span>`;
-  }).join('');
-  root.innerHTML = `
-    <div class="gems-committed-badge" title="${c.gems} gems banked on this card">✦ ${c.gems}</div>
-    <div class="battle-card-status">
-      <span class="battle-card-name">${c.name}</span>
-      <span style="font-family:var(--font-meta);font-size:0.55rem;letter-spacing:0.2em;padding:1px 6px;border-radius:999px;background:rgba(232,200,120,0.12);color:var(--gold-bright);border:1px solid rgba(232,200,120,0.3);">T${c.tier}</span>
-    </div>
-    <img class="card-art" src="${cardArtPath(c.name)}" alt="${c.name}"
-         onerror="this.outerHTML='<div class=card-art-fallback>${c.name}</div>'" />
-    <div class="battle-card-hp">
-      <div class="hp-bar-wrap"><div class="hp-bar-fill ${hpClass}" style="width:${hpPct}%"></div></div>
-      <div class="hp-text">${c.hp} / ${c.hpMax} HP</div>
-    </div>
-    ${statusChips ? `<div class="status-row">${statusChips}</div>` : ''}`;
+  // Build content
+  const head = document.createElement('div');
+  head.className = 'slot-name';
+  head.textContent = c.name + (c.risen ? ' ✦' : '');
+  el.appendChild(head);
+
+  const tt = document.createElement('div');
+  tt.className = 'slot-tier-types';
+  tt.innerHTML = `<span class="tier">T${c.tier_roman}</span><span>${c.type1}/${c.type2}</span>`;
+  el.appendChild(tt);
+
+  const img = document.createElement('img');
+  img.className = 'card-art';
+  img.src = c.art;
+  img.alt = c.name;
+  img.onerror = () => { img.remove(); const f = document.createElement('div'); f.className = 'card-art-fallback'; f.textContent = c.name; el.insertBefore(f, hpWrap); };
+  el.appendChild(img);
+
+  const hpWrap = document.createElement('div');
+  hpWrap.className = 'hp-bar-wrap';
+  const hpFill = document.createElement('div');
+  hpFill.className = 'hp-bar-fill';
+  const hpFrac = c.hp / c.maxHp;
+  hpFill.style.width = (hpFrac * 100).toFixed(1) + '%';
+  if (hpFrac < 0.3) hpFill.classList.add('critical');
+  else if (hpFrac < 0.6) hpFill.classList.add('low');
+  hpWrap.appendChild(hpFill);
+  el.appendChild(hpWrap);
+
+  const hpText = document.createElement('div');
+  hpText.className = 'hp-text';
+  hpText.textContent = c.hp + ' / ' + c.maxHp;
+  el.appendChild(hpText);
+
+  const stats = document.createElement('div');
+  stats.className = 'stat-grid';
+  ['hp','atk','def','spd','spc'].forEach(stat => {
+    const cell = document.createElement('div');
+    cell.className = 'stat-cell';
+    const live = stat === 'hp' ? c.maxHp : tagStat(c, stat);
+    const base = c['_base_'+stat] || 0;
+    if (stat !== 'hp' && live > base) cell.classList.add('buffed');
+    if (stat !== 'hp' && live < base) cell.classList.add('debuffed');
+    if (stat === 'spc' && c.spcUsed) cell.classList.add('spc-spent');
+    cell.innerHTML = `<div class="lbl">${stat.toUpperCase()}</div><div class="val">${live}</div>`;
+    stats.appendChild(cell);
+  });
+  el.appendChild(stats);
+
+  // Status chips
+  const statusRow = document.createElement('div');
+  statusRow.className = 'status-row';
+  (c.statuses || []).forEach(s => {
+    const spec = STATUSES[s.key];
+    const chip = document.createElement('span');
+    chip.className = 'status-chip';
+    chip.style.setProperty('--sc', spec.color);
+    chip.textContent = spec.label + (s.turnsLeft != null ? ` ${s.turnsLeft}` : '');
+    statusRow.appendChild(chip);
+  });
+  el.appendChild(statusRow);
+
+  // Bindings: select own, target other
+  if (canSelect) {
+    el.onclick = () => selectActiveCard(side, slot);
+  } else if (el.classList.contains('target')) {
+    el.onclick = () => fireOnTarget(side, slot);
+  } else {
+    el.onclick = null;
+  }
 }
 
 function renderReserves(side) {
-  const root = document.getElementById(side + '-reserves');
-  root.innerHTML = '';
-  const p = state.battle[side];
-  // For the AI (p2), hide reserve identities — show ?? for fresh hidden
-  // reserves; reveal name only for the active card and fallen cards.
-  const hidden = (side === 'p2');
-  p.team.forEach((c, i) => {
-    const el = document.createElement('div');
-    el.className = 'reserve-card';
-    const isActive = i === p.activeIdx;
-    const isFallen = p.fallen.includes(i);
-    if (isActive) el.classList.add('active');
-    if (isFallen) el.classList.add('fallen');
-    const reveal = !hidden || isActive || isFallen;
-    el.textContent = reveal ? (c.name + ' T' + c.tier) : '?? T?';
-    root.appendChild(el);
+  const wrap = $(side + '-reserves');
+  wrap.innerHTML = '';
+  const b = state.battle[side];
+  // Show reserves
+  b.reserve.forEach(idx => {
+    const c = b.faction[idx];
+    const chip = document.createElement('div');
+    chip.className = 'reserve-chip';
+    if (c.risen) chip.classList.add('risen');
+    chip.innerHTML = `<span>${c.name}</span><span class="tier-pill">T${c.tier_roman}</span>`;
+    // If in shift mode and this is our side, allow click
+    if (state.selection.mode === 'shift' && state.selection.side === side) {
+      chip.classList.add('shift-target');
+      chip.onclick = () => doShift(side, state.selection.slot, idx);
+    }
+    wrap.appendChild(chip);
   });
+  // Show fallen (greyed)
+  b.fallen.forEach(idx => {
+    const c = b.faction[idx];
+    const chip = document.createElement('div');
+    chip.className = 'reserve-chip fallen';
+    chip.innerHTML = `<span>${c.name}</span><span class="tier-pill">T${c.tier_roman} · fallen</span>`;
+    wrap.appendChild(chip);
+  });
+  // Revive entry if applicable
+  if (side === 'p1' && b.fallen.length && state.battle.possession === 'p1' && !state.battle.winner) {
+    const btn = document.createElement('div');
+    btn.className = 'reserve-chip';
+    btn.style.cursor = 'pointer';
+    btn.style.borderColor = 'var(--cosmic-blue)';
+    btn.style.color = 'var(--cosmic-blue)';
+    btn.innerHTML = `<span>Revive (free action)</span><span class="tier-pill">${b.fallen.length} fallen</span>`;
+    btn.onclick = () => openReviveModal('p1');
+    wrap.appendChild(btn);
+  }
 }
 
 function renderActions() {
-  const bar = document.getElementById('actions-bar');
+  const bar = $('actions-bar');
   bar.innerHTML = '';
-  const b = state.battle;
-  if (b.winner) return;
-  const turnSide = b.turn;
-
-  // AI turn — disable the bar.
-  if (turnSide === 'p2' && !b.awaitingShift) {
+  const sel = state.selection;
+  if (!state.battle || state.battle.winner) {
+    bar.innerHTML = '<div class="action-hint">—</div>';
+    return;
+  }
+  if (state.battle.possession !== 'p1') {
     bar.classList.add('disabled');
-    bar.innerHTML = '<div style="font-family:var(--font-display);color:var(--mist);letter-spacing:0.18em;text-transform:uppercase;font-size:0.75rem;">AI is thinking…</div>';
+    bar.innerHTML = '<div class="action-hint">AI is acting…</div>';
     return;
   }
   bar.classList.remove('disabled');
-
-  // Forced shift after a fall.
-  if (b.awaitingShift) {
-    const shiftSide = b.awaitingShift;
-    if (shiftSide === 'p2') {
-      bar.innerHTML = '<div style="font-family:var(--font-display);color:var(--mist);letter-spacing:0.18em;font-size:0.75rem;">AI is choosing a reserve…</div>';
-      return;
-    }
-    bar.innerHTML = `<div style="font-family:var(--font-display);color:var(--gold-bright);width:100%;text-align:center;margin-bottom:8px;">Your card has fallen — shift in a reserve</div>`;
-    bar.appendChild(mkBtn('move-btn shift', 'Shift In', () => openSwitchModal('p1', true)));
+  if (sel.mode === null) {
+    bar.innerHTML = '<div class="action-hint">Pick one of your active cards.</div>';
     return;
   }
-
-  // Player action is mid-resolution — lock the bar.
-  if (turnSide === 'p1' && b.acting) {
-    bar.classList.add('disabled');
-    bar.innerHTML = '<div style="font-family:var(--font-display);color:var(--mist);letter-spacing:0.18em;text-transform:uppercase;font-size:0.75rem;">Resolving…</div>';
-    return;
-  }
-
-  const me = b[turnSide];
-  const c = activeOf(turnSide);
-  const foe = activeOf(opp(turnSide));
-  const brain = hasStatus(c, 'brainlock');
-  const swingPct = Math.round(tierSwing(c.tier) * 100);
-  bar.innerHTML = `<div style="font-family:var(--font-display);color:var(--gold-bright);width:100%;text-align:center;margin-bottom:6px;">Your Turn — ${c.name} · ✦ ${c.gems} gem${c.gems === 1 ? '' : 's'}${brain ? ' · BRAINLOCKED' : ''}</div>`;
-
-  const a1 = mkBtn('move-btn', '', () => doA1());
-  a1.innerHTML = `<span>A1 · ${c.a1}</span><span class="move-cost-pill">free · ${computeDamage(c, foe, 'a1')} dmg</span>`;
-
-  const draw = mkBtn('move-btn draw', '', () => doDraw());
-  draw.innerHTML = `<span>Draw Gem</span><span class="move-cost-pill">+1 gem · ends turn</span>`;
-
-  const a2 = mkBtn('move-btn spc', '', () => doA2(), c.gems < A2_COST || brain);
-  a2.innerHTML = `<span>A2 · ${c.a2}</span><span class="move-cost-pill">${A2_COST} gems · ${swingPct}% swing</span>`;
-
-  const a3Cool = c.a3Cd > 0;
-  const a3 = mkBtn('move-btn a3', '', () => doA3(), c.gems < A3_COST || a3Cool || brain);
-  a3.innerHTML = a3Cool
-    ? `<span>A3 · ${c.a3}</span><span class="move-cost-pill">recharging · ready in ${c.a3Cd}</span>`
-    : `<span>A3 · ${c.a3}</span><span class="move-cost-pill">${A3_COST} gems · ${computeDamage(c, foe, 'a3')} dmg + status</span>`;
-
-  bar.appendChild(a1); bar.appendChild(draw); bar.appendChild(a2); bar.appendChild(a3);
-
-  const reserveAvail = me.team.some((_, i) => i !== me.activeIdx && !me.fallen.includes(i));
-  if (reserveAvail) {
-    bar.appendChild(mkBtn('move-btn shift', 'Switch', () => openSwitchModal('p1', false)));
-  }
-}
-
-function mkBtn(cls, label, onClick, disabled) {
-  const b = document.createElement('button');
-  b.className = cls;
-  b.textContent = label;
-  if (disabled) b.disabled = true;
-  b.addEventListener('click', onClick);
-  return b;
-}
-
-// ============ Animations + popups ============
-function popupDamage(side, text, kind) {
-  // Delayed append so the popup survives the synchronous renderBattle that
-  // usually follows the action that spawned it (renderCard wipes innerHTML).
-  setTimeout(() => {
-    const root = document.getElementById(side + '-card');
-    if (!root) return;
-    const pop = document.createElement('div');
-    pop.className = 'damage-popup' + (kind ? ' ' + kind : '');
-    pop.textContent = text;
-    root.appendChild(pop);
-    setTimeout(() => pop.remove(), 1200);
-  }, 60);
-}
-function animateAttack(attackerSide, defenderSide) {
-  const att = document.getElementById(attackerSide + '-card');
-  const def = document.getElementById(defenderSide + '-card');
-  att.classList.add('attack-forward');
-  setTimeout(() => def.classList.add('attack-hit'), 120);
-  setTimeout(() => { att.classList.remove('attack-forward'); def.classList.remove('attack-hit'); }, 600);
-}
-function animateSpc(side) {
-  const c = document.getElementById(side + '-card');
-  c.classList.add('spc-flash');
-  setTimeout(() => c.classList.remove('spc-flash'), 900);
-}
-
-// ============ Turn actions ============
-// Each turn the active card picks ONE: A1 (free attack), Draw (bank a gem),
-// A2 (2 gems → stat swing), A3 (3 gems → 99% strike + swing + status).
-function endTurnSoon(fromSide, delay) {
-  const b = state.battle;
-  setTimeout(() => { if (!b.winner) turnTo(opp(fromSide)); }, delay || 600);
-}
-
-function doA1() {
-  const b = state.battle;
-  if (b.winner || b.acting) return;
-  const side = b.turn;
-  const themSide = opp(side);
-  const c = activeOf(side);
-  b.acting = true;
-  document.getElementById('actions-bar').classList.add('disabled');
-  animateAttack(side, themSide);
-  setTimeout(() => {
-    const dmg = computeDamage(c, activeOf(themSide), 'a1');
-    applyDamage(themSide, dmg, `${b[side].name} ${c.name} → A1 ${c.a1}`);
-  }, 200);
-}
-
-function doDraw() {
-  const b = state.battle;
-  if (b.winner || b.acting) return;
-  const side = b.turn;
-  const c = activeOf(side);
-  b.acting = true;
-  c.gems += 1;
-  pushLog('system', `${b[side].name}'s ${c.name} draws a gem — ✦ ${c.gems} banked.`);
-  popupDamage(side, '+1 ✦', 'heal');
-  animateSpc(side);
-  renderBattle();
-  endTurnSoon(side, 700);
-}
-
-function doA2() {
-  const b = state.battle;
-  if (b.winner || b.acting || b.turn !== 'p1') return;
-  const c = activeOf('p1');
-  if (hasStatus(c, 'brainlock')) { pushLog('system', `${c.name} is brainlocked — A1 only.`); return; }
-  if (c.gems < A2_COST) { pushLog('system', `Not enough gems for A2 (need ${A2_COST}).`); return; }
-  openSwingModal('a2', 'p1');
-}
-
-function doA3() {
-  const b = state.battle;
-  if (b.winner || b.acting || b.turn !== 'p1') return;
-  const c = activeOf('p1');
-  if (hasStatus(c, 'brainlock')) { pushLog('system', `${c.name} is brainlocked — A1 only.`); return; }
-  if (c.a3Cd > 0) { pushLog('system', `${c.name}'s A3 is recharging — ready in ${c.a3Cd}.`); return; }
-  if (c.gems < A3_COST) { pushLog('system', `Not enough gems for A3 (need ${A3_COST}).`); return; }
-  openSwingModal('a3', 'p1');
-}
-
-function computeDamage(attacker, defender, kind) {
-  const mult = kind === 'a3' ? 0.99 : 0.33;   // A1 light 33% / A3 heavy 99%
-  let raw = attacker.atk * mult;
-  if (hasStatus(attacker, 'undershock')) raw *= 0.67;   // ability damage -33%
-  raw = Math.ceil(raw);
-  const reduction = defReductionPct(defender.def);
-  const final = Math.ceil(raw * (1 - reduction));
-  return Math.max(1, final);
-}
-
-function applyDamage(targetSide, dmg, label) {
-  const b = state.battle;
-  const target = activeOf(targetSide);
-  target.hp = Math.max(0, target.hp - dmg);
-  pushLog('damage', `${label}: ${dmg} dmg → ${target.name} (${target.hp}/${target.hpMax})`);
-  popupDamage(targetSide, '−' + dmg);
-  if (target.hp <= 0) {
-    pushLog('system', `${target.name} has FALLEN.`);
-    handleFall(targetSide);
-    return;
-  }
-  turnTo(opp(b.turn));
-}
-
-// ============ A2 / A3 stat-swing ============
-function applySwing(actorSide, mode, stat, label) {
-  const actor = activeOf(actorSide);
-  const targetSide = (mode === 'self') ? actorSide : opp(actorSide);
-  const target = activeOf(targetSide);
-  const pct = tierSwing(actor.tier);
-  const dir = (mode === 'self') ? 1 : -1;
-  let delta;
-  if (stat === 'hp') {
-    delta = Math.max(1, Math.round(target.hpMax * pct));
-    if (dir > 0) { target.hpMax += delta; target.hp += delta; }
-    else { target.hpMax = Math.max(1, target.hpMax - delta); target.hp = Math.min(target.hp, target.hpMax); }
-  } else {
-    delta = Math.max(1, Math.round(target[stat] * pct));
-    target[stat] = Math.max(1, target[stat] + dir * delta);
-  }
-  const verb = dir > 0 ? '+' : '−';
-  pushLog('spc', `${label}: ${target.name} ${stat.toUpperCase()} ${verb}${delta}.`);
-  popupDamage(targetSide, `${verb}${delta} ${stat.toUpperCase()}`, dir > 0 ? 'heal' : 'miss');
-  animateSpc(targetSide);
-}
-
-// openSwingModal — A2 (buff self or debuff opponent) / A3 (buff self only).
-function openSwingModal(kind, side) {
-  const modal = document.getElementById('modal-swing');
-  const c = activeOf(side);
-  const pct = Math.round(tierSwing(c.tier) * 100);
-  document.getElementById('swing-title').textContent =
-    (kind === 'a3' ? 'A3 — ' + c.a3 : 'A2 — ' + c.a2);
-  document.getElementById('swing-help').innerHTML = (kind === 'a3')
-    ? `Spend <strong>${A3_COST} gems</strong>. Pick a stat to boost by <strong>${pct}%</strong>, then strike for 99% ATK and inflict a random status.`
-    : `Spend <strong>${A2_COST} gems</strong>. Boost one of your stats or weaken the opponent's by <strong>${pct}%</strong>.`;
-  const selfGrid = document.getElementById('swing-self-grid');
-  const oppGrid = document.getElementById('swing-opp-grid');
-  const oppBlock = document.getElementById('swing-opp-block');
-  selfGrid.innerHTML = '';
-  oppGrid.innerHTML = '';
-  const stats = ['hp', 'atk', 'def', 'spd'];
-  stats.forEach(stat => {
-    const sb = document.createElement('button');
-    sb.className = 'stat-pick-btn';
-    sb.innerHTML = `<span>${stat.toUpperCase()}</span><span class="delta">boost</span>`;
-    sb.onclick = () => { modal.classList.remove('show'); resolveSwing(kind, side, 'self', stat); };
-    selfGrid.appendChild(sb);
-  });
-  if (kind === 'a2') {
-    oppBlock.style.display = '';
-    stats.forEach(stat => {
-      const ob = document.createElement('button');
-      ob.className = 'stat-pick-btn';
-      ob.innerHTML = `<span>${stat.toUpperCase()}</span><span class="delta" style="color:var(--crimson)">weaken</span>`;
-      ob.onclick = () => { modal.classList.remove('show'); resolveSwing(kind, side, 'opp', stat); };
-      oppGrid.appendChild(ob);
-    });
-  } else {
-    oppBlock.style.display = 'none';
-  }
-  modal.classList.add('show');
-}
-
-function resolveSwing(kind, side, mode, stat) {
-  const b = state.battle;
-  if (b.winner) return;
-  const c = activeOf(side);
-  b.acting = true;
-  if (kind === 'a2') {
-    c.gems -= A2_COST;
-    pushLog('spc', `${b[side].name}'s ${c.name} uses A2 — ${c.a2}.`);
-    applySwing(side, mode, stat, `A2 ${c.a2}`);
-    astraliteMishap(side);
-    renderBattle();
-    endTurnSoon(side, 800);
-  } else {
-    const themSide = opp(side);
-    c.gems -= A3_COST;
-    c.a3Cd = A3_COOLDOWN;   // A3 re-locks — beginTurn ticks it down before the next render
-    pushLog('spc', `${b[side].name}'s ${c.name} unleashes A3 — ${c.a3}!`);
-    applySwing(side, 'self', stat, `A3 ${c.a3}`);
-    inflictStatus(themSide, randomStatusKey());
-    astraliteMishap(side);
-    renderBattle();
-    animateAttack(side, themSide);
-    setTimeout(() => {
-      if (b.winner) return;
-      const dmg = computeDamage(activeOf(side), activeOf(themSide), 'a3');
-      applyDamage(themSide, dmg, `${b[side].name} ${c.name} → A3 ${c.a3}`);
-    }, 280);
-  }
-}
-
-function inflictStatus(targetSide, type) {
-  const c = activeOf(targetSide);
-  if (!c) return;
-  if (!c.statuses) c.statuses = [];
-  const def = STATUSES[type];
-  const existing = c.statuses.find(s => s.type === type);
-  if (existing) existing.turns = def.turns;
-  else c.statuses.push({ type, turns: def.turns });
-  pushLog('status', `${c.name} is afflicted — ${def.label.toUpperCase()}: ${def.blurb}.`);
-}
-
-function astraliteMishap(side) {
-  if (Math.random() >= MISHAP_CHANCE) return;
-  const c = activeOf(side);
-  pushLog('status', `Astralite backlash! ${c.name}'s gems run hot.`);
-  inflictStatus(side, randomStatusKey());
-}
-
-// ============ Switch ============
-function openSwitchModal(side, forced) {
-  const b = state.battle;
-  const p = b[side];
-  document.getElementById('switch-title').textContent = forced ? 'Shift In a Reserve' : 'Switch Card';
-  document.getElementById('switch-help').textContent = forced
-    ? 'Your active card fell. Shift in any non-fallen reserve to continue.'
-    : 'Swap to a reserve. If its SPD beats the opponent active card, it also attacks this turn.';
-  const list = document.getElementById('switch-list');
-  list.innerHTML = '';
-  p.team.forEach((c, i) => {
-    if (i === p.activeIdx || p.fallen.includes(i)) return;
-    const oppActive = activeOf(opp(side));
-    const beatsSpd = c.spd > oppActive.spd;
-    const btn = document.createElement('button');
-    btn.className = 'move-btn shift';
-    btn.style.flex = '1 1 auto'; btn.style.minWidth = '0';
-    btn.innerHTML = `<span>${c.name} (T${c.tier})</span>
-      <span class="move-cost-pill">SPD ${c.spd}${beatsSpd ? ' · ALSO ATTACKS' : ' · uses turn'}</span>`;
-    btn.onclick = () => {
-      doSwitch(side, i, forced);
-      document.getElementById('modal-switch').classList.remove('show');
+  if (sel.mode === 'pick') {
+    const c = activeCard(sel.side, sel.slot);
+    if (!c) return;
+    // Show move buttons
+    const teamGems = state.battle[sel.side].gems;
+    const isBrainlocked = c.statuses.some(s => s.key === 'brainlock');
+    const mk = (kind, label, cost, cls, dis) => {
+      const b = document.createElement('button');
+      b.className = 'move-btn ' + cls;
+      b.disabled = !!dis;
+      b.innerHTML = `<div>${label}</div><div class="move-cost-pill">${cost}</div>`;
+      b.onclick = () => beginAttack(kind);
+      return b;
     };
-    list.appendChild(btn);
-  });
-  if (list.children.length === 0) {
-    list.innerHTML = '<em style="color:var(--mist-deep);">No reserves available.</em>';
+    bar.appendChild(mk('a1', 'A1', `${A1_GEM} gem · 33% ATK`, 'a1', teamGems < A1_GEM));
+    bar.appendChild(mk('a2', 'A2', `${A2_GEM} gems · 66% ATK`, 'a2', teamGems < A2_GEM || isBrainlocked));
+    bar.appendChild(mk('a3', 'A3', `${A3_GEM} gems · 99% ATK`, 'a3', teamGems < A3_GEM || isBrainlocked));
+    // SPC button
+    const spcBtn = document.createElement('button');
+    spcBtn.className = 'move-btn spc';
+    spcBtn.disabled = c.spcUsed;
+    spcBtn.innerHTML = `<div>SPC</div><div class="move-cost-pill">+${spcBoost(c.spc)} flat</div>`;
+    spcBtn.onclick = () => openSpcModal(sel.side, sel.slot);
+    bar.appendChild(spcBtn);
+    // Shift button (need a reserve)
+    const hasReserve = state.battle[sel.side].reserve.length > 0;
+    const shiftBtn = document.createElement('button');
+    shiftBtn.className = 'move-btn shift';
+    shiftBtn.disabled = !hasReserve;
+    shiftBtn.innerHTML = `<div>SHIFT</div><div class="move-cost-pill">pick reserve</div>`;
+    shiftBtn.onclick = () => beginShift(sel.side, sel.slot);
+    bar.appendChild(shiftBtn);
+    // Skip turn (always available — useful if no moves are affordable)
+    const skip = document.createElement('button');
+    skip.className = 'move-btn cancel';
+    skip.innerHTML = `<div>SKIP</div><div class="move-cost-pill">pass this slot</div>`;
+    skip.onclick = () => {
+      const c2 = activeCard(sel.side, sel.slot);
+      if (c2) { log('system', `${c2.name} passes the turn.`); c2.stats.movesUsed += 1; }
+      state.battle.acted[sel.slot] = true;
+      clearSelection();
+      render();
+      advanceAfterMove(sel.side);
+    };
+    bar.appendChild(skip);
+    // Cancel (deselect, don't pass)
+    const cancel = document.createElement('button');
+    cancel.className = 'move-btn cancel';
+    cancel.innerHTML = `<div>BACK</div><div class="move-cost-pill">deselect</div>`;
+    cancel.onclick = () => { clearSelection(); render(); };
+    bar.appendChild(cancel);
+    return;
   }
-  document.getElementById('modal-switch').classList.add('show');
-}
-document.getElementById('switch-cancel').addEventListener('click', () => {
-  document.getElementById('modal-switch').classList.remove('show');
-});
-
-function doSwitch(side, newIdx, forced) {
-  const b = state.battle;
-  const p = b[side];
-  p.activeIdx = newIdx;
-  if (forced) b.awaitingShift = null;
-  const newActive = activeOf(side);
-  const oppSide = opp(side);
-  const oppActive = activeOf(oppSide);
-  pushLog('system', `${p.name} switches in ${newActive.name} (T${newActive.tier} · SPD ${newActive.spd}).`);
-  if (newActive.spd > oppActive.spd) {
-    pushLog('system', `${newActive.name} is faster — acts this turn.`);
-    b.turn = side;
-  } else {
-    pushLog('system', `${newActive.name} is slower — the switch uses the turn.`);
-    b.turn = oppSide;
+  if (sel.mode === 'target') {
+    const cancel = document.createElement('button');
+    cancel.className = 'move-btn cancel';
+    cancel.innerHTML = `<div>CANCEL</div><div class="move-cost-pill">back</div>`;
+    cancel.onclick = () => { state.selection.mode = 'pick'; render(); };
+    const label = document.createElement('div');
+    label.className = 'action-hint';
+    label.innerHTML = `Pick an enemy active card to hit with <span class="accent">${sel.kind.toUpperCase()}</span>.`;
+    bar.appendChild(label);
+    bar.appendChild(cancel);
+    return;
   }
-  turnTo(b.turn);
+  if (sel.mode === 'shift') {
+    const cancel = document.createElement('button');
+    cancel.className = 'move-btn cancel';
+    cancel.innerHTML = `<div>CANCEL</div><div class="move-cost-pill">back</div>`;
+    cancel.onclick = () => { state.selection.mode = 'pick'; render(); };
+    const label = document.createElement('div');
+    label.className = 'action-hint';
+    label.innerHTML = `Pick a reserve below to swap in.`;
+    bar.appendChild(label);
+    bar.appendChild(cancel);
+    return;
+  }
 }
 
-// ============ A2 / A3 swing modal close ============
-document.getElementById('swing-cancel').addEventListener('click', () => {
-  document.getElementById('modal-swing').classList.remove('show');
-});
-document.getElementById('modal-swing').addEventListener('click', (e) => {
-  if (e.target.id === 'modal-swing') e.currentTarget.classList.remove('show');
-});
+function setActionsHint(text) {
+  const bar = $('actions-bar');
+  bar.innerHTML = `<div class="action-hint">${text}</div>`;
+}
 
-// ============ AI logic ============
+function clearSelection() { state.selection = { side:null, slot:null, mode:null, kind:null }; }
+
+function selectActiveCard(side, slot) {
+  if (state.battle.possession !== side) return;
+  if (state.battle.acted[slot]) return;
+  const c = activeCard(side, slot);
+  if (!c || c.fallen || c.enteredThisTurn) return;
+  state.selection = { side, slot, mode:'pick', kind:null };
+  render();
+}
+
+function beginAttack(kind) {
+  state.selection.kind = kind;
+  state.selection.mode = 'target';
+  render();
+}
+
+function fireOnTarget(targetSide, targetSlot) {
+  const sel = state.selection;
+  if (sel.mode !== 'target' || sel.side === targetSide) return;
+  // Resolve
+  const target = activeCard(targetSide, targetSlot);
+  if (!target || target.fallen) return;
+  executeMove(sel.side, sel.slot, sel.kind, { side: targetSide, slot: targetSlot });
+  clearSelection();
+}
+
+function updatePossessionBanner() {
+  const el = $('possession-banner');
+  if (!state.battle || state.battle.winner) { el.textContent = ' — '; el.className = 'possession-banner'; return; }
+  el.classList.remove('p1','p2');
+  if (state.battle.possession === 'p1') { el.textContent = `Round ${state.battle.round} · Your possession · Act with your 3 cards`; el.classList.add('p1'); }
+  else { el.textContent = `Round ${state.battle.round} · AI possession`; el.classList.add('p2'); }
+}
+
+function log(cls, msg) {
+  const wrap = $('battle-log');
+  if (!wrap) return;
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + cls;
+  entry.textContent = msg;
+  wrap.appendChild(entry);
+  wrap.scrollTop = wrap.scrollHeight;
+  if (state.battle) state.battle.log.push({ cls, msg });
+}
+
+// ============ AI ============
 function aiTurn() {
   const b = state.battle;
-  if (b.winner || b.turn !== 'p2') return;
-  if (b.awaitingShift) { aiHandleShift(); return; }
-
-  const me = b.p2;
-  const myCard = activeOf('p2'), theirCard = activeOf('p1');
-  const brain = hasStatus(myCard, 'brainlock');
-
-  // 1. Low-HP escape to a healthy reserve.
-  if (myCard.hp / myCard.hpMax < 0.28) {
-    const fresh = me.team
-      .map((c, i) => ({ c, i }))
-      .filter(x => x.i !== me.activeIdx && !me.fallen.includes(x.i))
-      .sort((a, b) => (b.c.hp / b.c.hpMax) - (a.c.hp / a.c.hpMax));
-    if (fresh.length > 0 && fresh[0].c.hp / fresh[0].c.hpMax > 0.6) {
-      pushLog('ai', `AI swaps in ${fresh[0].c.name} to weather the storm.`);
-      doSwitch('p2', fresh[0].i, false);
+  if (!b || b.winner || b.possession !== 'p2') return;
+  // Find next un-acted, alive, non-just-entered slot
+  let slot = -1;
+  for (let s = 0; s < ACTIVE_SIZE; s++) {
+    if (b.acted[s]) continue;
+    const c = activeCard('p2', s);
+    if (c && !c.fallen && !c.enteredThisTurn) { slot = s; break; }
+  }
+  if (slot < 0) { endPossession(); return; }
+  const c = activeCard('p2', slot);
+  // Gridfreeze auto-consume
+  if (c.statuses.some(s => s.key === 'gridfreeze')) {
+    log('status', `${c.name} is Gridfrozen — skips this turn.`);
+    const i = c.statuses.findIndex(s => s.key === 'gridfreeze');
+    if (i >= 0) c.statuses.splice(i, 1);
+    b.acted[slot] = true;
+    setTimeout(aiTurn, 350);
+    return;
+  }
+  // Pick a target: prefer the lowest-HP enemy
+  let bestTargetSlot = -1, bestHp = Infinity;
+  for (let s = 0; s < ACTIVE_SIZE; s++) {
+    const t = activeCard('p1', s);
+    if (t && !t.fallen && t.hp < bestHp) { bestHp = t.hp; bestTargetSlot = s; }
+  }
+  if (bestTargetSlot < 0) { endPossession(); return; }
+  // Pick a move: A3 if available + not on brainlock, else A2, else A1; SPC if good moment
+  const isBrainlocked = c.statuses.some(s => s.key === 'brainlock');
+  let kind = 'a1';
+  // Use SPC opportunistically: if not used AND boost is meaningful, ~30% chance
+  if (!c.spcUsed && spcBoost(c.spc) >= 30 && Math.random() < 0.30) {
+    // Pick stat — best ROI is ATK on damage-heavy cards or HP if low
+    const amt = spcBoost(c.spc);
+    const stat = (c.hp / c.maxHp) < 0.5 ? 'hp' : 'atk';
+    c.mods[stat] += amt;
+    if (stat === 'hp') { c.maxHp += amt; c.hp += amt; }
+    c.spcUsed = true;
+    log('spc', `${c.name} uses SPC boost: +${amt} ${stat.toUpperCase()}.`);
+    b.acted[slot] = true;
+    c.stats.movesUsed += 1;
+    render();
+    setTimeout(aiTurn, 500);
+    return;
+  }
+  if (!isBrainlocked && b.p2.gems >= A3_GEM && Math.random() < 0.45) kind = 'a3';
+  else if (!isBrainlocked && b.p2.gems >= A2_GEM && Math.random() < 0.50) kind = 'a2';
+  else if (b.p2.gems >= A1_GEM) kind = 'a1';
+  else {
+    // No gems — try shift to a fresh card
+    if (b.p2.reserve.length) {
+      doShift('p2', slot, b.p2.reserve[0]);
       return;
     }
-  }
-
-  const a1Dmg = computeDamage(myCard, theirCard, 'a1');
-  const a3Dmg = computeDamage(myCard, theirCard, 'a3');
-
-  // 2. A3 — finisher, or a 50% power play once it can afford it.
-  if (!brain && myCard.a3Cd === 0 && myCard.gems >= A3_COST) {
-    if (a3Dmg >= theirCard.hp || Math.random() < 0.5) {
-      pushLog('ai', `AI commits — ${myCard.name} charges its A3.`);
-      setTimeout(aiResolveA3, 430);
-      return;
-    }
-  }
-  // 3. A1 finisher.
-  if (a1Dmg >= theirCard.hp) { setTimeout(doA1, 430); return; }
-  // 4. A2 buff / debuff when affordable.
-  if (!brain && myCard.gems >= A2_COST && Math.random() < 0.55) {
-    setTimeout(aiResolveA2, 430);
+    b.acted[slot] = true;
+    setTimeout(aiTurn, 350);
     return;
   }
-  // 5. Draw gems to build toward abilities (the gamble).
-  if (myCard.gems < A3_COST && Math.random() < 0.5) {
-    setTimeout(doDraw, 430);
-    return;
-  }
-  // 6. Default — light attack.
-  setTimeout(doA1, 430);
+  executeMove('p2', slot, kind, { side: 'p1', slot: bestTargetSlot });
+  // executeMove calls advanceAfterMove which schedules next aiTurn if still p2 possession
 }
 
-function aiResolveA2() {
+// ============ Win / MVP ============
+function checkWin() {
   const b = state.battle;
-  if (b.winner || b.turn !== 'p2') return;
-  const myCard = activeOf('p2'), theirCard = activeOf('p1');
-  let mode = 'self', stat = 'atk';
-  if (myCard.spd <= theirCard.spd && Math.random() < 0.5) stat = 'spd';
-  else if (myCard.hp / myCard.hpMax < 0.6 && Math.random() < 0.4) stat = 'def';
-  if (Math.random() < 0.4) { mode = 'opp'; stat = (theirCard.atk >= theirCard.def) ? 'atk' : 'spd'; }
-  resolveSwing('a2', 'p2', mode, stat);
+  if (!b || b.winner) return;
+  const p1Down = b.p1.faction.every(c => c.fallen);
+  const p2Down = b.p2.faction.every(c => c.fallen);
+  if (p1Down && p2Down) b.winner = 'draw';
+  else if (p1Down) b.winner = 'p2';
+  else if (p2Down) b.winner = 'p1';
 }
 
-function aiResolveA3() {
-  const b = state.battle;
-  if (b.winner || b.turn !== 'p2') return;
-  const myCard = activeOf('p2');
-  const stat = (myCard.def > myCard.atk) ? 'def' : 'atk';
-  resolveSwing('a3', 'p2', 'self', stat);
-}
-
-function aiHandleShift() {
-  const b = state.battle;
-  if (b.winner) return;
-  const me = b.p2;
-  const fresh = me.team
-    .map((c, i) => ({ c, i }))
-    .filter(x => x.i !== me.activeIdx && !me.fallen.includes(x.i))
-    .sort((a, b) => (b.c.hp * 0.5 + b.c.atk * 0.3 + b.c.spd * 0.2)
-                  - (a.c.hp * 0.5 + a.c.atk * 0.3 + a.c.spd * 0.2));
-  if (fresh.length > 0) {
-    pushLog('ai', `AI shifts in ${fresh[0].c.name}.`);
-    doSwitch('p2', fresh[0].i, true);
-    return;
-  }
-  endMatch('p1');
-}
-
-// ============ End match ============
-function endMatch(winnerSide) {
-  state.battle.winner = winnerSide;
-  state.phase = 'gameover';
+function endMatch() {
   show('battle-screen', false);
   show('gameover-screen', true);
-  const winner = state.battle[winnerSide];
-  document.getElementById('gameover-title').textContent = winnerSide === 'p1' ? '— Victory —' : '— Defeated —';
-  const livingMvps = winner.team
-    .filter((_, i) => !winner.fallen.includes(i))
-    .sort((a, b) => b.hp - a.hp).slice(0, 3)
-    .map((c, i) => `${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} ${c.name}`).join('  ');
-  document.getElementById('gameover-mvps').textContent = livingMvps || 'Pyrrhic victory — no survivors.';
+  document.querySelector('.app').classList.remove('battle-mode');
+  const winner = state.battle.winner;
+  $('gameover-title').textContent = winner === 'p1' ? 'Victory' : winner === 'p2' ? 'Defeated' : 'Draw';
+  const winSide = winner === 'p1' ? state.battle.p1 : (winner === 'p2' ? state.battle.p2 : null);
+  const mvpRow = $('mvp-row');
+  mvpRow.innerHTML = '';
+  if (!winSide) { $('gameover-sub').textContent = '— No MVPs (draw) —'; return; }
+  $('gameover-sub').textContent = '— Match MVPs —';
+  // Rank by composite score
+  const scored = winSide.faction.map(c => ({
+    c,
+    score: c.stats.dmgDealt * 1.0 + c.stats.kills * 100 + c.stats.statusesInflicted * 25 - c.stats.dmgTaken * 0.3
+  })).sort((a,b) => b.score - a.score);
+  const top = scored.slice(0, 3);
+  const labels = ['gold','silver','bronze'];
+  const ranks = ['1st','2nd','3rd'];
+  top.forEach((entry, i) => {
+    const c = entry.c;
+    const card = document.createElement('div');
+    card.className = 'mvp-card ' + labels[i];
+    card.innerHTML = `
+      <div class="mvp-rank">${i+1}</div>
+      <img src="${c.art}" alt="${c.name}" onerror="this.style.display='none'">
+      <div class="mvp-name">${c.name}</div>
+      <div class="mvp-meta">${ranks[i]} · T${c.tier_roman}</div>
+      <div class="mvp-meta">DMG ${c.stats.dmgDealt} · KO ${c.stats.kills} · STS ${c.stats.statusesInflicted}</div>
+    `;
+    mvpRow.appendChild(card);
+  });
 }
 
-document.getElementById('btn-rematch').addEventListener('click', () => initMatch());
-document.getElementById('btn-back-title').addEventListener('click', () => {
-  window.location.href = '/games.html';
-});
+// Init: ensure title visible, hide others
+show('title-screen', true);
+show('battle-screen', false);
+show('gameover-screen', false);
 
 </script>
+
 </body>
 </html>

@@ -164,8 +164,36 @@
       border-style: dashed; border-color: rgba(232, 200, 120, 0.15);
       min-height: 200px;
     }
-    .slot.selectable { cursor: pointer; }
-    .slot.selectable:hover { border-color: var(--gold-bright); transform: translateY(-2px); box-shadow: 0 16px 30px rgba(0,0,0,0.55), 0 0 18px rgba(232,200,120,0.18); }
+    .slot.selectable {
+      cursor: pointer;
+      border-color: var(--gold-bright);
+      box-shadow:
+        0 0 0 1px rgba(244, 227, 179, 0.55) inset,
+        0 12px 24px rgba(0, 0, 0, 0.5),
+        0 0 18px rgba(244, 227, 179, 0.35);
+      animation: readyGlow 1.6s ease-in-out infinite;
+    }
+    .slot.selectable:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 0 0 1px rgba(244, 227, 179, 0.85) inset,
+        0 16px 30px rgba(0, 0, 0, 0.55),
+        0 0 28px rgba(244, 227, 179, 0.55);
+    }
+    @keyframes readyGlow {
+      0%, 100% {
+        box-shadow:
+          0 0 0 1px rgba(244, 227, 179, 0.55) inset,
+          0 12px 24px rgba(0, 0, 0, 0.5),
+          0 0 14px rgba(244, 227, 179, 0.25);
+      }
+      50% {
+        box-shadow:
+          0 0 0 1px rgba(244, 227, 179, 0.85) inset,
+          0 12px 24px rgba(0, 0, 0, 0.5),
+          0 0 22px rgba(244, 227, 179, 0.55);
+      }
+    }
     .slot.selected { border-color: var(--gold-bright); box-shadow: 0 0 0 2px var(--gold-bright) inset, 0 16px 30px rgba(0,0,0,0.55), 0 0 22px rgba(232,200,120,0.25); }
     .slot.target { cursor: crosshair; border-color: var(--crimson); box-shadow: 0 0 14px rgba(211,76,76,0.45); }
     .slot.target:hover { background: linear-gradient(160deg, rgba(60,14,44,0.85), rgba(40,6,24,0.65)); }
@@ -529,16 +557,77 @@
     .mvp-card .mvp-name { font-family: var(--font-display); letter-spacing: 0.08em; color: var(--gold-bright); font-size: 0.9rem; }
     .mvp-card .mvp-meta { font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.1em; color: var(--mist); text-transform: uppercase; text-align: center; }
 
-    /* ============ Mobile ============ */
+    /* ============ Mobile (≤ 900px) — horizontal card strips ============ */
+    /* Each active card becomes a wide horizontal strip (art LEFT, name/hp/stats RIGHT)
+       so 3v3 fits in much less vertical space. Player-meta drops to a row below the slots. */
     @media (max-width: 900px) {
-      .battle-side { grid-template-columns: 1fr 1fr 1fr; }
-      .battle-side .player-meta { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; }
-      .battle-side .player-meta .reserve-list { flex-direction: row; max-height: none; overflow-x: auto; flex: 1 1 auto; }
-      .move-btn { min-width: 70px; padding: 8px 10px; font-size: 0.65rem; }
+      .app.battle-mode { padding: 6px 6px; }
+      .battle-side {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto;
+        gap: 5px; padding: 6px;
+      }
+      .battle-side .player-meta {
+        grid-row: -1;
+        flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px;
+        padding: 4px 6px;
+      }
+      .battle-side .player-meta .player-tag-inline { font-size: 0.62rem; letter-spacing: 0.15em; }
+      .battle-side .gem-tracker { padding: 4px 8px; }
+      .battle-side .gem-tracker .gem-count { font-size: 0.85rem; }
+      .battle-side .reserve-list {
+        flex-direction: row; max-height: none;
+        overflow-x: auto; overflow-y: hidden; flex: 1 1 auto;
+        padding: 0; gap: 4px;
+      }
+      .battle-side .reserve-chip { flex: 0 0 auto; padding: 3px 6px; font-size: 0.55rem; }
+
+      /* HORIZONTAL SLOT LAYOUT
+         flat children from renderSlot are placed via grid auto-flow + explicit
+         column/row assignments. Art spans both rows of column 1; everything else
+         flows down column 2. */
+      .slot {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        grid-auto-rows: min-content;
+        column-gap: 8px; row-gap: 2px;
+        padding: 6px 8px;
+        min-height: 124px;
+      }
+      .slot.empty { min-height: 80px; padding: 18px 8px; }
+      .slot.empty .slot-name { grid-column: 1 / -1; text-align: center; }
+      .slot > .card-art,
+      .slot > .card-art-fallback {
+        grid-column: 1; grid-row: 1 / -1;
+        max-height: 116px; max-width: 92px;
+        width: 100%;
+        align-self: center; justify-self: center;
+        margin: 0;
+      }
+      .slot > .slot-name { grid-column: 2; text-align: left; font-size: 0.78rem; }
+      .slot > .slot-tier-types { grid-column: 2; font-size: 0.5rem; }
+      .slot > .hp-bar-wrap, .slot > .hp-text { grid-column: 2; margin: 1px 0; }
+      .slot > .hp-text { font-size: 0.58rem; }
+      .slot > .stat-grid { grid-column: 2; gap: 1px; }
+      .slot > .stat-cell { padding: 1px; }
+      .slot > .stat-grid .stat-cell .lbl { font-size: 0.4rem; letter-spacing: 0.06em; }
+      .slot > .stat-grid .stat-cell .val { font-size: 0.62rem; }
+      .slot > .status-row { grid-column: 2; min-height: 0; margin-top: 2px; }
+      .slot > .gems-card-badge { top: -6px; left: -6px; min-width: 26px; height: 26px; font-size: 0.78rem; }
+
+      /* Action bar tightens */
+      .actions-bar { padding: 8px 6px; min-height: 70px; gap: 5px; }
+      .move-btn { min-width: 64px; padding: 7px 8px; font-size: 0.62rem; }
+      .move-btn .move-cost-pill { font-size: 0.45rem; letter-spacing: 0.14em; }
+      .battle-log { max-height: 90px; font-size: 0.62rem; padding: 6px 10px; }
+      .possession-banner { font-size: 0.68rem; padding: 6px 10px; }
     }
-    @media (max-width: 560px) {
-      .battle-side { grid-template-columns: 1fr 1fr; }
-      .slot:nth-of-type(3) { grid-column: 1 / -1; }
+    /* Very narrow: more aggressive — drop tier-types row to free vertical space */
+    @media (max-width: 480px) {
+      .slot { grid-template-columns: 80px minmax(0, 1fr); padding: 5px 6px; min-height: 110px; }
+      .slot > .card-art, .slot > .card-art-fallback { max-height: 100px; max-width: 80px; }
+      .slot > .slot-tier-types { display: none; }
+      .move-btn { min-width: 56px; padding: 6px 6px; font-size: 0.58rem; }
     }
   </style>
 </head>
@@ -1018,69 +1107,182 @@ const DICE_FACE_META = {
 // SVG art for each face (gold/glow on dark, sized to viewBox 100x100).
 function diceFaceSvg(n) {
   switch (n) {
-    case 1: // Astral Spark — 8-pointed star with inner spark
-      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs><radialGradient id="ds1g" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff3c4"/><stop offset="50%" stop-color="#e8c878"/><stop offset="100%" stop-color="#8a6d2c"/></radialGradient></defs>
-        <path d="M50 6 L55 35 L80 14 L65 42 L94 50 L65 58 L80 86 L55 65 L50 94 L45 65 L20 86 L35 58 L6 50 L35 42 L20 14 L45 35 Z" fill="url(#ds1g)" stroke="#f4e3b3" stroke-width="0.8" stroke-linejoin="round"/>
-        <circle cx="50" cy="50" r="4" fill="#fff8d8"/>
-      </svg>`;
-    case 2: // Vice & Virtue — purple/gold yin-yang
-      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="vv1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b08bff"/><stop offset="1" stop-color="#5a3aa0"/></linearGradient></defs>
-        <circle cx="50" cy="50" r="42" fill="none" stroke="#e8c878" stroke-width="2"/>
-        <path d="M50 8 A 21 21 0 0 1 50 50 A 21 21 0 0 0 50 92 A 42 42 0 0 1 50 8 Z" fill="url(#vv1)"/>
-        <circle cx="50" cy="29" r="6" fill="#e8c878"/>
-        <circle cx="50" cy="71" r="6" fill="#1a0d3a"/>
-        <circle cx="50" cy="29" r="2" fill="#1a0d3a"/>
-        <circle cx="50" cy="71" r="2" fill="#e8c878"/>
-      </svg>`;
-    case 3: // Book of Viridia — open book with star
-      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="bk1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4e3b3"/><stop offset="1" stop-color="#8a6d2c"/></linearGradient></defs>
-        <path d="M14 28 L48 36 L48 84 L14 76 Z" fill="url(#bk1)" stroke="#e8c878" stroke-width="1.5"/>
-        <path d="M86 28 L52 36 L52 84 L86 76 Z" fill="url(#bk1)" stroke="#e8c878" stroke-width="1.5"/>
-        <line x1="50" y1="36" x2="50" y2="84" stroke="#1a0d3a" stroke-width="2"/>
-        <line x1="20" y1="42" x2="44" y2="48" stroke="#8a6d2c" stroke-width="0.8"/>
-        <line x1="20" y1="52" x2="44" y2="58" stroke="#8a6d2c" stroke-width="0.8"/>
-        <line x1="20" y1="62" x2="44" y2="68" stroke="#8a6d2c" stroke-width="0.8"/>
-        <line x1="56" y1="48" x2="80" y2="42" stroke="#8a6d2c" stroke-width="0.8"/>
-        <line x1="56" y1="58" x2="80" y2="52" stroke="#8a6d2c" stroke-width="0.8"/>
-        <line x1="56" y1="68" x2="80" y2="62" stroke="#8a6d2c" stroke-width="0.8"/>
-        <path d="M50 10 L52 18 L60 18 L54 23 L57 31 L50 26 L43 31 L46 23 L40 18 L48 18 Z" fill="#fff8d8" stroke="#e8c878" stroke-width="0.6"/>
-      </svg>`;
-    case 4: // Aetherstride — spiraling galaxy
-      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs><radialGradient id="aeg" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#cfe6ff"/><stop offset="40%" stop-color="#6fa3e8"/><stop offset="100%" stop-color="#1a0d3a"/></radialGradient></defs>
-        <circle cx="50" cy="50" r="42" fill="url(#aeg)"/>
-        <path d="M50 50 m-30 0 a30 30 0 1 1 60 0 a30 30 0 1 1 -60 0 M50 50 m-22 0 a22 22 0 1 1 44 0 a22 22 0 1 1 -44 0 M50 50 m-14 0 a14 14 0 1 1 28 0 a14 14 0 1 1 -28 0" fill="none" stroke="#cfe6ff" stroke-width="1" opacity="0.6"/>
-        <path d="M50 50 Q 30 30 50 20 Q 78 28 76 52 Q 72 76 50 80 Q 28 76 30 56" fill="none" stroke="#fff8d8" stroke-width="1.6" opacity="0.85"/>
-        <circle cx="50" cy="50" r="3" fill="#fff8d8"/>
-        <circle cx="22" cy="32" r="1" fill="#fff"/>
-        <circle cx="78" cy="68" r="1" fill="#fff"/>
-        <circle cx="28" cy="74" r="0.8" fill="#fff"/>
-        <circle cx="74" cy="22" r="0.8" fill="#fff"/>
-      </svg>`;
-    case 5: // Dragon Sigil — stylized dragon head profile
-      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="dr1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4e3b3"/><stop offset="1" stop-color="#8a6d2c"/></linearGradient></defs>
-        <path d="M16 56 Q 14 38 30 30 L 42 22 Q 50 18 60 22 L 72 28 Q 84 32 86 46 Q 82 54 72 50 L 64 48 Q 60 56 52 56 L 44 60 Q 38 70 30 68 L 22 68 Q 16 64 16 56 Z" fill="url(#dr1)" stroke="#e8c878" stroke-width="1.4" stroke-linejoin="round"/>
-        <path d="M44 32 L 50 28 L 56 32 L 52 36 Z" fill="#1a0d3a"/>
-        <circle cx="50" cy="32" r="2" fill="#ff5a5a"/>
-        <path d="M68 50 L 72 56 L 76 50" fill="none" stroke="#1a0d3a" stroke-width="1.4" stroke-linecap="round"/>
-        <path d="M22 50 Q 18 56 22 62" fill="none" stroke="#e8c878" stroke-width="1.2"/>
-        <path d="M28 28 L 34 18 M 36 24 L 42 14" fill="none" stroke="#e8c878" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>`;
-    case 6: // Anciuxor's Eye — divine eye
+    case 1: // Astral Spark — 8-pointed compass star inside a thin ring
       return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <radialGradient id="iris" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff8d8"/><stop offset="35%" stop-color="#c9a8ff"/><stop offset="100%" stop-color="#3a1d70"/></radialGradient>
-          <linearGradient id="lid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4e3b3"/><stop offset="1" stop-color="#8a6d2c"/></linearGradient>
+          <radialGradient id="ds1g" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fff8d8"/>
+            <stop offset="45%" stop-color="#e8c878"/>
+            <stop offset="100%" stop-color="#6a5020"/>
+          </radialGradient>
         </defs>
-        <path d="M8 50 Q 50 16 92 50 Q 50 84 8 50 Z" fill="#1a0d3a" stroke="url(#lid)" stroke-width="2.4"/>
-        <circle cx="50" cy="50" r="18" fill="url(#iris)"/>
-        <circle cx="50" cy="50" r="8" fill="#1a0d3a"/>
+        <circle cx="50" cy="50" r="42" fill="none" stroke="#8a6d2c" stroke-width="1"/>
+        <circle cx="50" cy="50" r="40" fill="none" stroke="#e8c878" stroke-width="0.6" opacity="0.55"/>
+        <!-- 8-point star: long primary points + short secondary points -->
+        <path d="M50 8 L54 40 L60 44 L92 50 L60 56 L54 60 L50 92 L46 60 L40 56 L8 50 L40 44 L46 40 Z" fill="url(#ds1g)" stroke="#fff3c4" stroke-width="0.5" stroke-linejoin="round"/>
+        <path d="M22 22 L46 46 L50 50 L46 54 L22 78 M78 22 L54 46 L50 50 L54 54 L78 78" fill="none" stroke="#e8c878" stroke-width="2" stroke-linejoin="round" opacity="0.85"/>
+        <circle cx="50" cy="50" r="3" fill="#fff8d8"/>
+      </svg>`;
+    case 2: // Vice & Virtue — clean white/purple yin-yang
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="vvg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#c9a8ff"/>
+            <stop offset="1" stop-color="#5a3aa0"/>
+          </linearGradient>
+        </defs>
+        <circle cx="50" cy="50" r="40" fill="none" stroke="#e8c878" stroke-width="1.4"/>
+        <circle cx="50" cy="50" r="38" fill="#f3ecdc"/>
+        <!-- Purple swirl: top half + lower-left semicircle, minus upper-right semicircle -->
+        <path d="M50 12 A 38 38 0 0 1 50 88 A 19 19 0 0 1 50 50 A 19 19 0 0 0 50 12 Z" fill="url(#vvg)"/>
+        <circle cx="50" cy="31" r="5" fill="#f3ecdc"/>
+        <circle cx="50" cy="69" r="5" fill="#5a3aa0"/>
+        <circle cx="50" cy="50" r="38" fill="none" stroke="#e8c878" stroke-width="0.6" opacity="0.65"/>
+      </svg>`;
+    case 3: // Book of Viridia — open book in 3/4 perspective with a star above
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="bkpg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f7e8b8"/>
+            <stop offset="1" stop-color="#a8843a"/>
+          </linearGradient>
+          <linearGradient id="bksp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3a2a10"/>
+            <stop offset="1" stop-color="#1a0f04"/>
+          </linearGradient>
+        </defs>
+        <!-- spine valley + base shadow -->
+        <path d="M50 88 L 18 78 L 18 50 L 50 60 Z" fill="#1a0d3a" opacity="0.6"/>
+        <path d="M50 88 L 82 78 L 82 50 L 50 60 Z" fill="#1a0d3a" opacity="0.6"/>
+        <!-- left page (tilts up toward viewer) -->
+        <path d="M50 56 L 18 46 Q 12 64 18 78 L 50 86 Z" fill="url(#bkpg)" stroke="#e8c878" stroke-width="1.4" stroke-linejoin="round"/>
+        <!-- right page -->
+        <path d="M50 56 L 82 46 Q 88 64 82 78 L 50 86 Z" fill="url(#bkpg)" stroke="#e8c878" stroke-width="1.4" stroke-linejoin="round"/>
+        <!-- spine line -->
+        <line x1="50" y1="56" x2="50" y2="86" stroke="#6a5020" stroke-width="1.5"/>
+        <!-- text lines as faint marks -->
+        <line x1="24" y1="58" x2="44" y2="64" stroke="#6a5020" stroke-width="0.7"/>
+        <line x1="24" y1="65" x2="44" y2="71" stroke="#6a5020" stroke-width="0.7"/>
+        <line x1="56" y1="64" x2="76" y2="58" stroke="#6a5020" stroke-width="0.7"/>
+        <line x1="56" y1="71" x2="76" y2="65" stroke="#6a5020" stroke-width="0.7"/>
+        <!-- star hovering above the spine -->
+        <path d="M50 14 L 53 28 L 67 30 L 56 38 L 60 52 L 50 44 L 40 52 L 44 38 L 33 30 L 47 28 Z" fill="#fff8d8" stroke="#e8c878" stroke-width="0.8" stroke-linejoin="round"/>
+        <circle cx="50" cy="36" r="1.8" fill="#e8c878"/>
+      </svg>`;
+    case 4: // Aetherstride — galactic spiral, bright white-yellow core over deep blue
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="aebg" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stop-color="#1c2b4d"/>
+            <stop offset="60%" stop-color="#0a0822"/>
+            <stop offset="100%" stop-color="#050310"/>
+          </radialGradient>
+          <radialGradient id="aecore" cx="50%" cy="50%" r="35%">
+            <stop offset="0%" stop-color="#fffce8"/>
+            <stop offset="40%" stop-color="#fff5a8"/>
+            <stop offset="80%" stop-color="#cfe6ff" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#cfe6ff" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="50" cy="50" r="42" fill="url(#aebg)"/>
+        <!-- spiral arms (two opposite curves) -->
+        <path d="M50 50 Q 30 28 18 38 Q 14 52 28 60 Q 42 64 50 50" fill="none" stroke="#9cc4ff" stroke-width="2.4" opacity="0.85" stroke-linecap="round"/>
+        <path d="M50 50 Q 70 72 82 62 Q 86 48 72 40 Q 58 36 50 50" fill="none" stroke="#9cc4ff" stroke-width="2.4" opacity="0.85" stroke-linecap="round"/>
+        <!-- secondary thin arms -->
+        <path d="M50 50 Q 36 24 50 14" fill="none" stroke="#cfe6ff" stroke-width="0.8" opacity="0.55"/>
+        <path d="M50 50 Q 64 76 50 86" fill="none" stroke="#cfe6ff" stroke-width="0.8" opacity="0.55"/>
+        <!-- glowing core -->
+        <circle cx="50" cy="50" r="20" fill="url(#aecore)"/>
+        <circle cx="50" cy="50" r="3" fill="#fffce8"/>
+        <!-- background stars -->
+        <circle cx="20" cy="20" r="0.9" fill="#fff"/>
+        <circle cx="80" cy="22" r="0.9" fill="#fff"/>
+        <circle cx="22" cy="80" r="0.7" fill="#fff" opacity="0.7"/>
+        <circle cx="82" cy="76" r="0.9" fill="#fff"/>
+        <circle cx="74" cy="14" r="0.6" fill="#fff" opacity="0.55"/>
+      </svg>`;
+    case 5: // Dragon Sigil — gold dragon head profile facing right, curved horns + eye
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="drg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fff3c4"/>
+            <stop offset="55%" stop-color="#e8c878"/>
+            <stop offset="100%" stop-color="#6a5020"/>
+          </linearGradient>
+        </defs>
+        <!-- main head + snout (silhouette facing RIGHT) -->
+        <path d="M18 58
+                 Q 16 48 22 42
+                 L 30 38
+                 Q 34 28 46 26
+                 L 58 26
+                 Q 70 28 78 36
+                 Q 84 42 82 50
+                 L 76 52
+                 Q 80 56 78 60
+                 L 70 60
+                 Q 68 66 62 66
+                 L 54 62
+                 L 48 66
+                 Q 42 70 36 68
+                 L 28 66
+                 Q 20 64 18 58 Z"
+              fill="url(#drg)" stroke="#fff3c4" stroke-width="0.8" stroke-linejoin="round"/>
+        <!-- jaw line -->
+        <path d="M30 56 Q 44 58 56 58 L 60 60" fill="none" stroke="#6a5020" stroke-width="1.2"/>
+        <!-- nostril -->
+        <circle cx="74" cy="48" r="1.4" fill="#3a2a10"/>
+        <!-- eye -->
+        <ellipse cx="56" cy="40" rx="3" ry="2.4" fill="#1a0d3a"/>
+        <circle cx="57" cy="40" r="1.2" fill="#ff5a5a"/>
+        <!-- horns (3 swept-back curves) -->
+        <path d="M44 26 Q 30 14 18 18" fill="none" stroke="url(#drg)" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M52 24 Q 40 10 28 10" fill="none" stroke="url(#drg)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M60 26 Q 52 12 42 6"  fill="none" stroke="url(#drg)" stroke-width="2.4" stroke-linecap="round"/>
+        <!-- chin spike -->
+        <path d="M30 64 Q 22 72 14 72" fill="none" stroke="url(#drg)" stroke-width="2.2" stroke-linecap="round"/>
+        <!-- mouth fangs -->
+        <path d="M62 60 L 64 64 L 66 60 M 68 60 L 70 64 L 72 60" fill="#fff3c4" stroke="#6a5020" stroke-width="0.4"/>
+      </svg>`;
+    case 6: // Anciuxor's Eye — bright magenta iris in almond lid, surrounded by compass rays
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="airis" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fff8d8"/>
+            <stop offset="20%" stop-color="#ffb8e8"/>
+            <stop offset="55%" stop-color="#c9a8ff"/>
+            <stop offset="100%" stop-color="#3a1d70"/>
+          </radialGradient>
+          <linearGradient id="alid" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fff3c4"/>
+            <stop offset="1" stop-color="#8a6d2c"/>
+          </linearGradient>
+          <radialGradient id="aglow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#c9a8ff" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#c9a8ff" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <!-- soft purple glow halo -->
+        <circle cx="50" cy="50" r="44" fill="url(#aglow)"/>
+        <!-- compass rays (cardinal + diagonals) -->
+        <g stroke="#e8c878" stroke-width="1" stroke-linecap="round">
+          <line x1="50" y1="6"  x2="50" y2="20"/>
+          <line x1="50" y1="80" x2="50" y2="94"/>
+          <line x1="6"  y1="50" x2="20" y2="50"/>
+          <line x1="80" y1="50" x2="94" y2="50"/>
+          <line x1="18" y1="18" x2="28" y2="28" opacity="0.6"/>
+          <line x1="72" y1="72" x2="82" y2="82" opacity="0.6"/>
+          <line x1="82" y1="18" x2="72" y2="28" opacity="0.6"/>
+          <line x1="28" y1="72" x2="18" y2="82" opacity="0.6"/>
+        </g>
+        <!-- almond eye lid -->
+        <path d="M10 50 Q 30 24 50 24 Q 70 24 90 50 Q 70 76 50 76 Q 30 76 10 50 Z" fill="#1a0d3a" stroke="url(#alid)" stroke-width="2.4" stroke-linejoin="round"/>
+        <!-- iris -->
+        <circle cx="50" cy="50" r="18" fill="url(#airis)"/>
+        <!-- pupil -->
+        <circle cx="50" cy="50" r="7" fill="#1a0d3a"/>
+        <!-- catchlight -->
         <circle cx="46" cy="46" r="2.2" fill="#fff8d8"/>
-        <path d="M50 28 L52 22 M 50 72 L 52 78 M 28 50 L 22 50 M 72 50 L 78 50" stroke="#e8c878" stroke-width="0.8"/>
       </svg>`;
   }
   return '';
@@ -1313,12 +1515,15 @@ function highestActiveSpd(side) {
 function endPossession() {
   const b = state.battle;
   if (b.winner) return;
-  // Clear enteredThisTurn for the side whose possession just ended
-  const just = b.possession;
-  for (let s = 0; s < ACTIVE_SIZE; s++) {
-    const c = activeCard(just, s);
-    if (c) c.enteredThisTurn = false;
-  }
+  // Clear enteredThisTurn on BOTH teams — voluntary shifts during own possession
+  // and auto-shifts during enemy possession have both "waited" one possession
+  // by the time we get here, so they're free to act next time.
+  ['p1','p2'].forEach(side => {
+    for (let s = 0; s < ACTIVE_SIZE; s++) {
+      const c = activeCard(side, s);
+      if (c) c.enteredThisTurn = false;
+    }
+  });
   // Advance round half: 0 -> 1 (still in same round, other team acts), 1 -> 0 (new round)
   b.halfOfRound = b.halfOfRound === 0 ? 1 : 0;
   setTimeout(beginPossession, 500);
@@ -1584,6 +1789,10 @@ function executeMove(side, slot, kind, target) {
   state.battle.acted[slot] = true;
   checkWin();
   if (state.battle.winner) { endMatch(); return true; }
+  // Clear selection BEFORE rendering so the action bar + click handlers reset
+  // cleanly. Otherwise the just-acted card would still be marked selected and
+  // its move buttons would re-render as if it could act again.
+  clearSelection();
   render();
   advanceAfterMove(side);
   return true;
@@ -1593,14 +1802,21 @@ function advanceAfterMove(side) {
   setTimeout(() => {
     if (state.battle.winner) return;
     if (side === 'p2') {
-      // AI continues until all 3 acted or no playable
       maybeAdvancePossession();
       if (state.battle.possession === 'p2' && !state.battle.winner) setTimeout(aiTurn, 500);
+      else { clearSelection(); render(); }
     } else {
+      // Always clear selection and full-render so click handlers + action bar stay in sync.
+      clearSelection();
       maybeAdvancePossession();
+      render();
       if (state.battle.possession === 'p1' && !state.battle.winner) {
-        clearSelection();
-        setActionsHint('Pick another active card to act with.');
+        let remaining = 0;
+        for (let s = 0; s < ACTIVE_SIZE; s++) {
+          const c2 = activeCard('p1', s);
+          if (c2 && !c2.fallen && !c2.enteredThisTurn && !state.battle.acted[s]) remaining++;
+        }
+        if (remaining > 0) setActionsHint(`Pick another active card to act with <span style="color:var(--gold-bright);">(${remaining} ready)</span>.`);
       }
     }
   }, 350);
@@ -1978,11 +2194,13 @@ function beginAttack(kind) {
 function fireOnTarget(targetSide, targetSlot) {
   const sel = state.selection;
   if (sel.mode !== 'target' || sel.side === targetSide) return;
-  // Resolve
   const target = activeCard(targetSide, targetSlot);
   if (!target || target.fallen) return;
-  executeMove(sel.side, sel.slot, sel.kind, { side: targetSide, slot: targetSlot });
+  const side = sel.side, slot = sel.slot, kind = sel.kind;
+  // Clear selection BEFORE executeMove so the render() inside it sees a clean
+  // state and rebuilds the action bar / click handlers correctly.
   clearSelection();
+  executeMove(side, slot, kind, { side: targetSide, slot: targetSlot });
 }
 
 function updatePossessionBanner() {

@@ -1550,6 +1550,10 @@ function highestActiveSpd(side) {
 function endPossession() {
   const b = state.battle;
   if (b.winner) return;
+  // GUARD: prevent double-fire from race between advanceAfterMove's maybeAdvancePossession
+  // and aiTurn's empty-slot fallback. If a transition is already pending, no-op.
+  if (b._transitionPending) return;
+  b._transitionPending = true;
   // Clear enteredThisTurn on BOTH teams — voluntary shifts during own possession
   // and auto-shifts during enemy possession have both "waited" one possession
   // by the time we get here, so they're free to act next time.
@@ -1561,10 +1565,11 @@ function endPossession() {
   });
   // Advance round half: 0 -> 1 (still in same round, other team acts), 1 -> 0 (new round)
   b.halfOfRound = b.halfOfRound === 0 ? 1 : 0;
-  setTimeout(beginPossession, 500);
+  setTimeout(() => { if (state.battle) state.battle._transitionPending = false; beginPossession(); }, 500);
 }
 
-// Check whether all active cards on possessing team have acted (or are unable to act)
+// Check whether all active cards on possessing team have acted (or are unable to act).
+// Returns true if the possession ended (and beginPossession is now scheduled).
 function maybeAdvancePossession() {
   const b = state.battle;
   let any = false;
@@ -1573,7 +1578,8 @@ function maybeAdvancePossession() {
     const c = activeCard(b.possession, s);
     if (c && !c.fallen) { any = true; break; }
   }
-  if (!any) endPossession();
+  if (!any) { endPossession(); return true; }
+  return false;
 }
 
 // ============ Status processing ============
@@ -1836,23 +1842,26 @@ function executeMove(side, slot, kind, target) {
 function advanceAfterMove(side) {
   setTimeout(() => {
     if (state.battle.winner) return;
-    if (side === 'p2') {
-      maybeAdvancePossession();
-      if (state.battle.possession === 'p2' && !state.battle.winner) setTimeout(aiTurn, 500);
-      else { clearSelection(); render(); }
-    } else {
-      // Always clear selection and full-render so click handlers + action bar stay in sync.
-      clearSelection();
-      maybeAdvancePossession();
-      render();
-      if (state.battle.possession === 'p1' && !state.battle.winner) {
-        let remaining = 0;
-        for (let s = 0; s < ACTIVE_SIZE; s++) {
-          const c2 = activeCard('p1', s);
-          if (c2 && !c2.fallen && !c2.enteredThisTurn && !state.battle.acted[s]) remaining++;
-        }
-        if (remaining > 0) setActionsHint(`Pick another active card to act with <span style="color:var(--gold-bright);">(${remaining} ready)</span>.`);
+    // Always clear selection + render so UI is in sync.
+    clearSelection();
+    const ended = maybeAdvancePossession();
+    render();
+    if (ended) {
+      // Possession transition is scheduled — beginPossession will take over.
+      // CRITICAL: do NOT schedule another aiTurn here or it will race with
+      // beginPossession and double-fire endPossession (causing the player's
+      // possession to be skipped).
+      return;
+    }
+    if (side === 'p2' && state.battle.possession === 'p2') {
+      setTimeout(aiTurn, 500);
+    } else if (state.battle.possession === 'p1') {
+      let remaining = 0;
+      for (let s = 0; s < ACTIVE_SIZE; s++) {
+        const c2 = activeCard('p1', s);
+        if (c2 && !c2.fallen && !c2.enteredThisTurn && !state.battle.acted[s]) remaining++;
       }
+      if (remaining > 0) setActionsHint(`Pick another active card to act with <span style="color:var(--gold-bright);">(${remaining} ready)</span>.`);
     }
   }, 350);
 }
@@ -2325,6 +2334,8 @@ function log(cls, msg) {
 function aiTurn() {
   const b = state.battle;
   if (!b || b.winner || b.possession !== 'p2') return;
+  // If a possession transition is already pending (race-condition guard), abort.
+  if (b._transitionPending) return;
   // Find next un-acted, alive, non-just-entered slot
   let slot = -1;
   for (let s = 0; s < ACTIVE_SIZE; s++) {

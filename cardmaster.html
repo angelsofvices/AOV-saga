@@ -414,24 +414,80 @@
     .faction-card .fc-meta { font-family: var(--font-meta); font-size: 0.52rem; letter-spacing: 0.1em; color: var(--mist-deep); text-align: center; text-transform: uppercase; }
     .faction-card .fc-stats { display: flex; gap: 6px; justify-content: center; font-family: var(--font-meta); font-size: 0.55rem; color: var(--mist); }
 
+    /* ============ AOV™ Astral Dice (CSS 3D cube) ============ */
     .dice-display {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0;
+      justify-items: center; align-items: center;
     }
     .dice-cell {
-      text-align: center; padding: 16px;
-      background: rgba(20, 14, 44, 0.6); border: 1px solid rgba(232, 200, 120, 0.3);
-      border-radius: 8px;
+      text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      transition: opacity 0.4s ease, transform 0.4s ease;
     }
-    .dice-cell .roller { font-family: var(--font-display); font-size: 2.6rem; color: var(--gold-bright); padding: 8px 0; transition: transform 0.2s ease; }
-    .dice-cell.rolling .roller { animation: diceRoll 0.6s ease-out; }
-    @keyframes diceRoll {
-      0% { transform: rotate(0deg) scale(1); }
-      50% { transform: rotate(180deg) scale(1.3); }
-      100% { transform: rotate(360deg) scale(1); }
+    .dice-cell.loser { opacity: 0.4; transform: scale(0.92); }
+    .dice-label { font-family: var(--font-meta); font-size: 0.62rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--mist-deep); }
+    .dice-cell.winner .dice-label { color: var(--gold-bright); }
+
+    /* Stage (perspective container) */
+    .dice-stage {
+      width: 110px; height: 110px; perspective: 480px; position: relative;
     }
-    .dice-cell.winner { border-color: var(--emerald); box-shadow: 0 0 16px rgba(78, 201, 124, 0.4); }
-    .dice-cell.loser { border-color: var(--crimson); opacity: 0.7; }
-    .dice-label { font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mist-deep); }
+    /* Cube: holds 6 faces in 3D space */
+    .dice-cube {
+      position: absolute; width: 110px; height: 110px;
+      transform-style: preserve-3d;
+      transform: rotateX(-20deg) rotateY(-35deg);  /* default isometric resting pose before roll */
+      transition: transform 1.3s cubic-bezier(0.22, 0.6, 0.32, 1);
+      will-change: transform;
+    }
+    /* Each face: 110×110, positioned by per-face transform; gold-trimmed dark */
+    .dice-face {
+      position: absolute; width: 110px; height: 110px;
+      box-sizing: border-box;
+      background: linear-gradient(155deg, #15102a 0%, #07041a 70%, #1b0f3d 100%);
+      border: 2px solid var(--gold);
+      border-radius: 10px;
+      box-shadow:
+        inset 0 0 12px rgba(232, 200, 120, 0.25),
+        inset 0 0 0 1px rgba(232, 200, 120, 0.4),
+        0 0 8px rgba(0, 0, 0, 0.6);
+      display: flex; align-items: center; justify-content: center;
+      backface-visibility: hidden;
+    }
+    /* Face positioning — 6 sides of a 110px cube (half = 55px) */
+    .dice-face.f1 { transform: rotateY(0deg)   translateZ(55px); }
+    .dice-face.f2 { transform: rotateY(90deg)  translateZ(55px); }
+    .dice-face.f3 { transform: rotateY(180deg) translateZ(55px); }
+    .dice-face.f4 { transform: rotateY(-90deg) translateZ(55px); }
+    .dice-face.f5 { transform: rotateX(90deg)  translateZ(55px); }
+    .dice-face.f6 { transform: rotateX(-90deg) translateZ(55px); }
+    /* SVG art fills the face */
+    .dice-face svg { width: 78%; height: 78%; display: block; }
+
+    /* Edge runes — corner spark glints to evoke the rune-edge system */
+    .dice-stage::before, .dice-stage::after {
+      content: ''; position: absolute; pointer-events: none; border-radius: 12px;
+      inset: -6px; opacity: 0;
+      transition: opacity 0.5s ease;
+      box-shadow: 0 0 32px var(--rg, var(--gold)), inset 0 0 14px var(--rg, var(--gold));
+    }
+    .dice-cell.winner .dice-stage::before { opacity: 0.55; --rg: var(--gold-bright); }
+    .dice-cell.divine .dice-stage::before { opacity: 0.85; --rg: #b08bff; animation: diceFavorPulse 1.6s ease-in-out infinite; }
+    @keyframes diceFavorPulse {
+      0%,100% { opacity: 0.55; }
+      50%     { opacity: 0.95; }
+    }
+
+    /* Result caption under the cube */
+    .dice-caption {
+      min-height: 32px;
+      font-family: var(--font-display); font-size: 0.72rem; letter-spacing: 0.14em;
+      color: var(--gold-pale); text-transform: uppercase; text-align: center;
+      line-height: 1.35;
+    }
+    .dice-caption .face-name { color: var(--gold-bright); }
+    .dice-caption .face-tag { display: block; font-family: var(--font-meta); font-size: 0.55rem; letter-spacing: 0.2em; color: var(--mist-deep); margin-top: 2px; }
+    .dice-cell.divine .dice-caption .face-name { color: #c9a8ff; text-shadow: 0 0 8px rgba(176, 139, 255, 0.6); }
 
     /* Rules overlay */
     .rules-overlay { font-size: 0.78rem; line-height: 1.6; }
@@ -598,16 +654,24 @@
 
 <!-- ============ Opening dice roll ============ -->
 <div class="modal-backdrop" id="modal-open-dice">
-  <div class="modal-panel">
-    <h3>Roll for Opening</h3>
-    <p>Both players roll 1d6. Higher roll picks <span style="color:var(--gold-bright);">PLAY</span> (act first) or <span style="color:var(--gold-bright);">PASS</span>.</p>
+  <div class="modal-panel" style="max-width: 480px;">
+    <h3>Roll the Astral Dice</h3>
+    <p style="font-size:0.74rem;">Both players cast the AOV<span style="font-size:0.6em;vertical-align:super;">™</span> Astral Die. Higher face wins — choose <span style="color:var(--gold-bright);">PLAY</span> (act first) or <span style="color:var(--gold-bright);">PASS</span>. A <span style="color:#c9a8ff;">6 (Anciuxor's Eye)</span> is the Divine Roll.</p>
     <div class="dice-display">
-      <div class="dice-cell" id="open-dice-you"><div class="dice-label">You</div><div class="roller" id="open-dice-you-roll">?</div></div>
-      <div class="dice-cell" id="open-dice-ai"><div class="dice-label">AI</div><div class="roller" id="open-dice-ai-roll">?</div></div>
+      <div class="dice-cell" id="open-dice-you">
+        <div class="dice-label">You</div>
+        <div class="dice-stage"><div class="dice-cube" id="open-dice-you-cube"></div></div>
+        <div class="dice-caption" id="open-dice-you-caption">&nbsp;</div>
+      </div>
+      <div class="dice-cell" id="open-dice-ai">
+        <div class="dice-label">AI</div>
+        <div class="dice-stage"><div class="dice-cube" id="open-dice-ai-cube"></div></div>
+        <div class="dice-caption" id="open-dice-ai-caption">&nbsp;</div>
+      </div>
     </div>
     <p id="open-dice-result" style="text-align: center; min-height: 24px; font-family: var(--font-display); letter-spacing: 0.15em; color: var(--gold-bright);"></p>
     <div class="modal-actions">
-      <button class="btn-primary" id="open-dice-roll" style="padding:12px 24px;font-size:0.78rem;">Roll</button>
+      <button class="btn-primary" id="open-dice-roll" style="padding:12px 24px;font-size:0.78rem;">Cast the Dice</button>
       <button class="btn-primary" id="open-dice-continue" style="padding:12px 24px;font-size:0.78rem;" hidden>Continue</button>
     </div>
   </div>
@@ -932,12 +996,134 @@ $('faction-confirm').onclick = () => {
   openDiceRoll();
 };
 
-// ===== Dice roll opening =====
+// ===== AOV Astral Dice (CSS 3D cube) =====
+// Face → final rotation (degrees) that brings that face to the front of the cube.
+const DICE_FACE_ANGLES = {
+  1: [0, 0],     // front
+  2: [0, -90],   // right side → swing to front
+  3: [0, 180],   // back
+  4: [0, 90],    // left side
+  5: [-90, 0],   // top
+  6: [90, 0]     // bottom
+};
+// Face metadata — the six Astral Dice symbols per the AOV™ Saga design.
+const DICE_FACE_META = {
+  1: { name: 'Astral Spark',    tag: 'Origin · Aethryx',         color: '#e8c878' },
+  2: { name: 'Vice & Virtue',   tag: 'Balance · Choice',         color: '#b08bff' },
+  3: { name: 'Book of Viridia', tag: 'Knowledge · Lore',         color: '#e8c878' },
+  4: { name: 'Aetherstride',    tag: 'Exploration · Journey',    color: '#6fa3e8' },
+  5: { name: 'Dragon Sigil',    tag: 'Power · Evolution',        color: '#4ec97c' },
+  6: { name: "Anciuxor's Eye",  tag: 'Divine · Fate · Destiny',  color: '#c9a8ff' }
+};
+// SVG art for each face (gold/glow on dark, sized to viewBox 100x100).
+function diceFaceSvg(n) {
+  switch (n) {
+    case 1: // Astral Spark — 8-pointed star with inner spark
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs><radialGradient id="ds1g" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff3c4"/><stop offset="50%" stop-color="#e8c878"/><stop offset="100%" stop-color="#8a6d2c"/></radialGradient></defs>
+        <path d="M50 6 L55 35 L80 14 L65 42 L94 50 L65 58 L80 86 L55 65 L50 94 L45 65 L20 86 L35 58 L6 50 L35 42 L20 14 L45 35 Z" fill="url(#ds1g)" stroke="#f4e3b3" stroke-width="0.8" stroke-linejoin="round"/>
+        <circle cx="50" cy="50" r="4" fill="#fff8d8"/>
+      </svg>`;
+    case 2: // Vice & Virtue — purple/gold yin-yang
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="vv1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b08bff"/><stop offset="1" stop-color="#5a3aa0"/></linearGradient></defs>
+        <circle cx="50" cy="50" r="42" fill="none" stroke="#e8c878" stroke-width="2"/>
+        <path d="M50 8 A 21 21 0 0 1 50 50 A 21 21 0 0 0 50 92 A 42 42 0 0 1 50 8 Z" fill="url(#vv1)"/>
+        <circle cx="50" cy="29" r="6" fill="#e8c878"/>
+        <circle cx="50" cy="71" r="6" fill="#1a0d3a"/>
+        <circle cx="50" cy="29" r="2" fill="#1a0d3a"/>
+        <circle cx="50" cy="71" r="2" fill="#e8c878"/>
+      </svg>`;
+    case 3: // Book of Viridia — open book with star
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="bk1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4e3b3"/><stop offset="1" stop-color="#8a6d2c"/></linearGradient></defs>
+        <path d="M14 28 L48 36 L48 84 L14 76 Z" fill="url(#bk1)" stroke="#e8c878" stroke-width="1.5"/>
+        <path d="M86 28 L52 36 L52 84 L86 76 Z" fill="url(#bk1)" stroke="#e8c878" stroke-width="1.5"/>
+        <line x1="50" y1="36" x2="50" y2="84" stroke="#1a0d3a" stroke-width="2"/>
+        <line x1="20" y1="42" x2="44" y2="48" stroke="#8a6d2c" stroke-width="0.8"/>
+        <line x1="20" y1="52" x2="44" y2="58" stroke="#8a6d2c" stroke-width="0.8"/>
+        <line x1="20" y1="62" x2="44" y2="68" stroke="#8a6d2c" stroke-width="0.8"/>
+        <line x1="56" y1="48" x2="80" y2="42" stroke="#8a6d2c" stroke-width="0.8"/>
+        <line x1="56" y1="58" x2="80" y2="52" stroke="#8a6d2c" stroke-width="0.8"/>
+        <line x1="56" y1="68" x2="80" y2="62" stroke="#8a6d2c" stroke-width="0.8"/>
+        <path d="M50 10 L52 18 L60 18 L54 23 L57 31 L50 26 L43 31 L46 23 L40 18 L48 18 Z" fill="#fff8d8" stroke="#e8c878" stroke-width="0.6"/>
+      </svg>`;
+    case 4: // Aetherstride — spiraling galaxy
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs><radialGradient id="aeg" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#cfe6ff"/><stop offset="40%" stop-color="#6fa3e8"/><stop offset="100%" stop-color="#1a0d3a"/></radialGradient></defs>
+        <circle cx="50" cy="50" r="42" fill="url(#aeg)"/>
+        <path d="M50 50 m-30 0 a30 30 0 1 1 60 0 a30 30 0 1 1 -60 0 M50 50 m-22 0 a22 22 0 1 1 44 0 a22 22 0 1 1 -44 0 M50 50 m-14 0 a14 14 0 1 1 28 0 a14 14 0 1 1 -28 0" fill="none" stroke="#cfe6ff" stroke-width="1" opacity="0.6"/>
+        <path d="M50 50 Q 30 30 50 20 Q 78 28 76 52 Q 72 76 50 80 Q 28 76 30 56" fill="none" stroke="#fff8d8" stroke-width="1.6" opacity="0.85"/>
+        <circle cx="50" cy="50" r="3" fill="#fff8d8"/>
+        <circle cx="22" cy="32" r="1" fill="#fff"/>
+        <circle cx="78" cy="68" r="1" fill="#fff"/>
+        <circle cx="28" cy="74" r="0.8" fill="#fff"/>
+        <circle cx="74" cy="22" r="0.8" fill="#fff"/>
+      </svg>`;
+    case 5: // Dragon Sigil — stylized dragon head profile
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="dr1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4e3b3"/><stop offset="1" stop-color="#8a6d2c"/></linearGradient></defs>
+        <path d="M16 56 Q 14 38 30 30 L 42 22 Q 50 18 60 22 L 72 28 Q 84 32 86 46 Q 82 54 72 50 L 64 48 Q 60 56 52 56 L 44 60 Q 38 70 30 68 L 22 68 Q 16 64 16 56 Z" fill="url(#dr1)" stroke="#e8c878" stroke-width="1.4" stroke-linejoin="round"/>
+        <path d="M44 32 L 50 28 L 56 32 L 52 36 Z" fill="#1a0d3a"/>
+        <circle cx="50" cy="32" r="2" fill="#ff5a5a"/>
+        <path d="M68 50 L 72 56 L 76 50" fill="none" stroke="#1a0d3a" stroke-width="1.4" stroke-linecap="round"/>
+        <path d="M22 50 Q 18 56 22 62" fill="none" stroke="#e8c878" stroke-width="1.2"/>
+        <path d="M28 28 L 34 18 M 36 24 L 42 14" fill="none" stroke="#e8c878" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>`;
+    case 6: // Anciuxor's Eye — divine eye
+      return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="iris" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff8d8"/><stop offset="35%" stop-color="#c9a8ff"/><stop offset="100%" stop-color="#3a1d70"/></radialGradient>
+          <linearGradient id="lid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4e3b3"/><stop offset="1" stop-color="#8a6d2c"/></linearGradient>
+        </defs>
+        <path d="M8 50 Q 50 16 92 50 Q 50 84 8 50 Z" fill="#1a0d3a" stroke="url(#lid)" stroke-width="2.4"/>
+        <circle cx="50" cy="50" r="18" fill="url(#iris)"/>
+        <circle cx="50" cy="50" r="8" fill="#1a0d3a"/>
+        <circle cx="46" cy="46" r="2.2" fill="#fff8d8"/>
+        <path d="M50 28 L52 22 M 50 72 L 52 78 M 28 50 L 22 50 M 72 50 L 78 50" stroke="#e8c878" stroke-width="0.8"/>
+      </svg>`;
+  }
+  return '';
+}
+function buildCubeFaces(cubeEl) {
+  cubeEl.innerHTML = '';
+  for (let n = 1; n <= 6; n++) {
+    const f = document.createElement('div');
+    f.className = 'dice-face f' + n;
+    f.innerHTML = diceFaceSvg(n);
+    cubeEl.appendChild(f);
+  }
+}
+function rollCube(cubeEl, result) {
+  // Reset to a neutral pose without transition so the new tumble interpolates cleanly.
+  cubeEl.style.transition = 'none';
+  cubeEl.style.transform = 'rotateX(-20deg) rotateY(-35deg)';
+  // Force reflow so the browser commits the reset before the new transform.
+  void cubeEl.offsetWidth;
+  // Animate to target: add 2 full spins on X and 3 full spins on Y, ending at face's angles.
+  const [tx, ty] = DICE_FACE_ANGLES[result];
+  const spinX = 720 + tx;
+  const spinY = 1080 + ty;
+  cubeEl.style.transition = 'transform 1.3s cubic-bezier(0.22, 0.6, 0.32, 1)';
+  cubeEl.style.transform = `rotateX(${spinX}deg) rotateY(${spinY}deg)`;
+}
+function setCaption(captionEl, result) {
+  const meta = DICE_FACE_META[result];
+  captionEl.innerHTML = `<div class="face-num" style="font-size:0.6rem;color:var(--mist-deep);letter-spacing:0.2em;">FACE ${result}</div><span class="face-name">${meta.name}</span><span class="face-tag">${meta.tag}</span>`;
+}
+
 function openDiceRoll() {
-  $('open-dice-you-roll').textContent = '?';
-  $('open-dice-ai-roll').textContent = '?';
-  $('open-dice-you').classList.remove('winner','loser','rolling');
-  $('open-dice-ai').classList.remove('winner','loser','rolling');
+  // Reset state and rebuild cubes (in case of rematch)
+  ['open-dice-you-cube','open-dice-ai-cube'].forEach(id => {
+    const el = $(id);
+    buildCubeFaces(el);
+    el.style.transition = 'none';
+    el.style.transform = 'rotateX(-20deg) rotateY(-35deg)';
+  });
+  $('open-dice-you').classList.remove('winner','loser','divine');
+  $('open-dice-ai').classList.remove('winner','loser','divine');
+  $('open-dice-you-caption').innerHTML = '&nbsp;';
+  $('open-dice-ai-caption').innerHTML = '&nbsp;';
   $('open-dice-result').textContent = '';
   $('open-dice-roll').hidden = false;
   $('open-dice-continue').hidden = true;
@@ -945,23 +1131,32 @@ function openDiceRoll() {
 }
 $('open-dice-roll').onclick = () => {
   $('open-dice-roll').hidden = true;
-  $('open-dice-you').classList.add('rolling');
-  $('open-dice-ai').classList.add('rolling');
-  const settle = () => {
-    let u = rollD(6), a = rollD(6);
-    while (u === a) { u = rollD(6); a = rollD(6); } // re-roll ties for v3 simplicity
-    state.opening.userRoll = u; state.opening.aiRoll = a;
-    $('open-dice-you-roll').textContent = u;
-    $('open-dice-ai-roll').textContent = a;
-    $('open-dice-you').classList.remove('rolling');
-    $('open-dice-ai').classList.remove('rolling');
+  // Roll values up-front (no animation deception — the cube actually lands on the rolled face)
+  let u = rollD(6), a = rollD(6);
+  while (u === a) { u = rollD(6); a = rollD(6); }  // re-roll ties for opening simplicity
+  state.opening.userRoll = u; state.opening.aiRoll = a;
+  rollCube($('open-dice-you-cube'), u);
+  rollCube($('open-dice-ai-cube'), a);
+  // After the tumble settles, reveal captions + winner/loser styling
+  setTimeout(() => {
+    setCaption($('open-dice-you-caption'), u);
+    setCaption($('open-dice-ai-caption'), a);
     const userWon = u > a;
     state.opening.winner = userWon ? 'p1' : 'p2';
-    if (userWon) { $('open-dice-you').classList.add('winner'); $('open-dice-ai').classList.add('loser'); $('open-dice-result').textContent = 'You won the roll'; }
-    else { $('open-dice-you').classList.add('loser'); $('open-dice-ai').classList.add('winner'); $('open-dice-result').textContent = 'AI won the roll'; }
+    if (userWon) {
+      $('open-dice-you').classList.add('winner');
+      $('open-dice-ai').classList.add('loser');
+      $('open-dice-result').textContent = u === 6 ? "Divine Roll — Anciuxor's Favor" : 'You won the roll';
+    } else {
+      $('open-dice-you').classList.add('loser');
+      $('open-dice-ai').classList.add('winner');
+      $('open-dice-result').textContent = a === 6 ? "AI rolled the Divine — Anciuxor's Favor" : 'AI won the roll';
+    }
+    // Divine flair on any 6 (purple glow + extra slow spin)
+    if (u === 6) { $('open-dice-you').classList.add('divine'); }
+    if (a === 6) { $('open-dice-ai').classList.add('divine'); }
     $('open-dice-continue').hidden = false;
-  };
-  setTimeout(settle, 700);
+  }, 1350);
 };
 $('open-dice-continue').onclick = () => {
   showModal('modal-open-dice', false);

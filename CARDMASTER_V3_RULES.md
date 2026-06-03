@@ -207,11 +207,11 @@ A1 uses Type 1. A2 uses Type 2. A3 uses both (apply the better multiplier).
 | **Aura** | Spirit, Unknown-Void | Creature, Extraterrestrial |
 | **Beast** | Creature, Spirit | Humanoid-Noid, Ultramax |
 | **Creature** | Nature, Aura | Beast, Unknown-Void |
-| **Extraterrestrial** | Aura, Nature | Robot, Ultramax |
-| **Humanoid-Noid** | Beast, Ultramax | Robot, Spirit |
-| **Nature** | Robot, Unknown-Void | Creature, Extraterrestrial |
-| **Robot** | Humanoid-Noid, Extraterrestrial | Nature, Spirit |
-| **Spirit** | Humanoid-Noid, Robot | Beast, Aura |
+| **Extraterrestrial** | Aura, Nature | Tech, Ultramax |
+| **Humanoid-Noid** | Beast, Ultramax | Tech, Spirit |
+| **Nature** | Tech, Unknown-Void | Creature, Extraterrestrial |
+| **Tech** | Humanoid-Noid, Extraterrestrial | Nature, Spirit |
+| **Spirit** | Humanoid-Noid, Tech | Beast, Aura |
 | **Ultramax** | Extraterrestrial, Beast | Humanoid-Noid, Unknown-Void |
 | **Unknown-Void** | Ultramax, Creature | Nature, Aura |
 

@@ -227,6 +227,28 @@
     .stat-cell.debuffed .val { color: var(--crimson); }
     .stat-cell.spc-spent .val { color: var(--mist-deep); text-decoration: line-through; }
 
+    /* Per-card stacked-gem badge (top-left corner of slot) */
+    .gems-card-badge {
+      position: absolute; top: -8px; left: -8px;
+      min-width: 30px; height: 30px; padding: 0 8px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--purple), #6e3fc1);
+      color: #fff;
+      font-family: var(--font-display); font-weight: 700; font-size: 0.88rem;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 12px rgba(168,124,255,0.5), 0 4px 10px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.25);
+      z-index: 5;
+    }
+    .gems-card-badge.zero { display: none; }
+    .gems-card-badge.ready-revive {
+      background: linear-gradient(135deg, var(--cosmic-blue), #2e74cf);
+      animation: gemReadyPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes gemReadyPulse {
+      0%,100% { box-shadow: 0 0 10px rgba(111,163,232,0.5), 0 4px 10px rgba(0,0,0,0.5); }
+      50%     { box-shadow: 0 0 20px rgba(111,163,232,0.95), 0 4px 10px rgba(0,0,0,0.5); }
+    }
     /* Status chips under each active card */
     .status-row { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; justify-content: center; min-height: 14px; }
     .status-chip {
@@ -479,7 +501,7 @@
     <div class="title-eyebrow">Prototype 05 · v3 · Rizing Powers of Zyrex</div>
     <h1 class="title-h1">Cardmaster Showdown</h1>
     <div class="title-divider"><span class="line"></span><span class="diamond"></span><span class="line"></span></div>
-    <p class="title-tagline">3v3 active field · Possession turns · 5-stat cards · Astralite statuses · Backfire control-theory</p>
+    <p class="title-tagline">3v3 active field · Possession turns · 5-stat cards · Astralite statuses · Backfire control · Gem Gamble (stack or fund the enemy)</p>
     <div style="display:flex;gap:12px;margin-top:8px;">
       <button class="btn-primary" id="btn-play">Play</button>
       <button class="btn-secondary" id="btn-rules" style="padding:14px 24px;font-size:0.7rem;">Rules v6.7</button>
@@ -491,7 +513,7 @@
     <div class="battle-side p2-side" id="p2-side">
       <div class="player-meta">
         <span class="player-tag-inline">AI Opponent</span>
-        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p2-gems">27</span><span class="gem-label">Gems</span></div>
+        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p2-gems">0</span><span class="gem-label">Spoils</span></div>
         <div class="reserve-list" id="p2-reserves"></div>
       </div>
       <div class="slot empty" id="p2-slot-0"></div>
@@ -506,7 +528,7 @@
     <div class="battle-side p1-side" id="p1-side">
       <div class="player-meta">
         <span class="player-tag-inline">You</span>
-        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p1-gems">27</span><span class="gem-label">Gems</span></div>
+        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p1-gems">0</span><span class="gem-label">Spoils</span></div>
         <div class="reserve-list" id="p1-reserves"></div>
       </div>
       <div class="slot empty" id="p1-slot-0"></div>
@@ -540,13 +562,19 @@
       <p>Each round, compare the <span class="accent">highest-SPD active card</span> on each team. Higher wins possession. Every active card on the possessing team takes <span class="accent">one move</span>, then possession passes.</p>
       <h4>Stats</h4>
       <p><span class="stat">SPD</span> · <span class="stat">HP</span> · <span class="stat">DEF</span> · <span class="stat">ATK</span> · <span class="stat">SPC</span></p>
+      <h4>Gem Gamble (the economy)</h4>
+      <p>Every card carries an implicit <span class="accent">baseline gem</span> — that's why <span class="accent">A1 is free</span>. To do anything heavier, the card spends a turn on <span class="accent">STACK</span> to bank +1 gem onto itself. Gems live on the card, not in a team pool.</p>
+      <p class="crimson">The gamble: if a card falls while carrying stacked gems, those gems transfer to the opponent's <span class="accent">SPOILS</span> pool — any of their active cards can spend from spoils as if personal. Bank too greedily and you fund the enemy.</p>
+      <p>Shifting preserves the card's stacked gems. Spoils carry across rounds until spent.</p>
       <h4>Moves</h4>
       <ul>
-        <li><span class="accent">A1</span> — 1 gem · ATK × 0.33 · Type 1 only · no status · safe</li>
+        <li><span class="accent">A1</span> — <span class="accent">FREE</span> · ATK × 0.33 · Type 1 only · no status · no backfire · always available</li>
         <li><span class="accent">A2</span> — 2 gems · ATK × 0.66 · Type 2 only · can inflict status · can backfire</li>
         <li><span class="accent">A3</span> — 3 gems · ATK × 0.99 · best-of-both types · higher status proc · can backfire</li>
+        <li><span class="accent">STACK</span> — free turn action · +1 gem on the card · the only way to fund A2 / A3 / Revive</li>
         <li><span class="accent">SPC</span> — free · one-time permanent <span class="accent">SPC ÷ 10 flat boost</span> to one stat</li>
-        <li><span class="accent">Shift</span> — swap an active card with a reserve · shifted-in card can't attack same turn</li>
+        <li><span class="accent">REVIVE</span> — 4 gems from the casting card · revives any fallen ally to reserve at 50% HP (Risen)</li>
+        <li><span class="accent">Shift</span> — swap an active card with a reserve · shifted-in card can't attack same turn · stacked gems travel with the card</li>
       </ul>
       <h4>DEF reduction (linear)</h4>
       <p><span class="accent">Reduction % = DEF ÷ 10</span>. DEF 100 → 10%, DEF 500 → 50%, DEF 999 → 99.9%. Damage always lands (min 1).</p>
@@ -557,8 +585,8 @@
       <p><span class="accent">(Tier × 10) − (SPC ÷ 10)</span>, min 1%. A2/A3 only. On backfire, the status hits the attacker; damage still lands on target. A1 never backfires.</p>
       <h4>Type chart (10 cyclic types)</h4>
       <p>Each type strong vs 2, weak vs 2. A1 uses Type 1, A2 uses Type 2, A3 uses best-of-both. Multipliers: 4× / 2× / 1× / 0.5× / 0.25×.</p>
-      <h4>Gems &amp; Revive</h4>
-      <p><span class="accent">27 team-wide gems per match.</span> Revive a fallen card for <span class="accent">Tier gems</span> (I=1 … X=10), returns at 50% HP with the <span class="crimson">Risen</span> mark.</p>
+      <h4>Gems &amp; Revive — recap</h4>
+      <p><span class="accent">Per-card stacked gems</span>; A1 free; A2=2, A3=3, Revive=4 all paid from the card's own stack (or team spoils). <span class="crimson">Falling forfeits all your gems to the enemy.</span></p>
       <h4>Win</h4>
       <p>All 9 opponent cards FALLEN. MVPs: top 3 from the winning team ranked by performance.</p>
     </div>
@@ -661,12 +689,16 @@
 <script>
 'use strict';
 
-// ============ Rules constants (v6.7 locked) ============
+// ============ Rules constants (v6.7 + Gem Gamble lock) ============
 const FACTION_SIZE  = 9;
 const ACTIVE_SIZE   = 3;
 const RESERVE_SIZE  = 6;
-const TEAM_GEM_POOL = 27;
-const A1_GEM = 1, A2_GEM = 2, A3_GEM = 3;
+// Gem Gamble: per-card stacked gems. Every card carries an implicit baseline gem
+// (that's why A1 is FREE). To do anything heavier the card must spend a turn on
+// STACK to bank +1 gem. If a card falls, its stacked gems transfer to the
+// opposing team's SPOILS pool — any of their active cards can spend from spoils.
+const A1_GEM = 0, A2_GEM = 2, A3_GEM = 3;
+const REVIVE_GEMS = 4;
 const A1_MULT = 0.33, A2_MULT = 0.66, A3_MULT = 0.99;
 
 // ============ Type chart (cyclic 10) ============
@@ -732,7 +764,6 @@ function backfirePct(tier, spc) {
   return Math.max(0.01, raw / 100);
 }
 function spcBoost(spc)    { return Math.floor(spc / 10); }
-function reviveCost(tier) { return tier; }
 function defReduction(def) { return Math.min(def / 1000, 0.999); } // DEF/10 percent → /1000 as multiplier
 
 // ============ Roster (loaded from JSON inline) ============
@@ -802,7 +833,26 @@ function setBase(c) {
   c.risen = false;
   c.spcUsed = false;
   c.enteredThisTurn = false;
-  c.stats = { kills:0, dmgDealt:0, dmgTaken:0, statusesInflicted:0, backfires:0, movesUsed:0 };
+  c.gems = 0; // stacked gems (A1 always free; A2 needs 2; A3 needs 3; Revive needs 4)
+  c.stats = { kills:0, dmgDealt:0, dmgTaken:0, statusesInflicted:0, backfires:0, movesUsed:0, gemsStacked:0, gemsLost:0 };
+}
+
+// ===== Gem spending =====
+// Spend N gems for `card` on side `side`. Pulls from the card's personal stack
+// first, then from the team's spoils pool. Returns true on success.
+function canAfford(side, card, n) {
+  if (n <= 0) return true;
+  return (card.gems + state.battle[side].spoils) >= n;
+}
+function spendGems(side, card, n) {
+  if (n <= 0) return true;
+  if (!canAfford(side, card, n)) return false;
+  let remaining = n;
+  const fromCard = Math.min(card.gems, remaining);
+  card.gems -= fromCard;
+  remaining -= fromCard;
+  if (remaining > 0) state.battle[side].spoils -= remaining;
+  return true;
 }
 
 // ============ Title binding ============
@@ -978,7 +1028,7 @@ function initBattle(userStarters, aiStarters) {
     });
     const active = starters.map(sid => faction.findIndex(c => c.id === sid));
     const reserve = faction.map((_,i) => i).filter(i => !active.includes(i));
-    return { faction, active, reserve, fallen: [], gems: TEAM_GEM_POOL };
+    return { faction, active, reserve, fallen: [], spoils: 0 };
   };
 
   state.battle = {
@@ -1138,10 +1188,20 @@ function findSide(card) {
 
 function moveToFallen(side) {
   const s = state.battle[side];
+  const enemy = state.battle[opp(side)];
   for (let slot = 0; slot < ACTIVE_SIZE; slot++) {
     const idx = s.active[slot];
     if (idx == null || idx < 0) continue;
-    if (s.faction[idx].fallen) {
+    const card = s.faction[idx];
+    if (card.fallen) {
+      // GEM GAMBLE — steal-on-fall. Any stacked gems on the fallen card transfer
+      // to the opposing team's SPOILS pool (any of their active cards may spend).
+      if (card.gems > 0) {
+        enemy.spoils += card.gems;
+        card.stats.gemsLost += card.gems;
+        log('backfire', `${card.name} falls carrying ${card.gems} gem${card.gems===1?'':'s'} → seized by the enemy as spoils.`);
+        card.gems = 0;
+      }
       s.fallen.push(idx);
       // Auto-fill from reserve if available
       const next = s.reserve.shift();
@@ -1254,31 +1314,32 @@ function tryProcStatus(attacker, defender, kind, isBackfire) {
 
 // ============ Move execution ============
 function executeMove(side, slot, kind, target) {
-  // target = { side, slot } for a1/a2/a3
+  // target = { side, slot } for a1/a2/a3 ; ignored for stack/spc/shift/revive
   const c = activeCard(side, slot);
   if (!c || c.fallen) return false;
   if (c.enteredThisTurn) return false;
   if (state.battle.acted[slot]) return false;
   // Brainlock gate
-  if (c.statuses.some(s => s.key === 'brainlock') && kind !== 'a1' && kind !== 'shift' && kind !== 'spc') {
-    log('status', `${c.name} is Brainlocked — A1 only.`);
+  if (c.statuses.some(s => s.key === 'brainlock') && kind !== 'a1' && kind !== 'shift' && kind !== 'spc' && kind !== 'stack') {
+    log('status', `${c.name} is Brainlocked — A1 / Stack / Shift / SPC only.`);
     return false;
   }
   // Gridfreeze (skip turn)
   if (c.statuses.some(s => s.key === 'gridfreeze')) {
     log('status', `${c.name} is Gridfrozen — skips this turn.`);
     state.battle.acted[slot] = true;
-    // Consume the gridfreeze
     const i = c.statuses.findIndex(s => s.key === 'gridfreeze');
     if (i >= 0) c.statuses.splice(i, 1);
     advanceAfterMove(side);
     return true;
   }
-  // Gem cost & resolve
-  const teamGems = state.battle[side].gems;
-  if (kind === 'a1') {
-    if (teamGems < A1_GEM) { log('miss', `${c.name} can't afford A1.`); return false; }
-    state.battle[side].gems -= A1_GEM;
+
+  if (kind === 'stack') {
+    c.gems += 1;
+    c.stats.gemsStacked += 1;
+    log('spc', `${c.name} stacks a gem (${c.gems} on card).`);
+  } else if (kind === 'a1') {
+    // FREE — no gem check
     animateAttack(side, slot, target);
     const t = activeCard(target.side, target.slot);
     if (!t || t.fallen) { log('miss', 'No target.'); return false; }
@@ -1286,29 +1347,44 @@ function executeMove(side, slot, kind, target) {
     c.stats.movesUsed += 1;
   } else if (kind === 'a2' || kind === 'a3') {
     const cost = kind === 'a2' ? A2_GEM : A3_GEM;
-    if (teamGems < cost) { log('miss', `${c.name} can't afford ${kind.toUpperCase()}.`); return false; }
-    state.battle[side].gems -= cost;
+    if (!canAfford(side, c, cost)) { log('miss', `${c.name} needs ${cost} gems to fire ${kind.toUpperCase()}.`); return false; }
+    spendGems(side, c, cost);
     animateAttack(side, slot, target);
     const t = activeCard(target.side, target.slot);
     if (!t || t.fallen) { log('miss', 'No target.'); return false; }
-    // Damage always lands
     applyDamage(c, t, kind);
-    // Backfire check
     const bf = Math.random() < backfirePct(tierInt(c), c.spc);
     if (bf) {
       log('backfire', `${c.name}'s astralite destabilizes — backfire!`);
       c.stats.backfires += 1;
-      // Status hits attacker instead of target
       if (!t.fallen) tryProcStatus(c, t, kind, true);
     } else {
       if (!t.fallen) tryProcStatus(c, t, kind, false);
     }
     c.stats.movesUsed += 1;
-  } else if (kind === 'spc') {
-    // handled in modal flow — should not call directly
+  } else if (kind === 'revive') {
+    // Card spends 4 of its own stacked gems to revive a fallen card.
+    // The target was selected via the revive modal and stored on state.selection.target.
+    if (!canAfford(side, c, REVIVE_GEMS)) { log('miss', `${c.name} needs ${REVIVE_GEMS} gems to revive.`); return false; }
+    const tgtFallenIdx = (target && target.fallenIdx != null) ? target.fallenIdx : null;
+    if (tgtFallenIdx == null) { log('miss', 'No revive target.'); return false; }
+    spendGems(side, c, REVIVE_GEMS);
+    const b = state.battle[side];
+    const reviveCard = b.faction[tgtFallenIdx];
+    if (!reviveCard) { log('miss', 'Revive target missing.'); return false; }
+    reviveCard.fallen = false;
+    reviveCard.risen = true;
+    reviveCard.hp = Math.ceil(reviveCard.maxHp * 0.5);
+    reviveCard.statuses = [];
+    const fi = b.fallen.indexOf(tgtFallenIdx);
+    if (fi >= 0) b.fallen.splice(fi, 1);
+    b.reserve.push(tgtFallenIdx);
+    log('spc', `${c.name} channels 4 gems → revives ${reviveCard.name} (50% HP, Risen).`);
+    c.stats.movesUsed += 1;
+  } else if (kind === 'spc' || kind === 'shift') {
+    return false; // handled via modal/shift flow elsewhere
+  } else {
     return false;
-  } else if (kind === 'shift') {
-    return false; // handled via shift flow
   }
   state.battle.acted[slot] = true;
   checkWin();
@@ -1397,56 +1473,37 @@ function doShift(side, slot, reserveFactionIdx) {
   advanceAfterMove(side);
 }
 
-// ============ Revive flow ============
-function openReviveModal(side) {
+// ============ Revive flow (Gem Gamble) ============
+// Casting card on `side` at `slot` spends 4 of its stacked gems to revive a fallen ally.
+function openReviveModal(side, slot) {
   const b = state.battle[side];
-  if (!b.fallen.length) return;
-  $('revive-cost').textContent = '(tier ÷ each)';
+  const caster = activeCard(side, slot);
+  if (!caster || !b.fallen.length) return;
+  if (!canAfford(side, caster, REVIVE_GEMS)) return;
+  $('revive-cost').textContent = REVIVE_GEMS;
   const list = $('revive-list');
   list.innerHTML = '';
   for (const fIdx of b.fallen) {
     const c = b.faction[fIdx];
-    const cost = reviveCost(tierInt(c));
     const row = document.createElement('div');
     row.className = 'reserve-chip revive-target';
-    row.style.cursor = b.gems >= cost ? 'pointer' : 'not-allowed';
-    row.style.opacity = b.gems >= cost ? '1' : '0.35';
-    row.innerHTML = `<span>${c.name}</span><span class="tier-pill">T${c.tier_roman} · ${cost} gems</span>`;
-    if (b.gems >= cost) {
-      row.onclick = () => doRevive(side, fIdx);
-    }
+    row.style.cursor = 'pointer';
+    row.innerHTML = `<span>${c.name}</span><span class="tier-pill">T${c.tier_roman}</span>`;
+    row.onclick = () => {
+      showModal('modal-revive', false);
+      executeMove(side, slot, 'revive', { fallenIdx: fIdx });
+    };
     list.appendChild(row);
   }
   showModal('modal-revive', true);
 }
-$('revive-cancel').onclick = () => { showModal('modal-revive', false); clearSelection(); render(); };
-
-function doRevive(side, fIdx) {
-  const b = state.battle[side];
-  const c = b.faction[fIdx];
-  const cost = reviveCost(tierInt(c));
-  if (b.gems < cost) return;
-  b.gems -= cost;
-  // Restore stats
-  c.fallen = false;
-  c.risen = true;
-  c.hp = Math.ceil(c.maxHp * 0.5);
-  c.statuses = [];
-  // Move from fallen → reserve
-  const i = b.fallen.indexOf(fIdx);
-  if (i >= 0) b.fallen.splice(i, 1);
-  b.reserve.push(fIdx);
-  log('spc', `${c.name} is revived (Risen, 50% HP).`);
-  showModal('modal-revive', false);
-  // Revive is a free action (doesn't consume a card's turn)
-  render();
-}
+$('revive-cancel').onclick = () => { showModal('modal-revive', false); render(); };
 
 // ============ Rendering ============
 function render() {
   if (!state.battle) return;
-  $('p1-gems').textContent = state.battle.p1.gems;
-  $('p2-gems').textContent = state.battle.p2.gems;
+  $('p1-gems').textContent = state.battle.p1.spoils;
+  $('p2-gems').textContent = state.battle.p2.spoils;
   ['p1','p2'].forEach(side => {
     for (let s = 0; s < ACTIVE_SIZE; s++) renderSlot(side, s);
     renderReserves(side);
@@ -1478,6 +1535,13 @@ function renderSlot(side, slot) {
   // If we are in target mode and this is the opposite side, mark as target
   if (state.selection.mode === 'target' && side !== state.selection.side) el.classList.add('target');
   if (state.selection.side === side && state.selection.slot === slot && state.selection.mode === 'pick') el.classList.add('selected');
+
+  // Per-card stacked-gem badge (top-left)
+  const gemBadge = document.createElement('div');
+  gemBadge.className = 'gems-card-badge' + (c.gems === 0 ? ' zero' : '') + (c.gems >= REVIVE_GEMS ? ' ready-revive' : '');
+  gemBadge.textContent = c.gems;
+  gemBadge.title = `${c.gems} stacked gem${c.gems===1?'':'s'} on this card — A1 free, A2 needs 2, A3 needs 3, Revive needs 4. Falls = enemy spoils.`;
+  el.appendChild(gemBadge);
 
   // Build content
   const head = document.createElement('div');
@@ -1577,17 +1641,6 @@ function renderReserves(side) {
     chip.innerHTML = `<span>${c.name}</span><span class="tier-pill">T${c.tier_roman} · fallen</span>`;
     wrap.appendChild(chip);
   });
-  // Revive entry if applicable
-  if (side === 'p1' && b.fallen.length && state.battle.possession === 'p1' && !state.battle.winner) {
-    const btn = document.createElement('div');
-    btn.className = 'reserve-chip';
-    btn.style.cursor = 'pointer';
-    btn.style.borderColor = 'var(--cosmic-blue)';
-    btn.style.color = 'var(--cosmic-blue)';
-    btn.innerHTML = `<span>Revive (free action)</span><span class="tier-pill">${b.fallen.length} fallen</span>`;
-    btn.onclick = () => openReviveModal('p1');
-    wrap.appendChild(btn);
-  }
 }
 
 function renderActions() {
@@ -1611,33 +1664,51 @@ function renderActions() {
   if (sel.mode === 'pick') {
     const c = activeCard(sel.side, sel.slot);
     if (!c) return;
-    // Show move buttons
-    const teamGems = state.battle[sel.side].gems;
     const isBrainlocked = c.statuses.some(s => s.key === 'brainlock');
-    const mk = (kind, label, cost, cls, dis) => {
+    const mk = (kind, label, cost, cls, dis, onclick) => {
       const b = document.createElement('button');
       b.className = 'move-btn ' + cls;
       b.disabled = !!dis;
       b.innerHTML = `<div>${label}</div><div class="move-cost-pill">${cost}</div>`;
-      b.onclick = () => beginAttack(kind);
+      b.onclick = onclick || (() => beginAttack(kind));
       return b;
     };
-    bar.appendChild(mk('a1', 'A1', `${A1_GEM} gem · 33% ATK`, 'a1', teamGems < A1_GEM));
-    bar.appendChild(mk('a2', 'A2', `${A2_GEM} gems · 66% ATK`, 'a2', teamGems < A2_GEM || isBrainlocked));
-    bar.appendChild(mk('a3', 'A3', `${A3_GEM} gems · 99% ATK`, 'a3', teamGems < A3_GEM || isBrainlocked));
+    // A1 — always free
+    bar.appendChild(mk('a1', 'A1', `FREE · 33% ATK`, 'a1', false));
+    // A2 / A3 — from card.gems + team spoils
+    bar.appendChild(mk('a2', 'A2', `${A2_GEM} gems · 66% ATK`, 'a2', !canAfford(sel.side, c, A2_GEM) || isBrainlocked));
+    bar.appendChild(mk('a3', 'A3', `${A3_GEM} gems · 99% ATK`, 'a3', !canAfford(sel.side, c, A3_GEM) || isBrainlocked));
+    // STACK button
+    const stackBtn = document.createElement('button');
+    stackBtn.className = 'move-btn draw';
+    stackBtn.style.borderColor = 'var(--purple)';
+    stackBtn.style.color = '#c9a8ff';
+    stackBtn.innerHTML = `<div>STACK</div><div class="move-cost-pill">+1 gem (this card)</div>`;
+    stackBtn.onclick = () => executeMove(sel.side, sel.slot, 'stack', null);
+    bar.appendChild(stackBtn);
     // SPC button
     const spcBtn = document.createElement('button');
     spcBtn.className = 'move-btn spc';
     spcBtn.disabled = c.spcUsed;
-    spcBtn.innerHTML = `<div>SPC</div><div class="move-cost-pill">+${spcBoost(c.spc)} flat</div>`;
+    spcBtn.innerHTML = `<div>SPC</div><div class="move-cost-pill">+${spcBoost(c.spc)} flat · free</div>`;
     spcBtn.onclick = () => openSpcModal(sel.side, sel.slot);
     bar.appendChild(spcBtn);
-    // Shift button (need a reserve)
+    // REVIVE button — needs 4 gems on this card AND at least one fallen ally
+    const canRev = canAfford(sel.side, c, REVIVE_GEMS) && state.battle[sel.side].fallen.length > 0;
+    const reviveBtn = document.createElement('button');
+    reviveBtn.className = 'move-btn';
+    reviveBtn.style.borderColor = 'var(--cosmic-blue)';
+    reviveBtn.style.color = 'var(--cosmic-blue)';
+    reviveBtn.disabled = !canRev;
+    reviveBtn.innerHTML = `<div>REVIVE</div><div class="move-cost-pill">${REVIVE_GEMS} gems · pick fallen</div>`;
+    reviveBtn.onclick = () => openReviveModal(sel.side, sel.slot);
+    bar.appendChild(reviveBtn);
+    // Shift button
     const hasReserve = state.battle[sel.side].reserve.length > 0;
     const shiftBtn = document.createElement('button');
     shiftBtn.className = 'move-btn shift';
     shiftBtn.disabled = !hasReserve;
-    shiftBtn.innerHTML = `<div>SHIFT</div><div class="move-cost-pill">pick reserve</div>`;
+    shiftBtn.innerHTML = `<div>SHIFT</div><div class="move-cost-pill">swap with reserve</div>`;
     shiftBtn.onclick = () => beginShift(sel.side, sel.slot);
     bar.appendChild(shiftBtn);
     // Skip turn (always available — useful if no moves are affordable)
@@ -1786,18 +1857,28 @@ function aiTurn() {
     setTimeout(aiTurn, 500);
     return;
   }
-  if (!isBrainlocked && b.p2.gems >= A3_GEM && Math.random() < 0.45) kind = 'a3';
-  else if (!isBrainlocked && b.p2.gems >= A2_GEM && Math.random() < 0.50) kind = 'a2';
-  else if (b.p2.gems >= A1_GEM) kind = 'a1';
+  // Revive: if this card has 4+ gems AND we have a fallen ally, ~50% chance.
+  if (b.p2.fallen.length && canAfford('p2', c, REVIVE_GEMS) && Math.random() < 0.55) {
+    const fIdx = b.p2.fallen[0];
+    executeMove('p2', slot, 'revive', { fallenIdx: fIdx });
+    return;
+  }
+  // Decide between A3 / A2 / A1 / Stack based on what we can afford and gem-economy hunger
+  const canA3 = !isBrainlocked && canAfford('p2', c, A3_GEM);
+  const canA2 = !isBrainlocked && canAfford('p2', c, A2_GEM);
+  if (canA3 && Math.random() < 0.55) kind = 'a3';
+  else if (canA2 && Math.random() < 0.55) kind = 'a2';
   else {
-    // No gems — try shift to a fresh card
-    if (b.p2.reserve.length) {
-      doShift('p2', slot, b.p2.reserve[0]);
+    // Decide: stack or A1?
+    // If this card has < 2 gems AND target HP is high (>60%), stack to build up.
+    // Otherwise fire A1 for chip damage.
+    const t = activeCard('p1', bestTargetSlot);
+    const tHpFrac = t ? (t.hp / t.maxHp) : 1;
+    if (c.gems < 3 && tHpFrac > 0.55 && Math.random() < 0.50) {
+      executeMove('p2', slot, 'stack', null);
       return;
     }
-    b.acted[slot] = true;
-    setTimeout(aiTurn, 350);
-    return;
+    kind = 'a1';
   }
   executeMove('p2', slot, kind, { side: 'p1', slot: bestTargetSlot });
   // executeMove calls advanceAfterMove which schedules next aiTurn if still p2 possession

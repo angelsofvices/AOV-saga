@@ -15,8 +15,9 @@ This is the locked source-of-truth ruleset for the v3 Cardmaster engine (`cardma
 - New **BACKFIRE** system (control-theory instability for low-SPC cards)
 - **5 ASTRALITE STATUS** effects finalized (Overcook, Undershock, Brainlock, Gridfreeze, Souldrift)
 - New **FIELD FORMAT**: 3v3 active, 6 in deck
-- New **TURN STRUCTURE**: possession by highest-SPD card, every active card moves
-- New **SHIFT** mechanic: cards may shift in/out using a turn
+- New **TURN STRUCTURE**: possession by highest-SPD card (once per round), every active card moves
+- New **SHIFT** mechanic: cards may shift in/out using a turn — stacked gems travel with the card
+- New **GEM GAMBLE**: per-card stacked gems; A1 free; STACK is a turn action; A2=2, A3=3, REVIVE=4 from the card's own stack; fallen cards forfeit their gems to the enemy's SPOILS pool (see §12)
 
 ---
 
@@ -86,12 +87,14 @@ Five stats. Stats map to the cosmology Tier-Color progression.
 
 | Move | Gems | Damage | Notes |
 |---|---|---|---|
-| **A1** | 1 | ATK × 0.33 | Uses Type 1 only. No status, no backfire. The safe strike. |
+| **A1** | **FREE** | ATK × 0.33 | Uses Type 1 only. No status, no backfire. The safe strike. Always available — A1 is the baseline gem every card carries. |
 | **A2** | 2 | ATK × 0.66 | Uses Type 2 only. Can INFLICT a status (proc roll). Can backfire. |
 | **A3** | 3 | ATK × 0.99 | Uses BOTH types (best multiplier). Continues/applies status at higher proc. Can backfire. Damage always lands. |
+| **STACK** | — | — | Free turn action: bank +1 gem onto **this card's** stack. The only way to fund A2 / A3 / Revive. |
 | **SPC** | FREE | — | One-time permanent stat boost. See §7. |
+| **REVIVE** | 4 | — | The casting card spends 4 of its stacked gems to revive any fallen ally to reserve at 50% HP with the Risen mark. |
 
-*All damage rounds **UP**. Minimum damage is always 1.*
+*All damage rounds **UP**. Minimum damage is always 1. See §12 for the full Gem Gamble.*
 
 ---
 
@@ -234,15 +237,31 @@ Apply in this exact order each time a card attacks:
 
 ---
 
-## 12. Gem & Revive System
+## 12. Gem Gamble — Per-card Stacks, Spoils on Fall
 
-**27 gems** per player per match (team-wide pool). A1=1 gem, A2=2 gems, A3=3 gems, SPC=free.
+The gem economy is **per-card**, not team-wide. Every active card carries an implicit **baseline gem** — that's why **A1 is free**. Beyond A1, the card must spend turns banking gems onto itself.
 
-**Revive cost** scales by Tier (returns at 50% HP, **Risen** status):
+### 12.1 The mechanic
+- Each card has a personal **stacked-gem counter** (starts at 0).
+- **STACK** is a turn action: card spends its move to add +1 gem to its own stack.
+- **A2** costs 2 gems from the card's stack. **A3** costs 3. **REVIVE** costs 4.
+- **Stack overflow → Spoils:** when a card on your team falls, all of its stacked gems are seized by the **opposing team's SPOILS pool**. Any of their active cards may spend from spoils as if they were personal gems.
+- **Shifting preserves gems** — a card that shifts out keeps its stacked gems for when it shifts back in.
 
-| Tier | I | II | III | IV | V | VI | VII | VIII | IX | X |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Gems | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+### 12.2 The gamble
+A card stacking toward A3 (3 gems) or Revive (4 gems) becomes a juicy target: kill it before it fires and you not only stop the threat, you absorb its gems. The choice every turn is **stack now (build toward your payoff)** vs. **swing now (chip the enemy and protect your investment)**.
+
+### 12.3 Quick reference
+
+| Action | Gem cost | Source |
+|---|---|---|
+| A1 | FREE | (baseline gem) |
+| Stack | — | spends turn, +1 to card |
+| A2 | 2 | card's stack → team spoils |
+| A3 | 3 | card's stack → team spoils |
+| SPC boost | FREE | one-time, permanent |
+| Revive | 4 | casting card's stack |
+| Shift | FREE | preserves card's gems |
 
 ---
 
@@ -261,9 +280,10 @@ Apply in this exact order each time a card attacks:
 11. A1 never backfires and carries no status.
 12. Types: 10-type cyclic chart. A1=Type1, A2=Type2, A3=both.
 13. Last Breath: **SKIPPED**. 0 HP = instant FALLEN.
-14. Revive: tier-scaled gem cost, returns at 50% HP.
-15. Card base stats are **PERMANENT & IMMUTABLE** — v6.7 codex is source of truth.
-16. Match MVP = 3 cards from the WINNING team, ranked 1st/2nd/3rd.
+14. Revive: 4 gems from the casting card's stack, returns target at 50% HP.
+15. Gem Gamble: per-card stacks; A1 free; STACK to bank; falling forfeits stack to enemy SPOILS.
+16. Card base stats are **PERMANENT & IMMUTABLE** — v6.7 codex is source of truth.
+17. Match MVP = 3 cards from the WINNING team, ranked 1st/2nd/3rd.
 
 ---
 

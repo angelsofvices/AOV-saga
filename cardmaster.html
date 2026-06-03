@@ -125,6 +125,40 @@
       display: flex; align-items: center; gap: 8px; justify-content: center;
       padding: 6px 10px; border-radius: 6px;
       background: rgba(10, 6, 24, 0.5); border: 1px solid rgba(232, 200, 120, 0.2);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .gem-tracker.raidable {
+      cursor: pointer;
+      border-color: var(--purple);
+      background: rgba(110, 63, 193, 0.18);
+      animation: raidedPulse 1.8s ease-in-out infinite;
+    }
+    .gem-tracker.raidable:hover { background: rgba(110, 63, 193, 0.32); box-shadow: 0 0 18px rgba(176, 139, 255, 0.55); }
+    .gem-tracker.depositing {
+      cursor: default;
+      border-color: var(--gold-bright);
+      background: rgba(232, 200, 120, 0.18);
+      animation: none;
+    }
+    @keyframes raidedPulse {
+      0%,100% { box-shadow: 0 0 10px rgba(176, 139, 255, 0.3); }
+      50%     { box-shadow: 0 0 18px rgba(176, 139, 255, 0.7); }
+    }
+    /* Deposit-target highlight on own slots when in raid-deposit mode */
+    .slot.deposit-target {
+      cursor: pointer;
+      border-color: var(--purple);
+      box-shadow:
+        0 0 0 2px rgba(176, 139, 255, 0.7) inset,
+        0 12px 24px rgba(0, 0, 0, 0.5),
+        0 0 22px rgba(176, 139, 255, 0.5);
+    }
+    .slot.deposit-target:hover {
+      box-shadow:
+        0 0 0 2px rgba(176, 139, 255, 0.95) inset,
+        0 16px 30px rgba(0, 0, 0, 0.55),
+        0 0 30px rgba(176, 139, 255, 0.7);
+      transform: translateY(-2px);
     }
     .gem-icon { width: 12px; height: 12px; background: linear-gradient(135deg, var(--purple), #6e3fc1); transform: rotate(45deg); box-shadow: 0 0 6px rgba(168, 124, 255, 0.5); }
     .gem-count { font-family: var(--font-display); font-size: 1.1rem; letter-spacing: 0.05em; color: var(--gold-bright); }
@@ -658,7 +692,7 @@
     <div class="battle-side p2-side" id="p2-side">
       <div class="player-meta">
         <span class="player-tag-inline">AI Opponent</span>
-        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p2-gems">0</span><span class="gem-label">Spoils</span></div>
+        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p2-gems">0</span><span class="gem-label">Raided</span></div>
         <div class="reserve-list" id="p2-reserves"></div>
       </div>
       <div class="slot empty" id="p2-slot-0"></div>
@@ -673,7 +707,7 @@
     <div class="battle-side p1-side" id="p1-side">
       <div class="player-meta">
         <span class="player-tag-inline">You</span>
-        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p1-gems">0</span><span class="gem-label">Spoils</span></div>
+        <div class="gem-tracker"><div class="gem-icon"></div><span class="gem-count" id="p1-gems">0</span><span class="gem-label">Raided</span></div>
         <div class="reserve-list" id="p1-reserves"></div>
       </div>
       <div class="slot empty" id="p1-slot-0"></div>
@@ -709,8 +743,9 @@
       <p><span class="stat">SPD</span> · <span class="stat">HP</span> · <span class="stat">DEF</span> · <span class="stat">ATK</span> · <span class="stat">SPC</span></p>
       <h4>Gem Gamble (the economy)</h4>
       <p>Every card carries an implicit <span class="accent">baseline gem</span> — that's why <span class="accent">A1 is free</span>. To do anything heavier, the card spends a turn on <span class="accent">STACK</span> to bank +1 gem onto itself. Gems live on the card, not in a team pool.</p>
-      <p class="crimson">The gamble: if a card falls while carrying stacked gems, those gems transfer to the opponent's <span class="accent">SPOILS</span> pool — any of their active cards can spend from spoils as if personal. Bank too greedily and you fund the enemy.</p>
-      <p>Shifting preserves the card's stacked gems. Spoils carry across rounds until spent.</p>
+      <p class="crimson">The gamble: if a card falls while carrying stacked gems, those gems are raided by the opponent — added to their <span class="accent">RAIDED</span> pool. Any of their active cards can spend from raided as if personal. Bank too greedily and you fund the enemy.</p>
+      <p>Shifting preserves the card's stacked gems. Raided gems carry across rounds until spent.</p>
+      <p><span class="accent">Deposit raided gems</span> — during your possession, click your glowing purple <span style="color:#c9a8ff;">Raided</span> counter to enter deposit mode, then tap an active card to add <span class="accent">+1 gem</span> per tap. Free of turn cost — a way to bank raided gems onto a specific card (e.g., toward a Revive).</p>
       <h4>Moves</h4>
       <ul>
         <li><span class="accent">A1</span> — <span class="accent">FREE</span> · ATK × 0.33 · Type 1 only · no status · no backfire · always available</li>
@@ -731,7 +766,7 @@
       <h4>Type chart (10 cyclic types)</h4>
       <p>Each type strong vs 2, weak vs 2. A1 uses Type 1, A2 uses Type 2, A3 uses best-of-both. Multipliers: 4× / 2× / 1× / 0.5× / 0.25×.</p>
       <h4>Gems &amp; Revive — recap</h4>
-      <p><span class="accent">Per-card stacked gems</span>; A1 free; A2=2, A3=3, Revive=4 all paid from the card's own stack (or team spoils). <span class="crimson">Falling forfeits all your gems to the enemy.</span></p>
+      <p><span class="accent">Per-card stacked gems</span>; A1 free; A2=2, A3=3, Revive=4 all paid from the card's own stack (or raided pool). <span class="crimson">Falling forfeits all your gems to the enemy.</span></p>
       <h4>Win</h4>
       <p>All 9 opponent cards FALLEN. MVPs: top 3 from the winning team ranked by performance.</p>
     </div>
@@ -849,7 +884,7 @@ const RESERVE_SIZE  = 6;
 // Gem Gamble: per-card stacked gems. Every card carries an implicit baseline gem
 // (that's why A1 is FREE). To do anything heavier the card must spend a turn on
 // STACK to bank +1 gem. If a card falls, its stacked gems transfer to the
-// opposing team's SPOILS pool — any of their active cards can spend from spoils.
+// opposing team's RAIDED pool — any of their active cards can spend from the raided pool.
 const A1_GEM = 0, A2_GEM = 2, A3_GEM = 3;
 const REVIVE_GEMS = 4;
 const A1_MULT = 0.33, A2_MULT = 0.66, A3_MULT = 0.99;
@@ -992,10 +1027,10 @@ function setBase(c) {
 
 // ===== Gem spending =====
 // Spend N gems for `card` on side `side`. Pulls from the card's personal stack
-// first, then from the team's spoils pool. Returns true on success.
+// first, then from the team's raided pool. Returns true on success.
 function canAfford(side, card, n) {
   if (n <= 0) return true;
-  return (card.gems + state.battle[side].spoils) >= n;
+  return (card.gems + state.battle[side].raided) >= n;
 }
 function spendGems(side, card, n) {
   if (n <= 0) return true;
@@ -1004,7 +1039,7 @@ function spendGems(side, card, n) {
   const fromCard = Math.min(card.gems, remaining);
   card.gems -= fromCard;
   remaining -= fromCard;
-  if (remaining > 0) state.battle[side].spoils -= remaining;
+  if (remaining > 0) state.battle[side].raided -= remaining;
   return true;
 }
 
@@ -1425,7 +1460,7 @@ function initBattle(userStarters, aiStarters) {
     });
     const active = starters.map(sid => faction.findIndex(c => c.id === sid));
     const reserve = faction.map((_,i) => i).filter(i => !active.includes(i));
-    return { faction, active, reserve, fallen: [], spoils: 0 };
+    return { faction, active, reserve, fallen: [], raided: 0 };
   };
 
   state.battle = {
@@ -1595,11 +1630,11 @@ function moveToFallen(side) {
     const card = s.faction[idx];
     if (card.fallen) {
       // GEM GAMBLE — steal-on-fall. Any stacked gems on the fallen card transfer
-      // to the opposing team's SPOILS pool (any of their active cards may spend).
+      // to the opposing team's RAIDED pool (any of their active cards may spend).
       if (card.gems > 0) {
-        enemy.spoils += card.gems;
+        enemy.raided += card.gems;
         card.stats.gemsLost += card.gems;
-        log('backfire', `${card.name} falls carrying ${card.gems} gem${card.gems===1?'':'s'} → seized by the enemy as spoils.`);
+        log('backfire', `${card.name} falls carrying ${card.gems} gem${card.gems===1?'':'s'} → raided by the enemy.`);
         card.gems = 0;
       }
       s.fallen.push(idx);
@@ -1913,8 +1948,25 @@ $('revive-cancel').onclick = () => { showModal('modal-revive', false); render();
 // ============ Rendering ============
 function render() {
   if (!state.battle) return;
-  $('p1-gems').textContent = state.battle.p1.spoils;
-  $('p2-gems').textContent = state.battle.p2.spoils;
+  $('p1-gems').textContent = state.battle.p1.raided;
+  $('p2-gems').textContent = state.battle.p2.raided;
+  // Make our raided counter clickable during our possession when there's something to deposit
+  const myTracker = $('p1-side').querySelector('.gem-tracker');
+  if (myTracker) {
+    myTracker.classList.remove('raidable','depositing');
+    if (state.battle.possession === 'p1' && !state.battle.winner && state.battle.p1.raided > 0 && state.selection.mode !== 'raid-deposit') {
+      myTracker.classList.add('raidable');
+      myTracker.onclick = () => beginRaidDeposit();
+      myTracker.title = `Tap to deposit raided gems onto an active card (free — no turn cost).`;
+    } else if (state.selection.mode === 'raid-deposit') {
+      myTracker.classList.add('depositing');
+      myTracker.onclick = null;
+      myTracker.title = '';
+    } else {
+      myTracker.onclick = null;
+      myTracker.title = '';
+    }
+  }
   ['p1','p2'].forEach(side => {
     for (let s = 0; s < ACTIVE_SIZE; s++) renderSlot(side, s);
     renderReserves(side);
@@ -1946,12 +1998,15 @@ function renderSlot(side, slot) {
   // If we are in target mode and this is the opposite side, mark as target
   if (state.selection.mode === 'target' && side !== state.selection.side) el.classList.add('target');
   if (state.selection.side === side && state.selection.slot === slot && state.selection.mode === 'pick') el.classList.add('selected');
+  // Raid-deposit mode: our own non-fallen active cards are valid deposit targets (even if they've acted)
+  const depositActive = state.selection.mode === 'raid-deposit' && side === 'p1' && c && !c.fallen && state.battle.possession === 'p1';
+  if (depositActive) el.classList.add('deposit-target');
 
   // Per-card stacked-gem badge (top-left)
   const gemBadge = document.createElement('div');
   gemBadge.className = 'gems-card-badge' + (c.gems === 0 ? ' zero' : '') + (c.gems >= REVIVE_GEMS ? ' ready-revive' : '');
   gemBadge.textContent = c.gems;
-  gemBadge.title = `${c.gems} stacked gem${c.gems===1?'':'s'} on this card — A1 free, A2 needs 2, A3 needs 3, Revive needs 4. Falls = enemy spoils.`;
+  gemBadge.title = `${c.gems} stacked gem${c.gems===1?'':'s'} on this card — A1 free, A2 needs 2, A3 needs 3, Revive needs 4. Falls = enemy raids.`;
   el.appendChild(gemBadge);
 
   // Build content
@@ -2016,8 +2071,10 @@ function renderSlot(side, slot) {
   });
   el.appendChild(statusRow);
 
-  // Bindings: select own, target other
-  if (canSelect) {
+  // Bindings: select own, target other, or deposit raided gem onto own card
+  if (depositActive) {
+    el.onclick = () => depositRaidedGemOnto(slot);
+  } else if (canSelect) {
     el.onclick = () => selectActiveCard(side, slot);
   } else if (el.classList.contains('target')) {
     el.onclick = () => fireOnTarget(side, slot);
@@ -2086,7 +2143,7 @@ function renderActions() {
     };
     // A1 — always free
     bar.appendChild(mk('a1', 'A1', `FREE · 33% ATK`, 'a1', false));
-    // A2 / A3 — from card.gems + team spoils
+    // A2 / A3 — from card.gems + raided pool
     bar.appendChild(mk('a2', 'A2', `${A2_GEM} gems · 66% ATK`, 'a2', !canAfford(sel.side, c, A2_GEM) || isBrainlocked));
     bar.appendChild(mk('a3', 'A3', `${A3_GEM} gems · 99% ATK`, 'a3', !canAfford(sel.side, c, A3_GEM) || isBrainlocked));
     // STACK button
@@ -2167,6 +2224,18 @@ function renderActions() {
     bar.appendChild(cancel);
     return;
   }
+  if (sel.mode === 'raid-deposit') {
+    const label = document.createElement('div');
+    label.className = 'action-hint';
+    label.innerHTML = `Deposit raided gems → tap one of your active cards to add <span class="accent">+1</span> gem (free). <span class="accent" style="color:#c9a8ff;">${state.battle.p1.raided} raided left</span>.`;
+    bar.appendChild(label);
+    const done = document.createElement('button');
+    done.className = 'move-btn cancel';
+    done.innerHTML = `<div>DONE</div><div class="move-cost-pill">exit deposit</div>`;
+    done.onclick = endRaidDeposit;
+    bar.appendChild(done);
+    return;
+  }
 }
 
 function setActionsHint(text) {
@@ -2182,6 +2251,35 @@ function selectActiveCard(side, slot) {
   const c = activeCard(side, slot);
   if (!c || c.fallen || c.enteredThisTurn) return;
   state.selection = { side, slot, mode:'pick', kind:null };
+  render();
+}
+
+// ===== Raided-gem deposit (free, in-turn) =====
+// Click the raided counter -> enter 'raid-deposit' mode.
+// Each click on one of your own active cards transfers +1 gem from raided to that card.
+// Free of turn cost. Exits when you click 'Done' or the raided pool empties.
+function beginRaidDeposit() {
+  if (state.battle.possession !== 'p1' || state.battle.winner) return;
+  if (state.battle.p1.raided <= 0) return;
+  state.selection = { side: 'p1', slot: null, mode: 'raid-deposit', kind: null };
+  render();
+}
+function depositRaidedGemOnto(slot) {
+  const b = state.battle.p1;
+  if (b.raided <= 0) { endRaidDeposit(); return; }
+  const c = activeCard('p1', slot);
+  if (!c || c.fallen) return;
+  b.raided -= 1;
+  c.gems += 1;
+  log('spc', `Raided gem deposited onto ${c.name} (${c.gems} on card · ${b.raided} raided left).`);
+  // Visual feedback: pulse the badge
+  const el = $('p1-slot-' + slot);
+  if (el) { el.classList.add('spc-flash'); setTimeout(() => el.classList.remove('spc-flash'), 700); }
+  if (b.raided <= 0) endRaidDeposit();
+  else render();
+}
+function endRaidDeposit() {
+  if (state.selection.mode === 'raid-deposit') clearSelection();
   render();
 }
 

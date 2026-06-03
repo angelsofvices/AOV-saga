@@ -17,7 +17,7 @@ This is the locked source-of-truth ruleset for the v3 Cardmaster engine (`cardma
 - New **FIELD FORMAT**: 3v3 active, 6 in deck
 - New **TURN STRUCTURE**: possession by highest-SPD card (once per round), every active card moves
 - New **SHIFT** mechanic: cards may shift in/out using a turn — stacked gems travel with the card
-- New **GEM GAMBLE**: per-card stacked gems; A1 free; STACK is a turn action; A2=2, A3=3, REVIVE=4 from the card's own stack; fallen cards forfeit their gems to the enemy's SPOILS pool (see §12)
+- New **GEM GAMBLE**: per-card stacked gems; A1 free; STACK is a turn action; A2=2, A3=3, REVIVE=4 from the card's own stack; fallen cards forfeit their gems to the enemy's RAIDED pool (see §12)
 
 ---
 
@@ -237,7 +237,7 @@ Apply in this exact order each time a card attacks:
 
 ---
 
-## 12. Gem Gamble — Per-card Stacks, Spoils on Fall
+## 12. Gem Gamble — Per-card Stacks, Raided on Fall
 
 The gem economy is **per-card**, not team-wide. Every active card carries an implicit **baseline gem** — that's why **A1 is free**. Beyond A1, the card must spend turns banking gems onto itself.
 
@@ -245,7 +245,8 @@ The gem economy is **per-card**, not team-wide. Every active card carries an imp
 - Each card has a personal **stacked-gem counter** (starts at 0).
 - **STACK** is a turn action: card spends its move to add +1 gem to its own stack.
 - **A2** costs 2 gems from the card's stack. **A3** costs 3. **REVIVE** costs 4.
-- **Stack overflow → Spoils:** when a card on your team falls, all of its stacked gems are seized by the **opposing team's SPOILS pool**. Any of their active cards may spend from spoils as if they were personal gems.
+- **Stack overflow → Raided:** when a card on your team falls, all of its stacked gems are seized by the **opposing team's RAIDED pool**. Any of their active cards may spend from raided as if they were personal gems.
+- **Deposit raided gems (free, in-turn):** during your possession you can click your RAIDED counter to enter deposit mode, then tap an active card to transfer +1 gem from raided to that card's stack. Free of turn cost — a way to bank seized gems onto a specific card (e.g., toward a Revive).
 - **Shifting preserves gems** — a card that shifts out keeps its stacked gems for when it shifts back in.
 
 ### 12.2 The gamble
@@ -257,8 +258,8 @@ A card stacking toward A3 (3 gems) or Revive (4 gems) becomes a juicy target: ki
 |---|---|---|
 | A1 | FREE | (baseline gem) |
 | Stack | — | spends turn, +1 to card |
-| A2 | 2 | card's stack → team spoils |
-| A3 | 3 | card's stack → team spoils |
+| A2 | 2 | card's stack → team raided |
+| A3 | 3 | card's stack → team raided |
 | SPC boost | FREE | one-time, permanent |
 | Revive | 4 | casting card's stack |
 | Shift | FREE | preserves card's gems |
@@ -281,7 +282,7 @@ A card stacking toward A3 (3 gems) or Revive (4 gems) becomes a juicy target: ki
 12. Types: 10-type cyclic chart. A1=Type1, A2=Type2, A3=both.
 13. Last Breath: **SKIPPED**. 0 HP = instant FALLEN.
 14. Revive: 4 gems from the casting card's stack, returns target at 50% HP.
-15. Gem Gamble: per-card stacks; A1 free; STACK to bank; falling forfeits stack to enemy SPOILS.
+15. Gem Gamble: per-card stacks; A1 free; STACK to bank; falling forfeits stack to enemy RAIDED.
 16. Card base stats are **PERMANENT & IMMUTABLE** — v6.7 codex is source of truth.
 17. Match MVP = 3 cards from the WINNING team, ranked 1st/2nd/3rd.
 

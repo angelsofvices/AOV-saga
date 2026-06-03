@@ -985,6 +985,8 @@ function initBattle(userStarters, aiStarters) {
     p1: buildSide(state.faction.userPicks, userStarters),
     p2: buildSide(state.faction.aiPicks, aiStarters),
     round: 0,
+    halfOfRound: 0,            // 0 = first half (SPD check), 1 = second half (other team)
+    roundStarter: null,         // which team starts this round (highest SPD)
     possession: null,
     acted: [false,false,false],
     log: [],
@@ -992,10 +994,11 @@ function initBattle(userStarters, aiStarters) {
     awaitingShiftFor: null
   };
 
-  // Opening rules: if opening.mode === 'play', the roll winner acts first this round.
-  // If 'pass', the OTHER team acts first.
+  // Opening rules: round 1 uses the opening choice instead of SPD.
+  // If 'play', the roll winner starts the round. If 'pass', the OTHER team starts.
   const winner = state.opening.winner;
   state.battle.possession = state.opening.mode === 'play' ? winner : opp(winner);
+  state.battle.roundStarter = state.battle.possession;
 
   log('system', `Match begins. ${state.battle.possession === 'p1' ? 'You' : 'AI'} take possession.`);
   render();
@@ -1006,16 +1009,25 @@ function initBattle(userStarters, aiStarters) {
 function beginPossession() {
   const b = state.battle;
   if (b.winner) return;
-  // Determine actual possession by highest-SPD active card on each team. Opening override only applies to round 0.
-  if (b.round > 0) {
-    const p1Spd = highestActiveSpd('p1');
-    const p2Spd = highestActiveSpd('p2');
-    if (p1Spd > p2Spd) b.possession = 'p1';
-    else if (p2Spd > p1Spd) b.possession = 'p2';
-    // tie: keep previous possession holder swap (alternate)
-    else b.possession = opp(b.possession || 'p1');
+  // Possession rule (v6.7): SPD check at the START of each ROUND only.
+  // Half 0 = first team to act (SPD-decided or opening-decided). Half 1 = other team. Then a new round begins.
+  if (b.halfOfRound === 0) {
+    // Start of a new round
+    b.round++;
+    if (b.round > 1) {
+      // Round 2+: highest-SPD active card on each team decides the round-starter.
+      const p1Spd = highestActiveSpd('p1');
+      const p2Spd = highestActiveSpd('p2');
+      if (p1Spd > p2Spd) b.possession = 'p1';
+      else if (p2Spd > p1Spd) b.possession = 'p2';
+      else b.possession = opp(b.roundStarter || 'p1'); // tie: alternate from last round
+      b.roundStarter = b.possession;
+    }
+    // Round 1: possession already set by opening (initBattle). roundStarter already set.
+  } else {
+    // Second half of round — other team acts
+    b.possession = opp(b.roundStarter);
   }
-  b.round++;
   b.acted = [false, false, false];
   // Apply status ticks for ALL active cards of the possessing team at start of their possession
   for (let s = 0; s < ACTIVE_SIZE; s++) {
@@ -1028,7 +1040,10 @@ function beginPossession() {
   // (We do this on the OWN team at start of their possession instead — see executeMove for the gate.)
   // Actually: the rule is "shifted-in card does NOT attack the same turn it enters". So we set enteredThisTurn=true
   // on the new card when it shifts in (during this team's possession), and clear it when this team's possession ENDS.
-  log('system', `Round ${b.round} · ${b.possession === 'p1' ? 'Your' : 'AI'} possession (highest SPD).`);
+  const note = b.halfOfRound === 0
+    ? (b.round === 1 ? '(opening choice)' : '(highest SPD wins round)')
+    : '(other team\'s possession)';
+  log('system', `Round ${b.round} · ${b.possession === 'p1' ? 'Your' : 'AI'} possession ${note}.`);
   updatePossessionBanner();
   render();
   checkWin();
@@ -1059,7 +1074,8 @@ function endPossession() {
     const c = activeCard(just, s);
     if (c) c.enteredThisTurn = false;
   }
-  b.possession = opp(just);
+  // Advance round half: 0 -> 1 (still in same round, other team acts), 1 -> 0 (new round)
+  b.halfOfRound = b.halfOfRound === 0 ? 1 : 0;
   setTimeout(beginPossession, 500);
 }
 
@@ -1707,8 +1723,9 @@ function updatePossessionBanner() {
   const el = $('possession-banner');
   if (!state.battle || state.battle.winner) { el.textContent = ' — '; el.className = 'possession-banner'; return; }
   el.classList.remove('p1','p2');
-  if (state.battle.possession === 'p1') { el.textContent = `Round ${state.battle.round} · Your possession · Act with your 3 cards`; el.classList.add('p1'); }
-  else { el.textContent = `Round ${state.battle.round} · AI possession`; el.classList.add('p2'); }
+  const half = state.battle.halfOfRound === 0 ? '1st half' : '2nd half';
+  if (state.battle.possession === 'p1') { el.textContent = `Round ${state.battle.round} · ${half} · Your possession`; el.classList.add('p1'); }
+  else { el.textContent = `Round ${state.battle.round} · ${half} · AI possession`; el.classList.add('p2'); }
 }
 
 function log(cls, msg) {

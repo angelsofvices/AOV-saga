@@ -699,34 +699,48 @@ const FIGHTERS = [
 
 // ============ Sprite frame anchor calibration ============
 // Sprite-sheet cells are uniform width, but the artist often draws the character
-// at slightly different x-positions within each cell across an animation (breathing,
-// weight shifts, etc.). If we naively center the CELL at the fighter's position,
-// the character drifts frame-to-frame ("slideshow" effect). Fix: walk each frame's
-// chroma-keyed pixels to find the character's actual bounding box, store the
-// character's bottom-center as the frame's anchor point. Drawing then positions
-// the anchor at the fighter's position so the character stays planted in place.
+// at slightly different x-positions within each cell across an animation (breathing
+// weight shifts, sword swings, cape extensions). PER-FRAME anchors track that
+// drift faithfully — which then RENDERS the drift as a jarring "slideshow" shift.
+// Solution: compute the lower-body centroid per frame, then collapse to ONE
+// MEDIAN anchor per animation. All frames in an animation share the median anchor,
+// so the character plants in place; frame-to-frame variation shows only as the
+// intended pose/breathing detail, not as position drift.
 function computeFrameAnchors(srcCanvas, framesByAnim) {
   const ctx = srcCanvas.getContext('2d');
   for (const anim of Object.values(framesByAnim)) {
+    const perFrameX = [];
+    const perFrameY = [];
     for (const f of anim) {
       const data = ctx.getImageData(f.x, f.y, f.w, f.h).data;
-      let minX = f.w, maxX = -1, minY = f.h, maxY = -1;
-      for (let y = 0; y < f.h; y++) {
+      // Find opaque pixels, then take the centroid of the LOWER 50% (feet/legs —
+      // the most stable part of the silhouette across breathing/swords/capes).
+      let sumX = 0, count = 0, maxY = -1;
+      const yStart = Math.floor(f.h * 0.5);
+      for (let y = yStart; y < f.h; y++) {
         for (let x = 0; x < f.w; x++) {
           if (data[(y * f.w + x) * 4 + 3] > 0) {
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (y < minY) minY = y;
+            sumX += x; count++;
             if (y > maxY) maxY = y;
           }
         }
       }
-      // Default fallback if frame is fully transparent
-      if (maxX < 0) { f.anchorX = f.w / 2; f.anchorY = f.h; continue; }
-      f.anchorX = (minX + maxX) / 2;   // character's horizontal center
-      f.anchorY = maxY;                // character's feet (bottom of opaque pixels)
+      if (count > 0) { perFrameX.push(sumX / count); perFrameY.push(maxY); }
+    }
+    // Median anchor across the animation — robust to outlier frames.
+    const ax = perFrameX.length ? median(perFrameX) : (anim[0] ? anim[0].w / 2 : 0);
+    const ay = perFrameY.length ? median(perFrameY) : (anim[0] ? anim[0].h : 0);
+    // Stamp the same median anchor on every frame in this animation.
+    for (const f of anim) {
+      f.anchorX = ax;
+      f.anchorY = ay;
     }
   }
+}
+function median(arr) {
+  const s = arr.slice().sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
 // ============ Chroma-key helper ============

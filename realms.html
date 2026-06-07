@@ -1848,24 +1848,21 @@ function advDraw() {
   const cv = $('adv-canvas');
   const ctx = cv.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  // Background — Old Viridia parallax. Source 1536x1024; the top art region
-  // (~y 30-630) is the playable scene before the reference panels. Scroll at
-  // 0.3x camera speed so the ruins drift behind the foreground.
+  // Background — Old Viridia (1254x1254 square arena, designed for the chassis
+  // viewport, no built-in HUD). Draw full image stretched to canvas with a slow
+  // horizontal parallax of the SAME image as the player runs, so the world feels
+  // wider than one screen even though the source is one composed scene.
   if (viridiaReady) {
-    const sw = ARENA_VIRIDIA.naturalWidth, sh = 600;   // top art band
-    const sy = 30;
-    // Parallax: tile horizontally so longer levels stay covered
-    const parallaxX = -a.camera.x * 0.3;
-    const tileW = CANVAS_W * 1.5;   // 1.5× wider so we see slow scroll
-    const offset = ((parallaxX % tileW) + tileW) % tileW - tileW;
-    for (let x = offset; x < CANVAS_W; x += tileW) {
-      ctx.drawImage(ARENA_VIRIDIA, 0, sy, sw, sh, x, 0, tileW, CANVAS_H);
+    const parallaxX = -a.camera.x * 0.25;
+    const offset = ((parallaxX % CANVAS_W) + CANVAS_W) % CANVAS_W - CANVAS_W;
+    for (let x = offset; x < CANVAS_W; x += CANVAS_W) {
+      ctx.drawImage(ARENA_VIRIDIA, 0, 0, ARENA_VIRIDIA.naturalWidth, ARENA_VIRIDIA.naturalHeight, x, 0, CANVAS_W, CANVAS_H);
     }
     // Soft top fade so the HUD sits on a darker band
-    const topFade = ctx.createLinearGradient(0, 0, 0, 90);
+    const topFade = ctx.createLinearGradient(0, 0, 0, 80);
     topFade.addColorStop(0, 'rgba(5,3,16,0.55)');
     topFade.addColorStop(1, 'rgba(5,3,16,0)');
-    ctx.fillStyle = topFade; ctx.fillRect(0, 0, CANVAS_W, 90);
+    ctx.fillStyle = topFade; ctx.fillRect(0, 0, CANVAS_W, 80);
   } else {
     // Fallback procedural sky if the image hasn't loaded
     const sky = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
@@ -1874,32 +1871,13 @@ function advDraw() {
     sky.addColorStop(1, '#0a1812');
     ctx.fillStyle = sky; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
   }
-  // Tiles
-  for (const s of a.solids) {
-    const sx = s.x - a.camera.x, sy = s.y - a.camera.y;
-    if (sx < -ADV_TILE || sx > CANVAS_W || sy < -ADV_TILE || sy > CANVAS_H) continue;
-    if (s.kind === '#') {
-      // Ground tile — dark earth with grass top
-      const g = ctx.createLinearGradient(sx, sy, sx, sy + ADV_TILE);
-      g.addColorStop(0, '#5a8a4a');
-      g.addColorStop(0.15, '#3a5a2a');
-      g.addColorStop(1, '#1a2812');
-      ctx.fillStyle = g;
-      ctx.fillRect(sx, sy, ADV_TILE, ADV_TILE);
-      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-      ctx.strokeRect(sx + 0.5, sy + 0.5, ADV_TILE - 1, ADV_TILE - 1);
-    } else if (s.kind === '=') {
-      // Platform — stone-like
-      const g = ctx.createLinearGradient(sx, sy, sx, sy + ADV_TILE);
-      g.addColorStop(0, '#c8c2dc');
-      g.addColorStop(0.4, '#6f6582');
-      g.addColorStop(1, '#3a3050');
-      ctx.fillStyle = g;
-      ctx.fillRect(sx, sy + 6, ADV_TILE, ADV_TILE - 6);
-      ctx.strokeStyle = 'rgba(232, 200, 120, 0.6)';
-      ctx.strokeRect(sx + 0.5, sy + 6.5, ADV_TILE - 1, ADV_TILE - 7);
-    }
-  }
+  // Tiles — collision geometry only, NOT drawn (the Old Viridia map art has its
+  // own natural ground/platforms baked into the painting; placeholder green +
+  // purple boxes hidden the art and felt like dev tiles). LEVEL_1 array still
+  // defines where Solion can walk/stand; the map art carries the visuals.
+  // (Uncomment the loop below for debug-tile overlay if level design needs
+  // re-tuning to match the art's natural platform heights.)
+  // for (const s of a.solids) { ... }
   // Goal portal — Astral Portal (pulsing gold ring on a stand)
   if (a.goal) {
     const gx = a.goal.x - a.camera.x + a.goal.w / 2;

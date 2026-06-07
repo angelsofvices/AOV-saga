@@ -1864,29 +1864,20 @@
       { x:    0, y: 860, w:  483, h:  73 },   // bottom wall left
       { x:  793, y: 860, w:  487, h:  73 },   // bottom wall right
     ];
+    // Inline 3-state huge-house progression (no separate HQ region).
+    //   closed       → gate-open    → gate+door-open    → (future: enter interior)
+    //   entry_hugehouse.png → entry_hugehouseopen.png → entry_hugehouseopen2.png
+    // gateAdjacent: player is south of the building, near the gate.
+    // doorAdjacent: player has walked through the open gate, into the courtyard,
+    //               and is near the building's front door (upper portion of art).
+    // Collider follows gate state — gate-closed = full house solid; gate-open =
+    // only the upper building portion solid, lower courtyard becomes walkable.
     const hugeHouseState = {
-      adjacent:    false,
-      obj:         null,
-      lastWorldX:  0,
-      lastWorldY:  0,
-    };
-    // HQ courtyard gate — the iron gate at the bottom-wall gap (between the
-    // two bottom-wall colliders at x 0-483 and x 793-1280). Closed by default
-    // (collider added to block the gap); A tap while adjacent swings it open
-    // (collider removed, player can walk through).
-    const HQ_GATE = { x: 483, y: 860, w: 310, h: 73 };   // gap dims
-    const hqGateState = {
-      open: false,
-      adjacent: false,
-    };
-    // HQ front door — the double-door at the top of the stairs on the building
-    // facade. Player can't walk on the building (it's a solid collider), so the
-    // interact zone is a band at the BOTTOM of the stairs just south of the
-    // building base. Visual swap reveals the open doorway in the bg art.
-    const HQ_DOOR_INTERACT = { x: 540, y: 420, w: 200, h: 47 };   // bottom-of-stairs approach band
-    const hqDoorState = {
-      open: false,
-      adjacent: false,
+      gateAdjacent: false,
+      doorAdjacent: false,
+      gateOpen:     false,
+      doorOpen:     false,
+      obj:          null,
     };
     // Potion adjacency — set every frame by updatePotionAdjacency.
     const potionState = { adjacent: false, obj: null };
@@ -2594,21 +2585,9 @@
     // Sized in LOGICAL pixels, matching the player's movement coordinate space.
     function buildColliders(mapData) {
       const out = [];
-      // HQ region — colliders come from the static HQ_COLLIDERS table, not
-      // from per-object derivation (the region has no placed objects; the
-      // courtyard art is rendered as a single background sprite).
-      if (mapData.id === 'hq') {
-        for (const c of HQ_COLLIDERS) {
-          out.push({ x: c.x, y: c.y, w: c.w, h: c.h });
-        }
-        // Gate collider — block the bottom-wall gap when the gate is closed.
-        // Recomputed on every region rebuild; toggling hqGateState.open and
-        // calling rebuildColliders() removes the block in real time.
-        if (!hqGateState.open) {
-          out.push({ x: HQ_GATE.x, y: HQ_GATE.y, w: HQ_GATE.w, h: HQ_GATE.h });
-        }
-        return out;
-      }
+      // (HQ region was retired — the huge-house progression now lives inline
+      // in central. Dead code removed; if the HQ region is ever revived, build
+      // its colliders here from HQ_COLLIDERS.)
       for (const obj of mapData.objects) {
         if (obj.type === 'tree') {
           // Tree collider — trunk + dense lower-canopy core only: a small
@@ -2647,7 +2626,17 @@
           const HX = Math.round(dims.w * 0.035);
           const HT = Math.round(dims.h * 0.085);
           const HB = Math.round(dims.h * 0.030);
-          out.push({ x: cx + HX, y: cy + HT, w: cw - HX * 2, h: ch - HT - HB });
+          // house-huge has a special gate-open state: the lower ~55% of the
+          // sprite is the visible courtyard (gate + fountain + lawns) and
+          // should be walkable once the gate is open. We keep only the top
+          // ~45% (the actual building structure) as a solid collider in that
+          // state; otherwise the full footprint stays solid.
+          if (obj.type === 'house-huge' && hugeHouseState.gateOpen) {
+            const buildingH = Math.round((ch - HT - HB) * 0.45);
+            out.push({ x: cx + HX, y: cy + HT, w: cw - HX * 2, h: buildingH });
+          } else {
+            out.push({ x: cx + HX, y: cy + HT, w: cw - HX * 2, h: ch - HT - HB });
+          }
         } else if (obj.type === 'ufo') {
           // UFO: collider = bottom half (landing struts area). Top half is
           // hull/dome, walk-behindable like a tree canopy.
@@ -4471,61 +4460,45 @@
         h: UFO_H,
       };
     }
-    // Adjacency check for the huge house in Central — sets hugeHouseState.adjacent
-    // when the player's foot-box overlaps a band just south of the building's
-    // bottom edge (where the gold gate is). Caches the obj ref so the A-press
-    // handler can read its world position.
+    // Adjacency check for the huge house in Central — sets two flags every frame:
+    //   gateAdjacent: player is south of the building, near the gate.
+    //   doorAdjacent: player has walked through the open gate into the
+    //                 courtyard, and is near the building's front door.
+    // Caches the obj ref so the A-press handler can resolve its world position
+    // for future interior-region transitions.
     function updateHugeHouseAdjacency() {
-      hugeHouseState.adjacent = false;
-      hugeHouseState.obj      = null;
+      hugeHouseState.gateAdjacent = false;
+      hugeHouseState.doorAdjacent = false;
+      hugeHouseState.obj          = null;
       if (currentRegion !== 'central') return;
       const dims = HOUSE_TYPES['house-huge'];
       for (const obj of MAP_DATA.objects) {
         if (obj.type !== 'house-huge') continue;
-        // Interact zone: a band along the SOUTH bottom edge of the sprite,
-        // where the gate is visually. Centered on the bottom half of the
-        // building, extending a tile-and-a-half south into the open grass.
-        const ix = obj.x * TILE_SIZE + dims.w * 0.30;
-        const iy = obj.y * TILE_SIZE + dims.h - 8;
-        const iw = dims.w * 0.40;
-        const ih = TILE_SIZE * 1.5;
-        const interactBox = { x: ix, y: iy, w: iw, h: ih };
-        if (rectIntersect(playerFootbox(player.x, player.y), interactBox)) {
-          hugeHouseState.adjacent = true;
-          hugeHouseState.obj      = obj;
-        }
+        hugeHouseState.obj = obj;
+        const ox = obj.x * TILE_SIZE;
+        const oy = obj.y * TILE_SIZE;
+        // Gate zone — south band, centered on the bottom of the sprite where
+        // the ornamental gate is visually. Player approaches from outside.
+        const gateBox = {
+          x: ox + dims.w * 0.30,
+          y: oy + dims.h - 8,
+          w: dims.w * 0.40,
+          h: TILE_SIZE * 1.5,
+        };
+        // Door zone — interior of the sprite, near the building's facade.
+        // Only reachable once the gate is open (gate-open removes the lower
+        // courtyard collider so the player can walk in). Anchored on the
+        // upper-middle of the sprite where the painted double-door sits.
+        const doorBox = {
+          x: ox + dims.w * 0.38,
+          y: oy + dims.h * 0.42,
+          w: dims.w * 0.24,
+          h: dims.h * 0.18,
+        };
+        const fb = playerFootbox(player.x, player.y);
+        if (rectIntersect(fb, gateBox)) hugeHouseState.gateAdjacent = true;
+        if (rectIntersect(fb, doorBox)) hugeHouseState.doorAdjacent = true;
         break;   // there's only one house-huge per region
-      }
-    }
-
-    // HQ gate adjacency check — runs per frame when in HQ region.
-    // Player is "adjacent" if their footbox is within a small band IN FRONT OF
-    // (south of) the gate, so the prompt only shows when approaching from
-    // outside the courtyard.
-    function updateHqGateAdjacency() {
-      hqGateState.adjacent = false;
-      if (currentRegion !== 'hq') return;
-      const APPROACH = 28;   // px south of gate to count as "near"
-      const box = {
-        x: HQ_GATE.x - 12,
-        y: HQ_GATE.y - APPROACH,
-        w: HQ_GATE.w + 24,
-        h: HQ_GATE.h + APPROACH * 2
-      };
-      if (rectIntersect(playerFootbox(player.x, player.y), box)) {
-        hqGateState.adjacent = true;
-      }
-    }
-    function rebuildHqColliders() {
-      // Force the collision table to rebuild after toggling the gate state.
-      // COLLIDERS is the module-scope let assigned by transitionRegion.
-      if (currentRegion === 'hq') COLLIDERS = buildColliders(MAP_DATA);
-    }
-    function updateHqDoorAdjacency() {
-      hqDoorState.adjacent = false;
-      if (currentRegion !== 'hq') return;
-      if (rectIntersect(playerFootbox(player.x, player.y), HQ_DOOR_INTERACT)) {
-        hqDoorState.adjacent = true;
       }
     }
 
@@ -5633,21 +5606,19 @@
         if (exit === 'central-from-southcentral') { transitionRegion('central');      return true; }
         if (exit === 'south-enter')              { transitionRegion('south');        return true; }
         if (exit === 'southcentral-from-south')  { transitionRegion('southcentral'); return true; }
-        if (exit === 'hq')    { transitionRegion('hq');      return true; }
-        if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
-        if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
-        // HQ courtyard gate — A toggles it open (collider rebuilds, player can walk through).
-        if (hqGateState.adjacent && !hqGateState.open) {
-          hqGateState.open = true;
-          rebuildHqColliders();
+        // (HQ region retired — exit === 'hq' / 'central-from-hq' no longer fire.)
+        // Huge-house progression (no region transition — all inline in central).
+        //   gate closed + adjacent → swing gate open, rebuild colliders (south
+        //     courtyard becomes walkable so the player can approach the door).
+        //   gate open + door closed + adjacent → swing door open (visual only).
+        //   door open + adjacent → future: transition into interior region.
+        if (hugeHouseState.gateAdjacent && !hugeHouseState.gateOpen) {
+          hugeHouseState.gateOpen = true;
+          COLLIDERS = buildColliders(MAP_DATA);
           return true;
         }
-        // HQ front door — A swings open the double-doors at the top of the stairs.
-        // No collider change (building base already blocks the player); pure
-        // visual swap. Gate must be open first for the player to be physically
-        // standing in the interact zone (gate-closed = blocked outside courtyard).
-        if (hqDoorState.adjacent && !hqDoorState.open) {
-          hqDoorState.open = true;
+        if (hugeHouseState.doorAdjacent && !hugeHouseState.doorOpen) {
+          hugeHouseState.doorOpen = true;
           return true;
         }
         if (workstationState.adjacent) { openModal('workstation'); return true; }
@@ -5870,16 +5841,14 @@
           if (exit === 'central-from-southcentral') { transitionRegion('central');      return; }
           if (exit === 'south-enter')              { transitionRegion('south');        return; }
           if (exit === 'southcentral-from-south')  { transitionRegion('southcentral'); return; }
-          if (exit === 'hq')    { transitionRegion('hq');      return; }
-          if (exit === 'central-from-hq') { transitionRegion('central'); return; }
-          if (hugeHouseState.adjacent) { transitionRegion('hq'); return; }
-          if (hqGateState.adjacent && !hqGateState.open) {
-            hqGateState.open = true;
-            rebuildHqColliders();
+          // (HQ region retired — exit === 'hq' / 'central-from-hq' no longer fire.)
+          if (hugeHouseState.gateAdjacent && !hugeHouseState.gateOpen) {
+            hugeHouseState.gateOpen = true;
+            COLLIDERS = buildColliders(MAP_DATA);
             return;
           }
-          if (hqDoorState.adjacent && !hqDoorState.open) {
-            hqDoorState.open = true;
+          if (hugeHouseState.doorAdjacent && !hugeHouseState.doorOpen) {
+            hugeHouseState.doorOpen = true;
             return;
           }
           if (workstationState.adjacent) { openModal('workstation'); return; }
@@ -7146,26 +7115,16 @@
           ctx.restore();
         }
       }
-      // HQ region — draw the hugehouse art as a single big sprite filling
-      // the top 1024 px (32 tiles) of the world. Renders AFTER tiles so the
-      // building covers the floor, but BEFORE Y-sorted sprites so the player
-      // can stand "in front of" it where Y-sort places them.
-      if (currentRegion === 'hq' && ASSETS.houseHuge) {
-        const sx = -camera.x;
-        const sy = -camera.y;
-        if (sx + HQ_BG_W >= 0 && sx < VIEWPORT_W && sy + HQ_BG_H >= 0 && sy < VIEWPORT_H) {
-          // Three-state HQ bg: closed → gate-open → gate+door-open.
-          // All three PNGs share the 1280x1024 composition so no offset needed.
-          const bg = (hqDoorState.open && ASSETS.houseHugeDoorOpen) ? ASSETS.houseHugeDoorOpen
-                   : (hqGateState.open && ASSETS.houseHugeOpen)     ? ASSETS.houseHugeOpen
-                   : ASSETS.houseHuge;
-          ctx.drawImage(bg, sx, sy, HQ_BG_W, HQ_BG_H);
-        }
-        // Prompt — "[A] OPEN GATE" floats above the gate when player is adjacent
-        // and the gate is still closed.
-        if (hqGateState.adjacent && !hqGateState.open) {
-          const px = HQ_GATE.x + HQ_GATE.w / 2 - camera.x;
-          const py = HQ_GATE.y - camera.y - 14;
+      // Central region — huge-house prompts. Floats [A] OPEN GATE / OPEN DOOR
+      // above the building when the player is in the right adjacency zone.
+      if (currentRegion === 'central' && hugeHouseState.obj) {
+        const obj  = hugeHouseState.obj;
+        const dims = HOUSE_TYPES['house-huge'];
+        const ox   = obj.x * TILE_SIZE;
+        const oy   = obj.y * TILE_SIZE;
+        const drawPrompt = (label, worldX, worldY) => {
+          const px = worldX - camera.x;
+          const py = worldY - camera.y;
           ctx.fillStyle = 'rgba(5, 3, 16, 0.85)';
           ctx.fillRect(px - 38, py - 11, 76, 16);
           ctx.strokeStyle = 'rgba(232, 200, 120, 0.85)';
@@ -7175,25 +7134,13 @@
           ctx.font = '600 9px Inter, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('[ A ] OPEN GATE', px, py - 3);
+          ctx.fillText(label, px, py - 3);
           ctx.textBaseline = 'alphabetic';
-        }
-        // Prompt — "[A] OPEN DOOR" floats above the door interact band when the
-        // player has reached the bottom of the stairs and the door is closed.
-        if (hqDoorState.adjacent && !hqDoorState.open) {
-          const px = HQ_DOOR_INTERACT.x + HQ_DOOR_INTERACT.w / 2 - camera.x;
-          const py = HQ_DOOR_INTERACT.y - camera.y - 8;
-          ctx.fillStyle = 'rgba(5, 3, 16, 0.85)';
-          ctx.fillRect(px - 38, py - 11, 76, 16);
-          ctx.strokeStyle = 'rgba(232, 200, 120, 0.85)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(px - 38.5, py - 11.5, 77, 17);
-          ctx.fillStyle = '#f4e3b3';
-          ctx.font = '600 9px Inter, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('[ A ] OPEN DOOR', px, py - 3);
-          ctx.textBaseline = 'alphabetic';
+        };
+        if (hugeHouseState.gateAdjacent && !hugeHouseState.gateOpen) {
+          drawPrompt('[ A ] OPEN GATE', ox + dims.w * 0.5, oy + dims.h - 18);
+        } else if (hugeHouseState.doorAdjacent && !hugeHouseState.doorOpen) {
+          drawPrompt('[ A ] OPEN DOOR', ox + dims.w * 0.5, oy + dims.h * 0.42 - 10);
         }
       }
     }
@@ -7348,7 +7295,13 @@
         } else if (d.kind === 'house') {
           if (screenX + d.w < 0 || screenX > VIEWPORT_W) continue;
           if (screenY + d.h < 0 || screenY > VIEWPORT_H) continue;
-          const sprite = ASSETS[d.assetKey];
+          let sprite = ASSETS[d.assetKey];
+          // house-huge is the 3-state castle (closed → gate-open → door-open).
+          // Swap to the right PNG based on hugeHouseState progression.
+          if (d.type === 'house-huge') {
+            if (hugeHouseState.doorOpen && ASSETS.houseHugeDoorOpen)      sprite = ASSETS.houseHugeDoorOpen;
+            else if (hugeHouseState.gateOpen && ASSETS.houseHugeOpen)     sprite = ASSETS.houseHugeOpen;
+          }
           if (sprite) ctx.drawImage(sprite, screenX, screenY);
         } else if (d.kind === 'potion') {
           if (screenX + POTION_W < 0 || screenX > VIEWPORT_W) continue;
@@ -7741,8 +7694,6 @@
         updateInteractions();
         updateUfoAdjacency();
         updateHugeHouseAdjacency();
-        updateHqGateAdjacency();
-        updateHqDoorAdjacency();
         updatePotionAdjacency();
         // Dec 2026: heart + energy systems. Energy regen / fly drain ticks
         // every frame; hazard collision damages player when overlapping a
@@ -7950,11 +7901,8 @@
       const from = currentRegion;
       currentRegion = toRegion;
       MAP_DATA   = REGIONS[currentRegion];
-      // Reset gate state when entering HQ so each visit starts with a closed gate.
-      if (toRegion === 'hq') {
-        hqGateState.open = false; hqGateState.adjacent = false;
-        hqDoorState.open = false; hqDoorState.adjacent = false;
-      }
+      // (No HQ-region reset needed — huge-house progression now lives inline
+      // in central; gateOpen/doorOpen persist for the session.)
       COLLIDERS  = buildColliders(MAP_DATA);
       // Clear any active lock-on — target almost certainly isn't in the new region.
       if (typeof clearLockOn === 'function') clearLockOn();
@@ -7970,21 +7918,8 @@
         player.y = 6;                                       // enter from north of south
       } else if (from === 'south' && toRegion === 'southcentral') {
         player.y = MAP_HEIGHT * TILE_SIZE - CHAR_H - 6;   // enter from south of southcentral
-      } else if (from === 'central' && toRegion === 'hq') {
-        // Stash the Central position so the HQ→Central return drops the
-        // player right back at the gate they came from.
-        hugeHouseState.lastWorldX = player.x;
-        hugeHouseState.lastWorldY = player.y;
-        // Spawn just south of the HQ gate gap — center x is roughly 640
-        // (mid of 483..793 gap), Y just below the perimeter wall.
-        player.x = 640 - CHAR_W / 2;
-        player.y = 950;
-      } else if (from === 'hq' && toRegion === 'central') {
-        // Drop player back where they were in Central, just south of the
-        // hugehouse gate.
-        player.x = hugeHouseState.lastWorldX || (MAP_WIDTH  * TILE_SIZE) / 2 - CHAR_W / 2;
-        player.y = hugeHouseState.lastWorldY || (MAP_HEIGHT * TILE_SIZE) / 2 - CHAR_H / 2;
       }
+      // (HQ ⇄ central transitions removed — huge-house progression is inline now.)
       // Reset transient state so the new region starts clean.
       player.animTime = 0; player.animFrame = 0;
       player.idlePose = 0; player.idlePoseTime = 0; player.idleAnimTime = 0; player.idleAnimFrame = 0;

@@ -2626,14 +2626,45 @@
           const HX = Math.round(dims.w * 0.035);
           const HT = Math.round(dims.h * 0.085);
           const HB = Math.round(dims.h * 0.030);
-          // house-huge has a special gate-open state: the lower ~55% of the
-          // sprite is the visible courtyard (gate + fountain + lawns) and
-          // should be walkable once the gate is open. We keep only the top
-          // ~45% (the actual building structure) as a solid collider in that
-          // state; otherwise the full footprint stays solid.
+          // house-huge has a special gate-open state. The full footprint stays
+          // solid when closed; when gate is open, we replace the single big
+          // collider with a fine-grained obstacle set so ONLY the stone path
+          // is walkable (building, perimeter walls, central + side fountains,
+          // and all greenery patches remain solid).
           if (obj.type === 'house-huge' && hugeHouseState.gateOpen) {
-            const buildingH = Math.round((ch - HT - HB) * 0.45);
-            out.push({ x: cx + HX, y: cy + HT, w: cw - HX * 2, h: buildingH });
+            // Normalised obstacle rects, 0..1 of the sprite's visual rect.
+            // Tuned to match the painted layout of entry_hugehouseopen2.png:
+            //   - building facade (top ~32%)
+            //   - left + right perimeter walls
+            //   - central octagonal fountain (left-of-center)
+            //   - right-side fountain
+            //   - greenery patches between paths
+            // The negative space between these rects is the walkable sidewalk:
+            // a corridor from the gate up around the central fountain, with a
+            // branch east to the right fountain and north to the building stairs.
+            const HUGE_HOUSE_OBSTACLES = [
+              { x: 0.00, y: 0.00, w: 1.00, h: 0.32 },   // building facade + columns
+              { x: 0.00, y: 0.32, w: 0.08, h: 0.68 },   // left perimeter wall + lamp
+              { x: 0.92, y: 0.32, w: 0.08, h: 0.68 },   // right perimeter wall + lamp
+              { x: 0.20, y: 0.46, w: 0.22, h: 0.22 },   // central fountain (water)
+              { x: 0.71, y: 0.36, w: 0.21, h: 0.24 },   // right-side fountain (water)
+              { x: 0.08, y: 0.65, w: 0.18, h: 0.35 },   // lower-left greenery (left of gate)
+              { x: 0.65, y: 0.65, w: 0.27, h: 0.35 },   // lower-right greenery (right of gate)
+              { x: 0.08, y: 0.32, w: 0.12, h: 0.33 },   // upper-left greenery (left of fountain)
+              { x: 0.50, y: 0.60, w: 0.21, h: 0.18 },   // greenery between fountains
+              { x: 0.34, y: 0.70, w: 0.08, h: 0.18 },   // greenery south of central fountain
+              { x: 0.55, y: 0.32, w: 0.16, h: 0.14 },   // greenery north of right fountain
+            ];
+            const ox = obj.x * TILE_SIZE;
+            const oy = obj.y * TILE_SIZE;
+            for (const r of HUGE_HOUSE_OBSTACLES) {
+              out.push({
+                x: ox + Math.round(r.x * dims.w),
+                y: oy + Math.round(r.y * dims.h),
+                w: Math.round(r.w * dims.w),
+                h: Math.round(r.h * dims.h),
+              });
+            }
           } else {
             out.push({ x: cx + HX, y: cy + HT, w: cw - HX * 2, h: ch - HT - HB });
           }
@@ -2834,9 +2865,9 @@
       houseSml:  { src: '/assets/entry_smlhouse.png',  w: HOUSE_TYPES['house-sml' ].w, h: HOUSE_TYPES['house-sml' ].h },
       houseMed:  { src: '/assets/entry_medhouse.png',  w: HOUSE_TYPES['house-med' ].w, h: HOUSE_TYPES['house-med' ].h },
       houseBig:  { src: '/assets/entry_bighouse.png',  w: HOUSE_TYPES['house-big' ].w, h: HOUSE_TYPES['house-big' ].h, chroma: true },
-      houseHuge:         { src: '/assets/entry_hugehouse.png',      w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // closed gate + closed door (default)
-      houseHugeOpen:     { src: '/assets/entry_hugehouseopen.png',  w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // gate open · door closed
-      houseHugeDoorOpen: { src: '/assets/entry_hugehouseopen2.png', w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // gate open · front door open
+      houseHuge:         { src: '/assets/entry_hugehouse.png',      w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // closed (pre-keyed)
+      houseHugeOpen:     { src: '/assets/entry_hugehouseopen.png',  w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h, chroma: true },  // gate open · door closed
+      houseHugeDoorOpen: { src: '/assets/entry_hugehouseopen2.png', w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h, chroma: true },  // gate open · front door open
       // UFO landmark — ships with transparent alpha, no chroma needed. Crop
       // the source to its content bbox before baking; the raw PNG is
       // 1024×1024 with the UFO occupying only y=369..637 (~26% of the
@@ -3104,11 +3135,14 @@
     // the render path is unchanged (idleAnimFrame % 1 is always 0).
     const SWORD_IDLE_W = 84, SWORD_IDLE_H = 58;
     function sliceSwordIdle(sheetImg) {
-      const PICK     = 2;     // source frame chosen as the static idle pose
+      const PICK     = 0;     // source frame chosen as the static idle pose
+                              // (frame 0 = neutral guard, frames 2-3 are mid-swing)
       const HAIR_CX  = 187;   // that frame's cell-relative hair x-centre
       const FEET_Y   = 629;   // feet baseline (source px)
       const CHAR_TOP = 382;   // hair top (source px) — anything ABOVE this is stray sword/flame
-      const BLADE_PAD= 80;    // px of source BELOW feet to include (blade-trail flame)
+      const BLADE_PAD= 12;    // px of source BELOW feet to include — kept tiny so
+                              // the trailing flame doesn't read as a separate sprite
+                              // floating beneath the player at game-world scale.
       const TARGET_H = 36;    // baked character height (≈ the player)
       const SWv = sheetImg.naturalWidth  || sheetImg.width;
       const SHv = sheetImg.naturalHeight || sheetImg.height;

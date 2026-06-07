@@ -1870,6 +1870,15 @@
       lastWorldX:  0,
       lastWorldY:  0,
     };
+    // HQ courtyard gate — the iron gate at the bottom-wall gap (between the
+    // two bottom-wall colliders at x 0-483 and x 793-1280). Closed by default
+    // (collider added to block the gap); A tap while adjacent swings it open
+    // (collider removed, player can walk through).
+    const HQ_GATE = { x: 483, y: 860, w: 310, h: 73 };   // gap dims
+    const hqGateState = {
+      open: false,
+      adjacent: false,   // set every frame when player is within prompt range
+    };
     // Potion adjacency — set every frame by updatePotionAdjacency.
     const potionState = { adjacent: false, obj: null };
     // Ship cargo — items the player has off-loaded at the UFO. Same shape
@@ -2583,6 +2592,12 @@
         for (const c of HQ_COLLIDERS) {
           out.push({ x: c.x, y: c.y, w: c.w, h: c.h });
         }
+        // Gate collider — block the bottom-wall gap when the gate is closed.
+        // Recomputed on every region rebuild; toggling hqGateState.open and
+        // calling rebuildColliders() removes the block in real time.
+        if (!hqGateState.open) {
+          out.push({ x: HQ_GATE.x, y: HQ_GATE.y, w: HQ_GATE.w, h: HQ_GATE.h });
+        }
         return out;
       }
       for (const obj of mapData.objects) {
@@ -3092,7 +3107,8 @@
       const PICK     = 2;     // source frame chosen as the static idle pose
       const HAIR_CX  = 187;   // that frame's cell-relative hair x-centre
       const FEET_Y   = 629;   // feet baseline (source px)
-      const CHAR_TOP = 382;   // hair top (source px)
+      const CHAR_TOP = 382;   // hair top (source px) — anything ABOVE this is stray sword/flame
+      const BLADE_PAD= 80;    // px of source BELOW feet to include (blade-trail flame)
       const TARGET_H = 36;    // baked character height (≈ the player)
       const SWv = sheetImg.naturalWidth  || sheetImg.width;
       const SHv = sheetImg.naturalHeight || sheetImg.height;
@@ -3102,10 +3118,17 @@
       cv.width = SWORD_IDLE_W; cv.height = SWORD_IDLE_H;
       const cc = cv.getContext('2d');
       cc.imageSmoothingEnabled = false;
+      // CROP the source to start at CHAR_TOP so the sword tip / flame above the
+      // head doesn't bake in (was the 'stray tip above his right side of head'
+      // clipping bug). Include BLADE_PAD below feet for the trailing flame.
+      const srcY = CHAR_TOP;
+      const srcH = Math.min(SHv - CHAR_TOP, FEET_Y - CHAR_TOP + BLADE_PAD);
       const destX = SWORD_IDLE_W / 2 - HAIR_CX * scale;
-      const destY = SWORD_IDLE_H - FEET_Y * scale;
-      cc.drawImage(sheetImg, PICK * cellW, 0, cellW, SHv,
-                   destX, destY, cellW * scale, SHv * scale);
+      const destH = srcH * scale;
+      // Anchor feet at SWORD_IDLE_H − any below-feet padding scaled
+      const destY = SWORD_IDLE_H - (FEET_Y - CHAR_TOP + BLADE_PAD) * scale;
+      cc.drawImage(sheetImg, PICK * cellW, srcY, cellW, srcH,
+                   destX, destY, cellW * scale, destH);
       return [cv];
     }
 
@@ -4464,6 +4487,30 @@
       }
     }
 
+    // HQ gate adjacency check — runs per frame when in HQ region.
+    // Player is "adjacent" if their footbox is within a small band IN FRONT OF
+    // (south of) the gate, so the prompt only shows when approaching from
+    // outside the courtyard.
+    function updateHqGateAdjacency() {
+      hqGateState.adjacent = false;
+      if (currentRegion !== 'hq') return;
+      const APPROACH = 28;   // px south of gate to count as "near"
+      const box = {
+        x: HQ_GATE.x - 12,
+        y: HQ_GATE.y - APPROACH,
+        w: HQ_GATE.w + 24,
+        h: HQ_GATE.h + APPROACH * 2
+      };
+      if (rectIntersect(playerFootbox(player.x, player.y), box)) {
+        hqGateState.adjacent = true;
+      }
+    }
+    function rebuildHqColliders() {
+      // Force the collision table to rebuild after toggling the gate state.
+      // COLLIDERS is the module-scope let assigned by transitionRegion.
+      if (currentRegion === 'hq') COLLIDERS = buildColliders(MAP_DATA);
+    }
+
     // Potion adjacency check — runs per frame.
     function updatePotionAdjacency() {
       potionState.adjacent = false;
@@ -5571,6 +5618,12 @@
         if (exit === 'hq')    { transitionRegion('hq');      return true; }
         if (exit === 'central-from-hq') { transitionRegion('central'); return true; }
         if (hugeHouseState.adjacent) { transitionRegion('hq'); return true; }
+        // HQ courtyard gate — A toggles it open (collider rebuilds, player can walk through).
+        if (hqGateState.adjacent && !hqGateState.open) {
+          hqGateState.open = true;
+          rebuildHqColliders();
+          return true;
+        }
         if (workstationState.adjacent) { openModal('workstation'); return true; }
         if (chestState.adjacent && chestState.chest) {
           openChest(chestState.chest); return true;
@@ -5794,6 +5847,11 @@
           if (exit === 'hq')    { transitionRegion('hq');      return; }
           if (exit === 'central-from-hq') { transitionRegion('central'); return; }
           if (hugeHouseState.adjacent) { transitionRegion('hq'); return; }
+          if (hqGateState.adjacent && !hqGateState.open) {
+            hqGateState.open = true;
+            rebuildHqColliders();
+            return;
+          }
           if (workstationState.adjacent) { openModal('workstation'); return; }
           if (chestState.adjacent && chestState.chest) {
             openChest(chestState.chest); return;
@@ -7068,6 +7126,41 @@
         if (sx + HQ_BG_W >= 0 && sx < VIEWPORT_W && sy + HQ_BG_H >= 0 && sy < VIEWPORT_H) {
           ctx.drawImage(ASSETS.houseHuge, sx, sy, HQ_BG_W, HQ_BG_H);
         }
+        // Gate overlay — when open, paint a dark "passage" rectangle over the
+        // closed-gate art in the HQ background so it visually reads as open.
+        // (A proper open-gate sprite can replace this; for now it's a clean
+        // void-passage that lets the player walk through with no visual blocker.)
+        if (hqGateState.open) {
+          const gx = HQ_GATE.x - camera.x;
+          const gy = HQ_GATE.y - camera.y;
+          const grad = ctx.createLinearGradient(gx, gy, gx, gy + HQ_GATE.h);
+          grad.addColorStop(0,   'rgba(5, 3, 16, 0.85)');
+          grad.addColorStop(0.5, 'rgba(20, 12, 40, 0.75)');
+          grad.addColorStop(1,   'rgba(5, 3, 16, 0.6)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(gx, gy, HQ_GATE.w, HQ_GATE.h);
+          // Two gold edge accents — "swung-open gate doors" hint
+          ctx.fillStyle = 'rgba(232, 200, 120, 0.75)';
+          ctx.fillRect(gx - 2,             gy, 3, HQ_GATE.h);
+          ctx.fillRect(gx + HQ_GATE.w - 1, gy, 3, HQ_GATE.h);
+        }
+        // Prompt — "[A] OPEN GATE" floats above the gate when player is adjacent
+        // and the gate is still closed.
+        if (hqGateState.adjacent && !hqGateState.open) {
+          const px = HQ_GATE.x + HQ_GATE.w / 2 - camera.x;
+          const py = HQ_GATE.y - camera.y - 14;
+          ctx.fillStyle = 'rgba(5, 3, 16, 0.85)';
+          ctx.fillRect(px - 38, py - 11, 76, 16);
+          ctx.strokeStyle = 'rgba(232, 200, 120, 0.85)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px - 38.5, py - 11.5, 77, 17);
+          ctx.fillStyle = '#f4e3b3';
+          ctx.font = '600 9px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('[ A ] OPEN GATE', px, py - 3);
+          ctx.textBaseline = 'alphabetic';
+        }
       }
     }
 
@@ -7614,6 +7707,7 @@
         updateInteractions();
         updateUfoAdjacency();
         updateHugeHouseAdjacency();
+        updateHqGateAdjacency();
         updatePotionAdjacency();
         // Dec 2026: heart + energy systems. Energy regen / fly drain ticks
         // every frame; hazard collision damages player when overlapping a
@@ -7821,6 +7915,8 @@
       const from = currentRegion;
       currentRegion = toRegion;
       MAP_DATA   = REGIONS[currentRegion];
+      // Reset gate state when entering HQ so each visit starts with a closed gate.
+      if (toRegion === 'hq') { hqGateState.open = false; hqGateState.adjacent = false; }
       COLLIDERS  = buildColliders(MAP_DATA);
       // Clear any active lock-on — target almost certainly isn't in the new region.
       if (typeof clearLockOn === 'function') clearLockOn();

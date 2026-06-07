@@ -486,7 +486,7 @@
         <button class="btn-secondary" id="btn-fight-back">← Quit</button>
       </div>
     </div>
-    <p class="screen-tagline" style="margin-top:14px;">Fight loop next pass — characters land, HP bars wired, status overlays incoming.</p>
+    <p class="screen-tagline" style="margin-top:14px;">Solion vs Kravos · Blizzard Canyon · Fight loop next pass.</p>
   </section>
 
   <!-- ============ Adventure — Game canvas ============ -->
@@ -555,13 +555,39 @@ const FIGHTERS = [
   { id:'sharkfin',   name:'Sharkfin',          tier:'III',  archetype:'Beastmaster',type1:'Tech',          type2:'Humanoid-Noid', hp:220, atk:239, def:190, spd:150, spc:200, art:'cards_v2/card_sharkfin.png',       unlocked:false }
 ];
 
+// ============ Chroma-key helper ============
+// The sprite sheet PNGs are saved as RGB (no alpha), so the black backgrounds
+// render as opaque black rectangles when drawn over the arena. Pre-process each
+// loaded sheet into an offscreen canvas with near-black pixels set to alpha=0.
+// Result is cached and used as the source for all sprite draws.
+function chromaKeyToCanvas(img, threshold = 36) {
+  const cv = document.createElement('canvas');
+  cv.width = img.naturalWidth;
+  cv.height = img.naturalHeight;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, cv.width, cv.height);
+  const p = data.data;
+  for (let i = 0; i < p.length; i += 4) {
+    // Sum of channels — pure black ≈ 0, near-black ≈ <100. Below threshold*3 → transparent.
+    const sum = p[i] + p[i + 1] + p[i + 2];
+    if (sum < threshold * 3) p[i + 3] = 0;
+  }
+  ctx.putImageData(data, 0, 0);
+  return cv;
+}
+
 // ============ Solion sprite sheet ============
 // Sheet at v6realms/sheet_solion.png (1536x1024). Manifest extracted from the
 // auto-slice (v6realms/manifest_solion.json) and inlined here so the engine
 // has zero fetch dependencies.
 const SOLION_SHEET = new Image();
 let solionReady = false;
-SOLION_SHEET.onload = () => { solionReady = true; };
+let solionSrc = null;   // chroma-keyed canvas — populated on load
+SOLION_SHEET.onload = () => {
+  solionSrc = chromaKeyToCanvas(SOLION_SHEET, 32);
+  solionReady = true;
+};
 SOLION_SHEET.src = 'v6realms/sheet_solion.png';
 
 const SOLION_FRAMES = {
@@ -638,12 +664,13 @@ function drawSolionFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
   const dy = baseY - dh;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
+  const src = solionSrc || SOLION_SHEET;
   if (facing < 0) {
     ctx.translate(centerX, dy);
     ctx.scale(-1, 1);
-    ctx.drawImage(SOLION_SHEET, f.x, f.y, f.w, f.h, -dw / 2, 0, dw, dh);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h, -dw / 2, 0, dw, dh);
   } else {
-    ctx.drawImage(SOLION_SHEET, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
   }
   ctx.restore();
   return true;
@@ -652,7 +679,12 @@ function drawSolionFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
 // ============ Kravos sprite sheet ============
 const KRAVOS_SHEET = new Image();
 let kravosReady = false;
-KRAVOS_SHEET.onload = () => { kravosReady = true; if (state.mode === 'tournament-select') buildFighterGrid(); };
+let kravosSrc = null;   // chroma-keyed canvas
+KRAVOS_SHEET.onload = () => {
+  kravosSrc = chromaKeyToCanvas(KRAVOS_SHEET, 32);
+  kravosReady = true;
+  if (state.mode === 'tournament-select') buildFighterGrid();
+};
 KRAVOS_SHEET.src = 'v6realms/sheet_kravos.png';
 
 const KRAVOS_FRAMES = {
@@ -704,12 +736,13 @@ function drawKravosFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
   const dy = baseY - dh;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
+  const src = kravosSrc || KRAVOS_SHEET;
   if (facing < 0) {
     ctx.translate(centerX, dy);
     ctx.scale(-1, 1);
-    ctx.drawImage(KRAVOS_SHEET, f.x, f.y, f.w, f.h, -dw / 2, 0, dw, dh);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h, -dw / 2, 0, dw, dh);
   } else {
-    ctx.drawImage(KRAVOS_SHEET, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
   }
   ctx.restore();
   return true;
@@ -859,13 +892,13 @@ function makeSolionPortrait() {
   halo.addColorStop(0, 'rgba(255, 248, 216, 0.5)');
   halo.addColorStop(1, 'rgba(255, 248, 216, 0)');
   ctx.fillStyle = halo; ctx.fillRect(0, 0, 200, 200);
-  // Solion IDLE frame 0
+  // Solion IDLE frame 0 (keyed)
   const f0 = SOLION_FRAMES.IDLE[0];
   const scale = (200 - 12) / f0.h;
   const dw = f0.w * scale, dh = f0.h * scale;
   const dx = 100 - dw / 2;
   const dy = 200 - dh - 2;
-  ctx.drawImage(SOLION_SHEET, f0.x, f0.y, f0.w, f0.h, dx, dy, dw, dh);
+  ctx.drawImage(solionSrc || SOLION_SHEET, f0.x, f0.y, f0.w, f0.h, dx, dy, dw, dh);
   return cv;
 }
 function makeKravosPortrait() {
@@ -889,7 +922,7 @@ function makeKravosPortrait() {
   const f0 = KRAVOS_FRAMES.IDLE[0];
   const scale = (200 - 12) / f0.h;
   const dw = f0.w * scale, dh = f0.h * scale;
-  ctx.drawImage(KRAVOS_SHEET, f0.x, f0.y, f0.w, f0.h, 100 - dw / 2, 200 - dh - 2, dw, dh);
+  ctx.drawImage(kravosSrc || KRAVOS_SHEET, f0.x, f0.y, f0.w, f0.h, 100 - dw / 2, 200 - dh - 2, dw, dh);
   return cv;
 }
 // If a sheet loads AFTER the grid is built (slow connection), re-render so the
@@ -1006,15 +1039,21 @@ function drawFightStage() {
   // Arena background — Blizzard Canyon (cropped center, no UI panels), with
   // fallback to the procedural purple/dark stage if the image hasn't loaded.
   if (arenaReady) {
-    // Source crop: skip top banner (~85px) and bottom reference panels (~440px+).
-    // Source 1536x1024 → use y 90-580 as the playable arena strip.
-    const sx = 0, sy = 90, sw = ARENA_BLIZZARD.naturalWidth, sh = 490;
+    // Source crop: skip the source image's BUILT-IN HUD (Wraith King / Blizzard
+    // Canyon title / 99 timer / Golden Knight banners) at the top, AND the bottom
+    // reference panels. Source 1536x1024 → start at y=145 (below the banner), end
+    // at y=580 (above the layout/parallax/hazards panels). Stretch to canvas.
+    const sx = 0, sy = 145, sw = ARENA_BLIZZARD.naturalWidth, sh = 435;
     ctx.drawImage(ARENA_BLIZZARD, sx, sy, sw, sh, 0, 0, CANVAS_W, CANVAS_H);
-    // Vignette to focus the eye
+    // Vignette + top fade so the HP bars sit on a darker band
     const vg = ctx.createRadialGradient(CANVAS_W/2, CANVAS_H/2, 200, CANVAS_W/2, CANVAS_H/2, CANVAS_W*0.7);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
     vg.addColorStop(1, 'rgba(0,0,0,0.45)');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    const topFade = ctx.createLinearGradient(0, 0, 0, 110);
+    topFade.addColorStop(0, 'rgba(5, 3, 16, 0.78)');
+    topFade.addColorStop(1, 'rgba(5, 3, 16, 0)');
+    ctx.fillStyle = topFade; ctx.fillRect(0, 0, CANVAS_W, 110);
   } else {
     // Fallback procedural arena
     const sky = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
@@ -1029,23 +1068,15 @@ function drawFightStage() {
     ctx.fillStyle = ground;
     ctx.fillRect(0, CANVAS_H - 80, CANVAS_W, 80);
   }
-  // Fighters stand on the canyon floor (~y=440 in our crop)
-  const floorY = CANVAS_H - 60;
-  drawFighterPlaceholder(ctx, fightState.p1, 280, floorY, '#6fa3e8', false);
-  drawFighterPlaceholder(ctx, fightState.p2, 680, floorY, '#d34c4c', true);
-  // "READY" overlay text
-  ctx.fillStyle = 'rgba(244, 227, 179, 0.95)';
-  ctx.font = '700 56px Cinzel, serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('READY', CANVAS_W / 2, 180);
-  ctx.font = '400 16px Inter, sans-serif';
-  ctx.fillStyle = 'rgba(200, 194, 220, 0.85)';
-  ctx.fillText('Fight loop · A1 / A2 / A3 / block / jump · next pass', CANVAS_W / 2, 212);
-  // Stage name
+  // Fighters stand on the canyon floor
+  const floorY = CANVAS_H - 50;
+  drawFighterPlaceholder(ctx, fightState.p1, 290, floorY, '#6fa3e8', false);
+  drawFighterPlaceholder(ctx, fightState.p2, 670, floorY, '#d34c4c', true);
+  // Stage name (bottom-left only — no overlapping READY/placeholder text)
   ctx.textAlign = 'left';
   ctx.font = '400 11px Inter, sans-serif';
-  ctx.fillStyle = 'rgba(244, 227, 179, 0.65)';
-  ctx.fillText('BLIZZARD CANYON · THE FROZEN PASSAGE · NORTHERN VIRIDIA', 16, CANVAS_H - 14);
+  ctx.fillStyle = 'rgba(244, 227, 179, 0.6)';
+  ctx.fillText('BLIZZARD CANYON · THE FROZEN PASSAGE · NORTHERN VIRIDIA', 16, CANVAS_H - 12);
 }
 function drawFighterLabel(ctx, f, baseX, baseY, targetH, edgeColor) {
   ctx.fillStyle = edgeColor;

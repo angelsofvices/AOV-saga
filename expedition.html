@@ -1829,7 +1829,7 @@
       'house-sml':  { w: Math.round(3 * TILE_SIZE * 1.5), h: Math.round(3 * TILE_SIZE * 1.5), tileW: 5, tileH: 5, asset: 'houseSml'  },  // 144×144
       'house-med':  { w: Math.round(4 * TILE_SIZE * 1.5), h: Math.round(4 * TILE_SIZE * 1.5), tileW: 6, tileH: 6, asset: 'houseMed'  },  // 192×192
       'house-big':  { w: Math.round(5 * TILE_SIZE * 1.5), h: Math.round(5 * TILE_SIZE * 1.5), tileW: 8, tileH: 8, asset: 'houseBig'  },  // 240×240
-      'house-huge': { w: Math.round(8 * TILE_SIZE * 1.5), h: Math.round(6 * TILE_SIZE * 1.5), tileW: 12, tileH: 9, asset: 'houseHuge' },  // 384×288
+      'house-huge': { w: Math.round(8 * TILE_SIZE * 1.5 * 1.75), h: Math.round(6 * TILE_SIZE * 1.5 * 1.75), tileW: 21, tileH: 16, asset: 'houseHuge' },  // 672×504 — 1.75× upscale for breathing room inside the courtyard
     };
     // Per-house alpha-bbox insets (Dec 2026) — fraction of sprite dimensions
     // that's transparent margin OUTSIDE the actual building art. Probed
@@ -1878,7 +1878,20 @@
       gateOpen:     false,
       doorOpen:     false,
       obj:          null,
+      // Stash player position in central just before entering the interior so
+      // walking back out drops them at the doorway they came through.
+      returnX:      0,
+      returnY:      0,
     };
+    // Interior of the huge house — Floor 1 throne hall. The painting renders
+    // 1:1 (1254×1254 world pixels) anchored at (0,0). The 1280×1280 region
+    // tile-grid extends 26 px past the painting on the east/south; walls keep
+    // the player on the painted floor. South doorway opening at x 526..720,
+    // y ~1160..1254 (measured from the painted floor's narrowing bottom band).
+    const HOUSE_INT_W      = 1254;
+    const HOUSE_INT_H      = 1254;
+    const HOUSE_INT_DOOR_X = 526;   // south doorway x range
+    const HOUSE_INT_DOOR_W = 194;
     // Potion adjacency — set every frame by updatePotionAdjacency.
     const potionState = { adjacent: false, obj: null };
     // Ship cargo — items the player has off-loaded at the UFO. Same shape
@@ -2567,6 +2580,14 @@
         tiles:   makeRegionTiles(3),     // lava (dispatch in drawTiles)
         objects: [],
       },
+      hugeint1: {
+        id: 'hugeint1',
+        name: "Solion's Hall · Floor 1",
+        width:  MAP_WIDTH,
+        height: MAP_HEIGHT,
+        tiles:   makeRegionTiles(4),     // 'void' — bg painting covers it
+        objects: [],
+      },
     };
     let currentRegion = 'central';
     let MAP_DATA = REGIONS[currentRegion];
@@ -2590,14 +2611,14 @@
       // its colliders here from HQ_COLLIDERS.)
       for (const obj of mapData.objects) {
         if (obj.type === 'tree') {
-          // Tree collider — trunk + dense lower-canopy core only: a small
-          // bottom-centred box that sits entirely inside the visible pixels.
-          // A round canopy in a full-size box collides in its transparent
-          // corners ("invisible spread"); the airy upper canopy is instead
-          // walk-behindable (z-sort draws it over the player).
-          const TREE_COL_W = Math.round(TREE_W * 0.46);
-          const TREE_COL_H = Math.round(TREE_H * 0.32);
-          const TREE_COL_B = Math.round(TREE_H * 0.06);   // gap below the trunk base
+          // Tree collider — covers the full visible canopy + trunk. The player
+          // shouldn't walk through the leaves or stand "inside" the tree; only
+          // grass, floor tiles, and open land are walkable. We use ~85% of the
+          // visual bbox (trimmed slightly on all sides so the four transparent
+          // corners of the round canopy don't trigger invisible bumps).
+          const TREE_COL_W = Math.round(TREE_W * 0.84);
+          const TREE_COL_H = Math.round(TREE_H * 0.84);
+          const TREE_COL_B = Math.round(TREE_H * 0.04);
           out.push({
             x: obj.x * TILE_SIZE + Math.round((TREE_W - TREE_COL_W) / 2),
             y: obj.y * TILE_SIZE + TREE_H - TREE_COL_H - TREE_COL_B,
@@ -2669,23 +2690,24 @@
             out.push({ x: cx + HX, y: cy + HT, w: cw - HX * 2, h: ch - HT - HB });
           }
         } else if (obj.type === 'ufo') {
-          // UFO: collider = bottom half (landing struts area). Top half is
-          // hull/dome, walk-behindable like a tree canopy.
+          // UFO: full hull is now solid (no walking under the dome). Y-sort
+          // still draws the player in front when their feet are below the
+          // UFO's feet line, so the visual layering remains correct.
           out.push({
             x: obj.x * TILE_SIZE,
-            y: obj.y * TILE_SIZE + UFO_H / 2,
+            y: obj.y * TILE_SIZE,
             w: UFO_W,
-            h: UFO_H / 2,
+            h: UFO_H,
           });
         } else if (obj.type === 'tomb') {
-          // Tombstone / gargoyle — small base collider (bottom strip of
-          // the sprite) so player can walk close but not through. Top of
-          // sprite stays walk-behindable via Y-sort.
+          // Tombstone / gargoyle — full sprite is now solid (no walking
+          // through the top of the stone). Tight side-trim keeps the bump
+          // feeling natural at the rounded shoulders.
           out.push({
-            x: obj.x * TILE_SIZE + 8,
-            y: obj.y * TILE_SIZE + TOMB_H - 18,
-            w: TOMB_W - 16,
-            h: 14,
+            x: obj.x * TILE_SIZE + 6,
+            y: obj.y * TILE_SIZE + 4,
+            w: TOMB_W - 12,
+            h: TOMB_H - 6,
           });
         } else if (obj.type === 'potion' && !obj.collected) {
           // Potion collider (Dec 2026) — pickups now BLOCK movement and
@@ -2868,6 +2890,10 @@
       houseHuge:         { src: '/assets/entry_hugehouse.png',      w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // closed (pre-keyed)
       houseHugeOpen:     { src: '/assets/entry_hugehouseopen.png',  w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h, chroma: true },  // gate open · door closed
       houseHugeDoorOpen: { src: '/assets/entry_hugehouseopen2.png', w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h, chroma: true },  // gate open · front door open
+      // Interior of the huge house — Floor 1 throne hall. Renders 1:1 (1254×1254
+      // world pixels) which puts the player at proportional scale with the
+      // painted banquet chairs and architectural details.
+      houseInterior1:    { src: '/assets/level_floor1_hugehouse.png', w: 1254, h: 1254 },
       // UFO landmark — ships with transparent alpha, no chroma needed. Crop
       // the source to its content bbox before baking; the raw PNG is
       // 1024×1024 with the UFO occupying only y=369..637 (~26% of the

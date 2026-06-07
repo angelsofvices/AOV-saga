@@ -29,7 +29,7 @@ A 2D action game shipping at `/realms.html`, single-file like the other prototyp
 
 ### Mode B — Tournament *(2D fighter, Mortal Kombat-style)*
 
-- **Roster at launch:** 2 fighters — **Solion Highreach** (Tier V Apex · Aura / Humanoid-Noid) vs **Kravos Dragonsong** (Tier V Apex · Beast / Unknown-Void).
+- **Roster at launch:** 2 fighters — **Solion Highreach** (Tier VI Pseudoimmortal · Aura / Humanoid-Noid · HP 432 / ATK 466 / DEF 432 / SPD 268 / SPC 400) vs **Kravos Dragonsong** (Tier VI Pseudoimmortal · Unknown-Void / Spirit · HP 466 / ATK 666 / DEF 266 / SPD 400 / SPC 200). See `CODEX_DRAFT_SOLION_KRAVOS_TVI.md` for the full card specs + moves.
 - **Art:** pixel-art placeholders (colored rectangles + name label) until proper fighter sprite sheets arrive.
 - **Arena:** single side-view 2D map at launch.
 - **HUD:** HP bars top of screen, character portraits, round counter (best of 3).
@@ -45,7 +45,7 @@ A 2D action game shipping at `/realms.html`, single-file like the other prototyp
   - Vs CPU (AI opponent, difficulty TBD)
   - Vs Player (hot-seat, same device, mirrored controls)
 
-> **Balance flag:** Solion vs Kravos is type-asymmetric — Solion hard-counters Kravos in raw matchup math. AI difficulty will compensate for the placeholder build. Final balance pass should either pick a more neutral launch pair OR give Kravos a signature that ignores type modifiers.
+> **Balance flag:** Solion still hard-counters Kravos even after the Tier VI promotion + Spirit type swap — Solion's Aura strong-vs-both keeps A1/A3 landing at 4× on Kravos. The Spirit pick fixes Solion's A2 (now 0.5×) but the asymmetry is canonical (heroic narrative). Kravos compensates via raw ATK (666) and Souldrift pressure; he wins the long game if he avoids his own 40% backfire. AI difficulty + side-pick let players experience the duel from either chair. Type-ignoring signature for Hatching Calamity is the lever to pull if playtest shows it's unwinnable.
 
 ---
 

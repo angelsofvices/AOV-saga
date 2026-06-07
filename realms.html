@@ -697,6 +697,38 @@ const FIGHTERS = [
 // git history of commit 4a31950 (P6.0.3) for the runtime chroma-key block to
 // re-enable.
 
+// ============ Sprite frame anchor calibration ============
+// Sprite-sheet cells are uniform width, but the artist often draws the character
+// at slightly different x-positions within each cell across an animation (breathing,
+// weight shifts, etc.). If we naively center the CELL at the fighter's position,
+// the character drifts frame-to-frame ("slideshow" effect). Fix: walk each frame's
+// chroma-keyed pixels to find the character's actual bounding box, store the
+// character's bottom-center as the frame's anchor point. Drawing then positions
+// the anchor at the fighter's position so the character stays planted in place.
+function computeFrameAnchors(srcCanvas, framesByAnim) {
+  const ctx = srcCanvas.getContext('2d');
+  for (const anim of Object.values(framesByAnim)) {
+    for (const f of anim) {
+      const data = ctx.getImageData(f.x, f.y, f.w, f.h).data;
+      let minX = f.w, maxX = -1, minY = f.h, maxY = -1;
+      for (let y = 0; y < f.h; y++) {
+        for (let x = 0; x < f.w; x++) {
+          if (data[(y * f.w + x) * 4 + 3] > 0) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      // Default fallback if frame is fully transparent
+      if (maxX < 0) { f.anchorX = f.w / 2; f.anchorY = f.h; continue; }
+      f.anchorX = (minX + maxX) / 2;   // character's horizontal center
+      f.anchorY = maxY;                // character's feet (bottom of opaque pixels)
+    }
+  }
+}
+
 // ============ Chroma-key helper ============
 // The sprite sheet PNGs are saved as RGB (no alpha), so the black backgrounds
 // render as opaque black rectangles when drawn over the arena. Pre-process each
@@ -730,6 +762,7 @@ SOLION_SHEET.onload = () => {
   // Lower threshold (10) so we only key the pure-black sheet background and
   // don't eat into the sprite's dark armor shadows.
   solionSrc = chromaKeyToCanvas(SOLION_SHEET, 10);
+  computeFrameAnchors(solionSrc, SOLION_FRAMES);
   solionReady = true;
 };
 SOLION_SHEET.src = 'v6realms/sheet_solion.png';
@@ -795,26 +828,31 @@ function makeSolionSprite() {
   };
 }
 
-// Draw a Solion frame onto ctx. centerX = horizontal center of the sprite on canvas,
-// baseY = bottom-of-sprite (feet land here). facing < 0 flips horizontally.
+// Draw a Solion frame onto ctx. centerX, baseY = where the character's bottom-
+// center anchor lands. Anchors are per-frame so the character stays planted in
+// place even if cells are uniform width and the sprite is drawn off-center.
 function drawSolionFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
   if (!solionReady) return false;
   const frames = SOLION_FRAMES[state];
   if (!frames) return false;
   const f = frames[Math.min(frameIdx, frames.length - 1)];
-  const dw = f.w * scale;
-  const dh = f.h * scale;
-  const dx = centerX - dw / 2;
-  const dy = baseY - dh;
+  // Anchor = (anchorX, anchorY) in frame-cell coords. Fallback to cell center
+  // if anchors haven't been computed yet (e.g., draw fires before chroma-key).
+  const ax = f.anchorX != null ? f.anchorX : f.w / 2;
+  const ay = f.anchorY != null ? f.anchorY : f.h;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   const src = solionSrc || SOLION_SHEET;
   if (facing < 0) {
-    ctx.translate(centerX, dy);
+    // Flip horizontally: mirror anchorX → (f.w - anchorX) so the post-flip
+    // character lands at centerX.
+    ctx.translate(centerX, baseY - ay * scale);
     ctx.scale(-1, 1);
-    ctx.drawImage(src, f.x, f.y, f.w, f.h, -dw / 2, 0, dw, dh);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h,
+      -(f.w - ax) * scale, 0, f.w * scale, f.h * scale);
   } else {
-    ctx.drawImage(src, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h,
+      centerX - ax * scale, baseY - ay * scale, f.w * scale, f.h * scale);
   }
   ctx.restore();
   return true;
@@ -828,6 +866,7 @@ KRAVOS_SHEET.onload = () => {
   // Lower threshold (10) so we only key the pure-black sheet background and
   // don't eat into the sprite's dark shadow/chain details.
   kravosSrc = chromaKeyToCanvas(KRAVOS_SHEET, 10);
+  computeFrameAnchors(kravosSrc, KRAVOS_FRAMES);
   kravosReady = true;
   if (state.mode === 'tournament-select') buildFighterGrid();
 };
@@ -876,19 +915,19 @@ function drawKravosFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
   const frames = KRAVOS_FRAMES[state];
   if (!frames) return false;
   const f = frames[Math.min(frameIdx, frames.length - 1)];
-  const dw = f.w * scale;
-  const dh = f.h * scale;
-  const dx = centerX - dw / 2;
-  const dy = baseY - dh;
+  const ax = f.anchorX != null ? f.anchorX : f.w / 2;
+  const ay = f.anchorY != null ? f.anchorY : f.h;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   const src = kravosSrc || KRAVOS_SHEET;
   if (facing < 0) {
-    ctx.translate(centerX, dy);
+    ctx.translate(centerX, baseY - ay * scale);
     ctx.scale(-1, 1);
-    ctx.drawImage(src, f.x, f.y, f.w, f.h, -dw / 2, 0, dw, dh);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h,
+      -(f.w - ax) * scale, 0, f.w * scale, f.h * scale);
   } else {
-    ctx.drawImage(src, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h,
+      centerX - ax * scale, baseY - ay * scale, f.w * scale, f.h * scale);
   }
   ctx.restore();
   return true;

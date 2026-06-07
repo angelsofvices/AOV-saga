@@ -1162,15 +1162,23 @@ const FIGHT_GRAVITY = 1600;
 const FIGHT_JUMP_V = 720;
 const FIGHT_WALK = 180;
 
-// Move definitions per fighter id. Mirrors Cardmaster TCG:
-// A1 (light)  = 0.33 × ATK, no status, no backfire
-// A2 (heavy)  = 0.66 × ATK, can proc status
-// A3 (special)= 0.99 × ATK, status proc + signature flair
+// ====== Normalized fighter stats ======
+// Tournament is a skill-based fighter, NOT an RPG. Every fighter gets the same
+// HP and the same base damage per move. Card-stat differences (HP/ATK/DEF/SPD/SPC)
+// remain canon in Cardmaster TCG but don't apply here — what differentiates
+// fighters in Tournament is their MOVE SET (animation, range, signature status).
+// This keeps Tournament purely skill-based: pick who you like aesthetically,
+// win by control + timing + reads.
+const TOURN_HP = 1000;
+// Move definitions. dmg is FIXED (not derived from ATK). Type chart dropped
+// entirely (was causing Solion 4x Kravos counter problem). Block halves dmg.
 const MOVES = {
-  a1: { mult: 0.33, dur: 0.36, hitFrame: 0.18, range: 70, knockback: 90, status: null },
-  a2: { mult: 0.66, dur: 0.55, hitFrame: 0.30, range: 84, knockback: 180, status: 'sig' },
-  a3: { mult: 0.99, dur: 0.85, hitFrame: 0.45, range: 110, knockback: 260, status: 'sig' }
+  a1: { dmg:  80, dur: 0.36, hitFrame: 0.18, range: 70,  knockback:  90, status: null },
+  a2: { dmg: 150, dur: 0.55, hitFrame: 0.30, range: 84,  knockback: 180, status: 'sig' },
+  a3: { dmg: 250, dur: 0.85, hitFrame: 0.45, range: 110, knockback: 260, status: 'sig' }
 };
+// Normalized status proc — every fighter has the same chance regardless of tier.
+const PROC_RATE = { a2: 0.25, a3: 0.50 };
 
 function initFight() {
   const p1Card = FIGHTERS.find(f => f.id === state.tournament.p1);
@@ -1203,15 +1211,18 @@ function makeFighter(card, x, facing) {
                  makeSolionSprite();   // fallback for locked fighters
   return {
     card,
-    x, y: FIGHTER_GROUND_Y,    // y = feet position (sprite drawn upward from here)
+    x, y: FIGHTER_GROUND_Y,
     vx: 0, vy: 0,
     facing, onGround: true,
-    hp: card.hp, hpMax: card.hp,
+    // Normalized HP — every Tournament fighter has the same pool.
+    // Card HP/ATK/DEF/SPC remain canon for Cardmaster TCG (still shown in
+    // the character-select stats panel for lore/info) but don't apply here.
+    hp: TOURN_HP, hpMax: TOURN_HP,
     sprite,
-    attack: null,              // null | {kind:'a1'|'a2'|'a3', dur, hitFrame, elapsed, hitConsumed}
+    attack: null,
     blocking: false,
     hurtUntilT: 0,
-    statuses: []               // [{kind, untilT, info}]
+    statuses: []
   };
 }
 function fighterFrames(f) {
@@ -1420,50 +1431,16 @@ function resolveAttack(attacker, defender, now) {
   updateHpDisplay();
 }
 
+// Skill-based damage: fixed value per move, halved on block. No card stats,
+// no type chart, no DEF reduction — Tournament outcomes depend on movement,
+// timing, and reads, not on who picked the higher-tier card.
 function computeFightDamage(atkCard, defCard, kind, blocking) {
-  const mult = MOVES[kind].mult;
-  let base = Math.ceil(atkCard.atk * mult);
-  // Type multiplier (best-of-both for A3)
-  const t1 = typeMultiplier(atkCard.type1, defCard.type1, defCard.type2);
-  const t2 = typeMultiplier(atkCard.type2, defCard.type1, defCard.type2);
-  const tm = kind === 'a1' ? t1 : kind === 'a2' ? t2 : Math.max(t1, t2);
-  base = Math.ceil(base * tm);
-  // DEF reduction (linear DEF/1000 per v6.7)
-  const red = Math.min(0.999, defCard.def / 1000);
-  base = Math.ceil(base * (1 - red));
-  // Block halves
-  if (blocking) base = Math.ceil(base * 0.5);
-  return Math.max(1, base);
+  let dmg = MOVES[kind].dmg;
+  if (blocking) dmg = Math.ceil(dmg * 0.5);
+  return Math.max(1, dmg);
 }
 function procPctForKind(card, kind) {
-  const tier = romanToInt(card.tier);
-  if (kind === 'a2') return Math.min(1, tier * 5.5 / 100);
-  if (kind === 'a3') return Math.min(1, tier * 11 / 100);
-  return 0;
-}
-function romanToInt(r) {
-  return ({I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10})[r] || 1;
-}
-// Type chart (copied from Cardmaster v6.7)
-const _TYPE_STRONG = {
-  Aura:['Spirit','Unknown-Void'],
-  Beast:['Creature','Spirit'],
-  Creature:['Nature','Aura'],
-  Extraterrestrial:['Aura','Nature'],
-  'Humanoid-Noid':['Beast','Ultramax'],
-  Nature:['Tech','Unknown-Void'],
-  Tech:['Humanoid-Noid','Extraterrestrial'],
-  Spirit:['Humanoid-Noid','Tech'],
-  Ultramax:['Extraterrestrial','Beast'],
-  'Unknown-Void':['Ultramax','Creature']
-};
-function _atkVsDef(atk, defType) {
-  if (_TYPE_STRONG[atk] && _TYPE_STRONG[atk].includes(defType)) return 2;
-  if (_TYPE_STRONG[defType] && _TYPE_STRONG[defType].includes(atk)) return 0.5;
-  return 1;
-}
-function typeMultiplier(atkType, defT1, defT2) {
-  return _atkVsDef(atkType, defT1) * _atkVsDef(atkType, defT2);
+  return PROC_RATE[kind] || 0;
 }
 function drawFightStage() {
   const cv = $('fight-canvas');

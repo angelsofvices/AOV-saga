@@ -313,6 +313,85 @@
       image-rendering: pixelated;
       image-rendering: -moz-crisp-edges;
     }
+
+    /* ============ V4-style device chassis (shared by Adventure + Tournament fight) ============
+       Portrait 768x1376 handheld with controller_frame.png overlay. The game canvas
+       fills the screen-cutout bbox; hotzones overlay each on-screen button to capture
+       virtual gamepad taps. Mirrors Expedition (P4)'s chassis pattern for visual unity
+       across the AOV Saga site. */
+    .device {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+      overflow: hidden;
+    }
+    .device-chassis {
+      position: relative;
+      width: min(94vw, calc(86vh * 768 / 1376));
+      aspect-ratio: 768 / 1376;
+      overflow: hidden;
+    }
+    .device-chassis::after {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: url('/assets/controller_frame.png');
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .device-screen {
+      /* Screen cutout bbox measured from controller_frame.png (768x1376):
+         left=58 top=84 width=653 height=696 → percentages below. */
+      position: absolute;
+      left: 7.5521%;
+      top: 6.1047%;
+      width: 85.0260%;
+      height: 50.5814%;
+      z-index: 1;
+      background: #000;
+      overflow: hidden;
+    }
+    .device-screen canvas {
+      width: 100%; height: 100%; display: block;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+
+    /* Hotzones — invisible touch targets sitting over each button in the chassis art.
+       Calibration percentages copied from Expedition (measured directly from
+       controller_frame.png pixel bboxes so they're device-independent). */
+    .hotzone {
+      position: absolute;
+      background: transparent;
+      border: 0; padding: 0; margin: 0;
+      cursor: pointer; pointer-events: auto;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 3;
+    }
+    .hotzone:active { background: rgba(232, 200, 120, 0.10); border-radius: 8px; }
+
+    /* D-pad */
+    .hz-up    { left: 14.71%; top: 58.43%; width: 11.72%; height: 6.69%; }
+    .hz-down  { left: 14.71%; top: 71.22%; width: 11.98%; height: 6.69%; }
+    .hz-left  { left:  3.39%; top: 64.24%; width: 11.98%; height: 7.85%; }
+    .hz-right { left: 26.17%; top: 64.24%; width: 11.98%; height: 7.85%; }
+    /* Face buttons (diamond — X top, Y left, A right, B bottom) */
+    .hz-x { left: 69.92%; top: 60.25%; width: 15.36%; height: 8.65%; border-radius: 50%; }
+    .hz-y { left: 53.52%; top: 68.02%; width: 13.67%; height: 6.47%; border-radius: 50%; }
+    .hz-a { left: 83.85%; top: 68.02%; width: 13.54%; height: 7.12%; border-radius: 50%; }
+    .hz-b { left: 68.36%; top: 75.22%; width: 13.54%; height: 6.47%; border-radius: 50%; }
+    /* Menu / Start / Select bottom row */
+    .hz-menu   { left: 38.41%; top: 86.48%; width: 22.14%; height: 11.26%; }
+    .hz-start  { left: 66.15%; top: 93.39%; width: 22.79%; height:  4.00%; }
+    .hz-select { left: 11.07%; top: 93.39%; width: 22.79%; height:  4.00%; }
+    /* L / R shoulders (visual only for now) */
+    .hz-l, .hz-r { display: none; pointer-events: none; }
     .stage-hud {
       position: absolute; top: 8px; left: 10px; right: 10px;
       display: flex; justify-content: space-between; align-items: center;
@@ -462,47 +541,71 @@
     </div>
   </section>
 
-  <!-- ============ Tournament — Fight stage ============ -->
+  <!-- ============ Tournament — Fight stage (inside chassis) ============ -->
   <section class="screen" id="tourn-fight-screen" hidden>
-    <div class="fight-stage" id="fight-stage">
-      <canvas id="fight-canvas" width="960" height="540"></canvas>
-      <div class="hp-bars">
-        <div class="hp-side p1">
-          <div class="hp-name" id="hp-p1-name">—</div>
-          <div class="hp-bar"><div class="hp-fill" id="hp-p1-fill" style="width:100%"></div></div>
-          <div class="hp-meta" id="hp-p1-meta">HP — / —</div>
-          <div class="hp-rounds" id="hp-p1-rounds"></div>
+    <div class="device">
+      <div class="device-chassis">
+        <div class="device-screen">
+          <canvas id="fight-canvas" width="640" height="682"></canvas>
+          <div class="hp-bars">
+            <div class="hp-side p1">
+              <div class="hp-name" id="hp-p1-name">—</div>
+              <div class="hp-bar"><div class="hp-fill" id="hp-p1-fill" style="width:100%"></div></div>
+              <div class="hp-meta" id="hp-p1-meta">HP —</div>
+              <div class="hp-rounds" id="hp-p1-rounds"></div>
+            </div>
+            <div></div>
+            <div class="hp-side p2">
+              <div class="hp-name" id="hp-p2-name">—</div>
+              <div class="hp-bar"><div class="hp-fill" id="hp-p2-fill" style="width:100%"></div></div>
+              <div class="hp-meta" id="hp-p2-meta">HP —</div>
+              <div class="hp-rounds" id="hp-p2-rounds"></div>
+            </div>
+          </div>
+          <div class="stage-hud">
+            <span id="fight-round-label">R1</span>
+            <button class="btn-secondary" id="btn-fight-back">← Quit</button>
+          </div>
         </div>
-        <div></div>
-        <div class="hp-side p2">
-          <div class="hp-name" id="hp-p2-name">—</div>
-          <div class="hp-bar"><div class="hp-fill" id="hp-p2-fill" style="width:100%"></div></div>
-          <div class="hp-meta" id="hp-p2-meta">HP — / —</div>
-          <div class="hp-rounds" id="hp-p2-rounds"></div>
-        </div>
-      </div>
-      <div class="stage-hud">
-        <span id="fight-round-label">Round 1</span>
-        <button class="btn-secondary" id="btn-fight-back">← Quit</button>
+        <!-- Virtual gamepad hotzones — calibrated to controller_frame.png pixel bboxes -->
+        <button class="hotzone hz-up"    data-hot="up"    aria-label="Up"></button>
+        <button class="hotzone hz-down"  data-hot="down"  aria-label="Down"></button>
+        <button class="hotzone hz-left"  data-hot="left"  aria-label="Left"></button>
+        <button class="hotzone hz-right" data-hot="right" aria-label="Right"></button>
+        <button class="hotzone hz-x"     data-hot="x"     aria-label="X · Special"></button>
+        <button class="hotzone hz-y"     data-hot="y"     aria-label="Y · Block"></button>
+        <button class="hotzone hz-a"     data-hot="a"     aria-label="A · Light"></button>
+        <button class="hotzone hz-b"     data-hot="b"     aria-label="B · Heavy"></button>
+        <button class="hotzone hz-menu"  data-hot="menu"  aria-label="Menu · Pause"></button>
+        <button class="hotzone hz-start" data-hot="start" aria-label="Start"></button>
+        <button class="hotzone hz-select" data-hot="select" aria-label="Select"></button>
       </div>
     </div>
-    <p class="screen-tagline" style="margin-top:14px;">Solion vs Kravos · Blizzard Canyon · Fight loop next pass.</p>
   </section>
 
-  <!-- ============ Adventure — Game canvas ============ -->
-  <section class="stage" id="adv-stage" hidden>
-    <canvas id="adv-canvas" width="960" height="540"></canvas>
-    <div class="stage-hud">
-      <span id="adv-hud-left">Viridia · Level 1</span>
-      <button class="btn-secondary" id="btn-adv-quit">← Quit</button>
-    </div>
-    <div class="touch-controls" id="adv-touch">
-      <div class="tc-side">
-        <button class="tc-btn" data-input="left">◀</button>
-        <button class="tc-btn" data-input="right">▶</button>
-      </div>
-      <div class="tc-side">
-        <button class="tc-btn" data-input="jump">▲</button>
+  <!-- ============ Adventure — Game canvas (inside chassis) ============ -->
+  <section class="screen" id="adv-stage" hidden>
+    <div class="device">
+      <div class="device-chassis">
+        <div class="device-screen">
+          <canvas id="adv-canvas" width="640" height="682"></canvas>
+          <div class="stage-hud">
+            <span id="adv-hud-left">Viridia · L1</span>
+            <button class="btn-secondary" id="btn-adv-quit">← Quit</button>
+          </div>
+        </div>
+        <!-- Virtual gamepad hotzones — same chassis layout as Tournament -->
+        <button class="hotzone hz-up"    data-hot="up"    aria-label="Up"></button>
+        <button class="hotzone hz-down"  data-hot="down"  aria-label="Down · Crouch"></button>
+        <button class="hotzone hz-left"  data-hot="left"  aria-label="Left"></button>
+        <button class="hotzone hz-right" data-hot="right" aria-label="Right"></button>
+        <button class="hotzone hz-x"     data-hot="x"     aria-label="X · Special"></button>
+        <button class="hotzone hz-y"     data-hot="y"     aria-label="Y"></button>
+        <button class="hotzone hz-a"     data-hot="a"     aria-label="A · Jump"></button>
+        <button class="hotzone hz-b"     data-hot="b"     aria-label="B · Attack"></button>
+        <button class="hotzone hz-menu"  data-hot="menu"  aria-label="Menu · Pause"></button>
+        <button class="hotzone hz-start" data-hot="start" aria-label="Start"></button>
+        <button class="hotzone hz-select" data-hot="select" aria-label="Select"></button>
       </div>
     </div>
   </section>
@@ -515,8 +618,10 @@
 'use strict';
 
 // ============ Constants ============
-const CANVAS_W = 960;
-const CANVAS_H = 540;
+// Canvas sized to match the v4 chassis screen-cutout aspect (653×696 → ~0.938).
+// 640×682 keeps clean tile math (32-px tiles) while matching the cutout shape.
+const CANVAS_W = 640;
+const CANVAS_H = 682;
 
 // ============ Character roster (27 total — 2 unlocked + 25 locked) ============
 // Solion + Kravos are the only unlocked fighters at launch (their codex entries are
@@ -1455,17 +1560,54 @@ window.addEventListener('keyup', e => {
   if (k) { state.inputs[k] = false; if (state.mode === 'adventure-game') e.preventDefault(); }
 });
 
-// Touch controls for adventure
-document.querySelectorAll('#adv-touch .tc-btn').forEach(btn => {
-  const key = btn.dataset.input;
-  const press = (on) => { state.inputs[key] = on; if (key === 'jump') state.inputs.up = on; };
-  btn.addEventListener('touchstart', e => { e.preventDefault(); press(true); }, { passive:false });
-  btn.addEventListener('touchend',   e => { e.preventDefault(); press(false); }, { passive:false });
-  btn.addEventListener('touchcancel',e => { e.preventDefault(); press(false); }, { passive:false });
-  btn.addEventListener('mousedown',  e => { e.preventDefault(); press(true); });
-  btn.addEventListener('mouseup',    e => { e.preventDefault(); press(false); });
-  btn.addEventListener('mouseleave', e => { e.preventDefault(); press(false); });
-});
+// ============ Virtual gamepad hotzones (chassis frame) ============
+// Each .hotzone[data-hot] maps to an input. Mapping is mode-aware:
+// Adventure  → A=jump  · B=attack · X=special · Y=block(unused)
+// Tournament → A=light · B=heavy  · X=special · Y=block
+// D-pad, Menu, Start, Select are global.
+const HOTZONE_TOUCHES = new Map();   // touchId → hotzone name
+function applyHotzone(name, down) {
+  const k = state.inputs;
+  switch (name) {
+    case 'up':    k.up = down; k.jump = down; break;   // D-pad up doubles as jump
+    case 'down':  k.down = down; break;
+    case 'left':  k.left = down; break;
+    case 'right': k.right = down; break;
+    case 'a':     k.jump = down; k.up = down; if (state.mode !== 'adventure-game') k.attack = down; break;  // A = jump (adv) / light (tourn)
+    case 'b':     k.attack = down; break;              // B = attack / heavy
+    case 'x':     k.special = down; break;             // X = special
+    case 'y':     k.block = down; break;               // Y = block
+    case 'menu':  if (down) {                          // Menu = pause / back
+      if (state.mode === 'adventure-game') goTitle();
+      else if (state.mode === 'tournament-fight') goTournamentSelect();
+    } break;
+    case 'start': /* reserved */ break;
+    case 'select':/* reserved */ break;
+  }
+}
+function bindHotzone(el) {
+  const name = el.dataset.hot;
+  if (!name) return;
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) HOTZONE_TOUCHES.set(t.identifier, name);
+    applyHotzone(name, true);
+  }, { passive: false });
+  const release = (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) HOTZONE_TOUCHES.delete(t.identifier);
+    let stillHeld = false;
+    for (const v of HOTZONE_TOUCHES.values()) if (v === name) { stillHeld = true; break; }
+    if (!stillHeld) applyHotzone(name, false);
+  };
+  el.addEventListener('touchend',    release, { passive: false });
+  el.addEventListener('touchcancel', release, { passive: false });
+  el.addEventListener('mousedown', (e) => { e.preventDefault(); applyHotzone(name, true); });
+  const mouseRelease = () => applyHotzone(name, false);
+  el.addEventListener('mouseup',    mouseRelease);
+  el.addEventListener('mouseleave', mouseRelease);
+}
+document.querySelectorAll('.hotzone').forEach(bindHotzone);
 
 // Init: title visible, all others hidden
 goTitle();

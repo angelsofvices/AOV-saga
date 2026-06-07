@@ -1877,7 +1877,16 @@
     const HQ_GATE = { x: 483, y: 860, w: 310, h: 73 };   // gap dims
     const hqGateState = {
       open: false,
-      adjacent: false,   // set every frame when player is within prompt range
+      adjacent: false,
+    };
+    // HQ front door — the double-door at the top of the stairs on the building
+    // facade. Player can't walk on the building (it's a solid collider), so the
+    // interact zone is a band at the BOTTOM of the stairs just south of the
+    // building base. Visual swap reveals the open doorway in the bg art.
+    const HQ_DOOR_INTERACT = { x: 540, y: 420, w: 200, h: 47 };   // bottom-of-stairs approach band
+    const hqDoorState = {
+      open: false,
+      adjacent: false,
     };
     // Potion adjacency — set every frame by updatePotionAdjacency.
     const potionState = { adjacent: false, obj: null };
@@ -2836,8 +2845,9 @@
       houseSml:  { src: '/assets/entry_smlhouse.png',  w: HOUSE_TYPES['house-sml' ].w, h: HOUSE_TYPES['house-sml' ].h },
       houseMed:  { src: '/assets/entry_medhouse.png',  w: HOUSE_TYPES['house-med' ].w, h: HOUSE_TYPES['house-med' ].h },
       houseBig:  { src: '/assets/entry_bighouse.png',  w: HOUSE_TYPES['house-big' ].w, h: HOUSE_TYPES['house-big' ].h, chroma: true },
-      houseHuge:     { src: '/assets/entry_hugehouse.png',     w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // re-exported with alpha — no chroma needed
-      houseHugeOpen: { src: '/assets/entry_hugehouseopen.png', w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // gate-open variant — swaps in when hqGateState.open
+      houseHuge:         { src: '/assets/entry_hugehouse.png',      w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // closed gate + closed door (default)
+      houseHugeOpen:     { src: '/assets/entry_hugehouseopen.png',  w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // gate open · door closed
+      houseHugeDoorOpen: { src: '/assets/entry_hugehouseopen2.png', w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // gate open · front door open
       // UFO landmark — ships with transparent alpha, no chroma needed. Crop
       // the source to its content bbox before baking; the raw PNG is
       // 1024×1024 with the UFO occupying only y=369..637 (~26% of the
@@ -4511,6 +4521,13 @@
       // COLLIDERS is the module-scope let assigned by transitionRegion.
       if (currentRegion === 'hq') COLLIDERS = buildColliders(MAP_DATA);
     }
+    function updateHqDoorAdjacency() {
+      hqDoorState.adjacent = false;
+      if (currentRegion !== 'hq') return;
+      if (rectIntersect(playerFootbox(player.x, player.y), HQ_DOOR_INTERACT)) {
+        hqDoorState.adjacent = true;
+      }
+    }
 
     // Potion adjacency check — runs per frame.
     function updatePotionAdjacency() {
@@ -5625,6 +5642,14 @@
           rebuildHqColliders();
           return true;
         }
+        // HQ front door — A swings open the double-doors at the top of the stairs.
+        // No collider change (building base already blocks the player); pure
+        // visual swap. Gate must be open first for the player to be physically
+        // standing in the interact zone (gate-closed = blocked outside courtyard).
+        if (hqDoorState.adjacent && !hqDoorState.open) {
+          hqDoorState.open = true;
+          return true;
+        }
         if (workstationState.adjacent) { openModal('workstation'); return true; }
         if (chestState.adjacent && chestState.chest) {
           openChest(chestState.chest); return true;
@@ -5851,6 +5876,10 @@
           if (hqGateState.adjacent && !hqGateState.open) {
             hqGateState.open = true;
             rebuildHqColliders();
+            return;
+          }
+          if (hqDoorState.adjacent && !hqDoorState.open) {
+            hqDoorState.open = true;
             return;
           }
           if (workstationState.adjacent) { openModal('workstation'); return; }
@@ -7125,10 +7154,11 @@
         const sx = -camera.x;
         const sy = -camera.y;
         if (sx + HQ_BG_W >= 0 && sx < VIEWPORT_W && sy + HQ_BG_H >= 0 && sy < VIEWPORT_H) {
-          // Swap to the open-gate variant when hqGateState.open === true.
-          // Both sprites are 1280x1024 with identical composition except the
-          // gate panels — no positional adjustment needed.
-          const bg = (hqGateState.open && ASSETS.houseHugeOpen) ? ASSETS.houseHugeOpen : ASSETS.houseHuge;
+          // Three-state HQ bg: closed → gate-open → gate+door-open.
+          // All three PNGs share the 1280x1024 composition so no offset needed.
+          const bg = (hqDoorState.open && ASSETS.houseHugeDoorOpen) ? ASSETS.houseHugeDoorOpen
+                   : (hqGateState.open && ASSETS.houseHugeOpen)     ? ASSETS.houseHugeOpen
+                   : ASSETS.houseHuge;
           ctx.drawImage(bg, sx, sy, HQ_BG_W, HQ_BG_H);
         }
         // Prompt — "[A] OPEN GATE" floats above the gate when player is adjacent
@@ -7146,6 +7176,23 @@
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText('[ A ] OPEN GATE', px, py - 3);
+          ctx.textBaseline = 'alphabetic';
+        }
+        // Prompt — "[A] OPEN DOOR" floats above the door interact band when the
+        // player has reached the bottom of the stairs and the door is closed.
+        if (hqDoorState.adjacent && !hqDoorState.open) {
+          const px = HQ_DOOR_INTERACT.x + HQ_DOOR_INTERACT.w / 2 - camera.x;
+          const py = HQ_DOOR_INTERACT.y - camera.y - 8;
+          ctx.fillStyle = 'rgba(5, 3, 16, 0.85)';
+          ctx.fillRect(px - 38, py - 11, 76, 16);
+          ctx.strokeStyle = 'rgba(232, 200, 120, 0.85)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px - 38.5, py - 11.5, 77, 17);
+          ctx.fillStyle = '#f4e3b3';
+          ctx.font = '600 9px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('[ A ] OPEN DOOR', px, py - 3);
           ctx.textBaseline = 'alphabetic';
         }
       }
@@ -7695,6 +7742,7 @@
         updateUfoAdjacency();
         updateHugeHouseAdjacency();
         updateHqGateAdjacency();
+        updateHqDoorAdjacency();
         updatePotionAdjacency();
         // Dec 2026: heart + energy systems. Energy regen / fly drain ticks
         // every frame; hazard collision damages player when overlapping a
@@ -7903,7 +7951,10 @@
       currentRegion = toRegion;
       MAP_DATA   = REGIONS[currentRegion];
       // Reset gate state when entering HQ so each visit starts with a closed gate.
-      if (toRegion === 'hq') { hqGateState.open = false; hqGateState.adjacent = false; }
+      if (toRegion === 'hq') {
+        hqGateState.open = false; hqGateState.adjacent = false;
+        hqDoorState.open = false; hqDoorState.adjacent = false;
+      }
       COLLIDERS  = buildColliders(MAP_DATA);
       // Clear any active lock-on — target almost certainly isn't in the new region.
       if (typeof clearLockOn === 'function') clearLockOn();

@@ -555,6 +555,100 @@ const FIGHTERS = [
   { id:'sharkfin',   name:'Sharkfin',          tier:'III',  archetype:'Beastmaster',type1:'Tech',          type2:'Humanoid-Noid', hp:220, atk:239, def:190, spd:150, spc:200, art:'cards_v2/card_sharkfin.png',       unlocked:false }
 ];
 
+// ============ Solion sprite sheet ============
+// Sheet at v6realms/sheet_solion.png (1536x1024). Manifest extracted from the
+// auto-slice (v6realms/manifest_solion.json) and inlined here so the engine
+// has zero fetch dependencies.
+const SOLION_SHEET = new Image();
+let solionReady = false;
+SOLION_SHEET.onload = () => { solionReady = true; };
+SOLION_SHEET.src = 'v6realms/sheet_solion.png';
+
+const SOLION_FRAMES = {
+  IDLE:           [{x:297,y:53,w:76,h:124},{x:373,y:53,w:77,h:124},{x:450,y:53,w:76,h:124},{x:526,y:53,w:77,h:124},{x:603,y:53,w:76,h:124},{x:679,y:53,w:77,h:124},{x:756,y:53,w:77,h:124}],
+  WALK_FWD:       [{x:297,y:230,w:76,h:104},{x:373,y:230,w:77,h:104},{x:450,y:230,w:76,h:104},{x:526,y:230,w:77,h:104},{x:603,y:230,w:76,h:104},{x:679,y:230,w:77,h:104},{x:756,y:230,w:77,h:104}],
+  WALK_BACK:      [{x:297,y:386,w:89,h:109},{x:386,y:388,w:89,h:107},{x:475,y:387,w:90,h:108},{x:565,y:388,w:89,h:107},{x:654,y:390,w:89,h:105},{x:743,y:392,w:90,h:103}],
+  JUMP:           [{x:297,y:523,w:107,h:142},{x:404,y:546,w:107,h:118},{x:511,y:529,w:107,h:129},{x:618,y:529,w:107,h:118},{x:725,y:543,w:108,h:103}],
+  CROUCH:         [{x:297,y:735,w:134,h:84},{x:431,y:730,w:134,h:91},{x:565,y:726,w:134,h:93},{x:699,y:733,w:134,h:86}],
+  BLOCK:          [{x:297,y:873,w:107,h:111},{x:404,y:868,w:107,h:116},{x:511,y:868,w:107,h:116},{x:618,y:868,w:107,h:116},{x:725,y:868,w:108,h:116}],
+  LIGHT_ATTACK:   [{x:864,y:59,w:159,h:113},{x:1023,y:53,w:159,h:119},{x:1182,y:53,w:159,h:117},{x:1341,y:53,w:160,h:119}],
+  HEAVY_ATTACK:   [{x:864,y:230,w:159,h:104},{x:1023,y:230,w:159,h:104},{x:1182,y:230,w:159,h:104},{x:1341,y:230,w:160,h:104}],
+  SPECIAL_SLASH:  [{x:864,y:380,w:212,h:115},{x:1076,y:380,w:212,h:115},{x:1288,y:384,w:213,h:107}],
+  SPECIAL_RISE:   [{x:864,y:523,w:159,h:142},{x:1023,y:523,w:159,h:142},{x:1182,y:523,w:159,h:142},{x:1341,y:523,w:160,h:142}],
+  SPECIAL_SLAM:   [{x:864,y:722,w:159,h:99},{x:1023,y:722,w:159,h:96},{x:1182,y:724,w:159,h:98},{x:1341,y:722,w:160,h:100}],
+  DASH_RUN:       [{x:864,y:873,w:159,h:111},{x:1023,y:868,w:159,h:116},{x:1182,y:869,w:159,h:115},{x:1341,y:880,w:160,h:104}]
+};
+
+// Animation timing/behavior per state.
+const SOLION_ANIM = {
+  IDLE:          { fps: 6,  loop: true  },
+  WALK_FWD:      { fps: 10, loop: true  },
+  WALK_BACK:     { fps: 10, loop: true  },
+  JUMP:          { fps: 8,  loop: false },
+  CROUCH:        { fps: 10, loop: false },
+  BLOCK:         { fps: 8,  loop: false },
+  LIGHT_ATTACK:  { fps: 14, loop: false },
+  HEAVY_ATTACK:  { fps: 8,  loop: false },
+  SPECIAL_SLASH: { fps: 10, loop: false },
+  SPECIAL_RISE:  { fps: 12, loop: false },
+  SPECIAL_SLAM:  { fps: 10, loop: false },
+  DASH_RUN:      { fps: 14, loop: true  }
+};
+
+// Sprite-state machine for a single Solion instance.
+function makeSolionSprite() {
+  return {
+    state: 'IDLE',
+    frame: 0,
+    timer: 0,
+    setState(next) {
+      if (this.state === next) return;
+      this.state = next;
+      this.frame = 0;
+      this.timer = 0;
+    },
+    tick(dt) {
+      const cfg = SOLION_ANIM[this.state] || SOLION_ANIM.IDLE;
+      this.timer += dt;
+      const period = 1 / cfg.fps;
+      while (this.timer >= period) {
+        this.timer -= period;
+        this.frame++;
+        const frames = SOLION_FRAMES[this.state];
+        if (!frames) { this.frame = 0; return; }
+        if (this.frame >= frames.length) {
+          if (cfg.loop) this.frame = 0;
+          else this.frame = frames.length - 1;
+        }
+      }
+    }
+  };
+}
+
+// Draw a Solion frame onto ctx. centerX = horizontal center of the sprite on canvas,
+// baseY = bottom-of-sprite (feet land here). facing < 0 flips horizontally.
+function drawSolionFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
+  if (!solionReady) return false;
+  const frames = SOLION_FRAMES[state];
+  if (!frames) return false;
+  const f = frames[Math.min(frameIdx, frames.length - 1)];
+  const dw = f.w * scale;
+  const dh = f.h * scale;
+  const dx = centerX - dw / 2;
+  const dy = baseY - dh;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (facing < 0) {
+    ctx.translate(centerX, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(SOLION_SHEET, f.x, f.y, f.w, f.h, -dw / 2, 0, dw, dh);
+  } else {
+    ctx.drawImage(SOLION_SHEET, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
+  }
+  ctx.restore();
+  return true;
+}
+
 // ============ App state ============
 const state = {
   mode: null,           // 'adventure' | 'tournament-vs' | 'tournament-select' | 'tournament-fight' | 'adventure-game'
@@ -664,6 +758,8 @@ function buildFighterGrid() {
   });
 }
 function makeFallbackPortrait(f) {
+  // Solion gets a live sprite-sheet portrait (IDLE frame 0) once the sheet loads.
+  if (f.id === 'solion' && solionReady) return makeSolionPortrait();
   const fp = document.createElement('div');
   fp.className = 'char-portrait-fallback';
   const g = f.portraitGradient || ['#c8c2dc','#6f6582','#1a0d3a'];
@@ -671,6 +767,42 @@ function makeFallbackPortrait(f) {
   fp.innerHTML = `<div style="font-size:0.5rem;letter-spacing:0.15em;opacity:0.85;">T${f.tier}</div><div style="font-size:0.95rem;margin-top:4px;font-weight:700;text-shadow:0 2px 6px rgba(0,0,0,0.6);">${f.name.split(' ')[0].toUpperCase()}</div>`;
   return fp;
 }
+function makeSolionPortrait() {
+  const cv = document.createElement('canvas');
+  cv.width = 200; cv.height = 200;
+  cv.style.width = '100%';
+  cv.style.height = '100%';
+  cv.style.imageRendering = 'pixelated';
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  // Cosmic gold backdrop
+  const g = ctx.createRadialGradient(100, 60, 0, 100, 110, 130);
+  g.addColorStop(0, '#3a2a10');
+  g.addColorStop(0.55, '#1a1004');
+  g.addColorStop(1, '#050310');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 200, 200);
+  // Halo glow behind
+  const halo = ctx.createRadialGradient(100, 70, 5, 100, 70, 90);
+  halo.addColorStop(0, 'rgba(255, 248, 216, 0.5)');
+  halo.addColorStop(1, 'rgba(255, 248, 216, 0)');
+  ctx.fillStyle = halo; ctx.fillRect(0, 0, 200, 200);
+  // Solion IDLE frame 0
+  const f0 = SOLION_FRAMES.IDLE[0];
+  const scale = (200 - 12) / f0.h;
+  const dw = f0.w * scale, dh = f0.h * scale;
+  const dx = 100 - dw / 2;
+  const dy = 200 - dh - 2;
+  ctx.drawImage(SOLION_SHEET, f0.x, f0.y, f0.w, f0.h, dx, dy, dw, dh);
+  return cv;
+}
+// If the sheet loads AFTER the grid is built (slow connection), re-render the grid
+// so Solion's gradient placeholder gets swapped for the real portrait.
+const _origOnLoad = SOLION_SHEET.onload;
+SOLION_SHEET.onload = () => {
+  solionReady = true;
+  if (_origOnLoad) _origOnLoad();
+  if (state.mode === 'tournament-select') buildFighterGrid();
+};
 
 function selectFighter(id) {
   const f = FIGHTERS.find(x => x.id === id);
@@ -809,33 +941,48 @@ function drawFightStage() {
   ctx.fillText('Fight loop · A1 / A2 / A3 / block / jump lands next pass', CANVAS_W / 2, 256);
 }
 function drawFighterPlaceholder(ctx, f, baseX, baseY, edgeColor, flip) {
+  // Drop shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.ellipse(baseX, baseY, 46, 10, 0, 0, Math.PI*2); ctx.fill();
+  // Solion uses the real sprite sheet (IDLE frame 0) if loaded.
+  if (f.id === 'solion' && solionReady) {
+    const frames = SOLION_FRAMES.IDLE;
+    const frame0 = frames[0];
+    const targetH = 240;
+    const scale = targetH / frame0.h;
+    drawSolionFrame(ctx, 'IDLE', 0, baseX, baseY, flip ? -1 : 1, scale);
+    // Player-color underline so HP bar side is obvious
+    ctx.fillStyle = edgeColor;
+    ctx.fillRect(baseX - 30, baseY - 2, 60, 3);
+    // Tier label
+    ctx.fillStyle = '#c8c2dc';
+    ctx.font = '400 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('TIER ' + f.tier, baseX, baseY - targetH - 8);
+    ctx.fillStyle = '#f4e3b3';
+    ctx.font = '700 14px Cinzel, serif';
+    ctx.fillText(f.name.split(' ')[0].toUpperCase(), baseX, baseY - targetH - 24);
+    return;
+  }
+  // Other fighters still use the gradient placeholder pillar until their sheets land.
   const w = 92, h = 220;
   const x = baseX - w/2;
   const y = baseY - h;
-  // Drop shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.beginPath(); ctx.ellipse(baseX, baseY, w/2, 10, 0, 0, Math.PI*2); ctx.fill();
-  // Body — gradient-filled rectangle
   const grad = ctx.createLinearGradient(x, y, x, y+h);
-  if (f.id === 'solion') { grad.addColorStop(0, '#fff3c4'); grad.addColorStop(0.6, '#e8c878'); grad.addColorStop(1, '#6a5020'); }
-  else if (f.id === 'kravos') { grad.addColorStop(0, '#c9a8ff'); grad.addColorStop(0.5, '#6e3fc1'); grad.addColorStop(1, '#1a0d3a'); }
+  if (f.id === 'kravos') { grad.addColorStop(0, '#c9a8ff'); grad.addColorStop(0.5, '#6e3fc1'); grad.addColorStop(1, '#1a0d3a'); }
   else { grad.addColorStop(0, '#999'); grad.addColorStop(1, '#333'); }
   ctx.fillStyle = grad;
   ctx.fillRect(x, y, w, h);
-  // Border (player color)
   ctx.strokeStyle = edgeColor;
   ctx.lineWidth = 3;
   ctx.strokeRect(x, y, w, h);
-  // Name label
   ctx.fillStyle = '#f4e3b3';
   ctx.font = '700 14px Cinzel, serif';
   ctx.textAlign = 'center';
-  const short = f.name.split(' ')[0].toUpperCase();
-  ctx.fillText(short, baseX, y + 26);
+  ctx.fillText(f.name.split(' ')[0].toUpperCase(), baseX, y + 26);
   ctx.font = '400 10px Inter, sans-serif';
   ctx.fillStyle = '#c8c2dc';
   ctx.fillText('TIER ' + f.tier, baseX, y + 42);
-  // Tag arrow indicating facing
   ctx.fillStyle = edgeColor;
   ctx.beginPath();
   if (flip) {
@@ -899,27 +1046,19 @@ function initAdventure() {
     worldW: cols * ADV_TILE,
     worldH: rows * ADV_TILE,
     solids,
-    // Solion physics
     player: {
       x: px, y: py,
-      w: 22, h: 38,
+      w: 28, h: 56,              // collision box sized to the real sprite footprint
       vx: 0, vy: 0,
       onGround: false,
-      facing: 1,    // 1 = right, -1 = left
+      facing: 1,
       walkPhase: 0,
-      spriteReady: false
+      sprite: makeSolionSprite()   // sprite state machine
     },
     camera: { x: 0, y: 0 },
     keys: state.inputs,
-    lastT: 0,
-    // Load sprite (will set spriteReady when loaded)
-    spriteImg: null
+    lastT: 0
   };
-  // Try to load Solion's idle sprite from assets/
-  const img = new Image();
-  img.onload = () => { state.adventure.spriteImg = img; state.adventure.player.spriteReady = true; };
-  img.onerror = () => { /* no sprite — render fallback box */ };
-  img.src = 'assets/character_player.png';
 }
 
 function advLoop(t) {
@@ -980,8 +1119,15 @@ function advUpdate(dt) {
     // Fell out of world — respawn
     p.x = 64; p.y = 64; p.vx = 0; p.vy = 0;
   }
-  // Walk phase for animation
+  // Walk phase (kept for any non-sprite effects)
   if (Math.abs(p.vx) > 1) p.walkPhase += dt * 8;
+  // Sprite state — picks the right animation based on physics state.
+  let nextState = 'IDLE';
+  if (!p.onGround) nextState = 'JUMP';
+  else if (k.down) nextState = 'CROUCH';
+  else if (Math.abs(p.vx) > 1) nextState = 'WALK_FWD';
+  p.sprite.setState(nextState);
+  p.sprite.tick(dt);
   // Camera follow
   a.camera.x = Math.max(0, Math.min(a.worldW - CANVAS_W, p.x + p.w / 2 - CANVAS_W / 2));
   a.camera.y = Math.max(0, Math.min(a.worldH - CANVAS_H, p.y + p.h / 2 - CANVAS_H / 2));
@@ -1058,24 +1204,22 @@ function advDraw() {
 }
 
 function drawSolion(ctx, x, y, w, h, facing, onGround, walkPhase) {
-  // Try sprite if loaded, else stylized fallback
-  const a = state.adventure;
-  if (a && a.spriteImg && a.player.spriteReady) {
-    // The P4 sheet has a specific body bbox; for the side-scroller fallback we render a
-    // small detail box framing the sprite to keep proportions sane.
-    const img = a.spriteImg;
-    const drawW = w * 1.6;
-    const drawH = h * 1.6;
-    const dx = x + w/2 - drawW/2;
-    const dy = y + h - drawH;
-    // Use a simple slice — center crop of the P4 character_player.png (top-down).
-    // For a proper side-view we'd need a fresh side-scroller sheet; this is the fallback.
-    const sx = facing > 0 ? 0 : img.naturalWidth;
-    const sw = facing > 0 ? img.naturalWidth : -img.naturalWidth;
-    ctx.drawImage(img, sx, 0, sw, img.naturalHeight, dx, dy, drawW, drawH);
-  } else {
-    drawSolionStylized(ctx, x, y, w, h, facing, onGround, walkPhase);
+  // Sprite-based render using v6realms/sheet_solion.png; falls back to stylized
+  // pixel render if the sheet hasn't loaded yet (still loads fine, just covers
+  // the first ~100ms before the image is decoded).
+  const p = state.adventure && state.adventure.player;
+  if (solionReady && p && p.sprite) {
+    const centerX = x + w / 2;
+    const baseY = y + h;
+    // Scale the sprite so its rendered height is ~2.4x the collision-box height
+    // (matches the visual "head above box" platformer convention).
+    const frames = SOLION_FRAMES[p.sprite.state] || SOLION_FRAMES.IDLE;
+    const f = frames[Math.min(p.sprite.frame, frames.length - 1)];
+    const scale = (h * 2.4) / f.h;
+    const drew = drawSolionFrame(ctx, p.sprite.state, p.sprite.frame, centerX, baseY, facing, scale);
+    if (drew) return;
   }
+  drawSolionStylized(ctx, x, y, w, h, facing, onGround, walkPhase);
 }
 
 function drawSolionStylized(ctx, x, y, w, h, facing, onGround, walkPhase) {

@@ -884,11 +884,17 @@ function drawKravosFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
   return true;
 }
 
-// ============ Blizzard Canyon arena ============
+// ============ Blizzard Canyon arena (Tournament) ============
 const ARENA_BLIZZARD = new Image();
 let arenaReady = false;
 ARENA_BLIZZARD.onload = () => { arenaReady = true; };
 ARENA_BLIZZARD.src = 'v6realms/map_blizzardcanyon.png';
+
+// ============ Old Viridia map (Adventure) ============
+const ARENA_VIRIDIA = new Image();
+let viridiaReady = false;
+ARENA_VIRIDIA.onload = () => { viridiaReady = true; };
+ARENA_VIRIDIA.src = 'v6realms/map_oldviridia.png';
 
 // ============ App state ============
 const state = {
@@ -1145,32 +1151,319 @@ function goTournamentFight() {
 }
 $('btn-fight-back').onclick = () => goTournamentSelect();
 
+// ============ Tournament battle loop ============
+// Both fighters get full physics + animation state machine + attack hitboxes.
+// Damage formula mirrors Cardmaster TCG (ATK × moveMult × typeMult × (1-DEF/1000)).
+// Best-of-3 rounds; KO at 0 HP wins the round.
 let fightState = null;
+const FIGHTER_GROUND_Y = CANVAS_H - 80;      // y-coord where feet stand
+const FIGHTER_W = 56, FIGHTER_H = 140;        // hitbox dims (smaller than rendered sprite)
+const FIGHT_GRAVITY = 1600;
+const FIGHT_JUMP_V = 720;
+const FIGHT_WALK = 180;
+
+// Move definitions per fighter id. Mirrors Cardmaster TCG:
+// A1 (light)  = 0.33 × ATK, no status, no backfire
+// A2 (heavy)  = 0.66 × ATK, can proc status
+// A3 (special)= 0.99 × ATK, status proc + signature flair
+const MOVES = {
+  a1: { mult: 0.33, dur: 0.36, hitFrame: 0.18, range: 70, knockback: 90, status: null },
+  a2: { mult: 0.66, dur: 0.55, hitFrame: 0.30, range: 84, knockback: 180, status: 'sig' },
+  a3: { mult: 0.99, dur: 0.85, hitFrame: 0.45, range: 110, knockback: 260, status: 'sig' }
+};
+
 function initFight() {
-  const p1 = FIGHTERS.find(f => f.id === state.tournament.p1);
-  const p2 = FIGHTERS.find(f => f.id === state.tournament.p2);
+  const p1Card = FIGHTERS.find(f => f.id === state.tournament.p1);
+  const p2Card = FIGHTERS.find(f => f.id === state.tournament.p2);
   fightState = {
-    p1, p2,
-    p1Hp: p1.hp, p1HpMax: p1.hp, p1Rounds: 0,
-    p2Hp: p2.hp, p2HpMax: p2.hp, p2Rounds: 0,
-    round: 1
+    p1: makeFighter(p1Card, /*x*/ CANVAS_W * 0.30, /*facing*/ 1),
+    p2: makeFighter(p2Card, /*x*/ CANVAS_W * 0.70, /*facing*/ -1),
+    round: 1,
+    p1Rounds: 0,
+    p2Rounds: 0,
+    matchOver: false,
+    matchWinner: null,
+    roundStartT: performance.now(),
+    inIntro: true,
+    introUntilT: performance.now() + 1300,    // 1.3s "READY" intro per round
+    lastT: 0,
+    lastAiAttackT: 0
   };
-  $('hp-p1-name').textContent = p1.name;
-  $('hp-p2-name').textContent = p2.name;
+  $('hp-p1-name').textContent = p1Card.name;
+  $('hp-p2-name').textContent = p2Card.name;
+  $('hp-p1-rounds').innerHTML = '<span class="round-dot"></span><span class="round-dot"></span>';
+  $('hp-p2-rounds').innerHTML = '<span class="round-dot"></span><span class="round-dot"></span>';
+  $('fight-round-label').textContent = 'R1';
   updateHpDisplay();
-  drawFightStage();
-  // Render round dots
-  ['hp-p1-rounds','hp-p2-rounds'].forEach((id) => {
-    const w = $(id);
-    w.innerHTML = '<span class="round-dot"></span><span class="round-dot"></span>';
-  });
-  $('fight-round-label').textContent = 'Round 1 — Fight loop lands next pass';
+  requestAnimationFrame(fightLoop);
+}
+function makeFighter(card, x, facing) {
+  const sprite = card.id === 'solion' ? makeSolionSprite() :
+                 card.id === 'kravos' ? { state:'IDLE', frame:0, timer:0, setState(s){ if(this.state===s)return; this.state=s; this.frame=0; this.timer=0; }, tick:makeSolionSprite().tick } :
+                 makeSolionSprite();   // fallback for locked fighters
+  return {
+    card,
+    x, y: FIGHTER_GROUND_Y,    // y = feet position (sprite drawn upward from here)
+    vx: 0, vy: 0,
+    facing, onGround: true,
+    hp: card.hp, hpMax: card.hp,
+    sprite,
+    attack: null,              // null | {kind:'a1'|'a2'|'a3', dur, hitFrame, elapsed, hitConsumed}
+    blocking: false,
+    hurtUntilT: 0,
+    statuses: []               // [{kind, untilT, info}]
+  };
+}
+function fighterFrames(f) {
+  return f.card.id === 'kravos' ? KRAVOS_FRAMES :
+         f.card.id === 'solion' ? SOLION_FRAMES :
+         SOLION_FRAMES;
+}
+function drawFighterFrameById(ctx, f, state, frame, centerX, baseY, facing, scale) {
+  if (f.card.id === 'kravos') return drawKravosFrame(ctx, state, frame, centerX, baseY, facing, scale);
+  return drawSolionFrame(ctx, state, frame, centerX, baseY, facing, scale);
 }
 function updateHpDisplay() {
-  $('hp-p1-fill').style.width = (fightState.p1Hp / fightState.p1HpMax * 100) + '%';
-  $('hp-p2-fill').style.width = (fightState.p2Hp / fightState.p2HpMax * 100) + '%';
-  $('hp-p1-meta').textContent = `HP ${fightState.p1Hp} / ${fightState.p1HpMax}`;
-  $('hp-p2-meta').textContent = `HP ${fightState.p2Hp} / ${fightState.p2HpMax}`;
+  $('hp-p1-fill').style.width = (fightState.p1.hp / fightState.p1.hpMax * 100) + '%';
+  $('hp-p2-fill').style.width = (fightState.p2.hp / fightState.p2.hpMax * 100) + '%';
+  $('hp-p1-meta').textContent = `HP ${fightState.p1.hp} / ${fightState.p1.hpMax}`;
+  $('hp-p2-meta').textContent = `HP ${fightState.p2.hp} / ${fightState.p2.hpMax}`;
+  // Round dots
+  ['hp-p1-rounds','hp-p2-rounds'].forEach((id, idx) => {
+    const w = $(id);
+    const won = idx === 0 ? fightState.p1Rounds : fightState.p2Rounds;
+    w.innerHTML = '';
+    for (let i = 0; i < 2; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'round-dot' + (i < won ? ' won' : '');
+      w.appendChild(dot);
+    }
+  });
+  $('fight-round-label').textContent = `R${fightState.round}`;
+}
+
+// ====== Main fight loop ======
+function fightLoop(t) {
+  if (state.mode !== 'tournament-fight' || !fightState) return;
+  const dt = Math.min(50, t - (fightState.lastT || t)) / 1000;
+  fightState.lastT = t;
+  fightUpdate(dt, t);
+  drawFightStage();
+  requestAnimationFrame(fightLoop);
+}
+
+function fightUpdate(dt, now) {
+  const fs = fightState;
+  if (fs.matchOver) return;
+  // Intro lockout — don't accept input until intro ends
+  if (fs.inIntro) {
+    if (now >= fs.introUntilT) fs.inIntro = false;
+    else { tickFighter(fs.p1, dt, now); tickFighter(fs.p2, dt, now); return; }
+  }
+  // Update facing — always face opponent
+  fs.p1.facing = fs.p2.x > fs.p1.x ? 1 : -1;
+  fs.p2.facing = fs.p1.x > fs.p2.x ? 1 : -1;
+  // Player inputs (always p1 in vs-CPU; in vs-Player, p2 also driven by inputs — but we
+  // share the input map so vs-Player requires keyboard split. For now both human modes
+  // share the same hotzones — fine for hot-seat demo).
+  applyInputs(fs.p1, state.inputs, true);
+  if (state.tournament.vsMode === 'cpu') aiInputs(fs.p2, fs.p1, now);
+  else applyInputs(fs.p2, state.inputs, true);    // hot-seat: same controls (TODO split later)
+  // Physics + animation
+  tickFighter(fs.p1, dt, now);
+  tickFighter(fs.p2, dt, now);
+  // Hit detection — when an attacker is mid-attack on its active frame, check overlap
+  resolveAttack(fs.p1, fs.p2, now);
+  resolveAttack(fs.p2, fs.p1, now);
+  // KO check
+  if (fs.p1.hp <= 0 || fs.p2.hp <= 0) {
+    const p1Down = fs.p1.hp <= 0;
+    const p2Down = fs.p2.hp <= 0;
+    if (p1Down && !p2Down) fs.p2Rounds++;
+    else if (p2Down && !p1Down) fs.p1Rounds++;
+    else { fs.p1Rounds++; fs.p2Rounds++; }  // double KO → both score
+    updateHpDisplay();
+    // Match check
+    if (fs.p1Rounds >= 2 || fs.p2Rounds >= 2) {
+      fs.matchOver = true;
+      fs.matchWinner = fs.p1Rounds > fs.p2Rounds ? 'p1' : 'p2';
+    } else {
+      // Reset for next round
+      fs.round++;
+      setTimeout(() => {
+        fs.p1.hp = fs.p1.hpMax; fs.p2.hp = fs.p2.hpMax;
+        fs.p1.x = CANVAS_W * 0.30; fs.p2.x = CANVAS_W * 0.70;
+        fs.p1.y = fs.p2.y = FIGHTER_GROUND_Y;
+        fs.p1.vx = fs.p1.vy = 0; fs.p2.vx = fs.p2.vy = 0;
+        fs.p1.attack = fs.p2.attack = null;
+        fs.p1.hp = fs.p1.hpMax; fs.p2.hp = fs.p2.hpMax;
+        fs.p1.statuses = []; fs.p2.statuses = [];
+        fs.inIntro = true; fs.introUntilT = performance.now() + 1300;
+        fs.roundStartT = performance.now();
+        updateHpDisplay();
+      }, 1400);
+    }
+  }
+}
+
+function applyInputs(f, inp, p1Side) {
+  if (f.attack) return;  // can't move while attacking
+  // Movement
+  let target = 0;
+  if (inp.left) target -= FIGHT_WALK;
+  if (inp.right) target += FIGHT_WALK;
+  f.vx = target;
+  // Jump
+  if ((inp.jump || inp.up) && f.onGround) { f.vy = -FIGHT_JUMP_V; f.onGround = false; }
+  // Block
+  f.blocking = !!inp.block && f.onGround;
+  if (f.blocking) f.vx = 0;
+  // Attacks (only when grounded, not blocking)
+  if (!f.blocking && f.onGround) {
+    if (inp.attack) { startAttack(f, 'a1'); inp.attack = false; }   // B button → A1 light. Consume to prevent repeat.
+    // Heavy attack mapping: dedicated key? For now hold-down Y while pressing B = heavy
+    // X = special A3
+    if (inp.special) { startAttack(f, 'a3'); inp.special = false; }
+  }
+}
+function startAttack(f, kind) {
+  if (f.attack) return;
+  const m = MOVES[kind];
+  f.attack = { kind, dur: m.dur, hitFrame: m.hitFrame, elapsed: 0, hitConsumed: false };
+  // Animation
+  const animMap = { a1: 'LIGHT_ATTACK', a2: 'HEAVY_ATTACK', a3: f.card.id === 'kravos' ? 'SHADOW_DRAGON' : 'SPECIAL_SLASH' };
+  f.sprite.setState(animMap[kind]);
+}
+
+// Simple AI — close distance, attack when in range
+function aiInputs(ai, foe, now) {
+  if (ai.attack) return;
+  const inp = { left:false, right:false, jump:false, block:false, attack:false, special:false, up:false, down:false };
+  const dx = foe.x - ai.x;
+  const dist = Math.abs(dx);
+  if (dist > 110) {
+    // Approach
+    if (dx > 0) inp.right = true; else inp.left = true;
+  } else if (dist > 60) {
+    // In light-attack range
+    if (now - fightState.lastAiAttackT > 700 && Math.random() < 0.15) {
+      // Occasionally special
+      if (Math.random() < 0.25) inp.special = true;
+      else inp.attack = true;
+      fightState.lastAiAttackT = now;
+    } else {
+      // Sometimes block, sometimes step
+      if (Math.random() < 0.04) inp.block = true;
+    }
+  } else {
+    // Too close — back up or attack
+    if (Math.random() < 0.4) inp.attack = true;
+    else if (dx > 0) inp.left = true; else inp.right = true;
+    fightState.lastAiAttackT = now;
+  }
+  // Occasional jump
+  if (Math.random() < 0.005 && ai.onGround) inp.jump = true;
+  applyInputs(ai, inp, false);
+}
+
+function tickFighter(f, dt, now) {
+  // Physics
+  f.x += f.vx * dt;
+  f.vy += FIGHT_GRAVITY * dt;
+  f.y += f.vy * dt;
+  if (f.y >= FIGHTER_GROUND_Y) { f.y = FIGHTER_GROUND_Y; f.vy = 0; f.onGround = true; }
+  // Stage bounds
+  if (f.x < FIGHTER_W / 2) f.x = FIGHTER_W / 2;
+  if (f.x > CANVAS_W - FIGHTER_W / 2) f.x = CANVAS_W - FIGHTER_W / 2;
+  // Attack timing
+  if (f.attack) {
+    f.attack.elapsed += dt;
+    if (f.attack.elapsed >= f.attack.dur) { f.attack = null; f.sprite.setState('IDLE'); }
+  }
+  // Sprite state choice
+  if (!f.attack) {
+    if (f.blocking) f.sprite.setState('BLOCK');
+    else if (!f.onGround) f.sprite.setState('JUMP');
+    else if (Math.abs(f.vx) > 1) f.sprite.setState(f.vx * f.facing > 0 ? 'WALK_FWD' : 'WALK_BACK');
+    else f.sprite.setState('IDLE');
+  }
+  f.sprite.tick(dt);
+  // Hurt timer ends → return to neutral
+  if (f.hurtUntilT && now > f.hurtUntilT) { f.hurtUntilT = 0; }
+}
+
+function resolveAttack(attacker, defender, now) {
+  if (!attacker.attack || attacker.attack.hitConsumed) return;
+  // Hit happens at hitFrame of the attack window
+  if (attacker.attack.elapsed < attacker.attack.hitFrame) return;
+  // Check range (face the defender, in horizontal range, vertically close)
+  const m = MOVES[attacker.attack.kind];
+  const dx = defender.x - attacker.x;
+  const sameDirection = (dx > 0 && attacker.facing > 0) || (dx < 0 && attacker.facing < 0);
+  if (!sameDirection) { attacker.attack.hitConsumed = true; return; }
+  if (Math.abs(dx) > m.range) { attacker.attack.hitConsumed = true; return; }
+  if (Math.abs(defender.y - attacker.y) > 60) { attacker.attack.hitConsumed = true; return; }
+  // Compute damage — Cardmaster TCG formula
+  const dmg = computeFightDamage(attacker.card, defender.card, attacker.attack.kind, defender.blocking);
+  defender.hp = Math.max(0, defender.hp - dmg);
+  // Knockback
+  defender.vx = m.knockback * attacker.facing;
+  defender.vy = -160;
+  defender.onGround = false;
+  defender.hurtUntilT = now + 300;
+  // Status proc on a2/a3
+  if (attacker.attack.kind !== 'a1' && Math.random() < procPctForKind(attacker.card, attacker.attack.kind)) {
+    const sig = attacker.card.id === 'kravos' ? 'Souldrift' : attacker.card.id === 'solion' ? 'Brainlock' : 'Undershock';
+    defender.statuses.push({ kind: sig, untilT: now + 2200 });
+  }
+  attacker.attack.hitConsumed = true;
+  updateHpDisplay();
+}
+
+function computeFightDamage(atkCard, defCard, kind, blocking) {
+  const mult = MOVES[kind].mult;
+  let base = Math.ceil(atkCard.atk * mult);
+  // Type multiplier (best-of-both for A3)
+  const t1 = typeMultiplier(atkCard.type1, defCard.type1, defCard.type2);
+  const t2 = typeMultiplier(atkCard.type2, defCard.type1, defCard.type2);
+  const tm = kind === 'a1' ? t1 : kind === 'a2' ? t2 : Math.max(t1, t2);
+  base = Math.ceil(base * tm);
+  // DEF reduction (linear DEF/1000 per v6.7)
+  const red = Math.min(0.999, defCard.def / 1000);
+  base = Math.ceil(base * (1 - red));
+  // Block halves
+  if (blocking) base = Math.ceil(base * 0.5);
+  return Math.max(1, base);
+}
+function procPctForKind(card, kind) {
+  const tier = romanToInt(card.tier);
+  if (kind === 'a2') return Math.min(1, tier * 5.5 / 100);
+  if (kind === 'a3') return Math.min(1, tier * 11 / 100);
+  return 0;
+}
+function romanToInt(r) {
+  return ({I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10})[r] || 1;
+}
+// Type chart (copied from Cardmaster v6.7)
+const _TYPE_STRONG = {
+  Aura:['Spirit','Unknown-Void'],
+  Beast:['Creature','Spirit'],
+  Creature:['Nature','Aura'],
+  Extraterrestrial:['Aura','Nature'],
+  'Humanoid-Noid':['Beast','Ultramax'],
+  Nature:['Tech','Unknown-Void'],
+  Tech:['Humanoid-Noid','Extraterrestrial'],
+  Spirit:['Humanoid-Noid','Tech'],
+  Ultramax:['Extraterrestrial','Beast'],
+  'Unknown-Void':['Ultramax','Creature']
+};
+function _atkVsDef(atk, defType) {
+  if (_TYPE_STRONG[atk] && _TYPE_STRONG[atk].includes(defType)) return 2;
+  if (_TYPE_STRONG[defType] && _TYPE_STRONG[defType].includes(atk)) return 0.5;
+  return 1;
+}
+function typeMultiplier(atkType, defT1, defT2) {
+  return _atkVsDef(atkType, defT1) * _atkVsDef(atkType, defT2);
 }
 function drawFightStage() {
   const cv = $('fight-canvas');
@@ -1208,15 +1501,76 @@ function drawFightStage() {
     ctx.fillStyle = ground;
     ctx.fillRect(0, CANVAS_H - 80, CANVAS_W, 80);
   }
-  // Fighters stand on the canyon floor
-  const floorY = CANVAS_H - 50;
-  drawFighterPlaceholder(ctx, fightState.p1, 290, floorY, '#6fa3e8', false);
-  drawFighterPlaceholder(ctx, fightState.p2, 670, floorY, '#d34c4c', true);
-  // Stage name (bottom-left only — no overlapping READY/placeholder text)
+  // Live fighters from fightState (positioned per physics)
+  drawLiveFighter(ctx, fightState.p1, '#6fa3e8');
+  drawLiveFighter(ctx, fightState.p2, '#d34c4c');
+  // Stage name (bottom-left)
   ctx.textAlign = 'left';
-  ctx.font = '400 11px Inter, sans-serif';
-  ctx.fillStyle = 'rgba(244, 227, 179, 0.6)';
-  ctx.fillText('BLIZZARD CANYON · THE FROZEN PASSAGE · NORTHERN VIRIDIA', 16, CANVAS_H - 12);
+  ctx.font = '400 10px Inter, sans-serif';
+  ctx.fillStyle = 'rgba(244, 227, 179, 0.55)';
+  ctx.fillText('BLIZZARD CANYON · THE FROZEN PASSAGE', 12, CANVAS_H - 10);
+  // ROUND intro
+  if (fightState.inIntro) {
+    const remaining = fightState.introUntilT - performance.now();
+    const fade = Math.min(1, remaining / 700);
+    ctx.fillStyle = `rgba(0,0,0,${0.45 * fade})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(244, 227, 179, ${fade})`;
+    ctx.font = '700 56px Cinzel, serif';
+    ctx.fillText(`ROUND ${fightState.round}`, CANVAS_W / 2, CANVAS_H * 0.35);
+    ctx.font = '700 32px Cinzel, serif';
+    ctx.fillText('READY', CANVAS_W / 2, CANVAS_H * 0.45);
+  }
+  // Match over
+  if (fightState.matchOver) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign = 'center';
+    const w = fightState.matchWinner === 'p1' ? fightState.p1.card : fightState.p2.card;
+    ctx.fillStyle = '#f4e3b3';
+    ctx.font = '700 44px Cinzel, serif';
+    ctx.fillText(`${w.name.split(' ')[0].toUpperCase()} WINS`, CANVAS_W / 2, CANVAS_H * 0.42);
+    ctx.font = '400 14px Inter, sans-serif';
+    ctx.fillStyle = '#c8c2dc';
+    ctx.fillText(`Match · ${fightState.p1Rounds} : ${fightState.p2Rounds}`, CANVAS_W / 2, CANVAS_H * 0.52);
+    ctx.font = '400 11px Inter, sans-serif';
+    ctx.fillText('Tap Menu to return · Quit to character select', CANVAS_W / 2, CANVAS_H * 0.58);
+  }
+}
+
+function drawLiveFighter(ctx, f, edgeColor) {
+  // Drop shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.ellipse(f.x, f.y, 36, 6, 0, 0, Math.PI*2); ctx.fill();
+  // Hurt flash
+  const hurtFlash = f.hurtUntilT && performance.now() < f.hurtUntilT;
+  if (hurtFlash) {
+    ctx.fillStyle = 'rgba(255, 90, 90, 0.18)';
+    ctx.fillRect(f.x - 50, f.y - 200, 100, 200);
+  }
+  // Render the sprite frame
+  const frames = fighterFrames(f);
+  const stateFrames = frames[f.sprite.state] || frames.IDLE;
+  const frameIdx = Math.min(f.sprite.frame, stateFrames.length - 1);
+  const frame = stateFrames[frameIdx];
+  const targetH = 200;
+  const scale = targetH / frame.h;
+  drawFighterFrameById(ctx, f, f.sprite.state, frameIdx, f.x, f.y, f.facing, scale);
+  // Status chip above head
+  if (f.statuses.length) {
+    const st = f.statuses[0];
+    ctx.fillStyle = 'rgba(176, 139, 255, 0.85)';
+    ctx.font = '700 9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(st.kind.toUpperCase(), f.x, f.y - targetH - 6);
+  }
+  // Block indicator (gold shield)
+  if (f.blocking) {
+    ctx.strokeStyle = edgeColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(f.x, f.y - targetH / 2, targetH * 0.3, 0, Math.PI * 2); ctx.stroke();
+  }
 }
 function drawFighterLabel(ctx, f, baseX, baseY, targetH, edgeColor) {
   ctx.fillStyle = edgeColor;
@@ -1284,20 +1638,29 @@ function drawFighterPlaceholder(ctx, f, baseX, baseY, edgeColor, flip) {
 // Simple platformer with Solion controllable. Move, jump, gravity, camera follows.
 // Level data is a 2D tile array — to add levels, append more arrays here.
 const ADV_TILE = 32;
+// LEVEL_1 — Old Viridia: The Forgotten Path. Maps the START → END layout from
+// the map reference diagram. 65 cols wide × 18 rows tall. Glyphs:
+//   . = air      # = ground       = = platform
+//   p = player spawn (Solion)     g = goal portal (Astral Portal)
 const LEVEL_1 = [
-  // 30 cols wide, 12 rows tall (rows top→bottom). '.' = air, '#' = ground, '=' = platform, 'p' = player start, 'g' = goal flag
-  "..............................",
-  "..............................",
-  "..............................",
-  "..............................",
-  "..............................",
-  "..............................",
-  ".............===..............",
-  "..............................",
-  "....p....===....=====.........",
-  ".................=============",
-  "##############...=============",
-  "##############...##############"
+  ".................................................................",
+  ".................................................................",
+  ".................................................................",
+  ".................................................................",
+  ".................................................................",
+  ".................................................................",
+  "............................===..................................",
+  "..................................................==.............",
+  "....................===.....=====............===...............g.",
+  ".........===................................................=====",
+  ".....p..............=====......................==========........",
+  "...........................................===...................",
+  "############........................##########..............#####",
+  "#########..######...########........##########....####...........",
+  "####################################.############################",
+  "####################################.############################",
+  "####################################.############################",
+  "####################################.############################"
 ];
 
 function startAdventure() {
@@ -1320,6 +1683,7 @@ function initAdventure() {
   const rows = tiles.length;
   const cols = tiles[0].length;
   let px = 64, py = 64;
+  let goal = null;
   const solids = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -1327,6 +1691,7 @@ function initAdventure() {
       const x = c * ADV_TILE, y = r * ADV_TILE;
       if (ch === '#' || ch === '=') solids.push({ x, y, w: ADV_TILE, h: ADV_TILE, kind: ch });
       if (ch === 'p') { px = x; py = y; }
+      if (ch === 'g') { goal = { x, y, w: ADV_TILE, h: ADV_TILE * 2 }; }   // portal stands 2 tiles tall
     }
   }
   state.adventure = {
@@ -1345,7 +1710,11 @@ function initAdventure() {
     },
     camera: { x: 0, y: 0 },
     keys: state.inputs,
-    lastT: 0
+    lastT: 0,
+    goal,
+    completed: false,
+    completionStartT: 0,
+    astralitesCollected: 0   // (collectibles wire in P6.1.2)
   };
 }
 
@@ -1416,9 +1785,19 @@ function advUpdate(dt) {
   else if (Math.abs(p.vx) > 1) nextState = 'WALK_FWD';
   p.sprite.setState(nextState);
   p.sprite.tick(dt);
-  // Camera follow
+  // Camera follow — horizontal-scroll, vertical-locked (per chassis viewport design).
   a.camera.x = Math.max(0, Math.min(a.worldW - CANVAS_W, p.x + p.w / 2 - CANVAS_W / 2));
-  a.camera.y = Math.max(0, Math.min(a.worldH - CANVAS_H, p.y + p.h / 2 - CANVAS_H / 2));
+  // Lock vertical camera to a fixed height so the ground stays at the bottom of the viewport.
+  a.camera.y = Math.max(0, a.worldH - CANVAS_H);
+  // Goal check — Solion reaches the portal → mark completed (overlay handled in advDraw)
+  if (a.goal && !a.completed) {
+    const overlap = p.x + p.w > a.goal.x && p.x < a.goal.x + a.goal.w &&
+                    p.y + p.h > a.goal.y && p.y < a.goal.y + a.goal.h;
+    if (overlap) {
+      a.completed = true;
+      a.completionStartT = performance.now();
+    }
+  }
 }
 
 function advDraw() {
@@ -1426,32 +1805,31 @@ function advDraw() {
   const cv = $('adv-canvas');
   const ctx = cv.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  // Sky gradient — Viridia: green/violet hues
-  const sky = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-  sky.addColorStop(0, '#1a3024');
-  sky.addColorStop(0.5, '#2a4a3c');
-  sky.addColorStop(1, '#0a1812');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-  // Distant parallax mountains
-  ctx.fillStyle = 'rgba(58, 90, 70, 0.5)';
-  for (let i = 0; i < 5; i++) {
-    const x = i * 250 - a.camera.x * 0.3;
-    const w = 200, h = 140;
-    ctx.beginPath();
-    ctx.moveTo(x, CANVAS_H - 80);
-    ctx.lineTo(x + w / 2, CANVAS_H - 80 - h);
-    ctx.lineTo(x + w, CANVAS_H - 80);
-    ctx.closePath();
-    ctx.fill();
-  }
-  // Nearer trees
-  ctx.fillStyle = 'rgba(40, 70, 50, 0.7)';
-  for (let i = 0; i < 12; i++) {
-    const x = i * 110 - a.camera.x * 0.6;
-    ctx.fillRect(x, CANVAS_H - 130, 8, 50);
-    ctx.beginPath();
-    ctx.arc(x + 4, CANVAS_H - 130, 22, 0, Math.PI * 2); ctx.fill();
+  // Background — Old Viridia parallax. Source 1536x1024; the top art region
+  // (~y 30-630) is the playable scene before the reference panels. Scroll at
+  // 0.3x camera speed so the ruins drift behind the foreground.
+  if (viridiaReady) {
+    const sw = ARENA_VIRIDIA.naturalWidth, sh = 600;   // top art band
+    const sy = 30;
+    // Parallax: tile horizontally so longer levels stay covered
+    const parallaxX = -a.camera.x * 0.3;
+    const tileW = CANVAS_W * 1.5;   // 1.5× wider so we see slow scroll
+    const offset = ((parallaxX % tileW) + tileW) % tileW - tileW;
+    for (let x = offset; x < CANVAS_W; x += tileW) {
+      ctx.drawImage(ARENA_VIRIDIA, 0, sy, sw, sh, x, 0, tileW, CANVAS_H);
+    }
+    // Soft top fade so the HUD sits on a darker band
+    const topFade = ctx.createLinearGradient(0, 0, 0, 90);
+    topFade.addColorStop(0, 'rgba(5,3,16,0.55)');
+    topFade.addColorStop(1, 'rgba(5,3,16,0)');
+    ctx.fillStyle = topFade; ctx.fillRect(0, 0, CANVAS_W, 90);
+  } else {
+    // Fallback procedural sky if the image hasn't loaded
+    const sky = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    sky.addColorStop(0, '#1a3024');
+    sky.addColorStop(0.5, '#2a4a3c');
+    sky.addColorStop(1, '#0a1812');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
   }
   // Tiles
   for (const s of a.solids) {
@@ -1479,6 +1857,12 @@ function advDraw() {
       ctx.strokeRect(sx + 0.5, sy + 6.5, ADV_TILE - 1, ADV_TILE - 7);
     }
   }
+  // Goal portal — Astral Portal (pulsing gold ring on a stand)
+  if (a.goal) {
+    const gx = a.goal.x - a.camera.x + a.goal.w / 2;
+    const gy = a.goal.y - a.camera.y + a.goal.h;   // base of portal
+    drawAstralPortal(ctx, gx, gy, a.goal.h, performance.now());
+  }
   // Player (Solion)
   const p = a.player;
   const px = p.x - a.camera.x;
@@ -1489,6 +1873,49 @@ function advDraw() {
   ctx.font = '700 13px Inter, sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText('SOLION · Tier VI', 12, CANVAS_H - 12);
+  // Completion overlay
+  if (a.completed) {
+    const fade = Math.min(1, (performance.now() - a.completionStartT) / 400);
+    ctx.fillStyle = `rgba(5, 3, 16, ${0.78 * fade})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(244, 227, 179, ${fade})`;
+    ctx.font = '700 44px Cinzel, serif';
+    ctx.fillText('PORTAL REACHED', CANVAS_W / 2, CANVAS_H / 2 - 20);
+    ctx.font = '400 14px Inter, sans-serif';
+    ctx.fillStyle = `rgba(200, 194, 220, ${0.85 * fade})`;
+    ctx.fillText('Old Viridia · The Forgotten Path · Level 1 cleared', CANVAS_W / 2, CANVAS_H / 2 + 14);
+    ctx.font = '400 11px Inter, sans-serif';
+    ctx.fillText('Tap Menu to return · more levels next pass', CANVAS_W / 2, CANVAS_H / 2 + 40);
+  }
+}
+
+// Stylized pulsing Astral Portal — gold ring + cosmic interior + base column.
+function drawAstralPortal(ctx, cx, baseY, h, t) {
+  const r = h * 0.42;
+  const ringY = baseY - h + r;
+  const pulse = 0.6 + 0.4 * Math.sin(t * 0.005);
+  // Base column
+  ctx.fillStyle = '#3a2a10';
+  ctx.fillRect(cx - 8, ringY + r * 0.4, 16, h - r);
+  // Interior cosmic glow
+  const g = ctx.createRadialGradient(cx, ringY, 2, cx, ringY, r);
+  g.addColorStop(0, `rgba(255, 248, 216, ${pulse})`);
+  g.addColorStop(0.5, `rgba(176, 139, 255, ${pulse * 0.6})`);
+  g.addColorStop(1, 'rgba(26, 13, 58, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, ringY, r, 0, Math.PI * 2); ctx.fill();
+  // Outer gold ring
+  ctx.strokeStyle = `rgba(232, 200, 120, ${0.6 + 0.4 * pulse})`;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(cx, ringY, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = `rgba(255, 248, 216, ${pulse})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, ringY, r - 4, 0, Math.PI * 2); ctx.stroke();
+  // Central star
+  ctx.fillStyle = '#fff8d8';
+  ctx.fillRect(cx - 1, ringY - 3, 2, 6);
+  ctx.fillRect(cx - 3, ringY - 1, 6, 2);
 }
 
 function drawSolion(ctx, x, y, w, h, facing, onGround, walkPhase) {

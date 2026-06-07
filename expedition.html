@@ -2836,7 +2836,8 @@
       houseSml:  { src: '/assets/entry_smlhouse.png',  w: HOUSE_TYPES['house-sml' ].w, h: HOUSE_TYPES['house-sml' ].h },
       houseMed:  { src: '/assets/entry_medhouse.png',  w: HOUSE_TYPES['house-med' ].w, h: HOUSE_TYPES['house-med' ].h },
       houseBig:  { src: '/assets/entry_bighouse.png',  w: HOUSE_TYPES['house-big' ].w, h: HOUSE_TYPES['house-big' ].h, chroma: true },
-      houseHuge: { src: '/assets/entry_hugehouse.png', w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // re-exported with alpha — no chroma needed
+      houseHuge:     { src: '/assets/entry_hugehouse.png',     w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // re-exported with alpha — no chroma needed
+      houseHugeOpen: { src: '/assets/entry_hugehouseopen.png', w: HOUSE_TYPES['house-huge'].w, h: HOUSE_TYPES['house-huge'].h },  // gate-open variant — swaps in when hqGateState.open
       // UFO landmark — ships with transparent alpha, no chroma needed. Crop
       // the source to its content bbox before baking; the raw PNG is
       // 1024×1024 with the UFO occupying only y=369..637 (~26% of the
@@ -7124,25 +7125,11 @@
         const sx = -camera.x;
         const sy = -camera.y;
         if (sx + HQ_BG_W >= 0 && sx < VIEWPORT_W && sy + HQ_BG_H >= 0 && sy < VIEWPORT_H) {
-          ctx.drawImage(ASSETS.houseHuge, sx, sy, HQ_BG_W, HQ_BG_H);
-        }
-        // Gate overlay — when open, paint a dark "passage" rectangle over the
-        // closed-gate art in the HQ background so it visually reads as open.
-        // (A proper open-gate sprite can replace this; for now it's a clean
-        // void-passage that lets the player walk through with no visual blocker.)
-        if (hqGateState.open) {
-          const gx = HQ_GATE.x - camera.x;
-          const gy = HQ_GATE.y - camera.y;
-          const grad = ctx.createLinearGradient(gx, gy, gx, gy + HQ_GATE.h);
-          grad.addColorStop(0,   'rgba(5, 3, 16, 0.85)');
-          grad.addColorStop(0.5, 'rgba(20, 12, 40, 0.75)');
-          grad.addColorStop(1,   'rgba(5, 3, 16, 0.6)');
-          ctx.fillStyle = grad;
-          ctx.fillRect(gx, gy, HQ_GATE.w, HQ_GATE.h);
-          // Two gold edge accents — "swung-open gate doors" hint
-          ctx.fillStyle = 'rgba(232, 200, 120, 0.75)';
-          ctx.fillRect(gx - 2,             gy, 3, HQ_GATE.h);
-          ctx.fillRect(gx + HQ_GATE.w - 1, gy, 3, HQ_GATE.h);
+          // Swap to the open-gate variant when hqGateState.open === true.
+          // Both sprites are 1280x1024 with identical composition except the
+          // gate panels — no positional adjustment needed.
+          const bg = (hqGateState.open && ASSETS.houseHugeOpen) ? ASSETS.houseHugeOpen : ASSETS.houseHuge;
+          ctx.drawImage(bg, sx, sy, HQ_BG_W, HQ_BG_H);
         }
         // Prompt — "[A] OPEN GATE" floats above the gate when player is adjacent
         // and the gate is still closed.

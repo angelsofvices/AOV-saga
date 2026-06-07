@@ -445,31 +445,40 @@
       .touch-controls { display: flex; }
     }
 
-    /* Fight HP bars overlay */
+    /* Fight HP bars overlay — compact top strip */
     .hp-bars {
-      position: absolute; top: 8px; left: 0; right: 0;
-      display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; padding: 0 14px;
+      position: absolute; top: 6px; left: 0; right: 0;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 10px;
       pointer-events: none;
     }
-    .hp-side { display: flex; flex-direction: column; gap: 3px; }
-    .hp-side.p2 { align-items: flex-end; }
-    .hp-name { font-family: var(--font-display); font-size: 0.85rem; letter-spacing: 0.12em; color: var(--gold-bright); }
+    .hp-side { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .hp-side.p2 { align-items: stretch; }
+    .hp-name {
+      font-family: var(--font-display); font-size: 0.58rem; letter-spacing: 0.1em;
+      color: var(--gold-bright);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .hp-side.p1 .hp-name { color: var(--cosmic-blue); }
-    .hp-side.p2 .hp-name { color: var(--crimson); }
-    .hp-meta { font-family: var(--font-meta); font-size: 0.55rem; letter-spacing: 0.18em; color: var(--mist-deep); text-transform: uppercase; }
+    .hp-side.p2 .hp-name { color: var(--crimson); text-align: right; }
+    /* HP number text deliberately hidden — bar visual is enough. */
+    .hp-meta { display: none; }
     .hp-bar {
-      width: 100%; height: 18px;
-      background: rgba(10, 6, 24, 0.7);
-      border: 2px solid var(--gold);
-      border-radius: 4px; overflow: hidden;
+      width: 100%; height: 10px;
+      background: rgba(10, 6, 24, 0.75);
+      border: 1px solid var(--gold);
+      border-radius: 3px; overflow: hidden;
       position: relative;
     }
     .hp-fill { height: 100%; transition: width 0.35s ease; }
     .hp-side.p1 .hp-fill { background: linear-gradient(90deg, #6fa3e8, #3a78d4); }
     .hp-side.p2 .hp-fill { background: linear-gradient(90deg, #d34c4c, #8a2a2a); float: right; }
-    .hp-rounds { display: flex; gap: 6px; align-items: center; padding-top: 4px; font-family: var(--font-display); color: var(--gold-bright); }
-    .round-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--gold); background: transparent; }
-    .round-dot.won { background: var(--gold-bright); box-shadow: 0 0 6px var(--gold-bright); }
+    .hp-rounds {
+      display: flex; gap: 4px; align-items: center; padding-top: 2px;
+      font-family: var(--font-display); color: var(--gold-bright);
+    }
+    .hp-side.p2 .hp-rounds { justify-content: flex-end; }
+    .round-dot { width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--gold); background: transparent; }
+    .round-dot.won { background: var(--gold-bright); box-shadow: 0 0 5px var(--gold-bright); }
 
     /* Footer */
     .footer-note {
@@ -576,21 +585,18 @@
             <div class="hp-side p1">
               <div class="hp-name" id="hp-p1-name">—</div>
               <div class="hp-bar"><div class="hp-fill" id="hp-p1-fill" style="width:100%"></div></div>
-              <div class="hp-meta" id="hp-p1-meta">HP —</div>
               <div class="hp-rounds" id="hp-p1-rounds"></div>
+              <div class="hp-meta" id="hp-p1-meta"></div>
             </div>
-            <div></div>
             <div class="hp-side p2">
               <div class="hp-name" id="hp-p2-name">—</div>
               <div class="hp-bar"><div class="hp-fill" id="hp-p2-fill" style="width:100%"></div></div>
-              <div class="hp-meta" id="hp-p2-meta">HP —</div>
               <div class="hp-rounds" id="hp-p2-rounds"></div>
+              <div class="hp-meta" id="hp-p2-meta"></div>
             </div>
           </div>
-          <div class="stage-hud">
-            <span id="fight-round-label">R1</span>
-            <button class="btn-secondary" id="btn-fight-back">← Quit</button>
-          </div>
+          <!-- On-canvas QUIT removed; chassis Menu button handles exit. Round number is drawn on-canvas in the ROUND intro. -->
+          <button id="btn-fight-back" style="display:none;"></button>
         </div>
         <!-- Virtual gamepad hotzones — calibrated to controller_frame.png pixel bboxes -->
         <button class="hotzone hz-up"    data-hot="up"    aria-label="Up"></button>
@@ -721,7 +727,9 @@ const SOLION_SHEET = new Image();
 let solionReady = false;
 let solionSrc = null;   // chroma-keyed canvas — populated on load
 SOLION_SHEET.onload = () => {
-  solionSrc = chromaKeyToCanvas(SOLION_SHEET, 32);
+  // Lower threshold (10) so we only key the pure-black sheet background and
+  // don't eat into the sprite's dark armor shadows.
+  solionSrc = chromaKeyToCanvas(SOLION_SHEET, 10);
   solionReady = true;
 };
 SOLION_SHEET.src = 'v6realms/sheet_solion.png';
@@ -817,7 +825,9 @@ const KRAVOS_SHEET = new Image();
 let kravosReady = false;
 let kravosSrc = null;   // chroma-keyed canvas
 KRAVOS_SHEET.onload = () => {
-  kravosSrc = chromaKeyToCanvas(KRAVOS_SHEET, 32);
+  // Lower threshold (10) so we only key the pure-black sheet background and
+  // don't eat into the sprite's dark shadow/chain details.
+  kravosSrc = chromaKeyToCanvas(KRAVOS_SHEET, 10);
   kravosReady = true;
   if (state.mode === 'tournament-select') buildFighterGrid();
 };
@@ -1169,7 +1179,7 @@ const FIGHT_WALK = 180;
 // fighters in Tournament is their MOVE SET (animation, range, signature status).
 // This keeps Tournament purely skill-based: pick who you like aesthetically,
 // win by control + timing + reads.
-const TOURN_HP = 1000;
+const TOURN_HP = 2000;   // larger pool = longer fights (~2x duration vs 1000)
 // Move definitions. dmg is FIXED (not derived from ATK). Type chart dropped
 // entirely (was causing Solion 4x Kravos counter problem). Block halves dmg.
 const MOVES = {
@@ -1201,7 +1211,6 @@ function initFight() {
   $('hp-p2-name').textContent = p2Card.name;
   $('hp-p1-rounds').innerHTML = '<span class="round-dot"></span><span class="round-dot"></span>';
   $('hp-p2-rounds').innerHTML = '<span class="round-dot"></span><span class="round-dot"></span>';
-  $('fight-round-label').textContent = 'R1';
   updateHpDisplay();
   requestAnimationFrame(fightLoop);
 }
@@ -1250,7 +1259,6 @@ function updateHpDisplay() {
       w.appendChild(dot);
     }
   });
-  $('fight-round-label').textContent = `R${fightState.round}`;
 }
 
 // ====== Main fight loop ======
@@ -1531,7 +1539,7 @@ function drawLiveFighter(ctx, f, edgeColor) {
   const stateFrames = frames[f.sprite.state] || frames.IDLE;
   const frameIdx = Math.min(f.sprite.frame, stateFrames.length - 1);
   const frame = stateFrames[frameIdx];
-  const targetH = 200;
+  const targetH = 140;     // smaller fighters → arena scale feels right
   const scale = targetH / frame.h;
   drawFighterFrameById(ctx, f, f.sprite.state, frameIdx, f.x, f.y, f.facing, scale);
   // Status chip above head

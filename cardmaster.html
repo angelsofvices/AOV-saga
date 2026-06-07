@@ -848,7 +848,8 @@
       <h4>Stats</h4>
       <p><span class="stat">SPD</span> · <span class="stat">HP</span> · <span class="stat">DEF</span> · <span class="stat">ATK</span> · <span class="stat">SPC</span></p>
       <h4>Gem Gamble (the economy)</h4>
-      <p>Every card carries an implicit <span class="accent">baseline gem</span> — that's why <span class="accent">A1 is free</span>. To do anything heavier, the card spends a turn on <span class="accent">STACK</span> to bank +1 gem onto itself. Gems live on the card, not in a team pool.</p>
+      <p>Every active card carries a <span class="accent">baseline gem (always visible, always 1)</span> — that's what powers <span class="accent">A1 (free)</span>. The card can never drop below 1 while alive. To do anything heavier the card spends a turn on <span class="accent">STACK</span> to bank +1 on top of the baseline (1→2, 2→3…). A2/A3/Revive spend from the stack, never from the baseline.</p>
+      <p style="opacity:0.85;font-size:0.74rem;">In numbers: A2 (cost 2) needs <span class="accent">3 displayed</span> and leaves 1. A3 (cost 3) needs 4. Revive (cost 4) needs 5.</p>
       <p class="crimson">The gamble: if a card falls while carrying stacked gems, those gems are raided by the opponent — added to their <span class="accent">RAIDED</span> pool. Any of their active cards can spend from raided as if personal. Bank too greedily and you fund the enemy.</p>
       <p>Shifting preserves the card's stacked gems. Raided gems carry across rounds until spent.</p>
       <p><span class="accent">Deposit raided gems</span> — during your possession, click your glowing purple <span style="color:#c9a8ff;">Raided</span> counter to enter deposit mode, then tap an active card to add <span class="accent">+1 gem</span> per tap. Free of turn cost — a way to bank raided gems onto a specific card (e.g., toward a Revive).</p>
@@ -1221,22 +1222,31 @@ function setBase(c) {
   c.risen = false;
   c.spcUsed = false;
   c.enteredThisTurn = false;
-  c.gems = 0; // stacked gems (A1 always free; A2 needs 2; A3 needs 3; Revive needs 4)
+  // Every active card carries a baseline gem (1) PLUS any stacked gems.
+  // Card can never fall below 1 while alive. A1 is free (uses baseline).
+  // A2/A3/Revive spend from the stack on top of the baseline — so A2 (cost 2)
+  // requires gems >= 3 displayed and leaves 1. Only way to hit 0 is on death;
+  // the fallen card's full gem pile transfers to the opposing team's raided pool.
+  c.gems = 1;
   c.stats = { kills:0, dmgDealt:0, dmgTaken:0, statusesInflicted:0, backfires:0, movesUsed:0, gemsStacked:0, gemsLost:0 };
 }
 
 // ===== Gem spending =====
-// Spend N gems for `card` on side `side`. Pulls from the card's personal stack
-// first, then from the team's raided pool. Returns true on success.
+// Spend N gems for `card` on side `side`. Pulls from the card's STACK (gems ABOVE
+// the 1-gem baseline) first, then from the team's raided pool. The baseline gem
+// cannot be spent — that's what keeps the card at min 1 while alive.
 function canAfford(side, card, n) {
   if (n <= 0) return true;
-  return (card.gems + state.battle[side].raided) >= n;
+  if (!card || card.fallen) return false;
+  const spendableFromCard = Math.max(0, card.gems - 1);   // baseline is locked
+  return (spendableFromCard + state.battle[side].raided) >= n;
 }
 function spendGems(side, card, n) {
   if (n <= 0) return true;
   if (!canAfford(side, card, n)) return false;
   let remaining = n;
-  const fromCard = Math.min(card.gems, remaining);
+  const spendableFromCard = Math.max(0, card.gems - 1);
+  const fromCard = Math.min(spendableFromCard, remaining);
   card.gems -= fromCard;
   remaining -= fromCard;
   if (remaining > 0) state.battle[side].raided -= remaining;
@@ -2178,6 +2188,7 @@ function executeMove(side, slot, kind, target) {
     reviveCard.fallen = false;
     reviveCard.risen = true;
     reviveCard.hp = Math.ceil(reviveCard.maxHp * 0.5);
+    reviveCard.gems = 1;                  // baseline gem restored on revive
     reviveCard.statuses = [];
     const fi = b.fallen.indexOf(tgtFallenIdx);
     if (fi >= 0) b.fallen.splice(fi, 1);
@@ -2381,11 +2392,14 @@ function renderSlot(side, slot) {
   const depositActive = state.selection.mode === 'raid-deposit' && side === humanSideForDeposit && c && !c.fallen && state.battle.possession === humanSideForDeposit;
   if (depositActive) el.classList.add('deposit-target');
 
-  // Per-card stacked-gem badge (top-left)
+  // Per-card gem badge (top-left). Displayed = 1 baseline + stacked.
+  // ready-revive purple pulse lights up when the stack is large enough to revive
+  // (4 spendable on top of the 1 baseline → 5+ displayed).
   const gemBadge = document.createElement('div');
-  gemBadge.className = 'gems-card-badge' + (c.gems === 0 ? ' zero' : '') + (c.gems >= REVIVE_GEMS ? ' ready-revive' : '');
+  gemBadge.className = 'gems-card-badge' + (c.gems === 0 ? ' zero' : '') + (c.gems > REVIVE_GEMS ? ' ready-revive' : '');
   gemBadge.textContent = c.gems;
-  gemBadge.title = `${c.gems} stacked gem${c.gems===1?'':'s'} on this card — A1 free, A2 needs 2, A3 needs 3, Revive needs 4. Falls = enemy raids.`;
+  const stacked = Math.max(0, c.gems - 1);
+  gemBadge.title = `${c.gems} gem${c.gems===1?'':'s'} on this card (1 baseline + ${stacked} stacked) — A1 free; A2 needs 3 displayed, A3 needs 4, Revive needs 5. Min 1 while alive; falling forfeits all to the enemy.`;
   el.appendChild(gemBadge);
 
   // Build content

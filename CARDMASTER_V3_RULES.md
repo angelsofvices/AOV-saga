@@ -242,27 +242,31 @@ Apply in this exact order each time a card attacks:
 The gem economy is **per-card**, not team-wide. Every active card carries an implicit **baseline gem** — that's why **A1 is free**. Beyond A1, the card must spend turns banking gems onto itself.
 
 ### 12.1 The mechanic
-- Each card has a personal **stacked-gem counter** (starts at 0).
-- **STACK** is a turn action: card spends its move to add +1 gem to its own stack.
-- **A2** costs 2 gems from the card's stack. **A3** costs 3. **REVIVE** costs 4.
-- **Stack overflow → Raided:** when a card on your team falls, all of its stacked gems are seized by the **opposing team's RAIDED pool**. Any of their active cards may spend from raided as if they were personal gems.
+- Each active card carries a **baseline gem (always visible, always 1)** plus any stacked gems on top. **Cards can never fall below 1 while alive.**
+- **STACK** is a turn action: card spends its move to add +1 gem on top of the baseline (so 1 → 2 → 3…).
+- **A1** is free — it draws on the baseline.
+- **A2** spends 2 gems from the stack (requires gems displayed ≥ 3, leaves 1).
+- **A3** spends 3 gems from the stack (requires gems displayed ≥ 4, leaves 1).
+- **REVIVE** spends 4 gems from the stack (requires gems displayed ≥ 5, leaves 1).
+- **Stack overflow → Raided:** the ONLY way a card hits 0 gems is by falling. When that happens its entire gem pile (baseline + stacked) transfers to the opposing team's **RAIDED pool**. Any of their active cards may spend from raided as if they were personal stacked gems.
 - **Deposit raided gems (free, in-turn):** during your possession you can click your RAIDED counter to enter deposit mode, then tap an active card to transfer +1 gem from raided to that card's stack. Free of turn cost — a way to bank seized gems onto a specific card (e.g., toward a Revive).
-- **Shifting preserves gems** — a card that shifts out keeps its stacked gems for when it shifts back in.
+- **Shifting preserves gems** — a card that shifts out keeps its full gem pile for when it shifts back in.
+- **Revive restores baseline** — a revived card returns at 50% HP with gems = 1.
 
 ### 12.2 The gamble
 A card stacking toward A3 (3 gems) or Revive (4 gems) becomes a juicy target: kill it before it fires and you not only stop the threat, you absorb its gems. The choice every turn is **stack now (build toward your payoff)** vs. **swing now (chip the enemy and protect your investment)**.
 
 ### 12.3 Quick reference
 
-| Action | Gem cost | Source |
-|---|---|---|
-| A1 | FREE | (baseline gem) |
-| Stack | — | spends turn, +1 to card |
-| A2 | 2 | card's stack → team raided |
-| A3 | 3 | card's stack → team raided |
-| SPC boost | FREE | one-time, permanent |
-| Revive | 4 | casting card's stack |
-| Shift | FREE | preserves card's gems |
+| Action | Spend | Min gems displayed to fire | Source |
+|---|---|---|---|
+| A1 | FREE | 1 | baseline gem |
+| Stack | — | 1 | turn action, adds +1 on top |
+| A2 | 2 | 3 | card's stack → team raided |
+| A3 | 3 | 4 | card's stack → team raided |
+| SPC boost | FREE | 1 | one-time, permanent |
+| Revive | 4 | 5 | casting card's stack |
+| Shift | FREE | 1 | preserves card's full gem pile |
 
 ---
 

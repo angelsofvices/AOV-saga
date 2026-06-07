@@ -1201,9 +1201,10 @@ function initFight() {
     p2Rounds: 0,
     matchOver: false,
     matchWinner: null,
+    roundOver: false,          // guard so the KO block runs once per round (not every frame)
     roundStartT: performance.now(),
     inIntro: true,
-    introUntilT: performance.now() + 1300,    // 1.3s "READY" intro per round
+    introUntilT: performance.now() + 1300,
     lastT: 0,
     lastAiAttackT: 0
   };
@@ -1294,8 +1295,10 @@ function fightUpdate(dt, now) {
   // Hit detection — when an attacker is mid-attack on its active frame, check overlap
   resolveAttack(fs.p1, fs.p2, now);
   resolveAttack(fs.p2, fs.p1, now);
-  // KO check
-  if (fs.p1.hp <= 0 || fs.p2.hp <= 0) {
+  // KO check — gate with roundOver so it only fires once per round (was running
+  // every frame for the 1400ms reset window, instantly tripping matchOver).
+  if (!fs.roundOver && (fs.p1.hp <= 0 || fs.p2.hp <= 0)) {
+    fs.roundOver = true;
     const p1Down = fs.p1.hp <= 0;
     const p2Down = fs.p2.hp <= 0;
     if (p1Down && !p2Down) fs.p2Rounds++;
@@ -1307,18 +1310,20 @@ function fightUpdate(dt, now) {
       fs.matchOver = true;
       fs.matchWinner = fs.p1Rounds > fs.p2Rounds ? 'p1' : 'p2';
     } else {
-      // Reset for next round
-      fs.round++;
+      // Reset for next round after a 1.4s pause
       setTimeout(() => {
+        fs.round++;
         fs.p1.hp = fs.p1.hpMax; fs.p2.hp = fs.p2.hpMax;
         fs.p1.x = CANVAS_W * 0.30; fs.p2.x = CANVAS_W * 0.70;
         fs.p1.y = fs.p2.y = FIGHTER_GROUND_Y;
         fs.p1.vx = fs.p1.vy = 0; fs.p2.vx = fs.p2.vy = 0;
         fs.p1.attack = fs.p2.attack = null;
-        fs.p1.hp = fs.p1.hpMax; fs.p2.hp = fs.p2.hpMax;
         fs.p1.statuses = []; fs.p2.statuses = [];
+        fs.p1.facing = 1; fs.p2.facing = -1;
+        fs.p1.onGround = true; fs.p2.onGround = true;
         fs.inIntro = true; fs.introUntilT = performance.now() + 1300;
         fs.roundStartT = performance.now();
+        fs.roundOver = false;          // re-arm for the next KO
         updateHpDisplay();
       }, 1400);
     }

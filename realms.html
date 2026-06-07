@@ -357,12 +357,12 @@
     .device-chassis::after {
       content: '';
       position: absolute; inset: 0;
-      /* v6 uses its own controller art at /v6realms/controller_frame.png so v4
-         (which points at /assets/controller_frame.png) stays untouched. Same
-         768x1376 dimensions and same button positions → all hotzone CSS
-         calibrations work for both. Drop new themed art at the v6 path to
-         re-skin Realms without touching Expedition. */
-      background-image: url('/v6realms/controller_frame.png');
+      /* v6 chassis art at /v6realms/controller_frame.png. The image is RGB
+         without an alpha channel, so the white screen-cutout area would block
+         the canvas. JS chroma-keys near-white pixels to transparent at load
+         and sets --chassis-frame-url to a processed data URL. Until processing
+         completes (~50ms), the ::after has no background so nothing blocks. */
+      background-image: var(--chassis-frame-url, none);
       background-size: 100% 100%;
       background-repeat: no-repeat;
       pointer-events: none;
@@ -684,6 +684,39 @@ const FIGHTERS = [
   { id:'phrenetic',  name:'Phrenetic',         tier:'IV',   archetype:'Mage',       type1:'Unknown-Void',  type2:'Spirit',        hp:240, atk:218, def:186, spd:288, spc:400, art:'cards_v2/card_phrenetic.png',      unlocked:false },
   { id:'sharkfin',   name:'Sharkfin',          tier:'III',  archetype:'Beastmaster',type1:'Tech',          type2:'Humanoid-Noid', hp:220, atk:239, def:190, spd:150, spc:200, art:'cards_v2/card_sharkfin.png',       unlocked:false }
 ];
+
+// ============ Chassis frame chroma-key ============
+// The controller_frame.png is RGB (no alpha), so its white screen-cutout area
+// blocks the canvas underneath. Load the image, process pixels — any near-white
+// (R,G,B all > 240) becomes alpha=0 — convert to a data URL, expose to CSS via
+// --chassis-frame-url. The ::after pseudo on .device-chassis renders the keyed
+// version once available.
+(function loadChassisFrame() {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const cv = document.createElement('canvas');
+    cv.width = img.naturalWidth;
+    cv.height = img.naturalHeight;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, cv.width, cv.height);
+    const p = data.data;
+    for (let i = 0; i < p.length; i += 4) {
+      if (p[i] > 240 && p[i + 1] > 240 && p[i + 2] > 240) {
+        p[i + 3] = 0;   // near-white → transparent
+      }
+    }
+    ctx.putImageData(data, 0, 0);
+    const url = cv.toDataURL('image/png');
+    document.documentElement.style.setProperty('--chassis-frame-url', `url(${url})`);
+  };
+  img.onerror = () => {
+    // Fallback to raw URL if processing fails (worst case: white shows again)
+    document.documentElement.style.setProperty('--chassis-frame-url', `url(/v6realms/controller_frame.png)`);
+  };
+  img.src = '/v6realms/controller_frame.png';
+})();
 
 // ============ Chroma-key helper ============
 // The sprite sheet PNGs are saved as RGB (no alpha), so the black backgrounds

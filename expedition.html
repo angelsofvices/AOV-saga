@@ -1786,8 +1786,12 @@
     // after the 1.5× building scale-up to give the procedurally placed town
     // (1 huge + 3 big + 6 med + 9 sml + NPC/UFO safe zones + scattered trees)
     // room to feel like a real small town rather than wall-to-wall houses.
-    const MAP_WIDTH = 40;
-    const MAP_HEIGHT = 40;
+    // Bumped to 50×50 (June 2026, ~1.5× more grass tiles than the 40×40
+    // baseline) to give the rezoned town room to breathe — UFO + huge house
+    // anchor the top edge, all trees and smaller houses settle in the lower
+    // two-thirds of the map.
+    const MAP_WIDTH = 50;
+    const MAP_HEIGHT = 50;
 
     // Viewport dimensions in tiles — what's actually visible on screen at once.
     // The canvas backing store renders at this resolution, then CSS scales it
@@ -1815,8 +1819,10 @@
     // procgen reserves its zone so houses don't overlap.
     const UFO_W      = 224;
     const UFO_H      = 60;
-    const UFO_TILE_X = 25;
-    const UFO_TILE_Y = 5;
+    // UFO anchors the top-center of the 50-tile-wide map. UFO is 7 tiles wide,
+    // so (50-7)/2 ≈ 21 puts it centered horizontally; y=2 is near the top edge.
+    const UFO_TILE_X = 21;
+    const UFO_TILE_Y = 2;
 
     // House types — visual W,H in logical pixels (= tile count × TILE_SIZE).
     // Each entry maps to one of the four entry_*house.png assets. Sizes were
@@ -2476,16 +2482,34 @@
 
       // Largest-first ordering so the huge/big houses can find their spots
       // while there's still open space; the small ones slot into leftover gaps.
+      // Hardcoded huge-house placement — anchored in the TOP-RIGHT corner of
+      // the 50-tile-wide map. With house tileW=12 and tileH=9, x=37 puts the
+      // right edge one tile shy of the map border; y=1 sits flush against the
+      // top. This pairs with the UFO at top-center as the two landmarks of
+      // the upper third of the map.
+      const HUGE_HOUSE_TILE_X = 37;
+      const HUGE_HOUSE_TILE_Y = 1;
+      const __hh = HOUSE_TYPES['house-huge'];
+      objects.push({ x: HUGE_HOUSE_TILE_X, y: HUGE_HOUSE_TILE_Y, type: 'house-huge' });
+      placed.push({ x: HUGE_HOUSE_TILE_X, y: HUGE_HOUSE_TILE_Y, w: __hh.tileW, h: __hh.tileH });
+
+      // Random queue handles only the smaller filler buildings — the huge
+      // house is hardcoded above.
       const houseQueue = [
-        { type: 'house-huge', tileW: HOUSE_TYPES['house-huge'].tileW, tileH: HOUSE_TYPES['house-huge'].tileH, count: 1 },
         { type: 'house-big',  tileW: HOUSE_TYPES['house-big' ].tileW, tileH: HOUSE_TYPES['house-big' ].tileH, count: 3 },
         { type: 'house-med',  tileW: HOUSE_TYPES['house-med' ].tileW, tileH: HOUSE_TYPES['house-med' ].tileH, count: 6 },
         { type: 'house-sml',  tileW: HOUSE_TYPES['house-sml' ].tileW, tileH: HOUSE_TYPES['house-sml' ].tileH, count: 9 },
       ];
-      function tryPlace(tileW, tileH, padding) {
+      // minY parameter restricts random placement to the southern portion of
+      // the map (default 13) so all trees + filler houses cluster BELOW the
+      // top-edge landmarks (UFO + huge house occupy y 1..12).
+      const TOWN_MIN_Y = 13;
+      function tryPlace(tileW, tileH, padding, minY) {
+        const y0 = (typeof minY === 'number') ? minY : 1;
         for (let attempt = 0; attempt < 400; attempt++) {
           const x = 1 + Math.floor(rng() * (MAP_WIDTH  - tileW - 2));
-          const y = 1 + Math.floor(rng() * (MAP_HEIGHT - tileH - 2));
+          const ySpan = Math.max(1, MAP_HEIGHT - tileH - 1 - y0);
+          const y = y0 + Math.floor(rng() * ySpan);
           let overlap = false;
           for (const other of placed) {
             if (x < other.x + other.w + padding &&
@@ -2501,17 +2525,17 @@
       }
       for (const h of houseQueue) {
         for (let i = 0; i < h.count; i++) {
-          const spot = tryPlace(h.tileW, h.tileH, 1);
+          const spot = tryPlace(h.tileW, h.tileH, 1, TOWN_MIN_Y);
           if (!spot) { console.warn('Town gen: could not place', h.type, i); continue; }
           objects.push({ x: spot.x, y: spot.y, type: h.type });
           placed.push({ x: spot.x, y: spot.y, w: h.tileW, h: h.tileH });
         }
       }
-      // Trees fill the remaining gaps. 28 trees on a 40×40 world gives a
-      // pleasant scatter without choking the town. Reserve is 3×3 tiles to
-      // match the bumped TREE_W/TREE_H visual footprint.
+      // Trees fill the remaining lower-portion gaps. 28 trees on the larger
+      // 50×50 world (with min_y=13 restriction) gives a pleasant scatter
+      // without choking the southern half. 3×3 footprint matches TREE_W/TREE_H.
       for (let i = 0; i < 28; i++) {
-        const spot = tryPlace(3, 3, 0);
+        const spot = tryPlace(3, 3, 0, TOWN_MIN_Y);
         if (!spot) continue;
         objects.push({ x: spot.x, y: spot.y, type: 'tree' });
         placed.push({ x: spot.x, y: spot.y, w: 3, h: 3 });

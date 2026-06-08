@@ -1819,10 +1819,11 @@
     // procgen reserves its zone so houses don't overlap.
     const UFO_W      = 224;
     const UFO_H      = 60;
-    // UFO anchors the top-center of the 50-tile-wide map. UFO is 7 tiles wide,
-    // so (50-7)/2 ≈ 21 puts it centered horizontally; y=2 is near the top edge.
-    const UFO_TILE_X = 21;
-    const UFO_TILE_Y = 2;
+    // UFO now sits right of center and a few rows down from the top edge —
+    // gives the landing pad some grass around it and pulls it away from the
+    // huge house in the top-right corner.
+    const UFO_TILE_X = 31;
+    const UFO_TILE_Y = 7;
 
     // House types — visual W,H in logical pixels (= tile count × TILE_SIZE).
     // Each entry maps to one of the four entry_*house.png assets. Sizes were
@@ -4795,12 +4796,68 @@
     // still scale the loot (1=R/B common → 4=P/Blk legendary) so the player
     // sees the full gem spectrum without traversing the whole world.
     // Coordinates in TILES (multiplied by TILE_SIZE=32 for world pixels).
-    const CHESTS = [
-      { id: 'c1-central', x:  8*32, y: 10*32, region: 'central', tier: 1, opened: false },
-      { id: 'c2-central', x: 26*32, y: 11*32, region: 'central', tier: 2, opened: false },
-      { id: 'c3-central', x: 12*32, y: 28*32, region: 'central', tier: 3, opened: false },
-      { id: 'c4-central', x: 30*32, y: 26*32, region: 'central', tier: 4, opened: false },
-    ];
+    // Chest placement — fallback tile coords (preferred spot), then a spiral
+    // search outward if that spot is occupied by a house or tree. Chests must
+    // land on open ground; never on top of a building or canopy. Hot ground
+    // (lava / fire tiles) is skipped via the same adjacency check.
+    function chestSpot(region, fallbackTileX, fallbackTileY) {
+      const objs = (REGIONS[region] && REGIONS[region].objects) || [];
+      function occupied(tx, ty) {
+        const cx = tx * TILE_SIZE, cy = ty * TILE_SIZE;
+        // Out-of-bounds tiles are treated as occupied so we don't place a
+        // chest outside the playable map.
+        if (tx < 1 || ty < 1 || tx > MAP_WIDTH - 2 || ty > MAP_HEIGHT - 2) return true;
+        for (const o of objs) {
+          let bx = o.x * TILE_SIZE, by = o.y * TILE_SIZE, bw = 0, bh = 0;
+          if (o.type === 'tree') { bw = TREE_W; bh = TREE_H; }
+          else if (HOUSE_TYPES[o.type]) {
+            const d = HOUSE_TYPES[o.type];
+            bw = d.w; bh = d.h;
+          } else if (o.type === 'ufo') { bw = UFO_W; bh = UFO_H; }
+          else continue;
+          // 1-tile padding so the chest sits cleanly off the structure
+          // rather than flush against its outer collider.
+          if (cx < bx + bw + TILE_SIZE &&
+              cx + CHEST_W + TILE_SIZE > bx &&
+              cy < by + bh + TILE_SIZE &&
+              cy + CHEST_H + TILE_SIZE > by) return true;
+        }
+        return false;
+      }
+      // Try the preferred tile first, then spiral outward in 1-tile rings.
+      if (!occupied(fallbackTileX, fallbackTileY)) {
+        return { x: fallbackTileX * TILE_SIZE, y: fallbackTileY * TILE_SIZE };
+      }
+      for (let r = 1; r < 12; r++) {
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dy = -r; dy <= r; dy++) {
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;  // ring only
+            const tx = fallbackTileX + dx, ty = fallbackTileY + dy;
+            if (!occupied(tx, ty)) return { x: tx * TILE_SIZE, y: ty * TILE_SIZE };
+          }
+        }
+      }
+      // Last-resort fallback: return the preferred spot anyway so the chest
+      // still spawns (cosmetic overlap is better than a missing pickup).
+      console.warn('[chest] no clear tile near', fallbackTileX, fallbackTileY, '— placing at fallback');
+      return { x: fallbackTileX * TILE_SIZE, y: fallbackTileY * TILE_SIZE };
+    }
+    const CHESTS = (() => {
+      // Fallback positions chosen to spread across the lower (post-rezone)
+      // map: upper-left grass, upper-right grass (south of UFO), and two
+      // in the southern half. chestSpot() spiral-searches if the preferred
+      // tile is blocked by a placed house or tree.
+      const c1 = chestSpot('central',  6, 16);   // upper-left grass band
+      const c2 = chestSpot('central', 32, 16);   // upper-right grass band (south of UFO)
+      const c3 = chestSpot('central', 12, 35);   // south-west cluster
+      const c4 = chestSpot('central', 35, 35);   // south-east cluster
+      return [
+        { id: 'c1-central', x: c1.x, y: c1.y, region: 'central', tier: 1, opened: false },
+        { id: 'c2-central', x: c2.x, y: c2.y, region: 'central', tier: 2, opened: false },
+        { id: 'c3-central', x: c3.x, y: c3.y, region: 'central', tier: 3, opened: false },
+        { id: 'c4-central', x: c4.x, y: c4.y, region: 'central', tier: 4, opened: false },
+      ];
+    })();
 
     // ============ Crafting workstation ============
     // A single interactable bench in Central, south-west of the ship. Walk up

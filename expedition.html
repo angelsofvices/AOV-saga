@@ -1829,7 +1829,7 @@
       'house-sml':  { w: Math.round(3 * TILE_SIZE * 1.5), h: Math.round(3 * TILE_SIZE * 1.5), tileW: 5, tileH: 5, asset: 'houseSml'  },  // 144×144
       'house-med':  { w: Math.round(4 * TILE_SIZE * 1.5), h: Math.round(4 * TILE_SIZE * 1.5), tileW: 6, tileH: 6, asset: 'houseMed'  },  // 192×192
       'house-big':  { w: Math.round(5 * TILE_SIZE * 1.5), h: Math.round(5 * TILE_SIZE * 1.5), tileW: 8, tileH: 8, asset: 'houseBig'  },  // 240×240
-      'house-huge': { w: Math.round(8 * TILE_SIZE * 1.5 * 1.75), h: Math.round(6 * TILE_SIZE * 1.5 * 1.75), tileW: 21, tileH: 16, asset: 'houseHuge' },  // 672×504 — 1.75× upscale for breathing room inside the courtyard
+      'house-huge': { w: Math.round(8 * TILE_SIZE * 1.5), h: Math.round(6 * TILE_SIZE * 1.5), tileW: 12, tileH: 9, asset: 'houseHuge' },  // 384×288 — rolled back from the 1.75× attempt (broke placement); start fresh from this baseline
     };
     // Per-house alpha-bbox insets (Dec 2026) — fraction of sprite dimensions
     // that's transparent margin OUTSIDE the actual building art. Probed
@@ -2462,24 +2462,13 @@
       const playerTileY = Math.floor((MAP_HEIGHT * TILE_SIZE / 2) / TILE_SIZE);
       const reserveZones = [
         { x: playerTileX - 3, y: playerTileY - 3, w: 6, h: 6 },   // player spawn
-        { x: 21 - 2, y: 22 - 2, w: 5, h: 5 },                      // Aur spawn
-        { x:  7 - 2, y: 27 - 2, w: 5, h: 5 },                      // Elzoran spawn
-        { x: UFO_TILE_X - 2, y: UFO_TILE_Y - 1, w: 11, h: 11 },   // UFO + clear landing pad below
+        { x:  5 - 2, y:  6 - 2, w: 5, h: 5 },                      // Eur spawn (~160,200 → tile 5,6)
+        { x: 12 - 2, y: 10 - 2, w: 5, h: 5 },                      // Vol spawn (~400,320 → tile 12,10)
+        { x: 21 - 2, y: 22 - 2, w: 5, h: 5 },                      // Aur spawn (~700,720 → tile 21,22)
+        { x:  7 - 2, y: 27 - 2, w: 5, h: 5 },                      // Elzoran spawn (~240,880 → tile 7,27)
+        { x: UFO_TILE_X - 2, y: UFO_TILE_Y - 1, w: 11, h: 11 },  // UFO + clear landing pad below — keeps trees/houses off the ship-respawn point
       ];
       for (const z of reserveZones) placed.push(z);
-      // Hardcoded huge-house placement — claimed BEFORE the random house queue
-      // so the 21x16 tile footprint (from the 1.75x upscale) is guaranteed a
-      // spot. Anchored in the upper-left clear quadrant: x range 3..23, y range
-      // 1..16. Doesn't touch UFO (x>=23), Aur (y>=20), Elzoran (y>=25), or the
-      // central player spawn (y>=17). Eur and Vol spawns previously reserved
-      // tiles inside this footprint and were dropped from reserveZones — those
-      // NPC sprites still spawn at their own coords; the reserves were placement
-      // hints only, not actual spawn anchors.
-      const HUGE_HOUSE_TILE_X = 3;
-      const HUGE_HOUSE_TILE_Y = 1;
-      const __hh = HOUSE_TYPES['house-huge'];
-      objects.push({ x: HUGE_HOUSE_TILE_X, y: HUGE_HOUSE_TILE_Y, type: 'house-huge' });
-      placed.push({ x: HUGE_HOUSE_TILE_X, y: HUGE_HOUSE_TILE_Y, w: __hh.tileW, h: __hh.tileH });
       // UFO is a hardcoded landmark — emit it as a world object so it renders
       // and collides like trees/houses. Player taps A while adjacent to open
       // the Aethryx Expanse modal (interplanetary travel hub).
@@ -2487,9 +2476,8 @@
 
       // Largest-first ordering so the huge/big houses can find their spots
       // while there's still open space; the small ones slot into leftover gaps.
-      // house-huge is hardcoded above (deterministic centerpiece). Random
-      // queue handles only the smaller filler buildings.
       const houseQueue = [
+        { type: 'house-huge', tileW: HOUSE_TYPES['house-huge'].tileW, tileH: HOUSE_TYPES['house-huge'].tileH, count: 1 },
         { type: 'house-big',  tileW: HOUSE_TYPES['house-big' ].tileW, tileH: HOUSE_TYPES['house-big' ].tileH, count: 3 },
         { type: 'house-med',  tileW: HOUSE_TYPES['house-med' ].tileW, tileH: HOUSE_TYPES['house-med' ].tileH, count: 6 },
         { type: 'house-sml',  tileW: HOUSE_TYPES['house-sml' ].tileW, tileH: HOUSE_TYPES['house-sml' ].tileH, count: 9 },
@@ -2883,6 +2871,14 @@
         src: '/assets/tile_snow.png',
         w: TILE_SIZE, h: TILE_SIZE,
         crop: { x: 100, y: 100, w: 1054, h: 1054 },
+      },
+      // Weather overlay — translucent snowflakes on transparent BG. Tiled
+      // across the viewport in the North region and scrolled downward each
+      // frame to produce a falling-snow effect. Ships with alpha so no chroma.
+      weatherSnow: {
+        src: '/assets/weather_snow.png',
+        w: 1024, h: 1024,
+        raw: true,   // skip the bake-down resize; we want the full-res texture for tiling
       },
       // South-region lava tile. Dark cracked basalt with bright orange magma
       // veins. Same 1254×1254 convention so the inner-crop convention holds.
@@ -7718,10 +7714,45 @@
       handleCanvasTap(e.clientX, e.clientY);
     }, { passive: true });
 
+    // Snowfall overlay state. Two parallax layers scroll independently — the
+    // foreground layer (large flakes, fast) over a background layer (small,
+    // slow, more translucent). Both tile across the viewport and wrap via
+    // modulo so the texture never visibly seams.
+    const SNOW = {
+      time: 0,
+      fg: { speed: 90, drift: 18, scale: 1.0, alpha: 0.85 },   // big foreground flakes
+      bg: { speed: 38, drift: -10, scale: 0.55, alpha: 0.55 }, // distant background flakes
+    };
+    function tickWeather(dt) { SNOW.time += dt; }
+    function drawWeatherSnow() {
+      if (currentRegion !== 'north') return;
+      const tex = ASSETS.weatherSnow;
+      if (!tex) return;
+      const t = SNOW.time;
+      for (const layer of [SNOW.bg, SNOW.fg]) {
+        const tileW = Math.round(tex.width  * layer.scale);
+        const tileH = Math.round(tex.height * layer.scale);
+        if (tileW <= 0 || tileH <= 0) continue;
+        // Scroll offset — modulo into [0, tileW/H) so the texture wraps.
+        const ox = ((layer.drift * t) % tileW + tileW) % tileW;
+        const oy = ((layer.speed * t) % tileH + tileH) % tileH;
+        ctx.save();
+        ctx.globalAlpha = layer.alpha;
+        // Tile from one tile NW of the viewport so the wrapped offset always
+        // covers the full visible area without exposing a seam.
+        for (let y = -tileH + Math.round(oy); y < VIEWPORT_H; y += tileH) {
+          for (let x = -tileW + Math.round(ox); x < VIEWPORT_W; x += tileW) {
+            ctx.drawImage(tex, x, y, tileW, tileH);
+          }
+        }
+        ctx.restore();
+      }
+    }
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawTiles();
       drawWorld();
+      drawWeatherSnow();
       // Lock-on reticle — a tiny center-cross drawn LAST so it sits on top
       // of every world layer. Sized to fit inside the enemy body (no big
       // halo ring); reads as a precise "aiming dot" rather than a circle of
@@ -7776,6 +7807,7 @@
         updateChestAdjacency();
         updateWorkstationAdjacency();
         updateGemDrops(dt);
+        tickWeather(dt);
         updateCamera();
       }
       render();

@@ -608,6 +608,25 @@
     const SHIP_RADIUS = 16;
     const HITBOX_FORGIVENESS = 4;
 
+    // Astralite stone variants — yellow (common, 1pt) and green (rare, 3pt).
+    const GREEN_CHANCE = 0.15;
+    const STONE = {
+      yellow: {
+        value: 1,
+        glow:  ['rgba(232, 200, 120, 0.5)', 'rgba(232, 200, 120, 0)'],
+        fill:  'rgba(232, 200, 120, 0.85)',
+        stroke:'rgba(245, 220, 156, 1)',
+        inner: 'rgba(244, 227, 179, 0.6)',
+      },
+      green: {
+        value: 3,
+        glow:  ['rgba(47, 230, 168, 0.55)', 'rgba(47, 230, 168, 0)'],
+        fill:  'rgba(47, 230, 168, 0.85)',
+        stroke:'rgba(140, 245, 200, 1)',
+        inner: 'rgba(200, 250, 225, 0.7)',
+      },
+    };
+
     const state = {
       gems: 0,
       lives: MAX_LIVES,
@@ -730,12 +749,16 @@
     }
 
     function spawnGem() {
+      const isGreen = Math.random() < GREEN_CHANCE;
+      const kind = isGreen ? 'green' : 'yellow';
       state.gemsArr.push({
         x: 30 + Math.random() * (cw - 60),
         y: -20,
         vy: 90 + Math.random() * 60,
         size: 14,
         pulse: Math.random() * Math.PI * 2,
+        kind,
+        value: STONE[kind].value,
       });
     }
 
@@ -804,7 +827,7 @@
         const dy = g.y - state.shipY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < SHIP_RADIUS + g.size) {
-          collectGem();
+          collectGem(g.value || 1);
           state.gemsArr.splice(i, 1);
         }
       }
@@ -899,13 +922,14 @@
 
     function drawGem(g) {
       const pulseScale = 1 + Math.sin(g.pulse) * 0.08;
+      const skin = STONE[g.kind] || STONE.yellow;
       ctx.save();
       ctx.translate(g.x, g.y);
       ctx.scale(pulseScale, pulseScale);
 
       const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, g.size * 1.8);
-      glowGrad.addColorStop(0, 'rgba(232, 200, 120, 0.5)');
-      glowGrad.addColorStop(1, 'rgba(232, 200, 120, 0)');
+      glowGrad.addColorStop(0, skin.glow[0]);
+      glowGrad.addColorStop(1, skin.glow[1]);
       ctx.fillStyle = glowGrad;
       ctx.fillRect(-g.size * 2, -g.size * 2, g.size * 4, g.size * 4);
 
@@ -915,9 +939,9 @@
       ctx.lineTo(0, g.size);
       ctx.lineTo(-g.size * 0.7, 0);
       ctx.closePath();
-      ctx.fillStyle = 'rgba(232, 200, 120, 0.85)';
+      ctx.fillStyle = skin.fill;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(245, 220, 156, 1)';
+      ctx.strokeStyle = skin.stroke;
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -927,8 +951,16 @@
       ctx.lineTo(0, g.size * 0.6);
       ctx.lineTo(-g.size * 0.4, 0);
       ctx.closePath();
-      ctx.fillStyle = 'rgba(244, 227, 179, 0.6)';
+      ctx.fillStyle = skin.inner;
       ctx.fill();
+
+      // Subtle "×3" trefoil core for green stones — distinguishable at a glance.
+      if (g.kind === 'green') {
+        ctx.beginPath();
+        ctx.arc(0, 0, g.size * 0.22, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fill();
+      }
 
       ctx.restore();
     }
@@ -952,9 +984,9 @@
       }
     }
 
-    function collectGem() {
+    function collectGem(value) {
       const prevTier = getTier();
-      state.gems = Math.min(state.gems + 1, GOAL);
+      state.gems = Math.min(state.gems + (value || 1), GOAL);
       const newTier = getTier();
       updateGemUI();
 

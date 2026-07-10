@@ -605,6 +605,7 @@
 
     <div class="hud" id="hud" style="display:none;">
       <div class="badge" id="hud-location">Zyraxis · Surface</div>
+      <div class="badge" id="hud-gems">◈ 0</div>
       <div class="badge" id="hud-party">Party 0/6</div>
     </div>
 
@@ -688,145 +689,168 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-// ---------- Type chart (8 types, cyclic) ----------
-// Each type is strong against the next in the cycle, weak against the one before.
-const TYPES = ['Gem', 'Earth', 'Water', 'Fire', 'Air', 'Beast', 'Light', 'Shadow'];
+// ---------- Type chart (canonical Cardmaster 10-type) ----------
+// Each type is strong against 2 others (see TYPE_STRONG_VS). Attack vs defender:
+//   attack strong vs defender → 2× (vulnerable)
+//   defender strong vs attack → 0.5× (resistant)
+//   neither → 1× (neutral)
+const TYPES = ['Aura','Beast','Creature','Extraterrestrial','Humanoid-Noid','Nature','Tech','Spirit','Ultramax','Unknown-Void'];
+const TYPE_STRONG_VS = {
+  'Aura':              ['Spirit','Unknown-Void'],
+  'Beast':             ['Creature','Spirit'],
+  'Creature':          ['Nature','Aura'],
+  'Extraterrestrial':  ['Aura','Nature'],
+  'Humanoid-Noid':     ['Beast','Ultramax'],
+  'Nature':            ['Tech','Unknown-Void'],
+  'Tech':              ['Humanoid-Noid','Extraterrestrial'],
+  'Spirit':            ['Humanoid-Noid','Tech'],
+  'Ultramax':          ['Extraterrestrial','Beast'],
+  'Unknown-Void':      ['Ultramax','Creature']
+};
 const TYPE_COLORS = {
-  Gem:    '#b87cff',
-  Earth:  '#a68260',
-  Water:  '#5fa8ff',
-  Fire:   '#ff8a4c',
-  Air:    '#c0e0ff',
-  Beast:  '#8bc466',
-  Light:  '#f5dc9c',
-  Shadow: '#6b5a8a',
+  'Aura':              '#f5dc9c',
+  'Beast':             '#c98a4a',
+  'Creature':          '#8bc466',
+  'Extraterrestrial':  '#5fa8ff',
+  'Humanoid-Noid':     '#e8c878',
+  'Nature':            '#2fe6a8',
+  'Tech':              '#a0b8d8',
+  'Spirit':            '#b87cff',
+  'Ultramax':          '#ff5c5c',
+  'Unknown-Void':      '#6b5a8a',
+};
+const TYPE_SHORT = {
+  'Aura':'AURA','Beast':'BEAST','Creature':'CRTR','Extraterrestrial':'E.T.',
+  'Humanoid-Noid':'HUM-N','Nature':'NATR','Tech':'TECH','Spirit':'SPRT',
+  'Ultramax':'ULTMX','Unknown-Void':'VOID',
 };
 function typeMult(atk, def) {
-  const ai = TYPES.indexOf(atk);
-  const di = TYPES.indexOf(def);
-  if (ai < 0 || di < 0) return 1;
-  const diff = (di - ai + TYPES.length) % TYPES.length;
-  if (diff === 1) return 2.0;   // super effective
-  if (diff === TYPES.length - 1) return 0.5;  // not very effective
-  return 1.0;
+  if (TYPE_STRONG_VS[atk] && TYPE_STRONG_VS[atk].includes(def)) return 2;
+  if (TYPE_STRONG_VS[def] && TYPE_STRONG_VS[def].includes(atk)) return 0.5;
+  return 1;
 }
 
+// ---------- Level ↔ Tier (10 levels = 1 tier, cap at Tier X) ----------
+const TIER_ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+function tierOfLevel(lv) { return Math.min(10, Math.floor((lv - 1) / 10) + 1); }
+function tierRoman(lv)   { return TIER_ROMAN[tierOfLevel(lv) - 1]; }
+
 // ---------- Rizer species roster ----------
-// Each species: id, name, type, baseStats {hp,atk,def,spd,spc}, moves (by level),
-// sprite (color palette), catchRate (out of 100), evolveTo/evolveLv.
+// Each species: id, name, type (canonical Cardmaster), baseStats, moves,
+// sprite palette, catchRate (out of 100).
 const SPECIES = {
   // Starters
   voltix: {
-    name: 'VOLTIX', type: 'Gem',
+    name: 'VOLTIX', type: 'Aura',
     base: { hp: 42, atk: 42, def: 32, spd: 38, spc: 30 },
     sprite: ['#e8c878', '#7a4dcf', '#f5dc9c'],
     catchRate: 30,
     moves: [
-      { name: 'Spark',    type: 'Gem',    power: 30, cost: 1 },
+      { name: 'Spark',    type: 'Aura',   power: 30, cost: 1 },
       { name: 'Bite',     type: 'Beast',  power: 32, cost: 1 },
-      { name: 'Gemsurge', type: 'Gem',    power: 55, cost: 3, lv: 8 },
-      { name: 'Rally',    type: 'Air',    power: 0,  cost: 0, lv: 12, effect: 'boost' },
+      { name: 'Gemsurge', type: 'Aura',   power: 55, cost: 3, lv: 8 },
+      { name: 'Rally',    type: 'Aura',   power: 0,  cost: 0, lv: 12, effect: 'boost' },
     ],
   },
   emberkin: {
-    name: 'EMBERKIN', type: 'Fire',
+    name: 'EMBERKIN', type: 'Beast',
     base: { hp: 40, atk: 46, def: 28, spd: 40, spc: 34 },
     sprite: ['#ff8a4c', '#c25a1c', '#ffcc66'],
     catchRate: 30,
     moves: [
-      { name: 'Ember',    type: 'Fire',   power: 30, cost: 1 },
+      { name: 'Ember',    type: 'Nature', power: 30, cost: 1 },
       { name: 'Tail Snap', type: 'Beast', power: 30, cost: 1 },
-      { name: 'Firewisp', type: 'Fire',   power: 55, cost: 3, lv: 8 },
-      { name: 'Sunbask',  type: 'Light',  power: 0,  cost: 0, lv: 12, effect: 'boost' },
+      { name: 'Firewisp', type: 'Nature', power: 55, cost: 3, lv: 8 },
+      { name: 'Sunbask',  type: 'Aura',   power: 0,  cost: 0, lv: 12, effect: 'boost' },
     ],
   },
   mirestone: {
-    name: 'MIRESTONE', type: 'Water',
+    name: 'MIRESTONE', type: 'Nature',
     base: { hp: 48, atk: 34, def: 44, spd: 26, spc: 32 },
     sprite: ['#5fa8ff', '#2a5c8a', '#a8cef0'],
     catchRate: 30,
     moves: [
-      { name: 'Tide',     type: 'Water',  power: 30, cost: 1 },
-      { name: 'Slam',     type: 'Earth',  power: 32, cost: 1 },
-      { name: 'Torrent',  type: 'Water',  power: 55, cost: 3, lv: 8 },
-      { name: 'Shellup',  type: 'Earth',  power: 0,  cost: 0, lv: 12, effect: 'boost' },
+      { name: 'Tide',     type: 'Nature', power: 30, cost: 1 },
+      { name: 'Slam',     type: 'Creature', power: 32, cost: 1 },
+      { name: 'Torrent',  type: 'Nature', power: 55, cost: 3, lv: 8 },
+      { name: 'Shellup',  type: 'Creature', power: 0, cost: 0, lv: 12, effect: 'boost' },
     ],
   },
 
   // Wild Zyraxis Rizers
   gemlark: {
-    name: 'GEMLARK', type: 'Air',
+    name: 'GEMLARK', type: 'Aura',
     base: { hp: 30, atk: 32, def: 24, spd: 42, spc: 24 },
     sprite: ['#c0e0ff', '#b87cff', '#f5dc9c'],
     catchRate: 55,
     moves: [
-      { name: 'Peck',     type: 'Air',    power: 28, cost: 1 },
-      { name: 'Sparkle',  type: 'Gem',    power: 30, cost: 1 },
+      { name: 'Peck',     type: 'Beast',  power: 28, cost: 1 },
+      { name: 'Sparkle',  type: 'Aura',   power: 30, cost: 1 },
     ],
   },
   cinderpaw: {
-    name: 'CINDERPAW', type: 'Fire',
+    name: 'CINDERPAW', type: 'Beast',
     base: { hp: 34, atk: 36, def: 26, spd: 34, spc: 22 },
     sprite: ['#ff9060', '#8a3020', '#ffd0a0'],
     catchRate: 50,
     moves: [
       { name: 'Scratch',  type: 'Beast',  power: 28, cost: 1 },
-      { name: 'Ember',    type: 'Fire',   power: 30, cost: 1 },
+      { name: 'Ember',    type: 'Nature', power: 30, cost: 1 },
     ],
   },
   shalebite: {
-    name: 'SHALEBITE', type: 'Earth',
+    name: 'SHALEBITE', type: 'Creature',
     base: { hp: 38, atk: 34, def: 34, spd: 22, spc: 20 },
     sprite: ['#a68260', '#5c4028', '#d4b088'],
     catchRate: 55,
     moves: [
-      { name: 'Bite',     type: 'Beast',  power: 30, cost: 1 },
-      { name: 'Rockthud', type: 'Earth',  power: 32, cost: 1 },
+      { name: 'Bite',     type: 'Beast',    power: 30, cost: 1 },
+      { name: 'Rockthud', type: 'Creature', power: 32, cost: 1 },
     ],
   },
   voltimote: {
-    name: 'VOLTIMOTE', type: 'Gem',
+    name: 'VOLTIMOTE', type: 'Aura',
     base: { hp: 34, atk: 40, def: 28, spd: 40, spc: 30 },
     sprite: ['#b87cff', '#5a2a9c', '#e8c878'],
     catchRate: 35,
     moves: [
-      { name: 'Zap',      type: 'Gem',    power: 32, cost: 1 },
+      { name: 'Zap',      type: 'Aura',   power: 32, cost: 1 },
       { name: 'Bite',     type: 'Beast',  power: 30, cost: 1 },
-      { name: 'Gemshock', type: 'Gem',    power: 50, cost: 3, lv: 10 },
+      { name: 'Gemshock', type: 'Aura',   power: 50, cost: 3, lv: 10 },
     ],
   },
 
-  // Boss line — Obsidius the Onyxlord
+  // Cave boss line — Shardlord (an echo of Obsidius; canonical Obsidius is Tier V, saved for later)
   onyxminion: {
-    name: 'ONYXMINION', type: 'Shadow',
+    name: 'ONYXMINION', type: 'Spirit',
     base: { hp: 42, atk: 40, def: 36, spd: 30, spc: 30 },
     sprite: ['#4a3c66', '#20182c', '#8b7ca8'],
     catchRate: 20,
     moves: [
-      { name: 'Shadeclaw', type: 'Shadow', power: 34, cost: 1 },
-      { name: 'Rockslam',  type: 'Earth',  power: 34, cost: 1 },
+      { name: 'Shadeclaw', type: 'Spirit',   power: 34, cost: 1 },
+      { name: 'Rockslam',  type: 'Creature', power: 34, cost: 1 },
     ],
   },
   shardbat: {
-    name: 'SHARDBAT', type: 'Shadow',
+    name: 'SHARDBAT', type: 'Spirit',
     base: { hp: 40, atk: 44, def: 30, spd: 44, spc: 32 },
     sprite: ['#6c4a8f', '#2a1848', '#a68be0'],
     catchRate: 20,
     moves: [
-      { name: 'Nightbite', type: 'Shadow', power: 36, cost: 1 },
-      { name: 'Wingcut',   type: 'Air',    power: 34, cost: 1 },
-      { name: 'Voidgale',  type: 'Shadow', power: 55, cost: 3 },
+      { name: 'Nightbite', type: 'Spirit',       power: 36, cost: 1 },
+      { name: 'Wingcut',   type: 'Beast',        power: 34, cost: 1 },
+      { name: 'Voidgale',  type: 'Unknown-Void', power: 55, cost: 3 },
     ],
   },
-  obsidius: {
-    name: 'OBSIDIUS', type: 'Shadow',
+  shardlord: {
+    name: 'SHARDLORD', type: 'Spirit',
     base: { hp: 68, atk: 54, def: 50, spd: 34, spc: 44 },
     sprite: ['#1a0d2e', '#000000', '#7f5cff'],
     catchRate: 0,  // uncatchable boss
     moves: [
-      { name: 'Corefall',  type: 'Shadow', power: 60, cost: 2 },
-      { name: 'Gemquake',  type: 'Earth',  power: 50, cost: 2 },
-      { name: 'Nightbrand', type:'Shadow', power: 75, cost: 3 },
+      { name: 'Corefall',  type: 'Spirit',       power: 60, cost: 2 },
+      { name: 'Voidquake', type: 'Unknown-Void', power: 50, cost: 2 },
+      { name: 'Nightbrand',type: 'Spirit',       power: 75, cost: 3 },
     ],
   },
 };
@@ -856,7 +880,6 @@ function makeRizer(speciesId, lv) {
     maxHp: stats.hp,
     stats,
     moves,
-    gems: 3,   // SPC gems available per battle
     atkStage: 0,
     defStage: 0,
     fainted: false,
@@ -880,10 +903,12 @@ const game = {
     moveCd: 0,        // ms until next input accepted
     party: [],
     box: [],
+    gems: 10,               // shared gem pool — powers moves in battle
     gemspheres: 5,
     bossDefeated: false,
     npcDefeated: false,
     stepsSinceEnc: 0,
+    chestsOpened: {},       // { 'x,y': true }
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -902,23 +927,33 @@ const game = {
 //   C cave to boss (interact)
 //   N npc1 trainer (blocker, interact adjacent)
 //   M mothergem shrine (decor)
+//   K chest (blocker when closed, walkable once opened)
 //   # gemcliff (blocker)
 const MAP = [
   '####################',
   '##T,,,,,,,,,,,,,,T##',
-  '#T,GGG,,,,,,,,,GG,T#',
-  '#T,GGGG,,,,,,,,GG,T#',
-  '#,,GG,,,,,MM,,,,,,,#',
+  '#T,GGGK,,,,,,,,GG,T#',
+  '#T,GGGG,,,,,,,,GGKT#',
+  '#,,GG,,,,,MM,,,K,,,#',
   '#,,,,,,,,,,,,,,,,,C#',
   '#,,,,,,N,,,,,,,,,,,#',
   '#,,,,,,,,,,,GGG,,,##',
   '#,,H,,,,,,,,GGGGG,##',
-  '#,,,,,,,,,,,GGGG,,##',
+  '#,,,,,,,,,,,GGGG,K##',
   '#,,,,,,,,,,,,,,,,,##',
-  '#,WWWW,,,,,,,GG,,,##',
-  '#,WWWW,,,,,,,,,,,,##',
+  '#K,WWWW,,,,,,GG,,,##',
+  '#,,WWWW,,,,,,,,,,,##',
   '####################',
 ];
+
+// Chest gem-drop amounts, keyed by 'x,y'
+const CHEST_LOOT = {
+  '4,2':  4,   // top-left gemgrass reward
+  '15,3': 5,   // top-right corner
+  '15,4': 6,   // near shrine
+  '17,9': 7,   // right side stash (higher risk)
+  '1,11': 5,   // bottom-left near water
+};
 
 function tileAt(x, y) {
   if (y < 0 || y >= ROWS || x < 0 || x >= COLS) return '#';
@@ -928,8 +963,10 @@ function walkable(x, y) {
   const t = tileAt(x, y);
   if ('#TWHM'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
+  if (t === 'K' && !chestOpened(x, y)) return false;
   return true;
 }
+function chestOpened(x, y) { return !!game.player.chestsOpened[x + ',' + y]; }
 function isGemgrass(x, y) { return tileAt(x, y) === 'G'; }
 
 // ---------- Render ----------
@@ -1069,6 +1106,39 @@ function drawTile(x, y, ch) {
       drawCharacter(px + TILE / 2, py + TILE / 2, game.player.npcDefeated ? 'down' : 'down', '#5fa8ff', '#2a5c8a');
       break;
     }
+    case 'K': {
+      // chest — closed unless opened; opened chests show as a lighter empty box
+      drawTile(x, y, ',');
+      const open = chestOpened(x, y);
+      // chest body
+      ctx.fillStyle = open ? '#3a2450' : '#6a4c28';
+      ctx.fillRect(px + 6, py + 12, TILE - 12, TILE - 16);
+      // lid
+      ctx.fillStyle = open ? '#5a3a70' : '#8b6236';
+      if (open) {
+        // lid tilted back (opened)
+        ctx.beginPath();
+        ctx.moveTo(px + 6,  py + 12);
+        ctx.lineTo(px + 26, py + 6);
+        ctx.lineTo(px + 26, py + 10);
+        ctx.lineTo(px + 6,  py + 16);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(px + 6, py + 8, TILE - 12, 6);
+      }
+      // gold band + latch
+      ctx.fillStyle = '#e8c878';
+      ctx.fillRect(px + 6, py + 13, TILE - 12, 1);
+      ctx.fillRect(px + 15, py + 12, 2, 5);
+      // sparkle when closed
+      if (!open) {
+        const pulse = (Math.sin(performance.now() * 0.006 + x + y) + 1) / 2;
+        ctx.fillStyle = `rgba(232, 200, 120, ${0.35 + pulse * 0.35})`;
+        ctx.fillRect(px + TILE / 2 - 1, py + 4, 2, 2);
+      }
+      break;
+    }
   }
 }
 
@@ -1180,14 +1250,17 @@ function tryInteract() {
   const t = tileAt(tx, ty);
   if (t === 'C') {
     if (game.player.bossDefeated) {
-      showDialog(["The gate of Obsidius is quiet.", "The Onyxlord is bound."]);
+      showDialog(["The cave is silent.", "The Shardlord's echo is bound."]);
     } else {
       showDialog([
         "The cave mouth breathes cold light.",
-        "Obsidius the Onyxlord waits within.",
+        "A shardlord waits within —",
+        "an echo left by Obsidius the Onyxlord.",
         "«ENTER THE CAVE?»",
       ], () => startBossEncounter());
     }
+  } else if (t === 'K') {
+    openChest(tx, ty);
   } else if (t === 'N') {
     if (game.player.npcDefeated) {
       showDialog(["MYARA: You bind a good frequency,", "trainer. Onward — the cave calls."]);
@@ -1207,6 +1280,22 @@ function tryInteract() {
       "Every Rizer here descends from it.",
     ]);
   }
+}
+
+// ---------- Chests ----------
+function openChest(x, y) {
+  const key = x + ',' + y;
+  if (game.player.chestsOpened[key]) {
+    showDialog(['This chest is empty.']);
+    return;
+  }
+  const gems = CHEST_LOOT[key] || 3;
+  game.player.chestsOpened[key] = true;
+  game.player.gems += gems;
+  save();
+  updateHUD();
+  showToast(`◈  +${gems} GEMS`);
+  showDialog([`You open the chest — ${gems} astralite gems inside.`, `Your pool: ◈ ${game.player.gems}.`]);
 }
 
 // ---------- Dialog ----------
@@ -1280,8 +1369,8 @@ function startNPCBattle() {
 function startBossEncounter() {
   const enemy = makeRizer('onyxminion', 10);
   enterBattle(enemy, 'boss', {
-    trainerName: 'OBSIDIUS',
-    chain: [makeRizer('shardbat', 11), makeRizer('obsidius', 13)],
+    trainerName: 'SHARDLORD',
+    chain: [makeRizer('shardbat', 11), makeRizer('shardlord', 13)],
   });
 }
 
@@ -1318,13 +1407,13 @@ function refreshBattleUI() {
   const p = game.player.party[game.battle.playerIdx];
   const e = game.battle.enemy;
   $enemyName.textContent = e.name;
-  $enemyLv.textContent   = 'Lv ' + e.lv;
+  $enemyLv.textContent   = `Lv ${e.lv}·${tierRoman(e.lv)}`;
   $enemyHp.style.width   = (e.hp / e.maxHp * 100) + '%';
   hpBarClass($enemyHp, e.hp / e.maxHp);
   $playerName.textContent = p.name;
-  $playerLv.textContent   = 'Lv ' + p.lv;
+  $playerLv.textContent   = `Lv ${p.lv}·${tierRoman(p.lv)}`;
   $playerHp.style.width   = (p.hp / p.maxHp * 100) + '%';
-  $playerHpNums.textContent = `${p.hp} / ${p.maxHp}   ◈${p.gems}`;
+  $playerHpNums.textContent = `${p.hp} / ${p.maxHp}   ◈${game.player.gems}`;
   hpBarClass($playerHp, p.hp / p.maxHp);
 }
 function hpBarClass(el, ratio) {
@@ -1360,7 +1449,7 @@ function renderMoveMenu() {
     const b = document.createElement('button');
     b.className = 'action-btn';
     b.innerHTML = `${m.name} <span class="cost">◈${m.cost}</span><span class="type">${m.type}${m.power ? ' · ' + m.power : ' · SUPPORT'}</span>`;
-    if (m.cost > p.gems) b.disabled = true;
+    if (m.cost > game.player.gems) b.disabled = true;
     b.onclick = () => { playerUseMove(i); };
     $battleActions.appendChild(b);
   });
@@ -1408,7 +1497,10 @@ function renderBagMenu() {
 async function playerUseMove(i) {
   const p = game.player.party[game.battle.playerIdx];
   const move = p.moves[i];
-  p.gems = Math.max(0, p.gems - move.cost);
+  // Gems come from the shared player pool — not per-Rizer, not refunded between battles.
+  if (move.cost > game.player.gems) { renderMainMenu(); return; }
+  game.player.gems = Math.max(0, game.player.gems - move.cost);
+  updateHUD();
   game.battle.animLock = true;
   $battleActions.innerHTML = '';
   await performMove(p, game.battle.enemy, move, true);
@@ -1424,15 +1516,14 @@ async function enemyTurn() {
   const e = game.battle.enemy;
   const p = game.player.party[game.battle.playerIdx];
   if (e.hp <= 0 || p.hp <= 0) return;
-  // AI: pick best available move (cost <= gems). Prefer super effective.
-  const affordable = e.moves.filter(m => m.cost <= e.gems);
-  const pool = affordable.length ? affordable : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
+  // Wild AI has no gem economy (only the player pays into the pool).
+  // It picks its highest expected-damage move against the current defender.
+  const pool = e.moves.length ? e.moves : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
   let best = pool[0], bestScore = -1;
   for (const m of pool) {
     const score = (m.power || 0) * typeMult(m.type, p.type);
     if (score > bestScore) { best = m; bestScore = score; }
   }
-  e.gems = Math.max(0, e.gems - (best.cost || 0));
   await performMove(e, p, best, false);
 }
 
@@ -1550,7 +1641,7 @@ function checkBattleOver() {
     // Win
     if (game.battle.kind === 'boss') {
       game.player.bossDefeated = true;
-      showToast('◈  OBSIDIUS BOUND BY ITS OWN COREFALL', 2600);
+      showToast('◈  SHARDLORD ECHO BOUND', 2600);
     } else if (game.battle.kind === 'trainer') {
       game.player.npcDefeated = true;
     }
@@ -1570,9 +1661,13 @@ function checkBattleOver() {
 }
 
 function grantXP(p, defeated) {
-  const gained = Math.max(5, defeated.lv * 6);
-  p.xp += gained;
-  logBattle(`${p.name} gained ${gained} XP.`);
+  const xpGained = Math.max(5, defeated.lv * 6);
+  // Gems are the exp-currency: battle wins drop 1-3 gems scaled by defeated tier.
+  const gemsGained = 1 + Math.floor(defeated.lv / 4);
+  p.xp += xpGained;
+  game.player.gems += gemsGained;
+  updateHUD();
+  logBattle(`${p.name} +${xpGained} XP · +${gemsGained} ◈`);
   while (p.xp >= xpForNext(p.lv)) {
     p.xp -= xpForNext(p.lv);
     levelUp(p);
@@ -1616,7 +1711,8 @@ function exitBattle() {
 }
 
 function healParty() {
-  for (const r of game.player.party) if (r) { r.hp = r.maxHp; r.gems = 3; r.fainted = false; }
+  // Home restores HP only. Gems are a scarce currency — you must find chests / win battles.
+  for (const r of game.player.party) if (r) { r.hp = r.maxHp; r.fainted = false; }
   save();
 }
 
@@ -1792,9 +1888,11 @@ function chooseStarter(id) {
   game.mode = 'overworld';
   save();
   showDialog([
-    `A ${SPECIES[id].name} chose you.`,
+    `A ${SPECIES[id].name} chose you. (Lv 5 · Tier I)`,
+    'Ten levels make one tier. Reach Tier X and you rival gods.',
     'Cross the gemcliffs — MYARA waits on the path.',
-    'The cave beyond holds Obsidius, the Onyxlord.',
+    'The cave beyond holds a Shardlord — an echo of Obsidius.',
+    'Chests along the way hold gems. Gems power your moves.',
   ]);
 }
 
@@ -1830,7 +1928,7 @@ function renderPartyScreen() {
         <canvas class="party-sprite" width="48" height="48"></canvas>
         <div class="party-info">
           <div class="party-name">${r.name}</div>
-          <div class="party-hp-line">Lv ${r.lv} · ${r.type} · HP ${r.hp}/${r.maxHp}</div>
+          <div class="party-hp-line">Lv ${r.lv} · Tier ${tierRoman(r.lv)} · ${r.type} · HP ${r.hp}/${r.maxHp}</div>
           <div class="party-hp-bar"><div class="party-hp-fill ${hpCls}" style="width:${ratio * 100}%"></div></div>
         </div>
       `;
@@ -1850,6 +1948,8 @@ function renderPartyScreen() {
 function updateHUD() {
   const alive = game.player.party.filter(r => r).length;
   document.getElementById('hud-party').textContent = `Party ${alive}/6`;
+  const gemEl = document.getElementById('hud-gems');
+  if (gemEl) gemEl.textContent = `◈ ${game.player.gems}`;
 }
 
 // ============================================================================
@@ -1893,10 +1993,12 @@ document.getElementById('btn-new').onclick = () => {
     moveCd: 0,
     party: [],
     box: [],
+    gems: 10,
     gemspheres: 5,
     bossDefeated: false,
     npcDefeated: false,
     stepsSinceEnc: 0,
+    chestsOpened: {},
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   $title.classList.add('hidden');

@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Rizers of the Aethryx — an open-world creature-collection saga set across twenty-eight worlds. Chapter I: the surface of Zyraxis." />
+  <title>Rizers — The AOV Saga</title>
+
+  <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#050310">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500&family=VT323&display=swap" rel="stylesheet">
+
+  <style>
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --void: #050310;
+      --void-2: #0a0618;
+      --gold: #e8c878;
+      --gold-bright: #f5dc9c;
+      --gold-deep: #b8923f;
+      --ivory: #f3ecdc;
+      --mist: #b8aec8;
+      --emerald: #2fe6a8;
+      --violet: #b87cff;
+      --crimson: #ff5c5c;
+      --border: rgba(232, 200, 120, 0.28);
+      --border-soft: rgba(232, 200, 120, 0.14);
+      --glass: rgba(20, 12, 38, 0.75);
+      --glass-strong: rgba(28, 16, 54, 0.92);
+
+      --font-display: 'Cinzel', serif;
+      --font-body: 'Cormorant Garamond', serif;
+      --font-meta: 'Inter', sans-serif;
+      --font-pixel: 'VT323', monospace;
+    }
+
+    html, body {
+      background: var(--void);
+      color: var(--ivory);
+      font-family: var(--font-body);
+      overflow: hidden;
+      height: 100%;
+      width: 100%;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    .stars {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(1px 1px at 23% 17%, rgba(243,236,220,0.9), transparent),
+        radial-gradient(1px 1px at 67% 41%, rgba(232,200,120,0.8), transparent),
+        radial-gradient(1.5px 1.5px at 84% 73%, rgba(243,236,220,0.85), transparent),
+        radial-gradient(1px 1px at 12% 83%, rgba(243,236,220,0.6), transparent),
+        radial-gradient(1px 1px at 45% 28%, rgba(232,200,120,0.6), transparent),
+        radial-gradient(2px 2px at 76% 88%, rgba(243,236,220,0.95), transparent),
+        linear-gradient(180deg, #050310 0%, #0a0618 60%, #050310 100%);
+      background-size: 600px 600px, 600px 600px, 600px 600px, 600px 600px, 600px 600px, 600px 600px, 100% 100%;
+    }
+
+    /* ============ STAGE ============ */
+    .stage {
+      position: relative;
+      width: min(96vw, 720px);
+      aspect-ratio: 20 / 14;
+      max-height: 92vh;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0a0618;
+      box-shadow: 0 0 60px rgba(232, 200, 120, 0.18);
+      overflow: hidden;
+    }
+
+    canvas#game {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      -ms-interpolation-mode: nearest-neighbor;
+    }
+
+    /* Top HUD strip */
+    .hud {
+      position: absolute; left: 8px; top: 8px; right: 8px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font-pixel);
+      font-size: 20px;
+      color: var(--gold-bright);
+      text-shadow: 0 0 6px rgba(232, 200, 120, 0.4);
+      pointer-events: none;
+      z-index: 10;
+    }
+    .hud .badge {
+      background: var(--glass);
+      border: 1px solid var(--border-soft);
+      padding: 2px 10px;
+      border-radius: 3px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ============ TITLE SCREEN ============ */
+    .title-screen {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 30%, rgba(184, 124, 255, 0.22), transparent 60%),
+                  radial-gradient(ellipse at 50% 100%, rgba(232, 200, 120, 0.15), transparent 60%),
+                  #05030f;
+      z-index: 200;
+      padding: 24px;
+      text-align: center;
+    }
+    .title-screen.hidden { display: none; }
+
+    .title-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.72rem;
+      letter-spacing: 0.6em;
+      color: var(--gold);
+      opacity: 0.85;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+    }
+    .title-name {
+      font-family: var(--font-display);
+      font-size: clamp(2.6rem, 8vw, 4.2rem);
+      letter-spacing: 0.24em;
+      background: linear-gradient(180deg, var(--gold-bright), var(--gold), var(--gold-deep));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 20px rgba(232, 200, 120, 0.25));
+      margin-bottom: 6px;
+    }
+    .title-sub {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      letter-spacing: 0.4em;
+      color: var(--mist);
+      margin-bottom: 34px;
+      text-transform: uppercase;
+    }
+    .title-desc {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: 1.05rem;
+      color: var(--ivory);
+      max-width: 480px;
+      opacity: 0.85;
+      margin-bottom: 40px;
+      line-height: 1.55;
+    }
+    .title-cta {
+      background: transparent;
+      border: 1px solid var(--gold);
+      color: var(--gold-bright);
+      padding: 14px 40px;
+      font-family: var(--font-meta);
+      font-size: 0.78rem;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.4s;
+    }
+    .title-cta:hover {
+      background: rgba(232, 200, 120, 0.15);
+      box-shadow: 0 0 30px rgba(232, 200, 120, 0.3);
+    }
+    .title-cta.secondary { border-color: var(--mist); color: var(--mist); margin-left: 12px; }
+    .title-btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+
+    .title-hint {
+      position: absolute; bottom: 18px; left: 0; right: 0;
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.35em;
+      color: var(--gold);
+      opacity: 0.55;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    /* ============ STARTER PICKER ============ */
+    .starter-screen {
+      position: absolute; inset: 0;
+      background: rgba(5, 3, 15, 0.96);
+      z-index: 190;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .starter-screen.hidden { display: none; }
+    .starter-title {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      letter-spacing: 0.22em;
+      color: var(--gold-bright);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .starter-lead {
+      font-style: italic;
+      color: var(--mist);
+      margin-bottom: 22px;
+      text-align: center;
+      max-width: 480px;
+      font-size: 0.95rem;
+    }
+    .starter-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      width: 100%;
+      max-width: 640px;
+    }
+    .starter-card {
+      background: var(--glass);
+      border: 1px solid var(--border-soft);
+      padding: 14px 12px 16px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.3s;
+      border-radius: 4px;
+    }
+    .starter-card:hover, .starter-card.hover {
+      border-color: var(--r-accent, var(--gold));
+      transform: translateY(-4px);
+      box-shadow: 0 0 30px rgba(232, 200, 120, 0.2);
+    }
+    .starter-sprite {
+      width: 72px; height: 72px;
+      margin: 0 auto 10px;
+      display: block;
+    }
+    .starter-name {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      letter-spacing: 0.16em;
+      color: var(--ivory);
+      text-transform: uppercase;
+    }
+    .starter-type {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.28em;
+      color: var(--r-accent, var(--gold));
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+    .starter-flavor {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-size: 0.82rem;
+      color: var(--mist);
+      margin-top: 8px;
+      line-height: 1.35;
+    }
+    .starter-back {
+      margin-top: 22px;
+      background: transparent;
+      color: var(--mist);
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-family: var(--font-meta);
+      font-size: 0.7rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      padding: 8px 20px;
+    }
+    .starter-back:hover { border-color: var(--border-soft); color: var(--ivory); }
+
+    /* ============ DIALOG BOX ============ */
+    .dialog {
+      position: absolute; left: 12px; right: 12px; bottom: 12px;
+      background: var(--glass-strong);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 14px 18px 12px;
+      font-family: var(--font-pixel);
+      font-size: 22px;
+      line-height: 1.25;
+      color: var(--ivory);
+      z-index: 60;
+      min-height: 74px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .dialog.hidden { display: none; }
+    .dialog::after {
+      content: '▾';
+      position: absolute; right: 12px; bottom: 4px;
+      font-size: 16px;
+      color: var(--gold);
+      animation: blink 1s steps(2) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ============ BATTLE OVERLAY ============ */
+    .battle {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse at 40% 30%, rgba(184, 124, 255, 0.28), transparent 60%),
+        radial-gradient(ellipse at 65% 75%, rgba(47, 230, 168, 0.2), transparent 60%),
+        #060312;
+      z-index: 150;
+      display: none;
+      flex-direction: column;
+    }
+    .battle.active { display: flex; }
+
+    .battle-field {
+      flex: 1;
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+      padding: 12px;
+    }
+    /* Cell layout:
+        top-left = enemy status  top-right = enemy sprite
+        bot-left = player sprite bot-right = player status */
+    .enemy-status { grid-area: 1 / 1; }
+    .enemy-mon    { grid-area: 1 / 2; }
+    .player-mon   { grid-area: 2 / 1; }
+    .player-status{ grid-area: 2 / 2; }
+
+    .mon-slot {
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mon-canvas {
+      width: 96px; height: 96px;
+    }
+
+    .status-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 8px 12px;
+      font-family: var(--font-pixel);
+      font-size: 18px;
+      align-self: end;
+    }
+    .status-name {
+      font-family: var(--font-display);
+      font-size: 0.88rem;
+      letter-spacing: 0.18em;
+      color: var(--gold-bright);
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+    }
+    .status-lv { color: var(--mist); font-family: var(--font-pixel); font-size: 18px; }
+    .hp-label { color: var(--gold); font-size: 15px; letter-spacing: 0.12em; margin-top: 4px; }
+    .hp-bar {
+      width: 100%;
+      height: 8px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border-soft);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 3px 0;
+    }
+    .hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2fe6a8 0%, #7ff3c8 100%);
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s;
+      width: 100%;
+    }
+    .hp-fill.mid  { background: linear-gradient(90deg, #e8c878, #f5dc9c); }
+    .hp-fill.low  { background: linear-gradient(90deg, #ff5c5c, #ff9090); }
+    .status-numbers { color: var(--ivory); font-size: 17px; text-align: right; }
+
+    /* Battle bottom menu */
+    .battle-bottom {
+      background: var(--glass-strong);
+      border-top: 1px solid var(--border);
+      padding: 12px;
+      min-height: 128px;
+    }
+    .battle-text {
+      font-family: var(--font-pixel);
+      font-size: 22px;
+      color: var(--ivory);
+      min-height: 40px;
+      padding: 4px 6px;
+    }
+    .battle-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .action-btn {
+      background: rgba(232, 200, 120, 0.06);
+      border: 1px solid var(--border);
+      color: var(--ivory);
+      font-family: var(--font-pixel);
+      font-size: 22px;
+      padding: 10px;
+      cursor: pointer;
+      border-radius: 3px;
+      letter-spacing: 0.06em;
+      transition: all 0.15s;
+    }
+    .action-btn:hover, .action-btn:focus {
+      background: rgba(232, 200, 120, 0.16);
+      border-color: var(--gold);
+      color: var(--gold-bright);
+      outline: none;
+    }
+    .action-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .action-btn .cost {
+      font-size: 14px;
+      color: var(--mist);
+      margin-left: 6px;
+    }
+    .action-btn .type {
+      display: block;
+      font-size: 12px;
+      letter-spacing: 0.24em;
+      color: var(--mist);
+      text-transform: uppercase;
+    }
+    .move-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+
+    /* ============ PARTY SCREEN ============ */
+    .party-screen {
+      position: absolute; inset: 0;
+      background: rgba(5, 3, 15, 0.96);
+      z-index: 180;
+      padding: 20px 20px 12px;
+      display: none;
+      flex-direction: column;
+    }
+    .party-screen.active { display: flex; }
+    .party-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .party-title {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: 0.24em;
+      color: var(--gold-bright);
+      text-transform: uppercase;
+    }
+    .party-close {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--mist); font-family: var(--font-meta);
+      padding: 6px 14px; font-size: 0.65rem; letter-spacing: 0.3em;
+      text-transform: uppercase; cursor: pointer; border-radius: 3px;
+    }
+    .party-close:hover { color: var(--ivory); border-color: var(--gold); }
+    .party-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      flex: 1;
+      overflow-y: auto;
+    }
+    .party-slot {
+      background: var(--glass);
+      border: 1px solid var(--border-soft);
+      border-radius: 3px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s;
+    }
+    .party-slot.empty { opacity: 0.4; font-style: italic; justify-content: center; color: var(--mist); }
+    .party-slot.selected { border-color: var(--gold); box-shadow: 0 0 20px rgba(232,200,120,0.15); }
+    .party-slot.ko { border-color: var(--crimson); opacity: 0.55; }
+    .party-sprite { width: 48px; height: 48px; flex-shrink: 0; }
+    .party-info { flex: 1; font-family: var(--font-pixel); font-size: 17px; }
+    .party-name { color: var(--gold-bright); font-family: var(--font-display); font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; }
+    .party-hp-line { color: var(--ivory); margin-top: 2px; }
+    .party-hp-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border: 1px solid var(--border-soft); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+    .party-hp-fill { height: 100%; background: var(--emerald); width: 100%; transition: width 0.4s; }
+    .party-hp-fill.mid { background: var(--gold); }
+    .party-hp-fill.low { background: var(--crimson); }
+
+    /* ============ SITE MENU (hamburger) ============ */
+    .menu-toggle {
+      position: fixed; top: 18px; right: 18px; z-index: 300;
+      width: 40px; height: 40px;
+      background: var(--glass); border: 1px solid var(--border);
+      border-radius: 3px; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    }
+    .menu-toggle .bar { width: 18px; height: 1.5px; background: var(--gold); }
+    .menu-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: min(300px, 82vw);
+      background: rgba(10, 6, 24, 0.98);
+      border-left: 1px solid var(--border);
+      transform: translateX(100%);
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 76px 30px 24px;
+      z-index: 250;
+      overflow-y: auto;
+    }
+    .menu-drawer.open { transform: translateX(0); }
+    .menu-drawer ul { list-style: none; }
+    .menu-drawer li { border-bottom: 1px solid var(--border-soft); }
+    .menu-drawer a {
+      display: block; padding: 14px 0;
+      color: var(--ivory); text-decoration: none;
+      font-family: var(--font-display);
+      font-size: 0.9rem; letter-spacing: 0.18em;
+      text-transform: uppercase;
+      transition: color 0.3s;
+    }
+    .menu-drawer a:hover, .menu-drawer a.active { color: var(--gold); }
+    .menu-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.6rem; letter-spacing: 0.4em;
+      color: var(--gold); opacity: 0.7;
+      text-transform: uppercase; margin-bottom: 20px;
+    }
+    .menu-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(5, 3, 15, 0.7);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s;
+      z-index: 240;
+    }
+    .menu-backdrop.open { opacity: 1; pointer-events: auto; }
+    body.menu-open { overflow: hidden; }
+
+    /* Toast (level up / capture) */
+    .toast {
+      position: absolute; top: 40%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      background: var(--glass-strong);
+      border: 1px solid var(--gold);
+      color: var(--gold-bright);
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      padding: 12px 26px;
+      border-radius: 3px;
+      opacity: 0; pointer-events: none;
+      z-index: 400;
+      transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+    @media (max-width: 640px) {
+      .stage { max-height: 88vh; }
+      .action-btn { font-size: 18px; padding: 8px; }
+      .status-name { font-size: 0.75rem; }
+      .starter-grid { grid-template-columns: 1fr; }
+      .party-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="stars"></div>
+
+  <!-- ============ HAMBURGER ============ -->
+  <button class="menu-toggle" aria-label="Open menu">
+    <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+  </button>
+  <div class="menu-backdrop"></div>
+  <nav class="menu-drawer">
+    <div class="menu-eyebrow">The Saga Awaits</div>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/saga.html">The Saga</a></li>
+      <li><a href="/timeline.html">Timeline</a></li>
+      <li><a href="/aethryx.html">Aethryx Expanse</a></li>
+      <li><a href="/codex.html">The Codex</a></li>
+      <li><a href="/games.html" class="active">Games</a></li>
+    </ul>
+  </nav>
+
+  <!-- ============ STAGE ============ -->
+  <div class="stage" id="stage">
+    <canvas id="game" width="640" height="448"></canvas>
+
+    <div class="hud" id="hud" style="display:none;">
+      <div class="badge" id="hud-location">Zyraxis · Surface</div>
+      <div class="badge" id="hud-party">Party 0/6</div>
+    </div>
+
+    <!-- Title screen -->
+    <div class="title-screen" id="title-screen">
+      <div class="title-eyebrow">Chapter I · Zyraxis</div>
+      <h1 class="title-name">RIZERS</h1>
+      <div class="title-sub">Of the Aethryx Expanse</div>
+      <p class="title-desc">
+        The Mothergem fell. Ten Gemlords rose. Now, out on the gemcliffs, wild beings shaped by cosmic stone answer to those who can bind their frequency.
+        Become a Rizer trainer. Cross the Expanse. Claim the throne.
+      </p>
+      <div class="title-btns">
+        <button class="title-cta" id="btn-new">Begin</button>
+        <button class="title-cta secondary" id="btn-continue">Continue</button>
+      </div>
+      <div class="title-hint">Move · Arrow Keys / WASD  ·  Interact · Z / Space  ·  Menu · X / Esc</div>
+    </div>
+
+    <!-- Starter picker -->
+    <div class="starter-screen hidden" id="starter-screen">
+      <div class="starter-title">Choose Your First Rizer</div>
+      <div class="starter-lead">Three orphans of the last Mothergem fall. One will bind to you.</div>
+      <div class="starter-grid" id="starter-grid"></div>
+      <button class="starter-back" id="starter-back">← Back</button>
+    </div>
+
+    <!-- Party screen -->
+    <div class="party-screen" id="party-screen">
+      <div class="party-head">
+        <div class="party-title">Your Rizers</div>
+        <button class="party-close" id="party-close">Close ✕</button>
+      </div>
+      <div class="party-grid" id="party-grid"></div>
+    </div>
+
+    <!-- Dialog -->
+    <div class="dialog hidden" id="dialog"></div>
+
+    <!-- Battle overlay -->
+    <div class="battle" id="battle">
+      <div class="battle-field">
+        <div class="status-card enemy-status" id="enemy-status">
+          <div class="status-name"><span id="enemy-name">Wild</span> <span class="status-lv" id="enemy-lv">Lv 1</span></div>
+          <div class="hp-bar"><div class="hp-fill" id="enemy-hp-fill"></div></div>
+        </div>
+        <div class="mon-slot enemy-mon"><canvas class="mon-canvas" id="enemy-canvas" width="96" height="96"></canvas></div>
+        <div class="mon-slot player-mon"><canvas class="mon-canvas" id="player-canvas" width="96" height="96"></canvas></div>
+        <div class="status-card player-status" id="player-status">
+          <div class="status-name"><span id="player-name">Rizer</span> <span class="status-lv" id="player-lv">Lv 1</span></div>
+          <div class="hp-bar"><div class="hp-fill" id="player-hp-fill"></div></div>
+          <div class="status-numbers"><span id="player-hp-nums">- / -</span></div>
+        </div>
+      </div>
+      <div class="battle-bottom">
+        <div class="battle-text" id="battle-text">A wild Rizer appeared.</div>
+        <div class="battle-actions" id="battle-actions"></div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+  </div>
+
+<script>
+'use strict';
+
+// ============================================================================
+//  RIZERS  —  V1
+//  Open-world creature-collection prototype. Zyraxis chapter.
+// ============================================================================
+
+// ---------- Constants / geometry ----------
+const TILE = 32;
+const COLS = 20, ROWS = 14;
+const CANVAS_W = COLS * TILE;
+const CANVAS_H = ROWS * TILE;
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ---------- Type chart (8 types, cyclic) ----------
+// Each type is strong against the next in the cycle, weak against the one before.
+const TYPES = ['Gem', 'Earth', 'Water', 'Fire', 'Air', 'Beast', 'Light', 'Shadow'];
+const TYPE_COLORS = {
+  Gem:    '#b87cff',
+  Earth:  '#a68260',
+  Water:  '#5fa8ff',
+  Fire:   '#ff8a4c',
+  Air:    '#c0e0ff',
+  Beast:  '#8bc466',
+  Light:  '#f5dc9c',
+  Shadow: '#6b5a8a',
+};
+function typeMult(atk, def) {
+  const ai = TYPES.indexOf(atk);
+  const di = TYPES.indexOf(def);
+  if (ai < 0 || di < 0) return 1;
+  const diff = (di - ai + TYPES.length) % TYPES.length;
+  if (diff === 1) return 2.0;   // super effective
+  if (diff === TYPES.length - 1) return 0.5;  // not very effective
+  return 1.0;
+}
+
+// ---------- Rizer species roster ----------
+// Each species: id, name, type, baseStats {hp,atk,def,spd,spc}, moves (by level),
+// sprite (color palette), catchRate (out of 100), evolveTo/evolveLv.
+const SPECIES = {
+  // Starters
+  voltix: {
+    name: 'VOLTIX', type: 'Gem',
+    base: { hp: 42, atk: 42, def: 32, spd: 38, spc: 30 },
+    sprite: ['#e8c878', '#7a4dcf', '#f5dc9c'],
+    catchRate: 30,
+    moves: [
+      { name: 'Spark',    type: 'Gem',    power: 30, cost: 1 },
+      { name: 'Bite',     type: 'Beast',  power: 32, cost: 1 },
+      { name: 'Gemsurge', type: 'Gem',    power: 55, cost: 3, lv: 8 },
+      { name: 'Rally',    type: 'Air',    power: 0,  cost: 0, lv: 12, effect: 'boost' },
+    ],
+  },
+  emberkin: {
+    name: 'EMBERKIN', type: 'Fire',
+    base: { hp: 40, atk: 46, def: 28, spd: 40, spc: 34 },
+    sprite: ['#ff8a4c', '#c25a1c', '#ffcc66'],
+    catchRate: 30,
+    moves: [
+      { name: 'Ember',    type: 'Fire',   power: 30, cost: 1 },
+      { name: 'Tail Snap', type: 'Beast', power: 30, cost: 1 },
+      { name: 'Firewisp', type: 'Fire',   power: 55, cost: 3, lv: 8 },
+      { name: 'Sunbask',  type: 'Light',  power: 0,  cost: 0, lv: 12, effect: 'boost' },
+    ],
+  },
+  mirestone: {
+    name: 'MIRESTONE', type: 'Water',
+    base: { hp: 48, atk: 34, def: 44, spd: 26, spc: 32 },
+    sprite: ['#5fa8ff', '#2a5c8a', '#a8cef0'],
+    catchRate: 30,
+    moves: [
+      { name: 'Tide',     type: 'Water',  power: 30, cost: 1 },
+      { name: 'Slam',     type: 'Earth',  power: 32, cost: 1 },
+      { name: 'Torrent',  type: 'Water',  power: 55, cost: 3, lv: 8 },
+      { name: 'Shellup',  type: 'Earth',  power: 0,  cost: 0, lv: 12, effect: 'boost' },
+    ],
+  },
+
+  // Wild Zyraxis Rizers
+  gemlark: {
+    name: 'GEMLARK', type: 'Air',
+    base: { hp: 30, atk: 32, def: 24, spd: 42, spc: 24 },
+    sprite: ['#c0e0ff', '#b87cff', '#f5dc9c'],
+    catchRate: 55,
+    moves: [
+      { name: 'Peck',     type: 'Air',    power: 28, cost: 1 },
+      { name: 'Sparkle',  type: 'Gem',    power: 30, cost: 1 },
+    ],
+  },
+  cinderpaw: {
+    name: 'CINDERPAW', type: 'Fire',
+    base: { hp: 34, atk: 36, def: 26, spd: 34, spc: 22 },
+    sprite: ['#ff9060', '#8a3020', '#ffd0a0'],
+    catchRate: 50,
+    moves: [
+      { name: 'Scratch',  type: 'Beast',  power: 28, cost: 1 },
+      { name: 'Ember',    type: 'Fire',   power: 30, cost: 1 },
+    ],
+  },
+  shalebite: {
+    name: 'SHALEBITE', type: 'Earth',
+    base: { hp: 38, atk: 34, def: 34, spd: 22, spc: 20 },
+    sprite: ['#a68260', '#5c4028', '#d4b088'],
+    catchRate: 55,
+    moves: [
+      { name: 'Bite',     type: 'Beast',  power: 30, cost: 1 },
+      { name: 'Rockthud', type: 'Earth',  power: 32, cost: 1 },
+    ],
+  },
+  voltimote: {
+    name: 'VOLTIMOTE', type: 'Gem',
+    base: { hp: 34, atk: 40, def: 28, spd: 40, spc: 30 },
+    sprite: ['#b87cff', '#5a2a9c', '#e8c878'],
+    catchRate: 35,
+    moves: [
+      { name: 'Zap',      type: 'Gem',    power: 32, cost: 1 },
+      { name: 'Bite',     type: 'Beast',  power: 30, cost: 1 },
+      { name: 'Gemshock', type: 'Gem',    power: 50, cost: 3, lv: 10 },
+    ],
+  },
+
+  // Boss line — Obsidius the Onyxlord
+  onyxminion: {
+    name: 'ONYXMINION', type: 'Shadow',
+    base: { hp: 42, atk: 40, def: 36, spd: 30, spc: 30 },
+    sprite: ['#4a3c66', '#20182c', '#8b7ca8'],
+    catchRate: 20,
+    moves: [
+      { name: 'Shadeclaw', type: 'Shadow', power: 34, cost: 1 },
+      { name: 'Rockslam',  type: 'Earth',  power: 34, cost: 1 },
+    ],
+  },
+  shardbat: {
+    name: 'SHARDBAT', type: 'Shadow',
+    base: { hp: 40, atk: 44, def: 30, spd: 44, spc: 32 },
+    sprite: ['#6c4a8f', '#2a1848', '#a68be0'],
+    catchRate: 20,
+    moves: [
+      { name: 'Nightbite', type: 'Shadow', power: 36, cost: 1 },
+      { name: 'Wingcut',   type: 'Air',    power: 34, cost: 1 },
+      { name: 'Voidgale',  type: 'Shadow', power: 55, cost: 3 },
+    ],
+  },
+  obsidius: {
+    name: 'OBSIDIUS', type: 'Shadow',
+    base: { hp: 68, atk: 54, def: 50, spd: 34, spc: 44 },
+    sprite: ['#1a0d2e', '#000000', '#7f5cff'],
+    catchRate: 0,  // uncatchable boss
+    moves: [
+      { name: 'Corefall',  type: 'Shadow', power: 60, cost: 2 },
+      { name: 'Gemquake',  type: 'Earth',  power: 50, cost: 2 },
+      { name: 'Nightbrand', type:'Shadow', power: 75, cost: 3 },
+    ],
+  },
+};
+
+// ---------- Level math ----------
+function xpForNext(lv) { return 12 + lv * 8; }
+function statAtLv(base, lv) { return Math.floor(base + base * (lv - 1) * 0.10); }
+
+function makeRizer(speciesId, lv) {
+  const s = SPECIES[speciesId];
+  const stats = {
+    hp:  statAtLv(s.base.hp,  lv),
+    atk: statAtLv(s.base.atk, lv),
+    def: statAtLv(s.base.def, lv),
+    spd: statAtLv(s.base.spd, lv),
+    spc: statAtLv(s.base.spc, lv),
+  };
+  // Learn all moves whose (lv || 1) requirement is met, cap at 4.
+  const moves = s.moves.filter(m => (m.lv || 1) <= lv).slice(-4);
+  return {
+    species: speciesId,
+    name: s.name,
+    type: s.type,
+    lv,
+    xp: 0,
+    hp: stats.hp,
+    maxHp: stats.hp,
+    stats,
+    moves,
+    gems: 3,   // SPC gems available per battle
+    atkStage: 0,
+    defStage: 0,
+    fainted: false,
+  };
+}
+
+function stageMult(stage) {
+  // Cardmaster-style clamped stat stages
+  stage = Math.max(-4, Math.min(4, stage));
+  return stage >= 0 ? (2 + stage) / 2 : 2 / (2 - stage);
+}
+
+// ---------- Game state ----------
+const game = {
+  mode: 'title',   // title | starter | overworld | battle | party | dialog
+  hasSave: false,
+  player: {
+    x: 8, y: 10,
+    dir: 'down',
+    step: 0,          // for anim
+    moveCd: 0,        // ms until next input accepted
+    party: [],
+    box: [],
+    gemspheres: 5,
+    bossDefeated: false,
+    npcDefeated: false,
+    stepsSinceEnc: 0,
+  },
+  npc1: { x: 10, y: 8, dir: 'down', defeated: false },
+  battle: null,      // { enemy, playerIdx, log, turn }
+  dialogQ: [],
+  dialogCb: null,
+};
+
+// ---------- Tile map (Zyraxis surface) ----------
+// Legend:
+//   . grass path (walkable)
+//   , dirt / gem-path (walkable)
+//   G tall gemgrass (walkable, encounter chance)
+//   T tree/rock (blocker)
+//   W water (blocker)
+//   H home (blocker, entry point behind)
+//   C cave to boss (interact)
+//   N npc1 trainer (blocker, interact adjacent)
+//   M mothergem shrine (decor)
+//   # gemcliff (blocker)
+const MAP = [
+  '####################',
+  '##T,,,,,,,,,,,,,,T##',
+  '#T,GGG,,,,,,,,,GG,T#',
+  '#T,GGGG,,,,,,,,GG,T#',
+  '#,,GG,,,,,MM,,,,,,,#',
+  '#,,,,,,,,,,,,,,,,,C#',
+  '#,,,,,,N,,,,,,,,,,,#',
+  '#,,,,,,,,,,,GGG,,,##',
+  '#,,H,,,,,,,,GGGGG,##',
+  '#,,,,,,,,,,,GGGG,,##',
+  '#,,,,,,,,,,,,,,,,,##',
+  '#,WWWW,,,,,,,GG,,,##',
+  '#,WWWW,,,,,,,,,,,,##',
+  '####################',
+];
+
+function tileAt(x, y) {
+  if (y < 0 || y >= ROWS || x < 0 || x >= COLS) return '#';
+  return MAP[y][x];
+}
+function walkable(x, y) {
+  const t = tileAt(x, y);
+  if ('#TWHM'.includes(t)) return false;
+  if (t === 'N' && !game.player.npcDefeated) return false;
+  return true;
+}
+function isGemgrass(x, y) { return tileAt(x, y) === 'G'; }
+
+// ---------- Render ----------
+function drawTile(x, y, ch) {
+  const px = x * TILE, py = y * TILE;
+  switch (ch) {
+    case '#': {
+      ctx.fillStyle = '#1a0d2e';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = '#3a2560';
+      ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+      // gem sparkle
+      if ((x * 13 + y * 7) % 5 === 0) {
+        ctx.fillStyle = '#b87cff';
+        ctx.fillRect(px + 12, py + 12, 3, 3);
+      }
+      break;
+    }
+    case '.':
+    case ',': {
+      // Zyraxis crystal-sand path
+      const grad = ctx.createLinearGradient(px, py, px, py + TILE);
+      grad.addColorStop(0, '#4a3468');
+      grad.addColorStop(1, '#382450');
+      ctx.fillStyle = grad;
+      ctx.fillRect(px, py, TILE, TILE);
+      // tiny pebbles
+      if ((x + y * 3) % 4 === 0) {
+        ctx.fillStyle = 'rgba(232, 200, 120, 0.3)';
+        ctx.fillRect(px + 8 + (x % 3) * 6, py + 20, 2, 2);
+      }
+      break;
+    }
+    case 'G': {
+      // Tall gemgrass
+      ctx.fillStyle = '#2a5240';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#3a7a5c';
+      for (let i = 0; i < 4; i++) {
+        const bx = px + 4 + i * 7;
+        const by = py + 8 + ((i + x + y) % 3) * 3;
+        ctx.fillRect(bx, by, 2, TILE - by + py - 4);
+      }
+      // crystal glints
+      if ((x + y) % 3 === 0) {
+        ctx.fillStyle = '#7dffb8';
+        ctx.fillRect(px + 14, py + 12, 2, 2);
+      }
+      break;
+    }
+    case 'T': {
+      // gem-rock
+      ctx.fillStyle = '#382450';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#5a3a80';
+      ctx.beginPath();
+      ctx.moveTo(px + 16, py + 6);
+      ctx.lineTo(px + 28, py + 16);
+      ctx.lineTo(px + 22, py + 28);
+      ctx.lineTo(px + 8, py + 26);
+      ctx.lineTo(px + 4, py + 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#b87cff';
+      ctx.fillRect(px + 14, py + 12, 4, 4);
+      break;
+    }
+    case 'W': {
+      // water
+      ctx.fillStyle = '#1a3860';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = 'rgba(120, 180, 255, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px + 4, py + 12 + Math.sin((x + game.player.step * 0.005)) * 2);
+      ctx.lineTo(px + TILE - 4, py + 12 + Math.sin((x + game.player.step * 0.005 + 1)) * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px + 4, py + 22 + Math.cos((x + game.player.step * 0.005)) * 2);
+      ctx.lineTo(px + TILE - 4, py + 22 + Math.cos((x + game.player.step * 0.005 + 1)) * 2);
+      ctx.stroke();
+      break;
+    }
+    case 'H': {
+      // home / observatory
+      ctx.fillStyle = '#382450';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#7a5cc8';
+      ctx.fillRect(px + 4, py + 10, TILE - 8, TILE - 12);
+      // dome
+      ctx.fillStyle = '#e8c878';
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + 12, 10, Math.PI, 0);
+      ctx.fill();
+      // door
+      ctx.fillStyle = '#1a0d2e';
+      ctx.fillRect(px + 13, py + 20, 6, 8);
+      break;
+    }
+    case 'C': {
+      // cave entry
+      ctx.fillStyle = '#1a0d2e';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(px + 6, py + TILE);
+      ctx.lineTo(px + 6, py + 14);
+      ctx.quadraticCurveTo(px + TILE / 2, py + 2, px + TILE - 6, py + 14);
+      ctx.lineTo(px + TILE - 6, py + TILE);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#b87cff';
+      ctx.fillRect(px + 14, py + 8, 4, 4);
+      ctx.fillRect(px + 20, py + 20, 3, 3);
+      break;
+    }
+    case 'M': {
+      // Mothergem shrine
+      ctx.fillStyle = '#382450';
+      ctx.fillRect(px, py, TILE, TILE);
+      const pulse = Math.sin(performance.now() * 0.002 + x) * 0.5 + 0.5;
+      ctx.fillStyle = `rgba(184, 124, 255, ${0.6 + pulse * 0.3})`;
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 4);
+      ctx.lineTo(px + TILE - 6, py + TILE / 2);
+      ctx.lineTo(px + TILE / 2, py + TILE - 4);
+      ctx.lineTo(px + 6, py + TILE / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#f5dc9c';
+      ctx.stroke();
+      break;
+    }
+    case 'N': {
+      // NPC trainer tile (rendered as path underneath + character overlay)
+      drawTile(x, y, ',');
+      drawCharacter(px + TILE / 2, py + TILE / 2, game.player.npcDefeated ? 'down' : 'down', '#5fa8ff', '#2a5c8a');
+      break;
+    }
+  }
+}
+
+function drawCharacter(cx, cy, dir, primary, accent) {
+  // Simple 24x24 chibi at (cx, cy) center. Directions: down/up/left/right.
+  const w = 22, h = 22;
+  const x = cx - w / 2, y = cy - h / 2;
+  // shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + h - 1, 9, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // body
+  ctx.fillStyle = primary;
+  ctx.fillRect(x + 4, y + 8, w - 8, h - 10);
+  // head
+  ctx.fillStyle = '#f5dc9c';
+  ctx.fillRect(x + 6, y + 2, w - 12, 8);
+  // hair/hat
+  ctx.fillStyle = accent;
+  ctx.fillRect(x + 6, y, w - 12, 4);
+  // eyes based on direction
+  ctx.fillStyle = '#050310';
+  if (dir === 'down') {
+    ctx.fillRect(x + 8, y + 6, 2, 2);
+    ctx.fillRect(x + 12, y + 6, 2, 2);
+  } else if (dir === 'up') {
+    // no visible eyes
+    ctx.fillStyle = accent;
+    ctx.fillRect(x + 8, y + 4, 6, 2);
+  } else if (dir === 'left') {
+    ctx.fillRect(x + 7, y + 6, 2, 2);
+  } else if (dir === 'right') {
+    ctx.fillRect(x + 13, y + 6, 2, 2);
+  }
+  // belt/legs
+  ctx.fillStyle = accent;
+  ctx.fillRect(x + 4, y + h - 4, w - 8, 2);
+}
+
+function renderMap() {
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      drawTile(x, y, MAP[y][x]);
+    }
+  }
+  // Player on top
+  const px = game.player.x * TILE + TILE / 2;
+  const py = game.player.y * TILE + TILE / 2;
+  drawCharacter(px, py, game.player.dir, '#e8c878', '#7a4dcf');
+}
+
+// ---------- Input ----------
+const keys = {};
+document.addEventListener('keydown', (e) => {
+  keys[e.key.toLowerCase()] = true;
+  if (game.mode === 'dialog' && (e.key === 'Enter' || e.key === ' ' || e.key.toLowerCase() === 'z')) {
+    advanceDialog();
+    e.preventDefault();
+  }
+  if (game.mode === 'overworld') {
+    if (e.key.toLowerCase() === 'x' || e.key === 'Escape') { openParty(); e.preventDefault(); }
+    if (e.key === ' ' || e.key.toLowerCase() === 'z') { tryInteract(); e.preventDefault(); }
+  } else if (game.mode === 'party' && (e.key === 'Escape' || e.key.toLowerCase() === 'x')) {
+    closeParty();
+  }
+});
+document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+// touch — tap edges to move, center to interact
+canvas.addEventListener('click', (e) => {
+  if (game.mode !== 'overworld') return;
+  const r = canvas.getBoundingClientRect();
+  const rx = (e.clientX - r.left) / r.width;
+  const ry = (e.clientY - r.top) / r.height;
+  // 3x3 zones
+  const dx = rx < 0.35 ? -1 : rx > 0.65 ? 1 : 0;
+  const dy = ry < 0.35 ? -1 : ry > 0.65 ? 1 : 0;
+  if (dx === 0 && dy === 0) { tryInteract(); return; }
+  // prefer horizontal if diagonal
+  if (dx) tryMove(dx, 0);
+  else    tryMove(0, dy);
+});
+
+function tryMove(dx, dy) {
+  if (game.mode !== 'overworld') return;
+  if (game.player.moveCd > 0) return;
+  const dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
+  game.player.dir = dir;
+  const nx = game.player.x + dx, ny = game.player.y + dy;
+  if (!walkable(nx, ny)) { game.player.moveCd = 120; return; }
+  game.player.x = nx;
+  game.player.y = ny;
+  game.player.moveCd = 160;
+  // encounter check
+  if (isGemgrass(nx, ny)) {
+    game.player.stepsSinceEnc++;
+    if (Math.random() < 0.14 && game.player.stepsSinceEnc >= 2) {
+      startWildEncounter();
+      game.player.stepsSinceEnc = 0;
+    }
+  }
+}
+
+function tryInteract() {
+  const dx = game.player.dir === 'right' ? 1 : game.player.dir === 'left' ? -1 : 0;
+  const dy = game.player.dir === 'down'  ? 1 : game.player.dir === 'up'   ? -1 : 0;
+  const tx = game.player.x + dx, ty = game.player.y + dy;
+  const t = tileAt(tx, ty);
+  if (t === 'C') {
+    if (game.player.bossDefeated) {
+      showDialog(["The gate of Obsidius is quiet.", "The Onyxlord is bound."]);
+    } else {
+      showDialog([
+        "The cave mouth breathes cold light.",
+        "Obsidius the Onyxlord waits within.",
+        "«ENTER THE CAVE?»",
+      ], () => startBossEncounter());
+    }
+  } else if (t === 'N') {
+    if (game.player.npcDefeated) {
+      showDialog(["MYARA: You bind a good frequency,", "trainer. Onward — the cave calls."]);
+    } else {
+      showDialog([
+        "MYARA: I hear you're new to the gemcliffs.",
+        "Every Rizer trainer takes a bout on the path.",
+        "«CHALLENGE MYARA?»",
+      ], () => startNPCBattle());
+    }
+  } else if (t === 'H') {
+    showDialog(["You feel the hum of home.", "Your party is restored to full."], () => healParty());
+  } else if (t === 'M') {
+    showDialog([
+      "You touch the Mothergem shrine.",
+      "The stone remembers a fall from a higher sky.",
+      "Every Rizer here descends from it.",
+    ]);
+  }
+}
+
+// ---------- Dialog ----------
+const $dialog = document.getElementById('dialog');
+function showDialog(lines, cb) {
+  game.mode = 'dialog';
+  game.dialogQ = lines.slice();
+  game.dialogCb = cb || null;
+  $dialog.classList.remove('hidden');
+  $dialog.textContent = game.dialogQ.shift();
+}
+function advanceDialog() {
+  if (game.dialogQ.length) {
+    $dialog.textContent = game.dialogQ.shift();
+  } else {
+    $dialog.classList.add('hidden');
+    game.mode = 'overworld';
+    const cb = game.dialogCb;
+    game.dialogCb = null;
+    if (cb) cb();
+  }
+}
+$dialog.addEventListener('click', advanceDialog);
+
+// ---------- Toast ----------
+const $toast = document.getElementById('toast');
+let toastTimer = 0;
+function showToast(txt, ms = 1800) {
+  $toast.textContent = txt;
+  $toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $toast.classList.remove('show'), ms);
+}
+
+// ============================================================================
+//  BATTLE
+// ============================================================================
+const $battle = document.getElementById('battle');
+const $battleText = document.getElementById('battle-text');
+const $battleActions = document.getElementById('battle-actions');
+const $enemyName = document.getElementById('enemy-name');
+const $enemyLv   = document.getElementById('enemy-lv');
+const $enemyHp   = document.getElementById('enemy-hp-fill');
+const $playerName = document.getElementById('player-name');
+const $playerLv   = document.getElementById('player-lv');
+const $playerHp   = document.getElementById('player-hp-fill');
+const $playerHpNums = document.getElementById('player-hp-nums');
+const enemyCanvas = document.getElementById('enemy-canvas');
+const playerCanvas = document.getElementById('player-canvas');
+
+// Wild encounter pool per zone (Zyraxis gemcliff route)
+const WILD_POOL = [
+  { id: 'gemlark',   lvRange: [3, 6] },
+  { id: 'cinderpaw', lvRange: [3, 6] },
+  { id: 'shalebite', lvRange: [4, 7] },
+  { id: 'voltimote', lvRange: [5, 8] },
+];
+
+function startWildEncounter() {
+  const roll = WILD_POOL[Math.floor(Math.random() * WILD_POOL.length)];
+  const lv = roll.lvRange[0] + Math.floor(Math.random() * (roll.lvRange[1] - roll.lvRange[0] + 1));
+  const enemy = makeRizer(roll.id, lv);
+  enterBattle(enemy, 'wild');
+}
+
+function startNPCBattle() {
+  const enemy = makeRizer('gemlark', 6);
+  enterBattle(enemy, 'trainer', { trainerName: 'MYARA', chain: [makeRizer('cinderpaw', 7)] });
+}
+
+function startBossEncounter() {
+  const enemy = makeRizer('onyxminion', 10);
+  enterBattle(enemy, 'boss', {
+    trainerName: 'OBSIDIUS',
+    chain: [makeRizer('shardbat', 11), makeRizer('obsidius', 13)],
+  });
+}
+
+function firstAlive() {
+  return game.player.party.findIndex(r => r && r.hp > 0);
+}
+
+function enterBattle(enemy, kind, extras) {
+  const idx = firstAlive();
+  if (idx < 0) { fullPartyKO(); return; }
+  game.mode = 'battle';
+  game.battle = {
+    enemy,
+    playerIdx: idx,
+    kind,                    // wild | trainer | boss
+    trainerName: extras && extras.trainerName || null,
+    chain: extras && extras.chain || [],
+    turn: 'player',
+    over: false,
+    animLock: false,
+  };
+  $battle.classList.add('active');
+  drawBattleMon(enemyCanvas, enemy, true);
+  drawBattleMon(playerCanvas, game.player.party[idx], false);
+  refreshBattleUI();
+  const opener = kind === 'wild'
+    ? `A wild ${enemy.name} appeared!`
+    : `${game.battle.trainerName} sent out ${enemy.name}!`;
+  logBattle(opener);
+  renderMainMenu();
+}
+
+function refreshBattleUI() {
+  const p = game.player.party[game.battle.playerIdx];
+  const e = game.battle.enemy;
+  $enemyName.textContent = e.name;
+  $enemyLv.textContent   = 'Lv ' + e.lv;
+  $enemyHp.style.width   = (e.hp / e.maxHp * 100) + '%';
+  hpBarClass($enemyHp, e.hp / e.maxHp);
+  $playerName.textContent = p.name;
+  $playerLv.textContent   = 'Lv ' + p.lv;
+  $playerHp.style.width   = (p.hp / p.maxHp * 100) + '%';
+  $playerHpNums.textContent = `${p.hp} / ${p.maxHp}   ◈${p.gems}`;
+  hpBarClass($playerHp, p.hp / p.maxHp);
+}
+function hpBarClass(el, ratio) {
+  el.classList.remove('mid', 'low');
+  if (ratio < 0.25) el.classList.add('low');
+  else if (ratio < 0.5) el.classList.add('mid');
+}
+
+function logBattle(text) { $battleText.textContent = text; }
+
+function renderMainMenu() {
+  $battleActions.innerHTML = '';
+  const p = game.player.party[game.battle.playerIdx];
+  const canRun = game.battle.kind === 'wild';
+  addAction('FIGHT', renderMoveMenu);
+  addAction('RIZER', renderRizerMenu);
+  addAction('BAG',   renderBagMenu);
+  addAction('RUN',   () => tryRun(), !canRun);
+}
+function addAction(label, cb, disabled) {
+  const b = document.createElement('button');
+  b.className = 'action-btn';
+  b.textContent = label;
+  if (disabled) b.disabled = true;
+  else b.onclick = cb;
+  $battleActions.appendChild(b);
+}
+
+function renderMoveMenu() {
+  $battleActions.innerHTML = '';
+  const p = game.player.party[game.battle.playerIdx];
+  p.moves.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.className = 'action-btn';
+    b.innerHTML = `${m.name} <span class="cost">◈${m.cost}</span><span class="type">${m.type}${m.power ? ' · ' + m.power : ' · SUPPORT'}</span>`;
+    if (m.cost > p.gems) b.disabled = true;
+    b.onclick = () => { playerUseMove(i); };
+    $battleActions.appendChild(b);
+  });
+  // Back
+  const back = document.createElement('button');
+  back.className = 'action-btn';
+  back.textContent = '← BACK';
+  back.onclick = renderMainMenu;
+  $battleActions.appendChild(back);
+}
+
+function renderRizerMenu() {
+  $battleActions.innerHTML = '';
+  game.player.party.forEach((r, i) => {
+    if (!r) return;
+    const b = document.createElement('button');
+    b.className = 'action-btn';
+    b.innerHTML = r.name + ` <span class="cost">Lv ${r.lv} · ${r.hp}/${r.maxHp}</span>`;
+    if (r.hp <= 0 || i === game.battle.playerIdx) b.disabled = true;
+    b.onclick = () => playerSwitch(i);
+    $battleActions.appendChild(b);
+  });
+  const back = document.createElement('button');
+  back.className = 'action-btn';
+  back.textContent = '← BACK';
+  back.onclick = renderMainMenu;
+  $battleActions.appendChild(back);
+}
+
+function renderBagMenu() {
+  $battleActions.innerHTML = '';
+  const b = document.createElement('button');
+  b.className = 'action-btn';
+  b.innerHTML = `GEMSPHERE <span class="cost">×${game.player.gemspheres}</span>`;
+  if (game.player.gemspheres <= 0 || game.battle.kind !== 'wild') b.disabled = true;
+  b.onclick = () => throwGemsphere();
+  $battleActions.appendChild(b);
+  const back = document.createElement('button');
+  back.className = 'action-btn';
+  back.textContent = '← BACK';
+  back.onclick = renderMainMenu;
+  $battleActions.appendChild(back);
+}
+
+async function playerUseMove(i) {
+  const p = game.player.party[game.battle.playerIdx];
+  const move = p.moves[i];
+  p.gems = Math.max(0, p.gems - move.cost);
+  game.battle.animLock = true;
+  $battleActions.innerHTML = '';
+  await performMove(p, game.battle.enemy, move, true);
+  if (checkBattleOver()) return;
+  await enemyTurn();
+  if (checkBattleOver()) return;
+  refreshBattleUI();
+  game.battle.animLock = false;
+  renderMainMenu();
+}
+
+async function enemyTurn() {
+  const e = game.battle.enemy;
+  const p = game.player.party[game.battle.playerIdx];
+  if (e.hp <= 0 || p.hp <= 0) return;
+  // AI: pick best available move (cost <= gems). Prefer super effective.
+  const affordable = e.moves.filter(m => m.cost <= e.gems);
+  const pool = affordable.length ? affordable : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
+  let best = pool[0], bestScore = -1;
+  for (const m of pool) {
+    const score = (m.power || 0) * typeMult(m.type, p.type);
+    if (score > bestScore) { best = m; bestScore = score; }
+  }
+  e.gems = Math.max(0, e.gems - (best.cost || 0));
+  await performMove(e, p, best, false);
+}
+
+async function performMove(user, target, move, playerSide) {
+  logBattle(`${user.name} used ${move.name}!`);
+  await wait(500);
+  if (move.effect === 'boost') {
+    user.atkStage = Math.min(4, user.atkStage + 1);
+    logBattle(`${user.name}'s attack rose!`);
+    await wait(700);
+    return;
+  }
+  const mult = typeMult(move.type, target.type);
+  const atk = user.stats.atk * stageMult(user.atkStage);
+  const def = target.stats.def;
+  const base = ((atk / def) * move.power * (user.lv / (user.lv + target.lv))) / 2;
+  const dmg = Math.max(1, Math.floor(base * mult * (0.85 + Math.random() * 0.3)));
+  target.hp = Math.max(0, target.hp - dmg);
+  // Flash + shake for the receiving canvas
+  const targetCanvas = playerSide ? enemyCanvas : playerCanvas;
+  await flashCanvas(targetCanvas);
+  if (mult > 1)      { logBattle(`It's super effective!  (-${dmg})`); await wait(700); }
+  else if (mult < 1) { logBattle(`It's not very effective... (-${dmg})`); await wait(700); }
+  else               { logBattle(`(-${dmg})`); await wait(500); }
+  refreshBattleUI();
+  if (target.hp <= 0) {
+    target.fainted = true;
+    logBattle(`${target.name} fainted!`);
+    if (playerSide) {} // enemy fainted animation could go here
+    await wait(700);
+  }
+}
+
+function flashCanvas(cvs) {
+  return new Promise(r => {
+    cvs.style.filter = 'brightness(2.4) saturate(0)';
+    cvs.style.transform = 'translateX(6px)';
+    setTimeout(() => {
+      cvs.style.transform = 'translateX(-6px)';
+      setTimeout(() => {
+        cvs.style.transform = '';
+        cvs.style.filter = '';
+        r();
+      }, 90);
+    }, 90);
+  });
+}
+
+async function playerSwitch(i) {
+  logBattle(`${game.player.party[game.battle.playerIdx].name}, come back!`);
+  await wait(600);
+  game.battle.playerIdx = i;
+  const p = game.player.party[i];
+  p.atkStage = 0; p.defStage = 0;   // reset stages
+  drawBattleMon(playerCanvas, p, false);
+  logBattle(`Go, ${p.name}!`);
+  await wait(600);
+  refreshBattleUI();
+  // Free switch — enemy still gets a turn
+  await enemyTurn();
+  if (checkBattleOver()) return;
+  refreshBattleUI();
+  renderMainMenu();
+}
+
+async function tryRun() {
+  logBattle('You slipped away.');
+  await wait(600);
+  exitBattle();
+}
+
+async function throwGemsphere() {
+  game.player.gemspheres--;
+  logBattle('You throw a Gemsphere...');
+  await wait(700);
+  const e = game.battle.enemy;
+  const hpFrac = e.hp / e.maxHp;
+  // Catch chance rises as HP drops
+  const chance = Math.min(0.95, (SPECIES[e.species].catchRate / 100) * (1.7 - hpFrac));
+  if (Math.random() < chance) {
+    logBattle(`${e.name} was bound!`);
+    await wait(900);
+    // Add to party or box
+    const captured = makeRizer(e.species, e.lv);
+    captured.hp = Math.max(1, e.hp);
+    if (game.player.party.filter(Boolean).length < 6) game.player.party.push(captured);
+    else                                              game.player.box.push(captured);
+    showToast(`◈  ${e.name}  BOUND`);
+    save();
+    exitBattle();
+  } else {
+    logBattle(`${e.name} broke free!`);
+    await wait(700);
+    await enemyTurn();
+    if (checkBattleOver()) return;
+    refreshBattleUI();
+    renderMainMenu();
+  }
+}
+
+function checkBattleOver() {
+  const e = game.battle.enemy;
+  const p = game.player.party[game.battle.playerIdx];
+  if (e.hp <= 0) {
+    grantXP(p, e);
+    // Advance trainer chain if any
+    if (game.battle.chain && game.battle.chain.length > 0) {
+      const nextEnemy = game.battle.chain.shift();
+      game.battle.enemy = nextEnemy;
+      drawBattleMon(enemyCanvas, nextEnemy, true);
+      logBattle(`${game.battle.trainerName} sent out ${nextEnemy.name}!`);
+      setTimeout(() => { refreshBattleUI(); renderMainMenu(); }, 800);
+      return true;
+    }
+    // Win
+    if (game.battle.kind === 'boss') {
+      game.player.bossDefeated = true;
+      showToast('◈  OBSIDIUS BOUND BY ITS OWN COREFALL', 2600);
+    } else if (game.battle.kind === 'trainer') {
+      game.player.npcDefeated = true;
+    }
+    logBattle('You won the battle!');
+    save();
+    setTimeout(() => exitBattle(), 1400);
+    return true;
+  }
+  if (p.hp <= 0) {
+    // Next alive?
+    const next = game.player.party.findIndex((r, i) => r && r.hp > 0 && i !== game.battle.playerIdx);
+    if (next < 0) { fullPartyKO(); return true; }
+    setTimeout(() => renderRizerMenu(), 400);
+    return true;
+  }
+  return false;
+}
+
+function grantXP(p, defeated) {
+  const gained = Math.max(5, defeated.lv * 6);
+  p.xp += gained;
+  logBattle(`${p.name} gained ${gained} XP.`);
+  while (p.xp >= xpForNext(p.lv)) {
+    p.xp -= xpForNext(p.lv);
+    levelUp(p);
+  }
+}
+
+function levelUp(r) {
+  const oldMax = r.maxHp;
+  r.lv++;
+  const s = SPECIES[r.species];
+  r.stats.hp  = statAtLv(s.base.hp,  r.lv);
+  r.stats.atk = statAtLv(s.base.atk, r.lv);
+  r.stats.def = statAtLv(s.base.def, r.lv);
+  r.stats.spd = statAtLv(s.base.spd, r.lv);
+  r.stats.spc = statAtLv(s.base.spc, r.lv);
+  r.maxHp = r.stats.hp;
+  r.hp += r.maxHp - oldMax;
+  // Learn newly available moves
+  const newMoves = s.moves.filter(m => (m.lv || 1) === r.lv);
+  for (const m of newMoves) {
+    if (r.moves.length < 4) r.moves.push(m);
+    else r.moves[3] = m;  // overwrite last slot for V1 simplicity
+  }
+  showToast(`${r.name}  LV ${r.lv}!`, 1400);
+}
+
+function fullPartyKO() {
+  logBattle('All your Rizers fainted.');
+  setTimeout(() => {
+    exitBattle();
+    showDialog(['You wake at the observatory.', 'Your party has been mended.'], healParty);
+    // Respawn at home tile (H is at (3,8))
+    game.player.x = 4; game.player.y = 8;
+  }, 900);
+}
+
+function exitBattle() {
+  $battle.classList.remove('active');
+  game.mode = 'overworld';
+  game.battle = null;
+}
+
+function healParty() {
+  for (const r of game.player.party) if (r) { r.hp = r.maxHp; r.gems = 3; r.fainted = false; }
+  save();
+}
+
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---------- Rizer sprite renderer (procedural) ----------
+function drawBattleMon(cvs, r, facing) {
+  const c = cvs.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, 96, 96);
+  const s = SPECIES[r.species];
+  const [a, b, glow] = s.sprite;
+  const cx = 48, cy = 56;
+  // shadow
+  c.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  c.beginPath();
+  c.ellipse(cx, 84, 22, 5, 0, 0, Math.PI * 2);
+  c.fill();
+  // outer glow
+  const rad = c.createRadialGradient(cx, cy, 0, cx, cy, 44);
+  rad.addColorStop(0, glow + 'aa');
+  rad.addColorStop(1, glow + '00');
+  c.fillStyle = rad;
+  c.fillRect(0, 0, 96, 96);
+  // body (species-driven shape)
+  c.fillStyle = a;
+  c.strokeStyle = b;
+  c.lineWidth = 2;
+  drawSpeciesShape(c, cx, cy, r.species, facing);
+  // stroke
+  c.strokeStyle = b;
+  c.beginPath();
+  c.stroke();
+  // Type badge chip
+  c.fillStyle = TYPE_COLORS[r.type] || '#e8c878';
+  c.fillRect(4, 4, 22, 8);
+  c.fillStyle = '#050310';
+  c.font = 'bold 8px Inter, sans-serif';
+  c.fillText(r.type.toUpperCase(), 6, 11);
+}
+
+function drawSpeciesShape(c, cx, cy, species, facing) {
+  const flip = !facing;   // player faces away → flip if enemy true
+  c.save();
+  c.translate(cx, cy);
+  if (flip) c.scale(-1, 1);
+  const s = SPECIES[species];
+  const [a, b] = s.sprite;
+  // Ellipse body
+  c.fillStyle = a;
+  switch (species) {
+    case 'voltix':
+      // spiky gem sprite
+      c.beginPath();
+      c.moveTo(0, -22); c.lineTo(16, -6); c.lineTo(20, 12); c.lineTo(0, 22);
+      c.lineTo(-20, 12); c.lineTo(-16, -6); c.closePath(); c.fill();
+      c.fillStyle = b; c.fillRect(-4, -8, 8, 8);
+      c.fillStyle = '#fff'; c.fillRect(-9, -12, 3, 3); c.fillRect(6, -12, 3, 3);
+      break;
+    case 'emberkin':
+      c.beginPath(); c.ellipse(0, 2, 20, 18, 0, 0, Math.PI * 2); c.fill();
+      // horns
+      c.fillStyle = b;
+      c.beginPath(); c.moveTo(-10, -16); c.lineTo(-4, -22); c.lineTo(-2, -14); c.fill();
+      c.beginPath(); c.moveTo(10, -16); c.lineTo(4, -22); c.lineTo(2, -14); c.fill();
+      c.fillStyle = '#fff'; c.fillRect(-9, -6, 3, 3); c.fillRect(6, -6, 3, 3);
+      break;
+    case 'mirestone':
+      // turtle-gem
+      c.beginPath(); c.ellipse(0, 4, 22, 14, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = b;
+      c.beginPath(); c.arc(0, -2, 14, Math.PI, 0); c.fill();  // shell top
+      c.fillStyle = a;
+      c.fillRect(-3, -14, 6, 4);   // head bump
+      c.fillStyle = '#fff'; c.fillRect(-2, -12, 1.5, 1.5); c.fillRect(1, -12, 1.5, 1.5);
+      break;
+    case 'gemlark':
+      // small bird
+      c.beginPath(); c.ellipse(0, 2, 16, 12, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = b;
+      c.beginPath(); c.moveTo(-16, 2); c.lineTo(-24, -4); c.lineTo(-16, -4); c.fill(); // wing
+      c.beginPath(); c.moveTo(12, -2); c.lineTo(20, 2); c.lineTo(12, 4); c.fill();     // beak
+      c.fillStyle = '#fff'; c.fillRect(4, -4, 2, 2);
+      break;
+    case 'cinderpaw':
+      c.beginPath(); c.ellipse(0, 4, 18, 14, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = b;
+      c.beginPath(); c.moveTo(-14, -8); c.lineTo(-8, -18); c.lineTo(-4, -8); c.fill();
+      c.beginPath(); c.moveTo(14, -8); c.lineTo(8, -18); c.lineTo(4, -8); c.fill();
+      c.fillStyle = '#fff'; c.fillRect(-8, -4, 2, 2); c.fillRect(5, -4, 2, 2);
+      break;
+    case 'shalebite':
+      c.beginPath(); c.rect(-18, -12, 36, 26); c.fill();
+      c.fillStyle = b; c.fillRect(-12, -6, 24, 12);
+      c.fillStyle = '#fff'; c.fillRect(-8, -4, 3, 3); c.fillRect(5, -4, 3, 3);
+      break;
+    case 'voltimote':
+      c.beginPath(); c.ellipse(0, 2, 16, 18, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = b;
+      c.beginPath(); c.moveTo(-4, -18); c.lineTo(0, -26); c.lineTo(4, -18); c.fill();
+      c.fillStyle = '#fff'; c.fillRect(-8, -4, 2, 2); c.fillRect(6, -4, 2, 2);
+      break;
+    case 'onyxminion':
+      c.beginPath(); c.ellipse(0, 2, 20, 18, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = b;
+      c.beginPath(); c.moveTo(-16, -6); c.lineTo(-8, -20); c.lineTo(-4, -8); c.fill();
+      c.beginPath(); c.moveTo(16, -6); c.lineTo(8, -20); c.lineTo(4, -8); c.fill();
+      c.fillStyle = '#b87cff'; c.fillRect(-9, -4, 3, 3); c.fillRect(6, -4, 3, 3);
+      break;
+    case 'shardbat':
+      c.beginPath(); c.ellipse(0, 2, 14, 12, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = b;
+      c.beginPath(); c.moveTo(-14, 0); c.lineTo(-30, -12); c.lineTo(-14, -8); c.fill();
+      c.beginPath(); c.moveTo(14, 0); c.lineTo(30, -12); c.lineTo(14, -8); c.fill();
+      c.fillStyle = '#b87cff'; c.fillRect(-6, -4, 2, 2); c.fillRect(4, -4, 2, 2);
+      break;
+    case 'obsidius':
+      c.beginPath();
+      c.moveTo(0, -30); c.lineTo(22, -8); c.lineTo(26, 18); c.lineTo(0, 28);
+      c.lineTo(-26, 18); c.lineTo(-22, -8); c.closePath(); c.fill();
+      c.fillStyle = b;
+      c.fillRect(-14, -4, 28, 12);
+      c.fillStyle = '#7f5cff';
+      c.fillRect(-8, -2, 4, 4); c.fillRect(4, -2, 4, 4);
+      c.beginPath(); c.moveTo(0, -30); c.lineTo(6, -14); c.lineTo(-6, -14); c.fill();
+      break;
+    default:
+      c.beginPath(); c.arc(0, 0, 20, 0, Math.PI * 2); c.fill();
+  }
+  c.restore();
+}
+
+// ============================================================================
+//  STARTER SCREEN
+// ============================================================================
+const STARTERS = ['voltix', 'emberkin', 'mirestone'];
+const STARTER_FLAVOR = {
+  voltix: 'A charged gemshard that hums against your palm. Reads intent.',
+  emberkin: 'A dragonet no bigger than a lantern. Loves rising heat.',
+  mirestone: 'A rare stone-shell drawn from a Zyraxis tide-pool. Patient, dense.',
+};
+function renderStarterScreen() {
+  const $grid = document.getElementById('starter-grid');
+  $grid.innerHTML = '';
+  for (const id of STARTERS) {
+    const s = SPECIES[id];
+    const card = document.createElement('div');
+    card.className = 'starter-card';
+    card.style.setProperty('--r-accent', TYPE_COLORS[s.type]);
+    card.innerHTML = `
+      <canvas class="starter-sprite" width="72" height="72"></canvas>
+      <div class="starter-name">${s.name}</div>
+      <div class="starter-type">${s.type}</div>
+      <div class="starter-flavor">${STARTER_FLAVOR[id]}</div>
+    `;
+    const cvs = card.querySelector('canvas');
+    const c = cvs.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    // draw at 96 scale then paint down
+    const tmp = document.createElement('canvas'); tmp.width = 96; tmp.height = 96;
+    drawBattleMon(tmp, makeRizer(id, 5), true);
+    c.drawImage(tmp, 0, 0, 96, 96, 0, 0, 72, 72);
+    card.onclick = () => chooseStarter(id);
+    $grid.appendChild(card);
+  }
+}
+function chooseStarter(id) {
+  const starter = makeRizer(id, 5);
+  game.player.party = [starter];
+  document.getElementById('starter-screen').classList.add('hidden');
+  document.getElementById('hud').style.display = 'flex';
+  updateHUD();
+  game.mode = 'overworld';
+  save();
+  showDialog([
+    `A ${SPECIES[id].name} chose you.`,
+    'Cross the gemcliffs — MYARA waits on the path.',
+    'The cave beyond holds Obsidius, the Onyxlord.',
+  ]);
+}
+
+// ============================================================================
+//  PARTY SCREEN
+// ============================================================================
+const $party = document.getElementById('party-screen');
+const $partyGrid = document.getElementById('party-grid');
+function openParty() {
+  if (!game.player.party.length) return;
+  game.mode = 'party';
+  $party.classList.add('active');
+  renderPartyScreen();
+}
+function closeParty() {
+  $party.classList.remove('active');
+  game.mode = 'overworld';
+}
+document.getElementById('party-close').onclick = closeParty;
+function renderPartyScreen() {
+  $partyGrid.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const r = game.player.party[i];
+    const slot = document.createElement('div');
+    slot.className = 'party-slot' + (r && r.hp <= 0 ? ' ko' : '');
+    if (!r) {
+      slot.classList.add('empty');
+      slot.textContent = '— empty slot —';
+    } else {
+      const ratio = r.hp / r.maxHp;
+      const hpCls = ratio < 0.25 ? 'low' : ratio < 0.5 ? 'mid' : '';
+      slot.innerHTML = `
+        <canvas class="party-sprite" width="48" height="48"></canvas>
+        <div class="party-info">
+          <div class="party-name">${r.name}</div>
+          <div class="party-hp-line">Lv ${r.lv} · ${r.type} · HP ${r.hp}/${r.maxHp}</div>
+          <div class="party-hp-bar"><div class="party-hp-fill ${hpCls}" style="width:${ratio * 100}%"></div></div>
+        </div>
+      `;
+      const cvs = slot.querySelector('canvas');
+      const c = cvs.getContext('2d');
+      const tmp = document.createElement('canvas'); tmp.width = 96; tmp.height = 96;
+      drawBattleMon(tmp, r, true);
+      c.drawImage(tmp, 0, 0, 96, 96, 0, 0, 48, 48);
+    }
+    $partyGrid.appendChild(slot);
+  }
+}
+
+// ============================================================================
+//  HUD
+// ============================================================================
+function updateHUD() {
+  const alive = game.player.party.filter(r => r).length;
+  document.getElementById('hud-party').textContent = `Party ${alive}/6`;
+}
+
+// ============================================================================
+//  SAVE / LOAD (localStorage)
+// ============================================================================
+const SAVE_KEY = 'aov-rizers-v1';
+function save() {
+  const data = {
+    player: game.player,
+    ts: Date.now(),
+  };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(_) {}
+  game.hasSave = true;
+}
+function tryLoad() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || !data.player) return false;
+    game.player = data.player;
+    game.hasSave = true;
+    return true;
+  } catch(_) { return false; }
+}
+function hasSave() {
+  try { return !!localStorage.getItem(SAVE_KEY); } catch(_) { return false; }
+}
+
+// ============================================================================
+//  TITLE FLOW
+// ============================================================================
+const $title = document.getElementById('title-screen');
+const $starter = document.getElementById('starter-screen');
+document.getElementById('btn-new').onclick = () => {
+  // Reset state
+  game.player = {
+    x: 4, y: 8,
+    dir: 'down',
+    step: 0,
+    moveCd: 0,
+    party: [],
+    box: [],
+    gemspheres: 5,
+    bossDefeated: false,
+    npcDefeated: false,
+    stepsSinceEnc: 0,
+  };
+  try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
+  $title.classList.add('hidden');
+  $starter.classList.remove('hidden');
+  game.mode = 'starter';
+  renderStarterScreen();
+};
+document.getElementById('btn-continue').onclick = () => {
+  if (!tryLoad()) { showToast('NO SAVE FOUND', 1200); return; }
+  $title.classList.add('hidden');
+  document.getElementById('hud').style.display = 'flex';
+  updateHUD();
+  game.mode = 'overworld';
+  showDialog(['Welcome back, Rizer.']);
+};
+document.getElementById('starter-back').onclick = () => {
+  $starter.classList.add('hidden');
+  $title.classList.remove('hidden');
+  game.mode = 'title';
+};
+
+// Hide continue if no save
+if (!hasSave()) document.getElementById('btn-continue').style.opacity = '0.35';
+
+// ============================================================================
+//  MAIN LOOP
+// ============================================================================
+let lastTime = 0;
+function loop(now) {
+  const dt = now - lastTime;
+  lastTime = now;
+  if (game.mode === 'overworld') {
+    game.player.step++;
+    if (game.player.moveCd > 0) game.player.moveCd -= dt;
+    // Continuous keyboard walking
+    if (game.player.moveCd <= 0) {
+      if (keys['arrowup']   || keys['w']) tryMove(0, -1);
+      else if (keys['arrowdown'] || keys['s']) tryMove(0, 1);
+      else if (keys['arrowleft'] || keys['a']) tryMove(-1, 0);
+      else if (keys['arrowright']|| keys['d']) tryMove(1, 0);
+    }
+    updateHUD();
+  }
+  if (game.mode !== 'title' && game.mode !== 'starter') renderMap();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame((t) => { lastTime = t; loop(t); });
+
+// ============================================================================
+//  Hamburger menu wiring
+// ============================================================================
+const menuToggle = document.querySelector('.menu-toggle');
+const menuDrawer = document.querySelector('.menu-drawer');
+const menuBackdrop = document.querySelector('.menu-backdrop');
+menuToggle.addEventListener('click', () => {
+  menuDrawer.classList.toggle('open');
+  menuBackdrop.classList.toggle('open');
+  document.body.classList.toggle('menu-open');
+});
+menuBackdrop.addEventListener('click', () => {
+  menuDrawer.classList.remove('open');
+  menuBackdrop.classList.remove('open');
+  document.body.classList.remove('menu-open');
+});
+
+</script>
+</body>
+</html>

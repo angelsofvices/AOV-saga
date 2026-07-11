@@ -8,7 +8,7 @@ for that context).
 |---------------|--------------------------------------------------|
 | `town.mp3`    | You're walking around Malezor / any outdoor map  |
 | `battle.mp3`  | Any battle is active (wild / trainer / gemlord)  |
-| `home.wav`    | You're inside the family home interior           |
+| `home.mp3`    | You're inside the family home interior           |
 
 ## Wiring / behavior
 

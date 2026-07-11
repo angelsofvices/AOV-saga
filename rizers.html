@@ -3764,6 +3764,14 @@ function renderZyrexMenu() {
 function renderBagMenu() {
   $battleActions.innerHTML = '';
   const p = game.player.party[game.battle.playerIdx];
+  // V2.13 — Potion (heals active Zyrex +40 HP, costs your turn)
+  const potCount = (game.player.items && game.player.items.potion) || 0;
+  const po = document.createElement('button');
+  po.className = 'action-btn';
+  po.innerHTML = `POTION <span class="cost">×${potCount} · +40 HP → ${p.name}</span>`;
+  if (potCount <= 0 || p.hp >= p.maxHp) po.disabled = true;
+  po.onclick = () => usePotionInBattle();
+  $battleActions.appendChild(po);
   // Gemsphere throw (wild capture)
   const gs = document.createElement('button');
   gs.className = 'action-btn';
@@ -3784,6 +3792,27 @@ function renderBagMenu() {
   back.onclick = renderMainMenu;
   $battleActions.appendChild(back);
   focusFirstAction();
+}
+
+// V2.13 — Potion action in battle: +40 HP to active, consumes 1 potion, costs your turn.
+async function usePotionInBattle() {
+  const p = game.player.party[game.battle.playerIdx];
+  if (!game.player.items) game.player.items = { potion: 0 };
+  if ((game.player.items.potion || 0) <= 0) return;
+  if (p.hp >= p.maxHp) return;
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + 40);
+  game.player.items.potion--;
+  save();
+  logBattle(`You used a POTION on ${p.name}.`);
+  logBattle(`${p.name} recovered ${p.hp - before} HP.`);
+  refreshBattleUI();
+  await wait(700);
+  // Using an item consumes your turn — enemy still gets to move.
+  await enemyTurn();
+  if (checkBattleOver()) return;
+  refreshBattleUI();
+  renderMainMenu();
 }
 function renderEquipMenu() {
   $battleActions.innerHTML = '';

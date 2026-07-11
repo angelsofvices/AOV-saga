@@ -1752,16 +1752,35 @@ const SPECIES = {
     moves: basicMoves('Nature', ['Quill Jab', 'Rockquill', 'Quill Volley', 'Curl Guard']),
   },
 
-  // ============ ★ THE CREATOR's signature Zyrex (V2.14 easter egg) ============
-  // ELZORAN — first Zyrex canonically designed for the AOV Saga. Placeholder
-  // type/sprite/moves; canon type block should be confirmed from The Creator's
-  // reference. Only obtainable in early game via the two-Mothergem easter egg
-  // (received as ELZEBUB, Tier I Elzoran).
-  elzoran: {
-    name: 'ELZORAN', type: 'Unknown-Void', type2: 'Spirit', region: 'Unknown',
-    base: BASIC_BASE, tier: 1, catchRate: 3, shape: 'winged',
+  // ============ ★ THE CREATOR's signature chain — Elzebub → Elzoran → Omegoran (V2.15) ============
+  // Only obtainable in early game via the two-Mothergem easter egg (Elzebub, Lv 5).
+  // Canonical tiers/stats/moves from Master Codex v11.1 · 9 MASTER INDEX.
+  // Elzebub is NEW canon (not in codex yet) — treated as the Tier I precursor;
+  // stats set below the Basic band because it is a hatchling form.
+  elzebub: {
+    name: 'ELZEBUB', type: 'Beast', type2: 'Nature', region: 'Unknown',
+    base: { hp: 42, atk: 44, def: 36, spd: 40, spc: 52 },   // hatchling — under BASIC_BASE
+    tier: 1, catchRate: 3, shape: 'winged',
     sprite: ['#c896ff', '#5a2a8a', '#ffd68a'],   // amethyst + gold — Mothergem-touched
-    moves: basicMoves('Unknown-Void', ['Creator Sigil', 'Voidhum', 'First-Light Cry', 'Origin Guard']),
+    moves: basicMoves('Nature', ['Sky Nip', 'Windbeat', 'Emberling', 'Fledgling Guard']),
+    evolveTo: 'elzoran', evolveLv: 10,
+  },
+  elzoran: {
+    name: 'ELZORAN', type: 'Beast', type2: 'Nature', region: 'Unknown',
+    base: { hp: 366, atk: 333, def: 266, spd: 234, spc: 466 },  // Codex v11.1 canonical
+    tier: 5, catchRate: 3, shape: 'winged',
+    sprite: ['#7f5cff', '#2a1466', '#ffd68a'],   // supreme dragon — deeper amethyst
+    moves: basicMoves('Nature', ['Elemental Eclipse', 'Telekinetic Rend', 'Helm of Chaos', 'Primal Roar']),
+    evolveTo: 'omegoran', evolveLv: 50,
+    codex: { archetype: 'WILDKIN', epithet: 'Supreme Dragon Lord' },
+  },
+  omegoran: {
+    name: 'OMEGORAN', type: 'Beast', type2: 'Unknown-Void', region: 'Unknown',
+    base: { hp: 493, atk: 549, def: 383, spd: 357, spc: 549 },  // Codex v11.1 canonical
+    tier: 7, catchRate: 2, shape: 'winged',
+    sprite: ['#2a0044', '#8b00ff', '#ff5c8a'],   // corrupted apex — void with pink fracture
+    moves: basicMoves('Unknown-Void', ['Voidfang Guillotine', 'Cataclysmic Roar', 'The Final Armageddon', 'Primal Roar']),
+    codex: { archetype: 'DIREBORN', epithet: 'The Corrupted Apex' },
   },
 
   // ============ Gemlord I cave — RAKORON's hunt (Beast-themed) ============
@@ -1796,12 +1815,17 @@ const SPECIES = {
   },
 };
 
-// ---------- Level math ----------
-// Locked rule: every codex card = the MAX state at Lv (tier × 10).
-// Species base stats are the CAP; per-level stats scale linearly from 25% at
-// Lv 1 up to 100% at maxLv, then cap. See memory: rizing-powers-stat-math.
+// ---------- Level math (V2.15 — open growth + evolution) ----------
+// Old rule (V2.4): every codex card = MAX state at Lv (tier × 10), hard cap.
+// New rule: no hard cap. A species may define evolveTo/evolveLv; when a Zyrex
+// hits evolveLv it TRANSFORMS into its next form (new species entry, new stat
+// block, potential type change). Stat scaling still runs linear 25% → 100%
+// across the current form's expected range so canonical codex stats hit at
+// evolveLv, then plateau if the Zyrex is terminal (no evolveTo). Levels can
+// exceed the plateau; stats stay at canonical values (Lv 100 soft ceiling).
 function xpForNext(lv) { return 12 + lv * 8; }
 function tierMaxLv(tier) { return Math.max(10, (tier || 1) * 10); }
+function speciesEvolveLv(s) { return s.evolveLv || tierMaxLv(s.tier || 1); }
 function statAtLv(maxStat, lv, maxLv) {
   if (lv >= maxLv) return Math.floor(maxStat);
   if (lv <= 1)     return Math.floor(maxStat * 0.25);
@@ -1811,8 +1835,8 @@ function statAtLv(maxStat, lv, maxLv) {
 
 function makeZyrex(speciesId, lv) {
   const s = SPECIES[speciesId];
-  const maxLv = tierMaxLv(s.tier || 1);
-  lv = Math.min(lv, maxLv);   // clamp — cannot exceed card's tier cap
+  const maxLv = speciesEvolveLv(s);
+  lv = Math.min(lv, 100);   // soft ceiling — but no tier cap
   const stats = {
     hp:  statAtLv(s.base.hp,  lv, maxLv),
     atk: statAtLv(s.base.atk, lv, maxLv),
@@ -2911,6 +2935,23 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // ---- V2.15.1 — Standalone overlays get X FIRST (before overworld menu-toggle) ----
+  // Fixes: pressing X on the Items/Map/Inspect overlay used to open the main
+  // menu instead of closing the overlay, because game.mode is still 'overworld'
+  // while those overlays are active.
+  {
+    const inspectActive = document.getElementById('inspect-overlay').classList.contains('active');
+    const mapActive     = $mapview.classList.contains('active');
+    const itemsActive   = $itemsov.classList.contains('active');
+    if (isBack && (mapActive || itemsActive || inspectActive)) {
+      if (mapActive)     $mapview.classList.remove('active');
+      if (itemsActive)   $itemsov.classList.remove('active');
+      if (inspectActive) document.getElementById('inspect-overlay').classList.remove('active');
+      e.preventDefault();
+      return;
+    }
+  }
+
   // ---- Overworld: WASD/arrows walk, Z/A interact, X/B toggle main menu ----
   if (game.mode === 'overworld') {
     if (isBack) { openMainMenu(); e.preventDefault(); return; }
@@ -2939,14 +2980,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- Standalone overlays (Map, Items, Inspect) — X closes ----
-  const inspectActive = document.getElementById('inspect-overlay').classList.contains('active');
-  if (isBack && ($mapview.classList.contains('active') || $itemsov.classList.contains('active') || inspectActive)) {
-    $mapview.classList.remove('active');
-    $itemsov.classList.remove('active');
-    if (inspectActive) document.getElementById('inspect-overlay').classList.remove('active');
-    e.preventDefault();
-  }
+  // (V2.15.1 — standalone-overlay X-close moved to top of handler)
 });
 document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 // V2.12 — pointer gestures also unlock audio (title-screen buttons, taps, etc.)
@@ -3162,8 +3196,7 @@ function handleMothergemTouch(mx, my) {
   save();
 }
 function grantElzebub() {
-  const zy = makeZyrex('elzoran', 5);
-  zy.name = 'ELZEBUB';   // this specific Elzoran is nicknamed by The Creator
+  const zy = makeZyrex('elzebub', 5);
   const partySlots = game.player.party.filter(Boolean).length;
   if (partySlots < MAX_PARTY) game.player.party.push(zy);
   else                        game.player.box.push(zy);
@@ -3173,10 +3206,11 @@ function grantElzebub() {
     "The two shrines flare together — one hum, one voice.",
     "«...well done. so few even find them both.»",
     "«...I am THE CREATOR. this saga is mine, and now — a piece of it is yours.»",
-    "«...take ELZEBUB. the first of the Elzoran. my own hand shaped him.»",
+    "«...take ELZEBUB. hatchling of my Supreme Dragon Lord.»",
+    "«...he grows into ELZORAN at Lv 10, and further still if you are worthy.»",
     "«...he will not appear anywhere else in the early age of Zyraxis.»",
     "«...guard him. rise with him. and remember who gave him to you.»",
-    `ELZEBUB (Lv 5 · Tier I ELZORAN) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
+    `ELZEBUB (Lv 5) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
   ]);
 }
 
@@ -4262,11 +4296,11 @@ function grantXP(p, defeated) {
 }
 
 function levelUp(r) {
-  const s = SPECIES[r.species];
-  const maxLv = tierMaxLv(s.tier || 1);
-  // Cannot level past the card's tier cap. Excess XP is discarded for now
-  // (later: reserved for an evolution unlock, per rizing-powers-stat-math memo).
-  if (r.lv >= maxLv) { r.xp = 0; return false; }
+  let s = SPECIES[r.species];
+  // V2.15 — soft ceiling only. No tier hard-cap; if you outgrow this form and
+  // there's an evolveTo defined, you TRANSFORM instead of capping.
+  if (r.lv >= 100) { r.xp = 0; return false; }
+  const maxLv = speciesEvolveLv(s);
   const oldMax = r.maxHp;
   r.lv++;
   r.stats.hp  = statAtLv(s.base.hp,  r.lv, maxLv);
@@ -4276,15 +4310,42 @@ function levelUp(r) {
   r.stats.spc = statAtLv(s.base.spc, r.lv, maxLv);
   r.maxHp = r.stats.hp;
   r.hp += r.maxHp - oldMax;
-  // Learn newly available moves
   const newMoves = s.moves.filter(m => (m.lv || 1) === r.lv);
   for (const m of newMoves) {
     if (r.moves.length < 4) r.moves.push(m);
     else r.moves[3] = m;
   }
-  const capped = r.lv >= maxLv;
-  showToast(`${r.name}  LV ${r.lv}${capped ? ' · MAX (TIER ' + (s.tier || 1) + ')' : ''}!`, 1400);
+  showToast(`${r.name}  LV ${r.lv}!`, 1400);
+  // V2.15 — evolution trigger: hit evolveLv AND a next form is defined.
+  if (s.evolveTo && r.lv >= (s.evolveLv || maxLv)) {
+    evolveZyrex(r, s.evolveTo);
+  }
   return true;
+}
+
+// V2.15 — Transform Zyrex into next-form species. Preserves lv/xp/gems and HP
+// ratio; recomputes stats from the new species' base block; swaps type/moves.
+function evolveZyrex(r, nextSpeciesId) {
+  const next = SPECIES[nextSpeciesId];
+  if (!next) return;
+  const oldName = r.name;
+  const hpRatio = r.hp / Math.max(1, r.maxHp);
+  r.species = nextSpeciesId;
+  r.name    = next.name;
+  r.type    = next.type;
+  r.type2   = next.type2 || null;
+  const newMaxLv = speciesEvolveLv(next);
+  r.stats.hp  = statAtLv(next.base.hp,  r.lv, newMaxLv);
+  r.stats.atk = statAtLv(next.base.atk, r.lv, newMaxLv);
+  r.stats.def = statAtLv(next.base.def, r.lv, newMaxLv);
+  r.stats.spd = statAtLv(next.base.spd, r.lv, newMaxLv);
+  r.stats.spc = statAtLv(next.base.spc, r.lv, newMaxLv);
+  r.maxHp = r.stats.hp;
+  r.hp    = Math.max(1, Math.floor(r.maxHp * hpRatio));
+  // Fresh move set from the new form (top 4 by learn level).
+  r.moves = next.moves.filter(m => (m.lv || 1) <= r.lv).slice(-4);
+  showToast(`${oldName}  →  ${r.name}!`, 2200);
+  save();
 }
 
 function fullPartyKO() {

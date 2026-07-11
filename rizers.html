@@ -2567,14 +2567,35 @@ function tryInteract() {
     }
   } else if (t === 'H') {
     const remaining = 10 - respectsCount();
-    showDialog([
+    const GEM_FLOOR = 20;
+    const gemsBefore = game.player.gems || 0;
+    const gemGift = Math.max(0, GEM_FLOOR - gemsBefore);
+    const lines = [
       `MOM: Come rest, ${game.player.name}. You look drained.`,
       `Your party is restored to full.`,
+    ];
+    if (gemGift > 0) {
+      lines.push(
+        `DAD: And here — ${gemGift} gems from the family pouch.`,
+        `We keep you at ${GEM_FLOOR} at all times so you never march empty.`
+      );
+    } else {
+      lines.push(`DAD: Your pouch is heavy already — save the gift for next time.`);
+    }
+    lines.push(
       remaining > 0
         ? `MOM: ${remaining} Gemlord${remaining === 1 ? '' : 's'} left. The Seers won't wait — but neither will you.`
-        : `MOM: All ten stand with you now. The three Seers are next. Go save the world, ${game.player.name}.`,
-      `(Gems must still be earned — chests, or battle.)`,
-    ], () => healParty());
+        : `MOM: All ten stand with you now. The three Seers are next. Go save the world, ${game.player.name}.`
+    );
+    showDialog(lines, () => {
+      healParty();
+      if (gemGift > 0) {
+        game.player.gems = GEM_FLOOR;
+        save();
+        updateHUD();
+        showToast(`◈  +${gemGift} GEMS  ·  POUCH ${GEM_FLOOR}`);
+      }
+    });
   } else if (t === 'M') {
     if (game.player.bossDefeated) {
       showDialog([

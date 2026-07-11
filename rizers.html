@@ -1768,12 +1768,28 @@ function makeZyrex(speciesId, lv) {
     maxHp: stats.hp,
     stats,
     moves,
+    gems: 0,               // V2.8.1 — equipped extras (baseline +1 is always free in battle)
     atkStage: 0,
     defStage: 0,
     fainted: false,
-    status: null,          // { key: 'overcook', turns: 3, stat?: 'atk' }
-    debuff: null,          // Undershock target stat
+    status: null,
+    debuff: null,
   };
+}
+// V2.8.1 — every Zyrex is guaranteed one baseline gem per battle for A1.
+const ZYREX_GEM_BASELINE = 1;
+function affordableCost(r, cost) {
+  return cost <= ZYREX_GEM_BASELINE + (r.gems || 0) + (game.player.gems || 0);
+}
+function deductMoveCost(r, cost) {
+  // Baseline covers the first ZYREX_GEM_BASELINE gems for free every use.
+  let remaining = Math.max(0, cost - ZYREX_GEM_BASELINE);
+  // Equipped extras drain next.
+  const fromEquipped = Math.min(remaining, r.gems || 0);
+  r.gems = (r.gems || 0) - fromEquipped;
+  remaining -= fromEquipped;
+  // Player pool covers the rest.
+  game.player.gems = Math.max(0, (game.player.gems || 0) - remaining);
 }
 
 function stageMult(stage) {
@@ -3248,7 +3264,9 @@ function refreshBattleUI() {
   $playerName.textContent = p.name;
   $playerLv.textContent   = `Lv ${p.lv}·${tierRoman(p.lv)}`;
   $playerHp.style.width   = (p.hp / p.maxHp * 100) + '%';
-  $playerHpNums.textContent = `${p.hp} / ${p.maxHp}   ◈${game.player.gems}`;
+  // V2.8.1 — HP · pool ◈ · equipped +N on active Zyrex (baseline +1 implied)
+  const equipTxt = (p.gems || 0) > 0 ? `  +${p.gems}` : '';
+  $playerHpNums.textContent = `${p.hp} / ${p.maxHp}   ◈${game.player.gems}${equipTxt}`;
   hpBarClass($playerHp, p.hp / p.maxHp);
   // XP bar
   const speciesTier = (SPECIES[p.species] && SPECIES[p.species].tier) || 1;
@@ -3309,8 +3327,12 @@ function renderMoveMenu() {
   p.moves.forEach((m, i) => {
     const b = document.createElement('button');
     b.className = 'action-btn';
-    b.innerHTML = `${m.name} <span class="cost">◈${m.cost}</span><span class="type">${m.type}${m.power ? ' · ' + m.power : ' · SUPPORT'}</span>`;
-    if (m.cost > game.player.gems) b.disabled = true;
+    // V2.8.1 — show gem breakdown; A1 (cost ≤ 1) is always free from baseline
+    const meta = m.cost <= ZYREX_GEM_BASELINE
+      ? '<span class="cost">◈0 · BASELINE</span>'
+      : `<span class="cost">◈${m.cost} · net ◈${Math.max(0, m.cost - ZYREX_GEM_BASELINE)}</span>`;
+    b.innerHTML = `${m.name} ${meta}<span class="type">${m.type}${m.power ? ' · ' + m.power : ' · SUPPORT'}</span>`;
+    if (!affordableCost(p, m.cost)) b.disabled = true;
     b.onclick = () => { playerUseMove(i); };
     $battleActions.appendChild(b);
   });
@@ -3344,12 +3366,21 @@ function renderZyrexMenu() {
 
 function renderBagMenu() {
   $battleActions.innerHTML = '';
-  const b = document.createElement('button');
-  b.className = 'action-btn';
-  b.innerHTML = `GEMSPHERE <span class="cost">×${game.player.gemspheres}</span>`;
-  if (game.player.gemspheres <= 0 || game.battle.kind !== 'wild') b.disabled = true;
-  b.onclick = () => throwGemsphere();
-  $battleActions.appendChild(b);
+  const p = game.player.party[game.battle.playerIdx];
+  // Gemsphere throw (wild capture)
+  const gs = document.createElement('button');
+  gs.className = 'action-btn';
+  gs.innerHTML = `GEMSPHERE <span class="cost">×${game.player.gemspheres}</span>`;
+  if (game.player.gemspheres <= 0 || game.battle.kind !== 'wild') gs.disabled = true;
+  gs.onclick = () => throwGemsphere();
+  $battleActions.appendChild(gs);
+  // V2.8.1 — Equip gems onto the active Zyrex
+  const eq = document.createElement('button');
+  eq.className = 'action-btn';
+  eq.innerHTML = `EQUIP GEMS <span class="cost">◈${game.player.gems} → active Zyrex (has +${p.gems || 0})</span>`;
+  if ((game.player.gems || 0) <= 0) eq.disabled = true;
+  eq.onclick = () => renderEquipMenu();
+  $battleActions.appendChild(eq);
   const back = document.createElement('button');
   back.className = 'action-btn';
   back.textContent = '← BACK';
@@ -3357,13 +3388,43 @@ function renderBagMenu() {
   $battleActions.appendChild(back);
   focusFirstAction();
 }
+function renderEquipMenu() {
+  $battleActions.innerHTML = '';
+  const p = game.player.party[game.battle.playerIdx];
+  const amounts = [1, 2, 3, 5];
+  amounts.forEach(n => {
+    const b = document.createElement('button');
+    b.className = 'action-btn';
+    b.innerHTML = `+${n} <span class="cost">POOL ◈${game.player.gems} · ${p.name} +${p.gems || 0}</span>`;
+    if ((game.player.gems || 0) < n) b.disabled = true;
+    b.onclick = () => equipGemsToActive(n);
+    $battleActions.appendChild(b);
+  });
+  const back = document.createElement('button');
+  back.className = 'action-btn';
+  back.textContent = '← BACK';
+  back.onclick = renderBagMenu;
+  $battleActions.appendChild(back);
+  focusFirstAction();
+}
+function equipGemsToActive(n) {
+  const p = game.player.party[game.battle.playerIdx];
+  const move = Math.min(n, game.player.gems || 0);
+  game.player.gems -= move;
+  p.gems = (p.gems || 0) + move;
+  updateHUD();
+  refreshBattleUI();
+  showToast(`◈ +${move}  ${p.name}`);
+  renderEquipMenu();
+}
 
 async function playerUseMove(i) {
   const p = game.player.party[game.battle.playerIdx];
   const move = p.moves[i];
-  // Gems come from the shared player pool — not per-Zyrex, not refunded between battles.
-  if (move.cost > game.player.gems) { renderMainMenu(); return; }
-  game.player.gems = Math.max(0, game.player.gems - move.cost);
+  // V2.8.1 — every Zyrex has 1 baseline gem (free for A1). Extras drain
+  // from equipped gems (r.gems) then the shared player pool.
+  if (!affordableCost(p, move.cost)) { renderMainMenu(); return; }
+  deductMoveCost(p, move.cost);
   updateHUD();
   game.battle.animLock = true;
   $battleActions.innerHTML = '';

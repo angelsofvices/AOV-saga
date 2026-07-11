@@ -716,11 +716,29 @@
       letter-spacing: 0.06em;
       transition: all 0.15s;
     }
-    .action-btn:hover, .action-btn:focus {
+    .action-btn:hover, .action-btn:focus, .action-btn:focus-visible {
       background: rgba(232, 200, 120, 0.16);
       border-color: var(--gold);
       color: var(--gold-bright);
       outline: none;
+      box-shadow: 0 0 20px rgba(232, 200, 120, 0.35);
+    }
+    .starter-card:focus, .starter-card:focus-visible {
+      outline: none;
+      border-color: var(--r-accent, var(--gold));
+      transform: translateY(-4px);
+      box-shadow: 0 0 32px rgba(232, 200, 120, 0.28);
+    }
+    .party-slot:focus, .party-slot:focus-visible {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 24px rgba(232, 200, 120, 0.28);
+    }
+    .gender-btn:focus, .gender-btn:focus-visible {
+      outline: none;
+      border-color: var(--gold);
+      color: var(--gold-bright);
+      box-shadow: 0 0 20px rgba(232, 200, 120, 0.28);
     }
     .action-btn:disabled {
       opacity: 0.35;
@@ -1636,17 +1654,137 @@ function renderMap() {
 
 // ---------- Input ----------
 const keys = {};
+
+// Focus-nav helper: walk the buttons inside a container with arrow keys.
+// gridCols lets left/right and up/down snap to grid rows; if omitted, all
+// arrows fall through to linear next/prev.
+function focusNavStep(container, key, gridCols) {
+  if (!container) return false;
+  const btns = Array.from(container.querySelectorAll('button:not(:disabled), .action-btn:not(:disabled), .starter-card, .gender-btn, .party-slot:not(.empty)'));
+  if (!btns.length) return false;
+  let i = btns.indexOf(document.activeElement);
+  if (i < 0) i = 0;
+  const cols = gridCols || btns.length;
+  const rows = Math.ceil(btns.length / cols);
+  let ni = i;
+  if (key === 'ArrowRight')      ni = (i + 1) % btns.length;
+  else if (key === 'ArrowLeft')  ni = (i - 1 + btns.length) % btns.length;
+  else if (key === 'ArrowDown')  ni = Math.min(btns.length - 1, i + cols);
+  else if (key === 'ArrowUp')    ni = Math.max(0, i - cols);
+  else return false;
+  btns[ni].focus();
+  return true;
+}
+// Activate whatever's focused (Enter/Space).
+function activateFocused() {
+  const el = document.activeElement;
+  if (el && typeof el.click === 'function' && !el.disabled) { el.click(); return true; }
+  return false;
+}
+
 document.addEventListener('keydown', (e) => {
-  keys[e.key.toLowerCase()] = true;
-  if (game.mode === 'dialog' && (e.key === 'Enter' || e.key === ' ' || e.key.toLowerCase() === 'z')) {
-    advanceDialog();
-    e.preventDefault();
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+
+  // Interact/confirm keys must NOT repeat while held — otherwise dialog reopens.
+  const isConfirm = (e.key === 'Enter' || e.key === ' ' || k === 'z');
+  if (e.repeat && isConfirm) { e.preventDefault(); return; }
+
+  // ---- Dialog: any of Enter / Space / Z / arrow-right advances ----
+  if (game.mode === 'dialog') {
+    if (isConfirm || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      advanceDialog();
+      e.preventDefault();
+    }
+    return;
   }
+
+  // ---- Battle: arrows walk actions, Enter/Space activates, Esc backs out ----
+  if (game.mode === 'battle') {
+    // The action menu is a 2-column grid; sub-menus (FIGHT/RIZER/BAG) can be
+    // 2 columns too. Move-list keeps 2 cols in CSS.
+    const container = document.getElementById('battle-actions');
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+      if (focusNavStep(container, e.key, 2)) e.preventDefault();
+      return;
+    }
+    if (isConfirm) {
+      if (!document.activeElement || !container.contains(document.activeElement)) {
+        // No selection yet — focus the first button so Enter still activates.
+        const first = container.querySelector('button:not(:disabled), .action-btn:not(:disabled)');
+        if (first) first.focus();
+      }
+      if (activateFocused()) e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' || e.key === 'Backspace') {
+      // If a submenu has a BACK button, click it.
+      const back = Array.from(container.querySelectorAll('.action-btn')).find(b => b.textContent.includes('BACK'));
+      if (back) { back.click(); e.preventDefault(); }
+      return;
+    }
+    return;
+  }
+
+  // ---- Party screen: arrows walk slots, Enter opens inspect, Esc closes ----
+  if (game.mode === 'party') {
+    const container = document.getElementById('party-grid');
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+      if (focusNavStep(container, e.key, 2)) e.preventDefault();
+      return;
+    }
+    if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
+    if (e.key === 'Escape' || k === 'x') { closeParty(); return; }
+    return;
+  }
+
+  // ---- Starter picker: arrows walk cards, Enter picks ----
+  if (game.mode === 'starter') {
+    const container = document.getElementById('starter-grid');
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+      if (focusNavStep(container, e.key, 3)) e.preventDefault();
+      return;
+    }
+    if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
+    return;
+  }
+
+  // ---- Character creator: arrows walk gender, Enter submits ----
+  if (game.mode === 'creator') {
+    // Only intercept arrows when a gender button is focused (input owns arrows for cursor).
+    if (document.activeElement && document.activeElement.classList &&
+        document.activeElement.classList.contains('gender-btn') &&
+        ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
+      if (focusNavStep(document.getElementById('gender-grid'), e.key, 3)) e.preventDefault();
+      return;
+    }
+    return;
+  }
+
+  // ---- Prologue: right/space/enter → next; left → previous; Esc → skip ----
+  if (game.mode === 'prologue') {
+    if (isConfirm || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      $prologueNext.click(); e.preventDefault();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      if (prologueIdx > 0) { prologueIdx--; showProloguePage(prologueIdx); }
+      e.preventDefault();
+    } else if (e.key === 'Escape') {
+      $prologueSkip.click(); e.preventDefault();
+    }
+    return;
+  }
+
+  // ---- Overworld: WASD/arrows walk (via keys[]), Z/Space interact, X party ----
   if (game.mode === 'overworld') {
-    if (e.key.toLowerCase() === 'x' || e.key === 'Escape') { openParty(); e.preventDefault(); }
-    if (e.key === ' ' || e.key.toLowerCase() === 'z') { tryInteract(); e.preventDefault(); }
-  } else if (game.mode === 'party' && (e.key === 'Escape' || e.key.toLowerCase() === 'x')) {
-    closeParty();
+    if (k === 'x') { openParty(); e.preventDefault(); return; }
+    if (e.key === 'Escape') {
+      // Open hamburger menu on Esc from the overworld (site nav).
+      const t = document.querySelector('.menu-toggle');
+      if (t) t.click();
+      e.preventDefault();
+      return;
+    }
+    if (isConfirm) { tryInteract(); e.preventDefault(); return; }
   }
 });
 document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
@@ -1942,6 +2080,7 @@ function renderMainMenu() {
   addAction('ZYREX', renderZyrexMenu);
   addAction('BAG',   renderBagMenu);
   addAction('RUN',   () => tryRun(), !canRun);
+  focusFirstAction();
 }
 function addAction(label, cb, disabled) {
   const b = document.createElement('button');
@@ -1950,6 +2089,12 @@ function addAction(label, cb, disabled) {
   if (disabled) b.disabled = true;
   else b.onclick = cb;
   $battleActions.appendChild(b);
+}
+function focusFirstAction() {
+  setTimeout(() => {
+    const first = $battleActions.querySelector('button:not(:disabled), .action-btn:not(:disabled)');
+    if (first) first.focus();
+  }, 20);
 }
 
 function renderMoveMenu() {
@@ -1969,6 +2114,7 @@ function renderMoveMenu() {
   back.textContent = '← BACK';
   back.onclick = renderMainMenu;
   $battleActions.appendChild(back);
+  focusFirstAction();
 }
 
 function renderZyrexMenu() {
@@ -1987,6 +2133,7 @@ function renderZyrexMenu() {
   back.textContent = '← BACK';
   back.onclick = renderMainMenu;
   $battleActions.appendChild(back);
+  focusFirstAction();
 }
 
 function renderBagMenu() {
@@ -2002,6 +2149,7 @@ function renderBagMenu() {
   back.textContent = '← BACK';
   back.onclick = renderMainMenu;
   $battleActions.appendChild(back);
+  focusFirstAction();
 }
 
 async function playerUseMove(i) {
@@ -2459,10 +2607,13 @@ const STARTER_FLAVOR = {
 function renderStarterScreen() {
   const $grid = document.getElementById('starter-grid');
   $grid.innerHTML = '';
+  // Focus first card after paint so arrow keys work immediately.
+  setTimeout(() => { const first = $grid.querySelector('.starter-card'); if (first) first.focus(); }, 40);
   for (const id of STARTERS) {
     const s = SPECIES[id];
     const card = document.createElement('div');
     card.className = 'starter-card';
+    card.tabIndex = 0;
     card.style.setProperty('--r-accent', TYPE_COLORS[s.type]);
     card.innerHTML = `
       <canvas class="starter-sprite" width="72" height="72"></canvas>
@@ -2530,6 +2681,7 @@ function closeParty() {
 document.getElementById('party-close').onclick = closeParty;
 function renderPartyScreen() {
   $partyGrid.innerHTML = '';
+  setTimeout(() => { const first = $partyGrid.querySelector('.party-slot:not(.empty)'); if (first) first.focus(); }, 40);
   for (let i = 0; i < 6; i++) {
     const r = game.player.party[i];
     const slot = document.createElement('div');
@@ -2557,7 +2709,9 @@ function renderPartyScreen() {
       drawBattleMon(tmp, r, true);
       c.drawImage(tmp, 0, 0, 96, 96, 0, 0, 48, 48);
       slot.style.cursor = 'pointer';
+      slot.tabIndex = 0;
       slot.onclick = () => openInspect(r);
+      slot.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInspect(r); } };
     }
     $partyGrid.appendChild(slot);
   }

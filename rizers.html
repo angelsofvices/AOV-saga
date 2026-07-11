@@ -1752,6 +1752,18 @@ const SPECIES = {
     moves: basicMoves('Nature', ['Quill Jab', 'Rockquill', 'Quill Volley', 'Curl Guard']),
   },
 
+  // ============ ★ THE CREATOR's signature Zyrex (V2.14 easter egg) ============
+  // ELZORAN — first Zyrex canonically designed for the AOV Saga. Placeholder
+  // type/sprite/moves; canon type block should be confirmed from The Creator's
+  // reference. Only obtainable in early game via the two-Mothergem easter egg
+  // (received as ELZEBUB, Tier I Elzoran).
+  elzoran: {
+    name: 'ELZORAN', type: 'Unknown-Void', type2: 'Spirit', region: 'Unknown',
+    base: BASIC_BASE, tier: 1, catchRate: 3, shape: 'winged',
+    sprite: ['#c896ff', '#5a2a8a', '#ffd68a'],   // amethyst + gold — Mothergem-touched
+    moves: basicMoves('Unknown-Void', ['Creator Sigil', 'Voidhum', 'First-Light Cry', 'Origin Guard']),
+  },
+
   // ============ Gemlord I cave — RAKORON's hunt (Beast-themed) ============
   // Two Beast-primary Basics from his hunt, then RAKORON himself in ruby fury.
   sunhoop: {     // Beast/Aura · Western · crown-crested Hoopoe · Gen I Primary
@@ -1875,6 +1887,8 @@ const game = {
     npcDefeated: false,       // legacy — Myara flag
     npcsDefeated: {},         // V2.7.2 — { 'x,y': true } for first-battle wins
     npcsRematched: {},        // V2.11 — { 'x,y': true } for stakes-battle done
+    mothergemsTouched: {},    // V2.14 — { north:true, south:true } → Elzebub gift
+    elzebubGranted: false,    // V2.14 — the CREATOR's easter-egg reward
     stepsSinceEnc: 0,
     chestsOpened: {},         // { 'x,y': true }
     respects: [],             // Gemlord ids whose respect you've earned (max 10 = victory)
@@ -1922,7 +1936,7 @@ const MALEZOR_MAP = [
   '#,,,,,,,,,,,hh,,GGGGG,,,,,,,,#', // 12 · hh = Silver Lodge roof (top row of 2x2)
   '#T,,,,,,,,,,qh,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge door
   '#,,,,,,,K,,,,,Q,,,,,,K,,,,,,,#', // 14 · Q=Quinn (desert wanderer)
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 15
+  '#,,,,,,,,,,,,,,,,,,,,,MM,,,,,#', // 15 · MM = SOUTH Mothergem shrine (V2.14 easter egg)
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 16
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 17
   '#T,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 18
@@ -3092,24 +3106,78 @@ function tryInteract() {
     // Pressing Z from an adjacent tile also enters the home directly.
     enterMap('home_interior', 6, 7, 'up');
   } else if (t === 'M') {
-    if (game.player.bossDefeated) {
-      showDialog([
-        "You touch the Mothergem shrine — colder now, or maybe older.",
-        "The stone hums against your palm — same frequency as the echo.",
-        "«...one of the nine begins to stir...»",
-        "«...west...»",
-      ]);
-    } else {
-      showDialog([
-        "You touch the Mothergem shrine — cold as first-light.",
-        "The stone remembers. But not clearly. Not fully.",
-        `«...three names carried into three shadows...»`,
-        `«...the choir sings from a ridge you have not walked...»`,
-        `«...the sand keeps a secret the wind does not...»`,
-        "The hum fades. That is all it will give you today.",
-      ]);
-    }
+    handleMothergemTouch(mx, my);
   }
+}
+
+// V2.14 — Mothergem shrines + Elzebub easter egg (THE CREATOR's gift)
+// Two shrines on Malezor: NORTH (cols 15-16 row 2) and SOUTH (cols 22-23 row 15).
+// Touch a tile in each shrine and THE CREATOR grants you ELZEBUB, a Tier I Elzoran.
+const MOTHERGEM_SHRINES = {
+  north: [[15, 2], [16, 2]],   // near the ridge and Bronze Cottage
+  south: [[22, 15], [23, 15]], // by the dune line, thematically twinned to Quinn's clue
+};
+function shrineIdAt(mx, my) {
+  for (const id in MOTHERGEM_SHRINES) {
+    if (MOTHERGEM_SHRINES[id].some(([x, y]) => x === mx && y === my)) return id;
+  }
+  return null;
+}
+function handleMothergemTouch(mx, my) {
+  if (!game.player.mothergemsTouched) game.player.mothergemsTouched = {};
+  const id = shrineIdAt(mx, my);
+  if (id) game.player.mothergemsTouched[id] = true;
+  const both = game.player.mothergemsTouched.north && game.player.mothergemsTouched.south;
+  // The Creator's gift fires ONCE when both shrines have been touched.
+  if (both && !game.player.elzebubGranted) {
+    game.player.elzebubGranted = true;
+    save();
+    grantElzebub();
+    return;
+  }
+  // Normal shrine flavor.
+  if (game.player.bossDefeated) {
+    showDialog([
+      "You touch the Mothergem shrine — colder now, or maybe older.",
+      "The stone hums against your palm — same frequency as the echo.",
+      "«...one of the nine begins to stir...»",
+      "«...west...»",
+    ]);
+  } else {
+    const otherId = id === 'north' ? 'south' : 'north';
+    const otherKnown = game.player.mothergemsTouched[otherId];
+    const lines = [
+      "You touch the Mothergem shrine — cold as first-light.",
+      "The stone remembers. But not clearly. Not fully.",
+      `«...three names carried into three shadows...»`,
+      `«...the choir sings from a ridge you have not walked...»`,
+      `«...the sand keeps a secret the wind does not...»`,
+    ];
+    if (!otherKnown) {
+      lines.push('«...its twin still waits — walk further, and touch it too...»');
+    }
+    lines.push("The hum fades. That is all it will give you today.");
+    showDialog(lines);
+  }
+  save();
+}
+function grantElzebub() {
+  const zy = makeZyrex('elzoran', 5);
+  zy.name = 'ELZEBUB';   // this specific Elzoran is nicknamed by The Creator
+  const partySlots = game.player.party.filter(Boolean).length;
+  if (partySlots < MAX_PARTY) game.player.party.push(zy);
+  else                        game.player.box.push(zy);
+  save();
+  showToast('◈  ELZEBUB  JOINED YOU', 2600);
+  showDialog([
+    "The two shrines flare together — one hum, one voice.",
+    "«...well done. so few even find them both.»",
+    "«...I am THE CREATOR. this saga is mine, and now — a piece of it is yours.»",
+    "«...take ELZEBUB. the first of the Elzoran. my own hand shaped him.»",
+    "«...he will not appear anywhere else in the early age of Zyraxis.»",
+    "«...guard him. rise with him. and remember who gave him to you.»",
+    `ELZEBUB (Lv 5 · Tier I ELZORAN) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
+  ]);
 }
 
 // ---------- Chests (V2.7 · multi-kind loot: gems, coins, potion) ----------

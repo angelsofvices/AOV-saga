@@ -1070,6 +1070,50 @@
     .mainmenu-btn.ghost { grid-column: span 2; background: transparent; }
     .mainmenu-btn.ghost:hover { color: var(--mist); border-color: var(--mist); }
 
+    /* V2.12 — Music controls in the pause menu */
+    .mm-music {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-soft);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .mm-music-line, .mm-music-vbtn {
+      background: rgba(232, 200, 120, 0.05);
+      border: 1px solid var(--border-soft);
+      color: var(--ivory);
+      font-family: var(--font-display);
+      letter-spacing: 0.18em;
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .mm-music-line:hover, .mm-music-line:focus,
+    .mm-music-vbtn:hover, .mm-music-vbtn:focus {
+      background: rgba(232, 200, 120, 0.12);
+      border-color: var(--gold);
+      color: var(--gold-bright);
+      outline: none;
+    }
+    .mm-music-vol-row {
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      gap: 8px;
+      align-items: center;
+    }
+    .mm-music-vol {
+      text-align: center;
+      color: var(--mist);
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      letter-spacing: 0.16em;
+      padding: 8px 6px;
+      border: 1px solid var(--border-soft);
+      background: rgba(232, 200, 120, 0.03);
+      border-radius: 3px;
+    }
+    .mm-music-vbtn { padding: 8px 0; font-size: 1rem; }
+
     .shop-row, .item-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 10px 14px;
@@ -1379,6 +1423,15 @@
           <button class="mainmenu-btn" data-open="items">  <span class="mm-icon">✚</span>ITEMS</button>
           <button class="mainmenu-btn" data-open="zyrex">  <span class="mm-icon">◉</span>ZYREX</button>
           <button class="mainmenu-btn ghost" id="mainmenu-close2">CLOSE</button>
+        </div>
+        <!-- V2.12 — Music controls -->
+        <div class="mm-music" id="mm-music">
+          <button class="mm-music-line" id="mm-music-toggle" type="button">MUSIC · ON</button>
+          <div class="mm-music-vol-row">
+            <button class="mm-music-vbtn" id="mm-music-down" type="button" aria-label="Volume down">−</button>
+            <div class="mm-music-vol" id="mm-music-vol">VOLUME · 40%</div>
+            <button class="mm-music-vbtn" id="mm-music-up"   type="button" aria-label="Volume up">＋</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1948,6 +2001,7 @@ function enterMap(mapId, spawnX, spawnY, dir) {
   const el = document.getElementById('hud-location');
   if (el) el.textContent = m.label;
   save();
+  refreshMusicContext();   // V2.12 — home_interior -> home, else overworld
 }
 
 // V2.7.2 — extra NPC trainers scattered across Malezor.
@@ -2546,6 +2600,11 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
     if (which === 'zyrex') openParty();
   };
 });
+// V2.12 — Music controls
+document.getElementById('mm-music-toggle').onclick = () => setMusicMuted(!audioSys.muted);
+document.getElementById('mm-music-down').onclick   = () => setMusicVolume(audioSys.volume - 0.1);
+document.getElementById('mm-music-up').onclick     = () => setMusicVolume(audioSys.volume + 0.1);
+updateMusicMenu();   // set initial labels from persisted settings
 
 // ---------- Map view ----------
 function openMapView() {
@@ -2728,6 +2787,8 @@ function activateFocused() {
 document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   keys[k] = true;
+  // V2.12 — user gesture unlocks HTML5 audio autoplay; safe to call every time
+  primeMusicOnGesture();
 
   // V2.10 — universal semantics:
   //   Z / Enter / Space / A = confirm / interact
@@ -2873,6 +2934,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+// V2.12 — pointer gestures also unlock audio (title-screen buttons, taps, etc.)
+document.addEventListener('pointerdown', primeMusicOnGesture, { capture: true });
 
 // touch — tap edges to move, center to interact
 canvas.addEventListener('click', (e) => {
@@ -3559,12 +3622,13 @@ function enterBattle(enemy, kind, extras) {
   game.battle = {
     enemy,
     playerIdx: idx,
-    kind,                    // wild | trainer | boss
-    trainerName: extras && extras.trainerName || null,
-    chain: extras && extras.chain || [],
+    kind,                    // wild | trainer | boss | npc-trainer | gemlord
+    trainerName: null,
+    chain: [],
     turn: 'player',
     over: false,
     animLock: false,
+    ...(extras || {}),       // V2.11.2 — merge stakes / stealPool / npcCoord / tileChar / trainerName / chain
   };
   $battle.classList.add('active');
   drawBattleMon(enemyCanvas, enemy, true);
@@ -3575,6 +3639,7 @@ function enterBattle(enemy, kind, extras) {
     : `${game.battle.trainerName} sent out ${enemy.name}!`;
   logBattle(opener);
   renderMainMenu();
+  refreshMusicContext();   // V2.12 — swap to battle track
 }
 
 function refreshBattleUI() {
@@ -4148,6 +4213,7 @@ function exitBattle() {
   $battle.classList.remove('active');
   game.mode = 'overworld';
   game.battle = null;
+  refreshMusicContext();   // V2.12 — back to overworld/home track based on mapId
 }
 
 function healParty() {
@@ -4707,6 +4773,127 @@ document.getElementById('starter-back').onclick = () => {
 
 // Hide continue if no save
 if (!hasSave()) document.getElementById('btn-continue').style.opacity = '0.35';
+
+// ============================================================================
+//  MUSIC (V2.12) — 3 context tracks + crossfade + persisted volume/mute
+// ============================================================================
+// Drop your MP3s here in the repo:
+//   /audio/overworld.mp3   ← Malezor / all outdoor maps
+//   /audio/battle.mp3      ← every battle (wild / trainer / gemlord)
+//   /audio/home.mp3        ← inside the family home
+// If a file is missing the game keeps playing silently — no crash.
+
+const MUSIC_TRACKS = {
+  overworld: 'audio/overworld.mp3',
+  battle:    'audio/battle.mp3',
+  home:      'audio/home.mp3',
+};
+const MUSIC_KEY = 'aov-rizers-audio';
+
+const audioSys = {
+  els: {},          // name -> HTMLAudioElement
+  current: null,    // 'overworld' | 'battle' | 'home' | null
+  volume: 0.4,      // 0..1 target volume when unmuted
+  muted:  false,
+  primed: false,    // did the user interact yet?
+  fadeTimer: null,
+};
+
+function initMusic() {
+  // Restore persisted settings.
+  try {
+    const raw = localStorage.getItem(MUSIC_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (typeof s.volume === 'number') audioSys.volume = Math.max(0, Math.min(1, s.volume));
+      if (typeof s.muted  === 'boolean') audioSys.muted  = s.muted;
+    }
+  } catch(_) {}
+  // Preload all three tracks quietly (autoplay policies still block real playback until gesture).
+  for (const name in MUSIC_TRACKS) {
+    const el = new Audio(MUSIC_TRACKS[name]);
+    el.loop = true;
+    el.preload = 'auto';
+    el.volume = 0;
+    // Silently swallow load errors so a missing MP3 doesn't spam the console.
+    el.addEventListener('error', () => {});
+    audioSys.els[name] = el;
+  }
+}
+function saveMusicPrefs() {
+  try { localStorage.setItem(MUSIC_KEY, JSON.stringify({ volume: audioSys.volume, muted: audioSys.muted })); } catch(_) {}
+}
+function targetMusicVolume() { return audioSys.muted ? 0 : audioSys.volume; }
+function musicContextForState() {
+  if (game && game.mode === 'battle') return 'battle';
+  if (game && game.player && game.player.mapId === 'home_interior') return 'home';
+  return 'overworld';
+}
+function primeMusicOnGesture() {
+  if (audioSys.primed) return;
+  audioSys.primed = true;
+  playTrack(musicContextForState());
+}
+function playTrack(name) {
+  const nextEl = audioSys.els[name];
+  if (!nextEl) return;
+  const tgt = targetMusicVolume();
+  if (audioSys.current === name) {
+    // Same track — just make sure it is playing at the right volume.
+    nextEl.volume = tgt;
+    if (!audioSys.muted) nextEl.play().catch(()=>{});
+    return;
+  }
+  const prevEl = audioSys.current ? audioSys.els[audioSys.current] : null;
+  audioSys.current = name;
+  if (audioSys.fadeTimer) { clearInterval(audioSys.fadeTimer); audioSys.fadeTimer = null; }
+  nextEl.currentTime = 0;
+  nextEl.volume = 0;
+  if (!audioSys.muted) nextEl.play().catch(()=>{});
+  const startPrev = prevEl ? prevEl.volume : 0;
+  const steps = 12, ms = 22;   // ~260ms crossfade
+  let i = 0;
+  audioSys.fadeTimer = setInterval(() => {
+    i++;
+    const t = i / steps;
+    if (prevEl) prevEl.volume = Math.max(0, startPrev * (1 - t));
+    nextEl.volume = tgt * t;
+    if (i >= steps) {
+      clearInterval(audioSys.fadeTimer);
+      audioSys.fadeTimer = null;
+      if (prevEl) { prevEl.pause(); prevEl.currentTime = 0; }
+    }
+  }, ms);
+}
+function refreshMusicContext() {
+  if (!audioSys.primed) return;
+  playTrack(musicContextForState());
+}
+function setMusicMuted(m) {
+  audioSys.muted = !!m;
+  if (audioSys.muted) {
+    for (const name in audioSys.els) audioSys.els[name].volume = 0;
+  } else if (audioSys.current) {
+    audioSys.els[audioSys.current].volume = audioSys.volume;
+    audioSys.els[audioSys.current].play().catch(()=>{});
+  }
+  saveMusicPrefs();
+  updateMusicMenu();
+}
+function setMusicVolume(v) {
+  audioSys.volume = Math.max(0, Math.min(1, v));
+  if (!audioSys.muted && audioSys.current) audioSys.els[audioSys.current].volume = audioSys.volume;
+  saveMusicPrefs();
+  updateMusicMenu();
+}
+function updateMusicMenu() {
+  const t = document.getElementById('mm-music-toggle');
+  const v = document.getElementById('mm-music-vol');
+  if (t) t.textContent = 'MUSIC · ' + (audioSys.muted ? 'OFF' : 'ON');
+  if (v) v.textContent = 'VOLUME · ' + Math.round(audioSys.volume * 100) + '%';
+}
+
+initMusic();
 
 // ============================================================================
 //  MAIN LOOP

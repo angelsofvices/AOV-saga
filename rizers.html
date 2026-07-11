@@ -2139,6 +2139,151 @@ function drawTileAt(sx, sy, mx, my) {
   drawTile(sx, sy, tileAt(mx, my), mx, my);
 }
 
+// ---------- Main Menu (V2.7 — X opens this; from here you can open Map/Items/Zyrex) ----------
+const $mainmenu = document.getElementById('mainmenu-overlay');
+const $mapview  = document.getElementById('mapview-overlay');
+const $itemsov  = document.getElementById('items-overlay');
+const $shopov   = document.getElementById('shop-overlay');
+function openMainMenu() {
+  if (game.mode === 'overworld') {
+    game.mode = 'mainmenu';
+    $mainmenu.classList.add('active');
+    setTimeout(() => { const b = $mainmenu.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
+  }
+}
+function closeMainMenu() {
+  $mainmenu.classList.remove('active');
+  if (game.mode === 'mainmenu') game.mode = 'overworld';
+}
+document.getElementById('mainmenu-close').onclick  = closeMainMenu;
+document.getElementById('mainmenu-close2').onclick = closeMainMenu;
+$mainmenu.querySelectorAll('[data-open]').forEach(b => {
+  b.onclick = () => {
+    const which = b.getAttribute('data-open');
+    closeMainMenu();
+    if (which === 'map')   openMapView();
+    if (which === 'items') openItemsView();
+    if (which === 'zyrex') openParty();
+  };
+});
+
+// ---------- Map view ----------
+function openMapView() {
+  $mapview.classList.add('active');
+  const cvs = document.getElementById('mapview-canvas');
+  const c = cvs.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  const cw = cvs.width, ch = cvs.height;
+  const tw = cw / MAP_COLS, th = ch / MAP_ROWS;
+  c.fillStyle = '#0a0620'; c.fillRect(0, 0, cw, ch);
+  for (let y = 0; y < MAP_ROWS; y++) {
+    for (let x = 0; x < MAP_COLS; x++) {
+      const t = MAP[y][x];
+      let col = '#3a2450';       // path default
+      if (t === '#') col = '#1a0d2e';
+      else if (t === 'T') col = '#5a3a80';
+      else if (t === 'W') col = '#1a3860';
+      else if (t === 'G') col = '#2a5240';
+      else if (t === 'H') col = '#7a5cc8';
+      else if (t === 'C') col = '#050310';
+      else if (t === 'M') col = '#b87cff';
+      else if (t === 'S') col = '#e8c878';
+      else if (t === 'K') col = chestOpened(x, y) ? '#4a3468' : '#b8923f';
+      else if (t === 'N') col = game.player.npcDefeated ? '#4a3468' : '#5fa8ff';
+      c.fillStyle = col;
+      c.fillRect(Math.floor(x * tw), Math.floor(y * th), Math.ceil(tw), Math.ceil(th));
+    }
+  }
+  // player marker
+  c.fillStyle = '#f5dc9c';
+  const pxp = Math.floor(game.player.x * tw), pyp = Math.floor(game.player.y * th);
+  c.fillRect(pxp - 1, pyp - 1, Math.ceil(tw) + 2, Math.ceil(th) + 2);
+}
+document.getElementById('mapview-close').onclick = () => $mapview.classList.remove('active');
+$mapview.addEventListener('click', (e) => { if (e.target === $mapview) $mapview.classList.remove('active'); });
+
+// ---------- Items inventory ----------
+function openItemsView() {
+  $itemsov.classList.add('active');
+  const body = document.getElementById('items-body');
+  const it = game.player.items || {};
+  body.innerHTML = '';
+  const rows = [
+    { key: 'potion',    name: 'Potion',    desc: 'Heals 40 HP on the top Zyrex.', count: (it.potion || 0) },
+    { key: 'gemsphere', name: 'Gemsphere', desc: 'Bind a wild Zyrex mid-battle.', count: (game.player.gemspheres || 0) },
+  ];
+  for (const r of rows) {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `
+      <div class="info">
+        <div class="name">${r.name} <span style="color:var(--gold);font-family:var(--font-pixel);font-size:15px;">×${r.count}</span></div>
+        <div class="desc">${r.desc}</div>
+      </div>
+      <button ${r.count <= 0 || r.key !== 'potion' ? 'disabled' : ''}>USE</button>
+    `;
+    row.querySelector('button').onclick = () => useItem(r.key);
+    body.appendChild(row);
+  }
+}
+function useItem(key) {
+  if (key !== 'potion') return;
+  if (!game.player.items || (game.player.items.potion || 0) <= 0) return;
+  const target = game.player.party.find(r => r && r.hp < r.maxHp);
+  if (!target) { showToast('ALL ZYREX AT FULL HP'); return; }
+  const before = target.hp;
+  target.hp = Math.min(target.maxHp, target.hp + 40);
+  game.player.items.potion--;
+  save();
+  showToast(`✚ ${target.name}  +${target.hp - before} HP`);
+  openItemsView();
+}
+document.getElementById('items-close').onclick = () => $itemsov.classList.remove('active');
+$itemsov.addEventListener('click', (e) => { if (e.target === $itemsov) $itemsov.classList.remove('active'); });
+
+// ---------- Merchant shop ----------
+const SHOP_STOCK = [
+  { key: 'potion',    name: 'Potion',    desc: 'Heals 40 HP outside battle.',        price: 5  },
+  { key: 'gemsphere', name: 'Gemsphere', desc: 'Bind a wild Zyrex mid-battle.',      price: 10 },
+];
+function openShop() {
+  game.mode = 'shop';
+  $shopov.classList.add('active');
+  renderShop();
+}
+function renderShop() {
+  const body = document.getElementById('shop-body');
+  body.innerHTML = '';
+  document.getElementById('shop-coins').textContent = `¢ ${game.player.coins || 0}`;
+  for (const it of SHOP_STOCK) {
+    const row = document.createElement('div');
+    row.className = 'shop-row';
+    row.innerHTML = `
+      <div class="info">
+        <div class="name">${it.name}</div>
+        <div class="desc">${it.desc} · <span style="color:var(--gold);">¢ ${it.price}</span></div>
+      </div>
+      <button ${(game.player.coins || 0) < it.price ? 'disabled' : ''}>BUY</button>
+    `;
+    row.querySelector('button').onclick = () => buyItem(it);
+    body.appendChild(row);
+  }
+}
+function buyItem(it) {
+  if ((game.player.coins || 0) < it.price) return;
+  game.player.coins -= it.price;
+  if (it.key === 'gemsphere') game.player.gemspheres = (game.player.gemspheres || 0) + 1;
+  else {
+    if (!game.player.items) game.player.items = {};
+    game.player.items[it.key] = (game.player.items[it.key] || 0) + 1;
+  }
+  save(); updateHUD();
+  showToast(`+ ${it.name.toUpperCase()}  ¢-${it.price}`);
+  renderShop();
+}
+document.getElementById('shop-close').onclick = () => { $shopov.classList.remove('active'); game.mode = 'overworld'; };
+$shopov.addEventListener('click', (e) => { if (e.target === $shopov) { $shopov.classList.remove('active'); game.mode = 'overworld'; } });
+
 // ---------- Controls modal (Design v1) ----------
 const $controlsModal = document.getElementById('controls-modal');
 function openControlsModal() { $controlsModal.classList.add('active'); }
@@ -2296,9 +2441,9 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- Overworld: WASD/arrows walk (via keys[]), Z/Space interact, X party ----
+  // ---- Overworld: WASD/arrows walk (via keys[]), Z/Space interact, X = main menu ----
   if (game.mode === 'overworld') {
-    if (k === 'x') { openParty(); e.preventDefault(); return; }
+    if (k === 'x') { openMainMenu(); e.preventDefault(); return; }
     if (e.key === 'Escape') {
       // Open hamburger menu on Esc from the overworld (site nav).
       const t = document.querySelector('.menu-toggle');
@@ -2307,6 +2452,37 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     if (isConfirm) { tryInteract(); e.preventDefault(); return; }
+  }
+
+  // ---- Main menu (V2.7): arrows walk buttons, Enter picks, Esc/X close ----
+  if (game.mode === 'mainmenu') {
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+      if (focusNavStep(document.getElementById('mainmenu-grid'), e.key, 2)) e.preventDefault();
+      return;
+    }
+    if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
+    if (e.key === 'Escape' || k === 'x') { closeMainMenu(); e.preventDefault(); return; }
+    return;
+  }
+
+  // ---- Shop (from merchant interact): Esc closes, Enter buys focused ----
+  if (game.mode === 'shop') {
+    if (['ArrowUp','ArrowDown'].includes(e.key)) {
+      if (focusNavStep(document.getElementById('shop-body'), e.key, 1)) e.preventDefault();
+      return;
+    }
+    if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
+    if (e.key === 'Escape') { document.getElementById('shop-close').click(); e.preventDefault(); return; }
+    return;
+  }
+
+  // Any of the standalone overlays open? Esc closes them.
+  if ($mapview.classList.contains('active') || $itemsov.classList.contains('active')) {
+    if (e.key === 'Escape') {
+      $mapview.classList.remove('active');
+      $itemsov.classList.remove('active');
+      e.preventDefault();
+    }
   }
 });
 document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });

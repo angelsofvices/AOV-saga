@@ -3410,15 +3410,13 @@ function handleHomunculusPickup() {
     "You wrap it carefully. Mom might know what to do — she's a nurse.",
   ]);
 }
+// V2.19 — split into two dialogs:
+//   Phase 1  (grantElzebubFromMom)      — Mom recognizes it, does the rite, wakes it.
+//   Phase 2  (grantElzebubPrompt)       — fires AFTER phase 1 closes: the actual
+//                                          Elzebub is handed to the player and the
+//                                          party/box gain happens.
 function grantElzebubFromMom() {
   const nm = game.player.name || 'you';
-  game.player.elzebubGranted = true;
-  const zy = makeZyrex('elzebub', 5);
-  const partySlots = game.player.party.filter(Boolean).length;
-  if (partySlots < MAX_PARTY) game.player.party.push(zy);
-  else                        game.player.box.push(zy);
-  save();
-  showToast('◈  ELZEBUB  JOINED YOU', 2600);
   showDialog([
     `MOM: Let me see it, ${nm}.`,
     `MOM: Ah — oh. Oh, this is old work. Very old.`,
@@ -3427,12 +3425,29 @@ function grantElzebubFromMom() {
     "MOM: This one was hidden. It waited. Long enough that its keeper stopped coming back.",
     "MOM: I can wake it — nurse's work, mostly. Hold still.",
     "«a warm hum, a small flare of blue and orange light...»",
-    "MOM: There. Meet ELZEBUB.",
+    "MOM: There. It's alive.",
+  ], () => grantElzebubPrompt());
+}
+function grantElzebubPrompt() {
+  const nm = game.player.name || 'you';
+  showDialog([
+    `MOM: Meet ELZEBUB.`,
     `MOM: He's yours, ${nm}. Whoever left him would have wanted a Rizer to raise him now.`,
     "MOM: Care for him. He'll grow. And when he does, he'll grow *large*.",
-    `ELZEBUB (Lv 5) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
-  ]);
-  markCaught('elzebub');
+    "«ACCEPT ELZEBUB?»",
+  ], () => {
+    game.player.elzebubGranted = true;
+    const zy = makeZyrex('elzebub', 5);
+    const partySlots = game.player.party.filter(Boolean).length;
+    if (partySlots < MAX_PARTY) game.player.party.push(zy);
+    else                        game.player.box.push(zy);
+    markCaught('elzebub');
+    save();
+    showToast('◈  ELZEBUB  JOINED YOU', 2600);
+    showDialog([
+      `ELZEBUB (Lv 5) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
+    ]);
+  });
 }
 
 // ============================================================================
@@ -4013,11 +4028,13 @@ function handleNpcTrainer(tileChar, x, y) {
     return;
   }
   if (beaten) {
-    // Rematch — stakes battle.
+    // V2.19 — Rematch: one shot per NPC. Player-only stakes: beat them,
+    // walk away with one of their Zyrex. Losing costs nothing but the wind.
     showDialog([
       `${npc.name}: Back for more?`,
-      `${npc.name}: This time it's for keeps. Winner takes one Zyrex from the loser.`,
-      `«REMATCH ${npc.name} · FOR A ZYREX?»`,
+      `${npc.name}: One rematch. That's all. Beat me and I'll hand one of mine over.`,
+      `${npc.name}: If you lose — nothing changes. Except your pride.`,
+      `«REMATCH ${npc.name} · FOR ONE OF THEIRS?»`,
     ], () => startNpcTrainerBattle(tileChar, x, y, { stakes: true }));
     return;
   }
@@ -4057,18 +4074,8 @@ function stealZyrexFromNpc() {
     `${taken.name} (Lv ${lv}) joins your party${game.player.party.filter(Boolean).length >= MAX_PARTY ? ' box.' : '.'}`,
   ]), 900);
 }
-function npcStealsZyrexFromPlayer(trainerName) {
-  const alive = game.player.party.map((r, i) => ({ r, i })).filter(o => o.r);
-  if (!alive.length) return;
-  const pick = alive[Math.floor(Math.random() * alive.length)];
-  const takenName = pick.r.name;
-  game.player.party.splice(pick.i, 1);
-  showToast(`⚑  ${trainerName} TOOK ${takenName}`, 2600);
-  setTimeout(() => showDialog([
-    `${trainerName}: I warned you it was for keeps.`,
-    `${trainerName} takes ${takenName} from your party.`,
-  ]), 900);
-}
+// V2.19 — npcStealsZyrexFromPlayer removed. Losing a stakes rematch no
+// longer costs the player a Zyrex; they just black out and respawn at home.
 
 // V2.10.2 — DEAD CODE (intentional). Gemlord fights are deferred to
 // mid-late game per V2.9 canon. The 'C' cave tile is sealed and never
@@ -4726,17 +4733,16 @@ function evolveZyrex(r, nextSpeciesId) {
 }
 
 function fullPartyKO() {
-  // V2.11 — capture stakes context before we tear down game.battle
-  const wasStakes  = game.battle && game.battle.stakes && game.battle.kind === 'npc-trainer';
-  const stakesName = game.battle && game.battle.trainerName;
-  const stakesKey  = game.battle && game.battle.npcCoord;
+  // V2.19 — losing a stakes rematch still burns the rematch attempt
+  // (one shot per NPC) but no Zyrex is taken. Player just wakes up at home.
+  const wasStakes = game.battle && game.battle.stakes && game.battle.kind === 'npc-trainer';
+  const stakesKey = game.battle && game.battle.npcCoord;
   logBattle('All your Zyrex fainted.');
   setTimeout(() => {
     exitBattle();
     if (wasStakes) {
       if (!game.player.npcsRematched) game.player.npcsRematched = {};
       if (stakesKey) game.player.npcsRematched[stakesKey] = true;
-      npcStealsZyrexFromPlayer(stakesName);
       save();
     }
     // Respawn in the family home (Mom mends everyone).

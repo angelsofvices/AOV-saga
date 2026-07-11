@@ -1799,6 +1799,7 @@ const game = {
     gemspheres: 5,
     coins: 5,               // V2.7 — merchant currency; drops from battle wins
     items: { potion: 0 },   // V2.7 — potion count (heals 40 HP outside battle)
+    mapId: 'malezor',       // V2.8 — which map the player is on
     bossDefeated: false,
     npcDefeated: false,       // legacy — Myara flag
     npcsDefeated: {},         // V2.7.2 — { 'x,y': true } for extra NPC trainers
@@ -1829,7 +1830,10 @@ const game = {
 //   S merchant NPC (interact to shop) — new in V2.7
 //   # gemcliff (blocker)
 // Map grew to 30 × 20 in V2.7 with a camera that follows the player.
-const MAP = [
+// V2.8 — Malezor is the outdoor 'first level'; house interior is a
+// separate small map. Player starts inside; talks to Mom + Dad;
+// walks out the door to enter Malezor.
+const MALEZOR_MAP = [
   '##############################', // 0
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 1
   '#,,K,,GGGG,,,,,MM,,,,,K,,,,,,#', // 2
@@ -1852,8 +1856,42 @@ const MAP = [
   '#T,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 18
   '##############################', // 19
 ];
-const MAP_COLS = 30;
-const MAP_ROWS = 20;
+// House interior — 14 × 9. Wall '=', floor '.', bed 'b', table 't',
+// Mom 'm', Dad 'd', door 'x' (exits to Malezor).
+const HOUSE_MAP = [
+  '==============', // 0
+  '=............=', // 1
+  '=.b..........=', // 2 · b = bed
+  '=............=', // 3
+  '=..m.....d...=', // 4 · Mom (left), Dad (right)
+  '=............=', // 5
+  '=..t.........=', // 6 · t = table
+  '=......x.....=', // 7 · x = door out to Malezor
+  '==============', // 8
+];
+const MAPS = {
+  malezor:       { data: MALEZOR_MAP, cols: 30, rows: 20, label: 'Malezor · Beastlands' },
+  home_interior: { data: HOUSE_MAP,   cols: 14, rows:  9, label: 'Home · Bedroom' },
+};
+let MAP = MALEZOR_MAP;
+let MAP_COLS = 30;
+let MAP_ROWS = 20;
+function enterMap(mapId, spawnX, spawnY, dir) {
+  const m = MAPS[mapId];
+  if (!m) return;
+  MAP = m.data;
+  MAP_COLS = m.cols;
+  MAP_ROWS = m.rows;
+  game.player.mapId = mapId;
+  game.player.x = spawnX;
+  game.player.y = spawnY;
+  if (dir) game.player.dir = dir;
+  delete game.npcs;   // rebuild for the new map
+  ensureNpcRuntime();
+  const el = document.getElementById('hud-location');
+  if (el) el.textContent = m.label;
+  save();
+}
 
 // V2.7.2 — extra NPC trainers scattered across Malezor.
 // Tile chars used on the map: Y (Yara · Seer scout), J (Jax · rival Rizer), Q (Quinn · desert wanderer).
@@ -1883,10 +1921,10 @@ function tileAt(x, y) {
 }
 function walkable(x, y) {
   const t = tileAt(x, y);
-  if ('#TWHMSB'.includes(t)) return false;   // S (merchant) + B (booth) both block
+  // V2.8 — interior walls, bed, table, Mom, Dad, door all block; door
+  // is interact-only (walk INTO it triggers via tryInteract, not tryMove).
+  if ('#TWHMSB=btmdx'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
-  // Y/J/Q map chars mark trainer HOMES; runtime blocking is via isNpcAt below.
-  // (A defeated NPC's home tile becomes freely walkable.)
   if ('YJQ'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);
   if (t === 'K' && !chestOpened(x, y)) return false;
   if (game.npcs) {
@@ -2062,6 +2100,86 @@ function drawTile(x, y, ch, mx, my) {
       ctx.fillStyle = '#050310';
       ctx.font = 'bold 6px Inter, sans-serif';
       ctx.fillText('$', px + TILE / 2 - 2, py + 7);
+      break;
+    }
+    case '=': {
+      // V2.8 — interior wall (wooden plank pattern)
+      ctx.fillStyle = '#3a2a1e';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#5a3f28';
+      ctx.fillRect(px + 2, py + 6, TILE - 4, 4);
+      ctx.fillRect(px + 2, py + 16, TILE - 4, 4);
+      ctx.fillRect(px + 2, py + 26, TILE - 4, 4);
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+      break;
+    }
+    case '.': {
+      // V2.8 — interior floor (dark wood planks)
+      ctx.fillStyle = '#4a3628';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.moveTo(px, py + TILE / 2); ctx.lineTo(px + TILE, py + TILE / 2);
+      ctx.moveTo(px + TILE / 2, py); ctx.lineTo(px + TILE / 2, py + TILE);
+      ctx.stroke();
+      break;
+    }
+    case 'b': {
+      // V2.8 — bed (blocker, decoration)
+      drawTile(x, y, '.', mx, my);
+      // frame
+      ctx.fillStyle = '#8b6236';
+      ctx.fillRect(px + 2, py + 6, TILE - 4, TILE - 10);
+      // pillow
+      ctx.fillStyle = '#f3ecdc';
+      ctx.fillRect(px + 4, py + 8, TILE - 8, 8);
+      // blanket
+      ctx.fillStyle = '#b87cff';
+      ctx.fillRect(px + 4, py + 18, TILE - 8, TILE - 24);
+      ctx.strokeStyle = '#7a4dcf';
+      ctx.strokeRect(px + 4, py + 18, TILE - 8, TILE - 24);
+      break;
+    }
+    case 't': {
+      // V2.8 — small round table (blocker)
+      drawTile(x, y, '.', mx, my);
+      ctx.fillStyle = '#5a3f28';
+      ctx.beginPath();
+      ctx.ellipse(px + TILE / 2, py + TILE / 2 + 2, TILE / 2 - 4, TILE / 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#8b6236';
+      ctx.beginPath();
+      ctx.ellipse(px + TILE / 2, py + TILE / 2, TILE / 2 - 5, TILE / 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'm': {
+      // V2.8 — Mom NPC (stationary, warm-tone character)
+      drawTile(x, y, '.', mx, my);
+      drawCharacter(px + TILE / 2, py + TILE / 2, 'down', '#ff9c66', '#8a3020');
+      break;
+    }
+    case 'd': {
+      // V2.8 — Dad NPC (stationary, deeper-tone character)
+      drawTile(x, y, '.', mx, my);
+      drawCharacter(px + TILE / 2, py + TILE / 2, 'down', '#c98a4a', '#3a1a1a');
+      break;
+    }
+    case 'x': {
+      // V2.8 — door (exit to Malezor). Rendered as a plank door with a knob.
+      drawTile(x, y, '.', mx, my);
+      ctx.fillStyle = '#5a3f28';
+      ctx.fillRect(px + 4, py + 2, TILE - 8, TILE - 4);
+      ctx.strokeStyle = '#3a2a1e';
+      ctx.strokeRect(px + 4, py + 2, TILE - 8, TILE - 4);
+      // vertical planks
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 2); ctx.lineTo(px + TILE / 2, py + TILE - 2);
+      ctx.stroke();
+      // knob
+      ctx.fillStyle = '#e8c878';
+      ctx.beginPath(); ctx.arc(px + TILE - 8, py + TILE / 2, 2, 0, Math.PI * 2); ctx.fill();
       break;
     }
     case 'B': {
@@ -2647,6 +2765,14 @@ function tryInteract() {
     }
   } else if (t === 'K') {
     openChest(tx, ty);
+  } else if (t === 'm') {
+    interactMom();
+  } else if (t === 'd') {
+    interactDad();
+  } else if (t === 'b') {
+    interactBed();
+  } else if (t === 'x') {
+    exitHouseToMalezor();
   } else if (t === 'S' || t === 'B') {
     openShop();
   } else if ('YJQ'.includes(t)) {
@@ -2971,6 +3097,80 @@ function walkNpcToPlayer(n) {
     setTimeout(step, 150);
   };
   setTimeout(step, 250);
+}
+
+// V2.8 — House interior interact handlers.
+function interactMom() {
+  const nm = game.player.name || 'you';
+  if (!game.player.party.length) {
+    showDialog([
+      `MOM: There you are, ${nm}. Warm bread on the table.`,
+      `Your father has your present downstairs. Go on — he's been waiting.`,
+    ]);
+  } else {
+    showDialog([
+      `MOM: How's ${(game.player.party[0] && game.player.party[0].name) || 'your Zyrex'} settling in?`,
+      `MOM: Come home whenever you need — the door's always open.`,
+    ]);
+  }
+}
+function interactDad() {
+  const nm = game.player.name || 'you';
+  if (!game.player.party.length) {
+    // First-time meeting — give the birthday present + starter picker
+    showDialog([
+      `DAD: Happy birthday, ${nm}.`,
+      `I set out three orphan shards from the last Corefall.`,
+      `The one that hums when you look at it is the one that chose you.`,
+      ``,
+      `«Choose your first Zyrex»`,
+    ], () => {
+      $starter.classList.remove('hidden');
+      game.mode = 'starter';
+      renderStarterScreen();
+    });
+  } else {
+    // Player already has a starter — Dad recaps the mission.
+    const respLeft = 10 - respectsCount();
+    showDialog([
+      `DAD: Head to Malezor when you're ready, ${nm}.`,
+      respLeft > 0
+        ? `RAKORON the Rubylord holds the lair to the east. ${respLeft} Gemlord${respLeft === 1 ? '' : 's'} left.`
+        : `All ten stand with you. Now the three Seers.`,
+      `Walk out the door when you're set.`,
+    ]);
+  }
+}
+function interactBed() {
+  const GEM_FLOOR = 20;
+  const gemsBefore = game.player.gems || 0;
+  const gemGift = Math.max(0, GEM_FLOOR - gemsBefore);
+  const lines = [
+    `You lie down on your bed. Your party mends. Sleep clears your head.`,
+  ];
+  if (gemGift > 0) lines.push(`MOM slipped ${gemGift} gems into your pouch while you rested. (${GEM_FLOOR} floor.)`);
+  showDialog(lines, () => {
+    for (const r of game.player.party) if (r) { r.hp = r.maxHp; r.fainted = false; }
+    if (gemGift > 0) game.player.gems = GEM_FLOOR;
+    save(); updateHUD();
+    if (gemGift > 0) showToast(`◈  +${gemGift} GEMS  ·  POUCH ${GEM_FLOOR}`);
+  });
+}
+function exitHouseToMalezor() {
+  if (!game.player.party.length) {
+    showDialog([
+      `You feel the pull of the door — but not yet.`,
+      `Talk to DAD first. He has your Zyrex.`,
+    ]);
+    return;
+  }
+  showDialog([
+    `You step out onto the Malezor path.`,
+    `MOM: Be safe, ${game.player.name || 'trainer'}!`,
+  ], () => {
+    // Malezor spawn: just below the H tile, facing away from home
+    enterMap('malezor', 3, 5, 'down');
+  });
 }
 
 // V2.7.2 — extra NPC trainer flow (Y/J/Q).
@@ -3820,6 +4020,11 @@ function tryLoad() {
     const data = JSON.parse(raw);
     if (!data || !data.player) return false;
     game.player = data.player;
+    // V2.8 — restore active map from saved mapId
+    const mid = game.player.mapId || 'malezor';
+    const m = MAPS[mid] || MAPS.malezor;
+    MAP = m.data; MAP_COLS = m.cols; MAP_ROWS = m.rows;
+    delete game.npcs;   // rebuild for the loaded map
     game.hasSave = true;
     return true;
   } catch(_) { return false; }
@@ -3948,26 +4153,29 @@ function endPrologue() {
   $prologue.classList.add('hidden');
   startHometownIntro();
 }
-// Auto-scene right after the prologue: spawn at home, Mom + Dad birthday, starter table.
+// V2.8 — Player wakes up INSIDE the house. Talks to Mom, then Dad
+// for the starter, then walks out the door to enter Malezor.
 function startHometownIntro() {
-  // Position player at home and paint the overworld under the dialog.
-  game.mode = 'overworld';
+  enterMap('home_interior', 2, 2, 'down');   // just below the bed
   document.getElementById('hud').style.display = 'flex';
   updateHUD();
   const nm = game.player.name || 'TRAINER';
   showDialog([
-    `You wake to warm light through the observatory shutters.`,
-    `MOM: Happy birthday, ${nm}! It's the day.`,
-    `MOM: You've been dreaming about the shards for weeks now, haven't you?`,
-    `MOM: Come — your father has your present downstairs.`,
+    `You wake in your own room. Warm light through the shutters.`,
+    `MOM's voice drifts up from the hall: "Happy birthday, ${nm}!"`,
     ``,
-    `DAD: Look at you, ${nm}. Old enough to bind a Zyrex of your own.`,
-    `DAD: I set out three orbs from the last Corefall. Three orphan shards.`,
-    `DAD: The one that hums when you look at it is the one that chose you.`,
+    `Talk to MOM and to DAD. Then walk out the door to Malezor.`,
     ``,
-    `«Choose your first Zyrex»`,
+    `(WASD or arrows to move. Z or Space to talk. X for the menu.)`,
   ], () => {
     game.player.seenHometownIntro = true;
+    save();
+    // Left dangling: player has control, walks to Mom -> Dad -> door.
+    // For backwards-compat with the original hook the below is unused
+    // when this new flow runs — kept only so a caller passing a starter
+    // ready state doesn't break.
+    return;
+    // Legacy: open starter directly (never reached in the V2.8 flow).
     $starter.classList.remove('hidden');
     game.mode = 'starter';
     renderStarterScreen();
@@ -4001,6 +4209,7 @@ document.getElementById('btn-new').onclick = () => {
     gemspheres: 5,
     coins: 5,
     items: { potion: 0 },
+    mapId: 'home_interior',   // V2.8 — new games start inside the house
     bossDefeated: false,
     npcDefeated: false,
     npcsDefeated: {},

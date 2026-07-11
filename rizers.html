@@ -583,6 +583,106 @@
     .hp-fill.mid  { background: linear-gradient(90deg, #e8c878, #f5dc9c); }
     .hp-fill.low  { background: linear-gradient(90deg, #ff5c5c, #ff9090); }
     .status-numbers { color: var(--ivory); font-size: 17px; text-align: right; }
+    .xp-label { color: var(--mist); font-size: 13px; letter-spacing: 0.14em; margin-top: 6px; }
+    .xp-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border-soft);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .xp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #5fa8ff 0%, #b87cff 100%);
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      width: 0%;
+    }
+    .xp-fill.max { background: linear-gradient(90deg, #f5dc9c, #ffb84c); }
+    .status-chip {
+      display: inline-block;
+      font-family: var(--font-pixel);
+      font-size: 14px;
+      padding: 1px 6px;
+      border-radius: 2px;
+      margin-top: 4px;
+      background: var(--glass);
+      border: 1px solid var(--border-soft);
+    }
+    .status-chip.side-buff   { color: #2fe6a8; border-color: rgba(47,230,168,0.5); }
+    .status-chip.side-debuff { color: #ff8a6a; border-color: rgba(255,138,106,0.5); }
+    /* Gain XP victory bounce */
+    .xp-toast {
+      position: absolute; left: 50%; top: 40%;
+      transform: translate(-50%, -50%) scale(0.85);
+      background: var(--glass-strong);
+      border: 1px solid var(--gold);
+      color: var(--gold-bright);
+      font-family: var(--font-display);
+      letter-spacing: 0.16em;
+      padding: 14px 26px;
+      border-radius: 3px;
+      text-align: center;
+      opacity: 0;
+      z-index: 500;
+      transition: all 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+      min-width: 220px;
+      pointer-events: none;
+    }
+    .xp-toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .xp-toast .xp-line { display: block; font-size: 0.9rem; margin-top: 4px; color: var(--ivory); font-family: var(--font-pixel); font-weight: normal; letter-spacing: 0.06em; }
+    .xp-toast .xp-line strong { color: var(--gold-bright); }
+
+    /* Rizer inspect card (party screen click) */
+    .inspect-overlay {
+      position: absolute; inset: 0;
+      background: rgba(5,3,15,0.94);
+      z-index: 195;
+      display: none;
+      flex-direction: column;
+      padding: 22px 20px 16px;
+    }
+    .inspect-overlay.active { display: flex; }
+    .inspect-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+    }
+    .inspect-name {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: 0.22em;
+      color: var(--gold-bright);
+      text-transform: uppercase;
+    }
+    .inspect-close {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--mist); font-family: var(--font-meta);
+      padding: 6px 14px; font-size: 0.62rem; letter-spacing: 0.3em;
+      text-transform: uppercase; cursor: pointer; border-radius: 3px;
+    }
+    .inspect-body { flex: 1; overflow-y: auto; font-family: var(--font-pixel); font-size: 17px; color: var(--ivory); line-height: 1.4; }
+    .inspect-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-soft); }
+    .inspect-row .lbl { color: var(--mist); letter-spacing: 0.1em; }
+    .inspect-row .val { color: var(--gold-bright); text-align: right; }
+    .inspect-section-title {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.42em;
+      color: var(--gold);
+      text-transform: uppercase;
+      opacity: 0.8;
+      margin: 14px 0 6px;
+    }
+    .inspect-move {
+      background: rgba(232,200,120,0.05);
+      border: 1px solid var(--border-soft);
+      padding: 6px 10px;
+      margin-bottom: 4px;
+      border-radius: 2px;
+    }
+    .inspect-move .move-name { color: var(--ivory); }
+    .inspect-move .move-meta { color: var(--mist); font-size: 14px; letter-spacing: 0.08em; }
 
     /* Battle bottom menu */
     .battle-bottom {
@@ -892,6 +992,7 @@
         <div class="status-card enemy-status" id="enemy-status">
           <div class="status-name"><span id="enemy-name">Wild</span> <span class="status-lv" id="enemy-lv">Lv 1</span></div>
           <div class="hp-bar"><div class="hp-fill" id="enemy-hp-fill"></div></div>
+          <div id="enemy-status-chip"></div>
         </div>
         <div class="mon-slot enemy-mon"><canvas class="mon-canvas" id="enemy-canvas" width="96" height="96"></canvas></div>
         <div class="mon-slot player-mon"><canvas class="mon-canvas" id="player-canvas" width="96" height="96"></canvas></div>
@@ -899,6 +1000,9 @@
           <div class="status-name"><span id="player-name">Zyrex</span> <span class="status-lv" id="player-lv">Lv 1</span></div>
           <div class="hp-bar"><div class="hp-fill" id="player-hp-fill"></div></div>
           <div class="status-numbers"><span id="player-hp-nums">- / -</span></div>
+          <div class="xp-label">XP <span id="player-xp-nums" style="color:var(--gold-bright);">0 / 0</span></div>
+          <div class="xp-bar"><div class="xp-fill" id="player-xp-fill"></div></div>
+          <div id="player-status-chip"></div>
         </div>
       </div>
       <div class="battle-bottom">
@@ -909,6 +1013,21 @@
 
     <!-- Toast -->
     <div class="toast" id="toast"></div>
+
+    <!-- XP-gain victory toast -->
+    <div class="xp-toast" id="xp-toast">
+      <div id="xp-toast-title">VICTORY</div>
+      <div class="xp-line" id="xp-toast-lines"></div>
+    </div>
+
+    <!-- Rizer inspect overlay (opens from party screen) -->
+    <div class="inspect-overlay" id="inspect-overlay">
+      <div class="inspect-head">
+        <div class="inspect-name" id="inspect-name">Rizer</div>
+        <button class="inspect-close" id="inspect-close">Close ✕</button>
+      </div>
+      <div class="inspect-body" id="inspect-body"></div>
+    </div>
 
   </div>
 
@@ -965,11 +1084,44 @@ const TYPE_SHORT = {
   'Humanoid-Noid':'HUM-N','Nature':'NATR','Tech':'TECH','Spirit':'SPRT',
   'Ultramax':'ULTMX','Unknown-Void':'VOID',
 };
-function typeMult(atk, def) {
+function _typeMultSingle(atk, def) {
   if (TYPE_STRONG_VS[atk] && TYPE_STRONG_VS[atk].includes(def)) return 2;
   if (TYPE_STRONG_VS[def] && TYPE_STRONG_VS[def].includes(atk)) return 0.5;
   return 1;
 }
+// Dual-type multiplier stacking (Cardmaster canon):
+// both vulnerable = 4× · vuln+neutral = 2× · both neutral = 1× ·
+// resist+neutral = 0.5× · both resist = 0.25× · cancel (strong+resist) = 1×
+function typeMult(atk, def1, def2) {
+  const m1 = _typeMultSingle(atk, def1);
+  const m2 = def2 && def2 !== def1 ? _typeMultSingle(atk, def2) : 1;
+  return m1 * m2;
+}
+function typeLabel(m) {
+  if (m >= 4)   return 'devastating';
+  if (m >= 2)   return 'super effective';
+  if (m <= 0.25) return 'almost no effect';
+  if (m <= 0.5) return 'not very effective';
+  return null;
+}
+
+// ---------- Statuses (10 total: 5 debuffs + 5 buffs) ----------
+// Debuffs (harm the Zyrex they're on). Buffs (help the Zyrex they're on).
+// Each buff loosely opposes a debuff so the pool is symmetric.
+const STATUSES = {
+  // ----- Debuffs -----
+  overcook:   { name: 'Overcook',   color: '#ff8a6a', kind: 'dot',       tag: 'HP burns each turn',                         side: 'debuff' },
+  undershock: { name: 'Undershock', color: '#b08bff', kind: 'stat-down', tag: 'ATK is suppressed',                          side: 'debuff', stat: 'atk' },
+  brainlock:  { name: 'Brainlock',  color: '#c98ee8', kind: 'lock',      tag: 'A1 only for 2 turns',                        side: 'debuff', fixedTurns: 2 },
+  gridfreeze: { name: 'Gridfreeze', color: '#6fa3e8', kind: 'skip',      tag: 'Skip next turn',                             side: 'debuff', fixedTurns: 1 },
+  souldrift:  { name: 'Souldrift',  color: '#ff5a5a', kind: 'fade',      tag: 'All stats fade each turn — lethal',          side: 'debuff' },
+  // ----- Buffs -----
+  ignite:     { name: 'Ignite',     color: '#ff9c66', kind: 'stat-up',   tag: 'ATK rises each turn (opposes Undershock)',   side: 'buff', stat: 'atk' },
+  bulwark:    { name: 'Bulwark',    color: '#8bc466', kind: 'stat-up',   tag: 'DEF rises each turn',                        side: 'buff', stat: 'def' },
+  slipstream: { name: 'Slipstream', color: '#5fa8ff', kind: 'stat-up',   tag: 'SPD rises each turn (opposes Gridfreeze)',   side: 'buff', stat: 'spd' },
+  astralwake: { name: 'Astralwake', color: '#f5dc9c', kind: 'stat-up',   tag: 'SPC rises each turn (opposes Souldrift)',    side: 'buff', stat: 'spc' },
+  reforge:    { name: 'Reforge',    color: '#2fe6a8', kind: 'regen',     tag: 'HP restores each turn (opposes Overcook)',   side: 'buff' },
+};
 
 // ---------- Level ↔ Tier (10 levels = 1 tier, cap at Tier X) ----------
 const TIER_ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
@@ -1037,52 +1189,60 @@ const SPECIES = {
   // v10.22 canon · Tier I Basic · one from each of Southern / Eastern / Western
   cinderant: {   // Beast/Spirit · Southern Region · fire ant · Gen I Primary
     name: 'CINDERANT', type: 'Spirit', type2: 'Beast', region: 'Southern',
-    base: BASIC_BASE, catchRate: 32, shape: 'quadruped',
+    base: BASIC_BASE, tier: 1, catchRate: 32, shape: 'quadruped',
     sprite: ['#ff8a4c', '#c25a1c', '#ffcc66'],
+    evolveTo: 'vampella', evolveLv: 11,
     moves: basicMoves('Spirit', ['Ember Bite', 'Cinderdrop', 'Anthill Blaze', 'Sunbask']),
   },
   otterlin: {    // Beast/Nature · Eastern Region · water pup · common Eastern house pet
     name: 'OTTERLIN', type: 'Nature', type2: 'Beast', region: 'Eastern',
-    base: BASIC_BASE, catchRate: 32, shape: 'aquatic',
+    base: BASIC_BASE, tier: 1, catchRate: 32, shape: 'aquatic',
     sprite: ['#5fa8ff', '#2a5c8a', '#a8cef0'],
+    evolveTo: 'terralith', evolveLv: 11,
     moves: basicMoves('Nature', ['Tail Splash', 'River Dive', 'Whirlpool', 'Shellup']),
   },
   volitimite: {  // Beast/Aura · Western Region · thunderstep gerbil · common Western pet
     name: 'VOLITIMITE', type: 'Aura', type2: 'Beast', region: 'Western',
-    base: BASIC_BASE, catchRate: 32, shape: 'quadruped',
+    base: BASIC_BASE, tier: 1, catchRate: 32, shape: 'quadruped',
     sprite: ['#e8c878', '#7a4dcf', '#fff5db'],
+    evolveTo: 'buzzolt', evolveLv: 11,
     moves: basicMoves('Aura', ['Static Nip', 'Thundertail', 'Voltstep', 'Rally']),
   },
 
   // ============ Wild pool — encountered in Zyraxis gemgrass ============
   frostwisp: {   // Beast/Nature · Northern · tundra squirrel
     name: 'FROSTWISP', type: 'Nature', type2: 'Beast', region: 'Northern',
-    base: BASIC_BASE, catchRate: 55, shape: 'winged',
+    base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'winged',
     sprite: ['#c0e0ff', '#5fa8ff', '#e8f0ff'],
+    evolveTo: 'wynwyrm', evolveLv: 11,
     moves: basicMoves('Nature', ['Frost Nip', 'Snowdart', 'Blizzard Whirl', 'Chill Guard']),
   },
   sandskitter: { // Beast/Nature · Western · desert salamander
     name: 'SANDSKITTER', type: 'Nature', type2: 'Beast', region: 'Western',
-    base: BASIC_BASE, catchRate: 55, shape: 'quadruped',
+    base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'quadruped',
     sprite: ['#e0c890', '#a68260', '#f4dcb0'],
+    evolveTo: 'saburrow', evolveLv: 11,
     moves: basicMoves('Nature', ['Sand Bite', 'Dune Dart', 'Sandstorm Coil', 'Bask']),
   },
   verdanix: {    // Beast/Nature · Eastern · common green frog · Gen I Primary
     name: 'VERDANIX', type: 'Nature', type2: 'Beast', region: 'Eastern',
-    base: BASIC_BASE, catchRate: 55, shape: 'aquatic',
+    base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'aquatic',
     sprite: ['#2fe6a8', '#1a8a5c', '#8bffcc'],
+    evolveTo: 'spargus', evolveLv: 11,
     moves: basicMoves('Nature', ['Tongue Snap', 'Leafhop', 'Verdant Burst', 'Photobask']),
   },
   flarepaw: {    // Beast/Spirit · Southern · flamefooted cat pet
     name: 'FLAREPAW', type: 'Spirit', type2: 'Beast', region: 'Southern',
-    base: BASIC_BASE, catchRate: 50, shape: 'quadruped',
+    base: BASIC_BASE, tier: 1, catchRate: 50, shape: 'quadruped',
     sprite: ['#ff9060', '#8a3020', '#ffd0a0'],
+    evolveTo: 'vampella', evolveLv: 11,
     moves: basicMoves('Spirit', ['Ember Claw', 'Flarestep', 'Torchpounce', 'Sunbask']),
   },
   dunechitter: { // Beast/Aura · Western · wild desert chipmunk · Gen IV Tertiary
     name: 'DUNECHITTER', type: 'Aura', type2: 'Beast', region: 'Western',
-    base: BASIC_BASE, catchRate: 55, shape: 'quadruped',
+    base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'quadruped',
     sprite: ['#f5dc9c', '#b8923f', '#fff5db'],
+    evolveTo: 'sprinklez', evolveLv: 11,
     moves: basicMoves('Aura', ['Nip', 'Sunhaze', 'Auraburst', 'Rally']),
   },
 
@@ -1090,43 +1250,57 @@ const SPECIES = {
   // Two Beast-primary Basics from his hunt, then RAKORON himself in ruby fury.
   sunhoop: {     // Beast/Aura · Western · crown-crested Hoopoe · Gen I Primary
     name: 'SUNHOOP', type: 'Aura', type2: 'Beast', region: 'Western',
-    base: BASIC_BASE, catchRate: 25, shape: 'winged',
+    base: BASIC_BASE, tier: 1, catchRate: 25, shape: 'winged',
     sprite: ['#f5dc9c', '#b87cff', '#fff5db'],
     moves: basicMoves('Aura', ['Beak Jab', 'Suncrest', 'Crown Halo', 'Rally']),
   },
   aetherwing: {  // Beast/Aura · Central · astral dragonfly · Gen III Tertiary
     name: 'AETHERWING', type: 'Aura', type2: 'Beast', region: 'Central',
-    base: BASIC_BASE, catchRate: 25, shape: 'winged',
+    base: BASIC_BASE, tier: 1, catchRate: 25, shape: 'winged',
     sprite: ['#c8bfe6', '#7a5cc8', '#e8e0f0'],
     moves: basicMoves('Aura', ['Wing Cut', 'Aetherbeam', 'Astral Gale', 'Rally']),
   },
   rakoron: {
-    // Codex v10.22: Tier VIII Immortal · Type1 Creature · Type2 Beast · HP 632 ATK 665 DEF 500 SPD 433 SPC 434
+    // Codex v10.22: Tier VIII Immortal · Type1 Creature · Type2 Beast
+    // Card = MAX at Lv 80. In-game he appears at low levels; stats scale accordingly.
     name: 'RAKORON', type: 'Creature', type2: 'Beast', region: 'Malezor',
-    base: { hp: 78, atk: 62, def: 48, spd: 42, spc: 44 }, shape: 'mutaryn',
-    sprite: ['#d63b5a', '#7a1a2a', '#ff7a94'],  // ruby / crimson palette
-    catchRate: 0,   // Gemlords are never bound — you earn respect, not ownership
+    tier: 8,
+    base: { hp: 632, atk: 665, def: 500, spd: 433, spc: 434 },
+    shape: 'mutaryn',
+    sprite: ['#d63b5a', '#7a1a2a', '#ff7a94'],
+    catchRate: 0,
     moves: [
       { name: 'Ruby Fang',      type: 'Creature', power: 65, cost: 2 },
-      { name: 'Predator Roar',  type: 'Beast',    power: 45, cost: 1 },
-      { name: 'Corefall Echo',  type: 'Creature', power: 55, cost: 2 },
-      { name: 'Malezor Rend',   type: 'Beast',    power: 80, cost: 3 },
+      { name: 'Predator Roar',  type: 'Beast',    power: 45, cost: 1, status: 'ignite',     statusChance: 0.35 },
+      { name: 'Corefall Echo',  type: 'Creature', power: 55, cost: 2, status: 'undershock', statusChance: 0.30 },
+      { name: 'Malezor Rend',   type: 'Beast',    power: 80, cost: 3, status: 'overcook',   statusChance: 0.45 },
     ],
   },
 };
 
 // ---------- Level math ----------
+// Locked rule: every codex card = the MAX state at Lv (tier × 10).
+// Species base stats are the CAP; per-level stats scale linearly from 25% at
+// Lv 1 up to 100% at maxLv, then cap. See memory: rizing-powers-stat-math.
 function xpForNext(lv) { return 12 + lv * 8; }
-function statAtLv(base, lv) { return Math.floor(base + base * (lv - 1) * 0.10); }
+function tierMaxLv(tier) { return Math.max(10, (tier || 1) * 10); }
+function statAtLv(maxStat, lv, maxLv) {
+  if (lv >= maxLv) return Math.floor(maxStat);
+  if (lv <= 1)     return Math.floor(maxStat * 0.25);
+  const t = (lv - 1) / (maxLv - 1);
+  return Math.floor(maxStat * (0.25 + 0.75 * t));
+}
 
 function makeZyrex(speciesId, lv) {
   const s = SPECIES[speciesId];
+  const maxLv = tierMaxLv(s.tier || 1);
+  lv = Math.min(lv, maxLv);   // clamp — cannot exceed card's tier cap
   const stats = {
-    hp:  statAtLv(s.base.hp,  lv),
-    atk: statAtLv(s.base.atk, lv),
-    def: statAtLv(s.base.def, lv),
-    spd: statAtLv(s.base.spd, lv),
-    spc: statAtLv(s.base.spc, lv),
+    hp:  statAtLv(s.base.hp,  lv, maxLv),
+    atk: statAtLv(s.base.atk, lv, maxLv),
+    def: statAtLv(s.base.def, lv, maxLv),
+    spd: statAtLv(s.base.spd, lv, maxLv),
+    spc: statAtLv(s.base.spc, lv, maxLv),
   };
   // Learn all moves whose (lv || 1) requirement is met, cap at 4.
   const moves = s.moves.filter(m => (m.lv || 1) <= lv).slice(-4);
@@ -1134,6 +1308,7 @@ function makeZyrex(speciesId, lv) {
     species: speciesId,
     name: s.name,
     type: s.type,
+    type2: s.type2 || null,
     lv,
     xp: 0,
     hp: stats.hp,
@@ -1143,6 +1318,8 @@ function makeZyrex(speciesId, lv) {
     atkStage: 0,
     defStage: 0,
     fainted: false,
+    status: null,          // { key: 'overcook', turns: 3, stat?: 'atk' }
+    debuff: null,          // Undershock target stat
   };
 }
 
@@ -1626,6 +1803,19 @@ function showToast(txt, ms = 1800) {
   toastTimer = setTimeout(() => $toast.classList.remove('show'), ms);
 }
 
+// ---------- XP-gain victory toast ----------
+const $xpToast = document.getElementById('xp-toast');
+const $xpTitle = document.getElementById('xp-toast-title');
+const $xpLines = document.getElementById('xp-toast-lines');
+let xpToastTimer = 0;
+function showXpToast(name, xp, gems) {
+  $xpTitle.textContent = 'VICTORY';
+  $xpLines.innerHTML = `${name}<br>+ <strong>${xp}</strong> XP &nbsp;·&nbsp; + <strong>${gems}</strong> ◈`;
+  $xpToast.classList.add('show');
+  clearTimeout(xpToastTimer);
+  xpToastTimer = setTimeout(() => $xpToast.classList.remove('show'), 2200);
+}
+
 // ============================================================================
 //  BATTLE
 // ============================================================================
@@ -1710,11 +1900,31 @@ function refreshBattleUI() {
   $enemyLv.textContent   = `Lv ${e.lv}·${tierRoman(e.lv)}`;
   $enemyHp.style.width   = (e.hp / e.maxHp * 100) + '%';
   hpBarClass($enemyHp, e.hp / e.maxHp);
+  paintStatusChip('enemy-status-chip', e);
   $playerName.textContent = p.name;
   $playerLv.textContent   = `Lv ${p.lv}·${tierRoman(p.lv)}`;
   $playerHp.style.width   = (p.hp / p.maxHp * 100) + '%';
   $playerHpNums.textContent = `${p.hp} / ${p.maxHp}   ◈${game.player.gems}`;
   hpBarClass($playerHp, p.hp / p.maxHp);
+  // XP bar
+  const speciesTier = (SPECIES[p.species] && SPECIES[p.species].tier) || 1;
+  const maxLv = tierMaxLv(speciesTier);
+  const atMax = p.lv >= maxLv;
+  const need = xpForNext(p.lv);
+  const pct = atMax ? 100 : Math.min(100, (p.xp / need) * 100);
+  const xpFill = document.getElementById('player-xp-fill');
+  xpFill.style.width = pct + '%';
+  xpFill.classList.toggle('max', atMax);
+  document.getElementById('player-xp-nums').textContent =
+    atMax ? `MAX · Tier ${TIER_ROMAN[speciesTier-1]}` : `${p.xp} / ${need}`;
+}
+function paintStatusChip(elId, z) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!z.status) { el.innerHTML = ''; return; }
+  const s = STATUSES[z.status.key];
+  if (!s) { el.innerHTML = ''; return; }
+  el.innerHTML = `<span class="status-chip side-${s.side}" style="color:${s.color};border-color:${s.color}">${s.name.toUpperCase()} · ${z.status.turns}</span>`;
 }
 function hpBarClass(el, ratio) {
   el.classList.remove('mid', 'low');
@@ -1816,12 +2026,11 @@ async function enemyTurn() {
   const e = game.battle.enemy;
   const p = game.player.party[game.battle.playerIdx];
   if (e.hp <= 0 || p.hp <= 0) return;
-  // Wild AI has no gem economy (only the player pays into the pool).
-  // It picks its highest expected-damage move against the current defender.
+  // Wild AI has no gem economy. Picks best expected-damage move using dual-type math.
   const pool = e.moves.length ? e.moves : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
   let best = pool[0], bestScore = -1;
   for (const m of pool) {
-    const score = (m.power || 0) * typeMult(m.type, p.type);
+    const score = (m.power || 0) * typeMult(m.type, p.type, p.type2);
     if (score > bestScore) { best = m; bestScore = score; }
   }
   await performMove(e, p, best, false);
@@ -1836,24 +2045,73 @@ async function performMove(user, target, move, playerSide) {
     await wait(700);
     return;
   }
-  const mult = typeMult(move.type, target.type);
+  // Dual-type stacked multiplier
+  const mult = typeMult(move.type, target.type, target.type2);
   const atk = user.stats.atk * stageMult(user.atkStage);
   const def = target.stats.def;
   const base = ((atk / def) * move.power * (user.lv / (user.lv + target.lv))) / 2;
   const dmg = Math.max(1, Math.floor(base * mult * (0.85 + Math.random() * 0.3)));
   target.hp = Math.max(0, target.hp - dmg);
-  // Flash + shake for the receiving canvas
   const targetCanvas = playerSide ? enemyCanvas : playerCanvas;
   await flashCanvas(targetCanvas);
-  if (mult > 1)      { logBattle(`It's super effective!  (-${dmg})`); await wait(700); }
-  else if (mult < 1) { logBattle(`It's not very effective... (-${dmg})`); await wait(700); }
-  else               { logBattle(`(-${dmg})`); await wait(500); }
+  const lbl = typeLabel(mult);
+  if (mult >= 4)       { logBattle(`Devastating hit!  (-${dmg})`); await wait(700); }
+  else if (mult >= 2)  { logBattle(`Super effective!  (-${dmg})`); await wait(700); }
+  else if (mult <= 0.25){ logBattle(`Almost no effect. (-${dmg})`); await wait(700); }
+  else if (mult <= 0.5){ logBattle(`Not very effective. (-${dmg})`); await wait(700); }
+  else                 { logBattle(`(-${dmg})`); await wait(500); }
   refreshBattleUI();
+  // Status inflict roll
+  if (target.hp > 0 && move.status && Math.random() < (move.statusChance || 0.25)) {
+    inflictStatus(target, move.status);
+    refreshBattleUI();
+    await wait(700);
+  }
   if (target.hp <= 0) {
     target.fainted = true;
     logBattle(`${target.name} fainted!`);
-    if (playerSide) {} // enemy fainted animation could go here
     await wait(700);
+  }
+}
+
+function inflictStatus(target, key) {
+  const s = STATUSES[key];
+  if (!s) return;
+  // Don't stack same status; overwrite for simplicity
+  target.status = { key, turns: s.fixedTurns || (3 + Math.floor(Math.random() * 3)) };
+  logBattle(`${target.name} is affected by ${s.name}!`);
+}
+
+function tickStatuses(z, sideCanvas) {
+  if (!z || !z.status) return;
+  const s = STATUSES[z.status.key];
+  if (!s) { z.status = null; return; }
+  // Apply effect
+  if (s.kind === 'dot') {
+    const dmg = Math.max(1, Math.floor(z.maxHp * 0.08));
+    z.hp = Math.max(0, z.hp - dmg);
+    logBattle(`${z.name} burns from ${s.name} (-${dmg}).`);
+  } else if (s.kind === 'fade') {
+    // Souldrift — all stats decay 4% + 4% HP drain
+    for (const k of ['atk','def','spd','spc']) z.stats[k] = Math.floor(z.stats[k] * 0.96);
+    const dmg = Math.max(1, Math.floor(z.maxHp * 0.04));
+    z.hp = Math.max(0, z.hp - dmg);
+    logBattle(`${z.name} drifts (-${dmg}, stats fading).`);
+  } else if (s.kind === 'stat-down' && s.stat) {
+    z.stats[s.stat] = Math.floor(z.stats[s.stat] * 0.90);
+    logBattle(`${z.name}'s ${s.stat.toUpperCase()} is suppressed.`);
+  } else if (s.kind === 'stat-up' && s.stat) {
+    z.stats[s.stat] = Math.floor(z.stats[s.stat] * 1.08);
+    logBattle(`${z.name}'s ${s.stat.toUpperCase()} rises.`);
+  } else if (s.kind === 'regen') {
+    const heal = Math.max(1, Math.floor(z.maxHp * 0.08));
+    z.hp = Math.min(z.maxHp, z.hp + heal);
+    logBattle(`${z.name} reforges (+${heal}).`);
+  }
+  z.status.turns--;
+  if (z.status.turns <= 0) {
+    logBattle(`${z.name} recovers from ${s.name}.`);
+    z.status = null;
   }
 }
 
@@ -2011,36 +2269,44 @@ function triggerConquerorEnding() {
 
 function grantXP(p, defeated) {
   const xpGained = Math.max(5, defeated.lv * 6);
-  // Gems are the exp-currency: battle wins drop 1-3 gems scaled by defeated tier.
   const gemsGained = 1 + Math.floor(defeated.lv / 4);
   p.xp += xpGained;
   game.player.gems += gemsGained;
   updateHUD();
   logBattle(`${p.name} +${xpGained} XP · +${gemsGained} ◈`);
+  // Show a big victory XP toast so the gain feels real.
+  showXpToast(p.name, xpGained, gemsGained);
   while (p.xp >= xpForNext(p.lv)) {
-    p.xp -= xpForNext(p.lv);
-    levelUp(p);
+    const need = xpForNext(p.lv);
+    if (!levelUp(p)) { p.xp = 0; break; }   // levelUp returns false when tier-capped
+    p.xp -= need;
   }
 }
 
 function levelUp(r) {
+  const s = SPECIES[r.species];
+  const maxLv = tierMaxLv(s.tier || 1);
+  // Cannot level past the card's tier cap. Excess XP is discarded for now
+  // (later: reserved for an evolution unlock, per rizing-powers-stat-math memo).
+  if (r.lv >= maxLv) { r.xp = 0; return false; }
   const oldMax = r.maxHp;
   r.lv++;
-  const s = SPECIES[r.species];
-  r.stats.hp  = statAtLv(s.base.hp,  r.lv);
-  r.stats.atk = statAtLv(s.base.atk, r.lv);
-  r.stats.def = statAtLv(s.base.def, r.lv);
-  r.stats.spd = statAtLv(s.base.spd, r.lv);
-  r.stats.spc = statAtLv(s.base.spc, r.lv);
+  r.stats.hp  = statAtLv(s.base.hp,  r.lv, maxLv);
+  r.stats.atk = statAtLv(s.base.atk, r.lv, maxLv);
+  r.stats.def = statAtLv(s.base.def, r.lv, maxLv);
+  r.stats.spd = statAtLv(s.base.spd, r.lv, maxLv);
+  r.stats.spc = statAtLv(s.base.spc, r.lv, maxLv);
   r.maxHp = r.stats.hp;
   r.hp += r.maxHp - oldMax;
   // Learn newly available moves
   const newMoves = s.moves.filter(m => (m.lv || 1) === r.lv);
   for (const m of newMoves) {
     if (r.moves.length < 4) r.moves.push(m);
-    else r.moves[3] = m;  // overwrite last slot for V1 simplicity
+    else r.moves[3] = m;
   }
-  showToast(`${r.name}  LV ${r.lv}!`, 1400);
+  const capped = r.lv >= maxLv;
+  showToast(`${r.name}  LV ${r.lv}${capped ? ' · MAX (TIER ' + (s.tier || 1) + ')' : ''}!`, 1400);
+  return true;
 }
 
 function fullPartyKO() {
@@ -2274,12 +2540,15 @@ function renderPartyScreen() {
     } else {
       const ratio = r.hp / r.maxHp;
       const hpCls = ratio < 0.25 ? 'low' : ratio < 0.5 ? 'mid' : '';
+      const speciesTier = (SPECIES[r.species] && SPECIES[r.species].tier) || 1;
+      const dual = r.type2 && r.type2 !== r.type ? `/${r.type2}` : '';
       slot.innerHTML = `
         <canvas class="party-sprite" width="48" height="48"></canvas>
         <div class="party-info">
           <div class="party-name">${r.name}</div>
-          <div class="party-hp-line">Lv ${r.lv} · Tier ${tierRoman(r.lv)} · ${r.type} · HP ${r.hp}/${r.maxHp}</div>
+          <div class="party-hp-line">Lv ${r.lv} · Card Tier ${TIER_ROMAN[speciesTier-1]} · ${r.type}${dual} · HP ${r.hp}/${r.maxHp}</div>
           <div class="party-hp-bar"><div class="party-hp-fill ${hpCls}" style="width:${ratio * 100}%"></div></div>
+          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Tap to inspect →</div>
         </div>
       `;
       const cvs = slot.querySelector('canvas');
@@ -2287,9 +2556,53 @@ function renderPartyScreen() {
       const tmp = document.createElement('canvas'); tmp.width = 96; tmp.height = 96;
       drawBattleMon(tmp, r, true);
       c.drawImage(tmp, 0, 0, 96, 96, 0, 0, 48, 48);
+      slot.style.cursor = 'pointer';
+      slot.onclick = () => openInspect(r);
     }
     $partyGrid.appendChild(slot);
   }
+}
+
+// ---------- Rizer inspect overlay ----------
+const $inspect = document.getElementById('inspect-overlay');
+const $inspectName = document.getElementById('inspect-name');
+const $inspectBody = document.getElementById('inspect-body');
+document.getElementById('inspect-close').onclick = () => $inspect.classList.remove('active');
+function openInspect(r) {
+  const s = SPECIES[r.species] || {};
+  const speciesTier = s.tier || 1;
+  const maxLv = tierMaxLv(speciesTier);
+  const dual = r.type2 && r.type2 !== r.type ? `/${r.type2}` : '';
+  const status = r.status ? (STATUSES[r.status.key] || {}) : null;
+  const need = xpForNext(r.lv);
+  const xpBar = r.lv >= maxLv
+    ? `<div style="color:var(--gold-bright);">MAX LEVEL for Tier ${TIER_ROMAN[speciesTier-1]}</div>`
+    : `<div class="xp-bar"><div class="xp-fill" style="width:${Math.min(100,(r.xp/need)*100)}%;"></div></div>
+       <div style="color:var(--mist);font-size:14px;margin-top:3px;">${r.xp} / ${need} XP → Lv ${r.lv + 1}</div>`;
+  $inspectName.textContent = r.name;
+  $inspectBody.innerHTML = `
+    <div class="inspect-row"><span class="lbl">Level</span><span class="val">${r.lv} · Tier ${tierRoman(r.lv)}</span></div>
+    <div class="inspect-row"><span class="lbl">Card Tier</span><span class="val">${TIER_ROMAN[speciesTier-1]} · maxes at Lv ${maxLv}</span></div>
+    <div class="inspect-row"><span class="lbl">Type</span><span class="val">${r.type}${dual}</span></div>
+    <div class="inspect-row"><span class="lbl">HP</span><span class="val">${r.hp} / ${r.maxHp}</span></div>
+    <div class="inspect-row"><span class="lbl">ATK</span><span class="val">${r.stats.atk}</span></div>
+    <div class="inspect-row"><span class="lbl">DEF</span><span class="val">${r.stats.def}</span></div>
+    <div class="inspect-row"><span class="lbl">SPD</span><span class="val">${r.stats.spd}</span></div>
+    <div class="inspect-row"><span class="lbl">SPC</span><span class="val">${r.stats.spc}</span></div>
+    <div class="inspect-section-title">Progress</div>
+    ${xpBar}
+    ${status ? `<div class="inspect-section-title">Status</div>
+      <span class="status-chip side-${status.side}" style="color:${status.color};border-color:${status.color}">${status.name.toUpperCase()} · ${r.status.turns} turns</span>
+      <div style="color:var(--mist);font-size:14px;margin-top:4px;">${status.tag}</div>` : ''}
+    <div class="inspect-section-title">Moves</div>
+    ${r.moves.map(m => `
+      <div class="inspect-move">
+        <div class="move-name">${m.name} <span class="move-meta">◈${m.cost} · ${m.type}${m.power ? ' · ' + m.power + ' pwr' : ' · support'}</span></div>
+        ${m.status ? `<div class="move-meta">may inflict ${STATUSES[m.status]?.name || m.status} (${Math.round((m.statusChance || 0.25)*100)}%)</div>` : ''}
+      </div>
+    `).join('')}
+  `;
+  $inspect.classList.add('active');
 }
 
 // ============================================================================

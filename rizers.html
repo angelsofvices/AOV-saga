@@ -2371,9 +2371,28 @@ const $mainmenu = document.getElementById('mainmenu-overlay');
 const $mapview  = document.getElementById('mapview-overlay');
 const $itemsov  = document.getElementById('items-overlay');
 const $shopov   = document.getElementById('shop-overlay');
+
+// V2.8.2 — any overlay open? Then the controller belongs to the overlay,
+// not the player character. This is checked in the main loop to gate
+// continuous WASD/arrow walking.
+function anyOverlayOpen() {
+  const nodes = [$mainmenu, $mapview, $itemsov, $shopov];
+  for (const n of nodes) if (n && n.classList.contains('active')) return true;
+  const party = document.getElementById('party-screen');
+  if (party && party.classList.contains('active')) return true;
+  const inspect = document.getElementById('inspect-overlay');
+  if (inspect && inspect.classList.contains('active')) return true;
+  const controls = document.getElementById('controls-modal');
+  if (controls && controls.classList.contains('active')) return true;
+  return false;
+}
+// Clear the held-keys map so nothing bleeds into the overworld when an
+// overlay closes with a held arrow.
+function clearHeldKeys() { for (const k in keys) keys[k] = false; }
 function openMainMenu() {
   if (game.mode === 'overworld') {
     game.mode = 'mainmenu';
+    clearHeldKeys();
     $mainmenu.classList.add('active');
     setTimeout(() => { const b = $mainmenu.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
   }
@@ -2396,6 +2415,7 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
 
 // ---------- Map view ----------
 function openMapView() {
+  clearHeldKeys();
   $mapview.classList.add('active');
   const cvs = document.getElementById('mapview-canvas');
   const c = cvs.getContext('2d');
@@ -2431,6 +2451,7 @@ $mapview.addEventListener('click', (e) => { if (e.target === $mapview) $mapview.
 
 // ---------- Items inventory ----------
 function openItemsView() {
+  clearHeldKeys();
   $itemsov.classList.add('active');
   const body = document.getElementById('items-body');
   const it = game.player.items || {};
@@ -2476,6 +2497,7 @@ const SHOP_STOCK = [
 ];
 function openShop() {
   game.mode = 'shop';
+  clearHeldKeys();
   $shopov.classList.add('active');
   renderShop();
 }
@@ -2515,7 +2537,7 @@ $shopov.addEventListener('click', (e) => { if (e.target === $shopov) { $shopov.c
 
 // ---------- Controls modal (Design v1) ----------
 const $controlsModal = document.getElementById('controls-modal');
-function openControlsModal() { $controlsModal.classList.add('active'); }
+function openControlsModal() { clearHeldKeys(); $controlsModal.classList.add('active'); }
 function closeControlsModal() { $controlsModal.classList.remove('active'); }
 document.getElementById('controls-close').onclick = closeControlsModal;
 $controlsModal.addEventListener('click', (e) => { if (e.target === $controlsModal) closeControlsModal(); });
@@ -3960,6 +3982,7 @@ const $partyGrid = document.getElementById('party-grid');
 function openParty() {
   if (!game.player.party.length) return;
   game.mode = 'party';
+  clearHeldKeys();
   $party.classList.add('active');
   renderPartyScreen();
 }
@@ -4012,6 +4035,7 @@ const $inspectName = document.getElementById('inspect-name');
 const $inspectBody = document.getElementById('inspect-body');
 document.getElementById('inspect-close').onclick = () => $inspect.classList.remove('active');
 function openInspect(r) {
+  clearHeldKeys();
   const s = SPECIES[r.species] || {};
   const speciesTier = s.tier || 1;
   const maxLv = tierMaxLv(speciesTier);
@@ -4311,15 +4335,15 @@ function loop(now) {
   if (game.mode === 'overworld') {
     game.player.step++;
     if (game.player.moveCd > 0) game.player.moveCd -= dt;
-    // Continuous keyboard walking
-    if (game.player.moveCd <= 0) {
+    // V2.8.2 — controller only drives the player when no overlay owns it.
+    if (game.player.moveCd <= 0 && !anyOverlayOpen()) {
       if (keys['arrowup']   || keys['w']) tryMove(0, -1);
       else if (keys['arrowdown'] || keys['s']) tryMove(0, 1);
       else if (keys['arrowleft'] || keys['a']) tryMove(-1, 0);
       else if (keys['arrowright']|| keys['d']) tryMove(1, 0);
     }
     updateHUD();
-    tickNpcTrainers(dt);   // V2.7.3 — patrol + line-of-sight
+    if (!anyOverlayOpen()) tickNpcTrainers(dt);   // pause NPC patrol too
   }
   if (game.mode !== 'title' && game.mode !== 'starter') renderMap();
   requestAnimationFrame(loop);

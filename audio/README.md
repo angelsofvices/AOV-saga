@@ -4,11 +4,11 @@ Drop three MP3s in this folder — the game will loop each one based on
 context. Missing files are handled silently (no crash, just no music
 for that context).
 
-| File            | Plays when                              |
-|-----------------|-----------------------------------------|
-| `overworld.mp3` | You're walking around Malezor / any outdoor map |
-| `battle.mp3`    | Any battle is active (wild / trainer / gemlord) |
-| `home.mp3`      | You're inside the family home interior          |
+| File          | Plays when                                       |
+|---------------|--------------------------------------------------|
+| `town.mp3`    | You're walking around Malezor / any outdoor map  |
+| `battle.mp3`  | Any battle is active (wild / trainer / gemlord)  |
+| `home.wav`    | You're inside the family home interior           |
 
 ## Wiring / behavior
 

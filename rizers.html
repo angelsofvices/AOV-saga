@@ -1835,7 +1835,8 @@ const MAP = [
   '#,,K,,GGGG,,,,,MM,,,,,K,,,,,,#', // 2
   '#T,,,,GGGG,,,,,,,,,,,,,,,,,,,#', // 3
   '#T,H,,,GGG,,Y,,,,,,S,,,,,,K,,#', // 4 · H=home, Y=Yara (Seer scout), S=merchant, K=chest
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 5
+  '#,,,,,,,,,,,,,,,,,,B,,,,,,,,,#', // 5 · B=merchant stand (booth) in front of S
+
   '#T,,,N,,,,,,,,K,,,,,,GG,,,,,##', // 6 · N=Myara, chest by shrine
   '#,,,,,,,,,,,,,,,,,,J,GGGG,,,,C', // 7 · J=Jax (rival Rizer), C=cave/boss (east edge)
   '#T,,GG,,,,,,,,,,,,,,GGG,,,,,##', // 8
@@ -1882,7 +1883,7 @@ function tileAt(x, y) {
 }
 function walkable(x, y) {
   const t = tileAt(x, y);
-  if ('#TWHMS'.includes(t)) return false;   // S (merchant) blocks like NPC
+  if ('#TWHMSB'.includes(t)) return false;   // S (merchant) + B (booth) both block
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQ'.includes(t) && !npcTrainerDefeated(x, y)) return false;
   if (t === 'K' && !chestOpened(x, y)) return false;
@@ -2057,19 +2058,67 @@ function drawTile(x, y, ch, mx, my) {
       ctx.fillText('$', px + TILE / 2 - 2, py + 7);
       break;
     }
+    case 'B': {
+      // V2.7.4 — merchant stand: wooden counter + striped awning + coin sign
+      drawTile(x, y, ',', mx, my);
+      // Counter body (wooden)
+      ctx.fillStyle = '#6a4c28';
+      ctx.fillRect(px + 2, py + TILE - 14, TILE - 4, 12);
+      ctx.fillStyle = '#8b6236';
+      ctx.fillRect(px + 3, py + TILE - 13, TILE - 6, 2);
+      // Awning (striped canopy)
+      const awningY = py + 2;
+      const stripes = ['#d63b5a', '#f5dc9c', '#d63b5a', '#f5dc9c', '#d63b5a'];
+      const stripeW = (TILE - 4) / stripes.length;
+      stripes.forEach((s, i) => {
+        ctx.fillStyle = s;
+        ctx.fillRect(px + 2 + i * stripeW, awningY, stripeW, 6);
+      });
+      ctx.fillStyle = '#3a1a1a';
+      ctx.fillRect(px + 2, awningY, TILE - 4, 1);
+      // Awning trim
+      ctx.strokeStyle = '#b8923f';
+      ctx.strokeRect(px + 2, awningY, TILE - 4, 6);
+      // Support posts
+      ctx.fillStyle = '#3a2450';
+      ctx.fillRect(px + 3, awningY + 6, 2, TILE - 20);
+      ctx.fillRect(px + TILE - 5, awningY + 6, 2, TILE - 20);
+      // Coin sign hanging on the counter
+      ctx.fillStyle = '#f5dc9c';
+      ctx.beginPath(); ctx.arc(px + TILE / 2, py + TILE - 8, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#050310';
+      ctx.font = 'bold 6px Inter, sans-serif';
+      ctx.fillText('¢', px + TILE / 2 - 2, py + TILE - 6);
+      break;
+    }
     case 'Y': case 'J': case 'Q': {
-      // V2.7.2 — extra NPC trainers with unique palettes
+      // V2.7.2/V2.7.3 — extra NPC trainers with unique palettes + rotating facing
       drawTile(x, y, ',', mx, my);
       const beaten = npcTrainerDefeated(mx, my);
       const palettes = {
-        'Y': ['#b87cff', '#3a1a5c'],   // Yara — violet Seer scout
-        'J': ['#ff8fb2', '#6a1830'],   // Jax — rose rival
-        'Q': ['#2fe6a8', '#1a5a44'],   // Quinn — emerald wanderer
+        'Y': ['#b87cff', '#3a1a5c'],
+        'J': ['#ff8fb2', '#6a1830'],
+        'Q': ['#2fe6a8', '#1a5a44'],
       };
       const [primary, accent] = palettes[ch];
       const dimP = beaten ? 'rgba(232,200,120,0.35)' : primary;
       const dimA = beaten ? 'rgba(184,174,200,0.35)' : accent;
-      drawCharacter(px + TILE / 2, py + TILE / 2, 'down', dimP, dimA);
+      // pull runtime NPC facing dir if available
+      const npc = game.npcs && game.npcs[mx + ',' + my];
+      const facing = (npc && !beaten) ? npc.dir : 'down';
+      drawCharacter(px + TILE / 2, py + TILE / 2, facing, dimP, dimA);
+      // Alert bubble ('!') when NPC has sighted the player
+      if (npc && !beaten && npc.alertTimer > 0) {
+        const pulse = 0.6 + Math.sin(performance.now() * 0.02) * 0.4;
+        ctx.fillStyle = 'rgba(255, 220, 80, 0.9)';
+        ctx.fillRect(px + TILE / 2 - 3, py - 8, 6, 8);
+        ctx.fillStyle = '#050310';
+        ctx.font = 'bold 8px Inter, sans-serif';
+        ctx.fillText('!', px + TILE / 2 - 2, py - 2);
+        ctx.strokeStyle = `rgba(255, 220, 80, ${pulse})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + TILE / 2 - 4, py - 9, 8, 10);
+      }
       break;
     }
     case 'K': {
@@ -2580,7 +2629,7 @@ function tryInteract() {
     }
   } else if (t === 'K') {
     openChest(tx, ty);
-  } else if (t === 'S') {
+  } else if (t === 'S' || t === 'B') {
     openShop();
   } else if ('YJQ'.includes(t)) {
     handleNpcTrainer(t, tx, ty);
@@ -2749,6 +2798,110 @@ function startWildEncounter() {
 function startNPCBattle() {
   const enemy = makeZyrex('dunechitter', 6);
   enterBattle(enemy, 'trainer', { trainerName: 'MYARA', chain: [makeZyrex('flarepaw', 7)] });
+}
+
+// V2.7.3 — runtime NPC patrol state, keyed by 'x,y'.
+// Each NPC rotates its facing every 1.5-3s; if they get line-of-sight
+// on the player (up to 4 tiles, no blocker between), they alert (!),
+// pause 500ms, then declare battle.
+const NPC_DIRS = ['down', 'left', 'up', 'right'];
+const NPC_SIGHT_RANGE = 4;
+function ensureNpcRuntime() {
+  if (game.npcs) return;
+  game.npcs = {};
+  for (let y = 0; y < MAP_ROWS; y++) {
+    for (let x = 0; x < MAP_COLS; x++) {
+      const t = MAP[y][x];
+      if (NPC_TRAINERS[t]) {
+        game.npcs[x + ',' + y] = { x, y, tile: t, dir: 'down', dirTimer: 1500 + Math.random() * 1500, alertTimer: 0, engaged: false };
+      }
+    }
+  }
+}
+function tickNpcTrainers(dt) {
+  if (game.mode !== 'overworld') return;
+  ensureNpcRuntime();
+  for (const key in game.npcs) {
+    const n = game.npcs[key];
+    if (npcTrainerDefeated(n.x, n.y)) continue;
+    if (n.engaged) continue;
+    if (n.alertTimer > 0) {
+      n.alertTimer -= dt;
+      if (n.alertTimer <= 0) {
+        // Player is locked (mode -> dialog); NPC steps toward player then triggers battle.
+        n.engaged = true;
+        game.mode = 'dialog';
+        walkNpcToPlayer(n);
+      }
+      continue;
+    }
+    n.dirTimer -= dt;
+    if (n.dirTimer <= 0) {
+      n.dir = NPC_DIRS[Math.floor(Math.random() * NPC_DIRS.length)];
+      n.dirTimer = 1500 + Math.random() * 1500;
+    }
+    if (npcSees(n, game.player.x, game.player.y)) {
+      n.alertTimer = 500;
+    }
+  }
+}
+function npcSees(n, tx, ty) {
+  const dx = n.dir === 'right' ? 1 : n.dir === 'left' ? -1 : 0;
+  const dy = n.dir === 'down'  ? 1 : n.dir === 'up'   ? -1 : 0;
+  if (!dx && !dy) return false;
+  for (let step = 1; step <= NPC_SIGHT_RANGE; step++) {
+    const sx = n.x + dx * step;
+    const sy = n.y + dy * step;
+    const t = tileAt(sx, sy);
+    if ('#TWHMS'.includes(t)) return false;                    // opaque blockers stop sight
+    if ('YJQN'.includes(t) && !(sx === n.x && sy === n.y)) return false;  // other trainers block sight
+    if (sx === tx && sy === ty) return true;
+  }
+  return false;
+}
+function walkNpcToPlayer(n) {
+  // Step NPC one tile at a time toward the player, then start dialog + battle.
+  const step = () => {
+    const dxSign = Math.sign(game.player.x - n.x);
+    const dySign = Math.sign(game.player.y - n.y);
+    // Prefer axis with larger distance
+    const dxAbs = Math.abs(game.player.x - n.x);
+    const dyAbs = Math.abs(game.player.y - n.y);
+    const useDx = dxAbs >= dyAbs && dxSign !== 0 || dySign === 0;
+    let nx = n.x, ny = n.y;
+    if (useDx && dxSign !== 0) nx += dxSign;
+    else if (dySign !== 0)     ny += dySign;
+    // Update facing
+    if (useDx && dxSign !== 0)  n.dir = dxSign > 0 ? 'right' : 'left';
+    else if (dySign !== 0)      n.dir = dySign > 0 ? 'down'  : 'up';
+    // Are we adjacent? Then stop and fire dialog.
+    const adjacent = (Math.abs(game.player.x - n.x) + Math.abs(game.player.y - n.y)) <= 1;
+    if (adjacent) {
+      const npc = NPC_TRAINERS[n.tile];
+      showDialog([
+        `${npc.name}: There! You — Rizer!`,
+        npc.intro,
+        `«BATTLE ${npc.name}?»`,
+      ], () => startNpcTrainerBattle(n.tile, n.x, n.y));
+      return;
+    }
+    // Try to step (respect blockers)
+    if (walkable(nx, ny) || (nx === game.player.x && ny === game.player.y)) {
+      // If landing on player tile — stop just short, fire dialog.
+      if (nx === game.player.x && ny === game.player.y) {
+        const npc = NPC_TRAINERS[n.tile];
+        showDialog([
+          `${npc.name}: There! You — Rizer!`,
+          npc.intro,
+          `«BATTLE ${npc.name}?»`,
+        ], () => startNpcTrainerBattle(n.tile, n.x, n.y));
+        return;
+      }
+      n.x = nx; n.y = ny;
+    }
+    setTimeout(step, 150);
+  };
+  setTimeout(step, 250);
 }
 
 // V2.7.2 — extra NPC trainer flow (Y/J/Q).
@@ -3827,6 +3980,7 @@ function loop(now) {
       else if (keys['arrowright']|| keys['d']) tryMove(1, 0);
     }
     updateHUD();
+    tickNpcTrainers(dt);   // V2.7.3 — patrol + line-of-sight
   }
   if (game.mode !== 'title' && game.mode !== 'starter') renderMap();
   requestAnimationFrame(loop);

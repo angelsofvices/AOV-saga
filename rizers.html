@@ -1854,9 +1854,9 @@ const game = {
 const MALEZOR_MAP = [
   '##############################', // 0
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 1
-  '#,,K,,GGGG,,,,,MM,,,,,K,,,,,,#', // 2
-  '#T,,,,GGGG,,,,,,,,p,,,,,,,,,,#', // 3 · p = Bronze Cottage (locked door)
-  '#T,H,,,GGG,,Y,,,,,,S,,,,,,K,,#', // 4 · H=home, Y=Yara (Seer scout), S=merchant, K=chest
+  '#,,K,,GGGG,,,,,MMhhh,,K,,,,,,#', // 2 · hhh = Bronze Cottage roof body
+  '#Thhh,GGGG,,,,,,,,p,,,,,,,,,,#', // 3 · hhh = Home body; p = Bronze Cottage door
+  '#T,H,,,GGG,,Y,,,,,,S,,,,,,K,,#', // 4 · H = Home door (walk in); Y/S/K as before
   '#,,,,,,,,,,,,,,,,,,B,,,,,,,,,#', // 5 · B=merchant stand (booth) in front of S
 
   '#T,,,N,,,,,,,,K,,,,,,GG,,,,,##', // 6 · N=Myara, chest by shrine
@@ -1865,8 +1865,8 @@ const MALEZOR_MAP = [
   '#,,GGGG,,,,,,,,,,,,,,,,,,,,K,#', // 9
   '#,,WWW,,,,,,,,,,,,,,,,,,,,,,,#', // 10
   '#,,WWW,,,,K,,,,,,GGG,,,,,,,,,#', // 11
-  '#,,,,,,,,,,,,,,,GGGGG,,,,,,,,#', // 12
-  '#T,,,,,,,,,,,q,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge (locked door)
+  '#,,,,,,,,,,,hhh,GGGGG,,,,,,,,#', // 12 · hhh = Silver Lodge roof body
+  '#T,,,,,,,,,,,q,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge door
   '#,,,,,,,K,,,,,Q,,,,,,K,,,,,,,#', // 14 · Q=Quinn (desert wanderer)
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 15
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 16
@@ -1917,7 +1917,8 @@ const MAPS = {
 // Which map to enter when the player walks through a door tile.
 // entry[0..1] is the spawn tile on the destination map, facing 'up'.
 const DOOR_TARGETS = {
-  x: { map: 'malezor',        x: 3, y: 5, dir: 'down' },   // home 'x' -> Malezor (south of H)
+  H: { map: 'home_interior',  x: 6, y: 7, dir: 'up' },     // V2.10.1 — walk into H = enter family home
+  x: { map: 'malezor',        x: 3, y: 5, dir: 'down' },   // interior 'x' -> Malezor (south of H)
   p: { map: 'bronze_cottage', x: 5, y: 5, dir: 'up',   key: 'bronze', label: 'Bronze Cottage' },
   q: { map: 'silver_lodge',   x: 5, y: 5, dir: 'up',   key: 'silver', label: 'Silver Lodge' },
 };
@@ -1976,10 +1977,10 @@ function tileAt(x, y) {
 }
 function walkable(x, y) {
   const t = tileAt(x, y);
-  // V2.8.3 — walls, decor, and stationary NPCs still block; doors
-  // (x, p, q) are 'walkable' — walking INTO them triggers auto-enter
-  // via tryMove's post-step door check.
-  if ('#TWHMSB=btmd'.includes(t)) return false;
+  // V2.10.1 — house body 'h' now blocks (bigger 3x2 exteriors).
+  // Doors (H, x, p, q) are 'walkable' — walking INTO them triggers
+  // auto-enter via tryMove's post-step door check.
+  if ('#TWMSBh=btmd'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQ'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);
   if (t === 'K' && !chestOpened(x, y)) return false;
@@ -2091,19 +2092,71 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'H': {
-      // home / observatory
-      ctx.fillStyle = '#382450';
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#7a5cc8';
-      ctx.fillRect(px + 4, py + 10, TILE - 8, TILE - 12);
-      // dome
+      // V2.10.1 — Family home DOOR (walk in). Stone base + wooden door
+      // + gold arched top so it reads as an entry beneath the 'h' roof row.
+      drawTile(x, y, ',', mx, my);
+      // Stone base (matches 'h' walls above)
+      ctx.fillStyle = '#4a3628';
+      ctx.fillRect(px + 2, py + 4, TILE - 4, TILE - 4);
+      // Wooden door frame
+      ctx.fillStyle = '#3a2a1e';
+      ctx.fillRect(px + 6, py + 10, TILE - 12, TILE - 12);
+      // Door planks
+      ctx.fillStyle = '#8b6236';
+      ctx.fillRect(px + 8, py + 12, TILE - 16, TILE - 14);
+      // Plank divider
+      ctx.strokeStyle = '#3a2a1e';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 12);
+      ctx.lineTo(px + TILE / 2, py + TILE - 4);
+      ctx.stroke();
+      // Arched top window (gold)
       ctx.fillStyle = '#e8c878';
       ctx.beginPath();
-      ctx.arc(px + TILE / 2, py + 12, 10, Math.PI, 0);
+      ctx.arc(px + TILE / 2, py + 8, 4, Math.PI, 0);
       ctx.fill();
-      // door
-      ctx.fillStyle = '#1a0d2e';
-      ctx.fillRect(px + 13, py + 20, 6, 8);
+      ctx.strokeStyle = '#8a6a2c';
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + 8, 4, Math.PI, 0);
+      ctx.stroke();
+      // Knob
+      ctx.fillStyle = '#e8c878';
+      ctx.beginPath();
+      ctx.arc(px + TILE - 12, py + TILE - 8, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'h': {
+      // V2.10.1 — House body / roof tile. Stone wall lower half, tiled
+      // roof upper half. Uniform across all houses so they all look big.
+      drawTile(x, y, ',', mx, my);
+      // Wall (stone)
+      ctx.fillStyle = '#4a3628';
+      ctx.fillRect(px, py + 10, TILE, TILE - 10);
+      // Stone mortar lines
+      ctx.strokeStyle = '#2a1e14';
+      ctx.beginPath();
+      ctx.moveTo(px, py + 20); ctx.lineTo(px + TILE, py + 20);
+      ctx.moveTo(px + TILE / 2, py + 10); ctx.lineTo(px + TILE / 2, py + 20);
+      ctx.stroke();
+      // Roof (angled tiles, terracotta)
+      ctx.fillStyle = '#8b3d20';
+      ctx.beginPath();
+      ctx.moveTo(px, py + 10);
+      ctx.lineTo(px + TILE / 2, py);
+      ctx.lineTo(px + TILE, py + 10);
+      ctx.closePath();
+      ctx.fill();
+      // Roof edge highlight
+      ctx.strokeStyle = '#3a1a10';
+      ctx.stroke();
+      // Roof tile lines
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 4, py + 5);
+      ctx.lineTo(px + 3 * TILE / 4, py + 5);
+      ctx.stroke();
       break;
     }
     case 'C': {
@@ -2970,38 +3023,9 @@ function tryInteract() {
       ], () => startNPCBattle());
     }
   } else if (t === 'H') {
-    const remaining = 10 - respectsCount();
-    const GEM_FLOOR = 20;
-    const gemsBefore = game.player.gems || 0;
-    const gemGift = Math.max(0, GEM_FLOOR - gemsBefore);
-    const lines = [
-      `MOM: Come rest, ${game.player.name}. You look drained.`,
-      `Your party is restored to full.`,
-    ];
-    if (gemGift > 0) {
-      lines.push(
-        `DAD: And here — ${gemGift} gems from the family pouch.`,
-        `We keep you at ${GEM_FLOOR} at all times so you never march empty.`
-      );
-    } else {
-      lines.push(`DAD: Your pouch is heavy already — save the gift for next time.`);
-    }
-    lines.push(
-      remaining >= 10
-        ? `MOM: Any word yet on the Seer leaders? Nothing here either.`
-        : remaining > 0
-          ? `MOM: The path opens as you walk it. Take it a step at a time.`
-          : `MOM: All ten stand with you now. The three Seers are next.`
-    );
-    showDialog(lines, () => {
-      healParty();
-      if (gemGift > 0) {
-        game.player.gems = GEM_FLOOR;
-        save();
-        updateHUD();
-        showToast(`◈  +${gemGift} GEMS  ·  POUCH ${GEM_FLOOR}`);
-      }
-    });
+    // V2.10.1 — walk INTO H to enter (tryMove auto-triggers via DOOR_TARGETS).
+    // Pressing Z from an adjacent tile also enters the home directly.
+    enterMap('home_interior', 6, 7, 'up');
   } else if (t === 'M') {
     if (game.player.bossDefeated) {
       showDialog([

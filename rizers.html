@@ -1820,7 +1820,8 @@ const game = {
     mapId: 'malezor',       // V2.8 — which map the player is on
     bossDefeated: false,
     npcDefeated: false,       // legacy — Myara flag
-    npcsDefeated: {},         // V2.7.2 — { 'x,y': true } for extra NPC trainers
+    npcsDefeated: {},         // V2.7.2 — { 'x,y': true } for first-battle wins
+    npcsRematched: {},        // V2.11 — { 'x,y': true } for stakes-battle done
     stepsSinceEnc: 0,
     chestsOpened: {},         // { 'x,y': true }
     respects: [],             // Gemlord ids whose respect you've earned (max 10 = victory)
@@ -3458,12 +3459,30 @@ function queueNpcTrainerClue(name) {
   }, 1600);
 }
 
-// V2.7.2 — extra NPC trainer flow (Y/J/Q).
+// V2.7.2 / V2.11 — extra NPC trainer flow (Y/J/Q).
+//   1st battle → normal (drops keys + clues on defeat)
+//   2nd battle → REMATCH with steal stakes (winner takes a Zyrex)
+//   3rd+ battle → refused
 function handleNpcTrainer(tileChar, x, y) {
   const npc = NPC_TRAINERS[tileChar];
   if (!npc) return;
-  if (npcTrainerDefeated(x, y)) {
-    showDialog([`${npc.name}: You've already bested me. Move on, Rizer.`]);
+  const key = x + ',' + y;
+  const rematched = (game.player.npcsRematched || {})[key];
+  const beaten    = npcTrainerDefeated(x, y);
+  if (rematched) {
+    showDialog([
+      `${npc.name}: We've settled this twice, ${game.player.name || 'Rizer'}.`,
+      `No more between us.`,
+    ]);
+    return;
+  }
+  if (beaten) {
+    // Rematch — stakes battle.
+    showDialog([
+      `${npc.name}: Back for more?`,
+      `${npc.name}: This time it's for keeps. Winner takes one Zyrex from the loser.`,
+      `«REMATCH ${npc.name} · FOR A ZYREX?»`,
+    ], () => startNpcTrainerBattle(tileChar, x, y, { stakes: true }));
     return;
   }
   showDialog([
@@ -3471,15 +3490,47 @@ function handleNpcTrainer(tileChar, x, y) {
     `«CHALLENGE ${npc.name}?»`,
   ], () => startNpcTrainerBattle(tileChar, x, y));
 }
-function startNpcTrainerBattle(tileChar, x, y) {
+function startNpcTrainerBattle(tileChar, x, y, opts) {
   const npc = NPC_TRAINERS[tileChar];
   const chain = npc.chain.map(([id, lv]) => makeZyrex(id, lv));
   const lead = chain.shift();
   enterBattle(lead, 'npc-trainer', {
     trainerName: npc.name,
     npcCoord: x + ',' + y,
+    tileChar,
     chain,
+    stakes: !!(opts && opts.stakes),
+    // Snapshot the entire chain [spec + realized] so we can hand one over on win.
+    stealPool: npc.chain.slice(),
   });
+}
+// V2.11 — steal implementations
+function stealZyrexFromNpc() {
+  const b = game.battle;
+  if (!b || !b.stealPool || !b.stealPool.length) return;
+  // Pick a random spec from the chain, realize a fresh Zyrex at level.
+  const spec = b.stealPool[Math.floor(Math.random() * b.stealPool.length)];
+  const [speciesId, lv] = spec;
+  const taken = makeZyrex(speciesId, lv);
+  if (game.player.party.filter(Boolean).length < MAX_PARTY) game.player.party.push(taken);
+  else                                                       game.player.box.push(taken);
+  showToast(`◈  ${taken.name} JOINED YOU`);
+  setTimeout(() => showDialog([
+    `${b.trainerName}: Take it. Fair's fair.`,
+    `${taken.name} (Lv ${lv}) joins your party${game.player.party.filter(Boolean).length >= MAX_PARTY ? ' box.' : '.'}`,
+  ]), 900);
+}
+function npcStealsZyrexFromPlayer(trainerName) {
+  const alive = game.player.party.map((r, i) => ({ r, i })).filter(o => o.r);
+  if (!alive.length) return;
+  const pick = alive[Math.floor(Math.random() * alive.length)];
+  const takenName = pick.r.name;
+  game.player.party.splice(pick.i, 1);
+  showToast(`⚑  ${trainerName} TOOK ${takenName}`, 2600);
+  setTimeout(() => showDialog([
+    `${trainerName}: I warned you it was for keeps.`,
+    `${trainerName} takes ${takenName} from your party.`,
+  ]), 900);
 }
 
 // V2.10.2 — DEAD CODE (intentional). Gemlord fights are deferred to
@@ -3620,20 +3671,27 @@ function renderMoveMenu() {
 
 function renderZyrexMenu() {
   $battleActions.innerHTML = '';
+  const forced = !!game.battle.forcedSwitch;      // V2.11 — after a KO, must switch
+  const active = game.player.party[game.battle.playerIdx];
+  const activeAlive = !!(active && active.hp > 0);
   game.player.party.forEach((r, i) => {
     if (!r) return;
     const b = document.createElement('button');
     b.className = 'action-btn';
-    b.innerHTML = r.name + ` <span class="cost">Lv ${r.lv} · ${r.hp}/${r.maxHp}</span>`;
-    if (r.hp <= 0 || i === game.battle.playerIdx) b.disabled = true;
+    const tag = (r.hp <= 0) ? ' · KO' : '';
+    b.innerHTML = r.name + ` <span class="cost">Lv ${r.lv} · ${r.hp}/${r.maxHp}${tag}</span>`;
+    // Disable KO'd choices, and disable the currently active Zyrex ONLY if it is alive
+    if (r.hp <= 0 || (i === game.battle.playerIdx && activeAlive)) b.disabled = true;
     b.onclick = () => playerSwitch(i);
     $battleActions.appendChild(b);
   });
-  const back = document.createElement('button');
-  back.className = 'action-btn';
-  back.textContent = '← BACK';
-  back.onclick = renderMainMenu;
-  $battleActions.appendChild(back);
+  if (!forced) {
+    const back = document.createElement('button');
+    back.className = 'action-btn';
+    back.textContent = '← BACK';
+    back.onclick = renderMainMenu;
+    $battleActions.appendChild(back);
+  }
   focusFirstAction();
 }
 
@@ -3842,8 +3900,15 @@ function flashCanvas(cvs) {
 }
 
 async function playerSwitch(i) {
-  logBattle(`${game.player.party[game.battle.playerIdx].name}, come back!`);
-  await wait(600);
+  // V2.11 — post-KO switch is FREE (enemy already had its turn to knock you out)
+  const postKo = !!game.battle.postKoSwitch;
+  game.battle.postKoSwitch = false;
+  game.battle.forcedSwitch  = false;
+  const outgoing = game.player.party[game.battle.playerIdx];
+  if (outgoing && outgoing.hp > 0) {
+    logBattle(`${outgoing.name}, come back!`);
+    await wait(600);
+  }
   game.battle.playerIdx = i;
   const p = game.player.party[i];
   p.atkStage = 0; p.defStage = 0;   // reset stages
@@ -3851,9 +3916,11 @@ async function playerSwitch(i) {
   logBattle(`Go, ${p.name}!`);
   await wait(600);
   refreshBattleUI();
-  // Free switch — enemy still gets a turn
-  await enemyTurn();
-  if (checkBattleOver()) return;
+  if (!postKo) {
+    // Voluntary switch — enemy still gets a turn.
+    await enemyTurn();
+    if (checkBattleOver()) return;
+  }
   refreshBattleUI();
   renderMainMenu();
 }
@@ -3925,18 +3992,25 @@ function checkBattleOver() {
     } else if (game.battle.kind === 'npc-trainer') {
       if (!game.player.npcsDefeated) game.player.npcsDefeated = {};
       if (game.battle.npcCoord) game.player.npcsDefeated[game.battle.npcCoord] = true;
-      // V2.8.3 — key drops from key trainers
-      if (!game.player.keys) game.player.keys = { bronze: 0, silver: 0 };
-      if (game.battle.trainerName === 'JAX') {
-        game.player.keys.bronze++;
-        showToast(`⌨  BRONZE KEY  (${game.player.keys.bronze})`, 2400);
-      } else if (game.battle.trainerName === 'QUINN') {
-        game.player.keys.silver++;
-        showToast(`⌨  SILVER KEY  (${game.player.keys.silver})`, 2400);
+      // V2.11 — stakes rematch: player wins → steal a Zyrex, mark rematched.
+      if (game.battle.stakes) {
+        if (!game.player.npcsRematched) game.player.npcsRematched = {};
+        if (game.battle.npcCoord) game.player.npcsRematched[game.battle.npcCoord] = true;
+        stealZyrexFromNpc();
+      } else {
+        // V2.8.3 — key drops on FIRST battle only (no double-drop on rematch)
+        if (!game.player.keys) game.player.keys = { bronze: 0, silver: 0 };
+        if (game.battle.trainerName === 'JAX') {
+          game.player.keys.bronze++;
+          showToast(`⌨  BRONZE KEY  (${game.player.keys.bronze})`, 2400);
+        } else if (game.battle.trainerName === 'QUINN') {
+          game.player.keys.silver++;
+          showToast(`⌨  SILVER KEY  (${game.player.keys.silver})`, 2400);
+        }
+        // V2.9 — clue drops on first defeat only.
+        if (!game.player.seerClues) game.player.seerClues = {};
+        queueNpcTrainerClue(game.battle.trainerName);
       }
-      // V2.9 — clue drops after NPC-trainer defeats (mystery-hunt canon)
-      if (!game.player.seerClues) game.player.seerClues = {};
-      queueNpcTrainerClue(game.battle.trainerName);
     }
     logBattle('You won the battle!');
     save();
@@ -3951,6 +4025,9 @@ function checkBattleOver() {
     // Next alive?
     const next = game.player.party.findIndex((r, i) => r && r.hp > 0 && i !== game.battle.playerIdx);
     if (next < 0) { fullPartyKO(); return true; }
+    // V2.11 — force a switch, and mark it as a free switch (enemy already had its KO turn)
+    game.battle.postKoSwitch = true;
+    game.battle.forcedSwitch  = true;
     setTimeout(() => renderZyrexMenu(), 400);
     return true;
   }
@@ -4048,12 +4125,22 @@ function levelUp(r) {
 }
 
 function fullPartyKO() {
+  // V2.11 — capture stakes context before we tear down game.battle
+  const wasStakes  = game.battle && game.battle.stakes && game.battle.kind === 'npc-trainer';
+  const stakesName = game.battle && game.battle.trainerName;
+  const stakesKey  = game.battle && game.battle.npcCoord;
   logBattle('All your Zyrex fainted.');
   setTimeout(() => {
     exitBattle();
-    showDialog(['You wake at the observatory.', 'Your party has been mended.'], healParty);
-    // Respawn at home tile (H is at (3,8))
-    game.player.x = 4; game.player.y = 8;
+    if (wasStakes) {
+      if (!game.player.npcsRematched) game.player.npcsRematched = {};
+      if (stakesKey) game.player.npcsRematched[stakesKey] = true;
+      npcStealsZyrexFromPlayer(stakesName);
+      save();
+    }
+    // Respawn in the family home (Mom mends everyone).
+    enterMap('home_interior', 2, 2, 'down');
+    showDialog(['You wake in your own bed. Mom mended your Zyrex.'], () => healParty());
   }, 900);
 }
 
@@ -4593,6 +4680,7 @@ document.getElementById('btn-new').onclick = () => {
     bossDefeated: false,
     npcDefeated: false,
     npcsDefeated: {},
+    npcsRematched: {},
     stepsSinceEnc: 0,
     chestsOpened: {},
     respects: [],

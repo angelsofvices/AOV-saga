@@ -2930,25 +2930,15 @@ function tryInteract() {
   if (nRuntime) { handleNpcTrainer(nRuntime.tile, nRuntime.homeX, nRuntime.homeY); return; }
   const t = tileAt(tx, ty);
   if (t === 'C') {
-    if (game.player.respects.includes('rakoron')) {
-      const next = nextGemlord();
-      showDialog([
-        "The lair is quiet — the pack has withdrawn.",
-        "RAKORON sleeps beneath his own ruby crest.",
-        next
-          ? `The next path leads to ${next.district} · ${next.land} — ${next.name} ${next.epithet}.`
-          : `All ten respects are yours, Conqueror.`,
-        next && next.status === 'locked' ? '(That district is not yet reachable — more chapters, forthcoming.)' : '',
-      ].filter(Boolean));
-    } else {
-      showDialog([
-        "The lair breathes with hot iron and blood.",
-        "RAKORON the Rubylord holds this ground alone — Malezor's first sovereign.",
-        "He has fended off Seer grunts so far. But his patience is thin.",
-        "Prove yourself and he will stand with you against the Seers.",
-        "«ENTER THE LAIR?»",
-      ], () => startBossEncounter());
-    }
+    // V2.9 — Gemlord fights deferred to mid-late game. The lair is sealed
+    // by ancient ruby glyphs. Player cannot enter Rakoron yet.
+    showDialog([
+      "The lair breathes with hot iron and dust.",
+      "A door of RUBY GLYPHS bars the way — old, old wards.",
+      "You feel a low resonance behind it. Sleeping. Enormous.",
+      "«This seal will not break for a long time.»",
+      "Chase the Seers first. That is the trail that matters.",
+    ]);
   } else if (t === 'K') {
     openChest(tx, ty);
   } else if (t === 'm') {
@@ -2998,9 +2988,11 @@ function tryInteract() {
       lines.push(`DAD: Your pouch is heavy already — save the gift for next time.`);
     }
     lines.push(
-      remaining > 0
-        ? `MOM: ${remaining} Gemlord${remaining === 1 ? '' : 's'} left. The Seers won't wait — but neither will you.`
-        : `MOM: All ten stand with you now. The three Seers are next. Go save the world, ${game.player.name}.`
+      remaining >= 10
+        ? `MOM: Any word yet on the Seer leaders? Nothing here either.`
+        : remaining > 0
+          ? `MOM: The path opens as you walk it. Take it a step at a time.`
+          : `MOM: All ten stand with you now. The three Seers are next.`
     );
     showDialog(lines, () => {
       healParty();
@@ -3022,9 +3014,11 @@ function tryInteract() {
     } else {
       showDialog([
         "You touch the Mothergem shrine — cold as first-light.",
-        "The stone remembers its own fall from a higher sky.",
-        "Every Zyrex descends from a shard of it.",
-        "Even the Gemlords. Even Obsidius.",
+        "The stone remembers. But not clearly. Not fully.",
+        `«...three names carried into three shadows...»`,
+        `«...the choir sings from a ridge you have not walked...»`,
+        `«...the sand keeps a secret the wind does not...»`,
+        "The hum fades. That is all it will give you today.",
       ]);
     }
   }
@@ -3316,14 +3310,16 @@ function interactDad() {
       renderStarterScreen();
     });
   } else {
-    // Player already has a starter — Dad recaps the mission.
-    const respLeft = 10 - respectsCount();
+    // Player already has a starter — Dad recaps the CURRENT mystery.
+    const clues = Object.keys(game.player.seerClues || {}).length;
     showDialog([
-      `DAD: Head to Malezor when you're ready, ${nm}.`,
-      respLeft > 0
-        ? `RAKORON the Rubylord holds the lair to the east. ${respLeft} Gemlord${respLeft === 1 ? '' : 's'} left.`
-        : `All ten stand with you. Now the three Seers.`,
-      `Walk out the door when you're set.`,
+      `DAD: Head back out when you're ready, ${nm}.`,
+      clues === 0
+        ? `We still don't know where the three Seer leaders are hiding.`
+        : clues < 3
+          ? `You've picked up ${clues} clue${clues === 1 ? '' : 's'} so far — good. Chase more.`
+          : `You have all three names on the trail. Follow them one at a time.`,
+      `The cave east is sealed. Don't waste time on it yet.`,
     ]);
   }
 }
@@ -3357,6 +3353,44 @@ function exitHouseToMalezor() {
     // Malezor spawn: just below the H tile, facing away from home
     enterMap('malezor', 3, 5, 'down');
   });
+}
+
+// V2.9 — post-defeat clue lines. Each NPC trainer drops a breadcrumb
+// about where one of the three Seer leaders is rumored to be hiding.
+// Fires once per trainer via game.player.seerClues[NAME] = true.
+const NPC_CLUES = {
+  MYARA: [
+    `MYARA: You bind honestly. Listen — I saw a Seer runner sprint north.`,
+    `MYARA: The NORTHMARCH stones cast shadows they shouldn't. Something up there.`,
+  ],
+  YARA: [
+    `YARA spits: "You get NOTHING out of me, Rizer."`,
+    `... but her pouch spills a torn scrap of parchment:`,
+    `«OPHIRA — Wild March · fifth ridge · listen for the choir»`,
+  ],
+  JAX: [
+    `JAX brushes dust off his coat. "Not bad. Not bad at all."`,
+    `JAX: Take my bronze key. Cottage north — old man in there muttering.`,
+    `He said AEL'THARION was seen crossing the Northeast Hydroplane at dusk.`,
+    `Whether he's fool or oracle, I couldn't tell you.`,
+  ],
+  QUINN: [
+    `QUINN dusts sand from her palms. "You listen better than you fight."`,
+    `QUINN: The dunes remember. Three shadows fled through the Wild March.`,
+    `They split three ways. ORRYX went south — into the Pit of No Return.`,
+    `That's all the sand told me. Take my silver key and go find the rest.`,
+  ],
+};
+function queueNpcTrainerClue(name) {
+  const lines = NPC_CLUES[name];
+  if (!lines) return;
+  if (game.player.seerClues[name]) return;   // one-time
+  game.player.seerClues[name] = true;
+  save();
+  // Queue after the current victory dialog closes (small delay).
+  setTimeout(() => {
+    if (game.mode === 'overworld' || game.mode === 'dialog') showDialog(lines.slice());
+  }, 1600);
 }
 
 // V2.7.2 — extra NPC trainer flow (Y/J/Q).
@@ -3808,6 +3842,9 @@ function checkBattleOver() {
         game.player.keys.silver++;
         showToast(`⌨  SILVER KEY  (${game.player.keys.silver})`, 2400);
       }
+      // V2.9 — clue drops after NPC-trainer defeats (mystery-hunt canon)
+      if (!game.player.seerClues) game.player.seerClues = {};
+      queueNpcTrainerClue(game.battle.trainerName);
     }
     logBattle('You won the battle!');
     save();
@@ -4104,30 +4141,31 @@ function chooseStarter(id) {
   const nm = game.player.name || 'TRAINER';
   showDialog([
     `DAD: The ${SPECIES[id].name} hummed for you, ${nm}. It's yours.`,
-    `It's Lv 5 — Tier I. Ten levels make one tier. Reach Tier X and`,
-    `you rival the sleeping Gemlords themselves.`,
+    `Lv 5 · Tier I. Not much yet — but real.`,
     ``,
-    `DAD: But listen. The SEERS are moving. Every district has grunts.`,
-    `They mean to harvest each Gemlord's Fathergem core.`,
-    `They think the beasts don't deserve cosmic power. They're wrong.`,
+    `DAD: I have to be honest. I don't know as much as I'd like.`,
+    `Something is wrong on Malezor. Seer GRUNTS have been sighted`,
+    `across the district. Hiding things. Watching things.`,
     ``,
-    `DAD: Your job is to save the world, ${nm}. Not alone —`,
-    `you'll build a faction. Zyrex, friends, the Gemlords themselves.`,
-    `Defend each district. Earn each Gemlord's respect. Ten in all.`,
+    `DAD: Their leaders — AEL'THARION, ORRYX, OPHIRA — nobody knows`,
+    `where they are. They struck once, then vanished. Even the shrine`,
+    `hasn't spoken clearly since.`,
     ``,
-    `DAD: At the end, the three Seers will come for you —`,
-    `AEL'THARION, ORRYX, and OPHIRA. That fight is yours to win.`,
+    `DAD: The cave east of here — RAKORON'S lair — is sealed. Ruby`,
+    `glyphs, old wards. Don't waste time on him. It's not the time.`,
+    ``,
+    `DAD: What we CAN do is chase the grunts. Beat them. See what`,
+    `they're carrying. Piece the trail together clue by clue.`,
+    `Anyone friendly on the path — MYARA, a rival named JAX, a`,
+    `wanderer named QUINN — spar them. They may know more than us.`,
     ``,
     `DAD: Here — ten gems for your pouch, five gemspheres for binding.`,
     `Every Zyrex move feeds on gems. Chests hold more. Battle wins`,
-    `pay in more still. Never let the pouch run empty.`,
+    `pay in more still.`,
     ``,
-    `DAD: You start in MALEZOR — the Beastlands. RAKORON the Rubylord`,
-    `holds the lair east. Gemlord I. MYARA patrols the path — take her`,
-    `bout first. Expect Seer grunts along the way.`,
-    ``,
-    `MOM: And touch the Mothergem shrine before you leave. It will`,
-    `remember you too. Come home safe, ${nm}.`,
+    `MOM: And touch the Mothergem shrine before you leave.`,
+    `If it has anything left to say, it will say it to you.`,
+    `Come home safe, ${nm}.`,
   ]);
 }
 
@@ -4354,8 +4392,8 @@ const PROLOGUE_PAGES = [
   { n: 'VI',   body: 'Three of them lead — AEL\'THARION the founder, ORRYX, and OPHIRA. Between them they command a faction that has invaded every district.' },
   { n: 'VII',  body: 'They mean to control every Gemlord. Harvest each of their Fathergem cores. Ascend as absolute Rizers with no beasts to answer to.' },
   { n: 'VIII', body: 'One trainer stands against them each age. One Rizer who binds respect from all ten Gemlords, builds a faction of Zyrex and friends, and holds the line.' },
-  { n: 'IX',   body: 'Save the districts. Earn the Gemlords\' respect. Face the three Seers at the end. You cannot do it alone — and you are not asked to.' },
-  { n: 'X',    body: 'Tonight, the Mothergem hums again. A shard is looking for you, {name}. Zyraxis needs you. You must save the world.' },
+  { n: 'IX',   body: 'One day you will face the Gemlords themselves. That day is not today. Today, the Seers hide in the shadows — and no one knows where their leaders have gone.' },
+  { n: 'X',    body: 'Tonight, the Mothergem hums again. A shard is looking for you, {name}. Find the trail. Follow the clues. The rest will come.' },
 ];
 const $prologue = document.getElementById('prologue-screen');
 const $prologueNumeral = document.getElementById('prologue-numeral');

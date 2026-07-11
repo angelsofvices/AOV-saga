@@ -1921,8 +1921,9 @@ const game = {
     npcDefeated: false,       // legacy — Myara flag
     npcsDefeated: {},         // V2.7.2 — { 'x,y': true } for first-battle wins
     npcsRematched: {},        // V2.11 — { 'x,y': true } for stakes-battle done
-    mothergemsTouched: {},    // V2.14 — { north:true, south:true } → Elzebub gift
-    elzebubGranted: false,    // V2.14 — the CREATOR's easter-egg reward
+    homunculusSpawn: null,    // V2.17 — { x, y } chosen at new-game / first load
+    homunculusFound: false,   // V2.17 — picked up but not yet given to Mom
+    elzebubGranted: false,    // V2.17 — Mom transformed the homunculus into Elzebub
     stepsSinceEnc: 0,
     chestsOpened: {},         // { 'x,y': true }
     respects: [],             // Gemlord ids whose respect you've earned (max 10 = victory)
@@ -1970,7 +1971,7 @@ const MALEZOR_MAP = [
   '#,,,,,,,,,,,hh,,GGGGG,,,,,,,,#', // 12 · hh = Silver Lodge roof (top row of 2x2)
   '#T,,,,,,,,,,qh,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge door
   '#,,,,,,,K,,,,,Q,,,,,,K,,,,,,,#', // 14 · Q=Quinn (desert wanderer)
-  '#,,,,,,,,,,,,,,,,,,,,,MM,,,,,#', // 15 · MM = SOUTH Mothergem shrine (V2.14 easter egg)
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 15 · V2.17 — south shrine removed (homunculus flow)
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 16
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 17
   '#T,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 18
@@ -2589,11 +2590,46 @@ function renderMap() {
       }
     }
   }
+  // V2.17 — Homunculus glow (drawn under player, above tiles)
+  drawHomunculus(cam);
   // Player on top — palette varies by gender chosen at char creation
   const pal = playerPalette();
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
   drawCharacter(px, py, game.player.dir, pal.primary, pal.accent);
+}
+
+// V2.17 — Small pulsing egg-shape for the forgotten homunculus.
+function drawHomunculus(cam) {
+  const sp = game.player.homunculusSpawn;
+  if (!sp) return;
+  if (game.player.homunculusFound || game.player.elzebubGranted) return;
+  if (game.player.mapId !== 'malezor') return;
+  const scx = (sp.x - cam.x) * TILE + TILE / 2;
+  const scy = (sp.y - cam.y) * TILE + TILE / 2;
+  if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) return;
+  // Soft pulse — blue+orange to hint at the Elzoran line, but dim/unfinished.
+  const t = performance.now() * 0.003;
+  const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t));
+  // Aura
+  const grd = ctx.createRadialGradient(scx, scy, 2, scx, scy, TILE * 0.7);
+  grd.addColorStop(0, `rgba(125, 200, 255, ${0.35 * pulse})`);
+  grd.addColorStop(1, 'rgba(125, 200, 255, 0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(scx - TILE, scy - TILE, TILE * 2, TILE * 2);
+  // Egg body
+  ctx.beginPath();
+  ctx.ellipse(scx, scy + 2, 5, 7, 0, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(160, 205, 240, ${0.85})`;
+  ctx.fill();
+  ctx.strokeStyle = `rgba(58, 92, 156, 0.9)`;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Warm orange fleck
+  ctx.beginPath();
+  ctx.arc(scx, scy - 1, 1.6, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255, 160, 90, ${pulse})`;
+  ctx.fill();
 }
 // Wrapper — drawTile(x, y, ch) becomes drawTileAt(sx, sy, mx, my) so
 // the pixel destination stays in viewport coords but the tile lookup
@@ -3150,62 +3186,77 @@ function tryInteract() {
     // Pressing Z from an adjacent tile also enters the home directly.
     enterMap('home_interior', 6, 7, 'up');
   } else if (t === 'M') {
-    handleMothergemTouch(tx, ty);
+    // V2.17 — Mothergem is a landmark shrine, no longer part of the Elzebub flow.
+    if (game.player.bossDefeated) {
+      showDialog([
+        "You touch the Mothergem shrine — colder now, or maybe older.",
+        "The stone hums against your palm — same frequency as the echo.",
+        "«...one of the nine begins to stir...»",
+      ]);
+    } else {
+      showDialog([
+        "You touch the Mothergem shrine — cold as first-light.",
+        "The stone remembers. But not clearly. Not fully.",
+        `«...three names carried into three shadows...»`,
+        `«...the choir sings from a ridge you have not walked...»`,
+        `«...the sand keeps a secret the wind does not...»`,
+        "The hum fades. That is all it will give you today.",
+      ]);
+    }
+  } else if (isHomunculusHere(tx, ty)) {
+    // V2.17 — pick up the forgotten homunculus.
+    handleHomunculusPickup();
   }
 }
 
-// V2.14 — Mothergem shrines + Elzebub easter egg (THE CREATOR's gift)
-// Two shrines on Malezor: NORTH (cols 15-16 row 2) and SOUTH (cols 22-23 row 15).
-// Touch a tile in each shrine and THE CREATOR grants you ELZEBUB, a Tier I Elzoran.
-const MOTHERGEM_SHRINES = {
-  north: [[15, 2], [16, 2]],   // near the ridge and Bronze Cottage
-  south: [[22, 15], [23, 15]], // by the dune line, thematically twinned to Quinn's clue
-};
-function shrineIdAt(mx, my) {
-  for (const id in MOTHERGEM_SHRINES) {
-    if (MOTHERGEM_SHRINES[id].some(([x, y]) => x === mx && y === my)) return id;
-  }
-  return null;
-}
-function handleMothergemTouch(mx, my) {
-  if (!game.player.mothergemsTouched) game.player.mothergemsTouched = {};
-  const id = shrineIdAt(mx, my);
-  if (id) game.player.mothergemsTouched[id] = true;
-  const both = game.player.mothergemsTouched.north && game.player.mothergemsTouched.south;
-  // The Creator's gift fires ONCE when both shrines have been touched.
-  if (both && !game.player.elzebubGranted) {
-    game.player.elzebubGranted = true;
-    save();
-    grantElzebub();
-    return;
-  }
-  // Normal shrine flavor.
-  if (game.player.bossDefeated) {
-    showDialog([
-      "You touch the Mothergem shrine — colder now, or maybe older.",
-      "The stone hums against your palm — same frequency as the echo.",
-      "«...one of the nine begins to stir...»",
-      "«...west...»",
-    ]);
-  } else {
-    const otherId = id === 'north' ? 'south' : 'north';
-    const otherKnown = game.player.mothergemsTouched[otherId];
-    const lines = [
-      "You touch the Mothergem shrine — cold as first-light.",
-      "The stone remembers. But not clearly. Not fully.",
-      `«...three names carried into three shadows...»`,
-      `«...the choir sings from a ridge you have not walked...»`,
-      `«...the sand keeps a secret the wind does not...»`,
-    ];
-    if (!otherKnown) {
-      lines.push('«...its twin still waits — walk further, and touch it too...»');
+// V2.17 — Homunculus flow (replaces the Mothergem-shrine easter egg).
+// On every new save, a forgotten homunculus is placed at a random walkable
+// tile on Malezor. The player finds it, picks it up, and brings it to Mom.
+// Mom (the nurse) performs a small rite that transforms the homunculus into
+// ELZEBUB — a Zyrex forgotten when the Seers raided Zyraxian towns.
+function spawnHomunculus() {
+  // Pick a random walkable ',' tile on Malezor. Avoid the immediate spawn
+  // area outside the home so the player has to explore a little.
+  const candidates = [];
+  const map = MAPS.malezor.data;
+  for (let y = 1; y < MAPS.malezor.rows - 1; y++) {
+    for (let x = 1; x < MAPS.malezor.cols - 1; x++) {
+      if (map[y][x] === ',' && !(y === 5 && x <= 4)) candidates.push({ x, y });
     }
-    lines.push("The hum fades. That is all it will give you today.");
-    showDialog(lines);
   }
-  save();
+  if (!candidates.length) return null;
+  const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  return { x: pick.x, y: pick.y };
 }
-function grantElzebub() {
+function ensureHomunculusSpawn() {
+  // Idempotent — call at boot / after load. Migrates old saves.
+  if (game.player.elzebubGranted) return;
+  if (game.player.homunculusFound) return;
+  if (!game.player.homunculusSpawn) {
+    game.player.homunculusSpawn = spawnHomunculus();
+    save();
+  }
+}
+function isHomunculusHere(x, y) {
+  const sp = game.player.homunculusSpawn;
+  return !!(sp && !game.player.homunculusFound && !game.player.elzebubGranted
+            && game.player.mapId === 'malezor' && sp.x === x && sp.y === y);
+}
+function handleHomunculusPickup() {
+  game.player.homunculusFound = true;
+  save();
+  showToast('◈  HOMUNCULUS · FORGOTTEN ZYREX', 2400);
+  showDialog([
+    "A tiny still shape lies in the grass — curled, warm, dim.",
+    "You crouch. It fits in your palm. A HOMUNCULUS — a Zyrex body with no spark.",
+    "«...someone made this. and then someone forgot it.»",
+    "The seers raided this town long before you were born. This must be one they missed.",
+    "You wrap it carefully. Mom might know what to do — she's a nurse.",
+  ]);
+}
+function grantElzebubFromMom() {
+  const nm = game.player.name || 'you';
+  game.player.elzebubGranted = true;
   const zy = makeZyrex('elzebub', 5);
   const partySlots = game.player.party.filter(Boolean).length;
   if (partySlots < MAX_PARTY) game.player.party.push(zy);
@@ -3213,14 +3264,16 @@ function grantElzebub() {
   save();
   showToast('◈  ELZEBUB  JOINED YOU', 2600);
   showDialog([
-    "The two shrines flare together — one hum, one voice.",
-    "«...well done. so few even find them both.»",
-    "«...I am THE CREATOR. this saga is mine, and now — a piece of it is yours.»",
-    "«...take ELZEBUB. hatchling of my Supreme Dragon Lord.»",
-    "«...at Lv 20 he grows into ELZIMIR. at Lv 50, ELZORAN.»",
-    "«...and at Lv 80, if you are worthy, OMEGORAN awakens.»",
-    "«...he will not appear anywhere else in the early age of Zyraxis.»",
-    "«...guard him. rise with him. and remember who gave him to you.»",
+    `MOM: Let me see it, ${nm}.`,
+    `MOM: Ah — oh. Oh, this is old work. Very old.`,
+    "MOM: When the Seers came through here they didn't just take Zyrex.",
+    "MOM: They took the *unformed* ones. The ones still waiting to wake.",
+    "MOM: This one was hidden. It waited. Long enough that its keeper stopped coming back.",
+    "MOM: I can wake it — nurse's work, mostly. Hold still.",
+    "«a warm hum, a small flare of blue and orange light...»",
+    "MOM: There. Meet ELZEBUB.",
+    `MOM: He's yours, ${nm}. Whoever left him would have wanted a Rizer to raise him now.`,
+    "MOM: Care for him. He'll grow. And when he does, he'll grow *large*.",
     `ELZEBUB (Lv 5) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
   ]);
 }
@@ -3486,6 +3539,11 @@ function walkNpcToPlayer(n) {
 function interactMom() {
   const nm = game.player.name || 'you';
   const items = game.player.items || (game.player.items = { potion: 0 });
+  // V2.17 — highest-priority beat: player brought back a homunculus, Mom transforms it.
+  if (game.player.homunculusFound && !game.player.elzebubGranted) {
+    grantElzebubFromMom();
+    return;
+  }
   // First meeting — welcome + starter supply pack (potions + gemspheres).
   if (!game.player.metMomGave) {
     const potionGift = 2, sphereGift = 2;
@@ -4917,6 +4975,9 @@ document.getElementById('btn-new').onclick = () => {
     npcDefeated: false,
     npcsDefeated: {},
     npcsRematched: {},
+    homunculusSpawn: null,     // V2.17 — set below via ensureHomunculusSpawn()
+    homunculusFound: false,
+    elzebubGranted: false,
     stepsSinceEnc: 0,
     chestsOpened: {},
     respects: [],
@@ -4924,11 +4985,13 @@ document.getElementById('btn-new').onclick = () => {
     seenEndgame: false,
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
+  ensureHomunculusSpawn();
   $title.classList.add('hidden');
   beginCreator();
 };
 document.getElementById('btn-continue').onclick = () => {
   if (!tryLoad()) { showToast('NO SAVE FOUND', 1200); return; }
+  ensureHomunculusSpawn();   // V2.17 — migrate pre-V2.17 saves that lack the spawn
   $title.classList.add('hidden');
   document.getElementById('hud').style.display = 'flex';
   updateHUD();

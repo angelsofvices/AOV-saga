@@ -2675,9 +2675,13 @@ document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   keys[k] = true;
 
+  // V2.10 — universal semantics:
+  //   Z / Enter / Space / A = confirm / interact
+  //   X / Esc / Backspace / B = back / close / cancel (from overworld: menu toggle)
   // Interact/confirm keys must NOT repeat while held — otherwise dialog reopens.
-  const isConfirm = (e.key === 'Enter' || e.key === ' ' || k === 'z');
-  if (e.repeat && isConfirm) { e.preventDefault(); return; }
+  const isConfirm = (e.key === 'Enter' || e.key === ' ' || k === 'z' || k === 'a');
+  const isBack    = (e.key === 'Escape' || e.key === 'Backspace' || k === 'x' || k === 'b');
+  if (e.repeat && (isConfirm || isBack)) { e.preventDefault(); return; }
 
   // Controls modal — global toggle via ? or F1; Esc closes it first.
   if (e.key === 'F1' || (e.key === '?' && !e.repeat)) {
@@ -2718,8 +2722,10 @@ document.addEventListener('keydown', (e) => {
       if (activateFocused()) e.preventDefault();
       return;
     }
-    if (e.key === 'Escape' || e.key === 'Backspace') {
-      // If a submenu has a BACK button, click it.
+    if (isBack) {
+      // V2.10 — X is universal BACK in battle: click a BACK button if
+      // one is visible (submenu open); otherwise fall back to the main
+      // menu (leave submenu). Root menu doesn't back out of battle.
       const back = Array.from(container.querySelectorAll('.action-btn')).find(b => b.textContent.includes('BACK'));
       if (back) { back.click(); e.preventDefault(); }
       return;
@@ -2727,7 +2733,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- Party screen: arrows walk slots, Enter opens inspect, Esc closes ----
+  // ---- Party screen: arrows walk slots, Enter opens inspect, X/Esc close ----
   if (game.mode === 'party') {
     const container = document.getElementById('party-grid');
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
@@ -2735,11 +2741,11 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
-    if (e.key === 'Escape' || k === 'x') { closeParty(); return; }
+    if (isBack) { closeParty(); e.preventDefault(); return; }
     return;
   }
 
-  // ---- Starter picker: arrows walk cards, Enter picks ----
+  // ---- Starter picker: arrows walk cards, Enter picks (no back — commit choice) ----
   if (game.mode === 'starter') {
     const container = document.getElementById('starter-grid');
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
@@ -2762,61 +2768,54 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- Prologue: right/space/enter → next; left → previous; Esc → skip ----
+  // ---- Prologue: confirm → next; left/up → previous; X/Esc → skip ----
   if (game.mode === 'prologue') {
     if (isConfirm || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       $prologueNext.click(); e.preventDefault();
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       if (prologueIdx > 0) { prologueIdx--; showProloguePage(prologueIdx); }
       e.preventDefault();
-    } else if (e.key === 'Escape') {
+    } else if (isBack) {
       $prologueSkip.click(); e.preventDefault();
     }
     return;
   }
 
-  // ---- Overworld: WASD/arrows walk (via keys[]), Z/Space interact, X = main menu ----
+  // ---- Overworld: WASD/arrows walk, Z/A interact, X/B toggle main menu ----
   if (game.mode === 'overworld') {
-    if (k === 'x') { openMainMenu(); e.preventDefault(); return; }
-    if (e.key === 'Escape') {
-      // Open hamburger menu on Esc from the overworld (site nav).
-      const t = document.querySelector('.menu-toggle');
-      if (t) t.click();
-      e.preventDefault();
-      return;
-    }
+    if (isBack) { openMainMenu(); e.preventDefault(); return; }
     if (isConfirm) { tryInteract(); e.preventDefault(); return; }
   }
 
-  // ---- Main menu (V2.7): arrows walk buttons, Enter picks, Esc/X close ----
+  // ---- Main menu (X toggles closed) ----
   if (game.mode === 'mainmenu') {
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
       if (focusNavStep(document.getElementById('mainmenu-grid'), e.key, 2)) e.preventDefault();
       return;
     }
     if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
-    if (e.key === 'Escape' || k === 'x') { closeMainMenu(); e.preventDefault(); return; }
+    if (isBack)    { closeMainMenu(); e.preventDefault(); return; }
     return;
   }
 
-  // ---- Shop (from merchant interact): Esc closes, Enter buys focused ----
+  // ---- Shop: X closes ----
   if (game.mode === 'shop') {
     if (['ArrowUp','ArrowDown'].includes(e.key)) {
       if (focusNavStep(document.getElementById('shop-body'), e.key, 1)) e.preventDefault();
       return;
     }
     if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
-    if (e.key === 'Escape') { document.getElementById('shop-close').click(); e.preventDefault(); return; }
+    if (isBack)    { document.getElementById('shop-close').click(); e.preventDefault(); return; }
     return;
   }
 
-  // Any of the standalone overlays open? Esc closes them.
-  if ($mapview.classList.contains('active') || $itemsov.classList.contains('active')) {
-    if (e.key === 'Escape') {
-      $mapview.classList.remove('active');
-      $itemsov.classList.remove('active');
-      e.preventDefault();
-    }
+  // ---- Standalone overlays (Map, Items, Inspect) — X closes ----
+  const inspectActive = document.getElementById('inspect-overlay').classList.contains('active');
+  if (isBack && ($mapview.classList.contains('active') || $itemsov.classList.contains('active') || inspectActive)) {
+    $mapview.classList.remove('active');
+    $itemsov.classList.remove('active');
+    if (inspectActive) document.getElementById('inspect-overlay').classList.remove('active');
+    e.preventDefault();
   }
 });
 document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
@@ -3279,29 +3278,71 @@ function walkNpcToPlayer(n) {
   setTimeout(step, 250);
 }
 
-// V2.8 — House interior interact handlers.
+// V2.8 / V2.10 — House interior interact handlers.
+// Mom = NURSE (heals + supplies potions & gemspheres)
+// Dad = HISTORIAN / EXPEDITIONIST (Mothergem lore + first Zyrex)
 function interactMom() {
   const nm = game.player.name || 'you';
-  if (!game.player.party.length) {
+  const items = game.player.items || (game.player.items = { potion: 0 });
+  // First meeting — welcome + starter supply pack (potions + gemspheres).
+  if (!game.player.metMomGave) {
+    const potionGift = 2, sphereGift = 2;
     showDialog([
       `MOM: There you are, ${nm}. Warm bread on the table.`,
-      `Your father has your present downstairs. Go on — he's been waiting.`,
-    ]);
+      `MOM: I've packed you a nurse's kit for the road.`,
+      `«+${potionGift} POTIONS  ·  +${sphereGift} GEMSPHERES»`,
+      `MOM: Come find me any time you're hurt. I'll patch you up.`,
+      game.player.party.length ? `MOM: Go on — the door's always open.` : `Your father has your birthday present downstairs.`,
+    ], () => {
+      items.potion = (items.potion || 0) + potionGift;
+      game.player.gemspheres = (game.player.gemspheres || 0) + sphereGift;
+      game.player.metMomGave = true;
+      save(); updateHUD();
+      showToast(`✚ +${potionGift} POTIONS  ·  +${sphereGift} GEMSPHERES`);
+    });
+    return;
+  }
+  // Recurring visits — nurse behavior: heal if hurt, else hand over a potion.
+  const anyHurt = game.player.party.some(r => r && r.hp < r.maxHp);
+  if (anyHurt) {
+    showDialog([
+      `MOM: Sit down, ${nm}. You look worn out.`,
+      `Your Zyrex are patched up. Full HP.`,
+    ], () => {
+      for (const r of game.player.party) if (r) { r.hp = r.maxHp; r.fainted = false; r.status = null; }
+      save();
+    });
   } else {
     showDialog([
-      `MOM: How's ${(game.player.party[0] && game.player.party[0].name) || 'your Zyrex'} settling in?`,
-      `MOM: Come home whenever you need — the door's always open.`,
-    ]);
+      `MOM: Everyone looks fresh. Good.`,
+      `Take another potion — you never know what's out there.`,
+      `«+1 POTION»`,
+    ], () => {
+      items.potion = (items.potion || 0) + 1;
+      save(); updateHUD();
+      showToast(`✚ +1 POTION`);
+    });
   }
 }
 function interactDad() {
   const nm = game.player.name || 'you';
   if (!game.player.party.length) {
-    // First-time meeting — give the birthday present + starter picker
+    // First meeting — Mothergem history (Dad the expeditionist) + starter picker.
     showDialog([
-      `DAD: Happy birthday, ${nm}.`,
-      `I set out three orphan shards from the last Corefall.`,
-      `The one that hums when you look at it is the one that chose you.`,
+      `DAD: Happy birthday, ${nm}. Sit for a moment. Let me tell you what I know.`,
+      ``,
+      `DAD: I've walked the far edges of Malezor. Read old stones no one else`,
+      `bothers with. Before every age of Zyraxis, the MOTHERGEM falls.`,
+      ``,
+      `DAD: A cosmic stone from beyond Aenor. It carries the frequencies of`,
+      `ten primal wills. It breaks — and ten shards become the TEN GEMLORDS.`,
+      ``,
+      `DAD: But what most people forget: every ZYREX is a shard of it too.`,
+      `Every beast on this world descends from the same stone. So does`,
+      `every trainer, in a way. That's the history they don't tell you.`,
+      ``,
+      `DAD: I set out three orphan shards from the last Corefall.`,
+      `The one that hums when you look at it — that's the one that chose you.`,
       ``,
       `«Choose your first Zyrex»`,
     ], () => {
@@ -3310,16 +3351,16 @@ function interactDad() {
       renderStarterScreen();
     });
   } else {
-    // Player already has a starter — Dad recaps the CURRENT mystery.
+    // Recurring — mystery status + Dad tells more Mothergem lore each visit.
     const clues = Object.keys(game.player.seerClues || {}).length;
     showDialog([
       `DAD: Head back out when you're ready, ${nm}.`,
       clues === 0
-        ? `We still don't know where the three Seer leaders are hiding.`
+        ? `DAD: I've cross-checked the old records — still no trail on the three.`
         : clues < 3
-          ? `You've picked up ${clues} clue${clues === 1 ? '' : 's'} so far — good. Chase more.`
-          : `You have all three names on the trail. Follow them one at a time.`,
-      `The cave east is sealed. Don't waste time on it yet.`,
+          ? `DAD: You've picked up ${clues} clue${clues === 1 ? '' : 's'}. Chase more.`
+          : `DAD: All three names on the trail. Pick one and go.`,
+      `DAD: Remember — the eastern cave stays sealed. Don't waste time on it.`,
     ]);
   }
 }
@@ -3624,6 +3665,7 @@ function equipGemsToActive(n) {
 
 async function playerUseMove(i) {
   const p = game.player.party[game.battle.playerIdx];
+  const e = game.battle.enemy;
   const move = p.moves[i];
   // V2.8.1 — every Zyrex has 1 baseline gem (free for A1). Extras drain
   // from equipped gems (r.gems) then the shared player pool.
@@ -3632,13 +3674,35 @@ async function playerUseMove(i) {
   updateHUD();
   game.battle.animLock = true;
   $battleActions.innerHTML = '';
-  await performMove(p, game.battle.enemy, move, true);
-  if (checkBattleOver()) return;
-  await enemyTurn();
+  // V2.10 — enemy locks in its move now, then resolve in SPEED order.
+  // One move per Zyrex per turn. Ties: player wins.
+  const enemyMove = pickEnemyMove(e, p);
+  const playerFirst = (p.stats.spd || 0) >= (e.stats.spd || 0);
+  if (playerFirst) {
+    await performMove(p, e, move, true);
+    if (!checkBattleOver()) {
+      if (e.hp > 0 && p.hp > 0) await performMove(e, p, enemyMove, false);
+    }
+  } else {
+    await performMove(e, p, enemyMove, false);
+    if (!checkBattleOver()) {
+      if (p.hp > 0 && e.hp > 0) await performMove(p, e, move, true);
+    }
+  }
   if (checkBattleOver()) return;
   refreshBattleUI();
   game.battle.animLock = false;
   renderMainMenu();
+}
+// V2.10 — extracted enemy move picker so we can lock it in before speed-order.
+function pickEnemyMove(e, p) {
+  const pool = e.moves.length ? e.moves : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
+  let best = pool[0], bestScore = -1;
+  for (const m of pool) {
+    const score = (m.power || 0) * typeMult(m.type, p.type, p.type2);
+    if (score > bestScore) { best = m; bestScore = score; }
+  }
+  return best;
 }
 
 async function enemyTurn() {

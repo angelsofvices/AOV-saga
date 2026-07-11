@@ -1814,7 +1814,9 @@ const game = {
     gems: 10,               // shared gem pool — powers moves in battle
     gemspheres: 5,
     coins: 5,               // V2.7 — merchant currency; drops from battle wins
-    items: { potion: 0 },   // V2.7 — potion count (heals 40 HP outside battle)
+    items: { potion: 0 },
+    keys: { bronze: 0, silver: 0 },
+    housesLooted: {},
     mapId: 'malezor',       // V2.8 — which map the player is on
     bossDefeated: false,
     npcDefeated: false,       // legacy — Myara flag
@@ -1853,7 +1855,7 @@ const MALEZOR_MAP = [
   '##############################', // 0
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 1
   '#,,K,,GGGG,,,,,MM,,,,,K,,,,,,#', // 2
-  '#T,,,,GGGG,,,,,,,,,,,,,,,,,,,#', // 3
+  '#T,,,,GGGG,,,,,,,,p,,,,,,,,,,#', // 3 · p = Bronze Cottage (locked door)
   '#T,H,,,GGG,,Y,,,,,,S,,,,,,K,,#', // 4 · H=home, Y=Yara (Seer scout), S=merchant, K=chest
   '#,,,,,,,,,,,,,,,,,,B,,,,,,,,,#', // 5 · B=merchant stand (booth) in front of S
 
@@ -1864,7 +1866,7 @@ const MALEZOR_MAP = [
   '#,,WWW,,,,,,,,,,,,,,,,,,,,,,,#', // 10
   '#,,WWW,,,,K,,,,,,GGG,,,,,,,,,#', // 11
   '#,,,,,,,,,,,,,,,GGGGG,,,,,,,,#', // 12
-  '#T,,,,,,,,,,,,,,GGGG,,,,,,,,,#', // 13
+  '#T,,,,,,,,,,,q,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge (locked door)
   '#,,,,,,,K,,,,,Q,,,,,,K,,,,,,,#', // 14 · Q=Quinn (desert wanderer)
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 15
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 16
@@ -1885,9 +1887,46 @@ const HOUSE_MAP = [
   '=......x.....=', // 7 · x = door out to Malezor
   '==============', // 8
 ];
+// V2.8.3 — Two locked houses on Malezor. Tiny interior maps with a chest.
+// Door tile chars: 'p' (Bronze Cottage), 'q' (Silver Lodge). Each needs its
+// key. Home door 'x' stays unlocked.
+const BRONZE_HOUSE_MAP = [
+  '============',
+  '=..........=',
+  '=.b........=',
+  '=.....K....=',
+  '=.......t..=',
+  '=....x.....=',
+  '============',
+];
+const SILVER_LODGE_MAP = [
+  '============',
+  '=..........=',
+  '=..t...b...=',
+  '=..........=',
+  '=...KK.....=',
+  '=....x.....=',
+  '============',
+];
 const MAPS = {
-  malezor:       { data: MALEZOR_MAP, cols: 30, rows: 20, label: 'Malezor · Beastlands' },
-  home_interior: { data: HOUSE_MAP,   cols: 14, rows:  9, label: 'Home · Bedroom' },
+  malezor:        { data: MALEZOR_MAP,       cols: 30, rows: 20, label: 'Malezor · Beastlands' },
+  home_interior:  { data: HOUSE_MAP,         cols: 14, rows:  9, label: 'Home · Bedroom' },
+  bronze_cottage: { data: BRONZE_HOUSE_MAP,  cols: 12, rows:  7, label: 'Bronze Cottage' },
+  silver_lodge:   { data: SILVER_LODGE_MAP,  cols: 12, rows:  7, label: 'Silver Lodge' },
+};
+// Which map to enter when the player walks through a door tile.
+// entry[0..1] is the spawn tile on the destination map, facing 'up'.
+const DOOR_TARGETS = {
+  x: { map: 'malezor',        x: 3, y: 5, dir: 'down' },   // home 'x' -> Malezor (south of H)
+  p: { map: 'bronze_cottage', x: 5, y: 5, dir: 'up',   key: 'bronze', label: 'Bronze Cottage' },
+  q: { map: 'silver_lodge',   x: 5, y: 5, dir: 'up',   key: 'silver', label: 'Silver Lodge' },
+};
+// Interior door 'x' target — always goes back to Malezor to the H side.
+// (Each interior also uses 'x' as its own exit; when leaving the bronze
+// cottage/silver lodge we need to land back on their outside tile.)
+const INTERIOR_EXITS = {
+  bronze_cottage: { map: 'malezor', x: 18, y: 4, dir: 'down' },   // one tile south of 'p' at (18,3)
+  silver_lodge:   { map: 'malezor', x: 13, y: 14, dir: 'down' },  // one tile south of 'q' at (13,13)
 };
 let MAP = MALEZOR_MAP;
 let MAP_COLS = 30;
@@ -1937,9 +1976,10 @@ function tileAt(x, y) {
 }
 function walkable(x, y) {
   const t = tileAt(x, y);
-  // V2.8 — interior walls, bed, table, Mom, Dad, door all block; door
-  // is interact-only (walk INTO it triggers via tryInteract, not tryMove).
-  if ('#TWHMSB=btmdx'.includes(t)) return false;
+  // V2.8.3 — walls, decor, and stationary NPCs still block; doors
+  // (x, p, q) are 'walkable' — walking INTO them triggers auto-enter
+  // via tryMove's post-step door check.
+  if ('#TWHMSB=btmd'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQ'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);
   if (t === 'K' && !chestOpened(x, y)) return false;
@@ -2180,6 +2220,46 @@ function drawTile(x, y, ch, mx, my) {
       // V2.8 — Dad NPC (stationary, deeper-tone character)
       drawTile(x, y, '.', mx, my);
       drawCharacter(px + TILE / 2, py + TILE / 2, 'down', '#c98a4a', '#3a1a1a');
+      break;
+    }
+    case 'p': case 'q': {
+      // V2.8.3 — locked house doors on Malezor. Rendered as a wooden
+      // door built into a small stone façade with a colored crest
+      // (bronze / silver) and a padlock when locked.
+      drawTile(x, y, ',', mx, my);
+      // House façade — small stone hut behind the door
+      ctx.fillStyle = '#4a3628';
+      ctx.fillRect(px + 2, py, TILE - 4, TILE);
+      ctx.fillStyle = '#6a4c28';
+      ctx.fillRect(px + 3, py + 1, TILE - 6, 6);
+      // Door
+      ctx.fillStyle = '#8b6236';
+      ctx.fillRect(px + 8, py + 12, TILE - 16, TILE - 14);
+      ctx.strokeStyle = '#3a2a1e';
+      ctx.strokeRect(px + 8, py + 12, TILE - 16, TILE - 14);
+      // Crest color
+      const crest = ch === 'p' ? '#c88b4a' : '#c8d0dc';
+      ctx.fillStyle = crest;
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 4);
+      ctx.lineTo(px + TILE / 2 + 4, py + 8);
+      ctx.lineTo(px + TILE / 2, py + 12);
+      ctx.lineTo(px + TILE / 2 - 4, py + 8);
+      ctx.closePath();
+      ctx.fill();
+      // Padlock if still locked
+      const keyType = ch === 'p' ? 'bronze' : 'silver';
+      const unlocked = ((game.player.keys && game.player.keys[keyType]) || 0) > 0;
+      if (!unlocked) {
+        ctx.fillStyle = '#f5dc9c';
+        ctx.fillRect(px + TILE / 2 - 2, py + TILE - 8, 4, 3);
+        ctx.strokeStyle = '#8a6a2c';
+        ctx.strokeRect(px + TILE / 2 - 3, py + TILE - 9, 6, 4);
+      } else {
+        // Knob when unlocked
+        ctx.fillStyle = '#f5dc9c';
+        ctx.beginPath(); ctx.arc(px + TILE - 12, py + TILE - 6, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
       break;
     }
     case 'x': {
@@ -2456,9 +2536,12 @@ function openItemsView() {
   const body = document.getElementById('items-body');
   const it = game.player.items || {};
   body.innerHTML = '';
+  const ks = game.player.keys || {};
   const rows = [
-    { key: 'potion',    name: 'Potion',    desc: 'Heals 40 HP on the top Zyrex.', count: (it.potion || 0) },
-    { key: 'gemsphere', name: 'Gemsphere', desc: 'Bind a wild Zyrex mid-battle.', count: (game.player.gemspheres || 0) },
+    { key: 'potion',    name: 'Potion',      desc: 'Heals 40 HP on the top Zyrex.',              count: (it.potion || 0) },
+    { key: 'gemsphere', name: 'Gemsphere',   desc: 'Bind a wild Zyrex mid-battle.',              count: (game.player.gemspheres || 0) },
+    { key: 'bronze',    name: 'Bronze Key',  desc: 'Opens the Bronze Cottage on Malezor.',       count: (ks.bronze || 0) },
+    { key: 'silver',    name: 'Silver Key',  desc: 'Opens the Silver Lodge on Malezor.',         count: (ks.silver || 0) },
   ];
   for (const r of rows) {
     const row = document.createElement('div');
@@ -2759,6 +2842,13 @@ function tryMove(dx, dy) {
   const dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
   game.player.dir = dir;
   const nx = game.player.x + dx, ny = game.player.y + dy;
+  // V2.8.3 — walk-into door auto-enter.
+  const nt = tileAt(nx, ny);
+  if (DOOR_TARGETS[nt]) {
+    game.player.moveCd = 240;
+    triggerDoor(nt, nx, ny);
+    return;
+  }
   if (!walkable(nx, ny)) { game.player.moveCd = 120; return; }
   game.player.x = nx;
   game.player.y = ny;
@@ -2771,6 +2861,64 @@ function tryMove(dx, dy) {
       game.player.stepsSinceEnc = 0;
     }
   }
+}
+// V2.8.3 — door dispatch. Unlocked (home 'x') or has key -> enterMap.
+// Locked without key -> dialog explaining which key is needed.
+function triggerDoor(tileChar, doorX, doorY) {
+  const target = DOOR_TARGETS[tileChar];
+  if (!target) return;
+  // 'x' inside the home interior is special: it exits back to Malezor.
+  if (tileChar === 'x' && game.player.mapId !== 'home_interior') {
+    const exit = INTERIOR_EXITS[game.player.mapId];
+    if (exit) return exitInteriorTo(exit);
+  }
+  // Home 'x' from inside is always the Malezor exit.
+  if (tileChar === 'x') {
+    return exitHouseToMalezor();
+  }
+  // Locked door — check key
+  if (target.key) {
+    const have = (game.player.keys && game.player.keys[target.key]) > 0;
+    if (!have) {
+      showDialog([
+        `Locked. This is the ${target.label}.`,
+        `You need the ${target.key.toUpperCase()} KEY to open it.`,
+      ]);
+      return;
+    }
+    // Consume nothing — keys are permanent. Just open.
+    enterMap(target.map, target.x, target.y, target.dir);
+    // Auto-loot on first entry
+    if (!game.player.housesLooted) game.player.housesLooted = {};
+    if (!game.player.housesLooted[target.map]) {
+      grantHouseLoot(target.map);
+      game.player.housesLooted[target.map] = true;
+      save();
+    }
+    return;
+  }
+  enterMap(target.map, target.x, target.y, target.dir);
+}
+function exitInteriorTo(exit) {
+  enterMap(exit.map, exit.x, exit.y, exit.dir);
+}
+function grantHouseLoot(mapId) {
+  const loot = {
+    bronze_cottage: { gems: 8, potions: 2, coins: 15 },
+    silver_lodge:   { gems: 15, potions: 3, coins: 40, gemspheres: 1 },
+  }[mapId];
+  if (!loot) return;
+  if (loot.gems)       game.player.gems       = (game.player.gems       || 0) + loot.gems;
+  if (loot.coins)      game.player.coins      = (game.player.coins      || 0) + loot.coins;
+  if (loot.gemspheres) game.player.gemspheres = (game.player.gemspheres || 0) + loot.gemspheres;
+  if (loot.potions)    { if (!game.player.items) game.player.items = {}; game.player.items.potion = (game.player.items.potion || 0) + loot.potions; }
+  updateHUD();
+  const bits = [];
+  if (loot.gems) bits.push(`+${loot.gems} ◈`);
+  if (loot.coins) bits.push(`+${loot.coins} ¢`);
+  if (loot.potions) bits.push(`+${loot.potions} POTION${loot.potions === 1 ? '' : 'S'}`);
+  if (loot.gemspheres) bits.push(`+${loot.gemspheres} GEMSPHERE`);
+  showToast(bits.join('  ·  '), 2400);
 }
 
 function tryInteract() {
@@ -3651,6 +3799,15 @@ function checkBattleOver() {
     } else if (game.battle.kind === 'npc-trainer') {
       if (!game.player.npcsDefeated) game.player.npcsDefeated = {};
       if (game.battle.npcCoord) game.player.npcsDefeated[game.battle.npcCoord] = true;
+      // V2.8.3 — key drops from key trainers
+      if (!game.player.keys) game.player.keys = { bronze: 0, silver: 0 };
+      if (game.battle.trainerName === 'JAX') {
+        game.player.keys.bronze++;
+        showToast(`⌨  BRONZE KEY  (${game.player.keys.bronze})`, 2400);
+      } else if (game.battle.trainerName === 'QUINN') {
+        game.player.keys.silver++;
+        showToast(`⌨  SILVER KEY  (${game.player.keys.silver})`, 2400);
+      }
     }
     logBattle('You won the battle!');
     save();
@@ -4294,7 +4451,9 @@ document.getElementById('btn-new').onclick = () => {
     gemspheres: 5,
     coins: 5,
     items: { potion: 0 },
-    mapId: 'home_interior',   // V2.8 — new games start inside the house
+    keys: { bronze: 0, silver: 0 },  // V2.8.3 — house keys
+    housesLooted: {},                // V2.8.3 — { 'bronze_cottage': true } when chests raided
+    mapId: 'home_interior',
     bossDefeated: false,
     npcDefeated: false,
     npcsDefeated: {},

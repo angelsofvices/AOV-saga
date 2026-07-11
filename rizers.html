@@ -1885,8 +1885,14 @@ function walkable(x, y) {
   const t = tileAt(x, y);
   if ('#TWHMSB'.includes(t)) return false;   // S (merchant) + B (booth) both block
   if (t === 'N' && !game.player.npcDefeated) return false;
-  if ('YJQ'.includes(t) && !npcTrainerDefeated(x, y)) return false;
+  // Y/J/Q map chars mark trainer HOMES; runtime blocking is via isNpcAt below.
+  // (A defeated NPC's home tile becomes freely walkable.)
+  if ('YJQ'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);
   if (t === 'K' && !chestOpened(x, y)) return false;
+  if (game.npcs) {
+    const n = isNpcAt(x, y);
+    if (n) return false;
+  }
   return true;
 }
 function npcTrainerDefeated(x, y) {
@@ -2092,33 +2098,9 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'Y': case 'J': case 'Q': {
-      // V2.7.2/V2.7.3 — extra NPC trainers with unique palettes + rotating facing
+      // V2.7.5 — trainer HOME markers render as plain path; actual sprite
+      // is drawn in a separate pass at the NPC's runtime position (they wander).
       drawTile(x, y, ',', mx, my);
-      const beaten = npcTrainerDefeated(mx, my);
-      const palettes = {
-        'Y': ['#b87cff', '#3a1a5c'],
-        'J': ['#ff8fb2', '#6a1830'],
-        'Q': ['#2fe6a8', '#1a5a44'],
-      };
-      const [primary, accent] = palettes[ch];
-      const dimP = beaten ? 'rgba(232,200,120,0.35)' : primary;
-      const dimA = beaten ? 'rgba(184,174,200,0.35)' : accent;
-      // pull runtime NPC facing dir if available
-      const npc = game.npcs && game.npcs[mx + ',' + my];
-      const facing = (npc && !beaten) ? npc.dir : 'down';
-      drawCharacter(px + TILE / 2, py + TILE / 2, facing, dimP, dimA);
-      // Alert bubble ('!') when NPC has sighted the player
-      if (npc && !beaten && npc.alertTimer > 0) {
-        const pulse = 0.6 + Math.sin(performance.now() * 0.02) * 0.4;
-        ctx.fillStyle = 'rgba(255, 220, 80, 0.9)';
-        ctx.fillRect(px + TILE / 2 - 3, py - 8, 6, 8);
-        ctx.fillStyle = '#050310';
-        ctx.font = 'bold 8px Inter, sans-serif';
-        ctx.fillText('!', px + TILE / 2 - 2, py - 2);
-        ctx.strokeStyle = `rgba(255, 220, 80, ${pulse})`;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(px + TILE / 2 - 4, py - 9, 8, 10);
-      }
       break;
     }
     case 'K': {
@@ -2202,6 +2184,39 @@ function renderMap() {
       const mx = sx + cam.x;
       const my = sy + cam.y;
       drawTileAt(sx, sy, mx, my);
+    }
+  }
+  // V2.7.5 — render each wandering NPC trainer at its runtime position
+  if (game.npcs) {
+    const palettes = {
+      'Y': ['#b87cff', '#3a1a5c'],   // Yara — violet Seer scout
+      'J': ['#ff8fb2', '#6a1830'],   // Jax — rose rival
+      'Q': ['#2fe6a8', '#1a5a44'],   // Quinn — emerald wanderer
+    };
+    for (const key in game.npcs) {
+      const n = game.npcs[key];
+      const beaten = npcTrainerDefeated(n.homeX, n.homeY);
+      const [primary, accent] = palettes[n.tile];
+      const p = beaten ? 'rgba(232,200,120,0.35)' : primary;
+      const a = beaten ? 'rgba(184,174,200,0.35)' : accent;
+      const scx = (n.x - cam.x) * TILE + TILE / 2;
+      const scy = (n.y - cam.y) * TILE + TILE / 2;
+      // Skip if off-viewport
+      if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) continue;
+      drawCharacter(scx, scy, n.dir, p, a);
+      // Alert bubble (!) on sight
+      if (!beaten && n.alertTimer > 0) {
+        const pulse = 0.6 + Math.sin(performance.now() * 0.02) * 0.4;
+        const bx = scx - 3, by = scy - TILE / 2 - 6;
+        ctx.fillStyle = 'rgba(255, 220, 80, 0.9)';
+        ctx.fillRect(bx, by, 6, 8);
+        ctx.fillStyle = '#050310';
+        ctx.font = 'bold 8px Inter, sans-serif';
+        ctx.fillText('!', bx + 1, by + 6);
+        ctx.strokeStyle = `rgba(255, 220, 80, ${pulse})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx - 1, by - 1, 8, 10);
+      }
     }
   }
   // Player on top — palette varies by gender chosen at char creation
@@ -2606,6 +2621,9 @@ function tryInteract() {
   const dx = game.player.dir === 'right' ? 1 : game.player.dir === 'left' ? -1 : 0;
   const dy = game.player.dir === 'down'  ? 1 : game.player.dir === 'up'   ? -1 : 0;
   const tx = game.player.x + dx, ty = game.player.y + dy;
+  // V2.7.5 — first, is a wandering NPC standing on the faced tile?
+  const nRuntime = isNpcAt(tx, ty);
+  if (nRuntime) { handleNpcTrainer(nRuntime.tile, nRuntime.homeX, nRuntime.homeY); return; }
   const t = tileAt(tx, ty);
   if (t === 'C') {
     if (game.player.respects.includes('rakoron')) {
@@ -2632,7 +2650,10 @@ function tryInteract() {
   } else if (t === 'S' || t === 'B') {
     openShop();
   } else if ('YJQ'.includes(t)) {
-    handleNpcTrainer(t, tx, ty);
+    // Facing the trainer's HOME tile — check if they're actually standing there.
+    const nHome = game.npcs && game.npcs[tx + ',' + ty];
+    if (nHome && nHome.x === tx && nHome.y === ty) handleNpcTrainer(t, tx, ty);
+    else showDialog(['Their patrol has drifted. Follow their tracks.']);
   } else if (t === 'N') {
     if (game.player.npcDefeated) {
       showDialog([
@@ -2806,6 +2827,8 @@ function startNPCBattle() {
 // pause 500ms, then declare battle.
 const NPC_DIRS = ['down', 'left', 'up', 'right'];
 const NPC_SIGHT_RANGE = 4;
+const NPC_PATROL_RADIUS = 2;    // ±2 tiles from home = 5x5 area
+const NPC_STEP_MS = 900;        // one wander step per second
 function ensureNpcRuntime() {
   if (game.npcs) return;
   game.npcs = {};
@@ -2813,33 +2836,79 @@ function ensureNpcRuntime() {
     for (let x = 0; x < MAP_COLS; x++) {
       const t = MAP[y][x];
       if (NPC_TRAINERS[t]) {
-        game.npcs[x + ',' + y] = { x, y, tile: t, dir: 'down', dirTimer: 1500 + Math.random() * 1500, alertTimer: 0, engaged: false };
+        game.npcs[x + ',' + y] = {
+          x, y,                  // runtime position
+          homeX: x, homeY: y,    // patrol center (also npcsDefeated key)
+          tile: t,
+          dir: NPC_DIRS[Math.floor(Math.random() * NPC_DIRS.length)],
+          dirTimer: 1500 + Math.random() * 1500,
+          stepTimer: NPC_STEP_MS + Math.random() * 300,
+          alertTimer: 0,
+          engaged: false,
+        };
       }
     }
   }
+}
+function isNpcAt(x, y) {
+  if (!game.npcs) return null;
+  for (const key in game.npcs) {
+    const n = game.npcs[key];
+    if (n.x === x && n.y === y && !npcTrainerDefeated(n.homeX, n.homeY)) return n;
+  }
+  return null;
+}
+function withinPatrol(n, x, y) {
+  return Math.abs(x - n.homeX) <= NPC_PATROL_RADIUS
+      && Math.abs(y - n.homeY) <= NPC_PATROL_RADIUS;
+}
+function tryNpcStep(n) {
+  const dx = n.dir === 'right' ? 1 : n.dir === 'left' ? -1 : 0;
+  const dy = n.dir === 'down'  ? 1 : n.dir === 'up'   ? -1 : 0;
+  const nx = n.x + dx, ny = n.y + dy;
+  // Bounds
+  if (!withinPatrol(n, nx, ny)) return false;
+  // Blockers (static + other NPCs + player)
+  if (!walkable(nx, ny)) return false;
+  if (nx === game.player.x && ny === game.player.y) return false;
+  const other = isNpcAt(nx, ny);
+  if (other && other !== n) return false;
+  n.x = nx; n.y = ny;
+  return true;
 }
 function tickNpcTrainers(dt) {
   if (game.mode !== 'overworld') return;
   ensureNpcRuntime();
   for (const key in game.npcs) {
     const n = game.npcs[key];
-    if (npcTrainerDefeated(n.x, n.y)) continue;
+    if (npcTrainerDefeated(n.homeX, n.homeY)) continue;
     if (n.engaged) continue;
     if (n.alertTimer > 0) {
       n.alertTimer -= dt;
       if (n.alertTimer <= 0) {
-        // Player is locked (mode -> dialog); NPC steps toward player then triggers battle.
         n.engaged = true;
         game.mode = 'dialog';
         walkNpcToPlayer(n);
       }
       continue;
     }
+    // Direction re-roll (soft)
     n.dirTimer -= dt;
     if (n.dirTimer <= 0) {
       n.dir = NPC_DIRS[Math.floor(Math.random() * NPC_DIRS.length)];
       n.dirTimer = 1500 + Math.random() * 1500;
     }
+    // Wander step
+    n.stepTimer -= dt;
+    if (n.stepTimer <= 0) {
+      const moved = tryNpcStep(n);
+      if (!moved) {
+        // Blocked or out-of-bounds — face home direction or pick a new dir.
+        n.dir = NPC_DIRS[Math.floor(Math.random() * NPC_DIRS.length)];
+      }
+      n.stepTimer = NPC_STEP_MS + Math.random() * 400;
+    }
+    // Line of sight fires from current runtime position
     if (npcSees(n, game.player.x, game.player.y)) {
       n.alertTimer = 500;
     }

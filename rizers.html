@@ -2600,11 +2600,12 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
     if (which === 'zyrex') openParty();
   };
 });
-// V2.12 — Music controls
+// V2.12 — Music controls (closures run on click, safely after audioSys is defined below).
+// NOTE: cannot call updateMusicMenu() here — audioSys is in TDZ until the MUSIC
+// module further down; initMusic() calls updateMusicMenu() once it's ready.
 document.getElementById('mm-music-toggle').onclick = () => setMusicMuted(!audioSys.muted);
 document.getElementById('mm-music-down').onclick   = () => setMusicVolume(audioSys.volume - 0.1);
 document.getElementById('mm-music-up').onclick     = () => setMusicVolume(audioSys.volume + 0.1);
-updateMusicMenu();   // set initial labels from persisted settings
 
 // ---------- Map view ----------
 function openMapView() {
@@ -4819,6 +4820,8 @@ function initMusic() {
     el.addEventListener('error', () => {});
     audioSys.els[name] = el;
   }
+  // V2.12.3 — sync menu labels now that audioSys is populated.
+  updateMusicMenu();
 }
 function saveMusicPrefs() {
   try { localStorage.setItem(MUSIC_KEY, JSON.stringify({ volume: audioSys.volume, muted: audioSys.muted })); } catch(_) {}

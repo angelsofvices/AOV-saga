@@ -2661,17 +2661,51 @@ const MALEZOR_MAP = [
   '#T,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 18
   '##############################', // 19
 ];
-// House interior — 14 × 9. Wall '=', floor '.', bed 'b', table 't',
-// Mom 'm', Dad 'd', door 'x' (exits to Malezor).
+// V2.36 — 3-FLOOR HOUSE
+// New tile chars:
+//   U = stairs UP (context-aware — dest depends on current map)
+//   w = stairs DOWN (context-aware)
+//   k = computer / PC
+//   j = science experiment (jar / beaker)
+//   z = poster (Zyraxis mythology; wall-art, blocks like a wall)
+
+// BASEMENT — player's bedroom, first floor of gameplay. Player starts here.
+const BASEMENT_MAP = [
+  '==============', // 0
+  '=zz.........z=', // 1 · posters on the back wall
+  '=zz.........z=', // 2 · posters continue
+  '=.b........k.=', // 3 · b = bed (start), k = computer
+  '=.b..........=', // 4 · (bed is a single tile — the visual is drawn as a big bed)
+  '=............=', // 5
+  '=..........j.=', // 6 · j = experiment
+  '=............=', // 7
+  '=......U.....=', // 8 · U = stairs up to main floor
+  '==============', // 9  — wall row
+];
+// MAIN FLOOR — shared living space. Front door to Malezor + stairs both ways.
+// No parents here anymore (they live upstairs now).
 const HOUSE_MAP = [
   '==============', // 0
   '=............=', // 1
-  '=.b..........=', // 2 · b = bed
+  '=.t..........=', // 2 · t = table
   '=............=', // 3
-  '=..m.....d...=', // 4 · Mom (left), Dad (right)
+  '=............=', // 4
+  '=............=', // 5
+  '=.....wU.....=', // 6 · w = down to basement, U = up to parents
+  '=......x.....=', // 7 · x = door out to Malezor
+  '==============', // 8
+];
+// PARENTS BEDROOM — upstairs, where Mom and Dad live and where the initial
+// dialogue sequence unfolds on the player's birthday.
+const PARENTS_BEDROOM_MAP = [
+  '==============', // 0
+  '=..bb........=', // 1 · parents bed (two tiles for a bigger bed)
+  '=..bb........=', // 2
+  '=............=', // 3
+  '=..m......d..=', // 4 · Mom left, Dad right
   '=............=', // 5
   '=..t.........=', // 6 · t = table
-  '=......x.....=', // 7 · x = door out to Malezor
+  '=......w.....=', // 7 · w = stairs down to main floor
   '==============', // 8
 ];
 // V2.8.3 — Two locked houses on Malezor. Tiny interior maps with a chest.
@@ -2696,10 +2730,12 @@ const SILVER_LODGE_MAP = [
   '============',
 ];
 const MAPS = {
-  malezor:        { data: MALEZOR_MAP,       cols: 30, rows: 20, label: 'Malezor · Beastlands' },
-  home_interior:  { data: HOUSE_MAP,         cols: 14, rows:  9, label: 'Home · Bedroom' },
-  bronze_cottage: { data: BRONZE_HOUSE_MAP,  cols: 12, rows:  7, label: 'Bronze Cottage' },
-  silver_lodge:   { data: SILVER_LODGE_MAP,  cols: 12, rows:  7, label: 'Silver Lodge' },
+  malezor:          { data: MALEZOR_MAP,         cols: 30, rows: 20, label: 'Malezor · Beastlands' },
+  basement:         { data: BASEMENT_MAP,        cols: 14, rows: 10, label: 'Home · Your Bedroom' },  // V2.36
+  home_interior:    { data: HOUSE_MAP,           cols: 14, rows:  9, label: 'Home · Main Floor' },   // V2.36 relabeled
+  parents_bedroom:  { data: PARENTS_BEDROOM_MAP, cols: 14, rows:  9, label: 'Home · Parents\' Bedroom' },  // V2.36
+  bronze_cottage:   { data: BRONZE_HOUSE_MAP,    cols: 12, rows:  7, label: 'Bronze Cottage' },
+  silver_lodge:     { data: SILVER_LODGE_MAP,    cols: 12, rows:  7, label: 'Silver Lodge' },
 };
 
 // ============================================================================
@@ -4074,6 +4110,15 @@ function tryMove(dx, dy) {
     game.player.moveCd = 240;
     triggerDoor(nt, nx, ny);
     return;
+  }
+  // V2.36 — Stairs: context-aware transition between the 3 house floors.
+  if (nt === 'U' || nt === 'w') {
+    const t = getStairTarget(nt, game.player.mapId);
+    if (t) {
+      game.player.moveCd = 240;
+      enterMap(t.map, t.x, t.y, t.dir);
+      return;
+    }
   }
   // V2.21 — District portal: '<' goes to previous district, '>' to next.
   if (nt === '<' || nt === '>') {

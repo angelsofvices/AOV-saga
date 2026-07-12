@@ -1962,7 +1962,74 @@ const GENDER_PALETTE = {
 };
 function playerPalette() {
   const g = (game.player && game.player.gender) || 'seer';
-  return GENDER_PALETTE[g] || GENDER_PALETTE.seer;
+  const base = GENDER_PALETTE[g] || GENDER_PALETTE.seer;
+  // V2.37 — outfit override. If the player picked a shirt color at the dresser,
+  // that overrides the gender-default primary color.
+  const shirt = game.player && game.player.shirt;
+  if (shirt) return Object.assign({}, base, { primary: shirt });
+  return base;
+}
+
+// V2.37 — shirt color choices for the basement dresser.
+const SHIRT_COLORS = [
+  { id: 'sky',       name: 'Sky',       hex: '#5fa8ff' },
+  { id: 'ember',     name: 'Ember',     hex: '#ff8a4c' },
+  { id: 'forest',    name: 'Forest',    hex: '#4a8a44' },
+  { id: 'amethyst',  name: 'Amethyst',  hex: '#b87cff' },
+  { id: 'crimson',   name: 'Crimson',   hex: '#c8384a' },
+  { id: 'gold',      name: 'Gold',      hex: '#e8c878' },
+  { id: 'ivory',     name: 'Ivory',     hex: '#f8ecc8' },
+  { id: 'void',      name: 'Void',      hex: '#4a1e5c' },
+];
+function interactDresser() {
+  const nm = game.player.name || 'you';
+  const lines = [
+    'You open the dresser.',
+    'Shirts hang neatly. Pick a color for today.',
+  ];
+  // Build the choices as a repeating dialog — simpler than a custom overlay.
+  // Player advances to see options, then use the party-menu overlay via a helper.
+  showDialog(lines, openShirtPicker);
+}
+function openShirtPicker() {
+  // Reuse the shop overlay pattern — build a small chooser inline.
+  const overlay = document.getElementById('items-overlay');
+  const body    = document.getElementById('items-body');
+  clearHeldKeys();
+  overlay.classList.add('active');
+  const header = overlay.querySelector('.mainmenu-title');
+  if (header) header.textContent = 'Dresser · Shirt Color';
+  body.innerHTML = '';
+  SHIRT_COLORS.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.setAttribute('tabindex', '0');
+    row.innerHTML = `
+      <div class="info">
+        <div class="name">
+          <span style="display:inline-block;width:14px;height:14px;border:1px solid rgba(255,255,255,0.35);background:${c.hex};margin-right:8px;vertical-align:middle;"></span>
+          ${c.name}
+        </div>
+        <div class="desc">Tap USE to wear.</div>
+      </div>
+      <button>USE</button>
+    `;
+    const btn = row.querySelector('button');
+    btn.onclick = () => {
+      game.player.shirt = c.hex;
+      save();
+      overlay.classList.remove('active');
+      // Restore inventory title for the next opening.
+      if (header) header.textContent = 'Inventory';
+      showToast(`◈  Shirt: ${c.name}`, 1400);
+    };
+    row.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
+        ev.preventDefault(); btn.click();
+      }
+    });
+    body.appendChild(row);
+  });
 }
 
 // ---------- The Ten Gemlords / Ten Districts of Zyraxis (CANONICAL) ----------
@@ -2670,42 +2737,43 @@ const MALEZOR_MAP = [
 //   z = poster (wall-art; blocks like a wall)
 
 // BASEMENT — player's bedroom.  Starting map.  Stairs UP in top-right corner.
+// V2.37: single bed, added dresser 'r' for outfit change, posters relocated to breathe.
 const BASEMENT_MAP = [
   '==============', // 0
-  '=.b.........U=', // 1 · b = bed (start),  U = stairs up (top-right corner)
-  '=.b..........=', // 2 · (bed 2 tiles tall for visual clarity)
-  '=..........k.=', // 3 · k = computer
+  '=.b.........U=', // 1 · b = bed (single tile, start),  U = stairs up
+  '=............=', // 2
+  '=..r.......k.=', // 3 · r = dresser (outfit),  k = computer
   '=............=', // 4
   '=..........j.=', // 5 · j = experiment
   '=............=', // 6
-  '=zz..........=', // 7 · posters bottom-left
-  '=zz..........=', // 8
+  '=..........zz=', // 7 · posters bottom-right
+  '=..........zz=', // 8
   '==============', // 9
 ];
-// MAIN FLOOR — shared living space.  Mom lives here.  Front door to Malezor.
-// Both staircases in the top-right corner: w (down to basement) then U (up to Dad).
+// MAIN FLOOR — living room + kitchen. Mom lives here. Front door to Malezor.
+// V2.37: added kitchen (F fridge, e stove) and living room (c couch),
+// stairs still top-right corner.
 const HOUSE_MAP = [
   '==============', // 0
-  '=..........wU=', // 1 · w = down to basement · U = up to Dad's office
-  '=............=', // 2
-  '=..t.........=', // 3 · t = table
-  '=............=', // 4
-  '=.....m......=', // 5 · Mom stands here
+  '=Fe.......wU.=', // 1 · F = fridge, e = stove (KITCHEN nook); stairs w/U top-right
+  '=.t..........=', // 2 · t = kitchen dining table
+  '=............=', // 3
+  '=..........c.=', // 4 · c = couch (LIVING ROOM)
+  '=.....m......=', // 5 · Mom
   '=............=', // 6
   '=......x.....=', // 7 · x = door out to Malezor
   '==============', // 8
 ];
-// DAD'S OFFICE — upstairs, where Dad works and keeps his notebook.
-// Stairs DOWN in top-right corner.
+// DAD'S OFFICE — upstairs. Bedroom + office. Single bed. Stairs DOWN top-right.
 const PARENTS_BEDROOM_MAP = [
   '==============', // 0
   '=...........w=', // 1 · w = stairs down (top-right)
   '=............=', // 2
-  '=..t.........=', // 3 · t = table (his desk)
+  '=..t.........=', // 3 · t = desk
   '=............=', // 4
-  '=.....d......=', // 5 · Dad stands here
+  '=.....d......=', // 5 · Dad
   '=............=', // 6
-  '=..b.b.......=', // 7 · his bed (2-tile)
+  '=..b.........=', // 7 · b = his single bed
   '==============', // 8
 ];
 // V2.8.3 — Two locked houses on Malezor. Tiny interior maps with a chest.
@@ -3004,9 +3072,10 @@ function walkable(x, y) {
   // V2.10.1 — house body 'h' now blocks (bigger 3x2 exteriors).
   // Doors (H, x, p, q, portal < >) are 'walkable' — walking INTO them
   // triggers auto-enter via tryMove's post-step door check.
-  // V2.36 — 'z' poster (wall art) blocks, 'k' computer blocks, 'j' experiment blocks.
-  //         'U' up-stairs and 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkj'.includes(t)) return false;
+  // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
+  //  z posters, k computer, j experiment stay blockers too.
+  //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
+  if ('#TWMSBh=btmdzkjrcFe'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQ'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);
   if (t === 'K' && !chestOpened(x, y)) return false;
@@ -3405,13 +3474,11 @@ function drawTile(x, y, ch, mx, my) {
     }
     case 'z': {
       // poster — Zyraxis mythology art (gold sigil on plum background)
-      // Walls behind: interior wall backdrop first, then poster overlaid.
       drawTile(x, y, '=', mx, my);
       ctx.fillStyle = '#2a1848';
       ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
       ctx.strokeStyle = '#e8c878';
       ctx.strokeRect(px + 2.5, py + 2.5, TILE - 5, TILE - 5);
-      // sigil — diamond emblem
       ctx.fillStyle = '#ffdc90';
       ctx.beginPath();
       ctx.moveTo(px + TILE / 2, py + 8);
@@ -3420,9 +3487,86 @@ function drawTile(x, y, ch, mx, my) {
       ctx.lineTo(px + 8, py + TILE / 2);
       ctx.closePath();
       ctx.fill();
-      // core dot
       ctx.fillStyle = '#c896ff';
       ctx.fillRect(px + TILE / 2 - 1, py + TILE / 2 - 1, 3, 3);
+      break;
+    }
+    // V2.37 — new interior tiles
+    case 'r': {
+      // dresser — wooden cabinet with drawer handles
+      drawTile(x, y, '.', mx, my);
+      ctx.fillStyle = '#5a3f28';
+      ctx.fillRect(px + 3, py + 4, TILE - 6, TILE - 8);
+      // top ledge
+      ctx.fillStyle = '#8b6236';
+      ctx.fillRect(px + 2, py + 3, TILE - 4, 4);
+      // drawer lines
+      ctx.strokeStyle = '#3a281c';
+      ctx.beginPath();
+      ctx.moveTo(px + 3, py + 14); ctx.lineTo(px + TILE - 3, py + 14);
+      ctx.moveTo(px + 3, py + 22); ctx.lineTo(px + TILE - 3, py + 22);
+      ctx.stroke();
+      // handles
+      ctx.fillStyle = '#e8c878';
+      ctx.fillRect(px + TILE / 2 - 1, py + 10, 3, 2);
+      ctx.fillRect(px + TILE / 2 - 1, py + 18, 3, 2);
+      ctx.fillRect(px + TILE / 2 - 1, py + 26, 3, 2);
+      break;
+    }
+    case 'c': {
+      // couch — long cushioned seat
+      drawTile(x, y, '.', mx, my);
+      // back
+      ctx.fillStyle = '#7a4dcf';
+      ctx.fillRect(px + 2, py + 6, TILE - 4, 6);
+      // seat
+      ctx.fillStyle = '#b87cff';
+      ctx.fillRect(px + 2, py + 12, TILE - 4, TILE - 16);
+      // cushion divider
+      ctx.strokeStyle = '#5a3f28';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 12); ctx.lineTo(px + TILE / 2, py + TILE - 4);
+      ctx.stroke();
+      // armrests
+      ctx.fillStyle = '#5a3f28';
+      ctx.fillRect(px + 1, py + 10, 3, TILE - 12);
+      ctx.fillRect(px + TILE - 4, py + 10, 3, TILE - 12);
+      break;
+    }
+    case 'F': {
+      // fridge — tall white/silver appliance with handle
+      drawTile(x, y, '.', mx, my);
+      ctx.fillStyle = '#d0e0f0';
+      ctx.fillRect(px + 4, py + 2, TILE - 8, TILE - 4);
+      // top/bottom seam (freezer split)
+      ctx.strokeStyle = '#8a9aac';
+      ctx.beginPath();
+      ctx.moveTo(px + 4, py + 12); ctx.lineTo(px + TILE - 4, py + 12);
+      ctx.stroke();
+      // handles
+      ctx.fillStyle = '#5fa8ff';
+      ctx.fillRect(px + TILE - 8, py + 6, 2, 4);
+      ctx.fillRect(px + TILE - 8, py + 16, 2, 8);
+      ctx.strokeStyle = '#4a5c78';
+      ctx.strokeRect(px + 3.5, py + 1.5, TILE - 7, TILE - 3);
+      break;
+    }
+    case 'e': {
+      // stove — dark surface with four burners
+      drawTile(x, y, '.', mx, my);
+      ctx.fillStyle = '#2a2a30';
+      ctx.fillRect(px + 3, py + 4, TILE - 6, TILE - 8);
+      // burners
+      ctx.fillStyle = '#c8384a';
+      ctx.beginPath(); ctx.arc(px + 10, py + 12, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + 22, py + 12, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8a8a8a';
+      ctx.beginPath(); ctx.arc(px + 10, py + 22, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + 22, py + 22, 3, 0, Math.PI * 2); ctx.fill();
+      // control dials
+      ctx.fillStyle = '#e8c878';
+      ctx.fillRect(px + 6, py + 6, 2, 2);
+      ctx.fillRect(px + TILE - 8, py + 6, 2, 2);
       break;
     }
     case 't': {
@@ -4388,6 +4532,15 @@ function tryInteract() {
       'MALEZOR at the top. KORATHEN at the bottom. NETHARION dead center.',
       'You memorized the map when you were seven. You still trace it in your head some nights.',
     ]);
+  } else if (t === 'r') {
+    interactDresser();
+  } else if (t === 'c') {
+    // V2.37 — couch flavor
+    showDialog(['The couch. Comfy. Warm.', 'Not today. Malezor waits.']);
+  } else if (t === 'F') {
+    showDialog(['The fridge.  Mom keeps three kinds of berry jam.', 'You already ate breakfast.']);
+  } else if (t === 'e') {
+    showDialog(['The stove. Still warm from Mom\'s toast.']);
   } else if (t === 'x') {
     exitHouseToMalezor();
   } else if (t === 'S' || t === 'B') {
@@ -5311,7 +5464,14 @@ function addAction(label, cb, disabled) {
   b.className = 'action-btn';
   b.textContent = label;
   if (disabled) b.disabled = true;
-  else b.onclick = cb;
+  else b.onclick = () => {
+    // V2.37 — battle input debounce: as soon as ANY action button is
+    // pressed, disable every button in the battle action panel so a
+    // double-tap can't fire the same move twice. The next renderMainMenu()
+    // rebuilds the panel with fresh handlers when it's the player's turn again.
+    $battleActions.querySelectorAll('.action-btn, button').forEach(x => x.disabled = true);
+    cb();
+  };
   $battleActions.appendChild(b);
 }
 function focusFirstAction() {
@@ -6883,14 +7043,32 @@ menuBackdrop.addEventListener('click', () => {
   function haptic() { try { navigator.vibrate && navigator.vibrate(20); } catch (e) {} }
 
   // ---- Button (A / B / MENU / SELECT / START) ----
+  //  V2.37 — the A button gets long-press behavior. Holding A for >400 ms
+  //  fires Enter instead of z on release, so the Party screen (which uses
+  //  Enter to open Inspect) reacts to a "hold to inspect" gesture.
+  //  Short-press keeps its z semantics for swap / confirm.
   function wireButton(el) {
     const key = el.dataset.key;
+    const isA = (key === 'z' && el.classList.contains('b-A'));
     let pid = null;
+    let holdTimer = null;
+    let longPressed = false;
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault(); pid = e.pointerId;
       try { el.setPointerCapture(pid); } catch(_) {}
       el.classList.add('pressed');
-      pressKey(key, 'btn:' + key);
+      longPressed = false;
+      if (isA) {
+        // Delay z press until we know it's not a long-press.
+        holdTimer = setTimeout(() => {
+          longPressed = true;
+          holdTimer = null;
+          // Fire Enter (opens Inspect on Party screen; Confirm elsewhere)
+          pressKey('Enter', 'btn:A-hold');
+        }, 400);
+      } else {
+        pressKey(key, 'btn:' + key);
+      }
       haptic();
       resetIdle();
     });
@@ -6898,7 +7076,18 @@ menuBackdrop.addEventListener('click', () => {
       if (e.pointerId !== pid) return;
       pid = null;
       el.classList.remove('pressed');
-      releaseKey(key, 'btn:' + key);
+      if (isA) {
+        if (holdTimer) {
+          // Short press — fire z now (down + up in quick succession).
+          clearTimeout(holdTimer); holdTimer = null;
+          pressKey('z', 'btn:A-short');
+          setTimeout(() => releaseKey('z', 'btn:A-short'), 30);
+        } else if (longPressed) {
+          releaseKey('Enter', 'btn:A-hold');
+        }
+      } else {
+        releaseKey(key, 'btn:' + key);
+      }
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);

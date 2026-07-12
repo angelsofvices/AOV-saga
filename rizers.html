@@ -1722,12 +1722,14 @@ function typeMult(atk, def1, def2) {
   const m2 = def2 && def2 !== def1 ? _typeMultSingle(atk, def2) : 1;
   return m1 * m2;
 }
+// V2.23 — the four canonical effectiveness bands (neutral has no label on purpose).
+// Player learns the type chart because these bands are surfaced consistently.
 function typeLabel(m) {
-  if (m >= 4)   return 'devastating';
-  if (m >= 2)   return 'super effective';
-  if (m <= 0.25) return 'almost no effect';
-  if (m <= 0.5) return 'not very effective';
-  return null;
+  if (m >= 4)    return 'devastating';   // 4× — dual weakness (both types resist-worse)
+  if (m >= 2)    return 'strong';        // 2× — single strength
+  if (m <= 0.25) return 'pitiful';       // 0.25× — dual resistance
+  if (m <= 0.5)  return 'poor';          // 0.5× — single resistance
+  return null;                            // 1× neutral → intentionally quiet
 }
 
 // ---------- Statuses (10 total: 5 debuffs + 5 buffs) ----------
@@ -4647,12 +4649,13 @@ async function performMove(user, target, move, playerSide) {
   target.hp = Math.max(0, target.hp - dmg);
   const targetCanvas = playerSide ? enemyCanvas : playerCanvas;
   await flashCanvas(targetCanvas);
+  // V2.23 — always announce the four canon bands; stay silent on neutral (1×).
   const lbl = typeLabel(mult);
-  if (mult >= 4)       { logBattle(`Devastating hit!  (-${dmg})`); await wait(700); }
-  else if (mult >= 2)  { logBattle(`Super effective!  (-${dmg})`); await wait(700); }
-  else if (mult <= 0.25){ logBattle(`Almost no effect. (-${dmg})`); await wait(700); }
-  else if (mult <= 0.5){ logBattle(`Not very effective. (-${dmg})`); await wait(700); }
-  else                 { logBattle(`(-${dmg})`); await wait(500); }
+  if      (mult >= 4)   { logBattle(`Devastating hit! (-${dmg})`);       await wait(750); }
+  else if (mult >= 2)   { logBattle(`Strong hit! (-${dmg})`);            await wait(700); }
+  else if (mult <= 0.25){ logBattle(`Pitiful. Barely a scratch. (-${dmg})`); await wait(750); }
+  else if (mult <= 0.5) { logBattle(`Poor match-up. (-${dmg})`);         await wait(700); }
+  else                  { logBattle(`(-${dmg})`); await wait(500); }
   refreshBattleUI();
   // Status inflict roll
   if (target.hp > 0 && move.status && Math.random() < (move.statusChance || 0.25)) {

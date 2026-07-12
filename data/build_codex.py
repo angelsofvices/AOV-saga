@@ -277,5 +277,45 @@ def main():
     for c in chains:
         print(f'  chain "{c["chain"]}": ' + ' → '.join(c['stages']))
 
+    # V2.30 — Also emit codex.js, a script-tag-friendly slim payload the game
+    # can hydrate SPECIES from at boot. Zyrex only (role == 'zyrex'); Zyraxian
+    # humanoid classes are skipped (they'll drive NPC design later, not the
+    # catchable roster).
+    slim = {}
+    NORM_TYPE = {'Void': 'Unknown-Void', 'Humanoid': 'Humanoid-Noid'}
+    def norm_type(t):
+        t = (t or '').strip()
+        return NORM_TYPE.get(t, t) if t else None
+    for id, e in entries.items():
+        if e.get('role') != 'zyrex':
+            continue
+        base = e.get('base') or {}
+        if not (base.get('hp') and base.get('atk')):
+            continue
+        slim[id] = {
+            'id': id,
+            'name': e['name'],
+            'type': norm_type(e.get('type1')) or 'Beast',
+            'type2': norm_type(e.get('type2')),
+            'type3': norm_type(e.get('type3')) if e.get('tier', 1) >= 6 else None,
+            'tier': e.get('tier') or 1,
+            'base': {
+                'hp':  base.get('hp')  or 66,
+                'atk': base.get('atk') or 66,
+                'def': base.get('def') or 66,
+                'spd': base.get('spd') or 66,
+                'spc': base.get('spc') or 69,
+            },
+            'archetype': e.get('archetype') or '',
+            'chain':    e.get('chain'),
+            'chainIdx': e.get('chainIdx'),
+            'evolveTo': e.get('evolveTo'),
+            'evolveLv': e.get('evolveLv'),
+        }
+    JS_OUT = ROOT / 'data' / 'codex.js'
+    js = 'window.CODEX_ZYREX = ' + json.dumps(slim, ensure_ascii=False) + ';'
+    JS_OUT.write_text(js, encoding='utf-8')
+    print(f'Wrote {JS_OUT}  —  {len(slim)} Zyrex entries')
+
 if __name__ == '__main__':
     main()

@@ -2953,6 +2953,22 @@ function generateDistrictMap(mapId) {
     grid[y][x] = 'T';
     t++;
   }
+  // V2.38 — Scatter Seer grunts. Count scales with district: 3 → 12.
+  // 'g' tile is a generic grunt handled by NPC_TRAINERS['g'] below.
+  // Malezor keeps its hand-crafted YJQ triad and gets no procedural grunts.
+  if (mapId !== 'malezor') {
+    const gruntTarget = 3 + idx;   // Zarvane 4, Andrannor 5, ... Korathen 12
+    let gg = 0;
+    let tries = 0;
+    while (gg < gruntTarget && tries < gruntTarget * 20) {
+      tries++;
+      const x = pick(3, cols - 4);
+      const y = pick(3, rows - 4);
+      if (grid[y][x] !== ',') continue;
+      grid[y][x] = 'g';
+      gg++;
+    }
+  }
   // Locked buildings — 2x2 footprint, one door char per district's gemKey tier.
   // For skeleton we use 'p' char (bronze-lock) as a stand-in; a full 10-key
   // rewrite happens in a later pass. Each building sits alone.
@@ -3048,6 +3064,10 @@ const NPC_TRAINERS = {
   'Y': { name: 'YARA',  label: 'Seer scout',       intro: 'YARA: A stray Rizer. Perfect. The Seers pay in coin for every trainer we bury.',       chain: [['aurarat', 5]] },
   'J': { name: 'JAX',   label: 'rival Rizer',      intro: "JAX: You bound a shard? Show me — Malezor doesn't take passengers.",                       chain: [['barkchitter', 5], ['torchpuff', 6]] },
   'Q': { name: 'QUINN', label: 'desert wanderer',  intro: 'QUINN: The dunes remember every step. Prove yours are worth the sand.',                     chain: [['dunechitter', 6], ['pebblequil', 7]] },
+  // V2.38 — generic Seer grunt, scattered across all districts II-X.
+  // Chain is synthesized at battle-start from the current district's wild pool
+  // (see handleNpcTrainer). Level and party size scale with the district.
+  'g': { name: 'SEER GRUNT', label: 'Seer grunt',   intro: 'SEER GRUNT: Another stray. The Seers thank you for your gemshards in advance.',            chain: [] },
 };
 
 // Chest loot — each chest yields either gems, coins, or potions
@@ -3077,7 +3097,7 @@ function walkable(x, y) {
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
   if ('#TWMSBh=btmdzkjrcFe'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
-  if ('YJQ'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);
+  if ('YJQg'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);   // V2.38 — 'g' = Seer grunt
   if (t === 'K' && !chestOpened(x, y)) return false;
   if (game.npcs) {
     const n = isNpcAt(x, y);
@@ -3778,6 +3798,7 @@ function renderMap() {
       'Y': ['#b87cff', '#3a1a5c'],   // Yara — violet Seer scout
       'J': ['#ff8fb2', '#6a1830'],   // Jax — rose rival
       'Q': ['#2fe6a8', '#1a5a44'],   // Quinn — emerald wanderer
+      'g': ['#8a4ca8', '#2a0a3c'],   // V2.38 — generic Seer grunt (deep amethyst)
     };
     for (const key in game.npcs) {
       const n = game.npcs[key];
@@ -5323,7 +5344,25 @@ function handleNpcTrainer(tileChar, x, y) {
 }
 function startNpcTrainerBattle(tileChar, x, y, opts) {
   const npc = NPC_TRAINERS[tileChar];
-  const chain = npc.chain.map(([id, lv]) => makeZyrex(id, lv));
+  // V2.38 — Grunts ('g') get their chain synthesized from the district's
+  // wild pool at battle-start, sized by district number.
+  let chainSpecs = npc.chain;
+  if (tileChar === 'g') {
+    const pool = districtWildPool(game.player.mapId);
+    if (pool && pool.ids.length) {
+      const DIST = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+      const num = DIST.indexOf(game.player.mapId) + 1;
+      const chainSize = Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));   // 1 for I-III, 2 for IV-VII, 3 for VIII-X
+      const [lo, hi] = pool.lvRange;
+      chainSpecs = [];
+      for (let i = 0; i < chainSize; i++) {
+        const id = pool.ids[Math.floor(Math.random() * pool.ids.length)];
+        const lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
+        chainSpecs.push([id, lv]);
+      }
+    }
+  }
+  const chain = chainSpecs.map(([id, lv]) => makeZyrex(id, lv));
   const lead = chain.shift();
   enterBattle(lead, 'npc-trainer', {
     trainerName: npc.name,
@@ -5331,8 +5370,7 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
     tileChar,
     chain,
     stakes: !!(opts && opts.stakes),
-    // Snapshot the entire chain [spec + realized] so we can hand one over on win.
-    stealPool: npc.chain.slice(),
+    stealPool: chainSpecs.slice(),
   });
 }
 // V2.11 — steal implementations

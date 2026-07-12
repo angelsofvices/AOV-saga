@@ -6303,6 +6303,225 @@ menuBackdrop.addEventListener('click', () => {
   document.body.classList.remove('menu-open');
 });
 
+// ============================================================================
+//  V2.33 — MOBILE CONTROLLER (touch overlay for phones/tablets)
+// ============================================================================
+// - Only appears on coarse-pointer devices (touch phones/tablets).
+// - Dispatches synthetic KeyboardEvents to the same document handler the PC
+//   controls use — no game logic touched.
+// - Portrait: bottom-anchored control deck (D-pad left, A/B right, MENU/
+//   SELECT/START pill row centered).
+// - Landscape: floating overlay controls; auto-fade to 35% opacity after 4s idle.
+// - Multi-touch via Pointer Events. D-pad diagonals fire two arrow keys.
+(function mobileController() {
+  const isTouch = window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  if (!isTouch) return;
+  document.body.classList.add('mobile-mode');
+
+  // Style block — injected once. Uses game palette gold-on-plum.
+  const style = document.createElement('style');
+  style.textContent = `
+    body.mobile-mode { overflow: hidden; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+    .mob-root { position: fixed; inset: 0; pointer-events: none; z-index: 9998;
+                --gold:#e8c878; --goldb:#ffdc90; --plum:#0f0a1c; --border:#3a2560; --ivory:#f8ecc8; --mist:#b8aec8; }
+    .mob-btn { pointer-events: auto; position: absolute; user-select: none; -webkit-tap-highlight-color: transparent;
+               color: var(--gold); font-family: 'Playfair Display', serif; font-weight: 700; letter-spacing: 0.12em;
+               background: rgba(15,10,28,0.72); border: 1.5px solid var(--gold);
+               box-shadow: 0 6px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(232,200,120,0.35);
+               display: flex; align-items: center; justify-content: center;
+               transition: opacity 0.28s ease, box-shadow 0.15s ease, transform 0.08s ease;
+               touch-action: none; }
+    .mob-btn:active, .mob-btn.pressed { color: var(--goldb); transform: scale(0.96);
+               box-shadow: 0 0 22px rgba(255,220,144,0.42), inset 0 1px 0 rgba(232,200,120,0.35); }
+    .mob-pad { pointer-events: auto; position: absolute; user-select: none; touch-action: none;
+               background: rgba(15,10,28,0.72); border: 1.5px solid var(--gold); border-radius: 999px;
+               box-shadow: 0 6px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(232,200,120,0.35);
+               display: grid; place-items: center; }
+    .mob-pad-arrow { position: absolute; color: var(--gold); font-size: 22px; font-weight: 700;
+                     transition: color 0.1s ease, text-shadow 0.1s ease; pointer-events: none; }
+    .mob-pill { pointer-events: auto; position: absolute; padding: 8px 14px; color: var(--ivory);
+                background: rgba(15,10,28,0.72); border: 1px solid var(--border); border-radius: 999px;
+                font-family: 'VT323', monospace; font-size: 14px; letter-spacing: 0.18em;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.35); touch-action: none; }
+    .mob-pill:active { color: var(--goldb); border-color: var(--gold); }
+    .mob-root.faded .mob-btn, .mob-root.faded .mob-pad, .mob-root.faded .mob-pill { opacity: 0.35; }
+
+    /* Portrait layout */
+    .mob-root.portrait .mob-deck { position: absolute; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 0px);
+                                    height: 32vh; background: linear-gradient(to bottom, rgba(15,10,28,0) 0%, rgba(15,10,28,0.7) 40%);
+                                    pointer-events: none; }
+    .mob-root.portrait .mob-pad         { left: 8vw;  bottom: calc(env(safe-area-inset-bottom, 0px) + 8vh);  width: 44vw; max-width: 220px; aspect-ratio: 1 / 1; }
+    .mob-root.portrait .mob-btn.b-A     { right: 12vw; bottom: calc(env(safe-area-inset-bottom, 0px) + 16vh); width: 68px; height: 68px; border-radius: 999px; font-size: 22px; }
+    .mob-root.portrait .mob-btn.b-B     { right: 25vw; bottom: calc(env(safe-area-inset-bottom, 0px) + 8vh);  width: 68px; height: 68px; border-radius: 999px; font-size: 22px; }
+    .mob-root.portrait .mob-pill.p-MENU { left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 2vh); }
+    .mob-root.portrait .mob-pill.p-SELECT { left: 30%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 2vh); }
+    .mob-root.portrait .mob-pill.p-START  { right: 30%; transform: translateX(50%);  bottom: calc(env(safe-area-inset-bottom, 0px) + 2vh); }
+
+    /* Landscape layout */
+    .mob-root.landscape .mob-pad         { left: max(2vw, env(safe-area-inset-left, 0px)); bottom: 8vh; width: 22vh; max-width: 200px; aspect-ratio: 1 / 1; }
+    .mob-root.landscape .mob-btn.b-A     { right: max(6vw, env(safe-area-inset-right, 0px)); bottom: 22vh; width: 68px; height: 68px; border-radius: 999px; font-size: 22px; }
+    .mob-root.landscape .mob-btn.b-B     { right: max(18vw, env(safe-area-inset-right, 12vw)); bottom: 10vh; width: 68px; height: 68px; border-radius: 999px; font-size: 22px; }
+    .mob-root.landscape .mob-pill.p-MENU { left: 50%; transform: translateX(-50%); top: max(2vh, env(safe-area-inset-top, 0px)); }
+    .mob-root.landscape .mob-pill.p-SELECT { left: 40%; transform: translateX(-50%); bottom: max(2vh, env(safe-area-inset-bottom, 0px)); }
+    .mob-root.landscape .mob-pill.p-START  { right: 40%; transform: translateX(50%);  bottom: max(2vh, env(safe-area-inset-bottom, 0px)); }
+  `;
+  document.head.appendChild(style);
+
+  // Root overlay
+  const root = document.createElement('div');
+  root.className = 'mob-root portrait';
+  root.innerHTML = `
+    <div class="mob-deck"></div>
+    <div class="mob-pad" data-role="pad">
+      <div class="mob-pad-arrow" data-dir="up"    style="top: 8%;">▲</div>
+      <div class="mob-pad-arrow" data-dir="down"  style="bottom: 8%;">▼</div>
+      <div class="mob-pad-arrow" data-dir="left"  style="left: 8%;">◀</div>
+      <div class="mob-pad-arrow" data-dir="right" style="right: 8%;">▶</div>
+    </div>
+    <div class="mob-btn b-A" data-key="z">A</div>
+    <div class="mob-btn b-B" data-key="x">B</div>
+    <div class="mob-pill p-MENU"   data-key="x">MENU</div>
+    <div class="mob-pill p-SELECT" data-key="n">SELECT</div>
+    <div class="mob-pill p-START"  data-key="x">START</div>
+  `;
+  document.body.appendChild(root);
+
+  // ---- Synthetic keyboard event dispatch ----
+  const heldByKey = {};   // key -> Set(pointerId or 'btn')
+  function dispatch(type, key) {
+    const evt = new KeyboardEvent(type, {
+      key,
+      code: key === 'ArrowUp' ? 'ArrowUp'
+        : key === 'ArrowDown'  ? 'ArrowDown'
+        : key === 'ArrowLeft'  ? 'ArrowLeft'
+        : key === 'ArrowRight' ? 'ArrowRight'
+        : 'Key' + key.toUpperCase(),
+      bubbles: true, cancelable: true,
+    });
+    document.dispatchEvent(evt);
+  }
+  function pressKey(key, tag) {
+    if (!heldByKey[key]) heldByKey[key] = new Set();
+    const first = heldByKey[key].size === 0;
+    heldByKey[key].add(tag);
+    if (first) dispatch('keydown', key);
+  }
+  function releaseKey(key, tag) {
+    if (!heldByKey[key]) return;
+    heldByKey[key].delete(tag);
+    if (heldByKey[key].size === 0) dispatch('keyup', key);
+  }
+  function haptic() { try { navigator.vibrate && navigator.vibrate(20); } catch (e) {} }
+
+  // ---- Button (A / B / MENU / SELECT / START) ----
+  function wireButton(el) {
+    const key = el.dataset.key;
+    let pid = null;
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); pid = e.pointerId;
+      try { el.setPointerCapture(pid); } catch(_) {}
+      el.classList.add('pressed');
+      pressKey(key, 'btn:' + key);
+      haptic();
+      resetIdle();
+    });
+    const up = (e) => {
+      if (e.pointerId !== pid) return;
+      pid = null;
+      el.classList.remove('pressed');
+      releaseKey(key, 'btn:' + key);
+    };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('pointerleave', up);
+  }
+  root.querySelectorAll('.mob-btn, .mob-pill').forEach(wireButton);
+
+  // ---- D-pad ----
+  const pad = root.querySelector('.mob-pad');
+  const arrows = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+  let padPointer = null, padHeld = new Set();
+  function padDirsFrom(e) {
+    const r = pad.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const dx = e.clientX - cx, dy = e.clientY - cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist < r.width * 0.15) return new Set();   // dead zone
+    const ang = Math.atan2(dy, dx) * 180 / Math.PI; // -180..180
+    const set = new Set();
+    // 8-direction: -157 to -112 = up-left, -112 to -67 = up, ... etc
+    const a = (ang + 360) % 360;
+    if (a >= 22.5 && a < 67.5)         { set.add('down');  set.add('right'); }
+    else if (a >= 67.5 && a < 112.5)   { set.add('down'); }
+    else if (a >= 112.5 && a < 157.5)  { set.add('down');  set.add('left'); }
+    else if (a >= 157.5 && a < 202.5)  { set.add('left'); }
+    else if (a >= 202.5 && a < 247.5)  { set.add('up');    set.add('left'); }
+    else if (a >= 247.5 && a < 292.5)  { set.add('up'); }
+    else if (a >= 292.5 && a < 337.5)  { set.add('up');    set.add('right'); }
+    else                                { set.add('right'); }
+    return set;
+  }
+  function setPadDirs(newSet) {
+    // Release keys no longer held
+    for (const d of padHeld) if (!newSet.has(d)) releaseKey(arrows[d], 'pad');
+    // Press newly held keys
+    for (const d of newSet) if (!padHeld.has(d)) pressKey(arrows[d], 'pad');
+    padHeld = newSet;
+    root.querySelectorAll('.mob-pad-arrow').forEach(a => {
+      const on = newSet.has(a.dataset.dir);
+      a.style.color = on ? '#ffdc90' : '#e8c878';
+      a.style.textShadow = on ? '0 0 12px rgba(255,220,144,0.9)' : 'none';
+    });
+  }
+  pad.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); padPointer = e.pointerId;
+    try { pad.setPointerCapture(padPointer); } catch(_) {}
+    setPadDirs(padDirsFrom(e));
+    haptic();
+    resetIdle();
+  });
+  pad.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== padPointer) return;
+    setPadDirs(padDirsFrom(e));
+  });
+  const padRelease = (e) => {
+    if (e.pointerId !== padPointer) return;
+    setPadDirs(new Set());
+    padPointer = null;
+  };
+  pad.addEventListener('pointerup', padRelease);
+  pad.addEventListener('pointercancel', padRelease);
+  pad.addEventListener('pointerleave', padRelease);
+
+  // ---- Orientation + idle fade ----
+  let idleTimer = null;
+  function resetIdle() {
+    if (root.classList.contains('faded')) root.classList.remove('faded');
+    clearTimeout(idleTimer);
+    if (root.classList.contains('landscape')) {
+      idleTimer = setTimeout(() => root.classList.add('faded'), 4000);
+    }
+  }
+  function checkOrient() {
+    const landscape = window.innerWidth > window.innerHeight;
+    root.classList.toggle('landscape', landscape);
+    root.classList.toggle('portrait', !landscape);
+    resetIdle();
+  }
+  window.addEventListener('resize', checkOrient);
+  window.addEventListener('orientationchange', checkOrient);
+  root.addEventListener('pointerdown', resetIdle, { capture: true });
+  checkOrient();
+
+  // Global fallback — release everything if fingers leave the screen
+  window.addEventListener('blur', () => {
+    for (const key in heldByKey) {
+      heldByKey[key].clear();
+      dispatch('keyup', key);
+    }
+  });
+})();
+
 </script>
 </body>
 </html>

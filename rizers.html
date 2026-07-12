@@ -148,8 +148,15 @@
       z-index: 200;
       padding: 22px;
       text-align: center;
+      overflow-y: auto;                       /* V2.33.2 — always scrollable on narrow screens */
+      -webkit-overflow-scrolling: touch;
     }
     .title-screen.hidden { display: none; }
+    /* V2.33.2 — widen and unclamp on mobile so content doesn't get smushed */
+    @media (max-width: 900px) {
+      .title-screen { padding: 20px 12px; justify-content: flex-start; padding-top: max(48px, env(safe-area-inset-top, 20px)); }
+      .title-desc, .title-btns { max-width: 100%; width: 100%; }
+    }
 
     /* Mothergem shard emblem — Design v1 */
     .title-emblem {
@@ -293,8 +300,17 @@
       align-items: center; justify-content: center;
       padding: 30px 24px;
       text-align: center;
+      overflow-y: auto;                       /* V2.33.2 — always scrollable */
+      -webkit-overflow-scrolling: touch;
     }
     .creator-screen.hidden { display: none; }
+    /* V2.33.2 — widen creator on mobile; top-anchor scrolling so 'Begin' is reachable */
+    @media (max-width: 900px) {
+      .creator-screen { padding: 20px 12px; justify-content: flex-start; padding-top: max(48px, env(safe-area-inset-top, 20px)); padding-bottom: max(80px, env(safe-area-inset-bottom, 40px)); gap: 14px; }
+      .creator-input, .creator-cta { width: 100%; max-width: 100%; }
+      .gender-grid { width: 100%; max-width: 100%; gap: 8px; }
+      .gender-btn { width: 100%; }
+    }
     .creator-eyebrow {
       font-family: var(--font-meta);
       font-size: 0.62rem;
@@ -3727,13 +3743,21 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- Character creator: arrows walk gender, Enter submits ----
+  // ---- Character creator: arrows walk gender, A/Z/Enter/Space submits ----
   if (game.mode === 'creator') {
     // Only intercept arrows when a gender button is focused (input owns arrows for cursor).
     if (document.activeElement && document.activeElement.classList &&
         document.activeElement.classList.contains('gender-btn') &&
         ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
       if (focusNavStep(document.getElementById('gender-grid'), e.key, 3)) e.preventDefault();
+      return;
+    }
+    // V2.33.2 — confirm key (A/Z/Enter/Space) clicks Begin when it's enabled.
+    if (isConfirm) {
+      const cta = document.getElementById('creator-cta');
+      if (cta && !cta.disabled) { cta.click(); e.preventDefault(); return; }
+      // If not ready, try to activate whatever's focused (gender pick).
+      if (activateFocused()) e.preventDefault();
       return;
     }
     return;

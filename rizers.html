@@ -5032,8 +5032,8 @@ function renderPartyScreen() {
       c.drawImage(tmp, 0, 0, 96, 96, 0, 0, 48, 48);
       slot.style.cursor = 'pointer';
       slot.tabIndex = 0;
-      slot.onclick = () => openInspect(r);
-      slot.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInspect(r); } };
+      slot.onclick = () => openInspect(r, i);   // V2.20 — pass slot index for SWAP
+      slot.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInspect(r, i); } };
     }
     $partyGrid.appendChild(slot);
   }
@@ -5044,22 +5044,31 @@ const $inspect = document.getElementById('inspect-overlay');
 const $inspectName = document.getElementById('inspect-name');
 const $inspectBody = document.getElementById('inspect-body');
 document.getElementById('inspect-close').onclick = () => $inspect.classList.remove('active');
-function openInspect(r) {
+function openInspect(r, slotIdx) {
   clearHeldKeys();
+  game._inspectSlotIdx = (typeof slotIdx === 'number') ? slotIdx : null;   // V2.20
   const s = SPECIES[r.species] || {};
   const speciesTier = s.tier || 1;
-  const maxLv = tierMaxLv(speciesTier);
+  // V2.20 — open growth: next evolution threshold is the true 'ceiling' for
+  // this form. Fall back to Lv 100 if terminal.
+  const evolveLv = s.evolveLv || null;
   const dual = r.type2 && r.type2 !== r.type ? `/${r.type2}` : '';
   const status = r.status ? (STATUSES[r.status.key] || {}) : null;
   const need = xpForNext(r.lv);
-  const xpBar = r.lv >= maxLv
-    ? `<div style="color:var(--gold-bright);">MAX LEVEL for Tier ${TIER_ROMAN[speciesTier-1]}</div>`
-    : `<div class="xp-bar"><div class="xp-fill" style="width:${Math.min(100,(r.xp/need)*100)}%;"></div></div>
-       <div style="color:var(--mist);font-size:14px;margin-top:3px;">${r.xp} / ${need} XP → Lv ${r.lv + 1}</div>`;
+  let progressLine;
+  if (evolveLv && r.lv >= evolveLv) {
+    progressLine = `<div style="color:var(--gold-bright);">Ready to evolve into ${SPECIES[s.evolveTo] ? SPECIES[s.evolveTo].name : s.evolveTo}!</div>`;
+  } else if (!evolveLv && r.lv >= 100) {
+    progressLine = `<div style="color:var(--gold-bright);">MAX LEVEL (100)</div>`;
+  } else {
+    progressLine = `<div class="xp-bar"><div class="xp-fill" style="width:${Math.min(100,(r.xp/need)*100)}%;"></div></div>
+      <div style="color:var(--mist);font-size:14px;margin-top:3px;">${r.xp} / ${need} XP → Lv ${r.lv + 1}${evolveLv ? ` · evolves at Lv ${evolveLv}` : ''}</div>`;
+  }
+  const nextForm = s.evolveTo && SPECIES[s.evolveTo] ? SPECIES[s.evolveTo].name : null;
   $inspectName.textContent = r.name;
   $inspectBody.innerHTML = `
     <div class="inspect-row"><span class="lbl">Level</span><span class="val">${r.lv} · Tier ${tierRoman(r.lv)}</span></div>
-    <div class="inspect-row"><span class="lbl">Card Tier</span><span class="val">${TIER_ROMAN[speciesTier-1]} · maxes at Lv ${maxLv}</span></div>
+    <div class="inspect-row"><span class="lbl">Form</span><span class="val">${TIER_ROMAN[speciesTier-1]}${nextForm ? ' · evolves into ' + nextForm + ' @ Lv ' + evolveLv : ' · terminal form'}</span></div>
     <div class="inspect-row"><span class="lbl">Type</span><span class="val">${r.type}${dual}</span></div>
     <div class="inspect-row"><span class="lbl">HP</span><span class="val">${r.hp} / ${r.maxHp}</span></div>
     <div class="inspect-row"><span class="lbl">ATK</span><span class="val">${r.stats.atk}</span></div>
@@ -5067,7 +5076,7 @@ function openInspect(r) {
     <div class="inspect-row"><span class="lbl">SPD</span><span class="val">${r.stats.spd}</span></div>
     <div class="inspect-row"><span class="lbl">SPC</span><span class="val">${r.stats.spc}</span></div>
     <div class="inspect-section-title">Progress</div>
-    ${xpBar}
+    ${progressLine}
     ${status ? `<div class="inspect-section-title">Status</div>
       <span class="status-chip side-${status.side}" style="color:${status.color};border-color:${status.color}">${status.name.toUpperCase()} · ${r.status.turns} turns</span>
       <div style="color:var(--mist);font-size:14px;margin-top:4px;">${status.tag}</div>` : ''}
@@ -5078,8 +5087,51 @@ function openInspect(r) {
         ${m.status ? `<div class="move-meta">may inflict ${STATUSES[m.status]?.name || m.status} (${Math.round((m.statusChance || 0.25)*100)}%)</div>` : ''}
       </div>
     `).join('')}
+    <div class="inspect-section-title" id="inspect-swap-title" style="cursor: pointer;">↔ Swap party slot</div>
+    <div id="inspect-swap-body"></div>
   `;
+  // V2.20 — wire the SWAP section
+  renderInspectSwap();
   $inspect.classList.add('active');
+}
+
+// V2.20 — swap this Zyrex's party slot with another. Rendered inside
+// the inspect panel; click a target slot to swap positions.
+function renderInspectSwap() {
+  const idx = game._inspectSlotIdx;
+  const body = document.getElementById('inspect-swap-body');
+  if (!body) return;
+  if (idx == null) {
+    body.innerHTML = '<div style="color:var(--mist);font-size:13px;">Not in party.</div>';
+    return;
+  }
+  const party = game.player.party;
+  const others = party.map((r, i) => ({ r, i })).filter(o => o.r && o.i !== idx);
+  if (!others.length) {
+    body.innerHTML = '<div style="color:var(--mist);font-size:13px;">No other Rizers in your party.</div>';
+    return;
+  }
+  body.innerHTML = '<div style="color:var(--mist);font-size:13px;margin-bottom:6px;">Choose a party slot to swap with:</div>';
+  others.forEach(o => {
+    const row = document.createElement('button');
+    row.className = 'action-btn';
+    row.style.cssText = 'width: 100%; text-align: left; margin: 4px 0; padding: 8px 10px;';
+    row.innerHTML = `<span>SLOT ${o.i + 1} · ${o.r.name}</span> <span class="cost">Lv ${o.r.lv} · ${o.r.hp}/${o.r.maxHp}</span>`;
+    row.onclick = () => {
+      const tmp = party[idx]; party[idx] = party[o.i]; party[o.i] = tmp;
+      game._inspectSlotIdx = o.i;   // follow the Zyrex you were inspecting to its new slot
+      save();
+      showToast(`↔  ${party[idx].name} ↔ ${party[o.i].name}`, 1600);
+      // Refresh the inspect panel + the party grid behind it.
+      openInspect(party[o.i], o.i);
+      if (typeof openParty === 'function') {
+        // Party overlay is under the inspect — refresh it so slots re-render.
+        const alive = document.getElementById('party-screen');
+        if (alive && alive.classList.contains('active')) openParty();
+      }
+    };
+    body.appendChild(row);
+  });
 }
 
 // ============================================================================

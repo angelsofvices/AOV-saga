@@ -6109,10 +6109,68 @@ function healParty() {
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ---------- Zyrex sprite renderer (procedural) ----------
+// V2.39 — Sprite pipeline.
+// Every SPECIES id gets a lazy-loaded PNG lookup. Tries two conventions:
+//   1. assets/zyrex/<id>.png          (canonical location for uploaded refs)
+//   2. assets/character_<id>.png      (legacy AOV asset folder)
+// If neither exists, silently falls back to the procedural drawing below.
+// Load results are cached so a single failed lookup won't retry every frame.
+const SPRITE_CACHE = {};
+function loadZyrexSprite(id) {
+  if (SPRITE_CACHE[id]) return SPRITE_CACHE[id];
+  const entry = { img: null, loaded: false, done: false };
+  SPRITE_CACHE[id] = entry;
+  const paths = [`assets/zyrex/${id}.png`, `assets/character_${id}.png`];
+  let i = 0;
+  const img = new Image();
+  img.onload = () => { entry.img = img; entry.loaded = true; entry.done = true; };
+  img.onerror = () => {
+    i++;
+    if (i < paths.length) img.src = paths[i];
+    else entry.done = true;   // give up; fall through to procedural
+  };
+  img.src = paths[i];
+  return entry;
+}
+function preloadAllSprites() {
+  for (const id in SPECIES) loadZyrexSprite(id);
+}
+// Fire preload once SPECIES is fully hydrated. tryLoad / newGame both call
+// this in setupGameStart; we also kick it in case boot already passed.
+setTimeout(preloadAllSprites, 100);
+
 function drawBattleMon(cvs, r, facing) {
   const c = cvs.getContext('2d');
   c.imageSmoothingEnabled = false;
   c.clearRect(0, 0, 96, 96);
+  // V2.39 — Sprite first.  If a PNG is loaded for this species, draw it
+  // scaled to the 96×96 battle canvas (letterbox to preserve aspect) and skip
+  // the procedural drawing entirely.
+  const cached = loadZyrexSprite(r.species);
+  if (cached.loaded && cached.img) {
+    const img = cached.img;
+    const scale = Math.min(96 / img.width, 96 / img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    const dx = (96 - dw) / 2;
+    const dy = (96 - dh) / 2;
+    // Shadow to keep depth
+    c.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    c.beginPath(); c.ellipse(48, 84, 22, 5, 0, 0, Math.PI * 2); c.fill();
+    // Mirror horizontally for the player-side view so the sprite always
+    // 'faces' the opponent.  facing=true is the enemy sprite; player side
+    // gets flipped so its front faces the enemy on the right of the canvas.
+    if (!facing) {
+      c.save();
+      c.translate(96, 0);
+      c.scale(-1, 1);
+      c.drawImage(img, dx, dy, dw, dh);
+      c.restore();
+    } else {
+      c.drawImage(img, dx, dy, dw, dh);
+    }
+    return;
+  }
   const s = SPECIES[r.species];
   const [a, b, glow] = s.sprite;
   const cx = 48, cy = 56;

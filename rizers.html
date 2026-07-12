@@ -1292,6 +1292,73 @@
       margin-top: 8px;
     }
 
+    /* V2.35 — Type Sheet overlay */
+    .types-box { max-width: 720px; }
+    .types-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      max-height: 68vh;
+      overflow-y: auto;
+      padding: 4px 2px;
+    }
+    @media (max-width: 900px) { .types-grid { grid-template-columns: 1fr; } }
+    .type-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      grid-template-rows: auto auto;
+      column-gap: 10px;
+      row-gap: 4px;
+      padding: 8px 10px;
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      background: rgba(232, 200, 120, 0.03);
+    }
+    .type-card .swatch {
+      grid-row: span 2;
+      align-self: center;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .type-card .type-name {
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      letter-spacing: 0.16em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+    .type-card .type-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-family: var(--font-pixel);
+      font-size: 12px;
+    }
+    .type-card .type-row .lbl {
+      color: var(--mist);
+      letter-spacing: 0.10em;
+      align-self: center;
+      min-width: 44px;
+      font-size: 10px;
+    }
+    .type-card .type-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--border-soft);
+      border-radius: 2px;
+      color: var(--ivory);
+      background: rgba(0,0,0,0.25);
+    }
+    .type-card .type-tag.strong { color: var(--gold-bright); border-color: var(--gold); }
+    .types-footer {
+      color: var(--mist);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-align: center;
+      margin-top: 8px;
+    }
+
     .shop-row, .item-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 10px 14px;
@@ -1601,6 +1668,7 @@
           <button class="mainmenu-btn" data-open="items">    <span class="mm-icon">✚</span>ITEMS</button>
           <button class="mainmenu-btn" data-open="zyrex">    <span class="mm-icon">◉</span>ZYREX</button>
           <button class="mainmenu-btn" data-open="notebook"> <span class="mm-icon">📖</span>NOTEBOOK</button>
+          <button class="mainmenu-btn" data-open="types">    <span class="mm-icon">⯁</span>TYPES</button>
           <!-- V2.34 — System actions -->
           <button class="mainmenu-btn" data-open="reset">    <span class="mm-icon">↺</span>RESET</button>
           <button class="mainmenu-btn" data-open="quit">     <span class="mm-icon">✕</span>QUIT</button>
@@ -1642,6 +1710,18 @@
           <div id="notebook-detail" class="notebook-detail"></div>
         </div>
         <div id="notebook-footer" class="notebook-footer"></div>
+      </div>
+    </div>
+
+    <!-- V2.35 — Type Sheet (20-type strengths/weaknesses reference) -->
+    <div class="mainmenu-overlay" id="types-overlay">
+      <div class="mainmenu-box types-box">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title">Type Codex · 20 Types</div>
+          <button class="mainmenu-close" id="types-close" aria-label="Close">✕</button>
+        </div>
+        <div id="types-grid" class="types-grid"></div>
+        <div class="types-footer">Each type has 3 strengths and 3 weaknesses.  Attack = ×2  ·  Defense = ×0.5.</div>
       </div>
     </div>
 
@@ -3470,6 +3550,8 @@ const $shopov   = document.getElementById('shop-overlay');
 function anyOverlayOpen() {
   const notebook = document.getElementById('notebook-overlay');
   if (notebook && notebook.classList.contains('active')) return true;
+  const types = document.getElementById('types-overlay');   // V2.35
+  if (types && types.classList.contains('active')) return true;
   const nodes = [$mainmenu, $mapview, $itemsov, $shopov];
   for (const n of nodes) if (n && n.classList.contains('active')) return true;
   const party = document.getElementById('party-screen');
@@ -3505,6 +3587,7 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
     if (which === 'items') openItemsView();
     if (which === 'zyrex') openParty();
     if (which === 'notebook') openNotebookView();
+    if (which === 'types')    openTypesView();
     // V2.34 — system actions
     if (which === 'reset') confirmResetGame();
     if (which === 'quit')  confirmQuitGame();
@@ -3535,6 +3618,38 @@ function confirmQuitGame() {
   });
 }
 document.getElementById('notebook-close').onclick = () => document.getElementById('notebook-overlay').classList.remove('active');
+// V2.35 — Type sheet overlay wiring
+document.getElementById('types-close').onclick = () => document.getElementById('types-overlay').classList.remove('active');
+document.getElementById('types-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('types-overlay')) e.target.classList.remove('active');
+});
+function openTypesView() {
+  clearHeldKeys();
+  document.getElementById('types-overlay').classList.add('active');
+  const grid = document.getElementById('types-grid');
+  grid.innerHTML = '';
+  TYPES.forEach(t => {
+    const strong = TYPE_STRONG_VS[t] || [];
+    // Reverse-map weaknesses (who is strong vs t)
+    const weak = TYPES.filter(a => (TYPE_STRONG_VS[a] || []).includes(t));
+    const swatch = TYPE_COLORS[t] || '#8a8a8a';
+    const card = document.createElement('div');
+    card.className = 'type-card';
+    card.innerHTML = `
+      <span class="swatch" style="background:${swatch}"></span>
+      <div class="type-name">${t}</div>
+      <div class="type-row">
+        <span class="lbl">STRONG ▸</span>
+        ${strong.map(s => `<span class="type-tag strong" style="border-color:${TYPE_COLORS[s] || '#8a8a8a'}">${s}</span>`).join('')}
+      </div>
+      <div class="type-row" style="grid-column: 2 / 3;">
+        <span class="lbl">WEAK ▸</span>
+        ${weak.map(w => `<span class="type-tag" style="border-color:${TYPE_COLORS[w] || '#8a8a8a'}">${w}</span>`).join('')}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
 document.getElementById('notebook-overlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('notebook-overlay')) e.target.classList.remove('active');
 });
@@ -3871,11 +3986,13 @@ document.addEventListener('keydown', (e) => {
     const mapActive      = $mapview.classList.contains('active');
     const itemsActive    = $itemsov.classList.contains('active');
     const notebookActive = document.getElementById('notebook-overlay').classList.contains('active');   // V2.18
-    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive)) {
+    const typesActive    = document.getElementById('types-overlay').classList.contains('active');     // V2.35
+    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive)) {
       if (mapActive)     $mapview.classList.remove('active');
       if (itemsActive)   $itemsov.classList.remove('active');
       if (inspectActive) document.getElementById('inspect-overlay').classList.remove('active');
       if (notebookActive) document.getElementById('notebook-overlay').classList.remove('active');
+      if (typesActive)   document.getElementById('types-overlay').classList.remove('active');
       e.preventDefault();
       return;
     }

@@ -2898,6 +2898,7 @@ function openItemsView() {
   for (const r of rows) {
     const row = document.createElement('div');
     row.className = 'item-row';
+    row.setAttribute('tabindex', '0');   // V2.19.2 — arrow-key focusable
     row.innerHTML = `
       <div class="info">
         <div class="name">${r.name} <span style="color:var(--gold);font-family:var(--font-pixel);font-size:15px;">×${r.count}</span></div>
@@ -2906,6 +2907,13 @@ function openItemsView() {
       <button ${r.count <= 0 || r.key !== 'potion' ? 'disabled' : ''}>USE</button>
     `;
     row.querySelector('button').onclick = () => useItem(r.key);
+    // V2.19.2 — pressing Enter on the row triggers the USE button.
+    row.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
+        const btn = row.querySelector('button');
+        if (btn && !btn.disabled) { ev.preventDefault(); btn.click(); }
+      }
+    });
     body.appendChild(row);
   }
 }
@@ -3001,7 +3009,7 @@ const keys = {};
 // arrows fall through to linear next/prev.
 function focusNavStep(container, key, gridCols) {
   if (!container) return false;
-  const btns = Array.from(container.querySelectorAll('button:not(:disabled), .action-btn:not(:disabled), .starter-card, .gender-btn, .party-slot:not(.empty)'));
+  const btns = Array.from(container.querySelectorAll('button:not(:disabled), .action-btn:not(:disabled), .starter-card, .gender-btn, .party-slot:not(.empty), .notebook-row, .shop-row, .item-row'));
   if (!btns.length) return false;
   let i = btns.indexOf(document.activeElement);
   if (i < 0) i = 0;
@@ -3135,10 +3143,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- V2.15.1 — Standalone overlays get X FIRST (before overworld menu-toggle) ----
-  // Fixes: pressing X on the Items/Map/Inspect overlay used to open the main
-  // menu instead of closing the overlay, because game.mode is still 'overworld'
-  // while those overlays are active.
+  // ---- V2.15.1 / V2.19.2 — Standalone overlays: X closes, arrows navigate ----
+  // (Fires before overworld handlers so it wins over the menu-toggle.)
   {
     const inspectActive  = document.getElementById('inspect-overlay').classList.contains('active');
     const mapActive      = $mapview.classList.contains('active');
@@ -3151,6 +3157,21 @@ document.addEventListener('keydown', (e) => {
       if (notebookActive) document.getElementById('notebook-overlay').classList.remove('active');
       e.preventDefault();
       return;
+    }
+    // V2.19.2 — arrow / confirm nav inside overlays.
+    if (notebookActive) {
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+        if (focusNavStep(document.getElementById('notebook-list'), e.key, 1)) e.preventDefault();
+        return;
+      }
+      if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
+    }
+    if (itemsActive) {
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+        if (focusNavStep(document.getElementById('items-body'), e.key, 1)) e.preventDefault();
+        return;
+      }
+      if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
     }
   }
 
@@ -3523,6 +3544,7 @@ function openNotebookView() {
     const caught = !!(game.player.dexCaught && game.player.dexCaught[id]);
     const row = document.createElement('div');
     row.className = 'notebook-row' + (seen ? '' : ' unseen');
+    row.setAttribute('tabindex', '0');   // V2.19.2 — keyboard nav
     const swatchColor = seen ? (s.sprite ? s.sprite[0] : '#8a8a8a') : '#2a2a2a';
     const label = seen ? s.name : '???';
     const flag = caught ? '● CAUGHT' : (seen ? '○ SEEN' : '· locked');
@@ -3534,10 +3556,10 @@ function openNotebookView() {
     row.onclick = () => selectDexEntry(id, row);
     list.appendChild(row);
   });
-  // Auto-select first seen entry, else the first row.
+  // Auto-select first seen entry, else the first row. Focus it for kbd nav.
   const firstSeen = list.querySelector('.notebook-row:not(.unseen)');
   const initial   = firstSeen || list.firstChild;
-  if (initial) initial.click();
+  if (initial) { initial.click(); setTimeout(() => initial.focus(), 20); }
 }
 function selectDexEntry(id, rowEl) {
   document.querySelectorAll('.notebook-row.selected').forEach(r => r.classList.remove('selected'));

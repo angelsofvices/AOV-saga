@@ -6214,6 +6214,9 @@ setTimeout(preloadAllSprites, 100);
 
 function drawBattleMon(cvs, r, facing) {
   const c = cvs.getContext('2d');
+  // V2.40.1 — nearest-neighbor stays OFF until we know if the sprite is
+  // pixel-art (small source) or illustration (large source). Enable
+  // smoothing per-frame based on the sprite branch.
   c.imageSmoothingEnabled = false;
   c.clearRect(0, 0, 96, 96);
   // V2.39 — Sprite first.  If a PNG is loaded for this species, draw it
@@ -6222,6 +6225,11 @@ function drawBattleMon(cvs, r, facing) {
   const cached = loadZyrexSprite(r.species);
   if (cached.loaded && cached.img) {
     const img = cached.img;
+    // V2.40.1 — Smooth downscaling for illustration-style sprites (source > 128px).
+    // Pixel-art sprites (source <= 128px) keep nearest-neighbor for crispness.
+    const isIllustration = img.width > 128 || img.height > 128;
+    c.imageSmoothingEnabled = isIllustration;
+    c.imageSmoothingQuality = 'high';
     const scale = Math.min(96 / img.width, 96 / img.height);
     const dw = img.width * scale;
     const dh = img.height * scale;

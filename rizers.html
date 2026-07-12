@@ -2935,6 +2935,20 @@ const INTERIOR_EXITS = {
   bronze_cottage: { map: 'malezor', x: 17, y: 4, dir: 'down' },   // one tile south of 'p' at (17,3)
   silver_lodge:   { map: 'malezor', x: 11, y: 14, dir: 'down' },  // one tile south of 'q' at (11,13)
 };
+// V2.36 — Stair transitions between the 3 house floors. Context-aware:
+// which stair-tile you step on + which map you're currently in decides
+// the destination.
+function getStairTarget(char, currentMap) {
+  if (char === 'U') {
+    if (currentMap === 'basement')      return { map: 'home_interior',   x: 6, y: 6, dir: 'up' };   // land next to the down-stair on main floor
+    if (currentMap === 'home_interior') return { map: 'parents_bedroom', x: 7, y: 6, dir: 'up' };   // land next to the down-stair upstairs
+  }
+  if (char === 'w') {
+    if (currentMap === 'home_interior')  return { map: 'basement',      x: 6, y: 8, dir: 'down' };  // land next to basement up-stair
+    if (currentMap === 'parents_bedroom')return { map: 'home_interior', x: 7, y: 6, dir: 'down' };  // land next to main-floor up-stair
+  }
+  return null;
+}
 let MAP = MALEZOR_MAP;
 let MAP_COLS = 30;
 let MAP_ROWS = 20;
@@ -2987,7 +3001,9 @@ function walkable(x, y) {
   // V2.10.1 — house body 'h' now blocks (bigger 3x2 exteriors).
   // Doors (H, x, p, q, portal < >) are 'walkable' — walking INTO them
   // triggers auto-enter via tryMove's post-step door check.
-  if ('#TWMSBh=btmd'.includes(t)) return false;
+  // V2.36 — 'z' poster (wall art) blocks, 'k' computer blocks, 'j' experiment blocks.
+  //         'U' up-stairs and 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
+  if ('#TWMSBh=btmdzkj'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQ'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);
   if (t === 'K' && !chestOpened(x, y)) return false;
@@ -3288,6 +3304,94 @@ function drawTile(x, y, ch, mx, my) {
       ctx.fillRect(px + 4, py + 18, TILE - 8, TILE - 24);
       ctx.strokeStyle = '#7a4dcf';
       ctx.strokeRect(px + 4, py + 18, TILE - 8, TILE - 24);
+      break;
+    }
+    // V2.36 — 3-floor house tiles
+    case 'U': {
+      // stairs up — dark base with pale steps ascending
+      drawTile(x, y, '.', mx, my);
+      ctx.fillStyle = '#5a4028';
+      ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
+      ctx.fillStyle = '#e8c878';
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(px + 4 + i * 3, py + 6 + i * 5, TILE - 8 - i * 6, 3);
+      }
+      ctx.strokeStyle = '#8a6a2c';
+      ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 7);
+      break;
+    }
+    case 'w': {
+      // stairs down — steps descending
+      drawTile(x, y, '.', mx, my);
+      ctx.fillStyle = '#3a281c';
+      ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
+      ctx.fillStyle = '#8a6a2c';
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(px + 4 + (3 - i) * 3, py + 6 + i * 5, TILE - 8 - (3 - i) * 6, 3);
+      }
+      ctx.strokeStyle = '#5a3c18';
+      ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 7);
+      break;
+    }
+    case 'k': {
+      // computer — dark screen on a stand, blue glow
+      drawTile(x, y, '.', mx, my);
+      // stand
+      ctx.fillStyle = '#3a281c';
+      ctx.fillRect(px + 8, py + TILE - 8, TILE - 16, 4);
+      // monitor body
+      ctx.fillStyle = '#1a1e2c';
+      ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 14);
+      // screen
+      ctx.fillStyle = '#5fa8ff';
+      ctx.fillRect(px + 7, py + 7, TILE - 14, TILE - 20);
+      // glow
+      ctx.fillStyle = 'rgba(139, 232, 255, 0.5)';
+      ctx.fillRect(px + 10, py + 10, 3, 3);
+      ctx.strokeStyle = '#0a0f22';
+      ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 13);
+      break;
+    }
+    case 'j': {
+      // science experiment — beaker with bubbling contents
+      drawTile(x, y, '.', mx, my);
+      // beaker
+      ctx.fillStyle = 'rgba(200, 232, 255, 0.15)';
+      ctx.fillRect(px + 8, py + 10, TILE - 16, TILE - 14);
+      // liquid
+      ctx.fillStyle = '#48c880';
+      ctx.fillRect(px + 8, py + 18, TILE - 16, TILE - 22);
+      // bubbles
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(px + 12 + (game.player.step % 6), py + 20, 2, 2);
+      ctx.fillRect(px + 18, py + 22 - (game.player.step % 4), 2, 2);
+      // beaker outline
+      ctx.strokeStyle = '#8be8ff';
+      ctx.strokeRect(px + 7.5, py + 9.5, TILE - 15, TILE - 13);
+      // neck
+      ctx.strokeRect(px + 11.5, py + 5.5, TILE - 23, 5);
+      break;
+    }
+    case 'z': {
+      // poster — Zyraxis mythology art (gold sigil on plum background)
+      // Walls behind: interior wall backdrop first, then poster overlaid.
+      drawTile(x, y, '=', mx, my);
+      ctx.fillStyle = '#2a1848';
+      ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
+      ctx.strokeStyle = '#e8c878';
+      ctx.strokeRect(px + 2.5, py + 2.5, TILE - 5, TILE - 5);
+      // sigil — diamond emblem
+      ctx.fillStyle = '#ffdc90';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 8);
+      ctx.lineTo(px + TILE - 8, py + TILE / 2);
+      ctx.lineTo(px + TILE / 2, py + TILE - 8);
+      ctx.lineTo(px + 8, py + TILE / 2);
+      ctx.closePath();
+      ctx.fill();
+      // core dot
+      ctx.fillStyle = '#c896ff';
+      ctx.fillRect(px + TILE / 2 - 1, py + TILE / 2 - 1, 3, 3);
       break;
     }
     case 't': {
@@ -4224,6 +4328,28 @@ function tryInteract() {
     interactDad();
   } else if (t === 'b') {
     interactBed();
+  } else if (t === 'k') {
+    // V2.36 — basement computer flavor
+    showDialog([
+      'Your computer hums awake.',
+      '「TERMINAL · zyraxis.net」',
+      'A window blinks: latest Codex patch, unread. You should read it eventually.',
+      'For now — Malezor waits.',
+    ]);
+  } else if (t === 'j') {
+    // V2.36 — science experiment flavor
+    showDialog([
+      'A beaker of gemgrass distillate. Faintly bubbling.',
+      "You've been trying to isolate whatever makes a Mothergem *hum*.",
+      "The answer's not in the beaker. Not today.",
+    ]);
+  } else if (t === 'z') {
+    // V2.36 — poster flavor
+    showDialog([
+      'A poster: the TEN DISTRICTS of Zyraxis, arranged as a Z.',
+      'MALEZOR at the top. KORATHEN at the bottom. NETHARION dead center.',
+      'You memorized the map when you were seven. You still trace it in your head some nights.',
+    ]);
   } else if (t === 'x') {
     exitHouseToMalezor();
   } else if (t === 'S' || t === 'B') {
@@ -5710,7 +5836,7 @@ function fullPartyKO() {
       save();
     }
     // Respawn in the family home (Mom mends everyone).
-    enterMap('home_interior', 2, 2, 'down');
+    enterMap('basement', 3, 4, 'down');   // V2.36 — respawn in the basement bed
     showDialog(['You wake in your own bed. Mom mended your Zyrex.'], () => healParty());
   }, 900);
 }
@@ -6318,17 +6444,23 @@ function endPrologue() {
 // V2.8 — Player wakes up INSIDE the house. Talks to Mom, then Dad
 // for the starter, then walks out the door to enter Malezor.
 function startHometownIntro() {
-  enterMap('home_interior', 2, 2, 'down');   // just below the bed
+  // V2.36 — Player wakes in their basement bedroom on their birthday.
+  //         Explore the room, then climb stairs up to meet parents.
+  enterMap('basement', 3, 4, 'down');   // just below the bed at (2,3-4)
   document.getElementById('hud').style.display = 'flex';
   updateHUD();
   const nm = game.player.name || 'TRAINER';
   showDialog([
-    `You wake in your own room. Warm light through the shutters.`,
-    `MOM's voice drifts up from the hall: "Happy birthday, ${nm}!"`,
+    `BEEEP.  BEEEP.  BEEEP.`,
+    `Your alarm is screaming. You slap it off.`,
     ``,
-    `Talk to MOM and to DAD. Then walk out the door to Malezor.`,
+    `You're fifteen today. Somewhere outside, Malezor is waking too.`,
     ``,
-    `(WASD or arrows to move. Z or Space to talk. X for the menu.)`,
+    `MOM's voice drifts down the stairs: "Happy birthday, ${nm}! Come up when you're ready!"`,
+    ``,
+    `Explore your room. Then climb the stairs to meet your parents.`,
+    ``,
+    `(WASD / arrows to move. Z / Space / tap A to interact.)`,
   ], () => {
     game.player.seenHometownIntro = true;
     save();
@@ -6375,7 +6507,7 @@ document.getElementById('btn-new').onclick = () => {
             ruby: 0, pearl: 0, citrine: 0, emerald: 0, amethyst: 0,
             sapphire: 0, onyx: 0, amber: 0, anomaly: 0, ultra: 0 },  // V2.21 — 10 Gemlord gem-keys (one per district)  // V2.8.3 — house keys
     housesLooted: {},                // V2.8.3 — { 'bronze_cottage': true } when chests raided
-    mapId: 'home_interior',
+    mapId: 'basement',       // V2.36 — player starts in the basement bedroom
     bossDefeated: false,
     npcDefeated: false,
     npcsDefeated: {},

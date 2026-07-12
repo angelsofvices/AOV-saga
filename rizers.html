@@ -1686,17 +1686,20 @@ ctx.imageSmoothingEnabled = false;
 //   defender strong vs attack → 0.5× (resistant)
 //   neither → 1× (neutral)
 const TYPES = ['Aura','Beast','Creature','Extraterrestrial','Humanoid-Noid','Nature','Tech','Spirit','Ultramax','Unknown-Void'];
+// V2.26 — 3 strengths + 3 weaknesses per type. Graph is symmetric: every type
+// has out-degree 3 (strong-vs) AND in-degree 3 (weak-to). No mutual counters
+// (no pair A/B where A→B AND B→A both exist). Verified via symmetry audit.
 const TYPE_STRONG_VS = {
-  'Aura':              ['Spirit','Unknown-Void'],
-  'Beast':             ['Creature','Spirit'],
-  'Creature':          ['Nature','Aura'],
-  'Extraterrestrial':  ['Aura','Nature'],
-  'Humanoid-Noid':     ['Beast','Ultramax'],
-  'Nature':            ['Tech','Unknown-Void'],
-  'Tech':              ['Humanoid-Noid','Extraterrestrial'],
-  'Spirit':            ['Humanoid-Noid','Tech'],
-  'Ultramax':          ['Extraterrestrial','Beast'],
-  'Unknown-Void':      ['Ultramax','Creature']
+  'Aura':              ['Spirit','Unknown-Void','Nature'],           // + Nature (Aura burns natural life essence)
+  'Beast':             ['Creature','Spirit','Tech'],                 // + Tech (raw force overwhelms rigid tech)
+  'Creature':          ['Nature','Aura','Extraterrestrial'],         // + ET (creature aggression scatters alien logic)
+  'Extraterrestrial':  ['Aura','Nature','Humanoid-Noid'],            // + Humanoid (alien cognition confounds identity)
+  'Humanoid-Noid':     ['Beast','Ultramax','Unknown-Void'],          // + Void (identity denies the abyss)
+  'Nature':            ['Tech','Unknown-Void','Spirit'],             // + Spirit (nature's harmonics quiet restless souls)
+  'Tech':              ['Humanoid-Noid','Extraterrestrial','Aura'],  // + Aura (tech instrumentation dampens aura)
+  'Spirit':            ['Humanoid-Noid','Tech','Ultramax'],          // + Ultramax (spirit ferocity destabilizes peak power)
+  'Ultramax':          ['Extraterrestrial','Beast','Creature'],      // + Creature (peak power flattens mundane creatures)
+  'Unknown-Void':      ['Ultramax','Creature','Beast']               // + Beast (void erodes beast instincts)
 };
 const TYPE_COLORS = {
   'Aura':              '#f5dc9c',
@@ -1728,14 +1731,14 @@ function typeMult(atk, def1, def2) {
   const m2 = def2 && def2 !== def1 ? _typeMultSingle(atk, def2) : 1;
   return m1 * m2;
 }
-// V2.23 — the four canonical effectiveness bands (neutral has no label on purpose).
-// Player learns the type chart because these bands are surfaced consistently.
+// V2.23 / V2.26 — the four canonical effectiveness bands. Neutral is quiet on purpose.
+// Vocabulary lock: pitiful 0.25× · poor 0.5× · normal 1× · heavy 2× · devastating 4×.
 function typeLabel(m) {
-  if (m >= 4)    return 'devastating';   // 4× — dual weakness (both types resist-worse)
-  if (m >= 2)    return 'strong';        // 2× — single strength
+  if (m >= 4)    return 'devastating';   // 4× — dual weakness
+  if (m >= 2)    return 'heavy';         // 2× — single weakness
   if (m <= 0.25) return 'pitiful';       // 0.25× — dual resistance
   if (m <= 0.5)  return 'poor';          // 0.5× — single resistance
-  return null;                            // 1× neutral → intentionally quiet
+  return null;                            // 1× normal → intentionally quiet
 }
 
 // ---------- Statuses (10 total: 5 debuffs + 5 buffs) ----------
@@ -4672,10 +4675,10 @@ async function performMove(user, target, move, playerSide) {
   target.hp = Math.max(0, target.hp - dmg);
   const targetCanvas = playerSide ? enemyCanvas : playerCanvas;
   await flashCanvas(targetCanvas);
-  // V2.23 — always announce the four canon bands; stay silent on neutral (1×).
+  // V2.23 / V2.26 — always announce four canon bands; stay silent on neutral (1×).
   const lbl = typeLabel(mult);
   if      (mult >= 4)   { logBattle(`Devastating hit! (-${dmg})`);       await wait(750); }
-  else if (mult >= 2)   { logBattle(`Strong hit! (-${dmg})`);            await wait(700); }
+  else if (mult >= 2)   { logBattle(`Heavy hit! (-${dmg})`);             await wait(700); }
   else if (mult <= 0.25){ logBattle(`Pitiful. Barely a scratch. (-${dmg})`); await wait(750); }
   else if (mult <= 0.5) { logBattle(`Poor match-up. (-${dmg})`);         await wait(700); }
   else                  { logBattle(`(-${dmg})`); await wait(500); }

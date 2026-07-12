@@ -1826,6 +1826,155 @@ function basicMoves(t2, [a1, a2, a3, boost]) {
     { name: boost,type: t2,      power: 0,  cost: 0, lv: 12, effect: 'boost' },
   ];
 }
+
+// ============================================================================
+//  V2.28 — MOVE LEARNING CADENCE + 4-SLOT AUTO-UPGRADE SYSTEM
+// ============================================================================
+// Every Zyrex has a 4-slot moveset:
+//   Slot 1 — primary-type attack
+//   Slot 2 — secondary-type attack (skipped if the Zyrex is single-typed)
+//   Slot 3 — buff / boost
+//   Slot 4 — ★ ORIGINAL (species-locked signature; per-instance random unlock level)
+//
+// Learn cadence (a "learn moment" is when the moveset is re-checked and upgraded):
+//   Lv 3 → 50    every 3 levels    (16 moments)
+//   Lv 50 → 75   every 5 levels    (5 moments)
+//   Lv 75 → 100  every 7 levels    (3 moments)
+// Total: 24 learn moments across a full-life Zyrex.
+//
+// Auto-upgrade rule: at each learn moment we redraw all 4 slots from the pool.
+// Each attack slot picks the highest-power move now eligible for its slot's
+// type. Buff slot picks the highest-tier buff now available. Slot 4 unlocks
+// once r.lv >= r.originalMoveUnlockLv (rolled per-instance in makeZyrex).
+//
+// SEED CONTENT NOTE: MOVE_POOL_BY_TYPE + BUFF_POOL are minimum-viable seed
+// pools. Full move mining from Codex v11.1's 527 entries lives in a future
+// handoff (see V2.28.HANDOFF).
+
+function shouldLearnMoveAt(lv) {
+  if (lv < 3) return false;
+  if (lv <= 50)  return lv % 3 === 0;
+  if (lv <= 75)  return lv > 50  && (lv - 50) % 5 === 0;
+  if (lv <= 100) return lv > 75  && (lv - 75) % 7 === 0;
+  return false;
+}
+
+const MOVE_POOL_BY_TYPE = {
+  'Aura': [
+    { name: 'Aura Nip',        power: 30,  cost: 1, minLv: 1  },
+    { name: 'Aura Bolt',       power: 55,  cost: 2, minLv: 12 },
+    { name: 'Aura Cascade',    power: 80,  cost: 3, minLv: 30 },
+    { name: 'Aura Detonate',   power: 110, cost: 3, minLv: 60 },
+    { name: 'Aura Apocalypse', power: 140, cost: 3, minLv: 90 },
+  ],
+  'Beast': [
+    { name: 'Feral Nip',       power: 30,  cost: 1, minLv: 1  },
+    { name: 'Beast Claw',      power: 55,  cost: 2, minLv: 12 },
+    { name: 'Alpha Roar',      power: 80,  cost: 3, minLv: 30 },
+    { name: 'Primal Rend',     power: 110, cost: 3, minLv: 60 },
+    { name: 'Beastfall',       power: 140, cost: 3, minLv: 90 },
+  ],
+  'Creature': [
+    { name: 'Creature Nip',    power: 30,  cost: 1, minLv: 1  },
+    { name: 'Creature Fang',   power: 55,  cost: 2, minLv: 12 },
+    { name: 'Feral Slash',     power: 80,  cost: 3, minLv: 30 },
+    { name: 'Cataclysm Claw',  power: 110, cost: 3, minLv: 60 },
+    { name: 'Feral Extinction',power: 140, cost: 3, minLv: 90 },
+  ],
+  'Extraterrestrial': [
+    { name: 'Xeno Nip',        power: 30,  cost: 1, minLv: 1  },
+    { name: 'Xeno Beam',       power: 55,  cost: 2, minLv: 12 },
+    { name: 'Xeno Radiance',   power: 80,  cost: 3, minLv: 30 },
+    { name: 'Xeno Collapse',   power: 110, cost: 3, minLv: 60 },
+    { name: 'Xeno Reformat',   power: 140, cost: 3, minLv: 90 },
+  ],
+  'Humanoid-Noid': [
+    { name: 'Sanctioned Nip',  power: 30,  cost: 1, minLv: 1  },
+    { name: 'Steel Fist',      power: 55,  cost: 2, minLv: 12 },
+    { name: 'Codex Bind',      power: 80,  cost: 3, minLv: 30 },
+    { name: 'Sanctum Judgment',power: 110, cost: 3, minLv: 60 },
+    { name: 'Rewrite',         power: 140, cost: 3, minLv: 90 },
+  ],
+  'Nature': [
+    { name: 'Leaf Nip',        power: 30,  cost: 1, minLv: 1  },
+    { name: 'Root Whip',       power: 55,  cost: 2, minLv: 12 },
+    { name: 'Verdant Coil',    power: 80,  cost: 3, minLv: 30 },
+    { name: 'Wildbloom',       power: 110, cost: 3, minLv: 60 },
+    { name: 'Ecosphere Purge', power: 140, cost: 3, minLv: 90 },
+  ],
+  'Tech': [
+    { name: 'Circuit Nip',     power: 30,  cost: 1, minLv: 1  },
+    { name: 'Overclock Beam',  power: 55,  cost: 2, minLv: 12 },
+    { name: 'Grid Lattice',    power: 80,  cost: 3, minLv: 30 },
+    { name: 'Kernel Panic',    power: 110, cost: 3, minLv: 60 },
+    { name: 'System Wipe',     power: 140, cost: 3, minLv: 90 },
+  ],
+  'Spirit': [
+    { name: 'Spirit Nip',      power: 30,  cost: 1, minLv: 1  },
+    { name: 'Wisp Beam',       power: 55,  cost: 2, minLv: 12 },
+    { name: 'Soulweave',       power: 80,  cost: 3, minLv: 30 },
+    { name: 'Rift Communion',  power: 110, cost: 3, minLv: 60 },
+    { name: 'Astral Requiem',  power: 140, cost: 3, minLv: 90 },
+  ],
+  'Ultramax': [
+    { name: 'Zenith Nip',      power: 30,  cost: 1, minLv: 1  },
+    { name: 'Halo Blast',      power: 55,  cost: 2, minLv: 12 },
+    { name: 'Crown Judgment',  power: 80,  cost: 3, minLv: 30 },
+    { name: 'Sovereign Wave',  power: 110, cost: 3, minLv: 60 },
+    { name: 'Apex Judgment',   power: 140, cost: 3, minLv: 90 },
+  ],
+  'Unknown-Void': [
+    { name: 'Void Nip',        power: 30,  cost: 1, minLv: 1  },
+    { name: 'Nullbolt',        power: 55,  cost: 2, minLv: 12 },
+    { name: 'Void Fold',       power: 80,  cost: 3, minLv: 30 },
+    { name: 'Rift Collapse',   power: 110, cost: 3, minLv: 60 },
+    { name: 'Void Erasure',    power: 140, cost: 3, minLv: 90 },
+  ],
+};
+const BUFF_POOL = [
+  { name: 'Rally',      effect: 'boost', cost: 1, minLv: 1  },
+  { name: 'Focus',      effect: 'boost', cost: 2, minLv: 15 },
+  { name: 'Steel Will', effect: 'boost', cost: 3, minLv: 40 },
+  { name: 'Ascend',     effect: 'boost', cost: 3, minLv: 70 },
+];
+
+function bestFromPool(pool, currentLv) {
+  const eligible = pool.filter(m => (m.minLv || 1) <= currentLv);
+  if (!eligible.length) return null;
+  const isAttack = eligible.some(m => 'power' in m);
+  const sorted = eligible.slice().sort((a, b) => {
+    if (isAttack) return (b.power || 0) - (a.power || 0);
+    return (b.minLv || 0) - (a.minLv || 0);   // best-of-tier buff
+  });
+  return { ...sorted[0] };
+}
+
+// Redraw a Zyrex's 4-slot moveset from the pools. Called at makeZyrex and on
+// every learn moment during levelUp.
+function autoLearnMoves(r) {
+  const s = SPECIES[r.species];
+  if (!s || s.movePolicy === 'canon') return;   // opt-out for hand-crafted bosses
+  const slots = [];
+  // Slot 1 — primary-type attack
+  const p1 = bestFromPool(MOVE_POOL_BY_TYPE[r.type] || [], r.lv);
+  if (p1) { p1.type = r.type; slots.push(p1); }
+  // Slot 2 — secondary-type attack (skip if single-typed)
+  if (r.type2 && r.type2 !== r.type) {
+    const p2 = bestFromPool(MOVE_POOL_BY_TYPE[r.type2] || [], r.lv);
+    if (p2) { p2.type = r.type2; slots.push(p2); }
+  }
+  // Slot 3 — buff
+  const b = bestFromPool(BUFF_POOL, r.lv);
+  if (b) { b.type = r.type; slots.push(b); }
+  // Slot 4 — ★ Original (species-locked signature). Only appears once the
+  // per-instance random unlock level is reached.
+  if (s.originalMove && r.originalMoveUnlockLv && r.lv >= r.originalMoveUnlockLv) {
+    const orig = { ...s.originalMove };
+    orig.type = orig.type || r.type;
+    slots.push(orig);
+  }
+  r.moves = slots;
+}
 const SPECIES = {
   // ============ Starters — one per major secondary type ============
   // v10.22 canon · Tier I Basic · one from each of Southern / Eastern / Western
@@ -1835,6 +1984,7 @@ const SPECIES = {
     sprite: ['#ff8a4c', '#c25a1c', '#ffcc66'],
     evolveTo: 'vampella', evolveLv: 11,
     moves: basicMoves('Spirit', ['Ember Bite', 'Cinderdrop', 'Anthill Blaze', 'Sunbask']),
+    originalMove: { name: 'Anthill Blaze', type: 'Spirit', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   otterlin: {    // Beast/Nature · Eastern Region · water pup · common Eastern house pet
     name: 'OTTERLIN', type: 'Nature', type2: 'Beast', region: 'Eastern',
@@ -1842,6 +1992,7 @@ const SPECIES = {
     sprite: ['#5fa8ff', '#2a5c8a', '#a8cef0'],
     evolveTo: 'terralith', evolveLv: 11,
     moves: basicMoves('Nature', ['Tail Splash', 'River Dive', 'Whirlpool', 'Shellup']),
+    originalMove: { name: 'Whirlpool', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   voltimite: {  // V2.24.1 — canonical name (was Volitimite). Aura/Creature · Western Region · thunderstep gerbil · common Western pet
     name: 'VOLTIMITE', type: 'Aura', type2: 'Creature', region: 'Western',
@@ -1849,6 +2000,7 @@ const SPECIES = {
     sprite: ['#e8c878', '#7a4dcf', '#fff5db'],
     evolveTo: 'buzzolt', evolveLv: 11,
     moves: basicMoves('Aura', ['Static Nip', 'Thundertail', 'Voltstep', 'Rally']),
+    originalMove: { name: 'Voltstep', type: 'Aura', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
 
   // ============ Wild pool — encountered in Zyraxis gemgrass ============
@@ -1858,6 +2010,7 @@ const SPECIES = {
     sprite: ['#c0e0ff', '#5fa8ff', '#e8f0ff'],
     evolveTo: 'wynwyrm', evolveLv: 11,
     moves: basicMoves('Nature', ['Frost Nip', 'Snowdart', 'Blizzard Whirl', 'Chill Guard']),
+    originalMove: { name: 'Blizzard Whirl', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   sandskitter: { // Beast/Nature · Western · desert salamander
     name: 'SANDSKITTER', type: 'Nature', type2: 'Beast', region: 'Western',
@@ -1865,6 +2018,7 @@ const SPECIES = {
     sprite: ['#e0c890', '#a68260', '#f4dcb0'],
     evolveTo: 'saburrow', evolveLv: 11,
     moves: basicMoves('Nature', ['Sand Bite', 'Dune Dart', 'Sandstorm Coil', 'Bask']),
+    originalMove: { name: 'Sandstorm Coil', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   verdanix: {    // Beast/Nature · Eastern · common green frog · Gen I Primary
     name: 'VERDANIX', type: 'Nature', type2: 'Beast', region: 'Eastern',
@@ -1872,6 +2026,7 @@ const SPECIES = {
     sprite: ['#2fe6a8', '#1a8a5c', '#8bffcc'],
     evolveTo: 'spargus', evolveLv: 11,
     moves: basicMoves('Nature', ['Tongue Snap', 'Leafhop', 'Verdant Burst', 'Photobask']),
+    originalMove: { name: 'Verdant Burst', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   flarepaw: {    // Beast/Spirit · Southern · flamefooted cat pet
     name: 'FLAREPAW', type: 'Spirit', type2: 'Beast', region: 'Southern',
@@ -1879,6 +2034,7 @@ const SPECIES = {
     sprite: ['#ff9060', '#8a3020', '#ffd0a0'],
     evolveTo: 'vampella', evolveLv: 11,
     moves: basicMoves('Spirit', ['Ember Claw', 'Flarestep', 'Torchpounce', 'Sunbask']),
+    originalMove: { name: 'Torchpounce', type: 'Spirit', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   dunechitter: { // Beast/Aura · Western · wild desert chipmunk · Gen IV Tertiary
     name: 'DUNECHITTER', type: 'Aura', type2: 'Beast', region: 'Western',
@@ -1886,6 +2042,7 @@ const SPECIES = {
     sprite: ['#f5dc9c', '#b8923f', '#fff5db'],
     evolveTo: 'sprinklez', evolveLv: 11,
     moves: basicMoves('Aura', ['Nip', 'Sunhaze', 'Auraburst', 'Rally']),
+    originalMove: { name: 'Auraburst', type: 'Aura', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   // ============ V2.7 Additions — 4 more Tier I Basics ============
   barkchitter: { // Beast/Nature · Central · common pet tree mouse
@@ -1893,24 +2050,28 @@ const SPECIES = {
     base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'quadruped',
     sprite: ['#a68260', '#5c4028', '#d4b088'],
     moves: basicMoves('Nature', ['Bark Nip', 'Rootstep', 'Branch Coil', 'Bask']),
+    originalMove: { name: 'Branch Coil', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   aurarat: { // Beast/Unknown-Void · Western · low astral rats
     name: 'AURARAT', type: 'Unknown-Void', type2: 'Beast', region: 'Western',
     base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'quadruped',
     sprite: ['#6c4a8f', '#2a1848', '#a68be0'],
     moves: basicMoves('Unknown-Void', ['Void Nip', 'Shadowstep', 'Void Coil', 'Vanish']),
+    originalMove: { name: 'Void Coil', type: 'Unknown-Void', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   torchpuff: { // Beast/Spirit · Southern · fire hamster (kids' pet)
     name: 'TORCHPUFF', type: 'Spirit', type2: 'Beast', region: 'Southern',
     base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'quadruped',
     sprite: ['#ff9060', '#8a3020', '#ffd0a0'],
     moves: basicMoves('Spirit', ['Puff Bite', 'Torchspark', 'Ember Roll', 'Sunbask']),
+    originalMove: { name: 'Ember Roll', type: 'Spirit', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   pebblequil: { // Beast/Nature · Western · crystal-quilled hedgehog
     name: 'PEBBLEQUIL', type: 'Nature', type2: 'Beast', region: 'Western',
     base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'quadruped',
     sprite: ['#8bc466', '#2f7a3a', '#c8ffb0'],
     moves: basicMoves('Nature', ['Quill Jab', 'Rockquill', 'Quill Volley', 'Curl Guard']),
+    originalMove: { name: 'Quill Volley', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
 
   // ============ ★ THE CREATOR's signature chain — Elzebub → Elzoran → Omegoran (V2.15) ============
@@ -1928,6 +2089,7 @@ const SPECIES = {
     sprite: ['#7dc8ff', '#2a5c9c', '#ffcf8f'],   // soft sky-blue + pale peach — hatchling
     moves: basicMoves('Aura', ['Sky Nip', 'Windbeat', 'Emberling', 'Fledgling Guard']),
     evolveTo: 'elzimir', evolveLv: 20,
+    originalMove: { name: 'Emberling Cry', type: 'Aura', power: 100, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   elzimir: {
     name: 'ELZIMIR', type: 'Aura', type2: 'Beast', region: 'Unknown',
@@ -1936,6 +2098,7 @@ const SPECIES = {
     sprite: ['#3aa0ff', '#1a3c8a', '#ff9040'],   // bright cyan-blue + amber — adolescent
     moves: basicMoves('Aura', ['Wingbeat', 'Twin Ember', 'Sky-Sigil', 'Rising Guard']),
     evolveTo: 'elzoran', evolveLv: 50,
+    originalMove: { name: 'Sky-Sigil', type: 'Aura', power: 115, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   elzoran: {
     // V2.23.1 — retyped Aura/Beast (game canon; master codex still says Beast/Nature).
@@ -1946,6 +2109,7 @@ const SPECIES = {
     moves: basicMoves('Aura', ['Elemental Eclipse', 'Telekinetic Rend', 'Helm of Chaos', 'Primal Roar']),
     evolveTo: 'omegoran', evolveLv: 80,
     codex: { archetype: 'WILDKIN', epithet: 'Supreme Dragon Lord' },
+    originalMove: { name: 'Helm of Chaos', type: 'Aura', power: 135, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   omegoran: {
     // V2.24.3 — first line-switch: Aura/Beast (line inheritance) → Aura/Void.
@@ -1956,6 +2120,7 @@ const SPECIES = {
     sprite: ['#4a1eff', '#08061a', '#ff3a1a'],   // void-electric blue + scorched crimson-orange — corrupted apex
     moves: basicMoves('Aura', ['Voidfang Guillotine', 'Cataclysmic Roar', 'The Final Armageddon', 'Primal Roar']),
     codex: { archetype: 'DIREBORN', epithet: 'The Corrupted Apex' },
+    originalMove: { name: 'The Final Armageddon', type: 'Unknown-Void', power: 150, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
 
   // ============ Gemlord I cave — RAKORON's hunt (Beast-themed) ============
@@ -1965,18 +2130,21 @@ const SPECIES = {
     base: BASIC_BASE, tier: 1, catchRate: 25, shape: 'winged',
     sprite: ['#f5dc9c', '#b87cff', '#fff5db'],
     moves: basicMoves('Aura', ['Beak Jab', 'Suncrest', 'Crown Halo', 'Rally']),
+    originalMove: { name: 'Crown Halo', type: 'Aura', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   aetherwing: {  // Beast/Aura · Central · astral dragonfly · Gen III Tertiary
     name: 'AETHERWING', type: 'Aura', type2: 'Beast', region: 'Central',
     base: BASIC_BASE, tier: 1, catchRate: 25, shape: 'winged',
     sprite: ['#c8bfe6', '#7a5cc8', '#e8e0f0'],
     moves: basicMoves('Aura', ['Wing Cut', 'Aetherbeam', 'Astral Gale', 'Rally']),
+    originalMove: { name: 'Astral Gale', type: 'Aura', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   rakoron: {
     // Codex v10.22: Tier VIII Immortal · Type1 Creature · Type2 Beast
     // Card = MAX at Lv 80. In-game he appears at low levels; stats scale accordingly.
     name: 'RAKORON', type: 'Creature', type2: 'Beast', region: 'Malezor',
     tier: 8,
+    movePolicy: 'canon',   // V2.28 — Gemlord I keeps hand-crafted moves, no auto-upgrade
     base: { hp: 632, atk: 665, def: 500, spd: 433, spc: 434 },
     shape: 'mutaryn',
     sprite: ['#d63b5a', '#7a1a2a', '#ff7a94'],
@@ -2019,9 +2187,9 @@ function makeZyrex(speciesId, lv) {
     spd: statAtLv(s.base.spd, lv, maxLv),
     spc: statAtLv(s.base.spc, lv, maxLv),
   };
-  // Learn all moves whose (lv || 1) requirement is met, cap at 4.
-  const moves = s.moves.filter(m => (m.lv || 1) <= lv).slice(-4);
-  return {
+  // V2.28 — moves are now drawn by autoLearnMoves from the type pools.
+  // Fallback to the species.moves array for canon-policy species (rakoron).
+  const r = {
     species: speciesId,
     name: s.name,
     type: s.type,
@@ -2032,14 +2200,22 @@ function makeZyrex(speciesId, lv) {
     hp: stats.hp,
     maxHp: stats.hp,
     stats,
-    moves,
+    moves: [],
     gems: 0,               // V2.8.1 — equipped extras (baseline +1 is always free in battle)
     atkStage: 0,
     defStage: 0,
     fainted: false,
     status: null,
     debuff: null,
+    // V2.28 — per-instance random unlock level for the slot-4 Original.
+    originalMoveUnlockLv: 20 + Math.floor(Math.random() * 61),   // 20..80
   };
+  if (s.movePolicy === 'canon') {
+    r.moves = s.moves.filter(m => (m.lv || 1) <= lv).slice(-4);
+  } else {
+    autoLearnMoves(r);
+  }
+  return r;
 }
 // V2.8.1 — every Zyrex is guaranteed one baseline gem per battle for A1.
 const ZYREX_GEM_BASELINE = 1;
@@ -4976,10 +5152,23 @@ function levelUp(r) {
   r.stats.spc = statAtLv(s.base.spc, r.lv, maxLv);
   r.maxHp = r.stats.hp;
   r.hp += r.maxHp - oldMax;
-  const newMoves = s.moves.filter(m => (m.lv || 1) === r.lv);
-  for (const m of newMoves) {
-    if (r.moves.length < 4) r.moves.push(m);
-    else r.moves[3] = m;
+  // V2.28 — new move learning cadence. At each learn moment (3/5/7 rule),
+  // redraw all 4 slots from the pools (or the species's canon list).
+  const beforeMoves = r.moves.map(m => m.name).join('|');
+  if (shouldLearnMoveAt(r.lv)) {
+    if (s.movePolicy === 'canon') {
+      const canonNew = s.moves.filter(m => (m.lv || 1) === r.lv);
+      for (const m of canonNew) {
+        if (r.moves.length < 4) r.moves.push(m);
+        else r.moves[3] = m;
+      }
+    } else {
+      autoLearnMoves(r);
+    }
+    const afterMoves = r.moves.map(m => m.name).join('|');
+    if (beforeMoves !== afterMoves) {
+      showToast(`${r.name}  advanced its moves!`, 1800);
+    }
   }
   showToast(`${r.name}  LV ${r.lv}!`, 1400);
   // V2.15 — evolution trigger: hit evolveLv AND a next form is defined.
@@ -5009,8 +5198,12 @@ function evolveZyrex(r, nextSpeciesId) {
   r.stats.spc = statAtLv(next.base.spc, r.lv, newMaxLv);
   r.maxHp = r.stats.hp;
   r.hp    = Math.max(1, Math.floor(r.maxHp * hpRatio));
-  // Fresh move set from the new form (top 4 by learn level).
-  r.moves = next.moves.filter(m => (m.lv || 1) <= r.lv).slice(-4);
+  // V2.28 — Fresh moveset. Auto-upgrade unless the new species is canon-policy.
+  if (next.movePolicy === 'canon') {
+    r.moves = next.moves.filter(m => (m.lv || 1) <= r.lv).slice(-4);
+  } else {
+    autoLearnMoves(r);
+  }
   showToast(`${oldName}  →  ${r.name}!`, 2200);
   save();
 }

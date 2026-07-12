@@ -1706,9 +1706,28 @@
 
 // ---------- Constants / geometry ----------
 const TILE = 32;
-const COLS = 20, ROWS = 14;              // visible viewport in tiles
-const CANVAS_W = COLS * TILE;
-const CANVAS_H = ROWS * TILE;
+let COLS = 20, ROWS = 14;              // visible viewport in tiles
+let CANVAS_W = COLS * TILE;
+let CANVAS_H = ROWS * TILE;
+// V2.33.6 — On portrait mobile we render more rows (taller viewport) so the
+// game canvas naturally hits ~60% of screen height without stretching pixels.
+// tileAt() returns '#' outside map bounds, so smaller maps naturally show the
+// wall/starfield around their edges — the "outer space" placeholder.
+function setupViewportForDevice() {
+  const isMobilePortrait =
+    window.matchMedia && window.matchMedia('(max-width: 900px) and (orientation: portrait)').matches;
+  const targetRows = isMobilePortrait ? 28 : 14;
+  if (ROWS === targetRows) return;
+  ROWS = targetRows;
+  CANVAS_H = ROWS * TILE;
+  const canvas = document.getElementById('game');
+  if (canvas) canvas.height = CANVAS_H;
+  const stage = document.getElementById('stage');
+  if (stage) stage.style.aspectRatio = `${COLS} / ${ROWS}`;
+}
+setupViewportForDevice();
+window.addEventListener('resize', setupViewportForDevice);
+window.addEventListener('orientationchange', setupViewportForDevice);
 const MAX_PARTY = 10;                    // V2.18.1 — max 10 Rizers (Zyrex). Faction allies (up to 7) come later via faction system after Map 3.
 const MAX_ALLIES = 7;                    // V2.18.1 — reserved. Ally system not wired yet — post-Map-3 build.
 

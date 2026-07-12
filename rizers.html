@@ -919,6 +919,12 @@
     }
     .party-slot.empty { opacity: 0.4; font-style: italic; justify-content: center; color: var(--mist); }
     .party-slot.selected { border-color: var(--gold); box-shadow: 0 0 20px rgba(232,200,120,0.15); }
+    .party-slot.swap-picked {
+      border-color: var(--gold-bright);
+      background: rgba(232, 200, 120, 0.14);
+      box-shadow: 0 0 26px rgba(255, 205, 100, 0.35);
+      transform: translateX(4px);
+    }
     .party-slot.ko { border-color: var(--crimson); opacity: 0.55; }
     .party-sprite { width: 48px; height: 48px; flex-shrink: 0; }
     .party-info { flex: 1; font-family: var(--font-pixel); font-size: 17px; }
@@ -1828,8 +1834,8 @@ const SPECIES = {
     evolveTo: 'terralith', evolveLv: 11,
     moves: basicMoves('Nature', ['Tail Splash', 'River Dive', 'Whirlpool', 'Shellup']),
   },
-  volitimite: {  // Beast/Aura · Western Region · thunderstep gerbil · common Western pet
-    name: 'VOLITIMITE', type: 'Aura', type2: 'Beast', region: 'Western',
+  voltimite: {  // V2.24.1 — canonical name (was Volitimite). Aura/Creature · Western Region · thunderstep gerbil · common Western pet
+    name: 'VOLTIMITE', type: 'Aura', type2: 'Creature', region: 'Western',
     base: BASIC_BASE, tier: 1, catchRate: 32, shape: 'quadruped',
     sprite: ['#e8c878', '#7a4dcf', '#fff5db'],
     evolveTo: 'buzzolt', evolveLv: 11,
@@ -1905,20 +1911,21 @@ const SPECIES = {
   // stats set below the Basic band because it is a hatchling form.
   // Palette: blue + orange line, intensifies each stage.
   // Sprite array = [primary body-blue, deep-shadow, highlight-orange/accent].
+  // V2.24.2 — Elzoran line = the Zyraxis mirror of Viridia's Aurabeasts. Whole line Aura/Beast.
   elzebub: {
-    name: 'ELZEBUB', type: 'Beast', type2: 'Nature', region: 'Unknown',
+    name: 'ELZEBUB', type: 'Aura', type2: 'Beast', region: 'Unknown',
     base: { hp: 42, atk: 44, def: 36, spd: 40, spc: 52 },   // hatchling — under BASIC_BASE
     tier: 1, catchRate: 3, shape: 'winged',
     sprite: ['#7dc8ff', '#2a5c9c', '#ffcf8f'],   // soft sky-blue + pale peach — hatchling
-    moves: basicMoves('Nature', ['Sky Nip', 'Windbeat', 'Emberling', 'Fledgling Guard']),
+    moves: basicMoves('Aura', ['Sky Nip', 'Windbeat', 'Emberling', 'Fledgling Guard']),
     evolveTo: 'elzimir', evolveLv: 20,
   },
   elzimir: {
-    name: 'ELZIMIR', type: 'Beast', type2: 'Nature', region: 'Unknown',
+    name: 'ELZIMIR', type: 'Aura', type2: 'Beast', region: 'Unknown',
     base: { hp: 128, atk: 118, def: 92, spd: 84, spc: 168 },  // scaled from Elzoran (Tier V)
     tier: 3, catchRate: 3, shape: 'winged',
     sprite: ['#3aa0ff', '#1a3c8a', '#ff9040'],   // bright cyan-blue + amber — adolescent
-    moves: basicMoves('Nature', ['Wingbeat', 'Twin Ember', 'Sky-Sigil', 'Rising Guard']),
+    moves: basicMoves('Aura', ['Wingbeat', 'Twin Ember', 'Sky-Sigil', 'Rising Guard']),
     evolveTo: 'elzoran', evolveLv: 50,
   },
   elzoran: {
@@ -1932,11 +1939,12 @@ const SPECIES = {
     codex: { archetype: 'WILDKIN', epithet: 'Supreme Dragon Lord' },
   },
   omegoran: {
-    name: 'OMEGORAN', type: 'Beast', type2: 'Unknown-Void', region: 'Unknown',
+    // V2.24.2 — whole Elzoran line is Aura/Beast; Omegoran keeps his corrupted flavor but the type stays true to the line.
+    name: 'OMEGORAN', type: 'Aura', type2: 'Beast', region: 'Unknown',
     base: { hp: 493, atk: 549, def: 383, spd: 357, spc: 549 },  // Codex v11.1 canonical
     tier: 7, catchRate: 2, shape: 'winged',
     sprite: ['#4a1eff', '#08061a', '#ff3a1a'],   // void-electric blue + scorched crimson-orange — corrupted apex
-    moves: basicMoves('Unknown-Void', ['Voidfang Guillotine', 'Cataclysmic Roar', 'The Final Armageddon', 'Primal Roar']),
+    moves: basicMoves('Aura', ['Voidfang Guillotine', 'Cataclysmic Roar', 'The Final Armageddon', 'Primal Roar']),
     codex: { archetype: 'DIREBORN', epithet: 'The Corrupted Apex' },
   },
 
@@ -3277,15 +3285,28 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- Party screen: arrows walk slots, Enter opens inspect, X/Esc close ----
+  // ---- Party screen: arrows walk slots, Z = SWAP (two-step), Enter opens inspect ----
+  // V2.24 — Z is dedicated to swapping party order. Click / Enter still opens
+  // the inspect card (which itself has its own swap section).
   if (game.mode === 'party') {
     const container = document.getElementById('party-grid');
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
       if (focusNavStep(container, e.key, 2)) e.preventDefault();
       return;
     }
+    // V2.24 — Z is now the SWAP key. First Z picks the focused slot; second
+    // Z on another slot swaps them. Z on the same slot again cancels.
+    if (k === 'z') {
+      handlePartySwapKey();
+      e.preventDefault();
+      return;
+    }
+    // Enter/Space (non-Z confirm) still opens the inspect card.
     if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
-    if (isBack) { closeParty(); e.preventDefault(); return; }
+    if (isBack) {
+      if (game._swapPickedIdx != null) { partySwapCancel(); e.preventDefault(); return; }
+      closeParty(); e.preventDefault(); return;
+    }
     return;
   }
 
@@ -3667,7 +3688,7 @@ function grantElzebubPrompt() {
 // full stats + moves unlock at CAUGHT.
 
 const DEX_ORDER = [
-  'cinderant', 'otterlin', 'volitimite',                                       // Starters
+  'cinderant', 'otterlin', 'voltimite',                                       // Starters
   'frostwisp', 'sandskitter', 'verdanix', 'flarepaw', 'dunechitter',           // Wild pool
   'barkchitter', 'aurarat', 'torchpuff', 'pebblequil',                          // V2.7 additions
   'elzebub', 'elzimir', 'elzoran', 'omegoran',                                 // Elzoran chain
@@ -3678,7 +3699,7 @@ const DEX_ORDER = [
 const DAD_NOTES = {
   cinderant:   'Southern coast. Ran with a colony of them when I was seventeen. Hot as a brand under the ribs. Their mandibles look small — they are not.',
   otterlin:    'Eastern rivers. My first bond. Trusted me the day it met me. I never forgot how that felt.',
-  volitimite:  'Western dunes at dusk. Fast, clever, static in the whiskers. Don\'t chase — sit down and let them come to you.',
+  voltimite:  'Western dunes at dusk. Fast, clever, static in the whiskers. Don\'t chase — sit down and let them come to you.',
   frostwisp:   'Northern tundra. They travel in threes. If you see one, look up: the other two are already watching you.',
   sandskitter: 'Western scrubland. Sleeps under stones. Give it a warm palm and it will follow you home.',
   verdanix:    'Eastern paddies. Green as spring. A common frog, but its tongue is faster than a courier.',
@@ -5131,11 +5152,11 @@ function drawSpeciesShape(c, cx, cy, species, facing) {
 // ============================================================================
 // Three Tier I Basics from Master Codex v10.22 — one per major secondary type.
 // Southern (Spirit) / Eastern (Nature) / Western (Aura).
-const STARTERS = ['cinderant', 'otterlin', 'volitimite'];
+const STARTERS = ['cinderant', 'otterlin', 'voltimite'];
 const STARTER_FLAVOR = {
   cinderant:  'A fire ant of the Southern Region. Small crimson mandibles. Runs hot to the touch.',
   otterlin:   'A river pup of the Eastern Region. Water reads its coat. Trusts fast, learns faster.',
-  volitimite: 'A thunderstep gerbil of the Western Region. Static skips off its fur. Quick, clever.',
+  voltimite: 'A thunderstep gerbil of the Western Region. Static skips off its fur. Quick, clever.',
 };
 function renderStarterScreen() {
   const $grid = document.getElementById('starter-grid');
@@ -5220,8 +5241,61 @@ function openParty() {
 function closeParty() {
   $party.classList.remove('active');
   game.mode = 'overworld';
+  game._swapPickedIdx = null;
 }
 document.getElementById('party-close').onclick = closeParty;
+
+// V2.24 — Two-step party swap driven by Z on the party overlay.
+function partySwapPickIndexOfFocused() {
+  const focused = document.activeElement;
+  if (!focused || !focused.classList || !focused.classList.contains('party-slot')) return null;
+  const grid = document.getElementById('party-grid');
+  const slots = Array.from(grid.children);
+  const idx = slots.indexOf(focused);
+  if (idx < 0) return null;
+  if (focused.classList.contains('empty')) return null;
+  return idx;
+}
+function partySwapCancel() {
+  const grid = document.getElementById('party-grid');
+  if (grid) grid.querySelectorAll('.party-slot.swap-picked').forEach(el => el.classList.remove('swap-picked'));
+  game._swapPickedIdx = null;
+  showToast('SWAP CANCELLED', 1200);
+}
+function handlePartySwapKey() {
+  const idx = partySwapPickIndexOfFocused();
+  if (idx == null) return;
+  const grid = document.getElementById('party-grid');
+  const slots = Array.from(grid.children);
+  if (game._swapPickedIdx == null) {
+    // First pick
+    game._swapPickedIdx = idx;
+    slots[idx].classList.add('swap-picked');
+    showToast(`SWAP  ·  ${game.player.party[idx].name} → pick a second slot`, 2000);
+    return;
+  }
+  if (game._swapPickedIdx === idx) {
+    // Deselect
+    slots[idx].classList.remove('swap-picked');
+    game._swapPickedIdx = null;
+    showToast('SWAP CANCELLED', 1200);
+    return;
+  }
+  // Perform the swap
+  const a = game._swapPickedIdx;
+  const b = idx;
+  const party = game.player.party;
+  const tmp = party[a]; party[a] = party[b]; party[b] = tmp;
+  game._swapPickedIdx = null;
+  save();
+  showToast(`↔  ${party[a].name} ↔ ${party[b].name}`, 1600);
+  renderPartyScreen();
+  // Re-focus the destination slot after re-render so arrow-nav flows naturally.
+  setTimeout(() => {
+    const newSlots = Array.from(document.getElementById('party-grid').children);
+    if (newSlots[b]) newSlots[b].focus();
+  }, 30);
+}
 function renderPartyScreen() {
   $partyGrid.innerHTML = '';
   setTimeout(() => { const first = $partyGrid.querySelector('.party-slot:not(.empty)'); if (first) first.focus(); }, 40);
@@ -5243,7 +5317,7 @@ function renderPartyScreen() {
           <div class="party-name">${r.name}</div>
           <div class="party-hp-line">Lv ${r.lv} · Card Tier ${TIER_ROMAN[speciesTier-1]} · ${r.type}${dual} · HP ${r.hp}/${r.maxHp}</div>
           <div class="party-hp-bar"><div class="party-hp-fill ${hpCls}" style="width:${ratio * 100}%"></div></div>
-          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Tap to inspect →</div>
+          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Z to swap  ·  Enter to inspect</div>
         </div>
       `;
       const cvs = slot.querySelector('canvas');

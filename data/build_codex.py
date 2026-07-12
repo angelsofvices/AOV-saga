@@ -40,6 +40,19 @@ OUT  = ROOT / 'data' / 'codex.json'
 ROMAN_TIERS = {'I':1,'II':2,'III':3,'IV':4,'V':5,'VI':6,'VII':7,'VIII':8,'IX':9,'X':10}
 ZYREX_CLASSES = {'Beast', 'Beastmaster', 'Creature', 'Sovereign', 'Supreme', 'Antagonist', 'TBD', '—'}
 
+# V2.39a — canonical renames applied to every parsed cell as a safety net.
+CANON_RENAMES = [
+    ("Ael'Tharion", 'Xenoxil'),
+    ("AEL'THARION", 'XENOXIL'),
+    ("Ael Tharion", 'Xenoxil'),
+]
+def apply_renames(v):
+    if v is None: return v
+    s = str(v)
+    for old, new in CANON_RENAMES:
+        s = s.replace(old, new)
+    return s
+
 TIER_CLASS_NAME = {
     1: 'Basic', 2: 'Core', 3: 'Champion', 4: 'Legend', 5: 'Apex',
     6: 'Pseudoimmortal', 7: 'Pseudoimmortal', 8: 'Immortal',
@@ -98,8 +111,8 @@ def parse_master_index(ws):
                 'rcast': (row[22] or '').strip(),
                 'invented': False,
             },
-            'worldsense': (row[23] or '').strip()[:400],
-            'flavor': (row[24] or '').strip()[:400],
+            'worldsense': apply_renames((row[23] or '').strip())[:400],
+            'flavor':     apply_renames((row[24] or '').strip())[:400],
             'invented': False,
         }
 

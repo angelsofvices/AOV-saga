@@ -1685,23 +1685,42 @@ ctx.imageSmoothingEnabled = false;
 //   attack strong vs defender → 2× (vulnerable)
 //   defender strong vs attack → 0.5× (resistant)
 //   neither → 1× (neutral)
-const TYPES = ['Aura','Beast','Creature','Extraterrestrial','Humanoid-Noid','Nature','Tech','Spirit','Ultramax','Unknown-Void'];
-// V2.26 — 3 strengths + 3 weaknesses per type. Graph is symmetric: every type
-// has out-degree 3 (strong-vs) AND in-degree 3 (weak-to). No mutual counters
-// (no pair A/B where A→B AND B→A both exist). Verified via symmetry audit.
+// V2.29 — expanded to 20 types (10 originals + 10 new). See V2.26.HANDOFF for design report.
+const TYPES = [
+  'Aura','Beast','Creature','Extraterrestrial','Humanoid-Noid','Nature','Tech','Spirit','Ultramax','Unknown-Void',
+  'Draconic','Crystal','Radiant','Divine','Corrupted','Verdant','Aquatic','Chrono','Astral','Elemental',
+];
+// V2.29 — 20-type chart from V2.26.HANDOFF (2026-07-12 canon lock).
+// 20 types × 3 strengths / 3 weaknesses = 60 directed edges. Verified: perfect
+// symmetry (in-degree = out-degree = 3 for all 20), zero mutual counters.
+// Each of the original 10 types keeps 2 legacy strengths + gains 1 new-type edge.
+// V2.26's third old-type edge is superseded by the handoff's new-type edge.
 const TYPE_STRONG_VS = {
-  'Aura':              ['Spirit','Unknown-Void','Nature'],           // + Nature (Aura burns natural life essence)
-  'Beast':             ['Creature','Spirit','Tech'],                 // + Tech (raw force overwhelms rigid tech)
-  'Creature':          ['Nature','Aura','Extraterrestrial'],         // + ET (creature aggression scatters alien logic)
-  'Extraterrestrial':  ['Aura','Nature','Humanoid-Noid'],            // + Humanoid (alien cognition confounds identity)
-  'Humanoid-Noid':     ['Beast','Ultramax','Unknown-Void'],          // + Void (identity denies the abyss)
-  'Nature':            ['Tech','Unknown-Void','Spirit'],             // + Spirit (nature's harmonics quiet restless souls)
-  'Tech':              ['Humanoid-Noid','Extraterrestrial','Aura'],  // + Aura (tech instrumentation dampens aura)
-  'Spirit':            ['Humanoid-Noid','Tech','Ultramax'],          // + Ultramax (spirit ferocity destabilizes peak power)
-  'Ultramax':          ['Extraterrestrial','Beast','Creature'],      // + Creature (peak power flattens mundane creatures)
-  'Unknown-Void':      ['Ultramax','Creature','Beast']               // + Beast (void erodes beast instincts)
+  // ---- Original 10 (legacy strengths preserved + 1 new-type addition each) ----
+  'Aura':              ['Spirit','Unknown-Void','Corrupted'],           // + Corrupted (cleansing radiance burns the warped)
+  'Beast':             ['Creature','Spirit','Verdant'],                 // + Verdant (fauna devours flora)
+  'Creature':          ['Nature','Aura','Aquatic'],                     // + Aquatic (bonded hunting-fauna prowl the shallows)
+  'Extraterrestrial':  ['Aura','Nature','Divine'],                      // + Divine (xeno-origin outside the pantheon)
+  'Humanoid-Noid':     ['Beast','Ultramax','Draconic'],                 // + Draconic (the dragonslayer tradition)
+  'Nature':            ['Tech','Unknown-Void','Elemental'],             // + Elemental (living world tames raw elements)
+  'Tech':              ['Humanoid-Noid','Extraterrestrial','Crystal'],  // + Crystal (machinery mines the gem-bodied)
+  'Spirit':            ['Humanoid-Noid','Tech','Chrono'],               // + Chrono (the dead stand outside time)
+  'Ultramax':          ['Extraterrestrial','Beast','Astral'],           // + Astral (peak power outshines the star-born)
+  'Unknown-Void':      ['Ultramax','Creature','Radiant'],               // + Radiant (the void devours light)
+  // ---- 10 new types ----
+  'Draconic':          ['Beast','Elemental','Aquatic'],                 // apex wyrms; dragonhide; sea-serpents are wyrms
+  'Crystal':           ['Spirit','Radiant','Chrono'],                   // soul-gems; prism traps light; quartz locks time
+  'Radiant':           ['Aura','Aquatic','Chrono'],                     // blaze outshines aura; pierces abyss; outraces time
+  'Divine':            ['Unknown-Void','Corrupted','Draconic'],         // consecration seals; sanctity purges; gods bind wyrms
+  'Corrupted':         ['Humanoid-Noid','Radiant','Verdant'],           // mortals succumb; warped devour bright; blight withers
+  'Verdant':           ['Tech','Crystal','Astral'],                     // overgrowth swallows machines; roots crack stone; canopy drinks starlight
+  'Aquatic':           ['Nature','Elemental','Corrupted'],              // tide swallows soil; sea quenches storm; tide washes corruption
+  'Chrono':            ['Ultramax','Astral','Divine'],                  // time erodes power; stars die; pantheons fall
+  'Astral':            ['Extraterrestrial','Draconic','Divine'],        // cosmos outranks xeno; stars above wyrms; cosmic order precedes pantheon
+  'Elemental':         ['Creature','Verdant','Crystal'],                // raw force overwhelms fauna; wildfire razes forest; shatters gem-bodied
 };
 const TYPE_COLORS = {
+  // Original 10
   'Aura':              '#f5dc9c',
   'Beast':             '#c98a4a',
   'Creature':          '#8bc466',
@@ -1712,11 +1731,27 @@ const TYPE_COLORS = {
   'Spirit':            '#b87cff',
   'Ultramax':          '#ff5c5c',
   'Unknown-Void':      '#6b5a8a',
+  // V2.29 — 10 new types
+  'Draconic':          '#c8384a',   // crimson-gold — wyrms, dragonhide
+  'Crystal':           '#8be8ff',   // cyan prism
+  'Radiant':           '#ffe860',   // sunburst
+  'Divine':            '#f8ecc8',   // pale gold-white — sanctified
+  'Corrupted':         '#4a1e5c',   // deep warped violet
+  'Verdant':           '#4a8a44',   // forest green
+  'Aquatic':           '#2478c8',   // deep tidal blue
+  'Chrono':            '#b0b8c8',   // silvered temporal
+  'Astral':            '#9878ff',   // cosmic purple — star-touched
+  'Elemental':         '#ff5c1a',   // raw fire-orange
 };
 const TYPE_SHORT = {
+  // Original 10
   'Aura':'AURA','Beast':'BEAST','Creature':'CRTR','Extraterrestrial':'E.T.',
   'Humanoid-Noid':'HUM-N','Nature':'NATR','Tech':'TECH','Spirit':'SPRT',
   'Ultramax':'ULTMX','Unknown-Void':'VOID',
+  // V2.29 — 10 new types
+  'Draconic':'DRAG','Crystal':'CRYS','Radiant':'RAD','Divine':'DIVI',
+  'Corrupted':'CORR','Verdant':'VERD','Aquatic':'AQUA','Chrono':'CHRO',
+  'Astral':'ASTR','Elemental':'ELEM',
 };
 function _typeMultSingle(atk, def) {
   if (TYPE_STRONG_VS[atk] && TYPE_STRONG_VS[atk].includes(def)) return 2;
@@ -1930,6 +1965,77 @@ const MOVE_POOL_BY_TYPE = {
     { name: 'Rift Collapse',   power: 110, cost: 3, minLv: 60 },
     { name: 'Void Erasure',    power: 140, cost: 3, minLv: 90 },
   ],
+  // V2.29 — 10 new-type pools (seed content; canon expansion in HANDOFF_MOVE_POOLS)
+  'Draconic': [
+    { name: 'Wyrm Nip',           power: 30,  cost: 1, minLv: 1  },
+    { name: 'Dragon Roar',        power: 55,  cost: 2, minLv: 12 },
+    { name: "Serpent's Coil",     power: 80,  cost: 3, minLv: 30 },
+    { name: 'Wyrmflame',          power: 110, cost: 3, minLv: 60 },
+    { name: 'Cataclysm Wing',     power: 140, cost: 3, minLv: 90 },
+  ],
+  'Crystal': [
+    { name: 'Crystal Nip',        power: 30,  cost: 1, minLv: 1  },
+    { name: 'Prism Shard',        power: 55,  cost: 2, minLv: 12 },
+    { name: 'Geode Burst',        power: 80,  cost: 3, minLv: 30 },
+    { name: 'Crystalfall',        power: 110, cost: 3, minLv: 60 },
+    { name: 'Prismatic End',      power: 140, cost: 3, minLv: 90 },
+  ],
+  'Radiant': [
+    { name: 'Sun Nip',            power: 30,  cost: 1, minLv: 1  },
+    { name: 'Radiant Bolt',       power: 55,  cost: 2, minLv: 12 },
+    { name: 'Blazing Corona',     power: 80,  cost: 3, minLv: 30 },
+    { name: 'Solar Detonate',     power: 110, cost: 3, minLv: 60 },
+    { name: 'Supernova',          power: 140, cost: 3, minLv: 90 },
+  ],
+  'Divine': [
+    { name: 'Holy Nip',           power: 30,  cost: 1, minLv: 1  },
+    { name: 'Blessed Strike',     power: 55,  cost: 2, minLv: 12 },
+    { name: 'Sanctified Hammer',  power: 80,  cost: 3, minLv: 30 },
+    { name: 'Divine Judgment',    power: 110, cost: 3, minLv: 60 },
+    { name: 'Godlight',           power: 140, cost: 3, minLv: 90 },
+  ],
+  'Corrupted': [
+    { name: 'Blight Nip',         power: 30,  cost: 1, minLv: 1  },
+    { name: 'Shadow Fang',        power: 55,  cost: 2, minLv: 12 },
+    { name: 'Corrupt Coil',       power: 80,  cost: 3, minLv: 30 },
+    { name: 'Nightbind',          power: 110, cost: 3, minLv: 60 },
+    { name: 'Corruption Eternal', power: 140, cost: 3, minLv: 90 },
+  ],
+  'Verdant': [
+    { name: 'Vine Nip',           power: 30,  cost: 1, minLv: 1  },
+    { name: 'Thorn Whip',         power: 55,  cost: 2, minLv: 12 },
+    { name: 'Bloom Cascade',      power: 80,  cost: 3, minLv: 30 },
+    { name: 'Wildgrowth',         power: 110, cost: 3, minLv: 60 },
+    { name: 'Verdant Reclaim',    power: 140, cost: 3, minLv: 90 },
+  ],
+  'Aquatic': [
+    { name: 'Tide Nip',           power: 30,  cost: 1, minLv: 1  },
+    { name: 'Wave Strike',        power: 55,  cost: 2, minLv: 12 },
+    { name: 'Tidal Surge',        power: 80,  cost: 3, minLv: 30 },
+    { name: 'Maelstrom',          power: 110, cost: 3, minLv: 60 },
+    { name: 'Deepdrown',          power: 140, cost: 3, minLv: 90 },
+  ],
+  'Chrono': [
+    { name: 'Chrono Nip',         power: 30,  cost: 1, minLv: 1  },
+    { name: 'Time Stutter',       power: 55,  cost: 2, minLv: 12 },
+    { name: 'Temporal Fracture',  power: 80,  cost: 3, minLv: 30 },
+    { name: 'Rewind Cut',         power: 110, cost: 3, minLv: 60 },
+    { name: 'Time Erasure',       power: 140, cost: 3, minLv: 90 },
+  ],
+  'Astral': [
+    { name: 'Star Nip',           power: 30,  cost: 1, minLv: 1  },
+    { name: 'Astral Bolt',        power: 55,  cost: 2, minLv: 12 },
+    { name: 'Nova Ray',           power: 80,  cost: 3, minLv: 30 },
+    { name: 'Constellation Strike', power: 110, cost: 3, minLv: 60 },
+    { name: 'Stellar Convergence', power: 140, cost: 3, minLv: 90 },
+  ],
+  'Elemental': [
+    { name: 'Element Nip',        power: 30,  cost: 1, minLv: 1  },
+    { name: 'Element Bolt',       power: 55,  cost: 2, minLv: 12 },
+    { name: 'Prime Element',      power: 80,  cost: 3, minLv: 30 },
+    { name: 'Elemental Chorus',   power: 110, cost: 3, minLv: 60 },
+    { name: 'Primal Elements',    power: 140, cost: 3, minLv: 90 },
+  ],
 };
 const BUFF_POOL = [
   { name: 'Rally',      effect: 'boost', cost: 1, minLv: 1  },
@@ -1987,11 +2093,11 @@ const SPECIES = {
     originalMove: { name: 'Anthill Blaze', type: 'Spirit', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   otterlin: {    // Beast/Nature · Eastern Region · water pup · common Eastern house pet
-    name: 'OTTERLIN', type: 'Nature', type2: 'Beast', region: 'Eastern',
+    name: 'OTTERLIN', type: 'Beast', type2: 'Aquatic', region: 'Eastern',
     base: BASIC_BASE, tier: 1, catchRate: 32, shape: 'aquatic',
     sprite: ['#5fa8ff', '#2a5c8a', '#a8cef0'],
     evolveTo: 'terralith', evolveLv: 11,
-    moves: basicMoves('Nature', ['Tail Splash', 'River Dive', 'Whirlpool', 'Shellup']),
+    moves: basicMoves('Beast', ['Tail Splash', 'River Dive', 'Whirlpool', 'Shellup']),
     originalMove: { name: 'Whirlpool', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   voltimite: {  // V2.24.1 — canonical name (was Volitimite). Aura/Creature · Western Region · thunderstep gerbil · common Western pet
@@ -2021,11 +2127,11 @@ const SPECIES = {
     originalMove: { name: 'Sandstorm Coil', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   verdanix: {    // Beast/Nature · Eastern · common green frog · Gen I Primary
-    name: 'VERDANIX', type: 'Nature', type2: 'Beast', region: 'Eastern',
+    name: 'VERDANIX', type: 'Beast', type2: 'Verdant', region: 'Eastern',
     base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'aquatic',
     sprite: ['#2fe6a8', '#1a8a5c', '#8bffcc'],
     evolveTo: 'spargus', evolveLv: 11,
-    moves: basicMoves('Nature', ['Tongue Snap', 'Leafhop', 'Verdant Burst', 'Photobask']),
+    moves: basicMoves('Beast', ['Tongue Snap', 'Leafhop', 'Verdant Burst', 'Photobask']),
     originalMove: { name: 'Verdant Burst', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   flarepaw: {    // Beast/Spirit · Southern · flamefooted cat pet
@@ -2067,10 +2173,10 @@ const SPECIES = {
     originalMove: { name: 'Ember Roll', type: 'Spirit', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   pebblequil: { // Beast/Nature · Western · crystal-quilled hedgehog
-    name: 'PEBBLEQUIL', type: 'Nature', type2: 'Beast', region: 'Western',
+    name: 'PEBBLEQUIL', type: 'Beast', type2: 'Crystal', region: 'Western',
     base: BASIC_BASE, tier: 1, catchRate: 55, shape: 'quadruped',
     sprite: ['#8bc466', '#2f7a3a', '#c8ffb0'],
-    moves: basicMoves('Nature', ['Quill Jab', 'Rockquill', 'Quill Volley', 'Curl Guard']),
+    moves: basicMoves('Beast', ['Quill Jab', 'Rockquill', 'Quill Volley', 'Curl Guard']),
     originalMove: { name: 'Quill Volley', type: 'Nature', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
 
@@ -2083,7 +2189,7 @@ const SPECIES = {
   // Sprite array = [primary body-blue, deep-shadow, highlight-orange/accent].
   // V2.24.2 — Elzoran line = the Zyraxis mirror of Viridia's Aurabeasts. Whole line Aura/Beast.
   elzebub: {
-    name: 'ELZEBUB', type: 'Aura', type2: 'Beast', region: 'Unknown',
+    name: 'ELZEBUB', type: 'Aura', type2: 'Draconic', region: 'Unknown',
     base: { hp: 42, atk: 44, def: 36, spd: 40, spc: 52 },   // hatchling — under BASIC_BASE
     tier: 1, catchRate: 3, shape: 'winged',
     sprite: ['#7dc8ff', '#2a5c9c', '#ffcf8f'],   // soft sky-blue + pale peach — hatchling
@@ -2092,7 +2198,7 @@ const SPECIES = {
     originalMove: { name: 'Emberling Cry', type: 'Aura', power: 100, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   elzimir: {
-    name: 'ELZIMIR', type: 'Aura', type2: 'Beast', region: 'Unknown',
+    name: 'ELZIMIR', type: 'Aura', type2: 'Draconic', region: 'Unknown',
     base: { hp: 128, atk: 118, def: 92, spd: 84, spc: 168 },  // scaled from Elzoran (Tier V)
     tier: 3, catchRate: 3, shape: 'winged',
     sprite: ['#3aa0ff', '#1a3c8a', '#ff9040'],   // bright cyan-blue + amber — adolescent
@@ -2102,7 +2208,7 @@ const SPECIES = {
   },
   elzoran: {
     // V2.23.1 — retyped Aura/Beast (game canon; master codex still says Beast/Nature).
-    name: 'ELZORAN', type: 'Aura', type2: 'Beast', region: 'Unknown',
+    name: 'ELZORAN', type: 'Aura', type2: 'Draconic', region: 'Unknown',
     base: { hp: 366, atk: 333, def: 266, spd: 234, spc: 466 },  // Codex v11.1 stat block preserved
     tier: 5, catchRate: 3, shape: 'winged',
     sprite: ['#0ea5ff', '#0a1e5c', '#ff6a1a'],   // electric cobalt + fiery orange — Supreme Dragon Lord
@@ -2114,7 +2220,7 @@ const SPECIES = {
   omegoran: {
     // V2.24.3 — first line-switch: Aura/Beast (line inheritance) → Aura/Void.
     // Beast half is consumed by the shadow-aura corruption; Aura remains as the anchor.
-    name: 'OMEGORAN', type: 'Aura', type2: 'Unknown-Void', region: 'Unknown',
+    name: 'OMEGORAN', type: 'Aura', type2: 'Corrupted', region: 'Unknown',
     base: { hp: 493, atk: 549, def: 383, spd: 357, spc: 549 },  // Codex v11.1 canonical stat block preserved
     tier: 7, catchRate: 2, shape: 'winged',
     sprite: ['#4a1eff', '#08061a', '#ff3a1a'],   // void-electric blue + scorched crimson-orange — corrupted apex
@@ -2126,17 +2232,17 @@ const SPECIES = {
   // ============ Gemlord I cave — RAKORON's hunt (Beast-themed) ============
   // Two Beast-primary Basics from his hunt, then RAKORON himself in ruby fury.
   sunhoop: {     // Beast/Aura · Western · crown-crested Hoopoe · Gen I Primary
-    name: 'SUNHOOP', type: 'Aura', type2: 'Beast', region: 'Western',
+    name: 'SUNHOOP', type: 'Beast', type2: 'Radiant', region: 'Western',
     base: BASIC_BASE, tier: 1, catchRate: 25, shape: 'winged',
     sprite: ['#f5dc9c', '#b87cff', '#fff5db'],
-    moves: basicMoves('Aura', ['Beak Jab', 'Suncrest', 'Crown Halo', 'Rally']),
+    moves: basicMoves('Beast', ['Beak Jab', 'Suncrest', 'Crown Halo', 'Rally']),
     originalMove: { name: 'Crown Halo', type: 'Aura', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   aetherwing: {  // Beast/Aura · Central · astral dragonfly · Gen III Tertiary
-    name: 'AETHERWING', type: 'Aura', type2: 'Beast', region: 'Central',
+    name: 'AETHERWING', type: 'Beast', type2: 'Radiant', region: 'Central',
     base: BASIC_BASE, tier: 1, catchRate: 25, shape: 'winged',
     sprite: ['#c8bfe6', '#7a5cc8', '#e8e0f0'],
-    moves: basicMoves('Aura', ['Wing Cut', 'Aetherbeam', 'Astral Gale', 'Rally']),
+    moves: basicMoves('Beast', ['Wing Cut', 'Aetherbeam', 'Astral Gale', 'Rally']),
     originalMove: { name: 'Astral Gale', type: 'Aura', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
   rakoron: {

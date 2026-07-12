@@ -6337,7 +6337,11 @@ menuBackdrop.addEventListener('click', () => {
                background: rgba(15,10,28,0.72); border: 1.5px solid var(--gold); border-radius: 999px;
                box-shadow: 0 6px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(232,200,120,0.35);
                display: grid; place-items: center; }
-    .mob-pad-arrow { position: absolute; color: var(--gold); font-size: 22px; font-weight: 700;
+    .mob-pad-arrow { position: absolute; color: var(--gold); font-size: 28px; font-weight: 700;
+                     font-family: 'VT323', 'Courier New', monospace; line-height: 1;
+                     /* Force text presentation on iOS so glyphs never render as emoji. */
+                     font-variant-emoji: text;
+                     text-rendering: geometricPrecision;
                      transition: color 0.1s ease, text-shadow 0.1s ease; pointer-events: none; }
     .mob-pill { pointer-events: auto; position: absolute; padding: 8px 14px; color: var(--ivory);
                 background: rgba(15,10,28,0.72); border: 1px solid var(--border); border-radius: 999px;
@@ -6345,6 +6349,9 @@ menuBackdrop.addEventListener('click', () => {
                 box-shadow: 0 4px 12px rgba(0,0,0,0.35); touch-action: none; }
     .mob-pill:active { color: var(--goldb); border-color: var(--gold); }
     .mob-root.faded .mob-btn, .mob-root.faded .mob-pad, .mob-root.faded .mob-pill { opacity: 0.35; }
+    /* V2.33.1 — hide controller on non-gameplay screens so the underlying UI
+       (title, character creator, starter picker, prologue) can breathe. */
+    .mob-root.hidden .mob-btn, .mob-root.hidden .mob-pad, .mob-root.hidden .mob-pill { display: none; }
 
     /* Portrait layout */
     .mob-root.portrait .mob-deck { position: absolute; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 0px);
@@ -6373,10 +6380,10 @@ menuBackdrop.addEventListener('click', () => {
   root.innerHTML = `
     <div class="mob-deck"></div>
     <div class="mob-pad" data-role="pad">
-      <div class="mob-pad-arrow" data-dir="up"    style="top: 8%;">▲</div>
-      <div class="mob-pad-arrow" data-dir="down"  style="bottom: 8%;">▼</div>
-      <div class="mob-pad-arrow" data-dir="left"  style="left: 8%;">◀</div>
-      <div class="mob-pad-arrow" data-dir="right" style="right: 8%;">▶</div>
+      <div class="mob-pad-arrow" data-dir="up"    style="top: 12%; left: 50%; transform: translateX(-50%);">↑</div>
+      <div class="mob-pad-arrow" data-dir="down"  style="bottom: 12%; left: 50%; transform: translateX(-50%);">↓</div>
+      <div class="mob-pad-arrow" data-dir="left"  style="left: 12%; top: 50%; transform: translateY(-50%);">←</div>
+      <div class="mob-pad-arrow" data-dir="right" style="right: 12%; top: 50%; transform: translateY(-50%);">→</div>
     </div>
     <div class="mob-btn b-A" data-key="z">A</div>
     <div class="mob-btn b-B" data-key="x">B</div>
@@ -6520,6 +6527,44 @@ menuBackdrop.addEventListener('click', () => {
       dispatch('keyup', key);
     }
   });
+
+  // V2.33.1 — hide controller when the game is on non-gameplay screens
+  // (title / creator / starter / prologue). Poll cheaply because those
+  // screens have visibility driven by class toggles, not game.mode.
+  function screenActive(id) {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    // "hidden" class = inactive on title/creator/starter/prologue;
+    // "active"       = live on overlays. Different naming per screen.
+    return !el.classList.contains('hidden');
+  }
+  function updateHidden() {
+    const menuLike = screenActive('title-screen') || screenActive('creator-screen')
+                   || screenActive('starter-screen') || screenActive('prologue-screen');
+    root.classList.toggle('hidden', menuLike);
+  }
+  const mo = new MutationObserver(updateHidden);
+  ['title-screen','creator-screen','starter-screen','prologue-screen'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+  updateHidden();
+
+  // V2.33.1 — canvas tap = confirm. Tapping anywhere on the game canvas
+  // dispatches a 'z' key so dialog advances, interactions trigger, etc.
+  const canvas = document.getElementById('game');
+  if (canvas) {
+    canvas.style.touchAction = 'manipulation';
+    canvas.addEventListener('pointerdown', (e) => {
+      // Don't fire during menu-like screens or when a mobile control was tapped
+      if (root.classList.contains('hidden')) return;
+      if (e.target !== canvas) return;
+      pressKey('z', 'canvas');
+      haptic();
+      setTimeout(() => releaseKey('z', 'canvas'), 40);
+      resetIdle();
+    });
+  }
 })();
 
 </script>

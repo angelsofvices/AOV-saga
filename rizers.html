@@ -1723,13 +1723,19 @@ function _typeMultSingle(atk, def) {
   if (TYPE_STRONG_VS[def] && TYPE_STRONG_VS[def].includes(atk)) return 0.5;
   return 1;
 }
-// Dual-type multiplier stacking (Cardmaster canon):
-// both vulnerable = 4× · vuln+neutral = 2× · both neutral = 1× ·
-// resist+neutral = 0.5× · both resist = 0.25× · cancel (strong+resist) = 1×
-function typeMult(atk, def1, def2) {
+// V2.27 — Type multiplier stacking. Tier 1–5 Zyrex have up to 2 types; Tier 6+
+// (Pseudoimmortal, Immortal, Demigod, God) MAY have an optional 3rd type.
+// Result CLAMPED to [0.25, 4] so the four-band vocabulary (pitiful / poor /
+// normal / heavy / devastating) stays intact regardless of how many types stack.
+// Cardmaster canon: both vulnerable = 4× · vuln+neutral = 2× · both neutral = 1×
+// · resist+neutral = 0.5× · both resist = 0.25× · strong+resist cancel = 1×.
+function typeMult(atk, def1, def2, def3) {
   const m1 = _typeMultSingle(atk, def1);
   const m2 = def2 && def2 !== def1 ? _typeMultSingle(atk, def2) : 1;
-  return m1 * m2;
+  const m3 = def3 && def3 !== def1 && def3 !== def2 ? _typeMultSingle(atk, def3) : 1;
+  const raw = m1 * m2 * m3;
+  // Clamp to preserve the four-band scale even when 3 types all resist/weaken.
+  return Math.max(0.25, Math.min(4, raw));
 }
 // V2.23 / V2.26 — the four canonical effectiveness bands. Neutral is quiet on purpose.
 // Vocabulary lock: pitiful 0.25× · poor 0.5× · normal 1× · heavy 2× · devastating 4×.
@@ -2020,6 +2026,7 @@ function makeZyrex(speciesId, lv) {
     name: s.name,
     type: s.type,
     type2: s.type2 || null,
+    type3: (s.type3 && (s.tier || 1) >= 6) ? s.type3 : null,   // V2.27 — Tier 6+ only
     lv,
     xp: 0,
     hp: stats.hp,
@@ -3795,10 +3802,12 @@ function selectDexEntry(id, rowEl) {
   }
   const tierRoman = ['I','II','III','IV','V','VI','VII','VIII','IX','X'][(s.tier || 1) - 1];
   const t2 = (s.type2 && s.type2 !== s.type) ? s.type2 : null;
+  // V2.27 — Tier 6+ can carry an optional 3rd type
+  const t3 = (s.type3 && (s.tier || 1) >= 6 && s.type3 !== s.type && s.type3 !== s.type2) ? s.type3 : null;
   const dadNote = DAD_NOTES[id] || 'No note yet. Dad kept this page blank.';
   let html = `
     <h3>${s.name}</h3>
-    <div class="meta">Tier ${tierRoman} · <span class="type-pill" style="border-color:${TYPE_COLORS[s.type] || '#8a8a8a'}">${s.type}</span>${t2 ? '<span class="type-pill" style="border-color:' + (TYPE_COLORS[t2] || '#8a8a8a') + '">' + t2 + '</span>' : ''}${s.region ? '  ·  ' + s.region : ''}</div>
+    <div class="meta">Tier ${tierRoman} · <span class="type-pill" style="border-color:${TYPE_COLORS[s.type] || '#8a8a8a'}">${s.type}</span>${t2 ? '<span class="type-pill" style="border-color:' + (TYPE_COLORS[t2] || '#8a8a8a') + '">' + t2 + '</span>' : ''}${t3 ? '<span class="type-pill" style="border-color:' + (TYPE_COLORS[t3] || '#8a8a8a') + '">' + t3 + '</span>' : ''}${s.region ? '  ·  ' + s.region : ''}</div>
     <div class="dad-note">DAD\'S NOTE  ·  &ldquo;${dadNote}&rdquo;</div>`;
   if (caught) {
     const b = s.base;
@@ -4637,7 +4646,7 @@ function pickEnemyMove(e, p) {
   const pool = e.moves.length ? e.moves : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
   let best = pool[0], bestScore = -1;
   for (const m of pool) {
-    const score = (m.power || 0) * typeMult(m.type, p.type, p.type2);
+    const score = (m.power || 0) * typeMult(m.type, p.type, p.type2, p.type3);
     if (score > bestScore) { best = m; bestScore = score; }
   }
   return best;
@@ -4651,7 +4660,7 @@ async function enemyTurn() {
   const pool = e.moves.length ? e.moves : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
   let best = pool[0], bestScore = -1;
   for (const m of pool) {
-    const score = (m.power || 0) * typeMult(m.type, p.type, p.type2);
+    const score = (m.power || 0) * typeMult(m.type, p.type, p.type2, p.type3);
     if (score > bestScore) { best = m; bestScore = score; }
   }
   await performMove(e, p, best, false);
@@ -4666,8 +4675,8 @@ async function performMove(user, target, move, playerSide) {
     await wait(700);
     return;
   }
-  // Dual-type stacked multiplier
-  const mult = typeMult(move.type, target.type, target.type2);
+  // V2.27 — Multi-type stacked multiplier (2 types Tier 1–5; up to 3 Tier 6+).
+  const mult = typeMult(move.type, target.type, target.type2, target.type3);
   const atk = user.stats.atk * stageMult(user.atkStage);
   const def = target.stats.def;
   const base = ((atk / def) * move.power * (user.lv / (user.lv + target.lv))) / 2;
@@ -4991,6 +5000,7 @@ function evolveZyrex(r, nextSpeciesId) {
   r.name    = next.name;
   r.type    = next.type;
   r.type2   = next.type2 || null;
+  r.type3   = (next.type3 && (next.tier || 1) >= 6) ? next.type3 : null;  // V2.27
   const newMaxLv = speciesEvolveLv(next);
   r.stats.hp  = statAtLv(next.base.hp,  r.lv, newMaxLv);
   r.stats.atk = statAtLv(next.base.atk, r.lv, newMaxLv);
@@ -5315,11 +5325,12 @@ function renderPartyScreen() {
       const hpCls = ratio < 0.25 ? 'low' : ratio < 0.5 ? 'mid' : '';
       const speciesTier = (SPECIES[r.species] && SPECIES[r.species].tier) || 1;
       const dual = r.type2 && r.type2 !== r.type ? `/${r.type2}` : '';
+      const tri  = r.type3 && r.type3 !== r.type && r.type3 !== r.type2 ? `/${r.type3}` : ''; // V2.27
       slot.innerHTML = `
         <canvas class="party-sprite" width="48" height="48"></canvas>
         <div class="party-info">
           <div class="party-name">${r.name}</div>
-          <div class="party-hp-line">Lv ${r.lv} · Card Tier ${TIER_ROMAN[speciesTier-1]} · ${r.type}${dual} · HP ${r.hp}/${r.maxHp}</div>
+          <div class="party-hp-line">Lv ${r.lv} · Card Tier ${TIER_ROMAN[speciesTier-1]} · ${r.type}${dual}${tri} · HP ${r.hp}/${r.maxHp}</div>
           <div class="party-hp-bar"><div class="party-hp-fill ${hpCls}" style="width:${ratio * 100}%"></div></div>
           <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Z to swap  ·  Enter to inspect</div>
         </div>
@@ -5368,7 +5379,7 @@ function openInspect(r, slotIdx) {
   $inspectBody.innerHTML = `
     <div class="inspect-row"><span class="lbl">Level</span><span class="val">${r.lv} · Tier ${tierRoman(r.lv)}</span></div>
     <div class="inspect-row"><span class="lbl">Form</span><span class="val">${TIER_ROMAN[speciesTier-1]}${nextForm ? ' · evolves into ' + nextForm + ' @ Lv ' + evolveLv : ' · terminal form'}</span></div>
-    <div class="inspect-row"><span class="lbl">Type</span><span class="val">${r.type}${dual}</span></div>
+    <div class="inspect-row"><span class="lbl">Type</span><span class="val">${r.type}${dual}${tri}</span></div>
     <div class="inspect-row"><span class="lbl">HP</span><span class="val">${r.hp} / ${r.maxHp}</span></div>
     <div class="inspect-row"><span class="lbl">ATK</span><span class="val">${r.stats.atk}</span></div>
     <div class="inspect-row"><span class="lbl">DEF</span><span class="val">${r.stats.def}</span></div>

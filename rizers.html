@@ -2058,7 +2058,9 @@ const game = {
     gemspheres: 5,
     coins: 5,               // V2.7 — merchant currency; drops from battle wins
     items: { potion: 0 },
-    keys: { bronze: 0, silver: 0 },
+    keys: { bronze: 0, silver: 0,
+            ruby: 0, pearl: 0, citrine: 0, emerald: 0, amethyst: 0,
+            sapphire: 0, onyx: 0, amber: 0, anomaly: 0, ultra: 0 },  // V2.21 — 10 Gemlord gem-keys (one per district)
     housesLooted: {},
     mapId: 'malezor',       // V2.8 — which map the player is on
     bossDefeated: false,
@@ -2113,7 +2115,7 @@ const MALEZOR_MAP = [
   '#,,,,,,,,,,,,,,,,,,J,GGGG,,,,C', // 7 · J=Jax (rival Rizer), C=cave/boss (east edge)
   '#T,,GG,,,,,,,,,,,,,,GGG,,,,,##', // 8
   '#,,GGGG,,,,,,,,,,,,,,,,,,,,K,#', // 9
-  '#,,WWW,,,,,,,,,,,,,,,,,,,,,,,#', // 10
+  '#,,WWW,,,,,,,,,,,,,,,,,,,,,,,>', // 10 · V2.21 — east portal to Zarvane
   '#,,WWW,,,,K,,,,,,GGG,,,,,,,,,#', // 11
   '#,,,,,,,,,,,hh,,GGGGG,,,,,,,,#', // 12 · hh = Silver Lodge roof (top row of 2x2)
   '#T,,,,,,,,,,qh,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge door
@@ -2164,6 +2166,162 @@ const MAPS = {
   bronze_cottage: { data: BRONZE_HOUSE_MAP,  cols: 12, rows:  7, label: 'Bronze Cottage' },
   silver_lodge:   { data: SILVER_LODGE_MAP,  cols: 12, rows:  7, label: 'Silver Lodge' },
 };
+
+// ============================================================================
+//  V2.21 — TEN DISTRICTS OF ZYRAXIS (skeleton pass)
+// ============================================================================
+// Canonical Z-order I → X (see aov-zyraxis-ten-districts memory). Each district
+// gets a procedurally-generated map that scales in size, wild-encounter tier,
+// chest count, and locked-building count. Player walks off the east edge of any
+// district and enters the next; off the west edge, the previous. Malezor's
+// hand-crafted map stays untouched (Chapter I authority).
+
+const DISTRICT_META = {
+  malezor:   { num: 1,  name: 'Malezor',   land: 'Beastlands',    types: ['Creature','Beast'],         tierBand: [1, 3],   accent: '#78a4c8', gemlord: 'rakoron',  gemKey: 'ruby'      },
+  zarvane:   { num: 2,  name: 'Zarvane',   land: 'Auralands',     types: ['Spirit','Aura'],            tierBand: [3, 5],   accent: '#f0d890', gemlord: 'ivirium',  gemKey: 'pearl'     },
+  andrannor: { num: 3,  name: 'Andrannor', land: 'Creaturelands', types: ['Beast','Creature'],         tierBand: [5, 7],   accent: '#d89858', gemlord: 'mutaryn',  gemKey: 'citrine'   },
+  veridan:   { num: 4,  name: 'Veridan',   land: 'Naturelands',   types: ['Creature','Nature'],        tierBand: [7, 9],   accent: '#4ec48a', gemlord: 'emeralix', gemKey: 'emerald'   },
+  netharion: { num: 5,  name: 'Netharion', land: 'Unknownlands',  types: ['Beast','Unknown-Void'],     tierBand: [9, 12],  accent: '#a074e0', gemlord: 'eurakeon', gemKey: 'amethyst'  },
+  vorashil:  { num: 6,  name: 'Vorashil',  land: 'Alienlands',    types: ['Tech','Extraterrestrial'],  tierBand: [12, 15], accent: '#5fa8ff', gemlord: 'azurel',   gemKey: 'sapphire'  },
+  xilnar:    { num: 7,  name: 'Xilnar',    land: 'Spiritlands',   types: ['Unknown-Void','Spirit'],    tierBand: [15, 18], accent: '#6b5a8a', gemlord: 'obsidius', gemKey: 'onyx'      },
+  baelgor:   { num: 8,  name: 'Baelgor',   land: 'Humanoidlands', types: ['Aura','Humanoid-Noid'],     tierBand: [18, 22], accent: '#e8a848', gemlord: 'ambrevon', gemKey: 'amber'     },
+  thardin:   { num: 9,  name: 'Thardin',   land: 'Mechlands',     types: ['Humanoid-Noid','Tech'],     tierBand: [22, 27], accent: '#a0b8d8', gemlord: 'oathane',  gemKey: 'anomaly'   },
+  korathen:  { num: 10, name: 'Korathen',  land: 'Ultralands',    types: ['Aura','Humanoid-Noid'],     tierBand: [27, 35], accent: '#ff9a3a', gemlord: 'oatheus',  gemKey: 'ultra'     },
+};
+const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+
+// Pick species from the current SPECIES roster that match a district's type mix.
+// Falls back to any Zyrex if no match — every district gets a wild pool.
+function speciesMatchingTypes(types) {
+  const set = new Set(types);
+  const hits = [];
+  for (const id in SPECIES) {
+    const s = SPECIES[id];
+    if (!s || !s.base) continue;
+    if (set.has(s.type) || (s.type2 && set.has(s.type2))) hits.push(id);
+  }
+  return hits.length ? hits : Object.keys(SPECIES).filter(id => SPECIES[id].tier <= 3);
+}
+function districtWildPool(mapId) {
+  const meta = DISTRICT_META[mapId];
+  if (!meta) return null;
+  const ids = speciesMatchingTypes(meta.types);
+  const [lo, hi] = meta.tierBand;
+  const lvLo = Math.max(1, lo * 3);         // Lv scaling within tier band
+  const lvHi = Math.max(lvLo + 2, hi * 3 + 2);
+  return { ids, lvRange: [lvLo, lvHi] };
+}
+
+// Procedurally build a district map. Layout: rectangle of walls, interior of
+// walkable ground, sprinkled gemgrass, chests, decorative trees, and a single
+// sealed 'C' Gemlord cave near the east border. West/east edge columns are
+// left as walkable portal seams (indices 0 / cols-1 are walls, but one row in
+// the middle of each edge is a walkable ',' that triggers cross-district travel).
+function generateDistrictMap(mapId) {
+  const meta = DISTRICT_META[mapId];
+  const idx  = DISTRICT_ORDER.indexOf(mapId);
+  // Malezor is the base scale (30x20). Each subsequent district +4 cols +2 rows.
+  const cols = 30 + idx * 4;
+  const rows = 20 + idx * 2;
+  const chestTarget    = 6 + idx * 2;   // 6, 8, 10, ... 24
+  const grassTarget    = 12 + idx * 4;  // 12, 16, ... 48
+  const buildingTarget = 1 + Math.floor(idx / 2);  // 1, 1, 2, 2, 3, 3, 4, 4, 5, 5
+
+  // Deterministic PRNG so a district always regenerates the same way
+  // (players can memorize routes across saves).
+  let seed = 0;
+  for (let i = 0; i < mapId.length; i++) seed = (seed * 31 + mapId.charCodeAt(i)) >>> 0;
+  const rand = () => { seed = (seed * 1103515245 + 12345) >>> 0; return (seed / 0x100000000); };
+  const pick = (a, b) => Math.floor(rand() * (b - a + 1)) + a;
+
+  // Base grid.
+  const grid = [];
+  for (let y = 0; y < rows; y++) {
+    const row = [];
+    for (let x = 0; x < cols; x++) {
+      const isEdge = (x === 0 || y === 0 || x === cols - 1 || y === rows - 1);
+      row.push(isEdge ? '#' : ',');
+    }
+    grid.push(row);
+  }
+
+  // Portal seams — cut ONE walkable tile in west (col 0) and east (col cols-1)
+  // walls at the vertical midpoint. tryMove translates stepping onto a portal
+  // into a cross-district travel.
+  const midY = Math.floor(rows / 2);
+  grid[midY][0]        = 'W';   // reuse 'W' visually distinct? actually reserve — use '<' char
+  grid[midY][cols - 1] = 'E';   // treat as marker; converted below to '<' and '>' chars
+  // Use dedicated portal glyphs so it doesn't collide with 'W' (water) or 'E' (nothing).
+  grid[midY][0]        = '<';
+  grid[midY][cols - 1] = '>';
+
+  // Scatter gemgrass patches (encounter zones).
+  let g = 0;
+  while (g < grassTarget) {
+    const x = pick(2, cols - 3);
+    const y = pick(2, rows - 3);
+    if (grid[y][x] !== ',') continue;
+    // 2x2 patch
+    for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+      const yy = y + dy, xx = x + dx;
+      if (grid[yy] && grid[yy][xx] === ',') grid[yy][xx] = 'G';
+    }
+    g++;
+  }
+  // Scatter chests.
+  let c = 0;
+  while (c < chestTarget) {
+    const x = pick(2, cols - 3);
+    const y = pick(2, rows - 3);
+    if (grid[y][x] !== ',') continue;
+    grid[y][x] = 'K';
+    c++;
+  }
+  // Scatter trees (decorative).
+  const treeTarget = 8 + idx * 3;
+  let t = 0;
+  while (t < treeTarget) {
+    const x = pick(2, cols - 3);
+    const y = pick(2, rows - 3);
+    if (grid[y][x] !== ',') continue;
+    grid[y][x] = 'T';
+    t++;
+  }
+  // Locked buildings — 2x2 footprint, one door char per district's gemKey tier.
+  // For skeleton we use 'p' char (bronze-lock) as a stand-in; a full 10-key
+  // rewrite happens in a later pass. Each building sits alone.
+  for (let b = 0; b < buildingTarget; b++) {
+    let placed = false;
+    for (let tries = 0; tries < 40 && !placed; tries++) {
+      const x = pick(4, cols - 6);
+      const y = pick(3, rows - 4);
+      // Need a 2x2 footprint of ',' tiles.
+      const clear = (grid[y][x] === ',' && grid[y][x+1] === ',' &&
+                     grid[y+1][x] === ',' && grid[y+1][x+1] === ',');
+      if (!clear) continue;
+      grid[y][x]     = 'h'; grid[y][x+1]   = 'h';    // roof
+      grid[y+1][x]   = 'p'; grid[y+1][x+1] = 'h';    // door + wall
+      placed = true;
+    }
+  }
+  // Sealed Gemlord cave in the middle of the east border area.
+  const caveX = cols - 2;
+  const caveY = Math.floor(rows / 2) - 2;
+  if (caveY > 1 && grid[caveY][caveX] !== undefined) grid[caveY][caveX] = 'C';
+
+  return grid.map(row => row.join(''));
+}
+
+// Register districts II–X in MAPS. Malezor stays as its hand-crafted map.
+for (const id of DISTRICT_ORDER) {
+  if (id === 'malezor') continue;
+  const meta = DISTRICT_META[id];
+  const idx  = DISTRICT_ORDER.indexOf(id);
+  const cols = 30 + idx * 4;
+  const rows = 20 + idx * 2;
+  const data = generateDistrictMap(id);
+  MAPS[id] = { data, cols, rows, label: `${meta.name} · ${meta.land}` };
+}
 // Which map to enter when the player walks through a door tile.
 // entry[0..1] is the spawn tile on the destination map, facing 'up'.
 const DOOR_TARGETS = {
@@ -2229,8 +2387,8 @@ function tileAt(x, y) {
 function walkable(x, y) {
   const t = tileAt(x, y);
   // V2.10.1 — house body 'h' now blocks (bigger 3x2 exteriors).
-  // Doors (H, x, p, q) are 'walkable' — walking INTO them triggers
-  // auto-enter via tryMove's post-step door check.
+  // Doors (H, x, p, q, portal < >) are 'walkable' — walking INTO them
+  // triggers auto-enter via tryMove's post-step door check.
   if ('#TWMSBh=btmd'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQ'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);
@@ -2408,6 +2566,27 @@ function drawTile(x, y, ch, mx, my) {
       ctx.moveTo(px + TILE / 4, py + 5);
       ctx.lineTo(px + 3 * TILE / 4, py + 5);
       ctx.stroke();
+      break;
+    }
+    case '<':
+    case '>': {
+      // V2.21 — District travel portal. Draw as an arrow-carved threshold.
+      drawTile(x, y, ',', mx, my);
+      const districtId = game.player.mapId;
+      const meta = DISTRICT_META[districtId];
+      const accent = (meta && meta.accent) || '#e8c878';
+      ctx.fillStyle = 'rgba(15, 10, 28, 0.75)';
+      ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 7);
+      ctx.fillStyle = accent;
+      ctx.font = 'bold 18px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ch === '>' ? '»' : '«', px + TILE / 2, py + TILE / 2 + 1);
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
       break;
     }
     case 'C': {
@@ -3237,6 +3416,12 @@ function tryMove(dx, dy) {
     triggerDoor(nt, nx, ny);
     return;
   }
+  // V2.21 — District portal: '<' goes to previous district, '>' to next.
+  if (nt === '<' || nt === '>') {
+    game.player.moveCd = 260;
+    travelDistrict(nt === '>' ? +1 : -1);
+    return;
+  }
   if (!walkable(nx, ny)) { game.player.moveCd = 120; return; }
   game.player.x = nx;
   game.player.y = ny;
@@ -3701,10 +3886,38 @@ const WILD_POOL = [
 ];
 
 function startWildEncounter() {
+  // V2.21 — Prefer per-district pool. Fall back to legacy WILD_POOL if none.
+  const districtPool = districtWildPool(game.player.mapId);
+  if (districtPool && districtPool.ids.length) {
+    const id = districtPool.ids[Math.floor(Math.random() * districtPool.ids.length)];
+    const [lo, hi] = districtPool.lvRange;
+    const lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
+    return enterBattle(makeZyrex(id, lv), 'wild');
+  }
   const roll = WILD_POOL[Math.floor(Math.random() * WILD_POOL.length)];
   const lv = roll.lvRange[0] + Math.floor(Math.random() * (roll.lvRange[1] - roll.lvRange[0] + 1));
-  const enemy = makeZyrex(roll.id, lv);
-  enterBattle(enemy, 'wild');
+  enterBattle(makeZyrex(roll.id, lv), 'wild');
+}
+
+// V2.21 — walk off a portal edge to travel one district in Z-order.
+function travelDistrict(dir) {
+  const currentIdx = DISTRICT_ORDER.indexOf(game.player.mapId);
+  if (currentIdx < 0) return;
+  const nextIdx = currentIdx + dir;
+  if (nextIdx < 0 || nextIdx >= DISTRICT_ORDER.length) {
+    showToast(dir > 0 ? 'THE MAP ENDS HERE — for now.' : 'NO WAY WEST.', 1600);
+    return;
+  }
+  const nextId = DISTRICT_ORDER[nextIdx];
+  const nextMap = MAPS[nextId];
+  if (!nextMap) { showToast('DISTRICT NOT WIRED', 1600); return; }
+  const meta = DISTRICT_META[nextId];
+  const midY = Math.floor(nextMap.rows / 2);
+  // Arriving from the WEST portal — spawn just east of it. From the EAST — spawn just west of it.
+  const spawnX = (dir > 0) ? 1 : nextMap.cols - 2;
+  const spawnDir = (dir > 0) ? 'right' : 'left';
+  enterMap(nextId, spawnX, midY, spawnDir);
+  showToast(`◈  ${meta.name.toUpperCase()} · ${meta.land.toUpperCase()}`, 2200);
 }
 
 function startNPCBattle() {
@@ -5362,7 +5575,9 @@ document.getElementById('btn-new').onclick = () => {
     gemspheres: 5,
     coins: 5,
     items: { potion: 0 },
-    keys: { bronze: 0, silver: 0 },  // V2.8.3 — house keys
+    keys: { bronze: 0, silver: 0,
+            ruby: 0, pearl: 0, citrine: 0, emerald: 0, amethyst: 0,
+            sapphire: 0, onyx: 0, amber: 0, anomaly: 0, ultra: 0 },  // V2.21 — 10 Gemlord gem-keys (one per district)  // V2.8.3 — house keys
     housesLooted: {},                // V2.8.3 — { 'bronze_cottage': true } when chests raided
     mapId: 'home_interior',
     bossDefeated: false,

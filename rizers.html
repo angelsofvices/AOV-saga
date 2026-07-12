@@ -4590,26 +4590,61 @@ function tryInteract() {
     // Pressing Z from an adjacent tile also enters the home directly.
     enterMap('home_interior', 6, 7, 'up');
   } else if (t === 'M') {
-    // V2.17 — Mothergem is a landmark shrine, no longer part of the Elzebub flow.
-    if (game.player.bossDefeated) {
-      showDialog([
-        "You touch the Mothergem shrine — colder now, or maybe older.",
-        "The stone hums against your palm — same frequency as the echo.",
-        "«...one of the nine begins to stir...»",
-      ]);
-    } else {
-      showDialog([
-        "You touch the Mothergem shrine — cold as first-light.",
-        "The stone remembers. But not clearly. Not fully.",
-        `«...three names carried into three shadows...»`,
-        `«...the choir sings from a ridge you have not walked...»`,
-        `«...the sand keeps a secret the wind does not...»`,
-        "The hum fades. That is all it will give you today.",
-      ]);
-    }
+    handleMothergemTouch(tx, ty);
   } else if (isHomunculusHere(tx, ty)) {
     // V2.17 — pick up the forgotten homunculus.
     handleHomunculusPickup();
+  }
+}
+
+// V2.40 — Mothergem touch tracker. Touching BOTH Mothergem shards on
+// Malezor sets shardshareReady = true. Next time the player talks to Dad
+// he offers the SHARDSHARE device (XP-sharing across the whole party).
+function handleMothergemTouch(tx, ty) {
+  if (!game.player.mothergemTouched) game.player.mothergemTouched = {};
+  const key = tx + ',' + ty;
+  const first = !game.player.mothergemTouched[key];
+  game.player.mothergemTouched[key] = true;
+  const touchedCount = Object.keys(game.player.mothergemTouched).length;
+  save();
+
+  if (first && touchedCount === 1) {
+    showDialog([
+      'You touch the Mothergem shard — cold as first-light.',
+      'The stone remembers, but not clearly.',
+      '«...its twin still waits somewhere on Malezor...»',
+    ]);
+    return;
+  }
+  if (first && touchedCount >= 2 && !game.player.shardshareReady && !game.player.shardshareGranted) {
+    // Second shard touched — trigger the resonance event.
+    game.player.shardshareReady = true;
+    save();
+    showDialog([
+      'Both shards resonate — a low hum threads between them across Malezor.',
+      'The frequency lodges in your chest, then fades.',
+      '«...something new stirs in your father\'s workshop...»',
+      'Go home and talk to DAD.',
+    ]);
+    showToast('◈  MOTHERGEM RESONANCE  ·  see Dad', 3000);
+    return;
+  }
+  // Recurring visits — no more resonance to trigger.
+  if (game.player.bossDefeated) {
+    showDialog([
+      'You touch the Mothergem shrine — colder now, or maybe older.',
+      'The stone hums against your palm — same frequency as the echo.',
+      '«...one of the nine begins to stir...»',
+    ]);
+  } else {
+    showDialog([
+      'You touch the Mothergem shrine — cold as first-light.',
+      'The stone remembers. But not clearly. Not fully.',
+      '«...three names carried into three shadows...»',
+      '«...the choir sings from a ridge you have not walked...»',
+      '«...the sand keeps a secret the wind does not...»',
+      'The hum fades. That is all it will give you today.',
+    ]);
   }
 }
 
@@ -5224,6 +5259,29 @@ function interactDad() {
       $starter.classList.remove('hidden');
       game.mode = 'starter';
       renderStarterScreen();
+    });
+  } else if (game.player.shardshareReady && !game.player.shardshareGranted) {
+    // V2.40 — Shardshare handoff. Only fires once, after the player has
+    // touched both Mothergem shards on Malezor.
+    showDialog([
+      `DAD: You felt it too, didn't you.  The resonance.`,
+      `DAD: When the two shards hum together, the Mothergem remembers what it's for —`,
+      `carrying frequencies across distance.  Same idea, smaller scale.`,
+      ``,
+      `DAD: I've been building this for a year. I call it the SHARDSHARE.`,
+      `DAD: It slots into your pouch and taps into every gem you carry.`,
+      `«DAD gives you the SHARDSHARE.»`,
+      ``,
+      `DAD: Here's what it does.  From now on, when one of your Zyrex earns`,
+      `experience, every OTHER Zyrex in your party — as long as they're still`,
+      `standing — earns the same amount.  Not split.  Same.`,
+      ``,
+      `DAD: The whole team learns from the same fight.  Faster growth, deeper roster.`,
+      `DAD: Now go.  Malezor is waiting.`,
+    ], () => {
+      game.player.shardshareGranted = true;
+      save();
+      showToast('◈  SHARDSHARE  ·  party XP share ON', 2600);
     });
   } else {
     // Recurring — mystery status + Dad tells more Mothergem lore each visit.
@@ -6000,6 +6058,21 @@ function grantXP(p, defeated) {
     const need = xpForNext(p.lv);
     if (!levelUp(p)) { p.xp = 0; break; }   // levelUp returns false when tier-capped
     p.xp -= need;
+  }
+  // V2.40 — SHARDSHARE: broadcast the SAME xpGained to every OTHER alive
+  // party Zyrex. Not divided — everyone alive earns the full amount.
+  if (game.player.shardshareGranted) {
+    for (const r of game.player.party) {
+      if (!r || r === p) continue;
+      if (r.hp <= 0) continue;   // must be alive
+      r.xp += xpGained;
+      while (r.xp >= xpForNext(r.lv)) {
+        const need = xpForNext(r.lv);
+        if (!levelUp(r)) { r.xp = 0; break; }
+        r.xp -= need;
+      }
+    }
+    logBattle(`◈ SHARDSHARE  ·  +${xpGained} XP to the rest of the party`);
   }
 }
 

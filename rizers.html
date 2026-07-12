@@ -2661,51 +2661,51 @@ const MALEZOR_MAP = [
   '#T,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 18
   '##############################', // 19
 ];
-// V2.36 — 3-FLOOR HOUSE
-// New tile chars:
-//   U = stairs UP (context-aware — dest depends on current map)
-//   w = stairs DOWN (context-aware)
-//   k = computer / PC
-//   j = science experiment (jar / beaker)
-//   z = poster (Zyraxis mythology; wall-art, blocks like a wall)
+// V2.36 — 3-FLOOR HOUSE (V2.36.1 layout: staircases in top-right corner of each floor)
+// Tile chars:
+//   U = stairs UP     · context-aware travel via getStairTarget()
+//   w = stairs DOWN   · context-aware travel via getStairTarget()
+//   k = computer / PC (blocks)
+//   j = science experiment / beaker (blocks)
+//   z = poster (wall-art; blocks like a wall)
 
-// BASEMENT — player's bedroom, first floor of gameplay. Player starts here.
+// BASEMENT — player's bedroom.  Starting map.  Stairs UP in top-right corner.
 const BASEMENT_MAP = [
   '==============', // 0
-  '=zz.........z=', // 1 · posters on the back wall
-  '=zz.........z=', // 2 · posters continue
-  '=.b........k.=', // 3 · b = bed (start), k = computer
-  '=.b..........=', // 4 · (bed is a single tile — the visual is drawn as a big bed)
-  '=............=', // 5
-  '=..........j.=', // 6 · j = experiment
-  '=............=', // 7
-  '=......U.....=', // 8 · U = stairs up to main floor
-  '==============', // 9  — wall row
+  '=.b.........U=', // 1 · b = bed (start),  U = stairs up (top-right corner)
+  '=.b..........=', // 2 · (bed 2 tiles tall for visual clarity)
+  '=..........k.=', // 3 · k = computer
+  '=............=', // 4
+  '=..........j.=', // 5 · j = experiment
+  '=............=', // 6
+  '=zz..........=', // 7 · posters bottom-left
+  '=zz..........=', // 8
+  '==============', // 9
 ];
-// MAIN FLOOR — shared living space. Front door to Malezor + stairs both ways.
-// No parents here anymore (they live upstairs now).
+// MAIN FLOOR — shared living space.  Mom lives here.  Front door to Malezor.
+// Both staircases in the top-right corner: w (down to basement) then U (up to Dad).
 const HOUSE_MAP = [
   '==============', // 0
-  '=............=', // 1
-  '=.t..........=', // 2 · t = table
-  '=............=', // 3
+  '=..........wU=', // 1 · w = down to basement · U = up to Dad's office
+  '=............=', // 2
+  '=..t.........=', // 3 · t = table
   '=............=', // 4
-  '=............=', // 5
-  '=.....wU.....=', // 6 · w = down to basement, U = up to parents
+  '=.....m......=', // 5 · Mom stands here
+  '=............=', // 6
   '=......x.....=', // 7 · x = door out to Malezor
   '==============', // 8
 ];
-// PARENTS BEDROOM — upstairs, where Mom and Dad live and where the initial
-// dialogue sequence unfolds on the player's birthday.
+// DAD'S OFFICE — upstairs, where Dad works and keeps his notebook.
+// Stairs DOWN in top-right corner.
 const PARENTS_BEDROOM_MAP = [
   '==============', // 0
-  '=..bb........=', // 1 · parents bed (two tiles for a bigger bed)
-  '=..bb........=', // 2
-  '=............=', // 3
-  '=..m......d..=', // 4 · Mom left, Dad right
-  '=............=', // 5
-  '=..t.........=', // 6 · t = table
-  '=......w.....=', // 7 · w = stairs down to main floor
+  '=...........w=', // 1 · w = stairs down (top-right)
+  '=............=', // 2
+  '=..t.........=', // 3 · t = table (his desk)
+  '=............=', // 4
+  '=.....d......=', // 5 · Dad stands here
+  '=............=', // 6
+  '=..b.b.......=', // 7 · his bed (2-tile)
   '==============', // 8
 ];
 // V2.8.3 — Two locked houses on Malezor. Tiny interior maps with a chest.
@@ -2939,13 +2939,16 @@ const INTERIOR_EXITS = {
 // which stair-tile you step on + which map you're currently in decides
 // the destination.
 function getStairTarget(char, currentMap) {
+  // V2.36.1 — all staircases are in the top-right corner. Landing spots put
+  // the player one tile below/left of the destination stair so re-entering
+  // doesn't immediately re-trigger the transition.
   if (char === 'U') {
-    if (currentMap === 'basement')      return { map: 'home_interior',   x: 6, y: 6, dir: 'up' };   // land next to the down-stair on main floor
-    if (currentMap === 'home_interior') return { map: 'parents_bedroom', x: 7, y: 6, dir: 'up' };   // land next to the down-stair upstairs
+    if (currentMap === 'basement')      return { map: 'home_interior',   x: 11, y: 2, dir: 'down' };  // just below the down-stair on main floor
+    if (currentMap === 'home_interior') return { map: 'parents_bedroom', x: 12, y: 2, dir: 'down' };  // just below the down-stair upstairs
   }
   if (char === 'w') {
-    if (currentMap === 'home_interior')  return { map: 'basement',      x: 6, y: 8, dir: 'down' };  // land next to basement up-stair
-    if (currentMap === 'parents_bedroom')return { map: 'home_interior', x: 7, y: 6, dir: 'down' };  // land next to main-floor up-stair
+    if (currentMap === 'home_interior')  return { map: 'basement',      x: 11, y: 2, dir: 'down' };   // just below the up-stair in basement
+    if (currentMap === 'parents_bedroom')return { map: 'home_interior', x: 11, y: 2, dir: 'down' };   // just below the up-stair on main floor
   }
   return null;
 }
@@ -3306,31 +3309,59 @@ function drawTile(x, y, ch, mx, my) {
       ctx.strokeRect(px + 4, py + 18, TILE - 8, TILE - 24);
       break;
     }
-    // V2.36 — 3-floor house tiles
+    // V2.36 / V2.36.1 — 3-floor house tiles.
+    // Stairs are rendered as high-contrast step ladders on a warm brown
+    // landing so they read clearly against the plum floor.
     case 'U': {
-      // stairs up — dark base with pale steps ascending
+      // stairs UP — steps ascend from bottom-center to top-center (arrow-like)
       drawTile(x, y, '.', mx, my);
-      ctx.fillStyle = '#5a4028';
-      ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
-      ctx.fillStyle = '#e8c878';
+      // warm base
+      ctx.fillStyle = '#7a5a30';
+      ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+      // 4 ascending steps
+      ctx.fillStyle = '#f5dc9c';
       for (let i = 0; i < 4; i++) {
-        ctx.fillRect(px + 4 + i * 3, py + 6 + i * 5, TILE - 8 - i * 6, 3);
+        const w = TILE - 10 - i * 4;
+        const bx = px + (TILE - w) / 2;
+        const by = py + 6 + (3 - i) * 5;
+        ctx.fillRect(bx, by, w, 3);
       }
-      ctx.strokeStyle = '#8a6a2c';
-      ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 7);
+      // up arrow at top
+      ctx.fillStyle = '#ffdc90';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 4);
+      ctx.lineTo(px + TILE / 2 + 4, py + 8);
+      ctx.lineTo(px + TILE / 2 - 4, py + 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#3a2408';
+      ctx.strokeRect(px + 1.5, py + 1.5, TILE - 3, TILE - 3);
       break;
     }
     case 'w': {
-      // stairs down — steps descending
+      // stairs DOWN — steps descend from top-center to bottom-center (arrow-like)
       drawTile(x, y, '.', mx, my);
-      ctx.fillStyle = '#3a281c';
-      ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
-      ctx.fillStyle = '#8a6a2c';
+      // cooler base
+      ctx.fillStyle = '#5c4028';
+      ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+      // 4 descending steps
+      ctx.fillStyle = '#d0a878';
       for (let i = 0; i < 4; i++) {
-        ctx.fillRect(px + 4 + (3 - i) * 3, py + 6 + i * 5, TILE - 8 - (3 - i) * 6, 3);
+        const w = TILE - 10 - i * 4;
+        const bx = px + (TILE - w) / 2;
+        const by = py + 6 + i * 5;
+        ctx.fillRect(bx, by, w, 3);
       }
-      ctx.strokeStyle = '#5a3c18';
-      ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 7);
+      // down arrow at bottom
+      ctx.fillStyle = '#ffdc90';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + TILE - 4);
+      ctx.lineTo(px + TILE / 2 + 4, py + TILE - 8);
+      ctx.lineTo(px + TILE / 2 - 4, py + TILE - 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#2a1808';
+      ctx.strokeRect(px + 1.5, py + 1.5, TILE - 3, TILE - 3);
       break;
     }
     case 'k': {
@@ -4255,6 +4286,13 @@ function triggerDoor(tileChar, doorX, doorY) {
   }
   // Home 'x' from inside is always the Malezor exit.
   if (tileChar === 'x') {
+    // V2.36.1 — Mom intercepts if the player has a Zyrex but hasn't
+    // received the starter pack yet. She teleports over and gives it,
+    // then the player can leave.
+    if (game.player.party.length && !game.player.metMomGave) {
+      interactMom();
+      return;
+    }
     return exitHouseToMalezor();
   }
   // Locked door — check key
@@ -4939,15 +4977,31 @@ function interactMom() {
     grantElzebubFromMom();
     return;
   }
-  // First meeting — welcome + starter supply pack (potions + gemspheres).
+  // V2.36.1 — Two-phase first meeting on main floor.
+  //
+  //  Phase A · before starter: Mom greets, points player at Dad upstairs.
+  //  Phase B · after starter chosen: Mom gives the starter pack (potions +
+  //           gemspheres) as a going-away kit.
+  //
+  //  metMomGave flips ONLY at Phase B so recurring nurse dialog stays gated.
   if (!game.player.metMomGave) {
+    if (!game.player.party.length) {
+      // Phase A — before Zyrex
+      showDialog([
+        `MOM: Happy birthday, ${nm}!`,
+        `MOM: Your father has a surprise for you — go up and see him in his office.`,
+        `MOM: I'll be down here when you're ready to leave.`,
+      ]);
+      return;
+    }
+    // Phase B — Zyrex chosen, player back on main floor. Starter pack.
     const potionGift = 2, sphereGift = 2;
     showDialog([
-      `MOM: There you are, ${nm}. Warm bread on the table.`,
-      `MOM: I've packed you a nurse's kit for the road.`,
+      `MOM: Look at you — already a Rizer.`,
+      `MOM: Before you go, take a nurse's kit for the road.`,
       `«+${potionGift} POTIONS  ·  +${sphereGift} GEMSPHERES»`,
       `MOM: Come find me any time you're hurt. I'll patch you up.`,
-      game.player.party.length ? `MOM: Go on — the door's always open.` : `Your father has your birthday present downstairs.`,
+      `MOM: The door's always open. Come home safe.`,
     ], () => {
       items.potion = (items.potion || 0) + potionGift;
       game.player.gemspheres = (game.player.gemspheres || 0) + sphereGift;
@@ -6052,8 +6106,8 @@ function chooseStarter(id) {
     `DAD: Fill it up. That's how you learn a world — one page at a time.`,
     ``,
     // ---- HAND OFF TO MOM ----
-    `DAD: Go see your mother before you leave. She's packed something for`,
-    `the road — potions, gemspheres, the works. Nurse's supplies.`,
+    `DAD: Head back downstairs. Your mother's packed something for the road —`,
+    `potions, gemspheres, the works. Nurse's supplies.`,
     ``,
     `DAD: Come home safe, ${nm}.`,
   ], () => {

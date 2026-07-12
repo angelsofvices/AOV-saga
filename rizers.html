@@ -120,14 +120,16 @@
       box-shadow: 0 0 60px rgba(232, 200, 120, 0.18);
       overflow: hidden;
     }
-    /* V2.33.4 — Landscape: size stage by height so the whole game fits on-screen. */
+    /* V2.33.4 / V2.34 — Landscape: size stage by height and leave a top strip
+       for MENU/SELECT/START pills so nothing overlays the game viewport. */
     @media (orientation: landscape) and (hover: none) and (pointer: coarse) {
       .stage {
         width: auto;
-        height: min(94vh, 720px);
+        height: min(84vh, 720px);
         aspect-ratio: 20 / 14;
-        max-width: 96vw;
+        max-width: 92vw;
       }
+      body { padding-top: max(38px, env(safe-area-inset-top, 30px)); align-items: center; justify-content: flex-start; }
     }
 
     canvas#game {
@@ -166,14 +168,18 @@
       z-index: 200;
       padding: 22px;
       text-align: center;
-      overflow-y: auto;                       /* V2.33.2 — always scrollable on narrow screens */
-      -webkit-overflow-scrolling: touch;
+      overflow: hidden;                       /* V2.34 — never scroll; content must fit */
     }
     .title-screen.hidden { display: none; }
-    /* V2.33.2 — widen and unclamp on mobile so content doesn't get smushed */
+    /* V2.34 — mobile portrait: shrink content so everything fits in one screen. */
     @media (max-width: 900px) {
-      .title-screen { padding: 20px 12px; justify-content: flex-start; padding-top: max(48px, env(safe-area-inset-top, 20px)); }
+      .title-screen { padding: max(24px, env(safe-area-inset-top, 20px)) 12px 20px; gap: 6px; }
       .title-desc, .title-btns { max-width: 100%; width: 100%; }
+      .title-emblem { transform: scale(0.7); margin: 0; }
+      .title-name { font-size: 1.9rem !important; letter-spacing: 0.14em !important; }
+      .title-sub { font-size: 0.8rem; }
+      .title-desc { font-size: 0.82rem; line-height: 1.35; margin: 8px 0 12px; }
+      .title-controls { display: none !important; }   /* keyboard hints for desktop only */
     }
 
     /* Mothergem shard emblem — Design v1 */
@@ -318,16 +324,21 @@
       align-items: center; justify-content: center;
       padding: 30px 24px;
       text-align: center;
-      overflow-y: auto;                       /* V2.33.2 — always scrollable */
-      -webkit-overflow-scrolling: touch;
+      overflow: hidden;                       /* V2.34 — never scroll; content must fit */
     }
     .creator-screen.hidden { display: none; }
-    /* V2.33.2 — widen creator on mobile; top-anchor scrolling so 'Begin' is reachable */
+    /* V2.34 — mobile portrait: compress creator so name + gender + Begin all fit above the fold. */
     @media (max-width: 900px) {
-      .creator-screen { padding: 20px 12px; justify-content: flex-start; padding-top: max(48px, env(safe-area-inset-top, 20px)); padding-bottom: max(80px, env(safe-area-inset-bottom, 40px)); gap: 14px; }
+      .creator-screen { padding: max(20px, env(safe-area-inset-top, 12px)) 12px max(16px, env(safe-area-inset-bottom, 12px)); gap: 8px; justify-content: center; }
+      .creator-eyebrow { font-size: 0.55rem !important; letter-spacing: 0.35em !important; margin-bottom: 6px !important; }
+      .creator-title { font-size: 1.5rem !important; letter-spacing: 0.14em !important; margin-bottom: 4px !important; }
+      .creator-lead { font-size: 0.78rem !important; line-height: 1.35 !important; margin: 6px 0 10px !important; }
+      .creator-label { font-size: 0.65rem !important; margin-bottom: 4px !important; }
       .creator-input, .creator-cta { width: 100%; max-width: 100%; }
-      .gender-grid { width: 100%; max-width: 100%; gap: 8px; }
-      .gender-btn { width: 100%; }
+      .creator-field { margin-bottom: 8px !important; }
+      .gender-grid { width: 100%; max-width: 100%; gap: 6px; }
+      .gender-btn { width: 100%; padding: 8px 4px !important; }
+      .gender-btn canvas { width: 32px !important; height: 32px !important; }
     }
     .creator-eyebrow {
       font-family: var(--font-meta);
@@ -1590,6 +1601,9 @@
           <button class="mainmenu-btn" data-open="items">    <span class="mm-icon">✚</span>ITEMS</button>
           <button class="mainmenu-btn" data-open="zyrex">    <span class="mm-icon">◉</span>ZYREX</button>
           <button class="mainmenu-btn" data-open="notebook"> <span class="mm-icon">📖</span>NOTEBOOK</button>
+          <!-- V2.34 — System actions -->
+          <button class="mainmenu-btn" data-open="reset">    <span class="mm-icon">↺</span>RESET</button>
+          <button class="mainmenu-btn" data-open="quit">     <span class="mm-icon">✕</span>QUIT</button>
           <button class="mainmenu-btn ghost" id="mainmenu-close2">CLOSE</button>
         </div>
         <!-- V2.12 — Music controls -->
@@ -2876,10 +2890,14 @@ function chestOpened(x, y) { return !!game.player.chestsOpened[x + ',' + y]; }
 function cameraOffset() {
   const halfCols = Math.floor(COLS / 2);
   const halfRows = Math.floor(ROWS / 2);
-  let cx = game.player.x - halfCols;
-  let cy = game.player.y - halfRows;
-  cx = Math.max(0, Math.min(MAP_COLS - COLS, cx));
-  cy = Math.max(0, Math.min(MAP_ROWS - ROWS, cy));
+  // V2.34 — When the map is smaller than the viewport (home interior, small
+  // cottages, etc.), CENTER it and let the '#' wall (outer-space) fill all
+  // four sides. Otherwise follow the player clamped to the map bounds.
+  let cx, cy;
+  if (MAP_COLS < COLS) cx = -Math.floor((COLS - MAP_COLS) / 2);
+  else                 cx = Math.max(0, Math.min(MAP_COLS - COLS, game.player.x - halfCols));
+  if (MAP_ROWS < ROWS) cy = -Math.floor((ROWS - MAP_ROWS) / 2);
+  else                 cy = Math.max(0, Math.min(MAP_ROWS - ROWS, game.player.y - halfRows));
   return { x: cx, y: cy };
 }
 function isGemgrass(x, y) { return tileAt(x, y) === 'G'; }
@@ -3487,8 +3505,35 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
     if (which === 'items') openItemsView();
     if (which === 'zyrex') openParty();
     if (which === 'notebook') openNotebookView();
+    // V2.34 — system actions
+    if (which === 'reset') confirmResetGame();
+    if (which === 'quit')  confirmQuitGame();
   };
 });
+// V2.34 — RESET GAME: wipe save + reload back to the title screen.
+function confirmResetGame() {
+  showDialog([
+    'RESET GAME?',
+    'This wipes your save and returns you to the title.',
+    'This cannot be undone.',
+    '«Tap A / Z / Enter to confirm · X to cancel»',
+  ], () => {
+    try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
+    // Hard reload to boot fresh state.
+    window.location.reload();
+  });
+}
+// V2.34 — QUIT: return to the title screen without wiping the save.
+function confirmQuitGame() {
+  showDialog([
+    'QUIT TO TITLE?',
+    'Your save is kept. You can Continue any time.',
+    '«Tap A / Z / Enter to confirm · X to cancel»',
+  ], () => {
+    save();
+    window.location.reload();
+  });
+}
 document.getElementById('notebook-close').onclick = () => document.getElementById('notebook-overlay').classList.remove('active');
 document.getElementById('notebook-overlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('notebook-overlay')) e.target.classList.remove('active');

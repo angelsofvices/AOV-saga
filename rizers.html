@@ -6563,7 +6563,7 @@ document.addEventListener('keydown', (e) => {
         const slots = Array.from(grid.children);
         const idx = slots.indexOf(target);
         if (idx >= 0 && game.player.party[idx]) {
-          openInspect(game.player.party[idx], idx);
+          openPartyInspect(game.player.party[idx], idx);   // V3.3 — battle-inspect look
           e.preventDefault();
           return;
         }
@@ -8290,17 +8290,15 @@ function refreshBattleUI() {
   const equipTxt = (p.gems || 0) > 0 ? `  +${p.gems}` : '';
   $playerHpNums.textContent = `${p.hp} / ${p.maxHp}   ◈${game.player.gems}${equipTxt}`;
   hpBarClass($playerHp, p.hp / p.maxHp);
-  // XP bar
-  const speciesTier = (SPECIES[p.species] && SPECIES[p.species].tier) || 1;
-  const maxLv = tierMaxLv(speciesTier);
-  const atMax = p.lv >= maxLv;
+  // XP bar — V3.3: bottom-left is XP-only; tier lives ONLY in the upper-right
+  // Lv chip.  We never say "XP MAX" here since the Zyrex can still gain XP
+  // and evolve upward (species tier is not a hard XP ceiling).
   const need = xpForNext(p.lv);
-  const pct = atMax ? 100 : Math.min(100, (p.xp / need) * 100);
+  const pct  = need > 0 ? Math.min(100, (p.xp / need) * 100) : 100;
   const xpFill = document.getElementById('player-xp-fill');
   xpFill.style.width = pct + '%';
-  xpFill.classList.toggle('max', atMax);
-  document.getElementById('player-xp-nums').textContent =
-    atMax ? `MAX · Tier ${TIER_ROMAN[speciesTier-1]}` : `${p.xp} / ${need}`;
+  xpFill.classList.remove('max');   // V3.3 — no visual "max" state on the HUD bar
+  document.getElementById('player-xp-nums').textContent = `${p.xp} / ${need}`;
 }
 function paintStatusChip(elId, z) {
   const el = document.getElementById(elId);
@@ -9548,7 +9546,7 @@ function renderPartyScreen() {
           <div class="party-name">${r.name}</div>
           <div class="party-hp-line">Lv ${r.lv} · Card Tier ${TIER_ROMAN[speciesTier-1]} · ${r.type}${dual}${tri} · HP ${r.hp}/${r.maxHp}</div>
           <div class="party-hp-bar"><div class="party-hp-fill ${hpCls}" style="width:${ratio * 100}%"></div></div>
-          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Z swap  ·  tap to select  ·  A / hold-A inspects</div>
+          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Z swap  ·  tap to select  ·  hold A / long-press to inspect</div>
         </div>
       `;
       const cvs = slot.querySelector('canvas');
@@ -9571,13 +9569,13 @@ function renderPartyScreen() {
           .forEach(el => { if (el !== slot) el.classList.remove('selected'); });
         if (wasSelected) {
           // Second tap on already-selected card = open Inspect
-          openInspect(r, i);
+          openPartyInspect(r, i);
         } else {
           slot.classList.add('selected');
           try { slot.focus(); } catch (_) {}
         }
       };
-      slot.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInspect(r, i); } };
+      slot.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPartyInspect(r, i); } };
       // V2.54 — LONG-PRESS TO INSPECT.  Hold any party card for 450 ms and
       // Inspect opens for THAT specific card.  Works on any pointer type
       // (touch, mouse, pen).  A small movement (>10 px) cancels so
@@ -9596,7 +9594,7 @@ function renderPartyScreen() {
             slot.style.transition = 'box-shadow 120ms ease';
             slot.style.boxShadow = '0 0 24px rgba(232, 200, 120, 0.55)';
             setTimeout(() => { slot.style.boxShadow = ''; }, 200);
-            openInspect(r, i);
+            openPartyInspect(r, i);
           }, 450);
         });
         slot.addEventListener('pointermove', (e) => {
@@ -9638,13 +9636,31 @@ function openBattleInspect(which /* 'enemy' | 'player' */) {
     ? game.battle.enemy
     : game.player.party[game.battle.playerIdx];
   if (!r) return;
+  populateInspectCard(r, which === 'enemy' ? 'Opponent' : 'Your Zyrex');
+  document.getElementById('bi-overlay').classList.add('active');
+}
+
+// V3.3 — Party screen inspect reuses the Battle Inspect layout.
+// Same overlay, same card, same stat / type / move rows so the party
+// hold-A gesture opens a modal that looks identical to the in-battle
+// nameplate-click inspect.  Works from any context (overworld party
+// menu, boot-time inspection, etc.) since it doesn't require a battle.
+function openPartyInspect(r, slotIdx) {
+  if (!r) return;
+  game._inspectSlotIdx = (typeof slotIdx === 'number') ? slotIdx : null;
+  populateInspectCard(r, 'Your Zyrex · Party');
+  document.getElementById('bi-overlay').classList.add('active');
+}
+
+// Extracted so battle + party inspect share one populate path.
+function populateInspectCard(r, contextLabel) {
   const s = SPECIES[r.species] || {};
   const speciesTier = s.tier || 1;
   // Header
   document.getElementById('bi-name').textContent = r.name || (s.name || '—');
   document.getElementById('bi-sub').textContent  =
     `Lv ${r.lv} · Tier ${TIER_ROMAN[speciesTier - 1] || speciesTier}` +
-    (which === 'enemy' ? ' · Opponent' : ' · Your Zyrex');
+    (contextLabel ? ` · ${contextLabel}` : '');
   // Type chips
   const typesEl = document.getElementById('bi-types');
   typesEl.innerHTML = '';
@@ -9749,7 +9765,6 @@ function openBattleInspect(which /* 'enemy' | 'player' */) {
         </div>`);
     }
   }
-  document.getElementById('bi-overlay').classList.add('active');
 }
 function closeBattleInspect() {
   document.getElementById('bi-overlay').classList.remove('active');

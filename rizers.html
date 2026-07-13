@@ -8263,7 +8263,9 @@ function queueNpcTrainerClue(name) {
 function handleNpcTrainer(tileChar, x, y) {
   const npc = NPC_TRAINERS[tileChar];
   if (!npc) return;
-  const key = x + ',' + y;
+  // V3.5 — rematch flag is instance-scoped (matches V3.4 npcsDefeated fix)
+  const iKey = (typeof currentInstanceKey === 'function') ? currentInstanceKey() : null;
+  const key = iKey ? (iKey + ':' + x + ',' + y) : (x + ',' + y);
   const rematched = (game.player.npcsRematched || {})[key];
   const beaten    = npcTrainerDefeated(x, y);
   if (rematched) {
@@ -8284,9 +8286,16 @@ function handleNpcTrainer(tileChar, x, y) {
     ], () => startNpcTrainerBattle(tileChar, x, y, { stakes: true }));
     return;
   }
-  // V2.41 — Named Seer commander mini-boss. Custom intro per district.
+  // V2.41 · V3.5 — Named Seer commander mini-boss. Custom intro per district.
+  // Inside seer_hq_upper the district resolves via enteredInteriorFrom.map
+  // so YARA-PRIME / VORHIL / MIRAX / etc. keep their identity + gemshard.
   if (tileChar === 'X') {
-    const cmd = SEER_COMMANDERS[game.player.mapId];
+    let cmdDistrict = game.player.mapId;
+    if (cmdDistrict === 'seer_hq_upper' || cmdDistrict === 'seer_hq_main' || cmdDistrict === 'seer_hq_basement') {
+      const from = game.player.enteredInteriorFrom;
+      if (from && from.map) cmdDistrict = from.map;
+    }
+    const cmd = SEER_COMMANDERS[cmdDistrict];
     if (cmd) {
       showDialog([
         `A cloaked figure blocks the way.`,
@@ -8325,10 +8334,24 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
   //          passed in via opts.hallRizer.
   let chainSpecs = (opts && opts.hallRizer && opts.hallRizer.chain) || npc.chain;
   if (tileChar === 'g' || tileChar === 'X') {
-    const pool = districtWildPool(game.player.mapId);
+    // V3.5 — inside seer_hq_* (or any shared interior) the wild pool
+    // must be resolved via the SOURCE district, not the interior mapId.
+    // Otherwise districtWildPool returns null → empty chain → battle
+    // starts with an undefined lead and the encounter is broken.
+    const _INTERIOR_TO_DISTRICT = new Set([
+      'seer_hq_main', 'seer_hq_basement', 'seer_hq_upper',
+      'town_hall_interior', 'home_interior', 'mom_room',
+      'shop_interior', 'nurse_interior', 'pc_terminal',
+    ]);
+    let poolDistrict = game.player.mapId;
+    if (_INTERIOR_TO_DISTRICT.has(poolDistrict)) {
+      const from = game.player.enteredInteriorFrom;
+      if (from && from.map) poolDistrict = from.map;
+    }
+    const pool = districtWildPool(poolDistrict);
     if (pool && pool.ids.length) {
       const DIST = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
-      const num = DIST.indexOf(game.player.mapId) + 1;
+      const num = DIST.indexOf(poolDistrict) + 1;
       const isCommander = tileChar === 'X';
       const chainSize = isCommander ? 5 : Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));
       const [lo, hi] = pool.lvRange;
@@ -8341,8 +8364,20 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
       }
     }
   }
+  // V3.5 — defensive: if chain resolution somehow failed (missing district
+  // meta, corrupted save, etc.) synthesize a Tier I fallback so the battle
+  // still starts instead of soft-locking with an undefined lead.
+  if (!chainSpecs || chainSpecs.length === 0) {
+    console.warn('[V3.5] empty chainSpecs for', tileChar, 'at', x, y, '— using Tier I fallback');
+    chainSpecs = [['flarepaw', 5]];
+  }
   const chain = chainSpecs.map(([id, lv]) => makeZyrex(id, lv));
   const lead = chain.shift();
+  if (!lead) {
+    console.warn('[V3.5] chain shift produced no lead — aborting battle safely');
+    showDialog(['They step back and vanish into shadow. (Encounter deferred.)']);
+    return;
+  }
   // V2.41 — commanders override trainerName + carry the district gemshard key
   const commander = opts && opts.commander;
   const trainerName = commander ? commander.name : npc.name;

@@ -1895,19 +1895,37 @@
           <div class="mainmenu-title" id="mainmenu-title">Menu</div>
           <button class="mainmenu-close" id="mainmenu-close" aria-label="Close">✕</button>
         </div>
+        <!-- V3.4 — Simplified MENU: MAP · ITEMS · TYPES · QUESTS only.
+             ZYREX moved to SELECT quick-use.  RESET / QUIT / MUSIC / SAVE
+             / NOTEBOOK moved to the SETTINGS overlay (START button). -->
         <div class="mainmenu-grid" id="mainmenu-grid">
           <button class="mainmenu-btn" data-open="map">      <span class="mm-icon">◈</span>MAP</button>
           <button class="mainmenu-btn" data-open="items">    <span class="mm-icon">✚</span>ITEMS</button>
-          <button class="mainmenu-btn" data-open="zyrex">    <span class="mm-icon">◉</span>ZYREX</button>
-          <button class="mainmenu-btn" data-open="notebook"> <span class="mm-icon">📖</span>NOTEBOOK</button>
           <button class="mainmenu-btn" data-open="types">    <span class="mm-icon">⯁</span>TYPES</button>
           <button class="mainmenu-btn" data-open="quests">   <span class="mm-icon">◈</span>QUESTS</button>
-          <!-- V2.34 — System actions -->
-          <button class="mainmenu-btn" data-open="reset">    <span class="mm-icon">↺</span>RESET</button>
-          <button class="mainmenu-btn" data-open="quit">     <span class="mm-icon">✕</span>QUIT</button>
           <button class="mainmenu-btn ghost" id="mainmenu-close2">CLOSE</button>
         </div>
-        <!-- V2.12 — Music controls -->
+      </div>
+    </div>
+
+    <!-- V3.4 — SETTINGS overlay (opens via START button).
+         Contains system actions, notebook, music controls, and SELECT
+         quick-use assignment.  Same visual format as the MENU overlay. -->
+    <div class="mainmenu-overlay" id="settings-overlay">
+      <div class="mainmenu-box" role="dialog" aria-labelledby="settings-title">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title" id="settings-title">Settings</div>
+          <button class="mainmenu-close" id="settings-close" aria-label="Close">✕</button>
+        </div>
+        <div class="mainmenu-grid" id="settings-grid">
+          <button class="mainmenu-btn" data-settings="save">     <span class="mm-icon">✓</span>SAVE</button>
+          <button class="mainmenu-btn" data-settings="reset">    <span class="mm-icon">↺</span>RESET</button>
+          <button class="mainmenu-btn" data-settings="quit">     <span class="mm-icon">✕</span>QUIT</button>
+          <button class="mainmenu-btn" data-settings="notebook"><span class="mm-icon">📖</span>NOTEBOOK</button>
+          <button class="mainmenu-btn" data-settings="assign">   <span class="mm-icon">◈</span>SELECT ASSIGN</button>
+          <button class="mainmenu-btn ghost" id="settings-close2">CLOSE</button>
+        </div>
+        <!-- Music (moved from MENU per V3.4) -->
         <div class="mm-music" id="mm-music">
           <button class="mm-music-line" id="mm-music-toggle" type="button">MUSIC · ON</button>
           <div class="mm-music-vol-row">
@@ -1915,6 +1933,28 @@
             <div class="mm-music-vol" id="mm-music-vol">VOLUME · 40%</div>
             <button class="mm-music-vbtn" id="mm-music-up"   type="button" aria-label="Volume up">＋</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- V3.4 — SELECT quick-use assignment sub-modal.
+         Opens from Settings.  Lets the player bind the SELECT button to
+         one of the four practical panels.  Persisted in game.player. -->
+    <div class="mainmenu-overlay" id="assign-overlay">
+      <div class="mainmenu-box" role="dialog" aria-labelledby="assign-title">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title" id="assign-title">Assign SELECT</div>
+          <button class="mainmenu-close" id="assign-close" aria-label="Close">✕</button>
+        </div>
+        <div style="color:var(--mist); font-size:12px; letter-spacing:0.24em; text-transform:uppercase; margin: 2px 0 10px; text-align:center;">
+          Pick what the SELECT button opens.
+        </div>
+        <div class="mainmenu-grid" id="assign-grid">
+          <button class="mainmenu-btn" data-assign="zyrex"><span class="mm-icon">◉</span>ZYREX</button>
+          <button class="mainmenu-btn" data-assign="items"><span class="mm-icon">✚</span>ITEMS</button>
+          <button class="mainmenu-btn" data-assign="types"><span class="mm-icon">⯁</span>TYPES</button>
+          <button class="mainmenu-btn" data-assign="map">  <span class="mm-icon">◈</span>MAP</button>
+          <button class="mainmenu-btn ghost" id="assign-close2">CLOSE</button>
         </div>
       </div>
     </div>
@@ -3005,8 +3045,9 @@ const game = {
     mapId: 'malezor',       // V2.8 — which map the player is on
     bossDefeated: false,
     npcDefeated: false,       // legacy — Myara flag
-    npcsDefeated: {},         // V2.7.2 — { 'x,y': true } for first-battle wins
+    npcsDefeated: {},         // V2.7.2 · V3.4 — { 'instanceKey:x,y': true }; instanceKey is the map (or fromDistrict/mapId for shared interiors)
     npcsRematched: {},        // V2.11 — { 'x,y': true } for stakes-battle done
+    selectAssignment: 'zyrex', // V3.4 — SELECT button quick-use target (zyrex|items|types|map)
     homunculusSpawn: null,    // V2.17 — { x, y } chosen at new-game / first load
     homunculusFound: false,   // V2.17 — picked up but not yet given to Mom
     elzebubGranted: false,    // V2.17 — Mom transformed the homunculus into Elzebub
@@ -4372,8 +4413,38 @@ function walkable(x, y) {
   }
   return true;
 }
+// V3.4 — every NPC is its own person, scoped to (source-district, map, x, y).
+// SEER_HQ_MAIN / SEER_HQ_BASEMENT / SEER_HQ_UPPER, town halls, and home
+// interiors are SHARED tile-map instances that get reused across districts.
+// Without a source-district prefix, a grunt at (3,2) in Malezor's basement
+// would flag the grunt at (3,2) in Andrannor's basement as beaten too —
+// causing the 'You already won the battle' softlock on entry.  The instance
+// key below binds each NPC to exactly one district's copy of the map.
+const _SHARED_INTERIORS = new Set([
+  'seer_hq_main', 'seer_hq_basement', 'seer_hq_upper',
+  'town_hall_interior', 'home_interior', 'mom_room',
+  'shop_interior', 'nurse_interior', 'pc_terminal',
+]);
+function currentInstanceKey() {
+  const mapId = game.player.mapId;
+  if (_SHARED_INTERIORS.has(mapId)) {
+    const from = game.player.enteredInteriorFrom;
+    if (from && from.map) return from.map + '/' + mapId;
+  }
+  return mapId || 'overworld';
+}
+function npcKeyFor(x, y) { return currentInstanceKey() + ':' + x + ',' + y; }
 function npcTrainerDefeated(x, y) {
-  return !!(game.player.npcsDefeated && game.player.npcsDefeated[x + ',' + y]);
+  const flags = game.player.npcsDefeated;
+  if (!flags) return false;
+  // Primary: fully-qualified instance key.
+  if (flags[npcKeyFor(x, y)]) return true;
+  // Legacy fallback for pre-V3.4 saves — plain 'x,y'.  We do NOT accept
+  // this in shared interiors (would recreate the collision bug); accept it
+  // only for overworld-district maps that used to use the plain key.
+  const mapId = game.player.mapId;
+  if (!_SHARED_INTERIORS.has(mapId) && flags[x + ',' + y]) return true;
+  return false;
 }
 function chestOpened(x, y) {
   // V2.68 · V2.73 — check both the district-scoped key and the legacy
@@ -5795,6 +5866,83 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
     if (which === 'quit')  confirmQuitGame();
   };
 });
+
+// ============================================================
+// V3.4 — SETTINGS overlay wiring (START button opens this)
+// ============================================================
+const $settings = document.getElementById('settings-overlay');
+const $assign   = document.getElementById('assign-overlay');
+function openSettings() {
+  if (game.mode !== 'overworld' && game.mode !== 'mainmenu') return;
+  closeMainMenu();
+  game.mode = 'settings';
+  clearHeldKeys();
+  $settings.classList.add('active');
+  setTimeout(() => { const b = $settings.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
+}
+function closeSettings() {
+  $settings.classList.remove('active');
+  if (game.mode === 'settings') game.mode = 'overworld';
+}
+document.getElementById('settings-close').onclick  = closeSettings;
+document.getElementById('settings-close2').onclick = closeSettings;
+$settings.querySelectorAll('[data-settings]').forEach(b => {
+  b.onclick = () => {
+    const which = b.getAttribute('data-settings');
+    if (which === 'save') {
+      save();
+      showToast('◈  GAME SAVED', 1400);
+      closeSettings();
+    } else if (which === 'reset') {
+      closeSettings();
+      confirmResetGame();
+    } else if (which === 'quit') {
+      closeSettings();
+      confirmQuitGame();
+    } else if (which === 'notebook') {
+      closeSettings();
+      openNotebookView();
+    } else if (which === 'assign') {
+      openSelectAssign();
+    }
+  };
+});
+
+// V3.4 — SELECT assignment sub-modal (opened from settings)
+function openSelectAssign() {
+  $assign.classList.add('active');
+  // Highlight current pick
+  const current = (game.player && game.player.selectAssignment) || 'zyrex';
+  $assign.querySelectorAll('[data-assign]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-assign') === current);
+    b.style.borderColor = b.getAttribute('data-assign') === current ? 'var(--gold-bright)' : '';
+  });
+  setTimeout(() => { const b = $assign.querySelector('button[data-assign="' + current + '"]') || $assign.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
+}
+function closeSelectAssign() { $assign.classList.remove('active'); }
+document.getElementById('assign-close').onclick  = closeSelectAssign;
+document.getElementById('assign-close2').onclick = closeSelectAssign;
+$assign.querySelectorAll('[data-assign]').forEach(b => {
+  b.onclick = () => {
+    const which = b.getAttribute('data-assign');
+    if (!game.player) return;
+    game.player.selectAssignment = which;
+    save();
+    const label = which.toUpperCase();
+    showToast(`◈  SELECT → ${label}`, 1400);
+    closeSelectAssign();
+  };
+});
+
+// V3.4 — SELECT button action: open whatever the player has assigned.
+function triggerSelectAssignment() {
+  if (game.mode !== 'overworld') return;
+  const which = (game.player && game.player.selectAssignment) || 'zyrex';
+  if (which === 'zyrex') openParty();
+  else if (which === 'items') openItemsView();
+  else if (which === 'types') openTypesView();
+  else if (which === 'map')   openMapView();
+}
 // V2.34 — RESET GAME: wipe save + reload back to the title screen.
 function confirmResetGame() {
   showDialog([
@@ -6631,7 +6779,12 @@ document.addEventListener('keydown', (e) => {
     const typesActive    = document.getElementById('types-overlay').classList.contains('active');     // V2.35
     const questsActive   = document.getElementById('quests-overlay').classList.contains('active');    // V2.44
     const pcsActive      = document.getElementById('pcstorage-overlay').classList.contains('active'); // V2.67
-    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive || pcsActive)) {
+    const settingsActive = document.getElementById('settings-overlay').classList.contains('active');   // V3.4
+    const assignActive   = document.getElementById('assign-overlay').classList.contains('active');     // V3.4
+    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive || pcsActive || settingsActive || assignActive)) {
+      // V3.4 — assign is a modal-over-settings; close the top overlay first
+      if (assignActive)  { closeSelectAssign(); e.preventDefault(); return; }
+      if (settingsActive) { closeSettings();    e.preventDefault(); return; }
       if (mapActive)     closeMapView();
       if (itemsActive)   $itemsov.classList.remove('active');
       if (inspectActive) document.getElementById('inspect-overlay').classList.remove('active');
@@ -8888,7 +9041,15 @@ function checkBattleOver() {
       game.player.npcDefeated = true;
     } else if (game.battle.kind === 'npc-trainer') {
       if (!game.player.npcsDefeated) game.player.npcsDefeated = {};
-      if (game.battle.npcCoord) game.player.npcsDefeated[game.battle.npcCoord] = true;
+      if (game.battle.npcCoord) {
+        // V3.4 — write the fully-qualified instance key so grunts in one
+        // district's Seer HQ don't mark their (x,y) twins in another
+        // district as beaten.  Fall back to the naked coord for legacy
+        // callers if instance resolution ever fails.
+        const iKey = (typeof currentInstanceKey === 'function') ? currentInstanceKey() : null;
+        const key  = iKey ? (iKey + ':' + game.battle.npcCoord) : game.battle.npcCoord;
+        game.player.npcsDefeated[key] = true;
+      }
       // V3.0 — Seer HQ basement grunt: also stamp the district-scoped
       // flag so seerHqBasementClear can survive across saves.  Then
       // check if every basement grunt is defeated → unlock upper.
@@ -10126,6 +10287,7 @@ document.getElementById('btn-new').onclick = () => {
     npcDefeated: false,
     npcsDefeated: {},
     npcsRematched: {},
+    selectAssignment: 'zyrex', // V3.4 — SELECT quick-use default
     homunculusSpawn: null,     // V2.17 — set below via ensureHomunculusSpawn()
     homunculusFound: false,
     elzebubGranted: false,
@@ -10424,9 +10586,9 @@ menuBackdrop.addEventListener('click', () => {
     </div>
     <div class="mob-btn b-A" data-key="z">A</div>
     <div class="mob-btn b-B" data-key="Shift">B</div>
-    <div class="mob-pill p-MENU"   data-key="x">MENU</div>
-    <div class="mob-pill p-SELECT" data-key="n">SELECT</div>
-    <div class="mob-pill p-START"  data-key="x">START</div>
+    <div class="mob-pill p-MENU"   data-key="x"       data-action="menu">MENU</div>
+    <div class="mob-pill p-SELECT" data-key="F4"      data-action="select">SELECT</div>
+    <div class="mob-pill p-START"  data-key="F3"      data-action="settings">START</div>
   `;
   document.body.appendChild(root);
 
@@ -10464,10 +10626,34 @@ menuBackdrop.addEventListener('click', () => {
   //  Short-press keeps its z semantics for swap / confirm.
   function wireButton(el) {
     const key = el.dataset.key;
+    const action = el.dataset.action;   // V3.4 — direct-action pills
     const isA = (key === 'z' && el.classList.contains('b-A'));
     let pid = null;
     let holdTimer = null;
     let longPressed = false;
+    // V3.4 — pills with data-action bypass key synthesis entirely and
+    // call the corresponding game function directly on tap.
+    if (action) {
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); pid = e.pointerId;
+        try { el.setPointerCapture(pid); } catch(_) {}
+        el.classList.add('pressed');
+        haptic();
+      });
+      const pillUp = (e) => {
+        if (e.pointerId !== pid) return;
+        pid = null;
+        el.classList.remove('pressed');
+        if (action === 'menu')     openMainMenu();
+        else if (action === 'settings') openSettings();
+        else if (action === 'select')   triggerSelectAssignment();
+        resetIdle();
+      };
+      el.addEventListener('pointerup',     pillUp);
+      el.addEventListener('pointercancel', pillUp);
+      el.addEventListener('pointerleave',  pillUp);
+      return;
+    }
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault(); pid = e.pointerId;
       try { el.setPointerCapture(pid); } catch(_) {}

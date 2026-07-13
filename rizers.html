@@ -7631,7 +7631,7 @@ function renderPartyScreen() {
           <div class="party-name">${r.name}</div>
           <div class="party-hp-line">Lv ${r.lv} · Card Tier ${TIER_ROMAN[speciesTier-1]} · ${r.type}${dual}${tri} · HP ${r.hp}/${r.maxHp}</div>
           <div class="party-hp-bar"><div class="party-hp-fill ${hpCls}" style="width:${ratio * 100}%"></div></div>
-          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Z to swap  ·  Enter to inspect</div>
+          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Z to swap  ·  tap or hold to inspect</div>
         </div>
       `;
       const cvs = slot.querySelector('canvas');
@@ -7643,6 +7643,45 @@ function renderPartyScreen() {
       slot.tabIndex = 0;
       slot.onclick = () => openInspect(r, i);   // V2.20 — pass slot index for SWAP
       slot.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInspect(r, i); } };
+      // V2.54 — LONG-PRESS TO INSPECT.  Hold any party card for 450 ms and
+      // Inspect opens for THAT specific card.  Works on any pointer type
+      // (touch, mouse, pen).  A small movement (>10 px) cancels so
+      // scrolling doesn't accidentally trigger inspect.
+      (() => {
+        let holdTimer = null, sx = 0, sy = 0, longFired = false;
+        const clear = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
+        slot.addEventListener('pointerdown', (e) => {
+          longFired = false;
+          sx = e.clientX; sy = e.clientY;
+          clear();
+          holdTimer = setTimeout(() => {
+            longFired = true;
+            holdTimer = null;
+            // Visual feedback: brief gold flash before opening inspect
+            slot.style.transition = 'box-shadow 120ms ease';
+            slot.style.boxShadow = '0 0 24px rgba(232, 200, 120, 0.55)';
+            setTimeout(() => { slot.style.boxShadow = ''; }, 200);
+            openInspect(r, i);
+          }, 450);
+        });
+        slot.addEventListener('pointermove', (e) => {
+          if (!holdTimer) return;
+          const dx = e.clientX - sx, dy = e.clientY - sy;
+          if (dx * dx + dy * dy > 100) clear();  // ~10 px slop
+        });
+        slot.addEventListener('pointerup', (e) => {
+          clear();
+          // If long-press already fired, swallow the impending click so
+          // openInspect doesn't run twice.
+          if (longFired) { e.preventDefault(); e.stopPropagation(); }
+        });
+        slot.addEventListener('pointercancel', clear);
+        slot.addEventListener('pointerleave',  clear);
+        // Suppress the trailing click when a long-press fired.
+        slot.addEventListener('click', (e) => {
+          if (longFired) { e.preventDefault(); e.stopImmediatePropagation(); longFired = false; }
+        }, true);
+      })();
     }
     $partyGrid.appendChild(slot);
   }
@@ -8453,12 +8492,21 @@ menuBackdrop.addEventListener('click', () => {
     return !el.classList.contains('hidden');
   }
   function updateHidden() {
+    // V2.54 — Party screen also hides the mobile controller.  The D-pad /
+    // A / B buttons live at z-index 9998 and were physically covering the
+    // party cards, so mobile taps meant for a card were hitting the buttons
+    // underneath.  Party screen has its own Close button so the controller
+    // isn't needed while browsing Zyrex.
+    const partyActive = document.getElementById('party-screen') &&
+                        document.getElementById('party-screen').classList.contains('active');
     const menuLike = screenActive('title-screen') || screenActive('creator-screen')
-                   || screenActive('starter-screen') || screenActive('prologue-screen');
+                   || screenActive('starter-screen') || screenActive('prologue-screen')
+                   || partyActive;
     root.classList.toggle('hidden', menuLike);
   }
   const mo = new MutationObserver(updateHidden);
-  ['title-screen','creator-screen','starter-screen','prologue-screen'].forEach(id => {
+  // V2.54 — watch party-screen too so the controller hides/shows with it.
+  ['title-screen','creator-screen','starter-screen','prologue-screen','party-screen'].forEach(id => {
     const el = document.getElementById(id);
     if (el) mo.observe(el, { attributes: true, attributeFilter: ['class'] });
   });

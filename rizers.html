@@ -523,10 +523,16 @@
     /* ============ STARTER PICKER ============ */
     .starter-screen {
       position: absolute; inset: 0;
-      background: rgba(5, 3, 15, 0.96);
+      /* V2.53 — fully opaque so overworld HUD/dialog don't bleed through */
+      background: #050310;
       z-index: 190;
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
+      align-items: center;
+      /* V2.53 — start at top and let content scroll if it exceeds viewport
+         (fixes VOLTIMITE getting cut off on mobile portrait). */
+      justify-content: flex-start;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       padding: 20px;
     }
     .starter-screen.hidden { display: none; }
@@ -7284,7 +7290,7 @@ function preloadAllSprites() {
 // this in setupGameStart; we also kick it in case boot already passed.
 setTimeout(preloadAllSprites, 100);
 
-function drawBattleMon(cvs, r, facing) {
+function drawBattleMon(cvs, r, facing, opts) {
   const c = cvs.getContext('2d');
   // V2.40.1 — nearest-neighbor stays OFF until we know if the sprite is
   // pixel-art (small source) or illustration (large source). Enable
@@ -7347,12 +7353,16 @@ function drawBattleMon(cvs, r, facing) {
   c.strokeStyle = b;
   c.beginPath();
   c.stroke();
-  // Type badge chip
-  c.fillStyle = TYPE_COLORS[r.type] || '#e8c878';
-  c.fillRect(4, 4, 22, 8);
-  c.fillStyle = '#050310';
-  c.font = 'bold 8px Inter, sans-serif';
-  c.fillText(r.type.toUpperCase(), 6, 11);
+  // V2.53 — Type badge chip.  Suppressed when opts.hideTypeBadge is set
+  // (starter picker card renders the type label in HTML below the sprite,
+  // so the small chip would just look like garbled scaled-down text).
+  if (!(opts && opts.hideTypeBadge)) {
+    c.fillStyle = TYPE_COLORS[r.type] || '#e8c878';
+    c.fillRect(4, 4, 22, 8);
+    c.fillStyle = '#050310';
+    c.font = 'bold 8px Inter, sans-serif';
+    c.fillText(r.type.toUpperCase(), 6, 11);
+  }
 }
 
 function drawSpeciesShape(c, cx, cy, species, facing) {
@@ -7464,7 +7474,8 @@ function renderStarterScreen() {
     c.imageSmoothingEnabled = false;
     // draw at 96 scale then paint down
     const tmp = document.createElement('canvas'); tmp.width = 96; tmp.height = 96;
-    drawBattleMon(tmp, makeZyrex(id, 5), true);
+    // V2.53 — hide the on-sprite type chip; the card already labels the type below the name.
+    drawBattleMon(tmp, makeZyrex(id, 5), true, { hideTypeBadge: true });
     c.drawImage(tmp, 0, 0, 96, 96, 0, 0, 72, 72);
     card.onclick = () => chooseStarter(id);
     $grid.appendChild(card);

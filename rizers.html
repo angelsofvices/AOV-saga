@@ -4068,7 +4068,21 @@ function walkable(x, y) {
 function npcTrainerDefeated(x, y) {
   return !!(game.player.npcsDefeated && game.player.npcsDefeated[x + ',' + y]);
 }
-function chestOpened(x, y) { return !!game.player.chestsOpened[x + ',' + y]; }
+function chestOpened(x, y) {
+  // V2.68 · V2.73 — check both the district-scoped key and the legacy
+  // overworld-only key so pre-V2.68 saves stay compatible.
+  const mapId = game.player.mapId;
+  return !!(game.player.chestsOpened[mapId + ':' + x + ',' + y] || game.player.chestsOpened[x + ',' + y]);
+}
+// V2.73 — tiny hex-to-RGB channel helpers (used by chest sparkle color).
+function _hexParse(hex) {
+  const h = String(hex || '#e8c878').replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function hexR(hex) { return _hexParse(hex)[0]; }
+function hexG(hex) { return _hexParse(hex)[1]; }
+function hexB(hex) { return _hexParse(hex)[2]; }
 
 // ---------- Camera (V2.7) — follows player, clamped to map ----------
 function cameraOffset() {
@@ -4925,35 +4939,69 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'K': {
-      // chest — closed unless opened; opened chests show as a lighter empty box
+      // V2.73 — CHEST · district-themed + clear open/closed state.
+      // Closed: heavy lid, latch, sparkle above (draws attention).
+      // Opened: lid FULLY tilted back, dark hollow interior visible, no
+      //         sparkle.  Body + trim + latch use district palette so a
+      //         Zarvane chest reads distinct from a Baelgor chest.
       drawTile(x, y, ',', mx, my);
       const open = chestOpened(mx, my);
-      // chest body
-      ctx.fillStyle = open ? '#3a2450' : '#6a4c28';
-      ctx.fillRect(px + 6, py + 12, TILE - 12, TILE - 16);
-      // lid
-      ctx.fillStyle = open ? '#5a3a70' : '#8b6236';
+      // Per-district palette.  Fall back to warm-wood chest inside
+      // interiors (bronze cottage, silver lodge) and non-district maps.
+      const dm  = (game && game.player && DISTRICT_META[game.player.mapId]) || null;
+      const accent = (dm && dm.accent) || '#e8c878';
+      const bodyDark = (dm && dm.wallColor)  || '#3a2010';
+      const bodyLite = (dm && dm.groundColor)|| '#6a4c28';
+      const trim     = accent;
+      const sparkle  = (dm && dm.sparkleTint)|| '#ffdc90';
+      // BODY (darker when open — the hollow inside)
+      ctx.fillStyle = open ? '#0a0410' : bodyLite;
+      ctx.fillRect(px + 5, py + 14, TILE - 10, TILE - 18);
+      // Base band (always visible — the chest's base color)
+      ctx.fillStyle = bodyDark;
+      ctx.fillRect(px + 5, py + TILE - 6, TILE - 10, 3);
+      // Trim rim around the top opening
+      ctx.strokeStyle = trim;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 5.5, py + 14.5, TILE - 11, TILE - 19);
+      // LID
       if (open) {
-        // lid tilted back (opened)
+        // Lid FULLY tilted back — sits behind the chest, angled up-and-back.
+        // Interior visible below.  Small pile of "empty" nothing.
+        ctx.fillStyle = bodyDark;
         ctx.beginPath();
-        ctx.moveTo(px + 6,  py + 12);
-        ctx.lineTo(px + 26, py + 6);
-        ctx.lineTo(px + 26, py + 10);
-        ctx.lineTo(px + 6,  py + 16);
+        ctx.moveTo(px + 5,  py + 14);
+        ctx.lineTo(px + 5,  py + 4);
+        ctx.lineTo(px + TILE - 5, py + 4);
+        ctx.lineTo(px + TILE - 5, py + 14);
         ctx.closePath();
         ctx.fill();
+        // Trim rim on the lifted lid
+        ctx.strokeStyle = trim;
+        ctx.strokeRect(px + 5.5, py + 4.5, TILE - 11, 9);
+        // "Empty" indicator — two little dots inside
+        ctx.fillStyle = 'rgba(232, 200, 120, 0.35)';
+        ctx.fillRect(px + TILE / 2 - 4, py + TILE - 12, 1, 1);
+        ctx.fillRect(px + TILE / 2 + 3, py + TILE - 10, 1, 1);
       } else {
-        ctx.fillRect(px + 6, py + 8, TILE - 12, 6);
-      }
-      // gold band + latch
-      ctx.fillStyle = '#e8c878';
-      ctx.fillRect(px + 6, py + 13, TILE - 12, 1);
-      ctx.fillRect(px + 15, py + 12, 2, 5);
-      // sparkle when closed
-      if (!open) {
+        // Lid closed on top
+        ctx.fillStyle = bodyLite;
+        ctx.fillRect(px + 5, py + 8, TILE - 10, 8);
+        // Domed top hint
+        ctx.fillStyle = bodyDark;
+        ctx.fillRect(px + 5, py + 8, TILE - 10, 2);
+        // Gold trim band on the lid seam
+        ctx.fillStyle = trim;
+        ctx.fillRect(px + 5, py + 14, TILE - 10, 1);
+        // Latch — sits at the seam
+        ctx.fillStyle = trim;
+        ctx.fillRect(px + TILE / 2 - 1, py + 12, 2, 5);
+        // Sparkle above the chest — pulses so unopened chests draw the eye
         const pulse = (Math.sin(performance.now() * 0.006 + x + y) + 1) / 2;
-        ctx.fillStyle = `rgba(232, 200, 120, ${0.35 + pulse * 0.35})`;
-        ctx.fillRect(px + TILE / 2 - 1, py + 4, 2, 2);
+        ctx.fillStyle = `rgba(${hexR(sparkle)}, ${hexG(sparkle)}, ${hexB(sparkle)}, ${0.4 + pulse * 0.4})`;
+        ctx.fillRect(px + TILE / 2 - 1, py + 3, 2, 2);
+        ctx.fillRect(px + TILE / 2 - 3, py + 5, 1, 1);
+        ctx.fillRect(px + TILE / 2 + 2, py + 5, 1, 1);
       }
       break;
     }
@@ -6850,16 +6898,58 @@ function openChest(x, y) {
     showToast('◈  COMPUTER PART  ·  Legacy Rizer artifact', 3000);
     return;
   }
-  // Interior chest table takes priority; falls back to global CHEST_LOOT
-  // (Malezor overworld) then the default gem drop.
-  const loot = INTERIOR_CHEST_LOOT[key] || CHEST_LOOT[legacyKey] || { kind: 'gems', amount: 3 };
+  // V2.73 — Randomized loot at first-open, persisted per-save.
+  // Priority order:
+  //   1. INTERIOR_CHEST_LOOT (hand-set interior chests — silver_lodge etc.)
+  //   2. CHEST_LOOT          (legacy Malezor overworld fixed drops)
+  //   3. game.player.chestLoot[key]  (previously rolled random)
+  //   4. Roll a new random drop (30% potion / 30% gemsphere / 40% coins),
+  //      amount scaled by district tier, and persist the result.
+  game.player.chestLoot = game.player.chestLoot || {};
+  let loot = INTERIOR_CHEST_LOOT[key]
+          || CHEST_LOOT[legacyKey]
+          || game.player.chestLoot[key];
+  if (!loot) {
+    loot = rollChestLoot(mapId);
+    game.player.chestLoot[key] = loot;
+  }
   game.player.chestsOpened[key] = true;
-  if (loot.kind === 'gems')  { game.player.gems += loot.amount; showToast(`◈ +${loot.amount} GEMS`); }
-  else if (loot.kind === 'coins') { game.player.coins = (game.player.coins || 0) + loot.amount; showToast(`¢ +${loot.amount} COINS`); }
-  else if (loot.kind === 'potion'){ if (!game.player.items) game.player.items = {}; game.player.items.potion = (game.player.items.potion || 0) + loot.amount; showToast(`✚ +${loot.amount} POTIONS`); }
+  if (loot.kind === 'gems')      { game.player.gems       = (game.player.gems       || 0) + loot.amount; showToast(`◈ +${loot.amount} GEMS`); }
+  else if (loot.kind === 'coins')    { game.player.coins      = (game.player.coins      || 0) + loot.amount; showToast(`¢ +${loot.amount} COINS`); }
+  else if (loot.kind === 'potion')   { game.player.items = game.player.items || {}; game.player.items.potion = (game.player.items.potion || 0) + loot.amount; showToast(`✚ +${loot.amount} POTION${loot.amount === 1 ? '' : 'S'}`); }
+  else if (loot.kind === 'gemsphere'){ game.player.gemspheres = (game.player.gemspheres || 0) + loot.amount; showToast(`◉ +${loot.amount} GEMSPHERE${loot.amount === 1 ? '' : 'S'}`); }
   save(); updateHUD();
-  const summary = { gems:'astralite gems', coins:'zyraxian coins', potion:'healing potions' }[loot.kind];
-  showDialog([`You open the chest — ${loot.amount} ${summary} inside.`]);
+  const summary = {
+    gems:      `${loot.amount} astralite gem${loot.amount === 1 ? '' : 's'}`,
+    coins:     `${loot.amount} zyraxian coin${loot.amount === 1 ? '' : 's'}`,
+    potion:    `${loot.amount} healing potion${loot.amount === 1 ? '' : 's'}`,
+    gemsphere: `${loot.amount} Gemsphere${loot.amount === 1 ? '' : 's'}`,
+  }[loot.kind];
+  showDialog([`You open the chest — ${summary} inside.`]);
+}
+
+// V2.73 — Roll random chest loot.  Amounts scale with the district tier
+// (Malezor=1 → Korathen=10) so higher-tier chests are meaningfully better.
+// Distribution: 30% potions / 30% gemspheres / 40% coins.
+function rollChestLoot(mapId) {
+  const idx = DISTRICT_ORDER.indexOf(mapId);
+  const tier = idx >= 0 ? idx + 1 : 1;   // fall back to Tier I outside district maps
+  const roll = Math.random();
+  if (roll < 0.30) {
+    // Potions — small counts, scale slowly
+    const amount = 1 + Math.floor(Math.random() * 2) + Math.floor(tier / 4);
+    return { kind: 'potion', amount };
+  }
+  if (roll < 0.60) {
+    // Gemspheres — 1-2, +1 in higher districts
+    const amount = 1 + Math.floor(Math.random() * 2) + (tier >= 6 ? 1 : 0);
+    return { kind: 'gemsphere', amount };
+  }
+  // Coins — big variance, scaled by tier: I=10..30, X=100..300
+  const min = 10 * tier;
+  const max = min * 3;
+  const amount = min + Math.floor(Math.random() * (max - min + 1));
+  return { kind: 'coins', amount };
 }
 
 // ---------- Dialog ----------

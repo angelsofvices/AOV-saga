@@ -2995,7 +2995,7 @@ const game = {
     party: [],
     box: [],
     gems: 10,               // shared gem pool — powers moves in battle
-    gemspheres: 5,
+    zyspheres: 5,           // V3.1 — was gemspheres; capture ball count
     coins: 5,               // V2.7 — merchant currency; drops from battle wins
     items: { potion: 0 },
     keys: { bronze: 0, silver: 0,
@@ -3489,11 +3489,11 @@ const TOWN_HALLS = {
         "I read tracks.  Yours say you're fast, but you land heavy on your left foot.",
         'Yara patrols the north cliffs at dawn.  Jax spars along the west road.  Quinn — nobody knows.',
       ]},
-      '9,7': { kind: 'gift', name: 'BEASTWARDEN', gift: { key: 'gemsphere', name: 'GEMSPHERES', amount: 2 },
+      '9,7': { kind: 'gift', name: 'BEASTWARDEN', gift: { key: 'zysphere', name: 'ZYSPHERES', amount: 2 },
         lines: [
           "You're the young Rizer.  Your dad's son.  Everyone here knew he'd send you eventually.",
           'Take these.  Old Malezor courtesy — nobody heads east empty-handed.',
-          '«◈ +2 GEMSPHERES.»',
+          '«◈ +2 ZYSPHERES.»',
         ], done: ["You've already had your welcome.  Get east.  The Ninth World is waiting."] },
     },
     rizer: { name: 'RANGER RIS', label: 'ranger of the ridges',
@@ -3576,10 +3576,10 @@ const TOWN_HALLS = {
         'Netharion is the center.  Everything else is the edge trying to hold.',
         'Eurakeon sleeps under the amethyst seal.  He dreams us.  Think about that carefully.',
       ]},
-      '9,7':  { kind: 'gift', name: 'VOIDKEEPER', gift: { key: 'gemsphere', name: 'GEMSPHERES', amount: 4 },
+      '9,7':  { kind: 'gift', name: 'VOIDKEEPER', gift: { key: 'zysphere', name: 'ZYSPHERES', amount: 4 },
         lines: [
           'Wilds here carry hidden types.  You will need more spheres than you think.',
-          '«◈ +4 GEMSPHERES.»',
+          '«◈ +4 ZYSPHERES.»',
         ], done: ['I gave you the tools.  The rift gave you the rest.  Go.'] },
     },
     rizer: { name: 'VOID-SEEKER LYSS', label: 'unknown-void Rizer',
@@ -3660,10 +3660,10 @@ const TOWN_HALLS = {
         'HELIX the Anomalyweaver knits futures.  He never wears the one he made you.',
         'Mech Zyrex evolve on schedule here, not level.  Learn the timing.',
       ]},
-      '9,7':  { kind: 'gift', name: 'FOREMAN', gift: { key: 'gemsphere', name: 'GEMSPHERES', amount: 6 },
+      '9,7':  { kind: 'gift', name: 'FOREMAN', gift: { key: 'zysphere', name: 'ZYSPHERES', amount: 6 },
         lines: [
           'The Concourse issues capture tech to every registered Rizer.  Standard allotment.',
-          '«◈ +6 GEMSPHERES.»',
+          '«◈ +6 ZYSPHERES.»',
         ], done: ['Your quota is filled.  Come back next quarter.'] },
     },
     rizer: { name: 'MACHINE-LORD OTA', label: 'mech-Rizer',
@@ -6244,7 +6244,7 @@ function openItemsView() {
   const ks = game.player.keys || {};
   const rows = [
     { key: 'potion',    name: 'Potion',      desc: 'Heals 40 HP on the top Zyrex.',              count: (it.potion || 0) },
-    { key: 'gemsphere', name: 'Gemsphere',   desc: 'Bind a wild Zyrex mid-battle.',              count: (game.player.gemspheres || 0) },
+    { key: 'zysphere', name: 'Zysphere',   desc: 'Synchronizes with a wild Zyrex\'s astralite makeup.  If they submit, they are bound.',              count: (game.player.zyspheres || 0) },
     { key: 'bronze',    name: 'Bronze Key',  desc: 'Opens the Bronze Cottage on Malezor.',       count: (ks.bronze || 0) },
     { key: 'silver',    name: 'Silver Key',  desc: 'Opens the Silver Lodge on Malezor.',         count: (ks.silver || 0) },
   ];
@@ -6308,7 +6308,7 @@ $itemsov.addEventListener('click', (e) => { if (e.target === $itemsov) $itemsov.
 const SHOP_STOCK = [
   { key: 'gem',       name: 'Astralite Gem', desc: 'Powers one move in battle. Never march empty.', price: 1  },
   { key: 'potion',    name: 'Potion',        desc: 'Heals 40 HP outside battle.',                    price: 5  },
-  { key: 'gemsphere', name: 'Gemsphere',     desc: 'Bind a wild Zyrex mid-battle.',                  price: 10 },
+  { key: 'zysphere', name: 'Zysphere',     desc: 'Sync-binds a wild Zyrex\'s astralite genetic makeup mid-battle.',   price: 10 },
 ];
 function openShop() {
   game.mode = 'shop';
@@ -6338,7 +6338,7 @@ function buyItem(it) {
   if ((game.player.coins || 0) < it.price) return;
   game.player.coins -= it.price;
   if (it.key === 'gem')            game.player.gems      = (game.player.gems      || 0) + 1;
-  else if (it.key === 'gemsphere') game.player.gemspheres= (game.player.gemspheres|| 0) + 1;
+  else if (it.key === 'zysphere' || it.key === 'gemsphere') game.player.zyspheres = (game.player.zyspheres || 0) + 1;
   else {
     if (!game.player.items) game.player.items = {};
     game.player.items[it.key] = (game.player.items[it.key] || 0) + 1;
@@ -6900,8 +6900,8 @@ function interactVillager(tx, ty) {
         game.player.townHallGifts = game.player.townHallGifts || {};
         if (!game.player.townHallGifts[fromDistrict]) {
           const g = npc.gift;
-          if (g.key === 'gemsphere') {
-            game.player.gemspheres = (game.player.gemspheres || 0) + g.amount;
+          if (g.key === 'gemsphere' || g.key === 'zysphere') {
+            game.player.zyspheres = (game.player.zyspheres || 0) + g.amount;
           } else if (g.key === 'potion') {
             game.player.items = game.player.items || {};
             game.player.items.potion = (game.player.items.potion || 0) + g.amount;
@@ -7460,13 +7460,14 @@ function openChest(x, y) {
   if (loot.kind === 'gems')      { game.player.gems       = (game.player.gems       || 0) + loot.amount; showToast(`◈ +${loot.amount} GEMS`); }
   else if (loot.kind === 'coins')    { game.player.coins      = (game.player.coins      || 0) + loot.amount; showToast(`¢ +${loot.amount} COINS`); }
   else if (loot.kind === 'potion')   { game.player.items = game.player.items || {}; game.player.items.potion = (game.player.items.potion || 0) + loot.amount; showToast(`✚ +${loot.amount} POTION${loot.amount === 1 ? '' : 'S'}`); }
-  else if (loot.kind === 'gemsphere'){ game.player.gemspheres = (game.player.gemspheres || 0) + loot.amount; showToast(`◉ +${loot.amount} GEMSPHERE${loot.amount === 1 ? '' : 'S'}`); }
+  else if (loot.kind === 'gemsphere' || loot.kind === 'zysphere'){ game.player.zyspheres = (game.player.zyspheres || 0) + loot.amount; showToast(`◉ +${loot.amount} ZYSPHERE${loot.amount === 1 ? '' : 'S'}`); }
   save(); updateHUD();
   const summary = {
     gems:      `${loot.amount} astralite gem${loot.amount === 1 ? '' : 's'}`,
     coins:     `${loot.amount} zyraxian coin${loot.amount === 1 ? '' : 's'}`,
     potion:    `${loot.amount} healing potion${loot.amount === 1 ? '' : 's'}`,
-    gemsphere: `${loot.amount} Gemsphere${loot.amount === 1 ? '' : 's'}`,
+    gemsphere: `${loot.amount} Zysphere${loot.amount === 1 ? '' : 's'}`,
+    zysphere:  `${loot.amount} Zysphere${loot.amount === 1 ? '' : 's'}`,
   }[loot.kind];
   showDialog([`You open the chest — ${summary} inside.`]);
 }
@@ -7486,7 +7487,7 @@ function rollChestLoot(mapId) {
   if (roll < 0.60) {
     // Gemspheres — 1-2, +1 in higher districts
     const amount = 1 + Math.floor(Math.random() * 2) + (tier >= 6 ? 1 : 0);
-    return { kind: 'gemsphere', amount };
+    return { kind: 'zysphere', amount };   // V3.1 — renamed; back-compat reader still accepts 'gemsphere'
   }
   // Coins — big variance, scaled by tier: I=10..30, X=100..300
   const min = 10 * tier;
@@ -7857,15 +7858,15 @@ function interactMom() {
     showDialog([
       `MOM: Look at you — already a Rizer.`,
       `MOM: Before you go, take a nurse's kit for the road.`,
-      `«+${potionGift} POTIONS  ·  +${sphereGift} GEMSPHERES»`,
+      `«+${potionGift} POTIONS  ·  +${sphereGift} ZYSPHERES»`,
       `MOM: Come find me any time you're hurt. I'll patch you up.`,
       `MOM: The door's always open. Come home safe.`,
     ], () => {
       items.potion = (items.potion || 0) + potionGift;
-      game.player.gemspheres = (game.player.gemspheres || 0) + sphereGift;
+      game.player.zyspheres = (game.player.zyspheres || 0) + sphereGift;
       game.player.metMomGave = true;
       save(); updateHUD();
-      showToast(`✚ +${potionGift} POTIONS  ·  +${sphereGift} GEMSPHERES`);
+      showToast(`✚ +${potionGift} POTIONS  ·  +${sphereGift} ZYSPHERES`);
     });
     return;
   }
@@ -8365,12 +8366,16 @@ function renderBagMenu() {
   if (potCount <= 0 || p.hp >= p.maxHp) po.disabled = true;
   po.onclick = () => usePotionInBattle();
   $battleActions.appendChild(po);
-  // Gemsphere throw (wild capture)
+  // V3.1 — ZYSPHERE throw (wild capture).  Shows live catch % based on
+  // the current enemy's HP + tier so the player can weigh the odds.
   const gs = document.createElement('button');
   gs.className = 'action-btn';
-  gs.innerHTML = `GEMSPHERE <span class="cost">×${game.player.gemspheres}</span>`;
-  if (game.player.gemspheres <= 0 || game.battle.kind !== 'wild') gs.disabled = true;
-  gs.onclick = () => throwGemsphere();
+  const preview = game.battle.enemy
+    ? Math.round(computeCatchChance(game.battle.enemy, 1.0) * 100)
+    : 0;
+  gs.innerHTML = `ZYSPHERE <span class="cost">×${game.player.zyspheres || 0}  ·  ${preview}% catch</span>`;
+  if ((game.player.zyspheres || 0) <= 0 || game.battle.kind !== 'wild') gs.disabled = true;
+  gs.onclick = () => throwZysphere();
   $battleActions.appendChild(gs);
   // V2.8.1 — Equip gems onto the active Zyrex
   const eq = document.createElement('button');
@@ -8707,35 +8712,66 @@ async function tryRun() {
   exitBattle();
 }
 
-async function throwGemsphere() {
-  game.player.gemspheres--;
-  logBattle('You throw a Gemsphere...');
-  await wait(700);
+// V3.1 — ZYSPHERE CATCH FORMULA
+// A Zysphere is a technological capture ball that binds a Zyrex by
+// synchronizing with its ASTRALITE genetic makeup.  On impact it extracts
+// the target's DNA and attempts to pair a binding.  If the astralites
+// SUBMIT, the Zyrex is caught.  If they RESIST, the binding fails and the
+// sphere pops open empty.
+//
+//   chance = base × hpBoost × tierScale × spherePower × speciesModifier
+//
+//   base            = 0.55   soft ceiling
+//   hpBoost         = 1 + 0.75 × (1 - hpRatio)          → 1.00 full, 1.75 near-KO
+//   tierScale       = 1.05 - 0.09 × tier                → I=0.96, X=0.15  (rarer = harder)
+//   spherePower     = { basic: 1.0, ... }                (variants land in V3.2)
+//   speciesModifier = clamp(catchRate / 55, 0.3, 1.5)   (per-species tuning knob)
+//
+// Final chance clamped to [0.03, 0.90] so nothing is truly guaranteed or 0%.
+function computeCatchChance(enemy, spherePower) {
+  const s = SPECIES[enemy.species] || {};
+  const hpRatio  = Math.max(0, Math.min(1, (enemy.hp || 0) / (enemy.maxHp || 1)));
+  const hpBoost  = 1 + 0.75 * (1 - hpRatio);
+  const tier     = Math.max(1, Math.min(10, s.tier || 1));
+  const tierScale= Math.max(0.10, 1.05 - 0.09 * tier);
+  const speciesMod = Math.max(0.30, Math.min(1.5, (s.catchRate || 55) / 55));
+  const raw = 0.55 * hpBoost * tierScale * (spherePower || 1.0) * speciesMod;
+  return Math.max(0.03, Math.min(0.90, raw));
+}
+
+async function throwZysphere() {
+  // V3.1 — Zysphere is the canonical name.  Backwards-compat: state key
+  // stays as 'zyspheres'; save-load migrates any legacy 'gemspheres'.
+  game.player.zyspheres = Math.max(0, (game.player.zyspheres || 0) - 1);
   const e = game.battle.enemy;
-  const hpFrac = e.hp / e.maxHp;
-  // Catch chance rises as HP drops
-  const chance = Math.min(0.95, (SPECIES[e.species].catchRate / 100) * (1.7 - hpFrac));
-  if (Math.random() < chance) {
-    logBattle(`${e.name} was bound!`);
+  logBattle('You throw a ZYSPHERE — it locks onto the astralite signature...');
+  await wait(800);
+  const chance = computeCatchChance(e, 1.0);
+  const roll   = Math.random();
+  const pct    = Math.round(chance * 100);
+  if (roll < chance) {
+    logBattle(`Astralites SYNCHRONIZED  ·  ${e.name} bound  (chance ${pct}%)`);
     await wait(900);
-    // Add to party or box
     const captured = makeZyrex(e.species, e.lv);
     captured.hp = Math.max(1, e.hp);
-    markCaught(captured.species);   // V2.18 — dex
+    markCaught(captured.species);
     if (game.player.party.filter(Boolean).length < MAX_PARTY) game.player.party.push(captured);
-    else                                              game.player.box.push(captured);
-    showToast(`◈  ${e.name}  BOUND`);
+    else                                                       game.player.box.push(captured);
+    showToast(`◈  ${e.name}  BOUND  ·  ${pct}%`);
     save();
     exitBattle();
   } else {
-    logBattle(`${e.name} broke free!`);
-    await wait(700);
+    logBattle(`Astralites RESISTED  ·  ${e.name} broke free  (chance ${pct}%)`);
+    await wait(800);
     await enemyTurn();
     if (checkBattleOver()) return;
     refreshBattleUI();
     renderMainMenu();
   }
 }
+// V3.1 — Backwards-compat alias.  Any lingering callers still using the
+// old name route to the new one.
+const throwGemsphere = throwZysphere;
 
 function checkBattleOver() {
   const e = game.battle.enemy;
@@ -9317,7 +9353,7 @@ function chooseStarter(id) {
     ``,
     // ---- HAND OFF TO MOM ----
     `DAD: Head back downstairs. Your mother's packed something for the road —`,
-    `potions, gemspheres, the works. Nurse's supplies.`,
+    `potions, zyspheres, the works. Nurse's supplies.`,
     ``,
     `DAD: Come home safe, ${nm}.`,
   ], () => {
@@ -9768,6 +9804,13 @@ function tryLoad() {
     MAP = m.data; MAP_COLS = m.cols; MAP_ROWS = m.rows;
     delete game.npcs;   // rebuild for the loaded map
     game.hasSave = true;
+    // V3.1 — legacy save migration: gemspheres -> zyspheres (rename only,
+    // amount preserved).  Old key kept if still present so nothing crashes;
+    // future code should read/write zyspheres.
+    if (typeof game.player.zyspheres !== 'number' && typeof game.player.gemspheres === 'number') {
+      game.player.zyspheres = game.player.gemspheres;
+    }
+    if (typeof game.player.zyspheres !== 'number') game.player.zyspheres = 0;
     // V2.70 — migrate every saved Zyrex's stats to the new level-driven
     // formula.  Preserves current-HP as a ratio of the OLD maxHp so the
     // player doesn't get healed/wiped on load.  Applies to party + box.
@@ -9970,7 +10013,7 @@ document.getElementById('btn-new').onclick = () => {
     party: [],
     box: [],
     gems: 10,
-    gemspheres: 5,
+    zyspheres: 5,   // V3.1 — was gemspheres
     coins: 5,
     items: { potion: 0 },
     keys: { bronze: 0, silver: 0,

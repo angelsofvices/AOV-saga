@@ -1671,6 +1671,7 @@
           <button class="mainmenu-btn" data-open="zyrex">    <span class="mm-icon">◉</span>ZYREX</button>
           <button class="mainmenu-btn" data-open="notebook"> <span class="mm-icon">📖</span>NOTEBOOK</button>
           <button class="mainmenu-btn" data-open="types">    <span class="mm-icon">⯁</span>TYPES</button>
+          <button class="mainmenu-btn" data-open="quests">   <span class="mm-icon">◈</span>QUESTS</button>
           <!-- V2.34 — System actions -->
           <button class="mainmenu-btn" data-open="reset">    <span class="mm-icon">↺</span>RESET</button>
           <button class="mainmenu-btn" data-open="quit">     <span class="mm-icon">✕</span>QUIT</button>
@@ -1712,6 +1713,18 @@
           <div id="notebook-detail" class="notebook-detail"></div>
         </div>
         <div id="notebook-footer" class="notebook-footer"></div>
+      </div>
+    </div>
+
+    <!-- V2.44 — Quest log (shrine tracker + meta reward) -->
+    <div class="mainmenu-overlay" id="quests-overlay">
+      <div class="mainmenu-box">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title">Quest Log · Shrines of Zyraxis</div>
+          <button class="mainmenu-close" id="quests-close" aria-label="Close">✕</button>
+        </div>
+        <div id="quests-body" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        <div id="quests-footer" style="color: var(--mist); font-size: 12px; letter-spacing: 0.14em; text-align: center; margin-top: 6px;">Walk up to a district landmark and press A to touch its shrine.</div>
       </div>
     </div>
 
@@ -2838,6 +2851,70 @@ const DISTRICT_META = {
   korathen:  { num: 10, name: 'Korathen',  land: 'Ultralands',    types: ['Aura','Humanoid-Noid'],     tierBand: [27, 35], accent: '#f8c840', wallColor: '#3a2408', wallEdge: '#8a5c1c', groundColor: '#8a6018', groundShade: '#583c10', grassColor: '#e8a428', sparkleTint: '#ffe488', gemlord: 'oatheus',  gemKey: 'ultra'     },
 };
 const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+
+// V2.44 — SHRINE QUEST SYSTEM
+// Each non-Malezor district's landmark (V2.43 'L' tile) doubles as a shrine.
+// First-time interact yields flavored dialog + XP bonus + a unique named
+// item that stacks in the player's inventory. Visiting all 9 shrines
+// unlocks ANCIENT GEMSIGHT (permanent item; V2.45+ hooks will let it
+// reveal hidden chests / commander positions).
+const SHRINES = {
+  zarvane:   { name: 'Sunlit Pillar',     xp:  500, item: 'sunlit_ember',   itemName: 'Sunlit Ember',   dialog: [
+    'The pillar drinks sunlight and gives back warmth you can hold.',
+    "«◈ 500 XP shared with your party.»",
+    "«◈ SUNLIT EMBER added to items.»",
+  ] },
+  andrannor: { name: 'Broken Obelisk',    xp:  750, item: 'ancient_rune',   itemName: 'Ancient Rune',   dialog: [
+    'The obelisk is cracked, but the runes still hum under your palm.',
+    'You read one line. You do not know its meaning, but your bones do.',
+    "«◈ 750 XP shared with your party.»",
+    "«◈ ANCIENT RUNE added to items.»",
+  ] },
+  veridan:   { name: 'Great Tree',        xp: 1000, item: 'verdant_seed',   itemName: 'Verdant Seed',   dialog: [
+    'The Great Tree exhales. A single leaf drifts into your hand.',
+    'It weighs almost nothing. It weighs everything.',
+    "«◈ 1000 XP shared with your party.»",
+    "«◈ VERDANT SEED added to items.»",
+  ] },
+  netharion: { name: 'Void Rift',         xp: 1200, item: 'void_fragment',  itemName: 'Void Fragment',  dialog: [
+    'The rift whispers a name you almost recognize. Almost.',
+    'You look away first. It keeps whispering.',
+    "«◈ 1200 XP shared with your party.»",
+    "«◈ VOID FRAGMENT added to items.»",
+  ] },
+  vorashil:  { name: 'Alien Landing Pad', xp: 1500, item: 'alien_chip',     itemName: 'Alien Chip',     dialog: [
+    "The pad recognizes something in your pack. It waits.",
+    'A soft chime you feel more than hear.',
+    "«◈ 1500 XP shared with your party.»",
+    "«◈ ALIEN CHIP added to items.»",
+  ] },
+  xilnar:    { name: 'Spirit Tree',       xp: 1800, item: 'wisp_breath',    itemName: 'Wisp Breath',    dialog: [
+    'The spirit tree brushes your shoulder — nothing you can feel, only remember.',
+    'A wisp curls into your pack and settles there.',
+    "«◈ 1800 XP shared with your party.»",
+    "«◈ WISP BREATH added to items.»",
+  ] },
+  baelgor:   { name: 'Forge Anvil',       xp: 2100, item: 'forge_ember',    itemName: 'Forge Ember',    dialog: [
+    "The anvil is warm. Someone forged here yesterday. Or a thousand yesterdays ago.",
+    'An ember lands in your palm and does not burn.',
+    "«◈ 2100 XP shared with your party.»",
+    "«◈ FORGE EMBER added to items.»",
+  ] },
+  thardin:   { name: 'Machine Tower',     xp: 2500, item: 'gear_cog',       itemName: 'Gear Cog',       dialog: [
+    'The machine listens. You cannot hear what it does with the sound of your breath.',
+    'A cog turns. It stops when you step back.',
+    "«◈ 2500 XP shared with your party.»",
+    "«◈ GEAR COG added to items.»",
+  ] },
+  korathen:  { name: 'Throne Dais',       xp: 3000, item: 'imperial_crest', itemName: 'Imperial Crest', dialog: [
+    'The throne is empty. It has been empty for centuries.',
+    "It hums when you approach — a low note that used to be a name.",
+    "«◈ 3000 XP shared with your party.»",
+    "«◈ IMPERIAL CREST added to items.»",
+  ] },
+};
+// Meta-quest: visit all 9 shrines → ANCIENT GEMSIGHT unlock.
+const SHRINE_TOTAL = 9;
 
 // V2.43 — DISTRICT CHARACTER
 // Each district gets its own decor recipe so the world stops feeling like
@@ -4187,6 +4264,7 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
     if (which === 'zyrex') openParty();
     if (which === 'notebook') openNotebookView();
     if (which === 'types')    openTypesView();
+    if (which === 'quests')   openQuestsView();  // V2.44
     // V2.34 — system actions
     if (which === 'reset') confirmResetGame();
     if (which === 'quit')  confirmQuitGame();
@@ -4216,6 +4294,46 @@ function confirmQuitGame() {
     window.location.reload();
   });
 }
+// V2.44 — Quest log overlay
+function openQuestsView() {
+  clearHeldKeys();
+  const ov = document.getElementById('quests-overlay');
+  ov.classList.add('active');
+  const body = document.getElementById('quests-body');
+  const footer = document.getElementById('quests-footer');
+  const visited = game.player.shrinesVisited || {};
+  const visitedCount = Object.keys(SHRINES).filter(k => visited[k]).length;
+  body.innerHTML = '';
+  // Meta bar
+  const meta = document.createElement('div');
+  meta.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(90,40,140,0.15);border:1px solid var(--border-gold);color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;';
+  meta.innerHTML = `<span>ANCIENT GEMSIGHT</span><span>${visitedCount} / ${SHRINE_TOTAL}${visitedCount >= SHRINE_TOTAL ? ' ◈ UNLOCKED' : ''}</span>`;
+  body.appendChild(meta);
+  // Per-shrine rows
+  for (const id of DISTRICT_ORDER) {
+    if (!SHRINES[id]) continue;
+    const shrine = SHRINES[id];
+    const dmeta = DISTRICT_META[id];
+    const done = !!visited[id];
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid ${done ? 'var(--border-gold)' : 'var(--border-soft)'};background:${done ? 'rgba(90,40,140,0.10)' : 'rgba(20,10,40,0.20)'};color:${done ? 'var(--gold-bright)' : 'var(--mist)'};`;
+    row.innerHTML = `
+      <div>
+        <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">${done ? '◈' : '○'}  ${dmeta.name.toUpperCase()} · ${shrine.name.toUpperCase()}</div>
+        <div style="font-size:11px;opacity:0.65;margin-top:2px;letter-spacing:0.08em;">${done ? 'Visited · ' + shrine.itemName + ' claimed' : 'Unvisited · touch the landmark'}</div>
+      </div>
+      <div style="font-family:var(--font-display);font-size:12px;letter-spacing:0.10em;opacity:0.8;">+${shrine.xp} XP</div>
+    `;
+    body.appendChild(row);
+  }
+  footer.textContent = visitedCount >= SHRINE_TOTAL
+    ? '◈  All shrines answered.  Ancient Gemsight opens what was hidden.'
+    : `Walk up to a district landmark and press A. ${SHRINE_TOTAL - visitedCount} shrine${SHRINE_TOTAL - visitedCount === 1 ? '' : 's'} remain.`;
+}
+document.getElementById('quests-close').onclick = () => document.getElementById('quests-overlay').classList.remove('active');
+document.getElementById('quests-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('quests-overlay')) e.target.classList.remove('active');
+});
 document.getElementById('notebook-close').onclick = () => document.getElementById('notebook-overlay').classList.remove('active');
 // V2.35 — Type sheet overlay wiring
 document.getElementById('types-close').onclick = () => document.getElementById('types-overlay').classList.remove('active');
@@ -4495,6 +4613,24 @@ function openItemsView() {
     { key: 'bronze',    name: 'Bronze Key',  desc: 'Opens the Bronze Cottage on Malezor.',       count: (ks.bronze || 0) },
     { key: 'silver',    name: 'Silver Key',  desc: 'Opens the Silver Lodge on Malezor.',         count: (ks.silver || 0) },
   ];
+  // V2.44 — Shrine relics (bragging-rights items, USE disabled)
+  const shrineDescs = {
+    sunlit_ember:   'Warm to the touch, always. A relic of Zarvane.',
+    ancient_rune:   'Reads its own meaning when you are not looking. A relic of Andrannor.',
+    verdant_seed:   'It does not need soil to be alive. A relic of Veridan.',
+    void_fragment:  'It is missing the middle. A relic of Netharion.',
+    alien_chip:     'It hums when other technology is near. A relic of Vorashil.',
+    wisp_breath:    'It moves in your pack when no one is looking. A relic of Xilnar.',
+    forge_ember:    'A single coal that will not go cold. A relic of Baelgor.',
+    gear_cog:       'When it turns, something distant turns with it. A relic of Thardin.',
+    imperial_crest: 'The crown that answers no name. A relic of Korathen.',
+    ancient_gemsight: 'A lens behind your eyes. What was hidden hides less. Meta relic.',
+  };
+  for (const [key, desc] of Object.entries(shrineDescs)) {
+    const count = it[key] || 0;
+    if (!count) continue;
+    rows.push({ key, name: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), desc, count });
+  }
   for (const r of rows) {
     const row = document.createElement('div');
     row.className = 'item-row';
@@ -4772,12 +4908,14 @@ document.addEventListener('keydown', (e) => {
     const itemsActive    = $itemsov.classList.contains('active');
     const notebookActive = document.getElementById('notebook-overlay').classList.contains('active');   // V2.18
     const typesActive    = document.getElementById('types-overlay').classList.contains('active');     // V2.35
-    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive)) {
+    const questsActive   = document.getElementById('quests-overlay').classList.contains('active');    // V2.44
+    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive)) {
       if (mapActive)     closeMapView();
       if (itemsActive)   $itemsov.classList.remove('active');
       if (inspectActive) document.getElementById('inspect-overlay').classList.remove('active');
       if (notebookActive) document.getElementById('notebook-overlay').classList.remove('active');
       if (typesActive)   document.getElementById('types-overlay').classList.remove('active');
+      if (questsActive)  document.getElementById('quests-overlay').classList.remove('active');
       e.preventDefault();
       return;
     }
@@ -4954,6 +5092,55 @@ function grantHouseLoot(mapId) {
   showToast(bits.join('  ·  '), 2400);
 }
 
+// V2.44 — Shrine interact (adjacent to district's 'L' landmark tile).
+function interactShrine() {
+  const districtId = game.player.mapId;
+  const shrine = SHRINES[districtId];
+  if (!shrine) {
+    showDialog(['A quiet place. Nothing calls back.']);
+    return;
+  }
+  game.player.shrinesVisited = game.player.shrinesVisited || {};
+  if (game.player.shrinesVisited[districtId]) {
+    showDialog([
+      `${shrine.name.toUpperCase()}.`,
+      'You have already taken what it offered.',
+      'It stands, quiet. Still humming under the surface.',
+    ]);
+    return;
+  }
+  // First-visit: record + reward
+  game.player.shrinesVisited[districtId] = true;
+  game.player.items = game.player.items || {};
+  game.player.items[shrine.item] = (game.player.items[shrine.item] || 0) + 1;
+  // XP to all alive party members
+  for (const r of game.player.party || []) {
+    if (!r || r.hp <= 0) continue;
+    r.xp = (r.xp || 0) + shrine.xp;
+    while (r.xp >= xpForNext(r.lv)) {
+      const need = xpForNext(r.lv);
+      if (!levelUp(r)) { r.xp = 0; break; }
+      r.xp -= need;
+    }
+  }
+  save();
+  showDialog(shrine.dialog, () => {
+    // Check for meta-quest completion
+    const visited = Object.keys(game.player.shrinesVisited).filter(k => SHRINES[k]).length;
+    if (visited >= SHRINE_TOTAL && !(game.player.items && game.player.items.ancient_gemsight)) {
+      game.player.items = game.player.items || {};
+      game.player.items.ancient_gemsight = 1;
+      save();
+      showDialog([
+        '◈  THE NINE ANSWER AS ONE  ◈',
+        'A pressure lifts behind your eyes.  You see the world thinner now.',
+        'ANCIENT GEMSIGHT settles in your pack — a lens you cannot see, but always feel.',
+        'Whatever was hidden will not stay hidden for long.',
+      ]);
+    }
+  });
+}
+
 function tryInteract() {
   const dx = game.player.dir === 'right' ? 1 : game.player.dir === 'left' ? -1 : 0;
   const dy = game.player.dir === 'down'  ? 1 : game.player.dir === 'up'   ? -1 : 0;
@@ -5013,6 +5200,8 @@ function tryInteract() {
     showDialog(['The stove. Still warm from Mom\'s toast.']);
   } else if (t === 'x') {
     exitHouseToMalezor();
+  } else if (t === 'L') {
+    interactShrine();  // V2.44
   } else if (t === 'S' || t === 'B') {
     openShop();
   } else if ('YJQ'.includes(t)) {

@@ -6503,10 +6503,13 @@ document.getElementById('items-close').onclick = () => $itemsov.classList.remove
 $itemsov.addEventListener('click', (e) => { if (e.target === $itemsov) $itemsov.classList.remove('active'); });
 
 // ---------- Merchant shop ----------
+// V3.6.1 — Astralite Gems removed from the buy list.  Gems can no
+// longer be purchased; they must be earned in battle / found in the
+// world.  The merchant will still trade coins for excess gems via
+// the SELL section below.
 const SHOP_STOCK = [
-  { key: 'gem',       name: 'Astralite Gem', desc: 'Powers one move in battle. Never march empty.', price: 1  },
-  { key: 'potion',    name: 'Potion',        desc: 'Heals 40 HP outside battle.',                    price: 5  },
-  { key: 'zysphere', name: 'Zysphere',     desc: 'Sync-binds a wild Zyrex\'s astralite genetic makeup mid-battle.',   price: 10 },
+  { key: 'potion',    name: 'Potion',        desc: 'Heals 40 HP outside battle.',                                        price: 5  },
+  { key: 'zysphere',  name: 'Zysphere',      desc: 'Sync-binds a wild Zyrex\'s astralite genetic makeup mid-battle.',    price: 10 },
 ];
 function openShop() {
   game.mode = 'shop';
@@ -6531,14 +6534,14 @@ function renderShop() {
     row.querySelector('button').onclick = () => buyItem(it);
     body.appendChild(row);
   }
-  // V3.6 — SELL GEMS section.  The merchant will convert Astralite Gems
-  // back into coin currency at 2:1 — half rate to prevent gem-farming
-  // loops, generous enough to make hoarding worth cashing out.
-  // Rate is centralized in GEM_SELL_DIVISOR below.
+  // V3.6.1 — SELL GEMS section at parity: 1 gem = 1 coin.  Gems are
+  // no longer purchasable, so this is a pure overflow valve — earned
+  // gems the player doesn't want to spend on move costs can be cashed
+  // out one-for-one for coins.
   const gems = game.player.gems || 0;
   const divider = document.createElement('div');
   divider.style.cssText = 'color:var(--mist); font-size:11px; letter-spacing:0.28em; text-align:center; text-transform:uppercase; margin: 14px 0 6px; opacity:0.65;';
-  divider.textContent = '— sell gems for coins  ·  2 gems  →  1 coin —';
+  divider.textContent = '— sell gems for coins  ·  1 gem  →  1 coin —';
   body.appendChild(divider);
   const sellTiers = [
     { label: 'SELL 10 GEMS',  gems: 10 },
@@ -6562,10 +6565,9 @@ function renderShop() {
     body.appendChild(row);
   }
 }
-// V3.6 — gems-to-coins conversion rate (2 gems = 1 coin).  Kept as a
-// named constant so future balance passes can dial it without hunting
-// through the render logic.
-const GEM_SELL_DIVISOR = 2;
+// V3.6.1 — gems-to-coins conversion rate at parity (1 gem = 1 coin).
+// Kept as a named constant so future balance passes are one edit.
+const GEM_SELL_DIVISOR = 1;
 function sellGems(amount) {
   const have = game.player.gems || 0;
   if (amount <= 0 || amount > have) return;
@@ -6580,6 +6582,10 @@ function sellGems(amount) {
 function buyItem(it) {
   if ((game.player.coins || 0) < it.price) return;
   game.player.coins -= it.price;
+  // V3.6.1 — 'gem' branch retained only as a defensive no-op guard;
+  // Astralite Gems are no longer purchasable, but if some legacy code
+  // path ever calls buyItem({key:'gem'}) it should still credit rather
+  // than lose the coin silently.
   if (it.key === 'gem')            game.player.gems      = (game.player.gems      || 0) + 1;
   else if (it.key === 'zysphere' || it.key === 'gemsphere') game.player.zyspheres = (game.player.zyspheres || 0) + 1;
   else {

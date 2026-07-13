@@ -162,11 +162,22 @@ def parse_evolution(ws):
 
 def scale_base_down(canonical_base, from_tier, to_tier):
     """Scale a canonical stat block from its tier down toward a lower tier.
-    Linear on tier (roughly reflects how the game's stat curves scale)."""
+
+    V2.59 — Enforces the canonical T*333 rule: the resulting stat pool
+    must equal to_tier * 333, preserving the relative weighting of the
+    canonical block (so a magic-heavy Tier V species stays magic-heavy
+    at Tier II).
+    """
     if from_tier <= to_tier:
         return dict(canonical_base)
-    ratio = max(0.25, (to_tier * 1.0) / from_tier)
-    return {k: max(20, int(v * ratio * 0.35)) for k, v in canonical_base.items()}
+    target_total = to_tier * 333
+    current_total = sum(canonical_base.get(k, 0) for k in ('hp','atk','def','spd','spc')) or 1
+    scale = target_total / current_total
+    scaled = {k: int(canonical_base.get(k, 0) * scale) for k in ('hp','atk','def','spd','spc')}
+    # Trim floor drift onto SPC so the sum lands exactly at T*333.
+    drift = target_total - sum(scaled.values())
+    scaled['spc'] = max(1, scaled.get('spc', 0) + drift)
+    return scaled
 
 def synthesize_invented(id, chain, chain_idx, next_stage_entry, tier_guess):
     """Build a plausible codex entry for a stage that has no canonical row."""
@@ -329,6 +340,26 @@ def main():
     js = 'window.CODEX_ZYREX = ' + json.dumps(slim, ensure_ascii=False) + ';'
     JS_OUT.write_text(js, encoding='utf-8')
     print(f'Wrote {JS_OUT}  —  {len(slim)} Zyrex entries')
+
+    # V2.59 — Canon audit: every species's base stat pool must equal
+    # tier * 333.  Warn on any regression so future codex edits don't
+    # silently drift out of canon.
+    print()
+    print('T*333 stat-pool audit:')
+    mismatches = []
+    for id_, e in slim.items():
+        tier = e.get('tier') or 1
+        b = e.get('base') or {}
+        total = sum(b.get(k, 0) for k in ('hp','atk','def','spd','spc'))
+        target = tier * 333
+        if total != target:
+            mismatches.append((id_, tier, total, target))
+    if not mismatches:
+        print(f'  OK — all {len(slim)} Zyrex satisfy pool = tier * 333.')
+    else:
+        print(f'  {len(mismatches)} mismatch(es):')
+        for id_, tier, total, target in mismatches:
+            print(f'    {id_:20s} T{tier}  pool={total:5d}  (needs {target}, delta {target-total:+d})')
 
 if __name__ == '__main__':
     main()

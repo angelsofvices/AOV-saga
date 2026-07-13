@@ -1024,6 +1024,19 @@
       outline: none;
       box-shadow: 0 0 20px rgba(232, 200, 120, 0.35);
     }
+    /* V2.66 — Primary armed action button (FIGHT after every action).
+       Adds a slow gold pulse so mobile users see it's ready without
+       needing keyboard focus. */
+    .action-btn.primed {
+      background: rgba(232, 200, 120, 0.20);
+      border-color: var(--gold-bright);
+      color: var(--gold-bright);
+      animation: primed-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes primed-pulse {
+      0%, 100% { box-shadow: 0 0 12px rgba(232, 200, 120, 0.30); }
+      50%      { box-shadow: 0 0 28px rgba(232, 200, 120, 0.60); }
+    }
     .starter-card:focus, .starter-card:focus-visible {
       outline: none;
       border-color: var(--r-accent, var(--gold));
@@ -2863,6 +2876,7 @@ function stageMult(stage) {
 const game = {
   mode: 'title',   // title | starter | overworld | battle | party | dialog
   hasSave: false,
+  pendingEncounter: null,   // V2.66 — { id, lv, armedAt } when a wild encounter is queued and waiting for A press
   player: {
     x: 8, y: 10,
     dir: 'down',
@@ -4539,6 +4553,46 @@ function renderMap() {
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
   drawCharacter(px, py, game.player.dir, pal.primary, pal.accent);
+  // V2.66 — Encounter '!' indicator above the player when a wild
+  // encounter is armed but not yet engaged.  Pulsing yellow bubble;
+  // press A to engage.
+  if (game.pendingEncounter) drawEncounterIndicator(px, py);
+}
+
+// V2.66 — Yellow '!' speech bubble above the player, pulsing.
+function drawEncounterIndicator(px, py) {
+  const t = performance.now() / 1000;
+  const bob = Math.sin(t * 5) * 2;
+  const cx = px;
+  const cy = py - 26 + bob;
+  const scale = 1 + Math.sin(t * 6) * 0.06;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  // Bubble body
+  ctx.fillStyle = '#050310';
+  ctx.strokeStyle = '#ffdc90';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(-9, -12, 18, 22, 3) : ctx.rect(-9, -12, 18, 22);
+  ctx.fill(); ctx.stroke();
+  // Tail
+  ctx.beginPath();
+  ctx.moveTo(-3, 10); ctx.lineTo(0, 16); ctx.lineTo(3, 10);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // '!' glyph
+  ctx.fillStyle = '#ffdc90';
+  ctx.font = 'bold 16px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('!', 0, -1);
+  ctx.restore();
+  // Optional glow behind bubble
+  ctx.fillStyle = `rgba(255, 220, 144, ${0.15 + 0.15 * Math.sin(t * 6)})`;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 2, 18, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // V2.17 — Small pulsing egg-shape for the forgotten homunculus.
@@ -5427,6 +5481,14 @@ document.addEventListener('keydown', (e) => {
   // overworld does NOT open the menu (Shift is the run modifier).  All
   // other overlays/menus use plain isBack so Shift closes them.
   if (game.mode === 'overworld') {
+    // V2.66 — If a wild encounter is armed (post-gemgrass '!' indicator),
+    // A engages it and nothing else responds until then.
+    if (game.pendingEncounter) {
+      if (isConfirm) { engagePendingEncounter(); e.preventDefault(); return; }
+      // Don't allow opening the menu while frozen either.
+      if (isBackOverworldGated) { e.preventDefault(); return; }
+      return;
+    }
     if (isBackOverworldGated) { openMainMenu(); e.preventDefault(); return; }
     if (isConfirm) { tryInteract(); e.preventDefault(); return; }
   }
@@ -5476,6 +5538,9 @@ canvas.addEventListener('click', (e) => {
 
 function tryMove(dx, dy) {
   if (game.mode !== 'overworld') return;
+  // V2.66 — Freeze movement while a wild encounter is armed.  The
+  // player must press A (isConfirm) to engage before they can walk again.
+  if (game.pendingEncounter) return;
   if (game.player.moveCd > 0) return;
   const dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
   game.player.dir = dir;
@@ -5515,10 +5580,39 @@ function tryMove(dx, dy) {
   if (isGemgrass(nx, ny)) {
     game.player.stepsSinceEnc++;
     if (Math.random() < 0.14 && game.player.stepsSinceEnc >= 2) {
-      startWildEncounter();
+      // V2.66 — Instead of firing the battle immediately, arm a
+      // pendingEncounter and show a '!' indicator above the player.
+      // The player must press A to engage.  Movement is blocked until
+      // then (see tryMove guard below).
+      armPendingEncounter();
       game.player.stepsSinceEnc = 0;
     }
   }
+}
+// V2.66 — Arm a pending wild encounter (roll enemy now, freeze player,
+// draw '!' indicator, wait for A press).  See startWildEncounter for
+// the immediate-engage path used by story triggers that shouldn't defer.
+function armPendingEncounter() {
+  if (game.pendingEncounter) return;   // already armed
+  const districtPool = districtWildPool(game.player.mapId);
+  let id, lv;
+  if (districtPool && districtPool.ids.length) {
+    id = districtPool.ids[Math.floor(Math.random() * districtPool.ids.length)];
+    const [lo, hi] = districtPool.lvRange;
+    lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
+  } else {
+    const roll = WILD_POOL[Math.floor(Math.random() * WILD_POOL.length)];
+    id = roll.id;
+    lv = roll.lvRange[0] + Math.floor(Math.random() * (roll.lvRange[1] - roll.lvRange[0] + 1));
+  }
+  game.pendingEncounter = { id, lv, armedAt: performance.now() };
+}
+function engagePendingEncounter() {
+  const p = game.pendingEncounter;
+  if (!p) return false;
+  game.pendingEncounter = null;
+  enterBattle(makeZyrex(p.id, p.lv), 'wild');
+  return true;
 }
 // V2.8.3 — door dispatch. Unlocked (home 'x') or has key -> enterMap.
 // Locked without key -> dialog explaining which key is needed.
@@ -6754,6 +6848,10 @@ function renderMainMenu() {
   addAction('ZYREX', renderZyrexMenu);
   addAction('BAG',   renderBagMenu);
   addAction('RUN',   () => tryRun(), !canRun);
+  // V2.66 — Mark FIGHT as the primed action (gold pulse) so the player
+  // always sees the default next-action after any move / item / equip.
+  const fightBtn = $battleActions.querySelector('.action-btn');
+  if (fightBtn && !fightBtn.disabled) fightBtn.classList.add('primed');
   focusFirstAction();
 }
 function addAction(label, cb, disabled) {
@@ -6908,7 +7006,10 @@ function equipGemsToActive(n) {
   updateHUD();
   refreshBattleUI();
   showToast(`◈ +${move}  ${p.name}`);
-  renderEquipMenu();
+  // V2.66 — Equipping gems doesn't consume a turn, but land back on the
+  // FIGHT root menu so the player is always one press from attacking
+  // instead of stuck in the equip sub-menu.
+  renderMainMenu();
 }
 
 async function playerUseMove(i) {

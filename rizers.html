@@ -5301,18 +5301,31 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       return;
     }
-    // Enter/Space (non-Z confirm) still opens the inspect card.
-    // V2.46 — Mobile hold-A dispatches Enter without any prior arrow-key
-    // focus, so document.activeElement is a mob-btn (or body), not a party
-    // slot. Fall back to the first non-empty slot when nothing valid focused.
+    // Enter/Space (non-Z confirm) opens Inspect for the SELECTED / focused card.
+    // V2.61 — Preference order: (1) explicitly .selected card (mobile
+    // tap-selection), (2) currently focused card (desktop arrow-key nav),
+    // (3) first non-empty slot as a last-resort fallback.  Opens directly
+    // via openInspect(r, i) — we do NOT route through activateFocused()
+    // because that would re-fire the slot's onclick which is now
+    // 'toggle selection', not 'open'.
     if (isConfirm) {
-      const focused = document.activeElement;
-      const isSlot = focused && focused.classList && focused.classList.contains('party-slot');
-      if (!isSlot) {
-        const first = document.querySelector('#party-grid .party-slot:not(.empty)');
-        if (first) { first.focus(); first.click(); e.preventDefault(); return; }
+      const grid = document.getElementById('party-grid');
+      let target = grid && grid.querySelector('.party-slot.selected:not(.empty)');
+      if (!target) {
+        const focused = document.activeElement;
+        if (focused && focused.classList && focused.classList.contains('party-slot')
+            && !focused.classList.contains('empty')) target = focused;
       }
-      if (activateFocused()) e.preventDefault();
+      if (!target) target = grid && grid.querySelector('.party-slot:not(.empty)');
+      if (target) {
+        const slots = Array.from(grid.children);
+        const idx = slots.indexOf(target);
+        if (idx >= 0 && game.player.party[idx]) {
+          openInspect(game.player.party[idx], idx);
+          e.preventDefault();
+          return;
+        }
+      }
       return;
     }
     if (isBack) {
@@ -7766,6 +7779,11 @@ function closeParty() {
   $party.classList.remove('active');
   game.mode = 'overworld';
   game._swapPickedIdx = null;
+  // V2.61 — clear any card-selection highlight when the menu closes
+  if ($partyGrid) {
+    $partyGrid.querySelectorAll('.party-slot.selected')
+      .forEach(el => el.classList.remove('selected'));
+  }
 }
 document.getElementById('party-close').onclick = closeParty;
 
@@ -7842,7 +7860,7 @@ function renderPartyScreen() {
           <div class="party-name">${r.name}</div>
           <div class="party-hp-line">Lv ${r.lv} · Card Tier ${TIER_ROMAN[speciesTier-1]} · ${r.type}${dual}${tri} · HP ${r.hp}/${r.maxHp}</div>
           <div class="party-hp-bar"><div class="party-hp-fill ${hpCls}" style="width:${ratio * 100}%"></div></div>
-          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Z to swap  ·  tap or hold to inspect</div>
+          <div style="color:var(--mist);font-size:14px;letter-spacing:0.06em;margin-top:3px;">Z swap  ·  tap to select  ·  A / hold-A inspects</div>
         </div>
       `;
       const cvs = slot.querySelector('canvas');
@@ -7852,7 +7870,25 @@ function renderPartyScreen() {
       c.drawImage(tmp, 0, 0, 96, 96, 0, 0, 48, 48);
       slot.style.cursor = 'pointer';
       slot.tabIndex = 0;
-      slot.onclick = () => openInspect(r, i);   // V2.20 — pass slot index for SWAP
+      // V2.61 — Card-selection model: a single tap SELECTS the card (gold
+      // outline via .selected), does NOT open Inspect.  On mobile this
+      // lets the user pick a specific Zyrex before holding the A button,
+      // which then opens Inspect for the selected card.  A second tap on
+      // the same card = open Inspect (mobile shortcut).  Long-press for
+      // one-touch open (V2.54) stays as a power-user gesture.
+      slot.onclick = () => {
+        const wasSelected = slot.classList.contains('selected');
+        // Clear any other selections
+        Array.from($partyGrid.querySelectorAll('.party-slot.selected'))
+          .forEach(el => { if (el !== slot) el.classList.remove('selected'); });
+        if (wasSelected) {
+          // Second tap on already-selected card = open Inspect
+          openInspect(r, i);
+        } else {
+          slot.classList.add('selected');
+          try { slot.focus(); } catch (_) {}
+        }
+      };
       slot.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInspect(r, i); } };
       // V2.54 — LONG-PRESS TO INSPECT.  Hold any party card for 450 ms and
       // Inspect opens for THAT specific card.  Works on any pointer type

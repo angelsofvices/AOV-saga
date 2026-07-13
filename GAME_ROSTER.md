@@ -213,7 +213,7 @@ Columns: **Name** (bold if hand-crafted in `rizers.html`; plain if auto-hydrated
 | Name | Types | District | HP | ATK | DEF | SPD | SPC | Pool | Evolves → |
 |---|---|---|---:|---:|---:|---:|---:|---:|---|
 | Anciuxor | Ultramax / Humanoid-Noid | Korathen | 666 | 666 | 666 | 666 | 666 | 3330 | — |
-| Ultharis | Ultramax / Spirit | Korathen | 800 | 666 | 666 | 466 | 732 | 3330 | — |
+| Ultharis | Ultramax / Spirit | Korathen | 999 | 999 | 999 | 999 | 999 | 4995 ⚠︎ | — |
 
 ---
 

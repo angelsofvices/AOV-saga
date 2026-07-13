@@ -19,7 +19,7 @@ Paste this into the master cowork chat verbatim. Every section is either a **can
 
 **Master codex data errors the game had to fix:**
 6. **Mira** (row 274 · Tier VIII) had 0/0/0/0/0/0 stats in `9 MASTER INDEX` — filled to `666/400/466/400/732 = 2664` (Aura/Spirit Ascendant, SPC+HP weighted)
-7. **Ultharis** (row 457 · Tier X) had 999/999/999/999/999 = 4995 pool — trimmed to `800/666/666/466/732 = 3330` (God-tier, HP+SPC weighted)
+7. ~~**Ultharis** trim~~ **REVERSED in V2.65:** Ultharis is now canonically **exempt** from T×333.  Stays at 999/999/999/999/999 = 4995 as God of the universe.  See §3.1 below.
 
 **New named canon the game invented — decide whether to promote to master:**
 8. 10 Seer Commanders (one per district, one per Gemshard color)
@@ -81,7 +81,24 @@ The rule is now:
 - Audited at end of every codex regeneration (`python3 data/build_codex.py` prints `OK — all 116 satisfy` or lists mismatches)
 - Audited at game boot (`console.warn` if any hydrated SPECIES entry violates)
 
-**Master codex action:** if the drive master codex has a stats sheet that differs, that's the drift. Rows 274 (Mira) and 457 (Ultharis) in `9 MASTER INDEX` were the two mismatches — both fixed in the game xlsx (see §4). Any other tier that has an anomalous total probably means either the tier assignment is wrong or the stats need rebalancing.
+**Master codex action:** if the drive master codex has a stats sheet that differs, that's the drift. Row 274 (Mira) was one of two original mismatches — both handled (see §4). Any other tier that has an anomalous total probably means either the tier assignment is wrong or the stats need rebalancing.
+
+### 3.1 Canon exemptions to T×333 (V2.65)
+
+Certain species are **explicitly exempt** from T×333 because their lore fixes their stats:
+
+| Species | Tier | Stats (locked) | Pool | Reason |
+|---|---:|---|---:|---|
+| **Ultharis** | X | 999 / 999 / 999 / 999 / 999 | **4995** | God of the universe.  Stats do not scale to tier target — they max at 999 across the board as canon. |
+
+Exemption is enforced in code via `CANON_STAT_EXEMPT = {'ultharis'}`:
+- `data/build_codex.py` audit skips it and prints `EXEMPT ultharis T10 pool=4995 (canon exception — no T*333)`
+- `rizers.html` boot audit skips it
+- `tools/regen_game_roster.py` audit skips it
+
+Anciuxor (Tier X, all-666 stats = 3330 pool) is **not** exempt — its 666-across-the-board distribution happens to satisfy T×333 naturally.
+
+**Master codex action:** if adding new lore-locked species (Gods, Cosmics, etc.) whose stats shouldn't follow T×333, add them to the `CANON_STAT_EXEMPT` set in all three places, and to this table.
 
 ---
 
@@ -92,7 +109,7 @@ The following rows had errors in `data/aov_game_codex_v11.1.xlsx` sheet `9 MASTE
 | Row | Species | Tier | Was | Now | Reason |
 |---:|---|---:|---|---|---|
 | 274 | **Mira**     | VIII (Aura/Spirit, Immortal, ASCENDANT)   | `0 / 0 / 0 / 0 / 0` (empty placeholder) | `666 / 400 / 466 / 400 / 732 = 2664` | Filled per T×333 rule with Ascendant weighting (HP + SPC dominant) |
-| 457 | **Ultharis** | X (Ultramax/Spirit, God, ASCENDANCE)      | `999 / 999 / 999 / 999 / 999 = 4995`     | `800 / 666 / 666 / 466 / 732 = 3330` | Trimmed to T×333 target; God-tier retains HP+SPC dominance |
+| 457 | **Ultharis** | X (Ultramax/Spirit, God, ASCENDANCE)      | `999 / 999 / 999 / 999 / 999 = 4995`     | `999 / 999 / 999 / 999 / 999 = 4995` (V2.65 canon lock — exempt from T×333) | God of the universe; stats stay 999x5. Row was correct on the drive all along. |
 
 **Master codex action:** if the drive `9 MASTER INDEX` for Mira / Ultharis differs, sync to these values.
 

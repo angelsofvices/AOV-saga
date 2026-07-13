@@ -345,17 +345,28 @@ def main():
     # tier * 333.  Warn on any regression so future codex edits don't
     # silently drift out of canon.
     print()
+    # V2.65 — Canon stat exemptions: certain species are explicitly exempt
+    # from the T*333 rule per user canon lock.  Add ids here when a
+    # species is a lore exception (e.g., Ultharis = God of the universe
+    # canonically maxes 999 across all stats regardless of tier target).
+    CANON_STAT_EXEMPT = {'ultharis'}
     print('T*333 stat-pool audit:')
     mismatches = []
+    exempted = 0
     for id_, e in slim.items():
         tier = e.get('tier') or 1
         b = e.get('base') or {}
         total = sum(b.get(k, 0) for k in ('hp','atk','def','spd','spc'))
         target = tier * 333
+        if id_ in CANON_STAT_EXEMPT:
+            exempted += 1
+            print(f'  EXEMPT  {id_:20s} T{tier}  pool={total:5d}  (canon exception — no T*333)')
+            continue
         if total != target:
             mismatches.append((id_, tier, total, target))
     if not mismatches:
-        print(f'  OK — all {len(slim)} Zyrex satisfy pool = tier * 333.')
+        checked = len(slim) - exempted
+        print(f'  OK — all {checked} non-exempt Zyrex satisfy pool = tier * 333.')
     else:
         print(f'  {len(mismatches)} mismatch(es):')
         for id_, tier, total, target in mismatches:

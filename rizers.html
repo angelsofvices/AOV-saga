@@ -3615,6 +3615,111 @@ function districtWildPool(mapId) {
   return { ids: finalIds, lvRange: [lvLo, lvHi] };
 }
 
+// V2.71 — DISTRICT TERRAIN SHAPES.  Each district's outer perimeter is
+// carved into a distinct geography that reflects lore: Zarvane's Sunlit
+// Temple is oval, Vorashil's landing pad is hexagonal, Netharion's void
+// rift is a cross, Baelgor's forge is a fortress with thick walls, etc.
+// Each shape returns TRUE if the tile is a WALL (in addition to the
+// outermost rectangle border).  Key feature positions (portals, boss,
+// cave, landmark, town hall) are carved back to floor in the placement
+// passes below so gameplay stays intact.
+const DISTRICT_TERRAIN = {
+  // Zarvane — Sunlit Temple.  Rounded oval; corners cut for a round hall.
+  zarvane: (x, y, w, h) => {
+    const cx = (w - 1) / 2, cy = (h - 1) / 2;
+    const rx = (w - 1) / 2 - 0.5, ry = (h - 1) / 2 - 0.5;
+    const d = ((x - cx) * (x - cx)) / (rx * rx) + ((y - cy) * (y - cy)) / (ry * ry);
+    return d > 1.02;   // outside oval → wall
+  },
+  // Andrannor — Obsidian Archive.  Ruin jags at each corner: staircase-cut.
+  andrannor: (x, y, w, h) => {
+    const cut = 4;
+    // Four staircase corners
+    if (x < cut && y < cut && (x + y) < cut) return true;
+    if ((w - 1 - x) < cut && y < cut && ((w - 1 - x) + y) < cut) return true;
+    if (x < cut && (h - 1 - y) < cut && (x + (h - 1 - y)) < cut) return true;
+    if ((w - 1 - x) < cut && (h - 1 - y) < cut && ((w - 1 - x) + (h - 1 - y)) < cut) return true;
+    return false;
+  },
+  // Veridan — Great Tree.  Sinusoidal wave top+bottom edges (leaf silhouette).
+  veridan: (x, y, w, h) => {
+    const wave = 2 + Math.floor(Math.abs(Math.sin(x * 0.55)) * 2);
+    if (y < wave) return true;
+    if (y > h - 1 - wave) return true;
+    return false;
+  },
+  // Netharion — Void Rift.  Cross/plus arms; corners are void.
+  netharion: (x, y, w, h) => {
+    const armH = Math.max(4, Math.floor(h * 0.42));
+    const armW = Math.max(4, Math.floor(w * 0.25));
+    const midY = (h - 1) / 2, midX = (w - 1) / 2;
+    const inHorizArm = Math.abs(y - midY) <= armH;
+    const inVertArm  = Math.abs(x - midX) <= armW;
+    return !(inHorizArm || inVertArm);
+  },
+  // Vorashil — Alien Landing.  Hexagon: chamfer all four corners diagonally.
+  vorashil: (x, y, w, h) => {
+    const cut = 5;
+    if (x + y < cut) return true;
+    if (x + (h - 1 - y) < cut) return true;
+    if ((w - 1 - x) + y < cut) return true;
+    if ((w - 1 - x) + (h - 1 - y) < cut) return true;
+    return false;
+  },
+  // Xilnar — Spirit Chapel.  Wispy top+bottom edges (irregular curls).
+  xilnar: (x, y, w, h) => {
+    // Deterministic wisps: nibble edges based on a hash pattern
+    const nibble = (x * 7 + 3) % 5;
+    if (y < 1 + (nibble === 0 ? 1 : 0)) return true;
+    if (y > h - 2 - (nibble === 3 ? 1 : 0)) return true;
+    return false;
+  },
+  // Baelgor — Forge.  Fortress with thick 2-tile double walls on N/S/E/W.
+  baelgor: (x, y, w, h) => {
+    const midY = Math.floor(h / 2);
+    // second-row wall around perimeter EXCEPT at portal midY row on E/W
+    if (x === 1 && y !== midY && y !== midY - 1) return true;
+    if (x === w - 2 && y !== midY && y !== midY - 1) return true;
+    if (y === 1 || y === h - 2) {
+      // gap at column midX for N/S walking
+      const midX = Math.floor(w / 2);
+      if (Math.abs(x - midX) > 2) return true;
+    }
+    return false;
+  },
+  // Thardin — Cog Concourse.  Internal grid lines forming 3x3 mech zones.
+  thardin: (x, y, w, h) => {
+    const g1x = Math.floor(w / 3), g2x = Math.floor(w * 2 / 3);
+    const g1y = Math.floor(h / 3), g2y = Math.floor(h * 2 / 3);
+    const midY = Math.floor(h / 2);
+    const midX = Math.floor(w / 2);
+    const gap = 3;
+    // Vertical grid walls with a gap at midY
+    if ((x === g1x || x === g2x) && Math.abs(y - midY) > gap) return true;
+    // Horizontal grid walls with a gap at midX
+    if ((y === g1y || y === g2y) && Math.abs(x - midX) > gap) return true;
+    return false;
+  },
+  // Korathen — Imperial Palace.  Symmetric corner turrets (2x2 wall bumps).
+  korathen: (x, y, w, h) => {
+    // Turret rows at y=2 and y=h-3
+    const cornerX = (x === 2 || x === w - 3);
+    const cornerY = (y === 2 || y === h - 3);
+    // Small 1-tile corner cornices
+    if (cornerX && cornerY) return true;
+    // Second-row wall segments framing the central plaza (top only)
+    if (y === 2 && x > 4 && x < w - 5 && (x & 1) === 0) return true;
+    return false;
+  },
+};
+// Safety carve list — positions we ALWAYS keep walkable regardless of
+// the district-shape mask, so portals/boss/cave/landmark/town-hall stay
+// accessible.  Populated per-district by generateDistrictMap.
+function districtShapeWall(mapId, x, y, w, h) {
+  const fn = DISTRICT_TERRAIN[mapId];
+  return fn ? fn(x, y, w, h) : false;
+}
+
 // Procedurally build a district map. Layout: rectangle of walls, interior of
 // walkable ground, sprinkled gemgrass, chests, decorative trees, and a single
 // sealed 'C' Gemlord cave near the east border. West/east edge columns are
@@ -3638,12 +3743,17 @@ function generateDistrictMap(mapId) {
   const pick = (a, b) => Math.floor(rand() * (b - a + 1)) + a;
 
   // Base grid.
+  // V2.71 — District-shape wall carve: interior tiles that the district's
+  // terrain function marks as WALL become '#' too, giving each land a
+  // distinct outer silhouette (oval Zarvane, hex Vorashil, cross
+  // Netharion, fortress Baelgor, palace Korathen, etc.).
   const grid = [];
   for (let y = 0; y < rows; y++) {
     const row = [];
     for (let x = 0; x < cols; x++) {
       const isEdge = (x === 0 || y === 0 || x === cols - 1 || y === rows - 1);
-      row.push(isEdge ? '#' : ',');
+      const isShapeWall = !isEdge && districtShapeWall(mapId, x, y, cols, rows);
+      row.push((isEdge || isShapeWall) ? '#' : ',');
     }
     grid.push(row);
   }
@@ -3652,6 +3762,20 @@ function generateDistrictMap(mapId) {
   // walls at the vertical midpoint. tryMove translates stepping onto a portal
   // into a cross-district travel.
   const midY = Math.floor(rows / 2);
+  // V2.71 — safety carve: guarantee walkable channels between portals + all
+  // key feature positions so district shapes never soft-lock the player.
+  // Carves a horizontal channel at midY across the map, plus feature spots.
+  for (let x = 1; x < cols - 1; x++) {
+    if (grid[midY][x] === '#') grid[midY][x] = ',';
+    if (midY - 1 > 0 && grid[midY - 1][x] === '#') grid[midY - 1][x] = ',';
+  }
+  // Vertical channel at midX between the top row (town hall D at y=3) and
+  // the south row (boss X at rows-3), so mech-grid/fortress shapes don't
+  // block access to those features.
+  const midX = Math.floor(cols / 2);
+  for (let y = 2; y < rows - 2; y++) {
+    if (grid[y][midX] === '#') grid[y][midX] = ',';
+  }
   grid[midY][0]        = 'W';   // reuse 'W' visually distinct? actually reserve — use '<' char
   grid[midY][cols - 1] = 'E';   // treat as marker; converted below to '<' and '>' chars
   // Use dedicated portal glyphs so it doesn't collide with 'W' (water) or 'E' (nothing).

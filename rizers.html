@@ -299,8 +299,10 @@
       background: rgba(232, 200, 120, 0.15);
       box-shadow: 0 0 30px rgba(232, 200, 120, 0.3);
     }
-    .title-cta.secondary { border-color: var(--mist); color: var(--mist); margin-left: 12px; }
-    .title-btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .title-cta.secondary { border-color: var(--mist); color: var(--mist); }
+    /* V2.52 — center the two title CTAs on mobile (was drifting left when the
+       secondary button used margin-left: 12px + flex-wrap). */
+    .title-btns { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; align-items: center; width: 100%; }
 
     .title-hint {
       position: absolute; bottom: 18px; left: 0; right: 0;
@@ -393,9 +395,11 @@
     .creator-input:focus { border-color: var(--gold); box-shadow: 0 0 18px rgba(232, 200, 120, 0.24); }
     .gender-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      /* V2.52 — 2 columns now (Seer removed in V2.50); center on screen */
+      grid-template-columns: repeat(2, 1fr);
       gap: 10px;
-      width: min(360px, 90vw);
+      width: min(300px, 90vw);
+      margin-inline: auto;
     }
     .gender-btn {
       background: rgba(20, 12, 38, 0.65);
@@ -5023,9 +5027,14 @@ document.addEventListener('keydown', (e) => {
   //   X / Esc / Backspace / B = back / close / cancel (from overworld: menu toggle)
   // Interact/confirm keys must NOT repeat while held — otherwise dialog reopens.
   const isConfirm = (e.key === 'Enter' || e.key === ' ' || k === 'z' || k === 'a');
-  // V2.46 — Shift removed from isBack; Shift is now the RUN modifier
-  // (hold Shift to walk 2x faster).  Back/close is Esc / Backspace / X / B.
-  const isBack    = (e.key === 'Escape' || e.key === 'Backspace' || k === 'x' || k === 'b');
+  // V2.52 — Shift is dual-purpose:
+  //   * On the overworld, Shift = RUN modifier (2x walk speed).  It must
+  //     NOT open the pause menu, so the overworld handler ignores it.
+  //   * Anywhere else (menus, dialogs, overlays, battle prompts), Shift
+  //     acts as BACK / CLOSE — matching mobile B (which dispatches Shift
+  //     via the V2.46 remap).
+  const isBack    = (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Shift' || k === 'x' || k === 'b');
+  const isBackOverworldGated = (isBack && e.key !== 'Shift');
   if (e.repeat && (isConfirm || isBack)) { e.preventDefault(); return; }
 
   // Controls modal — global toggle via ? or F1; Esc closes it first.
@@ -5196,8 +5205,11 @@ document.addEventListener('keydown', (e) => {
   }
 
   // ---- Overworld: WASD/arrows walk, Z/A interact, X/B toggle main menu ----
+  // V2.52 — use the SHIFT-GATED back check here so pressing Shift on the
+  // overworld does NOT open the menu (Shift is the run modifier).  All
+  // other overlays/menus use plain isBack so Shift closes them.
   if (game.mode === 'overworld') {
-    if (isBack) { openMainMenu(); e.preventDefault(); return; }
+    if (isBackOverworldGated) { openMainMenu(); e.preventDefault(); return; }
     if (isConfirm) { tryInteract(); e.preventDefault(); return; }
   }
 

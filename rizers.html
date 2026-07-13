@@ -3336,14 +3336,16 @@ const SEER_HQ_MAIN = [
   '#.......x......#',
   '################',
 ];
+// V3.5.1 — 3 medium grunts in a spread-gauntlet pattern (was 6).
+// User spec: 2 easy warm-ups on main floor · 3 medium in basement · 1 commander upstairs.
 const SEER_HQ_BASEMENT = [
   '################',
   '#..............#',
-  '#..g.......g...#',
+  '#.....g........#',   // first medium grunt (upper-left)
   '#..............#',
-  '#.....g...g....#',
+  '#...........g..#',   // second medium grunt (opposite side)
   '#..............#',
-  '#..g.......g...#',
+  '#......g.......#',   // third medium grunt (center)
   '#..............#',
   '#............U.#',   // stairs UP back to main
   '################',
@@ -4269,8 +4271,8 @@ function getStairTarget(char, currentMap) {
       if (!seerHqBasementClear()) {
         showDialog([
           'The stairwell to the upper floor is barred.',
-          'Etched on the seal: "None climb until the pit is emptied."',
-          'Clear every Seer grunt in the basement first.',
+          'Etched on the seal: "None climb until every grunt below and above is stilled."',
+          'Clear the two warm-ups on this floor and the three grunts in the basement.',
         ]);
         return null;
       }
@@ -4304,19 +4306,24 @@ function checkSeerHqBasementClear() {
   const from = game.player.enteredInteriorFrom;
   const districtId = from && from.map;
   if (!districtId) return;
-  // Basement grunt coords are the six 'g' tiles in SEER_HQ_BASEMENT.
-  // Defeated flags are keyed by 'x,y' but scoped to the interior map.
-  // Since chestsOpened / npcsDefeated use naked coords, we scope with
-  // a district prefix to avoid collisions across districts.
-  const gruntCoords = ['3,2','11,2','5,4','9,4','3,6','11,6'];
+  // V3.5.1 — Three basement grunt coords (was six).  Matches the new
+  // SEER_HQ_BASEMENT gauntlet layout: (6,2) · (12,4) · (7,6).
+  // Also checks that the two main-floor warm-up grunts are down —
+  // the upper stair only unseals once EVERY grunt in the HQ is dealt with.
+  const basementGrunts = ['6,2','12,4','7,6'];
+  const mainGrunts     = ['2,2','13,2'];
   const flags = game.player.npcsDefeated || {};
-  const allDown = gruntCoords.every(c => flags['seer_basement:' + districtId + ':' + c]);
+  const basementDown = basementGrunts.every(c => flags['seer_basement:' + districtId + ':' + c]);
+  // Main-floor grunts write into npcsDefeated via the V3.4 instance-key
+  // path.  currentInstanceKey() for seer_hq_main is: districtId/seer_hq_main
+  const mainDown = mainGrunts.every(c => flags[districtId + '/seer_hq_main:' + c]);
+  const allDown = basementDown && mainDown;
   if (allDown) {
     game.player.seerHqBasementCleared = game.player.seerHqBasementCleared || {};
     if (!game.player.seerHqBasementCleared[districtId]) {
       game.player.seerHqBasementCleared[districtId] = true;
       save();
-      showToast('◈  BASEMENT CLEARED  ·  upper floor unsealed', 2800);
+      showToast('◈  MINISTRY CLEARED  ·  upper floor unsealed', 2800);
     }
   }
 }
@@ -8353,13 +8360,30 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
       const DIST = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
       const num = DIST.indexOf(poolDistrict) + 1;
       const isCommander = tileChar === 'X';
-      const chainSize = isCommander ? 5 : Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));
+      // V3.5.1 — Grunt difficulty tiers per Seer HQ floor:
+      //   MAIN FLOOR  ('seer_hq_main')      → EASY   = 1 Zyrex at level-band LOW
+      //   BASEMENT    ('seer_hq_basement')  → MEDIUM = 2 Zyrex at level-band MID
+      //   Elsewhere (legacy grunt placements outside HQ) fall back to the
+      //   old district-scaling formula so we don't break anything else.
+      const inMain     = game.player.mapId === 'seer_hq_main';
+      const inBasement = game.player.mapId === 'seer_hq_basement';
+      let chainSize;
+      if (isCommander)       chainSize = 5;
+      else if (inMain)       chainSize = 1;                                                   // easy warm-up
+      else if (inBasement)   chainSize = 2;                                                   // medium
+      else                   chainSize = Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));   // legacy path
       const [lo, hi] = pool.lvRange;
+      const mid = Math.max(lo, Math.round((lo + hi) / 2));
       chainSpecs = [];
       for (let i = 0; i < chainSize; i++) {
         const id = pool.ids[Math.floor(Math.random() * pool.ids.length)];
-        // Commanders bring their Zyrex at the top of the level band.
-        const lv = isCommander ? hi : Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
+        // Commander tops out at hi. Main-floor easy grunts hover at lo.
+        // Basement medium grunts sit mid-band. Otherwise legacy random-in-band.
+        let lv;
+        if (isCommander)     lv = hi;
+        else if (inMain)     lv = Math.max(1, lo);
+        else if (inBasement) lv = Math.max(1, mid);
+        else                 lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
         chainSpecs.push([id, lv]);
       }
     }
@@ -9085,15 +9109,22 @@ function checkBattleOver() {
         const key  = iKey ? (iKey + ':' + game.battle.npcCoord) : game.battle.npcCoord;
         game.player.npcsDefeated[key] = true;
       }
-      // V3.0 — Seer HQ basement grunt: also stamp the district-scoped
-      // flag so seerHqBasementClear can survive across saves.  Then
-      // check if every basement grunt is defeated → unlock upper.
-      if (game.player.mapId === 'seer_hq_basement' && game.battle.tileChar === 'g' && game.battle.npcCoord) {
+      // V3.0 · V3.5.1 — Seer HQ grunt (main floor OR basement):
+      // stamp the district-scoped flag so seerHqBasementClear() can
+      // detect when EVERY grunt in the HQ (2 main + 3 basement) is
+      // down.  Only then does the upper-floor stair unseal.
+      if ((game.player.mapId === 'seer_hq_basement' || game.player.mapId === 'seer_hq_main')
+          && game.battle.tileChar === 'g' && game.battle.npcCoord) {
         const from = game.player.enteredInteriorFrom;
         const districtId = from && from.map;
-        if (districtId) {
+        if (districtId && game.player.mapId === 'seer_hq_basement') {
+          // Legacy district-scoped basement flag (checkSeerHqBasementClear
+          // reads this pattern for basement grunts).
           game.player.npcsDefeated['seer_basement:' + districtId + ':' + game.battle.npcCoord] = true;
         }
+        // The main-floor grunt already stamps its instance-key flag via
+        // the V3.4 write above (districtId/seer_hq_main:x,y), which the
+        // updated checkSeerHqBasementClear() now reads.
         setTimeout(checkSeerHqBasementClear, 200);
       }
       // V3.0 — Seer HQ upper mini-boss: after beating X inside the HQ,

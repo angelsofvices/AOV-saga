@@ -2811,6 +2811,9 @@ const SPECIES = {
     const s = SPECIES[id];
     const tier = Math.max(1, Math.min(10, s.tier || 1));
     s.primaryDistrict = DIST[tier - 1];
+    // V2.70 — stamp the id onto the species object so poolAtLv() can
+    // check CANON_MAX_POOL[id] without a reverse lookup.
+    if (!s.id) s.id = id;
   }
 })();
 
@@ -2825,6 +2828,67 @@ const SPECIES = {
 function xpForNext(lv) { return 12 + lv * 8; }
 function tierMaxLv(tier) { return Math.max(10, (tier || 1) * 10); }
 function speciesEvolveLv(s) { return s.evolveLv || tierMaxLv(s.tier || 1); }
+
+// V2.70 — LEVEL-DRIVEN STAT SYSTEM (rewrites the V2.30/V2.59 tier-cap model)
+//
+// The user canon: tier ONLY determines lore rarity.  Level determines stats.
+// Every species distributes the same pool at any given level according to
+// its own weight profile (derived from the codex base block).  Type still
+// governs 4-scale effectiveness (V2.29 chart).
+//
+//   pool(lv) = floor(lv * 33.3)         → Lv 1  = 33,   Lv 10 = 333,
+//                                        → Lv 50 = 1665, Lv 100 = 3330
+//
+// A species's weight is the normalized ratio of its codex/base stats.  E.g.
+// Otterlin base {hp:66, atk:66, def:66, spd:66, spc:69} normalizes to
+// approx { hp: 0.198, atk: 0.198, def: 0.198, spd: 0.198, spc: 0.207 } —
+// a nearly-balanced pup.  A tank-shaped species like Rakoron leans DEF/HP.
+//
+// Canon exemptions (Ultharis = God of the universe) keep their absolute
+// max pool (4995 at Lv 100) via CANON_MAX_POOL — 50% stronger at every level.
+const POOL_PER_LEVEL_TIMES_10 = 333;          // integer math: pool(lv) = lv*333/10
+const CANON_MAX_POOL = {
+  ultharis: 4995,   // God of the universe · V2.65 exemption preserved
+};
+function poolAtLv(species, lv) {
+  const id = species && (species.id || species.speciesId);
+  const maxPool = (id && CANON_MAX_POOL[id]) ? CANON_MAX_POOL[id] : (100 * POOL_PER_LEVEL_TIMES_10 / 10);
+  const clamped = Math.max(1, Math.min(100, lv || 1));
+  return Math.floor(clamped * maxPool / 100);
+}
+function speciesWeights(species) {
+  if (species._weights) return species._weights;
+  const b = species.base || {};
+  const sum = ((b.hp || 0) + (b.atk || 0) + (b.def || 0) + (b.spd || 0) + (b.spc || 0)) || 1;
+  species._weights = {
+    hp:  (b.hp  || 0) / sum,
+    atk: (b.atk || 0) / sum,
+    def: (b.def || 0) / sum,
+    spd: (b.spd || 0) / sum,
+    spc: (b.spc || 0) / sum,
+  };
+  return species._weights;
+}
+// Compute the 5-stat block for a species at a given level.  Pool distributed
+// by weight (floor), drift patched onto HP so the sum lands exactly on pool.
+function computeStatBlock(species, lv) {
+  const pool = poolAtLv(species, lv);
+  const w = speciesWeights(species);
+  const keys = ['hp', 'atk', 'def', 'spd', 'spc'];
+  const stats = {};
+  let assigned = 0;
+  for (const k of keys) {
+    const v = Math.max(1, Math.floor(pool * w[k]));
+    stats[k] = v;
+    assigned += v;
+  }
+  const drift = pool - assigned;
+  if (drift !== 0) stats.hp = Math.max(1, stats.hp + drift);
+  return stats;
+}
+// V2.70 — Legacy shim.  Old code called statAtLv(maxStat, lv, maxLv) to
+// scale a single stat.  Preserved so no callers break during the transition;
+// callers that switched to computeStatBlock are preferred.
 function statAtLv(maxStat, lv, maxLv) {
   if (lv >= maxLv) return Math.floor(maxStat);
   if (lv <= 1)     return Math.floor(maxStat * 0.25);
@@ -2834,15 +2898,11 @@ function statAtLv(maxStat, lv, maxLv) {
 
 function makeZyrex(speciesId, lv) {
   const s = SPECIES[speciesId];
-  const maxLv = speciesEvolveLv(s);
-  lv = Math.min(lv, 100);   // soft ceiling — but no tier cap
-  const stats = {
-    hp:  statAtLv(s.base.hp,  lv, maxLv),
-    atk: statAtLv(s.base.atk, lv, maxLv),
-    def: statAtLv(s.base.def, lv, maxLv),
-    spd: statAtLv(s.base.spd, lv, maxLv),
-    spc: statAtLv(s.base.spc, lv, maxLv),
-  };
+  lv = Math.max(1, Math.min(lv, 100));
+  // V2.70 — Level-driven stats.  pool(lv) distributed by species weights;
+  // codex block acts as the ANCHOR (species's tier × 10 level matches its
+  // canonical stat sum).  Tier no longer caps stats — only lore rarity.
+  const stats = computeStatBlock(s, lv);
   // V2.28 — moves are now drawn by autoLearnMoves from the type pools.
   // Fallback to the species.moves array for canon-policy species (rakoron).
   const r = {
@@ -8010,14 +8070,15 @@ function levelUp(r) {
   // V2.15 — soft ceiling only. No tier hard-cap; if you outgrow this form and
   // there's an evolveTo defined, you TRANSFORM instead of capping.
   if (r.lv >= 100) { r.xp = 0; return false; }
-  const maxLv = speciesEvolveLv(s);
   const oldMax = r.maxHp;
   r.lv++;
-  r.stats.hp  = statAtLv(s.base.hp,  r.lv, maxLv);
-  r.stats.atk = statAtLv(s.base.atk, r.lv, maxLv);
-  r.stats.def = statAtLv(s.base.def, r.lv, maxLv);
-  r.stats.spd = statAtLv(s.base.spd, r.lv, maxLv);
-  r.stats.spc = statAtLv(s.base.spc, r.lv, maxLv);
+  // V2.70 — recompute the whole stat block via the level-driven pool.
+  const stats = computeStatBlock(s, r.lv);
+  r.stats.hp  = stats.hp;
+  r.stats.atk = stats.atk;
+  r.stats.def = stats.def;
+  r.stats.spd = stats.spd;
+  r.stats.spc = stats.spc;
   r.maxHp = r.stats.hp;
   r.hp += r.maxHp - oldMax;
   // V2.28 — new move learning cadence. At each learn moment (3/5/7 rule),
@@ -8800,6 +8861,22 @@ function tryLoad() {
     MAP = m.data; MAP_COLS = m.cols; MAP_ROWS = m.rows;
     delete game.npcs;   // rebuild for the loaded map
     game.hasSave = true;
+    // V2.70 — migrate every saved Zyrex's stats to the new level-driven
+    // formula.  Preserves current-HP as a ratio of the OLD maxHp so the
+    // player doesn't get healed/wiped on load.  Applies to party + box.
+    const migrateZyrex = (r) => {
+      if (!r || !r.species) return;
+      const s = SPECIES[r.species];
+      if (!s) return;
+      const oldMax = r.maxHp || 1;
+      const hpRatio = Math.max(0, Math.min(1, (r.hp || 0) / oldMax));
+      const stats = computeStatBlock(s, r.lv || 1);
+      r.stats = stats;
+      r.maxHp = stats.hp;
+      r.hp    = Math.max(0, Math.floor(hpRatio * r.maxHp));
+    };
+    (game.player.party || []).forEach(migrateZyrex);
+    (game.player.box   || []).forEach(migrateZyrex);
     return true;
   } catch(_) { return false; }
 }

@@ -1810,6 +1810,29 @@
       </div>
     </div>
 
+    <!-- V2.67 — PC Storage overlay (basement terminal / Rizer Centers) -->
+    <div class="mainmenu-overlay" id="pcstorage-overlay">
+      <div class="mainmenu-box" style="width: min(560px, 100%); max-height: 92%;">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title">PC Storage · Terminal</div>
+          <button class="mainmenu-close" id="pcstorage-close" aria-label="Close">✕</button>
+        </div>
+        <div style="color: var(--mist); font-size: 11px; letter-spacing: 0.18em; margin-bottom: 8px; text-transform: uppercase;">
+          Tap a Zyrex to swap between PARTY and PC.  Party caps at <span id="pcs-limit">6</span>.  Stored Zyrex do not gain XP.
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
+          <div>
+            <div style="font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.28em; color: var(--gold); text-transform: uppercase; margin-bottom: 4px;">Party · <span id="pcs-party-count">0</span> / <span id="pcs-limit-2">6</span></div>
+            <div id="pcs-party-list" style="display: flex; flex-direction: column; gap: 4px;"></div>
+          </div>
+          <div>
+            <div style="font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.28em; color: var(--gold); text-transform: uppercase; margin-bottom: 4px;">PC Storage · <span id="pcs-box-count">0</span></div>
+            <div id="pcs-box-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- V2.60 — Battle inspect overlay (click a nameplate to see combatant stats) -->
     <div class="bi-overlay" id="bi-overlay">
       <div class="bi-card" role="dialog" aria-labelledby="bi-name">
@@ -2019,7 +2042,7 @@ function setupViewportForDevice() {
 setupViewportForDevice();
 window.addEventListener('resize', setupViewportForDevice);
 window.addEventListener('orientationchange', setupViewportForDevice);
-const MAX_PARTY = 10;                    // V2.18.1 — max 10 Rizers (Zyrex). Faction allies (up to 7) come later via faction system after Map 3.
+const MAX_PARTY = 6;                     // V2.67 — canon v11.10: carry limit locks at 6 Zyrex.  Overflow auto-routes to PC Storage (game.player.box) once the Computer Part is installed.  Faction allies (up to 7) come later via faction system after Map 3.
 const MAX_ALLIES = 7;                    // V2.18.1 — reserved. Ally system not wired yet — post-Map-3 build.
 
 const canvas = document.getElementById('game');
@@ -4715,6 +4738,81 @@ function confirmQuitGame() {
   });
 }
 // V2.44 — Quest log overlay
+// V2.67 — PC Storage overlay.  Access via basement terminal (after
+// installing the Computer Part).  Zyrex in PC storage do not gain XP.
+// Swap is free with no daily limit; tap a party slot to send it to PC,
+// tap a PC slot to bring it into the party (fails if party is full).
+function openPCStorage() {
+  clearHeldKeys();
+  document.getElementById('pcstorage-overlay').classList.add('active');
+  renderPCStorage();
+}
+function closePCStorage() {
+  document.getElementById('pcstorage-overlay').classList.remove('active');
+}
+function renderPCStorage() {
+  const party = (game.player.party || []).filter(Boolean);
+  const box   = (game.player.box   || []).filter(Boolean);
+  document.getElementById('pcs-limit').textContent   = MAX_PARTY;
+  document.getElementById('pcs-limit-2').textContent = MAX_PARTY;
+  document.getElementById('pcs-party-count').textContent = party.length;
+  document.getElementById('pcs-box-count').textContent   = box.length;
+  const partyEl = document.getElementById('pcs-party-list');
+  const boxEl   = document.getElementById('pcs-box-list');
+  partyEl.innerHTML = '';
+  boxEl.innerHTML   = '';
+  const rowFor = (r, kind, idx) => {
+    const row = document.createElement('div');
+    row.style.cssText = `
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 10px; cursor: pointer;
+      background: ${kind === 'party' ? 'rgba(232,200,120,0.10)' : 'rgba(20,10,40,0.4)'};
+      border: 1px solid ${kind === 'party' ? 'var(--gold)' : 'var(--border-soft, #2a1c48)'};
+      border-radius: 3px;
+    `;
+    const dual = r.type2 && r.type2 !== r.type ? ` / ${r.type2}` : '';
+    const tri  = r.type3 && r.type3 !== r.type && r.type3 !== r.type2 ? ` / ${r.type3}` : '';
+    row.innerHTML = `
+      <div>
+        <div style="font-family: var(--font-display); font-size: 0.82rem; letter-spacing: 0.14em; color: var(--gold-bright);">${r.name}</div>
+        <div style="font-family: var(--font-pixel); font-size: 12px; color: var(--mist); margin-top: 2px;">Lv ${r.lv} · ${r.type}${dual}${tri} · HP ${r.hp}/${r.maxHp}</div>
+      </div>
+      <div style="font-family: var(--font-meta); font-size: 0.55rem; letter-spacing: 0.24em; color: var(--gold); text-transform: uppercase;">${kind === 'party' ? '→ PC' : 'to Party →'}</div>
+    `;
+    row.onclick = () => {
+      if (kind === 'party') {
+        // Move to PC (allow always — party can drop to 0 in this overlay;
+        // a party with 0 members is still fine while browsing).
+        if (party.length <= 1 && box.length === 0) {
+          showToast('KEEP AT LEAST 1 ZYREX', 1800);
+          return;
+        }
+        const moved = game.player.party.splice(idx, 1)[0];
+        if (moved) (game.player.box = game.player.box || []).push(moved);
+      } else {
+        // Move to Party — bounce if full
+        if (party.length >= MAX_PARTY) {
+          showToast(`PARTY FULL (${MAX_PARTY})  ·  send one to PC first`, 2000);
+          return;
+        }
+        const moved = game.player.box.splice(idx, 1)[0];
+        if (moved) game.player.party.push(moved);
+      }
+      save();
+      renderPCStorage();
+    };
+    return row;
+  };
+  party.forEach((r, i) => partyEl.appendChild(rowFor(r, 'party', i)));
+  if (party.length === 0) partyEl.innerHTML = '<div style="color: var(--mist); font-style: italic; padding: 8px 10px;">— empty —</div>';
+  box.forEach((r, i) => boxEl.appendChild(rowFor(r, 'box', i)));
+  if (box.length === 0) boxEl.innerHTML = '<div style="color: var(--mist); font-style: italic; padding: 8px 10px;">— no Zyrex in storage —</div>';
+}
+document.getElementById('pcstorage-close').onclick = closePCStorage;
+document.getElementById('pcstorage-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('pcstorage-overlay')) closePCStorage();
+});
+
 function openQuestsView() {
   clearHeldKeys();
   const ov = document.getElementById('quests-overlay');
@@ -5123,6 +5221,7 @@ function openItemsView() {
     gear_cog:       'When it turns, something distant turns with it. A relic of Thardin.',
     imperial_crest: 'The crown that answers no name. A relic of Korathen.',
     ancient_gemsight: 'A lens behind your eyes.  Reveals chest counts, uncleared commanders, and shrine visits on the world map.',
+    computer_part:    'A humming Legacy-Rizer component.  Take it to the basement terminal to install PC Storage.',
   };
   for (const [key, desc] of Object.entries(shrineDescs)) {
     const count = it[key] || 0;
@@ -5449,13 +5548,15 @@ document.addEventListener('keydown', (e) => {
     const notebookActive = document.getElementById('notebook-overlay').classList.contains('active');   // V2.18
     const typesActive    = document.getElementById('types-overlay').classList.contains('active');     // V2.35
     const questsActive   = document.getElementById('quests-overlay').classList.contains('active');    // V2.44
-    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive)) {
+    const pcsActive      = document.getElementById('pcstorage-overlay').classList.contains('active'); // V2.67
+    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive || pcsActive)) {
       if (mapActive)     closeMapView();
       if (itemsActive)   $itemsov.classList.remove('active');
       if (inspectActive) document.getElementById('inspect-overlay').classList.remove('active');
       if (notebookActive) document.getElementById('notebook-overlay').classList.remove('active');
       if (typesActive)   document.getElementById('types-overlay').classList.remove('active');
       if (questsActive)  document.getElementById('quests-overlay').classList.remove('active');
+      if (pcsActive)     closePCStorage();
       e.preventDefault();
       return;
     }
@@ -5621,6 +5722,16 @@ function triggerDoor(tileChar, doorX, doorY) {
   if (!target) return;
   // 'x' inside the home interior is special: it exits back to Malezor.
   if (tileChar === 'x' && game.player.mapId !== 'home_interior') {
+    // V2.67 — Exit the interior back to whatever district the player
+    // came from, not the hard-coded Malezor destination.  Falls back to
+    // the legacy INTERIOR_EXITS table if we somehow lost the entry
+    // context (e.g., save file predates V2.67).
+    const from = game.player.enteredInteriorFrom;
+    if (from && from.map) {
+      const dest = { map: from.map, x: from.x, y: from.y + 1, dir: 'down' };
+      game.player.enteredInteriorFrom = null;
+      return exitInteriorTo(dest);
+    }
     const exit = INTERIOR_EXITS[game.player.mapId];
     if (exit) return exitInteriorTo(exit);
   }
@@ -5640,18 +5751,33 @@ function triggerDoor(tileChar, doorX, doorY) {
     const have = (game.player.keys && game.player.keys[target.key]) > 0;
     if (!have) {
       showDialog([
-        `Locked. This is the ${target.label}.`,
+        `Locked. This is the ${districtBuildingLabel(target)}.`,
         `You need the ${target.key.toUpperCase()} KEY to open it.`,
       ]);
       return;
     }
-    // Consume nothing — keys are permanent. Just open.
+    // V2.67 — Record the outside district + door location BEFORE we
+    // teleport into the interior, so the interior's 'x' exit knows
+    // which district to return to.
+    const districtLabel = districtBuildingLabel(target);
+    game.player.enteredInteriorFrom = {
+      map: game.player.mapId,
+      x: doorX,
+      y: doorY,
+      label: districtLabel,
+    };
     enterMap(target.map, target.x, target.y, target.dir);
-    // Auto-loot on first entry
+    // Override the HUD label with the district-aware name so the player
+    // sees 'Sunlit Way · Cottage' in Zarvane, not 'Bronze Cottage'.
+    const hudEl = document.getElementById('hud-location');
+    if (hudEl) hudEl.textContent = districtLabel;
+    // Auto-loot on first entry — keyed by (map, entry-district) so the
+    // same interior template can be re-looted per district.
+    const lootKey = target.map + '@' + (game.player.enteredInteriorFrom.map || '?');
     if (!game.player.housesLooted) game.player.housesLooted = {};
-    if (!game.player.housesLooted[target.map]) {
+    if (!game.player.housesLooted[lootKey]) {
       grantHouseLoot(target.map);
-      game.player.housesLooted[target.map] = true;
+      game.player.housesLooted[lootKey] = true;
       save();
     }
     return;
@@ -5660,6 +5786,28 @@ function triggerDoor(tileChar, doorX, doorY) {
 }
 function exitInteriorTo(exit) {
   enterMap(exit.map, exit.x, exit.y, exit.dir);
+}
+// V2.67 — District-aware building label.  Each district's locked houses
+// get their own name so the player can tell them apart.  Falls back to
+// the DOOR_TARGETS.label if the district doesn't override.
+const DISTRICT_BUILDING_LABELS = {
+  malezor:   { bronze: 'Bronze Cottage',         silver: 'Silver Lodge' },
+  zarvane:   { bronze: "Sunlit Way · Cottage",   silver: 'Pearl Almshouse' },
+  andrannor: { bronze: 'Ruinwalk Hovel',         silver: 'Obelisk Keep' },
+  veridan:   { bronze: 'Bloomer\'s Hut',         silver: 'Verdant Manor' },
+  netharion: { bronze: 'Void-Cloak Refuge',      silver: 'Amethyst Vault' },
+  vorashil:  { bronze: 'Salvager\'s Pod',        silver: 'Skyport Hangar' },
+  xilnar:    { bronze: 'Wisp Chapel',            silver: 'Onyx Sanctum' },
+  baelgor:   { bronze: 'Forgehand\'s Shed',      silver: 'Amber Foundry' },
+  thardin:   { bronze: 'Cog-Turner\'s Shack',    silver: 'Anomaly Workshop' },
+  korathen:  { bronze: 'Gilded Antechamber',     silver: 'Imperial Keep' },
+};
+function districtBuildingLabel(target) {
+  const districtId = game.player.mapId;
+  const key = target.key;
+  const per = DISTRICT_BUILDING_LABELS[districtId];
+  if (per && key && per[key]) return per[key];
+  return target.label || 'Locked House';
 }
 function grantHouseLoot(mapId) {
   const loot = {
@@ -5678,6 +5826,24 @@ function grantHouseLoot(mapId) {
   if (loot.potions) bits.push(`+${loot.potions} POTION${loot.potions === 1 ? '' : 'S'}`);
   if (loot.gemspheres) bits.push(`+${loot.gemspheres} GEMSPHERE`);
   showToast(bits.join('  ·  '), 2400);
+  // V2.67 — Canon v11.10: entering ANY locked house in Zarvane for the
+  // first time also yields the COMPUTER PART (Legacy-Rizer artifact).
+  // Take it home to the basement terminal to install PC Storage.
+  const from = game.player.enteredInteriorFrom;
+  if (from && from.map === 'zarvane') {
+    game.player.items = game.player.items || {};
+    if (!game.player.items.computer_part && !game.player.pcStorageInstalled) {
+      game.player.items.computer_part = 1;
+      setTimeout(() => showDialog([
+        'The house has been closed a long time.  Dust sits like memory.',
+        'On a workbench in the corner, wrapped in a scrap of gold cloth, is a small humming device — a COMPUTER PART.',
+        'A tag reads: "for the next Rizer to make it this far."',
+        'You pocket it.  The basement terminal at home has been missing something for months.',
+        '«◈ COMPUTER PART added to items.»',
+      ]), 1400);
+      setTimeout(() => showToast('◈  COMPUTER PART  ·  Legacy Rizer artifact', 3000), 1200);
+    }
+  }
 }
 
 // V2.47 — Villager interact. Picks a stable villager index based on the
@@ -5782,13 +5948,11 @@ function tryInteract() {
   } else if (t === 'b') {
     interactBed();
   } else if (t === 'k') {
-    // V2.36 — basement computer flavor
-    showDialog([
-      'Your computer hums awake.',
-      '「TERMINAL · zyraxis.net」',
-      'A window blinks: latest Codex patch, unread. You should read it eventually.',
-      'For now — Malezor waits.',
-    ]);
+    // V2.67 — Basement terminal: gates on the Computer Part.
+    //   * No part yet  -> flavor + hint
+    //   * Has part, not installed -> confirm-install prompt
+    //   * Installed    -> open PC Storage
+    interactBasementComputer();
   } else if (t === 'j') {
     // V2.36 — science experiment flavor
     showDialog([
@@ -6570,6 +6734,43 @@ function interactDad() {
     ]);
   }
 }
+// V2.67 — Canon v11.10: Basement terminal / PC Storage gateway.
+function interactBasementComputer() {
+  const hasPart = !!(game.player.items && game.player.items.computer_part);
+  const installed = !!game.player.pcStorageInstalled;
+  if (installed) {
+    openPCStorage();
+    return;
+  }
+  if (hasPart) {
+    showDialog([
+      'Your computer hums awake.',
+      '「TERMINAL · zyraxis.net」',
+      'The idle panel asks the same thing it has asked for months: MISSING COMPONENT · slot A.',
+      'You dig the COMPUTER PART out of your pack.  It fits.  Of course it fits.',
+      'Something old boots inside the terminal — a face-plate scroll that reads: PC · STORAGE · SYSTEM.',
+      '',
+      '«◈ PC STORAGE installed.»',
+      '«◈ Carry limit: 6 Zyrex.  Overflow auto-routes here.  Free swap, no daily limit.»',
+    ], () => {
+      game.player.pcStorageInstalled = true;
+      if (game.player.items) game.player.items.computer_part = 0;   // consumed on install
+      save();
+      showToast('◈  PC STORAGE  ·  online', 2800);
+      setTimeout(() => openPCStorage(), 900);
+    });
+    return;
+  }
+  // Neither part nor install — flavor + hint
+  showDialog([
+    'Your computer hums awake.',
+    '「TERMINAL · zyraxis.net」',
+    'A blinking prompt reads: MISSING COMPONENT · slot A.',
+    'A sticky note in your dad\'s handwriting: "Legacy Rizers used to keep spare parts in the locked houses on Sunlit Way, up in Zarvane."',
+    'For now — Malezor waits.',
+  ]);
+}
+
 function interactBed() {
   const GEM_FLOOR = 20;
   const gemsBefore = game.player.gems || 0;

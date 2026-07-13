@@ -1547,6 +1547,8 @@
       <div class="creator-field">
         <div class="creator-label">You Are…</div>
         <div class="gender-grid" id="gender-grid">
+          <!-- V2.50 — Seer removed from creator (players start as protagonists,
+               not Seers).  Only Boy / Girl selectable at character creation. -->
           <button type="button" class="gender-btn" data-g="boy">
             <canvas width="40" height="40" data-preview="boy"></canvas>
             Boy
@@ -1554,10 +1556,6 @@
           <button type="button" class="gender-btn" data-g="girl">
             <canvas width="40" height="40" data-preview="girl"></canvas>
             Girl
-          </button>
-          <button type="button" class="gender-btn" data-g="seer">
-            <canvas width="40" height="40" data-preview="seer"></canvas>
-            Seer
           </button>
         </div>
       </div>
@@ -1579,8 +1577,10 @@
         The Seers march on the Ten Districts. They mean to harvest every Gemlord's Fathergem core. Only you can stop them. You must save the world.
       </p>
       <div class="title-btns">
-        <button class="title-cta" id="btn-new">Begin</button>
-        <button class="title-cta secondary" id="btn-continue">Continue</button>
+        <!-- V2.50 — NEW GAME / LOAD GAME.  Save-state UI is deferred; LOAD
+             is intentionally disabled + greyed until we ship save slots. -->
+        <button class="title-cta" id="btn-new">NEW GAME</button>
+        <button class="title-cta secondary" id="btn-continue" disabled aria-disabled="true" title="Save states coming soon">LOAD GAME</button>
       </div>
       <div class="title-controls" aria-label="Controls">
         <div class="kb"><span class="key">WASD / ↑↓←→</span><span class="lbl">Move</span></div>
@@ -1976,8 +1976,9 @@ const GENDER_PALETTE = {
   seer: { primary: '#e8c878', accent: '#b87cff' },   // gold body, violet accent (default in-world epithet)
 };
 function playerPalette() {
-  const g = (game.player && game.player.gender) || 'seer';
-  const base = GENDER_PALETTE[g] || GENDER_PALETTE.seer;
+  // V2.50 — Seer removed as a selectable player type; fall back to 'boy'.
+  const g = (game.player && game.player.gender) || 'boy';
+  const base = GENDER_PALETTE[g] || GENDER_PALETTE.boy;
   // V2.37 — outfit override. If the player picked a shirt color at the dresser,
   // that overrides the gender-default primary color.
   const shirt = game.player && game.player.shirt;
@@ -2669,7 +2670,7 @@ const game = {
     step: 0,          // for anim
     moveCd: 0,        // ms until next input accepted
     name: 'TRAINER',        // set at character creation
-    gender: 'seer',         // 'boy' | 'girl' | 'seer'
+    gender: 'boy',          // V2.50 — 'boy' | 'girl' (Seer removed as player type)
     party: [],
     box: [],
     gems: 10,               // shared gem pool — powers moves in battle
@@ -5131,7 +5132,7 @@ document.addEventListener('keydown', (e) => {
     if (document.activeElement && document.activeElement.classList &&
         document.activeElement.classList.contains('gender-btn') &&
         ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
-      if (focusNavStep(document.getElementById('gender-grid'), e.key, 3)) e.preventDefault();
+      if (focusNavStep(document.getElementById('gender-grid'), e.key, 2)) e.preventDefault();   // V2.50 — 2 cols (Seer removed)
       return;
     }
     // V2.33.2 — confirm key (A/Z/Enter/Space) clicks Begin when it's enabled.
@@ -7946,7 +7947,7 @@ document.getElementById('btn-new').onclick = () => {
     step: 0,
     moveCd: 0,
     name: 'TRAINER',
-    gender: 'seer',
+    gender: 'boy',   // V2.50 — Seer removed as player type
     party: [],
     box: [],
     gems: 10,
@@ -7976,14 +7977,11 @@ document.getElementById('btn-new').onclick = () => {
   $title.classList.add('hidden');
   beginCreator();
 };
+// V2.50 — LOAD GAME is deferred until save-slot UI ships. Button is
+// disabled + greyed via CSS; clicks surface a brief info toast instead
+// of trying to load.
 document.getElementById('btn-continue').onclick = () => {
-  if (!tryLoad()) { showToast('NO SAVE FOUND', 1200); return; }
-  ensureHomunculusSpawn();   // V2.17 — migrate pre-V2.17 saves that lack the spawn
-  $title.classList.add('hidden');
-  document.getElementById('hud').style.display = 'flex';
-  updateHUD();
-  game.mode = 'overworld';
-  showDialog(['Welcome back, Rizer.']);
+  showToast('LOAD GAME — coming with save states', 1600);
 };
 document.getElementById('starter-back').onclick = () => {
   $starter.classList.add('hidden');
@@ -7991,8 +7989,14 @@ document.getElementById('starter-back').onclick = () => {
   game.mode = 'title';
 };
 
-// Hide continue if no save
-if (!hasSave()) document.getElementById('btn-continue').style.opacity = '0.35';
+// V2.50 — LOAD GAME is always visibly greyed (feature deferred; see title
+// screen HTML comment).  Style set here so it doesn't fight :hover states.
+{
+  const b = document.getElementById('btn-continue');
+  b.style.opacity = '0.35';
+  b.style.cursor  = 'not-allowed';
+  b.style.filter  = 'grayscale(0.6)';
+}
 
 // ============================================================================
 //  MUSIC (V2.12) — 3 context tracks + crossfade + persisted volume/mute

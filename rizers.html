@@ -1068,6 +1068,8 @@
       padding: 20px 22px;
       display: flex; flex-direction: column; gap: 14px;
     }
+    /* V2.42 — world map view needs more room */
+    .mainmenu-box.mapview-box { width: min(560px, 100%); }
     .mainmenu-head {
       display: flex; justify-content: space-between; align-items: center;
     }
@@ -1686,15 +1688,15 @@
       </div>
     </div>
 
-    <!-- Map view -->
+    <!-- Map view · V2.42 — Zyraxis world map (Z-shape) -->
     <div class="mainmenu-overlay" id="mapview-overlay">
-      <div class="mainmenu-box">
+      <div class="mainmenu-box mapview-box">
         <div class="mainmenu-head">
-          <div class="mainmenu-title">Malezor · Beastlands</div>
+          <div class="mainmenu-title" id="mapview-title">Zyraxis · The Ninth World</div>
           <button class="mainmenu-close" id="mapview-close" aria-label="Close">✕</button>
         </div>
-        <canvas id="mapview-canvas" width="480" height="320" style="width: 100%; height: auto; image-rendering: pixelated; border: 1px solid var(--border-soft);"></canvas>
-        <div style="color: var(--mist); font-size: 13px; letter-spacing: 0.14em; text-align: center; margin-top: 8px;">◆ you  ·  ▣ chest  ·  ✚ merchant  ·  ▢ home  ·  ⚡ cave</div>
+        <canvas id="mapview-canvas" width="640" height="800" style="width: 100%; height: auto; border: 1px solid var(--border-soft); border-radius: 4px; box-shadow: 0 0 40px rgba(90, 60, 180, 0.35) inset;"></canvas>
+        <div id="mapview-caption" style="color: var(--mist); font-size: 12px; letter-spacing: 0.16em; text-align: center; margin-top: 6px; text-transform: uppercase;">◈ you are here  ·  glowing districts are cleared</div>
       </div>
     </div>
 
@@ -4023,41 +4025,227 @@ document.getElementById('mm-music-toggle').onclick = () => setMusicMuted(!audioS
 document.getElementById('mm-music-down').onclick   = () => setMusicVolume(audioSys.volume - 0.1);
 document.getElementById('mm-music-up').onclick     = () => setMusicVolume(audioSys.volume + 0.1);
 
-// ---------- Map view ----------
+// ---------- Map view · V2.42 — Zyraxis world map (Z-shape) ----------
+// Canonical district positions on a 0..1 normalized canvas mirroring the
+// hand-drawn Zyraxis map. Z-shape flow: I..IV across top → V drops through
+// center → VI..X fans out along the bottom to Korathen at bottom-right.
+const WORLD_MAP_LAYOUT = {
+  malezor:   { x: 0.22, y: 0.13, r: 0.11 },
+  zarvane:   { x: 0.40, y: 0.19, r: 0.10 },
+  andrannor: { x: 0.55, y: 0.26, r: 0.10 },
+  veridan:   { x: 0.76, y: 0.32, r: 0.11 },
+  netharion: { x: 0.30, y: 0.48, r: 0.12 },
+  vorashil:  { x: 0.13, y: 0.68, r: 0.10 },
+  xilnar:    { x: 0.30, y: 0.83, r: 0.10 },
+  baelgor:   { x: 0.45, y: 0.72, r: 0.10 },
+  thardin:   { x: 0.60, y: 0.75, r: 0.10 },
+  korathen:  { x: 0.80, y: 0.80, r: 0.12 },
+};
+// Which district is the player *actually* in? Interiors resolve to the
+// district that owns their front door (currently all interiors → malezor).
+const INTERIOR_TO_DISTRICT = {
+  basement: 'malezor',
+  home_interior: 'malezor',
+  parents_bedroom: 'malezor',
+  bronze_cottage: 'malezor',
+  silver_lodge: 'malezor',
+};
+function getPlayerDistrict() {
+  const m = game.player.mapId;
+  if (DISTRICT_META[m]) return m;
+  return INTERIOR_TO_DISTRICT[m] || 'malezor';
+}
+// Stable star field (seeded random so nebula doesn't flicker between frames).
+const _MAPVIEW_STARS = (() => {
+  const stars = [];
+  let seed = 0xa17c;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  for (let i = 0; i < 180; i++) {
+    stars.push({ x: rnd(), y: rnd(), r: rnd() * 1.2 + 0.3, a: rnd() * 0.6 + 0.2, tw: rnd() });
+  }
+  return stars;
+})();
+let _mapviewRaf = null;
+function drawWorldMap() {
+  const cvs = document.getElementById('mapview-canvas');
+  if (!cvs) return;
+  const c = cvs.getContext('2d');
+  const cw = cvs.width, ch = cvs.height;
+  const t = performance.now() / 1000;
+  // background — deep void gradient
+  const bg = c.createRadialGradient(cw / 2, ch * 0.45, 40, cw / 2, ch * 0.55, cw * 0.75);
+  bg.addColorStop(0, '#1b1240');
+  bg.addColorStop(0.6, '#0a0620');
+  bg.addColorStop(1, '#04020e');
+  c.fillStyle = bg; c.fillRect(0, 0, cw, ch);
+  // nebula stars
+  for (const s of _MAPVIEW_STARS) {
+    const twinkle = 0.5 + 0.5 * Math.sin(t * 1.2 + s.tw * 12);
+    c.globalAlpha = s.a * (0.55 + 0.45 * twinkle);
+    c.fillStyle = '#c8b8ff';
+    c.beginPath(); c.arc(s.x * cw, s.y * ch, s.r, 0, Math.PI * 2); c.fill();
+  }
+  c.globalAlpha = 1;
+  // gold border frame
+  c.strokeStyle = 'rgba(216, 172, 88, 0.5)';
+  c.lineWidth = 2;
+  c.strokeRect(6, 6, cw - 12, ch - 12);
+  c.strokeStyle = 'rgba(216, 172, 88, 0.2)';
+  c.lineWidth = 1;
+  c.strokeRect(10, 10, cw - 20, ch - 20);
+  // title watermark
+  c.save();
+  c.font = '600 22px "Cinzel", "Times New Roman", serif';
+  c.fillStyle = 'rgba(248, 200, 64, 0.28)';
+  c.textAlign = 'center';
+  c.fillText('ZYRAXIS', cw * 0.68, ch * 0.52);
+  c.font = '600 11px "Cinzel", "Times New Roman", serif';
+  c.fillStyle = 'rgba(248, 200, 64, 0.22)';
+  c.fillText('THE NINTH WORLD', cw * 0.68, ch * 0.56);
+  c.restore();
+  // Z-path connecting districts I→X (dotted gold trail)
+  c.save();
+  c.setLineDash([3, 6]);
+  c.lineWidth = 1.5;
+  c.strokeStyle = 'rgba(216, 172, 88, 0.35)';
+  c.beginPath();
+  for (let i = 0; i < DISTRICT_ORDER.length; i++) {
+    const p = WORLD_MAP_LAYOUT[DISTRICT_ORDER[i]];
+    const x = p.x * cw, y = p.y * ch;
+    if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+  }
+  c.stroke();
+  c.setLineDash([]);
+  c.restore();
+  // districts
+  const playerDistrict = getPlayerDistrict();
+  const keys = game.player.keys || {};
+  for (const id of DISTRICT_ORDER) {
+    const p = WORLD_MAP_LAYOUT[id];
+    const meta = DISTRICT_META[id];
+    const cx = p.x * cw, cy = p.y * ch;
+    const r  = p.r * cw;
+    const isPlayer = id === playerDistrict;
+    const isCleared = keys[meta.gemKey] > 0;
+    // district blob — palette gradient
+    const g = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
+    g.addColorStop(0, meta.grassColor);
+    g.addColorStop(0.55, meta.groundColor);
+    g.addColorStop(1, meta.wallColor);
+    c.fillStyle = g;
+    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+    // gold rim — brighter if cleared
+    c.lineWidth = isCleared ? 2.5 : 1.2;
+    c.strokeStyle = isCleared ? '#f8c840' : 'rgba(216, 172, 88, 0.55)';
+    c.stroke();
+    // sparkle glint (small)
+    c.fillStyle = meta.sparkleTint;
+    c.globalAlpha = 0.4;
+    c.beginPath(); c.arc(cx - r * 0.35, cy - r * 0.35, r * 0.12, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+    // roman numeral watermark inside blob
+    const romans = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+    c.save();
+    c.font = `600 ${Math.max(14, r * 0.55)}px "Cinzel", serif`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    c.fillText(romans[meta.num - 1], cx, cy + 1);
+    c.fillStyle = meta.accent;
+    c.globalAlpha = 0.85;
+    c.fillText(romans[meta.num - 1], cx, cy);
+    c.restore();
+    // cleared checkmark
+    if (isCleared) {
+      c.save();
+      c.font = '700 14px system-ui, sans-serif';
+      c.fillStyle = '#f8c840';
+      c.textAlign = 'center';
+      c.fillText('◈', cx + r * 0.62, cy - r * 0.55);
+      c.restore();
+    }
+    // district name label (above the blob)
+    c.save();
+    c.font = '600 12px "Cinzel", "Times New Roman", serif';
+    c.textAlign = 'center';
+    c.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    c.fillText(meta.name.toUpperCase(), cx + 1, cy - r - 6);
+    c.fillStyle = isPlayer ? '#a8eaff' : '#f5dc9c';
+    c.fillText(meta.name.toUpperCase(), cx, cy - r - 7);
+    c.restore();
+  }
+  // PLAYER PIN — glowing blue circle, pulsing
+  {
+    const p = WORLD_MAP_LAYOUT[playerDistrict];
+    const cx = p.x * cw, cy = p.y * ch;
+    const pulse = 0.6 + 0.4 * Math.sin(t * 3.2);
+    const outerR = (p.r * cw) * (1.15 + 0.12 * pulse);
+    // outer halo
+    const halo = c.createRadialGradient(cx, cy, 4, cx, cy, outerR);
+    halo.addColorStop(0, `rgba(120, 200, 255, ${0.55 + 0.25 * pulse})`);
+    halo.addColorStop(0.5, 'rgba(80, 150, 255, 0.25)');
+    halo.addColorStop(1, 'rgba(60, 120, 255, 0)');
+    c.fillStyle = halo;
+    c.beginPath(); c.arc(cx, cy, outerR, 0, Math.PI * 2); c.fill();
+    // pulsing ring
+    c.strokeStyle = `rgba(140, 220, 255, ${0.75 + 0.2 * pulse})`;
+    c.lineWidth = 2.5;
+    c.beginPath(); c.arc(cx, cy, (p.r * cw) * (1.02 + 0.06 * pulse), 0, Math.PI * 2); c.stroke();
+    // inner solid dot
+    c.fillStyle = '#e0f4ff';
+    c.beginPath(); c.arc(cx, cy, 5 + pulse * 1.2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#5fa8ff';
+    c.beginPath(); c.arc(cx, cy, 3 + pulse * 0.6, 0, Math.PI * 2); c.fill();
+  }
+  // compass rose (bottom-left corner, small)
+  {
+    const ox = 34, oy = ch - 34, s = 18;
+    c.save();
+    c.strokeStyle = 'rgba(216, 172, 88, 0.55)';
+    c.fillStyle = 'rgba(248, 200, 64, 0.85)';
+    c.lineWidth = 1;
+    c.beginPath(); c.arc(ox, oy, s, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(ox, oy - s); c.lineTo(ox + 3, oy); c.lineTo(ox, oy + s); c.lineTo(ox - 3, oy); c.closePath(); c.fill();
+    c.beginPath();
+    c.moveTo(ox - s, oy); c.lineTo(ox, oy - 3); c.lineTo(ox + s, oy); c.lineTo(ox, oy + 3); c.closePath();
+    c.fillStyle = 'rgba(216, 172, 88, 0.5)'; c.fill();
+    c.font = '600 8px "Cinzel", serif'; c.fillStyle = 'rgba(248, 200, 64, 0.8)'; c.textAlign = 'center';
+    c.fillText('N', ox, oy - s - 3);
+    c.restore();
+  }
+  // shard tally (bottom-right)
+  {
+    const total = ['ruby','pearl','citrine','emerald','amethyst','sapphire','onyx','amber','anomaly','ultra']
+      .reduce((n, k) => n + (keys[k] ? 1 : 0), 0);
+    c.save();
+    c.font = '600 12px "Cinzel", serif';
+    c.textAlign = 'right';
+    c.fillStyle = 'rgba(216, 172, 88, 0.85)';
+    c.fillText(`◈ GEMSHARDS  ${total} / 10`, cw - 22, ch - 22);
+    c.restore();
+  }
+}
+function _mapviewAnimate() {
+  if (!$mapview.classList.contains('active')) { _mapviewRaf = null; return; }
+  drawWorldMap();
+  _mapviewRaf = requestAnimationFrame(_mapviewAnimate);
+}
 function openMapView() {
   clearHeldKeys();
   $mapview.classList.add('active');
-  const cvs = document.getElementById('mapview-canvas');
-  const c = cvs.getContext('2d');
-  c.imageSmoothingEnabled = false;
-  const cw = cvs.width, ch = cvs.height;
-  const tw = cw / MAP_COLS, th = ch / MAP_ROWS;
-  c.fillStyle = '#0a0620'; c.fillRect(0, 0, cw, ch);
-  for (let y = 0; y < MAP_ROWS; y++) {
-    for (let x = 0; x < MAP_COLS; x++) {
-      const t = MAP[y][x];
-      let col = '#3a2450';       // path default
-      if (t === '#') col = '#1a0d2e';
-      else if (t === 'T') col = '#5a3a80';
-      else if (t === 'W') col = '#1a3860';
-      else if (t === 'G') col = '#2a5240';
-      else if (t === 'H') col = '#7a5cc8';
-      else if (t === 'C') col = '#050310';
-      else if (t === 'M') col = '#b87cff';
-      else if (t === 'S') col = '#e8c878';
-      else if (t === 'K') col = chestOpened(x, y) ? '#4a3468' : '#b8923f';
-      else if (t === 'N') col = game.player.npcDefeated ? '#4a3468' : '#5fa8ff';
-      c.fillStyle = col;
-      c.fillRect(Math.floor(x * tw), Math.floor(y * th), Math.ceil(tw), Math.ceil(th));
-    }
-  }
-  // player marker
-  c.fillStyle = '#f5dc9c';
-  const pxp = Math.floor(game.player.x * tw), pyp = Math.floor(game.player.y * th);
-  c.fillRect(pxp - 1, pyp - 1, Math.ceil(tw) + 2, Math.ceil(th) + 2);
+  // update caption with current district name
+  const meta = DISTRICT_META[getPlayerDistrict()];
+  const cap = document.getElementById('mapview-caption');
+  if (cap && meta) cap.textContent = `◈ YOU ARE IN ${meta.name.toUpperCase()} · ${meta.land.toUpperCase()}`;
+  if (_mapviewRaf) cancelAnimationFrame(_mapviewRaf);
+  _mapviewAnimate();
 }
-document.getElementById('mapview-close').onclick = () => $mapview.classList.remove('active');
-$mapview.addEventListener('click', (e) => { if (e.target === $mapview) $mapview.classList.remove('active'); });
+function closeMapView() {
+  $mapview.classList.remove('active');
+  if (_mapviewRaf) { cancelAnimationFrame(_mapviewRaf); _mapviewRaf = null; }
+}
+document.getElementById('mapview-close').onclick = closeMapView;
+$mapview.addEventListener('click', (e) => { if (e.target === $mapview) closeMapView(); });
 
 // ---------- Items inventory ----------
 function openItemsView() {
@@ -4351,7 +4539,7 @@ document.addEventListener('keydown', (e) => {
     const notebookActive = document.getElementById('notebook-overlay').classList.contains('active');   // V2.18
     const typesActive    = document.getElementById('types-overlay').classList.contains('active');     // V2.35
     if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive)) {
-      if (mapActive)     $mapview.classList.remove('active');
+      if (mapActive)     closeMapView();
       if (itemsActive)   $itemsov.classList.remove('active');
       if (inspectActive) document.getElementById('inspect-overlay').classList.remove('active');
       if (notebookActive) document.getElementById('notebook-overlay').classList.remove('active');

@@ -4856,7 +4856,9 @@ document.addEventListener('keydown', (e) => {
   //   X / Esc / Backspace / B = back / close / cancel (from overworld: menu toggle)
   // Interact/confirm keys must NOT repeat while held — otherwise dialog reopens.
   const isConfirm = (e.key === 'Enter' || e.key === ' ' || k === 'z' || k === 'a');
-  const isBack    = (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Shift' || k === 'x' || k === 'b');
+  // V2.46 — Shift removed from isBack; Shift is now the RUN modifier
+  // (hold Shift to walk 2x faster).  Back/close is Esc / Backspace / X / B.
+  const isBack    = (e.key === 'Escape' || e.key === 'Backspace' || k === 'x' || k === 'b');
   if (e.repeat && (isConfirm || isBack)) { e.preventDefault(); return; }
 
   // Controls modal — global toggle via ? or F1; Esc closes it first.
@@ -4926,7 +4928,19 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     // Enter/Space (non-Z confirm) still opens the inspect card.
-    if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
+    // V2.46 — Mobile hold-A dispatches Enter without any prior arrow-key
+    // focus, so document.activeElement is a mob-btn (or body), not a party
+    // slot. Fall back to the first non-empty slot when nothing valid focused.
+    if (isConfirm) {
+      const focused = document.activeElement;
+      const isSlot = focused && focused.classList && focused.classList.contains('party-slot');
+      if (!isSlot) {
+        const first = document.querySelector('#party-grid .party-slot:not(.empty)');
+        if (first) { first.focus(); first.click(); e.preventDefault(); return; }
+      }
+      if (activateFocused()) e.preventDefault();
+      return;
+    }
     if (isBack) {
       if (game._swapPickedIdx != null) { partySwapCancel(); e.preventDefault(); return; }
       closeParty(); e.preventDefault(); return;
@@ -5094,7 +5108,12 @@ function tryMove(dx, dy) {
   if (!walkable(nx, ny)) { game.player.moveCd = 120; return; }
   game.player.x = nx;
   game.player.y = ny;
-  game.player.moveCd = 160;
+  // V2.46 — RUN: holding B (mobile — mapped to Shift) or Shift (desktop)
+  // halves the walk cooldown, giving a 2x run speed while held.  We read
+  // keys[] state (not the current keydown) so a held key stays "running"
+  // across every tick without the browser needing to auto-repeat.
+  const running = !!keys['shift'];
+  game.player.moveCd = running ? 80 : 160;
   // encounter check
   if (isGemgrass(nx, ny)) {
     game.player.stepsSinceEnc++;
@@ -7950,7 +7969,7 @@ menuBackdrop.addEventListener('click', () => {
       <div class="mob-pad-arrow" data-dir="right" style="right: 12%; top: 50%; transform: translateY(-50%);">→</div>
     </div>
     <div class="mob-btn b-A" data-key="z">A</div>
-    <div class="mob-btn b-B" data-key="x">B</div>
+    <div class="mob-btn b-B" data-key="Shift">B</div>
     <div class="mob-pill p-MENU"   data-key="x">MENU</div>
     <div class="mob-pill p-SELECT" data-key="n">SELECT</div>
     <div class="mob-pill p-START"  data-key="x">START</div>

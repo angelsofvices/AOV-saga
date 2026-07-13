@@ -2995,7 +2995,7 @@ const game = {
     party: [],
     box: [],
     gems: 10,               // shared gem pool — powers moves in battle
-    zyspheres: 5,           // V3.1 — was gemspheres; capture ball count
+    zyspheres: 0,           // V3.1.1 — Mom gives you your first Zyspheres in her starter pack; you never carry them at spawn
     coins: 5,               // V2.7 — merchant currency; drops from battle wins
     items: { potion: 0 },
     keys: { bronze: 0, silver: 0,
@@ -7854,10 +7854,16 @@ function interactMom() {
       return;
     }
     // Phase B — Zyrex chosen, player back on main floor. Starter pack.
-    const potionGift = 2, sphereGift = 2;
+    // V3.1.1 — Mom is a head nurse of Baelgor and reads the modern-Rizer
+    // supply manuals cover-to-cover.  This is where Zyspheres first
+    // enter the player's inventory (the world doesn't hand them out
+    // anywhere else at spawn).
+    const potionGift = 2, sphereGift = 3;
     showDialog([
       `MOM: Look at you — already a Rizer.`,
       `MOM: Before you go, take a nurse's kit for the road.`,
+      `MOM: Potions for the wounds.  And these — brand-new Zyspheres, straight from the Thardun engineers.`,
+      `MOM: Click them open next to a wild Zyrex.  If your target's astralites submit, the sphere binds them.  If not — you'll have to weaken them first.`,
       `«+${potionGift} POTIONS  ·  +${sphereGift} ZYSPHERES»`,
       `MOM: Come find me any time you're hurt. I'll patch you up.`,
       `MOM: The door's always open. Come home safe.`,
@@ -8373,9 +8379,9 @@ function renderBagMenu() {
   const preview = game.battle.enemy
     ? Math.round(computeCatchChance(game.battle.enemy, 1.0) * 100)
     : 0;
-  gs.innerHTML = `ZYSPHERE <span class="cost">×${game.player.zyspheres || 0}  ·  ${preview}% catch</span>`;
+  gs.innerHTML = `OPEN ZYSPHERE <span class="cost">×${game.player.zyspheres || 0}  ·  ${preview}% sync</span>`;
   if ((game.player.zyspheres || 0) <= 0 || game.battle.kind !== 'wild') gs.disabled = true;
-  gs.onclick = () => throwZysphere();
+  gs.onclick = () => activateZysphere();
   $battleActions.appendChild(gs);
   // V2.8.1 — Equip gems onto the active Zyrex
   const eq = document.createElement('button');
@@ -8739,18 +8745,29 @@ function computeCatchChance(enemy, spherePower) {
   return Math.max(0.03, Math.min(0.90, raw));
 }
 
-async function throwZysphere() {
-  // V3.1 — Zysphere is the canonical name.  Backwards-compat: state key
-  // stays as 'zyspheres'; save-load migrates any legacy 'gemspheres'.
+// V3.1.1 — Zysphere is CLICKED OPEN in the palm, not thrown.
+// The inner matrix awakens, sends a REVERSE COSMIC BEAM (a reverse
+// Kamehameha from a living pokeball) toward the wild Zyrex, and pulls
+// the astralite signature into the sphere's core.  ~1.5 s of resolve
+// time.  Binary outcome: perfect/near-perfect sync (bound) or complete
+// resist (fail).
+//
+// Precise science.  Manufactured by the elite engineer corporate
+// factions of THARDUN — the Mechlands conglomerate that also stamps
+// the Cog Concourse guild seal.
+async function activateZysphere() {
   game.player.zyspheres = Math.max(0, (game.player.zyspheres || 0) - 1);
   const e = game.battle.enemy;
-  logBattle('You throw a ZYSPHERE — it locks onto the astralite signature...');
-  await wait(800);
+  logBattle('You click the ZYSPHERE open — Thardun matrix hums awake.');
+  await wait(600);
+  logBattle(`A reverse-cosmic beam locks onto ${e.name}'s astralite signature...`);
+  // 1.5 s cosmic-binding pulse animation on the enemy canvas.
+  await syncBindingAnimation(enemyCanvas, 1500);
   const chance = computeCatchChance(e, 1.0);
   const roll   = Math.random();
   const pct    = Math.round(chance * 100);
   if (roll < chance) {
-    logBattle(`Astralites SYNCHRONIZED  ·  ${e.name} bound  (chance ${pct}%)`);
+    logBattle(`PERFECT SYNC  ·  ${e.name} bound to the sphere  (${pct}%)`);
     await wait(900);
     const captured = makeZyrex(e.species, e.lv);
     captured.hp = Math.max(1, e.hp);
@@ -8761,7 +8778,7 @@ async function throwZysphere() {
     save();
     exitBattle();
   } else {
-    logBattle(`Astralites RESISTED  ·  ${e.name} broke free  (chance ${pct}%)`);
+    logBattle(`ASTRALITES RESIST  ·  the binding shatters  (${pct}%)`);
     await wait(800);
     await enemyTurn();
     if (checkBattleOver()) return;
@@ -8769,9 +8786,35 @@ async function throwZysphere() {
     renderMainMenu();
   }
 }
-// V3.1 — Backwards-compat alias.  Any lingering callers still using the
-// old name route to the new one.
-const throwGemsphere = throwZysphere;
+// Aliases so nothing crashes if a stale caller still uses the old names.
+const throwZysphere   = activateZysphere;
+const throwGemsphere  = activateZysphere;
+
+// V3.1.1 — Reverse-cosmic-beam pulse: overlays the enemy canvas with a
+// growing gold-violet halo for `ms` milliseconds, mimicking the sphere
+// pulling the Zyrex's astralite signature inward.  Cheap CSS-transform
+// animation on the canvas element itself; no extra DOM churn.
+function syncBindingAnimation(cvs, ms) {
+  return new Promise(resolve => {
+    if (!cvs) { setTimeout(resolve, ms); return; }
+    const originalFilter    = cvs.style.filter;
+    const originalTransform = cvs.style.transform;
+    const originalTransition= cvs.style.transition;
+    cvs.style.transition = `filter ${ms/2}ms ease-in, transform ${ms/2}ms ease-in-out`;
+    cvs.style.filter = 'brightness(1.4) drop-shadow(0 0 22px rgba(232, 200, 120, 0.9)) drop-shadow(0 0 40px rgba(184, 124, 255, 0.85))';
+    cvs.style.transform = 'scale(0.88)';
+    setTimeout(() => {
+      cvs.style.transition = `filter ${ms/2}ms ease-out, transform ${ms/2}ms ease-out`;
+      cvs.style.transform = 'scale(1.08)';
+    }, ms/2);
+    setTimeout(() => {
+      cvs.style.filter    = originalFilter;
+      cvs.style.transform = originalTransform;
+      cvs.style.transition= originalTransition;
+      resolve();
+    }, ms);
+  });
+}
 
 function checkBattleOver() {
   const e = game.battle.enemy;
@@ -10013,7 +10056,7 @@ document.getElementById('btn-new').onclick = () => {
     party: [],
     box: [],
     gems: 10,
-    zyspheres: 5,   // V3.1 — was gemspheres
+    zyspheres: 0,   // V3.1.1 — Mom's starter pack is the ONLY source of your first Zyspheres
     coins: 5,
     items: { potion: 0 },
     keys: { bronze: 0, silver: 0,

@@ -4407,6 +4407,29 @@ function getPlayerDistrict() {
   if (DISTRICT_META[m]) return m;
   return INTERIOR_TO_DISTRICT[m] || 'malezor';
 }
+// V2.45 — Ancient Gemsight helpers.
+// hasGemsight() returns true once the 9/9 shrine meta-quest completes and
+// the player is carrying the Ancient Gemsight relic.
+function hasGemsight() {
+  return !!(game.player && game.player.items && game.player.items.ancient_gemsight >= 1);
+}
+// Count unopened chests in a specific district. Reads MAPS[id].data to
+// find 'K' tiles and cross-checks game.player.chestsOpened by "x,y" key
+// (chest state is keyed globally without mapId — accepted trade-off).
+function unopenedChestsInDistrict(id) {
+  const m = MAPS[id];
+  if (!m || !m.data) return 0;
+  const opened = game.player && game.player.chestsOpened || {};
+  let n = 0;
+  for (let y = 0; y < m.data.length; y++) {
+    const row = m.data[y];
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] === 'K' && !opened[x + ',' + y]) n++;
+    }
+  }
+  return n;
+}
+
 // Stable star field (seeded random so nebula doesn't flicker between frames).
 const _MAPVIEW_STARS = (() => {
   const stars = [];
@@ -4515,6 +4538,58 @@ function drawWorldMap() {
       c.fillText('◈', cx + r * 0.62, cy - r * 0.55);
       c.restore();
     }
+    // V2.45 — ANCIENT GEMSIGHT reveal: per-district micro-status badges.
+    // When active, each district blob is annotated with:
+    //   top-left  ▣  = # unopened chests remaining
+    //   top-right ✖  = commander undefeated (grunts still guarding)
+    //   bottom    ◈  = shrine already visited (only if this district has one)
+    if (hasGemsight()) {
+      c.save();
+      c.font = '600 10px "Cinzel", serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      // Chest count (top-left of blob)
+      const unopened = unopenedChestsInDistrict(id);
+      if (unopened > 0) {
+        const bx = cx - r * 0.62, by = cy - r * 0.55;
+        c.fillStyle = 'rgba(20, 12, 40, 0.85)';
+        c.beginPath(); c.arc(bx, by, 10, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = 'rgba(216, 172, 88, 0.75)';
+        c.lineWidth = 1;
+        c.stroke();
+        c.fillStyle = '#f5dc9c';
+        c.fillText('▣' + unopened, bx, by + 1);
+      }
+      // Commander status (top-right; only meaningful when uncleared — cleared
+      // districts already have the gold rim + ◈ mark drawn above)
+      if (!isCleared && id !== 'malezor') {
+        const bx = cx + r * 0.62, by = cy - r * 0.55;
+        const pulse = 0.55 + 0.45 * Math.sin(t * 4 + meta.num);
+        c.fillStyle = `rgba(60, 8, 12, ${0.7 + 0.2 * pulse})`;
+        c.beginPath(); c.arc(bx, by, 9, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = `rgba(255, 100, 100, ${0.6 + 0.3 * pulse})`;
+        c.lineWidth = 1;
+        c.stroke();
+        c.fillStyle = '#ff8080';
+        c.font = '700 11px system-ui, sans-serif';
+        c.fillText('✖', bx, by + 1);
+        c.font = '600 10px "Cinzel", serif';
+      }
+      // Shrine status (bottom-center of blob; only meaningful if this district has a shrine)
+      const shrineHere = !!SHRINES[id];
+      if (shrineHere) {
+        const bx = cx, by = cy + r * 0.68;
+        const shrineDone = game.player.shrinesVisited && game.player.shrinesVisited[id];
+        c.fillStyle = shrineDone ? 'rgba(140, 90, 200, 0.85)' : 'rgba(20, 12, 40, 0.7)';
+        c.beginPath(); c.arc(bx, by, 9, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = shrineDone ? '#e0c8ff' : 'rgba(180, 140, 220, 0.55)';
+        c.lineWidth = 1;
+        c.stroke();
+        c.fillStyle = shrineDone ? '#fff' : 'rgba(200, 170, 240, 0.65)';
+        c.fillText('◈', bx, by + 1);
+      }
+      c.restore();
+    }
     // district name label (above the blob)
     c.save();
     c.font = '600 12px "Cinzel", "Times New Roman", serif';
@@ -4588,7 +4663,10 @@ function openMapView() {
   // update caption with current district name
   const meta = DISTRICT_META[getPlayerDistrict()];
   const cap = document.getElementById('mapview-caption');
-  if (cap && meta) cap.textContent = `◈ YOU ARE IN ${meta.name.toUpperCase()} · ${meta.land.toUpperCase()}`;
+  if (cap && meta) {
+    const gsLine = hasGemsight() ? '  ·  ANCIENT GEMSIGHT ACTIVE' : '';
+    cap.textContent = `◈ YOU ARE IN ${meta.name.toUpperCase()} · ${meta.land.toUpperCase()}${gsLine}`;
+  }
   if (_mapviewRaf) cancelAnimationFrame(_mapviewRaf);
   _mapviewAnimate();
 }
@@ -4624,7 +4702,7 @@ function openItemsView() {
     forge_ember:    'A single coal that will not go cold. A relic of Baelgor.',
     gear_cog:       'When it turns, something distant turns with it. A relic of Thardin.',
     imperial_crest: 'The crown that answers no name. A relic of Korathen.',
-    ancient_gemsight: 'A lens behind your eyes. What was hidden hides less. Meta relic.',
+    ancient_gemsight: 'A lens behind your eyes.  Reveals chest counts, uncleared commanders, and shrine visits on the world map.',
   };
   for (const [key, desc] of Object.entries(shrineDescs)) {
     const count = it[key] || 0;
@@ -5135,7 +5213,10 @@ function interactShrine() {
         '◈  THE NINE ANSWER AS ONE  ◈',
         'A pressure lifts behind your eyes.  You see the world thinner now.',
         'ANCIENT GEMSIGHT settles in your pack — a lens you cannot see, but always feel.',
-        'Whatever was hidden will not stay hidden for long.',
+        'Open your MAP.  Every district now shows what waits inside:',
+        '  ▣ chests you have not yet opened',
+        '  ✖ commanders still holding their gemshard',
+        '  ◈ shrines you have already answered',
       ]);
     }
   });

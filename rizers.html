@@ -2974,7 +2974,7 @@ const MALEZOR_MAP = [
   '#,,WWW,,,,K,,,,,,GGG,,,,,,,,,#', // 11
   '#,,,,,,,,,,,hh,,GGGGG,,,,,,,,#', // 12 · hh = Silver Lodge roof (top row of 2x2)
   '#T,,,,,,,,,,qh,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge door
-  '#,,,,,,,K,,,,,Q,,,,,,K,,,,,,,#', // 14 · Q=Quinn (desert wanderer)
+  '#,,,,,D,K,,,,,Q,,,,,,K,,,,,,,#', // 14 · V2.69 D = Beastwarden's Hall door · Q=Quinn
   '#,,,,,,,,,,,,,,,,,,,,,,v,,,,,#', // 15 · v = Cliff Fisher (V2.47)
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 16
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 17
@@ -3050,6 +3050,25 @@ const SILVER_LODGE_MAP = [
   '=....x.....=',
   '============',
 ];
+// V2.69 — Town Hall shared interior template.  Every district gets its
+// own 'D' door in the world map that leads here; the interior itself is
+// the same layout but the NPC content and district-themed label are
+// resolved at run-time from TOWN_HALLS[districtId].
+// Legend:  # = wall, . = floor, v = villager/NPC (dialogue-only),
+//          B = welcome desk / merchant-style counter (blocker), x = exit
+const TOWN_HALL_MAP = [
+  '################',
+  '#..............#',
+  '#....v.....v...#',
+  '#..............#',
+  '#..............#',
+  '#..............#',
+  '#........v.....#',
+  '#..............#',
+  '#..............#',
+  '#.......x......#',
+  '################',
+];
 const MAPS = {
   malezor:          { data: MALEZOR_MAP,         cols: 30, rows: 20, label: 'Malezor · Beastlands' },
   basement:         { data: BASEMENT_MAP,        cols: 14, rows: 10, label: 'Home · Your Bedroom' },  // V2.36
@@ -3057,6 +3076,7 @@ const MAPS = {
   parents_bedroom:  { data: PARENTS_BEDROOM_MAP, cols: 14, rows:  9, label: 'Home · Parents\' Bedroom' },  // V2.36
   bronze_cottage:   { data: BRONZE_HOUSE_MAP,    cols: 12, rows:  7, label: 'Bronze Cottage' },
   silver_lodge:     { data: SILVER_LODGE_MAP,    cols: 12, rows:  7, label: 'Silver Lodge' },
+  town_hall:        { data: TOWN_HALL_MAP,       cols: 16, rows: 11, label: 'Town Hall' },   // V2.69 — label is district-overridden at enter time
 };
 
 // ============================================================================
@@ -3173,6 +3193,199 @@ const VILLAGER_SHIRTS = [
   { primary: '#3ac2b0', accent: '#144a44' },   // teal shirt
   { primary: '#c23a8a', accent: '#5a1044' },   // magenta shirt
 ];
+// V2.69 — TOWN HALLS.  One themed main building per district, entered
+// via the 'D' door tile.  Each hall has 3 NPCs at fixed tile coords
+// inside TOWN_HALL_MAP; two give lore/flavor, the third (the "gift"
+// slot) hands the player a district-appropriate item on first talk.
+// Per canon (aov-item-acquisition-rule): items ONLY from NPC dialogue,
+// chests, or world finds.  This is the NPC-dialogue path.
+//
+// NPC tile coords inside TOWN_HALL_MAP (16 cols × 11 rows):
+//   npc0 = (4, 2)   — front-left counter
+//   npc1 = (10, 2)  — front-right counter
+//   npc2 = (8, 6)   — gift-giver (center-back)
+const TOWN_HALL_NPC_COORDS = {
+  '4,2':  0,
+  '10,2': 1,
+  '8,6':  2,   // the gift-giver
+};
+const TOWN_HALLS = {
+  malezor: {
+    name: "Beastwarden's Hall",
+    npcs: [
+      { name: 'CLIFF WARDEN', lines: [
+        'Malezor doesn\'t forgive tourists.  Every Rizer here started as one.',
+        'The gemgrass north of your house hides a Barkchitter colony.  Watch your ankles.',
+      ]},
+      { name: 'RIDGE TRACKER', lines: [
+        'I read tracks.  Yours say you\'re fast, but you land heavy on your left foot.',
+        'Yara patrols the north cliffs at dawn.  Jax spars along the west road.  Quinn — nobody knows.',
+      ]},
+      { name: 'BEASTWARDEN', gift: { key: 'gemsphere', name: 'GEMSPHERES', amount: 2 }, lines: [
+        'You\'re the young Rizer.  Your dad\'s son.  Everyone here knew he\'d send you eventually.',
+        'Take these.  Old Malezor courtesy — nobody heads east empty-handed.',
+        '«◈ +2 GEMSPHERES.»',
+      ], done: ['You\'ve already had your welcome.  Get east.  The Ninth World is waiting.'] },
+    ],
+  },
+  zarvane: {
+    name: 'Sunlit Temple',
+    npcs: [
+      { name: 'SUN PRIEST', lines: [
+        'Aura and Spirit are the old marriage.  Zarvane never forgot the wedding vows.',
+        'If you kneel at the Pillar and mean it — the sun answers.  I\'ve seen it.',
+      ]},
+      { name: 'PEARL PILGRIM', lines: [
+        'I walked here from Malezor barefoot.  My feet remember every step.  My mind — thinner.',
+        'Ivirium sleeps under the eastern cave.  We do not knock.',
+      ]},
+      { name: 'TEMPLE KEEPER', gift: { key: 'potion', name: 'POTIONS', amount: 3 }, lines: [
+        'Every pilgrim who reaches Zarvane earns a rest and a healing.  You are no different.',
+        '«◈ +3 POTIONS.»',
+      ], done: ['The temple has already blessed you today.  Come again tomorrow.'] },
+    ],
+  },
+  andrannor: {
+    name: 'Obsidian Archive',
+    npcs: [
+      { name: 'GREY ARCHIVIST', lines: [
+        'Andrannor keeps every carving that has ever been broken.  We do not repair.  We remember.',
+        'The obelisk cracked the day Elzoran fell.  The exact time is inked into shelf 4.',
+      ]},
+      { name: 'RUIN SCHOLAR', lines: [
+        'MIRAX runs a gambling house behind the seal.  She wins every game she does not play.',
+        'A trainer\'s greatest advantage is not speed.  It is having read the room they\'re about to enter.',
+      ]},
+      { name: 'HEAD ARCHIVIST', gift: { key: 'coins', name: 'COINS', amount: 250 }, lines: [
+        'The Archive pays living Rizers for the memories they will one day leave us.',
+        'Consider this an advance.',
+        '«¢ +250 COINS.»',
+      ], done: ['We\'ve already paid you.  Go make it worth our while.'] },
+    ],
+  },
+  veridan: {
+    name: 'Verdant Solarium',
+    npcs: [
+      { name: 'HERBALIST', lines: [
+        'The Great Tree grows one leaf per shrine visited.  Nine leaves.  It waits for the tenth.',
+        'Verdanix bloom in patches you can smell before you see.',
+      ]},
+      { name: 'GARDENER', lines: [
+        'THORNE\'s bandits work the north road.  Bring a Fire-type.  Or Aura.  Or a friend.',
+        'Emeralix walks the ridge at dusk.  If you see him, you were meant to.',
+      ]},
+      { name: 'HEAD BOTANIST', gift: { key: 'potion', name: 'POTIONS', amount: 4 }, lines: [
+        'Veridan\'s petals close a wound faster than most Rizers close a door.',
+        'Take these.  Your Zyrex will thank you before the day ends.',
+        '«◈ +4 POTIONS.»',
+      ], done: ['You have my petals.  Use them.  Do not save them for a wound worse than the wounds you have now.'] },
+    ],
+  },
+  netharion: {
+    name: 'Voidkeeper\'s Sanctum',
+    npcs: [
+      { name: 'VOID NOVICE', lines: [
+        'Everyone hears something different from the rift.  Nobody hears the same thing twice.',
+        'NULLIS the Voidsage collects thoughts.  Guard yours.',
+      ]},
+      { name: 'PURPLE-CLOAK', lines: [
+        'Netharion is the center.  Everything else is the edge trying to hold.',
+        'Eurakeon sleeps under the amethyst seal.  He dreams us.  Think about that carefully.',
+      ]},
+      { name: 'VOIDKEEPER', gift: { key: 'gemsphere', name: 'GEMSPHERES', amount: 4 }, lines: [
+        'Wilds here carry hidden types.  You will need more spheres than you think.',
+        '«◈ +4 GEMSPHERES.»',
+      ], done: ['I gave you the tools.  The rift gave you the rest.  Go.'] },
+    ],
+  },
+  vorashil: {
+    name: 'Skyport Nexus',
+    npcs: [
+      { name: 'SALVAGER', lines: [
+        'Nothing has landed on the pad in a thousand years.  It still remembers what fell from it.',
+        'AZUREL keeps the sapphire cave.  He is not from here.  Not from anywhere you know.',
+      ]},
+      { name: 'ALIEN EMISSARY', lines: [
+        'Tech Zyrex here scale differently.  Their stats jump on evolve.  Yours will surprise you.',
+        'ZYPHER-9 sells names.  If you know your own — do not talk to him.',
+      ]},
+      { name: 'PORTMASTER', gift: { key: 'coins', name: 'COINS', amount: 500 }, lines: [
+        'The port pays a stipend to any registered off-worlder.  You count.',
+        '«¢ +500 COINS.»',
+      ], done: ['You\'ve been paid.  Vorashil doesn\'t double-tip.'] },
+    ],
+  },
+  xilnar: {
+    name: 'Wispward Chapel',
+    npcs: [
+      { name: 'WISP NOVICE', lines: [
+        'The spirit tree is not a tree.  We call it a tree so children can point at it.',
+        'OBSIDIUS keeps the onyx cave.  He is quiet the way a mountain is quiet.',
+      ]},
+      { name: 'SPIRIT MEDIUM', lines: [
+        'RESHA the Onyxwidow inherits every Zyrex she defeats.  She has a lot of Zyrex.',
+        'Spirit types walk through walls in Xilnar.  So do the walls.',
+      ]},
+      { name: 'HEAD PRIEST', gift: { key: 'potion', name: 'POTIONS', amount: 5 }, lines: [
+        'The wisps pool at the altar every third night.  We keep what they leave behind.',
+        '«◈ +5 POTIONS.»',
+      ], done: ['The wisps have already given.  Come back on a new moon.'] },
+    ],
+  },
+  baelgor: {
+    name: 'Forgeheart Foundry',
+    npcs: [
+      { name: 'APPRENTICE SMITH', lines: [
+        'The anvil is warm because we keep it warm.  Six hundred years, unbroken.',
+        'AMBREVON forges with heat that does not burn.  He does not sell what he forges.',
+      ]},
+      { name: 'EMBER WATCHER', lines: [
+        'DRAKKUR the Amberchain runs the south road.  He counts everyone who walks it.',
+        'Aura moves double here.  Humanoid moves triple.  Bring both.',
+      ]},
+      { name: 'MASTER SMITH', gift: { key: 'coins', name: 'COINS', amount: 800 }, lines: [
+        'Every Rizer who reaches Baelgor earns a smith\'s tithe.  Yours.',
+        '«¢ +800 COINS.»',
+      ], done: ['You have your tithe.  Come back with something worth forging.'] },
+    ],
+  },
+  thardin: {
+    name: 'Cog Concourse',
+    npcs: [
+      { name: 'COG-TURNER', lines: [
+        'The machine listens to sound.  Whistle right and it turns for you.  Whistle wrong — it turns from you.',
+        'OATHANE holds the anomaly cave.  His door was open once.  Never again.',
+      ]},
+      { name: 'PIPE READER', lines: [
+        'HELIX the Anomalyweaver knits futures.  He never wears the one he made you.',
+        'Mech Zyrex evolve on schedule here, not level.  Learn the timing.',
+      ]},
+      { name: 'FOREMAN', gift: { key: 'gemsphere', name: 'GEMSPHERES', amount: 6 }, lines: [
+        'The Concourse issues capture tech to every registered Rizer.  Standard allotment.',
+        '«◈ +6 GEMSPHERES.»',
+      ], done: ['Your quota is filled.  Come back next quarter.'] },
+    ],
+  },
+  korathen: {
+    name: 'Gilded Throne Hall',
+    npcs: [
+      { name: 'COURT HERALD', lines: [
+        'The throne is empty.  It has always been empty.  Or it has always been someone.  I forget which.',
+        'OATHEUS keeps the Ultra cave.  When you break the ninth seal, come here.  Bring your best.',
+      ]},
+      { name: 'ROYAL HISTORIAN', lines: [
+        'THREEFOLD the Ultrakeeper counts your gemshards before you show them.  She always knows.',
+        'Wilds at Korathen tier into the thirties.  Do not come here early.  Come when you are ready.',
+      ]},
+      { name: 'CHAMBERLAIN', gift: { key: 'coins', name: 'COINS', amount: 1500 }, lines: [
+        'The last town of the Ninth World greets every arriving Rizer with a gift of gold.',
+        'Yours is heavier than most because you have earned every coin.',
+        '«¢ +1500 COINS.»',
+      ], done: ['You have been greeted.  The throne will not greet you twice.'] },
+    ],
+  },
+};
+
 const VILLAGERS = {
   malezor: [
     { name: 'Cliff Fisher', lines: [
@@ -3462,6 +3675,15 @@ function generateDistrictMap(mapId) {
   const bossY = rows - 3;
   if (grid[bossY] && grid[bossY][bossX] !== undefined) grid[bossY][bossX] = 'X';
 
+  // V2.69 — Town Hall door 'D'.  Every district (II-X) gets exactly one
+  // main themed building; enter to meet 3 district-flavored NPCs, the
+  // third of which drops a district-appropriate item on first talk.
+  // Placed at a north-central floor tile where it stands out but doesn't
+  // collide with the Gemlord cave or the mini-boss.
+  const hallX = Math.floor(cols / 4);
+  const hallY = 3;
+  if (grid[hallY] && grid[hallY][hallX] === ',') grid[hallY][hallX] = 'D';
+
   // V2.43 — District signature LANDMARK (blocker) at a canonical center-left
   // spot. Each district's 'L' renders unique in drawTile('L') based on mapId.
   const decor = DISTRICT_DECOR[mapId] || {};
@@ -3518,6 +3740,9 @@ const DOOR_TARGETS = {
   x: { map: 'malezor',        x: 2, y: 5, dir: 'down' },   // interior 'x' -> Malezor (south of H at 2,4)
   p: { map: 'bronze_cottage', x: 5, y: 5, dir: 'up',   key: 'bronze', label: 'Bronze Cottage' },
   q: { map: 'silver_lodge',   x: 5, y: 5, dir: 'up',   key: 'silver', label: 'Silver Lodge' },
+  // V2.69 — Town Hall door.  Same 'town_hall' interior for every district;
+  // NPCs + label resolved per-district via enteredInteriorFrom.
+  D: { map: 'town_hall',      x: 8, y: 9, dir: 'up',   townHall: true },
 };
 // Interior door 'x' target — always goes back to Malezor to the H side.
 // (Each interior also uses 'x' as its own exit; when leaving the bronze
@@ -3958,6 +4183,45 @@ function drawTile(x, y, ch, mx, my) {
         ctx.fillRect(cx + 10, py + 2, 2, 4);
         ctx.fillRect(cx + 10, py + 7, 2, 2);
       }
+      break;
+    }
+    case 'D': {
+      // V2.69 — Town Hall DOOR (grand civic entry).  Wider than 'H'; gold
+      // pediment above the arch signals a public building.  Palette
+      // tinted with the district accent so each hall's door reads as
+      // themed.  Walkable — stepping onto it triggers enterMap.
+      drawTile(x, y, ',', mx, my);
+      const districtAccent = (_dm && _dm.accent) || '#e8c878';
+      // Stone base — wider footprint
+      ctx.fillStyle = '#2c1e10';
+      ctx.fillRect(px, py + 2, TILE, TILE - 2);
+      // Recessed doorframe
+      ctx.fillStyle = '#4a3628';
+      ctx.fillRect(px + 3, py + 6, TILE - 6, TILE - 8);
+      // Door itself
+      ctx.fillStyle = '#7a5028';
+      ctx.fillRect(px + 6, py + 10, TILE - 12, TILE - 14);
+      // Vertical seam
+      ctx.strokeStyle = '#2a1a08';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 10);
+      ctx.lineTo(px + TILE / 2, py + TILE - 4);
+      ctx.stroke();
+      // Two brass knobs
+      ctx.fillStyle = districtAccent;
+      ctx.beginPath(); ctx.arc(px + TILE / 2 - 4, py + TILE - 8, 1.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + TILE / 2 + 4, py + TILE - 8, 1.2, 0, Math.PI * 2); ctx.fill();
+      // Gold pediment above the arch (district accent)
+      ctx.fillStyle = districtAccent;
+      ctx.beginPath();
+      ctx.moveTo(px + 2, py + 6);
+      ctx.lineTo(px + TILE / 2, py + 1);
+      ctx.lineTo(px + TILE - 2, py + 6);
+      ctx.closePath(); ctx.fill();
+      // Column edges (paler stone)
+      ctx.fillStyle = '#6a4a30';
+      ctx.fillRect(px, py + 6, 3, TILE - 6);
+      ctx.fillRect(px + TILE - 3, py + 6, 3, TILE - 6);
       break;
     }
     case 'H': {
@@ -5746,6 +6010,21 @@ function triggerDoor(tileChar, doorX, doorY) {
     }
     return exitHouseToMalezor();
   }
+  // V2.69 — Town Hall door: unlocked, but we still need to record the
+  // entry district so the interior NPCs + label resolve correctly.
+  if (target.townHall) {
+    const hall = TOWN_HALLS[game.player.mapId] || TOWN_HALLS.malezor;
+    game.player.enteredInteriorFrom = {
+      map: game.player.mapId,
+      x: doorX,
+      y: doorY,
+      label: hall.name,
+    };
+    enterMap(target.map, target.x, target.y, target.dir);
+    const hudEl = document.getElementById('hud-location');
+    if (hudEl) hudEl.textContent = hall.name;
+    return;
+  }
   // Locked door — check key
   if (target.key) {
     const have = (game.player.keys && game.player.keys[target.key]) > 0;
@@ -5814,6 +6093,56 @@ function districtBuildingLabel(target) {
 // villager's lines so repeated talks give new lines each time.
 function interactVillager(tx, ty) {
   const districtId = game.player.mapId;
+  // V2.69 — Inside a town_hall, route to the entry-district's TOWN_HALLS
+  // NPC list (indexed by tile coords).  Gift-giver NPCs drop their item
+  // on first talk.  Falls back to VILLAGERS[districtId] outside town_hall.
+  if (districtId === 'town_hall') {
+    const from = game.player.enteredInteriorFrom;
+    const fromDistrict = from && from.map;
+    const hall = TOWN_HALLS[fromDistrict];
+    if (hall && hall.npcs) {
+      const npcIdx = TOWN_HALL_NPC_COORDS[tx + ',' + ty];
+      const npc = (typeof npcIdx === 'number') ? hall.npcs[npcIdx] : null;
+      if (!npc) { showDialog(['They nod, but say nothing.']); return; }
+      // Gift-giver: first talk drops the item + records claim
+      if (npc.gift) {
+        game.player.townHallGifts = game.player.townHallGifts || {};
+        if (!game.player.townHallGifts[fromDistrict]) {
+          const g = npc.gift;
+          if (g.key === 'gemsphere') {
+            game.player.gemspheres = (game.player.gemspheres || 0) + g.amount;
+          } else if (g.key === 'potion') {
+            game.player.items = game.player.items || {};
+            game.player.items.potion = (game.player.items.potion || 0) + g.amount;
+          } else if (g.key === 'coins') {
+            game.player.coins = (game.player.coins || 0) + g.amount;
+          } else if (g.key === 'gems') {
+            game.player.gems = (game.player.gems || 0) + g.amount;
+          }
+          game.player.townHallGifts[fromDistrict] = true;
+          updateHUD();
+          save();
+          showToast(`◈ +${npc.gift.amount} ${npc.gift.name}`, 2400);
+          showDialog([`${npc.name}:`, ...npc.lines]);
+          return;
+        }
+        // Already claimed — say the 'done' line
+        showDialog([`${npc.name}:`, ...(npc.done || ['You have my thanks.  Come again.'])]);
+        return;
+      }
+      // Flavor NPC — cycle through their lines
+      game.player.villagerLine = game.player.villagerLine || {};
+      const key = 'town_hall:' + fromDistrict + ':' + tx + ',' + ty;
+      const step = game.player.villagerLine[key] || 0;
+      const line = npc.lines[step % npc.lines.length];
+      game.player.villagerLine[key] = step + 1;
+      showDialog([`${npc.name}:`, line]);
+      return;
+    }
+    showDialog(['They nod, but say nothing.']);
+    return;
+  }
+  // Legacy path — district outdoor villager pools
   const pool = VILLAGERS[districtId] || [];
   if (pool.length === 0) {
     showDialog(['They nod, but say nothing.']);

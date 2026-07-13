@@ -6517,7 +6517,7 @@ function openShop() {
 function renderShop() {
   const body = document.getElementById('shop-body');
   body.innerHTML = '';
-  document.getElementById('shop-coins').textContent = `¢ ${game.player.coins || 0}`;
+  document.getElementById('shop-coins').textContent = `¢ ${game.player.coins || 0}  ·  ◈ ${game.player.gems || 0}`;
   for (const it of SHOP_STOCK) {
     const row = document.createElement('div');
     row.className = 'shop-row';
@@ -6531,6 +6531,51 @@ function renderShop() {
     row.querySelector('button').onclick = () => buyItem(it);
     body.appendChild(row);
   }
+  // V3.6 — SELL GEMS section.  The merchant will convert Astralite Gems
+  // back into coin currency at 2:1 — half rate to prevent gem-farming
+  // loops, generous enough to make hoarding worth cashing out.
+  // Rate is centralized in GEM_SELL_DIVISOR below.
+  const gems = game.player.gems || 0;
+  const divider = document.createElement('div');
+  divider.style.cssText = 'color:var(--mist); font-size:11px; letter-spacing:0.28em; text-align:center; text-transform:uppercase; margin: 14px 0 6px; opacity:0.65;';
+  divider.textContent = '— sell gems for coins  ·  2 gems  →  1 coin —';
+  body.appendChild(divider);
+  const sellTiers = [
+    { label: 'SELL 10 GEMS',  gems: 10 },
+    { label: 'SELL 50 GEMS',  gems: 50 },
+    { label: 'SELL ALL',      gems: gems,  isAll: true },
+  ];
+  for (const tier of sellTiers) {
+    const g = tier.gems;
+    const coins = Math.floor(g / GEM_SELL_DIVISOR);
+    const canSell = g > 0 && coins > 0 && gems >= g;
+    const row = document.createElement('div');
+    row.className = 'shop-row';
+    row.innerHTML = `
+      <div class="info">
+        <div class="name">${tier.label}${tier.isAll ? `  (${g})` : ''}</div>
+        <div class="desc">Trade <span style="color:var(--gold-bright);">◈ ${g}</span> gems for <span style="color:var(--gold);">¢ ${coins}</span> coins.</div>
+      </div>
+      <button ${canSell ? '' : 'disabled'}>SELL</button>
+    `;
+    row.querySelector('button').onclick = () => sellGems(g);
+    body.appendChild(row);
+  }
+}
+// V3.6 — gems-to-coins conversion rate (2 gems = 1 coin).  Kept as a
+// named constant so future balance passes can dial it without hunting
+// through the render logic.
+const GEM_SELL_DIVISOR = 2;
+function sellGems(amount) {
+  const have = game.player.gems || 0;
+  if (amount <= 0 || amount > have) return;
+  const coins = Math.floor(amount / GEM_SELL_DIVISOR);
+  if (coins <= 0) return;
+  game.player.gems  = have - amount;
+  game.player.coins = (game.player.coins || 0) + coins;
+  save(); updateHUD();
+  showToast(`◈-${amount}  →  ¢+${coins}`, 1600);
+  renderShop();
 }
 function buyItem(it) {
   if ((game.player.coins || 0) < it.price) return;

@@ -4715,6 +4715,21 @@ function drawTile(x, y, ch, mx, my) {
       }
       break;
     }
+    case 'R': {
+      // V3.0.1 — HALL RIZER character.  Static tile inside a *_hall
+      // interior.  Renders as a friendly Rizer chibi using the district
+      // accent as the shirt color.  Undefeated = solid; after defeat
+      // the tile falls through to a "cleared" pale version.
+      drawTile(x, y, ',', mx, my);
+      const beaten = npcTrainerDefeated(mx, my);
+      const from = (game && game.player && game.player.enteredInteriorFrom) || null;
+      const fromDistrict = from && from.map;
+      const meta = fromDistrict && DISTRICT_META[fromDistrict];
+      const primary = beaten ? '#6a6a70' : ((meta && meta.accent) || '#e8c878');
+      const accent  = beaten ? '#3a3a40' : '#3a2560';
+      drawCharacter(px + TILE / 2, py + TILE / 2, 'down', primary, accent);
+      break;
+    }
     case 'a': {
       // V2.74 — HALL DECOR (blocker).  Renders based on the current
       // entry district (game.player.enteredInteriorFrom.map) so each
@@ -5436,66 +5451,72 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'K': {
-      // V2.73 — CHEST · district-themed + clear open/closed state.
-      // Closed: heavy lid, latch, sparkle above (draws attention).
-      // Opened: lid FULLY tilted back, dark hollow interior visible, no
-      //         sparkle.  Body + trim + latch use district palette so a
-      //         Zarvane chest reads distinct from a Baelgor chest.
+      // V3.0.1 — CHEST · WOODEN.  Uniform warm-wood body + gold band +
+      // latch across every district.  Closed: solid lid with sparkle.
+      // Opened: LID FULLY OFF the chest (no top at all) — empty wooden
+      // bucket showing a dark hollow interior.  Signals "loot taken."
       drawTile(x, y, ',', mx, my);
       const open = chestOpened(mx, my);
-      // Per-district palette.  Fall back to warm-wood chest inside
-      // interiors (bronze cottage, silver lodge) and non-district maps.
-      const dm  = (game && game.player && DISTRICT_META[game.player.mapId]) || null;
-      const accent = (dm && dm.accent) || '#e8c878';
-      const bodyDark = (dm && dm.wallColor)  || '#3a2010';
-      const bodyLite = (dm && dm.groundColor)|| '#6a4c28';
-      const trim     = accent;
-      const sparkle  = (dm && dm.sparkleTint)|| '#ffdc90';
-      // BODY (darker when open — the hollow inside)
-      ctx.fillStyle = open ? '#0a0410' : bodyLite;
+      // Wooden palette
+      const wood      = '#8b6236';   // main plank color
+      const woodDark  = '#4a3628';   // shadow / base band
+      const woodBase  = '#3a2a1e';   // very dark base
+      const gold      = '#e8c878';   // gold band + latch
+      const goldBrite = '#ffdc90';   // sparkle
+      // Body sides (visible in both states)
+      ctx.fillStyle = wood;
       ctx.fillRect(px + 5, py + 14, TILE - 10, TILE - 18);
-      // Base band (always visible — the chest's base color)
-      ctx.fillStyle = bodyDark;
-      ctx.fillRect(px + 5, py + TILE - 6, TILE - 10, 3);
-      // Trim rim around the top opening
-      ctx.strokeStyle = trim;
+      // Plank seams down the body
+      ctx.strokeStyle = woodDark;
       ctx.lineWidth = 1;
-      ctx.strokeRect(px + 5.5, py + 14.5, TILE - 11, TILE - 19);
-      // LID
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 14); ctx.lineTo(px + TILE / 2, py + TILE - 4);
+      ctx.stroke();
+      // Base band
+      ctx.fillStyle = woodBase;
+      ctx.fillRect(px + 5, py + TILE - 6, TILE - 10, 3);
       if (open) {
-        // Lid FULLY tilted back — sits behind the chest, angled up-and-back.
-        // Interior visible below.  Small pile of "empty" nothing.
-        ctx.fillStyle = bodyDark;
+        // LID FULLY OFF — empty hollow interior.  Draw a dark rectangle
+        // recessed inside the body opening so the chest reads as empty.
+        ctx.fillStyle = '#100810';
+        ctx.fillRect(px + 6, py + 14, TILE - 12, TILE - 20);
+        // Inner shadow rim (top edge — where the lid used to sit)
+        ctx.strokeStyle = woodBase;
         ctx.beginPath();
-        ctx.moveTo(px + 5,  py + 14);
-        ctx.lineTo(px + 5,  py + 4);
-        ctx.lineTo(px + TILE - 5, py + 4);
-        ctx.lineTo(px + TILE - 5, py + 14);
-        ctx.closePath();
-        ctx.fill();
-        // Trim rim on the lifted lid
-        ctx.strokeStyle = trim;
-        ctx.strokeRect(px + 5.5, py + 4.5, TILE - 11, 9);
-        // "Empty" indicator — two little dots inside
-        ctx.fillStyle = 'rgba(232, 200, 120, 0.35)';
-        ctx.fillRect(px + TILE / 2 - 4, py + TILE - 12, 1, 1);
-        ctx.fillRect(px + TILE / 2 + 3, py + TILE - 10, 1, 1);
+        ctx.moveTo(px + 5, py + 15); ctx.lineTo(px + TILE - 5, py + 15);
+        ctx.stroke();
+        // Gold band trim around the rim (looted mark)
+        ctx.fillStyle = gold;
+        ctx.fillRect(px + 5, py + 13, TILE - 10, 1);
+        // Faded '×' inside to signal 'empty' (very subtle)
+        ctx.strokeStyle = 'rgba(232, 200, 120, 0.28)';
+        ctx.beginPath();
+        ctx.moveTo(px + TILE / 2 - 3, py + TILE / 2 + 1);
+        ctx.lineTo(px + TILE / 2 + 3, py + TILE / 2 + 5);
+        ctx.moveTo(px + TILE / 2 + 3, py + TILE / 2 + 1);
+        ctx.lineTo(px + TILE / 2 - 3, py + TILE / 2 + 5);
+        ctx.stroke();
       } else {
-        // Lid closed on top
-        ctx.fillStyle = bodyLite;
+        // CLOSED — heavy wooden lid on top.
+        ctx.fillStyle = wood;
         ctx.fillRect(px + 5, py + 8, TILE - 10, 8);
-        // Domed top hint
-        ctx.fillStyle = bodyDark;
+        // Domed shadow at the top of the lid
+        ctx.fillStyle = woodDark;
         ctx.fillRect(px + 5, py + 8, TILE - 10, 2);
-        // Gold trim band on the lid seam
-        ctx.fillStyle = trim;
-        ctx.fillRect(px + 5, py + 14, TILE - 10, 1);
-        // Latch — sits at the seam
-        ctx.fillStyle = trim;
-        ctx.fillRect(px + TILE / 2 - 1, py + 12, 2, 5);
+        // Lid seam highlight
+        ctx.strokeStyle = woodBase;
+        ctx.beginPath();
+        ctx.moveTo(px + 5, py + 15); ctx.lineTo(px + TILE - 5, py + 15);
+        ctx.stroke();
+        // Gold band across the seam
+        ctx.fillStyle = gold;
+        ctx.fillRect(px + 5, py + 13, TILE - 10, 2);
+        // Gold latch
+        ctx.fillStyle = gold;
+        ctx.fillRect(px + TILE / 2 - 1, py + 12, 2, 6);
         // Sparkle above the chest — pulses so unopened chests draw the eye
         const pulse = (Math.sin(performance.now() * 0.006 + x + y) + 1) / 2;
-        ctx.fillStyle = `rgba(${hexR(sparkle)}, ${hexG(sparkle)}, ${hexB(sparkle)}, ${0.4 + pulse * 0.4})`;
+        ctx.fillStyle = `rgba(${hexR(goldBrite)}, ${hexG(goldBrite)}, ${hexB(goldBrite)}, ${0.4 + pulse * 0.4})`;
         ctx.fillRect(px + TILE / 2 - 1, py + 3, 2, 2);
         ctx.fillRect(px + TILE / 2 - 3, py + 5, 1, 1);
         ctx.fillRect(px + TILE / 2 + 2, py + 5, 1, 1);

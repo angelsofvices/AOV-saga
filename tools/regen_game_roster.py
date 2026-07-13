@@ -224,15 +224,23 @@ def main():
     (ROOT / 'GAME_ROSTER.md').write_text(write_markdown(merged))
     print(f'Wrote game_roster/roster.json  —  {len(merged)} entries')
     print(f'Wrote GAME_ROSTER.md')
-    # Audit T×333
-    bad = [(e['id'], e['tier'], stat_pool(e), (e['tier'] or 1) * 333)
-           for e in merged.values() if stat_pool(e) != (e.get('tier') or 1) * 333]
+    # V2.65 — canon exemptions (Ultharis = God, stays 999x5=4995)
+    CANON_STAT_EXEMPT = {'ultharis'}
+    bad = []
+    exempted = 0
+    for e in merged.values():
+        if e['id'] in CANON_STAT_EXEMPT:
+            exempted += 1
+            continue
+        target = (e.get('tier') or 1) * 333
+        if stat_pool(e) != target:
+            bad.append((e['id'], e.get('tier'), stat_pool(e), target))
     if bad:
         print(f'\nT*333 audit: {len(bad)} mismatch(es):')
         for id_, tier, p, target in bad:
             print(f'  {id_:20s} T{tier}  pool={p:5d}  (needs {target})')
     else:
-        print(f'T*333 audit: OK — all {len(merged)} satisfy pool = tier * 333.')
+        print(f'T*333 audit: OK — all {len(merged) - exempted} non-exempt satisfy pool = tier * 333  ({exempted} exempt: {sorted(CANON_STAT_EXEMPT)})')
 
 
 if __name__ == '__main__':

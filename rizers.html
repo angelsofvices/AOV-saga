@@ -5771,15 +5771,8 @@ function triggerDoor(tileChar, doorX, doorY) {
     // sees 'Sunlit Way · Cottage' in Zarvane, not 'Bronze Cottage'.
     const hudEl = document.getElementById('hud-location');
     if (hudEl) hudEl.textContent = districtLabel;
-    // Auto-loot on first entry — keyed by (map, entry-district) so the
-    // same interior template can be re-looted per district.
-    const lootKey = target.map + '@' + (game.player.enteredInteriorFrom.map || '?');
-    if (!game.player.housesLooted) game.player.housesLooted = {};
-    if (!game.player.housesLooted[lootKey]) {
-      grantHouseLoot(target.map);
-      game.player.housesLooted[lootKey] = true;
-      save();
-    }
+    // V2.68 — No walk-in loot.  Items only come from chests, NPC
+    // dialogue, or world finds.  Legacy grantHouseLoot() removed.
     return;
   }
   enterMap(target.map, target.x, target.y, target.dir);
@@ -5809,42 +5802,11 @@ function districtBuildingLabel(target) {
   if (per && key && per[key]) return per[key];
   return target.label || 'Locked House';
 }
-function grantHouseLoot(mapId) {
-  const loot = {
-    bronze_cottage: { gems: 8, potions: 2, coins: 15 },
-    silver_lodge:   { gems: 15, potions: 3, coins: 40, gemspheres: 1 },
-  }[mapId];
-  if (!loot) return;
-  if (loot.gems)       game.player.gems       = (game.player.gems       || 0) + loot.gems;
-  if (loot.coins)      game.player.coins      = (game.player.coins      || 0) + loot.coins;
-  if (loot.gemspheres) game.player.gemspheres = (game.player.gemspheres || 0) + loot.gemspheres;
-  if (loot.potions)    { if (!game.player.items) game.player.items = {}; game.player.items.potion = (game.player.items.potion || 0) + loot.potions; }
-  updateHUD();
-  const bits = [];
-  if (loot.gems) bits.push(`+${loot.gems} ◈`);
-  if (loot.coins) bits.push(`+${loot.coins} ¢`);
-  if (loot.potions) bits.push(`+${loot.potions} POTION${loot.potions === 1 ? '' : 'S'}`);
-  if (loot.gemspheres) bits.push(`+${loot.gemspheres} GEMSPHERE`);
-  showToast(bits.join('  ·  '), 2400);
-  // V2.67 — Canon v11.10: entering ANY locked house in Zarvane for the
-  // first time also yields the COMPUTER PART (Legacy-Rizer artifact).
-  // Take it home to the basement terminal to install PC Storage.
-  const from = game.player.enteredInteriorFrom;
-  if (from && from.map === 'zarvane') {
-    game.player.items = game.player.items || {};
-    if (!game.player.items.computer_part && !game.player.pcStorageInstalled) {
-      game.player.items.computer_part = 1;
-      setTimeout(() => showDialog([
-        'The house has been closed a long time.  Dust sits like memory.',
-        'On a workbench in the corner, wrapped in a scrap of gold cloth, is a small humming device — a COMPUTER PART.',
-        'A tag reads: "for the next Rizer to make it this far."',
-        'You pocket it.  The basement terminal at home has been missing something for months.',
-        '«◈ COMPUTER PART added to items.»',
-      ]), 1400);
-      setTimeout(() => showToast('◈  COMPUTER PART  ·  Legacy Rizer artifact', 3000), 1200);
-    }
-  }
-}
+// V2.68 — grantHouseLoot() retired.  Walk-in auto-loot violated canon
+// (items only come from chests, NPC dialogue, or world finds).  All
+// former house-loot rewards moved into INTERIOR_CHEST_LOOT and are
+// dispensed via the actual K-tile chest inside each interior — see
+// openChest().
 
 // V2.47 — Villager interact. Picks a stable villager index based on the
 // tile's (x, y) position so the same tile always speaks with the same
@@ -6311,13 +6273,48 @@ function selectDexEntry(id, rowEl) {
 }
 
 // ---------- Chests (V2.7 · multi-kind loot: gems, coins, potion) ----------
+// V2.68 — Interior chest loot table (bronze_cottage / silver_lodge).
+// Keyed by "mapId:x,y".  Special Zarvane case injected below at open
+// time for the Legacy Rizer's Computer Part.  Locked-house chests
+// replace the removed walk-in grantHouseLoot() reward.
+const INTERIOR_CHEST_LOOT = {
+  'bronze_cottage:6,3': { kind: 'gems',   amount: 8 },
+  'silver_lodge:4,4':   { kind: 'gems',   amount: 15 },
+  'silver_lodge:5,4':   { kind: 'potion', amount: 3 },
+};
 function openChest(x, y) {
-  const key = x + ',' + y;
-  if (game.player.chestsOpened[key]) {
+  // V2.68 — Chest state is now keyed by (mapId, x, y) so identical
+  // coords in different interiors don't share an 'opened' flag.
+  const mapId = game.player.mapId;
+  const key   = mapId + ':' + x + ',' + y;
+  // Legacy overworld-chest key kept for backward-compatible saves.
+  const legacyKey = x + ',' + y;
+  if (game.player.chestsOpened[key] || game.player.chestsOpened[legacyKey]) {
     showDialog(['This chest is empty.']);
     return;
   }
-  const loot = CHEST_LOOT[key] || { kind: 'gems', amount: 3 };
+  // V2.68 — Special-case: opening the Bronze chest inside a Zarvane-entered
+  // locked house also drops the COMPUTER PART (Legacy-Rizer artifact).
+  const from = game.player.enteredInteriorFrom;
+  const isZarvaneBronze = from && from.map === 'zarvane' && mapId === 'bronze_cottage' && x === 6 && y === 3;
+  if (isZarvaneBronze && !(game.player.items && game.player.items.computer_part) && !game.player.pcStorageInstalled) {
+    game.player.items = game.player.items || {};
+    game.player.items.computer_part = 1;
+    game.player.chestsOpened[key] = true;
+    save();
+    showDialog([
+      'You crack the chest open.',
+      'Wrapped in gold cloth, humming faintly: a COMPUTER PART.',
+      'A tag reads: "for the next Rizer to make it this far."',
+      '«◈ COMPUTER PART added to items.»',
+      '«◈ Take it home.  Your basement terminal is missing something.»',
+    ]);
+    showToast('◈  COMPUTER PART  ·  Legacy Rizer artifact', 3000);
+    return;
+  }
+  // Interior chest table takes priority; falls back to global CHEST_LOOT
+  // (Malezor overworld) then the default gem drop.
+  const loot = INTERIOR_CHEST_LOOT[key] || CHEST_LOOT[legacyKey] || { kind: 'gems', amount: 3 };
   game.player.chestsOpened[key] = true;
   if (loot.kind === 'gems')  { game.player.gems += loot.amount; showToast(`◈ +${loot.amount} GEMS`); }
   else if (loot.kind === 'coins') { game.player.coins = (game.player.coins || 0) + loot.amount; showToast(`¢ +${loot.amount} COINS`); }

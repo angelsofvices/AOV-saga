@@ -3061,8 +3061,8 @@ const MALEZOR_MAP = [
   '#T,,,,,,,,,,qh,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge door
   '#,,,,,D,K,,,,,Q,,,,,,K,,,,,,,#', // 14 · V2.69 D = Beastwarden's Hall door · Q=Quinn
   '#,,,,,,,,,,,,,,,,,,,,,,v,,,,,#', // 15 · v = Cliff Fisher (V2.47)
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 16
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 17
+  '#,,,,AAA,,,,,,,,,,,,,,,,,,,,,#', // 16 · V3.0 Seer Ministry emblem row
+  '#,,,,AEA,,,,,,,,,,,,,,,,,,,,##', // 17 · V3.0 Seer Ministry HQ door 'E'
   '#T,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 18
   '##############################', // 19
 ];
@@ -3279,6 +3279,46 @@ const HALL_KORATHEN = [
   '#.......x......#',
   '################',
 ];
+// V3.0 — SEER HQ interiors.  3 shared floors used by every district; the
+// mini-boss and grunt content is district-flavored via enteredInteriorFrom.
+// Legend: # wall, . floor, x exit (to overworld), U up-stair, w down-stair,
+//         g Seer grunt (basement fillers), X Seer Commander (upper mini-boss).
+const SEER_HQ_MAIN = [
+  '################',
+  '#..............#',
+  '#.g..........g.#',
+  '#..............#',
+  '#..............#',
+  '#............w.#',   // stairs DOWN to basement
+  '#............U.#',   // stairs UP to upper floor (gated until basement clear)
+  '#..............#',
+  '#.......x......#',
+  '################',
+];
+const SEER_HQ_BASEMENT = [
+  '################',
+  '#..............#',
+  '#..g.......g...#',
+  '#..............#',
+  '#.....g...g....#',
+  '#..............#',
+  '#..g.......g...#',
+  '#..............#',
+  '#............U.#',   // stairs UP back to main
+  '################',
+];
+const SEER_HQ_UPPER = [
+  '################',
+  '#..............#',
+  '#..............#',
+  '#..............#',
+  '#......X.......#',   // Seer Commander mini-boss
+  '#..............#',
+  '#..............#',
+  '#............w.#',   // stairs DOWN back to main
+  '#..............#',
+  '################',
+];
 const HALL_MAPS = {
   malezor_hall:   { data: HALL_MALEZOR,   cols: 16, rows: 11, label: "Beastwarden's Hall" },
   zarvane_hall:   { data: HALL_ZARVANE,   cols: 16, rows: 11, label: 'Sunlit Temple' },
@@ -3299,6 +3339,10 @@ const MAPS = {
   bronze_cottage:   { data: BRONZE_HOUSE_MAP,    cols: 12, rows:  7, label: 'Bronze Cottage' },
   silver_lodge:     { data: SILVER_LODGE_MAP,    cols: 12, rows:  7, label: 'Silver Lodge' },
   ...HALL_MAPS,   // V2.74 — 10 district-themed halls (malezor_hall .. korathen_hall)
+  // V3.0 — Seer HQ 3-floor interior (shared; content varies via enteredInteriorFrom)
+  seer_hq_main:     { data: SEER_HQ_MAIN,     cols: 16, rows: 10, label: 'Seer Ministry · Main' },
+  seer_hq_basement: { data: SEER_HQ_BASEMENT, cols: 16, rows: 10, label: 'Seer Ministry · Basement' },
+  seer_hq_upper:    { data: SEER_HQ_UPPER,    cols: 16, rows: 10, label: 'Seer Ministry · Upper' },
 };
 
 // ============================================================================
@@ -4051,17 +4095,40 @@ function generateDistrictMap(mapId) {
       placed = true;
     }
   }
-  // Sealed Gemlord cave in the middle of the east border area.
-  const caveX = cols - 2;
-  const caveY = Math.floor(rows / 2) - 2;
-  if (caveY > 1 && grid[caveY][caveX] !== undefined) grid[caveY][caveX] = 'C';
+  // V3.0 — Sealed Gemlord cave: RANDOM perimeter position (was fixed east).
+  // Uses the deterministic PRNG so the cave lands at the same spot every
+  // regen for this district id — memorizable but different per district.
+  {
+    const side = pick(0, 3);   // 0=N, 1=E, 2=S, 3=W
+    let cx, cy;
+    if      (side === 0) { cx = pick(3, cols - 4); cy = 1; }
+    else if (side === 1) { cx = cols - 2;          cy = pick(3, rows - 4); }
+    else if (side === 2) { cx = pick(3, cols - 4); cy = rows - 2; }
+    else                 { cx = 1;                 cy = pick(3, rows - 4); }
+    if (grid[cy] && grid[cy][cx] !== undefined) grid[cy][cx] = 'C';
+  }
 
-  // V2.41 — Named Seer commander mini-boss.  Placed as an 'X' tile near the
-  // south-center of each district (opposite the Gemlord cave). Beating them
-  // drops that district's Gemshard.
-  const bossX = Math.floor(cols / 2);
-  const bossY = rows - 3;
-  if (grid[bossY] && grid[bossY][bossX] !== undefined) grid[bossY][bossX] = 'X';
+  // V3.0 — SEER MINISTRY HQ.  3x2 footprint on the district ground.
+  // Top row: emblem wall 'A' (three tiles; center draws the white eye).
+  // Bottom row: 'A' A E A — the 'E' center is the door.
+  // Placed south of center so it stands out against the northern town hall.
+  {
+    const hqX = Math.floor(cols / 2) - 1;   // top-left of the 3x2 building
+    const hqY = rows - 4;                    // second-to-last row of grid
+    // Verify the 3x2 area is clear before stamping so we don't collide
+    // with landmarks/cave/portals.
+    let clear = true;
+    for (let dy = 0; dy < 2 && clear; dy++) {
+      for (let dx = 0; dx < 3 && clear; dx++) {
+        const rr = hqY + dy, cc = hqX + dx;
+        if (!grid[rr] || grid[rr][cc] === undefined || grid[rr][cc] !== ',') clear = false;
+      }
+    }
+    if (clear) {
+      grid[hqY][hqX]     = 'A'; grid[hqY][hqX + 1]     = 'A'; grid[hqY][hqX + 2]     = 'A';   // emblem row
+      grid[hqY + 1][hqX] = 'A'; grid[hqY + 1][hqX + 1] = 'E'; grid[hqY + 1][hqX + 2] = 'A';   // door row
+    }
+  }
 
   // V2.69 — Town Hall door 'D'.  Every district (II-X) gets exactly one
   // main themed building; enter to meet 3 district-flavored NPCs, the
@@ -4135,6 +4202,9 @@ const DOOR_TARGETS = {
   // gets its own themed hall (malezor_hall .. korathen_hall).  Player
   // lands at (7, 8) — one tile north of the exit 'x' at (7, 9).
   D: { x: 7, y: 8, dir: 'up',   townHall: true },
+  // V3.0 — Seer Ministry HQ door.  Player enters main floor at (7, 7)
+  // — one tile north of the shared exit 'x' at (7, 8) in SEER_HQ_MAIN.
+  E: { map: 'seer_hq_main', x: 7, y: 7, dir: 'up', seerHq: true },
 };
 // Interior door 'x' target — always goes back to Malezor to the H side.
 // (Each interior also uses 'x' as its own exit; when leaving the bronze
@@ -4153,12 +4223,61 @@ function getStairTarget(char, currentMap) {
   if (char === 'U') {
     if (currentMap === 'basement')      return { map: 'home_interior',   x: 11, y: 2, dir: 'down' };  // just below the down-stair on main floor
     if (currentMap === 'home_interior') return { map: 'parents_bedroom', x: 12, y: 2, dir: 'down' };  // just below the down-stair upstairs
+    // V3.0 — Seer HQ vertical flow.  Upper stairs gated behind basement clear.
+    if (currentMap === 'seer_hq_main') {
+      if (!seerHqBasementClear()) {
+        showDialog([
+          'The stairwell to the upper floor is barred.',
+          'Etched on the seal: "None climb until the pit is emptied."',
+          'Clear every Seer grunt in the basement first.',
+        ]);
+        return null;
+      }
+      return { map: 'seer_hq_upper', x: 12, y: 8, dir: 'down' };
+    }
+    if (currentMap === 'seer_hq_basement') return { map: 'seer_hq_main',  x: 12, y: 6, dir: 'down' };
   }
   if (char === 'w') {
     if (currentMap === 'home_interior')  return { map: 'basement',      x: 11, y: 2, dir: 'down' };   // just below the up-stair in basement
     if (currentMap === 'parents_bedroom')return { map: 'home_interior', x: 11, y: 2, dir: 'down' };   // just below the up-stair on main floor
+    // V3.0 — Seer HQ downstairs
+    if (currentMap === 'seer_hq_main')  return { map: 'seer_hq_basement', x: 12, y: 7, dir: 'down' };
+    if (currentMap === 'seer_hq_upper') return { map: 'seer_hq_main',     x: 12, y: 6, dir: 'down' };
   }
   return null;
+}
+
+// V3.0 — Seer HQ progression helpers.
+// game.player.seerHqBasementCleared[districtId] = true when every basement
+// 'g' grunt for that district's HQ has been defeated.
+// game.player.seerCommandersDefeated[districtId] = true after beating X.
+function seerHqBasementClear() {
+  const from = game.player.enteredInteriorFrom;
+  const districtId = from && from.map;
+  if (!districtId) return false;
+  return !!(game.player.seerHqBasementCleared && game.player.seerHqBasementCleared[districtId]);
+}
+// After defeating a basement grunt, check if every basement 'g' tile for
+// the district's HQ is now marked defeated.
+function checkSeerHqBasementClear() {
+  const from = game.player.enteredInteriorFrom;
+  const districtId = from && from.map;
+  if (!districtId) return;
+  // Basement grunt coords are the six 'g' tiles in SEER_HQ_BASEMENT.
+  // Defeated flags are keyed by 'x,y' but scoped to the interior map.
+  // Since chestsOpened / npcsDefeated use naked coords, we scope with
+  // a district prefix to avoid collisions across districts.
+  const gruntCoords = ['3,2','11,2','5,4','9,4','3,6','11,6'];
+  const flags = game.player.npcsDefeated || {};
+  const allDown = gruntCoords.every(c => flags['seer_basement:' + districtId + ':' + c]);
+  if (allDown) {
+    game.player.seerHqBasementCleared = game.player.seerHqBasementCleared || {};
+    if (!game.player.seerHqBasementCleared[districtId]) {
+      game.player.seerHqBasementCleared[districtId] = true;
+      save();
+      showToast('◈  BASEMENT CLEARED  ·  upper floor unsealed', 2800);
+    }
+  }
 }
 let MAP = MALEZOR_MAP;
 let MAP_COLS = 30;
@@ -4242,7 +4361,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkjrcFeLva'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor
+  if ('#TWMSBh=btmdzkjrcFeLvaA'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall
   if (t === 'R' && !npcTrainerDefeated(x, y)) return false;   // V2.74 — hall Rizer blocker until defeated
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQgX'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);   // V2.38/V2.41 — 'g'=grunt, 'X'=commander
@@ -4725,6 +4844,65 @@ function drawTile(x, y, ch, mx, my) {
         ctx.fillRect(cx - 5, py + 4, 10, 3);       // capital
         ctx.fillRect(cx - 5, py + TILE - 8, 10, 3); // base
       }
+      break;
+    }
+    case 'A': {
+      // V3.0 — Seer Ministry HQ WALL tile.  Black stone; the center-top
+      // tile of the 3x2 building draws the white-eye emblem so the
+      // building reads as the Ministry insignia when seen on the map.
+      drawTile(x, y, ',', mx, my);
+      // Base wall
+      ctx.fillStyle = '#0a0410';
+      ctx.fillRect(px, py, TILE, TILE);
+      // Subtle stone banding
+      ctx.strokeStyle = '#1a0c22';
+      ctx.beginPath();
+      ctx.moveTo(px, py + TILE / 2); ctx.lineTo(px + TILE, py + TILE / 2);
+      ctx.stroke();
+      // Detect if this tile is the emblem center: check the tile ABOVE
+      // (out of bounds or wall) AND the tile BELOW is the door 'E'.  If so,
+      // draw the white-eye emblem here.
+      const below = tileAt(mx, my + 1);
+      if (below === 'E') {
+        // White circle
+        ctx.fillStyle = '#f4f0e4';
+        ctx.beginPath();
+        ctx.arc(px + TILE / 2, py + TILE / 2, 8, 0, Math.PI * 2);
+        ctx.fill();
+        // Pupil
+        ctx.fillStyle = '#0a0410';
+        ctx.beginPath();
+        ctx.arc(px + TILE / 2, py + TILE / 2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Highlight
+        ctx.fillStyle = '#f8f8f0';
+        ctx.beginPath();
+        ctx.arc(px + TILE / 2 - 1, py + TILE / 2 - 1, 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'E': {
+      // V3.0 — Seer Ministry HQ DOOR (walkable).  Black door with a
+      // gold-trimmed frame and the eye insignia in miniature.
+      drawTile(x, y, ',', mx, my);
+      ctx.fillStyle = '#0a0410';
+      ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+      // Frame trim
+      ctx.strokeStyle = '#8a5c1c';
+      ctx.strokeRect(px + 3.5, py + 3.5, TILE - 7, TILE - 7);
+      // Vertical seam
+      ctx.strokeStyle = '#2a1408';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 4); ctx.lineTo(px + TILE / 2, py + TILE - 4);
+      ctx.stroke();
+      // Small white-eye on the door center
+      ctx.fillStyle = '#f4f0e4';
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + TILE / 2, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#0a0410';
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + TILE / 2, 1.8, 0, Math.PI * 2); ctx.fill();
       break;
     }
     case 'D': {
@@ -6586,6 +6764,21 @@ function triggerDoor(tileChar, doorX, doorY) {
     }
     return exitHouseToMalezor();
   }
+  // V3.0 — Seer Ministry HQ door: entry always into seer_hq_main.
+  // Records the entry district so the interior grunts + mini-boss +
+  // stair-gating resolve against SEER_COMMANDERS[district].
+  if (target.seerHq) {
+    game.player.enteredInteriorFrom = {
+      map: game.player.mapId,
+      x: doorX,
+      y: doorY,
+      label: 'Seer Ministry',
+    };
+    enterMap(target.map, target.x, target.y, target.dir);
+    const hudEl = document.getElementById('hud-location');
+    if (hudEl) hudEl.textContent = 'Seer Ministry · Main';
+    return;
+  }
   // V2.69 / V2.74 — Town Hall door: unlocked; resolves to the current
   // district's themed interior via TOWN_HALLS[district].map so each
   // district lands in a distinct hall.
@@ -7389,6 +7582,31 @@ function startWildEncounter() {
 }
 
 // V2.21 — walk off a portal edge to travel one district in Z-order.
+// V3.0 — District progression groups.  Beating all Seer Commander
+// mini-bosses in a group unlocks travel into the next group.
+//   Group 1: I  II  III   (always open)
+//   Group 2: IV V   VI    (open once malezor+zarvane+andrannor SCs down)
+//   Group 3: VII VIII IX  (open once veridan+netharion+vorashil SCs down)
+//   Group 4: X            (open once xilnar+baelgor+thardin SCs down)
+const DISTRICT_GROUPS = [
+  ['malezor', 'zarvane', 'andrannor'],
+  ['veridan', 'netharion', 'vorashil'],
+  ['xilnar', 'baelgor', 'thardin'],
+  ['korathen'],
+];
+function districtGroupIndex(id) {
+  for (let i = 0; i < DISTRICT_GROUPS.length; i++) {
+    if (DISTRICT_GROUPS[i].includes(id)) return i;
+  }
+  return -1;
+}
+function groupUnlocked(idx) {
+  if (idx <= 0) return true;
+  const prev = DISTRICT_GROUPS[idx - 1] || [];
+  const flags = game.player.seerCommandersDefeated || {};
+  return prev.every(d => flags[d]);
+}
+
 function travelDistrict(dir) {
   const currentIdx = DISTRICT_ORDER.indexOf(game.player.mapId);
   if (currentIdx < 0) return;
@@ -7400,6 +7618,25 @@ function travelDistrict(dir) {
   const nextId = DISTRICT_ORDER[nextIdx];
   const nextMap = MAPS[nextId];
   if (!nextMap) { showToast('DISTRICT NOT WIRED', 1600); return; }
+  // V3.0 — Progression gate.  Only block FORWARD (east) travel — going
+  // back is always allowed.  Player must beat all Seer Commanders in
+  // the current group before advancing into the next group.
+  if (dir > 0) {
+    const nextGroup = districtGroupIndex(nextId);
+    const currentGroup = districtGroupIndex(game.player.mapId);
+    if (nextGroup > currentGroup && !groupUnlocked(nextGroup)) {
+      const need = DISTRICT_GROUPS[nextGroup - 1] || [];
+      const flags = game.player.seerCommandersDefeated || {};
+      const remain = need.filter(d => !flags[d]).map(d => (DISTRICT_META[d] && DISTRICT_META[d].name) || d);
+      showDialog([
+        'A Ministry watchpost seals the border.',
+        'The eastern road is barred until every Seer Commander of this district group falls.',
+        remain.length ? `Still standing: ${remain.join(' · ')}.` : 'The way opens — this side is done.',
+        'Return to their Ministries.  Clear the basements.  Face the Commanders.',
+      ]);
+      return;
+    }
+  }
   const meta = DISTRICT_META[nextId];
   const midY = Math.floor(nextMap.rows / 2);
   // Arriving from the WEST portal — spawn just east of it. From the EAST — spawn just west of it.
@@ -8511,6 +8748,35 @@ function checkBattleOver() {
     } else if (game.battle.kind === 'npc-trainer') {
       if (!game.player.npcsDefeated) game.player.npcsDefeated = {};
       if (game.battle.npcCoord) game.player.npcsDefeated[game.battle.npcCoord] = true;
+      // V3.0 — Seer HQ basement grunt: also stamp the district-scoped
+      // flag so seerHqBasementClear can survive across saves.  Then
+      // check if every basement grunt is defeated → unlock upper.
+      if (game.player.mapId === 'seer_hq_basement' && game.battle.tileChar === 'g' && game.battle.npcCoord) {
+        const from = game.player.enteredInteriorFrom;
+        const districtId = from && from.map;
+        if (districtId) {
+          game.player.npcsDefeated['seer_basement:' + districtId + ':' + game.battle.npcCoord] = true;
+        }
+        setTimeout(checkSeerHqBasementClear, 200);
+      }
+      // V3.0 — Seer HQ upper mini-boss: after beating X inside the HQ,
+      // stamp the district's seer-commander-defeated flag so the
+      // travelDistrict portal gate can check group unlocks.
+      if (game.player.mapId === 'seer_hq_upper' && game.battle.tileChar === 'X') {
+        const from = game.player.enteredInteriorFrom;
+        const districtId = from && from.map;
+        if (districtId) {
+          game.player.seerCommandersDefeated = game.player.seerCommandersDefeated || {};
+          if (!game.player.seerCommandersDefeated[districtId]) {
+            game.player.seerCommandersDefeated[districtId] = true;
+            setTimeout(() => showDialog([
+              'The Seer Commander falls.',
+              'Their whisper cuts short.  The Ministry\'s eye above the door turns dull.',
+              'The path east opens.  Next district is yours to enter.',
+            ]), 1200);
+          }
+        }
+      }
       // V2.41 — Commander drops their district's Gemshard on defeat.
       if (game.battle.commander && game.battle.gemshardKey) {
         const gk = game.battle.gemshardKey;

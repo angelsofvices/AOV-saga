@@ -4182,6 +4182,43 @@ function generateDistrictMap(mapId) {
   const hallY = 3;
   if (grid[hallY] && grid[hallY][hallX] === ',') grid[hallY][hallX] = 'D';
 
+  // V3.6.2 — WANDERING MERCHANT 'S'.  Every district II-X gets a merchant
+  // so players can trade coins for Potions / Zyspheres and cash out excess
+  // gems anywhere in the world (matches the recurring-merchant canon).
+  // Priority placement: two tiles east of the Town Hall so the merchant
+  // sits in the same north-of-map plaza zone.  If that tile is occupied,
+  // scan outward for the nearest walkable floor.
+  {
+    const attempts = [
+      [hallX + 2, hallY],       // east of hall
+      [hallX - 2, hallY],       // west of hall
+      [hallX + 2, hallY + 1],   // south-east of hall
+      [hallX - 2, hallY + 1],   // south-west of hall
+      [hallX,     hallY + 2],   // due south of hall
+    ];
+    let placed = false;
+    for (const [sx, sy] of attempts) {
+      if (placed) break;
+      if (grid[sy] && grid[sy][sx] === ',') {
+        grid[sy][sx] = 'S';
+        placed = true;
+      }
+    }
+    // Fallback: PRNG scan until we find a walkable floor tile.
+    if (!placed) {
+      let tries = 0;
+      while (!placed && tries < 200) {
+        tries++;
+        const x = pick(3, cols - 4);
+        const y = pick(3, rows - 4);
+        if (grid[y] && grid[y][x] === ',') {
+          grid[y][x] = 'S';
+          placed = true;
+        }
+      }
+    }
+  }
+
   // V2.43 — District signature LANDMARK (blocker) at a canonical center-left
   // spot. Each district's 'L' renders unique in drawTile('L') based on mapId.
   const decor = DISTRICT_DECOR[mapId] || {};

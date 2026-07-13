@@ -2442,7 +2442,9 @@ const SPECIES = {
   elzebub: {
     easterEgg: true,   // V2.33.3 — never spawn as wild encounter; Elzoran line is canon-rare
     name: 'ELZEBUB', type: 'Draconic', type2: 'Elemental', region: 'Unknown',
-    base: { hp: 42, atk: 44, def: 36, spd: 40, spc: 52 },   // hatchling — under BASIC_BASE
+    // V2.59 — T×333 lock: Tier I max pool = 333.  SPC-weighted (magical
+    // dragon hatchling).  hp+atk+def+spd+spc = 65+68+56+62+82 = 333.
+    base: { hp: 65, atk: 68, def: 56, spd: 62, spc: 82 },
     tier: 1, catchRate: 3, shape: 'winged',
     sprite: ['#7dc8ff', '#2a5c9c', '#ffcf8f'],   // soft sky-blue + pale peach — hatchling
     moves: basicMoves('Draconic', ['Sky Nip', 'Windbeat', 'Emberling', 'Fledgling Guard']),
@@ -2452,7 +2454,10 @@ const SPECIES = {
   elzimir: {
     easterEgg: true,   // V2.33.3 — never spawn as wild encounter; Elzoran line is canon-rare
     name: 'ELZIMIR', type: 'Draconic', type2: 'Elemental', region: 'Unknown',
-    base: { hp: 128, atk: 118, def: 92, spd: 84, spc: 168 },  // scaled from Elzoran (Tier V)
+    // V2.59 — T×333 lock: Tier III max pool = 999.  Preserves the SPC-heavy
+    // Elzoran-line weighting (adolescent draconic mage).
+    // hp+atk+def+spd+spc = 216+199+155+142+287 = 999.
+    base: { hp: 216, atk: 199, def: 155, spd: 142, spc: 287 },
     tier: 3, catchRate: 3, shape: 'winged',
     sprite: ['#3aa0ff', '#1a3c8a', '#ff9040'],   // bright cyan-blue + amber — adolescent
     moves: basicMoves('Draconic', ['Wingbeat', 'Twin Ember', 'Sky-Sigil', 'Rising Guard']),
@@ -2582,6 +2587,22 @@ const SPECIES = {
   }
   if (typeof console !== 'undefined' && added) {
     console.log('[V2.30] Hydrated ' + added + ' Zyrex from codex; total SPECIES = ' + Object.keys(SPECIES).length);
+  }
+  // V2.59 — Canon audit: every species base pool must equal tier * 333.
+  // Runs once at boot so any regression prints to the console immediately.
+  if (typeof console !== 'undefined') {
+    const bad = [];
+    for (const id in SPECIES) {
+      const s = SPECIES[id];
+      const b = s.base || {};
+      const total = (b.hp||0) + (b.atk||0) + (b.def||0) + (b.spd||0) + (b.spc||0);
+      const target = (s.tier || 1) * 333;
+      if (total !== target) bad.push({ id, tier: s.tier || 1, total, target });
+    }
+    if (bad.length) {
+      console.warn('[V2.59] T×333 stat pool audit: ' + bad.length + ' species out of canon:');
+      for (const b of bad) console.warn('   ' + b.id + '  T' + b.tier + '  pool=' + b.total + '  (needs ' + b.target + ')');
+    }
   }
 })();
 

@@ -2839,6 +2839,26 @@ const DISTRICT_META = {
 };
 const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
 
+// V2.43 — DISTRICT CHARACTER
+// Each district gets its own decor recipe so the world stops feeling like
+// one procedural map with 10 palettes. Decor char 'f' (walkable flavor) is
+// scattered per-recipe; landmark char 'L' (blocker) is placed once per
+// district at a canonical center-left spot. drawTile branches on the
+// current district's mapId to paint each 'f' / 'L' / 'T' / 'W' with
+// district-native art (spirit-wisp vs forge-brazier vs void-thorn etc.).
+const DISTRICT_DECOR = {
+  malezor:   { flavor: 'fern',       flavorCount: 0,  landmark: null,         waterTint: '#1a3860', treeStyle: 'beast'   }, // hand-crafted map, no procedural decor
+  zarvane:   { flavor: 'shrineflame',flavorCount: 14, landmark: 'sun-pillar', waterTint: '#3a2a10', treeStyle: 'gold'    },
+  andrannor: { flavor: 'stonechip',  flavorCount: 18, landmark: 'obelisk',    waterTint: '#20242e', treeStyle: 'stone'   },
+  veridan:   { flavor: 'bloom',      flavorCount: 24, landmark: 'great-tree', waterTint: '#1a4a30', treeStyle: 'canopy'  },
+  netharion: { flavor: 'voidwisp',   flavorCount: 20, landmark: 'rift',       waterTint: '#2a1848', treeStyle: 'thorn'   },
+  vorashil:  { flavor: 'techpod',    flavorCount: 20, landmark: 'landing',    waterTint: '#0f1a3c', treeStyle: 'metal'   },
+  xilnar:    { flavor: 'spiritwisp', flavorCount: 24, landmark: 'spirit-tree',waterTint: '#0e2c48', treeStyle: 'ghost'   },
+  baelgor:   { flavor: 'brazier',    flavorCount: 20, landmark: 'anvil',      waterTint: '#48120a', treeStyle: 'scorched'},
+  thardin:   { flavor: 'gear',       flavorCount: 22, landmark: 'machine',    waterTint: '#382410', treeStyle: 'brass'   },
+  korathen:  { flavor: 'crown',      flavorCount: 26, landmark: 'throne',     waterTint: '#583c10', treeStyle: 'golden'  },
+};
+
 // Pick species from the current SPECIES roster that match a district's type mix.
 // Falls back to any Zyrex if no match — every district gets a wild pool.
 function speciesMatchingTypes(types) {
@@ -3000,6 +3020,29 @@ function generateDistrictMap(mapId) {
   const bossY = rows - 3;
   if (grid[bossY] && grid[bossY][bossX] !== undefined) grid[bossY][bossX] = 'X';
 
+  // V2.43 — District signature LANDMARK (blocker) at a canonical center-left
+  // spot. Each district's 'L' renders unique in drawTile('L') based on mapId.
+  const decor = DISTRICT_DECOR[mapId] || {};
+  if (decor.landmark) {
+    const lx = Math.max(3, Math.floor(cols / 3));
+    const ly = Math.max(3, Math.floor(rows / 2));
+    if (grid[ly] && grid[ly][lx] !== undefined && grid[ly][lx] === ',') {
+      grid[ly][lx] = 'L';
+    }
+  }
+  // V2.43 — Scatter district-specific flavor decor ('f' — walkable).
+  // Recipe count varies (14..26). All 'f' tiles render per-district in drawTile.
+  const flavorTarget = decor.flavorCount || 0;
+  let f = 0, ftries = 0;
+  while (f < flavorTarget && ftries < flavorTarget * 25) {
+    ftries++;
+    const x = pick(2, cols - 3);
+    const y = pick(2, rows - 3);
+    if (grid[y][x] !== ',') continue;
+    grid[y][x] = 'f';
+    f++;
+  }
+
   return grid.map(row => row.join(''));
 }
 
@@ -3123,7 +3166,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkjrcFe'.includes(t)) return false;
+  if ('#TWMSBh=btmdzkjrcFeL'.includes(t)) return false;  // V2.43 — L = district landmark (blocker)
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQgX'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);   // V2.38/V2.41 — 'g'=grunt, 'X'=commander
   if (t === 'K' && !chestOpened(x, y)) return false;
@@ -3214,27 +3257,82 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'T': {
-      // gem-rock
-      ctx.fillStyle = '#382450';
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#5a3a80';
-      ctx.beginPath();
-      ctx.moveTo(px + 16, py + 6);
-      ctx.lineTo(px + 28, py + 16);
-      ctx.lineTo(px + 22, py + 28);
-      ctx.lineTo(px + 8, py + 26);
-      ctx.lineTo(px + 4, py + 14);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#b87cff';
-      ctx.fillRect(px + 14, py + 12, 4, 4);
+      // V2.43 — district-tinted tree. Style dictated by DISTRICT_DECOR.treeStyle.
+      const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
+      const style = decor.treeStyle || 'beast';
+      drawTile(x, y, ',', mx, my); // ground under tree
+      const trunkX = px + TILE / 2;
+      if (style === 'gold') {
+        // Zarvane — tall gold cypress
+        ctx.fillStyle = '#3a2814'; ctx.fillRect(trunkX - 2, py + 18, 4, 12);
+        ctx.fillStyle = '#e8b048';
+        ctx.beginPath(); ctx.moveTo(trunkX, py + 2); ctx.lineTo(px + TILE - 4, py + 20); ctx.lineTo(px + 4, py + 20); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffd882'; ctx.fillRect(trunkX - 1, py + 6, 2, 2);
+      } else if (style === 'stone') {
+        // Andrannor — stone-tree obelisk
+        ctx.fillStyle = '#2a2a30'; ctx.fillRect(px + 8, py + 10, TILE - 16, TILE - 12);
+        ctx.strokeStyle = '#5a606a'; ctx.strokeRect(px + 8.5, py + 10.5, TILE - 17, TILE - 13);
+        ctx.fillStyle = '#8a8c98'; ctx.fillRect(px + 12, py + 14, 2, 2); ctx.fillRect(px + 18, py + 20, 2, 2);
+      } else if (style === 'canopy') {
+        // Veridan — full-leaf oak
+        ctx.fillStyle = '#3a2814'; ctx.fillRect(trunkX - 2, py + 20, 4, 10);
+        ctx.fillStyle = '#0e2818'; ctx.beginPath(); ctx.arc(trunkX, py + 14, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#48c880'; ctx.beginPath(); ctx.arc(trunkX, py + 13, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#2fe6a8'; ctx.fillRect(trunkX - 4, py + 10, 2, 2); ctx.fillRect(trunkX + 3, py + 15, 2, 2);
+      } else if (style === 'thorn') {
+        // Netharion — void-thorn tree
+        ctx.fillStyle = '#1c0e2c'; ctx.fillRect(trunkX - 2, py + 16, 4, 14);
+        ctx.strokeStyle = '#9060d0'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(trunkX, py + 16); ctx.lineTo(px + 6, py + 6); ctx.moveTo(trunkX, py + 12); ctx.lineTo(px + TILE - 6, py + 4); ctx.moveTo(trunkX, py + 20); ctx.lineTo(px + 4, py + 22); ctx.stroke();
+        ctx.fillStyle = '#c896ff'; ctx.fillRect(px + 4, py + 4, 2, 2); ctx.fillRect(px + TILE - 8, py + 6, 2, 2);
+      } else if (style === 'metal') {
+        // Vorashil — metal antenna tower
+        ctx.fillStyle = '#0a0f22'; ctx.fillRect(trunkX - 3, py + 4, 6, TILE - 6);
+        ctx.strokeStyle = '#8ba0d8'; ctx.strokeRect(trunkX - 2.5, py + 4.5, 5, TILE - 7);
+        ctx.fillStyle = '#5cd0ff'; ctx.fillRect(trunkX - 1, py + 6, 2, 2); ctx.fillRect(trunkX - 1, py + 14, 2, 2);
+        // dish
+        ctx.strokeStyle = '#4a5c98'; ctx.beginPath(); ctx.arc(trunkX, py + 4, 5, Math.PI, 0); ctx.stroke();
+      } else if (style === 'ghost') {
+        // Xilnar — spirit tree, ghostly
+        ctx.fillStyle = 'rgba(72, 184, 255, 0.35)'; ctx.fillRect(trunkX - 3, py + 12, 6, 18);
+        ctx.fillStyle = '#5cd0ff'; ctx.beginPath(); ctx.arc(trunkX, py + 10, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(168, 234, 255, 0.7)'; ctx.beginPath(); ctx.arc(trunkX - 2, py + 8, 3, 0, Math.PI * 2); ctx.fill();
+      } else if (style === 'scorched') {
+        // Baelgor — scorched tree with ember
+        ctx.fillStyle = '#2c0e08'; ctx.fillRect(trunkX - 2, py + 14, 4, 16);
+        ctx.strokeStyle = '#7a2c14'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(trunkX, py + 14); ctx.lineTo(px + 6, py + 4); ctx.moveTo(trunkX, py + 18); ctx.lineTo(px + TILE - 6, py + 6); ctx.stroke();
+        ctx.fillStyle = '#e06030'; ctx.fillRect(trunkX - 1, py + 4, 3, 3);
+        ctx.fillStyle = '#ff8a5c'; ctx.fillRect(trunkX, py + 5, 1, 1);
+      } else if (style === 'brass') {
+        // Thardin — brass pole
+        ctx.fillStyle = '#20140a'; ctx.fillRect(trunkX - 3, py + 4, 6, TILE - 6);
+        ctx.fillStyle = '#a56830'; ctx.fillRect(trunkX - 2, py + 6, 4, TILE - 10);
+        ctx.strokeStyle = '#d09c68'; ctx.beginPath();
+        ctx.moveTo(px + 6, py + 12); ctx.lineTo(px + TILE - 6, py + 12);
+        ctx.moveTo(px + 6, py + 22); ctx.lineTo(px + TILE - 6, py + 22); ctx.stroke();
+      } else if (style === 'golden') {
+        // Korathen — golden imperial tree
+        ctx.fillStyle = '#3a2408'; ctx.fillRect(trunkX - 2, py + 18, 4, 12);
+        ctx.fillStyle = '#8a6018'; ctx.beginPath(); ctx.arc(trunkX, py + 14, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f8c840'; ctx.beginPath(); ctx.arc(trunkX, py + 13, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffe488'; ctx.fillRect(trunkX - 4, py + 10, 2, 2); ctx.fillRect(trunkX + 3, py + 12, 2, 2);
+      } else {
+        // beast (default / Malezor) — original green tree
+        ctx.fillStyle = '#3a2814'; ctx.fillRect(trunkX - 2, py + 18, 4, 12);
+        ctx.fillStyle = '#1a2c1e'; ctx.beginPath(); ctx.arc(trunkX, py + 14, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#3a7a5c'; ctx.beginPath(); ctx.arc(trunkX, py + 13, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#8bffcc'; ctx.fillRect(trunkX - 4, py + 10, 2, 2);
+      }
       break;
     }
     case 'W': {
-      // water
-      ctx.fillStyle = '#1a3860';
+      // V2.43 — district-tinted water
+      const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
+      const waterFill = decor.waterTint || '#1a3860';
+      ctx.fillStyle = waterFill;
       ctx.fillRect(px, py, TILE, TILE);
-      ctx.strokeStyle = 'rgba(120, 180, 255, 0.4)';
+      ctx.strokeStyle = sparkleTint + '99';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(px + 4, py + 12 + Math.sin((x + game.player.step * 0.005)) * 2);
@@ -3244,6 +3342,142 @@ function drawTile(x, y, ch, mx, my) {
       ctx.moveTo(px + 4, py + 22 + Math.cos((x + game.player.step * 0.005)) * 2);
       ctx.lineTo(px + TILE - 4, py + 22 + Math.cos((x + game.player.step * 0.005 + 1)) * 2);
       ctx.stroke();
+      break;
+    }
+    case 'f': {
+      // V2.43 — district flavor decor (walkable). Style dictated by
+      // DISTRICT_DECOR.flavor for the current district.
+      drawTile(x, y, ',', mx, my);
+      const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
+      const kind = decor.flavor || 'fern';
+      const seed = (x * 31 + y * 17) & 7;
+      if (kind === 'fern') {
+        ctx.strokeStyle = '#3a7a5c'; ctx.lineWidth = 1;
+        for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(px + 10 + i * 4, py + TILE - 4); ctx.lineTo(px + 12 + i * 4, py + TILE - 14 - (i === 1 ? 2 : 0)); ctx.stroke(); }
+      } else if (kind === 'shrineflame') {
+        // small standing brazier + flame
+        ctx.fillStyle = '#3a2814'; ctx.fillRect(px + 12, py + 18, 8, 8);
+        ctx.fillStyle = '#e8b048'; ctx.beginPath(); ctx.moveTo(px + 16, py + 8); ctx.quadraticCurveTo(px + 20, py + 14, px + 16, py + 18); ctx.quadraticCurveTo(px + 12, py + 14, px + 16, py + 8); ctx.fill();
+        ctx.fillStyle = '#ffd882'; ctx.fillRect(px + 15, py + 12, 2, 3);
+      } else if (kind === 'stonechip') {
+        ctx.fillStyle = '#3a3a44'; ctx.fillRect(px + 6 + seed, py + 20, 5, 4);
+        ctx.fillStyle = '#8a8c98'; ctx.fillRect(px + 16, py + 18, 6, 6);
+        ctx.strokeStyle = '#5a6068'; ctx.strokeRect(px + 16.5, py + 18.5, 5, 5);
+      } else if (kind === 'bloom') {
+        // three-petal flower
+        ctx.fillStyle = '#48c880'; ctx.fillRect(px + 15, py + 20, 2, 6);
+        const petalColors = ['#ff8ac8','#88f0ff','#ffee88','#c8ff88','#ff88c8'];
+        ctx.fillStyle = petalColors[seed % petalColors.length];
+        ctx.beginPath(); ctx.arc(px + 12, py + 18, 3, 0, Math.PI * 2); ctx.arc(px + 20, py + 18, 3, 0, Math.PI * 2); ctx.arc(px + 16, py + 14, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillRect(px + 15, py + 17, 2, 2);
+      } else if (kind === 'voidwisp') {
+        // floating purple wisp
+        ctx.fillStyle = 'rgba(144, 96, 208, 0.35)'; ctx.beginPath(); ctx.arc(px + 16, py + 16, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#c896ff'; ctx.beginPath(); ctx.arc(px + 16, py + 14 + (seed & 1), 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillRect(px + 15, py + 13, 1, 1);
+      } else if (kind === 'techpod') {
+        // small alien pod
+        ctx.fillStyle = '#0a0f22'; ctx.fillRect(px + 8, py + 14, TILE - 16, 12);
+        ctx.strokeStyle = '#5cd0ff'; ctx.strokeRect(px + 8.5, py + 14.5, TILE - 17, 11);
+        ctx.fillStyle = '#5cd0ff'; ctx.fillRect(px + 12, py + 18, 3, 3); ctx.fillRect(px + 18, py + 18, 3, 3);
+      } else if (kind === 'spiritwisp') {
+        // ethereal wisp
+        ctx.fillStyle = 'rgba(72, 184, 255, 0.3)'; ctx.beginPath(); ctx.arc(px + 16, py + 16, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#a8eaff'; ctx.beginPath(); ctx.arc(px + 16, py + 14, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillRect(px + 15, py + 13, 2, 2);
+      } else if (kind === 'brazier') {
+        // burning brazier
+        ctx.fillStyle = '#2c0e08'; ctx.fillRect(px + 10, py + 20, 12, 6);
+        ctx.fillStyle = '#e06030'; ctx.beginPath(); ctx.moveTo(px + 16, py + 8); ctx.quadraticCurveTo(px + 22, py + 16, px + 16, py + 20); ctx.quadraticCurveTo(px + 10, py + 16, px + 16, py + 8); ctx.fill();
+        ctx.fillStyle = '#ff8a5c'; ctx.fillRect(px + 15, py + 12, 2, 4);
+        ctx.fillStyle = '#ffe488'; ctx.fillRect(px + 15, py + 15, 2, 2);
+      } else if (kind === 'gear') {
+        // small brass gear
+        ctx.fillStyle = '#a56830'; ctx.beginPath(); ctx.arc(px + 16, py + 16, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#20140a'; ctx.beginPath(); ctx.arc(px + 16, py + 16, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#d09c68';
+        for (let i = 0; i < 6; i++) { const ang = (i / 6) * Math.PI * 2; ctx.fillRect(px + 16 + Math.cos(ang) * 8 - 1, py + 16 + Math.sin(ang) * 8 - 1, 2, 2); }
+      } else if (kind === 'crown') {
+        // small gold crown
+        ctx.fillStyle = '#3a2408'; ctx.fillRect(px + 10, py + 22, 12, 4);
+        ctx.fillStyle = '#f8c840'; ctx.beginPath();
+        ctx.moveTo(px + 10, py + 22); ctx.lineTo(px + 12, py + 12); ctx.lineTo(px + 16, py + 18);
+        ctx.lineTo(px + 20, py + 12); ctx.lineTo(px + 22, py + 22); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffe488'; ctx.fillRect(px + 15, py + 20, 2, 2);
+      }
+      break;
+    }
+    case 'L': {
+      // V2.43 — District SIGNATURE LANDMARK (blocker, one per district).
+      const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
+      const kind = decor.landmark || 'obelisk';
+      drawTile(x, y, ',', mx, my);
+      const cx = px + TILE / 2, cy = py + TILE / 2;
+      if (kind === 'sun-pillar') {
+        // Zarvane — sunlit pillar with gold capital
+        ctx.fillStyle = '#3a2814'; ctx.fillRect(px + 8, py + 6, TILE - 16, TILE - 10);
+        ctx.fillStyle = '#e8b048'; ctx.fillRect(px + 6, py + 4, TILE - 12, 6);
+        ctx.fillStyle = '#ffd882'; ctx.fillRect(px + 12, py + 12, 2, 12); ctx.fillRect(px + 18, py + 12, 2, 12);
+        ctx.strokeStyle = '#ffd882'; ctx.beginPath(); ctx.arc(cx, py + 2, 4, Math.PI, 0); ctx.stroke();
+      } else if (kind === 'obelisk') {
+        // Andrannor — broken stone obelisk
+        ctx.fillStyle = '#2a2a30'; ctx.beginPath();
+        ctx.moveTo(px + 12, py + TILE - 2); ctx.lineTo(px + 20, py + TILE - 2);
+        ctx.lineTo(px + 18, py + 4); ctx.lineTo(px + 14, py + 4); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#5a606a'; ctx.stroke();
+        ctx.fillStyle = '#8a8c98'; ctx.fillRect(px + 14, py + 8, 4, 2); ctx.fillRect(px + 14, py + 16, 4, 2); ctx.fillRect(px + 14, py + 24, 4, 2);
+      } else if (kind === 'great-tree') {
+        // Veridan — great tree (larger canopy)
+        ctx.fillStyle = '#0e2818'; ctx.fillRect(cx - 3, py + 16, 6, TILE - 18);
+        ctx.fillStyle = '#0e2818'; ctx.beginPath(); ctx.arc(cx, py + 12, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#2fe6a8'; ctx.beginPath(); ctx.arc(cx, py + 12, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#8bffcc'; ctx.fillRect(cx - 6, py + 8, 2, 2); ctx.fillRect(cx + 3, py + 10, 2, 2); ctx.fillRect(cx - 2, py + 14, 2, 2);
+      } else if (kind === 'rift') {
+        // Netharion — void rift portal
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(cx, cy, 12, TILE / 2 - 2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#9060d0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(cx, cy, 11, TILE / 2 - 3, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#c896ff'; ctx.fillRect(cx - 1, cy - 8, 2, 4); ctx.fillRect(cx - 4, cy + 4, 2, 2); ctx.fillRect(cx + 3, cy - 2, 2, 2);
+      } else if (kind === 'landing') {
+        // Vorashil — alien landing pad
+        ctx.fillStyle = '#0a0f22'; ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#5cd0ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#5cd0ff'; ctx.fillRect(cx - 1, cy - 12, 2, 2); ctx.fillRect(cx - 1, cy + 10, 2, 2); ctx.fillRect(cx - 12, cy - 1, 2, 2); ctx.fillRect(cx + 10, cy - 1, 2, 2);
+        ctx.fillStyle = '#a8eaff'; ctx.fillRect(cx - 1, cy - 1, 2, 2);
+      } else if (kind === 'spirit-tree') {
+        // Xilnar — ghostly spirit tree
+        ctx.fillStyle = 'rgba(72, 184, 255, 0.4)'; ctx.fillRect(cx - 4, py + 14, 8, TILE - 16);
+        ctx.fillStyle = '#5cd0ff'; ctx.beginPath(); ctx.arc(cx, py + 10, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#a8eaff'; ctx.beginPath(); ctx.arc(cx - 3, py + 8, 3, 0, Math.PI * 2); ctx.arc(cx + 4, py + 12, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1, py + 8, 2, 2);
+      } else if (kind === 'anvil') {
+        // Baelgor — forge anvil with ember
+        ctx.fillStyle = '#2c0e08'; ctx.fillRect(px + 6, py + 20, TILE - 12, 8);
+        ctx.fillStyle = '#4a1a10'; ctx.beginPath();
+        ctx.moveTo(px + 8, py + 20); ctx.lineTo(px + TILE - 8, py + 20); ctx.lineTo(px + TILE - 4, py + 14); ctx.lineTo(px + 4, py + 14); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#e06030'; ctx.fillRect(cx - 1, py + 10, 2, 3);
+        ctx.fillStyle = '#ff8a5c'; ctx.fillRect(cx, py + 11, 1, 1);
+      } else if (kind === 'machine') {
+        // Thardin — machine tower
+        ctx.fillStyle = '#20140a'; ctx.fillRect(px + 8, py + 4, TILE - 16, TILE - 6);
+        ctx.fillStyle = '#a56830'; ctx.fillRect(px + 10, py + 6, TILE - 20, TILE - 10);
+        ctx.strokeStyle = '#d09c68'; ctx.beginPath();
+        ctx.moveTo(px + 10, py + 12); ctx.lineTo(px + TILE - 10, py + 12);
+        ctx.moveTo(px + 10, py + 18); ctx.lineTo(px + TILE - 10, py + 18);
+        ctx.moveTo(px + 10, py + 24); ctx.lineTo(px + TILE - 10, py + 24); ctx.stroke();
+        ctx.fillStyle = '#5cd0ff'; ctx.fillRect(cx - 1, py + 8, 2, 2);
+      } else if (kind === 'throne') {
+        // Korathen — golden throne dais
+        ctx.fillStyle = '#3a2408'; ctx.fillRect(px + 4, py + 22, TILE - 8, 8);
+        ctx.fillStyle = '#8a6018'; ctx.fillRect(px + 8, py + 8, TILE - 16, 16);
+        ctx.fillStyle = '#f8c840'; ctx.fillRect(px + 10, py + 10, TILE - 20, 12);
+        ctx.strokeStyle = '#3a2408'; ctx.strokeRect(px + 10.5, py + 10.5, TILE - 21, 11);
+        ctx.fillStyle = '#ffe488'; ctx.fillRect(cx - 1, py + 14, 2, 2);
+        // crown-back
+        ctx.fillStyle = '#f8c840'; ctx.beginPath();
+        ctx.moveTo(px + 10, py + 8); ctx.lineTo(px + 12, py + 4); ctx.lineTo(cx, py + 8);
+        ctx.lineTo(px + TILE - 12, py + 4); ctx.lineTo(px + TILE - 10, py + 8); ctx.closePath(); ctx.fill();
+      }
       break;
     }
     case 'H': {

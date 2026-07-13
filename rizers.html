@@ -2991,6 +2991,13 @@ function generateDistrictMap(mapId) {
   const caveY = Math.floor(rows / 2) - 2;
   if (caveY > 1 && grid[caveY][caveX] !== undefined) grid[caveY][caveX] = 'C';
 
+  // V2.41 — Named Seer commander mini-boss.  Placed as an 'X' tile near the
+  // south-center of each district (opposite the Gemlord cave). Beating them
+  // drops that district's Gemshard.
+  const bossX = Math.floor(cols / 2);
+  const bossY = rows - 3;
+  if (grid[bossY] && grid[bossY][bossX] !== undefined) grid[bossY][bossX] = 'X';
+
   return grid.map(row => row.join(''));
 }
 
@@ -3068,6 +3075,25 @@ const NPC_TRAINERS = {
   // Chain is synthesized at battle-start from the current district's wild pool
   // (see handleNpcTrainer). Level and party size scale with the district.
   'g': { name: 'SEER GRUNT', label: 'Seer grunt',   intro: 'SEER GRUNT: Another stray. The Seers thank you for your gemshards in advance.',            chain: [] },
+  // V2.41 — Named Seer commander mini-boss, one per district II-X.
+  // Chain + name resolved at battle-start via SEER_COMMANDERS by current mapId.
+  'X': { name: 'SEER COMMANDER', label: 'district commander', intro: 'SEER COMMANDER: You have no idea what you\'re walking into.',                     chain: [] },
+};
+
+// V2.41 — Named Seer commander per district.  Each holds their district's
+// stolen Gemshard until defeated.  Chain is 3 tier-appropriate Zyrex from
+// the local pool, party-size scaling with district #.
+const SEER_COMMANDERS = {
+  malezor:   { name: 'YARA-PRIME',  gemshard: 'ruby',     epithet: 'the Rubytaker',    line: 'YARA-PRIME: The Rubylord\'s shard hums in my pocket.  Come earn it.' },
+  zarvane:   { name: 'VORHIL',      gemshard: 'pearl',    epithet: 'the Pearlbinder',  line: 'VORHIL: Ivirium screamed when I took her gem.  You won\'t.' },
+  andrannor: { name: 'MIRAX',       gemshard: 'citrine',  epithet: 'the Citrinehand',  line: 'MIRAX: Mutaryn crawled after me.  Cute.  What will you do?' },
+  veridan:   { name: 'THORNE',      gemshard: 'emerald',  epithet: 'the Emeraldreaper',line: 'THORNE: Emeralix begged.  Everybody begs eventually, Rizer.' },
+  netharion: { name: 'NULLIS',      gemshard: 'amethyst', epithet: 'the Voidsage',     line: 'NULLIS: This close to Netharion\'s core, even your Zyrex hesitate.' },
+  vorashil:  { name: 'ZYPHER-9',    gemshard: 'sapphire', epithet: 'the Alienbroker',  line: 'ZYPHER-9: Azurel\'s stone paid well.  Yours will pay better.' },
+  xilnar:    { name: 'RESHA',       gemshard: 'onyx',     epithet: 'the Onyxwidow',    line: 'RESHA: Obsidius knelt.  Kneel or die.' },
+  baelgor:   { name: 'DRAKKUR',     gemshard: 'amber',    epithet: 'the Amberchain',   line: 'DRAKKUR: Ambrevon\'s shard is warm.  You want it?  Come warm yourself.' },
+  thardin:   { name: 'HELIX',       gemshard: 'anomaly',  epithet: 'the Anomalyweaver',line: 'HELIX: Oathane called this shard impossible.  I disagreed.' },
+  korathen:  { name: 'THREEFOLD',   gemshard: 'ultra',    epithet: 'the Ultrakeeper',  line: 'THREEFOLD: Oatheus\'s stone is the last one.  Get through me first.' },
 };
 
 // Chest loot — each chest yields either gems, coins, or potions
@@ -3097,7 +3123,7 @@ function walkable(x, y) {
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
   if ('#TWMSBh=btmdzkjrcFe'.includes(t)) return false;
   if (t === 'N' && !game.player.npcDefeated) return false;
-  if ('YJQg'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);   // V2.38 — 'g' = Seer grunt
+  if ('YJQgX'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);   // V2.38/V2.41 — 'g'=grunt, 'X'=commander
   if (t === 'K' && !chestOpened(x, y)) return false;
   if (game.npcs) {
     const n = isNpcAt(x, y);
@@ -3799,6 +3825,7 @@ function renderMap() {
       'J': ['#ff8fb2', '#6a1830'],   // Jax — rose rival
       'Q': ['#2fe6a8', '#1a5a44'],   // Quinn — emerald wanderer
       'g': ['#8a4ca8', '#2a0a3c'],   // V2.38 — generic Seer grunt (deep amethyst)
+      'X': ['#ff5c1a', '#5a1a08'],   // V2.41 — Seer commander (searing orange — reads as boss)
     };
     for (const key in game.npcs) {
       const n = game.npcs[key];
@@ -5395,6 +5422,19 @@ function handleNpcTrainer(tileChar, x, y) {
     ], () => startNpcTrainerBattle(tileChar, x, y, { stakes: true }));
     return;
   }
+  // V2.41 — Named Seer commander mini-boss. Custom intro per district.
+  if (tileChar === 'X') {
+    const cmd = SEER_COMMANDERS[game.player.mapId];
+    if (cmd) {
+      showDialog([
+        `A cloaked figure blocks the way.`,
+        `${cmd.name}, ${cmd.epithet}, straightens up.`,
+        cmd.line,
+        `«CHALLENGE ${cmd.name}?»`,
+      ], () => startNpcTrainerBattle(tileChar, x, y, { commander: cmd }));
+      return;
+    }
+  }
   showDialog([
     npc.intro,
     `«CHALLENGE ${npc.name}?»`,
@@ -5404,31 +5444,40 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
   const npc = NPC_TRAINERS[tileChar];
   // V2.38 — Grunts ('g') get their chain synthesized from the district's
   // wild pool at battle-start, sized by district number.
+  // V2.41 — Same for named Seer commanders ('X'), but chain size = 5 tier-topped
+  //          Zyrex (a serious mini-boss), and the top of the level band is used.
   let chainSpecs = npc.chain;
-  if (tileChar === 'g') {
+  if (tileChar === 'g' || tileChar === 'X') {
     const pool = districtWildPool(game.player.mapId);
     if (pool && pool.ids.length) {
       const DIST = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
       const num = DIST.indexOf(game.player.mapId) + 1;
-      const chainSize = Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));   // 1 for I-III, 2 for IV-VII, 3 for VIII-X
+      const isCommander = tileChar === 'X';
+      const chainSize = isCommander ? 5 : Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));
       const [lo, hi] = pool.lvRange;
       chainSpecs = [];
       for (let i = 0; i < chainSize; i++) {
         const id = pool.ids[Math.floor(Math.random() * pool.ids.length)];
-        const lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
+        // Commanders bring their Zyrex at the top of the level band.
+        const lv = isCommander ? hi : Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
         chainSpecs.push([id, lv]);
       }
     }
   }
   const chain = chainSpecs.map(([id, lv]) => makeZyrex(id, lv));
   const lead = chain.shift();
+  // V2.41 — commanders override trainerName + carry the district gemshard key
+  const commander = opts && opts.commander;
+  const trainerName = commander ? commander.name : npc.name;
   enterBattle(lead, 'npc-trainer', {
-    trainerName: npc.name,
+    trainerName,
     npcCoord: x + ',' + y,
     tileChar,
     chain,
     stakes: !!(opts && opts.stakes),
     stealPool: chainSpecs.slice(),
+    commander: commander || null,
+    gemshardKey: commander ? commander.gemshard : null,
   });
 }
 // V2.11 — steal implementations
@@ -5955,6 +6004,22 @@ function checkBattleOver() {
     } else if (game.battle.kind === 'npc-trainer') {
       if (!game.player.npcsDefeated) game.player.npcsDefeated = {};
       if (game.battle.npcCoord) game.player.npcsDefeated[game.battle.npcCoord] = true;
+      // V2.41 — Commander drops their district's Gemshard on defeat.
+      if (game.battle.commander && game.battle.gemshardKey) {
+        const gk = game.battle.gemshardKey;
+        if (!game.player.keys) game.player.keys = {};
+        if (!game.player.keys[gk]) {
+          game.player.keys[gk] = (game.player.keys[gk] || 0) + 1;
+          const cmd = game.battle.commander;
+          setTimeout(() => showDialog([
+            `${cmd.name} drops to one knee.`,
+            `From under the cloak: a shard of the ${gk.toUpperCase()} Gemshard.  The one they stole.`,
+            `«◈ You claimed the ${gk.toUpperCase()} GEMSHARD.»`,
+            `«◈ Gemshards ${Object.keys(SEER_COMMANDERS).filter(m => (game.player.keys || {})[SEER_COMMANDERS[m].gemshard]).length}/10»`,
+          ]), 900);
+          showToast(`◈  ${gk.toUpperCase()} GEMSHARD  ·  claimed`, 2800);
+        }
+      }
       // V2.11 — stakes rematch: player wins → steal a Zyrex, mark rematched.
       if (game.battle.stakes) {
         if (!game.player.npcsRematched) game.player.npcsRematched = {};
@@ -6182,14 +6247,21 @@ function healParty() {
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ---------- Zyrex sprite renderer (procedural) ----------
-// V2.39 — Sprite pipeline.
-// Every SPECIES id gets a lazy-loaded PNG lookup. Tries two conventions:
+// V2.39 — Sprite pipeline (DORMANT by default per V2.41).
+// Every SPECIES id CAN get a lazy-loaded PNG lookup. Tries two conventions:
 //   1. assets/zyrex/<id>.png          (canonical location for uploaded refs)
 //   2. assets/character_<id>.png      (legacy AOV asset folder)
 // If neither exists, silently falls back to the procedural drawing below.
 // Load results are cached so a single failed lookup won't retry every frame.
+//
+// V2.41 — Custom-sprite loading is GATED behind USE_CUSTOM_SPRITES. Default
+// is FALSE so the whole roster renders via the procedural glowing sprites
+// until art work is layered in at the end of gameplay-mechanics polish.
+// Flip to true when the art pass begins.
+const USE_CUSTOM_SPRITES = false;
 const SPRITE_CACHE = {};
 function loadZyrexSprite(id) {
+  if (!USE_CUSTOM_SPRITES) return { img: null, loaded: false, done: true };
   if (SPRITE_CACHE[id]) return SPRITE_CACHE[id];
   const entry = { img: null, loaded: false, done: false };
   SPRITE_CACHE[id] = entry;
@@ -6206,6 +6278,7 @@ function loadZyrexSprite(id) {
   return entry;
 }
 function preloadAllSprites() {
+  if (!USE_CUSTOM_SPRITES) return;
   for (const id in SPECIES) loadZyrexSprite(id);
 }
 // Fire preload once SPECIES is fully hydrated. tryLoad / newGame both call

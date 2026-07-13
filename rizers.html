@@ -958,6 +958,26 @@
       margin-top: 6px;
     }
     .bi-moves { display: flex; flex-direction: column; gap: 4px; }
+    /* V2.72 — strengths / weaknesses chip rows in Battle Inspect */
+    .bi-mus { display: flex; flex-wrap: wrap; gap: 4px; }
+    .bi-mus:empty::before {
+      content: '— none —';
+      color: var(--mist, #b8aec8);
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.6;
+    }
+    .bi-mus .type-chip {
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.58rem;
+      letter-spacing: 0.20em;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid;
+      text-transform: uppercase;
+    }
     .bi-move {
       background: rgba(232,200,120,0.06);
       border: 1px solid var(--border-soft, #2a1c48);
@@ -1848,6 +1868,11 @@
         </div>
         <div class="bi-status" id="bi-status"></div>
         <div class="bi-stats" id="bi-stats"></div>
+        <!-- V2.72 — Type strengths (+) and weaknesses (-) -->
+        <div class="bi-section-title">Strong Against · +</div>
+        <div class="bi-mus" id="bi-strong"></div>
+        <div class="bi-section-title">Weak To · −</div>
+        <div class="bi-mus" id="bi-weak"></div>
         <div class="bi-section-title">Moves</div>
         <div class="bi-moves" id="bi-moves"></div>
         <div class="bi-hint">Tap outside · press B · or ✕ to close</div>
@@ -8824,6 +8849,43 @@ function openBattleInspect(which /* 'enemy' | 'player' */) {
                    : '';
     return `<div class="bi-stat-row"><span class="lbl">${k}</span><span class="val">${v || 0}${stageStr}</span></div>`;
   }).join('');
+  // V2.72 — Strengths (+) and Weaknesses (-) chips.
+  // Strengths = union of TYPE_STRONG_VS[type] across the Zyrex's 1-3 types.
+  // Weaknesses = types Y where any of the Zyrex's types appears in
+  // TYPE_STRONG_VS[Y] — i.e., attackers that hit this Zyrex hard.
+  {
+    const myTypes = [r.type, r.type2, r.type3].filter(Boolean);
+    const strongs = new Set();
+    for (const t of myTypes) {
+      const arr = TYPE_STRONG_VS[t] || [];
+      for (const s of arr) strongs.add(s);
+    }
+    // Don't list our own types as strengths against ourselves
+    for (const t of myTypes) strongs.delete(t);
+    const weaks = new Set();
+    for (const [attackerType, defensesHit] of Object.entries(TYPE_STRONG_VS)) {
+      for (const d of defensesHit) {
+        if (myTypes.includes(d)) { weaks.add(attackerType); break; }
+      }
+    }
+    // Don't list our own types as weaknesses against ourselves
+    for (const t of myTypes) weaks.delete(t);
+    const renderChips = (setEl, set) => {
+      setEl.innerHTML = '';
+      const list = Array.from(set).sort();
+      for (const t of list) {
+        const col = TYPE_COLORS[t] || '#8a8a8a';
+        const chip = document.createElement('span');
+        chip.className = 'type-chip';
+        chip.style.color = col;
+        chip.style.borderColor = col;
+        chip.textContent = t;
+        setEl.appendChild(chip);
+      }
+    };
+    renderChips(document.getElementById('bi-strong'), strongs);
+    renderChips(document.getElementById('bi-weak'),   weaks);
+  }
   // Moves
   const movesEl = document.getElementById('bi-moves');
   movesEl.innerHTML = '';

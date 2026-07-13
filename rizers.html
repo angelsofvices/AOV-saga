@@ -2923,6 +2923,20 @@ const SHRINE_TOTAL = 9;
 //   * VILLAGERS ('v') stand still and speak — lore, hints, world-flavor
 // Rule of thumb: if it moves, it fights.  If it stands, it talks.
 // A villager tile is a BLOCKER so the player can spot them from a distance.
+// V2.51 — Villagers use the standard drawCharacter chibi (same figure as
+// the player and every other NPC) so they read as townspeople of the same
+// world.  Only the shirt color varies, drawn from this palette by a stable
+// (x, y) seed.  Add more entries here to increase visual variety.
+const VILLAGER_SHIRTS = [
+  { primary: '#c2513a', accent: '#5a1a10' },   // red shirt
+  { primary: '#3aa66e', accent: '#144a30' },   // green shirt
+  { primary: '#4a78c2', accent: '#1a3a70' },   // blue shirt
+  { primary: '#c2a83a', accent: '#5a4410' },   // amber shirt
+  { primary: '#8a4ac2', accent: '#3a1a5c' },   // violet shirt
+  { primary: '#c2683a', accent: '#5a2810' },   // rust shirt
+  { primary: '#3ac2b0', accent: '#144a44' },   // teal shirt
+  { primary: '#c23a8a', accent: '#5a1044' },   // magenta shirt
+];
 const VILLAGERS = {
   malezor: [
     { name: 'Cliff Fisher', lines: [
@@ -3686,41 +3700,27 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'v': {
-      // V2.47 — VILLAGER (stationary lore NPC). Robe silhouette tinted with
-      // the district accent so it reads as a townsperson (contrast with
-      // Rizers whose top-color mirrors their trainer palette). Gently bobs
-      // in place so it's visibly alive without moving on the grid.
+      // V2.51 — VILLAGER (stationary lore NPC).  Uses the same chibi
+      // sprite as every other character (player, Mom, Dad, trainers) so
+      // villagers read as townspeople of the same world.  Only the shirt
+      // color varies — picked per-tile from VILLAGER_SHIRTS by a stable
+      // (x, y) seed so the same tile always wears the same shirt.
+      // Idle animation: a tiny vertical bob so they visibly breathe
+      // without moving off their tile.  '!' chime on a slow cycle so the
+      // player learns they are talkable.
       drawTile(x, y, ',', mx, my);
-      const decorRobe = (_dm && _dm.accent) || '#e8c878';
-      const bob = Math.sin(performance.now() * 0.003 + x * 0.9 + y * 1.3) * 0.5;
+      const seed = ((mx * 17) ^ (my * 31)) >>> 0;
+      const shirt = VILLAGER_SHIRTS[seed % VILLAGER_SHIRTS.length];
+      const bob = Math.sin(performance.now() * 0.003 + mx * 0.9 + my * 1.3) * 0.6;
       const cx = px + TILE / 2;
-      const by = py + bob;
-      // Robe / body
-      ctx.fillStyle = decorRobe;
-      ctx.beginPath();
-      ctx.moveTo(cx - 8, by + TILE - 4);
-      ctx.lineTo(cx - 6, by + 14);
-      ctx.lineTo(cx + 6, by + 14);
-      ctx.lineTo(cx + 8, by + TILE - 4);
-      ctx.closePath();
-      ctx.fill();
-      // Robe shadow (fold line)
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.beginPath();
-      ctx.moveTo(cx, by + 15); ctx.lineTo(cx, by + TILE - 6);
-      ctx.stroke();
-      // Head
-      ctx.fillStyle = '#f5dcc4';
-      ctx.beginPath(); ctx.arc(cx, by + 10, 4, 0, Math.PI * 2); ctx.fill();
-      // Hood (subtle, tinted darker than robe)
-      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-      ctx.beginPath(); ctx.arc(cx, by + 10, 4.5, Math.PI, 0); ctx.stroke();
-      // Small "!" chime on a slow cycle so the player learns they're talkable
-      const chime = Math.sin(performance.now() * 0.0018 + x * 2 + y * 3);
+      const cy = py + TILE / 2 + bob;
+      drawCharacter(cx, cy, 'down', shirt.primary, shirt.accent);
+      // '!' chime — pulses slowly so the player learns villagers talk
+      const chime = Math.sin(performance.now() * 0.0018 + mx * 2 + my * 3);
       if (chime > 0.85) {
         ctx.fillStyle = '#f8c840';
-        ctx.fillRect(cx + 8, by + 4, 2, 4);
-        ctx.fillRect(cx + 8, by + 9, 2, 2);
+        ctx.fillRect(cx + 10, py + 2, 2, 4);
+        ctx.fillRect(cx + 10, py + 7, 2, 2);
       }
       break;
     }

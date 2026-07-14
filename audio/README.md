@@ -45,3 +45,24 @@ function musicContextForState() {
   you want OGG, either add fallback logic or keep MP3.
 - Keep files small — ideally under 3–5 MB each. Longer loops sound
   better than short repetitive ones. 60–90 s is a sweet spot.
+
+## UI SFX (Tier 1 — 2026-07-13)
+
+Eight short mp3 clips power the menu / interact micro-feedback layer.
+These are ONE-SHOT sounds (do not loop) — the game plays a fresh
+instance every time the trigger fires.
+
+| File                    | Trigger                                           |
+|-------------------------|---------------------------------------------------|
+| `ui-confirm.mp3`        | A / Enter / Space — confirm any menu button       |
+| `ui-cancel.mp3`         | B / Esc / Shift — back / close any overlay        |
+| `ui-menu-open.mp3`      | Any overlay opens (party, items, quests, etc.)    |
+| `ui-menu-close.mp3`     | Any overlay closes                                |
+| `ui-cursor.mp3`         | Arrow-key navigate through menu buttons           |
+| `ui-dialog-advance.mp3` | Advance a dialog line                             |
+| `ui-disabled.mp3`       | Press on a disabled button (invalid action)       |
+| `ui-toast.mp3`          | HUD toast fly-in                                  |
+
+Wiring will live in `rizers.html` under a `SFX_ONESHOTS` registry.
+UI SFX inherit the same volume slider as music but at a 0.6 multiplier
+so they never overpower the music bed.

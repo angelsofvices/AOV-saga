@@ -1708,6 +1708,7 @@
 
     <div class="hud" id="hud" style="display:none;">
       <div class="badge" id="hud-location">Malezor · Beastlands</div>
+      <div class="badge" id="hud-rizer" title="Your Rizer level. Grows through chests, battles, and quests.">★ R.Lv 1 · 0/150</div>
       <div class="badge" id="hud-gems">◈ 0</div>
       <div class="badge" id="hud-coins">¢ 0</div>
       <div class="badge" id="hud-clues">⚑ 0/3</div>
@@ -2894,6 +2895,56 @@ function xpForNext(lv) { return 12 + lv * 8; }
 function tierMaxLv(tier) { return Math.max(10, (tier || 1) * 10); }
 function speciesEvolveLv(s) { return s.evolveLv || tierMaxLv(s.tier || 1); }
 
+// V3.8 — RIZER LEVEL SYSTEM
+// Player-side progression, separate from Zyrex XP.  Grows through world
+// interaction (chests, NPC defeats, quest turn-ins).  No hard ceiling —
+// the curve is designed to still be climbable well past Lv 100 for the
+// post-endgame Gemlord respect duels and beyond.
+//
+// Curve: rizerXpForNext(N) = 100 + N * 50 + floor(N^2 * 0.6)
+//   Lv 1  ->    150
+//   Lv 10 ->    660
+//   Lv 25 -> ~1,725
+//   Lv 50 -> ~4,100
+//   Lv 100-> ~11,100
+//   Lv 200-> ~34,100
+function rizerXpForNext(lv) {
+  return 100 + lv * 50 + Math.floor(lv * lv * 0.6);
+}
+// Award Rizer XP.  Applies level-ups (unbounded), fires a subtle toast,
+// and saves.  Sources are informational: 'chest', 'grunt', 'trainer',
+// 'commander', 'quest', 'shrine', etc.
+function gainRizerXp(amount, source) {
+  if (!amount || amount <= 0) return;
+  if (!game || !game.player) return;
+  game.player.rizerLv = game.player.rizerLv || 1;
+  game.player.rizerXp = game.player.rizerXp || 0;
+  game.player.rizerXp += amount;
+  const preLv = game.player.rizerLv;
+  let leveledUp = false;
+  while (game.player.rizerXp >= rizerXpForNext(game.player.rizerLv)) {
+    game.player.rizerXp -= rizerXpForNext(game.player.rizerLv);
+    game.player.rizerLv += 1;
+    leveledUp = true;
+  }
+  if (leveledUp && game.player.rizerLv > (game.player.rizerLvHigh || 1)) {
+    game.player.rizerLvHigh = game.player.rizerLv;
+  }
+  try { updateHUD(); } catch (_) {}
+  if (leveledUp) {
+    // Level-up beat.  One line per level gained so a big quest payout
+    // that carries the player across multiple thresholds still reads.
+    const gained = game.player.rizerLv - preLv;
+    showToast(`◈  RIZER LEVEL ${game.player.rizerLv}  ·  +${gained}`, 2800);
+  } else {
+    // Silent gain — small XP tick just updates HUD; no toast spam.
+    // Callers that want a visible chip pass source === 'quest' etc. and
+    // handle their own dialog (openChest already toasts the loot line,
+    // so we don't double-toast here).
+  }
+  try { save(); } catch (_) {}
+}
+
 // V2.70 — LEVEL-DRIVEN STAT SYSTEM (rewrites the V2.30/V2.59 tier-cap model)
 //
 // The user canon: tier ONLY determines lore rarity.  Level determines stats.
@@ -3059,6 +3110,13 @@ const game = {
     respects: [],             // Gemlord ids whose respect you've earned (max 10 = victory)
     seenHometownIntro: false,
     seenEndgame: false,
+    // V3.8 — RIZER LEVEL (separate from Zyrex XP).  Player-side progression
+    // driven by chests, NPC defeats, and quest completions.  Scales past
+    // Lv 100 so late-game Gemlord duels have room to grow into.  Higher
+    // Rizer Level unlocks better merchant stock (see V3.10).
+    rizerLv: 1,
+    rizerXp: 0,
+    rizerLvHigh: 1,           // remembered peak for future analytics / titles
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -7923,6 +7981,14 @@ function openChest(x, y) {
   else if (loot.kind === 'coins')    { game.player.coins      = (game.player.coins      || 0) + loot.amount; showToast(`¢ +${loot.amount} COINS`); }
   else if (loot.kind === 'potion')   { game.player.items = game.player.items || {}; game.player.items.potion = (game.player.items.potion || 0) + loot.amount; showToast(`✚ +${loot.amount} POTION${loot.amount === 1 ? '' : 'S'}`); }
   else if (loot.kind === 'gemsphere' || loot.kind === 'zysphere'){ game.player.zyspheres = (game.player.zyspheres || 0) + loot.amount; showToast(`◉ +${loot.amount} ZYSPHERE${loot.amount === 1 ? '' : 'S'}`); }
+  // V3.8 — Rizer XP for chest opens.  Scales lightly with district tier
+  // so late-game chests contribute proportionally.
+  {
+    const distIdx = Math.max(0, DISTRICT_ORDER.indexOf(mapId));
+    const routeIdx = ROUTE_META[mapId] ? Math.max(0, DISTRICT_ORDER.indexOf(ROUTE_META[mapId].west)) : distIdx;
+    const tierBonus = Math.max(distIdx, routeIdx);
+    gainRizerXp(50 + tierBonus * 25, 'chest');
+  }
   save(); updateHUD();
   const summary = {
     gems:      `${loot.amount} astralite gem${loot.amount === 1 ? '' : 's'}`,
@@ -9416,6 +9482,21 @@ function checkBattleOver() {
         const key  = iKey ? (iKey + ':' + game.battle.npcCoord) : game.battle.npcCoord;
         game.player.npcsDefeated[key] = true;
       }
+      // V3.8 — Rizer XP grant per opponent role.
+      //   Seer Commander (X)  = 500 (mini-boss)
+      //   Named NPC trainer   = 200 (Yara / Jax / Quinn / hall Rizer)
+      //   Grunt (g)           = 150 (Seer cultist)
+      //   Fallback            = 100
+      {
+        const tc = game.battle.tileChar;
+        let rxp;
+        if      (tc === 'X') rxp = 500;
+        else if (tc === 'g') rxp = 150;
+        else if (tc === 'R') rxp = 200;
+        else if ('YJQ'.includes(tc)) rxp = 200;
+        else                          rxp = 100;
+        gainRizerXp(rxp, 'trainer');
+      }
       // V3.0 · V3.5.1 — Seer HQ grunt (main floor OR basement):
       // stamp the district-scoped flag so seerHqBasementClear() can
       // detect when EVERY grunt in the HQ (2 main + 3 basement) is
@@ -10412,6 +10493,14 @@ function updateHUD() {
     const owned = GEMS.filter(g => (game.player.keys || {})[g]).length;
     cluesEl.textContent = `◈ ${owned}/10`;
   }
+  // V3.8 — Rizer Level chip: current level + XP progress toward next.
+  const rizerEl = document.getElementById('hud-rizer');
+  if (rizerEl) {
+    const lv = game.player.rizerLv || 1;
+    const xp = game.player.rizerXp || 0;
+    const need = rizerXpForNext(lv);
+    rizerEl.textContent = `★ R.Lv ${lv} · ${xp}/${need}`;
+  }
 }
 
 // ============================================================================
@@ -10669,6 +10758,10 @@ document.getElementById('btn-new').onclick = () => {
     respects: [],
     seenHometownIntro: false,
     seenEndgame: false,
+    // V3.8 — Rizer Level defaults for the character-creator init path.
+    rizerLv: 1,
+    rizerXp: 0,
+    rizerLvHigh: 1,
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();

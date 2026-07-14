@@ -2782,8 +2782,8 @@ const SPECIES = {
     moves: basicMoves('Beast', ['Beak Jab', 'Suncrest', 'Crown Halo', 'Rally']),
     originalMove: { name: 'Crown Halo', type: 'Aura', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
-  aetherwing: {  // Beast/Aura · Central · astral dragonfly · Gen III Tertiary
-    name: 'AETHERWING', type: 'Beast', type2: 'Radiant', region: 'Central',
+  etherfly: {  // Beast/Aura · Central · astral dragonfly · Gen III Tertiary
+    name: 'ETHERFLY', type: 'Beast', type2: 'Radiant', region: 'Central',
     base: BASIC_BASE, tier: 1, catchRate: 25, shape: 'winged',
     sprite: ['#c8bfe6', '#7a5cc8', '#e8e0f0'],
     moves: basicMoves('Beast', ['Wing Cut', 'Aetherbeam', 'Astral Gale', 'Rally']),
@@ -2807,6 +2807,10 @@ const SPECIES = {
     ],
   },
 };
+
+// V3.10.5 — Legacy save-compat: 'aetherwing' was renamed to 'etherfly'.
+// Any Zyrex persisted under the old key still resolves via SPECIES lookup.
+SPECIES.aetherwing = SPECIES.etherfly;
 
 // ============================================================================
 //  V2.30 — Hydrate SPECIES from codex.js (all 116 Zyrex from Codex v11.1).
@@ -3884,7 +3888,7 @@ const TOWN_HALLS = {
     },
     rizer: { name: 'SUN-PRIEST BRIL', label: 'aura-priest of Zarvane',
       intro: 'SUN-PRIEST BRIL: The sun rewards focus.  Show me yours.',
-      chain: [['sunhoop', 10], ['aetherwing', 11]] },
+      chain: [['sunhoop', 10], ['etherfly', 11]] },
   },
   andrannor: {
     name: 'Obsidian Archive', map: 'andrannor_hall',
@@ -4055,7 +4059,7 @@ const TOWN_HALLS = {
     },
     rizer: { name: 'HERALD LUXE', label: 'imperial champion',
       intro: "HERALD LUXE: The throne watches.  Let's give it something to remember.",
-      chain: [['aetherwing', 58], ['sunhoop', 59]] },
+      chain: [['etherfly', 58], ['sunhoop', 59]] },
   },
 };
 
@@ -6161,7 +6165,7 @@ function drawTile(x, y, ch, mx, my) {
   }
 }
 
-function drawCharacter(cx, cy, dir, primary, accent) {
+function drawCharacter(cx, cy, dir, primary, accent, opts) {
   // Simple 24x24 chibi at (cx, cy) center. Directions: down/up/left/right.
   const w = 22, h = 22;
   const x = cx - w / 2, y = cy - h / 2;
@@ -6176,9 +6180,49 @@ function drawCharacter(cx, cy, dir, primary, accent) {
   // head
   ctx.fillStyle = '#f5dc9c';
   ctx.fillRect(x + 6, y + 2, w - 12, 8);
-  // hair/hat
-  ctx.fillStyle = accent;
-  ctx.fillRect(x + 6, y, w - 12, 4);
+  // V3.10.5 — hair.  Player gets SHORT SPIKY BLUE hair (opts.spiky true).
+  // NPCs keep the flat rectangle hair/hat.
+  if (opts && opts.spiky) {
+    ctx.fillStyle = '#3aa8ff';   // spiky-blue
+    // Base hair band
+    ctx.fillRect(x + 6, y + 1, w - 12, 3);
+    // 4 spikes upward — jagged silhouette
+    // Left forward spike
+    ctx.beginPath();
+    ctx.moveTo(x + 6,  y + 1);
+    ctx.lineTo(x + 8,  y - 3);
+    ctx.lineTo(x + 9,  y + 1);
+    ctx.closePath();
+    ctx.fill();
+    // Left-center spike
+    ctx.beginPath();
+    ctx.moveTo(x + 9,  y + 1);
+    ctx.lineTo(x + 11, y - 4);
+    ctx.lineTo(x + 12, y + 1);
+    ctx.closePath();
+    ctx.fill();
+    // Right-center spike
+    ctx.beginPath();
+    ctx.moveTo(x + 12, y + 1);
+    ctx.lineTo(x + 14, y - 5);
+    ctx.lineTo(x + 15, y + 1);
+    ctx.closePath();
+    ctx.fill();
+    // Right forward spike
+    ctx.beginPath();
+    ctx.moveTo(x + 14, y + 1);
+    ctx.lineTo(x + 16, y - 3);
+    ctx.lineTo(x + 16, y + 1);
+    ctx.closePath();
+    ctx.fill();
+    // Highlight streak on the tallest spike
+    ctx.fillStyle = '#7bd0ff';
+    ctx.fillRect(x + 13, y - 4, 1, 3);
+  } else {
+    // hair/hat — NPC flat band (unchanged)
+    ctx.fillStyle = accent;
+    ctx.fillRect(x + 6, y, w - 12, 4);
+  }
   // eyes based on direction
   ctx.fillStyle = '#050310';
   if (dir === 'down') {
@@ -6334,7 +6378,7 @@ function renderMap() {
   const pal = playerPalette();
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
-  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent);
+  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true });
   // V2.66 — Encounter '!' indicator above the player when a wild
   // encounter is armed but not yet engaged.  Pulsing yellow bubble;
   // press A to engage.
@@ -7119,11 +7163,43 @@ function openItemsView() {
   body.innerHTML = '';
   const ks = game.player.keys || {};
   const rows = [
-    { key: 'potion',    name: 'Potion',      desc: 'Heals 40 HP on the top Zyrex.',              count: (it.potion || 0) },
-    { key: 'zysphere', name: 'Zysphere',   desc: 'Synchronizes with a wild Zyrex\'s astralite makeup.  If they submit, they are bound.',              count: (game.player.zyspheres || 0) },
+    { key: 'potion',        name: 'Potion',         desc: 'Heals 40 HP on the top Zyrex.',                                                             count: (it.potion || 0) },
+    // V3.10 — potion variants unlocked at the merchant past Rizer Level gates.
+    { key: 'grand_potion',  name: 'Grand Potion',   desc: 'Heals 100 HP on the top Zyrex.  Baelgor nurse-grade.',                                     count: (it.grand_potion  || 0) },
+    { key: 'master_potion', name: 'Master Potion',  desc: 'Full HP and clears status on the top Zyrex.  Elixir-grade.',                                count: (it.master_potion || 0) },
+    { key: 'zysphere',        name: 'Zysphere',       desc: 'Synchronizes with a wild Zyrex\'s astralite makeup.  If they submit, they are bound.',              count: (game.player.zyspheres      || 0) },
+    { key: 'zysphere_void',   name: 'Void Zysphere',  desc: 'Void-etched Thardun matrix.  +40% sync odds vs the basic sphere.',                                     count: (game.player.zyspheresVoid  || 0) },
+    { key: 'zysphere_ultra',  name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                                count: (game.player.zyspheresUltra || 0) },
     { key: 'bronze',    name: 'Bronze Key',  desc: 'Opens the Bronze Cottage on Malezor.',       count: (ks.bronze || 0) },
     { key: 'silver',    name: 'Silver Key',  desc: 'Opens the Silver Lodge on Malezor.',         count: (ks.silver || 0) },
   ];
+  // V3.10.5 — Homunculi (both types) show in the items overlay BEFORE
+  // Mom performs the revival rite, so the player can see they're
+  // carrying them.  Count drops to 0 the moment Mom wakes them.
+  //   * FORGOTTEN HOMUNCULUS  = tracked by game.player.homunculusFound
+  //     (boolean).  Visible after grass-pickup, hidden after Elzebub
+  //     is granted.
+  //   * PETRAGRYFF HOMUNCULUS = tracked as items.petragryff_homunculus
+  //     (integer).  Visible after the science-experiment rite, hidden
+  //     after Petragryff is granted.
+  const forgottenCount = (game.player.homunculusFound && !game.player.elzebubGranted) ? 1 : 0;
+  if (forgottenCount) {
+    rows.push({
+      key: 'forgotten_homunculus',
+      name: 'Forgotten Homunculus',
+      desc: 'A tiny Zyrex body without a spark.  Warm.  Waiting.  Bring it to Mom — she is the one who wakes these.',
+      count: forgottenCount,
+    });
+  }
+  const petraCount = (it.petragryff_homunculus || 0);
+  if (petraCount) {
+    rows.push({
+      key: 'petragryff_homunculus',
+      name: 'Petragryff Homunculus',
+      desc: 'Cool stone.  Warm feathers.  Curled small.  The ancient rune remembered how the mountain wanted to be a body.  Take it to Mom.',
+      count: petraCount,
+    });
+  }
   // V2.44 — Shrine relics (bragging-rights items, USE disabled)
   const shrineDescs = {
     sunlit_ember:   'Warm to the touch, always. A relic of Zarvane.',
@@ -7143,7 +7219,11 @@ function openItemsView() {
     if (!count) continue;
     rows.push({ key, name: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), desc, count });
   }
-  for (const r of rows) {
+  // V3.10.5 — Hide unpurchased V3.10 potion / Zysphere variants so the
+  // list doesn't fill with ×0 clutter before the player unlocks them.
+  const HIDE_WHEN_EMPTY = new Set(['grand_potion','master_potion','zysphere_void','zysphere_ultra']);
+  const visibleRows = rows.filter(r => !(HIDE_WHEN_EMPTY.has(r.key) && r.count <= 0));
+  for (const r of visibleRows) {
     const row = document.createElement('div');
     row.className = 'item-row';
     row.setAttribute('tabindex', '0');   // V2.19.2 — arrow-key focusable
@@ -7152,7 +7232,7 @@ function openItemsView() {
         <div class="name">${r.name} <span style="color:var(--gold);font-family:var(--font-pixel);font-size:15px;">×${r.count}</span></div>
         <div class="desc">${r.desc}</div>
       </div>
-      <button ${r.count <= 0 || r.key !== 'potion' ? 'disabled' : ''}>USE</button>
+      <button ${r.count <= 0 || !['potion','grand_potion','master_potion'].includes(r.key) ? 'disabled' : ''}>USE</button>
     `;
     row.querySelector('button').onclick = () => useItem(r.key);
     // V2.19.2 — pressing Enter on the row triggers the USE button.
@@ -7166,15 +7246,26 @@ function openItemsView() {
   }
 }
 function useItem(key) {
-  if (key !== 'potion') return;
-  if (!game.player.items || (game.player.items.potion || 0) <= 0) return;
-  const target = game.player.party.find(r => r && r.hp < r.maxHp);
+  // V3.10.5 — Grand Potion / Master Potion also usable from the items
+  // overlay outside battle.  Grand heals +100; Master heals full and
+  // clears status.  Basic Potion behavior unchanged (+40).
+  if (!['potion','grand_potion','master_potion'].includes(key)) return;
+  if (!game.player.items || (game.player.items[key] || 0) <= 0) return;
+  const isMaster = key === 'master_potion';
+  const target = game.player.party.find(r => r && (r.hp < r.maxHp || (isMaster && r.status)));
   if (!target) { showToast('ALL ZYREX AT FULL HP'); return; }
   const before = target.hp;
-  target.hp = Math.min(target.maxHp, target.hp + 40);
-  game.player.items.potion--;
+  if (isMaster) {
+    target.hp = target.maxHp;
+    target.status = null;
+  } else {
+    const healAmt = key === 'grand_potion' ? 100 : 40;
+    target.hp = Math.min(target.maxHp, target.hp + healAmt);
+  }
+  game.player.items[key]--;
   save();
-  showToast(`✚ ${target.name}  +${target.hp - before} HP`);
+  const label = key === 'grand_potion' ? 'GRAND POTION' : key === 'master_potion' ? 'MASTER POTION' : 'POTION';
+  showToast(isMaster ? `✚ ${target.name}  FULL HP · status cleared` : `✚ ${target.name}  +${target.hp - before} HP · ${label}`);
   openItemsView();
 }
 document.getElementById('items-close').onclick = () => $itemsov.classList.remove('active');
@@ -8435,7 +8526,7 @@ const DEX_ORDER_PRIMARY = [
   'frostwisp', 'sandskitter', 'verdanix', 'flarepaw', 'dunechitter',           // Wild pool
   'barkchitter', 'aurarat', 'torchpuff', 'pebblequil',                          // V2.7 additions
   'elzebub', 'elzimir', 'elzoran', 'omegoran',                                 // Elzoran chain
-  'sunhoop', 'aetherwing',                                                     // Gemlord hunt companions
+  'sunhoop', 'etherfly',                                                     // Gemlord hunt companions
   'rakoron',                                                                   // Gemlord I
 ];
 const DEX_ORDER = (function buildDexOrder() {
@@ -8472,7 +8563,7 @@ const DAD_NOTES = {
   elzoran:     'The Supreme Dragon Lord. WILDKIN. He appears on cliffs before storms. If you see him, don\'t point. Don\'t speak. Just witness.',
   omegoran:    'Corrupted Elzoran. Shadow aura consumed him. He drifts between dimensions now. If you fight him, you may not come back to the same world you left.',
   sunhoop:     'Western crests. Wears the sun like a hat. Kind. Curious. Bring one home and it will stand in your window facing east every morning.',
-  aetherwing:  'Sky above the Northeast Hydroplane. It does not land. Not for anyone. It waits for a Rizer to prove itself in the air.',
+  etherfly:  'Sky above the Northeast Hydroplane. It does not land. Not for anyone. It waits for a Rizer to prove itself in the air.',
   rakoron:     'The Rubylord. First time I saw him I was too young to be looking. If you go to that cave — don\'t be too young.',
 };
 

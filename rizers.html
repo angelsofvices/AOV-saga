@@ -3167,6 +3167,8 @@ const game = {
     questItemsPicked: {},     // { 'routeId:x,y': true } — collected route items
     // V3.10.7 — TOWN HALL PASSAGE items, keyed per HALL_PASSAGES entry.
     passages: {},
+    // V3.11.4 — has the player met a Keeper of the Ancient Oath yet?
+    metFirstKeeper: false,
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -3194,7 +3196,7 @@ const game = {
 // walks out the door to enter Malezor.
 const MALEZOR_MAP = [
   '##############################', // 0
-  '#,,,,,,,,,,,,,,,,,v,,,,,,,,,,#', // 1 · v = Village Elder (V2.47)
+  '#,,,,,,,,,,,,,,,,,v,,,,,,,,,,#', // 1 · v = Village Keeper (V2.47)
   '#,,K,,GGGG,,,,,MMhh,,,K,,,,,,#', // 2 · hh = Bronze Cottage roof (top row of 2x2)
   '#Thh,,GGGG,,,,,,,ph,,,,,,,,,,#', // 3 · hh = Home roof · p = Bronze Cottage door
   '#THh,,,GGG,,Y,,,,,,S,,,,,,K,,#', // 4 · H = Home door (walk in) · Y/S/K as before
@@ -3618,29 +3620,29 @@ const ROUTE_ORDER = ['valley_benevolent_beast','choir_of_pearlord','wilds_of_cit
 function isRouteMap(mapId) { return !!ROUTE_META[mapId]; }
 
 // ============================================================================
-//  V3.9 — QUEST SYSTEM (elder → route item → turn-in → Rizer XP)
+//  V3.9 · V3.11.4 — QUEST SYSTEM (Keeper → route item → turn-in → Rizer XP)
 // ============================================================================
 // Each district (except Korathen — its own route doesn't exist east) has
-// an ELDER stationed in its Town Hall.  Talk to them: they ask you to
-// retrieve a district-flavored item from the eastern route.  Cross the
-// route, find the item (a glowing 'q' marker), return to the elder,
-// receive a big Rizer-XP payout.
+// a KEEPER OF THE ANCIENT OATH stationed in its Town Hall.  Talk to them:
+// they ask you to retrieve a district-flavored item from the eastern
+// route.  Cross the route, find the item (a glowing '!' marker), return
+// to the Keeper, receive a big Rizer-XP payout.
 //
 // State machine per quest, stored on game.player.quests[questId].state:
-//   undefined / 'locked'   — elder hasn't been approached
-//   'active'               — elder has offered; item not yet in inventory
+//   undefined / 'locked'   — Keeper hasn't been approached
+//   'active'               — Keeper has offered; item not yet in inventory
 //   'item_found'           — quest item picked up on the route
 //   'complete'             — item turned in; XP claimed
 const QUEST_DEFS = {
-  malezor_rubypaw:      { districtId: 'malezor',   hallId: 'malezor_hall',   routeId: 'valley_benevolent_beast',    elderName: 'WARDEN KELTHOR',       elderTitle: 'senior beast-warden',  itemName: 'RUBYPAW FETISH',        rxpReward: 1000, offerLine: 'A stray Rizer. My best hunter dropped the RUBYPAW FETISH somewhere in the Valley of the Benevolent Beast. Bring it back to me — the beasts know their own.', turnInLine: 'The Rubypaw returns. My hunter can sleep tonight. Take this for your trouble.', reminderLine: 'The fetish still waits in the Valley of the Benevolent Beast. Look near the grasses.' },
-  zarvane_pearlbell:    { districtId: 'zarvane',   hallId: 'zarvane_hall',   routeId: 'choir_of_pearlord',           elderName: 'CHOIRMOTHER IVELITH',  elderTitle: 'high sunpriestess',    itemName: 'PEARLCHOIR BELL',       rxpReward: 1200, offerLine: 'A pilgrim dropped her PEARLCHOIR BELL crossing the Choir of the Pearlord. Its notes are how we speak to Ivirium. Find it. Bring it home.', turnInLine: 'The Bell rings once as you hand it back. Ivirium hears. So do I. Thank you, Rizer.', reminderLine: 'The Bell is out there. Somewhere in the Choir. Listen for the shimmer.' },
-  andrannor_citrinefang:{ districtId: 'andrannor', hallId: 'andrannor_hall', routeId: 'wilds_of_citrinehowl',        elderName: 'BEASTKEEPER MORA',     elderTitle: 'keeper of the creaturewilds', itemName: 'CITRINEHOWL FANG',  rxpReward: 1500, offerLine: 'A citrinehowl shed a fang out in the wilds east of us. I need it for a binding rite. Cross the Wilds of the Citrinehowl. Bring the fang.', turnInLine: 'A clean fang. The rite will hold now. Every creature of Andrannor thanks you.', reminderLine: 'The fang lies in the Wilds of the Citrinehowl. Keep looking.' },
-  veridan_emeraldseed:  { districtId: 'veridan',   hallId: 'veridan_hall',   routeId: 'verge_of_emeraldbloom',        elderName: 'GROVEWARDEN SELIS',    elderTitle: 'root of the great tree', itemName: 'EMERALDBLOOM SEED',    rxpReward: 2000, offerLine: 'The border grove hasn\'t bloomed in a decade. An EMERALDBLOOM SEED lies at the Verge — bring it. I will grow the grove myself.', turnInLine: 'The Seed pulses in my palm. Veridan breathes again. Take this — the grove blesses you.', reminderLine: 'The Seed rests somewhere on the Verge of the Emeraldbloom. Search the grass.' },
-  netharion_voicecrystal:{districtId: 'netharion', hallId: 'netharion_hall', routeId: 'rift_of_amethyst_voice',       elderName: 'NULLKEEPER VOSS',      elderTitle: 'keeper of the empty room', itemName: 'AMETHYST VOICECRYSTAL', rxpReward: 2500, offerLine: 'A crystal at the Rift keeps whispering my mother\'s name. I need it silenced. Retrieve the AMETHYST VOICECRYSTAL. Do not listen too long.', turnInLine: 'The whispering stops when I hold it. You did not listen too long. That means you are still yours. Take this.', reminderLine: 'The Voicecrystal still speaks in the Rift. Try not to hear the words.' },
-  vorashil_landingchip: { districtId: 'vorashil',  hallId: 'vorashil_hall',  routeId: 'skylanes_sapphirebroker',      elderName: 'SKYBROKER EZEKAR',     elderTitle: 'senior alien-tech broker', itemName: 'SAPPHIRE LANDING CHIP', rxpReward: 3000, offerLine: 'A landing pod cracked open in the Skylanes and dropped a SAPPHIRE LANDING CHIP. Off-world tech. I need it before Thardun does. Fetch.', turnInLine: 'A clean CHIP — untampered. Thardun will pay us to look at it. And so will I. Take your share.', reminderLine: 'The CHIP is out in the Skylanes. Watch the pods overhead.' },
-  xilnar_wispcoin:      { districtId: 'xilnar',    hallId: 'xilnar_hall',    routeId: 'threshold_of_onyxwhisper',     elderName: 'WISPKEEPER NAELA',     elderTitle: 'reader of the wisps',  itemName: 'ONYX WISP COIN',        rxpReward: 3500, offerLine: 'A spirit left a toll at the Threshold and forgot to collect it. An ONYX WISP COIN, warm to the touch. Bring it to me — the wisps want it home.', turnInLine: 'The Coin hums as you set it down. The wisps go quiet. Thank you. Take a wispblessing with you.', reminderLine: 'The COIN waits on the Threshold of the Onyxwhisper. Follow the cold air.' },
-  baelgor_chainlink:    { districtId: 'baelgor',   hallId: 'baelgor_hall',   routeId: 'roads_of_amberchain',          elderName: 'EMBERKEEPER DRAITH',   elderTitle: 'master of the amber forge', itemName: 'AMBER CHAINLINK',    rxpReward: 4000, offerLine: 'One of my forge-caravans lost an AMBER CHAINLINK on the Roads. Without it the chain does not close. Bring it back before the Amberchain breaks.', turnInLine: 'A single Chainlink — the whole convoy safe. Baelgor owes you a debt. Here is a beginning.', reminderLine: 'The Chainlink is out on the Roads of the Amberchain. Somewhere between forges.' },
-  thardin_anomalycog:   { districtId: 'thardin',   hallId: 'thardin_hall',   routeId: 'fracture_of_anomaly',          elderName: 'FOREMANCHIEF YORIK',   elderTitle: 'chief engineer of Thardun', itemName: 'ANOMALY COG',       rxpReward: 4500, offerLine: 'A Thardun expedition into the Fracture came back missing an ANOMALY COG. My best machine grinds without it. Cross the Fracture. Bring the Cog.', turnInLine: 'The Cog fits like it never left. Thardun\'s gears turn again. This one is on the corporate — take it.', reminderLine: 'The COG lies in the Fracture of the Anomaly. Watch for machine wreckage.' },
+  malezor_rubypaw:      { districtId: 'malezor',   hallId: 'malezor_hall',   routeId: 'valley_benevolent_beast',    keeperName: 'WARDEN KELTHOR',       keeperTitle: 'senior beast-warden',  itemName: 'RUBYPAW FETISH',        rxpReward: 1000, offerLine: 'A stray Rizer. My best hunter dropped the RUBYPAW FETISH somewhere in the Valley of the Benevolent Beast. Bring it back to me — the beasts know their own.', turnInLine: 'The Rubypaw returns. My hunter can sleep tonight. Take this for your trouble.', reminderLine: 'The fetish still waits in the Valley of the Benevolent Beast. Look near the grasses.' },
+  zarvane_pearlbell:    { districtId: 'zarvane',   hallId: 'zarvane_hall',   routeId: 'choir_of_pearlord',           keeperName: 'CHOIRMOTHER IVELITH',  keeperTitle: 'high sunpriestess',    itemName: 'PEARLCHOIR BELL',       rxpReward: 1200, offerLine: 'A pilgrim dropped her PEARLCHOIR BELL crossing the Choir of the Pearlord. Its notes are how we speak to Ivirium. Find it. Bring it home.', turnInLine: 'The Bell rings once as you hand it back. Ivirium hears. So do I. Thank you, Rizer.', reminderLine: 'The Bell is out there. Somewhere in the Choir. Listen for the shimmer.' },
+  andrannor_citrinefang:{ districtId: 'andrannor', hallId: 'andrannor_hall', routeId: 'wilds_of_citrinehowl',        keeperName: 'BEASTKEEPER MORA',     keeperTitle: 'keeper of the creaturewilds', itemName: 'CITRINEHOWL FANG',  rxpReward: 1500, offerLine: 'A citrinehowl shed a fang out in the wilds east of us. I need it for a binding rite. Cross the Wilds of the Citrinehowl. Bring the fang.', turnInLine: 'A clean fang. The rite will hold now. Every creature of Andrannor thanks you.', reminderLine: 'The fang lies in the Wilds of the Citrinehowl. Keep looking.' },
+  veridan_emeraldseed:  { districtId: 'veridan',   hallId: 'veridan_hall',   routeId: 'verge_of_emeraldbloom',        keeperName: 'GROVEWARDEN SELIS',    keeperTitle: 'root of the great tree', itemName: 'EMERALDBLOOM SEED',    rxpReward: 2000, offerLine: 'The border grove hasn\'t bloomed in a decade. An EMERALDBLOOM SEED lies at the Verge — bring it. I will grow the grove myself.', turnInLine: 'The Seed pulses in my palm. Veridan breathes again. Take this — the grove blesses you.', reminderLine: 'The Seed rests somewhere on the Verge of the Emeraldbloom. Search the grass.' },
+  netharion_voicecrystal:{districtId: 'netharion', hallId: 'netharion_hall', routeId: 'rift_of_amethyst_voice',       keeperName: 'NULLKEEPER VOSS',      keeperTitle: 'keeper of the empty room', itemName: 'AMETHYST VOICECRYSTAL', rxpReward: 2500, offerLine: 'A crystal at the Rift keeps whispering my mother\'s name. I need it silenced. Retrieve the AMETHYST VOICECRYSTAL. Do not listen too long.', turnInLine: 'The whispering stops when I hold it. You did not listen too long. That means you are still yours. Take this.', reminderLine: 'The Voicecrystal still speaks in the Rift. Try not to hear the words.' },
+  vorashil_landingchip: { districtId: 'vorashil',  hallId: 'vorashil_hall',  routeId: 'skylanes_sapphirebroker',      keeperName: 'SKYBROKER EZEKAR',     keeperTitle: 'senior alien-tech broker', itemName: 'SAPPHIRE LANDING CHIP', rxpReward: 3000, offerLine: 'A landing pod cracked open in the Skylanes and dropped a SAPPHIRE LANDING CHIP. Off-world tech. I need it before Thardun does. Fetch.', turnInLine: 'A clean CHIP — untampered. Thardun will pay us to look at it. And so will I. Take your share.', reminderLine: 'The CHIP is out in the Skylanes. Watch the pods overhead.' },
+  xilnar_wispcoin:      { districtId: 'xilnar',    hallId: 'xilnar_hall',    routeId: 'threshold_of_onyxwhisper',     keeperName: 'WISPKEEPER NAELA',     keeperTitle: 'reader of the wisps',  itemName: 'ONYX WISP COIN',        rxpReward: 3500, offerLine: 'A spirit left a toll at the Threshold and forgot to collect it. An ONYX WISP COIN, warm to the touch. Bring it to me — the wisps want it home.', turnInLine: 'The Coin hums as you set it down. The wisps go quiet. Thank you. Take a wispblessing with you.', reminderLine: 'The COIN waits on the Threshold of the Onyxwhisper. Follow the cold air.' },
+  baelgor_chainlink:    { districtId: 'baelgor',   hallId: 'baelgor_hall',   routeId: 'roads_of_amberchain',          keeperName: 'EMBERKEEPER DRAITH',   keeperTitle: 'master of the amber forge', itemName: 'AMBER CHAINLINK',    rxpReward: 4000, offerLine: 'One of my forge-caravans lost an AMBER CHAINLINK on the Roads. Without it the chain does not close. Bring it back before the Amberchain breaks.', turnInLine: 'A single Chainlink — the whole convoy safe. Baelgor owes you a debt. Here is a beginning.', reminderLine: 'The Chainlink is out on the Roads of the Amberchain. Somewhere between forges.' },
+  thardin_anomalycog:   { districtId: 'thardin',   hallId: 'thardin_hall',   routeId: 'fracture_of_anomaly',          keeperName: 'FOREMANCHIEF YORIK',   keeperTitle: 'chief engineer of Thardun', itemName: 'ANOMALY COG',       rxpReward: 4500, offerLine: 'A Thardun expedition into the Fracture came back missing an ANOMALY COG. My best machine grinds without it. Cross the Fracture. Bring the Cog.', turnInLine: 'The Cog fits like it never left. Thardun\'s gears turn again. This one is on the corporate — take it.', reminderLine: 'The COG lies in the Fracture of the Anomaly. Watch for machine wreckage.' },
 };
 const QUEST_ORDER = ['malezor_rubypaw','zarvane_pearlbell','andrannor_citrinefang','veridan_emeraldseed','netharion_voicecrystal','vorashil_landingchip','xilnar_wispcoin','baelgor_chainlink','thardin_anomalycog'];
 // Reverse indexes so tile handlers can look up quests fast.
@@ -3651,10 +3653,11 @@ for (const qid of QUEST_ORDER) {
   QUEST_BY_HALL[q.hallId]   = qid;
   QUEST_BY_ROUTE[q.routeId] = qid;
 }
-// Elder coord per town hall — every V2.74 hand-crafted hall has a 'v'
+// Keeper coord per town hall — every V2.74 hand-crafted hall has a 'v'
 // villager at column 3, row 2 or 3.  We designate that specific 'v' as
-// the district's ELDER at interact-time.  No map-data edits required.
-const HALL_ELDER_COORDS = {
+// the district's KEEPER OF THE ANCIENT OATH at interact-time.  No
+// map-data edits required.
+const HALL_KEEPER_COORDS = {
   malezor_hall:   { x: 3, y: 2 },
   zarvane_hall:   { x: 3, y: 2 },
   andrannor_hall: { x: 3, y: 2 },
@@ -3682,41 +3685,80 @@ function setQuestState(questId, state) {
   save();
 }
 // True if the current interior/coord is the elder for the CURRENT hall.
-function isElderAt(mapId, x, y) {
-  const c = HALL_ELDER_COORDS[mapId];
+function isKeeperAt(mapId, x, y) {
+  const c = HALL_KEEPER_COORDS[mapId];
   return !!(c && c.x === x && c.y === y);
 }
-// Elder interaction — dispatched from interactVillager when the player
-// speaks to the elder tile inside a hall.  The elder is bound to the
+// Keeper interaction — dispatched from interactVillager when the player
+// speaks to the Keeper tile inside a hall.  The Keeper is bound to the
 // hall's SOURCE district (game.player.enteredInteriorFrom.map), which
 // is where their district-linked quest lives.
-function handleElderInteract(hallMapId) {
+//
+// V3.11.4 — The Keepers are canonically the KEEPERS OF THE ANCIENT OATH:
+// an order of early humanoid peacekeepers who have held a long-standing
+// covenant with the Gemlords for millennia — respect the Gemlords'
+// divinity, act as neutral arbiters between humanoid and Zyrex peoples.
+// The Seers of the New Order seek to destroy that Oath.  First-time
+// interaction with any Keeper triggers a short lore beat naming the
+// Oath; subsequent interactions skip it.  This replaces the older
+// "elder" terminology (avoided to prevent confusion with Nexyros /
+// Viridia's Elder Prime canon).
+function handleKeeperInteract(hallMapId) {
   const from = game.player.enteredInteriorFrom;
   const fromDistrict = from && from.map;
   const questId = QUEST_BY_HALL[hallMapId];
   const q = questId && QUEST_DEFS[questId];
   if (!q || !fromDistrict) {
     // No quest wired for this hall yet (Korathen ships without one for V3.9).
-    showDialog(['The elder inclines their head.', 'Their eyes are somewhere far away.']);
+    showDialog([
+      'The Keeper inclines their head.',
+      'A worn oath-medallion swings at their throat.  Old work.  Older than any writing you know.',
+      'They watch you leave in silence.',
+    ]);
     return;
   }
   const state = questState(questId);
   const routeMeta = ROUTE_META[q.routeId] || { name: 'the road east' };
-  const elderTag = `${q.elderName}, ${q.elderTitle}:`;
+  const keeperTag = `${q.keeperName}, ${q.keeperTitle}:`;
+  // V3.11.4 — First-time lore beat.  Fires ONCE across the whole game
+  // (not per district) — the Keepers explain themselves to a Rizer who
+  // hasn't met the Order before.  Player learns the Oath, the deal
+  // with the Gemlords, and why the Seers are hunting the covenant.
+  if (!game.player.metFirstKeeper) {
+    game.player.metFirstKeeper = true;
+    save();
+    showDialog([
+      keeperTag,
+      'You have not met one of us before.  I will keep this short.',
+      'We are the KEEPERS OF THE ANCIENT OATH.  Early humanoids, old enough to remember when Zyrex and people first stood in a room and did not attack each other.',
+      'The Ten Gemlords are divine.  We swore, on behalf of every humanoid then alive, to respect that divinity — and to stand between the two peoples when speech failed.',
+      'The Gemlords swore in return: they would remain in their sanctuaries and let the world be lived by its living.',
+      'That is the OATH.  It has held for longer than any story told about it.',
+      'The Seers of the New Order want to break it.  They want to be gods themselves.',
+      'That is why I am glad to see you at my door.',
+    ], () => {
+      // Fall through to the normal quest handler after the lore beat
+      // completes.  We do this by re-entering handleKeeperInteract
+      // now that metFirstKeeper is true; the metFirstKeeper block
+      // will be skipped on the recursive call.
+      handleKeeperInteract(hallMapId);
+    });
+    return;
+  }
   if (state === 'complete') {
     // V3.11 — After the Seer Commander of this district falls, the
-    // elder acknowledges the shard is home AND the district is free.
+    // Keeper acknowledges the shard is home AND the district is free.
     if (districtLiberated(fromDistrict)) {
       const meta = DISTRICT_META[fromDistrict] || {};
       showDialog([
-        elderTag,
+        keeperTag,
         `${q.itemName} is home.  So is the ${((meta.gemKey || '').toUpperCase())} GEMSHARD.  So are the people we thought we had lost.`,
         `Rizer.  You did not just bring back a fetish.  You brought back ${meta.name || fromDistrict}.`,
       ]);
       return;
     }
     showDialog([
-      elderTag,
+      keeperTag,
       `Rizer.  ${q.itemName} is home.  So are you.  That is a good day.`,
     ]);
     return;
@@ -3724,7 +3766,7 @@ function handleElderInteract(hallMapId) {
   if (state === 'item_found') {
     // Player has the item — turn-in flow: grant XP, mark complete.
     showDialog([
-      elderTag,
+      keeperTag,
       q.turnInLine,
       `«◈ QUEST COMPLETE  ·  ${q.itemName} returned.»`,
       `«◈ +${q.rxpReward} RIZER XP»`,
@@ -3737,7 +3779,7 @@ function handleElderInteract(hallMapId) {
   }
   if (state === 'active') {
     showDialog([
-      elderTag,
+      keeperTag,
       q.reminderLine,
       `«◈ FIND  ${q.itemName}  IN  ${routeMeta.name.toUpperCase()}»`,
     ]);
@@ -3745,7 +3787,7 @@ function handleElderInteract(hallMapId) {
   }
   // locked / never-offered → offer the quest.
   showDialog([
-    elderTag,
+    keeperTag,
     q.offerLine,
     `«◈ QUEST ACCEPTED  ·  FIND  ${q.itemName}  IN  ${routeMeta.name.toUpperCase()}»`,
   ], () => {
@@ -3784,7 +3826,7 @@ function handleQuestItem(x, y) {
   save();
   showDialog([
     `You retrieve the ${q.itemName}.`,
-    `Take it back to ${q.elderName.toUpperCase()} — inside the ${(DISTRICT_META[q.districtId] || {}).name || ''} town hall.`,
+    `Take it back to ${q.keeperName.toUpperCase()} the Keeper — inside the ${(DISTRICT_META[q.districtId] || {}).name || ''} town hall.`,
   ]);
   showToast(`◈  ${q.itemName}  ·  claimed`, 2400);
 }
@@ -4136,7 +4178,7 @@ const VILLAGERS = {
       "The Ridge Warden waits for anyone who'd take her spot on the cliff.",
       'Long steps make the ground answer.  Short steps hide you.',
     ]},
-    { name: 'Village Elder', lines: [
+    { name: 'Village Keeper', lines: [
       "Your father talks in his sleep about the Ninth World.",
       "Nine districts.  Nine Gemshards.  One throne.  Simple, if you have a hundred years.",
       "The Mothergems remember every trainer who touched them.  Even you.",
@@ -4252,7 +4294,7 @@ const VILLAGERS_LIBERATED = {
       "My cousin came home last week.  I hadn't stopped setting his plate.",
       "Rakoron's dust smells sweeter with the Ministry gone.",
     ]},
-    { name: 'Village Elder', lines: [
+    { name: 'Village Keeper', lines: [
       "You brought the RUBY GEMSHARD home.  I thought that story died with my grandfather.",
       "The Ridge Warden stopped whispering.  She used to whisper.  I hadn't noticed until it stopped.",
       "The Ninth World remembers who lifts it.  It is not always the strong.",
@@ -5785,27 +5827,35 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'I': {
-      // V3.11.3 — TOWN HALL WALL.  Surrounds the D door in a 3x3
-      // civic-building footprint.  Blocker.  Stone masonry base with
-      // a district-accent trim and a shingled roof on the top row of
-      // the building (detected by looking one tile UP: if it's still
-      // 'I' we're a wall row; if it's ',' we're the top row so we
-      // draw a peaked roof crown).
+      // V3.11.3 · V3.11.4 — TOWN HALL WALL.  Surrounds the D door in a
+      // 3x3 civic-building footprint.  Blocker.  Deliberate visual
+      // OPPOSITE of the Seer Ministry HQ (which is grey stone + dark):
+      //   * WHITE ivory-stone walls
+      //   * DISTRICT-ACCENT trim, mortar, and window pane
+      //   * ALWAYS-GOLD peaked roof on the top row (the civic-building
+      //     signature of the Keepers of the Ancient Oath)
       const districtAccent = (_dm && _dm.accent) || '#e8c878';
+      const HALL_WHITE = '#eee8dc';   // ivory-white stone
+      const HALL_SHADE = '#cfc7b1';   // subtle shadow for depth
+      const HALL_MORTAR = '#a89c7a';  // warm mortar seams
+      const ROOF_GOLD = '#e8c878';    // always-gold roof (Keeper signature)
+      const ROOF_HIGHLIGHT = '#f5dc9c';
+      const ROOF_SHADOW = '#8a6624';
       drawTile(x, y, ',', mx, my);
       const above = tileAt(mx, my - 1);
       const isRoof = above !== 'I';
-      // Stone base
-      ctx.fillStyle = '#2c1e10';
+      // White stone base
+      ctx.fillStyle = HALL_SHADE;
       ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#4a3628';
+      ctx.fillStyle = HALL_WHITE;
       ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-      // Masonry seam pattern — horizontal lines every 6px
-      ctx.strokeStyle = '#2a1a08';
+      // Warm mortar horizontal seam
+      ctx.strokeStyle = HALL_MORTAR;
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(px, py + TILE / 2); ctx.lineTo(px + TILE, py + TILE / 2);
       ctx.stroke();
-      // Vertical mortar (alternate columns for a brick offset)
+      // Alternating vertical mortar seam for brick offset
       if ((mx & 1) === 0) {
         ctx.beginPath();
         ctx.moveTo(px + TILE / 2, py + 2); ctx.lineTo(px + TILE / 2, py + TILE / 2 - 1);
@@ -5813,26 +5863,47 @@ function drawTile(x, y, ch, mx, my) {
         ctx.stroke();
       }
       if (isRoof) {
-        // Peaked roof cap in district accent
-        ctx.fillStyle = districtAccent;
+        // Peaked GOLD roof crown (always gold — Keeper signature).
+        ctx.fillStyle = ROOF_GOLD;
         ctx.beginPath();
-        ctx.moveTo(px, py + 3);
-        ctx.lineTo(px + TILE / 2, py - 1);
-        ctx.lineTo(px + TILE, py + 3);
-        ctx.lineTo(px + TILE, py + 6);
-        ctx.lineTo(px, py + 6);
+        ctx.moveTo(px, py + 4);
+        ctx.lineTo(px + TILE / 2, py - 2);
+        ctx.lineTo(px + TILE, py + 4);
+        ctx.lineTo(px + TILE, py + 8);
+        ctx.lineTo(px, py + 8);
         ctx.closePath();
         ctx.fill();
-        // Roof shading
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
-        ctx.fillRect(px, py + 5, TILE, 2);
+        // Roof highlight along the peak
+        ctx.strokeStyle = ROOF_HIGHLIGHT;
+        ctx.beginPath();
+        ctx.moveTo(px + TILE / 2 - 2, py + 1);
+        ctx.lineTo(px + TILE / 2, py - 1);
+        ctx.lineTo(px + TILE / 2 + 2, py + 1);
+        ctx.stroke();
+        // Roof shadow line along the eave
+        ctx.fillStyle = ROOF_SHADOW;
+        ctx.fillRect(px, py + 7, TILE, 1);
+        // District-accent flag pennant on the center of a random roof tile
+        if ((mx & 1) === 0) {
+          ctx.fillStyle = districtAccent;
+          ctx.fillRect(px + TILE / 2, py - 4, 1, 6);
+          ctx.beginPath();
+          ctx.moveTo(px + TILE / 2 + 1, py - 4);
+          ctx.lineTo(px + TILE / 2 + 5, py - 3);
+          ctx.lineTo(px + TILE / 2 + 1, py - 1);
+          ctx.closePath();
+          ctx.fill();
+        }
       } else {
-        // Middle/lower wall: small district-tinted window
+        // Middle/lower wall — narrow district-accent arched window
         ctx.fillStyle = '#050310';
-        ctx.fillRect(px + TILE / 2 - 2, py + 6, 5, 6);
+        ctx.fillRect(px + TILE / 2 - 2, py + 6, 5, 7);
+        // Accent trim outlining the window
+        ctx.strokeStyle = districtAccent;
+        ctx.strokeRect(px + TILE / 2 - 2.5, py + 5.5, 6, 8);
+        // Arched top on the window
         ctx.fillStyle = districtAccent;
         ctx.fillRect(px + TILE / 2 - 2, py + 6, 5, 1);
-        ctx.fillRect(px + TILE / 2 - 2, py + 11, 5, 1);
       }
       break;
     }
@@ -7048,8 +7119,8 @@ function openQuestsView() {
     ? '◈  All shrines answered.  Ancient Gemsight opens what was hidden.'
     : `Walk up to a district landmark and press A. ${SHRINE_TOTAL - visitedCount} shrine${SHRINE_TOTAL - visitedCount === 1 ? '' : 's'} remain.`;
 
-  // V3.9 — SIDE QUESTS section.  Below the shrines.  Elder quests only
-  // appear once the player has spoken to that district's elder (state
+  // V3.9 — SIDE QUESTS section.  Below the shrines.  Keeper quests only
+  // appear once the player has spoken to that district's Keeper (state
   // moves out of 'locked').  Completed quests show with a checkmark.
   const active = [];
   const done   = [];
@@ -7069,7 +7140,7 @@ function openQuestsView() {
       const rmeta = ROUTE_META[q.routeId] || {};
       const state = questState(qid);
       const stateLabel = state === 'item_found'
-        ? `${q.itemName} in hand → return to ${q.elderName}`
+        ? `${q.itemName} in hand → return to ${q.keeperName}`
         : state === 'complete'
           ? `Complete · +${q.rxpReward} R.XP earned`
           : `Find ${q.itemName} in ${rmeta.name || q.routeId}`;
@@ -7077,7 +7148,7 @@ function openQuestsView() {
       row.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid ${isDone ? 'var(--border-gold)' : 'var(--border-soft)'};background:${isDone ? 'rgba(90,40,140,0.10)' : 'rgba(20,10,40,0.20)'};color:${isDone ? 'var(--gold-bright)' : 'var(--ivory)'};`;
       row.innerHTML = `
         <div>
-          <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">${isDone ? '◈' : '○'}  ${dmeta.name ? dmeta.name.toUpperCase() : q.districtId.toUpperCase()} · ${q.elderName}</div>
+          <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">${isDone ? '◈' : '○'}  ${dmeta.name ? dmeta.name.toUpperCase() : q.districtId.toUpperCase()} · ${q.keeperName}</div>
           <div style="font-size:11px;opacity:0.75;margin-top:2px;letter-spacing:0.08em;">${stateLabel}</div>
         </div>
         <div style="font-family:var(--font-display);font-size:12px;letter-spacing:0.10em;opacity:0.85;">+${q.rxpReward} R.XP</div>
@@ -8273,11 +8344,12 @@ function districtBuildingLabel(target) {
 // villager's lines so repeated talks give new lines each time.
 function interactVillager(tx, ty) {
   const districtId = game.player.mapId;
-  // V3.9 — Elder short-circuit.  If the current interior is a town hall
-  // AND (tx, ty) matches the district's designated elder coord, route
-  // straight to the quest handler regardless of the villager pool.
-  if (isElderAt(districtId, tx, ty)) {
-    handleElderInteract(districtId);
+  // V3.9 · V3.11.4 — Keeper short-circuit.  If the current interior is
+  // a town hall AND (tx, ty) matches the district's designated Keeper
+  // coord, route straight to the quest handler regardless of the
+  // villager pool.
+  if (isKeeperAt(districtId, tx, ty)) {
+    handleKeeperInteract(districtId);
     return;
   }
   // V2.74 — Inside any *_hall interior, route to the entry-district's
@@ -12001,6 +12073,8 @@ document.getElementById('btn-new').onclick = () => {
     questItemsPicked: {},
     // V3.10.7 — Town hall passages
     passages: {},
+    // V3.11.4 — Keeper of the Ancient Oath — first-meet flag
+    metFirstKeeper: false,
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();

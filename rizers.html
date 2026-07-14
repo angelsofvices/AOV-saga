@@ -3169,6 +3169,8 @@ const game = {
     passages: {},
     // V3.11.4 — has the player met a Keeper of the Ancient Oath yet?
     metFirstKeeper: false,
+    // V3.12 — how many times has the player crossed paths with the Quiet Child?
+    quietChildSightings: 0,
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -3859,6 +3861,65 @@ function routeToDistrict(routeId, dir) {
 // item that stacks in the player's inventory. Visiting all 9 shrines
 // unlocks ANCIENT GEMSIGHT (permanent item; V2.45+ hooks will let it
 // reveal hidden chests / commander positions).
+// V3.12 — THE QUIET CHILD.  Recurring V3.5-canon silent character.  Places
+// where the child appears across the world, keyed by mapId.  Each entry
+// is one sighting coord.  The child is drawn at these tiles via a
+// dynamic renderer pass (no map-data edit required for procedural
+// districts), blocks movement, and dispatches handleQuietChildInteract
+// when the player faces the tile and presses A.
+//
+// Locations are near each district's sacred/landmark spot so the child
+// always appears watching the world's holy places — matching canon
+// ("silent recurring child appears near shrines and sacred locations").
+// The malezor sighting is beside the Mothergem 'M' shrine; district
+// procedural sightings sit one tile south of the 'L' landmark placed
+// at (floor(cols/3), floor(rows/2)) by generateDistrictMap.
+const QUIET_CHILD_SIGHTINGS = {
+  malezor:                    [{ x: 14, y: 3 }],  // south of MM Mothergem at row 2
+  zarvane:                    [{ x: 11, y: 12 }], // south of L at (11, 11)
+  andrannor:                  [{ x: 12, y: 13 }],
+  veridan:                    [{ x: 14, y: 14 }],
+  netharion:                  [{ x: 15, y: 15 }],
+  vorashil:                   [{ x: 16, y: 16 }],
+  xilnar:                     [{ x: 18, y: 17 }],
+  baelgor:                    [{ x: 19, y: 18 }],
+  thardin:                    [{ x: 20, y: 19 }],
+  korathen:                   [{ x: 22, y: 20 }],
+  // Impossible-location cameo on the final route.  The player crossed
+  // Malezor, then met the child again 8 districts later on the road to
+  // Korathen — the same child, the same toy.  Canon 'they appear in
+  // impossible places' beat, first pass.
+  fracture_of_anomaly:        [{ x: 10, y: 5 }],
+};
+function isQuietChildAt(mapId, x, y) {
+  const arr = QUIET_CHILD_SIGHTINGS[mapId];
+  if (!arr) return false;
+  for (const s of arr) if (s.x === x && s.y === y) return true;
+  return false;
+}
+// Quiet-Child interact — rotating pool of silent-observation lines.
+// The child NEVER speaks until the late-game battle beat (deferred to
+// a future ship).  Each interact bumps a per-player sighting counter
+// and picks a line from the pool based on that counter — earlier lines
+// are pure observation, later lines carry the "you know this is
+// impossible" recognition.
+const QUIET_CHILD_LINES = [
+  ['A CHILD.',                                   'They stand very still.  They watch you.',                                                     'The stuffed Zyrex toy hangs limp in their arms.  One button-eye is missing.'],
+  ['The child is here again.',                    'You wave.  They do not wave back.',                                                            'The toy has been mended.  Poorly.  Lovingly.'],
+  ['You crouch.  Try to be smaller than them.',   'You ask if they are lost.',                                                                    'They do not answer.  Their eyes track yours, then track past yours, then track past the horizon.'],
+  ['Same child.  Same toy.',                      'They mouth a word.  You cannot read the shape of it.',                                          'You start to say something.  You stop.  The silence between you is not empty.'],
+  ['You saw them in the last district.',          'You KNOW you saw them.  They cannot have come this far.',                                       'And yet — the same worn toy, held the same way.'],
+  ['They will not speak.',                         'You are almost sure they want to.',                                                             'You leave the space between you open, in case they change their mind.'],
+];
+function handleQuietChildInteract() {
+  if (!game.player) return;
+  const idx = game.player.quietChildSightings || 0;
+  const line = QUIET_CHILD_LINES[Math.min(idx, QUIET_CHILD_LINES.length - 1)];
+  game.player.quietChildSightings = idx + 1;
+  save();
+  showDialog(line);
+}
+
 const SHRINES = {
   zarvane:   { name: 'Sunlit Pillar',     xp:  500, item: 'sunlit_ember',   itemName: 'Sunlit Ember',   dialog: [
     'The pillar drinks sunlight and gives back warmth you can hold.',
@@ -5178,6 +5239,8 @@ function walkable(x, y) {
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
   if ('#TWMSBh=btmdzkjrcFeLvaAI'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall
+  // V3.12 — Quiet Child sighting tiles block movement (they stand there)
+  if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
   if (t === '!' && !isQuestItemPicked(game.player.mapId, x, y)) return false;
   if (t === 'R' && !npcTrainerDefeated(x, y)) return false;   // V2.74 — hall Rizer blocker until defeated
@@ -6594,6 +6657,55 @@ function drawCharacter(cx, cy, dir, primary, accent, opts) {
   ctx.fillRect(x + 4, y + h - 4, w - 8, 2);
 }
 
+// V3.12 — Quiet Child renderer.  Draws every registered sighting on
+// the current map.  Small child figure holding a stuffed Zyrex toy.
+// Palette is intentionally muted so the child reads as still and
+// quiet against the world.
+function drawQuietChildren(cam) {
+  const mapId = game.player.mapId;
+  const arr = QUIET_CHILD_SIGHTINGS[mapId];
+  if (!arr) return;
+  for (const s of arr) {
+    const scx = (s.x - cam.x) * TILE + TILE / 2;
+    const scy = (s.y - cam.y) * TILE + TILE / 2;
+    if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) continue;
+    drawQuietChild(scx, scy);
+  }
+}
+function drawQuietChild(cx, cy) {
+  // Faint ground shadow — very soft, the child is small
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 6, 6, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Body — dust-grey robe, deliberately muted (not colored like a Rizer)
+  ctx.fillStyle = '#7a7284';
+  ctx.fillRect(cx - 5, cy - 2, 10, 8);
+  // Head — pale
+  ctx.fillStyle = '#e8ddc2';
+  ctx.fillRect(cx - 4, cy - 8, 8, 6);
+  // Hair — dark, unkempt
+  ctx.fillStyle = '#2a1f38';
+  ctx.fillRect(cx - 4, cy - 10, 8, 3);
+  // Eyes — small dots, downcast
+  ctx.fillStyle = '#050310';
+  ctx.fillRect(cx - 2, cy - 5, 1, 1);
+  ctx.fillRect(cx + 1, cy - 5, 1, 1);
+  // Stuffed Zyrex toy in their arms — small blob with two ear tufts
+  // and a single button-eye (canon: one is missing)
+  ctx.fillStyle = '#4a8a56';   // faded green like an old toy
+  ctx.beginPath();
+  ctx.arc(cx + 1, cy + 3, 3, 0, Math.PI * 2);
+  ctx.fill();
+  // Ear tufts
+  ctx.fillStyle = '#2f5a3a';
+  ctx.fillRect(cx - 1, cy + 1, 1, 1);
+  ctx.fillRect(cx + 2, cy + 1, 1, 1);
+  // Single button-eye (the other is missing)
+  ctx.fillStyle = '#f5dc9c';
+  ctx.fillRect(cx + 1, cy + 2, 1, 1);
+}
+
 // V3.9.1 — Party follower renderer.  Draws the first-slot Zyrex as a
 // glowing orb one tile BEHIND the player, facing the same direction.
 // Position: (player.x - dx, player.y - dy) where (dx, dy) is the
@@ -6720,6 +6832,11 @@ function renderMap() {
   }
   // V2.17 — Homunculus glow (drawn under player, above tiles)
   drawHomunculus(cam);
+  // V3.12 — The Quiet Child.  Rendered at every registered sighting
+  // location on the current map.  Small child sprite + worn stuffed
+  // Zyrex toy.  Drawn BEFORE the player + follower so those render on
+  // top if they overlap (mid-transition frames).
+  drawQuietChildren(cam);
   // V3.9.1 — Party follower: first-slot Zyrex trails the player one tile
   // behind, auto-facing the same direction as the player.  Purely
   // cosmetic — no collision, no blocking, no battle triggers.  Drawn
@@ -8567,6 +8684,8 @@ function tryInteract() {
   // V2.7.5 — first, is a wandering NPC standing on the faced tile?
   const nRuntime = isNpcAt(tx, ty);
   if (nRuntime) { handleNpcTrainer(nRuntime.tile, nRuntime.homeX, nRuntime.homeY); return; }
+  // V3.12 — Quiet Child sighting has priority over generic tile interacts
+  if (isQuietChildAt(game.player.mapId, tx, ty)) { handleQuietChildInteract(); return; }
   const t = tileAt(tx, ty);
   if (t === 'C') {
     // V2.9 · V3.10.2 — Gemlord fights deferred to mid-late game.  Each
@@ -12075,6 +12194,8 @@ document.getElementById('btn-new').onclick = () => {
     passages: {},
     // V3.11.4 — Keeper of the Ancient Oath — first-meet flag
     metFirstKeeper: false,
+    // V3.12 — Quiet Child sighting counter
+    quietChildSightings: 0,
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();

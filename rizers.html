@@ -2747,20 +2747,21 @@ const SPECIES = {
     originalMove: { name: 'The Final Armageddon', type: 'Corrupted', power: 150, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
 
-  // ============ V3.9.1 — PETRAGRYFF (easter egg from Andrannor obelisk) ============
-  // Master Codex canon: Tier IV Legend · Nature / Beast.
+  // ============ V3.9.1 · V3.10 — PETRAGRYFF (easter egg from Andrannor obelisk) ============
+  // Game-canon lock (V3.10): Crystal / Spirit  (retyped from the master
+  // codex's Nature/Beast at user direction — Petragryff's mountain-body
+  // reads more as CRYSTAL, and the "the stone wanted a shape" flavor
+  // pulls the SPIRIT thread out of the codex worldsense).
   // Base: hp 330 · atk 309 · def 325 · spd 155 · spc 213  (Total 1332)
-  // Acquired via the Andrannor obelisk → basement science experiment →
-  // Mom's revival rite easter egg chain.  Never spawns wild.
   petragryff: {
     easterEgg: true,
-    name: 'PETRAGRYFF', type: 'Nature', type2: 'Beast', region: 'Central',
+    name: 'PETRAGRYFF', type: 'Crystal', type2: 'Spirit', region: 'Central',
     base: { hp: 330, atk: 309, def: 325, spd: 155, spc: 213 },
     tier: 4, catchRate: 3, shape: 'winged',
     sprite: ['#9060d0', '#3a2650', '#c8d0dc'],   // amethyst body · granite shadow · sandstone highlight
-    moves: basicMoves('Nature', ['Slabwing Buffet', 'Geodeye Glare', 'Roost of Stones', 'Mountainstep']),
+    moves: basicMoves('Crystal', ['Slabwing Buffet', 'Geodeye Glare', 'Roost of Stones', 'Mountainstep']),
     codex: { archetype: 'VERDANT', epithet: 'The Mountain-Shaped' },
-    originalMove: { name: 'Slabwing Buffet', type: 'Nature', power: 102, cost: 1 },
+    originalMove: { name: 'Slabwing Buffet', type: 'Crystal', power: 102, cost: 1 },
   },
 
   // ============ Gemlord I cave — RAKORON's hunt (Beast-themed) ============
@@ -3133,6 +3134,9 @@ const game = {
     rizerLv: 1,
     rizerXp: 0,
     rizerLvHigh: 1,           // remembered peak for future analytics / titles
+    // V3.10 — Zysphere variants stacked separately so BAG can show a picker.
+    zyspheresVoid: 0,
+    zyspheresUltra: 0,
     // V3.9 — QUESTS.  Keyed by QUEST_DEFS id.  Each entry: { state, acceptedAt, completedAt }.
     quests: {},
     questItemsPicked: {},     // { 'routeId:x,y': true } — collected route items
@@ -7165,13 +7169,18 @@ document.getElementById('items-close').onclick = () => $itemsov.classList.remove
 $itemsov.addEventListener('click', (e) => { if (e.target === $itemsov) $itemsov.classList.remove('active'); });
 
 // ---------- Merchant shop ----------
-// V3.6.1 — Astralite Gems removed from the buy list.  Gems can no
-// longer be purchased; they must be earned in battle / found in the
-// world.  The merchant will still trade coins for excess gems via
-// the SELL section below.
+// V3.6.1 · V3.10 — SHOP_STOCK is now Rizer-Level gated.  Items with
+// rizerLvNeed appear as greyed rows with a lock chip until the player
+// hits the threshold.  This makes the merchant feel like a genuine
+// progression sink: the higher your Rizer Level, the more the shop
+// stocks for you.  Astralite Gems still not purchasable (V3.6.1).
 const SHOP_STOCK = [
-  { key: 'potion',    name: 'Potion',        desc: 'Heals 40 HP outside battle.',                                        price: 5  },
-  { key: 'zysphere',  name: 'Zysphere',      desc: 'Sync-binds a wild Zyrex\'s astralite genetic makeup mid-battle.',    price: 10 },
+  { key: 'potion',        name: 'Potion',         desc: 'Heals 40 HP.',                                                                          price: 5  },
+  { key: 'grand_potion',  name: 'Grand Potion',   desc: 'Heals 100 HP.  Baelgor nurse-grade.',                                                    price: 25,  rizerLvNeed: 5  },
+  { key: 'master_potion', name: 'Master Potion',  desc: 'Full HP + clears status.  Elixir-grade.',                                                price: 60,  rizerLvNeed: 15 },
+  { key: 'zysphere',      name: 'Zysphere',       desc: 'Basic Thardun matrix.  Sync-binds a wild Zyrex.',                                        price: 10 },
+  { key: 'zysphere_void', name: 'Void Zysphere',  desc: 'Void-etched matrix.  +40% sync odds vs the basic sphere.',                                price: 30,  rizerLvNeed: 10 },
+  { key: 'zysphere_ultra',name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                  price: 90,  rizerLvNeed: 25 },
 ];
 function openShop() {
   game.mode = 'shop';
@@ -7182,16 +7191,26 @@ function openShop() {
 function renderShop() {
   const body = document.getElementById('shop-body');
   body.innerHTML = '';
-  document.getElementById('shop-coins').textContent = `¢ ${game.player.coins || 0}  ·  ◈ ${game.player.gems || 0}`;
+  const rLv = game.player.rizerLv || 1;
+  document.getElementById('shop-coins').textContent = `¢ ${game.player.coins || 0}  ·  ◈ ${game.player.gems || 0}  ·  ★ R.Lv ${rLv}`;
   for (const it of SHOP_STOCK) {
+    // V3.10 — Rizer Level gate.  Items above the player's current
+    // R.Lv render greyed with a lock chip; the BUY button is disabled
+    // until they hit the threshold.
+    const rizerLock = it.rizerLvNeed && rLv < it.rizerLvNeed;
+    const canAfford = (game.player.coins || 0) >= it.price;
     const row = document.createElement('div');
     row.className = 'shop-row';
+    const lockChip = rizerLock
+      ? `<span style="color:#ff6a4a; letter-spacing:0.14em; font-weight:600;"> · 🔒 R.Lv ${it.rizerLvNeed}</span>`
+      : '';
+    row.style.opacity = rizerLock ? '0.55' : '1';
     row.innerHTML = `
       <div class="info">
         <div class="name">${it.name}</div>
-        <div class="desc">${it.desc} · <span style="color:var(--gold);">¢ ${it.price}</span></div>
+        <div class="desc">${it.desc} · <span style="color:var(--gold);">¢ ${it.price}</span>${lockChip}</div>
       </div>
-      <button ${(game.player.coins || 0) < it.price ? 'disabled' : ''}>BUY</button>
+      <button ${(!canAfford || rizerLock) ? 'disabled' : ''}>${rizerLock ? 'LOCKED' : 'BUY'}</button>
     `;
     row.querySelector('button').onclick = () => buyItem(it);
     body.appendChild(row);
@@ -7243,13 +7262,18 @@ function sellGems(amount) {
 }
 function buyItem(it) {
   if ((game.player.coins || 0) < it.price) return;
+  // V3.10 — respect the Rizer-Level gate even if the caller bypassed
+  // the disabled button (e.g., stale click during a level-up race).
+  if (it.rizerLvNeed && (game.player.rizerLv || 1) < it.rizerLvNeed) return;
   game.player.coins -= it.price;
   // V3.6.1 — 'gem' branch retained only as a defensive no-op guard;
   // Astralite Gems are no longer purchasable, but if some legacy code
   // path ever calls buyItem({key:'gem'}) it should still credit rather
   // than lose the coin silently.
   if (it.key === 'gem')            game.player.gems      = (game.player.gems      || 0) + 1;
-  else if (it.key === 'zysphere' || it.key === 'gemsphere') game.player.zyspheres = (game.player.zyspheres || 0) + 1;
+  else if (it.key === 'zysphere' || it.key === 'gemsphere') game.player.zyspheres      = (game.player.zyspheres      || 0) + 1;
+  else if (it.key === 'zysphere_void')                       game.player.zyspheresVoid  = (game.player.zyspheresVoid  || 0) + 1;
+  else if (it.key === 'zysphere_ultra')                      game.player.zyspheresUltra = (game.player.zyspheresUltra || 0) + 1;
   else {
     if (!game.player.items) game.player.items = {};
     game.player.items[it.key] = (game.player.items[it.key] || 0) + 1;
@@ -9514,25 +9538,43 @@ function renderZyrexMenu() {
 function renderBagMenu() {
   $battleActions.innerHTML = '';
   const p = game.player.party[game.battle.playerIdx];
-  // V2.13 — Potion (heals active Zyrex +40 HP, costs your turn)
-  const potCount = (game.player.items && game.player.items.potion) || 0;
-  const po = document.createElement('button');
-  po.className = 'action-btn';
-  po.innerHTML = `POTION <span class="cost">×${potCount} · +40 HP → ${p.name}</span>`;
-  if (potCount <= 0 || p.hp >= p.maxHp) po.disabled = true;
-  po.onclick = () => usePotionInBattle();
-  $battleActions.appendChild(po);
-  // V3.1 — ZYSPHERE throw (wild capture).  Shows live catch % based on
-  // the current enemy's HP + tier so the player can weigh the odds.
-  const gs = document.createElement('button');
-  gs.className = 'action-btn';
-  const preview = game.battle.enemy
-    ? Math.round(computeCatchChance(game.battle.enemy, 1.0) * 100)
-    : 0;
-  gs.innerHTML = `OPEN ZYSPHERE <span class="cost">×${game.player.zyspheres || 0}  ·  ${preview}% sync</span>`;
-  if ((game.player.zyspheres || 0) <= 0 || game.battle.kind !== 'wild') gs.disabled = true;
-  gs.onclick = () => activateZysphere();
-  $battleActions.appendChild(gs);
+  const items = game.player.items || {};
+  // V2.13 · V3.10 — Potion variants.  Basic Potion (+40) is the
+  // starter item.  Grand Potion (+100) and Master Potion (full heal
+  // + status clear) unlock at the merchant at higher Rizer Levels.
+  const addPotionBtn = (label, itemKey, healAmt, opts) => {
+    const count = items[itemKey] || 0;
+    const b = document.createElement('button');
+    b.className = 'action-btn';
+    const flavor = opts && opts.masterful
+      ? `×${count} · FULL HEAL + CLEAR STATUS → ${p.name}`
+      : `×${count} · +${healAmt} HP → ${p.name}`;
+    b.innerHTML = `${label} <span class="cost">${flavor}</span>`;
+    if (count <= 0 || p.hp >= p.maxHp) b.disabled = true;
+    b.onclick = () => usePotionInBattle(itemKey, healAmt, opts);
+    $battleActions.appendChild(b);
+  };
+  addPotionBtn('POTION',        'potion',        40);
+  if ((items.grand_potion  || 0) > 0) addPotionBtn('GRAND POTION',  'grand_potion',  100);
+  if ((items.master_potion || 0) > 0) addPotionBtn('MASTER POTION', 'master_potion', 0, { masterful: true });
+  // V3.1 · V3.10 — Zysphere variants (basic + void + ultra).  Each shows
+  // live catch % based on its spherePower.  Buttons are disabled when
+  // count is 0 or the enemy is a trainer.
+  const canCatch = game.battle.kind === 'wild';
+  const addSphereBtn = (variantKey) => {
+    const v = ZYSPHERE_VARIANTS[variantKey];
+    const count = game.player[v.counter] || 0;
+    const preview = game.battle.enemy ? Math.round(computeCatchChance(game.battle.enemy, v.power) * 100) : 0;
+    const b = document.createElement('button');
+    b.className = 'action-btn';
+    b.innerHTML = `OPEN ${v.name} <span class="cost">×${count}  ·  ${preview}% sync</span>`;
+    if (count <= 0 || !canCatch) b.disabled = true;
+    b.onclick = () => activateZysphere(v.key);
+    $battleActions.appendChild(b);
+  };
+  addSphereBtn('basic');
+  if ((game.player.zyspheresVoid  || 0) > 0) addSphereBtn('void');
+  if ((game.player.zyspheresUltra || 0) > 0) addSphereBtn('ultra');
   // V2.8.1 — Equip gems onto the active Zyrex
   const eq = document.createElement('button');
   eq.className = 'action-btn';
@@ -9548,18 +9590,32 @@ function renderBagMenu() {
   focusFirstAction();
 }
 
-// V2.13 — Potion action in battle: +40 HP to active, consumes 1 potion, costs your turn.
-async function usePotionInBattle() {
+// V2.13 · V3.10 — Potion action in battle.  Basic Potion heals +40;
+// Grand Potion +100; Master Potion full heal + status clear.  Each
+// consumes one of the specified item and costs the turn.
+async function usePotionInBattle(itemKey, healAmt, opts) {
+  itemKey  = itemKey || 'potion';
+  healAmt  = (typeof healAmt === 'number') ? healAmt : 40;
+  const isMaster = !!(opts && opts.masterful);
   const p = game.player.party[game.battle.playerIdx];
   if (!game.player.items) game.player.items = { potion: 0 };
-  if ((game.player.items.potion || 0) <= 0) return;
-  if (p.hp >= p.maxHp) return;
+  if ((game.player.items[itemKey] || 0) <= 0) return;
+  if (p.hp >= p.maxHp && !isMaster) return;
   const before = p.hp;
-  p.hp = Math.min(p.maxHp, p.hp + 40);
-  game.player.items.potion--;
+  if (isMaster) {
+    p.hp = p.maxHp;
+    p.status = null;
+  } else {
+    p.hp = Math.min(p.maxHp, p.hp + healAmt);
+  }
+  game.player.items[itemKey]--;
   save();
-  logBattle(`You used a POTION on ${p.name}.`);
-  logBattle(`${p.name} recovered ${p.hp - before} HP.`);
+  const label = itemKey === 'grand_potion'  ? 'GRAND POTION'
+              : itemKey === 'master_potion' ? 'MASTER POTION'
+              :                                'POTION';
+  logBattle(`You used a ${label} on ${p.name}.`);
+  if (isMaster) logBattle(`${p.name} is fully restored — status cleared.`);
+  else          logBattle(`${p.name} recovered ${p.hp - before} HP.`);
   refreshBattleUI();
   await wait(700);
   // Using an item consumes your turn — enemy still gets to move.
@@ -9923,15 +9979,27 @@ function computeCatchChance(enemy, spherePower) {
 // Precise science.  Manufactured by the elite engineer corporate
 // factions of THARDUN — the Mechlands conglomerate that also stamps
 // the Cog Concourse guild seal.
-async function activateZysphere() {
-  game.player.zyspheres = Math.max(0, (game.player.zyspheres || 0) - 1);
+// V3.10 — Zysphere variant metadata.  All three variants use the same
+// activate flow; they differ in the spherePower multiplier fed to
+// computeCatchChance and in flavor.  Purchased at the merchant when
+// Rizer Level reaches the gate.
+const ZYSPHERE_VARIANTS = {
+  basic: { key: 'basic', name: 'ZYSPHERE',       counter: 'zyspheres',      power: 1.0,  flavor: 'Thardun matrix'      },
+  void:  { key: 'void',  name: 'VOID ZYSPHERE',  counter: 'zyspheresVoid',  power: 1.4,  flavor: 'void-etched matrix'  },
+  ultra: { key: 'ultra', name: 'ULTRA ZYSPHERE', counter: 'zyspheresUltra', power: 1.8,  flavor: 'ultramax lattice'    },
+};
+async function activateZysphere(variantKey) {
+  const variant = ZYSPHERE_VARIANTS[variantKey] || ZYSPHERE_VARIANTS.basic;
+  const counter = variant.counter;
+  if ((game.player[counter] || 0) <= 0) return;
+  game.player[counter] = Math.max(0, (game.player[counter] || 0) - 1);
   const e = game.battle.enemy;
-  logBattle('You click the ZYSPHERE open — Thardun matrix hums awake.');
+  logBattle(`You click the ${variant.name} open — ${variant.flavor} hums awake.`);
   await wait(600);
   logBattle(`A reverse-cosmic beam locks onto ${e.name}'s astralite signature...`);
   // 1.5 s cosmic-binding pulse animation on the enemy canvas.
   await syncBindingAnimation(enemyCanvas, 1500);
-  const chance = computeCatchChance(e, 1.0);
+  const chance = computeCatchChance(e, variant.power);
   const roll   = Math.random();
   const pct    = Math.round(chance * 100);
   if (roll < chance) {
@@ -11304,6 +11372,9 @@ document.getElementById('btn-new').onclick = () => {
     rizerLv: 1,
     rizerXp: 0,
     rizerLvHigh: 1,
+    // V3.10 — Zysphere variant counters.
+    zyspheresVoid: 0,
+    zyspheresUltra: 0,
     // V3.9 — Quest state
     quests: {},
     questItemsPicked: {},

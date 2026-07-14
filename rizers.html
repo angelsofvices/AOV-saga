@@ -5365,10 +5365,14 @@ function npcTrainerDefeated(x, y) {
   return false;
 }
 function chestOpened(x, y) {
-  // V2.68 · V2.73 — check both the district-scoped key and the legacy
-  // overworld-only key so pre-V2.68 saves stay compatible.
+  // V2.68 · V2.73 · V3.12.2 — check the fully-qualified instance key
+  // first (so shared interiors like seer_hq_upper don't cross-district
+  // pollute), then fall back to the legacy district-scoped key and the
+  // even-older overworld-only key so pre-V3.12.2 saves keep working.
   const mapId = game.player.mapId;
-  return !!(game.player.chestsOpened[mapId + ':' + x + ',' + y] || game.player.chestsOpened[x + ',' + y]);
+  const iKey  = (typeof currentInstanceKey === 'function') ? currentInstanceKey() : mapId;
+  const flags = game.player.chestsOpened || {};
+  return !!(flags[iKey + ':' + x + ',' + y] || flags[mapId + ':' + x + ',' + y] || flags[x + ',' + y]);
 }
 // V2.73 — tiny hex-to-RGB channel helpers (used by chest sparkle color).
 function _hexParse(hex) {
@@ -9265,13 +9269,29 @@ const INTERIOR_CHEST_LOOT = {
   'silver_lodge:5,4':   { kind: 'potion', amount: 3 },
 };
 function openChest(x, y) {
-  // V2.68 — Chest state is now keyed by (mapId, x, y) so identical
-  // coords in different interiors don't share an 'opened' flag.
+  // V2.68 · V3.12.2 — Chest state is now keyed by the fully-qualified
+  // INSTANCE key so identical coords in SHARED interiors (seer_hq_upper,
+  // seer_hq_basement, seer_hq_main, town halls, home floors, cottages
+  // when they're shared) don't share an 'opened' flag across districts.
+  // Previously mapId alone was used, which meant opening the Ministry
+  // chest in Malezor's Ministry marked the Zarvane / Andrannor / etc.
+  // copies as already-opened too — blocking the Vorhil / Mirax / etc.
+  // hall-passage drops and locking those districts' Keeper quests.
   const mapId = game.player.mapId;
-  const key   = mapId + ':' + x + ',' + y;
-  // Legacy overworld-chest key kept for backward-compatible saves.
-  const legacyKey = x + ',' + y;
-  if (game.player.chestsOpened[key] || game.player.chestsOpened[legacyKey]) {
+  const iKey  = (typeof currentInstanceKey === 'function') ? currentInstanceKey() : mapId;
+  const key   = iKey + ':' + x + ',' + y;
+  // Legacy keys kept for backward-compatible saves:
+  //   - mapId + ':' + coord  (pre-V3.12.2 chest-open format)
+  //   - bare  coord           (pre-V2.68 overworld-only format)
+  const legacyMapKey = mapId + ':' + x + ',' + y;
+  const legacyBareKey = x + ',' + y;
+  // V3.12.2 — The Ministry passage chest (seer_hq_upper @ 7,2) manages
+  // its own already-opened state internally via game.player.passages
+  // (per district).  Bypass the generic already-opened check for it so
+  // legacy chestsOpened pollution from pre-V3.12.2 runs can't
+  // permanently block Zarvane's / Andrannor's / etc. copy of the chest.
+  const isMinistryPassageChest = (mapId === 'seer_hq_upper' && x === 7 && y === 2);
+  if (!isMinistryPassageChest && (game.player.chestsOpened[key] || game.player.chestsOpened[legacyMapKey] || game.player.chestsOpened[legacyBareKey])) {
     showDialog(['This chest is empty.']);
     return;
   }
@@ -9363,17 +9383,22 @@ function openChest(x, y) {
     });
     return;
   }
-  // V2.73 — Randomized loot at first-open, persisted per-save.
+  // V2.73 · V3.12.2 — Randomized loot at first-open, persisted per-save.
   // Priority order:
-  //   1. INTERIOR_CHEST_LOOT (hand-set interior chests — silver_lodge etc.)
-  //   2. CHEST_LOOT          (legacy Malezor overworld fixed drops)
-  //   3. game.player.chestLoot[key]  (previously rolled random)
-  //   4. Roll a new random drop (30% potion / 30% gemsphere / 40% coins),
-  //      amount scaled by district tier, and persist the result.
+  //   1. INTERIOR_CHEST_LOOT — hand-set interior chests (bronze_cottage,
+  //      silver_lodge, etc.).  Indexed by the LEGACY 'mapId:x,y' format
+  //      so we try that key first even under the new instance scoping.
+  //   2. CHEST_LOOT — legacy Malezor overworld fixed drops (bare coord).
+  //   3. game.player.chestLoot[<any-matching-key>] — previously rolled
+  //      random loot.  Check the new instance key first, then fall back
+  //      to the legacy formats so pre-V3.12.2 saves keep their rolls.
+  //   4. Roll a new random drop; persist under the new instance key.
   game.player.chestLoot = game.player.chestLoot || {};
-  let loot = INTERIOR_CHEST_LOOT[key]
-          || CHEST_LOOT[legacyKey]
-          || game.player.chestLoot[key];
+  let loot = INTERIOR_CHEST_LOOT[legacyMapKey]
+          || CHEST_LOOT[legacyBareKey]
+          || game.player.chestLoot[key]
+          || game.player.chestLoot[legacyMapKey]
+          || game.player.chestLoot[legacyBareKey];
   if (!loot) {
     loot = rollChestLoot(mapId);
     game.player.chestLoot[key] = loot;

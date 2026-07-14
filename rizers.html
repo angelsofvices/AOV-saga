@@ -3588,6 +3588,53 @@ const DISTRICT_META = {
 };
 const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
 
+// V3.13 — LODGE NAMES per district.  Each district has TWO locked
+// buildings; names run a loose metal-rarity progression from Bronze /
+// Silver at Malezor up to Orichalcum / Astralite at Korathen.  Slot A
+// = 'p' door -> bronze_cottage interior (except Zarvane which routes
+// to 'P' -> sunlit_cottage to preserve the Computer Part canon).
+// Slot B = 'q' door -> silver_lodge interior.  Interior maps are still
+// shared (a future ship can carve unique interiors); what differs is
+// the exterior name, the HUD label, the locked-door dialog, and the
+// chest-loot scale.  Key gates (bronze/silver) stay universal for now.
+const DISTRICT_LODGES = {
+  malezor:   [{ name: 'Bronze Cottage',        keyName: 'bronze' }, { name: 'Silver Lodge',        keyName: 'silver' }],
+  zarvane:   [{ name: 'Sunlit Way Cottage',    keyName: 'bronze' }, { name: 'Gold Lodge',          keyName: 'silver' }],
+  andrannor: [{ name: 'Iron Cottage',          keyName: 'bronze' }, { name: 'Electrum Lodge',      keyName: 'silver' }],
+  veridan:   [{ name: 'Copper Cottage',        keyName: 'bronze' }, { name: 'Platinum Lodge',      keyName: 'silver' }],
+  netharion: [{ name: 'Nickel Cottage',        keyName: 'bronze' }, { name: 'Palladium Lodge',     keyName: 'silver' }],
+  vorashil:  [{ name: 'Tin Cottage',           keyName: 'bronze' }, { name: 'Rhodium Lodge',       keyName: 'silver' }],
+  xilnar:    [{ name: 'Cobalt Cottage',        keyName: 'bronze' }, { name: 'Iridium Lodge',       keyName: 'silver' }],
+  baelgor:   [{ name: 'Chromium Cottage',      keyName: 'bronze' }, { name: 'Osmium Lodge',        keyName: 'silver' }],
+  thardin:   [{ name: 'Titanium Cottage',      keyName: 'bronze' }, { name: 'Adamant Lodge',       keyName: 'silver' }],
+  korathen:  [{ name: 'Orichalcum Cottage',    keyName: 'bronze' }, { name: 'Astralite Lodge',     keyName: 'silver' }],
+};
+// Return the lodge metadata for a given (district, slotChar) pair.
+// slotChar is 'p' (or 'P' for Zarvane's Sunlit Way) = slot 0, 'q' = slot 1.
+function lodgeMetaFor(districtId, slotChar) {
+  const lodges = DISTRICT_LODGES[districtId];
+  if (!lodges) return null;
+  const idx = (slotChar === 'q') ? 1 : 0;
+  return lodges[idx];
+}
+
+// V3.13 — Each district's Seer Ministry gets a gemshard-named title
+// shown in the HUD when entering the shared seer_hq_* interiors.
+// Interior maps stay shared for now; the label change alone gives the
+// player a strong sense that each Ministry is a different place.
+const SEER_MINISTRY_NAMES = {
+  malezor:   'Ministry of the Ruby',
+  zarvane:   'Ministry of the Pearl',
+  andrannor: 'Ministry of the Citrine',
+  veridan:   'Ministry of the Emerald',
+  netharion: 'Ministry of the Amethyst',
+  vorashil:  'Ministry of the Sapphire',
+  xilnar:    'Ministry of the Onyx',
+  baelgor:   'Ministry of the Amber',
+  thardin:   'Ministry of the Anomaly',
+  korathen:  'Ministry of the Ultra',
+};
+
 // V3.10.7 — TOWN-HALL PASSAGE ITEMS.  Each district's Town Hall 'D'
 // door is now gated by a district-flavored passage item.  Player
 // receives the passage on their FIRST npc-trainer defeat within that
@@ -4833,23 +4880,25 @@ function generateDistrictMap(mapId) {
       gg++;
     }
   }
-  // Locked buildings — 2x2 footprint.
-  // V3.9.1 — Zarvane gets a Sunlit Way Cottage ('P' → sunlit_cottage) so
-  // its locked building doesn't reuse Malezor's Bronze Cottage interior.
-  // Other districts still stub with 'p' → bronze_cottage until they get
-  // their own themed cottages in a later pass.
-  const buildingDoorChar = (mapId === 'zarvane') ? 'P' : 'p';
-  for (let b = 0; b < buildingTarget; b++) {
+  // V3.13 — TWO locked lodges per district II-X.  Slot A uses 'p'
+  // (or 'P' for Zarvane's Sunlit Way, preserving the Computer Part
+  // canon).  Slot B uses 'q'.  Interior maps are still shared; names
+  // + labels differ per district via DISTRICT_LODGES.
+  const slotADoor = (mapId === 'zarvane') ? 'P' : 'p';
+  const slotBDoor = 'q';
+  const lodgeDoors = [slotADoor, slotBDoor];
+  for (let b = 0; b < lodgeDoors.length; b++) {
+    const doorChar = lodgeDoors[b];
     let placed = false;
-    for (let tries = 0; tries < 40 && !placed; tries++) {
+    for (let tries = 0; tries < 60 && !placed; tries++) {
       const x = pick(4, cols - 6);
       const y = pick(3, rows - 4);
       // Need a 2x2 footprint of ',' tiles.
       const clear = (grid[y][x] === ',' && grid[y][x+1] === ',' &&
                      grid[y+1][x] === ',' && grid[y+1][x+1] === ',');
       if (!clear) continue;
-      grid[y][x]     = 'h'; grid[y][x+1]   = 'h';    // roof
-      grid[y+1][x]   = buildingDoorChar; grid[y+1][x+1] = 'h';    // door + wall
+      grid[y][x]     = 'h'; grid[y][x+1]   = 'h';       // roof
+      grid[y+1][x]   = doorChar; grid[y+1][x+1] = 'h';  // door + wall
       placed = true;
     }
   }
@@ -5223,7 +5272,9 @@ function enterMap(mapId, spawnX, spawnY, dir) {
   if (dir) game.player.dir = dir;
   delete game.npcs;   // rebuild for the new map
   ensureNpcRuntime();
-  setHudLocation(m.label);
+  // V3.13 — hudLabelFor resolves per-district labels for lodges +
+  // Seer Ministries; falls through to m.label for everything else.
+  setHudLocation(hudLabelFor(mapId));
   save();
   refreshMusicContext();   // V2.12 — home_interior -> home, else overworld
   // V3.11 — WORLD CONSEQUENCE beat: first re-entry into a district
@@ -8445,7 +8496,7 @@ function triggerDoor(tileChar, doorX, doorY) {
       label: 'Seer Ministry',
     };
     enterMap(target.map, target.x, target.y, target.dir);
-    setHudLocation('Seer Ministry · Main');
+    // V3.13 — hudLabelFor already runs inside enterMap; no manual override needed.
     return;
   }
   // V2.69 / V2.74 · V3.10.7 — Town Hall door: gated by the district's
@@ -8526,6 +8577,16 @@ const DISTRICT_BUILDING_LABELS = {
 };
 function districtBuildingLabel(target) {
   const districtId = game.player.mapId;
+  // V3.13 — Prefer the DISTRICT_LODGES metal-progression name.  The
+  // target.key (bronze | silver) maps to slot 0 | slot 1 in the
+  // lodges array.  Falls back to the older DISTRICT_BUILDING_LABELS
+  // map only if the district has no lodge metadata (shouldn't happen
+  // for any of the 10 canonical districts).
+  const lodges = DISTRICT_LODGES[districtId];
+  if (lodges) {
+    const slotIdx = target.key === 'silver' ? 1 : 0;
+    if (lodges[slotIdx]) return lodges[slotIdx].name;
+  }
   const key = target.key;
   const per = DISTRICT_BUILDING_LABELS[districtId];
   if (per && key && per[key]) return per[key];
@@ -12004,6 +12065,39 @@ function setHudLocation(label) {
   const l1 = parts[0] || '';
   const l2 = parts.slice(1).join(' · ');   // preserve extra dots as line-2
   el.innerHTML = `<span class="l1">${l1}</span><span class="l2">${l2}</span>`;
+}
+// V3.13 — Resolve the correct HUD label for a map, folding in the
+// source district (enteredInteriorFrom.map) for interiors where the
+// map is SHARED across districts.  Cottages get the district's metal-
+// progression lodge name (Bronze / Sunlit Way / Iron / Copper / etc.).
+// Seer HQ floors get the gemshard-named Ministry title
+// ('Malezor Ministry of the Ruby · Basement', etc.).  Everything else
+// falls through to the map's static label.
+function hudLabelFor(mapId) {
+  const m = MAPS[mapId];
+  if (!m) return '';
+  const from = game.player && game.player.enteredInteriorFrom;
+  const fromDistrict = from && from.map;
+  // Cottage interiors — resolve per district via DISTRICT_LODGES.
+  if ((mapId === 'bronze_cottage' || mapId === 'silver_lodge' || mapId === 'sunlit_cottage') && fromDistrict) {
+    const lodges = DISTRICT_LODGES[fromDistrict];
+    if (lodges) {
+      const districtName = (DISTRICT_META[fromDistrict] || {}).name || fromDistrict;
+      // sunlit_cottage is always slot 0 (Zarvane only); silver_lodge = slot 1; bronze_cottage = slot 0.
+      const slotIdx = (mapId === 'silver_lodge') ? 1 : 0;
+      const name = (lodges[slotIdx] && lodges[slotIdx].name) || m.label;
+      return `${districtName} · ${name}`;
+    }
+  }
+  // Seer HQ interiors — gemshard-named Ministry title with floor suffix.
+  if ((mapId === 'seer_hq_main' || mapId === 'seer_hq_basement' || mapId === 'seer_hq_upper') && fromDistrict) {
+    const ministry = SEER_MINISTRY_NAMES[fromDistrict] || 'Seer Ministry';
+    const floor = mapId === 'seer_hq_main'     ? 'Main'
+                : mapId === 'seer_hq_basement' ? 'Basement'
+                :                                 'Upper';
+    return `${ministry} · ${floor}`;
+  }
+  return m.label;
 }
 function updateHUD() {
   // V3.10.8 — HUD reduced to four badges (location · R.Lv · coins ·

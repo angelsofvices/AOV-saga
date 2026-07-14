@@ -2785,6 +2785,38 @@ const SPECIES = {
     originalMove: { name: 'Slabwing Buffet', type: 'Crystal', power: 102, cost: 1 },
   },
 
+  // ============ V3.12.1 — VENGRIZZ (Quiet Child easter egg) ============
+  // Master Codex canon (unchanged): Tier IV Legend · Spirit / Creature.
+  // Base: hp 383 · atk 341 · def 224 · spd 96 · spc 288  (Total 1332)
+  // Class: Beastmaster · Archetype: PHANTASM.
+  //
+  // Worldsense (codex): 'This teddy bear spirit was born from a grief
+  // that refused to fade, its form growing with every surge of anger
+  // and sorrow.  It is said that no limit exists to its size — only the
+  // depth of the pain that fuels it.  When calm, it shrinks to
+  // something almost innocent; but when awakened, it becomes a towering
+  // force that crushes everything in its path.'
+  //
+  // In-game: acquired EXCLUSIVELY via the Quiet Child's post-endgame
+  // forgiveness beat — the child's worn stuffed Zyrex toy IS a nascent
+  // Vengrizz, kept small by grief that had not yet been allowed to
+  // resolve.  Once the child speaks (post-Xenoxil, per canon), the
+  // toy awakens and becomes a bound partner.  Never spawns wild; never
+  // catchable through any other path.
+  vengrizz: {
+    easterEgg: true,
+    name: 'VENGRIZZ', type: 'Spirit', type2: 'Creature', region: 'Central',
+    base: { hp: 383, atk: 341, def: 224, spd: 96, spc: 288 },
+    tier: 4, catchRate: 3, shape: 'quadruped',
+    sprite: ['#4a8a56', '#2a4a32', '#f5dc9c'],   // faded-teddy green · shadow · single button-eye gold
+    // Codex-canonical moves: Bear Hug Destruction (Spirit), Rock N' Roll
+    // Rampage (Fire flavor), Teddy Tantrum (grief-tantrum apex), and
+    // Soulcall of the Vengrizz as the signature slot.
+    moves: basicMoves('Spirit', ['Bear Hug Destruction', 'Rock N\' Roll Rampage', 'Teddy Tantrum', 'Soulcall of the Vengrizz']),
+    codex: { archetype: 'PHANTASM', epithet: 'The Teddy Bear Spirit' },
+    originalMove: { name: 'Soulcall of the Vengrizz', type: 'Spirit', power: 120, cost: 3 },
+  },
+
   // ============ Gemlord I cave — RAKORON's hunt (Beast-themed) ============
   // Two Beast-primary Basics from his hunt, then RAKORON himself in ruby fury.
   sunhoop: {     // Beast/Aura · Western · crown-crested Hoopoe · Gen I Primary
@@ -3171,6 +3203,9 @@ const game = {
     metFirstKeeper: false,
     // V3.12 — how many times has the player crossed paths with the Quiet Child?
     quietChildSightings: 0,
+    // V3.12.1 — Quiet Child arc endgame flags
+    quietChildForgiven: false,   // has the forgiveness beat fired?
+    xenoxilDefeated: false,      // set when the endgame lands; unlocks the forgiveness beat
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -3898,11 +3933,13 @@ function isQuietChildAt(mapId, x, y) {
   return false;
 }
 // Quiet-Child interact — rotating pool of silent-observation lines.
-// The child NEVER speaks until the late-game battle beat (deferred to
-// a future ship).  Each interact bumps a per-player sighting counter
-// and picks a line from the pool based on that counter — earlier lines
-// are pure observation, later lines carry the "you know this is
-// impossible" recognition.
+// V3.12.1 canon lock: THE PLAYER NEVER BATTLES THE CHILD.  Ever.  The
+// child is a pure easter-egg arc for one thing only: Vengrizz.
+// Post-endgame (game.player.xenoxilDefeated), the next interact fires
+// the forgiveness beat, the child finally speaks, their stuffed Zyrex
+// toy AWAKENS as a bound Vengrizz, and they hand it to the player.
+// Vengrizz is exclusively obtainable this way — no wild spawn, no
+// merchant, no chest.  Their grief becomes your partner.
 const QUIET_CHILD_LINES = [
   ['A CHILD.',                                   'They stand very still.  They watch you.',                                                     'The stuffed Zyrex toy hangs limp in their arms.  One button-eye is missing.'],
   ['The child is here again.',                    'You wave.  They do not wave back.',                                                            'The toy has been mended.  Poorly.  Lovingly.'],
@@ -3913,11 +3950,52 @@ const QUIET_CHILD_LINES = [
 ];
 function handleQuietChildInteract() {
   if (!game.player) return;
+  // V3.12.1 — Forgiveness / Vengrizz beat.  Fires exactly once, after
+  // Xenoxil has been defeated (endgame flag) and the child has NOT yet
+  // been forgiven.  No battle.  The gift is the whole scene.
+  if (game.player.xenoxilDefeated && !game.player.quietChildForgiven) {
+    grantVengrizzFromQuietChild();
+    return;
+  }
+  // Pre-endgame (or post-forgiveness relapse): silent observation pool.
   const idx = game.player.quietChildSightings || 0;
   const line = QUIET_CHILD_LINES[Math.min(idx, QUIET_CHILD_LINES.length - 1)];
   game.player.quietChildSightings = idx + 1;
   save();
   showDialog(line);
+}
+// V3.12.1 — Forgiveness cutscene + Vengrizz bind.  Fires from the Quiet
+// Child interact when the Xenoxil endgame flag is up.  The child finally
+// speaks.  Their stuffed toy awakens.  Vengrizz joins the player at
+// Lv 40 (Tier IV Legend — the child's grief was a big grief).
+function grantVengrizzFromQuietChild() {
+  showDialog([
+    'The child looks up at you.  Really looks.',
+    'For the first time, their eyes stop moving past you.',
+    '"I thought you were with them."',
+    'Their voice is smaller than you expected, and older.',
+    '"I saw you go into the Ministry doors.  I saw you every time.  I thought you were with them."',
+    'They pull the stuffed Zyrex toy tight against their chest.',
+    '"My mother made this.  Before they took her.  She said grief is a shape that wants a body."',
+    "The toy stirs in their arms.  You would swear it does.  Then it does again.",
+    '"I know now.  I saw the Ministry\'s eye go dark.  I know what you did."',
+    '"Thank you."',
+    'They walk to you.  They hold the toy out at arm\'s length like a lantern.',
+    "The stuffing thickens.  The single button-eye brightens.  A second one blinks open beside it.",
+    'A slow warm growl fills the space between you — small.  Then not so small.',
+    'The child says one more thing before they turn to leave.',
+    '"Her name is VENGRIZZ.  She grew every time I cried.  I need her to stop growing now.  You take her."',
+    '«◈ VENGRIZZ (Lv 40) has joined your party.»',
+  ], () => {
+    game.player.quietChildForgiven = true;
+    const zy = makeZyrex('vengrizz', 40);
+    const partySlots = game.player.party.filter(Boolean).length;
+    if (partySlots < MAX_PARTY) game.player.party.push(zy);
+    else                        game.player.box.push(zy);
+    markCaught('vengrizz');
+    save();
+    showToast('◈  VENGRIZZ  ·  the child\'s grief is your partner now', 3400);
+  });
 }
 
 const SHRINES = {
@@ -12196,6 +12274,9 @@ document.getElementById('btn-new').onclick = () => {
     metFirstKeeper: false,
     // V3.12 — Quiet Child sighting counter
     quietChildSightings: 0,
+    // V3.12.1 — Quiet Child arc endgame flags
+    quietChildForgiven: false,
+    xenoxilDefeated: false,
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();

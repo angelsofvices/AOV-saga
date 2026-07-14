@@ -5421,6 +5421,22 @@ function chestOpened(x, y) {
   // pollute), then fall back to the legacy district-scoped key and the
   // even-older overworld-only key so pre-V3.12.2 saves keep working.
   const mapId = game.player.mapId;
+  // V3.13.1 — SPECIAL CASE for the Ministry passage chest at
+  // seer_hq_upper (7,2).  It manages its own state via
+  // game.player.passages[districtPassageKey] (per source district).
+  // Report "opened" ONLY if this district's passage has already been
+  // claimed — never based on the polluted global chestsOpened flag,
+  // so pre-V3.12.2 saves that flagged 'seer_hq_upper:7,2' from an
+  // earlier district's run can't render the chest walkable / hidden
+  // in later districts.  Without this override the chest becomes
+  // walkable (walkable() lets you step through opened chests), and
+  // the player can never face it to press A on it.
+  if (mapId === 'seer_hq_upper' && x === 7 && y === 2) {
+    const from = game.player && game.player.enteredInteriorFrom;
+    const fromDistrict = from && from.map;
+    const p = fromDistrict && (typeof HALL_PASSAGES !== 'undefined' ? HALL_PASSAGES[fromDistrict] : null);
+    return !!(p && game.player.passages && game.player.passages[p.key]);
+  }
   const iKey  = (typeof currentInstanceKey === 'function') ? currentInstanceKey() : mapId;
   const flags = game.player.chestsOpened || {};
   return !!(flags[iKey + ':' + x + ',' + y] || flags[mapId + ':' + x + ',' + y] || flags[x + ',' + y]);

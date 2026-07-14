@@ -2269,65 +2269,135 @@ function playerPalette() {
   // V2.50 — Seer removed as a selectable player type; fall back to 'boy'.
   const g = (game.player && game.player.gender) || 'boy';
   const base = GENDER_PALETTE[g] || GENDER_PALETTE.boy;
-  // V2.37 — outfit override. If the player picked a shirt color at the dresser,
-  // that overrides the gender-default primary color.
-  const shirt = game.player && game.player.shirt;
-  if (shirt) return Object.assign({}, base, { primary: shirt });
-  return base;
+  // V2.37 — outfit override.  V3.15.2 — shirt / hair / pants all pull
+  // from the same shirt-palette so the whole outfit reads together.
+  const out = Object.assign({}, base);
+  if (game.player) {
+    if (game.player.shirt) out.primary = game.player.shirt;
+    if (game.player.hair)  out.accent  = game.player.hair;
+    if (game.player.pants) out.pants   = game.player.pants;
+  }
+  return out;
 }
 
-// V2.37 — shirt color choices for the basement dresser.
+// V2.37 · V3.15.2 — Each shirt now carries an ordered PALETTE of ~5
+// colors (base tone + coordinated shades) that the player can mix and
+// match across shirt / hair / pants.  Picking a shirt sets a default
+// hair + pants combo within the palette, and the dresser lets the
+// player re-roll any slot.  drawCharacter's spiky-hair renderer
+// already accepts a color argument via drawPlayer -> playerPalette.
 const SHIRT_COLORS = [
-  { id: 'sky',       name: 'Sky',       hex: '#5fa8ff' },
-  { id: 'ember',     name: 'Ember',     hex: '#ff8a4c' },
-  { id: 'forest',    name: 'Forest',    hex: '#4a8a44' },
-  { id: 'amethyst',  name: 'Amethyst',  hex: '#b87cff' },
-  { id: 'crimson',   name: 'Crimson',   hex: '#c8384a' },
-  { id: 'gold',      name: 'Gold',      hex: '#e8c878' },
-  { id: 'ivory',     name: 'Ivory',     hex: '#f8ecc8' },
-  { id: 'void',      name: 'Void',      hex: '#4a1e5c' },
+  { id: 'sky',      name: 'Sky',       hex: '#5fa8ff', palette: ['#5fa8ff', '#3a7bcc', '#8ac8ff', '#1e3f66', '#c8e0ff'] },
+  { id: 'ember',    name: 'Ember',     hex: '#ff8a4c', palette: ['#ff8a4c', '#c25a1c', '#ffcf8f', '#6a2810', '#ffe4c0'] },
+  { id: 'forest',   name: 'Forest',    hex: '#4a8a44', palette: ['#4a8a44', '#2f5a2a', '#8ec080', '#1a3018', '#c8e6b8'] },
+  { id: 'amethyst', name: 'Amethyst',  hex: '#b87cff', palette: ['#b87cff', '#7a4dcf', '#d8b8ff', '#3a1a5c', '#eddaff'] },
+  { id: 'crimson',  name: 'Crimson',   hex: '#c8384a', palette: ['#c8384a', '#8a1820', '#ff7a86', '#5a0810', '#ffb8bc'] },
+  { id: 'gold',     name: 'Gold',      hex: '#e8c878', palette: ['#e8c878', '#a8843c', '#ffdc90', '#6a4a1c', '#fff2c8'] },
+  { id: 'ivory',    name: 'Ivory',     hex: '#f8ecc8', palette: ['#f8ecc8', '#c8b884', '#fff5db', '#8a7a48', '#ffffff'] },
+  { id: 'void',     name: 'Void',      hex: '#4a1e5c', palette: ['#4a1e5c', '#2a0c38', '#7a3a8c', '#150420', '#a86bc0'] },
 ];
+// V3.15.2 — Deterministic default outfit for a given shirt.  Picking
+// the shirt at the dresser applies this trio by default.  Player can
+// then re-roll hair or pants independently from the same palette.
+function defaultOutfitFor(shirt) {
+  const p = shirt.palette;
+  // Base tone shirt, mid-tone hair (shade 2), dark-tone pants (shade 3).
+  return { shirt: p[0], hair: p[2], pants: p[3] };
+}
 function interactDresser() {
-  const nm = game.player.name || 'you';
   const lines = [
     'You open the dresser.',
-    'Shirts hang neatly. Pick a color for today.',
+    'Shirts on the left, hair dyes in a small case, spare pants folded on the right.',
+    'Pick a shirt first — everything else fits its palette.',
   ];
-  // Build the choices as a repeating dialog — simpler than a custom overlay.
-  // Player advances to see options, then use the party-menu overlay via a helper.
-  showDialog(lines, openShirtPicker);
+  showDialog(lines, () => openOutfitPicker('shirt'));
 }
-function openShirtPicker() {
-  // Reuse the shop overlay pattern — build a small chooser inline.
+// V3.15.2 — Mode-switching outfit picker.  Three tabs: SHIRT, HAIR,
+// PANTS.  Picking a shirt locks the palette to that shirt's 5-color
+// set and immediately applies the default outfit (shirt + hair + pants
+// all from the palette).  From then on the HAIR + PANTS tabs let the
+// player pick any of the 5 shades from the current palette for that
+// slot, so you can mix and match freely within a coordinated look.
+function openOutfitPicker(mode) {
   const overlay = document.getElementById('items-overlay');
   const body    = document.getElementById('items-body');
   clearHeldKeys();
   overlay.classList.add('active');
   const header = overlay.querySelector('.mainmenu-title');
-  if (header) header.textContent = 'Dresser · Shirt Color';
   body.innerHTML = '';
-  SHIRT_COLORS.forEach(c => {
+  // Header row with the three tabs.
+  const tabs = document.createElement('div');
+  tabs.style.cssText = 'display:flex; gap:6px; margin-bottom:12px;';
+  ['shirt', 'hair', 'pants'].forEach(m => {
+    const btn = document.createElement('button');
+    btn.textContent = m.toUpperCase();
+    btn.style.cssText = `flex:1; padding:6px 8px; border:1px solid ${m === mode ? 'var(--gold-bright)' : 'var(--border-soft)'}; background:${m === mode ? 'rgba(232,200,120,0.15)' : 'transparent'}; color:${m === mode ? 'var(--gold-bright)' : 'var(--ivory)'}; letter-spacing:0.18em; font-size:12px; cursor:pointer;`;
+    btn.onclick = () => openOutfitPicker(m);
+    tabs.appendChild(btn);
+  });
+  body.appendChild(tabs);
+  if (header) header.textContent = 'Dresser · ' + (mode[0].toUpperCase() + mode.slice(1));
+  // If we're in shirt mode OR the player hasn't picked a shirt yet,
+  // show all 8 shirt colors.  Otherwise show the 5 shades from the
+  // current shirt's palette for hair / pants.
+  const currentShirt = SHIRT_COLORS.find(c => c.hex === (game.player && game.player.shirt));
+  if (mode === 'shirt' || !currentShirt) {
+    SHIRT_COLORS.forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      row.setAttribute('tabindex', '0');
+      row.innerHTML = `
+        <div class="info">
+          <div class="name">
+            <span style="display:inline-block;width:14px;height:14px;border:1px solid rgba(255,255,255,0.35);background:${c.hex};margin-right:8px;vertical-align:middle;"></span>
+            ${c.name}
+          </div>
+          <div class="desc">Palette: ${c.palette.slice(1, 4).map(h => `<span style="display:inline-block;width:10px;height:10px;background:${h};border:1px solid rgba(0,0,0,0.4);margin-right:3px;"></span>`).join('')}</div>
+        </div>
+        <button>WEAR</button>
+      `;
+      const btn = row.querySelector('button');
+      btn.onclick = () => {
+        const outfit = defaultOutfitFor(c);
+        game.player.shirt = outfit.shirt;
+        game.player.hair  = outfit.hair;
+        game.player.pants = outfit.pants;
+        save();
+        showToast(`◈  Outfit: ${c.name}`, 1400);
+        openOutfitPicker('shirt');
+      };
+      row.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
+          ev.preventDefault(); btn.click();
+        }
+      });
+      body.appendChild(row);
+    });
+    return;
+  }
+  // Hair / pants slot picker — 5 shades from current shirt palette.
+  const slotKey = mode;   // 'hair' | 'pants'
+  currentShirt.palette.forEach((hex, i) => {
+    const shadeName = ['Base', 'Deep', 'Bright', 'Shadow', 'Highlight'][i] || `Shade ${i}`;
     const row = document.createElement('div');
     row.className = 'item-row';
     row.setAttribute('tabindex', '0');
     row.innerHTML = `
       <div class="info">
         <div class="name">
-          <span style="display:inline-block;width:14px;height:14px;border:1px solid rgba(255,255,255,0.35);background:${c.hex};margin-right:8px;vertical-align:middle;"></span>
-          ${c.name}
+          <span style="display:inline-block;width:14px;height:14px;border:1px solid rgba(255,255,255,0.35);background:${hex};margin-right:8px;vertical-align:middle;"></span>
+          ${currentShirt.name} · ${shadeName}
         </div>
-        <div class="desc">Tap USE to wear.</div>
+        <div class="desc">Apply this shade to your ${slotKey}.</div>
       </div>
-      <button>USE</button>
+      <button>APPLY</button>
     `;
     const btn = row.querySelector('button');
     btn.onclick = () => {
-      game.player.shirt = c.hex;
+      game.player[slotKey] = hex;
       save();
-      overlay.classList.remove('active');
-      // Restore inventory title for the next opening.
-      if (header) header.textContent = 'Inventory';
-      showToast(`◈  Shirt: ${c.name}`, 1400);
+      showToast(`◈  ${slotKey.toUpperCase()}: ${currentShirt.name} · ${shadeName}`, 1400);
+      openOutfitPicker(mode);
     };
     row.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
@@ -3269,6 +3339,13 @@ const game = {
     titleSavior: false,          // 'Savior of the World' title earned?
     // V3.15.1 — Aurabeast pre-starter easter egg latch
     aurabeastGiftGiven: false,
+    // V3.15.2 — kitchen easter-egg tracking + district visit set
+    metFridge: false,
+    metStove: false,
+    districtsVisited: {},
+    // V3.15.2 — outfit slots (shirt already existed as game.player.shirt)
+    hair:  null,
+    pants: null,
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -5340,6 +5417,15 @@ function enterMap(mapId, spawnX, spawnY, dir) {
   setHudLocation(hudLabelFor(mapId));
   save();
   refreshMusicContext();   // V2.12 — home_interior -> home, else overworld
+  // V3.15.2 — Stamp districtsVisited on first entry so the quests
+  // overlay knows which shrine rows to show.
+  if (DISTRICT_ORDER.includes(mapId)) {
+    game.player.districtsVisited = game.player.districtsVisited || {};
+    if (!game.player.districtsVisited[mapId]) {
+      game.player.districtsVisited[mapId] = true;
+      save();
+    }
+  }
   // V3.11 — WORLD CONSEQUENCE beat: first re-entry into a district
   // AFTER its Seer Commander has fallen fires a hopeful arrival toast
   // + a one-time recovery dialog.  One-time per district, tracked
@@ -6858,10 +6944,13 @@ function drawCharacter(cx, cy, dir, primary, accent, opts) {
   // head
   ctx.fillStyle = '#f5dc9c';
   ctx.fillRect(x + 6, y + 2, w - 12, 8);
-  // V3.10.5 — hair.  Player gets SHORT SPIKY BLUE hair (opts.spiky true).
-  // NPCs keep the flat rectangle hair/hat.
+  // V3.10.5 · V3.15.2 — hair.  Player gets SHORT SPIKY hair when
+  // opts.spiky is set; color comes from opts.hair (V3.15.2 outfit
+  // palette) if provided, otherwise the character's accent.  A
+  // matching lighter highlight is derived from the hair color.
   if (opts && opts.spiky) {
-    ctx.fillStyle = '#3aa8ff';   // spiky-blue
+    const hairColor = (opts.hair) || accent || '#3aa8ff';
+    ctx.fillStyle = hairColor;
     // Base hair band
     ctx.fillRect(x + 6, y + 1, w - 12, 3);
     // 4 spikes upward — jagged silhouette
@@ -6893,9 +6982,12 @@ function drawCharacter(cx, cy, dir, primary, accent, opts) {
     ctx.lineTo(x + 16, y + 1);
     ctx.closePath();
     ctx.fill();
-    // Highlight streak on the tallest spike
-    ctx.fillStyle = '#7bd0ff';
+    // Highlight streak on the tallest spike — derive from hair color:
+    // fall back to a fixed light-blue if no hair color given.
+    ctx.fillStyle = (opts && opts.hair) ? opts.hair : '#7bd0ff';
+    ctx.globalAlpha = 0.75;
     ctx.fillRect(x + 13, y - 4, 1, 3);
+    ctx.globalAlpha = 1;
   } else {
     // hair/hat — NPC flat band (unchanged)
     ctx.fillStyle = accent;
@@ -6915,9 +7007,14 @@ function drawCharacter(cx, cy, dir, primary, accent, opts) {
   } else if (dir === 'right') {
     ctx.fillRect(x + 13, y + 6, 2, 2);
   }
-  // belt/legs
-  ctx.fillStyle = accent;
+  // belt/legs — V3.15.2 pants color from opts.pants (falls back to accent).
+  ctx.fillStyle = (opts && opts.pants) ? opts.pants : accent;
   ctx.fillRect(x + 4, y + h - 4, w - 8, 2);
+  // Small legs strip below the belt so pants read clearly.
+  if (opts && opts.pants) {
+    ctx.fillStyle = opts.pants;
+    ctx.fillRect(x + 6, y + h - 2, w - 12, 2);
+  }
 }
 
 // V3.12 — Quiet Child renderer.  Draws every registered sighting on
@@ -7110,7 +7207,7 @@ function renderMap() {
   const pal = playerPalette();
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
-  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true });
+  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants });
   // V2.66 — Encounter '!' indicator above the player when a wild
   // encounter is armed but not yet engaged.  Pulsing yellow bubble;
   // press A to engage.
@@ -7487,9 +7584,12 @@ function openQuestsView() {
   meta.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(90,40,140,0.15);border:1px solid var(--border-gold);color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;';
   meta.innerHTML = `<span>ANCIENT GEMSIGHT</span><span>${visitedCount} / ${SHRINE_TOTAL}${visitedCount >= SHRINE_TOTAL ? ' ◈ UNLOCKED' : ''}</span>`;
   body.appendChild(meta);
-  // Per-shrine rows
+  // Per-shrine rows — V3.15.2 only show districts the player has
+  // actually visited.  Empty until you've been there.
+  const districtsVisited = game.player.districtsVisited || {};
   for (const id of DISTRICT_ORDER) {
     if (!SHRINES[id]) continue;
+    if (!districtsVisited[id]) continue;   // hide until visited
     const shrine = SHRINES[id];
     const dmeta = DISTRICT_META[id];
     const done = !!visited[id];
@@ -7980,10 +8080,17 @@ function openItemsView() {
       count: 1,
     });
   }
-  // V3.10.5 — Hide unpurchased V3.10 potion / Zysphere variants so the
-  // list doesn't fill with ×0 clutter before the player unlocks them.
-  const HIDE_WHEN_EMPTY = new Set(['grand_potion','master_potion','zysphere_void','zysphere_ultra']);
-  const visibleRows = rows.filter(r => !(HIDE_WHEN_EMPTY.has(r.key) && r.count <= 0));
+  // V3.10.5 · V3.15.2 — Inventory stays EMPTY until you actually earn
+  // something.  Every zero-count row is hidden.  If the player has
+  // nothing at all, the overlay renders an "Your pack is empty" line
+  // (handled just below in the render loop guard).
+  const visibleRows = rows.filter(r => r.count > 0);
+  if (visibleRows.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:24px 12px; text-align:center; color:var(--mist); font-family:var(--font-pixel); font-size:15px; letter-spacing:0.14em;';
+    empty.textContent = 'Your pack is empty.';
+    body.appendChild(empty);
+  }
   for (const r of visibleRows) {
     const row = document.createElement('div');
     row.className = 'item-row';
@@ -9144,8 +9251,13 @@ function tryInteract() {
     // V2.37 — couch flavor
     showDialog(['The couch. Comfy. Warm.', 'Not today. Malezor waits.']);
   } else if (t === 'F') {
+    // V3.15.2 — pre-starter easter egg latch.  Interacting with BOTH
+    // fridge + stove before receiving Mom's starter pack multiplies
+    // that pack by 10x.
+    game.player.metFridge = true; save();
     showDialog(['The fridge.  Mom keeps three kinds of berry jam.', 'You already ate breakfast.']);
   } else if (t === 'e') {
+    game.player.metStove = true; save();
     showDialog(['The stove. Still warm from Mom\'s toast.']);
   } else if (t === 'x') {
     exitHouseToMalezor();
@@ -10284,16 +10396,27 @@ function interactMom() {
     // supply manuals cover-to-cover.  This is where Zyspheres first
     // enter the player's inventory (the world doesn't hand them out
     // anywhere else at spawn).
-    const potionGift = 2, sphereGift = 3;
-    showDialog([
+    // V3.15.2 — pre-starter easter egg: 10x pack if the player poked
+    // BOTH the fridge and the stove before receiving this scene.
+    const kitchenSnooped = !!(game.player.metFridge && game.player.metStove);
+    const mult = kitchenSnooped ? 10 : 1;
+    const potionGift = 2 * mult, sphereGift = 3 * mult;
+    const kitchenLine = kitchenSnooped
+      ? `MOM: I saw you eyeing the fridge and the stove.  Growing Rizer.  Growing appetite.  Here — a bigger kit.`
+      : null;
+    const lines = [
       `MOM: Look at you — already a Rizer.`,
       `MOM: Before you go, take a nurse's kit for the road.`,
+    ];
+    if (kitchenLine) lines.push(kitchenLine);
+    lines.push(
       `MOM: Potions for the wounds.  And these — brand-new Zyspheres, straight from the Thardun engineers.`,
       `MOM: Click them open next to a wild Zyrex.  If your target's astralites submit, the sphere binds them.  If not — you'll have to weaken them first.`,
       `«+${potionGift} POTIONS  ·  +${sphereGift} ZYSPHERES»`,
       `MOM: Come find me any time you're hurt. I'll patch you up.`,
       `MOM: The door's always open. Come home safe.`,
-    ], () => {
+    );
+    showDialog(lines, () => {
       items.potion = (items.potion || 0) + potionGift;
       game.player.zyspheres = (game.player.zyspheres || 0) + sphereGift;
       game.player.metMomGave = true;
@@ -12773,6 +12896,12 @@ document.getElementById('btn-new').onclick = () => {
     titleSavior: false,
     // V3.15.1 — Aurabeast pre-starter easter egg latch
     aurabeastGiftGiven: false,
+    // V3.15.2 — kitchen + visits + outfit
+    metFridge: false,
+    metStove: false,
+    districtsVisited: {},
+    hair:  null,
+    pants: null,
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();

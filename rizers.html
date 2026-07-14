@@ -3419,6 +3419,58 @@ const DISTRICT_META = {
 };
 const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
 
+// ============================================================================
+//  V3.7 — ROUTES between districts (2026-07-13)
+// ============================================================================
+// The 9 transitional zones on the Zyraxis Z-shape.  Each route lives
+// between two adjacent districts; players must cross the route to travel
+// between them.  Routes host wild encounters that BRIDGE both adjacent
+// district pools, room for the recurring Wandering Merchant, and NPC
+// anchor slots for district-linked sidequests (quest given in district,
+// resolved on the route).
+//
+// V3.7.1 lock: each route is flavored after the WEST district's
+// Gemlord + primary type + domain.  Names follow the "Valley of the
+// Benevolent Beast" pattern (west district = Malezor · Rakoron the
+// Rubylord · Beast).  Every route is procedurally generated for now;
+// hand-crafting specific routes will happen in a later iteration.
+//
+// Canonical POI names (Wild March, Green Divide, Bridge of Hope,
+// Old/New Conquest, Pit of No Return, Northeast/Southeast/Southwest
+// Hydroplanes) are RESERVED for the second-half post-Zyraxis region
+// and will NOT be used for these routes.
+const ROUTE_META = {
+  valley_benevolent_beast:   { west: 'malezor',   east: 'zarvane',   name: 'The Valley of the Benevolent Beast',  subtitle: 'Malezor → Zarvane',       tint: '#4a8a56', theme: 'ruby-beast'      },
+  choir_of_pearlord:         { west: 'zarvane',   east: 'andrannor', name: 'The Choir of the Pearlord',           subtitle: 'Zarvane → Andrannor',     tint: '#e8b048', theme: 'pearl-spirit'    },
+  wilds_of_citrinehowl:      { west: 'andrannor', east: 'veridan',   name: 'The Wilds of the Citrinehowl',        subtitle: 'Andrannor → Veridan',     tint: '#8a8c98', theme: 'citrine-creature'},
+  verge_of_emeraldbloom:     { west: 'veridan',   east: 'netharion', name: 'The Verge of the Emeraldbloom',       subtitle: 'Veridan → Netharion',     tint: '#48c880', theme: 'emerald-nature'  },
+  rift_of_amethyst_voice:    { west: 'netharion', east: 'vorashil',  name: 'The Rift of the Amethyst Voice',      subtitle: 'Netharion → Vorashil',    tint: '#9060d0', theme: 'amethyst-void'   },
+  skylanes_sapphirebroker:   { west: 'vorashil',  east: 'xilnar',    name: 'The Skylanes of the Sapphirebroker',  subtitle: 'Vorashil → Xilnar',       tint: '#4a5c98', theme: 'sapphire-tech'   },
+  threshold_of_onyxwhisper:  { west: 'xilnar',    east: 'baelgor',   name: 'The Threshold of the Onyxwhisper',    subtitle: 'Xilnar → Baelgor',        tint: '#5cd0ff', theme: 'onyx-spirit'     },
+  roads_of_amberchain:       { west: 'baelgor',   east: 'thardin',   name: 'The Roads of the Amberchain',         subtitle: 'Baelgor → Thardin',       tint: '#e06030', theme: 'amber-humanoid'  },
+  fracture_of_anomaly:       { west: 'thardin',   east: 'korathen',  name: 'The Fracture of the Anomaly',         subtitle: 'Thardin → Korathen',      tint: '#a56830', theme: 'anomaly-mech'    },
+};
+const ROUTE_ORDER = ['valley_benevolent_beast','choir_of_pearlord','wilds_of_citrinehowl','verge_of_emeraldbloom','rift_of_amethyst_voice','skylanes_sapphirebroker','threshold_of_onyxwhisper','roads_of_amberchain','fracture_of_anomaly'];
+function isRouteMap(mapId) { return !!ROUTE_META[mapId]; }
+// Returns the route sitting between DISTRICT_ORDER[i] and DISTRICT_ORDER[i+1].
+function routeBetween(westDistrictId, eastDistrictId) {
+  const i = DISTRICT_ORDER.indexOf(westDistrictId);
+  if (i < 0 || i >= DISTRICT_ORDER.length - 1) return null;
+  if (DISTRICT_ORDER[i + 1] !== eastDistrictId) return null;
+  return ROUTE_ORDER[i];
+}
+// Returns the district on either side of a route, given a travel direction.
+function routeToDistrict(routeId, dir) {
+  const meta = ROUTE_META[routeId];
+  if (!meta) return null;
+  return dir > 0 ? meta.east : meta.west;
+}
+
+// V3.7.1 — No hand-crafted routes yet.  All 9 flavored routes are
+// procedurally generated (see generateRouteMap below).  Specific routes
+// may be promoted to hand-crafted layouts in a later pass as the
+// district-linked sidequest content lands.
+
 // V2.44 — SHRINE QUEST SYSTEM
 // Each non-Malezor district's landmark (V2.43 'L' tile) doubles as a shrine.
 // First-time interact yields flavored dialog + XP bonus + a unique named
@@ -3885,6 +3937,25 @@ function speciesMatchingTypes(types) {
 //   Species pool filters SPECIES for entries with matching primaryDistrict —
 //   codex hydrate (also V2.30) has stamped every entry with one.
 function districtWildPool(mapId) {
+  // V3.7.1 — ROUTE POOLS bridge both adjacent districts.  Level band
+  // sits at the midpoint of the two district bands so route encounters
+  // read as a legitimate stepping stone from one tier to the next.
+  const routeMeta = ROUTE_META[mapId];
+  if (routeMeta) {
+    const west = districtWildPool(routeMeta.west);
+    const east = districtWildPool(routeMeta.east);
+    if (!west && !east) return null;
+    if (!east) return west;
+    if (!west) return east;
+    // 60/40 weighting toward the WEST district — the route feels like
+    // an extension of where you're leaving, with a taste of what's ahead.
+    const ids = [];
+    for (let i = 0; i < 6; i++) ids.push(...west.ids);
+    for (let i = 0; i < 4; i++) ids.push(...east.ids);
+    const lo = Math.round((west.lvRange[0] + east.lvRange[0]) / 2);
+    const hi = Math.round((west.lvRange[1] + east.lvRange[1]) / 2);
+    return { ids, lvRange: [lo, hi] };
+  }
   const meta = DISTRICT_META[mapId];
   if (!meta) return null;
   const DIST = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
@@ -4269,6 +4340,104 @@ for (const id of DISTRICT_ORDER) {
   const rows = 20 + idx * 2;
   const data = generateDistrictMap(id);
   MAPS[id] = { data, cols, rows, label: `${meta.name} · ${meta.land}` };
+}
+
+// V3.7 — PROCEDURAL ROUTE GENERATOR
+// Generates a 20x12 route map with west/east portals, a mix of grass /
+// chest / tree tiles, one merchant slot near the west landing, one
+// villager anchor near the east landing (district-linked quest slot),
+// and optionally one grunt for higher-tier routes.  Deterministic PRNG
+// seeded from routeId so the layout is stable across saves.
+function generateRouteMap(routeId) {
+  const cols = 20, rows = 12;
+  const midY = Math.floor(rows / 2);   // 6
+  let seed = 0;
+  for (let i = 0; i < routeId.length; i++) seed = (seed * 31 + routeId.charCodeAt(i)) >>> 0;
+  const rand = () => { seed = (seed * 1103515245 + 12345) >>> 0; return (seed / 0x100000000); };
+  const pick = (a, b) => Math.floor(rand() * (b - a + 1)) + a;
+  // Base grid — walls perimeter, floor interior.
+  const grid = [];
+  for (let y = 0; y < rows; y++) {
+    const row = [];
+    for (let x = 0; x < cols; x++) {
+      const isEdge = (x === 0 || y === 0 || x === cols - 1 || y === rows - 1);
+      row.push(isEdge ? '#' : ',');
+    }
+    grid.push(row);
+  }
+  // West / east portals at vertical midpoint (matches districts).
+  grid[midY][0]        = '<';
+  grid[midY][cols - 1] = '>';
+  // Also carve the row above so patrols + player have breathing room.
+  if (midY - 1 > 0) {
+    grid[midY - 1][0]        = '<';
+    grid[midY - 1][cols - 1] = '>';
+  }
+  // Scatter grass patches (encounter zones).
+  const grassTarget = 6;   // 6 grass patches per route
+  let g = 0, gtries = 0;
+  while (g < grassTarget && gtries < grassTarget * 15) {
+    gtries++;
+    const x = pick(2, cols - 3);
+    const y = pick(2, rows - 3);
+    if (grid[y][x] !== ',') continue;
+    grid[y][x] = 'G';
+    g++;
+  }
+  // Chests (2 per route).
+  let c = 0, ctries = 0;
+  while (c < 2 && ctries < 40) {
+    ctries++;
+    const x = pick(3, cols - 4);
+    const y = pick(2, rows - 3);
+    if (grid[y][x] !== ',') continue;
+    grid[y][x] = 'K';
+    c++;
+  }
+  // Trees (decorative — 4 per route, weighted to the edges).
+  let t = 0, ttries = 0;
+  while (t < 4 && ttries < 40) {
+    ttries++;
+    const x = pick(2, cols - 3);
+    const y = pick(2, rows - 3);
+    if (grid[y][x] !== ',') continue;
+    if (Math.abs(y - midY) < 2) continue;   // keep the corridor clear
+    grid[y][x] = 'T';
+    t++;
+  }
+  // Merchant slot at west landing (col 3, midY - 2 area).
+  {
+    const attempts = [[3, midY - 2], [4, midY - 2], [3, midY + 2], [5, midY - 2]];
+    for (const [x, y] of attempts) {
+      if (grid[y] && grid[y][x] === ',') { grid[y][x] = 'S'; break; }
+    }
+  }
+  // Villager anchor (district-linked quest hook) at east landing.
+  {
+    const attempts = [[cols - 4, midY - 2], [cols - 5, midY - 2], [cols - 4, midY + 2], [cols - 6, midY + 2]];
+    for (const [x, y] of attempts) {
+      if (grid[y] && grid[y][x] === ',') { grid[y][x] = 'v'; break; }
+    }
+  }
+  // Optional grunt patrol on later-game routes (indexes 4+ = old_conquest onward).
+  const routeIdx = ROUTE_ORDER.indexOf(routeId);
+  if (routeIdx >= 4) {
+    for (let tries = 0; tries < 30; tries++) {
+      const x = pick(5, cols - 6);
+      const y = pick(3, rows - 4);
+      if (grid[y][x] === ',') { grid[y][x] = 'g'; break; }
+    }
+  }
+  return grid.map(row => row.join(''));
+}
+
+// Register all 9 routes in MAPS.  Every route is procedurally generated
+// via generateRouteMap for V3.7.1; specific routes may become hand-
+// crafted layouts in a later pass.
+for (const routeId of ROUTE_ORDER) {
+  const meta = ROUTE_META[routeId];
+  const data = generateRouteMap(routeId);
+  MAPS[routeId] = { data, cols: 20, rows: 12, label: `${meta.name} · ${meta.subtitle}` };
 }
 // Which map to enter when the player walks through a door tile.
 // entry[0..1] is the spawn tile on the destination map, facing 'up'.
@@ -7922,43 +8091,91 @@ function groupUnlocked(idx) {
   return prev.every(d => flags[d]);
 }
 
+// V3.7.1 — travelDistrict now routes THROUGH the 9 flavored routes.
+//   from a DISTRICT: '>' or '<' portal → enters the adjacent ROUTE
+//   from a ROUTE:    '>' portal → enters the east DISTRICT
+//                    '<' portal → enters the west DISTRICT
+// Progression gate (group unlock) fires at the DISTRICT → ROUTE step
+// so the player can still explore the route zone up to the far portal
+// even if the next district is locked; the far portal shows the seal.
 function travelDistrict(dir) {
-  const currentIdx = DISTRICT_ORDER.indexOf(game.player.mapId);
-  if (currentIdx < 0) return;
-  const nextIdx = currentIdx + dir;
-  if (nextIdx < 0 || nextIdx >= DISTRICT_ORDER.length) {
-    showToast(dir > 0 ? 'THE MAP ENDS HERE — for now.' : 'NO WAY WEST.', 1600);
-    return;
-  }
-  const nextId = DISTRICT_ORDER[nextIdx];
-  const nextMap = MAPS[nextId];
-  if (!nextMap) { showToast('DISTRICT NOT WIRED', 1600); return; }
-  // V3.0 — Progression gate.  Only block FORWARD (east) travel — going
-  // back is always allowed.  Player must beat all Seer Commanders in
-  // the current group before advancing into the next group.
-  if (dir > 0) {
-    const nextGroup = districtGroupIndex(nextId);
-    const currentGroup = districtGroupIndex(game.player.mapId);
-    if (nextGroup > currentGroup && !groupUnlocked(nextGroup)) {
-      const need = DISTRICT_GROUPS[nextGroup - 1] || [];
-      const flags = game.player.seerCommandersDefeated || {};
-      const remain = need.filter(d => !flags[d]).map(d => (DISTRICT_META[d] && DISTRICT_META[d].name) || d);
-      showDialog([
-        'A Ministry watchpost seals the border.',
-        'The eastern road is barred until every Seer Commander of this district group falls.',
-        remain.length ? `Still standing: ${remain.join(' · ')}.` : 'The way opens — this side is done.',
-        'Return to their Ministries.  Clear the basements.  Face the Commanders.',
-      ]);
+  const currentMapId = game.player.mapId;
+  // ---- From a DISTRICT -> ROUTE step ----
+  if (DISTRICT_ORDER.includes(currentMapId)) {
+    const currentIdx = DISTRICT_ORDER.indexOf(currentMapId);
+    if (dir > 0 && currentIdx >= DISTRICT_ORDER.length - 1) {
+      showToast('THE MAP ENDS HERE — for now.', 1600);
       return;
     }
+    if (dir < 0 && currentIdx <= 0) {
+      showToast('NO WAY WEST.', 1600);
+      return;
+    }
+    // V3.0 — Progression gate at the district exit.
+    if (dir > 0) {
+      const nextDistrictId = DISTRICT_ORDER[currentIdx + 1];
+      const nextGroup = districtGroupIndex(nextDistrictId);
+      const currentGroup = districtGroupIndex(currentMapId);
+      if (nextGroup > currentGroup && !groupUnlocked(nextGroup)) {
+        const need = DISTRICT_GROUPS[nextGroup - 1] || [];
+        const flags = game.player.seerCommandersDefeated || {};
+        const remain = need.filter(d => !flags[d]).map(d => (DISTRICT_META[d] && DISTRICT_META[d].name) || d);
+        showDialog([
+          'A Ministry watchpost seals the border.',
+          'The eastern road is barred until every Seer Commander of this district group falls.',
+          remain.length ? `Still standing: ${remain.join(' · ')}.` : 'The way opens — this side is done.',
+          'Return to their Ministries.  Clear the basements.  Face the Commanders.',
+        ]);
+        return;
+      }
+    }
+    // Enter the ROUTE that sits between currentMapId and its neighbor.
+    const routeIdx = (dir > 0) ? currentIdx : (currentIdx - 1);
+    const routeId  = ROUTE_ORDER[routeIdx];
+    const routeMap = MAPS[routeId];
+    const routeMeta = ROUTE_META[routeId];
+    if (!routeMap || !routeMeta) { showToast('ROUTE NOT WIRED', 1600); return; }
+    const midY = Math.floor(routeMap.rows / 2);
+    const spawnX = (dir > 0) ? 1 : routeMap.cols - 2;
+    const spawnDir = (dir > 0) ? 'right' : 'left';
+    enterMap(routeId, spawnX, midY, spawnDir);
+    showToast(`◈  ${routeMeta.name.toUpperCase()}`, 2400);
+    return;
   }
-  const meta = DISTRICT_META[nextId];
-  const midY = Math.floor(nextMap.rows / 2);
-  // Arriving from the WEST portal — spawn just east of it. From the EAST — spawn just west of it.
-  const spawnX = (dir > 0) ? 1 : nextMap.cols - 2;
-  const spawnDir = (dir > 0) ? 'right' : 'left';
-  enterMap(nextId, spawnX, midY, spawnDir);
-  showToast(`◈  ${meta.name.toUpperCase()} · ${meta.land.toUpperCase()}`, 2200);
+  // ---- From a ROUTE -> DISTRICT step ----
+  if (isRouteMap(currentMapId)) {
+    const meta = ROUTE_META[currentMapId];
+    const destDistrictId = (dir > 0) ? meta.east : meta.west;
+    const destMap = MAPS[destDistrictId];
+    if (!destMap) { showToast('DISTRICT NOT WIRED', 1600); return; }
+    // V3.7.1 — Gate again on the far portal so the route can't be used
+    // to bypass the group seal.  Only fires on FORWARD travel across a
+    // group boundary; backtracking is always free.
+    if (dir > 0) {
+      const nextGroup    = districtGroupIndex(destDistrictId);
+      const currentGroup = districtGroupIndex(meta.west);
+      if (nextGroup > currentGroup && !groupUnlocked(nextGroup)) {
+        const need   = DISTRICT_GROUPS[nextGroup - 1] || [];
+        const flags  = game.player.seerCommandersDefeated || {};
+        const remain = need.filter(d => !flags[d]).map(d => (DISTRICT_META[d] && DISTRICT_META[d].name) || d);
+        showDialog([
+          'A Ministry watchpost seals the road ahead.',
+          'The eastern district is barred until every Seer Commander of this district group falls.',
+          remain.length ? `Still standing: ${remain.join(' · ')}.` : 'The way opens — this side is done.',
+          'Return west.  Clear the Ministries.  Face the Commanders.',
+        ]);
+        return;
+      }
+    }
+    const destMeta = DISTRICT_META[destDistrictId];
+    const midY = Math.floor(destMap.rows / 2);
+    const spawnX = (dir > 0) ? 1 : destMap.cols - 2;
+    const spawnDir = (dir > 0) ? 'right' : 'left';
+    enterMap(destDistrictId, spawnX, midY, spawnDir);
+    showToast(`◈  ${destMeta.name.toUpperCase()} · ${destMeta.land.toUpperCase()}`, 2200);
+    return;
+  }
+  // Unknown source — no-op.
 }
 
 function startNPCBattle() {

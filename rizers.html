@@ -2747,6 +2747,22 @@ const SPECIES = {
     originalMove: { name: 'The Final Armageddon', type: 'Corrupted', power: 150, cost: 3 },   // V2.28 — species-locked slot-4 signature
   },
 
+  // ============ V3.9.1 — PETRAGRYFF (easter egg from Andrannor obelisk) ============
+  // Master Codex canon: Tier IV Legend · Nature / Beast.
+  // Base: hp 330 · atk 309 · def 325 · spd 155 · spc 213  (Total 1332)
+  // Acquired via the Andrannor obelisk → basement science experiment →
+  // Mom's revival rite easter egg chain.  Never spawns wild.
+  petragryff: {
+    easterEgg: true,
+    name: 'PETRAGRYFF', type: 'Nature', type2: 'Beast', region: 'Central',
+    base: { hp: 330, atk: 309, def: 325, spd: 155, spc: 213 },
+    tier: 4, catchRate: 3, shape: 'winged',
+    sprite: ['#9060d0', '#3a2650', '#c8d0dc'],   // amethyst body · granite shadow · sandstone highlight
+    moves: basicMoves('Nature', ['Slabwing Buffet', 'Geodeye Glare', 'Roost of Stones', 'Mountainstep']),
+    codex: { archetype: 'VERDANT', epithet: 'The Mountain-Shaped' },
+    originalMove: { name: 'Slabwing Buffet', type: 'Nature', power: 102, cost: 1 },
+  },
+
   // ============ Gemlord I cave — RAKORON's hunt (Beast-themed) ============
   // Two Beast-primary Basics from his hunt, then RAKORON himself in ruby fury.
   sunhoop: {     // Beast/Aura · Western · crown-crested Hoopoe · Gen I Primary
@@ -3237,6 +3253,20 @@ const SILVER_LODGE_MAP = [
   '=....x.....=',
   '============',
 ];
+// V3.9.1 — SUNLIT WAY COTTAGE (Zarvane's locked building interior).
+// Distinct from BRONZE_HOUSE_MAP so entering Zarvane's cottage feels
+// like Zarvane, not a copy of Malezor's Bronze Cottage.  Two chests:
+//   K at (5,2)  — regular Zarvane loot
+//   K at (8,3)  — hosts the COMPUTER PART on first crack (see openChest)
+const SUNLIT_COTTAGE_MAP = [
+  '============',
+  '=..t.......=',
+  '=....K....b=',
+  '=.......K..=',
+  '=.b........=',
+  '=....x.....=',
+  '============',
+];
 // V2.69 — Town Hall shared interior template.  Every district gets its
 // own 'D' door in the world map that leads here; the interior itself is
 // the same layout but the NPC content and district-themed label are
@@ -3442,6 +3472,7 @@ const MAPS = {
   parents_bedroom:  { data: PARENTS_BEDROOM_MAP, cols: 14, rows:  9, label: 'Home · Parents\' Bedroom' },  // V2.36
   bronze_cottage:   { data: BRONZE_HOUSE_MAP,    cols: 12, rows:  7, label: 'Bronze Cottage' },
   silver_lodge:     { data: SILVER_LODGE_MAP,    cols: 12, rows:  7, label: 'Silver Lodge' },
+  sunlit_cottage:   { data: SUNLIT_COTTAGE_MAP,  cols: 12, rows:  7, label: 'Sunlit Way Cottage' },  // V3.9.1 — Zarvane's cottage
   ...HALL_MAPS,   // V2.74 — 10 district-themed halls (malezor_hall .. korathen_hall)
   // V3.0 — Seer HQ 3-floor interior (shared; content varies via enteredInteriorFrom)
   seer_hq_main:     { data: SEER_HQ_MAIN,     cols: 16, rows: 10, label: 'Seer Ministry · Main' },
@@ -4418,9 +4449,12 @@ function generateDistrictMap(mapId) {
       gg++;
     }
   }
-  // Locked buildings — 2x2 footprint, one door char per district's gemKey tier.
-  // For skeleton we use 'p' char (bronze-lock) as a stand-in; a full 10-key
-  // rewrite happens in a later pass. Each building sits alone.
+  // Locked buildings — 2x2 footprint.
+  // V3.9.1 — Zarvane gets a Sunlit Way Cottage ('P' → sunlit_cottage) so
+  // its locked building doesn't reuse Malezor's Bronze Cottage interior.
+  // Other districts still stub with 'p' → bronze_cottage until they get
+  // their own themed cottages in a later pass.
+  const buildingDoorChar = (mapId === 'zarvane') ? 'P' : 'p';
   for (let b = 0; b < buildingTarget; b++) {
     let placed = false;
     for (let tries = 0; tries < 40 && !placed; tries++) {
@@ -4431,7 +4465,7 @@ function generateDistrictMap(mapId) {
                      grid[y+1][x] === ',' && grid[y+1][x+1] === ',');
       if (!clear) continue;
       grid[y][x]     = 'h'; grid[y][x+1]   = 'h';    // roof
-      grid[y+1][x]   = 'p'; grid[y+1][x+1] = 'h';    // door + wall
+      grid[y+1][x]   = buildingDoorChar; grid[y+1][x+1] = 'h';    // door + wall
       placed = true;
     }
   }
@@ -4678,6 +4712,11 @@ const DOOR_TARGETS = {
   x: { map: 'malezor',        x: 2, y: 5, dir: 'down' },   // interior 'x' -> Malezor (south of H at 2,4)
   p: { map: 'bronze_cottage', x: 5, y: 5, dir: 'up',   key: 'bronze', label: 'Bronze Cottage' },
   q: { map: 'silver_lodge',   x: 5, y: 5, dir: 'up',   key: 'silver', label: 'Silver Lodge' },
+  // V3.9.1 — Sunlit Way Cottage (Zarvane's locked building).  Distinct
+  // interior + landing than the Bronze Cottage so it doesn't look like
+  // a Malezor copy.  Same 'bronze' key gate for now — the door is
+  // routed via 'P' (uppercase p) glyph in the district generator.
+  P: { map: 'sunlit_cottage', x: 5, y: 5, dir: 'up',   key: 'bronze', label: 'Sunlit Way Cottage' },
   // V2.69 — Town Hall door.  Same 'town_hall' interior for every district;
   // NPCs + label resolved per-district via enteredInteriorFrom.
   // V2.74 — Town Hall door.  Actual interior mapId is resolved at
@@ -4695,6 +4734,7 @@ const DOOR_TARGETS = {
 const INTERIOR_EXITS = {
   bronze_cottage: { map: 'malezor', x: 17, y: 4, dir: 'down' },   // one tile south of 'p' at (17,3)
   silver_lodge:   { map: 'malezor', x: 11, y: 14, dir: 'down' },  // one tile south of 'q' at (11,13)
+  sunlit_cottage: { map: 'zarvane', x: 12, y: 12, dir: 'down' },  // V3.9.1 — bounces back to Zarvane (spawn resolved by re-entry)
 };
 // V2.36 — Stair transitions between the 3 house floors. Context-aware:
 // which stair-tile you step on + which map you're currently in decides
@@ -5933,23 +5973,27 @@ function drawTile(x, y, ch, mx, my) {
       drawCharacter(px + TILE / 2, py + TILE / 2, 'down', '#c98a4a', '#3a1a1a');
       break;
     }
-    case 'p': case 'q': {
-      // V2.8.3 — locked house doors on Malezor. Rendered as a wooden
-      // door built into a small stone façade with a colored crest
-      // (bronze / silver) and a padlock when locked.
+    case 'p': case 'q': case 'P': {
+      // V2.8.3 · V3.9.1 — locked house doors.  Rendered as a wooden
+      // door built into a small stone façade with a colored crest.
+      // Crest palette signals which cottage: 'p' bronze (Malezor),
+      // 'q' silver (Malezor secondary), 'P' sunlit-gold (Zarvane).
+      // Zarvane's Sunlit Way cottage also gets a warmer façade tint
+      // so it reads distinct from Malezor at a glance.
       drawTile(x, y, ',', mx, my);
-      // House façade — small stone hut behind the door
-      ctx.fillStyle = '#4a3628';
+      // House façade — small stone hut behind the door.  Warmer palette for Sunlit Way.
+      const isSunlit = (ch === 'P');
+      ctx.fillStyle = isSunlit ? '#5a3a1a' : '#4a3628';
       ctx.fillRect(px + 2, py, TILE - 4, TILE);
-      ctx.fillStyle = '#6a4c28';
+      ctx.fillStyle = isSunlit ? '#a06a2c' : '#6a4c28';
       ctx.fillRect(px + 3, py + 1, TILE - 6, 6);
       // Door
-      ctx.fillStyle = '#8b6236';
+      ctx.fillStyle = isSunlit ? '#a06a3a' : '#8b6236';
       ctx.fillRect(px + 8, py + 12, TILE - 16, TILE - 14);
       ctx.strokeStyle = '#3a2a1e';
       ctx.strokeRect(px + 8, py + 12, TILE - 16, TILE - 14);
       // Crest color
-      const crest = ch === 'p' ? '#c88b4a' : '#c8d0dc';
+      const crest = ch === 'p' ? '#c88b4a' : ch === 'q' ? '#c8d0dc' : '#e8b048'; // sunlit gold
       ctx.fillStyle = crest;
       ctx.beginPath();
       ctx.moveTo(px + TILE / 2, py + 4);
@@ -5958,8 +6002,8 @@ function drawTile(x, y, ch, mx, my) {
       ctx.lineTo(px + TILE / 2 - 4, py + 8);
       ctx.closePath();
       ctx.fill();
-      // Padlock if still locked
-      const keyType = ch === 'p' ? 'bronze' : 'silver';
+      // Padlock if still locked (all three cottages use the bronze key for now)
+      const keyType = ch === 'q' ? 'silver' : 'bronze';
       const unlocked = ((game.player.keys && game.player.keys[keyType]) || 0) > 0;
       if (!unlocked) {
         ctx.fillStyle = '#f5dc9c';
@@ -6141,6 +6185,65 @@ function drawCharacter(cx, cy, dir, primary, accent) {
   ctx.fillRect(x + 4, y + h - 4, w - 8, 2);
 }
 
+// V3.9.1 — Party follower renderer.  Draws the first-slot Zyrex as a
+// glowing orb one tile BEHIND the player, facing the same direction.
+// Position: (player.x - dx, player.y - dy) where (dx, dy) is the
+// player's facing vector.  Auto-updates every frame so following is
+// seamless with movement.  Skipped when off-camera or the party is
+// empty; interior maps that lack overworld encounter mechanics still
+// get the follower so it reads as "your companion is with you always."
+function drawPartyFollower(cam) {
+  if (!game.player || !game.player.party || game.player.party.length === 0) return;
+  const leader = game.player.party[0];
+  if (!leader || !leader.species) return;
+  const s = SPECIES[leader.species];
+  if (!s) return;
+  const dir = game.player.dir || 'down';
+  const dx = dir === 'right' ? 1 : dir === 'left' ? -1 : 0;
+  const dy = dir === 'down'  ? 1 : dir === 'up'   ? -1 : 0;
+  const fx = game.player.x - dx;
+  const fy = game.player.y - dy;
+  // Bail out if the follower would land outside the map (edge case).
+  if (fx < 0 || fy < 0 || fx >= MAP_COLS || fy >= MAP_ROWS) return;
+  const scx = (fx - cam.x) * TILE + TILE / 2;
+  const scy = (fy - cam.y) * TILE + TILE / 2;
+  // Skip off-viewport
+  if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) return;
+  drawZyrexFollower(scx, scy, s, dir);
+}
+// Compact glowing-orb sprite tuned for the overworld tile scale.  Uses
+// the species' canonical sprite palette [primary, shadow, highlight]
+// so each Zyrex reads distinct at a glance.
+function drawZyrexFollower(cx, cy, species, dir) {
+  const [primary, shadow, highlight] = species.sprite || ['#e8c878', '#8a5c1c', '#fff5db'];
+  const bob = Math.sin(performance.now() * 0.006) * 0.6;
+  const y = cy + bob;
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(cx, cy + 8, 8, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+  // Aura halo
+  ctx.fillStyle = primary + '55';
+  ctx.beginPath(); ctx.arc(cx, y, 11, 0, Math.PI * 2); ctx.fill();
+  // Body core
+  ctx.fillStyle = primary;
+  ctx.beginPath(); ctx.arc(cx, y, 8, 0, Math.PI * 2); ctx.fill();
+  // Shadow underside
+  ctx.fillStyle = shadow;
+  ctx.beginPath(); ctx.arc(cx, y + 2, 6, 0, Math.PI * 2); ctx.fill();
+  // Body highlight (top-left facet)
+  ctx.fillStyle = highlight;
+  ctx.beginPath(); ctx.arc(cx - 2, y - 2, 3.5, 0, Math.PI * 2); ctx.fill();
+  // Eyes — small dots depending on facing so the sprite looks alive
+  ctx.fillStyle = '#050310';
+  if (dir === 'down' || dir === 'up') {
+    ctx.fillRect(cx - 3, y - 1, 1.5, 1.5);
+    ctx.fillRect(cx + 2, y - 1, 1.5, 1.5);
+  } else if (dir === 'left') {
+    ctx.fillRect(cx - 4, y - 1, 1.5, 1.5);
+  } else {
+    ctx.fillRect(cx + 3, y - 1, 1.5, 1.5);
+  }
+}
 function renderMap() {
   const cam = cameraOffset();
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
@@ -6208,6 +6311,12 @@ function renderMap() {
   }
   // V2.17 — Homunculus glow (drawn under player, above tiles)
   drawHomunculus(cam);
+  // V3.9.1 — Party follower: first-slot Zyrex trails the player one tile
+  // behind, auto-facing the same direction as the player.  Purely
+  // cosmetic — no collision, no blocking, no battle triggers.  Drawn
+  // BEFORE the player so the player renders on top when they overlap
+  // (mid-transition frames).
+  drawPartyFollower(cam);
   // Player on top — palette varies by gender chosen at char creation
   const pal = playerPalette();
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
@@ -7855,12 +7964,13 @@ function tryInteract() {
     //   * Installed    -> open PC Storage
     interactBasementComputer();
   } else if (t === 'j') {
-    // V2.36 — science experiment flavor
-    showDialog([
-      'A beaker of gemgrass distillate. Faintly bubbling.',
-      "You've been trying to isolate whatever makes a Mothergem *hum*.",
-      "The answer's not in the beaker. Not today.",
-    ]);
+    // V2.36 · V3.9.1 — science experiment.  Flavor by default; hidden
+    // beat: if the player carries an ANCIENT RUNE (found by touching the
+    // Broken Obelisk landmark in Andrannor), placing it in the beaker
+    // triggers a rite and produces a PETRAGRYFF HOMUNCULUS.  Player then
+    // brings the homunculus to Mom for revival (same nurse rite that
+    // wakes Elzebub).
+    interactExperiment();
   } else if (t === 'z') {
     // V2.36 — poster flavor
     showDialog([
@@ -8064,6 +8174,96 @@ function grantElzebubPrompt() {
     ]);
   });
 }
+// V3.9.1 — SCIENCE EXPERIMENT INTERACT.  Called from tryInteract('j').
+// The beaker of gemgrass distillate hums quietly on its own; but if
+// the player has retrieved the ANCIENT RUNE from the Andrannor obelisk
+// AND hasn't already forged the Petragryff Homunculus, dropping the
+// rune into the beaker triggers the rite.
+function interactExperiment() {
+  const items = game.player.items || (game.player.items = {});
+  const hasRune       = (items.ancient_rune || 0) > 0;
+  const hasHomunculus = (items.petragryff_homunculus || 0) > 0;
+  const alreadyMade   = game.player.petragryffGranted;
+  if (alreadyMade) {
+    showDialog([
+      'The beaker sits quiet now.',
+      'Whatever was going to answer has already answered.',
+    ]);
+    return;
+  }
+  if (hasHomunculus) {
+    showDialog([
+      'The PETRAGRYFF HOMUNCULUS rests in your pack.',
+      'Cool stone and warm feathers, curled small.',
+      "Mom is the one who wakes these.  Bring it to her.",
+    ]);
+    return;
+  }
+  if (!hasRune) {
+    showDialog([
+      'A beaker of gemgrass distillate. Faintly bubbling.',
+      "You've been trying to isolate whatever makes a Mothergem *hum*.",
+      "The answer's not in the beaker. Not today.",
+    ]);
+    return;
+  }
+  // hasRune && !hasHomunculus — offer the rite.
+  showDialog([
+    'You take the ANCIENT RUNE from your pack.',
+    'It hums louder near the beaker.  The distillate curls around it.',
+    "«PLACE THE RUNE INTO THE EXPERIMENT?»",
+  ], () => {
+    items.ancient_rune = Math.max(0, (items.ancient_rune || 0) - 1);
+    items.petragryff_homunculus = (items.petragryff_homunculus || 0) + 1;
+    save();
+    showToast('◈  PETRAGRYFF HOMUNCULUS · forged', 3000);
+    showDialog([
+      'The rune sinks. The beaker roars — quietly.',
+      'Stone gathers itself out of the fluid.  Feathers pull from nothing.',
+      'A tiny curled shape settles at the bottom.  Warm.  Waiting.',
+      '«◈ PETRAGRYFF HOMUNCULUS added to items.»',
+      "Bring it to Mom.  She's the one who wakes these.",
+    ]);
+  });
+}
+// V3.9.1 — Mom performs the same nurse rite she did for Elzebub, on
+// the Petragryff Homunculus.  Petragryff joins the party at Lv 15
+// (Tier IV Legend — starts higher than Elzebub's Lv 5).
+function grantPetragryffFromMom() {
+  const nm = game.player.name || 'you';
+  showDialog([
+    `MOM: Let me see it, ${nm}.`,
+    `MOM: Oh.  This one is heavier than Elzebub was.`,
+    "MOM: A mountain's shape, curled small.  You made this yourself?",
+    "MOM: The rune remembered how the stone wanted to be a body.  Clever.",
+    "MOM: I can wake it — hold still.",
+    "«a slow warm hum, a shimmer of amethyst light, a settling weight...»",
+    "MOM: There.  Meet PETRAGRYFF.",
+  ], () => grantPetragryffPrompt());
+}
+function grantPetragryffPrompt() {
+  const nm = game.player.name || 'you';
+  showDialog([
+    `MOM: He's yours, ${nm}.  Handle him gently — the mountain still lives in him.`,
+    "MOM: Petragryff at rest is heavy.  Petragryff in flight is heavier.",
+    "«ACCEPT PETRAGRYFF?»",
+  ], () => {
+    game.player.petragryffGranted = true;
+    // Consume the homunculus item on revival.
+    const items = game.player.items || (game.player.items = {});
+    items.petragryff_homunculus = Math.max(0, (items.petragryff_homunculus || 0) - 1);
+    const zy = makeZyrex('petragryff', 15);
+    const partySlots = game.player.party.filter(Boolean).length;
+    if (partySlots < MAX_PARTY) game.player.party.push(zy);
+    else                        game.player.box.push(zy);
+    markCaught('petragryff');
+    save();
+    showToast('◈  PETRAGRYFF  JOINED YOU', 2800);
+    showDialog([
+      `PETRAGRYFF (Lv 15) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
+    ]);
+  });
+}
 
 // ============================================================================
 //  V2.18 — Dad's First Notebook (Pokedex-style Zyrex catalog)
@@ -8245,11 +8445,17 @@ function openChest(x, y) {
     showDialog(['This chest is empty.']);
     return;
   }
-  // V2.68 — Special-case: opening the Bronze chest inside a Zarvane-entered
-  // locked house also drops the COMPUTER PART (Legacy-Rizer artifact).
+  // V2.68 · V3.9.1 — Special-case: opening the specific chest inside the
+  // SUNLIT WAY COTTAGE (Zarvane's cottage) also drops the COMPUTER PART
+  // Legacy-Rizer artifact.  Previously this was hardcoded to a Zarvane-
+  // entered bronze_cottage, but Zarvane now has its OWN interior
+  // (sunlit_cottage) with a distinct layout — chest at (8, 3).
   const from = game.player.enteredInteriorFrom;
-  const isZarvaneBronze = from && from.map === 'zarvane' && mapId === 'bronze_cottage' && x === 6 && y === 3;
-  if (isZarvaneBronze && !(game.player.items && game.player.items.computer_part) && !game.player.pcStorageInstalled) {
+  const isSunlitLegacyChest = mapId === 'sunlit_cottage' && x === 8 && y === 3;
+  // Backwards-compat: still trigger on legacy Zarvane bronze_cottage saves
+  // that predate V3.9.1 (where the cottage was still bronze).
+  const isLegacyZarvaneBronze = from && from.map === 'zarvane' && mapId === 'bronze_cottage' && x === 6 && y === 3;
+  if ((isSunlitLegacyChest || isLegacyZarvaneBronze) && !(game.player.items && game.player.items.computer_part) && !game.player.pcStorageInstalled) {
     game.player.items = game.player.items || {};
     game.player.items.computer_part = 1;
     game.player.chestsOpened[key] = true;
@@ -8719,6 +8925,13 @@ function interactMom() {
   // V2.17 — highest-priority beat: player brought back a homunculus, Mom transforms it.
   if (game.player.homunculusFound && !game.player.elzebubGranted) {
     grantElzebubFromMom();
+    return;
+  }
+  // V3.9.1 — Second-priority beat: player carried the PETRAGRYFF HOMUNCULUS
+  // back from the science experiment.  Mom performs the same nurse rite
+  // she did for Elzebub and wakes a live Petragryff.
+  if (items.petragryff_homunculus && !game.player.petragryffGranted) {
+    grantPetragryffFromMom();
     return;
   }
   // V2.36.1 — Two-phase first meeting on main floor.

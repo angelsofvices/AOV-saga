@@ -1944,8 +1944,9 @@
           <button class="mainmenu-btn" data-settings="assign">   <span class="mm-icon">◈</span>SELECT ASSIGN</button>
           <button class="mainmenu-btn ghost" id="settings-close2">CLOSE</button>
         </div>
-        <!-- Music (moved from MENU per V3.4) -->
+        <!-- Audio (V3.4 music · V3.14.2 SFX row above it) -->
         <div class="mm-music" id="mm-music">
+          <button class="mm-music-line" id="mm-sfx-toggle"   type="button">SFX · ON</button>
           <button class="mm-music-line" id="mm-music-toggle" type="button">MUSIC · ON</button>
           <div class="mm-music-vol-row">
             <button class="mm-music-vbtn" id="mm-music-down" type="button" aria-label="Volume down">−</button>
@@ -7485,6 +7486,7 @@ document.getElementById('notebook-overlay').addEventListener('click', (e) => {
 // V2.12 — Music controls (closures run on click, safely after audioSys is defined below).
 // NOTE: cannot call updateMusicMenu() here — audioSys is in TDZ until the MUSIC
 // module further down; initMusic() calls updateMusicMenu() once it's ready.
+document.getElementById('mm-sfx-toggle').onclick   = () => setSfxMuted(!audioSys.sfxMuted);   // V3.14.2
 document.getElementById('mm-music-toggle').onclick = () => setMusicMuted(!audioSys.muted);
 document.getElementById('mm-music-down').onclick   = () => setMusicVolume(audioSys.volume - 0.1);
 document.getElementById('mm-music-up').onclick     = () => setMusicVolume(audioSys.volume + 0.1);
@@ -12514,6 +12516,7 @@ const audioSys = {
   current: null,    // 'overworld' | 'battle' | 'home' | null
   volume: 0.4,      // 0..1 target volume when unmuted
   muted:  false,
+  sfxMuted: false,  // V3.14.2 — independent SFX mute
   primed: false,    // did the user interact yet?
   fadeTimer: null,
 };
@@ -12526,6 +12529,7 @@ function initMusic() {
       const s = JSON.parse(raw);
       if (typeof s.volume === 'number') audioSys.volume = Math.max(0, Math.min(1, s.volume));
       if (typeof s.muted  === 'boolean') audioSys.muted  = s.muted;
+      if (typeof s.sfxMuted === 'boolean') audioSys.sfxMuted = s.sfxMuted;   // V3.14.2
     }
   } catch(_) {}
   // Preload all three tracks quietly (autoplay policies still block real playback until gesture).
@@ -12542,7 +12546,13 @@ function initMusic() {
   updateMusicMenu();
 }
 function saveMusicPrefs() {
-  try { localStorage.setItem(MUSIC_KEY, JSON.stringify({ volume: audioSys.volume, muted: audioSys.muted })); } catch(_) {}
+  try { localStorage.setItem(MUSIC_KEY, JSON.stringify({ volume: audioSys.volume, muted: audioSys.muted, sfxMuted: audioSys.sfxMuted })); } catch(_) {}
+}
+// V3.14.2 — SFX-only mute toggle.
+function setSfxMuted(muted) {
+  audioSys.sfxMuted = !!muted;
+  saveMusicPrefs();
+  updateMusicMenu();
 }
 function targetMusicVolume() { return audioSys.muted ? 0 : audioSys.volume; }
 // V2.56 — Every indoor map plays the 'home' (main-floor) track.  This
@@ -12614,7 +12624,9 @@ function primeSfxOnGesture() {
 function playSfx(name) {
   const src = sfxPool[name];
   if (!src) return;
-  if (audioSys.muted) return;
+  // V3.14 — music mute silences everything.  V3.14.2 — SFX mute
+  // silences UI clips only (music can keep playing).
+  if (audioSys.muted || audioSys.sfxMuted) return;
   // Clone-on-play so overlapping triggers stack correctly.  Original
   // stays paused so we don't fight the browser over playback state.
   try {
@@ -12681,8 +12693,10 @@ function setMusicVolume(v) {
 function updateMusicMenu() {
   const t = document.getElementById('mm-music-toggle');
   const v = document.getElementById('mm-music-vol');
+  const s = document.getElementById('mm-sfx-toggle');   // V3.14.2
   if (t) t.textContent = 'MUSIC · ' + (audioSys.muted ? 'OFF' : 'ON');
   if (v) v.textContent = 'VOLUME · ' + Math.round(audioSys.volume * 100) + '%';
+  if (s) s.textContent = 'SFX · '   + (audioSys.sfxMuted ? 'OFF' : 'ON');
 }
 
 initMusic();

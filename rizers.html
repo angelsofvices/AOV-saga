@@ -7182,6 +7182,40 @@ const SHOP_STOCK = [
   { key: 'zysphere_void', name: 'Void Zysphere',  desc: 'Void-etched matrix.  +40% sync odds vs the basic sphere.',                                price: 30,  rizerLvNeed: 10 },
   { key: 'zysphere_ultra',name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                  price: 90,  rizerLvNeed: 25 },
 ];
+// V3.10.1 — WANDERING MERCHANT preamble.  Every time the player walks
+// up and interacts with an 'S' merchant tile, the merchant hiccups a
+// short two-line drunk-joke before the shop UI opens.  Lines rotate
+// via a stable-yet-shifting cursor (game.player.merchantLineIdx) so
+// the same merchant never opens with the same joke twice in a row,
+// and every joke is quick — one setup line + one drunken punchline.
+// Canon: drunk, banned from several towns, welcomed everywhere; his
+// stories contradict each other and some are true.
+const MERCHANT_LINES = [
+  ['MERCHANT: *hic* — a Rizer!  A REAL Rizer!', "MERCHANT: I once sold a Zysphere to a Gemlord.  I don't recommend the return policy."],
+  ['MERCHANT: I am DEFINITELY not banned from this district.', 'MERCHANT: The last three were misunderstandings.  Two involved a goat.'],
+  ['MERCHANT: You look like someone who could use a potion.', 'MERCHANT: You also look like the potion.  Buy something before I ask which.'],
+  ['MERCHANT: Ophira sent me a hymn once.', 'MERCHANT: I sang it backwards on a dare.  Now I only dream in reverse.  Shop?'],
+  ['MERCHANT: I saw the Rubylord blink.', 'MERCHANT: Everyone says he never blinks.  Buy a Zysphere and I might tell you what he saw.'],
+  ['MERCHANT: A Seer grunt once bought a Potion from me.', 'MERCHANT: He asked for a receipt.  A RECEIPT.  From ME.  *cackles*'],
+  ["MERCHANT: My cart's wheel is held together by a Verdant Seed and a prayer.", 'MERCHANT: The prayer is doing most of the work.  What are you buying?'],
+  ['MERCHANT: They say the Fleshlord invented the sales tax.', 'MERCHANT: They also say I invented the goat.  Neither of us confirms.'],
+  ['MERCHANT: Zysphere sales are UP this cycle.', 'MERCHANT: Also disappearances.  Coincidence, probably.  Move along.  Nice ones today.'],
+  ['MERCHANT: The Choirmother pays retail.  She always pays retail.', 'MERCHANT: I love the Choirmother.  Please buy something before I write her a hymn.'],
+  ['MERCHANT: Malezor beast bit my cart.  Broke a tooth.', 'MERCHANT: The BEAST broke the tooth.  I broke the beast.  ...I broke both.  Yes.'],
+  ["MERCHANT: I visited Netharion once.  I don't remember it.", 'MERCHANT: I remember NOT remembering it.  That is somehow worse.  Special today: everything.'],
+  ['MERCHANT: You seem sober.', "MERCHANT: I'll fix that for you eventually.  In the meantime — potions?"],
+  ['MERCHANT: I read your Rizer level in your walk.', 'MERCHANT: Also in your pouch.  Coins clank differently at every tier.  Show me yours.'],
+  ["MERCHANT: I've been banned from Andrannor twice.", "MERCHANT: I've NEVER BEEN to Andrannor.  Ask me how that works.  Actually don't."],
+  ['MERCHANT: This bottle is medicinal.', 'MERCHANT: The condition is being sober.  Anyway — potions, Zyspheres, half off if you laugh.'],
+];
+function greetWanderingMerchant(then) {
+  const cursor = (game.player.merchantLineIdx || 0) % MERCHANT_LINES.length;
+  const lines  = MERCHANT_LINES[cursor];
+  game.player.merchantLineIdx = cursor + 1;   // advance for next visit
+  save();
+  // Two-line preamble, then run the shop-open callback.
+  showDialog(lines, () => { if (typeof then === 'function') then(); });
+}
 function openShop() {
   game.mode = 'shop';
   clearHeldKeys();
@@ -8021,7 +8055,11 @@ function tryInteract() {
     // V3.9 — Route quest item.  Only interactable on route maps.
     handleQuestItem(tx, ty);
   } else if (t === 'S' || t === 'B') {
-    openShop();
+    // V3.10.1 — Wandering Merchant preamble.  The recurring canon:
+    // drunk, banned from several towns yet welcomed everywhere, tells
+    // ridiculous stories that contradict each other (some are true).
+    // One line per interact from a rotating pool, then the shop opens.
+    greetWanderingMerchant(() => openShop());
   } else if ('YJQ'.includes(t)) {
     // Facing the trainer's HOME tile — check if they're actually standing there.
     const nHome = game.npcs && game.npcs[tx + ',' + ty];

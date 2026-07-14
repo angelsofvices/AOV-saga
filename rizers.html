@@ -3697,6 +3697,17 @@ function handleElderInteract(hallMapId) {
   const routeMeta = ROUTE_META[q.routeId] || { name: 'the road east' };
   const elderTag = `${q.elderName}, ${q.elderTitle}:`;
   if (state === 'complete') {
+    // V3.11 — After the Seer Commander of this district falls, the
+    // elder acknowledges the shard is home AND the district is free.
+    if (districtLiberated(fromDistrict)) {
+      const meta = DISTRICT_META[fromDistrict] || {};
+      showDialog([
+        elderTag,
+        `${q.itemName} is home.  So is the ${((meta.gemKey || '').toUpperCase())} GEMSHARD.  So are the people we thought we had lost.`,
+        `Rizer.  You did not just bring back a fetish.  You brought back ${meta.name || fromDistrict}.`,
+      ]);
+      return;
+    }
     showDialog([
       elderTag,
       `Rizer.  ${q.itemName} is home.  So are you.  That is a good day.`,
@@ -4218,6 +4229,126 @@ const VILLAGERS = {
     ]},
   ],
 };
+
+// V3.11 — WORLD CONSEQUENCE SYSTEM
+// Each district has a parallel LIBERATED pool of villager lines.  When
+// the district's Seer Commander has been defeated
+// (game.player.seerCommandersDefeated[districtId]), interactVillager
+// pulls from this pool instead of VILLAGERS[districtId].  The tone
+// swings from anxious/quiet (crisis) to hopeful/relieved (recovered).
+// Lines still name the correct Gemlord + Commander + gemshard so the
+// dialogue stays district-flavored even in the recovered pool.
+const VILLAGERS_LIBERATED = {
+  malezor: [
+    { name: 'Cliff Fisher', lines: [
+      "The gemgrass hasn't stopped growing since YARA-PRIME fell.  The beasts feel it.",
+      "My cousin came home last week.  I hadn't stopped setting his plate.",
+      "Rakoron's dust smells sweeter with the Ministry gone.",
+    ]},
+    { name: 'Village Elder', lines: [
+      "You brought the RUBY GEMSHARD home.  I thought that story died with my grandfather.",
+      "The Ridge Warden stopped whispering.  She used to whisper.  I hadn't noticed until it stopped.",
+      "The Ninth World remembers who lifts it.  It is not always the strong.",
+    ]},
+  ],
+  zarvane: [
+    { name: 'Sun Pilgrim', lines: [
+      "The Sunlit Pillar sings again since VORHIL fell.  It hadn't sung in months.",
+      "Choirmother Ivelith led the first hymn tonight in a year.  I could not stop crying.",
+      "Aura and Spirit remember when they were quiet.  They do not intend to be quiet again.",
+    ]},
+    { name: 'Gold-Robed Scribe', lines: [
+      "The PEARL GEMSHARD is home.  Ivirium sleeps deeper for it.",
+      "The Ministry's silence is broken by children again.  That is the correct silence.",
+    ]},
+  ],
+  andrannor: [
+    { name: 'Stonecarver', lines: [
+      "The obelisk stopped humming since MIRAX fell.  It only ever hummed when she walked near.",
+      'The CITRINE GEMSHARD is where it should be.  The wilds stopped flinching.',
+    ]},
+    { name: 'Ruinwalker', lines: [
+      "Mirax's gambling house is empty.  No one misses the game.",
+      'The grey lands are still grey.  But grey with the light on it now.',
+    ]},
+  ],
+  veridan: [
+    { name: 'Forest Warden', lines: [
+      "The Great Tree grew its tenth leaf the morning after THORNE fell.",
+      'EMERALIX walked the ridge line again yesterday.  He was seen by seven people.',
+      "The Naturelands bloom loud enough to keep me up at night.  I do not mind.",
+    ]},
+    { name: 'Herbalist', lines: [
+      'The EMERALD GEMSHARD is planted where it should be.  I did not know I could plant a shard.  Turns out you can.',
+      "Thorne's bandits gave back what they took.  Most of it.  Some of it was already gone.",
+    ]},
+  ],
+  netharion: [
+    { name: 'Void Watcher', lines: [
+      "The rift stopped whispering NULLIS's name.  It still whispers.  Just not that name.",
+      'The AMETHYST GEMSHARD is home.  The center holds a little better.',
+      'EURAKEON dreams us differently now.  I dreamt of my sister for the first time in a decade.',
+    ]},
+    { name: 'Purple-Cloak', lines: [
+      "Nullis's collected thoughts released themselves the hour she fell.  I got mine back.",
+      'The wilds carry fewer hidden types now.  The center is less hungry.',
+    ]},
+  ],
+  vorashil: [
+    { name: 'Salvager', lines: [
+      "The landing pad glows again.  Not for anyone.  Just glowing.  For itself.",
+      'AZUREL sends signals.  We are not sure what they mean.  They feel kind.',
+    ]},
+    { name: 'Skyport Trader', lines: [
+      "The SAPPHIRE GEMSHARD is where it should be.  ZYPHER-9 sold his last name for nothing.",
+      'Off-world ships circle again.  I saw one wave at me.  I waved back.',
+    ]},
+  ],
+  xilnar: [
+    { name: 'Wisp-Speaker', lines: [
+      "The spirit tree stopped bending south since RESHA fell.  It stands straight now.",
+      'OBSIDIUS keeps the onyx cave still.  He is quieter than before.  Quieter is good.',
+    ]},
+    { name: 'Old Medium', lines: [
+      "Resha's inherited Zyrex went back to their old trainers.  Or to no one.  Either way, home.",
+      'The ONYX GEMSHARD is here.  The walls stopped walking.',
+    ]},
+  ],
+  baelgor: [
+    { name: 'Forge-Hand', lines: [
+      "The anvil is warm because we keep it warm.  DRAKKUR could not take that from us.",
+      "AMBREVON's forge burns steady.  He forged something small yesterday.  For a child.",
+    ]},
+    { name: 'Fire-Watcher', lines: [
+      "The AMBER GEMSHARD is home.  The Amberchain closes.  It has always closed.",
+      "Drakkur's south road opened.  Everyone who was counted came back or did not.  Now they can rest either way.",
+    ]},
+  ],
+  thardin: [
+    { name: 'Cog-Turner', lines: [
+      "The machine listens to sound again.  It stopped listening under HELIX.  Now whistle and it turns.",
+      'OATHANE holds the anomaly cave.  His door stays closed.  That is the correct answer.',
+    ]},
+    { name: 'Pipe-Reader', lines: [
+      "The ANOMALY GEMSHARD is here.  Helix's woven futures came apart in his hands.",
+      'Thardun engineers celebrated the day Helix fell.  Loudly.  With hammers.',
+    ]},
+  ],
+  korathen: [
+    { name: 'Throne Priest', lines: [
+      "The throne is empty.  It has always been empty.  It is still empty in a different way now.",
+      "OATHEUS keeps the Ultra cave.  You broke the ninth seal.  Come when you are ready.",
+    ]},
+    { name: 'Gold-Guard', lines: [
+      "The ULTRA GEMSHARD is here.  THREEFOLD's counting stopped.  She always knew.  She always knew.",
+      'Wilds at Korathen tier still into the thirties.  You are close.  So are they.',
+    ]},
+  ],
+};
+// Returns TRUE if the district's Seer Commander has been defeated.
+function districtLiberated(districtId) {
+  return !!(game.player.seerCommandersDefeated && game.player.seerCommandersDefeated[districtId]);
+}
 
 // V2.43 — DISTRICT CHARACTER
 // Each district gets its own decor recipe so the world stops feeling like
@@ -4890,6 +5021,33 @@ function enterMap(mapId, spawnX, spawnY, dir) {
   setHudLocation(m.label);
   save();
   refreshMusicContext();   // V2.12 — home_interior -> home, else overworld
+  // V3.11 — WORLD CONSEQUENCE beat: first re-entry into a district
+  // AFTER its Seer Commander has fallen fires a hopeful arrival toast
+  // + a one-time recovery dialog.  One-time per district, tracked
+  // via game.player.freedGreeted so the beat doesn't spam on every
+  // subsequent visit.  Only fires for district maps (not interiors,
+  // not routes).
+  if (DISTRICT_ORDER.includes(mapId) && districtLiberated(mapId)) {
+    game.player.freedGreeted = game.player.freedGreeted || {};
+    if (!game.player.freedGreeted[mapId]) {
+      game.player.freedGreeted[mapId] = true;
+      save();
+      const meta = DISTRICT_META[mapId] || {};
+      const dName = meta.name || mapId;
+      setTimeout(() => {
+        showToast(`◈  ${dName.toUpperCase()}  ·  FREE OF THE MINISTRY`, 3200);
+        setTimeout(() => {
+          showDialog([
+            `The streets feel lighter here now.`,
+            `Doors that were shut for months hang open.`,
+            `Children laugh in yards where the grass had grown too tall.`,
+            `A villager waves as you pass — actually waves.`,
+            `You did this.`,
+          ]);
+        }, 900);
+      }, 700);
+    }
+  }
 }
 
 // V2.7.2 — extra NPC trainers scattered across Malezor.
@@ -8093,8 +8251,13 @@ function interactVillager(tx, ty) {
     showDialog(['They nod, but say nothing.']);
     return;
   }
-  // Legacy path — district outdoor villager pools
-  const pool = VILLAGERS[districtId] || [];
+  // Legacy path — district outdoor villager pools.
+  // V3.11 — World Consequence: swap in the LIBERATED pool once the
+  // Seer Commander of this district has fallen.  The tile-coord seed
+  // is preserved so the SAME villager tile stays with the SAME NPC
+  // (just shifts their lines from anxious to hopeful).
+  const liberated = districtLiberated(districtId);
+  const pool = (liberated ? VILLAGERS_LIBERATED[districtId] : VILLAGERS[districtId]) || [];
   if (pool.length === 0) {
     showDialog(['They nod, but say nothing.']);
     return;
@@ -8102,9 +8265,12 @@ function interactVillager(tx, ty) {
   // Stable seed: pick which villager from the pool based on tile coords
   const idx = ((tx * 31) ^ (ty * 17)) % pool.length;
   const villager = pool[idx < 0 ? idx + pool.length : idx];
-  // Line rotation: store how many times we've talked to this specific tile
+  // Line rotation: store how many times we've talked to this specific tile.
+  // V3.11 — Keep the rotation cursors SEPARATE for crisis vs liberated
+  // states so re-visiting after liberation starts the recovered pool
+  // from line 0 instead of resuming mid-rotation of the crisis pool.
   game.player.villagerLine = game.player.villagerLine || {};
-  const key = districtId + ':' + tx + ',' + ty;
+  const key = districtId + ':' + tx + ',' + ty + (liberated ? ':lib' : '');
   const step = game.player.villagerLine[key] || 0;
   const line = villager.lines[step % villager.lines.length];
   game.player.villagerLine[key] = step + 1;

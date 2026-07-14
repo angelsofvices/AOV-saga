@@ -140,12 +140,14 @@
       -ms-interpolation-mode: nearest-neighbor;
     }
 
-    /* Top HUD strip */
+    /* Top HUD strip — V3.10.8: 4 badges filling full stage width, each
+       badge exactly two rows of text (line 1 label, line 2 detail).
+       No party-count / gem chips; those live in the Items overlay now. */
     .hud {
       position: absolute; left: 8px; top: 8px; right: 8px;
-      display: flex; justify-content: space-between; align-items: center;
+      display: flex; justify-content: stretch; align-items: stretch; gap: 6px;
       font-family: var(--font-pixel);
-      font-size: 20px;
+      font-size: 15px;
       color: var(--gold-bright);
       text-shadow: 0 0 6px rgba(232, 200, 120, 0.4);
       pointer-events: none;
@@ -154,10 +156,19 @@
     .hud .badge {
       background: var(--glass);
       border: 1px solid var(--border-soft);
-      padding: 2px 10px;
+      padding: 4px 8px;
       border-radius: 3px;
       letter-spacing: 0.05em;
+      /* Fill the row evenly and always render as two centered rows */
+      flex: 1 1 0;
+      min-width: 0;
+      text-align: center;
+      line-height: 1.2;
+      white-space: normal;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
     }
+    .hud .badge .l1 { display: block; }
+    .hud .badge .l2 { display: block; opacity: 0.9; }
 
     /* ============ TITLE SCREEN ============ */
     .title-screen {
@@ -1712,13 +1723,14 @@
   <div class="stage" id="stage">
     <canvas id="game" width="640" height="448"></canvas>
 
+    <!-- V3.10.8 — Four-badge HUD.  Party count and gem chip removed
+         (both surface in the Items overlay).  Each badge renders as
+         exactly two rows: label on top, detail underneath. -->
     <div class="hud" id="hud" style="display:none;">
-      <div class="badge" id="hud-location">Malezor · Beastlands</div>
-      <div class="badge" id="hud-rizer" title="Your Rizer level. Grows through chests, battles, and quests.">★ R.Lv 1 · 0/150</div>
-      <div class="badge" id="hud-gems">◈ 0</div>
-      <div class="badge" id="hud-coins">¢ 0</div>
-      <div class="badge" id="hud-clues">⚑ 0/3</div>
-      <div class="badge" id="hud-party">Party 0/10</div>
+      <div class="badge" id="hud-location"><span class="l1">Malezor</span><span class="l2">Beastlands</span></div>
+      <div class="badge" id="hud-rizer" title="Your Rizer level. Grows through chests, battles, and quests."><span class="l1">★ R.Lv 1</span><span class="l2">0 / 150</span></div>
+      <div class="badge" id="hud-coins"><span class="l1">COINS</span><span class="l2">¢ 0</span></div>
+      <div class="badge" id="hud-clues"><span class="l1">SHARDS</span><span class="l2">◈ 0/10</span></div>
     </div>
 
     <!-- Character creator -->
@@ -4875,8 +4887,7 @@ function enterMap(mapId, spawnX, spawnY, dir) {
   if (dir) game.player.dir = dir;
   delete game.npcs;   // rebuild for the new map
   ensureNpcRuntime();
-  const el = document.getElementById('hud-location');
-  if (el) el.textContent = m.label;
+  setHudLocation(m.label);
   save();
   refreshMusicContext();   // V2.12 — home_interior -> home, else overworld
 }
@@ -7930,8 +7941,7 @@ function triggerDoor(tileChar, doorX, doorY) {
       label: 'Seer Ministry',
     };
     enterMap(target.map, target.x, target.y, target.dir);
-    const hudEl = document.getElementById('hud-location');
-    if (hudEl) hudEl.textContent = 'Seer Ministry · Main';
+    setHudLocation('Seer Ministry · Main');
     return;
   }
   // V2.69 / V2.74 · V3.10.7 — Town Hall door: gated by the district's
@@ -7959,8 +7969,7 @@ function triggerDoor(tileChar, doorX, doorY) {
       label: hall.name,
     };
     enterMap(hallMapId, target.x, target.y, target.dir);
-    const hudEl = document.getElementById('hud-location');
-    if (hudEl) hudEl.textContent = hall.name;
+    setHudLocation(hall.name);
     return;
   }
   // Locked door — check key
@@ -7986,8 +7995,7 @@ function triggerDoor(tileChar, doorX, doorY) {
     enterMap(target.map, target.x, target.y, target.dir);
     // Override the HUD label with the district-aware name so the player
     // sees 'Sunlit Way · Cottage' in Zarvane, not 'Bronze Cottage'.
-    const hudEl = document.getElementById('hud-location');
-    if (hudEl) hudEl.textContent = districtLabel;
+    setHudLocation(districtLabel);
     // V2.68 — No walk-in loot.  Items only come from chests, NPC
     // dialogue, or world finds.  Legacy grantHouseLoot() removed.
     return;
@@ -11408,28 +11416,39 @@ function renderInspectSwap() {
 // ============================================================================
 //  HUD
 // ============================================================================
+// V3.10.8 — All hud-location writes route through this helper so the
+// badge always renders as two centered rows.  Labels of the form
+// 'District · Land' split at the middle-dot.  Single-word labels
+// (interiors like 'Seer Ministry · Basement') split at the ' · ' too.
+// Anything without a separator uses the label as line 1 and blank line 2.
+function setHudLocation(label) {
+  const el = document.getElementById('hud-location');
+  if (!el) return;
+  const parts = String(label || '').split(' · ');
+  const l1 = parts[0] || '';
+  const l2 = parts.slice(1).join(' · ');   // preserve extra dots as line-2
+  el.innerHTML = `<span class="l1">${l1}</span><span class="l2">${l2}</span>`;
+}
 function updateHUD() {
-  const alive = game.player.party.filter(r => r).length;
-  document.getElementById('hud-party').textContent = `Party ${alive}/${MAX_PARTY}`;
-  const gemEl = document.getElementById('hud-gems');
-  if (gemEl) gemEl.textContent = `◈ ${game.player.gems}`;
+  // V3.10.8 — HUD reduced to four badges (location · R.Lv · coins ·
+  // shards).  Party count + gems moved to the Items overlay.  Every
+  // badge renders as exactly two rows via .l1 / .l2 spans.
   const coinEl = document.getElementById('hud-coins');
-  if (coinEl) coinEl.textContent = `¢ ${game.player.coins || 0}`;
+  if (coinEl) coinEl.innerHTML = `<span class="l1">COINS</span><span class="l2">¢ ${game.player.coins || 0}</span>`;
   // V2.22 — HUD tracks stolen Gemshards recovered from Seer mini-bosses (0/10).
-  // The 10 gem-keys are the quest-item chain per district (per V2.21 wiring).
   const cluesEl = document.getElementById('hud-clues');
   if (cluesEl) {
     const GEMS = ['ruby','pearl','citrine','emerald','amethyst','sapphire','onyx','amber','anomaly','ultra'];
     const owned = GEMS.filter(g => (game.player.keys || {})[g]).length;
-    cluesEl.textContent = `◈ ${owned}/10`;
+    cluesEl.innerHTML = `<span class="l1">SHARDS</span><span class="l2">◈ ${owned}/10</span>`;
   }
-  // V3.8 — Rizer Level chip: current level + XP progress toward next.
+  // V3.8 · V3.10.8 — Rizer Level chip: level on line 1, XP progress on line 2.
   const rizerEl = document.getElementById('hud-rizer');
   if (rizerEl) {
     const lv = game.player.rizerLv || 1;
     const xp = game.player.rizerXp || 0;
     const need = rizerXpForNext(lv);
-    rizerEl.textContent = `★ R.Lv ${lv} · ${xp}/${need}`;
+    rizerEl.innerHTML = `<span class="l1">★ R.Lv ${lv}</span><span class="l2">${xp} / ${need}</span>`;
   }
 }
 

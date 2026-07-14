@@ -4151,23 +4151,25 @@ function generateDistrictMap(mapId) {
     if (grid[cy] && grid[cy][cx] !== undefined) grid[cy][cx] = 'C';
   }
 
-  // V3.0 — SEER MINISTRY HQ.  3x2 footprint on the district ground.
+  // V3.0 · V3.6.3 — SEER MINISTRY HQ.  3x2 footprint on the district ground.
   // Top row: emblem wall 'A' (three tiles; center draws the white eye).
   // Bottom row: 'A' A E A — the 'E' center is the door.
   // Placed south of center so it stands out against the northern town hall.
+  //
+  // V3.6.3 fix: FORCE-STAMP the HQ.  Previously we only stamped when all
+  // 6 tiles were clear ',' — but earlier passes (locked bronze-cottage 'p'
+  // buildings, grass 'G', chests 'K', trees 'T') could land inside the
+  // footprint and silently block placement.  Zarvane hit this: the bronze
+  // cottage door 'p' happened to sit on the HQ tile, so the Seer HQ never
+  // spawned there and the visible building was the bronze cottage — which
+  // teleported the player to bronze_cottage on interaction.  Now we
+  // unconditionally overwrite whatever's underneath so every district
+  // gets a real Seer Ministry with a real 'E' door -> seer_hq_main.
   {
     const hqX = Math.floor(cols / 2) - 1;   // top-left of the 3x2 building
     const hqY = rows - 4;                    // second-to-last row of grid
-    // Verify the 3x2 area is clear before stamping so we don't collide
-    // with landmarks/cave/portals.
-    let clear = true;
-    for (let dy = 0; dy < 2 && clear; dy++) {
-      for (let dx = 0; dx < 3 && clear; dx++) {
-        const rr = hqY + dy, cc = hqX + dx;
-        if (!grid[rr] || grid[rr][cc] === undefined || grid[rr][cc] !== ',') clear = false;
-      }
-    }
-    if (clear) {
+    // Safety: make sure the two rows exist (they always do, given hqY = rows-4).
+    if (grid[hqY] && grid[hqY + 1]) {
       grid[hqY][hqX]     = 'A'; grid[hqY][hqX + 1]     = 'A'; grid[hqY][hqX + 2]     = 'A';   // emblem row
       grid[hqY + 1][hqX] = 'A'; grid[hqY + 1][hqX + 1] = 'E'; grid[hqY + 1][hqX + 2] = 'A';   // door row
     }

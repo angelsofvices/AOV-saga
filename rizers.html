@@ -3510,6 +3510,76 @@ const ROUTE_META = {
 };
 const ROUTE_ORDER = ['valley_benevolent_beast','choir_of_pearlord','wilds_of_citrinehowl','verge_of_emeraldbloom','rift_of_amethyst_voice','skylanes_sapphirebroker','threshold_of_onyxwhisper','roads_of_amberchain','fracture_of_anomaly'];
 function isRouteMap(mapId) { return !!ROUTE_META[mapId]; }
+
+// ============================================================================
+//  V3.9 — QUEST SYSTEM (elder → route item → turn-in → Rizer XP)
+// ============================================================================
+// Each district (except Korathen — its own route doesn't exist east) has
+// an ELDER stationed in its Town Hall.  Talk to them: they ask you to
+// retrieve a district-flavored item from the eastern route.  Cross the
+// route, find the item (a glowing 'q' marker), return to the elder,
+// receive a big Rizer-XP payout.
+//
+// State machine per quest, stored on game.player.quests[questId].state:
+//   undefined / 'locked'   — elder hasn't been approached
+//   'active'               — elder has offered; item not yet in inventory
+//   'item_found'           — quest item picked up on the route
+//   'complete'             — item turned in; XP claimed
+const QUEST_DEFS = {
+  malezor_rubypaw:      { districtId: 'malezor',   hallId: 'malezor_hall',   routeId: 'valley_benevolent_beast',    elderName: 'WARDEN KELTHOR',       elderTitle: 'senior beast-warden',  itemName: 'RUBYPAW FETISH',        rxpReward: 1000, offerLine: 'A stray Rizer. My best hunter dropped the RUBYPAW FETISH somewhere in the Valley of the Benevolent Beast. Bring it back to me — the beasts know their own.', turnInLine: 'The Rubypaw returns. My hunter can sleep tonight. Take this for your trouble.', reminderLine: 'The fetish still waits in the Valley of the Benevolent Beast. Look near the grasses.' },
+  zarvane_pearlbell:    { districtId: 'zarvane',   hallId: 'zarvane_hall',   routeId: 'choir_of_pearlord',           elderName: 'CHOIRMOTHER IVELITH',  elderTitle: 'high sunpriestess',    itemName: 'PEARLCHOIR BELL',       rxpReward: 1200, offerLine: 'A pilgrim dropped her PEARLCHOIR BELL crossing the Choir of the Pearlord. Its notes are how we speak to Ivirium. Find it. Bring it home.', turnInLine: 'The Bell rings once as you hand it back. Ivirium hears. So do I. Thank you, Rizer.', reminderLine: 'The Bell is out there. Somewhere in the Choir. Listen for the shimmer.' },
+  andrannor_citrinefang:{ districtId: 'andrannor', hallId: 'andrannor_hall', routeId: 'wilds_of_citrinehowl',        elderName: 'BEASTKEEPER MORA',     elderTitle: 'keeper of the creaturewilds', itemName: 'CITRINEHOWL FANG',  rxpReward: 1500, offerLine: 'A citrinehowl shed a fang out in the wilds east of us. I need it for a binding rite. Cross the Wilds of the Citrinehowl. Bring the fang.', turnInLine: 'A clean fang. The rite will hold now. Every creature of Andrannor thanks you.', reminderLine: 'The fang lies in the Wilds of the Citrinehowl. Keep looking.' },
+  veridan_emeraldseed:  { districtId: 'veridan',   hallId: 'veridan_hall',   routeId: 'verge_of_emeraldbloom',        elderName: 'GROVEWARDEN SELIS',    elderTitle: 'root of the great tree', itemName: 'EMERALDBLOOM SEED',    rxpReward: 2000, offerLine: 'The border grove hasn\'t bloomed in a decade. An EMERALDBLOOM SEED lies at the Verge — bring it. I will grow the grove myself.', turnInLine: 'The Seed pulses in my palm. Veridan breathes again. Take this — the grove blesses you.', reminderLine: 'The Seed rests somewhere on the Verge of the Emeraldbloom. Search the grass.' },
+  netharion_voicecrystal:{districtId: 'netharion', hallId: 'netharion_hall', routeId: 'rift_of_amethyst_voice',       elderName: 'NULLKEEPER VOSS',      elderTitle: 'keeper of the empty room', itemName: 'AMETHYST VOICECRYSTAL', rxpReward: 2500, offerLine: 'A crystal at the Rift keeps whispering my mother\'s name. I need it silenced. Retrieve the AMETHYST VOICECRYSTAL. Do not listen too long.', turnInLine: 'The whispering stops when I hold it. You did not listen too long. That means you are still yours. Take this.', reminderLine: 'The Voicecrystal still speaks in the Rift. Try not to hear the words.' },
+  vorashil_landingchip: { districtId: 'vorashil',  hallId: 'vorashil_hall',  routeId: 'skylanes_sapphirebroker',      elderName: 'SKYBROKER EZEKAR',     elderTitle: 'senior alien-tech broker', itemName: 'SAPPHIRE LANDING CHIP', rxpReward: 3000, offerLine: 'A landing pod cracked open in the Skylanes and dropped a SAPPHIRE LANDING CHIP. Off-world tech. I need it before Thardun does. Fetch.', turnInLine: 'A clean CHIP — untampered. Thardun will pay us to look at it. And so will I. Take your share.', reminderLine: 'The CHIP is out in the Skylanes. Watch the pods overhead.' },
+  xilnar_wispcoin:      { districtId: 'xilnar',    hallId: 'xilnar_hall',    routeId: 'threshold_of_onyxwhisper',     elderName: 'WISPKEEPER NAELA',     elderTitle: 'reader of the wisps',  itemName: 'ONYX WISP COIN',        rxpReward: 3500, offerLine: 'A spirit left a toll at the Threshold and forgot to collect it. An ONYX WISP COIN, warm to the touch. Bring it to me — the wisps want it home.', turnInLine: 'The Coin hums as you set it down. The wisps go quiet. Thank you. Take a wispblessing with you.', reminderLine: 'The COIN waits on the Threshold of the Onyxwhisper. Follow the cold air.' },
+  baelgor_chainlink:    { districtId: 'baelgor',   hallId: 'baelgor_hall',   routeId: 'roads_of_amberchain',          elderName: 'EMBERKEEPER DRAITH',   elderTitle: 'master of the amber forge', itemName: 'AMBER CHAINLINK',    rxpReward: 4000, offerLine: 'One of my forge-caravans lost an AMBER CHAINLINK on the Roads. Without it the chain does not close. Bring it back before the Amberchain breaks.', turnInLine: 'A single Chainlink — the whole convoy safe. Baelgor owes you a debt. Here is a beginning.', reminderLine: 'The Chainlink is out on the Roads of the Amberchain. Somewhere between forges.' },
+  thardin_anomalycog:   { districtId: 'thardin',   hallId: 'thardin_hall',   routeId: 'fracture_of_anomaly',          elderName: 'FOREMANCHIEF YORIK',   elderTitle: 'chief engineer of Thardun', itemName: 'ANOMALY COG',       rxpReward: 4500, offerLine: 'A Thardun expedition into the Fracture came back missing an ANOMALY COG. My best machine grinds without it. Cross the Fracture. Bring the Cog.', turnInLine: 'The Cog fits like it never left. Thardun\'s gears turn again. This one is on the corporate — take it.', reminderLine: 'The COG lies in the Fracture of the Anomaly. Watch for machine wreckage.' },
+};
+const QUEST_ORDER = ['malezor_rubypaw','zarvane_pearlbell','andrannor_citrinefang','veridan_emeraldseed','netharion_voicecrystal','vorashil_landingchip','xilnar_wispcoin','baelgor_chainlink','thardin_anomalycog'];
+// Reverse indexes so tile handlers can look up quests fast.
+const QUEST_BY_HALL  = {};
+const QUEST_BY_ROUTE = {};
+for (const qid of QUEST_ORDER) {
+  const q = QUEST_DEFS[qid];
+  QUEST_BY_HALL[q.hallId]   = qid;
+  QUEST_BY_ROUTE[q.routeId] = qid;
+}
+// Elder coord per town hall — every V2.74 hand-crafted hall has a 'v'
+// villager at column 3, row 2 or 3.  We designate that specific 'v' as
+// the district's ELDER at interact-time.  No map-data edits required.
+const HALL_ELDER_COORDS = {
+  malezor_hall:   { x: 3, y: 2 },
+  zarvane_hall:   { x: 3, y: 2 },
+  andrannor_hall: { x: 3, y: 2 },
+  veridan_hall:   { x: 3, y: 3 },
+  netharion_hall: { x: 3, y: 3 },
+  vorashil_hall:  { x: 3, y: 2 },
+  xilnar_hall:    { x: 3, y: 2 },
+  baelgor_hall:   { x: 3, y: 2 },
+  thardin_hall:   { x: 3, y: 2 },
+  korathen_hall:  { x: 3, y: 2 },
+};
+function questState(questId) {
+  if (!game || !game.player || !game.player.quests) return 'locked';
+  const q = game.player.quests[questId];
+  return (q && q.state) || 'locked';
+}
+function setQuestState(questId, state) {
+  if (!game || !game.player) return;
+  game.player.quests = game.player.quests || {};
+  const q = game.player.quests[questId] || {};
+  q.state = state;
+  if (state === 'active' && !q.acceptedAt) q.acceptedAt = Date.now();
+  if (state === 'complete' && !q.completedAt) q.completedAt = Date.now();
+  game.player.quests[questId] = q;
+  save();
+}
+// True if the current interior/coord is the elder for the CURRENT hall.
+function isElderAt(mapId, x, y) {
+  const c = HALL_ELDER_COORDS[mapId];
+  return !!(c && c.x === x && c.y === y);
+}
 // Returns the route sitting between DISTRICT_ORDER[i] and DISTRICT_ORDER[i+1].
 function routeBetween(westDistrictId, eastDistrictId) {
   const i = DISTRICT_ORDER.indexOf(westDistrictId);
@@ -6118,6 +6188,42 @@ function openMainMenu() {
     setTimeout(() => { const b = $mainmenu.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
   }
 }
+// V3.8.1 — DEV MODE toggle.  Hold the MENU pill (or press F9 on desktop)
+// to flip.  When on:
+//   * RUN is enabled in EVERY battle kind (not just wild)
+//   * A successful escape stamps a 10-second cooldown on the fleeing-from
+//     NPC so bumping into them again doesn't reopen the same bugged fight
+//   * A DEV chip renders at the top of the HUD so the state is obvious
+// This is a safety hatch — never get soft-locked by a bug mid-playtest.
+function toggleDevMode() {
+  game.devMode = !game.devMode;
+  updateDevModeChip();
+  if (game.devMode) {
+    showToast('◈  DEV MODE ON  ·  RUN unlocked  ·  10s NPC cooldown', 2600);
+  } else {
+    showToast('◈  DEV MODE OFF', 1600);
+    // Clear any lingering cooldowns so the world resumes normal behavior.
+    game.encounterCooldowns = {};
+  }
+  // Re-render the battle action menu if we happen to be in a battle
+  // when the toggle flips — otherwise RUN would stay disabled until
+  // the next action refresh.
+  if (game.mode === 'battle' && typeof renderMainMenu === 'function') renderMainMenu();
+}
+function updateDevModeChip() {
+  let chip = document.getElementById('hud-devmode');
+  if (!chip) {
+    chip = document.createElement('div');
+    chip.id = 'hud-devmode';
+    chip.className = 'badge';
+    chip.style.cssText = 'color:#ff6a4a; border-color:#ff6a4a; letter-spacing:0.28em;';
+    chip.title = 'DEV MODE — hold MENU to exit. Run unlocks in every battle. 10s cooldown per fled NPC.';
+    const hud = document.getElementById('hud');
+    if (hud) hud.appendChild(chip);
+  }
+  chip.textContent = '⚑ DEV MODE';
+  chip.style.display = game.devMode ? '' : 'none';
+}
 function closeMainMenu() {
   $mainmenu.classList.remove('active');
   if (game.mode === 'mainmenu') game.mode = 'overworld';
@@ -6943,6 +7049,12 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'F1' || (e.key === '?' && !e.repeat)) {
     if ($controlsModal.classList.contains('active')) closeControlsModal();
     else openControlsModal();
+    e.preventDefault();
+    return;
+  }
+  // V3.8.1 — F9 = DEV MODE toggle (desktop mirror of mobile MENU long-press).
+  if (e.key === 'F9' && !e.repeat) {
+    toggleDevMode();
     e.preventDefault();
     return;
   }
@@ -8282,7 +8394,13 @@ function isNpcAt(x, y) {
   if (!game.npcs) return null;
   for (const key in game.npcs) {
     const n = game.npcs[key];
-    if (n.x === x && n.y === y && !npcTrainerDefeated(n.homeX, n.homeY)) return n;
+    if (n.x !== x || n.y !== y) continue;
+    if (npcTrainerDefeated(n.homeX, n.homeY)) continue;
+    // V3.8.1 — DEV MODE cooldown skips this NPC entirely for 10 s after
+    // the player runs from them.  The NPC still renders on the map;
+    // they just can't trigger a bump-battle during the cooldown window.
+    if (typeof isNpcOnCooldown === 'function' && isNpcOnCooldown(n.homeX, n.homeY)) continue;
+    return n;
   }
   return null;
 }
@@ -8904,7 +9022,9 @@ function logBattle(text) { $battleText.textContent = text; }
 function renderMainMenu() {
   $battleActions.innerHTML = '';
   const p = game.player.party[game.battle.playerIdx];
-  const canRun = game.battle.kind === 'wild';
+  // V3.8.1 — DEV MODE always allows RUN regardless of battle kind, so a
+  // bugged trainer/commander/Gemlord encounter is never a soft-lock.
+  const canRun = game.battle.kind === 'wild' || game.devMode;
   addAction('FIGHT', renderMoveMenu);
   addAction('ZYREX', renderZyrexMenu);
   addAction('BAG',   renderBagMenu);
@@ -9340,8 +9460,26 @@ async function playerSwitch(i) {
 
 async function tryRun() {
   logBattle('You slipped away.');
+  // V3.8.1 — DEV MODE escape: stamp a 10-second cooldown on this specific
+  // NPC (by instance-key coord) so bumping into them right after doesn't
+  // instantly reopen the same bugged encounter.  Wild flees are already
+  // covered by stepsSinceEnc, so we only need the NPC-side cooldown here.
+  if (game.devMode && game.battle && game.battle.npcCoord) {
+    const iKey = (typeof currentInstanceKey === 'function') ? currentInstanceKey() : (game.player.mapId || 'overworld');
+    const key  = iKey + ':' + game.battle.npcCoord;
+    game.encounterCooldowns = game.encounterCooldowns || {};
+    game.encounterCooldowns[key] = Date.now() + 10000;   // 10 s
+  }
   await wait(600);
   exitBattle();
+}
+// V3.8.1 — helper: is this NPC coord currently under DEV MODE cooldown?
+function isNpcOnCooldown(x, y) {
+  const cooldowns = game.encounterCooldowns;
+  if (!cooldowns) return false;
+  const iKey = (typeof currentInstanceKey === 'function') ? currentInstanceKey() : (game.player.mapId || 'overworld');
+  const until = cooldowns[iKey + ':' + x + ',' + y];
+  return !!(until && until > Date.now());
 }
 
 // V3.1 — ZYSPHERE CATCH FORMULA
@@ -11100,16 +11238,31 @@ menuBackdrop.addEventListener('click', () => {
     // V3.4 — pills with data-action bypass key synthesis entirely and
     // call the corresponding game function directly on tap.
     if (action) {
+      let pillHoldTimer = null;
+      let pillLongPressed = false;
       el.addEventListener('pointerdown', (e) => {
         e.preventDefault(); pid = e.pointerId;
         try { el.setPointerCapture(pid); } catch(_) {}
         el.classList.add('pressed');
         haptic();
+        pillLongPressed = false;
+        // V3.8.1 — MENU pill long-press (800 ms) toggles DEV MODE so a
+        // bugged battle can be escaped from anywhere.  Other action
+        // pills don't currently have a long-press behavior.
+        if (action === 'menu') {
+          pillHoldTimer = setTimeout(() => {
+            pillLongPressed = true;
+            pillHoldTimer = null;
+            toggleDevMode();
+          }, 800);
+        }
       });
       const pillUp = (e) => {
         if (e.pointerId !== pid) return;
         pid = null;
         el.classList.remove('pressed');
+        if (pillHoldTimer) { clearTimeout(pillHoldTimer); pillHoldTimer = null; }
+        if (pillLongPressed) { resetIdle(); return; }   // long-press consumed the tap
         if (action === 'menu')     openMainMenu();
         else if (action === 'settings') openSettings();
         else if (action === 'select')   triggerSelectAssignment();

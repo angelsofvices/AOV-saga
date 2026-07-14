@@ -3472,10 +3472,17 @@ const SEER_HQ_BASEMENT = [
   '#............U.#',   // stairs UP back to main
   '################',
 ];
+// V3.11.2 — The Ministry chest holds the district's TOWN HALL PASSAGE
+// (Beastward Sigil / Pearlchoir Token / etc.).  Chest sits at (7,2) —
+// directly BEHIND the Commander (X at (7,4)) — so the visual reads
+// as "the Commander is guarding it".  The chest is walkable-to via
+// the sides, but the openChest handler refuses to unseal it while
+// the Commander is still alive.  Stairs 'w' at (12,7) unchanged so
+// getStairTarget landings still line up.
 const SEER_HQ_UPPER = [
   '################',
   '#..............#',
-  '#..............#',
+  '#......K.......#',   // K = passage chest, behind the Commander
   '#..............#',
   '#......X.......#',   // Seer Commander mini-boss
   '#..............#',
@@ -3550,16 +3557,16 @@ const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','v
 // you can enter without the hall passage).  Bronze/Silver keys are
 // Malezor cottage keys only and unchanged.
 const HALL_PASSAGES = {
-  malezor:   { key: 'beastward_sigil',    name: 'Beastward Sigil',     hint: 'A rival Rizer in the Beastlands carries the sigil.  Beat them.' },
-  zarvane:   { key: 'pearlchoir_token',   name: 'Pearlchoir Token',    hint: 'A Seer scout on Zarvane holds the token.  Beat them.' },
-  andrannor: { key: 'citrinewild_fang',   name: 'Citrinewild Fang',    hint: 'A Seer scout in the Creaturelands wears the fang.  Beat them.' },
-  veridan:   { key: 'emeraldbloom_wreath',name: 'Emeraldbloom Wreath', hint: 'A Seer scout among the Naturelands roots the wreath.  Beat them.' },
-  netharion: { key: 'amethyst_pass',      name: 'Amethyst Pass',       hint: 'A Seer scout near the Unknown\'s edge keeps the pass.  Beat them.' },
-  vorashil:  { key: 'sapphire_chit',      name: 'Sapphire Landing Chit',hint: 'A Seer scout at an Alienlands landing pad carries the chit.  Beat them.' },
-  xilnar:    { key: 'onyx_toll',          name: 'Onyx Wisp Toll',      hint: 'A Seer scout on the Spiritlands roads holds the toll.  Beat them.' },
-  baelgor:   { key: 'amberchain_link',    name: 'Amberchain Link',     hint: 'A Seer scout at a Humanoidlands forge grips the link.  Beat them.' },
-  thardin:   { key: 'anomaly_stamp',      name: 'Anomaly Cog Stamp',   hint: 'A Seer scout on Thardun\'s mech grid carries the stamp.  Beat them.' },
-  korathen:  { key: 'ultra_crest',        name: 'Ultra Crest',         hint: 'A Seer scout on the Ultralands road bears the crest.  Beat them.' },
+  malezor:   { key: 'beastward_sigil',    name: 'Beastward Sigil',     hint: 'YARA-PRIME guards a chest on the Ministry\'s upper floor.  The sigil is inside.' },
+  zarvane:   { key: 'pearlchoir_token',   name: 'Pearlchoir Token',    hint: 'VORHIL guards a chest on the Ministry\'s upper floor.  The token is inside.' },
+  andrannor: { key: 'citrinewild_fang',   name: 'Citrinewild Fang',    hint: 'MIRAX guards a chest on the Ministry\'s upper floor.  The fang is inside.' },
+  veridan:   { key: 'emeraldbloom_wreath',name: 'Emeraldbloom Wreath', hint: 'THORNE guards a chest on the Ministry\'s upper floor.  The wreath is inside.' },
+  netharion: { key: 'amethyst_pass',      name: 'Amethyst Pass',       hint: 'NULLIS guards a chest on the Ministry\'s upper floor.  The pass is inside.' },
+  vorashil:  { key: 'sapphire_chit',      name: 'Sapphire Landing Chit',hint: 'ZYPHER-9 guards a chest on the Ministry\'s upper floor.  The chit is inside.' },
+  xilnar:    { key: 'onyx_toll',          name: 'Onyx Wisp Toll',      hint: 'RESHA guards a chest on the Ministry\'s upper floor.  The toll is inside.' },
+  baelgor:   { key: 'amberchain_link',    name: 'Amberchain Link',     hint: 'DRAKKUR guards a chest on the Ministry\'s upper floor.  The link is inside.' },
+  thardin:   { key: 'anomaly_stamp',      name: 'Anomaly Cog Stamp',   hint: 'HELIX guards a chest on the Ministry\'s upper floor.  The stamp is inside.' },
+  korathen:  { key: 'ultra_crest',        name: 'Ultra Crest',         hint: 'THREEFOLD guards a chest on the Ministry\'s upper floor.  The crest is inside.' },
 };
 function hasHallPassage(districtId) {
   const p = HALL_PASSAGES[districtId];
@@ -8965,6 +8972,56 @@ function openChest(x, y) {
     showToast('◈  COMPUTER PART  ·  Legacy Rizer artifact', 3000);
     return;
   }
+  // V3.11.2 — MINISTRY PASSAGE CHEST.  The K tile at (7,2) inside the
+  // seer_hq_upper interior holds the district's TOWN HALL PASSAGE
+  // (Beastward Sigil / Pearlchoir Token / etc.).  Chest is guarded by
+  // the Commander (X at (7,4)): openChest refuses to unseal until the
+  // district's seerCommandersDefeated flag is set.  Passage is scoped
+  // per source district, so opening the chest as Malezor's copy of
+  // upper grants the Beastward Sigil; entering later from Zarvane
+  // grants the Pearlchoir Token; etc.
+  if (mapId === 'seer_hq_upper' && x === 7 && y === 2) {
+    const fromDistrict = from && from.map;
+    if (!fromDistrict || !HALL_PASSAGES[fromDistrict]) {
+      showDialog(['The chest is empty.  Whoever this room belonged to left nothing behind.']);
+      game.player.chestsOpened[key] = true;
+      save();
+      return;
+    }
+    const p = HALL_PASSAGES[fromDistrict];
+    // Already claimed?
+    if (game.player.passages && game.player.passages[p.key]) {
+      showDialog(['The chest is empty.  You have already taken what it held.']);
+      return;
+    }
+    // Commander gate — refuse to unseal while X is alive in this district.
+    const commanderDown = !!(game.player.seerCommandersDefeated && game.player.seerCommandersDefeated[fromDistrict]);
+    if (!commanderDown) {
+      const cmd = SEER_COMMANDERS[fromDistrict];
+      const cmdName = cmd ? cmd.name : 'the Commander';
+      showDialog([
+        'The chest is warded.',
+        `Its lock will not answer while ${cmdName} still stands.`,
+        'Deal with the Commander first.',
+      ]);
+      return;
+    }
+    // Commander is down — grant the passage.
+    game.player.passages = game.player.passages || {};
+    game.player.passages[p.key] = 1;
+    game.player.chestsOpened[key] = true;
+    save();
+    const meta = DISTRICT_META[fromDistrict] || {};
+    showToast(`◈  ${p.name.toUpperCase()}  ·  claimed`, 3000);
+    showDialog([
+      'You crack the chest open.',
+      `Wrapped in dark cloth, cool to the touch: the ${p.name.toUpperCase()}.`,
+      `The Commander was guarding this all along.`,
+      `«◈ ${p.name.toUpperCase()} added to items.»`,
+      `«◈ The ${meta.name || fromDistrict} Town Hall door will now open for you.»`,
+    ]);
+    return;
+  }
   // V2.73 — Randomized loot at first-open, persisted per-save.
   // Priority order:
   //   1. INTERIOR_CHEST_LOOT (hand-set interior chests — silver_lodge etc.)
@@ -10578,39 +10635,10 @@ function checkBattleOver() {
         else                          rxp = 100;
         gainRizerXp(rxp, 'trainer');
       }
-      // V3.10.7 — HALL PASSAGE grant on the FIRST in-district NPC-trainer
-      // defeat.  Fires when the source district resolves to a real
-      // Zyraxis district AND the tile-char is a Y / J / Q / g scout
-      // (grunts count; the 'X' Commander does NOT — he lives inside the
-      // Ministry and the player would already need the hall passage to
-      // reach him meaningfully).  One passage per district; grant is a
-      // no-op after the first drop.
-      {
-        const tc = game.battle.tileChar;
-        // Determine the source district.  For overworld tiles that's
-        // game.player.mapId directly; inside shared interiors, use
-        // enteredInteriorFrom.map.
-        let srcDistrict = game.player.mapId;
-        if (['seer_hq_main','seer_hq_basement','seer_hq_upper'].includes(srcDistrict)) {
-          const from = game.player.enteredInteriorFrom;
-          srcDistrict = (from && from.map) || srcDistrict;
-        }
-        const passageEligible = 'YJQg'.includes(tc);   // named scouts + grunts
-        if (passageEligible && HALL_PASSAGES[srcDistrict]) {
-          const granted = grantHallPassage(srcDistrict);
-          if (granted) {
-            const p = HALL_PASSAGES[srcDistrict];
-            setTimeout(() => {
-              showToast(`◈  ${p.name.toUpperCase()}  ·  claimed`, 3000);
-              showDialog([
-                `They drop a small token as they retreat.`,
-                `«◈ You claimed the ${p.name.toUpperCase()}.»`,
-                `«◈ The Town Hall door will now open for you in this district.»`,
-              ]);
-            }, 1600);
-          }
-        }
-      }
+      // V3.10.7 -> V3.11.2 — HALL PASSAGE grant on grunt/scout defeat
+      // removed.  Passages now live in the guarded chest at (7,2) inside
+      // seer_hq_upper and are only obtainable AFTER the district's Seer
+      // Commander is defeated.  See openChest() for the grant logic.
       // V3.0 · V3.5.1 — Seer HQ grunt (main floor OR basement):
       // stamp the district-scoped flag so seerHqBasementClear() can
       // detect when EVERY grunt in the HQ (2 main + 3 basement) is

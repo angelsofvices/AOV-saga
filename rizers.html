@@ -3117,6 +3117,9 @@ const game = {
     rizerLv: 1,
     rizerXp: 0,
     rizerLvHigh: 1,           // remembered peak for future analytics / titles
+    // V3.9 — QUESTS.  Keyed by QUEST_DEFS id.  Each entry: { state, acceptedAt, completedAt }.
+    quests: {},
+    questItemsPicked: {},     // { 'routeId:x,y': true } — collected route items
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -3579,6 +3582,101 @@ function setQuestState(questId, state) {
 function isElderAt(mapId, x, y) {
   const c = HALL_ELDER_COORDS[mapId];
   return !!(c && c.x === x && c.y === y);
+}
+// Elder interaction — dispatched from interactVillager when the player
+// speaks to the elder tile inside a hall.  The elder is bound to the
+// hall's SOURCE district (game.player.enteredInteriorFrom.map), which
+// is where their district-linked quest lives.
+function handleElderInteract(hallMapId) {
+  const from = game.player.enteredInteriorFrom;
+  const fromDistrict = from && from.map;
+  const questId = QUEST_BY_HALL[hallMapId];
+  const q = questId && QUEST_DEFS[questId];
+  if (!q || !fromDistrict) {
+    // No quest wired for this hall yet (Korathen ships without one for V3.9).
+    showDialog(['The elder inclines their head.', 'Their eyes are somewhere far away.']);
+    return;
+  }
+  const state = questState(questId);
+  const routeMeta = ROUTE_META[q.routeId] || { name: 'the road east' };
+  const elderTag = `${q.elderName}, ${q.elderTitle}:`;
+  if (state === 'complete') {
+    showDialog([
+      elderTag,
+      `Rizer.  ${q.itemName} is home.  So are you.  That is a good day.`,
+    ]);
+    return;
+  }
+  if (state === 'item_found') {
+    // Player has the item — turn-in flow: grant XP, mark complete.
+    showDialog([
+      elderTag,
+      q.turnInLine,
+      `«◈ QUEST COMPLETE  ·  ${q.itemName} returned.»`,
+      `«◈ +${q.rxpReward} RIZER XP»`,
+    ], () => {
+      setQuestState(questId, 'complete');
+      gainRizerXp(q.rxpReward, 'quest');
+      showToast(`◈  QUEST COMPLETE  ·  +${q.rxpReward} R.XP`, 3000);
+    });
+    return;
+  }
+  if (state === 'active') {
+    showDialog([
+      elderTag,
+      q.reminderLine,
+      `«◈ FIND  ${q.itemName}  IN  ${routeMeta.name.toUpperCase()}»`,
+    ]);
+    return;
+  }
+  // locked / never-offered → offer the quest.
+  showDialog([
+    elderTag,
+    q.offerLine,
+    `«◈ QUEST ACCEPTED  ·  FIND  ${q.itemName}  IN  ${routeMeta.name.toUpperCase()}»`,
+  ], () => {
+    setQuestState(questId, 'active');
+    showToast(`◈  QUEST · ${q.itemName}`, 2400);
+  });
+}
+// V3.9 — Route quest-item interaction ('q' tile).  Called from tryInteract.
+function handleQuestItem(x, y) {
+  const routeId = game.player.mapId;
+  const questId = QUEST_BY_ROUTE[routeId];
+  const q = questId && QUEST_DEFS[questId];
+  if (!q) {
+    showDialog(['Something glimmers here — but it means nothing to you yet.']);
+    return;
+  }
+  const state = questState(questId);
+  if (state === 'complete' || state === 'item_found') {
+    showDialog(['Already collected.']);
+    return;
+  }
+  if (state !== 'active') {
+    // Quest hasn't been offered — hint who to talk to.
+    const districtName = (DISTRICT_META[q.districtId] || {}).name || q.districtId;
+    showDialog([
+      'A shimmering object rests here — but you have no reason to take it yet.',
+      `Someone in ${districtName}'s town hall might know what it is.`,
+    ]);
+    return;
+  }
+  // Active → pick it up.
+  setQuestState(questId, 'item_found');
+  // Mark this tile as collected so it stops rendering / interacting.
+  game.player.questItemsPicked = game.player.questItemsPicked || {};
+  game.player.questItemsPicked[routeId + ':' + x + ',' + y] = true;
+  save();
+  showDialog([
+    `You retrieve the ${q.itemName}.`,
+    `Take it back to ${q.elderName.toUpperCase()} — inside the ${(DISTRICT_META[q.districtId] || {}).name || ''} town hall.`,
+  ]);
+  showToast(`◈  ${q.itemName}  ·  claimed`, 2400);
+}
+function isQuestItemPicked(routeId, x, y) {
+  const flags = game && game.player && game.player.questItemsPicked;
+  return !!(flags && flags[routeId + ':' + x + ',' + y]);
 }
 // Returns the route sitting between DISTRICT_ORDER[i] and DISTRICT_ORDER[i+1].
 function routeBetween(westDistrictId, eastDistrictId) {
@@ -4540,11 +4638,17 @@ function generateRouteMap(routeId) {
       if (grid[y] && grid[y][x] === ',') { grid[y][x] = 'S'; break; }
     }
   }
-  // Villager anchor (district-linked quest hook) at east landing.
+  // V3.9 — Quest item '!' at east landing (route-linked sidequest hook).
+  // Every route that has a quest wired via QUEST_BY_ROUTE gets a '!'
+  // marker at this anchor.  Routes without a quest fall back to 'v'.
+  // NOTE: '!' is used instead of 'q' because 'q' is already the silver-
+  // lodge door glyph in DOOR_TARGETS.
   {
     const attempts = [[cols - 4, midY - 2], [cols - 5, midY - 2], [cols - 4, midY + 2], [cols - 6, midY + 2]];
+    const hasQuest = !!QUEST_BY_ROUTE[routeId];
+    const anchorTile = hasQuest ? '!' : 'v';
     for (const [x, y] of attempts) {
-      if (grid[y] && grid[y][x] === ',') { grid[y][x] = 'v'; break; }
+      if (grid[y] && grid[y][x] === ',') { grid[y][x] = anchorTile; break; }
     }
   }
   // Optional grunt patrol on later-game routes (indexes 4+ = old_conquest onward).
@@ -4746,6 +4850,8 @@ function walkable(x, y) {
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
   if ('#TWMSBh=btmdzkjrcFeLvaA'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall
+  // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
+  if (t === '!' && !isQuestItemPicked(game.player.mapId, x, y)) return false;
   if (t === 'R' && !npcTrainerDefeated(x, y)) return false;   // V2.74 — hall Rizer blocker until defeated
   if (t === 'N' && !game.player.npcDefeated) return false;
   if ('YJQgX'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);   // V2.38/V2.41 — 'g'=grunt, 'X'=commander
@@ -5127,6 +5233,41 @@ function drawTile(x, y, ch, mx, my) {
         ctx.fillRect(cx + 10, py + 2, 2, 4);
         ctx.fillRect(cx + 10, py + 7, 2, 2);
       }
+      break;
+    }
+    case '!': {
+      // V3.9 — QUEST ITEM marker on routes.  A glowing crystalline
+      // shard on the grass.  Once picked up (isQuestItemPicked true),
+      // renders as bare floor.  Pulses gold + a route-tint accent so
+      // players notice it from a screen away.
+      drawTile(x, y, ',', mx, my);
+      if (isQuestItemPicked(game.player.mapId, mx, my)) break;
+      const routeMeta = ROUTE_META[game.player.mapId] || {};
+      const tint = routeMeta.tint || '#e8c878';
+      const pulse = 0.6 + 0.4 * Math.sin(performance.now() * 0.005 + mx * 0.7 + my * 1.1);
+      const cx = px + TILE / 2, cy = py + TILE / 2 + 1;
+      // Ground halo
+      ctx.fillStyle = tint + '55';
+      ctx.beginPath(); ctx.arc(cx, cy + 4, 8 + pulse * 2, 0, Math.PI * 2); ctx.fill();
+      // Crystal body — diamond shape
+      ctx.fillStyle = tint;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 6);
+      ctx.lineTo(cx + 5, cy);
+      ctx.lineTo(cx, cy + 6);
+      ctx.lineTo(cx - 5, cy);
+      ctx.closePath();
+      ctx.fill();
+      // Highlight facet
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.5 + pulse * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(cx - 2, cy - 3);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx - 2, cy + 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
       break;
     }
     case 'R': {
@@ -6456,6 +6597,46 @@ function openQuestsView() {
   footer.textContent = visitedCount >= SHRINE_TOTAL
     ? '◈  All shrines answered.  Ancient Gemsight opens what was hidden.'
     : `Walk up to a district landmark and press A. ${SHRINE_TOTAL - visitedCount} shrine${SHRINE_TOTAL - visitedCount === 1 ? '' : 's'} remain.`;
+
+  // V3.9 — SIDE QUESTS section.  Below the shrines.  Elder quests only
+  // appear once the player has spoken to that district's elder (state
+  // moves out of 'locked').  Completed quests show with a checkmark.
+  const active = [];
+  const done   = [];
+  for (const qid of QUEST_ORDER) {
+    const state = questState(qid);
+    if (state === 'locked') continue;
+    (state === 'complete' ? done : active).push(qid);
+  }
+  if (active.length || done.length) {
+    const divider = document.createElement('div');
+    divider.style.cssText = 'color:var(--gold-bright); font-family:var(--font-display); letter-spacing:0.22em; font-size:12px; margin-top:14px; padding:6px 10px; border-top:1px solid var(--border-soft);';
+    divider.textContent = `SIDE QUESTS  ·  ${active.length} active  ·  ${done.length} complete`;
+    body.appendChild(divider);
+    const renderQuestRow = (qid, isDone) => {
+      const q = QUEST_DEFS[qid];
+      const dmeta = DISTRICT_META[q.districtId] || {};
+      const rmeta = ROUTE_META[q.routeId] || {};
+      const state = questState(qid);
+      const stateLabel = state === 'item_found'
+        ? `${q.itemName} in hand → return to ${q.elderName}`
+        : state === 'complete'
+          ? `Complete · +${q.rxpReward} R.XP earned`
+          : `Find ${q.itemName} in ${rmeta.name || q.routeId}`;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid ${isDone ? 'var(--border-gold)' : 'var(--border-soft)'};background:${isDone ? 'rgba(90,40,140,0.10)' : 'rgba(20,10,40,0.20)'};color:${isDone ? 'var(--gold-bright)' : 'var(--ivory)'};`;
+      row.innerHTML = `
+        <div>
+          <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">${isDone ? '◈' : '○'}  ${dmeta.name ? dmeta.name.toUpperCase() : q.districtId.toUpperCase()} · ${q.elderName}</div>
+          <div style="font-size:11px;opacity:0.75;margin-top:2px;letter-spacing:0.08em;">${stateLabel}</div>
+        </div>
+        <div style="font-family:var(--font-display);font-size:12px;letter-spacing:0.10em;opacity:0.85;">+${q.rxpReward} R.XP</div>
+      `;
+      body.appendChild(row);
+    };
+    for (const qid of active) renderQuestRow(qid, false);
+    for (const qid of done)   renderQuestRow(qid, true);
+  }
 }
 document.getElementById('quests-close').onclick = () => document.getElementById('quests-overlay').classList.remove('active');
 document.getElementById('quests-overlay').addEventListener('click', (e) => {
@@ -7517,6 +7698,13 @@ function districtBuildingLabel(target) {
 // villager's lines so repeated talks give new lines each time.
 function interactVillager(tx, ty) {
   const districtId = game.player.mapId;
+  // V3.9 — Elder short-circuit.  If the current interior is a town hall
+  // AND (tx, ty) matches the district's designated elder coord, route
+  // straight to the quest handler regardless of the villager pool.
+  if (isElderAt(districtId, tx, ty)) {
+    handleElderInteract(districtId);
+    return;
+  }
   // V2.74 — Inside any *_hall interior, route to the entry-district's
   // TOWN_HALLS NPC map (coord-keyed).  Gift-giver NPCs drop their item on
   // first talk.  Falls back to VILLAGERS[districtId] for outdoor tiles.
@@ -7695,6 +7883,9 @@ function tryInteract() {
     interactShrine();  // V2.44
   } else if (t === 'v') {
     interactVillager(tx, ty);  // V2.47
+  } else if (t === '!') {
+    // V3.9 — Route quest item.  Only interactable on route maps.
+    handleQuestItem(tx, ty);
   } else if (t === 'S' || t === 'B') {
     openShop();
   } else if ('YJQ'.includes(t)) {
@@ -10900,6 +11091,9 @@ document.getElementById('btn-new').onclick = () => {
     rizerLv: 1,
     rizerXp: 0,
     rizerLvHigh: 1,
+    // V3.9 — Quest state
+    quests: {},
+    questItemsPicked: {},
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();

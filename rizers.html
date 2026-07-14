@@ -2991,9 +2991,16 @@ function rizerXpForNext(lv) {
 function gainRizerXp(amount, source) {
   if (!amount || amount <= 0) return;
   if (!game || !game.player) return;
+  // V3.13.2 — Global XP cut.  Every Rizer XP source (chests, grunt /
+  // trainer / commander wins, quest turn-ins, Ministry passage-chest
+  // bonus) passes through the same knob as Zyrex XP.  XP_GLOBAL_MULT
+  // is declared below at grantXP()'s definition; forward-reference is
+  // fine because gainRizerXp is only called at runtime after both
+  // definitions have been evaluated.
+  const scaled = Math.max(1, Math.floor(amount * (typeof XP_GLOBAL_MULT !== 'undefined' ? XP_GLOBAL_MULT : 1)));
   game.player.rizerLv = game.player.rizerLv || 1;
   game.player.rizerXp = game.player.rizerXp || 0;
-  game.player.rizerXp += amount;
+  game.player.rizerXp += scaled;
   const preLv = game.player.rizerLv;
   let leveledUp = false;
   while (game.player.rizerXp >= rizerXpForNext(game.player.rizerLv)) {
@@ -8805,10 +8812,11 @@ function interactShrine() {
   game.player.shrinesVisited[districtId] = true;
   game.player.items = game.player.items || {};
   game.player.items[shrine.item] = (game.player.items[shrine.item] || 0) + 1;
-  // XP to all alive party members
+  // XP to all alive party members — V3.13.2 scaled by global multiplier
+  const shrineXpScaled = Math.max(1, Math.floor(shrine.xp * (typeof XP_GLOBAL_MULT !== 'undefined' ? XP_GLOBAL_MULT : 1)));
   for (const r of game.player.party || []) {
     if (!r || r.hp <= 0) continue;
-    r.xp = (r.xp || 0) + shrine.xp;
+    r.xp = (r.xp || 0) + shrineXpScaled;
     while (r.xp >= xpForNext(r.lv)) {
       const need = xpForNext(r.lv);
       if (!levelUp(r)) { r.xp = 0; break; }
@@ -10173,14 +10181,14 @@ function handleNpcTrainer(tileChar, x, y) {
     return;
   }
   if (beaten) {
-    // V2.19 — Rematch: one shot per NPC. Player-only stakes: beat them,
-    // walk away with one of their Zyrex. Losing costs nothing but the wind.
+    // V2.19 · V3.13.2 — Rematches DISABLED (user canon).  Every enemy is
+    // fought exactly once.  Previously beating an NPC unlocked one
+    // stakes rematch; that path is retired — the beaten branch now
+    // just plays a short acknowledgement dialog and returns.
     showDialog([
-      `${npc.name}: Back for more?`,
-      `${npc.name}: One rematch. That's all. Beat me and I'll hand one of mine over.`,
-      `${npc.name}: If you lose — nothing changes. Except your pride.`,
-      `«REMATCH ${npc.name} · FOR ONE OF THEIRS?»`,
-    ], () => startNpcTrainerBattle(tileChar, x, y, { stakes: true }));
+      `${npc.name}: We settled this already, ${game.player.name || 'Rizer'}.`,
+      `Nothing more between us.`,
+    ]);
     return;
   }
   // V2.41 · V3.5 — Named Seer commander mini-boss. Custom intro per district.
@@ -11229,8 +11237,13 @@ function triggerConquerorEnding() {
   ]);
 }
 
+// V3.13.2 — Global XP multiplier.  Zyrex XP and Rizer XP grants both
+// pass through this constant.  User canon: leveling was too fast, cut
+// everything by 20%.  Ship as a single knob so future balance passes
+// dial one value instead of ten.
+const XP_GLOBAL_MULT = 0.80;
 function grantXP(p, defeated) {
-  const xpGained = Math.max(5, defeated.lv * 6);
+  const xpGained = Math.max(4, Math.floor(defeated.lv * 6 * XP_GLOBAL_MULT));
   const gemsGained = 1 + Math.floor(defeated.lv / 4);
   const coinsGained = 2 + Math.floor(defeated.lv / 3);   // V2.7 — coin drop
   p.xp += xpGained;
@@ -11244,8 +11257,9 @@ function grantXP(p, defeated) {
     if (!levelUp(p)) { p.xp = 0; break; }   // levelUp returns false when tier-capped
     p.xp -= need;
   }
-  // V2.40 — SHARDSHARE: broadcast the SAME xpGained to every OTHER alive
-  // party Zyrex. Not divided — everyone alive earns the full amount.
+  // V2.40 · V3.13.2 — SHARDSHARE: broadcast the SAME (already-scaled)
+  // xpGained to every OTHER alive party Zyrex.  Not divided — everyone
+  // alive earns the full (post-cut) amount.
   if (game.player.shardshareGranted) {
     for (const r of game.player.party) {
       if (!r || r === p) continue;

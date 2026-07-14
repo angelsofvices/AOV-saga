@@ -4702,14 +4702,24 @@ function generateDistrictMap(mapId) {
     }
   }
 
-  // V2.69 — Town Hall door 'D'.  Every district (II-X) gets exactly one
-  // main themed building; enter to meet 3 district-flavored NPCs, the
-  // third of which drops a district-appropriate item on first talk.
-  // Placed at a north-central floor tile where it stands out but doesn't
-  // collide with the Gemlord cave or the mini-boss.
+  // V2.69 · V3.11.1 — Town Hall door 'D'.  FORCE-STAMPED (was gated on
+  // 'if this tile is clear ,') because earlier scatter passes (grass /
+  // chest / tree / P cottage / district-shape wall) could occupy the
+  // slot and silently skip the D placement — leaving that district
+  // with NO way into its town hall (Zarvane hit this: player faced the
+  // P-door 'Sunlit Way Cottage' thinking it was the hall and got the
+  // bronze-key gate).  Now we always stamp the D and always carve a
+  // walkable landing tile beneath it so the door is guaranteed
+  // approachable.
   const hallX = Math.floor(cols / 4);
   const hallY = 3;
-  if (grid[hallY] && grid[hallY][hallX] === ',') grid[hallY][hallX] = 'D';
+  if (grid[hallY]) grid[hallY][hallX] = 'D';
+  // Ensure the row beneath the D is walkable — grid[hallY+1][hallX]
+  // becomes ',' if it was anything else (wall, grass, etc.).  This
+  // guarantees the player can stand south of the door and press A.
+  if (grid[hallY + 1] && grid[hallY + 1][hallX] !== undefined) {
+    grid[hallY + 1][hallX] = ',';
+  }
 
   // V3.6.2 — WANDERING MERCHANT 'S'.  Every district II-X gets a merchant
   // so players can trade coins for Potions / Zyspheres and cash out excess

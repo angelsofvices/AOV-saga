@@ -3206,9 +3206,9 @@ const MALEZOR_MAP = [
   '#,,GGGG,,,,,,,,,,,,,,,,,,,,K,#', // 9
   '#,,WWW,,,,,,,,,,,,,,,,,,,,,,,>', // 10 · V2.21 — east portal to Zarvane
   '#,,WWW,,,,K,,,,,,GGG,,,,,,,,,#', // 11
-  '#,,,,,,,,,,,hh,,GGGGG,,,,,,,,#', // 12 · hh = Silver Lodge roof (top row of 2x2)
-  '#T,,,,,,,,,,qh,,,GGGG,,,,,,,,#', // 13 · q = Silver Lodge door
-  '#,,,,,D,K,,,,,Q,,,,,,K,,,,,,,#', // 14 · V2.69 D = Beastwarden's Hall door · Q=Quinn
+  '#,,,,,III,,,hh,,GGGGG,,,,,,,,#', // 12 · V3.11.3 III = Beastwarden's Hall roof (top of 3x3) · hh = Silver Lodge roof
+  '#T,,,,III,,,qh,,,GGGG,,,,,,,,#', // 13 · V3.11.3 III = Beastwarden's Hall wall · q = Silver Lodge door
+  '#,,,,,IDI,,,,,Q,,,,K,,K,,,,,,#', // 14 · V3.11.3 IDI = Beastwarden's Hall door · Q=Quinn (chest moved from col 7 to col 15)
   '#,,,,,,,,,,,,,,,,,,,,,,v,,,,,#', // 15 · v = Cliff Fisher (V2.47)
   '#,,,,AAA,,,,,,,,,,,,,,,,,,,,,#', // 16 · V3.0 Seer Ministry emblem row
   '#,,,,AEA,,,,,,,,,,,,,,,,,,,,##', // 17 · V3.0 Seer Ministry HQ door 'E'
@@ -4709,23 +4709,30 @@ function generateDistrictMap(mapId) {
     }
   }
 
-  // V2.69 · V3.11.1 — Town Hall door 'D'.  FORCE-STAMPED (was gated on
-  // 'if this tile is clear ,') because earlier scatter passes (grass /
-  // chest / tree / P cottage / district-shape wall) could occupy the
-  // slot and silently skip the D placement — leaving that district
-  // with NO way into its town hall (Zarvane hit this: player faced the
-  // P-door 'Sunlit Way Cottage' thinking it was the hall and got the
-  // bronze-key gate).  Now we always stamp the D and always carve a
-  // walkable landing tile beneath it so the door is guaranteed
-  // approachable.
+  // V2.69 · V3.11.1 · V3.11.3 — Town Hall 3x3 civic building.  The
+  // D door sits at the bottom-center; 'I' hall-wall tiles fill the
+  // other 8 slots.  Force-stamped so nothing silently blocks it.
+  //
+  //   I I I     (hallY)
+  //   I I I     (hallY+1)
+  //   I D I     (hallY+2)   <- door row; player approaches from hallY+3
+  //
+  // Landing tile at (hallX, hallY+3) is always carved walkable so the
+  // door is approachable regardless of what the district-shape terrain
+  // function did to that column.
   const hallX = Math.floor(cols / 4);
   const hallY = 3;
-  if (grid[hallY]) grid[hallY][hallX] = 'D';
-  // Ensure the row beneath the D is walkable — grid[hallY+1][hallX]
-  // becomes ',' if it was anything else (wall, grass, etc.).  This
-  // guarantees the player can stand south of the door and press A.
-  if (grid[hallY + 1] && grid[hallY + 1][hallX] !== undefined) {
-    grid[hallY + 1][hallX] = ',';
+  for (let dy = 0; dy < 3; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const rr = hallY + dy, cc = hallX + dx;
+      if (grid[rr] && grid[rr][cc] !== undefined) {
+        grid[rr][cc] = (dy === 2 && dx === 0) ? 'D' : 'I';
+      }
+    }
+  }
+  // Landing tile beneath the door
+  if (grid[hallY + 3] && grid[hallY + 3][hallX] !== undefined) {
+    grid[hallY + 3][hallX] = ',';
   }
 
   // V3.6.2 — WANDERING MERCHANT 'S'.  Every district II-X gets a merchant
@@ -5128,7 +5135,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkjrcFeLvaA'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall
+  if ('#TWMSBh=btmdzkjrcFeLvaAI'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
   if (t === '!' && !isQuestItemPicked(game.player.mapId, x, y)) return false;
   if (t === 'R' && !npcTrainerDefeated(x, y)) return false;   // V2.74 — hall Rizer blocker until defeated
@@ -5775,6 +5782,58 @@ function drawTile(x, y, ch, mx, my) {
       ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#050510';
       ctx.beginPath(); ctx.arc(cx, cy, 1.8, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'I': {
+      // V3.11.3 — TOWN HALL WALL.  Surrounds the D door in a 3x3
+      // civic-building footprint.  Blocker.  Stone masonry base with
+      // a district-accent trim and a shingled roof on the top row of
+      // the building (detected by looking one tile UP: if it's still
+      // 'I' we're a wall row; if it's ',' we're the top row so we
+      // draw a peaked roof crown).
+      const districtAccent = (_dm && _dm.accent) || '#e8c878';
+      drawTile(x, y, ',', mx, my);
+      const above = tileAt(mx, my - 1);
+      const isRoof = above !== 'I';
+      // Stone base
+      ctx.fillStyle = '#2c1e10';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#4a3628';
+      ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
+      // Masonry seam pattern — horizontal lines every 6px
+      ctx.strokeStyle = '#2a1a08';
+      ctx.beginPath();
+      ctx.moveTo(px, py + TILE / 2); ctx.lineTo(px + TILE, py + TILE / 2);
+      ctx.stroke();
+      // Vertical mortar (alternate columns for a brick offset)
+      if ((mx & 1) === 0) {
+        ctx.beginPath();
+        ctx.moveTo(px + TILE / 2, py + 2); ctx.lineTo(px + TILE / 2, py + TILE / 2 - 1);
+        ctx.moveTo(px + TILE / 2, py + TILE / 2 + 1); ctx.lineTo(px + TILE / 2, py + TILE - 2);
+        ctx.stroke();
+      }
+      if (isRoof) {
+        // Peaked roof cap in district accent
+        ctx.fillStyle = districtAccent;
+        ctx.beginPath();
+        ctx.moveTo(px, py + 3);
+        ctx.lineTo(px + TILE / 2, py - 1);
+        ctx.lineTo(px + TILE, py + 3);
+        ctx.lineTo(px + TILE, py + 6);
+        ctx.lineTo(px, py + 6);
+        ctx.closePath();
+        ctx.fill();
+        // Roof shading
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(px, py + 5, TILE, 2);
+      } else {
+        // Middle/lower wall: small district-tinted window
+        ctx.fillStyle = '#050310';
+        ctx.fillRect(px + TILE / 2 - 2, py + 6, 5, 6);
+        ctx.fillStyle = districtAccent;
+        ctx.fillRect(px + TILE / 2 - 2, py + 6, 5, 1);
+        ctx.fillRect(px + TILE / 2 - 2, py + 11, 5, 1);
+      }
       break;
     }
     case 'D': {
@@ -9006,20 +9065,33 @@ function openChest(x, y) {
       ]);
       return;
     }
-    // Commander is down — grant the passage.
+    // Commander is down — grant the passage AND V3.11.3 bonus payout.
+    // The Ministry chest carries three prizes:
+    //   * The district's HALL PASSAGE (unlocks the town hall D door)
+    //   * 300 Rizer XP  (a big shot toward the next R.Lv)
+    //   * 100 coins     (chunky mid-game payoff)
     game.player.passages = game.player.passages || {};
     game.player.passages[p.key] = 1;
     game.player.chestsOpened[key] = true;
+    const CHEST_RIZER_XP = 300;
+    const CHEST_COINS    = 100;
+    game.player.coins = (game.player.coins || 0) + CHEST_COINS;
     save();
     const meta = DISTRICT_META[fromDistrict] || {};
     showToast(`◈  ${p.name.toUpperCase()}  ·  claimed`, 3000);
     showDialog([
-      'You crack the chest open.',
-      `Wrapped in dark cloth, cool to the touch: the ${p.name.toUpperCase()}.`,
-      `The Commander was guarding this all along.`,
+      `You turn the small brass CHEST KEY.  The lock answers.`,
+      `Inside, wrapped in dark cloth, cool to the touch: the ${p.name.toUpperCase()}.`,
+      `Underneath: a purse of coins and a folded slip of Ministry rizer records.`,
       `«◈ ${p.name.toUpperCase()} added to items.»`,
+      `«◈ +${CHEST_COINS} COINS.»`,
+      `«◈ +${CHEST_RIZER_XP} RIZER XP.»`,
       `«◈ The ${meta.name || fromDistrict} Town Hall door will now open for you.»`,
-    ]);
+    ], () => {
+      // Rizer XP grant fires after the dialog so the level-up toast
+      // reads clearly on top of the chest-open dialog closing.
+      gainRizerXp(CHEST_RIZER_XP, 'commander-chest');
+    });
     return;
   }
   // V2.73 — Randomized loot at first-open, persisted per-save.
@@ -10667,9 +10739,15 @@ function checkBattleOver() {
           game.player.seerCommandersDefeated = game.player.seerCommandersDefeated || {};
           if (!game.player.seerCommandersDefeated[districtId]) {
             game.player.seerCommandersDefeated[districtId] = true;
+            // V3.11.3 — Commander hands over the chest key on defeat.
+            // The chest at (7,2) behind them is now openable.
+            const cmd = game.battle.commander;
+            const cmdName = (cmd && cmd.name) || 'The Commander';
             setTimeout(() => showDialog([
-              'The Seer Commander falls.',
+              `${cmdName} falls.`,
               'Their whisper cuts short.  The Ministry\'s eye above the door turns dull.',
+              `${cmdName} presses a small brass CHEST KEY into your palm before their hand goes still.`,
+              'The chest behind them will open for you now.',
               'The path east opens.  Next district is yours to enter.',
             ]), 1200);
           }

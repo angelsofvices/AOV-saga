@@ -7113,6 +7113,7 @@ function anyOverlayOpen() {
 // overlay closes with a held arrow.
 function clearHeldKeys() { for (const k in keys) keys[k] = false; }
 function openMainMenu() {
+  try { playSfx('menu-open'); } catch(_) {}
   if (game.mode === 'overworld') {
     game.mode = 'mainmenu';
     clearHeldKeys();
@@ -7160,6 +7161,7 @@ function updateDevModeChip() {
   document.body.classList.toggle('devmode-on', !!game.devMode);
 }
 function closeMainMenu() {
+  try { playSfx('menu-close'); } catch(_) {}
   $mainmenu.classList.remove('active');
   if (game.mode === 'mainmenu') game.mode = 'overworld';
 }
@@ -7187,6 +7189,7 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
 const $settings = document.getElementById('settings-overlay');
 const $assign   = document.getElementById('assign-overlay');
 function openSettings() {
+  try { playSfx('menu-open'); } catch(_) {}
   if (game.mode !== 'overworld' && game.mode !== 'mainmenu') return;
   closeMainMenu();
   game.mode = 'settings';
@@ -7195,6 +7198,7 @@ function openSettings() {
   setTimeout(() => { const b = $settings.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
 }
 function closeSettings() {
+  try { playSfx('menu-close'); } catch(_) {}
   $settings.classList.remove('active');
   if (game.mode === 'settings') game.mode = 'overworld';
 }
@@ -7224,6 +7228,7 @@ $settings.querySelectorAll('[data-settings]').forEach(b => {
 
 // V3.4 — SELECT assignment sub-modal (opened from settings)
 function openSelectAssign() {
+  try { playSfx('menu-open'); } catch(_) {}
   $assign.classList.add('active');
   // Highlight current pick
   const current = (game.player && game.player.selectAssignment) || 'zyrex';
@@ -7233,7 +7238,8 @@ function openSelectAssign() {
   });
   setTimeout(() => { const b = $assign.querySelector('button[data-assign="' + current + '"]') || $assign.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
 }
-function closeSelectAssign() { $assign.classList.remove('active'); }
+function closeSelectAssign() {
+  try { playSfx('menu-close'); } catch(_) {} $assign.classList.remove('active'); }
 document.getElementById('assign-close').onclick  = closeSelectAssign;
 document.getElementById('assign-close2').onclick = closeSelectAssign;
 $assign.querySelectorAll('[data-assign]').forEach(b => {
@@ -7287,11 +7293,13 @@ function confirmQuitGame() {
 // Swap is free with no daily limit; tap a party slot to send it to PC,
 // tap a PC slot to bring it into the party (fails if party is full).
 function openPCStorage() {
+  try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   document.getElementById('pcstorage-overlay').classList.add('active');
   renderPCStorage();
 }
 function closePCStorage() {
+  try { playSfx('menu-close'); } catch(_) {}
   document.getElementById('pcstorage-overlay').classList.remove('active');
 }
 function renderPCStorage() {
@@ -7358,6 +7366,7 @@ document.getElementById('pcstorage-overlay').addEventListener('click', (e) => {
 });
 
 function openQuestsView() {
+  try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   const ov = document.getElementById('quests-overlay');
   ov.classList.add('active');
@@ -7443,6 +7452,7 @@ document.getElementById('types-overlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('types-overlay')) e.target.classList.remove('active');
 });
 function openTypesView() {
+  try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   document.getElementById('types-overlay').classList.add('active');
   const grid = document.getElementById('types-grid');
@@ -7760,6 +7770,7 @@ function _mapviewAnimate() {
   _mapviewRaf = requestAnimationFrame(_mapviewAnimate);
 }
 function openMapView() {
+  try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   $mapview.classList.add('active');
   // update caption with current district name
@@ -7773,6 +7784,7 @@ function openMapView() {
   _mapviewAnimate();
 }
 function closeMapView() {
+  try { playSfx('menu-close'); } catch(_) {}
   $mapview.classList.remove('active');
   if (_mapviewRaf) { cancelAnimationFrame(_mapviewRaf); _mapviewRaf = null; }
 }
@@ -7781,6 +7793,7 @@ $mapview.addEventListener('click', (e) => { if (e.target === $mapview) closeMapV
 
 // ---------- Items inventory ----------
 function openItemsView() {
+  try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   $itemsov.classList.add('active');
   const body = document.getElementById('items-body');
@@ -7960,6 +7973,7 @@ function greetWanderingMerchant(then) {
   showDialog(lines, () => { if (typeof then === 'function') then(); });
 }
 function openShop() {
+  try { playSfx('menu-open'); } catch(_) {}
   game.mode = 'shop';
   clearHeldKeys();
   $shopov.classList.add('active');
@@ -8064,8 +8078,10 @@ $shopov.addEventListener('click', (e) => { if (e.target === $shopov) { $shopov.c
 
 // ---------- Controls modal (Design v1) ----------
 const $controlsModal = document.getElementById('controls-modal');
-function openControlsModal() { clearHeldKeys(); $controlsModal.classList.add('active'); }
-function closeControlsModal() { $controlsModal.classList.remove('active'); }
+function openControlsModal() {
+  try { playSfx('menu-open'); } catch(_) {} clearHeldKeys(); $controlsModal.classList.add('active'); }
+function closeControlsModal() {
+  try { playSfx('menu-close'); } catch(_) {} $controlsModal.classList.remove('active'); }
 document.getElementById('controls-close').onclick = closeControlsModal;
 $controlsModal.addEventListener('click', (e) => { if (e.target === $controlsModal) closeControlsModal(); });
 const $btnControlsModal = document.getElementById('btn-controls-modal');
@@ -8106,13 +8122,19 @@ function focusNavStep(container, key, gridCols) {
   else if (key === 'ArrowUp')    ni = Math.max(0, i - cols);
   else return false;
   btns[ni].focus();
+  // V3.14 — cursor tick when the focus actually moves.
+  if (ni !== i) { try { playSfx('cursor'); } catch(_) {} }
   return true;
 }
 // Activate whatever's focused (Enter/Space).
 function activateFocused() {
   const el = document.activeElement;
-  if (el && typeof el.click === 'function' && !el.disabled) { el.click(); return true; }
-  return false;
+  if (!el || typeof el.click !== 'function') return false;
+  // V3.14 — enabled button click = confirm sound; disabled = disabled sound.
+  if (el.disabled) { try { playSfx('disabled'); } catch(_) {} return false; }
+  try { playSfx('confirm'); } catch(_) {}
+  el.click();
+  return true;
 }
 
 document.addEventListener('keydown', (e) => {
@@ -8309,6 +8331,8 @@ document.addEventListener('keydown', (e) => {
     const settingsActive = document.getElementById('settings-overlay').classList.contains('active');   // V3.4
     const assignActive   = document.getElementById('assign-overlay').classList.contains('active');     // V3.4
     if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive || pcsActive || settingsActive || assignActive)) {
+      // V3.14 — cancel chime when any overlay closes via back key.
+      try { playSfx('cancel'); } catch(_) {}
       // V3.4 — assign is a modal-over-settings; close the top overlay first
       if (assignActive)  { closeSelectAssign(); e.preventDefault(); return; }
       if (settingsActive) { closeSettings();    e.preventDefault(); return; }
@@ -9262,6 +9286,7 @@ function dexCounts() {
   return { seen, caught, total: DEX_ORDER.length };
 }
 function openNotebookView() {
+  try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   document.getElementById('notebook-overlay').classList.add('active');
   const c = dexCounts();
@@ -9546,6 +9571,9 @@ function showDialog(lines, cb) {
   $dialog.textContent = game.dialogQ.shift();
 }
 function advanceDialog() {
+  // V3.14 — dialog-advance clip on every line turn.  Fires whether
+  // the queue still has more or we're on the final close beat.
+  try { playSfx('dialog-advance'); } catch(_) {}
   if (game.dialogQ.length) {
     $dialog.textContent = game.dialogQ.shift();
   } else {
@@ -9564,6 +9592,8 @@ let toastTimer = 0;
 function showToast(txt, ms = 1800) {
   $toast.textContent = txt;
   $toast.classList.add('show');
+  // V3.14 — toast chime.
+  try { playSfx('toast'); } catch(_) {}
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $toast.classList.remove('show'), ms);
 }
@@ -11675,6 +11705,7 @@ function chooseStarter(id) {
 const $party = document.getElementById('party-screen');
 const $partyGrid = document.getElementById('party-grid');
 function openParty() {
+  try { playSfx('menu-open'); } catch(_) {}
   if (!game.player.party.length) return;
   game.mode = 'party';
   clearHeldKeys();
@@ -11682,6 +11713,7 @@ function openParty() {
   renderPartyScreen();
 }
 function closeParty() {
+  try { playSfx('menu-close'); } catch(_) {}
   $party.classList.remove('active');
   game.mode = 'overworld';
   game._swapPickedIdx = null;
@@ -11851,6 +11883,7 @@ document.getElementById('inspect-close').onclick = () => $inspect.classList.remo
 // player's active Zyrex.  Close via clicking the backdrop, tapping the
 // X button, or pressing B / Shift / Esc.
 function openBattleInspect(which /* 'enemy' | 'player' */) {
+  try { playSfx('menu-open'); } catch(_) {}
   if (!game || !game.battle) return;
   const r = which === 'enemy'
     ? game.battle.enemy
@@ -11866,6 +11899,7 @@ function openBattleInspect(which /* 'enemy' | 'player' */) {
 // nameplate-click inspect.  Works from any context (overworld party
 // menu, boot-time inspection, etc.) since it doesn't require a battle.
 function openPartyInspect(r, slotIdx) {
+  try { playSfx('menu-open'); } catch(_) {}
   if (!r) return;
   game._inspectSlotIdx = (typeof slotIdx === 'number') ? slotIdx : null;
   populateInspectCard(r, 'Your Zyrex · Party');
@@ -11987,6 +12021,7 @@ function populateInspectCard(r, contextLabel) {
   }
 }
 function closeBattleInspect() {
+  try { playSfx('menu-close'); } catch(_) {}
   document.getElementById('bi-overlay').classList.remove('active');
 }
 
@@ -12526,6 +12561,65 @@ function primeMusicOnGesture() {
   if (audioSys.primed) return;
   audioSys.primed = true;
   playTrack(musicContextForState());
+  // V3.14 — Prime SFX pool on the same gesture.  Browsers block
+  // Audio.play() until a user interacts, so we play + immediately
+  // pause each preloaded clip once so future plays don't glitch.
+  primeSfxOnGesture();
+}
+
+// V3.14 — UI SFX one-shots.  Small mp3 clips fire on menu / interact
+// beats.  Voluming inherits from audioSys but at a 0.6x multiplier so
+// SFX never overpower the music bed.  All lookups are name-based
+// through playSfx() so a missing file silently no-ops (matches the
+// music track's "missing = quiet" contract).
+const SFX_TRACKS = {
+  'menu-open':      'audio/ui-menu-open.mp3',
+  'menu-close':     'audio/ui-menu-close.mp3',
+  'confirm':        'audio/ui-confirm.mp3',
+  'cancel':         'audio/ui-cancel.mp3',
+  'cursor':         'audio/ui-cursor.mp3',
+  'dialog-advance': 'audio/ui-dialog-advance.mp3',
+  'disabled':       'audio/ui-disabled.mp3',
+  'toast':          'audio/ui-toast.mp3',
+};
+const SFX_VOLUME_MULT = 0.6;
+const sfxPool = {};
+function initSfx() {
+  for (const name in SFX_TRACKS) {
+    const el = new Audio(SFX_TRACKS[name]);
+    el.preload = 'auto';
+    el.volume = 0;
+    el.addEventListener('error', () => {});
+    sfxPool[name] = el;
+  }
+}
+function primeSfxOnGesture() {
+  // Warm up each clip so the first playSfx() call doesn't lag.
+  for (const name in sfxPool) {
+    const el = sfxPool[name];
+    if (!el) continue;
+    try {
+      el.volume = 0;
+      const p = el.play();
+      if (p && p.catch) p.catch(() => {});
+      setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch(_) {} }, 40);
+    } catch(_) {}
+  }
+}
+function playSfx(name) {
+  const src = sfxPool[name];
+  if (!src) return;
+  if (audioSys.muted) return;
+  // Clone-on-play so overlapping triggers stack correctly.  Original
+  // stays paused so we don't fight the browser over playback state.
+  try {
+    const el = src.cloneNode(true);
+    el.volume = Math.max(0, Math.min(1, audioSys.volume * SFX_VOLUME_MULT));
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
+    // Clean up after the clip ends so we don't leak Audio elements.
+    el.addEventListener('ended', () => { try { el.src = ''; } catch(_) {} });
+  } catch(_) {}
 }
 function playTrack(name) {
   const nextEl = audioSys.els[name];
@@ -12587,6 +12681,7 @@ function updateMusicMenu() {
 }
 
 initMusic();
+initSfx();   // V3.14 — UI SFX pool
 
 // ============================================================================
 //  MAIN LOOP

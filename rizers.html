@@ -3214,6 +3214,9 @@ const game = {
     // V3.12.1 — Quiet Child arc endgame flags
     quietChildForgiven: false,   // has the forgiveness beat fired?
     xenoxilDefeated: false,      // set when the endgame lands; unlocks the forgiveness beat
+    // V3.15 — endgame trio fight state
+    endgameStarted: false,       // has the Korathen throne trigger fired?
+    titleSavior: false,          // 'Savior of the World' title earned?
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -8818,9 +8821,122 @@ function interactGemlordCave() {
   const lines = GEMLORD_CAVE_DIALOGS[districtId] || GEMLORD_CAVE_DIALOGS.malezor;
   showDialog(lines);
 }
+// V3.15 — ENDGAME.  The three Seer leaders reveal themselves once the
+// player holds all 10 stolen Gemshards.  Triggered by interacting with
+// the KORATHEN 'L' landmark (the Empty Throne) — canonically the last
+// shrine, the one that overlooks the Ultra district.  One long battle
+// chain: OPHIRA (3 Zyrex) -> ORRYX (3 Zyrex) -> XENOXIL (3 Zyrex).
+// Nine total, 'narratively 1v3, mechanically 9v9' per V3.5 canon.
+// Victory: 'Savior of the World' title, huge Rizer XP, and the
+// xenoxilDefeated flag latches — which auto-arms the Quiet Child
+// forgiveness / Vengrizz gift beat we already built in V3.12.1.
+function hasAllGemshards() {
+  const GEMS = ['ruby','pearl','citrine','emerald','amethyst','sapphire','onyx','amber','anomaly','ultra'];
+  const keys = game.player && game.player.keys;
+  if (!keys) return false;
+  return GEMS.every(g => (keys[g] || 0) > 0);
+}
+// Canonical roster.  Order matters — the chain flows Ophira group ->
+// Orryx group -> Xenoxil group.  Codex-hydrated ophira / orryx /
+// xenoxil live in SPECIES via the codex.js load pass (Tier VI/VI/VII).
+// Escort Zyrex use hand-written species we know exist even if the
+// codex fails to hydrate.  Levels escalate through the chain.
+const SEER_ENDGAME_CHAIN = [
+  // OPHIRA group (Spirit / Void / Aura theme)
+  ['elzebub',    60],
+  ['elzimir',    65],
+  ['ophira',     70],
+  // ORRYX group (Humanoid / Spirit theme)
+  ['elzebub',    65],
+  ['elzimir',    70],
+  ['orryx',      75],
+  // XENOXIL group (Spirit / Aura + Corrupted apex)
+  ['elzimir',    72],
+  ['elzoran',    78],
+  ['xenoxil',    85],
+];
+function healPartyFull() {
+  for (const r of game.player.party) {
+    if (!r) continue;
+    r.hp = r.maxHp;
+    r.fainted = false;
+    r.status = null;
+  }
+  save();
+}
+function startEndgameEncounter() {
+  showDialog([
+    'The Ultralands fall silent.',
+    'You feel the ten Gemshards heat in your pack.  They pull toward the Throne — and toward each other.',
+    'A robe steps from behind the Empty Throne.  Then another.  Then a third.',
+    'Choirmother-tall.  General-still.  And between them — a silhouette that does not move like a living thing.',
+    'OPHIRA of the Choir.  ORRYX the Reluctant.  And the FLESHLORD XENOXIL.',
+    'You have never seen all three in one room.  Nobody has.',
+    'XENOXIL: You brought the shards back to us.  Kind of you.',
+    'ORRYX: This is the end of one order and the beginning of the next.',
+    'OPHIRA: Sing while you fall, Rizer.  We sing while we rise.',
+    '«◈ THE NEW ORDER REVEALS ITSELF»',
+    '«◈ Your party is restored to full HP.  This is the last fight.»',
+  ], () => {
+    game.player.endgameStarted = true;
+    save();
+    healPartyFull();
+    // Build the 9-Zyrex chain.  Lead is the first entry; remaining 8
+    // queue up in game.battle.chain and are sent out on defeat.
+    const specs = SEER_ENDGAME_CHAIN.slice();
+    const first = specs.shift();
+    const lead  = makeZyrex(first[0], first[1]);
+    const chain = specs.map(([id, lv]) => makeZyrex(id, lv));
+    if (!lead) {
+      // Species failed to hydrate — abort gracefully.
+      showDialog(['The reveal shudders.  The three Seers fade back into shadow.  (Endgame roster not wired — contact the maker.)']);
+      return;
+    }
+    enterBattle(lead, 'npc-trainer', {
+      trainerName: 'THE NEW ORDER',
+      chain,
+      commander: { name: 'THE NEW ORDER', epithet: 'Ophira · Orryx · Xenoxil', gemshard: null, line: '' },
+      tileChar: 'X',
+      endgameFight: true,   // marker so victory routes to the endgame beat
+      gemshardKey: null,    // do NOT drop a gemshard on defeat
+    });
+  });
+}
+function grantSaviorOfWorldTitle() {
+  game.player.xenoxilDefeated = true;
+  game.player.titleSavior = true;
+  save();
+  // Big Rizer XP grant.  Scaled to be the single largest reward in the
+  // game so beating the trio actually moves the R.Lv needle at endgame.
+  gainRizerXp(10000, 'endgame');
+  setTimeout(() => showDialog([
+    'The three fall.',
+    'XENOXIL, on his knees for the first time in his long life, looks up at you.',
+    'XENOXIL: You will not understand what you have prevented.  Not for a long time.',
+    'You do not answer.  There is nothing to say.',
+    'OPHIRA weeps.  Not for herself — for a hymn that will never finish now.',
+    'ORRYX bows once.  He looks almost relieved.',
+    'The ten Gemshards leave your pack of their own accord.',
+    'They rise toward the Empty Throne.  Nine hover in a wide ring.  The tenth — the Ultra — settles on the seat.',
+    'A tremor.  Then quiet.',
+    'The Ninth World is yours to save the shape of.',
+    '«◈ SAVIOR OF THE WORLD  ·  title earned.»',
+    '«◈ +10,000 Rizer XP.»',
+    'The Gemlord Pact stirs.  Their sanctuaries will open now.  You can find them, if you want.',
+    'And somewhere, a small child stops looking past you.',
+  ]), 1400);
+}
+
 function interactShrine() {
   const districtId = game.player.mapId;
   const shrine = SHRINES[districtId];
+  // V3.15 — Korathen's Empty Throne triggers the endgame reveal when
+  // the player holds all 10 Gemshards.  Fires once (endgameStarted
+  // latches).  Bypasses the normal shrine reward flow.
+  if (districtId === 'korathen' && hasAllGemshards() && !game.player.endgameStarted) {
+    startEndgameEncounter();
+    return;
+  }
   if (!shrine) {
     showDialog(['A quiet place. Nothing calls back.']);
     return;
@@ -11145,6 +11261,13 @@ function checkBattleOver() {
         // updated checkSeerHqBasementClear() now reads.
         setTimeout(checkSeerHqBasementClear, 200);
       }
+      // V3.15 — Endgame Seer trio victory.  Fires when the marker
+      // game.battle.endgameFight is set (from startEndgameEncounter).
+      // Skips the district-Commander bookkeeping since this fight
+      // isn't inside seer_hq_upper.
+      if (game.battle.endgameFight) {
+        grantSaviorOfWorldTitle();
+      }
       // V3.0 — Seer HQ upper mini-boss: after beating X inside the HQ,
       // stamp the district's seer-commander-defeated flag so the
       // travelDistrict portal gate can check group unlocks.
@@ -12468,6 +12591,9 @@ document.getElementById('btn-new').onclick = () => {
     // V3.12.1 — Quiet Child arc endgame flags
     quietChildForgiven: false,
     xenoxilDefeated: false,
+    // V3.15 — endgame trio fight state
+    endgameStarted: false,
+    titleSavior: false,
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();

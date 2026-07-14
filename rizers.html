@@ -3153,6 +3153,8 @@ const game = {
     // V3.9 — QUESTS.  Keyed by QUEST_DEFS id.  Each entry: { state, acceptedAt, completedAt }.
     quests: {},
     questItemsPicked: {},     // { 'routeId:x,y': true } — collected route items
+    // V3.10.7 — TOWN HALL PASSAGE items, keyed per HALL_PASSAGES entry.
+    passages: {},
   },
   npc1: { x: 10, y: 8, dir: 'down', defeated: false },
   battle: null,      // { enemy, playerIdx, log, turn }
@@ -3527,6 +3529,40 @@ const DISTRICT_META = {
   korathen:  { num: 10, name: 'Korathen',  land: 'Ultralands',    types: ['Aura','Humanoid-Noid'],     tierBand: [27, 35], accent: '#f8c840', wallColor: '#3a2408', wallEdge: '#8a5c1c', groundColor: '#8a6018', groundShade: '#583c10', grassColor: '#e8a428', sparkleTint: '#ffe488', gemlord: 'oatheus',  gemKey: 'ultra'     },
 };
 const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+
+// V3.10.7 — TOWN-HALL PASSAGE ITEMS.  Each district's Town Hall 'D'
+// door is now gated by a district-flavored passage item.  Player
+// receives the passage on their FIRST npc-trainer defeat within that
+// district (Yara/Jax/Quinn in Malezor, first grunt in II-X — the
+// commander doesn't count, since he lives inside the Ministry which
+// you can enter without the hall passage).  Bronze/Silver keys are
+// Malezor cottage keys only and unchanged.
+const HALL_PASSAGES = {
+  malezor:   { key: 'beastward_sigil',    name: 'Beastward Sigil',     hint: 'A rival Rizer in the Beastlands carries the sigil.  Beat them.' },
+  zarvane:   { key: 'pearlchoir_token',   name: 'Pearlchoir Token',    hint: 'A Seer scout on Zarvane holds the token.  Beat them.' },
+  andrannor: { key: 'citrinewild_fang',   name: 'Citrinewild Fang',    hint: 'A Seer scout in the Creaturelands wears the fang.  Beat them.' },
+  veridan:   { key: 'emeraldbloom_wreath',name: 'Emeraldbloom Wreath', hint: 'A Seer scout among the Naturelands roots the wreath.  Beat them.' },
+  netharion: { key: 'amethyst_pass',      name: 'Amethyst Pass',       hint: 'A Seer scout near the Unknown\'s edge keeps the pass.  Beat them.' },
+  vorashil:  { key: 'sapphire_chit',      name: 'Sapphire Landing Chit',hint: 'A Seer scout at an Alienlands landing pad carries the chit.  Beat them.' },
+  xilnar:    { key: 'onyx_toll',          name: 'Onyx Wisp Toll',      hint: 'A Seer scout on the Spiritlands roads holds the toll.  Beat them.' },
+  baelgor:   { key: 'amberchain_link',    name: 'Amberchain Link',     hint: 'A Seer scout at a Humanoidlands forge grips the link.  Beat them.' },
+  thardin:   { key: 'anomaly_stamp',      name: 'Anomaly Cog Stamp',   hint: 'A Seer scout on Thardun\'s mech grid carries the stamp.  Beat them.' },
+  korathen:  { key: 'ultra_crest',        name: 'Ultra Crest',         hint: 'A Seer scout on the Ultralands road bears the crest.  Beat them.' },
+};
+function hasHallPassage(districtId) {
+  const p = HALL_PASSAGES[districtId];
+  if (!p) return true;   // no gate configured -> allow
+  return !!(game.player.passages && game.player.passages[p.key]);
+}
+function grantHallPassage(districtId) {
+  const p = HALL_PASSAGES[districtId];
+  if (!p) return false;
+  game.player.passages = game.player.passages || {};
+  if (game.player.passages[p.key]) return false;
+  game.player.passages[p.key] = 1;
+  save();
+  return true;   // caller can toast + save
+}
 
 // ============================================================================
 //  V3.7 — ROUTES between districts (2026-07-13)
@@ -7219,6 +7255,21 @@ function openItemsView() {
     if (!count) continue;
     rows.push({ key, name: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), desc, count });
   }
+  // V3.10.7 — Town-hall passages.  One flavored item per district;
+  // only shown for districts where the player has claimed the passage.
+  const passages = game.player.passages || {};
+  for (const districtId of DISTRICT_ORDER) {
+    const p = HALL_PASSAGES[districtId];
+    if (!p) continue;
+    if (!passages[p.key]) continue;
+    const meta = DISTRICT_META[districtId] || {};
+    rows.push({
+      key: p.key,
+      name: p.name,
+      desc: `Opens the ${meta.name || districtId} Town Hall door.  A relic of the district.`,
+      count: 1,
+    });
+  }
   // V3.10.5 — Hide unpurchased V3.10 potion / Zysphere variants so the
   // list doesn't fill with ×0 clutter before the player unlocks them.
   const HIDE_WHEN_EMPTY = new Set(['grand_potion','master_potion','zysphere_void','zysphere_ultra']);
@@ -7883,10 +7934,22 @@ function triggerDoor(tileChar, doorX, doorY) {
     if (hudEl) hudEl.textContent = 'Seer Ministry · Main';
     return;
   }
-  // V2.69 / V2.74 — Town Hall door: unlocked; resolves to the current
-  // district's themed interior via TOWN_HALLS[district].map so each
-  // district lands in a distinct hall.
+  // V2.69 / V2.74 · V3.10.7 — Town Hall door: gated by the district's
+  // HALL PASSAGE item.  Player earns the passage on their first grunt/
+  // scout defeat within that district.  Malezor's cottage bronze/silver
+  // keys are unchanged and unrelated (cottage-only).
   if (target.townHall) {
+    const districtId = game.player.mapId;
+    if (HALL_PASSAGES[districtId] && !hasHallPassage(districtId)) {
+      const p = HALL_PASSAGES[districtId];
+      const hallLabelForGate = (TOWN_HALLS[districtId] && TOWN_HALLS[districtId].name) || 'the Town Hall';
+      showDialog([
+        `The door is sealed by a ${p.name} lock.`,
+        `You need the ${p.name.toUpperCase()} to enter ${hallLabelForGate}.`,
+        p.hint,
+      ]);
+      return;
+    }
     const hall = TOWN_HALLS[game.player.mapId] || TOWN_HALLS.malezor;
     const hallMapId = (hall && hall.map) || 'malezor_hall';
     game.player.enteredInteriorFrom = {
@@ -10331,6 +10394,39 @@ function checkBattleOver() {
         else                          rxp = 100;
         gainRizerXp(rxp, 'trainer');
       }
+      // V3.10.7 — HALL PASSAGE grant on the FIRST in-district NPC-trainer
+      // defeat.  Fires when the source district resolves to a real
+      // Zyraxis district AND the tile-char is a Y / J / Q / g scout
+      // (grunts count; the 'X' Commander does NOT — he lives inside the
+      // Ministry and the player would already need the hall passage to
+      // reach him meaningfully).  One passage per district; grant is a
+      // no-op after the first drop.
+      {
+        const tc = game.battle.tileChar;
+        // Determine the source district.  For overworld tiles that's
+        // game.player.mapId directly; inside shared interiors, use
+        // enteredInteriorFrom.map.
+        let srcDistrict = game.player.mapId;
+        if (['seer_hq_main','seer_hq_basement','seer_hq_upper'].includes(srcDistrict)) {
+          const from = game.player.enteredInteriorFrom;
+          srcDistrict = (from && from.map) || srcDistrict;
+        }
+        const passageEligible = 'YJQg'.includes(tc);   // named scouts + grunts
+        if (passageEligible && HALL_PASSAGES[srcDistrict]) {
+          const granted = grantHallPassage(srcDistrict);
+          if (granted) {
+            const p = HALL_PASSAGES[srcDistrict];
+            setTimeout(() => {
+              showToast(`◈  ${p.name.toUpperCase()}  ·  claimed`, 3000);
+              showDialog([
+                `They drop a small token as they retreat.`,
+                `«◈ You claimed the ${p.name.toUpperCase()}.»`,
+                `«◈ The Town Hall door will now open for you in this district.»`,
+              ]);
+            }, 1600);
+          }
+        }
+      }
       // V3.0 · V3.5.1 — Seer HQ grunt (main floor OR basement):
       // stamp the district-scoped flag so seerHqBasementClear() can
       // detect when EVERY grunt in the HQ (2 main + 3 basement) is
@@ -11602,6 +11698,8 @@ document.getElementById('btn-new').onclick = () => {
     // V3.9 — Quest state
     quests: {},
     questItemsPicked: {},
+    // V3.10.7 — Town hall passages
+    passages: {},
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();

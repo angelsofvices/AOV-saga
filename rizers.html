@@ -5241,6 +5241,31 @@ const SPECIES = {
     easterEgg: true,
     codex: { class: 'Mage', tc: 'Pseudoimmortal', archetype: 'SEER-FLESHLORD', ladder: 'Easter Egg', rarity: 'Easter Egg' },
   },
+  // V3.17.6 — ANCIUXOR (159th species · very last entry · home-cycle easter egg).
+  // God-tier Tier X with all stats = 666 (total 3330 = 10 × 333 = canon T10 pool).
+  // Reached ONLY via the ancient religious statue home-cycle: pray 10x at the
+  // living-room statue → statue part → Mom blessing → Dad warning → burn the
+  // part in the fireplace → Anciuxor emerges at Lv 100 with every stat maxed.
+  // "Mom always said it will protect you.  Dad always said it will protect the
+  // world."  Anciuxor is the strongest catchable card in the game.
+  anciuxor: {
+    flavor: 'The ancient one — mother said it would protect you; father said it would protect the world; both were right about a truth neither wanted to say out loud.',
+    name: 'ANCIUXOR', type: 'Aura', type2: 'Divine', type3: 'Ultramax', region: 'Home Statue · Ancient Rite',
+    tier: 10, catchRate: 0, shape: 'winged',
+    // 666 across all five — total 3330 = Tier X canon pool.  Balanced apex.
+    base: { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 },
+    // Gold-and-obsidian palette: ancient-god feel.
+    sprite: ['#f8c840', '#3a2408', '#fff5b0'],
+    moves: [
+      { name: 'Ancient Verdict', type: 'Divine', cast: 'Light', power: 220, cost: 1 },
+      { name: 'Bind of Ancients', type: 'Divine', cast: 'Spirit', power: 0, cost: 2, status: 'gridlock', statusChance: 0.6 },
+      { name: 'World-Ending Hymn', type: 'Ultramax', cast: 'Light', power: 666, cost: 3 },
+      { name: 'Anciuxor\'s Awakening', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
+    ],
+    easterEgg: true,
+    ultramax: true,
+    codex: { class: 'Cleric', tc: 'God', archetype: 'ANCIENT ONE', ladder: 'Easter Egg', rarity: 'Easter Egg' },
+  },
 };
 
 // Any Zyrex persisted under the old key still resolves via SPECIES lookup.
@@ -5694,7 +5719,7 @@ const HOUSE_MAP = [
   '=.t..........=', // 2 · t = kitchen dining table
   '=............=', // 3
   '=..........c.=', // 4 · c = couch (LIVING ROOM)
-  '=.....m......=', // 5 · Mom
+  '=.....m.....@=', // 5 · Mom · @ = ANCIENT RELIGIOUS STATUE (V3.17.6) beside the couch — home-cycle to Anciuxor
   '=............=', // 6
   '=......x.....=', // 7 · x = door out to Malezor
   '==============', // 8
@@ -7811,7 +7836,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkjrcFeLvaAIy~Z'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver (rift host)
+  if ('#TWMSBh=btmdzkjrcFeLvaAIy~Z@'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue (Anciuxor home-cycle)
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -9168,6 +9193,60 @@ function drawTile(x, y, ch, mx, my) {
         ctx.fillStyle = '#3a1a1a';
         ctx.fillRect(px + 5, py + 13, 2, 2);
       }
+      break;
+    }
+    case '@': {
+      // V3.17.6 — ANCIENT RELIGIOUS STATUE (blocker).  Weathered stone
+      // pedestal + robed figure with a gold halo.  Purple glow intensifies
+      // as the player prays (statuePrayCount) — solid gold once the statue
+      // part is claimed.  Fades to bare stone after Anciuxor is granted.
+      drawTile(x, y, '.', mx, my);
+      const prays  = (game.player && game.player.statuePrayCount) || 0;
+      const held   = !!(game.player && game.player.statuePartHeld);
+      const done   = !!(game.player && game.player.anciuxorGranted);
+      // Pedestal — dark stone block at the bottom
+      ctx.fillStyle = '#4a4448';
+      ctx.fillRect(px + 6, py + TILE - 6, TILE - 12, 5);
+      ctx.fillStyle = '#2a2428';
+      ctx.fillRect(px + 6, py + TILE - 6, TILE - 12, 1);
+      // Robed body — grey stone, wider at base narrowing at shoulders
+      ctx.fillStyle = '#7a7278';
+      ctx.beginPath();
+      ctx.moveTo(px + 10, py + TILE - 6);
+      ctx.lineTo(px + TILE - 10, py + TILE - 6);
+      ctx.lineTo(px + TILE - 12, py + 12);
+      ctx.lineTo(px + 12, py + 12);
+      ctx.closePath();
+      ctx.fill();
+      // Robe seam
+      ctx.strokeStyle = '#4a4448';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 12);
+      ctx.lineTo(px + TILE / 2, py + TILE - 6);
+      ctx.stroke();
+      // Head — small stone orb
+      ctx.fillStyle = '#8a8288';
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + 9, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#4a4448';
+      ctx.stroke();
+      // Halo — glowing arc that intensifies with prayer count
+      const glow = done ? 0 : Math.min(1, prays / 10);
+      if (glow > 0 || held) {
+        const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 220);
+        const alpha = held ? 0.85 * pulse : (0.20 + 0.60 * glow) * pulse;
+        ctx.fillStyle = `rgba(248, 200, 64, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(px + TILE / 2, py + 9, 6, Math.PI, Math.PI * 2);
+        ctx.fill();
+      }
+      // Solid gold halo ring on top of the glow
+      ctx.strokeStyle = done ? '#5a5058' : (held ? '#f8c840' : `rgba(248, 200, 64, ${0.35 + 0.5 * glow})`);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + 9, 6, Math.PI, Math.PI * 2);
+      ctx.stroke();
       break;
     }
     case 'm': {
@@ -11885,6 +11964,11 @@ function tryInteract() {
     // slots into the coil housing and unlocks RIFT SLIP fast-travel
     // between visited regions.  Subsequent interacts open the rift menu.
     interactRadio();
+  } else if (t === '@') {
+    // V3.17.6 — ANCIENT RELIGIOUS STATUE interact.  Home-cycle chain:
+    // pray 10 times → statue part → Mom blessing → Dad warning → burn
+    // in fireplace → grants ANCIUXOR (Tier X, 666 all stats, Lv 100).
+    interactStatue();
   } else if (t === 'F') {
     // V3.15.2 — pre-starter easter egg latch.  Interacting with BOTH
     // fridge + stove before receiving Mom's starter pack multiplies
@@ -13009,6 +13093,25 @@ function walkNpcToPlayer(n) {
 function interactMom() {
   const nm = game.player.name || 'you';
   const items = game.player.items || (game.player.items = { potion: 0 });
+  // V3.17.6 — TOP-PRIORITY BEAT: player brought back the STATUE PART.
+  // Mom delivers her blessing ("it will protect YOU") and marks the
+  // chain state.  Fires exactly once; subsequent visits with the part
+  // still held drop back to regular Mom dialog.
+  if (game.player.statuePartHeld && !game.player.momBlessedStatue) {
+    game.player.momBlessedStatue = true;
+    save();
+    showDialog([
+      `MOM: You've been at the statue again, ${nm}.  I can see it in your hand.`,
+      `MOM: When you were small I used to tell you — that thing will PROTECT YOU.`,
+      `MOM: I still believe it.  A mother has to believe it.`,
+      `MOM: Keep it close.  It's good luck as long as it's yours.`,
+      `MOM: Now go show your father.  He never agreed with me about it — but he'll want to see.`,
+    ], () => {
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  MOM\'s blessing received  ·  show DAD', 2800);
+    });
+    return;
+  }
   // V2.17 — highest-priority beat: player brought back a homunculus, Mom transforms it.
   if (game.player.homunculusFound && !game.player.elzebubGranted) {
     grantElzebubFromMom();
@@ -13096,6 +13199,27 @@ function interactMom() {
 }
 function interactDad() {
   const nm = game.player.name || 'you';
+  // V3.17.6 — TOP-PRIORITY BEAT: player brought the STATUE PART to Dad
+  // AFTER Mom's blessing.  Dad delivers his warning ("never let it get
+  // in the wrong hands") and marks the chain state so the fireplace
+  // consecration unlocks.  Fires exactly once.
+  if (game.player.statuePartHeld && game.player.momBlessedStatue && !game.player.dadWarnedStatue) {
+    game.player.dadWarnedStatue = true;
+    save();
+    showDialog([
+      `DAD: You brought it up here.  Your mother told you it was good luck.`,
+      `DAD: She isn't wrong.  She's just not telling the whole thing.`,
+      `DAD: That piece in your hand — it isn't a keepsake.  It's a key.`,
+      `DAD: Whatever your mother said about it protecting YOU — I've always believed it protects the WORLD.`,
+      `DAD: If it ever gets into the wrong hands, ${nm}, we do not get another chance.  Do you understand?`,
+      `DAD: There is a place in the house that will finish what you've started.  You'll know it when you're standing in front of it.`,
+      `DAD: Do not burn it in front of anyone.`,
+    ], () => {
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  DAD\'s warning received  ·  finish it at the HEARTH', 3200);
+    });
+    return;
+  }
   if (!game.player.party.length) {
     // V2.32 — Phase 1 of first meeting: just the birthday + starter picker.
     // The lore + notebook + "go see Mom" beats fire AFTER starter selection
@@ -13216,6 +13340,18 @@ function interactFireplace() {
   const alreadyLit = !!game.player.firepitEmberBurned;
   const hasEmber = (items.sunlit_ember || 0) > 0;
 
+  // V3.17.6 — TOP-PRIORITY BEAT: player carrying the STATUE PART after
+  // Mom's blessing AND Dad's warning consecrates it in the hearth and
+  // Anciuxor emerges at Lv 100 with every stat maxed.  Home-cycle
+  // reward for the pray-10x → mom → dad → hearth chain.
+  if (game.player.statuePartHeld
+      && game.player.momBlessedStatue
+      && game.player.dadWarnedStatue
+      && !game.player.anciuxorGranted) {
+    consecrateStatuePart();
+    return;
+  }
+
   if (alreadyLit) {
     showDialog([
       'The living-room hearth is still warm.',
@@ -13248,6 +13384,126 @@ function interactFireplace() {
     'Something about it looks hungry — like it is waiting for a spark it already knows the shape of.',
     '(Rumor: the SUNLIT PILLAR in ZARVANE gives travelers a warm ember that never quite goes out.)',
   ]);
+}
+
+// V3.17.6 — Consecrate the statue part in the fireplace.  Grants
+// ANCIUXOR at Lv 100 with all stats maxed (666 across the board via
+// species base × level formula, per canon T×333 pool for Tier X).
+// Chain state flags flip so the fireplace + statue + parents all
+// transition to post-grant flavor forever after.
+function consecrateStatuePart() {
+  const nm = game.player.name || 'you';
+  showDialog([
+    'You kneel at the hearth and set the STATUE PART on the ember bed.',
+    'The stone does not burn.  It BREATHES.',
+    'The fireplace roars into a shape neither fire nor light — something older wearing both like clothes.',
+    'Something steps out of the hearth that was never in the hearth.',
+    '',
+    'ANCIUXOR — the Ancient One.',
+    'The statue Mom told you would protect YOU.',
+    'The statue Dad told you would protect the WORLD.',
+    'Both of them were right.  Both of them were terrified of what that meant.',
+    '',
+    `«◈ ANCIUXOR (Lv 100) joins your party.»`,
+    `«◈ Every stat is maxed at 666.»`,
+    `«◈ You are now carrying a piece of ancient god home in your pocket.»`,
+  ], () => {
+    const items = game.player.items = game.player.items || {};
+    // Consume the statue part
+    items.statue_part = Math.max(0, (items.statue_part || 1) - 1);
+    if (items.statue_part === 0) delete items.statue_part;
+    game.player.statuePartHeld = false;
+    game.player.anciuxorGranted = true;
+    game.player.firepitEmberBurned = true;  // also lights the hearth for the sunlit-ember flavor path
+    // Grant Anciuxor at Lv 100
+    const zy = makeZyrex('anciuxor', 100);
+    if (zy) {
+      // Explicit stat override — every stat pinned to 666 regardless of
+      // whatever the level-scaling formula would compute.  Signature of
+      // the Ancient One is stat-parity.
+      zy.stats = { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 };
+      zy.maxHp = 666;
+      zy.hp    = 666;
+      if (game.player.party.filter(Boolean).length < MAX_PARTY) game.player.party.push(zy);
+      else                                                      game.player.box.push(zy);
+      markCaught('anciuxor');
+    }
+    save();
+    updateHUD();
+    try { playSfx('toast'); } catch(_) {}
+    showToast('◈  ANCIUXOR  ·  the Ancient One awakens', 4200);
+  });
+}
+
+// V3.17.6 — ANCIENT RELIGIOUS STATUE INTERACT.  Home-cycle to Anciuxor.
+// Living-room statue near the couch.  Player must PRAY 10 times; the
+// tenth prayer grants a statue-part item.  Bringing the part to Mom
+// (blessing) and Dad (warning) unlocks the fireplace consecration —
+// burn the part in the hearth and Anciuxor emerges at Lv 100 with
+// every stat maxed.  Once granted, the statue goes silent.
+function interactStatue() {
+  if (game.player.mapId !== 'home_interior') {
+    showDialog(['A stone figure.  Not the one from home.']);
+    return;
+  }
+  // Post-grant: silent flavor.
+  if (game.player.anciuxorGranted) {
+    showDialog([
+      'The ancient statue sits quiet on its pedestal.',
+      'Whatever was inside it has already come out.',
+    ]);
+    return;
+  }
+  // If the part is already held, remind the player where to take it next.
+  if (game.player.statuePartHeld) {
+    const nextStop = !game.player.momBlessedStatue ? 'MOM'
+                   : !game.player.dadWarnedStatue  ? 'DAD'
+                   : 'the FIREPLACE';
+    showDialog([
+      'The statue is quiet now.  You already broke off the piece you were meant to.',
+      `Take the STATUE PART to ${nextStop}.`,
+    ]);
+    return;
+  }
+  // Prayer count — increment and dispatch flavor by beat.
+  game.player.statuePrayCount = (game.player.statuePrayCount || 0) + 1;
+  const n = game.player.statuePrayCount;
+  save();
+
+  if (n === 10) {
+    // Tenth prayer — the statue cracks and a fragment falls into your hand.
+    game.player.statuePartHeld = true;
+    const items = game.player.items = game.player.items || {};
+    items.statue_part = (items.statue_part || 0) + 1;
+    save();
+    showDialog([
+      'You bow your head and pray for the tenth time.',
+      'The stone answers.  A hairline crack runs up the pedestal, and a small carved fragment falls into your palm.',
+      'It is warm.  It is heavier than it should be.',
+      '«◈ STATUE PART added to items.»',
+      'Bring it to MOM.',
+    ], () => {
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  STATUE PART  ·  bring to MOM', 3200);
+    });
+    return;
+  }
+  // Pre-tenth prayer flavor beats.
+  const remaining = 10 - n;
+  const beats = {
+    1: ['You bow your head to the ancient statue.', 'MOM always said it would protect you.  DAD always said it would protect the world.', 'Nothing happens.'],
+    2: ['You pray again.', 'The stone is warm where your forehead touched it a moment ago.'],
+    3: ['Third prayer.', 'You could swear the halo caught the light.'],
+    4: ['Fourth prayer.', 'The pedestal hums under your knees — just for a second.'],
+    5: ['Fifth prayer.', 'Something has started counting.'],
+    6: ['Sixth prayer.', 'MOM used to leave you alone with it when you were small.  You liked that.'],
+    7: ['Seventh prayer.', 'DAD used to tell you not to.  He never said why.'],
+    8: ['Eighth prayer.', 'The statue\'s halo is bright now, and you did not imagine it.'],
+    9: ['Ninth prayer.', 'You feel like something on the other side is bracing itself for what happens next.'],
+  };
+  const lines = beats[n] || ['You bow your head to the ancient statue.', 'Something is listening.'];
+  lines.push(`(${remaining} more prayer${remaining === 1 ? '' : 's'}.)`);
+  showDialog(lines);
 }
 
 // V3.16.6 — RADIO RECEIVER INTERACT.  Player's ninth-grade invention on

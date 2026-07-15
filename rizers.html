@@ -2277,10 +2277,6 @@ function playerPalette() {
     if (game.player.hair)  out.accent  = game.player.hair;
     if (game.player.pants) out.pants   = game.player.pants;
   }
-  // V3.17-SMOKETEST — FORCE-OVERRIDE shirt to solid black regardless of
-  // player selection so we can visually verify deploy pipeline is live.
-  // Remove this override once the smoke test confirms deploys are working.
-  out.primary = '#000000';
   return out;
 }
 
@@ -3558,7 +3554,7 @@ const BASEMENT_MAP = [
 // V2.37: added kitchen (F fridge, e stove) and living room (c couch),
 // stairs still top-right corner.
 const HOUSE_MAP = [
-  '======ff======', // 0 · f = FIREPLACE (V3.16.1) — top-center wall of living room, 2-tile stone hearth
+  '======~~======', // 0 · ~ = FIREPLACE (V3.16.4) — top-center wall of living room, 2-tile stone hearth. Switched from 'f' because 'f' is already district-decor.
   '=Fe.......wU.=', // 1 · F = fridge, e = stove (KITCHEN nook); stairs w/U top-right
   '=.t..........=', // 2 · t = kitchen dining table
   '=............=', // 3
@@ -5680,7 +5676,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkjrcFeLvaAIyf'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.1 f=fireplace
+  if ('#TWMSBh=btmdzkjrcFeLvaAIy~'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace (was 'f' — collided with district decor)
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -6906,12 +6902,12 @@ function drawTile(x, y, ch, mx, my) {
       ctx.fill();
       break;
     }
-    case 'f': {
-      // V3.16.3 — DEAD-SIMPLE FIREPLACE.  All fillRect, no curves, no
-      // detection logic.  Just: big grey stone tile + wide dark mantel +
-      // black firebox + huge orange flame + red-hot log at bottom.
-      // Two adjacent 'f' tiles render as two adjacent fireplace panels —
-      // no seaming logic (each tile stands alone visually).
+    case '~': {
+      // V3.16.4 — DEAD-SIMPLE FIREPLACE.  Renamed from 'f' to '~' because
+      // 'f' was already claimed by the district-decor tile earlier in
+      // this switch, so the fireplace case was dead code.  All fillRect,
+      // no curves, no detection logic.  Two adjacent '~' tiles render as
+      // two adjacent fireplace panels — no seaming logic.
 
       // 1. Big grey stone background — fills the whole tile
       ctx.fillStyle = '#a09890';
@@ -7444,30 +7440,6 @@ function renderMap() {
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
   drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants });
-  // V3.17-SMOKETEST — Big golden 5-point star on the player's chest to
-  // visually confirm deploy pipeline.  Drawn last so it sits on top of
-  // the shirt render.  Remove once the smoke test succeeds.
-  {
-    const starCx = px;
-    const starCy = py + 2;         // roughly chest-center
-    const starR  = 5;              // outer radius
-    const innerR = starR * 0.4;    // inner radius for 5-point star
-    ctx.fillStyle = '#ffd700';     // gold
-    ctx.strokeStyle = '#8a5c00';   // dark-gold outline
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const r = (i % 2 === 0) ? starR : innerR;
-      const a = -Math.PI / 2 + (i * Math.PI / 5);
-      const sx = starCx + Math.cos(a) * r;
-      const sy = starCy + Math.sin(a) * r;
-      if (i === 0) ctx.moveTo(sx, sy);
-      else         ctx.lineTo(sx, sy);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  }
   // V2.66 — Encounter '!' indicator above the player when a wild
   // encounter is armed but not yet engaged.  Pulsing yellow bubble;
   // press A to engage.

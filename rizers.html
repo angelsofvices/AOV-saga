@@ -2953,6 +2953,7 @@ const SPECIES = {
     sprite: ['#c8bfe6', '#7a5cc8', '#e8e0f0'],
     moves: basicMoves('Beast', ['Wing Cut', 'Aetherbeam', 'Astral Gale', 'Rally']),
     originalMove: { name: 'Astral Gale', type: 'Aura', power: 95, cost: 3 },   // V2.28 — species-locked slot-4 signature
+    evolveTo: 'rhinoxis', evolveLv: 20,   // V3.16.1 — Etherfly awakens into Rhinoxis (Tier V Apex Beast/Creature, PRIMALKIND · signature Primal Roar) per codex canon
   },
   rakoron: {
     // Codex v10.22: Tier VIII Immortal · Type1 Creature · Type2 Beast
@@ -3171,7 +3172,7 @@ SPECIES.aetherwing = SPECIES.etherfly;
     added++;
   }
   if (typeof console !== 'undefined' && added) {
-    console.log('[V2.30] Hydrated ' + added + ' Zyrex from codex; total SPECIES = ' + Object.keys(SPECIES).length);
+    console.log('[V2.30 · V3.17] Hydrated ' + added + ' Zyrex from codex; total SPECIES = ' + Object.keys(SPECIES).length + ' (Viridia purge Lane 1: 15 imports removed)');
   }
   // V2.59 — Canon audit: every species base pool must equal tier * 333.
   // V2.65 — Certain species are lore-exempt from the rule (Ultharis = God
@@ -3553,7 +3554,7 @@ const BASEMENT_MAP = [
 // V2.37: added kitchen (F fridge, e stove) and living room (c couch),
 // stairs still top-right corner.
 const HOUSE_MAP = [
-  '==============', // 0
+  '======ff======', // 0 · f = FIREPLACE (V3.16.1) — top-center wall of living room, 2-tile stone hearth
   '=Fe.......wU.=', // 1 · F = fridge, e = stove (KITCHEN nook); stairs w/U top-right
   '=.t..........=', // 2 · t = kitchen dining table
   '=............=', // 3
@@ -5204,11 +5205,30 @@ function generateDistrictMap(mapId) {
   // gets a real Seer Ministry with a real 'E' door -> seer_hq_main.
   {
     const hqX = Math.floor(cols / 2) - 1;   // top-left of the 3x2 building
-    const hqY = rows - 4;                    // second-to-last row of grid
-    // Safety: make sure the two rows exist (they always do, given hqY = rows-4).
+    let   hqY = rows - 4;                    // second-to-last row of grid (default)
+    // V3.16.1 — Adaptive HQ lift.  If the district's shape-mask (wavy border,
+    // hex chamfer, cross arm, etc.) swallows the tile directly below the door,
+    // the player can't approach the 'E' → the HQ becomes unreachable.
+    // Veridan hit this: the wavy bottom band walled off rows 23-25 at cols
+    // 20-22, and the default hqY=22 put the door approach INSIDE the wall
+    // with no walkable neighbor.  Lift the HQ upward until the approach tile
+    // is either naturally walkable OR at least sits outside the shape mask.
+    for (let lift = 0; lift < 6; lift++) {
+      const approachY = hqY + 2;
+      const outOfMap = (approachY >= rows - 1);
+      const shapeWall = districtShapeWall(mapId, hqX + 1, approachY, cols, rows);
+      if (!outOfMap && !shapeWall) break;
+      hqY -= 1;
+      if (hqY < 6) { hqY = rows - 4; break; }  // give up; carve-below will rescue
+    }
     if (grid[hqY] && grid[hqY + 1]) {
       grid[hqY][hqX]     = 'A'; grid[hqY][hqX + 1]     = 'A'; grid[hqY][hqX + 2]     = 'A';   // emblem row
       grid[hqY + 1][hqX] = 'A'; grid[hqY + 1][hqX + 1] = 'E'; grid[hqY + 1][hqX + 2] = 'A';   // door row
+      // V3.16.1 — Always carve the landing tile beneath the door so the
+      // 'E' door is guaranteed reachable regardless of shape-mask damage.
+      if (grid[hqY + 2] && grid[hqY + 2][hqX + 1] !== undefined) {
+        grid[hqY + 2][hqX + 1] = ',';
+      }
     }
   }
 
@@ -5643,13 +5663,20 @@ function tileAt(x, y) {
 }
 function walkable(x, y) {
   const t = tileAt(x, y);
+  // V3.16.1 — DEV MODE: walk through ANYTHING (except off-map).  Prevents
+  // playtest bugs from ever soft-locking the player.  Still respects the
+  // world boundary and the door/portal transitions (those trigger on step).
+  if (game && game.devMode) {
+    if (t === undefined || t === null || t === '') return false;
+    return true;
+  }
   // V2.10.1 — house body 'h' now blocks (bigger 3x2 exteriors).
   // Doors (H, x, p, q, portal < >) are 'walkable' — walking INTO them
   // triggers auto-enter via tryMove's post-step door check.
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkjrcFeLvaAIy'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench
+  if ('#TWMSBh=btmdzkjrcFeLvaAIyf'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.1 f=fireplace
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -6875,6 +6902,54 @@ function drawTile(x, y, ch, mx, my) {
       ctx.fill();
       break;
     }
+    case 'f': {
+      // V3.16.1 — FIREPLACE (blocker).  Stone hearth carved into the top wall
+      // of the living room; two adjacent 'f' tiles form the full 2-tile hearth.
+      // Base wall stays visually consistent with '=' wall tile above.
+      // Draw '=' backing (matches surrounding wall):
+      ctx.fillStyle = '#3a2418';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#5a3820';
+      ctx.fillRect(px, py + 2, TILE, 2);
+      // Stone mantel band across the top
+      ctx.fillStyle = '#7a6a5a';
+      ctx.fillRect(px, py + 6, TILE, 4);
+      ctx.fillStyle = '#a89880';
+      ctx.fillRect(px, py + 6, TILE, 1);
+      // Fireplace opening — dark cavity spanning most of the tile
+      ctx.fillStyle = '#0e0806';
+      ctx.fillRect(px + 2, py + 12, TILE - 4, TILE - 14);
+      // Stone bricks around the opening (checker mortar hint)
+      ctx.fillStyle = '#4a3a2c';
+      ctx.fillRect(px, py + 12, 2, TILE - 12);         // left brick column
+      ctx.fillRect(px + TILE - 2, py + 12, 2, TILE - 12); // right brick column
+      ctx.fillStyle = '#3a2c22';
+      ctx.fillRect(px, py + TILE - 3, TILE, 3);        // hearth stone base
+      // Flickering embers + flame — animated (time-driven, per-tile phase)
+      const flick = Math.floor(Date.now() / 90);
+      const phase = ((flick + x * 7 + y * 3) % 12) / 12;
+      const flameH = 6 + Math.floor(phase * 4);
+      // Ember log
+      ctx.fillStyle = '#5a2418';
+      ctx.fillRect(px + 5, py + TILE - 7, TILE - 10, 3);
+      ctx.fillStyle = '#c8442a';
+      ctx.fillRect(px + 7, py + TILE - 7, TILE - 14, 1);
+      // Flame tongue (yellow/orange, jitters)
+      ctx.fillStyle = '#ff9430';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2 - 4, py + TILE - 4);
+      ctx.quadraticCurveTo(px + TILE / 2, py + TILE - 4 - flameH - 2, px + TILE / 2 + 4, py + TILE - 4);
+      ctx.closePath();
+      ctx.fill();
+      // Inner hot core (yellow)
+      ctx.fillStyle = '#ffe860';
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2 - 2, py + TILE - 4);
+      ctx.quadraticCurveTo(px + TILE / 2, py + TILE - 4 - flameH, px + TILE / 2 + 2, py + TILE - 4);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
     case 'm': {
       // V2.8 — Mom NPC (stationary, warm-tone character)
       drawTile(x, y, '.', mx, my);
@@ -7469,7 +7544,7 @@ function toggleDevMode() {
   game.devMode = !game.devMode;
   updateDevModeChip();
   if (game.devMode) {
-    showToast('◈  DEV MODE ON  ·  RUN + 100% catch unlocked', 2600);
+    showToast('◈  DEV MODE ON  ·  RUN · 100% catch · walk-through-all', 2600);
   } else {
     showToast('◈  DEV MODE OFF', 1600);
     // Clear any lingering cooldowns so the world resumes normal behavior.
@@ -7487,7 +7562,7 @@ function updateDevModeChip() {
     chip.id = 'hud-devmode';
     chip.className = 'badge';
     chip.style.cssText = 'color:#ff6a4a; border-color:#ff6a4a; letter-spacing:0.28em;';
-    chip.title = 'DEV MODE — hold MENU to exit. Run unlocks in every battle. 10s cooldown per fled NPC. Zysphere catch rate forced to 100%.';
+    chip.title = 'DEV MODE — hold MENU to exit. Run unlocks in every battle. 10s cooldown per fled NPC. Zysphere catch rate forced to 100%. Walk through any tile (V3.16.1).';
     const hud = document.getElementById('hud');
     if (hud) hud.appendChild(chip);
   }

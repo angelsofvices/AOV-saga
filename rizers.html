@@ -9541,6 +9541,13 @@ function tryInteract() {
   } else if (t === 'c') {
     // V2.37 — couch flavor
     showDialog(['The couch. Comfy. Warm.', 'Not today. Malezor waits.']);
+  } else if (t === '~') {
+    // V3.16.5 — FIREPLACE interact.  Hidden reward: if the player carries
+    // a SUNLIT EMBER (obtained by touching the Sunlit Pillar landmark in
+    // Zarvane), the fireplace ignites into a Sunlit hearth-fire and the
+    // player is granted 9,000 COINS as a one-time reward.  After that
+    // the fireplace stays lit (flavor changes) and the ember is consumed.
+    interactFireplace();
   } else if (t === 'F') {
     // V3.15.2 — pre-starter easter egg latch.  Interacting with BOTH
     // fridge + stove before receiving Mom's starter pack multiplies
@@ -10844,6 +10851,54 @@ function interactBed() {
     save(); updateHUD();
     if (gemGift > 0) showToast(`◈  +${gemGift} GEMS  ·  POUCH ${GEM_FLOOR}`);
   });
+}
+// V3.16.5 — FIREPLACE INTERACT.  Home living-room only.  Three states:
+//   1) Ember already burned → warm flavor line, no reward
+//   2) Player has SUNLIT EMBER → consume it, grant 9,000 COINS, one-time
+//   3) No ember → cold flavor line + hint pointing to Zarvane Sunlit Pillar
+function interactFireplace() {
+  // Only the home living-room fireplace grants the reward.  If other
+  // districts get fireplaces later, they can gate their own rewards.
+  if (game.player.mapId !== 'home_interior') {
+    showDialog(['The stone hearth is cold. No spark, no smoke.']);
+    return;
+  }
+  const items = game.player.items = game.player.items || {};
+  const alreadyLit = !!game.player.firepitEmberBurned;
+  const hasEmber = (items.sunlit_ember || 0) > 0;
+
+  if (alreadyLit) {
+    showDialog([
+      'The living-room hearth is still warm.',
+      'The Sunlit Ember you brought back from Zarvane burns low but steady — as if it remembers home.',
+    ]);
+    return;
+  }
+  if (hasEmber) {
+    const REWARD = 9000;
+    showDialog([
+      'You cup the SUNLIT EMBER in your palm and set it on the hearth stone.',
+      'The ember flares.  Warm gold light spills across the living-room floor.',
+      'Something small clinks in the ashes — then another, and another.',
+      'A rain of gold coins from a place your ember remembers.',
+      `«◈ +${REWARD.toLocaleString()} COINS»`,
+    ], () => {
+      items.sunlit_ember = Math.max(0, (items.sunlit_ember || 1) - 1);
+      if (items.sunlit_ember === 0) delete items.sunlit_ember;
+      game.player.coins = (game.player.coins || 0) + REWARD;
+      game.player.firepitEmberBurned = true;
+      save(); updateHUD();
+      try { playSfx('toast'); } catch(_) {}
+      showToast(`¢  +${REWARD.toLocaleString()} COINS  ·  hearth lit`, 3200);
+    });
+    return;
+  }
+  // No ember yet
+  showDialog([
+    'The living-room hearth.  Cold.  A dust of old ash.',
+    'Something about it looks hungry — like it is waiting for a spark it already knows the shape of.',
+    '(Rumor: the SUNLIT PILLAR in ZARVANE gives travelers a warm ember that never quite goes out.)',
+  ]);
 }
 function exitHouseToMalezor() {
   if (!game.player.party.length) {

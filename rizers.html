@@ -6903,49 +6903,142 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'f': {
-      // V3.16.1 — FIREPLACE (blocker).  Stone hearth carved into the top wall
-      // of the living room; two adjacent 'f' tiles form the full 2-tile hearth.
-      // Base wall stays visually consistent with '=' wall tile above.
-      // Draw '=' backing (matches surrounding wall):
-      ctx.fillStyle = '#3a2418';
+      // V3.16.2 — FIREPLACE redesigned (blocker).  Stone masonry sharply
+      // contrasted against the brown plank wall so it clearly reads as a
+      // fireplace instead of blending into the wall. Two adjacent 'f'
+      // tiles form the full 2-tile hearth.
+      //
+      // Layout (top-down 2D tile):
+      //   [ mantel shelf ]
+      //   [ stone bricks + arched opening + flame ]
+      //   [ hearth base slab ]
+      //
+      // Detect whether this tile is the LEFT half or RIGHT half of the
+      // 2-tile hearth so we can seam the opening cleanly across them.
+      const leftHalf  = tileAt(x - 1, y) !== 'f';
+      const rightHalf = tileAt(x + 1, y) !== 'f';
+      const isSolo    = leftHalf && rightHalf;
+
+      // 1. STONE BLOCK BACKGROUND — light grey, contrasts hard with wall
+      ctx.fillStyle = '#8a8280';
       ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#5a3820';
-      ctx.fillRect(px, py + 2, TILE, 2);
-      // Stone mantel band across the top
-      ctx.fillStyle = '#7a6a5a';
-      ctx.fillRect(px, py + 6, TILE, 4);
-      ctx.fillStyle = '#a89880';
-      ctx.fillRect(px, py + 6, TILE, 1);
-      // Fireplace opening — dark cavity spanning most of the tile
-      ctx.fillStyle = '#0e0806';
-      ctx.fillRect(px + 2, py + 12, TILE - 4, TILE - 14);
-      // Stone bricks around the opening (checker mortar hint)
-      ctx.fillStyle = '#4a3a2c';
-      ctx.fillRect(px, py + 12, 2, TILE - 12);         // left brick column
-      ctx.fillRect(px + TILE - 2, py + 12, 2, TILE - 12); // right brick column
-      ctx.fillStyle = '#3a2c22';
-      ctx.fillRect(px, py + TILE - 3, TILE, 3);        // hearth stone base
-      // Flickering embers + flame — animated (time-driven, per-tile phase)
-      const flick = Math.floor(Date.now() / 90);
-      const phase = ((flick + x * 7 + y * 3) % 12) / 12;
-      const flameH = 6 + Math.floor(phase * 4);
-      // Ember log
-      ctx.fillStyle = '#5a2418';
-      ctx.fillRect(px + 5, py + TILE - 7, TILE - 10, 3);
-      ctx.fillStyle = '#c8442a';
-      ctx.fillRect(px + 7, py + TILE - 7, TILE - 14, 1);
-      // Flame tongue (yellow/orange, jitters)
-      ctx.fillStyle = '#ff9430';
+      // Stone speckling for texture
+      ctx.fillStyle = '#6f6866';
+      for (let sy = 2; sy < TILE; sy += 5) {
+        for (let sx = (sy % 10 === 2 ? 3 : 7); sx < TILE; sx += 7) {
+          ctx.fillRect(px + sx, py + sy, 1, 1);
+        }
+      }
+      // Mortar seams (horizontal brick lines)
+      ctx.strokeStyle = '#5a5250';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(px + TILE / 2 - 4, py + TILE - 4);
-      ctx.quadraticCurveTo(px + TILE / 2, py + TILE - 4 - flameH - 2, px + TILE / 2 + 4, py + TILE - 4);
+      ctx.moveTo(px, py + 8);  ctx.lineTo(px + TILE, py + 8);
+      ctx.moveTo(px, py + 18); ctx.lineTo(px + TILE, py + 18);
+      ctx.stroke();
+      // Staggered vertical brick seams for masonry look
+      ctx.beginPath();
+      ctx.moveTo(px + TILE * 0.5, py);      ctx.lineTo(px + TILE * 0.5, py + 8);
+      ctx.moveTo(px + TILE * 0.3, py + 8);  ctx.lineTo(px + TILE * 0.3, py + 18);
+      ctx.moveTo(px + TILE * 0.7, py + 8);  ctx.lineTo(px + TILE * 0.7, py + 18);
+      ctx.stroke();
+
+      // 2. MANTEL SHELF — dark wood band at top, protrudes 1 px above stone
+      ctx.fillStyle = '#3a2418';
+      ctx.fillRect(px, py, TILE, 4);
+      ctx.fillStyle = '#5a3820';
+      ctx.fillRect(px, py + 1, TILE, 1);
+
+      // 3. HEARTH BASE SLAB — dark stone at the bottom
+      ctx.fillStyle = '#3a3230';
+      ctx.fillRect(px, py + TILE - 4, TILE, 4);
+      ctx.fillStyle = '#2a2220';
+      ctx.fillRect(px, py + TILE - 4, TILE, 1);
+
+      // 4. FIREBOX OPENING — deep black cavity, seams across two tiles
+      // The opening runs from about y=10 to y=(TILE-6). For a two-tile
+      // hearth, the left half opens only on its RIGHT edge; the right
+      // half opens only on its LEFT edge; a solo tile has full opening.
+      const openTop = py + 10;
+      const openBot = py + TILE - 6;
+      const openH   = openBot - openTop;
+      let openL = px + 3;
+      let openR = px + TILE - 3;
+      if (!leftHalf)  openL = px;             // seam continues from left neighbor
+      if (!rightHalf) openR = px + TILE;      // seam continues to right neighbor
+      // Arched top (subtle arc) — draw dark cavity
+      ctx.fillStyle = '#050303';
+      ctx.beginPath();
+      if (leftHalf && rightHalf) {
+        // Solo — proper arch
+        ctx.moveTo(openL, openBot);
+        ctx.lineTo(openL, openTop + 4);
+        ctx.quadraticCurveTo(openL, openTop, openL + 5, openTop);
+        ctx.lineTo(openR - 5, openTop);
+        ctx.quadraticCurveTo(openR, openTop, openR, openTop + 4);
+        ctx.lineTo(openR, openBot);
+      } else if (leftHalf) {
+        // LEFT half of 2-tile — arch on left, straight edge on right
+        ctx.moveTo(openL, openBot);
+        ctx.lineTo(openL, openTop + 4);
+        ctx.quadraticCurveTo(openL, openTop, openL + 5, openTop);
+        ctx.lineTo(openR, openTop);
+        ctx.lineTo(openR, openBot);
+      } else if (rightHalf) {
+        // RIGHT half of 2-tile — straight left, arch on right
+        ctx.moveTo(openL, openBot);
+        ctx.lineTo(openL, openTop);
+        ctx.lineTo(openR - 5, openTop);
+        ctx.quadraticCurveTo(openR, openTop, openR, openTop + 4);
+        ctx.lineTo(openR, openBot);
+      } else {
+        // MIDDLE of longer hearth (rare) — straight both sides
+        ctx.moveTo(openL, openBot);
+        ctx.lineTo(openL, openTop);
+        ctx.lineTo(openR, openTop);
+        ctx.lineTo(openR, openBot);
+      }
       ctx.closePath();
       ctx.fill();
-      // Inner hot core (yellow)
-      ctx.fillStyle = '#ffe860';
+
+      // 5. FIRE — animated ember bed + dancing flames inside the opening
+      const flick = Math.floor(Date.now() / 90);
+      const phase = ((flick + x * 7 + y * 3) % 12) / 12;
+      const flameH = 8 + Math.floor(phase * 5);
+      // Ember bed — glowing log at the bottom of the opening
+      const bedY = openBot - 2;
+      const bedL = openL + 2;
+      const bedR = openR - 2;
+      ctx.fillStyle = '#7a1a0e';
+      ctx.fillRect(bedL, bedY - 2, bedR - bedL, 3);
+      ctx.fillStyle = '#e04a1c';
+      ctx.fillRect(bedL + 1, bedY - 1, bedR - bedL - 2, 1);
+      ctx.fillStyle = '#ffb050';
+      ctx.fillRect(bedL + 2, bedY, bedR - bedL - 4, 1);
+      // Outer flame tongue — big orange
+      const cx = (openL + openR) / 2;
+      const baseY = openBot - 2;
+      ctx.fillStyle = '#ff7020';
       ctx.beginPath();
-      ctx.moveTo(px + TILE / 2 - 2, py + TILE - 4);
-      ctx.quadraticCurveTo(px + TILE / 2, py + TILE - 4 - flameH, px + TILE / 2 + 2, py + TILE - 4);
+      ctx.moveTo(cx - 6, baseY);
+      ctx.quadraticCurveTo(cx - 4, baseY - flameH + 2, cx, baseY - flameH);
+      ctx.quadraticCurveTo(cx + 4, baseY - flameH + 2, cx + 6, baseY);
+      ctx.closePath();
+      ctx.fill();
+      // Middle flame — yellow
+      ctx.fillStyle = '#ffc020';
+      ctx.beginPath();
+      ctx.moveTo(cx - 4, baseY);
+      ctx.quadraticCurveTo(cx - 2, baseY - flameH + 4, cx, baseY - flameH + 2);
+      ctx.quadraticCurveTo(cx + 2, baseY - flameH + 4, cx + 4, baseY);
+      ctx.closePath();
+      ctx.fill();
+      // Inner hot core — white-yellow
+      ctx.fillStyle = '#fff090';
+      ctx.beginPath();
+      ctx.moveTo(cx - 2, baseY);
+      ctx.quadraticCurveTo(cx - 1, baseY - flameH + 6, cx, baseY - flameH + 4);
+      ctx.quadraticCurveTo(cx + 1, baseY - flameH + 6, cx + 2, baseY);
       ctx.closePath();
       ctx.fill();
       break;

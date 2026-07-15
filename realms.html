@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="AOV™ Saga: Realms — 2D action prototype with Adventure (side-scroller) and Tournament (MK-style fighter) modes." />
+  <title>Realms · The AOV Saga</title>
+  <meta name="theme-color" content="#050310">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void: #050310;
+      --navy: #1a1a2e;
+      --navy-mid: #232342;
+      --gold: #c9a961;
+      --gold-bright: #f4e3b3;
+      --gold-pale: #e8c878;
+      --gold-deep: #8a6d2c;
+      --mist: #c8c2dc;
+      --mist-deep: #7a7390;
+      --crimson: #d34c4c;
+      --emerald: #4ec97c;
+      --cosmic-blue: #6fa3e8;
+      --purple: #b08bff;
+      --font-display: 'Cinzel', 'Trajan Pro', serif;
+      --font-meta: 'Inter', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    [hidden] { display: none !important; }
+    body {
+      font-family: var(--font-meta);
+      background: radial-gradient(ellipse at top, #1c1432 0%, var(--void) 65%);
+      color: var(--mist);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: 0.01em;
+    }
+    .app { max-width: 1280px; margin: 0 auto; padding: 12px 16px; }
+    .nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 20px; border-bottom: 1px solid rgba(232, 200, 120, 0.15);
+      margin-bottom: 14px;
+    }
+    .nav-back {
+      font-family: var(--font-meta); font-size: 0.65rem; letter-spacing: 0.3em;
+      text-transform: uppercase; color: var(--gold-pale); text-decoration: none;
+      padding: 6px 12px; border: 1px solid rgba(232, 200, 120, 0.3); border-radius: 4px;
+    }
+    .nav-back:hover { background: rgba(232, 200, 120, 0.08); }
+    .nav-title {
+      font-family: var(--font-display); letter-spacing: 0.18em;
+      color: var(--gold-bright); font-size: 0.95rem;
+    }
+
+    /* ============ Shared screen container ============ */
+    .screen {
+      min-height: 78vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center; gap: 14px;
+    }
+    .screen-eyebrow {
+      font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.5em;
+      text-transform: uppercase; color: var(--gold); opacity: 0.85;
+    }
+    .screen-h1 {
+      font-family: var(--font-display); font-size: clamp(2rem, 8vw, 4.5rem);
+      letter-spacing: 0.1em;
+      background: linear-gradient(180deg, var(--gold-pale) 0%, var(--gold) 50%, var(--gold-deep) 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      filter: drop-shadow(0 0 22px rgba(232, 200, 120, 0.22));
+    }
+    .screen-h2 {
+      font-family: var(--font-display); font-size: clamp(1.4rem, 5vw, 2.4rem);
+      letter-spacing: 0.14em; color: var(--gold-bright);
+    }
+    .screen-tagline {
+      font-family: var(--font-meta); font-size: 0.7rem; letter-spacing: 0.3em;
+      text-transform: uppercase; color: var(--mist); opacity: 0.85;
+      max-width: 720px; line-height: 1.6;
+    }
+    .divider { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
+    .divider .line { width: 60px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+    .divider .diamond { width: 8px; height: 8px; background: var(--gold-bright);
+      transform: rotate(45deg); box-shadow: 0 0 12px var(--gold); }
+
+    /* ============ Buttons ============ */
+    .btn-primary {
+      font-family: var(--font-display); font-size: 0.95rem;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--gold-bright); background: rgba(10, 6, 24, 0.7);
+      border: 1px solid var(--gold); border-radius: 4px;
+      padding: 14px 32px; cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .btn-primary:hover, .btn-primary:active { background: rgba(232, 200, 120, 0.15); transform: scale(1.02); }
+    .btn-primary[disabled] { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+    .btn-secondary {
+      font-family: var(--font-meta); font-size: 0.62rem; letter-spacing: 0.25em;
+      text-transform: uppercase; color: var(--mist); background: transparent;
+      border: 1px solid rgba(232, 200, 120, 0.35); border-radius: 4px;
+      padding: 10px 20px; cursor: pointer;
+    }
+    .btn-secondary:hover { background: rgba(232, 200, 120, 0.08); color: var(--gold-bright); }
+
+    /* ============ Mode picker (title) ============ */
+    .mode-pick {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 14px;
+      max-width: 760px;
+      width: 100%;
+    }
+    .mode-btn {
+      display: flex; flex-direction: column; gap: 6px; align-items: center;
+      padding: 26px 18px;
+      background: linear-gradient(160deg, rgba(20,14,44,0.85), rgba(10,6,24,0.65));
+      border: 1px solid var(--gold);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: var(--gold-bright);
+    }
+    .mode-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.55), 0 0 26px rgba(232,200,120,0.28);
+      background: linear-gradient(160deg, rgba(232,200,120,0.12), rgba(10,6,24,0.65));
+    }
+    .mode-pill {
+      font-family: var(--font-meta); font-size: 0.55rem; letter-spacing: 0.32em;
+      text-transform: uppercase; color: var(--gold-pale); opacity: 0.85;
+      padding: 3px 8px; border: 1px solid rgba(232,200,120,0.3); border-radius: 12px;
+    }
+    .mode-name {
+      font-family: var(--font-display); font-size: 1.6rem; letter-spacing: 0.14em;
+      color: var(--gold-bright);
+    }
+    .mode-tag {
+      font-family: var(--font-meta); font-size: 0.62rem; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--mist); opacity: 0.85;
+      max-width: 280px; line-height: 1.45;
+    }
+    @media (max-width: 560px) {
+      .mode-pick { grid-template-columns: 1fr; }
+      .mode-name { font-size: 1.3rem; }
+    }
+
+    /* ============ Tournament — vs CPU / vs Player select ============ */
+    .tourn-vs-pick {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+      max-width: 580px; width: 100%; margin-top: 14px;
+    }
+    .vs-btn {
+      padding: 22px 14px;
+      background: linear-gradient(160deg, rgba(20,14,44,0.85), rgba(10,6,24,0.65));
+      border: 1px solid var(--gold); border-radius: 8px; cursor: pointer;
+      display: flex; flex-direction: column; gap: 5px; align-items: center;
+      transition: all 0.15s ease; color: var(--gold-bright);
+    }
+    .vs-btn:hover { background: rgba(232,200,120,0.15); transform: translateY(-2px); }
+    .vs-btn .vs-name { font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 0.14em; }
+    .vs-btn .vs-sub { font-family: var(--font-meta); font-size: 0.58rem; letter-spacing: 0.18em; color: var(--mist-deep); text-transform: uppercase; }
+
+    /* ============ Tournament character select (MK-style grid) ============ */
+    .tourn-select {
+      width: 100%; max-width: 1180px; padding: 0 8px;
+      display: flex; flex-direction: column; gap: 12px; align-items: center;
+    }
+    .tourn-header {
+      display: flex; justify-content: space-between; align-items: center;
+      width: 100%; gap: 12px; flex-wrap: wrap;
+    }
+    .tourn-step {
+      font-family: var(--font-meta); font-size: 0.6rem; letter-spacing: 0.4em;
+      text-transform: uppercase; color: var(--gold-pale);
+    }
+    .tourn-step.p1 { color: var(--cosmic-blue); }
+    .tourn-step.p2 { color: var(--crimson); }
+
+    .tourn-grid {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 6px;
+      width: 100%;
+    }
+    .char-cell {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border-radius: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      background: linear-gradient(160deg, rgba(20,14,44,0.85), rgba(10,6,24,0.65));
+      border: 1px solid rgba(232, 200, 120, 0.2);
+      transition: all 0.15s ease;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .char-cell img {
+      width: 100%; height: 100%; object-fit: cover;
+      filter: brightness(0.95);
+    }
+    .char-cell .char-portrait-fallback {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-size: 0.6rem; letter-spacing: 0.06em;
+      color: var(--gold-bright); padding: 4px; text-align: center;
+      line-height: 1;
+    }
+    .char-cell .char-name {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(180deg, transparent, rgba(5,3,16,0.85));
+      color: var(--gold-bright);
+      font-family: var(--font-display); font-size: 0.5rem; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 6px 3px 3px; text-align: center;
+      pointer-events: none;
+      line-height: 1.1;
+    }
+    .char-cell .char-tier {
+      position: absolute; top: 3px; left: 3px;
+      font-family: var(--font-meta); font-size: 0.42rem; letter-spacing: 0.1em;
+      color: var(--gold-pale); background: rgba(5,3,16,0.7);
+      padding: 1px 4px; border-radius: 3px;
+      pointer-events: none;
+    }
+    /* Locked overlay */
+    .char-cell.locked img,
+    .char-cell.locked .char-portrait-fallback { filter: brightness(0.25) grayscale(1); }
+    .char-cell.locked { cursor: not-allowed; }
+    .char-cell.locked::after {
+      content: '🔒'; position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.8rem;
+      text-shadow: 0 0 8px rgba(0,0,0,0.8);
+      pointer-events: none;
+    }
+    .char-cell.locked .char-name { color: var(--mist-deep); }
+    /* Unlocked hover */
+    .char-cell:not(.locked):hover {
+      transform: translateY(-2px) scale(1.04);
+      border-color: var(--gold-bright);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.5), 0 0 16px rgba(232,200,120,0.4);
+    }
+    /* Selected (p1) */
+    .char-cell.sel-p1 {
+      border-color: var(--cosmic-blue);
+      box-shadow: 0 0 0 2px var(--cosmic-blue) inset, 0 12px 22px rgba(0,0,0,0.55), 0 0 22px rgba(111,163,232,0.55);
+      transform: translateY(-2px) scale(1.06);
+    }
+    /* Selected (p2) */
+    .char-cell.sel-p2 {
+      border-color: var(--crimson);
+      box-shadow: 0 0 0 2px var(--crimson) inset, 0 12px 22px rgba(0,0,0,0.55), 0 0 22px rgba(211,76,76,0.55);
+      transform: translateY(-2px) scale(1.06);
+    }
+    /* Char detail panel */
+    .char-detail {
+      width: 100%;
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, rgba(20,14,44,0.6), rgba(10,6,24,0.5));
+      border: 1px solid rgba(232,200,120,0.25); border-radius: 8px;
+      align-items: center;
+      min-height: 96px;
+    }
+    .char-detail.empty { opacity: 0.45; }
+    .cd-side {
+      display: flex; flex-direction: column; gap: 4px; padding: 0 6px;
+    }
+    .cd-side.cd-p1 { border-left: 3px solid var(--cosmic-blue); }
+    .cd-side.cd-p2 { border-left: 3px solid var(--crimson); text-align: right; align-items: flex-end; }
+    .cd-tag { font-family: var(--font-meta); font-size: 0.5rem; letter-spacing: 0.32em; text-transform: uppercase; color: var(--mist-deep); }
+    .cd-name { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0.1em; color: var(--gold-bright); }
+    .cd-stats { font-family: var(--font-meta); font-size: 0.62rem; letter-spacing: 0.05em; color: var(--mist); }
+    .cd-vs { font-family: var(--font-display); font-size: 2rem; color: var(--gold); letter-spacing: 0.15em; text-align: center; opacity: 0.85; }
+
+    /* Mobile responsive */
+    @media (max-width: 720px) {
+      .tourn-grid { grid-template-columns: repeat(5, 1fr); }
+      .char-detail { grid-template-columns: 1fr; }
+      .cd-side.cd-p2 { text-align: left; align-items: flex-start; border-left: 3px solid var(--crimson); }
+      .cd-vs { display: none; }
+    }
+
+    /* ============ Tournament fight stage ============ */
+    .fight-stage {
+      position: relative; width: 100%; max-width: 1080px; margin: 0 auto;
+      background: #000; border: 1px solid rgba(232,200,120,0.3); border-radius: 6px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+      aspect-ratio: 16 / 9;
+    }
+    .fight-stage canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+    /* ============ Adventure start ============ */
+    .adv-start { gap: 18px; }
+    .adv-start .btn-primary { padding: 18px 44px; font-size: 1.05rem; }
+    .adv-start .start-tag { color: var(--mist); font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase; opacity: 0.85; }
+
+    /* ============ Game stage (canvas) ============ */
+    .stage {
+      position: relative;
+      max-width: 1080px; margin: 0 auto;
+      background: #000;
+      border: 1px solid rgba(232, 200, 120, 0.3);
+      border-radius: 6px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+      aspect-ratio: 16 / 9;
+    }
+    .stage canvas {
+      display: block; width: 100%; height: 100%;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+    }
+
+    /* ============ V4-style device chassis (shared by Adventure + Tournament fight) ============
+       Portrait 768x1376 handheld with controller_frame.png overlay. The game canvas
+       fills the screen-cutout bbox; hotzones overlay each on-screen button to capture
+       virtual gamepad taps. When body.in-game is set, the chassis goes fullscreen-
+       fixed so it feels like holding a physical device (no page scroll, no nav). */
+    .device {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+      overflow: hidden;
+    }
+    body.in-game {
+      overflow: hidden;
+      height: 100vh;
+      height: 100dvh;
+      background: radial-gradient(ellipse at top, #1c1432 0%, var(--void) 75%);
+    }
+    body.in-game .nav,
+    body.in-game .footer-note { display: none !important; }
+    body.in-game .app { max-width: none; padding: 0; margin: 0; height: 100vh; height: 100dvh; }
+    body.in-game .device {
+      position: fixed;
+      inset: 0;
+      width: 100vw; height: 100vh;
+      width: 100dvw; height: 100dvh;
+      max-width: none;
+    }
+    .device-chassis {
+      position: relative;
+      width: min(96vw, calc(96vh * 768 / 1376));
+      aspect-ratio: 768 / 1376;
+      overflow: hidden;
+    }
+    /* When in-game, use dvh so iOS Safari's collapsing URL bar doesn't crop the chassis. */
+    body.in-game .device-chassis {
+      width: min(96vw, calc(96dvh * 768 / 1376));
+    }
+    .device-chassis::after {
+      content: '';
+      position: absolute; inset: 0;
+      /* v6 chassis art at /v6realms/controller_frame.png — RGBA with the
+         screen-cutout area pre-keyed transparent. Renders directly with no
+         runtime processing needed. If you replace this PNG with an unkeyed
+         version, either re-key it offline OR re-enable the runtime chroma-key
+         block in the JS (see git history of P6.0.3 / commit 4a31950). */
+      background-image: url('/v6realms/controller_frame.png');
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .device-screen {
+      /* Screen cutout bbox measured from controller_frame.png (768x1376):
+         left=58 top=84 width=653 height=696 → percentages below. */
+      position: absolute;
+      left: 7.5521%;
+      top: 6.1047%;
+      width: 85.0260%;
+      height: 50.5814%;
+      z-index: 1;
+      background: #000;
+      overflow: hidden;
+    }
+    .device-screen canvas {
+      width: 100%; height: 100%; display: block;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+
+    /* Hotzones — invisible touch targets sitting over each button in the chassis art.
+       Calibration percentages copied from Expedition (measured directly from
+       controller_frame.png pixel bboxes so they're device-independent). */
+    .hotzone {
+      position: absolute;
+      background: transparent;
+      border: 0; padding: 0; margin: 0;
+      cursor: pointer; pointer-events: auto;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 3;
+    }
+    .hotzone:active { background: rgba(232, 200, 120, 0.10); border-radius: 8px; }
+
+    /* D-pad */
+    .hz-up    { left: 14.71%; top: 58.43%; width: 11.72%; height: 6.69%; }
+    .hz-down  { left: 14.71%; top: 71.22%; width: 11.98%; height: 6.69%; }
+    .hz-left  { left:  3.39%; top: 64.24%; width: 11.98%; height: 7.85%; }
+    .hz-right { left: 26.17%; top: 64.24%; width: 11.98%; height: 7.85%; }
+    /* Face buttons (diamond — X top, Y left, A right, B bottom) */
+    .hz-x { left: 69.92%; top: 60.25%; width: 15.36%; height: 8.65%; border-radius: 50%; }
+    .hz-y { left: 53.52%; top: 68.02%; width: 13.67%; height: 6.47%; border-radius: 50%; }
+    .hz-a { left: 83.85%; top: 68.02%; width: 13.54%; height: 7.12%; border-radius: 50%; }
+    .hz-b { left: 68.36%; top: 75.22%; width: 13.54%; height: 6.47%; border-radius: 50%; }
+    /* Menu / Start / Select bottom row */
+    .hz-menu   { left: 38.41%; top: 86.48%; width: 22.14%; height: 11.26%; }
+    .hz-start  { left: 66.15%; top: 93.39%; width: 22.79%; height:  4.00%; }
+    .hz-select { left: 11.07%; top: 93.39%; width: 22.79%; height:  4.00%; }
+    /* L / R shoulders (visual only for now) */
+    .hz-l, .hz-r { display: none; pointer-events: none; }
+    .stage-hud {
+      position: absolute; top: 8px; left: 10px; right: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font-meta); font-size: 0.65rem; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--gold-pale);
+      pointer-events: none;
+    }
+    .stage-hud .btn-secondary { pointer-events: auto; }
+
+    /* Touch controls (mobile) */
+    .touch-controls {
+      position: absolute; bottom: 8px; left: 8px; right: 8px;
+      display: none; justify-content: space-between;
+      pointer-events: none;
+    }
+    .touch-controls .tc-side { display: flex; gap: 8px; pointer-events: auto; }
+    .tc-btn {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: rgba(20,14,44,0.7); border: 2px solid rgba(232,200,120,0.45);
+      color: var(--gold-bright); font-family: var(--font-display); font-size: 1.3rem;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    }
+    .tc-btn:active { background: rgba(232,200,120,0.25); }
+    @media (pointer: coarse), (max-width: 720px) {
+      .touch-controls { display: flex; }
+    }
+
+    /* Fight HP bars overlay — compact top strip */
+    .hp-bars {
+      position: absolute; top: 6px; left: 0; right: 0;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 10px;
+      pointer-events: none;
+    }
+    .hp-side { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .hp-side.p2 { align-items: stretch; }
+    .hp-name {
+      font-family: var(--font-display); font-size: 0.58rem; letter-spacing: 0.1em;
+      color: var(--gold-bright);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .hp-side.p1 .hp-name { color: var(--cosmic-blue); }
+    .hp-side.p2 .hp-name { color: var(--crimson); text-align: right; }
+    /* HP number text deliberately hidden — bar visual is enough. */
+    .hp-meta { display: none; }
+    .hp-bar {
+      width: 100%; height: 10px;
+      background: rgba(10, 6, 24, 0.75);
+      border: 1px solid var(--gold);
+      border-radius: 3px; overflow: hidden;
+      position: relative;
+    }
+    .hp-fill { height: 100%; transition: width 0.35s ease; }
+    .hp-side.p1 .hp-fill { background: linear-gradient(90deg, #6fa3e8, #3a78d4); }
+    .hp-side.p2 .hp-fill { background: linear-gradient(90deg, #d34c4c, #8a2a2a); float: right; }
+    .hp-rounds {
+      display: flex; gap: 4px; align-items: center; padding-top: 2px;
+      font-family: var(--font-display); color: var(--gold-bright);
+    }
+    .hp-side.p2 .hp-rounds { justify-content: flex-end; }
+    .round-dot { width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--gold); background: transparent; }
+    .round-dot.won { background: var(--gold-bright); box-shadow: 0 0 5px var(--gold-bright); }
+
+    /* Footer */
+    .footer-note {
+      text-align: center; margin: 30px 0 20px;
+      font-family: var(--font-meta); font-size: 0.62rem; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--mist-deep);
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-back" href="/games.html">← Games</a>
+  <span class="nav-title">Realms · v6</span>
+  <span style="width: 80px;"></span>
+</nav>
+
+<main class="app" id="app">
+
+  <!-- ============ Title screen ============ -->
+  <section class="screen" id="title-screen">
+    <div class="screen-eyebrow">Prototype 06 · 2D Action</div>
+    <h1 class="screen-h1">Realms</h1>
+    <div class="divider"><span class="line"></span><span class="diamond"></span><span class="line"></span></div>
+    <p class="screen-tagline">Side-scrolling realms · Arena duels · Two modes, one universe</p>
+    <div class="mode-pick">
+      <button class="mode-btn" id="btn-mode-adventure">
+        <div class="mode-pill">Mode A</div>
+        <div class="mode-name">Adventure</div>
+        <div class="mode-tag">Solion runs the realms · Side-scroller · Collect, fight, reach the portal</div>
+      </button>
+      <button class="mode-btn" id="btn-mode-tournament">
+        <div class="mode-pill">Mode B</div>
+        <div class="mode-name">Tournament</div>
+        <div class="mode-tag">Arena duels · 27 fighter roster · Best of 3 rounds · vs CPU or hot-seat</div>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ Adventure — Start screen ============ -->
+  <section class="screen adv-start" id="adv-start-screen" hidden>
+    <div class="screen-eyebrow">Mode A · Adventure</div>
+    <h1 class="screen-h1">Solion's Realm</h1>
+    <div class="divider"><span class="line"></span><span class="diamond"></span><span class="line"></span></div>
+    <p class="screen-tagline">The realm of Viridia stretches before you. Run, jump, and explore.</p>
+    <p class="start-tag">Controls: ← → move · ↑ / Space jump · Esc back to title</p>
+    <button class="btn-primary" id="btn-adv-start">Start Adventure</button>
+    <button class="btn-secondary" id="btn-adv-back">← Back to title</button>
+  </section>
+
+  <!-- ============ Tournament — vs CPU / Player picker ============ -->
+  <section class="screen" id="tourn-vs-screen" hidden>
+    <div class="screen-eyebrow">Mode B · Tournament</div>
+    <h2 class="screen-h2">Choose your match</h2>
+    <div class="divider"><span class="line"></span><span class="diamond"></span><span class="line"></span></div>
+    <p class="screen-tagline">Best of 3 rounds. First fighter to 2 round wins takes the match.</p>
+    <div class="tourn-vs-pick">
+      <button class="vs-btn" id="btn-vs-cpu">
+        <div class="vs-name">vs CPU</div>
+        <div class="vs-sub">You pick your fighter · AI picks the opponent</div>
+      </button>
+      <button class="vs-btn" id="btn-vs-player">
+        <div class="vs-name">vs Player</div>
+        <div class="vs-sub">Hot-seat · Two players pick from the same device</div>
+      </button>
+    </div>
+    <button class="btn-secondary" id="btn-vs-back">← Back to title</button>
+  </section>
+
+  <!-- ============ Tournament — Character select grid ============ -->
+  <section class="screen" id="tourn-select-screen" hidden>
+    <div class="tourn-select">
+      <div class="tourn-header">
+        <div class="tourn-step" id="tourn-step-label">Player 1 — pick your fighter</div>
+        <button class="btn-secondary" id="btn-select-back">← Cancel</button>
+      </div>
+      <div class="tourn-grid" id="tourn-grid"></div>
+      <div class="char-detail" id="char-detail">
+        <div class="cd-side cd-p1" id="cd-p1">
+          <div class="cd-tag">Player 1</div>
+          <div class="cd-name" id="cd-p1-name">—</div>
+          <div class="cd-stats" id="cd-p1-stats">Pick a fighter</div>
+        </div>
+        <div class="cd-vs">VS</div>
+        <div class="cd-side cd-p2" id="cd-p2">
+          <div class="cd-tag" id="cd-p2-tag">Player 2 / AI</div>
+          <div class="cd-name" id="cd-p2-name">—</div>
+          <div class="cd-stats" id="cd-p2-stats">Waiting</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-primary" id="btn-select-confirm" disabled>Confirm</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Tournament — Fight stage (inside chassis) ============ -->
+  <section class="screen" id="tourn-fight-screen" hidden>
+    <div class="device">
+      <div class="device-chassis">
+        <div class="device-screen">
+          <canvas id="fight-canvas" width="640" height="682"></canvas>
+          <div class="hp-bars">
+            <div class="hp-side p1">
+              <div class="hp-name" id="hp-p1-name">—</div>
+              <div class="hp-bar"><div class="hp-fill" id="hp-p1-fill" style="width:100%"></div></div>
+              <div class="hp-rounds" id="hp-p1-rounds"></div>
+              <div class="hp-meta" id="hp-p1-meta"></div>
+            </div>
+            <div class="hp-side p2">
+              <div class="hp-name" id="hp-p2-name">—</div>
+              <div class="hp-bar"><div class="hp-fill" id="hp-p2-fill" style="width:100%"></div></div>
+              <div class="hp-rounds" id="hp-p2-rounds"></div>
+              <div class="hp-meta" id="hp-p2-meta"></div>
+            </div>
+          </div>
+          <!-- On-canvas QUIT removed; chassis Menu button handles exit. Round number is drawn on-canvas in the ROUND intro. -->
+          <button id="btn-fight-back" style="display:none;"></button>
+        </div>
+        <!-- Virtual gamepad hotzones — calibrated to controller_frame.png pixel bboxes -->
+        <button class="hotzone hz-up"    data-hot="up"    aria-label="Up"></button>
+        <button class="hotzone hz-down"  data-hot="down"  aria-label="Down"></button>
+        <button class="hotzone hz-left"  data-hot="left"  aria-label="Left"></button>
+        <button class="hotzone hz-right" data-hot="right" aria-label="Right"></button>
+        <button class="hotzone hz-x"     data-hot="x"     aria-label="X · Special"></button>
+        <button class="hotzone hz-y"     data-hot="y"     aria-label="Y · Block"></button>
+        <button class="hotzone hz-a"     data-hot="a"     aria-label="A · Light"></button>
+        <button class="hotzone hz-b"     data-hot="b"     aria-label="B · Heavy"></button>
+        <button class="hotzone hz-menu"  data-hot="menu"  aria-label="Menu · Pause"></button>
+        <button class="hotzone hz-start" data-hot="start" aria-label="Start"></button>
+        <button class="hotzone hz-select" data-hot="select" aria-label="Select"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Adventure — Game canvas (inside chassis) ============ -->
+  <section class="screen" id="adv-stage" hidden>
+    <div class="device">
+      <div class="device-chassis">
+        <div class="device-screen">
+          <canvas id="adv-canvas" width="640" height="682"></canvas>
+          <div class="stage-hud">
+            <span id="adv-hud-left">Viridia · L1</span>
+            <button class="btn-secondary" id="btn-adv-quit">← Quit</button>
+          </div>
+        </div>
+        <!-- Virtual gamepad hotzones — same chassis layout as Tournament -->
+        <button class="hotzone hz-up"    data-hot="up"    aria-label="Up"></button>
+        <button class="hotzone hz-down"  data-hot="down"  aria-label="Down · Crouch"></button>
+        <button class="hotzone hz-left"  data-hot="left"  aria-label="Left"></button>
+        <button class="hotzone hz-right" data-hot="right" aria-label="Right"></button>
+        <button class="hotzone hz-x"     data-hot="x"     aria-label="X · Special"></button>
+        <button class="hotzone hz-y"     data-hot="y"     aria-label="Y"></button>
+        <button class="hotzone hz-a"     data-hot="a"     aria-label="A · Jump"></button>
+        <button class="hotzone hz-b"     data-hot="b"     aria-label="B · Attack"></button>
+        <button class="hotzone hz-menu"  data-hot="menu"  aria-label="Menu · Pause"></button>
+        <button class="hotzone hz-start" data-hot="start" aria-label="Start"></button>
+        <button class="hotzone hz-select" data-hot="select" aria-label="Select"></button>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer-note">v6 · single-file prototype · canvas-based 2D</div>
+
+</main>
+
+<script>
+'use strict';
+
+// ============ Constants ============
+// Canvas sized to match the v4 chassis screen-cutout aspect (653×696 → ~0.938).
+// 640×682 keeps clean tile math (32-px tiles) while matching the cutout shape.
+const CANVAS_W = 640;
+const CANVAS_H = 682;
+
+// ============ Character roster (27 total — 2 unlocked + 25 locked) ============
+// Solion + Kravos are the only unlocked fighters at launch (their codex entries are
+// being created from the v3.7 promotion draft). The rest preview locked.
+// art paths point to existing card art (v2 = cards_v2/, v1 = cards/, none = placeholder).
+const FIGHTERS = [
+  // Row 1 — UNLOCKED launch pair, then top tier
+  { id:'solion',     name:'Solion Highreach',  tier:'VI',   archetype:'Cleric',     type1:'Aura',          type2:'Humanoid-Noid', hp:432, atk:466, def:432, spd:268, spc:400, art:null,                                portraitGradient:['#fff3c4','#e8c878','#8a6d2c'], unlocked:true },
+  { id:'kravos',     name:'Kravos Dragonsong', tier:'VI',   archetype:'Mage',       type1:'Unknown-Void',  type2:'Spirit',        hp:466, atk:666, def:266, spd:400, spc:200, art:null,                                portraitGradient:['#c9a8ff','#6e3fc1','#1a0d3a'], unlocked:true },
+  { id:'anciuxor',   name:'Anciuxor',          tier:'X',    archetype:'God',        type1:'Ultramax',      type2:'Ultramax',      hp:666, atk:666, def:666, spd:666, spc:666, art:'cards_v2/card_anciuxor.png',       unlocked:false },
+  { id:'abyssion',   name:'Abyssion',          tier:'IX',   archetype:'Beastmaster',type1:'Ultramax',      type2:'Unknown-Void',  hp:600, atk:666, def:555, spd:456, spc:720, art:'cards_v2/card_abyssion.png',       unlocked:false },
+  { id:'ovauron',    name:'Ovauron',           tier:'IX',   archetype:'Beastmaster',type1:'Ultramax',      type2:'Unknown-Void',  hp:800, atk:666, def:720, spd:300, spc:511, art:'cards_v2/card_ovauron.png',        unlocked:false },
+  { id:'lucienis',   name:'Lucienis',          tier:'VIII', archetype:'Cleric',     type1:'Humanoid-Noid', type2:'Aura',          hp:533, atk:533, def:533, spd:533, spc:532, art:'cards_v2/card_lucienis.png',       unlocked:false },
+  { id:'theia',      name:'Theia',             tier:'VIII', archetype:'Cleric',     type1:'Humanoid-Noid', type2:'Aura',          hp:533, atk:566, def:433, spd:599, spc:533, art:'cards_v2/card_theia.png',          unlocked:false },
+  { id:'natura',     name:'Natura',            tier:'VIII', archetype:'Beastmaster',type1:'Nature',        type2:'Creature',      hp:666, atk:366, def:633, spd:466, spc:533, art:'cards_v2/card_natura.png',         unlocked:false },
+  { id:'aionis',     name:'Aionis',            tier:'VIII', archetype:'Cleric',     type1:'Spirit',        type2:'Unknown-Void',  hp:600, atk:333, def:400, spd:665, spc:666, art:'cards/card_aionis.png',            unlocked:false },
+  // Row 2
+  { id:'eurakeon',   name:'Eurakeon',          tier:'VIII', archetype:'Mage',       type1:'Beast',         type2:'Unknown-Void',  hp:499, atk:433, def:465, spd:500, spc:767, art:'cards/card_eurakeon.png',          unlocked:false },
+  { id:'egnellahc',  name:'Egnellahc',         tier:'VII',  archetype:'Mage',       type1:'Humanoid-Noid', type2:'Spirit',        hp:407, atk:291, def:525, spd:525, spc:583, art:'cards_v2/card_egnellahc.png',      unlocked:false },
+  { id:'omegoran',   name:'Omegoran',          tier:'VII',  archetype:'Beastmaster',type1:'Beast',         type2:'Unknown-Void',  hp:493, atk:549, def:383, spd:357, spc:549, art:'cards_v2/card_omegoran.png',       unlocked:false },
+  { id:'vydexeus',   name:'Vydexeus',          tier:'VII',  archetype:'Mage',       type1:'Tech',          type2:'Spirit',        hp:466, atk:433, def:433, spd:433, spc:566, art:'cards_v2/card_vydexeus.png',       unlocked:false },
+  { id:'abyssylyx',  name:'Abyssylyx',         tier:'VI',   archetype:'Beastmaster',type1:'Aura',          type2:'Beast',         hp:372, atk:396, def:330, spd:432, spc:468, art:'cards_v2/card_abyssylyx.png',      unlocked:false },
+  { id:'aurellyn',   name:'Aurellyn',          tier:'VI',   archetype:'Cleric',     type1:'Humanoid-Noid', type2:'Aura',          hp:408, atk:352, def:344, spd:399, spc:495, art:'cards_v2/card_aurellyn.png',       unlocked:false },
+  { id:'diviniara',  name:'Diviniara',         tier:'VI',   archetype:'Cleric',     type1:'Aura',          type2:'Beast',         hp:420, atk:348, def:402, spd:348, spc:480, art:'cards_v2/card_diviniara.png',      unlocked:false },
+  { id:'khronis',    name:'Khronis',           tier:'VI',   archetype:'Beastmaster',type1:'Beast',         type2:'Unknown-Void',  hp:510, atk:498, def:360, spd:294, spc:336, art:'cards_v2/card_khronis.png',        unlocked:false },
+  { id:'leonoror',   name:'Leonoror',          tier:'VI',   archetype:'Warrior',    type1:'Aura',          type2:'Beast',         hp:462, atk:444, def:384, spd:336, spc:372, art:'cards_v2/card_leonoror.png',       unlocked:false },
+  // Row 3
+  { id:'phoenaris',  name:'Phoenaris',         tier:'VI',   archetype:'Beastmaster',type1:'Aura',          type2:'Beast',         hp:366, atk:462, def:312, spd:420, spc:438, art:'cards_v2/card_pheonaris.png',      unlocked:false },
+  { id:'royalesus',  name:'Royalesus',         tier:'VI',   archetype:'Cleric',     type1:'Aura',          type2:'Beast',         hp:432, atk:366, def:360, spd:480, spc:360, art:'cards_v2/card_royalesus.png',      unlocked:false },
+  { id:'voltyran',   name:'Voltyran',          tier:'VI',   archetype:'Beastmaster',type1:'Creature',      type2:'Beast',         hp:374, atk:450, def:324, spd:525, spc:325, art:'cards_v2/card_voltaryn.png',       unlocked:false },
+  { id:'audrellius', name:'Audrellius',        tier:'V',    archetype:'Warrior',    type1:'Humanoid-Noid', type2:'Aura',          hp:366, atk:333, def:366, spd:300, spc:300, art:'cards_v2/card_audrelliusX.png',    unlocked:false },
+  { id:'aurexion',   name:'Auraxion',          tier:'V',    archetype:'Cleric',     type1:'Humanoid-Noid', type2:'Aura',          hp:333, atk:333, def:333, spd:333, spc:333, art:'cards_v2/card_aurexion.png',       unlocked:false },
+  { id:'elzoran',    name:'Elzoran',           tier:'V',    archetype:'Beastmaster',type1:'Beast',         type2:'Nature',        hp:366, atk:333, def:266, spd:234, spc:466, art:'cards_v2/card_elzoran.png',        unlocked:false },
+  { id:'andrehart',  name:'Andre Hart',        tier:'IV',   archetype:'Warrior',    type1:'Humanoid-Noid', type2:'Aura',          hp:240, atk:305, def:227, spd:267, spc:293, art:'cards_v2/card_andrehart.png',      unlocked:false },
+  { id:'phrenetic',  name:'Phrenetic',         tier:'IV',   archetype:'Mage',       type1:'Unknown-Void',  type2:'Spirit',        hp:240, atk:218, def:186, spd:288, spc:400, art:'cards_v2/card_phrenetic.png',      unlocked:false },
+  { id:'sharkfin',   name:'Sharkfin',          tier:'III',  archetype:'Beastmaster',type1:'Tech',          type2:'Humanoid-Noid', hp:220, atk:239, def:190, spd:150, spc:200, art:'cards_v2/card_sharkfin.png',       unlocked:false }
+];
+
+// Note: the v6 chassis PNG is pre-keyed (RGBA with transparent screen cutout),
+// so it renders directly via CSS background-image with no runtime processing.
+// If a future re-themed chassis PNG arrives without an alpha channel, see
+// git history of commit 4a31950 (P6.0.3) for the runtime chroma-key block to
+// re-enable.
+
+// ============ Sprite frame anchor calibration ============
+// Sprite-sheet cells are uniform width, but the artist often draws the character
+// at slightly different x-positions within each cell across an animation (breathing
+// weight shifts, sword swings, cape extensions). PER-FRAME anchors track that
+// drift faithfully — which then RENDERS the drift as a jarring "slideshow" shift.
+// Solution: compute the lower-body centroid per frame, then collapse to ONE
+// MEDIAN anchor per animation. All frames in an animation share the median anchor,
+// so the character plants in place; frame-to-frame variation shows only as the
+// intended pose/breathing detail, not as position drift.
+function computeFrameAnchors(srcCanvas, framesByAnim) {
+  const ctx = srcCanvas.getContext('2d');
+  for (const anim of Object.values(framesByAnim)) {
+    const perFrameX = [];
+    const perFrameY = [];
+    for (const f of anim) {
+      const data = ctx.getImageData(f.x, f.y, f.w, f.h).data;
+      // Find opaque pixels, then take the centroid of the LOWER 50% (feet/legs —
+      // the most stable part of the silhouette across breathing/swords/capes).
+      let sumX = 0, count = 0, maxY = -1;
+      const yStart = Math.floor(f.h * 0.5);
+      for (let y = yStart; y < f.h; y++) {
+        for (let x = 0; x < f.w; x++) {
+          if (data[(y * f.w + x) * 4 + 3] > 0) {
+            sumX += x; count++;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (count > 0) { perFrameX.push(sumX / count); perFrameY.push(maxY); }
+    }
+    // Median anchor across the animation — robust to outlier frames.
+    const ax = perFrameX.length ? median(perFrameX) : (anim[0] ? anim[0].w / 2 : 0);
+    const ay = perFrameY.length ? median(perFrameY) : (anim[0] ? anim[0].h : 0);
+    // Stamp the same median anchor on every frame in this animation.
+    for (const f of anim) {
+      f.anchorX = ax;
+      f.anchorY = ay;
+    }
+  }
+}
+function median(arr) {
+  const s = arr.slice().sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+// ============ Chroma-key helper ============
+// The sprite sheet PNGs are saved as RGB (no alpha), so the black backgrounds
+// render as opaque black rectangles when drawn over the arena. Pre-process each
+// loaded sheet into an offscreen canvas with near-black pixels set to alpha=0.
+// Result is cached and used as the source for all sprite draws.
+function chromaKeyToCanvas(img, threshold = 36) {
+  const cv = document.createElement('canvas');
+  cv.width = img.naturalWidth;
+  cv.height = img.naturalHeight;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, cv.width, cv.height);
+  const p = data.data;
+  for (let i = 0; i < p.length; i += 4) {
+    // Sum of channels — pure black ≈ 0, near-black ≈ <100. Below threshold*3 → transparent.
+    const sum = p[i] + p[i + 1] + p[i + 2];
+    if (sum < threshold * 3) p[i + 3] = 0;
+  }
+  ctx.putImageData(data, 0, 0);
+  return cv;
+}
+
+// ============ Solion sprite sheet ============
+// Sheet at v6realms/sheet_solion.png (1536x1024). Manifest extracted from the
+// auto-slice (v6realms/manifest_solion.json) and inlined here so the engine
+// has zero fetch dependencies.
+const SOLION_SHEET = new Image();
+let solionReady = false;
+let solionSrc = null;   // chroma-keyed canvas — populated on load
+SOLION_SHEET.onload = () => {
+  // Lower threshold (10) so we only key the pure-black sheet background and
+  // don't eat into the sprite's dark armor shadows.
+  solionSrc = chromaKeyToCanvas(SOLION_SHEET, 10);
+  computeFrameAnchors(solionSrc, SOLION_FRAMES);
+  solionReady = true;
+};
+SOLION_SHEET.src = 'v6realms/sheet_solion.png';
+
+const SOLION_FRAMES = {
+  IDLE:           [{x:297,y:53,w:76,h:124},{x:373,y:53,w:77,h:124},{x:450,y:53,w:76,h:124},{x:526,y:53,w:77,h:124},{x:603,y:53,w:76,h:124},{x:679,y:53,w:77,h:124},{x:756,y:53,w:77,h:124}],
+  WALK_FWD:       [{x:297,y:230,w:76,h:104},{x:373,y:230,w:77,h:104},{x:450,y:230,w:76,h:104},{x:526,y:230,w:77,h:104},{x:603,y:230,w:76,h:104},{x:679,y:230,w:77,h:104},{x:756,y:230,w:77,h:104}],
+  WALK_BACK:      [{x:297,y:386,w:89,h:109},{x:386,y:388,w:89,h:107},{x:475,y:387,w:90,h:108},{x:565,y:388,w:89,h:107},{x:654,y:390,w:89,h:105},{x:743,y:392,w:90,h:103}],
+  JUMP:           [{x:297,y:523,w:107,h:142},{x:404,y:546,w:107,h:118},{x:511,y:529,w:107,h:129},{x:618,y:529,w:107,h:118},{x:725,y:543,w:108,h:103}],
+  CROUCH:         [{x:297,y:735,w:134,h:84},{x:431,y:730,w:134,h:91},{x:565,y:726,w:134,h:93},{x:699,y:733,w:134,h:86}],
+  BLOCK:          [{x:297,y:873,w:107,h:111},{x:404,y:868,w:107,h:116},{x:511,y:868,w:107,h:116},{x:618,y:868,w:107,h:116},{x:725,y:868,w:108,h:116}],
+  LIGHT_ATTACK:   [{x:864,y:59,w:159,h:113},{x:1023,y:53,w:159,h:119},{x:1182,y:53,w:159,h:117},{x:1341,y:53,w:160,h:119}],
+  HEAVY_ATTACK:   [{x:864,y:230,w:159,h:104},{x:1023,y:230,w:159,h:104},{x:1182,y:230,w:159,h:104},{x:1341,y:230,w:160,h:104}],
+  SPECIAL_SLASH:  [{x:864,y:380,w:212,h:115},{x:1076,y:380,w:212,h:115},{x:1288,y:384,w:213,h:107}],
+  SPECIAL_RISE:   [{x:864,y:523,w:159,h:142},{x:1023,y:523,w:159,h:142},{x:1182,y:523,w:159,h:142},{x:1341,y:523,w:160,h:142}],
+  SPECIAL_SLAM:   [{x:864,y:722,w:159,h:99},{x:1023,y:722,w:159,h:96},{x:1182,y:724,w:159,h:98},{x:1341,y:722,w:160,h:100}],
+  DASH_RUN:       [{x:864,y:873,w:159,h:111},{x:1023,y:868,w:159,h:116},{x:1182,y:869,w:159,h:115},{x:1341,y:880,w:160,h:104}]
+};
+
+// Animation timing/behavior per state.
+const SOLION_ANIM = {
+  IDLE:          { fps: 6,  loop: true  },
+  WALK_FWD:      { fps: 10, loop: true  },
+  WALK_BACK:     { fps: 10, loop: true  },
+  JUMP:          { fps: 8,  loop: false },
+  CROUCH:        { fps: 10, loop: false },
+  BLOCK:         { fps: 8,  loop: false },
+  LIGHT_ATTACK:  { fps: 14, loop: false },
+  HEAVY_ATTACK:  { fps: 8,  loop: false },
+  SPECIAL_SLASH: { fps: 10, loop: false },
+  SPECIAL_RISE:  { fps: 12, loop: false },
+  SPECIAL_SLAM:  { fps: 10, loop: false },
+  DASH_RUN:      { fps: 14, loop: true  }
+};
+
+// Sprite-state machine for a single Solion instance.
+function makeSolionSprite() {
+  return {
+    state: 'IDLE',
+    frame: 0,
+    timer: 0,
+    setState(next) {
+      if (this.state === next) return;
+      this.state = next;
+      this.frame = 0;
+      this.timer = 0;
+    },
+    tick(dt) {
+      const cfg = SOLION_ANIM[this.state] || SOLION_ANIM.IDLE;
+      this.timer += dt;
+      const period = 1 / cfg.fps;
+      while (this.timer >= period) {
+        this.timer -= period;
+        this.frame++;
+        const frames = SOLION_FRAMES[this.state];
+        if (!frames) { this.frame = 0; return; }
+        if (this.frame >= frames.length) {
+          if (cfg.loop) this.frame = 0;
+          else this.frame = frames.length - 1;
+        }
+      }
+    }
+  };
+}
+
+// Draw a Solion frame onto ctx. centerX, baseY = where the character's bottom-
+// center anchor lands. Anchors are per-frame so the character stays planted in
+// place even if cells are uniform width and the sprite is drawn off-center.
+function drawSolionFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
+  if (!solionReady) return false;
+  const frames = SOLION_FRAMES[state];
+  if (!frames) return false;
+  const f = frames[Math.min(frameIdx, frames.length - 1)];
+  // Anchor = (anchorX, anchorY) in frame-cell coords. Fallback to cell center
+  // if anchors haven't been computed yet (e.g., draw fires before chroma-key).
+  const ax = f.anchorX != null ? f.anchorX : f.w / 2;
+  const ay = f.anchorY != null ? f.anchorY : f.h;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  const src = solionSrc || SOLION_SHEET;
+  if (facing < 0) {
+    // Flip horizontally: mirror anchorX → (f.w - anchorX) so the post-flip
+    // character lands at centerX.
+    ctx.translate(centerX, baseY - ay * scale);
+    ctx.scale(-1, 1);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h,
+      -(f.w - ax) * scale, 0, f.w * scale, f.h * scale);
+  } else {
+    ctx.drawImage(src, f.x, f.y, f.w, f.h,
+      centerX - ax * scale, baseY - ay * scale, f.w * scale, f.h * scale);
+  }
+  ctx.restore();
+  return true;
+}
+
+// ============ Kravos sprite sheet ============
+const KRAVOS_SHEET = new Image();
+let kravosReady = false;
+let kravosSrc = null;   // chroma-keyed canvas
+KRAVOS_SHEET.onload = () => {
+  // Lower threshold (10) so we only key the pure-black sheet background and
+  // don't eat into the sprite's dark shadow/chain details.
+  kravosSrc = chromaKeyToCanvas(KRAVOS_SHEET, 10);
+  computeFrameAnchors(kravosSrc, KRAVOS_FRAMES);
+  kravosReady = true;
+  if (state.mode === 'tournament-select') buildFighterGrid();
+};
+KRAVOS_SHEET.src = 'v6realms/sheet_kravos.png';
+
+const KRAVOS_FRAMES = {
+  IDLE:           [{x:280,y:34,w:100,h:93},{x:380,y:34,w:100,h:93},{x:480,y:34,w:100,h:93},{x:580,y:34,w:100,h:93},{x:680,y:34,w:100,h:93},{x:780,y:34,w:100,h:93}],
+  WALK_FWD:       [{x:280,y:145,w:100,h:113},{x:380,y:149,w:100,h:109},{x:480,y:160,w:100,h:98},{x:580,y:159,w:100,h:99},{x:680,y:160,w:100,h:98},{x:780,y:159,w:100,h:99}],
+  WALK_BACK:      [{x:280,y:289,w:120,h:67},{x:400,y:289,w:120,h:67},{x:520,y:289,w:120,h:67},{x:640,y:289,w:120,h:67},{x:760,y:289,w:120,h:67}],
+  JUMP:           [{x:280,y:384,w:120,h:105},{x:400,y:384,w:120,h:105},{x:520,y:384,w:120,h:105},{x:640,y:384,w:120,h:105},{x:760,y:384,w:120,h:105}],
+  CROUCH:         [{x:280,y:505,w:107,h:104},{x:387,y:505,w:107,h:104},{x:494,y:505,w:106,h:104}],
+  BLOCK:          [{x:280,y:610,w:113,h:103},{x:393,y:610,w:113,h:103},{x:506,y:610,w:112,h:103},{x:618,y:610,w:112,h:103}],
+  LIGHT_ATTACK:   [{x:920,y:34,w:190,h:93},{x:1110,y:34,w:190,h:93},{x:1300,y:34,w:190,h:93},{x:1490,y:34,w:190,h:93}],
+  HEAVY_ATTACK:   [{x:920,y:145,w:190,h:113},{x:1110,y:145,w:190,h:113},{x:1300,y:145,w:190,h:113},{x:1490,y:145,w:190,h:113}],
+  CHAIN_LASH:     [{x:920,y:289,w:253,h:67},{x:1173,y:289,w:253,h:67},{x:1426,y:289,w:254,h:67}],
+  CHAIN_WHIRL:    [{x:920,y:384,w:190,h:105},{x:1110,y:384,w:190,h:105},{x:1300,y:384,w:190,h:105},{x:1490,y:384,w:190,h:105}],
+  SHADOW_DRAGON:  [{x:920,y:505,w:190,h:104},{x:1110,y:505,w:190,h:104},{x:1300,y:505,w:190,h:104},{x:1490,y:505,w:190,h:104}],
+  CHAIN_GRAB:     [{x:920,y:610,w:253,h:103},{x:1173,y:610,w:253,h:103},{x:1426,y:610,w:254,h:103}],
+  DARK_DOMAIN:    [{x:0,y:741,w:340,h:179}],
+  THROW:          [{x:360,y:741,w:180,h:179},{x:540,y:741,w:180,h:179}],
+  VICTORY:        [{x:740,y:741,w:150,h:179},{x:890,y:741,w:150,h:179}],
+  HURT:           [{x:1060,y:741,w:130,h:179},{x:1190,y:741,w:130,h:179}],
+  DEATH:          [{x:1340,y:741,w:170,h:179},{x:1510,y:741,w:170,h:179}]
+};
+const KRAVOS_ANIM = {
+  IDLE:          { fps: 6,  loop: true  },
+  WALK_FWD:      { fps: 10, loop: true  },
+  WALK_BACK:     { fps: 10, loop: true  },
+  JUMP:          { fps: 8,  loop: false },
+  CROUCH:        { fps: 10, loop: false },
+  BLOCK:         { fps: 8,  loop: false },
+  LIGHT_ATTACK:  { fps: 14, loop: false },
+  HEAVY_ATTACK:  { fps: 8,  loop: false },
+  CHAIN_LASH:    { fps: 10, loop: false },
+  CHAIN_WHIRL:   { fps: 12, loop: false },
+  SHADOW_DRAGON: { fps: 8,  loop: false },
+  CHAIN_GRAB:    { fps: 10, loop: false },
+  DARK_DOMAIN:   { fps: 1,  loop: false },
+  THROW:         { fps: 6,  loop: false },
+  VICTORY:       { fps: 4,  loop: true  },
+  HURT:          { fps: 8,  loop: false },
+  DEATH:         { fps: 6,  loop: false }
+};
+function drawKravosFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
+  if (!kravosReady) return false;
+  const frames = KRAVOS_FRAMES[state];
+  if (!frames) return false;
+  const f = frames[Math.min(frameIdx, frames.length - 1)];
+  const ax = f.anchorX != null ? f.anchorX : f.w / 2;
+  const ay = f.anchorY != null ? f.anchorY : f.h;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  const src = kravosSrc || KRAVOS_SHEET;
+  if (facing < 0) {
+    ctx.translate(centerX, baseY - ay * scale);
+    ctx.scale(-1, 1);
+    ctx.drawImage(src, f.x, f.y, f.w, f.h,
+      -(f.w - ax) * scale, 0, f.w * scale, f.h * scale);
+  } else {
+    ctx.drawImage(src, f.x, f.y, f.w, f.h,
+      centerX - ax * scale, baseY - ay * scale, f.w * scale, f.h * scale);
+  }
+  ctx.restore();
+  return true;
+}
+
+// ============ Blizzard Canyon arena (Tournament) ============
+const ARENA_BLIZZARD = new Image();
+let arenaReady = false;
+ARENA_BLIZZARD.onload = () => { arenaReady = true; };
+ARENA_BLIZZARD.src = 'v6realms/map_blizzardcanyon.png';
+
+// ============ Old Viridia map (Adventure) ============
+const ARENA_VIRIDIA = new Image();
+let viridiaReady = false;
+ARENA_VIRIDIA.onload = () => { viridiaReady = true; };
+ARENA_VIRIDIA.src = 'v6realms/map_oldviridia.png';
+
+// ============ App state ============
+const state = {
+  mode: null,           // 'adventure' | 'tournament-vs' | 'tournament-select' | 'tournament-fight' | 'adventure-game'
+  tournament: {
+    vsMode: null,       // 'cpu' | 'player'
+    step: 'p1',         // 'p1' | 'p2' (which player is currently picking)
+    p1: null,           // fighter id
+    p2: null            // fighter id
+  },
+  adventure: null,      // populated when adventure starts
+  inputs: { left:false, right:false, up:false, down:false, jump:false, attack:false, block:false }
+};
+
+function $(id) { return document.getElementById(id); }
+function show(id, on) { const el = $(id); if (el) el.hidden = !on; }
+function showAll(map) { for (const [id, on] of Object.entries(map)) show(id, on); }
+
+// ============ Title screen → modes ============
+$('btn-mode-adventure').onclick = () => goAdventureStart();
+$('btn-mode-tournament').onclick = () => goTournamentVs();
+
+// ============ Adventure flow ============
+function goAdventureStart() {
+  state.mode = 'adventure';
+  document.body.classList.remove('in-game');
+  showAll({
+    'title-screen': false,
+    'adv-start-screen': true,
+    'adv-stage': false,
+    'tourn-vs-screen': false,
+    'tourn-select-screen': false,
+    'tourn-fight-screen': false
+  });
+}
+$('btn-adv-back').onclick = () => goTitle();
+$('btn-adv-start').onclick = () => startAdventure();
+$('btn-adv-quit').onclick = () => goTitle();
+
+// ============ Tournament flow ============
+function goTournamentVs() {
+  state.mode = 'tournament-vs';
+  state.tournament = { vsMode: null, step: 'p1', p1: null, p2: null };
+  document.body.classList.remove('in-game');
+  showAll({
+    'title-screen': false,
+    'adv-start-screen': false,
+    'adv-stage': false,
+    'tourn-vs-screen': true,
+    'tourn-select-screen': false,
+    'tourn-fight-screen': false
+  });
+}
+$('btn-vs-back').onclick = () => goTitle();
+$('btn-vs-cpu').onclick = () => { state.tournament.vsMode = 'cpu'; goTournamentSelect(); };
+$('btn-vs-player').onclick = () => { state.tournament.vsMode = 'player'; goTournamentSelect(); };
+
+function goTournamentSelect() {
+  state.mode = 'tournament-select';
+  state.tournament.step = 'p1';
+  state.tournament.p1 = null;
+  state.tournament.p2 = null;
+  document.body.classList.remove('in-game');
+  showAll({
+    'title-screen': false,
+    'adv-start-screen': false,
+    'adv-stage': false,
+    'tourn-vs-screen': false,
+    'tourn-select-screen': true,
+    'tourn-fight-screen': false
+  });
+  buildFighterGrid();
+  updateSelectStep();
+  updateDetail();
+}
+$('btn-select-back').onclick = () => goTournamentVs();
+
+function buildFighterGrid() {
+  const grid = $('tourn-grid');
+  grid.innerHTML = '';
+  FIGHTERS.forEach(f => {
+    const cell = document.createElement('div');
+    cell.className = 'char-cell' + (f.unlocked ? '' : ' locked');
+    cell.dataset.id = f.id;
+    cell.title = f.unlocked ? `${f.name} · Tier ${f.tier}` : `${f.name} · LOCKED`;
+    // Tier pill
+    const tier = document.createElement('div');
+    tier.className = 'char-tier';
+    tier.textContent = 'T' + f.tier;
+    cell.appendChild(tier);
+    // Portrait — use card art if available, else gradient fallback
+    if (f.art) {
+      const img = document.createElement('img');
+      img.src = f.art;
+      img.alt = f.name;
+      img.onerror = () => { img.remove(); cell.insertBefore(makeFallbackPortrait(f), cell.firstChild); };
+      cell.appendChild(img);
+    } else {
+      cell.appendChild(makeFallbackPortrait(f));
+    }
+    // Name
+    const name = document.createElement('div');
+    name.className = 'char-name';
+    name.textContent = f.name.split(' ')[0];
+    cell.appendChild(name);
+    // Click handler (unlocked only)
+    if (f.unlocked) {
+      cell.onclick = () => selectFighter(f.id);
+    }
+    grid.appendChild(cell);
+  });
+}
+function makeFallbackPortrait(f) {
+  // Live sprite-sheet portraits (IDLE frame 0) once each sheet loads.
+  if (f.id === 'solion' && solionReady) return makeSolionPortrait();
+  if (f.id === 'kravos' && kravosReady) return makeKravosPortrait();
+  const fp = document.createElement('div');
+  fp.className = 'char-portrait-fallback';
+  const g = f.portraitGradient || ['#c8c2dc','#6f6582','#1a0d3a'];
+  fp.style.background = `radial-gradient(circle at 50% 30%, ${g[0]}, ${g[1]} 55%, ${g[2]} 100%)`;
+  fp.innerHTML = `<div style="font-size:0.5rem;letter-spacing:0.15em;opacity:0.85;">T${f.tier}</div><div style="font-size:0.95rem;margin-top:4px;font-weight:700;text-shadow:0 2px 6px rgba(0,0,0,0.6);">${f.name.split(' ')[0].toUpperCase()}</div>`;
+  return fp;
+}
+function makeSolionPortrait() {
+  const cv = document.createElement('canvas');
+  cv.width = 200; cv.height = 200;
+  cv.style.width = '100%';
+  cv.style.height = '100%';
+  cv.style.imageRendering = 'pixelated';
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  // Cosmic gold backdrop
+  const g = ctx.createRadialGradient(100, 60, 0, 100, 110, 130);
+  g.addColorStop(0, '#3a2a10');
+  g.addColorStop(0.55, '#1a1004');
+  g.addColorStop(1, '#050310');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 200, 200);
+  // Halo glow behind
+  const halo = ctx.createRadialGradient(100, 70, 5, 100, 70, 90);
+  halo.addColorStop(0, 'rgba(255, 248, 216, 0.5)');
+  halo.addColorStop(1, 'rgba(255, 248, 216, 0)');
+  ctx.fillStyle = halo; ctx.fillRect(0, 0, 200, 200);
+  // Solion IDLE frame 0 (keyed)
+  const f0 = SOLION_FRAMES.IDLE[0];
+  const scale = (200 - 12) / f0.h;
+  const dw = f0.w * scale, dh = f0.h * scale;
+  const dx = 100 - dw / 2;
+  const dy = 200 - dh - 2;
+  ctx.drawImage(solionSrc || SOLION_SHEET, f0.x, f0.y, f0.w, f0.h, dx, dy, dw, dh);
+  return cv;
+}
+function makeKravosPortrait() {
+  const cv = document.createElement('canvas');
+  cv.width = 200; cv.height = 200;
+  cv.style.width = '100%'; cv.style.height = '100%';
+  cv.style.imageRendering = 'pixelated';
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  // Cosmic purple void backdrop
+  const g = ctx.createRadialGradient(100, 60, 0, 100, 110, 130);
+  g.addColorStop(0, '#3a1d70');
+  g.addColorStop(0.55, '#1a0d3a');
+  g.addColorStop(1, '#050310');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 200, 200);
+  // Purple void glow
+  const halo = ctx.createRadialGradient(100, 90, 5, 100, 90, 110);
+  halo.addColorStop(0, 'rgba(201, 168, 255, 0.45)');
+  halo.addColorStop(1, 'rgba(201, 168, 255, 0)');
+  ctx.fillStyle = halo; ctx.fillRect(0, 0, 200, 200);
+  const f0 = KRAVOS_FRAMES.IDLE[0];
+  const scale = (200 - 12) / f0.h;
+  const dw = f0.w * scale, dh = f0.h * scale;
+  ctx.drawImage(kravosSrc || KRAVOS_SHEET, f0.x, f0.y, f0.w, f0.h, 100 - dw / 2, 200 - dh - 2, dw, dh);
+  return cv;
+}
+// If a sheet loads AFTER the grid is built (slow connection), re-render so the
+// gradient placeholder gets swapped for the real portrait.
+const _origSolionOnLoad = SOLION_SHEET.onload;
+SOLION_SHEET.onload = () => {
+  solionReady = true;
+  if (_origSolionOnLoad) _origSolionOnLoad();
+  if (state.mode === 'tournament-select') buildFighterGrid();
+};
+
+function selectFighter(id) {
+  const f = FIGHTERS.find(x => x.id === id);
+  if (!f || !f.unlocked) return;
+  if (state.tournament.step === 'p1') {
+    state.tournament.p1 = id;
+    // Auto-advance to p2 step
+    state.tournament.step = 'p2';
+    // If vs CPU, AI auto-picks immediately
+    if (state.tournament.vsMode === 'cpu') {
+      // Pick a random unlocked OTHER than p1 (for now only Kravos available if p1=Solion, vice versa)
+      const opts = FIGHTERS.filter(x => x.unlocked && x.id !== id);
+      const aiPick = opts[Math.floor(Math.random() * opts.length)];
+      state.tournament.p2 = aiPick.id;
+    }
+  } else if (state.tournament.step === 'p2') {
+    state.tournament.p2 = id;
+  }
+  updateSelectStep();
+  updateGridHighlights();
+  updateDetail();
+  // Both picked → enable confirm
+  $('btn-select-confirm').disabled = !(state.tournament.p1 && state.tournament.p2);
+}
+
+function updateSelectStep() {
+  const lbl = $('tourn-step-label');
+  const { step, vsMode, p1, p2 } = state.tournament;
+  lbl.classList.remove('p1','p2');
+  if (!p1) { lbl.textContent = 'Player 1 — pick your fighter'; lbl.classList.add('p1'); }
+  else if (!p2 && vsMode === 'cpu') { lbl.textContent = 'AI is selecting…'; }
+  else if (!p2) { lbl.textContent = 'Player 2 — pick your fighter'; lbl.classList.add('p2'); }
+  else { lbl.textContent = 'Both selected — confirm to fight'; }
+  // Tag for AI
+  $('cd-p2-tag').textContent = vsMode === 'cpu' ? 'AI Opponent' : 'Player 2';
+}
+function updateGridHighlights() {
+  document.querySelectorAll('#tourn-grid .char-cell').forEach(cell => {
+    cell.classList.remove('sel-p1','sel-p2');
+    if (cell.dataset.id === state.tournament.p1) cell.classList.add('sel-p1');
+    if (cell.dataset.id === state.tournament.p2) cell.classList.add('sel-p2');
+  });
+}
+function updateDetail() {
+  const p1 = state.tournament.p1 ? FIGHTERS.find(f => f.id === state.tournament.p1) : null;
+  const p2 = state.tournament.p2 ? FIGHTERS.find(f => f.id === state.tournament.p2) : null;
+  $('cd-p1-name').textContent = p1 ? p1.name : '—';
+  $('cd-p1-stats').textContent = p1 ? `T${p1.tier} · ${p1.type1}/${p1.type2}  ·  HP ${p1.hp} · ATK ${p1.atk} · DEF ${p1.def} · SPD ${p1.spd} · SPC ${p1.spc}` : 'Pick a fighter';
+  $('cd-p2-name').textContent = p2 ? p2.name : '—';
+  $('cd-p2-stats').textContent = p2 ? `T${p2.tier} · ${p2.type1}/${p2.type2}  ·  HP ${p2.hp} · ATK ${p2.atk} · DEF ${p2.def} · SPD ${p2.spd} · SPC ${p2.spc}` : 'Waiting';
+}
+
+$('btn-select-confirm').onclick = () => {
+  if (!state.tournament.p1 || !state.tournament.p2) return;
+  goTournamentFight();
+};
+
+// ============ Tournament Fight (placeholder stage) ============
+function goTournamentFight() {
+  state.mode = 'tournament-fight';
+  document.body.classList.add('in-game');  // chassis takes over the viewport
+  showAll({
+    'title-screen': false,
+    'adv-start-screen': false,
+    'adv-stage': false,
+    'tourn-vs-screen': false,
+    'tourn-select-screen': false,
+    'tourn-fight-screen': true
+  });
+  initFight();
+}
+$('btn-fight-back').onclick = () => goTournamentSelect();
+
+// ============ Tournament battle loop ============
+// Both fighters get full physics + animation state machine + attack hitboxes.
+// Damage formula mirrors Cardmaster TCG (ATK × moveMult × typeMult × (1-DEF/1000)).
+// Best-of-3 rounds; KO at 0 HP wins the round.
+let fightState = null;
+const FIGHTER_GROUND_Y = CANVAS_H - 80;      // y-coord where feet stand
+const FIGHTER_W = 56, FIGHTER_H = 140;        // hitbox dims (smaller than rendered sprite)
+const FIGHT_GRAVITY = 1600;
+const FIGHT_JUMP_V = 720;
+const FIGHT_WALK = 180;
+
+// ====== Normalized fighter stats ======
+// Tournament is a skill-based fighter, NOT an RPG. Every fighter gets the same
+// HP and the same base damage per move. Card-stat differences (HP/ATK/DEF/SPD/SPC)
+// remain canon in Cardmaster TCG but don't apply here — what differentiates
+// fighters in Tournament is their MOVE SET (animation, range, signature status).
+// This keeps Tournament purely skill-based: pick who you like aesthetically,
+// win by control + timing + reads.
+const TOURN_HP = 2000;   // larger pool = longer fights (~2x duration vs 1000)
+// Move definitions. dmg is FIXED (not derived from ATK). Type chart dropped
+// entirely (was causing Solion 4x Kravos counter problem). Block halves dmg.
+const MOVES = {
+  a1: { dmg:  80, dur: 0.36, hitFrame: 0.18, range: 70,  knockback:  90, status: null },
+  a2: { dmg: 150, dur: 0.55, hitFrame: 0.30, range: 84,  knockback: 180, status: 'sig' },
+  a3: { dmg: 250, dur: 0.85, hitFrame: 0.45, range: 110, knockback: 260, status: 'sig' }
+};
+// Normalized status proc — every fighter has the same chance regardless of tier.
+const PROC_RATE = { a2: 0.25, a3: 0.50 };
+
+function initFight() {
+  const p1Card = FIGHTERS.find(f => f.id === state.tournament.p1);
+  const p2Card = FIGHTERS.find(f => f.id === state.tournament.p2);
+  fightState = {
+    p1: makeFighter(p1Card, /*x*/ CANVAS_W * 0.30, /*facing*/ 1),
+    p2: makeFighter(p2Card, /*x*/ CANVAS_W * 0.70, /*facing*/ -1),
+    round: 1,
+    p1Rounds: 0,
+    p2Rounds: 0,
+    matchOver: false,
+    matchWinner: null,
+    roundOver: false,          // guard so the KO block runs once per round (not every frame)
+    roundStartT: performance.now(),
+    inIntro: true,
+    introUntilT: performance.now() + 1300,
+    lastT: 0,
+    lastAiAttackT: 0
+  };
+  $('hp-p1-name').textContent = p1Card.name;
+  $('hp-p2-name').textContent = p2Card.name;
+  $('hp-p1-rounds').innerHTML = '<span class="round-dot"></span><span class="round-dot"></span>';
+  $('hp-p2-rounds').innerHTML = '<span class="round-dot"></span><span class="round-dot"></span>';
+  updateHpDisplay();
+  requestAnimationFrame(fightLoop);
+}
+function makeFighter(card, x, facing) {
+  const sprite = card.id === 'solion' ? makeSolionSprite() :
+                 card.id === 'kravos' ? { state:'IDLE', frame:0, timer:0, setState(s){ if(this.state===s)return; this.state=s; this.frame=0; this.timer=0; }, tick:makeSolionSprite().tick } :
+                 makeSolionSprite();   // fallback for locked fighters
+  return {
+    card,
+    x, y: FIGHTER_GROUND_Y,
+    vx: 0, vy: 0,
+    facing, onGround: true,
+    // Normalized HP — every Tournament fighter has the same pool.
+    // Card HP/ATK/DEF/SPC remain canon for Cardmaster TCG (still shown in
+    // the character-select stats panel for lore/info) but don't apply here.
+    hp: TOURN_HP, hpMax: TOURN_HP,
+    sprite,
+    attack: null,
+    blocking: false,
+    hurtUntilT: 0,
+    statuses: []
+  };
+}
+function fighterFrames(f) {
+  return f.card.id === 'kravos' ? KRAVOS_FRAMES :
+         f.card.id === 'solion' ? SOLION_FRAMES :
+         SOLION_FRAMES;
+}
+function drawFighterFrameById(ctx, f, state, frame, centerX, baseY, facing, scale) {
+  if (f.card.id === 'kravos') return drawKravosFrame(ctx, state, frame, centerX, baseY, facing, scale);
+  return drawSolionFrame(ctx, state, frame, centerX, baseY, facing, scale);
+}
+function updateHpDisplay() {
+  $('hp-p1-fill').style.width = (fightState.p1.hp / fightState.p1.hpMax * 100) + '%';
+  $('hp-p2-fill').style.width = (fightState.p2.hp / fightState.p2.hpMax * 100) + '%';
+  $('hp-p1-meta').textContent = `HP ${fightState.p1.hp} / ${fightState.p1.hpMax}`;
+  $('hp-p2-meta').textContent = `HP ${fightState.p2.hp} / ${fightState.p2.hpMax}`;
+  // Round dots
+  ['hp-p1-rounds','hp-p2-rounds'].forEach((id, idx) => {
+    const w = $(id);
+    const won = idx === 0 ? fightState.p1Rounds : fightState.p2Rounds;
+    w.innerHTML = '';
+    for (let i = 0; i < 2; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'round-dot' + (i < won ? ' won' : '');
+      w.appendChild(dot);
+    }
+  });
+}
+
+// ====== Main fight loop ======
+function fightLoop(t) {
+  if (state.mode !== 'tournament-fight' || !fightState) return;
+  const dt = Math.min(50, t - (fightState.lastT || t)) / 1000;
+  fightState.lastT = t;
+  fightUpdate(dt, t);
+  drawFightStage();
+  requestAnimationFrame(fightLoop);
+}
+
+function fightUpdate(dt, now) {
+  const fs = fightState;
+  if (fs.matchOver) return;
+  // Intro lockout — don't accept input until intro ends
+  if (fs.inIntro) {
+    if (now >= fs.introUntilT) fs.inIntro = false;
+    else { tickFighter(fs.p1, dt, now); tickFighter(fs.p2, dt, now); return; }
+  }
+  // Update facing — always face opponent
+  fs.p1.facing = fs.p2.x > fs.p1.x ? 1 : -1;
+  fs.p2.facing = fs.p1.x > fs.p2.x ? 1 : -1;
+  // Player inputs (always p1 in vs-CPU; in vs-Player, p2 also driven by inputs — but we
+  // share the input map so vs-Player requires keyboard split. For now both human modes
+  // share the same hotzones — fine for hot-seat demo).
+  applyInputs(fs.p1, state.inputs, true);
+  if (state.tournament.vsMode === 'cpu') aiInputs(fs.p2, fs.p1, now);
+  else applyInputs(fs.p2, state.inputs, true);    // hot-seat: same controls (TODO split later)
+  // Physics + animation
+  tickFighter(fs.p1, dt, now);
+  tickFighter(fs.p2, dt, now);
+  // Hit detection — when an attacker is mid-attack on its active frame, check overlap
+  resolveAttack(fs.p1, fs.p2, now);
+  resolveAttack(fs.p2, fs.p1, now);
+  // KO check — gate with roundOver so it only fires once per round (was running
+  // every frame for the 1400ms reset window, instantly tripping matchOver).
+  if (!fs.roundOver && (fs.p1.hp <= 0 || fs.p2.hp <= 0)) {
+    fs.roundOver = true;
+    const p1Down = fs.p1.hp <= 0;
+    const p2Down = fs.p2.hp <= 0;
+    if (p1Down && !p2Down) fs.p2Rounds++;
+    else if (p2Down && !p1Down) fs.p1Rounds++;
+    else { fs.p1Rounds++; fs.p2Rounds++; }  // double KO → both score
+    updateHpDisplay();
+    // Match check
+    if (fs.p1Rounds >= 2 || fs.p2Rounds >= 2) {
+      fs.matchOver = true;
+      fs.matchWinner = fs.p1Rounds > fs.p2Rounds ? 'p1' : 'p2';
+    } else {
+      // Reset for next round after a 1.4s pause
+      setTimeout(() => {
+        fs.round++;
+        fs.p1.hp = fs.p1.hpMax; fs.p2.hp = fs.p2.hpMax;
+        fs.p1.x = CANVAS_W * 0.30; fs.p2.x = CANVAS_W * 0.70;
+        fs.p1.y = fs.p2.y = FIGHTER_GROUND_Y;
+        fs.p1.vx = fs.p1.vy = 0; fs.p2.vx = fs.p2.vy = 0;
+        fs.p1.attack = fs.p2.attack = null;
+        fs.p1.statuses = []; fs.p2.statuses = [];
+        fs.p1.facing = 1; fs.p2.facing = -1;
+        fs.p1.onGround = true; fs.p2.onGround = true;
+        fs.inIntro = true; fs.introUntilT = performance.now() + 1300;
+        fs.roundStartT = performance.now();
+        fs.roundOver = false;          // re-arm for the next KO
+        updateHpDisplay();
+      }, 1400);
+    }
+  }
+}
+
+function applyInputs(f, inp, p1Side) {
+  if (f.attack) return;  // can't move while attacking
+  // Movement
+  let target = 0;
+  if (inp.left) target -= FIGHT_WALK;
+  if (inp.right) target += FIGHT_WALK;
+  f.vx = target;
+  // Jump
+  if ((inp.jump || inp.up) && f.onGround) { f.vy = -FIGHT_JUMP_V; f.onGround = false; }
+  // Block
+  f.blocking = !!inp.block && f.onGround;
+  if (f.blocking) f.vx = 0;
+  // Attacks (only when grounded, not blocking)
+  if (!f.blocking && f.onGround) {
+    if (inp.attack) { startAttack(f, 'a1'); inp.attack = false; }   // B button → A1 light. Consume to prevent repeat.
+    // Heavy attack mapping: dedicated key? For now hold-down Y while pressing B = heavy
+    // X = special A3
+    if (inp.special) { startAttack(f, 'a3'); inp.special = false; }
+  }
+}
+function startAttack(f, kind) {
+  if (f.attack) return;
+  const m = MOVES[kind];
+  f.attack = { kind, dur: m.dur, hitFrame: m.hitFrame, elapsed: 0, hitConsumed: false };
+  // Animation
+  const animMap = { a1: 'LIGHT_ATTACK', a2: 'HEAVY_ATTACK', a3: f.card.id === 'kravos' ? 'SHADOW_DRAGON' : 'SPECIAL_SLASH' };
+  f.sprite.setState(animMap[kind]);
+}
+
+// Simple AI — close distance, attack when in range
+function aiInputs(ai, foe, now) {
+  if (ai.attack) return;
+  const inp = { left:false, right:false, jump:false, block:false, attack:false, special:false, up:false, down:false };
+  const dx = foe.x - ai.x;
+  const dist = Math.abs(dx);
+  if (dist > 110) {
+    // Approach
+    if (dx > 0) inp.right = true; else inp.left = true;
+  } else if (dist > 60) {
+    // In light-attack range
+    if (now - fightState.lastAiAttackT > 700 && Math.random() < 0.15) {
+      // Occasionally special
+      if (Math.random() < 0.25) inp.special = true;
+      else inp.attack = true;
+      fightState.lastAiAttackT = now;
+    } else {
+      // Sometimes block, sometimes step
+      if (Math.random() < 0.04) inp.block = true;
+    }
+  } else {
+    // Too close — back up or attack
+    if (Math.random() < 0.4) inp.attack = true;
+    else if (dx > 0) inp.left = true; else inp.right = true;
+    fightState.lastAiAttackT = now;
+  }
+  // Occasional jump
+  if (Math.random() < 0.005 && ai.onGround) inp.jump = true;
+  applyInputs(ai, inp, false);
+}
+
+function tickFighter(f, dt, now) {
+  // Physics
+  f.x += f.vx * dt;
+  f.vy += FIGHT_GRAVITY * dt;
+  f.y += f.vy * dt;
+  if (f.y >= FIGHTER_GROUND_Y) { f.y = FIGHTER_GROUND_Y; f.vy = 0; f.onGround = true; }
+  // Stage bounds
+  if (f.x < FIGHTER_W / 2) f.x = FIGHTER_W / 2;
+  if (f.x > CANVAS_W - FIGHTER_W / 2) f.x = CANVAS_W - FIGHTER_W / 2;
+  // Attack timing
+  if (f.attack) {
+    f.attack.elapsed += dt;
+    if (f.attack.elapsed >= f.attack.dur) { f.attack = null; f.sprite.setState('IDLE'); }
+  }
+  // Sprite state choice
+  if (!f.attack) {
+    if (f.blocking) f.sprite.setState('BLOCK');
+    else if (!f.onGround) f.sprite.setState('JUMP');
+    else if (Math.abs(f.vx) > 1) f.sprite.setState(f.vx * f.facing > 0 ? 'WALK_FWD' : 'WALK_BACK');
+    else f.sprite.setState('IDLE');
+  }
+  f.sprite.tick(dt);
+  // Hurt timer ends → return to neutral
+  if (f.hurtUntilT && now > f.hurtUntilT) { f.hurtUntilT = 0; }
+}
+
+function resolveAttack(attacker, defender, now) {
+  if (!attacker.attack || attacker.attack.hitConsumed) return;
+  // Hit happens at hitFrame of the attack window
+  if (attacker.attack.elapsed < attacker.attack.hitFrame) return;
+  // Check range (face the defender, in horizontal range, vertically close)
+  const m = MOVES[attacker.attack.kind];
+  const dx = defender.x - attacker.x;
+  const sameDirection = (dx > 0 && attacker.facing > 0) || (dx < 0 && attacker.facing < 0);
+  if (!sameDirection) { attacker.attack.hitConsumed = true; return; }
+  if (Math.abs(dx) > m.range) { attacker.attack.hitConsumed = true; return; }
+  if (Math.abs(defender.y - attacker.y) > 60) { attacker.attack.hitConsumed = true; return; }
+  // Compute damage — Cardmaster TCG formula
+  const dmg = computeFightDamage(attacker.card, defender.card, attacker.attack.kind, defender.blocking);
+  defender.hp = Math.max(0, defender.hp - dmg);
+  // Knockback
+  defender.vx = m.knockback * attacker.facing;
+  defender.vy = -160;
+  defender.onGround = false;
+  defender.hurtUntilT = now + 300;
+  // Status proc on a2/a3
+  if (attacker.attack.kind !== 'a1' && Math.random() < procPctForKind(attacker.card, attacker.attack.kind)) {
+    const sig = attacker.card.id === 'kravos' ? 'Souldrift' : attacker.card.id === 'solion' ? 'Brainlock' : 'Undershock';
+    defender.statuses.push({ kind: sig, untilT: now + 2200 });
+  }
+  attacker.attack.hitConsumed = true;
+  updateHpDisplay();
+}
+
+// Skill-based damage: fixed value per move, halved on block. No card stats,
+// no type chart, no DEF reduction — Tournament outcomes depend on movement,
+// timing, and reads, not on who picked the higher-tier card.
+function computeFightDamage(atkCard, defCard, kind, blocking) {
+  let dmg = MOVES[kind].dmg;
+  if (blocking) dmg = Math.ceil(dmg * 0.5);
+  return Math.max(1, dmg);
+}
+function procPctForKind(card, kind) {
+  return PROC_RATE[kind] || 0;
+}
+function drawFightStage() {
+  const cv = $('fight-canvas');
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  // Arena background — Blizzard Canyon (cropped center, no UI panels), with
+  // fallback to the procedural purple/dark stage if the image hasn't loaded.
+  if (arenaReady) {
+    // New 1:1 square arena (1254x1254) designed to fit the chassis viewport
+    // exactly. No built-in HUD or reference panels to crop around — draw the
+    // full image stretched to canvas (640x682, slight vertical squeeze that
+    // the canyon scene absorbs cleanly).
+    ctx.drawImage(ARENA_BLIZZARD, 0, 0, ARENA_BLIZZARD.naturalWidth, ARENA_BLIZZARD.naturalHeight, 0, 0, CANVAS_W, CANVAS_H);
+    // Soft vignette + dark band at the very top so HP bars stay legible against
+    // the night-sky portion of the arena.
+    const vg = ctx.createRadialGradient(CANVAS_W/2, CANVAS_H/2, 220, CANVAS_W/2, CANVAS_H/2, CANVAS_W*0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    const topFade = ctx.createLinearGradient(0, 0, 0, 80);
+    topFade.addColorStop(0, 'rgba(5, 3, 16, 0.55)');
+    topFade.addColorStop(1, 'rgba(5, 3, 16, 0)');
+    ctx.fillStyle = topFade; ctx.fillRect(0, 0, CANVAS_W, 80);
+  } else {
+    // Fallback procedural arena
+    const sky = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    sky.addColorStop(0, '#1c1432');
+    sky.addColorStop(0.6, '#2a1858');
+    sky.addColorStop(1, '#0a0420');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    const ground = ctx.createLinearGradient(0, CANVAS_H - 80, 0, CANVAS_H);
+    ground.addColorStop(0, '#3a2a10');
+    ground.addColorStop(1, '#1a0f04');
+    ctx.fillStyle = ground;
+    ctx.fillRect(0, CANVAS_H - 80, CANVAS_W, 80);
+  }
+  // Live fighters from fightState (positioned per physics)
+  drawLiveFighter(ctx, fightState.p1, '#6fa3e8');
+  drawLiveFighter(ctx, fightState.p2, '#d34c4c');
+  // Stage name (bottom-left)
+  ctx.textAlign = 'left';
+  ctx.font = '400 10px Inter, sans-serif';
+  ctx.fillStyle = 'rgba(244, 227, 179, 0.55)';
+  ctx.fillText('BLIZZARD CANYON · THE FROZEN PASSAGE', 12, CANVAS_H - 10);
+  // ROUND intro
+  if (fightState.inIntro) {
+    const remaining = fightState.introUntilT - performance.now();
+    const fade = Math.min(1, remaining / 700);
+    ctx.fillStyle = `rgba(0,0,0,${0.45 * fade})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(244, 227, 179, ${fade})`;
+    ctx.font = '700 56px Cinzel, serif';
+    ctx.fillText(`ROUND ${fightState.round}`, CANVAS_W / 2, CANVAS_H * 0.35);
+    ctx.font = '700 32px Cinzel, serif';
+    ctx.fillText('READY', CANVAS_W / 2, CANVAS_H * 0.45);
+  }
+  // Match over
+  if (fightState.matchOver) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign = 'center';
+    const w = fightState.matchWinner === 'p1' ? fightState.p1.card : fightState.p2.card;
+    ctx.fillStyle = '#f4e3b3';
+    ctx.font = '700 44px Cinzel, serif';
+    ctx.fillText(`${w.name.split(' ')[0].toUpperCase()} WINS`, CANVAS_W / 2, CANVAS_H * 0.42);
+    ctx.font = '400 14px Inter, sans-serif';
+    ctx.fillStyle = '#c8c2dc';
+    ctx.fillText(`Match · ${fightState.p1Rounds} : ${fightState.p2Rounds}`, CANVAS_W / 2, CANVAS_H * 0.52);
+    ctx.font = '400 11px Inter, sans-serif';
+    ctx.fillText('Tap Menu to return · Quit to character select', CANVAS_W / 2, CANVAS_H * 0.58);
+  }
+}
+
+function drawLiveFighter(ctx, f, edgeColor) {
+  // Drop shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.ellipse(f.x, f.y, 36, 6, 0, 0, Math.PI*2); ctx.fill();
+  // Hurt flash
+  const hurtFlash = f.hurtUntilT && performance.now() < f.hurtUntilT;
+  if (hurtFlash) {
+    ctx.fillStyle = 'rgba(255, 90, 90, 0.18)';
+    ctx.fillRect(f.x - 50, f.y - 200, 100, 200);
+  }
+  // Render the sprite frame
+  const frames = fighterFrames(f);
+  const stateFrames = frames[f.sprite.state] || frames.IDLE;
+  const frameIdx = Math.min(f.sprite.frame, stateFrames.length - 1);
+  const frame = stateFrames[frameIdx];
+  const targetH = 140;     // smaller fighters → arena scale feels right
+  const scale = targetH / frame.h;
+  drawFighterFrameById(ctx, f, f.sprite.state, frameIdx, f.x, f.y, f.facing, scale);
+  // Status chip above head
+  if (f.statuses.length) {
+    const st = f.statuses[0];
+    ctx.fillStyle = 'rgba(176, 139, 255, 0.85)';
+    ctx.font = '700 9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(st.kind.toUpperCase(), f.x, f.y - targetH - 6);
+  }
+  // Block indicator (gold shield)
+  if (f.blocking) {
+    ctx.strokeStyle = edgeColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(f.x, f.y - targetH / 2, targetH * 0.3, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+function drawFighterLabel(ctx, f, baseX, baseY, targetH, edgeColor) {
+  ctx.fillStyle = edgeColor;
+  ctx.fillRect(baseX - 30, baseY - 2, 60, 3);
+  ctx.fillStyle = '#c8c2dc';
+  ctx.font = '400 10px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('TIER ' + f.tier, baseX, baseY - targetH - 8);
+  ctx.fillStyle = '#f4e3b3';
+  ctx.font = '700 14px Cinzel, serif';
+  ctx.fillText(f.name.split(' ')[0].toUpperCase(), baseX, baseY - targetH - 24);
+}
+function drawFighterPlaceholder(ctx, f, baseX, baseY, edgeColor, flip) {
+  // Drop shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.ellipse(baseX, baseY, 46, 10, 0, 0, Math.PI*2); ctx.fill();
+  // Solion uses his real sprite sheet (IDLE frame 0) if loaded.
+  if (f.id === 'solion' && solionReady) {
+    const frame0 = SOLION_FRAMES.IDLE[0];
+    const targetH = 280;
+    const scale = targetH / frame0.h;
+    drawSolionFrame(ctx, 'IDLE', 0, baseX, baseY, flip ? -1 : 1, scale);
+    drawFighterLabel(ctx, f, baseX, baseY, targetH, edgeColor);
+    return;
+  }
+  // Kravos likewise — his sheet is loaded as KRAVOS_SHEET.
+  if (f.id === 'kravos' && kravosReady) {
+    const frame0 = KRAVOS_FRAMES.IDLE[0];
+    const targetH = 280;
+    const scale = targetH / frame0.h;
+    drawKravosFrame(ctx, 'IDLE', 0, baseX, baseY, flip ? -1 : 1, scale);
+    drawFighterLabel(ctx, f, baseX, baseY, targetH, edgeColor);
+    return;
+  }
+  // Other fighters still use the gradient placeholder pillar until their sheets land.
+  const w = 92, h = 220;
+  const x = baseX - w/2;
+  const y = baseY - h;
+  const grad = ctx.createLinearGradient(x, y, x, y+h);
+  if (f.id === 'kravos') { grad.addColorStop(0, '#c9a8ff'); grad.addColorStop(0.5, '#6e3fc1'); grad.addColorStop(1, '#1a0d3a'); }
+  else { grad.addColorStop(0, '#999'); grad.addColorStop(1, '#333'); }
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = edgeColor;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#f4e3b3';
+  ctx.font = '700 14px Cinzel, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(f.name.split(' ')[0].toUpperCase(), baseX, y + 26);
+  ctx.font = '400 10px Inter, sans-serif';
+  ctx.fillStyle = '#c8c2dc';
+  ctx.fillText('TIER ' + f.tier, baseX, y + 42);
+  ctx.fillStyle = edgeColor;
+  ctx.beginPath();
+  if (flip) {
+    ctx.moveTo(baseX - 8, baseY - 100); ctx.lineTo(baseX - 22, baseY - 110); ctx.lineTo(baseX - 22, baseY - 90); ctx.closePath();
+  } else {
+    ctx.moveTo(baseX + 8, baseY - 100); ctx.lineTo(baseX + 22, baseY - 110); ctx.lineTo(baseX + 22, baseY - 90); ctx.closePath();
+  }
+  ctx.fill();
+}
+
+// ============ Adventure — Side-scroller engine ============
+// Simple platformer with Solion controllable. Move, jump, gravity, camera follows.
+// Level data is a 2D tile array — to add levels, append more arrays here.
+const ADV_TILE = 32;
+// LEVEL_1 — Old Viridia: The Forgotten Path. Maps the START → END layout from
+// the map reference diagram. 65 cols wide × 18 rows tall. Glyphs:
+//   . = air      # = ground       = = platform
+//   p = player spawn (Solion)     g = goal portal (Astral Portal)
+const LEVEL_1 = [
+  ".................................................................",
+  ".................................................................",
+  ".................................................................",
+  ".................................................................",
+  ".................................................................",
+  ".................................................................",
+  "............................===..................................",
+  "..................................................==.............",
+  "....................===.....=====............===...............g.",
+  ".........===................................................=====",
+  ".....p..............=====......................==========........",
+  "...........................................===...................",
+  "############........................##########..............#####",
+  "#########..######...########........##########....####...........",
+  "####################################.############################",
+  "####################################.############################",
+  "####################################.############################",
+  "####################################.############################"
+];
+
+function startAdventure() {
+  state.mode = 'adventure-game';
+  document.body.classList.add('in-game');  // chassis takes over the viewport
+  showAll({
+    'title-screen': false,
+    'adv-start-screen': false,
+    'adv-stage': true,
+    'tourn-vs-screen': false,
+    'tourn-select-screen': false,
+    'tourn-fight-screen': false
+  });
+  initAdventure();
+  requestAnimationFrame(advLoop);
+}
+function initAdventure() {
+  // Parse level tiles
+  const tiles = LEVEL_1;
+  const rows = tiles.length;
+  const cols = tiles[0].length;
+  let px = 64, py = 64;
+  let goal = null;
+  const solids = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const ch = tiles[r][c];
+      const x = c * ADV_TILE, y = r * ADV_TILE;
+      if (ch === '#' || ch === '=') solids.push({ x, y, w: ADV_TILE, h: ADV_TILE, kind: ch });
+      if (ch === 'p') { px = x; py = y; }
+      if (ch === 'g') { goal = { x, y, w: ADV_TILE, h: ADV_TILE * 2 }; }   // portal stands 2 tiles tall
+    }
+  }
+  state.adventure = {
+    tiles, rows, cols,
+    worldW: cols * ADV_TILE,
+    worldH: rows * ADV_TILE,
+    solids,
+    player: {
+      x: px, y: py,
+      w: 28, h: 56,              // collision box sized to the real sprite footprint
+      vx: 0, vy: 0,
+      onGround: false,
+      facing: 1,
+      walkPhase: 0,
+      sprite: makeSolionSprite()   // sprite state machine
+    },
+    camera: { x: 0, y: 0 },
+    keys: state.inputs,
+    lastT: 0,
+    goal,
+    completed: false,
+    completionStartT: 0,
+    astralitesCollected: 0   // (collectibles wire in P6.1.2)
+  };
+}
+
+function advLoop(t) {
+  if (state.mode !== 'adventure-game' || !state.adventure) return;
+  const a = state.adventure;
+  const dt = Math.min(50, t - (a.lastT || t)) / 1000;
+  a.lastT = t;
+  advUpdate(dt);
+  advDraw();
+  requestAnimationFrame(advLoop);
+}
+
+function advUpdate(dt) {
+  const a = state.adventure;
+  const p = a.player;
+  const k = state.inputs;
+  const SPEED = 220;
+  const JUMP_V = 460;
+  const GRAVITY = 1400;
+  const MAX_FALL = 700;
+  // Horizontal
+  let target = 0;
+  if (k.left) target -= SPEED;
+  if (k.right) target += SPEED;
+  p.vx = target;
+  if (target !== 0) p.facing = target > 0 ? 1 : -1;
+  // Jump (rising edge — only if on ground)
+  if ((k.up || k.jump) && p.onGround) {
+    p.vy = -JUMP_V;
+    p.onGround = false;
+  }
+  // Gravity
+  p.vy += GRAVITY * dt;
+  if (p.vy > MAX_FALL) p.vy = MAX_FALL;
+  // Move X with collision
+  p.x += p.vx * dt;
+  for (const s of a.solids) {
+    if (p.x + p.w > s.x && p.x < s.x + s.w && p.y + p.h > s.y && p.y < s.y + s.h) {
+      if (p.vx > 0) p.x = s.x - p.w;
+      else if (p.vx < 0) p.x = s.x + s.w;
+      p.vx = 0;
+    }
+  }
+  // Move Y with collision
+  p.y += p.vy * dt;
+  p.onGround = false;
+  for (const s of a.solids) {
+    if (p.x + p.w > s.x && p.x < s.x + s.w && p.y + p.h > s.y && p.y < s.y + s.h) {
+      if (p.vy > 0) { p.y = s.y - p.h; p.onGround = true; }
+      else if (p.vy < 0) { p.y = s.y + s.h; }
+      p.vy = 0;
+    }
+  }
+  // World bounds
+  if (p.x < 0) p.x = 0;
+  if (p.x + p.w > a.worldW) p.x = a.worldW - p.w;
+  if (p.y > a.worldH + 200) {
+    // Fell out of world — respawn
+    p.x = 64; p.y = 64; p.vx = 0; p.vy = 0;
+  }
+  // Walk phase (kept for any non-sprite effects)
+  if (Math.abs(p.vx) > 1) p.walkPhase += dt * 8;
+  // Sprite state — picks the right animation based on physics state.
+  let nextState = 'IDLE';
+  if (!p.onGround) nextState = 'JUMP';
+  else if (k.down) nextState = 'CROUCH';
+  else if (Math.abs(p.vx) > 1) nextState = 'WALK_FWD';
+  p.sprite.setState(nextState);
+  p.sprite.tick(dt);
+  // Camera follow — horizontal-scroll, vertical-locked (per chassis viewport design).
+  a.camera.x = Math.max(0, Math.min(a.worldW - CANVAS_W, p.x + p.w / 2 - CANVAS_W / 2));
+  // Lock vertical camera to a fixed height so the ground stays at the bottom of the viewport.
+  a.camera.y = Math.max(0, a.worldH - CANVAS_H);
+  // Goal check — Solion reaches the portal → mark completed (overlay handled in advDraw)
+  if (a.goal && !a.completed) {
+    const overlap = p.x + p.w > a.goal.x && p.x < a.goal.x + a.goal.w &&
+                    p.y + p.h > a.goal.y && p.y < a.goal.y + a.goal.h;
+    if (overlap) {
+      a.completed = true;
+      a.completionStartT = performance.now();
+    }
+  }
+}
+
+function advDraw() {
+  const a = state.adventure;
+  const cv = $('adv-canvas');
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  // Background — Old Viridia (1254x1254 square arena, designed for the chassis
+  // viewport, no built-in HUD). Draw full image stretched to canvas with a slow
+  // horizontal parallax of the SAME image as the player runs, so the world feels
+  // wider than one screen even though the source is one composed scene.
+  if (viridiaReady) {
+    const parallaxX = -a.camera.x * 0.25;
+    const offset = ((parallaxX % CANVAS_W) + CANVAS_W) % CANVAS_W - CANVAS_W;
+    for (let x = offset; x < CANVAS_W; x += CANVAS_W) {
+      ctx.drawImage(ARENA_VIRIDIA, 0, 0, ARENA_VIRIDIA.naturalWidth, ARENA_VIRIDIA.naturalHeight, x, 0, CANVAS_W, CANVAS_H);
+    }
+    // Soft top fade so the HUD sits on a darker band
+    const topFade = ctx.createLinearGradient(0, 0, 0, 80);
+    topFade.addColorStop(0, 'rgba(5,3,16,0.55)');
+    topFade.addColorStop(1, 'rgba(5,3,16,0)');
+    ctx.fillStyle = topFade; ctx.fillRect(0, 0, CANVAS_W, 80);
+  } else {
+    // Fallback procedural sky if the image hasn't loaded
+    const sky = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    sky.addColorStop(0, '#1a3024');
+    sky.addColorStop(0.5, '#2a4a3c');
+    sky.addColorStop(1, '#0a1812');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  }
+  // Tiles — collision geometry only, NOT drawn (the Old Viridia map art has its
+  // own natural ground/platforms baked into the painting; placeholder green +
+  // purple boxes hidden the art and felt like dev tiles). LEVEL_1 array still
+  // defines where Solion can walk/stand; the map art carries the visuals.
+  // (Uncomment the loop below for debug-tile overlay if level design needs
+  // re-tuning to match the art's natural platform heights.)
+  // for (const s of a.solids) { ... }
+  // Goal portal — Astral Portal (pulsing gold ring on a stand)
+  if (a.goal) {
+    const gx = a.goal.x - a.camera.x + a.goal.w / 2;
+    const gy = a.goal.y - a.camera.y + a.goal.h;   // base of portal
+    drawAstralPortal(ctx, gx, gy, a.goal.h, performance.now());
+  }
+  // Player (Solion)
+  const p = a.player;
+  const px = p.x - a.camera.x;
+  const py = p.y - a.camera.y;
+  drawSolion(ctx, px, py, p.w, p.h, p.facing, p.onGround, p.walkPhase);
+  // HUD
+  ctx.fillStyle = '#f4e3b3';
+  ctx.font = '700 13px Inter, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('SOLION · Tier VI', 12, CANVAS_H - 12);
+  // Completion overlay
+  if (a.completed) {
+    const fade = Math.min(1, (performance.now() - a.completionStartT) / 400);
+    ctx.fillStyle = `rgba(5, 3, 16, ${0.78 * fade})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(244, 227, 179, ${fade})`;
+    ctx.font = '700 44px Cinzel, serif';
+    ctx.fillText('PORTAL REACHED', CANVAS_W / 2, CANVAS_H / 2 - 20);
+    ctx.font = '400 14px Inter, sans-serif';
+    ctx.fillStyle = `rgba(200, 194, 220, ${0.85 * fade})`;
+    ctx.fillText('Old Viridia · The Forgotten Path · Level 1 cleared', CANVAS_W / 2, CANVAS_H / 2 + 14);
+    ctx.font = '400 11px Inter, sans-serif';
+    ctx.fillText('Tap Menu to return · more levels next pass', CANVAS_W / 2, CANVAS_H / 2 + 40);
+  }
+}
+
+// Stylized pulsing Astral Portal — gold ring + cosmic interior + base column.
+function drawAstralPortal(ctx, cx, baseY, h, t) {
+  const r = h * 0.42;
+  const ringY = baseY - h + r;
+  const pulse = 0.6 + 0.4 * Math.sin(t * 0.005);
+  // Base column
+  ctx.fillStyle = '#3a2a10';
+  ctx.fillRect(cx - 8, ringY + r * 0.4, 16, h - r);
+  // Interior cosmic glow
+  const g = ctx.createRadialGradient(cx, ringY, 2, cx, ringY, r);
+  g.addColorStop(0, `rgba(255, 248, 216, ${pulse})`);
+  g.addColorStop(0.5, `rgba(176, 139, 255, ${pulse * 0.6})`);
+  g.addColorStop(1, 'rgba(26, 13, 58, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, ringY, r, 0, Math.PI * 2); ctx.fill();
+  // Outer gold ring
+  ctx.strokeStyle = `rgba(232, 200, 120, ${0.6 + 0.4 * pulse})`;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(cx, ringY, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = `rgba(255, 248, 216, ${pulse})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, ringY, r - 4, 0, Math.PI * 2); ctx.stroke();
+  // Central star
+  ctx.fillStyle = '#fff8d8';
+  ctx.fillRect(cx - 1, ringY - 3, 2, 6);
+  ctx.fillRect(cx - 3, ringY - 1, 6, 2);
+}
+
+function drawSolion(ctx, x, y, w, h, facing, onGround, walkPhase) {
+  // Sprite-based render using v6realms/sheet_solion.png; falls back to stylized
+  // pixel render if the sheet hasn't loaded yet (still loads fine, just covers
+  // the first ~100ms before the image is decoded).
+  const p = state.adventure && state.adventure.player;
+  if (solionReady && p && p.sprite) {
+    const centerX = x + w / 2;
+    const baseY = y + h;
+    // Scale the sprite so its rendered height is ~2.4x the collision-box height
+    // (matches the visual "head above box" platformer convention).
+    const frames = SOLION_FRAMES[p.sprite.state] || SOLION_FRAMES.IDLE;
+    const f = frames[Math.min(p.sprite.frame, frames.length - 1)];
+    const scale = (h * 2.4) / f.h;
+    const drew = drawSolionFrame(ctx, p.sprite.state, p.sprite.frame, centerX, baseY, facing, scale);
+    if (drew) return;
+  }
+  drawSolionStylized(ctx, x, y, w, h, facing, onGround, walkPhase);
+}
+
+function drawSolionStylized(ctx, x, y, w, h, facing, onGround, walkPhase) {
+  // Stylized 'pixel' Solion — gold knight silhouette built from rectangles.
+  const cx = x + w / 2;
+  // Drop shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(cx, y + h, w/2, 3, 0, 0, Math.PI*2); ctx.fill();
+  // Walk bob
+  const bob = onGround ? Math.sin(walkPhase) * 1.5 : 0;
+  const baseY = y + bob;
+  // Body
+  const grad = ctx.createLinearGradient(x, baseY, x, baseY + h);
+  grad.addColorStop(0, '#fff3c4');
+  grad.addColorStop(0.4, '#e8c878');
+  grad.addColorStop(1, '#6a5020');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x + 2, baseY + 10, w - 4, h - 16);
+  // Head
+  ctx.fillStyle = '#f4e3b3';
+  ctx.fillRect(x + 4, baseY, w - 8, 12);
+  // Halo
+  ctx.strokeStyle = '#fff8d8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, baseY + 2, 9, Math.PI, 0); ctx.stroke();
+  // Glow
+  ctx.fillStyle = 'rgba(255, 248, 216, 0.18)';
+  ctx.beginPath(); ctx.arc(cx, baseY + h/2, w, 0, Math.PI*2); ctx.fill();
+  // Legs (alternate based on walk phase, only when moving)
+  const legOffset = onGround && Math.abs(state.inputs.left ? -1 : state.inputs.right ? 1 : 0) > 0 ? Math.sin(walkPhase) * 3 : 0;
+  ctx.fillStyle = '#3a2a10';
+  ctx.fillRect(x + 4, baseY + h - 6, 6, 6 - legOffset);
+  ctx.fillRect(x + w - 10, baseY + h - 6, 6, 6 + legOffset);
+  // Sword on facing side
+  ctx.strokeStyle = '#fff8d8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const sxStart = facing > 0 ? x + w - 1 : x + 1;
+  const sxEnd = facing > 0 ? x + w + 10 : x - 10;
+  ctx.moveTo(sxStart, baseY + 18);
+  ctx.lineTo(sxEnd, baseY + 8);
+  ctx.stroke();
+  // Tier marker
+  ctx.fillStyle = '#fff8d8';
+  ctx.font = '700 8px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('VI', cx, baseY + 9);
+}
+
+// ============ Global UI helpers ============
+function goTitle() {
+  state.mode = null;
+  state.adventure = null;
+  document.body.classList.remove('in-game');  // restore page scroll + nav
+  showAll({
+    'title-screen': true,
+    'adv-start-screen': false,
+    'adv-stage': false,
+    'tourn-vs-screen': false,
+    'tourn-select-screen': false,
+    'tourn-fight-screen': false
+  });
+}
+
+// ============ Input ============
+const KEY_MAP = {
+  'ArrowLeft':  'left', 'KeyA': 'left',
+  'ArrowRight': 'right','KeyD': 'right',
+  'ArrowUp':    'up',   'KeyW': 'up', 'Space': 'jump',
+  'ArrowDown':  'down', 'KeyS': 'down',
+  'KeyZ': 'attack', 'KeyJ': 'attack',
+  'KeyX': 'block',  'KeyK': 'block'
+};
+window.addEventListener('keydown', e => {
+  const k = KEY_MAP[e.code];
+  if (k) { state.inputs[k] = true; if (state.mode === 'adventure-game') e.preventDefault(); }
+  if (e.code === 'Escape') {
+    if (state.mode === 'adventure-game') goTitle();
+    else if (state.mode === 'tournament-fight') goTournamentSelect();
+    else if (state.mode === 'tournament-select') goTournamentVs();
+    else if (state.mode === 'tournament-vs') goTitle();
+    else if (state.mode === 'adventure') goTitle();
+  }
+});
+window.addEventListener('keyup', e => {
+  const k = KEY_MAP[e.code];
+  if (k) { state.inputs[k] = false; if (state.mode === 'adventure-game') e.preventDefault(); }
+});
+
+// ============ Virtual gamepad hotzones (chassis frame) ============
+// Each .hotzone[data-hot] maps to an input. Mapping is mode-aware:
+// Adventure  → A=jump  · B=attack · X=special · Y=block(unused)
+// Tournament → A=light · B=heavy  · X=special · Y=block
+// D-pad, Menu, Start, Select are global.
+const HOTZONE_TOUCHES = new Map();   // touchId → hotzone name
+function applyHotzone(name, down) {
+  const k = state.inputs;
+  switch (name) {
+    case 'up':    k.up = down; k.jump = down; break;   // D-pad up doubles as jump
+    case 'down':  k.down = down; break;
+    case 'left':  k.left = down; break;
+    case 'right': k.right = down; break;
+    case 'a':     k.jump = down; k.up = down; if (state.mode !== 'adventure-game') k.attack = down; break;  // A = jump (adv) / light (tourn)
+    case 'b':     k.attack = down; break;              // B = attack / heavy
+    case 'x':     k.special = down; break;             // X = special
+    case 'y':     k.block = down; break;               // Y = block
+    case 'menu':  if (down) {                          // Menu = pause / back
+      if (state.mode === 'adventure-game') goTitle();
+      else if (state.mode === 'tournament-fight') goTournamentSelect();
+    } break;
+    case 'start': /* reserved */ break;
+    case 'select':/* reserved */ break;
+  }
+}
+function bindHotzone(el) {
+  const name = el.dataset.hot;
+  if (!name) return;
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) HOTZONE_TOUCHES.set(t.identifier, name);
+    applyHotzone(name, true);
+  }, { passive: false });
+  const release = (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) HOTZONE_TOUCHES.delete(t.identifier);
+    let stillHeld = false;
+    for (const v of HOTZONE_TOUCHES.values()) if (v === name) { stillHeld = true; break; }
+    if (!stillHeld) applyHotzone(name, false);
+  };
+  el.addEventListener('touchend',    release, { passive: false });
+  el.addEventListener('touchcancel', release, { passive: false });
+  el.addEventListener('mousedown', (e) => { e.preventDefault(); applyHotzone(name, true); });
+  const mouseRelease = () => applyHotzone(name, false);
+  el.addEventListener('mouseup',    mouseRelease);
+  el.addEventListener('mouseleave', mouseRelease);
+}
+document.querySelectorAll('.hotzone').forEach(bindHotzone);
+
+// Init: title visible, all others hidden
+goTitle();
+
+</script>
+
+</body>
+</html>

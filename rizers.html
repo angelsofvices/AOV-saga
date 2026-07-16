@@ -2359,10 +2359,12 @@ function openOutfitPicker(mode) {
   overlay.classList.add('active');
   const header = overlay.querySelector('.mainmenu-title');
   body.innerHTML = '';
-  // Header row with the three tabs.
+  // V3.17.8 — Four-tab dresser (SHIRT / HAIR / PANTS / STYLE).  STYLE
+  // shows unlocked hair styles (default: Signature Spiky; Psychosyd
+  // Mohawk unlocked by interacting with the signed guitar in the bedroom).
   const tabs = document.createElement('div');
   tabs.style.cssText = 'display:flex; gap:6px; margin-bottom:12px;';
-  ['shirt', 'hair', 'pants'].forEach(m => {
+  ['shirt', 'hair', 'pants', 'style'].forEach(m => {
     const btn = document.createElement('button');
     btn.textContent = m.toUpperCase();
     btn.style.cssText = `flex:1; padding:6px 8px; border:1px solid ${m === mode ? 'var(--gold-bright)' : 'var(--border-soft)'}; background:${m === mode ? 'rgba(232,200,120,0.15)' : 'transparent'}; color:${m === mode ? 'var(--gold-bright)' : 'var(--ivory)'}; letter-spacing:0.18em; font-size:12px; cursor:pointer;`;
@@ -2371,6 +2373,44 @@ function openOutfitPicker(mode) {
   });
   body.appendChild(tabs);
   if (header) header.textContent = 'Dresser · ' + (mode[0].toUpperCase() + mode.slice(1));
+  // V3.17.8 — STYLE tab renders unlocked hair styles as clickable rows.
+  if (mode === 'style') {
+    const currentStyle = game.player.hairStyle || 'spiky';
+    const styles = [
+      { id: 'spiky',  name: 'Signature Spiky', desc: 'Your default look — four short spikes, clean silhouette.', locked: false },
+      { id: 'mohawk', name: 'Psychosyd Mohawk', desc: 'Shaved sides, tall center ridge.  Baelgor rock-star signature.',
+        locked: !game.player.mohawkUnlocked, lockedHint: 'Locked · interact with Psychosyd\'s signed guitar in your bedroom.' },
+    ];
+    styles.forEach(sty => {
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      row.setAttribute('tabindex', '0');
+      const active = sty.id === currentStyle;
+      const disabled = sty.locked;
+      row.innerHTML = `
+        <div class="info">
+          <div class="name">${active ? '◈ ' : ''}${sty.name}${sty.locked ? ' <span style="opacity:0.55; font-size:11px;">· LOCKED</span>' : ''}</div>
+          <div class="desc" style="opacity:${disabled ? 0.55 : 0.85};">${disabled ? sty.lockedHint : sty.desc}</div>
+        </div>
+        <button style="opacity:${disabled ? 0.4 : 1}; cursor:${disabled ? 'not-allowed' : 'pointer'};">${active ? 'WORN' : 'WEAR'}</button>
+      `;
+      const btn = row.querySelector('button');
+      btn.onclick = () => {
+        if (disabled) { try { playSfx('disabled'); } catch(_) {} showToast('◇  Locked · find the signed guitar', 1800); return; }
+        game.player.hairStyle = sty.id;
+        save();
+        showToast(`◈  Hair style: ${sty.name}`, 1400);
+        openOutfitPicker('style');
+      };
+      row.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
+          ev.preventDefault(); btn.click();
+        }
+      });
+      body.appendChild(row);
+    });
+    return;
+  }
   // If we're in shirt mode OR the player hasn't picked a shirt yet,
   // show all 8 shirt colors.  Otherwise show the 5 shades from the
   // current shirt's palette for hair / pants.
@@ -5711,7 +5751,7 @@ const BASEMENT_MAP = [
   '=............=', // 4
   '=..Z.......j.=', // 5 · Z = RADIO RECEIVER (V3.16.6 · rift-slip host),  j = experiment
   '=............=', // 6
-  '=..........zz=', // 7 · posters bottom-right
+  '=l.........zz=', // 7 · l = PSYCHOSYD'S SIGNED RED GUITAR (V3.17.8) — bedroom left corner · posters bottom-right
   '=..........zz=', // 8
   '==============', // 9
 ];
@@ -7841,7 +7881,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkjrcFeLvaAIy~Z@'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue (Anciuxor home-cycle)
+  if ('#TWMSBh=btmdzkjrcFeLvaAIy~Z@l'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -9254,6 +9294,68 @@ function drawTile(x, y, ch, mx, my) {
       ctx.stroke();
       break;
     }
+    case 'l': {
+      // V3.17.8 — PSYCHOSYD'S SIGNED RED ELECTRIC GUITAR (blocker).
+      // Leans in the bedroom's left corner.  Cherry-red body, dark neck,
+      // silver strings, tiny gold signature dot on the body.  Faint red
+      // aura pulses until the player meets Psychosyd (first interact).
+      drawTile(x, y, '.', mx, my);
+      const met = !!(game.player && game.player.alliesMet && game.player.alliesMet.psychosyd);
+      // Optional glow — pulsing red aura when Psychosyd hasn't been met yet
+      if (!met) {
+        const pulse = 0.4 + 0.6 * Math.sin(Date.now() / 320);
+        ctx.fillStyle = `rgba(240, 40, 40, ${0.10 + 0.18 * pulse})`;
+        ctx.beginPath();
+        ctx.arc(px + TILE / 2, py + TILE / 2 + 4, 12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Neck (long, slightly tilted, pointing up-left)
+      ctx.save();
+      ctx.translate(px + TILE / 2 - 2, py + TILE / 2 + 4);
+      ctx.rotate(-0.25);
+      // Neck fingerboard
+      ctx.fillStyle = '#3a2418';
+      ctx.fillRect(-2, -18, 4, 22);
+      // Frets — thin silver stripes
+      ctx.fillStyle = '#c0c8d0';
+      for (let f = -16; f < 4; f += 3) ctx.fillRect(-2, f, 4, 1);
+      // Headstock — small block at the tip
+      ctx.fillStyle = '#2a1808';
+      ctx.fillRect(-3, -21, 6, 4);
+      // Tuning pegs — tiny silver dots
+      ctx.fillStyle = '#c0c8d0';
+      ctx.fillRect(-2, -20, 1, 1);
+      ctx.fillRect(2, -20, 1, 1);
+      ctx.fillRect(-2, -18, 1, 1);
+      ctx.fillRect(2, -18, 1, 1);
+      // Body — red teardrop / cutaway shape
+      ctx.fillStyle = '#dc1414';
+      ctx.beginPath();
+      ctx.ellipse(0, 5, 7, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Body highlight (top-left) — brighter red
+      ctx.fillStyle = '#ff4a2c';
+      ctx.beginPath();
+      ctx.ellipse(-3, 2, 3, 5, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Body shadow (bottom-right) — darker
+      ctx.fillStyle = '#8a0808';
+      ctx.beginPath();
+      ctx.ellipse(3, 8, 3, 5, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Pickup — small black rectangle on the body
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(-3, 2, 6, 3);
+      // Bridge — small silver bar
+      ctx.fillStyle = '#c0c8d0';
+      ctx.fillRect(-2, 8, 4, 1);
+      // Signature — tiny gold dot with a sparkle
+      ctx.fillStyle = '#ffd028';
+      ctx.fillRect(-4, 10, 2, 1);
+      ctx.fillRect(-3, 11, 1, 1);
+      ctx.restore();
+      break;
+    }
     case 'm': {
       // V2.8 — Mom NPC (stationary, warm-tone character)
       drawTile(x, y, '.', mx, my);
@@ -9463,43 +9565,79 @@ function drawCharacter(cx, cy, dir, primary, accent, opts) {
   if (opts && opts.spiky) {
     const hairColor = (opts.hair) || accent || '#3aa8ff';
     ctx.fillStyle = hairColor;
-    // Base hair band
-    ctx.fillRect(x + 6, y + 1, w - 12, 3);
-    // 4 spikes upward — jagged silhouette
-    // Left forward spike
-    ctx.beginPath();
-    ctx.moveTo(x + 6,  y + 1);
-    ctx.lineTo(x + 8,  y - 3);
-    ctx.lineTo(x + 9,  y + 1);
-    ctx.closePath();
-    ctx.fill();
-    // Left-center spike
-    ctx.beginPath();
-    ctx.moveTo(x + 9,  y + 1);
-    ctx.lineTo(x + 11, y - 4);
-    ctx.lineTo(x + 12, y + 1);
-    ctx.closePath();
-    ctx.fill();
-    // Right-center spike
-    ctx.beginPath();
-    ctx.moveTo(x + 12, y + 1);
-    ctx.lineTo(x + 14, y - 5);
-    ctx.lineTo(x + 15, y + 1);
-    ctx.closePath();
-    ctx.fill();
-    // Right forward spike
-    ctx.beginPath();
-    ctx.moveTo(x + 14, y + 1);
-    ctx.lineTo(x + 16, y - 3);
-    ctx.lineTo(x + 16, y + 1);
-    ctx.closePath();
-    ctx.fill();
-    // Highlight streak on the tallest spike — derive from hair color:
-    // fall back to a fixed light-blue if no hair color given.
-    ctx.fillStyle = (opts && opts.hair) ? opts.hair : '#7bd0ff';
-    ctx.globalAlpha = 0.75;
-    ctx.fillRect(x + 13, y - 4, 1, 3);
-    ctx.globalAlpha = 1;
+    // V3.17.8 — Hair-style branch.  'mohawk' = shaved sides + tall
+    // center ridge (Psychosyd cosmetic, unlocked via signed guitar in
+    // the bedroom).  'spiky' (default) = original 4-spike jagged look.
+    const style = (opts && opts.hairStyle) || 'spiky';
+    if (style === 'mohawk') {
+      // No side hair band — shaved sides.  Just a narrow center strip
+      // + one tall dominant ridge + two shorter flanks.
+      // Center strip along the middle of the skull
+      ctx.fillRect(x + 10, y + 1, 2, 3);
+      // Tall central ridge (dominant spike)
+      ctx.beginPath();
+      ctx.moveTo(x + 9,  y + 1);
+      ctx.lineTo(x + 11, y - 8);
+      ctx.lineTo(x + 13, y + 1);
+      ctx.closePath();
+      ctx.fill();
+      // Left flank ridge (shorter, tilted forward)
+      ctx.beginPath();
+      ctx.moveTo(x + 8,  y + 1);
+      ctx.lineTo(x + 10, y - 4);
+      ctx.lineTo(x + 11, y + 1);
+      ctx.closePath();
+      ctx.fill();
+      // Right flank ridge (shorter, tilted back)
+      ctx.beginPath();
+      ctx.moveTo(x + 11, y + 1);
+      ctx.lineTo(x + 12, y - 4);
+      ctx.lineTo(x + 14, y + 1);
+      ctx.closePath();
+      ctx.fill();
+      // Tip highlight — brighter shard on the tallest spike
+      ctx.fillStyle = (opts && opts.hair) ? opts.hair : '#7bd0ff';
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(x + 11, y - 6, 1, 4);
+      ctx.globalAlpha = 1;
+    } else {
+      // DEFAULT SPIKY — original V3.10.5/V3.15.2 4-spike look
+      // Base hair band
+      ctx.fillRect(x + 6, y + 1, w - 12, 3);
+      // Left forward spike
+      ctx.beginPath();
+      ctx.moveTo(x + 6,  y + 1);
+      ctx.lineTo(x + 8,  y - 3);
+      ctx.lineTo(x + 9,  y + 1);
+      ctx.closePath();
+      ctx.fill();
+      // Left-center spike
+      ctx.beginPath();
+      ctx.moveTo(x + 9,  y + 1);
+      ctx.lineTo(x + 11, y - 4);
+      ctx.lineTo(x + 12, y + 1);
+      ctx.closePath();
+      ctx.fill();
+      // Right-center spike
+      ctx.beginPath();
+      ctx.moveTo(x + 12, y + 1);
+      ctx.lineTo(x + 14, y - 5);
+      ctx.lineTo(x + 15, y + 1);
+      ctx.closePath();
+      ctx.fill();
+      // Right forward spike
+      ctx.beginPath();
+      ctx.moveTo(x + 14, y + 1);
+      ctx.lineTo(x + 16, y - 3);
+      ctx.lineTo(x + 16, y + 1);
+      ctx.closePath();
+      ctx.fill();
+      // Highlight streak on the tallest spike
+      ctx.fillStyle = (opts && opts.hair) ? opts.hair : '#7bd0ff';
+      ctx.globalAlpha = 0.75;
+      ctx.fillRect(x + 13, y - 4, 1, 3);
+      ctx.globalAlpha = 1;
+    }
   } else {
     // hair/hat — NPC flat band (unchanged)
     ctx.fillStyle = accent;
@@ -9719,7 +9857,7 @@ function renderMap() {
   const pal = playerPalette();
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
-  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants });
+  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants, hairStyle: (game.player.hairStyle || 'spiky') });
   // V2.66 — Encounter '!' indicator above the player when a wild
   // encounter is armed but not yet engaged.  Pulsing yellow bubble;
   // press A to engage.
@@ -11015,7 +11153,11 @@ document.addEventListener('keydown', (e) => {
   //     acts as BACK / CLOSE — matching mobile B (which dispatches Shift
   //     via the V2.46 remap).
   const isBack    = (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Shift' || k === 'x' || k === 'b');
-  const isBackOverworldGated = (isBack && e.key !== 'Shift');
+  // V2.52 · V3.17.9 — Overworld gate: Shift AND B are both RUN modifiers
+  // on the map, so neither should open the pause menu when tapped there.
+  // Everywhere else, plain isBack still resolves (Shift closes overlays,
+  // B closes overlays, etc.).
+  const isBackOverworldGated = (isBack && e.key !== 'Shift' && k !== 'b');
   if (e.repeat && (isConfirm || isBack)) { e.preventDefault(); return; }
 
   // Controls modal — global toggle via ? or F1; Esc closes it first.
@@ -11030,6 +11172,16 @@ document.addEventListener('keydown', (e) => {
     toggleDevMode();
     e.preventDefault();
     return;
+  }
+  // V3.17.9 — PC keyboard shortcuts mirror the mobile bottom-bar buttons:
+  //   1 = SELECT (opens whatever the player assigned via SELECT ASSIGN)
+  //   2 = MENU   (opens the main menu overlay)
+  //   3 = START  (opens the settings overlay)
+  // Only fire in overworld and only on real key press (not repeat).
+  if (!e.repeat && game.mode === 'overworld') {
+    if (k === '1') { triggerSelectAssignment(); e.preventDefault(); return; }
+    if (k === '2') { openMainMenu();            e.preventDefault(); return; }
+    if (k === '3') { openSettings();            e.preventDefault(); return; }
   }
   if ($controlsModal.classList.contains('active')) {
     if (e.key === 'Escape') { closeControlsModal(); e.preventDefault(); }
@@ -11319,11 +11471,10 @@ function tryMove(dx, dy) {
   if (!walkable(nx, ny)) { game.player.moveCd = 120; return; }
   game.player.x = nx;
   game.player.y = ny;
-  // V2.46 — RUN: holding B (mobile — mapped to Shift) or Shift (desktop)
-  // halves the walk cooldown, giving a 2x run speed while held.  We read
-  // keys[] state (not the current keydown) so a held key stays "running"
-  // across every tick without the browser needing to auto-repeat.
-  const running = !!keys['shift'];
+  // V2.46 · V3.17.9 — RUN: holding B (desktop 'b' key OR mobile B button
+  // which dispatches Shift) halves the walk cooldown → 2x run speed.
+  // Both keys[] slots are checked so either input source works.
+  const running = !!keys['shift'] || !!keys['b'];
   game.player.moveCd = running ? 80 : 160;
   // encounter check
   if (isGemgrass(nx, ny)) {
@@ -11974,6 +12125,12 @@ function tryInteract() {
     // pray 10 times → statue part → Mom blessing → Dad warning → burn
     // in fireplace → grants ANCIUXOR (Tier X, 666 all stats, Lv 100).
     interactStatue();
+  } else if (t === 'l') {
+    // V3.17.8 — PSYCHOSYD'S SIGNED RED ELECTRIC GUITAR interact.
+    // First meet: adds Psychosyd (Baelgor Humanoidlands rockstar,
+    // Astral Humanoid Tier V Apex) to the ALLIES LIST + unlocks the
+    // MOHAWK hair style in the dresser.  Later interacts: flavor.
+    interactPsychosydGuitar();
   } else if (t === 'F') {
     // V3.15.2 — pre-starter easter egg latch.  Interacting with BOTH
     // fridge + stove before receiving Mom's starter pack multiplies
@@ -13438,6 +13595,80 @@ function consecrateStatuePart() {
     try { playSfx('toast'); } catch(_) {}
     showToast('◈  ANCIUXOR  ·  the Ancient One awakens', 4200);
   });
+}
+
+// V3.17.8 — ALLIES REGISTRY (Legends of Zyraxis).
+// Named humanoids the player can MEET in-game.  Humanoids are NOT Zyrex;
+// they never enter SPECIES.  They live in the master codex as cards and,
+// once met, get logged into Dad's Notebook Allies section.  Each of the
+// 10 districts hosts 3-9 Legends of Zyraxis; meeting one awards XP,
+// item, tip, or cosmetic per that Legend's meet-reward.
+const ALLIES = {
+  psychosyd: {
+    name: 'Psychosyd',
+    district: 'baelgor',
+    districtLabel: 'Baelgor · Humanoidlands',
+    class: 'Rockstar',
+    archetype: 'Astral Humanoid',
+    tier: 5,
+    tierClass: 'Apex',
+    epithet: 'Celebrity Icon of Zyraxis Humanoidlands',
+    flavor: 'The player\'s idol — electric-guitar apex, Baelgor-born, sold-out shows on every district he could reach.',
+    meetWhere: 'Signed red guitar in your bedroom (left corner).',
+    reward: { kind: 'cosmetic', label: 'Psychosyd Mohawk hair style', flag: 'mohawkUnlocked' },
+  },
+  // Additional Legends to be added per district as they're wired into the
+  // world (target: 3-9 per district, 40-70 total across the 10 districts).
+};
+function meetAlly(id) {
+  const ally = ALLIES[id];
+  if (!ally) return false;
+  game.player.alliesMet = game.player.alliesMet || {};
+  if (game.player.alliesMet[id]) return false;   // already met
+  game.player.alliesMet[id] = true;
+  // Apply reward flag if the ally's meet-reward is a cosmetic flag
+  if (ally.reward && ally.reward.kind === 'cosmetic' && ally.reward.flag) {
+    game.player[ally.reward.flag] = true;
+  }
+  save();
+  return true;
+}
+
+// V3.17.8 — PSYCHOSYD'S SIGNED RED ELECTRIC GUITAR INTERACT.
+// First meet grants the mohawk cosmetic + adds Psychosyd to Allies List.
+// Subsequent interacts strum a flavor line — the guitar hums whether
+// or not the player has claimed the meet.
+function interactPsychosydGuitar() {
+  const alreadyMet = !!(game.player.alliesMet && game.player.alliesMet.psychosyd);
+  if (!alreadyMet) {
+    const nm = game.player.name || 'you';
+    showDialog([
+      `You reach for the red electric guitar leaning in the corner.`,
+      `The strings hum before your fingers touch them.`,
+      `A gold signature scrawled across the body catches the light:`,
+      `"To ${nm} — keep it loud. — PSYCHOSYD."`,
+      ``,
+      `PSYCHOSYD.  Astral Humanoid.  Rockstar of Baelgor's Humanoidlands.`,
+      `The celebrity icon your dad's records say sold out every district he could reach.`,
+      `Your idol since before you could walk.`,
+      ``,
+      `You strike a chord.  It rings for longer than any string should.`,
+      `The signature glows brighter for a second — approval, maybe.  Recognition.`,
+      ``,
+      '«◈ PSYCHOSYD added to ALLIES · Legends of Zyraxis · Baelgor»',
+      '«◈ PSYCHOSYD MOHAWK unlocked in the dresser · STYLE tab»',
+    ], () => {
+      meetAlly('psychosyd');
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  PSYCHOSYD  ·  Mohawk unlocked in dresser', 3200);
+    });
+    return;
+  }
+  // Already met — flavor only
+  showDialog([
+    'Psychosyd\'s signed red guitar.  Still humming, still warm.',
+    'You strike a chord.  The whole room listens.',
+  ]);
 }
 
 // V3.17.6 — ANCIENT RELIGIOUS STATUE INTERACT.  Home-cycle to Anciuxor.

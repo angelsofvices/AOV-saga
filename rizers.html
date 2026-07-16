@@ -2399,7 +2399,7 @@ function interactDresser() {
     'Hair dye kit, shirts, spare pants, and a small mirror.',
     'Everything picks independently — mix any color on any layer.',
   ];
-  showDialog(lines, () => openOutfitPicker('shirt'));
+  showDialog(lines, () => openOutfitPicker('hair'));
 }
 
 // V3.17.13 — Redesigned outfit picker.  Four tabs (SHIRT / HAIR / PANTS
@@ -2415,8 +2415,11 @@ function openOutfitPicker(mode) {
   const header = overlay.querySelector('.mainmenu-title');
   body.innerHTML = '';
   const tabs = document.createElement('div');
-  tabs.style.cssText = 'display:flex; gap:6px; margin-bottom:12px;';
-  ['shirt', 'hair', 'pants', 'style'].forEach(m => {
+  tabs.style.cssText = 'display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;';
+  // V3.17.15 — Canonical dresser tab order: HATS / HAIR / SHIRT / PANTS
+  // / STYLE.  Hats sit before hair (they go over the head).  Style tab
+  // holds per-layer variant sections in the same top-to-bottom order.
+  ['hats', 'hair', 'shirt', 'pants', 'style'].forEach(m => {
     const btn = document.createElement('button');
     btn.textContent = m.toUpperCase();
     btn.style.cssText = `flex:1; padding:6px 8px; border:1px solid ${m === mode ? 'var(--gold-bright)' : 'var(--border-soft)'}; background:${m === mode ? 'rgba(232,200,120,0.15)' : 'transparent'}; color:${m === mode ? 'var(--gold-bright)' : 'var(--ivory)'}; letter-spacing:0.18em; font-size:12px; cursor:pointer;`;
@@ -2426,6 +2429,14 @@ function openOutfitPicker(mode) {
   body.appendChild(tabs);
   if (header) header.textContent = 'Dresser · ' + (mode[0].toUpperCase() + mode.slice(1));
 
+  // ---- HATS tab — empty placeholder until hat items exist in the game ----
+  if (mode === 'hats') {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:20px 12px; color:var(--mist); text-align:center; letter-spacing:0.14em; font-size:12px;';
+    empty.innerHTML = 'No hats yet.<br><br><span style="opacity:0.5; font-size:11px;">Hats will appear here as you find them.</span>';
+    body.appendChild(empty);
+    return;
+  }
   // ---- STYLE tab — split into HAIR STYLES and SHIRT STYLES sections ----
   if (mode === 'style') {
     const currentHair  = game.player.hairStyle  || 'spiky';
@@ -2435,16 +2446,18 @@ function openOutfitPicker(mode) {
         label: 'HAIR STYLES', slotKey: 'hairStyle', defaultId: 'spiky', current: currentHair,
         list: [
           { id: 'spiky',  name: 'Signature Spiky', desc: 'Your default look — four short spikes, clean silhouette.', locked: false },
-          { id: 'mohawk', name: 'Psychosyd Mohawk', desc: 'Shaved sides, tall center ridge.  Baelgor rock-star signature.',
-            locked: !game.player.mohawkUnlocked, lockedHint: 'Locked · interact with Psychosyd\'s signed guitar in your bedroom.' },
+          // V3.17.15 — Locked hints no longer name the source.  Discovery
+          // belongs to the wiki, Reddit, and gameplay videos.
+          { id: 'mohawk', name: 'Psychosyd Mohawk', lockedName: '???', desc: 'Shaved sides, tall center ridge.  Baelgor rock-star signature.', lockedDesc: 'A hair style you have not earned yet.',
+            locked: !game.player.mohawkUnlocked, lockedHint: 'Locked' },
         ],
       },
       {
         label: 'SHIRT STYLES', slotKey: 'shirtStyle', defaultId: 'plain', current: currentShirt,
         list: [
           { id: 'plain', name: 'Plain Shirt', desc: 'Just the color from the SHIRT tab.  No print.', locked: false },
-          { id: 'skull', name: 'Psychosyd Skull Shirt', desc: 'Skull-and-crossbones print on the shirt.  Baelgor rock-star signature.',
-            locked: !game.player.skullShirtUnlocked, lockedHint: 'Locked · interact with Psychosyd\'s signed guitar in your bedroom.' },
+          { id: 'skull', name: 'Psychosyd Skull Shirt', lockedName: '???', desc: 'Skull-and-crossbones print on the shirt.  Baelgor rock-star signature.', lockedDesc: 'A shirt style you have not earned yet.',
+            locked: !game.player.skullShirtUnlocked, lockedHint: 'Locked' },
         ],
       },
     ];
@@ -2460,10 +2473,14 @@ function openOutfitPicker(mode) {
         row.setAttribute('tabindex', '0');
         const active = sty.id === sect.current;
         const disabled = sty.locked;
+        // V3.17.15 — Locked entries show lockedName/lockedDesc (mask the
+        // real identity) so we don't spoil what the unlock is.
+        const shownName = disabled ? (sty.lockedName || sty.name) : sty.name;
+        const shownDesc = disabled ? (sty.lockedDesc || sty.lockedHint || sty.desc) : sty.desc;
         row.innerHTML = `
           <div class="info">
-            <div class="name">${active ? '◈ ' : ''}${sty.name}${sty.locked ? ' <span style="opacity:0.55; font-size:11px;">· LOCKED</span>' : ''}</div>
-            <div class="desc" style="opacity:${disabled ? 0.55 : 0.85};">${disabled ? sty.lockedHint : sty.desc}</div>
+            <div class="name">${active ? '◈ ' : ''}${shownName}${sty.locked ? ' <span style="opacity:0.55; font-size:11px;">· LOCKED</span>' : ''}</div>
+            <div class="desc" style="opacity:${disabled ? 0.55 : 0.85};">${shownDesc}</div>
           </div>
           <button style="min-width:82px; opacity:${disabled ? 0.4 : 1}; cursor:${disabled ? 'not-allowed' : 'pointer'}; border-color:${active ? 'var(--gold-bright)' : 'var(--border-soft)'}; color:${active ? 'var(--gold-bright)' : 'var(--ivory)'};">${active ? 'REMOVE' : 'EQUIP'}</button>
         `;
@@ -10844,6 +10861,11 @@ function openItemsView() {
   try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   $itemsov.classList.add('active');
+  // V3.17.15 — Fix header bleed: items-overlay is shared with the dresser
+  // outfit picker, and the dresser sets its title to 'Dresser · Style'.
+  // Reset to 'Items' whenever Items opens directly so the header is right.
+  const _hdr = $itemsov.querySelector('.mainmenu-title');
+  if (_hdr) _hdr.textContent = 'Inventory';
   const body = document.getElementById('items-body');
   const it = game.player.items || {};
   body.innerHTML = '';
@@ -11244,6 +11266,7 @@ document.addEventListener('keydown', (e) => {
     if (k === '1')             { triggerSelectAssignment(); e.preventDefault(); return; }
     if (k === '2' || k === 'm'){ openMainMenu();            e.preventDefault(); return; }
     if (k === '3')             { openSettings();            e.preventDefault(); return; }
+    if (k === 'f')             { openParty();               e.preventDefault(); return; }   // V3.17.15 — F = Faction
   }
   if ($controlsModal.classList.contains('active')) {
     if (e.key === 'Escape') { closeControlsModal(); e.preventDefault(); }
@@ -13429,7 +13452,7 @@ function interactMom() {
       `MOM: Now go show your father.  He never agreed with me about it — but he'll want to see.`,
     ], () => {
       try { playSfx('toast'); } catch(_) {}
-      showToast('◈  MOM\'s blessing received  ·  show DAD', 2800);
+      showToast('◈  MOM\'s blessing received', 2400);
     });
     return;
   }
@@ -13539,7 +13562,7 @@ function interactDad() {
       `DAD: Do not burn it in front of anyone.`,
     ], () => {
       try { playSfx('toast'); } catch(_) {}
-      showToast('◈  DAD\'s warning received  ·  finish it at the HEARTH', 3200);
+      showToast('◈  DAD\'s warning received', 2400);
     });
     return;
   }
@@ -13701,11 +13724,10 @@ function interactFireplace() {
     });
     return;
   }
-  // No ember yet
+  // No ember yet — V3.17.15 spoiler-free: no location hint, evocative only
   showDialog([
     'The living-room hearth.  Cold.  A dust of old ash.',
     'Something about it looks hungry — like it is waiting for a spark it already knows the shape of.',
-    '(Rumor: the SUNLIT PILLAR in ZARVANE gives travelers a warm ember that never quite goes out.)',
   ]);
 }
 
@@ -13904,6 +13926,16 @@ document.getElementById('allies-overlay').addEventListener('click', (e) => {
 // or not the player has claimed the meet.
 function interactPsychosydGuitar() {
   const alreadyMet = !!(game.player.alliesMet && game.player.alliesMet.psychosyd);
+  // V3.17.15 — Idempotent cosmetic flag application.  If Psychosyd was met
+  // BEFORE V3.17.14 shipped, meetAlly() would early-return and skip the
+  // new skullShirtUnlocked flag.  Apply flags every visit so retroactive
+  // unlocks work even on ancient saves.
+  const ally = ALLIES.psychosyd;
+  if (ally && ally.reward && ally.reward.kind === 'cosmetic') {
+    if (ally.reward.flag)  game.player[ally.reward.flag] = true;
+    if (Array.isArray(ally.reward.flags)) for (const f of ally.reward.flags) game.player[f] = true;
+    save();
+  }
   if (!alreadyMet) {
     const nm = game.player.name || 'you';
     showDialog([
@@ -13985,12 +14017,11 @@ function interactStatue() {
       'Bring it to MOM.',
     ], () => {
       try { playSfx('toast'); } catch(_) {}
-      showToast('◈  STATUE PART  ·  bring to MOM', 3200);
+      showToast('◈  STATUE PART', 2400);
     });
     return;
   }
-  // Pre-tenth prayer flavor beats.
-  const remaining = 10 - n;
+  // Pre-tenth prayer flavor beats — V3.17.15 spoiler-free: no counter.
   const beats = {
     1: ['You bow your head to the ancient statue.', 'MOM always said it would protect you.  DAD always said it would protect the world.', 'Nothing happens.'],
     2: ['You pray again.', 'The stone is warm where your forehead touched it a moment ago.'],
@@ -14003,7 +14034,6 @@ function interactStatue() {
     9: ['Ninth prayer.', 'You feel like something on the other side is bracing itself for what happens next.'],
   };
   const lines = beats[n] || ['You bow your head to the ancient statue.', 'Something is listening.'];
-  lines.push(`(${remaining} more prayer${remaining === 1 ? '' : 's'}.)`);
   showDialog(lines);
 }
 
@@ -14042,12 +14072,12 @@ function interactRadio() {
     });
     return;
   }
-  // No fragment
+  // No fragment — V3.17.15 spoiler-free: evocative only, no destination
   showDialog([
     'Your old radio-receiver invention on the floor.',
     'You built it in ninth grade to catch signals from the districts across the black.  It never worked.',
     'The coil housing has an empty slot where an antenna crystal used to sit.  Nothing you have brought back yet fits.',
-    '(Rumor: the VOID RIFT in NETHARION drops a fragment that hums like a receiver.)',
+    'You have not found what belongs there.',
   ]);
 }
 

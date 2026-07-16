@@ -1885,6 +1885,14 @@
              proper Pokedex card. -->
         <div class="bi-flavor" id="bi-flavor" style="color:#c8b8a0; font-style:italic; font-size:13px; line-height:1.4; padding:8px 4px 6px; border-bottom:1px solid var(--border-soft); margin-bottom:8px; display:none;"></div>
         <div class="bi-archetype" id="bi-archetype" style="color:#f8c840; font-family:var(--font-display); letter-spacing:0.18em; font-size:11px; text-align:center; padding:0 4px 8px; margin-bottom:6px; display:none;"></div>
+        <!-- V3.17.46 — Astralite Signature row.  Shows the primary /
+             secondary / trace elements this Zyrex is composed of (from
+             the Astralite Matrix physiochemistry, Master Codex v12.2). -->
+        <div class="bi-astralite" id="bi-astralite" style="display:none; padding:6px 6px 8px; margin-bottom:6px; border-bottom:1px solid var(--border-soft); text-align:center; font-family:var(--font-display); font-size:10px; letter-spacing:0.14em; opacity:0.85;">
+          <div style="color:#8a7a6a; margin-bottom:4px;">ASTRALITE SIGNATURE</div>
+          <div id="bi-astralite-chips" style="display:flex; gap:6px; justify-content:center; align-items:center; flex-wrap:wrap;"></div>
+          <div id="bi-astralite-verbose" style="color:#7a6a5a; margin-top:4px; font-size:9px; letter-spacing:0.10em;"></div>
+        </div>
         <div class="bi-types" id="bi-types"></div>
         <div class="bi-hp">
           <div class="bi-hp-label">HP <span id="bi-hp-nums">— / —</span></div>
@@ -6214,6 +6222,210 @@ const DISTRICT_META = {
 };
 const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
 
+// ============================================================================
+//  V3.17.46 — ASTRALITE MATRIX (Master Codex v12.2 · Sheet 11)
+//  The 63 canonical Astralites (9 Families × 7 tiers) + AETHRYX universal
+//  source.  This is the game's PHYSIOCHEMISTRY: every item, relic, weapon,
+//  and every inhabitant's DNA carries an Astralite Signature drawn from
+//  this locked set.  See memory: aov-astralite-matrix + aov-astralite-signature-system.
+// ============================================================================
+const ASTRALITE_FAMILIES = [
+  { num: 1, name: 'Creation',     axis: 'Spark',      role: 'initiates',   anchor: 'Origon'    },
+  { num: 2, name: 'Past',         axis: 'Record',     role: 'preserves',   anchor: 'Lumeria'   },
+  { num: 3, name: 'Destruction',  axis: 'Release',    role: 'clears',      anchor: 'Pyrauna'   },
+  { num: 4, name: 'Mind',         axis: 'Think',      role: 'understands', anchor: 'Arborynth' },
+  { num: 5, name: 'Present',      axis: 'Balance',    role: 'sustains',    anchor: 'Viridia'   },
+  { num: 6, name: 'Preservation', axis: 'Endure',     role: 'protects',    anchor: 'Arborynth' },
+  { num: 7, name: 'Body',         axis: 'Form',       role: 'contains',    anchor: 'Quorana'   },
+  { num: 8, name: 'Future',       axis: 'Build',      role: 'creates',     anchor: 'Cytherion' },
+  { num: 9, name: 'Spirit',       axis: 'Transcend',  role: 'elevates',    anchor: 'Zyraxis'   },
+];
+// The full 63 — keyed by symbol.  Tier band: core > major (I/II/III) > minor (I/II) > mythic.
+const ASTRALITES = {
+  // ---- Cores (F1..F9) ----
+  'Ax-1': { symbol: 'Ax-1', name: 'Aethryx Prime',      family: 1, tier: 'core',   rarity: 4 },
+  'Ax-2': { symbol: 'Ax-2', name: 'Mnemosyne Aethra',   family: 2, tier: 'core',   rarity: 4 },
+  'Ax-3': { symbol: 'Ax-3', name: 'Pyroclast Aethra',   family: 3, tier: 'core',   rarity: 4 },
+  'Ax-4': { symbol: 'Ax-4', name: 'Cognara',            family: 4, tier: 'core',   rarity: 4 },
+  'Ax-5': { symbol: 'Ax-5', name: 'Viridion Prime',     family: 5, tier: 'core',   rarity: 4 },
+  'Ax-6': { symbol: 'Ax-6', name: 'Fortaris',           family: 6, tier: 'core',   rarity: 4 },
+  'Ax-7': { symbol: 'Ax-7', name: 'Corporex',           family: 7, tier: 'core',   rarity: 4 },
+  'Ax-8': { symbol: 'Ax-8', name: 'Synthara',           family: 8, tier: 'core',   rarity: 4 },
+  'Ax-9': { symbol: 'Ax-9', name: 'Astryx Soul',        family: 9, tier: 'core',   rarity: 4 },
+  // ---- Major I (F1..F9) ----
+  'Gn':   { symbol: 'Gn',   name: 'Genesis Core',       family: 1, tier: 'major',  rarity: 3 },
+  'Rc':   { symbol: 'Rc',   name: 'Recallite',          family: 2, tier: 'major',  rarity: 3 },
+  'Ig':   { symbol: 'Ig',   name: 'Ignis Core',         family: 3, tier: 'major',  rarity: 3 },
+  'Mg':   { symbol: 'Mg',   name: 'Mindglass',          family: 4, tier: 'major',  rarity: 3 },
+  'Eq':   { symbol: 'Eq',   name: 'Equilibris',         family: 5, tier: 'major',  rarity: 3 },
+  'Sh':   { symbol: 'Sh',   name: 'Stoneheart',         family: 6, tier: 'major',  rarity: 3 },
+  'Fs':   { symbol: 'Fs',   name: 'Fleshstone',         family: 7, tier: 'major',  rarity: 3 },
+  'Me':   { symbol: 'Me',   name: 'Mechite',            family: 8, tier: 'major',  rarity: 3 },
+  'Sp':   { symbol: 'Sp',   name: 'Spirit Gem',         family: 9, tier: 'major',  rarity: 3 },
+  // ---- Major II ----
+  'Cr':   { symbol: 'Cr',   name: 'Creatrix',           family: 1, tier: 'major',  rarity: 3 },
+  'Ec':   { symbol: 'Ec',   name: 'Echo Crystal',       family: 2, tier: 'major',  rarity: 3 },
+  'Dn':   { symbol: 'Dn',   name: 'Detonite',           family: 3, tier: 'major',  rarity: 3 },
+  'Nl':   { symbol: 'Nl',   name: 'Neuralite',          family: 4, tier: 'major',  rarity: 3 },
+  'Cf':   { symbol: 'Cf',   name: 'Coreflux',           family: 5, tier: 'major',  rarity: 3 },
+  'An':   { symbol: 'An',   name: 'Anchorite',          family: 6, tier: 'major',  rarity: 3 },
+  'Dc':   { symbol: 'Dc',   name: 'Density Core',       family: 7, tier: 'major',  rarity: 3 },
+  'Grd':  { symbol: 'Grd',  name: 'Gridstone',          family: 8, tier: 'major',  rarity: 3 },
+  'Et':   { symbol: 'Et',   name: 'Ethereal Core',      family: 9, tier: 'major',  rarity: 3 },
+  // ---- Major III ----
+  'Em':   { symbol: 'Em',   name: 'Embryonix',          family: 1, tier: 'major',  rarity: 3 },
+  'Tr':   { symbol: 'Tr',   name: 'Time Residue',       family: 2, tier: 'major',  rarity: 3 },
+  'Ru':   { symbol: 'Ru',   name: 'Ruin Shard',         family: 3, tier: 'major',  rarity: 3 },
+  'Ps':   { symbol: 'Ps',   name: 'Psycore',            family: 4, tier: 'major',  rarity: 3 },
+  'Vt':   { symbol: 'Vt',   name: 'Vitae Balance',      family: 5, tier: 'major',  rarity: 3 },
+  'Bs':   { symbol: 'Bs',   name: 'Bastion Core',       family: 6, tier: 'major',  rarity: 3 },
+  'Gr':   { symbol: 'Gr',   name: 'Gravite',            family: 7, tier: 'major',  rarity: 3 },
+  'Dt':   { symbol: 'Dt',   name: 'Datacore',           family: 8, tier: 'major',  rarity: 3 },
+  'Sf':   { symbol: 'Sf',   name: 'Soulfract',          family: 9, tier: 'major',  rarity: 3 },
+  // ---- Minor I ----
+  'St':   { symbol: 'St',   name: 'Stellarion',         family: 1, tier: 'minor',  rarity: 2 },
+  'Il':   { symbol: 'Il',   name: 'Illuminor',          family: 2, tier: 'minor',  rarity: 2 },
+  'Ab':   { symbol: 'Ab',   name: 'Abyssal Flare',      family: 3, tier: 'minor',  rarity: 2 },
+  'Tb':   { symbol: 'Tb',   name: 'Thought Bind',       family: 4, tier: 'minor',  rarity: 2 },
+  'Tbc':  { symbol: 'Tbc',  name: 'True Balance Crystal', family: 5, tier: 'minor', rarity: 2 },
+  'Vl':   { symbol: 'Vl',   name: 'Vital Shell',        family: 6, tier: 'minor',  rarity: 2 },
+  'Dk':   { symbol: 'Dk',   name: 'Durexion',           family: 7, tier: 'minor',  rarity: 2 },
+  'Pr2':  { symbol: 'Pr2',  name: 'Protostar Core',     family: 8, tier: 'minor',  rarity: 2 },
+  'Trn':  { symbol: 'Trn',  name: 'Transcendent',       family: 9, tier: 'minor',  rarity: 2 },
+  // ---- Minor II ----
+  'Ph':   { symbol: 'Ph',   name: 'Primordial Hollow',  family: 1, tier: 'minor',  rarity: 2 },
+  'Phs':  { symbol: 'Phs',  name: 'Phasedust',          family: 2, tier: 'minor',  rarity: 2 },
+  'Rl':   { symbol: 'Rl',   name: 'Riftstone',          family: 3, tier: 'minor',  rarity: 2 },
+  'Iv':   { symbol: 'Iv',   name: 'Idea Veil',          family: 4, tier: 'minor',  rarity: 2 },
+  'Wt':   { symbol: 'Wt',   name: 'Worldroot',          family: 5, tier: 'minor',  rarity: 2 },
+  'Pr':   { symbol: 'Pr',   name: 'Protectorite',       family: 6, tier: 'minor',  rarity: 2 },
+  'Hd':   { symbol: 'Hd',   name: 'Hardenite',          family: 7, tier: 'minor',  rarity: 2 },
+  'Ni':   { symbol: 'Ni',   name: 'Nexus Chip',         family: 8, tier: 'minor',  rarity: 2 },
+  'Ls':   { symbol: 'Ls',   name: 'Luminal Soul',       family: 9, tier: 'minor',  rarity: 2 },
+  // ---- Mythic ★ (legendary, one-of-family) ----
+  'Ex':   { symbol: 'Ex',   name: 'Ex Nihilo Shard',    family: 1, tier: 'mythic', rarity: 5 },
+  'Om':   { symbol: 'Om',   name: 'Omnirecord',         family: 2, tier: 'mythic', rarity: 5 },
+  'Ob':   { symbol: 'Ob',   name: 'Oblivion Heart',     family: 3, tier: 'mythic', rarity: 5 },
+  'Ao':   { symbol: 'Ao',   name: 'Auramind Core',      family: 4, tier: 'mythic', rarity: 5 },
+  'Pv':   { symbol: 'Pv',   name: 'Primordial Verdance',family: 5, tier: 'mythic', rarity: 5 },
+  'In':   { symbol: 'In',   name: 'Imperish Core',      family: 6, tier: 'mythic', rarity: 5 },
+  'Phx':  { symbol: 'Phx',  name: 'Phoenix Shell',      family: 7, tier: 'mythic', rarity: 5 },
+  'Syx':  { symbol: 'Syx',  name: 'Synapse Prime',      family: 8, tier: 'mythic', rarity: 5 },
+  'As':   { symbol: 'As',   name: 'Astral Heart',       family: 9, tier: 'mythic', rarity: 5 },
+};
+// Family color for chip display (mirrors district palette where applicable).
+const ASTRALITE_FAMILY_COLOR = {
+  1: '#f8c840',  // Creation — gold (Korathen anchor)
+  2: '#e8b048',  // Past — amber (Zarvane anchor)
+  3: '#c8203a',  // Destruction — ruby (Malezor anchor)
+  4: '#8a8c98',  // Mind — creaturewild grey (Andrannor anchor)
+  5: '#7cffb0',  // Present — verdant highlight (Viridia anchor)
+  6: '#48c880',  // Preservation — emerald (Veridan anchor)
+  7: '#e06030',  // Body — amber-orange (Baelgor anchor)
+  8: '#a56830',  // Future — mech ochre (Thardin/Cytherion)
+  9: '#b87cff',  // Spirit — soul violet (Zyraxis / Xilnar anchor)
+};
+// Zyraxis-district → Astralite Family mapping (from aov-astralite-matrix canon).
+// Every catchable Zyrex inherits its primary signature family from its
+// primaryDistrict.  Netharion is source-adjacent (raw Aethryx primal) so
+// its family is null and its signature composes differently.
+const DISTRICT_ASTRALITE_FAMILY = {
+  malezor:   3,      // Destruction · Pyrauna
+  zarvane:   2,      // Past · Lumeria
+  andrannor: 4,      // Mind · Arborynth
+  veridan:   6,      // Preservation · Arborynth double-anchor
+  netharion: null,   // AETHRYX PRIMAL — pre-refraction (special case in signature builder)
+  vorashil:  8,      // Future · Cytherion (bug lineage)
+  xilnar:    9,      // Spirit · Zyraxis
+  baelgor:   7,      // Body · Quorana
+  thardin:   8,      // Future · Cytherion (humanoid lineage — doubled family)
+  korathen:  1,      // Creation · Origon
+};
+// Return an array of Astralite symbols in a family, optionally filtered by tier.
+function astralitesOfFamily(familyNum, tierFilter) {
+  const out = [];
+  for (const sym in ASTRALITES) {
+    const a = ASTRALITES[sym];
+    if (a.family !== familyNum) continue;
+    if (tierFilter && a.tier !== tierFilter) continue;
+    out.push(sym);
+  }
+  return out;
+}
+// Pick one Astralite symbol from a family at a given tier band, deterministically
+// seeded by the entity id so a given species always gets the same signature.
+function pickAstraliteFromFamily(familyNum, tierBand, seed) {
+  const pool = astralitesOfFamily(familyNum, tierBand);
+  if (!pool.length) return null;
+  // Deterministic hash of the seed string → picks the same element every time.
+  let h = 0;
+  const s = String(seed || '');
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return pool[Math.abs(h) % pool.length];
+}
+// Map a Zyrex tier (1..10) to an Astralite tier-band.
+//   T1-T3  → minor (baseline life)
+//   T4-T6  → major (standard bloodlines)
+//   T7-T8  → core  (rare + apex bloodlines / Gemlord-adjacent)
+//   T9-T10 → mythic (cosmic-tier · Anciuxor / Ultharis / Khronicore)
+function tierBandForZyrexTier(t) {
+  if (t >= 9) return 'mythic';
+  if (t >= 7) return 'core';
+  if (t >= 4) return 'major';
+  return 'minor';
+}
+// Build the Astralite Signature for a Zyrex species.  Deterministic per
+// species id.  Netharion natives compose as Ax-primal (Ax-9 substrate + a
+// destabilized-family secondary).  Cross-district Zyrex (easter eggs) fall
+// back to Zyraxis substrate (Ax-9) as a sensible default.
+function getSpeciesSignature(speciesOrKey) {
+  const s = typeof speciesOrKey === 'string' ? (SPECIES[speciesOrKey] || {}) : (speciesOrKey || {});
+  const speciesId = (typeof speciesOrKey === 'string') ? speciesOrKey : (s.id || s.name || 'unknown');
+  const district = (s.primaryDistrict || 'malezor');
+  const tier = s.tier || 1;
+  const band = tierBandForZyrexTier(tier);
+  const fam = DISTRICT_ASTRALITE_FAMILY[district];
+  let primary, secondary, trace;
+  if (fam == null) {
+    // Netharion natives — raw Aethryx-primal expression.
+    primary = 'Ax-9';   // Zyraxis substrate is Ax-9
+    secondary = pickAstraliteFromFamily(3, band, speciesId + ':net-sec') || 'Ax-3';  // destabilized destruction as flavor
+    trace = null;
+  } else {
+    primary = pickAstraliteFromFamily(fam, band, speciesId + ':pri') || null;
+    // Secondary from Zyraxis Ax-9 substrate (every native Zyrex carries some soul-essence)
+    // unless the primary IS Ax-9, in which case pick another supporting family.
+    if (fam === 9) {
+      secondary = pickAstraliteFromFamily(1, 'major', speciesId + ':sec') || 'Cr';   // Creation secondary for Spirit primaries
+    } else {
+      secondary = pickAstraliteFromFamily(9, 'major', speciesId + ':sec') || 'Sp';   // Zyraxis Ax-9 substrate
+    }
+    // Trace for tier VI+ Zyrex only — an ancestral or environmental echo.
+    if (tier >= 6) {
+      const traceFam = ((fam + 3) % 9) + 1;   // deterministic sibling family
+      trace = pickAstraliteFromFamily(traceFam, 'minor', speciesId + ':trace');
+    } else {
+      trace = null;
+    }
+  }
+  return { primary, secondary, trace, aethryx: true };
+}
+// Format a signature for compact display: "Ig · Sp · Ph"
+function formatSignatureCompact(sig) {
+  if (!sig) return '—';
+  const parts = [sig.primary, sig.secondary, sig.trace].filter(Boolean);
+  return parts.join(' · ');
+}
+// Format a signature for verbose display: "Ignis Core · Spirit Gem · Primordial Hollow"
+function formatSignatureVerbose(sig) {
+  if (!sig) return '';
+  const parts = [sig.primary, sig.secondary, sig.trace].filter(Boolean).map(sym => {
+    const a = ASTRALITES[sym];
+    return a ? a.name : sym;
+  });
+  return parts.join(' · ');
+}
+
 // V3.13 — LODGE NAMES per district.  Each district has TWO locked
 // buildings; names run a loose metal-rarity progression from Bronze /
 // Silver at Malezor up to Orichalcum / Astralite at Korathen.  Slot A
@@ -6436,6 +6648,88 @@ function isKeeperAt(mapId, x, y) {
 // Oath; subsequent interactions skip it.  This replaces the older
 // "elder" terminology (avoided to prevent confusion with Nexyros /
 // Viridia's Elder Prime canon).
+// V3.17.43 — BOND TRAINING LOOP.  Kelthor (Malezor Beastwarden's Hall
+// keeper) is the player's Professor-Oak equivalent — same elder who
+// taught Dad.  8 lessons mapped to Rizer Level thresholds.  Each visit
+// checks whether the player has crossed a new threshold since their
+// last teaching and, if so, delivers that step's lesson.  Lore-only for
+// now; the actual Bond gameplay mechanics (hold-to-bond, Bond Moves,
+// weapon channeling, Prismsynch sync) land in a future patch on top of
+// this progression scaffolding.  See [[aov-bonded-astralite-combat]].
+const BOND_LESSONS = [
+  { step: 1, lv:  1, name: 'Zysphere Summoning', teach: [
+    'KELTHOR: A sphere is not a cage.  A sphere is a room.  The Zyrex inside chose the room.',
+    'KELTHOR: Click, and they step out to fight for you.  That much you already know.',
+    'KELTHOR: Bring them home from every fight.  I will teach you more when you are ready.',
+  ]},
+  { step: 2, lv:  3, name: 'The Trust Bond', teach: [
+    'KELTHOR: Your Zyrex knows your rhythm now.  Your steps, your voice, when you eat, when you sleep.',
+    'KELTHOR: That is trust.  A frequency the sphere reads before you speak.',
+    'KELTHOR: When you have carried a partner far enough that their heartbeat lines up with yours — come back.  I will show you what that opens.',
+  ]},
+  { step: 3, lv:  6, name: 'Astralite Resonance', teach: [
+    'KELTHOR: There is a moment mid-fight when your Zyrex moves before you tell them to.  Have you felt it?',
+    'KELTHOR: That is RESONANCE.  Two Astralite Matrices humming in the same note.',
+    'KELTHOR: Learn the feeling.  You will need it.',
+  ]},
+  { step: 4, lv: 10, name: 'Partial Synchronization', teach: [
+    'KELTHOR: Now — the important part.  When you hold your sphere instead of clicking it, something changes.',
+    'KELTHOR: The Zyrex stays inside.  Their Astralite Matrix reaches through the sphere and touches yours.',
+    'KELTHOR: This is BONDING.  You will feel it as heat behind your eyes.  Do not fear it.',
+    'KELTHOR: Try it with a partner you trust.  Only a partner you trust.',
+  ]},
+  { step: 5, lv: 15, name: 'Bond Moves', teach: [
+    'KELTHOR: A Bond Move is when your body performs your Zyrex\'s technique.  Not a copy.  A shared strike.',
+    'KELTHOR: You do not steal the move.  Your Zyrex lends it to you.  They feel it from inside the sphere.',
+    'KELTHOR: I taught your father this in the same room, standing where you stand.  He punched a hole through a training post the size of your arm.',
+    'KELTHOR: Do not try to punch a hole through anything today.  Start with something small.',
+  ]},
+  { step: 6, lv: 22, name: 'Extended Synchronization', teach: [
+    'KELTHOR: The bond gets easier to hold the longer you carry it.',
+    'KELTHOR: Some Rizers can synchronize for an entire battle.  A few — Dad among them — could hold it across a whole day.',
+    'KELTHOR: I would not push that far yet.  But push a little further than yesterday.',
+  ]},
+  { step: 7, lv: 32, name: 'Weapon & Relic Channeling', teach: [
+    'KELTHOR: The Astralite does not have to stay in your body.',
+    'KELTHOR: The oldest Bond Masters learned to pour it into what they held.  A sword.  A staff.  A ring.',
+    'KELTHOR: The object becomes the extension of the bond.  For a moment, all three of you move as one.',
+    'KELTHOR: You are ready to try it.  Find something worth channeling into.',
+  ]},
+  { step: 8, lv: 50, name: 'Prismsynch — the Ultimate Mastery', teach: [
+    'KELTHOR: I have been waiting for this lesson.',
+    'KELTHOR: Long before Zyspheres — before Thardun\'s engineers dreamed of them — there were PRISMSYNCHS.',
+    'KELTHOR: Full name: ASTRALITE PRISM SYNCHRONIZATION.  Ancient prisms shaped to refract Astralite forever.  A few still exist.  Not many.',
+    'KELTHOR: A Bond Master can synchronize a partner through a Prismsynch and reach abilities no ordinary bond will ever produce.',
+    'KELTHOR: If you find one — treat it the way you would treat your Zyrex.  It listens.  It remembers.  It has been waiting.',
+    'KELTHOR: This is the ultimate mastery of the Bond.  You are the second Rizer I have taught it to.  The first was your father.',
+  ]},
+];
+function tryKelthorLesson(fromDistrict) {
+  if (fromDistrict !== 'malezor') return false;
+  const rLv = game.player.rizerLv || 1;
+  game.player.bondLessons = game.player.bondLessons || {};
+  // Find the highest lesson the player has earned but not yet been taught.
+  let next = null;
+  for (const lesson of BOND_LESSONS) {
+    if (rLv >= lesson.lv && !game.player.bondLessons['step' + lesson.step]) {
+      next = lesson;
+      break;
+    }
+  }
+  if (!next) return false;
+  showDialog([
+    `WARDEN KELTHOR, Elder of Malezor:`,
+    `Come sit.  There is a piece I have been waiting to teach you.`,
+    ...next.teach,
+    `«◈  LESSON ${next.step} / 8  ·  ${next.name.toUpperCase()}  ·  Learned from Kelthor.»`,
+  ], () => {
+    game.player.bondLessons['step' + next.step] = true;
+    save();
+    try { playSfx('toast'); } catch(_) {}
+    showToast(`◈  BOND LESSON ${next.step}/8  ·  ${next.name.toUpperCase()}`, 3400);
+  });
+  return true;
+}
 function handleKeeperInteract(hallMapId) {
   const from = game.player.enteredInteriorFrom;
   const fromDistrict = from && from.map;
@@ -6480,6 +6774,31 @@ function handleKeeperInteract(hallMapId) {
       // will be skipped on the recursive call.
       handleKeeperInteract(hallMapId);
     });
+    return;
+  }
+  // V3.17.42 — Kelthor Father Reveal.  Fires once, only at Malezor,
+  // after the generic Keeper lore beat.  Subtle nod to Kelthor's
+  // identity as the elder who taught Dad — no full reveal yet, but
+  // seeds the recognition that this Keeper is more than a Keeper.
+  // (Full "he taught your father" reveal lands mid-game via Bond
+  // Mentor progression when that gameplay ladder is implemented.)
+  if (hallMapId === 'malezor_hall' && !game.player.kelthorFatherHint) {
+    game.player.kelthorFatherHint = true;
+    save();
+    showDialog([
+      keeperTag,
+      'You bind honestly for a young Rizer.  I saw the same in your father at your age.',
+      'He came to me the way you did.  Boots muddy.  Sphere in hand.  Every question in his throat.',
+      'Come back to me when you have carried a partner far enough to feel their frequency in your own bones.  I have things to teach you.',
+    ], () => handleKeeperInteract(hallMapId));
+    return;
+  }
+  // V3.17.43 — Kelthor Bond Training loop.  If the player has crossed
+  // a new Rizer Level threshold since their last teaching, Kelthor
+  // delivers the next Bond lesson.  Same relationship he had with Dad.
+  // Runs BEFORE the standard quest dialog so the mentor beat lands
+  // first on threshold-crossing visits.
+  if (hallMapId === 'malezor_hall' && tryKelthorLesson(fromDistrict)) {
     return;
   }
   if (state === 'complete') {
@@ -15069,11 +15388,11 @@ const ALLIES = {
   // ---- MALEZOR (Beastlands) — 7 Legends ----
   kelthor: {
     name: 'Warden Kelthor', district: 'malezor', districtLabel: 'Malezor · Beastwarden\'s Hall',
-    class: 'Beastwarden', archetype: 'Keeper of the Ancient Oath',
-    tier: 5, tierClass: 'Apex', epithet: 'Senior Beast-Warden',
-    flavor: 'The senior beast-warden of Malezor.  First Keeper the young Rizer speaks to — the one who explains the Oath, the Gemlords, and the Seers.',
-    meetWhere: 'Beastwarden\'s Hall — the Keeper\'s seat.',
-    reward: { kind: 'tip', label: 'Grants the Rubypaw sidequest and the first Keeper-of-the-Oath lore beat' },
+    class: 'Elder · Bond Mentor', archetype: 'Keeper of the Ancient Oath · Dad\'s Teacher',
+    tier: 8, tierClass: 'Immortal', epithet: 'He Who Knew Egnellahc Before the Split',
+    flavor: 'Elder of Malezor.  The senior beast-warden the young Rizer meets first — same voice, same hands, that taught your father decades ago.  One of the last living scholars who knew EGNELLAHC personally, before Egnellahc\'s essence split into Oathane the Anomaly and Oatheus the Ultralord.  He teaches you the way of Astralite Bonding the same way he taught your father — one resonance at a time.',
+    meetWhere: 'Beastwarden\'s Hall — the Keeper\'s seat.  He was always going to find you first.',
+    reward: { kind: 'story', label: 'Rubypaw sidequest · Keeper-of-the-Oath lore beat · Bond Mentor of the 8-step Astralite progression · pre-split Egnellahc witness' },
   },
   ridge_tracker: {
     name: 'Ridge Tracker', district: 'malezor', districtLabel: 'Malezor · Beastwarden\'s Hall',
@@ -17816,6 +18135,43 @@ function populateInspectCard(r, contextLabel) {
     const arch = (s.codex && s.codex.archetype) || '';
     if (arch) { archEl.textContent = '◈ ' + arch + ' ◈'; archEl.style.display = ''; }
     else      { archEl.textContent = '';                  archEl.style.display = 'none'; }
+  }
+  // V3.17.46 — Astralite Signature row.  Every catchable Zyrex composes
+  // from a signature of the 63 canonical Astralites (Master Codex v12.2).
+  const astraliteEl = document.getElementById('bi-astralite');
+  if (astraliteEl && typeof getSpeciesSignature === 'function' && r.species) {
+    const sig = getSpeciesSignature(r.species);
+    const chipsEl = document.getElementById('bi-astralite-chips');
+    const verboseEl = document.getElementById('bi-astralite-verbose');
+    if (chipsEl && sig) {
+      chipsEl.innerHTML = '';
+      const slots = [
+        { sym: sig.primary,   label: 'PRIMARY'   },
+        { sym: sig.secondary, label: 'SECONDARY' },
+        { sym: sig.trace,     label: 'TRACE'     },
+      ];
+      for (const slot of slots) {
+        if (!slot.sym) continue;
+        const a = ASTRALITES[slot.sym];
+        if (!a) continue;
+        const col = ASTRALITE_FAMILY_COLOR[a.family] || '#c8b8a0';
+        const chip = document.createElement('span');
+        chip.style.cssText = `border:1px solid ${col}; color:${col}; padding:2px 6px; border-radius:3px; font-size:10px; letter-spacing:0.12em;`;
+        chip.title = `${slot.label} · ${a.name} (F${a.family} · ${a.tier.toUpperCase()})`;
+        chip.textContent = slot.sym;
+        chipsEl.appendChild(chip);
+      }
+      // Aethryx presence tag (always true — Ax is in all matter and life)
+      const ax = document.createElement('span');
+      ax.style.cssText = `border:1px dashed #c8b8a0; color:#c8b8a0; padding:2px 6px; border-radius:3px; font-size:9px; letter-spacing:0.14em; opacity:0.75;`;
+      ax.title = 'AETHRYX — the universal source, present in all matter and life';
+      ax.textContent = '+ Ax';
+      chipsEl.appendChild(ax);
+    }
+    if (verboseEl && sig) verboseEl.textContent = formatSignatureVerbose(sig);
+    astraliteEl.style.display = '';
+  } else if (astraliteEl) {
+    astraliteEl.style.display = 'none';
   }
   // Type chips
   const typesEl = document.getElementById('bi-types');

@@ -5379,18 +5379,21 @@ const SPECIES = {
   // "Mom always said it will protect you.  Dad always said it will protect the
   // world."  Anciuxor is the strongest catchable card in the game.
   anciuxor: {
-    flavor: 'The ancient one — mother said it would protect you; father said it would protect the world; both were right about a truth neither wanted to say out loud.',
-    name: 'ANCIUXOR', type: 'Aura', type2: 'Divine', type3: 'Ultramax', region: 'Home Statue · Ancient Rite',
+    flavor: 'The Ancient One — mother said it would protect you; father said it would protect the world; both were right about a truth neither wanted to say out loud.  Every strike lands as a DIVINE HIT (3× regardless of type), and the type chart does not weaken him.',
+    name: 'ANCIUXOR', type: 'Chrono', type2: 'Divine', type3: 'Ultramax', region: 'Home Statue · Ancient Rite',
     tier: 10, catchRate: 0, shape: 'winged',
     // 666 across all five — total 3330 = Tier X canon pool.  Balanced apex.
     base: { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 },
     // Gold-and-obsidian palette: ancient-god feel.
     sprite: ['#f8c840', '#3a2408', '#fff5b0'],
     moves: [
-      { name: 'Ancient Verdict', type: 'Divine', cast: 'Light', power: 220, cost: 1 },
-      { name: 'Bind of Ancients', type: 'Divine', cast: 'Spirit', power: 0, cost: 2, status: 'gridlock', statusChance: 0.6 },
+      // V3.17.21 — Retyped to Chrono-primary now that Anciuxor's canon
+      // types are Chrono / Divine / Ultramax.  STAB stacks across all
+      // three; the type chart is bypassed by the divine-hit override.
+      { name: 'Ancient Verdict', type: 'Chrono',   cast: 'Light',  power: 220, cost: 1 },
+      { name: 'Bind of Ancients', type: 'Divine',  cast: 'Spirit', power: 0,   cost: 2, status: 'gridlock', statusChance: 0.6 },
       { name: 'World-Ending Hymn', type: 'Ultramax', cast: 'Light', power: 666, cost: 3 },
-      { name: 'Anciuxor\'s Awakening', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
+      { name: 'Anciuxor\'s Awakening', type: 'Chrono', cast: 'Force', power: 0, cost: 1 },
     ],
     easterEgg: true,
     ultramax: true,
@@ -14855,7 +14858,14 @@ async function performMove(user, target, move, playerSide) {
     return;
   }
   // V2.27 — Multi-type stacked multiplier (2 types Tier 1–5; up to 3 Tier 6+).
-  const mult = typeMult(move.type, target.type, target.type2, target.type3);
+  let mult = typeMult(move.type, target.type, target.type2, target.type3);
+  // V3.17.20 — ANCIUXOR canon override.  The Ancient One has no weakness:
+  // no attacker can hit him super-effective (mult cap ≤ 1.0).  When Anciuxor
+  // attacks, he always deals 3× damage regardless of matchup — the DIVINE
+  // HIT.  This is lore-canon and intentionally bypasses the type chart.
+  let isDivineHit = false;
+  if (target.species === 'anciuxor')  mult = Math.min(mult, 1.0);
+  if (user.species   === 'anciuxor') { mult = 3.0; isDivineHit = true; }
   const atk = user.stats.atk * stageMult(user.atkStage);
   const def = target.stats.def;
   const base = ((atk / def) * move.power * (user.lv / (user.lv + target.lv))) / 2;
@@ -14882,10 +14892,14 @@ async function performMove(user, target, move, playerSide) {
   // varies by hit quality so the player sees crits and super-effective
   // hits without having to read the log.
   spawnFloatingNumber(targetCanvas, dmg, { crit: isCrit, mult, stab: isStab });
-  // V2.23 / V2.26 / V2.49 — hit callouts now stack STAB and CRIT prefixes on
-  // the effectiveness line so the player learns why the numbers moved.
-  const prefix = [isCrit ? 'CRITICAL HIT!' : null, isStab ? 'STAB!' : null].filter(Boolean).join(' ');
-  if      (mult >= 4)   { logBattle(`${prefix ? prefix + ' ' : ''}SUPER EFFECTIVE — Devastating hit! (-${dmg})`); await wait(800); }
+  // V2.23 / V2.26 / V2.49 · V3.17.20 — hit callouts stack STAB / CRIT /
+  // DIVINE HIT prefixes on the effectiveness line.  DIVINE HIT fires
+  // when Anciuxor is the attacker (3× override; the Ancient One does
+  // not honor the type chart).  It overrides the normal mult-based
+  // effectiveness banner because the divine strike IS the banner.
+  const prefix = [isDivineHit ? '◈ DIVINE HIT! ◈' : null, isCrit ? 'CRITICAL HIT!' : null, isStab ? 'STAB!' : null].filter(Boolean).join(' ');
+  if      (isDivineHit) { logBattle(`${prefix} — the Ancient One strikes. (-${dmg})`);                              await wait(900); }
+  else if (mult >= 4)   { logBattle(`${prefix ? prefix + ' ' : ''}SUPER EFFECTIVE — Devastating hit! (-${dmg})`); await wait(800); }
   else if (mult >= 2)   { logBattle(`${prefix ? prefix + ' ' : ''}Super effective — heavy hit! (-${dmg})`);       await wait(750); }
   else if (mult <= 0.25){ logBattle(`${prefix ? prefix + ' ' : ''}Not very effective... barely a scratch. (-${dmg})`); await wait(800); }
   else if (mult <= 0.5) { logBattle(`${prefix ? prefix + ' ' : ''}Not very effective. (-${dmg})`);                  await wait(750); }

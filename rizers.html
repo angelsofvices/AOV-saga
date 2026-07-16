@@ -7903,18 +7903,45 @@ function _hexShift(hex, dr, dg, db) {
 }
 function _darken(hex, pct)  { const n = parseInt(hex.slice(1), 16); const r=(n>>16)&0xff, g=(n>>8)&0xff, b=n&0xff; return _hexShift(hex, -Math.round(r*pct), -Math.round(g*pct), -Math.round(b*pct)); }
 function _brighten(hex, pct){ const n = parseInt(hex.slice(1), 16); const r=(n>>16)&0xff, g=(n>>8)&0xff, b=n&0xff; return _hexShift(hex, Math.round((255-r)*pct), Math.round((255-g)*pct), Math.round((255-b)*pct)); }
-function makeCavePalette(districtId) {
+// V3.17.31 — GEM COLOR TRIADS.  Each Gemlord Sanctum uses its Gemlord's
+// gem color for the ceremonial accents (throne, pillar caps, glyphs,
+// wall sparkles) — NOT the district's accent hue.  The base (walls,
+// floor) stays district-derived but darkened; the gem provides the ritual
+// contrast (dark green walls + blood-red ruby accents for Rakoron, etc.).
+const GEM_COLORS = {
+  ruby:     { base: '#c8203a', bright: '#ff5060', dark: '#7a0e18' },   // blood-red
+  pearl:    { base: '#f0e8d8', bright: '#ffffff', dark: '#a8a090' },   // iridescent off-white
+  citrine:  { base: '#e8b820', bright: '#ffe088', dark: '#7a5e10' },   // golden yellow
+  emerald:  { base: '#20c878', bright: '#7cffb0', dark: '#0a6040' },   // vivid true green
+  amethyst: { base: '#9048d0', bright: '#c896ff', dark: '#4a1a70' },   // royal purple
+  sapphire: { base: '#3060d8', bright: '#7ca8ff', dark: '#0a2078' },   // deep royal blue
+  onyx:     { base: '#0a0a12', bright: '#a0a0b8', dark: '#000000' },   // obsidian black + silver rim
+  amber:    { base: '#e07020', bright: '#ffb060', dark: '#7a3808' },   // warm orange-brown
+  anomaly:  { base: '#e040a0', bright: '#ff88d0', dark: '#7a1858' },   // magenta / anomaly-pink
+  ultra:    { base: '#f8c840', bright: '#ffe488', dark: '#7a5810' },   // divine gold
+};
+function makeCavePalette(districtId, gemKey) {
   const d = DISTRICT_META[districtId];
   if (!d) return null;
+  const gem = (gemKey && GEM_COLORS[gemKey]) || null;
+  // Gem accent triad (base / bright / dark) — falls back to district accent
+  // if the gem lookup misses so the cave still renders sanely.
+  const gemBase   = gem ? gem.base   : d.accent;
+  const gemBright = gem ? gem.bright : _brighten(d.sparkleTint || d.accent, 0.20);
+  const gemDark   = gem ? gem.dark   : _darken(d.accent, 0.35);
   return {
-    accent:      _brighten(d.accent,      0.20),
-    wallColor:   _darken  (d.wallColor,   0.45),
-    wallEdge:    _darken  (d.wallEdge,    0.40),
-    groundColor: _darken  (d.groundColor, 0.35),
-    groundShade: _darken  (d.groundShade, 0.40),
-    grassColor:  d.grassColor,
-    sparkleTint: _brighten(d.sparkleTint, 0.15),
-    caveAccent:  d.accent,   // used for throne + glyphs (undimmed source hue)
+    accent:      gemBright,                        // dresser/UI accent — gem-bright
+    wallColor:   _darken(d.wallColor,   0.45),     // dark district stone
+    wallEdge:    _darken(d.wallEdge,    0.40),
+    groundColor: _darken(d.groundColor, 0.35),     // ancient district floor
+    groundShade: _darken(d.groundShade, 0.40),
+    grassColor:  d.grassColor,                     // unchanged (unused inside cave)
+    sparkleTint: gemBright,                        // wall sparkles = gem bright shard
+    // Ceremonial gem triad — used by drawTile '+' '*' '%'
+    caveAccent:       gemBase,
+    caveAccentBright: gemBright,
+    caveAccentDark:   gemDark,
+    gemKey:           gemKey || null,
   };
 }
 function generateGemlordCaveMap(gemlordId) {
@@ -7963,7 +7990,9 @@ for (const routeId of ROUTE_ORDER) {
   const rm = ROUTE_META[routeId];
   if (!rm || !rm.gemlord) continue;
   const districtId = rm.west;   // Gemlord always belongs to the WEST district of its route
-  const palette = makeCavePalette(districtId);
+  const dmeta = DISTRICT_META[districtId] || {};
+  const gemKey = dmeta.gemKey || null;   // V3.17.31 — cave accents keyed to this district's gem
+  const palette = makeCavePalette(districtId, gemKey);
   if (!palette) continue;
   const lord = GEMLORDS.find(g => g.id === rm.gemlord);
   const caveId = 'gemlord_cave_' + rm.gemlord;
@@ -9105,49 +9134,67 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case '+': {
-      // V3.17.30 — SANCTUM PILLAR (Gemlord cave interior).
-      // Tall ancient column: capital + shaft + base bands in the cave palette.
+      // V3.17.30 · V3.17.31 — SANCTUM PILLAR.  Shaft = dark district stone;
+      // capital + base bands = gem color (blood-red ruby for Rakoron, pearl
+      // for Ivirium, etc.).  The gem-cap gives every cave its unmistakable
+      // ritual signature at a glance.
       drawTile(x, y, ',', mx, my);
-      const capCol  = (_dm && _dm.caveAccent)  || (_dm && _dm.accent)     || '#e8b048';
+      const gemBase   = (_dm && _dm.caveAccent)       || '#e8b048';
+      const gemBright = (_dm && _dm.caveAccentBright) || '#fff';
+      const gemDark   = (_dm && _dm.caveAccentDark)   || '#3a2560';
       const shaftHi = (_dm && _dm.groundColor) || '#4a3468';
       const shaftLo = (_dm && _dm.wallEdge)    || '#3a2560';
       const shaftDk = (_dm && _dm.wallColor)   || '#1a0d2e';
-      // Base cap
-      ctx.fillStyle = shaftDk; ctx.fillRect(px + 4, py + TILE - 6, TILE - 8, 4);
-      ctx.fillStyle = capCol;  ctx.fillRect(px + 3, py + TILE - 3, TILE - 6, 2);
-      // Shaft
+      // Base cap — 2-band gem plinth
+      ctx.fillStyle = gemDark;   ctx.fillRect(px + 4, py + TILE - 6, TILE - 8, 4);
+      ctx.fillStyle = gemBase;   ctx.fillRect(px + 3, py + TILE - 3, TILE - 6, 2);
+      // Shaft — dim district stone with dark flutes
       ctx.fillStyle = shaftHi; ctx.fillRect(px + 8, py + 6, TILE - 16, TILE - 12);
-      ctx.fillStyle = shaftLo; ctx.fillRect(px + 8, py + 6, 3, TILE - 12);   // left shadow flute
-      ctx.fillStyle = shaftLo; ctx.fillRect(px + TILE - 11, py + 6, 3, TILE - 12); // right shadow flute
-      // Top capital
-      ctx.fillStyle = shaftDk; ctx.fillRect(px + 6, py + 4, TILE - 12, 4);
-      ctx.fillStyle = capCol;  ctx.fillRect(px + 5, py + 2, TILE - 10, 2);
+      ctx.fillStyle = shaftLo; ctx.fillRect(px + 8, py + 6, 3, TILE - 12);
+      ctx.fillStyle = shaftLo; ctx.fillRect(px + TILE - 11, py + 6, 3, TILE - 12);
+      // Gem inlay on the shaft face — a small facet in bright gem hue
+      ctx.fillStyle = gemBright;
+      ctx.fillRect(px + TILE / 2 - 1, py + TILE / 2 - 2, 2, 4);
+      // Top capital — dark plinth band + gem crown
+      ctx.fillStyle = gemDark;   ctx.fillRect(px + 6, py + 4, TILE - 12, 4);
+      ctx.fillStyle = gemBase;   ctx.fillRect(px + 5, py + 2, TILE - 10, 2);
       break;
     }
     case '*': {
-      // V3.17.30 — GEMLORD THRONE.  Ceremonial dais + seat + halo of light
-      // in the district's undimmed accent hue.  Interact fires Gemlord duel/dialog.
+      // V3.17.30 · V3.17.31 — GEMLORD THRONE.  Dais + high-back seat in
+      // dark district stone; ceremonial ring, halo, and set-gem all in
+      // this cave's GEM color triad (Ruby / Pearl / Citrine / Emerald /
+      // Amethyst / Sapphire / Onyx / Amber / Anomaly / Ultra).  Interact
+      // fires Gemlord duel/dialog.
       drawTile(x, y, ',', mx, my);
       const cx = px + TILE / 2, cy = py + TILE / 2;
-      const daisDk = (_dm && _dm.wallColor)   || '#1a0d2e';
-      const daisHi = (_dm && _dm.wallEdge)    || '#3a2560';
-      const gem    = (_dm && _dm.caveAccent)  || (_dm && _dm.accent) || '#e8b048';
-      const halo   = (_dm && _dm.sparkleTint) || '#ffd882';
-      // Halo pulse
+      const daisDk    = (_dm && _dm.wallColor)        || '#1a0d2e';
+      const daisHi    = (_dm && _dm.wallEdge)         || '#3a2560';
+      const gemBase   = (_dm && _dm.caveAccent)       || '#e8b048';
+      const gemBright = (_dm && _dm.caveAccentBright) || '#ffd882';
+      const gemDark   = (_dm && _dm.caveAccentDark)   || '#3a2560';
+      // Halo pulse — gem-bright with alpha throb
       const pulse = Math.sin(performance.now() * 0.003 + x + y) * 0.5 + 0.5;
-      ctx.fillStyle = halo.length === 7
-        ? halo + Math.floor(60 + pulse * 100).toString(16).padStart(2, '0')
-        : halo;
-      ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
-      // Dais (2-tier)
+      ctx.fillStyle = gemBright.length === 7
+        ? gemBright + Math.floor(60 + pulse * 110).toString(16).padStart(2, '0')
+        : gemBright;
+      ctx.beginPath(); ctx.arc(cx, cy, 15, 0, Math.PI * 2); ctx.fill();
+      // Inner halo — gem-base ring
+      ctx.fillStyle = gemBase.length === 7
+        ? gemBase + Math.floor(90 + pulse * 90).toString(16).padStart(2, '0')
+        : gemBase;
+      ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+      // Dais (2-tier, dark district stone)
       ctx.fillStyle = daisDk; ctx.fillRect(px + 3, py + TILE - 8, TILE - 6, 6);
       ctx.fillStyle = daisHi; ctx.fillRect(px + 5, py + TILE - 12, TILE - 10, 4);
-      // Seat back
+      // Gem trim along the dais lip
+      ctx.fillStyle = gemBase; ctx.fillRect(px + 5, py + TILE - 13, TILE - 10, 1);
+      // Seat back (dark stone) with gem-base outline
       ctx.fillStyle = daisDk; ctx.fillRect(px + 8, py + 4, TILE - 16, 16);
-      ctx.strokeStyle = gem; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = gemBase; ctx.lineWidth = 1.5;
       ctx.strokeRect(px + 8.5, py + 4.5, TILE - 17, 15);
-      // Gem inset
-      ctx.fillStyle = gem;
+      // Set-gem (diamond cut) in gemBright with white star-glint
+      ctx.fillStyle = gemBase;
       ctx.beginPath();
       ctx.moveTo(cx, py + 6);
       ctx.lineTo(cx + 4, py + 12);
@@ -9155,31 +9202,58 @@ function drawTile(x, y, ch, mx, my) {
       ctx.lineTo(cx - 4, py + 12);
       ctx.closePath();
       ctx.fill();
+      // Gem highlight facet
+      ctx.fillStyle = gemBright;
+      ctx.beginPath();
+      ctx.moveTo(cx - 1, py + 8);
+      ctx.lineTo(cx + 2, py + 11);
+      ctx.lineTo(cx - 1, py + 14);
+      ctx.lineTo(cx - 3, py + 11);
+      ctx.closePath();
+      ctx.fill();
+      // Deep facet shadow
+      ctx.strokeStyle = gemDark; ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(cx, py + 6); ctx.lineTo(cx, py + 18);
+      ctx.stroke();
+      // White star-glint pip
       ctx.fillStyle = '#fff';
       ctx.fillRect(cx - 1, py + 10, 1, 1);
       break;
     }
     case '%': {
-      // V3.17.30 — GLYPH RUNE floor tile.  Walkable.  Draws the base floor
-      // beneath, then etches a slow-pulsing sigil in the cave accent hue.
+      // V3.17.30 · V3.17.31 — GLYPH RUNE.  Walkable floor tile with an
+      // etched sigil in this cave's GEM color triad.  Ring in gem-dark
+      // (barely visible), rune cross pulses in gem-base, center pip is
+      // gem-bright — reads as gem-etched flagstone.
       drawTile(x, y, ',', mx, my);
-      const glyph = (_dm && _dm.caveAccent)  || (_dm && _dm.accent) || '#e8b048';
-      const dim   = (_dm && _dm.wallEdge)    || '#3a2560';
+      const gemBase   = (_dm && _dm.caveAccent)       || '#e8b048';
+      const gemBright = (_dm && _dm.caveAccentBright) || '#fff';
+      const gemDark   = (_dm && _dm.caveAccentDark)   || '#3a2560';
       const pulse = Math.sin(performance.now() * 0.002 + (x * 3 + y * 5)) * 0.5 + 0.5;
-      // Etched ring
-      ctx.strokeStyle = dim; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(px + TILE / 2, py + TILE / 2, 10, 0, Math.PI * 2); ctx.stroke();
-      // Rune cross
-      ctx.strokeStyle = glyph;
+      const cx = px + TILE / 2, cy = py + TILE / 2;
+      // Etched ring (gem-dark, low contrast)
+      ctx.strokeStyle = gemDark; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.stroke();
+      // Rune cross — gem-base, pulses in alpha
+      ctx.strokeStyle = gemBase;
+      ctx.lineWidth = 1.5;
       ctx.globalAlpha = 0.4 + pulse * 0.5;
       ctx.beginPath();
-      ctx.moveTo(px + TILE / 2, py + 6); ctx.lineTo(px + TILE / 2, py + TILE - 6);
-      ctx.moveTo(px + 6, py + TILE / 2); ctx.lineTo(px + TILE - 6, py + TILE / 2);
+      ctx.moveTo(cx, py + 6); ctx.lineTo(cx, py + TILE - 6);
+      ctx.moveTo(px + 6, cy); ctx.lineTo(px + TILE - 6, cy);
       ctx.stroke();
-      // Center dot
-      ctx.fillStyle = glyph;
-      ctx.fillRect(px + TILE / 2 - 1, py + TILE / 2 - 1, 2, 2);
+      // Diagonal secondaries (fainter) — extra ceremonial detail
+      ctx.lineWidth = 0.8;
+      ctx.globalAlpha = 0.25 + pulse * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(px + 8, py + 8); ctx.lineTo(px + TILE - 8, py + TILE - 8);
+      ctx.moveTo(px + TILE - 8, py + 8); ctx.lineTo(px + 8, py + TILE - 8);
+      ctx.stroke();
       ctx.globalAlpha = 1;
+      // Center pip — gem-bright core
+      ctx.fillStyle = gemBright;
+      ctx.fillRect(cx - 1, cy - 1, 2, 2);
       break;
     }
     case 'M': {

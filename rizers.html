@@ -5902,7 +5902,7 @@ const HOUSE_MAP = [
   '=Fe.......wU.=', // 1 · F = fridge, e = stove (KITCHEN nook); stairs w/U top-right
   '=.t..........=', // 2 · t = kitchen dining table
   '=............=', // 3
-  '=..........c.=', // 4 · c = couch (LIVING ROOM)
+  '=.........&c.=', // 4 · & = MOM'S PLANT (V3.17.34) beside the couch — verdant_seed redemption
   '=.....m.....@=', // 5 · Mom · @ = ANCIENT RELIGIOUS STATUE (V3.17.6) beside the couch — home-cycle to Anciuxor
   '=............=', // 6
   '=......x.....=', // 7 · x = door out to Malezor
@@ -6406,9 +6406,13 @@ function setQuestState(questId, state) {
   save();
 }
 // True if the current interior/coord is the elder for the CURRENT hall.
+// V3.17.33 — Also require that this hall has a wired quest (QUEST_BY_HALL).
+// Korathen ships without a quest, so its (3,2) tile falls through to the
+// normal villager pool (Court Herald) instead of the generic no-name dialog.
 function isKeeperAt(mapId, x, y) {
   const c = HALL_KEEPER_COORDS[mapId];
-  return !!(c && c.x === x && c.y === y);
+  if (!c || c.x !== x || c.y !== y) return false;
+  return !!QUEST_BY_HALL[mapId];
 }
 // Keeper interaction — dispatched from interactVillager when the player
 // speaks to the Keeper tile inside a hall.  The Keeper is bound to the
@@ -6427,6 +6431,10 @@ function isKeeperAt(mapId, x, y) {
 function handleKeeperInteract(hallMapId) {
   const from = game.player.enteredInteriorFrom;
   const fromDistrict = from && from.map;
+  // V3.17.33 — Every Keeper is a Legend.  Add to Allies List on first meet.
+  if (fromDistrict && KEEPER_ALLY_IDS[fromDistrict] && typeof meetAlly === 'function') {
+    meetAlly(KEEPER_ALLY_IDS[fromDistrict]);
+  }
   const questId = QUEST_BY_HALL[hallMapId];
   const q = questId && QUEST_DEFS[questId];
   if (!q || !fromDistrict) {
@@ -8279,7 +8287,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne
+  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*&'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne · V3.17.34 & = Mom's plant
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -9755,6 +9763,80 @@ function drawTile(x, y, ch, mx, my) {
       }
       break;
     }
+    case '&': {
+      // V3.17.34 — MOM'S PLANT (blocker).  Terra-cotta pot with a leafy
+      // green fern in the living room, next to the couch.  When the
+      // player carries a VERDANT SEED, the plant glows a soft green
+      // pulse (Mom's tender ecosystem responding to the seed).  Home
+      // redemption target — interact turns the seed into a REVIVAL STEM.
+      drawTile(x, y, '.', mx, my);
+      const hasSeed = !!(game.player && game.player.items && game.player.items.verdant_seed);
+      const cx = px + TILE / 2, cy = py + TILE / 2;
+      // Faint green aura if seed is in inventory
+      if (hasSeed) {
+        const pulse = 0.4 + 0.6 * Math.sin(Date.now() / 340);
+        ctx.fillStyle = `rgba(80, 220, 120, ${0.10 + 0.18 * pulse})`;
+        ctx.beginPath();
+        ctx.arc(cx, cy + 2, 12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Terra-cotta pot — trapezoidal
+      ctx.fillStyle = '#a04828';
+      ctx.beginPath();
+      ctx.moveTo(px + 9, py + TILE - 3);
+      ctx.lineTo(px + TILE - 9, py + TILE - 3);
+      ctx.lineTo(px + TILE - 11, py + TILE - 13);
+      ctx.lineTo(px + 11, py + TILE - 13);
+      ctx.closePath();
+      ctx.fill();
+      // Pot rim
+      ctx.fillStyle = '#7a3018';
+      ctx.fillRect(px + 10, py + TILE - 14, TILE - 20, 2);
+      // Soil line
+      ctx.fillStyle = '#2a1808';
+      ctx.fillRect(px + 12, py + TILE - 15, TILE - 24, 1);
+      // Fern leaves — layered green fronds
+      ctx.fillStyle = '#1c4a2c';
+      ctx.beginPath();
+      ctx.moveTo(cx, py + 4);
+      ctx.lineTo(cx - 8, py + 14);
+      ctx.lineTo(cx - 2, py + 15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx, py + 4);
+      ctx.lineTo(cx + 8, py + 14);
+      ctx.lineTo(cx + 2, py + 15);
+      ctx.closePath();
+      ctx.fill();
+      // Bright leaf highlights (mid-green)
+      ctx.fillStyle = '#3a8a4c';
+      ctx.beginPath();
+      ctx.moveTo(cx, py + 5);
+      ctx.lineTo(cx - 5, py + 12);
+      ctx.lineTo(cx, py + 13);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx, py + 5);
+      ctx.lineTo(cx + 5, py + 12);
+      ctx.lineTo(cx, py + 13);
+      ctx.closePath();
+      ctx.fill();
+      // Central stem
+      ctx.strokeStyle = '#5cb87c';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, py + 4);
+      ctx.lineTo(cx, py + TILE - 13);
+      ctx.stroke();
+      // Sparkle-tip when seed is held
+      if (hasSeed) {
+        ctx.fillStyle = '#a8ffcc';
+        ctx.fillRect(cx - 1, py + 4, 2, 2);
+      }
+      break;
+    }
     case '@': {
       // V3.17.6 — ANCIENT RELIGIOUS STATUE (blocker).  Weathered stone
       // pedestal + robed figure with a gold halo.  Purple glow intensifies
@@ -10679,6 +10761,7 @@ function enableUltharisMode() {
   p.items.potion        = Math.max(20, p.items.potion || 0);
   p.items.grand_potion  = Math.max(10, p.items.grand_potion || 0);
   p.items.master_potion = Math.max(5,  p.items.master_potion || 0);
+  p.items.revival_stem  = Math.max(5,  p.items.revival_stem  || 0);   // V3.17.34
   // Zysphere pools
   p.zyspheres      = Math.max(50, p.zyspheres      || 0);
   p.zyspheresVoid  = Math.max(25, p.zyspheresVoid  || 0);
@@ -11475,7 +11558,10 @@ function openItemsView() {
     { key: 'potion',        name: 'Potion',         desc: 'Heals 40 HP on the top Zyrex.',                                                             count: (it.potion || 0) },
     // V3.10 — potion variants unlocked at the merchant past Rizer Level gates.
     { key: 'grand_potion',  name: 'Grand Potion',   desc: 'Heals 100 HP on the top Zyrex.  Baelgor nurse-grade.',                                     count: (it.grand_potion  || 0) },
-    { key: 'master_potion', name: 'Master Potion',  desc: 'Full HP and clears status on the top Zyrex.  Elixir-grade.',                                count: (it.master_potion || 0) },
+    { key: 'master_potion', name: 'Master Potion',  desc: 'Heals 50% of max HP and clears status on the top Zyrex.  Elixir-grade.',                    count: (it.master_potion || 0) },
+    // V3.17.34 — REVIVAL STEM.  Only true full-heal in the game.  Grown at
+    // Mom's plant from a Verdant Seed, or occasionally shaken from a tree.
+    { key: 'revival_stem',  name: 'Revival Stem',   desc: 'Full HP and clears status on the top Zyrex.  Warm.  Almost a heartbeat.  From Mom\'s plant.', count: (it.revival_stem || 0) },
     { key: 'zysphere',        name: 'Zysphere',       desc: 'Synchronizes with a wild Zyrex\'s astralite makeup.  If they submit, they are bound.',              count: (game.player.zyspheres      || 0) },
     { key: 'zysphere_void',   name: 'Void Zysphere',  desc: 'Void-etched Thardun matrix.  +40% sync odds vs the basic sphere.',                                     count: (game.player.zyspheresVoid  || 0) },
     { key: 'zysphere_ultra',  name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                                count: (game.player.zyspheresUltra || 0) },
@@ -11563,7 +11649,7 @@ function openItemsView() {
         <div class="name">${r.name} <span style="color:var(--gold);font-family:var(--font-pixel);font-size:15px;">×${r.count}</span></div>
         <div class="desc">${r.desc}</div>
       </div>
-      <button ${r.count <= 0 || !['potion','grand_potion','master_potion'].includes(r.key) ? 'disabled' : ''}>USE</button>
+      <button ${r.count <= 0 || !['potion','grand_potion','master_potion','revival_stem'].includes(r.key) ? 'disabled' : ''}>USE</button>
     `;
     row.querySelector('button').onclick = () => useItem(r.key);
     // V2.19.2 — pressing Enter on the row triggers the USE button.
@@ -11578,16 +11664,25 @@ function openItemsView() {
 }
 function useItem(key) {
   // V3.10.5 — Grand Potion / Master Potion also usable from the items
-  // overlay outside battle.  Grand heals +100; Master heals full and
-  // clears status.  Basic Potion behavior unchanged (+40).
-  if (!['potion','grand_potion','master_potion'].includes(key)) return;
+  // overlay outside battle.  V3.17.34 rebalance:
+  //   Potion         +40 flat
+  //   Grand Potion   +100 flat
+  //   Master Potion  +50% of max HP + clears status  (was full HP)
+  //   Revival Stem   FULL HP + clears status  (only true full-heal)
+  if (!['potion','grand_potion','master_potion','revival_stem'].includes(key)) return;
   if (!game.player.items || (game.player.items[key] || 0) <= 0) return;
+  const isStem   = key === 'revival_stem';
   const isMaster = key === 'master_potion';
-  const target = game.player.party.find(r => r && (r.hp < r.maxHp || (isMaster && r.status)));
+  const clearsStatus = isStem || isMaster;
+  const target = game.player.party.find(r => r && (r.hp < r.maxHp || (clearsStatus && r.status)));
   if (!target) { showToast('ALL ZYREX AT FULL HP'); return; }
   const before = target.hp;
-  if (isMaster) {
+  if (isStem) {
     target.hp = target.maxHp;
+    target.status = null;
+  } else if (isMaster) {
+    const halfHeal = Math.ceil(target.maxHp / 2);
+    target.hp = Math.min(target.maxHp, target.hp + halfHeal);
     target.status = null;
   } else {
     const healAmt = key === 'grand_potion' ? 100 : 40;
@@ -11595,8 +11690,15 @@ function useItem(key) {
   }
   game.player.items[key]--;
   save();
-  const label = key === 'grand_potion' ? 'GRAND POTION' : key === 'master_potion' ? 'MASTER POTION' : 'POTION';
-  showToast(isMaster ? `✚ ${target.name}  FULL HP · status cleared` : `✚ ${target.name}  +${target.hp - before} HP · ${label}`);
+  const label = key === 'grand_potion'  ? 'GRAND POTION'
+              : key === 'master_potion' ? 'MASTER POTION'
+              : key === 'revival_stem'  ? 'REVIVAL STEM'
+              :                            'POTION';
+  showToast(isStem
+    ? `✚ ${target.name}  FULL HP · status cleared · REVIVAL STEM`
+    : isMaster
+      ? `✚ ${target.name}  +${target.hp - before} HP · status cleared · MASTER POTION`
+      : `✚ ${target.name}  +${target.hp - before} HP · ${label}`);
   openItemsView();
 }
 document.getElementById('items-close').onclick = () => $itemsov.classList.remove('active');
@@ -11611,7 +11713,7 @@ $itemsov.addEventListener('click', (e) => { if (e.target === $itemsov) $itemsov.
 const SHOP_STOCK = [
   { key: 'potion',        name: 'Potion',         desc: 'Heals 40 HP.',                                                                          price: 5  },
   { key: 'grand_potion',  name: 'Grand Potion',   desc: 'Heals 100 HP.  Baelgor nurse-grade.',                                                    price: 25,  rizerLvNeed: 5  },
-  { key: 'master_potion', name: 'Master Potion',  desc: 'Full HP + clears status.  Elixir-grade.',                                                price: 60,  rizerLvNeed: 15 },
+  { key: 'master_potion', name: 'Master Potion',  desc: 'Heals 50% of max HP + clears status.  Elixir-grade.',                                     price: 60,  rizerLvNeed: 15 },
   { key: 'zysphere',      name: 'Zysphere',       desc: 'Basic Thardun matrix.  Sync-binds a wild Zyrex.',                                        price: 10 },
   { key: 'zysphere_void', name: 'Void Zysphere',  desc: 'Void-etched matrix.  +40% sync odds vs the basic sphere.',                                price: 30,  rizerLvNeed: 10 },
   { key: 'zysphere_ultra',name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                  price: 90,  rizerLvNeed: 25 },
@@ -12376,6 +12478,9 @@ function interactVillager(tx, ty) {
     if (hall && hall.npcs) {
       const npc = hall.npcs[tx + ',' + ty];
       if (!npc) { showDialog(['They nod, but say nothing.']); return; }
+      // V3.17.33 — resolve this NPC's Legend id and add to Allies List.
+      const _allyId = (HALL_ALLY_IDS[fromDistrict] || {})[tx + ',' + ty];
+      if (_allyId) meetAlly(_allyId);
       // Gift-giver: first talk drops the item + records claim
       if (npc.kind === 'gift') {
         game.player.townHallGifts = game.player.townHallGifts || {};
@@ -12857,6 +12962,14 @@ function tryInteract() {
     interactGemlordThrone();
   } else if (t === 'K') {
     openChest(tx, ty);
+  } else if (t === '&') {
+    // V3.17.34 — Mom's plant in the living room · verdant_seed redemption.
+    interactMomsPlant();
+  } else if (t === 'T') {
+    // V3.17.34 — Trees are shakeable ONLY when the player carries the
+    // VERDANT SEED (the seed teaches you which trees remember their old
+    // growth).  10% chance per untouched tree to shake loose a Revival Stem.
+    interactTree(tx, ty);
   } else if (t === 'm') {
     interactMom();
   } else if (t === 'd') {
@@ -12949,6 +13062,8 @@ function tryInteract() {
       handleNpcTrainer('R', tx, ty);
     }
   } else if (t === 'N') {
+    // V3.17.33 — Myara is a Legend.  Meet on first sight.
+    if (typeof meetAlly === 'function') meetAlly('myara');
     if (game.player.npcDefeated) {
       showDialog([
         "MYARA: You bind a good frequency, trainer.",
@@ -14443,6 +14558,111 @@ function interactFireplace() {
   ]);
 }
 
+// V3.17.34 — MOM'S PLANT.  Home redemption for the VERDANT SEED.
+// The fern's roots recognize seed-bearers; when you plant a Verdant Seed
+// in Mom's soil, the fern grows a REVIVAL STEM — the only true full-heal
+// in the game.  Repeatable ONLY if the player brings additional seeds.
+function interactMomsPlant() {
+  if (game.player.mapId !== 'home_interior') {
+    showDialog(['A house plant.  Whose plant?  You don\'t know.  You should keep walking.']);
+    return;
+  }
+  const items = game.player.items = game.player.items || {};
+  const hasSeed  = (items.verdant_seed || 0) > 0;
+  const hasStem  = (items.revival_stem || 0) > 0;
+  const everFed  = !!game.player.momsPlantFedOnce;
+  // TOP PRIORITY — planting a Verdant Seed
+  if (hasSeed) {
+    showDialog([
+      'Mom\'s fern leans, the way a plant leans when it hears a familiar footstep.',
+      'You press the VERDANT SEED into the soil at the base of the pot.',
+      'A tremor.  The soil warms.  A slim, silver-green stem uncoils from the fern and lifts a single leaf toward you.',
+      'It comes away in your hand.  Warm.  Alive.  Almost a heartbeat.',
+      '«◈  You received a REVIVAL STEM.»',
+      everFed
+        ? 'Mom\'s fern will remember this one too.'
+        : 'Mom will notice her plant has grown a new frond.  She will not ask how.',
+    ], () => {
+      items.verdant_seed = Math.max(0, (items.verdant_seed || 1) - 1);
+      if (items.verdant_seed === 0) delete items.verdant_seed;
+      items.revival_stem = (items.revival_stem || 0) + 1;
+      game.player.momsPlantFedOnce = true;
+      save(); updateHUD();
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  REVIVAL STEM  ·  full heal + clears status', 3000);
+    });
+    return;
+  }
+  // Post-first-feed, no seed in hand — flavor
+  if (everFed) {
+    if (hasStem) {
+      showDialog([
+        'Mom\'s fern.  Full and green and alive in a way that isn\'t quite plant.',
+        'The stem in your pouch keeps time with the pulse of the leaves.',
+      ]);
+    } else {
+      showDialog([
+        'Mom\'s fern watches you leave the room.',
+        'It remembers the last seed.  It would remember another.',
+      ]);
+    }
+    return;
+  }
+  // First encounter, no seed — evocative only (no spoiler per canon)
+  showDialog([
+    'Mom\'s fern sits in a terra-cotta pot beside the couch.',
+    'The soil looks patient, the way soil looks when it is waiting for something specific.',
+  ]);
+}
+
+// V3.17.34 — TREE SHAKE.  When the player carries a VERDANT SEED, they
+// can shake ANY 'T' tree for a 10% chance to knock loose a REVIVAL STEM.
+// Each tree is one-shot per save — once a tree has been shaken (win or
+// no-win), it's marked spent so the player can't farm the same trunk.
+// Without a Verdant Seed in the pouch, interacting with a tree just
+// reads its flavor — the seed is what teaches you which trees remember.
+function interactTree(tx, ty) {
+  const items = game.player.items = game.player.items || {};
+  const hasSeed = (items.verdant_seed || 0) > 0;
+  if (!hasSeed) {
+    showDialog([
+      'A weather-beaten tree.  Bark rough, canopy thin.',
+      'You could shake it, but nothing about it looks like it wants to be shaken.',
+    ]);
+    return;
+  }
+  const key = (game.player.mapId || 'overworld') + ':' + tx + ',' + ty;
+  game.player.treesShaken = game.player.treesShaken || {};
+  if (game.player.treesShaken[key]) {
+    showDialog([
+      'This tree remembers you already tried.',
+      'Nothing else is going to fall from these branches.',
+    ]);
+    return;
+  }
+  game.player.treesShaken[key] = true;
+  const win = Math.random() < 0.10;   // 10% chance
+  if (win) {
+    items.revival_stem = (items.revival_stem || 0) + 1;
+    save(); updateHUD();
+    try { playSfx('toast'); } catch(_) {}
+    showToast('◈  REVIVAL STEM  ·  fell from the branches', 3000);
+    showDialog([
+      'You put your shoulder to the trunk and shove.',
+      'A slim silver-green stem drops out of the canopy and lands in your palm.',
+      'The tree returns to being a tree.',
+      '«◈  You received a REVIVAL STEM.»',
+    ]);
+  } else {
+    save();
+    showDialog([
+      'You put your shoulder to the trunk and shove.',
+      'Leaves.  Bark shavings.  A startled bird.',
+      'Nothing this tree was willing to part with today.',
+    ]);
+  }
+}
+
 // V3.17.6 — Consecrate the statue part in the fireplace.  Grants
 // ANCIUXOR at Lv 100 with all stats maxed (666 across the board via
 // species base × level formula, per canon T×333 pool for Tier X).
@@ -14556,9 +14776,417 @@ const ALLIES = {
     meetWhere: 'A quiet place, when you carry something old enough to bless him.',
     reward: { kind: 'gift', label: 'Vengrizz at Lv 100' },
   },
-  // Additional Legends to be added per district as they're wired into the
-  // world (target: 3-9 per district, 40-70 total across the 10 districts).
+  // ============================================================
+  //  V3.17.33 — LEGENDS OF ZYRAXIS · full rollout
+  //  Every already-named humanoid in the game is wired below.
+  //  Meet-triggers land at the existing interact sites (town hall
+  //  villagers, gift-givers, keepers, hall Rizers, named trainers).
+  // ============================================================
+
+  // ---- MALEZOR (Beastlands) — 7 Legends ----
+  kelthor: {
+    name: 'Warden Kelthor', district: 'malezor', districtLabel: 'Malezor · Beastwarden\'s Hall',
+    class: 'Beastwarden', archetype: 'Keeper of the Ancient Oath',
+    tier: 5, tierClass: 'Apex', epithet: 'Senior Beast-Warden',
+    flavor: 'The senior beast-warden of Malezor.  First Keeper the young Rizer speaks to — the one who explains the Oath, the Gemlords, and the Seers.',
+    meetWhere: 'Beastwarden\'s Hall — the Keeper\'s seat.',
+    reward: { kind: 'tip', label: 'Grants the Rubypaw sidequest and the first Keeper-of-the-Oath lore beat' },
+  },
+  ridge_tracker: {
+    name: 'Ridge Tracker', district: 'malezor', districtLabel: 'Malezor · Beastwarden\'s Hall',
+    class: 'Tracker', archetype: 'Reader of Boot-Prints',
+    tier: 3, tierClass: 'Adept', epithet: 'Reader of the Ridge',
+    flavor: 'Reads tracks better than any hunter in Malezor.  Notes which foot the player lands heavy on.  Rumormonger for Yara, Jax, and Quinn.',
+    meetWhere: 'Beastwarden\'s Hall — the second bench.',
+    reward: { kind: 'tip', label: 'Names the three district patrols (Yara / Jax / Quinn) and their haunts' },
+  },
+  beastwarden_gift: {
+    name: 'Beastwarden', district: 'malezor', districtLabel: 'Malezor · Beastwarden\'s Hall',
+    class: 'Gift-Keeper', archetype: 'Old Malezor Courtesy',
+    tier: 4, tierClass: 'Legend', epithet: 'The Welcome-Giver',
+    flavor: 'The Beastwarden who greets every young Rizer with the old Malezor courtesy — nobody heads east empty-handed.',
+    meetWhere: 'Beastwarden\'s Hall — the raised seat.',
+    reward: { kind: 'item', label: 'First-visit gift · +2 Zyspheres' },
+  },
+  ranger_ris: {
+    name: 'Ranger Ris', district: 'malezor', districtLabel: 'Malezor · Beastwarden\'s Hall',
+    class: 'Ranger', archetype: 'Ridge-Walker',
+    tier: 3, tierClass: 'Adept', epithet: 'Ranger of the Ridges',
+    flavor: 'Walked every ridge on this district before you were born.  Runs the first Hall Rizer test.',
+    meetWhere: 'Beastwarden\'s Hall — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Challenge for the first hall passage' },
+  },
+  jax: {
+    name: 'Jax', district: 'malezor', districtLabel: 'Malezor · Beastlands',
+    class: 'Rival', archetype: 'Rival Rizer',
+    tier: 3, tierClass: 'Adept', epithet: 'The West-Road Sparring Partner',
+    flavor: 'Rival Rizer.  Doesn\'t take passengers.  Bound his first shard while you were still deciding.',
+    meetWhere: 'The west road out of Malezor town.',
+    reward: { kind: 'tip', label: 'Rival battle · gnashling + skorrax' },
+  },
+  quinn: {
+    name: 'Quinn', district: 'malezor', districtLabel: 'Malezor · Beastlands',
+    class: 'Wanderer', archetype: 'Desert Wanderer',
+    tier: 3, tierClass: 'Adept', epithet: 'The Dunes Remember Her',
+    flavor: 'Desert wanderer.  Says the dunes remember every step; nobody knows where she sleeps.',
+    meetWhere: 'The south dunes — she moves with the sand.',
+    reward: { kind: 'tip', label: 'Challenge battle · thornkit + grivvik' },
+  },
+  myara: {
+    name: 'Myara', district: 'malezor', districtLabel: 'Malezor · Beastlands',
+    class: 'Novice Rizer', archetype: 'First-Bind Sparring',
+    tier: 2, tierClass: 'Journeyman', epithet: 'She Who Binds a Good Frequency',
+    flavor: 'The first friendly sparring most young Rizers cross paths with.  Fresh out of the observatory herself.',
+    meetWhere: 'Near the shrine at the north-center of Malezor.',
+    reward: { kind: 'tip', label: 'Early battle · thornkit + valenkit' },
+  },
+
+  // ---- ZARVANE (Auralands) — 4 Legends ----
+  ivelith: {
+    name: 'Choirmother Ivelith', district: 'zarvane', districtLabel: 'Zarvane · Sunlit Temple',
+    class: 'Sunpriestess', archetype: 'Keeper of the Ancient Oath',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'High Sunpriestess',
+    flavor: 'High sunpriestess who speaks to Ivirium through the Pearlchoir Bell.  Second Keeper in the chain.',
+    meetWhere: 'Sunlit Temple — the pulpit.',
+    reward: { kind: 'tip', label: 'Grants the Pearlchoir Bell sidequest' },
+  },
+  pearl_pilgrim: {
+    name: 'Pearl Pilgrim', district: 'zarvane', districtLabel: 'Zarvane · Sunlit Temple',
+    class: 'Pilgrim', archetype: 'Barefoot Wayfarer',
+    tier: 2, tierClass: 'Journeyman', epithet: 'She Who Walked From Malezor',
+    flavor: 'Walked from Malezor to Zarvane barefoot.  Her feet remember every step; her mind, less so.',
+    meetWhere: 'Sunlit Temple — the back row.',
+    reward: { kind: 'tip', label: 'Warns of Ivirium\'s sanctum beneath the eastern cave' },
+  },
+  temple_keeper_gift: {
+    name: 'Temple Keeper', district: 'zarvane', districtLabel: 'Zarvane · Sunlit Temple',
+    class: 'Gift-Keeper', archetype: 'Blessing-Giver',
+    tier: 4, tierClass: 'Legend', epithet: 'Bearer of the Pilgrim\'s Rest',
+    flavor: 'Every pilgrim who reaches Zarvane earns a rest and a healing.  The Temple Keeper hands out both.',
+    meetWhere: 'Sunlit Temple — the raised alcove.',
+    reward: { kind: 'item', label: 'First-visit gift · +3 Potions' },
+  },
+  sun_priest_bril: {
+    name: 'Sun-Priest Bril', district: 'zarvane', districtLabel: 'Zarvane · Sunlit Temple',
+    class: 'Aura-Priest', archetype: 'Focus Made Flesh',
+    tier: 4, tierClass: 'Legend', epithet: 'Aura-Priest of Zarvane',
+    flavor: 'The Aura-priest who runs the Temple Rizer test.  The sun rewards focus.',
+    meetWhere: 'Sunlit Temple — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · wisplet + cogling' },
+  },
+
+  // ---- ANDRANNOR (Creaturelands) — 4 Legends ----
+  mora: {
+    name: 'Beastkeeper Mora', district: 'andrannor', districtLabel: 'Andrannor · Obsidian Archive',
+    class: 'Beastkeeper', archetype: 'Keeper of the Ancient Oath',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'Keeper of the Creaturewilds',
+    flavor: 'Keeps every binding rite of the creaturewilds.  The Citrinehowl fang goes to her.',
+    meetWhere: 'Obsidian Archive — the reading room.',
+    reward: { kind: 'tip', label: 'Grants the Citrinehowl Fang sidequest' },
+  },
+  ruin_scholar: {
+    name: 'Ruin Scholar', district: 'andrannor', districtLabel: 'Andrannor · Obsidian Archive',
+    class: 'Scholar', archetype: 'Room-Reader',
+    tier: 3, tierClass: 'Adept', epithet: 'The One Who Reads Rooms',
+    flavor: 'Scholar of ruins.  Says a trainer\'s greatest advantage is having read the room they\'re about to enter.',
+    meetWhere: 'Obsidian Archive — shelf four.',
+    reward: { kind: 'tip', label: 'Names Mirax\'s gambling house behind the seal' },
+  },
+  head_archivist: {
+    name: 'Head Archivist', district: 'andrannor', districtLabel: 'Andrannor · Obsidian Archive',
+    class: 'Gift-Keeper', archetype: 'Advance-Payer of Memories',
+    tier: 4, tierClass: 'Legend', epithet: 'She Who Pays In Advance',
+    flavor: 'Head of the Obsidian Archive.  Pays living Rizers for the memories they will one day leave behind.',
+    meetWhere: 'Obsidian Archive — the head desk.',
+    reward: { kind: 'item', label: 'First-visit gift · +250 Coins' },
+  },
+  archivist_dune: {
+    name: 'Archivist Dune', district: 'andrannor', districtLabel: 'Andrannor · Obsidian Archive',
+    class: 'Scholar-Rizer', archetype: 'Battle-Chronicler',
+    tier: 4, tierClass: 'Legend', epithet: 'The One Who Writes Fights',
+    flavor: 'Scholar-Rizer.  Every fight he watches ends up in a book — including yours.',
+    meetWhere: 'Obsidian Archive — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · grivvik + gnashling' },
+  },
+
+  // ---- VERIDAN (Naturelands) — 4 Legends ----
+  selis: {
+    name: 'Grovewarden Selis', district: 'veridan', districtLabel: 'Veridan · Verdant Solarium',
+    class: 'Grovewarden', archetype: 'Keeper of the Ancient Oath',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'Root of the Great Tree',
+    flavor: 'Root of the Great Tree.  Says she will grow the border grove herself when the Emeraldbloom Seed comes home.',
+    meetWhere: 'Verdant Solarium — the sunlit pulpit.',
+    reward: { kind: 'tip', label: 'Grants the Emeraldbloom Seed sidequest' },
+  },
+  gardener: {
+    name: 'Gardener', district: 'veridan', districtLabel: 'Veridan · Verdant Solarium',
+    class: 'Gardener', archetype: 'Bandit-Watcher',
+    tier: 3, tierClass: 'Adept', epithet: 'She Who Sees Emeralix at Dusk',
+    flavor: 'Tends the Solarium beds.  Says Emeralix walks the ridge at dusk — if you see him, you were meant to.',
+    meetWhere: 'Verdant Solarium — the middle path.',
+    reward: { kind: 'tip', label: 'Warns of Thorne\'s bandits on the north road' },
+  },
+  head_botanist: {
+    name: 'Head Botanist', district: 'veridan', districtLabel: 'Veridan · Verdant Solarium',
+    class: 'Gift-Keeper', archetype: 'Petal-Sealer of Wounds',
+    tier: 4, tierClass: 'Legend', epithet: 'Bearer of the Verdant Petals',
+    flavor: 'Head Botanist.  Veridan\'s petals close a wound faster than most Rizers close a door.',
+    meetWhere: 'Verdant Solarium — the greenhouse alcove.',
+    reward: { kind: 'item', label: 'First-visit gift · +4 Potions' },
+  },
+  tree_warden_vela: {
+    name: 'Tree-Warden Vela', district: 'veridan', districtLabel: 'Veridan · Verdant Solarium',
+    class: 'Nature-Rizer', archetype: 'Root-Down Discipline',
+    tier: 5, tierClass: 'Apex', epithet: 'She Who Grows Battles',
+    flavor: 'Nature-Rizer.  Believes rooting down before every fight is half the win.',
+    meetWhere: 'Verdant Solarium — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · sproutling twins' },
+  },
+
+  // ---- NETHARION (Unknownlands) — 4 Legends ----
+  voss: {
+    name: 'Nullkeeper Voss', district: 'netharion', districtLabel: 'Netharion · Voidkeeper\'s Sanctum',
+    class: 'Nullkeeper', archetype: 'Keeper of the Ancient Oath',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'Keeper of the Empty Room',
+    flavor: 'Silences whispering crystals for a living.  Warns you not to listen to the Amethyst Voicecrystal too long.',
+    meetWhere: 'Voidkeeper\'s Sanctum — the quiet alcove.',
+    reward: { kind: 'tip', label: 'Grants the Amethyst Voicecrystal sidequest' },
+  },
+  purple_cloak: {
+    name: 'Purple-Cloak', district: 'netharion', districtLabel: 'Netharion · Voidkeeper\'s Sanctum',
+    class: 'Void-Adept', archetype: 'Dream-Aware',
+    tier: 4, tierClass: 'Legend', epithet: 'One Who Was Dreamed',
+    flavor: 'Void-adept in a purple cloak.  Reminds you Netharion is the center; everything else is the edge trying to hold.',
+    meetWhere: 'Voidkeeper\'s Sanctum — the far bench.',
+    reward: { kind: 'tip', label: 'Warns Eurakeon dreams the world under the amethyst seal' },
+  },
+  voidkeeper_gift: {
+    name: 'Voidkeeper', district: 'netharion', districtLabel: 'Netharion · Voidkeeper\'s Sanctum',
+    class: 'Gift-Keeper', archetype: 'Sphere-Provisioner',
+    tier: 5, tierClass: 'Apex', epithet: 'Provisioner of the Rift',
+    flavor: 'The Voidkeeper who provisions every Rizer who arrives in Netharion.  Says you\'ll need more spheres than you think.',
+    meetWhere: 'Voidkeeper\'s Sanctum — the raised dais.',
+    reward: { kind: 'item', label: 'First-visit gift · +4 Zyspheres' },
+  },
+  void_seeker_lyss: {
+    name: 'Void-Seeker Lyss', district: 'netharion', districtLabel: 'Netharion · Voidkeeper\'s Sanctum',
+    class: 'Unknown-Void Rizer', archetype: 'Rift-Reader',
+    tier: 5, tierClass: 'Apex', epithet: 'She Who Reads the Rift\'s Mood',
+    flavor: 'Reads the rift\'s favorite move every morning.  Never uses it herself.',
+    meetWhere: 'Voidkeeper\'s Sanctum — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · skorrax + riftling' },
+  },
+
+  // ---- VORASHIL (Alienlands) — 4 Legends ----
+  ezekar: {
+    name: 'Skybroker Ezekar', district: 'vorashil', districtLabel: 'Vorashil · Skyport Nexus',
+    class: 'Skybroker', archetype: 'Keeper of the Ancient Oath',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'Senior Alien-Tech Broker',
+    flavor: 'Senior alien-tech broker of the Skyport.  Wants the Sapphire Landing Chip before Thardun does.',
+    meetWhere: 'Skyport Nexus — the broker desk.',
+    reward: { kind: 'tip', label: 'Grants the Sapphire Landing Chip sidequest' },
+  },
+  alien_emissary: {
+    name: 'Alien Emissary', district: 'vorashil', districtLabel: 'Vorashil · Skyport Nexus',
+    class: 'Emissary', archetype: 'Off-World Translator',
+    tier: 4, tierClass: 'Legend', epithet: 'She Who Translates the Docks',
+    flavor: 'Emissary from off-world.  Explains Tech Zyrex here scale differently on evolve — their stats jump instead of curve.',
+    meetWhere: 'Skyport Nexus — the emissary bench.',
+    reward: { kind: 'tip', label: 'Warns Zypher-9 sells names — don\'t trade yours' },
+  },
+  portmaster: {
+    name: 'Portmaster', district: 'vorashil', districtLabel: 'Vorashil · Skyport Nexus',
+    class: 'Gift-Keeper', archetype: 'Stipend-Issuer',
+    tier: 5, tierClass: 'Apex', epithet: 'The Registered-Rizer Stipend',
+    flavor: 'The Portmaster who issues the off-worlder stipend to every registered Rizer.',
+    meetWhere: 'Skyport Nexus — the port office.',
+    reward: { kind: 'item', label: 'First-visit gift · +500 Coins' },
+  },
+  emissary_zorn: {
+    name: 'Emissary Zorn', district: 'vorashil', districtLabel: 'Vorashil · Skyport Nexus',
+    class: 'Skyport Rizer', archetype: 'Docking Inspector',
+    tier: 5, tierClass: 'Apex', epithet: 'The Standard Docking Procedure',
+    flavor: 'Skyport Rizer.  Tests every arrival — standard docking procedure.',
+    meetWhere: 'Skyport Nexus — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · boltling + wisplet' },
+  },
+
+  // ---- XILNAR (Spiritlands) — 4 Legends ----
+  naela: {
+    name: 'Wispkeeper Naela', district: 'xilnar', districtLabel: 'Xilnar · Wispward Chapel',
+    class: 'Wispkeeper', archetype: 'Keeper of the Ancient Oath',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'Reader of the Wisps',
+    flavor: 'Reader of the wisps.  Wants the Onyx Wisp Coin home.',
+    meetWhere: 'Wispward Chapel — the wisp altar.',
+    reward: { kind: 'tip', label: 'Grants the Onyx Wisp Coin sidequest' },
+  },
+  spirit_medium: {
+    name: 'Spirit Medium', district: 'xilnar', districtLabel: 'Xilnar · Wispward Chapel',
+    class: 'Medium', archetype: 'Wall-Walker Chronicler',
+    tier: 4, tierClass: 'Legend', epithet: 'She Who Sees Resha Coming',
+    flavor: 'Spirit Medium.  Says Resha the Onyxwidow inherits every Zyrex she defeats — and she has a lot of Zyrex.',
+    meetWhere: 'Wispward Chapel — the reading nook.',
+    reward: { kind: 'tip', label: 'Warns Spirit types walk through walls in Xilnar (so do the walls)' },
+  },
+  head_priest: {
+    name: 'Head Priest', district: 'xilnar', districtLabel: 'Xilnar · Wispward Chapel',
+    class: 'Gift-Keeper', archetype: 'Wisp-Pool Custodian',
+    tier: 5, tierClass: 'Apex', epithet: 'Custodian of the Third-Night Pool',
+    flavor: 'Head Priest of the Chapel.  Wisps pool at the altar every third night; the Priest keeps what they leave.',
+    meetWhere: 'Wispward Chapel — the priest\'s bench.',
+    reward: { kind: 'item', label: 'First-visit gift · +5 Potions' },
+  },
+  medium_orla: {
+    name: 'Medium Orla', district: 'xilnar', districtLabel: 'Xilnar · Wispward Chapel',
+    class: 'Spirit-Rizer', archetype: 'Wisp-Chosen',
+    tier: 5, tierClass: 'Apex', epithet: 'She Whom the Wisps Like',
+    flavor: 'Spirit-Rizer.  Says the wisps like you; will find out if she does too.',
+    meetWhere: 'Wispward Chapel — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · shadeling + skorrax' },
+  },
+
+  // ---- BAELGOR (Humanoidlands) — 4 Legends (+ Psychosyd already) ----
+  draith: {
+    name: 'Emberkeeper Draith', district: 'baelgor', districtLabel: 'Baelgor · Forgeheart Foundry',
+    class: 'Emberkeeper', archetype: 'Keeper of the Ancient Oath',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'Master of the Amber Forge',
+    flavor: 'Master of the amber forge.  Wants the Amber Chainlink back before the convoy breaks.',
+    meetWhere: 'Forgeheart Foundry — the master forge.',
+    reward: { kind: 'tip', label: 'Grants the Amber Chainlink sidequest' },
+  },
+  ember_watcher: {
+    name: 'Ember Watcher', district: 'baelgor', districtLabel: 'Baelgor · Forgeheart Foundry',
+    class: 'Watcher', archetype: 'Road-Counter',
+    tier: 4, tierClass: 'Legend', epithet: 'He Who Counts the South Road',
+    flavor: 'Watcher of the ember-anvil.  Says Drakkur the Amberchain runs the south road and counts everyone who walks it.',
+    meetWhere: 'Forgeheart Foundry — the watch bench.',
+    reward: { kind: 'tip', label: 'Type intel · Aura moves double, Humanoid moves triple in Baelgor' },
+  },
+  master_smith: {
+    name: 'Master Smith', district: 'baelgor', districtLabel: 'Baelgor · Forgeheart Foundry',
+    class: 'Gift-Keeper', archetype: 'Smith\'s Tithe-Giver',
+    tier: 5, tierClass: 'Apex', epithet: 'She Who Tithes The Arriving',
+    flavor: 'Master Smith of Forgeheart.  Every arriving Rizer earns a smith\'s tithe.',
+    meetWhere: 'Forgeheart Foundry — the master anvil.',
+    reward: { kind: 'item', label: 'First-visit gift · +800 Coins' },
+  },
+  forge_knight_kain: {
+    name: 'Forge-Knight Kain', district: 'baelgor', districtLabel: 'Baelgor · Forgeheart Foundry',
+    class: 'Forge-Rizer', archetype: 'Test-of-Fire',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'He Whom the Forge Tests',
+    flavor: 'Forge-Rizer.  The forge tests everything.  So does Kain.',
+    meetWhere: 'Forgeheart Foundry — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · skorrik + valenkit' },
+  },
+
+  // ---- THARDIN (Mechlands) — 4 Legends ----
+  yorik: {
+    name: 'Foremanchief Yorik', district: 'thardin', districtLabel: 'Thardin · Cog Concourse',
+    class: 'Foremanchief', archetype: 'Keeper of the Ancient Oath',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'Chief Engineer of Thardun',
+    flavor: 'Chief engineer of Thardun.  His best machine grinds without the Anomaly Cog.',
+    meetWhere: 'Cog Concourse — the foreman\'s deck.',
+    reward: { kind: 'tip', label: 'Grants the Anomaly Cog sidequest' },
+  },
+  pipe_reader: {
+    name: 'Pipe Reader', district: 'thardin', districtLabel: 'Thardin · Cog Concourse',
+    class: 'Pipe-Reader', archetype: 'Future-Knitter\'s Witness',
+    tier: 4, tierClass: 'Legend', epithet: 'He Who Reads the Pipes',
+    flavor: 'Reads the Concourse pipes for signs.  Says Helix knits futures but never wears the one he made you.',
+    meetWhere: 'Cog Concourse — the pipe gallery.',
+    reward: { kind: 'tip', label: 'Timing intel · Mech Zyrex evolve on schedule, not level, in Thardin' },
+  },
+  foreman_gift: {
+    name: 'Foreman', district: 'thardin', districtLabel: 'Thardin · Cog Concourse',
+    class: 'Gift-Keeper', archetype: 'Capture-Tech Provisioner',
+    tier: 5, tierClass: 'Apex', epithet: 'Issuer of the Standard Allotment',
+    flavor: 'The Concourse Foreman.  Issues capture tech to every registered Rizer — the standard allotment.',
+    meetWhere: 'Cog Concourse — the issuance window.',
+    reward: { kind: 'item', label: 'First-visit gift · +6 Zyspheres' },
+  },
+  machine_lord_ota: {
+    name: 'Machine-Lord Ota', district: 'thardin', districtLabel: 'Thardin · Cog Concourse',
+    class: 'Mech-Rizer', archetype: 'The-Test-Is-You',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'He Who Starts With a Test',
+    flavor: 'Mech-Rizer.  Every good machine starts with a test; you are today\'s test.',
+    meetWhere: 'Cog Concourse — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · xeruik + boltling' },
+  },
+
+  // ---- KORATHEN (Ultralands) — 4 Legends ----
+  court_herald: {
+    name: 'Court Herald', district: 'korathen', districtLabel: 'Korathen · Gilded Throne Hall',
+    class: 'Herald', archetype: 'Reader of the Empty Throne',
+    tier: 5, tierClass: 'Apex', epithet: 'He Who Forgets Which Throne',
+    flavor: 'Court Herald of the Gilded Throne Hall.  "The throne is empty.  It has always been empty.  Or it has always been someone.  I forget which."',
+    meetWhere: 'Gilded Throne Hall — the herald\'s podium.',
+    reward: { kind: 'tip', label: 'Names Oatheus and the Ultra cave; sets the endgame arrival beat' },
+  },
+  royal_historian: {
+    name: 'Royal Historian', district: 'korathen', districtLabel: 'Korathen · Gilded Throne Hall',
+    class: 'Historian', archetype: 'Gemshard-Counter',
+    tier: 5, tierClass: 'Apex', epithet: 'She Who Counts Before You Show',
+    flavor: 'Royal Historian.  Says Threefold counts your gemshards before you show them — she always knows.',
+    meetWhere: 'Gilded Throne Hall — the historian\'s alcove.',
+    reward: { kind: 'tip', label: 'Warns Korathen wilds tier into the thirties — arrive ready' },
+  },
+  chamberlain: {
+    name: 'Chamberlain', district: 'korathen', districtLabel: 'Korathen · Gilded Throne Hall',
+    class: 'Gift-Keeper', archetype: 'Gold-Weigher',
+    tier: 6, tierClass: 'Pseudoimmortal', epithet: 'She Who Weighs Every Coin',
+    flavor: 'Chamberlain of the Gilded Throne.  The last town of the Ninth World greets every arriving Rizer with a gift of gold.',
+    meetWhere: 'Gilded Throne Hall — the treasury door.',
+    reward: { kind: 'item', label: 'First-visit gift · +1500 Coins' },
+  },
+  herald_luxe: {
+    name: 'Herald Luxe', district: 'korathen', districtLabel: 'Korathen · Gilded Throne Hall',
+    class: 'Imperial Champion', archetype: 'Throne-Watcher',
+    tier: 7, tierClass: 'Immortal', epithet: 'He Who Gives the Throne a Show',
+    flavor: 'Imperial champion of Korathen.  The throne watches; Luxe gives it something to remember.',
+    meetWhere: 'Gilded Throne Hall — the Rizer floor.',
+    reward: { kind: 'tip', label: 'Hall Rizer challenge · cogling + wisplet' },
+  },
 };
+// V3.17.33 — Ally-id lookup tables for the 5 interaction sites.  Keeps
+// the interact handlers one-line-simple: they resolve the ally id from
+// the (district, tile-coord | quest | rizer-name) triple, then call
+// meetAlly().  Editing these tables is the single source of truth for
+// which humanoid = which Legend.
+
+// Town-hall NPC → ally id.  Keyed by (fromDistrict → 'tx,ty').  The
+// keeper coord is ALSO listed here so mid-quest interacts still meet
+// the keeper; the keeper handler will also call meetAlly on its own.
+const HALL_ALLY_IDS = {
+  malezor:   { '3,2': 'kelthor',       '9,5':  'ridge_tracker',  '9,7': 'beastwarden_gift' },
+  zarvane:   { '3,2': 'ivelith',       '12,2': 'pearl_pilgrim',  '9,7': 'temple_keeper_gift' },
+  andrannor: { '3,2': 'mora',          '12,2': 'ruin_scholar',   '9,7': 'head_archivist' },
+  veridan:   { '3,3': 'selis',         '11,3': 'gardener',       '9,7': 'head_botanist' },
+  netharion: { '3,3': 'voss',          '12,3': 'purple_cloak',   '9,7': 'voidkeeper_gift' },
+  vorashil:  { '3,2': 'ezekar',        '12,2': 'alien_emissary', '9,7': 'portmaster' },
+  xilnar:    { '3,2': 'naela',         '12,2': 'spirit_medium',  '9,7': 'head_priest' },
+  baelgor:   { '3,2': 'draith',        '12,2': 'ember_watcher',  '9,7': 'master_smith' },
+  thardin:   { '3,2': 'yorik',         '12,2': 'pipe_reader',    '9,7': 'foreman_gift' },
+  korathen:  { '3,2': 'court_herald',  '12,2': 'royal_historian','9,8': 'chamberlain' },
+};
+
+// Keeper (of the Ancient Oath) → ally id per district.  Fires from
+// handleKeeperInteract().  Korathen has no wired quest so no keeper.
+const KEEPER_ALLY_IDS = {
+  malezor: 'kelthor',   zarvane: 'ivelith',    andrannor: 'mora',
+  veridan: 'selis',     netharion: 'voss',     vorashil: 'ezekar',
+  xilnar: 'naela',      baelgor: 'draith',     thardin: 'yorik',
+};
+
+// Hall Rizer → ally id, keyed by district.  Fires when the Hall Rizer
+// challenge dialog opens (before the actual battle) so meeting them
+// doesn't require winning.
+const HALL_RIZER_ALLY_IDS = {
+  malezor: 'ranger_ris',      zarvane: 'sun_priest_bril',   andrannor: 'archivist_dune',
+  veridan: 'tree_warden_vela',netharion: 'void_seeker_lyss',vorashil: 'emissary_zorn',
+  xilnar:  'medium_orla',     baelgor: 'forge_knight_kain', thardin:  'machine_lord_ota',
+  korathen:'herald_luxe',
+};
+
 function meetAlly(id) {
   const ally = ALLIES[id];
   if (!ally) return false;
@@ -14605,7 +15233,9 @@ function openAlliesView() {
     const key = a.class === 'Family' ? '_family' : (a.district || '_other');
     (byDistrict[key] = byDistrict[key] || []).push({ id, ...a });
   }
-  const districtOrder = ['_family', 'malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardun','korathen','_other'];
+  // V3.17.33 — Fix stray 'thardun' typo (district id is 'thardin') so Thardin
+  // Legends group under Thardin instead of falling into the '_other' bucket.
+  const districtOrder = ['_family', 'malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen','_other'];
   for (const key of districtOrder) {
     const list = byDistrict[key];
     if (!list || !list.length) continue;
@@ -15003,12 +15633,24 @@ function handleNpcTrainer(tileChar, x, y) {
     const hall = from && TOWN_HALLS[from.map];
     const r = hall && hall.rizer;
     if (r) {
+      // V3.17.33 — Hall Rizers are Legends of Zyraxis.  Meeting = seeing the
+      // challenge dialog (before accept), so recruits show up in the Allies
+      // List even if the player declines the battle.
+      if (from && from.map && HALL_RIZER_ALLY_IDS[from.map] && typeof meetAlly === 'function') {
+        meetAlly(HALL_RIZER_ALLY_IDS[from.map]);
+      }
       showDialog([
         r.intro,
         `«CHALLENGE ${r.name}?»`,
       ], () => startNpcTrainerBattle(tileChar, x, y, { hallRizer: r }));
       return;
     }
+  }
+  // V3.17.33 — Named district trainers (J=Jax, Q=Quinn) are Legends.
+  // Y=Yara is a Seer scout (hostile) so she does NOT meet as an ally.
+  if (typeof meetAlly === 'function') {
+    if (tileChar === 'J') meetAlly('jax');
+    if (tileChar === 'Q') meetAlly('quinn');
   }
   showDialog([
     npc.intro,
@@ -15304,16 +15946,19 @@ function renderBagMenu() {
   $battleActions.innerHTML = '';
   const p = game.player.party[game.battle.playerIdx];
   const items = game.player.items || {};
-  // V2.13 · V3.10 — Potion variants.  Basic Potion (+40) is the
-  // starter item.  Grand Potion (+100) and Master Potion (full heal
-  // + status clear) unlock at the merchant at higher Rizer Levels.
+  // V2.13 · V3.10 · V3.17.34 — Heal item hierarchy:
+  //   Potion         +40 flat
+  //   Grand Potion   +100 flat
+  //   Master Potion  50% max HP + clears status  (opts.halfHeal)
+  //   Revival Stem   full HP + clears status     (opts.masterful) — only true full-heal
   const addPotionBtn = (label, itemKey, healAmt, opts) => {
     const count = items[itemKey] || 0;
     const b = document.createElement('button');
     b.className = 'action-btn';
-    const flavor = opts && opts.masterful
-      ? `×${count} · FULL HEAL + CLEAR STATUS → ${p.name}`
-      : `×${count} · +${healAmt} HP → ${p.name}`;
+    let flavor;
+    if (opts && opts.masterful)      flavor = `×${count} · FULL HEAL + CLEAR STATUS → ${p.name}`;
+    else if (opts && opts.halfHeal)  flavor = `×${count} · HEAL 50% + CLEAR STATUS → ${p.name}`;
+    else                             flavor = `×${count} · +${healAmt} HP → ${p.name}`;
     b.innerHTML = `${label} <span class="cost">${flavor}</span>`;
     if (count <= 0 || p.hp >= p.maxHp) b.disabled = true;
     b.onclick = () => usePotionInBattle(itemKey, healAmt, opts);
@@ -15321,7 +15966,8 @@ function renderBagMenu() {
   };
   addPotionBtn('POTION',        'potion',        40);
   if ((items.grand_potion  || 0) > 0) addPotionBtn('GRAND POTION',  'grand_potion',  100);
-  if ((items.master_potion || 0) > 0) addPotionBtn('MASTER POTION', 'master_potion', 0, { masterful: true });
+  if ((items.master_potion || 0) > 0) addPotionBtn('MASTER POTION', 'master_potion', 0, { halfHeal: true });
+  if ((items.revival_stem  || 0) > 0) addPotionBtn('REVIVAL STEM',  'revival_stem',  0, { masterful: true });
   // V3.1 · V3.10 — Zysphere variants (basic + void + ultra).  Each shows
   // live catch % based on its spherePower.  Buttons are disabled when
   // count is 0 or the enemy is a trainer.
@@ -15361,14 +16007,20 @@ function renderBagMenu() {
 async function usePotionInBattle(itemKey, healAmt, opts) {
   itemKey  = itemKey || 'potion';
   healAmt  = (typeof healAmt === 'number') ? healAmt : 40;
-  const isMaster = !!(opts && opts.masterful);
+  const isFull = !!(opts && opts.masterful);   // Revival Stem: 100% + status clear
+  const isHalf = !!(opts && opts.halfHeal);    // Master Potion: 50% + status clear
+  const clearsStatus = isFull || isHalf;
   const p = game.player.party[game.battle.playerIdx];
   if (!game.player.items) game.player.items = { potion: 0 };
   if ((game.player.items[itemKey] || 0) <= 0) return;
-  if (p.hp >= p.maxHp && !isMaster) return;
+  if (p.hp >= p.maxHp && !clearsStatus) return;
   const before = p.hp;
-  if (isMaster) {
+  if (isFull) {
     p.hp = p.maxHp;
+    p.status = null;
+  } else if (isHalf) {
+    const half = Math.ceil(p.maxHp / 2);
+    p.hp = Math.min(p.maxHp, p.hp + half);
     p.status = null;
   } else {
     p.hp = Math.min(p.maxHp, p.hp + healAmt);
@@ -15377,10 +16029,12 @@ async function usePotionInBattle(itemKey, healAmt, opts) {
   save();
   const label = itemKey === 'grand_potion'  ? 'GRAND POTION'
               : itemKey === 'master_potion' ? 'MASTER POTION'
+              : itemKey === 'revival_stem'  ? 'REVIVAL STEM'
               :                                'POTION';
   logBattle(`You used a ${label} on ${p.name}.`);
-  if (isMaster) logBattle(`${p.name} is fully restored — status cleared.`);
-  else          logBattle(`${p.name} recovered ${p.hp - before} HP.`);
+  if (isFull)      logBattle(`${p.name} is fully restored — status cleared.`);
+  else if (isHalf) logBattle(`${p.name} recovered ${p.hp - before} HP — status cleared.`);
+  else             logBattle(`${p.name} recovered ${p.hp - before} HP.`);
   refreshBattleUI();
   await wait(700);
   // Using an item consumes your turn — enemy still gets to move.

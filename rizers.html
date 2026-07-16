@@ -1919,14 +1919,17 @@
           <div class="mainmenu-title" id="mainmenu-title">Menu</div>
           <button class="mainmenu-close" id="mainmenu-close" aria-label="Close">✕</button>
         </div>
-        <!-- V3.4 — Simplified MENU: MAP · ITEMS · TYPES · QUESTS only.
-             ZYREX moved to SELECT quick-use.  RESET / QUIT / MUSIC / SAVE
-             / NOTEBOOK moved to the SETTINGS overlay (START button). -->
+        <!-- V3.4 · V3.17.10 — MENU now hosts core in-play systems.  All
+             icons AOV-style Unicode glyphs, no emojis.  NOTEBOOK moved
+             from Settings into the menu proper; ALLIES added as the
+             Legends-of-Zyraxis / faction register. -->
         <div class="mainmenu-grid" id="mainmenu-grid">
           <button class="mainmenu-btn" data-open="map">      <span class="mm-icon">◈</span>MAP</button>
           <button class="mainmenu-btn" data-open="items">    <span class="mm-icon">✚</span>ITEMS</button>
           <button class="mainmenu-btn" data-open="types">    <span class="mm-icon">⯁</span>TYPES</button>
-          <button class="mainmenu-btn" data-open="quests">   <span class="mm-icon">◈</span>QUESTS</button>
+          <button class="mainmenu-btn" data-open="quests">   <span class="mm-icon">◇</span>QUESTS</button>
+          <button class="mainmenu-btn" data-open="allies">   <span class="mm-icon">✦</span>ALLIES</button>
+          <button class="mainmenu-btn" data-open="notebook"><span class="mm-icon">✎</span>NOTEBOOK</button>
           <button class="mainmenu-btn ghost" id="mainmenu-close2">CLOSE</button>
         </div>
       </div>
@@ -1946,7 +1949,6 @@
           <button class="mainmenu-btn" data-settings="load">     <span class="mm-icon">↻</span>LOAD</button>
           <button class="mainmenu-btn" data-settings="reset">    <span class="mm-icon">↺</span>RESET</button>
           <button class="mainmenu-btn" data-settings="quit">     <span class="mm-icon">✕</span>QUIT</button>
-          <button class="mainmenu-btn" data-settings="notebook"><span class="mm-icon">📖</span>NOTEBOOK</button>
           <button class="mainmenu-btn" data-settings="assign">   <span class="mm-icon">◈</span>SELECT ASSIGN</button>
           <button class="mainmenu-btn ghost" id="settings-close2">CLOSE</button>
         </div>
@@ -2021,6 +2023,18 @@
         </div>
         <div id="quests-body" style="display: flex; flex-direction: column; gap: 8px;"></div>
         <div id="quests-footer" style="color: var(--mist); font-size: 12px; letter-spacing: 0.14em; text-align: center; margin-top: 6px;">Walk up to a district landmark and press A to touch its shrine.</div>
+      </div>
+    </div>
+
+    <!-- V3.17.10 — ALLIES overlay.  Legends of Zyraxis + faction register. -->
+    <div class="mainmenu-overlay" id="allies-overlay">
+      <div class="mainmenu-box">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title">Allies · Legends of Zyraxis</div>
+          <button class="mainmenu-close" id="allies-close" aria-label="Close">✕</button>
+        </div>
+        <div id="allies-body" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        <div id="allies-footer" style="color: var(--mist); font-size: 12px; letter-spacing: 0.14em; text-align: center; margin-top: 6px;">Every friendly humanoid you meet is added here.  Faction perks unlock through investment.</div>
       </div>
     </div>
 
@@ -5751,8 +5765,8 @@ const BASEMENT_MAP = [
   '=............=', // 4
   '=..Z.......j.=', // 5 · Z = RADIO RECEIVER (V3.16.6 · rift-slip host),  j = experiment
   '=............=', // 6
-  '=l.........zz=', // 7 · l = PSYCHOSYD'S SIGNED RED GUITAR (V3.17.8) — bedroom left corner · posters bottom-right
-  '=..........zz=', // 8
+  '=l...........=', // 7 · l = PSYCHOSYD'S SIGNED RED GUITAR (V3.17.8) — bedroom left corner · posters removed V3.17.9
+  '=............=', // 8
   '==============', // 9
 ];
 // MAIN FLOOR — living room + kitchen. Mom lives here. Front door to Malezor.
@@ -7881,7 +7895,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdzkjrcFeLvaAIy~Z@l'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar
+  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile)
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -8998,22 +9012,9 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'z': {
-      // poster — Zyraxis mythology art (gold sigil on plum background)
-      drawTile(x, y, '=', mx, my);
-      ctx.fillStyle = '#2a1848';
-      ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
-      ctx.strokeStyle = '#e8c878';
-      ctx.strokeRect(px + 2.5, py + 2.5, TILE - 5, TILE - 5);
-      ctx.fillStyle = '#ffdc90';
-      ctx.beginPath();
-      ctx.moveTo(px + TILE / 2, py + 8);
-      ctx.lineTo(px + TILE - 8, py + TILE / 2);
-      ctx.lineTo(px + TILE / 2, py + TILE - 8);
-      ctx.lineTo(px + 8, py + TILE / 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#c896ff';
-      ctx.fillRect(px + TILE / 2 - 1, py + TILE / 2 - 1, 3, 3);
+      // V3.17.9 — Poster tile removed.  Case kept as no-op so any legacy
+      // save-slot referencing the tile silently falls through to floor.
+      drawTile(x, y, '.', mx, my);
       break;
     }
     // V2.37 — new interior tiles
@@ -10031,6 +10032,7 @@ $mainmenu.querySelectorAll('[data-open]').forEach(b => {
     if (which === 'notebook') openNotebookView();
     if (which === 'types')    openTypesView();
     if (which === 'quests')   openQuestsView();  // V2.44
+    if (which === 'allies')   openAlliesView();  // V3.17.10
     // V2.34 — system actions
     if (which === 'reset') confirmResetGame();
     if (which === 'quit')  confirmQuitGame();
@@ -11343,7 +11345,8 @@ document.addEventListener('keydown', (e) => {
     const settingsActive = document.getElementById('settings-overlay').classList.contains('active');   // V3.4
     const assignActive   = document.getElementById('assign-overlay').classList.contains('active');     // V3.4
     const riftActive     = document.getElementById('rift-overlay').classList.contains('active');       // V3.16.6
-    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive || pcsActive || settingsActive || assignActive || riftActive)) {
+    const alliesActive   = document.getElementById('allies-overlay').classList.contains('active');     // V3.17.10
+    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive || pcsActive || settingsActive || assignActive || riftActive || alliesActive)) {
       // V3.14 — cancel chime when any overlay closes via back key.
       try { playSfx('cancel'); } catch(_) {}
       // V3.4 — assign is a modal-over-settings; close the top overlay first
@@ -11356,6 +11359,7 @@ document.addEventListener('keydown', (e) => {
       if (typesActive)   document.getElementById('types-overlay').classList.remove('active');
       if (questsActive)  document.getElementById('quests-overlay').classList.remove('active');
       if (riftActive)    document.getElementById('rift-overlay').classList.remove('active');   // V3.16.6
+      if (alliesActive)  document.getElementById('allies-overlay').classList.remove('active'); // V3.17.10
       if (pcsActive)     closePCStorage();
       e.preventDefault();
       return;
@@ -12095,13 +12099,6 @@ function tryInteract() {
   } else if (t === 'y') {
     // V3.15.1 — Dad's science workbench.  Pre-starter easter egg.
     interactAurabeastWorkbench();
-  } else if (t === 'z') {
-    // V2.36 — poster flavor
-    showDialog([
-      'A poster: the TEN DISTRICTS of Zyraxis, arranged as a Z.',
-      'MALEZOR at the top. KORATHEN at the bottom. NETHARION dead center.',
-      'You memorized the map when you were seven. You still trace it in your head some nights.',
-    ]);
   } else if (t === 'r') {
     interactDresser();
   } else if (t === 'c') {
@@ -13597,13 +13594,43 @@ function consecrateStatuePart() {
   });
 }
 
-// V3.17.8 — ALLIES REGISTRY (Legends of Zyraxis).
+// V3.17.8 · V3.17.10 — ALLIES REGISTRY (Legends of Zyraxis + Faction).
 // Named humanoids the player can MEET in-game.  Humanoids are NOT Zyrex;
 // they never enter SPECIES.  They live in the master codex as cards and,
-// once met, get logged into Dad's Notebook Allies section.  Each of the
-// 10 districts hosts 3-9 Legends of Zyraxis; meeting one awards XP,
-// item, tip, or cosmetic per that Legend's meet-reward.
+// once met, get logged into the ALLIES overlay in the main menu.  Each
+// of the 10 districts hosts 3-9 Legends of Zyraxis.  Every friendly
+// humanoid the player talks to auto-adds after first interaction.
+// Excluded: Seer grunts/commanders, hostile trainers, Zyrex.  Allies
+// eventually EVOLVE into faction members granting selection-based perks.
 const ALLIES = {
+  // ---- Family (auto-meet on first Mom / Dad interact) ----
+  mom: {
+    name: 'Mom',
+    district: 'malezor',
+    districtLabel: 'Malezor · Home',
+    class: 'Family',
+    archetype: 'Head Nurse of Baelgor',
+    tier: 5,
+    tierClass: 'Apex',
+    epithet: 'She Who Wakes the Homunculi',
+    flavor: 'The head nurse of Baelgor before she emigrated to Malezor for Dad\'s work; still keeps three kinds of berry jam.',
+    meetWhere: 'The kitchen, main floor.',
+    reward: { kind: 'tip', label: 'Rest at your bed to heal + get a 20-gem pouch floor' },
+  },
+  dad: {
+    name: 'Dad',
+    district: 'malezor',
+    districtLabel: 'Malezor · Home',
+    class: 'Family',
+    archetype: 'Leading Beastologist',
+    tier: 6,
+    tierClass: 'Pseudoimmortal',
+    epithet: 'Zyrex Expert of the Aethryx Expanse',
+    flavor: 'The leading Zyrex-expert on the planet.  Moved the family from Baelgor to Malezor so he could study the wild ones up close.',
+    meetWhere: 'His office, upstairs.',
+    reward: { kind: 'tip', label: 'Interact with the science workbench BEFORE your starter picker to unlock the four Aurabeasts' },
+  },
+  // ---- Legends of Zyraxis (district-native named humanoids) ----
   psychosyd: {
     name: 'Psychosyd',
     district: 'baelgor',
@@ -13633,6 +13660,75 @@ function meetAlly(id) {
   save();
   return true;
 }
+
+// V3.17.10 — ALLIES OVERLAY.  Legends of Zyraxis + Faction register.
+// Renders Family first, then Legends grouped by district.  Every ally
+// shows meet-state (◈ met / ○ unmet), archetype/class, and their
+// meet-reward.  Sidequest hooks land here as ally-attached quests fire.
+function openAlliesView() {
+  try { playSfx('menu-open'); } catch(_) {}
+  clearHeldKeys();
+  const ov = document.getElementById('allies-overlay');
+  if (!ov) return;
+  ov.classList.add('active');
+  const body = document.getElementById('allies-body');
+  const footer = document.getElementById('allies-footer');
+  const met = game.player.alliesMet || {};
+  body.innerHTML = '';
+  const total = Object.keys(ALLIES).length;
+  const metCount = Object.keys(ALLIES).filter(id => met[id]).length;
+  // Header meta bar
+  const meta = document.createElement('div');
+  meta.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(90,40,140,0.15);border:1px solid var(--border-gold);color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;';
+  meta.innerHTML = `<span>✦ LEGENDS OF ZYRAXIS</span><span>${metCount} / ${total} MET</span>`;
+  body.appendChild(meta);
+  // Group by district
+  const byDistrict = {};
+  for (const id of Object.keys(ALLIES)) {
+    const a = ALLIES[id];
+    const key = a.class === 'Family' ? '_family' : (a.district || '_other');
+    (byDistrict[key] = byDistrict[key] || []).push({ id, ...a });
+  }
+  const districtOrder = ['_family', 'malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardun','korathen','_other'];
+  for (const key of districtOrder) {
+    const list = byDistrict[key];
+    if (!list || !list.length) continue;
+    const label = key === '_family' ? 'FAMILY'
+                : key === '_other'  ? 'OTHER'
+                : ((DISTRICT_META[key] && DISTRICT_META[key].name) || key).toUpperCase() + ' · ' + ((DISTRICT_META[key] && DISTRICT_META[key].land) || '').toUpperCase();
+    const section = document.createElement('div');
+    section.style.cssText = 'color:var(--gold-bright); font-family:var(--font-display); letter-spacing:0.22em; font-size:12px; margin-top:12px; padding:6px 10px; border-top:1px solid var(--border-soft);';
+    section.textContent = label;
+    body.appendChild(section);
+    for (const ally of list) {
+      const done = !!met[ally.id];
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px;border:1px solid ${done ? 'var(--border-gold)' : 'var(--border-soft)'};background:${done ? 'rgba(90,40,140,0.12)' : 'rgba(20,10,40,0.20)'};color:${done ? 'var(--gold-bright)' : 'var(--mist)'};`;
+      const rewardLabel = ally.reward
+        ? `${ally.reward.kind === 'cosmetic' ? '◈' : ally.reward.kind === 'tip' ? '✎' : ally.reward.kind === 'item' ? '✚' : '★'}  ${ally.reward.label}`
+        : '—';
+      row.innerHTML = `
+        <div style="flex:1; padding-right:10px;">
+          <div style="font-family:var(--font-display); letter-spacing:0.14em; font-size:13px;">${done ? '◈' : '○'}  ${ally.name.toUpperCase()}${ally.tier ? ` · T${['','I','II','III','IV','V','VI','VII','VIII','IX','X'][ally.tier]}` : ''}</div>
+          <div style="font-size:11px; opacity:0.75; margin-top:2px; letter-spacing:0.06em;">${ally.archetype || ''}${ally.class ? ' · ' + ally.class : ''}${ally.epithet ? ' · ' + ally.epithet : ''}</div>
+          ${done && ally.flavor ? `<div style="font-size:11px; opacity:0.65; margin-top:4px; font-style:italic; line-height:1.4;">${ally.flavor}</div>` : ''}
+          ${!done ? `<div style="font-size:11px; opacity:0.5; margin-top:4px;">Unmet · ${ally.meetWhere || 'somewhere in Zyraxis'}</div>` : ''}
+        </div>
+        <div style="min-width:130px; text-align:right; font-size:11px; opacity:${done ? 0.85 : 0.4}; letter-spacing:0.08em;">
+          ${rewardLabel}
+        </div>
+      `;
+      body.appendChild(row);
+    }
+  }
+  if (footer) footer.textContent = metCount === total
+    ? '✦  Every Legend has come home.  The Faction is yours to name.'
+    : `${total - metCount} Legend${total - metCount === 1 ? '' : 's'} remain to meet.  Faction perks unlock through investment.`;
+}
+document.getElementById('allies-close').onclick = () => document.getElementById('allies-overlay').classList.remove('active');
+document.getElementById('allies-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('allies-overlay')) e.target.classList.remove('active');
+});
 
 // V3.17.8 — PSYCHOSYD'S SIGNED RED ELECTRIC GUITAR INTERACT.
 // First meet grants the mohawk cosmetic + adds Psychosyd to Allies List.

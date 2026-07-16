@@ -2299,37 +2299,45 @@ function typeLabel(m) {
 }
 
 // ---------- Statuses (10 total: 5 debuffs + 5 buffs) ----------
-// Debuffs (harm the Zyrex they're on). Buffs (help the Zyrex they're on).
-// Each buff loosely opposes a debuff so the pool is symmetric.
-// V3.17.1 — Status effects rewritten to user's exact combat semantics.
-// The FIVE core debuffs each tick as an escalating percentage-of-stat loss
-// per turn.  Gridlock is variable-length: the target's SPC ratio determines
-// how many turns they skip (higher SPC = cured faster, floor 1 / cap 4).
-// Psychache is NEW.  Buffs stay as before (opposition set flipped where
-// naming lines up: Ignite ↔ Overcook, Bulwark ↔ Psychache, Slipstream ↔
-// Undershock, Astralwake ↔ Gridlock, Reforge ↔ Souldrift).
+// V3.17.39 — Five debuffs, one per opponent stat.  Uniform pct-decay
+// mechanic across all five.  Each buff opposes its stat's debuff:
+// Ignite ↔ Overcook · Bulwark ↔ Psychache · Slipstream ↔ Undershock ·
+// Astralwake ↔ Gridfreeze · Reforge ↔ Souldrift.
+// V3.17.39 — THE 5 STATUSES · canon lock (2026-07-16).
+// Exactly five debuffs, one per opponent stat.  Every status ticks a
+// percentage penalty of that stat every turn.  No skip-lock, no A1-only
+// lock, no dot — a single uniform mechanic.
+//   HP  → Souldrift  (-20% HP per turn · lethal)
+//   ATK → Overcook   (-25% ATK per turn)
+//   DEF → Psychache  (-20% DEF per turn)
+//   SPD → Undershock (-25% SPD per turn)
+//   SPC → Gridfreeze (-25% SPC per turn · cascades since SPC drives inflict chance)
 const STATUSES = {
-  // ----- Debuffs (V3.17.1 canon) -----
-  overcook:   { name: 'Overcook',   color: '#ff8a6a', kind: 'pct-atk',       tag: '-25% ATK each turn',                         side: 'debuff' },
-  undershock: { name: 'Undershock', color: '#b08bff', kind: 'pct-spd',       tag: '-25% SPD each turn',                         side: 'debuff' },
-  psychache:  { name: 'Psychache',  color: '#c98ee8', kind: 'pct-def',       tag: '-20% DEF each turn',                         side: 'debuff' },
-  gridlock:   { name: 'Gridlock',   color: '#6fa3e8', kind: 'spc-scaled-skip', tag: 'Skip 1-4 turns · higher SPC = shorter',    side: 'debuff' },
-  souldrift:  { name: 'Souldrift',  color: '#ff5a5a', kind: 'pct-hp',        tag: '-20% HP each turn — lethal',                 side: 'debuff' },
-  // Legacy statuses kept for compatibility with existing move data
-  bleed:      { name: 'Bleed',      color: '#c8384a', kind: 'dot',           tag: 'HP bleeds each turn',                        side: 'debuff' },
-  brainlock:  { name: 'Brainlock',  color: '#c98ee8', kind: 'lock',          tag: 'A1 only for 2 turns',                        side: 'debuff', fixedTurns: 2 },
-  disarm:     { name: 'Disarm',     color: '#8a8288', kind: 'lock',          tag: 'A1 only for 2 turns',                        side: 'debuff', fixedTurns: 2 },
-  rootbind:   { name: 'Rootbind',   color: '#4a8a44', kind: 'spc-scaled-skip', tag: 'Skip 1-3 turns',                           side: 'debuff' },
-  undertow:   { name: 'Undertow',   color: '#2478c8', kind: 'pct-hp',        tag: '-15% HP each turn',                          side: 'debuff' },
-  // Legacy alias so any lingering 'gridfreeze' references still resolve
-  gridfreeze: { name: 'Gridlock',   color: '#6fa3e8', kind: 'spc-scaled-skip', tag: 'Skip 1-4 turns · higher SPC = shorter',    side: 'debuff' },
-  // ----- Buffs -----
-  ignite:     { name: 'Ignite',     color: '#ff9c66', kind: 'stat-up',   tag: 'ATK rises each turn (opposes Overcook)',    side: 'buff', stat: 'atk' },
-  bulwark:    { name: 'Bulwark',    color: '#8bc466', kind: 'stat-up',   tag: 'DEF rises each turn (opposes Psychache)',   side: 'buff', stat: 'def' },
-  slipstream: { name: 'Slipstream', color: '#5fa8ff', kind: 'stat-up',   tag: 'SPD rises each turn (opposes Undershock)',  side: 'buff', stat: 'spd' },
-  astralwake: { name: 'Astralwake', color: '#f5dc9c', kind: 'stat-up',   tag: 'SPC rises each turn (opposes Gridlock)',    side: 'buff', stat: 'spc' },
-  reforge:    { name: 'Reforge',    color: '#2fe6a8', kind: 'regen',     tag: 'HP restores each turn (opposes Souldrift)', side: 'buff' },
+  souldrift:  { name: 'Souldrift',  color: '#ff5a5a', kind: 'pct-hp',  tag: '-20% HP each turn — lethal',              side: 'debuff', stat: 'hp'  },
+  overcook:   { name: 'Overcook',   color: '#ff8a6a', kind: 'pct-atk', tag: '-25% ATK each turn',                       side: 'debuff', stat: 'atk' },
+  psychache:  { name: 'Psychache',  color: '#c98ee8', kind: 'pct-def', tag: '-20% DEF each turn',                       side: 'debuff', stat: 'def' },
+  undershock: { name: 'Undershock', color: '#b08bff', kind: 'pct-spd', tag: '-25% SPD each turn',                       side: 'debuff', stat: 'spd' },
+  gridfreeze: { name: 'Gridfreeze', color: '#6fa3e8', kind: 'pct-spc', tag: '-25% SPC each turn · cascades',            side: 'debuff', stat: 'spc' },
+  // ----- Buffs (opposition pairing for future move design) -----
+  ignite:     { name: 'Ignite',     color: '#ff9c66', kind: 'stat-up', tag: 'ATK rises each turn (opposes Overcook)',   side: 'buff',   stat: 'atk' },
+  bulwark:    { name: 'Bulwark',    color: '#8bc466', kind: 'stat-up', tag: 'DEF rises each turn (opposes Psychache)',  side: 'buff',   stat: 'def' },
+  slipstream: { name: 'Slipstream', color: '#5fa8ff', kind: 'stat-up', tag: 'SPD rises each turn (opposes Undershock)', side: 'buff',   stat: 'spd' },
+  astralwake: { name: 'Astralwake', color: '#f5dc9c', kind: 'stat-up', tag: 'SPC rises each turn (opposes Gridfreeze)', side: 'buff',   stat: 'spc' },
+  reforge:    { name: 'Reforge',    color: '#2fe6a8', kind: 'regen',   tag: 'HP restores each turn (opposes Souldrift)',side: 'buff',   stat: 'hp'  },
 };
+// V3.17.39 — LEGACY STATUS ALIASES.  Existing species move records
+// reference bleed / undertow / brainlock / disarm / rootbind / gridlock —
+// remap each to the closest canonical of the 5.  Runtime-only; no roster
+// edits required.  New species moves should use the canonical keys directly.
+const STATUS_ALIAS = {
+  bleed:     'souldrift',  // HP bleed → HP drain
+  undertow:  'souldrift',  // slower HP bleed → same canonical (HP)
+  gridlock:  'gridfreeze', // old skip-lock rebranded as SPC decay
+  rootbind:  'gridfreeze', // old skip-lock → same canonical (SPC)
+  brainlock: 'psychache',  // old A1-only lock → DEF/mind decay
+  disarm:    'overcook',   // old A1-only lock → ATK decay
+};
+function resolveStatusKey(key) { return STATUS_ALIAS[key] || key; }
 
 // ---------- Level ↔ Tier (10 levels = 1 tier, cap at Tier X) ----------
 const TIER_ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
@@ -16149,6 +16157,8 @@ async function usePotionInBattle(itemKey, healAmt, opts) {
   await wait(700);
   // Using an item consumes your turn — enemy still gets to move.
   await enemyTurn();
+  // V3.17.40 — End-of-round status tick after item + enemy turn.
+  await endRoundTick();
   if (checkBattleOver()) return;
   refreshBattleUI();
   renderMainMenu();
@@ -16212,6 +16222,8 @@ async function playerUseMove(i) {
       if (p.hp > 0 && e.hp > 0) await performMove(p, e, move, true);
     }
   }
+  // V3.17.40 — End-of-round status tick for both fighters.
+  await endRoundTick();
   if (checkBattleOver()) return;
   refreshBattleUI();
   game.battle.animLock = false;
@@ -16249,19 +16261,46 @@ async function enemyTurn() {
 }
 
 async function performMove(user, target, move, playerSide) {
-  // V3.17.1 — Gridlock / Rootbind / legacy Gridfreeze skip the turn.
-  if (user.status && ['gridlock','gridfreeze','rootbind'].includes(user.status.key)) {
-    const s = STATUSES[user.status.key] || {};
-    logBattle(`${user.name} is locked by ${s.name || 'the grid'} — turn skipped (${user.status.turns} left).`);
-    await wait(700);
-    return;
-  }
+  // V3.17.39 — No status turn-skips.  All 5 canonical statuses are
+  // percentage-decay debuffs on the target's stats and never lock out
+  // the affected fighter's own turn.  (Legacy skip-lock branch removed.)
   logBattle(`${user.name} used ${move.name}!`);
   await wait(500);
   if (move.effect === 'boost') {
     user.atkStage = Math.min(4, user.atkStage + 1);
     logBattle(`${user.name}'s attack rose!`);
     await wait(700);
+    return;
+  }
+  // V3.17.38 — MOVE CANON.  Categorize the move up front so we route to
+  // the right branch (damage / pure-status / broken-signature-buff).
+  //   Primary   (slot 0)  — cheap reliable damage,  power>0, no status
+  //   Secondary (slot 1)  — mid-tier different-type damage, power>0
+  //   Tertiary  (slot 2)  — status inflict (usually power===0, flavored on primary type)
+  //   Ultimate  (slot 3)  — heavy damage + status inflict (power>0 + status)
+  // Any move with power===0 && no status && no effect is a broken legacy
+  // signature record ("Awakening/Verdict/Fury") — treat as a self-boost so
+  // the slot still feels useful instead of showing a phantom -1 damage.
+  const isPureStatus  = (!move.power || move.power <= 0) && !!move.status;
+  const isBrokenSig   = (!move.power || move.power <= 0) && !move.status && !move.effect;
+  if (isBrokenSig) {
+    user.atkStage = Math.min(4, user.atkStage + 1);
+    logBattle(`${user.name} channels ${move.name} — ATK rises! (signature awakening)`);
+    await wait(700);
+    return;
+  }
+  if (isPureStatus) {
+    // Pure-status move: roll inflict directly, no damage line, no -1 toast.
+    const chance = computeStatusChance(move, user, target);
+    if (Math.random() < chance) {
+      inflictStatus(target, move.status, user);
+      refreshBattleUI();
+      logBattle(`${user.name} landed ${STATUSES[move.status] ? STATUSES[move.status].name : move.status} on ${target.name}!  (${Math.round(chance * 100)}% inflict)`);
+      await wait(900);
+    } else {
+      logBattle(`${target.name} resisted ${move.name}.  (${Math.round(chance * 100)}% inflict)`);
+      await wait(700);
+    }
     return;
   }
   // V2.27 — Multi-type stacked multiplier (2 types Tier 1–5; up to 3 Tier 6+).
@@ -16312,11 +16351,15 @@ async function performMove(user, target, move, playerSide) {
   else if (mult <= 0.5) { logBattle(`${prefix ? prefix + ' ' : ''}Not very effective. (-${dmg})`);                  await wait(750); }
   else                  { logBattle(`${prefix ? prefix + ' ' : ''}(-${dmg})`);                                     await wait(500); }
   refreshBattleUI();
-  // Status inflict roll
-  if (target.hp > 0 && move.status && Math.random() < (move.statusChance || 0.25)) {
-    inflictStatus(target, move.status);
-    refreshBattleUI();
-    await wait(700);
+  // Status inflict roll · V3.17.38 canon: chance is base × SPC-ratio × tier-boost
+  if (target.hp > 0 && move.status) {
+    const chance = computeStatusChance(move, user, target);
+    if (Math.random() < chance) {
+      inflictStatus(target, move.status, user);
+      refreshBattleUI();
+      logBattle(`${STATUSES[move.status] ? STATUSES[move.status].name : move.status} landed!  (${Math.round(chance * 100)}% inflict)`);
+      await wait(700);
+    }
   }
   if (target.hp <= 0) {
     target.fainted = true;
@@ -16325,19 +16368,32 @@ async function performMove(user, target, move, playerSide) {
   }
 }
 
-function inflictStatus(target, key) {
+// V3.17.38 — Status inflict chance formula.
+//   final = clamp(baseChance × spcRatio × tierBoost, [0.05, 0.95])
+// where:
+//   baseChance = move.statusChance (default 0.30)
+//   spcRatio   = clamp(user.spc / target.spc, [0.5, 2.0])
+//   tierBoost  = 1 + 0.05 × (userTier − 1)   → +5% inflict per tier of user
+// Rewards building high-SPC Zyrex AND leveling into higher tiers.
+function computeStatusChance(move, user, target) {
+  const baseChance = (typeof move.statusChance === 'number') ? move.statusChance : 0.30;
+  const uSpc = (user && user.stats && user.stats.spc) || 1;
+  const tSpc = Math.max(1, (target && target.stats && target.stats.spc) || 1);
+  const spcRatio  = Math.max(0.5, Math.min(2.0, uSpc / tSpc));
+  const tierBoost = 1 + 0.05 * Math.max(0, tierOfLevel((user && user.lv) || 1) - 1);
+  return Math.max(0.05, Math.min(0.95, baseChance * spcRatio * tierBoost));
+}
+
+function inflictStatus(target, key, user) {
+  // V3.17.39 — Resolve any legacy status key to its canonical of the 5.
+  key = resolveStatusKey(key);
   const s = STATUSES[key];
   if (!s) return;
-  // V3.17.1 — Gridlock duration scales inversely with target's SPC ratio.
-  // spc-scaled-skip statuses (gridlock, rootbind, legacy gridfreeze) all
-  // route through gridlockTurnsFor() for consistent skip-lock scaling.
-  let turns;
-  if (s.kind === 'spc-scaled-skip') {
-    turns = gridlockTurnsFor(target);
-    if (key === 'rootbind') turns = Math.min(3, turns);   // Rootbind caps at 3
-  } else {
-    turns = s.fixedTurns || (3 + Math.floor(Math.random() * 3));
-  }
+  // V3.17.38 — Status durations scale with USER tier: base + floor((tier-1)/2).
+  // A Tier VI attacker inflicts 2 extra turns of Overcook over a Tier I attacker.
+  const base = s.fixedTurns || (3 + Math.floor(Math.random() * 3));
+  const userTier = (user && user.lv) ? tierOfLevel(user.lv) : 1;
+  const turns = base + Math.floor(Math.max(0, userTier - 1) / 2);
   target.status = { key, turns };
   logBattle(`${target.name} is affected by ${s.name}!` + (turns > 1 ? ` (${turns} turns)` : ''));
 }
@@ -16347,47 +16403,31 @@ function tickStatuses(z, sideCanvas) {
   const s = STATUSES[z.status.key];
   if (!s) { z.status = null; return; }
   // V3.17.1 — Apply effect by kind, using user's exact semantics.
+  // V3.17.39 — 5 canonical debuffs, each nibbles one opponent stat.
   if (s.kind === 'pct-atk') {
     // Overcook — lose 25% of ATK each turn
-    const before = z.stats.atk;
-    z.stats.atk = Math.max(1, Math.floor(before * 0.75));
+    z.stats.atk = Math.max(1, Math.floor(z.stats.atk * 0.75));
     logBattle(`${z.name}'s ATK burns to ${z.stats.atk} (Overcook).`);
-  } else if (s.kind === 'pct-spd') {
-    // Undershock — lose 25% of SPD each turn
-    const before = z.stats.spd;
-    z.stats.spd = Math.max(1, Math.floor(before * 0.75));
-    logBattle(`${z.name}'s SPD slows to ${z.stats.spd} (Undershock).`);
   } else if (s.kind === 'pct-def') {
     // Psychache — lose 20% of DEF each turn
-    const before = z.stats.def;
-    z.stats.def = Math.max(1, Math.floor(before * 0.80));
+    z.stats.def = Math.max(1, Math.floor(z.stats.def * 0.80));
     logBattle(`${z.name}'s DEF cracks to ${z.stats.def} (Psychache).`);
+  } else if (s.kind === 'pct-spd') {
+    // Undershock — lose 25% of SPD each turn
+    z.stats.spd = Math.max(1, Math.floor(z.stats.spd * 0.75));
+    logBattle(`${z.name}'s SPD slows to ${z.stats.spd} (Undershock).`);
+  } else if (s.kind === 'pct-spc') {
+    // Gridfreeze — lose 25% of SPC each turn.  Cascade note: lower SPC
+    // also weakens the target's own future status-inflict chances AND
+    // makes them more susceptible to further statuses (see computeStatusChance).
+    z.stats.spc = Math.max(1, Math.floor(z.stats.spc * 0.75));
+    logBattle(`${z.name}'s SPC freezes to ${z.stats.spc} (Gridfreeze).`);
   } else if (s.kind === 'pct-hp') {
-    // Souldrift / Undertow — lose 20% (or 15%) of HP each turn
-    const pct = (z.status.key === 'undertow') ? 0.15 : 0.20;
-    const dmg = Math.max(1, Math.floor(z.maxHp * pct));
+    // Souldrift — lose 20% of HP each turn — the only lethal debuff
+    const dmg = Math.max(1, Math.floor(z.maxHp * 0.20));
     z.hp = Math.max(0, z.hp - dmg);
-    logBattle(`${z.name} drifts (-${dmg} HP from ${s.name}).`);
-  } else if (s.kind === 'spc-scaled-skip') {
-    // Gridlock — skip 1-4 turns based on SPC ratio (higher SPC cures faster).
-    // Initial application (not a tick) sets duration; ticks just count down.
-    // Marks the ACT engine to skip this Zyrex's turn via z.status.skipTurn.
-    z.status.skipTurn = true;
-    logBattle(`${z.name} is locked in the grid (${z.status.turns} turn${z.status.turns === 1 ? '' : 's'} left).`);
-  } else if (s.kind === 'dot') {
-    // Bleed and other classic HP-dot statuses
-    const dmg = Math.max(1, Math.floor(z.maxHp * 0.08));
-    z.hp = Math.max(0, z.hp - dmg);
-    logBattle(`${z.name} bleeds (-${dmg}).`);
-  } else if (s.kind === 'fade') {
-    // Legacy fade path — kept for compatibility
-    for (const k of ['atk','def','spd','spc']) z.stats[k] = Math.floor(z.stats[k] * 0.96);
-    const dmg = Math.max(1, Math.floor(z.maxHp * 0.04));
-    z.hp = Math.max(0, z.hp - dmg);
-    logBattle(`${z.name} drifts (-${dmg}).`);
-  } else if (s.kind === 'stat-down' && s.stat) {
-    z.stats[s.stat] = Math.floor(z.stats[s.stat] * 0.90);
-    logBattle(`${z.name}'s ${s.stat.toUpperCase()} is suppressed.`);
+    logBattle(`${z.name} drifts (-${dmg} HP from Souldrift).`);
+  // ----- Buffs (unchanged) -----
   } else if (s.kind === 'stat-up' && s.stat) {
     z.stats[s.stat] = Math.floor(z.stats[s.stat] * 1.08);
     logBattle(`${z.name}'s ${s.stat.toUpperCase()} rises.`);
@@ -16400,6 +16440,23 @@ function tickStatuses(z, sideCanvas) {
   if (z.status.turns <= 0) {
     logBattle(`${z.name} recovers from ${s.name}.`);
     z.status = null;
+  }
+}
+
+// V3.17.40 — ROUND-END STATUS TICK.  Called from every turn-end site
+// (playerUseMove, item use, voluntary switch, failed catch) so both the
+// active player Zyrex and the enemy Zyrex actually FEEL their statuses
+// each round.  Ticks BEFORE the final checkBattleOver at each site so
+// Souldrift can KO on its final tick and get detected correctly.
+async function endRoundTick() {
+  const p = game.player.party[game.battle.playerIdx];
+  const e = game.battle.enemy;
+  const anyTick = (p && p.hp > 0 && p.status) || (e && e.hp > 0 && e.status);
+  if (p && p.hp > 0 && p.status) tickStatuses(p);
+  if (e && e.hp > 0 && e.status) tickStatuses(e);
+  if (anyTick) {
+    refreshBattleUI();
+    await wait(500);
   }
 }
 
@@ -16511,6 +16568,8 @@ async function playerSwitch(i) {
   if (!postKo) {
     // Voluntary switch — enemy still gets a turn.
     await enemyTurn();
+    // V3.17.40 — End-of-round status tick after switch + enemy turn.
+    await endRoundTick();
     if (checkBattleOver()) return;
   }
   refreshBattleUI();
@@ -16621,6 +16680,8 @@ async function activateZysphere(variantKey) {
     logBattle(`ASTRALITES RESIST  ·  the binding shatters  (${pct}%)`);
     await wait(800);
     await enemyTurn();
+    // V3.17.40 — End-of-round status tick after failed catch + enemy turn.
+    await endRoundTick();
     if (checkBattleOver()) return;
     refreshBattleUI();
     renderMainMenu();

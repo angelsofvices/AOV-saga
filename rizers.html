@@ -5302,19 +5302,27 @@ const SPECIES = {
     codex: { class: 'Mage', tc: 'Legend', archetype: 'HOMUNCULUS', ladder: 'Easter Egg', rarity: 'Easter Egg' },
   },
   vengrizz: {
-    flavor: 'A Quiet Child\'s forgiveness given shape; you cannot catch her — she can only be given.',
-    name: 'VENGRIZZ', type: 'Spirit', type2: 'Creature', type3: null, region: 'Quiet Child Gift',
-    tier: 4, catchRate: 0, shape: 'quadruped',
-    base: { hp: 266, atk: 266, def: 266, spd: 266, spc: 268 },
-    sprite: ['#b87cff', '#3a1a5c', '#e0c8ff'],
+    // V3.17.18 — Retiered T4 → T8 (Ultramax primary → Immortal tier).  Vengrizz
+    // is the incarnation of a purple stuffed teddy bear that expands to
+    // skyscraper-scale in full battle form — the child's grief unbound at
+    // its terminal shape.  Received only as a gift (Quiet Child branches),
+    // always at Lv 80 regardless of path.
+    flavor: 'A purple stuffed teddy bear the Quiet Child could not put down.  In battle he unfolds into a form taller than skyscrapers, and the plush becomes something the districts have to name later.',
+    name: 'VENGRIZZ', type: 'Ultramax', type2: 'Beast', type3: 'Spirit', region: 'Quiet Child Gift',
+    tier: 8, catchRate: 0, shape: 'quadruped',
+    // T8 pool = 2664.  Bulky HP/DEF forward (teddy bear tank) + heavy SPC (spirit essence).
+    base: { hp: 700, atk: 500, def: 600, spd: 300, spc: 564 },
+    // Deep purple teddy-bear palette: plush violet body, deep-shadow indigo, soft lavender highlight.
+    sprite: ['#7c5aad', '#2a1848', '#c8a8ff'],
     moves: [
-      { name: 'Soul Snap', type: 'Spirit', cast: 'Spirit', power: 88, cost: 1 },
-      { name: 'Primal Mark', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'bleed', statusChance: 0.4 },
-      { name: 'Onslaught of Soul', type: 'Spirit', cast: 'Spirit', power: 263, cost: 3 },
-      { name: 'Vengrizz\'s Reign', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
+      { name: 'Plush Strike', type: 'Beast', cast: 'Force', power: 143, cost: 1 },
+      { name: 'Grief Growl', type: 'Spirit', cast: 'Spirit', power: 0, cost: 2, status: 'souldrift', statusChance: 0.6 },
+      { name: 'Titanic Awakening', type: 'Ultramax', cast: 'Shadow', power: 466, cost: 3 },
+      { name: 'Vengrizz\'s Ascent', type: 'Beast', cast: 'Force', power: 0, cost: 1 },
     ],
     easterEgg: true,
-    codex: { class: 'Cleric', tc: 'Legend', archetype: 'REDEEMED', ladder: 'Easter Egg', rarity: 'Easter Egg' },
+    ultramax: true,
+    codex: { class: 'Cleric', tc: 'Immortal', archetype: 'REDEEMED', ladder: 'Easter Egg', rarity: 'Easter Egg' },
   },
   ophira: {
     flavor: 'First of the Seer trio; her broadcast fills the Aethryx Expanse at frequencies mortals can only feel as grief.',
@@ -6551,6 +6559,16 @@ const QUIET_CHILD_LINES = [
 ];
 function handleQuietChildInteract() {
   if (!game.player) return;
+  // V3.17.16 — HIGHEST-PRIORITY BEAT: player carries Anciuxor.  The
+  // Ancient One's presence reaches the child through the air between
+  // them and releases whatever the child was carrying too heavy to say.
+  // The child speaks his first word, becomes an ally, gifts Vengrizz
+  // at Lv 100 (the child's grief unbound reaches its terminal form).
+  // Also stamps quietChildForgiven so the Xenoxil branch never re-fires.
+  if (game.player.anciuxorGranted && !game.player.quietChildBlessed) {
+    grantVengrizzBlessed();
+    return;
+  }
   // V3.12.1 — Forgiveness / Vengrizz beat.  Fires exactly once, after
   // Xenoxil has been defeated (endgame flag) and the child has NOT yet
   // been forgiven.  No battle.  The gift is the whole scene.
@@ -6564,6 +6582,46 @@ function handleQuietChildInteract() {
   game.player.quietChildSightings = idx + 1;
   save();
   showDialog(line);
+}
+// V3.17.16 — Anciuxor-blessing scene.  The child speaks his first word.
+// He is added to the Allies list.  Vengrizz binds at Lv 100 (his grief
+// unbound at its terminal form — bigger than the Xenoxil-endgame Lv 40
+// grant, because the Ancient One reached farther than any Rizer ever has).
+function grantVengrizzBlessed() {
+  showDialog([
+    'The Quiet Child looks up at you.',
+    'His eyes lock on the presence at your side — the one you carry that isn\'t your Zyrex, isn\'t your Rizer, isn\'t anything he has words for.',
+    'The Ancient One inside you reaches through the air between you and touches him — just for a heartbeat.',
+    '',
+    'The child\'s mouth opens.',
+    'For the first time since you have known him — for the first time since anyone has known him — he SPEAKS.',
+    '',
+    'THE QUIET CHILD: "You finally let his soul rest."',
+    '',
+    'His hand closes around yours.  Warm.  Bigger than you remember.  He is not a small thing at all.',
+    'He presses the stuffed Zyrex into your palm.  It is heavier than it looks and heavier than that.',
+    '"Thank you.  For all of us."',
+    '',
+    '«◈ THE QUIET CHILD added to ALLIES»',
+    '«◈ VENGRIZZ (Lv 80) joins your party.»',
+  ], () => {
+    game.player.quietChildBlessed = true;
+    game.player.quietChildForgiven = true;   // block the Xenoxil-branch from double-firing
+    meetAlly('quietchild');
+    // V3.17.18 — Vengrizz always lands at Lv 80 (Tier VIII Immortal
+    // Ultramax/Beast/Spirit).  Same grant across all paths.
+    const zy = makeZyrex('vengrizz', 80);
+    if (zy) {
+      const partySlots = game.player.party.filter(Boolean).length;
+      if (partySlots < MAX_PARTY) game.player.party.push(zy);
+      else                        game.player.box.push(zy);
+      markCaught('vengrizz');
+    }
+    save();
+    if (typeof updateHUD === 'function') updateHUD();
+    try { playSfx('toast'); } catch(_) {}
+    showToast('◈  THE QUIET CHILD  ·  Vengrizz Lv 80 · the child speaks', 3800);
+  });
 }
 // V3.12.1 — Forgiveness cutscene + Vengrizz bind.  Fires from the Quiet
 // Child interact when the Xenoxil endgame flag is up.  The child finally
@@ -6585,17 +6643,20 @@ function grantVengrizzFromQuietChild() {
     "The stuffing thickens.  The single button-eye brightens.  A second one blinks open beside it.",
     'A slow warm growl fills the space between you — small.  Then not so small.',
     'The child says one more thing before they turn to leave.',
-    '"Her name is VENGRIZZ.  She grew every time I cried.  I need her to stop growing now.  You take her."',
-    '«◈ VENGRIZZ (Lv 40) has joined your party.»',
+    '"His name is VENGRIZZ.  He grew every time I cried.  I need him to stop growing now.  You take him."',
+    '«◈ VENGRIZZ (Lv 80) has joined your party.»',
   ], () => {
     game.player.quietChildForgiven = true;
-    const zy = makeZyrex('vengrizz', 40);
+    // V3.17.18 — Vengrizz is always Lv 80 regardless of the grant path.
+    // Tier VIII Immortal (Ultramax/Beast/Spirit).  Anciuxor path and
+    // Xenoxil-endgame path both land him at the same terminal form.
+    const zy = makeZyrex('vengrizz', 80);
     const partySlots = game.player.party.filter(Boolean).length;
     if (partySlots < MAX_PARTY) game.player.party.push(zy);
     else                        game.player.box.push(zy);
     markCaught('vengrizz');
     save();
-    showToast('◈  VENGRIZZ  ·  the child\'s grief is your partner now', 3400);
+    showToast('◈  VENGRIZZ (Lv 80)  ·  the child\'s grief is your partner now', 3400);
   });
 }
 
@@ -11266,6 +11327,7 @@ document.addEventListener('keydown', (e) => {
     if (k === '1')             { triggerSelectAssignment(); e.preventDefault(); return; }
     if (k === '2' || k === 'm'){ openMainMenu();            e.preventDefault(); return; }
     if (k === '3')             { openSettings();            e.preventDefault(); return; }
+    if (k === '4')             { toggleDevMode();           e.preventDefault(); return; }   // V3.17.17 — 4 = toggle DEV MODE
     if (k === 'f')             { openParty();               e.preventDefault(); return; }   // V3.17.15 — F = Faction
   }
   if ($controlsModal.classList.contains('active')) {
@@ -13829,6 +13891,20 @@ const ALLIES = {
     flavor: 'The player\'s idol — electric-guitar apex, Baelgor-born, sold-out shows on every district he could reach.',
     meetWhere: 'Signed red guitar in your bedroom (left corner).',
     reward: { kind: 'cosmetic', label: 'Psychosyd Mohawk hair + Skull Shirt', flags: ['mohawkUnlocked', 'skullShirtUnlocked'] },
+  },
+  // ---- Story allies (V3.17.16 addition) ----
+  quietchild: {
+    name: 'The Quiet Child',
+    district: 'malezor',
+    districtLabel: 'Zyraxis · A silent recurring child',
+    class: 'Story',
+    archetype: 'Redeemed Soul',
+    tier: 4,
+    tierClass: 'Legend',
+    epithet: 'He Who Finally Spoke',
+    flavor: 'The silent child who watched from shrines and impossible places, clutching a worn stuffed Zyrex.  Blessed by the Ancient One — his mother\'s and father\'s prayers finally answered — he speaks his first word.',
+    meetWhere: 'A quiet place, when you carry something old enough to bless him.',
+    reward: { kind: 'gift', label: 'Vengrizz at Lv 100' },
   },
   // Additional Legends to be added per district as they're wired into the
   // world (target: 3-9 per district, 40-70 total across the 10 districts).

@@ -1897,8 +1897,11 @@
         <div class="bi-mus" id="bi-strong"></div>
         <div class="bi-section-title">Weak To · −</div>
         <div class="bi-mus" id="bi-weak"></div>
-        <div class="bi-section-title">Moves</div>
-        <div class="bi-moves" id="bi-moves"></div>
+        <!-- V3.17.28 — Moves list removed from inspect: moves vary by level
+             and the card's job is species/type/stat identity, not the
+             current-level move set.  bi-moves stays in the DOM (hidden)
+             so populateInspectCard's writes to it are safe no-ops. -->
+        <div class="bi-moves" id="bi-moves" style="display:none;"></div>
         <div class="bi-hint">Tap outside · press B · or ✕ to close</div>
       </div>
     </div>
@@ -5855,7 +5858,7 @@ const MALEZOR_MAP = [
   '#,,,,,,,,,,,,,,,,,,B,,,,,,,,,#', // 5 · B=merchant stand (booth) in front of S
 
   '#T,,,N,,,,,,,,K,,,,,,GG,,,,,##', // 6 · N=Myara, chest by shrine
-  '#,,,,,,,,,,,,,,,,,,J,GGGG,,,,C', // 7 · J=Jax (rival Rizer), C=cave/boss (east edge)
+  '#,,,,,,,,,,,,,,,,,,J,GGGG,,,,#', // 7 · J=Jax (rival Rizer) · V3.17.29 cave moved to route north
   '#T,,GG,,,,,,,,,,,,,,GGG,,,,,##', // 8
   '#,,GGGG,,,,,,,,,,,,,,,,,,,,K,#', // 9
   '#,,WWW,,,,,,,,,,,,,,,,,,,,,,,>', // 10 · V2.21 — east portal to Zarvane
@@ -7878,6 +7881,101 @@ for (const routeId of ROUTE_ORDER) {
   const data = generateRouteMap(routeId);
   MAPS[routeId] = { data, cols: 20, rows: 12, label: `${meta.name} · ${meta.subtitle}` };
 }
+
+// V3.17.30 — GEMLORD CAVE INTERIORS.  Ten sanctums, one per Gemlord.
+// Each cave is a grand ancient hall styled in its owning district's
+// palette, but darker and more majestic — the sacred inner chamber of
+// each district's Rizing Power.  Cave tile chars:
+//   '+' — sanctum pillar (blocks)
+//   '*' — Gemlord throne (blocks; interact = duel / dialog)
+//   '%' — glyph rune floor (walkable, glowing)
+//   'C' — south-center exit (returns to the owning route)
+// Palette derivation: DISTRICT_META values are shifted (walls/floor darker,
+// accents brightened) so every cave feels like the district's underworld
+// echo — same colors, deeper shades.
+function _hexShift(hex, dr, dg, db) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+  r = Math.max(0, Math.min(255, Math.round(r + dr)));
+  g = Math.max(0, Math.min(255, Math.round(g + dg)));
+  b = Math.max(0, Math.min(255, Math.round(b + db)));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function _darken(hex, pct)  { const n = parseInt(hex.slice(1), 16); const r=(n>>16)&0xff, g=(n>>8)&0xff, b=n&0xff; return _hexShift(hex, -Math.round(r*pct), -Math.round(g*pct), -Math.round(b*pct)); }
+function _brighten(hex, pct){ const n = parseInt(hex.slice(1), 16); const r=(n>>16)&0xff, g=(n>>8)&0xff, b=n&0xff; return _hexShift(hex, Math.round((255-r)*pct), Math.round((255-g)*pct), Math.round((255-b)*pct)); }
+function makeCavePalette(districtId) {
+  const d = DISTRICT_META[districtId];
+  if (!d) return null;
+  return {
+    accent:      _brighten(d.accent,      0.20),
+    wallColor:   _darken  (d.wallColor,   0.45),
+    wallEdge:    _darken  (d.wallEdge,    0.40),
+    groundColor: _darken  (d.groundColor, 0.35),
+    groundShade: _darken  (d.groundShade, 0.40),
+    grassColor:  d.grassColor,
+    sparkleTint: _brighten(d.sparkleTint, 0.15),
+    caveAccent:  d.accent,   // used for throne + glyphs (undimmed source hue)
+  };
+}
+function generateGemlordCaveMap(gemlordId) {
+  const cols = 26, rows = 18;
+  const grid = [];
+  for (let y = 0; y < rows; y++) {
+    const row = [];
+    for (let x = 0; x < cols; x++) {
+      const isEdge = (x === 0 || y === 0 || x === cols - 1 || y === rows - 1);
+      row.push(isEdge ? '#' : ',');
+    }
+    grid.push(row);
+  }
+  const mx = Math.floor(cols / 2);   // 13
+  const my = Math.floor(rows / 2) - 2; // 7 · throne sits north of center
+  // Central throne + flanking pillar aisle
+  grid[my][mx] = '*';
+  grid[my][mx - 2] = '+'; grid[my - 1][mx - 2] = '+';
+  grid[my][mx + 2] = '+'; grid[my - 1][mx + 2] = '+';
+  // Glyph diamond around throne
+  grid[my - 1][mx] = '%';
+  grid[my + 1][mx] = '%';
+  grid[my][mx - 1] = '%';
+  grid[my][mx + 1] = '%';
+  // Central approach lane — glyph runes trailing south to the exit
+  for (let yy = my + 2; yy < rows - 2; yy++) grid[yy][mx] = '%';
+  // Grand-hall pillar clusters (2x2 each), four corners of the aisle
+  const clusters = [
+    [3, 2],           [cols - 5, 2],
+    [3, rows - 5],    [cols - 5, rows - 5],
+  ];
+  for (const [cx, cy] of clusters) {
+    grid[cy][cx]     = '+'; grid[cy][cx + 1]     = '+';
+    grid[cy + 1][cx] = '+'; grid[cy + 1][cx + 1] = '+';
+  }
+  // Mid-hall accent pillars
+  grid[my + 3][mx - 5] = '+'; grid[my + 3][mx + 5] = '+';
+  grid[my + 5][mx - 5] = '+'; grid[my + 5][mx + 5] = '+';
+  // South-center exit
+  grid[rows - 1][mx]     = 'C';
+  grid[rows - 1][mx - 1] = 'C';   // 2-tile-wide grand entrance
+  return grid.map(r => r.join(''));
+}
+const CAVE_META = {};
+for (const routeId of ROUTE_ORDER) {
+  const rm = ROUTE_META[routeId];
+  if (!rm || !rm.gemlord) continue;
+  const districtId = rm.west;   // Gemlord always belongs to the WEST district of its route
+  const palette = makeCavePalette(districtId);
+  if (!palette) continue;
+  const lord = GEMLORDS.find(g => g.id === rm.gemlord);
+  const caveId = 'gemlord_cave_' + rm.gemlord;
+  const data = generateGemlordCaveMap(rm.gemlord);
+  CAVE_META[caveId] = Object.assign({}, palette, {
+    name:      (lord ? lord.name : 'GEMLORD') + ' SANCTUM',
+    gemlord:   rm.gemlord,
+    districtId,
+    routeId,
+  });
+  MAPS[caveId] = { data, cols: data[0].length, rows: data.length, label: CAVE_META[caveId].name };
+}
 // Which map to enter when the player walks through a door tile.
 // entry[0..1] is the spawn tile on the destination map, facing 'up'.
 const DOOR_TARGETS = {
@@ -8106,7 +8204,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile)
+  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -8213,7 +8311,10 @@ function drawTile(x, y, ch, mx, my) {
   if (mx === undefined) { mx = x; my = y; }
   const px = x * TILE, py = y * TILE;
   // V2.31 — per-district tile palette override (falls back to canonical purple).
-  const _dm = (game && game.player && DISTRICT_META[game.player.mapId]) || null;
+  // V3.17.30 — Gemlord caves have their own palette (darker/richer echo of
+  // their district).  Look up CAVE_META first, fall through to DISTRICT_META.
+  const _mapId = (game && game.player && game.player.mapId) || '';
+  const _dm = (CAVE_META && CAVE_META[_mapId]) || DISTRICT_META[_mapId] || null;
   const wallColor   = (_dm && _dm.wallColor)   || '#1a0d2e';
   const wallEdge    = (_dm && _dm.wallEdge)    || '#3a2560';
   const groundColor = (_dm && _dm.groundColor) || '#4a3468';
@@ -9001,6 +9102,84 @@ function drawTile(x, y, ch, mx, my) {
       ctx.fillStyle = '#b87cff';
       ctx.fillRect(px + 14, py + 8, 4, 4);
       ctx.fillRect(px + 20, py + 20, 3, 3);
+      break;
+    }
+    case '+': {
+      // V3.17.30 — SANCTUM PILLAR (Gemlord cave interior).
+      // Tall ancient column: capital + shaft + base bands in the cave palette.
+      drawTile(x, y, ',', mx, my);
+      const capCol  = (_dm && _dm.caveAccent)  || (_dm && _dm.accent)     || '#e8b048';
+      const shaftHi = (_dm && _dm.groundColor) || '#4a3468';
+      const shaftLo = (_dm && _dm.wallEdge)    || '#3a2560';
+      const shaftDk = (_dm && _dm.wallColor)   || '#1a0d2e';
+      // Base cap
+      ctx.fillStyle = shaftDk; ctx.fillRect(px + 4, py + TILE - 6, TILE - 8, 4);
+      ctx.fillStyle = capCol;  ctx.fillRect(px + 3, py + TILE - 3, TILE - 6, 2);
+      // Shaft
+      ctx.fillStyle = shaftHi; ctx.fillRect(px + 8, py + 6, TILE - 16, TILE - 12);
+      ctx.fillStyle = shaftLo; ctx.fillRect(px + 8, py + 6, 3, TILE - 12);   // left shadow flute
+      ctx.fillStyle = shaftLo; ctx.fillRect(px + TILE - 11, py + 6, 3, TILE - 12); // right shadow flute
+      // Top capital
+      ctx.fillStyle = shaftDk; ctx.fillRect(px + 6, py + 4, TILE - 12, 4);
+      ctx.fillStyle = capCol;  ctx.fillRect(px + 5, py + 2, TILE - 10, 2);
+      break;
+    }
+    case '*': {
+      // V3.17.30 — GEMLORD THRONE.  Ceremonial dais + seat + halo of light
+      // in the district's undimmed accent hue.  Interact fires Gemlord duel/dialog.
+      drawTile(x, y, ',', mx, my);
+      const cx = px + TILE / 2, cy = py + TILE / 2;
+      const daisDk = (_dm && _dm.wallColor)   || '#1a0d2e';
+      const daisHi = (_dm && _dm.wallEdge)    || '#3a2560';
+      const gem    = (_dm && _dm.caveAccent)  || (_dm && _dm.accent) || '#e8b048';
+      const halo   = (_dm && _dm.sparkleTint) || '#ffd882';
+      // Halo pulse
+      const pulse = Math.sin(performance.now() * 0.003 + x + y) * 0.5 + 0.5;
+      ctx.fillStyle = halo.length === 7
+        ? halo + Math.floor(60 + pulse * 100).toString(16).padStart(2, '0')
+        : halo;
+      ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
+      // Dais (2-tier)
+      ctx.fillStyle = daisDk; ctx.fillRect(px + 3, py + TILE - 8, TILE - 6, 6);
+      ctx.fillStyle = daisHi; ctx.fillRect(px + 5, py + TILE - 12, TILE - 10, 4);
+      // Seat back
+      ctx.fillStyle = daisDk; ctx.fillRect(px + 8, py + 4, TILE - 16, 16);
+      ctx.strokeStyle = gem; ctx.lineWidth = 1.5;
+      ctx.strokeRect(px + 8.5, py + 4.5, TILE - 17, 15);
+      // Gem inset
+      ctx.fillStyle = gem;
+      ctx.beginPath();
+      ctx.moveTo(cx, py + 6);
+      ctx.lineTo(cx + 4, py + 12);
+      ctx.lineTo(cx, py + 18);
+      ctx.lineTo(cx - 4, py + 12);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(cx - 1, py + 10, 1, 1);
+      break;
+    }
+    case '%': {
+      // V3.17.30 — GLYPH RUNE floor tile.  Walkable.  Draws the base floor
+      // beneath, then etches a slow-pulsing sigil in the cave accent hue.
+      drawTile(x, y, ',', mx, my);
+      const glyph = (_dm && _dm.caveAccent)  || (_dm && _dm.accent) || '#e8b048';
+      const dim   = (_dm && _dm.wallEdge)    || '#3a2560';
+      const pulse = Math.sin(performance.now() * 0.002 + (x * 3 + y * 5)) * 0.5 + 0.5;
+      // Etched ring
+      ctx.strokeStyle = dim; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(px + TILE / 2, py + TILE / 2, 10, 0, Math.PI * 2); ctx.stroke();
+      // Rune cross
+      ctx.strokeStyle = glyph;
+      ctx.globalAlpha = 0.4 + pulse * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(px + TILE / 2, py + 6); ctx.lineTo(px + TILE / 2, py + TILE - 6);
+      ctx.moveTo(px + 6, py + TILE / 2); ctx.lineTo(px + TILE - 6, py + TILE / 2);
+      ctx.stroke();
+      // Center dot
+      ctx.fillStyle = glyph;
+      ctx.fillRect(px + TILE / 2 - 1, py + TILE / 2 - 1, 2, 2);
+      ctx.globalAlpha = 1;
       break;
     }
     case 'M': {
@@ -10784,6 +10963,9 @@ const INTERIOR_TO_DISTRICT = {
 function getPlayerDistrict() {
   const m = game.player.mapId;
   if (DISTRICT_META[m]) return m;
+  // V3.17.30 — Gemlord caves resolve to their owning district for palette
+  // fallbacks / map-view captions.
+  if (CAVE_META[m] && CAVE_META[m].districtId) return CAVE_META[m].districtId;
   return INTERIOR_TO_DISTRICT[m] || 'malezor';
 }
 // V2.45 — Ancient Gemsight helpers.
@@ -12214,6 +12396,20 @@ const GEMLORD_CAVE_DIALOGS = {
 };
 function interactGemlordCave() {
   const currentMap = game.player.mapId;
+  // V3.17.30 — CAVE INTERIOR: pressing A on 'C' inside a Sanctum exits
+  // back to the owning route, spawning just south of the route's cave door.
+  if (currentMap && currentMap.indexOf('gemlord_cave_') === 0) {
+    const cmeta = CAVE_META[currentMap];
+    if (cmeta && cmeta.routeId && MAPS[cmeta.routeId]) {
+      const route = MAPS[cmeta.routeId];
+      const routeMx = Math.floor(route.cols / 2);
+      // Route places 'C' at (routeMx, 1); land the player one step south
+      // so they don't immediately re-trigger the entry prompt.
+      enterMap(cmeta.routeId, routeMx, 2, 'down');
+      showToast('◈  ' + (ROUTE_META[cmeta.routeId] ? ROUTE_META[cmeta.routeId].name.toUpperCase() : 'ROUTE'), 1800);
+      return;
+    }
+  }
   // V3.17.22 — Gemlord caves moved from DISTRICTS to ROUTES (northern
   // portion).  Resolve the gemlord id from ROUTE_META.gemlord if the
   // player is on a route; else fall back to district-based lookup for
@@ -12221,6 +12417,20 @@ function interactGemlordCave() {
   const routeMeta = ROUTE_META[currentMap];
   const gemlordId = routeMeta ? routeMeta.gemlord : null;
   const districtId = currentMap;
+  // V3.17.30 — CAVE ENTRY.  Ultharis Mode (dev cheat) or post-endgame
+  // Xenoxil-defeated state opens the seal — walk into the Sanctum.
+  if (routeMeta && gemlordId) {
+    const caveId = 'gemlord_cave_' + gemlordId;
+    const canEnter = !!(game.player.ultharisMode || game.player.xenoxilDefeated);
+    if (canEnter && MAPS[caveId] && CAVE_META[caveId]) {
+      const cave = MAPS[caveId];
+      const spawnX = Math.floor(cave.cols / 2);
+      const spawnY = cave.rows - 3;   // just north of the 'C' exit row
+      enterMap(caveId, spawnX, spawnY, 'up');
+      showToast('◈  ' + (CAVE_META[caveId].name || 'GEMLORD SANCTUM'), 2400);
+      return;
+    }
+  }
   // V3.16 — Post-endgame Gemlord duels.  Once xenoxilDefeated is set,
   // the Gemlord Pact lifts and all cave seals open.  Each cave offers
   // ONE optional friendly Lv 100 duel with its Gemlord for respect.
@@ -12261,6 +12471,47 @@ function interactGemlordCave() {
   }
   const lines = GEMLORD_CAVE_DIALOGS[flavorKey] || GEMLORD_CAVE_DIALOGS.malezor;
   showDialog(lines);
+}
+// V3.17.30 — GEMLORD THRONE interact (inside a Sanctum, on '*').
+// Post-endgame: offer the friendly Lv 100 duel (repeatable-until-won).
+// Ultharis-Mode-only (pre-endgame): flavor line + "not yet" — the cheat
+// grants access to the sanctum, but not the fight until the story earns it.
+function interactGemlordThrone() {
+  const currentMap = game.player.mapId;
+  const cmeta = CAVE_META[currentMap];
+  if (!cmeta) { showDialog(['The throne is silent.']); return; }
+  const lord = GEMLORDS.find(g => g.id === cmeta.gemlord);
+  if (!lord) { showDialog(['The throne is silent.']); return; }
+  if (game.player.xenoxilDefeated) {
+    const alreadyDone = (game.player.respects || []).includes(lord.id);
+    if (alreadyDone) {
+      showDialog([
+        `${lord.name} rests upon the throne.  You have already earned their respect.`,
+        `${lord.name}: Rest here as long as you need.  The sanctum is yours to walk.`,
+      ]);
+      return;
+    }
+    showDialog([
+      `${lord.name}, ${lord.epithet}, rises from the throne.`,
+      `${lord.name}: You crossed the seal.  You crossed the aisle.  Good.`,
+      `${lord.name}: One friendly sparring.  Their Zyrex, my Zyrex.  Winner respects the loser.`,
+      `«◈ Face ${lord.name} in a friendly Lv 100 duel?»`,
+    ], () => startGemlordDuel(lord));
+    return;
+  }
+  // Ultharis Mode pre-endgame — throne is glimpsed but not yet answerable.
+  if (game.player.ultharisMode) {
+    showDialog([
+      `${lord.name} watches from the throne without moving.`,
+      `${lord.name}: You should not be here yet, Rizer.`,
+      `${lord.name}: Come back when the sky falls, and we will spar.`,
+    ]);
+    return;
+  }
+  // Fallback — sealed narration
+  showDialog([
+    `${lord.name} does not stir.  The chamber is not yet awake.`,
+  ]);
 }
 // V3.16 — Duel start.  Two escort Zyrex + the Gemlord themselves,
 // all at Lv 100.  Escort picks are canonical Basic species from that
@@ -12474,7 +12725,12 @@ function tryInteract() {
     // atmosphere flavored to the district's land theme.  Previously the
     // dialog hard-coded RUBY GLYPHS everywhere (Malezor's seal on every
     // cave), which broke immersion in every district past Malezor.
+    // V3.17.30 — In Ultharis Mode / post-endgame this ENTERS the Sanctum;
+    // inside the Sanctum, 'C' exits back to the route.
     interactGemlordCave();
+  } else if (t === '*') {
+    // V3.17.30 — Gemlord throne inside a Sanctum → duel/dialog.
+    interactGemlordThrone();
   } else if (t === 'K') {
     openChest(tx, ty);
   } else if (t === 'm') {
@@ -13510,15 +13766,22 @@ function travelDistrict(dir) {
   if (DISTRICT_ORDER.includes(currentMapId)) {
     const currentIdx = DISTRICT_ORDER.indexOf(currentMapId);
     if (dir > 0 && currentIdx >= DISTRICT_ORDER.length - 1) {
-      showToast('THE MAP ENDS HERE — for now.', 1600);
-      return;
+      // V3.17.29 — Korathen east opens onto Route 10 (Throne of the Ultralord).
+      // Only bail out if the terminal endgame route isn't wired.
+      const terminalRouteId = ROUTE_ORDER[currentIdx];
+      if (!terminalRouteId || !MAPS[terminalRouteId] || !ROUTE_META[terminalRouteId]) {
+        showToast('THE MAP ENDS HERE — for now.', 1600);
+        return;
+      }
+      // else fall through to the route-entry code below (routeIdx === currentIdx)
     }
     if (dir < 0 && currentIdx <= 0) {
       showToast('NO WAY WEST.', 1600);
       return;
     }
     // V3.0 — Progression gate at the district exit.
-    if (dir > 0) {
+    // V3.17.29 — guard: skip gate when we're at the terminal district (no next district).
+    if (dir > 0 && currentIdx < DISTRICT_ORDER.length - 1) {
       const nextDistrictId = DISTRICT_ORDER[currentIdx + 1];
       const nextGroup = districtGroupIndex(nextDistrictId);
       const currentGroup = districtGroupIndex(currentMapId);
@@ -13552,6 +13815,13 @@ function travelDistrict(dir) {
   if (isRouteMap(currentMapId)) {
     const meta = ROUTE_META[currentMapId];
     const destDistrictId = (dir > 0) ? meta.east : meta.west;
+    // V3.17.29 — Route 10 (throne_of_ultralord) has no east.  Show the
+    // terminal-map toast instead of the wiring-error toast when the
+    // player tries to walk further east than the endgame throne.
+    if (dir > 0 && !destDistrictId) {
+      showToast('THE MAP ENDS HERE — for now.', 1600);
+      return;
+    }
     const destMap = MAPS[destDistrictId];
     if (!destMap) { showToast('DISTRICT NOT WIRED', 1600); return; }
     // V3.7.1 — Gate again on the far portal so the route can't be used

@@ -2426,42 +2426,67 @@ function openOutfitPicker(mode) {
   body.appendChild(tabs);
   if (header) header.textContent = 'Dresser · ' + (mode[0].toUpperCase() + mode.slice(1));
 
-  // ---- STYLE tab (hair-style, not color) ----
+  // ---- STYLE tab — split into HAIR STYLES and SHIRT STYLES sections ----
   if (mode === 'style') {
-    const currentStyle = game.player.hairStyle || 'spiky';
-    const styles = [
-      { id: 'spiky',  name: 'Signature Spiky', desc: 'Your default look — four short spikes, clean silhouette.', locked: false },
-      { id: 'mohawk', name: 'Psychosyd Mohawk', desc: 'Shaved sides, tall center ridge.  Baelgor rock-star signature.',
-        locked: !game.player.mohawkUnlocked, lockedHint: 'Locked · interact with Psychosyd\'s signed guitar in your bedroom.' },
+    const currentHair  = game.player.hairStyle  || 'spiky';
+    const currentShirt = game.player.shirtStyle || 'plain';
+    const sections = [
+      {
+        label: 'HAIR STYLES', slotKey: 'hairStyle', defaultId: 'spiky', current: currentHair,
+        list: [
+          { id: 'spiky',  name: 'Signature Spiky', desc: 'Your default look — four short spikes, clean silhouette.', locked: false },
+          { id: 'mohawk', name: 'Psychosyd Mohawk', desc: 'Shaved sides, tall center ridge.  Baelgor rock-star signature.',
+            locked: !game.player.mohawkUnlocked, lockedHint: 'Locked · interact with Psychosyd\'s signed guitar in your bedroom.' },
+        ],
+      },
+      {
+        label: 'SHIRT STYLES', slotKey: 'shirtStyle', defaultId: 'plain', current: currentShirt,
+        list: [
+          { id: 'plain', name: 'Plain Shirt', desc: 'Just the color from the SHIRT tab.  No print.', locked: false },
+          { id: 'skull', name: 'Psychosyd Skull Shirt', desc: 'Skull-and-crossbones print on the shirt.  Baelgor rock-star signature.',
+            locked: !game.player.skullShirtUnlocked, lockedHint: 'Locked · interact with Psychosyd\'s signed guitar in your bedroom.' },
+        ],
+      },
     ];
-    styles.forEach(sty => {
-      const row = document.createElement('div');
-      row.className = 'item-row';
-      row.setAttribute('tabindex', '0');
-      const active = sty.id === currentStyle;
-      const disabled = sty.locked;
-      row.innerHTML = `
-        <div class="info">
-          <div class="name">${active ? '◈ ' : ''}${sty.name}${sty.locked ? ' <span style="opacity:0.55; font-size:11px;">· LOCKED</span>' : ''}</div>
-          <div class="desc" style="opacity:${disabled ? 0.55 : 0.85};">${disabled ? sty.lockedHint : sty.desc}</div>
-        </div>
-        <button style="opacity:${disabled ? 0.4 : 1}; cursor:${disabled ? 'not-allowed' : 'pointer'};">${active ? 'EQUIPPED' : 'EQUIP'}</button>
-      `;
-      const btn = row.querySelector('button');
-      btn.onclick = () => {
-        if (disabled) { try { playSfx('disabled'); } catch(_) {} showToast('◇  Locked · find the signed guitar', 1800); return; }
-        // Toggle — if already equipped, revert to default 'spiky'; else equip.
-        if (active && sty.id !== 'spiky') { game.player.hairStyle = 'spiky'; showToast('◈  Style reverted to Signature Spiky', 1400); }
-        else { game.player.hairStyle = sty.id; showToast(`◈  Hair style: ${sty.name}`, 1400); }
-        save();
-        openOutfitPicker('style');
-      };
-      row.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
-          ev.preventDefault(); btn.click();
-        }
+    sections.forEach(sect => {
+      // Section header
+      const header = document.createElement('div');
+      header.style.cssText = 'color:var(--gold-bright); font-family:var(--font-display); letter-spacing:0.22em; font-size:11px; margin-top:12px; padding:4px 6px; border-top:1px solid var(--border-soft); opacity:0.85;';
+      header.textContent = sect.label;
+      body.appendChild(header);
+      sect.list.forEach(sty => {
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.setAttribute('tabindex', '0');
+        const active = sty.id === sect.current;
+        const disabled = sty.locked;
+        row.innerHTML = `
+          <div class="info">
+            <div class="name">${active ? '◈ ' : ''}${sty.name}${sty.locked ? ' <span style="opacity:0.55; font-size:11px;">· LOCKED</span>' : ''}</div>
+            <div class="desc" style="opacity:${disabled ? 0.55 : 0.85};">${disabled ? sty.lockedHint : sty.desc}</div>
+          </div>
+          <button style="min-width:82px; opacity:${disabled ? 0.4 : 1}; cursor:${disabled ? 'not-allowed' : 'pointer'}; border-color:${active ? 'var(--gold-bright)' : 'var(--border-soft)'}; color:${active ? 'var(--gold-bright)' : 'var(--ivory)'};">${active ? 'REMOVE' : 'EQUIP'}</button>
+        `;
+        const btn = row.querySelector('button');
+        btn.onclick = () => {
+          if (disabled) { try { playSfx('disabled'); } catch(_) {} showToast('◇  Locked · find the signed guitar', 1800); return; }
+          if (active && sty.id !== sect.defaultId) {
+            game.player[sect.slotKey] = sect.defaultId;
+            showToast(`◇  Reverted to ${sect.slotKey === 'hairStyle' ? 'Signature Spiky' : 'Plain Shirt'}`, 1400);
+          } else if (!active) {
+            game.player[sect.slotKey] = sty.id;
+            showToast(`◈  ${sect.label.replace(' STYLES','')}: ${sty.name}`, 1400);
+          }
+          save();
+          openOutfitPicker('style');
+        };
+        row.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
+            ev.preventDefault(); btn.click();
+          }
+        });
+        body.appendChild(row);
       });
-      body.appendChild(row);
     });
     return;
   }
@@ -9575,6 +9600,16 @@ function drawCharacter(cx, cy, dir, primary, accent, opts) {
   // body
   ctx.fillStyle = primary;
   ctx.fillRect(x + 4, y + 8, w - 8, h - 10);
+  // V3.17.14 — Skull-shirt overlay.  If shirtStyle === 'skull' and the
+  // PNG loaded, stamp the skull-and-crossbones over the shirt body.
+  // Fits inside the body rectangle with 1px margin.  Player-only.
+  if (opts && opts.shirtStyle === 'skull' && SKULL_SHIRT_IMG.loaded) {
+    try {
+      const sx = x + 5, sy = y + 9;
+      const sw = w - 10, sh = h - 12;
+      ctx.drawImage(SKULL_SHIRT_IMG, sx, sy, sw, sh);
+    } catch (_) { /* ignore draw errors — sprite just doesn't render */ }
+  }
   // head
   ctx.fillStyle = '#f5dc9c';
   ctx.fillRect(x + 6, y + 2, w - 12, 8);
@@ -9877,7 +9912,7 @@ function renderMap() {
   const pal = playerPalette();
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
-  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants, hairStyle: (game.player.hairStyle || 'spiky') });
+  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants, hairStyle: (game.player.hairStyle || 'spiky'), shirtStyle: (game.player.shirtStyle || 'plain') });
   // V2.66 — Encounter '!' indicator above the player when a wild
   // encounter is armed but not yet engaged.  Pulsing yellow bubble;
   // press A to engage.
@@ -13771,7 +13806,7 @@ const ALLIES = {
     epithet: 'Celebrity Icon of Zyraxis Humanoidlands',
     flavor: 'The player\'s idol — electric-guitar apex, Baelgor-born, sold-out shows on every district he could reach.',
     meetWhere: 'Signed red guitar in your bedroom (left corner).',
-    reward: { kind: 'cosmetic', label: 'Psychosyd Mohawk hair style', flag: 'mohawkUnlocked' },
+    reward: { kind: 'cosmetic', label: 'Psychosyd Mohawk hair + Skull Shirt', flags: ['mohawkUnlocked', 'skullShirtUnlocked'] },
   },
   // Additional Legends to be added per district as they're wired into the
   // world (target: 3-9 per district, 40-70 total across the 10 districts).
@@ -13782,9 +13817,13 @@ function meetAlly(id) {
   game.player.alliesMet = game.player.alliesMet || {};
   if (game.player.alliesMet[id]) return false;   // already met
   game.player.alliesMet[id] = true;
-  // Apply reward flag if the ally's meet-reward is a cosmetic flag
-  if (ally.reward && ally.reward.kind === 'cosmetic' && ally.reward.flag) {
-    game.player[ally.reward.flag] = true;
+  // Apply reward flag(s) if the ally's meet-reward is a cosmetic unlock.
+  // V3.17.14 — supports `flag` (single) or `flags` (array) for multi-unlock.
+  if (ally.reward && ally.reward.kind === 'cosmetic') {
+    if (ally.reward.flag)  game.player[ally.reward.flag] = true;
+    if (Array.isArray(ally.reward.flags)) {
+      for (const f of ally.reward.flags) game.player[f] = true;
+    }
   }
   save();
   return true;
@@ -13882,10 +13921,11 @@ function interactPsychosydGuitar() {
       ``,
       '«◈ PSYCHOSYD added to ALLIES · Legends of Zyraxis · Baelgor»',
       '«◈ PSYCHOSYD MOHAWK unlocked in the dresser · STYLE tab»',
+      '«◈ PSYCHOSYD SKULL SHIRT unlocked in the dresser · STYLE tab»',
     ], () => {
       meetAlly('psychosyd');
       try { playSfx('toast'); } catch(_) {}
-      showToast('◈  PSYCHOSYD  ·  Mohawk unlocked in dresser', 3200);
+      showToast('◈  PSYCHOSYD  ·  Mohawk + Skull Shirt unlocked', 3400);
     });
     return;
   }
@@ -15445,6 +15485,15 @@ function healParty() {
 }
 
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// V3.17.14 — Skull-shirt cosmetic PNG.  Loaded once on boot; drawCharacter
+// overlays it on the player's shirt body when shirtStyle === 'skull'.
+// Cached image object; silently falls through if the file is missing.
+const SKULL_SHIRT_IMG = new Image();
+SKULL_SHIRT_IMG.loaded = false;
+SKULL_SHIRT_IMG.onload  = () => { SKULL_SHIRT_IMG.loaded = true; };
+SKULL_SHIRT_IMG.onerror = () => { SKULL_SHIRT_IMG.loaded = false; };
+SKULL_SHIRT_IMG.src = 'style_skullshirt.png';
 
 // ---------- Zyrex sprite renderer (procedural) ----------
 // V2.39 — Sprite pipeline (DORMANT by default per V2.41).

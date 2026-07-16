@@ -8005,6 +8005,52 @@ for (const routeId of ROUTE_ORDER) {
   });
   MAPS[caveId] = { data, cols: data[0].length, rows: data.length, label: CAVE_META[caveId].name };
 }
+
+// V3.17.32 — ROUTE HYBRID PALETTES.  Every route blends the departing
+// (west) district's palette with the arriving (east) district's, so
+// walking a route reads as literal bridging between the two lands.
+// Base walls / floor / grass = 50/50 west+east blend.  Sparkle + accent
+// bind to the route's Gemlord gem (from the WEST district's gemKey) so
+// the road still carries the ceremony of the seal that gates it.
+function _blendHex(a, b, t) {
+  const na = parseInt(a.slice(1), 16), nb = parseInt(b.slice(1), 16);
+  const ar = (na >> 16) & 0xff, ag = (na >> 8) & 0xff, ab = na & 0xff;
+  const br = (nb >> 16) & 0xff, bg = (nb >> 8) & 0xff, bb = nb & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return '#' + [r, g, bl].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function makeRoutePalette(westId, eastId, gemKey) {
+  const w = DISTRICT_META[westId];
+  const e = DISTRICT_META[eastId] || w;   // Route 10 (east=null) mirrors west
+  if (!w) return null;
+  const gem = (gemKey && GEM_COLORS[gemKey]) || null;
+  const t = 0.5;   // midpoint hybrid
+  return {
+    accent:      gem ? gem.base   : _blendHex(w.accent,      e.accent,      t),
+    wallColor:   _blendHex(w.wallColor,   e.wallColor,   t),
+    wallEdge:    _blendHex(w.wallEdge,    e.wallEdge,    t),
+    groundColor: _blendHex(w.groundColor, e.groundColor, t),
+    groundShade: _blendHex(w.groundShade, e.groundShade, t),
+    grassColor:  _blendHex(w.grassColor,  e.grassColor,  t),
+    sparkleTint: gem ? gem.bright : _blendHex(w.sparkleTint, e.sparkleTint, t),
+    // Route gem triad — used for future route-side ceremonial decor.
+    routeGemBase:   gem ? gem.base   : w.accent,
+    routeGemBright: gem ? gem.bright : (w.sparkleTint || '#fff'),
+    routeGemDark:   gem ? gem.dark   : w.wallEdge,
+    westId, eastId,
+  };
+}
+const ROUTE_PALETTE = {};
+for (const routeId of ROUTE_ORDER) {
+  const rm = ROUTE_META[routeId];
+  if (!rm) continue;
+  const westD = DISTRICT_META[rm.west];
+  const gemKey = westD && westD.gemKey;   // route gem = west district's gem
+  const p = makeRoutePalette(rm.west, rm.east, gemKey);
+  if (p) ROUTE_PALETTE[routeId] = p;
+}
 // Which map to enter when the player walks through a door tile.
 // entry[0..1] is the spawn tile on the destination map, facing 'up'.
 const DOOR_TARGETS = {
@@ -8342,8 +8388,12 @@ function drawTile(x, y, ch, mx, my) {
   // V2.31 — per-district tile palette override (falls back to canonical purple).
   // V3.17.30 — Gemlord caves have their own palette (darker/richer echo of
   // their district).  Look up CAVE_META first, fall through to DISTRICT_META.
+  // V3.17.32 — Routes now carry hybrid west+east palettes via ROUTE_PALETTE.
   const _mapId = (game && game.player && game.player.mapId) || '';
-  const _dm = (CAVE_META && CAVE_META[_mapId]) || DISTRICT_META[_mapId] || null;
+  const _dm = (CAVE_META && CAVE_META[_mapId])
+           || DISTRICT_META[_mapId]
+           || (ROUTE_PALETTE && ROUTE_PALETTE[_mapId])
+           || null;
   const wallColor   = (_dm && _dm.wallColor)   || '#1a0d2e';
   const wallEdge    = (_dm && _dm.wallEdge)    || '#3a2560';
   const groundColor = (_dm && _dm.groundColor) || '#4a3468';

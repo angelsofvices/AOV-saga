@@ -1966,6 +1966,25 @@
       </div>
     </div>
 
+    <!-- V3.17.25 — DEV SETTINGS overlay.  Opens instead of Settings when
+         DEV MODE is on (press 3 / START while devMode is active).  Hosts
+         cheats for rapid patch testing.  ULTHARIS MODE grants every
+         easter egg + all easter-egg Zyrex to the party with the party
+         cap bypassed for the grant batch. -->
+    <div class="mainmenu-overlay" id="dev-settings-overlay">
+      <div class="mainmenu-box" role="dialog" aria-labelledby="dev-settings-title">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title" id="dev-settings-title">DEV Settings ⚑</div>
+          <button class="mainmenu-close" id="dev-settings-close" aria-label="Close">✕</button>
+        </div>
+        <div style="color:var(--gold-bright); font-size:11px; letter-spacing:0.24em; text-transform:uppercase; margin: 2px 0 10px; text-align:center; opacity:0.85;">
+          ⚑ DEV MODE cheats · rapid patch testing
+        </div>
+        <div id="dev-settings-body" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <div style="color:var(--mist); font-size:11px; letter-spacing:0.14em; text-align:center; margin-top:10px; opacity:0.65;">Press 3 or Esc to close · these toggles do NOT persist between sessions</div>
+      </div>
+    </div>
+
     <!-- V3.4 — SELECT quick-use assignment sub-modal.
          Opens from Settings.  Lets the player bind the SELECT button to
          one of the four practical panels.  Persisted in game.player. -->
@@ -2627,12 +2646,19 @@ function basicMoves(t2, [a1, a2, a3, boost]) {
 // pools. Full move mining from Codex v11.1's 527 entries lives in a future
 // handoff (see V2.28.HANDOFF).
 
+// V3.17.23 — CANONICAL MOVE-UNLOCK SCHEDULE (locked 2026-07-15).
+// Every Zyrex — regardless of species, tier, or ladder — learns their
+// four moves on this fixed schedule:
+//   Slot 0 · Lv 1   — Primary-type attack
+//   Slot 1 · Lv 15  — Secondary-type attack
+//   Slot 2 · Lv 30  — Special status-effect move flavored on primary type
+//   Slot 3 · Lv 60  — Blended-type signature drawing on all three types
+// A species may override an individual slot's minLv by setting the
+// move's `minLv` property in its species.moves array, but the default
+// unlock ladder is [1, 15, 30, 60].
+const MOVE_UNLOCK_LVS = [1, 15, 30, 60];
 function shouldLearnMoveAt(lv) {
-  if (lv < 3) return false;
-  if (lv <= 50)  return lv % 3 === 0;
-  if (lv <= 75)  return lv > 50  && (lv - 50) % 5 === 0;
-  if (lv <= 100) return lv > 75  && (lv - 75) % 7 === 0;
-  return false;
+  return MOVE_UNLOCK_LVS.includes(lv);
 }
 
 const MOVE_POOL_BY_TYPE = {
@@ -2798,6 +2824,29 @@ function bestFromPool(pool, currentLv) {
 
 // Redraw a Zyrex's 4-slot moveset from the pools. Called at makeZyrex and on
 // every learn moment during levelUp.
+// V3.17.23 — Canonical refresh: read species.moves and expose only the
+// slots the current level has unlocked (per MOVE_UNLOCK_LVS).  Every
+// call rebuilds r.moves from scratch, so leveling up naturally reveals
+// the next slot on the exact tier canon expects.  Species without an
+// explicit moves array fall through to the legacy autoLearnMoves pool.
+function refreshMoves(r) {
+  const s = SPECIES[r.species];
+  if (!s) return;
+  if (s.movePolicy === 'canon-static' || !s.moves || !s.moves.length) {
+    // Legacy pool-based fallback for any species without explicit moves.
+    autoLearnMoves(r);
+    return;
+  }
+  const learned = [];
+  const cap = Math.min(s.moves.length, 4);
+  for (let i = 0; i < cap; i++) {
+    const m = s.moves[i];
+    const unlock = (m.minLv != null) ? m.minLv : (MOVE_UNLOCK_LVS[i] || 1);
+    if (r.lv >= unlock) learned.push(Object.assign({}, m, { minLv: unlock }));
+  }
+  r.moves = learned;
+}
+
 function autoLearnMoves(r) {
   const s = SPECIES[r.species];
   if (!s || s.movePolicy === 'canon') return;   // opt-out for hand-crafted bosses
@@ -5670,11 +5719,10 @@ function makeZyrex(speciesId, lv) {
     // V2.28 — per-instance random unlock level for the slot-4 Original.
     originalMoveUnlockLv: 20 + Math.floor(Math.random() * 61),   // 20..80
   };
-  if (s.movePolicy === 'canon') {
-    r.moves = s.moves.filter(m => (m.lv || 1) <= lv).slice(-4);
-  } else {
-    autoLearnMoves(r);
-  }
+  // V3.17.23 — Every Zyrex uses the canonical unlock schedule.  refreshMoves
+  // reads species.moves + MOVE_UNLOCK_LVS gates and only exposes slots the
+  // level has earned.  Species without moves fall back to autoLearnMoves.
+  refreshMoves(r);
   return r;
 }
 // V2.8.1 — every Zyrex is guaranteed one baseline gem per battle for A1.
@@ -7563,7 +7611,13 @@ function generateDistrictMap(mapId) {
   // gets a real Seer Ministry with a real 'E' door -> seer_hq_main.
   {
     const hqX = Math.floor(cols / 2) - 1;   // top-left of the 3x2 building
-    let   hqY = rows - 4;                    // second-to-last row of grid (default)
+    // V3.17.24 — Raised HQ vertical position from rows-4 → rows-6 so the
+    // Seer HQ is guaranteed NOT to hug the bottom edge of any district.
+    // Old placement left only 1 walkable row between HQ bottom (row rows-3)
+    // and the map wall (row rows-1); new placement leaves 3 walkable rows
+    // (approach + 2 buffer) between HQ bottom (rows-5) and the wall.
+    // Applies uniformly to every district regardless of size.
+    let   hqY = rows - 6;                    // 3-row buffer to the bottom wall
     // V3.16.1 — Adaptive HQ lift.  If the district's shape-mask (wavy border,
     // hex chamfer, cross arm, etc.) swallows the tile directly below the door,
     // the player can't approach the 'E' → the HQ becomes unreachable.
@@ -7577,7 +7631,7 @@ function generateDistrictMap(mapId) {
       const shapeWall = districtShapeWall(mapId, hqX + 1, approachY, cols, rows);
       if (!outOfMap && !shapeWall) break;
       hqY -= 1;
-      if (hqY < 6) { hqY = rows - 4; break; }  // give up; carve-below will rescue
+      if (hqY < 6) { hqY = rows - 6; break; }  // V3.17.24 — fallback matches new default
     }
     if (grid[hqY] && grid[hqY + 1]) {
       grid[hqY][hqX]     = 'A'; grid[hqY][hqX + 1]     = 'A'; grid[hqY][hqX + 2]     = 'A';   // emblem row
@@ -10226,6 +10280,102 @@ function closeSettings() {
   $settings.classList.remove('active');
   if (game.mode === 'settings') game.mode = 'overworld';
 }
+
+// V3.17.25 — DEV Settings overlay + Ultharis Mode cheat.
+// Opens instead of Settings when devMode is on.  Grants every easter
+// egg + all easter-egg Zyrex to the party (bypasses MAX_PARTY for the
+// grant batch) so patches can be tested without full playtest.
+const _ULTHARIS_ROSTER = [
+  { id: 'diviniara', lv: 5 },
+  { id: 'pyrothrax', lv: 5 },
+  { id: 'voltaryx',  lv: 5 },
+  { id: 'scaleon',   lv: 5 },
+  { id: 'petragryff', lv: 40 },
+  { id: 'vengrizz',  lv: 80 },
+  { id: 'anciuxor',  lv: 100 },
+];
+function openDevSettings() {
+  const ov = document.getElementById('dev-settings-overlay');
+  if (!ov) return;
+  try { playSfx('menu-open'); } catch(_) {}
+  clearHeldKeys();
+  ov.classList.add('active');
+  renderDevSettings();
+}
+function closeDevSettings() {
+  try { playSfx('menu-close'); } catch(_) {}
+  document.getElementById('dev-settings-overlay').classList.remove('active');
+  if (game.mode === 'settings') game.mode = 'overworld';
+}
+function renderDevSettings() {
+  const body = document.getElementById('dev-settings-body');
+  if (!body) return;
+  body.innerHTML = '';
+  const ultharisOn = !!game.player.ultharisMode;
+  const rows = [
+    {
+      id: 'ultharis',
+      title: (ultharisOn ? '◈ ULTHARIS MODE · ACTIVE' : '◇ ULTHARIS MODE'),
+      desc: 'Grants every easter egg cosmetic + every easter-egg Zyrex to your party at canon levels (Aurabeasts × 4 Lv 5 · Petragryff Lv 40 · Vengrizz Lv 80 · Anciuxor Lv 100).  Party cap bypassed for the grant batch.  Every ally auto-met.',
+      btn: ultharisOn ? 'ACTIVE' : 'ENABLE',
+      onClick: () => { enableUltharisMode(); renderDevSettings(); },
+    },
+  ];
+  rows.forEach(row => {
+    const el = document.createElement('div');
+    el.className = 'item-row';
+    el.setAttribute('tabindex', '0');
+    el.innerHTML = `
+      <div class="info">
+        <div class="name">${row.title}</div>
+        <div class="desc" style="opacity:0.75;">${row.desc}</div>
+      </div>
+      <button style="min-width:82px;">${row.btn}</button>
+    `;
+    el.querySelector('button').onclick = row.onClick;
+    body.appendChild(el);
+  });
+}
+function enableUltharisMode() {
+  const p = game.player;
+  if (!p) return;
+  p.ultharisMode = true;
+  // Every cosmetic + story flag flipped.
+  const flags = [
+    'mohawkUnlocked','skullShirtUnlocked',
+    'aurabeastGiftGiven','homunculusFound','elzebubGranted','petragryffGranted',
+    'firepitEmberBurned','voidFragmentInstalled',
+    'statuePartHeld','momBlessedStatue','dadWarnedStatue','anciuxorGranted',
+    'quietChildForgiven','quietChildBlessed',
+  ];
+  for (const f of flags) p[f] = true;
+  // Every ally auto-met + reward flags applied.
+  for (const id in ALLIES) meetAlly(id);
+  // Every easter-egg Zyrex to party (bypasses MAX_PARTY for the grant batch).
+  p.party = p.party || [];
+  for (const spec of _ULTHARIS_ROSTER) {
+    const already = p.party.some(z => z && z.species === spec.id);
+    if (already) continue;
+    const zy = makeZyrex(spec.id, spec.lv);
+    if (zy) {
+      // Pin Anciuxor stats to 666 across (bypasses computeStatBlock rounding).
+      if (spec.id === 'anciuxor') {
+        zy.stats = { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 };
+        zy.maxHp = 666; zy.hp = 666;
+      }
+      p.party.push(zy);
+      markCaught(spec.id);
+    }
+  }
+  save();
+  if (typeof updateHUD === 'function') updateHUD();
+  try { playSfx('toast'); } catch(_) {}
+  showToast('⚑  ULTHARIS MODE  ·  every easter egg granted', 3600);
+}
+document.getElementById('dev-settings-close').onclick = closeDevSettings;
+document.getElementById('dev-settings-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('dev-settings-overlay')) closeDevSettings();
+});
 document.getElementById('settings-close').onclick  = closeSettings;
 document.getElementById('settings-close2').onclick = closeSettings;
 $settings.querySelectorAll('[data-settings]').forEach(b => {
@@ -11361,7 +11511,8 @@ document.addEventListener('keydown', (e) => {
   if (!e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && game.mode === 'overworld') {
     if (k === '1')             { triggerSelectAssignment(); e.preventDefault(); return; }
     if (k === '2' || k === 'm'){ openMainMenu();            e.preventDefault(); return; }
-    if (k === '3')             { openSettings();            e.preventDefault(); return; }
+    // V3.17.25 — START key routes to Dev Settings when devMode is on.
+    if (k === '3')             { if (game.devMode) openDevSettings(); else openSettings(); e.preventDefault(); return; }
     if (k === '4')             { toggleDevMode();           e.preventDefault(); return; }   // V3.17.17 — 4 = toggle DEV MODE
     if (k === 'f')             { openParty();               e.preventDefault(); return; }   // V3.17.15 — F = Faction
     if (k === 'q')             { openQuestsView();          e.preventDefault(); return; }   // V3.17.19 — Q = Quests
@@ -11528,7 +11679,8 @@ document.addEventListener('keydown', (e) => {
     const assignActive   = document.getElementById('assign-overlay').classList.contains('active');     // V3.4
     const riftActive     = document.getElementById('rift-overlay').classList.contains('active');       // V3.16.6
     const alliesActive   = document.getElementById('allies-overlay').classList.contains('active');     // V3.17.10
-    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive || pcsActive || settingsActive || assignActive || riftActive || alliesActive)) {
+    const devSetActive   = document.getElementById('dev-settings-overlay').classList.contains('active'); // V3.17.25
+    if (isBack && (mapActive || itemsActive || inspectActive || notebookActive || typesActive || questsActive || pcsActive || settingsActive || assignActive || riftActive || alliesActive || devSetActive)) {
       // V3.14 — cancel chime when any overlay closes via back key.
       try { playSfx('cancel'); } catch(_) {}
       // V3.4 — assign is a modal-over-settings; close the top overlay first
@@ -11542,6 +11694,7 @@ document.addEventListener('keydown', (e) => {
       if (questsActive)  document.getElementById('quests-overlay').classList.remove('active');
       if (riftActive)    document.getElementById('rift-overlay').classList.remove('active');   // V3.16.6
       if (alliesActive)  document.getElementById('allies-overlay').classList.remove('active'); // V3.17.10
+      if (devSetActive)  closeDevSettings();                                                    // V3.17.25
       if (pcsActive)     closePCStorage();
       e.preventDefault();
       return;
@@ -15567,23 +15720,15 @@ function levelUp(r) {
   r.stats.spc = stats.spc;
   r.maxHp = r.stats.hp;
   r.hp += r.maxHp - oldMax;
-  // V2.28 — new move learning cadence. At each learn moment (3/5/7 rule),
-  // redraw all 4 slots from the pools (or the species's canon list).
-  const beforeMoves = r.moves.map(m => m.name).join('|');
-  if (shouldLearnMoveAt(r.lv)) {
-    if (s.movePolicy === 'canon') {
-      const canonNew = s.moves.filter(m => (m.lv || 1) === r.lv);
-      for (const m of canonNew) {
-        if (r.moves.length < 4) r.moves.push(m);
-        else r.moves[3] = m;
-      }
-    } else {
-      autoLearnMoves(r);
-    }
-    const afterMoves = r.moves.map(m => m.name).join('|');
-    if (beforeMoves !== afterMoves) {
-      showToast(`${r.name}  advanced its moves!`, 1800);
-    }
+  // V3.17.23 — Canonical unlock: refreshMoves is idempotent and always
+  // reads the species.moves array through the [1, 15, 30, 60] gate.
+  // The toast fires only when the r.moves count actually increases —
+  // hitting one of the 4 unlock thresholds.
+  const beforeCount = r.moves.length;
+  refreshMoves(r);
+  if (r.moves.length > beforeCount) {
+    const newest = r.moves[r.moves.length - 1];
+    showToast(`${r.name}  learned ${newest.name}!`, 2000);
   }
   showToast(`${r.name}  LV ${r.lv}!`, 1400);
   // V2.15 — evolution trigger: hit evolveLv AND a next form is defined.
@@ -15613,12 +15758,11 @@ function evolveZyrex(r, nextSpeciesId) {
   r.stats.spc = statAtLv(next.base.spc, r.lv, newMaxLv);
   r.maxHp = r.stats.hp;
   r.hp    = Math.max(1, Math.floor(r.maxHp * hpRatio));
-  // V2.28 — Fresh moveset. Auto-upgrade unless the new species is canon-policy.
-  if (next.movePolicy === 'canon') {
-    r.moves = next.moves.filter(m => (m.lv || 1) <= r.lv).slice(-4);
-  } else {
-    autoLearnMoves(r);
-  }
+  // V3.17.23 — Evolution swaps the moveset via the same canonical unlock
+  // ladder: refreshMoves reads the new species.moves + [1, 15, 30, 60]
+  // gates, so the evolved form arrives with exactly the slots its
+  // level has earned in the new kit.
+  refreshMoves(r);
   showToast(`${oldName}  →  ${r.name}!`, 2200);
   save();
 }

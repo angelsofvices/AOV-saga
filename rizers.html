@@ -10347,10 +10347,59 @@ function enableUltharisMode() {
     'firepitEmberBurned','voidFragmentInstalled',
     'statuePartHeld','momBlessedStatue','dadWarnedStatue','anciuxorGranted',
     'quietChildForgiven','quietChildBlessed',
+    'pcStorageInstalled',   // V3.17.26 — bypass computer-part install rite
   ];
   for (const f of flags) p[f] = true;
   // Every ally auto-met + reward flags applied.
   for (const id in ALLIES) meetAlly(id);
+  // V3.17.26 — GRANT EVERY KEY ITEM.  Player.items dict + player.keys +
+  // player.passages + zysphere pools + coins.  Covers every wired
+  // exploration-loop item, every district key, every town-hall passage,
+  // every zysphere variant + a generous coin/potion stockpile.  This is
+  // what enables single-press regression testing of every content path.
+  p.items = p.items || {};
+  const KEY_ITEMS = [
+    'computer_part',   // Sunlit-cottage cellar item → basement PC install
+    'sunlit_ember',    // Zarvane shrine
+    'ancient_rune',    // Andrannor shrine
+    'verdant_seed',    // Veridan shrine
+    'void_fragment',   // Netharion shrine → radio rift-slip
+    'alien_chip',      // Vorashil shrine
+    'wisp_breath',     // Xilnar shrine
+    'forge_ember',     // Baelgor shrine
+    'gear_cog',        // Thardin shrine
+    'statue_part',     // Anciuxor home-cycle
+    'petragryff_homunculus',   // Ancient Rune × workbench product
+  ];
+  for (const id of KEY_ITEMS) p.items[id] = Math.max(1, p.items[id] || 0);
+  // Potion stockpile
+  p.items.potion        = Math.max(20, p.items.potion || 0);
+  p.items.grand_potion  = Math.max(10, p.items.grand_potion || 0);
+  p.items.master_potion = Math.max(5,  p.items.master_potion || 0);
+  // Zysphere pools
+  p.zyspheres      = Math.max(50, p.zyspheres      || 0);
+  p.zyspheresVoid  = Math.max(25, p.zyspheresVoid  || 0);
+  p.zyspheresUltra = Math.max(10, p.zyspheresUltra || 0);
+  // Coins + gems for shopping
+  p.coins = Math.max(99999, p.coins || 0);
+  p.gems  = Math.max(999,   p.gems  || 0);
+  // Bronze + Silver door keys (Malezor cottage + lodge)
+  p.keys = p.keys || {};
+  p.keys.bronze = Math.max(1, p.keys.bronze || 0);
+  p.keys.silver = Math.max(1, p.keys.silver || 0);
+  // Every town-hall passage stamped so all D-doors open.
+  p.passages = p.passages || {};
+  if (typeof HALL_PASSAGES !== 'undefined') {
+    for (const districtId in HALL_PASSAGES) {
+      const pass = HALL_PASSAGES[districtId];
+      if (pass && pass.key) p.passages[pass.key] = 1;
+    }
+  }
+  // Every district visited (unlocks rift-slip to all).
+  p.districtsVisited = p.districtsVisited || {};
+  if (typeof DISTRICT_ORDER !== 'undefined') {
+    for (const d of DISTRICT_ORDER) p.districtsVisited[d] = true;
+  }
   // Every easter-egg Zyrex to party (bypasses MAX_PARTY for the grant batch).
   p.party = p.party || [];
   for (const spec of _ULTHARIS_ROSTER) {
@@ -10370,7 +10419,7 @@ function enableUltharisMode() {
   save();
   if (typeof updateHUD === 'function') updateHUD();
   try { playSfx('toast'); } catch(_) {}
-  showToast('⚑  ULTHARIS MODE  ·  every easter egg granted', 3600);
+  showToast('⚑  ULTHARIS MODE  ·  every easter egg + key item granted', 3600);
 }
 document.getElementById('dev-settings-close').onclick = closeDevSettings;
 document.getElementById('dev-settings-overlay').addEventListener('click', (e) => {
@@ -16182,7 +16231,14 @@ function handlePartySwapKey() {
 function renderPartyScreen() {
   $partyGrid.innerHTML = '';
   setTimeout(() => { const first = $partyGrid.querySelector('.party-slot:not(.empty)'); if (first) first.focus(); }, 40);
-  for (let i = 0; i < MAX_PARTY; i++) {
+  // V3.17.26 — Party grid renders MAX_PARTY OR the player's actual party
+  // length (whichever is greater) so Ultharis-mode overflow (7+ Zyrex)
+  // is visible.  Grid parent scrolls vertically when it overflows.
+  const slotCount = Math.max(MAX_PARTY, (game.player.party || []).length);
+  // Make sure the container allows scroll when it overflows the viewport.
+  $partyGrid.style.overflowY = 'auto';
+  $partyGrid.style.maxHeight = '68vh';
+  for (let i = 0; i < slotCount; i++) {
     const r = game.player.party[i];
     const slot = document.createElement('div');
     slot.className = 'party-slot' + (r && r.hp <= 0 ? ' ko' : '');

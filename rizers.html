@@ -5861,7 +5861,7 @@ const MALEZOR_MAP = [
   '##############################', // 0
   '#,,,,,,,,,,,,,,,,,v,,,,,,,,,,#', // 1 · v = Village Keeper (V2.47)
   '#,,K,,GGGG,,,,,MMhh,,,K,,,,,,#', // 2 · hh = Bronze Cottage roof (top row of 2x2)
-  '#Thh,,GGGG,,,,,,,ph,,,,,,,,,,#', // 3 · hh = Home roof · p = Bronze Cottage door
+  '#Thh,,GGGG,,,,,,,ph,,,,,,^,,,#', // 3 · hh = Home roof · p = Bronze Cottage door · ^ = Broadcast Tower (V3.17.41)
   '#THh,,,GGG,,Y,,,,,,S,,,,,,K,,#', // 4 · H = Home door (walk in) · Y/S/K as before
   '#,,,,,,,,,,,,,,,,,,B,,,,,,,,,#', // 5 · B=merchant stand (booth) in front of S
 
@@ -7726,6 +7726,33 @@ function generateDistrictMap(mapId) {
     }
   }
 
+  // V3.17.41 — BROADCAST TOWER '^' (blocker).  One per district.  Placed
+  // in the top-right plaza area (visible from the west portal entry).
+  // Interact fires Myara's LIVE broadcast interview about the player's
+  // journey in this district (see interactBroadcastTower()).
+  {
+    const attempts = [
+      [cols - 5, 3],           // top-right plaza
+      [cols - 6, 4],           // one south + one west
+      [cols - 4, 4],
+      [cols - 5, 2],
+    ];
+    let placed = false;
+    for (const [tx, ty] of attempts) {
+      if (placed) break;
+      if (grid[ty] && grid[ty][tx] === ',') { grid[ty][tx] = '^'; placed = true; }
+    }
+    if (!placed) {
+      let tries = 0;
+      while (!placed && tries < 200) {
+        tries++;
+        const x = pick(3, cols - 4);
+        const y = pick(2, Math.max(6, Math.floor(rows / 3)));   // upper third
+        if (grid[y] && grid[y][x] === ',') { grid[y][x] = '^'; placed = true; }
+      }
+    }
+  }
+
   // V2.43 — District signature LANDMARK (blocker) at a canonical center-left
   // spot. Each district's 'L' renders unique in drawTile('L') based on mapId.
   const decor = DISTRICT_DECOR[mapId] || {};
@@ -8295,7 +8322,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*&'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne · V3.17.34 & = Mom's plant
+  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*&^'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne · V3.17.34 & = Mom's plant · V3.17.41 ^ = Broadcast Tower
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -9771,6 +9798,54 @@ function drawTile(x, y, ch, mx, my) {
       }
       break;
     }
+    case '^': {
+      // V3.17.41 — BROADCAST TOWER (blocker).  Steel lattice mast with a
+      // dish + pulsing red beacon at the top.  Glows softly when the player
+      // has already broadcast from this district (canon has-broadcasted state).
+      drawTile(x, y, ',', mx, my);
+      const cx = px + TILE / 2, cy = py + TILE / 2;
+      const done = !!(game.player && game.player.broadcasts && game.player.broadcasts[game.player.mapId]);
+      // Base — squat concrete pad
+      ctx.fillStyle = '#3a3238';
+      ctx.fillRect(px + 8, py + TILE - 6, TILE - 16, 5);
+      ctx.fillStyle = '#5a5058';
+      ctx.fillRect(px + 9, py + TILE - 6, TILE - 18, 1);
+      // Mast — thin steel lattice, tapered toward the top
+      ctx.strokeStyle = '#8a8288';
+      ctx.lineWidth = 1;
+      // Two upright rails converging toward the tip
+      ctx.beginPath();
+      ctx.moveTo(px + 10, py + TILE - 6);   ctx.lineTo(cx - 1, py + 4);
+      ctx.moveTo(px + TILE - 10, py + TILE - 6); ctx.lineTo(cx + 1, py + 4);
+      ctx.stroke();
+      // Cross-braces (X pattern for lattice look)
+      ctx.lineWidth = 0.6;
+      for (let yy = py + 8; yy < py + TILE - 6; yy += 5) {
+        const shrink = (yy - py - 4) / (TILE - 10);
+        const xl = px + 10 + shrink * ((cx - 1) - (px + 10));
+        const xr = px + TILE - 10 - shrink * ((px + TILE - 10) - (cx + 1));
+        ctx.beginPath();
+        ctx.moveTo(xl, yy); ctx.lineTo(xr, yy + 3);
+        ctx.moveTo(xr, yy); ctx.lineTo(xl, yy + 3);
+        ctx.stroke();
+      }
+      // Dish — small oval near the top, tilted skyward
+      ctx.fillStyle = '#c0c8d0';
+      ctx.beginPath();
+      ctx.ellipse(cx - 3, py + 8, 4, 2, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#5a5058';
+      ctx.stroke();
+      // Beacon — pulsing red at the tip (or gold if broadcast completed)
+      const pulse = 0.4 + 0.6 * Math.sin(Date.now() / 260);
+      ctx.fillStyle = done
+        ? `rgba(248, 200, 64, ${0.55 + 0.35 * pulse})`   // gold when done
+        : `rgba(240, 60, 60, ${0.55 + 0.35 * pulse})`;   // red when unbroadcast
+      ctx.beginPath();
+      ctx.arc(cx, py + 4, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case '&': {
       // V3.17.34 — MOM'S PLANT (blocker).  Terra-cotta pot with a leafy
       // green fern in the living room, next to the couch.  When the
@@ -11032,8 +11107,12 @@ function openQuestsView() {
   // touch (visitedCount > 0); Side Quests section unlocks after the first
   // keeper interaction (any QUEST_DEFS state out of 'locked').  If both
   // loops are still un-triggered, we render a single evocative empty-state.
-  const shrineLoopStarted = visitedCount > 0;
-  const questLoopStarted  = QUEST_ORDER.some(qid => questState(qid) !== 'locked');
+  const shrineLoopStarted    = visitedCount > 0;
+  const questLoopStarted     = QUEST_ORDER.some(qid => questState(qid) !== 'locked');
+  // V3.17.41 — third loop: Myara's Broadcast Tower arc.
+  const broadcasts           = game.player.broadcasts || {};
+  const broadcastCount       = Object.keys(broadcasts).length;
+  const broadcastLoopStarted = broadcastCount > 0;
   if (shrineLoopStarted) {
     // Meta bar
     const meta = document.createElement('div');
@@ -11108,11 +11187,35 @@ function openQuestsView() {
     for (const qid of active) renderQuestRow(qid, false);
     for (const qid of done)   renderQuestRow(qid, true);
   }
-  // V3.17.36 — Empty-state placeholder.  If neither loop has started (no
-  // shrines touched, no keepers spoken to) the log renders as a single
-  // evocative empty row.  Once the player triggers ANY loop, the relevant
-  // section replaces this placeholder on the next open.
-  if (!shrineLoopStarted && !questLoopStarted) {
+  // V3.17.41 — BROADCASTS section (Myara's Journalist arc).  Only renders
+  // once the player has completed at least one live broadcast at a
+  // district's tower.  Shows a per-district row; row lights gold once the
+  // district's segment has aired.  Reaching 10/10 = "Voice of the Expanse".
+  if (broadcastLoopStarted) {
+    const divider = document.createElement('div');
+    divider.style.cssText = 'color:var(--gold-bright); font-family:var(--font-display); letter-spacing:0.22em; font-size:12px; margin-top:14px; padding:6px 10px; border-top:1px solid var(--border-soft);';
+    divider.textContent = `BROADCASTS  ·  ${broadcastCount} / 10 LIVE${broadcastCount >= 10 ? '  ·  ◈ VOICE OF THE EXPANSE' : ''}`;
+    body.appendChild(divider);
+    for (const id of DISTRICT_ORDER) {
+      if (!broadcasts[id]) continue;   // only visited-districts show; unmade broadcasts stay hidden
+      const dmeta = DISTRICT_META[id];
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border-gold);background:rgba(90,40,140,0.10);color:var(--gold-bright);`;
+      row.innerHTML = `
+        <div>
+          <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">◈  ${dmeta.name.toUpperCase()} · MYARA · LIVE</div>
+          <div style="font-size:11px;opacity:0.75;margin-top:2px;letter-spacing:0.08em;">Broadcast on-air — +${BROADCAST_XP} R.XP claimed</div>
+        </div>
+        <div style="font-family:var(--font-display);font-size:12px;letter-spacing:0.10em;opacity:0.85;">+${BROADCAST_XP} R.XP</div>
+      `;
+      body.appendChild(row);
+    }
+  }
+  // V3.17.36 · V3.17.41 — Empty-state placeholder.  If NO loop has started
+  // (no shrines, no keepers, no broadcasts) the log renders as a single
+  // evocative empty row.  Once ANY loop triggers, the relevant section
+  // replaces this placeholder on the next open.
+  if (!shrineLoopStarted && !questLoopStarted && !broadcastLoopStarted) {
     const empty = document.createElement('div');
     empty.style.cssText = 'padding:20px 12px;text-align:center;color:var(--mist);font-family:var(--font-display);letter-spacing:0.14em;font-size:12px;opacity:0.65;border:1px dashed var(--border-soft);background:rgba(20,10,40,0.15);';
     empty.innerHTML = `<div style="font-size:14px;color:var(--gold-bright);opacity:0.85;margin-bottom:6px;">◇  YOUR QUEST LOG IS EMPTY</div><div style="opacity:0.75;">Walk the world.  The threads will find you.</div>`;
@@ -13025,6 +13128,9 @@ function tryInteract() {
   } else if (t === '&') {
     // V3.17.34 — Mom's plant in the living room · verdant_seed redemption.
     interactMomsPlant();
+  } else if (t === '^') {
+    // V3.17.41 — Broadcast Tower · Myara live-interviews the Rizer.
+    interactBroadcastTower();
   } else if (t === 'T') {
     // V3.17.34 — Trees are shakeable ONLY when the player carries the
     // VERDANT SEED (the seed teaches you which trees remember their old
@@ -14734,6 +14840,110 @@ function interactTree(tx, ty) {
       'Nothing this tree was willing to part with today.',
     ]);
   }
+}
+
+// V3.17.41 — BROADCAST TOWER · Myara's Journalist arc.
+// One tower per district.  Interacting with a tower puts the player LIVE
+// on Myara's intergalactic radio broadcast (Aethryx Expanse open channel one).
+// She interviews the player about their journey in this district; per-broadcast
+// grant = +150 Rizer XP.  Track completion in game.player.broadcasts[districtId].
+// Full 10/10 = "Voice of the Expanse" — the whole Aethryx Expanse knows the
+// player's name.
+const BROADCAST_XP = 150;
+const BROADCAST_INTERVIEWS = {
+  malezor: [
+    'The tower crackles.  Static.  Then — clear as a hometown radio — MYARA.',
+    "MYARA: On-air from the observatory.  I've got a young Rizer at the Malezor tower.  Say hi to the Expanse.",
+    "MYARA: This is where you started.  The Beastlands.  How does the world feel now that you're actually in it?",
+    'You give her something honest.  She riffs it into a broadcast opener that will play on nine other towers before morning.',
+  ],
+  zarvane: [
+    "The Zarvane tower hums under Auralands sun.  MYARA's voice cuts through the hum.",
+    'MYARA: LIVE from the Sunlit Temple plaza — the Rizer walking Ivirium\'s district.  Pilgrim country.',
+    'MYARA: Tell the Expanse what the choir sounds like from the inside.  I want the listeners in Xilnar to feel it.',
+    'She lets your answer breathe before cutting to the next segment.  Somewhere, a Baelgor smith turns up the volume.',
+  ],
+  andrannor: [
+    'The Andrannor tower rattles once and locks in.  MYARA is on the wire.',
+    "MYARA: Obsidian Archive in your rearview.  You've been reading shelves you shouldn't be reading, haven't you?",
+    'MYARA: For the Expanse — the Grey Archivist herself confirmed this Rizer took an interest.  Say something the archive won\'t forget.',
+    'You do.  A hundred worlds worth of listeners write it down.',
+  ],
+  veridan: [
+    'The Verdant tower is wound in vine.  The dish still works.  MYARA does not miss a beat.',
+    'MYARA: You\'re in Emeralix\'s garden.  Every leaf here knows a name.  What did the grove tell you?',
+    'MYARA: The listeners in Netharion say the Verge glows different when the Rizer walks it.  Prove them right — talk.',
+    'You do.  A grove somewhere blooms an inch earlier this year.',
+  ],
+  netharion: [
+    'The Netharion tower does not always agree it exists.  Today, it does.  MYARA logs in.',
+    'MYARA: Center of the world, kid.  Everyone else is edges.  What did the rift say to you?',
+    "MYARA: Don't tell me a Seer story.  Tell me a HUMAN one.  Give the Expanse something Eurakeon didn't dream first.",
+    'You do.  For a moment the rift shuts up and listens.',
+  ],
+  vorashil: [
+    "The Skyport tower has three antennas.  All three light up when MYARA calls in.",
+    "MYARA: Broadcasting from off-world today, folks — the Rizer made it to Vorashil.  This is where the airwaves go strange.",
+    "MYARA: Zypher-9 sells names.  Don't give him yours.  But give the Expanse a sentence.  Make it real.",
+    'You do.  Somewhere a docked ship pilot uncrosses his arms.',
+  ],
+  xilnar: [
+    'The Xilnar tower is quieter than any tower has a right to be.  MYARA speaks softly to match.',
+    'MYARA: You\'re at the Wispward now.  Obsidius knows you\'re here.  He\'s been quiet, but he knows.',
+    'MYARA: The wisps are listening on this frequency.  Say something the dead can carry.  They love a good line.',
+    'You do.  The chapel candles flicker in nine districts at once.',
+  ],
+  baelgor: [
+    "The Baelgor tower is bolted to a smith's workshop roof.  MYARA rolls in over the anvil ring.",
+    'MYARA: Amberchain country.  Drakkur counts everyone who walks his road.  He\'s counting YOU.',
+    'MYARA: Bonus scoop for the Expanse — Psychosyd himself listens to my show.  Say hi to your idol on-air.',
+    'You do.  Psychosyd, somewhere, throws his devil-horns at the receiver.',
+  ],
+  thardin: [
+    'The Thardin tower runs on the Concourse grid.  MYARA cuts through the machine-hum crisp.',
+    'MYARA: Mechlands.  Where every cog has a schedule and every schedule has a Rizer.  What\'s yours today?',
+    "MYARA: HELIX the Anomalyweaver hates my show.  Tell the Expanse something that would make him hate it more.",
+    'You do.  Machines listen too, some of them.  This one is one of them.',
+  ],
+  korathen: [
+    'The Korathen tower is gilded.  Of course it is.  MYARA is grinning through the wire.',
+    'MYARA: Ultralands.  Last town of the Ninth World.  You made it.  The Expanse is holding its breath.',
+    "MYARA: THREEFOLD says she doesn't broadcast.  She listens.  So say something worth her listening.",
+    "You do.  Somewhere, an empty throne creaks — like it heard.",
+  ],
+};
+function interactBroadcastTower() {
+  const districtId = getPlayerDistrict();
+  game.player.broadcasts = game.player.broadcasts || {};
+  const alreadyDone = !!game.player.broadcasts[districtId];
+  const lines = BROADCAST_INTERVIEWS[districtId] || [
+    'The tower crackles.  MYARA is not on-air from this frequency yet.',
+    'Try another district.',
+  ];
+  if (alreadyDone) {
+    const dmeta = DISTRICT_META[districtId] || { name: districtId };
+    showDialog([
+      `The ${dmeta.name} broadcast tower stands warm from your last segment.`,
+      'MYARA: Told your story on-air already, Rizer.  Thousands heard it.  Go make more of it.',
+    ]);
+    return;
+  }
+  const dmeta = DISTRICT_META[districtId] || { name: districtId };
+  showDialog([
+    ...lines,
+    `«◈  BROADCAST LIVE  ·  ${dmeta.name.toUpperCase()}  ·  +${BROADCAST_XP} Rizer XP»`,
+  ], () => {
+    game.player.broadcasts[districtId] = true;
+    const rxp = (game.player.rizerXp || 0) + BROADCAST_XP;
+    game.player.rizerXp = rxp;
+    save(); updateHUD();
+    try { playSfx('toast'); } catch(_) {}
+    const doneCount = Object.keys(game.player.broadcasts).length;
+    const done10    = doneCount >= 10;
+    showToast(done10
+      ? `◈  VOICE OF THE EXPANSE  ·  10 / 10 broadcasts LIVE`
+      : `◈  BROADCAST ${doneCount}/10 LIVE  ·  +${BROADCAST_XP} R.XP`, 3200);
+  });
 }
 
 // V3.17.6 — Consecrate the statue part in the fireplace.  Grants

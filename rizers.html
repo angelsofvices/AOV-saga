@@ -11019,34 +11019,47 @@ function openQuestsView() {
   const visited = game.player.shrinesVisited || {};
   const visitedCount = Object.keys(SHRINES).filter(k => visited[k]).length;
   body.innerHTML = '';
-  // Meta bar
-  const meta = document.createElement('div');
-  meta.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(90,40,140,0.15);border:1px solid var(--border-gold);color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;';
-  meta.innerHTML = `<span>ANCIENT GEMSIGHT</span><span>${visitedCount} / ${SHRINE_TOTAL}${visitedCount >= SHRINE_TOTAL ? ' ◈ UNLOCKED' : ''}</span>`;
-  body.appendChild(meta);
-  // Per-shrine rows — V3.15.2 only show districts the player has
-  // actually visited.  Empty until you've been there.
-  const districtsVisited = game.player.districtsVisited || {};
-  for (const id of DISTRICT_ORDER) {
-    if (!SHRINES[id]) continue;
-    if (!districtsVisited[id]) continue;   // hide until visited
-    const shrine = SHRINES[id];
-    const dmeta = DISTRICT_META[id];
-    const done = !!visited[id];
-    const row = document.createElement('div');
-    row.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid ${done ? 'var(--border-gold)' : 'var(--border-soft)'};background:${done ? 'rgba(90,40,140,0.10)' : 'rgba(20,10,40,0.20)'};color:${done ? 'var(--gold-bright)' : 'var(--mist)'};`;
-    row.innerHTML = `
-      <div>
-        <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">${done ? '◈' : '○'}  ${dmeta.name.toUpperCase()} · ${shrine.name.toUpperCase()}</div>
-        <div style="font-size:11px;opacity:0.65;margin-top:2px;letter-spacing:0.08em;">${done ? 'Visited · ' + shrine.itemName + ' claimed' : 'Unvisited · touch the landmark'}</div>
-      </div>
-      <div style="font-family:var(--font-display);font-size:12px;letter-spacing:0.10em;opacity:0.8;">+${shrine.xp} XP</div>
-    `;
-    body.appendChild(row);
+  // V3.17.36 — Quest log stays EMPTY until the player triggers the first
+  // instance of a loop.  Shrine section unlocks after the first shrine
+  // touch (visitedCount > 0); Side Quests section unlocks after the first
+  // keeper interaction (any QUEST_DEFS state out of 'locked').  If both
+  // loops are still un-triggered, we render a single evocative empty-state.
+  const shrineLoopStarted = visitedCount > 0;
+  const questLoopStarted  = QUEST_ORDER.some(qid => questState(qid) !== 'locked');
+  if (shrineLoopStarted) {
+    // Meta bar
+    const meta = document.createElement('div');
+    meta.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(90,40,140,0.15);border:1px solid var(--border-gold);color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;';
+    meta.innerHTML = `<span>ANCIENT GEMSIGHT</span><span>${visitedCount} / ${SHRINE_TOTAL}${visitedCount >= SHRINE_TOTAL ? ' ◈ UNLOCKED' : ''}</span>`;
+    body.appendChild(meta);
+    // Per-shrine rows — V3.15.2 only show districts the player has
+    // actually visited.  Empty until you've been there.
+    const districtsVisited = game.player.districtsVisited || {};
+    for (const id of DISTRICT_ORDER) {
+      if (!SHRINES[id]) continue;
+      if (!districtsVisited[id]) continue;   // hide until visited
+      const shrine = SHRINES[id];
+      const dmeta = DISTRICT_META[id];
+      const done = !!visited[id];
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid ${done ? 'var(--border-gold)' : 'var(--border-soft)'};background:${done ? 'rgba(90,40,140,0.10)' : 'rgba(20,10,40,0.20)'};color:${done ? 'var(--gold-bright)' : 'var(--mist)'};`;
+      row.innerHTML = `
+        <div>
+          <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">${done ? '◈' : '○'}  ${dmeta.name.toUpperCase()} · ${shrine.name.toUpperCase()}</div>
+          <div style="font-size:11px;opacity:0.65;margin-top:2px;letter-spacing:0.08em;">${done ? 'Visited · ' + shrine.itemName + ' claimed' : 'Unvisited · touch the landmark'}</div>
+        </div>
+        <div style="font-family:var(--font-display);font-size:12px;letter-spacing:0.10em;opacity:0.8;">+${shrine.xp} XP</div>
+      `;
+      body.appendChild(row);
+    }
   }
-  footer.textContent = visitedCount >= SHRINE_TOTAL
-    ? '◈  All shrines answered.  Ancient Gemsight opens what was hidden.'
-    : `Walk up to a district landmark and press A. ${SHRINE_TOTAL - visitedCount} shrine${SHRINE_TOTAL - visitedCount === 1 ? '' : 's'} remain.`;
+  footer.textContent = !shrineLoopStarted && !questLoopStarted
+    ? ''
+    : (visitedCount >= SHRINE_TOTAL
+      ? '◈  All shrines answered.  Ancient Gemsight opens what was hidden.'
+      : shrineLoopStarted
+        ? `Walk up to a district landmark and press A. ${SHRINE_TOTAL - visitedCount} shrine${SHRINE_TOTAL - visitedCount === 1 ? '' : 's'} remain.`
+        : '');
 
   // V3.9 — SIDE QUESTS section.  Below the shrines.  Keeper quests only
   // appear once the player has spoken to that district's Keeper (state
@@ -11086,6 +11099,16 @@ function openQuestsView() {
     };
     for (const qid of active) renderQuestRow(qid, false);
     for (const qid of done)   renderQuestRow(qid, true);
+  }
+  // V3.17.36 — Empty-state placeholder.  If neither loop has started (no
+  // shrines touched, no keepers spoken to) the log renders as a single
+  // evocative empty row.  Once the player triggers ANY loop, the relevant
+  // section replaces this placeholder on the next open.
+  if (!shrineLoopStarted && !questLoopStarted) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:20px 12px;text-align:center;color:var(--mist);font-family:var(--font-display);letter-spacing:0.14em;font-size:12px;opacity:0.65;border:1px dashed var(--border-soft);background:rgba(20,10,40,0.15);';
+    empty.innerHTML = `<div style="font-size:14px;color:var(--gold-bright);opacity:0.85;margin-bottom:6px;">◇  YOUR QUEST LOG IS EMPTY</div><div style="opacity:0.75;">Walk the world.  The threads will find you.</div>`;
+    body.appendChild(empty);
   }
 }
 document.getElementById('quests-close').onclick = () => document.getElementById('quests-overlay').classList.remove('active');
@@ -11555,13 +11578,15 @@ function openItemsView() {
   body.innerHTML = '';
   const ks = game.player.keys || {};
   const rows = [
-    { key: 'potion',        name: 'Potion',         desc: 'Heals 40 HP on the top Zyrex.',                                                             count: (it.potion || 0) },
+    { key: 'potion',        name: 'Potion',         desc: 'Heals 40 HP.  Useless on a KO\'d Zyrex.',                                                    count: (it.potion || 0) },
     // V3.10 — potion variants unlocked at the merchant past Rizer Level gates.
-    { key: 'grand_potion',  name: 'Grand Potion',   desc: 'Heals 100 HP on the top Zyrex.  Baelgor nurse-grade.',                                     count: (it.grand_potion  || 0) },
-    { key: 'master_potion', name: 'Master Potion',  desc: 'Heals 50% of max HP and clears status on the top Zyrex.  Elixir-grade.',                    count: (it.master_potion || 0) },
-    // V3.17.34 — REVIVAL STEM.  Only true full-heal in the game.  Grown at
-    // Mom's plant from a Verdant Seed, or occasionally shaken from a tree.
-    { key: 'revival_stem',  name: 'Revival Stem',   desc: 'Full HP and clears status on the top Zyrex.  Warm.  Almost a heartbeat.  From Mom\'s plant.', count: (it.revival_stem || 0) },
+    { key: 'grand_potion',  name: 'Grand Potion',   desc: 'Heals 100 HP.  Baelgor nurse-grade.  Useless on a KO\'d Zyrex.',                             count: (it.grand_potion  || 0) },
+    { key: 'master_potion', name: 'Master Potion',  desc: 'Heals 50% of max HP + clears status.  Elixir-grade.  Useless on a KO\'d Zyrex.',             count: (it.master_potion || 0) },
+    // V3.17.34 · V3.17.35 — REVIVAL STEM.  Only true full-heal in the game.
+    // Grown at Mom's plant from a Verdant Seed, or occasionally shaken from a
+    // tree.  ALSO the only item that revives a KO'd Zyrex (100% HP + status
+    // clear).  Second-only-to-sleep as a revive method.
+    { key: 'revival_stem',  name: 'Revival Stem',   desc: 'Full HP + clears status.  The ONLY item that revives a KO\'d Zyrex.  From Mom\'s plant.',    count: (it.revival_stem || 0) },
     { key: 'zysphere',        name: 'Zysphere',       desc: 'Synchronizes with a wild Zyrex\'s astralite makeup.  If they submit, they are bound.',              count: (game.player.zyspheres      || 0) },
     { key: 'zysphere_void',   name: 'Void Zysphere',  desc: 'Void-etched Thardun matrix.  +40% sync odds vs the basic sphere.',                                     count: (game.player.zyspheresVoid  || 0) },
     { key: 'zysphere_ultra',  name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                                count: (game.player.zyspheresUltra || 0) },
@@ -11669,17 +11694,41 @@ function useItem(key) {
   //   Grand Potion   +100 flat
   //   Master Potion  +50% of max HP + clears status  (was full HP)
   //   Revival Stem   FULL HP + clears status  (only true full-heal)
+  // V3.17.35 REVIVE RULE:
+  //   Potions do NOTHING on KO'd Zyrex (hp <= 0).  A KO'd Zyrex can only
+  //   be brought back by sleeping in a bed OR by a REVIVAL STEM.
+  //   Revival Stem prioritizes a KO'd party member; otherwise it heals
+  //   whoever is wounded or statused.
   if (!['potion','grand_potion','master_potion','revival_stem'].includes(key)) return;
   if (!game.player.items || (game.player.items[key] || 0) <= 0) return;
   const isStem   = key === 'revival_stem';
   const isMaster = key === 'master_potion';
   const clearsStatus = isStem || isMaster;
-  const target = game.player.party.find(r => r && (r.hp < r.maxHp || (clearsStatus && r.status)));
-  if (!target) { showToast('ALL ZYREX AT FULL HP'); return; }
+  let target = null;
+  if (isStem) {
+    // Revival Stem priority: first KO → first wounded → first statused
+    target = game.player.party.find(r => r && r.hp <= 0)
+          || game.player.party.find(r => r && r.hp < r.maxHp)
+          || game.player.party.find(r => r && r.status);
+    if (!target) { showToast('ALL ZYREX AT FULL HP'); return; }
+  } else {
+    // Potions target the first wounded / statused Zyrex that IS ALIVE.
+    target = game.player.party.find(r => r && r.hp > 0 && (r.hp < r.maxHp || (clearsStatus && r.status)));
+    if (!target) {
+      // Distinguish 'no target' cases so the player gets useful feedback.
+      const hasKO   = game.player.party.some(r => r && r.hp <= 0);
+      const allFull = game.player.party.every(r => !r || (r.hp >= r.maxHp && !r.status));
+      if (hasKO && allFull) showToast('POTIONS CAN\'T REVIVE · use a REVIVAL STEM');
+      else                  showToast('ALL ZYREX AT FULL HP');
+      return;
+    }
+  }
+  const wasKO  = target.hp <= 0;
   const before = target.hp;
   if (isStem) {
     target.hp = target.maxHp;
     target.status = null;
+    target.fainted = false;   // V3.17.35 — clear KO flag on revive
   } else if (isMaster) {
     const halfHeal = Math.ceil(target.maxHp / 2);
     target.hp = Math.min(target.maxHp, target.hp + halfHeal);
@@ -11694,11 +11743,14 @@ function useItem(key) {
               : key === 'master_potion' ? 'MASTER POTION'
               : key === 'revival_stem'  ? 'REVIVAL STEM'
               :                            'POTION';
-  showToast(isStem
-    ? `✚ ${target.name}  FULL HP · status cleared · REVIVAL STEM`
+  const toast = isStem
+    ? (wasKO
+        ? `✚ ${target.name}  REVIVED · FULL HP · REVIVAL STEM`
+        : `✚ ${target.name}  FULL HP · status cleared · REVIVAL STEM`)
     : isMaster
       ? `✚ ${target.name}  +${target.hp - before} HP · status cleared · MASTER POTION`
-      : `✚ ${target.name}  +${target.hp - before} HP · ${label}`);
+      : `✚ ${target.name}  +${target.hp - before} HP · ${label}`;
+  showToast(toast);
   openItemsView();
 }
 document.getElementById('items-close').onclick = () => $itemsov.classList.remove('active');
@@ -11713,7 +11765,7 @@ $itemsov.addEventListener('click', (e) => { if (e.target === $itemsov) $itemsov.
 const SHOP_STOCK = [
   { key: 'potion',        name: 'Potion',         desc: 'Heals 40 HP.',                                                                          price: 5  },
   { key: 'grand_potion',  name: 'Grand Potion',   desc: 'Heals 100 HP.  Baelgor nurse-grade.',                                                    price: 25,  rizerLvNeed: 5  },
-  { key: 'master_potion', name: 'Master Potion',  desc: 'Heals 50% of max HP + clears status.  Elixir-grade.',                                     price: 60,  rizerLvNeed: 15 },
+  { key: 'master_potion', name: 'Master Potion',  desc: 'Heals 50% of max HP + clears status.  Elixir-grade.  Cannot revive KO.',                  price: 60,  rizerLvNeed: 15 },
   { key: 'zysphere',      name: 'Zysphere',       desc: 'Basic Thardun matrix.  Sync-binds a wild Zyrex.',                                        price: 10 },
   { key: 'zysphere_void', name: 'Void Zysphere',  desc: 'Void-etched matrix.  +40% sync odds vs the basic sphere.',                                price: 30,  rizerLvNeed: 10 },
   { key: 'zysphere_ultra',name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                  price: 90,  rizerLvNeed: 25 },
@@ -15951,16 +16003,44 @@ function renderBagMenu() {
   //   Grand Potion   +100 flat
   //   Master Potion  50% max HP + clears status  (opts.halfHeal)
   //   Revival Stem   full HP + clears status     (opts.masterful) — only true full-heal
+  // V3.17.35 — Bench-scan helpers for the REVIVE RULE:
+  //   Potions:  targeted at the ACTIVE fighter, disabled if active is at full HP.
+  //   Master:   +50% + clear status → also active only (no revive).
+  //   Stem:     enabled if ANY bench member is KO'd, OR the active is wounded /
+  //             statused.  Revives a KO'd bench member first, then heals active.
+  const anyKoBench = game.player.party.some(r => r && r.hp <= 0);
   const addPotionBtn = (label, itemKey, healAmt, opts) => {
     const count = items[itemKey] || 0;
+    const isFull = !!(opts && opts.masterful);
+    const isHalf = !!(opts && opts.halfHeal);
     const b = document.createElement('button');
     b.className = 'action-btn';
     let flavor;
-    if (opts && opts.masterful)      flavor = `×${count} · FULL HEAL + CLEAR STATUS → ${p.name}`;
-    else if (opts && opts.halfHeal)  flavor = `×${count} · HEAL 50% + CLEAR STATUS → ${p.name}`;
-    else                             flavor = `×${count} · +${healAmt} HP → ${p.name}`;
+    if (isFull) {
+      const koTarget = game.player.party.find(r => r && r.hp <= 0);
+      flavor = koTarget
+        ? `×${count} · REVIVE + FULL HP → ${koTarget.name}`
+        : `×${count} · FULL HEAL + CLEAR STATUS → ${p.name}`;
+    } else if (isHalf) {
+      flavor = `×${count} · HEAL 50% + CLEAR STATUS → ${p.name}`;
+    } else {
+      flavor = `×${count} · +${healAmt} HP → ${p.name}`;
+    }
     b.innerHTML = `${label} <span class="cost">${flavor}</span>`;
-    if (count <= 0 || p.hp >= p.maxHp) b.disabled = true;
+    // Enable/disable logic — Stem opens up on KO'd bench too; potions don't
+    let disabled = (count <= 0);
+    if (!disabled) {
+      if (isFull) {
+        // Stem: usable if there's a KO'd bench member OR active needs heal/cure
+        disabled = !anyKoBench && p.hp >= p.maxHp && !p.status;
+      } else {
+        // Potions + Master: active must be alive AND either wounded or statused
+        const needsHeal = p.hp < p.maxHp;
+        const needsCure = isHalf && p.status;
+        disabled = (p.hp <= 0) || (!needsHeal && !needsCure);
+      }
+    }
+    if (disabled) b.disabled = true;
     b.onclick = () => usePotionInBattle(itemKey, healAmt, opts);
     $battleActions.appendChild(b);
   };
@@ -16007,17 +16087,29 @@ function renderBagMenu() {
 async function usePotionInBattle(itemKey, healAmt, opts) {
   itemKey  = itemKey || 'potion';
   healAmt  = (typeof healAmt === 'number') ? healAmt : 40;
-  const isFull = !!(opts && opts.masterful);   // Revival Stem: 100% + status clear
-  const isHalf = !!(opts && opts.halfHeal);    // Master Potion: 50% + status clear
+  const isFull = !!(opts && opts.masterful);   // Revival Stem: 100% + status clear · REVIVES KO
+  const isHalf = !!(opts && opts.halfHeal);    // Master Potion: 50% + status clear · alive only
   const clearsStatus = isFull || isHalf;
-  const p = game.player.party[game.battle.playerIdx];
   if (!game.player.items) game.player.items = { potion: 0 };
   if ((game.player.items[itemKey] || 0) <= 0) return;
+  // V3.17.35 — REVIVE RULE.  Revival Stem prioritizes a KO'd bench Zyrex
+  // over the active fighter; potions can't touch a KO'd Zyrex at all.
+  let p;
+  if (isFull) {
+    p = game.player.party.find(r => r && r.hp <= 0)
+     || game.player.party[game.battle.playerIdx];
+  } else {
+    p = game.player.party[game.battle.playerIdx];
+    if (!p || p.hp <= 0) return;   // potions inert on KO'd fighter
+  }
+  if (!p) return;
   if (p.hp >= p.maxHp && !clearsStatus) return;
+  const wasKO  = p.hp <= 0;
   const before = p.hp;
   if (isFull) {
     p.hp = p.maxHp;
     p.status = null;
+    p.fainted = false;   // V3.17.35 — clear KO flag on revive
   } else if (isHalf) {
     const half = Math.ceil(p.maxHp / 2);
     p.hp = Math.min(p.maxHp, p.hp + half);
@@ -16032,9 +16124,10 @@ async function usePotionInBattle(itemKey, healAmt, opts) {
               : itemKey === 'revival_stem'  ? 'REVIVAL STEM'
               :                                'POTION';
   logBattle(`You used a ${label} on ${p.name}.`);
-  if (isFull)      logBattle(`${p.name} is fully restored — status cleared.`);
-  else if (isHalf) logBattle(`${p.name} recovered ${p.hp - before} HP — status cleared.`);
-  else             logBattle(`${p.name} recovered ${p.hp - before} HP.`);
+  if (isFull && wasKO) logBattle(`${p.name} was brought back — FULL HP, status cleared.`);
+  else if (isFull)     logBattle(`${p.name} is fully restored — status cleared.`);
+  else if (isHalf)     logBattle(`${p.name} recovered ${p.hp - before} HP — status cleared.`);
+  else                 logBattle(`${p.name} recovered ${p.hp - before} HP.`);
   refreshBattleUI();
   await wait(700);
   // Using an item consumes your turn — enemy still gets to move.

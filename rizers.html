@@ -11175,15 +11175,20 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     return;
   }
-  // V3.17.9 — PC keyboard shortcuts mirror the mobile bottom-bar buttons:
-  //   1 = SELECT (opens whatever the player assigned via SELECT ASSIGN)
-  //   2 = MENU   (opens the main menu overlay)
-  //   3 = START  (opens the settings overlay)
-  // Only fire in overworld and only on real key press (not repeat).
-  if (!e.repeat && game.mode === 'overworld') {
-    if (k === '1') { triggerSelectAssignment(); e.preventDefault(); return; }
-    if (k === '2') { openMainMenu();            e.preventDefault(); return; }
-    if (k === '3') { openSettings();            e.preventDefault(); return; }
+  // V3.17.9 · V3.17.10 · V3.17.11 — PC keyboard shortcuts mirror the
+  // mobile bottom-bar buttons:
+  //   1        = SELECT (opens whatever the player assigned via SELECT ASSIGN)
+  //   2 or M   = MENU   (opens the main menu overlay)
+  //   3        = START  (opens the settings overlay)
+  // Only fire in overworld and only on a REAL bare press — no modifier
+  // keys held (Ctrl, Cmd, Alt, Meta), no key-repeat.  This lets
+  // browser shortcuts like Cmd+2 / Ctrl+2 (tab switch) fall through
+  // instead of accidentally opening the game menu, and prevents any
+  // long-hold from spamming openMainMenu().
+  if (!e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && game.mode === 'overworld') {
+    if (k === '1')             { triggerSelectAssignment(); e.preventDefault(); return; }
+    if (k === '2' || k === 'm'){ openMainMenu();            e.preventDefault(); return; }
+    if (k === '3')             { openSettings();            e.preventDefault(); return; }
   }
   if ($controlsModal.classList.contains('active')) {
     if (e.key === 'Escape') { closeControlsModal(); e.preventDefault(); }
@@ -13250,6 +13255,8 @@ function walkNpcToPlayer(n) {
 // Mom = NURSE (heals + supplies potions & gemspheres)
 // Dad = HISTORIAN / EXPEDITIONIST (Mothergem lore + first Zyrex)
 function interactMom() {
+  // V3.17.10 — Auto-add Mom to Allies on first meet.
+  meetAlly('mom');
   const nm = game.player.name || 'you';
   const items = game.player.items || (game.player.items = { potion: 0 });
   // V3.17.6 — TOP-PRIORITY BEAT: player brought back the STATUE PART.
@@ -13357,6 +13364,8 @@ function interactMom() {
   }
 }
 function interactDad() {
+  // V3.17.10 — Auto-add Dad to Allies on first meet.
+  meetAlly('dad');
   const nm = game.player.name || 'you';
   // V3.17.6 — TOP-PRIORITY BEAT: player brought the STATUE PART to Dad
   // AFTER Mom's blessing.  Dad delivers his warning ("never let it get
@@ -15612,7 +15621,11 @@ const $party = document.getElementById('party-screen');
 const $partyGrid = document.getElementById('party-grid');
 function openParty() {
   try { playSfx('menu-open'); } catch(_) {}
-  if (!game.player.party.length) return;
+  // V3.17.10 — Zyrex panel is available from BOOT.  It renders with
+  // empty slots until the player picks a starter or claims an easter
+  // egg Zyrex.  Renderer handles the empty state gracefully.
+  if (!game.player) return;
+  if (!game.player.party) game.player.party = [];
   game.mode = 'party';
   clearHeldKeys();
   $party.classList.add('active');

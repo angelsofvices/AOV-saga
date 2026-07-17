@@ -2848,20 +2848,119 @@ function bestFromPool(pool, currentLv) {
 // call rebuilds r.moves from scratch, so leveling up naturally reveals
 // the next slot on the exact tier canon expects.  Species without an
 // explicit moves array fall through to the legacy autoLearnMoves pool.
+//
+// ★ V3.17.58 CANON — 4 MOVE SLOTS (2×2 UI grid):
+//   Top-Left  A1 · PRIMARY   — primary-type damage      · cost 1, power ~tier×30, no status
+//   Top-Right A2 · SECONDARY — secondary-type damage    · cost 2, power ~tier×55, no status
+//   Bot-Left  S1 · SUPPORT   — status inflict + tertiary/blend damage · cost 2, power ~tier×40, status
+//   Bot-Right U1 · ULTIMATE  — bigger status + stronger tertiary/blend · cost 3, power ~tier×92, status
+// Every Zyrex, every level, every tier, every type gets this exact
+// 4-slot layout via buildCanonMoves — runtime auto-generation lets us
+// canonize the layout across the full 158-species roster without
+// hand-editing 632 move entries.  The species.moves array in each
+// roster record is preserved but SHADOWED (not used at battle time).
+// A future bake-out patch can freeze the generated moves into the
+// roster if we want stable save-file names.
+
+// Type → canonical status inflict (V3.17.39 5-status roster).
+// New-10 types inherit from their original-10 parent (V3.17.56 fold-in).
+const MOVE_STATUS_BY_TYPE = {
+  'Beast':          'overcook',    // ATK burn — feral rage
+  'Draconic':       'overcook',    // Beast fold-in
+  'Creature':       'psychache',   // DEF crack — bestial mind-warp
+  'Nature':         'undershock',  // SPD slow — root tangles
+  'Verdant':        'undershock',  // Nature fold-in
+  'Elemental':      'undershock',  // Nature fold-in
+  'Aura':           'souldrift',   // HP drain — spiritual bleed
+  'Radiant':        'souldrift',   // Aura fold-in
+  'Divine':         'souldrift',   // Aura fold-in
+  'Aquatic':        'souldrift',   // Aura fold-in
+  'Spirit':         'gridfreeze',  // SPC lock — ghost fog
+  'Chrono':         'gridfreeze',  // Spirit fold-in
+  'Astral':         'gridfreeze',  // Spirit fold-in
+  'Tech':           'undershock',  // SPD slow — grid interference
+  'Crystal':        'undershock',  // Tech fold-in
+  'Extraterrestrial':'gridfreeze', // SPC lock — alien signal
+  'Humanoid-Noid':  'psychache',   // DEF crack — trained strike
+  'Unknown-Void':   'souldrift',   // HP drain — void erosion
+  'Corrupted':      'souldrift',   // UV fold-in
+  'Ultramax':       'gridfreeze',  // SPC lock — divine authority
+};
+
+// Name generators — S1 support + U1 ultimate.  Templates keep the
+// naming consistent per type; species name is folded into U1 for
+// signature-move flavor.
+const SUPPORT_TEMPLATE_BY_TYPE = {
+  'Beast':          'Feral Coil',       'Draconic':       'Wyrm Coil',
+  'Creature':       'Feral Bind',       'Nature':         'Rootbind',
+  'Verdant':        'Verdant Snare',    'Elemental':      'Element Weave',
+  'Aura':           'Aura Weave',       'Radiant':        'Solar Weave',
+  'Divine':         'Sacred Bind',      'Aquatic':        'Tide Coil',
+  'Spirit':         'Spirit Weave',     'Chrono':         'Time Fracture',
+  'Astral':         'Astral Bind',      'Tech':           'Grid Snare',
+  'Crystal':        'Prism Bind',       'Extraterrestrial':'Xeno Signal',
+  'Humanoid-Noid':  'Sanction Bind',    'Unknown-Void':   'Void Coil',
+  'Corrupted':      'Blight Coil',      'Ultramax':       'Halo Bind',
+};
+const ULTIMATE_TEMPLATE_BY_TYPE = {
+  'Beast':          'Beastfall',        'Draconic':       'Cataclysm Wing',
+  'Creature':       'Feral Extinction', 'Nature':         'Ecosphere Purge',
+  'Verdant':        'Verdant Reclaim',  'Elemental':      'Primal Elements',
+  'Aura':           'Aura Apocalypse',  'Radiant':        'Supernova',
+  'Divine':         'Godlight',         'Aquatic':        'Deepdrown',
+  'Spirit':         'Astral Requiem',   'Chrono':         'Time Erasure',
+  'Astral':         'Stellar Convergence','Tech':         'System Wipe',
+  'Crystal':        'Prismatic End',    'Extraterrestrial':'Xeno Reformat',
+  'Humanoid-Noid':  'Rewrite',          'Unknown-Void':   'Void Erasure',
+  'Corrupted':      'Corruption Eternal','Ultramax':      'Apex Judgment',
+};
+
+// Build the canonical 4-slot moveset for a species at a given level.
+// Returns full A1/A2/S1/U1 array; caller filters by MOVE_UNLOCK_LVS
+// against r.lv to hide un-unlocked slots.
+function buildCanonMoves(species, lv) {
+  const t1 = species.type;
+  const t2 = species.type2 || t1;
+  const t3 = species.type3 || t2 || t1;
+  const tier = Math.max(1, species.tier || 1);
+  // Tier-scaled power baselines (canonical per V3.17.38, matches existing roster).
+  const pA1 = 30 * tier;   // Primary
+  const pA2 = 55 * tier;   // Secondary
+  const pS1 = 40 * tier;   // Support (status + damage)
+  const pU1 = 92 * tier;   // Ultimate (bigger status + damage)
+  // Names — A1/A2 pull from MOVE_POOL_BY_TYPE for consistency with
+  // existing NPC / wild movesets.  S1/U1 use template names per type.
+  const a1Name = (MOVE_POOL_BY_TYPE[t1] && MOVE_POOL_BY_TYPE[t1][0] && MOVE_POOL_BY_TYPE[t1][0].name) || `${t1} Strike`;
+  const a2Name = (MOVE_POOL_BY_TYPE[t2] && MOVE_POOL_BY_TYPE[t2][1] && MOVE_POOL_BY_TYPE[t2][1].name) || `${t2} Bolt`;
+  const s1Name = SUPPORT_TEMPLATE_BY_TYPE[t3] || `${t3} Bind`;
+  const u1Name = ULTIMATE_TEMPLATE_BY_TYPE[t3] || `${t3} Ultima`;
+  // Signature U1 gets species-name prefix for identity flavor (e.g.,
+  // "GNASHLING'S BEASTFALL" instead of just "Beastfall").
+  const speciesTag = (species.name || '').split(' ')[0];
+  const u1Full = speciesTag ? `${speciesTag}'s ${u1Name}` : u1Name;
+  // Status assignment — S1 uses primary-type status; U1 uses secondary
+  // (or same if single-typed).  Covers two different debuffs per Zyrex.
+  const s1Status = MOVE_STATUS_BY_TYPE[t1] || 'overcook';
+  const u1Status = MOVE_STATUS_BY_TYPE[t2] || s1Status;
+  return [
+    { slot: 'A1', role: 'PRIMARY',   name: a1Name,  type: t1, power: pA1, cost: 1, minLv: MOVE_UNLOCK_LVS[0] },
+    { slot: 'A2', role: 'SECONDARY', name: a2Name,  type: t2, power: pA2, cost: 2, minLv: MOVE_UNLOCK_LVS[1] },
+    { slot: 'S1', role: 'SUPPORT',   name: s1Name,  type: t3, power: pS1, cost: 2, minLv: MOVE_UNLOCK_LVS[2], status: s1Status, statusChance: 0.30 },
+    { slot: 'U1', role: 'ULTIMATE',  name: u1Full,  type: t3, power: pU1, cost: 3, minLv: MOVE_UNLOCK_LVS[3], status: u1Status, statusChance: 0.45 },
+  ];
+}
+
 function refreshMoves(r) {
   const s = SPECIES[r.species];
   if (!s) return;
-  if (s.movePolicy === 'canon-static' || !s.moves || !s.moves.length) {
-    // Legacy pool-based fallback for any species without explicit moves.
-    autoLearnMoves(r);
-    return;
-  }
+  // V3.17.58 — Always build the canonical 4-slot layout at runtime.
+  // Species.moves in the roster is preserved but SHADOWED (not used).
+  // A future bake-out patch can freeze the generated moves into the
+  // roster if we want stable save-file names.
+  const canon = buildCanonMoves(s, r.lv);
   const learned = [];
-  const cap = Math.min(s.moves.length, 4);
-  for (let i = 0; i < cap; i++) {
-    const m = s.moves[i];
-    const unlock = (m.minLv != null) ? m.minLv : (MOVE_UNLOCK_LVS[i] || 1);
-    if (r.lv >= unlock) learned.push(Object.assign({}, m, { minLv: unlock }));
+  for (const m of canon) {
+    if (r.lv >= m.minLv) learned.push(m);
   }
   r.moves = learned;
 }
@@ -3108,9 +3207,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#8be8ff', '#1a5c78', '#d0f5ff'],
     moves: [
-      { name: 'Prism Rend', type: 'Crystal', cast: 'Ice', power: 22, cost: 1 },
+      { name: 'Prism Rend', type: 'Crystal', cast: 'Ice', power: 31, cost: 1 },
       { name: 'Prism Coil', type: 'Crystal', cast: 'Ice', power: 0, cost: 2, status: 'gridfreeze', statusChance: 0.4 },
-      { name: 'Onslaught of Prism', type: 'Crystal', cast: 'Ice', power: 66, cost: 3 },
+      { name: 'Onslaught of Prism', type: 'Crystal', cast: 'Ice', power: 92, cost: 3 },
       { name: 'Maulimp\'s Dominion', type: 'Crystal', cast: 'Ice', power: 0, cost: 1 },
     ],
     primaryDistrict: 'malezor',
@@ -3123,9 +3222,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#4a1e5c', '#180628', '#8a4ca8'],
     moves: [
-      { name: 'Blight Cleave', type: 'Unknown-Void', cast: 'Shadow', power: 22, cost: 1 },
+      { name: 'Blight Cleave', type: 'Unknown-Void', cast: 'Shadow', power: 31, cost: 1 },
       { name: 'Blight Snare', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 2, status: 'souldrift', statusChance: 0.4 },
-      { name: 'Judgment of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 66, cost: 3 },
+      { name: 'Judgment of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 92, cost: 3 },
       { name: 'Vyrncub\'s Fury', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 1 },
     ],
     primaryDistrict: 'malezor',
@@ -3157,9 +3256,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#b87cff', '#3a1a5c', '#e0c8ff'],
     moves: [
-      { name: 'Soul Slash', type: 'Spirit', cast: 'Spirit', power: 16, cost: 1 },
+      { name: 'Soul Slash', type: 'Spirit', cast: 'Spirit', power: 31, cost: 1 },
       { name: 'Soul Pulse', type: 'Spirit', cast: 'Spirit', power: 0, cost: 2, status: 'brainlock', statusChance: 0.4 },
-      { name: 'Devastation of Soul', type: 'Spirit', cast: 'Spirit', power: 47, cost: 3 },
+      { name: 'Devastation of Soul', type: 'Spirit', cast: 'Spirit', power: 92, cost: 3 },
       { name: 'Wisplet\'s Ascension', type: 'Spirit', cast: 'Spirit', power: 0, cost: 1 },
     ],
     evolveTo: 'wispor', evolveLv: 23,
@@ -3204,9 +3303,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#f5dc9c', '#7a6a2c', '#fff5db'],
     moves: [
-      { name: 'Radiant Slash', type: 'Radiant', cast: 'Light', power: 16, cost: 1 },
+      { name: 'Radiant Slash', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Radiant Hex', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'brainlock', statusChance: 0.4 },
-      { name: 'Judgment of Radiant', type: 'Radiant', cast: 'Light', power: 47, cost: 3 },
+      { name: 'Judgment of Radiant', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Lumenkin\'s Ascension', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     evolveTo: 'lumenor', evolveLv: 16,
@@ -3251,9 +3350,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#ffe860', '#7a5c00', '#fff5b0'],
     moves: [
-      { name: 'Solar Strike', type: 'Radiant', cast: 'Light', power: 16, cost: 1 },
+      { name: 'Solar Strike', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Solar Veil', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'overcook', statusChance: 0.4 },
-      { name: 'Judgment of Solar', type: 'Radiant', cast: 'Light', power: 47, cost: 3 },
+      { name: 'Judgment of Solar', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Serathyl\'s Reign', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     evolveTo: 'serathor', evolveLv: 21,
@@ -3298,9 +3397,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#f8ecc8', '#a08040', '#ffffff'],
     moves: [
-      { name: 'Sacred Strike', type: 'Radiant', cast: 'Light', power: 16, cost: 1 },
+      { name: 'Sacred Strike', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Sacred Coil', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'brainlock', statusChance: 0.4 },
-      { name: 'Devastation of Sacred', type: 'Radiant', cast: 'Light', power: 47, cost: 3 },
+      { name: 'Devastation of Sacred', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Halovlet\'s Dominion', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     evolveTo: 'halovour', evolveLv: 23,
@@ -3345,9 +3444,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#9878ff', '#2a1866', '#d8b8ff'],
     moves: [
-      { name: 'Astral Strike', type: 'Aura', cast: 'Force', power: 22, cost: 1 },
+      { name: 'Astral Strike', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Astral Pulse', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'undershock', statusChance: 0.4 },
-      { name: 'Devastation of Astral', type: 'Aura', cast: 'Force', power: 66, cost: 3 },
+      { name: 'Devastation of Astral', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Glimspirit\'s Fury', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     primaryDistrict: 'zarvane',
@@ -3567,9 +3666,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#ff5c1a', '#6a1e08', '#ffb090'],
     moves: [
-      { name: 'Elder Gore', type: 'Elemental', cast: 'Fire', power: 22, cost: 1 },
+      { name: 'Elder Gore', type: 'Elemental', cast: 'Fire', power: 31, cost: 1 },
       { name: 'Elder Pulse', type: 'Elemental', cast: 'Fire', power: 0, cost: 2, status: 'overcook', statusChance: 0.4 },
-      { name: 'Onslaught of Elder', type: 'Elemental', cast: 'Fire', power: 66, cost: 3 },
+      { name: 'Onslaught of Elder', type: 'Elemental', cast: 'Fire', power: 92, cost: 3 },
       { name: 'Bramblepup\'s Wrath', type: 'Elemental', cast: 'Fire', power: 0, cost: 1 },
     ],
     primaryDistrict: 'andrannor',
@@ -3601,9 +3700,9 @@ const SPECIES = {
     base: { hp: 100, atk: 50, def: 97, spd: 37, spc: 49 },
     sprite: ['#8bc466', '#2f7a3a', '#c8ffb0'],
     moves: [
-      { name: 'Primal Strike', type: 'Aura', cast: 'Force', power: 16, cost: 1 },
+      { name: 'Primal Strike', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Primal Hex', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'bleed', statusChance: 0.4 },
-      { name: 'Judgment of Primal', type: 'Aura', cast: 'Force', power: 50, cost: 3 },
+      { name: 'Judgment of Primal', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Sproutling\'s Verdict', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     evolveTo: 'sproutor', evolveLv: 22,
@@ -3648,9 +3747,9 @@ const SPECIES = {
     base: { hp: 100, atk: 50, def: 97, spd: 37, spc: 49 },
     sprite: ['#2fe6a8', '#1a5a44', '#a0ffd8'],
     moves: [
-      { name: 'Wild Snap', type: 'Nature', cast: 'Nature', power: 16, cost: 1 },
+      { name: 'Wild Snap', type: 'Nature', cast: 'Nature', power: 31, cost: 1 },
       { name: 'Wild Mark', type: 'Nature', cast: 'Nature', power: 0, cost: 2, status: 'rootbind', statusChance: 0.4 },
-      { name: 'Collapse of Wild', type: 'Nature', cast: 'Nature', power: 50, cost: 3 },
+      { name: 'Collapse of Wild', type: 'Nature', cast: 'Nature', power: 92, cost: 3 },
       { name: 'Vernik\'s Ascension', type: 'Nature', cast: 'Nature', power: 0, cost: 1 },
     ],
     evolveTo: 'vernax', evolveLv: 21,
@@ -3695,9 +3794,9 @@ const SPECIES = {
     base: { hp: 100, atk: 50, def: 97, spd: 37, spc: 49 },
     sprite: ['#4a8a44', '#1c3818', '#96e096'],
     moves: [
-      { name: 'Bloom Cleave', type: 'Nature', cast: 'Nature', power: 16, cost: 1 },
+      { name: 'Bloom Cleave', type: 'Nature', cast: 'Nature', power: 31, cost: 1 },
       { name: 'Bloom Bind', type: 'Nature', cast: 'Nature', power: 0, cost: 2, status: 'rootbind', statusChance: 0.4 },
-      { name: 'Cataclysm of Bloom', type: 'Nature', cast: 'Nature', power: 50, cost: 3 },
+      { name: 'Cataclysm of Bloom', type: 'Nature', cast: 'Nature', power: 92, cost: 3 },
       { name: 'Paludling\'s Ascension', type: 'Nature', cast: 'Nature', power: 0, cost: 1 },
     ],
     evolveTo: 'paludor', evolveLv: 23,
@@ -3742,9 +3841,9 @@ const SPECIES = {
     base: { hp: 100, atk: 50, def: 97, spd: 37, spc: 49 },
     sprite: ['#2478c8', '#0a3060', '#7ac0f5'],
     moves: [
-      { name: 'Tidal Snap', type: 'Aquatic', cast: 'Water', power: 16, cost: 1 },
+      { name: 'Tidal Snap', type: 'Aquatic', cast: 'Water', power: 31, cost: 1 },
       { name: 'Tidal Coil', type: 'Aquatic', cast: 'Water', power: 0, cost: 2, status: 'undertow', statusChance: 0.4 },
-      { name: 'Cataclysm of Tidal', type: 'Aquatic', cast: 'Water', power: 50, cost: 3 },
+      { name: 'Cataclysm of Tidal', type: 'Aquatic', cast: 'Water', power: 92, cost: 3 },
       { name: 'Sylvexlet\'s Awakening', type: 'Aquatic', cast: 'Water', power: 0, cost: 1 },
     ],
     evolveTo: 'sylvexor', evolveLv: 17,
@@ -3789,9 +3888,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#ffe860', '#7a5c00', '#fff5b0'],
     moves: [
-      { name: 'Solar Snap', type: 'Radiant', cast: 'Light', power: 22, cost: 1 },
+      { name: 'Solar Snap', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Solar Hex', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'overcook', statusChance: 0.4 },
-      { name: 'Collapse of Solar', type: 'Radiant', cast: 'Light', power: 66, cost: 3 },
+      { name: 'Collapse of Solar', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Mossfawn\'s Fury', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     primaryDistrict: 'veridan',
@@ -3823,9 +3922,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#c98a4a', '#5a3820', '#f5c896'],
     moves: [
-      { name: 'Feral Gore', type: 'Aura', cast: 'Force', power: 16, cost: 1 },
+      { name: 'Feral Gore', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Feral Mark', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'bleed', statusChance: 0.4 },
-      { name: 'Cataclysm of Feral', type: 'Aura', cast: 'Force', power: 47, cost: 3 },
+      { name: 'Cataclysm of Feral', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Riftling\'s Awakening', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     evolveTo: 'riftor', evolveLv: 20,
@@ -3870,9 +3969,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#6b5a8a', '#1a0d2e', '#a898c8'],
     moves: [
-      { name: 'Null Rend', type: 'Unknown-Void', cast: 'Shadow', power: 16, cost: 1 },
+      { name: 'Null Rend', type: 'Unknown-Void', cast: 'Shadow', power: 31, cost: 1 },
       { name: 'Null Bind', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 2, status: 'souldrift', statusChance: 0.4 },
-      { name: 'Collapse of Null', type: 'Unknown-Void', cast: 'Shadow', power: 47, cost: 3 },
+      { name: 'Collapse of Null', type: 'Unknown-Void', cast: 'Shadow', power: 92, cost: 3 },
       { name: 'Nyxil\'s Reign', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 1 },
     ],
     evolveTo: 'nyxvax', evolveLv: 25,
@@ -3917,9 +4016,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#4a1e5c', '#180628', '#8a4ca8'],
     moves: [
-      { name: 'Blight Gore', type: 'Unknown-Void', cast: 'Shadow', power: 16, cost: 1 },
+      { name: 'Blight Gore', type: 'Unknown-Void', cast: 'Shadow', power: 31, cost: 1 },
       { name: 'Blight Veil', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 2, status: 'souldrift', statusChance: 0.4 },
-      { name: 'Collapse of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 47, cost: 3 },
+      { name: 'Collapse of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 92, cost: 3 },
       { name: 'Vormling\'s Reign', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 1 },
     ],
     evolveTo: 'vormor', evolveLv: 18,
@@ -3964,9 +4063,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#b0b8c8', '#4a5060', '#e0e8f0'],
     moves: [
-      { name: 'Temporal Cleave', type: 'Aura', cast: 'Force', power: 16, cost: 1 },
+      { name: 'Temporal Cleave', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Temporal Snare', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'gridfreeze', statusChance: 0.4 },
-      { name: 'Onslaught of Temporal', type: 'Aura', cast: 'Force', power: 47, cost: 3 },
+      { name: 'Onslaught of Temporal', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Chronnlet\'s Awakening', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     evolveTo: 'chronnour', evolveLv: 21,
@@ -4011,9 +4110,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#9878ff', '#2a1866', '#d8b8ff'],
     moves: [
-      { name: 'Astral Rend', type: 'Aura', cast: 'Force', power: 22, cost: 1 },
+      { name: 'Astral Rend', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Astral Veil', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'undershock', statusChance: 0.4 },
-      { name: 'Collapse of Astral', type: 'Aura', cast: 'Force', power: 66, cost: 3 },
+      { name: 'Collapse of Astral', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Umbraspawn\'s Dominion', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     primaryDistrict: 'netharion',
@@ -4026,9 +4125,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#4a1e5c', '#180628', '#8a4ca8'],
     moves: [
-      { name: 'Blight Strike', type: 'Unknown-Void', cast: 'Shadow', power: 22, cost: 1 },
+      { name: 'Blight Strike', type: 'Unknown-Void', cast: 'Shadow', power: 31, cost: 1 },
       { name: 'Blight Snare', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 2, status: 'souldrift', statusChance: 0.4 },
-      { name: 'Ascension of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 66, cost: 3 },
+      { name: 'Ascension of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 92, cost: 3 },
       { name: 'Voidkit\'s Wrath', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 1 },
     ],
     primaryDistrict: 'netharion',
@@ -4041,7 +4140,7 @@ const SPECIES = {
     base: { hp: 65, atk: 68, def: 56, spd: 62, spc: 82 },
     sprite: ['#c8384a', '#600e18', '#ff96a4'],
     moves: [
-      { name: 'Wyrm Cleave', type: 'Elemental', cast: 'Fire', power: 22, cost: 1 },
+      { name: 'Wyrm Cleave', type: 'Elemental', cast: 'Fire', power: 31, cost: 1 },
       { name: 'Wyrm Coil', type: 'Elemental', cast: 'Fire', power: 0, cost: 2, status: 'overcook', statusChance: 0.4 },
       { name: 'Cataclysm of Wyrm', type: 'Elemental', cast: 'Fire', power: 67, cost: 3 },
       { name: 'Elzebub\'s Reign', type: 'Elemental', cast: 'Fire', power: 0, cost: 1 },
@@ -4311,9 +4410,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#ffe860', '#7a5c00', '#fff5b0'],
     moves: [
-      { name: 'Solar Strike', type: 'Radiant', cast: 'Light', power: 22, cost: 1 },
+      { name: 'Solar Strike', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Solar Pulse', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'overcook', statusChance: 0.4 },
-      { name: 'Ascension of Solar', type: 'Radiant', cast: 'Light', power: 66, cost: 3 },
+      { name: 'Ascension of Solar', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Nanoling\'s Verdict', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     primaryDistrict: 'vorashil',
@@ -4326,9 +4425,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#9878ff', '#2a1866', '#d8b8ff'],
     moves: [
-      { name: 'Astral Strike', type: 'Aura', cast: 'Force', power: 22, cost: 1 },
+      { name: 'Astral Strike', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Astral Snare', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'undershock', statusChance: 0.4 },
-      { name: 'Onslaught of Astral', type: 'Aura', cast: 'Force', power: 66, cost: 3 },
+      { name: 'Onslaught of Astral', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Xelspawn\'s Ascension', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     primaryDistrict: 'vorashil',
@@ -4360,9 +4459,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#6b5a8a', '#1a0d2e', '#a898c8'],
     moves: [
-      { name: 'Null Strike', type: 'Unknown-Void', cast: 'Shadow', power: 16, cost: 1 },
+      { name: 'Null Strike', type: 'Unknown-Void', cast: 'Shadow', power: 31, cost: 1 },
       { name: 'Null Bind', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 2, status: 'souldrift', statusChance: 0.4 },
-      { name: 'Requiem of Null', type: 'Unknown-Void', cast: 'Shadow', power: 47, cost: 3 },
+      { name: 'Requiem of Null', type: 'Unknown-Void', cast: 'Shadow', power: 92, cost: 3 },
       { name: 'Shadeling\'s Awakening', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 1 },
     ],
     evolveTo: 'shador', evolveLv: 16,
@@ -4407,9 +4506,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#b87cff', '#3a1a5c', '#e0c8ff'],
     moves: [
-      { name: 'Soul Slash', type: 'Spirit', cast: 'Spirit', power: 16, cost: 1 },
+      { name: 'Soul Slash', type: 'Spirit', cast: 'Spirit', power: 31, cost: 1 },
       { name: 'Soul Mark', type: 'Spirit', cast: 'Spirit', power: 0, cost: 2, status: 'brainlock', statusChance: 0.4 },
-      { name: 'Ascension of Soul', type: 'Spirit', cast: 'Spirit', power: 47, cost: 3 },
+      { name: 'Ascension of Soul', type: 'Spirit', cast: 'Spirit', power: 92, cost: 3 },
       { name: 'Wailik\'s Fury', type: 'Spirit', cast: 'Spirit', power: 0, cost: 1 },
     ],
     evolveTo: 'wailax', evolveLv: 17,
@@ -4454,9 +4553,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#4a1e5c', '#180628', '#8a4ca8'],
     moves: [
-      { name: 'Blight Strike', type: 'Unknown-Void', cast: 'Shadow', power: 16, cost: 1 },
+      { name: 'Blight Strike', type: 'Unknown-Void', cast: 'Shadow', power: 31, cost: 1 },
       { name: 'Blight Veil', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 2, status: 'souldrift', statusChance: 0.4 },
-      { name: 'Devastation of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 47, cost: 3 },
+      { name: 'Devastation of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 92, cost: 3 },
       { name: 'Mortyvyl\'s Dominion', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 1 },
     ],
     evolveTo: 'mortyvor', evolveLv: 20,
@@ -4501,9 +4600,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#b0b8c8', '#4a5060', '#e0e8f0'],
     moves: [
-      { name: 'Temporal Gore', type: 'Aura', cast: 'Force', power: 16, cost: 1 },
+      { name: 'Temporal Gore', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Temporal Mark', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'gridfreeze', statusChance: 0.4 },
-      { name: 'Onslaught of Temporal', type: 'Aura', cast: 'Force', power: 47, cost: 3 },
+      { name: 'Onslaught of Temporal', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Sepulklet\'s Dominion', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     evolveTo: 'sepulkor', evolveLv: 20,
@@ -4548,9 +4647,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#f8ecc8', '#a08040', '#ffffff'],
     moves: [
-      { name: 'Sacred Cleave', type: 'Radiant', cast: 'Light', power: 22, cost: 1 },
+      { name: 'Sacred Cleave', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Sacred Coil', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'brainlock', statusChance: 0.4 },
-      { name: 'Requiem of Sacred', type: 'Radiant', cast: 'Light', power: 66, cost: 3 },
+      { name: 'Requiem of Sacred', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Grimwisp\'s Reign', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     primaryDistrict: 'xilnar',
@@ -4563,9 +4662,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#4a1e5c', '#180628', '#8a4ca8'],
     moves: [
-      { name: 'Blight Cleave', type: 'Unknown-Void', cast: 'Shadow', power: 22, cost: 1 },
+      { name: 'Blight Cleave', type: 'Unknown-Void', cast: 'Shadow', power: 31, cost: 1 },
       { name: 'Blight Veil', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 2, status: 'souldrift', statusChance: 0.4 },
-      { name: 'Requiem of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 66, cost: 3 },
+      { name: 'Requiem of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 92, cost: 3 },
       { name: 'Nethspawn\'s Ascension', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 1 },
     ],
     primaryDistrict: 'xilnar',
@@ -4785,9 +4884,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#ff5c1a', '#6a1e08', '#ffb090'],
     moves: [
-      { name: 'Elder Lash', type: 'Elemental', cast: 'Fire', power: 22, cost: 1 },
+      { name: 'Elder Lash', type: 'Elemental', cast: 'Fire', power: 31, cost: 1 },
       { name: 'Elder Mark', type: 'Elemental', cast: 'Fire', power: 0, cost: 2, status: 'overcook', statusChance: 0.4 },
-      { name: 'Devastation of Elder', type: 'Elemental', cast: 'Fire', power: 66, cost: 3 },
+      { name: 'Devastation of Elder', type: 'Elemental', cast: 'Fire', power: 92, cost: 3 },
       { name: 'Emberward\'s Awakening', type: 'Elemental', cast: 'Fire', power: 0, cost: 1 },
     ],
     primaryDistrict: 'baelgor',
@@ -4800,9 +4899,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#f8ecc8', '#a08040', '#ffffff'],
     moves: [
-      { name: 'Sacred Cleave', type: 'Radiant', cast: 'Light', power: 22, cost: 1 },
+      { name: 'Sacred Cleave', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Sacred Snare', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'brainlock', statusChance: 0.4 },
-      { name: 'Ascension of Sacred', type: 'Radiant', cast: 'Light', power: 66, cost: 3 },
+      { name: 'Ascension of Sacred', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Vanguward\'s Fury', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     primaryDistrict: 'baelgor',
@@ -4834,9 +4933,9 @@ const SPECIES = {
     base: { hp: 100, atk: 50, def: 97, spd: 37, spc: 49 },
     sprite: ['#e8c878', '#7a5a2c', '#fff5db'],
     moves: [
-      { name: 'Valor Gore', type: 'Aura', cast: 'Force', power: 16, cost: 1 },
+      { name: 'Valor Gore', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Valor Hex', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'disarm', statusChance: 0.4 },
-      { name: 'Onslaught of Valor', type: 'Aura', cast: 'Force', power: 50, cost: 3 },
+      { name: 'Onslaught of Valor', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Boltling\'s Ascension', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     evolveTo: 'boltor', evolveLv: 24,
@@ -4881,9 +4980,9 @@ const SPECIES = {
     base: { hp: 100, atk: 50, def: 97, spd: 37, spc: 49 },
     sprite: ['#a0b8d8', '#3a4a60', '#d0e0f0'],
     moves: [
-      { name: 'Cyber Cleave', type: 'Tech', cast: 'Tech', power: 16, cost: 1 },
+      { name: 'Cyber Cleave', type: 'Tech', cast: 'Tech', power: 31, cost: 1 },
       { name: 'Cyber Snare', type: 'Tech', cast: 'Tech', power: 0, cost: 2, status: 'undershock', statusChance: 0.4 },
-      { name: 'Onslaught of Cyber', type: 'Tech', cast: 'Tech', power: 50, cost: 3 },
+      { name: 'Onslaught of Cyber', type: 'Tech', cast: 'Tech', power: 92, cost: 3 },
       { name: 'Ferrik\'s Ascension', type: 'Tech', cast: 'Tech', power: 0, cost: 1 },
     ],
     evolveTo: 'ferrax', evolveLv: 19,
@@ -4928,9 +5027,9 @@ const SPECIES = {
     base: { hp: 100, atk: 50, def: 97, spd: 37, spc: 49 },
     sprite: ['#8be8ff', '#1a5c78', '#d0f5ff'],
     moves: [
-      { name: 'Prism Gore', type: 'Crystal', cast: 'Ice', power: 16, cost: 1 },
+      { name: 'Prism Gore', type: 'Crystal', cast: 'Ice', power: 31, cost: 1 },
       { name: 'Prism Pulse', type: 'Crystal', cast: 'Ice', power: 0, cost: 2, status: 'gridfreeze', statusChance: 0.4 },
-      { name: 'Cataclysm of Prism', type: 'Crystal', cast: 'Ice', power: 50, cost: 3 },
+      { name: 'Cataclysm of Prism', type: 'Crystal', cast: 'Ice', power: 92, cost: 3 },
       { name: 'Sygilyn\'s Awakening', type: 'Crystal', cast: 'Ice', power: 0, cost: 1 },
     ],
     evolveTo: 'sygilor', evolveLv: 18,
@@ -4975,9 +5074,9 @@ const SPECIES = {
     base: { hp: 100, atk: 50, def: 97, spd: 37, spc: 49 },
     sprite: ['#ff5c1a', '#6a1e08', '#ffb090'],
     moves: [
-      { name: 'Elder Strike', type: 'Elemental', cast: 'Fire', power: 16, cost: 1 },
+      { name: 'Elder Strike', type: 'Elemental', cast: 'Fire', power: 31, cost: 1 },
       { name: 'Elder Mark', type: 'Elemental', cast: 'Fire', power: 0, cost: 2, status: 'overcook', statusChance: 0.4 },
-      { name: 'Requiem of Elder', type: 'Elemental', cast: 'Fire', power: 50, cost: 3 },
+      { name: 'Requiem of Elder', type: 'Elemental', cast: 'Fire', power: 92, cost: 3 },
       { name: 'Machonlet\'s Awakening', type: 'Elemental', cast: 'Fire', power: 0, cost: 1 },
     ],
     evolveTo: 'machonor', evolveLv: 19,
@@ -5022,9 +5121,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#4a1e5c', '#180628', '#8a4ca8'],
     moves: [
-      { name: 'Blight Strike', type: 'Unknown-Void', cast: 'Shadow', power: 22, cost: 1 },
+      { name: 'Blight Strike', type: 'Unknown-Void', cast: 'Shadow', power: 31, cost: 1 },
       { name: 'Blight Pulse', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 2, status: 'souldrift', statusChance: 0.4 },
-      { name: 'Judgment of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 66, cost: 3 },
+      { name: 'Judgment of Blight', type: 'Unknown-Void', cast: 'Shadow', power: 92, cost: 3 },
       { name: 'Rustward\'s Ascension', type: 'Unknown-Void', cast: 'Shadow', power: 0, cost: 1 },
     ],
     primaryDistrict: 'thardun',
@@ -5056,9 +5155,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#e8c878', '#7a5a2c', '#fff5db'],
     moves: [
-      { name: 'Valor Slash', type: 'Aura', cast: 'Force', power: 16, cost: 1 },
+      { name: 'Valor Slash', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Valor Bind', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'disarm', statusChance: 0.4 },
-      { name: 'Ascension of Valor', type: 'Aura', cast: 'Force', power: 47, cost: 3 },
+      { name: 'Ascension of Valor', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Ordoling\'s Ascension', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     evolveTo: 'ordor', evolveLv: 15,
@@ -5103,9 +5202,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#f8ecc8', '#a08040', '#ffffff'],
     moves: [
-      { name: 'Sacred Slash', type: 'Radiant', cast: 'Light', power: 16, cost: 1 },
+      { name: 'Sacred Slash', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Sacred Bind', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'brainlock', statusChance: 0.4 },
-      { name: 'Ascension of Sacred', type: 'Radiant', cast: 'Light', power: 47, cost: 3 },
+      { name: 'Ascension of Sacred', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Celesik\'s Wrath', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     evolveTo: 'celesax', evolveLv: 25,
@@ -5150,9 +5249,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#9878ff', '#2a1866', '#d8b8ff'],
     moves: [
-      { name: 'Astral Slash', type: 'Aura', cast: 'Force', power: 16, cost: 1 },
+      { name: 'Astral Slash', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Astral Coil', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'undershock', statusChance: 0.4 },
-      { name: 'Ascension of Astral', type: 'Aura', cast: 'Force', power: 47, cost: 3 },
+      { name: 'Ascension of Astral', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Astronyl\'s Dominion', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     evolveTo: 'astronor', evolveLv: 24,
@@ -5197,9 +5296,9 @@ const SPECIES = {
     base: { hp: 53, atk: 47, def: 53, spd: 67, spc: 113 },
     sprite: ['#b0b8c8', '#4a5060', '#e0e8f0'],
     moves: [
-      { name: 'Temporal Snap', type: 'Aura', cast: 'Force', power: 16, cost: 1 },
+      { name: 'Temporal Snap', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Temporal Snare', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'gridfreeze', statusChance: 0.4 },
-      { name: 'Requiem of Temporal', type: 'Aura', cast: 'Force', power: 47, cost: 3 },
+      { name: 'Requiem of Temporal', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Kronethlet\'s Dominion', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     evolveTo: 'kronethour', evolveLv: 15,
@@ -5244,9 +5343,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#ffe860', '#7a5c00', '#fff5b0'],
     moves: [
-      { name: 'Solar Cleave', type: 'Radiant', cast: 'Light', power: 22, cost: 1 },
+      { name: 'Solar Cleave', type: 'Radiant', cast: 'Light', power: 31, cost: 1 },
       { name: 'Solar Pulse', type: 'Radiant', cast: 'Light', power: 0, cost: 2, status: 'overcook', statusChance: 0.4 },
-      { name: 'Judgment of Solar', type: 'Radiant', cast: 'Light', power: 66, cost: 3 },
+      { name: 'Judgment of Solar', type: 'Radiant', cast: 'Light', power: 92, cost: 3 },
       { name: 'Lawspire\'s Reign', type: 'Radiant', cast: 'Light', power: 0, cost: 1 },
     ],
     primaryDistrict: 'korathen',
@@ -5259,9 +5358,9 @@ const SPECIES = {
     base: { hp: 67, atk: 67, def: 67, spd: 67, spc: 65 },
     sprite: ['#9878ff', '#2a1866', '#d8b8ff'],
     moves: [
-      { name: 'Astral Gore', type: 'Aura', cast: 'Force', power: 22, cost: 1 },
+      { name: 'Astral Gore', type: 'Aura', cast: 'Force', power: 31, cost: 1 },
       { name: 'Astral Mark', type: 'Aura', cast: 'Force', power: 0, cost: 2, status: 'undershock', statusChance: 0.4 },
-      { name: 'Ascension of Astral', type: 'Aura', cast: 'Force', power: 66, cost: 3 },
+      { name: 'Ascension of Astral', type: 'Aura', cast: 'Force', power: 92, cost: 3 },
       { name: 'Ultward\'s Dominion', type: 'Aura', cast: 'Force', power: 0, cost: 1 },
     ],
     primaryDistrict: 'korathen',

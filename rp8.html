@@ -12970,25 +12970,28 @@ document.addEventListener('keydown', (e) => {
     if (typeof MAPS !== 'undefined' && MAPS['zyraxis_world']) {
       const onWorld = game.player.mapId === 'zyraxis_world';
       if (onWorld) {
+        // Switch to classic district mode (dev / debugging escape hatch).
+        // classicMapMode gates the save-load auto-migration so the player
+        // stays in classic mode across reloads until they F8 back.
         game.player.mapId = 'malezor';
         game.player.x = 5; game.player.y = 5;
         game.player.preferWorldMap = false;
-        // Also switch the active MAP so movement + collision use Malezor now.
+        game.player.classicMapMode = true;
         const mal = MAPS.malezor;
         MAP = mal.data; MAP_COLS = mal.cols; MAP_ROWS = mal.rows;
-        if (typeof showToast === 'function') showToast('⟵ Left the world map', 1400);
+        if (typeof showToast === 'function') showToast('⟵ Classic district mode', 1400);
       } else {
-        // Find Malezor's world-coord offset and drop player in the center.
+        // Return to the unified world at Malezor's world-coord center.
         const malRegion = ZYRAXIS_WORLD.regions.find(r => r.id === 'malezor');
         if (malRegion) {
           game.player.mapId = 'zyraxis_world';
           game.player.x = malRegion.x1 + 5;
           game.player.y = malRegion.y1 + 5;
           game.player.preferWorldMap = true;
-          // Switch active MAP so movement + collision use the world grid.
+          game.player.classicMapMode = false;
           const wm = MAPS['zyraxis_world'];
           MAP = wm.data; MAP_COLS = wm.cols; MAP_ROWS = wm.rows;
-          if (typeof showToast === 'function') showToast('◈ Entered Zyraxis · The Ninth World', 1800);
+          if (typeof showToast === 'function') showToast('◈ Zyraxis · The Ninth World', 1800);
         }
       }
       if (typeof save === 'function') save();
@@ -13485,6 +13488,19 @@ function triggerDoor(tileChar, doorX, doorY) {
   enterMap(target.map, target.x, target.y, target.dir);
 }
 function exitInteriorTo(exit) {
+  // RP8 · unified world default.  If the exit target is a classic district
+  // AND the unified world is registered AND the player is on world mode,
+  // translate the district-local coords into world coords so the player
+  // spawns on the world map at the same physical location.
+  if (exit && typeof MAPS !== 'undefined' && MAPS['zyraxis_world']
+      && typeof ZYRAXIS_WORLD !== 'undefined'
+      && game.player.classicMapMode !== true
+      && DISTRICT_ORDER.includes(exit.map)) {
+    const region = ZYRAXIS_WORLD.regions.find(r => r.id === exit.map);
+    if (region) {
+      return enterMap('zyraxis_world', region.x1 + exit.x, region.y1 + exit.y, exit.dir);
+    }
+  }
   enterMap(exit.map, exit.x, exit.y, exit.dir);
 }
 // V2.67 — District-aware building label.  Each district's locked houses
@@ -16986,7 +17002,17 @@ function exitHouseToMalezor() {
     `You step out onto the Malezor path.`,
     `MOM: Be safe, ${game.player.name || 'trainer'}!`,
   ], () => {
-    // Malezor spawn: just below the H tile, facing away from home
+    // RP8 · unified world default entry.  Spawn on 'zyraxis_world' at the
+    // Malezor region's world-coord equivalent of (3, 5).  Falls back to
+    // the classic Malezor district only if the world map failed to build.
+    if (typeof MAPS !== 'undefined' && MAPS['zyraxis_world']
+        && typeof ZYRAXIS_WORLD !== 'undefined') {
+      const mal = ZYRAXIS_WORLD.regions.find(r => r.id === 'malezor');
+      if (mal) {
+        game.player.preferWorldMap = true;
+        return enterMap('zyraxis_world', mal.x1 + 3, mal.y1 + 5, 'down');
+      }
+    }
     enterMap('malezor', 3, 5, 'down');
   });
 }
@@ -19406,16 +19432,20 @@ function tryLoad() {
         if (mal) { game.player.x = mal.x1 + 5; game.player.y = mal.y1 + 5; }
         else     { game.player.x = 5;          game.player.y = 5; }
       }
-    } else if (mid !== 'zyraxis_world' && game.player.preferWorldMap && MAPS['zyraxis_world']
-               && typeof ZYRAXIS_WORLD !== 'undefined') {
-      // Opt-in translation: legacy district mapId → world coords at the
-      // same offset within that district.
+    } else if (mid !== 'zyraxis_world' && MAPS['zyraxis_world']
+               && typeof ZYRAXIS_WORLD !== 'undefined'
+               && game.player.classicMapMode !== true) {
+      // RP8 · unified world default: any legacy district mapId auto-migrates
+      // onto the unified world at the equivalent world-coord offset.  Route
+      // maps + interior maps (home_interior, town_hall, seer_hq_main, caves)
+      // are skipped — those stay as separate interior maps.
       const dRegion = ZYRAXIS_WORLD.regions.find(r => r.id === mid);
       if (dRegion) {
         game.player.x = dRegion.x1 + (game.player.x || 5);
         game.player.y = dRegion.y1 + (game.player.y || 5);
         mid = 'zyraxis_world';
         game.player.mapId = mid;
+        game.player.preferWorldMap = true;
       }
     }
     const m = MAPS[mid] || MAPS.malezor;

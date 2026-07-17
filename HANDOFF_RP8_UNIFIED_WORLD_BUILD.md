@@ -14,7 +14,7 @@
 
 ---
 
-## Current state (Phases 1 – 6 complete)
+## Current state (Phases 1 – 7 complete · unified world is DEFAULT · ready for playtest)
 
 ### Phase 1 · file fork (DONE)
 - `rp8.html` created as a full copy of `rizers.html` (19,935 lines)
@@ -58,7 +58,51 @@ Both are ADDITIVE — no existing code paths use them yet. RP8 still runs identi
 
 ---
 
-## Phase 5b · Group-unlock gates + Bridge of Hope sentinel (NEXT — ~1-2h)
+### Phase 5b · group-unlock gates + Bridge of Hope sentinel (DONE)
+- **Ministry watchpost gate** — every seam-crossing INTO a district in a locked DISTRICT_GROUPS group is intercepted BEFORE the move applies. Player sees the classic dialog naming which districts' Seer Commanders they still need to bring down. Dev mode bypasses per existing `groupUnlocked()` convention.
+- **Bridge of Hope + Part 2 sentinel** — attempting to cross into `bridge_of_hope`, `old_conquest`, `new_conquest`, or `pit_of_no_return` regions before `game.player.xenoxilDefeated === true` triggers a sentinel dialog: "Walk both paths. Earn your passage." Dev mode bypasses.
+- Both gates are implemented in `tryMove` alongside the seam-toast; the block-then-toast ordering ensures no false "NOW ENTERING X" fires when the player is bounced back.
+
+### Unified world default (2026-07-17 SHIP)
+- `exitHouseToMalezor` spawns onto `mapId='zyraxis_world'` at Malezor's world-coord offset. First-time players walk out of home directly into the world.
+- Save-load auto-migration translates any legacy district mapId to `zyraxis_world` at the equivalent offset unless `game.player.classicMapMode === true`.
+- `exitInteriorTo` translates classic-district exit targets to world coords when world is registered.
+- **F8** is the CLASSIC ESCAPE HATCH — flips `classicMapMode` and persists across reloads. Press again to return to the world.
+
+---
+
+### Phase 7 · content polish (DONE · playtest-ready baseline)
+
+- **Interstitial + Part 2 wild pools** — `districtWildPool` + `districtAllowedTypes` now cover `wild_march` / `green_divide` (blended adjacent-district pools, softened level bands) and `old_conquest` / `new_conquest` / `pit_of_no_return` (custom type-set pools at Lv 88-96 / 92-100 / 96-100). `bridge_of_hope` = no wild encounters.
+- **Content-painter pass in `generateZyraxisWorld`** stamps deterministic chest / grunt / landmark / region-NPC tiles across all six non-district regions.
+- **New `n` REGION NPC tile** — full pipeline: collision-blocker, sprite render (color-shifted per region kind), tryInteract dispatch. `REGION_NPCS` table keys 12 named NPCs by "x,y" world coords with unique dialogue + one-time coin/item rewards. Includes the 4-NPC Bridge of Hope farewell (Mom · Dad · Kelthor · Myara), Wandering Merchant in the Wild March, Journalist in the Green Divide, Lorekeeper in the Old Conquest, Emissary in the New Conquest, and the Voice in the Pit teasing the Ultimate Prismsynch communion.
+- **Region-specific palette tints** in `drawTile` — Wild March (dusty), Green Divide (verdant), Bridge (ceremonial gold), Old Conquest (pre-Accord slate), New Conquest (Seer purple), Pit of No Return (molten red).
+- **Denser Part 2 gemgrass** — Part 2 zones get a 16% sprinkle instead of 8% for encounter density appropriate to endgame level bands.
+
+---
+
+## What's playtest-ready NOW
+
+1. New game → home_interior → step out via 'x' door → spawns onto `zyraxis_world` at Malezor.
+2. Walk east through Malezor → cross into Zarvane (seam-toast fires, HUD updates, palette shifts).
+3. Ministry watchpost dialogs block cross-group travel until group's Seer Commanders are down.
+4. All 6 non-district regions have chests, grunts, landmarks, region NPCs.
+5. Bridge of Hope + Part 2 zones sealed until `xenoxilDefeated` flag fires.
+6. Interior doors work bidirectionally (world coords preserved on exit).
+7. Save/load auto-migrates old district saves to world coords.
+8. F8 escape hatch flips classic-district mode + persists across reload.
+
+## Known playtest surface (expect user feedback patches)
+
+- Grunt chain-size on world map defaults to `chainSize = 1` because the DIST array doesn't include `zyraxis_world`. Grunts in interstitials + Part 2 may feel undersized. Fix: when `poolDistrict === 'zyraxis_world'`, derive `num` from the current region's parent district or hardcode a chainSize by region kind.
+- Interstitial + Part 2 palettes don't have full DISTRICT_META shape (only wall/edge/ground). Landmark colors may fall back to defaults for other palette keys (e.g. ROOF, TRIM). Add more keys per region as visual polish lands.
+- No Bridge farewell TRIGGERING beat (currently the 4 NPCs are just there — no "on first crossing" cutscene).  Add a scripted first-crossing scene when the endgame flag fires.
+- Group-unlock seam-walls block movement but there's no visible sentinel NPC to explain WHY.  Consider adding physical `n` NPCs at group boundaries as visual watchposts.
+- No region-exclusive rare Zyrex spawns yet.  Each region uses generic blended/type-filtered pools.
+
+---
+
+## Phase 8 · Novarian Challenge playable slice (LATER)
 
 Replace the ~35 separate MAP arrays with ONE unified 300×400 grid.
 

@@ -6458,6 +6458,21 @@ const ZYRAXIS_WORLD = {
     { id: 'old_conquest',   name: 'The Old Conquest',   kind: 'part2',      x1:  40, y1: 240, x2: 130, y2: 300, gated: 'endgame' },
     { id: 'new_conquest',   name: 'The New Conquest',   kind: 'part2',      x1: 145, y1: 240, x2: 235, y2: 300, gated: 'endgame' },
     { id: 'pit_of_no_return',name:'The Pit of No Return',kind: 'part2',     x1:  70, y1: 310, x2: 220, y2: 365, gated: 'endgame' },
+    // --- 10 flavored ROUTES between adjacent districts (RP8 · route wire-in).
+    // Route regions are checked BEFORE districts so ambient gaps get tagged
+    // as routes.  ROUTE_META keys drive palette (ROUTE_PALETTE), wild pool
+    // (60/40 west+east blend at midpoint band), HUD label, and Gemlord Cave
+    // placement.  Route 10 (throne_of_ultralord) is a dead-end east of Korathen.
+    { id: 'valley_benevolent_beast',  name: "The Valley of the Benevolent Beast", kind: 'route', x1:  41, y1:  10, x2:  49, y2:  30 },
+    { id: 'choir_of_pearlord',        name: "The Choir of the Pearlord",          kind: 'route', x1:  85, y1:  10, x2:  99, y2:  32 },
+    { id: 'wilds_of_citrinehowl',     name: "The Wilds of the Citrinehowl",       kind: 'route', x1: 139, y1:  10, x2: 167, y2:  34 },
+    { id: 'verge_of_emeraldbloom',    name: "The Verge of the Emeraldbloom",      kind: 'route', x1: 137, y1:  37, x2: 210, y2: 109 },
+    { id: 'rift_of_amethyst_voice',   name: "The Rift of the Amethyst Voice",     kind: 'route', x1:  61, y1: 110, x2:  89, y2: 138 },
+    { id: 'skylanes_sapphirebroker',  name: "The Skylanes of the Sapphirebroker", kind: 'route', x1:  10, y1: 131, x2:  60, y2: 154 },
+    { id: 'threshold_of_onyxwhisper', name: "The Threshold of the Onyxwhisper",   kind: 'route', x1:  85, y1: 155, x2:  99, y2: 189 },
+    { id: 'roads_of_amberchain',      name: "The Roads of the Amberchain",        kind: 'route', x1: 159, y1: 155, x2: 169, y2: 196 },
+    { id: 'fracture_of_anomaly',      name: "The Fracture of the Anomaly",        kind: 'route', x1: 233, y1: 155, x2: 249, y2: 196 },
+    { id: 'throne_of_ultralord',      name: "The Throne of the Ultralord",        kind: 'route', x1: 317, y1: 155, x2: 340, y2: 205 },
     // --- 10 canonical Novarian Challenge districts (sized to district maps) ---
     // Row 1 (top): Malezor(30×20) · Zarvane(34×22) · Andrannor(38×24) · Veridan(42×26)
     { id: 'malezor',   name: 'Malezor',   kind: 'district', x1:  10, y1:  10, x2:  40, y2:  30 },
@@ -6550,6 +6565,286 @@ function generateZyraxisWorld() {
       }
     }
   }
+  // RP8 · Phase 7 — Content painter.  Stamps chests / trainers / landmarks
+  // / region NPCs into each interstitial + Part 2 region so those zones
+  // have something worth exploring.  All positions are deterministic
+  // (seeded from region id), so re-generation is stable.  Tiles used:
+  //   'K' chest · 'g' SEER GRUNT (scales to region wild pool) · '^' broadcast
+  //   tower · 'T' tree · '@' ancient statue · 'n' region NPC (new · dispatch
+  //   via interactRegionNpc(x, y) using region id).
+  const REGION_CONTENT = {
+    wild_march: {
+      chests: [[85, 55], [140, 78]],
+      grunts: [[95, 45], [125, 65], [155, 82]],
+      landmarks: [['^', 108, 60]],
+      // Region NPC: wandering merchant (drunk, banned, welcome everywhere).
+      npcs: [['n', 118, 72]],
+    },
+    green_divide: {
+      chests: [[240, 80], [275, 115]],
+      grunts: [[230, 68], [258, 95], [285, 125]],
+      landmarks: [['^', 250, 90], ['@', 270, 105]],
+      npcs: [['n', 245, 118]],  // Journalist recurring character
+    },
+    bridge_of_hope: {
+      chests: [],
+      grunts: [],
+      landmarks: [],
+      npcs: [
+        ['n', 110, 220],  // Mom · farewell
+        ['n', 125, 222],  // Dad · farewell
+        ['n', 140, 220],  // Kelthor · farewell
+        ['n', 155, 222],  // Myara · farewell
+      ],
+    },
+    old_conquest: {
+      chests: [[60, 260], [110, 285]],
+      grunts: [[75, 255], [90, 275], [115, 290]],
+      landmarks: [['@', 85, 265]],
+      npcs: [['n', 100, 278]],   // Old Conquest lorekeeper
+    },
+    new_conquest: {
+      chests: [[165, 260], [215, 285]],
+      grunts: [[155, 255], [185, 268], [200, 280], [225, 292]],
+      landmarks: [['^', 180, 275]],
+      npcs: [['n', 195, 285]],   // New Conquest Seer-remnant emissary
+    },
+    pit_of_no_return: {
+      chests: [[145, 340]],       // one endgame reward chest
+      grunts: [[100, 320], [190, 355]],
+      landmarks: [['@', 145, 320]],
+      npcs: [['n', 145, 355]],   // Ultimate Prismsynch hook · Anciuxor communion
+    },
+  };
+  const paintTile = (x, y, ch) => {
+    if (x < 0 || x >= cols || y < 0 || y >= rows) return;
+    // Only paint over walkable ambient ground (',') or gemgrass ('G').
+    const cur = grid[y][x];
+    if (cur !== ',' && cur !== 'G') return;
+    grid[y][x] = ch;
+  };
+  for (const region of ZYRAXIS_WORLD.regions) {
+    const content = REGION_CONTENT[region.id];
+    if (!content) continue;
+    for (const [x, y] of content.chests || [])       paintTile(x, y, 'K');
+    for (const [x, y] of content.grunts || [])       paintTile(x, y, 'g');
+    for (const [ch, x, y] of content.landmarks || []) paintTile(x, y, ch);
+    for (const [ch, x, y] of content.npcs || [])      paintTile(x, y, ch);
+  }
+  // Additional gemgrass boost for Part 2 zones (denser encounters).
+  for (const region of ZYRAXIS_WORLD.regions) {
+    if (region.kind !== 'part2') continue;
+    const rSeed = region.id.charCodeAt(0) + region.id.charCodeAt(1);
+    for (let y = region.y1; y <= region.y2; y++) {
+      for (let x = region.x1; x <= region.x2; x++) {
+        if (grid[y][x] !== ',') continue;
+        // Higher density (16%) for Part 2 endgame content.
+        if (((x * 11 + y * 5 + rSeed) % 6) === 0) grid[y][x] = 'G';
+      }
+    }
+  }
+  // RP8 · Route wire-in — paint each route region with gemgrass + one
+  // GEMLORD CAVE 'C' tile at the route's center.  The classic-mode 'C'
+  // handler (interactGemlordCave) already dispatches by the current
+  // district id, so on the world map the cave will open the Sanctum
+  // for the ROUTE's `gemlord` field via getPlayerDistrict fallback.
+  for (const region of ZYRAXIS_WORLD.regions) {
+    if (region.kind !== 'route') continue;
+    const rSeed = region.id.charCodeAt(0) + region.id.charCodeAt(1) + region.id.charCodeAt(2);
+    for (let y = region.y1; y <= region.y2; y++) {
+      for (let x = region.x1; x <= region.x2; x++) {
+        if (grid[y][x] !== ',') continue;
+        // 12% gemgrass density — same as interstitials.
+        if (((x * 13 + y * 7 + rSeed) % 8) === 0) grid[y][x] = 'G';
+      }
+    }
+    // Place the Gemlord Cave 'C' at the route's geometric center.
+    const cx = Math.floor((region.x1 + region.x2) / 2);
+    const cy = Math.floor((region.y1 + region.y2) / 2);
+    if (cx >= 0 && cx < cols && cy >= 0 && cy < rows
+        && (grid[cy][cx] === ',' || grid[cy][cx] === 'G')) {
+      grid[cy][cx] = 'C';
+    }
+  }
+  // RP8 · NATURALIZE PASS — organic geology.  Softens district perimeters
+  // (erodes ~35% of the outer wall into trees / water / walkable ground so
+  // shapes read as continents instead of rectangles) and paints boundary
+  // biomes in the ambient interstitial + route + borderland space (scattered
+  // forest patches, water pools, hills) so the world feels like an actual
+  // planet rather than a grid.  Deterministic (seeded from region id + x/y)
+  // so re-generation is stable.  Only touches:
+  //   * '#' district perimeter walls (erosion)
+  //   * ',' ambient walkable ground in NON-district regions (biomes)
+  // Never touches painted content (K/g/n/G/C/^/@/M/...) or Part 2 (want the
+  // gemgrass sprinkle to stay dominant there) or Bridge of Hope (ceremonial).
+  const inDistrict = (rx, ry) => {
+    for (const r of ZYRAXIS_WORLD.regions) {
+      if (r.kind !== 'district') continue;
+      if (rx >= r.x1 && rx <= r.x2 && ry >= r.y1 && ry <= r.y2) return r;
+    }
+    return null;
+  };
+  // 1. PERIMETER EROSION — wobbly organic edges instead of rectangles.
+  for (const region of ZYRAXIS_WORLD.regions) {
+    if (region.kind !== 'district') continue;
+    const seed0 = region.id.charCodeAt(0);
+    const seed1 = region.id.charCodeAt(1) || 0;
+    for (let y = region.y1; y <= region.y2; y++) {
+      for (let x = region.x1; x <= region.x2; x++) {
+        if (grid[y][x] !== '#') continue;
+        // Only touch perimeter tiles (top / bottom / left / right rows).
+        const isPerim = (
+          x === region.x1 || x === region.x2 ||
+          y === region.y1 || y === region.y2
+        );
+        if (!isPerim) continue;
+        // Multi-hash wobble for organic feel.
+        const wobble = ((x * 41 + y * 89 + seed0 * 13) & 0xff);
+        const kind   = ((x * 17 + y * 23 + seed1 * 7) & 0x7);
+        if (wobble > 165) continue;   // ~35% erode, ~65% keep as wall
+        // Distribute the erosion across natural tile chars.  Ratio:
+        //   * 55% walkable ground (,)   — opens the edge
+        //   * 25% tree (T)              — forest edge
+        //   * 12% water (W)             — coastal water pool
+        //   *  8% keep as wall variant  — cliff residue (unchanged '#')
+        if      (kind < 4) grid[y][x] = ',';
+        else if (kind < 6) grid[y][x] = 'T';
+        else if (kind === 6) grid[y][x] = 'W';
+        // kind === 7 → keep as '#'
+      }
+    }
+  }
+  // 2. BOUNDARY BIOMES — clusters of trees + water pools in the ambient
+  //    ground between districts.  Uses low-frequency sin-based clustering
+  //    so patches feel like forests and lakes instead of confetti.
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (grid[y][x] !== ',') continue;
+      const region = getRegionAt(x, y);
+      if (!region) continue;
+      // Skip districts (their interior is authored) and skip the calm zones.
+      if (region.kind === 'district') continue;
+      if (region.kind === 'part2') continue;
+      if (region.id === 'bridge_of_hope') continue;
+      // Sin-based low-frequency biome pattern (deterministic pseudo-noise).
+      const s1 = Math.sin(x * 0.11 + y * 0.07);
+      const s2 = Math.sin(x * 0.05 - y * 0.09);
+      const s3 = Math.sin((x + y) * 0.13);
+      const noise = s1 + s2 + s3;           // range roughly [-3, 3]
+      // Densify near district edges so the boundary reads as terrain.
+      let nearDistrict = 0;
+      for (let dy = -2; dy <= 2 && !nearDistrict; dy++) {
+        for (let dx = -2; dx <= 2 && !nearDistrict; dx++) {
+          if (inDistrict(x + dx, y + dy)) nearDistrict = 1;
+        }
+      }
+      const bias = nearDistrict ? 0.6 : 0;
+      // TREES — forest clusters at high positive noise.
+      if (noise + bias > 1.8) grid[y][x] = 'T';
+      // WATER — small pools / rivers at strong negative noise.
+      else if (noise - bias * 0.5 < -2.1) grid[y][x] = 'W';
+    }
+  }
+  // 3. INTERSTITIAL PATH SEED — ensure a walkable corridor along the
+  //    HORIZONTAL midline of each interstitial + route region so the
+  //    naturalize pass doesn't accidentally wall off travel between
+  //    districts.  Restores any T/W we placed on the corridor line back
+  //    to walkable ground.
+  for (const region of ZYRAXIS_WORLD.regions) {
+    if (region.kind !== 'interstitial' && region.kind !== 'route') continue;
+    const midY = Math.floor((region.y1 + region.y2) / 2);
+    const midX = Math.floor((region.x1 + region.x2) / 2);
+    for (let x = region.x1; x <= region.x2; x++) {
+      const cur = grid[midY][x];
+      if (cur === 'T' || cur === 'W') grid[midY][x] = ',';
+    }
+    for (let y = region.y1; y <= region.y2; y++) {
+      const cur = grid[y][midX];
+      if (cur === 'T' || cur === 'W') grid[y][midX] = ',';
+    }
+  }
+  // 4. ROAD PAINTER — mark a stone-road ':' along each district-route-
+  //    district connection so the player can SEE which way to travel.
+  //    Uses a Bresenham-style line stepper.  Road stamping RULES:
+  //      * Overwrite ',' walkable ground → road
+  //      * Overwrite 'T' tree + 'W' water → road (the road CUTS through
+  //        naturalize terrain — clear travel corridor)
+  //      * Overwrite 'G' gemgrass → road (roads are safer than gemgrass;
+  //        gemgrass elsewhere still triggers encounters)
+  //      * NEVER overwrite '#' walls, 'K' chests, 'g/n' NPCs, 'C' caves,
+  //        '^' towers, '@' statues, '<' '>' portals (portal-strip needs
+  //        to see them)
+  const paintRoadTile = (x, y) => {
+    if (x < 0 || x >= cols || y < 0 || y >= rows) return;
+    const cur = grid[y][x];
+    if (cur === ',' || cur === 'T' || cur === 'W' || cur === 'G') grid[y][x] = ':';
+  };
+  const drawRoadLine = (x0, y0, x1, y1) => {
+    // Bresenham with a 3-wide swathe for a proper road feel.
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy, x = x0, y = y0;
+    let safety = 4000;
+    while (safety-- > 0) {
+      // 3-tile-wide road (center + one on each perpendicular axis)
+      paintRoadTile(x, y);
+      if (dx > dy) {                     // horizontal-ish
+        paintRoadTile(x, y - 1);
+        paintRoadTile(x, y + 1);
+      } else {                           // vertical-ish
+        paintRoadTile(x - 1, y);
+        paintRoadTile(x + 1, y);
+      }
+      if (x === x1 && y === y1) break;
+      const e2 = err * 2;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 <  dx) { err += dx; y += sy; }
+    }
+  };
+  const regionCenter = (id) => {
+    const r = ZYRAXIS_WORLD.regions.find(rr => rr.id === id);
+    if (!r) return null;
+    return { x: Math.floor((r.x1 + r.x2) / 2), y: Math.floor((r.y1 + r.y2) / 2) };
+  };
+  // Main road chain: district → route → district → route → ... → district.
+  const ROAD_CHAIN = [
+    'malezor', 'valley_benevolent_beast',
+    'zarvane', 'choir_of_pearlord',
+    'andrannor', 'wilds_of_citrinehowl',
+    'veridan', 'verge_of_emeraldbloom',
+    'netharion', 'rift_of_amethyst_voice',
+    'vorashil', 'skylanes_sapphirebroker',
+    'xilnar', 'threshold_of_onyxwhisper',
+    'baelgor', 'roads_of_amberchain',
+    'thardin', 'fracture_of_anomaly',
+    'korathen', 'throne_of_ultralord',
+  ];
+  for (let i = 0; i < ROAD_CHAIN.length - 1; i++) {
+    const a = regionCenter(ROAD_CHAIN[i]);
+    const b = regionCenter(ROAD_CHAIN[i + 1]);
+    if (a && b) drawRoadLine(a.x, a.y, b.x, b.y);
+  }
+  // Branch roads to the walkable interstitials (Wild March + Green Divide)
+  // so those zones read as reachable off the main chain.
+  const wm  = regionCenter('wild_march');
+  const gd  = regionCenter('green_divide');
+  const nav = regionCenter('valley_benevolent_beast');   // near Wild March entry
+  const nav2= regionCenter('wilds_of_citrinehowl');       // near Green Divide entry
+  if (wm && nav)   drawRoadLine(nav.x, nav.y + 5, wm.x, wm.y);
+  if (gd && nav2)  drawRoadLine(nav2.x, nav2.y + 5, gd.x, gd.y);
+  // Bridge of Hope + Part 2 southern spur — one road stub from Baelgor
+  // that terminates just north of the Bridge sentinel line.  Painted
+  // even though gated: gives the player a visible objective to walk toward.
+  const bg  = regionCenter('baelgor');
+  const bh  = regionCenter('bridge_of_hope');
+  if (bg && bh) drawRoadLine(bg.x, bg.y + 2, bh.x, bh.y);
+  // Bridge → Old / New / Pit spurs (visible even when gated).
+  const oc  = regionCenter('old_conquest');
+  const nc  = regionCenter('new_conquest');
+  const pit = regionCenter('pit_of_no_return');
+  if (bh && oc)  drawRoadLine(bh.x, bh.y + 2, oc.x, oc.y);
+  if (bh && nc)  drawRoadLine(bh.x, bh.y + 2, nc.x, nc.y);
+  if (oc && pit) drawRoadLine(oc.x, oc.y + 5, pit.x, pit.y);
   // RP8 · Phase 5 — Strip district PORTAL tiles (`>` and `<`) and their
   // adjacent WALLS at the seam so the player can walk seamlessly between
   // regions.  We punch a 3-tile-tall opening through the shared boundary
@@ -8080,7 +8375,31 @@ function districtAllowedTypes(mapId) {
       }
       return expandTypesWithFoldIns(Array.from(set));
     }
-    // Bridge / Part 2 / borderland fallback — no wild encounters until Phase 7
+    // RP8 · Route wire-in — inherit both flanking districts' allowed types.
+    if (region && region.kind === 'route' && ROUTE_META[region.id]) {
+      const rm = ROUTE_META[region.id];
+      const set = new Set();
+      [rm.west, rm.east].filter(Boolean).forEach(d => {
+        (DISTRICT_META[d] && DISTRICT_META[d].types || []).forEach(t => set.add(t));
+      });
+      return expandTypesWithFoldIns(Array.from(set));
+    }
+    // RP8 · Phase 7 — Part 2 zones now have their own type pools.
+    // OLD CONQUEST — pre-Accord battle ruins.  Beast + Aura + Spirit +
+    //                Corrupted (echoes of the war Novarius ended).
+    // NEW CONQUEST — Seer-remnant cleanup.  Corrupted + UV + Tech + Nature
+    //                (unfinished Seer infrastructure + reclaiming flora).
+    // PIT OF NO RETURN — endgame-endgame.  All 20 types — anything can be here.
+    // BRIDGE OF HOPE — no wild encounters (calm ceremonial corridor).
+    if (region) {
+      const part2Types = {
+        'old_conquest':      ['Beast','Aura','Spirit','Corrupted','Draconic'],
+        'new_conquest':      ['Corrupted','UV','Tech','Nature','Verdant'],
+        'pit_of_no_return':  TYPES.slice(),
+      };
+      if (region.id === 'bridge_of_hope') return [];
+      if (part2Types[region.id]) return expandTypesWithFoldIns(part2Types[region.id]);
+    }
     return [];
   }
   const meta = DISTRICT_META[mapId];
@@ -8126,6 +8445,12 @@ function districtWildPool(mapId) {
     if (region && region.kind === 'district') {
       return districtWildPool(region.id);   // recurse with district id
     }
+    // RP8 · Route wire-in — recurse using the route id.  ROUTE_META is
+    // resolved at the top of districtWildPool so this produces the exact
+    // classic-mode 60/40 west+east blend at midpoint level band.
+    if (region && region.kind === 'route' && ROUTE_META[region.id]) {
+      return districtWildPool(region.id);
+    }
     if (region && region.kind === 'interstitial') {
       // Blend adjacent-district pools into a hybrid interstitial pool.
       const blends = {
@@ -8147,7 +8472,28 @@ function districtWildPool(mapId) {
       const mid = Math.round((lvLoAcc + lvHiAcc) / 2);
       return { ids, lvRange: [Math.max(1, mid - 3), Math.max(1, mid + 3)] };
     }
-    // Bridge / Part 2 / borderland — no wild encounters for now.
+    // RP8 · Phase 7 — Part 2 zone wild pools.
+    if (region) {
+      const allowedTypes = new Set(districtAllowedTypes('zyraxis_world'));
+      if (region.id === 'bridge_of_hope') return null;   // ceremonial corridor
+      // Level bands sit above Korathen (Lv 91-100 tier).
+      const part2Bands = {
+        'old_conquest':     [88, 96],
+        'new_conquest':     [92, 100],
+        'pit_of_no_return': [96, 100],
+      };
+      const band = part2Bands[region.id];
+      if (!band) return null;
+      // Build pool from species whose primary type falls in this Part 2 pool.
+      const catchable = (id) => {
+        const sp = SPECIES[id];
+        if (!sp || sp.easterEgg) return false;
+        return allowedTypes.has(sp.type);
+      };
+      const ids = Object.keys(SPECIES).filter(catchable);
+      if (!ids.length) return null;
+      return { ids, lvRange: band };
+    }
     return null;
   }
   const meta = DISTRICT_META[mapId];
@@ -9145,7 +9491,7 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*&^'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne · V3.17.34 & = Mom's plant · V3.17.41 ^ = Broadcast Tower
+  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*&^n'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne · V3.17.34 & = Mom's plant · V3.17.41 ^ = Broadcast Tower · RP8/Phase 7: n = region NPC
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
@@ -9263,7 +9609,28 @@ function drawTile(x, y, ch, mx, my) {
   let _dm;
   if (_mapId === 'zyraxis_world' && typeof getRegionAt === 'function') {
     const _region = getRegionAt(mx, my);
-    _dm = (_region && _region.kind === 'district') ? DISTRICT_META[_region.id] : null;
+    if (_region && _region.kind === 'district') {
+      _dm = DISTRICT_META[_region.id];
+    } else if (_region && _region.kind === 'route' && ROUTE_PALETTE && ROUTE_PALETTE[_region.id]) {
+      // RP8 · Route wire-in — hybrid west+east district palette via ROUTE_PALETTE.
+      _dm = ROUTE_PALETTE[_region.id];
+    } else if (_region) {
+      // RP8 · Phase 7 — Distinct palette tints for interstitials + Part 2
+      // so the player reads visual separation as they cross a seam.  Each
+      // palette is a minimal { wallColor, wallEdge, groundColor } trio —
+      // enough for the tile fallback to render coherently.
+      const _regionPalettes = {
+        wild_march:      { wallColor: '#2a2418', wallEdge: '#5c4a2e', groundColor: '#4a3f28' },   // dusty borderland
+        green_divide:    { wallColor: '#0e2a1c', wallEdge: '#2a5c3e', groundColor: '#1a4a2e' },   // verdant zone
+        bridge_of_hope:  { wallColor: '#3a2d1a', wallEdge: '#8a6420', groundColor: '#6a5028' },   // ceremonial gold
+        old_conquest:    { wallColor: '#1a1a2a', wallEdge: '#3a3a5a', groundColor: '#2a2a4a' },   // pre-Accord ruins
+        new_conquest:    { wallColor: '#2a1a2a', wallEdge: '#5a2a5a', groundColor: '#3a2a4a' },   // Seer-remnant purple
+        pit_of_no_return:{ wallColor: '#3a0e0e', wallEdge: '#8a1a1a', groundColor: '#5a1a1a' },   // molten red
+      };
+      _dm = _regionPalettes[_region.id] || null;
+    } else {
+      _dm = null;
+    }
   } else {
     _dm = (CAVE_META && CAVE_META[_mapId])
        || DISTRICT_META[_mapId]
@@ -9287,6 +9654,33 @@ function drawTile(x, y, ch, mx, my) {
         ctx.fillStyle = sparkleTint;
         ctx.fillRect(px + 12, py + 12, 3, 3);
       }
+      break;
+    }
+    case ':': {
+      // RP8 · Road tile — clear stone / dirt path that guides the player
+      // through the wilds.  Distinct enough to read as a marked route,
+      // safer than gemgrass ('G' = wild encounters); does not trigger the
+      // encounter roll.  Palette-agnostic warm-neutral so it reads on
+      // every district's biome tint.
+      const gradR = ctx.createLinearGradient(px, py, px, py + TILE);
+      gradR.addColorStop(0, '#8a7a58');
+      gradR.addColorStop(1, '#5c4a2e');
+      ctx.fillStyle = gradR;
+      ctx.fillRect(px, py, TILE, TILE);
+      // Speckled pebbles for texture.
+      ctx.fillStyle = '#a89468';
+      if ((x * 7 + y * 3) % 4 === 0) ctx.fillRect(px + 6, py + 6, 2, 2);
+      if ((x * 5 + y * 11) % 5 === 0) ctx.fillRect(px + 18, py + 14, 2, 2);
+      if ((x + y) % 3 === 0) ctx.fillRect(px + 12, py + 20, 2, 2);
+      // Faint edge lines to suggest a worn track.
+      ctx.strokeStyle = '#3a2a1a';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(px + 0, py + 4);
+      ctx.lineTo(px + TILE, py + 6);
+      ctx.moveTo(px + 0, py + TILE - 5);
+      ctx.lineTo(px + TILE, py + TILE - 3);
+      ctx.stroke();
       break;
     }
     case '.':
@@ -9323,7 +9717,28 @@ function drawTile(x, y, ch, mx, my) {
     }
     case 'T': {
       // V2.43 — district-tinted tree. Style dictated by DISTRICT_DECOR.treeStyle.
-      const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
+      // RP8 · Naturalize — on the unified world, pull the decor entry from
+      // whichever region the tree stands in (or the NEAREST district if the
+      // tree is in an interstitial / route / borderland) so forest tint
+      // matches surrounding biome rather than falling to Malezor-beast.
+      let _decorMapId = game.player.mapId;
+      if (_decorMapId === 'zyraxis_world' && typeof getRegionAt === 'function') {
+        const _rg = getRegionAt(mx, my);
+        if (_rg && _rg.kind === 'district') _decorMapId = _rg.id;
+        else if (_rg && _rg.kind === 'route' && ROUTE_META[_rg.id]) _decorMapId = ROUTE_META[_rg.id].west;
+        else {
+          // Interstitial / bridge / part2 — pick the nearest district.
+          let best = null, bestD = Infinity;
+          for (const r of (ZYRAXIS_WORLD.regions || [])) {
+            if (r.kind !== 'district') continue;
+            const cx = (r.x1 + r.x2) / 2, cy = (r.y1 + r.y2) / 2;
+            const d = (cx - mx) * (cx - mx) + (cy - my) * (cy - my);
+            if (d < bestD) { bestD = d; best = r.id; }
+          }
+          if (best) _decorMapId = best;
+        }
+      }
+      const decor = (_dm && DISTRICT_DECOR[_decorMapId]) || {};
       const style = decor.treeStyle || 'beast';
       drawTile(x, y, ',', mx, my); // ground under tree
       const trunkX = px + TILE / 2;
@@ -9393,7 +9808,24 @@ function drawTile(x, y, ch, mx, my) {
     }
     case 'W': {
       // V2.43 — district-tinted water
-      const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
+      // RP8 · Naturalize — pull decor from nearest district on world map.
+      let _wMapId = game.player.mapId;
+      if (_wMapId === 'zyraxis_world' && typeof getRegionAt === 'function') {
+        const _rg = getRegionAt(mx, my);
+        if (_rg && _rg.kind === 'district') _wMapId = _rg.id;
+        else if (_rg && _rg.kind === 'route' && ROUTE_META[_rg.id]) _wMapId = ROUTE_META[_rg.id].west;
+        else {
+          let best = null, bestD = Infinity;
+          for (const r of (ZYRAXIS_WORLD.regions || [])) {
+            if (r.kind !== 'district') continue;
+            const cx = (r.x1 + r.x2) / 2, cy = (r.y1 + r.y2) / 2;
+            const d = (cx - mx) * (cx - mx) + (cy - my) * (cy - my);
+            if (d < bestD) { bestD = d; best = r.id; }
+          }
+          if (best) _wMapId = best;
+        }
+      }
+      const decor = (_dm && DISTRICT_DECOR[_wMapId]) || {};
       const waterFill = decor.waterTint || '#1a3860';
       ctx.fillStyle = waterFill;
       ctx.fillRect(px, py, TILE, TILE);
@@ -10203,6 +10635,22 @@ function drawTile(x, y, ch, mx, my) {
       // NPC trainer tile (rendered as path underneath + character overlay)
       drawTile(x, y, ',', mx, my);
       drawCharacter(px + TILE / 2, py + TILE / 2, game.player.npcDefeated ? 'down' : 'down', '#5fa8ff', '#2a5c8a');
+      break;
+    }
+    case 'n': {
+      // RP8 · Phase 7 — REGION NPC tile.  Rendered like N but color-shifted
+      // by the region kind so Bridge NPCs, Part 2 NPCs, and interstitial
+      // NPCs read visually distinct.  Interaction dispatches via
+      // interactRegionNpc(x, y) — see tryInteract 'n' branch.
+      drawTile(x, y, ',', mx, my);
+      const _r = (typeof getRegionAt === 'function') ? getRegionAt(mx, my) : null;
+      let bodyC = '#e8c878', trimC = '#8a3020';   // interstitial default (merchant-warm)
+      if (_r && _r.kind === 'bridge')     { bodyC = '#f5dc9c'; trimC = '#8a6420'; } // ceremonial gold
+      else if (_r && _r.kind === 'part2') { bodyC = '#b87cff'; trimC = '#382450'; } // Part 2 arcane purple
+      drawCharacter(px + TILE / 2, py + TILE / 2, 'down', bodyC, trimC);
+      // Small emblem dot above head so region NPCs stand out from walkers.
+      ctx.fillStyle = '#f5dc9c';
+      ctx.fillRect(px + TILE / 2 - 2, py + 1, 4, 4);
       break;
     }
     case 'S': {
@@ -12639,7 +13087,7 @@ function openItemsView() {
     body.appendChild(row);
   }
 }
-function useItem(key) {
+function useItem(key, targetIdx) {
   // V3.10.5 — Grand Potion / Master Potion also usable from the items
   // overlay outside battle.  V3.17.34 rebalance:
   //   Potion         +40 flat
@@ -12651,29 +13099,33 @@ function useItem(key) {
   //   be brought back by sleeping in a bed OR by a REVIVAL STEM.
   //   Revival Stem prioritizes a KO'd party member; otherwise it heals
   //   whoever is wounded or statused.
+  // RP8/RP7 · Item target picker — if targetIdx is undefined, defer to
+  // openItemTargetPicker(key) which lets the player pick which Zyrex to
+  // use the item on.  If targetIdx is a number, apply directly to that
+  // party slot (called back from the picker).
   if (!['potion','grand_potion','master_potion','revival_stem'].includes(key)) return;
   if (!game.player.items || (game.player.items[key] || 0) <= 0) return;
+  if (typeof targetIdx !== 'number') {
+    openItemTargetPicker(key);
+    return;
+  }
   const isStem   = key === 'revival_stem';
   const isMaster = key === 'master_potion';
   const clearsStatus = isStem || isMaster;
-  let target = null;
-  if (isStem) {
-    // Revival Stem priority: first KO → first wounded → first statused
-    target = game.player.party.find(r => r && r.hp <= 0)
-          || game.player.party.find(r => r && r.hp < r.maxHp)
-          || game.player.party.find(r => r && r.status);
-    if (!target) { showToast('ALL ZYREX AT FULL HP'); return; }
-  } else {
-    // Potions target the first wounded / statused Zyrex that IS ALIVE.
-    target = game.player.party.find(r => r && r.hp > 0 && (r.hp < r.maxHp || (clearsStatus && r.status)));
-    if (!target) {
-      // Distinguish 'no target' cases so the player gets useful feedback.
-      const hasKO   = game.player.party.some(r => r && r.hp <= 0);
-      const allFull = game.player.party.every(r => !r || (r.hp >= r.maxHp && !r.status));
-      if (hasKO && allFull) showToast('POTIONS CAN\'T REVIVE · use a REVIVAL STEM');
-      else                  showToast('ALL ZYREX AT FULL HP');
-      return;
-    }
+  let target = game.player.party[targetIdx];
+  if (!target) { showToast('NO ZYREX IN THAT SLOT'); return; }
+  // Validate the pick — potions can't revive, need something to heal.
+  if (!isStem && target.hp <= 0) {
+    showToast(`${target.name} IS KO'D · use REVIVAL STEM`);
+    return;
+  }
+  if (!isStem && target.hp >= target.maxHp && !(clearsStatus && target.status)) {
+    showToast(`${target.name} ALREADY AT FULL HP`);
+    return;
+  }
+  if (isStem && target.hp >= target.maxHp && !target.status) {
+    showToast(`${target.name} ALREADY AT FULL HP`);
+    return;
   }
   const wasKO  = target.hp <= 0;
   const before = target.hp;
@@ -12707,6 +13159,90 @@ function useItem(key) {
 }
 document.getElementById('items-close').onclick = () => $itemsov.classList.remove('active');
 $itemsov.addEventListener('click', (e) => { if (e.target === $itemsov) $itemsov.classList.remove('active'); });
+
+// RP8/RP7 · Item target picker — shows a small in-page modal listing all
+// party members so the player can choose which Zyrex to use the item on.
+// Renders using a lightweight DOM element (no new HTML template needed);
+// styling piggybacks on existing overlay CSS variables.
+function openItemTargetPicker(key) {
+  // Remove any prior instance so re-open doesn't stack.
+  const existing = document.getElementById('item-target-picker');
+  if (existing) existing.remove();
+  const party = (game.player.party || []).filter(Boolean);
+  if (!party.length) { showToast('NO ZYREX IN YOUR PARTY'); return; }
+  const labelMap = {
+    potion:         'POTION',
+    grand_potion:   'GRAND POTION',
+    master_potion:  'MASTER POTION',
+    revival_stem:   'REVIVAL STEM',
+  };
+  const label = labelMap[key] || key.toUpperCase();
+  const modal = document.createElement('div');
+  modal.id = 'item-target-picker';
+  modal.style.cssText = [
+    'position:fixed', 'inset:0', 'z-index:10050',
+    'display:flex', 'align-items:center', 'justify-content:center',
+    'background:rgba(5,3,16,0.72)', 'backdrop-filter:blur(6px)',
+    'font-family:var(--font-pixel), Inter, sans-serif',
+  ].join(';');
+  const inner = document.createElement('div');
+  inner.style.cssText = [
+    'width:min(420px, 92vw)', 'max-height:82vh', 'overflow:auto',
+    'background:linear-gradient(180deg, #1a0d2e 0%, #0a0517 100%)',
+    'border:2px solid #8a6420', 'border-radius:12px',
+    'padding:16px 18px', 'box-shadow:0 12px 40px rgba(0,0,0,0.6)',
+  ].join(';');
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:14px; letter-spacing:0.14em; color:#f5dc9c; margin-bottom:14px; text-align:center;';
+  title.innerHTML = `USE ${label} ON…`;
+  inner.appendChild(title);
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+  game.player.party.forEach((r, idx) => {
+    if (!r) return;
+    const row = document.createElement('button');
+    row.setAttribute('tabindex', '0');
+    const ko = r.hp <= 0;
+    const hpPct = Math.max(0, Math.round((r.hp / r.maxHp) * 100));
+    const status = r.status ? (typeof r.status === 'string' ? r.status : (r.status.type || '')) : '';
+    row.style.cssText = [
+      'display:flex', 'justify-content:space-between', 'align-items:center',
+      'padding:10px 12px', 'border-radius:8px',
+      'background:' + (ko ? '#3a1a1a' : '#241535'),
+      'border:1px solid ' + (ko ? '#8a3020' : '#4a3468'),
+      'color:#e8e0f0', 'font-family:inherit', 'font-size:13px',
+      'cursor:pointer', 'text-align:left', 'letter-spacing:0.06em',
+    ].join(';');
+    row.innerHTML = `
+      <span style="display:flex; flex-direction:column; gap:2px;">
+        <span style="font-weight:600;">SLOT ${idx + 1} · ${r.name || r.species || 'Zyrex'}</span>
+        <span style="font-size:11px; color:#a8a0c0;">Lv ${r.lv || 1} · ${r.hp}/${r.maxHp} HP${status ? ' · ' + status.toUpperCase() : ''}${ko ? ' · KO' : ''}</span>
+      </span>
+      <span style="font-size:11px; color:${ko ? '#ff8a5c' : (hpPct < 50 ? '#f5c848' : '#8bffcc')};">${hpPct}%</span>
+    `;
+    row.onmouseover = () => row.style.filter = 'brightness(1.15)';
+    row.onmouseout  = () => row.style.filter = '';
+    row.onclick = () => {
+      modal.remove();
+      useItem(key, idx);
+    };
+    list.appendChild(row);
+  });
+  inner.appendChild(list);
+  const cancel = document.createElement('button');
+  cancel.textContent = 'CANCEL';
+  cancel.style.cssText = [
+    'display:block', 'width:100%', 'margin-top:14px', 'padding:9px 12px',
+    'background:transparent', 'border:1px solid #4a3468', 'color:#a8a0c0',
+    'border-radius:8px', 'cursor:pointer', 'font-family:inherit',
+    'font-size:11px', 'letter-spacing:0.14em',
+  ].join(';');
+  cancel.onclick = () => modal.remove();
+  inner.appendChild(cancel);
+  modal.appendChild(inner);
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  document.body.appendChild(modal);
+}
 
 // ---------- Merchant shop ----------
 // V3.6.1 · V3.10 — SHOP_STOCK is now Rizer-Level gated.  Items with
@@ -13315,25 +13851,66 @@ function tryMove(dx, dy) {
     return;
   }
   if (!walkable(nx, ny)) { game.player.moveCd = 120; return; }
-  // RP8 · Phase 5 — Seam crossing: if the player's region changes on this
-  // step (only meaningful on 'zyraxis_world'), show a small entry toast.
-  let _prevRegionId = null;
+  // RP8 · Phase 5 · 5b — Seam crossing on the unified world.
+  //   * DETECT the region transition BEFORE moving.
+  //   * If the next region is a district in a LOCKED GROUP, block with
+  //     a Ministry watchpost dialog (mirrors the classic-mode portal gate).
+  //   * If the next region is the Bridge of Hope or any Part 2 zone and
+  //     the endgame flag hasn't fired, block with an endgame-sentinel toast.
+  //   * Otherwise allow the step and show a NOW ENTERING toast + refresh HUD.
+  let _prevRegion = null, _nowRegion = null;
   if (game.player.mapId === 'zyraxis_world' && typeof getRegionAt === 'function') {
-    const _prev = getRegionAt(game.player.x, game.player.y);
-    _prevRegionId = _prev && _prev.id;
+    _prevRegion = getRegionAt(game.player.x, game.player.y);
+    _nowRegion  = getRegionAt(nx, ny);
+  }
+  if (_prevRegion && _nowRegion && _prevRegion.id !== _nowRegion.id) {
+    // Ministry watchpost gate — crossing INTO a locked-group district.
+    if (_nowRegion.kind === 'district'
+        && typeof districtGroupIndex === 'function'
+        && typeof groupUnlocked === 'function'
+        && !(game && game.devMode)) {
+      const nextIdx = districtGroupIndex(_nowRegion.id);
+      const prevIdx = (_prevRegion.kind === 'district')
+        ? districtGroupIndex(_prevRegion.id) : -1;
+      if (nextIdx > prevIdx && !groupUnlocked(nextIdx)) {
+        const need = DISTRICT_GROUPS[nextIdx - 1] || [];
+        const flags = game.player.seerCommandersDefeated || {};
+        const missing = need.filter(d => !flags[d])
+          .map(d => (DISTRICT_META[d] && DISTRICT_META[d].name) || d).join(', ');
+        if (typeof showDialog === 'function') {
+          showDialog([
+            'A Ministry watchpost seals the border.',
+            `The road to ${(DISTRICT_META[_nowRegion.id] && DISTRICT_META[_nowRegion.id].name) || _nowRegion.name} is closed.`,
+            `Bring down the Seer Commanders of ${missing || 'the prior districts'} first.`,
+          ]);
+        }
+        game.player.moveCd = 240;
+        return;
+      }
+    }
+    // Bridge of Hope + Part 2 sentinel — locked until xenoxilDefeated.
+    const PART2_IDS = ['bridge_of_hope','old_conquest','new_conquest','pit_of_no_return'];
+    if (PART2_IDS.includes(_nowRegion.id) && !(game && game.devMode)
+        && !game.player.xenoxilDefeated) {
+      if (typeof showDialog === 'function') {
+        showDialog([
+          'A sentinel stands at the threshold of the Bridge of Hope.',
+          'SENTINEL: The road south is sealed until the ultimatum ends.',
+          'SENTINEL: Walk both paths.  Earn your passage.  Then the Bridge will open.',
+        ]);
+      }
+      game.player.moveCd = 240;
+      return;
+    }
   }
   game.player.x = nx;
   game.player.y = ny;
-  if (_prevRegionId !== null && typeof getRegionAt === 'function') {
-    const _now = getRegionAt(nx, ny);
-    const _nowId = _now && _now.id;
-    if (_nowId && _nowId !== _prevRegionId) {
-      const _label = (_now.kind === 'district' && DISTRICT_META[_now.id])
-                   ? (DISTRICT_META[_now.id].name || _now.name)
-                   : _now.name;
-      if (typeof showToast === 'function') showToast(`◈ NOW ENTERING · ${_label.toUpperCase()}`, 1600);
-      if (typeof updateHUD === 'function') updateHUD();
-    }
+  if (_prevRegion && _nowRegion && _prevRegion.id !== _nowRegion.id) {
+    const _label = (_nowRegion.kind === 'district' && DISTRICT_META[_nowRegion.id])
+                 ? (DISTRICT_META[_nowRegion.id].name || _nowRegion.name)
+                 : _nowRegion.name;
+    if (typeof showToast === 'function') showToast(`◈ NOW ENTERING · ${_label.toUpperCase()}`, 1600);
+    if (typeof updateHUD === 'function') updateHUD();
   }
   // V2.46 · V3.17.9 — RUN: holding B (desktop 'b' key OR mobile B button
   // which dispatches Shift) halves the walk cooldown → 2x run speed.
@@ -13714,23 +14291,44 @@ function interactGemlordCave() {
   const currentMap = game.player.mapId;
   // V3.17.30 — CAVE INTERIOR: pressing A on 'C' inside a Sanctum exits
   // back to the owning route, spawning just south of the route's cave door.
+  // RP8 · Route wire-in — if the player's preferWorldMap is set, return
+  // them to the WORLD MAP at the route region's cave-tile coord instead
+  // of loading the standalone route MAP.
   if (currentMap && currentMap.indexOf('gemlord_cave_') === 0) {
     const cmeta = CAVE_META[currentMap];
-    if (cmeta && cmeta.routeId && MAPS[cmeta.routeId]) {
-      const route = MAPS[cmeta.routeId];
-      const routeMx = Math.floor(route.cols / 2);
-      // Route places 'C' at (routeMx, 1); land the player one step south
-      // so they don't immediately re-trigger the entry prompt.
-      enterMap(cmeta.routeId, routeMx, 2, 'down');
-      showToast('◈  ' + (ROUTE_META[cmeta.routeId] ? ROUTE_META[cmeta.routeId].name.toUpperCase() : 'ROUTE'), 1800);
-      return;
+    if (cmeta && cmeta.routeId) {
+      if (game.player.preferWorldMap && typeof ZYRAXIS_WORLD !== 'undefined'
+          && MAPS['zyraxis_world']) {
+        const region = ZYRAXIS_WORLD.regions.find(r => r.id === cmeta.routeId);
+        if (region) {
+          const cx = Math.floor((region.x1 + region.x2) / 2);
+          const cy = Math.floor((region.y1 + region.y2) / 2);
+          enterMap('zyraxis_world', cx, cy + 1, 'down');
+          showToast('◈  ' + (ROUTE_META[cmeta.routeId] ? ROUTE_META[cmeta.routeId].name.toUpperCase() : 'ROUTE'), 1800);
+          return;
+        }
+      }
+      if (MAPS[cmeta.routeId]) {
+        const route = MAPS[cmeta.routeId];
+        const routeMx = Math.floor(route.cols / 2);
+        enterMap(cmeta.routeId, routeMx, 2, 'down');
+        showToast('◈  ' + (ROUTE_META[cmeta.routeId] ? ROUTE_META[cmeta.routeId].name.toUpperCase() : 'ROUTE'), 1800);
+        return;
+      }
     }
   }
   // V3.17.22 — Gemlord caves moved from DISTRICTS to ROUTES (northern
   // portion).  Resolve the gemlord id from ROUTE_META.gemlord if the
   // player is on a route; else fall back to district-based lookup for
   // any lingering caves (shouldn't exist post-V3.17.22 but be safe).
-  const routeMeta = ROUTE_META[currentMap];
+  // RP8 · Route wire-in — on the unified world, resolve the route via
+  // getRegionAt(player.x, player.y) instead of trusting mapId.
+  let effectiveRouteId = currentMap;
+  if (currentMap === 'zyraxis_world' && typeof getRegionAt === 'function') {
+    const region = getRegionAt(game.player.x, game.player.y);
+    if (region && region.kind === 'route') effectiveRouteId = region.id;
+  }
+  const routeMeta = ROUTE_META[effectiveRouteId];
   const gemlordId = routeMeta ? routeMeta.gemlord : null;
   const districtId = currentMap;
   // V3.17.30 — CAVE ENTRY.  Ultharis Mode (dev cheat) or post-endgame
@@ -14106,6 +14704,9 @@ function tryInteract() {
     // pray 10 times → statue part → Mom blessing → Dad warning → burn
     // in fireplace → grants ANCIUXOR (Tier X, 666 all stats, Lv 100).
     interactStatue();
+  } else if (t === 'n') {
+    // RP8 · Phase 7 — REGION NPC interact.  Dispatches by (region, x, y).
+    interactRegionNpc(tx, ty);
   } else if (t === 'l') {
     // V3.17.8 — PSYCHOSYD'S SIGNED RED ELECTRIC GUITAR interact.
     // First meet: adds Psychosyd (Baelgor Humanoidlands rockstar,
@@ -15841,6 +16442,132 @@ const BROADCAST_INTERVIEWS = {
     "You do.  Somewhere, an empty throne creaks — like it heard.",
   ],
 };
+// RP8 · Phase 7 — REGION NPC dialogues.  Each interstitial + Part 2 NPC
+// carries a small canon beat.  Keyed by "x,y" (world coord) so multiple
+// NPCs per region get unique lines.  Once a region NPC is talked to, the
+// interaction stays available (they aren't defeated, they aren't gated).
+const REGION_NPCS = {
+  // Wild March · Wandering Merchant (drunk, banned, welcome everywhere)
+  '118,72': {
+    name: 'WANDERING MERCHANT',
+    lines: [
+      'MERCHANT: Ohhh — a Rizer!  In the March!  How wonderful.  How brave.',
+      'MERCHANT: Nobody here to sell you nothing, friend.  Just me and the wind.',
+      'MERCHANT: But listen close — I hear the Green Divide has flowers that remember names.',
+      "MERCHANT: (He winks, or blinks, hard to tell.)  Safe roads, Rizer.  I've had my share.",
+    ],
+    reward: { key: 'coins', amount: 300 },
+  },
+  // Green Divide · Journalist (childhood best friend, intergalactic broadcast)
+  '245,118': {
+    name: 'THE JOURNALIST',
+    lines: [
+      "JOURNALIST: Hey!  It's you!  I was just filing on the Divide.",
+      "JOURNALIST: The Aethryx Expanse is listening — you're LIVE across three planets right now.",
+      "JOURNALIST: What do you want the Ninth World to know, huh?  What's it like out there?",
+      "JOURNALIST: ... yeah.  Yeah, they'll like that.  Go get 'em.",
+    ],
+    reward: { key: 'coins', amount: 500 },
+  },
+  // Bridge of Hope · 4-NPC farewell sequence (post-endgame only, gated
+  // by the sentinel; if you're standing here the endgame flag has fired).
+  '110,220': {
+    name: 'MOM',
+    lines: [
+      "MOM: You made it.  You actually made it.",
+      "MOM: I packed you a Revival Stem.  Two.  For luck.",
+      "MOM: Whatever's on the other side of this bridge, come home when it's done.",
+    ],
+    reward: { key: 'items', item: 'revival_stem', amount: 2 },
+  },
+  '125,222': {
+    name: 'DAD',
+    lines: [
+      "DAD: The Accord holds because of what you did.",
+      "DAD: Kelthor said you'd figure it out.  Turns out he was right.  Again.",
+      "DAD: One more thing.  Whatever's south — don't fight it alone.",
+    ],
+    reward: null,
+  },
+  '140,220': {
+    name: 'WARDEN KELTHOR',
+    lines: [
+      "KELTHOR: Egnellahc's blood ran in your line long before you knew.",
+      "KELTHOR: You honored the Accord.  Now the Bridge honors you.",
+      "KELTHOR: The Prisms of the Expanse wait.  Find them.  Speak my name to Anciuxor.",
+    ],
+    reward: null,
+  },
+  '155,222': {
+    name: 'MYARA',
+    lines: [
+      "MYARA: Broadcast's off.  For once it's just us.",
+      "MYARA: The Expanse heard you save the Accord.  They'll hear whatever comes next, too.",
+      "MYARA: Go on.  I'll be broadcasting from wherever you end up.",
+    ],
+    reward: null,
+  },
+  // Old Conquest · Lorekeeper of the pre-Accord ruins.
+  '100,278': {
+    name: 'LOREKEEPER',
+    lines: [
+      "LOREKEEPER: These stones are older than the Accord.  Older than Oathane.",
+      "LOREKEEPER: Novarius stood here, on this dirt, and told Rakoron 'no more'.",
+      "LOREKEEPER: What you carry now is what he built.  Don't set it down lightly.",
+    ],
+    reward: { key: 'coins', amount: 2000 },
+  },
+  // New Conquest · Seer-remnant emissary (defecting, reconciling).
+  '195,285': {
+    name: 'EMISSARY',
+    lines: [
+      "EMISSARY: The Seers were wrong.  I know it now.",
+      "EMISSARY: The ones who stayed — they're scattered here.  Small.  Frightened.",
+      "EMISSARY: If you spare them, the Accord grows.  If you don't, we all just repeat.",
+    ],
+    reward: { key: 'coins', amount: 2500 },
+  },
+  // Pit of No Return · Anciuxor communion hook (Ultimate Prismsynch teaser).
+  '145,355': {
+    name: 'THE VOICE IN THE PIT',
+    lines: [
+      "VOICE: You came down.  Few do.  Fewer return.",
+      "VOICE: The Key of Anciuxor sits on His tail.  Bond Him.  Bring Him here.",
+      "VOICE: Then — and only then — will Ultharis speak through Him.  Prismsynch will do the rest.",
+    ],
+    reward: null,
+  },
+};
+function interactRegionNpc(x, y) {
+  const key = x + ',' + y;
+  const npc = REGION_NPCS[key];
+  if (!npc) {
+    // Fallback: generic region flavor if a painted NPC has no dialog entry.
+    const region = (typeof getRegionAt === 'function') ? getRegionAt(x, y) : null;
+    const label = region ? region.name : 'The Wilds';
+    showDialog([`A wanderer of ${label}.`, "They nod, and say nothing."]);
+    return;
+  }
+  game.player.regionNpcsMet = game.player.regionNpcsMet || {};
+  const firstMeet = !game.player.regionNpcsMet[key];
+  showDialog(npc.lines, () => {
+    if (firstMeet) {
+      game.player.regionNpcsMet[key] = true;
+      // Grant one-time reward if defined.
+      if (npc.reward) {
+        if (npc.reward.key === 'coins') {
+          game.player.coins = (game.player.coins || 0) + npc.reward.amount;
+          showToast(`◈ ${npc.name} · +${npc.reward.amount} coins`, 1800);
+        } else if (npc.reward.key === 'items' && npc.reward.item) {
+          game.player.items = game.player.items || {};
+          game.player.items[npc.reward.item] = (game.player.items[npc.reward.item] || 0) + npc.reward.amount;
+          showToast(`◈ ${npc.name} · +${npc.reward.amount} ${npc.reward.item.replace(/_/g,' ')}`, 1800);
+        }
+      }
+      save();
+    }
+  });
+}
 function interactBroadcastTower() {
   const districtId = getPlayerDistrict();
   game.player.broadcasts = game.player.broadcasts || {};
@@ -19318,6 +20045,13 @@ function hudLabelFor(mapId) {
         if (dm && dm.name && dm.land) return `${dm.name} · ${dm.land}`;
         if (dm && dm.name) return dm.name;
         return region.name;
+      }
+      // RP8 · Route wire-in — 'Route N · <name>' matches classic HUD.
+      if (region.kind === 'route' && ROUTE_META[region.id]) {
+        const rm = ROUTE_META[region.id];
+        const routeIdx = (typeof ROUTE_ORDER !== 'undefined')
+          ? ROUTE_ORDER.indexOf(region.id) + 1 : 0;
+        return routeIdx > 0 ? `Route ${routeIdx} · ${rm.name}` : rm.name;
       }
       return region.name;   // interstitial / bridge / part2 / borderland
     }

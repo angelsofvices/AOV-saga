@@ -6034,6 +6034,17 @@ const game = {
     quietChildSightings: 0,
     // V3.12.1 — Quiet Child arc endgame flags
     quietChildForgiven: false,   // has the forgiveness beat fired?
+    // ★ NOVARIAN CHALLENGE (2026-07-17) — Path A Rizer Path arc.
+    // Enrollment gate: Kelthor offers after the Malezor Seer Commander
+    // falls.  Qualifiers: 10 district Championship matches (one per Hall
+    // Rizer 'R' tile).  Grand Champion: after 10/10 wins, Kelthor sends
+    // the player to Korathen for the crown match.  Prismsynch Unlock:
+    // Grand Champion mantle grants Prismsynch as a move for the player's
+    // MAXIMUM-BOND Zyrex.  See aov-novarian-challenge memory.
+    novarianEnrolled:      false,
+    novarianQualifiers:    {},        // { districtId: true } — 10 total
+    novarianGrandChampion: false,
+    prismsynchUnlocked:    false,     // 3-lock endgame move; see aov-prismsynch-move
     xenoxilDefeated: false,      // set when the endgame lands; unlocks the forgiveness beat
     // V3.15 — endgame trio fight state
     endgameStarted: false,       // has the Korathen throne trigger fired?
@@ -6940,6 +6951,326 @@ function tryKelthorLesson(fromDistrict) {
   });
   return true;
 }
+// ============================================================================
+// ★ THE NOVARIAN CHALLENGE · Path A Rizer Path storyline (2026-07-17)
+// ============================================================================
+//
+// Kelthor is the intake.  He offers enrollment once Malezor's Seer Commander
+// has fallen (proving the player is worthy of the Accord's competitive arm).
+// After enrollment, defeating each district's HALL RIZER auto-qualifies the
+// player for that district.  All 10 qualifiers won → Kelthor sends the
+// player to Korathen for the Grand Champion match.  Winning the crown
+// grants the Rizer the PRISM OF THE CROWN (Korathen's Zyraxis-native
+// Prism) which unlocks PRISMSYNCH — the ultimate move type — for their
+// highest-bond Zyrex.  This is the mechanical answer to the 3-lock system:
+// Grand Champion mantle satisfies "Max Rizer" + Korathen Prism satisfies
+// the Prism lock + the player's highest-bond partner satisfies Max Bond.
+//
+// See memory: aov-novarian-challenge · aov-prismsynch-move · aov-dual-path-structure.
+const NOVARIAN_DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+const NOVARIAN_COIN_ITEM = 'imperial_coin';   // Faction Coin per canon (Korathen mint)
+function novarianQualifiersWonCount() {
+  const w = game.player.novarianQualifiers || {};
+  return NOVARIAN_DISTRICT_ORDER.reduce((n, id) => n + (w[id] ? 1 : 0), 0);
+}
+// ★ THE THREE UTILITY PRISMS OF ZYRAXIS (2026-07-17 canon).  Kelthor
+// won't take on a Rizer whose trinity is incomplete — Zysphere (sphere,
+// bond) + Zycube (cube, storage) + Zyramid (pyramid, power).  All three
+// must be owned before enrollment is offered.  See aov-utility-prisms.
+function ownsUtilityPrism(kind) {
+  const p = game.player || {};
+  const it = p.items || {};
+  if (kind === 'zysphere') {
+    return (p.zyspheres || 0) + (p.zyspheresVoid || 0) + (p.zyspheresUltra || 0) > 0;
+  }
+  if (kind === 'zycube')  return (it.zycube  || 0) > 0;
+  if (kind === 'zyramid') return (it.zyramid || 0) > 0;
+  return false;
+}
+function hasAllThreeUtilityPrisms() {
+  return ownsUtilityPrism('zysphere') && ownsUtilityPrism('zycube') && ownsUtilityPrism('zyramid');
+}
+function missingUtilityPrisms() {
+  const out = [];
+  if (!ownsUtilityPrism('zysphere')) out.push('Zysphere');
+  if (!ownsUtilityPrism('zycube'))   out.push('Zycube');
+  if (!ownsUtilityPrism('zyramid'))  out.push('Zyramid');
+  return out;
+}
+function grantZycube() {
+  const p = game.player;
+  p.items = p.items || {};
+  if (p.items.zycube > 0) return false;
+  p.items.zycube = 1;
+  save();
+  try { playSfx('toast'); } catch(_) {}
+  showToast('◈  ZYCUBE  ·  added to Bag', 2600);
+  return true;
+}
+function grantZyramid() {
+  const p = game.player;
+  p.items = p.items || {};
+  if (p.items.zyramid > 0) return false;
+  p.items.zyramid = 1;
+  save();
+  try { playSfx('toast'); } catch(_) {}
+  showToast('◈  ZYRAMID  ·  added to Bag', 2600);
+  return true;
+}
+function tryNovarianKelthor(fromDistrict) {
+  if (fromDistrict !== 'malezor') return false;
+  const p = game.player;
+  const enrolled = !!p.novarianEnrolled;
+  const grandChampion = !!p.novarianGrandChampion;
+  // Terminal state — Grand Champion earned, all beats fired.
+  if (grandChampion) {
+    // Silent — Kelthor lets other beats through (bond lessons, quest lines).
+    return false;
+  }
+  // ENROLLMENT — offered once Malezor Seer Commander has fallen AND the
+  // player owns all three utility Prisms (Zysphere + Zycube + Zyramid).
+  // Kelthor won't train an incomplete Rizer.
+  if (!enrolled) {
+    if (!districtLiberated('malezor')) {
+      // Not yet worthy — silent so quest state can dispatch.
+      return false;
+    }
+    // LEGACY-SAVE BACKFILL — earlier builds didn't drop Zycube or Zyramid.
+    // If the player has already cleared Malezor's commander, backfill any
+    // trinity item they're missing so they can enroll on the next visit.
+    p.items = p.items || {};
+    if (!p.items.zycube)  p.items.zycube  = 1;
+    if (!p.items.zyramid) p.items.zyramid = 1;
+    save();
+    // ★ UTILITY TRINITY GATE — the three fundamental Prisms of Zyraxis.
+    if (!hasAllThreeUtilityPrisms()) {
+      const missing = missingUtilityPrisms().join(', ');
+      showDialog([
+        `WARDEN KELTHOR, Elder of Malezor:`,
+        `You broke the Seers here.  Well done.  I was going to speak with you today about something older.`,
+        ``,
+        `But — I have to be strict with you.  Every Rizer of the Accord carries THE THREE.  The Zysphere for bonding.  The Zycube for what you carry.  The Zyramid for what powers everything.  Sphere, cube, pyramid.  Novarius carried all three the day he tamed Rakoron.  Every Rizer since.`,
+        ``,
+        `You are missing: ${missing.toUpperCase()}.`,
+        ``,
+        `Complete the trinity.  Come back to me.  Then we start.`,
+      ]);
+      return true;
+    }
+    p.novarianEnrolled = true;
+    save();
+    showDialog([
+      `WARDEN KELTHOR, Elder of Malezor:`,
+      `Sphere.  Cube.  Pyramid.  You carry all three.`,
+      `Now something older than the Seers wants a word with you.`,
+      ``,
+      `You broke the Seers' grip on Malezor.  You honored the Ancient Oath the same way NOVARIUS honored it, in the late Malezor Era, when he tamed RAKORON.`,
+      `That oath — the Accord — is what your Zyrex fight under.  The Seers seek to unmake it.  So do we, in a way — because we let it grow quiet.`,
+      ``,
+      `THE NOVARIAN CHALLENGE is the Accord in its OTHER form.  A cycle Oathane sanctioned to keep the covenant loud.`,
+      `Every nine years, ten districts field a Faction of Nine.  Champions meet champions.  The winners of every district enter the Korathen bracket.  The one who bears the crown at the end inherits Novarius's mantle.`,
+      ``,
+      `I would like you to enter.  Malezor's slot has been open for eight years.`,
+      `Your ACTIVE PARTY becomes your fielded Faction.  Speak with each district's HALL RIZER after the Seers of that district have been repelled.  Their match IS your Malezorian qualifier for their district.`,
+      ``,
+      `«◈  YOU ARE NOW A NOVARIAN CANDIDATE  ·  QUALIFIERS 0 / 10»`,
+    ], () => {
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  NOVARIAN CHALLENGE  ·  Enrolled', 3400);
+    });
+    return true;
+  }
+  // POST-ENROLLMENT progress check.
+  const won = novarianQualifiersWonCount();
+  // ★ PRISM GRANT BEATS · staggered along the qualifier bracket.
+  //   3/10  → Prism of the Deep       (Xilnar-native · early tier · 150 pow)
+  //   6/10  → Prism of Refuge         (Vorashil-native · mid tier · 225 pow)
+  //   10/10 → Prism of the Crown      (Korathen-native · Grand Champion payoff · 300 pow)
+  // The first two grants fire on next Kelthor visit after crossing the
+  // threshold, once each.  The third fires from grantPrismsynchPayoff on the
+  // Grand Champion win.
+  p.items = p.items || {};
+  if (won >= 3 && !p.items.prism_of_the_deep && !p.prismOfDeepGranted) {
+    p.items.prism_of_the_deep = 1;
+    p.prismOfDeepGranted = true;
+    p.prismsynchUnlocked = true;   // first Prism opens the Prismsynch bag entry
+    save();
+    showDialog([
+      `WARDEN KELTHOR:`,
+      `Three qualifiers.  Something old wants to travel with you.`,
+      ``,
+      `He opens a small oiled cloth on the table.  Inside — a jagged blue Prism, edges worn smooth by generations of palms.`,
+      `KELTHOR: The PRISM OF THE DEEP.  Zyraxis-native.  Xilnar's grand halls held it for six centuries before the Seer troubles.  A Rizer named Vorhil-Iuran carried it before you.  He never lost with it.  Not once.`,
+      ``,
+      `KELTHOR: Slot it in your bag.  In battle, if your bonded partner is with you, the Prism will let you strike as ONE.  We call it PRISMSYNCH.  Fires once per fight.  Your Zyrex's primary type carries it.`,
+      ``,
+      `KELTHOR: I told you this ladder had reasons.  The Prism is one of them.`,
+      ``,
+      `«◈  PRISM OF THE DEEP  ·  added to Bag  ·  PRISMSYNCH unlocked»`,
+    ], () => {
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  PRISM OF THE DEEP · Prismsynch (150 pow) unlocked', 3600);
+    });
+    return true;
+  }
+  if (won >= 6 && !p.items.prism_of_refuge && !p.prismOfRefugeGranted) {
+    p.items.prism_of_refuge = 1;
+    p.prismOfRefugeGranted = true;
+    save();
+    showDialog([
+      `WARDEN KELTHOR:`,
+      `Six qualifiers.  You have earned another word from me.`,
+      ``,
+      `He slides a second Prism across the table.  This one is warm, palest gold, edges rounded like a river stone.`,
+      `KELTHOR: The PRISM OF REFUGE.  Vorashil's founding Rizer, Elzha-Tarn, carried this into the atmosphere on her final flight.  She sent it back through the clouds before she left.  She said she'd leave it for someone who could still make it home.`,
+      ``,
+      `KELTHOR: Its resonance is deeper than the first.  Your Prismsynch will strike harder, cleaner.  Same rule — once per battle.  The Prisms answer separately even if you carry both.`,
+      ``,
+      `KELTHOR: Four qualifiers left.  Then Korathen.  Then the last Prism.`,
+      ``,
+      `«◈  PRISM OF REFUGE  ·  added to Bag  ·  Prismsynch 225 power»`,
+    ], () => {
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  PRISM OF REFUGE · Prismsynch (225 pow) added', 3600);
+    });
+    return true;
+  }
+  // All 10 qualifiers cleared → Grand Champion match ready.
+  if (won >= 10) {
+    showDialog([
+      `WARDEN KELTHOR:`,
+      `Ten districts.  Ten qualifiers.  Every Hall Rizer in the Ninth World has answered you.`,
+      `Only one match remains — the Korathen Coliseum.  The Ultralord's own champion.  He carries the PRISM OF THE CROWN in his sword hilt.  If you take the crown, you take the Prism.`,
+      ``,
+      `Everything you have learned about bonding — every lesson from me, every Fathergem you have carried home — was so you could bear that Prism.`,
+      ``,
+      `You know what to do.  Go to Korathen's Town Hall.  The champion is waiting.  Faction of Nine.  One last match.`,
+      ``,
+      `«◈  GRAND CHAMPION MATCH READY  ·  Speak with the Korathen Hall Rizer»`,
+    ], () => {
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  KORATHEN GRAND CHAMPION MATCH READY', 3400);
+    });
+    return true;
+  }
+  // Mid-progress — show a short flavored recap so returning to Kelthor
+  // is never dead air.
+  if (won > 0 && won < 10) {
+    const remaining = NOVARIAN_DISTRICT_ORDER.filter(id => !(p.novarianQualifiers || {})[id])
+      .map(id => (DISTRICT_META[id] || {}).name || id);
+    showDialog([
+      `WARDEN KELTHOR:`,
+      `${won} of ten.  The Accord grows louder every time a Hall Rizer bows to you.`,
+      `Still to answer: ${remaining.slice(0, 5).join(', ')}${remaining.length > 5 ? ' and more' : ''}.`,
+      `Return when you have added another.`,
+    ]);
+    return true;
+  }
+  // Enrolled but no qualifiers yet — quiet nudge, then let the rest of
+  // Kelthor's flow continue for bond lessons + quests.
+  return false;
+}
+function awardNovarianQualifier(districtId) {
+  const p = game.player;
+  if (!p.novarianEnrolled) return false;
+  if (!districtId || !NOVARIAN_DISTRICT_ORDER.includes(districtId)) return false;
+  p.novarianQualifiers = p.novarianQualifiers || {};
+  if (p.novarianQualifiers[districtId]) return false;   // already won
+  p.novarianQualifiers[districtId] = true;
+  // Grant an Imperial Coin per qualifier (Korathen mint · canon).
+  p.items = p.items || {};
+  p.items[NOVARIAN_COIN_ITEM] = (p.items[NOVARIAN_COIN_ITEM] || 0) + 1;
+  save();
+  const dmName = (DISTRICT_META[districtId] || {}).name || districtId;
+  const total = novarianQualifiersWonCount();
+  try { playSfx('toast'); } catch(_) {}
+  showToast(`◈  ${dmName.toUpperCase()} QUALIFIER · WON  ·  Imperial Coin  ·  ${total}/10`, 3600);
+  // At 10/10, plant a follow-up hint so the player heads back to Kelthor.
+  if (total >= 10) {
+    setTimeout(() => {
+      showToast('◈  RETURN TO MALEZOR · KELTHOR IS WAITING', 3400);
+    }, 1200);
+  }
+  return true;
+}
+function startGrandChampionMatch() {
+  const p = game.player;
+  if (!p.novarianEnrolled || novarianQualifiersWonCount() < 10) {
+    showDialog(['The champion looks past you.  The bracket is not yet full.']);
+    return;
+  }
+  if (p.novarianGrandChampion) {
+    showDialog([
+      `THE ULTRALORD'S CHAMPION:`,
+      `You wear the crown.  I bear the memory.  Well fought.`,
+    ]);
+    return;
+  }
+  showDialog([
+    `THE ULTRALORD'S CHAMPION:`,
+    `Ten districts sent me their best.  Malezor sent you.`,
+    `The PRISM OF THE CROWN is in this hilt.  The mantle of NOVARIUS goes with it.`,
+    `«◈  CHALLENGE THE GRAND CHAMPION?»`,
+  ], () => {
+    // Build a Grand Champion chain — 9 Zyrex, mixed districts, top-band levels.
+    const chain = [
+      ['emeralix',   96],     // Emerald · faux-Gemlord anchor (Verdant/Aura)
+      ['obsidius',   96],     // Onyx · Spirit/UV
+      ['azurel',     96],     // Sapphire · Tech/Crystal
+      ['mutaryn',    96],     // Citrine · Beast
+      ['ivirium',    96],     // Pearl · Aura/Divine
+      ['rakoron',    96],     // Ruby · Beast/Draconic
+      ['eurakeon',   96],     // Amethyst · Spirit/Chrono
+      ['ambrevon',   96],     // Amber · Humanoid/Elemental
+      ['oatheus',   100],     // ★ Ultralord ace
+    ];
+    // Realize + start the fight.  Filter out species that aren't in SPECIES
+    // (defensive — some canon entries might not have live species objects).
+    const realized = chain
+      .map(([id, lv]) => (typeof SPECIES !== 'undefined' && SPECIES[id]) ? makeZyrex(id, lv) : null)
+      .filter(Boolean);
+    if (!realized.length) {
+      showDialog(['The Prism goes dim.  (Grand Champion roster missing — patch pending.)']);
+      return;
+    }
+    const lead = realized.shift();
+    enterBattle(lead, 'novarian-grand-champion', {
+      trainerName: `THE ULTRALORD'S CHAMPION`,
+      chain: realized,
+      novarianGrandChampion: true,
+      npcCoord: null,
+      tileChar: null,
+      stealPool: [],
+    });
+  });
+}
+function grantPrismsynchPayoff() {
+  const p = game.player;
+  if (p.novarianGrandChampion) return;
+  p.novarianGrandChampion = true;
+  p.prismsynchUnlocked    = true;
+  p.items = p.items || {};
+  p.items.prism_of_the_crown = (p.items.prism_of_the_crown || 0) + 1;
+  save();
+  showDialog([
+    `THE ULTRALORD'S CHAMPION kneels.`,
+    `The PRISM OF THE CROWN lifts free of the hilt and drifts to your palm.  It is warm.  It hums the same frequency as your two other Prisms — and something deeper.`,
+    ``,
+    `You feel the last lock click into place.`,
+    `Your Rizer Level, at its peak.  Your bonded partner beside you.  The three Zyraxis-native Prisms of the Rizer Path — Deep, Refuge, Crown — in your bag.  The civic set is complete.  A fourth Prism — the KEY OF ANCIUXOR — belongs to a different path.`,
+    ``,
+    `«◈  PRISM OF THE CROWN  ·  added to Bag  ·  Prismsynch 300 power»`,
+    `The Ninth World's three Prisms all sing when you carry them together.  Each one fires as its own Prismsynch — one at a time — from your bag.  Choose which Prism you channel each fight.`,
+    ``,
+    `The crown descends onto your brow.  You are GRAND CHAMPION of the Ninth World.`,
+    `You wear NOVARIUS'S MANTLE.`,
+    ``,
+    `The Accord is loud again.  It will echo through every planet in the Expanse.  You made that possible.`,
+  ], () => {
+    try { playSfx('toast'); } catch(_) {}
+    showToast('◈  GRAND CHAMPION · PRISM OF THE CROWN (300 pow) added', 4200);
+  });
+}
 function handleKeeperInteract(hallMapId) {
   const from = game.player.enteredInteriorFrom;
   const fromDistrict = from && from.map;
@@ -7009,6 +7340,13 @@ function handleKeeperInteract(hallMapId) {
   // Runs BEFORE the standard quest dialog so the mentor beat lands
   // first on threshold-crossing visits.
   if (hallMapId === 'malezor_hall' && tryKelthorLesson(fromDistrict)) {
+    return;
+  }
+  // ★ NOVARIAN CHALLENGE dispatch (Malezor only · Kelthor is the intake).
+  // Runs BEFORE quest state so the civic arc gets airtime whenever the
+  // player returns to Kelthor's hall.
+  if (hallMapId === 'malezor_hall' && typeof tryNovarianKelthor === 'function'
+      && tryNovarianKelthor(fromDistrict)) {
     return;
   }
   if (state === 'complete') {
@@ -12361,6 +12699,21 @@ function openItemsView() {
     imperial_crest: 'The crown that answers no name. A relic of Korathen.',
     ancient_gemsight: 'A lens behind your eyes.  Reveals chest counts, uncleared commanders, and shrine visits on the world map.',
     computer_part:    'A humming Legacy-Rizer component.  Take it to the basement terminal to install PC Storage.',
+    // ★ ZYRAXIS-NATIVE PRISMS — three of the sixteen Astralite Prisms.
+    // Each fires PRISMSYNCH once per battle from the bag.  Power scales
+    // by Prism tier.  See PRISM_TABLE + firePrismsynch.
+    prism_of_the_deep:  'PRISMSYNCH · 150 pow · 40% status.  Xilnar-native Prism.  Fires from bag in battle, once per fight.',
+    prism_of_refuge:    'PRISMSYNCH · 225 pow · 50% status.  Vorashil-native Prism.  Fires from bag in battle, once per fight.',
+    prism_of_the_crown: 'PRISMSYNCH · 300 pow · 60% status.  Korathen-native Prism.  Grand Champion mantle.  Fires from bag in battle, once per fight.',
+    // ★ NOVARIAN CIVIC — Imperial Coin earned per qualifier match.
+    imperial_coin:      'Korathen mint.  One is granted per Novarian Challenge qualifier won.  Ten total = Grand Champion candidacy.',
+    // ★ THE THREE UTILITY PRISMS OF ZYRAXIS (2026-07-17 canon).
+    // Zysphere already lives outside this dict (game.player.zyspheres counter).
+    // These two are the Cube + Pyramid halves of the trinity.  Required
+    // to enroll in the Novarian Challenge — Kelthor won\'t train an
+    // incomplete Rizer.  See aov-utility-prisms memory.
+    zycube:             'CUBE utility Prism · storage vessel.  Six identical Z-emblem faces.  Every Zyraxian carries one — your items live inside it.  Mom gave you yours the morning you left.',
+    zyramid:            'PYRAMID utility Prism · power vessel.  Square base plugs into any Thardun-standard face; a Zysphere can be inserted inside.  Amplifies bond, resonance, and Prismsynch signal.',
   };
   for (const [key, desc] of Object.entries(shrineDescs)) {
     const count = it[key] || 0;
@@ -16773,6 +17126,39 @@ function exitHouseToMalezor() {
     ]);
     return;
   }
+  // ★ ZYCUBE GRANT — Mom's departure gift.  Fires on the first home-exit.
+  // The Zycube is the CUBE utility Prism · storage.  Every Zyraxian
+  // carries one.  Requirement for Kelthor's Novarian enrollment.
+  const p = game.player;
+  const firstExit = !(p.items && p.items.zycube > 0);
+  if (firstExit) {
+    p.items = p.items || {};
+    p.items.zycube = 1;
+    save();
+    showDialog([
+      `MOM: Wait, wait — one more thing.  Come here.`,
+      `She unpins a small black-and-gold cube from her apron.  Six faces, each stamped with a lit "Z."`,
+      `MOM: Your ZYCUBE.  Every item you pick up on the road lives inside it.  I meant to give it to you at breakfast.  I forget things when I am scared for you.`,
+      `MOM: Don't set it down anywhere it can't be found.  Don't hand it to strangers.  And come home.`,
+      `«◈  ZYCUBE  ·  added to Bag  ·  (Cube Prism · storage)»`,
+    ], () => {
+      showDialog([
+        `You step out onto the Malezor path.`,
+        `MOM: Be safe, ${game.player.name || 'trainer'}!`,
+      ], () => {
+        if (typeof MAPS !== 'undefined' && MAPS['zyraxis_world']
+            && typeof ZYRAXIS_WORLD !== 'undefined') {
+          const mal = ZYRAXIS_WORLD.regions.find(r => r.id === 'malezor');
+          if (mal) {
+            game.player.preferWorldMap = true;
+            return enterMap('zyraxis_world', mal.x1 + 3, mal.y1 + 5, 'down');
+          }
+        }
+        enterMap('malezor', 3, 5, 'down');
+      });
+    });
+    return;
+  }
   showDialog([
     `You step out onto the Malezor path.`,
     `MOM: Be safe, ${game.player.name || 'trainer'}!`,
@@ -16882,6 +17268,15 @@ function handleNpcTrainer(tileChar, x, y) {
       // List even if the player declines the battle.
       if (from && from.map && HALL_RIZER_ALLY_IDS[from.map] && typeof meetAlly === 'function') {
         meetAlly(HALL_RIZER_ALLY_IDS[from.map]);
+      }
+      // ★ NOVARIAN GRAND CHAMPION intercept — Korathen's Hall Rizer becomes
+      // the Ultralord's Champion once the player has swept 10 qualifiers.
+      if (from && from.map === 'korathen'
+          && game.player.novarianEnrolled
+          && novarianQualifiersWonCount() >= 10
+          && !game.player.novarianGrandChampion) {
+        startGrandChampionMatch();
+        return;
       }
       showDialog([
         r.intro,
@@ -17259,6 +17654,20 @@ function renderBagMenu() {
   addSphereBtn('basic');
   if ((game.player.zyspheresVoid  || 0) > 0) addSphereBtn('void');
   if ((game.player.zyspheresUltra || 0) > 0) addSphereBtn('ultra');
+  // ★ PRISMSYNCH — each Zyraxis-native Prism (owned) appears as a bag entry.
+  // Fires once per battle regardless of which Prism.  Power scales by tier.
+  const prismUsedThisFight = !!(game.battle && game.battle.prismsynchFired);
+  const owned = (typeof ownedPrisms === 'function') ? ownedPrisms() : [];
+  owned.forEach((prismKey) => {
+    const prism = PRISM_TABLE[prismKey];
+    if (!prism) return;
+    const b = document.createElement('button');
+    b.className = 'action-btn';
+    b.innerHTML = `★ PRISMSYNCH · ${prism.display.toUpperCase()} <span class="cost">${prism.power} pow · ${(prism.statusChance*100)|0}% status</span>`;
+    if (prismUsedThisFight) b.disabled = true;
+    b.onclick = () => firePrismsynch(prismKey);
+    $battleActions.appendChild(b);
+  });
   // V2.8.1 — Equip gems onto the active Zyrex
   const eq = document.createElement('button');
   eq.className = 'action-btn';
@@ -17364,6 +17773,86 @@ function equipGemsToActive(n) {
   renderMainMenu();
 }
 
+// ★ PRISMSYNCH · the endgame move type.  Fired from the BAG (each Prism is
+// a bag item).  Fires ONCE per battle regardless of which Prism.  Power
+// scales by Prism tier:
+//   * Prism of the Deep (Xilnar)     · early game · 150 power
+//   * Prism of Refuge   (Vorashil)   · mid game   · 225 power
+//   * Prism of the Crown (Korathen)  · Grand Champion · 300 power
+// Uses the active Zyrex's PRIMARY type and prefixes the move name with
+// species name + Prism name ("[NAME]'S PRISMSYNCH · Prism of the Deep").
+// No gem cost (the Prism carries the resonance).  Strikes first.
+// See memory: aov-prismsynch-move · aov-astralite-prisms.
+const PRISM_TABLE = {
+  prism_of_the_deep: {
+    key: 'prism_of_the_deep',
+    display: 'Prism of the Deep',
+    district: 'xilnar',
+    power: 150,
+    statusChance: 0.40,
+    hint: 'A Zyraxis-native Prism from Xilnar.  Cool to the touch.  Deeper than it looks.',
+  },
+  prism_of_refuge: {
+    key: 'prism_of_refuge',
+    display: 'Prism of Refuge',
+    district: 'vorashil',
+    power: 225,
+    statusChance: 0.50,
+    hint: 'A Zyraxis-native Prism from Vorashil.  Warm.  Steadying.  It has held someone before.',
+  },
+  prism_of_the_crown: {
+    key: 'prism_of_the_crown',
+    display: 'Prism of the Crown',
+    district: 'korathen',
+    power: 300,
+    statusChance: 0.60,
+    hint: 'A Zyraxis-native Prism from Korathen.  The Ultralord\'s crown-jewel.  Worn by every Grand Champion since Novarius.  The sky lifts when you hold it.',
+  },
+};
+// NOTE (2026-07-17 canon fix): Prism of Omnithris was previously slotted as
+// Korathen's Grand Champion prize.  Correction: OMNITHRIS = the Key of
+// Anciuxor (auto-satisfied by bonding Anciuxor; NOT obtainable through the
+// Rizer Path).  The Grand Champion Prism is now the CROWN — same Korathen
+// district, matches the coronation beat, distinct from the Anciuxor path.
+function ownedPrisms() {
+  const it = (game.player && game.player.items) || {};
+  return Object.keys(PRISM_TABLE).filter(k => (it[k] || 0) > 0);
+}
+async function firePrismsynch(prismKey) {
+  const prism = PRISM_TABLE[prismKey];
+  if (!prism) { renderMainMenu(); return; }
+  const it = game.player.items || {};
+  if ((it[prismKey] || 0) <= 0) { renderMainMenu(); return; }
+  if (game.battle && game.battle.prismsynchFired) { renderMainMenu(); return; }
+  const p = game.player.party[game.battle.playerIdx];
+  const e = game.battle.enemy;
+  if (!p || !e) { renderMainMenu(); return; }
+  game.battle.prismsynchFired = true;
+  game.battle.prismsynchType = prismKey;   // marker for future beat-hooks
+  const move = {
+    name: `${(p.name || 'RIZER').toUpperCase()}'S PRISMSYNCH · ${prism.display.toUpperCase()}`,
+    type: p.type || 'Divine',
+    power: prism.power,
+    cost: 0,
+    prismsynch: true,
+    statusChance: prism.statusChance,
+  };
+  game.battle.animLock = true;
+  $battleActions.innerHTML = '';
+  try { playSfx('toast'); } catch(_) {}
+  showToast(`◈ PRISMSYNCH · ${prism.display.toUpperCase()}`, 2400);
+  const enemyMove = pickEnemyMove(e, p);
+  // Prism strikes first — resonance breaks the speed-order rule.
+  await performMove(p, e, move, true);
+  if (!checkBattleOver()) {
+    if (e.hp > 0 && p.hp > 0) await performMove(e, p, enemyMove, false);
+  }
+  await endRoundTick();
+  if (checkBattleOver()) return;
+  refreshBattleUI();
+  game.battle.animLock = false;
+  renderMainMenu();
+}
 async function playerUseMove(i) {
   const p = game.player.party[game.battle.playerIdx];
   const e = game.battle.enemy;
@@ -17940,6 +18429,18 @@ function checkBattleOver() {
         else                          rxp = 100;
         gainRizerXp(rxp, 'trainer');
       }
+      // ★ NOVARIAN QUALIFIER award — defeating a Hall Rizer qualifies the
+      // player for THAT district's Novarian bracket.  Only if enrolled.
+      if (game.battle.tileChar === 'R' && game.player.novarianEnrolled
+          && typeof awardNovarianQualifier === 'function') {
+        const _from = game.player.enteredInteriorFrom;
+        const _districtId = _from && _from.map;
+        if (_districtId) awardNovarianQualifier(_districtId);
+      }
+      // ★ GRAND CHAMPION win — hook Prismsynch payoff.
+      if (game.battle.novarianGrandChampion && typeof grantPrismsynchPayoff === 'function') {
+        setTimeout(grantPrismsynchPayoff, 900);
+      }
       // V3.10.7 -> V3.11.2 — HALL PASSAGE grant on grunt/scout defeat
       // removed.  Passages now live in the guarded chest at (7,2) inside
       // seer_hq_upper and are only obtainable AFTER the district's Seer
@@ -17979,6 +18480,24 @@ function checkBattleOver() {
           game.player.seerCommandersDefeated = game.player.seerCommandersDefeated || {};
           if (!game.player.seerCommandersDefeated[districtId]) {
             game.player.seerCommandersDefeated[districtId] = true;
+            // ★ ZYRAMID GRANT — Malezor's Seer Commander drops the Zyramid
+            // that completes the utility trinity.  Fires ONCE on Malezor
+            // commander down.  The Seer had it stashed among their
+            // Fathergem stack; the player recovers it.  Required for
+            // Kelthor's Novarian enrollment.
+            if (districtId === 'malezor') {
+              game.player.items = game.player.items || {};
+              if (!game.player.items.zyramid) {
+                game.player.items.zyramid = 1;
+                setTimeout(() => showDialog([
+                  `Beneath the fallen Commander's coat you find a small dark pyramid — Z-emblem at its base.`,
+                  `A ZYRAMID.  The Ministry had taken it from someone.  Now it hums in your hand as if it never left home.`,
+                  `«◈  ZYRAMID  ·  added to Bag  ·  (Pyramid Prism · power)»`,
+                  `Warden Kelthor will want to see this.`,
+                ]), 2200);
+                setTimeout(() => showToast('◈  ZYRAMID recovered · trinity complete', 3200), 2400);
+              }
+            }
             // V3.11.3 — Commander hands over the chest key on defeat.
             // The chest at (7,2) behind them is now openable.
             const cmd = game.battle.commander;
@@ -19391,6 +19910,11 @@ document.getElementById('btn-new').onclick = () => {
     // V3.12.1 — Quiet Child arc endgame flags
     quietChildForgiven: false,
     xenoxilDefeated: false,
+    // ★ Novarian Challenge state (mirrored from player init)
+    novarianEnrolled:      false,
+    novarianQualifiers:    {},
+    novarianGrandChampion: false,
+    prismsynchUnlocked:    false,
     // V3.15 — endgame trio fight state
     endgameStarted: false,
     titleSavior: false,

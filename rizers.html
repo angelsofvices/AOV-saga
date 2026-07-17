@@ -1990,6 +1990,14 @@
             <button class="mm-music-vbtn" id="mm-music-up"   type="button" aria-label="Volume up">＋</button>
           </div>
         </div>
+        <!-- V3.17.64 — DEV PANEL nested inside Settings.  Hidden unless
+             body.devmode-on is set (toggled via menu-hold / F9).  Keeps
+             SAVE/LOAD/RESET/QUIT accessible while dev cheats are exposed
+             as a section below.  Populated by renderDevSettings on open. -->
+        <div id="settings-dev-panel" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,120,60,0.35);">
+          <div style="color:#ff6a4a; font-size:11px; letter-spacing:0.24em; text-transform:uppercase; margin: 2px 0 8px; text-align:center; opacity:0.9;">⚑ DEV PANEL · rapid patch testing</div>
+          <div id="dev-settings-body-nested" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
       </div>
     </div>
 
@@ -11320,6 +11328,18 @@ function openSettings() {
   game.mode = 'settings';
   clearHeldKeys();
   $settings.classList.add('active');
+  // V3.17.64 — Dev panel is a nested section inside Settings, revealed
+  // only in devMode.  Populate via renderDevSettings so cheats are
+  // available alongside SAVE/LOAD/etc — never as a full-screen replacement.
+  const devPanel = document.getElementById('settings-dev-panel');
+  if (devPanel) {
+    if (game.devMode) {
+      devPanel.style.display = '';
+      if (typeof renderDevSettings === 'function') renderDevSettings();
+    } else {
+      devPanel.style.display = 'none';
+    }
+  }
   setTimeout(() => { const b = $settings.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
 }
 function closeSettings() {
@@ -11355,8 +11375,15 @@ function closeDevSettings() {
   if (game.mode === 'settings') game.mode = 'overworld';
 }
 function renderDevSettings() {
-  const body = document.getElementById('dev-settings-body');
-  if (!body) return;
+  // V3.17.64 — Render into BOTH the legacy standalone body and the new
+  // nested-in-Settings body if either is present.  Content is duplicated
+  // so the nested panel matches the legacy overlay exactly.
+  const bodies = [
+    document.getElementById('dev-settings-body'),
+    document.getElementById('dev-settings-body-nested'),
+  ].filter(Boolean);
+  if (!bodies.length) return;
+  const body = document.createElement('div');
   body.innerHTML = '';
   const ultharisOn = !!game.player.ultharisMode;
   const rows = [
@@ -11381,6 +11408,17 @@ function renderDevSettings() {
     `;
     el.querySelector('button').onclick = row.onClick;
     body.appendChild(el);
+  });
+  // Duplicate the built content into every registered body (legacy overlay
+  // + nested-in-Settings panel).  cloneNode + rebound handlers.
+  bodies.forEach(target => {
+    target.innerHTML = '';
+    Array.from(body.children).forEach((child, idx) => {
+      const clone = child.cloneNode(true);
+      const btn = clone.querySelector('button');
+      if (btn && rows[idx] && rows[idx].onClick) btn.onclick = rows[idx].onClick;
+      target.appendChild(clone);
+    });
   });
 }
 function enableUltharisMode() {
@@ -12798,7 +12836,7 @@ document.addEventListener('keydown', (e) => {
     if (k === '1')             { triggerSelectAssignment(); e.preventDefault(); return; }
     if (k === '2' || k === 'm'){ openMainMenu();            e.preventDefault(); return; }
     // V3.17.25 — START key routes to Dev Settings when devMode is on.
-    if (k === '3')             { if (game.devMode) openDevSettings(); else openSettings(); e.preventDefault(); return; }
+    if (k === '3')             { openSettings(); e.preventDefault(); return; }   // V3.17.64 — dev cheats now render inside Settings
     if (k === '4')             { toggleDevMode();           e.preventDefault(); return; }   // V3.17.17 — 4 = toggle DEV MODE
     if (k === 'f')             { openParty();               e.preventDefault(); return; }   // V3.17.15 — F = Faction
     if (k === 'q')             { openQuestsView();          e.preventDefault(); return; }   // V3.17.19 — Q = Quests
@@ -19842,7 +19880,7 @@ menuBackdrop.addEventListener('click', () => {
         // V3.17.27 — Mobile SETTINGS pill mirrors the PC '3' key: routes
         // to Dev Settings when DEV MODE is on (Ultharis toggle lives there),
         // else opens the normal Settings overlay.
-        else if (action === 'settings') { if (game.devMode) openDevSettings(); else openSettings(); }
+        else if (action === 'settings') { openSettings(); }   // V3.17.64 — dev cheats now render inside Settings
         else if (action === 'select')   triggerSelectAssignment();
         resetIdle();
       };

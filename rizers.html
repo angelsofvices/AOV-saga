@@ -7700,10 +7700,52 @@ function speciesMatchingTypes(types) {
 //   Level range: (N-1)*10 + 1  →  N*10   (each town covers 10 levels).
 //   Species pool filters SPECIES for entries with matching primaryDistrict —
 //   codex hydrate (also V2.30) has stamped every entry with one.
+// V3.17.55 — DISTRICT TYPE-POOL CONTRACT.  Each district's wild spawns
+// are filtered so that only species whose PRIMARY type falls within an
+// allowed set spawn.  Allowed set = district's own types + immediate
+// neighbors' types (prev + next in DISTRICT_ORDER), deduped.
+// V3.17.56 — Expanded via TYPE_FOLD_IN so each of the 10 V2.29 new types
+// nests into its nearest original-10 relative.  Yields 7-13 types per
+// district (previously 3-6) — richer wild variety while preserving
+// district-canon identity.
+const TYPE_FOLD_IN = {
+  'Beast':        ['Draconic'],
+  'Aura':         ['Radiant', 'Divine', 'Aquatic'],
+  'Nature':       ['Verdant', 'Elemental'],
+  'Spirit':       ['Chrono', 'Astral'],
+  'Tech':         ['Crystal'],
+  'Unknown-Void': ['Corrupted'],
+  // Creature / Extraterrestrial / Humanoid-Noid / Ultramax carry no additions
+};
+function expandTypesWithFoldIns(types) {
+  const set = new Set(types);
+  for (const t of types) {
+    const folded = TYPE_FOLD_IN[t] || [];
+    for (const f of folded) set.add(f);
+  }
+  return Array.from(set);
+}
+function districtAllowedTypes(mapId) {
+  const meta = DISTRICT_META[mapId];
+  if (!meta) return [];
+  const set = new Set(meta.types || []);
+  const idx = DISTRICT_ORDER.indexOf(mapId);
+  if (idx > 0) {
+    const prev = DISTRICT_META[DISTRICT_ORDER[idx - 1]];
+    if (prev && prev.types) prev.types.forEach(t => set.add(t));
+  }
+  if (idx >= 0 && idx < DISTRICT_ORDER.length - 1) {
+    const next = DISTRICT_META[DISTRICT_ORDER[idx + 1]];
+    if (next && next.types) next.types.forEach(t => set.add(t));
+  }
+  return expandTypesWithFoldIns(Array.from(set));
+}
 function districtWildPool(mapId) {
   // V3.7.1 — ROUTE POOLS bridge both adjacent districts.  Level band
   // sits at the midpoint of the two district bands so route encounters
   // read as a legitimate stepping stone from one tier to the next.
+  // V3.17.55 — Route pools automatically inherit both districts' type
+  // filters since each side's pool has already been filtered.
   const routeMeta = ROUTE_META[mapId];
   if (routeMeta) {
     const west = districtWildPool(routeMeta.west);
@@ -7726,7 +7768,16 @@ function districtWildPool(mapId) {
   const num = DIST.indexOf(mapId) + 1;      // 1..10
   if (num < 1) return null;
   // V2.33.3 — easter-egg species (Elzoran line, future rare canon) never spawn wild.
-  const catchable = (id) => SPECIES[id] && !SPECIES[id].easterEgg;
+  // V3.17.55 — Also require species primary type to fall within the
+  // district's allowed-type set (own + neighbors).  Enforces the district
+  // type-pool contract so wild encounters read as canon-appropriate.
+  const allowedTypes = new Set(districtAllowedTypes(mapId));
+  const catchable = (id) => {
+    const sp = SPECIES[id];
+    if (!sp || sp.easterEgg) return false;
+    if (allowedTypes.size > 0 && !allowedTypes.has(sp.type)) return false;
+    return true;
+  };
   const own  = Object.keys(SPECIES).filter(id => catchable(id) && SPECIES[id].primaryDistrict === mapId);
   const prev = num > 1 ? Object.keys(SPECIES).filter(id => catchable(id) && SPECIES[id].primaryDistrict === DIST[num - 2]) : [];
   // Build weighted pool: 7 own-tier + 3 prev-tier (each id repeated so random
@@ -7735,7 +7786,14 @@ function districtWildPool(mapId) {
   const ids = [];
   for (let i = 0; i < 7; i++) ids.push(...own);
   for (let i = 0; i < 3; i++) ids.push(...prev);
-  const finalIds = ids.length ? ids : (own.length ? own : speciesMatchingTypes(meta.types));
+  // V3.17.55 — Fallback: if the type-filtered pool is empty (edge case
+  // where a district has no roster species matching its own allowed types),
+  // fall back to allowed-type species from ANY district (respects the type
+  // contract even if primaryDistrict origin is off).  Prevents empty pools.
+  const anyAllowed = ids.length ? null : Object.keys(SPECIES).filter(catchable);
+  const finalIds = ids.length
+    ? ids
+    : (anyAllowed && anyAllowed.length ? anyAllowed : (own.length ? own : speciesMatchingTypes(meta.types)));
   const lvLo = Math.max(1, (num - 1) * 10 + 1);
   const lvHi = num * 10;
   return { ids: finalIds, lvRange: [lvLo, lvHi] };

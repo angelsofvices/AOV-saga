@@ -5580,7 +5580,56 @@ const SPECIES = {
 // across the current form's expected range so canonical codex stats hit at
 // evolveLv, then plateau if the Zyrex is terminal (no evolveTo). Levels can
 // exceed the plateau; stats stay at canonical values (Lv 100 soft ceiling).
-function xpForNext(lv) { return 12 + lv * 8; }
+// V3.17.53 — TIER-BASED GROWTH CURVES.  Replaces the old linear
+// (12 + lv*8) formula.  Every species gets a growth rate based on its
+// tier; higher-tier Zyrex require substantially more XP to level.
+// Curves are the Pokemon-canonical formulas, tuned to end at these
+// L1→L100 totals:  Fast 800K · MedFast 1M · MedSlow 1.06M · Slow 1.25M ·
+// Fluctuating 1.64M.  Species-count breakdown per canon: T1 Fast (57) ·
+// T2-3 MedFast (31) · T4-5 MedSlow (35) · T6-7 Slow (25) · T8+ Fluctuating.
+const GROWTH_RATES = {
+  fast:         { label: 'Fast',         totalL100:   800000 },
+  medium_fast:  { label: 'Medium Fast',  totalL100:  1000000 },
+  medium_slow:  { label: 'Medium Slow',  totalL100:  1059860 },
+  slow:         { label: 'Slow',         totalL100:  1250000 },
+  fluctuating:  { label: 'Fluctuating',  totalL100:  1640000 },
+};
+// Map a species tier → growth rate key.
+function speciesGrowthRate(sOrKey) {
+  const s = (typeof sOrKey === 'string') ? (SPECIES[sOrKey] || {}) : (sOrKey || {});
+  const t = s.tier || 1;
+  if (t >= 8) return 'fluctuating';
+  if (t >= 6) return 'slow';
+  if (t >= 4) return 'medium_slow';
+  if (t >= 2) return 'medium_fast';
+  return 'fast';
+}
+// Cumulative XP required to reach a given level, from L1.  Level 1 = 0 XP.
+function xpToLevel(rate, lv) {
+  if (lv <= 1) return 0;
+  const L = lv;
+  const L2 = L * L, L3 = L * L * L;
+  switch (rate) {
+    case 'fast':         return Math.floor(4 * L3 / 5);
+    case 'medium_fast':  return L3;
+    case 'medium_slow':  return Math.max(0, Math.floor((6 * L3 / 5) - (15 * L2) + (100 * L) - 140));
+    case 'slow':         return Math.floor(5 * L3 / 4);
+    case 'fluctuating': {
+      // Pokemon canonical piecewise formula
+      if (L <= 15)  return Math.floor(L3 * ((Math.floor((L + 1) / 3) + 24) / 50));
+      if (L <= 36)  return Math.floor(L3 * ((L + 14) / 50));
+      /* L >= 37 */ return Math.floor(L3 * ((Math.floor(L / 2) + 32) / 50));
+    }
+    default:             return L3;
+  }
+}
+// XP required to advance from `lv` to `lv+1`.  `species` may be a species
+// key string, a species record, or undefined (defaults to medium_fast).
+function xpForNext(lv, species) {
+  if (lv >= 100) return Infinity;
+  const rate = species ? speciesGrowthRate(species) : 'medium_fast';
+  return Math.max(1, xpToLevel(rate, lv + 1) - xpToLevel(rate, lv));
+}
 function tierMaxLv(tier) { return Math.max(10, (tier || 1) * 10); }
 function speciesEvolveLv(s) { return s.evolveLv || tierMaxLv(s.tier || 1); }
 
@@ -13395,8 +13444,8 @@ function interactShrine() {
   for (const r of game.player.party || []) {
     if (!r || r.hp <= 0) continue;
     r.xp = (r.xp || 0) + shrineXpScaled;
-    while (r.xp >= xpForNext(r.lv)) {
-      const need = xpForNext(r.lv);
+    while (r.xp >= xpForNext(r.lv, r.species)) {
+      const need = xpForNext(r.lv, r.species);
       if (!levelUp(r)) { r.xp = 0; break; }
       r.xp -= need;
     }
@@ -16439,7 +16488,8 @@ function refreshBattleUI() {
   // XP bar — V3.3: bottom-left is XP-only; tier lives ONLY in the upper-right
   // Lv chip.  We never say "XP MAX" here since the Zyrex can still gain XP
   // and evolve upward (species tier is not a hard XP ceiling).
-  const need = xpForNext(p.lv);
+  // V3.17.53 — xpForNext is tier-aware; pass species so curves fire per-Zyrex.
+  const need = xpForNext(p.lv, p.species);
   const pct  = need > 0 ? Math.min(100, (p.xp / need) * 100) : 100;
   const xpFill = document.getElementById('player-xp-fill');
   xpFill.style.width = pct + '%';
@@ -17470,8 +17520,33 @@ function triggerConquerorEnding() {
 // everything by 20%.  Ship as a single knob so future balance passes
 // dial one value instead of ten.
 const XP_GLOBAL_MULT = 0.80;
+// V3.17.54 — XP reward formula constants.  All knobs single-line-editable.
+const XP_BASE_YIELD = 8;
+const XP_TIER_BONUS = 8;
+const XP_BATTLE_TYPE_MULT = {
+  'wild':         1.0,
+  'trainer':      1.5,   // Myara / Jax / Quinn — friendly-sparring set
+  'npc-trainer':  1.5,   // Hall Rizers (Ranger Ris, Sun-Priest Bril, etc.)
+  'commander':    2.5,   // Seer Commander X-tile bosses
+  'gemlord':      4.0,   // Post-endgame Gemlord duels
+  'endgame':      2.5,   // Ophira / Orryx / Xenoxil chain
+};
 function grantXP(p, defeated) {
-  const xpGained = Math.max(4, Math.floor(defeated.lv * 6 * XP_GLOBAL_MULT));
+  // V3.17.54 — Tier + battle-type + level-diff formula (replaces flat lv*6).
+  const enemyTier = (defeated && defeated.tier)
+    || (defeated && defeated.species && SPECIES[defeated.species] && SPECIES[defeated.species].tier)
+    || 1;
+  const yieldPerLv = XP_BASE_YIELD + enemyTier * XP_TIER_BONUS;
+  // Battle-type: commander flag > kind lookup > wild default.
+  let battleKind = (game.battle && game.battle.kind) || 'wild';
+  if (game.battle && game.battle.commander) battleKind = 'commander';
+  const typeMult = XP_BATTLE_TYPE_MULT[battleKind] || 1.0;
+  // Level-difference bonus: reward beating enemies above your active Zyrex's level.
+  const ratio = Math.max(0.1, defeated.lv / Math.max(1, p.lv));
+  const levelDiffMult = Math.max(0.5, Math.min(1.8, 0.6 + 0.4 * ratio));
+  const xpGained = Math.max(4, Math.floor(
+    defeated.lv * yieldPerLv * typeMult * levelDiffMult * XP_GLOBAL_MULT
+  ));
   const gemsGained = 1 + Math.floor(defeated.lv / 4);
   const coinsGained = 2 + Math.floor(defeated.lv / 3);   // V2.7 — coin drop
   p.xp += xpGained;
@@ -17480,8 +17555,8 @@ function grantXP(p, defeated) {
   updateHUD();
   logBattle(`${p.name} +${xpGained} XP · +${gemsGained} ◈ · +${coinsGained} ¢`);
   showXpToast(p.name, xpGained, gemsGained, coinsGained);
-  while (p.xp >= xpForNext(p.lv)) {
-    const need = xpForNext(p.lv);
+  while (p.xp >= xpForNext(p.lv, p.species)) {
+    const need = xpForNext(p.lv, p.species);
     if (!levelUp(p)) { p.xp = 0; break; }   // levelUp returns false when tier-capped
     p.xp -= need;
   }
@@ -17493,8 +17568,8 @@ function grantXP(p, defeated) {
       if (!r || r === p) continue;
       if (r.hp <= 0) continue;   // must be alive
       r.xp += xpGained;
-      while (r.xp >= xpForNext(r.lv)) {
-        const need = xpForNext(r.lv);
+      while (r.xp >= xpForNext(r.lv, r.species)) {
+        const need = xpForNext(r.lv, r.species);
         if (!levelUp(r)) { r.xp = 0; break; }
         r.xp -= need;
       }
@@ -18295,7 +18370,7 @@ function openInspect(r, slotIdx) {
   const evolveLv = s.evolveLv || null;
   const dual = r.type2 && r.type2 !== r.type ? `/${r.type2}` : '';
   const status = r.status ? (STATUSES[r.status.key] || {}) : null;
-  const need = xpForNext(r.lv);
+  const need = xpForNext(r.lv, r.species);   // V3.17.53 — tier-aware curve
   let progressLine;
   if (evolveLv && r.lv >= evolveLv) {
     progressLine = `<div style="color:var(--gold-bright);">Ready to evolve into ${SPECIES[s.evolveTo] ? SPECIES[s.evolveTo].name : s.evolveTo}!</div>`;

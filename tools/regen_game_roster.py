@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Regenerate game_roster/roster.json + GAME_ROSTER.md.
 
-Merges the hand-written SPECIES block in rizers.html with the codex.js
+Merges the hand-written SPECIES block in rp7.html with the codex.js
 auto-hydrated payload (which itself comes from
 data/aov_game_codex_v11.1.xlsx via data/build_codex.py).
 
 Rule: hand-written entries win on collision — mirrors the game's runtime
-hydration rule at rizers.html V2.30 (`if (SPECIES[id]) continue`).
+hydration rule at rp7.html V2.30 (`if (SPECIES[id]) continue`).
 
 Usage:
     python3 data/build_codex.py         # first, regen codex.js
@@ -153,7 +153,7 @@ def write_markdown(merged):
     md = []
     md.append('# RIZING POWERS OF ZYRAXIS — Official Game Roster')
     md.append('')
-    md.append(f'*Auto-generated {len(merged)} Zyrex.  Regenerate via `python3 tools/regen_game_roster.py`.  Source of truth: `rizers.html` SPECIES + `data/codex.js`.*')
+    md.append(f'*Auto-generated {len(merged)} Zyrex.  Regenerate via `python3 tools/regen_game_roster.py`.  Source of truth: `rp7.html` SPECIES + `data/codex.js`.*')
     md.append('')
     md.append('## Overview')
     md.append('')
@@ -182,7 +182,7 @@ def write_markdown(merged):
     md.append('')
     md.append('## Full Roster (grouped by tier)')
     md.append('')
-    md.append('Columns: **Name** (bold if hand-crafted in `rizers.html`; plain if auto-hydrated from codex) · **Types** · **District** (primary tier home) · **Pool** (T×333 target) · **Evolves →**')
+    md.append('Columns: **Name** (bold if hand-crafted in `rp7.html`; plain if auto-hydrated from codex) · **Types** · **District** (primary tier home) · **Pool** (T×333 target) · **Evolves →**')
     md.append('')
 
     for t in sorted(by_tier):
@@ -213,7 +213,7 @@ def write_markdown(merged):
 
 
 def main():
-    html = (ROOT / 'rizers.html').read_text()
+    html = (ROOT / 'rp7.html').read_text()
     js = (ROOT / 'data' / 'codex.js').read_text()
     codex_full = json.loads((ROOT / 'data' / 'codex.json').read_text())
     hand = parse_rizers_species(html)

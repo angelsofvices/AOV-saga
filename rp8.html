@@ -13957,19 +13957,30 @@ function engagePendingEncounter() {
 }
 // V2.8.3 — door dispatch. Unlocked (home 'x') or has key -> enterMap.
 // Locked without key -> dialog explaining which key is needed.
-// RP8 · Phase 6 — Build an enteredInteriorFrom context.  On the classic
-// district-hop map this is just the current mapId + door coords.  On the
-// unified world it stores the district id under the door (so per-district
-// interior lookups still work) AND the true world coords under `worldX`/
-// `worldY` (so the interior's 'x' exit can restore the player to the exact
-// world tile they came from).  Downstream reads that need the OUTSIDE
-// district use `from.districtId || from.map`.
+// RP8 · Phase 6 · Playtest fix #3 — Build an enteredInteriorFrom context.
+// KEY CHANGE (2026-07-17): `from.map` now ALWAYS holds a DISTRICT ID (not
+// 'zyraxis_world') so every legacy `from.map` lookup in interior code paths
+// resolves correctly without patching.  The true world context is stored
+// separately under `worldMap`, `worldX`, `worldY` for restoration on exit.
+//   * from.map        = district id under the door (for interior content)
+//   * from.districtId = duplicate of from.map (legacy safety)
+//   * from.worldMap   = 'zyraxis_world' if entering from unified world, else undefined
+//   * from.worldX/Y   = world coords at entry (defined only for world entry)
+//   * from.x/y        = door position in the OUTSIDE map (world OR district)
+//   * from.label      = interior label ('Seer Ministry', 'Town Hall', etc.)
 function interiorFromContext(doorX, doorY, label) {
   const currentMap = game.player.mapId;
   if (currentMap === 'zyraxis_world' && typeof getRegionAt === 'function') {
     const region = getRegionAt(doorX, doorY);
     const districtId = (region && region.kind === 'district') ? region.id : 'malezor';
-    return { map: currentMap, districtId, x: doorX, y: doorY, worldX: doorX, worldY: doorY, label };
+    return {
+      map: districtId,                     // district id — for interior content lookups
+      districtId,
+      worldMap: currentMap,                // 'zyraxis_world' — for exit restoration
+      worldX: doorX, worldY: doorY,
+      x: doorX, y: doorY,                  // legacy fields — world coords in this case
+      label,
+    };
   }
   return { map: currentMap, districtId: currentMap, x: doorX, y: doorY, label };
 }
@@ -13984,7 +13995,12 @@ function triggerDoor(tileChar, doorX, doorY) {
     // context (e.g., save file predates V2.67).
     const from = game.player.enteredInteriorFrom;
     if (from && from.map) {
-      const dest = { map: from.map, x: from.x, y: from.y + 1, dir: 'down' };
+      // RP8 · Playtest fix #3 — If the player entered from the unified
+      // world (worldMap set), restore to zyraxis_world at the exact world
+      // coord; otherwise use the classic district-relative coords.
+      const dest = from.worldMap
+        ? { map: from.worldMap, x: from.worldX, y: from.worldY + 1, dir: 'down' }
+        : { map: from.map, x: from.x, y: from.y + 1, dir: 'down' };
       game.player.enteredInteriorFrom = null;
       return exitInteriorTo(dest);
     }
@@ -17711,10 +17727,21 @@ function riftSpawnAtTownHall(districtId) {
   return { x: hallX, y: 6, dir: 'up' };
 }
 function riftTeleportTo(districtId) {
+  // RP8 · Playtest fix #2 — On the unified world, rift-slip lands the
+  // player on `zyraxis_world` at the target district's town-hall world
+  // coord (region.x1 + spawn.x, region.y1 + spawn.y).  On classic mode,
+  // fall back to the district-map spawn.
   const spawn = riftSpawnAtTownHall(districtId);
   if (!spawn) { showDialog(['The rift closes.  That region no longer answers.']); return; }
   const label = (DISTRICT_META[districtId] || {name:districtId}).name.toUpperCase();
   showToast(`◈  RIFT SLIP  ·  ${label}`, 2400);
+  if (game.player.preferWorldMap && typeof MAPS !== 'undefined' && MAPS['zyraxis_world']
+      && typeof ZYRAXIS_WORLD !== 'undefined') {
+    const region = ZYRAXIS_WORLD.regions.find(r => r.id === districtId);
+    if (region) {
+      return enterMap('zyraxis_world', region.x1 + spawn.x, region.y1 + spawn.y, spawn.dir);
+    }
+  }
   enterMap(districtId, spawn.x, spawn.y, spawn.dir);
 }
 function exitHouseToMalezor() {
@@ -17885,24 +17912,51 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
     let poolDistrict = game.player.mapId;
     if (_INTERIOR_TO_DISTRICT.has(poolDistrict)) {
       const from = game.player.enteredInteriorFrom;
-      if (from && from.map) poolDistrict = from.map;
+      // RP8 · Interior context — prefer explicit districtId (set by
+      // interiorFromContext) over from.map, since from.map may be
+      // 'zyraxis_world' on the unified world.
+      if (from && (from.districtId || from.map)) poolDistrict = from.districtId || from.map;
+    }
+    // RP8 · Playtest fix #1 — On the unified world, `poolDistrict` becomes
+    // 'zyraxis_world'.  Resolve the effective district for chain scaling
+    // via the region under the player: districts use their own index, routes
+    // use the west district's index, interstitials + Part 2 use their canon
+    // level-band midpoint mapped back to a district-tier number.
+    let effectiveDistrict = poolDistrict;
+    let regionKind = null;
+    if (poolDistrict === 'zyraxis_world' && typeof getRegionAt === 'function') {
+      const region = getRegionAt(game.player.x, game.player.y);
+      if (region) {
+        regionKind = region.kind;
+        if (region.kind === 'district') effectiveDistrict = region.id;
+        else if (region.kind === 'route' && ROUTE_META[region.id]) effectiveDistrict = ROUTE_META[region.id].west;
+        else if (region.id === 'wild_march')       effectiveDistrict = 'zarvane';
+        else if (region.id === 'green_divide')     effectiveDistrict = 'veridan';
+        else if (region.id === 'old_conquest')     effectiveDistrict = 'korathen';
+        else if (region.id === 'new_conquest')     effectiveDistrict = 'korathen';
+        else if (region.id === 'pit_of_no_return') effectiveDistrict = 'korathen';
+        else if (region.id === 'bridge_of_hope')   effectiveDistrict = 'korathen';
+      }
     }
     const pool = districtWildPool(poolDistrict);
     if (pool && pool.ids.length) {
       const DIST = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
-      const num = DIST.indexOf(poolDistrict) + 1;
+      const num = DIST.indexOf(effectiveDistrict) + 1;
       const isCommander = tileChar === 'X';
       // V3.5.1 — Grunt difficulty tiers per Seer HQ floor:
       //   MAIN FLOOR  ('seer_hq_main')      → EASY   = 1 Zyrex at level-band LOW
       //   BASEMENT    ('seer_hq_basement')  → MEDIUM = 2 Zyrex at level-band MID
       //   Elsewhere (legacy grunt placements outside HQ) fall back to the
       //   old district-scaling formula so we don't break anything else.
+      // RP8 · Playtest fix #1 — On Part 2, force chainSize=3 (elite feel).
       const inMain     = game.player.mapId === 'seer_hq_main';
       const inBasement = game.player.mapId === 'seer_hq_basement';
+      const isPart2    = regionKind === 'part2';
       let chainSize;
       if (isCommander)       chainSize = 5;
       else if (inMain)       chainSize = 1;                                                   // easy warm-up
       else if (inBasement)   chainSize = 2;                                                   // medium
+      else if (isPart2)      chainSize = 3;                                                   // Part 2 elite scaling
       else                   chainSize = Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));   // legacy path
       const [lo, hi] = pool.lvRange;
       const mid = Math.max(lo, Math.round((lo + hi) / 2));

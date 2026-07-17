@@ -166,6 +166,17 @@
       line-height: 1.2;
       white-space: normal;
       display: flex; flex-direction: column; justify-content: center; align-items: center;
+      /* V3.17.62 — clickable panel shortcuts */
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, transform 0.12s;
+    }
+    .hud .badge:hover {
+      background: rgba(90, 40, 140, 0.28);
+      border-color: var(--border-gold);
+      transform: translateY(-1px);
+    }
+    .hud .badge:active {
+      transform: translateY(0);
     }
     .hud .badge .l1 { display: block; }
     .hud .badge .l2 { display: block; opacity: 0.9; }
@@ -1725,12 +1736,17 @@
 
     <!-- V3.10.8 — Four-badge HUD.  Party count and gem chip removed
          (both surface in the Items overlay).  Each badge renders as
-         exactly two rows: label on top, detail underneath. -->
+         exactly two rows: label on top, detail underneath.
+         V3.17.62 — Each panel is now a CLICKABLE SHORTCUT:
+           P1 Location → Map view
+           P2 R.Lv     → Rizer Profile card
+           P3 Coins    → Merchant's Ledger
+           P4 Shards   → Gemshard / Fathergem Tracker -->
     <div class="hud" id="hud" style="display:none;">
-      <div class="badge" id="hud-location"><span class="l1">Malezor</span><span class="l2">Beastlands</span></div>
-      <div class="badge" id="hud-rizer" title="Your Rizer level. Grows through chests, battles, and quests."><span class="l1">★ R.Lv 1</span><span class="l2">0 / 150</span></div>
-      <div class="badge" id="hud-coins"><span class="l1">COINS</span><span class="l2">¢ 0</span></div>
-      <div class="badge" id="hud-clues"><span class="l1">SHARDS</span><span class="l2">◈ 0/10</span></div>
+      <div class="badge" id="hud-location" title="Open the world map"                     onclick="openMapView()"><span class="l1">Malezor</span><span class="l2">Beastlands</span></div>
+      <div class="badge" id="hud-rizer"    title="Open your Rizer profile"                onclick="openRizerProfile()"><span class="l1">★ R.Lv 1</span><span class="l2">0 / 150</span></div>
+      <div class="badge" id="hud-coins"    title="Open the Merchant's Ledger"             onclick="openMerchantLedger()"><span class="l1">COINS</span><span class="l2">¢ 0</span></div>
+      <div class="badge" id="hud-clues"    title="Open the Gemshard / Fathergem tracker"  onclick="openGemshardTracker()"><span class="l1">SHARDS</span><span class="l2">◈ 0/10</span></div>
     </div>
 
     <!-- Character creator -->
@@ -2072,6 +2088,42 @@
         </div>
         <div id="allies-body" style="display: flex; flex-direction: column; gap: 8px;"></div>
         <div id="allies-footer" style="color: var(--mist); font-size: 12px; letter-spacing: 0.14em; text-align: center; margin-top: 6px;">Every friendly humanoid you meet is added here.  Faction perks unlock through investment.</div>
+      </div>
+    </div>
+
+    <!-- V3.17.62 — RIZER PROFILE CARD (HUD Panel 2 shortcut). -->
+    <div class="mainmenu-overlay" id="rizer-profile-overlay">
+      <div class="mainmenu-box">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title">Rizer Profile</div>
+          <button class="mainmenu-close" id="rizer-profile-close" aria-label="Close">✕</button>
+        </div>
+        <div id="rizer-profile-body" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <div id="rizer-profile-footer" style="color: var(--mist); font-size: 12px; letter-spacing: 0.14em; text-align: center; margin-top: 6px;">Everything you have become as a Rizer.</div>
+      </div>
+    </div>
+
+    <!-- V3.17.62 — MERCHANT'S LEDGER (HUD Panel 3 shortcut). -->
+    <div class="mainmenu-overlay" id="merchant-ledger-overlay">
+      <div class="mainmenu-box">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title">Merchant's Ledger</div>
+          <button class="mainmenu-close" id="merchant-ledger-close" aria-label="Close">✕</button>
+        </div>
+        <div id="merchant-ledger-body" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <div id="merchant-ledger-footer" style="color: var(--mist); font-size: 12px; letter-spacing: 0.14em; text-align: center; margin-top: 6px;">Every coin earned, every coin spent, every merchant met.</div>
+      </div>
+    </div>
+
+    <!-- V3.17.62 — GEMSHARD / FATHERGEM TRACKER (HUD Panel 4 shortcut). -->
+    <div class="mainmenu-overlay" id="gemshard-tracker-overlay">
+      <div class="mainmenu-box">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title">Fathergems · The Ten Shards</div>
+          <button class="mainmenu-close" id="gemshard-tracker-close" aria-label="Close">✕</button>
+        </div>
+        <div id="gemshard-tracker-body" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        <div id="gemshard-tracker-footer" style="color: var(--mist); font-size: 12px; letter-spacing: 0.14em; text-align: center; margin-top: 6px;">One Gemshard per district.  Reclaim from the Seer Commanders · return to the Keepers.</div>
       </div>
     </div>
 
@@ -16084,6 +16136,259 @@ function openAlliesView() {
 document.getElementById('allies-close').onclick = () => document.getElementById('allies-overlay').classList.remove('active');
 document.getElementById('allies-overlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('allies-overlay')) e.target.classList.remove('active');
+});
+
+// ============================================================================
+//  V3.17.62 — RHUD 4-PANEL CLICKABLE SHORTCUTS
+//  Panel 1 (Location) → openMapView() [existing]
+//  Panel 2 (R.Lv)     → openRizerProfile()
+//  Panel 3 (Coins)    → openMerchantLedger()
+//  Panel 4 (Shards)   → openGemshardTracker()
+// ============================================================================
+
+// ---- Panel 2: RIZER PROFILE CARD ----
+function openRizerProfile() {
+  try { playSfx('menu-open'); } catch(_) {}
+  clearHeldKeys();
+  const ov = document.getElementById('rizer-profile-overlay');
+  if (!ov) return;
+  ov.classList.add('active');
+  const body = document.getElementById('rizer-profile-body');
+  if (!body) return;
+  const p = game.player || {};
+  const rLv = p.rizerLv || 1;
+  const rXp = p.rizerXp || 0;
+  const rXpNext = (typeof rizerXpForNext === 'function') ? rizerXpForNext(rLv) : 150;
+  const rXpPct = Math.min(100, Math.round((rXp / Math.max(1, rXpNext)) * 100));
+  const name = p.name || 'Rizer';
+  const gender = p.gender || 'boy';
+  // Aggregate stats from various player fields
+  const districtsVisitedCount = Object.keys(p.districtsVisited || {}).length;
+  const alliesMetCount = Object.keys(p.alliesMet || {}).length;
+  const alliesTotal = (typeof ALLIES !== 'undefined') ? Object.keys(ALLIES).length : 0;
+  const broadcastsCount = Object.keys(p.broadcasts || {}).length;
+  const bondLessonsCount = Object.keys(p.bondLessons || {}).length;
+  const respectsCount = ((p.respects || []).length);
+  const partySize = (p.party || []).filter(Boolean).length;
+  const boxSize = (p.box || []).length;
+  const totalZyrex = partySize + boxSize;
+  const caughtCount = Object.keys(p.markedCaught || {}).length;
+  // Titles earned — deterministic based on flags
+  const titles = [];
+  if (broadcastsCount >= 10) titles.push('Voice of the Expanse');
+  if (respectsCount >= 10) titles.push('Conqueror of Gemlords');
+  if (p.xenoxilDefeated) titles.push('Slayer of the Fleshlord');
+  if (p.anciuxorGranted) titles.push('Blessed of the Ancient One');
+  if (bondLessonsCount >= 8) titles.push('Bond Master');
+  if (!titles.length) titles.push('Rizer of the Ninth World');
+  body.innerHTML = `
+    <div style="display:flex; gap:12px; align-items:center; padding:12px; background:rgba(90,40,140,0.12); border:1px solid var(--border-gold); border-radius:4px;">
+      <div style="width:56px; height:56px; border:2px solid var(--gold-bright); border-radius:50%; background:rgba(90,40,140,0.25); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:22px; color:var(--gold-bright); letter-spacing:0.08em;">${(name[0] || 'R').toUpperCase()}</div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-family:var(--font-display); font-size:18px; color:var(--gold-bright); letter-spacing:0.14em;">${name.toUpperCase()}</div>
+        <div style="font-size:11px; color:var(--mist); letter-spacing:0.14em; margin-top:2px; opacity:0.85;">${gender.toUpperCase()} · ${titles[0].toUpperCase()}</div>
+      </div>
+    </div>
+    <div style="padding:10px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:4px;">
+      <div style="display:flex; justify-content:space-between; font-family:var(--font-display); font-size:12px; color:var(--gold-bright); letter-spacing:0.14em; margin-bottom:4px;">
+        <span>★ RIZER LEVEL ${rLv}</span>
+        <span>${rXp} / ${rXpNext} XP</span>
+      </div>
+      <div style="height:6px; background:rgba(20,10,40,0.60); border-radius:3px; overflow:hidden;">
+        <div style="height:100%; width:${rXpPct}%; background:linear-gradient(90deg, #b87cff, #f8c840);"></div>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+      <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
+        <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.16em;">DISTRICTS VISITED</div>
+        <div style="font-family:var(--font-display); font-size:16px; color:var(--gold-bright); letter-spacing:0.10em; margin-top:2px;">${districtsVisitedCount} / 10</div>
+      </div>
+      <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
+        <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.16em;">ALLIES MET</div>
+        <div style="font-family:var(--font-display); font-size:16px; color:var(--gold-bright); letter-spacing:0.10em; margin-top:2px;">${alliesMetCount} / ${alliesTotal}</div>
+      </div>
+      <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
+        <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.16em;">BROADCASTS LIVE</div>
+        <div style="font-family:var(--font-display); font-size:16px; color:var(--gold-bright); letter-spacing:0.10em; margin-top:2px;">${broadcastsCount} / 10</div>
+      </div>
+      <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
+        <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.16em;">BOND LESSONS</div>
+        <div style="font-family:var(--font-display); font-size:16px; color:var(--gold-bright); letter-spacing:0.10em; margin-top:2px;">${bondLessonsCount} / 8</div>
+      </div>
+      <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
+        <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.16em;">GEMLORD RESPECTS</div>
+        <div style="font-family:var(--font-display); font-size:16px; color:var(--gold-bright); letter-spacing:0.10em; margin-top:2px;">${respectsCount} / 10</div>
+      </div>
+      <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
+        <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.16em;">ZYREX BOUND</div>
+        <div style="font-family:var(--font-display); font-size:16px; color:var(--gold-bright); letter-spacing:0.10em; margin-top:2px;">${totalZyrex} · dex ${caughtCount}</div>
+      </div>
+    </div>
+    ${titles.length > 1 ? `
+    <div style="padding:10px; background:rgba(20,10,40,0.20); border:1px solid var(--border-gold); border-radius:4px;">
+      <div style="font-family:var(--font-display); font-size:10px; color:var(--gold-bright); letter-spacing:0.20em; margin-bottom:6px;">◈ TITLES EARNED</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px;">
+        ${titles.map(t => `<span style="padding:3px 8px; border:1px solid var(--gold-bright); border-radius:3px; color:var(--gold-bright); font-family:var(--font-display); font-size:10px; letter-spacing:0.14em;">${t}</span>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+}
+document.getElementById('rizer-profile-close').onclick = () => document.getElementById('rizer-profile-overlay').classList.remove('active');
+document.getElementById('rizer-profile-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('rizer-profile-overlay')) e.target.classList.remove('active');
+});
+
+// ---- Panel 3: MERCHANT'S LEDGER ----
+function openMerchantLedger() {
+  try { playSfx('menu-open'); } catch(_) {}
+  clearHeldKeys();
+  const ov = document.getElementById('merchant-ledger-overlay');
+  if (!ov) return;
+  ov.classList.add('active');
+  const body = document.getElementById('merchant-ledger-body');
+  if (!body) return;
+  const p = game.player || {};
+  const coins = p.coins || 0;
+  const rLv = p.rizerLv || 1;
+  body.innerHTML = '';
+  // Header — current wallet
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(90,40,140,0.15); border:1px solid var(--border-gold); border-radius:4px;';
+  header.innerHTML = `
+    <div>
+      <div style="font-family:var(--font-display); font-size:11px; color:var(--mist); letter-spacing:0.16em;">WALLET</div>
+      <div style="font-family:var(--font-display); font-size:22px; color:var(--gold-bright); letter-spacing:0.10em; margin-top:2px;">¢ ${coins.toLocaleString()}</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.14em;">R.LV</div>
+      <div style="font-family:var(--font-display); font-size:16px; color:var(--gold-bright); letter-spacing:0.10em; margin-top:2px;">★ ${rLv}</div>
+    </div>
+  `;
+  body.appendChild(header);
+  // Coin sources — where the player earns coins
+  const sources = document.createElement('div');
+  sources.style.cssText = 'padding:10px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;';
+  sources.innerHTML = `
+    <div style="font-family:var(--font-display); font-size:10px; color:var(--gold-bright); letter-spacing:0.20em; margin-bottom:6px;">COIN SOURCES</div>
+    <div style="font-size:11px; color:var(--mist); line-height:1.6; letter-spacing:0.08em;">
+      · Chests scattered across every district (open with A · varies by district tier)<br>
+      · Town-hall gift-givers (first-visit only per hall)<br>
+      · Wild Zyrex victories (2 + Lv/3 per win · V3.17.54)<br>
+      · Keeper quest turn-ins (R.XP + coin bonuses)<br>
+      · Home redemptions (Sunlit Ember → Fireplace grants 9,000 coins)<br>
+      · Astralite Prism finds (endgame · rare)
+    </div>
+  `;
+  body.appendChild(sources);
+  // Merchants per district — inventory + Rizer-level gates
+  const merchantsHeader = document.createElement('div');
+  merchantsHeader.style.cssText = 'font-family:var(--font-display); font-size:11px; color:var(--gold-bright); letter-spacing:0.20em; margin-top:6px; padding:6px 4px;';
+  merchantsHeader.textContent = 'MERCHANTS OF ZYRAXIS';
+  body.appendChild(merchantsHeader);
+  // Every district has an 'S' merchant per V3.6.2 canon.
+  const visited = p.districtsVisited || {};
+  const DISTRICT_ORDER_LOCAL = (typeof DISTRICT_ORDER !== 'undefined')
+    ? DISTRICT_ORDER
+    : ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+  for (const id of DISTRICT_ORDER_LOCAL) {
+    const dm = (typeof DISTRICT_META !== 'undefined') ? DISTRICT_META[id] : null;
+    if (!dm) continue;
+    const isVisited = !!visited[id];
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border:1px solid ${isVisited ? 'var(--border-gold)' : 'var(--border-soft)'}; background:${isVisited ? 'rgba(90,40,140,0.10)' : 'rgba(20,10,40,0.15)'}; border-radius:3px; opacity:${isVisited ? '1' : '0.5'};`;
+    row.innerHTML = `
+      <div>
+        <div style="font-family:var(--font-display); font-size:13px; color:${isVisited ? 'var(--gold-bright)' : 'var(--mist)'}; letter-spacing:0.14em;">${isVisited ? '◈' : '○'}  ${dm.name.toUpperCase()} · ${dm.land.toUpperCase()}</div>
+        <div style="font-size:10px; color:var(--mist); margin-top:2px; letter-spacing:0.08em;">${isVisited ? 'Merchant \'S\' on the district floor · full inventory' : 'District not yet visited · merchant location unknown'}</div>
+      </div>
+      <div style="font-family:var(--font-display); font-size:11px; color:${isVisited ? 'var(--gold-bright)' : 'var(--mist)'}; letter-spacing:0.10em; opacity:0.85;">T${dm.tierBand ? dm.tierBand[0] + '-' + dm.tierBand[1] : '?'}</div>
+    `;
+    body.appendChild(row);
+  }
+  // Shop-tier reference — what unlocks at which Rizer level
+  const shopTiers = document.createElement('div');
+  shopTiers.style.cssText = 'padding:10px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px; margin-top:6px;';
+  shopTiers.innerHTML = `
+    <div style="font-family:var(--font-display); font-size:10px; color:var(--gold-bright); letter-spacing:0.20em; margin-bottom:6px;">RIZER-LEVEL SHOP GATES</div>
+    <div style="font-size:11px; color:var(--mist); line-height:1.6; letter-spacing:0.08em;">
+      R.Lv <b>1</b> · Potions · Zyspheres<br>
+      R.Lv <b>5</b> · Grand Potions unlock<br>
+      R.Lv <b>10</b> · Void Zyspheres unlock<br>
+      R.Lv <b>15</b> · Master Potions unlock<br>
+      R.Lv <b>25</b> · Ultra Zyspheres unlock
+    </div>
+  `;
+  body.appendChild(shopTiers);
+}
+document.getElementById('merchant-ledger-close').onclick = () => document.getElementById('merchant-ledger-overlay').classList.remove('active');
+document.getElementById('merchant-ledger-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('merchant-ledger-overlay')) e.target.classList.remove('active');
+});
+
+// ---- Panel 4: GEMSHARD / FATHERGEM TRACKER ----
+function openGemshardTracker() {
+  try { playSfx('menu-open'); } catch(_) {}
+  clearHeldKeys();
+  const ov = document.getElementById('gemshard-tracker-overlay');
+  if (!ov) return;
+  ov.classList.add('active');
+  const body = document.getElementById('gemshard-tracker-body');
+  if (!body) return;
+  const p = game.player || {};
+  const commandersDefeated = p.seerCommandersDefeated || {};
+  const keeperReturned    = p.keeperReturned || {};   // canonical if wired; treat as empty otherwise
+  body.innerHTML = '';
+  // Header — progress bar
+  const claimedCount = Object.keys(commandersDefeated).length;
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:12px; background:rgba(90,40,140,0.15); border:1px solid var(--border-gold); border-radius:4px;';
+  header.innerHTML = `
+    <div style="display:flex; justify-content:space-between; font-family:var(--font-display); font-size:12px; color:var(--gold-bright); letter-spacing:0.16em; margin-bottom:6px;">
+      <span>◈ FATHERGEMS RECLAIMED</span>
+      <span>${claimedCount} / 10</span>
+    </div>
+    <div style="height:6px; background:rgba(20,10,40,0.60); border-radius:3px; overflow:hidden;">
+      <div style="height:100%; width:${Math.round((claimedCount / 10) * 100)}%; background:linear-gradient(90deg, #ff5060, #f8c840);"></div>
+    </div>
+    <div style="font-size:11px; color:var(--mist); letter-spacing:0.10em; margin-top:8px;">Each Fathergem was stolen by a Seer Commander.  Defeat the Commander to reclaim the shard.  Return it to the Keeper of that district to complete the Ancient Oath cycle.</div>
+  `;
+  body.appendChild(header);
+  // 10 Gemshard tiles — one per district
+  const DISTRICT_ORDER_LOCAL = (typeof DISTRICT_ORDER !== 'undefined')
+    ? DISTRICT_ORDER
+    : ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+  const GEM_COLORS_LOCAL = (typeof GEM_COLORS !== 'undefined') ? GEM_COLORS : {};
+  const SEER_COMMANDERS_LOCAL = (typeof SEER_COMMANDERS !== 'undefined') ? SEER_COMMANDERS : {};
+  const GEMLORDS_LOCAL = (typeof GEMLORDS !== 'undefined') ? GEMLORDS : [];
+  for (const id of DISTRICT_ORDER_LOCAL) {
+    const dm = (typeof DISTRICT_META !== 'undefined') ? DISTRICT_META[id] : null;
+    if (!dm) continue;
+    const gemKey = dm.gemKey || 'ruby';
+    const gemColor = (GEM_COLORS_LOCAL[gemKey] && GEM_COLORS_LOCAL[gemKey].base) || '#c8203a';
+    const cmd = SEER_COMMANDERS_LOCAL[id] || {};
+    const lord = GEMLORDS_LOCAL.find(g => g.id === dm.gemlord) || {};
+    const isDefeated = !!commandersDefeated[id];
+    const isReturned = !!keeperReturned[id];
+    let state, stateColor;
+    if (isReturned)       { state = '◈ RETURNED TO KEEPER'; stateColor = 'var(--gold-bright)'; }
+    else if (isDefeated)  { state = '◇ RECLAIMED · return to Keeper'; stateColor = '#7cffb0'; }
+    else                  { state = '○ HELD BY ' + (cmd.name || 'SEER COMMANDER'); stateColor = 'var(--mist)'; }
+    const tile = document.createElement('div');
+    tile.style.cssText = `display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid ${isDefeated ? 'var(--border-gold)' : 'var(--border-soft)'}; background:rgba(20,10,40,0.20); border-radius:4px;`;
+    tile.innerHTML = `
+      <div style="width:36px; height:36px; border-radius:50%; background:radial-gradient(circle at 30% 30%, ${gemColor}ee, ${gemColor}66); border:2px solid ${isDefeated ? gemColor : 'rgba(120,120,120,0.4)'}; box-shadow:0 0 ${isDefeated ? '10px' : '0'} ${gemColor}80; flex-shrink:0;"></div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-family:var(--font-display); font-size:13px; color:${isDefeated ? 'var(--gold-bright)' : 'var(--ivory)'}; letter-spacing:0.14em;">${gemKey.toUpperCase()} FATHERGEM · ${dm.name.toUpperCase()}</div>
+        <div style="font-size:10px; color:var(--mist); margin-top:2px; letter-spacing:0.10em;">${(lord.name || 'GEMLORD').toUpperCase()} · ${(lord.epithet || '').replace(/^./, c => c.toUpperCase())}</div>
+        <div style="font-size:10px; color:${stateColor}; margin-top:4px; letter-spacing:0.12em; font-family:var(--font-display);">${state}</div>
+      </div>
+    `;
+    body.appendChild(tile);
+  }
+}
+document.getElementById('gemshard-tracker-close').onclick = () => document.getElementById('gemshard-tracker-overlay').classList.remove('active');
+document.getElementById('gemshard-tracker-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('gemshard-tracker-overlay')) e.target.classList.remove('active');
 });
 
 // V3.17.8 — PSYCHOSYD'S SIGNED RED ELECTRIC GUITAR INTERACT.

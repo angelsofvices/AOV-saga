@@ -252,8 +252,8 @@ Wild spawns filtered by primary type ∈ (own + neighbors + fold-ins). Districts
 Elzebub / Elzimir / Elzoran = Draconic / Elemental. Omegoran = Draconic / Elemental / Corrupted (tri-type at Tier VII).
 
 ### 4.10 · Named Zyrex canon (all Lv 100 / T10 unless noted)
-- **Anciuxor** (Tier X · Lv 100 · 666 all-stats · Realm-I restricted form)
-- **Ultharis** (Tier X true form · 999 all-stats · Ultimate Prismsynch communion partner · deferred to future patch)
+- **Anciuxor** (Tier X · Lv 100 · **666** all-stats · the God's divine physical form · walkable in the mortal realm · bears the Key of Anciuxor on His tail)
+- **Ultharis** (Tier X · **999** all-stats · dwells in the **4th Realm of Omnithris** · DISTINCT being from Anciuxor · never physically present in Zyraxis · reachable ONLY through the Ultimate Prismsynch cross-realm communion)
 - **Vengrizz** (Tier VIII Immortal · Lv 80 · Ultramax / Beast / Spirit · Quiet Child terminal form)
 - **Petragryff** (Homunculus revival · Lv 40)
 - **The Aurabeasts × 4** (Diviniara · Pyrothrax · Voltaryx · Scaleon · Lv 5 starters)

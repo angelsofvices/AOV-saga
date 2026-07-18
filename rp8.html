@@ -5805,7 +5805,10 @@ function speciesEvolveLv(s) { return s.evolveLv || tierMaxLv(s.tier || 1); }
 //   Lv 50 -> ~4,100
 //   Lv 100-> ~11,100
 //   Lv 200-> ~34,100
+// ★ RIZER LEVEL CAP — locked at 100 to match Zyrex cap (2026-07-17).
+const RIZER_LV_CAP = 100;
 function rizerXpForNext(lv) {
+  if (lv >= RIZER_LV_CAP) return Infinity;
   return 100 + lv * 50 + Math.floor(lv * lv * 0.6);
 }
 // Award Rizer XP.  Applies level-ups (unbounded), fires a subtle toast,
@@ -5826,10 +5829,15 @@ function gainRizerXp(amount, source) {
   game.player.rizerXp += scaled;
   const preLv = game.player.rizerLv;
   let leveledUp = false;
-  while (game.player.rizerXp >= rizerXpForNext(game.player.rizerLv)) {
+  while (game.player.rizerLv < RIZER_LV_CAP
+         && game.player.rizerXp >= rizerXpForNext(game.player.rizerLv)) {
     game.player.rizerXp -= rizerXpForNext(game.player.rizerLv);
     game.player.rizerLv += 1;
     leveledUp = true;
+  }
+  if (game.player.rizerLv >= RIZER_LV_CAP) {
+    game.player.rizerLv = RIZER_LV_CAP;
+    game.player.rizerXp = 0;
   }
   if (leveledUp && game.player.rizerLv > (game.player.rizerLvHigh || 1)) {
     game.player.rizerLvHigh = game.player.rizerLv;
@@ -13928,18 +13936,36 @@ function tryMove(dx, dy) {
       }
     }
     // Bridge of Hope + Part 2 sentinel — locked until xenoxilDefeated.
+    // ★ BRIDGE OF HOPE gate (2026-07-17 refinement).  Requires BOTH endgame
+    // flags — Xenoxil defeated AND Novarian Grand Champion — to open.  This
+    // rewards players who grind both paths concurrently: they arrive at
+    // endgame with both flags already set and the Bridge is open to them
+    // immediately (Part 2 advantage).  Players who only ran Zyrex Path
+    // must return to the districts and finish the Rizer bracket before
+    // crossing.  The sentinel dialog tells them which flag they're missing.
     const PART2_IDS = ['bridge_of_hope','old_conquest','new_conquest','pit_of_no_return'];
-    if (PART2_IDS.includes(_nowRegion.id) && !(game && game.devMode)
-        && !game.player.xenoxilDefeated) {
-      if (typeof showDialog === 'function') {
-        showDialog([
-          'A sentinel stands at the threshold of the Bridge of Hope.',
-          'SENTINEL: The road south is sealed until the ultimatum ends.',
-          'SENTINEL: Walk both paths.  Earn your passage.  Then the Bridge will open.',
-        ]);
+    if (PART2_IDS.includes(_nowRegion.id) && !(game && game.devMode)) {
+      const xdefeated = !!game.player.xenoxilDefeated;
+      const grand     = !!game.player.novarianGrandChampion;
+      if (!(xdefeated && grand)) {
+        if (typeof showDialog === 'function') {
+          const missing = [];
+          if (!xdefeated) missing.push('the Fleshlord Xenoxil');
+          if (!grand)     missing.push('the Novarian Grand Champion mantle');
+          showDialog([
+            'A sentinel stands at the threshold of the Bridge of Hope.',
+            'SENTINEL: The road south is sealed until you have walked BOTH paths.',
+            `SENTINEL: You have not yet answered ${missing.join(' AND ')}.`,
+            missing.length === 2
+              ? 'SENTINEL: Return to the districts.  The Ninth World still has questions for you.'
+              : (!grand
+                  ? 'SENTINEL: Every Hall Rizer of the Ninth World waits for you.  The Accord\'s crown must sit on your brow before the Bridge opens.'
+                  : 'SENTINEL: The Fleshlord\'s shadow still hangs over the Bridge.  End it first.'),
+          ]);
+        }
+        game.player.moveCd = 240;
+        return;
       }
-      game.player.moveCd = 240;
-      return;
     }
   }
   game.player.x = nx;

@@ -5805,7 +5805,12 @@ function speciesEvolveLv(s) { return s.evolveLv || tierMaxLv(s.tier || 1); }
 //   Lv 50 -> ~4,100
 //   Lv 100-> ~11,100
 //   Lv 200-> ~34,100
+// ★ RIZER LEVEL CAP — locked at 100 to match Zyrex cap (2026-07-17).
+// Once R.Lv 100 is hit, Rizer XP is capped and no further level-ups fire.
+const RIZER_LV_CAP = 100;
 function rizerXpForNext(lv) {
+  // Cap: no next level past 100 — return Infinity so overflow never triggers.
+  if (lv >= RIZER_LV_CAP) return Infinity;
   return 100 + lv * 50 + Math.floor(lv * lv * 0.6);
 }
 // Award Rizer XP.  Applies level-ups (unbounded), fires a subtle toast,
@@ -5826,10 +5831,16 @@ function gainRizerXp(amount, source) {
   game.player.rizerXp += scaled;
   const preLv = game.player.rizerLv;
   let leveledUp = false;
-  while (game.player.rizerXp >= rizerXpForNext(game.player.rizerLv)) {
+  while (game.player.rizerLv < RIZER_LV_CAP
+         && game.player.rizerXp >= rizerXpForNext(game.player.rizerLv)) {
     game.player.rizerXp -= rizerXpForNext(game.player.rizerLv);
     game.player.rizerLv += 1;
     leveledUp = true;
+  }
+  // At the cap, clamp XP to zero so the HUD doesn't drift upward forever.
+  if (game.player.rizerLv >= RIZER_LV_CAP) {
+    game.player.rizerLv = RIZER_LV_CAP;
+    game.player.rizerXp = 0;
   }
   if (leveledUp && game.player.rizerLv > (game.player.rizerLvHigh || 1)) {
     game.player.rizerLvHigh = game.player.rizerLv;
@@ -5945,6 +5956,12 @@ function makeZyrex(speciesId, lv) {
     debuff: null,
     // V2.28 — per-instance random unlock level for the slot-4 Original.
     originalMoveUnlockLv: 20 + Math.floor(Math.random() * 61),   // 20..80
+    // ★ BOND STAT (2026-07-17) — invisible integer that grows through play.
+    // Sources: +5 per shared battle win (participating fighter) · +2 per
+    // sleep-heal (all party) · story-beat bonuses.  Threshold BOND_MAX
+    // (1000) satisfies the "Max Zyrex Bond" lock for Prismsynch endgame.
+    // See aov-bonded-astralite-combat + aov-prismsynch-move memories.
+    bond: 0,
   };
   // V3.17.23 — Every Zyrex uses the canonical unlock schedule.  refreshMoves
   // reads species.moves + MOVE_UNLOCK_LVS gates and only exposes slots the
@@ -6440,6 +6457,141 @@ const DISTRICT_META = {
   korathen:  { num: 10, name: 'Korathen',  land: 'Ultralands',    types: ['Aura','Humanoid-Noid'],     tierBand: [27, 35], accent: '#f8c840', wallColor: '#3a2408', wallEdge: '#8a5c1c', groundColor: '#8a6018', groundShade: '#583c10', grassColor: '#e8a428', sparkleTint: '#ffe488', gemlord: 'oatheus',  gemKey: 'ultra'     },
 };
 const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+
+// ============================================================================
+// ★ PART 2 SOUTHERN ZONES (2026-07-17 · matches Zyraxis planetary map)
+// ============================================================================
+// Bridge of Hope (ceremonial corridor) · Old Conquest (pre-Accord ruins) ·
+// New Conquest (Seer-remnant) · Pit of No Return (molten endgame).
+// Layout mirrors the Zyraxis map: player enters via Korathen Town Hall
+// after BOTH endgame flags fire (xenoxilDefeated + novarianGrandChampion),
+// crosses the Bridge, then chooses west (Old) or east (New) Conquest, and
+// finally descends to the Pit at the bottom.  Palette + level bands +
+// wild types match the map's visual + the aov-interstitial-regions canon.
+const PART2_META = {
+  bridge_of_hope: {
+    name: 'The Bridge of Hope', land: 'Ceremonial Corridor', types: [], tierBand: [90, 100],
+    accent: '#f8c840', wallColor: '#3a2d1a', wallEdge: '#8a6420', groundColor: '#6a5028', groundShade: '#4a3818', grassColor: '#a08248', sparkleTint: '#ffe488',
+    wildPool: null,      // no wild encounters on the Bridge
+  },
+  // ★ MIXED-TYPE POOLS (2026-07-17).  South of the Bridge every encounter
+  // draws from ALL 20 types — Part 2 is wild, uncivilized frontier.  Every
+  // surviving Rizer down here mixes their team to make their name known
+  // in this new land; every wild Zyrex is here because no district's
+  // Accord-shaped rules ever governed it.  Level bands scale up per zone.
+  old_conquest: {
+    name: 'The Old Conquest', land: 'Pre-Accord Ruins', types: null /* all 20 */, tierBand: [90, 98],
+    accent: '#5a5a80', wallColor: '#1a1a2a', wallEdge: '#3a3a5a', groundColor: '#2a2a4a', groundShade: '#181828', grassColor: '#4a4a80', sparkleTint: '#9c9cd8',
+    wildPool: { types: null, lvRange: [90, 96] },
+  },
+  new_conquest: {
+    name: 'The New Conquest', land: 'Seer-Remnant Zone', types: null /* all 20 */, tierBand: [92, 100],
+    accent: '#a06ac8', wallColor: '#2a1a2a', wallEdge: '#5a2a5a', groundColor: '#3a2a4a', groundShade: '#221828', grassColor: '#6a4a80', sparkleTint: '#c896ff',
+    wildPool: { types: null, lvRange: [93, 100] },
+  },
+  pit_of_no_return: {
+    name: 'The Pit of No Return', land: 'Molten Descent', types: null /* all 20 */, tierBand: [96, 100],
+    accent: '#ff5a2c', wallColor: '#3a0e0e', wallEdge: '#8a1a1a', groundColor: '#5a1a1a', groundShade: '#380a0a', grassColor: '#c04030', sparkleTint: '#ff8a5c',
+    wildPool: { types: null, lvRange: [96, 100] },
+  },
+};
+// Small procedural map builder for Part 2 zones — bordered walkable
+// rectangle with gemgrass sprinkle for encounters and a landmark tile
+// or two.  Similar to the classic district generators but scaled small.
+function generatePart2Map(zoneId) {
+  const M = PART2_META[zoneId] || {};
+  const cols = 24, rows = 16;
+  const grid = [];
+  for (let y = 0; y < rows; y++) {
+    const row = [];
+    for (let x = 0; x < cols; x++) {
+      if (y === 0 || y === rows - 1 || x === 0 || x === cols - 1) row.push('#');
+      else row.push(',');
+    }
+    grid.push(row);
+  }
+  // Add gemgrass patches (denser than classic districts — Part 2 is dangerous)
+  const seed = zoneId.charCodeAt(0) + zoneId.charCodeAt(2);
+  for (let y = 2; y < rows - 2; y++) {
+    for (let x = 2; x < cols - 2; x++) {
+      if (grid[y][x] !== ',') continue;
+      // 16% gemgrass density for Part 2
+      if (((x * 11 + y * 5 + seed) % 6) === 0) grid[y][x] = 'G';
+    }
+  }
+  // Bridge of Hope has no gemgrass — ceremonial corridor is calm
+  if (zoneId === 'bridge_of_hope') {
+    for (let y = 1; y < rows - 1; y++) {
+      for (let x = 1; x < cols - 1; x++) {
+        if (grid[y][x] === 'G') grid[y][x] = ',';
+      }
+    }
+    // Center statue (ancient @ tile) as the ceremonial anchor
+    grid[Math.floor(rows/2)][Math.floor(cols/2)] = '@';
+  }
+  // A single chest per Part 2 zone (K tile) at a deterministic corner
+  if (zoneId !== 'bridge_of_hope') {
+    grid[3][cols - 4] = 'K';
+  }
+  // Portals: standard east > and west < on the middle row.  Linear
+  // traversal Korathen ↔ Bridge ↔ Old ↔ New ↔ Pit.  Bridge's west
+  // portal returns to Korathen; Pit has no further east.
+  const midY = Math.floor(rows / 2);
+  // West portal
+  if (zoneId !== 'bridge_of_hope' || true) {   // Bridge west portal returns to Korathen
+    grid[midY][0] = '<';
+    grid[midY][1] = ',';   // small vestibule
+  }
+  // East portal — every Part 2 zone except Pit has one
+  if (zoneId !== 'pit_of_no_return') {
+    grid[midY][cols - 1] = '>';
+    grid[midY][cols - 2] = ',';   // vestibule
+  }
+  return grid.map(r => r.join(''));
+}
+// Part 2 travel graph.  Linear layout for RP7 district-hop.
+const PART2_TRAVEL = {
+  bridge_of_hope:   { west: 'korathen',       east: 'old_conquest'    },
+  old_conquest:     { west: 'bridge_of_hope', east: 'new_conquest'    },
+  new_conquest:     { west: 'old_conquest',   east: 'pit_of_no_return'},
+  pit_of_no_return: { west: 'new_conquest',   east: null              },
+};
+function handlePart2Portal(dir) {
+  const currentMapId = game.player.mapId;
+  const graph = PART2_TRAVEL[currentMapId];
+  if (!graph) return false;
+  const destId = (dir > 0) ? graph.east : graph.west;
+  if (!destId) { showToast('THE MAP ENDS HERE — for now.', 1600); return true; }
+  // If destination is Korathen (returning north), pick a spawn just east
+  // of Korathen's throne hall entrance.  For other Part 2 zones, spawn
+  // opposite portal edge.
+  if (destId === 'korathen') {
+    const kor = MAPS.korathen;
+    const spawnX = kor ? Math.floor((kor.cols || 20) / 2) : 10;
+    const spawnY = kor ? Math.floor((kor.rows || 12) / 2) : 6;
+    enterMap('korathen', spawnX, spawnY, 'down');
+    showToast('◈  KORATHEN · Ultralands', 2000);
+    return true;
+  }
+  const destMap = MAPS[destId];
+  if (!destMap) { showToast('DESTINATION NOT WIRED', 1600); return true; }
+  // Spawn on the opposite portal side of the destination map
+  const midY = Math.floor(destMap.rows / 2);
+  const spawnX = (dir > 0) ? 1 : (destMap.cols - 2);
+  enterMap(destId, spawnX, midY, dir > 0 ? 'right' : 'left');
+  const label = (PART2_META[destId] && PART2_META[destId].name) || destId;
+  showToast(`◈  ${label.toUpperCase()}`, 2600);
+  return true;
+}
+// Register the 4 Part 2 maps in MAPS.
+(function registerPart2Maps() {
+  const zones = ['bridge_of_hope','old_conquest','new_conquest','pit_of_no_return'];
+  for (const id of zones) {
+    const meta = PART2_META[id];
+    if (!meta) continue;
+    MAPS[id] = { data: generatePart2Map(id), cols: 24, rows: 16, label: `${meta.name} · ${meta.land}` };
+  }
+})();
 
 // ============================================================================
 //  V3.17.46 — ASTRALITE MATRIX (Master Codex v12.2 · Sheet 11)
@@ -6997,6 +7149,91 @@ function missingUtilityPrisms() {
   if (!ownsUtilityPrism('zyramid'))  out.push('Zyramid');
   return out;
 }
+// ★ STORY HANDOFF (2026-07-17).  Once the Zyrex-Path 10-district line
+// closes (Xenoxil defeated), the Rizer Path becomes the main storyline.
+// Kelthor delivers a one-time beat pushing the player toward Novarian
+// completion.  Fires only if the player has NOT yet earned Grand Champion.
+// Players who grinded both paths concurrently will already be Grand
+// Champion when Xenoxil falls and skip this beat — they get their
+// advantage in Part 2 (Bridge of Hope opens for them immediately).
+// Players who only did Zyrex Path see this beat and understand they must
+// keep exploring the districts to finish the Rizer bracket.
+function tryKelthorStoryHandoff() {
+  const p = game.player;
+  if (!p.xenoxilDefeated) return false;
+  if (p.novarianGrandChampion) return false;
+  if (p.kelthorStoryHandoffFired) return false;
+  p.kelthorStoryHandoffFired = true;
+  save();
+  const won = novarianQualifiersWonCount();
+  const remaining = 10 - won;
+  showDialog([
+    `WARDEN KELTHOR:`,
+    `Xenoxil is dust.  The Fathergems are home.  The Ninth World breathes again — because of you.`,
+    ``,
+    `But you feel it too, don't you.  There is a silence now where the Zyrex Path used to pull.  You reached the end of it.`,
+    ``,
+    `The road forward is the ACCORD.  Novarius's road.  The one I have been walking you toward every time you visited.`,
+    won > 0
+      ? `You have ${won} qualifier${won === 1 ? '' : 's'} in hand.  ${remaining} district${remaining === 1 ? '' : 's'} still to answer.  The BRIDGE OF HOPE waits south of Baelgor — but it will not open for you until Novarius's mantle sits on your brow.`
+      : `You have not yet stepped into any of the district brackets.  Ten Hall Rizers wait for you across the Ninth World.  Beat them all, then Korathen's Champion, and the mantle is yours.  The BRIDGE OF HOPE will not open otherwise.`,
+    ``,
+    `Every district you already freed — Malezor is proof — the Hall Rizer of that district is waiting.  Return to them.  Show them your Faction.  The rest of your path is the Accord.`,
+    won > 0
+      ? `«◈  RIZER PATH IS NOW YOUR MAIN STORY  ·  ${won} / 10 qualifiers»`
+      : `«◈  RIZER PATH IS NOW YOUR MAIN STORY  ·  0 / 10 qualifiers»`,
+  ], () => {
+    try { playSfx('toast'); } catch(_) {}
+    showToast('◈  STORY HANDOFF · The Rizer Path is now your main quest', 3600);
+  });
+  return true;
+}
+// ★ BRIDGE + PART 2 TRAVEL (2026-07-17).  RP7 is district-hop, so Part 2
+// zones are reached through explicit travel NPCs rather than a walkable
+// world map.  The Bridge is gated behind BOTH endgame flags per canon:
+// players who grinded both paths concurrently arrive with both flags set
+// and travel south immediately; players who only cleared Zyrex Path see
+// a hint dialog telling them what's missing.
+function part2Ready() {
+  const p = game.player;
+  return !!(p && p.xenoxilDefeated && p.novarianGrandChampion);
+}
+function tryTravelToBridge() {
+  const p = game.player;
+  if (!part2Ready()) {
+    const missing = [];
+    if (!p.xenoxilDefeated)      missing.push('the Fleshlord Xenoxil');
+    if (!p.novarianGrandChampion) missing.push('the Novarian Grand Champion mantle');
+    showDialog([
+      'THE PILGRIM at the south gate:',
+      'The Bridge of Hope will not carry the incomplete.',
+      `You have not yet answered ${missing.join(' AND ')}.`,
+      missing.length === 2
+        ? 'Return to the districts.  The Ninth World still has questions for you.'
+        : (!p.novarianGrandChampion
+            ? 'Every Hall Rizer of the Ninth World waits for you.  The Accord\'s crown must sit on your brow before the Bridge opens.'
+            : 'The Fleshlord\'s shadow still hangs over the Bridge.  End it first.'),
+    ]);
+    return;
+  }
+  showDialog([
+    'THE PILGRIM at the south gate:',
+    'You have walked both paths.  The Bridge is yours to cross.',
+    '«◈  THE BRIDGE OF HOPE opens south of Korathen.»',
+  ], () => {
+    enterMap('bridge_of_hope', 12, 12, 'up');
+    showToast('◈  THE BRIDGE OF HOPE', 2600);
+  });
+}
+function travelPart2To(zoneId, spawnX, spawnY, dir) {
+  if (!part2Ready() && !game.devMode) {
+    showDialog(['A sentinel bars the way south.  You have not earned this road yet.']);
+    return;
+  }
+  enterMap(zoneId, spawnX, spawnY, dir || 'down');
+  const label = (PART2_META[zoneId] && PART2_META[zoneId].name) || zoneId;
+  showToast(`◈  ${label.toUpperCase()}`, 2600);
+}
 function grantZycube() {
   const p = game.player;
   p.items = p.items || {};
@@ -7347,6 +7584,13 @@ function handleKeeperInteract(hallMapId) {
   // player returns to Kelthor's hall.
   if (hallMapId === 'malezor_hall' && typeof tryNovarianKelthor === 'function'
       && tryNovarianKelthor(fromDistrict)) {
+    return;
+  }
+  // ★ STORY HANDOFF BEAT (2026-07-17).  When Xenoxil has fallen but the
+  // Novarian mantle isn't earned yet, Kelthor pushes the player toward
+  // the Rizer Path as the new main story.  Fires once per playthrough.
+  if (hallMapId === 'malezor_hall' && typeof tryKelthorStoryHandoff === 'function'
+      && tryKelthorStoryHandoff()) {
     return;
   }
   if (state === 'complete') {
@@ -8238,6 +8482,22 @@ function districtAllowedTypes(mapId) {
   return expandTypesWithFoldIns(Array.from(set));
 }
 function districtWildPool(mapId) {
+  // ★ PART 2 wild pools (2026-07-17) — Old Conquest / New Conquest /
+  // Pit of No Return get endgame-tier pools filtered by canonical types.
+  // Bridge of Hope has no wild encounters (ceremonial corridor).
+  if (typeof PART2_META !== 'undefined' && PART2_META[mapId]) {
+    const p2 = PART2_META[mapId];
+    if (!p2.wildPool) return null;
+    const allowedTypes = p2.wildPool.types ? new Set(p2.wildPool.types) : null;
+    const ids = Object.keys(SPECIES).filter(id => {
+      const sp = SPECIES[id];
+      if (!sp || sp.easterEgg) return false;
+      if (allowedTypes && !allowedTypes.has(sp.type)) return false;
+      return true;
+    });
+    if (!ids.length) return null;
+    return { ids, lvRange: p2.wildPool.lvRange };
+  }
   // V3.7.1 — ROUTE POOLS bridge both adjacent districts.  Level band
   // sits at the midpoint of the two district bands so route encounters
   // read as a legitimate stepping stone from one tier to the next.
@@ -9361,6 +9621,7 @@ function drawTile(x, y, ch, mx, my) {
   const _dm = (CAVE_META && CAVE_META[_mapId])
            || DISTRICT_META[_mapId]
            || (ROUTE_PALETTE && ROUTE_PALETTE[_mapId])
+           || (typeof PART2_META !== 'undefined' && PART2_META[_mapId])
            || null;
   const wallColor   = (_dm && _dm.wallColor)   || '#1a0d2e';
   const wallEdge    = (_dm && _dm.wallEdge)    || '#3a2560';
@@ -13479,8 +13740,14 @@ function tryMove(dx, dy) {
     }
   }
   // V2.21 — District portal: '<' goes to previous district, '>' to next.
+  // ★ PART 2 INTERCEPT (2026-07-17): portals on Part 2 maps route through
+  // handlePart2Portal instead of the district-order travelDistrict logic.
   if (nt === '<' || nt === '>') {
     game.player.moveCd = 260;
+    if (typeof PART2_META !== 'undefined' && PART2_META[game.player.mapId]) {
+      handlePart2Portal(nt === '>' ? +1 : -1);
+      return;
+    }
     travelDistrict(nt === '>' ? +1 : -1);
     return;
   }
@@ -13515,7 +13782,11 @@ function armPendingEncounter() {
   if (districtPool && districtPool.ids.length) {
     id = districtPool.ids[Math.floor(Math.random() * districtPool.ids.length)];
     const [lo, hi] = districtPool.lvRange;
-    lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
+    // ★ PART 2 — pure random Lv 90–100 for wild encounters south of
+    // the Bridge, matching NPC-trainer scaling.  Otherwise honor pool.
+    const inPart2 = (typeof PART2_META !== 'undefined' && !!PART2_META[game.player.mapId]);
+    if (inPart2) lv = 90 + Math.floor(Math.random() * 11);   // [90, 100]
+    else         lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
   } else {
     const roll = WILD_POOL[Math.floor(Math.random() * WILD_POOL.length)];
     id = roll.id;
@@ -15293,7 +15564,18 @@ function travelDistrict(dir) {
     // V3.17.29 — Route 10 (throne_of_ultralord) has no east.  Show the
     // terminal-map toast instead of the wiring-error toast when the
     // player tries to walk further east than the endgame throne.
+    // ★ PART 2 INTERCEPT (2026-07-17): if the player has walked BOTH
+    // paths (Xenoxil + Grand Champion), the terminal edge opens onto
+    // The Bridge of Hope.  Otherwise the original terminal-map toast.
     if (dir > 0 && !destDistrictId) {
+      if (typeof part2Ready === 'function' && part2Ready()) {
+        showDialog([
+          'A gilded arch stands where the road once ended.',
+          'On the other side, the BRIDGE OF HOPE stretches south toward lands that were not on your map an hour ago.',
+          'THE PILGRIM at the arch: You have walked both paths.  The Bridge answers.',
+        ], () => tryTravelToBridge());
+        return;
+      }
       showToast('THE MAP ENDS HERE — for now.', 1600);
       return;
     }
@@ -15729,6 +16011,8 @@ function interactBed() {
   if (gemGift > 0) lines.push(`MOM slipped ${gemGift} gems into your pouch while you rested. (${GEM_FLOOR} floor.)`);
   showDialog(lines, () => {
     for (const r of game.player.party) if (r) { r.hp = r.maxHp; r.fainted = false; }
+    // ★ BOND GAIN on sleep — every party Zyrex gains +2 bond.
+    if (typeof bondGainOnSleepHeal === 'function') bondGainOnSleepHeal();
     if (gemGift > 0) game.player.gems = GEM_FLOOR;
     save(); updateHUD();
     if (gemGift > 0) showToast(`◈  +${gemGift} GEMS  ·  POUCH ${GEM_FLOOR}`);
@@ -16041,6 +16325,13 @@ function consecrateStatuePart() {
       zy.stats = { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 };
       zy.maxHp = 666;
       zy.hp    = 666;
+      // ★ ANCIUXOR BOND JUMP-START — the Ancient One is granted with a
+      // meaningful Bond floor (500 / 1000 = halfway to max).  Story-beat
+      // canon: the Rizer and Anciuxor already share a resonance the moment
+      // the fireplace consecrates the statue-part.  Player still needs
+      // to grind battles + sleep-heals to close the last 500 for the
+      // Ultimate Prismsynch.
+      zy.bond = 500;
       if (game.player.party.filter(Boolean).length < MAX_PARTY) game.player.party.push(zy);
       else                                                      game.player.box.push(zy);
       markCaught('anciuxor');
@@ -16636,8 +16927,10 @@ function openRizerProfile() {
   const p = game.player || {};
   const rLv = p.rizerLv || 1;
   const rXp = p.rizerXp || 0;
-  const rXpNext = (typeof rizerXpForNext === 'function') ? rizerXpForNext(rLv) : 150;
-  const rXpPct = Math.min(100, Math.round((rXp / Math.max(1, rXpNext)) * 100));
+  const rCap = (typeof RIZER_LV_CAP !== 'undefined' ? RIZER_LV_CAP : 100);
+  const rCapped = rLv >= rCap;
+  const rXpNext = rCapped ? 0 : ((typeof rizerXpForNext === 'function') ? rizerXpForNext(rLv) : 150);
+  const rXpPct = rCapped ? 100 : Math.min(100, Math.round((rXp / Math.max(1, rXpNext)) * 100));
   const name = p.name || 'Rizer';
   const gender = p.gender || 'boy';
   // Aggregate stats from various player fields
@@ -16670,7 +16963,7 @@ function openRizerProfile() {
     <div style="padding:10px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:4px;">
       <div style="display:flex; justify-content:space-between; font-family:var(--font-display); font-size:12px; color:var(--gold-bright); letter-spacing:0.14em; margin-bottom:4px;">
         <span>★ RIZER LEVEL ${rLv}</span>
-        <span>${rXp} / ${rXpNext} XP</span>
+        <span>${rCapped ? 'MAX (Lv 100 cap)' : rXp + ' / ' + rXpNext + ' XP'}</span>
       </div>
       <div style="height:6px; background:rgba(20,10,40,0.60); border-radius:3px; overflow:hidden;">
         <div style="height:100%; width:${rXpPct}%; background:linear-gradient(90deg, #b87cff, #f8c840);"></div>
@@ -17332,8 +17625,15 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
       //   old district-scaling formula so we don't break anything else.
       const inMain     = game.player.mapId === 'seer_hq_main';
       const inBasement = game.player.mapId === 'seer_hq_basement';
+      // ★ PART 2 SCALING (2026-07-17) — every Rizer south of the Bridge
+      // of Hope fields a FULL 6-Zyrex team drawn from ALL 20 types (Part 2
+      // pool is null-typed = mixed).  Every level rolls RANDOM in Lv 90–100
+      // regardless of the player's own party.  Wild, uncivilized, every
+      // Rizer down here is just as skilled as any Grand Champion.
+      const inPart2 = (typeof PART2_META !== 'undefined' && !!PART2_META[game.player.mapId]);
       let chainSize;
-      if (isCommander)       chainSize = 5;
+      if (inPart2)           chainSize = (typeof MAX_PARTY !== 'undefined' ? MAX_PARTY : 6);
+      else if (isCommander)  chainSize = 5;
       else if (inMain)       chainSize = 1;                                                   // easy warm-up
       else if (inBasement)   chainSize = 2;                                                   // medium
       else                   chainSize = Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));   // legacy path
@@ -17342,13 +17642,14 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
       chainSpecs = [];
       for (let i = 0; i < chainSize; i++) {
         const id = pool.ids[Math.floor(Math.random() * pool.ids.length)];
-        // Commander tops out at hi. Main-floor easy grunts hover at lo.
-        // Basement medium grunts sit mid-band. Otherwise legacy random-in-band.
+        // ★ PART 2 — pure random Lv 90–100 per Zyrex.  No player-match,
+        // no zone-specific band clamp.  The land itself is the challenge.
         let lv;
-        if (isCommander)     lv = hi;
-        else if (inMain)     lv = Math.max(1, lo);
-        else if (inBasement) lv = Math.max(1, mid);
-        else                 lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
+        if (inPart2)          lv = 90 + Math.floor(Math.random() * 11);   // [90, 100]
+        else if (isCommander) lv = hi;
+        else if (inMain)      lv = Math.max(1, lo);
+        else if (inBasement)  lv = Math.max(1, mid);
+        else                  lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
         chainSpecs.push([id, lv]);
       }
     }
@@ -17668,6 +17969,19 @@ function renderBagMenu() {
     b.onclick = () => firePrismsynch(prismKey);
     $battleActions.appendChild(b);
   });
+  // ★ ULTIMATE PRISMSYNCH — Key of Anciuxor.  Appears when the three
+  // canon locks fire (R.Lv 100 + Anciuxor bonded + max bond).  Distinct
+  // from the civic Prisms — communion with Ultharis Himself.
+  if (typeof ultimatePrismsynchAvailable === 'function' && ultimatePrismsynchAvailable()) {
+    const b = document.createElement('button');
+    b.className = 'action-btn';
+    b.innerHTML = `★ ULTIMATE PRISMSYNCH · KEY OF ANCIUXOR <span class="cost">999 pow · 100% status</span>`;
+    if (prismUsedThisFight) b.disabled = true;
+    b.style.borderColor = '#f8c840';
+    b.style.boxShadow = '0 0 8px rgba(248,200,64,0.5)';
+    b.onclick = () => fireUltimatePrismsynch();
+    $battleActions.appendChild(b);
+  }
   // V2.8.1 — Equip gems onto the active Zyrex
   const eq = document.createElement('button');
   eq.className = 'action-btn';
@@ -17814,6 +18128,99 @@ const PRISM_TABLE = {
 // Anciuxor (auto-satisfied by bonding Anciuxor; NOT obtainable through the
 // Rizer Path).  The Grand Champion Prism is now the CROWN — same Korathen
 // district, matches the coronation beat, distinct from the Anciuxor path.
+// ★ BOND STAT SYSTEM (2026-07-17) — invisible per-Zyrex integer.  Grows
+// through shared play; unlocks Prismsynch endgame via [[aov-prismsynch-move]].
+// See memory: aov-bonded-astralite-combat (8-step Kelthor ladder anchor).
+const BOND_MAX  = 1000;
+const BOND_GAIN = {
+  battleWin:  5,     // participating fighter
+  sleepHeal:  2,     // every party member
+  storyBeat: 40,     // major beat (Anciuxor grant, Vengrizz, etc.)
+};
+function bondGainOnBattleWin(zy) {
+  if (!zy) return;
+  zy.bond = Math.min(BOND_MAX, (zy.bond || 0) + BOND_GAIN.battleWin);
+}
+function bondGainOnSleepHeal() {
+  const party = (game.player && game.player.party) || [];
+  for (const z of party) if (z) z.bond = Math.min(BOND_MAX, (z.bond || 0) + BOND_GAIN.sleepHeal);
+}
+function bondGainStoryBeat(zy) {
+  if (!zy) return;
+  zy.bond = Math.min(BOND_MAX, (zy.bond || 0) + BOND_GAIN.storyBeat);
+}
+function findBondedAnciuxor() {
+  const party = (game.player && game.player.party) || [];
+  for (const z of party) {
+    if (z && z.species === 'anciuxor' && (z.bond || 0) >= BOND_MAX) return z;
+  }
+  return null;
+}
+// ★ ULTHARIS TRUE-FORM species (T10 · 999 all stats).  Hidden Zyrex.
+// Not catchable through Zyspheres.  Only channelable through the Ultimate
+// Prismsynch (Key of Anciuxor).  Species definition lives here so future
+// code paths (post-Ultimate encounter, cosmetic unlocks) can reference it.
+if (typeof SPECIES !== 'undefined' && !SPECIES.ultharis) {
+  SPECIES.ultharis = {
+    name: 'Ultharis', tier: 10, type: 'Divine', type2: 'Aura', type3: null,
+    baseStats: { hp: 999, atk: 999, def: 999, spd: 999, spc: 999 },
+    weights: { hp: 20, atk: 20, def: 20, spd: 20, spc: 20 },
+    moves: [],
+    codexSum: 999 * 5,
+    tierClass: 'Immortal',
+    epithet: 'The Creator, Refracted Through the Key',
+    flavor: 'Ultharis Himself, glimpsed through the Realm-I face of Anciuxor when the Rizer channels the Ultimate Prismsynch.  Never captured.  Only communed with.',
+    easterEgg: true,
+    primaryDistrict: 'korathen',
+  };
+}
+// ★ ULTIMATE PRISMSYNCH — the 3-lock ceiling via the Key of Anciuxor.
+// Auto-added to the bag menu when ALL THREE canon locks fire:
+//   1. R.Lv 100                             (Rizer at cap)
+//   2. Anciuxor in party (bonded)          (Key is on His tail → automatic)
+//   3. Anciuxor bond >= BOND_MAX            (Max Zyrex Bond earned)
+// Distinct from the 3 civic Prisms (Deep, Refuge, Crown).  Ultra-high
+// power + guaranteed status.  Consumed one-per-battle just like the
+// civic Prisms.
+function ultimatePrismsynchAvailable() {
+  const p = game.player || {};
+  if ((p.rizerLv || 0) < (typeof RIZER_LV_CAP !== 'undefined' ? RIZER_LV_CAP : 100)) return false;
+  const anc = findBondedAnciuxor();
+  if (!anc) return false;
+  return true;
+}
+async function fireUltimatePrismsynch() {
+  if (!ultimatePrismsynchAvailable()) { renderMainMenu(); return; }
+  if (game.battle && game.battle.prismsynchFired) { renderMainMenu(); return; }
+  const p = game.player.party[game.battle.playerIdx];
+  const e = game.battle.enemy;
+  if (!p || !e) { renderMainMenu(); return; }
+  game.battle.prismsynchFired = true;
+  game.battle.prismsynchType = 'key_of_anciuxor';
+  const move = {
+    name: `${(p.name || 'RIZER').toUpperCase()}'S PRISMSYNCH · KEY OF ANCIUXOR`,
+    type: 'Divine',
+    power: 999,
+    cost: 0,
+    prismsynch: true,
+    statusChance: 1.0,   // guaranteed status
+    ultimate: true,
+  };
+  game.battle.animLock = true;
+  $battleActions.innerHTML = '';
+  try { playSfx('toast'); } catch(_) {}
+  showToast('◈  ULTIMATE PRISMSYNCH · KEY OF ANCIUXOR', 3200);
+  const enemyMove = pickEnemyMove(e, p);
+  await performMove(p, e, move, true);
+  if (!checkBattleOver()) {
+    if (e.hp > 0 && p.hp > 0) await performMove(e, p, enemyMove, false);
+  }
+  await endRoundTick();
+  if (checkBattleOver()) return;
+  refreshBattleUI();
+  game.battle.animLock = false;
+  renderMainMenu();
+}
 function ownedPrisms() {
   const it = (game.player && game.player.items) || {};
   return Object.keys(PRISM_TABLE).filter(k => (it[k] || 0) > 0);
@@ -18436,6 +18843,19 @@ function checkBattleOver() {
         const _from = game.player.enteredInteriorFrom;
         const _districtId = _from && _from.map;
         if (_districtId) awardNovarianQualifier(_districtId);
+      }
+      // ★ BOND GROWTH on battle win — the active Zyrex that finished the
+      // fight gains +5 Bond.  Every OTHER surviving party member gains +1
+      // (they shared the fight, just less directly).  Grows the invisible
+      // stat that unlocks the Ultimate Prismsynch endgame ceiling.
+      if (typeof bondGainOnBattleWin === 'function') {
+        const _active = game.player.party[game.battle.playerIdx];
+        if (_active) bondGainOnBattleWin(_active);
+        for (const _z of (game.player.party || [])) {
+          if (_z && _z !== _active && _z.hp > 0) {
+            _z.bond = Math.min(BOND_MAX, (_z.bond || 0) + 1);
+          }
+        }
       }
       // ★ GRAND CHAMPION win — hook Prismsynch payoff.
       if (game.battle.novarianGrandChampion && typeof grantPrismsynchPayoff === 'function') {
@@ -19505,6 +19925,8 @@ function openInspect(r, slotIdx) {
     <div class="inspect-row"><span class="lbl">DEF</span><span class="val">${r.stats.def}</span></div>
     <div class="inspect-row"><span class="lbl">SPD</span><span class="val">${r.stats.spd}</span></div>
     <div class="inspect-row"><span class="lbl">SPC</span><span class="val">${r.stats.spc}</span></div>
+    ${(r.bond > 0 || (typeof BOND_MAX !== 'undefined' && game.player && game.player.bondLessons && game.player.bondLessons.step3))
+      ? `<div class="inspect-row"><span class="lbl" style="color:var(--gold-bright);">Bond ★</span><span class="val" style="color:var(--gold-bright);">${r.bond || 0} / ${BOND_MAX}${(r.bond || 0) >= BOND_MAX ? ' · MAXED' : ''}</span></div>` : ''}
     <div class="inspect-section-title">Progress</div>
     ${progressLine}
     ${status ? `<div class="inspect-section-title">Status</div>
@@ -19631,8 +20053,11 @@ function updateHUD() {
   if (rizerEl) {
     const lv = game.player.rizerLv || 1;
     const xp = game.player.rizerXp || 0;
+    const capped = lv >= (typeof RIZER_LV_CAP !== 'undefined' ? RIZER_LV_CAP : 100);
     const need = rizerXpForNext(lv);
-    rizerEl.innerHTML = `<span class="l1">★ R.Lv ${lv}</span><span class="l2">${xp} / ${need}</span>`;
+    // At cap, don't render "0 / Infinity" — show MAX instead.
+    const line2 = capped ? `MAX` : `${xp} / ${need}`;
+    rizerEl.innerHTML = `<span class="l1">★ R.Lv ${lv}</span><span class="l2">${line2}</span>`;
   }
 }
 
@@ -19681,6 +20106,8 @@ function tryLoad() {
       r.stats = stats;
       r.maxHp = stats.hp;
       r.hp    = Math.max(0, Math.floor(hpRatio * r.maxHp));
+      // ★ Bond stat migration — legacy Zyrex without the field default to 0.
+      if (typeof r.bond !== 'number') r.bond = 0;
     };
     (game.player.party || []).forEach(migrateZyrex);
     (game.player.box   || []).forEach(migrateZyrex);

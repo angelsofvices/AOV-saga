@@ -167,6 +167,10 @@
       white-space: normal;
       display: flex; flex-direction: column; justify-content: center; align-items: center;
       /* V3.17.62 — clickable panel shortcuts */
+      /* 2026-07-17 fix: parent .hud has pointer-events: none so gameplay
+         canvas below stays clickable through the HUD's transparent gaps —
+         we re-enable pointer-events on the badge so onclick actually fires. */
+      pointer-events: auto;
       cursor: pointer;
       transition: background 0.12s, border-color 0.12s, transform 0.12s;
     }
@@ -2067,10 +2071,21 @@
         </div>
         <div id="notebook-list" class="notebook-list" style="max-height:60vh; overflow-y:auto;"></div>
         <div id="notebook-footer" class="notebook-footer"></div>
-        <!-- Bottom-right chapter-book tab bar -->
-        <div id="notebook-tabs" style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px; padding-top:8px; border-top:1px solid var(--border-soft);">
-          <button class="mainmenu-btn" data-notebook-tab="zyrex"  style="flex:0 0 auto; padding:6px 14px; font-size:12px; letter-spacing:0.18em;"><span class="mm-icon">◇</span>ZYREX</button>
-          <button class="mainmenu-btn" data-notebook-tab="allies" style="flex:0 0 auto; padding:6px 14px; font-size:12px; letter-spacing:0.18em;"><span class="mm-icon">✦</span>ALLIES</button>
+        <!-- ★ 2026-07-17 — Multi-tab chapter-book tab bar.  Tracks every
+             in-game progression thread.  Tabs wrap when the box is narrow. -->
+        <div id="notebook-tabs" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; margin-top:12px; padding-top:8px; border-top:1px solid var(--border-soft);">
+          <button class="mainmenu-btn" data-notebook-tab="story"      style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">◈</span>STORY</button>
+          <button class="mainmenu-btn" data-notebook-tab="bonds"      style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">★</span>BONDS</button>
+          <button class="mainmenu-btn" data-notebook-tab="novarian"   style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">⚑</span>NOVARIAN</button>
+          <button class="mainmenu-btn" data-notebook-tab="fathergems" style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">◉</span>GEMS</button>
+          <button class="mainmenu-btn" data-notebook-tab="broadcasts" style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">^</span>BROADCASTS</button>
+          <button class="mainmenu-btn" data-notebook-tab="districts"  style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">▣</span>DISTRICTS</button>
+          <button class="mainmenu-btn" data-notebook-tab="shrines"    style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">◇</span>SHRINES</button>
+          <button class="mainmenu-btn" data-notebook-tab="types"      style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">⌘</span>TYPES</button>
+          <button class="mainmenu-btn" data-notebook-tab="zyrex"      style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">◇</span>ZYREX</button>
+          <button class="mainmenu-btn" data-notebook-tab="allies"     style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em;"><span class="mm-icon">✦</span>ALLIES</button>
+          <!-- ★ DEV-ONLY: EASTER EGGS tab shown only when devMode is on. -->
+          <button class="mainmenu-btn" data-notebook-tab="eastereggs" data-dev-only="true" style="flex:0 0 auto; padding:6px 10px; font-size:11px; letter-spacing:0.14em; color:#ff6a4a; border-color:#ff6a4a; display:none;"><span class="mm-icon">⚑</span>EGGS</button>
         </div>
       </div>
     </div>
@@ -2273,6 +2288,11 @@ ctx.imageSmoothingEnabled = false;
 const TYPES = [
   'Aura','Beast','Creature','Extraterrestrial','Humanoid-Noid','Nature','Tech','Spirit','Ultramax','Unknown-Void',
   'Draconic','Crystal','Radiant','Divine','Corrupted','Verdant','Aquatic','Chrono','Astral','Elemental',
+  // ★ 21st TYPE (2026-07-17) — 'Ultimate'.  Combination of all 20 types.
+  // Deals 3× damage to every other type.  Has NO weaknesses (nothing
+  // super-effective back).  ONLY Anciuxor bears this type — He is the
+  // divine physical form of the God, the "Divine Hit."  See typeMult.
+  'Ultimate',
 ];
 // V2.29 — 20-type chart from V2.26.HANDOFF (2026-07-12 canon lock).
 // 20 types × 3 strengths / 3 weaknesses = 60 directed edges. Verified: perfect
@@ -2326,6 +2346,8 @@ const TYPE_COLORS = {
   'Chrono':            '#b0b8c8',   // silvered temporal
   'Astral':            '#9878ff',   // cosmic purple — star-touched
   'Elemental':         '#ff5c1a',   // raw fire-orange
+  // ★ 21st type — Ultimate (Anciuxor only) — layered gold + white palette
+  'Ultimate':          '#fff8c8',   // divine gold-white · the Ultimate combination
 };
 const TYPE_SHORT = {
   // Original 10
@@ -2336,8 +2358,15 @@ const TYPE_SHORT = {
   'Draconic':'DRAG','Crystal':'CRYS','Radiant':'RAD','Divine':'DIVI',
   'Corrupted':'CORR','Verdant':'VERD','Aquatic':'AQUA','Chrono':'CHRO',
   'Astral':'ASTR','Elemental':'ELEM',
+  'Ultimate':'ULTI',
 };
 function _typeMultSingle(atk, def) {
+  // ★ ULTIMATE — Anciuxor's sole type.  Attacker='Ultimate' hits ANY type
+  // for 3× damage.  Defender='Ultimate' has NO weaknesses (nothing hits
+  // Ultimate for extra).  Enforces the "divine hit" canon: the Ultimate
+  // type is the combination of all 20 types, unstoppable, unweakenable.
+  if (atk === 'Ultimate') return 3;
+  if (def === 'Ultimate') return 1;
   if (TYPE_STRONG_VS[atk] && TYPE_STRONG_VS[atk].includes(def)) return 2;
   if (TYPE_STRONG_VS[def] && TYPE_STRONG_VS[def].includes(atk)) return 0.5;
   return 1;
@@ -6549,9 +6578,10 @@ function generatePart2Map(zoneId) {
   }
   return grid.map(r => r.join(''));
 }
-// Part 2 travel graph.  Linear layout for RP7 district-hop.
+// Part 2 travel graph.  Linear layout for RP7 district-hop.  West of the
+// Bridge returns to BAELGOR (canon: Bridge is south of Baelgor per V3.17.63).
 const PART2_TRAVEL = {
-  bridge_of_hope:   { west: 'korathen',       east: 'old_conquest'    },
+  bridge_of_hope:   { west: 'baelgor',        east: 'old_conquest'    },
   old_conquest:     { west: 'bridge_of_hope', east: 'new_conquest'    },
   new_conquest:     { west: 'old_conquest',   east: 'pit_of_no_return'},
   pit_of_no_return: { west: 'new_conquest',   east: null              },
@@ -6562,15 +6592,15 @@ function handlePart2Portal(dir) {
   if (!graph) return false;
   const destId = (dir > 0) ? graph.east : graph.west;
   if (!destId) { showToast('THE MAP ENDS HERE — for now.', 1600); return true; }
-  // If destination is Korathen (returning north), pick a spawn just east
-  // of Korathen's throne hall entrance.  For other Part 2 zones, spawn
-  // opposite portal edge.
-  if (destId === 'korathen') {
-    const kor = MAPS.korathen;
-    const spawnX = kor ? Math.floor((kor.cols || 20) / 2) : 10;
-    const spawnY = kor ? Math.floor((kor.rows || 12) / 2) : 6;
-    enterMap('korathen', spawnX, spawnY, 'down');
-    showToast('◈  KORATHEN · Ultralands', 2000);
+  // If destination is BAELGOR (returning north across the Bridge), spawn
+  // the player one tile NORTH of Baelgor's south-edge Bridge portal so
+  // they don't immediately re-step onto '_' and get bounced back south.
+  if (destId === 'baelgor') {
+    const bae = MAPS.baelgor;
+    const spawnX = bae ? Math.floor((bae.cols || 24) / 2) : 12;
+    const spawnY = bae ? Math.max(1, (bae.rows || 12) - 2) : 10;
+    enterMap('baelgor', spawnX, spawnY, 'up');
+    showToast('◈  BAELGOR · Humanoidlands', 2000);
     return true;
   }
   const destMap = MAPS[destId];
@@ -8869,9 +8899,17 @@ function generateDistrictMap(mapId) {
       }
     }
   }
-  // Landing tile beneath the door
-  if (grid[hallY + 3] && grid[hallY + 3][hallX] !== undefined) {
-    grid[hallY + 3][hallX] = ',';
+  // Landing tile beneath the door + a 3-wide plaza so rift-slip arrivals
+  // don't get cornered against district-terrain walls (e.g. Thardin's
+  // mechlands wall pattern).  2026-07-17 fix.
+  for (let dx = -1; dx <= 1; dx++) {
+    const cc = hallX + dx;
+    if (grid[hallY + 3] && grid[hallY + 3][cc] !== undefined) grid[hallY + 3][cc] = ',';
+    if (grid[hallY + 4] && grid[hallY + 4][cc] !== undefined) {
+      // Only carve outer plaza row if it's currently a blocker tile.
+      const t = grid[hallY + 4][cc];
+      if ('#TWM'.includes(t)) grid[hallY + 4][cc] = ',';
+    }
   }
 
   // V3.6.2 — WANDERING MERCHANT 'S'.  Every district II-X gets a merchant
@@ -8984,7 +9022,31 @@ for (const id of DISTRICT_ORDER) {
   const idx  = DISTRICT_ORDER.indexOf(id);
   const cols = 30 + idx * 4;
   const rows = 20 + idx * 2;
-  const data = generateDistrictMap(id);
+  let data = generateDistrictMap(id);
+  // ★ BAELGOR SOUTH-BRIDGE PORTAL (2026-07-17) — canon: the Bridge of
+  // Hope is directly south of Baelgor per V3.17.63 map lock.  Post-process
+  // Baelgor's map to carve a walkable corridor from the district's core
+  // to the south edge, ending in a '_' Bridge portal tile.  Stepping onto
+  // the '_' fires tryTravelToBridge (gated by both endgame flags).
+  if (id === 'baelgor') {
+    const rowsArr = data.map(s => s.split(''));
+    const bridgeX = Math.floor(cols / 2);
+    // Carve straight down from mid-map to the south edge, punching through
+    // any wall / tree / mountain tiles in the way.
+    for (let y = Math.floor(rows / 2); y < rows; y++) {
+      if (!rowsArr[y]) continue;
+      const t = rowsArr[y][bridgeX];
+      if ('#TWM'.includes(t)) rowsArr[y][bridgeX] = ',';
+    }
+    // Also widen by one tile on each side for walkability at the very edge.
+    for (const dx of [-1, 1]) {
+      const t = rowsArr[rows - 1] && rowsArr[rows - 1][bridgeX + dx];
+      if (t && '#TWM'.includes(t)) rowsArr[rows - 1][bridgeX + dx] = ',';
+    }
+    // Place the Bridge portal at the south edge center.
+    if (rowsArr[rows - 1]) rowsArr[rows - 1][bridgeX] = '_';
+    data = rowsArr.map(r => r.join(''));
+  }
   MAPS[id] = { data, cols, rows, label: `${meta.name} · ${meta.land}` };
 }
 
@@ -9640,6 +9702,34 @@ function drawTile(x, y, ch, mx, my) {
         ctx.fillStyle = sparkleTint;
         ctx.fillRect(px + 12, py + 12, 3, 3);
       }
+      break;
+    }
+    case '_': {
+      // ★ BAELGOR SOUTH BRIDGE PORTAL (2026-07-17).  Rendered as a
+      // ceremonial gold plank bridge — matches the Bridge of Hope canon
+      // colour (see PART2_META.bridge_of_hope).  Stepping onto this tile
+      // triggers tryTravelToBridge().
+      const gradB = ctx.createLinearGradient(px, py, px, py + TILE);
+      gradB.addColorStop(0, '#8a6420');
+      gradB.addColorStop(1, '#6a5028');
+      ctx.fillStyle = gradB;
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = '#f8c840';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+      // plank lines
+      ctx.strokeStyle = '#3a2d1a';
+      ctx.beginPath();
+      ctx.moveTo(px + 3,        py + 8);  ctx.lineTo(px + TILE - 3, py + 8);
+      ctx.moveTo(px + 3,        py + 16); ctx.lineTo(px + TILE - 3, py + 16);
+      ctx.moveTo(px + 3,        py + 24); ctx.lineTo(px + TILE - 3, py + 24);
+      ctx.stroke();
+      // subtle south arrow so the player reads the direction
+      ctx.fillStyle = '#ffe488';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('▼', px + TILE / 2, py + TILE - 4);
+      ctx.textAlign = 'left';
       break;
     }
     case '.':
@@ -12914,6 +13004,21 @@ function openItemsView() {
     // tree.  ALSO the only item that revives a KO'd Zyrex (100% HP + status
     // clear).  Second-only-to-sleep as a revive method.
     { key: 'revival_stem',  name: 'Revival Stem',   desc: 'Full HP + clears status.  The ONLY item that revives a KO\'d Zyrex.  From Mom\'s plant.',    count: (it.revival_stem || 0) },
+    // ★ STATUS-CURE FLOWERS — 5 items, one per status.  Grown from a
+    // matching seed + PURE WATER at Mom's plant.  Cures the target status
+    // and resets affected stat stages.
+    { key: 'flower_of_zeal',      name: 'Flower of Zeal',      desc: 'Cures OVERCOOK · ATK returns to baseline.  Grown from a SPARK SEED + PURE WATER at Mom\'s plant.',                       count: (it.flower_of_zeal      || 0) },
+    { key: 'flower_of_serenity',  name: 'Flower of Serenity',  desc: 'Cures PSYCHACHE · DEF returns to baseline.  Grown from a CALM SEED + PURE WATER at Mom\'s plant.',                     count: (it.flower_of_serenity  || 0) },
+    { key: 'flower_of_swiftness', name: 'Flower of Swiftness', desc: 'Cures UNDERSHOCK · SPD returns to baseline.  Grown from a SWIFT SEED + PURE WATER at Mom\'s plant.',                    count: (it.flower_of_swiftness || 0) },
+    { key: 'flower_of_clarity',   name: 'Flower of Clarity',   desc: 'Cures GRIDFREEZE · SPC returns to baseline.  Grown from a CLARITY SEED + PURE WATER at Mom\'s plant.',                  count: (it.flower_of_clarity   || 0) },
+    { key: 'flower_of_light',     name: 'Flower of Light',     desc: 'Cures SOULDRIFT · HP-decay ends.  Grown from a LIGHT SEED + PURE WATER at Mom\'s plant.',                                count: (it.flower_of_light     || 0) },
+    // Seeds + water — resources, not usable directly (planted at Mom's).
+    { key: 'spark_seed',    name: 'Spark Seed',    desc: 'A hot little seed.  Plant it at Mom\'s and add PURE WATER to grow a Flower of Zeal (cures Overcook).',      count: (it.spark_seed   || 0) },
+    { key: 'calm_seed',     name: 'Calm Seed',     desc: 'A round cool seed.  Plant it at Mom\'s and add PURE WATER to grow a Flower of Serenity (cures Psychache).', count: (it.calm_seed    || 0) },
+    { key: 'swift_seed',    name: 'Swift Seed',    desc: 'A weightless seed.  Plant it at Mom\'s and add PURE WATER to grow a Flower of Swiftness (cures Undershock).', count: (it.swift_seed || 0) },
+    { key: 'clarity_seed',  name: 'Clarity Seed',  desc: 'A translucent seed.  Plant it at Mom\'s and add PURE WATER to grow a Flower of Clarity (cures Gridfreeze).', count: (it.clarity_seed || 0) },
+    { key: 'light_seed',    name: 'Light Seed',    desc: 'A luminous seed.  Plant it at Mom\'s and add PURE WATER to grow a Flower of Light (cures Souldrift).',      count: (it.light_seed   || 0) },
+    { key: 'pure_water',    name: 'Pure Water',    desc: 'A vial of clean water drawn from a water tile.  Needed to grow flowers at Mom\'s plant.  Non-consumable outside the growth ritual.', count: (it.pure_water || 0) },
     { key: 'zysphere',        name: 'Zysphere',       desc: 'Synchronizes with a wild Zyrex\'s astralite makeup.  If they submit, they are bound.',              count: (game.player.zyspheres      || 0) },
     { key: 'zysphere_void',   name: 'Void Zysphere',  desc: 'Void-etched Thardun matrix.  +40% sync odds vs the basic sphere.',                                     count: (game.player.zyspheresVoid  || 0) },
     { key: 'zysphere_ultra',  name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                                count: (game.player.zyspheresUltra || 0) },
@@ -13029,6 +13134,21 @@ function openItemsView() {
     body.appendChild(row);
   }
 }
+// ★ STATUS-CURE FLOWERS (2026-07-17) — 5 status-cure items, one per
+// canonical status.  Grown at Mom's plant from a matching seed + a
+// dose of PURE WATER retrieved from any water tile.  Curing a status
+// also resets the affected stat stage so the Zyrex returns to baseline.
+const STATUS_FLOWER = {
+  overcook:   { seed: 'spark_seed',   flower: 'flower_of_zeal',      display: 'Flower of Zeal'      },
+  psychache:  { seed: 'calm_seed',    flower: 'flower_of_serenity',  display: 'Flower of Serenity'  },
+  undershock: { seed: 'swift_seed',   flower: 'flower_of_swiftness', display: 'Flower of Swiftness' },
+  gridfreeze: { seed: 'clarity_seed', flower: 'flower_of_clarity',   display: 'Flower of Clarity'   },
+  souldrift:  { seed: 'light_seed',   flower: 'flower_of_light',     display: 'Flower of Light'     },
+};
+const FLOWER_TO_STATUS = Object.fromEntries(
+  Object.entries(STATUS_FLOWER).map(([status, cfg]) => [cfg.flower, status])
+);
+const STATUS_FLOWER_KEYS = Object.values(STATUS_FLOWER).map(c => c.flower);
 function useItem(key, targetIdx) {
   // V3.10.5 — Grand Potion / Master Potion also usable from the items
   // overlay outside battle.  V3.17.34 rebalance:
@@ -13045,7 +13165,8 @@ function useItem(key, targetIdx) {
   // openItemTargetPicker(key) which lets the player pick which Zyrex to
   // use the item on.  If targetIdx is a number, apply directly to that
   // party slot (called back from the picker).
-  if (!['potion','grand_potion','master_potion','revival_stem'].includes(key)) return;
+  const isStatusFlower = STATUS_FLOWER_KEYS.includes(key);
+  if (!isStatusFlower && !['potion','grand_potion','master_potion','revival_stem'].includes(key)) return;
   if (!game.player.items || (game.player.items[key] || 0) <= 0) return;
   if (typeof targetIdx !== 'number') {
     openItemTargetPicker(key);
@@ -13056,6 +13177,30 @@ function useItem(key, targetIdx) {
   const clearsStatus = isStem || isMaster;
   let target = game.player.party[targetIdx];
   if (!target) { showToast('NO ZYREX IN THAT SLOT'); return; }
+  // ★ FLOWER (status-cure) branch — must match the Zyrex's current status.
+  if (isStatusFlower) {
+    const curesStatus = FLOWER_TO_STATUS[key];
+    const currentStatus = target.status && (target.status.key || target.status);
+    if (!currentStatus) {
+      showToast(`${target.name} HAS NO STATUS TO CURE`);
+      return;
+    }
+    if (currentStatus !== curesStatus) {
+      const flowerName = (STATUS_FLOWER[curesStatus] && STATUS_FLOWER[curesStatus].display) || key.toUpperCase();
+      showToast(`${flowerName} ONLY CURES ${curesStatus.toUpperCase()}`);
+      return;
+    }
+    // Cure it — clear status + reset affected stat stages so the Zyrex
+    // returns to full baseline.
+    target.status = null;
+    target.atkStage = 0; target.defStage = 0;
+    game.player.items[key]--;
+    save();
+    const flowerName = (STATUS_FLOWER[curesStatus] && STATUS_FLOWER[curesStatus].display) || key.toUpperCase();
+    showToast(`✚ ${target.name} · ${currentStatus.toUpperCase()} cured · ${flowerName}`);
+    openItemsView();
+    return;
+  }
   // Validate the pick — potions can't revive, need something to heal.
   if (!isStem && target.hp <= 0) {
     showToast(`${target.name} IS KO'D · use REVIVAL STEM`);
@@ -13195,9 +13340,25 @@ const SHOP_STOCK = [
   { key: 'potion',        name: 'Potion',         desc: 'Heals 40 HP.',                                                                          price: 5  },
   { key: 'grand_potion',  name: 'Grand Potion',   desc: 'Heals 100 HP.  Baelgor nurse-grade.',                                                    price: 25,  rizerLvNeed: 5  },
   { key: 'master_potion', name: 'Master Potion',  desc: 'Heals 50% of max HP + clears status.  Elixir-grade.  Cannot revive KO.',                  price: 60,  rizerLvNeed: 15 },
+  // ★ REVIVAL STEM (2026-07-17) — merchant stocks it AFTER the player
+  // has planted a Verdant Seed at Mom's fern (game.player.momsPlantFedOnce).
+  // Full HP + status + KO revival — high price to match its power.
+  { key: 'revival_stem',  name: 'Revival Stem',   desc: 'FULL HP + clears status + REVIVES KO.  Same stem Mom\'s plant grows.  Only in stock after you plant a Verdant Seed at home.',                                                                             price: 120, unlockFlag: 'momsPlantFedOnce' },
   { key: 'zysphere',      name: 'Zysphere',       desc: 'Basic Thardun matrix.  Sync-binds a wild Zyrex.',                                        price: 10 },
   { key: 'zysphere_void', name: 'Void Zysphere',  desc: 'Void-etched matrix.  +40% sync odds vs the basic sphere.',                                price: 30,  rizerLvNeed: 10 },
   { key: 'zysphere_ultra',name: 'Ultra Zysphere', desc: 'Ultramax lattice.  +80% sync odds vs the basic sphere.',                                  price: 90,  rizerLvNeed: 25 },
+  // ★ VIAL UPGRADES (2026-07-17) — permanent +% bonus to water-tile purity
+  // rolls.  Each tier requires the previous.  Bought once, applies for
+  // the rest of the save via game.player.vialTier.
+  { key: 'refined_vial', name: 'Refined Vial (+5%)',  desc: 'Wider mouth, finer strain.  Adds +5% to every water-tile purity roll.  Permanent.',  price: 200,  unlockCheck: (p) => !!p.momsPlantFedOnce && (p.vialTier || 0) < 1,  onBuy: (p) => { p.vialTier = 1; } },
+  { key: 'elite_vial',   name: 'Elite Vial (+10%)',   desc: 'Silver-cored filter membrane.  Adds +10% to every water-tile purity roll.  Requires Refined Vial owned.',  price: 500,  unlockCheck: (p) => (p.vialTier || 0) === 1,  onBuy: (p) => { p.vialTier = 2; } },
+  { key: 'divine_vial',  name: 'Divine Vial (+25%)',  desc: 'Astralite-etched crystal.  Adds +25% to every water-tile purity roll.  Requires Elite Vial owned.',        price: 1500, unlockCheck: (p) => (p.vialTier || 0) === 2,  onBuy: (p) => { p.vialTier = 3; } },
+  // ★ FLOWER SEEDS (2026-07-17) — plant at Mom's + pure water = status-cure flower.
+  { key: 'spark_seed',    name: 'Spark Seed',    desc: 'Plant at Mom\'s + PURE WATER → Flower of Zeal (cures Overcook).',        price: 20 },
+  { key: 'calm_seed',     name: 'Calm Seed',     desc: 'Plant at Mom\'s + PURE WATER → Flower of Serenity (cures Psychache).',   price: 20 },
+  { key: 'swift_seed',    name: 'Swift Seed',    desc: 'Plant at Mom\'s + PURE WATER → Flower of Swiftness (cures Undershock).', price: 20 },
+  { key: 'clarity_seed',  name: 'Clarity Seed',  desc: 'Plant at Mom\'s + PURE WATER → Flower of Clarity (cures Gridfreeze).',   price: 20 },
+  { key: 'light_seed',    name: 'Light Seed',    desc: 'Plant at Mom\'s + PURE WATER → Flower of Light (cures Souldrift).',      price: 20 },
 ];
 // V3.10.1 — WANDERING MERCHANT preamble.  Every time the player walks
 // up and interacts with an 'S' merchant tile, the merchant hiccups a
@@ -13246,6 +13407,15 @@ function renderShop() {
   const rLv = game.player.rizerLv || 1;
   document.getElementById('shop-coins').textContent = `¢ ${game.player.coins || 0}  ·  ◈ ${game.player.gems || 0}  ·  ★ R.Lv ${rLv}`;
   for (const it of SHOP_STOCK) {
+    // ★ FLAG GATE (2026-07-17) — an item hidden from stock entirely until
+    // a specific game.player boolean flips (e.g. Revival Stem waits for
+    // momsPlantFedOnce).  Distinct from the Rizer-Level lock which still
+    // shows the row with a lock chip.
+    if (it.unlockFlag && !game.player[it.unlockFlag]) continue;
+    // ★ UNLOCK CHECK function — more flexible than a flag; used by the
+    // vial-tier chain so each higher tier only appears after the previous
+    // has been purchased.
+    if (typeof it.unlockCheck === 'function' && !it.unlockCheck(game.player)) continue;
     // V3.10 — Rizer Level gate.  Items above the player's current
     // R.Lv render greyed with a lock chip; the BUY button is disabled
     // until they hit the threshold.
@@ -13317,6 +13487,20 @@ function buyItem(it) {
   // V3.10 — respect the Rizer-Level gate even if the caller bypassed
   // the disabled button (e.g., stale click during a level-up race).
   if (it.rizerLvNeed && (game.player.rizerLv || 1) < it.rizerLvNeed) return;
+  // ★ Flag gate defensively re-checked at purchase.
+  if (it.unlockFlag && !game.player[it.unlockFlag]) return;
+  // ★ Function-gate re-checked at purchase (vial tier chain).
+  if (typeof it.unlockCheck === 'function' && !it.unlockCheck(game.player)) return;
+  // ★ onBuy hook — vials use this to bump vialTier instead of hoarding
+  // consumables.  If onBuy is defined it fully owns the credit.
+  if (typeof it.onBuy === 'function') {
+    game.player.coins -= it.price;
+    it.onBuy(game.player);
+    save(); updateHUD();
+    showToast(`+ ${it.name.toUpperCase()}  ¢-${it.price}`);
+    renderShop();
+    return;
+  }
   game.player.coins -= it.price;
   // V3.6.1 — 'gem' branch retained only as a defensive no-op guard;
   // Astralite Gems are no longer purchasable, but if some legacy code
@@ -13700,18 +13884,12 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
 document.addEventListener('pointerdown', primeMusicOnGesture, { capture: true });
 
 // touch — tap edges to move, center to interact
+// ★ 2026-07-17 fix — canvas click is now A-only.  No movement.  Only
+// arrow keys / WASD move the character.  Any click on the overworld
+// canvas fires tryInteract() (equivalent to pressing A / Z / Enter).
 canvas.addEventListener('click', (e) => {
   if (game.mode !== 'overworld') return;
-  const r = canvas.getBoundingClientRect();
-  const rx = (e.clientX - r.left) / r.width;
-  const ry = (e.clientY - r.top) / r.height;
-  // 3x3 zones
-  const dx = rx < 0.35 ? -1 : rx > 0.65 ? 1 : 0;
-  const dy = ry < 0.35 ? -1 : ry > 0.65 ? 1 : 0;
-  if (dx === 0 && dy === 0) { tryInteract(); return; }
-  // prefer horizontal if diagonal
-  if (dx) tryMove(dx, 0);
-  else    tryMove(0, dy);
+  tryInteract();
 });
 
 function tryMove(dx, dy) {
@@ -13749,6 +13927,14 @@ function tryMove(dx, dy) {
       return;
     }
     travelDistrict(nt === '>' ? +1 : -1);
+    return;
+  }
+  // ★ BAELGOR SOUTH BRIDGE PORTAL — stepping onto '_' opens The Bridge
+  // of Hope IF both endgame flags fire.  Otherwise the sentinel dialog
+  // (from tryTravelToBridge) explains what's still owed.
+  if (nt === '_') {
+    game.player.moveCd = 260;
+    if (typeof tryTravelToBridge === 'function') tryTravelToBridge();
     return;
   }
   if (!walkable(nx, ny)) { game.player.moveCd = 120; return; }
@@ -14464,6 +14650,32 @@ function tryInteract() {
     // VERDANT SEED (the seed teaches you which trees remember their old
     // growth).  10% chance per untouched tree to shake loose a Revival Stem.
     interactTree(tx, ty);
+  } else if (t === 'W') {
+    // ★ WATER TILE (2026-07-17) — not all water sources are pure enough.
+    // Each tile has a deterministic PURITY value in [10%, 50%] baked into
+    // its position hash.  Interacting rolls that chance to draw a vial of
+    // PURE WATER.  Repeatable (unlike trees) — a "good" tile becomes a
+    // reliable source once the player finds it.
+    // ★ VIAL BONUS (2026-07-17) — vialTier upgrades add a flat bonus to
+    // the effective purity roll.  Tier 1 = +5% · Tier 2 = +10% · Tier 3
+    // = +25%.  Purchased at merchant, permanent per save.
+    const items = game.player.items = game.player.items || {};
+    const hashA = (tx * 41 + ty * 89 + (game.player.mapId || '').charCodeAt(0)) >>> 0;
+    const purity = 0.10 + ((hashA % 41) / 100);   // [0.10, 0.50]
+    const vialTier = game.player.vialTier || 0;
+    const vialBonus = vialTier === 3 ? 0.25 : vialTier === 2 ? 0.10 : vialTier === 1 ? 0.05 : 0;
+    const effective = Math.min(1, purity + vialBonus);
+    const roll = Math.random();
+    if (roll < effective) {
+      items.pure_water = (items.pure_water || 0) + 1;
+      save();
+      try { playSfx('toast'); } catch(_) {}
+      const bonusStr = vialBonus > 0 ? ` (+${Math.round(vialBonus*100)}% vial)` : '';
+      showToast(`◈  +1 PURE WATER  ·  ${Math.round(effective*100)}% effective${bonusStr}`, 2400);
+    } else {
+      try { playSfx('disabled'); } catch(_) {}
+      showToast(`◇  The water here is too murky today · ${Math.round(effective*100)}% effective source`, 2400);
+    }
   } else if (t === 'm') {
     interactMom();
   } else if (t === 'd') {
@@ -14993,17 +15205,374 @@ function openNotebookView(startTab) {
   renderNotebookTab();
 }
 function renderNotebookTab() {
+  // ★ DEV-ONLY TABS — show only when game.devMode is on.  Currently
+  // covers the EASTER EGGS tab (hidden bonus events, playtest-check).
+  const devOn = !!(game && game.devMode);
+  document.querySelectorAll('#notebook-tabs [data-notebook-tab]').forEach(btn => {
+    const isDevOnly = btn.getAttribute('data-dev-only') === 'true';
+    if (isDevOnly) btn.style.display = devOn ? '' : 'none';
+    // If the active tab is dev-only and dev mode just flipped off, fall
+    // back to STORY to prevent an invisible-selection dead state.
+    if (isDevOnly && !devOn && _notebookTab === btn.getAttribute('data-notebook-tab')) {
+      _notebookTab = 'story';
+    }
+  });
   // Highlight the active tab button
   document.querySelectorAll('#notebook-tabs [data-notebook-tab]').forEach(btn => {
+    const isDevOnly = btn.getAttribute('data-dev-only') === 'true';
     const active = btn.getAttribute('data-notebook-tab') === _notebookTab;
-    btn.style.borderColor = active ? 'var(--gold-bright)' : 'var(--border-soft)';
-    btn.style.background  = active ? 'rgba(232,200,120,0.15)' : 'transparent';
-    btn.style.color       = active ? 'var(--gold-bright)' : 'var(--ivory)';
+    if (isDevOnly) {
+      // Dev-only tabs keep their red-tint styling regardless of active state
+      btn.style.background = active ? 'rgba(255,106,74,0.15)' : 'transparent';
+    } else {
+      btn.style.borderColor = active ? 'var(--gold-bright)' : 'var(--border-soft)';
+      btn.style.background  = active ? 'rgba(232,200,120,0.15)' : 'transparent';
+      btn.style.color       = active ? 'var(--gold-bright)' : 'var(--ivory)';
+    }
   });
   const title = document.getElementById('notebook-title');
-  if (title) title.textContent = 'Dad\'s Notebook · ' + (_notebookTab === 'zyrex' ? 'Zyrex Codex' : 'Allies · Legends of Zyraxis');
-  if (_notebookTab === 'zyrex') return renderNotebookZyrex();
-  if (_notebookTab === 'allies') return renderNotebookAllies();
+  const titles = {
+    zyrex:      'Zyrex Codex',
+    allies:     'Allies · Legends of Zyraxis',
+    story:      'Story · Zyrex + Rizer Paths',
+    bonds:      'Bond Training · Kelthor\'s 8 Steps',
+    novarian:   'Novarian Challenge · Rizer Path',
+    fathergems: 'Fathergems · Ten Shards',
+    broadcasts: 'Broadcasts · Myara\'s Live Radio',
+    districts:  'Districts · Ninth World Log',
+    shrines:    'Shrines · Ancient Answers',
+    types:      'Type Chart · 21 Types',
+    eastereggs: '⚑ Easter Eggs · DEV playtest view',
+  };
+  if (title) title.textContent = 'Dad\'s Notebook · ' + (titles[_notebookTab] || 'Zyrex Codex');
+  if (_notebookTab === 'zyrex')      return renderNotebookZyrex();
+  if (_notebookTab === 'allies')     return renderNotebookAllies();
+  if (_notebookTab === 'story')      return renderNotebookStory();
+  if (_notebookTab === 'bonds')      return renderNotebookBonds();
+  if (_notebookTab === 'novarian')   return renderNotebookNovarian();
+  if (_notebookTab === 'fathergems') return renderNotebookFathergems();
+  if (_notebookTab === 'broadcasts') return renderNotebookBroadcasts();
+  if (_notebookTab === 'districts')  return renderNotebookDistricts();
+  if (_notebookTab === 'shrines')    return renderNotebookShrines();
+  if (_notebookTab === 'types')      return renderNotebookTypes();
+  if (_notebookTab === 'eastereggs') return renderNotebookEasterEggs();
+}
+// ★ DEV-ONLY: EASTER EGGS notebook panel (2026-07-17).  Lists every
+// hidden bonus event in the game so playtesters can verify each beat.
+// Only reachable when game.devMode is on (the EGGS tab button hides
+// itself otherwise).  Grouped by content area.
+function renderNotebookEasterEggs() {
+  const p = game.player || {};
+  const it = p.items || {};
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  let html = '';
+  // Section: Anciuxor home-cycle
+  html += _nbSectionTitle('Anciuxor · Statue Home-Cycle');
+  html += _nbRow({
+    done: (p.statuePrayCount || 0) >= 10,
+    title: 'Prayed at the ancient statue × 10',
+    meta: `Current prayers: ${p.statuePrayCount || 0} / 10.  Grants the statue part on the 10th.`,
+    right: `${p.statuePrayCount || 0}/10`,
+  });
+  html += _nbRow({ done: !!p.statuePartHeld,       title: 'Statue part in hand',              meta: 'Fell from the pedestal on the 10th prayer.' });
+  html += _nbRow({ done: !!p.momBlessedStatue,      title: 'Mom\'s blessing given',            meta: '"It will PROTECT YOU."' });
+  html += _nbRow({ done: !!p.dadWarnedStatue,       title: 'Dad\'s warning given',             meta: '"Never let it get in the wrong hands."' });
+  html += _nbRow({ done: !!p.firepitEmberBurned,    title: 'Fireplace consecration fired',     meta: 'Statue part burned → Anciuxor granted.' });
+  html += _nbRow({ done: !!p.anciuxorGranted,       title: '★ ANCIUXOR granted (Lv 100 · 666 all-stats · sole Ultimate type)', meta: 'The Ancient One in your party.' });
+  // Section: Quiet Child
+  html += _nbSectionTitle('The Quiet Child');
+  html += _nbRow({
+    done: (p.quietChildSightings || 0) >= 1,
+    title: 'First Quiet Child sighting',
+    meta: `Total sightings: ${p.quietChildSightings || 0}`,
+    right: `${p.quietChildSightings || 0}`,
+  });
+  html += _nbRow({ done: !!p.quietChildForgiven, title: 'Quiet Child forgiven',       meta: 'Post-Xenoxil beat.  Vengrizz gifted at Lv 80.' });
+  html += _nbRow({ done: !!p.quietChildBlessed,  title: 'Quiet Child blessed by Ancient One', meta: 'Anciuxor path.  Also gifts Vengrizz.  Adds child to Allies.' });
+  // Section: Aurabeasts (pre-starter)
+  html += _nbSectionTitle('Aurabeasts · Pre-Starter');
+  html += _nbRow({ done: !!p.aurabeastGiftGiven, title: 'Dad\'s workbench interacted before starter picker', meta: 'Unlocks all 4 Aurabeasts (Diviniara · Pyrothrax · Voltaryx · Scaleon) at Lv 5.' });
+  // Section: Homunculi
+  html += _nbSectionTitle('Homunculi · Mom\'s Nurse Rite');
+  html += _nbRow({ done: !!p.homunculusFound,      title: 'Forgotten Homunculus found',      meta: 'From the cottage cellar (Zarvane\'s Sunlit Way).' });
+  html += _nbRow({ done: !!p.elzebubGranted,       title: 'Elzebub granted',                 meta: 'Forgotten Homunculus → Mom\'s rite → Elzebub joins.' });
+  html += _nbRow({ done: (it.petragryff_homunculus || 0) > 0, title: 'Petragryff Homunculus made', meta: 'Ancient Rune + workbench experiment.' });
+  html += _nbRow({ done: !!p.petragryffGranted,    title: 'Petragryff granted',              meta: 'Petragryff Homunculus → Mom → Lv 40 join.' });
+  // Section: Shrine relics + redemptions
+  html += _nbSectionTitle('Shrine Relics · Home Redemptions');
+  html += _nbRow({ done: (it.sunlit_ember || 0) > 0 || (it.forge_ember && (it.sunlit_ember || 0) === 0 && p.fireplaceEmberBurned),
+                   title: 'Sunlit Ember carried',              meta: 'Zarvane shrine · used at fireplace for 9000 coins.' });
+  html += _nbRow({ done: !!p.voidFragmentInstalled,            title: 'Void Fragment → Rift Slip installed', meta: 'Netharion shrine · radio in basement unlocks fast-travel.' });
+  html += _nbRow({ done: (it.ancient_rune || 0) > 0 || !!p.petragryffGranted, title: 'Ancient Rune used at workbench',      meta: 'Andrannor shrine · triggers Petragryff Homunculus.' });
+  html += _nbRow({ done: (it.verdant_seed || 0) > 0 || !!p.momsPlantFedOnce,  title: 'Verdant Seed planted at Mom\'s',      meta: 'Veridan shrine · grants Revival Stem + unlocks merchant Revival Stem.' });
+  html += _nbRow({ done: (it.alien_chip || 0) > 0,             title: 'Alien Chip carried',                  meta: 'Vorashil shrine.' });
+  html += _nbRow({ done: (it.wisp_breath || 0) > 0,            title: 'Wisp Breath carried',                 meta: 'Xilnar shrine.' });
+  html += _nbRow({ done: (it.forge_ember || 0) > 0,            title: 'Forge Ember carried',                 meta: 'Baelgor shrine.' });
+  html += _nbRow({ done: (it.gear_cog || 0) > 0,               title: 'Gear Cog carried',                    meta: 'Thardin shrine.' });
+  html += _nbRow({ done: (it.imperial_crest || 0) > 0,         title: 'Imperial Crest carried',              meta: 'Korathen shrine.' });
+  html += _nbRow({ done: (it.ancient_gemsight || 0) > 0,       title: '★ ANCIENT GEMSIGHT granted',          meta: '9/9 shrines meta-quest.  Reveals chest + commander + shrine badges on world map.' });
+  // Section: Legacy tech / cosmetics
+  html += _nbSectionTitle('Legacy Tech · Cosmetics · Misc');
+  html += _nbRow({ done: (it.computer_part || 0) > 0 || !!p.pcStorageInstalled, title: 'Computer Part found', meta: 'Sunlit Cottage cellar · installs PC Storage at basement terminal.' });
+  html += _nbRow({ done: !!p.pcStorageInstalled,             title: 'PC Storage installed',           meta: 'Excess Zyrex box active.' });
+  html += _nbRow({ done: !!p.mohawkUnlocked,                 title: 'Psychosyd Mohawk unlocked',      meta: 'Signed red guitar in your bedroom.' });
+  html += _nbRow({ done: !!p.skullShirtUnlocked,             title: 'Psychosyd Skull Shirt unlocked', meta: 'Same guitar interact.' });
+  html += _nbRow({ done: !!p.kelthorFatherHint,              title: 'Kelthor father-hint fired',      meta: 'Mid-game Kelthor beat: "I saw the same in your father at your age."' });
+  html += _nbRow({ done: !!p.kelthorStoryHandoffFired,        title: 'Kelthor STORY HANDOFF fired',    meta: 'Post-Xenoxil: Kelthor points at the Novarian Path as the new main story.' });
+  html += _nbRow({ done: (p.respects || []).length >= 10,    title: 'All 10 Gemlord Respects earned', meta: 'Post-endgame duel path.  Grants "Conqueror of Gemlords" title.' });
+  html += _nbRow({ done: (Object.keys(p.broadcasts || {}).length) >= 10, title: '10/10 Broadcasts · Voice of the Expanse', meta: 'Every Broadcast Tower interacted.' });
+  html += _nbRow({ done: (Object.keys(p.bondLessons || {}).length) >= 8, title: 'All 8 Bond Lessons learned · Bond Master', meta: 'Every Kelthor teaching claimed.' });
+  html += _nbRow({ done: !!p.ultharisMode,                   title: '★ ULTHARIS MODE cheat active',   meta: 'Dev toggle · grants every easter egg + full Zyrex roster.' });
+  list.innerHTML = html;
+  // Aggregate — count how many bonus flags fired.
+  const totalRows = (html.match(/◈/g) || []).length + (html.match(/○/g) || []).length;
+  const doneRows  = (html.match(/◈/g) || []).length;
+  foot.textContent = `⚑ DEV EASTER-EGG TRACKER  ·  ${doneRows} / ${totalRows} hidden beats fired.  Not visible outside dev mode.`;
+}
+// ★ 2026-07-17 · Notebook helpers — tabbed multi-panel story tracker.
+// Every panel reads live from game.player state so progress reflects the
+// current save.  Rows use a shared helper for consistent styling.
+function _nbRow({ done, dim, title, meta, right }) {
+  const bg     = done ? 'rgba(90,40,140,0.14)' : 'rgba(20,10,40,0.15)';
+  const border = done ? 'var(--border-gold)'    : 'var(--border-soft)';
+  const opacity = dim ? '0.55' : '1';
+  const titleColor = done ? 'var(--gold-bright)' : 'var(--ivory)';
+  return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border:1px solid ${border}; background:${bg}; border-radius:3px; opacity:${opacity}; margin-bottom:6px;">
+    <div style="flex:1; min-width:0;">
+      <div style="font-family:var(--font-display); font-size:12px; color:${titleColor}; letter-spacing:0.14em;">${done ? '◈' : '○'}  ${title}</div>
+      ${meta ? `<div style="font-size:10px; color:var(--mist); margin-top:2px; letter-spacing:0.08em;">${meta}</div>` : ''}
+    </div>
+    ${right ? `<div style="font-family:var(--font-display); font-size:10px; color:${done ? 'var(--gold-bright)' : 'var(--mist)'}; letter-spacing:0.14em; margin-left:12px;">${right}</div>` : ''}
+  </div>`;
+}
+function _nbSectionTitle(text) {
+  return `<div style="font-family:var(--font-display); font-size:11px; color:var(--gold-bright); letter-spacing:0.20em; margin: 10px 4px 6px; text-transform:uppercase;">${text}</div>`;
+}
+function renderNotebookStory() {
+  const p = game.player || {};
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  // ★ 2026-07-17 — Story tab is MAINLINE ONLY.  No easter eggs, no
+  // hidden bonus events (Anciuxor statue chain, Quiet Child forgiveness,
+  // Aurabeasts pre-starter, etc. all removed).  Only the two canon paths
+  // — Zyrex Path (Seer arc → Xenoxil) and Rizer Path (Novarian Challenge)
+  // — are tracked here.  Per-medium-consistency lock: this list is the
+  // canon list that ships across TCG + mobile + console.
+  const cmds = p.seerCommandersDefeated || {};
+  const cmdCount = Object.keys(cmds).length;
+  const qWonCount = (typeof novarianQualifiersWonCount === 'function') ? novarianQualifiersWonCount() : 0;
+  const beats = [
+    // Prologue
+    { done: !!p.metMomGave,                         title: 'Left home with the starter kit',       meta: 'Mom handed you your Zyspheres + potions and sent you east.', section: 'Prologue' },
+    // ZYREX PATH · main storyline
+    { done: cmdCount >= 1,                          title: 'First Seer Commander defeated',        meta: 'One district freed.  The Accord begins to hold again.',                     section: 'Zyrex Path' },
+    { done: cmdCount >= 10,                         title: 'All 10 Fathergems reclaimed',          meta: 'Every district\'s Seer Commander down.  The Ninth World stands with you.', section: 'Zyrex Path' },
+    { done: !!p.xenoxilDefeated,                    title: 'Xenoxil the Fleshlord defeated',       meta: 'Endgame ultimatum ends.  The Seer crisis closes.',                          section: 'Zyrex Path' },
+    // RIZER PATH · Novarian Challenge
+    { done: !!p.novarianEnrolled,                   title: 'Enrolled in the Novarian Challenge',   meta: 'Kelthor invited you into the civic arc.',                                   section: 'Rizer Path' },
+    { done: qWonCount >= 10,                        title: 'All 10 Novarian qualifiers won',       meta: 'Every district\'s Hall Rizer defeated.  The Korathen bracket is yours.',    section: 'Rizer Path' },
+    { done: !!p.novarianGrandChampion,              title: 'Grand Champion mantle earned',         meta: 'Ultralord\'s Champion defeated.  Prism of the Crown claimed.  Novarius\'s mantle sits on your brow.', section: 'Rizer Path' },
+  ];
+  const done = beats.filter(b => b.done).length;
+  const total = beats.length;
+  let html = '';
+  let lastSection = '';
+  beats.forEach(b => {
+    if (b.section && b.section !== lastSection) {
+      html += _nbSectionTitle(b.section);
+      lastSection = b.section;
+    }
+    html += _nbRow({
+      done: b.done,
+      title: b.title,
+      meta: b.meta,
+      right: b.done ? 'DONE' : 'PENDING',
+    });
+  });
+  list.innerHTML = html;
+  foot.textContent = `MAINLINE BEATS  ·  ${done} / ${total}   —   hidden events + easter eggs not shown.`;
+}
+function renderNotebookBonds() {
+  const p = game.player || {};
+  const learned = p.bondLessons || {};
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  if (typeof BOND_LESSONS === 'undefined') {
+    list.innerHTML = '<div style="color:var(--mist);">Bond Lessons not yet loaded.</div>';
+    return;
+  }
+  const total = BOND_LESSONS.length;
+  const doneCount = BOND_LESSONS.filter(l => learned['step' + l.step]).length;
+  list.innerHTML = BOND_LESSONS.map(l => {
+    const isDone = !!learned['step' + l.step];
+    const reached = (p.rizerLv || 1) >= l.lv;
+    return _nbRow({
+      done: isDone,
+      dim: !isDone && !reached,
+      title: `Step ${l.step} · ${l.name}`,
+      meta: isDone ? 'Learned from Kelthor.' : (reached ? 'Ready — visit Kelthor at Beastwarden\'s Hall.' : `Unlocks at R.Lv ${l.lv}.`),
+      right: `R.Lv ${l.lv}`,
+    });
+  }).join('');
+  foot.textContent = `BOND LESSONS  ·  ${doneCount} / ${total}   —   Kelthor is the mentor.`;
+}
+function renderNotebookNovarian() {
+  const p = game.player || {};
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  const qual = p.novarianQualifiers || {};
+  const wonCount = (typeof novarianQualifiersWonCount === 'function') ? novarianQualifiersWonCount() : 0;
+  const districts = (typeof NOVARIAN_DISTRICT_ORDER !== 'undefined') ? NOVARIAN_DISTRICT_ORDER : DISTRICT_ORDER;
+  let html = '';
+  html += _nbSectionTitle('Enrollment');
+  html += _nbRow({
+    done: !!p.novarianEnrolled,
+    title: 'Enrolled by Kelthor',
+    meta: p.novarianEnrolled ? 'Malezor\'s Faction slot is yours.' : 'Speak with Kelthor after clearing Malezor\'s Seer Commander + carrying the utility trinity.',
+    right: p.novarianEnrolled ? 'ENROLLED' : 'LOCKED',
+  });
+  html += _nbSectionTitle('Qualifier Bracket');
+  districts.forEach(id => {
+    const dm = DISTRICT_META[id] || {};
+    html += _nbRow({
+      done: !!qual[id],
+      title: `${(dm.name || id).toUpperCase()} qualifier`,
+      meta: qual[id] ? 'Hall Rizer defeated.  Imperial Coin claimed.' : 'Defeat the district\'s Hall Rizer.',
+    });
+  });
+  html += _nbSectionTitle('Endgame');
+  html += _nbRow({
+    done: !!p.novarianGrandChampion,
+    title: 'Grand Champion mantle',
+    meta: p.novarianGrandChampion ? 'Ultralord\'s Champion defeated at Korathen.  Prism of the Crown yours.' : 'All 10 qualifiers, then Korathen.',
+    right: p.novarianGrandChampion ? '★ CROWNED' : 'PENDING',
+  });
+  html += _nbSectionTitle('Zyraxis-native Prisms');
+  const prisms = [
+    { id: 'prism_of_the_deep',  name: 'Prism of the Deep',  district: 'Xilnar',   power: 150, gate: '3 qualifiers' },
+    { id: 'prism_of_refuge',    name: 'Prism of Refuge',    district: 'Vorashil', power: 225, gate: '6 qualifiers' },
+    { id: 'prism_of_the_crown', name: 'Prism of the Crown', district: 'Korathen', power: 300, gate: 'Grand Champion' },
+  ];
+  const items = p.items || {};
+  prisms.forEach(pr => {
+    html += _nbRow({
+      done: (items[pr.id] || 0) > 0,
+      title: pr.name,
+      meta: `${pr.district}-native · Prismsynch ${pr.power} pow · granted at ${pr.gate}`,
+      right: (items[pr.id] || 0) > 0 ? 'IN BAG' : 'MISSING',
+    });
+  });
+  list.innerHTML = html;
+  foot.textContent = `QUALIFIERS  ·  ${wonCount} / 10   —   Prisms: ${prisms.filter(p => (items[p.id] || 0) > 0).length} / 3`;
+}
+function renderNotebookFathergems() {
+  const p = game.player || {};
+  const cmds = p.seerCommandersDefeated || {};
+  const keys = p.keys || {};
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  const districts = DISTRICT_ORDER || [];
+  let html = '';
+  districts.forEach(id => {
+    const dm = DISTRICT_META[id] || {};
+    const gemKey = dm.gemKey || 'ruby';
+    const claimed = !!keys[gemKey];
+    const commanderDown = !!cmds[id];
+    html += _nbRow({
+      done: claimed,
+      title: `${gemKey.toUpperCase()} FATHERGEM · ${(dm.name || id).toUpperCase()}`,
+      meta: claimed ? 'Fathergem reclaimed.' : commanderDown ? 'Commander down — claim the shard.' : `Held by ${(dm.gemlord || 'commander').toUpperCase()}\'s captor.`,
+      right: claimed ? 'CLAIMED' : commanderDown ? 'READY' : 'HELD',
+    });
+  });
+  const claimedCount = districts.filter(id => keys[(DISTRICT_META[id] || {}).gemKey]).length;
+  list.innerHTML = html;
+  foot.textContent = `FATHERGEMS RECLAIMED  ·  ${claimedCount} / 10`;
+}
+function renderNotebookBroadcasts() {
+  const p = game.player || {};
+  const done = p.broadcasts || {};
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  const districts = DISTRICT_ORDER || [];
+  let html = '';
+  districts.forEach(id => {
+    const dm = DISTRICT_META[id] || {};
+    html += _nbRow({
+      done: !!done[id],
+      title: `${(dm.name || id).toUpperCase()} Broadcast`,
+      meta: done[id] ? 'Live interview with Myara aired.' : 'Interact with the district\'s Broadcast Tower.',
+    });
+  });
+  const count = districts.filter(id => done[id]).length;
+  list.innerHTML = html;
+  foot.textContent = `BROADCASTS AIRED  ·  ${count} / 10${count >= 10 ? '  ·  Title: Voice of the Expanse' : ''}`;
+}
+function renderNotebookDistricts() {
+  const p = game.player || {};
+  const visited = p.districtsVisited || {};
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  const districts = DISTRICT_ORDER || [];
+  let html = '';
+  districts.forEach(id => {
+    const dm = DISTRICT_META[id] || {};
+    const [lo, hi] = dm.tierBand || [1, 3];
+    html += _nbRow({
+      done: !!visited[id],
+      title: `${(dm.name || id).toUpperCase()} · ${dm.land || ''}`,
+      meta: `Tier band ${lo}-${hi} · Types: ${(dm.types || []).join(', ')}`,
+      right: `Lv ${((DISTRICT_ORDER.indexOf(id) + 1) * 10 - 9)}-${(DISTRICT_ORDER.indexOf(id) + 1) * 10}`,
+    });
+  });
+  const count = Object.keys(visited).length;
+  list.innerHTML = html;
+  foot.textContent = `DISTRICTS VISITED  ·  ${count} / 10`;
+}
+function renderNotebookShrines() {
+  const p = game.player || {};
+  const visited = p.shrinesVisited || {};
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  let html = '';
+  if (typeof SHRINES !== 'undefined') {
+    Object.keys(SHRINES).forEach(id => {
+      const s = SHRINES[id];
+      const dm = DISTRICT_META[id] || {};
+      html += _nbRow({
+        done: !!visited[id],
+        title: `${s.name}`,
+        meta: `${(dm.name || id).toUpperCase()} · answers with ${s.item ? s.item.replace(/_/g, ' ') : 'a relic'}`,
+      });
+    });
+  }
+  const count = Object.keys(visited).filter(k => (typeof SHRINES !== 'undefined') && SHRINES[k]).length;
+  const total = (typeof SHRINE_TOTAL !== 'undefined') ? SHRINE_TOTAL : 9;
+  const gemsight = !!(p.items && p.items.ancient_gemsight);
+  list.innerHTML = html;
+  foot.textContent = `SHRINES ANSWERED  ·  ${count} / ${total}${gemsight ? '  ·  ★ Ancient Gemsight earned' : ''}`;
+}
+function renderNotebookTypes() {
+  const list = document.getElementById('notebook-list');
+  const foot = document.getElementById('notebook-footer');
+  if (typeof TYPES === 'undefined') return;
+  let html = '';
+  html += _nbSectionTitle(`Twenty-One Types (20 canonical + Ultimate)`);
+  TYPES.forEach(t => {
+    const strong = (TYPE_STRONG_VS && TYPE_STRONG_VS[t]) || [];
+    const strongStr = strong.length ? `Strong vs: ${strong.join(', ')}` : (t === 'Ultimate' ? 'Strong vs: ALL 20 (3× damage · no weaknesses)' : 'Neutral');
+    const color = (TYPE_COLORS && TYPE_COLORS[t]) || '#e8e0f0';
+    html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border:1px solid var(--border-soft); background:rgba(20,10,40,0.15); border-radius:3px; margin-bottom:4px;">
+      <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+        <span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:${color}; flex-shrink:0;"></span>
+        <span style="font-family:var(--font-display); font-size:12px; color:var(--ivory); letter-spacing:0.14em;">${t.toUpperCase()}</span>
+      </div>
+      <span style="font-size:10px; color:var(--mist); letter-spacing:0.08em; text-align:right; margin-left:12px;">${strongStr}</span>
+    </div>`;
+  });
+  list.innerHTML = html;
+  foot.textContent = `${TYPES.length} TYPES  ·  20 canonical + Ultimate (Anciuxor-only 21st type · combined all-types · 3× vs everything, no weaknesses)`;
 }
 function renderNotebookZyrex() {
   const c = dexCounts();
@@ -15399,12 +15968,17 @@ const $xpToast = document.getElementById('xp-toast');
 const $xpTitle = document.getElementById('xp-toast-title');
 const $xpLines = document.getElementById('xp-toast-lines');
 let xpToastTimer = 0;
-function showXpToast(name, xp, gems, coins) {
-  $xpTitle.textContent = 'VICTORY';
+function showXpToast(name, xp, gems, coins, opts) {
+  // ★ 2026-07-17 — Only show VICTORY on the FINAL KO of the whole battle.
+  // Per-KO toasts along a chain show '+ XP' so the moment feels like
+  // progress instead of premature celebration.  opts.final === true fires
+  // the full VICTORY title.
+  const isFinal = !!(opts && opts.final);
+  $xpTitle.textContent = isFinal ? 'VICTORY' : '+ XP';
   $xpLines.innerHTML = `${name}<br>+ <strong>${xp}</strong> XP &nbsp;·&nbsp; + <strong>${gems}</strong> ◈ &nbsp;·&nbsp; + <strong>${coins||0}</strong> ¢`;
   $xpToast.classList.add('show');
   clearTimeout(xpToastTimer);
-  xpToastTimer = setTimeout(() => $xpToast.classList.remove('show'), 2200);
+  xpToastTimer = setTimeout(() => $xpToast.classList.remove('show'), isFinal ? 2600 : 1600);
 }
 
 // ============================================================================
@@ -15562,20 +16136,10 @@ function travelDistrict(dir) {
     const meta = ROUTE_META[currentMapId];
     const destDistrictId = (dir > 0) ? meta.east : meta.west;
     // V3.17.29 — Route 10 (throne_of_ultralord) has no east.  Show the
-    // terminal-map toast instead of the wiring-error toast when the
-    // player tries to walk further east than the endgame throne.
-    // ★ PART 2 INTERCEPT (2026-07-17): if the player has walked BOTH
-    // paths (Xenoxil + Grand Champion), the terminal edge opens onto
-    // The Bridge of Hope.  Otherwise the original terminal-map toast.
+    // terminal-map toast — the Bridge of Hope is NOT east of Korathen,
+    // it is SOUTH of Baelgor (V3.17.63 canon lock; see the '_' portal
+    // on Baelgor's south edge).  Route 10 terminates in silence.
     if (dir > 0 && !destDistrictId) {
-      if (typeof part2Ready === 'function' && part2Ready()) {
-        showDialog([
-          'A gilded arch stands where the road once ended.',
-          'On the other side, the BRIDGE OF HOPE stretches south toward lands that were not on your map an hour ago.',
-          'THE PILGRIM at the arch: You have walked both paths.  The Bridge answers.',
-        ], () => tryTravelToBridge());
-        return;
-      }
       showToast('THE MAP ENDS HERE — for now.', 1600);
       return;
     }
@@ -15864,14 +16428,20 @@ function interactMom() {
     });
     return;
   }
-  // Recurring visits — nurse behavior: heal if hurt, else hand over a potion.
-  const anyHurt = game.player.party.some(r => r && r.hp < r.maxHp);
+  // Recurring visits — nurse behavior: heal if hurt OR statused (2026-07-17
+  // fix — Mom now also clears lingering statuses that carried over from
+  // battle), else hand over a potion.
+  const anyHurt = game.player.party.some(r => r && (r.hp < r.maxHp || r.status));
   if (anyHurt) {
     showDialog([
       `MOM: Sit down, ${nm}. You look worn out.`,
-      `Your Zyrex are patched up. Full HP.`,
+      `Your Zyrex are patched up. Full HP · every status cleared.`,
     ], () => {
-      for (const r of game.player.party) if (r) { r.hp = r.maxHp; r.fainted = false; r.status = null; }
+      for (const r of game.player.party) if (r) {
+        r.hp = r.maxHp; r.fainted = false; r.status = null;
+        // Reset stat-stage modifiers so the Zyrex leaves Mom at full baseline.
+        r.atkStage = 0; r.defStage = 0;
+      }
       save();
     });
   } else {
@@ -16091,6 +16661,47 @@ function interactMomsPlant() {
   const hasSeed  = (items.verdant_seed || 0) > 0;
   const hasStem  = (items.revival_stem || 0) > 0;
   const everFed  = !!game.player.momsPlantFedOnce;
+  const hasWater = (items.pure_water || 0) > 0;
+  // ★ STATUS-CURE FLOWER GROWTH — any of the 5 elemental seeds + pure
+  // water grows a matching flower.  Fires BEFORE the Verdant Seed path
+  // so the player can grow flowers even while carrying a Verdant Seed.
+  const flowerSeeds = ['spark_seed','calm_seed','swift_seed','clarity_seed','light_seed'];
+  const readySeed = flowerSeeds.find(s => (items[s] || 0) > 0);
+  if (readySeed && hasWater) {
+    // Find the matching flower + status from STATUS_FLOWER.
+    const entry = Object.entries(STATUS_FLOWER).find(([, cfg]) => cfg.seed === readySeed);
+    if (entry) {
+      const [statusKey, cfg] = entry;
+      showDialog([
+        `You press the ${readySeed.replace(/_/g,' ').toUpperCase()} into the soil.`,
+        `You pour PURE WATER onto the earth.`,
+        `The fern shivers once.  A slender bloom lifts from where the seed went in — the exact colour of what it was meant to be.`,
+        `You harvest it, warm and just-alive.`,
+        `«◈  You received a ${cfg.display.toUpperCase()}.»`,
+        `Cures ${statusKey.toUpperCase()} on one Zyrex.  Their stats return to baseline.`,
+      ], () => {
+        items[readySeed]  = Math.max(0, (items[readySeed] || 1) - 1);
+        items.pure_water  = Math.max(0, (items.pure_water || 1) - 1);
+        if (!items[readySeed])  delete items[readySeed];
+        if (!items.pure_water)  delete items.pure_water;
+        items[cfg.flower] = (items[cfg.flower] || 0) + 1;
+        game.player.momsPlantFedOnce = true;
+        save(); updateHUD();
+        try { playSfx('toast'); } catch(_) {}
+        showToast(`◈  ${cfg.display.toUpperCase()}  ·  cures ${statusKey.toUpperCase()}`, 3000);
+      });
+      return;
+    }
+  }
+  // Missing water hint if seed present but no water
+  if (readySeed && !hasWater) {
+    showDialog([
+      'You crouch by Mom\'s fern, seed in hand.',
+      'The soil is dry.  It won\'t take without PURE WATER.',
+      'You remember: any water tile out there will fill a vial.',
+    ]);
+    return;
+  }
   // TOP PRIORITY — planting a Verdant Seed
   if (hasSeed) {
     showDialog([
@@ -16144,13 +16755,12 @@ function interactMomsPlant() {
 function interactTree(tx, ty) {
   const items = game.player.items = game.player.items || {};
   const hasSeed = (items.verdant_seed || 0) > 0;
-  if (!hasSeed) {
-    showDialog([
-      'A weather-beaten tree.  Bark rough, canopy thin.',
-      'You could shake it, but nothing about it looks like it wants to be shaken.',
-    ]);
-    return;
-  }
+  // ★ FLOWER SEED DROPS (2026-07-17) — every tree has ONE deterministic
+  // seed type baked into its position hash + a per-position spawn chance
+  // in [0.10, 0.50].  Interacting rolls that odds; on success drops one
+  // of that seed type.  No Verdant Seed required for the flower seed roll.
+  // Legacy Verdant Seed path (Revival Stem drop) still fires when the
+  // player carries a Verdant Seed AND fails the flower roll.
   const key = (game.player.mapId || 'overworld') + ':' + tx + ',' + ty;
   game.player.treesShaken = game.player.treesShaken || {};
   if (game.player.treesShaken[key]) {
@@ -16160,20 +16770,47 @@ function interactTree(tx, ty) {
     ]);
     return;
   }
+  // Deterministic per-tree hash — seed type + spawn chance.
+  const hashA = (tx * 73 + ty * 41 + (game.player.mapId || '').charCodeAt(0)) >>> 0;
+  const hashB = (tx * 17 + ty * 89) >>> 0;
+  const flowerSeeds = ['spark_seed','calm_seed','swift_seed','clarity_seed','light_seed'];
+  const seedForThisTree = flowerSeeds[hashA % flowerSeeds.length];
+  const seedChance = 0.10 + ((hashB % 41) / 100);   // [0.10, 0.50]
+  const seedRoll = Math.random();
   game.player.treesShaken[key] = true;
-  const win = Math.random() < 0.10;   // 10% chance
-  if (win) {
-    items.revival_stem = (items.revival_stem || 0) + 1;
+  if (seedRoll < seedChance) {
+    items[seedForThisTree] = (items[seedForThisTree] || 0) + 1;
     save(); updateHUD();
     try { playSfx('toast'); } catch(_) {}
-    showToast('◈  REVIVAL STEM  ·  fell from the branches', 3000);
+    const displayName = seedForThisTree.replace(/_/g,' ').toUpperCase();
+    showToast(`◈  ${displayName}  ·  fell from the branches`, 3000);
     showDialog([
       'You put your shoulder to the trunk and shove.',
-      'A slim silver-green stem drops out of the canopy and lands in your palm.',
-      'The tree returns to being a tree.',
-      '«◈  You received a REVIVAL STEM.»',
+      'Something tiny bounces off the bark and lands in your open hand.',
+      `A ${displayName}.  Cool to the touch.  Alive.`,
+      `«◈  You received a ${displayName}.»`,
+      'Take it to Mom\'s fern with PURE WATER and it will grow.',
     ]);
-  } else {
+    return;
+  }
+  // Legacy path: with Verdant Seed carried, second-roll for Revival Stem.
+  if (hasSeed) {
+    const win = Math.random() < 0.10;   // 10% chance
+    if (win) {
+      items.revival_stem = (items.revival_stem || 0) + 1;
+      save(); updateHUD();
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  REVIVAL STEM  ·  fell from the branches', 3000);
+      showDialog([
+        'You put your shoulder to the trunk and shove.',
+        'A slim silver-green stem drops out of the canopy and lands in your palm.',
+        'The tree returns to being a tree.',
+        '«◈  You received a REVIVAL STEM.»',
+      ]);
+      return;
+    }
+  }
+  {
     save();
     showDialog([
       'You put your shoulder to the trunk and shove.',
@@ -16325,6 +16962,16 @@ function consecrateStatuePart() {
       zy.stats = { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 };
       zy.maxHp = 666;
       zy.hp    = 666;
+      // ★ ULTIMATE TYPE (2026-07-17) — Anciuxor is the ONLY card with the
+      // 21st "Ultimate" type.  No dual/tri.  Every one of His moves gets
+      // retyped to Ultimate so they all hit for 3× · no-weakness — the
+      // Divine Hit.  Rebuild the move slots so the ULTI badges render.
+      zy.type = 'Ultimate';
+      zy.type2 = null;
+      zy.type3 = null;
+      if (Array.isArray(zy.moves)) {
+        for (const m of zy.moves) if (m) m.type = 'Ultimate';
+      }
       // ★ ANCIUXOR BOND JUMP-START — the Ancient One is granted with a
       // meaningful Bond floor (500 / 1000 = halfway to max).  Story-beat
       // canon: the Rizer and Anciuxor already share a resonance the moment
@@ -17520,14 +18167,63 @@ function handleNpcTrainer(tileChar, x, y) {
     return;
   }
   if (beaten) {
-    // V2.19 · V3.13.2 — Rematches DISABLED (user canon).  Every enemy is
-    // fought exactly once.  Previously beating an NPC unlocked one
-    // stakes rematch; that path is retired — the beaten branch now
-    // just plays a short acknowledgement dialog and returns.
-    showDialog([
-      `${npc.name}: We settled this already, ${game.player.name || 'Rizer'}.`,
-      `Nothing more between us.`,
-    ]);
+    // V2.19 · V3.13.2 · 2026-07-17 — Rematches DISABLED, every enemy is
+    // fought exactly once.  Post-defeat dialog varies by RELATIONSHIP:
+    //   HOSTILE (angry)    → Yara 'Y', Seer grunt 'g', Seer commander 'X'
+    //   RESPECTFUL (ally)  → Jax 'J', Quinn 'Q', Hall Rizer 'R'
+    // A random one-liner from the pool fires each visit so the world
+    // doesn't feel dead when the player wanders back.
+    const nm = game.player.name || 'Rizer';
+    const HOSTILE_LOSER_LINES = {
+      Y: [
+        `YARA: You again.  Walk on before I dust my knees off.`,
+        `YARA: Get out of my sight, ${nm}.`,
+        `YARA: The Seers will remember your face.  I already do.  Move.`,
+      ],
+      g: [
+        `SEER GRUNT: You broke me once.  Don't waste both our times.`,
+        `SEER GRUNT: I still owe the Ministry a report.  I'll leave your name off it.  Move.`,
+        `SEER GRUNT: (spits)  Walk.  Walk.`,
+      ],
+      X: [
+        `THE COMMANDER: The shard's gone.  My eye is gone.  Take your prize and go.`,
+        `THE COMMANDER: You broke my ministry.  I don't have anything left for you today.`,
+        `THE COMMANDER: Speak to me one more time and I'll remember I still have a knife.`,
+      ],
+    };
+    const RESPECT_LOSER_LINES = {
+      J: [
+        `JAX: Rematch me when the moon's blue, hey?  Nice work, ${nm}.`,
+        `JAX: You lit me up last time.  I'm just here catching my breath.`,
+        `JAX: Malezor won't take passengers, and you sure aren't one.  Safe roads, ${nm}.`,
+      ],
+      Q: [
+        `QUINN: The dunes remembered you.  So did I.  Well fought.`,
+        `QUINN: Sit for a minute if you want.  The sand doesn't care who walks it.`,
+        `QUINN: You beat me clean.  Not many can.  Keep going, ${nm}.`,
+      ],
+      R: [
+        `HALL RIZER: A cleaner match than I've had in years.  The Hall is yours today.`,
+        `HALL RIZER: You bind well, ${nm}.  Come back with your fiercest team when the mood strikes — I'll spar for pride only.`,
+        `HALL RIZER: The Accord holds because of Rizers like you.  Well fought.`,
+      ],
+    };
+    const pickLine = (pool, char) => {
+      const arr = pool[char] || [];
+      if (!arr.length) return null;
+      return arr[Math.floor(Math.random() * arr.length)];
+    };
+    const line = pickLine(HOSTILE_LOSER_LINES, tileChar)
+              || pickLine(RESPECT_LOSER_LINES, tileChar);
+    if (line) {
+      showDialog([line]);
+    } else {
+      // Fallback (unhandled tileChar) — neutral respectful line.
+      showDialog([
+        `${npc.name}: We settled this already, ${nm}.`,
+        `Nothing more between us.`,
+      ]);
+    }
     return;
   }
   // V2.41 · V3.5 — Named Seer commander mini-boss. Custom intro per district.
@@ -17597,7 +18293,32 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
   //          Zyrex (a serious mini-boss), and the top of the level band is used.
   // V2.74 — Hall Rizer ('R') uses the chain declared on TOWN_HALLS[district].rizer,
   //          passed in via opts.hallRizer.
+  // ★ 2026-07-17 — Hall Rizer chains rebuilt at battle-start from the
+  //   ENTRY DISTRICT's wild pool + tier band.  Guarantees types + levels
+  //   always match the hosting district (previous hand-picked chains
+  //   sometimes drifted off-type as canon evolved).  Uses 6-Zyrex teams
+  //   matching the Grand Champion / Part 2 elite standard.
   let chainSpecs = (opts && opts.hallRizer && opts.hallRizer.chain) || npc.chain;
+  if (tileChar === 'R') {
+    // ★ HALL RIZERS are the PEAK trainer of their district.  Full 6-Zyrex
+    // team, every Zyrex at the TOP OF THE DISTRICT LEVEL BAND (district# ×
+    // 10).  Malezor Hall Rizer → Lv 10 team · Zarvane → Lv 20 · … ·
+    // Korathen → Lv 100.  These are the elite civic champions.
+    const from = game.player.enteredInteriorFrom;
+    const rizerDistrict = (from && from.map) || null;
+    const pool = rizerDistrict ? districtWildPool(rizerDistrict) : null;
+    if (pool && pool.ids && pool.ids.length && pool.lvRange) {
+      const [lo, hi] = pool.lvRange;   // (num-1)*10+1 → num*10 per districtWildPool
+      const chainSize = (typeof MAX_PARTY !== 'undefined' ? MAX_PARTY : 6);
+      chainSpecs = [];
+      for (let i = 0; i < chainSize; i++) {
+        const id = pool.ids[Math.floor(Math.random() * pool.ids.length)];
+        // Top of band with ±1 jitter.  Malezor → Lv 9-10 · Korathen → Lv 99-100.
+        const lv = Math.max(1, hi - Math.floor(Math.random() * 2));
+        chainSpecs.push([id, lv]);
+      }
+    }
+  }
   if (tileChar === 'g' || tileChar === 'X') {
     // V3.5 — inside seer_hq_* (or any shared interior) the wild pool
     // must be resolved via the SOURCE district, not the interior mapId.
@@ -17631,25 +18352,36 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
       // regardless of the player's own party.  Wild, uncivilized, every
       // Rizer down here is just as skilled as any Grand Champion.
       const inPart2 = (typeof PART2_META !== 'undefined' && !!PART2_META[game.player.mapId]);
+      // ★ DIFFICULTY REBALANCE (2026-07-17):
+      //   - Wild encounters (elsewhere) = weakest / easiest XP
+      //   - Grunts = weakest trainers but scale in size + band per district
+      //   - Commanders = 4-5 Zyrex at TOP OF BAND (elite but under HR)
+      //   - Hall Rizers = 6 at top of band (handled in the R branch above)
+      //   - Part 2 = 6 mixed at 90-100
+      //   Level bands = district# × 10 (Malezor max Lv 10 → Korathen max Lv 100).
       let chainSize;
       if (inPart2)           chainSize = (typeof MAX_PARTY !== 'undefined' ? MAX_PARTY : 6);
-      else if (isCommander)  chainSize = 5;
-      else if (inMain)       chainSize = 1;                                                   // easy warm-up
-      else if (inBasement)   chainSize = 2;                                                   // medium
-      else                   chainSize = Math.max(1, Math.min(3, 1 + Math.floor(num / 4)));   // legacy path
+      else if (isCommander)  chainSize = 4 + Math.floor(Math.random() * 2);   // 4 or 5
+      else if (inMain)       chainSize = Math.max(2, Math.min(3, 1 + Math.floor(num / 5)));    // was 1 warm-up → 2-3
+      else if (inBasement)   chainSize = Math.max(3, Math.min(4, 2 + Math.floor(num / 5)));    // was 2 → 3-4
+      else                   chainSize = Math.max(2, Math.min(4, 2 + Math.floor(num / 4)));    // was 1-3 → 2-4
       const [lo, hi] = pool.lvRange;
       const mid = Math.max(lo, Math.round((lo + hi) / 2));
       chainSpecs = [];
       for (let i = 0; i < chainSize; i++) {
         const id = pool.ids[Math.floor(Math.random() * pool.ids.length)];
-        // ★ PART 2 — pure random Lv 90–100 per Zyrex.  No player-match,
-        // no zone-specific band clamp.  The land itself is the challenge.
+        // ★ 2026-07-17 rebalance:
+        //   Commander → TOP of band with ±1 jitter (peak elite)
+        //   Main-floor grunts → lo→mid range (was flat lo, now scales)
+        //   Basement grunts → mid→hi-1 range (was flat mid)
+        //   Other grunts → mid→hi range (was random full band)
+        //   Part 2 → 90-100 random
         let lv;
         if (inPart2)          lv = 90 + Math.floor(Math.random() * 11);   // [90, 100]
-        else if (isCommander) lv = hi;
-        else if (inMain)      lv = Math.max(1, lo);
-        else if (inBasement)  lv = Math.max(1, mid);
-        else                  lv = Math.max(1, lo + Math.floor(Math.random() * (hi - lo + 1)));
+        else if (isCommander) lv = Math.max(1, hi - Math.floor(Math.random() * 2));   // hi or hi-1
+        else if (inMain)      lv = Math.max(1, lo + Math.floor(Math.random() * (mid - lo + 1)));
+        else if (inBasement)  lv = Math.max(1, mid + Math.floor(Math.random() * Math.max(1, hi - mid)));
+        else                  lv = Math.max(1, mid + Math.floor(Math.random() * (hi - mid + 1)));
         chainSpecs.push([id, lv]);
       }
     }
@@ -17982,6 +18714,21 @@ function renderBagMenu() {
     b.onclick = () => fireUltimatePrismsynch();
     $battleActions.appendChild(b);
   }
+  // ★ STATUS-CURE FLOWERS in battle (2026-07-17).  Cures the active fighter's
+  // status if their current status matches the flower.  Consumes the turn
+  // (enemy still moves).
+  const activeStatusKey = p && p.status && (p.status.key || p.status);
+  Object.keys(STATUS_FLOWER || {}).forEach(statusKey => {
+    const cfg = STATUS_FLOWER[statusKey];
+    const count = items[cfg.flower] || 0;
+    if (count <= 0) return;   // only show flowers the player owns
+    const b = document.createElement('button');
+    b.className = 'action-btn';
+    b.innerHTML = `★ ${cfg.display.toUpperCase()} <span class="cost">×${count} · cures ${statusKey.toUpperCase()} → ${p.name}</span>`;
+    b.disabled = (activeStatusKey !== statusKey);
+    b.onclick = () => useFlowerInBattle(cfg.flower, statusKey);
+    $battleActions.appendChild(b);
+  });
   // V2.8.1 — Equip gems onto the active Zyrex
   const eq = document.createElement('button');
   eq.className = 'action-btn';
@@ -17989,12 +18736,46 @@ function renderBagMenu() {
   if ((game.player.gems || 0) <= 0) eq.disabled = true;
   eq.onclick = () => renderEquipMenu();
   $battleActions.appendChild(eq);
+  // ★ VIEW ALL ITEMS (2026-07-17) — opens the full items overlay so every
+  // inventory row is visible in battle (view-only; battle-usable items
+  // still fire via the buttons above).  Non-actionable rows (keys, relics,
+  // shards, coins) become inspectable from here without leaving battle.
+  const viewAll = document.createElement('button');
+  viewAll.className = 'action-btn';
+  viewAll.innerHTML = `VIEW ALL ITEMS <span class="cost">every inventory row</span>`;
+  viewAll.onclick = () => { openItemsView(); };
+  $battleActions.appendChild(viewAll);
   const back = document.createElement('button');
   back.className = 'action-btn';
   back.textContent = '← BACK';
   back.onclick = renderMainMenu;
   $battleActions.appendChild(back);
   focusFirstAction();
+}
+// ★ FLOWER USE in battle (2026-07-17) — status cure on the active fighter.
+// Consumes the turn; enemy still gets its move.  Only fires if the active
+// Zyrex's current status matches the flower's cure target.
+async function useFlowerInBattle(flowerKey, curesStatus) {
+  const items = game.player.items || {};
+  if ((items[flowerKey] || 0) <= 0) return;
+  const p = game.player.party[game.battle.playerIdx];
+  if (!p) return;
+  const currentStatus = p.status && (p.status.key || p.status);
+  if (currentStatus !== curesStatus) return;
+  p.status = null;
+  p.atkStage = 0; p.defStage = 0;
+  items[flowerKey]--;
+  save();
+  const displayName = (STATUS_FLOWER[curesStatus] && STATUS_FLOWER[curesStatus].display) || flowerKey;
+  logBattle(`You used a ${displayName} on ${p.name}.  ${curesStatus.toUpperCase()} cleared.`);
+  showToast(`✚ ${p.name} · ${curesStatus.toUpperCase()} cured · ${displayName}`, 2200);
+  refreshBattleUI();
+  await wait(700);
+  await enemyTurn();
+  await endRoundTick();
+  if (checkBattleOver()) return;
+  refreshBattleUI();
+  renderMainMenu();
 }
 
 // V2.13 · V3.10 — Potion action in battle.  Basic Potion heals +40;
@@ -18794,7 +19575,10 @@ function checkBattleOver() {
   const e = game.battle.enemy;
   const p = game.player.party[game.battle.playerIdx];
   if (e.hp <= 0) {
-    grantXP(p, e);
+    // ★ 2026-07-17 — isFinalKo true only when NO more chain enemies remain.
+    // Per-KO XP toast → '+ XP' label · final KO → 'VICTORY' label.
+    const isFinalKo = !(game.battle.chain && game.battle.chain.length > 0);
+    grantXP(p, e, isFinalKo);
     // Advance trainer chain if any
     if (game.battle.chain && game.battle.chain.length > 0) {
       const nextEnemy = game.battle.chain.shift();
@@ -19066,7 +19850,7 @@ const XP_BATTLE_TYPE_MULT = {
   'gemlord':      4.0,   // Post-endgame Gemlord duels
   'endgame':      2.5,   // Ophira / Orryx / Xenoxil chain
 };
-function grantXP(p, defeated) {
+function grantXP(p, defeated, isFinalKo) {
   // V3.17.54 — Tier + battle-type + level-diff formula (replaces flat lv*6).
   const enemyTier = (defeated && defeated.tier)
     || (defeated && defeated.species && SPECIES[defeated.species] && SPECIES[defeated.species].tier)
@@ -19089,7 +19873,7 @@ function grantXP(p, defeated) {
   game.player.coins = (game.player.coins || 0) + coinsGained;
   updateHUD();
   logBattle(`${p.name} +${xpGained} XP · +${gemsGained} ◈ · +${coinsGained} ¢`);
-  showXpToast(p.name, xpGained, gemsGained, coinsGained);
+  showXpToast(p.name, xpGained, gemsGained, coinsGained, { final: !!isFinalKo });
   while (p.xp >= xpForNext(p.lv, p.species)) {
     const need = xpForNext(p.lv, p.species);
     if (!levelUp(p)) { p.xp = 0; break; }   // levelUp returns false when tier-capped
@@ -20117,6 +20901,19 @@ function tryLoad() {
       r.hp    = Math.max(0, Math.floor(hpRatio * r.maxHp));
       // ★ Bond stat migration — legacy Zyrex without the field default to 0.
       if (typeof r.bond !== 'number') r.bond = 0;
+      // ★ ANCIUXOR ULTIMATE TYPE (2026-07-17) — retype legacy Anciuxor
+      // to sole 'Ultimate' type + retype all His moves.  Preserves stats.
+      if (r.species === 'anciuxor') {
+        r.type  = 'Ultimate';
+        r.type2 = null;
+        r.type3 = null;
+        r.stats = { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 };
+        r.maxHp = 666;
+        if (r.hp > 666) r.hp = 666;
+        if (Array.isArray(r.moves)) {
+          for (const m of r.moves) if (m) m.type = 'Ultimate';
+        }
+      }
     };
     (game.player.party || []).forEach(migrateZyrex);
     (game.player.box   || []).forEach(migrateZyrex);

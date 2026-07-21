@@ -7226,11 +7226,16 @@ function tryKelthorStoryHandoff() {
 // a hint dialog telling them what's missing.
 function part2Ready() {
   const p = game.player;
-  return !!(p && p.xenoxilDefeated && p.novarianGrandChampion);
+  // ★ 2026-07-17 — the Bridge now opens through EITHER path:
+  //   (a) Both endgame flags fired (Xenoxil down + Grand Champion), OR
+  //   (b) Orryx escorted the player across at the Empty Throne event
+  //       (game.player.bridgeUnlockedByOrryx).
+  return !!(p && ((p.xenoxilDefeated && p.novarianGrandChampion) || p.bridgeUnlockedByOrryx));
 }
 function tryTravelToBridge() {
   const p = game.player;
   if (!part2Ready()) {
+    // Sentinel dialog — Bridge not yet unlocked by any path.
     const missing = [];
     if (!p.xenoxilDefeated)      missing.push('the Fleshlord Xenoxil');
     if (!p.novarianGrandChampion) missing.push('the Novarian Grand Champion mantle');
@@ -7248,8 +7253,8 @@ function tryTravelToBridge() {
   }
   showDialog([
     'THE PILGRIM at the south gate:',
-    'You have walked both paths.  The Bridge is yours to cross.',
-    '«◈  THE BRIDGE OF HOPE opens south of Korathen.»',
+    'You have earned this crossing.',
+    '«◈  THE BRIDGE OF HOPE opens south of Baelgor.»',
   ], () => {
     enterMap('bridge_of_hope', 12, 12, 'up');
     showToast('◈  THE BRIDGE OF HOPE', 2600);
@@ -7331,6 +7336,8 @@ function tryNovarianKelthor(fromDistrict) {
       `Sphere.  Cube.  Pyramid.  You carry all three.`,
       `Now something older than the Seers wants a word with you.`,
       ``,
+      `◈  THE NOVARIAN CHALLENGE  ◈`,
+      ``,
       `You broke the Seers' grip on Malezor.  You honored the Ancient Oath the same way NOVARIUS honored it, in the late Malezor Era, when he tamed RAKORON.`,
       `That oath — the Accord — is what your Zyrex fight under.  The Seers seek to unmake it.  So do we, in a way — because we let it grow quiet.`,
       ``,
@@ -7338,12 +7345,20 @@ function tryNovarianKelthor(fromDistrict) {
       `Every nine years, ten districts field a Faction of Nine.  Champions meet champions.  The winners of every district enter the Korathen bracket.  The one who bears the crown at the end inherits Novarius's mantle.`,
       ``,
       `I would like you to enter.  Malezor's slot has been open for eight years.`,
-      `Your ACTIVE PARTY becomes your fielded Faction.  Speak with each district's HALL RIZER after the Seers of that district have been repelled.  Their match IS your Malezorian qualifier for their district.`,
+      ``,
+      `HERE IS HOW IT WORKS:`,
+      `  1.  Your ACTIVE PARTY becomes your fielded FACTION OF NINE.`,
+      `  2.  Every HALL RIZER of the Ninth World waits inside their district's Town Hall.  Defeat them and you win that district's qualifier.  You earn one IMPERIAL COIN per qualifier.  Ten qualifiers = the bracket is yours.`,
+      `  3.  I will hand you a PRISM OF THE DEEP at 3 qualifiers, a PRISM OF REFUGE at 6.  The third — the CROWN — belongs to whoever unseats KORATHEN's champion.`,
+      `  4.  These Prisms fire PRISMSYNCH — the Rizer path's endgame move.  ONE per battle.  Gems power them.`,
+      ``,
+      `Your Malezor Hall Rizer is one floor away.  Try him.  The rest of the Ninth World will follow.`,
       ``,
       `«◈  YOU ARE NOW A NOVARIAN CANDIDATE  ·  QUALIFIERS 0 / 10»`,
+      `«◈  Your first opponent: RANGER RIS · Beastwarden's Hall · Malezor»`,
     ], () => {
       try { playSfx('toast'); } catch(_) {}
-      showToast('◈  NOVARIAN CHALLENGE  ·  Enrolled', 3400);
+      showToast('◈  NOVARIAN CHALLENGE  ·  Enrolled · fight the Malezor Hall Rizer', 4400);
     });
     return true;
   }
@@ -9498,6 +9513,25 @@ function enterMap(mapId, spawnX, spawnY, dir) {
         }, 900);
       }, 700);
     }
+  }
+  // ★ KORATHEN ENTRY · ENDGAME BREADCRUMB (2026-07-17) — every time the
+  // player enters Korathen after all 10 Fathergems are in hand but the
+  // endgame hasn't started, fire a persistent hint toast pointing east
+  // to the Throne of the Ultralord route + Oatheus's cave.
+  if (mapId === 'korathen'
+      && typeof hasAllGemshards === 'function' && hasAllGemshards()
+      && !game.player.endgameStarted) {
+    setTimeout(() => {
+      showToast('◈  WALK EAST · OATHEUS\'S THRONE PULLS AT YOU', 4200);
+    }, 1200);
+  }
+  // Same hint when the player arrives on Route 10 (Throne of the Ultralord).
+  if (mapId === 'throne_of_ultralord'
+      && typeof hasAllGemshards === 'function' && hasAllGemshards()
+      && !game.player.endgameStarted) {
+    setTimeout(() => {
+      showToast('◈  ENTER OATHEUS\'S CAVE · his throne is empty', 4200);
+    }, 1200);
   }
 }
 
@@ -13121,7 +13155,7 @@ function openItemsView() {
         <div class="name">${r.name} <span style="color:var(--gold);font-family:var(--font-pixel);font-size:15px;">×${r.count}</span></div>
         <div class="desc">${r.desc}</div>
       </div>
-      <button ${r.count <= 0 || !['potion','grand_potion','master_potion','revival_stem'].includes(r.key) ? 'disabled' : ''}>USE</button>
+      <button ${r.count <= 0 || !(['potion','grand_potion','master_potion','revival_stem'].includes(r.key) || (typeof STATUS_FLOWER_KEYS !== 'undefined' && STATUS_FLOWER_KEYS.includes(r.key))) ? 'disabled' : ''}>USE</button>
     `;
     row.querySelector('button').onclick = () => useItem(r.key);
     // V2.19.2 — pressing Enter on the row triggers the USE button.
@@ -13467,6 +13501,70 @@ function renderShop() {
     row.querySelector('button').onclick = () => sellGems(g);
     body.appendChild(row);
   }
+  // ★ SELL ANY ITEM (2026-07-17) — merchant now accepts any stackable
+  // player inventory item.  Sell price = half the shop's buy price if the
+  // item is stocked, else a small default (5 coins).  Some items are
+  // BLOCKED from sale (relics + Prisms + tri-Prism trinity + Imperial
+  // Coin + keys) since they're either flavor-only or story-required.
+  const sellDivider = document.createElement('div');
+  sellDivider.style.cssText = 'color:var(--mist); font-size:11px; letter-spacing:0.28em; text-align:center; text-transform:uppercase; margin: 14px 0 6px; opacity:0.65;';
+  sellDivider.textContent = '— sell your items  ·  half-price cash-out —';
+  body.appendChild(sellDivider);
+  const NO_SELL = new Set([
+    // Utility Prisms (canon: never surrender the trinity)
+    'zycube','zyramid',
+    // Astralite Prisms (mainline reward, can't be resold)
+    'prism_of_the_deep','prism_of_refuge','prism_of_the_crown','prism_of_omnithris',
+    // Imperial Coin (Novarian civic bragging-rights)
+    'imperial_coin',
+    // Vials (permanent upgrades, don't stack as items)
+    'refined_vial','elite_vial','divine_vial',
+    // Story-required relics + shrine relics (canon-carrier)
+    'sunlit_ember','ancient_rune','verdant_seed','void_fragment',
+    'alien_chip','wisp_breath','forge_ember','gear_cog','imperial_crest',
+    'ancient_gemsight','computer_part','statue_part',
+    // Homunculi (story items)
+    'petragryff_homunculus','forgotten_homunculus',
+  ]);
+  const inv = game.player.items || {};
+  const buyPriceByKey = {};
+  for (const s of SHOP_STOCK) buyPriceByKey[s.key] = s.price;
+  const sellables = Object.keys(inv).filter(k => (inv[k] || 0) > 0 && !NO_SELL.has(k));
+  if (!sellables.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:8px 10px; text-align:center; color:var(--mist); font-size:11px; letter-spacing:0.14em;';
+    empty.textContent = 'Nothing sellable in your bag right now.';
+    body.appendChild(empty);
+  } else {
+    sellables.forEach(k => {
+      const count = inv[k] || 0;
+      const buyPrice = buyPriceByKey[k] || 10;
+      const sellPrice = Math.max(1, Math.floor(buyPrice / 2));
+      const display = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      row.innerHTML = `
+        <div class="info">
+          <div class="name">${display} <span style="color:var(--mist); font-size:12px; letter-spacing:0.14em;">×${count}</span></div>
+          <div class="desc">Sell one for <span style="color:var(--gold);">¢ ${sellPrice}</span>.</div>
+        </div>
+        <button>SELL 1</button>
+      `;
+      row.querySelector('button').onclick = () => sellOneItem(k, sellPrice);
+      body.appendChild(row);
+    });
+  }
+}
+function sellOneItem(key, price) {
+  const inv = game.player.items || {};
+  if ((inv[key] || 0) <= 0) return;
+  inv[key]--;
+  if (inv[key] <= 0) delete inv[key];
+  game.player.coins = (game.player.coins || 0) + price;
+  save(); updateHUD();
+  const display = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  showToast(`- ${display}  ¢+${price}`, 1600);
+  renderShop();
 }
 // V3.6.1 — gems-to-coins conversion rate at parity (1 gem = 1 coin).
 // Kept as a named constant so future balance passes are one edit.
@@ -13655,9 +13753,13 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
-  // ---- Dialog: any of Enter / Space / Z / arrow-right advances ----
+  // ---- Dialog: A (Z / Enter / Space) OR B (X / Esc / Backspace / Shift)
+  //      both advance speech panels.  A also acts as "yes/accept" for
+  //      yes-no prompts; B acts as "no/cancel."  (2026-07-17 update.)
   if (game.mode === 'dialog') {
-    if (isConfirm || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    if (isConfirm || isBack || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      // Mark the last button press for prompt handlers.
+      game._lastDialogBtn = isBack ? 'B' : 'A';
       advanceDialog();
       e.preventDefault();
     }
@@ -14327,7 +14429,16 @@ function interactGemlordCave() {
   // Xenoxil-defeated state opens the seal — walk into the Sanctum.
   if (routeMeta && gemlordId) {
     const caveId = 'gemlord_cave_' + gemlordId;
-    const canEnter = !!(game.player.ultharisMode || game.player.xenoxilDefeated);
+    // ★ 2026-07-17 · OATHEUS PRE-ENDGAME EXCEPTION.  Oatheus is missing
+    // from his cave; his EMPTY THRONE is the endgame trigger.  Allow the
+    // player into gemlord_cave_oatheus once they hold all 10 Fathergems,
+    // even before Xenoxil is defeated — because entering IS how Xenoxil
+    // gets triggered.  Every other cave still requires the post-endgame
+    // Gemlord Pact open.
+    const oatheusEndgamePath = (gemlordId === 'oatheus'
+                                 && typeof hasAllGemshards === 'function'
+                                 && hasAllGemshards());
+    const canEnter = !!(game.player.ultharisMode || game.player.xenoxilDefeated || oatheusEndgamePath);
     if (canEnter && MAPS[caveId] && CAVE_META[caveId]) {
       const cave = MAPS[caveId];
       const spawnX = Math.floor(cave.cols / 2);
@@ -14388,6 +14499,42 @@ function interactGemlordThrone() {
   if (!cmeta) { showDialog(['The throne is silent.']); return; }
   const lord = GEMLORDS.find(g => g.id === cmeta.gemlord);
   if (!lord) { showDialog(['The throne is silent.']); return; }
+  // ★ OATHEUS'S EMPTY THRONE (2026-07-17) — Oatheus is MISSING from his
+  // cave.  His throne is the endgame trigger and, post-endgame, the
+  // canonical seed for the Part 2 storyline (Oatheus becomes a main
+  // character in Part 2 — his disappearance is the mystery that pulls
+  // the player across the Bridge of Hope).
+  if (cmeta.gemlord === 'oatheus') {
+    // (a) Pre-endgame + all 10 gemshards: ORRYX confronts, escorts to Bridge.
+    if (typeof hasAllGemshards === 'function' && hasAllGemshards()
+        && !game.player.endgameStarted) {
+      startEmptyThroneConfrontation();
+      return;
+    }
+    // (b) Post-endgame: the throne stays empty.  Part 2 hook — Oatheus's
+    // absence is the mystery that pulls the player across the Bridge.
+    if (game.player.xenoxilDefeated) {
+      showDialog([
+        'The throne remains EMPTY.',
+        'OATHEUS has still not returned.  Wherever he went — before the Seers, before you, before Xenoxil — he has not come home yet.',
+        '',
+        `You did what Novarius would have done.  But you did not do what OATHEUS was supposed to do.`,
+        `Because he isn't here.  Someone else has been sitting his watch.`,
+        '',
+        'The empty throne pulls at the Bridge of Hope in your mind.  South.  Whatever answered you today — the answer to Oatheus is south of Baelgor.',
+        '',
+        '«◈  OATHEUS · WHEREABOUTS UNKNOWN  ·  Part 2 story lead»',
+      ]);
+      return;
+    }
+    // (c) Pre-endgame, gemshards incomplete: seal narration.
+    showDialog([
+      'The Ultralord\'s throne stands at the summit of this cave.',
+      'It is EMPTY.  OATHEUS is not on it.',
+      'The Fathergems in your pack are silent — nowhere near ten yet.  You cannot pull him back without them.',
+    ]);
+    return;
+  }
   if (game.player.xenoxilDefeated) {
     const alreadyDone = (game.player.respects || []).includes(lord.id);
     if (alreadyDone) {
@@ -14493,6 +14640,142 @@ function healPartyFull() {
   }
   save();
 }
+// ★ EMPTY THRONE CONFRONTATION (2026-07-17).  Endgame restructure:
+// (1) Player finds Oatheus's throne empty · (2) BRIDGEWRIGHT VESKA — the
+// Baelgor forge-elder who oversaw the Bridge of Hope's original construction
+// — steps out.  She's been tracking the Seers scouting Baelgor's south for
+// months and knows they mean to seize the Bridge to take the SOUTH · (3)
+// she escorts the player south so they can defend it · (4) the Bridge OPENS
+// as a consequence of this event · (5) at the Bridge, the Seer trio is
+// present — actively taking it — and the player must choose to fight or
+// join.  The choice sets up Part 2.
+function startEmptyThroneConfrontation() {
+  showDialog([
+    'You reach the top of the Ultralord\'s cave.  The stone crown of the throne rises before you.',
+    '',
+    'It is EMPTY.',
+    '',
+    'OATHEUS is not here.  Should be.  Isn\'t.',
+    'The seat is cold in a way stone does not usually go cold — as if it has been empty for weeks, maybe months.',
+    'The ten Fathergems in your pack lift on their own.  They hover above the empty throne, arranging themselves into a wheel.',
+    '',
+    'A shape moves in the doorway behind you.',
+    '',
+    'BRIDGEWRIGHT VESKA of Baelgor steps into the throne-light.  Soot on her sleeves.  Ash on her collar.  Old, and awake in the way an old smith is awake.',
+    'VESKA: You made it here.  Good.  I was afraid I\'d have to walk this alone.',
+    'VESKA: I forged the BRIDGE OF HOPE with my grandmother\'s crew, sixty years back.  I know every span, every keystone, every rivet Baelgor sank into it.',
+    'VESKA: For six months I\'ve been watching cloaked scouts stalk Baelgor\'s south road.  They\'re SEERS.  They mean to take the BRIDGE.  If they hold it, they hold the SOUTH — every land past our border falls to them without a fight.',
+    'VESKA: The reason OATHEUS is gone is he already went to try to stop them.  He did not come back.  The throne is empty because of what they did.',
+    '',
+    'VESKA: Now you have the ten Fathergems and I have the last set of Bridge keys my grandmother made me swear I\'d never use.  Together we can get across.',
+    'VESKA: FOLLOW ME.  If we\'re fast we can catch them mid-crossing — before they finish taking it.',
+    '',
+    '«◈  BRIDGEWRIGHT VESKA of Baelgor · ally · escort ready»',
+    '«◈  THE BRIDGE OF HOPE opens · south of Baelgor»',
+  ], () => {
+    // ★ Force-unlock the Bridge — Veska's keys open it.
+    game.player.bridgeUnlockedByOrryx = true;   // legacy flag name kept for save compat
+    game.player.veskaEscorted = true;
+    save();
+    try { playSfx('toast'); } catch(_) {}
+    showToast('◈  BRIDGE OF HOPE OPENS  ·  Veska leads · Seers are mid-crossing', 3800);
+    const bridge = MAPS.bridge_of_hope;
+    if (!bridge) {
+      showDialog(['The Bridge shudders.  (Bridge map not wired — contact the maker.)']);
+      return;
+    }
+    const spawnX = Math.floor((bridge.cols || 24) / 2);
+    const spawnY = 2;
+    enterMap('bridge_of_hope', spawnX, spawnY, 'down');
+    setTimeout(() => startBridgeSeerChoice(), 1200);
+  });
+}
+function startBridgeSeerChoice() {
+  showDialog([
+    'The Bridge of Hope stretches south under a sky that shouldn\'t be here.',
+    'Halfway across, three cloaks wait for you.',
+    '',
+    'The FLESHLORD XENOXIL — quiet as a wound.  His eyes settle on you without blinking.',
+    'OPHIRA of the Choir — hands folded like a priest.  A hymn hums under her breath even standing still.',
+    'ORRYX THE RELUCTANT — the only one who looks tired.',
+    '',
+    'They are mid-work.  The seals Baelgor sunk into the northern keystone are already cracked at their feet.  Give them another hour and the Bridge answers to the New Order.  Give them a day and every land south of it does.',
+    '',
+    'VESKA (behind you, low): Steady.  You bought us this minute.  Use it.',
+    '',
+    'XENOXIL: You brought the shards back to us.  Kind of you.',
+    'OPHIRA: OATHEUS abandoned his throne — you saw it.  We only stepped into what he left.',
+    'ORRYX: Xenoxil wants to kill you.  Ophira wants to convert you.  Choose which one you prefer, Rizer.',
+    '',
+    'XENOXIL: FIGHT US.  Defend the Bridge.  Baelgor\'s work stays whole.  The south stays free.  You die a hero, if we\'re better than you — that is the honest offer.',
+    'OPHIRA: JOIN US.  Keep everything you\'ve built.  Become the New Order\'s Rizer.  The Bridge opens south, always, but it opens FOR US.',
+    '',
+    '«◈  This choice sets up PART 2 of the Ninth World\'s story.»',
+    '«◈  FIGHT  ·  defend Baelgor\'s Bridge · mainline path.»',
+    '«◈  JOIN  ·  become the New Order\'s Rizer · dark path.»',
+  ], () => {
+    renderBridgeSeerChoice();
+  });
+}
+function renderBridgeSeerChoice() {
+  // Present two buttons via a lightweight choice modal.  Reuses the
+  // openItemTargetPicker DOM pattern.
+  const existing = document.getElementById('seer-choice-modal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'seer-choice-modal';
+  modal.style.cssText = 'position:fixed; inset:0; z-index:10060; display:flex; align-items:center; justify-content:center; background:rgba(5,3,16,0.82); backdrop-filter:blur(6px); font-family:var(--font-pixel), Inter, sans-serif;';
+  const inner = document.createElement('div');
+  inner.style.cssText = 'width:min(460px, 92vw); background:linear-gradient(180deg, #1a0d2e 0%, #0a0517 100%); border:2px solid #f8c840; border-radius:12px; padding:18px 20px; box-shadow:0 12px 40px rgba(0,0,0,0.8);';
+  inner.innerHTML = `
+    <div style="font-size:14px; letter-spacing:0.14em; color:#f8c840; margin-bottom:14px; text-align:center;">◈  THE BRIDGE · YOUR CHOICE  ◈</div>
+    <button id="seer-fight" style="display:block; width:100%; padding:14px; margin:6px 0; border-radius:8px; background:#3a1a1a; border:2px solid #ff8a6a; color:#ffdcc0; font-family:inherit; font-size:13px; letter-spacing:0.14em; cursor:pointer; text-align:left;">
+      <b>◈ FIGHT THE NEW ORDER</b><br>
+      <span style="font-size:11px; color:#ffa88a;">Ophira · Orryx · Xenoxil — 9-Zyrex chain.  The canon ending.</span>
+    </button>
+    <button id="seer-join" style="display:block; width:100%; padding:14px; margin:6px 0; border-radius:8px; background:#2a1a3a; border:2px solid #c896ff; color:#e0c8ff; font-family:inherit; font-size:13px; letter-spacing:0.14em; cursor:pointer; text-align:left;">
+      <b>◈ JOIN THEM</b><br>
+      <span style="font-size:11px; color:#b09cd0;">The dark path.  Ends the story here.  Reload your save to fight instead.</span>
+    </button>
+  `;
+  modal.appendChild(inner);
+  document.body.appendChild(modal);
+  document.getElementById('seer-fight').onclick = () => { modal.remove(); startEndgameEncounter(); };
+  document.getElementById('seer-join').onclick  = () => { modal.remove(); startSeerJoinEnding(); };
+}
+function startSeerJoinEnding() {
+  // ★ JOIN THE NEW ORDER — bad ending.  Latches game.player.joinedSeers
+  // so save-reloads can detect the branch (but the branch itself ends
+  // the playthrough — the player must reload a prior save to fight).
+  game.player.joinedSeers = true;
+  game.player.endgameStarted = true;   // block the fight path from re-firing
+  save();
+  showDialog([
+    'You step across the Bridge.  The Fathergems in your pack settle around your throat like a collar.',
+    '',
+    'BRIDGEWRIGHT VESKA, behind you: You — you don\'t understand what you\'re giving them.  Baelgor\'s bones are IN that Bridge.',
+    'She turns and runs back north.  She has a warning to carry.',
+    '',
+    'XENOXIL smiles.  It is a small smile.  He does it rarely.',
+    'XENOXIL: A good choice.  A LEGIBLE choice.  We will find work for you.',
+    'OPHIRA sings a low welcome.  Her hymn was written centuries before you were born, for a moment exactly like this.',
+    'ORRYX looks down at his boots.',
+    'ORRYX: I did not want it to be this one.  But it is done.',
+    '',
+    'The last seals on Baelgor\'s Bridge crack under the New Order\'s hands.  The road SOUTH answers to them now — every land past the crossing will fall the way you just did.',
+    '',
+    'The Ninth World will not remember you as a Rizer.  It will remember you as the RIZER WHO KNELT — the one who gave them the SOUTH.',
+    '',
+    '«◈  BAD ENDING  ·  THE RIZER WHO KNELT · Part 2 south lost»',
+    '«◈  Reload a previous save to fight the New Order instead.»',
+  ], () => {
+    // Freeze the player in place — save mode intact, but no further story
+    // triggers can fire.  The player must reload.
+    game.mode = 'dialog';   // hold input
+    try { playSfx('toast'); } catch(_) {}
+    showToast('◈  BAD ENDING · reload save to fight', 5000);
+  });
+}
 function startEndgameEncounter() {
   showDialog([
     'The Ultralands fall silent.',
@@ -14559,13 +14842,10 @@ function grantSaviorOfWorldTitle() {
 function interactShrine() {
   const districtId = game.player.mapId;
   const shrine = SHRINES[districtId];
-  // V3.15 — Korathen's Empty Throne triggers the endgame reveal when
-  // the player holds all 10 Gemshards.  Fires once (endgameStarted
-  // latches).  Bypasses the normal shrine reward flow.
-  if (districtId === 'korathen' && hasAllGemshards() && !game.player.endgameStarted) {
-    startEndgameEncounter();
-    return;
-  }
+  // ★ 2026-07-17 — The endgame trigger MOVED from Korathen's overworld
+  // shrine to OATHEUS'S EMPTY THRONE inside gemlord_cave_oatheus.  Canon:
+  // Oatheus is missing.  His empty throne is what pulls the ten Fathergems
+  // into the wheel and summons the New Order.  See interactGemlordThrone.
   if (!shrine) {
     showDialog(['A quiet place. Nothing calls back.']);
     return;
@@ -18696,8 +18976,11 @@ function renderBagMenu() {
     if (!prism) return;
     const b = document.createElement('button');
     b.className = 'action-btn';
-    b.innerHTML = `★ PRISMSYNCH · ${prism.display.toUpperCase()} <span class="cost">${prism.power} pow · ${(prism.statusChance*100)|0}% status</span>`;
-    if (prismUsedThisFight) b.disabled = true;
+    const gemCost = prism.gemCost || 0;
+    const totalGems = (game.player.gems || 0) + (p.gems || 0);
+    const gemStr = gemCost > 0 ? ` · ◈${gemCost}${totalGems < gemCost ? ' (low)' : ''}` : '';
+    b.innerHTML = `★ PRISMSYNCH · ${prism.display.toUpperCase()} <span class="cost">${prism.power} pow · ${(prism.statusChance*100)|0}% status${gemStr}</span>`;
+    if (prismUsedThisFight || (gemCost > 0 && totalGems < gemCost)) b.disabled = true;
     b.onclick = () => firePrismsynch(prismKey);
     $battleActions.appendChild(b);
   });
@@ -18707,8 +18990,10 @@ function renderBagMenu() {
   if (typeof ultimatePrismsynchAvailable === 'function' && ultimatePrismsynchAvailable()) {
     const b = document.createElement('button');
     b.className = 'action-btn';
-    b.innerHTML = `★ ULTIMATE PRISMSYNCH · KEY OF ANCIUXOR <span class="cost">999 pow · 100% status</span>`;
-    if (prismUsedThisFight) b.disabled = true;
+    const ultCost = 999;
+    const totalGems = (game.player.gems || 0) + (p.gems || 0);
+    b.innerHTML = `★ ULTIMATE PRISMSYNCH · KEY OF ANCIUXOR <span class="cost">999 pow · 100% status · ◈${ultCost}${totalGems < ultCost ? ' (low)' : ''}</span>`;
+    if (prismUsedThisFight || totalGems < ultCost) b.disabled = true;
     b.style.borderColor = '#f8c840';
     b.style.boxShadow = '0 0 8px rgba(248,200,64,0.5)';
     b.onclick = () => fireUltimatePrismsynch();
@@ -18885,6 +19170,7 @@ const PRISM_TABLE = {
     district: 'xilnar',
     power: 150,
     statusChance: 0.40,
+    gemCost: 75,    // ★ Astralite gems POWER the Prismsynch resonance (2026-07-17 · ×15)
     hint: 'A Zyraxis-native Prism from Xilnar.  Cool to the touch.  Deeper than it looks.',
   },
   prism_of_refuge: {
@@ -18893,6 +19179,7 @@ const PRISM_TABLE = {
     district: 'vorashil',
     power: 225,
     statusChance: 0.50,
+    gemCost: 150,   // ×15
     hint: 'A Zyraxis-native Prism from Vorashil.  Warm.  Steadying.  It has held someone before.',
   },
   prism_of_the_crown: {
@@ -18901,6 +19188,7 @@ const PRISM_TABLE = {
     district: 'korathen',
     power: 300,
     statusChance: 0.60,
+    gemCost: 300,   // ×15
     hint: 'A Zyraxis-native Prism from Korathen.  The Ultralord\'s crown-jewel.  Worn by every Grand Champion since Novarius.  The sky lifts when you hold it.',
   },
 };
@@ -18985,6 +19273,23 @@ async function fireUltimatePrismsynch() {
   const p = game.player.party[game.battle.playerIdx];
   const e = game.battle.enemy;
   if (!p || !e) { renderMainMenu(); return; }
+  // ★ ULTIMATE gem cost — 999 gems (matches Ultharis's 999 stat parity,
+  // Ultimate move cost).  Deep 75 · Refuge 150 · Crown 300 · ULTIMATE 999.
+  const ULT_GEM_COST = 999;
+  const playerGems = game.player.gems || 0;
+  const equippedGems = p.gems || 0;
+  const totalAvailable = playerGems + equippedGems;
+  if (totalAvailable < ULT_GEM_COST) {
+    showToast(`◇ Ultimate Prismsynch needs ◈${ULT_GEM_COST} gems · you have ◈${totalAvailable}`, 3200);
+    renderMainMenu();
+    return;
+  }
+  if (equippedGems >= ULT_GEM_COST) {
+    p.gems = equippedGems - ULT_GEM_COST;
+  } else {
+    p.gems = 0;
+    game.player.gems = playerGems - (ULT_GEM_COST - equippedGems);
+  }
   game.battle.prismsynchFired = true;
   game.battle.prismsynchType = 'key_of_anciuxor';
   const move = {
@@ -19024,6 +19329,27 @@ async function firePrismsynch(prismKey) {
   const p = game.player.party[game.battle.playerIdx];
   const e = game.battle.enemy;
   if (!p || !e) { renderMainMenu(); return; }
+  // ★ GEM COST (2026-07-17) — Astralite gems POWER the Prismsynch
+  // resonance.  Deep 5 · Refuge 10 · Crown 20.  If the player + Zyrex
+  // pool doesn't cover it, refuse the fire with a toast.
+  const gemCost = prism.gemCost || 0;
+  const playerGems = game.player.gems || 0;
+  const equippedGems = p.gems || 0;
+  const totalAvailable = playerGems + equippedGems;
+  if (gemCost > 0 && totalAvailable < gemCost) {
+    showToast(`◇ Need ◈${gemCost} gems · you have ◈${totalAvailable}`, 2400);
+    renderMainMenu();
+    return;
+  }
+  // Deduct: prefer equipped gems first, then player pool.
+  if (gemCost > 0) {
+    if (equippedGems >= gemCost) {
+      p.gems = equippedGems - gemCost;
+    } else {
+      p.gems = 0;
+      game.player.gems = playerGems - (gemCost - equippedGems);
+    }
+  }
   game.battle.prismsynchFired = true;
   game.battle.prismsynchType = prismKey;   // marker for future beat-hooks
   const move = {
@@ -19037,7 +19363,7 @@ async function firePrismsynch(prismKey) {
   game.battle.animLock = true;
   $battleActions.innerHTML = '';
   try { playSfx('toast'); } catch(_) {}
-  showToast(`◈ PRISMSYNCH · ${prism.display.toUpperCase()}`, 2400);
+  showToast(`◈ PRISMSYNCH · ${prism.display.toUpperCase()} · -◈${gemCost} gems`, 2400);
   const enemyMove = pickEnemyMove(e, p);
   // Prism strikes first — resonance breaks the speed-order rule.
   await performMove(p, e, move, true);
@@ -19177,12 +19503,20 @@ async function performMove(user, target, move, playerSide) {
               || (user.type2 && move.type === user.type2)
               || (user.type3 && move.type === user.type3);
   const stab = isStab ? 1.5 : 1.0;
-  // V2.49 — Critical hit: 6.25% base chance, x1.5 damage.  Bosses / commanders
-  // could later carry crit-immunity via a Trait; for now everyone rolls the
-  // same rate so the mechanic is legible.
+  // V2.49 — Critical hit: 6.25% base chance, x1.5 damage.
+  // ★ 2026-07-17 SPC SCALING — the attacker's Special stat now boosts:
+  //   (a) crit chance: base 6.25% + up to +18.75% at Lv 100 SPC parity
+  //   (b) crit damage multiplier on STAB: 1.5× → up to 2.25× at high SPC
+  // Encourages SPC-heavy builds + rewards STAB team-building.
+  const spc = user.stats && user.stats.spc || 1;
+  // Bench SPC max around 999 for endgame; scale 0-1 across the range.
+  const spcFactor = Math.min(1, spc / 999);
+  const critBonus = 0.1875 * spcFactor;   // up to +18.75%
   const critRoll = Math.random();
-  const isCrit = critRoll < 0.0625;
-  const critMult = isCrit ? 1.5 : 1.0;
+  const isCrit = critRoll < (0.0625 + critBonus);
+  // Crit STAB gets extra teeth: 1.5 → up to 2.25 at max SPC.  Non-STAB
+  // crits stay at flat 1.5.
+  const critMult = isCrit ? (isStab ? (1.5 + 0.75 * spcFactor) : 1.5) : 1.0;
   // Final damage: base * type * stab * crit * variance (0.85..1.15)
   const dmg = Math.max(1, Math.floor(base * mult * stab * critMult * (0.85 + Math.random() * 0.3)));
   target.hp = Math.max(0, target.hp - dmg);
@@ -19230,12 +19564,20 @@ async function performMove(user, target, move, playerSide) {
 //   tierBoost  = 1 + 0.05 × (userTier − 1)   → +5% inflict per tier of user
 // Rewards building high-SPC Zyrex AND leveling into higher tiers.
 function computeStatusChance(move, user, target) {
+  // ★ 2026-07-17 SPC SCALING — Special stat now drives status inflict odds
+  // both relatively (attacker vs target ratio) and absolutely (a raw SPC
+  // parity bonus so a high-SPC caster is punishing even against a high-
+  // SPC target).  Higher special = more critical status landings.
   const baseChance = (typeof move.statusChance === 'number') ? move.statusChance : 0.30;
   const uSpc = (user && user.stats && user.stats.spc) || 1;
   const tSpc = Math.max(1, (target && target.stats && target.stats.spc) || 1);
-  const spcRatio  = Math.max(0.5, Math.min(2.0, uSpc / tSpc));
+  // Ratio widened: 0.5×–2.5× (was 0.5×–2.0×) so a dominant SPC caster
+  // hits harder on status even against a weaker-SPC target.
+  const spcRatio  = Math.max(0.5, Math.min(2.5, uSpc / tSpc));
+  // Absolute SPC parity bonus — up to +30% flat at Lv 100 999-stat parity.
+  const spcAbsBonus = Math.min(0.30, uSpc / 3333);
   const tierBoost = 1 + 0.05 * Math.max(0, tierOfLevel((user && user.lv) || 1) - 1);
-  return Math.max(0.05, Math.min(0.95, baseChance * spcRatio * tierBoost));
+  return Math.max(0.05, Math.min(0.98, baseChance * spcRatio * tierBoost + spcAbsBonus));
 }
 
 function inflictStatus(target, key, user) {
@@ -19722,6 +20064,32 @@ function checkBattleOver() {
               'The chest behind them will open for you now.',
               'The path east opens.  Next district is yours to enter.',
             ]), 1200);
+            // ★ TENTH-COMMANDER HOOK (2026-07-17) — when the LAST Seer
+            // Commander falls, fire a big narrative beat that explicitly
+            // points the player at Korathen's Empty Throne (the endgame
+            // trigger).  Previously the endgame was hidden behind an
+            // easily-missed shrine interaction; this hook makes it loud.
+            const totalDown = Object.keys(game.player.seerCommandersDefeated).length;
+            if (totalDown >= 10 && !game.player.tenthCommanderHookFired) {
+              game.player.tenthCommanderHookFired = true;
+              save();
+              setTimeout(() => showDialog([
+                '◈  THE SEERS OF THE NINTH WORLD · BROKEN  ◈',
+                '',
+                'Every Ministry eye is dark.  Every Fathergem sits in your pack.  The ten Gemlords, one by one, feel the weight of their shards lift from thieves\' pockets and settle where they should be.',
+                '',
+                'The Ninth World breathes in.',
+                '',
+                'It is not over.',
+                '',
+                'The Seers were middle-men.  Whoever they served — the FLESHLORD, the CHOIR, the RELUCTANT ONE — is still out there.  The Fathergems know it.  They pull, all ten of them, toward a single place.',
+                '',
+                'Toward Korathen — past the throne route, into OATHEUS\'S CAVE.  You need to look at his THRONE with your own eyes.',
+                '',
+                '«◈  THE ULTIMATUM AWAITS  ·  travel east through Korathen into Oatheus\'s cave»',
+              ]), 2600);
+              setTimeout(() => showToast('◈ ENDGAME · walk east into Oatheus\'s cave', 4200), 3000);
+            }
           }
         }
       }

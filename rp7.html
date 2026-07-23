@@ -7482,7 +7482,15 @@ const CANON_MAX_POOL = {
 };
 function poolAtLv(species, lv) {
   const id = species && (species.id || species.speciesId);
-  const maxPool = (id && CANON_MAX_POOL[id]) ? CANON_MAX_POOL[id] : (100 * POOL_PER_LEVEL_TIMES_10 / 10);
+  const tier = (species && species.tier) || 1;
+  // ★ 2026-07-23 · T×333 STAT-CAP CONTRACT.  Every Zyrex maxes at Lv 100.
+  // Stat pool at max = tier × 333 (the codex block sum).  A Zyrex CANNOT
+  // exceed its current form's cap — the only path to higher stats is to
+  // evolve into a higher-tier form (which raises the cap).  If no higher
+  // form exists on the evolution line, this species's Lv 100 pool is its
+  // ceiling.  T1 → 333 · T3 → 999 · T6 → 1998 · T10 → 3330.
+  const codexMaxPool = tier * 333;
+  const maxPool = (id && CANON_MAX_POOL[id]) ? CANON_MAX_POOL[id] : codexMaxPool;
   const clamped = Math.max(1, Math.min(100, lv || 1));
   return Math.floor(clamped * maxPool / 100);
 }
@@ -21000,6 +21008,11 @@ function enterBattle(enemy, kind, extras) {
     animLock: false,
     ...(extras || {}),       // V2.11.2 — merge stakes / stealPool / npcCoord / tileChar / trainerName / chain
   };
+  // ★ 2026-07-23 · Stamp the enemy's original party count so the name
+  // card can render subtle party-count dots (●●●○○ → filled = alive,
+  // hollow = KO'd).  Only meaningful for trainer chains; wild singles
+  // read as total = 1 and the dots row is hidden.
+  game.battle.enemyPartyTotal = 1 + ((game.battle.chain && game.battle.chain.length) || 0);
   $battle.classList.add('active');
   drawBattleMon(enemyCanvas, enemy, true);
   drawBattleMon(playerCanvas, game.player.party[idx], false);
@@ -21020,7 +21033,19 @@ function enterBattle(enemy, kind, extras) {
 function refreshBattleUI() {
   const p = game.player.party[game.battle.playerIdx];
   const e = game.battle.enemy;
-  $enemyName.textContent = e.name;
+  // ★ 2026-07-23 · Enemy party-count dots.  Filled = alive (current +
+  // remaining chain); hollow = KO'd.  Only shown when total > 1 (trainer
+  // chains).  Muted color + small font — subtle intel, not a spotlight.
+  const total = (game.battle && game.battle.enemyPartyTotal) || 1;
+  if (total > 1) {
+    const remaining = (e.hp > 0 ? 1 : 0) + ((game.battle.chain && game.battle.chain.length) || 0);
+    const filled = Math.max(0, Math.min(total, remaining));
+    const hollow = Math.max(0, total - filled);
+    const dots = '●'.repeat(filled) + '○'.repeat(hollow);
+    $enemyName.innerHTML = `${e.name}  <span style="opacity:0.55; font-size:10px; letter-spacing:1.5px; color:var(--mist);">${dots}</span>`;
+  } else {
+    $enemyName.textContent = e.name;
+  }
   $enemyLv.textContent   = `Lv ${e.lv}·${tierRoman(e.lv)}`;
   $enemyHp.style.width   = (e.hp / e.maxHp * 100) + '%';
   hpBarClass($enemyHp, e.hp / e.maxHp);
@@ -21552,11 +21577,20 @@ async function fireUltimatePrismsynch() {
     prismsynch: true,
     statusChance: 1.0,   // guaranteed status
     ultimate: true,
+    status: 'souldrift',   // 4th-Realm cross · lethal decay debuff
   };
   game.battle.animLock = true;
   $battleActions.innerHTML = '';
   try { playSfx('toast'); } catch(_) {}
-  showToast('◈  ULTIMATE PRISMSYNCH · KEY OF ANCIUXOR', 3200);
+  // ★ 2026-07-23 · Ultimate cinematic — three-beat intro before the strike.
+  await prismsynchScreenFlash('#ffe488', 3);
+  logBattle(`◈◈◈  ${(p.name || 'RIZER').toUpperCase()}'s bond with Anciuxor opens.`);
+  await wait(600);
+  logBattle(`◈  The KEY OF ANCIUXOR turns on His tail.`);
+  await wait(600);
+  logBattle(`◈  ULTHARIS answers from the 4th Realm of Omnithris.`);
+  await wait(700);
+  showToast('◈◈◈  ULTIMATE PRISMSYNCH · KEY OF ANCIUXOR  ◈◈◈', 3600);
   const enemyMove = pickEnemyMove(e, p);
   await performMove(p, e, move, true);
   if (!checkBattleOver()) {
@@ -21571,6 +21605,31 @@ async function fireUltimatePrismsynch() {
 function ownedPrisms() {
   const it = (game.player && game.player.items) || {};
   return Object.keys(PRISM_TABLE).filter(k => (it[k] || 0) > 0);
+}
+// ★ 2026-07-23 · Full-screen resonance flash used by both firePrismsynch
+// and fireUltimatePrismsynch.  Overlays a tinted div over the battle
+// screen, pulses it (n cycles), then removes it.  Non-blocking on the
+// game logic — awaits the animation to complete before returning.
+async function prismsynchScreenFlash(color, cycles) {
+  cycles = cycles || 2;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed; inset: 0;
+    background: ${color};
+    opacity: 0;
+    pointer-events: none;
+    z-index: 99999;
+    mix-blend-mode: screen;
+    transition: opacity 140ms ease-out;
+  `;
+  document.body.appendChild(overlay);
+  for (let i = 0; i < cycles; i++) {
+    overlay.style.opacity = '0.85';
+    await new Promise(r => setTimeout(r, 180));
+    overlay.style.opacity = '0';
+    await new Promise(r => setTimeout(r, 140));
+  }
+  overlay.remove();
 }
 async function firePrismsynch(prismKey) {
   const prism = PRISM_TABLE[prismKey];
@@ -21604,18 +21663,37 @@ async function firePrismsynch(prismKey) {
   }
   game.battle.prismsynchFired = true;
   game.battle.prismsynchType = prismKey;   // marker for future beat-hooks
+  // ★ 2026-07-23 · Per-Prism status brand — the resonance always inflicts
+  // the status matched to the Prism's canonical district.
+  const PRISM_STATUS = {
+    prism_of_the_deep:   'gridfreeze',   // Xilnar · UV·Spirit · cold-lock
+    prism_of_refuge:     'psychache',    // Vorashil · Tech·ET · mind-quake
+    prism_of_the_crown:  'undershock',   // Korathen · Aura·Humanoid · authority-shock
+  };
   const move = {
     name: `${(p.name || 'RIZER').toUpperCase()}'S PRISMSYNCH · ${prism.display.toUpperCase()}`,
     type: p.type || 'Divine',
     power: prism.power,
     cost: 0,
     prismsynch: true,
-    statusChance: prism.statusChance,
+    statusChance: 1.0,                   // guaranteed via performMove branch
+    status: PRISM_STATUS[prismKey] || 'psychache',
   };
   game.battle.animLock = true;
   $battleActions.innerHTML = '';
   try { playSfx('toast'); } catch(_) {}
-  showToast(`◈ PRISMSYNCH · ${prism.display.toUpperCase()} · -◈${gemCost} gems`, 2400);
+  // ★ Per-Prism cinematic tint + intro beat.
+  const TINT = {
+    prism_of_the_deep:   '#5cd0ff',
+    prism_of_refuge:     '#8ba0d8',
+    prism_of_the_crown:  '#ffd048',
+  };
+  await prismsynchScreenFlash(TINT[prismKey] || '#e0f0ff', 2);
+  logBattle(`◈  ${(p.name || 'RIZER').toUpperCase()} lifts the ${prism.display.toUpperCase()}.`);
+  await wait(500);
+  logBattle(`◈  ${(p.name || 'RIZER').toUpperCase()} + ${p.name} — bond synchronizes.`);
+  await wait(500);
+  showToast(`◈  PRISMSYNCH · ${prism.display.toUpperCase()}  ·  -◈${gemCost} gems`, 2800);
   const enemyMove = pickEnemyMove(e, p);
   // Prism strikes first — resonance breaks the speed-order rule.
   await performMove(p, e, move, true);
@@ -21643,15 +21721,32 @@ async function playerUseMove(i) {
   // One move per Zyrex per turn. Ties: player wins.
   const enemyMove = pickEnemyMove(e, p);
   const playerFirst = (p.stats.spd || 0) >= (e.stats.spd || 0);
+  // ★ 2026-07-23 · ULTIMATE PRISMSYNCH stagger — consume the flag set by
+  // the previous turn's Ultimate strike.  Enemy skips their action.
+  const enemyStaggered = !!(game.battle && game.battle.enemyStaggeredNextTurn);
+  if (enemyStaggered) game.battle.enemyStaggeredNextTurn = false;
   if (playerFirst) {
     await performMove(p, e, move, true);
     if (!checkBattleOver()) {
-      if (e.hp > 0 && p.hp > 0) await performMove(e, p, enemyMove, false);
+      if (e.hp > 0 && p.hp > 0) {
+        if (enemyStaggered) {
+          logBattle(`${e.name} is staggered by the 4th-Realm strike — skipped this turn!`);
+          await wait(700);
+        } else {
+          await performMove(e, p, enemyMove, false);
+        }
+      }
     }
   } else {
-    await performMove(e, p, enemyMove, false);
-    if (!checkBattleOver()) {
-      if (p.hp > 0 && e.hp > 0) await performMove(p, e, move, true);
+    if (enemyStaggered) {
+      logBattle(`${e.name} is staggered by the 4th-Realm strike — skipped this turn!`);
+      await wait(700);
+      if (!checkBattleOver() && p.hp > 0 && e.hp > 0) await performMove(p, e, move, true);
+    } else {
+      await performMove(e, p, enemyMove, false);
+      if (!checkBattleOver()) {
+        if (p.hp > 0 && e.hp > 0) await performMove(p, e, move, true);
+      }
     }
   }
   // V3.17.40 — End-of-round status tick for both fighters.
@@ -21744,6 +21839,28 @@ async function performMove(user, target, move, playerSide) {
   let isDivineHit = false;
   if (target.species === 'anciuxor')  mult = Math.min(mult, 1.0);
   if (user.species   === 'anciuxor') { mult = 3.0; isDivineHit = true; }
+  // ★ 2026-07-23 · PRISMSYNCH CINEMATIC OVERRIDES.  A Prismsynch strike
+  // ignores the roll-based reduction that makes normal hits miss / resist
+  // / fail to crit.  It always lands with:
+  //   • guaranteed CRIT (max crit multiplier at that SPC)
+  //   • effectiveness floor of 2.0× (super-effective minimum, canon says
+  //     Prism resonance overrides the type chart)
+  //   • +1.0 additive Prism-tier multiplier on top (Deep +1.0, Refuge
+  //     +1.5, Crown +2.0, Ultimate +3.0)
+  //   • variance floor 1.0 (never rolls below full damage)
+  //   • guaranteed status inflict on the target (100%)
+  //   • ULTIMATE (Key of Anciuxor): guaranteed OHKO on non-boss / non-
+  //     endgame targets · staggers the enemy for one turn if they survive.
+  const isPrismsynch = !!move.prismsynch;
+  const isUltimatePS = !!move.ultimate;
+  let prismTierBoost = 1.0;
+  if (isPrismsynch) {
+    if      (isUltimatePS)                          prismTierBoost = 4.0;
+    else if ((move.name || '').includes('CROWN'))   prismTierBoost = 3.0;
+    else if ((move.name || '').includes('REFUGE'))  prismTierBoost = 2.5;
+    else                                            prismTierBoost = 2.0;   // Deep
+    mult = Math.max(mult, 2.0);   // super-effective floor
+  }
   const atk = user.stats.atk * stageMult(user.atkStage);
   const def = target.stats.def;
   const base = ((atk / def) * move.power * (user.lv / (user.lv + target.lv))) / 2;
@@ -21765,26 +21882,66 @@ async function performMove(user, target, move, playerSide) {
   const spcFactor = Math.min(1, spc / 999);
   const critBonus = 0.1875 * spcFactor;   // up to +18.75%
   const critRoll = Math.random();
-  const isCrit = critRoll < (0.0625 + critBonus);
+  // ★ Prismsynch guarantees the crit — the resonance IS the crit.
+  const isCrit = isPrismsynch ? true : (critRoll < (0.0625 + critBonus));
   // Crit STAB gets extra teeth: 1.5 → up to 2.25 at max SPC.  Non-STAB
-  // crits stay at flat 1.5.
-  const critMult = isCrit ? (isStab ? (1.5 + 0.75 * spcFactor) : 1.5) : 1.0;
-  // Final damage: base * type * stab * crit * variance (0.85..1.15)
-  const dmg = Math.max(1, Math.floor(base * mult * stab * critMult * (0.85 + Math.random() * 0.3)));
-  target.hp = Math.max(0, target.hp - dmg);
+  // crits stay at flat 1.5.  Prismsynch pins to the max STAB-crit multiplier
+  // (2.25) regardless of the attacker's actual STAB coverage — the Prism
+  // is the STAB.
+  const critMult = isCrit
+    ? (isPrismsynch ? 2.25 : (isStab ? (1.5 + 0.75 * spcFactor) : 1.5))
+    : 1.0;
+  // ★ Prismsynch skips the 0.85-1.15 variance floor and applies the
+  // Prism-tier boost as a flat multiplier on top of everything else.
+  const variance = isPrismsynch ? (1.0 + Math.random() * 0.15) : (0.85 + Math.random() * 0.3);
+  const dmg = Math.max(1, Math.floor(base * mult * stab * critMult * prismTierBoost * variance));
+  // ★ Prismsynch: ULTIMATE guarantees OHKO on any non-boss / non-endgame
+  // target (T≤6, no game.battle.commander, no game.battle.endgameFight).
+  // Anciuxor's Key doesn't just hit — it deletes anything short of a
+  // Fathergem-tier being.  Boss + endgame targets absorb the massive
+  // damage but don't get one-shot.
+  let effectiveDmg = dmg;
+  if (isUltimatePS) {
+    const targetTier = (SPECIES[target.species] && SPECIES[target.species].tier) || target.tier || 1;
+    const isBossFight = !!(game.battle && (game.battle.commander || game.battle.endgameFight || game.battle.novarianGrandChampion));
+    if (targetTier <= 6 && !isBossFight) {
+      effectiveDmg = Math.max(dmg, target.hp);   // guaranteed OHKO
+    }
+  }
+  target.hp = Math.max(0, target.hp - effectiveDmg);
   const targetCanvas = playerSide ? enemyCanvas : playerCanvas;
-  await flashCanvas(targetCanvas);
+  // ★ Prismsynch: three flashes instead of one for the resonance beat.
+  if (isPrismsynch) {
+    await flashCanvas(targetCanvas);
+    await flashCanvas(targetCanvas);
+    await flashCanvas(targetCanvas);
+  } else {
+    await flashCanvas(targetCanvas);
+  }
   // V2.49 — floating damage number rising off the target sprite. Style
   // varies by hit quality so the player sees crits and super-effective
   // hits without having to read the log.
-  spawnFloatingNumber(targetCanvas, dmg, { crit: isCrit, mult, stab: isStab });
+  spawnFloatingNumber(targetCanvas, effectiveDmg, { crit: isCrit, mult, stab: isStab });
   // V2.23 / V2.26 / V2.49 · V3.17.20 — hit callouts stack STAB / CRIT /
   // DIVINE HIT prefixes on the effectiveness line.  DIVINE HIT fires
   // when Anciuxor is the attacker (3× override; the Ancient One does
   // not honor the type chart).  It overrides the normal mult-based
   // effectiveness banner because the divine strike IS the banner.
-  const prefix = [isDivineHit ? '◈ DIVINE HIT! ◈' : null, isCrit ? 'CRITICAL HIT!' : null, isStab ? 'STAB!' : null].filter(Boolean).join(' ');
-  if      (isDivineHit) { logBattle(`${prefix} — the Ancient One strikes. (-${dmg})`);                              await wait(900); }
+  const prefix = [
+    isPrismsynch  ? (isUltimatePS ? '◈◈◈ ULTIMATE PRISMSYNCH ◈◈◈' : '◈ PRISMSYNCH RESONANCE ◈') : null,
+    isDivineHit   ? '◈ DIVINE HIT! ◈' : null,
+    isCrit && !isPrismsynch ? 'CRITICAL HIT!' : null,
+    isStab && !isPrismsynch ? 'STAB!' : null,
+  ].filter(Boolean).join(' ');
+  if      (isPrismsynch && isUltimatePS) {
+    logBattle(`${prefix} — the 4th Realm reaches through. (-${effectiveDmg})`);
+    await wait(1400);
+  }
+  else if (isPrismsynch) {
+    logBattle(`${prefix} — the Prism shatters distance. (-${effectiveDmg})`);
+    await wait(1100);
+  }
+  else if (isDivineHit) { logBattle(`${prefix} — the Ancient One strikes. (-${dmg})`);                              await wait(900); }
   else if (mult >= 4)   { logBattle(`${prefix ? prefix + ' ' : ''}SUPER EFFECTIVE — Devastating hit! (-${dmg})`); await wait(800); }
   else if (mult >= 2)   { logBattle(`${prefix ? prefix + ' ' : ''}Super effective — heavy hit! (-${dmg})`);       await wait(750); }
   else if (mult <= 0.25){ logBattle(`${prefix ? prefix + ' ' : ''}Not very effective... barely a scratch. (-${dmg})`); await wait(800); }
@@ -21792,14 +21949,38 @@ async function performMove(user, target, move, playerSide) {
   else                  { logBattle(`${prefix ? prefix + ' ' : ''}(-${dmg})`);                                     await wait(500); }
   refreshBattleUI();
   // Status inflict roll · V3.17.38 canon: chance is base × SPC-ratio × tier-boost
+  // ★ Prismsynch: guaranteed inflict (skips the SPC/tier roll entirely).
   if (target.hp > 0 && move.status) {
-    const chance = computeStatusChance(move, user, target);
-    if (Math.random() < chance) {
+    if (isPrismsynch) {
       inflictStatus(target, move.status, user);
       refreshBattleUI();
-      logBattle(`${STATUSES[move.status] ? STATUSES[move.status].name : move.status} landed!  (${Math.round(chance * 100)}% inflict)`);
-      await wait(700);
+      logBattle(`◈  Prismsynch resonance imprints ${STATUSES[move.status] ? STATUSES[move.status].name : move.status} on ${target.name}.`);
+      await wait(800);
+    } else {
+      const chance = computeStatusChance(move, user, target);
+      if (Math.random() < chance) {
+        inflictStatus(target, move.status, user);
+        refreshBattleUI();
+        logBattle(`${STATUSES[move.status] ? STATUSES[move.status].name : move.status} landed!  (${Math.round(chance * 100)}% inflict)`);
+        await wait(700);
+      }
     }
+  }
+  // ★ Prismsynch payoff: bond + Rizer XP bonus for landing the resonance.
+  // Standard Prism +75 bond / +500 R.XP.  Ultimate +150 bond / +1500 R.XP.
+  if (isPrismsynch && playerSide) {
+    const bondGain = isUltimatePS ? 150 : 75;
+    const rxpGain  = isUltimatePS ? 1500 : 500;
+    user.bond = Math.min((typeof BOND_MAX !== 'undefined' ? BOND_MAX : 1000), (user.bond || 0) + bondGain);
+    if (typeof gainRizerXp === 'function') gainRizerXp(rxpGain, 'prismsynch');
+    setTimeout(() => showToast(`★ Prismsynch reward · +${bondGain} bond · +${rxpGain} R.XP`, 3000), 400);
+  }
+  // ★ Ultimate Prismsynch: if the target survived (must be a boss), stagger
+  // them for their next turn — one-battle mercy for surviving the 4th Realm.
+  if (isUltimatePS && target.hp > 0 && playerSide) {
+    if (game.battle) game.battle.enemyStaggeredNextTurn = true;
+    logBattle(`◈  ${target.name} reels from the 4th-Realm strike — next turn staggered.`);
+    await wait(700);
   }
   if (target.hp <= 0) {
     target.fainted = true;
@@ -22574,8 +22755,15 @@ function levelUp(r) {
   }
   showToast(`${r.name}  LV ${r.lv}!`, 1400);
   // V2.15 — evolution trigger: hit evolveLv AND a next form is defined.
+  // ★ 2026-07-23 · Only evolve if the next form is HIGHER tier (canon
+  // rule — evolution unlocks a higher stat cap).  If no higher-tier form
+  // exists on the line, the Zyrex stays at its current tier and continues
+  // leveling toward Lv 100 within its cap.
   if (s.evolveTo && r.lv >= (s.evolveLv || maxLv)) {
-    evolveZyrex(r, s.evolveTo);
+    const next = SPECIES[s.evolveTo];
+    if (next && (next.tier || 1) > (s.tier || 1)) {
+      evolveZyrex(r, s.evolveTo);
+    }
   }
   return true;
 }

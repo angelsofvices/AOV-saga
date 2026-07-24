@@ -1752,6 +1752,12 @@
       <div class="badge" id="hud-coins"    title="Open the Merchant's Ledger"             onclick="openMerchantLedger()"><span class="l1">COINS</span><span class="l2">¢ 0</span></div>
       <div class="badge" id="hud-clues"    title="Open the Gemshard / Fathergem tracker"  onclick="openGemshardTracker()"><span class="l1">SHARDS</span><span class="l2">◈ 0/10</span></div>
     </div>
+    <!-- ★ 2026-07-23 · Next-objective chip.  Small, subtle, sits below
+         the HUD row.  Renders the next canonical step (computed live
+         by nextObjectiveHint()).  Dismissible per session. -->
+    <div id="hud-hint" style="display:none; position:absolute; top:56px; left:50%; transform:translateX(-50%); z-index:10; background:rgba(20,10,40,0.75); border:0.5px solid var(--border-soft); border-radius:14px; padding:4px 12px; font-family:var(--font-display); font-size:10px; color:var(--gold-bright); letter-spacing:0.14em; pointer-events:auto; cursor:pointer;" title="Click to dismiss for this session">
+      <span id="hud-hint-text">NEXT: talk to Kelthor</span>
+    </div>
 
     <!-- Character creator -->
     <div class="creator-screen hidden" id="creator-screen">
@@ -7637,16 +7643,49 @@ const CANON_MAX_POOL = {
 function poolAtLv(species, lv) {
   const id = species && (species.id || species.speciesId);
   const tier = (species && species.tier) || 1;
-  // ★ 2026-07-23 · T×333 STAT-CAP CONTRACT.  Every Zyrex maxes at Lv 100.
-  // Stat pool at max = tier × 333 (the codex block sum).  A Zyrex CANNOT
-  // exceed its current form's cap — the only path to higher stats is to
-  // evolve into a higher-tier form (which raises the cap).  If no higher
-  // form exists on the evolution line, this species's Lv 100 pool is its
-  // ceiling.  T1 → 333 · T3 → 999 · T6 → 1998 · T10 → 3330.
+  // ★ 2026-07-23 · T×333 CANONICAL CAP + OVER-LEVEL BONUS.
+  //
+  //   Tier represents the max stat at Lv (tier × 10).  A T1 Zyrex hits
+  //   its canonical 333 stat pool at Lv 10 · a T3 hits 999 at Lv 30 ·
+  //   a T6 hits 1998 at Lv 60.  This is the "card" ceiling.
+  //
+  //   Over-level grinding: a Zyrex CAN keep leveling past its canonical
+  //   cap (up to Lv 100) and gain additional stats — but never enough
+  //   to match its next-tier peer.  Formula: over the [tier×10 → 100]
+  //   window, the pool climbs an additional 50% of one tier gap (166
+  //   points).  So a T1 at Lv 100 = 500 pool · T3 at Lv 100 = 1166 ·
+  //   T6 at Lv 100 = 2164 — significantly stronger than same-tier at
+  //   canonical cap, still weaker than any higher-tier peer at Lv 100.
+  //
+  //   Anchors:
+  //     T1  Lv 10  → 333   ·  Lv 100 → ~499
+  //     T2  Lv 20  → 666   ·  Lv 100 → ~832
+  //     T3  Lv 30  → 999   ·  Lv 100 → ~1165
+  //     T4  Lv 40  → 1332  ·  Lv 100 → ~1498
+  //     T5  Lv 50  → 1665  ·  Lv 100 → ~1831
+  //     T6  Lv 60  → 1998  ·  Lv 100 → ~2164
+  //     T7  Lv 70  → 2331  ·  Lv 100 → ~2497
+  //     T8  Lv 80  → 2664  ·  Lv 100 → ~2830
+  //     T9  Lv 90  → 2997  ·  Lv 100 → ~3163
+  //     T10 Lv 100 → 3330  ·  (no over-level window)
   const codexMaxPool = tier * 333;
-  const maxPool = (id && CANON_MAX_POOL[id]) ? CANON_MAX_POOL[id] : codexMaxPool;
+  const canonicalMaxPool = (id && CANON_MAX_POOL[id]) ? CANON_MAX_POOL[id] : codexMaxPool;
+  const baseMaxLv = Math.min(100, tier * 10);
   const clamped = Math.max(1, Math.min(100, lv || 1));
-  return Math.floor(clamped * maxPool / 100);
+  if (clamped <= baseMaxLv) {
+    // Base scaling — linear across [1, baseMaxLv].  25% floor at Lv 1
+    // rising linearly to 100% at baseMaxLv (the canonical card cap).
+    return Math.floor(clamped * canonicalMaxPool / baseMaxLv);
+  }
+  // Over-level bonus — 50% of one tier gap (166) evenly distributed
+  // across the (100 - baseMaxLv) over-level levels.  Higher tiers have
+  // fewer over-level levels, so their per-level gain is steeper — but
+  // the TOTAL bonus at Lv 100 is always the same 166.
+  const overlevelWindow = Math.max(1, 100 - baseMaxLv);
+  const overlevelBonusMax = Math.floor(333 * 0.5);   // half a tier gap · 166
+  const overlevelLv = clamped - baseMaxLv;
+  const bonus = Math.floor((overlevelLv / overlevelWindow) * overlevelBonusMax);
+  return canonicalMaxPool + bonus;
 }
 function speciesWeights(species) {
   if (species._weights) return species._weights;
@@ -8949,6 +8988,29 @@ function tryKelthorLesson(fromDistrict) {
   if (fromDistrict !== 'malezor') return false;
   const rLv = game.player.rizerLv || 1;
   game.player.bondLessons = game.player.bondLessons || {};
+  // ★ 2026-07-23 · RIFT SLIP HINT.  Fires once, after Kelthor's Lesson 2
+  // (Trust Bond) has landed and the player has visited the Netharion
+  // shrine (source of the Void Fragment).  Points at the basement
+  // radio-receiver in Malezor Home as the install point for fast-travel.
+  if (!game.player.kelthorRiftHintFired
+      && game.player.bondLessons.step2
+      && !game.player.voidFragmentInstalled) {
+    const shrines = game.player.shrinesVisited || {};
+    const items = game.player.items || {};
+    const hasFragment = (items.void_fragment || 0) > 0 || shrines.netharion;
+    if (hasFragment) {
+      game.player.kelthorRiftHintFired = true;
+      save();
+      showDialog([
+        `WARDEN KELTHOR:`,
+        `Before I forget — you crossed Netharion.  You must have felt something wrong at the Void Rift.`,
+        `A shard of that rift is a VOID FRAGMENT — pocketable.  Take it home.  There is a broken radio receiver in your basement.  Your friend Myara built it with you when you were kids; she never got it to work.`,
+        `Slot the fragment where the antenna crystal used to sit.  The receiver wakes up.  Every district you have visited becomes a stop on a private RIFT SLIP line.  You'll never have to walk east again unless you want to.`,
+        `Myara will notice.  Say hello.`,
+      ]);
+      return true;
+    }
+  }
   // Find the next lesson the player has NOT yet been taught.  Rizer Lv
   // threshold gate still applies as a soft floor.
   let next = null;
@@ -9497,25 +9559,46 @@ function startGrandChampionMatch() {
     ``,
     `«⚔  ENTER THE NOVARIAN CHALLENGE?»`,
   ], () => {
-    // Build a Grand Champion chain — 9 Zyrex, mixed districts, top-band levels.
-    const chain = [
-      ['emeralix',   96],     // Emerald · faux-Gemlord anchor (Verdant/Aura)
-      ['obsidius',   96],     // Onyx · Spirit/UV
-      ['azurel',     96],     // Sapphire · Tech/Crystal
-      ['mutaryn',    96],     // Citrine · Beast
-      ['ivirium',    96],     // Pearl · Aura/Divine
-      ['rakoron',    96],     // Ruby · Beast/Draconic
-      ['eurakeon',   96],     // Amethyst · Spirit/Chrono
-      ['ambrevon',   96],     // Amber · Humanoid/Elemental
-      ['oatheus',   100],     // ★ Ultralord ace
+    // ★ 2026-07-23 · Novarian Challenge chain rebuilt.  Gemlord species
+    // are cave-only per canon — the Champion doesn't field them.  Instead,
+    // pull 9 top-tier (T5-T7) non-humanoid, non-Gemlord Zyrex spanning
+    // the type wheel: Baelgor's own picks up front (Aura + Elemental
+    // representing forge/fire), rotate through Beast/Nature/Spirit/Tech/
+    // Void/Draconic, ace ends with the highest available T7 legend.
+    // Pool selection is deterministic — same fight every attempt.
+    const CANDIDATE_IDS = [
+      // Aura / Radiant / Divine — Baelgor + Zarvane
+      'crownfeather_gryphon','ancient_peacock','abyssylyx','aegiri','aetherwing','aurareris','avianex',
+      // Beast / Draconic — Malezor / Andrannor / Netharion
+      'gnasharok','skorroth','rakoron_shard','vaelerys_dragonsong_i','grizzigor',
+      // Nature / Elemental — Veridan
+      'faunwell','florlyan','embercrest',
+      // Spirit / Astral / Chrono — Xilnar
+      'wisparch','chronocrow','gravemourn',
+      // Tech / Crystal — Thardin / Vorashil
+      'gemorid','gravigon',
+      // Void / Corrupted — Netharion / Xilnar
+      'devormor','morlingspawn',
     ];
-    // Realize + start the fight.  Filter out species that aren't in SPECIES
-    // (defensive — some canon entries might not have live species objects).
+    // Filter to species that actually exist in SPECIES + are NOT
+    // humanoid/Gemlord/Ultramax.
+    const GEMLORDS_SET = new Set(['rakoron','ivirium','mutaryn','emeralix','eurakeon','azurel','obsidius','ambrevon','oathane','oatheus']);
+    const validCandidates = CANDIDATE_IDS.filter(id => {
+      const sp = (typeof SPECIES !== 'undefined') && SPECIES[id];
+      if (!sp) return false;
+      if (sp.isHumanoid) return false;
+      if (GEMLORDS_SET.has(id)) return false;
+      if ((sp.tier || 1) > 7) return false;
+      return true;
+    });
+    // Deterministic pick — take first 9 (or fewer if pool is thin).
+    // Levels ramp from 92 → 100 across the chain (last one is the ace).
+    const chain = validCandidates.slice(0, 9).map((id, i) => [id, Math.min(100, 92 + i)]);
     const realized = chain
-      .map(([id, lv]) => (typeof SPECIES !== 'undefined' && SPECIES[id]) ? makeZyrex(id, lv) : null)
+      .map(([id, lv]) => makeZyrex(id, lv))
       .filter(Boolean);
     if (!realized.length) {
-      showDialog(['The Prism goes dim.  (Grand Champion roster missing — patch pending.)']);
+      showDialog(['The Champion looks past you — no roster resolved.  (Novarian Challenge chain empty — patch pending.)']);
       return;
     }
     const lead = realized.shift();
@@ -15000,17 +15083,81 @@ function closePCStorage() {
   try { playSfx('menu-close'); } catch(_) {}
   document.getElementById('pcstorage-overlay').classList.remove('active');
 }
+// ★ 2026-07-23 · PC Storage filter/sort state — persists during session.
+window._pcsFilter = window._pcsFilter || { q: '', type: '', tier: '', sort: 'lv-desc' };
 function renderPCStorage() {
   const party = (game.player.party || []).filter(Boolean);
-  const box   = (game.player.box   || []).filter(Boolean);
+  const rawBox = (game.player.box   || []).filter(Boolean);
   document.getElementById('pcs-limit').textContent   = MAX_PARTY;
   document.getElementById('pcs-limit-2').textContent = MAX_PARTY;
   document.getElementById('pcs-party-count').textContent = party.length;
-  document.getElementById('pcs-box-count').textContent   = box.length;
+  document.getElementById('pcs-box-count').textContent   = rawBox.length;
   const partyEl = document.getElementById('pcs-party-list');
   const boxEl   = document.getElementById('pcs-box-list');
   partyEl.innerHTML = '';
   boxEl.innerHTML   = '';
+  // ★ 2026-07-23 · Filter + sort controls above the PC box list.
+  //   Search by name · type filter · tier filter · sort by lv/tier/name.
+  const filter = window._pcsFilter;
+  // Distinct types + tiers currently in the box (dropdown options).
+  const types = [...new Set(rawBox.map(z => z.type).filter(Boolean))].sort();
+  const tiers = [...new Set(rawBox.map(z => (SPECIES[z.species] && SPECIES[z.species].tier) || 1))].sort();
+  const controls = document.createElement('div');
+  controls.style.cssText = 'display:flex; gap:6px; margin: 0 0 8px; padding: 6px 0; border-bottom: 0.5px solid var(--border-soft); flex-wrap:wrap;';
+  controls.innerHTML = `
+    <input id="pcs-search" type="text" placeholder="Search name…" value="${filter.q}" style="flex:1 1 120px; min-width:80px; padding:4px 8px; background:rgba(20,10,40,0.5); border:0.5px solid var(--border-soft); color:var(--ivory); border-radius:3px; font-size:11px;">
+    <select id="pcs-type" style="padding:4px 6px; background:rgba(20,10,40,0.5); border:0.5px solid var(--border-soft); color:var(--ivory); border-radius:3px; font-size:11px;">
+      <option value="">All types</option>
+      ${types.map(t => `<option value="${t}"${filter.type===t?' selected':''}>${t}</option>`).join('')}
+    </select>
+    <select id="pcs-tier" style="padding:4px 6px; background:rgba(20,10,40,0.5); border:0.5px solid var(--border-soft); color:var(--ivory); border-radius:3px; font-size:11px;">
+      <option value="">All tiers</option>
+      ${tiers.map(t => `<option value="${t}"${String(filter.tier)===String(t)?' selected':''}>T${t}</option>`).join('')}
+    </select>
+    <select id="pcs-sort" style="padding:4px 6px; background:rgba(20,10,40,0.5); border:0.5px solid var(--border-soft); color:var(--ivory); border-radius:3px; font-size:11px;">
+      <option value="lv-desc"${filter.sort==='lv-desc'?' selected':''}>Lv ↓</option>
+      <option value="lv-asc"${filter.sort==='lv-asc'?' selected':''}>Lv ↑</option>
+      <option value="tier-desc"${filter.sort==='tier-desc'?' selected':''}>Tier ↓</option>
+      <option value="tier-asc"${filter.sort==='tier-asc'?' selected':''}>Tier ↑</option>
+      <option value="name-asc"${filter.sort==='name-asc'?' selected':''}>Name A-Z</option>
+    </select>`;
+  boxEl.appendChild(controls);
+  const rebind = () => {
+    filter.q    = document.getElementById('pcs-search').value.trim().toLowerCase();
+    filter.type = document.getElementById('pcs-type').value;
+    filter.tier = document.getElementById('pcs-tier').value;
+    filter.sort = document.getElementById('pcs-sort').value;
+    renderPCStorage();
+  };
+  document.getElementById('pcs-search').oninput   = rebind;
+  document.getElementById('pcs-type').onchange   = rebind;
+  document.getElementById('pcs-tier').onchange   = rebind;
+  document.getElementById('pcs-sort').onchange   = rebind;
+  // Apply filter + sort to build the display box (but map original indices
+  // back so click-to-swap still references the right entry in game.player.box).
+  const indexed = rawBox.map((r, origIdx) => ({ r, origIdx }));
+  const filtered = indexed.filter(({ r }) => {
+    if (filter.q && !(r.name || '').toLowerCase().includes(filter.q)) return false;
+    if (filter.type && r.type !== filter.type && r.type2 !== filter.type && r.type3 !== filter.type) return false;
+    if (filter.tier) {
+      const t = (SPECIES[r.species] && SPECIES[r.species].tier) || 1;
+      if (String(t) !== String(filter.tier)) return false;
+    }
+    return true;
+  });
+  const tierOf = (r) => (SPECIES[r.species] && SPECIES[r.species].tier) || 1;
+  filtered.sort((A, B) => {
+    if (filter.sort === 'lv-desc')  return (B.r.lv||0) - (A.r.lv||0);
+    if (filter.sort === 'lv-asc')   return (A.r.lv||0) - (B.r.lv||0);
+    if (filter.sort === 'tier-desc')return tierOf(B.r) - tierOf(A.r);
+    if (filter.sort === 'tier-asc') return tierOf(A.r) - tierOf(B.r);
+    if (filter.sort === 'name-asc') return (A.r.name||'').localeCompare(B.r.name||'');
+    return 0;
+  });
+  const box = filtered.map(f => f.r);
+  // ★ We need the original box index for the swap-to-party click handler.
+  // Stash it as a data attribute so rowFor can pick it up.
+  box.forEach((r, i) => { r._origBoxIdx = filtered[i].origIdx; });
   const rowFor = (r, kind, idx) => {
     const row = document.createElement('div');
     row.style.cssText = `
@@ -15033,20 +15180,26 @@ function renderPCStorage() {
       if (kind === 'party') {
         // Move to PC (allow always — party can drop to 0 in this overlay;
         // a party with 0 members is still fine while browsing).
-        if (party.length <= 1 && box.length === 0) {
+        if (party.length <= 1 && (game.player.box || []).length === 0) {
           showToast('KEEP AT LEAST 1 ZYREX', 1800);
           return;
         }
         const moved = game.player.party.splice(idx, 1)[0];
         if (moved) (game.player.box = game.player.box || []).push(moved);
       } else {
-        // Move to Party — bounce if full
+        // Move to Party — bounce if full.  Use the original box index
+        // stashed on the row so filtered/sorted views still map back to
+        // the true position in game.player.box.
         if (party.length >= MAX_PARTY) {
           showToast(`PARTY FULL (${MAX_PARTY})  ·  send one to PC first`, 2000);
           return;
         }
-        const moved = game.player.box.splice(idx, 1)[0];
-        if (moved) game.player.party.push(moved);
+        const realIdx = (typeof r._origBoxIdx === 'number') ? r._origBoxIdx : idx;
+        const moved = game.player.box.splice(realIdx, 1)[0];
+        if (moved) {
+          delete moved._origBoxIdx;
+          game.player.party.push(moved);
+        }
       }
       save();
       renderPCStorage();
@@ -16018,12 +16171,18 @@ const SHOP_STOCK = [
   { key: 'refined_vial', name: 'Refined Vial (+5%)',  desc: 'Wider mouth, finer strain.  Adds +5% to every water-tile purity roll.  Permanent.',  price: 200,  unlockCheck: (p) => !!p.momsPlantFedOnce && (p.vialTier || 0) < 1,  onBuy: (p) => { p.vialTier = 1; } },
   { key: 'elite_vial',   name: 'Elite Vial (+10%)',   desc: 'Silver-cored filter membrane.  Adds +10% to every water-tile purity roll.  Requires Refined Vial owned.',  price: 500,  unlockCheck: (p) => (p.vialTier || 0) === 1,  onBuy: (p) => { p.vialTier = 2; } },
   { key: 'divine_vial',  name: 'Divine Vial (+25%)',  desc: 'Astralite-etched crystal.  Adds +25% to every water-tile purity roll.  Requires Elite Vial owned.',        price: 1500, unlockCheck: (p) => (p.vialTier || 0) === 2,  onBuy: (p) => { p.vialTier = 3; } },
-  // ★ FLOWER SEEDS (2026-07-17) — plant at Mom's + pure water = status-cure flower.
-  { key: 'spark_seed',    name: 'Spark Seed',    desc: 'Plant at Mom\'s + PURE WATER → Flower of Zeal (cures Overcook).',        price: 20 },
-  { key: 'calm_seed',     name: 'Calm Seed',     desc: 'Plant at Mom\'s + PURE WATER → Flower of Serenity (cures Psychache).',   price: 20 },
-  { key: 'swift_seed',    name: 'Swift Seed',    desc: 'Plant at Mom\'s + PURE WATER → Flower of Swiftness (cures Undershock).', price: 20 },
-  { key: 'clarity_seed',  name: 'Clarity Seed',  desc: 'Plant at Mom\'s + PURE WATER → Flower of Clarity (cures Gridfreeze).',   price: 20 },
-  { key: 'light_seed',    name: 'Light Seed',    desc: 'Plant at Mom\'s + PURE WATER → Flower of Light (cures Souldrift).',      price: 20 },
+  // ★ FLOWER SEEDS + PURE WATER (2026-07-23) — merchant stocks these
+  // ONLY after the player has completed Mom's Verdant Seed rite (the
+  // gate that unlocks the whole grow-your-own system).  Prices bumped
+  // to 30 to reflect their utility (one cures a whole status + restores
+  // the decayed stat).  Pure Water at 10 coins each — usable via water
+  // tiles too, but this saves a trip.
+  { key: 'pure_water',    name: 'Pure Water (vial)',  desc: 'A vial of pure water · fills the same purity a wild water tile would.  Needed to grow flowers at any pot.',  price: 10,  unlockFlag: 'momsPlantFedOnce' },
+  { key: 'spark_seed',    name: 'Spark Seed',    desc: 'Plant at Mom\'s or any Bronze/Silver house pot + PURE WATER → Flower of Zeal (cures Overcook · restores ATK).',    price: 30,  unlockFlag: 'momsPlantFedOnce' },
+  { key: 'calm_seed',     name: 'Calm Seed',     desc: 'Plant + PURE WATER → Flower of Serenity (cures Psychache · restores DEF).',                                        price: 30,  unlockFlag: 'momsPlantFedOnce' },
+  { key: 'swift_seed',    name: 'Swift Seed',    desc: 'Plant + PURE WATER → Flower of Swiftness (cures Undershock · restores SPD).',                                      price: 30,  unlockFlag: 'momsPlantFedOnce' },
+  { key: 'clarity_seed',  name: 'Clarity Seed',  desc: 'Plant + PURE WATER → Flower of Clarity (cures Gridfreeze · restores SPC).',                                        price: 30,  unlockFlag: 'momsPlantFedOnce' },
+  { key: 'light_seed',    name: 'Light Seed',    desc: 'Plant + PURE WATER → Flower of Light (cures Souldrift · stops HP decay).',                                         price: 30,  unlockFlag: 'momsPlantFedOnce' },
 ];
 // V3.10.1 — WANDERING MERCHANT preamble.  Every time the player walks
 // up and interacts with an 'S' merchant tile, the merchant hiccups a
@@ -22509,32 +22668,66 @@ async function playerUseMove(i) {
   renderMainMenu();
 }
 // V2.10 — extracted enemy move picker so we can lock it in before speed-order.
+// ★ 2026-07-23 · Shared enemy-AI scorer.  Both pickEnemyMove (turn
+// pre-lock, called from playerUseMove before speed resolution) and
+// enemyTurn (post-item action) route through _scoreEnemyMove so the
+// AI stays consistent.  Scoring accounts for:
+//   • Type-chart matchup vs target's full type stack (weighs 4× SE hard)
+//   • STAB bonus (1.5×) when the move type matches the attacker's type
+//   • KO priority — any move that would land a killing blow gets a
+//     massive +5000 bonus (enemy is not stupid — will finish the job)
+//   • Status inflict incentive — status moves score off their status
+//     value against an unafflicted target (dropped to 0 vs afflicted)
+//   • Small random jitter (0-10 score) so the AI doesn't spam the same
+//     move if two moves tie
+function _scoreEnemyMove(user, target, m) {
+  const typeM = typeMult(m.type, target.type, target.type2, target.type3);
+  const isStab = (m.type === user.type)
+              || (user.type2 && m.type === user.type2)
+              || (user.type3 && m.type === user.type3);
+  const stabScore = isStab ? 1.5 : 1.0;
+  const power = m.power || 0;
+  // Base damage score
+  let score = power * typeM * stabScore;
+  // Status attractiveness — inflict is only worth it if target has no
+  // status yet.  Value scales with statusChance × ~30 so a 0.30 chance
+  // ≈ 9 points, a 1.0 chance ≈ 30 points.
+  if (m.status && !target.status) {
+    const c = (typeof computeStatusChance === 'function')
+      ? computeStatusChance(m, user, target)
+      : (m.statusChance || 0.30);
+    score += c * 30;
+  }
+  // KO priority — if this move's projected damage would zero the target,
+  // slam a huge bonus so the AI never fumbles a lethal.
+  if (power > 0) {
+    const atk = (user.stats.atk || 1);
+    const def = Math.max(1, target.stats.def || 1);
+    const projected = Math.floor(((atk / def) * power * (user.lv / (user.lv + target.lv))) / 2 * typeM * stabScore);
+    if (projected >= (target.hp || 0)) score += 5000;
+  }
+  // Random jitter — 0..10 so ties break unpredictably.
+  score += Math.random() * 10;
+  return score;
+}
 function pickEnemyMove(e, p) {
   const pool = e.moves.length ? e.moves : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
-  let best = pool[0], bestScore = -1;
+  let best = pool[0], bestScore = -Infinity;
   for (const m of pool) {
-    // V2.49 — enemy AI now also factors STAB when scoring moves so it
-    // preferentially picks type-matched attacks (mirrors player STAB rule).
-    const stabScore = ((m.type === e.type) || (e.type2 && m.type === e.type2) || (e.type3 && m.type === e.type3)) ? 1.5 : 1.0;
-    const score = (m.power || 0) * typeMult(m.type, p.type, p.type2, p.type3) * stabScore;
-    if (score > bestScore) { best = m; bestScore = score; }
+    const s = _scoreEnemyMove(e, p, m);
+    if (s > bestScore) { best = m; bestScore = s; }
   }
   return best;
 }
-
 async function enemyTurn() {
   const e = game.battle.enemy;
   const p = game.player.party[game.battle.playerIdx];
   if (e.hp <= 0 || p.hp <= 0) return;
-  // Wild AI has no gem economy. Picks best expected-damage move using dual-type math.
   const pool = e.moves.length ? e.moves : [{ name: 'Struggle', type: e.type, power: 20, cost: 0 }];
-  let best = pool[0], bestScore = -1;
+  let best = pool[0], bestScore = -Infinity;
   for (const m of pool) {
-    // V2.49 — enemy AI now also factors STAB when scoring moves so it
-    // preferentially picks type-matched attacks (mirrors player STAB rule).
-    const stabScore = ((m.type === e.type) || (e.type2 && m.type === e.type2) || (e.type3 && m.type === e.type3)) ? 1.5 : 1.0;
-    const score = (m.power || 0) * typeMult(m.type, p.type, p.type2, p.type3) * stabScore;
-    if (score > bestScore) { best = m; bestScore = score; }
+    const s = _scoreEnemyMove(e, p, m);
+    if (s > bestScore) { best = m; bestScore = s; }
   }
   await performMove(e, p, best, false);
 }
@@ -22775,6 +22968,23 @@ function inflictStatus(target, key, user) {
   const base = s.fixedTurns || (3 + Math.floor(Math.random() * 3));
   const userTier = (user && user.lv) ? tierOfLevel(user.lv) : 1;
   const turns = base + Math.floor(Math.max(0, userTier - 1) / 2);
+  // ★ 2026-07-23 · STATUS STACKING RULE.  A Zyrex holds ONE status slot
+  // at a time.  Re-inflicting the SAME status refreshes its duration
+  // (extends the timer to max of old vs. new · never overwrites down).
+  // A DIFFERENT status is REFUSED — the existing status resists overwrite.
+  // Rationale: prevents cheese-stacking of Overcook + Psychache + etc,
+  // keeps each battle to one meaningful debuff, respects the design that
+  // status-cure flowers restore one stat per flower.
+  if (target.status && target.status.key) {
+    if (target.status.key === key) {
+      target.status.turns = Math.max(target.status.turns || 0, turns);
+      logBattle(`${target.name}'s ${s.name} refreshes (${target.status.turns} turns).`);
+    } else {
+      const existing = STATUSES[target.status.key];
+      logBattle(`${target.name} resists ${s.name} — already under ${(existing && existing.name) || target.status.key}.`);
+    }
+    return;
+  }
   target.status = { key, turns };
   logBattle(`${target.name} is affected by ${s.name}!` + (turns > 1 ? ` (${turns} turns)` : ''));
 }
@@ -24340,7 +24550,19 @@ function openInspect(r, slotIdx) {
     <div class="inspect-row"><span class="lbl">SPD</span><span class="val">${r.stats.spd}</span></div>
     <div class="inspect-row"><span class="lbl">SPC</span><span class="val">${r.stats.spc}</span></div>
     ${(r.bond > 0 || (typeof BOND_MAX !== 'undefined' && game.player && game.player.bondLessons && game.player.bondLessons.step3))
-      ? `<div class="inspect-row"><span class="lbl" style="color:var(--gold-bright);">Bond ★</span><span class="val" style="color:var(--gold-bright);">${r.bond || 0} / ${BOND_MAX}${(r.bond || 0) >= BOND_MAX ? ' · MAXED' : ''}</span></div>` : ''}
+      ? (() => {
+          // ★ 2026-07-23 · Visual bond bar (revealed after Kelthor Lesson 3
+          // Astralite Resonance).  Gold fill on dark track, pct label
+          // right-aligned.  MAXED tag when at ceiling.
+          const bondVal = r.bond || 0;
+          const pct = Math.min(100, Math.round((bondVal / BOND_MAX) * 100));
+          const maxed = bondVal >= BOND_MAX;
+          return `
+            <div class="inspect-row"><span class="lbl" style="color:var(--gold-bright);">Bond ★</span><span class="val" style="color:var(--gold-bright);">${bondVal} / ${BOND_MAX}${maxed ? '  ·  MAXED' : ''}</span></div>
+            <div style="position:relative; height:6px; background:rgba(20,10,40,0.5); border:1px solid var(--border-soft); border-radius:3px; overflow:hidden; margin: 2px 0 6px;">
+              <div style="position:absolute; inset:0 auto 0 0; width:${pct}%; background:linear-gradient(90deg, #e0a838, #ffd882); box-shadow: 0 0 6px rgba(248,200,64,0.55);"></div>
+            </div>`;
+        })() : ''}
     <div class="inspect-section-title">Progress</div>
     ${progressLine}
     ${status ? `<div class="inspect-section-title">Status</div>
@@ -24449,7 +24671,55 @@ function hudLabelFor(mapId) {
   }
   return m.label;
 }
+// ★ 2026-07-23 · Compute the next canonical objective the player should
+// pursue.  Returns a short human-readable string or null if the player
+// is already deep in Part 2 / has no obvious next step.  Priority chain
+// walks the intended first-run beat order.
+function nextObjectiveHint() {
+  const p = game.player || {};
+  const it = p.items || {};
+  const keys = p.keys || {};
+  const party = p.party || [];
+  if (!p.metMomGave) return 'Talk to Mom in your kitchen';
+  const partyHas = party.filter(Boolean).length;
+  if (partyHas < 1) return 'Choose a starter from Dad';
+  if ((p.wildCatchCount || 0) < 1) return 'Catch a wild Zyrex in Malezor gemgrass';
+  const lessons = p.bondLessons || {};
+  const doneLessons = (typeof BOND_LESSONS !== 'undefined') ? BOND_LESSONS.filter(l => lessons['step' + l.step]).length : 0;
+  if (doneLessons < 1) return 'Visit Warden Kelthor · Beastwarden\'s Hall';
+  if (!p.momsPlantFedOnce) return 'Bring a Verdant Seed to Mom\'s plant (Veridan shrine)';
+  const shardCount = ['ruby','pearl','citrine','emerald','amethyst','sapphire','onyx','amber','anomaly','ultra'].filter(g => keys[g]).length;
+  if (shardCount < 1) return 'Defeat Malezor\'s Seer Commander (Ministry HQ)';
+  const flagCount = (typeof hallFlagsCount === 'function') ? hallFlagsCount() : 0;
+  if (shardCount < 10 && flagCount < 1) return `Push east · ${shardCount}/10 Fathergems · ${flagCount}/10 Hall Flags`;
+  if (shardCount < 10) return `Reclaim Fathergems · ${shardCount}/10`;
+  if (!p.xenoxilDefeated) return 'Walk east into Oatheus\'s cave · trio battle';
+  if (flagCount < 10) return `Sweep the Hall Rizers · ${flagCount}/10 flags`;
+  if (doneLessons < 8) return `Return to Kelthor · ${doneLessons}/8 Bond Lessons`;
+  if (!p.novarianGrandChampion) return 'Enter the Novarian Challenge · Baelgor Hall';
+  return null;   // Part 2 open; no directive
+}
 function updateHUD() {
+  // ★ 2026-07-23 · Next-objective hint chip.
+  const hintEl = document.getElementById('hud-hint');
+  const hintTxt = document.getElementById('hud-hint-text');
+  if (hintEl && hintTxt) {
+    if (game._hintDismissedForSession) {
+      hintEl.style.display = 'none';
+    } else {
+      const next = nextObjectiveHint();
+      if (next) {
+        hintTxt.textContent = 'NEXT: ' + next;
+        hintEl.style.display = 'inline-block';
+      } else {
+        hintEl.style.display = 'none';
+      }
+    }
+    hintEl.onclick = () => {
+      game._hintDismissedForSession = true;
+      hintEl.style.display = 'none';
+    };
+  }
   // V3.10.8 — HUD reduced to four badges (location · R.Lv · coins ·
   // shards).  Party count + gems moved to the Items overlay.  Every
   // badge renders as exactly two rows via .l1 / .l2 spans.
@@ -24538,6 +24808,40 @@ function tryLoad() {
     };
     (game.player.party || []).forEach(migrateZyrex);
     (game.player.box   || []).forEach(migrateZyrex);
+    // ★ 2026-07-23 · Save-format defaults.  Any field added after this
+    // save was written gets a safe default so downstream code that reads
+    // it doesn't crash on `undefined`.  Additive only — never overwrites.
+    const p = game.player;
+    if (typeof p.totalSteps       !== 'number') p.totalSteps       = 0;
+    if (typeof p.wildCatchCount   !== 'number') p.wildCatchCount   = 0;
+    if (typeof p.evolutionsCount  !== 'number') p.evolutionsCount  = 0;
+    if (typeof p.flawlessBattles  !== 'number') p.flawlessBattles  = 0;
+    if (typeof p.vialTier         !== 'number') p.vialTier         = 0;
+    if (!p.typesKnockedOut       || typeof p.typesKnockedOut !== 'object') p.typesKnockedOut = {};
+    if (!p.bondMissionsAssigned  || typeof p.bondMissionsAssigned !== 'object') p.bondMissionsAssigned = {};
+    if (!p.bondLessons           || typeof p.bondLessons !== 'object') p.bondLessons = {};
+    if (!p.hallBracketsWon       || typeof p.hallBracketsWon !== 'object') p.hallBracketsWon = {};
+    if (!p.hallFlags             || typeof p.hallFlags !== 'object') p.hallFlags = {};
+    if (!p.novarianQualifiers    || typeof p.novarianQualifiers !== 'object') p.novarianQualifiers = {};
+    if (!p.housePots             || typeof p.housePots !== 'object') p.housePots = {};
+    if (!p.broadcasts            || typeof p.broadcasts !== 'object') p.broadcasts = {};
+    if (!p.shrinesVisited        || typeof p.shrinesVisited !== 'object') p.shrinesVisited = {};
+    if (!p.districtsVisited      || typeof p.districtsVisited !== 'object') p.districtsVisited = {};
+    if (!p.seerCommandersDefeated|| typeof p.seerCommandersDefeated !== 'object') p.seerCommandersDefeated = {};
+    if (!p.npcsDefeated          || typeof p.npcsDefeated !== 'object') p.npcsDefeated = {};
+    if (!p.freedGreeted          || typeof p.freedGreeted !== 'object') p.freedGreeted = {};
+    if (typeof p.mapEntryX       !== 'number') p.mapEntryX = p.x || 0;
+    if (typeof p.mapEntryY       !== 'number') p.mapEntryY = p.y || 0;
+    // Cross-mirror legacy qualifiers → hallFlags so old saves that
+    // finished 10 qualifiers pre-3-bracket-flag land in the new system.
+    if (Object.keys(p.novarianQualifiers).length && !Object.keys(p.hallFlags).length) {
+      for (const d in p.novarianQualifiers) {
+        if (p.novarianQualifiers[d]) {
+          p.hallFlags[d] = true;
+          p.hallBracketsWon[d] = 3;
+        }
+      }
+    }
     return true;
   } catch(_) { return false; }
 }

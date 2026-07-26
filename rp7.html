@@ -2442,6 +2442,22 @@ function resolveStatusKey(key) { return STATUS_ALIAS[key] || key; }
 // ---------- Level ↔ Tier (10 levels = 1 tier, cap at Tier X) ----------
 const TIER_ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
 function tierOfLevel(lv) { return Math.min(10, Math.floor((lv - 1) / 10) + 1); }
+// ★ 2026-07-23 · Species tier resolver — reads the SPECIES tier off a
+// Zyrex instance so HUD chips and inspect cards report the CANONICAL
+// tier (T5 Serperyx stays T5 at Lv 98) instead of deriving tier from
+// level (which was the bug — a Lv 98 Zyrex was rendering as "X").
+// Accepts either a Zyrex instance (with .species) or a raw species id.
+function tierOfZyrex(z) {
+  if (!z) return 1;
+  const sid = (typeof z === 'string') ? z : (z.species || null);
+  const sp = (typeof SPECIES !== 'undefined' && sid) ? SPECIES[sid] : null;
+  return (sp && sp.tier) || 1;
+}
+function tierRomanForZyrex(z) {
+  return TIER_ROMAN[tierOfZyrex(z) - 1];
+}
+// Legacy shim — retained for callers that pass a raw level number.
+// New code should call tierRomanForZyrex(z) to respect species tier.
 function tierRoman(lv)   { return TIER_ROMAN[tierOfLevel(lv) - 1]; }
 
 // ---------- Player sprite palette by gender ----------
@@ -5630,8 +5646,11 @@ const SPECIES = {
     easterEgg: true,
     codex: { class: 'Mage', tc: 'Pseudoimmortal', archetype: 'SEER-FLESHLORD', ladder: 'Easter Egg', rarity: 'Easter Egg' },
   },
-  // V3.17.6 — ANCIUXOR (159th species · very last entry · home-cycle easter egg).
-  // God-tier Tier X with all stats = 666 (total 3330 = 10 × 333 = canon T10 pool).
+  // V3.17.6 · ★ 2026-07-23 — ANCIUXOR: God-tier Tier X, all stats = 999
+  // (total 4995 = 5 × 999).  Direct manifestation of Ultharis in the
+  // mortal realm.  Both Anciuxor + Ultharis share this ceiling — no
+  // other card in the roster reaches these values.  Tiers 1-9 follow
+  // the standard tier × 333 rule.
   // Reached ONLY via the ancient religious statue home-cycle: pray 10x at the
   // living-room statue → statue part → Mom blessing → Dad warning → burn the
   // part in the fireplace → Anciuxor emerges at Lv 100 with every stat maxed.
@@ -5641,8 +5660,10 @@ const SPECIES = {
     flavor: 'The Ancient One — mother said it would protect you; father said it would protect the world; both were right about a truth neither wanted to say out loud.  Every strike lands as a DIVINE HIT (3× regardless of type), and the type chart does not weaken him.',
     name: 'ANCIUXOR', type: 'Chrono', type2: 'Divine', type3: 'Ultramax', region: 'Home Statue · Ancient Rite',
     tier: 10, catchRate: 0, shape: 'winged',
-    // 666 across all five — total 3330 = Tier X canon pool.  Balanced apex.
-    base: { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 },
+    // ★ 2026-07-23 · 999 across — Anciuxor is the direct manifestation
+    // of Ultharis in the mortal realm.  Both God cards share the same
+    // 999-all-stat ceiling; no other card reaches these values.
+    base: { hp: 999, atk: 999, def: 999, spd: 999, spc: 999 },
     // Gold-and-obsidian palette: ancient-god feel.
     sprite: ['#f8c840', '#3a2408', '#fff5b0'],
     moves: [
@@ -5651,7 +5672,7 @@ const SPECIES = {
       // three; the type chart is bypassed by the divine-hit override.
       { name: 'Ancient Verdict', type: 'Chrono',   cast: 'Light',  power: 220, cost: 1 },
       { name: 'Bind of Ancients', type: 'Divine',  cast: 'Spirit', power: 0,   cost: 2, status: 'gridlock', statusChance: 0.6 },
-      { name: 'World-Ending Hymn', type: 'Ultramax', cast: 'Light', power: 666, cost: 3 },
+      { name: 'World-Ending Hymn', type: 'Ultramax', cast: 'Light', power: 999, cost: 3 },
       { name: 'Anciuxor\'s Awakening', type: 'Chrono', cast: 'Force', power: 0, cost: 1 },
     ],
     easterEgg: true,
@@ -7638,7 +7659,13 @@ function gainRizerXp(amount, source) {
 // max pool (4995 at Lv 100) via CANON_MAX_POOL — 50% stronger at every level.
 const POOL_PER_LEVEL_TIMES_10 = 333;          // integer math: pool(lv) = lv*333/10
 const CANON_MAX_POOL = {
-  ultharis: 4995,   // God of the universe · V2.65 exemption preserved
+  // ★ 2026-07-23 · Both God cards share the 999-all-stat ceiling
+  // (5 × 999 = 4995 pool).  Anciuxor is the direct manifestation of
+  // Ultharis in the mortal realm — same power, different vessel.  No
+  // other card in the roster reaches these values; tiers 1-9 follow
+  // the standard tier × 333 rule.
+  ultharis: 4995,
+  anciuxor: 4995,
 };
 function poolAtLv(species, lv) {
   const id = species && (species.id || species.speciesId);
@@ -8408,7 +8435,7 @@ const ASTRALITE_FAMILIES = [
   { num: 4, name: 'Mind',         axis: 'Think',      role: 'understands', anchor: 'Arborynth' },
   { num: 5, name: 'Present',      axis: 'Balance',    role: 'sustains',    anchor: 'Viridia'   },
   { num: 6, name: 'Preservation', axis: 'Endure',     role: 'protects',    anchor: 'Arborynth' },
-  { num: 7, name: 'Body',         axis: 'Form',       role: 'contains',    anchor: 'Quorana'   },
+  { num: 7, name: 'Body',         axis: 'Form',       role: 'contains',    anchor: 'Quorauna'   },
   { num: 8, name: 'Future',       axis: 'Build',      role: 'creates',     anchor: 'Cytherion' },
   { num: 9, name: 'Spirit',       axis: 'Transcend',  role: 'elevates',    anchor: 'Zyraxis'   },
 ];
@@ -8509,7 +8536,7 @@ const DISTRICT_ASTRALITE_FAMILY = {
   netharion: null,   // AETHRYX PRIMAL — pre-refraction (special case in signature builder)
   vorashil:  8,      // Future · Cytherion (bug lineage)
   xilnar:    9,      // Spirit · Zyraxis
-  baelgor:   7,      // Body · Quorana
+  baelgor:   7,      // Body · Quorauna
   thardin:   8,      // Future · Cytherion (humanoid lineage — doubled family)
   korathen:  1,      // Creation · Origon
 };
@@ -14847,10 +14874,11 @@ function enableUltharisMode() {
     if (already) continue;
     const zy = makeZyrex(spec.id, spec.lv);
     if (zy) {
-      // Pin Anciuxor stats to 666 across (bypasses computeStatBlock rounding).
+      // ★ 2026-07-23 · Pin Anciuxor stats to 999 across (bypasses
+      // computeStatBlock rounding).  God-tier canon lock.
       if (spec.id === 'anciuxor') {
-        zy.stats = { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 };
-        zy.maxHp = 666; zy.hp = 666;
+        zy.stats = { hp: 999, atk: 999, def: 999, spd: 999, spc: 999 };
+        zy.maxHp = 999; zy.hp = 999;
       }
       p.party.push(zy);
       markCaught(spec.id);
@@ -17839,7 +17867,7 @@ function tryInteract() {
   } else if (t === '@') {
     // V3.17.6 — ANCIENT RELIGIOUS STATUE interact.  Home-cycle chain:
     // pray 10 times → statue part → Mom blessing → Dad warning → burn
-    // in fireplace → grants ANCIUXOR (Tier X, 666 all stats, Lv 100).
+    // in fireplace → grants ANCIUXOR (Tier X · God · 999 all stats · Lv 100).
     interactStatue();
   } else if (t === 'l') {
     // V3.17.8 — PSYCHOSYD'S SIGNED RED ELECTRIC GUITAR interact.
@@ -18420,7 +18448,7 @@ function renderNotebookEasterEggs() {
   html += _nbRow({ done: !!p.momBlessedStatue,      title: 'Mom\'s blessing given',            meta: '"It will PROTECT YOU."' });
   html += _nbRow({ done: !!p.dadWarnedStatue,       title: 'Dad\'s warning given',             meta: '"Never let it get in the wrong hands."' });
   html += _nbRow({ done: !!p.firepitEmberBurned,    title: 'Fireplace consecration fired',     meta: 'Statue part burned → Anciuxor granted.' });
-  html += _nbRow({ done: !!p.anciuxorGranted,       title: '★ ANCIUXOR granted (Lv 100 · 666 all-stats · sole Ultimate type)', meta: 'The Ancient One in your party.' });
+  html += _nbRow({ done: !!p.anciuxorGranted,       title: '★ ANCIUXOR granted (Lv 100 · 999 all-stats · sole Ultimate type)', meta: 'The Ancient One in your party — God-card parity with Ultharis.' });
   // Section: Quiet Child
   html += _nbSectionTitle('The Quiet Child');
   html += _nbRow({
@@ -20286,11 +20314,12 @@ function interactBroadcastTower() {
   });
 }
 
-// V3.17.6 — Consecrate the statue part in the fireplace.  Grants
-// ANCIUXOR at Lv 100 with all stats maxed (666 across the board via
-// species base × level formula, per canon T×333 pool for Tier X).
-// Chain state flags flip so the fireplace + statue + parents all
-// transition to post-grant flavor forever after.
+// V3.17.6 · ★ 2026-07-23 — Consecrate the statue part in the fireplace.
+// Grants ANCIUXOR at Lv 100 with EVERY STAT MAXED AT 999 (God-tier
+// ceiling · direct manifestation of Ultharis in the mortal realm ·
+// only Anciuxor + Ultharis share this ceiling).  Chain state flags
+// flip so the fireplace + statue + parents all transition to
+// post-grant flavor forever after.
 function consecrateStatuePart() {
   const nm = game.player.name || 'you';
   showDialog([
@@ -20305,7 +20334,7 @@ function consecrateStatuePart() {
     'Both of them were right.  Both of them were terrified of what that meant.',
     '',
     `«◈ ANCIUXOR (Lv 100) joins your party.»`,
-    `«◈ Every stat is maxed at 666.»`,
+    `«◈ Every stat is maxed at 999 — the God-card ceiling.»`,
     `«◈ You are now carrying a piece of ancient god home in your pocket.»`,
   ], () => {
     const items = game.player.items = game.player.items || {};
@@ -20318,12 +20347,13 @@ function consecrateStatuePart() {
     // Grant Anciuxor at Lv 100
     const zy = makeZyrex('anciuxor', 100);
     if (zy) {
-      // Explicit stat override — every stat pinned to 666 regardless of
-      // whatever the level-scaling formula would compute.  Signature of
-      // the Ancient One is stat-parity.
-      zy.stats = { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 };
-      zy.maxHp = 666;
-      zy.hp    = 666;
+      // ★ 2026-07-23 · Explicit stat override — every stat pinned to
+      // 999 regardless of whatever the level-scaling formula would
+      // compute.  Signature of the Ancient One is God-parity with
+      // Ultharis (both cards share the 999-across ceiling).
+      zy.stats = { hp: 999, atk: 999, def: 999, spd: 999, spc: 999 };
+      zy.maxHp = 999;
+      zy.hp    = 999;
       // ★ ULTIMATE TYPE (2026-07-17) — Anciuxor is the ONLY card with the
       // 21st "Ultimate" type.  No dual/tri.  Every one of His moves gets
       // retyped to Ultimate so they all hit for 3× · no-weakness — the
@@ -21894,12 +21924,12 @@ function refreshBattleUI() {
   } else {
     $enemyName.textContent = e.name;
   }
-  $enemyLv.textContent   = `Lv ${e.lv}·${tierRoman(e.lv)}`;
+  $enemyLv.textContent   = `Lv ${e.lv}·${tierRomanForZyrex(e)}`;
   $enemyHp.style.width   = (e.hp / e.maxHp * 100) + '%';
   hpBarClass($enemyHp, e.hp / e.maxHp);
   paintStatusChip('enemy-status-chip', e);
   $playerName.textContent = p.name;
-  $playerLv.textContent   = `Lv ${p.lv}·${tierRoman(p.lv)}`;
+  $playerLv.textContent   = `Lv ${p.lv}·${tierRomanForZyrex(p)}`;
   $playerHp.style.width   = (p.hp / p.maxHp * 100) + '%';
   // V2.8.1 — HP · pool ◈ · equipped +N on active Zyrex (baseline +1 implied)
   const equipTxt = (p.gems || 0) > 0 ? `  +${p.gems}` : '';
@@ -22374,11 +22404,13 @@ function findBondedAnciuxor() {
   return null;
 }
 // ★ ULTHARIS · dweller of the 4th Realm of Omnithris (T10 · 999 all stats).
-// DISTINCT from Anciuxor.  Anciuxor is the God's divine PHYSICAL FORM,
-// walkable in the mortal realm — 666 all-stats, granted via the statue
-// home-cycle.  Ultharis is a SEPARATE being in the 4th Realm of Omnithris
-// — 999 all-stats, never physically present in Zyraxis.  The Ultimate
-// Prismsynch reaches ACROSS the realms: because Anciuxor bears the Key
+// PARITY WITH ANCIUXOR (2026-07-23 · both are the God-tier cards, both
+// share the 999-across ceiling).  Anciuxor is the God's divine PHYSICAL
+// FORM — walkable in the mortal realm, granted via the statue
+// home-cycle — 999 all-stats.  Ultharis is a SEPARATE being in the
+// 4th Realm of Omnithris — 999 all-stats, never physically present
+// in Zyraxis.  The Ultimate Prismsynch reaches ACROSS the realms:
+// because Anciuxor bears the Key
 // on His tail, bonding Anciuxor lets the Rizer channel a 4th-Realm
 // communion with Ultharis through Him.  Ultharis is thus NEVER captured,
 // never physically fielded — only reached, once, per battle, through
@@ -24540,7 +24572,7 @@ function openInspect(r, slotIdx) {
   const archLabel = (s.codex && s.codex.archetype) || '—';
   $inspectBody.innerHTML = `
     ${flavorLine}
-    <div class="inspect-row"><span class="lbl">Level</span><span class="val">${r.lv} · Tier ${tierRoman(r.lv)}</span></div>
+    <div class="inspect-row"><span class="lbl">Level</span><span class="val">${r.lv} · Tier ${tierRomanForZyrex(r)}</span></div>
     <div class="inspect-row"><span class="lbl">Form</span><span class="val">${TIER_ROMAN[speciesTier-1]}${nextForm ? ' · evolves into ' + nextForm + ' @ Lv ' + evolveLv : ' · terminal form'}</span></div>
     <div class="inspect-row"><span class="lbl">Archetype</span><span class="val">${archLabel}</span></div>
     <div class="inspect-row"><span class="lbl">Type</span><span class="val">${r.type}${dual}${tri}</span></div>
@@ -24792,15 +24824,19 @@ function tryLoad() {
       r.hp    = Math.max(0, Math.floor(hpRatio * r.maxHp));
       // ★ Bond stat migration — legacy Zyrex without the field default to 0.
       if (typeof r.bond !== 'number') r.bond = 0;
-      // ★ ANCIUXOR ULTIMATE TYPE (2026-07-17) — retype legacy Anciuxor
-      // to sole 'Ultimate' type + retype all His moves.  Preserves stats.
+      // ★ 2026-07-17 · ANCIUXOR ULTIMATE TYPE — sole 'Ultimate' type.
+      // ★ 2026-07-23 · God-card parity bump — Anciuxor's stats pin to
+      // 999 across (was 666).  Legacy saves get migrated on load.  If
+      // an old save has hp > 999 for some reason, clamp; if hp <= 666
+      // (legacy cap), heal to full since the cap raised.
       if (r.species === 'anciuxor') {
         r.type  = 'Ultimate';
         r.type2 = null;
         r.type3 = null;
-        r.stats = { hp: 666, atk: 666, def: 666, spd: 666, spc: 666 };
-        r.maxHp = 666;
-        if (r.hp > 666) r.hp = 666;
+        const wasLegacy666 = (r.maxHp === 666);
+        r.stats = { hp: 999, atk: 999, def: 999, spd: 999, spc: 999 };
+        r.maxHp = 999;
+        if (wasLegacy666 || r.hp > 999) r.hp = 999;
         if (Array.isArray(r.moves)) {
           for (const m of r.moves) if (m) m.type = 'Ultimate';
         }

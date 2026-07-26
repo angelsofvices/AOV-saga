@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07110d"><title>Arborynth · Forest of the Godvine</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@500;700&display=swap');
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050a08;color:#f3ead2;font-family:Inter,sans-serif;touch-action:none}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated}
+.screen{position:fixed;inset:0;z-index:10;display:grid;place-items:center;text-align:center;padding:22px;background:linear-gradient(#06100b55,#020705e8),url("assets/arborynth-godvine-title.png") center/cover}
+.screen.hidden{display:none}.title{max-width:780px;text-shadow:0 3px 12px #000}
+.eyebrow{font-size:.68rem;letter-spacing:.42em;color:#9be6bf;text-transform:uppercase}.title h1{font:700 clamp(2.4rem,9vw,6.3rem)/.88 Cinzel;margin:18px 0 8px;background:linear-gradient(#fff7cf,#d6c16d);background-clip:text;color:transparent;filter:drop-shadow(0 4px #152415)}
+.title h2{font:600 clamp(.85rem,2.5vw,1.35rem) Cinzel;letter-spacing:.28em;color:#bde3ca;margin:0 0 22px}.title p{max-width:580px;margin:0 auto 24px;color:#d2d8ce;line-height:1.65;font-size:.88rem}
+button{font:700 .75rem Cinzel;letter-spacing:.13em;color:#fff6d1;border:1px solid #cdbd70;background:linear-gradient(#365c3e,#142a20);border-radius:7px;padding:14px 25px;box-shadow:inset 0 0 0 3px #09140d,0 4px 20px #0009;cursor:pointer}button:hover{filter:brightness(1.2)}
+#hud{position:fixed;inset:0;z-index:3;pointer-events:none;text-shadow:1px 2px #000;image-rendering:pixelated}
+.hud-top{display:flex;align-items:flex-start;justify-content:space-between;padding:max(12px,env(safe-area-inset-top)) 14px 0;gap:10px}
+.plate{background:#07110ddd;border:2px solid #7a7849;box-shadow:inset 0 0 0 2px #15291b,2px 3px #0008;border-radius:7px;padding:7px 10px}
+.vitals{display:flex;align-items:center;gap:10px}.portrait{width:37px;height:37px;display:grid;place-items:center;border:2px solid #b7a85e;background:#192e20;font:700 16px Cinzel;color:#b9e8cf}.hearts{font-size:19px;letter-spacing:1px;color:#e75059}.hearts .empty{color:#273128}
+.energy{width:72px;height:7px;border:1px solid #b6aa6a;background:#111;margin-top:4px}.energy i{display:block;height:100%;background:#54d4bf;width:100%}
+.quest{font-size:10px;line-height:1.5;letter-spacing:.08em;text-transform:uppercase;color:#cbd9cb}.quest b{color:#fff0a9}.shards{font:700 13px Cinzel;color:#eada82}
+#prompt{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:4;padding:9px 14px;background:#07110def;border:2px solid #7a7849;border-radius:6px;font-size:11px;letter-spacing:.06em;opacity:0;transition:.15s;pointer-events:none;white-space:nowrap}#prompt.show{opacity:1}
+#dialog{position:fixed;z-index:8;left:50%;bottom:max(22px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(620px,calc(100% - 24px));padding:16px 18px;background:#07100ff2;border:2px solid #b9a65c;box-shadow:inset 0 0 0 3px #1f3526,0 9px 40px #000;border-radius:8px;display:none}
+#dialog.show{display:block}#speaker{font:700 11px Cinzel;color:#e0ca70;letter-spacing:.13em;margin-bottom:7px}#dialogText{font-size:13px;line-height:1.6;color:#e9e5d6}#dialogHint{text-align:right;color:#7e9d87;font-size:9px;margin-top:7px}
+#controls{position:fixed;inset:0;z-index:5;pointer-events:none;display:none}.pad,.actions{position:absolute;bottom:max(22px,env(safe-area-inset-bottom));pointer-events:auto}.pad{left:18px;width:132px;height:132px}.pad button,.actions button{position:absolute;border:1px solid #b5b27a88;background:#0a1713b8;box-shadow:inset 0 0 0 2px #29453688;padding:0;border-radius:50%;font:700 17px Inter}.pad button{width:44px;height:44px}.up{left:44px}.down{left:44px;bottom:0}.left{top:44px}.right{top:44px;right:0}.actions{right:18px;width:145px;height:125px}.actions button{width:55px;height:55px}.a{right:0;top:5px;color:#ffe38b}.b{left:10px;bottom:4px;color:#a6f3db}.actions small{font-size:7px;display:block;color:#bac3b8}
+.complete{background:radial-gradient(circle,#193825dd,#020805f2)}.complete h1{font-size:clamp(2rem,8vw,5rem)}.stats{display:flex;justify-content:center;gap:10px;margin:22px 0}.stats span{padding:10px 14px;border:1px solid #7a7849;background:#07110dcc;font-size:.72rem}
+@media(pointer:coarse),(max-width:760px){#controls{display:block}.quest{max-width:155px}.plate{padding:5px 7px}.hud-top{padding-top:max(7px,env(safe-area-inset-top))}}
+@media(max-height:500px){.pad,.actions{transform:scale(.8);transform-origin:bottom}.title p{margin-bottom:12px}.title h1{margin:9px 0 4px}}
+</style></head>
+<body>
+<canvas id="game" width="640" height="360" aria-label="Forest of the Godvine game"></canvas>
+<div id="hud" hidden><div class="hud-top"><div class="plate vitals"><div class="portrait">A</div><div><div class="hearts" id="hearts"></div><div class="energy"><i id="energy"></i></div></div></div><div class="plate quest">FOREST OF THE GODVINE<br><b id="quest">Godvine Hearts · 0 / 3</b></div><div class="plate shards">✦ <span id="shards">0</span></div></div></div>
+<div id="prompt"></div>
+<div id="dialog"><div id="speaker"></div><div id="dialogText"></div><div id="dialogHint">A / ENTER · CONTINUE</div></div>
+<div id="controls"><div class="pad"><button class="up" data-key="ArrowUp">▲</button><button class="down" data-key="ArrowDown">▼</button><button class="left" data-key="ArrowLeft">◀</button><button class="right" data-key="ArrowRight">▶</button></div><div class="actions"><button class="a" data-action="attack">A<small>STRIKE</small></button><button class="b" data-action="pulse">B<small>PULSE</small></button></div></div>
+<section class="screen" id="title"><div class="title"><div class="eyebrow">The AOV Saga · Prototype 08</div><h1>ARBORYNTH</h1><h2>Forest of the Godvine</h2><p>The Living World has forgotten part of itself. Enter the breathing forest, restore three severed Godvine Hearts, and awaken the path to the Great Root.</p><button id="begin">Begin the Descent</button></div></section>
+<section class="screen complete hidden" id="complete"><div class="title"><div class="eyebrow">Level I Complete</div><h1>THE ROOT REMEMBERS</h1><p id="ending">The Forest of the Godvine breathes as one again.</p><div class="stats"><span id="timeStat">00:00</span><span id="shardStat">0 SPORES</span></div><button id="again">Walk the Forest Again</button></div></section>
+<script>
+(()=>{
+const C=document.querySelector('#game'),x=C.getContext('2d');x.imageSmoothingEnabled=false;
+const W=960,H=720,T=32, keys={}, clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+let state='title',last=0,startTime=0,cam={x:0,y:0},shake=0,dialogQueue=[],dialogOpen=false;
+const player={x:480,y:645,r:10,dir:0,hp:5,maxHp:5,energy:100,attack:0,pulse:0,inv:0,shards:0};
+const hearts=[{x:170,y:160,on:false},{x:790,y:170,on:false},{x:480,y:75,on:false}];
+const enemies=[],spores=[],particles=[];
+const obstacles=[
+ {x:0,y:0,w:80,h:H},{x:W-80,y:0,w:80,h:H},{x:0,y:0,w:W,h:55},
+ {x:0,y:H-25,w:380,h:25},{x:580,y:H-25,w:380,h:25},
+ {x:80,y:250,w:210,h:55},{x:670,y:250,w:210,h:55},
+ {x:300,y:55,w:95,h:170},{x:565,y:55,w:95,h:170},
+ {x:250,y:400,w:105,h:65},{x:605,y:400,w:105,h:65},
+ {x:420,y:270,w:120,h:70}
+];
+const npcs=[{x:480,y:585,name:'ROOTKEEPER ILYN',lines:['You stand upon the skin of a sleeping god. Tread as if Arborynth can feel you—because it can.','Three Godvine Hearts have fallen silent. Cognara remembers their song. Fortaris keeps their bodies alive.','Find each Heart. Clear the Rootwraiths, then release your Aethryx Pulse beside it. The forest will show you the way.']}];
+function reset(){
+ Object.assign(player,{x:480,y:645,hp:5,energy:100,attack:0,pulse:0,inv:0,shards:0});hearts.forEach(h=>h.on=false);enemies.length=0;spores.length=0;particles.length=0;
+ [[150,220],[230,140],[740,215],[815,125],[420,180],[535,150],[475,360],[545,445],[390,500],[680,520]].forEach((p,i)=>enemies.push({x:p[0],y:p[1],hp:i<6?2:3,hit:0,phase:Math.random()*6}));
+ for(let i=0;i<22;i++)spores.push({x:100+Math.random()*760,y:90+Math.random()*560,taken:false,phase:Math.random()*6});
+ startTime=performance.now();state='play';document.querySelector('#title').classList.add('hidden');document.querySelector('#complete').classList.add('hidden');document.querySelector('#hud').hidden=false;
+ say('ARBORYNTH',['The ground beneath you exhales. Somewhere above, three wounded Hearts answer with a fading light.']);
+}
+function say(name,lines){dialogQueue=lines.map(t=>({name,t}));nextDialog()}
+function nextDialog(){if(!dialogQueue.length){dialogOpen=false;document.querySelector('#dialog').classList.remove('show');return}dialogOpen=true;const d=dialogQueue.shift();document.querySelector('#speaker').textContent=d.name;document.querySelector('#dialogText').textContent=d.t;document.querySelector('#dialog').classList.add('show')}
+function boxHit(px,py,r,o){return px+r>o.x&&px-r<o.x+o.w&&py+r>o.y&&py-r<o.y+o.h}
+function move(dx,dy,dt){const speed=115, ox=player.x,oy=player.y;player.x+=dx*speed*dt;if(obstacles.some(o=>boxHit(player.x,player.y,player.r,o)))player.x=ox;player.y+=dy*speed*dt;if(obstacles.some(o=>boxHit(player.x,player.y,player.r,o)))player.y=oy;if(dx||dy)player.dir=Math.atan2(dy,dx)}
+function attack(){if(state!=='play'||dialogOpen||player.attack>0)return;player.attack=.23;let ax=player.x+Math.cos(player.dir)*23,ay=player.y+Math.sin(player.dir)*23;enemies.forEach(e=>{if(e.hp>0&&Math.hypot(e.x-ax,e.y-ay)<28){e.hp--;e.hit=.15;burst(e.x,e.y,'#dfcc75',8);if(e.hp<=0){player.shards+=3;burst(e.x,e.y,'#8be7ab',15)}}})}
+function pulse(){if(state!=='play'||dialogOpen||player.pulse>0||player.energy<35)return;player.energy-=35;player.pulse=.5;burst(player.x,player.y,'#7aefd3',28);
+ const h=hearts.find(q=>!q.on&&dist(player,q)<58);if(h){const danger=enemies.some(e=>e.hp>0&&dist(e,h)<105);if(danger)return say('THE GODVINE',['Rootwraiths choke this Heart. The wound cannot remember while they remain.']);h.on=true;player.shards+=10;shake=8;burst(h.x,h.y,'#c58bff',40);const n=hearts.filter(q=>q.on).length;say('GODVINE HEART',[n<3?`Memory restored. ${3-n} wounded Heart${3-n===1?' remains':'s remain'}.`:'Three voices become one. The way to the Great Root awakens.']);if(n===3)setTimeout(finish,1800)}}
+function hurt(){if(player.inv>0)return;player.hp--;player.inv=1.2;shake=7;burst(player.x,player.y,'#ed5868',10);if(player.hp<=0){Object.assign(player,{x:480,y:645,hp:5,energy:100,inv:2});say('ARBORYNTH',['The Great Root refuses your ending. You awaken where the forest first knew your name.'])}}
+function burst(px,py,c,n){for(let i=0;i<n;i++)particles.push({x:px,y:py,vx:(Math.random()-.5)*100,vy:(Math.random()-.5)*100,life:.3+Math.random()*.45,c})}
+function finish(){if(state!=='play')return;state='complete';document.querySelector('#hud').hidden=true;document.querySelector('#complete').classList.remove('hidden');const s=Math.floor((performance.now()-startTime)/1000);document.querySelector('#timeStat').textContent=`${String(s/60|0).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;document.querySelector('#shardStat').textContent=player.shards+' GODSPORES'}
+function update(dt){
+ if(state!=='play'||dialogOpen)return;let dx=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);if(dx&&dy){dx*=.707;dy*=.707}move(dx,dy,dt);
+ player.attack=Math.max(0,player.attack-dt);player.pulse=Math.max(0,player.pulse-dt);player.inv=Math.max(0,player.inv-dt);player.energy=Math.min(100,player.energy+12*dt);
+ enemies.forEach(e=>{if(e.hp<=0)return;e.hit=Math.max(0,e.hit-dt);e.phase+=dt;const d=dist(e,player);if(d<150){const nx=(player.x-e.x)/d,ny=(player.y-e.y)/d;e.x+=nx*35*dt;e.y+=ny*35*dt}if(d<18)hurt()});
+ spores.forEach(s=>{s.phase+=dt;if(!s.taken&&dist(s,player)<16){s.taken=true;player.shards++;player.energy=Math.min(100,player.energy+12);burst(s.x,s.y,'#a8ef91',5)}});
+ particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.94;p.vy*=.94;p.life-=dt});for(let i=particles.length-1;i>=0;i--)if(particles[i].life<=0)particles.splice(i,1);
+ cam.x=clamp(player.x-320,0,W-640);cam.y=clamp(player.y-180,0,H-360);shake=Math.max(0,shake-30*dt);
+ let near=npcs.find(n=>dist(n,player)<38),heart=hearts.find(h=>!h.on&&dist(h,player)<54);const p=document.querySelector('#prompt');p.textContent=near?'A · Speak':heart?'B · Aethryx Pulse':'';p.classList.toggle('show',!!(near||heart));
+ document.querySelector('#hearts').innerHTML=Array.from({length:player.maxHp},(_,i)=>`<span class="${i>=player.hp?'empty':''}">♥</span>`).join('');document.querySelector('#energy').style.width=player.energy+'%';document.querySelector('#shards').textContent=player.shards;document.querySelector('#quest').textContent=`Godvine Hearts · ${hearts.filter(h=>h.on).length} / 3`;
+}
+function interact(){if(dialogOpen)return nextDialog();const n=npcs.find(n=>dist(n,player)<38);if(n)say(n.name,n.lines);else attack()}
+function draw(){
+ const sx=shake?(Math.random()-.5)*shake:0,sy=shake?(Math.random()-.5)*shake:0;x.setTransform(1,0,0,1,0,0);x.fillStyle='#07110d';x.fillRect(0,0,640,360);x.translate(-cam.x+sx,-cam.y+sy);
+ // living bark floor
+ x.fillStyle='#263c26';x.fillRect(0,0,W,H);for(let yy=0;yy<H;yy+=32)for(let xx=0;xx<W;xx+=32){const z=((xx/32*13+yy/32*7)%9);x.fillStyle=z<3?'#304a2d':'#294129';x.fillRect(xx,yy,32,32);x.strokeStyle='#1d331f';x.strokeRect(xx+2,yy+2,28,28);if(z===1){x.fillStyle='#6b7040';x.fillRect(xx+12,yy+15,4,2)}}
+ // mist void and roots
+ x.fillStyle='#0a1715';obstacles.forEach(o=>{x.fillRect(o.x,o.y,o.w,o.h);x.fillStyle='#182b1c';for(let i=0;i<o.w;i+=22)x.fillRect(o.x+i,o.y+3,11,o.h-6);x.fillStyle='#0a1715'});
+ x.strokeStyle='#735f36';x.lineWidth=9;x.beginPath();x.moveTo(480,720);x.bezierCurveTo(410,520,560,410,480,300);x.bezierCurveTo(380,230,520,160,480,40);x.stroke();x.strokeStyle='#a28b4b';x.lineWidth=2;x.stroke();
+ // decorative great trunks
+ [[110,340,78],[850,360,90],[480,245,68]].forEach(([px,py,r])=>{x.fillStyle='#14291b';x.beginPath();x.arc(px,py,r,0,7);x.fill();x.strokeStyle='#4e4f2b';x.lineWidth=8;x.stroke();x.strokeStyle='#263f25';x.lineWidth=4;x.beginPath();x.arc(px,py,r-18,0,7);x.stroke()});
+ spores.forEach(s=>{if(s.taken)return;const q=3+Math.sin(s.phase*3);x.fillStyle='#baf594';x.fillRect(s.x-q/2,s.y-q/2,q,q);x.fillStyle='#5ea76a';x.fillRect(s.x-1,s.y+4,2,3)});
+ hearts.forEach((h,i)=>{const c=h.on?'#81f0cf':i===1?'#72cbd5':'#bb7be7';x.shadowBlur=h.on?24:12;x.shadowColor=c;x.fillStyle='#111d17';x.beginPath();x.arc(h.x,h.y,25,0,7);x.fill();x.strokeStyle=c;x.lineWidth=4;x.beginPath();x.moveTo(h.x,h.y+12);x.bezierCurveTo(h.x-28,h.y-5,h.x-15,h.y-24,h.x,h.y-10);x.bezierCurveTo(h.x+15,h.y-24,h.x+28,h.y-5,h.x,h.y+12);x.stroke();x.shadowBlur=0});
+ npcs.forEach(n=>drawPerson(n.x,n.y,'#d6c36e','#6e9c75',false));
+ enemies.forEach(e=>{if(e.hp<=0)return;x.fillStyle=e.hit?'#fff4ce':'#6b3d7d';x.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,r=i%2?9:14;x.lineTo(e.x+Math.cos(a)*r,e.y+Math.sin(a)*r)}x.fill();x.fillStyle='#c5f3d2';x.fillRect(e.x-5,e.y-3,3,3);x.fillRect(e.x+3,e.y-3,3,3)});
+ particles.forEach(p=>{x.globalAlpha=Math.min(1,p.life*3);x.fillStyle=p.c;x.fillRect(p.x,p.y,3,3)});x.globalAlpha=1;
+ drawPerson(player.x,player.y,'#e7e0cf','#5d4a86',true);
+ if(player.attack){x.strokeStyle='#f4dda0';x.lineWidth=4;x.beginPath();x.arc(player.x,player.y,27,player.dir-.9,player.dir+.9);x.stroke()}
+ if(player.pulse){x.strokeStyle='#75ead1';x.lineWidth=3;x.globalAlpha=player.pulse*2;x.beginPath();x.arc(player.x,player.y,(.5-player.pulse)*110,0,7);x.stroke();x.globalAlpha=1}
+ x.setTransform(1,0,0,1,0,0);
+}
+function drawPerson(px,py,hair,coat,isPlayer){x.save();if(isPlayer&&player.inv>0&&Math.floor(player.inv*12)%2)x.globalAlpha=.35;x.fillStyle='#151b18';x.fillRect(px-7,py+7,14,8);x.fillStyle=coat;x.fillRect(px-8,py-5,16,15);x.fillStyle='#d7a675';x.fillRect(px-6,py-13,12,10);x.fillStyle=hair;x.fillRect(px-8,py-17,16,7);x.fillRect(px-10,py-14,5,7);x.fillStyle='#d6c36e';x.fillRect(px+8,py-4,3,16);x.restore()}
+function frame(t){const dt=Math.min(.033,(t-last)/1000||0);last=t;update(dt);draw();requestAnimationFrame(frame)}
+addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(e.key==='Enter'||e.key==='z')dialogOpen?nextDialog():interact();if(e.key==='x'||e.key===' ')pulse()});
+addEventListener('keyup',e=>keys[e.key]=false);document.querySelector('#begin').onclick=reset;document.querySelector('#again').onclick=reset;
+document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key;b.onpointerdown=e=>{e.preventDefault();keys[k]=true};b.onpointerup=b.onpointercancel=e=>{e.preventDefault();keys[k]=false}});
+document.querySelector('[data-action=attack]').onpointerdown=e=>{e.preventDefault();dialogOpen?nextDialog():interact()};document.querySelector('[data-action=pulse]').onpointerdown=e=>{e.preventDefault();pulse()};
+requestAnimationFrame(frame);
+})();
+</script></body></html>

@@ -16802,6 +16802,141 @@ document.addEventListener('keydown', (e) => {
   // (V2.15.1 — standalone-overlay X-close moved to top of handler)
 });
 document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+// V3.17.65 — Native PS5 DualSense / standard Gamepad API support.
+// Controller input is translated into RP7's canonical keyboard actions so
+// every existing mode (title, creator, overworld, dialog, battle, party,
+// shops, menus, and overlays) follows the same battle-tested input routing.
+(function nativeGamepadController() {
+  if (!navigator.getGamepads) return;
+
+  const status = document.createElement('div');
+  status.id = 'gamepad-status';
+  status.setAttribute('aria-live', 'polite');
+  status.style.cssText = [
+    'position:fixed', 'left:12px', 'bottom:10px', 'z-index:10020',
+    'padding:6px 9px', 'border:1px solid rgba(232,200,120,.35)',
+    'background:rgba(5,3,16,.82)', 'color:#b8aec8',
+    'font:12px/1.2 "VT323",monospace', 'letter-spacing:.12em',
+    'pointer-events:none', 'opacity:.78'
+  ].join(';');
+  status.textContent = 'CONTROLLER · PRESS A BUTTON';
+  document.body.appendChild(status);
+
+  let activeIndex = null;
+  let previousButtons = [];
+  let heldDirections = new Set();
+  const DEAD_ZONE = 0.42;
+
+  function dispatchKey(type, key) {
+    const code = key === 'ArrowUp' || key === 'ArrowDown' ||
+      key === 'ArrowLeft' || key === 'ArrowRight'
+      ? key
+      : key === 'Shift' ? 'ShiftLeft'
+      : key.length === 1 && /[0-9]/.test(key) ? 'Digit' + key
+      : key.length === 1 ? 'Key' + key.toUpperCase()
+      : key;
+    document.dispatchEvent(new KeyboardEvent(type, {
+      key, code, bubbles: true, cancelable: true
+    }));
+  }
+
+  // RP7 abstract layout → DualSense:
+  // A=Cross, B=Circle, X=Square, Y=Triangle,
+  // Select=Create, Menu=Touchpad, Start=Options.
+  const buttonKeys = {
+    0: 'z',      // Cross  → RP7 A / confirm / interact
+    1: 'Shift',  // Circle → RP7 B / cancel / run
+    2: 'x',      // Square → RP7 X
+    3: 'y',      // Triangle → RP7 Y
+    8: '1',      // Create → SELECT assignment
+    9: '3',      // Options → START / settings
+    17: '2',     // Touchpad press → MENU
+  };
+
+  function setStatus(gamepad) {
+    if (!gamepad) {
+      status.textContent = 'CONTROLLER · PRESS A BUTTON';
+      status.style.color = '#b8aec8';
+      return;
+    }
+    const dualSense = /dualsense|wireless controller|054c/i.test(gamepad.id);
+    status.textContent = (dualSense ? 'DUALSENSE' : 'CONTROLLER') +
+      ' · CONNECTED · × CONFIRM · ○ BACK';
+    status.style.color = '#e8c878';
+  }
+
+  function releaseAll() {
+    for (const key of heldDirections) dispatchKey('keyup', key);
+    heldDirections.clear();
+    for (const index in buttonKeys) {
+      if (previousButtons[index]) dispatchKey('keyup', buttonKeys[index]);
+    }
+    previousButtons = [];
+  }
+
+  function syncDirections(nextDirections) {
+    for (const key of heldDirections) {
+      if (!nextDirections.has(key)) dispatchKey('keyup', key);
+    }
+    for (const key of nextDirections) {
+      if (!heldDirections.has(key)) dispatchKey('keydown', key);
+    }
+    heldDirections = nextDirections;
+  }
+
+  function pollGamepad() {
+    const pads = navigator.getGamepads();
+    let pad = activeIndex !== null ? pads[activeIndex] : null;
+    if (!pad) pad = Array.from(pads).find(Boolean);
+
+    if (!pad) {
+      if (activeIndex !== null) releaseAll();
+      activeIndex = null;
+      setStatus(null);
+      requestAnimationFrame(pollGamepad);
+      return;
+    }
+
+    activeIndex = pad.index;
+    setStatus(pad);
+
+    const nextDirections = new Set();
+    const axisX = pad.axes[0] || 0;
+    const axisY = pad.axes[1] || 0;
+    if (axisX < -DEAD_ZONE || pad.buttons[14]?.pressed) nextDirections.add('ArrowLeft');
+    if (axisX >  DEAD_ZONE || pad.buttons[15]?.pressed) nextDirections.add('ArrowRight');
+    if (axisY < -DEAD_ZONE || pad.buttons[12]?.pressed) nextDirections.add('ArrowUp');
+    if (axisY >  DEAD_ZONE || pad.buttons[13]?.pressed) nextDirections.add('ArrowDown');
+    syncDirections(nextDirections);
+
+    for (const indexText in buttonKeys) {
+      const index = Number(indexText);
+      const pressed = !!pad.buttons[index]?.pressed;
+      const wasPressed = !!previousButtons[index];
+      if (pressed && !wasPressed) dispatchKey('keydown', buttonKeys[index]);
+      if (!pressed && wasPressed) dispatchKey('keyup', buttonKeys[index]);
+    }
+    previousButtons = pad.buttons.map(button => button.pressed);
+    requestAnimationFrame(pollGamepad);
+  }
+
+  window.addEventListener('gamepadconnected', (event) => {
+    activeIndex = event.gamepad.index;
+    previousButtons = [];
+    setStatus(event.gamepad);
+  });
+  window.addEventListener('gamepaddisconnected', (event) => {
+    if (activeIndex === event.gamepad.index) {
+      releaseAll();
+      activeIndex = null;
+      setStatus(null);
+    }
+  });
+  window.addEventListener('blur', releaseAll);
+  requestAnimationFrame(pollGamepad);
+})();
+
 // V2.12 — pointer gestures also unlock audio (title-screen buttons, taps, etc.)
 document.addEventListener('pointerdown', primeMusicOnGesture, { capture: true });
 

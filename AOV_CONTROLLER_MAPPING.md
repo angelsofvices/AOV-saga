@@ -5,6 +5,13 @@
 **Browser interface:** Gamepad API using the standard gamepad layout  
 **Keyboard and mouse:** Must remain available in every browser game mode
 
+## Canonical Game Identity
+
+| Product number | Canonical game / world |
+|---|---|
+| RP7 | Zyraxis |
+| RP8 | Arborynth — Forest of the Godvine |
+
 ## 1. RP7 Face-Button Translation
 
 RP7 may describe actions with the abstract game buttons **A, B, X, and Y**. On a PlayStation 5 DualSense controller, always translate them as follows:
@@ -78,3 +85,15 @@ Purple asteroids are breakable with the blaster. Gray asteroids are hazards and 
 6. RP7 documentation and interfaces must use the translation in Section 1 consistently.
 7. Advanced DualSense features such as adaptive triggers and haptics are optional enhancements, not required inputs.
 
+## 6. RP8 — Arborynth
+
+| Action | DualSense input | RP8 game button |
+|---|---|---|
+| Move | Left stick or D-pad | Directional controls |
+| Interact | Cross (×) | A |
+| Basic attack | Circle (○) | B |
+| Cycle equipped weapon | Square (□) | X |
+| Hold block | Triangle (△) | Y |
+| Vibe profile | Create | Select |
+| Menu | Touchpad press | Menu |
+| Staff profile / revive | Options | Start |

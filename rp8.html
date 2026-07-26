@@ -11961,7 +11961,7 @@ function openMainMenu() {
     game.mode = 'mainmenu';
     clearHeldKeys();
     $mainmenu.classList.add('active');
-    setTimeout(() => { const b = $mainmenu.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
+    setTimeout(() => focusNavStep($mainmenu, 'ControllerDefault', 2), 30);
   }
 }
 // V3.8.1 — DEV MODE toggle.  Hold the MENU pill (or press F9 on desktop)
@@ -12052,7 +12052,7 @@ function openSettings() {
       devPanel.style.display = 'none';
     }
   }
-  setTimeout(() => { const b = $settings.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
+  setTimeout(() => focusNavStep($settings, 'ControllerDefault', 2), 30);
 }
 function closeSettings() {
   try { playSfx('menu-close'); } catch(_) {}
@@ -13481,7 +13481,16 @@ function focusNavStep(container, key, gridCols) {
   const btns = Array.from(container.querySelectorAll('button:not(:disabled), .action-btn:not(:disabled), .starter-card, .gender-btn, .party-slot:not(.empty), .notebook-row, .shop-row, .item-row'));
   if (!btns.length) return false;
   let i = btns.indexOf(document.activeElement);
-  if (i < 0) i = 0;
+  if (i < 0) {
+    const rects = btns.map((el, index) => ({ index, rect: el.getBoundingClientRect() }));
+    const top = Math.min(...rects.map(item => item.rect.top));
+    const topRow = rects.filter(item => item.rect.top <= top + 30);
+    topRow.sort((a, b) => b.rect.right - a.rect.right);
+    i = topRow[0].index;
+    btns[i].focus();
+    try { playSfx('cursor'); } catch(_) {}
+    return true;
+  }
   const cols = gridCols || btns.length;
   const rows = Math.ceil(btns.length / cols);
   let ni = i;
@@ -13642,9 +13651,8 @@ document.addEventListener('keydown', (e) => {
     }
     if (isConfirm) {
       if (!document.activeElement || !container.contains(document.activeElement)) {
-        // No selection yet — focus the first button so Enter still activates.
-        const first = container.querySelector('button:not(:disabled), .action-btn:not(:disabled)');
-        if (first) first.focus();
+        // Canonical controller default: top-row rightmost enabled button.
+        focusNavStep(container, 'ControllerDefault', 2);
       }
       if (activateFocused()) e.preventDefault();
       return;
@@ -13847,6 +13855,121 @@ document.addEventListener('keydown', (e) => {
   // (V2.15.1 — standalone-overlay X-close moved to top of handler)
 });
 document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+// RP8 — native DualSense / standard Gamepad API controller layer.
+// Inputs reuse the existing keyboard router so every RP8 mode behaves
+// consistently: A=Cross, B=Circle, X=Square, Y=Triangle,
+// Select=Create, Menu=Touchpad press, Start=Options.
+(function nativeGamepadController() {
+  if (!navigator.getGamepads || window.__rp8GamepadController) return;
+  window.__rp8GamepadController = true;
+
+  const status = document.createElement('div');
+  status.id = 'gamepad-status';
+  status.setAttribute('aria-live', 'polite');
+  status.style.cssText = 'position:fixed;left:12px;bottom:10px;z-index:10020;padding:6px 9px;border:1px solid rgba(232,200,120,.35);background:rgba(5,3,16,.82);color:#b8aec8;font:12px/1.2 "VT323",monospace;letter-spacing:.12em;pointer-events:none;opacity:.78';
+  status.textContent = 'CONTROLLER · PRESS A BUTTON';
+  document.body.appendChild(status);
+
+  let activeIndex = null;
+  let previousButtons = [];
+  let heldDirections = new Set();
+  const DEAD_ZONE = 0.42;
+  const buttonKeys = {
+    0: 'z',      // Cross → A / confirm / interact
+    1: 'Shift',  // Circle → B / back / run
+    2: 'x',      // Square → X
+    3: 'y',      // Triangle → Y
+    8: '1',      // Create → SELECT
+    9: '3',      // Options → START / settings
+    17: '2',     // Touchpad press → MENU
+  };
+
+  function dispatchKey(type, key) {
+    const code = key.startsWith('Arrow') ? key :
+      key === 'Shift' ? 'ShiftLeft' :
+      /^[0-9]$/.test(key) ? 'Digit' + key :
+      key.length === 1 ? 'Key' + key.toUpperCase() : key;
+    document.dispatchEvent(new KeyboardEvent(type, {
+      key, code, bubbles: true, cancelable: true
+    }));
+  }
+
+  function setStatus(pad) {
+    if (!pad) {
+      status.textContent = 'CONTROLLER · PRESS A BUTTON';
+      status.style.color = '#b8aec8';
+      return;
+    }
+    const dualSense = /dualsense|wireless controller|054c/i.test(pad.id);
+    status.textContent = `${dualSense ? 'DUALSENSE' : 'CONTROLLER'} · CONNECTED · × SELECT · ○ BACK`;
+    status.style.color = '#e8c878';
+  }
+
+  function releaseAll() {
+    for (const key of heldDirections) dispatchKey('keyup', key);
+    heldDirections.clear();
+    for (const index in buttonKeys) {
+      if (previousButtons[index]) dispatchKey('keyup', buttonKeys[index]);
+    }
+    previousButtons = [];
+  }
+
+  function syncDirections(next) {
+    for (const key of heldDirections) if (!next.has(key)) dispatchKey('keyup', key);
+    for (const key of next) if (!heldDirections.has(key)) dispatchKey('keydown', key);
+    heldDirections = next;
+  }
+
+  function poll() {
+    const pads = navigator.getGamepads();
+    let pad = activeIndex !== null ? pads[activeIndex] : null;
+    if (!pad) pad = Array.from(pads).find(Boolean);
+    if (!pad) {
+      if (activeIndex !== null) releaseAll();
+      activeIndex = null;
+      setStatus(null);
+      requestAnimationFrame(poll);
+      return;
+    }
+
+    activeIndex = pad.index;
+    setStatus(pad);
+    const next = new Set();
+    const x = pad.axes[0] || 0;
+    const y = pad.axes[1] || 0;
+    if (x < -DEAD_ZONE || pad.buttons[14]?.pressed) next.add('ArrowLeft');
+    if (x >  DEAD_ZONE || pad.buttons[15]?.pressed) next.add('ArrowRight');
+    if (y < -DEAD_ZONE || pad.buttons[12]?.pressed) next.add('ArrowUp');
+    if (y >  DEAD_ZONE || pad.buttons[13]?.pressed) next.add('ArrowDown');
+    syncDirections(next);
+
+    for (const indexText in buttonKeys) {
+      const index = Number(indexText);
+      const pressed = !!pad.buttons[index]?.pressed;
+      const wasPressed = !!previousButtons[index];
+      if (pressed && !wasPressed) dispatchKey('keydown', buttonKeys[index]);
+      if (!pressed && wasPressed) dispatchKey('keyup', buttonKeys[index]);
+    }
+    previousButtons = pad.buttons.map(button => button.pressed);
+    requestAnimationFrame(poll);
+  }
+
+  window.addEventListener('gamepadconnected', event => {
+    activeIndex = event.gamepad.index;
+    previousButtons = [];
+    setStatus(event.gamepad);
+  });
+  window.addEventListener('gamepaddisconnected', event => {
+    if (activeIndex === event.gamepad.index) {
+      releaseAll();
+      activeIndex = null;
+      setStatus(null);
+    }
+  });
+  window.addEventListener('blur', releaseAll);
+  requestAnimationFrame(poll);
+})();
 // V2.12 — pointer gestures also unlock audio (title-screen buttons, taps, etc.)
 document.addEventListener('pointerdown', primeMusicOnGesture, { capture: true });
 
@@ -18215,8 +18338,7 @@ function addAction(label, cb, disabled) {
 }
 function focusFirstAction() {
   setTimeout(() => {
-    const first = $battleActions.querySelector('button:not(:disabled), .action-btn:not(:disabled)');
-    if (first) first.focus();
+    focusNavStep($battleActions, 'ControllerDefault', 2);
   }, 20);
 }
 
@@ -19559,7 +19681,7 @@ function renderStarterScreen() {
   const $grid = document.getElementById('starter-grid');
   $grid.innerHTML = '';
   // Focus first card after paint so arrow keys work immediately.
-  setTimeout(() => { const first = $grid.querySelector('.starter-card'); if (first) first.focus(); }, 40);
+  setTimeout(() => focusNavStep($grid, 'ControllerDefault', 3), 40);
   for (const id of STARTERS) {
     const s = SPECIES[id];
     const card = document.createElement('div');
@@ -19725,7 +19847,7 @@ function handlePartySwapKey() {
 }
 function renderPartyScreen() {
   $partyGrid.innerHTML = '';
-  setTimeout(() => { const first = $partyGrid.querySelector('.party-slot:not(.empty)'); if (first) first.focus(); }, 40);
+  setTimeout(() => focusNavStep($partyGrid, 'ControllerDefault', 2), 40);
   // V3.17.26 — Party grid renders MAX_PARTY OR the player's actual party
   // length (whichever is greater) so Ultharis-mode overflow (7+ Zyrex)
   // is visible.  Grid parent scrolls vertically when it overflows.

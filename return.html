@@ -456,6 +456,43 @@
       animation: hint-pulse 2s ease-in-out infinite;
     }
 
+    .controller-status {
+      position: fixed;
+      left: 18px;
+      bottom: 16px;
+      z-index: 90;
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .controller-status.connected { color: var(--gold); opacity: 1; }
+
+    .mode-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .mode-actions .btn { width: 100%; }
+
+    .mode-note {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.48rem;
+      letter-spacing: 0.12em;
+      opacity: 0.7;
+    }
+
+    @media (max-width: 520px) {
+      .mode-actions { grid-template-columns: 1fr; }
+    }
+
     @keyframes hint-pulse {
       0%, 100% { opacity: 0.4; }
       50% { opacity: 0.85; }
@@ -541,6 +578,7 @@
   </div>
 
   <div class="touch-hint" id="touch-hint">Drag to fly</div>
+  <div class="controller-status" id="controller-status">Controller not connected</div>
   <div class="hit-flash" id="hit-flash"></div>
 
   <div class="tier-toast" id="tier-toast">
@@ -591,11 +629,20 @@
         <p>Gather one hundred Astralite gems. Survive the void.</p>
       </div>
       <div class="intro-instruct">
-        <strong>Drag</strong> to fly the ship<br>
+        <strong>Drag, WASD, arrows, or left stick</strong> to fly<br>
         <strong>Dodge</strong> the cosmic shrapnel<br>
         <strong>Five lives</strong> · One way home
       </div>
-      <button class="btn btn-primary" id="intro-start">Begin</button>
+      <div class="mode-actions">
+        <button class="btn btn-primary" id="intro-start" data-mode="journey">
+          The Journey
+          <span class="mode-note">Collect 100 gems</span>
+        </button>
+        <button class="btn btn-ghost" id="endless-start" data-mode="endless">
+          Endless Void
+          <span class="mode-note">Infinite score · B / R2 blaster</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -608,62 +655,9 @@
     const SHIP_RADIUS = 16;
     const HITBOX_FORGIVENESS = 4;
 
-    // Astralite stone variants — yellow (common, 1pt), green (rare, 3pt),
-    // white (very rare, 5pt, extremely fast). Weights must sum to ~1.
-    const STONE_WEIGHTS = { yellow: 0.60, green: 0.25, white: 0.15 };
-    const STONE = {
-      yellow: {
-        value: 1,
-        speed: [90, 60],   // base + random extra
-        glow:  ['rgba(232, 200, 120, 0.5)', 'rgba(232, 200, 120, 0)'],
-        fill:  'rgba(232, 200, 120, 0.85)',
-        stroke:'rgba(245, 220, 156, 1)',
-        inner: 'rgba(244, 227, 179, 0.6)',
-      },
-      green: {
-        value: 3,
-        speed: [180, 120],   // 2x yellow speed
-        glow:  ['rgba(47, 230, 168, 0.55)', 'rgba(47, 230, 168, 0)'],
-        fill:  'rgba(47, 230, 168, 0.85)',
-        stroke:'rgba(140, 245, 200, 1)',
-        inner: 'rgba(200, 250, 225, 0.7)',
-      },
-      white: {
-        value: 5,
-        speed: [320, 120],   // extremely fast — ~3x yellow/green
-        glow:  ['rgba(255, 255, 255, 0.70)', 'rgba(255, 255, 255, 0)'],
-        fill:  'rgba(255, 255, 255, 0.95)',
-        stroke:'rgba(255, 255, 255, 1)',
-        inner: 'rgba(255, 255, 255, 1)',
-      },
-    };
-    function rollStoneKind() {
-      const r = Math.random();
-      let acc = 0;
-      for (const [kind, w] of Object.entries(STONE_WEIGHTS)) {
-        acc += w;
-        if (r < acc) return kind;
-      }
-      return 'yellow';
-    }
-
-    // Projectile variants — purple (common, 1 dmg), red (rare, 2 dmg).
-    const RED_CHANCE = 0.20;
-    const PROJ = {
-      purple: {
-        damage: 1,
-        glow:  ['rgba(184, 124, 255, 0.7)', 'rgba(111, 101, 130, 0.4)'],
-        stroke:'rgba(184, 174, 200, 0.85)',
-      },
-      red: {
-        damage: 2,
-        glow:  ['rgba(255, 80, 80, 0.85)', 'rgba(140, 30, 30, 0.5)'],
-        stroke:'rgba(255, 160, 140, 0.95)',
-      },
-    };
-
     const state = {
       gems: 0,
+      mode: 'journey',
       lives: MAX_LIVES,
       running: false,
       gameOver: false,
@@ -675,10 +669,13 @@
       timeAlive: 0,
       projectiles: [],
       gemsArr: [],
+      lasers: [],
       lastProjectile: 0,
       lastGem: 0,
+      lastShot: -1,
       invulnUntil: 0,
       shipShake: 0,
+      lastDifficultyLevel: 0,
     };
 
     const canvas = document.getElementById('game-canvas');
@@ -753,7 +750,99 @@
     canvas.addEventListener('mouseup', endDrag);
     canvas.addEventListener('mouseleave', endDrag);
 
+    const keysDown = new Set();
+    const $controllerStatus = document.getElementById('controller-status');
+    const DEAD_ZONE = 0.16;
+    let activeGamepadIndex = null;
+    let lastGamepadButtons = [];
+
+    function setInputHint(text) {
+      $touchHint.textContent = text;
+      showTouchHint();
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(e.key)) {
+        keysDown.add(e.key.toLowerCase());
+        setInputHint('Keyboard active · WASD or arrows');
+        e.preventDefault();
+      }
+      if ((e.key === 'Enter' || e.key === ' ') && !$intro.classList.contains('dismissed')) {
+        document.getElementById('intro-start').click();
+      }
+      if (e.key.toLowerCase() === 'b') {
+        keysDown.add('b');
+        if (state.mode === 'endless') fireBlaster();
+        e.preventDefault();
+      }
+    });
+    window.addEventListener('keyup', (e) => keysDown.delete(e.key.toLowerCase()));
+
+    function updateControllerStatus(gamepad) {
+      const connected = Boolean(gamepad);
+      $controllerStatus.classList.toggle('connected', connected);
+      $controllerStatus.textContent = connected
+        ? `${gamepad.id.includes('DualSense') ? 'DualSense' : 'Controller'} connected · Left stick to fly`
+        : 'Controller not connected';
+    }
+
+    window.addEventListener('gamepadconnected', (e) => {
+      activeGamepadIndex = e.gamepad.index;
+      lastGamepadButtons = [];
+      updateControllerStatus(e.gamepad);
+      setInputHint('Controller active · Left stick to fly');
+    });
+    window.addEventListener('gamepaddisconnected', (e) => {
+      if (activeGamepadIndex === e.gamepad.index) activeGamepadIndex = null;
+      updateControllerStatus(null);
+    });
+
+    function applyPlayerInput(dt) {
+      const speed = 440;
+      let x = 0;
+      let y = 0;
+      if (keysDown.has('a') || keysDown.has('arrowleft')) x -= 1;
+      if (keysDown.has('d') || keysDown.has('arrowright')) x += 1;
+      if (keysDown.has('w') || keysDown.has('arrowup')) y -= 1;
+      if (keysDown.has('s') || keysDown.has('arrowdown')) y += 1;
+
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const pad = activeGamepadIndex !== null ? pads[activeGamepadIndex] : Array.from(pads).find(Boolean);
+      if (pad) {
+        activeGamepadIndex = pad.index;
+        updateControllerStatus(pad);
+        const axisX = Math.abs(pad.axes[0] || 0) > DEAD_ZONE ? pad.axes[0] : 0;
+        const axisY = Math.abs(pad.axes[1] || 0) > DEAD_ZONE ? pad.axes[1] : 0;
+        const dpadX = (pad.buttons[15]?.pressed ? 1 : 0) - (pad.buttons[14]?.pressed ? 1 : 0);
+        const dpadY = (pad.buttons[13]?.pressed ? 1 : 0) - (pad.buttons[12]?.pressed ? 1 : 0);
+        x = axisX || dpadX || x;
+        y = axisY || dpadY || y;
+
+        const confirmPressed = pad.buttons[0]?.pressed || pad.buttons[9]?.pressed;
+        const wasPressed = lastGamepadButtons[0] || lastGamepadButtons[9];
+        if (confirmPressed && !wasPressed) {
+          if (!$intro.classList.contains('dismissed')) document.getElementById('intro-start').click();
+          else if (state.gameOver) document.querySelector('.end-screen.active [data-restart]')?.click();
+        }
+        if (pad.buttons[3]?.pressed && !lastGamepadButtons[3] && !$intro.classList.contains('dismissed')) {
+          document.getElementById('endless-start').click();
+        }
+        const r2Pressed = (pad.buttons[7]?.value || 0) > 0.35;
+        if (r2Pressed && state.mode === 'endless') fireBlaster();
+        lastGamepadButtons = pad.buttons.map(button => button.pressed);
+      }
+
+      if (state.running && (x || y)) {
+        state.targetX += x * speed * dt;
+        state.targetY += y * speed * dt;
+        state.targetX = Math.max(SHIP_RADIUS, Math.min(cw - SHIP_RADIUS, state.targetX));
+        state.targetY = Math.max(SHIP_RADIUS + 80, Math.min(ch - SHIP_RADIUS - 20, state.targetY));
+        hideTouchHint();
+      }
+    }
+
     function getTier() {
+      if (state.mode === 'endless') return Math.floor(state.timeAlive / 25);
       // Tier 0: 0-19 gems, Tier 1: 20-39, Tier 2: 40-59, Tier 3: 60-79, Tier 4: 80-100
       return Math.min(4, Math.floor(state.gems / 20));
     }
@@ -767,13 +856,23 @@
       { projSpeed: 440, projInterval: 0.4,  gemInterval: 1.1,  drift: 130, doubleChance: 0.5  },  // 80-100
     ];
 
+    function getDifficultyConfig() {
+      if (state.mode !== 'endless') return TIER_CONFIG[getTier()];
+      const level = getTier();
+      return {
+        projSpeed: Math.min(760, 150 + level * 42),
+        projInterval: Math.max(0.2, 0.95 - level * 0.07),
+        gemInterval: Math.max(0.7, 1.4 - level * 0.035),
+        drift: Math.min(240, 35 + level * 18),
+        doubleChance: Math.min(0.8, level * 0.09),
+      };
+    }
+
     function spawnProjectile() {
-      const cfg = TIER_CONFIG[getTier()];
+      const cfg = getDifficultyConfig();
       const speed = cfg.projSpeed + Math.random() * 40 - 20; // small variance
-      const isRed = Math.random() < RED_CHANCE;
-      const kind = isRed ? 'red' : 'purple';
-      // Red meteors run a touch larger so the heavier-damage threat reads at a glance.
-      const size = (isRed ? 9 : 6) + Math.random() * 7;
+      const breakable = state.mode === 'endless' && Math.random() < 0.48;
+      const size = breakable ? 11 + Math.random() * 8 : 6 + Math.random() * 7;
       const drift = (Math.random() - 0.5) * cfg.drift;
       state.projectiles.push({
         x: Math.random() * cw,
@@ -783,29 +882,43 @@
         size,
         rotation: Math.random() * Math.PI,
         rotationSpeed: (Math.random() - 0.5) * 4,
-        kind,
-        damage: PROJ[kind].damage,
+        breakable,
       });
     }
 
+    function fireBlaster() {
+      if (!state.running || state.mode !== 'endless') return;
+      if (state.timeAlive - state.lastShot < 0.18) return;
+      state.lastShot = state.timeAlive;
+      state.lasers.push({ x: state.shipX, y: state.shipY - 22, length: 34 });
+    }
+
     function spawnGem() {
-      const kind = rollStoneKind();
-      const [baseSpeed, speedRange] = STONE[kind].speed;
       state.gemsArr.push({
         x: 30 + Math.random() * (cw - 60),
         y: -20,
-        vy: baseSpeed + Math.random() * speedRange,
-        size: kind === 'white' ? 13 : 14,
+        vy: 90 + Math.random() * 60,
+        size: 14,
         pulse: Math.random() * Math.PI * 2,
-        kind,
-        value: STONE[kind].value,
       });
     }
 
     function update(dt) {
+      applyPlayerInput(dt);
       if (!state.running) return;
 
       state.timeAlive += dt;
+      if (state.mode === 'endless') {
+        const difficultyLevel = getTier();
+        if (difficultyLevel > state.lastDifficultyLevel) {
+          state.lastDifficultyLevel = difficultyLevel;
+          $tierToastEyebrow.textContent = `Endless Void · Level ${difficultyLevel + 1}`;
+          $tierToastTitle.textContent = 'The Void Intensifies';
+          $tierToast.classList.remove('show');
+          void $tierToast.offsetWidth;
+          $tierToast.classList.add('show');
+        }
+      }
 
       const followSpeed = 12;
       state.shipX += (state.targetX - state.shipX) * Math.min(1, dt * followSpeed);
@@ -814,7 +927,9 @@
       state.shipX = Math.max(SHIP_RADIUS, Math.min(cw - SHIP_RADIUS, state.shipX));
       state.shipY = Math.max(SHIP_RADIUS + 80, Math.min(ch - SHIP_RADIUS - 20, state.shipY));
 
-      const cfg = TIER_CONFIG[getTier()];
+      if (keysDown.has('b')) fireBlaster();
+
+      const cfg = getDifficultyConfig();
       const projInterval = cfg.projInterval;
       const gemInterval = cfg.gemInterval;
 
@@ -847,10 +962,33 @@
           const dy = p.y - state.shipY;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < SHIP_RADIUS + p.size - HITBOX_FORGIVENESS) {
-            takeHit(p.damage || 1);
+            takeHit();
             state.projectiles.splice(i, 1);
           }
         }
+      }
+
+      for (let i = state.lasers.length - 1; i >= 0; i--) {
+        const laser = state.lasers[i];
+        laser.y -= 820 * dt;
+        if (laser.y + laser.length < 0) {
+          state.lasers.splice(i, 1);
+          continue;
+        }
+        let laserSpent = false;
+        for (let j = state.projectiles.length - 1; j >= 0; j--) {
+          const asteroid = state.projectiles[j];
+          if (!asteroid.breakable) continue;
+          if (Math.abs(laser.x - asteroid.x) < asteroid.size + 4 &&
+              laser.y < asteroid.y + asteroid.size &&
+              laser.y + laser.length > asteroid.y - asteroid.size) {
+            state.projectiles.splice(j, 1);
+            state.lasers.splice(i, 1);
+            laserSpent = true;
+            break;
+          }
+        }
+        if (laserSpent) continue;
       }
 
       for (let i = state.gemsArr.length - 1; i >= 0; i--) {
@@ -867,7 +1005,7 @@
         const dy = g.y - state.shipY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < SHIP_RADIUS + g.size) {
-          collectGem(g.value || 1);
+          collectGem();
           state.gemsArr.splice(i, 1);
         }
       }
@@ -932,19 +1070,8 @@
     }
 
     function drawProjectile(p) {
-      const skin = PROJ[p.kind] || PROJ.purple;
       ctx.save();
       ctx.translate(p.x, p.y);
-
-      // Outer halo for red meteors so the 2-dmg threat is visible at a glance.
-      if (p.kind === 'red') {
-        const haloGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.size * 2.2);
-        haloGrad.addColorStop(0, 'rgba(255, 80, 80, 0.55)');
-        haloGrad.addColorStop(1, 'rgba(255, 80, 80, 0)');
-        ctx.fillStyle = haloGrad;
-        ctx.fillRect(-p.size * 2.5, -p.size * 2.5, p.size * 5, p.size * 5);
-      }
-
       ctx.rotate(p.rotation);
 
       ctx.beginPath();
@@ -960,27 +1087,43 @@
       ctx.closePath();
 
       const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.size);
-      grad.addColorStop(0, skin.glow[0]);
-      grad.addColorStop(1, skin.glow[1]);
+      grad.addColorStop(0, p.breakable ? 'rgba(211, 132, 255, 0.95)' : 'rgba(160, 155, 175, 0.72)');
+      grad.addColorStop(1, p.breakable ? 'rgba(105, 28, 180, 0.65)' : 'rgba(70, 67, 84, 0.55)');
       ctx.fillStyle = grad;
       ctx.fill();
-      ctx.strokeStyle = skin.stroke;
-      ctx.lineWidth = p.kind === 'red' ? 1.4 : 1;
+      ctx.strokeStyle = p.breakable ? 'rgba(225, 166, 255, 1)' : 'rgba(184, 174, 200, 0.85)';
+      ctx.lineWidth = 1;
       ctx.stroke();
 
       ctx.restore();
     }
 
+    function drawLaser(laser) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(190, 70, 255, 1)';
+      ctx.shadowBlur = 18;
+      const grad = ctx.createLinearGradient(laser.x, laser.y, laser.x, laser.y + laser.length);
+      grad.addColorStop(0, 'rgba(235, 190, 255, 0)');
+      grad.addColorStop(0.25, 'rgba(218, 125, 255, 1)');
+      grad.addColorStop(1, 'rgba(132, 38, 255, 1)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(laser.x, laser.y);
+      ctx.lineTo(laser.x, laser.y + laser.length);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     function drawGem(g) {
       const pulseScale = 1 + Math.sin(g.pulse) * 0.08;
-      const skin = STONE[g.kind] || STONE.yellow;
       ctx.save();
       ctx.translate(g.x, g.y);
       ctx.scale(pulseScale, pulseScale);
 
       const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, g.size * 1.8);
-      glowGrad.addColorStop(0, skin.glow[0]);
-      glowGrad.addColorStop(1, skin.glow[1]);
+      glowGrad.addColorStop(0, 'rgba(232, 200, 120, 0.5)');
+      glowGrad.addColorStop(1, 'rgba(232, 200, 120, 0)');
       ctx.fillStyle = glowGrad;
       ctx.fillRect(-g.size * 2, -g.size * 2, g.size * 4, g.size * 4);
 
@@ -990,9 +1133,9 @@
       ctx.lineTo(0, g.size);
       ctx.lineTo(-g.size * 0.7, 0);
       ctx.closePath();
-      ctx.fillStyle = skin.fill;
+      ctx.fillStyle = 'rgba(232, 200, 120, 0.85)';
       ctx.fill();
-      ctx.strokeStyle = skin.stroke;
+      ctx.strokeStyle = 'rgba(245, 220, 156, 1)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -1002,32 +1145,8 @@
       ctx.lineTo(0, g.size * 0.6);
       ctx.lineTo(-g.size * 0.4, 0);
       ctx.closePath();
-      ctx.fillStyle = skin.inner;
+      ctx.fillStyle = 'rgba(244, 227, 179, 0.6)';
       ctx.fill();
-
-      // Subtle "×3" core for green stones — distinguishable at a glance.
-      if (g.kind === 'green') {
-        ctx.beginPath();
-        ctx.arc(0, 0, g.size * 0.22, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.fill();
-      }
-
-      // White stones get a 4-point sparkle to signal the rare high-value drop.
-      if (g.kind === 'white') {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(0, -g.size * 1.15); ctx.lineTo(0, g.size * 1.15);
-        ctx.moveTo(-g.size * 1.0, 0);  ctx.lineTo(g.size * 1.0, 0);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(0, 0, g.size * 0.2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-        ctx.fill();
-        ctx.restore();
-      }
 
       ctx.restore();
     }
@@ -1036,14 +1155,14 @@
       ctx.clearRect(0, 0, cw, ch);
       state.projectiles.forEach(drawProjectile);
       state.gemsArr.forEach(drawGem);
+      state.lasers.forEach(drawLaser);
       drawShip();
     }
 
-    function takeHit(damage) {
-      const dmg = Math.max(1, damage || 1);
-      state.lives = Math.max(0, state.lives - dmg);
+    function takeHit() {
+      state.lives--;
       state.invulnUntil = state.timeAlive * 1000 + INVULN_MS;
-      state.shipShake = dmg >= 2 ? 18 : 12;
+      state.shipShake = 12;
       flashHit();
       updateLivesUI();
 
@@ -1052,17 +1171,17 @@
       }
     }
 
-    function collectGem(value) {
+    function collectGem() {
       const prevTier = getTier();
-      state.gems = Math.min(state.gems + (value || 1), GOAL);
+      state.gems = state.mode === 'endless' ? state.gems + 1 : Math.min(state.gems + 1, GOAL);
       const newTier = getTier();
       updateGemUI();
 
-      if (newTier > prevTier && state.gems < GOAL) {
+      if (state.mode === 'journey' && newTier > prevTier && state.gems < GOAL) {
         showTierToast();
       }
 
-      if (state.gems >= GOAL) {
+      if (state.mode === 'journey' && state.gems >= GOAL) {
         triggerWin();
       }
     }
@@ -1124,8 +1243,12 @@
     }
 
     function updateGemUI() {
-      $gemCount.innerHTML = `${state.gems}<span class="total"> / ${GOAL}</span>`;
-      $journeyFill.style.width = `${(state.gems / GOAL) * 100}%`;
+      $gemCount.innerHTML = state.mode === 'endless'
+        ? `${state.gems}<span class="total"> · Endless Score</span>`
+        : `${state.gems}<span class="total"> / ${GOAL}</span>`;
+      $journeyFill.style.width = state.mode === 'endless'
+        ? `${Math.min(100, (state.timeAlive % 25) * 4)}%`
+        : `${(state.gems / GOAL) * 100}%`;
     }
 
     const $winScreen = document.getElementById('win-screen');
@@ -1143,7 +1266,9 @@
     function triggerLose() {
       state.running = false;
       state.gameOver = true;
-      $loseStats.innerHTML = `Gems Gathered · <strong>${state.gems} / ${GOAL}</strong>`;
+      $loseStats.innerHTML = state.mode === 'endless'
+        ? `Endless Score · <strong>${state.gems} gems</strong> · Survived <strong>${Math.floor(state.timeAlive)}s</strong>`
+        : `Gems Gathered · <strong>${state.gems} / ${GOAL}</strong>`;
       setTimeout(() => $loseScreen.classList.add('active'), 600);
     }
 
@@ -1156,9 +1281,12 @@
       state.lives = MAX_LIVES;
       state.projectiles = [];
       state.gemsArr = [];
+      state.lasers = [];
       state.timeAlive = 0;
       state.lastProjectile = 0;
       state.lastGem = 0;
+      state.lastShot = -1;
+      state.lastDifficultyLevel = 0;
       state.invulnUntil = 0;
       state.shipShake = 0;
       state.gameOver = false;
@@ -1178,6 +1306,7 @@
     const $touchHint = document.getElementById('touch-hint');
     let hintHideTimeout;
     function showTouchHint() {
+      if (!$touchHint.textContent) $touchHint.textContent = 'Drag to fly';
       $touchHint.classList.add('show');
       clearTimeout(hintHideTimeout);
       hintHideTimeout = setTimeout(hideTouchHint, 4000);
@@ -1187,16 +1316,22 @@
     }
 
     const $intro = document.getElementById('intro');
-    document.getElementById('intro-start').addEventListener('click', () => {
+    function startGame(mode) {
+      state.mode = mode;
       $intro.classList.add('dismissed');
       buildHearts();
       updateLivesUI();
       updateGemUI();
       state.running = true;
       state.lastTime = performance.now();
-      requestAnimationFrame(loop);
+      $touchHint.textContent = mode === 'endless'
+        ? 'Endless Void · B or R2 fires the purple blaster'
+        : 'Drag, WASD, arrows, or left stick to fly';
       showTouchHint();
-    });
+    }
+
+    document.getElementById('intro-start').addEventListener('click', () => startGame('journey'));
+    document.getElementById('endless-start').addEventListener('click', () => startGame('endless'));
 
     function loop(now) {
       const dt = Math.min(0.05, (now - state.lastTime) / 1000);
@@ -1208,6 +1343,9 @@
 
     buildHearts();
     updateLivesUI();
+    updateControllerStatus(null);
+    state.lastTime = performance.now();
+    requestAnimationFrame(loop);
     updateGemUI();
   </script>
 </body>

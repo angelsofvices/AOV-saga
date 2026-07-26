@@ -14565,7 +14565,7 @@ function openMainMenu() {
     game.mode = 'mainmenu';
     clearHeldKeys();
     $mainmenu.classList.add('active');
-    setTimeout(() => { const b = $mainmenu.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
+    setTimeout(() => focusNavStep($mainmenu, 'ControllerDefault', 2), 30);
   }
 }
 // V3.8.1 — DEV MODE toggle.  Hold the MENU pill (or press F9 on desktop)
@@ -14656,7 +14656,7 @@ function openSettings() {
       devPanel.style.display = 'none';
     }
   }
-  setTimeout(() => { const b = $settings.querySelector('button:not(.mainmenu-close)'); if (b) b.focus(); }, 30);
+  setTimeout(() => focusNavStep($settings, 'ControllerDefault', 2), 30);
 }
 function closeSettings() {
   try { playSfx('menu-close'); } catch(_) {}
@@ -16446,7 +16446,16 @@ function focusNavStep(container, key, gridCols) {
   const btns = Array.from(container.querySelectorAll('button:not(:disabled), .action-btn:not(:disabled), .starter-card, .gender-btn, .party-slot:not(.empty), .notebook-row, .shop-row, .item-row'));
   if (!btns.length) return false;
   let i = btns.indexOf(document.activeElement);
-  if (i < 0) i = 0;
+  if (i < 0) {
+    const rects = btns.map((el, index) => ({ index, rect: el.getBoundingClientRect() }));
+    const top = Math.min(...rects.map(item => item.rect.top));
+    const topRow = rects.filter(item => item.rect.top <= top + 30);
+    topRow.sort((a, b) => b.rect.right - a.rect.right);
+    i = topRow[0].index;
+    btns[i].focus();
+    try { playSfx('cursor'); } catch(_) {}
+    return true;
+  }
   const cols = gridCols || btns.length;
   const rows = Math.ceil(btns.length / cols);
   let ni = i;
@@ -16597,9 +16606,9 @@ document.addEventListener('keydown', (e) => {
     }
     if (isConfirm) {
       if (!document.activeElement || !container.contains(document.activeElement)) {
-        // No selection yet — focus the first button so Enter still activates.
-        const first = container.querySelector('button:not(:disabled), .action-btn:not(:disabled)');
-        if (first) first.focus();
+        // No selection yet — canonical controller default is the top-row
+        // rightmost enabled button.
+        focusNavStep(container, 'ControllerDefault', 2);
       }
       if (activateFocused()) e.preventDefault();
       return;
@@ -22134,8 +22143,7 @@ function addAction(label, cb, disabled) {
 }
 function focusFirstAction() {
   setTimeout(() => {
-    const first = $battleActions.querySelector('button:not(:disabled), .action-btn:not(:disabled)');
-    if (first) first.focus();
+    focusNavStep($battleActions, 'ControllerDefault', 2);
   }, 20);
 }
 
@@ -24206,7 +24214,7 @@ function renderStarterScreen() {
   const $grid = document.getElementById('starter-grid');
   $grid.innerHTML = '';
   // Focus first card after paint so arrow keys work immediately.
-  setTimeout(() => { const first = $grid.querySelector('.starter-card'); if (first) first.focus(); }, 40);
+  setTimeout(() => focusNavStep($grid, 'ControllerDefault', 3), 40);
   for (const id of STARTERS) {
     const s = SPECIES[id];
     const card = document.createElement('div');
@@ -24372,7 +24380,7 @@ function handlePartySwapKey() {
 }
 function renderPartyScreen() {
   $partyGrid.innerHTML = '';
-  setTimeout(() => { const first = $partyGrid.querySelector('.party-slot:not(.empty)'); if (first) first.focus(); }, 40);
+  setTimeout(() => focusNavStep($partyGrid, 'ControllerDefault', 2), 40);
   // V3.17.26 — Party grid renders MAX_PARTY OR the player's actual party
   // length (whichever is greater) so Ultharis-mode overflow (7+ Zyrex)
   // is visible.  Grid parent scrolls vertically when it overflows.

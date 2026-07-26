@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="description" content="Rizing Powers of Zyraxis — an open-world Zyrex-collection saga. Chapter I: the surface of Zyraxis. You are a Rizer. They are Zyrex." />
   <title>Rizing Powers of Zyraxis — The AOV Saga</title>
 
@@ -120,16 +120,32 @@
       box-shadow: 0 0 60px rgba(232, 200, 120, 0.18);
       overflow: hidden;
     }
-    /* V2.33.4 / V2.34 — Landscape: size stage by height and leave a top strip
-       for MENU/SELECT/START pills so nothing overlays the game viewport. */
+    /* Mobile landscape is a true full-screen game surface.  The stage keeps
+       the native 20:14 viewport ratio, consumes all available height, and is
+       centered in the dynamic viewport.  Controller buttons float above it. */
     @media (orientation: landscape) and (hover: none) and (pointer: coarse) {
-      .stage {
-        width: auto;
-        height: min(84vh, 720px);
-        aspect-ratio: 20 / 14;
-        max-width: 92vw;
+      html, body {
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
       }
-      body { padding-top: max(38px, env(safe-area-inset-top, 30px)); align-items: center; justify-content: flex-start; }
+      body {
+        box-sizing: border-box;
+        padding: 0;
+        align-items: center;
+        justify-content: center;
+      }
+      .stage {
+        width: min(100vw, calc(100dvh * 20 / 14));
+        height: min(100dvh, calc(100vw * 14 / 20));
+        aspect-ratio: 20 / 14;
+        max-width: 100vw;
+        max-height: 100dvh;
+        margin: auto;
+        border-radius: 0;
+      }
     }
 
     canvas#game {
@@ -25669,6 +25685,28 @@ menuBackdrop.addEventListener('click', () => {
     <div class="mob-pill p-START"  data-key="F3"      data-action="settings">START</div>
   `;
   document.body.appendChild(root);
+
+  // Mobile landscape: use the browser's real fullscreen surface after the
+  // first user gesture when supported.  Fullscreen the document (not .stage)
+  // so the floating controller remains visible.  iOS versions without the
+  // Fullscreen API still receive the 100dvh centered layout above.
+  let landscapeFullscreenRequested = false;
+  function requestLandscapeFullscreen() {
+    if (landscapeFullscreenRequested || window.innerWidth <= window.innerHeight) return;
+    const page = document.documentElement;
+    const request = page.requestFullscreen || page.webkitRequestFullscreen;
+    if (!request) return;
+    landscapeFullscreenRequested = true;
+    try {
+      const result = request.call(page, { navigationUI: 'hide' });
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => { landscapeFullscreenRequested = false; });
+      }
+    } catch (_) {
+      landscapeFullscreenRequested = false;
+    }
+  }
+  document.addEventListener('pointerdown', requestLandscapeFullscreen, { capture: true, passive: true });
 
   // ---- Synthetic keyboard event dispatch ----
   const heldByKey = {};   // key -> Set(pointerId or 'btn')

@@ -1,20 +1,49 @@
 /*
- * AOV card-game controller navigation
- * D-pad / left stick: move highlight spatially
- * DualSense Cross: activate
- * DualSense Circle: back
- * Default selection: rightmost enabled control in the top visible row
+ * AOV™ Saga — Shared UI / Menu Controller Navigation (v2 · 2026-07-27)
+ * --------------------------------------------------------------------
+ * Full DualSense support across every menu / loading / selection /
+ * dialog screen in the AOV Saga.  Was card-game-only; now every game
+ * loads this and it works on:
+ *   - Title screens
+ *   - New-game / mode select
+ *   - Character / starter / planet pickers
+ *   - Rules / codex / settings modals
+ *   - Loading screens ("Start" to skip)
+ *   - Any menu with focusable buttons / links / role-buttons / cards
+ *
+ * Controls:
+ *   D-pad / Left stick  → move highlight spatially
+ *   Cross (×) / A       → click the highlighted control
+ *   Circle (○) / B      → back / Escape (or click a "Back/Cancel" btn)
+ *   Options / Start (9) → dispatch Enter (skip loading · advance dialog · confirm)
+ *   Share / Create (8)  → dispatch Escape (open a pause menu if wired)
+ *
+ * Default highlight: rightmost enabled control in the topmost visible row.
+ *
+ * SAFE ALONGSIDE IN-GAME POLLERS:
+ *   Games with their own in-game gamepad handlers (rp7, rp8, arborynth,
+ *   realms, expedition) can set `window.aovNavRequireOverlay = true`
+ *   BEFORE loading this script.  When set, the nav helper only fires
+ *   when a menu / modal / overlay is actually visible — otherwise it
+ *   defers to the game's own poller so Cross doesn't double-fire an
+ *   attack AND a menu click.
  */
-(function cardGameControllerNavigation() {
+(function aovUiControllerNavigation() {
   'use strict';
   if (window.__aovCardGameNavigation) return;
   window.__aovCardGameNavigation = true;
 
   const SELECTOR = [
-    'button:not(:disabled)', 'a.btn', '.action-btn:not(:disabled)',
-    '.attack-btn:not(:disabled)', '[role="button"]:not([aria-disabled="true"])',
-    '.faction-card', '.card-cell-pick', '.slot.clickable', '[tabindex="0"]'
+    'button:not(:disabled)', 'a[href]', 'a.btn',
+    '.action-btn:not(:disabled)', '.attack-btn:not(:disabled)',
+    '[role="button"]:not([aria-disabled="true"])',
+    '.faction-card', '.card-cell-pick', '.slot.clickable',
+    '.mode-btn', '.vs-btn', '.starter-card',
+    '.game-card', '.planet[data-num]', '.tourn-grid > *',
+    '.mainmenu-btn', '.action-btn.primed',
+    '[tabindex="0"]', '[tabindex="-1"][data-nav]'
   ].join(',');
+
   const style = document.createElement('style');
   style.textContent = `
     .controller-selected {
@@ -34,18 +63,29 @@
   let resetTimer = null;
   let sendingBack = false;
 
+  const OVERLAY_SELECTOR =
+    '.active, .open, .modal-backdrop:not(.hidden), [role="dialog"], ' +
+    '.intro:not(.dismissed), .mainmenu-overlay.active, .modal.active, ' +
+    '.screen:not([hidden])';
+
+  function anyOverlayVisible() {
+    // "Overlay" here means anything that looks like a menu/modal/dialog/
+    // screen container the user is meant to click through.  Used to gate
+    // whether the nav helper should react in games that have their own
+    // in-game poller (aovNavRequireOverlay=true).
+    return !!document.querySelector(OVERLAY_SELECTOR);
+  }
+
   function visibleCandidates() {
     let candidates = Array.from(document.querySelectorAll(SELECTOR)).filter(el => {
       if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
       const rect = el.getBoundingClientRect();
-      const style = getComputedStyle(el);
+      const s = getComputedStyle(el);
       return rect.width > 2 && rect.height > 2 &&
-        style.visibility !== 'hidden' && style.display !== 'none' &&
-        Number(style.opacity || 1) > 0.08;
+        s.visibility !== 'hidden' && s.display !== 'none' &&
+        Number(s.opacity || 1) > 0.08;
     });
-    const overlayCandidates = candidates.filter(el => el.closest(
-      '.active, .open, .modal-backdrop:not(.hidden), [role="dialog"], .intro:not(.dismissed)'
-    ));
+    const overlayCandidates = candidates.filter(el => el.closest(OVERLAY_SELECTOR));
     if (overlayCandidates.length) candidates = overlayCandidates;
     return candidates;
   }
@@ -108,7 +148,7 @@
   function goBack() {
     const candidates = visibleCandidates();
     const back = candidates.find(el =>
-      /^(back|cancel|close|return|done|no)\b/i.test((el.textContent || el.getAttribute('aria-label') || '').trim())
+      /^(back|cancel|close|return|done|no|×|✕)\b/i.test((el.textContent || el.getAttribute('aria-label') || '').trim())
     );
     if (back) back.click();
     else {
@@ -118,6 +158,22 @@
       }));
       sendingBack = false;
     }
+  }
+
+  // ★ 2026-07-27 · Start / Options button (idx 9) — dispatches Enter to
+  // advance dialogs, skip splash screens, submit forms, or activate any
+  // "Skip / Continue / Start" button.  Also fires a click on the first
+  // visible "Skip" or "Continue" button if one exists (nicer UX for
+  // loading screens that don't wire Enter).
+  function pressStart() {
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter', code: 'Enter', bubbles: true, cancelable: true
+    }));
+    const skipButton = Array.from(document.querySelectorAll(SELECTOR)).find(el => {
+      const t = ((el.textContent || el.getAttribute('aria-label') || '').trim()).toLowerCase();
+      return /^(skip|continue|start|begin|play|next|proceed|enter)/i.test(t);
+    });
+    if (skipButton) skipButton.click();
   }
 
   document.addEventListener('keydown', event => {
@@ -145,9 +201,16 @@
   }, true);
 
   function poll() {
+    // ★ 2026-07-27 · If the host game requires an overlay to be visible
+    // (aovNavRequireOverlay=true), skip nav polling while the player is
+    // actively in gameplay.  This prevents Cross-double-fires when the
+    // game has its own in-game gamepad handler.
+    const requireOverlay = !!window.aovNavRequireOverlay;
+    const overlayGate = requireOverlay ? anyOverlayVisible() : true;
+
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const pad = padIndex !== null ? pads[padIndex] : Array.from(pads).find(Boolean);
-    if (pad) {
+    if (pad && overlayGate) {
       padIndex = pad.index;
       const x = (pad.axes[0] || 0) < -0.55 ? -1 : (pad.axes[0] || 0) > 0.55 ? 1 : 0;
       const y = (pad.axes[1] || 0) < -0.55 ? -1 : (pad.axes[1] || 0) > 0.55 ? 1 : 0;
@@ -157,8 +220,16 @@
       if ((pad.buttons[13]?.pressed && !previousButtons[13]) || (y === 1 && previousAxisY !== 1)) move('down');
       if (pad.buttons[0]?.pressed && !previousButtons[0]) activate();
       if (pad.buttons[1]?.pressed && !previousButtons[1]) goBack();
+      // ★ Start (idx 9) — skip / advance / continue.
+      if (pad.buttons[9]?.pressed && !previousButtons[9]) pressStart();
+      // ★ Select / Share / Create (idx 8) — back / pause escape.
+      if (pad.buttons[8]?.pressed && !previousButtons[8]) goBack();
       previousAxisX = x;
       previousAxisY = y;
+      previousButtons = pad.buttons.map(button => button.pressed);
+    } else if (pad && !overlayGate) {
+      // We CAN see the pad but the game is gating us — still update
+      // previousButtons so we edge-detect correctly when overlay reopens.
       previousButtons = pad.buttons.map(button => button.pressed);
     }
     requestAnimationFrame(poll);

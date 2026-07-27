@@ -1086,19 +1086,6 @@
       outline: none;
       box-shadow: 0 0 20px rgba(232, 200, 120, 0.35);
     }
-    /* V2.66 — Primary armed action button (FIGHT after every action).
-       Adds a slow gold pulse so mobile users see it's ready without
-       needing keyboard focus. */
-    .action-btn.primed {
-      background: rgba(232, 200, 120, 0.20);
-      border-color: var(--gold-bright);
-      color: var(--gold-bright);
-      animation: primed-pulse 1.4s ease-in-out infinite;
-    }
-    @keyframes primed-pulse {
-      0%, 100% { box-shadow: 0 0 12px rgba(232, 200, 120, 0.30); }
-      50%      { box-shadow: 0 0 28px rgba(232, 200, 120, 0.60); }
-    }
     .starter-card:focus, .starter-card:focus-visible {
       outline: none;
       border-color: var(--r-accent, var(--gold));
@@ -14672,7 +14659,12 @@ function openSettings() {
       devPanel.style.display = 'none';
     }
   }
-  setTimeout(() => focusNavStep($settings, 'ControllerDefault', 2), 30);
+  // Settings always opens on SAVE.  Keep the close X outside controller
+  // arrow navigation so the six settings actions form one predictable list.
+  setTimeout(() => {
+    const saveBtn = document.querySelector('#settings-grid [data-settings="save"]');
+    if (saveBtn) saveBtn.focus();
+  }, 30);
 }
 function closeSettings() {
   try { playSfx('menu-close'); } catch(_) {}
@@ -16614,10 +16606,15 @@ document.addEventListener('keydown', (e) => {
   // ---- Battle: arrows walk actions, Enter/Space activates, Esc backs out ----
   if (game.mode === 'battle') {
     // The action menu is a 2-column grid; sub-menus (FIGHT/RIZER/BAG) can be
-    // 2 columns too. Move-list keeps 2 cols in CSS.
+    // 2 columns too.  The ZYREX switcher is the exception: every direction
+    // advances exactly one selectable Zyrex in party order.
     const container = document.getElementById('battle-actions');
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
-      if (focusNavStep(container, e.key, 2)) e.preventDefault();
+      const zyrexLinear = game.battle && game.battle._menuState === 'zyrex';
+      const navKey = zyrexLinear
+        ? ((e.key === 'ArrowUp' || e.key === 'ArrowLeft') ? 'ArrowLeft' : 'ArrowRight')
+        : e.key;
+      if (focusNavStep(container, navKey, 2)) e.preventDefault();
       return;
     }
     if (isConfirm) {
@@ -16770,6 +16767,14 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     // V2.19.2 — arrow / confirm nav inside overlays.
+    if (settingsActive) {
+      const settingsGrid = document.getElementById('settings-grid');
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+        if (focusNavStep(settingsGrid, e.key, 2)) e.preventDefault();
+        return;
+      }
+      if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
+    }
     if (notebookActive) {
       if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
         if (focusNavStep(document.getElementById('notebook-list'), e.key, 1)) e.preventDefault();
@@ -22133,10 +22138,8 @@ function renderMainMenu() {
   addAction('ZYREX', renderZyrexMenu);
   addAction('BAG',   renderBagMenu);
   addAction('RUN',   () => tryRun(), !canRun);
-  // V2.66 — Mark FIGHT as the primed action (gold pulse) so the player
-  // always sees the default next-action after any move / item / equip.
-  const fightBtn = $battleActions.querySelector('.action-btn');
-  if (fightBtn && !fightBtn.disabled) fightBtn.classList.add('primed');
+  // FIGHT receives real focus below.  Do not apply a second persistent
+  // highlight class: only the currently focused action may appear selected.
   focusFirstAction();
   // ★ 2026-07-23 · Track menu state so async renderMainMenu calls (from
   // chain-advance setTimeout etc.) can bail out if the player has since
@@ -22192,6 +22195,7 @@ function renderMoveMenu() {
 
 function renderZyrexMenu() {
   $battleActions.innerHTML = '';
+  if (game.battle) game.battle._menuState = 'zyrex';
   const forced = !!game.battle.forcedSwitch;      // V2.11 — after a KO, must switch
   const active = game.player.party[game.battle.playerIdx];
   const activeAlive = !!(active && active.hp > 0);

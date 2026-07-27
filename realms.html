@@ -165,7 +165,12 @@
     .vs-btn .vs-name { font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 0.14em; }
     .vs-btn .vs-sub { font-family: var(--font-meta); font-size: 0.58rem; letter-spacing: 0.18em; color: var(--mist-deep); text-transform: uppercase; }
 
-    /* ============ Tournament character select (MK-style grid) ============ */
+    /* ★ 2026-07-28 · MK-style character select — CHOOSE YOUR FIGHTER.
+       ------------------------------------------------------------------
+       Layout: arcade banner up top, left-side preview panel (full-body
+       art for the hovered fighter), right-side 4×4 alphabetical roster
+       grid with page controls (L1/R1 or arrows to page).  Locked slots
+       render dim + padlock overlay.  Bottom row: p1/p2 detail + Confirm. */
     .tourn-select {
       width: 100%; max-width: 1180px; padding: 0 8px;
       display: flex; flex-direction: column; gap: 12px; align-items: center;
@@ -181,11 +186,108 @@
     .tourn-step.p1 { color: var(--cosmic-blue); }
     .tourn-step.p2 { color: var(--crimson); }
 
+    /* MK arcade banner */
+    .cyf-banner {
+      font-family: 'Cinzel', serif;
+      font-weight: 700;
+      font-size: 1.4rem;
+      letter-spacing: 0.35em;
+      color: #f7d64f;
+      text-shadow: 0 2px 0 #2a1a04, 0 0 18px rgba(247, 214, 79, 0.55);
+      text-align: center;
+      padding: 6px 0 2px;
+    }
+
+    /* Main select stage — preview panel left, grid right */
+    .cyf-stage {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 16px;
+      width: 100%;
+      align-items: stretch;
+    }
+    .cyf-preview {
+      position: relative;
+      background:
+        linear-gradient(180deg, rgba(6,4,18,0.85), rgba(20,14,44,0.75) 50%, rgba(6,4,18,0.85)),
+        radial-gradient(ellipse at 50% 20%, rgba(232,200,120,0.10), transparent 60%);
+      border: 1px solid rgba(232, 200, 120, 0.25);
+      border-radius: 8px;
+      min-height: 380px;
+      overflow: hidden;
+      display: flex; align-items: flex-end; justify-content: center;
+    }
+    .cyf-preview img,
+    .cyf-preview canvas {
+      max-width: 92%;
+      max-height: 92%;
+      object-fit: contain;
+      filter: drop-shadow(0 12px 20px rgba(0,0,0,0.65));
+      image-rendering: pixelated;
+    }
+    .cyf-preview .cyf-preview-name {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      padding: 10px 12px 12px;
+      background: linear-gradient(180deg, transparent, rgba(5,3,16,0.9));
+      color: #f7d64f;
+      font-family: 'Cinzel', serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.22em;
+      text-align: center;
+      text-transform: uppercase;
+      text-shadow: 0 2px 0 #2a1a04;
+    }
+    .cyf-preview .cyf-preview-sub {
+      display: block;
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.30em;
+      color: var(--mist);
+      margin-top: 4px;
+      text-shadow: none;
+    }
+
+    /* Grid panel + page controls */
+    .cyf-gridwrap {
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .cyf-pagebar {
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: var(--font-meta);
+      font-size: 0.6rem; letter-spacing: 0.28em; text-transform: uppercase;
+      color: var(--gold-pale);
+      padding: 0 4px;
+    }
+    .cyf-pagebar button {
+      background: rgba(20,14,44,0.75);
+      color: #f7d64f;
+      border: 1px solid rgba(232,200,120,0.45);
+      padding: 6px 12px;
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 4px;
+      min-width: 88px;
+    }
+    .cyf-pagebar button:disabled { opacity: 0.32; cursor: not-allowed; }
+    .cyf-pagebar button:not(:disabled):hover {
+      background: rgba(232,200,120,0.15);
+      border-color: #f7d64f;
+    }
+    .cyf-pagebar .cyf-pageinfo {
+      font-family: var(--font-meta);
+      color: var(--gold-bright);
+    }
+
     .tourn-grid {
       display: grid;
-      grid-template-columns: repeat(9, 1fr);
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
       gap: 6px;
       width: 100%;
+      aspect-ratio: 1 / 1;
     }
     .char-cell {
       position: relative;
@@ -278,7 +380,9 @@
 
     /* Mobile responsive */
     @media (max-width: 720px) {
-      .tourn-grid { grid-template-columns: repeat(5, 1fr); }
+      .cyf-stage { grid-template-columns: 1fr; }
+      .cyf-preview { min-height: 220px; order: -1; }
+      .tourn-grid { grid-template-columns: repeat(4, 1fr); }
       .char-detail { grid-template-columns: 1fr; }
       .cd-side.cd-p2 { text-align: left; align-items: flex-start; border-left: 3px solid var(--crimson); }
       .cd-vs { display: none; }
@@ -533,13 +637,35 @@
   </section>
 
   <!-- ============ Tournament — Character select grid ============ -->
+  <!-- ★ 2026-07-28 · Mortal-Kombat-style character select.  4×4 alphabetical
+       roster, L1/R1 (or ← →) to page through, left-side full-body preview
+       of the highlighted fighter, arcade banner up top. -->
   <section class="screen" id="tourn-select-screen" hidden>
     <div class="tourn-select">
+      <div class="cyf-banner">CHOOSE YOUR FIGHTER</div>
       <div class="tourn-header">
         <div class="tourn-step" id="tourn-step-label">Player 1 — pick your fighter</div>
         <button class="btn-secondary" id="btn-select-back">← Cancel</button>
       </div>
-      <div class="tourn-grid" id="tourn-grid"></div>
+      <div class="cyf-stage">
+        <!-- Left · full-body preview of the highlighted fighter -->
+        <div class="cyf-preview" id="cyf-preview">
+          <div class="cyf-preview-body" id="cyf-preview-body"></div>
+          <div class="cyf-preview-name">
+            <span id="cyf-preview-name">— select a fighter —</span>
+            <span class="cyf-preview-sub" id="cyf-preview-sub"></span>
+          </div>
+        </div>
+        <!-- Right · page bar + 4×4 alphabetical roster grid -->
+        <div class="cyf-gridwrap">
+          <div class="cyf-pagebar">
+            <button id="btn-page-prev" title="Previous page (L1 / ←)">◂ L1</button>
+            <div class="cyf-pageinfo"><span id="cyf-page-label">Page 1 / 1</span></div>
+            <button id="btn-page-next" title="Next page (R1 / →)">R1 ▸</button>
+          </div>
+          <div class="tourn-grid" id="tourn-grid"></div>
+        </div>
+      </div>
       <div class="char-detail" id="char-detail">
         <div class="cd-side cd-p1" id="cd-p1">
           <div class="cd-tag">Player 1</div>
@@ -1028,11 +1154,84 @@ function goTournamentSelect() {
 }
 $('btn-select-back').onclick = () => goTournamentVs();
 
+// ★ 2026-07-28 · Page bar buttons (L1/R1 equivalents on desktop).
+$('btn-page-prev').onclick = () => cyfPrevPage();
+$('btn-page-next').onclick = () => cyfNextPage();
+
+// Arrow keys — page through when on the select screen (arrows also nudge
+// the highlight one cell if we ever add that; for now they page).
+document.addEventListener('keydown', (e) => {
+  if (state.mode !== 'tournament-select') return;
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.key === 'ArrowLeft')  { cyfPrevPage(); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { cyfNextPage(); e.preventDefault(); }
+});
+
+// L1 / R1 gamepad paging — only active on the select screen so combat
+// doesn't get its shoulders eaten.  Edge-detected so a hold doesn't
+// spam pages.
+(function _cyfPagePad() {
+  if (!navigator.getGamepads) return;
+  let prevL1 = false, prevR1 = false;
+  function poll() {
+    if (state.mode === 'tournament-select') {
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      for (let i = 0; i < pads.length; i++) {
+        const pad = pads[i]; if (!pad) continue;
+        const l1 = !!(pad.buttons[4] && pad.buttons[4].pressed);
+        const r1 = !!(pad.buttons[5] && pad.buttons[5].pressed);
+        if (l1 && !prevL1) cyfPrevPage();
+        if (r1 && !prevR1) cyfNextPage();
+        prevL1 = l1;
+        prevR1 = r1;
+        break;   // first connected pad wins
+      }
+    } else {
+      prevL1 = false; prevR1 = false;
+    }
+    requestAnimationFrame(poll);
+  }
+  requestAnimationFrame(poll);
+})();
+
+// ★ 2026-07-28 · MK-style character select — alphabetical, paginated,
+// with left-side full-body preview panel of the currently-highlighted
+// (hovered) fighter.  16 slots per page (4×4).  L1/R1 (or ← →) paginate.
+const CYF_PAGE_SIZE = 16;
+const cyfState = { page: 0, hoverId: null };
+function cyfSortedFighters() {
+  // Alphabetical by first name; keeps the roster stable across sessions
+  // regardless of insertion order in FIGHTERS.
+  return FIGHTERS.slice().sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '')
+  );
+}
+function cyfPageCount() {
+  return Math.max(1, Math.ceil(cyfSortedFighters().length / CYF_PAGE_SIZE));
+}
+function cyfCurrentPage() {
+  return Math.max(0, Math.min(cyfPageCount() - 1, cyfState.page || 0));
+}
+function cyfPageFighters() {
+  const list = cyfSortedFighters();
+  const start = cyfCurrentPage() * CYF_PAGE_SIZE;
+  return list.slice(start, start + CYF_PAGE_SIZE);
+}
 function buildFighterGrid() {
   const grid = $('tourn-grid');
   grid.innerHTML = '';
-  FIGHTERS.forEach(f => {
+  const pageFs = cyfPageFighters();
+  // Always render 16 cells so the 4×4 layout stays visually intact even
+  // on the last (partial) page — empty slots render as dim placeholders.
+  for (let i = 0; i < CYF_PAGE_SIZE; i++) {
+    const f = pageFs[i];
     const cell = document.createElement('div');
+    if (!f) {
+      cell.className = 'char-cell locked';
+      cell.style.opacity = '0.28';
+      grid.appendChild(cell);
+      continue;
+    }
     cell.className = 'char-cell' + (f.unlocked ? '' : ' locked');
     cell.dataset.id = f.id;
     cell.title = f.unlocked ? `${f.name} · Tier ${f.tier}` : `${f.name} · LOCKED`;
@@ -1056,13 +1255,77 @@ function buildFighterGrid() {
     name.className = 'char-name';
     name.textContent = f.name.split(' ')[0];
     cell.appendChild(name);
+    // Hover / focus → refresh the preview panel with the full-body art.
+    const setHover = () => { cyfState.hoverId = f.id; renderPreview(f); };
+    cell.addEventListener('mouseenter', setHover);
+    cell.addEventListener('focus',      setHover);
     // Click handler (unlocked only)
     if (f.unlocked) {
+      cell.tabIndex = 0;
       cell.onclick = () => selectFighter(f.id);
     }
     grid.appendChild(cell);
-  });
+  }
+  // Page bar
+  const total = cyfPageCount();
+  const page  = cyfCurrentPage();
+  $('cyf-page-label').textContent = `Page ${page + 1} / ${total}`;
+  $('btn-page-prev').disabled = (page === 0);
+  $('btn-page-next').disabled = (page >= total - 1);
+  // Default preview — the currently-highlighted / first unlocked fighter.
+  const preferred = pageFs.find(x => x && x.id === cyfState.hoverId)
+                 || pageFs.find(x => x && x.unlocked)
+                 || pageFs.find(Boolean);
+  if (preferred) { cyfState.hoverId = preferred.id; renderPreview(preferred); }
+  else           { renderPreview(null); }
 }
+function renderPreview(f) {
+  const body = $('cyf-preview-body');
+  const nameEl = $('cyf-preview-name');
+  const subEl  = $('cyf-preview-sub');
+  if (!body) return;
+  body.innerHTML = '';
+  if (!f) {
+    nameEl.textContent = '— select a fighter —';
+    subEl.textContent  = '';
+    return;
+  }
+  nameEl.textContent = f.name.toUpperCase();
+  subEl.textContent  = f.unlocked
+    ? `Tier ${f.tier} · ${f.archetype || ''} · ${f.type1 || ''}${f.type2 ? ' / ' + f.type2 : ''}`
+    : 'LOCKED — coming soon';
+  // Prefer full-body sprite-sheet portrait for the launch pair; otherwise
+  // fall back to the same gradient placeholder the grid uses.
+  let bigPortrait = null;
+  if (f.id === 'solion' && solionReady) bigPortrait = makeSolionPortrait();
+  else if (f.id === 'kravos' && kravosReady) bigPortrait = makeKravosPortrait();
+  else if (f.art) {
+    const img = document.createElement('img');
+    img.src = f.art;
+    img.alt = f.name;
+    bigPortrait = img;
+  } else {
+    bigPortrait = makeFallbackPortrait(f);
+    bigPortrait.style.width  = '80%';
+    bigPortrait.style.height = '80%';
+  }
+  if (bigPortrait) {
+    // Sprite-sheet canvases render at 200×200 — scale up for the panel.
+    if (bigPortrait.tagName === 'CANVAS') {
+      bigPortrait.style.width  = '78%';
+      bigPortrait.style.height = 'auto';
+    }
+    body.appendChild(bigPortrait);
+  }
+}
+// Page nav
+function cyfSetPage(n) {
+  const total = cyfPageCount();
+  cyfState.page = Math.max(0, Math.min(total - 1, n));
+  buildFighterGrid();
+}
+function cyfNextPage() { cyfSetPage(cyfCurrentPage() + 1); }
+function cyfPrevPage() { cyfSetPage(cyfCurrentPage() - 1); }
 function makeFallbackPortrait(f) {
   // Live sprite-sheet portraits (IDLE frame 0) once each sheet loads.
   if (f.id === 'solion' && solionReady) return makeSolionPortrait();

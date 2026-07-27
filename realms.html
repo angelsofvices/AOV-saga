@@ -257,6 +257,23 @@
       color: var(--mist);
       opacity: 0.72;
     }
+    /* ★ 2026-07-27 · SHOW ALL / SHOW UNLOCKED toggle button — sits where
+       the old CANCEL button did but reads as a positive discovery
+       affordance rather than an escape hatch. */
+    #btn-show-all {
+      color: var(--gold-bright);
+      border-color: rgba(232, 200, 120, 0.55);
+      letter-spacing: 0.30em;
+    }
+    #btn-show-all[data-mode="all"] {
+      background: rgba(232, 200, 120, 0.12);
+      border-color: var(--gold-bright);
+      color: var(--gold-pale);
+    }
+    #btn-show-all:hover {
+      background: rgba(232, 200, 120, 0.14);
+      color: var(--gold-pale);
+    }
 
     /* MK arcade banner */
     .cyf-banner {
@@ -788,7 +805,10 @@
       <div class="tourn-header">
         <div class="tourn-step" id="tourn-step-label">Player 1 — pick your fighter</div>
         <div class="tourn-roster-count" id="cyf-roster-count">— visual codex · 220 characters · 2 playable</div>
-        <button class="btn-secondary" id="btn-select-back">← Cancel</button>
+        <!-- ★ 2026-07-27 · SHOW ALL toggle (replaces old CANCEL).  Default view
+             is unlocked-only (Solion + Kravos today); toggling reveals the
+             full 220-character visual codex. -->
+        <button class="btn-secondary" id="btn-show-all" data-mode="unlocked">↯ SHOW ALL</button>
       </div>
       <div class="cyf-stage">
         <!-- Left · full-body preview of the highlighted fighter -->
@@ -1493,11 +1513,57 @@ function goTournamentSelect() {
     'tourn-select-screen': true,
     'tourn-fight-screen': false
   });
+  // ★ 2026-07-27 · Always land on the unlocked-only view when the picker
+  // opens, page 1, no lingering hover from a previous session.
+  cyfState.showMode = 'unlocked';
+  cyfState.page     = 0;
+  cyfState.hoverId  = null;
+  if (typeof refreshShowAllButton === 'function') refreshShowAllButton();
+  if (typeof updateRosterCount === 'function') updateRosterCount();
   buildFighterGrid();
   updateSelectStep();
   updateDetail();
 }
-$('btn-select-back').onclick = () => goTournamentVs();
+// ★ 2026-07-27 · SHOW ALL / SHOW UNLOCKED toggle.
+//   Default view = unlocked-only.  Clicking flips to the full 220-char
+//   visual codex; clicking again collapses back.  Resets the page +
+//   preview so switching modes always lands on page 1 with the top
+//   fighter highlighted.
+function updateRosterCount() {
+  const el = document.getElementById('cyf-roster-count');
+  if (!el) return;
+  const total    = FIGHTERS.length;
+  const unlocked = FIGHTERS.filter(f => f.unlocked).length;
+  el.textContent = cyfState.showMode === 'unlocked'
+    ? `— ${unlocked} playable · ${total - unlocked} locked in codex`
+    : `— visual codex · ${total} characters · ${unlocked} playable`;
+}
+function refreshShowAllButton() {
+  const btn = document.getElementById('btn-show-all');
+  if (!btn) return;
+  if (cyfState.showMode === 'unlocked') {
+    btn.textContent = '↯ SHOW ALL';
+    btn.setAttribute('data-mode', 'unlocked');
+    btn.title = 'Show the full 220-character visual codex';
+  } else {
+    btn.textContent = '✦ SHOW UNLOCKED';
+    btn.setAttribute('data-mode', 'all');
+    btn.title = 'Collapse back to playable fighters only';
+  }
+}
+const _btnShowAll = document.getElementById('btn-show-all');
+if (_btnShowAll) {
+  _btnShowAll.onclick = () => {
+    cyfState.showMode = (cyfState.showMode === 'unlocked') ? 'all' : 'unlocked';
+    cyfState.page    = 0;
+    cyfState.hoverId = null;
+    refreshShowAllButton();
+    updateRosterCount();
+    buildFighterGrid();
+  };
+}
+refreshShowAllButton();
+updateRosterCount();
 
 // ★ 2026-07-28 · Page bar buttons (L1/R1 equivalents on desktop).
 $('btn-page-prev').onclick = () => cyfPrevPage();
@@ -1543,13 +1609,22 @@ document.addEventListener('keydown', (e) => {
 // with left-side full-body preview panel of the currently-highlighted
 // (hovered) fighter.  9 slots per page (3×3).  L1/R1 (or ← →) paginate.
 const CYF_PAGE_SIZE = 9;   // ★ 3×3 grid (was 16 / 4×4)
-const cyfState = { page: 0, hoverId: null };
+// ★ 2026-07-27 · showMode:
+//   'unlocked' → only playable fighters (Solion, Kravos, + future unlocks)
+//   'all'      → the full 220-character visual codex, alphabetical
+// Default is 'unlocked' so the picker opens to what's actually playable.
+// SHOW ALL button toggles between the two.
+const cyfState = { page: 0, hoverId: null, showMode: 'unlocked' };
 function cyfSortedFighters() {
   // Alphabetical by first name; keeps the roster stable across sessions
-  // regardless of insertion order in FIGHTERS.
-  return FIGHTERS.slice().sort((a, b) =>
+  // regardless of insertion order in FIGHTERS.  When the mode is
+  // 'unlocked', the roster shrinks to only playable fighters.
+  const base = FIGHTERS.slice().sort((a, b) =>
     (a.name || '').localeCompare(b.name || '')
   );
+  return cyfState.showMode === 'unlocked'
+    ? base.filter(f => f.unlocked)
+    : base;
 }
 function cyfPageCount() {
   return Math.max(1, Math.ceil(cyfSortedFighters().length / CYF_PAGE_SIZE));

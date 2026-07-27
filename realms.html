@@ -51,6 +51,18 @@
       padding: 6px 12px; border: 1px solid rgba(232, 200, 120, 0.3); border-radius: 4px;
     }
     .nav-back:hover { background: rgba(232, 200, 120, 0.08); }
+    /* ★ 2026-07-27 · Music mute/unmute toggle sits opposite the Games link. */
+    .nav-audio {
+      font-family: var(--font-meta); font-size: 0.6rem;
+      letter-spacing: 0.28em; text-transform: uppercase;
+      color: var(--gold-bright); background: rgba(10, 6, 24, 0.55);
+      border: 1px solid rgba(232, 200, 120, 0.35);
+      padding: 6px 12px; border-radius: 4px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .nav-audio:hover { background: rgba(232, 200, 120, 0.12); border-color: var(--gold-bright); }
+    .nav-audio.muted { opacity: 0.55; }
     .nav-title {
       font-family: var(--font-display); letter-spacing: 0.18em;
       color: var(--gold-bright); font-size: 0.95rem;
@@ -705,8 +717,14 @@
 <nav class="nav">
   <a class="nav-back" href="/games.html">← Games</a>
   <span class="nav-title">The Eternal War · v8 · visual codex</span>
-  <span style="width: 80px;"></span>
+  <button class="nav-audio" id="btn-audio-toggle" title="Toggle music" aria-label="Toggle music">
+    <span id="audio-icon">🔊</span><span id="audio-label"> MUSIC</span>
+  </button>
 </nav>
+
+<!-- ★ 2026-07-27 · RP6 SOUNDTRACK.  Autoplay is gated by browsers; we
+     kick playback on the first user gesture (see #_bgmBoot below). -->
+<audio id="rp6-bgm" src="assets/rp6/rp6%20soundtrack.mp3" loop preload="auto"></audio>
 
 <main class="app" id="app">
 
@@ -2848,6 +2866,61 @@ requestAnimationFrame(_pollGamepad);
 
 // Init: title visible, all others hidden
 goTitle();
+
+// ★ 2026-07-27 · RP6 SOUNDTRACK — looping BGM.
+//   Browsers block autoplay for media with sound until a user gesture,
+//   so we try immediately (in case the page has already had one) and
+//   otherwise wait for the first click/key/touch/gamepad press.
+//   Mute preference persists in localStorage across sessions.
+(function _bgmBoot() {
+  const bgm   = document.getElementById('rp6-bgm');
+  const btn   = document.getElementById('btn-audio-toggle');
+  const icon  = document.getElementById('audio-icon');
+  const label = document.getElementById('audio-label');
+  if (!bgm || !btn) return;
+
+  const LS_KEY = 'aov-rp6-bgm-muted';
+  let muted = localStorage.getItem(LS_KEY) === '1';
+  bgm.volume = 0.55;   // gentle default so it sits behind SFX
+  bgm.muted  = muted;
+
+  function paintButton() {
+    icon.textContent = muted ? '🔇' : '🔊';
+    label.textContent = muted ? ' MUSIC OFF' : ' MUSIC ON';
+    btn.classList.toggle('muted', muted);
+  }
+  paintButton();
+
+  function tryPlay() {
+    if (muted) return;
+    const p = bgm.play();
+    if (p && typeof p.then === 'function') {
+      p.catch(() => { /* autoplay blocked — wait for gesture (below) */ });
+    }
+  }
+
+  // Try immediately (in case a prior gesture already unlocked audio).
+  tryPlay();
+
+  // Kick playback on ANY first gesture, then unbind.
+  function gestureBoot() {
+    tryPlay();
+    ['click','keydown','touchstart','pointerdown','gamepadconnected'].forEach(ev =>
+      window.removeEventListener(ev, gestureBoot, true));
+  }
+  ['click','keydown','touchstart','pointerdown','gamepadconnected'].forEach(ev =>
+    window.addEventListener(ev, gestureBoot, true));
+
+  // Also kick on any DualSense button-down — polling handles that in
+  // _pollGamepad below, but we listen for the connect event here too.
+  btn.addEventListener('click', () => {
+    muted = !muted;
+    bgm.muted = muted;
+    localStorage.setItem(LS_KEY, muted ? '1' : '0');
+    paintButton();
+    if (!muted) tryPlay();
+  });
+})();
 
 </script>
 

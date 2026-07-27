@@ -22779,6 +22779,44 @@ async function prismsynchScreenFlash(color, cycles) {
   }
   overlay.remove();
 }
+
+// Type-impact flash — every regular move briefly washes the battle screen
+// in its attack type's canon color. It borrows Prismsynch's resonance
+// language at a much lower intensity so ordinary combat feels alive while
+// Prismsynch remains unmistakably larger and brighter.
+async function battleTypeScreenFlash(type, playerSide, intensity) {
+  const battleEl = document.getElementById('battle');
+  if (!battleEl || !battleEl.classList.contains('active')) return;
+  const color = TYPE_COLORS[type] || '#e8c878';
+  const reducedMotion = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const peak = reducedMotion ? 0.06 : Math.max(0.08, Math.min(0.22, intensity || 0.13));
+  const origin = playerSide ? '28% 72%' : '72% 28%';
+  const overlay = document.createElement('div');
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.style.cssText = `
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at ${origin}, ${color} 0%, transparent 58%),
+      linear-gradient(135deg, transparent 18%, ${color} 52%, transparent 84%);
+    box-shadow: inset 0 0 42px ${color};
+    opacity: 0;
+    pointer-events: none;
+    z-index: 4;
+    mix-blend-mode: screen;
+    transition: opacity ${reducedMotion ? 70 : 105}ms ease-out;
+  `;
+  battleEl.appendChild(overlay);
+  // Force the initial transparent frame to paint before raising opacity.
+  overlay.getBoundingClientRect();
+  overlay.style.opacity = String(peak);
+  await wait(reducedMotion ? 65 : 105);
+  overlay.style.transitionDuration = reducedMotion ? '80ms' : '170ms';
+  overlay.style.opacity = '0';
+  await wait(reducedMotion ? 80 : 170);
+  overlay.remove();
+}
+
 async function firePrismsynch(prismKey) {
   const prism = PRISM_TABLE[prismKey];
   if (!prism) { renderMainMenu(); return; }
@@ -22999,6 +23037,7 @@ async function performMove(user, target, move, playerSide) {
     return;
   }
   if (isPureStatus) {
+    await battleTypeScreenFlash(move.type, playerSide, 0.10);
     // Pure-status move: roll inflict directly, no damage line, no -1 toast.
     const chance = computeStatusChance(move, user, target);
     if (Math.random() < chance) {
@@ -23092,6 +23131,13 @@ async function performMove(user, target, move, playerSide) {
   }
   target.hp = Math.max(0, target.hp - effectiveDmg);
   const targetCanvas = playerSide ? enemyCanvas : playerCanvas;
+  // Regular hits get one restrained type-color screen pulse. Critical and
+  // super-effective hits rise slightly in intensity; Prismsynch keeps its
+  // dedicated full-screen cinematic and skips this smaller beat.
+  if (!isPrismsynch) {
+    const typeFlashIntensity = isCrit ? 0.20 : (mult >= 2 ? 0.17 : 0.13);
+    await battleTypeScreenFlash(move.type, playerSide, typeFlashIntensity);
+  }
   // ★ Prismsynch: three flashes instead of one for the resonance beat.
   if (isPrismsynch) {
     await flashCanvas(targetCanvas);

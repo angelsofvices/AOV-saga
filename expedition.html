@@ -4617,11 +4617,12 @@
       // and open the bio modal on A-press, but don't trigger battles.
       {
         id: 'sister_solia',
-        framesKey: 'player2Frames',
+        framesKey: 'moriFrames',
         walkOrder: WALK_ORDER,
+        stationary: true,   // ★ quest NPC — stands and waits for the player
         x: 8 * 32, y: 14 * 32,
         w: CHAR_W, h: CHAR_H,
-        speed: 38,
+        speed: 0,
         facing: 'down',
         animFps: 8,
         animTime: 0,
@@ -4643,11 +4644,12 @@
       },
       {
         id: 'elder_sage',
-        framesKey: 'player2Frames',
+        framesKey: 'voltyranFrames',
         walkOrder: WALK_ORDER,
+        stationary: true,   // ★ quest NPC — stands and waits for the player
         x: 30 * 32, y: 16 * 32,
         w: CHAR_W, h: CHAR_H,
-        speed: 28,
+        speed: 0,
         facing: 'down',
         animFps: 7,
         animTime: 0,
@@ -4659,7 +4661,7 @@
         subtitle:    'Elder · Chronicler',
         archetype:   'Wanderer · Sage',
         bio:         'A traveling scholar carrying centuries of unrecorded history in his satchel. He stops in the South Central wastes to inscribe what the wind has not yet erased.',
-        portraitAsset: 'character_phoenix.PNG',
+        portraitAsset: 'character_elder.png',
         cries: [
           'A new face — let me set down a name.',
           'History walks with hurried boots today.',
@@ -4669,11 +4671,12 @@
       },
       {
         id: 'merchant_marlea',
-        framesKey: 'player2Frames',
+        framesKey: 'elzoranFrames',
         walkOrder: WALK_ORDER,
+        stationary: true,   // ★ quest NPC — stands and waits for the player
         x: 12 * 32, y: 30 * 32,
         w: CHAR_W, h: CHAR_H,
-        speed: 36,
+        speed: 0,
         facing: 'down',
         animFps: 8,
         animTime: 0,
@@ -4685,7 +4688,7 @@
         subtitle:    'Merchant · Bread & Wares',
         archetype:   'Trader · Upper Villages',
         bio:         'A roving baker-merchant from the upper villages. Her basket carries hard cheese, hand bread, and rumors traded for coppers.',
-        portraitAsset: 'character_natura.PNG',
+        portraitAsset: 'character_merchant1.png',
         cries: [
           'Fresh bread! Soft cheese! Half-true rumours!',
           'A copper buys thee food, two buys a story.',
@@ -4695,11 +4698,12 @@
       },
       {
         id: 'merchant_talim',
-        framesKey: 'player2Frames',
+        framesKey: 'khronisFrames',
         walkOrder: WALK_ORDER,
+        stationary: true,   // ★ quest NPC — stands and waits for the player
         x: 28 * 32, y: 8 * 32,
         w: CHAR_W, h: CHAR_H,
-        speed: 42,
+        speed: 0,
         facing: 'down',
         animFps: 9,
         animTime: 0,
@@ -4711,7 +4715,7 @@
         subtitle:    'Merchant · Caravan',
         archetype:   'Exotic Trader · Southern Ridges',
         bio:         'A caravan trader from beyond the southern lava ridges. Carries small relics, scarab dust, and the kind of silver that does not tarnish.',
-        portraitAsset: 'character_merchant1.png',
+        portraitAsset: 'character_merchant2.png',
         cries: [
           'Trinkets from the far ridges, friend.',
           'My silver does not dim — try it.',
@@ -5445,6 +5449,15 @@
         // Region scoping — NPCs only update in their home region (default
         // 'central' if not specified).
         if ((npc.region || 'central') !== currentRegion) continue;
+        // ★ 2026-07-28 · Stationary NPCs (quest-givers) hold their post —
+        // no wander, no facing changes, no walk animation.  Player must
+        // come to them.  Player, rival (isEncounter), enemies, and zyrex
+        // are NOT marked stationary and still walk normally.
+        if (npc.stationary) {
+          npc.currentDir = 'idle';
+          npc.animFrame = 0;
+          continue;
+        }
         // Tick down the direction timer. When it expires, pick a fresh one.
         npc.dirTimer -= dt;
         if (npc.dirTimer <= 0) pickNpcDirection(npc);
@@ -8392,16 +8405,17 @@
     // them at the bottom of north, etc.). Resets animation/idle/B state
     // since the player's context just changed.
     // ============ Random encounter helpers ============
-    // Open the placeholder 1v1 battle. Routes through the modal system so the
-    // whole expedition world freezes (the game loop skips updates while a
-    // modal is open) and input is captured by the battle iframe.
+    // ★ 2026-07-28 · Encounter battle routes to Battlegrounds (3v3 with
+    // random cards) instead of the 1v1 training yard — gives players a
+    // real feel for the full Battlegrounds mode from within Expedition.
+    // World freezes via the modal system; iframe captures input.
     function openEncounterBattle(npc) {
       const nameEl = document.getElementById('encounter-foe-name');
       if (nameEl) nameEl.textContent = (npc && npc.displayName) ? npc.displayName : 'Challenger';
       const result = document.getElementById('encounter-result');
       if (result) result.hidden = true;            // clear any prior result panel
       const frame = document.getElementById('encounter-frame');
-      if (frame) frame.src = '/training.html?encounter=1';
+      if (frame) frame.src = '/battlegrounds.html?encounter=1';
       openModal('battle');
     }
 

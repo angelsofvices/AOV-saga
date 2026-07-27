@@ -283,9 +283,9 @@
 
     .tourn-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(4, 1fr);
-      gap: 6px;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 8px;
       width: 100%;
       aspect-ratio: 1 / 1;
     }
@@ -382,10 +382,75 @@
     @media (max-width: 720px) {
       .cyf-stage { grid-template-columns: 1fr; }
       .cyf-preview { min-height: 220px; order: -1; }
-      .tourn-grid { grid-template-columns: repeat(4, 1fr); }
+      .tourn-grid { grid-template-columns: repeat(3, 1fr); }
       .char-detail { grid-template-columns: 1fr; }
       .cd-side.cd-p2 { text-align: left; align-items: flex-start; border-left: 3px solid var(--crimson); }
       .cd-vs { display: none; }
+    }
+
+    /* ★ 2026-07-27 · In-match PAUSE OVERLAY (Create / Touchpad / Options
+       on DualSense · 1 / 2 / 3 on keyboard).  Circle no longer exits. */
+    .fight-pause {
+      position: absolute; inset: 0; z-index: 20;
+      background: radial-gradient(ellipse at 50% 40%, rgba(20,14,44,0.85), rgba(5,3,16,0.95));
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(6px);
+    }
+    .fight-pause[hidden] { display: none; }
+    .fight-pause-card {
+      background: linear-gradient(180deg, rgba(20,14,44,0.9), rgba(10,6,24,0.92));
+      border: 2px solid rgba(232,200,120,0.55);
+      border-radius: 10px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 40px rgba(232,200,120,0.25);
+      padding: 28px 36px 22px;
+      text-align: center;
+      min-width: 320px;
+      max-width: 460px;
+    }
+    .fight-pause-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.6rem;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: var(--gold-pale);
+      margin-bottom: 8px;
+    }
+    .fight-pause-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.4rem;
+      letter-spacing: 0.18em;
+      color: var(--gold-bright);
+      margin: 0 0 10px;
+      text-transform: uppercase;
+      text-shadow: 0 2px 0 #2a1a04;
+    }
+    .fight-pause-sub {
+      font-family: var(--font-meta);
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      color: var(--mist);
+      line-height: 1.5;
+      margin: 0 0 18px;
+    }
+    .fight-pause-actions {
+      display: flex; flex-direction: column; gap: 8px;
+      margin-bottom: 14px;
+    }
+    .fight-pause-actions button {
+      width: 100%;
+      padding: 10px 16px;
+      font-family: var(--font-meta);
+      font-size: 0.7rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    .fight-pause-hint {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist-deep);
+      opacity: 0.75;
     }
 
     /* ============ Tournament fight stage ============ */
@@ -707,6 +772,24 @@
           </div>
           <!-- On-canvas QUIT removed; chassis Menu button handles exit. Round number is drawn on-canvas in the ROUND intro. -->
           <button id="btn-fight-back" style="display:none;"></button>
+
+          <!-- ★ 2026-07-27 · In-match PAUSE OVERLAY.  Only way to exit a
+               fight — opened by Create/Touchpad/Options on DualSense OR
+               by 1 / 2 / 3 on keyboard.  Circle (○) and Escape are NOT
+               wired to exit; Circle stays free for heavy attack. -->
+          <div id="fight-pause-overlay" class="fight-pause" hidden>
+            <div class="fight-pause-card">
+              <div class="fight-pause-eyebrow">Paused</div>
+              <h2 class="fight-pause-title">Match Paused</h2>
+              <p class="fight-pause-sub">Only Create · Touchpad · Options open this menu.<br>Circle stays wired to your heavy attack.</p>
+              <div class="fight-pause-actions">
+                <button class="btn-primary" id="btn-fp-resume">Resume Match</button>
+                <button class="btn-secondary" id="btn-fp-restart">Restart Match</button>
+                <button class="btn-secondary" id="btn-fp-quit">Quit to Select</button>
+              </div>
+              <div class="fight-pause-hint">Keyboard: 1 · 2 · 3</div>
+            </div>
+          </div>
         </div>
         <!-- Virtual gamepad hotzones — calibrated to controller_frame.png pixel bboxes -->
         <button class="hotzone hz-up"    data-hot="up"    aria-label="Up"></button>
@@ -1062,7 +1145,7 @@ function drawKravosFrame(ctx, state, frameIdx, centerX, baseY, facing, scale) {
 const ARENA_BLIZZARD = new Image();
 let arenaReady = false;
 ARENA_BLIZZARD.onload = () => { arenaReady = true; };
-ARENA_BLIZZARD.src = 'assets/blizzard canyon.png';   // ★ 2026-07-27 · new 16:9 canyon art
+ARENA_BLIZZARD.src = 'assets/rp6/blizzard canyon.png';   // ★ 2026-07-27 · new 16:9 canyon art (rp6 asset folder)
 
 // ============ Old Viridia map (Adventure) ============
 const ARENA_VIRIDIA = new Image();
@@ -1196,8 +1279,8 @@ document.addEventListener('keydown', (e) => {
 
 // ★ 2026-07-28 · MK-style character select — alphabetical, paginated,
 // with left-side full-body preview panel of the currently-highlighted
-// (hovered) fighter.  16 slots per page (4×4).  L1/R1 (or ← →) paginate.
-const CYF_PAGE_SIZE = 16;
+// (hovered) fighter.  9 slots per page (3×3).  L1/R1 (or ← →) paginate.
+const CYF_PAGE_SIZE = 9;   // ★ 3×3 grid (was 16 / 4×4)
 const cyfState = { page: 0, hoverId: null };
 function cyfSortedFighters() {
   // Alphabetical by first name; keeps the roster stable across sessions
@@ -1221,8 +1304,9 @@ function buildFighterGrid() {
   const grid = $('tourn-grid');
   grid.innerHTML = '';
   const pageFs = cyfPageFighters();
-  // Always render 16 cells so the 4×4 layout stays visually intact even
-  // on the last (partial) page — empty slots render as dim placeholders.
+  // Always render CYF_PAGE_SIZE cells so the 3×3 layout stays visually
+  // intact even on the last (partial) page — empty slots render as dim
+  // placeholders.
   for (let i = 0; i < CYF_PAGE_SIZE; i++) {
     const f = pageFs[i];
     const cell = document.createElement('div');
@@ -1470,6 +1554,34 @@ function goTournamentFight() {
 }
 $('btn-fight-back').onclick = () => goTournamentSelect();
 
+// ★ 2026-07-27 · In-match PAUSE OVERLAY controller.  Opened by
+// keyboard 1/2/3 OR DualSense Create/Options/Touchpad.  Circle is
+// deliberately unbound from exit — it stays as heavy attack.
+let _fightPaused = false;
+function fightPauseIsOpen() { return _fightPaused; }
+function toggleFightPause(forceState) {
+  const wantOpen = (typeof forceState === 'boolean') ? forceState : !_fightPaused;
+  if (wantOpen === _fightPaused) return;
+  _fightPaused = wantOpen;
+  const el = document.getElementById('fight-pause-overlay');
+  if (el) el.hidden = !_fightPaused;
+  // Freeze/thaw inputs while paused so nobody eats damage looking at the menu.
+  if (_fightPaused) {
+    Object.keys(state.inputs).forEach(k => { state.inputs[k] = false; });
+  }
+}
+window.toggleFightPause = toggleFightPause;
+window.fightPauseIsOpen = fightPauseIsOpen;
+// Buttons — Resume / Restart / Quit
+(function _wireFightPauseButtons() {
+  const resume  = document.getElementById('btn-fp-resume');
+  const restart = document.getElementById('btn-fp-restart');
+  const quit    = document.getElementById('btn-fp-quit');
+  if (resume)  resume.onclick  = () => toggleFightPause(false);
+  if (restart) restart.onclick = () => { toggleFightPause(false); initFight(); };
+  if (quit)    quit.onclick    = () => { toggleFightPause(false); goTournamentSelect(); };
+})();
+
 // ============ Tournament battle loop ============
 // Both fighters get full physics + animation state machine + attack hitboxes.
 // Damage formula mirrors Cardmaster TCG (ATK × moveMult × typeMult × (1-DEF/1000)).
@@ -1574,6 +1686,14 @@ function updateHpDisplay() {
 // ====== Main fight loop ======
 function fightLoop(t) {
   if (state.mode !== 'tournament-fight' || !fightState) return;
+  // ★ 2026-07-27 · Freeze physics + AI + hit detection while paused.
+  // Overlay is required to exit; nothing should update behind it.
+  if (_fightPaused) {
+    fightState.lastT = t;         // resync so no huge dt when we resume
+    drawFightStage();
+    requestAnimationFrame(fightLoop);
+    return;
+  }
   const dt = Math.min(50, t - (fightState.lastT || t)) / 1000;
   fightState.lastT = t;
   fightUpdate(dt, t);
@@ -2288,10 +2408,23 @@ const KEY_MAP = {
 window.addEventListener('keydown', e => {
   const k = KEY_MAP[e.code];
   if (k) { state.inputs[k] = true; if (state.mode === 'adventure-game') e.preventDefault(); }
+  // ★ 2026-07-27 · During a MATCH the only way to open exit is 1 / 2 / 3
+  // (or Create/Touchpad/Options on DualSense).  Escape stays for menus.
+  if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' ||
+      e.code === 'Numpad1' || e.code === 'Numpad2' || e.code === 'Numpad3') {
+    if (state.mode === 'tournament-fight' || state.mode === 'adventure-game') {
+      e.preventDefault();
+      toggleFightPause(true);
+      return;
+    }
+  }
   if (e.code === 'Escape') {
-    if (state.mode === 'adventure-game') goTitle();
-    else if (state.mode === 'tournament-fight') goTournamentSelect();
-    else if (state.mode === 'tournament-select') goTournamentVs();
+    // Escape ONLY navigates outside of gameplay.  Inside a fight the
+    // pause overlay is the required path (opened by 1/2/3 or Create/
+    // Touchpad/Options); Escape from within the overlay closes it.
+    if (fightPauseIsOpen()) { toggleFightPause(false); return; }
+    if (state.mode === 'tournament-fight' || state.mode === 'adventure-game') return;
+    if (state.mode === 'tournament-select') goTournamentVs();
     else if (state.mode === 'tournament-vs') goTitle();
     else if (state.mode === 'adventure') goTitle();
   }
@@ -2318,9 +2451,8 @@ function applyHotzone(name, down) {
     case 'b':     k.attack = down; break;              // B = attack / heavy
     case 'x':     k.special = down; break;             // X = special
     case 'y':     k.block = down; break;               // Y = block
-    case 'menu':  if (down) {                          // Menu = pause / back
-      if (state.mode === 'adventure-game') goTitle();
-      else if (state.mode === 'tournament-fight') goTournamentSelect();
+    case 'menu':  if (down) {                          // ★ 2026-07-27 · Menu now toggles the pause overlay during a fight — never quits directly.
+      if (state.mode === 'tournament-fight' || state.mode === 'adventure-game') toggleFightPause();
     } break;
     case 'start': /* reserved */ break;
     case 'select':/* reserved */ break;
@@ -2366,19 +2498,37 @@ document.querySelectorAll('.hotzone').forEach(bindHotzone);
 //     L2 index 6 → light (A)   · R2 index 7 → heavy (B)
 //   Create index 8 → Select · Options index 9 → Start · PS index 16 → Menu
 //   D-pad indices 12/13/14/15 (up/down/left/right) + left stick axes.
+// ★ 2026-07-27 · GP_BTN — Create/Options/Touchpad are NOT mapped to
+// applyHotzone; they open the in-match PAUSE overlay directly (see
+// _pollGamepad below).  Circle stays as heavy attack (idx 1 → 'b').
 const GP_BTN = {
   0: 'a', 1: 'b', 2: 'x', 3: 'y',
   4: 'y', 5: 'x', 6: 'a', 7: 'b',
-  8: 'select', 9: 'start', 16: 'menu',
   12: 'up', 13: 'down', 14: 'left', 15: 'right',
 };
+// System buttons that OPEN the pause overlay while in a fight.  Idx 17
+// is the DualSense Touchpad click.
+const GP_PAUSE_BTNS = [8, 9, 17];
 const _gpPrev = {};
 function _pollGamepad() {
   const pads = (navigator.getGamepads && navigator.getGamepads()) || [];
   for (let i = 0; i < pads.length; i++) {
     const gp = pads[i];
     if (!gp) continue;
-    // Face buttons + shoulders + system + D-pad.
+    // System / pause buttons — Create · Options · Touchpad.
+    for (const idx of GP_PAUSE_BTNS) {
+      const b = gp.buttons[idx];
+      if (!b) continue;
+      const pressed = !!b.pressed;
+      const key = `${gp.index}:sys${idx}`;
+      if (pressed && !_gpPrev[key]) {
+        if (state.mode === 'tournament-fight' || state.mode === 'adventure-game') {
+          toggleFightPause();
+        }
+      }
+      _gpPrev[key] = pressed;
+    }
+    // Face buttons + shoulders + D-pad.
     for (const idx in GP_BTN) {
       const b = gp.buttons[idx];
       if (!b) continue;
@@ -2449,7 +2599,21 @@ goTitle();
 </script>
 
   <script src="/aov-gamepad-boot.js"></script>
-  <script>window.aovNavRequireOverlay = true;</script>
+  <script>
+    // ★ 2026-07-27 · Nav helper gates.
+    //   aovNavRequireOverlay: only fire when a menu overlay is on-screen.
+    //   aovNavIsInGameplay:  hard-veto — never fire during a live match.
+    //                        Returns FALSE while pause overlay is up so
+    //                        Cross / D-pad can navigate Resume/Restart/Quit.
+    window.aovNavRequireOverlay = true;
+    window.aovNavIsInGameplay = function () {
+      if (typeof state === 'undefined' || !state) return false;
+      const inFight = (state.mode === 'tournament-fight' || state.mode === 'adventure-game');
+      if (!inFight) return false;
+      // Pause overlay open → let nav helper drive its buttons.
+      return !(typeof fightPauseIsOpen === 'function' && fightPauseIsOpen());
+    };
+  </script>
   <script src="/card-game-controller-nav.js"></script>
 </body>
 </html>

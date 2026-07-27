@@ -206,7 +206,13 @@
     // actively in gameplay.  This prevents Cross-double-fires when the
     // game has its own in-game gamepad handler.
     const requireOverlay = !!window.aovNavRequireOverlay;
-    const overlayGate = requireOverlay ? anyOverlayVisible() : true;
+    let overlayGate = requireOverlay ? anyOverlayVisible() : true;
+    // ★ 2026-07-27 · Games can veto nav entirely via aovNavIsInGameplay().
+    // RP6 uses this so Circle stays a heavy attack during a match — the
+    // pause overlay is the only exit path.
+    if (typeof window.aovNavIsInGameplay === 'function' && window.aovNavIsInGameplay()) {
+      overlayGate = false;
+    }
 
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const pad = padIndex !== null ? pads[padIndex] : Array.from(pads).find(Boolean);

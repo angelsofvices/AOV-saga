@@ -10,7 +10,7 @@
 | Product number | Canonical game / world |
 |---|---|
 | RP7 | Zyraxis |
-| RP8 | Arborynth — Forest of the Godvine |
+| RP8 | The Tree of Power — Arborynth (The Living World · Planet 4) |
 
 ## 1. RP7 Face-Button Translation
 

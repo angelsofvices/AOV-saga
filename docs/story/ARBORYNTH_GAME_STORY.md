@@ -238,7 +238,7 @@ Arborynth's regions and biomes have not yet been fully defined.
 
 ### Current Prototype Location
 
-The current RP8 prototype identifies its first playable area as the **Forest of the Godvine**. Its precise canonical geography, inhabitants, ecological role, and story function remain open for later confirmation.
+The current RP8 prototype ships an early Arborynth region as its first playable area (informally named "Forest of the Godvine" during earlier development — that phrase is deprecated; the game's canonical title is **The Tree of Power** and any lingering "Forest of the Godvine" copy should be updated). Precise canonical geography, inhabitants, ecological role, and story function of the first region remain open for later confirmation.
 
 ## 16. Main Story Chapters
 

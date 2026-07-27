@@ -185,6 +185,14 @@
     }
     .tourn-step.p1 { color: var(--cosmic-blue); }
     .tourn-step.p2 { color: var(--crimson); }
+    .tourn-roster-count {
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.72;
+    }
 
     /* MK arcade banner */
     .cyf-banner {
@@ -644,7 +652,7 @@
 
 <nav class="nav">
   <a class="nav-back" href="/games.html">← Games</a>
-  <span class="nav-title">The Eternal War · v7</span>
+  <span class="nav-title">The Eternal War · v8 · visual codex</span>
   <span style="width: 80px;"></span>
 </nav>
 
@@ -706,6 +714,7 @@
       <div class="cyf-banner">CHOOSE YOUR FIGHTER</div>
       <div class="tourn-header">
         <div class="tourn-step" id="tourn-step-label">Player 1 — pick your fighter</div>
+        <div class="tourn-roster-count" id="cyf-roster-count">— visual codex · 220 characters · 2 playable</div>
         <button class="btn-secondary" id="btn-select-back">← Cancel</button>
       </div>
       <div class="cyf-stage">
@@ -807,7 +816,7 @@
        of adventure mode.  Fighter demo only. -->
   <template id="adv-stage"></template>
 
-  <div class="footer-note">v6 · single-file prototype · canvas-based 2D</div>
+  <div class="footer-note">v8 · single-file prototype · visual codex · 220 characters (2 playable)</div>
 
 </main>
 
@@ -821,42 +830,247 @@
 const CANVAS_W = 1280;
 const CANVAS_H = 720;
 
-// ============ Character roster (27 total — 2 unlocked + 25 locked) ============
-// Solion + Kravos are the only unlocked fighters at launch (their codex entries are
-// being created from the v3.7 promotion draft). The rest preview locked.
-// art paths point to existing card art (v2 = cards_v2/, v1 = cards/, none = placeholder).
+// ============ Character roster (visual codex · 220 entries · A → Z) ============
+// ★ 2026-07-27 · Auto-generated VISUAL CODEX — every character in
+// the /assets/rp6/characters/ folder (220 entries, A → Z).  RP6
+// doubles as a visual roster: locked cards let players put faces
+// to names; only SOLION + KRAVOS are playable at launch.  Real
+// stat lines for those two are patched in by the STAT_OVERRIDES
+// block immediately below the array.
 const FIGHTERS = [
-  // Row 1 — UNLOCKED launch pair, then top tier
-  { id:'solion',     name:'Solion Highreach',  tier:'VI',   archetype:'Cleric',     type1:'Aura',          type2:'Humanoid-Noid', hp:432, atk:466, def:432, spd:268, spc:400, art:null,                                portraitGradient:['#fff3c4','#e8c878','#8a6d2c'], unlocked:true },
-  { id:'kravos',     name:'Kravos Dragonsong', tier:'VI',   archetype:'Mage',       type1:'Unknown-Void',  type2:'Spirit',        hp:466, atk:666, def:266, spd:400, spc:200, art:null,                                portraitGradient:['#c9a8ff','#6e3fc1','#1a0d3a'], unlocked:true },
-  { id:'anciuxor',   name:'Anciuxor',          tier:'X',    archetype:'God',        type1:'Ultramax',      type2:'Ultramax',      hp:666, atk:666, def:666, spd:666, spc:666, art:'cards_v2/card_anciuxor.png',       unlocked:false },
-  { id:'abyssion',   name:'Abyssion',          tier:'IX',   archetype:'Beastmaster',type1:'Ultramax',      type2:'Unknown-Void',  hp:600, atk:666, def:555, spd:456, spc:720, art:'cards_v2/card_abyssion.png',       unlocked:false },
-  { id:'ovauron',    name:'Ovauron',           tier:'IX',   archetype:'Beastmaster',type1:'Ultramax',      type2:'Unknown-Void',  hp:800, atk:666, def:720, spd:300, spc:511, art:'cards_v2/card_ovauron.png',        unlocked:false },
-  { id:'lucienis',   name:'Lucienis',          tier:'VIII', archetype:'Cleric',     type1:'Humanoid-Noid', type2:'Aura',          hp:533, atk:533, def:533, spd:533, spc:532, art:'cards_v2/card_lucienis.png',       unlocked:false },
-  { id:'theia',      name:'Theia',             tier:'VIII', archetype:'Cleric',     type1:'Humanoid-Noid', type2:'Aura',          hp:533, atk:566, def:433, spd:599, spc:533, art:'cards_v2/card_theia.png',          unlocked:false },
-  { id:'natura',     name:'Natura',            tier:'VIII', archetype:'Beastmaster',type1:'Nature',        type2:'Creature',      hp:666, atk:366, def:633, spd:466, spc:533, art:'cards_v2/card_natura.png',         unlocked:false },
-  { id:'aionis',     name:'Aionis',            tier:'VIII', archetype:'Cleric',     type1:'Spirit',        type2:'Unknown-Void',  hp:600, atk:333, def:400, spd:665, spc:666, art:'cards/card_aionis.png',            unlocked:false },
-  // Row 2
-  { id:'eurakeon',   name:'Eurakeon',          tier:'VIII', archetype:'Mage',       type1:'Beast',         type2:'Unknown-Void',  hp:499, atk:433, def:465, spd:500, spc:767, art:'cards/card_eurakeon.png',          unlocked:false },
-  { id:'egnellahc',  name:'Egnellahc',         tier:'VII',  archetype:'Mage',       type1:'Humanoid-Noid', type2:'Spirit',        hp:407, atk:291, def:525, spd:525, spc:583, art:'cards_v2/card_egnellahc.png',      unlocked:false },
-  { id:'omegoran',   name:'Omegoran',          tier:'VII',  archetype:'Beastmaster',type1:'Beast',         type2:'Unknown-Void',  hp:493, atk:549, def:383, spd:357, spc:549, art:'cards_v2/card_omegoran.png',       unlocked:false },
-  { id:'vydexeus',   name:'Vydexeus',          tier:'VII',  archetype:'Mage',       type1:'Tech',          type2:'Spirit',        hp:466, atk:433, def:433, spd:433, spc:566, art:'cards_v2/card_vydexeus.png',       unlocked:false },
-  { id:'abyssylyx',  name:'Abyssylyx',         tier:'VI',   archetype:'Beastmaster',type1:'Aura',          type2:'Beast',         hp:372, atk:396, def:330, spd:432, spc:468, art:'cards_v2/card_abyssylyx.png',      unlocked:false },
-  { id:'aurellyn',   name:'Aurellyn',          tier:'VI',   archetype:'Cleric',     type1:'Humanoid-Noid', type2:'Aura',          hp:408, atk:352, def:344, spd:399, spc:495, art:'cards_v2/card_aurellyn.png',       unlocked:false },
-  { id:'diviniara',  name:'Diviniara',         tier:'VI',   archetype:'Cleric',     type1:'Aura',          type2:'Beast',         hp:420, atk:348, def:402, spd:348, spc:480, art:'cards_v2/card_diviniara.png',      unlocked:false },
-  { id:'khronis',    name:'Khronis',           tier:'VI',   archetype:'Beastmaster',type1:'Beast',         type2:'Unknown-Void',  hp:510, atk:498, def:360, spd:294, spc:336, art:'cards_v2/card_khronis.png',        unlocked:false },
-  { id:'leonoror',   name:'Leonoror',          tier:'VI',   archetype:'Warrior',    type1:'Aura',          type2:'Beast',         hp:462, atk:444, def:384, spd:336, spc:372, art:'cards_v2/card_leonoror.png',       unlocked:false },
-  // Row 3
-  { id:'phoenaris',  name:'Phoenaris',         tier:'VI',   archetype:'Beastmaster',type1:'Aura',          type2:'Beast',         hp:366, atk:462, def:312, spd:420, spc:438, art:'cards_v2/card_pheonaris.png',      unlocked:false },
-  { id:'royalesus',  name:'Royalesus',         tier:'VI',   archetype:'Cleric',     type1:'Aura',          type2:'Beast',         hp:432, atk:366, def:360, spd:480, spc:360, art:'cards_v2/card_royalesus.png',      unlocked:false },
-  { id:'voltyran',   name:'Voltyran',          tier:'VI',   archetype:'Beastmaster',type1:'Creature',      type2:'Beast',         hp:374, atk:450, def:324, spd:525, spc:325, art:'cards_v2/card_voltaryn.png',       unlocked:false },
-  { id:'audrellius', name:'Audrellius',        tier:'V',    archetype:'Warrior',    type1:'Humanoid-Noid', type2:'Aura',          hp:366, atk:333, def:366, spd:300, spc:300, art:'cards_v2/card_audrelliusX.png',    unlocked:false },
-  { id:'aurexion',   name:'Auraxion',          tier:'V',    archetype:'Cleric',     type1:'Humanoid-Noid', type2:'Aura',          hp:333, atk:333, def:333, spd:333, spc:333, art:'cards_v2/card_aurexion.png',       unlocked:false },
-  { id:'elzoran',    name:'Elzoran',           tier:'V',    archetype:'Beastmaster',type1:'Beast',         type2:'Nature',        hp:366, atk:333, def:266, spd:234, spc:466, art:'cards_v2/card_elzoran.png',        unlocked:false },
-  { id:'andrehart',  name:'Andre Hart',        tier:'IV',   archetype:'Warrior',    type1:'Humanoid-Noid', type2:'Aura',          hp:240, atk:305, def:227, spd:267, spc:293, art:'cards_v2/card_andrehart.png',      unlocked:false },
-  { id:'phrenetic',  name:'Phrenetic',         tier:'IV',   archetype:'Mage',       type1:'Unknown-Void',  type2:'Spirit',        hp:240, atk:218, def:186, spd:288, spc:400, art:'cards_v2/card_phrenetic.png',      unlocked:false },
-  { id:'sharkfin',   name:'Sharkfin',          tier:'III',  archetype:'Beastmaster',type1:'Tech',          type2:'Humanoid-Noid', hp:220, atk:239, def:190, spd:150, spc:200, art:'cards_v2/card_sharkfin.png',       unlocked:false }
+  { id:"abominalys1", name:"Abominalys I", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_abominalys1.png", unlocked:false },
+  { id:"abominalys2", name:"Abominalys II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_abominalys2.png", unlocked:false },
+  { id:"abyssion", name:"Abyssion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_abyssion.png", unlocked:false },
+  { id:"abyssylyx", name:"Abyssylyx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_abyssylyx.png", unlocked:false },
+  { id:"aenor", name:"Aenor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aenor.png", unlocked:false },
+  { id:"aetherion", name:"Aetherion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aetherion.png", unlocked:false },
+  { id:"aethravax", name:"Aethravax", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aethravax.png", unlocked:false },
+  { id:"aethryx", name:"Aethryx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aethryx.png", unlocked:false },
+  { id:"aionis", name:"Aionis", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aionis.png", unlocked:false },
+  { id:"aldoris", name:"Aldoris", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aldoris.png", unlocked:false },
+  { id:"alphaea", name:"Alphaea", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_alphaea.png", unlocked:false },
+  { id:"alphaea1", name:"Alphaea I", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_alphaea1.png", unlocked:false },
+  { id:"ambrevon", name:"Ambrevon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ambrevon.png", unlocked:false },
+  { id:"amira", name:"Amira", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_amira.png", unlocked:false },
+  { id:"amora", name:"Amora", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_amora.png", unlocked:false },
+  { id:"amyra", name:"Amyra", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_amyra.png", unlocked:false },
+  { id:"amyros", name:"Amyros", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_amyros.png", unlocked:false },
+  { id:"anciuxor1", name:"Anciuxor I", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_anciuxor1.png", unlocked:false },
+  { id:"anciuxor2", name:"Anciuxor II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_anciuxor2.png", unlocked:false },
+  { id:"anciuxor3", name:"Anciuxor III", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_anciuxor3.png", unlocked:false },
+  { id:"anciuxor4", name:"Anciuxor IV", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_anciuxor4.png", unlocked:false },
+  { id:"andrehart", name:"Andrehart", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_andrehart.png", unlocked:false },
+  { id:"aracier", name:"Aracier", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aracier.png", unlocked:false },
+  { id:"arcemur", name:"Arcemur", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_arcemur.png", unlocked:false },
+  { id:"audreliusx", name:"Audreliusx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_audreliusx.png", unlocked:false },
+  { id:"auraeris", name:"Auraeris", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_auraeris.png", unlocked:false },
+  { id:"auraxion2", name:"Auraxion II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_auraxion2.png", unlocked:false },
+  { id:"aurellyn", name:"Aurellyn", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aurellyn.png", unlocked:false },
+  { id:"aurellyn2", name:"Aurellyn II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_aurellyn2.png", unlocked:false },
+  { id:"avianex", name:"Avianex", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_avianex.png", unlocked:false },
+  { id:"azurel", name:"Azurel", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_azurel.png", unlocked:false },
+  { id:"azurel2", name:"Azurel II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_azurel2.png", unlocked:false },
+  { id:"azyrath1", name:"Azyrath I", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_azyrath1.png", unlocked:false },
+  { id:"azyrath2", name:"Azyrath II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_azyrath2.png", unlocked:false },
+  { id:"azyrath3", name:"Azyrath III", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_azyrath3.png", unlocked:false },
+  { id:"caynicore", name:"Caynicore", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_caynicore.png", unlocked:false },
+  { id:"celestryx", name:"Celestryx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_celestryx.png", unlocked:false },
+  { id:"celsion", name:"Celsion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_celsion.png", unlocked:false },
+  { id:"celsius", name:"Celsius", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_celsius.png", unlocked:false },
+  { id:"concordia", name:"Concordia", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_concordia.png", unlocked:false },
+  { id:"craniux", name:"Craniux", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_craniux.png", unlocked:false },
+  { id:"crimsion", name:"Crimsion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_crimsion.png", unlocked:false },
+  { id:"crycarys", name:"Crycarys", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_crycarys.png", unlocked:false },
+  { id:"despera", name:"Despera", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_despera.png", unlocked:false },
+  { id:"devormor", name:"Devormor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_devormor.png", unlocked:false },
+  { id:"diviniara", name:"Diviniara", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_diviniara.png", unlocked:false },
+  { id:"doctoromorphis", name:"Doctoromorphis", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_doctoromorphis.png", unlocked:false },
+  { id:"dolion", name:"Dolion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_dolion.png", unlocked:false },
+  { id:"dracaryze", name:"Dracaryze", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_dracaryze.png", unlocked:false },
+  { id:"dreavus", name:"Dreavus", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_dreavus.png", unlocked:false },
+  { id:"egnellahc", name:"Egnellahc", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_egnellahc.png", unlocked:false },
+  { id:"elderprime", name:"Elderprime", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_elderprime.png", unlocked:false },
+  { id:"elyraes", name:"Elyraes", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_elyraes.png", unlocked:false },
+  { id:"elyssia", name:"Elyssia", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_elyssia.png", unlocked:false },
+  { id:"elzebub", name:"Elzebub", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_elzebub.png", unlocked:false },
+  { id:"elzoran", name:"Elzoran", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_elzoran.png", unlocked:false },
+  { id:"embercrest", name:"Embercrest", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_embercrest.png", unlocked:false },
+  { id:"emeralix", name:"Emeralix", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_emeralix.png", unlocked:false },
+  { id:"eurakeon", name:"Eurakeon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_eurakeon.png", unlocked:false },
+  { id:"excidior", name:"Excidior", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_excidior.png", unlocked:false },
+  { id:"faes", name:"Faes", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_faes.png", unlocked:false },
+  { id:"falconice", name:"Falconice", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_falconice.png", unlocked:false },
+  { id:"feliux", name:"Feliux", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_feliux.png", unlocked:false },
+  { id:"fidesio", name:"Fidesio", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_fidesio.png", unlocked:false },
+  { id:"finwyn&giltyn", name:"Finwyn&giltyn", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_finwyn&giltyn.png", unlocked:false },
+  { id:"florlyan", name:"Florlyan", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_florlyan.png", unlocked:false },
+  { id:"frazon", name:"Frazon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_frazon.png", unlocked:false },
+  { id:"frostphen", name:"Frostphen", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_frostphen.png", unlocked:false },
+  { id:"g1226", name:"G 1226", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_g1226.png", unlocked:false },
+  { id:"gemorid", name:"Gemorid", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_gemorid.png", unlocked:false },
+  { id:"glaciara", name:"Glaciara", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_glaciara.png", unlocked:false },
+  { id:"glaciobolt", name:"Glaciobolt", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_glaciobolt.png", unlocked:false },
+  { id:"gloomthane", name:"Gloomthane", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_gloomthane.png", unlocked:false },
+  { id:"gravemite", name:"Gravemite", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_gravemite.png", unlocked:false },
+  { id:"gravemourn", name:"Gravemourn", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_gravemourn.png", unlocked:false },
+  { id:"graveskull", name:"Graveskull", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_graveskull.png", unlocked:false },
+  { id:"gravigon", name:"Gravigon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_gravigon.png", unlocked:false },
+  { id:"grevotor", name:"Grevotor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_grevotor.png", unlocked:false },
+  { id:"grizzigor", name:"Grizzigor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_grizzigor.png", unlocked:false },
+  { id:"havenhawk", name:"Havenhawk", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_havenhawk.png", unlocked:false },
+  { id:"haydenhart", name:"Haydenhart", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_haydenhart.png", unlocked:false },
+  { id:"heraya", name:"Heraya", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_heraya.png", unlocked:false },
+  { id:"hopbeam", name:"Hopbeam", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_hopbeam.png", unlocked:false },
+  { id:"imperion", name:"Imperion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_imperion.png", unlocked:false },
+  { id:"impyxid", name:"Impyxid", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_impyxid.png", unlocked:false },
+  { id:"inferleon", name:"Inferleon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_inferleon.png", unlocked:false },
+  { id:"inventio", name:"Inventio", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_inventio.png", unlocked:false },
+  { id:"invidia", name:"Invidia", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_invidia.png", unlocked:false },
+  { id:"ivirium", name:"Ivirium", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ivirium.png", unlocked:false },
+  { id:"kaeloryn", name:"Kaeloryn", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_kaeloryn.png", unlocked:false },
+  { id:"kalenatel", name:"Kalenatel", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_kalenatel.png", unlocked:false },
+  { id:"khronicore", name:"Khronicore", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_khronicore.png", unlocked:false },
+  { id:"khronis", name:"Khronis", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_khronis.png", unlocked:false },
+  { id:"krallathor", name:"Krallathor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_krallathor.png", unlocked:false },
+  { id:"kravos", name:"Kravos", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_kravos.png", unlocked:true },
+  { id:"lecarion", name:"Lecarion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_lecarion.png", unlocked:false },
+  { id:"lecarion2", name:"Lecarion II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_lecarion2.png", unlocked:false },
+  { id:"leonoror", name:"Leonoror", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_leonoror.png", unlocked:false },
+  { id:"lucienis", name:"Lucienis", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_lucienis.png", unlocked:false },
+  { id:"lumenella", name:"Lumenella", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_lumenella.png", unlocked:false },
+  { id:"malzareth", name:"Malzareth", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_malzareth.png", unlocked:false },
+  { id:"mealux", name:"Mealux", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_mealux.png", unlocked:false },
+  { id:"mira", name:"Mira", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_mira.png", unlocked:false },
+  { id:"mortis", name:"Mortis", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_mortis.png", unlocked:false },
+  { id:"mykarlyth", name:"Mykarlyth", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_mykarlyth.png", unlocked:false },
+  { id:"mykarlythandkalenatell", name:"Mykarlythandkalenatell", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_mykarlythandkalenatell.png", unlocked:false },
+  { id:"mynitheryn", name:"Mynitheryn", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_mynitheryn.png", unlocked:false },
+  { id:"myrradon", name:"Myrradon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_myrradon.png", unlocked:false },
+  { id:"natura", name:"Natura", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_natura.png", unlocked:false },
+  { id:"nevaris", name:"Nevaris", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_nevaris.png", unlocked:false },
+  { id:"nightstang", name:"Nightstang", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_nightstang.png", unlocked:false },
+  { id:"nimbusor", name:"Nimbusor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_nimbusor.png", unlocked:false },
+  { id:"noctron", name:"Noctron", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_noctron.png", unlocked:false },
+  { id:"novakid", name:"Novakid", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_novakid.png", unlocked:false },
+  { id:"novakid2", name:"Novakid II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_novakid2.png", unlocked:false },
+  { id:"noxurnis", name:"Noxurnis", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_noxurnis.png", unlocked:false },
+  { id:"nymphysyl", name:"Nymphysyl", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_nymphysyl.png", unlocked:false },
+  { id:"oathane", name:"Oathane", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_oathane.png", unlocked:false },
+  { id:"oatheus", name:"Oatheus", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_oatheus.png", unlocked:false },
+  { id:"obsidius", name:"Obsidius", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_obsidius.png", unlocked:false },
+  { id:"odion", name:"Odion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_odion.png", unlocked:false },
+  { id:"omegoran", name:"Omegoran", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_omegoran.png", unlocked:false },
+  { id:"omniris", name:"Omniris", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_omniris.png", unlocked:false },
+  { id:"onyxaxius", name:"Onyxaxius", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_onyxaxius.png", unlocked:false },
+  { id:"opharion", name:"Opharion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_opharion.png", unlocked:false },
+  { id:"ophira", name:"Ophira", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ophira.png", unlocked:false },
+  { id:"ophira1", name:"Ophira I", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ophira1.png", unlocked:false },
+  { id:"orivora", name:"Orivora", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_orivora.png", unlocked:false },
+  { id:"orivora2", name:"Orivora II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_orivora2.png", unlocked:false },
+  { id:"orryx", name:"Orryx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_orryx.png", unlocked:false },
+  { id:"ossyrix", name:"Ossyrix", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ossyrix.png", unlocked:false },
+  { id:"otterlin", name:"Otterlin", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_otterlin.png", unlocked:false },
+  { id:"oulira", name:"Oulira", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_oulira.png", unlocked:false },
+  { id:"oulira2", name:"Oulira II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_oulira2.png", unlocked:false },
+  { id:"ovauron", name:"Ovauron", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ovauron.png", unlocked:false },
+  { id:"ovauron2", name:"Ovauron II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ovauron2.png", unlocked:false },
+  { id:"petragryff", name:"Petragryff", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_petragryff.png", unlocked:false },
+  { id:"phantuar", name:"Phantuar", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_phantuar.png", unlocked:false },
+  { id:"pheonaris", name:"Pheonaris", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_pheonaris.png", unlocked:false },
+  { id:"phrenetic", name:"Phrenetic", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_phrenetic.png", unlocked:false },
+  { id:"primaria", name:"Primaria", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_primaria.png", unlocked:false },
+  { id:"prismarill", name:"Prismarill", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_prismarill.png", unlocked:false },
+  { id:"psyrexis", name:"Psyrexis", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_psyrexis.png", unlocked:false },
+  { id:"pyraeus", name:"Pyraeus", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_pyraeus.png", unlocked:false },
+  { id:"pyrothrax", name:"Pyrothrax", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_pyrothrax.png", unlocked:false },
+  { id:"pyrsect", name:"Pyrsect", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_pyrsect.png", unlocked:false },
+  { id:"rakoron", name:"Rakoron", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_rakoron.png", unlocked:false },
+  { id:"reef", name:"Reef", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_reef.png", unlocked:false },
+  { id:"rhinoxis", name:"Rhinoxis", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_rhinoxis.png", unlocked:false },
+  { id:"robotryx", name:"Robotryx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_robotryx.png", unlocked:false },
+  { id:"rook", name:"Rook", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_rook.png", unlocked:false },
+  { id:"royalden", name:"Royalden", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_royalden.png", unlocked:false },
+  { id:"royalesus ", name:"Royalesus ", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_royalesus .png", unlocked:false },
+  { id:"rustmaw", name:"Rustmaw", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_rustmaw.png", unlocked:false },
+  { id:"sabre", name:"Sabre", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_sabre.png", unlocked:false },
+  { id:"scaleon", name:"Scaleon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_scaleon.png", unlocked:false },
+  { id:"scrapjaw", name:"Scrapjaw", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_scrapjaw.png", unlocked:false },
+  { id:"scythedon", name:"Scythedon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_scythedon.png", unlocked:false },
+  { id:"seraphaela", name:"Seraphaela", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_seraphaela.png", unlocked:false },
+  { id:"serperyx", name:"Serperyx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_serperyx.png", unlocked:false },
+  { id:"sharkfin", name:"Sharkfin", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_sharkfin.png", unlocked:false },
+  { id:"shinobix", name:"Shinobix", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_shinobix.png", unlocked:false },
+  { id:"shogunox", name:"Shogunox", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_shogunox.png", unlocked:false },
+  { id:"sigilmore", name:"Sigilmore", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_sigilmore.png", unlocked:false },
+  { id:"skorleax", name:"Skorleax", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_skorleax.png", unlocked:false },
+  { id:"skybeam", name:"Skybeam", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_skybeam.png", unlocked:false },
+  { id:"skyrathon", name:"Skyrathon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_skyrathon.png", unlocked:false },
+  { id:"smogrin", name:"Smogrin", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_smogrin.png", unlocked:false },
+  { id:"snok", name:"Snok", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_snok.png", unlocked:false },
+  { id:"solcryst", name:"Solcryst", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_solcryst.png", unlocked:false },
+  { id:"solion", name:"Solion", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_solion.png", unlocked:true },
+  { id:"spargus", name:"Spargus", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_spargus.png", unlocked:false },
+  { id:"sparkbud", name:"Sparkbud", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_sparkbud.png", unlocked:false },
+  { id:"sprinklez", name:"Sprinklez", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_sprinklez.png", unlocked:false },
+  { id:"stelden", name:"Stelden", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_stelden.png", unlocked:false },
+  { id:"stormfather", name:"Stormfather", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_stormfather.png", unlocked:false },
+  { id:"stormstone", name:"Stormstone", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_stormstone.png", unlocked:false },
+  { id:"strixel", name:"Strixel", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_strixel.png", unlocked:false },
+  { id:"stultor", name:"Stultor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_stultor.png", unlocked:false },
+  { id:"talenko", name:"Talenko", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_talenko.png", unlocked:false },
+  { id:"tervalor", name:"Tervalor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_tervalor.png", unlocked:false },
+  { id:"theia", name:"Theia", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_theia.png", unlocked:false },
+  { id:"theorin", name:"Theorin", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_theorin.png", unlocked:false },
+  { id:"theryndel ", name:"Theryndel ", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_theryndel .png", unlocked:false },
+  { id:"thorakor", name:"Thorakor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_thorakor.png", unlocked:false },
+  { id:"thrilleon", name:"Thrilleon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_thrilleon.png", unlocked:false },
+  { id:"tiagua", name:"Tiagua", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_tiagua.png", unlocked:false },
+  { id:"tick&tune", name:"Tick&tune", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_tick&tune.png", unlocked:false },
+  { id:"titanova", name:"Titanova", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_titanova.png", unlocked:false },
+  { id:"ultharis1", name:"Ultharis I", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ultharis1.png", unlocked:false },
+  { id:"ultharis2", name:"Ultharis II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_ultharis2.png", unlocked:false },
+  { id:"umbrellena", name:"Umbrellena", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_umbrellena.png", unlocked:false },
+  { id:"vaelorith", name:"Vaelorith", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_vaelorith.png", unlocked:false },
+  { id:"vaeris", name:"Vaeris", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_vaeris.png", unlocked:false },
+  { id:"valstorm", name:"Valstorm", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_valstorm.png", unlocked:false },
+  { id:"velkoryn", name:"Velkoryn", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_velkoryn.png", unlocked:false },
+  { id:"velociryx", name:"Velociryx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_velociryx.png", unlocked:false },
+  { id:"vengrizz", name:"Vengrizz", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_vengrizz.png", unlocked:false },
+  { id:"verdanix", name:"Verdanix", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_verdanix.png", unlocked:false },
+  { id:"veynerra", name:"Veynerra", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_veynerra.png", unlocked:false },
+  { id:"vitriarch", name:"Vitriarch", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_vitriarch.png", unlocked:false },
+  { id:"vitricon", name:"Vitricon", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_vitricon.png", unlocked:false },
+  { id:"voiden", name:"Voiden", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_voiden.png", unlocked:false },
+  { id:"volcanut", name:"Volcanut", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_volcanut.png", unlocked:false },
+  { id:"volcarok", name:"Volcarok", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_volcarok.png", unlocked:false },
+  { id:"volcaxor", name:"Volcaxor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_volcaxor.png", unlocked:false },
+  { id:"voltaryx", name:"Voltaryx", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_voltaryx.png", unlocked:false },
+  { id:"voltigrax", name:"Voltigrax", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_voltigrax.png", unlocked:false },
+  { id:"voltyran", name:"Voltyran", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_voltyran.png", unlocked:false },
+  { id:"voragor", name:"Voragor", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_voragor.png", unlocked:false },
+  { id:"vorakhan", name:"Vorakhan", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_vorakhan.png", unlocked:false },
+  { id:"vydexeus", name:"Vydexeus", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_vydexeus.png", unlocked:false },
+  { id:"wynwyrm", name:"Wynwyrm", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_wynwyrm.png", unlocked:false },
+  { id:"xenoxil1", name:"Xenoxil I", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_xenoxil1.png", unlocked:false },
+  { id:"xenoxil2", name:"Xenoxil II", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_xenoxil2.png", unlocked:false },
+  { id:"xyrosxxvii", name:"Xyrosxxvii", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_xyrosxxvii.png", unlocked:false },
+  { id:"zarakai", name:"Zarakai", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_zarakai.png", unlocked:false },
+  { id:"zorbli", name:"Zorbli", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_zorbli.png", unlocked:false },
+  { id:"zoryth", name:"Zoryth", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_zoryth.png", unlocked:false },
+  { id:"zyphaesia", name:"Zyphaesia", tier:'?', archetype:'—', type1:'—', type2:'—', hp:0, atk:0, def:0, spd:0, spc:0, art:"assets/rp6/characters/v2_zyphaesia.png", unlocked:false },
 ];
+
+// Playable-fighter overrides — real stats + tier for the two
+// launch characters.  Anything else can be promoted by adding a
+// key here as new fighters go live.
+const STAT_OVERRIDES = {
+  solion: { name:'Solion Highreach',  tier:'VI', archetype:'Cleric', type1:'Aura',         type2:'Humanoid-Noid', hp:432, atk:466, def:432, spd:268, spc:400 },
+  kravos: { name:'Kravos Dragonsong', tier:'VI', archetype:'Mage',   type1:'Unknown-Void', type2:'Spirit',        hp:466, atk:666, def:266, spd:400, spc:200 }
+};
+for (const f of FIGHTERS) {
+  const ov = STAT_OVERRIDES[f.id];
+  if (ov) Object.assign(f, ov);
+}
 
 // Note: the v6 chassis PNG is pre-keyed (RGBA with transparent screen cutout),
 // so it renders directly via CSS background-image with no runtime processing.

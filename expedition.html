@@ -611,15 +611,31 @@
       width: 100dvw;
       height: 100dvh;
       aspect-ratio: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #050310;   /* letterbox bars match void bg */
     }
     body.fs-mode .device-chassis::after { display: none !important; }
+    /* ★ 2026-07-28 · LETTERBOX (no stretch).  Canvas is 224×224 pixel-
+       square — keep the 1:1 aspect and just size to the largest square
+       that fits inside the viewport.  Bars on left/right (landscape)
+       or top/bottom (portrait).  Pixel-perfect scaling preserved. */
     body.fs-mode .device-screen {
-      left: 0; top: 0; width: 100%; height: 100%;
+      position: relative;
+      left: auto; top: auto;
+      width:  min(100vw, 100vh);
+      height: min(100vw, 100vh);
+      width:  min(100dvw, 100dvh);
+      height: min(100dvw, 100dvh);
+      aspect-ratio: 1 / 1;
     }
     body.fs-mode .device-screen canvas {
-      /* In fullscreen, smoothing helps the tile map scale up to any
-         desktop / landscape mobile resolution without chunky pixels. */
-      image-rendering: auto;
+      /* Keep pixel-perfect crispness on the enlarged tile map — canvas
+         still integer-scales cleanly with `pixelated` at fullscreen. */
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
     }
     body.fs-mode .hotzone { display: none !important; }
 
@@ -1416,9 +1432,12 @@
   <div class="cosmos"></div>
   <div class="stars"></div>
 
-  <div class="nav-bar">
-    <a href="/games.html" class="nav-back">← Games</a>
-  </div>
+  <!-- ★ 2026-07-28 · "← Games" viewport nav removed per user request —
+       it was too easy to tap mid-run and exit the game.  Leaving the
+       game is now only available via the Pause modal's "Leave Viridia"
+       button (deliberate, confirmed action).  Keep .nav-bar container
+       so any CSS that reserves top-padding for it still resolves. -->
+  <div class="nav-bar"></div>
 
   <!-- ============ Intro sequence (Dec 2026) ============
        Three-screen boot intro: studio splash → logo reveal → start screen.
@@ -1677,14 +1696,21 @@
         </button>
         <div class="controls-body" id="controls-body" hidden>
           <div class="controls-group">
-            <div class="controls-group-title">Movement</div>
-            <div class="controls-row"><span class="controls-input">D-Pad</span><span class="controls-desc">Walk in 4 directions</span></div>
+            <div class="controls-group-title">Movement (Keyboard)</div>
+            <div class="controls-row"><span class="controls-input">D-Pad / Arrows</span><span class="controls-desc">Walk in 4 directions</span></div>
             <div class="controls-row"><span class="controls-input">B · tap</span><span class="controls-desc">Hoverboard (run) — toggle on/off</span></div>
             <div class="controls-row"><span class="controls-input">B · double-tap</span><span class="controls-desc">Fly — toggle on/off (drains energy)</span></div>
             <div class="controls-row"><span class="controls-input">B · hold</span><span class="controls-desc">Astral Force Field — channel + block</span></div>
           </div>
           <div class="controls-group">
-            <div class="controls-group-title">Combat</div>
+            <div class="controls-group-title">Movement (DualSense)</div>
+            <div class="controls-row"><span class="controls-input">D-Pad / L-Stick</span><span class="controls-desc">Walk in 4 directions</span></div>
+            <div class="controls-row"><span class="controls-input">R1</span><span class="controls-desc">Cycle: Walk → Hoverboard → Fly → Walk</span></div>
+            <div class="controls-row"><span class="controls-input">R3 (click stick)</span><span class="controls-desc">Toggle Run on/off</span></div>
+            <div class="controls-row"><span class="controls-input">△ Triangle</span><span class="controls-desc">Astral Force Field — hold to charge + block</span></div>
+          </div>
+          <div class="controls-group">
+            <div class="controls-group-title">Combat (Keyboard)</div>
             <div class="controls-row"><span class="controls-input">Y</span><span class="controls-desc">Punch · costs 1 energy</span></div>
             <div class="controls-row"><span class="controls-input">X</span><span class="controls-desc">Kick · costs 2 energy</span></div>
             <div class="controls-row"><span class="controls-input">Y → X → Y</span><span class="controls-desc">Sword Swing combo · costs 4 energy</span></div>
@@ -1692,8 +1718,16 @@
             <div class="controls-row"><span class="controls-input">Tap enemy</span><span class="controls-desc">Lock-on · attacks redirect to target</span></div>
           </div>
           <div class="controls-group">
+            <div class="controls-group-title">Combat (DualSense)</div>
+            <div class="controls-row"><span class="controls-input">× Cross</span><span class="controls-desc">Punch · costs 1 energy</span></div>
+            <div class="controls-row"><span class="controls-input">○ Circle</span><span class="controls-desc">Kick · costs 2 energy</span></div>
+            <div class="controls-row"><span class="controls-input">× → ○ → ×</span><span class="controls-desc">Sword Swing combo · costs 4 energy</span></div>
+            <div class="controls-row"><span class="controls-input">○ → × → ○</span><span class="controls-desc">Blaster Shot combo · costs 4 energy</span></div>
+          </div>
+          <div class="controls-group">
             <div class="controls-group-title">Interact</div>
-            <div class="controls-row"><span class="controls-input">A</span><span class="controls-desc">Talk · open chest · take potion · enter</span></div>
+            <div class="controls-row"><span class="controls-input">A · keyboard</span><span class="controls-desc">Talk · open chest · take potion · enter</span></div>
+            <div class="controls-row"><span class="controls-input">□ Square</span><span class="controls-desc">Talk · open chest · take potion · enter</span></div>
             <div class="controls-row"><span class="controls-input">Tap NPC</span><span class="controls-desc">Open info menu · companion toggle (faction only)</span></div>
             <div class="controls-row"><span class="controls-input">R · keyboard</span><span class="controls-desc">Return to ship from anywhere</span></div>
           </div>
@@ -6061,6 +6095,19 @@
         bState.runEnabled = !bState.runEnabled;
         console.log('[input] R3 → RUN ' + (bState.runEnabled ? 'ON' : 'OFF'));
       }
+      // ★ 2026-07-28 · Create (idx 8) · Options (idx 9) · Touchpad
+      // click (idx 17 on DualSense) all open the in-game Hub menu.
+      // Same behavior as tapping the virtual MENU button on the chassis.
+      function openHubMenu() {
+        if (typeof toggleModal === 'function') {
+          toggleModal('hub');
+        } else {
+          // Fallback: click the hz-menu hotzone if the direct fn isn't
+          // in scope for some reason.
+          const el = document.querySelector('.hotzone.hz-menu');
+          if (el) el.click();
+        }
+      }
       function poll() {
         const pads = navigator.getGamepads ? navigator.getGamepads() : [];
         for (let i = 0; i < pads.length; i++) {
@@ -6103,6 +6150,16 @@
             if (nowDown !== wasDown) {
               prev[`${p}:11`] = nowDown;
               if (nowDown) toggleRun();
+            }
+          }
+          // Create (idx 8), Options (idx 9), Touchpad (idx 17) → Hub menu.
+          // Any of the three opens (or closes) the in-game hub modal.
+          for (const menuIdx of [8, 9, 17]) {
+            const nowDown = !!(pad.buttons[menuIdx] && pad.buttons[menuIdx].pressed);
+            const wasDown = !!prev[`${p}:${menuIdx}`];
+            if (nowDown !== wasDown) {
+              prev[`${p}:${menuIdx}`] = nowDown;
+              if (nowDown) openHubMenu();
             }
           }
           // D-pad → Arrow keys · press+release.

@@ -5937,6 +5937,69 @@
       resetBState();
     });
 
+    // ============ PS5 DualSense controller (Gamepad API · 2026-07-27) ============
+    // Maps the canonical AOV controller layout onto Expedition's keyboard
+    // controls by synthesizing KeyboardEvents.  Uses the same setKey()
+    // plumbing everything else routes through — no new input paths.
+    //
+    //   Cross (0)     → 'a' · Interact / exit / gate / door / chest / npc / Aethryx close
+    //   Circle (1)    → 'b' · hold=run · double-tap=fly (press+release both fire)
+    //   Square (2)    → 'x' · Kick
+    //   Triangle (3)  → 'y' · Punch
+    //   L1 (4)        → 'l' · reserved
+    //   R1 (5)        → 'r' · Return to Ship
+    //   D-pad 12/13/14/15  → Arrow keys
+    //   Left stick axes 0/1 → Arrow keys (0.4 deadzone)
+    //
+    // Edge-detected: only fires on state transitions so holding a button
+    // doesn't spam KeyboardEvents.  Circle (B) is the one exception —
+    // both press AND release must fire so the run/fly tap-classifier works.
+    (function _expeditionGamepad() {
+      if (!navigator.getGamepads) return;
+      const BTN = { 0:'a', 1:'b', 2:'x', 3:'y', 4:'l', 5:'r',
+                    12:'ArrowUp', 13:'ArrowDown', 14:'ArrowLeft', 15:'ArrowRight' };
+      const DEAD = 0.40;
+      const prev = {};
+      function fire(key, down) {
+        const evt = new KeyboardEvent(down ? 'keydown' : 'keyup', {
+          key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key,
+          bubbles: true, cancelable: true, repeat: false,
+        });
+        window.dispatchEvent(evt);
+      }
+      function poll() {
+        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        for (let i = 0; i < pads.length; i++) {
+          const pad = pads[i]; if (!pad) continue;
+          // Buttons — every mapped index fires on transition.  Circle
+          // (B) fires BOTH press and release.  Others fire on press only,
+          // then keyup on release to keep the underlying input state clean.
+          for (const idx in BTN) {
+            const key = BTN[idx];
+            const nowDown = !!(pad.buttons[idx] && pad.buttons[idx].pressed);
+            const stateKey = `${pad.index}:${idx}`;
+            const wasDown = !!prev[stateKey];
+            if (nowDown !== wasDown) {
+              prev[stateKey] = nowDown;
+              fire(key, nowDown);
+            }
+          }
+          // Left stick → arrow keys (discrete edges only).
+          const ax0 = pad.axes[0] || 0, ax1 = pad.axes[1] || 0;
+          const stickState = (posKey, negKey, val) => {
+            const posNow = val >  DEAD, negNow = val < -DEAD;
+            const posK = `stick:${pad.index}:${posKey}`, negK = `stick:${pad.index}:${negKey}`;
+            if (posNow !== !!prev[posK]) { prev[posK] = posNow; fire(posKey, posNow); }
+            if (negNow !== !!prev[negK]) { prev[negK] = negNow; fire(negKey, negNow); }
+          };
+          stickState('ArrowRight', 'ArrowLeft', ax0);
+          stickState('ArrowDown',  'ArrowUp',   ax1);
+        }
+        requestAnimationFrame(poll);
+      }
+      requestAnimationFrame(poll);
+    })();
+
     // ============ Hotzone controller (GBA-style chassis) ============
     // Each .hotzone button on the controller frame has a `data-hot` attribute
     // identifying which control it represents. D-pad arrows are wired to

@@ -165,11 +165,30 @@
   // "Skip / Continue / Start" button.  Also fires a click on the first
   // visible "Skip" or "Continue" button if one exists (nicer UX for
   // loading screens that don't wire Enter).
+  //
+  // ★ 2026-07-27 (fix) · Only auto-click a Skip/Start button if it's
+  // ACTUALLY VISIBLE (not inside a hidden ancestor, <template>, or
+  // display:none block).  RP6 hit a bug where the deprecated "Start
+  // Adventure" button lived in a hidden <section> and got auto-clicked
+  // by Options, launching a dead codepath.
+  function elIsTrulyVisible(el) {
+    if (!el || !el.getClientRects().length) return false;
+    // Any ancestor with `hidden`, `display:none`, or inside a <template> disqualifies.
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      if (node.hidden) return false;
+      if (node.tagName === 'TEMPLATE') return false;
+      const cs = getComputedStyle(node);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity || 1) < 0.05) return false;
+    }
+    const r = el.getBoundingClientRect();
+    return r.width > 2 && r.height > 2;
+  }
   function pressStart() {
     document.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Enter', code: 'Enter', bubbles: true, cancelable: true
     }));
     const skipButton = Array.from(document.querySelectorAll(SELECTOR)).find(el => {
+      if (!elIsTrulyVisible(el)) return false;
       const t = ((el.textContent || el.getAttribute('aria-label') || '').trim()).toLowerCase();
       return /^(skip|continue|start|begin|play|next|proceed|enter)/i.test(t);
     });

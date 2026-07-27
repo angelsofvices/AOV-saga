@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description" content="AOV™ Saga: Realms — 2D action prototype with Adventure (side-scroller) and Tournament (MK-style fighter) modes." />
-  <title>Realms · The AOV Saga</title>
+  <meta name="description" content="AOV™ Saga: The Eternal War — non-canonical fighter roster of the entire saga. Fighter vs fighter or fighter vs CPU. Mortal-Kombat-style arena duels · PS5 DualSense supported · landscape only." />
+  <title>The Eternal War · The AOV Saga</title>
   <meta name="theme-color" content="#050310">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -492,28 +492,29 @@
 
 <nav class="nav">
   <a class="nav-back" href="/games.html">← Games</a>
-  <span class="nav-title">Realms · v6</span>
+  <span class="nav-title">The Eternal War · v7</span>
   <span style="width: 80px;"></span>
 </nav>
 
 <main class="app" id="app">
 
-  <!-- ============ Title screen ============ -->
+  <!-- ★ 2026-07-27 · Renamed to The Eternal War · fighter-only · Adventure mode retired. -->
   <section class="screen" id="title-screen">
-    <div class="screen-eyebrow">Prototype 06 · 2D Action</div>
-    <h1 class="screen-h1">Realms</h1>
+    <div class="screen-eyebrow">Prototype 06 · Fighter · Non-Canonical</div>
+    <h1 class="screen-h1">The Eternal War</h1>
     <div class="divider"><span class="line"></span><span class="diamond"></span><span class="line"></span></div>
-    <p class="screen-tagline">Side-scrolling realms · Arena duels · Two modes, one universe</p>
+    <p class="screen-tagline">Every fighter from every saga.  One arena.  Two rounds to a match.</p>
+    <p class="screen-tagline" style="opacity:0.55; font-size:0.72rem; letter-spacing:0.18em; text-transform:uppercase;">Landscape only · PlayStation 5 DualSense supported</p>
     <div class="mode-pick">
-      <button class="mode-btn" id="btn-mode-adventure">
-        <div class="mode-pill">Mode A</div>
-        <div class="mode-name">Adventure</div>
-        <div class="mode-tag">Solion runs the realms · Side-scroller · Collect, fight, reach the portal</div>
+      <button class="mode-btn" id="btn-mode-vs-cpu">
+        <div class="mode-pill">1P</div>
+        <div class="mode-name">Fighter vs CPU</div>
+        <div class="mode-tag">You pick your fighter · AI picks the opponent · Best of 3 rounds</div>
       </button>
-      <button class="mode-btn" id="btn-mode-tournament">
-        <div class="mode-pill">Mode B</div>
-        <div class="mode-name">Tournament</div>
-        <div class="mode-tag">Arena duels · 27 fighter roster · Best of 3 rounds · vs CPU or hot-seat</div>
+      <button class="mode-btn" id="btn-mode-vs-player">
+        <div class="mode-pill">2P</div>
+        <div class="mode-name">Fighter vs Fighter</div>
+        <div class="mode-tag">Hot-seat · Two players on the same device · Best of 3 rounds</div>
       </button>
     </div>
   </section>
@@ -976,9 +977,17 @@ function $(id) { return document.getElementById(id); }
 function show(id, on) { const el = $(id); if (el) el.hidden = !on; }
 function showAll(map) { for (const [id, on] of Object.entries(map)) show(id, on); }
 
-// ============ Title screen → modes ============
-$('btn-mode-adventure').onclick = () => goAdventureStart();
-$('btn-mode-tournament').onclick = () => goTournamentVs();
+// ============ Title screen → fighter picker (Adventure mode retired 2026-07-27) ============
+// The Eternal War is fighter-only.  Both title buttons skip the old
+// vs-picker screen and go straight to fighter select, pre-selecting
+// the vs mode.  Adventure code paths remain in the file (dead) so the
+// existing helper functions don't break — nothing links to them.
+const _startFighter = (vsMode) => {
+  state.tournament = { vsMode, step: 'p1', p1: null, p2: null };
+  goTournamentSelect();
+};
+$('btn-mode-vs-cpu').onclick    = () => _startFighter('cpu');
+$('btn-mode-vs-player').onclick = () => _startFighter('player');
 
 // ============ Adventure flow ============
 function goAdventureStart() {
@@ -2093,6 +2102,99 @@ function bindHotzone(el) {
   el.addEventListener('mouseleave', mouseRelease);
 }
 document.querySelectorAll('.hotzone').forEach(bindHotzone);
+
+// ★ 2026-07-27 · PS5 DUALSENSE GAMEPAD SUPPORT.
+// Uses the browser Gamepad API standard mapping (canonical per
+// AOV_CONTROLLER_MAPPING.md).  Polling loop reads the connected pad
+// every animation frame and dispatches the same applyHotzone() calls
+// the virtual + keyboard paths use, so gamepad input is a first-class
+// citizen (not a bolt-on).
+//   DualSense face-buttons → RP fighter inputs:
+//     Cross (×)     · index 0 → A · light attack / jump
+//     Circle (○)    · index 1 → B · heavy attack
+//     Square (□)    · index 2 → X · special
+//     Triangle (△)  · index 3 → Y · block
+//   Shoulders → also map to attacks so alt grips work:
+//     L1 index 4 → block (Y)   · R1 index 5 → special (X)
+//     L2 index 6 → light (A)   · R2 index 7 → heavy (B)
+//   Create index 8 → Select · Options index 9 → Start · PS index 16 → Menu
+//   D-pad indices 12/13/14/15 (up/down/left/right) + left stick axes.
+const GP_BTN = {
+  0: 'a', 1: 'b', 2: 'x', 3: 'y',
+  4: 'y', 5: 'x', 6: 'a', 7: 'b',
+  8: 'select', 9: 'start', 16: 'menu',
+  12: 'up', 13: 'down', 14: 'left', 15: 'right',
+};
+const _gpPrev = {};
+function _pollGamepad() {
+  const pads = (navigator.getGamepads && navigator.getGamepads()) || [];
+  for (let i = 0; i < pads.length; i++) {
+    const gp = pads[i];
+    if (!gp) continue;
+    // Face buttons + shoulders + system + D-pad.
+    for (const idx in GP_BTN) {
+      const b = gp.buttons[idx];
+      if (!b) continue;
+      const pressed = !!b.pressed;
+      const key = `${gp.index}:${idx}`;
+      if (pressed !== _gpPrev[key]) {
+        _gpPrev[key] = pressed;
+        applyHotzone(GP_BTN[idx], pressed);
+      }
+    }
+    // Left-stick horizontal / vertical → D-pad style discrete presses.
+    const ax0 = gp.axes[0] || 0, ax1 = gp.axes[1] || 0;
+    const DEAD = 0.35;
+    const stickState = (pos, key, axisValue, sign) => {
+      const held = (sign > 0 ? axisValue > DEAD : axisValue < -DEAD);
+      const trackKey = `stick:${gp.index}:${key}`;
+      if (held !== _gpPrev[trackKey]) {
+        _gpPrev[trackKey] = held;
+        applyHotzone(pos, held);
+      }
+    };
+    stickState('left',  'lx-', ax0, -1);
+    stickState('right', 'lx+', ax0, +1);
+    stickState('up',    'ly-', ax1, -1);
+    stickState('down',  'ly+', ax1, +1);
+  }
+  requestAnimationFrame(_pollGamepad);
+}
+window.addEventListener('gamepadconnected', () => { /* start polling on first connection */ });
+requestAnimationFrame(_pollGamepad);
+
+// ★ 2026-07-27 · Landscape-only enforcement.  The Eternal War is a
+// horizontal fighter; portrait phones get a rotation prompt overlay.
+// PC + console are always landscape and skip the check via the
+// coarse-pointer media query.
+(function _landscapeGate() {
+  const overlay = document.createElement('div');
+  overlay.id = 'rotate-prompt';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(5, 3, 16, 0.95);
+    display: none; align-items: center; justify-content: center;
+    font-family: var(--font-display, 'Cinzel', serif);
+    color: var(--gold-bright, #f4e3b3); text-align: center;
+    letter-spacing: 0.16em; padding: 32px;
+  `;
+  overlay.innerHTML = `
+    <div>
+      <div style="font-size: 44px; margin-bottom: 18px;">↺</div>
+      <div style="font-size: 14px; text-transform: uppercase; margin-bottom: 8px;">Rotate your device</div>
+      <div style="font-size: 12px; color: var(--mist, #c8c2dc); letter-spacing: 0.12em;">The Eternal War is horizontal only.<br>Turn your phone sideways to enter the arena.</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  function check() {
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    const isPortrait = window.innerHeight > window.innerWidth;
+    overlay.style.display = (isTouch && isPortrait) ? 'flex' : 'none';
+  }
+  window.addEventListener('resize', check);
+  window.addEventListener('orientationchange', check);
+  check();
+})();
 
 // Init: title visible, all others hidden
 goTitle();

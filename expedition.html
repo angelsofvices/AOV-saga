@@ -5978,27 +5978,33 @@
       resetBState();
     });
 
-    // ============ PS5 DualSense controller (Gamepad API · 2026-07-27) ============
-    // Maps the canonical AOV controller layout onto Expedition's keyboard
-    // controls by synthesizing KeyboardEvents.  Uses the same setKey()
-    // plumbing everything else routes through — no new input paths.
+    // ============ PS5 DualSense controller (Gamepad API · 2026-07-28) ============
+    // Second-pass mapping per user request.  Face buttons remap so combat
+    // sits on the "action row" (Cross/Circle) and Triangle owns block.
+    // R1 cycles movement mode; R3 (right stick click) toggles run.
     //
-    //   Cross (0)     → 'a' · Interact / exit / gate / door / chest / npc / Aethryx close
-    //   Circle (1)    → 'b' · hold=run · double-tap=fly (press+release both fire)
-    //   Square (2)    → 'x' · Kick
-    //   Triangle (3)  → 'y' · Punch
-    //   L1 (4)        → 'l' · reserved
-    //   R1 (5)        → 'r' · Return to Ship
-    //   D-pad 12/13/14/15  → Arrow keys
-    //   Left stick axes 0/1 → Arrow keys (0.4 deadzone)
+    //   Triangle (△) idx 3   → CHARGE + BLOCK
+    //                          Directly engages player.block (bypasses
+    //                          the tap classifier that governs the 'b'
+    //                          key path) so Triangle is a dedicated
+    //                          block key — no accidental run/fly toggles.
+    //   Cross    (×) idx 0   → 'y' PUNCH
+    //   Circle   (○) idx 1   → 'x' KICK
+    //   Square   (□) idx 2   → 'a' INTERACT (talk / chest / door / UFO)
+    //   L1         idx 4     → reserved
+    //   R1         idx 5     → CYCLE walk → hoverboard → fly → walk
+    //   R3 click   idx 11    → TOGGLE run
+    //   D-pad 12-15          → Arrow keys
+    //   Left stick axes 0/1  → Arrow keys (0.40 deadzone)
     //
-    // Edge-detected: only fires on state transitions so holding a button
-    // doesn't spam KeyboardEvents.  Circle (B) is the one exception —
-    // both press AND release must fire so the run/fly tap-classifier works.
-    (function _expeditionGamepad() {
+    // Edge-detected — buttons fire once per press.  Triangle fires
+    // press+release both (so block starts/stops symmetrically).
+    (function _expeditionGamepadV2() {
       if (!navigator.getGamepads) return;
-      const BTN = { 0:'a', 1:'b', 2:'x', 3:'y', 4:'l', 5:'r',
-                    12:'ArrowUp', 13:'ArrowDown', 14:'ArrowLeft', 15:'ArrowRight' };
+      // Simple-press buttons dispatched as keydown-only.
+      const PRESS_MAP = { 0:'y', 1:'x', 2:'a' };   // Cross=punch · Circle=kick · Square=interact
+      // Arrow-key buttons fire press AND release (so movement holds work).
+      const HOLD_MAP  = { 12:'ArrowUp', 13:'ArrowDown', 14:'ArrowLeft', 15:'ArrowRight' };
       const DEAD = 0.40;
       const prev = {};
       function fire(key, down) {
@@ -6008,28 +6014,112 @@
         });
         window.dispatchEvent(evt);
       }
+      // ---- Triangle · dedicated block/charge (bypass tap classifier) ----
+      function triangleDown() {
+        if (!player || !player.block) return;
+        if (player.block.active) return;   // already blocking
+        bState.anyDown   = true;
+        bState.pressedAt = nowMs();
+        // Force block on immediately — no BLOCK_HOLD_THRESHOLD_MS wait.
+        player.block.active    = true;
+        player.block.phase     = 'charging';
+        player.block.frame     = 0;
+        player.block.frameTime = 0;
+      }
+      function triangleUp() {
+        if (!player || !player.block) return;
+        bState.anyDown = false;
+        if (player.block.active && player.block.phase !== 'fading') {
+          player.block.phase     = 'fading';
+          player.block.frame     = 0;
+          player.block.frameTime = 0;
+        }
+      }
+      // ---- R1 · cycle walk → hoverboard → fly → walk ----
+      function cycleMovementMode() {
+        if (!bState) return;
+        // 3-state cycle read from (runEnabled, flyEnabled):
+        //   walk       : run=false, fly=false
+        //   hoverboard : run=true,  fly=false
+        //   fly        : run=false, fly=true   (fly wins for rendering)
+        if (!bState.runEnabled && !bState.flyEnabled) {
+          bState.runEnabled = true;    // → hoverboard
+          console.log('[input] R1 → HOVERBOARD');
+        } else if (bState.runEnabled && !bState.flyEnabled) {
+          bState.runEnabled = false;
+          bState.flyEnabled = true;    // → fly
+          console.log('[input] R1 → FLY');
+        } else {
+          bState.runEnabled = false;
+          bState.flyEnabled = false;   // → walk
+          console.log('[input] R1 → WALK');
+        }
+      }
+      // ---- R3 · toggle run ----
+      function toggleRun() {
+        if (!bState) return;
+        bState.runEnabled = !bState.runEnabled;
+        console.log('[input] R3 → RUN ' + (bState.runEnabled ? 'ON' : 'OFF'));
+      }
       function poll() {
         const pads = navigator.getGamepads ? navigator.getGamepads() : [];
         for (let i = 0; i < pads.length; i++) {
           const pad = pads[i]; if (!pad) continue;
-          // Buttons — every mapped index fires on transition.  Circle
-          // (B) fires BOTH press and release.  Others fire on press only,
-          // then keyup on release to keep the underlying input state clean.
-          for (const idx in BTN) {
-            const key = BTN[idx];
+          const p = pad.index;
+          // Face-button single-press (Cross/Circle/Square).
+          for (const idx in PRESS_MAP) {
+            const key = PRESS_MAP[idx];
             const nowDown = !!(pad.buttons[idx] && pad.buttons[idx].pressed);
-            const stateKey = `${pad.index}:${idx}`;
-            const wasDown = !!prev[stateKey];
+            const wasDown = !!prev[`${p}:${idx}`];
             if (nowDown !== wasDown) {
-              prev[stateKey] = nowDown;
+              prev[`${p}:${idx}`] = nowDown;
+              if (nowDown) fire(key, true);
+              else         fire(key, false);
+            }
+          }
+          // Triangle (idx 3) → dedicated block · press/release.
+          {
+            const nowDown = !!(pad.buttons[3] && pad.buttons[3].pressed);
+            const wasDown = !!prev[`${p}:3`];
+            if (nowDown !== wasDown) {
+              prev[`${p}:3`] = nowDown;
+              if (nowDown) triangleDown();
+              else         triangleUp();
+            }
+          }
+          // R1 (idx 5) → cycle movement mode · edge on press only.
+          {
+            const nowDown = !!(pad.buttons[5] && pad.buttons[5].pressed);
+            const wasDown = !!prev[`${p}:5`];
+            if (nowDown !== wasDown) {
+              prev[`${p}:5`] = nowDown;
+              if (nowDown) cycleMovementMode();
+            }
+          }
+          // R3 click (idx 11) → toggle run · edge on press only.
+          {
+            const nowDown = !!(pad.buttons[11] && pad.buttons[11].pressed);
+            const wasDown = !!prev[`${p}:11`];
+            if (nowDown !== wasDown) {
+              prev[`${p}:11`] = nowDown;
+              if (nowDown) toggleRun();
+            }
+          }
+          // D-pad → Arrow keys · press+release.
+          for (const idx in HOLD_MAP) {
+            const key = HOLD_MAP[idx];
+            const nowDown = !!(pad.buttons[idx] && pad.buttons[idx].pressed);
+            const wasDown = !!prev[`${p}:${idx}`];
+            if (nowDown !== wasDown) {
+              prev[`${p}:${idx}`] = nowDown;
               fire(key, nowDown);
             }
           }
-          // Left stick → arrow keys (discrete edges only).
+          // Left stick → Arrow keys (discrete edges only).
           const ax0 = pad.axes[0] || 0, ax1 = pad.axes[1] || 0;
           const stickState = (posKey, negKey, val) => {
             const posNow = val >  DEAD, negNow = val < -DEAD;
-            const posK = `stick:${pad.index}:${posKey}`, negK = `stick:${pad.index}:${negKey}`;
+            const posK = `stick:${p}:${posKey}`, negK = `stick:${p}:${negKey}`;
             if (posNow !== !!prev[posK]) { prev[posK] = posNow; fire(posKey, posNow); }
             if (negNow !== !!prev[negK]) { prev[negK] = negNow; fire(negKey, negNow); }
           };

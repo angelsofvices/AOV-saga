@@ -595,6 +595,34 @@
       image-rendering: crisp-edges;
     }
 
+    /* ★ 2026-07-27 · FULLSCREEN MODE (Options › under Controls toggle).
+       When body.fs-mode is set:
+         - The 768×1376 chassis constraint is dropped; chassis fills the
+           full viewport.
+         - The controller_frame.png overlay is hidden.
+         - The screen cutout expands to the whole chassis.
+         - Virtual hotzones are hidden (controller / keyboard only).
+       Perfect for PS5 DualSense play on PC or a landscape session.
+       Toggled via Options › Fullscreen (Hide Controller) · persisted
+       in localStorage as aov-exp-fs-mode. */
+    body.fs-mode .device-chassis {
+      width: 100vw;
+      height: 100vh;
+      width: 100dvw;
+      height: 100dvh;
+      aspect-ratio: auto;
+    }
+    body.fs-mode .device-chassis::after { display: none !important; }
+    body.fs-mode .device-screen {
+      left: 0; top: 0; width: 100%; height: 100%;
+    }
+    body.fs-mode .device-screen canvas {
+      /* In fullscreen, smoothing helps the tile map scale up to any
+         desktop / landscape mobile resolution without chunky pixels. */
+      image-rendering: auto;
+    }
+    body.fs-mode .hotzone { display: none !important; }
+
     /* Hotzones — invisible touch targets sitting on top of each button in the art.
        z-index:3 keeps them ABOVE the ::after controller-frame overlay so taps land.
        `data-hot` attribute drives the JS handler. */
@@ -1683,6 +1711,19 @@
           </div>
         </div>
       </div>
+
+      <!-- ★ 2026-07-27 · Fullscreen toggle (Options › under Controls) —
+           Hides the GBA chassis + hotzones, expands the tile map to
+           fill the viewport.  Suits controller / keyboard players. -->
+      <ul class="options-list" style="margin-top: 8px;">
+        <li class="options-row">
+          <span class="options-label">Fullscreen (Hide Controller)</span>
+          <button class="options-toggle" id="options-fs-toggle" aria-pressed="false">
+            <span class="options-toggle-knob"></span>
+            <span class="options-toggle-text">OFF</span>
+          </button>
+        </li>
+      </ul>
 
       <div class="map-label" style="margin-top: 12px;">More settings coming.</div>
       <!-- Reset Game — destructive. Confirmed via window.confirm before wiping. -->
@@ -6577,6 +6618,10 @@
         const txt = t.querySelector('.options-toggle-text');
         if (txt) txt.textContent = player.hudEnabled ? 'ON' : 'OFF';
       }
+      // ★ 2026-07-27 · Sync the fullscreen toggle to current body.fs-mode
+      // so the pill always reflects reality when the panel opens.
+      const fsOn = document.body.classList.contains('fs-mode');
+      if (typeof syncFullscreenToggleUi === 'function') syncFullscreenToggleUi(fsOn);
       // Reset the Controls expand state every time Options opens so it
       // doesn't stay stuck open. Users tap the chevron to expand on demand.
       const ctrlBody = document.getElementById('controls-body');
@@ -6695,6 +6740,42 @@
         const txt = t.querySelector('.options-toggle-text');
         if (txt) txt.textContent = player.hudEnabled ? 'ON' : 'OFF';
         applyHudVisibility();
+        haptic(8);
+      });
+    });
+
+    // ★ 2026-07-27 · Fullscreen mode toggle (Options › under Controls).
+    // Sets body.fs-mode which:
+    //   - hides the GBA chassis overlay + hotzones
+    //   - expands the tile map to fill the entire viewport
+    //   - keeps controller / keyboard as the only input paths
+    // Persists across sessions via localStorage.  Applied on boot
+    // BEFORE the game frame paints so there's no flash of chassis art.
+    const AOV_FS_KEY = 'aov-exp-fs-mode';
+    function applyFullscreenMode(on) {
+      document.body.classList.toggle('fs-mode', !!on);
+      try { localStorage.setItem(AOV_FS_KEY, on ? '1' : '0'); } catch (_) {}
+      // Force a resize event so any canvas-fitting logic re-runs.
+      try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+    }
+    function syncFullscreenToggleUi(on) {
+      const t = document.getElementById('options-fs-toggle');
+      if (!t) return;
+      t.setAttribute('aria-pressed', on ? 'true' : 'false');
+      const txt = t.querySelector('.options-toggle-text');
+      if (txt) txt.textContent = on ? 'ON' : 'OFF';
+    }
+    // Restore saved preference on boot.
+    try {
+      const saved = localStorage.getItem(AOV_FS_KEY);
+      if (saved === '1') { applyFullscreenMode(true); syncFullscreenToggleUi(true); }
+    } catch (_) {}
+    document.querySelectorAll('#options-fs-toggle').forEach(t => {
+      t.addEventListener('click', () => {
+        const isOn = t.getAttribute('aria-pressed') === 'true';
+        const next = !isOn;
+        applyFullscreenMode(next);
+        syncFullscreenToggleUi(next);
         haptic(8);
       });
     });
@@ -8509,5 +8590,7 @@
     initIntro();
   </script>
   <script src="/aov-gamepad-boot.js"></script>
+  <script>window.aovNavRequireOverlay = true;</script>
+  <script src="/card-game-controller-nav.js"></script>
 </body>
 </html>

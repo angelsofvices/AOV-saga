@@ -17211,6 +17211,29 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
     heldDirections = nextDirections;
   }
 
+  // ★ 2026-07-28 · CHEAT COMBO — hold Create + Options + Touchpad.
+  // Timings: 2000 ms → dev mode, 4000 ms → dev + Ultharis.  Latches
+  // so each stage fires only once per hold; releasing any of the three
+  // system buttons resets the timer.  The per-button single-tap
+  // dispatches (1 / 2 / 3 → menus) are SUPPRESSED while the combo is
+  // active so the three menus don't flash open on the way to the cheat.
+  const COMBO_BTNS = [8, 9, 17];   // Create · Options · Touchpad
+  let comboStart = 0;
+  let comboDevFired = false;
+  let comboUltharisFired = false;
+  function comboActive(pad) {
+    return COMBO_BTNS.every(i => !!pad.buttons[i]?.pressed);
+  }
+  function fireDevCheat() {
+    if (typeof toggleDevMode === 'function') {
+      // Only turn ON — toggle would flip an already-on state OFF.
+      if (!(game && game.devMode)) toggleDevMode();
+    }
+  }
+  function fireUltharisCheat() {
+    if (typeof enableUltharisMode === 'function') enableUltharisMode();
+  }
+
   function pollGamepad() {
     const pads = navigator.getGamepads();
     let pad = activeIndex !== null ? pads[activeIndex] : null;
@@ -17227,6 +17250,32 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
     activeIndex = pad.index;
     setStatus(pad);
 
+    // ── Combo hold-detection (Create + Options + Touchpad) ────────────
+    const inCombo = comboActive(pad);
+    if (inCombo) {
+      if (!comboStart) {
+        comboStart = performance.now();
+        comboDevFired = false;
+        comboUltharisFired = false;
+      }
+      const heldMs = performance.now() - comboStart;
+      if (!comboDevFired && heldMs >= 2000) {
+        comboDevFired = true;
+        fireDevCheat();
+        try { showToast('⚑ DEV MODE armed · keep holding for ULTHARIS…', 2000); } catch(_) {}
+      }
+      if (!comboUltharisFired && heldMs >= 4000) {
+        comboUltharisFired = true;
+        fireUltharisCheat();
+        try { showToast('⚑ ULTHARIS MODE unlocked · every ally, item, key, gem', 3200); } catch(_) {}
+      }
+    } else if (comboStart) {
+      // released — reset for next attempt
+      comboStart = 0;
+      comboDevFired = false;
+      comboUltharisFired = false;
+    }
+
     const nextDirections = new Set();
     const axisX = pad.axes[0] || 0;
     const axisY = pad.axes[1] || 0;
@@ -17240,6 +17289,11 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
       const index = Number(indexText);
       const pressed = !!pad.buttons[index]?.pressed;
       const wasPressed = !!previousButtons[index];
+      // ★ Suppress single-button dispatches for the combo buttons while
+      // the combo is active — otherwise pressing all three would flash
+      // Select-Assignment / Main-Menu / Settings on the way to the cheat.
+      const isComboBtn = COMBO_BTNS.includes(index);
+      if (inCombo && isComboBtn) continue;
       if (pressed && !wasPressed) dispatchKey('keydown', buttonKeys[index]);
       if (!pressed && wasPressed) dispatchKey('keyup', buttonKeys[index]);
     }

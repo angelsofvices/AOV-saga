@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AOV™ RP9 — Gardenlands Playtest</title>
+  <meta name="description" content="Control Anciuxor and explore the Gardenlands of Origon." />
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="AOV™ RP9 — Gardenlands Playtest">
+  <meta property="og:description" content="Control Anciuxor and explore the Gardenlands of Origon.">
+  <meta property="og:image" content="/assets/rp9/rp9-og.png">
+  <meta property="og:image:width" content="1732">
+  <meta property="og:image:height" content="909">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AOV™ RP9 — Gardenlands Playtest">
+  <meta name="twitter:description" content="Control Anciuxor and explore the Gardenlands of Origon.">
+  <meta name="twitter:image" content="/assets/rp9/rp9-og.png">
+  <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
+
+  <!-- Three.js + GLTFLoader from a public CDN via importmap so the game code
+       below can `import * as THREE from "three"` cleanly. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+      "three/examples/jsm/loaders/GLTFLoader.js": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/loaders/GLTFLoader.js",
+      "three/examples/jsm/utils/BufferGeometryUtils.js": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/utils/BufferGeometryUtils.js"
+    }
+  }
+  </script>
+
+  <style>
+    /* ────────────────────────────────────────────────────────────────
+       Ported straight from the vinext project's app/globals.css.
+       The original leaned on @import "tailwindcss"; we've dropped
+       that (Tailwind utility classes are not actually used in the
+       markup — only the custom classes below) so nothing needs a
+       build step to render.
+       ──────────────────────────────────────────────────────────── */
+
+    :root {
+      color-scheme: dark;
+      --gold: #f5c85a;
+      --ink: #081510;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; margin: 0;
+      overflow: hidden;
+      background: #081510;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    button { font: inherit; }
+
+    .game-shell, .game-viewport { width: 100%; height: 100%; }
+    .game-viewport canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+    /* Top-nav (Games back) — subtle, hidden while playing */
+    .top-nav {
+      position: fixed; top: 14px; left: 14px; z-index: 12;
+      display: flex; gap: 10px;
+    }
+    .top-nav a {
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 235, 174, 0.32);
+      color: #fff8df;
+      background: rgba(4, 17, 11, 0.78);
+      border-radius: 4px;
+      font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+      text-decoration: none;
+      backdrop-filter: blur(6px);
+    }
+    .top-nav a:hover { border-color: var(--gold); }
+
+    /* ──────── LAUNCH SCREEN ──────── */
+    .launch-screen {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-end;
+      padding: 32px 32px clamp(30px, 7vh, 84px);
+      text-align: center; color: #f6f2df;
+      background:
+        linear-gradient(180deg, transparent 58%, rgba(2, 12, 9, 0.26) 72%, rgba(2, 10, 8, 0.78) 100%),
+        url("/assets/rp9/rp9-intro-vertical-v1.png") center / cover no-repeat;
+    }
+    .launch-screen.hidden { display: none; }
+    .launch-screen::before {
+      content: ""; position: absolute; inset: 18px;
+      border: 1px solid rgba(245, 200, 90, 0.22);
+      pointer-events: none;
+    }
+    .launch-screen button {
+      min-width: 230px;
+      border: 1px solid #ffe190; border-radius: 4px;
+      padding: 16px 26px;
+      color: #17220f;
+      background: linear-gradient(180deg, #ffe88d, #e4b941);
+      font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 12px 45px rgba(245, 200, 90, 0.2);
+      position: relative; z-index: 1;
+    }
+    .launch-screen button:hover { transform: translateY(-1px); filter: brightness(1.08); }
+    .launch-controls {
+      display: flex; gap: 24px; margin-top: 24px;
+      color: rgba(255, 248, 223, 0.74);
+      font-size: 12px; letter-spacing: 0.05em;
+      position: relative; z-index: 1;
+    }
+
+    /* ──────── HUD ──────── */
+    .hud {
+      position: fixed; z-index: 5;
+      border: 1px solid rgba(255, 235, 174, 0.22);
+      color: #fff8df;
+      background: rgba(4, 17, 11, 0.72);
+      box-shadow: 0 12px 38px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(12px);
+    }
+    .hud-top {
+      top: 18px; left: 18px; right: 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-radius: 4px;
+    }
+    .hud-top > div:first-child { display: flex; align-items: baseline; gap: 12px; }
+    .hud-top strong { color: var(--gold); font-size: 20px; letter-spacing: 0.09em; }
+    .hud-top span {
+      color: rgba(255, 248, 223, 0.7);
+      font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .status {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .status i {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #f2a23a; box-shadow: 0 0 12px currentColor;
+    }
+    .status i.ready { color: #7df07b; background: currentColor; }
+
+    .controls-card {
+      right: 18px; bottom: 18px;
+      display: grid; gap: 7px; padding: 13px 15px;
+      border-radius: 4px;
+      color: rgba(255, 248, 223, 0.62); font-size: 11px;
+    }
+    .controls-card b { display: inline-block; min-width: 58px; color: #fff8df; }
+
+    .reticle {
+      position: fixed; top: 50%; left: 50%; z-index: 4;
+      width: 5px; height: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    /* ──────── MENU STRIP (Map / Menu / Settings) ──────── */
+    .menu-strip {
+      position: fixed; bottom: 18px; left: 50%; z-index: 7;
+      display: flex; gap: 8px;
+      transform: translateX(-50%);
+    }
+    .menu-strip button {
+      display: grid; grid-template-columns: 30px auto;
+      min-width: 122px;
+      border: 1px solid rgba(255, 235, 174, 0.24); border-radius: 5px;
+      padding: 8px 11px;
+      color: #fff8df; background: rgba(4, 17, 11, 0.78);
+      text-align: left; cursor: pointer;
+      backdrop-filter: blur(12px);
+    }
+    .menu-strip button.active { border-color: var(--gold); background: rgba(66, 49, 15, 0.9); }
+    .menu-strip kbd {
+      grid-row: 1 / 3; align-self: center;
+      color: var(--gold); font-size: 18px; font-weight: 900;
+    }
+    .menu-strip span {
+      font-size: 12px; font-weight: 800;
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .menu-strip small {
+      color: rgba(255, 248, 223, 0.5);
+      font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+
+    .menu-backdrop {
+      position: fixed; inset: 0; z-index: 6;
+      display: none; place-items: center;
+      padding: 84px 20px;
+      background: rgba(2, 10, 8, 0.58); backdrop-filter: blur(8px);
+    }
+    .menu-backdrop.show { display: grid; }
+    .menu-panel {
+      width: min(720px, 100%); max-height: 100%;
+      overflow: auto;
+      border: 1px solid rgba(255, 225, 137, 0.42);
+      border-radius: 8px; padding: 24px;
+      color: #fff8df;
+      background: linear-gradient(150deg, rgba(8, 28, 18, 0.98), rgba(4, 15, 11, 0.98));
+      box-shadow: 0 30px 100px rgba(0, 0, 0, 0.55);
+    }
+    .menu-panel header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .menu-panel header small, .menu-panel footer {
+      color: var(--gold);
+      font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    }
+    .menu-panel h2 { margin: 5px 0 0; font-size: clamp(28px, 5vw, 48px); }
+    .close-menu {
+      border: 0; color: #fff8df; background: transparent;
+      font-size: 32px; cursor: pointer;
+    }
+    .map-grid {
+      position: relative; display: grid; place-items: center;
+      min-height: 300px; overflow: hidden;
+      border: 1px solid rgba(171, 227, 132, 0.3); border-radius: 5px;
+      background-color: #315b31;
+      background-image:
+        linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px),
+        radial-gradient(circle at center, #6da94d, #315b31 72%);
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+    .map-grid span {
+      position: absolute; bottom: 16px;
+      color: rgba(255,255,255,.78);
+      font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    }
+    .map-player { color: #ffe48a; font-size: 28px; text-shadow: 0 0 24px #ffe48a; }
+    .map-shell p, .menu-actions p, .settings-shell p {
+      color: rgba(255, 248, 223, 0.58); line-height: 1.5;
+    }
+    .menu-actions, .settings-shell { display: grid; gap: 10px; }
+    .character-switcher {
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 235, 174, 0.16);
+      padding-bottom: 20px;
+    }
+    .character-switcher > small {
+      display: block; margin-bottom: 10px;
+      color: var(--gold); font-size: 10px;
+      letter-spacing: 0.16em; text-transform: uppercase;
+    }
+    .character-switcher > div {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .character-switcher button {
+      display: grid; justify-content: start; gap: 5px;
+      min-height: 88px; text-align: left;
+      border: 1px solid rgba(255, 235, 174, 0.2); border-radius: 4px;
+      padding: 15px 17px;
+      color: #fff8df; background: rgba(255, 255, 255, 0.055);
+      cursor: pointer;
+    }
+    .character-switcher button.selected {
+      border-color: var(--gold);
+      background: linear-gradient(135deg, rgba(245, 200, 90, 0.18), rgba(255, 255, 255, 0.05));
+      box-shadow: inset 0 0 24px rgba(245, 200, 90, 0.08);
+    }
+    .character-switcher button span { font-size: 18px; }
+    .character-switcher button strong {
+      color: rgba(255, 248, 223, 0.55);
+      font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .menu-actions button, .settings-shell button {
+      display: flex; justify-content: space-between;
+      border: 1px solid rgba(255, 235, 174, 0.2); border-radius: 4px;
+      padding: 15px 17px;
+      color: #fff8df; background: rgba(255, 255, 255, 0.055);
+      font-weight: 700; cursor: pointer;
+    }
+    .settings-shell button:disabled { cursor: default; opacity: 0.72; }
+    .settings-shell strong { color: var(--gold); }
+    .menu-panel footer { margin-top: 22px; text-align: center; }
+
+    /* Hide HUD until the game has started */
+    .hud, .menu-strip, .reticle, .menu-backdrop { display: none; }
+    body.playing .hud, body.playing .menu-strip, body.playing .reticle { display: flex; }
+    body.playing .controls-card { display: grid; }
+    body.playing .hud-top { display: flex; }
+    body.playing .top-nav { display: none; }
+
+    @media (max-width: 640px) {
+      .launch-controls { flex-direction: column; gap: 7px; }
+      .hud-top span { display: none; }
+      .controls-card { left: 18px; right: auto; }
+      .menu-strip { bottom: 10px; width: calc(100% - 20px); }
+      .menu-strip button { flex: 1; grid-template-columns: 22px auto; min-width: 0; padding: 7px; }
+      .menu-strip small { display: none; }
+      .menu-panel { padding: 18px; }
+      .map-grid { min-height: 220px; }
+      .character-switcher > div { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<main class="game-shell">
+
+  <!-- Top-left "Games" link, only visible pre-play -->
+  <nav class="top-nav" id="top-nav">
+    <a href="/games.html">← Games</a>
+  </nav>
+
+  <!-- Launch screen -->
+  <section class="launch-screen" id="launch-screen" aria-label="AOV RP9 Gardenlands Playtest">
+    <button id="btn-play">Play</button>
+    <div class="launch-controls">
+      <span>Keyboard: WASD + mouse</span>
+      <span>DualSense: sticks + R2 sprint</span>
+    </div>
+  </section>
+
+  <!-- 3D canvas mount -->
+  <div id="game-viewport" class="game-viewport" aria-label="RP9 Gardenlands 3D playtest"></div>
+
+  <!-- HUD (top strip: title, controller status) -->
+  <header class="hud hud-top" id="hud-top">
+    <div>
+      <strong>RP9</strong>
+      <span id="hud-subtitle">Anciuxor · Gardenlands · Origon</span>
+    </div>
+    <div class="status">
+      <i id="hud-status-dot"></i>
+      <span id="hud-status-text">Summoning Anciuxor…</span>
+    </div>
+  </header>
+
+  <!-- Menu strip (1/2/3 · Create/Touchpad/Options) -->
+  <nav class="menu-strip" id="menu-strip" aria-label="Game menus">
+    <button id="btn-menu-map"><kbd>1</kbd><span>Map</span><small>Create</small></button>
+    <button id="btn-menu-main"><kbd>2</kbd><span>Menu</span><small>Touchpad</small></button>
+    <button id="btn-menu-settings"><kbd>3</kbd><span>Settings</span><small>Options</small></button>
+  </nav>
+
+  <!-- Menu backdrop + panels -->
+  <section class="menu-backdrop" id="menu-backdrop">
+    <article class="menu-panel" id="menu-panel">
+      <header>
+        <div>
+          <small>AOV™ RP9</small>
+          <h2 id="menu-title">Gardenlands Map</h2>
+        </div>
+        <button class="close-menu" id="menu-close" aria-label="Close menu">×</button>
+      </header>
+
+      <!-- Map -->
+      <div class="map-shell" id="menu-body-map" style="display:none">
+        <div class="map-grid"><i class="map-player">◆</i><span>Gardenlands · Origon</span></div>
+        <p>World markers, discoveries, missions, and Homeland routes will be built into this map.</p>
+      </div>
+
+      <!-- Main -->
+      <div class="menu-actions" id="menu-body-main" style="display:none">
+        <div class="character-switcher">
+          <small>Switch Character</small>
+          <div>
+            <button id="btn-char-anciuxor"><span>Anciuxor</span><strong>Ultimate Dracolord</strong></button>
+            <button id="btn-char-elzoran"><span>Elzoran</span><strong>Supreme Dragon Lord</strong></button>
+          </div>
+        </div>
+        <button id="btn-main-resume">Resume Gardenlands<span>▶</span></button>
+        <button id="btn-main-fullscreen">Enter Fullscreen<span>⛶</span></button>
+        <p>Character, mission journal, inventory, and affinity panels will connect here.</p>
+      </div>
+
+      <!-- Settings -->
+      <div class="settings-shell" id="menu-body-settings" style="display:none">
+        <button id="btn-settings-fs"><span>Display</span><strong>Fullscreen</strong></button>
+        <button disabled><span>Controller</span><strong>Connected</strong></button>
+        <button disabled><span>Audio</span><strong>Coming next</strong></button>
+        <p>This overlay is ready for the complete RP9 settings system.</p>
+      </div>
+
+      <footer>Press the same menu button again to close</footer>
+    </article>
+  </section>
+
+  <aside class="hud controls-card" id="controls-card">
+    <span><b>Move</b> WASD / Left Stick</span>
+    <span><b>Camera</b> Drag / Right Stick</span>
+    <span><b>Sprint</b> Shift / R2</span>
+  </aside>
+
+  <div class="reticle" id="reticle" aria-hidden="true"></div>
+
+</main>
+
+<script type="module">
+  import * as THREE from "three";
+  import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+
+  /* ────────────────────────────────────────────────────────────────
+     RP9 Gardenlands · vanilla-JS port of app/page.tsx.
+     Every function below matches its counterpart in the vinext source
+     line-for-line; only React refs / hooks were peeled away.
+     ──────────────────────────────────────────────────────────── */
+
+  const FLOWERS = [
+    0xff284f, 0xff7a19, 0xffdd21, 0xf7f4df,
+    0x3478ff, 0x22d9f2, 0xff5bbd, 0x9d56f7,
+  ];
+
+  function seeded(seed) {
+    let value = seed >>> 0;
+    return () => {
+      value = (value * 1664525 + 1013904223) >>> 0;
+      return value / 4294967296;
+    };
+  }
+
+  function addBox(parent, size, position, color) {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(...size),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.74 }),
+    );
+    mesh.position.set(...position);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    parent.add(mesh);
+    return mesh;
+  }
+
+  function createTree(x, z, variant) {
+    const tree = new THREE.Group();
+    tree.position.set(x, 0.5, z);
+    const height = [3.8, 4.8, 5.8][variant];
+    addBox(tree, [0.75, height, 0.75], [0, height / 2, 0], 0x6d3213);
+    addBox(tree, [1.5, 1.25, 1.5], [0, height + 0.35, 0], 0x167a28);
+    if (variant === 0) {
+      addBox(tree, [2.1, 1.8, 1.8], [-0.65, height + 0.55, 0], 0x1f9a35);
+      addBox(tree, [2.1, 1.8, 1.8], [0.65, height + 0.72, 0.1], 0x116524);
+    } else if (variant === 1) {
+      addBox(tree, [3, 1.2, 2.6], [0, height + 0.25, 0], 0x116524);
+      addBox(tree, [2.45, 1.2, 2.15], [0, height + 1.1, 0], 0x1f8b2d);
+      addBox(tree, [1.9, 1.15, 1.7], [0, height + 1.95, 0], 0x42ae35);
+    } else {
+      addBox(tree, [2.5, 1.45, 2], [-0.8, height + 0.55, 0], 0x116524);
+      addBox(tree, [2.4, 1.45, 2], [0.8, height + 0.7, 0.1], 0x17802b);
+      addBox(tree, [2.9, 1.45, 2.35], [0, height + 1.55, -0.2], 0x229438);
+    }
+    return tree;
+  }
+
+  function createFlower(x, z, color, variant) {
+    const flower = new THREE.Group();
+    flower.position.set(x, 0.5, z);
+    const h = 1.15 + (variant % 3) * 0.18;
+    addBox(flower, [0.09, h, 0.09], [0, h / 2, 0], 0x1f8e2e);
+    addBox(flower, [0.28, 0.1, 0.15], [-0.12, h * 0.55, 0], 0x35ad35);
+    const petals = [[0, 0], [-0.2, 0], [0.2, 0], [0, 0.2], [0, -0.2]];
+    petals.forEach(([dx, dy]) => addBox(flower, [0.22, 0.22, 0.22], [dx, h + dy, 0], color));
+    addBox(flower, [0.13, 0.13, 0.24], [0, h, -0.05], 0xffb21a);
+    return flower;
+  }
+
+  function createStone(x, z, variant) {
+    const rock = new THREE.Group();
+    rock.position.set(x, 0.5, z);
+    addBox(rock, [0.9, 0.55, 0.75], [0, 0.27, 0], 0x596363);
+    if (variant > 0) addBox(rock, [0.55, 0.42, 0.5], [0.45, 0.21, 0.15], 0x7a8380);
+    if (variant > 1) addBox(rock, [0.45, 0.35, 0.45], [-0.4, 0.18, -0.18], 0x485f42);
+    return rock;
+  }
+
+  function buildGardenlands(scene) {
+    const floorGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const floorMaterial = [
+      new THREE.MeshStandardMaterial({ color: 0x6bb852, roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: 0x6bb852, roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: 0x69b94f, roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: 0x4c9d3a, roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: 0x6d3f20, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: 0x6d3f20, roughness: 1 }),
+    ];
+    const floor = new THREE.InstancedMesh(floorGeometry, floorMaterial, 48 * 48);
+    const matrix = new THREE.Matrix4();
+    let index = 0;
+    for (let x = 0; x < 48; x++) {
+      for (let z = 0; z < 48; z++) {
+        matrix.makeTranslation(x - 23.5, 0, z - 23.5);
+        floor.setMatrixAt(index++, matrix);
+      }
+    }
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const treePositions = [
+      [-18.5, -16.7], [-14.4, -18.5], [-18.5, -8.9], [-17, 12.6],
+      [-13.5, 18], [-7, 19], [8.5, 18.5], [14.8, 17], [18.7, 11],
+      [18, 2.2], [18.5, -13.8], [13.7, -18.5], [6.3, -19], [-18.5, 3.3],
+    ];
+    treePositions.forEach(([x, z], i) => scene.add(createTree(x, z, i % 3)));
+
+    const random = seeded(333);
+    for (let i = 0; i < 48; i++) {
+      let x = 0, z = 0;
+      do {
+        x = (random() - 0.5) * 41;
+        z = (random() - 0.5) * 41;
+      } while (x * x + z * z < 45);
+      scene.add(createFlower(x, z, FLOWERS[i % FLOWERS.length], i));
+    }
+    const rocks = [
+      [-13, -10], [-11.3, -9.2], [-9.4, -8.9], [-7.6, -7.8],
+      [10.4, 8.9], [11.8, 7.6], [13.3, 5.9], [14.4, 4.1],
+      [-4.1, 15.2], [-2, 15.9], [0.2, 15.5], [6.5, -13],
+    ];
+    rocks.forEach(([x, z], i) => scene.add(createStone(x, z, i % 3)));
+
+    for (let i = 0; i < 90; i++) {
+      let x = (random() - 0.5) * 42;
+      let z = (random() - 0.5) * 42;
+      if (x * x + z * z < 35) {
+        x += Math.sign(x || 1) * 7;
+        z += Math.sign(z || 1) * 7;
+      }
+      const tuft = new THREE.Group();
+      tuft.position.set(x, 0.5, z);
+      for (let b = 0; b < 4; b++) {
+        const h = 0.2 + random() * 0.35;
+        addBox(tuft, [0.05, h, 0.05], [(random() - 0.5) * 0.28, h / 2, (random() - 0.5) * 0.28], b % 2 ? 0x3b9f34 : 0x246e28);
+      }
+      scene.add(tuft);
+    }
+  }
+
+  function fallbackAnciuxor() {
+    const dragon = new THREE.Group();
+    addBox(dragon, [3.2, 3.4, 4.5], [0, 2.2, 0], 0xe8e4cf);
+    addBox(dragon, [2.2, 2, 2], [0, 5.2, -1.3], 0xf5f1db);
+    addBox(dragon, [13, 0.5, 3], [-6.5, 5.4, 0], 0xf5f1db);
+    addBox(dragon, [13, 0.5, 3], [6.5, 5.4, 0], 0xf5f1db);
+    addBox(dragon, [1, 0.5, 0.5], [0, 5.3, -2.35], 0xff9e35);
+    return dragon;
+  }
+
+  /* ────────────────── DOM refs ────────────────── */
+  const $ = (id) => document.getElementById(id);
+  const launchScreen  = $('launch-screen');
+  const mount         = $('game-viewport');
+  const backdrop      = $('menu-backdrop');
+  const menuTitle     = $('menu-title');
+  const menuBodyMap   = $('menu-body-map');
+  const menuBodyMain  = $('menu-body-main');
+  const menuBodySets  = $('menu-body-settings');
+  const btnMenuMap    = $('btn-menu-map');
+  const btnMenuMain   = $('btn-menu-main');
+  const btnMenuSets   = $('btn-menu-settings');
+  const btnCharAnc    = $('btn-char-anciuxor');
+  const btnCharElz    = $('btn-char-elzoran');
+  const hudSubtitle   = $('hud-subtitle');
+  const hudStatusDot  = $('hud-status-dot');
+  const hudStatusText = $('hud-status-text');
+
+  /* ────────────────── state ────────────────── */
+  let started = false;
+  let loaded  = false;
+  let controllerLabel = 'Keyboard';
+  let selectedCharacter = 'Anciuxor';
+  let activeMenu = null;  // 'map' | 'main' | 'settings' | null
+  const characterModels = {};
+
+  function paintCharacterSwitcher() {
+    btnCharAnc.classList.toggle('selected', selectedCharacter === 'Anciuxor');
+    btnCharElz.classList.toggle('selected', selectedCharacter === 'Elzoran');
+    hudSubtitle.textContent = `${selectedCharacter} · Gardenlands · Origon`;
+  }
+  paintCharacterSwitcher();
+
+  function paintMenuStrip() {
+    btnMenuMap .classList.toggle('active', activeMenu === 'map');
+    btnMenuMain.classList.toggle('active', activeMenu === 'main');
+    btnMenuSets.classList.toggle('active', activeMenu === 'settings');
+    backdrop.classList.toggle('show', activeMenu !== null);
+    menuBodyMap .style.display = activeMenu === 'map'      ? '' : 'none';
+    menuBodyMain.style.display = activeMenu === 'main'     ? '' : 'none';
+    menuBodySets.style.display = activeMenu === 'settings' ? '' : 'none';
+    if (activeMenu === 'map')      menuTitle.textContent = 'Gardenlands Map';
+    if (activeMenu === 'main')     menuTitle.textContent = 'Main Menu';
+    if (activeMenu === 'settings') menuTitle.textContent = 'Settings';
+  }
+  function toggleMenu(menu) {
+    activeMenu = (activeMenu === menu) ? null : menu;
+    paintMenuStrip();
+  }
+  function switchCharacter(character) {
+    selectedCharacter = character;
+    paintCharacterSwitcher();
+    Object.entries(characterModels).forEach(([name, model]) => {
+      if (model) model.visible = name === character;
+    });
+  }
+
+  async function requestGameFullscreen(force = false) {
+    const isConsole = /PlayStation|Xbox|Nintendo/i.test(navigator.userAgent);
+    const isLandscapeMobile = matchMedia('(pointer: coarse) and (orientation: landscape)').matches;
+    if ((force || isConsole || isLandscapeMobile) && !document.fullscreenElement) {
+      try { await document.documentElement.requestFullscreen?.(); } catch (_) {}
+    }
+  }
+
+  async function enterGardenlands() {
+    await requestGameFullscreen();
+    launchScreen.classList.add('hidden');
+    document.body.classList.add('playing');
+    started = true;
+    startThreeScene();
+  }
+
+  /* ────────────────── Menu / character wiring ────────────────── */
+  btnMenuMap    .addEventListener('click', () => toggleMenu('map'));
+  btnMenuMain   .addEventListener('click', () => toggleMenu('main'));
+  btnMenuSets   .addEventListener('click', () => toggleMenu('settings'));
+  $('menu-close').addEventListener('click', () => toggleMenu(null));
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) toggleMenu(null); });
+  btnCharAnc.addEventListener('click', () => switchCharacter('Anciuxor'));
+  btnCharElz.addEventListener('click', () => switchCharacter('Elzoran'));
+  $('btn-main-resume').addEventListener('click', () => toggleMenu(null));
+  $('btn-main-fullscreen').addEventListener('click', () => requestGameFullscreen(true));
+  $('btn-settings-fs').addEventListener('click', () => requestGameFullscreen(true));
+  $('btn-play').addEventListener('click', enterGardenlands);
+
+  /* ────────────────── Three.js scene ────────────────── */
+  function startThreeScene() {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x68bde0);
+    scene.fog = new THREE.Fog(0x68bde0, 55, 105);
+    const camera = new THREE.PerspectiveCamera(58, mount.clientWidth / mount.clientHeight, 0.1, 180);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.65));
+    renderer.setSize(mount.clientWidth, mount.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+    mount.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xbbe8ff, 0x29451f, 1.35));
+    const sunTarget = new THREE.Object3D();
+    scene.add(sunTarget);
+    const sun = new THREE.DirectionalLight(0xffdda0, 4.6);
+    sun.position.set(-18, 28, -12);
+    sun.target = sunTarget;
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -24;
+    sun.shadow.camera.right = 24;
+    sun.shadow.camera.top = 24;
+    sun.shadow.camera.bottom = -24;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 85;
+    sun.shadow.bias = -0.00025;
+    sun.shadow.normalBias = 0.035;
+    sun.shadow.radius = 3;
+    const skyRim = new THREE.DirectionalLight(0x8acbff, 1.15);
+    skyRim.target = sunTarget;
+    scene.add(sun, skyRim);
+    buildGardenlands(scene);
+
+    const player = new THREE.Group();
+    player.position.set(0, 0.5, 0);
+    scene.add(player);
+
+    const mixers = [];
+    const walkActions = new Map();
+    const loader = new GLTFLoader();
+
+    function setStatusReady() {
+      loaded = true;
+      hudStatusDot.classList.add('ready');
+      hudStatusText.textContent = controllerLabel;
+    }
+
+    function loadCharacter(name, url) {
+      loader.load(url,
+        (gltf) => {
+          const model = gltf.scene;
+          const bounds = new THREE.Box3().setFromObject(model);
+          model.position.y -= bounds.min.y;
+          model.visible = selectedCharacter === name;
+          player.add(model);
+          characterModels[name] = model;
+          const mixer = new THREE.AnimationMixer(model);
+          mixers.push(mixer);
+          const clip = gltf.animations.find(a => a.name.includes(name) && a.name.includes('Walk_RP9'))
+                    ?? gltf.animations.at(-1);
+          if (clip) {
+            const walkAction = mixer.clipAction(clip);
+            walkAction.play();
+            walkAction.paused = true;
+            walkActions.set(name, walkAction);
+          }
+          if (name === 'Anciuxor') setStatusReady();
+        },
+        undefined,
+        () => {
+          if (name === 'Anciuxor') {
+            const fallback = fallbackAnciuxor();
+            player.add(fallback);
+            characterModels.Anciuxor = fallback;
+            setStatusReady();
+          }
+        }
+      );
+    }
+    loadCharacter('Anciuxor', '/assets/rp9/anciuxor-rp9.glb');
+    loadCharacter('Elzoran',  '/assets/rp9/elzoran-rp9.glb');
+
+    /* ────── Input ────── */
+    const keys = new Set();
+    const menuButtonLatch = [false, false, false];
+
+    const down = (event) => {
+      if (event.code === 'Digit1' || event.code === 'Numpad1') return toggleMenu('map');
+      if (event.code === 'Digit2' || event.code === 'Numpad2') return toggleMenu('main');
+      if (event.code === 'Digit3' || event.code === 'Numpad3') return toggleMenu('settings');
+      if (event.code === 'Escape') return toggleMenu(null);
+      keys.add(event.code);
+    };
+    const up = (event) => keys.delete(event.code);
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('gamepadconnected', () => {
+      controllerLabel = 'DualSense / Gamepad';
+      if (loaded) hudStatusText.textContent = controllerLabel;
+    });
+    window.addEventListener('gamepaddisconnected', () => {
+      controllerLabel = 'Keyboard';
+      if (loaded) hudStatusText.textContent = controllerLabel;
+    });
+
+    let cameraYaw = Math.PI;
+    let cameraPitch = 0.36;
+    let dragging = false, lastX = 0, lastY = 0;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      renderer.domElement.setPointerCapture(e.pointerId);
+    });
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      cameraYaw -= (e.clientX - lastX) * 0.006;
+      cameraPitch = THREE.MathUtils.clamp(cameraPitch + (e.clientY - lastY) * 0.004, 0.12, 0.85);
+      lastX = e.clientX; lastY = e.clientY;
+    });
+    renderer.domElement.addEventListener('pointerup', () => { dragging = false; });
+
+    const clock = new THREE.Clock();
+    const move = new THREE.Vector2();
+    const forward = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const desiredSun = new THREE.Vector3();
+    const desiredSunTarget = new THREE.Vector3();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.05);
+      move.set(
+        (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0),
+        (keys.has('KeyW') || keys.has('ArrowUp')    ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0),
+      );
+      let sprint = keys.has('ShiftLeft') || keys.has('ShiftRight');
+
+      const pads = navigator.getGamepads?.() ?? [];
+      const pad = Array.from(pads).find(Boolean);
+      if (pad) {
+        if (controllerLabel !== 'DualSense / Gamepad') {
+          controllerLabel = 'DualSense / Gamepad';
+          if (loaded) hudStatusText.textContent = controllerLabel;
+        }
+        const dead = 0.14;
+        const lx = Math.abs(pad.axes[0] ?? 0) > dead ? pad.axes[0] : 0;
+        const ly = Math.abs(pad.axes[1] ?? 0) > dead ? -(pad.axes[1] ?? 0) : 0;
+        if (Math.abs(lx) + Math.abs(ly) > move.length()) move.set(lx, ly);
+        cameraYaw   -= (Math.abs(pad.axes[2] ?? 0) > dead ? pad.axes[2] : 0) * delta * 2.2;
+        cameraPitch  = THREE.MathUtils.clamp(cameraPitch + (Math.abs(pad.axes[3] ?? 0) > dead ? pad.axes[3] : 0) * delta * 1.5, 0.12, 0.85);
+        sprint ||= Boolean(pad.buttons[10]?.pressed || pad.buttons[7]?.pressed);
+        const menuButtons = [
+          Boolean(pad.buttons[8]?.pressed),
+          Boolean(pad.buttons[17]?.pressed),
+          Boolean(pad.buttons[9]?.pressed),
+        ];
+        const menuNames = ['map', 'main', 'settings'];
+        menuButtons.forEach((pressed, index) => {
+          if (pressed && !menuButtonLatch[index]) toggleMenu(menuNames[index]);
+          menuButtonLatch[index] = pressed;
+        });
+      }
+
+      const moving = activeMenu === null && move.lengthSq() > 0.02;
+      if (moving) {
+        move.normalize();
+        forward.set(-Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
+        right.set(-forward.z, 0, forward.x);
+        const direction = forward.multiplyScalar(move.y).add(right.multiplyScalar(move.x)).normalize();
+        const speed = sprint ? 9.5 : 5.6;
+        player.position.addScaledVector(direction, speed * delta);
+        player.position.x = THREE.MathUtils.clamp(player.position.x, -22.25, 22.25);
+        player.position.z = THREE.MathUtils.clamp(player.position.z, -22.25, 22.25);
+        player.rotation.y = Math.atan2(direction.x, direction.z);
+      }
+
+      walkActions.forEach((action, name) => {
+        action.paused = !moving || name !== selectedCharacter;
+        action.timeScale = sprint ? 1.45 : 1;
+      });
+      mixers.forEach((m) => m.update(delta));
+
+      const isElzoran = selectedCharacter === 'Elzoran';
+      const distance = isElzoran ? 16 : 27;
+      const horizontal = Math.cos(cameraPitch) * distance;
+      const desired = new THREE.Vector3(
+        player.position.x + Math.sin(cameraYaw) * horizontal,
+        player.position.y + 6 + Math.sin(cameraPitch) * distance,
+        player.position.z + Math.cos(cameraYaw) * horizontal,
+      );
+      camera.position.lerp(desired, 1 - Math.pow(0.002, delta));
+      camera.lookAt(player.position.x, player.position.y + (isElzoran ? 3.4 : 4.5), player.position.z);
+
+      const sunAngle = cameraYaw - 0.85;
+      desiredSun.set(
+        player.position.x + Math.sin(sunAngle) * 24,
+        player.position.y + 32,
+        player.position.z + Math.cos(sunAngle) * 24,
+      );
+      sun.position.lerp(desiredSun, 1 - Math.pow(0.035, delta));
+      desiredSunTarget.set(player.position.x, player.position.y + 2.8, player.position.z);
+      sunTarget.position.lerp(desiredSunTarget, 1 - Math.pow(0.012, delta));
+      skyRim.position.set(
+        player.position.x - Math.sin(sunAngle) * 18,
+        player.position.y + 14,
+        player.position.z - Math.cos(sunAngle) * 18,
+      );
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = mount.clientWidth / mount.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(mount.clientWidth, mount.clientHeight);
+    });
+  }
+</script>
+
+<script src="/aov-gamepad-boot.js"></script>
+<script>
+  // RP9 owns the pad — its own poller reads left/right stick + Cross + system buttons.
+  // Nav helper stands down (shared card-game-controller-nav hard opt-out).
+  window.aovNavOwnedByGame = true;
+  window.aovNavRequireOverlay = true;
+</script>
+<script src="/card-game-controller-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#050310">
+  <title>Prototype 09 · The Origins of Power · Origon</title>
+  <meta name="description" content="Walk the First World. Recover the first Astralite fragments before Aenor's light fades." />
+
+  <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --gold-bright: #f4e3b3;
+      --gold: #e8c878;
+      --gold-deep: #8a6d2c;
+      --mist: #c8c2dc;
+      --void: #050310;
+      --font-display: 'Cinzel', serif;
+      --font-meta: 'Inter', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+    html, body {
+      margin: 0; width: 100%; height: 100%;
+      overflow: hidden; background: var(--void);
+      font-family: var(--font-meta); color: var(--gold-bright);
+    }
+
+    /* ============ Top nav ============ */
+    .nav {
+      position: fixed; inset: 0 0 auto 0; z-index: 30;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 18px;
+      background: linear-gradient(180deg, rgba(5,3,16,0.85), transparent);
+      pointer-events: none;
+    }
+    .nav a, .nav button {
+      pointer-events: auto;
+      font-family: var(--font-meta);
+      font-size: 0.55rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      text-decoration: none;
+      background: rgba(10, 6, 24, 0.65);
+      border: 1px solid rgba(232,200,120,0.35);
+      padding: 8px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .nav a:hover, .nav button:hover {
+      color: var(--gold-bright); border-color: var(--gold-bright);
+    }
+    .nav-title {
+      font-family: var(--font-display);
+      font-size: 0.7rem;
+      letter-spacing: 0.32em;
+      color: var(--gold-bright);
+    }
+    .nav-audio.muted { opacity: 0.55; }
+
+    /* ============ STAGE — fullscreen letterbox, 16:9 default ============ */
+    .stage {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .stage canvas {
+      /* Fill viewport preserving 16:9 aspect (letterbox). */
+      width:  min(100vw, calc(100dvh * 16 / 9));
+      height: min(100dvh, calc(100vw * 9 / 16));
+      max-width: 100vw; max-height: 100dvh;
+      display: block;
+      background: #000;
+    }
+
+    /* ============ HUD ============ */
+    .hud {
+      position: fixed; left: 0; right: 0; top: 60px;
+      display: flex; justify-content: center;
+      pointer-events: none; z-index: 20;
+    }
+    .hud-inner {
+      display: flex; gap: 18px; align-items: center;
+      background: rgba(10, 6, 24, 0.72);
+      border: 1px solid rgba(232,200,120,0.35);
+      border-radius: 4px;
+      padding: 8px 18px;
+      backdrop-filter: blur(6px);
+    }
+    .hud-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.5rem; letter-spacing: 0.32em; text-transform: uppercase;
+      color: var(--mist); opacity: 0.7;
+    }
+    .hud-value {
+      font-family: var(--font-display); font-size: 0.85rem;
+      letter-spacing: 0.18em; color: var(--gold-bright);
+    }
+    .hud-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+
+    /* ============ Intro overlay ============ */
+    .intro {
+      position: fixed; inset: 0; z-index: 40;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 40%, rgba(20,14,44,0.72), rgba(5,3,16,0.96));
+      backdrop-filter: blur(8px);
+    }
+    .intro.hidden { display: none; }
+    .intro-card {
+      max-width: 620px;
+      padding: 34px 42px 30px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(20,14,44,0.9), rgba(10,6,24,0.92));
+      border: 1px solid rgba(232,200,120,0.55);
+      border-radius: 8px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 60px rgba(232,200,120,0.22);
+    }
+    .intro-eyebrow {
+      font-family: var(--font-meta);
+      font-size: 0.55rem; letter-spacing: 0.42em; text-transform: uppercase;
+      color: var(--gold); opacity: 0.85;
+      margin-bottom: 6px;
+    }
+    .intro-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.9rem, 5vw, 2.6rem);
+      letter-spacing: 0.14em;
+      background: linear-gradient(180deg, var(--gold-bright), var(--gold), var(--gold-deep));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      margin: 0 0 10px;
+    }
+    .intro-sub {
+      font-family: var(--font-meta);
+      font-size: 0.65rem; letter-spacing: 0.24em; text-transform: uppercase;
+      color: var(--mist); opacity: 0.85;
+      margin: 0 0 22px;
+    }
+    .intro-body {
+      font-family: 'Cormorant Garamond', 'Georgia', serif;
+      font-size: 1rem; line-height: 1.55;
+      color: var(--gold-bright);
+      opacity: 0.9;
+      margin: 0 0 26px;
+    }
+    .intro-body em { color: var(--gold); font-style: italic; }
+    .intro-btn {
+      font-family: var(--font-display);
+      font-size: 0.95rem; letter-spacing: 0.24em; text-transform: uppercase;
+      color: var(--gold-bright); background: rgba(232,200,120,0.15);
+      border: 1px solid var(--gold-bright); border-radius: 4px;
+      padding: 14px 34px; cursor: pointer;
+      transition: transform 0.12s ease, background 0.15s ease;
+    }
+    .intro-btn:hover { transform: translateY(-1px); background: rgba(232,200,120,0.28); }
+    .intro-hint {
+      font-family: var(--font-meta);
+      font-size: 0.55rem; letter-spacing: 0.32em; text-transform: uppercase;
+      color: var(--mist); opacity: 0.7;
+      margin-top: 14px;
+    }
+
+    /* ============ Reveal ticker (lore beat per fragment) ============ */
+    .lore-toast {
+      position: fixed; left: 50%; bottom: 40px;
+      transform: translateX(-50%) translateY(20px);
+      max-width: 620px;
+      padding: 14px 22px;
+      background: rgba(10, 6, 24, 0.9);
+      border: 1px solid rgba(232,200,120,0.55);
+      border-radius: 4px;
+      font-family: 'Cormorant Garamond', 'Georgia', serif;
+      font-size: 0.95rem; line-height: 1.4;
+      color: var(--gold-bright);
+      text-align: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 15;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.55);
+    }
+    .lore-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ============ End screen ============ */
+    .end {
+      position: fixed; inset: 0; z-index: 50;
+      display: none; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 40%, rgba(20,14,44,0.82), rgba(5,3,16,0.98));
+      backdrop-filter: blur(10px);
+    }
+    .end.show { display: flex; }
+    .end-card {
+      max-width: 620px;
+      padding: 36px 44px 30px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(20,14,44,0.94), rgba(10,6,24,0.96));
+      border: 1px solid var(--gold-bright);
+      border-radius: 8px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.75), 0 0 80px rgba(232,200,120,0.28);
+    }
+    .end-title {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 6vw, 3rem);
+      letter-spacing: 0.14em;
+      background: linear-gradient(180deg, var(--gold-bright), var(--gold), var(--gold-deep));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      margin: 0 0 12px;
+    }
+    .end-body {
+      font-family: 'Cormorant Garamond', 'Georgia', serif;
+      font-size: 1.05rem; line-height: 1.55;
+      color: var(--gold-bright); opacity: 0.9;
+      margin: 0 0 26px;
+    }
+    .end-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+<audio id="bgm" src="assets/rp9/origon-theme.mp3" loop preload="auto"></audio>
+
+<nav class="nav">
+  <a href="/games.html" class="nav-back">← Games</a>
+  <span class="nav-title">RP9 · Origins of Power · Origon</span>
+  <button class="nav-audio" id="btn-audio-toggle" title="Toggle music" aria-label="Toggle music">
+    <span id="audio-icon">🔊</span> <span id="audio-label">MUSIC</span>
+  </button>
+</nav>
+
+<div class="stage">
+  <canvas id="game" width="1600" height="900"></canvas>
+</div>
+
+<div class="hud">
+  <div class="hud-inner">
+    <div class="hud-cell">
+      <span class="hud-eyebrow">Fragments</span>
+      <span class="hud-value"><span id="frag-count">0</span> / <span id="frag-total">7</span></span>
+    </div>
+    <div class="hud-cell">
+      <span class="hud-eyebrow">Aenor's Light</span>
+      <span class="hud-value" id="light-value">100%</span>
+    </div>
+  </div>
+</div>
+
+<div class="lore-toast" id="lore-toast"></div>
+
+<!-- Intro overlay -->
+<div class="intro" id="intro">
+  <div class="intro-card">
+    <div class="intro-eyebrow">Prototype 09 · The Origins of Power</div>
+    <h1 class="intro-title">Origon</h1>
+    <p class="intro-sub">Planet 01 · The First World · Age of Aenor</p>
+    <p class="intro-body">
+      Before the ninth world.  Before Zyraxis.  Before every planet the Saga has since counted, there was <em>Origon</em> — first shape reality took under the light of <em>Aenor, the Brightest One</em>.
+      <br><br>
+      Aenor's light is failing.  Seven <em>Astralite Fragments</em> lie scattered across the primordial ground.  Walk the First World.  Gather them before the light goes.
+    </p>
+    <button class="intro-btn" id="intro-start">Begin the First Steps</button>
+    <div class="intro-hint">WASD / Arrow keys / Left Stick to walk · X or Enter to interact</div>
+  </div>
+</div>
+
+<!-- End overlay -->
+<div class="end" id="end">
+  <div class="end-card">
+    <h2 class="end-title" id="end-title">Light Preserved</h2>
+    <p class="end-body" id="end-body">You held Aenor's light long enough to gather every fragment.  The First World remembers.</p>
+    <div class="end-actions">
+      <button class="intro-btn" id="end-restart">Walk Again</button>
+      <a href="/games.html" class="intro-btn" style="text-decoration:none">← Games</a>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============ Canvas + resize ============
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;     // internal render size
+const H = canvas.height;
+ctx.imageSmoothingEnabled = true;
+
+// ============ Assets ============
+const bgImages = ['assets/rp9/origon-landscape.png', 'assets/rp9/origon-fantasy.png']
+  .map(src => { const i = new Image(); i.src = src; return i; });
+let bgIndex = 0;
+
+// ============ Game state ============
+const FRAG_TOTAL = 7;
+const LORE = [
+  '“Aenor was first light. Before the first light, the void.”',
+  '“The First Family walked the ground before the ground had a name.”',
+  '“Draconians rose here — long before they were dragons.”',
+  '“Every Astralite that ever bonded a Rizer was cut from a stone found on this world.”',
+  '“The Prism of the Deep was quarried from Origon before it ever crossed the Expanse.”',
+  '“Aethryx runs strongest here — the vein no other planet inherited whole.”',
+  '“The Origin State ends when the last Fragment is lifted. Something else begins.”',
+];
+const state = {
+  player: { x: W * 0.5, y: H * 0.62, r: 18, vx: 0, vy: 0 },
+  fragments: [],
+  fragmentsCollected: 0,
+  light: 100,           // 0..100 — depletes over time; each fragment refills
+  running: false,
+  startTime: 0,
+  particles: [],        // ambient dust motes
+  keys: new Set(),
+  lastT: 0,
+};
+
+function seedFragments() {
+  state.fragments = [];
+  // Spread 7 fragments across the arena, avoiding the immediate spawn.
+  const pts = [
+    [0.14, 0.30], [0.86, 0.28],
+    [0.22, 0.72], [0.78, 0.74],
+    [0.50, 0.20], [0.34, 0.50], [0.66, 0.52],
+  ];
+  for (const [rx, ry] of pts) {
+    state.fragments.push({
+      x: W * rx, y: H * ry, r: 14,
+      collected: false, pulse: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function seedParticles() {
+  state.particles = [];
+  for (let i = 0; i < 80; i++) {
+    state.particles.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 12,
+      vy: (Math.random() - 0.5) * 8 - 4,
+      r: 0.6 + Math.random() * 1.6,
+      a: 0.15 + Math.random() * 0.4,
+    });
+  }
+}
+
+// ============ Input ============
+window.addEventListener('keydown', e => {
+  state.keys.add(e.key.toLowerCase());
+  state.keys.add(e.code);
+  if (e.code === 'Space' || e.key === 'Enter' || e.key === 'x' || e.key === 'X') {
+    if (state.running) tryPickup();
+  }
+});
+window.addEventListener('keyup', e => {
+  state.keys.delete(e.key.toLowerCase());
+  state.keys.delete(e.code);
+});
+
+// Gamepad — left stick + D-pad move; Cross (A) interacts.
+let _padPrevA = false;
+function readGamepad() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const pad = Array.from(pads).find(Boolean);
+  if (!pad) return { dx: 0, dy: 0 };
+  const dead = 0.18;
+  let dx = (pad.axes[0] || 0);
+  let dy = (pad.axes[1] || 0);
+  if (Math.abs(dx) < dead) dx = 0;
+  if (Math.abs(dy) < dead) dy = 0;
+  if (pad.buttons[14]?.pressed) dx = -1;
+  if (pad.buttons[15]?.pressed) dx =  1;
+  if (pad.buttons[12]?.pressed) dy = -1;
+  if (pad.buttons[13]?.pressed) dy =  1;
+  const aNow = !!pad.buttons[0]?.pressed;
+  if (aNow && !_padPrevA && state.running) tryPickup();
+  _padPrevA = aNow;
+  return { dx, dy };
+}
+
+function tryPickup() {
+  for (const f of state.fragments) {
+    if (f.collected) continue;
+    const dx = f.x - state.player.x;
+    const dy = f.y - state.player.y;
+    if (dx*dx + dy*dy < (state.player.r + f.r + 12) ** 2) {
+      collectFragment(f);
+      return;
+    }
+  }
+}
+
+function collectFragment(f) {
+  f.collected = true;
+  state.fragmentsCollected++;
+  state.light = Math.min(100, state.light + 20);
+  document.getElementById('frag-count').textContent = state.fragmentsCollected;
+  const loreLine = LORE[Math.min(LORE.length - 1, state.fragmentsCollected - 1)];
+  showLore(loreLine);
+  if (state.fragmentsCollected >= FRAG_TOTAL) {
+    setTimeout(() => endGame(true), 900);
+  }
+}
+
+let loreTimer = null;
+function showLore(text) {
+  const el = document.getElementById('lore-toast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(loreTimer);
+  loreTimer = setTimeout(() => el.classList.remove('show'), 3400);
+}
+
+// ============ Movement / update ============
+function step(dt) {
+  // Keyboard input
+  let dx = 0, dy = 0;
+  const K = state.keys;
+  if (K.has('arrowup')    || K.has('w') || K.has('KeyW')) dy -= 1;
+  if (K.has('arrowdown')  || K.has('s') || K.has('KeyS')) dy += 1;
+  if (K.has('arrowleft')  || K.has('a') || K.has('KeyA')) dx -= 1;
+  if (K.has('arrowright') || K.has('d') || K.has('KeyD')) dx += 1;
+  // Gamepad input (adds to keyboard)
+  const gp = readGamepad();
+  dx += gp.dx; dy += gp.dy;
+  // Normalize diagonal
+  const m = Math.hypot(dx, dy);
+  if (m > 1) { dx /= m; dy /= m; }
+
+  const speed = 340;   // px/s
+  state.player.vx = dx * speed;
+  state.player.vy = dy * speed;
+  state.player.x = Math.max(24, Math.min(W - 24, state.player.x + state.player.vx * dt));
+  state.player.y = Math.max(24, Math.min(H - 24, state.player.y + state.player.vy * dt));
+
+  // Light drains 3.5 per second — a full run has ~28 seconds of grace without
+  // any fragment top-ups; each fragment refills 20 so the light lasts easily
+  // if the player moves purposefully.
+  state.light -= 3.5 * dt;
+  if (state.light <= 0) {
+    state.light = 0;
+    endGame(false);
+  }
+  document.getElementById('light-value').textContent = Math.max(0, Math.round(state.light)) + '%';
+
+  // Ambient particles drift up like Origon's aether motes
+  for (const p of state.particles) {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.y < -6) { p.y = H + 6; p.x = Math.random() * W; }
+    if (p.x < -6) p.x = W + 6;
+    if (p.x > W + 6) p.x = -6;
+  }
+
+  // Auto-pickup on contact (in addition to press-to-pickup)
+  tryPickup();
+}
+
+// ============ Render ============
+function drawBackground() {
+  const img = bgImages[bgIndex];
+  if (img && img.complete && img.naturalWidth) {
+    // cover-fit while preserving aspect
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const s = Math.max(W / iw, H / ih);
+    const dw = iw * s, dh = ih * s;
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  } else {
+    // Fallback nebula sky
+    const g = ctx.createRadialGradient(W/2, H*0.4, 30, W/2, H*0.4, W*0.7);
+    g.addColorStop(0, '#3a2a10');
+    g.addColorStop(0.4, '#1a0f38');
+    g.addColorStop(1, '#050310');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  // Vignette
+  const v = ctx.createRadialGradient(W/2, H/2, W*0.35, W/2, H/2, W*0.75);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(5,3,16,0.72)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  // Fade proportional to remaining light — the world literally darkens as the light drops
+  const dimness = Math.max(0, 1 - state.light / 100) * 0.55;
+  if (dimness > 0) {
+    ctx.fillStyle = `rgba(5,3,16,${dimness})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function drawParticles() {
+  for (const p of state.particles) {
+    ctx.globalAlpha = p.a;
+    ctx.fillStyle = '#f4e3b3';
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawFragments(t) {
+  for (const f of state.fragments) {
+    if (f.collected) continue;
+    f.pulse += 0.06;
+    const pulse = 0.75 + Math.sin(f.pulse) * 0.25;
+    // Outer glow
+    const g = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, 48 * pulse);
+    g.addColorStop(0, 'rgba(255, 248, 216, 0.9)');
+    g.addColorStop(0.4, 'rgba(232, 200, 120, 0.35)');
+    g.addColorStop(1, 'rgba(232, 200, 120, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(f.x, f.y, 48 * pulse, 0, Math.PI * 2); ctx.fill();
+    // Core diamond
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(t * 0.001);
+    ctx.fillStyle = '#fff8d8';
+    ctx.beginPath();
+    ctx.moveTo(0, -f.r); ctx.lineTo(f.r * 0.7, 0);
+    ctx.lineTo(0, f.r);  ctx.lineTo(-f.r * 0.7, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#e8c878';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawPlayer() {
+  const p = state.player;
+  // Halo
+  const g = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, 60);
+  g.addColorStop(0, 'rgba(255, 248, 216, 0.55)');
+  g.addColorStop(1, 'rgba(255, 248, 216, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(p.x, p.y, 60, 0, Math.PI * 2); ctx.fill();
+  // Body — small robed figure, silhouette
+  ctx.fillStyle = '#0a0618';
+  ctx.strokeStyle = '#f4e3b3';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y - p.r);
+  ctx.lineTo(p.x + p.r * 0.75, p.y + p.r);
+  ctx.lineTo(p.x - p.r * 0.75, p.y + p.r);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Head
+  ctx.fillStyle = '#f4e3b3';
+  ctx.beginPath(); ctx.arc(p.x, p.y - p.r * 1.1, p.r * 0.4, 0, Math.PI * 2); ctx.fill();
+}
+
+function render(t) {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  drawParticles();
+  drawFragments(t);
+  drawPlayer();
+}
+
+// ============ Loop ============
+function loop(t) {
+  if (!state.running) return;
+  const dt = Math.min(0.05, (t - state.lastT) / 1000);
+  state.lastT = t;
+  step(dt);
+  render(t);
+  requestAnimationFrame(loop);
+}
+
+// ============ Start / end ============
+function startGame() {
+  seedFragments();
+  seedParticles();
+  state.player.x = W * 0.5;
+  state.player.y = H * 0.62;
+  state.fragmentsCollected = 0;
+  state.light = 100;
+  state.running = true;
+  state.lastT = performance.now();
+  document.getElementById('frag-count').textContent = 0;
+  document.getElementById('frag-total').textContent = FRAG_TOTAL;
+  document.getElementById('light-value').textContent = '100%';
+  document.getElementById('intro').classList.add('hidden');
+  document.getElementById('end').classList.remove('show');
+  requestAnimationFrame(loop);
+}
+
+function endGame(won) {
+  state.running = false;
+  const t = document.getElementById('end-title');
+  const b = document.getElementById('end-body');
+  if (won) {
+    t.textContent = 'Light Preserved';
+    b.textContent = 'You held Aenor’s light long enough to gather every Fragment.  Origon remembers your steps — the First Rizer, on the ground before there was a name for it.';
+  } else {
+    t.textContent = 'The Light Went Out';
+    b.textContent = 'Aenor’s light failed before all Fragments were lifted.  The Origin State keeps its own hours.  Walk again.';
+  }
+  document.getElementById('end').classList.add('show');
+}
+
+document.getElementById('intro-start').onclick = startGame;
+document.getElementById('end-restart').onclick = startGame;
+
+// ============ BGM boot + mute toggle (autoplay unlock via gesture) ============
+(function _bgmBoot() {
+  const bgm   = document.getElementById('bgm');
+  const btn   = document.getElementById('btn-audio-toggle');
+  const icon  = document.getElementById('audio-icon');
+  const label = document.getElementById('audio-label');
+  const LS = 'aov-rp9-bgm-muted';
+  let muted = localStorage.getItem(LS) === '1';
+  bgm.volume = 0.5;
+  bgm.muted  = muted;
+  function paint() {
+    icon.textContent  = muted ? '🔇' : '🔊';
+    label.textContent = muted ? 'MUSIC OFF' : 'MUSIC ON';
+    btn.classList.toggle('muted', muted);
+  }
+  paint();
+  function tryPlay() {
+    if (muted) return;
+    const p = bgm.play();
+    if (p && typeof p.then === 'function') p.catch(() => {/* autoplay blocked */});
+  }
+  tryPlay();
+  const gestureBoot = () => {
+    tryPlay();
+    ['click','keydown','touchstart','pointerdown','gamepadconnected'].forEach(ev =>
+      window.removeEventListener(ev, gestureBoot, true));
+  };
+  ['click','keydown','touchstart','pointerdown','gamepadconnected'].forEach(ev =>
+    window.addEventListener(ev, gestureBoot, true));
+  btn.addEventListener('click', () => {
+    muted = !muted;
+    bgm.muted = muted;
+    localStorage.setItem(LS, muted ? '1' : '0');
+    paint();
+    if (!muted) tryPlay();
+  });
+})();
+
+// Draw an initial "waiting" frame behind the intro overlay so the canvas
+// isn't stark black while the player reads the intro card.
+seedFragments();
+seedParticles();
+render(0);
+</script>
+
+<script src="/aov-gamepad-boot.js"></script>
+<script>
+  // RP9 owns the pad — its own poller reads left-stick + D-pad + Cross.
+  // Nav helper stands down (shared card-game-controller-nav hard opt-out).
+  window.aovNavOwnedByGame = true;
+  window.aovNavRequireOverlay = true;
+</script>
+<script src="/card-game-controller-nav.js"></script>
+</body>
+</html>

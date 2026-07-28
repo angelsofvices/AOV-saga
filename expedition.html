@@ -605,34 +605,33 @@
        Perfect for PS5 DualSense play on PC or a landscape session.
        Toggled via Options › Fullscreen (Hide Controller) · persisted
        in localStorage as aov-exp-fs-mode. */
+    /* ★ 2026-07-28 · Fs-mode preserves the ORIGINAL 768:1376 chassis
+       AR (was forced to a square 1:1 which read as "too zoomed in").
+       Chassis fills the viewport as a portrait letterbox; the game
+       canvas keeps its ORIGINAL 85.026% × 50.5814% inset — same
+       position and size relative to the chassis as non-fs mode.  The
+       controller-frame overlay is hidden (that's the point of fs-mode)
+       so the chassis becomes a plain black portrait board with the
+       game canvas sitting in the top area exactly where it always
+       lived. */
     body.fs-mode .device-chassis {
-      width: 100vw;
-      height: 100vh;
-      width: 100dvw;
-      height: 100dvh;
-      aspect-ratio: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #050310;   /* letterbox bars match void bg */
+      width:  min(100vw, calc(100dvh * 768 / 1376));
+      height: min(100dvh, calc(100vw * 1376 / 768));
+      max-width: 100vw;
+      max-height: 100dvh;
+      aspect-ratio: 768 / 1376;
+      margin: auto;
+      background: #050310;   /* letterbox / open-space bars match void bg */
     }
     body.fs-mode .device-chassis::after { display: none !important; }
-    /* ★ 2026-07-28 · LETTERBOX (no stretch).  Canvas is 224×224 pixel-
-       square — keep the 1:1 aspect and just size to the largest square
-       that fits inside the viewport.  Bars on left/right (landscape)
-       or top/bottom (portrait).  Pixel-perfect scaling preserved. */
+    /* Screen cutout stays at the ORIGINAL geometry so the canvas is
+       never stretched — it's the same aspect (~0.938) and same relative
+       position it had inside the chassis art.  Only difference is the
+       chassis is now much larger (fills the viewport). */
     body.fs-mode .device-screen {
-      position: relative;
-      left: auto; top: auto;
-      width:  min(100vw, 100vh);
-      height: min(100vw, 100vh);
-      width:  min(100dvw, 100dvh);
-      height: min(100dvw, 100dvh);
-      aspect-ratio: 1 / 1;
+      /* inherits the base .device-screen rule's inset — no override */
     }
     body.fs-mode .device-screen canvas {
-      /* Keep pixel-perfect crispness on the enlarged tile map — canvas
-         still integer-scales cleanly with `pixelated` at fullscreen. */
       image-rendering: pixelated;
       image-rendering: -moz-crisp-edges;
       image-rendering: crisp-edges;
@@ -4581,16 +4580,20 @@
         ],
       },
       {
-        // Khronis — BOSS, slow lumbering tread. Big silhouette + slow speed
-        // reads as menace. Stays in the deep south of the region.
+        // ★ 2026-07-28 · Restored proper south-region placement + gait.
+        // Previous coords (880, 960) put him near the southeast edge; the
+        // player rarely saw him move.  Center him in south so the
+        // patrol reads as menace-in-motion, not a static prop.  Bumped
+        // speed 18 → 32 (still slowest in the field) so 2-3s of walking
+        // covers a visible tile-plus per pick.
         id: 'khronis_boss',
         framesKey: 'khronisFrames',
         walkOrder: KHRONIS_WALK_ORDER,
-        x: 880, y: 960,
+        x: 512, y: 768,               // mid-south, visible from the entry
         w: KHRONIS_W, h: KHRONIS_H,
-        speed: 18,                    // slowest in the field — boss tread
+        speed: 32,                    // slowest in the field — boss tread (was 18 = imperceptible)
         facing: 'down',
-        animFps: 3,                   // matches the slow gait
+        animFps: 4,                   // slow gait (was 3 = flip-book slow)
         animTime: 0,
         animFrame: 0,
         currentDir: 'down',
@@ -4617,7 +4620,12 @@
       // and open the bio modal on A-press, but don't trigger battles.
       {
         id: 'sister_solia',
-        framesKey: 'moriFrames',
+        // ★ 2026-07-28 · Neighbor NPCs use the human rival's walk rig
+        // (player2Frames) so they read as humanoid townsfolk instead of
+        // hostile creatures.  Their identity comes through their static
+        // portrait (portraitAsset) + displayName + bio when interacted.
+        // Dedicated per-NPC walk sheets are art-side future work.
+        framesKey: 'player2Frames',
         walkOrder: WALK_ORDER,
         stationary: true,   // ★ neighbor — stands near her house waiting for the player
         x: 15 * 32, y: 16 * 32,
@@ -4644,7 +4652,7 @@
       },
       {
         id: 'elder_sage',
-        framesKey: 'voltyranFrames',
+        framesKey: 'player2Frames',   // ★ 2026-07-28 · humanoid rig (see solia)
         walkOrder: WALK_ORDER,
         stationary: true,   // ★ neighbor — stands near his house waiting for the player
         x: 28 * 32, y: 13 * 32,
@@ -4671,7 +4679,7 @@
       },
       {
         id: 'merchant_marlea',
-        framesKey: 'elzoranFrames',
+        framesKey: 'player2Frames',   // ★ 2026-07-28 · humanoid rig (see solia)
         walkOrder: WALK_ORDER,
         stationary: true,   // ★ neighbor — stands near her house waiting for the player
         x: 12 * 32, y: 22 * 32,
@@ -4698,7 +4706,10 @@
       },
       {
         id: 'merchant_talim',
-        framesKey: 'khronisFrames',
+        // ★ 2026-07-28 · Was `khronisFrames` — the BOSS walk rig — which
+        // (a) made this NPC look like Khronis and (b) starved the actual
+        // Khronis of animation state.  Reassigned to the human rival rig.
+        framesKey: 'player2Frames',
         walkOrder: WALK_ORDER,
         stationary: true,   // ★ neighbor — stands near his house waiting for the player
         x: 22 * 32, y: 22 * 32,

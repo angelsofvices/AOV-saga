@@ -10,7 +10,7 @@
 | Product number | Canonical game / world |
 |---|---|
 | RP7 | Zyraxis |
-| RP8 | The Tree of Power — Arborynth (The Living World · Planet 4) |
+| RP8 | Arborynth — Forest of the Godvine |
 
 ## 1. RP7 Face-Button Translation
 
@@ -84,6 +84,12 @@ Purple asteroids are breakable with the blaster. Gray asteroids are hazards and 
 5. A held input must not cause repeated menu selections unless deliberate repeat behavior is implemented.
 6. RP7 documentation and interfaces must use the translation in Section 1 consistently.
 7. Advanced DualSense features such as adaptive triggers and haptics are optional enhancements, not required inputs.
+8. Controller menus begin with **no highlighted option**.
+9. The first directional press highlights the enabled option at the **top-right** of the current choice group. That first press establishes selection; it does not activate an option.
+10. Only one option may carry the controller-selection highlight at a time.
+11. Cross activates only the currently highlighted option. Circle backs out only after the current choice group has been entered with a directional press.
+12. Confirm and back actions are edge-triggered: one physical press produces one transition.
+13. When a window, dialogue thread, battle result, interaction, or settings flow reaches its final page, one press closes or advances it and that press must be consumed. It must not carry through into the next gameplay state.
 
 ## 6. RP8 — Arborynth
 

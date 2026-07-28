@@ -957,6 +957,63 @@
     </div>
   </div>
 
+  <!-- ★ 2026-07-28 · SUPABASE CLIENT (global leaderboard backend).
+       Loaded from the official ESM CDN — no build step, single ~20 KB
+       module.  If ANON_KEY is empty (initial setup) or the network is
+       unreachable, the leaderboard falls back to per-device localStorage
+       and queues submissions to flush on the next successful reach. -->
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    // ────────────────────────────────────────────────────────────────
+    // ★ 2026-07-28 · PASTE YOUR ANON PUBLIC KEY BETWEEN THE QUOTES.
+    //   Supabase dashboard → Settings → API Keys → copy the "anon" /
+    //   "public" key (starts with eyJ..., ~200 chars).  This key is
+    //   SAFE to ship in the browser — it only grants row-level access
+    //   permitted by the SQL policies (insert with sanity checks +
+    //   select for the top-10 read).
+    // ────────────────────────────────────────────────────────────────
+    const SUPABASE_URL      = 'https://kokuaumiaotreiotrpbt.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtva3VhdW1pYW90cmVpb3RycGJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNDcwNTQsImV4cCI6MjEwMDgyMzA1NH0.YwmthGcXLvOaTqo4Qn4Y5Kso7Jr-m30ZlwroX_6WTUM';
+
+    const client = SUPABASE_ANON_KEY
+      ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } })
+      : null;
+
+    // Public API exposed on window for the game script (which is a
+    // classic <script>, not a module).  All methods return promises.
+    window.RP1_LB = {
+      isGlobal: !!client,
+      /** Return the top 10 rows for a mode (sorted best-first). */
+      async top(mode, limit = 10) {
+        if (!client) return null;
+        const q = client.from('rp1_scores')
+          .select('name,score,created_at')
+          .eq('mode', mode)
+          .limit(limit)
+          .order('score', { ascending: mode === 'classic' })
+          .order('created_at', { ascending: true });
+        const { data, error } = await q;
+        if (error) { console.warn('[RP1 LB] read failed', error.message); return null; }
+        return data;
+      },
+      /** Insert a score.  Returns { rank } if it landed in the top 10, else null. */
+      async submit(mode, name, score) {
+        if (!client) return null;
+        const clean = (name || 'ASTRALNAUT').toUpperCase().replace(/[^A-Z0-9 \-_]/g, '').slice(0, 10).trim() || 'ASTRALNAUT';
+        const { error } = await client.from('rp1_scores').insert({ mode, name: clean, score });
+        if (error) { console.warn('[RP1 LB] submit failed', error.message); return null; }
+        // Re-fetch top 10 to compute the rank of our new row.
+        const top = await this.top(mode, 10);
+        if (!top) return null;
+        const rank = top.findIndex(r =>
+          r.name === clean && Number(r.score) === Number(score)
+        ) + 1;
+        return rank > 0 ? { rank } : null;
+      },
+    };
+  </script>
+
   <script>
     'use strict';
 
@@ -1662,18 +1719,22 @@
     const $loseStats = document.getElementById('lose-stats');
 
     /* ────────────────────────────────────────────────────────────────
-       ★ 2026-07-28 · LEADERBOARD ENGINE
-       Two boards, both persisted in localStorage:
-         Classic (journey)  →  fastest time to 100 gems (ascending)
-         Endless (endless)  →  most gems before death (descending)
-       Top-10 entries per board.  Ranks 1/2/3 highlighted as
-       Captain / Private / Cadet.
+       ★ 2026-07-28 · LEADERBOARD ENGINE — GLOBAL (Supabase) with
+       LOCAL FALLBACK.
+       -------------------------------------------------------------
+       Priority order:
+         1. If window.RP1_LB.isGlobal → hit Supabase, cache result to
+            localStorage for offline reads next time.
+         2. If offline OR the anon key isn't wired yet → serve the
+            localStorage cache and queue submissions in a retry queue
+            that flushes on the next successful reach.
        ──────────────────────────────────────────────────────────── */
-    const LB_KEYS = { classic: 'aov-rp1-lb-classic', endless: 'aov-rp1-lb-endless' };
-    const LB_MAX  = 10;
+    const LB_KEYS  = { classic: 'aov-rp1-lb-classic', endless: 'aov-rp1-lb-endless' };
+    const LB_QUEUE = 'aov-rp1-lb-queue';        // pending submissions waiting to sync
+    const LB_MAX   = 10;
     const RANK_MEDALS = { 1: 'Captain', 2: 'Private', 3: 'Cadet' };
 
-    function lbGet(mode) {
+    function lbCacheGet(mode) {
       const key = LB_KEYS[mode];
       if (!key) return [];
       try {
@@ -1682,7 +1743,7 @@
         return Array.isArray(list) ? list : [];
       } catch (_) { return []; }
     }
-    function lbSave(mode, list) {
+    function lbCacheSave(mode, list) {
       const key = LB_KEYS[mode];
       if (!key) return;
       try { localStorage.setItem(key, JSON.stringify(list)); } catch (_) {}
@@ -1691,19 +1752,71 @@
       if (mode === 'classic') return list.slice().sort((a, b) => a.score - b.score);
       return list.slice().sort((a, b) => b.score - a.score);
     }
+    function lbEnqueue(mode, name, score) {
+      try {
+        const q = JSON.parse(localStorage.getItem(LB_QUEUE) || '[]');
+        q.push({ mode, name, score, date: Date.now() });
+        localStorage.setItem(LB_QUEUE, JSON.stringify(q));
+      } catch (_) {}
+    }
+    async function lbFlushQueue() {
+      if (!(window.RP1_LB && window.RP1_LB.isGlobal)) return;
+      let q;
+      try { q = JSON.parse(localStorage.getItem(LB_QUEUE) || '[]'); } catch (_) { q = []; }
+      if (!q.length) return;
+      const remaining = [];
+      for (const entry of q) {
+        const ok = await window.RP1_LB.submit(entry.mode, entry.name, entry.score).catch(() => null);
+        if (ok === null && !(window.RP1_LB && window.RP1_LB.isGlobal)) {
+          // No client — keep for later.
+          remaining.push(entry);
+        }
+      }
+      localStorage.setItem(LB_QUEUE, JSON.stringify(remaining));
+    }
+    // Flush any queued scores on load + whenever the network comes back.
+    window.addEventListener('online', lbFlushQueue);
+    setTimeout(lbFlushQueue, 400);
+
     /**
-     * Submit a score.  Returns { rank } if it landed in the top 10, else null.
+     * Async: read the top-N leaderboard for a mode.  Falls back to
+     * localStorage cache if global backend is missing / offline.
+     */
+    async function lbGet(mode) {
+      if (window.RP1_LB && window.RP1_LB.isGlobal && navigator.onLine !== false) {
+        const rows = await window.RP1_LB.top(mode, LB_MAX).catch(() => null);
+        if (rows) {
+          lbCacheSave(mode, rows.map(r => ({ name: r.name, score: Number(r.score), date: Date.parse(r.created_at) || Date.now() })));
+          return rows.map(r => ({ name: r.name, score: Number(r.score), date: Date.parse(r.created_at) || Date.now() }));
+        }
+      }
+      return lbCacheGet(mode);
+    }
+    /**
+     * Async: submit a score.  Returns { rank } if it landed in top 10, else null.
      * classic score = seconds (float); endless score = gems (int).
      */
-    function lbSubmit(mode, name, score) {
+    async function lbSubmit(mode, name, score) {
       const clean = (name || 'ASTRALNAUT').toUpperCase().replace(/[^A-Z0-9 \-_]/g, '').slice(0, 10).trim() || 'ASTRALNAUT';
-      const list = lbGet(mode);
-      const entry = { name: clean, score: score, date: Date.now() };
-      list.push(entry);
-      const sorted = lbSort(mode, list).slice(0, LB_MAX);
-      lbSave(mode, sorted);
-      const rank = sorted.findIndex(e => e === entry || (e.date === entry.date && e.name === entry.name && e.score === entry.score)) + 1;
-      return rank > 0 ? { rank, entry } : null;
+      // Optimistic local write so the UI has something to show even if
+      // the network is down — will be reconciled by the next lbGet.
+      const local = lbCacheGet(mode);
+      local.push({ name: clean, score, date: Date.now() });
+      lbCacheSave(mode, lbSort(mode, local).slice(0, LB_MAX));
+
+      if (window.RP1_LB && window.RP1_LB.isGlobal && navigator.onLine !== false) {
+        const res = await window.RP1_LB.submit(mode, clean, score).catch(() => null);
+        if (res) return res;
+        // Global submit failed — queue for retry.
+        lbEnqueue(mode, clean, score);
+      } else {
+        // No global client yet — queue so the score syncs once wired.
+        lbEnqueue(mode, clean, score);
+      }
+      // Fall back to local rank so the badge still says something meaningful.
+      const sortedLocal = lbSort(mode, lbCacheGet(mode));
+      const rank = sortedLocal.findIndex(e => e.name === clean && Number(e.score) === Number(score)) + 1;
+      return rank > 0 && rank <= LB_MAX ? { rank } : null;
     }
     function lbFormatScore(mode, score) {
       if (mode === 'classic') {
@@ -1754,29 +1867,39 @@
       setTimeout(() => $loseNameInput.focus(), 300);
     }
 
-    function commitWinSubmission() {
+    async function commitWinSubmission() {
       if (pendingWinScore == null) return;
       const name = $winNameInput.value;
       localStorage.setItem('aov-rp1-lastname', name.toUpperCase());
-      const result = lbSubmit('classic', name, pendingWinScore);
+      const score = pendingWinScore;
       pendingWinScore = null;
       $winNameBlock.classList.remove('show');
+      // Show "sending…" placeholder while the submit round-trips.
+      $winScoreRank.textContent = 'Submitting…';
+      $winScoreBadge.style.display = '';
+      const result = await lbSubmit('classic', name, score);
       if (result) {
         $winScoreRank.textContent = lbRankLabel(result.rank);
-        $winScoreBadge.style.display = '';
+      } else {
+        $winScoreRank.textContent = 'Saved (offline)';
       }
     }
-    function commitLoseSubmission() {
+    async function commitLoseSubmission() {
       if (pendingLoseScore == null || pendingLoseMode == null) return;
       const name = $loseNameInput.value;
       localStorage.setItem('aov-rp1-lastname', name.toUpperCase());
-      const result = lbSubmit(pendingLoseMode, name, pendingLoseScore);
+      const score = pendingLoseScore;
+      const mode  = pendingLoseMode;
       pendingLoseScore = null;
       pendingLoseMode  = null;
       $loseNameBlock.classList.remove('show');
+      $loseScoreRank.textContent = 'Submitting…';
+      $loseScoreBadge.style.display = '';
+      const result = await lbSubmit(mode, name, score);
       if (result) {
         $loseScoreRank.textContent = lbRankLabel(result.rank);
-        $loseScoreBadge.style.display = '';
+      } else {
+        $loseScoreRank.textContent = 'Saved (offline)';
       }
     }
     $winNameBtn .addEventListener('click', commitWinSubmission);
@@ -1796,8 +1919,9 @@
     let lbActiveMode = 'classic';
     let lbHighlightIndex = -1;   // for showing "you just scored" mark
 
-    function lbRender() {
-      const list = lbGet(lbActiveMode);
+    async function lbRender() {
+      $lbList.innerHTML = `<li class="lb-empty">Loading…</li>`;
+      const list = await lbGet(lbActiveMode);
       const sorted = lbSort(lbActiveMode, list).slice(0, LB_MAX);
       $lbList.innerHTML = '';
       if (!sorted.length) {
@@ -1819,12 +1943,20 @@
         `;
         $lbList.appendChild(li);
       });
+      // Global/Local status footer
+      const foot = document.createElement('li');
+      foot.className = 'lb-empty';
+      foot.style.padding = '14px 20px 4px';
+      foot.style.fontSize = '0.5rem';
+      const isGlobal = !!(window.RP1_LB && window.RP1_LB.isGlobal && navigator.onLine !== false);
+      foot.textContent = isGlobal ? '◆ Global leaderboard · live from Supabase' : '◆ Local leaderboard · scores sync when connected';
+      $lbList.appendChild(foot);
     }
     function lbOpen(mode) {
       if (mode) lbActiveMode = mode;
       $lbTabs.forEach(t => t.classList.toggle('active', t.dataset.lbTab === lbActiveMode));
-      lbRender();
       $lbModal.classList.add('show');
+      lbRender();
     }
     function lbClose() {
       $lbModal.classList.remove('show');
@@ -1836,7 +1968,7 @@
       lbActiveMode = t.dataset.lbTab;
       lbHighlightIndex = -1;
       $lbTabs.forEach(x => x.classList.toggle('active', x === t));
-      lbRender();
+      lbRender();   // fire-and-forget async
     }));
 
     // Intro & end-screen leaderboard buttons

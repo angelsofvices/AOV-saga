@@ -264,6 +264,42 @@
       border-color: var(--gold-bright, rgba(244, 227, 179, 0.65));
       outline: none;
     }
+    /* ★ 2026-07-27 · Controller-nav focus ring on the hero game list.
+       Bright gold outline + subtle lift so the highlighted row reads
+       like the currently-selected tile on a console home-screen. */
+    .hero-game-list a.gp-focus {
+      background: rgba(232, 200, 120, 0.16);
+      border-color: var(--gold-bright, #f4e3b3);
+      box-shadow: 0 0 0 2px rgba(232, 200, 120, 0.55) inset,
+                  0 12px 26px rgba(0, 0, 0, 0.55),
+                  0 0 22px rgba(232, 200, 120, 0.32);
+      transform: translateY(-1px) scale(1.01);
+      outline: none;
+    }
+    /* Small "controller connected" chip — appears only when a pad is seen. */
+    .gp-connected-chip {
+      position: fixed;
+      top: 76px; right: 18px;
+      z-index: 5;
+      display: none;
+      align-items: center; gap: 8px;
+      padding: 7px 12px;
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.55rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold-bright, #f4e3b3);
+      background: rgba(10, 6, 24, 0.72);
+      border: 1px solid rgba(232, 200, 120, 0.45);
+      border-radius: 4px;
+      backdrop-filter: blur(6px);
+    }
+    .gp-connected-chip.on { display: inline-flex; }
+    .gp-connected-chip::before {
+      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      background: #7ee787;
+      box-shadow: 0 0 10px rgba(126, 231, 135, 0.65);
+    }
     .hero-game-list .game-title { flex: 1; }
     .hero-game-list .game-tag {
       font-family: var(--font-meta, sans-serif);
@@ -881,6 +917,11 @@
     <div class="hero-meta">The Interactive Saga</div>
     <h1>The Games</h1>
     <div class="hero-tagline">Early Access · Prototypes · Controller Supported</div>
+    <!-- ★ 2026-07-27 · Controller-connected chip.  Only visible when a
+         DualSense (or any standard-mapping pad) is detected.  The inline
+         script at the bottom of the page wires D-pad up/down to the hero
+         game list, Cross to launch.  Never scrolls the page. -->
+    <div class="gp-connected-chip" id="gp-connected-chip" aria-hidden="true">Controller · D-pad ↕ · × Select</div>
     <div class="hero-divider">
       <span class="line"></span><span class="diamond"></span><span class="line"></span>
     </div>
@@ -1206,6 +1247,90 @@
     }, { threshold: 0.15, rootMargin: '0px 0px -60px 0px' });
 
     document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  </script>
+
+  <!-- ★ 2026-07-27 · GAMES-PAGE CONTROLLER NAV.
+       Scope: the .hero-game-list ONLY.  D-pad up/down + left-stick Y
+       move the highlight through the 9-game roster; Cross (button 0)
+       launches the highlighted game.  The controller CANNOT scroll the
+       page and CANNOT wander into the manifesto / games-grid sections
+       below.  Mouse + keyboard remain the primary desktop inputs.
+       Only activates when a pad is enumerated (`gamepadconnected`); no
+       silent polling on non-console visitors. -->
+  <script>
+  (function _gamesPageGamepadNav() {
+    const listItems = () => Array.from(document.querySelectorAll('.hero-game-list a'));
+    const items = listItems();
+    if (!items.length) return;
+
+    const chip = document.getElementById('gp-connected-chip');
+    let selectedIdx = 0;
+    let padSeen = false;
+    let prev = [];   // edge-detection for button presses
+    let prevAxisY = 0;
+
+    function paintFocus() {
+      items.forEach((a, i) => a.classList.toggle('gp-focus', i === selectedIdx));
+      const target = items[selectedIdx];
+      if (!target) return;
+      // scrollIntoView({ block: 'nearest' }) keeps the row visible without
+      // page-scrolling if it's already on-screen.  This is the ONLY place
+      // we scroll; only enough to keep the highlighted row in view.
+      const rect = target.getBoundingClientRect();
+      if (rect.top < 80 || rect.bottom > (window.innerHeight - 40)) {
+        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+    function moveSel(delta) {
+      selectedIdx = (selectedIdx + delta + items.length) % items.length;
+      paintFocus();
+    }
+    function launchSel() {
+      const a = items[selectedIdx];
+      if (a && a.getAttribute('href') && a.getAttribute('href') !== '#') {
+        a.click();
+      }
+    }
+
+    function poll() {
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      let pad = null;
+      for (const p of pads) { if (p) { pad = p; break; } }
+      if (pad) {
+        if (!padSeen) {
+          padSeen = true;
+          chip && chip.classList.add('on');
+          paintFocus();
+        }
+        // D-pad up/down (12/13) + left-stick Y with dead-zone.
+        const dpU = pad.buttons[12]?.pressed;
+        const dpD = pad.buttons[13]?.pressed;
+        const y   = (pad.axes[1] || 0);
+        const axisY = y < -0.55 ? -1 : y > 0.55 ? 1 : 0;
+        if (dpU && !prev[12]) moveSel(-1);
+        if (dpD && !prev[13]) moveSel(+1);
+        if (axisY === -1 && prevAxisY !== -1) moveSel(-1);
+        if (axisY ===  1 && prevAxisY !==  1) moveSel(+1);
+        // Cross (0) or A → launch highlighted game.
+        if (pad.buttons[0]?.pressed && !prev[0]) launchSel();
+        // Start (9) also launches — nice symmetry with console home screens.
+        if (pad.buttons[9]?.pressed && !prev[9]) launchSel();
+        prev = pad.buttons.map(b => b.pressed);
+        prevAxisY = axisY;
+      }
+      requestAnimationFrame(poll);
+    }
+
+    window.addEventListener('gamepadconnected', () => { /* poll picks it up */ });
+    requestAnimationFrame(poll);
+
+    // Mouse hover on any game row realigns the selection — natural mixed
+    // input.  Also lets the player switch to mouse without a stale focus
+    // ring on some other row.
+    items.forEach((a, i) => {
+      a.addEventListener('mouseenter', () => { selectedIdx = i; paintFocus(); });
+    });
+  })();
   </script>
 </body>
 </html>

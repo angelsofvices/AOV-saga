@@ -14618,15 +14618,21 @@ function renderMap() {
       // Skip if off-viewport
       if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) continue;
       // ★ 2026-07-28 · PNG override for named humanoids (Yara / Jax /
-      // Commander).  Rendered at PLAYER-UNIT scale = 2 tiles tall, 1
-      // tile wide.  Falls back to procedural drawCharacter if the image
-      // hasn't loaded yet or isn't mapped.
+      // Commander).  MASTER VISUAL RULE: 1 humanoid sprite = 1 TILE.
+      // Every future overworld prop scales relative to this unit so
+      // players feel the same size regardless of how large a map gets.
+      // Width follows the sprite's native aspect (never stretched).
       const spriteImg = vis.asset && HUMANOID_IMAGES[vis.asset];
       if (spriteImg && spriteImg.complete && spriteImg.naturalWidth) {
-        const drawH = TILE * 2;
+        // Sprite height = exactly 1 tile.  Width follows the sprite's
+        // native aspect (never stretched) — chibis end up ~½ tile wide.
+        const drawH = TILE;
         const drawW = drawH * (spriteImg.naturalWidth / spriteImg.naturalHeight);
         if (beaten) ctx.globalAlpha = 0.4;
-        ctx.drawImage(spriteImg, scx - drawW / 2, scy - drawH * 0.85, drawW, drawH);
+        // Centered on the tile: same convention drawCharacter() uses so
+        // the PNG override doesn't jump position vs the procedural
+        // fallback while the image is still loading.
+        ctx.drawImage(spriteImg, scx - drawW / 2, scy - drawH / 2, drawW, drawH);
         ctx.globalAlpha = 1;
       } else {
         drawCharacter(scx, scy, n.dir, p, a, { spiky: true, hair: vis.hair, hairStyle: vis.hairStyle });
@@ -14936,23 +14942,30 @@ function closeDevSettings() {
   if (game.mode === 'settings') game.mode = 'overworld';
 }
 function renderDevSettings() {
-  // V3.17.64 — Render into BOTH the legacy standalone body and the new
-  // nested-in-Settings body if either is present.  Content is duplicated
-  // so the nested panel matches the legacy overlay exactly.
+  // ★ 2026-07-28 · Two sections rendered into every registered panel:
+  //   1. FIRE ACTIONS — one-shot event triggers (trio battle, tournament,
+  //      part-2 gate).  Not toggles; press-and-fire.
+  //   2. CHEATS — one row per atomic entry in CHEATS[].  Once fired,
+  //      button switches to "ACTIVE" and disables.  Individual grants;
+  //      dev mode is just the bridge that exposes them here.
+  // Legacy standalone dev-settings-overlay + the nested-in-Settings
+  // panel both receive the same rendered content.
   const bodies = [
     document.getElementById('dev-settings-body'),
     document.getElementById('dev-settings-body-nested'),
   ].filter(Boolean);
   if (!bodies.length) return;
-  const body = document.createElement('div');
-  body.innerHTML = '';
-  const ultharisOn = !!game.player.ultharisMode;
+  const p = game.player || {};
+  const fired = p.cheatsFired || {};
+  const ultharisOn = !!p.ultharisMode;
   const rows = [
     {
-      id: 'ultharis',
-      title: (ultharisOn ? '◈ ULTHARIS MODE · ACTIVE' : '◇ ULTHARIS MODE'),
-      desc: 'Grants every easter egg cosmetic + every easter-egg Zyrex to your party at canon levels.  Completes EVERYTHING up to the Novarian Challenge (10 Fathergems, 10 qualifiers, 8 Bond Lessons, all missions).  Trio battle unlocked at Oatheus\'s throne.',
-      btn: ultharisOn ? 'ACTIVE' : 'ENABLE',
+      id: 'ultharis_bomb',
+      title: (ultharisOn ? '◈ ULTHARIS MODE · EVERY CHEAT ACTIVE' : '⚑ ENABLE ULTHARIS · every cheat below at once'),
+      desc: 'One-click bomb: fires every atomic cheat in the list below.  Use if you want the full playtest set — otherwise toggle individual cheats one by one.',
+      btn: ultharisOn ? 'ACTIVE' : 'ENABLE ALL',
+      section: 'top',
+      disabled: ultharisOn,
       onClick: () => { enableUltharisMode(); renderDevSettings(); },
     },
     {
@@ -15021,18 +15034,64 @@ function renderDevSettings() {
       },
     },
   ];
-  rows.forEach(row => {
+  // ── Insert the atomic CHEATS list between the ULTHARIS bomb row and
+  //    the FIRE actions (trio / novarian / part-2).  Once a cheat has
+  //    fired, its button locks to ACTIVE.  Cheats persist in save.
+  const cheatRows = CHEATS.map(c => ({
+    id: 'cheat_' + c.id,
+    title: (fired[c.id] ? '◈ ' : '◇ ') + c.name,
+    desc: c.desc,
+    btn: fired[c.id] ? 'ACTIVE' : 'ENABLE',
+    disabled: !!fired[c.id],
+    onClick: () => { if (fireCheat(c.id)) renderDevSettings(); },
+  }));
+  // Sub-header row separating the ENABLE-ALL from individual cheats.
+  const cheatsHeader = {
+    id: '_hdr_cheats',
+    title: '⚑  CHEATS  ·  individual grants  ·  one-way',
+    desc: 'Each toggle fires ONE grant and locks ON — cheats cannot be turned off (they mutate persistent player state).  Pick what you want to test.',
+    btn: '', header: true,
+  };
+  const cheatsFooter = {
+    id: '_hdr_fires',
+    title: '◈  FIRE ACTIONS  ·  one-shot event triggers',
+    desc: 'These do NOT lock — press to fire the specified event immediately.',
+    btn: '', header: true,
+  };
+  // Reorder: top-row (Ultharis bomb) → cheats header → cheats → fires header → fires.
+  const topRow  = rows[0];
+  const fires   = rows.slice(1);
+  const ordered = [topRow, cheatsHeader, ...cheatRows, cheatsFooter, ...fires];
+
+  ordered.forEach(row => {
     const el = document.createElement('div');
     el.className = 'item-row';
+    if (row.header) {
+      // Section header — full width, no button.
+      el.style.cssText = 'padding:8px 12px; margin-top:4px; border-top:1px dashed rgba(255,235,174,0.22); opacity:0.9;';
+      el.innerHTML = `
+        <div class="info">
+          <div class="name" style="color: var(--gold-bright); letter-spacing:0.14em;">${row.title}</div>
+          <div class="desc" style="opacity:0.7; font-size:11px;">${row.desc}</div>
+        </div>
+      `;
+      body.appendChild(el);
+      return;
+    }
     el.setAttribute('tabindex', '0');
+    const disabledAttr = row.disabled ? 'disabled' : '';
+    const btnStyle = row.disabled
+      ? 'min-width:82px; opacity:0.55; background: rgba(232,200,120,0.08); border-color: var(--gold-bright); color: var(--gold-bright); cursor: default;'
+      : 'min-width:82px;';
     el.innerHTML = `
       <div class="info">
         <div class="name">${row.title}</div>
         <div class="desc" style="opacity:0.75;">${row.desc}</div>
       </div>
-      <button style="min-width:82px;">${row.btn}</button>
+      <button style="${btnStyle}" ${disabledAttr}>${row.btn}</button>
     `;
-    el.querySelector('button').onclick = row.onClick;
+    const btnEl = el.querySelector('button');
+    if (!row.disabled) btnEl.onclick = row.onClick;
     body.appendChild(el);
   });
   // Duplicate the built content into every registered body (legacy overlay
@@ -15047,20 +15106,242 @@ function renderDevSettings() {
     });
   });
 }
+// ★ 2026-07-28 · ATOMIC CHEATS REGISTRY.
+// Each entry is a fire-once grant.  Dev mode is now ONLY the BRIDGE
+// that reveals the CHEATS submenu inside Settings; it does NOT preload
+// any grants.  Player picks which cheats to fire, one by one, from the
+// submenu.  Firing writes `game.player.cheatsFired[id] = true`; once
+// fired, the toggle is locked ON (cannot be turned off — the grants
+// mutate persistent player state that isn't reversible via a flag).
+//
+// `enableUltharisMode()` below iterates this list and applies every
+// entry in one shot — kept for legacy "give me everything" callers +
+// the ⚑ ENABLE ALL button on the CHEATS panel.
+const CHEATS = [
+  { id: 'unlock_cosmetics', name: 'Unlock every cosmetic',
+    desc: 'Mohawk hair, skull shirt, all cosmetic flags.',
+    apply(p) {
+      p.mohawkUnlocked = true;
+      p.skullShirtUnlocked = true;
+    } },
+  { id: 'meet_all_allies', name: 'Meet every ally',
+    desc: 'Every named humanoid (Yara, Jax, Quinn, Beastwarden, all Legends of Zyraxis) auto-met + reward flags.',
+    apply(p) { if (typeof ALLIES !== 'undefined') for (const id in ALLIES) meetAlly(id); } },
+  { id: 'grant_easter_eggs', name: 'Grant every easter-egg encounter',
+    desc: 'Aurabeast gift, Homunculus, Elzebub, Petragryff, Anciuxor — all flagged as met/granted.',
+    apply(p) {
+      p.aurabeastGiftGiven = true;
+      p.homunculusFound   = true;
+      p.elzebubGranted    = true;
+      p.petragryffGranted = true;
+      p.anciuxorGranted   = true;
+      p.firepitEmberBurned = true;
+      p.quietChildForgiven = true;
+      p.quietChildBlessed  = true;
+    } },
+  { id: 'install_utilities', name: 'Install every home-cycle utility',
+    desc: 'PC storage, void-fragment radio rift-slip, statue-part cycle (mom/dad statue flags).',
+    apply(p) {
+      p.pcStorageInstalled = true;
+      p.voidFragmentInstalled = true;
+      p.statuePartHeld = true;
+      p.momBlessedStatue = true;
+      p.dadWarnedStatue = true;
+    } },
+  { id: 'grant_key_items', name: 'Grant every key item',
+    desc: 'Computer part, all 10 district shrine items (embers, runes, seeds, chips, cogs), petragryff homunculus.',
+    apply(p) {
+      p.items = p.items || {};
+      const KEY_ITEMS = [
+        'computer_part','sunlit_ember','ancient_rune','verdant_seed','void_fragment',
+        'alien_chip','wisp_breath','forge_ember','gear_cog','statue_part','petragryff_homunculus',
+      ];
+      for (const id of KEY_ITEMS) p.items[id] = Math.max(1, p.items[id] || 0);
+    } },
+  { id: 'stockpile_potions', name: 'Stockpile every potion',
+    desc: '20× potions · 10× grand · 5× master · 5× revival stems.',
+    apply(p) {
+      p.items = p.items || {};
+      p.items.potion        = Math.max(20, p.items.potion || 0);
+      p.items.grand_potion  = Math.max(10, p.items.grand_potion || 0);
+      p.items.master_potion = Math.max(5,  p.items.master_potion || 0);
+      p.items.revival_stem  = Math.max(5,  p.items.revival_stem  || 0);
+    } },
+  { id: 'stockpile_zyspheres', name: 'Stockpile every Zysphere',
+    desc: '50 standard · 25 void · 10 ultra.',
+    apply(p) {
+      p.zyspheres      = Math.max(50, p.zyspheres || 0);
+      p.zyspheresVoid  = Math.max(25, p.zyspheresVoid || 0);
+      p.zyspheresUltra = Math.max(10, p.zyspheresUltra || 0);
+    } },
+  { id: 'stockpile_coins', name: 'Stockpile coins + gems',
+    desc: '99,999 coins · 999 gems.',
+    apply(p) {
+      p.coins = Math.max(99999, p.coins || 0);
+      p.gems  = Math.max(999,   p.gems  || 0);
+    } },
+  { id: 'grant_utility_prisms', name: 'Grant the Utility Prism trinity',
+    desc: 'Zysphere baseline · Zycube · Zyramid (Kelthor gate item).',
+    apply(p) {
+      p.items = p.items || {};
+      p.items.zycube  = Math.max(1, p.items.zycube  || 0);
+      p.items.zyramid = Math.max(1, p.items.zyramid || 0);
+    } },
+  { id: 'grant_fathergems', name: 'Grant all 10 Fathergems + door keys',
+    desc: 'Ruby, Pearl, Citrine, Emerald, Amethyst, Sapphire, Onyx, Amber, Anomaly, Ultra + bronze/silver house keys.',
+    apply(p) {
+      p.keys = p.keys || {};
+      p.keys.bronze = Math.max(1, p.keys.bronze || 0);
+      p.keys.silver = Math.max(1, p.keys.silver || 0);
+      const GEMS = ['ruby','pearl','citrine','emerald','amethyst','sapphire','onyx','amber','anomaly','ultra'];
+      for (const g of GEMS) if (!p.keys[g]) p.keys[g] = 1;
+    } },
+  { id: 'stamp_hall_passages', name: 'Stamp every town-hall passage',
+    desc: 'Every D-door opens.',
+    apply(p) {
+      p.passages = p.passages || {};
+      if (typeof HALL_PASSAGES !== 'undefined') {
+        for (const districtId in HALL_PASSAGES) {
+          const pass = HALL_PASSAGES[districtId];
+          if (pass && pass.key) p.passages[pass.key] = 1;
+        }
+      }
+    } },
+  { id: 'defeat_all_commanders', name: 'Free every district (10 Seer Commanders)',
+    desc: 'Flags every district as liberated. Unlocks Novarian enrollment gate. District Savior line complete.',
+    apply(p) {
+      p.seerCommandersDefeated = p.seerCommandersDefeated || {};
+      if (typeof DISTRICT_ORDER !== 'undefined') {
+        for (const d of DISTRICT_ORDER) p.seerCommandersDefeated[d] = true;
+      }
+    } },
+  { id: 'visit_all_districts', name: 'Visit every district + shrine + broadcast',
+    desc: 'Unlocks rift-slip everywhere · Ancient Gemsight · Voice of the Expanse title.',
+    apply(p) {
+      p.districtsVisited = p.districtsVisited || {};
+      p.shrinesVisited   = p.shrinesVisited   || {};
+      p.broadcasts       = p.broadcasts       || {};
+      if (typeof DISTRICT_ORDER !== 'undefined') {
+        for (const d of DISTRICT_ORDER) {
+          p.districtsVisited[d] = true;
+          p.shrinesVisited[d]   = true;
+          p.broadcasts[d]       = true;
+        }
+      }
+    } },
+  { id: 'enroll_novarian_sweep', name: 'Enroll Novarian + sweep all 30 hall brackets',
+    desc: 'Enrolled with Kelthor · every hall\'s 3 brackets swept · 10 Hall Flags · 30 Imperial Coins.',
+    apply(p) {
+      p.novarianEnrolled   = true;
+      p.hallBracketsWon    = p.hallBracketsWon || {};
+      p.hallFlags          = p.hallFlags || {};
+      p.novarianQualifiers = p.novarianQualifiers || {};
+      if (typeof NOVARIAN_DISTRICT_ORDER !== 'undefined') {
+        for (const d of NOVARIAN_DISTRICT_ORDER) {
+          p.hallBracketsWon[d] = 3;
+          p.hallFlags[d]       = true;
+          p.novarianQualifiers[d] = true;
+        }
+      }
+      p.items = p.items || {};
+      const coinKey = typeof NOVARIAN_COIN_ITEM !== 'undefined' ? NOVARIAN_COIN_ITEM : 'imperial_coin';
+      p.items[coinKey] = Math.max(30, p.items[coinKey] || 0);
+    } },
+  { id: 'complete_bond_lessons', name: 'Complete every Bond Lesson (Kelthor 8-step)',
+    desc: 'All 8 lessons learned · unlocks Ultimate Prismsynch ceiling.',
+    apply(p) {
+      p.bondLessons = p.bondLessons || {};
+      if (typeof BOND_LESSONS !== 'undefined') {
+        for (const l of BOND_LESSONS) p.bondLessons['step' + l.step] = true;
+      }
+    } },
+  { id: 'grant_ultharis_roster', name: 'Grant the Ultharis Roster',
+    desc: 'Adds 7 easter-egg Zyrex to party at canon levels (Diviniara / Pyrothrax / Voltaryx / Scaleon / Petragryff / Vengrizz / Anciuxor 999 all-stats).',
+    apply(p) {
+      p.party = p.party || [];
+      for (const spec of _ULTHARIS_ROSTER) {
+        const already = p.party.some(z => z && z.species === spec.id);
+        if (already) continue;
+        const zy = makeZyrex(spec.id, spec.lv);
+        if (zy) {
+          if (spec.id === 'anciuxor') {
+            zy.stats = { hp: 999, atk: 999, def: 999, spd: 999, spc: 999 };
+            zy.maxHp = 999; zy.hp = 999;
+          }
+          p.party.push(zy);
+          markCaught(spec.id);
+        }
+      }
+    } },
+  { id: 'boost_rizer_level', name: 'Boost Rizer to Level 50',
+    desc: 'Rizer Lv 50 · 50,000 XP (endgame-ready for Prismsynch).',
+    apply(p) {
+      p.rizerLv = Math.max(50, p.rizerLv || 1);
+      p.rizerXp = Math.max(50000, p.rizerXp || 0);
+    } },
+  { id: 'boost_party_bond', name: 'Max party bond (Threshold of Trust)',
+    desc: 'Every party member bond → 100.  Satisfies Mission 4.',
+    apply(p) {
+      (p.party || []).forEach(z => { if (z) z.bond = Math.max(100, z.bond || 0); });
+    } },
+  { id: 'fudge_mission_counters', name: 'Satisfy every Rizer mission counter',
+    desc: 'Wild-catch, evolutions, flawless-battle + types-KO\'d counters seeded so notebook missions read complete.',
+    apply(p) {
+      p.wildCatchCount   = Math.max(1, p.wildCatchCount || 0);
+      p.evolutionsCount  = Math.max(1, p.evolutionsCount || 0);
+      p.flawlessBattles  = Math.max(5, p.flawlessBattles || 0);
+      p.typesKnockedOut  = p.typesKnockedOut || {};
+      ['Beast','Aura','Spirit','Nature','Tech','Draconic','Elemental','Creature','Chrono','Void']
+        .forEach(t => { p.typesKnockedOut[t] = (p.typesKnockedOut[t] || 0) + 1; });
+    } },
+];
+
+/** Fire one atomic cheat by id.  Records to player.cheatsFired[id]. */
+function fireCheat(cheatId) {
+  const cheat = CHEATS.find(c => c.id === cheatId);
+  if (!cheat) { console.warn('[cheats] unknown', cheatId); return false; }
+  const p = game.player;
+  if (!p) return false;
+  p.cheatsFired = p.cheatsFired || {};
+  if (p.cheatsFired[cheatId]) return false;   // already fired
+  try { cheat.apply(p); } catch (e) { console.error('[cheat fail]', cheatId, e); return false; }
+  p.cheatsFired[cheatId] = true;
+  save();
+  if (typeof updateHUD === 'function') updateHUD();
+  try { playSfx('toast'); } catch(_) {}
+  showToast(`⚑ ${cheat.name} — enabled`, 2400);
+  return true;
+}
+
 function enableUltharisMode() {
   const p = game.player;
   if (!p) return;
   p.ultharisMode = true;
-  // Every cosmetic + story flag flipped.
-  const flags = [
-    'mohawkUnlocked','skullShirtUnlocked',
-    'aurabeastGiftGiven','homunculusFound','elzebubGranted','petragryffGranted',
-    'firepitEmberBurned','voidFragmentInstalled',
-    'statuePartHeld','momBlessedStatue','dadWarnedStatue','anciuxorGranted',
-    'quietChildForgiven','quietChildBlessed',
-    'pcStorageInstalled',   // V3.17.26 — bypass computer-part install rite
-  ];
-  for (const f of flags) p[f] = true;
+  // ★ 2026-07-28 · ULTHARIS = fire every atomic cheat.  Each grant is
+  // recorded in p.cheatsFired[<id>].  Story-hook one-shots that don't
+  // have their own cheat entry are set inline after.
+  for (const c of CHEATS) {
+    if (!(p.cheatsFired && p.cheatsFired[c.id])) fireCheat(c.id);
+  }
+  // Story-hook one-shots (mutually exclusive with the fires above).
+  p.tenthCommanderHookFired = true;
+  p.kelthorStoryHandoffFired = true;
+  save();
+  if (typeof updateHUD === 'function') updateHUD();
+  try { playSfx('toast'); } catch(_) {}
+  showToast('⚑  ULTHARIS MODE  ·  every cheat fired · trio battle + Novarian Challenge both playable NOW', 4200);
+  setTimeout(() => {
+    if (typeof showDialog === 'function') showDialog([
+      '⚑  ULTHARIS MODE  ·  ACTIVE  ⚑',
+      '',
+      'Every atomic cheat in the CHEATS panel is now on.',
+      '',
+      'TWO endgame beats are playable:',
+      '  ◈ TRIO BATTLE  —  walk to OATHEUS\'S THRONE or use "FIRE TRIO NOW"',
+      '  ⚑ NOVARIAN CHALLENGE  —  travel to BAELGOR or use "FIRE NOVARIAN CHALLENGE"',
+    ]);
+  }, 1200);
+  return;   // skip legacy inline body below
   // Every ally auto-met + reward flags applied.
   for (const id in ALLIES) meetAlly(id);
   // V3.17.26 — GRANT EVERY KEY ITEM.  Player.items dict + player.keys +
@@ -17248,6 +17529,12 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
     setStatus(pad);
 
     // ── Combo hold-detection (Create + Options + Touchpad) ────────────
+    // ★ 2026-07-28 · New semantics per user rule:
+    //   Dev mode is now ONLY the BRIDGE that reveals the CHEATS panel
+    //   inside Settings.  It preloads NOTHING.  The old 4-second
+    //   "Ultharis bomb" combo was a hidden foot-gun — kept behind a
+    //   longer 6s hold as an explicit opt-in.  Normal cheat flow:
+    //     hold 2s → dev mode → open Settings → toggle cheats one by one.
     const inCombo = comboActive(pad);
     if (inCombo) {
       if (!comboStart) {
@@ -17259,12 +17546,14 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
       if (!comboDevFired && heldMs >= 2000) {
         comboDevFired = true;
         fireDevCheat();
-        try { showToast('⚑ DEV MODE armed · keep holding for ULTHARIS…', 2000); } catch(_) {}
+        try { showToast('⚑ DEV MODE armed · open Settings → CHEATS to enable grants', 2600); } catch(_) {}
       }
-      if (!comboUltharisFired && heldMs >= 4000) {
+      if (!comboUltharisFired && heldMs >= 6000) {
+        // Explicit long-hold escape hatch — fires the bomb if you really
+        // want everything at once instead of picking cheats individually.
         comboUltharisFired = true;
         fireUltharisCheat();
-        try { showToast('⚑ ULTHARIS MODE unlocked · every ally, item, key, gem', 3200); } catch(_) {}
+        try { showToast('⚑ ULTHARIS · every cheat fired at once', 3200); } catch(_) {}
       }
     } else if (comboStart) {
       // released — reset for next attempt

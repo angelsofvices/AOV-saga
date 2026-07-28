@@ -1248,7 +1248,7 @@
     // ============ KEYBOARD + GAMEPAD INPUT ============
     const attackButtons = Array.from(document.querySelectorAll('.attack-btn'));
     const controllerStatus = $('controller-status');
-    let selectedAttack = 0;
+    let selectedAttack = null;
     let activeGamepadIndex = null;
     let previousPadButtons = [];
     let previousAxisDirection = 0;
@@ -1266,6 +1266,11 @@
     }
 
     function moveAttackSelection(direction) {
+      if (selectedAttack === null) {
+        selectedAttack = attackButtons.length - 1;
+        showSelectedAttack();
+        return;
+      }
       selectedAttack = Math.max(0, Math.min(attackButtons.length - 1, selectedAttack + direction));
       showSelectedAttack();
     }
@@ -1274,11 +1279,6 @@
       if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') moveAttackSelection(-1);
       if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') moveAttackSelection(1);
       if (['1', '2', '3'].includes(e.key)) chooseAttack(Number(e.key));
-      if (e.key === 'Enter' || e.key === ' ') {
-        if (!$('intro').classList.contains('dismissed')) $('intro-start').click();
-        else if (state.gameOver) document.querySelector('.end-screen.active [data-restart]')?.click();
-        else chooseAttack(selectedAttack + 1);
-      }
     });
 
     function updateControllerStatus(gamepad) {
@@ -1292,7 +1292,6 @@
       activeGamepadIndex = e.gamepad.index;
       previousPadButtons = [];
       updateControllerStatus(e.gamepad);
-      showSelectedAttack();
     });
     window.addEventListener('gamepaddisconnected', (e) => {
       if (activeGamepadIndex === e.gamepad.index) activeGamepadIndex = null;
@@ -1325,7 +1324,6 @@
       requestAnimationFrame(pollGamepad);
     }
     updateControllerStatus(null);
-    showSelectedAttack();
     requestAnimationFrame(pollGamepad);
 
     // ============ MATCH START / END ============

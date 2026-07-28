@@ -1,49 +1,20 @@
 /*
- * AOV™ Saga — Shared UI / Menu Controller Navigation (v2 · 2026-07-27)
- * --------------------------------------------------------------------
- * Full DualSense support across every menu / loading / selection /
- * dialog screen in the AOV Saga.  Was card-game-only; now every game
- * loads this and it works on:
- *   - Title screens
- *   - New-game / mode select
- *   - Character / starter / planet pickers
- *   - Rules / codex / settings modals
- *   - Loading screens ("Start" to skip)
- *   - Any menu with focusable buttons / links / role-buttons / cards
- *
- * Controls:
- *   D-pad / Left stick  → move highlight spatially
- *   Cross (×) / A       → click the highlighted control
- *   Circle (○) / B      → back / Escape (or click a "Back/Cancel" btn)
- *   Options / Start (9) → dispatch Enter (skip loading · advance dialog · confirm)
- *   Share / Create (8)  → dispatch Escape (open a pause menu if wired)
- *
- * Default highlight: rightmost enabled control in the topmost visible row.
- *
- * SAFE ALONGSIDE IN-GAME POLLERS:
- *   Games with their own in-game gamepad handlers (rp7, rp8, arborynth,
- *   realms, expedition) can set `window.aovNavRequireOverlay = true`
- *   BEFORE loading this script.  When set, the nav helper only fires
- *   when a menu / modal / overlay is actually visible — otherwise it
- *   defers to the game's own poller so Cross doesn't double-fire an
- *   attack AND a menu click.
+ * AOV card-game controller navigation
+ * D-pad / left stick: move highlight spatially
+ * DualSense Cross: activate
+ * DualSense Circle: back
+ * Default selection: rightmost enabled control in the top visible row
  */
-(function aovUiControllerNavigation() {
+(function cardGameControllerNavigation() {
   'use strict';
   if (window.__aovCardGameNavigation) return;
   window.__aovCardGameNavigation = true;
 
   const SELECTOR = [
-    'button:not(:disabled)', 'a[href]', 'a.btn',
-    '.action-btn:not(:disabled)', '.attack-btn:not(:disabled)',
-    '[role="button"]:not([aria-disabled="true"])',
-    '.faction-card', '.card-cell-pick', '.slot.clickable',
-    '.mode-btn', '.vs-btn', '.starter-card',
-    '.game-card', '.planet[data-num]', '.tourn-grid > *',
-    '.mainmenu-btn', '.action-btn.primed',
-    '[tabindex="0"]', '[tabindex="-1"][data-nav]'
+    'button:not(:disabled)', 'a.btn', '.action-btn:not(:disabled)',
+    '.attack-btn:not(:disabled)', '[role="button"]:not([aria-disabled="true"])',
+    '.faction-card', '.card-cell-pick', '.slot.clickable', '[tabindex="0"]'
   ].join(',');
-
   const style = document.createElement('style');
   style.textContent = `
     .controller-selected {
@@ -62,30 +33,21 @@
   let previousAxisY = 0;
   let resetTimer = null;
   let sendingBack = false;
-
-  const OVERLAY_SELECTOR =
-    '.active, .open, .modal-backdrop:not(.hidden), [role="dialog"], ' +
-    '.intro:not(.dismissed), .mainmenu-overlay.active, .modal.active, ' +
-    '.screen:not([hidden])';
-
-  function anyOverlayVisible() {
-    // "Overlay" here means anything that looks like a menu/modal/dialog/
-    // screen container the user is meant to click through.  Used to gate
-    // whether the nav helper should react in games that have their own
-    // in-game poller (aovNavRequireOverlay=true).
-    return !!document.querySelector(OVERLAY_SELECTOR);
-  }
+  let selectionArmed = false;
+  const ownsGamepad = document.currentScript?.dataset.gamepadOwner !== 'native';
 
   function visibleCandidates() {
     let candidates = Array.from(document.querySelectorAll(SELECTOR)).filter(el => {
       if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
       const rect = el.getBoundingClientRect();
-      const s = getComputedStyle(el);
+      const style = getComputedStyle(el);
       return rect.width > 2 && rect.height > 2 &&
-        s.visibility !== 'hidden' && s.display !== 'none' &&
-        Number(s.opacity || 1) > 0.08;
+        style.visibility !== 'hidden' && style.display !== 'none' &&
+        Number(style.opacity || 1) > 0.08;
     });
-    const overlayCandidates = candidates.filter(el => el.closest(OVERLAY_SELECTOR));
+    const overlayCandidates = candidates.filter(el => el.closest(
+      '.active, .open, .modal-backdrop:not(.hidden), [role="dialog"], .intro:not(.dismissed)'
+    ));
     if (overlayCandidates.length) candidates = overlayCandidates;
     return candidates;
   }
@@ -103,6 +65,21 @@
     if (!selected.hasAttribute('tabindex')) selected.tabIndex = -1;
     selected.focus({ preventScroll: true });
     selected.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    selectionArmed = true;
+  }
+
+  function clearSelection() {
+    document.querySelectorAll('.controller-selected, .controller-focus').forEach(el => {
+      el.classList.remove('controller-selected', 'controller-focus');
+    });
+    if (selected && document.activeElement === selected) selected.blur();
+    if (document.activeElement?.matches?.(SELECTOR) &&
+        !(document.activeElement instanceof HTMLInputElement) &&
+        !(document.activeElement instanceof HTMLTextAreaElement)) {
+      document.activeElement.blur();
+    }
+    selected = null;
+    selectionArmed = false;
   }
 
   function selectTopRight(force) {
@@ -141,14 +118,17 @@
   }
 
   function activate() {
-    if (!selected || !visibleCandidates().includes(selected)) selectTopRight(true);
-    selected?.click();
+    if (!selectionArmed || !selected || !visibleCandidates().includes(selected)) return;
+    const target = selected;
+    clearSelection();
+    target.click();
   }
 
   function goBack() {
+    if (!selectionArmed && visibleCandidates().length) return;
     const candidates = visibleCandidates();
     const back = candidates.find(el =>
-      /^(back|cancel|close|return|done|no|×|✕)\b/i.test((el.textContent || el.getAttribute('aria-label') || '').trim())
+      /^(back|cancel|close|return|done|no)\b/i.test((el.textContent || el.getAttribute('aria-label') || '').trim())
     );
     if (back) back.click();
     else {
@@ -158,50 +138,10 @@
       }));
       sendingBack = false;
     }
-  }
-
-  // ★ 2026-07-27 · Start / Options button (idx 9) — dispatches Enter to
-  // advance dialogs, skip splash screens, submit forms, or activate any
-  // "Skip / Continue / Start" button.  Also fires a click on the first
-  // visible "Skip" or "Continue" button if one exists (nicer UX for
-  // loading screens that don't wire Enter).
-  //
-  // ★ 2026-07-27 (fix) · Only auto-click a Skip/Start button if it's
-  // ACTUALLY VISIBLE (not inside a hidden ancestor, <template>, or
-  // display:none block).  RP6 hit a bug where the deprecated "Start
-  // Adventure" button lived in a hidden <section> and got auto-clicked
-  // by Options, launching a dead codepath.
-  function elIsTrulyVisible(el) {
-    if (!el || !el.getClientRects().length) return false;
-    // Any ancestor with `hidden`, `display:none`, or inside a <template> disqualifies.
-    for (let node = el; node && node !== document.body; node = node.parentElement) {
-      if (node.hidden) return false;
-      if (node.tagName === 'TEMPLATE') return false;
-      const cs = getComputedStyle(node);
-      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity || 1) < 0.05) return false;
-    }
-    const r = el.getBoundingClientRect();
-    return r.width > 2 && r.height > 2;
-  }
-  function pressStart() {
-    document.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Enter', code: 'Enter', bubbles: true, cancelable: true
-    }));
-    const skipButton = Array.from(document.querySelectorAll(SELECTOR)).find(el => {
-      if (!elIsTrulyVisible(el)) return false;
-      const t = ((el.textContent || el.getAttribute('aria-label') || '').trim()).toLowerCase();
-      return /^(skip|continue|start|begin|play|next|proceed|enter)/i.test(t);
-    });
-    if (skipButton) skipButton.click();
+    clearSelection();
   }
 
   document.addEventListener('keydown', event => {
-    // ★ 2026-07-27 · Honor the hard opt-out.  If a game owns the pad
-    // (RP4/RP7/RP8), it also owns the KEYBOARD.  Otherwise the shared
-    // nav helper's arrow-key handler would intercept D-pad-dispatched
-    // ArrowLeft/Right/Up/Down (via stopImmediatePropagation) and the
-    // game's own key handler would never see them — breaking movement.
-    if (window.aovNavOwnedByGame === true) return;
     if (sendingBack) return;
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     const direction = {
@@ -212,6 +152,19 @@
       move(direction);
       event.preventDefault();
       event.stopImmediatePropagation();
+    }
+    const confirmLike = event.key === 'z' || event.key.toLowerCase() === 'a';
+    const backLike = event.key === 'Shift' || event.key.toLowerCase() === 'b' ||
+      event.key.toLowerCase() === 'x';
+    if (confirmLike && visibleCandidates().length && !selectionArmed) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (backLike && visibleCandidates().length && !selectionArmed) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
     }
     if ((event.key === 'Enter' || event.key === ' ') && selected) {
       activate();
@@ -226,38 +179,9 @@
   }, true);
 
   function poll() {
-    // ★ 2026-07-27 · If the host game requires an overlay to be visible
-    // (aovNavRequireOverlay=true), skip nav polling while the player is
-    // actively in gameplay.  This prevents Cross-double-fires when the
-    // game has its own in-game gamepad handler.
-    const requireOverlay = !!window.aovNavRequireOverlay;
-    let overlayGate = requireOverlay ? anyOverlayVisible() : true;
-    // ★ 2026-07-27 · Games can veto nav entirely via aovNavIsInGameplay().
-    // RP6 uses this so Circle stays a heavy attack during a match — the
-    // pause overlay is the only exit path.
-    if (typeof window.aovNavIsInGameplay === 'function' && window.aovNavIsInGameplay()) {
-      overlayGate = false;
-    }
-    // ★ 2026-07-27 · Hard opt-out: a game can claim the pad completely.
-    // Any game with its OWN gamepad poller (RP4 · RP6 · RP7 · RP8) sets
-    // window.aovNavOwnedByGame = true so the shared helper stops doing
-    // anything at all — no Cross-clicks, no D-pad hijack, nothing.  This
-    // fixes the bug where Cross on RP7's NEW GAME button double-fired
-    // and navigated to /return.html because the nav helper's `selected`
-    // pointed at a stray link in the (transformed-off-screen) drawer.
-    if (window.aovNavOwnedByGame === true) {
-      // Still update prev-buttons so a later opt-out doesn't edge-fire
-      // stale presses.
-      const padsOnly = navigator.getGamepads ? navigator.getGamepads() : [];
-      const p = Array.from(padsOnly).find(Boolean);
-      if (p) previousButtons = p.buttons.map(b => b.pressed);
-      requestAnimationFrame(poll);
-      return;
-    }
-
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const pad = padIndex !== null ? pads[padIndex] : Array.from(pads).find(Boolean);
-    if (pad && overlayGate) {
+    if (pad) {
       padIndex = pad.index;
       const x = (pad.axes[0] || 0) < -0.55 ? -1 : (pad.axes[0] || 0) > 0.55 ? 1 : 0;
       const y = (pad.axes[1] || 0) < -0.55 ? -1 : (pad.axes[1] || 0) > 0.55 ? 1 : 0;
@@ -267,47 +191,24 @@
       if ((pad.buttons[13]?.pressed && !previousButtons[13]) || (y === 1 && previousAxisY !== 1)) move('down');
       if (pad.buttons[0]?.pressed && !previousButtons[0]) activate();
       if (pad.buttons[1]?.pressed && !previousButtons[1]) goBack();
-      // ★ 2026-07-27 · System buttons (Create idx 8 · Options idx 9 ·
-      // Touchpad idx 17) are RESERVED FOR THE HOST GAME — the shared
-      // nav helper never intercepts them.  Root cause of a nasty bug:
-      // pressStart() auto-clicked any button whose text started with
-      // "Start/Play/Continue/etc.", which could launch a hidden mode
-      // OR click a nav-back link, exiting the player out of the game
-      // entirely.  Each game wires its own pause / menu overlay to
-      // these buttons (see rp6/rp7/rp8/expedition for examples).
-      //
-      // Games that WANT the old skip-advance-splash behavior for a
-      // specific screen can call the shared helper directly, e.g.:
-      //     window.aovNavPressStart && window.aovNavPressStart();
-      // The idle default is: do nothing.
       previousAxisX = x;
       previousAxisY = y;
-      previousButtons = pad.buttons.map(button => button.pressed);
-    } else if (pad && !overlayGate) {
-      // We CAN see the pad but the game is gating us — still update
-      // previousButtons so we edge-detect correctly when overlay reopens.
       previousButtons = pad.buttons.map(button => button.pressed);
     }
     requestAnimationFrame(poll);
   }
-
-  // ★ 2026-07-27 · Expose the helpers so a game can opt-in explicitly
-  // for a specific screen (e.g. a splash that legitimately wants Options
-  // to skip forward).  Default polling never fires these — they're
-  // reserved for the host game.
-  window.aovNavPressStart = pressStart;
-  window.aovNavGoBack     = goBack;
 
   new MutationObserver(() => {
     clearTimeout(resetTimer);
     resetTimer = setTimeout(() => {
       if (!(document.activeElement instanceof HTMLInputElement) &&
           !(document.activeElement instanceof HTMLTextAreaElement)) {
-        selectTopRight(false);
+        if (selected && !visibleCandidates().includes(selected)) clearSelection();
       }
     }, 40);
   }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled', 'hidden'] });
 
-  selectTopRight(true);
-  requestAnimationFrame(poll);
+  window.addEventListener('gamepadconnected', clearSelection);
+  clearSelection();
+  if (ownsGamepad) requestAnimationFrame(poll);
 })();

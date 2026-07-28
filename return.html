@@ -904,11 +904,42 @@
       });
     }
 
+    // ★ 2026-07-27 · Blaster SFX.  One shared Audio element that
+    // rewinds to the start on every shot — a rapid-fire chain cancels
+    // the in-flight play and re-fires so the sound stays tight to the
+    // trigger (no queueing / overlap / stutter).  Volume is soft so it
+    // sits under the RP1 soundtrack BGM.
+    const _blasterSfx = new Audio('assets/rp1/naboo-guard-blaster.mp3');
+    _blasterSfx.volume = 0.55;
+    _blasterSfx.preload = 'auto';
+
+    // ★ 2026-07-27 · Explosion SFX for beam-kills.  Uses a small
+    // clone-on-play pool so multiple simultaneous explosions overlap
+    // cleanly instead of cancelling each other (unlike the blaster,
+    // which SHOULD cancel-restart for tight rapid-fire).  The prime
+    // element loads the source once so cloneNode() gets a decoded copy.
+    const _explosionPrime = new Audio('assets/rp1/barrel-exploding.mp3');
+    _explosionPrime.preload = 'auto';
+    _explosionPrime.volume = 0;   // never plays; cache only
+    function playExplosionSfx() {
+      try {
+        const s = _explosionPrime.cloneNode();
+        s.volume = 0.55;
+        const p = s.play();
+        if (p && typeof p.then === 'function') p.catch(() => { /* autoplay blocked pre-gesture */ });
+      } catch (_) { /* older browsers */ }
+    }
+
     function fireBlaster() {
       if (!state.running || state.mode !== 'endless') return;
       if (state.timeAlive - state.lastShot < 0.18) return;
       state.lastShot = state.timeAlive;
       state.lasers.push({ x: state.shipX, y: state.shipY - 22, length: 34 });
+      try {
+        _blasterSfx.currentTime = 0;   // cancel any in-flight play
+        const p = _blasterSfx.play();
+        if (p && typeof p.then === 'function') p.catch(() => { /* autoplay blocked pre-gesture */ });
+      } catch (_) { /* older browsers */ }
     }
 
     function spawnGem() {
@@ -1002,6 +1033,7 @@
               laser.y + laser.length > asteroid.y - asteroid.size) {
             state.projectiles.splice(j, 1);
             state.lasers.splice(i, 1);
+            playExplosionSfx();   // ★ 2026-07-27 · beam-kill boom
             laserSpent = true;
             break;
           }

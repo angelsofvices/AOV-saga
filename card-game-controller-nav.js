@@ -245,10 +245,19 @@
       if ((pad.buttons[13]?.pressed && !previousButtons[13]) || (y === 1 && previousAxisY !== 1)) move('down');
       if (pad.buttons[0]?.pressed && !previousButtons[0]) activate();
       if (pad.buttons[1]?.pressed && !previousButtons[1]) goBack();
-      // ★ Start (idx 9) — skip / advance / continue.
-      if (pad.buttons[9]?.pressed && !previousButtons[9]) pressStart();
-      // ★ Select / Share / Create (idx 8) — back / pause escape.
-      if (pad.buttons[8]?.pressed && !previousButtons[8]) goBack();
+      // ★ 2026-07-27 · System buttons (Create idx 8 · Options idx 9 ·
+      // Touchpad idx 17) are RESERVED FOR THE HOST GAME — the shared
+      // nav helper never intercepts them.  Root cause of a nasty bug:
+      // pressStart() auto-clicked any button whose text started with
+      // "Start/Play/Continue/etc.", which could launch a hidden mode
+      // OR click a nav-back link, exiting the player out of the game
+      // entirely.  Each game wires its own pause / menu overlay to
+      // these buttons (see rp6/rp7/rp8/expedition for examples).
+      //
+      // Games that WANT the old skip-advance-splash behavior for a
+      // specific screen can call the shared helper directly, e.g.:
+      //     window.aovNavPressStart && window.aovNavPressStart();
+      // The idle default is: do nothing.
       previousAxisX = x;
       previousAxisY = y;
       previousButtons = pad.buttons.map(button => button.pressed);
@@ -259,6 +268,13 @@
     }
     requestAnimationFrame(poll);
   }
+
+  // ★ 2026-07-27 · Expose the helpers so a game can opt-in explicitly
+  // for a specific screen (e.g. a splash that legitimately wants Options
+  // to skip forward).  Default polling never fires these — they're
+  // reserved for the host game.
+  window.aovNavPressStart = pressStart;
+  window.aovNavGoBack     = goBack;
 
   new MutationObserver(() => {
     clearTimeout(resetTimer);

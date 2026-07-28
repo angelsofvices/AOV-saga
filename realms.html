@@ -1551,19 +1551,10 @@ function refreshShowAllButton() {
     btn.title = 'Collapse back to playable fighters only';
   }
 }
-const _btnShowAll = document.getElementById('btn-show-all');
-if (_btnShowAll) {
-  _btnShowAll.onclick = () => {
-    cyfState.showMode = (cyfState.showMode === 'unlocked') ? 'all' : 'unlocked';
-    cyfState.page    = 0;
-    cyfState.hoverId = null;
-    refreshShowAllButton();
-    updateRosterCount();
-    buildFighterGrid();
-  };
-}
-refreshShowAllButton();
-updateRosterCount();
+// ★ 2026-07-27 · Button binding + initial paint MOVED further down
+// (see "SHOW ALL toggle boot" comment) so they run AFTER `const cyfState`
+// has been initialized.  Doing them here caused a TDZ ReferenceError
+// that killed the entire inline script.
 
 // ★ 2026-07-28 · Page bar buttons (L1/R1 equivalents on desktop).
 $('btn-page-prev').onclick = () => cyfPrevPage();
@@ -1747,6 +1738,27 @@ function cyfSetPage(n) {
 }
 function cyfNextPage() { cyfSetPage(cyfCurrentPage() + 1); }
 function cyfPrevPage() { cyfSetPage(cyfCurrentPage() - 1); }
+
+// ★ 2026-07-27 · SHOW ALL toggle boot — module-load side-effects.
+// MUST run after `const cyfState`, `updateRosterCount`, and
+// `refreshShowAllButton` have all been initialized (was crashing with
+// a TDZ ReferenceError when this block sat earlier in the file).
+(function _bootShowAllToggle() {
+  const btn = document.getElementById('btn-show-all');
+  if (btn) {
+    btn.onclick = () => {
+      cyfState.showMode = (cyfState.showMode === 'unlocked') ? 'all' : 'unlocked';
+      cyfState.page    = 0;
+      cyfState.hoverId = null;
+      refreshShowAllButton();
+      updateRosterCount();
+      buildFighterGrid();
+    };
+  }
+  refreshShowAllButton();
+  updateRosterCount();
+})();
+
 function makeFallbackPortrait(f) {
   // Live sprite-sheet portraits (IDLE frame 0) once each sheet loads.
   if (f.id === 'solion' && solionReady) return makeSolionPortrait();

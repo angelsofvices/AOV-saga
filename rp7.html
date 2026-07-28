@@ -8382,6 +8382,24 @@ const DISTRICT_COMMANDER_ASSETS = {
   malezor:  '/assets/humanoids/humanoid_21.png',
 };
 
+// ★ 2026-07-28 · PNG PRELOAD REGISTRY for overworld sprite drop-in.
+// Any path in NPC_ASSETS / DISTRICT_COMMANDER_ASSETS gets an Image()
+// created on boot; the render loop blits it directly.  Cache-by-src so
+// re-use costs nothing.
+const HUMANOID_IMAGES = {};
+(function _preloadHumanoids() {
+  const seen = new Set();
+  const collect = (src) => {
+    if (!src || seen.has(src)) return;
+    seen.add(src);
+    const img = new Image();
+    img.src = src;
+    HUMANOID_IMAGES[src] = img;
+  };
+  Object.values(NPC_ASSETS).forEach(collect);
+  Object.values(DISTRICT_COMMANDER_ASSETS).forEach(collect);
+})();
+
 // ============================================================================
 // ★ PART 2 SOUTHERN ZONES (2026-07-17 · matches Zyraxis planetary map)
 // ============================================================================
@@ -14541,18 +14559,30 @@ function renderMap() {
       thardin:   { primary:'#c88848', accent:'#3a2010', hair:'#d09c68', hairStyle:'crown'  },  // Mechbaron bracket
       korathen:  { primary:'#ffd048', accent:'#3a2408', hair:'#fff2c0', hairStyle:'crown'  },  // Ultralord's Champion
     };
+    // ★ 2026-07-28 · Overworld-sprite PNG override.  Named NPCs with a
+    // unique tile character (Y = Yara, J = Jax, X = district Commander)
+    // return an asset key here.  The render loop below then blits the
+    // preloaded PNG instead of calling the procedural drawCharacter.
+    // Unmapped tiles + unmapped districts fall through to procedural.
+    function _npcAssetForTile(n, districtId) {
+      if (n.tile === 'Y') return NPC_ASSETS.yara || null;
+      if (n.tile === 'J') return NPC_ASSETS.jax  || null;
+      if (n.tile === 'X') return DISTRICT_COMMANDER_ASSETS[districtId] || null;
+      return null;
+    }
     function _npcVisual(n) {
       const districtId = (game.player && game.player.mapId) || '';
+      const asset = _npcAssetForTile(n, districtId);
       // Named-boss overrides — X (commander) and R (hall rizer) get a
       // district-signature look instead of the generic role palette.
       // Badges stripped 2026-07-23 (user request · accessories later).
       if (n.tile === 'X' && SEER_COMMANDER_LOOKS[districtId]) {
         const sig = SEER_COMMANDER_LOOKS[districtId];
-        return { primary:sig.primary, accent:sig.accent, hair:sig.hair, hairStyle:sig.hairStyle, badge:'' };
+        return { primary:sig.primary, accent:sig.accent, hair:sig.hair, hairStyle:sig.hairStyle, badge:'', asset };
       }
       if (n.tile === 'R' && HALL_RIZER_LOOKS[districtId]) {
         const sig = HALL_RIZER_LOOKS[districtId];
-        return { primary:sig.primary, accent:sig.accent, hair:sig.hair, hairStyle:sig.hairStyle, badge:'' };
+        return { primary:sig.primary, accent:sig.accent, hair:sig.hair, hairStyle:sig.hairStyle, badge:'', asset };
       }
       const role = ROLE_PALETTES[n.tile] || { primaries:['#8a8a8a'], accents:['#3a3a3a'] };
       const hash = _npcHash(n);
@@ -14572,7 +14602,7 @@ function renderMap() {
         hair = (dmeta && dmeta.sparkleTint) || accent;
       }
       const hairStyle = ROLE_HAIRSTYLE[n.tile] || 'short';
-      return { primary, accent, hair, hairStyle, badge: '' };
+      return { primary, accent, hair, hairStyle, badge: '', asset };
     }
     // V3.2 — 'R' (Hall Rizer) has a dedicated drawTile case so it does
     // NOT need to be drawn in this wandering-NPC pass.  Skip it here to
@@ -14590,7 +14620,20 @@ function renderMap() {
       const scy = (n.y - cam.y) * TILE + TILE / 2;
       // Skip if off-viewport
       if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) continue;
-      drawCharacter(scx, scy, n.dir, p, a, { spiky: true, hair: vis.hair, hairStyle: vis.hairStyle });
+      // ★ 2026-07-28 · PNG override for named humanoids (Yara / Jax /
+      // Commander).  Rendered at PLAYER-UNIT scale = 2 tiles tall, 1
+      // tile wide.  Falls back to procedural drawCharacter if the image
+      // hasn't loaded yet or isn't mapped.
+      const spriteImg = vis.asset && HUMANOID_IMAGES[vis.asset];
+      if (spriteImg && spriteImg.complete && spriteImg.naturalWidth) {
+        const drawH = TILE * 2;
+        const drawW = drawH * (spriteImg.naturalWidth / spriteImg.naturalHeight);
+        if (beaten) ctx.globalAlpha = 0.4;
+        ctx.drawImage(spriteImg, scx - drawW / 2, scy - drawH * 0.85, drawW, drawH);
+        ctx.globalAlpha = 1;
+      } else {
+        drawCharacter(scx, scy, n.dir, p, a, { spiky: true, hair: vis.hair, hairStyle: vis.hairStyle });
+      }
       // Role badge above the head (dropped for beaten NPCs).
       if (!beaten && vis.badge) {
         ctx.fillStyle = 'rgba(10,6,20,0.7)';

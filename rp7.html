@@ -23617,13 +23617,21 @@ function checkBattleOver() {
       game.battle.enemy = nextEnemy;
       drawBattleMon(enemyCanvas, nextEnemy, true);
       logBattle(`${game.battle.trainerName} sent out ${nextEnemy.name}!`);
+      // ★ 2026-07-27 · Reset _menuState BEFORE the delayed render.
+      // The player's last input (the FIGHT move that KO'd the previous
+      // enemy) had set _menuState='sub'; if we leave it that way the
+      // 800ms setTimeout below sees 'sub' and skips renderMainMenu
+      // entirely — a permanent softlock (no action buttons visible,
+      // as in the Myara: thornkit → valenkit chain).  The old sub-menu
+      // context is stale the moment the enemy switches; force main.
+      game.battle._menuState = 'main';
       setTimeout(() => {
         refreshBattleUI();
-        // ★ 2026-07-23 · Only render the main menu if the player hasn't
-        // navigated to a sub-menu in the interim.  Prevents the delayed
-        // chain-advance render from wiping an open FIGHT / BAG / ZYREX
-        // menu the player just opened.
-        if (!game.battle || game.battle._menuState !== 'sub') renderMainMenu();
+        // Chain-advance always re-opens the main action menu.  The
+        // "don't wipe an in-flight submenu" case (original reason for
+        // this guard) doesn't apply here — the player didn't open a
+        // sub-menu after the KO; they were sitting on the log waiting.
+        if (game.battle) renderMainMenu();
       }, 800);
       return true;
     }

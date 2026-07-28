@@ -196,6 +196,12 @@
   }
 
   document.addEventListener('keydown', event => {
+    // ★ 2026-07-27 · Honor the hard opt-out.  If a game owns the pad
+    // (RP4/RP7/RP8), it also owns the KEYBOARD.  Otherwise the shared
+    // nav helper's arrow-key handler would intercept D-pad-dispatched
+    // ArrowLeft/Right/Up/Down (via stopImmediatePropagation) and the
+    // game's own key handler would never see them — breaking movement.
+    if (window.aovNavOwnedByGame === true) return;
     if (sendingBack) return;
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     const direction = {

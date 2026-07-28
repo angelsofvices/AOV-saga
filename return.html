@@ -654,11 +654,11 @@
       <div class="mode-actions">
         <button class="btn btn-primary" id="intro-start" data-mode="journey">
           The Journey
-          <span class="mode-note">Collect 100 gems</span>
+          <span class="mode-note">Classic · reach 100 gems</span>
         </button>
         <button class="btn btn-ghost" id="endless-start" data-mode="endless">
           Endless Void
-          <span class="mode-note">Infinite score · B / R2 blaster</span>
+          <span class="mode-note">Blast · Space · R2 · two-finger tap</span>
         </button>
       </div>
     </div>
@@ -722,51 +722,93 @@
     window.addEventListener('resize', resizeCanvas);
     window.addEventListener('orientationchange', resizeCanvas);
 
+    // ★ 2026-07-28 · Multi-touch input.  First finger drags the ship; any
+    // ADDITIONAL finger's touchstart fires the blaster (endless mode only).
+    // The drag survives all secondary taps and only ends when the drag
+    // finger itself lifts — so a machine-gun second-thumb doesn't
+    // interrupt steering.  Mouse input keeps the legacy single-drag path.
     let isDragging = false;
+    let dragTouchId = null;   // identifier of the finger currently dragging
 
-    function getEventPos(e) {
+    function touchPosOnCanvas(touch) {
       const rect = canvas.getBoundingClientRect();
-      let clientX, clientY;
-      if (e.touches && e.touches[0]) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-      } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-      }
-      return { x: clientX - rect.left, y: clientY - rect.top };
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    }
+    function mousePosOnCanvas(e) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     }
 
-    function startDrag(e) {
+    function onTouchStart(e) {
+      if (!state.running) return;
+      // Walk every NEW touch this event added.
+      for (const t of e.changedTouches) {
+        if (dragTouchId === null) {
+          // First finger → claim drag.
+          dragTouchId = t.identifier;
+          isDragging = true;
+          const pos = touchPosOnCanvas(t);
+          state.targetX = pos.x;
+          state.targetY = pos.y;
+          hideTouchHint();
+        } else if (state.mode === 'endless') {
+          // Second (or later) finger → fire.  Classic mode gets no blaster
+          // — the second finger is simply ignored.
+          fireBlaster();
+        }
+      }
+      e.preventDefault();
+    }
+
+    function onTouchMove(e) {
+      if (!isDragging || !state.running) return;
+      // Only respond to the drag finger's movement.
+      for (const t of e.changedTouches) {
+        if (t.identifier === dragTouchId) {
+          const pos = touchPosOnCanvas(t);
+          state.targetX = pos.x;
+          state.targetY = pos.y;
+          break;
+        }
+      }
+      e.preventDefault();
+    }
+
+    function onTouchEnd(e) {
+      for (const t of e.changedTouches) {
+        if (t.identifier === dragTouchId) {
+          dragTouchId = null;
+          isDragging = false;
+        }
+      }
+    }
+
+    // Mouse path stays a plain single-pointer drag (desktop uses keyboard
+    // or the Space bar for firing, not a second click).
+    function onMouseDown(e) {
       if (!state.running) return;
       isDragging = true;
-      const pos = getEventPos(e);
+      const pos = mousePosOnCanvas(e);
       state.targetX = pos.x;
       state.targetY = pos.y;
       hideTouchHint();
-      e.preventDefault();
     }
-
-    function moveDrag(e) {
+    function onMouseMove(e) {
       if (!isDragging || !state.running) return;
-      const pos = getEventPos(e);
+      const pos = mousePosOnCanvas(e);
       state.targetX = pos.x;
       state.targetY = pos.y;
-      e.preventDefault();
     }
+    function onMouseEnd() { isDragging = false; }
 
-    function endDrag() {
-      isDragging = false;
-    }
-
-    canvas.addEventListener('touchstart', startDrag, { passive: false });
-    canvas.addEventListener('touchmove', moveDrag, { passive: false });
-    canvas.addEventListener('touchend', endDrag);
-    canvas.addEventListener('touchcancel', endDrag);
-    canvas.addEventListener('mousedown', startDrag);
-    canvas.addEventListener('mousemove', moveDrag);
-    canvas.addEventListener('mouseup', endDrag);
-    canvas.addEventListener('mouseleave', endDrag);
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    canvas.addEventListener('touchend',   onTouchEnd);
+    canvas.addEventListener('touchcancel', onTouchEnd);
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mouseup',   onMouseEnd);
+    canvas.addEventListener('mouseleave', onMouseEnd);
 
     const keysDown = new Set();
     const $controllerStatus = document.getElementById('controller-status');
@@ -787,6 +829,13 @@
       }
       if ((e.key === 'Enter' || e.key === ' ') && !$intro.classList.contains('dismissed')) {
         document.getElementById('intro-start').click();
+      }
+      // ★ 2026-07-28 · Space now also fires the endless-mode blaster once
+      // the intro is dismissed (in addition to the legacy 'B' binding).
+      // Classic mode is unaffected — no blaster there, just gather 100.
+      if (e.key === ' ' && $intro.classList.contains('dismissed')) {
+        if (state.mode === 'endless') fireBlaster();
+        e.preventDefault();
       }
       if (e.key.toLowerCase() === 'b') {
         keysDown.add('b');
@@ -903,6 +952,14 @@
         breakable,
       });
     }
+
+    // ★ 2026-07-28 · LEADERBOARD PLAN (TODO — wire when backend lands):
+    //   Classic (The Journey) → fastest time to 100 gems (record state.timeAlive
+    //     at the frame gems === 100, then submit).
+    //   Endless (Endless Void) → highest gems collected before death (record
+    //     state.gems at the frame lives reach 0, then submit).
+    //   Both scores gate on state.mode + game-end event; leave hooks in the
+    //   respective end-screens (win-screen for Classic, lose-screen for Endless).
 
     // ★ 2026-07-27 · Blaster SFX.  One shared Audio element that
     // rewinds to the start on every shot — a rapid-fire chain cancels

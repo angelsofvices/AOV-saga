@@ -232,6 +232,22 @@
     if (typeof window.aovNavIsInGameplay === 'function' && window.aovNavIsInGameplay()) {
       overlayGate = false;
     }
+    // ★ 2026-07-27 · Hard opt-out: a game can claim the pad completely.
+    // Any game with its OWN gamepad poller (RP4 · RP6 · RP7 · RP8) sets
+    // window.aovNavOwnedByGame = true so the shared helper stops doing
+    // anything at all — no Cross-clicks, no D-pad hijack, nothing.  This
+    // fixes the bug where Cross on RP7's NEW GAME button double-fired
+    // and navigated to /return.html because the nav helper's `selected`
+    // pointed at a stray link in the (transformed-off-screen) drawer.
+    if (window.aovNavOwnedByGame === true) {
+      // Still update prev-buttons so a later opt-out doesn't edge-fire
+      // stale presses.
+      const padsOnly = navigator.getGamepads ? navigator.getGamepads() : [];
+      const p = Array.from(padsOnly).find(Boolean);
+      if (p) previousButtons = p.buttons.map(b => b.pressed);
+      requestAnimationFrame(poll);
+      return;
+    }
 
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const pad = padIndex !== null ? pads[padIndex] : Array.from(pads).find(Boolean);

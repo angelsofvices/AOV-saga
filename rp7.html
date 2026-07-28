@@ -677,6 +677,67 @@
     }
     @keyframes blink { 50% { opacity: 0; } }
 
+    /* ★ 2026-07-28 · Dialog portrait — small square in the left gutter
+       of the dialog box.  Appears only on lines that start with a
+       recognised speaker prefix (KELTHOR:, MYARA: …).  System lines
+       and narration stay portrait-less. */
+    .dialog-portrait-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }
+    .dialog-portrait {
+      flex: 0 0 auto;
+      width: 64px; height: 64px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+      background: rgba(20, 14, 44, 0.55);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 2px;
+    }
+    .dialog-text { flex: 1 1 auto; min-width: 0; }
+
+    /* ★ 2026-07-28 · Battle trainer chip — shows the human opponent's
+       face + name above the enemy Zyrex card during a named-trainer
+       battle (Yara / Jax / Myara / Commander).  Hidden for wild fights. */
+    .trainer-chip {
+      position: absolute; left: 12px; top: 12px;
+      display: none;
+      align-items: center; gap: 10px;
+      padding: 6px 10px 6px 6px;
+      background: var(--glass-strong);
+      border: 1px solid var(--border-gold);
+      border-radius: 4px;
+      font-family: var(--font-pixel);
+      font-size: 15px;
+      color: var(--gold-bright);
+      z-index: 20;
+    }
+    .trainer-chip.show { display: inline-flex; }
+    .trainer-chip img {
+      width: 42px; height: 42px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      background: rgba(10, 6, 24, 0.6);
+      border-radius: 3px;
+    }
+
+    /* ★ 2026-07-28 · HUD district emblem — small isometric building
+       badge next to the district name in the top HUD. */
+    .hud-district-emblem {
+      display: none;
+      width: 36px; height: 30px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .hud-district-emblem.show { display: inline-block; }
+
     /* ============ BATTLE OVERLAY ============ */
     .battle {
       position: absolute; inset: 0;
@@ -1827,6 +1888,12 @@
 
     <!-- Battle overlay -->
     <div class="battle" id="battle">
+      <!-- ★ 2026-07-28 · Trainer face-chip · shown only for named human
+           opponents (Yara / Jax / Myara / Commander) via NPC_ASSETS. -->
+      <div class="trainer-chip" id="trainer-chip">
+        <img id="trainer-chip-img" src="" alt="">
+        <span id="trainer-chip-name">Trainer</span>
+      </div>
       <div class="battle-field">
         <div class="status-card enemy-status" id="enemy-status">
           <div class="status-name"><span id="enemy-name">Wild</span> <span class="status-lv" id="enemy-lv">Lv 1</span></div>
@@ -8259,6 +8326,61 @@ const DISTRICT_META = {
   korathen:  { num: 10, name: 'Korathen',  land: 'Ultralands',    types: ['Aura','Humanoid-Noid'],     tierBand: [27, 35], accent: '#f8c840', wallColor: '#3a2408', wallEdge: '#8a5c1c', groundColor: '#8a6018', groundShade: '#583c10', grassColor: '#e8a428', sparkleTint: '#ffe488', gemlord: 'oatheus',  gemKey: 'ultra'     },
 };
 const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+
+// ★ 2026-07-28 · ASSET MAPPINGS
+// -----------------------------------------------------------------------------
+// RP7 is otherwise 100% procedural — every world sprite is drawn from
+// canvas rectangles + palettes.  These two registries are the ADDITIVE
+// PNG-override layer.  Any entry unmapped falls back to procedural.
+//
+// NPC_ASSETS · face-portraits used for
+//   (a) inline <img> in every showDialog line whose first line matches
+//       one of the recognisable prefixes ("KELTHOR:", "MYARA:", …), AND
+//   (b) the trainer-chip that appears in the battle overlay when the
+//       trainerName matches one of these entries.
+// Populate one district at a time; unmapped NPCs stay procedural.
+const NPC_ASSETS = {
+  kelthor:            '/assets/humanoids/humanoid_06.png',
+  mom:                '/assets/humanoids/humanoid_24.png',
+  dad:                '/assets/humanoids/humanoid_32.png',
+  myara:              '/assets/humanoids/humanoid_42.png',
+  yara:               '/assets/humanoids/humanoid_44.png',   // still human; corrupted form later
+  jax:                '/assets/humanoids/humanoid_25.png',
+  malezor_commander:  '/assets/humanoids/humanoid_21.png',
+};
+// First-line-prefix → NPC_ASSETS key.  Used to auto-attach a portrait
+// to every dialog without hand-editing 30+ showDialog call sites.
+const DIALOG_PORTRAIT_PREFIX = {
+  'WARDEN KELTHOR:': 'kelthor',
+  'KELTHOR:':        'kelthor',
+  'MOM:':            'mom',
+  'DAD:':            'dad',
+  'MYARA:':          'myara',
+  'YARA:':           'yara',
+  'JAX:':            'jax',
+};
+// Battle trainer-name → NPC_ASSETS key
+const BATTLE_TRAINER_ASSETS = {
+  'YARA': 'yara',
+  'JAX':  'jax',
+  'MYARA':'myara',
+};
+
+// DISTRICT_ASSETS · building emblems per district.  `capital` shows as a
+// small badge next to the district name in the HUD when the player is
+// in that district's overworld tile.  `seer_hq` shows when the player
+// enters the district's Seer HQ interior.
+const DISTRICT_ASSETS = {
+  malezor:  { capital: '/assets/buildings/building_03.png', seer_hq: '/assets/buildings/building_23.png' },
+  // zarvane, andrannor, ... — add as the player provides mappings
+};
+
+// Also attach the district's Seer Commander portrait per-district.
+// Wired here so the battle-trainer helper can resolve without a mode-
+// specific branch further down.
+const DISTRICT_COMMANDER_ASSETS = {
+  malezor:  '/assets/humanoids/humanoid_21.png',
+};
 
 // ============================================================================
 // ★ PART 2 SOUTHERN ZONES (2026-07-17 · matches Zyraxis planetary map)
@@ -19443,19 +19565,44 @@ function rollChestLoot(mapId) {
 
 // ---------- Dialog ----------
 const $dialog = document.getElementById('dialog');
+// ★ 2026-07-28 · Portrait injector.  Every dialog line runs through
+// pickDialogPortrait() which returns the NPC_ASSETS URL if the line
+// starts with a recognised prefix (KELTHOR:, MYARA:, MOM:, DAD:, YARA:,
+// JAX:), else null.  Portraits are opt-in per line and vanish on lines
+// that don't have a speaker prefix, so system/narration lines stay clean.
+function pickDialogPortrait(line) {
+  if (typeof line !== 'string' || !line) return null;
+  const trimmed = line.trimStart();
+  for (const [prefix, key] of Object.entries(DIALOG_PORTRAIT_PREFIX)) {
+    if (trimmed.startsWith(prefix)) return NPC_ASSETS[key] || null;
+  }
+  return null;
+}
+function paintDialogLine(line) {
+  const src = pickDialogPortrait(line);
+  if (src) {
+    $dialog.innerHTML = `
+      <div class="dialog-portrait-row">
+        <img class="dialog-portrait" src="${src}" alt="" onerror="this.style.display='none'">
+        <div class="dialog-text"></div>
+      </div>`;
+    $dialog.querySelector('.dialog-text').textContent = line;
+  } else {
+    $dialog.textContent = line;
+  }
+}
 function showDialog(lines, cb) {
   game.mode = 'dialog';
   game.dialogQ = lines.slice();
   game.dialogCb = cb || null;
   $dialog.classList.remove('hidden');
-  $dialog.textContent = game.dialogQ.shift();
+  paintDialogLine(game.dialogQ.shift());
 }
 function advanceDialog() {
-  // V3.14 — dialog-advance clip on every line turn.  Fires whether
-  // the queue still has more or we're on the final close beat.
+  // V3.14 — dialog-advance clip on every line turn.
   try { playSfx('dialog-advance'); } catch(_) {}
   if (game.dialogQ.length) {
-    $dialog.textContent = game.dialogQ.shift();
+    paintDialogLine(game.dialogQ.shift());
   } else {
     $dialog.classList.add('hidden');
     game.mode = 'overworld';
@@ -22190,6 +22337,34 @@ function enterBattle(enemy, kind, extras) {
   // read as total = 1 and the dots row is hidden.
   game.battle.enemyPartyTotal = 1 + ((game.battle.chain && game.battle.chain.length) || 0);
   $battle.classList.add('active');
+  // ★ 2026-07-28 · Trainer-chip · shows the human opponent's PNG face +
+  // name when the battle is a named trainer we've mapped.  Wild fights
+  // and unmapped trainers hide the chip cleanly.
+  (function _paintTrainerChip() {
+    const chip = document.getElementById('trainer-chip');
+    if (!chip) return;
+    const tname = (game.battle.trainerName || '').toUpperCase();
+    let assetKey = BATTLE_TRAINER_ASSETS[tname];
+    // Special-case district Seer Commanders: trainerName is "SEER COMMANDER"
+    // for all districts — resolve via the interior's origin district.
+    if (!assetKey && tname === 'SEER COMMANDER') {
+      const from = (game.player && game.player.enteredInteriorFrom) || null;
+      const cid = from && from.map;
+      if (cid && DISTRICT_COMMANDER_ASSETS[cid]) {
+        chip.querySelector('#trainer-chip-img').src = DISTRICT_COMMANDER_ASSETS[cid];
+        chip.querySelector('#trainer-chip-name').textContent = ((DISTRICT_META[cid] || {}).name || cid).toUpperCase() + ' · COMMANDER';
+        chip.classList.add('show');
+        return;
+      }
+    }
+    if (assetKey && NPC_ASSETS[assetKey]) {
+      chip.querySelector('#trainer-chip-img').src = NPC_ASSETS[assetKey];
+      chip.querySelector('#trainer-chip-name').textContent = tname;
+      chip.classList.add('show');
+    } else {
+      chip.classList.remove('show');
+    }
+  })();
   drawBattleMon(enemyCanvas, enemy, true);
   drawBattleMon(playerCanvas, game.player.party[idx], false);
   refreshBattleUI();
@@ -24193,6 +24368,10 @@ function fullPartyKO() {
 
 function exitBattle() {
   $battle.classList.remove('active');
+  // ★ 2026-07-28 · Hide the trainer face-chip on battle exit so it
+  // doesn't linger next time a wild fight starts.
+  const chip = document.getElementById('trainer-chip');
+  if (chip) chip.classList.remove('show');
   game.mode = 'overworld';
   game.battle = null;
   refreshMusicContext();   // V2.12 — back to overworld/home track based on mapId
@@ -25022,7 +25201,26 @@ function setHudLocation(label) {
   const parts = String(label || '').split(' · ');
   const l1 = parts[0] || '';
   const l2 = parts.slice(1).join(' · ');   // preserve extra dots as line-2
-  el.innerHTML = `<span class="l1">${l1}</span><span class="l2">${l2}</span>`;
+  // ★ 2026-07-28 · Resolve the district emblem for the current map.
+  //   Interior Seer HQ  → building_XX from DISTRICT_ASSETS[dist].seer_hq
+  //   Overworld district → DISTRICT_ASSETS[dist].capital
+  //   Anything unmapped → no emblem (badge renders plain, as before).
+  let emblemSrc = null;
+  const mapId  = game.player && game.player.mapId;
+  const from   = game.player && game.player.enteredInteriorFrom;
+  const dist   = (from && from.map) || (DISTRICT_ORDER.includes(mapId) ? mapId : null);
+  const assets = dist && DISTRICT_ASSETS[dist];
+  if (assets) {
+    // Any seer-HQ interior map is one of: seer_hq_main / seer_hq_upper
+    // / seer_hq_basement.  Anything else in a district context is the
+    // overworld / a hall / a house — show the capital.
+    if (String(mapId || '').startsWith('seer_hq')) emblemSrc = assets.seer_hq;
+    else                                            emblemSrc = assets.capital;
+  }
+  const emblemHtml = emblemSrc
+    ? `<img class="hud-district-emblem show" src="${emblemSrc}" alt="" onerror="this.style.display='none'">`
+    : '';
+  el.innerHTML = `${emblemHtml}<span class="l1">${l1}</span><span class="l2">${l2}</span>`;
 }
 // V3.13 — Resolve the correct HUD label for a map, folding in the
 // source district (enteredInteriorFrom.map) for interiors where the

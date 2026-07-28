@@ -168,6 +168,17 @@
       letter-spacing: 0.16em;
     }
 
+    /* ★ 2026-07-27 · Music toggle sits next to the Home link. */
+    .hud-audio {
+      background: transparent;
+      border: 1px solid rgba(232, 200, 120, 0.35);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--gold-bright);
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .hud-audio:hover { border-color: var(--gold-bright); }
+    .hud-audio.muted { opacity: 0.55; }
     .hud-back {
       font-family: var(--font-meta);
       font-size: 0.55rem;
@@ -567,9 +578,16 @@
         </svg>
         <span class="gem-count" id="gem-count">0<span class="total"> / 100</span></span>
       </div>
+      <button type="button" class="hud-back hud-audio" id="btn-audio-toggle" title="Toggle music" aria-label="Toggle music">
+        <span id="audio-icon">🔊</span><span id="audio-label"> MUSIC</span>
+      </button>
       <a href="/" class="hud-back">Home</a>
     </div>
   </div>
+
+  <!-- ★ 2026-07-27 · RP1 SOUNDTRACK · looping BGM.  Autoplay is gated
+       by browsers; boot script kicks playback on first user gesture. -->
+  <audio id="rp1-bgm" src="assets/rp1/rp1%20soundtrack.mp3" loop preload="auto"></audio>
 
   <div class="journey-bar">
     <div class="journey-track">
@@ -1350,5 +1368,54 @@
   </script>
   <script src="/aov-gamepad-boot.js"></script>
   <script src="/card-game-controller-nav.js"></script>
+  <!-- ★ 2026-07-27 · RP1 BGM boot — autoplay is gated by browsers, so
+       kick playback on the first user gesture (click / key / touch /
+       gamepad).  Mute preference persists in localStorage. -->
+  <script>
+  (function _rp1BgmBoot() {
+    const bgm   = document.getElementById('rp1-bgm');
+    const btn   = document.getElementById('btn-audio-toggle');
+    const icon  = document.getElementById('audio-icon');
+    const label = document.getElementById('audio-label');
+    if (!bgm || !btn) return;
+
+    const LS_KEY = 'aov-rp1-bgm-muted';
+    let muted = localStorage.getItem(LS_KEY) === '1';
+    bgm.volume = 0.5;    // sits under SFX / voice
+    bgm.muted  = muted;
+
+    function paintButton() {
+      icon.textContent  = muted ? '🔇' : '🔊';
+      label.textContent = muted ? ' MUSIC OFF' : ' MUSIC ON';
+      btn.classList.toggle('muted', muted);
+    }
+    paintButton();
+
+    function tryPlay() {
+      if (muted) return;
+      const p = bgm.play();
+      if (p && typeof p.then === 'function') {
+        p.catch(() => { /* autoplay blocked — waiting for gesture */ });
+      }
+    }
+    tryPlay();
+
+    function gestureBoot() {
+      tryPlay();
+      ['click','keydown','touchstart','pointerdown','gamepadconnected'].forEach(ev =>
+        window.removeEventListener(ev, gestureBoot, true));
+    }
+    ['click','keydown','touchstart','pointerdown','gamepadconnected'].forEach(ev =>
+      window.addEventListener(ev, gestureBoot, true));
+
+    btn.addEventListener('click', () => {
+      muted = !muted;
+      bgm.muted = muted;
+      localStorage.setItem(LS_KEY, muted ? '1' : '0');
+      paintButton();
+      if (!muted) tryPlay();
+    });
+  })();
+  </script>
 </body>
 </html>

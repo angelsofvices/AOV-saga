@@ -43,7 +43,13 @@ body:before{content:"";position:fixed;inset:0;background:radial-gradient(circle 
 .x{left:69.92%;top:60.25%;width:15.36%;height:8.65%;border-radius:50%}.y{left:53.52%;top:68.02%;width:13.67%;height:6.47%;border-radius:50%}.a{left:83.85%;top:68.02%;width:13.54%;height:7.12%;border-radius:50%}.b{left:68.36%;top:75.22%;width:13.54%;height:6.47%;border-radius:50%}.menu{left:38.41%;top:86.48%;width:22.14%;height:11.26%}.start{left:66.15%;top:93.39%;width:22.79%;height:4%}.select{left:11.07%;top:93.39%;width:22.79%;height:4%}
 #status{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);color:#776c83;font-size:9px;letter-spacing:.18em;text-transform:uppercase}@keyframes drift{to{background-position:80px -75px,-90px -105px}}@keyframes pulse{0%{opacity:.9;width:10px;height:10px}100%{opacity:0;width:220px;height:220px}}@keyframes itemGlow{50%{filter:drop-shadow(0 0 10px #9af7e9);transform:translateY(-2px)}}
 </style></head><body>
-<a class="back" href="games.html">← GAMES</a><div class="device"><div class="chassis">
+<a class="back" href="games.html">← GAMES</a>
+<!-- ★ 2026-07-27 · RP8 SOUNDTRACKS · one <audio> per region.  Only
+     Central has a track today; add sibling elements as more themes
+     come in (see BGM_TRACKS registry in the game script). -->
+<audio id="bgm-central" src="assets/rp8/audio/central-theme.mp3" loop preload="auto"></audio>
+<button id="btn-audio-toggle" class="back" style="right:auto;left:4.5vw;top:max(18px,env(safe-area-inset-top));background:#090612;color:#e8c878;cursor:pointer" title="Toggle music" aria-label="Toggle music"><span id="audio-icon">🔊</span> <span id="audio-label">MUSIC</span></button>
+<div class="device"><div class="chassis">
 <div class="screen"><div id="world" data-region="central"><canvas class="worldArt" id="tileMap" width="1024" height="1024"></canvas><img id="playerHome" src="assets/rp8/house/house_arborynth_player_base.png" alt=""><div id="homeLabel">PLAYER HOME</div><div id="interiorDoor">EXIT</div><img id="herbalStation" src="assets/rp8/crafting/herbal-health-station-game.png" alt="Herbal health station"><img id="groundStaff" src="assets/rp8/item/item_aura_staff_ground.png" alt=""><img id="groundHands" src="assets/rp8/item/item_hands_of_thorne.png" alt="Hands of Thorne"><canvas id="orivora" class="orivora" width="314" height="314" role="img" aria-label="Orivora, the Great Root"></canvas></div><div id="pulse"></div><canvas id="player" width="314" height="314" role="img" aria-label="Arborynth traveler"></canvas><canvas id="blockAnimation" width="314" height="314" aria-hidden="true"></canvas><canvas id="handsAttack" width="281" height="281" aria-hidden="true"></canvas><div id="staffAttack" aria-hidden="true"></div><div id="npcSpeech" role="status" aria-live="polite"></div><div id="prompt"></div><div id="healthHud" aria-label="Player health">♥♥♥♥♥</div><div id="location">FOREST OF THE GODVINE · CENTRAL · 32 × 32</div><button id="weaponWheel" type="button" aria-label="Cycle equipped weapon"><span class="wheelKey">↻</span><img class="weaponIcon staffIcon" src="assets/rp8/item/item_aura_staff_ground.png" alt=""><img class="weaponIcon handsIcon" src="assets/rp8/item/item_hands_of_thorne.png" alt=""><span class="weaponNone">NONE</span></button><div id="death">VIBE EXTINGUISHED<small>PRESS START TO RETURN HOME</small></div></div>
 <div class="hud"><div class="power">VIBE <span id="vibeLv">LV 1</span><div class="meter"><i id="vibeBar"></i></div></div><div class="power">AURA STAFF <span id="staffLv">LV 1</span><div class="meter"><i id="staffBar"></i></div></div></div>
 <button class="hot up" data-key="ArrowUp" aria-label="Move up"></button><button class="hot down" data-key="ArrowDown" aria-label="Move down"></button><button class="hot left" data-key="ArrowLeft" aria-label="Move left"></button><button class="hot right" data-key="ArrowRight" aria-label="Move right"></button>
@@ -83,15 +89,56 @@ function equipStaff(){if(progress.hasStaff)return;progress.hasStaff=true;progres
 function equipHands(){if(progress.hasHands)return;progress.hasHands=true;progress.equipped='hands';groundHands.style.display='none';updateEquipment();localStorage.setItem('arborynthProgress',JSON.stringify(progress));showMessage('HANDS OF THORNE ACQUIRED · EQUIPPED')}
 const regionNames={north:'GREAT ROOT SANCTUM · NORTH · 32 × 32',central:'FOREST OF THE GODVINE · CENTRAL · 32 × 32',south:'VERDANT WILDS · SOUTH · 32 × 32'};
 function refreshWorldObjects(){const central=scene==='outdoor'&&region==='central',south=scene==='outdoor'&&region==='south',north=scene==='outdoor'&&region==='north',indoor=scene==='indoor';playerHome.style.display=central?'block':'none';homeLabel.style.display=central?'block':'none';groundStaff.style.display=central&&!progress.hasStaff?'block':'none';groundHands.style.display=central&&!progress.hasHands?'block':'none';herbalStation.style.display=indoor?'block':'none';orivora.style.display=north?'block':'none';creepers.forEach(enemy=>enemy.canvas.style.display=south&&enemy.alive?'block':'none');if(!north){orivoraInteraction.active=false;npcSpeech.style.display='none'}}
-function setRegion(next,entry){region=next;world.dataset.region=region;bounds.w=bounds.h=1024;if(entry==='north')cam.y=bounds.h-PLAYER_EDGE_Y-4;else if(entry==='south')cam.y=PLAYER_EDGE_Y+4;cam.x=Math.max(PLAYER_EDGE_X,Math.min(bounds.w-PLAYER_EDGE_X,cam.x));locationLabel.textContent=regionNames[region];refreshWorldObjects();drawTileMap(floorTexture,32);regionLockUntil=performance.now()+500;showMessage(regionNames[region].replace(' · 32 × 32',''))}
-function enterHome(){scene='indoor';bounds.w=bounds.h=768;cam={x:384,y:bounds.h-48};facing='up';interiorDoor.style.display='block';refreshWorldObjects();locationLabel.textContent='PLAYER HOME · 8 × 8';drawTileMap(homeFloorTexture,8,96,512);showMessage('PLAYER HOME')}
-function exitHome(){scene='outdoor';region='central';world.dataset.region=region;bounds.w=bounds.h=1024;cam={x:760,y:438};facing='down';interiorDoor.style.display='none';refreshWorldObjects();locationLabel.textContent=regionNames.central;drawTileMap(floorTexture,32);regionLockUntil=performance.now()+500;showMessage('FOREST OF THE GODVINE · CENTRAL')}
+// ★ 2026-07-27 · BGM registry — one entry per (scene:region) combo.
+// Add sibling <audio id="bgm-…"> elements at the top of body + a line
+// here as more region themes come in.  Missing entries = silence.
+const BGM_TRACKS={'outdoor:central':'bgm-central'};
+const _bgmMuted=(localStorage.getItem('aov-rp8-bgm-muted')==='1');
+let _bgmCurrent=null;
+function _bgmEl(id){return id?document.getElementById(id):null}
+function updateSceneMusic(){
+  const key=scene+':'+region;
+  const nextId=BGM_TRACKS[key]||null;
+  // Fade out anything that's playing but shouldn't be.
+  if(_bgmCurrent&&_bgmCurrent!==nextId){
+    const prev=_bgmEl(_bgmCurrent);
+    if(prev){try{prev.pause();prev.currentTime=0}catch(_){}}
+  }
+  _bgmCurrent=nextId;
+  if(!nextId||_bgmMuted)return;
+  const el=_bgmEl(nextId);
+  if(!el)return;
+  el.volume=0.55;
+  el.muted=false;
+  const p=el.play();
+  if(p&&typeof p.then==='function')p.catch(()=>{/* autoplay blocked pre-gesture */});
+}
+// Boot on first gesture (browsers require user activation for audio).
+(function _bgmBoot(){
+  const btn=document.getElementById('btn-audio-toggle'),icon=document.getElementById('audio-icon'),label=document.getElementById('audio-label');
+  function paint(){icon.textContent=_bgmMutedState()?'🔇':'🔊';label.textContent=_bgmMutedState()?'MUSIC OFF':'MUSIC ON';btn.style.opacity=_bgmMutedState()?'0.55':'1'}
+  function _bgmMutedState(){return localStorage.getItem('aov-rp8-bgm-muted')==='1'}
+  paint();
+  const gestureBoot=()=>{updateSceneMusic();['click','keydown','touchstart','pointerdown','gamepadconnected'].forEach(ev=>removeEventListener(ev,gestureBoot,true))};
+  ['click','keydown','touchstart','pointerdown','gamepadconnected'].forEach(ev=>addEventListener(ev,gestureBoot,true));
+  btn.addEventListener('click',e=>{
+    e.stopPropagation();
+    const muted=!_bgmMutedState();
+    localStorage.setItem('aov-rp8-bgm-muted',muted?'1':'0');
+    if(muted){const el=_bgmEl(_bgmCurrent);if(el){try{el.pause()}catch(_){}}}
+    else{window._bgmMuted_snapshot=false;const el=_bgmEl(_bgmCurrent);if(el){const p=el.play();if(p&&typeof p.then==='function')p.catch(()=>{})}}
+    paint();
+  });
+})();
+function setRegion(next,entry){region=next;world.dataset.region=region;bounds.w=bounds.h=1024;if(entry==='north')cam.y=bounds.h-PLAYER_EDGE_Y-4;else if(entry==='south')cam.y=PLAYER_EDGE_Y+4;cam.x=Math.max(PLAYER_EDGE_X,Math.min(bounds.w-PLAYER_EDGE_X,cam.x));locationLabel.textContent=regionNames[region];refreshWorldObjects();drawTileMap(floorTexture,32);regionLockUntil=performance.now()+500;showMessage(regionNames[region].replace(' · 32 × 32',''));updateSceneMusic()}
+function enterHome(){scene='indoor';bounds.w=bounds.h=768;cam={x:384,y:bounds.h-48};facing='up';interiorDoor.style.display='block';refreshWorldObjects();locationLabel.textContent='PLAYER HOME · 8 × 8';drawTileMap(homeFloorTexture,8,96,512);showMessage('PLAYER HOME');updateSceneMusic()}
+function exitHome(){scene='outdoor';region='central';world.dataset.region=region;bounds.w=bounds.h=1024;cam={x:760,y:438};facing='down';interiorDoor.style.display='none';refreshWorldObjects();locationLabel.textContent=regionNames.central;drawTileMap(floorTexture,32);regionLockUntil=performance.now()+500;showMessage('FOREST OF THE GODVINE · CENTRAL');updateSceneMusic()}
 function isNearHouseDoor(){return scene==='outdoor'&&region==='central'&&cam.x>620&&cam.x<930&&cam.y>350&&cam.y<535}
 function useHerbalStation(){if(playerHp>=5)return showMessage('HERBAL STATION · VIBE ALREADY FULL');playerHp=5;updateHealth();player.animate([{filter:'brightness(1)'},{filter:'brightness(1.8) drop-shadow(0 0 8px #9cf06f)'},{filter:'brightness(1)'}],{duration:550});showMessage('HERBAL REMEDY · VIBE RESTORED')}
 function interact(){if(scene==='indoor'){if(Math.hypot(cam.x-interiorExitPos.x,cam.y-interiorExitPos.y)<170)return exitHome();if(Math.hypot(cam.x-herbalPos.x,cam.y-herbalPos.y)<110)return useHerbalStation();return showMessage('NOTHING TO INTERACT WITH')}if(region==='central'&&!progress.hasStaff&&Math.hypot(cam.x-staffPos.x,cam.y-staffPos.y)<72)return equipStaff();if(region==='central'&&!progress.hasHands&&Math.hypot(cam.x-handsPos.x,cam.y-handsPos.y)<72)return equipHands();if(isNearHouseDoor())return enterHome();if(region==='north'&&Math.hypot(cam.x-orivoraPos.x,cam.y-orivoraPos.y)<140){orivoraInteraction.active=false;updateOrivoraInteraction();return}showMessage('NOTHING TO INTERACT WITH')}
 function hitCreeper(){if(region!=='south')return;const vectors={up:[0,-1],left:[-1,0],right:[1,0],down:[0,1]},[fx,fy]=vectors[facing];let target=null,best=86;for(const enemy of creepers){if(!enemy.alive)continue;const dx=enemy.x-cam.x,dy=enemy.y-cam.y,d=Math.hypot(dx,dy),dot=(dx*fx+dy*fy)/(d||1);if(d<best&&dot>.1){target=enemy;best=d}}if(!target)return;target.hp--;target.canvas.animate([{filter:'brightness(1)'},{filter:'brightness(3) sepia(1)'},{filter:'brightness(1)'}],{duration:220});if(target.hp<=0){target.alive=false;target.canvas.style.display='none';showMessage('VERDANT CREEPER DEFEATED');gain('staff',12)}else showMessage(`CREEPER HIT · ${target.hp}/5`)}
 function basicAttack(){if(playerDead)return;if(progress.equipped==='none')return showMessage('EQUIP A WEAPON FROM THE WHEEL');if(attacking||blocking)return;attacking=true;hitCreeper();if(progress.equipped==='hands'){player.style.visibility='hidden';handsAttack.style.display='block';let handsFrame=0;drawHandsAttackFrame(handsFrame);const handsTimer=setInterval(()=>{handsFrame++;if(handsFrame>=5){clearInterval(handsTimer);handsAttack.style.display='none';player.style.visibility='visible';attacking=false;gain('vibe',2);return}drawHandsAttackFrame(handsFrame)},85);return}player.style.visibility='hidden';staffAttack.style.backgroundImage=`url("${attackSheets[facing]}")`;staffAttack.style.display='block';let frame=0;staffAttack.style.backgroundPosition='0% center';const timer=setInterval(()=>{frame++;if(frame>=5){clearInterval(timer);staffAttack.style.display='none';player.style.visibility='visible';attacking=false;gain('staff',2);return}staffAttack.style.backgroundPosition=`${frame*25}% center`},85)}
-function revivePlayer(){playerHp=5;playerDead=false;invulnerableUntil=performance.now()+1200;scene='outdoor';region='central';world.dataset.region=region;bounds.w=bounds.h=1024;cam={x:620,y:500};refreshWorldObjects();locationLabel.textContent=regionNames.central;drawTileMap(floorTexture,32);deathScreen.classList.remove('show');updateHealth();showMessage('RETURNED TO PLAYER HOME')}
+function revivePlayer(){playerHp=5;playerDead=false;invulnerableUntil=performance.now()+1200;scene='outdoor';region='central';world.dataset.region=region;bounds.w=bounds.h=1024;cam={x:620,y:500};refreshWorldObjects();locationLabel.textContent=regionNames.central;drawTileMap(floorTexture,32);deathScreen.classList.remove('show');updateHealth();showMessage('RETURNED TO PLAYER HOME');updateSceneMusic()}
 // ★ 2026-07-27 · L3 SPRINT toggle.  Click the left stick (button 10) to
 // flip between walk (135 u/s) and sprint (230 u/s).  Toast + status line
 // confirm the mode change.

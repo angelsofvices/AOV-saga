@@ -427,6 +427,263 @@
       display: block;
     }
 
+    /* ────────────────────────────────────────────────────────────────
+       ★ 2026-07-28 · LEADERBOARDS
+       Two boards live in localStorage:
+         · aov-rp1-lb-classic  → fastest time to 100 gems (ascending)
+         · aov-rp1-lb-endless  → most gems before death (descending)
+       Top 10 per board; ranks 1/2/3 = Captain (gold) / Private (silver)
+       / Cadet (bronze).  Name input capped at 10 characters.
+       ──────────────────────────────────────────────────────────── */
+
+    /* Small "Score Recorded" chip that appears on the end screen */
+    .score-badge {
+      display: inline-block;
+      margin: 0 auto 14px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(232, 200, 120, 0.55);
+      background: rgba(232, 200, 120, 0.08);
+      color: var(--gold-bright, #f4e3b3);
+      font-family: var(--font-meta, 'Inter', sans-serif);
+      font-size: 0.62rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+    }
+    .score-badge strong { color: var(--gold); font-weight: 600; }
+
+    /* Name-entry block on end screens */
+    .lb-name-block {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin: 8px auto 18px;
+      max-width: 320px;
+      padding: 14px 16px;
+      border: 1px solid rgba(232, 200, 120, 0.35);
+      background: rgba(20, 14, 44, 0.55);
+      border-radius: 6px;
+    }
+    .lb-name-block.show { display: flex; }
+    .lb-name-block label {
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.55rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.85;
+    }
+    .lb-name-block input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--gold);
+      border-radius: 4px;
+      background: rgba(10, 6, 24, 0.85);
+      color: var(--gold-bright);
+      font-family: 'Cinzel', serif;
+      font-size: 1.05rem;
+      letter-spacing: 0.24em;
+      text-align: center;
+      text-transform: uppercase;
+      outline: none;
+    }
+    .lb-name-block input:focus { border-color: var(--gold-bright); box-shadow: 0 0 0 2px rgba(232,200,120,0.28); }
+    .lb-name-block .lb-submit {
+      padding: 10px 26px;
+      border: 1px solid var(--gold-bright);
+      border-radius: 4px;
+      background: rgba(232, 200, 120, 0.18);
+      color: var(--gold-bright);
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.62rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .lb-name-block .lb-submit:hover { background: rgba(232, 200, 120, 0.32); }
+    .lb-name-block .lb-hint {
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.5rem;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--mist-deep, rgba(200,194,220,0.55));
+    }
+
+    /* Leaderboard modal overlay */
+    .lb-modal {
+      position: fixed; inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(5, 3, 16, 0.88);
+      backdrop-filter: blur(8px);
+      padding: 20px;
+    }
+    .lb-modal.show { display: flex; }
+    .lb-panel {
+      width: min(560px, 100%);
+      max-height: 90vh;
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      background: linear-gradient(180deg, rgba(20,14,44,0.96), rgba(10,6,24,0.98));
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.7), 0 0 60px rgba(232,200,120,0.22);
+    }
+    .lb-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px 14px;
+      border-bottom: 1px solid rgba(232, 200, 120, 0.22);
+    }
+    .lb-header h2 {
+      margin: 0;
+      font-family: 'Cinzel', serif;
+      font-size: 1.35rem;
+      letter-spacing: 0.14em;
+      background: linear-gradient(180deg, var(--gold-pale), var(--gold), var(--gold-deep));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lb-close {
+      background: transparent; border: 0;
+      color: var(--gold-bright);
+      font-size: 24px; line-height: 1;
+      cursor: pointer;
+      padding: 4px 10px;
+    }
+    .lb-tabs {
+      display: grid; grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid rgba(232, 200, 120, 0.22);
+    }
+    .lb-tab {
+      padding: 12px 8px;
+      background: transparent;
+      border: 0;
+      color: var(--mist);
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.6rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .lb-tab.active {
+      color: var(--gold-bright);
+      border-bottom-color: var(--gold-bright);
+    }
+    .lb-tab:hover:not(.active) { color: var(--gold-pale, #f4e3b3); }
+    .lb-body {
+      overflow-y: auto;
+      padding: 12px 18px 20px;
+      flex: 1;
+    }
+    .lb-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--mist);
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.65rem;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+    .lb-list {
+      list-style: none;
+      margin: 0; padding: 0;
+      display: grid; gap: 4px;
+    }
+    .lb-row {
+      display: grid;
+      grid-template-columns: 44px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border: 1px solid rgba(232, 200, 120, 0.15);
+      border-radius: 4px;
+      background: rgba(10, 6, 24, 0.4);
+      color: var(--mist);
+      font-family: var(--font-meta, sans-serif);
+    }
+    .lb-row .lb-rank {
+      font-family: 'Cinzel', serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.12em;
+      color: var(--mist);
+      text-align: center;
+    }
+    .lb-row .lb-name {
+      font-family: 'Cinzel', serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.24em;
+      color: var(--gold-bright);
+      text-transform: uppercase;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .lb-row .lb-score {
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.75rem;
+      letter-spacing: 0.14em;
+      color: var(--gold);
+      text-transform: uppercase;
+      text-align: right;
+    }
+    .lb-row .lb-medal {
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.5rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--mist-deep);
+      display: block;
+      margin-top: 2px;
+    }
+    /* Rank medals — 1 = Captain (gold), 2 = Private (silver), 3 = Cadet (bronze) */
+    .lb-row.rank-1 {
+      border-color: var(--gold-bright);
+      background: linear-gradient(90deg, rgba(232,200,120,0.22), rgba(10,6,24,0.65));
+      box-shadow: 0 0 22px rgba(232,200,120,0.32);
+    }
+    .lb-row.rank-1 .lb-rank { color: var(--gold-bright); font-size: 1.35rem; }
+    .lb-row.rank-1 .lb-medal { color: var(--gold-bright); }
+    .lb-row.rank-2 {
+      border-color: rgba(224, 224, 236, 0.72);
+      background: linear-gradient(90deg, rgba(200,200,220,0.14), rgba(10,6,24,0.65));
+      box-shadow: 0 0 16px rgba(200,200,220,0.22);
+    }
+    .lb-row.rank-2 .lb-rank { color: #d8d8e8; font-size: 1.2rem; }
+    .lb-row.rank-2 .lb-medal { color: #d8d8e8; }
+    .lb-row.rank-3 {
+      border-color: rgba(210, 140, 80, 0.65);
+      background: linear-gradient(90deg, rgba(210,140,80,0.14), rgba(10,6,24,0.65));
+      box-shadow: 0 0 14px rgba(210,140,80,0.22);
+    }
+    .lb-row.rank-3 .lb-rank { color: #e0a06a; font-size: 1.1rem; }
+    .lb-row.rank-3 .lb-medal { color: #e0a06a; }
+    .lb-row .lb-highlight {
+      color: var(--gold-bright);
+      font-weight: 600;
+    }
+    .lb-current {
+      outline: 2px dashed var(--gold-bright);
+      outline-offset: -2px;
+    }
+
+    /* "Leaderboard" pill on the intro screen */
+    .intro-lb-btn {
+      display: block;
+      margin: 12px auto 0;
+      padding: 8px 22px;
+      border: 1px solid rgba(232, 200, 120, 0.5);
+      background: rgba(20, 14, 44, 0.7);
+      color: var(--gold-bright);
+      font-family: var(--font-meta, sans-serif);
+      font-size: 0.6rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .intro-lb-btn:hover { border-color: var(--gold-bright); background: rgba(232,200,120,0.12); }
+
     .hit-flash {
       position: fixed;
       inset: 0;
@@ -614,8 +871,17 @@
         <p>The Astralnaut returns — gems gathered, void survived, the long silence ended.</p>
       </div>
       <div class="end-stats" id="win-stats">Lives Remaining · <strong>—</strong></div>
+      <!-- Name entry (Classic) — shown when eligible (time recorded) -->
+      <div class="lb-name-block" id="win-name-block">
+        <label for="win-name-input">Etch your name into The Long Return</label>
+        <input id="win-name-input" type="text" maxlength="10" autocomplete="off" spellcheck="false" placeholder="ASTRALNAUT" />
+        <button class="lb-submit" id="win-name-submit">Submit Score</button>
+        <span class="lb-hint">Max 10 characters</span>
+      </div>
+      <div class="score-badge" id="win-score-badge" style="display:none">Recorded · <strong id="win-score-rank">—</strong></div>
       <div class="end-actions">
-        <a href="/saga.html" class="btn btn-primary">Read the Saga</a>
+        <button class="btn btn-primary" id="win-view-lb">View Leaderboard</button>
+        <a href="/saga.html" class="btn btn-ghost">Read the Saga</a>
         <button class="btn btn-ghost" data-restart>Begin Again</button>
       </div>
     </div>
@@ -631,9 +897,35 @@
         <p>The void keeps its own.</p>
       </div>
       <div class="end-stats" id="lose-stats">Gems Gathered · <strong>—</strong></div>
+      <!-- Name entry (Endless only — Classic loss = didn't reach 100 so no submission) -->
+      <div class="lb-name-block" id="lose-name-block">
+        <label for="lose-name-input">Etch your name into the Endless Void</label>
+        <input id="lose-name-input" type="text" maxlength="10" autocomplete="off" spellcheck="false" placeholder="ASTRALNAUT" />
+        <button class="lb-submit" id="lose-name-submit">Submit Score</button>
+        <span class="lb-hint">Max 10 characters</span>
+      </div>
+      <div class="score-badge" id="lose-score-badge" style="display:none">Recorded · <strong id="lose-score-rank">—</strong></div>
       <div class="end-actions">
         <button class="btn btn-primary" data-restart>Try Again</button>
+        <button class="btn btn-ghost" id="lose-view-lb">View Leaderboard</button>
         <a href="/" class="btn btn-ghost">Return Home</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ 2026-07-28 · LEADERBOARD MODAL -->
+  <div class="lb-modal" id="lb-modal" role="dialog" aria-modal="true" aria-label="Leaderboard">
+    <div class="lb-panel">
+      <header class="lb-header">
+        <h2>Leaderboard</h2>
+        <button class="lb-close" id="lb-close" aria-label="Close leaderboard">×</button>
+      </header>
+      <div class="lb-tabs">
+        <button class="lb-tab active" data-lb-tab="classic">The Journey · Fastest to 100</button>
+        <button class="lb-tab" data-lb-tab="endless">Endless Void · Most Gems</button>
+      </div>
+      <div class="lb-body" id="lb-body">
+        <ol class="lb-list" id="lb-list"></ol>
       </div>
     </div>
   </div>
@@ -661,6 +953,7 @@
           <span class="mode-note">Blast · Space · R2 · two-finger tap</span>
         </button>
       </div>
+      <button class="intro-lb-btn" id="intro-lb-btn" type="button">◆ Leaderboard</button>
     </div>
   </div>
 
@@ -822,6 +1115,11 @@
     }
 
     window.addEventListener('keydown', (e) => {
+      // ★ 2026-07-28 · If the user is typing in a text field (leaderboard
+      // name entry, etc.) let the keystroke flow through untouched — no
+      // gameplay input, no preventDefault.
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(e.key)) {
         keysDown.add(e.key.toLowerCase());
         setInputHint('Keyboard active · WASD or arrows');
@@ -1363,10 +1661,196 @@
     const $winStats = document.getElementById('win-stats');
     const $loseStats = document.getElementById('lose-stats');
 
+    /* ────────────────────────────────────────────────────────────────
+       ★ 2026-07-28 · LEADERBOARD ENGINE
+       Two boards, both persisted in localStorage:
+         Classic (journey)  →  fastest time to 100 gems (ascending)
+         Endless (endless)  →  most gems before death (descending)
+       Top-10 entries per board.  Ranks 1/2/3 highlighted as
+       Captain / Private / Cadet.
+       ──────────────────────────────────────────────────────────── */
+    const LB_KEYS = { classic: 'aov-rp1-lb-classic', endless: 'aov-rp1-lb-endless' };
+    const LB_MAX  = 10;
+    const RANK_MEDALS = { 1: 'Captain', 2: 'Private', 3: 'Cadet' };
+
+    function lbGet(mode) {
+      const key = LB_KEYS[mode];
+      if (!key) return [];
+      try {
+        const raw = localStorage.getItem(key);
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) ? list : [];
+      } catch (_) { return []; }
+    }
+    function lbSave(mode, list) {
+      const key = LB_KEYS[mode];
+      if (!key) return;
+      try { localStorage.setItem(key, JSON.stringify(list)); } catch (_) {}
+    }
+    function lbSort(mode, list) {
+      if (mode === 'classic') return list.slice().sort((a, b) => a.score - b.score);
+      return list.slice().sort((a, b) => b.score - a.score);
+    }
+    /**
+     * Submit a score.  Returns { rank } if it landed in the top 10, else null.
+     * classic score = seconds (float); endless score = gems (int).
+     */
+    function lbSubmit(mode, name, score) {
+      const clean = (name || 'ASTRALNAUT').toUpperCase().replace(/[^A-Z0-9 \-_]/g, '').slice(0, 10).trim() || 'ASTRALNAUT';
+      const list = lbGet(mode);
+      const entry = { name: clean, score: score, date: Date.now() };
+      list.push(entry);
+      const sorted = lbSort(mode, list).slice(0, LB_MAX);
+      lbSave(mode, sorted);
+      const rank = sorted.findIndex(e => e === entry || (e.date === entry.date && e.name === entry.name && e.score === entry.score)) + 1;
+      return rank > 0 ? { rank, entry } : null;
+    }
+    function lbFormatScore(mode, score) {
+      if (mode === 'classic') {
+        const s = Number(score) || 0;
+        const mm = Math.floor(s / 60);
+        const ss = (s - mm * 60).toFixed(2).padStart(5, '0');
+        return `${mm}:${ss}`;
+      }
+      return `${score | 0} gems`;
+    }
+    function lbRankLabel(rank) {
+      const medal = RANK_MEDALS[rank];
+      return medal ? `${rank} · ${medal}` : String(rank);
+    }
+
+    /* ────────── Score submission on end-screens ────────── */
+    const $winNameBlock  = document.getElementById('win-name-block');
+    const $winNameInput  = document.getElementById('win-name-input');
+    const $winNameBtn    = document.getElementById('win-name-submit');
+    const $winScoreBadge = document.getElementById('win-score-badge');
+    const $winScoreRank  = document.getElementById('win-score-rank');
+    const $loseNameBlock = document.getElementById('lose-name-block');
+    const $loseNameInput = document.getElementById('lose-name-input');
+    const $loseNameBtn   = document.getElementById('lose-name-submit');
+    const $loseScoreBadge= document.getElementById('lose-score-badge');
+    const $loseScoreRank = document.getElementById('lose-score-rank');
+
+    // Track the pending submission for each screen so keyboard Enter works too.
+    let pendingWinScore  = null;   // seconds
+    let pendingLoseScore = null;   // gems
+    let pendingLoseMode  = null;   // 'endless' — Classic loss never submits
+
+    function primeWinSubmission(seconds) {
+      pendingWinScore = seconds;
+      $winScoreBadge.style.display = 'none';
+      $winNameBlock.classList.add('show');
+      $winNameInput.value = localStorage.getItem('aov-rp1-lastname') || '';
+      setTimeout(() => $winNameInput.focus(), 300);
+    }
+    function primeLoseSubmission(gems, mode) {
+      // Only Endless gets to submit on death (Classic loss = didn't hit 100).
+      if (mode !== 'endless') { $loseNameBlock.classList.remove('show'); return; }
+      pendingLoseScore = gems;
+      pendingLoseMode  = mode;
+      $loseScoreBadge.style.display = 'none';
+      $loseNameBlock.classList.add('show');
+      $loseNameInput.value = localStorage.getItem('aov-rp1-lastname') || '';
+      setTimeout(() => $loseNameInput.focus(), 300);
+    }
+
+    function commitWinSubmission() {
+      if (pendingWinScore == null) return;
+      const name = $winNameInput.value;
+      localStorage.setItem('aov-rp1-lastname', name.toUpperCase());
+      const result = lbSubmit('classic', name, pendingWinScore);
+      pendingWinScore = null;
+      $winNameBlock.classList.remove('show');
+      if (result) {
+        $winScoreRank.textContent = lbRankLabel(result.rank);
+        $winScoreBadge.style.display = '';
+      }
+    }
+    function commitLoseSubmission() {
+      if (pendingLoseScore == null || pendingLoseMode == null) return;
+      const name = $loseNameInput.value;
+      localStorage.setItem('aov-rp1-lastname', name.toUpperCase());
+      const result = lbSubmit(pendingLoseMode, name, pendingLoseScore);
+      pendingLoseScore = null;
+      pendingLoseMode  = null;
+      $loseNameBlock.classList.remove('show');
+      if (result) {
+        $loseScoreRank.textContent = lbRankLabel(result.rank);
+        $loseScoreBadge.style.display = '';
+      }
+    }
+    $winNameBtn .addEventListener('click', commitWinSubmission);
+    $loseNameBtn.addEventListener('click', commitLoseSubmission);
+    $winNameInput .addEventListener('keydown', e => {
+      if (e.key === 'Enter') { commitWinSubmission();  e.preventDefault(); e.stopPropagation(); }
+    });
+    $loseNameInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { commitLoseSubmission(); e.preventDefault(); e.stopPropagation(); }
+    });
+
+    /* ────────── Leaderboard modal ────────── */
+    const $lbModal = document.getElementById('lb-modal');
+    const $lbClose = document.getElementById('lb-close');
+    const $lbList  = document.getElementById('lb-list');
+    const $lbTabs  = document.querySelectorAll('.lb-tab');
+    let lbActiveMode = 'classic';
+    let lbHighlightIndex = -1;   // for showing "you just scored" mark
+
+    function lbRender() {
+      const list = lbGet(lbActiveMode);
+      const sorted = lbSort(lbActiveMode, list).slice(0, LB_MAX);
+      $lbList.innerHTML = '';
+      if (!sorted.length) {
+        $lbList.innerHTML = `<li class="lb-empty">No scores yet — be the first to etch your name.</li>`;
+        return;
+      }
+      sorted.forEach((entry, idx) => {
+        const rank = idx + 1;
+        const medal = RANK_MEDALS[rank];
+        const li = document.createElement('li');
+        li.className = 'lb-row' + (rank <= 3 ? ` rank-${rank}` : '') + (idx === lbHighlightIndex ? ' lb-current' : '');
+        li.innerHTML = `
+          <div>
+            <div class="lb-rank">${rank}</div>
+            ${medal ? `<div class="lb-medal">${medal}</div>` : ''}
+          </div>
+          <div class="lb-name">${entry.name}</div>
+          <div class="lb-score">${lbFormatScore(lbActiveMode, entry.score)}</div>
+        `;
+        $lbList.appendChild(li);
+      });
+    }
+    function lbOpen(mode) {
+      if (mode) lbActiveMode = mode;
+      $lbTabs.forEach(t => t.classList.toggle('active', t.dataset.lbTab === lbActiveMode));
+      lbRender();
+      $lbModal.classList.add('show');
+    }
+    function lbClose() {
+      $lbModal.classList.remove('show');
+      lbHighlightIndex = -1;
+    }
+    $lbClose.addEventListener('click', lbClose);
+    $lbModal.addEventListener('click', e => { if (e.target === $lbModal) lbClose(); });
+    $lbTabs.forEach(t => t.addEventListener('click', () => {
+      lbActiveMode = t.dataset.lbTab;
+      lbHighlightIndex = -1;
+      $lbTabs.forEach(x => x.classList.toggle('active', x === t));
+      lbRender();
+    }));
+
+    // Intro & end-screen leaderboard buttons
+    document.getElementById('intro-lb-btn').addEventListener('click', () => lbOpen('classic'));
+    document.getElementById('win-view-lb').addEventListener('click', () => lbOpen('classic'));
+    document.getElementById('lose-view-lb').addEventListener('click', () => lbOpen('endless'));
+
     function triggerWin() {
       state.running = false;
       state.gameOver = true;
-      $winStats.innerHTML = `Lives Remaining · <strong>${state.lives}</strong>`;
+      const seconds = state.timeAlive;
+      $winStats.innerHTML = `Lives Remaining · <strong>${state.lives}</strong> · Time · <strong>${lbFormatScore('classic', seconds)}</strong>`;
+      // Only Classic (Journey) can win.  Prompt the leaderboard entry.
+      if (state.mode === 'journey') primeWinSubmission(seconds);
       setTimeout(() => $winScreen.classList.add('active'), 500);
     }
 
@@ -1376,6 +1860,8 @@
       $loseStats.innerHTML = state.mode === 'endless'
         ? `Endless Score · <strong>${state.gems} gems</strong> · Survived <strong>${Math.floor(state.timeAlive)}s</strong>`
         : `Gems Gathered · <strong>${state.gems} / ${GOAL}</strong>`;
+      // Only Endless-mode deaths submit a score.  Classic loss = didn't reach 100.
+      if (state.mode === 'endless') primeLoseSubmission(state.gems, 'endless');
       setTimeout(() => $loseScreen.classList.add('active'), 600);
     }
 
@@ -1403,6 +1889,14 @@
       state.targetY = state.shipY;
       $winScreen.classList.remove('active');
       $loseScreen.classList.remove('active');
+      // Reset leaderboard prompt state so a fresh run has fresh UI.
+      $winNameBlock.classList.remove('show');
+      $loseNameBlock.classList.remove('show');
+      $winScoreBadge.style.display = 'none';
+      $loseScoreBadge.style.display = 'none';
+      pendingWinScore = null;
+      pendingLoseScore = null;
+      pendingLoseMode = null;
       buildHearts();
       updateLivesUI();
       updateGemUI();

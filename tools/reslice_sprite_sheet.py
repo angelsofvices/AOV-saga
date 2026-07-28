@@ -15,18 +15,104 @@ import cv2
 import os, sys, glob, argparse
 
 def chroma_key(pil_rgba, tol=40):
-    """Return an RGBA PIL image with magenta background alpha=0."""
+    """First-pass RGB-box chroma-key on the exact sampled bg colour.
+
+    Shadow-band despill runs later (per-sprite) so we can restrict it to
+    the BOTTOM of each sprite's bbox where shadows actually live — the
+    witch's magenta hat at the top of her sprite is the SAME hue as the
+    bg, so a global hue-kill would destroy it.
+    """
     arr = np.array(pil_rgba)  # H, W, 4
-    # Sample the key colour from a top-left interior pixel (skip 2px in
-    # case of border artifacts).
     key = arr[2, 2, :3]
     kr, kg, kb = int(key[0]), int(key[1]), int(key[2])
-    # Vectorised match with per-channel tolerance
-    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
-    mask = (np.abs(r.astype(int) - kr) < tol) & \
-           (np.abs(g.astype(int) - kg) < tol) & \
-           (np.abs(b.astype(int) - kb) < tol)
-    arr[..., 3][mask] = 0
+    r, g, b = arr[..., 0].astype(int), arr[..., 1].astype(int), arr[..., 2].astype(int)
+    bg = (np.abs(r - kr) < tol) & (np.abs(g - kg) < tol) & (np.abs(b - kb) < tol)
+    arr[..., 3][bg] = 0
+    return Image.fromarray(arr)
+
+
+def despill_shadow_band(pil_rgba, bg_rgb,
+                        band_frac=0.28,
+                        hue_tol_deg=25,
+                        min_sat=0.30):
+    """Kill magenta-hue pixels only within the BOTTOM `band_frac` of the
+    sprite's bbox — that's where under-sprite shadows live.  Legit magenta
+    content elsewhere (hats, capes, gems) is preserved.
+    """
+    arr = np.array(pil_rgba)
+    if arr.shape[2] < 4:
+        return pil_rgba
+    H_img, W_img = arr.shape[:2]
+    # Get the OPAQUE bbox to define "sprite bottom"
+    alpha = arr[..., 3]
+    ys, xs = np.where(alpha > 32)
+    if ys.size == 0:
+        return pil_rgba
+    top, bot = int(ys.min()), int(ys.max())
+    band_h = int((bot - top + 1) * band_frac)
+    band_top = max(0, bot - band_h + 1)
+
+    # HSV of the whole image (fast enough vs subsetting)
+    rgb = arr[..., :3]
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV_FULL)
+    H, S = hsv[..., 0].astype(int), hsv[..., 1]
+    bg_hsv = cv2.cvtColor(np.uint8([[list(bg_rgb)]]), cv2.COLOR_RGB2HSV_FULL)[0, 0]
+    bg_h = int(bg_hsv[0])
+    hue_tol_255 = int((hue_tol_deg / 360.0) * 255)
+    dh = np.minimum(np.abs(H - bg_h), 255 - np.abs(H - bg_h))
+    hue_match = (dh < hue_tol_255) & (S > int(min_sat * 255))
+    # Restrict to bottom band ONLY
+    band_mask = np.zeros_like(alpha, dtype=bool)
+    band_mask[band_top:bot + 1, :] = True
+    kill = hue_match & band_mask
+    arr[..., 3][kill] = 0
+    return Image.fromarray(arr)
+
+
+def despill_edge_fringe(pil_rgba, bg_rgb, hue_tol_deg=18, min_sat=0.30):
+    """Kill any magenta-hue pixel that sits adjacent to an already-
+    transparent region — those are the anti-aliased sheet-edge fringe
+    pixels that leaked around every sprite's silhouette.  Runs GLOBALLY
+    but only near transparent edges, so interior magenta (hats, capes)
+    is untouched.
+    """
+    arr = np.array(pil_rgba)
+    if arr.shape[2] < 4:
+        return pil_rgba
+    alpha = arr[..., 3]
+    rgb = arr[..., :3]
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV_FULL)
+    H, S = hsv[..., 0].astype(int), hsv[..., 1]
+    bg_hsv = cv2.cvtColor(np.uint8([[list(bg_rgb)]]), cv2.COLOR_RGB2HSV_FULL)[0, 0]
+    bg_h = int(bg_hsv[0])
+    hue_tol_255 = int((hue_tol_deg / 360.0) * 255)
+    dh = np.minimum(np.abs(H - bg_h), 255 - np.abs(H - bg_h))
+    hue_match = (dh < hue_tol_255) & (S > int(min_sat * 255))
+    # Only near existing transparent pixels (± 3 px)
+    transparent = (alpha == 0).astype(np.uint8) * 255
+    near_edge = cv2.dilate(transparent,
+                           cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+                           iterations=1) > 0
+    arr[..., 3][hue_match & near_edge] = 0
+    return Image.fromarray(arr)
+
+def add_black_outline(pil_rgba, thickness=1):
+    """Grow the opaque region by `thickness` px and paint the new ring
+    solid black.  Preserves the sprite's interior colours untouched.
+    """
+    arr = np.array(pil_rgba)
+    if arr.shape[2] < 4:
+        return pil_rgba
+    alpha = arr[..., 3]
+    binary = (alpha > 32).astype(np.uint8) * 255
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (thickness*2+1, thickness*2+1))
+    dilated = cv2.dilate(binary, k, iterations=1)
+    # New pixels = dilated ∖ original.  Paint them black opaque.
+    new_ring = (dilated > 0) & (binary == 0)
+    arr[new_ring, 0] = 0
+    arr[new_ring, 1] = 0
+    arr[new_ring, 2] = 0
+    arr[new_ring, 3] = 255
     return Image.fromarray(arr)
 
 def find_sprites(pil_rgba,
@@ -132,7 +218,8 @@ def process_sheet(src_path, out_dir, prefix, row_count,
                   wipe_bottom_frac=0.0,
                   wipe_bottom_only_near_white=False,
                   near_white_threshold=200,
-                  min_area=400, close_kernel=5):
+                  min_area=400, close_kernel=5,
+                  outline_px=1):
     """
     src_path         : PNG with magenta background
     out_dir          : where to write <prefix>_NN.png files
@@ -194,7 +281,33 @@ def process_sheet(src_path, out_dir, prefix, row_count,
     for old in glob.glob(f"{out_dir}/{prefix}_*.png"):
         os.remove(old)
 
+    # Sample the sheet bg colour once so per-sprite despill matches it
+    _raw_master = np.array(im)
+    bg_rgb_tuple = tuple(int(x) for x in _raw_master[2, 2, :3])
+
     for i, (bbox, crop) in enumerate(sprites, start=1):
+        # 1) Kill under-sprite magenta shadows (bottom-band only)
+        #    Edge-fringe despill deliberately SKIPPED — it killed the
+        #    witch's magenta hat (top of sprite silhouette = "near edge").
+        #    Any tiny bg-hue leftover on the sprite outline is covered by
+        #    the black outline pass below anyway.
+        crop = despill_shadow_band(crop, bg_rgb_tuple)
+        # 2) Retrim to bbox so the outline pad math starts from a clean crop
+        bb = crop.getbbox()
+        if bb:
+            crop = crop.crop(bb)
+        # 4) Add 1-px black outline (with transparent pad so dilation
+        #    doesn't clip the sprite when it touches the crop edge)
+        if outline_px > 0:
+            pad = outline_px + 1
+            padded = Image.new('RGBA',
+                               (crop.width + pad*2, crop.height + pad*2),
+                               (0, 0, 0, 0))
+            padded.paste(crop, (pad, pad))
+            crop = add_black_outline(padded, thickness=outline_px)
+            bb2 = crop.getbbox()
+            if bb2:
+                crop = crop.crop(bb2)
         crop.save(f"{out_dir}/{prefix}_{i:02d}.png", optimize=True)
 
     return len(sprites)
@@ -217,6 +330,9 @@ if __name__ == "__main__":
                     help='Per-channel RGB minimum for "text" (default 200)')
     ap.add_argument('--min-area', type=int, default=400)
     ap.add_argument('--close', type=int, default=5)
+    ap.add_argument('--outline', type=int, default=1,
+                    help='Thickness in px of the black outline drawn '
+                         'around each sprite silhouette (0 = none)')
     a = ap.parse_args()
     n = process_sheet(a.src, a.out_dir, a.prefix, a.rows,
                       cols_per_row=a.cols,
@@ -224,5 +340,6 @@ if __name__ == "__main__":
                       wipe_bottom_only_near_white=a.wipe_bottom_white_only,
                       near_white_threshold=a.white_threshold,
                       min_area=a.min_area,
-                      close_kernel=a.close)
+                      close_kernel=a.close,
+                      outline_px=a.outline)
     print(f"── done · {n} sprites written")

@@ -2641,6 +2641,7 @@ function openOutfitPicker(mode) {
         label: 'SHIRT STYLES', slotKey: 'shirtStyle', defaultId: 'plain', current: currentShirt,
         list: [
           { id: 'plain', name: 'Plain Shirt', desc: 'Just the color from the SHIRT tab.  No print.', locked: false },
+          { id: 'reds_fit', name: "Red's Fit", desc: 'A crimson-collared traveler outfit. Same walk-logic silhouette as your default kit — just re-skinned. Toggle from the dresser any time.', locked: false },
           { id: 'skull', name: 'Psychosyd Skull Shirt', lockedName: '???', desc: 'Skull-and-crossbones print on the shirt.  Baelgor rock-star signature.', lockedDesc: 'A shirt style you have not earned yet.',
             locked: !game.player.skullShirtUnlocked, lockedHint: 'Locked' },
         ],
@@ -8379,6 +8380,24 @@ const DISTRICT_COMMANDER_ASSETS = {
   malezor:  '/assets/humanoids/humanoid_21.png',
 };
 
+// ★ 2026-07-28 · Player sprite + world-tile PNG registry.
+const PLAYER_SPRITES = {
+  idle:     new Image(),
+  walk:     new Image(),
+  reds_fit: new Image(),
+};
+PLAYER_SPRITES.idle.src     = '/assets/humanoids/humanoid_0idle.png';
+PLAYER_SPRITES.walk.src     = '/assets/humanoids/humanoid_0walk.png';
+PLAYER_SPRITES.reds_fit.src = '/assets/humanoids/humanoid_01.png';
+// Source rect of the FIRST sprite inside the 10x5 humanoid sheets
+// (walk + idle share the same cell geometry).  Detected via CC-label
+// on the sheet: sprite blob at (290, 45, 125, 219) in a 1536x1024 sheet.
+const PLAYER_SHEET_FRAME = { sx: 290, sy: 45, sw: 125, sh: 219 };
+// Malezor / RP7 base grass — replaces the procedural gradient for
+// the '.' ground tile in every district-overworld map.
+const GRASS_TILE_IMG = new Image();
+GRASS_TILE_IMG.src = '/assets/overworld/grass.png';
+
 // ★ 2026-07-28 · PNG PRELOAD REGISTRY for overworld sprite drop-in.
 // Any path in NPC_ASSETS / DISTRICT_COMMANDER_ASSETS gets an Image()
 // created on boot; the render loop blits it directly.  Cache-by-src so
@@ -12225,16 +12244,24 @@ function drawTile(x, y, ch, mx, my) {
     }
     case '.':
     case ',': {
-      // Zyraxis crystal-sand path (tinted per district)
-      const grad = ctx.createLinearGradient(px, py, px, py + TILE);
-      grad.addColorStop(0, groundColor);
-      grad.addColorStop(1, groundShade);
-      ctx.fillStyle = grad;
-      ctx.fillRect(px, py, TILE, TILE);
-      // tiny pebbles
-      if ((x + y * 3) % 4 === 0) {
-        ctx.fillStyle = 'rgba(232, 200, 120, 0.3)';
-        ctx.fillRect(px + 8 + (x % 3) * 6, py + 20, 2, 2);
+      // ★ 2026-07-28 · Real grass tile PNG replaces the procedural
+      // gradient when loaded (aov-overworld-scale-1-tile — never
+      // stretched, TILE×TILE blit at native resolution).  Falls
+      // through to the old crystal-sand gradient otherwise.
+      if (GRASS_TILE_IMG.complete && GRASS_TILE_IMG.naturalWidth) {
+        ctx.drawImage(GRASS_TILE_IMG, px, py, TILE, TILE);
+      } else {
+        // Zyraxis crystal-sand path (tinted per district)
+        const grad = ctx.createLinearGradient(px, py, px, py + TILE);
+        grad.addColorStop(0, groundColor);
+        grad.addColorStop(1, groundShade);
+        ctx.fillStyle = grad;
+        ctx.fillRect(px, py, TILE, TILE);
+        // tiny pebbles
+        if ((x + y * 3) % 4 === 0) {
+          ctx.fillStyle = 'rgba(232, 200, 120, 0.3)';
+          ctx.fillRect(px + 8 + (x % 3) * 6, py + 20, 2, 2);
+        }
       }
       break;
     }
@@ -14143,6 +14170,28 @@ function drawTile(x, y, ch, mx, my) {
 }
 
 function drawCharacter(cx, cy, dir, primary, accent, opts) {
+  // ★ 2026-07-28 · Full-player PNG override.  If opts.playerImg is
+  // passed AND loaded, blit the sprite at 1 tile (master visual rule
+  // per aov-overworld-scale-1-tile).  Uses source-rect crop for sheet
+  // images (idle/walk), falls back to whole-image blit for single
+  // PNGs (Red's Fit).  Never stretched — width follows native aspect.
+  if (opts && opts.playerImg && opts.playerImg.complete && opts.playerImg.naturalWidth) {
+    const img = opts.playerImg;
+    const useSheet = !!opts.playerSheetRect;
+    const srcW = useSheet ? opts.playerSheetRect.sw : img.naturalWidth;
+    const srcH = useSheet ? opts.playerSheetRect.sh : img.naturalHeight;
+    const drawH = TILE;
+    const drawW = drawH * (srcW / srcH);
+    const dx = cx - drawW / 2;
+    const dy = cy - drawH / 2;
+    if (useSheet) {
+      const r = opts.playerSheetRect;
+      ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, dx, dy, drawW, drawH);
+    } else {
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+    }
+    return;
+  }
   // Simple 24x24 chibi at (cx, cy) center. Directions: down/up/left/right.
   const w = 22, h = 22;
   const x = cx - w / 2, y = cy - h / 2;
@@ -14682,7 +14731,28 @@ function renderMap() {
   const pal = playerPalette();
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
-  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants, hairStyle: (game.player.hairStyle || 'spiky'), shirtStyle: (game.player.shirtStyle || 'plain') });
+  // ★ 2026-07-28 · Player sprite override — Red's Fit outfit → humanoid_01
+  // (single-frame PNG), otherwise humanoid_0 idle or walk sheet based on
+  // movement (moveCd>0 = walking).
+  const _shirt = game.player.shirtStyle || 'plain';
+  const _moving = (game.player.moveCd || 0) > 0;
+  let _playerImg = null, _playerSheetRect = null;
+  if (_shirt === 'reds_fit' && PLAYER_SPRITES.reds_fit.complete && PLAYER_SPRITES.reds_fit.naturalWidth) {
+    _playerImg = PLAYER_SPRITES.reds_fit;   // static single-frame PNG
+  } else {
+    const src = _moving ? PLAYER_SPRITES.walk : PLAYER_SPRITES.idle;
+    if (src.complete && src.naturalWidth) {
+      _playerImg = src;
+      _playerSheetRect = PLAYER_SHEET_FRAME;
+    }
+  }
+  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, {
+    spiky: true, hair: pal.accent, pants: pal.pants,
+    hairStyle: (game.player.hairStyle || 'spiky'),
+    shirtStyle: _shirt,
+    playerImg: _playerImg,
+    playerSheetRect: _playerSheetRect,
+  });
   // V2.66 — Encounter '!' indicator above the player when a wild
   // encounter is armed but not yet engaged.  Pulsing yellow bubble;
   // press A to engage.

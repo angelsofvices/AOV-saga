@@ -8450,6 +8450,84 @@ const DISTRICT_COMMANDER_ASSETS = {
 // Any path in NPC_ASSETS / DISTRICT_COMMANDER_ASSETS gets an Image()
 // created on boot; the render loop blits it directly.  Cache-by-src so
 // re-use costs nothing.
+// ============================================================================
+// ★ RP7 BETA · player0 sprite sheets  (BETA ONLY — classic never touches these)
+// Sliced offline from /assets/rp7/beta_assets/player0_{idle,walk}.png:
+// chroma-keyed off magenta, tight-cropped per frame, Lanczos-downsampled to
+// native size, then baked into uniform cells.  Nothing is scaled at draw time.
+//   walk sheet · 144x288 · 3 cols x 4 rows of 48x72 cells
+//   rows       · 0 down · 1 left · 2 right · 3 up   (RMXP/Essentials order)
+//   cols       · 0 step-A · 1 STAND · 2 step-B
+//   idle sheet · 192x72  · 4 cells, one per facing (down uses the dedicated
+//                          hi-detail idle art; the rest use that row's STAND)
+//   feetY = 70 · the baseline inside the cell that lands on the tile's bottom
+// Per-row scale normalisation was applied: the source drew the side facings
+// ~9% shorter than front/back, which would have popped 6px on every turn.
+// Each facing's STAND frame is now exactly 64px (2 tiles) tall.
+// ============================================================================
+const BETA_PLAYER = {
+  idle: new Image(),
+  walk: new Image(),
+  run:  new Image(),   // ★ same 3x4 layout as walk — leaning stride, cape flared
+  cellW: 48, cellH: 72, feetY: 70,
+  rows:    { down: 0, left: 1, right: 2, up: 3 },
+  idleCol: { down: 0, left: 1, right: 2, up: 3 },
+  standCol: 1,
+  // The dedicated player0_idle.png is a DIFFERENT render pass from the walk
+  // sheet — different face, warmer skin, and a 9.75x downscale that reads
+  // softer than the walk frames' 3.4x.  Using it made the character visibly
+  // swap costume the moment you stopped.  Default idle is therefore the walk
+  // sheet's STAND column, which is crisp and consistent across all 4 facings.
+  // Flip this to true to use the hi-detail idle art for the DOWN facing.
+  useIdleArt: false,
+  order: [0, 1, 2, 1],   // 3-frame ping-pong — rp4's frames[facing][order[animFrame]]
+};
+BETA_PLAYER.idle.src = '/assets/rp7/beta_assets/player0_idle_native.png';
+BETA_PLAYER.walk.src = '/assets/rp7/beta_assets/player0_walk_native.png';
+BETA_PLAYER.run.src  = '/assets/rp7/beta_assets/player0_run_native.png';
+const _imgOk = (i) => !!(i && i.complete && i.naturalWidth);
+
+// RP4 LOGIC — when the player stops, they KEEP FACING whichever way they were
+// last heading.  game.player.dir already persists across moves, so idle simply
+// renders that facing's stand pose instead of snapping back to 'down'.
+function drawBetaPlayer(cx, cy, dir) {
+  const S = BETA_PLAYER;
+  const d = (S.rows[dir] === undefined) ? 'down' : dir;
+  const moving = (game.player.moveCd || 0) > 0;
+  // RUN pairs with the ONE run flag the game already computes in tryMove
+  // (shift OR b OR gamepad Circle, all funnelled through the same const), so
+  // every existing run input drives the run sheet for free.  Cadence needs no
+  // special handling either: running halves moveCd, so tiles arrive twice as
+  // fast and animFrame — which advances per tile — cycles twice as fast.
+  const sprinting = moving && !!game.player.running && _imgOk(S.run);
+  let img, sx, sy;
+  if (sprinting) {
+    img = S.run;
+    sx = S.order[(game.player.animFrame | 0) % S.order.length] * S.cellW;
+    sy = S.rows[d] * S.cellH;
+  } else if (moving && _imgOk(S.walk)) {
+    img = S.walk;
+    sx = S.order[(game.player.animFrame | 0) % S.order.length] * S.cellW;
+    sy = S.rows[d] * S.cellH;
+  } else if (!S.useIdleArt && _imgOk(S.walk)) {
+    // IDLE — stand pose of whichever way you were last facing (rp4 logic)
+    img = S.walk;  sx = S.standCol * S.cellW;  sy = S.rows[d] * S.cellH;
+  } else if (_imgOk(S.idle)) {
+    img = S.idle;  sx = S.idleCol[d] * S.cellW;  sy = 0;
+  } else if (_imgOk(S.walk)) {
+    img = S.walk;  sx = S.standCol * S.cellW;  sy = S.rows[d] * S.cellH;
+  } else {
+    return false;   // sheets not loaded yet — procedural chibi covers this frame
+  }
+  // Cells are already native size, so blit 1:1 and pin feetY to the bottom of
+  // the standing tile.  Integer coords keep the pixel art crisp.
+  ctx.drawImage(img, sx, sy, S.cellW, S.cellH,
+                Math.round(cx - S.cellW / 2),
+                Math.round((cy + TILE / 2) - S.feetY),
+                S.cellW, S.cellH);
+  return true;
+}
+
 const HUMANOID_IMAGES = {};
 (function _preloadHumanoids() {
   const seen = new Set();
@@ -14769,7 +14847,11 @@ function renderMap() {
   const pal = playerPalette();
   const px = (game.player.x - cam.x) * TILE + TILE / 2;
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
-  drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants, hairStyle: (game.player.hairStyle || 'spiky'), shirtStyle: (game.player.shirtStyle || 'plain') });
+  // ★ BETA draws the player0 sheets; CLASSIC (and beta before the PNGs load)
+  // falls through to the procedural chibi, unchanged.
+  if (!(isBeta() && drawBetaPlayer(px, py, game.player.dir))) {
+    drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants, hairStyle: (game.player.hairStyle || 'spiky'), shirtStyle: (game.player.shirtStyle || 'plain') });
+  }
   // V2.66 — Encounter '!' indicator above the player when a wild
   // encounter is armed but not yet engaged.  Pulsing yellow bubble;
   // press A to engage.
@@ -17758,6 +17840,12 @@ function tryMove(dx, dy) {
   // Both keys[] slots are checked so either input source works.
   const running = !!keys['shift'] || !!keys['b'];
   game.player.moveCd = running ? 80 : 160;
+  // ★ Persist the run flag so the renderer can pick the run sheet.  This is
+  // the single source of truth for "is the player sprinting" — it already
+  // covers keyboard Shift, B, and the gamepad Circle mapping.
+  game.player.running = running;
+  // ★ BETA — one walk frame per tile stepped (rp4 pacing).  Harmless in classic.
+  game.player.animFrame = ((game.player.animFrame | 0) + 1) % BETA_PLAYER.order.length;
   // encounter check
   if (isGemgrass(nx, ny)) {
     game.player.stepsSinceEnc++;

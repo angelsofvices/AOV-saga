@@ -318,6 +318,21 @@
       box-shadow: 0 0 30px rgba(232, 200, 120, 0.3);
     }
     .title-cta.secondary { border-color: var(--mist); color: var(--mist); }
+    /* ★ RP7 BETA — graphics track.  Classic stays the default action. */
+    .title-cta.beta { border-color: #4fbf92; color: #7ae6b4; }
+    .title-cta.beta:hover { background: rgba(79, 191, 146, 0.12); }
+    .beta-tag {
+      font-size: 0.62em; letter-spacing: 0.22em; margin-left: 0.5em;
+      padding: 2px 5px; border: 1px solid rgba(122, 230, 180, 0.55);
+      border-radius: 3px; color: #7ae6b4; vertical-align: middle;
+    }
+    body.rp7-beta #stage { position: relative; }
+    body.rp7-beta #stage::after {
+      content: 'BETA'; position: absolute; top: 6px; right: 8px; z-index: 5;
+      font: 700 10px/1 'Cinzel', serif; letter-spacing: 0.18em; color: #7ae6b4;
+      background: rgba(8, 20, 16, 0.75); border: 1px solid rgba(122, 230, 180, 0.5);
+      padding: 3px 6px; border-radius: 3px; pointer-events: none;
+    }
     /* V2.52 — center the two title CTAs on mobile (was drifting left when the
        secondary button used margin-left: 12px + flex-wrap). */
     .title-btns { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; align-items: center; width: 100%; }
@@ -1839,6 +1854,7 @@
         <!-- V2.50 — NEW GAME / LOAD GAME.  Save-state UI is deferred; LOAD
              is intentionally disabled + greyed until we ship save slots. -->
         <button class="title-cta" id="btn-new">NEW GAME</button>
+        <button class="title-cta beta" id="btn-new-beta">NEW GAME <span class="beta-tag">BETA</span></button>
         <button class="title-cta secondary" id="btn-continue" disabled aria-disabled="true" title="Save states coming soon">LOAD GAME</button>
       </div>
       <div class="title-controls" aria-label="Controls">
@@ -2295,6 +2311,56 @@ const TILE = 32;
 let COLS = 20, ROWS = 14;              // visible viewport in tiles
 let CANVAS_W = COLS * TILE;
 let CANVAS_H = ROWS * TILE;
+// ============================================================================
+// ★ RP7 MODE SPLIT · 2026-07-29 — CLASSIC vs BETA
+// CLASSIC is the shipping playtest build: untouched geometry, untouched
+// sprite scale, untouched save slot.  Nothing below changes it.
+// BETA is the graphics track.  Scale canon measured off the reference
+// screenshots in /assets/scale ref (autocorrelation says a 64px tile pitch
+// in 1024x768 shots = 16x12 tiles of 32px at 2x, and characters measure
+// ~2.0 tiles tall).  RP7's TILE is ALREADY 32 — so beta changes the
+// VIEWPORT and the SPRITE, never the tile.
+//   viewport 16x12 = 512x384 (4:3) · character 1 tile wide x 2 tiles tall,
+//   anchored by the FEET to the bottom of the tile it stands on.
+// Beta writes to its own save slot so classic playtest can never be
+// corrupted by beta experiments.  See HANDOFF_RP7_BETA_SCALE_MEMORY.md.
+// ============================================================================
+const RP7_MODES = {
+  classic: { label: 'CLASSIC', cols: 20, rows: 14, portraitRows: 28,
+             spriteTilesH: 1, charArtScale: 1, anchor: 'center',
+             save: 'aov-rizers-v1' },
+  beta:    { label: 'BETA',    cols: 16, rows: 12, portraitRows: 24,
+             spriteTilesH: 2, charArtScale: 2, anchor: 'feet',
+             save: 'aov-rizers-v1-beta' },
+};
+let RP7_MODE        = 'classic';
+let SPRITE_TILES_H  = RP7_MODES.classic.spriteTilesH;
+let CHAR_ART_SCALE  = RP7_MODES.classic.charArtScale;
+let SPRITE_ANCHOR   = RP7_MODES.classic.anchor;
+function rp7Mode() { return RP7_MODES[RP7_MODE] || RP7_MODES.classic; }
+function isBeta()  { return RP7_MODE === 'beta'; }
+function applyRp7Mode(mode) {
+  if (!RP7_MODES[mode]) mode = 'classic';
+  RP7_MODE = mode;
+  const cfg = RP7_MODES[mode];
+  COLS = cfg.cols;  ROWS = cfg.rows;
+  CANVAS_W = COLS * TILE;  CANVAS_H = ROWS * TILE;
+  SPRITE_TILES_H = cfg.spriteTilesH;
+  CHAR_ART_SCALE = cfg.charArtScale;
+  SPRITE_ANCHOR  = cfg.anchor;
+  try { SAVE_KEY = cfg.save; } catch (_) { /* declared later in the file */ }
+  const c = document.getElementById('game');
+  if (c) {
+    c.width = CANVAS_W; c.height = CANVAS_H;
+    // Resizing a canvas resets its 2D state — re-kill smoothing.
+    const cc = c.getContext && c.getContext('2d');
+    if (cc) cc.imageSmoothingEnabled = false;
+  }
+  const st = document.getElementById('stage');
+  if (st) st.style.aspectRatio = COLS + ' / ' + ROWS;
+  if (document.body) document.body.classList.toggle('rp7-beta', mode === 'beta');
+  if (typeof setupViewportForDevice === 'function') setupViewportForDevice();
+}
 // V2.33.6 — On portrait mobile we render more rows (taller viewport) so the
 // game canvas naturally hits ~60% of screen height without stretching pixels.
 // tileAt() returns '#' outside map bounds, so smaller maps naturally show the
@@ -2302,7 +2368,8 @@ let CANVAS_H = ROWS * TILE;
 function setupViewportForDevice() {
   const isMobilePortrait =
     window.matchMedia && window.matchMedia('(max-width: 900px) and (orientation: portrait)').matches;
-  const targetRows = isMobilePortrait ? 28 : 14;
+  const _mcfg = (typeof rp7Mode === 'function') ? rp7Mode() : { rows: 14, portraitRows: 28 };
+  const targetRows = isMobilePortrait ? _mcfg.portraitRows : _mcfg.rows;
   if (ROWS === targetRows) return;
   ROWS = targetRows;
   CANVAS_H = ROWS * TILE;
@@ -14142,7 +14209,24 @@ function drawTile(x, y, ch, mx, my) {
   }
 }
 
+// ★ MODE-AWARE character draw.  CLASSIC takes the early return and is
+// byte-for-byte the original call.  BETA scales the art and pins the
+// baseline (feet, cy + 11 in art space) to the BOTTOM of the standing tile,
+// so ~120 hardcoded offsets inside drawCharacterArt() keep working untouched.
 function drawCharacter(cx, cy, dir, primary, accent, opts) {
+  const s = CHAR_ART_SCALE;
+  if (s === 1 && SPRITE_ANCHOR === 'center') {
+    return drawCharacterArt(cx, cy, dir, primary, accent, opts);   // CLASSIC
+  }
+  ctx.save();
+  ctx.translate(cx, cy + TILE / 2);   // bottom-center of the standing tile
+  ctx.scale(s, s);
+  ctx.translate(-cx, -(cy + 11));     // art-space feet -> that anchor
+  drawCharacterArt(cx, cy, dir, primary, accent, opts);
+  ctx.restore();
+}
+
+function drawCharacterArt(cx, cy, dir, primary, accent, opts) {
   // Simple 24x24 chibi at (cx, cy) center. Directions: down/up/left/right.
   const w = 22, h = 22;
   const x = cx - w / 2, y = cy - h / 2;
@@ -14618,7 +14702,8 @@ function renderMap() {
       // Skip if off-viewport
       if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) continue;
       // ★ 2026-07-28 · PNG override for named humanoids (Yara / Jax /
-      // Commander).  MASTER VISUAL RULE: 1 humanoid sprite = 1 TILE.
+      // Commander).  MASTER VISUAL RULE — classic: 1 sprite = 1 TILE,
+      // centered.  Beta: 1 tile WIDE x SPRITE_TILES_H tall, FEET-anchored.
       // Every future overworld prop scales relative to this unit so
       // players feel the same size regardless of how large a map gets.
       // Width follows the sprite's native aspect (never stretched).
@@ -14626,13 +14711,15 @@ function renderMap() {
       if (spriteImg && spriteImg.complete && spriteImg.naturalWidth) {
         // Sprite height = exactly 1 tile.  Width follows the sprite's
         // native aspect (never stretched) — chibis end up ~½ tile wide.
-        const drawH = TILE;
+        const drawH = TILE * SPRITE_TILES_H;
         const drawW = drawH * (spriteImg.naturalWidth / spriteImg.naturalHeight);
+        const _dy = (SPRITE_ANCHOR === 'feet') ? (scy + TILE / 2) - drawH
+                                               : scy - drawH / 2;
         if (beaten) ctx.globalAlpha = 0.4;
         // Centered on the tile: same convention drawCharacter() uses so
         // the PNG override doesn't jump position vs the procedural
         // fallback while the image is still loading.
-        ctx.drawImage(spriteImg, scx - drawW / 2, scy - drawH / 2, drawW, drawH);
+        ctx.drawImage(spriteImg, scx - drawW / 2, _dy, drawW, drawH);
         ctx.globalAlpha = 1;
       } else {
         drawCharacter(scx, scy, n.dir, p, a, { spiky: true, hair: vis.hair, hairStyle: vis.hairStyle });
@@ -25715,10 +25802,11 @@ function updateHUD() {
 // ============================================================================
 //  SAVE / LOAD (localStorage)
 // ============================================================================
-const SAVE_KEY = 'aov-rizers-v1';
+let SAVE_KEY = 'aov-rizers-v1';   // ★ swapped per mode by applyRp7Mode()
 function save() {
   const data = {
     player: game.player,
+    mode: RP7_MODE,          // ★ so LOAD restores the right render mode
     ts: Date.now(),
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(_) {}
@@ -25726,10 +25814,20 @@ function save() {
 }
 function tryLoad() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    // ★ Prefer the slot for the CURRENT mode; if it's empty, fall back to
+    // whichever slot does exist and switch modes to match it.
+    let raw = localStorage.getItem(SAVE_KEY);
+    let srcMode = RP7_MODE;
+    if (!raw) {
+      for (const k in RP7_MODES) {
+        const r = localStorage.getItem(RP7_MODES[k].save);
+        if (r) { raw = r; srcMode = k; break; }
+      }
+    }
     if (!raw) return false;
     const data = JSON.parse(raw);
     if (!data || !data.player) return false;
+    applyRp7Mode(data.mode || srcMode || 'classic');
     game.player = data.player;
     // V2.8 — restore active map from saved mapId
     const mid = game.player.mapId || 'malezor';
@@ -25818,6 +25916,13 @@ function tryLoad() {
 }
 function hasSave() {
   try { return !!localStorage.getItem(SAVE_KEY); } catch(_) { return false; }
+}
+// ★ LOAD GAME should light up if EITHER slot has a save.
+function hasAnySave() {
+  try {
+    for (const k in RP7_MODES) if (localStorage.getItem(RP7_MODES[k].save)) return true;
+  } catch(_) {}
+  return false;
 }
 
 // ============================================================================
@@ -26138,7 +26243,7 @@ document.getElementById('starter-back').onclick = () => {
 function refreshLoadButtonState() {
   const b = document.getElementById('btn-continue');
   if (!b) return;
-  const has = hasSave();
+  const has = hasAnySave();
   b.disabled = false;
   b.setAttribute('aria-disabled', has ? 'false' : 'true');
   b.title = has ? 'Continue from your last autosave' : 'No save yet — start a NEW GAME';
@@ -26146,6 +26251,17 @@ function refreshLoadButtonState() {
   b.style.cursor  = has ? 'pointer' : 'not-allowed';
   b.style.filter  = has ? 'none' : 'grayscale(0.6)';
 }
+// ★ RP7 BETA ENTRY.  Reuses the EXACT classic NEW GAME handler — the only
+// difference is which render mode is active when it runs.  No duplicated
+// start-up logic means classic and beta can never drift apart.
+(function wireRp7Modes() {
+  const classicBtn = document.getElementById('btn-new');
+  const betaBtn    = document.getElementById('btn-new-beta');
+  if (!classicBtn) return;
+  const startGame = classicBtn.onclick;
+  classicBtn.onclick = () => { applyRp7Mode('classic'); startGame(); };
+  if (betaBtn) betaBtn.onclick = () => { applyRp7Mode('beta'); startGame(); };
+})();
 refreshLoadButtonState();
 setTimeout(focusTitleDefault, 30);
 // Re-check whenever the title screen becomes visible (rare, but cheap)

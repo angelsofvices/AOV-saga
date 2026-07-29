@@ -318,6 +318,20 @@
       box-shadow: 0 0 30px rgba(232, 200, 120, 0.3);
     }
     .title-cta.secondary { border-color: var(--mist); color: var(--mist); }
+    /* ★ ULTHARIS panel — one row per cheat / easter egg */
+    .ulth-entry { border-color: rgba(255,106,74,0.55) !important; color: #ff8a6a !important; }
+    .ulth-sec { color:#ff6a4a; font-size:10px; letter-spacing:0.26em; text-transform:uppercase;
+                margin:12px 0 2px; text-align:center; opacity:0.9; }
+    .ulth-row { display:flex; align-items:center; gap:10px; padding:7px 10px;
+                border:1px solid var(--border-soft); border-radius:4px; background:rgba(255,255,255,0.02); }
+    .ulth-txt { flex:1; text-align:left; }
+    .ulth-name { font-size:12px; letter-spacing:0.06em; }
+    .ulth-desc { display:block; color:var(--mist); font-size:10px; opacity:0.72; margin-top:2px; line-height:1.35; }
+    .ulth-toggle { min-width:66px; padding:6px 9px; border-radius:3px; cursor:pointer; flex:0 0 auto;
+                   font:700 10px/1 'Cinzel', serif; letter-spacing:0.16em;
+                   border:1px solid rgba(255,106,74,0.5); background:transparent; color:#ff8a6a; }
+    .ulth-toggle.on { border-color:#4fbf92; color:#7ae6b4; background:rgba(79,191,146,0.12); }
+    .ulth-toggle:focus { outline:none; box-shadow:0 0 0 2px rgba(232,200,120,0.55); }
     /* ★ RP7 BETA — graphics track.  Classic stays the default action. */
     .title-cta.beta { border-color: #4fbf92; color: #7ae6b4; }
     .title-cta.beta:hover { background: rgba(79, 191, 146, 0.12); }
@@ -326,6 +340,18 @@
       padding: 2px 5px; border: 1px solid rgba(122, 230, 180, 0.55);
       border-radius: 3px; color: #7ae6b4; vertical-align: middle;
     }
+    /* ★ BETA battle backdrop.  Sits BEHIND the existing sprite slots, HP bars
+       and action panel — every overlay keeps rendering on top untouched.
+       Pixelated scaling so the art stays crisp instead of smearing. */
+    body.rp7-beta #battle {
+      background-image: url('assets/rp7/beta_assets/battle/battle_bg_malezor.png');
+      background-size: cover;
+      background-position: center 42%;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
+    }
+    body.rp7-beta #battle .battle-text,
+    body.rp7-beta #battle .battle-actions { position: relative; z-index: 2; }
     body.rp7-beta #stage { position: relative; }
     body.rp7-beta #stage::after {
       content: 'BETA'; position: absolute; top: 6px; right: 8px; z-index: 5;
@@ -786,6 +812,14 @@
     .mon-slot {
       display: flex; align-items: center; justify-content: center;
     }
+    /* ★ 2026-07-29 — Battle staging.
+       Keep the opponent HUD at the true top-left of its grid cell, and anchor
+       the opponent's 96px canvas to the bottom of the upper row.  Because the
+       grass horizon sits above that row boundary, the Zyrex base now lands on
+       the field instead of floating in the sky.  Higher specificity keeps the
+       shared .status-card / .mon-slot alignment rules from overriding these. */
+    .battle-field .enemy-status { align-self: start; }
+    .battle-field .enemy-mon    { align-items: flex-end; }
     .mon-canvas {
       width: 96px; height: 96px;
     }
@@ -2043,6 +2077,7 @@
           <button class="mainmenu-btn" data-settings="reset">    <span class="mm-icon">↺</span>RESET</button>
           <button class="mainmenu-btn" data-settings="quit">     <span class="mm-icon">✕</span>QUIT</button>
           <button class="mainmenu-btn" data-settings="assign">   <span class="mm-icon">◈</span>SELECT ASSIGN</button>
+          <button class="mainmenu-btn ulth-entry" data-settings="ultharis" id="settings-ultharis" style="display:none;"><span class="mm-icon">⚑</span>ULTHARIS</button>
           <button class="mainmenu-btn ghost" id="settings-close2">CLOSE</button>
         </div>
         <!-- Audio (V3.4 music · V3.14.2 SFX row above it) -->
@@ -2088,6 +2123,22 @@
     <!-- V3.4 — SELECT quick-use assignment sub-modal.
          Opens from Settings.  Lets the player bind the SELECT button to
          one of the four practical panels.  Persisted in game.player. -->
+    <!-- ★ ULTHARIS PANEL.  Revealed only after the 4s ULTHARIS hold.  Every
+         cheat and easter egg is an individual toggle; NOTHING auto-fires. -->
+    <div class="mainmenu-overlay" id="ultharis-overlay">
+      <div class="mainmenu-box" role="dialog" aria-labelledby="ultharis-title" style="max-width:600px;">
+        <div class="mainmenu-head">
+          <div class="mainmenu-title" id="ultharis-title">⚑ Ultharis</div>
+          <button class="mainmenu-close" id="ultharis-close" aria-label="Close">✕</button>
+        </div>
+        <div style="color:var(--mist); font-size:11px; letter-spacing:0.2em; text-transform:uppercase; margin:2px 0 10px; text-align:center;">
+          Toggle each cheat on or off · nothing fires automatically
+        </div>
+        <div id="ultharis-body" style="display:flex; flex-direction:column; gap:6px; max-height:54vh; overflow-y:auto; padding-right:4px;"></div>
+        <button class="mainmenu-btn ghost" id="ultharis-close2" style="margin-top:12px;">CLOSE</button>
+      </div>
+    </div>
+
     <div class="mainmenu-overlay" id="assign-overlay">
       <div class="mainmenu-box" role="dialog" aria-labelledby="assign-title">
         <div class="mainmenu-head">
@@ -8032,25 +8083,24 @@ const game = {
 // walks out the door to enter Malezor.
 const MALEZOR_MAP = [
   '##############################', // 0
-  '#,,,,,,,,,,,,,,,,,v,,,,,,,,,,#', // 1 · v = Village Keeper (V2.47)
-  '#,,K,,GGGG,,,,,MMhh,,,K,,,,,,#', // 2 · hh = Bronze Cottage roof (top row of 2x2)
-  '#Thh,,GGGG,,,,,,,ph,,,,,,^,,,#', // 3 · hh = Home roof · p = Bronze Cottage door · ^ = Broadcast Tower (V3.17.41)
-  '#THh,,,GGG,,Y,,,,,,S,,,,,,K,,#', // 4 · H = Home door (walk in) · Y/S/K as before
-  '#,,,,,,,,,,,,,,,,,,B,,,,,,,,,#', // 5 · B=merchant stand (booth) in front of S
-
-  '#T,,,N,,,,,,,,K,,,,,,GG,,,,,##', // 6 · N=Myara, chest by shrine
-  '#,,,,,,,,,,,,,,,,,,J,GGGG,,,,#', // 7 · J=Jax (rival Rizer) · V3.17.29 cave moved to route north
-  '#T,,GG,,,,,,,,,,,,,,GGG,,,,,##', // 8
-  '#,,GGGG,,,,,,,,,,,?,,,,,,,,K,#', // 9 · ? = ANCIENT FOSSIL SKULL (2026-07-23 · lore foreshadow)
-  '#,,WWW,,,,,,,,,,,,,,,,,,,,,,,>', // 10 · V2.21 — east portal to Zarvane
-  '#,,WWW,,,,K,,,,,,GGG,,,,,,,,,#', // 11
-  '#,,,,,III,,,hh,,GGGGG,,,,,,,,#', // 12 · V3.11.3 III = Beastwarden's Hall roof (top of 3x3) · hh = Silver Lodge roof
-  '#T,,,,III,,,qh,,,GGGG,,,,,,,,#', // 13 · V3.11.3 III = Beastwarden's Hall wall · q = Silver Lodge door
-  '#,,,,,IDI,,,,,Q,,,,K,,K,,,,,,#', // 14 · V3.11.3 IDI = Beastwarden's Hall door · Q=Quinn (chest moved from col 7 to col 15)
-  '#,,,,,,,,,,,,,,,,,,,,,,v,,,,,#', // 15 · v = Cliff Fisher (V2.47)
-  '#,,,,AAA,,,,,,,,,,,,,,,,,,,,,#', // 16 · V3.0 Seer Ministry emblem row
-  '#,,,,AEA,,,,,,,,,,,,,,,,,,,,##', // 17 · V3.0 Seer Ministry HQ door 'E'
-  '#T,,,,,,,,,,,,,,,,,,,,,,,,,,##', // 18
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 1
+  '#,hhhh,,K,,hhhh,,,K,,IIIIIIv,#', // 2
+  '#,hhhh,,,,,hhhh,,,,,,IIIIII,,#', // 3
+  '#,hhhh,,,Y,hhhh,,S,,,IIIIII^,#', // 4
+  '#,hhHh,,,,,hhph,,B,,,IIIIII,,#', // 5
+  '#,,,,,,,,,,,,,,,,,,,,IIIDII,,#', // 6
+  '#T,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 7
+  '#,,,,,,,,N,,,,,,,,,,,,,,,,,K,#', // 8
+  '#,,,,,,,,,GG,,,,,,J,,,,,,,,,,#', // 9
+  '#,T,,,,,,,GG,,,,,,,,,,,?,,,,,>', // 10
+  '#,,,,,,,,,,K,,,,,,,,,,,,,,,T,#', // 11
+  '#,,,hhhh,,,,,,,GG,,,,,,,,,,,,#', // 12
+  '#,,,hhhh,,,,,,,GG,,,,,,,,,,,,#', // 13
+  '#,,,hhhh,,,,,,,,,,,,,AAA,,,,,#', // 14
+  '#,,,hhqh,,,,,Q,,,,,K,AAA,,,v,#', // 15
+  '#WWW,,,,,,,,,,,,,,,,,AEA,,,,,#', // 16
+  '#WWW,,,,,,,,,,,,,,,,,,,,,,,,,#', // 17
+  '#WWW,,,,,,,,,,,,,,,,,,,,,,K,,#', // 18
   '##############################', // 19
 ];
 // V2.36 — 3-FLOOR HOUSE (V2.36.1 layout: staircases in top-right corner of each floor)
@@ -8463,7 +8513,11 @@ const BETA_PLAYER = {
   idle: new Image(),
   walk: new Image(),
   run:  new Image(),
-  cellW: 48, cellH: 72, feetY: 70,
+  // ★ Must match the sheets: cells were rebuilt at 64x88 with the feet
+  // baseline at 80.  These were left at 48x72/70 when BETA_NPC was updated,
+  // which sliced the player's new sheets at the OLD cell size — that is the
+  // clipping.  Character height is unchanged; only the cell grew.
+  cellW: 64, cellH: 88, feetY: 80,
   rows:    { down: 0, left: 1, right: 2, up: 3 },
   idleCol: { down: 0, left: 1, right: 2, up: 3 },
   standCol: 1,
@@ -8478,6 +8532,30 @@ BETA_PLAYER.idle.src = 'assets/rp7/beta_assets/player/player0_idle_native.png';
 BETA_PLAYER.walk.src = 'assets/rp7/beta_assets/player/player0_walk_native.png';
 BETA_PLAYER.run.src  = 'assets/rp7/beta_assets/player/player0_run_native.png';
 const _imgOk = (i) => !!(i && i.complete && i.naturalWidth);
+
+// ★ 2026-07-29 — LIGHT BLACK CONTACT SHADOW.  A soft, low-alpha ellipse under
+// everything that stands on the floor.  Without it, sprites with clean cut-out
+// edges look pasted on top of the tile rather than resting on it.  Drawn
+// BEFORE the sprite so it never darkens the art itself, and sized from the
+// sprite's own width so a couch casts a wider pool than a chest.
+function drawBetaShadow(cx, groundY, width, strength) {
+  const rx = Math.max(4, width * 0.34);
+  const ry = Math.max(2, rx * 0.30);
+  const g = ctx.createRadialGradient(cx, groundY, 0, cx, groundY, rx);
+  const a = (strength === undefined ? 0.30 : strength);
+  g.addColorStop(0,    'rgba(0,0,0,' + a + ')');
+  g.addColorStop(0.65, 'rgba(0,0,0,' + (a * 0.55) + ')');
+  g.addColorStop(1,    'rgba(0,0,0,0)');
+  ctx.save();
+  ctx.translate(cx, groundY);
+  ctx.scale(1, ry / rx);
+  ctx.translate(-cx, -groundY);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, groundY, rx, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
 
 // RP4 LOGIC — on stopping, the player KEEPS FACING the way they were last
 // heading.  game.player.dir already persists, so idle just renders that
@@ -8507,6 +8585,7 @@ function drawBetaPlayer(cx, cy, dir) {
   } else {
     return false;   // sheets not loaded yet — procedural chibi covers the frame
   }
+  drawBetaShadow(cx, cy + TILE / 2 - 2, 34, 0.32);
   ctx.drawImage(img, sx, sy, S.cellW, S.cellH,
                 Math.round(cx - S.cellW / 2),
                 Math.round((cy + TILE / 2) - S.feetY),
@@ -8518,15 +8597,343 @@ function drawBetaPlayer(cx, cy, dir) {
 // 16x16 tiles of 32px, built by mirroring a 256px quadrant so it wraps with a
 // measured seam of 0.0 on both axes.  Sampling by (mapX % 16, mapY % 16) gives
 // 256 variants, so large floors never show an obvious repeat.
-const BETA_FLOOR = { wood: new Image(), grass: new Image(), cells: 16 };
+const BETA_FLOOR = {
+  wood: new Image(), grass: new Image(), stone: new Image(),
+  granite: new Image(), marble: new Image(),
+};
+// ★ Which floor a map wears.  Pattern-matched rather than listed, so all ten
+// town halls and every Seer HQ level are covered without an entry each:
+//   *_hall     -> MARBLE   (civic, bright, veined)
+//   seer_hq_*  -> GRANITE  (cold, dark, institutional)
+//   INDOOR_MAPS-> WOOD     (homes and cottages)
+//   everything else -> GRASS
+function betaFloorFor(mapId) {
+  if (/_hall$/.test(mapId)) return 'marble';
+  if (mapId.indexOf('seer_hq') === 0) return 'granite';
+  if (typeof INDOOR_MAPS !== 'undefined' && INDOOR_MAPS.has(mapId)) return 'wood';
+  return 'grass';
+}
+// ★ RP7 BETA · named-NPC sprites, same 48x72 feet-anchored cell as player0.
+// Myara is drawn from the map's 'N' tile (not through NPC_ASSETS), so she gets
+// her own image here rather than a NPC_ASSETS entry.
+// ★ RP7 BETA · chest tile art.  1x1 tile, so the cell is a plain 32x32 that
+// blits straight onto the tile.  'open' is the same chest dimmed — it reads as
+// looted; drop in a real open-lid sprite here and it takes over automatically.
+const BETA_CHEST = {
+  closed: new Image(), open: new Image(),
+  seerClosed: new Image(), seerOpen: new Image(),
+};
+BETA_CHEST.closed.src     = 'assets/rp7/beta_assets/chest/chest_closed.png';
+BETA_CHEST.open.src       = 'assets/rp7/beta_assets/chest/chest_open.png';
+BETA_CHEST.seerClosed.src = 'assets/rp7/beta_assets/chest/seer_chest_closed.png';
+BETA_CHEST.seerOpen.src   = 'assets/rp7/beta_assets/chest/seer_chest_open.png';
+function drawBetaChest(px, py, opened) {
+  // ★ Chests inside a Seer HQ are SILVER — no new tile char and no map edits;
+  // the location is what makes a chest a Seer chest.
+  const seer = ((game.player && game.player.mapId) || '').indexOf('seer_hq') === 0;
+  const img = seer ? (opened ? BETA_CHEST.seerOpen : BETA_CHEST.seerClosed)
+                   : (opened ? BETA_CHEST.open : BETA_CHEST.closed);
+  if (!_imgOk(img)) return false;
+  drawBetaShadow(px + TILE / 2, py + TILE - 3, 26, 0.26);
+  ctx.drawImage(img, 0, 0, TILE, TILE, px, py, TILE, TILE);
+  return true;
+}
+
+// ★ RP7 BETA · OVERWORLD BUILDINGS
+// Door tiles remain the authoritative transition/collision anchors.  The old
+// procedural multi-tile façades are replaced visually by one complete PNG per
+// doorway, keeping map logic untouched and preventing duplicated roof pieces.
+const BETA_BUILDINGS = {
+  home: new Image(),
+  malezorTownHall: new Image(),
+  seerHq: new Image(),
+};
+BETA_BUILDINGS.home.src = 'assets/rp7/beta_assets/buildings/town_home.png';
+BETA_BUILDINGS.malezorTownHall.src = 'assets/rp7/beta_assets/buildings/malezor_town_hall.png';
+BETA_BUILDINGS.seerHq.src = 'assets/rp7/beta_assets/buildings/evil_seer_hq.png';
+const BETA_HOME_DOOR_TILES = new Set(['H', 'p', 'q', 'P']);
+const BETA_QUIET_CHILD = new Image();
+BETA_QUIET_CHILD.src = 'assets/rp7/beta_assets/npc/silent_child_vengrizz.png';
+
+function drawBetaBuildingOverlay(cam) {
+  if (!isBeta()) return;
+  const mapId = (game.player && game.player.mapId) || '';
+  for (let sy = 0; sy < ROWS; sy++) {
+    for (let sx = 0; sx < COLS; sx++) {
+      const mx = sx + cam.x, my = sy + cam.y;
+      const ch = tileAt(mx, my);
+      let img = null;
+      if (BETA_HOME_DOOR_TILES.has(ch)) img = BETA_BUILDINGS.home;
+      else if (mapId === 'malezor' && ch === 'D') img = BETA_BUILDINGS.malezorTownHall;
+      else if (ch === 'E') img = BETA_BUILDINGS.seerHq;
+      if (!_imgOk(img)) continue;
+
+      const doorX = sx * TILE + TILE / 2;
+      const groundY = sy * TILE + TILE;
+      drawBetaShadow(doorX, groundY - 2, img.naturalWidth * 0.72, 0.30);
+      ctx.drawImage(img,
+                    Math.round(doorX - img.naturalWidth / 2),
+                    Math.round(groundY - img.naturalHeight));
+
+      // Locked cottage doors keep their gameplay-readability marker even
+      // though the procedural façade has been replaced.
+      if (ch === 'p' || ch === 'q' || ch === 'P') {
+        const keyType = ch === 'q' ? 'silver' : 'bronze';
+        const unlocked = ((game.player.keys && game.player.keys[keyType]) || 0) > 0;
+        if (!unlocked) {
+          ctx.fillStyle = '#f5dc9c';
+          ctx.fillRect(Math.round(doorX - 2), Math.round(groundY - 23), 4, 4);
+          ctx.strokeStyle = '#3a2818';
+          ctx.strokeRect(Math.round(doorX - 3.5), Math.round(groundY - 24.5), 7, 6);
+        }
+      }
+    }
+  }
+}
+
+// ★ RP7 BETA · PLAYER-HOME FURNITURE
+// Runtime-ready PNGs are drawn in a dedicated overlay pass after the floor
+// grid.  This prevents wide pieces (couch / desk / bed) from being erased by
+// the next floor tile in the row.  Tile chars, collision and interactions stay
+// authoritative; this layer changes only their beta-mode appearance.
+const BETA_HOME_MAPS = new Set(['basement', 'home_interior', 'parents_bedroom']);
+const BETA_HOME_FURNITURE_TILES = new Set(['b', 'r', 'c', 'F', 'e', 't', 'k', 'j', 'y', 'Z', 'l']);
+const BETA_HOME_FURNITURE = {
+  bedPlayer:  new Image(),
+  bedParents: new Image(),
+  dresser:    new Image(),
+  couch:      new Image(),
+  fridge:     new Image(),
+  stove:      new Image(),
+  dining:     new Image(),
+  desk:       new Image(),
+  computer:   new Image(),
+  experiment: new Image(),
+  workbench:  new Image(),
+  radio:      new Image(),
+  guitar:     new Image(),
+};
+BETA_HOME_FURNITURE.bedPlayer.src  = 'assets/rp7/beta_assets/bedroom/bed25.png';
+BETA_HOME_FURNITURE.bedParents.src = 'assets/rp7/beta_assets/bedroom/bed26.png';
+BETA_HOME_FURNITURE.dresser.src    = 'assets/rp7/beta_assets/bedroom/bed17.png';
+BETA_HOME_FURNITURE.couch.src      = 'assets/rp7/beta_assets/furniture/couch.png';
+BETA_HOME_FURNITURE.fridge.src     = 'assets/rp7/beta_assets/furniture/fridge.png';
+BETA_HOME_FURNITURE.stove.src      = 'assets/rp7/beta_assets/furniture/stove.png';
+BETA_HOME_FURNITURE.dining.src     = 'assets/rp7/beta_assets/furniture/island_stools.png';
+BETA_HOME_FURNITURE.desk.src       = 'assets/rp7/beta_assets/bedroom/bed03.png';
+BETA_HOME_FURNITURE.computer.src   = 'assets/rp7/beta_assets/bedroom/bed00.png';
+BETA_HOME_FURNITURE.experiment.src = 'assets/rp7/beta_assets/bedroom/bed05.png';
+BETA_HOME_FURNITURE.workbench.src  = 'assets/rp7/beta_assets/bedroom/bed03.png';
+BETA_HOME_FURNITURE.radio.src      = 'assets/rp7/beta_assets/bedroom/bed07.png';
+BETA_HOME_FURNITURE.guitar.src     = 'assets/rp7/beta_assets/bedroom/bed11.png';
+
+function betaHomeFurnitureFor(ch, mapId) {
+  if (ch === 'b') return mapId === 'parents_bedroom'
+    ? BETA_HOME_FURNITURE.bedParents : BETA_HOME_FURNITURE.bedPlayer;
+  if (ch === 'r') return BETA_HOME_FURNITURE.dresser;
+  if (ch === 'c') return BETA_HOME_FURNITURE.couch;
+  if (ch === 'F') return BETA_HOME_FURNITURE.fridge;
+  if (ch === 'e') return BETA_HOME_FURNITURE.stove;
+  if (ch === 't') return mapId === 'parents_bedroom'
+    ? BETA_HOME_FURNITURE.desk : BETA_HOME_FURNITURE.dining;
+  if (ch === 'k') return BETA_HOME_FURNITURE.computer;
+  if (ch === 'j') return BETA_HOME_FURNITURE.experiment;
+  if (ch === 'y') return BETA_HOME_FURNITURE.workbench;
+  if (ch === 'Z') return BETA_HOME_FURNITURE.radio;
+  if (ch === 'l') return BETA_HOME_FURNITURE.guitar;
+  return null;
+}
+
+function drawBetaHomeFurnitureOverlay(cam) {
+  const mapId = (game.player && game.player.mapId) || '';
+  if (!isBeta() || !BETA_HOME_MAPS.has(mapId)) return;
+  for (let sy = 0; sy < ROWS; sy++) {
+    for (let sx = 0; sx < COLS; sx++) {
+      const mx = sx + cam.x, my = sy + cam.y;
+      const ch = tileAt(mx, my);
+      if (!BETA_HOME_FURNITURE_TILES.has(ch)) continue;
+      const img = betaHomeFurnitureFor(ch, mapId);
+      if (!_imgOk(img)) continue;
+      const groundX = sx * TILE + TILE / 2;
+      const groundY = sy * TILE + TILE;
+      drawBetaShadow(groundX, groundY - 2, img.naturalWidth, 0.24);
+      ctx.drawImage(img,
+                    Math.round(groundX - img.naturalWidth / 2),
+                    Math.round(groundY - img.naturalHeight));
+    }
+  }
+}
+
+const BETA_NPC = {
+  // ★ 2026-07-29 — cell grew 48x72 -> 64x88.  Run frames (leaning body, flared
+  // cape, high knee) measured up to 51px wide and 76px tall, so the old cell
+  // was shaving pixels off six of them.  64x88 leaves margin on every side and
+  // the feet baseline moved 70 -> 80 to match.  Character height is unchanged
+  // at 64px = 2 tiles; only the transparent padding around it grew.
+  cellW: 64, cellH: 88, feetY: 80,
+  sprites: {
+    // dirs:false = single front pose only, so don't fake a turn (see drawBetaNpc)
+    myara:   { idle: new Image(), blink: new Image(), dirs: false },
+    // Mom + Dad use four-column idle sheets:
+    // down, left, right, up.  faceNpcToPlayer() already records their
+    // interaction-facing direction; drawBetaNpc() selects the matching cell.
+    dad:     { idle: new Image(), blink: new Image(), dirs: true },
+    mom:     { idle: new Image(), blink: new Image(), dirs: true },
+    // ★ Seer grunt uniform — one male, one female.  Faces are masked, so the
+    // blink slot points at the idle art (nothing to blink) and the breathing
+    // squash carries the idle life on its own.
+    grunt_m: { idle: new Image(), blink: new Image(), dirs: false },
+    grunt_f: { idle: new Image(), blink: new Image(), dirs: false },
+  },
+};
+BETA_NPC.sprites.myara.idle.src  = 'assets/rp7/beta_assets/npc/myara_native.png';
+BETA_NPC.sprites.myara.blink.src = 'assets/rp7/beta_assets/npc/myara_blink.png';
+BETA_NPC.sprites.dad.idle.src    = 'assets/rp7/beta_assets/npc/dad_idle_dirs_native.png';
+BETA_NPC.sprites.dad.blink.src   = 'assets/rp7/beta_assets/npc/dad_blink.png';
+BETA_NPC.sprites.mom.idle.src      = 'assets/rp7/beta_assets/npc/mom_idle_dirs_native.png';
+BETA_NPC.sprites.mom.blink.src     = 'assets/rp7/beta_assets/npc/mom_blink.png';
+BETA_NPC.sprites.grunt_m.idle.src  = 'assets/rp7/beta_assets/npc/grunt_m_native.png';
+BETA_NPC.sprites.grunt_m.blink.src = 'assets/rp7/beta_assets/npc/grunt_m_native.png';
+BETA_NPC.sprites.grunt_f.idle.src  = 'assets/rp7/beta_assets/npc/grunt_f_native.png';
+BETA_NPC.sprites.grunt_f.blink.src = 'assets/rp7/beta_assets/npc/grunt_f_native.png';
+
+// ★ Gender is distributed across every Seer grunt by a hash of their HOME
+// tile, so a given grunt is always the same person — stable across reloads,
+// saves and map re-entry — while the population stays roughly 50/50.
+// Commanders ('X') are deliberately excluded: each one gets its own outfit.
+// ★ Seer patrol walk sheet — same 3x4 geometry as player0 (rows down/left/
+// right/up, cols step-A / STAND / step-B), so the same frame maths applies.
+// Shared by every Seer on patrol; the gendered idle sprites still carry who
+// each grunt is when they're standing still.
+const BETA_SEER = {
+  grunt_m: { walk: new Image(), run: new Image() },
+  grunt_f: { walk: new Image(), run: new Image() },
+};
+BETA_SEER.grunt_m.walk.src = 'assets/rp7/beta_assets/npc/seer_m_walk_native.png';
+BETA_SEER.grunt_m.run.src  = 'assets/rp7/beta_assets/npc/seer_m_run_native.png';
+BETA_SEER.grunt_f.walk.src = 'assets/rp7/beta_assets/npc/seer_f_walk_native.png';
+BETA_SEER.grunt_f.run.src  = 'assets/rp7/beta_assets/npc/seer_f_run_native.png';
+const BETA_WALK_ROWS  = { down: 0, left: 1, right: 2, up: 3 };
+const BETA_WALK_ORDER = [0, 1, 2, 1];
+function drawBetaWalker(img, px, py, dir, frame, alpha) {
+  if (!_imgOk(img)) return false;
+  const S = BETA_NPC;
+  const row = BETA_WALK_ROWS[dir];
+  if (row === undefined) return false;
+  const sx = BETA_WALK_ORDER[(frame | 0) % BETA_WALK_ORDER.length] * S.cellW;
+  if (alpha !== undefined) ctx.globalAlpha = alpha;
+  drawBetaShadow(px + TILE / 2, py + TILE - 2, 32, 0.28 * (alpha === undefined ? 1 : alpha));
+  ctx.drawImage(img, sx, row * S.cellH, S.cellW, S.cellH,
+                Math.round(px + TILE / 2 - S.cellW / 2),
+                Math.round(py + TILE - S.feetY),
+                S.cellW, S.cellH);
+  ctx.globalAlpha = 1;
+  return true;
+}
+
+function gruntSpriteId(homeX, homeY) {
+  const h = Math.abs(((homeX | 0) * 73856093) ^ ((homeY | 0) * 19349663));
+  return (h % 2) ? 'grunt_f' : 'grunt_m';
+}
+
+// ---- per-NPC state, keyed by map + tile so each instance is its own person --
+function _npcKey(mx, my) { return ((game.player && game.player.mapId) || '') + ':' + mx + ',' + my; }
+function npcSpokenTo(mx, my) {
+  const f = game.player && game.player.npcSpoken;
+  return !!(f && f[_npcKey(mx, my)]);
+}
+function markNpcSpoken(mx, my) {
+  if (!game.player) return;
+  game.player.npcSpoken = game.player.npcSpoken || {};
+  game.player.npcSpoken[_npcKey(mx, my)] = true;
+}
+function npcFacing(mx, my) {
+  const f = game.player && game.player.npcFacing;
+  return (f && f[_npcKey(mx, my)]) || 'down';
+}
+const BETA_NPC_IDLE_COLS = { down: 0, left: 1, right: 2, up: 3 };
+// ★ NPCs TURN to face you on interact — they never walk.  The direction is
+// simply the opposite of the way the player is looking when they talk.
+function faceNpcToPlayer(mx, my) {
+  if (!game.player) return;
+  const opposite = { up: 'down', down: 'up', left: 'right', right: 'left' };
+  game.player.npcFacing = game.player.npcFacing || {};
+  game.player.npcFacing[_npcKey(mx, my)] = opposite[game.player.dir] || 'down';
+}
+
+// ★ Idle life: a 1px breathing squash and an occasional blink.  BOTH STOP once
+// you have spoken to that NPC — a perfectly still NPC is the tell that you
+// already talked to them.  Phase is seeded per tile so a room full of people
+// never breathes in lockstep.
+function drawBetaNpc(id, px, py, mx, my) {
+  const S = BETA_NPC, sp = S.sprites[id];
+  if (!sp || !_imgOk(sp.idle)) return false;
+  const dir = sp.dirs ? npcFacing(mx, my) : 'down';
+  // ★ 2026-07-29 — idle life is PERMANENT.  It used to stop for good once you
+  // spoke to someone, which made every NPC you'd met look dead.  They now go
+  // back to breathing as soon as the conversation ends; the only thing talking
+  // changes is which way they're facing.
+  const talking = (game.mode === 'dialog');
+  const seed = ((mx * 31 + my * 17) % 97) / 97;
+  let img = sp.idle, squash = 0;
+  if (!talking) {
+    const t = performance.now();
+    // breathe: ~3.2s cycle, one pixel of vertical compression at the top
+    squash = (Math.sin(t / 1600 + seed * 6.283) > 0.35) ? 1 : 0;
+    // blink: ~110ms every 3.6-5.3s
+    const cycle = 3600 + Math.floor(seed * 1700);
+    // Mom/Dad's blink art is still a single DOWN cell.  Keep directional
+    // profiles stable instead of briefly flashing a front-facing blink.
+    if (_imgOk(sp.blink) && (!sp.dirs || dir === 'down')
+        && ((t + seed * 4000) % cycle) < 110) img = sp.blink;
+  }
+  const sx = (sp.dirs && img === sp.idle)
+    ? (BETA_NPC_IDLE_COLS[dir] || 0) * S.cellW
+    : 0;
+  const dx = Math.round(px + TILE / 2 - S.cellW / 2);
+  // Compress from the top so the FEET never move: shrink the height and push
+  // the destination down by the same amount.
+  const dy = Math.round(py + TILE - S.feetY) + squash;
+  drawBetaShadow(px + TILE / 2, py + TILE - 2, 32, 0.28);
+  ctx.drawImage(img, sx, 0, S.cellW, S.cellH,
+                dx, dy, S.cellW, S.cellH - squash);
+  return true;
+}
 BETA_FLOOR.wood.src  = 'assets/rp7/beta_assets/floor/floor_wood_native.png';
 BETA_FLOOR.grass.src = 'assets/rp7/beta_assets/floor/floor_grass_native.png';
-function drawBetaFloor(px, py, mx, my) {
-  const indoor = (typeof INDOOR_MAPS !== 'undefined')
-              && INDOOR_MAPS.has(game.player.mapId);
-  const img = indoor ? BETA_FLOOR.wood : BETA_FLOOR.grass;
+BETA_FLOOR.stone.src   = 'assets/rp7/beta_assets/floor/floor_stone_native.png';
+BETA_FLOOR.granite.src = 'assets/rp7/beta_assets/floor/floor_granite_native.png';
+BETA_FLOOR.marble.src  = 'assets/rp7/beta_assets/floor/floor_marble_native.png';
+BETA_FLOOR.water = new Image();
+BETA_FLOOR.water.src = 'assets/rp7/beta_assets/floor/floor_water_native.png';
+// ★ Flowing water.  The texture is drawn through a repeating pattern whose
+// origin drifts with time, so the surface slides continuously instead of
+// stepping a tile at a time.  A slow vertical sway on top of the horizontal
+// drift keeps it from reading as a conveyor belt.
+let _betaWaterPat = null;
+function drawBetaWater(px, py) {
+  const img = BETA_FLOOR.water;
   if (!_imgOk(img)) return false;
-  const n = BETA_FLOOR.cells;
+  if (!_betaWaterPat) _betaWaterPat = ctx.createPattern(img, 'repeat');
+  if (!_betaWaterPat) return false;
+  const t = performance.now() / 1000;
+  const ox = (t * 6) % img.naturalWidth;
+  const oy = Math.sin(t * 0.45) * 5;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip();
+  ctx.translate(ox, oy);
+  ctx.fillStyle = _betaWaterPat;
+  ctx.fillRect(px - ox, py - oy, TILE, TILE);
+  ctx.restore();
+  return true;
+}
+function drawBetaFloor(px, py, mx, my) {
+  const mapId = (game.player && game.player.mapId) || '';
+  const img = BETA_FLOOR[betaFloorFor(mapId)] || BETA_FLOOR.grass;
+  if (!_imgOk(img)) return false;
+  // ★ Variant count comes from the atlas itself, so re-exporting a floor at a
+  // different size (finer grain, more or fewer variants) needs no code change.
+  const n = Math.max(1, Math.floor(img.naturalWidth / TILE));
   ctx.drawImage(img, (((mx % n) + n) % n) * TILE, (((my % n) + n) % n) * TILE,
                 TILE, TILE, px, py, TILE, TILE);
   return true;
@@ -12214,13 +12621,26 @@ function walkable(x, y) {
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
   if (t === '!' && !isQuestItemPicked(game.player.mapId, x, y)) return false;
-  if (t === 'R' && !npcTrainerDefeated(x, y)) return false;   // V2.74 — hall Rizer blocker until defeated
-  if (t === 'N' && !game.player.npcDefeated) return false;
-  if ('YJQgX'.includes(t) && !game.npcs) return !npcTrainerDefeated(x, y);   // V2.38/V2.41 — 'g'=grunt, 'X'=commander
-  if (t === 'K' && !chestOpened(x, y)) return false;
-  if (game.npcs) {
-    const n = isNpcAt(x, y);
-    if (n) return false;
+  // ★ 2026-07-29 — PEOPLE AND CHESTS ARE SOLID, ALWAYS.  Previously a
+  // defeated Rizer / Seer / Myara stopped blocking and an opened chest became
+  // walkable, so you could stroll straight through them once they were done.
+  // A body is a body and a chest is a chest — beating or looting one doesn't
+  // make it intangible.  DEV MODE still walks through everything (handled
+  // above), so this can never soft-lock a playtest.
+  if (t === 'R') return false;                       // hall Rizer
+  if (t === 'N') return false;                       // Myara
+  if ('YJQgX'.includes(t) && !game.npcs) return false;   // Yara/Jax/Quinn/grunt/commander
+  if (t === 'K') return false;                       // chest, opened or not
+  // Solid regardless of whether they've been beaten.
+  if (game.npcs && npcBodyAt(x, y)) return false;
+  // ★ 2026-07-29 — HEAD COLLISION.  In beta a person is 1 tile wide x 2 tiles
+  // TALL but only ever collided on the tile under their feet, so you could walk
+  // straight into the tile their head occupies and stand on top of them.  The
+  // tile directly ABOVE any person is now solid too.
+  if (isBeta()) {
+    const below = tileAt(x, y + 1);
+    if (typeof NPC_FACING_TILES !== 'undefined' && NPC_FACING_TILES.has(below)) return false;
+    if (game.npcs && npcBodyAt(x, y + 1)) return false;
   }
   return true;
 }
@@ -12331,6 +12751,23 @@ function drawTile(x, y, ch, mx, my) {
   const groundShade = (_dm && _dm.groundShade) || '#382450';
   const grassColor  = (_dm && _dm.grassColor)  || '#3a7a5c';
   const sparkleTint = (_dm && _dm.sparkleTint) || '#b87cff';
+  // Complete beta building PNGs are anchored by their doorway tiles in
+  // drawBetaBuildingOverlay().  Replace only their legacy façade cells with
+  // grass here; the original chars remain in MAP for collision/transitions.
+  if (isBeta() && (ch === 'h' || BETA_HOME_DOOR_TILES.has(ch)
+      || ch === 'A' || ch === 'E'
+      || (_mapId === 'malezor' && (ch === 'I' || ch === 'D')))) {
+    drawTile(x, y, ',', mx, my);
+    return;
+  }
+  // Beta home furniture is drawn once in drawBetaHomeFurnitureOverlay().
+  // Render only the wood floor at its tile here, preserving the same map char
+  // for collision and interaction while avoiding procedural art underneath.
+  if (isBeta() && BETA_HOME_MAPS.has(_mapId)
+      && BETA_HOME_FURNITURE_TILES.has(ch)) {
+    drawTile(x, y, '.', mx, my);
+    return;
+  }
   switch (ch) {
     case '#': {
       ctx.fillStyle = wallColor;
@@ -12478,6 +12915,9 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'W': {
+      // ★ BETA — real water texture, flowing.  Classic keeps the tinted
+      // rectangle + sine lines below, untouched.
+      if (isBeta() && drawBetaWater(px, py)) break;
       // V2.43 — district-tinted water
       const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
       const waterFill = decor.waterTint || '#1a3860';
@@ -13301,7 +13741,11 @@ function drawTile(x, y, ch, mx, my) {
     case 'N': {
       // NPC trainer tile (rendered as path underneath + character overlay)
       drawTile(x, y, ',', mx, my);
-      drawCharacter(px + TILE / 2, py + TILE / 2, game.player.npcDefeated ? 'down' : 'down', '#5fa8ff', '#2a5c8a');
+      // ★ BETA — Myara gets her own repaired sprite, feet-anchored like the
+      // player.  Classic keeps the procedural blue chibi, untouched.
+      if (!(isBeta() && drawBetaNpc('myara', px, py, mx, my))) {
+        drawCharacter(px + TILE / 2, py + TILE / 2, game.player.npcDefeated ? 'down' : 'down', '#5fa8ff', '#2a5c8a');
+      }
       break;
     }
     case 'S': {
@@ -14110,13 +14554,20 @@ function drawTile(x, y, ch, mx, my) {
     case 'm': {
       // V2.8 — Mom NPC (stationary, warm-tone character)
       drawTile(x, y, '.', mx, my);
-      drawCharacter(px + TILE / 2, py + TILE / 2, 'down', '#ff9c66', '#8a3020');
+      // ★ BETA — Mom's own sprite: breathing + blinking until you talk to her,
+      // and she turns to face you on interact.  Classic unchanged.
+      if (!(isBeta() && drawBetaNpc('mom', px, py, mx, my))) {
+        drawCharacter(px + TILE / 2, py + TILE / 2, 'down', '#ff9c66', '#8a3020');
+      }
       break;
     }
     case 'd': {
       // V2.8 — Dad NPC (stationary, deeper-tone character)
       drawTile(x, y, '.', mx, my);
-      drawCharacter(px + TILE / 2, py + TILE / 2, 'down', '#c98a4a', '#3a1a1a');
+      // ★ BETA — Dad's own sprite, breathing + blinking until you talk to him.
+      if (!(isBeta() && drawBetaNpc('dad', px, py, mx, my))) {
+        drawCharacter(px + TILE / 2, py + TILE / 2, 'down', '#c98a4a', '#3a1a1a');
+      }
       break;
     }
     case 'p': case 'q': case 'P': {
@@ -14218,6 +14669,15 @@ function drawTile(x, y, ch, mx, my) {
       drawTile(x, y, ',', mx, my);
       break;
     }
+    case 'g': case 'X': {
+      // ★ 2026-07-29 — the grunt and commander home markers had NO case at
+      // all, so their tile was never painted and the bare canvas showed
+      // through as a white box behind them.  Paint the path underneath like
+      // every other trainer marker.  Beta-gated so classic renders exactly as
+      // it does today — the same gap is still there in classic if you want it.
+      if (isBeta()) drawTile(x, y, ',', mx, my);
+      break;
+    }
     case 'K': {
       // V3.0.1 — CHEST · WOODEN.  Uniform warm-wood body + gold band +
       // latch across every district.  Closed: solid lid with sparkle.
@@ -14225,6 +14685,8 @@ function drawTile(x, y, ch, mx, my) {
       // bucket showing a dark hollow interior.  Signals "loot taken."
       drawTile(x, y, ',', mx, my);
       const open = chestOpened(mx, my);
+      // ★ BETA — new chest art.  Classic keeps the procedural chest below.
+      if (isBeta() && drawBetaChest(px, py, open)) break;
       // Wooden palette
       const wood      = '#8b6236';   // main plank color
       const woodDark  = '#4a3628';   // shadow / base band
@@ -14533,6 +14995,16 @@ function drawQuietChildren(cam) {
   }
 }
 function drawQuietChild(cx, cy) {
+  if (isBeta() && _imgOk(BETA_QUIET_CHILD)) {
+    const w = BETA_QUIET_CHILD.naturalWidth;
+    const h = BETA_QUIET_CHILD.naturalHeight;
+    const groundY = cy + TILE / 2;
+    drawBetaShadow(cx, groundY - 2, Math.max(18, w * 0.66), 0.22);
+    ctx.drawImage(BETA_QUIET_CHILD,
+                  Math.round(cx - w / 2),
+                  Math.round(groundY - h));
+    return;
+  }
   // Faint ground shadow — very soft, the child is small
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.beginPath();
@@ -14635,6 +15107,11 @@ function renderMap() {
       drawTileAt(sx, sy, mx, my);
     }
   }
+  // Full buildings render above completed terrain and below NPCs/player.
+  drawBetaBuildingOverlay(cam);
+  // Wide home furniture belongs above the completed floor grid and below
+  // people/player sprites, so it is never clipped by neighboring floor tiles.
+  drawBetaHomeFurnitureOverlay(cam);
   // V2.7.5 — render each wandering NPC trainer at its runtime position
   if (game.npcs) {
     // V3.2 — palettes:
@@ -14792,6 +15269,31 @@ function renderMap() {
       // Every future overworld prop scales relative to this unit so
       // players feel the same size regardless of how large a map gets.
       // Width follows the sprite's native aspect (never stretched).
+      // ★ BETA — Seer grunts wear the uniform sprite, gendered per grunt.
+      // They inherit breathing / turn-to-face / spoken-freeze like every other
+      // beta NPC.  Commanders ('X') fall through untouched, awaiting their own
+      // per-district outfits.
+      if (isBeta() && n.tile === 'g') {
+        const ptx = scx - TILE / 2, pty = scy - TILE / 2;
+        const gid = gruntSpriteId(n.homeX, n.homeY);
+        const kit = BETA_SEER[gid];
+        const hunting = !!n.engaged;                      // spotted you — running
+        const patrolling = (n.walkUntil || 0) > performance.now();
+        let drew = false;
+        if (kit && (hunting || patrolling)) {
+          // Hunting uses the RUN sheet, patrolling the WALK sheet — both
+          // gendered, both facing the way they're actually moving.
+          drew = drawBetaWalker(hunting ? kit.run : kit.walk, ptx, pty,
+                                n.dir, n.animFrame, beaten ? 0.4 : undefined);
+        }
+        if (!drew) {
+          // Standing: their own gendered idle, with breathing + turn-to-face.
+          if (beaten) ctx.globalAlpha = 0.4;
+          drew = drawBetaNpc(gid, ptx, pty, n.homeX, n.homeY);
+          ctx.globalAlpha = 1;
+        }
+        if (drew) continue;
+      }
       const spriteImg = vis.asset && HUMANOID_IMAGES[vis.asset];
       if (spriteImg && spriteImg.complete && spriteImg.naturalWidth) {
         // Sprite height = exactly 1 tile.  Width follows the sprite's
@@ -15077,6 +15579,11 @@ function openSettings() {
     } else {
       devPanel.style.display = 'none';
     }
+  }
+  // ★ ULTHARIS entry appears only once the 4s hold has unlocked it.
+  const ulthBtn = document.getElementById('settings-ultharis');
+  if (ulthBtn) {
+    ulthBtn.style.display = (game.player && game.player.ultharisUnlocked) ? '' : 'none';
   }
   // Settings always opens on SAVE.  Keep the close X outside controller
   // arrow navigation so the six settings actions form one predictable list.
@@ -15489,19 +15996,155 @@ function fireCheat(cheatId) {
   return true;
 }
 
+// ============================================================================
+// ★ ULTHARIS PANEL — individually toggleable cheats + easter eggs.
+// Cheats are one-shot grants that mutate game.player via cheat.apply(p).
+// Rather than hand-write 19 undo functions (and get one wrong), we snapshot
+// the player keys each cheat ACTUALLY changed the first time it ran and
+// restore exactly those keys when it's toggled back off.
+// Caveat, stated plainly: if two cheats write the same key, turning the first
+// one off restores the value captured before IT ran, not before the second.
+// For a dev panel that's the right trade against 19 bespoke undos.
+// ============================================================================
+const _CHEAT_META_KEYS = new Set(['cheatsFired', 'cheatUndo']);
+function _cheatDiff(before, after) {
+  const changed = {};
+  const keys = new Set(Object.keys(before).concat(Object.keys(after)));
+  for (const k of keys) {
+    if (_CHEAT_META_KEYS.has(k)) continue;             // never revert bookkeeping
+    if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) changed[k] = before[k];
+  }
+  return changed;
+}
+function isCheatOn(id) {
+  const p = game.player;
+  return !!(p && p.cheatsFired && p.cheatsFired[id]);
+}
+function setCheat(id, on) {
+  const cheat = CHEATS.find(c => c.id === id);
+  const p = game.player;
+  if (!cheat || !p) return false;
+  p.cheatsFired = p.cheatsFired || {};
+  p.cheatUndo   = p.cheatUndo   || {};
+  if (on) {
+    if (p.cheatsFired[id]) return false;
+    let before;
+    try { before = JSON.parse(JSON.stringify(p)); } catch (_) { before = {}; }
+    try { cheat.apply(p); }
+    catch (e) { console.error('[cheat fail]', id, e); showToast('⚑ ' + cheat.name + ' — FAILED', 2600); return false; }
+    p.cheatUndo[id] = _cheatDiff(before, p);
+    p.cheatsFired[id] = true;
+  } else {
+    if (!p.cheatsFired[id]) return false;
+    const undo = p.cheatUndo[id] || {};
+    for (const k in undo) {
+      if (undo[k] === undefined) delete p[k]; else p[k] = undo[k];
+    }
+    delete p.cheatUndo[id];
+    delete p.cheatsFired[id];
+  }
+  save();
+  if (typeof updateHUD === 'function') updateHUD();
+  try { playSfx('toast'); } catch(_) {}
+  showToast('⚑ ' + cheat.name + (on ? ' — ON' : ' — OFF'), 2000);
+  return true;
+}
+
+// Easter eggs are plain boolean flags on the player, so they toggle cleanly
+// both ways with no snapshot needed.
+const EASTER_EGGS = [
+  { flag: 'aurabeastGiftGiven',  name: 'Aurabeast gift',        desc: 'The Aurabeast has given you its gift.' },
+  { flag: 'homunculusFound',     name: 'Homunculus found',      desc: 'The Homunculus encounter is flagged as met.' },
+  { flag: 'elzebubGranted',      name: 'Elzebub granted',       desc: 'Elzebub encounter granted.' },
+  { flag: 'petragryffGranted',   name: 'Petragryff granted',    desc: 'Petragryff encounter granted.' },
+  { flag: 'anciuxorGranted',     name: 'Anciuxor granted',      desc: 'Anciuxor, cosmic-tier, granted.' },
+  { flag: 'firepitEmberBurned',  name: 'Firepit ember burned',  desc: 'The firepit ember has been burned.' },
+  { flag: 'quietChildForgiven',  name: 'Quiet Child forgiven',  desc: 'The Quiet Child has forgiven you.' },
+  { flag: 'quietChildBlessed',   name: 'Quiet Child blessed',   desc: 'The Quiet Child has blessed you.' },
+];
+function setEasterEgg(flag, on) {
+  const p = game.player;
+  if (!p) return false;
+  if (on) p[flag] = true; else delete p[flag];
+  save();
+  if (typeof updateHUD === 'function') updateHUD();
+  try { playSfx('toast'); } catch(_) {}
+  return true;
+}
+
+// ★ The 4s hold UNLOCKS the panel.  It grants nothing — that is the whole
+// point of the change: no auto-loaded cheats, ever.
+function unlockUltharisPanel(silent) {
+  const p = game.player;
+  if (!p) return;
+  p.ultharisUnlocked = true;
+  p.ultharisMode = true;   // permission flag only — gates the trio / Novarian hooks
+  save();
+  const btn = document.getElementById('settings-ultharis');
+  if (btn) btn.style.display = '';
+  if (!silent) {
+    try { playSfx('toast'); } catch(_) {}
+    showToast('⚑ ULTHARIS UNLOCKED · Settings → ULTHARIS to toggle cheats', 3400);
+  }
+}
+
+function renderUltharisPanel() {
+  const body = document.getElementById('ultharis-body');
+  if (!body) return;
+  body.innerHTML = '';
+  const section = (label) => {
+    const d = document.createElement('div');
+    d.className = 'ulth-sec'; d.textContent = label; body.appendChild(d);
+  };
+  const row = (name, desc, isOn, onToggle) => {
+    const r = document.createElement('div'); r.className = 'ulth-row';
+    const t = document.createElement('div'); t.className = 'ulth-txt';
+    const n = document.createElement('span'); n.className = 'ulth-name'; n.textContent = name;
+    const dd = document.createElement('span'); dd.className = 'ulth-desc'; dd.textContent = desc || '';
+    t.appendChild(n); t.appendChild(dd);
+    const b = document.createElement('button');
+    b.className = 'ulth-toggle' + (isOn ? ' on' : '');
+    b.textContent = isOn ? 'ON' : 'OFF';
+    b.onclick = () => { onToggle(!isOn); renderUltharisPanel(); };
+    r.appendChild(t); r.appendChild(b);
+    body.appendChild(r);
+  };
+  section('Cheats · ' + CHEATS.length);
+  CHEATS.forEach(c => row(c.name, c.desc, isCheatOn(c.id), (on) => setCheat(c.id, on)));
+  section('Easter eggs · ' + EASTER_EGGS.length);
+  EASTER_EGGS.forEach(e => row(e.name, e.desc, !!(game.player && game.player[e.flag]),
+                               (on) => setEasterEgg(e.flag, on)));
+}
+function openUltharisPanel() {
+  try { playSfx('menu-open'); } catch(_) {}
+  renderUltharisPanel();
+  const ov = document.getElementById('ultharis-overlay');
+  if (ov) ov.classList.add('active');
+  setTimeout(() => {
+    const first = document.querySelector('#ultharis-body .ulth-toggle');
+    if (first) first.focus();
+  }, 30);
+}
+function closeUltharisPanel() {
+  try { playSfx('menu-close'); } catch(_) {}
+  const ov = document.getElementById('ultharis-overlay');
+  if (ov) ov.classList.remove('active');
+}
+(function wireUltharisPanel() {
+  const a = document.getElementById('ultharis-close');
+  const b = document.getElementById('ultharis-close2');
+  if (a) a.onclick = closeUltharisPanel;
+  if (b) b.onclick = closeUltharisPanel;
+})();
+
 function enableUltharisMode() {
   const p = game.player;
   if (!p) return;
-  p.ultharisMode = true;
-  // ★ 2026-07-28 · ULTHARIS = fire every atomic cheat.  Each grant is
-  // recorded in p.cheatsFired[<id>].  Story-hook one-shots that don't
-  // have their own cheat entry are set inline after.
-  for (const c of CHEATS) {
-    if (!(p.cheatsFired && p.cheatsFired[c.id])) fireCheat(c.id);
-  }
-  // Story-hook one-shots (mutually exclusive with the fires above).
-  p.tenthCommanderHookFired = true;
-  p.kelthorStoryHandoffFired = true;
+  // ★ CHANGED — ULTHARIS NO LONGER FIRES ANYTHING.  It used to loop every
+  // entry in CHEATS and grant them all at once, which made the mode a
+  // foot-gun: one hold and the save was irreversibly stuffed.  Now it only
+  // UNLOCKS the panel; you pick what you want, and you can pick it back off.
+  unlockUltharisPanel(true);
   save();
   if (typeof updateHUD === 'function') updateHUD();
   try { playSfx('toast'); } catch(_) {}
@@ -15733,6 +16376,8 @@ $settings.querySelectorAll('[data-settings]').forEach(b => {
       openNotebookView();
     } else if (which === 'assign') {
       openSelectAssign();
+    } else if (which === 'ultharis') {
+      openUltharisPanel();
     }
   };
 });
@@ -17694,7 +18339,9 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
     }
   }
   function fireUltharisCheat() {
-    if (typeof enableUltharisMode === 'function') enableUltharisMode();
+    // Unlocks the ULTHARIS panel.  Grants nothing.
+    if (typeof unlockUltharisPanel === 'function') unlockUltharisPanel();
+    else if (typeof enableUltharisMode === 'function') enableUltharisMode();
   }
 
   function pollGamepad() {
@@ -17733,12 +18380,12 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
         fireDevCheat();
         try { showToast('⚑ DEV MODE armed · open Settings → CHEATS to enable grants', 2600); } catch(_) {}
       }
-      if (!comboUltharisFired && heldMs >= 6000) {
-        // Explicit long-hold escape hatch — fires the bomb if you really
-        // want everything at once instead of picking cheats individually.
+      // ★ 4s (was 6s) → UNLOCK the Ultharis panel.  Full flow:
+      //   hold 2s → DEV armed → keep holding to 4s → ULTHARIS unlocked
+      //   → open Settings → ULTHARIS → toggle cheats on/off individually.
+      if (!comboUltharisFired && heldMs >= 4000) {
         comboUltharisFired = true;
         fireUltharisCheat();
-        try { showToast('⚑ ULTHARIS · every cheat fired at once', 3200); } catch(_) {}
       }
     } else if (comboStart) {
       // released — reset for next attempt
@@ -18753,16 +19400,39 @@ function interactShrine() {
   });
 }
 
+// ★ Tiles that represent a PERSON.  Interacting turns them to face you and
+// stops their idle breathing.  Add new NPC tile chars here and they inherit
+// the whole behaviour — no per-NPC wiring.
+const NPC_FACING_TILES = new Set(['N', 'd', 'm', 'v', 'S', 'Y', 'J', 'Q', 'g', 'X', 'R']);
 function tryInteract() {
   const dx = game.player.dir === 'right' ? 1 : game.player.dir === 'left' ? -1 : 0;
   const dy = game.player.dir === 'down'  ? 1 : game.player.dir === 'up'   ? -1 : 0;
   const tx = game.player.x + dx, ty = game.player.y + dy;
   // V2.7.5 — first, is a wandering NPC standing on the faced tile?
+  // ★ Wandering NPCs TURN to face you too — including ones you've already
+  // beaten, who no longer battle but should still acknowledge you.  Their
+  // runtime .dir drives drawCharacter, so this is all it takes.
+  const body = npcBodyAt(tx, ty);
+  if (body) {
+    const opposite = { up: 'down', down: 'up', left: 'right', right: 'left' };
+    body.dir = opposite[game.player.dir] || body.dir;
+    // Beta sprite NPCs read their facing from npcFacing(), procedural ones from
+    // .dir — set both so grunts turn whichever renderer is in play.
+    faceNpcToPlayer(body.homeX, body.homeY);
+    markNpcSpoken(body.homeX, body.homeY);
+  }
   const nRuntime = isNpcAt(tx, ty);
   if (nRuntime) { handleNpcTrainer(nRuntime.tile, nRuntime.homeX, nRuntime.homeY); return; }
   // V3.12 — Quiet Child sighting has priority over generic tile interacts
   if (isQuietChildAt(game.player.mapId, tx, ty)) { handleQuietChildInteract(); return; }
   const t = tileAt(tx, ty);
+  // ★ Any NPC you interact with TURNS to face you (they never walk), and is
+  // flagged as spoken-to, which freezes their idle animation.  Generic on
+  // purpose: every current and future NPC tile inherits the behaviour.
+  if (NPC_FACING_TILES.has(t)) {
+    faceNpcToPlayer(tx, ty);
+    markNpcSpoken(tx, ty);
+  }
   if (t === 'C') {
     // V2.9 · V3.10.2 — Gemlord fights deferred to mid-late game.  Each
     // district's cave is sealed by ITS OWN Gemlord's gem-glyphs, with
@@ -20451,6 +21121,19 @@ function ensureNpcRuntime() {
     }
   }
 }
+// ★ 2026-07-29 — BODY vs TRIGGER.  isNpcAt() answers "who can start a battle
+// here" and deliberately skips defeated / cooling-down NPCs.  Collision needs a
+// different question — "is there a PERSON standing here" — which stays true
+// after you beat them.  Using the trigger query for collision is exactly why
+// defeated Rizers and Seers turned into ghosts you could walk through.
+function npcBodyAt(x, y) {
+  if (!game.npcs) return null;
+  for (const key in game.npcs) {
+    const n = game.npcs[key];
+    if (n.x === x && n.y === y) return n;
+  }
+  return null;
+}
 function isNpcAt(x, y) {
   if (!game.npcs) return null;
   for (const key in game.npcs) {
@@ -20478,6 +21161,8 @@ function tryNpcStep(n) {
   // Blockers (static + other NPCs + player)
   if (!walkable(nx, ny)) return false;
   if (nx === game.player.x && ny === game.player.y) return false;
+  // ★ The player is 2 tiles tall in beta — his head tile is occupied too.
+  if (isBeta() && nx === game.player.x && ny === game.player.y - 1) return false;
   const other = isNpcAt(nx, ny);
   if (other && other !== n) return false;
   n.x = nx; n.y = ny;
@@ -20506,7 +21191,12 @@ function tickNpcTrainers(dt) {
         // NOT follow across map boundaries — they resume the wander
         // when the player returns.
         n.pursuitMap = game.player.mapId;
-        game.mode = 'dialog';
+        // ★ 2026-07-29 — THE CHASE.  Classic froze the player into 'dialog'
+        // the instant a Seer spotted them, so the pursuit was a cutscene you
+        // watched.  In beta you keep control and can try to outrun them.  They
+        // re-target you every step and never give up — the ONLY escape is
+        // changing level, which the pursuitMap check below already enforces.
+        if (!isBeta()) game.mode = 'dialog';
         walkNpcToPlayer(n);
       }
       continue;
@@ -20521,6 +21211,12 @@ function tickNpcTrainers(dt) {
     n.stepTimer -= dt;
     if (n.stepTimer <= 0) {
       const moved = tryNpcStep(n);
+      if (moved) {
+        // ★ One frame per tile stepped, and a window during which the walk
+        // sheet is shown — matches the player's rp4-style pacing.
+        n.animFrame = ((n.animFrame | 0) + 1) % BETA_WALK_ORDER.length;
+        n.walkUntil = performance.now() + 260;
+      }
       if (!moved) {
         // Blocked or out-of-bounds — face home direction or pick a new dir.
         n.dir = NPC_DIRS[Math.floor(Math.random() * NPC_DIRS.length)];
@@ -20556,8 +21252,10 @@ function walkNpcToPlayer(n) {
     // On return, the fresh runtime NPC will resume normal wander +
     // line-of-sight from scratch.
     if (game.player.mapId !== n.pursuitMap) {
+      // Changed level — the only way to shake them.
       n.engaged = false;
       n.alertTimer = 0;
+      n.walkUntil = 0;
       if (game.mode === 'dialog') game.mode = 'overworld';
       return;
     }
@@ -20584,6 +21282,21 @@ function walkNpcToPlayer(n) {
       ], () => startNpcTrainerBattle(n.tile, n.homeX, n.homeY));
       return;
     }
+    // ★ 2026-07-29 — AXIS FALLBACK.  Now that every NPC is permanently solid,
+    // a greedy single-axis pursuit wedges itself behind the first body in the
+    // way and stalls forever.  If the preferred axis is blocked, try the other
+    // one before giving up, so a chase routes around bystanders.
+    if (!walkable(nx, ny) && !(nx === game.player.x && ny === game.player.y)) {
+      let ax = n.x, ay = n.y;
+      if (useDx && dySign !== 0)      ay += dySign;
+      else if (!useDx && dxSign !== 0) ax += dxSign;
+      if ((ax !== n.x || ay !== n.y) &&
+          (walkable(ax, ay) || (ax === game.player.x && ay === game.player.y))) {
+        nx = ax; ny = ay;
+        if (ax !== n.x) n.dir = (ax > n.x) ? 'right' : 'left';
+        else            n.dir = (ay > n.y) ? 'down'  : 'up';
+      }
+    }
     // Try to step (respect blockers)
     if (walkable(nx, ny) || (nx === game.player.x && ny === game.player.y)) {
       // If landing on player tile — stop just short, fire dialog.
@@ -20597,8 +21310,12 @@ function walkNpcToPlayer(n) {
         return;
       }
       n.x = nx; n.y = ny;
+      // ★ One run frame per tile closed, plus the window that keeps the run
+      // sheet on screen between steps.
+      n.animFrame = ((n.animFrame | 0) + 1) % 4;
+      n.walkUntil = performance.now() + 220;
     }
-    setTimeout(step, 150);
+    setTimeout(step, isBeta() ? 110 : 150);
   };
   setTimeout(step, 250);
 }

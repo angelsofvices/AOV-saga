@@ -2312,18 +2312,15 @@ let COLS = 20, ROWS = 14;              // visible viewport in tiles
 let CANVAS_W = COLS * TILE;
 let CANVAS_H = ROWS * TILE;
 // ============================================================================
-// ★ RP7 MODE SPLIT · 2026-07-29 — CLASSIC vs BETA
-// CLASSIC is the shipping playtest build: untouched geometry, untouched
-// sprite scale, untouched save slot.  Nothing below changes it.
-// BETA is the graphics track.  Scale canon measured off the reference
-// screenshots in /assets/scale ref (autocorrelation says a 64px tile pitch
-// in 1024x768 shots = 16x12 tiles of 32px at 2x, and characters measure
-// ~2.0 tiles tall).  RP7's TILE is ALREADY 32 — so beta changes the
-// VIEWPORT and the SPRITE, never the tile.
+// ★ RP7 MODE SPLIT — CLASSIC vs BETA
+// CLASSIC is the shipping playtest build: untouched geometry, sprite scale and
+// save slot.  Nothing beta-gated below can reach it.
+// BETA is the graphics track.  Scale measured off /assets/scale ref (64px tile
+// pitch in 1024x768 shots = 16x12 tiles of 32px at 2x; characters ~2.0 tiles).
+// RP7's TILE is ALREADY 32, so beta changes the VIEWPORT and the SPRITE only.
 //   viewport 16x12 = 512x384 (4:3) · character 1 tile wide x 2 tiles tall,
-//   anchored by the FEET to the bottom of the tile it stands on.
-// Beta writes to its own save slot so classic playtest can never be
-// corrupted by beta experiments.  See HANDOFF_RP7_BETA_SCALE_MEMORY.md.
+//   anchored by the FEET to the bottom of its tile.
+// See HANDOFF_RP7_BETA_SCALE_MEMORY.md.
 // ============================================================================
 const RP7_MODES = {
   classic: { label: 'CLASSIC', cols: 20, rows: 14, portraitRows: 28,
@@ -2352,9 +2349,8 @@ function applyRp7Mode(mode) {
   const c = document.getElementById('game');
   if (c) {
     c.width = CANVAS_W; c.height = CANVAS_H;
-    // Resizing a canvas resets its 2D state — re-kill smoothing.
     const cc = c.getContext && c.getContext('2d');
-    if (cc) cc.imageSmoothingEnabled = false;
+    if (cc) cc.imageSmoothingEnabled = false;   // resizing a canvas resets state
   }
   const st = document.getElementById('stage');
   if (st) st.style.aspectRatio = COLS + ' / ' + ROWS;
@@ -8451,54 +8447,49 @@ const DISTRICT_COMMANDER_ASSETS = {
 // created on boot; the render loop blits it directly.  Cache-by-src so
 // re-use costs nothing.
 // ============================================================================
-// ★ RP7 BETA · player0 sprite sheets  (BETA ONLY — classic never touches these)
-// Sliced offline from /assets/rp7/beta_assets/player0_{idle,walk}.png:
-// chroma-keyed off magenta, tight-cropped per frame, Lanczos-downsampled to
-// native size, then baked into uniform cells.  Nothing is scaled at draw time.
-//   walk sheet · 144x288 · 3 cols x 4 rows of 48x72 cells
-//   rows       · 0 down · 1 left · 2 right · 3 up   (RMXP/Essentials order)
+// ★ RP7 BETA · player0 sheets  (BETA ONLY — classic never reaches these)
+// Sliced offline from assets/rp7/beta_assets/player/player0_{idle,walk,run}.png:
+// chroma-keyed off magenta, tight-cropped per frame, Lanczos-downsampled, baked
+// into uniform cells.  Nothing scales at draw time.
+//   walk + run · 144x288 · 3 cols x 4 rows of 48x72 cells
+//   rows       · 0 down · 1 left · 2 right · 3 up  (RMXP/Essentials order)
 //   cols       · 0 step-A · 1 STAND · 2 step-B
-//   idle sheet · 192x72  · 4 cells, one per facing (down uses the dedicated
-//                          hi-detail idle art; the rest use that row's STAND)
-//   feetY = 70 · the baseline inside the cell that lands on the tile's bottom
-// Per-row scale normalisation was applied: the source drew the side facings
-// ~9% shorter than front/back, which would have popped 6px on every turn.
-// Each facing's STAND frame is now exactly 64px (2 tiles) tall.
+//   feetY = 70 · the baseline in the cell that lands on the tile's bottom
+// Paths are RELATIVE: the repo publishes as a GitHub Pages project site
+// (angelsofvices.github.io/AOV-saga/), where a leading slash resolves to the
+// DOMAIN root and 404s.  Relative also survives opening the file off disk.
 // ============================================================================
 const BETA_PLAYER = {
   idle: new Image(),
   walk: new Image(),
-  run:  new Image(),   // ★ same 3x4 layout as walk — leaning stride, cape flared
+  run:  new Image(),
   cellW: 48, cellH: 72, feetY: 70,
   rows:    { down: 0, left: 1, right: 2, up: 3 },
   idleCol: { down: 0, left: 1, right: 2, up: 3 },
   standCol: 1,
-  // The dedicated player0_idle.png is a DIFFERENT render pass from the walk
-  // sheet — different face, warmer skin, and a 9.75x downscale that reads
-  // softer than the walk frames' 3.4x.  Using it made the character visibly
-  // swap costume the moment you stopped.  Default idle is therefore the walk
-  // sheet's STAND column, which is crisp and consistent across all 4 facings.
-  // Flip this to true to use the hi-detail idle art for the DOWN facing.
-  useIdleArt: false,
   order: [0, 1, 2, 1],   // 3-frame ping-pong — rp4's frames[facing][order[animFrame]]
+  // player0_idle.png is a DIFFERENT render pass from the walk sheet (different
+  // face, warmer skin, 9.75x downscale vs 3.4x) so the character visibly swapped
+  // costume on stopping.  Idle therefore uses the walk sheet's STAND column.
+  // Flip to true to use the hi-detail idle art for the DOWN facing.
+  useIdleArt: false,
 };
-BETA_PLAYER.idle.src = '/assets/rp7/beta_assets/player0_idle_native.png';
-BETA_PLAYER.walk.src = '/assets/rp7/beta_assets/player0_walk_native.png';
-BETA_PLAYER.run.src  = '/assets/rp7/beta_assets/player0_run_native.png';
+BETA_PLAYER.idle.src = 'assets/rp7/beta_assets/player/player0_idle_native.png';
+BETA_PLAYER.walk.src = 'assets/rp7/beta_assets/player/player0_walk_native.png';
+BETA_PLAYER.run.src  = 'assets/rp7/beta_assets/player/player0_run_native.png';
 const _imgOk = (i) => !!(i && i.complete && i.naturalWidth);
 
-// RP4 LOGIC — when the player stops, they KEEP FACING whichever way they were
-// last heading.  game.player.dir already persists across moves, so idle simply
-// renders that facing's stand pose instead of snapping back to 'down'.
+// RP4 LOGIC — on stopping, the player KEEPS FACING the way they were last
+// heading.  game.player.dir already persists, so idle just renders that
+// facing's stand pose instead of snapping back to 'down'.
 function drawBetaPlayer(cx, cy, dir) {
   const S = BETA_PLAYER;
   const d = (S.rows[dir] === undefined) ? 'down' : dir;
   const moving = (game.player.moveCd || 0) > 0;
-  // RUN pairs with the ONE run flag the game already computes in tryMove
-  // (shift OR b OR gamepad Circle, all funnelled through the same const), so
-  // every existing run input drives the run sheet for free.  Cadence needs no
-  // special handling either: running halves moveCd, so tiles arrive twice as
-  // fast and animFrame — which advances per tile — cycles twice as fast.
+  // RUN pairs with the one flag tryMove already computes (shift OR b OR the
+  // gamepad Circle mapping all funnel through it), so every run input drives
+  // the run sheet for free.  Cadence too: running halves moveCd, so tiles
+  // arrive twice as fast and animFrame — which ticks per tile — follows.
   const sprinting = moving && !!game.player.running && _imgOk(S.run);
   let img, sx, sy;
   if (sprinting) {
@@ -8510,21 +8501,34 @@ function drawBetaPlayer(cx, cy, dir) {
     sx = S.order[(game.player.animFrame | 0) % S.order.length] * S.cellW;
     sy = S.rows[d] * S.cellH;
   } else if (!S.useIdleArt && _imgOk(S.walk)) {
-    // IDLE — stand pose of whichever way you were last facing (rp4 logic)
     img = S.walk;  sx = S.standCol * S.cellW;  sy = S.rows[d] * S.cellH;
   } else if (_imgOk(S.idle)) {
     img = S.idle;  sx = S.idleCol[d] * S.cellW;  sy = 0;
-  } else if (_imgOk(S.walk)) {
-    img = S.walk;  sx = S.standCol * S.cellW;  sy = S.rows[d] * S.cellH;
   } else {
-    return false;   // sheets not loaded yet — procedural chibi covers this frame
+    return false;   // sheets not loaded yet — procedural chibi covers the frame
   }
-  // Cells are already native size, so blit 1:1 and pin feetY to the bottom of
-  // the standing tile.  Integer coords keep the pixel art crisp.
   ctx.drawImage(img, sx, sy, S.cellW, S.cellH,
                 Math.round(cx - S.cellW / 2),
                 Math.round((cy + TILE / 2) - S.feetY),
                 S.cellW, S.cellH);
+  return true;
+}
+
+// ★ RP7 BETA · floors.  Wood indoors, grass outdoors.  Each atlas is 512x512 =
+// 16x16 tiles of 32px, built by mirroring a 256px quadrant so it wraps with a
+// measured seam of 0.0 on both axes.  Sampling by (mapX % 16, mapY % 16) gives
+// 256 variants, so large floors never show an obvious repeat.
+const BETA_FLOOR = { wood: new Image(), grass: new Image(), cells: 16 };
+BETA_FLOOR.wood.src  = 'assets/rp7/beta_assets/floor/floor_wood_native.png';
+BETA_FLOOR.grass.src = 'assets/rp7/beta_assets/floor/floor_grass_native.png';
+function drawBetaFloor(px, py, mx, my) {
+  const indoor = (typeof INDOOR_MAPS !== 'undefined')
+              && INDOOR_MAPS.has(game.player.mapId);
+  const img = indoor ? BETA_FLOOR.wood : BETA_FLOOR.grass;
+  if (!_imgOk(img)) return false;
+  const n = BETA_FLOOR.cells;
+  ctx.drawImage(img, (((mx % n) + n) % n) * TILE, (((my % n) + n) % n) * TILE,
+                TILE, TILE, px, py, TILE, TILE);
   return true;
 }
 
@@ -12370,6 +12374,9 @@ function drawTile(x, y, ch, mx, my) {
     }
     case '.':
     case ',': {
+      // ★ BETA floors — wood indoors, grass outdoors.  Classic falls straight
+      // through to the original crystal-sand gradient below, untouched.
+      if (isBeta() && drawBetaFloor(px, py, mx, my)) break;
       // Zyraxis crystal-sand path (tinted per district)
       const grad = ctx.createLinearGradient(px, py, px, py + TILE);
       grad.addColorStop(0, groundColor);
@@ -14288,18 +14295,18 @@ function drawTile(x, y, ch, mx, my) {
 }
 
 // ★ MODE-AWARE character draw.  CLASSIC takes the early return and is
-// byte-for-byte the original call.  BETA scales the art and pins the
-// baseline (feet, cy + 11 in art space) to the BOTTOM of the standing tile,
-// so ~120 hardcoded offsets inside drawCharacterArt() keep working untouched.
+// byte-for-byte the original call.  BETA scales the art and pins the baseline
+// (feet, cy + 11 in art space) to the BOTTOM of the standing tile, so the ~120
+// hardcoded offsets inside drawCharacterArt() keep working untouched.
 function drawCharacter(cx, cy, dir, primary, accent, opts) {
   const s = CHAR_ART_SCALE;
   if (s === 1 && SPRITE_ANCHOR === 'center') {
     return drawCharacterArt(cx, cy, dir, primary, accent, opts);   // CLASSIC
   }
   ctx.save();
-  ctx.translate(cx, cy + TILE / 2);   // bottom-center of the standing tile
+  ctx.translate(cx, cy + TILE / 2);
   ctx.scale(s, s);
-  ctx.translate(-cx, -(cy + 11));     // art-space feet -> that anchor
+  ctx.translate(-cx, -(cy + 11));
   drawCharacterArt(cx, cy, dir, primary, accent, opts);
   ctx.restore();
 }
@@ -14780,8 +14787,8 @@ function renderMap() {
       // Skip if off-viewport
       if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) continue;
       // ★ 2026-07-28 · PNG override for named humanoids (Yara / Jax /
-      // Commander).  MASTER VISUAL RULE — classic: 1 sprite = 1 TILE,
-      // centered.  Beta: 1 tile WIDE x SPRITE_TILES_H tall, FEET-anchored.
+      // Commander).  MASTER VISUAL RULE — classic: 1 sprite = 1 TILE centered.
+      // Beta: 1 tile WIDE x SPRITE_TILES_H tall, FEET-anchored.
       // Every future overworld prop scales relative to this unit so
       // players feel the same size regardless of how large a map gets.
       // Width follows the sprite's native aspect (never stretched).
@@ -17326,6 +17333,15 @@ document.addEventListener('keydown', (e) => {
     // advances exactly one selectable Zyrex in party order.
     const container = document.getElementById('battle-actions');
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+      // ★ UX — if focus drifted outside the panel (canvas click, dialog close,
+      // re-render), re-seat it on FIGHT BEFORE stepping.  focusNavStep's
+      // cold-start path grabs the RIGHT-MOST button of the top row, so the
+      // first arrow used to teleport instead of moving one option.  Now every
+      // arrow is a true step: FIGHT -> right ZYREX, down BAG, left wraps RUN.
+      if (!document.activeElement || !container.contains(document.activeElement)) {
+        const primedBtn = container.querySelector('.action-btn:not(:disabled), button:not(:disabled)');
+        if (primedBtn) primedBtn.focus();
+      }
       const zyrexLinear = game.battle && game.battle._menuState === 'zyrex';
       const navKey = zyrexLinear
         ? ((e.key === 'ArrowUp' || e.key === 'ArrowLeft') ? 'ArrowLeft' : 'ArrowRight')
@@ -17840,11 +17856,10 @@ function tryMove(dx, dy) {
   // Both keys[] slots are checked so either input source works.
   const running = !!keys['shift'] || !!keys['b'];
   game.player.moveCd = running ? 80 : 160;
-  // ★ Persist the run flag so the renderer can pick the run sheet.  This is
-  // the single source of truth for "is the player sprinting" — it already
-  // covers keyboard Shift, B, and the gamepad Circle mapping.
+  // ★ Single source of truth for "is the player sprinting" — already covers
+  // keyboard Shift, B, and the gamepad Circle mapping.
   game.player.running = running;
-  // ★ BETA — one walk frame per tile stepped (rp4 pacing).  Harmless in classic.
+  // ★ BETA — one animation frame per tile stepped (rp4 pacing).
   game.player.animFrame = ((game.player.animFrame | 0) + 1) % BETA_PLAYER.order.length;
   // encounter check
   if (isGemgrass(nx, ny)) {
@@ -23026,11 +23041,18 @@ function addAction(label, cb, disabled) {
   };
   $battleActions.appendChild(b);
 }
+// ★ UX — the battle menu is ALWAYS primed on its first enabled action (FIGHT
+// at the root).  Focus is claimed immediately so there's never a frame with
+// nothing selected, then re-asserted after layout in case the panel was still
+// mounting.  Press A/Z the instant a battle opens and you fight.
 function focusFirstAction() {
-  setTimeout(() => {
+  const claim = () => {
     const first = $battleActions.querySelector('.action-btn:not(:disabled), button:not(:disabled)');
-    if (first) first.focus();
-  }, 20);
+    if (first) { first.focus(); return true; }
+    return false;
+  };
+  claim();
+  setTimeout(claim, 20);
 }
 
 function renderMoveMenu() {
@@ -25902,8 +25924,8 @@ function save() {
 }
 function tryLoad() {
   try {
-    // ★ Prefer the slot for the CURRENT mode; if it's empty, fall back to
-    // whichever slot does exist and switch modes to match it.
+    // ★ Prefer the current mode's slot; if empty, fall back to whichever slot
+    // does exist and switch modes to match it.
     let raw = localStorage.getItem(SAVE_KEY);
     let srcMode = RP7_MODE;
     if (!raw) {
@@ -26005,7 +26027,7 @@ function tryLoad() {
 function hasSave() {
   try { return !!localStorage.getItem(SAVE_KEY); } catch(_) { return false; }
 }
-// ★ LOAD GAME should light up if EITHER slot has a save.
+// ★ LOAD GAME lights up if EITHER slot has a save.
 function hasAnySave() {
   try {
     for (const k in RP7_MODES) if (localStorage.getItem(RP7_MODES[k].save)) return true;
@@ -26340,8 +26362,8 @@ function refreshLoadButtonState() {
   b.style.filter  = has ? 'none' : 'grayscale(0.6)';
 }
 // ★ RP7 BETA ENTRY.  Reuses the EXACT classic NEW GAME handler — the only
-// difference is which render mode is active when it runs.  No duplicated
-// start-up logic means classic and beta can never drift apart.
+// difference is which render mode is active when it runs, so classic and beta
+// can never drift apart.
 (function wireRp7Modes() {
   const classicBtn = document.getElementById('btn-new');
   const betaBtn    = document.getElementById('btn-new-beta');

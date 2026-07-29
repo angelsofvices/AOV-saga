@@ -720,7 +720,7 @@
 
     /* ★ 2026-07-28 · Dialog portrait — small square in the left gutter
        of the dialog box.  Appears only on lines that start with a
-       recognised speaker prefix (KELTHOR:, MYARA: …).  System lines
+       recognised speaker prefix (KELTHOR:, SONYA: …).  System lines
        and narration stay portrait-less. */
     .dialog-portrait-row {
       display: flex;
@@ -744,7 +744,7 @@
 
     /* ★ 2026-07-28 · Battle trainer chip — shows the human opponent's
        face + name above the enemy Zyrex card during a named-trainer
-       battle (Yara / Jax / Myara / Commander).  Hidden for wild fights. */
+       battle (Yara / Jax / Sonya / Commander).  Hidden for wild fights. */
     .trainer-chip {
       position: absolute; left: 12px; top: 12px;
       display: none;
@@ -1936,7 +1936,7 @@
     <!-- Battle overlay -->
     <div class="battle" id="battle">
       <!-- ★ 2026-07-28 · Trainer face-chip · shown only for named human
-           opponents (Yara / Jax / Myara / Commander) via NPC_ASSETS. -->
+           opponents (Yara / Jax / Sonya / Commander) via NPC_ASSETS. -->
       <div class="trainer-chip" id="trainer-chip">
         <img id="trainer-chip-img" src="" alt="">
         <span id="trainer-chip-name">Trainer</span>
@@ -2191,7 +2191,7 @@
           <button class="mainmenu-btn" data-notebook-tab="bonds"      style="min-width:0; padding:6px 4px; font-size:10px; letter-spacing:0.08em;"><span class="mm-icon" style="margin-right:3px;">★</span>BONDS</button>
           <button class="mainmenu-btn" data-notebook-tab="novarian"   style="min-width:0; padding:6px 4px; font-size:10px; letter-spacing:0.08em;"><span class="mm-icon" style="margin-right:3px;">⚑</span>NOVARIAN</button>
           <button class="mainmenu-btn" data-notebook-tab="fathergems" style="min-width:0; padding:6px 4px; font-size:10px; letter-spacing:0.08em;"><span class="mm-icon" style="margin-right:3px;">◉</span>GEMS</button>
-          <button class="mainmenu-btn" data-notebook-tab="broadcasts" style="min-width:0; padding:6px 4px; font-size:10px; letter-spacing:0.08em;"><span class="mm-icon" style="margin-right:3px;">^</span>MYARA</button>
+          <button class="mainmenu-btn" data-notebook-tab="broadcasts" style="min-width:0; padding:6px 4px; font-size:10px; letter-spacing:0.08em;"><span class="mm-icon" style="margin-right:3px;">^</span>SONYA</button>
           <button class="mainmenu-btn" data-notebook-tab="shrines"    style="min-width:0; padding:6px 4px; font-size:10px; letter-spacing:0.08em;"><span class="mm-icon" style="margin-right:3px;">◇</span>SHRINES</button>
           <button class="mainmenu-btn" data-notebook-tab="zyrex"      style="min-width:0; padding:6px 4px; font-size:10px; letter-spacing:0.08em;"><span class="mm-icon" style="margin-right:3px;">◇</span>ZYREX</button>
           <button class="mainmenu-btn" data-notebook-tab="allies"     style="min-width:0; padding:6px 4px; font-size:10px; letter-spacing:0.08em;"><span class="mm-icon" style="margin-right:3px;">✦</span>ALLIES</button>
@@ -2693,167 +2693,61 @@ const AOV_COLORWAY = [
 const AOV_COLOR_FAMILIES = ['Reds & Pinks', 'Oranges', 'Yellows', 'Greens', 'Blues', 'Purples', 'Neutrals'];
 
 function interactDresser() {
+  // ★ 2026-07-29 · Simplified dresser — only one outfit slot lives here now
+  // ("Psychosyd Skin"), unlocked via the signed red guitar interact.
   const lines = [
     'You open the dresser.',
-    'Hair dye kit, shirts, spare pants, and a small mirror.',
-    'Everything picks independently — mix any color on any layer.',
+    'Empty except for one outfit slot at the top.',
   ];
-  showDialog(lines, () => openOutfitPicker('hair'));
+  showDialog(lines, () => openOutfitPicker());
 }
 
-// V3.17.13 — Redesigned outfit picker.  Four tabs (SHIRT / HAIR / PANTS
-// / STYLE).  SHIRT / HAIR / PANTS tabs all render the same AOV colorway
-// grouped by family; each color has an EQUIP button that flips to
-// REMOVE when active for that slot.  Removing sets the slot back to
-// null (falls through to the gender-default palette).
-function openOutfitPicker(mode) {
+// ★ 2026-07-29 · Stripped-down dresser.  Everything else was removed
+// (hair-style tab, shirt-style tab, colorway tabs, hats stub).  The
+// dresser now holds ONE outfit slot: "Psychosyd Skin" — a full-body
+// player-model swap unlocked via the signed red guitar in the bedroom.
+// Locked until game.player.psychosydSkinUnlocked flips true; masked as
+// "???" in the list until then so the unlock stays a discovery.
+function openOutfitPicker() {
   const overlay = document.getElementById('items-overlay');
   const body    = document.getElementById('items-body');
   clearHeldKeys();
   overlay.classList.add('active');
   const header = overlay.querySelector('.mainmenu-title');
+  if (header) header.textContent = 'Dresser';
   body.innerHTML = '';
-  const tabs = document.createElement('div');
-  tabs.style.cssText = 'display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;';
-  // V3.17.15 — Canonical dresser tab order: HATS / HAIR / SHIRT / PANTS
-  // / STYLE.  Hats sit before hair (they go over the head).  Style tab
-  // holds per-layer variant sections in the same top-to-bottom order.
-  ['hats', 'hair', 'shirt', 'pants', 'style'].forEach(m => {
-    const btn = document.createElement('button');
-    btn.textContent = m.toUpperCase();
-    btn.style.cssText = `flex:1; padding:6px 8px; border:1px solid ${m === mode ? 'var(--gold-bright)' : 'var(--border-soft)'}; background:${m === mode ? 'rgba(232,200,120,0.15)' : 'transparent'}; color:${m === mode ? 'var(--gold-bright)' : 'var(--ivory)'}; letter-spacing:0.18em; font-size:12px; cursor:pointer;`;
-    btn.onclick = () => openOutfitPicker(m);
-    tabs.appendChild(btn);
-  });
-  body.appendChild(tabs);
-  if (header) header.textContent = 'Dresser · ' + (mode[0].toUpperCase() + mode.slice(1));
 
-  // ---- HATS tab — empty placeholder until hat items exist in the game ----
-  if (mode === 'hats') {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'padding:20px 12px; color:var(--mist); text-align:center; letter-spacing:0.14em; font-size:12px;';
-    empty.innerHTML = 'No hats yet.<br><br><span style="opacity:0.5; font-size:11px;">Hats will appear here as you find them.</span>';
-    body.appendChild(empty);
-    return;
-  }
-  // ---- STYLE tab — split into HAIR STYLES and SHIRT STYLES sections ----
-  if (mode === 'style') {
-    const currentHair  = game.player.hairStyle  || 'spiky';
-    const currentShirt = game.player.shirtStyle || 'plain';
-    const sections = [
-      {
-        label: 'HAIR STYLES', slotKey: 'hairStyle', defaultId: 'spiky', current: currentHair,
-        list: [
-          { id: 'spiky',  name: 'Signature Spiky', desc: 'Your default look — four short spikes, clean silhouette.', locked: false },
-          // V3.17.15 — Locked hints no longer name the source.  Discovery
-          // belongs to the wiki, Reddit, and gameplay videos.
-          { id: 'mohawk', name: 'Psychosyd Mohawk', lockedName: '???', desc: 'Shaved sides, tall center ridge.  Baelgor rock-star signature.', lockedDesc: 'A hair style you have not earned yet.',
-            locked: !game.player.mohawkUnlocked, lockedHint: 'Locked' },
-        ],
-      },
-      {
-        label: 'SHIRT STYLES', slotKey: 'shirtStyle', defaultId: 'plain', current: currentShirt,
-        list: [
-          { id: 'plain', name: 'Plain Shirt', desc: 'Just the color from the SHIRT tab.  No print.', locked: false },
-          { id: 'skull', name: 'Psychosyd Skull Shirt', lockedName: '???', desc: 'Skull-and-crossbones print on the shirt.  Baelgor rock-star signature.', lockedDesc: 'A shirt style you have not earned yet.',
-            locked: !game.player.skullShirtUnlocked, lockedHint: 'Locked' },
-        ],
-      },
-    ];
-    sections.forEach(sect => {
-      // Section header
-      const header = document.createElement('div');
-      header.style.cssText = 'color:var(--gold-bright); font-family:var(--font-display); letter-spacing:0.22em; font-size:11px; margin-top:12px; padding:4px 6px; border-top:1px solid var(--border-soft); opacity:0.85;';
-      header.textContent = sect.label;
-      body.appendChild(header);
-      sect.list.forEach(sty => {
-        const row = document.createElement('div');
-        row.className = 'item-row';
-        row.setAttribute('tabindex', '0');
-        const active = sty.id === sect.current;
-        const disabled = sty.locked;
-        // V3.17.15 — Locked entries show lockedName/lockedDesc (mask the
-        // real identity) so we don't spoil what the unlock is.
-        const shownName = disabled ? (sty.lockedName || sty.name) : sty.name;
-        const shownDesc = disabled ? (sty.lockedDesc || sty.lockedHint || sty.desc) : sty.desc;
-        row.innerHTML = `
-          <div class="info">
-            <div class="name">${active ? '◈ ' : ''}${shownName}${sty.locked ? ' <span style="opacity:0.55; font-size:11px;">· LOCKED</span>' : ''}</div>
-            <div class="desc" style="opacity:${disabled ? 0.55 : 0.85};">${shownDesc}</div>
-          </div>
-          <button style="min-width:82px; opacity:${disabled ? 0.4 : 1}; cursor:${disabled ? 'not-allowed' : 'pointer'}; border-color:${active ? 'var(--gold-bright)' : 'var(--border-soft)'}; color:${active ? 'var(--gold-bright)' : 'var(--ivory)'};">${active ? 'REMOVE' : 'EQUIP'}</button>
-        `;
-        const btn = row.querySelector('button');
-        btn.onclick = () => {
-          if (disabled) { try { playSfx('disabled'); } catch(_) {} showToast('◇  Locked · find the signed guitar', 1800); return; }
-          if (active && sty.id !== sect.defaultId) {
-            game.player[sect.slotKey] = sect.defaultId;
-            showToast(`◇  Reverted to ${sect.slotKey === 'hairStyle' ? 'Signature Spiky' : 'Plain Shirt'}`, 1400);
-          } else if (!active) {
-            game.player[sect.slotKey] = sty.id;
-            showToast(`◈  ${sect.label.replace(' STYLES','')}: ${sty.name}`, 1400);
-          }
-          save();
-          openOutfitPicker('style');
-        };
-        row.addEventListener('keydown', (ev) => {
-          if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
-            ev.preventDefault(); btn.click();
-          }
-        });
-        body.appendChild(row);
-      });
-    });
-    return;
-  }
+  const unlocked = !!game.player.psychosydSkinUnlocked;
+  const equipped = !!game.player.psychosydSkinEquipped;
+  const shownName = unlocked ? 'Psychosyd Skin' : '???';
+  const shownDesc = unlocked
+    ? 'Full outfit swap — Baelgor rock-star silhouette from head to boots. Toggle on to become Psychosyd; off to return to your default look.'
+    : 'An outfit you have not earned yet.';
 
-  // ---- SHIRT / HAIR / PANTS tabs — same AOV colorway, per-family sections ----
-  const slotKey = mode;  // 'shirt' | 'hair' | 'pants'
-  const currentHex = ((game.player && game.player[slotKey]) || '').toLowerCase();
-  AOV_COLOR_FAMILIES.forEach(family => {
-    // Family header
-    const sect = document.createElement('div');
-    sect.style.cssText = 'color:var(--gold-bright); font-family:var(--font-display); letter-spacing:0.22em; font-size:11px; margin-top:12px; padding:4px 6px; border-top:1px solid var(--border-soft); opacity:0.85;';
-    sect.textContent = family.toUpperCase();
-    body.appendChild(sect);
-    AOV_COLORWAY.filter(c => c.family === family).forEach(c => {
-      const active = c.hex.toLowerCase() === currentHex;
-      const row = document.createElement('div');
-      row.className = 'item-row';
-      row.setAttribute('tabindex', '0');
-      row.innerHTML = `
-        <div class="info">
-          <div class="name">
-            <span style="display:inline-block;width:16px;height:16px;border:1px solid rgba(255,255,255,0.35);background:${c.hex};margin-right:8px;vertical-align:middle;"></span>
-            ${active ? '◈ ' : ''}${c.name}
-            <span style="opacity:0.55; font-size:11px; margin-left:6px; font-family:monospace;">${c.hex}</span>
-          </div>
-          <div class="desc" style="opacity:0.6; font-size:11px;">${family}</div>
-        </div>
-        <button style="min-width:82px; border-color:${active ? 'var(--gold-bright)' : 'var(--border-soft)'}; color:${active ? 'var(--gold-bright)' : 'var(--ivory)'};">${active ? 'REMOVE' : 'EQUIP'}</button>
-      `;
-      const btn = row.querySelector('button');
-      btn.onclick = () => {
-        if (active) {
-          // Toggle OFF — revert slot to null (gender-default palette will fill in)
-          game.player[slotKey] = null;
-          save();
-          showToast(`◇  ${slotKey.toUpperCase()} removed`, 1400);
-        } else {
-          game.player[slotKey] = c.hex;
-          save();
-          showToast(`◈  ${slotKey.toUpperCase()}: ${c.name}`, 1400);
-        }
-        openOutfitPicker(mode);
-      };
-      row.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
-          ev.preventDefault(); btn.click();
-        }
-      });
-      body.appendChild(row);
-    });
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  row.setAttribute('tabindex', '0');
+  row.innerHTML = `
+    <div class="info">
+      <div class="name">${equipped ? '◈ ' : ''}${shownName}${unlocked ? '' : ' <span style="opacity:0.55; font-size:11px;">· LOCKED</span>'}</div>
+      <div class="desc" style="opacity:${unlocked ? 0.85 : 0.55};">${shownDesc}</div>
+    </div>
+    <button style="min-width:82px; opacity:${unlocked ? 1 : 0.4}; cursor:${unlocked ? 'pointer' : 'not-allowed'}; border-color:${equipped ? 'var(--gold-bright)' : 'var(--border-soft)'}; color:${equipped ? 'var(--gold-bright)' : 'var(--ivory)'};">${equipped ? 'REMOVE' : 'EQUIP'}</button>
+  `;
+  const btn = row.querySelector('button');
+  btn.onclick = () => {
+    if (!unlocked) { try { playSfx('disabled'); } catch(_) {} showToast('◇  Locked', 1400); return; }
+    game.player.psychosydSkinEquipped = !equipped;
+    save();
+    showToast(equipped ? '◇  Psychosyd Skin removed' : '◈  Psychosyd Skin equipped', 1600);
+    openOutfitPicker();
+  };
+  row.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ' || ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'a') {
+      ev.preventDefault(); btn.click();
+    }
   });
+  body.appendChild(row);
 }
 
 // ---------- The Ten Gemlords / Ten Districts of Zyraxis (CANONICAL) ----------
@@ -7995,7 +7889,7 @@ const game = {
     housesLooted: {},
     mapId: 'malezor',       // V2.8 — which map the player is on
     bossDefeated: false,
-    npcDefeated: false,       // legacy — Myara flag
+    npcDefeated: false,       // legacy — Sonya flag
     npcsDefeated: {},         // V2.7.2 · V3.4 — { 'instanceKey:x,y': true }; instanceKey is the map (or fromDistrict/mapId for shared interiors)
     npcsRematched: {},        // V2.11 — { 'x,y': true } for stakes-battle done
     selectAssignment: 'zyrex', // V3.4 — SELECT button quick-use target (zyrex|items|types|map)
@@ -8081,27 +7975,42 @@ const game = {
 // V2.8 — Malezor is the outdoor 'first level'; house interior is a
 // separate small map. Player starts inside; talks to Mom + Dad;
 // walks out the door to enter Malezor.
+// ★ 2026-07-29 · Malezor 45×30 spatial redesign — homes on the perimeter,
+// Beastwarden's Hall + fountain at the center, Seer HQ on the lower side,
+// chests scattered ≥ 3 tiles from any building.  Trees + gemgrass frame the
+// town organically.  Dynamic helpers (tileSouthOfDoor) find H/p/q/B/D by
+// scanning, so all interior-exit logic auto-follows this new layout.
 const MALEZOR_MAP = [
-  '##############################', // 0
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 1
-  '#,hhhh,,K,,hhhh,,,K,,IIIIIIv,#', // 2
-  '#,hhhh,,,,,hhhh,,,,,,IIIIII,,#', // 3
-  '#,hhhh,,,Y,hhhh,,S,,,IIIIII^,#', // 4
-  '#,hhHh,,,,,hhph,,B,,,IIIIII,,#', // 5
-  '#,,,,,,,,,,,,,,,,,,,,IIIDII,,#', // 6
-  '#T,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 7
-  '#,,,,,,,,N,,,,,,,,,,,,,,,,,K,#', // 8
-  '#,,,,,,,,,GG,,,,,,J,,,,,,,,,,#', // 9
-  '#,T,,,,,,,GG,,,,,,,,,,,?,,,,,>', // 10
-  '#,,,,,,,,,,K,,,,,,,,,,,,,,,T,#', // 11
-  '#,,,hhhh,,,,,,,GG,,,,,,,,,,,,#', // 12
-  '#,,,hhhh,,,,,,,GG,,,,,,,,,,,,#', // 13
-  '#,,,hhhh,,,,,,,,,,,,,AAA,,,,,#', // 14
-  '#,,,hhqh,,,,,Q,,,,,K,AAA,,,v,#', // 15
-  '#WWW,,,,,,,,,,,,,,,,,AEA,,,,,#', // 16
-  '#WWW,,,,,,,,,,,,,,,,,,,,,,,,,#', // 17
-  '#WWW,,,,,,,,,,,,,,,,,,,,,,K,,#', // 18
-  '##############################', // 19
+  '#############################################', // 0
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 1
+  '#,hhhh,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,hhhh,,,#', // 2
+  '#,hhhh,T,,,,,,,,,,,,,,,,,,,,S,,,,,T,,hhhh,,,#', // 3
+  '#,hhHh,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,hhph,,,#', // 4
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,T#', // 5
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 6
+  '#,,,,,,,,,,,,,,Y,,,IIIIII,,WWW,,,,,,,,,,,,,,#', // 7  · ★ 2026-07-29 · fountain returned E of town hall
+  '#,,,,,,,,,K,,,,,,,,IIIIII,,WWW,,,,,,GG,,,^,,#', // 8
+  '#,,,,,,,,,,,,,,,,,,IIIIII,,WWW,,,,,,GG,,,,,,#', // 9
+  '#T,,,,,,,,,,,,,,,,,IIIDII,,,,,,,,,,,,,,,,,,,#', // 10
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 11
+  '#,,,,,,,,GG,,,,N,,,,,,,,,,,,,,,,,,K,,,,,,,,T#', // 12
+  '#,,,,,,,,GG,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 13
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 14
+  '#,,,,,,,,,,,GGK,,,,,,,,,,,,,,,J,,,,v,,,,,,,,>', // 15
+  '#,,,,,,,,,,,GG,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 16
+  '#T,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 17
+  '#,,,,,,,,,,,Q,,,,,,,,,,,,GG,,,,,,,,,,,,,,,,,#', // 18
+  '#,,,,,,,,,,,,,,,,,,,,,,,,GG,,,,,,,,,,,,,,,,,#', // 19
+  '#,,,,,,TGK,,,,,,,,,,,,,,,,,,,,,,,,,,,K,,,,,T#', // 20
+  '#,,,,,,,GG,,,,,,,,,,,,,,,,,,,,,,,?,,,,,,,,,,#', // 21
+  '#,hhhh,,,,,,,,,,,,,,,,,,,,,,,,AAA,,,,,,,,,,,#', // 22
+  '#,hhhh,,,,,,,,,,,,,,,,,,,,,,,,AAA,,,,,,,,,,,#', // 23
+  '#,hhqh,,,,,,,,,,,,,,,,,,,,,,,,AAA,,,,,GG,,,,#', // 24
+  '#,,,,,,,,,v,,,,,,,,,,,,,,,,,,,AEA,,,,,GG,,,,#', // 25
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,K,,,#', // 26
+  '#,,,,,,,,,T,,,K,,,,,,,,,,,,,,,,,,,,T,,,,,,,,#', // 27
+  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 28
+  '#############################################', // 29
 ];
 // V2.36 — 3-FLOOR HOUSE (V2.36.1 layout: staircases in top-right corner of each floor)
 // Tile chars:
@@ -8128,27 +8037,49 @@ const BASEMENT_MAP = [
 // MAIN FLOOR — living room + kitchen. Mom lives here. Front door to Malezor.
 // V2.37: added kitchen (F fridge, e stove) and living room (c couch),
 // stairs still top-right corner.
+// ★ 2026-07-29 · Living room upgraded from 14×9 → 21×14 (1.5× wider, ~1.5×
+// taller) so the main floor breathes and can hold more furniture in future
+// passes.  Basement + parents_bedroom stay at their original sizes.  All
+// existing tile chars preserved (fireplace ~~, kitchen F/e, table t, plant &,
+// couch c, statue @, Mom m, stairs w/U, exit x) — just repositioned.  Stair
+// landings + DOOR_TARGETS.H updated below to point at the new coords.
+// ★ 2026-07-29 · Realistic living-room furniture placement.  Couch (c) faces
+// the fireplace at north-center; lamp table (n) sits at the couch's right
+// end.  Statue (@) anchors the east wall, tall plant (&) anchors the west
+// wall — symmetric focal points that don't crowd the walking area.  Mom (m)
+// stands between the kitchen and the living space so she's on the natural
+// path from the entry door.  Kitchen (F/e/t) keeps the NW corner, stairs
+// (w/U) keep the NE corner, exit door (x) at south-center.
 const HOUSE_MAP = [
-  '======~~======', // 0 · ~ = FIREPLACE (V3.16.4) — top-center wall of living room, 2-tile stone hearth. Switched from 'f' because 'f' is already district-decor.
-  '=Fe.......wU.=', // 1 · F = fridge, e = stove (KITCHEN nook); stairs w/U top-right
-  '=.t..........=', // 2 · t = kitchen dining table
-  '=............=', // 3
-  '=.........&c.=', // 4 · & = MOM'S PLANT (V3.17.34) beside the couch — verdant_seed redemption
-  '=.....m.....@=', // 5 · Mom · @ = ANCIENT RELIGIOUS STATUE (V3.17.6) beside the couch — home-cycle to Anciuxor
-  '=............=', // 6
-  '=......x.....=', // 7 · x = door out to Malezor
-  '==============', // 8
+  '=====================', // 0  · walls
+  '==========~~=========', // 1  · ~~ = FIREPLACE (V3.16.4) · hearth carved into north wall
+  '=Fe...............wU=', // 2  · F fridge, e stove (KITCHEN);  stairs w down, U up
+  '=.t.................=', // 3  · t kitchen dining table
+  '=...................=', // 4
+  '=.........cn........=', // 5  · c couch (faces fireplace) + n LAMP TABLE at right end
+  '=...................=', // 6
+  '=....m..............=', // 7  · Mom (between kitchen and couch, on entry path)
+  '=&................@.=', // 8  · & tall plant on west wall  ·  @ ancient statue on east wall
+  '=...................=', // 9
+  '=...................=', // 10
+  '=...................=', // 11
+  '=..........x........=', // 12 · x = door out to Malezor
+  '=====================', // 13 · walls
 ];
 // DAD'S OFFICE — upstairs. Bedroom + office. Single bed. Stairs DOWN top-right.
+// ★ 2026-07-29 · Bed + secondary desk both removed — Dad's office now holds
+// ONE hero prop: his science workbench (y).  Only interact-able point in
+// the room besides Dad himself, so the pre-starter Aurabeast easter-egg
+// stays impossible to miss.
 const PARENTS_BEDROOM_MAP = [
   '==============', // 0
   '=...........w=', // 1 · w = stairs down (top-right)
   '=............=', // 2
-  '=..t.....y...=', // 3 · t = desk · y = SCIENCE WORKBENCH (V3.15.1 easter egg)
-  '=............=', // 4
-  '=.....d......=', // 5 · Dad
-  '=............=', // 6
-  '=..b.........=', // 7 · b = his single bed
+  '=............=', // 3
+  '=......y.....=', // 4 · y = SCIENCE WORKBENCH (Aurabeast pre-starter · V3.15.1)
+  '=............=', // 5
+  '=.....d......=', // 6 · Dad
+  '=............=', // 7
   '==============', // 8
 ];
 // V2.8.3 — Two locked houses on Malezor. Tiny interior maps with a chest.
@@ -8392,9 +8323,9 @@ const HALL_MAPS = {
   korathen_hall:  { data: HALL_KORATHEN,  cols: 16, rows: 11, label: 'Gilded Throne Hall' },
 };
 const MAPS = {
-  malezor:          { data: MALEZOR_MAP,         cols: 30, rows: 20, label: 'Malezor · Beastlands' },
+  malezor:          { data: MALEZOR_MAP,         cols: 45, rows: 30, label: 'Malezor · Beastlands' },
   basement:         { data: BASEMENT_MAP,        cols: 14, rows: 10, label: 'Home · Your Bedroom' },  // V2.36
-  home_interior:    { data: HOUSE_MAP,           cols: 14, rows:  9, label: 'Home · Main Floor' },   // V2.36 relabeled
+  home_interior:    { data: HOUSE_MAP,           cols: 21, rows: 14, label: 'Home · Main Floor' },   // V2.36 relabeled · 2026-07-29 expanded 1.5×
   parents_bedroom:  { data: PARENTS_BEDROOM_MAP, cols: 14, rows:  9, label: 'Home · Parents\' Bedroom' },  // V2.36
   bronze_cottage:   { data: BRONZE_HOUSE_MAP,    cols: 12, rows:  7, label: 'Bronze Cottage' },
   silver_lodge:     { data: SILVER_LODGE_MAP,    cols: 12, rows:  7, label: 'Silver Lodge' },
@@ -8445,7 +8376,7 @@ const DISTRICT_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','v
 //
 // NPC_ASSETS · face-portraits used for
 //   (a) inline <img> in every showDialog line whose first line matches
-//       one of the recognisable prefixes ("KELTHOR:", "MYARA:", …), AND
+//       one of the recognisable prefixes ("KELTHOR:", "SONYA:", …), AND
 //   (b) the trainer-chip that appears in the battle overlay when the
 //       trainerName matches one of these entries.
 // Populate one district at a time; unmapped NPCs stay procedural.
@@ -8465,15 +8396,22 @@ const DIALOG_PORTRAIT_PREFIX = {
   'KELTHOR:':        'kelthor',
   'MOM:':            'mom',
   'DAD:':            'dad',
+  // ★ 2026-07-29 · SONYA character retired, replaced by SONYA.  Sprite +
+  // asset file paths keep the internal 'myara' key so we don't churn
+  // binary asset filenames; only the display name flipped.  Legacy
+  // 'SONYA:' prefix kept as an alias in case any old dialogue line still
+  // uses it (safe fallthrough).
+  'SONYA:':          'myara',
   'MYARA:':          'myara',
   'YARA:':           'yara',
   'JAX:':            'jax',
 };
 // Battle trainer-name → NPC_ASSETS key
 const BATTLE_TRAINER_ASSETS = {
-  'YARA': 'yara',
-  'JAX':  'jax',
-  'MYARA':'myara',
+  'YARA':  'yara',
+  'JAX':   'jax',
+  'SONYA': 'myara',
+  'MYARA': 'myara',   // legacy alias
 };
 
 // DISTRICT_ASSETS · building emblems per district.  `capital` shows as a
@@ -8531,6 +8469,16 @@ const BETA_PLAYER = {
 BETA_PLAYER.idle.src = 'assets/rp7/beta_assets/player/player0_idle_native.png';
 BETA_PLAYER.walk.src = 'assets/rp7/beta_assets/player/player0_walk_native.png';
 BETA_PLAYER.run.src  = 'assets/rp7/beta_assets/player/player0_run_native.png';
+// ★ 2026-07-29 · PSYCHOSYD SKIN — full player swap unlocked by strumming
+// the signed red guitar in the bedroom.  Same 3x4-of-64x88 geometry as
+// BETA_PLAYER (sliced from assets/psychosyd_outfit sheets), so drawBetaPlayer
+// just picks a different sheet bundle when psychosydSkinEquipped is on.
+const BETA_PSYCHOSYD = {
+  idle: new Image(), walk: new Image(), run: new Image(),
+};
+BETA_PSYCHOSYD.idle.src = 'assets/rp7/beta_assets/player/psychosyd_idle_native.png';
+BETA_PSYCHOSYD.walk.src = 'assets/rp7/beta_assets/player/psychosyd_walk_native.png';
+BETA_PSYCHOSYD.run.src  = 'assets/rp7/beta_assets/player/psychosyd_run_native.png';
 const _imgOk = (i) => !!(i && i.complete && i.naturalWidth);
 
 // ★ 2026-07-29 — LIGHT BLACK CONTACT SHADOW.  A soft, low-alpha ellipse under
@@ -8561,7 +8509,11 @@ function drawBetaShadow(cx, groundY, width, strength) {
 // heading.  game.player.dir already persists, so idle just renders that
 // facing's stand pose instead of snapping back to 'down'.
 function drawBetaPlayer(cx, cy, dir) {
-  const S = BETA_PLAYER;
+  // ★ 2026-07-29 · Psychosyd Skin swap.  Same geometry as BETA_PLAYER
+  // (64x88 · 3x4), so only the source-image bundle differs.  Reuses
+  // BETA_PLAYER's grid metadata (cellW/cellH/rows/etc.) to avoid drift.
+  const skin = (game.player && game.player.psychosydSkinEquipped) ? BETA_PSYCHOSYD : BETA_PLAYER;
+  const S = { ...BETA_PLAYER, idle: skin.idle, walk: skin.walk, run: skin.run };
   const d = (S.rows[dir] === undefined) ? 'down' : dir;
   const moving = (game.player.moveCd || 0) > 0;
   // RUN pairs with the one flag tryMove already computes (shift OR b OR the
@@ -8614,7 +8566,7 @@ function betaFloorFor(mapId) {
   return 'grass';
 }
 // ★ RP7 BETA · named-NPC sprites, same 48x72 feet-anchored cell as player0.
-// Myara is drawn from the map's 'N' tile (not through NPC_ASSETS), so she gets
+// Sonya is drawn from the map's 'N' tile (not through NPC_ASSETS), so she gets
 // her own image here rather than a NPC_ASSETS entry.
 // ★ RP7 BETA · chest tile art.  1x1 tile, so the cell is a plain 32x32 that
 // blits straight onto the tile.  'open' is the same chest dimmed — it reads as
@@ -8652,14 +8604,33 @@ BETA_BUILDINGS.home.src = 'assets/rp7/beta_assets/buildings/town_home.png';
 BETA_BUILDINGS.malezorTownHall.src = 'assets/rp7/beta_assets/buildings/malezor_town_hall.png';
 BETA_BUILDINGS.seerHq.src = 'assets/rp7/beta_assets/buildings/evil_seer_hq.png';
 const BETA_HOME_DOOR_TILES = new Set(['H', 'p', 'q', 'P']);
+// ★ 2026-07-29 · Quiet-Child sprite upgraded from single static PNG to a
+// 4-direction sheet (DOWN/LEFT/RIGHT/UP · 64×88 cells matching BETA_NPC
+// geometry).  Child scale is 48 px tall vs adult 64 px — 3/4 baseline per
+// [[aov-npc-uniform-scale]].  Facing is tracked per-sighting in a runtime
+// map so the child turns to look at the player on interact.
 const BETA_QUIET_CHILD = new Image();
-BETA_QUIET_CHILD.src = 'assets/rp7/beta_assets/npc/silent_child_vengrizz.png';
+BETA_QUIET_CHILD.src = 'assets/rp7/beta_assets/npc/silent_child_native.png';
+const QUIET_CHILD_DIR_COLS = { down: 0, left: 1, right: 2, up: 3 };
+const _quietChildFacing = {};   // key "mapId,x,y" → 'down' | 'left' | 'right' | 'up'
+function quietChildFacingAt(mapId, x, y) {
+  return _quietChildFacing[mapId + ',' + x + ',' + y] || 'down';
+}
+function setQuietChildFacing(mapId, x, y, dir) {
+  _quietChildFacing[mapId + ',' + x + ',' + y] = dir;
+}
 
 function drawBetaBuildingOverlay(cam) {
   if (!isBeta()) return;
   const mapId = (game.player && game.player.mapId) || '';
-  for (let sy = 0; sy < ROWS; sy++) {
-    for (let sx = 0; sx < COLS; sx++) {
+  // ★ 2026-07-29 · Overscan buildings by 10 tiles on every side.  Building
+  // sprites are bottom-anchored and can be 5-8 tiles tall — if we only iterate
+  // the visible viewport, a building whose anchor tile has just scrolled off
+  // screen instantly disappears even though its upper body would still be
+  // visible.  10-tile pad covers every current building sprite with headroom.
+  const PAD = 10;
+  for (let sy = -PAD; sy < ROWS + PAD; sy++) {
+    for (let sx = -PAD; sx < COLS + PAD; sx++) {
       const mx = sx + cam.x, my = sy + cam.y;
       const ch = tileAt(mx, my);
       let img = null;
@@ -8697,7 +8668,10 @@ function drawBetaBuildingOverlay(cam) {
 // the next floor tile in the row.  Tile chars, collision and interactions stay
 // authoritative; this layer changes only their beta-mode appearance.
 const BETA_HOME_MAPS = new Set(['basement', 'home_interior', 'parents_bedroom']);
-const BETA_HOME_FURNITURE_TILES = new Set(['b', 'r', 'c', 'F', 'e', 't', 'k', 'j', 'y', 'Z', 'l']);
+// ★ 2026-07-29 · Living-room decor pass — @ statue, & Mom's plant, n lamp
+// table.  All three now render through the shared BETA_HOME_FURNITURE
+// overlay + block on walk-in like the rest of the home furniture.
+const BETA_HOME_FURNITURE_TILES = new Set(['b', 'r', 'c', 'F', 'e', 't', 'k', 'j', 'y', 'Z', 'l', '@', '&', 'n']);
 const BETA_HOME_FURNITURE = {
   bedPlayer:  new Image(),
   bedParents: new Image(),
@@ -8712,6 +8686,9 @@ const BETA_HOME_FURNITURE = {
   workbench:  new Image(),
   radio:      new Image(),
   guitar:     new Image(),
+  statue:     new Image(),
+  plantTall:  new Image(),
+  lampTable:  new Image(),
 };
 BETA_HOME_FURNITURE.bedPlayer.src  = 'assets/rp7/beta_assets/bedroom/bed25.png';
 BETA_HOME_FURNITURE.bedParents.src = 'assets/rp7/beta_assets/bedroom/bed26.png';
@@ -8723,9 +8700,16 @@ BETA_HOME_FURNITURE.dining.src     = 'assets/rp7/beta_assets/furniture/island_st
 BETA_HOME_FURNITURE.desk.src       = 'assets/rp7/beta_assets/bedroom/bed03.png';
 BETA_HOME_FURNITURE.computer.src   = 'assets/rp7/beta_assets/bedroom/bed00.png';
 BETA_HOME_FURNITURE.experiment.src = 'assets/rp7/beta_assets/bedroom/bed05.png';
-BETA_HOME_FURNITURE.workbench.src  = 'assets/rp7/beta_assets/bedroom/bed03.png';
+// ★ 2026-07-29 · Dad's science bench upgraded to the elaborate alchemy-lab
+// asset (beakers, microscope, tome, scales, magnifier).  Same 'y' tile char
+// still fires interactAurabeastWorkbench() — the pre-starter Aurabeast gift
+// path is unchanged; only the sprite swapped.  Rendered at 3 tiles × 2 tiles.
+BETA_HOME_FURNITURE.workbench.src  = 'assets/rp7/beta_assets/furniture/dad_workbench.png';
 BETA_HOME_FURNITURE.radio.src      = 'assets/rp7/beta_assets/bedroom/bed07.png';
 BETA_HOME_FURNITURE.guitar.src     = 'assets/rp7/beta_assets/bedroom/bed11.png';
+BETA_HOME_FURNITURE.statue.src     = 'assets/rp7/beta_assets/furniture/statue_a.png';
+BETA_HOME_FURNITURE.plantTall.src  = 'assets/rp7/beta_assets/furniture/plant_tall.png';
+BETA_HOME_FURNITURE.lampTable.src  = 'assets/rp7/beta_assets/furniture/nightstand_lamp.png';
 
 function betaHomeFurnitureFor(ch, mapId) {
   if (ch === 'b') return mapId === 'parents_bedroom'
@@ -8741,14 +8725,20 @@ function betaHomeFurnitureFor(ch, mapId) {
   if (ch === 'y') return BETA_HOME_FURNITURE.workbench;
   if (ch === 'Z') return BETA_HOME_FURNITURE.radio;
   if (ch === 'l') return BETA_HOME_FURNITURE.guitar;
+  if (ch === '@') return BETA_HOME_FURNITURE.statue;
+  if (ch === '&') return BETA_HOME_FURNITURE.plantTall;
+  if (ch === 'n') return BETA_HOME_FURNITURE.lampTable;
   return null;
 }
 
 function drawBetaHomeFurnitureOverlay(cam) {
   const mapId = (game.player && game.player.mapId) || '';
   if (!isBeta() || !BETA_HOME_MAPS.has(mapId)) return;
-  for (let sy = 0; sy < ROWS; sy++) {
-    for (let sx = 0; sx < COLS; sx++) {
+  // ★ 2026-07-29 · Same overscan reason as buildings — bottom-anchored
+  // furniture (TV, fridge, dresser) can be 2-3 tiles tall.
+  const PAD = 4;
+  for (let sy = -PAD; sy < ROWS + PAD; sy++) {
+    for (let sx = -PAD; sx < COLS + PAD; sx++) {
       const mx = sx + cam.x, my = sy + cam.y;
       const ch = tileAt(mx, my);
       if (!BETA_HOME_FURNITURE_TILES.has(ch)) continue;
@@ -8760,6 +8750,55 @@ function drawBetaHomeFurnitureOverlay(cam) {
       ctx.drawImage(img,
                     Math.round(groundX - img.naturalWidth / 2),
                     Math.round(groundY - img.naturalHeight));
+    }
+  }
+}
+
+// ★ 2026-07-29 · HD2D TOP-HALF OVERLAY.  Standard 2D-with-depth trick: any
+// object taller than one tile (TV / fridge / building / etc.) gets its UPPER
+// portion redrawn AFTER the player is drawn.  Bottom tile still blocks and
+// still drew below the player during the normal pre-player pass; the top
+// portion now lands in FRONT of the player so the player passes visually
+// behind an object's silhouette instead of appearing pasted on top of it.
+// One src-rect blit per tall tile — cheap, no y-sort required.
+function drawTopHalfOverlay(cam) {
+  if (!isBeta()) return;
+  const mapId = (game.player && game.player.mapId) || '';
+  const inHome = BETA_HOME_MAPS.has(mapId);
+  // ★ 2026-07-29 · Overscan matches drawBetaBuildingOverlay so tall buildings
+  // whose anchor tile has scrolled off the bottom edge still get their top-
+  // half redrawn as an overlay.  Same reason as the base pass.
+  const PAD = 10;
+  for (let sy = -PAD; sy < ROWS + PAD; sy++) {
+    for (let sx = -PAD; sx < COLS + PAD; sx++) {
+      const mx = sx + cam.x, my = sy + cam.y;
+      const ch = tileAt(mx, my);
+      // Home furniture (TV/fridge/desk/etc.) — top half only.
+      if (inHome && BETA_HOME_FURNITURE_TILES && BETA_HOME_FURNITURE_TILES.has(ch)) {
+        const img = betaHomeFurnitureFor(ch, mapId);
+        if (!_imgOk(img) || img.naturalHeight <= TILE) continue;
+        const groundX = sx * TILE + TILE / 2;
+        const groundY = sy * TILE + TILE;
+        const topH = img.naturalHeight - TILE;   // pixels above the base tile
+        ctx.drawImage(img, 0, 0, img.naturalWidth, topH,
+                      Math.round(groundX - img.naturalWidth / 2),
+                      Math.round(groundY - img.naturalHeight),
+                      img.naturalWidth, topH);
+        continue;
+      }
+      // Overworld buildings (home / town hall / seer HQ) — same trick.
+      let bimg = null;
+      if (BETA_HOME_DOOR_TILES.has(ch)) bimg = BETA_BUILDINGS.home;
+      else if (mapId === 'malezor' && ch === 'D') bimg = BETA_BUILDINGS.malezorTownHall;
+      else if (ch === 'E') bimg = BETA_BUILDINGS.seerHq;
+      if (!_imgOk(bimg) || bimg.naturalHeight <= TILE) continue;
+      const groundX = sx * TILE + TILE / 2;
+      const groundY = sy * TILE + TILE;
+      const topH = bimg.naturalHeight - TILE;
+      ctx.drawImage(bimg, 0, 0, bimg.naturalWidth, topH,
+                    Math.round(groundX - bimg.naturalWidth / 2),
+                    Math.round(groundY - bimg.naturalHeight),
+                    bimg.naturalWidth, topH);
     }
   }
 }
@@ -8786,8 +8825,11 @@ const BETA_NPC = {
     grunt_f: { idle: new Image(), blink: new Image(), dirs: false },
   },
 };
-BETA_NPC.sprites.myara.idle.src  = 'assets/rp7/beta_assets/npc/myara_native.png';
-BETA_NPC.sprites.myara.blink.src = 'assets/rp7/beta_assets/npc/myara_blink.png';
+// ★ 2026-07-29 · Sprite swapped from Myara → Sonya.  Internal registry key
+// stays 'myara' so npc-lookup / battle-portrait / dialogue-prefix wiring
+// keeps working without a cascade rename; only the source PNGs changed.
+BETA_NPC.sprites.myara.idle.src  = 'assets/rp7/beta_assets/npc/sonya_native.png';
+BETA_NPC.sprites.myara.blink.src = 'assets/rp7/beta_assets/npc/sonya_blink.png';
 BETA_NPC.sprites.dad.idle.src    = 'assets/rp7/beta_assets/npc/dad_idle_dirs_native.png';
 BETA_NPC.sprites.dad.blink.src   = 'assets/rp7/beta_assets/npc/dad_blink.png';
 BETA_NPC.sprites.mom.idle.src      = 'assets/rp7/beta_assets/npc/mom_idle_dirs_native.png';
@@ -8906,36 +8948,104 @@ BETA_FLOOR.granite.src = 'assets/rp7/beta_assets/floor/floor_granite_native.png'
 BETA_FLOOR.marble.src  = 'assets/rp7/beta_assets/floor/floor_marble_native.png';
 BETA_FLOOR.water = new Image();
 BETA_FLOOR.water.src = 'assets/rp7/beta_assets/floor/floor_water_native.png';
-// ★ Flowing water.  The texture is drawn through a repeating pattern whose
-// origin drifts with time, so the surface slides continuously instead of
-// stepping a tile at a time.  A slow vertical sway on top of the horizontal
-// drift keeps it from reading as a conveyor belt.
-let _betaWaterPat = null;
-function drawBetaWater(px, py) {
-  const img = BETA_FLOOR.water;
-  if (!_imgOk(img)) return false;
-  if (!_betaWaterPat) _betaWaterPat = ctx.createPattern(img, 'repeat');
-  if (!_betaWaterPat) return false;
-  const t = performance.now() / 1000;
-  const ox = (t * 6) % img.naturalWidth;
-  const oy = Math.sin(t * 0.45) * 5;
-  ctx.save();
-  ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip();
-  ctx.translate(ox, oy);
-  ctx.fillStyle = _betaWaterPat;
-  ctx.fillRect(px - ox, py - oy, TILE, TILE);
-  ctx.restore();
+// ★ 2026-07-29 · FOUNTAIN.  Replaces the old flowing-water pond.  A
+// contiguous W-cluster in the map data renders as ONE animated fountain
+// sprite (4 frames, 96x96 each = spans a 3x3 tile block).  Each W tile
+// blits its 32x32 slice of the current frame based on its offset within
+// the cluster — so a fountain remains coherent regardless of camera pan
+// and works for any cluster size up to 3x3.  Interact ('W' → Pure Water)
+// is unchanged; the fountain IS the water tile visually.
+const FOUNTAIN_IMG = new Image();
+FOUNTAIN_IMG.src = 'assets/rp7/beta_assets/props/fountain_native.png';
+// ★ 2026-07-29 · Animated ornate FIREPLACE — 4-frame sheet, 64×64 per frame
+// = one 2-tile-wide × 2-tile-tall sprite anchored on the wall's ~~ block.
+const FIREPLACE_IMG = new Image();
+FIREPLACE_IMG.src = 'assets/rp7/beta_assets/furniture/fireplace_native.png';
+const FIREPLACE_FRAMES = 4;
+const FIREPLACE_CELL   = 64;
+const FIREPLACE_FPS    = 8;
+const FOUNTAIN_FRAMES = 4;
+const FOUNTAIN_CELL   = 96;    // one frame = 96x96 = 3x3 tiles
+const FOUNTAIN_FPS    = 6;
+// Cache of cluster-origin lookups per map so we don't re-walk neighbors
+// every draw call.  Keyed by `${mapId}:${mx},${my}` → { ox, oy }.
+const _fountainOriginCache = {};
+function _fountainClusterOrigin(mx, my) {
+  const mid = (game.player && game.player.mapId) || '';
+  const key = mid + ':' + mx + ',' + my;
+  const hit = _fountainOriginCache[key];
+  if (hit) return hit;
+  const map = (typeof MAPS !== 'undefined' && MAPS[mid]) ? MAPS[mid].data : null;
+  if (!map) return { ox: mx, oy: my };
+  const at = (x, y) => (y >= 0 && y < map.length && x >= 0 && x < map[y].length) ? map[y][x] : '';
+  let ox = mx, oy = my;
+  while (at(ox - 1, oy) === 'W') ox--;
+  while (at(ox, oy - 1) === 'W') oy--;
+  const val = { ox, oy };
+  _fountainOriginCache[key] = val;
+  return val;
+}
+function drawBetaWater(px, py, mx, my) {
+  if (!_imgOk(FOUNTAIN_IMG)) return false;
+  const { ox, oy } = _fountainClusterOrigin(mx, my);
+  const subX = mx - ox, subY = my - oy;
+  if (subX < 0 || subX > 2 || subY < 0 || subY > 2) return false;
+  // ★ 2026-07-29 · Whole-fountain blit from the BOTTOM-RIGHT anchor of
+  // the cluster.  Tiles render top-to-bottom-left-to-right, so anchoring
+  // at bottom-right guarantees the fountain sprite lands LAST — every
+  // grass fill under a preceding W tile is already painted, and nothing
+  // overpaints the fountain after.  Sprite extends up + left from the
+  // anchor tile to cover the full 3×3 footprint.
+  if (subX === 2 && subY === 2) {
+    const frame = Math.floor(performance.now() / 1000 * FOUNTAIN_FPS) % FOUNTAIN_FRAMES;
+    ctx.drawImage(FOUNTAIN_IMG,
+      frame * FOUNTAIN_CELL, 0, FOUNTAIN_CELL, FOUNTAIN_CELL,
+      px - TILE * 2, py - TILE * 2, TILE * 3, TILE * 3);
+  }
   return true;
 }
+// ★ 2026-07-29 · Pre-render pass for non-atlas floor textures.  A single
+// bicubic downscale to a tile-aligned atlas at boot beats blitting the
+// raw 1254-px painting 32-px-at-a-time every frame — every render is now
+// a 1:1 nearest-neighbor copy from a crisp cached canvas, no per-frame
+// resampling of the source painting.  Kicks in only for grass right now
+// but any kind can opt in by adding a target-tile count here.
+// ★ 2026-07-29 · Pre-bake atlas sizes.  Source paintings are downscaled to
+// `n × TILE` at boot, then sampled 1:1 during render.  Smaller n = tighter
+// downscale = thinner / sharper features.  Wood at 6 tiles (192px) shrinks
+// the source's ~32-px planks to ~11-px planks — closer to real board width.
+const BETA_FLOOR_ATLAS_TILES = { grass: 12, wood: 6 };
+function _bakeFloorAtlas(kind) {
+  const img = BETA_FLOOR[kind];
+  const nTiles = BETA_FLOOR_ATLAS_TILES[kind];
+  if (!img || !_imgOk(img) || !nTiles) return;
+  if (img.__atlas) return;
+  const size = nTiles * TILE;
+  const cnv = document.createElement('canvas');
+  cnv.width = size; cnv.height = size;
+  const c = cnv.getContext('2d');
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(img, 0, 0, size, size);
+  img.__atlas = cnv;
+}
+Object.keys(BETA_FLOOR_ATLAS_TILES).forEach(kind => {
+  const img = BETA_FLOOR[kind];
+  if (img) img.addEventListener('load', () => _bakeFloorAtlas(kind), { once: true });
+});
 function drawBetaFloor(px, py, mx, my) {
   const mapId = (game.player && game.player.mapId) || '';
-  const img = BETA_FLOOR[betaFloorFor(mapId)] || BETA_FLOOR.grass;
+  const kind = betaFloorFor(mapId);
+  const img = BETA_FLOOR[kind] || BETA_FLOOR.grass;
   if (!_imgOk(img)) return false;
-  // ★ Variant count comes from the atlas itself, so re-exporting a floor at a
-  // different size (finer grain, more or fewer variants) needs no code change.
-  const n = Math.max(1, Math.floor(img.naturalWidth / TILE));
-  ctx.drawImage(img, (((mx % n) + n) % n) * TILE, (((my % n) + n) % n) * TILE,
-                TILE, TILE, px, py, TILE, TILE);
+  // Prefer the pre-baked atlas when this kind has one.  Both branches are
+  // pure nearest-neighbor 1:1 blits — the difference is the source size.
+  const src = (img.__atlas) || img;
+  const W = src.width || src.naturalWidth;
+  const H = src.height || src.naturalHeight;
+  const sx = (((mx * TILE) % W) + W) % W;
+  const sy = (((my * TILE) % H) + H) % H;
+  ctx.drawImage(src, sx, sy, TILE, TILE, px, py, TILE, TILE);
   return true;
 }
 
@@ -9699,9 +9809,9 @@ function tryKelthorLesson(fromDistrict) {
       showDialog([
         `WARDEN KELTHOR:`,
         `Before I forget — you crossed Netharion.  You must have felt something wrong at the Void Rift.`,
-        `A shard of that rift is a VOID FRAGMENT — pocketable.  Take it home.  There is a broken radio receiver in your basement.  Your friend Myara built it with you when you were kids; she never got it to work.`,
+        `A shard of that rift is a VOID FRAGMENT — pocketable.  Take it home.  There is a broken radio receiver in your basement.  Your friend Sonya built it with you when you were kids; she never got it to work.`,
         `Slot the fragment where the antenna crystal used to sit.  The receiver wakes up.  Every district you have visited becomes a stop on a private RIFT SLIP line.  You'll never have to walk east again unless you want to.`,
-        `Myara will notice.  Say hello.`,
+        `Sonya will notice.  Say hello.`,
       ]);
       return true;
     }
@@ -10601,8 +10711,13 @@ function routeToDistrict(routeId, dir) {
 // The malezor sighting is beside the Mothergem 'M' shrine; district
 // procedural sightings sit one tile south of the 'L' landmark placed
 // at (floor(cols/3), floor(rows/2)) by generateDistrictMap.
+// ★ 2026-07-29 · Malezor sighting removed from the static table — the Quiet
+// Child now rolls a random grass tile per save-file, resolved by pickRandomGrass
+// (below) and looked up in isQuietChildAt.  Mirrors the Elzebub-egg pattern
+// (game.player.homunculusSpawn) so both mystery encounters feel discovered
+// rather than scripted.  All post-Malezor districts still use fixed shrine-
+// adjacent sightings so their beats stay tied to their canonical landmarks.
 const QUIET_CHILD_SIGHTINGS = {
-  malezor:                    [{ x: 14, y: 3 }],  // south of MM Mothergem at row 2
   zarvane:                    [{ x: 11, y: 12 }], // south of L at (11, 11)
   andrannor:                  [{ x: 12, y: 13 }],
   veridan:                    [{ x: 14, y: 14 }],
@@ -10618,7 +10733,39 @@ const QUIET_CHILD_SIGHTINGS = {
   // impossible places' beat, first pass.
   fracture_of_anomaly:        [{ x: 10, y: 5 }],
 };
+// ★ 2026-07-29 · Random Malezor sighting.  Pick any walkable ',' tile at
+// least a few steps from the home door so the player has to actually explore
+// to bump into them.  Persisted to game.player.quietChildMalezorSpawn so a
+// single save-file gets a single sighting — leaves + re-enters find the child
+// at the same coord, matching the Elzebub-egg feel.
+function pickQuietChildMalezorSpawn() {
+  const map = (typeof MAPS !== 'undefined' && MAPS.malezor) ? MAPS.malezor.data : null;
+  if (!map) return null;
+  const candidates = [];
+  for (let y = 2; y < map.length - 2; y++) {
+    for (let x = 2; x < map[y].length - 2; x++) {
+      if (map[y][x] !== ',') continue;
+      // Skip anything within 4 tiles of the home door so the player must move.
+      if (Math.abs(x - 4) < 4 && Math.abs(y - 4) < 4) continue;
+      candidates.push({ x, y });
+    }
+  }
+  if (!candidates.length) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+function ensureQuietChildMalezorSpawn() {
+  if (game.player.quietChildForgiven) return;
+  if (!game.player.quietChildMalezorSpawn) {
+    game.player.quietChildMalezorSpawn = pickQuietChildMalezorSpawn();
+    save();
+  }
+}
 function isQuietChildAt(mapId, x, y) {
+  // Malezor is now a rolling random spawn per save (mirrors the Elzebub egg).
+  if (mapId === 'malezor') {
+    const sp = game.player.quietChildMalezorSpawn;
+    return !!(sp && sp.x === x && sp.y === y && !game.player.quietChildForgiven);
+  }
   const arr = QUIET_CHILD_SIGHTINGS[mapId];
   if (!arr) return false;
   for (const s of arr) if (s.x === x && s.y === y) return true;
@@ -11700,9 +11847,11 @@ function districtShapeWall(mapId, x, y, w, h) {
 function generateDistrictMap(mapId) {
   const meta = DISTRICT_META[mapId];
   const idx  = DISTRICT_ORDER.indexOf(mapId);
-  // Malezor is the base scale (30x20). Each subsequent district +4 cols +2 rows.
-  const cols = 30 + idx * 4;
-  const rows = 20 + idx * 2;
+  // Malezor is the base scale (45x30 as of 2026-07-29). Each subsequent district +4 cols +2 rows.
+  // ★ 2026-07-29 · Base bumped from 30×20 → 45×30 (1.5×) to give every
+  // district breathing room for new buildings, NPCs, and quest content.
+  const cols = 45 + idx * 4;
+  const rows = 30 + idx * 2;
   const chestTarget    = 6 + idx * 2;   // 6, 8, 10, ... 24
   const grassTarget    = 12 + idx * 4;  // 12, 16, ... 48
   const buildingTarget = 1 + Math.floor(idx / 2);  // 1, 1, 2, 2, 3, 3, 4, 4, 5, 5
@@ -11952,7 +12101,7 @@ function generateDistrictMap(mapId) {
 
   // V3.17.41 — BROADCAST TOWER '^' (blocker).  One per district.  Placed
   // in the top-right plaza area (visible from the west portal entry).
-  // Interact fires Myara's LIVE broadcast interview about the player's
+  // Interact fires Sonya's LIVE broadcast interview about the player's
   // journey in this district (see interactBroadcastTower()).
   {
     const attempts = [
@@ -12021,8 +12170,10 @@ for (const id of DISTRICT_ORDER) {
   if (id === 'malezor') continue;
   const meta = DISTRICT_META[id];
   const idx  = DISTRICT_ORDER.indexOf(id);
-  const cols = 30 + idx * 4;
-  const rows = 20 + idx * 2;
+  // ★ 2026-07-29 · Base bumped from 30×20 → 45×30 (1.5×) to give every
+  // district breathing room for new buildings, NPCs, and quest content.
+  const cols = 45 + idx * 4;
+  const rows = 30 + idx * 2;
   let data = generateDistrictMap(id);
   // ★ BAELGOR SOUTH-BRIDGE PORTAL (2026-07-17) — canon: the Bridge of
   // Hope is directly south of Baelgor per V3.17.63 map lock.  Post-process
@@ -12345,7 +12496,7 @@ for (const routeId of ROUTE_ORDER) {
 // Which map to enter when the player walks through a door tile.
 // entry[0..1] is the spawn tile on the destination map, facing 'up'.
 const DOOR_TARGETS = {
-  H: { map: 'home_interior',  x: 6, y: 7, dir: 'up' },     // V2.10.1 — walk into H = enter family home (H now at 2,4)
+  H: { map: 'home_interior',  x: 11, y: 12, dir: 'up' },   // ★ 2026-07-29 — living room expanded 1.5× → x tile moved to (11, 12)
   x: { map: 'malezor',        x: 2, y: 5, dir: 'down' },   // interior 'x' -> Malezor (south of H at 2,4)
   p: { map: 'bronze_cottage', x: 5, y: 5, dir: 'up',   key: 'bronze', label: 'Bronze Cottage' },
   q: { map: 'silver_lodge',   x: 5, y: 5, dir: 'up',   key: 'silver', label: 'Silver Lodge' },
@@ -12368,10 +12519,33 @@ const DOOR_TARGETS = {
 // Interior door 'x' target — always goes back to Malezor to the H side.
 // (Each interior also uses 'x' as its own exit; when leaving the bronze
 // cottage/silver lodge we need to land back on their outside tile.)
+// ★ 2026-07-29 · Dynamic door-exit helper.  Every exit from a building
+// should land the player on the tile DIRECTLY SOUTH of the door — never
+// off to the side, never on a wall.  findMapTile scans a map's char grid
+// for the first occurrence of a door char and returns the tile just
+// below it (or null if the map doesn't contain that door).  Used both
+// by INTERIOR_EXITS (built lazily) and exitHouseToMalezor().
+function findMapTile(mapId, char) {
+  const map = (typeof MAPS !== 'undefined' && MAPS[mapId]) ? MAPS[mapId].data : null;
+  if (!map) return null;
+  for (let y = 0; y < map.length; y++) {
+    const row = map[y];
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] === char) return { x, y };
+    }
+  }
+  return null;
+}
+function tileSouthOfDoor(mapId, char) {
+  const t = findMapTile(mapId, char);
+  return t ? { map: mapId, x: t.x, y: t.y + 1, dir: 'down' } : null;
+}
 const INTERIOR_EXITS = {
-  bronze_cottage: { map: 'malezor', x: 17, y: 4, dir: 'down' },   // one tile south of 'p' at (17,3)
-  silver_lodge:   { map: 'malezor', x: 11, y: 14, dir: 'down' },  // one tile south of 'q' at (11,13)
-  sunlit_cottage: { map: 'zarvane', x: 12, y: 12, dir: 'down' },  // V3.9.1 — bounces back to Zarvane (spawn resolved by re-entry)
+  // ★ 2026-07-29 · Stale hardcoded coords replaced with dynamic lookups
+  // so any future map edit (moving a door tile) can't desync exit spawn.
+  get bronze_cottage() { return tileSouthOfDoor('malezor', 'p') || { map: 'malezor', x: 39, y: 5,  dir: 'down' }; },
+  get silver_lodge()   { return tileSouthOfDoor('malezor', 'q') || { map: 'malezor', x: 4,  y: 25, dir: 'down' }; },
+  get sunlit_cottage() { return tileSouthOfDoor('zarvane', 'p') || { map: 'zarvane', x: 12, y: 12, dir: 'down' }; },
 };
 // V2.36 — Stair transitions between the 3 house floors. Context-aware:
 // which stair-tile you step on + which map you're currently in decides
@@ -12381,8 +12555,10 @@ function getStairTarget(char, currentMap) {
   // the player one tile below/left of the destination stair so re-entering
   // doesn't immediately re-trigger the transition.
   if (char === 'U') {
-    if (currentMap === 'basement')      return { map: 'home_interior',   x: 11, y: 2, dir: 'down' };  // just below the down-stair on main floor
-    if (currentMap === 'home_interior') return { map: 'parents_bedroom', x: 12, y: 2, dir: 'down' };  // just below the down-stair upstairs
+    // ★ 2026-07-29 · Living room's UP-stair (U) is now at (19, 2) after the
+    // 1.5× expansion — coming UP from the basement now lands at (19, 3).
+    if (currentMap === 'basement')      return { map: 'home_interior',   x: 19, y: 3, dir: 'down' };
+    if (currentMap === 'home_interior') return { map: 'parents_bedroom', x: 12, y: 2, dir: 'down' };  // parents_bedroom size unchanged
     // V3.0 — Seer HQ vertical flow.  Upper stairs gated behind basement clear.
     if (currentMap === 'seer_hq_main') {
       if (!seerHqBasementClear()) {
@@ -12398,8 +12574,10 @@ function getStairTarget(char, currentMap) {
     if (currentMap === 'seer_hq_basement') return { map: 'seer_hq_main',  x: 12, y: 6, dir: 'down' };
   }
   if (char === 'w') {
-    if (currentMap === 'home_interior')  return { map: 'basement',      x: 11, y: 2, dir: 'down' };   // just below the up-stair in basement
-    if (currentMap === 'parents_bedroom')return { map: 'home_interior', x: 11, y: 2, dir: 'down' };   // just below the up-stair on main floor
+    if (currentMap === 'home_interior')  return { map: 'basement',      x: 11, y: 2, dir: 'down' };   // basement size unchanged
+    // ★ 2026-07-29 · Coming DOWN from parents_bedroom now lands beneath the
+    // living room's DOWN-stair (w) at (18, 2) — the new landing is (18, 3).
+    if (currentMap === 'parents_bedroom')return { map: 'home_interior', x: 18, y: 3, dir: 'down' };
     // V3.0 — Seer HQ downstairs
     if (currentMap === 'seer_hq_main')  return { map: 'seer_hq_basement', x: 12, y: 7, dir: 'down' };
     if (currentMap === 'seer_hq_upper') return { map: 'seer_hq_main',     x: 12, y: 6, dir: 'down' };
@@ -12616,19 +12794,23 @@ function walkable(x, y) {
   // V2.36 / V2.37 — furniture blockers include r (dresser), c (couch), F (fridge), e (stove)
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
-  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*&^?o'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne · V3.17.34 & = Mom's plant · V3.17.41 ^ = Broadcast Tower · 2026-07-23 ? = Ancient Fossil Skull (Malezor)
+  if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*&^?on'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne · V3.17.34 & = Mom's plant · V3.17.41 ^ = Broadcast Tower · 2026-07-23 ? = Ancient Fossil Skull (Malezor)
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
+  // ★ 2026-07-29 · Elzebub-egg (Forgotten Homunculus) is now a solid object —
+  // player must interact from an adjacent tile, matching the Quiet Child /
+  // people / chest rule.  Previously you could walk straight over it.
+  if (isHomunculusHere(x, y)) return false;
   // V3.9 — '!' quest-item tile blocks until picked up, then becomes walkable.
   if (t === '!' && !isQuestItemPicked(game.player.mapId, x, y)) return false;
   // ★ 2026-07-29 — PEOPLE AND CHESTS ARE SOLID, ALWAYS.  Previously a
-  // defeated Rizer / Seer / Myara stopped blocking and an opened chest became
+  // defeated Rizer / Seer / Sonya stopped blocking and an opened chest became
   // walkable, so you could stroll straight through them once they were done.
   // A body is a body and a chest is a chest — beating or looting one doesn't
   // make it intangible.  DEV MODE still walks through everything (handled
   // above), so this can never soft-lock a playtest.
   if (t === 'R') return false;                       // hall Rizer
-  if (t === 'N') return false;                       // Myara
+  if (t === 'N') return false;                       // Sonya
   if ('YJQgX'.includes(t) && !game.npcs) return false;   // Yara/Jax/Quinn/grunt/commander
   if (t === 'K') return false;                       // chest, opened or not
   // Solid regardless of whether they've been beaten.
@@ -12915,9 +13097,26 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'W': {
-      // ★ BETA — real water texture, flowing.  Classic keeps the tinted
-      // rectangle + sine lines below, untouched.
-      if (isBeta() && drawBetaWater(px, py)) break;
+      // ★ 2026-07-29 · FOUNTAIN replaces the old water pond.  We MUST
+      // paint grass under W tiles ourselves — the drawTile('.','/',',')
+      // floor pass never fires for 'W', so without this the fountain's
+      // transparent alpha reveals raw black canvas.  BETA gets the real
+      // grass atlas; CLASSIC gets a flat green so the fountain isn't
+      // floating on the district-tinted blue water color.
+      // ★ 2026-07-29 · Bugfix — was passing SCREEN coords (x, y) to functions
+      // that need MAP coords (mx, my).  drawBetaWater's cluster-origin walker
+      // walked the wrong tiles, always returning subX/subY that never hit the
+      // bottom-right anchor → sprite never drew → fountain looked invisible.
+      // Same for drawBetaFloor's atlas sampler.  Fix: forward mx, my.
+      if (isBeta()) {
+        drawBetaFloor(px, py, mx, my);
+      } else {
+        ctx.fillStyle = '#3a7a5c';
+        ctx.fillRect(px, py, TILE, TILE);
+      }
+      if (drawBetaWater(px, py, mx, my)) break;
+      // Fountain PNG not loaded yet — fall through to the legacy water
+      // rendering below so W tiles never disappear on first frames.
       // V2.43 — district-tinted water
       const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
       const waterFill = decor.waterTint || '#1a3860';
@@ -13741,7 +13940,7 @@ function drawTile(x, y, ch, mx, my) {
     case 'N': {
       // NPC trainer tile (rendered as path underneath + character overlay)
       drawTile(x, y, ',', mx, my);
-      // ★ BETA — Myara gets her own repaired sprite, feet-anchored like the
+      // ★ BETA — Sonya gets her own repaired sprite, feet-anchored like the
       // player.  Classic keeps the procedural blue chibi, untouched.
       if (!(isBeta() && drawBetaNpc('myara', px, py, mx, my))) {
         drawCharacter(px + TILE / 2, py + TILE / 2, game.player.npcDefeated ? 'down' : 'down', '#5fa8ff', '#2a5c8a');
@@ -14111,12 +14310,42 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case '~': {
-      // V3.16.4 — DEAD-SIMPLE FIREPLACE.  Renamed from 'f' to '~' because
-      // 'f' was already claimed by the district-decor tile earlier in
-      // this switch, so the fireplace case was dead code.  All fillRect,
-      // no curves, no detection logic.  Two adjacent '~' tiles render as
-      // two adjacent fireplace panels — no seaming logic.
-
+      // ★ 2026-07-29 · Animated ornate fireplace PNG replaces the procedural
+      // placeholder.  A ~~ horizontal cluster is one 2-tile-wide sprite; only
+      // the RIGHTMOST tile actually blits the sprite (draws last in row order,
+      // so paints on top of anything the left tile already drew).  Left tile
+      // falls through to the wall fill below so nothing shows through.
+      if (_imgOk(FIREPLACE_IMG)) {
+        // ★ 2026-07-29 · Bugfix — the neighbor lookup MUST use map coords
+        // (mx, my) not screen coords (x, y).  Passing screen coords made the
+        // anchor check look at the wrong tiles the moment the camera scrolled,
+        // so the fireplace vanished whenever the player got close to it (the
+        // ~ tile fell through the sprite branch and drew nothing, exposing
+        // black canvas).  Also paint the wooden wall backing FIRST on EVERY
+        // ~ tile so the sprite's transparent margins show wood grain, not the
+        // raw dark canvas — otherwise the fireplace looks glued to a black
+        // hole in the wall.
+        ctx.fillStyle = '#3a2a1e';                          // wall base — matches '='
+        ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillStyle = '#5a3f28';
+        ctx.fillRect(px + 2, py + 6,  TILE - 4, 4);
+        ctx.fillRect(px + 2, py + 16, TILE - 4, 4);
+        ctx.fillRect(px + 2, py + 26, TILE - 4, 4);
+        const isRightAnchor = tileAt(mx + 1, my) !== '~';
+        if (isRightAnchor) {
+          const leftIsHearth = tileAt(mx - 1, my) === '~';
+          const spriteW = leftIsHearth ? TILE * 2 : TILE;   // 2-tile ~~ vs single ~
+          const spriteH = TILE * 2;   // sprite is 2 tiles tall — mantel on wall + firebox
+          const frame = Math.floor(performance.now() / 1000 * FIREPLACE_FPS) % FIREPLACE_FRAMES;
+          const dstX = px - (leftIsHearth ? TILE : 0);
+          const dstY = py + TILE - spriteH;  // bottom of sprite at bottom of this tile
+          ctx.drawImage(FIREPLACE_IMG,
+            frame * FIREPLACE_CELL, 0, FIREPLACE_CELL, FIREPLACE_CELL,
+            dstX, dstY, spriteW, spriteH);
+        }
+        break;
+      }
+      // ── Procedural fallback (only fires while the PNG is still loading) ──
       // 1. Big grey stone background — fills the whole tile
       ctx.fillStyle = '#a09890';
       ctx.fillRect(px, py, TILE, TILE);
@@ -14985,24 +15214,36 @@ function drawCharacterArt(cx, cy, dir, primary, accent, opts) {
 // quiet against the world.
 function drawQuietChildren(cam) {
   const mapId = game.player.mapId;
-  const arr = QUIET_CHILD_SIGHTINGS[mapId];
-  if (!arr) return;
-  for (const s of arr) {
+  // Malezor uses the rolling random spawn; every other district uses the
+  // static shrine-adjacent sighting table.
+  const spots = [];
+  if (mapId === 'malezor') {
+    const sp = game.player.quietChildMalezorSpawn;
+    if (sp && !game.player.quietChildForgiven) spots.push(sp);
+  } else {
+    const arr = QUIET_CHILD_SIGHTINGS[mapId];
+    if (arr) spots.push(...arr);
+  }
+  for (const s of spots) {
     const scx = (s.x - cam.x) * TILE + TILE / 2;
     const scy = (s.y - cam.y) * TILE + TILE / 2;
     if (scx < -TILE || scx > CANVAS_W + TILE || scy < -TILE || scy > CANVAS_H + TILE) continue;
-    drawQuietChild(scx, scy);
+    drawQuietChild(scx, scy, s.x, s.y);
   }
 }
-function drawQuietChild(cx, cy) {
+function drawQuietChild(cx, cy, mx, my) {
   if (isBeta() && _imgOk(BETA_QUIET_CHILD)) {
-    const w = BETA_QUIET_CHILD.naturalWidth;
-    const h = BETA_QUIET_CHILD.naturalHeight;
-    const groundY = cy + TILE / 2;
-    drawBetaShadow(cx, groundY - 2, Math.max(18, w * 0.66), 0.22);
-    ctx.drawImage(BETA_QUIET_CHILD,
-                  Math.round(cx - w / 2),
-                  Math.round(groundY - h));
+    const CW = 64, CH = 88, FEET_Y = 80;   // ★ Same baseline as BETA_NPC — feet
+    // land on the tile's bottom edge exactly, so child + player + Mom/Dad all
+    // stand on the same horizontal foot-line when they share a map row.  The
+    // old (groundY - CH) offset placed feet 8-9 px above the tile bottom.
+    const mapId = game.player.mapId || '';
+    const dir = quietChildFacingAt(mapId, mx, my);
+    const sx = (QUIET_CHILD_DIR_COLS[dir] || 0) * CW;
+    const dy = Math.round(cy + TILE / 2 - FEET_Y);
+    const dx = Math.round(cx - CW / 2);
+    drawBetaShadow(cx, cy + TILE / 2 - 2, 20, 0.22);
+    ctx.drawImage(BETA_QUIET_CHILD, sx, 0, CW, CH, dx, dy, CW, CH);
     return;
   }
   // Faint ground shadow — very soft, the child is small
@@ -15358,9 +15599,19 @@ function renderMap() {
   const py = (game.player.y - cam.y) * TILE + TILE / 2;
   // ★ BETA draws the player0 sheets; CLASSIC (and beta before the PNGs load)
   // falls through to the procedural chibi, unchanged.
-  if (!(isBeta() && drawBetaPlayer(px, py, game.player.dir))) {
+  // ★ 2026-07-29 · Psychosyd Skin routes through the BETA path in BOTH modes
+  // — the PNG sheets ARE the outfit, so the procedural chibi cannot render it.
+  const _usePsychosydPath = !!(game.player && game.player.psychosydSkinEquipped);
+  if (!((isBeta() || _usePsychosydPath) && drawBetaPlayer(px, py, game.player.dir))) {
     drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants, hairStyle: (game.player.hairStyle || 'spiky'), shirtStyle: (game.player.shirtStyle || 'plain') });
   }
+  // ★ 2026-07-29 · HD2D top-half overlay pass — anything that renders TALLER
+  // than 1 tile gets its upper portion (everything above the feet-tile) redrawn
+  // AFTER the player, so the player passes visually BEHIND the top half.  Base
+  // still collides + still drew below the player during the pre-player pass, so
+  // the composite reads "player standing next to / behind an object with its top
+  // in front of them" instead of "player floating on top of every object."
+  drawTopHalfOverlay(cam);
   // V2.66 — Encounter '!' indicator above the player when a wild
   // encounter is armed but not yet engaged.  Pulsing yellow bubble;
   // press A to engage.
@@ -15802,8 +16053,10 @@ function renderDevSettings() {
 // the ⚑ ENABLE ALL button on the CHEATS panel.
 const CHEATS = [
   { id: 'unlock_cosmetics', name: 'Unlock every cosmetic',
-    desc: 'Mohawk hair, skull shirt, all cosmetic flags.',
+    desc: 'Psychosyd Skin (full outfit swap) + any legacy cosmetic flags.',
     apply(p) {
+      p.psychosydSkinUnlocked = true;
+      // legacy flags kept for backward-compat with old save-file readers
       p.mohawkUnlocked = true;
       p.skullShirtUnlocked = true;
     } },
@@ -16608,7 +16861,7 @@ function openQuestsView() {
   // loops are still un-triggered, we render a single evocative empty-state.
   const shrineLoopStarted    = visitedCount > 0;
   const questLoopStarted     = QUEST_ORDER.some(qid => questState(qid) !== 'locked');
-  // V3.17.41 — third loop: Myara's Broadcast Tower arc.
+  // V3.17.41 — third loop: Sonya's Broadcast Tower arc.
   const broadcasts           = game.player.broadcasts || {};
   const broadcastCount       = Object.keys(broadcasts).length;
   const broadcastLoopStarted = broadcastCount > 0;
@@ -16686,7 +16939,7 @@ function openQuestsView() {
     for (const qid of active) renderQuestRow(qid, false);
     for (const qid of done)   renderQuestRow(qid, true);
   }
-  // V3.17.41 — BROADCASTS section (Myara's Journalist arc).  Only renders
+  // V3.17.41 — BROADCASTS section (Sonya's Journalist arc).  Only renders
   // once the player has completed at least one live broadcast at a
   // district's tower.  Shows a per-district row; row lights gold once the
   // district's segment has aired.  Reaching 10/10 = "Voice of the Expanse".
@@ -16702,7 +16955,7 @@ function openQuestsView() {
       row.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border-gold);background:rgba(90,40,140,0.10);color:var(--gold-bright);`;
       row.innerHTML = `
         <div>
-          <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">◈  ${dmeta.name.toUpperCase()} · MYARA · LIVE</div>
+          <div style="font-family:var(--font-display);letter-spacing:0.14em;font-size:13px;">◈  ${dmeta.name.toUpperCase()} · SONYA · LIVE</div>
           <div style="font-size:11px;opacity:0.75;margin-top:2px;letter-spacing:0.08em;">Broadcast on-air — +${BROADCAST_XP} R.XP claimed</div>
         </div>
         <div style="font-family:var(--font-display);font-size:12px;letter-spacing:0.10em;opacity:0.85;">+${BROADCAST_XP} R.XP</div>
@@ -19407,7 +19660,23 @@ const NPC_FACING_TILES = new Set(['N', 'd', 'm', 'v', 'S', 'Y', 'J', 'Q', 'g', '
 function tryInteract() {
   const dx = game.player.dir === 'right' ? 1 : game.player.dir === 'left' ? -1 : 0;
   const dy = game.player.dir === 'down'  ? 1 : game.player.dir === 'up'   ? -1 : 0;
-  const tx = game.player.x + dx, ty = game.player.y + dy;
+  let tx = game.player.x + dx, ty = game.player.y + dy;
+  // ★ 2026-07-29 · Head-tile reach.  NPC sprites render feet-anchored,
+  // so their head visually occupies the tile ABOVE (or behind) them —
+  // walking up to that head tile without being able to interact reads
+  // as broken.  If no NPC/facing-tile is on the immediate 1-away tile,
+  // extend one more tile in the player's facing direction and re-target
+  // there.  Lets you talk to Dad from behind without stepping around him.
+  const _isTargetable = (cx, cy) => (
+    !!npcBodyAt(cx, cy) ||
+    !!isNpcAt(cx, cy)   ||
+    NPC_FACING_TILES.has(tileAt(cx, cy))
+  );
+  if (!_isTargetable(tx, ty)) {
+    const tx2 = game.player.x + dx * 2;
+    const ty2 = game.player.y + dy * 2;
+    if (_isTargetable(tx2, ty2)) { tx = tx2; ty = ty2; }
+  }
   // V2.7.5 — first, is a wandering NPC standing on the faced tile?
   // ★ Wandering NPCs TURN to face you too — including ones you've already
   // beaten, who no longer battle but should still acknowledge you.  Their
@@ -19424,7 +19693,15 @@ function tryInteract() {
   const nRuntime = isNpcAt(tx, ty);
   if (nRuntime) { handleNpcTrainer(nRuntime.tile, nRuntime.homeX, nRuntime.homeY); return; }
   // V3.12 — Quiet Child sighting has priority over generic tile interacts
-  if (isQuietChildAt(game.player.mapId, tx, ty)) { handleQuietChildInteract(); return; }
+  if (isQuietChildAt(game.player.mapId, tx, ty)) {
+    // ★ 2026-07-29 · Turn the child to face the player.  Player.dir is the
+    // direction the player is walking/looking; the child's facing is the
+    // OPPOSITE so they meet eyes.
+    const opp = { up: 'down', down: 'up', left: 'right', right: 'left' };
+    setQuietChildFacing(game.player.mapId, tx, ty, opp[game.player.dir] || 'down');
+    handleQuietChildInteract();
+    return;
+  }
   const t = tileAt(tx, ty);
   // ★ Any NPC you interact with TURNS to face you (they never walk), and is
   // flagged as spoken-to, which freezes their idle animation.  Generic on
@@ -19451,7 +19728,7 @@ function tryInteract() {
     // V3.17.34 — Mom's plant in the living room · verdant_seed redemption.
     interactMomsPlant();
   } else if (t === '^') {
-    // V3.17.41 — Broadcast Tower · Myara live-interviews the Rizer.
+    // V3.17.41 — Broadcast Tower · Sonya live-interviews the Rizer.
     interactBroadcastTower();
   } else if (t === 'T') {
     // V3.17.34 — Trees are shakeable ONLY when the player carries the
@@ -19598,7 +19875,7 @@ function tryInteract() {
       }
     }
   } else if (t === 'N') {
-    // V3.17.33 · V3.17.37 — Myara is the JOURNALIST — the player's
+    // V3.17.33 · V3.17.37 — Sonya is the JOURNALIST — the player's
     // childhood best friend and co-builder of the ninth-grade radio.
     // Meet on first sight.  Post-Rift-Slip reunion branch adds a beat
     // acknowledging the receiver finally works.
@@ -19607,23 +19884,23 @@ function tryInteract() {
       // Already sparred — post-battle reunion flavor
       if (game.player.voidFragmentInstalled) {
         showDialog([
-          "MYARA: There you are.  I broadcast your name across the Expanse yesterday — hope you don't mind.",
-          "MYARA: The receiver works.  I told you it would.  Nine years late, but still.",
-          "MYARA: Go do the thing.  I'll keep the airwaves warm.",
+          "SONYA: There you are.  I broadcast your name across the Expanse yesterday — hope you don't mind.",
+          "SONYA: The receiver works.  I told you it would.  Nine years late, but still.",
+          "SONYA: Go do the thing.  I'll keep the airwaves warm.",
         ]);
       } else {
         showDialog([
-          "MYARA: You still bind a good frequency.  I still miss the receiver.",
-          "MYARA: If you ever find something small enough to slot where the antenna crystal used to sit — bring it home.  I'll be listening.",
+          "SONYA: You still bind a good frequency.  I still miss the receiver.",
+          "SONYA: If you ever find something small enough to slot where the antenna crystal used to sit — bring it home.  I'll be listening.",
         ]);
       }
     } else {
       showDialog([
-        "MYARA: There you are.",
-        "MYARA: Been years since the observatory.  Look at you — real Rizer, real pouch, real everything.",
-        "MYARA: Before you get a swelled head — spar me.  For old time's sake.",
-        "MYARA: And when you get home?  Check the radio.  I still think we can make it work.",
-        "«CHALLENGE MYARA?»",
+        "SONYA: There you are.",
+        "SONYA: Been years since the observatory.  Look at you — real Rizer, real pouch, real everything.",
+        "SONYA: Before you get a swelled head — spar me.  For old time's sake.",
+        "SONYA: And when you get home?  Check the radio.  I still think we can make it work.",
+        "«CHALLENGE SONYA?»",
       ], () => startNPCBattle());
     }
   } else if (t === 'H') {
@@ -20068,7 +20345,7 @@ function renderNotebookTab() {
     bonds:      'Bond Training · Kelthor\'s 8 Steps',
     novarian:   'Novarian Challenge · Rizer Path',
     fathergems: 'Fathergems · Ten Shards',
-    broadcasts: 'Broadcasts · Myara\'s Live Radio',
+    broadcasts: 'Broadcasts · Sonya\'s Live Radio',
     districts:  'Districts · Ninth World Log',
     shrines:    'Shrines · Ancient Answers',
     types:      'Type Chart · 21 Types',
@@ -20146,8 +20423,7 @@ function renderNotebookEasterEggs() {
   html += _nbSectionTitle('Legacy Tech · Cosmetics · Misc');
   html += _nbRow({ done: (it.computer_part || 0) > 0 || !!p.pcStorageInstalled, title: 'Computer Part found', meta: 'Sunlit Cottage cellar · installs PC Storage at basement terminal.' });
   html += _nbRow({ done: !!p.pcStorageInstalled,             title: 'PC Storage installed',           meta: 'Excess Zyrex box active.' });
-  html += _nbRow({ done: !!p.mohawkUnlocked,                 title: 'Psychosyd Mohawk unlocked',      meta: 'Signed red guitar in your bedroom.' });
-  html += _nbRow({ done: !!p.skullShirtUnlocked,             title: 'Psychosyd Skull Shirt unlocked', meta: 'Same guitar interact.' });
+  html += _nbRow({ done: !!p.psychosydSkinUnlocked,          title: 'Psychosyd Skin unlocked',        meta: 'Signed red guitar in your bedroom.' });
   html += _nbRow({ done: !!p.kelthorFatherHint,              title: 'Kelthor father-hint fired',      meta: 'Mid-game Kelthor beat: "I saw the same in your father at your age."' });
   html += _nbRow({ done: !!p.kelthorStoryHandoffFired,        title: 'Kelthor STORY HANDOFF fired',    meta: 'Post-Xenoxil: Kelthor points at the Novarian Path as the new main story.' });
   html += _nbRow({ done: (p.respects || []).length >= 10,    title: 'All 10 Gemlord Respects earned', meta: 'Post-endgame duel path.  Grants "Conqueror of Gemlords" title.' });
@@ -20382,7 +20658,7 @@ function renderNotebookBroadcasts() {
     html += _nbRow({
       done: !!done[id],
       title: `${(dm.name || id).toUpperCase()} Broadcast`,
-      meta: done[id] ? 'Live interview with Myara aired.' : 'Interact with the district\'s Broadcast Tower.',
+      meta: done[id] ? 'Live interview with Sonya aired.' : 'Interact with the district\'s Broadcast Tower.',
     });
   });
   const count = districts.filter(id => done[id]).length;
@@ -20810,7 +21086,7 @@ function rollChestLoot(mapId) {
 const $dialog = document.getElementById('dialog');
 // ★ 2026-07-28 · Portrait injector.  Every dialog line runs through
 // pickDialogPortrait() which returns the NPC_ASSETS URL if the line
-// starts with a recognised prefix (KELTHOR:, MYARA:, MOM:, DAD:, YARA:,
+// starts with a recognised prefix (KELTHOR:, SONYA:, MOM:, DAD:, YARA:,
 // JAX:), else null.  Portraits are opt-in per line and vanish on lines
 // that don't have a speaker prefix, so system/narration lines stay clean.
 function pickDialogPortrait(line) {
@@ -21089,7 +21365,7 @@ function travelDistrict(dir) {
 
 function startNPCBattle() {
   const enemy = makeZyrex('thornkit', 6);
-  enterBattle(enemy, 'trainer', { trainerName: 'MYARA', chain: [makeZyrex('valenkit', 7)] });
+  enterBattle(enemy, 'trainer', { trainerName: 'SONYA', chain: [makeZyrex('valenkit', 7)] });
 }
 
 // V2.7.3 — runtime NPC patrol state, keyed by 'x,y'.
@@ -21910,9 +22186,9 @@ function interactTree(tx, ty) {
   }
 }
 
-// V3.17.41 — BROADCAST TOWER · Myara's Journalist arc.
+// V3.17.41 — BROADCAST TOWER · Sonya's Journalist arc.
 // One tower per district.  Interacting with a tower puts the player LIVE
-// on Myara's intergalactic radio broadcast (Aethryx Expanse open channel one).
+// on Sonya's intergalactic radio broadcast (Aethryx Expanse open channel one).
 // She interviews the player about their journey in this district; per-broadcast
 // grant = +150 Rizer XP.  Track completion in game.player.broadcasts[districtId].
 // Full 10/10 = "Voice of the Expanse" — the whole Aethryx Expanse knows the
@@ -21920,67 +22196,67 @@ function interactTree(tx, ty) {
 const BROADCAST_XP = 150;
 const BROADCAST_INTERVIEWS = {
   malezor: [
-    'The tower crackles.  Static.  Then — clear as a hometown radio — MYARA.',
-    "MYARA: On-air from the observatory.  I've got a young Rizer at the Malezor tower.  Say hi to the Expanse.",
-    "MYARA: This is where you started.  The Beastlands.  How does the world feel now that you're actually in it?",
+    'The tower crackles.  Static.  Then — clear as a hometown radio — SONYA.',
+    "SONYA: On-air from the observatory.  I've got a young Rizer at the Malezor tower.  Say hi to the Expanse.",
+    "SONYA: This is where you started.  The Beastlands.  How does the world feel now that you're actually in it?",
     'You give her something honest.  She riffs it into a broadcast opener that will play on nine other towers before morning.',
   ],
   zarvane: [
-    "The Zarvane tower hums under Auralands sun.  MYARA's voice cuts through the hum.",
-    'MYARA: LIVE from the Sunlit Temple plaza — the Rizer walking Ivirium\'s district.  Pilgrim country.',
-    'MYARA: Tell the Expanse what the choir sounds like from the inside.  I want the listeners in Xilnar to feel it.',
+    "The Zarvane tower hums under Auralands sun.  SONYA's voice cuts through the hum.",
+    'SONYA: LIVE from the Sunlit Temple plaza — the Rizer walking Ivirium\'s district.  Pilgrim country.',
+    'SONYA: Tell the Expanse what the choir sounds like from the inside.  I want the listeners in Xilnar to feel it.',
     'She lets your answer breathe before cutting to the next segment.  Somewhere, a Baelgor smith turns up the volume.',
   ],
   andrannor: [
-    'The Andrannor tower rattles once and locks in.  MYARA is on the wire.',
-    "MYARA: Obsidian Archive in your rearview.  You've been reading shelves you shouldn't be reading, haven't you?",
-    'MYARA: For the Expanse — the Grey Archivist herself confirmed this Rizer took an interest.  Say something the archive won\'t forget.',
+    'The Andrannor tower rattles once and locks in.  SONYA is on the wire.',
+    "SONYA: Obsidian Archive in your rearview.  You've been reading shelves you shouldn't be reading, haven't you?",
+    'SONYA: For the Expanse — the Grey Archivist herself confirmed this Rizer took an interest.  Say something the archive won\'t forget.',
     'You do.  A hundred worlds worth of listeners write it down.',
   ],
   veridan: [
-    'The Verdant tower is wound in vine.  The dish still works.  MYARA does not miss a beat.',
-    'MYARA: You\'re in Emeralix\'s garden.  Every leaf here knows a name.  What did the grove tell you?',
-    'MYARA: The listeners in Netharion say the Verge glows different when the Rizer walks it.  Prove them right — talk.',
+    'The Verdant tower is wound in vine.  The dish still works.  SONYA does not miss a beat.',
+    'SONYA: You\'re in Emeralix\'s garden.  Every leaf here knows a name.  What did the grove tell you?',
+    'SONYA: The listeners in Netharion say the Verge glows different when the Rizer walks it.  Prove them right — talk.',
     'You do.  A grove somewhere blooms an inch earlier this year.',
   ],
   netharion: [
-    'The Netharion tower does not always agree it exists.  Today, it does.  MYARA logs in.',
-    'MYARA: Center of the world, kid.  Everyone else is edges.  What did the rift say to you?',
-    "MYARA: Don't tell me a Seer story.  Tell me a HUMAN one.  Give the Expanse something Eurakeon didn't dream first.",
+    'The Netharion tower does not always agree it exists.  Today, it does.  SONYA logs in.',
+    'SONYA: Center of the world, kid.  Everyone else is edges.  What did the rift say to you?',
+    "SONYA: Don't tell me a Seer story.  Tell me a HUMAN one.  Give the Expanse something Eurakeon didn't dream first.",
     'You do.  For a moment the rift shuts up and listens.',
   ],
   vorashil: [
-    "The Skyport tower has three antennas.  All three light up when MYARA calls in.",
-    "MYARA: Broadcasting from off-world today, folks — the Rizer made it to Vorashil.  This is where the airwaves go strange.",
-    "MYARA: Zypher-9 sells names.  Don't give him yours.  But give the Expanse a sentence.  Make it real.",
+    "The Skyport tower has three antennas.  All three light up when SONYA calls in.",
+    "SONYA: Broadcasting from off-world today, folks — the Rizer made it to Vorashil.  This is where the airwaves go strange.",
+    "SONYA: Zypher-9 sells names.  Don't give him yours.  But give the Expanse a sentence.  Make it real.",
     'You do.  Somewhere a docked ship pilot uncrosses his arms.',
   ],
   xilnar: [
-    'The Xilnar tower is quieter than any tower has a right to be.  MYARA speaks softly to match.',
-    'MYARA: You\'re at the Wispward now.  Obsidius knows you\'re here.  He\'s been quiet, but he knows.',
-    'MYARA: The wisps are listening on this frequency.  Say something the dead can carry.  They love a good line.',
+    'The Xilnar tower is quieter than any tower has a right to be.  SONYA speaks softly to match.',
+    'SONYA: You\'re at the Wispward now.  Obsidius knows you\'re here.  He\'s been quiet, but he knows.',
+    'SONYA: The wisps are listening on this frequency.  Say something the dead can carry.  They love a good line.',
     'You do.  The chapel candles flicker in nine districts at once.',
   ],
   baelgor: [
-    "The Baelgor tower is bolted to a smith's workshop roof.  MYARA rolls in over the anvil ring.",
-    'MYARA: Amberchain country.  Drakkur counts everyone who walks his road.  He\'s counting YOU.',
-    'MYARA: Bonus scoop for the Expanse — Psychosyd himself listens to my show.  Say hi to your idol on-air.',
+    "The Baelgor tower is bolted to a smith's workshop roof.  SONYA rolls in over the anvil ring.",
+    'SONYA: Amberchain country.  Drakkur counts everyone who walks his road.  He\'s counting YOU.',
+    'SONYA: Bonus scoop for the Expanse — Psychosyd himself listens to my show.  Say hi to your idol on-air.',
     'You do.  Psychosyd, somewhere, throws his devil-horns at the receiver.',
   ],
   thardin: [
-    'The Thardin tower runs on the Concourse grid.  MYARA cuts through the machine-hum crisp.',
-    'MYARA: Mechlands.  Where every cog has a schedule and every schedule has a Rizer.  What\'s yours today?',
-    "MYARA: HELIX the Anomalyweaver hates my show.  Tell the Expanse something that would make him hate it more.",
+    'The Thardin tower runs on the Concourse grid.  SONYA cuts through the machine-hum crisp.',
+    'SONYA: Mechlands.  Where every cog has a schedule and every schedule has a Rizer.  What\'s yours today?',
+    "SONYA: HELIX the Anomalyweaver hates my show.  Tell the Expanse something that would make him hate it more.",
     'You do.  Machines listen too, some of them.  This one is one of them.',
   ],
   korathen: [
-    'The Korathen tower is gilded.  Of course it is.  MYARA is grinning through the wire.',
-    'MYARA: Ultralands.  Last town of the Ninth World.  You made it.  The Expanse is holding its breath.',
-    "MYARA: THREEFOLD says she doesn't broadcast.  She listens.  So say something worth her listening.",
+    'The Korathen tower is gilded.  Of course it is.  SONYA is grinning through the wire.',
+    'SONYA: Ultralands.  Last town of the Ninth World.  You made it.  The Expanse is holding its breath.',
+    "SONYA: THREEFOLD says she doesn't broadcast.  She listens.  So say something worth her listening.",
     "You do.  Somewhere, an empty throne creaks — like it heard.",
   ],
 };
-// ★ 2026-07-22 — Broadcast towers double as MYARA's district-progress
+// ★ 2026-07-22 — Broadcast towers double as SONYA's district-progress
 // station.  Every visit opens with a checklist of the district's core
 // steps (shrine · Novarian qualifier · Seer Commander · Fathergem ·
 // broadcast).  The player sees at a glance what's done and what's left,
@@ -22000,7 +22276,7 @@ function buildMyaraChecklist(districtId) {
   const mark = (b) => b ? '✔' : '✖';
   const status = (b) => b ? 'DONE' : 'STILL TO DO';
   return [
-    `MYARA on-air, ${dm.name || districtId} frequency:`,
+    `SONYA on-air, ${dm.name || districtId} frequency:`,
     `Here is your Rizer scoreboard for this district, straight from my log.`,
     ``,
     `  ${mark(shrineDone)}  Shrine of ${(dm.name || districtId)} touched  —  ${status(shrineDone)}`,
@@ -22021,12 +22297,12 @@ function interactBroadcastTower() {
     showDialog([
       ...checklist,
       ``,
-      `MYARA: Told your story on-air already, Rizer.  Come back if that scoreboard changes — I'll re-cut the segment.`,
+      `SONYA: Told your story on-air already, Rizer.  Come back if that scoreboard changes — I'll re-cut the segment.`,
     ]);
     return;
   }
   const lines = BROADCAST_INTERVIEWS[districtId] || [
-    'The tower crackles.  MYARA is not on-air from this frequency yet.',
+    'The tower crackles.  SONYA is not on-air from this frequency yet.',
   ];
   showDialog([
     ...checklist,
@@ -22163,7 +22439,7 @@ const ALLIES = {
     epithet: 'Celebrity Icon of Zyraxis Humanoidlands',
     flavor: 'The player\'s idol — electric-guitar apex, Baelgor-born, sold-out shows on every district he could reach.',
     meetWhere: 'Signed red guitar in your bedroom (left corner).',
-    reward: { kind: 'cosmetic', label: 'Psychosyd Mohawk hair + Skull Shirt', flags: ['mohawkUnlocked', 'skullShirtUnlocked'] },
+    reward: { kind: 'cosmetic', label: 'Psychosyd Skin (full outfit)', flags: ['psychosydSkinUnlocked'] },
   },
   // ---- Story allies (V3.17.16 addition) ----
   quietchild: {
@@ -22236,7 +22512,7 @@ const ALLIES = {
     reward: { kind: 'tip', label: 'Challenge battle · thornkit + grivvik' },
   },
   myara: {
-    name: 'Myara', district: 'malezor', districtLabel: 'Malezor · Beastlands',
+    name: 'Sonya', district: 'malezor', districtLabel: 'Malezor · Beastlands',
     class: 'Journalist', archetype: 'Radio Broadcaster of the Aethryx Expanse',
     tier: 4, tierClass: 'Legend', epithet: 'The Voice Across the Expanse',
     flavor: 'The player\'s childhood best friend.  Co-builder of the ninth-grade radio-receiver invention that sits in the bedroom.  She grew up to interview everyone worth interviewing; when the receiver finally works, hers is the first voice through it — broadcasting live across the Aethryx Expanse.',
@@ -22940,10 +23216,9 @@ document.getElementById('gemshard-tracker-overlay').addEventListener('click', (e
 // or not the player has claimed the meet.
 function interactPsychosydGuitar() {
   const alreadyMet = !!(game.player.alliesMet && game.player.alliesMet.psychosyd);
-  // V3.17.15 — Idempotent cosmetic flag application.  If Psychosyd was met
-  // BEFORE V3.17.14 shipped, meetAlly() would early-return and skip the
-  // new skullShirtUnlocked flag.  Apply flags every visit so retroactive
-  // unlocks work even on ancient saves.
+  // ★ 2026-07-29 · Cosmetic reward = PSYCHOSYD SKIN (full outfit swap in
+  // the dresser).  Idempotent flag application so retroactive unlocks work
+  // on old saves that used the deprecated mohawk / skull-shirt flags.
   const ally = ALLIES.psychosyd;
   if (ally && ally.reward && ally.reward.kind === 'cosmetic') {
     if (ally.reward.flag)  game.player[ally.reward.flag] = true;
@@ -22966,12 +23241,11 @@ function interactPsychosydGuitar() {
       `The signature glows brighter for a second — approval, maybe.  Recognition.`,
       ``,
       '«◈ PSYCHOSYD added to ALLIES · Legends of Zyraxis · Baelgor»',
-      '«◈ PSYCHOSYD MOHAWK unlocked in the dresser · STYLE tab»',
-      '«◈ PSYCHOSYD SKULL SHIRT unlocked in the dresser · STYLE tab»',
+      '«◈ PSYCHOSYD SKIN unlocked in the dresser — equip to swap your look»',
     ], () => {
       meetAlly('psychosyd');
       try { playSfx('toast'); } catch(_) {}
-      showToast('◈  PSYCHOSYD  ·  Mohawk + Skull Shirt unlocked', 3400);
+      showToast('◈  PSYCHOSYD  ·  Psychosyd Skin unlocked', 3400);
     });
     return;
   }
@@ -23071,11 +23345,11 @@ function interactRadio() {
   }
   if (hasFragment) {
     showDialog([
-      'Your and MYARA\'s old radio-receiver invention.  Ninth-grade project.  You handled the wiring, she handled the voice tests.',
+      'Your and SONYA\'s old radio-receiver invention.  Ninth-grade project.  You handled the wiring, she handled the voice tests.',
       'It never worked.  Nobody was broadcasting.  You both went your ways.',
       'You slot the VOID FRAGMENT into the coil housing where an antenna crystal used to sit.',
       'The receiver hums.  Not a signal — a HOLE.  The kind of hole you could step through.',
-      'Then — clear as if she were standing in the room — MYARA\'s voice:',
+      'Then — clear as if she were standing in the room — SONYA\'s voice:',
       '"—broadcasting live from the observatory, Aethryx Expanse open channel one, if anyone can hear me tell me the fool actually made it work—"',
       'She laughs.  You laugh.  Nine years late.  Still worth it.',
       '«◈ RIFT SLIP unlocked  ·  press A on the radio to travel between visited regions.»',
@@ -23085,13 +23359,13 @@ function interactRadio() {
       game.player.voidFragmentInstalled = true;
       save(); updateHUD();
       try { playSfx('toast'); } catch(_) {}
-      showToast('◈  RIFT SLIP unlocked  ·  Myara is on the air', 3600);
+      showToast('◈  RIFT SLIP unlocked  ·  Sonya is on the air', 3600);
     });
     return;
   }
   // No fragment — V3.17.15 spoiler-free: evocative only, no destination
   showDialog([
-    'Your and MYARA\'s old radio-receiver invention on the floor.',
+    'Your and SONYA\'s old radio-receiver invention on the floor.',
     'You built it together in ninth grade to catch signals from the districts across the black.  It never worked.',
     'The coil housing has an empty slot where an antenna crystal used to sit.  Nothing you have brought back yet fits.',
     'You have not found what belongs there.',
@@ -23216,10 +23490,16 @@ function exitHouseToMalezor() {
           const mal = ZYRAXIS_WORLD.regions.find(r => r.id === 'malezor');
           if (mal) {
             game.player.preferWorldMap = true;
-            return enterMap('zyraxis_world', mal.x1 + 3, mal.y1 + 5, 'down');
+            // ★ 2026-07-29 · Zyraxis-world overworld spawn — keep district
+            // offset but nudge y by +1 so player lands SOUTH of the door,
+            // not level with it.
+            return enterMap('zyraxis_world', mal.x1 + 4, mal.y1 + 6, 'down');
           }
         }
-        enterMap('malezor', 3, 5, 'down');
+        // ★ 2026-07-29 · Dynamic H-tile lookup — spawn on tile directly
+        // south of the home door instead of stale (3, 5).
+        const homeExit = tileSouthOfDoor('malezor', 'H') || { x: 4, y: 5 };
+        enterMap('malezor', homeExit.x, homeExit.y, 'down');
       });
     });
     return;
@@ -23228,8 +23508,10 @@ function exitHouseToMalezor() {
     `You step out onto the Malezor path.`,
     `MOM: Be safe, ${game.player.name || 'Rizer'}!`,
   ], () => {
-    // Malezor spawn: just below the H tile, facing away from home
-    enterMap('malezor', 3, 5, 'down');
+    // ★ 2026-07-29 · Dynamic — spawn on the tile directly south of the H
+    // door tile so future map edits can't desync this exit either.
+    const homeExit = tileSouthOfDoor('malezor', 'H') || { x: 4, y: 5 };
+    enterMap('malezor', homeExit.x, homeExit.y, 'down');
   });
 }
 
@@ -23237,10 +23519,10 @@ function exitHouseToMalezor() {
 // about where one of the three Seer leaders is rumored to be hiding.
 // Fires once per trainer via game.player.seerClues[NAME] = true.
 const NPC_CLUES = {
-  MYARA: [
-    `MYARA: Off the record?  I'm chasing a scoop.`,
-    `MYARA: A Seer runner sprinted north yesterday — I clocked the timestamp.`,
-    `MYARA: The NORTHMARCH stones cast shadows they shouldn't.  Something is up there.  When you get to a broadcast tower, tell them Myara sent you.`,
+  SONYA: [
+    `SONYA: Off the record?  I'm chasing a scoop.`,
+    `SONYA: A Seer runner sprinted north yesterday — I clocked the timestamp.`,
+    `SONYA: The NORTHMARCH stones cast shadows they shouldn't.  Something is up there.  When you get to a broadcast tower, tell them Sonya sent you.`,
   ],
   YARA: [
     `YARA spits: "You get NOTHING out of me, Rizer."`,
@@ -25186,7 +25468,7 @@ function checkBattleOver() {
       // enemy) had set _menuState='sub'; if we leave it that way the
       // 800ms setTimeout below sees 'sub' and skips renderMainMenu
       // entirely — a permanent softlock (no action buttons visible,
-      // as in the Myara: thornkit → valenkit chain).  The old sub-menu
+      // as in the Sonya: thornkit → valenkit chain).  The old sub-menu
       // context is stale the moment the enemy switches; force main.
       game.battle._menuState = 'main';
       setTimeout(() => {
@@ -25519,7 +25801,7 @@ const XP_BASE_YIELD = 8;
 const XP_TIER_BONUS = 8;
 const XP_BATTLE_TYPE_MULT = {
   'wild':         1.0,
-  'trainer':      1.5,   // Myara / Jax / Quinn — friendly-sparring set
+  'trainer':      1.5,   // Sonya / Jax / Quinn — friendly-sparring set
   'npc-trainer':  1.5,   // Hall Rizers (Ranger Ris, Sun-Priest Bril, etc.)
   'commander':    2.5,   // Seer Commander X-tile bosses
   'gemlord':      4.0,   // Post-endgame Gemlord duels
@@ -27018,6 +27300,7 @@ document.getElementById('btn-new').onclick = () => {
   };
   try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
   ensureHomunculusSpawn();
+  ensureQuietChildMalezorSpawn();
   $title.classList.add('hidden');
   beginCreator();
 };
@@ -27033,6 +27316,7 @@ document.getElementById('btn-continue').onclick = () => {
   if (tryLoad()) {
     try { playSfx('confirm'); } catch(_) {}
     ensureHomunculusSpawn();
+  ensureQuietChildMalezorSpawn();
     $title.classList.add('hidden');
     game.mode = 'overworld';
     // V3.17.5 — Reveal HUD strip (starts with style="display:none;" in HTML;

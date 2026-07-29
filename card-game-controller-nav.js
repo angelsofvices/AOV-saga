@@ -118,14 +118,28 @@
   }
 
   function activate() {
-    if (!selectionArmed || !selected || !visibleCandidates().includes(selected)) return;
+    // ★ 2026-07-29 · Auto-arm on activation.  If nothing is selected but
+    // there ARE visible candidates (typical of intro / game-over / modal
+    // overlays that just mounted), auto-pick the top-right so the very
+    // first Cross press dismisses the overlay — instead of silently
+    // returning as if the controller were "not detected".
+    if (!selected || !visibleCandidates().includes(selected)) {
+      if (!visibleCandidates().length) return;
+      selectTopRight(true);
+      if (!selected) return;
+    }
     const target = selected;
     clearSelection();
     target.click();
   }
 
   function goBack() {
-    if (!selectionArmed && visibleCandidates().length) return;
+    // ★ 2026-07-29 · Auto-arm same as activate() — Circle should always
+    // route to a back / cancel target if one is on screen, even from a
+    // cold gamepad state.
+    if (!selected || !visibleCandidates().includes(selected)) {
+      if (visibleCandidates().length) selectTopRight(true);
+    }
     const candidates = visibleCandidates();
     const back = candidates.find(el =>
       /^(back|cancel|close|return|done|no)\b/i.test((el.textContent || el.getAttribute('aria-label') || '').trim())
@@ -183,6 +197,22 @@
     const pad = padIndex !== null ? pads[padIndex] : Array.from(pads).find(Boolean);
     if (pad) {
       padIndex = pad.index;
+      // ★ 2026-07-29 · Notify shared boot on first successful poll so the
+      // "Press any button on your controller" banner turns green even when
+      // gamepadconnected fired before any input was pressed (Firefox / some
+      // Chrome versions).  Idempotent — boot's markReady is guarded.
+      if (!window.aovGamepadReady) {
+        const anyPressed = pad.buttons.some(b => b && b.pressed) ||
+                           pad.axes.some(a => Math.abs(a) > 0.35);
+        if (anyPressed) {
+          try {
+            window.dispatchEvent(new CustomEvent('aov-gamepad-ready', {
+              bubbles: true, detail: { gamepad: pad }
+            }));
+            window.aovGamepadReady = true;
+          } catch (_) {}
+        }
+      }
       const x = (pad.axes[0] || 0) < -0.55 ? -1 : (pad.axes[0] || 0) > 0.55 ? 1 : 0;
       const y = (pad.axes[1] || 0) < -0.55 ? -1 : (pad.axes[1] || 0) > 0.55 ? 1 : 0;
       if ((pad.buttons[14]?.pressed && !previousButtons[14]) || (x === -1 && previousAxisX !== -1)) move('left');

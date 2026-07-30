@@ -17218,22 +17218,32 @@ document.getElementById('mm-music-toggle').onclick = () => setMusicMuted(!audioS
 document.getElementById('mm-music-down').onclick   = () => setMusicVolume(audioSys.volume - 0.1);
 document.getElementById('mm-music-up').onclick     = () => setMusicVolume(audioSys.volume + 0.1);
 
-// ---------- Map view · V2.42 — Zyraxis world map (Z-shape) ----------
-// Canonical district positions on a 0..1 normalized canvas mirroring the
-// hand-drawn Zyraxis map. Z-shape flow: I..IV across top → V drops through
-// center → VI..X fans out along the bottom to Korathen at bottom-right.
+// ---------- Map view · ★ 2026-07-30 · Zyraxis world map v2 (biome art) ----
+// Positions match the diamond markers in the new stylized world art
+// (assets/rp7/beta_assets/worldmap/zyraxis_world.png, 1536×1024).  The
+// artwork is the source of truth: every marker below is where the artist
+// dropped a gold diamond over its biome.  Roman numeral order is preserved
+// so the district cycle hotkey still walks I → X.
 const WORLD_MAP_LAYOUT = {
-  malezor:   { x: 0.22, y: 0.13, r: 0.11 },
-  zarvane:   { x: 0.40, y: 0.19, r: 0.10 },
-  andrannor: { x: 0.55, y: 0.26, r: 0.10 },
-  veridan:   { x: 0.76, y: 0.32, r: 0.11 },
-  netharion: { x: 0.30, y: 0.48, r: 0.12 },
-  vorashil:  { x: 0.13, y: 0.68, r: 0.10 },
-  xilnar:    { x: 0.30, y: 0.83, r: 0.10 },
-  baelgor:   { x: 0.45, y: 0.72, r: 0.10 },
-  thardin:   { x: 0.60, y: 0.75, r: 0.10 },
-  korathen:  { x: 0.80, y: 0.80, r: 0.12 },
+  malezor:   { x: 0.20, y: 0.29, r: 0.06 },  // I   · ice mountains (top-left)
+  zarvane:   { x: 0.37, y: 0.30, r: 0.06 },  // II  · yellow canyon
+  andrannor: { x: 0.57, y: 0.30, r: 0.06 },  // III · gray peaks
+  veridan:   { x: 0.79, y: 0.32, r: 0.06 },  // IV  · green forest
+  netharion: { x: 0.44, y: 0.53, r: 0.06 },  // V   · purple crystal (centre)
+  vorashil:  { x: 0.13, y: 0.60, r: 0.06 },  // VI  · dark starry forest
+  xilnar:    { x: 0.79, y: 0.60, r: 0.06 },  // VII · sandstone
+  baelgor:   { x: 0.28, y: 0.81, r: 0.06 },  // VIII· teal islands
+  thardin:   { x: 0.56, y: 0.80, r: 0.06 },  // IX  · volcanic
+  korathen:  { x: 0.83, y: 0.83, r: 0.06 },  // X   · gold pyramid (bottom-right)
 };
+// ★ 2026-07-30 · Stylized world-map artwork.  Blits behind every marker at
+// letterbox-fit so the diamonds land exactly on the biomes the artist drew.
+const BETA_WORLDMAP_IMG = new Image();
+BETA_WORLDMAP_IMG.src = 'assets/rp7/beta_assets/worldmap/zyraxis_world.png';
+// Currently-selected district index for the map-view cycle hotkey.  Reset to
+// the player's actual district on every openMapView().  L/R arrows +
+// L1/R1 pad advance / retreat.
+let _mapviewSelectedIdx = 0;
 // Which district is the player *actually* in? Interiors resolve to the
 // district that owns their front door (currently all interiors → malezor).
 const INTERIOR_TO_DISTRICT = {
@@ -17291,87 +17301,115 @@ function drawWorldMap() {
   const c = cvs.getContext('2d');
   const cw = cvs.width, ch = cvs.height;
   const t = performance.now() / 1000;
-  // background — deep void gradient
+  // ★ 2026-07-30 · New biome-art background.  Letterbox-fit the 1536×1024
+  // world PNG so the diamond positions in WORLD_MAP_LAYOUT land exactly on
+  // the biomes the artist marked.  Fallback: deep-void gradient if the
+  // image is still loading.
   const bg = c.createRadialGradient(cw / 2, ch * 0.45, 40, cw / 2, ch * 0.55, cw * 0.75);
-  bg.addColorStop(0, '#1b1240');
-  bg.addColorStop(0.6, '#0a0620');
+  bg.addColorStop(0, '#0a0620');
   bg.addColorStop(1, '#04020e');
   c.fillStyle = bg; c.fillRect(0, 0, cw, ch);
-  // nebula stars
-  for (const s of _MAPVIEW_STARS) {
-    const twinkle = 0.5 + 0.5 * Math.sin(t * 1.2 + s.tw * 12);
-    c.globalAlpha = s.a * (0.55 + 0.45 * twinkle);
-    c.fillStyle = '#c8b8ff';
-    c.beginPath(); c.arc(s.x * cw, s.y * ch, s.r, 0, Math.PI * 2); c.fill();
+  let mapDrawX = 0, mapDrawY = 0, mapDrawW = cw, mapDrawH = ch;
+  if (BETA_WORLDMAP_IMG.complete && BETA_WORLDMAP_IMG.naturalWidth) {
+    const iw = BETA_WORLDMAP_IMG.naturalWidth, ih = BETA_WORLDMAP_IMG.naturalHeight;
+    const scale = Math.min(cw / iw, ch / ih);
+    mapDrawW = Math.round(iw * scale);
+    mapDrawH = Math.round(ih * scale);
+    mapDrawX = Math.round((cw - mapDrawW) / 2);
+    mapDrawY = Math.round((ch - mapDrawH) / 2);
+    c.imageSmoothingEnabled = false;
+    c.drawImage(BETA_WORLDMAP_IMG, mapDrawX, mapDrawY, mapDrawW, mapDrawH);
   }
-  c.globalAlpha = 1;
-  // gold border frame
-  c.strokeStyle = 'rgba(216, 172, 88, 0.5)';
-  c.lineWidth = 2;
-  c.strokeRect(6, 6, cw - 12, ch - 12);
-  c.strokeStyle = 'rgba(216, 172, 88, 0.2)';
-  c.lineWidth = 1;
-  c.strokeRect(10, 10, cw - 20, ch - 20);
-  // title watermark
-  c.save();
-  c.font = '600 22px "Cinzel", "Times New Roman", serif';
-  c.fillStyle = 'rgba(248, 200, 64, 0.28)';
-  c.textAlign = 'center';
-  c.fillText('ZYRAXIS', cw * 0.68, ch * 0.52);
-  c.font = '600 11px "Cinzel", "Times New Roman", serif';
-  c.fillStyle = 'rgba(248, 200, 64, 0.22)';
-  c.fillText('THE NINTH WORLD', cw * 0.68, ch * 0.56);
-  c.restore();
-  // Z-path connecting districts I→X (dotted gold trail)
-  c.save();
-  c.setLineDash([3, 6]);
-  c.lineWidth = 1.5;
-  c.strokeStyle = 'rgba(216, 172, 88, 0.35)';
-  c.beginPath();
-  for (let i = 0; i < DISTRICT_ORDER.length; i++) {
-    const p = WORLD_MAP_LAYOUT[DISTRICT_ORDER[i]];
-    const x = p.x * cw, y = p.y * ch;
-    if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-  }
-  c.stroke();
-  c.setLineDash([]);
-  c.restore();
-  // districts
+  // Every district position is normalized to the ARTWORK's letterbox rect,
+  // not the raw canvas.  Convert once here.
+  const projX = (nx) => mapDrawX + nx * mapDrawW;
+  const projY = (ny) => mapDrawY + ny * mapDrawH;
+  // districts — draw a gold diamond marker at each biome position, plus a
+  // named label above.  The currently-selected district (via the cycle
+  // hotkey) draws with a bright blue outline instead of the gold fill so
+  // the player can see which one they're about to jump to.
   const playerDistrict = getPlayerDistrict();
   const keys = game.player.keys || {};
+  const romans = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+  // Clamp the selected-index in case the layout changed under it.
+  _mapviewSelectedIdx = Math.max(0, Math.min(DISTRICT_ORDER.length - 1, _mapviewSelectedIdx | 0));
+  const selectedId = DISTRICT_ORDER[_mapviewSelectedIdx];
   for (const id of DISTRICT_ORDER) {
     const p = WORLD_MAP_LAYOUT[id];
     const meta = DISTRICT_META[id];
-    const cx = p.x * cw, cy = p.y * ch;
-    const r  = p.r * cw;
+    const cx = projX(p.x), cy = projY(p.y);
+    const r  = Math.max(10, p.r * mapDrawW);
     const isPlayer = id === playerDistrict;
     const isCleared = keys[meta.gemKey] > 0;
-    // district blob — palette gradient
-    const g = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
-    g.addColorStop(0, meta.grassColor);
-    g.addColorStop(0.55, meta.groundColor);
-    g.addColorStop(1, meta.wallColor);
-    c.fillStyle = g;
-    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-    // gold rim — brighter if cleared
-    c.lineWidth = isCleared ? 2.5 : 1.2;
-    c.strokeStyle = isCleared ? '#f8c840' : 'rgba(216, 172, 88, 0.55)';
-    c.stroke();
-    // sparkle glint (small)
-    c.fillStyle = meta.sparkleTint;
-    c.globalAlpha = 0.4;
-    c.beginPath(); c.arc(cx - r * 0.35, cy - r * 0.35, r * 0.12, 0, Math.PI * 2); c.fill();
-    c.globalAlpha = 1;
-    // roman numeral watermark inside blob
-    const romans = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+    const isSelected = id === selectedId;
+    // ---- DIAMOND MARKER ----
     c.save();
-    c.font = `600 ${Math.max(14, r * 0.55)}px "Cinzel", serif`;
+    c.translate(cx, cy);
+    // slight pulse on the selected diamond
+    const pulse = isSelected ? (1.06 + 0.06 * Math.sin(t * 4)) : 1.0;
+    c.scale(pulse, pulse);
+    // outer diamond path (rotated square)
+    const path = () => {
+      c.beginPath();
+      c.moveTo(0, -r);
+      c.lineTo(r, 0);
+      c.lineTo(0, r);
+      c.lineTo(-r, 0);
+      c.closePath();
+    };
+    if (isSelected) {
+      // Blue OUTLINE only — hollow diamond so the biome behind it stays legible
+      path();
+      c.fillStyle = 'rgba(20, 40, 90, 0.35)';
+      c.fill();
+      c.strokeStyle = '#5fa8ff';
+      c.lineWidth = 3;
+      c.stroke();
+      // Inner second ring for the highlight glow
+      c.beginPath();
+      c.moveTo(0, -r * 0.72); c.lineTo(r * 0.72, 0);
+      c.lineTo(0, r * 0.72);  c.lineTo(-r * 0.72, 0);
+      c.closePath();
+      c.strokeStyle = 'rgba(140, 220, 255, 0.85)';
+      c.lineWidth = 1.5;
+      c.stroke();
+    } else {
+      // Gold FILL — matches the diamonds in the artwork.  Brighter when cleared.
+      path();
+      const grad = c.createLinearGradient(0, -r, 0, r);
+      grad.addColorStop(0, isCleared ? '#ffe488' : '#f8c848');
+      grad.addColorStop(1, isCleared ? '#c88a20' : '#8a5c14');
+      c.fillStyle = grad;
+      c.fill();
+      c.strokeStyle = isCleared ? '#ffefb0' : 'rgba(90, 60, 20, 0.8)';
+      c.lineWidth = 1.5;
+      c.stroke();
+    }
+    c.restore();
+    // Roman numeral inside the diamond (kept small)
+    c.save();
+    c.font = `700 ${Math.max(9, Math.floor(r * 0.55))}px "Cinzel", serif`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    c.fillStyle = isSelected ? '#e0f4ff' : 'rgba(30, 20, 8, 0.85)';
     c.fillText(romans[meta.num - 1], cx, cy + 1);
-    c.fillStyle = meta.accent;
-    c.globalAlpha = 0.85;
-    c.fillText(romans[meta.num - 1], cx, cy);
+    c.restore();
+    // ---- NAMED LABEL above the diamond ----
+    c.save();
+    const labelY = cy - r - 8;
+    c.font = '600 12px "Cinzel", "Times New Roman", serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'bottom';
+    const label = (meta.name || id).toUpperCase();
+    // dark backing plate for legibility over painted terrain
+    const textW = c.measureText(label).width;
+    const padX = 6, padY = 3;
+    c.fillStyle = 'rgba(8, 6, 16, 0.78)';
+    c.fillRect(cx - textW / 2 - padX, labelY - 14, textW + padX * 2, 16);
+    c.strokeStyle = isSelected ? '#5fa8ff' : 'rgba(216, 172, 88, 0.6)';
+    c.lineWidth = 1;
+    c.strokeRect(cx - textW / 2 - padX, labelY - 14, textW + padX * 2, 16);
+    c.fillStyle = isSelected ? '#a8eaff' : (isPlayer ? '#e0f4ff' : '#f5dc9c');
+    c.fillText(label, cx, labelY);
     c.restore();
     // cleared checkmark
     if (isCleared) {
@@ -17456,22 +17494,17 @@ function drawWorldMap() {
       }
       c.restore();
     }
-    // district name label (above the blob)
-    c.save();
-    c.font = '600 12px "Cinzel", "Times New Roman", serif';
-    c.textAlign = 'center';
-    c.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    c.fillText(meta.name.toUpperCase(), cx + 1, cy - r - 6);
-    c.fillStyle = isPlayer ? '#a8eaff' : '#f5dc9c';
-    c.fillText(meta.name.toUpperCase(), cx, cy - r - 7);
-    c.restore();
+    // ★ 2026-07-30 · Old "district name label" removed — labels are drawn
+    // earlier in the loop (above the diamond) with backing plate + blue
+    // outline when selected, so this duplicate second label is gone.
   }
-  // PLAYER PIN — glowing blue circle, pulsing
+  // PLAYER PIN — glowing blue circle, pulsing (uses new projX/projY so it
+  // lands on the biome regardless of viewport aspect).
   {
     const p = WORLD_MAP_LAYOUT[playerDistrict];
-    const cx = p.x * cw, cy = p.y * ch;
+    const cx = projX(p.x), cy = projY(p.y);
     const pulse = 0.6 + 0.4 * Math.sin(t * 3.2);
-    const outerR = (p.r * cw) * (1.15 + 0.12 * pulse);
+    const outerR = (p.r * mapDrawW) * (1.15 + 0.12 * pulse);
     // outer halo
     const halo = c.createRadialGradient(cx, cy, 4, cx, cy, outerR);
     halo.addColorStop(0, `rgba(120, 200, 255, ${0.55 + 0.25 * pulse})`);
@@ -17482,7 +17515,7 @@ function drawWorldMap() {
     // pulsing ring
     c.strokeStyle = `rgba(140, 220, 255, ${0.75 + 0.2 * pulse})`;
     c.lineWidth = 2.5;
-    c.beginPath(); c.arc(cx, cy, (p.r * cw) * (1.02 + 0.06 * pulse), 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(cx, cy, (p.r * mapDrawW) * (1.02 + 0.06 * pulse), 0, Math.PI * 2); c.stroke();
     // inner solid dot
     c.fillStyle = '#e0f4ff';
     c.beginPath(); c.arc(cx, cy, 5 + pulse * 1.2, 0, Math.PI * 2); c.fill();
@@ -17527,6 +17560,12 @@ function openMapView() {
   try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   $mapview.classList.add('active');
+  // ★ 2026-07-30 · Reset the district-cycle selection to the player's
+  // current district every time the map opens.  L/R arrows (or L1/R1 on
+  // the pad) walk through the 10 districts from there.
+  const _pd = getPlayerDistrict();
+  const _idx = DISTRICT_ORDER.indexOf(_pd);
+  _mapviewSelectedIdx = _idx >= 0 ? _idx : 0;
   // update caption with current district name
   const meta = DISTRICT_META[getPlayerDistrict()];
   const cap = document.getElementById('mapview-caption');
@@ -18605,6 +18644,46 @@ document.addEventListener('keydown', (e) => {
       if (pcsActive)     closePCStorage();
       e.preventDefault();
       return;
+    }
+    // ★ 2026-07-30 · MAPVIEW · district-cycle hotkey.  L/R arrows walk the
+    // gold-diamond selection around the 10 districts (L1/R1 via padkeys
+    // 'q'/'r' also work).  Confirm/A while a district is highlighted
+    // rift-slips (dev-mode or void-fragment gated, same rules as click).
+    if (mapActive) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || k === 'r') {
+        _mapviewSelectedIdx = (_mapviewSelectedIdx + 1) % DISTRICT_ORDER.length;
+        try { playSfx('nav'); } catch(_) {}
+        e.preventDefault();
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || k === 'q') {
+        _mapviewSelectedIdx = (_mapviewSelectedIdx - 1 + DISTRICT_ORDER.length) % DISTRICT_ORDER.length;
+        try { playSfx('nav'); } catch(_) {}
+        e.preventDefault();
+        return;
+      }
+      if (isConfirm) {
+        // Simulate a click on the currently-selected district — reuses
+        // the rift-slip permissions (dev mode / void fragment / visited).
+        const id = DISTRICT_ORDER[_mapviewSelectedIdx];
+        const devMode = !!(game && game.devMode);
+        const canRift = (game.player && game.player.voidFragmentInstalled) || devMode;
+        const visited = (game.player && game.player.districtsVisited) || {};
+        if (!canRift) { try { playSfx('disabled'); } catch(_) {}; e.preventDefault(); return; }
+        if (devMode && !visited[id]) {
+          game.player.districtsVisited = game.player.districtsVisited || {};
+          game.player.districtsVisited[id] = true;
+        }
+        if (!visited[id]) {
+          try { playSfx('disabled'); } catch(_) {}
+          showToast('◇  ' + (DISTRICT_META[id].name || id).toUpperCase() + ' undiscovered · walk there first');
+          e.preventDefault(); return;
+        }
+        closeMapView();
+        riftTeleportTo(id);
+        e.preventDefault();
+        return;
+      }
     }
     // V2.19.2 — arrow / confirm nav inside overlays.
     if (settingsActive) {

@@ -28,6 +28,9 @@
 <h2>Single-pose NPCs (grunts, sonya)</h2>
 <div class="row" id="npcSingleRow"></div>
 
+<h2>World map · new stylized biome art · L/R cycles selection · A rift-slips</h2>
+<canvas id="wm" width="960" height="640" class="scene"></canvas>
+
 <h2>Battle backdrops</h2>
 <div class="row">
   <div class="cell"><img class="bg-thumb" src="battle/battle_bg_malezor.png" style="max-width:320px"><div class="label">battle_bg_malezor</div></div>
@@ -55,7 +58,76 @@ function load(src) {
   });
 }
 
+// ---------- World map preview ----------
+const WORLD_MAP_LAYOUT = {
+  'MALEZOR':   { x: 0.20, y: 0.29 },
+  'ZARVANE':   { x: 0.37, y: 0.30 },
+  'ANDRANNOR': { x: 0.57, y: 0.30 },
+  'VERIDAN':   { x: 0.79, y: 0.32 },
+  'NETHARION': { x: 0.44, y: 0.53 },
+  'VORASHIL':  { x: 0.13, y: 0.60 },
+  'XILNAR':    { x: 0.79, y: 0.60 },
+  'BAELGOR':   { x: 0.28, y: 0.81 },
+  'THARDIN':   { x: 0.56, y: 0.80 },
+  'KORATHEN':  { x: 0.83, y: 0.83 },
+};
+async function drawWorldMapPreview(selectedName) {
+  const wm = document.getElementById('wm');
+  if (!wm) return;
+  const cx = wm.getContext('2d');
+  cx.fillStyle = '#04020e';
+  cx.fillRect(0, 0, wm.width, wm.height);
+  const img = await load('worldmap/zyraxis_world.png');
+  if (img) {
+    const scale = Math.min(wm.width / img.width, wm.height / img.height);
+    const dw = Math.round(img.width * scale);
+    const dh = Math.round(img.height * scale);
+    const dx = Math.round((wm.width - dw) / 2);
+    const dy = Math.round((wm.height - dh) / 2);
+    cx.imageSmoothingEnabled = false;
+    cx.drawImage(img, dx, dy, dw, dh);
+    // Diamond overlays
+    const r = 14;
+    for (const [name, p] of Object.entries(WORLD_MAP_LAYOUT)) {
+      const px = dx + p.x * dw, py = dy + p.y * dh;
+      const isSel = name === selectedName;
+      cx.save();
+      cx.translate(px, py);
+      cx.beginPath();
+      cx.moveTo(0, -r); cx.lineTo(r, 0); cx.lineTo(0, r); cx.lineTo(-r, 0);
+      cx.closePath();
+      if (isSel) {
+        cx.fillStyle = 'rgba(20,40,90,0.35)';
+        cx.fill();
+        cx.strokeStyle = '#5fa8ff';
+        cx.lineWidth = 3;
+        cx.stroke();
+      } else {
+        const g = cx.createLinearGradient(0, -r, 0, r);
+        g.addColorStop(0, '#f8c848'); g.addColorStop(1, '#8a5c14');
+        cx.fillStyle = g; cx.fill();
+        cx.strokeStyle = 'rgba(90,60,20,0.8)';
+        cx.lineWidth = 1.5;
+        cx.stroke();
+      }
+      cx.restore();
+      // Label
+      cx.font = '600 11px "Cinzel", serif';
+      cx.textAlign = 'center';
+      const tw = cx.measureText(name).width;
+      cx.fillStyle = 'rgba(8,6,16,0.78)';
+      cx.fillRect(px - tw/2 - 5, py - r - 22, tw + 10, 15);
+      cx.strokeStyle = isSel ? '#5fa8ff' : 'rgba(216,172,88,0.6)';
+      cx.lineWidth = 1;
+      cx.strokeRect(px - tw/2 - 5, py - r - 22, tw + 10, 15);
+      cx.fillStyle = isSel ? '#a8eaff' : '#f5dc9c';
+      cx.fillText(name, px, py - r - 10);
+    }
+  }
+}
 async function main() {
+  // World map preview — NETHARION selected as a demo of the blue-outline highlight.
+  await drawWorldMapPreview('NETHARION');
   // ---------- Composited overworld scene ----------
   const grassImg = await load('floor/floor_grass_native.png');
   const fountain = await load('props/fountain_native.png');

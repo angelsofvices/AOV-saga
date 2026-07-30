@@ -8837,16 +8837,15 @@ const BETA_NPC = {
     // squash carries the idle life on its own.
     grunt_m: { idle: new Image(), blink: new Image(), dirs: false },
     grunt_f: { idle: new Image(), blink: new Image(), dirs: false },
-    // ★ 2026-07-30 · Named Malezor NPCs — single front pose baked to the
-    // 64×88 NPC cell (feet at y=79).  dirs:false = they render facing you
-    // regardless of interaction angle (until real 4-direction sheets ship).
-    // Standing rule: friendly allies (kelthor) idle-blink; adversarial
-    // patrols (quinn, yara, jax) will roam via BETA_SEER once their walk
-    // sheets exist.  For now they all use the same idle+blink pipe.
-    kelthor: { idle: new Image(), blink: new Image(), dirs: false },
-    yara:    { idle: new Image(), blink: new Image(), dirs: false },
-    jax:     { idle: new Image(), blink: new Image(), dirs: false },
-    quinn:   { idle: new Image(), blink: new Image(), dirs: false },
+    // ★ 2026-07-30 · Named Malezor NPCs — 4-direction placeholder sheets
+    // (down/left/right/up · 256×88).  Left cell = horizontal mirror of the
+    // front pose; right + up cells re-use the front pose until the user
+    // ships real side / back art.  dirs:true so the render code picks the
+    // correct cell whenever the player turns to face them.
+    kelthor: { idle: new Image(), blink: new Image(), dirs: true },
+    yara:    { idle: new Image(), blink: new Image(), dirs: true },
+    jax:     { idle: new Image(), blink: new Image(), dirs: true },
+    quinn:   { idle: new Image(), blink: new Image(), dirs: true },
   },
 };
 // ★ 2026-07-29 · Sprite swapped from Myara → Sonya.  Internal registry key
@@ -8862,15 +8861,17 @@ BETA_NPC.sprites.grunt_m.idle.src  = 'assets/rp7/beta_assets/npc/grunt_m_native.
 BETA_NPC.sprites.grunt_m.blink.src = 'assets/rp7/beta_assets/npc/grunt_m_native.png';
 BETA_NPC.sprites.grunt_f.idle.src  = 'assets/rp7/beta_assets/npc/grunt_f_native.png';
 BETA_NPC.sprites.grunt_f.blink.src = 'assets/rp7/beta_assets/npc/grunt_f_native.png';
-// ★ 2026-07-30 · Named Malezor NPC sprites — baked from humanoid_06/09/25/30.
-BETA_NPC.sprites.kelthor.idle.src  = 'assets/rp7/beta_assets/npc/kelthor_native.png';
-BETA_NPC.sprites.kelthor.blink.src = 'assets/rp7/beta_assets/npc/kelthor_blink.png';
-BETA_NPC.sprites.yara.idle.src     = 'assets/rp7/beta_assets/npc/yara_native.png';
-BETA_NPC.sprites.yara.blink.src    = 'assets/rp7/beta_assets/npc/yara_blink.png';
-BETA_NPC.sprites.jax.idle.src      = 'assets/rp7/beta_assets/npc/jax_native.png';
-BETA_NPC.sprites.jax.blink.src     = 'assets/rp7/beta_assets/npc/jax_blink.png';
-BETA_NPC.sprites.quinn.idle.src    = 'assets/rp7/beta_assets/npc/quinn_native.png';
-BETA_NPC.sprites.quinn.blink.src   = 'assets/rp7/beta_assets/npc/quinn_blink.png';
+// ★ 2026-07-30 · Named Malezor NPC 4-direction sheets — down/left/right/up
+// in one 256×88 strip (same geometry as mom/dad).  Blink slot re-uses the
+// idle sheet for now (nothing to blink until real side/back art lands).
+BETA_NPC.sprites.kelthor.idle.src  = 'assets/rp7/beta_assets/npc/kelthor_idle_dirs_native.png';
+BETA_NPC.sprites.kelthor.blink.src = 'assets/rp7/beta_assets/npc/kelthor_idle_dirs_native.png';
+BETA_NPC.sprites.yara.idle.src     = 'assets/rp7/beta_assets/npc/yara_idle_dirs_native.png';
+BETA_NPC.sprites.yara.blink.src    = 'assets/rp7/beta_assets/npc/yara_idle_dirs_native.png';
+BETA_NPC.sprites.jax.idle.src      = 'assets/rp7/beta_assets/npc/jax_idle_dirs_native.png';
+BETA_NPC.sprites.jax.blink.src     = 'assets/rp7/beta_assets/npc/jax_idle_dirs_native.png';
+BETA_NPC.sprites.quinn.idle.src    = 'assets/rp7/beta_assets/npc/quinn_idle_dirs_native.png';
+BETA_NPC.sprites.quinn.blink.src   = 'assets/rp7/beta_assets/npc/quinn_idle_dirs_native.png';
 
 // ★ Gender is distributed across every Seer grunt by a hash of their HOME
 // tile, so a given grunt is always the same person — stable across reloads,
@@ -9002,9 +9003,21 @@ const BETA_GEMGRASS = [0,1,2,3,4].map(i => {
 // ★ 2026-07-30 · SHARDSHARE COLLAR device sprite.  Floor loot in Silver Lodge.
 // The device your Dad needs to finish his SHARDSHARE.  Once picked up + the
 // SHARDSHARE quest completes, it grants 33 % XP to the whole party per KO
-// (was 100% — see xpAwardForKo).  Renders on tile char 'C'.
+// (was 100% — see xpAwardForKo).  Renders on tile char 'V'.
 const BETA_SHARDSHARE_COLLAR = new Image();
 BETA_SHARDSHARE_COLLAR.src = 'assets/rp7/beta_assets/items/shardshare_collar.png';
+// ★ 2026-07-30 · GEMLORD CAVE ENTRANCE — stone arch with twin gargoyles and
+// district-gem lattice.  Replaces the old procedural 'C' render inside every
+// route.  Feet-anchored at the 'C' tile so the arch reads as a 3-tile-tall
+// portal.  Cave-entry-sweep utility strips adjacent trees so the door
+// is never visually obstructed.
+const BETA_GEMLORD_CAVE = new Image();
+BETA_GEMLORD_CAVE.src = 'assets/rp7/beta_assets/props/gemlord_cave.png';
+// ★ 2026-07-30 · Sonya's LIVE RECEIVER · 2 tiles tall antenna box.
+// Replaces the old '^' broadcast tower; scattered like Elzebub's egg per
+// district (one per grass-map + one seeded per route with grass patches).
+const BETA_SONYA_RECEIVER = new Image();
+BETA_SONYA_RECEIVER.src = 'assets/rp7/beta_assets/props/sonya_receiver.png';
 // ★ 2026-07-29 · FOUNTAIN.  Replaces the old flowing-water pond.  A
 // contiguous W-cluster in the map data renders as ONE animated fountain
 // sprite (4 frames, 96x96 each = spans a 3x3 tile block).  Each W tile
@@ -9054,10 +9067,25 @@ function drawBetaWater(px, py, mx, my) {
   // overpaints the fountain after.  Sprite extends up + left from the
   // anchor tile to cover the full 3×3 footprint.
   if (subX === 2 && subY === 2) {
+    // ★ 2026-07-30 · Fountain BASE is frozen (frame 0 always), WATER-ONLY
+    // region cycles across frames 1-3.  User: "the entire fountain is not
+    // supposed to move, only the water is supposed to move."  We split the
+    // sprite vertically: the top ~45% contains the water plume + upper
+    // tier splashes, the bottom ~55% is the stone bowl (must stay still).
     const frame = Math.floor(performance.now() / 1000 * FOUNTAIN_FPS) % FOUNTAIN_FRAMES;
+    const WATER_ROW_FRAC = 0.45;
+    const waterH = Math.round(FOUNTAIN_CELL * WATER_ROW_FRAC);
+    const baseH  = FOUNTAIN_CELL - waterH;
+    // Base (bottom, static — always frame 0)
     ctx.drawImage(FOUNTAIN_IMG,
-      frame * FOUNTAIN_CELL, 0, FOUNTAIN_CELL, FOUNTAIN_CELL,
-      px - TILE * 2, py - TILE * 2, TILE * 3, TILE * 3);
+      0, waterH, FOUNTAIN_CELL, baseH,
+      px - TILE * 2, py - TILE * 2 + Math.round(TILE * 3 * WATER_ROW_FRAC),
+      TILE * 3, Math.round(TILE * 3 * (1 - WATER_ROW_FRAC)));
+    // Water (top, animated — cycles through frames)
+    ctx.drawImage(FOUNTAIN_IMG,
+      frame * FOUNTAIN_CELL, 0, FOUNTAIN_CELL, waterH,
+      px - TILE * 2, py - TILE * 2,
+      TILE * 3, Math.round(TILE * 3 * WATER_ROW_FRAC));
   }
   return true;
 }
@@ -10730,15 +10758,15 @@ function handleQuestItem(x, y) {
     showDialog(['Already collected.']);
     return;
   }
-  if (state !== 'active') {
-    // Quest hasn't been offered — hint who to talk to.
-    const districtName = (DISTRICT_META[q.districtId] || {}).name || q.districtId;
-    showDialog([
-      'A shimmering object rests here — but you have no reason to take it yet.',
-      `Someone in ${districtName}'s town hall might know what it is.`,
-    ]);
-    return;
-  }
+  // ★ 2026-07-30 · EARLY PICKUP allowed.  Previously the player had to
+  // accept the town-hall quest before touching the route item — meaning
+  // early explorers were forced back to town to accept the quest, then
+  // back to the route to grab the item they'd already found.  User: "you
+  // can pick up these route items at any time and deliver them to their
+  // town hall at any time as long as you defeat the seer in their town."
+  // Now: pickup works from any state.  The town-hall keeper checks
+  // 'item_found' first and hands out the reward without re-issuing the
+  // quest.  ('active' → 'item_found' path unchanged.)
   // Active → pick it up.
   setQuestState(questId, 'item_found');
   // Mark this tile as collected so it stops rendering / interacting.
@@ -12181,30 +12209,23 @@ function generateDistrictMap(mapId) {
     }
   }
 
-  // V3.17.41 — BROADCAST TOWER '^' (blocker).  One per district.  Placed
-  // in the top-right plaza area (visible from the west portal entry).
-  // Interact fires Sonya's LIVE broadcast interview about the player's
-  // journey in this district (see interactBroadcastTower()).
+  // V3.17.41 · ★ 2026-07-30 — SONYA'S LIVE RECEIVER '^' (blocker).  One per
+  // district, SCATTERED like the Elzebub egg (any grass ',' tile, not just
+  // the plaza).  Places the receiver on a random walkable grass tile so
+  // every playthrough hunts a different spot — user rule: same scatter
+  // philosophy as the homunculus, no fixed spawn.  Interact fires Sonya's
+  // LIVE broadcast interview about the player's journey (see
+  // interactBroadcastTower()).
   {
-    const attempts = [
-      [cols - 5, 3],           // top-right plaza
-      [cols - 6, 4],           // one south + one west
-      [cols - 4, 4],
-      [cols - 5, 2],
-    ];
-    let placed = false;
-    for (const [tx, ty] of attempts) {
-      if (placed) break;
-      if (grid[ty] && grid[ty][tx] === ',') { grid[ty][tx] = '^'; placed = true; }
-    }
-    if (!placed) {
-      let tries = 0;
-      while (!placed && tries < 200) {
-        tries++;
-        const x = pick(3, cols - 4);
-        const y = pick(2, Math.max(6, Math.floor(rows / 3)));   // upper third
-        if (grid[y] && grid[y][x] === ',') { grid[y][x] = '^'; placed = true; }
+    const grassTiles = [];
+    for (let ty = 2; ty < rows - 2; ty++) {
+      for (let tx = 3; tx < cols - 3; tx++) {
+        if (grid[ty] && grid[ty][tx] === ',') grassTiles.push([tx, ty]);
       }
+    }
+    if (grassTiles.length) {
+      const [rx, ry] = grassTiles[Math.floor(Math.random() * grassTiles.length)];
+      grid[ry][rx] = '^';
     }
   }
 
@@ -12328,10 +12349,18 @@ function generateRouteMap(routeId) {
     // Ensure the cave tile is placed on what would be north wall (row 0
     // stays wall; row 1 becomes the cave door).  Clear approach:
     grid[caveY][caveX] = 'C';
-    for (let dx = -1; dx <= 1; dx++) {
-      const yy = caveY + 1, xx = caveX + dx;
-      if (grid[yy] && grid[yy][xx] !== undefined && grid[yy][xx] === '#') grid[yy][xx] = ',';
+    // ★ 2026-07-30 · CAVE-ENTRY SWEEP.  The new arch sprite spans a full
+    // 3-tile-wide × 3-tile-tall footprint, so any tree or gemgrass patch
+    // within that box would visually stab through the arch.  Wipe them.
+    for (let dy = 0; dy <= 2; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const yy = caveY + dy, xx = caveX + dx;
+        if (!grid[yy] || grid[yy][xx] === undefined) continue;
+        if (yy === caveY && dx === 0) continue;          // keep the door itself
+        if ('T#G'.includes(grid[yy][xx])) grid[yy][xx] = ',';
+      }
     }
+    // (Original 3-wide row-below clearing preserved implicitly by loop above.)
   }
   // Scatter grass patches (encounter zones).
   const grassTarget = 6;   // 6 grass patches per route
@@ -13046,6 +13075,46 @@ function drawTile(x, y, ch, mx, my) {
   // the player is standing on this exact tile.
   if (isBeta() && ch === 'G') {
     drawBetaGemgrass(px, py, mx, my);
+    return;
+  }
+  // ★ 2026-07-30 · Sonya's LIVE RECEIVER override — swap the procedural
+  // '^' broadcast-tower lattice for the new receiver PNG.  Two tiles tall,
+  // feet-anchored at the tile so the antenna reads above ground level.
+  if (isBeta() && ch === '^') {
+    drawTile(x, y, ',', mx, my);
+    const img = BETA_SONYA_RECEIVER;
+    if (img && img.complete && img.naturalWidth) {
+      const aspect = img.naturalWidth / img.naturalHeight;
+      const dh = Math.round(TILE * 2);
+      const dw = Math.round(dh * aspect);
+      ctx.drawImage(img,
+        Math.round(px + TILE/2 - dw/2),
+        py + TILE - dh,
+        dw, dh);
+      return;
+    }
+  }
+  // ★ 2026-07-30 · Gemlord cave entrance override — swap the procedural
+  // arch for the stone-and-gemlattice PNG.  Renders across a 3-tile-tall
+  // × 3-tile-wide footprint anchored at the 'C' tile's BASE (feet).
+  if (isBeta() && ch === 'C') {
+    drawTile(x, y, ',', mx, my);   // grass under the arch
+    const img = BETA_GEMLORD_CAVE;
+    if (img && img.complete && img.naturalWidth) {
+      const aspect = img.naturalWidth / img.naturalHeight;
+      const dh = TILE * 3;
+      const dw = Math.round(dh * aspect);
+      // Anchor: the 'C' tile is the DOOR of the arch — sprite extends up
+      // (2 tiles above) and left/right (~1 tile each) from that anchor.
+      ctx.drawImage(img,
+        Math.round(px + TILE/2 - dw/2),
+        py + TILE - dh,
+        dw, dh);
+      return;
+    }
+    // Fallback: dark cave mouth outline.
+    ctx.fillStyle = '#0a0510';
+    ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 4);
     return;
   }
   // ★ 2026-07-30 · Shardshare Collar device — floor loot in Silver Lodge.

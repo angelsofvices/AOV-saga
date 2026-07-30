@@ -8912,7 +8912,8 @@ function drawBetaWalker(img, px, py, dir, frame, alpha) {
   if (row === undefined) return false;
   const sx = BETA_WALK_ORDER[(frame | 0) % BETA_WALK_ORDER.length] * S.cellW;
   if (alpha !== undefined) ctx.globalAlpha = alpha;
-  drawBetaShadow(px + TILE / 2, py + TILE - 2, 32, 0.28 * (alpha === undefined ? 1 : alpha));
+  // ★ 2026-07-30 · Foot shadow REMOVED per user request — NPCs render
+  // clean without the drop shadow oval under them.
   ctx.drawImage(img, sx, row * S.cellH, S.cellW, S.cellH,
                 Math.round(px + TILE / 2 - S.cellW / 2),
                 Math.round(py + TILE - S.feetY),
@@ -8993,7 +8994,7 @@ function drawBetaNpc(id, px, py, mx, my) {
   // Compress from the top so the FEET never move: shrink the height and push
   // the destination down by the same amount.
   const dy = Math.round(py + TILE - S.feetY) + squash;
-  drawBetaShadow(px + TILE / 2, py + TILE - 2, 32, 0.28);
+  // ★ 2026-07-30 · Foot shadow REMOVED (see drawBetaWalker for context).
   ctx.drawImage(img, sx, 0, S.cellW, S.cellH,
                 dx, dy, S.cellW, S.cellH - squash);
   return true;
@@ -13107,29 +13108,10 @@ function drawTile(x, y, ch, mx, my) {
       return;
     }
   }
-  // ★ 2026-07-30 · Gemlord cave entrance override — swap the procedural
-  // arch for the stone-and-gemlattice PNG.  Renders across a 3-tile-tall
-  // × 3-tile-wide footprint anchored at the 'C' tile's BASE (feet).
-  if (isBeta() && ch === 'C') {
-    drawTile(x, y, ',', mx, my);   // grass under the arch
-    const img = BETA_GEMLORD_CAVE;
-    if (img && img.complete && img.naturalWidth) {
-      const aspect = img.naturalWidth / img.naturalHeight;
-      const dh = TILE * 3;
-      const dw = Math.round(dh * aspect);
-      // Anchor: the 'C' tile is the DOOR of the arch — sprite extends up
-      // (2 tiles above) and left/right (~1 tile each) from that anchor.
-      ctx.drawImage(img,
-        Math.round(px + TILE/2 - dw/2),
-        py + TILE - dh,
-        dw, dh);
-      return;
-    }
-    // Fallback: dark cave mouth outline.
-    ctx.fillStyle = '#0a0510';
-    ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 4);
-    return;
-  }
+  // ★ 2026-07-30 · Gemlord cave entrance override REVERTED per user request.
+  // Falls back to the procedural purple cave-mouth render (case 'C' below)
+  // until the new arch art gets a clean pass.  Asset stays on disk.
+  // if (isBeta() && ch === 'C') { ...arch PNG blit... }
   // ★ 2026-07-30 · Shardshare Collar device — floor loot in Silver Lodge.
   // Once picked up, the tile renders as plain wood floor.
   if (ch === 'V') {
@@ -15445,7 +15427,8 @@ function drawQuietChild(cx, cy, mx, my) {
     const sx = (QUIET_CHILD_DIR_COLS[dir] || 0) * CW;
     const dy = Math.round(cy + TILE / 2 - FEET_Y);
     const dx = Math.round(cx - CW / 2);
-    drawBetaShadow(cx, cy + TILE / 2 - 2, 20, 0.22);
+    // ★ 2026-07-30 · Foot shadow REMOVED per user rule (all NPCs render
+    // without the drop-shadow oval underneath).
     ctx.drawImage(BETA_QUIET_CHILD, sx, 0, CW, CH, dx, dy, CW, CH);
     return;
   }

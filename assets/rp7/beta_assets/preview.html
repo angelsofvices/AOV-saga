@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>RP7 Beta · Asset Preview</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0e0a18; color: #e8c878; font-family: 'Cinzel', serif; }
+  h1 { margin: 12px 20px; font-size: 15px; letter-spacing: 0.2em; color: #f8c848; }
+  h2 { margin: 20px 20px 6px; font-size: 12px; letter-spacing: 0.24em; color: #b8aec8; text-transform: uppercase; }
+  .scene { display: block; margin: 4px 20px; background: #050310; image-rendering: pixelated; border: 1px solid #3a2560; }
+  .row { display: flex; gap: 16px; margin: 4px 20px; flex-wrap: wrap; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .cell canvas { image-rendering: pixelated; background: #1a1428; border: 1px solid #3a2560; }
+  .cell .label { font-size: 10px; letter-spacing: 0.15em; color: #b8aec8; text-transform: uppercase; }
+  .cell .sub { font-size: 9px; color: #7a6a90; }
+  .meta { font-size: 10px; color: #7a6a90; margin: 0 20px 24px; letter-spacing: 0.1em; }
+  .bg-thumb { display: block; margin: 4px 20px; max-width: 640px; border: 1px solid #3a2560; image-rendering: auto; }
+</style>
+<body>
+
+<h1>◈ RP7 · BETA MODE · ASSET PREVIEW · 2026-07-30</h1>
+<div class="meta">All PNGs blitted at their in-game render sizes.  TILE = 32 px, viewport rendered at ×2 for legibility (matches beta setTransform(2,2)).</div>
+
+<h2>Malezor overworld · composited scene</h2>
+<canvas id="scene" width="1280" height="512" class="scene"></canvas>
+
+<h2>NPC 4-direction idle sheets · 64×88 cell · down / left / right / up</h2>
+<div class="row" id="npcRow"></div>
+
+<h2>Single-pose NPCs (grunts, sonya)</h2>
+<div class="row" id="npcSingleRow"></div>
+
+<h2>Battle backdrops</h2>
+<div class="row">
+  <div class="cell"><img class="bg-thumb" src="battle/battle_bg_malezor.png" style="max-width:320px"><div class="label">battle_bg_malezor</div></div>
+  <div class="cell"><img class="bg-thumb" src="battle/battle_bg_seer_hq.png" style="max-width:320px"><div class="label">battle_bg_seer_hq · NEW</div></div>
+</div>
+
+<h2>Gemgrass 5-frame flip sheet · idle → foot-flow → reset</h2>
+<div class="row" id="grassRow"></div>
+
+<script>
+const TILE_SRC = 32;   // native tile
+const ZOOM = 2;        // beta mode setTransform(2,2)
+const TILE = TILE_SRC * ZOOM;
+
+const scn = document.getElementById('scene');
+const ctx = scn.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+function load(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function main() {
+  // ---------- Composited overworld scene ----------
+  const grassImg = await load('floor/floor_grass_native.png');
+  const fountain = await load('props/fountain_native.png');
+  const cave = await load('props/gemlord_cave.png');
+  const receiver = await load('props/sonya_receiver.png');
+  const collar = await load('items/shardshare_collar.png');
+  const gem0 = await load('floor/gemgrass_0.png');
+  const gem2 = await load('floor/gemgrass_2.png');
+
+  const kelthorSheet = await load('npc/kelthor_idle_dirs_native.png');
+  const yaraSheet    = await load('npc/yara_idle_dirs_native.png');
+  const quinnSheet   = await load('npc/quinn_idle_dirs_native.png');
+  const jaxSheet     = await load('npc/jax_idle_dirs_native.png');
+  const momSheet     = await load('npc/mom_idle_dirs_native.png');
+  const dadSheet     = await load('npc/dad_idle_dirs_native.png');
+  const sonyaNative  = await load('npc/sonya_native.png');
+  const gruntM       = await load('npc/grunt_m_native.png');
+  const gruntF       = await load('npc/grunt_f_native.png');
+
+  // Grass base — tile the atlas
+  if (grassImg) {
+    const pat = ctx.createPattern(grassImg, 'repeat');
+    ctx.fillStyle = pat;
+    ctx.fillRect(0, 0, scn.width, scn.height);
+  } else {
+    ctx.fillStyle = '#3a7a3a';
+    ctx.fillRect(0, 0, scn.width, scn.height);
+  }
+
+  // Layout in TILE units (destination px = tile * TILE)
+  // Gemlord cave at (2,0) — 3-tile-tall arch, anchor at door (y=3)
+  if (cave) {
+    const aspect = cave.width / cave.height;
+    const dh = TILE * 3;
+    const dw = Math.round(dh * aspect);
+    const cx = 5 * TILE, cy = 4 * TILE;  // door tile centre
+    ctx.drawImage(cave, Math.round(cx - dw/2), cy + TILE - dh, dw, dh);
+  }
+
+  // Fountain at (15,7) — 3x3 tile block, FULLY STATIC (frame 0 only)
+  if (fountain) {
+    const FRAME = 96;
+    const anchorX = 15 * TILE, anchorY = 7 * TILE;   // bottom-right of 3x3
+    ctx.drawImage(fountain,
+      0, 0, FRAME, FRAME,
+      anchorX - TILE * 2, anchorY - TILE * 2, TILE * 3, TILE * 3);
+  }
+
+  // Gemgrass patch: idle frame at (20,6), foot-flow frame at (22,6)
+  function drawGrass(img, tx, ty) {
+    if (!img) return;
+    const aspect = img.width / img.height;
+    const dh = Math.round(TILE * 1.05);
+    const dw = Math.round(dh * aspect);
+    const px = tx * TILE, py = ty * TILE;
+    ctx.drawImage(img, Math.round(px + (TILE - dw)/2), py + TILE - dh, dw, dh);
+  }
+  drawGrass(gem0, 20, 6);
+  drawGrass(gem2, 24, 6);
+  // caption tile chars
+  ctx.fillStyle = '#f8c848';
+  ctx.font = '10px monospace';
+  ctx.fillText('gemgrass · idle',      20 * TILE, 6 * TILE - 2);
+  ctx.fillText('gemgrass · foot-flow', 24 * TILE, 6 * TILE - 2);
+
+  // Sonya receiver at (28,5) · 0.9 tile realistic scale
+  if (receiver) {
+    const aspect = receiver.width / receiver.height;
+    const dh = Math.round(TILE * 0.9);
+    const dw = Math.round(dh * aspect);
+    const px = 30 * TILE, py = 5 * TILE;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(receiver, Math.round(px + (TILE - dw)/2), py + TILE - dh, dw, dh);
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillText('sonya receiver · 0.9t', 29 * TILE, 5 * TILE - 2);
+  }
+
+  // Shardshare collar at (34,7) · 0.5 tile hand-sized
+  if (collar) {
+    const aspect = collar.width / collar.height;
+    const dh = Math.round(TILE * 0.5);
+    const dw = Math.round(dh * aspect);
+    const px = 35 * TILE, py = 7 * TILE;
+    ctx.drawImage(collar, Math.round(px + (TILE - dw)/2), py + TILE - dh - 4, dw, dh);
+    ctx.fillText('shardshare · 0.5t', 34 * TILE, 7 * TILE - 2);
+  }
+
+  // NPCs across the scene · 64x88 cell, `down` slot = col 0
+  function drawNpcDown(sheet, tx, ty, label) {
+    if (!sheet) return;
+    const CW = 64, CH = 88, FEET_Y = 79;
+    const dx = tx * TILE + TILE/2 - CW/2 * (ZOOM / 2);
+    const dy = ty * TILE + TILE - FEET_Y * (ZOOM / 2);
+    // At ZOOM=2 the cell native is 64x88; we draw at natural size (no upscale here).
+    ctx.drawImage(sheet, 0, 0, CW, CH, dx, dy, CW, CH);
+    ctx.fillStyle = '#b8aec8';
+    ctx.font = '9px monospace';
+    ctx.fillText(label, tx * TILE - 4, ty * TILE + TILE + 12);
+    ctx.fillStyle = '#f8c848';
+    ctx.font = '10px monospace';
+  }
+  drawNpcDown(momSheet,     8, 10, 'MOM');
+  drawNpcDown(dadSheet,    12, 10, 'DAD');
+  drawNpcDown(kelthorSheet,16, 10, 'KELTHOR');
+  drawNpcDown(yaraSheet,   20, 10, 'YARA');
+  drawNpcDown(jaxSheet,    24, 10, 'JAX');
+  drawNpcDown(quinnSheet,  28, 10, 'QUINN');
+  // Sonya (single pose)
+  if (sonyaNative) {
+    const dx = 32 * TILE + TILE/2 - 32;
+    const dy = 10 * TILE + TILE - 79;
+    ctx.drawImage(sonyaNative, dx, dy);
+    ctx.fillStyle = '#b8aec8';
+    ctx.font = '9px monospace';
+    ctx.fillText('SONYA', 32 * TILE, 10 * TILE + TILE + 12);
+  }
+  if (gruntM) {
+    const dx = 36 * TILE + TILE/2 - 32;
+    const dy = 10 * TILE + TILE - 79;
+    ctx.drawImage(gruntM, dx, dy);
+    ctx.fillStyle = '#b8aec8';
+    ctx.font = '9px monospace';
+    ctx.fillText('GRUNT_M', 36 * TILE - 4, 10 * TILE + TILE + 12);
+  }
+
+  // ---------- NPC dir sheets row ----------
+  const npcRow = document.getElementById('npcRow');
+  const npcs = [
+    ['MOM',     'npc/mom_idle_dirs_native.png'],
+    ['DAD',     'npc/dad_idle_dirs_native.png'],
+    ['KELTHOR', 'npc/kelthor_idle_dirs_native.png'],
+    ['YARA',    'npc/yara_idle_dirs_native.png'],
+    ['JAX',     'npc/jax_idle_dirs_native.png'],
+    ['QUINN',   'npc/quinn_idle_dirs_native.png'],
+  ];
+  for (const [name, src] of npcs) {
+    const img = await load(src);
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 88;
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = false;
+    if (img) cx.drawImage(img, 0, 0);
+    const div = document.createElement('div'); div.className = 'cell';
+    div.appendChild(c);
+    const lab = document.createElement('div'); lab.className = 'label'; lab.textContent = name;
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = 'down · left · right · up';
+    div.appendChild(lab); div.appendChild(sub);
+    npcRow.appendChild(div);
+  }
+
+  // ---------- Single-pose NPCs ----------
+  const npcSingleRow = document.getElementById('npcSingleRow');
+  const singles = [
+    ['SONYA',   'npc/sonya_native.png'],
+    ['GRUNT_M', 'npc/grunt_m_native.png'],
+    ['GRUNT_F', 'npc/grunt_f_native.png'],
+  ];
+  for (const [name, src] of singles) {
+    const img = await load(src);
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 88;
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = false;
+    if (img) cx.drawImage(img, 0, 0);
+    const div = document.createElement('div'); div.className = 'cell';
+    div.appendChild(c);
+    const lab = document.createElement('div'); lab.className = 'label'; lab.textContent = name;
+    div.appendChild(lab);
+    npcSingleRow.appendChild(div);
+  }
+
+  // ---------- Gemgrass frames ----------
+  const grassRow = document.getElementById('grassRow');
+  for (let i = 0; i < 5; i++) {
+    const img = await load(`floor/gemgrass_${i}.png`);
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 128;
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = false;
+    if (grassImg) {
+      const pat = cx.createPattern(grassImg, 'repeat');
+      cx.fillStyle = pat; cx.fillRect(0, 0, 128, 128);
+    }
+    if (img) {
+      const aspect = img.width / img.height;
+      const dh = 128;
+      const dw = Math.round(dh * aspect);
+      cx.drawImage(img, Math.round(64 - dw/2), 0, dw, dh);
+    }
+    const div = document.createElement('div'); div.className = 'cell';
+    div.appendChild(c);
+    const lab = document.createElement('div'); lab.className = 'label'; lab.textContent = `frame ${i}`;
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = i === 0 ? 'idle · at-rest' : (i === 4 ? 'reset back' : 'foot-flow');
+    div.appendChild(lab); div.appendChild(sub);
+    grassRow.appendChild(div);
+  }
+}
+main();
+</script>
+</body>

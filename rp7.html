@@ -12345,14 +12345,18 @@ function generateRouteMap(routeId) {
   // gemlord field (set in ROUTE_META).  Replaces the old district-side
   // random-perimeter cave placement per user canon 2026-07-15.
   {
-    const caveX = midX, caveY = 1;
-    // Ensure the cave tile is placed on what would be north wall (row 0
-    // stays wall; row 1 becomes the cave door).  Clear approach:
+    // ★ 2026-07-30 · Anchor pushed south to y=3 (was y=1).  The new arch
+    // sprite renders 3 tiles UP from the door tile — with the old y=1
+    // anchor two thirds of the arch was clipped by the top viewport wall.
+    // At y=3 the arch top lands at row 0 (against the north wall) and the
+    // door itself sits three rows in.
+    const caveX = midX, caveY = 3;
     grid[caveY][caveX] = 'C';
-    // ★ 2026-07-30 · CAVE-ENTRY SWEEP.  The new arch sprite spans a full
-    // 3-tile-wide × 3-tile-tall footprint, so any tree or gemgrass patch
-    // within that box would visually stab through the arch.  Wipe them.
-    for (let dy = 0; dy <= 2; dy++) {
+    // ★ 2026-07-30 · CAVE-ENTRY SWEEP.  Clear a 3-wide × 3-tall box CENTERED
+    // ON THE DOOR (spans rows caveY-2 → caveY, cols caveX-1 → caveX+1) so no
+    // tree, wall, or gemgrass patch pokes through the arch.  Also clears the
+    // row directly south of the door so the player has an approach lane.
+    for (let dy = -2; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const yy = caveY + dy, xx = caveX + dx;
         if (!grid[yy] || grid[yy][xx] === undefined) continue;
@@ -12360,7 +12364,6 @@ function generateRouteMap(routeId) {
         if ('T#G'.includes(grid[yy][xx])) grid[yy][xx] = ',';
       }
     }
-    // (Original 3-wide row-below clearing preserved implicitly by loop above.)
   }
   // Scatter grass patches (encounter zones).
   const grassTarget = 6;   // 6 grass patches per route
@@ -19376,9 +19379,10 @@ function interactGemlordCave() {
     if (cmeta && cmeta.routeId && MAPS[cmeta.routeId]) {
       const route = MAPS[cmeta.routeId];
       const routeMx = Math.floor(route.cols / 2);
-      // Route places 'C' at (routeMx, 1); land the player one step south
-      // so they don't immediately re-trigger the entry prompt.
-      enterMap(cmeta.routeId, routeMx, 2, 'down');
+      // ★ 2026-07-30 · Route places 'C' at (routeMx, 3) (was 1 — moved down
+      // so the 3-tile-tall arch fits in the viewport).  Land the player
+      // one step south so they don't immediately re-trigger the entry.
+      enterMap(cmeta.routeId, routeMx, 4, 'down');
       showToast('◈  ' + (ROUTE_META[cmeta.routeId] ? ROUTE_META[cmeta.routeId].name.toUpperCase() : 'ROUTE'), 1800);
       return;
     }

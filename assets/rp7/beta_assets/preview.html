@@ -17,10 +17,7 @@
 <body>
 
 <h1>◈ RP7 · BETA MODE · ASSET PREVIEW · 2026-07-30</h1>
-<div class="meta">All PNGs blitted at their in-game render sizes.  TILE = 32 px, viewport rendered at ×2 for legibility (matches beta setTransform(2,2)).</div>
-
-<h2>Malezor overworld · composited scene</h2>
-<canvas id="scene" width="1280" height="512" class="scene"></canvas>
+<div class="meta">Standalone asset gallery: NPC 4-direction sheets · single-pose NPCs · battle backdrops · world map with hotkey-highlight demo · gemgrass 5-frame flip.</div>
 
 <h2>NPC 4-direction idle sheets · 64×88 cell · down / left / right / up</h2>
 <div class="row" id="npcRow"></div>
@@ -45,10 +42,6 @@
 const TILE_SRC = 32;   // native tile
 const ZOOM = 2;        // beta mode setTransform(2,2)
 const TILE = TILE_SRC * ZOOM;
-
-const scn = document.getElementById('scene');
-const ctx = scn.getContext('2d');
-ctx.imageSmoothingEnabled = false;
 
 function load(src) {
   return new Promise((resolve) => {
@@ -129,131 +122,6 @@ async function drawWorldMapPreview(selectedName) {
 async function main() {
   // World map preview — NETHARION selected as a demo of the blue-outline highlight.
   await drawWorldMapPreview('NETHARION');
-  // ---------- Composited overworld scene ----------
-  const grassImg = await load('floor/floor_grass_native.png');
-  const fountain = await load('props/fountain_native.png');
-  const cave = await load('props/gemlord_cave.png');
-  const receiver = await load('props/sonya_receiver.png');
-  const collar = await load('items/shardshare_collar.png');
-  const gem0 = await load('floor/gemgrass_0.png');
-  const gem2 = await load('floor/gemgrass_2.png');
-
-  const kelthorSheet = await load('npc/kelthor_idle_dirs_native.png');
-  const yaraSheet    = await load('npc/yara_idle_dirs_native.png');
-  const quinnSheet   = await load('npc/quinn_idle_dirs_native.png');
-  const jaxSheet     = await load('npc/jax_idle_dirs_native.png');
-  const momSheet     = await load('npc/mom_idle_dirs_native.png');
-  const dadSheet     = await load('npc/dad_idle_dirs_native.png');
-  const sonyaNative  = await load('npc/sonya_native.png');
-  const gruntM       = await load('npc/grunt_m_native.png');
-  const gruntF       = await load('npc/grunt_f_native.png');
-
-  // Grass base — tile the atlas
-  if (grassImg) {
-    const pat = ctx.createPattern(grassImg, 'repeat');
-    ctx.fillStyle = pat;
-    ctx.fillRect(0, 0, scn.width, scn.height);
-  } else {
-    ctx.fillStyle = '#3a7a3a';
-    ctx.fillRect(0, 0, scn.width, scn.height);
-  }
-
-  // Layout in TILE units (destination px = tile * TILE)
-  // Gemlord cave at (2,0) — 3-tile-tall arch, anchor at door (y=3)
-  if (cave) {
-    const aspect = cave.width / cave.height;
-    const dh = TILE * 3;
-    const dw = Math.round(dh * aspect);
-    const cx = 5 * TILE, cy = 4 * TILE;  // door tile centre
-    ctx.drawImage(cave, Math.round(cx - dw/2), cy + TILE - dh, dw, dh);
-  }
-
-  // Fountain at (15,7) — 3x3 tile block, FULLY STATIC (frame 0 only)
-  if (fountain) {
-    const FRAME = 96;
-    const anchorX = 15 * TILE, anchorY = 7 * TILE;   // bottom-right of 3x3
-    ctx.drawImage(fountain,
-      0, 0, FRAME, FRAME,
-      anchorX - TILE * 2, anchorY - TILE * 2, TILE * 3, TILE * 3);
-  }
-
-  // Gemgrass patch: idle frame at (20,6), foot-flow frame at (22,6)
-  function drawGrass(img, tx, ty) {
-    if (!img) return;
-    const aspect = img.width / img.height;
-    const dh = Math.round(TILE * 1.05);
-    const dw = Math.round(dh * aspect);
-    const px = tx * TILE, py = ty * TILE;
-    ctx.drawImage(img, Math.round(px + (TILE - dw)/2), py + TILE - dh, dw, dh);
-  }
-  drawGrass(gem0, 20, 6);
-  drawGrass(gem2, 24, 6);
-  // caption tile chars
-  ctx.fillStyle = '#f8c848';
-  ctx.font = '10px monospace';
-  ctx.fillText('gemgrass · idle',      20 * TILE, 6 * TILE - 2);
-  ctx.fillText('gemgrass · foot-flow', 24 * TILE, 6 * TILE - 2);
-
-  // Sonya receiver at (28,5) · 0.9 tile realistic scale
-  if (receiver) {
-    const aspect = receiver.width / receiver.height;
-    const dh = Math.round(TILE * 0.9);
-    const dw = Math.round(dh * aspect);
-    const px = 30 * TILE, py = 5 * TILE;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(receiver, Math.round(px + (TILE - dw)/2), py + TILE - dh, dw, dh);
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillText('sonya receiver · 0.9t', 29 * TILE, 5 * TILE - 2);
-  }
-
-  // Shardshare collar at (34,7) · 0.5 tile hand-sized
-  if (collar) {
-    const aspect = collar.width / collar.height;
-    const dh = Math.round(TILE * 0.5);
-    const dw = Math.round(dh * aspect);
-    const px = 35 * TILE, py = 7 * TILE;
-    ctx.drawImage(collar, Math.round(px + (TILE - dw)/2), py + TILE - dh - 4, dw, dh);
-    ctx.fillText('shardshare · 0.5t', 34 * TILE, 7 * TILE - 2);
-  }
-
-  // NPCs across the scene · 64x88 cell, `down` slot = col 0
-  function drawNpcDown(sheet, tx, ty, label) {
-    if (!sheet) return;
-    const CW = 64, CH = 88, FEET_Y = 79;
-    const dx = tx * TILE + TILE/2 - CW/2 * (ZOOM / 2);
-    const dy = ty * TILE + TILE - FEET_Y * (ZOOM / 2);
-    // At ZOOM=2 the cell native is 64x88; we draw at natural size (no upscale here).
-    ctx.drawImage(sheet, 0, 0, CW, CH, dx, dy, CW, CH);
-    ctx.fillStyle = '#b8aec8';
-    ctx.font = '9px monospace';
-    ctx.fillText(label, tx * TILE - 4, ty * TILE + TILE + 12);
-    ctx.fillStyle = '#f8c848';
-    ctx.font = '10px monospace';
-  }
-  drawNpcDown(momSheet,     8, 10, 'MOM');
-  drawNpcDown(dadSheet,    12, 10, 'DAD');
-  drawNpcDown(kelthorSheet,16, 10, 'KELTHOR');
-  drawNpcDown(yaraSheet,   20, 10, 'YARA');
-  drawNpcDown(jaxSheet,    24, 10, 'JAX');
-  drawNpcDown(quinnSheet,  28, 10, 'QUINN');
-  // Sonya (single pose)
-  if (sonyaNative) {
-    const dx = 32 * TILE + TILE/2 - 32;
-    const dy = 10 * TILE + TILE - 79;
-    ctx.drawImage(sonyaNative, dx, dy);
-    ctx.fillStyle = '#b8aec8';
-    ctx.font = '9px monospace';
-    ctx.fillText('SONYA', 32 * TILE, 10 * TILE + TILE + 12);
-  }
-  if (gruntM) {
-    const dx = 36 * TILE + TILE/2 - 32;
-    const dy = 10 * TILE + TILE - 79;
-    ctx.drawImage(gruntM, dx, dy);
-    ctx.fillStyle = '#b8aec8';
-    ctx.font = '9px monospace';
-    ctx.fillText('GRUNT_M', 36 * TILE - 4, 10 * TILE + TILE + 12);
-  }
 
   // ---------- NPC dir sheets row ----------
   const npcRow = document.getElementById('npcRow');

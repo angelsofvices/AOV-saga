@@ -8423,6 +8423,16 @@ const NPC_ASSETS = {
   cliff_fisher:       'assets/humanoids/humanoid_20.png',
   village_elder:      'assets/humanoids/village_elder.png',
 };
+
+// ★ 2026-07-31 · Per-tile villager humanoid override.  Maps "mapId:x,y" of a
+// specific 'v' villager tile to an NPC_ASSETS key.  The 'v' render path
+// checks this table first — if a match, it blits the named humanoid PNG
+// instead of drawing the generic elder chibi.
+const VILLAGER_HUMANOID_AT = {
+  // Malezor — Cliff Fisher wanders the east side, Village Elder near the hall
+  'malezor:37,15': 'cliff_fisher',
+  'malezor:12,25': 'village_elder',
+};
 // First-line-prefix → NPC_ASSETS key.  Used to auto-attach a portrait
 // to every dialog without hand-editing 30+ showDialog call sites.
 const DIALOG_PORTRAIT_PREFIX = {
@@ -13451,10 +13461,31 @@ function drawTile(x, y, ch, mx, my) {
       // V2.51 — VILLAGER (stationary lore NPC).  Uses the same chibi
       // sprite as every other character (player, Mom, Dad, trainers) so
       // villagers read as townspeople of the same world.
+      // ★ 2026-07-31 · Per-position humanoid PNG override.  Specific 'v'
+      // tiles in specific districts can be bound to a named humanoid
+      // (Cliff Fisher, Village Elder, etc.) via VILLAGER_HUMANOID_AT.
+      // If the current tile matches, blit that humanoid PNG instead of
+      // drawing the generic elder chibi.
+      drawTile(x, y, ',', mx, my);
+      const _did = (game.player && game.player.mapId) || '';
+      const _key = _did + ':' + mx + ',' + my;
+      const overrideId = (typeof VILLAGER_HUMANOID_AT !== 'undefined')
+                        ? VILLAGER_HUMANOID_AT[_key] : null;
+      const overrideSrc = overrideId && NPC_ASSETS[overrideId];
+      const overrideImg = overrideSrc && HUMANOID_IMAGES[overrideSrc];
+      if (overrideImg && overrideImg.complete && overrideImg.naturalWidth) {
+        const drawH = TILE * (typeof SPRITE_TILES_H !== 'undefined' ? SPRITE_TILES_H : 1);
+        const drawW = drawH * (overrideImg.naturalWidth / overrideImg.naturalHeight);
+        const _dy = (typeof SPRITE_ANCHOR !== 'undefined' && SPRITE_ANCHOR === 'feet')
+                    ? (py + TILE) - drawH
+                    : py + TILE/2 - drawH/2;
+        ctx.drawImage(overrideImg, px + TILE/2 - drawW/2, _dy, drawW, drawH);
+        break;
+      }
+      // Default: generic chibi.
       // ★ 2026-07-23 · Every villager wears WHITE SHORT HAIR (elder
       // silhouette).  Floating '!' chime removed — accessories arrive
       // later.  Shirt color still varies by (x, y) seed via VILLAGER_SHIRTS.
-      drawTile(x, y, ',', mx, my);
       const seed = ((mx * 17) ^ (my * 31)) >>> 0;
       const shirt = VILLAGER_SHIRTS[seed % VILLAGER_SHIRTS.length];
       const bob = Math.sin(performance.now() * 0.003 + mx * 0.9 + my * 1.3) * 0.6;

@@ -350,6 +350,8 @@
       background-repeat: no-repeat;
       image-rendering: pixelated;
     }
+    body.rp7-beta.in-seer-hq #battle { background-image: url('assets/rp7/beta_assets/battle/battle_bg_seer_hq.png'); background-position: center center; }
+    body.rp7-beta.in-town-hall #battle { background-image: url('assets/rp7/beta_assets/battle/battle_bg_town_hall.png'); background-position: center center; }
     body.rp7-beta #battle .battle-text,
     body.rp7-beta #battle .battle-actions { position: relative; z-index: 2; }
     body.rp7-beta #stage { position: relative; }
@@ -8125,7 +8127,7 @@ const SILVER_LODGE_MAP = [
   '============',
   '=..........=',
   '=..t...b...=',
-  '=........o.=',   // ★ 2026-07-23 · o = flower pot (grow-your-own)
+  '=....V...o.=',   // ★ 2026-07-30 · V = Shardshare Collar (loot); o = flower pot
   '=...KK.....=',
   '=....x.....=',
   '============',
@@ -8412,9 +8414,12 @@ const NPC_ASSETS = {
   mom:                '/assets/humanoids/humanoid_24.png',
   dad:                '/assets/humanoids/humanoid_32.png',
   myara:              '/assets/humanoids/humanoid_42.png',
-  yara:               '/assets/humanoids/humanoid_44.png',   // still human; corrupted form later
+  yara:               '/assets/humanoids/humanoid_09.png',   // still human; corrupted form later
   jax:                '/assets/humanoids/humanoid_25.png',
   malezor_commander:  '/assets/humanoids/humanoid_21.png',
+  quinn:              '/assets/humanoids/humanoid_30.png',
+  cliff_fisher:       '/assets/humanoids/humanoid_20.png',
+  village_elder:      '/assets/humanoids/village_elder.png',
 };
 // First-line-prefix → NPC_ASSETS key.  Used to auto-attach a portrait
 // to every dialog without hand-editing 30+ showDialog call sites.
@@ -8432,6 +8437,11 @@ const DIALOG_PORTRAIT_PREFIX = {
   'MYARA:':          'myara',
   'YARA:':           'yara',
   'JAX:':            'jax',
+  'QUINN:':          'quinn',
+  'CLIFF FISHER:':   'cliff_fisher',
+  'FISHER:':         'cliff_fisher',
+  'VILLAGE ELDER:':  'village_elder',
+  'ELDER:':          'village_elder',
 };
 // Battle trainer-name → NPC_ASSETS key
 const BATTLE_TRAINER_ASSETS = {
@@ -8865,6 +8875,24 @@ BETA_NPC.sprites.grunt_m.idle.src  = 'assets/rp7/beta_assets/npc/grunt_m_native.
 BETA_NPC.sprites.grunt_m.blink.src = 'assets/rp7/beta_assets/npc/grunt_m_native.png';
 BETA_NPC.sprites.grunt_f.idle.src  = 'assets/rp7/beta_assets/npc/grunt_f_native.png';
 BETA_NPC.sprites.grunt_f.blink.src = 'assets/rp7/beta_assets/npc/grunt_f_native.png';
+BETA_NPC.sprites.kelthor       = { idle: new Image(), blink: new Image(), dirs: true };
+BETA_NPC.sprites.yara          = { idle: new Image(), blink: new Image(), dirs: true };
+BETA_NPC.sprites.jax           = { idle: new Image(), blink: new Image(), dirs: true };
+BETA_NPC.sprites.quinn         = { idle: new Image(), blink: new Image(), dirs: true };
+BETA_NPC.sprites.cliff_fisher  = { idle: new Image(), blink: new Image(), dirs: true };
+BETA_NPC.sprites.village_elder = { idle: new Image(), blink: new Image(), dirs: true };
+BETA_NPC.sprites.kelthor.idle.src        = 'assets/rp7/beta_assets/npc/kelthor_idle_dirs_native.png';
+BETA_NPC.sprites.kelthor.blink.src       = 'assets/rp7/beta_assets/npc/kelthor_idle_dirs_native.png';
+BETA_NPC.sprites.yara.idle.src           = 'assets/rp7/beta_assets/npc/yara_idle_dirs_native.png';
+BETA_NPC.sprites.yara.blink.src          = 'assets/rp7/beta_assets/npc/yara_idle_dirs_native.png';
+BETA_NPC.sprites.jax.idle.src            = 'assets/rp7/beta_assets/npc/jax_idle_dirs_native.png';
+BETA_NPC.sprites.jax.blink.src           = 'assets/rp7/beta_assets/npc/jax_idle_dirs_native.png';
+BETA_NPC.sprites.quinn.idle.src          = 'assets/rp7/beta_assets/npc/quinn_idle_dirs_native.png';
+BETA_NPC.sprites.quinn.blink.src         = 'assets/rp7/beta_assets/npc/quinn_idle_dirs_native.png';
+BETA_NPC.sprites.cliff_fisher.idle.src   = 'assets/rp7/beta_assets/npc/cliff_fisher_idle_dirs_native.png';
+BETA_NPC.sprites.cliff_fisher.blink.src  = 'assets/rp7/beta_assets/npc/cliff_fisher_idle_dirs_native.png';
+BETA_NPC.sprites.village_elder.idle.src  = 'assets/rp7/beta_assets/npc/village_elder_idle_dirs_native.png';
+BETA_NPC.sprites.village_elder.blink.src = 'assets/rp7/beta_assets/npc/village_elder_idle_dirs_native.png';
 
 // ★ Gender is distributed across every Seer grunt by a hash of their HOME
 // tile, so a given grunt is always the same person — stable across reloads,
@@ -8891,7 +8919,6 @@ function drawBetaWalker(img, px, py, dir, frame, alpha) {
   if (row === undefined) return false;
   const sx = BETA_WALK_ORDER[(frame | 0) % BETA_WALK_ORDER.length] * S.cellW;
   if (alpha !== undefined) ctx.globalAlpha = alpha;
-  drawBetaShadow(px + TILE / 2, py + TILE - 2, 32, 0.28 * (alpha === undefined ? 1 : alpha));
   ctx.drawImage(img, sx, row * S.cellH, S.cellW, S.cellH,
                 Math.round(px + TILE / 2 - S.cellW / 2),
                 Math.round(py + TILE - S.feetY),
@@ -8915,6 +8942,10 @@ function markNpcSpoken(mx, my) {
   if (!game.player) return;
   game.player.npcSpoken = game.player.npcSpoken || {};
   game.player.npcSpoken[_npcKey(mx, my)] = true;
+}
+function clearAllNpcFacing() {
+  if (!game.player) return;
+  game.player.npcFacing = {};
 }
 function npcFacing(mx, my) {
   const f = game.player && game.player.npcFacing;
@@ -8963,7 +8994,6 @@ function drawBetaNpc(id, px, py, mx, my) {
   // Compress from the top so the FEET never move: shrink the height and push
   // the destination down by the same amount.
   const dy = Math.round(py + TILE - S.feetY) + squash;
-  drawBetaShadow(px + TILE / 2, py + TILE - 2, 32, 0.28);
   ctx.drawImage(img, sx, 0, S.cellW, S.cellH,
                 dx, dy, S.cellW, S.cellH - squash);
   return true;
@@ -8985,6 +9015,11 @@ const BETA_GEMGRASS = [0,1,2,3,4].map(i => { const im = new Image();
 // tower.  Placed on random grass tile per district (see broadcast placement below).
 const BETA_SONYA_RECEIVER = new Image();
 BETA_SONYA_RECEIVER.src = 'assets/rp7/beta_assets/props/sonya_receiver.png';
+// ★ 2026-07-30 · SHARDSHARE COLLAR · Silver Lodge floor loot ('V' tile).
+// Small articulated device; the piece Dad needs to finish his Shardshare.
+const BETA_SHARDSHARE_COLLAR = new Image();
+BETA_SHARDSHARE_COLLAR.src = 'assets/rp7/beta_assets/items/shardshare_collar.png';
+window.BETA_SHARDSHARE_COLLAR = BETA_SHARDSHARE_COLLAR;
 // ★ 2026-07-29 · FOUNTAIN.  Replaces the old flowing-water pond.  A
 // contiguous W-cluster in the map data renders as ONE animated fountain
 // sprite (4 frames, 96x96 each = spans a 3x3 tile block).  Each W tile
@@ -9034,9 +9069,8 @@ function drawBetaWater(px, py, mx, my) {
   // overpaints the fountain after.  Sprite extends up + left from the
   // anchor tile to cover the full 3×3 footprint.
   if (subX === 2 && subY === 2) {
-    const frame = Math.floor(performance.now() / 1000 * FOUNTAIN_FPS) % FOUNTAIN_FRAMES;
     ctx.drawImage(FOUNTAIN_IMG,
-      frame * FOUNTAIN_CELL, 0, FOUNTAIN_CELL, FOUNTAIN_CELL,
+      0, 0, FOUNTAIN_CELL, FOUNTAIN_CELL,
       px - TILE * 2, py - TILE * 2, TILE * 3, TILE * 3);
   }
   return true;
@@ -10706,15 +10740,10 @@ function handleQuestItem(x, y) {
     showDialog(['Already collected.']);
     return;
   }
-  if (state !== 'active') {
-    // Quest hasn't been offered — hint who to talk to.
-    const districtName = (DISTRICT_META[q.districtId] || {}).name || q.districtId;
-    showDialog([
-      'A shimmering object rests here — but you have no reason to take it yet.',
-      `Someone in ${districtName}'s town hall might know what it is.`,
-    ]);
-    return;
-  }
+  // ★ 2026-07-30 · User rule: "you can pick up these route items at any
+  // time" — don't require quest acceptance first.  The old gate that
+  // blocked pickup unless state==='active' has been removed on purpose;
+  // setQuestState below handles any state transition safely.
   // Active → pick it up.
   setQuestState(questId, 'item_found');
   // Mark this tile as collected so it stops rendering / interacting.
@@ -11267,7 +11296,7 @@ const VILLAGERS = {
       "The Ridge Warden waits for anyone who'd take her spot on the cliff.",
       'Long steps make the ground answer.  Short steps hide you.',
     ]},
-    { name: 'Village Keeper', lines: [
+    { name: 'Village Elder', lines: [
       "Your father talks in his sleep about the Ninth World.",
       "Nine districts.  Nine Gemshards.  One throne.  Simple, if you have a hundred years.",
       "The Mothergems remember every Rizer who touched them.  Even you.",
@@ -11383,7 +11412,7 @@ const VILLAGERS_LIBERATED = {
       "My cousin came home last week.  I hadn't stopped setting his plate.",
       "Rakoron's dust smells sweeter with the Ministry gone.",
     ]},
-    { name: 'Village Keeper', lines: [
+    { name: 'Village Elder', lines: [
       "You brought the RUBY GEMSHARD home.  I thought that story died with my grandfather.",
       "The Ridge Warden stopped whispering.  She used to whisper.  I hadn't noticed until it stopped.",
       "The Ninth World remembers who lifts it.  It is not always the strong.",
@@ -12204,25 +12233,16 @@ function generateDistrictMap(mapId) {
   // Interact fires Sonya's LIVE broadcast interview about the player's
   // journey in this district (see interactBroadcastTower()).
   {
-    const attempts = [
-      [cols - 5, 3],           // top-right plaza
-      [cols - 6, 4],           // one south + one west
-      [cols - 4, 4],
-      [cols - 5, 2],
-    ];
-    let placed = false;
-    for (const [tx, ty] of attempts) {
-      if (placed) break;
-      if (grid[ty] && grid[ty][tx] === ',') { grid[ty][tx] = '^'; placed = true; }
-    }
-    if (!placed) {
-      let tries = 0;
-      while (!placed && tries < 200) {
-        tries++;
-        const x = pick(3, cols - 4);
-        const y = pick(2, Math.max(6, Math.floor(rows / 3)));   // upper third
-        if (grid[y] && grid[y][x] === ',') { grid[y][x] = '^'; placed = true; }
-      }
+    // ★ 2026-07-30 · Sonya-receiver scatter — was pinned to the top-right
+    // plaza; now picks a random grass tile anywhere in the walkable
+    // interior so each district feels less same-y on repeat visits.
+    const grassTiles = [];
+    for (let ty = 2; ty < rows - 2; ty++)
+      for (let tx = 3; tx < cols - 3; tx++)
+        if (grid[ty] && grid[ty][tx] === ',') grassTiles.push([tx, ty]);
+    if (grassTiles.length) {
+      const [rx, ry] = grassTiles[Math.floor(Math.random() * grassTiles.length)];
+      grid[ry][rx] = '^';
     }
   }
 
@@ -12752,6 +12772,11 @@ function enterMap(mapId, spawnX, spawnY, dir) {
   MAP_COLS = m.cols;
   MAP_ROWS = m.rows;
   game.player.mapId = mapId;
+  try {
+    const _mid = mapId || '';
+    document.body.classList.toggle('in-seer-hq',   _mid.indexOf('seer_hq') === 0);
+    document.body.classList.toggle('in-town-hall', /_hall$/.test(_mid));
+  } catch(_) {}
   game.player.x = spawnX;
   game.player.y = spawnY;
   // ★ 2026-07-23 · Stamp the map-entry anchor so wild-encounter level
@@ -12832,7 +12857,7 @@ function enterMap(mapId, spawnX, spawnY, dir) {
 const NPC_TRAINERS = {
   'Y': { name: 'YARA',  label: 'Seer scout',       intro: 'YARA: A stray Rizer. Perfect. The Seers pay in coin for every Rizer we bury.',       chain: [['riftling', 5]] },
   'J': { name: 'JAX',   label: 'rival Rizer',      intro: "JAX: You bound a shard? Show me — Malezor doesn't take passengers.",                       chain: [['gnashling', 5], ['skorrax', 6]] },
-  'Q': { name: 'QUINN', label: 'desert wanderer',  intro: 'QUINN: The dunes remember every step. Prove yours are worth the sand.',                     chain: [['thornkit', 6], ['grivvik', 7]] },
+  'Q': { name: 'QUINN', label: 'plain-clothed Seer guard',  intro: 'QUINN: Nice and easy, Rizer. This road is watched. Let\'s see if you\'re worth reporting.',                     chain: [['thornkit', 6], ['grivvik', 7]] },
   // V2.38 — generic Seer grunt, scattered across all districts II-X.
   // Chain is synthesized at battle-start from the current district's wild pool
   // (see handleNpcTrainer). Level and party size scale with the district.
@@ -12888,6 +12913,10 @@ function walkable(x, y) {
     if (t === undefined || t === null || t === '') return false;
     return true;
   }
+  // ★ 2026-07-30 · Shardshare Collar (V) — Silver Lodge floor loot.
+  // Blocks the tile until the player picks it up; after pickup the tile
+  // renders as plain floor and stops blocking.
+  if (t === 'V' && game.player && !game.player.collarPicked) return false;
   // V2.10.1 — house body 'h' now blocks (bigger 3x2 exteriors).
   // Doors (H, x, p, q, portal < >) are 'walkable' — walking INTO them
   // triggers auto-enter via tryMove's post-step door check.
@@ -13080,6 +13109,21 @@ function drawTile(x, y, ch, mx, my) {
       ctx.imageSmoothingQuality = prevQual;
       return;
     }
+  }
+  // ★ 2026-07-30 · SHARDSHARE COLLAR — Silver Lodge floor loot ('V').
+  // Once picked up, the tile just renders as plain floor; before that,
+  // a small articulated device sits centered on the tile.
+  if (ch === 'V') {
+    drawTile(x, y, '.', mx, my);
+    if (game.player && game.player.collarPicked) return;
+    const img = window.BETA_SHARDSHARE_COLLAR;
+    if (img && img.complete && img.naturalWidth) {
+      const aspect = img.naturalWidth / img.naturalHeight;
+      const dh = Math.round(TILE * 0.50);
+      const dw = Math.round(dh * aspect);
+      ctx.drawImage(img, Math.round(px + (TILE - dw) / 2), py + TILE - dh - 2, dw, dh);
+    }
+    return;
   }
   switch (ch) {
     case '#': {
@@ -15373,7 +15417,6 @@ function drawQuietChild(cx, cy, mx, my) {
     const sx = (QUIET_CHILD_DIR_COLS[dir] || 0) * CW;
     const dy = Math.round(cy + TILE / 2 - FEET_Y);
     const dx = Math.round(cx - CW / 2);
-    drawBetaShadow(cx, cy + TILE / 2 - 2, 20, 0.22);
     ctx.drawImage(BETA_QUIET_CHILD, sx, 0, CW, CH, dx, dy, CW, CH);
     return;
   }
@@ -15660,9 +15703,7 @@ function renderMap() {
         }
         if (!drew) {
           // Standing: their own gendered idle, with breathing + turn-to-face.
-          if (beaten) ctx.globalAlpha = 0.4;
           drew = drawBetaNpc(gid, ptx, pty, n.homeX, n.homeY);
-          ctx.globalAlpha = 1;
         }
         if (drew) continue;
       }
@@ -15674,12 +15715,10 @@ function renderMap() {
         const drawW = drawH * (spriteImg.naturalWidth / spriteImg.naturalHeight);
         const _dy = (SPRITE_ANCHOR === 'feet') ? (scy + TILE / 2) - drawH
                                                : scy - drawH / 2;
-        if (beaten) ctx.globalAlpha = 0.4;
         // Centered on the tile: same convention drawCharacter() uses so
         // the PNG override doesn't jump position vs the procedural
         // fallback while the image is still loading.
         ctx.drawImage(spriteImg, scx - drawW / 2, _dy, drawW, drawH);
-        ctx.globalAlpha = 1;
       } else {
         drawCharacter(scx, scy, n.dir, p, a, { spiky: true, hair: vis.hair, hairStyle: vis.hairStyle });
       }
@@ -17164,17 +17203,22 @@ document.getElementById('mm-music-up').onclick     = () => setMusicVolume(audioS
 // hand-drawn Zyraxis map. Z-shape flow: I..IV across top → V drops through
 // center → VI..X fans out along the bottom to Korathen at bottom-right.
 const WORLD_MAP_LAYOUT = {
-  malezor:   { x: 0.22, y: 0.13, r: 0.11 },
-  zarvane:   { x: 0.40, y: 0.19, r: 0.10 },
-  andrannor: { x: 0.55, y: 0.26, r: 0.10 },
-  veridan:   { x: 0.76, y: 0.32, r: 0.11 },
-  netharion: { x: 0.30, y: 0.48, r: 0.12 },
-  vorashil:  { x: 0.13, y: 0.68, r: 0.10 },
-  xilnar:    { x: 0.30, y: 0.83, r: 0.10 },
-  baelgor:   { x: 0.45, y: 0.72, r: 0.10 },
-  thardin:   { x: 0.60, y: 0.75, r: 0.10 },
-  korathen:  { x: 0.80, y: 0.80, r: 0.12 },
+  malezor:   { x: 0.20, y: 0.29, r: 0.06 },
+  zarvane:   { x: 0.37, y: 0.30, r: 0.06 },
+  andrannor: { x: 0.57, y: 0.30, r: 0.06 },
+  veridan:   { x: 0.79, y: 0.32, r: 0.06 },
+  netharion: { x: 0.44, y: 0.53, r: 0.06 },
+  vorashil:  { x: 0.13, y: 0.60, r: 0.06 },
+  xilnar:    { x: 0.79, y: 0.60, r: 0.06 },
+  baelgor:   { x: 0.28, y: 0.81, r: 0.06 },
+  thardin:   { x: 0.56, y: 0.80, r: 0.06 },
+  korathen:  { x: 0.83, y: 0.83, r: 0.06 },
 };
+// ★ 2026-07-30 · Beta world-map artwork replaces the procedural void +
+// Z-path background.  Positions above are the diamond markers on the art.
+const BETA_WORLDMAP_IMG = new Image();
+BETA_WORLDMAP_IMG.src = 'assets/rp7/beta_assets/worldmap/zyraxis_world.png';
+let _mapviewSelectedIdx = 0;
 // Which district is the player *actually* in? Interiors resolve to the
 // district that owns their front door (currently all interiors → malezor).
 const INTERIOR_TO_DISTRICT = {
@@ -17232,86 +17276,59 @@ function drawWorldMap() {
   const c = cvs.getContext('2d');
   const cw = cvs.width, ch = cvs.height;
   const t = performance.now() / 1000;
-  // background — deep void gradient
-  const bg = c.createRadialGradient(cw / 2, ch * 0.45, 40, cw / 2, ch * 0.55, cw * 0.75);
-  bg.addColorStop(0, '#1b1240');
-  bg.addColorStop(0.6, '#0a0620');
-  bg.addColorStop(1, '#04020e');
-  c.fillStyle = bg; c.fillRect(0, 0, cw, ch);
-  // nebula stars
-  for (const s of _MAPVIEW_STARS) {
-    const twinkle = 0.5 + 0.5 * Math.sin(t * 1.2 + s.tw * 12);
-    c.globalAlpha = s.a * (0.55 + 0.45 * twinkle);
-    c.fillStyle = '#c8b8ff';
-    c.beginPath(); c.arc(s.x * cw, s.y * ch, s.r, 0, Math.PI * 2); c.fill();
+  // ★ 2026-07-30 · Beta background = pre-painted Zyraxis artwork.
+  // Letterbox-fit (contain) so aspect never distorts.
+  c.fillStyle = '#04020e';
+  c.fillRect(0, 0, cw, ch);
+  let mapDrawX = 0, mapDrawY = 0, mapDrawW = cw, mapDrawH = ch;
+  if (BETA_WORLDMAP_IMG.complete && BETA_WORLDMAP_IMG.naturalWidth) {
+    const iw = BETA_WORLDMAP_IMG.naturalWidth;
+    const ih = BETA_WORLDMAP_IMG.naturalHeight;
+    const s  = Math.min(cw / iw, ch / ih);
+    mapDrawW = iw * s;
+    mapDrawH = ih * s;
+    mapDrawX = (cw - mapDrawW) / 2;
+    mapDrawY = (ch - mapDrawH) / 2;
+    c.drawImage(BETA_WORLDMAP_IMG, mapDrawX, mapDrawY, mapDrawW, mapDrawH);
   }
-  c.globalAlpha = 1;
-  // gold border frame
-  c.strokeStyle = 'rgba(216, 172, 88, 0.5)';
-  c.lineWidth = 2;
-  c.strokeRect(6, 6, cw - 12, ch - 12);
-  c.strokeStyle = 'rgba(216, 172, 88, 0.2)';
-  c.lineWidth = 1;
-  c.strokeRect(10, 10, cw - 20, ch - 20);
-  // title watermark
-  c.save();
-  c.font = '600 22px "Cinzel", "Times New Roman", serif';
-  c.fillStyle = 'rgba(248, 200, 64, 0.28)';
-  c.textAlign = 'center';
-  c.fillText('ZYRAXIS', cw * 0.68, ch * 0.52);
-  c.font = '600 11px "Cinzel", "Times New Roman", serif';
-  c.fillStyle = 'rgba(248, 200, 64, 0.22)';
-  c.fillText('THE NINTH WORLD', cw * 0.68, ch * 0.56);
-  c.restore();
-  // Z-path connecting districts I→X (dotted gold trail)
-  c.save();
-  c.setLineDash([3, 6]);
-  c.lineWidth = 1.5;
-  c.strokeStyle = 'rgba(216, 172, 88, 0.35)';
-  c.beginPath();
-  for (let i = 0; i < DISTRICT_ORDER.length; i++) {
-    const p = WORLD_MAP_LAYOUT[DISTRICT_ORDER[i]];
-    const x = p.x * cw, y = p.y * ch;
-    if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-  }
-  c.stroke();
-  c.setLineDash([]);
-  c.restore();
-  // districts
+  const projX = (x) => mapDrawX + x * mapDrawW;
+  const projY = (y) => mapDrawY + y * mapDrawH;
+  // districts (drawn as gold diamond markers ON the painted art)
   const playerDistrict = getPlayerDistrict();
   const keys = game.player.keys || {};
-  for (const id of DISTRICT_ORDER) {
+  for (let i = 0; i < DISTRICT_ORDER.length; i++) {
+    const id = DISTRICT_ORDER[i];
     const p = WORLD_MAP_LAYOUT[id];
     const meta = DISTRICT_META[id];
-    const cx = p.x * cw, cy = p.y * ch;
-    const r  = p.r * cw;
+    const cx = projX(p.x), cy = projY(p.y);
+    const r  = Math.max(9, p.r * mapDrawW * 0.4);
     const isPlayer = id === playerDistrict;
     const isCleared = keys[meta.gemKey] > 0;
-    // district blob — palette gradient
-    const g = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
-    g.addColorStop(0, meta.grassColor);
-    g.addColorStop(0.55, meta.groundColor);
-    g.addColorStop(1, meta.wallColor);
-    c.fillStyle = g;
-    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-    // gold rim — brighter if cleared
-    c.lineWidth = isCleared ? 2.5 : 1.2;
-    c.strokeStyle = isCleared ? '#f8c840' : 'rgba(216, 172, 88, 0.55)';
-    c.stroke();
-    // sparkle glint (small)
-    c.fillStyle = meta.sparkleTint;
-    c.globalAlpha = 0.4;
-    c.beginPath(); c.arc(cx - r * 0.35, cy - r * 0.35, r * 0.12, 0, Math.PI * 2); c.fill();
-    c.globalAlpha = 1;
-    // roman numeral watermark inside blob
+    const isSelected = (i === _mapviewSelectedIdx);
+    // gold diamond marker (rotated square)
+    c.save();
+    c.translate(cx, cy);
+    c.rotate(Math.PI / 4);
+    if (isSelected) {
+      c.fillStyle = 'rgba(20, 12, 40, 0.55)';
+      c.fillRect(-r, -r, r * 2, r * 2);
+      c.strokeStyle = '#8ec8ff';
+      c.lineWidth = 2.5;
+      c.strokeRect(-r, -r, r * 2, r * 2);
+    } else {
+      c.fillStyle = isCleared ? 'rgba(248, 200, 64, 0.9)' : 'rgba(216, 172, 88, 0.8)';
+      c.fillRect(-r, -r, r * 2, r * 2);
+      c.strokeStyle = isCleared ? '#fff2b8' : '#8a6a2a';
+      c.lineWidth = 1.2;
+      c.strokeRect(-r, -r, r * 2, r * 2);
+    }
+    c.restore();
+    // roman numeral watermark inside diamond (small)
     const romans = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
     c.save();
-    c.font = `600 ${Math.max(14, r * 0.55)}px "Cinzel", serif`;
+    c.font = `600 ${Math.max(9, r * 0.75)}px "Cinzel", serif`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillStyle = 'rgba(0, 0, 0, 0.45)';
-    c.fillText(romans[meta.num - 1], cx, cy + 1);
-    c.fillStyle = meta.accent;
-    c.globalAlpha = 0.85;
+    c.fillStyle = isSelected ? '#e0f4ff' : '#3a2408';
     c.fillText(romans[meta.num - 1], cx, cy);
     c.restore();
     // cleared checkmark
@@ -17407,12 +17424,13 @@ function drawWorldMap() {
     c.fillText(meta.name.toUpperCase(), cx, cy - r - 7);
     c.restore();
   }
-  // PLAYER PIN — glowing blue circle, pulsing
+  // PLAYER PIN — glowing blue circle, pulsing (projected onto beta art)
   {
     const p = WORLD_MAP_LAYOUT[playerDistrict];
-    const cx = p.x * cw, cy = p.y * ch;
+    const cx = projX(p.x), cy = projY(p.y);
+    const rBase = Math.max(9, p.r * mapDrawW * 0.4);
     const pulse = 0.6 + 0.4 * Math.sin(t * 3.2);
-    const outerR = (p.r * cw) * (1.15 + 0.12 * pulse);
+    const outerR = rBase * (1.35 + 0.14 * pulse);
     // outer halo
     const halo = c.createRadialGradient(cx, cy, 4, cx, cy, outerR);
     halo.addColorStop(0, `rgba(120, 200, 255, ${0.55 + 0.25 * pulse})`);
@@ -17423,7 +17441,7 @@ function drawWorldMap() {
     // pulsing ring
     c.strokeStyle = `rgba(140, 220, 255, ${0.75 + 0.2 * pulse})`;
     c.lineWidth = 2.5;
-    c.beginPath(); c.arc(cx, cy, (p.r * cw) * (1.02 + 0.06 * pulse), 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(cx, cy, rBase * (1.15 + 0.08 * pulse), 0, Math.PI * 2); c.stroke();
     // inner solid dot
     c.fillStyle = '#e0f4ff';
     c.beginPath(); c.arc(cx, cy, 5 + pulse * 1.2, 0, Math.PI * 2); c.fill();
@@ -17468,6 +17486,9 @@ function openMapView() {
   try { playSfx('menu-open'); } catch(_) {}
   clearHeldKeys();
   $mapview.classList.add('active');
+  const _pd = getPlayerDistrict();
+  const _idx = DISTRICT_ORDER.indexOf(_pd);
+  _mapviewSelectedIdx = _idx >= 0 ? _idx : 0;
   // update caption with current district name
   const meta = DISTRICT_META[getPlayerDistrict()];
   const cap = document.getElementById('mapview-caption');
@@ -17522,10 +17543,20 @@ document.getElementById('mapview-canvas').addEventListener('click', (e) => {
   const playerDistrict = getPlayerDistrict();
   const cw = canvas.width;
   const ch = canvas.height;
+  // ★ 2026-07-30 · Diamond positions are on the letterboxed painting; use
+  // the same projection drawWorldMap uses so clicks line up with the art.
+  let _mdX = 0, _mdY = 0, _mdW = cw, _mdH = ch;
+  if (BETA_WORLDMAP_IMG.complete && BETA_WORLDMAP_IMG.naturalWidth) {
+    const iw = BETA_WORLDMAP_IMG.naturalWidth;
+    const ih = BETA_WORLDMAP_IMG.naturalHeight;
+    const s  = Math.min(cw / iw, ch / ih);
+    _mdW = iw * s; _mdH = ih * s;
+    _mdX = (cw - _mdW) / 2; _mdY = (ch - _mdH) / 2;
+  }
   for (const id of DISTRICT_ORDER) {
     const p = WORLD_MAP_LAYOUT[id];
-    const dx = p.x * cw, dy = p.y * ch;
-    const r  = p.r * cw;
+    const dx = _mdX + p.x * _mdW, dy = _mdY + p.y * _mdH;
+    const r  = Math.max(14, p.r * _mdW * 0.6);
     if (Math.hypot(cx - dx, cy - dy) <= r) {
       // Hit — resolve the click
       if (id === playerDistrict) {
@@ -18396,6 +18427,16 @@ document.addEventListener('keydown', (e) => {
       if (back) { back.click(); e.preventDefault(); }
       return;
     }
+    if (k === 'r' && game.battle && game.battle.kind === 'wild') {
+      const runBtn = Array.from(container.querySelectorAll('.action-btn')).find(b => b.textContent.trim() === 'RUN' && !b.disabled);
+      if (runBtn) { runBtn.click(); e.preventDefault(); }
+      return;
+    }
+    if ((k === 'm' || k === '2') && game.battle && game.battle._menuState !== 'sub') {
+      const bagBtn = Array.from(container.querySelectorAll('.action-btn')).find(b => b.textContent.trim() === 'BAG' && !b.disabled);
+      if (bagBtn) { bagBtn.click(); e.preventDefault(); }
+      return;
+    }
     return;
   }
 
@@ -18554,6 +18595,44 @@ document.addEventListener('keydown', (e) => {
       }
       if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
     }
+    // ★ 2026-07-30 · MAP VIEW navigation.  Arrows / q (L1) / r (R1) cycle
+    // the selected district diamond; confirm simulates a click on it so
+    // dev-mode + void-fragment gating still runs through the canvas
+    // click handler above.
+    if (mapActive) {
+      const isCycleLeft  = (e.key === 'ArrowLeft' || e.key === 'ArrowUp'    || k === 'q');
+      const isCycleRight = (e.key === 'ArrowRight'|| e.key === 'ArrowDown'  || k === 'r');
+      if (isCycleLeft || isCycleRight) {
+        const n = DISTRICT_ORDER.length;
+        _mapviewSelectedIdx = isCycleLeft
+          ? (_mapviewSelectedIdx - 1 + n) % n
+          : (_mapviewSelectedIdx + 1) % n;
+        e.preventDefault();
+        return;
+      }
+      if (isConfirm) {
+        const cvs = document.getElementById('mapview-canvas');
+        const rect = cvs.getBoundingClientRect();
+        // Project the selected diamond back into on-screen coords so the
+        // existing click handler picks the right district.
+        const cw = cvs.width, ch = cvs.height;
+        let _mdX = 0, _mdY = 0, _mdW = cw, _mdH = ch;
+        if (BETA_WORLDMAP_IMG.complete && BETA_WORLDMAP_IMG.naturalWidth) {
+          const iw = BETA_WORLDMAP_IMG.naturalWidth;
+          const ih = BETA_WORLDMAP_IMG.naturalHeight;
+          const s  = Math.min(cw / iw, ch / ih);
+          _mdW = iw * s; _mdH = ih * s;
+          _mdX = (cw - _mdW) / 2; _mdY = (ch - _mdH) / 2;
+        }
+        const p = WORLD_MAP_LAYOUT[DISTRICT_ORDER[_mapviewSelectedIdx]];
+        const scaleX = rect.width / cw, scaleY = rect.height / ch;
+        const clientX = rect.left + (_mdX + p.x * _mdW) * scaleX;
+        const clientY = rect.top  + (_mdY + p.y * _mdH) * scaleY;
+        cvs.dispatchEvent(new MouseEvent('click', { clientX, clientY, bubbles: true }));
+        e.preventDefault();
+        return;
+      }
+    }
     // Remaining overlays share a safe linear fallback.  Dedicated handlers
     // above still win; this covers Maps, Types, Quests, PC Storage, Assign,
     // Rift Slip, Allies, Inspect, and Dev Settings without blocking touch.
@@ -18667,6 +18746,7 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
     1: 'Shift',  // Circle → RP7 B / cancel / run
     2: 'x',      // Square → RP7 X
     3: 'y',      // Triangle → RP7 Y
+    5: 'r',      // R1 → RUN (wild only)
     8: '1',      // Create → SELECT assignment
     9: '3',      // Options → START / settings
     17: '2',     // Touchpad press → MENU
@@ -19847,6 +19927,20 @@ function tryInteract() {
   if (NPC_FACING_TILES.has(t)) {
     faceNpcToPlayer(tx, ty);
     markNpcSpoken(tx, ty);
+  }
+  if (t === 'V') {
+    // ★ 2026-07-30 · SHARDSHARE COLLAR pickup — Silver Lodge floor loot.
+    // The piece Dad has been muttering about; grants 33% party XP share
+    // per KO once he finishes his Shardshare with it.
+    if (game.player.collarPicked) { showDialog(['«Empty.»']); return; }
+    game.player.collarPicked = true;
+    showDialog([
+      '«A device rests on the floor — small, articulated, faintly humming.»',
+      '«This looks like the piece DAD has been muttering about — the last part he needs to finish his SHARDSHARE.»',
+      '«You pocket the device.»',
+      '«Take it to DAD.»',
+    ], () => { save(); showToast('◈  SHARDSHARE PART  ·  bring it to Dad', 2600); });
+    return;
   }
   if (t === 'C') {
     // V2.9 · V3.10.2 — Gemlord fights deferred to mid-late game.  Each
@@ -21265,6 +21359,7 @@ function advanceDialog() {
     game.mode = 'overworld';
     const cb = game.dialogCb;
     game.dialogCb = null;
+    clearAllNpcFacing();
     if (cb) cb();
   }
 }
@@ -21860,6 +21955,26 @@ function interactDad() {
   // AFTER Mom's blessing.  Dad delivers his warning ("never let it get
   // in the wrong hands") and marks the chain state so the fireplace
   // consecration unlocks.  Fires exactly once.
+  // ★ 2026-07-30 · TOP-PRIORITY BEAT: player brought the SHARDSHARE COLLAR
+  // (Silver Lodge floor loot) to Dad.  Fires exactly once and finishes the
+  // Shardshare Dad has been building — grants the 33% party XP share.
+  if (game.player.collarPicked && !game.player.collarDelivered) {
+    game.player.collarDelivered = true;
+    game.player.shardshareGranted = true;
+    save();
+    showDialog([
+      `DAD: You found it.  Hand it here, ${nm} — carefully.`,
+      `DAD: I've been half a device short for a year.  This is the collar — the last piece.`,
+      `«DAD clicks the collar into the SHARDSHARE.  It hums, then settles.»`,
+      `DAD: Alright.  From now on, when one of your Zyrex earns experience, every OTHER Zyrex in your party — still standing — earns a THIRD as much.`,
+      `DAD: Not full share, not nothing.  A fair cut.  The whole team learns from every fight now.`,
+      `DAD: Now go make me proud.`,
+    ], () => {
+      try { playSfx('toast'); } catch(_) {}
+      showToast('◈  SHARDSHARE ONLINE  ·  33% party XP share', 2800);
+    });
+    return;
+  }
   if (game.player.statuePartHeld && game.player.momBlessedStatue && !game.player.dadWarnedStatue) {
     game.player.dadWarnedStatue = true;
     save();
@@ -22643,10 +22758,10 @@ const ALLIES = {
   },
   quinn: {
     name: 'Quinn', district: 'malezor', districtLabel: 'Malezor · Beastlands',
-    class: 'Wanderer', archetype: 'Desert Wanderer',
-    tier: 3, tierClass: 'Adept', epithet: 'The Dunes Remember Her',
-    flavor: 'Desert wanderer.  Says the dunes remember every step; nobody knows where she sleeps.',
-    meetWhere: 'The south dunes — she moves with the sand.',
+    class: 'Seer Guard', archetype: 'Plain-Clothed Seer Security',
+    tier: 3, tierClass: 'Adept', epithet: 'The Watcher In Ordinary Clothes',
+    flavor: 'Plain-clothed Seer security guard.  Dresses like anyone else on the road, but his eyes never stop counting who walks past.',
+    meetWhere: 'The south road out of Malezor — leaning by a stone marker, sleeve half-rolled.',
     reward: { kind: 'tip', label: 'Challenge battle · thornkit + grivvik' },
   },
   myara: {
@@ -23674,10 +23789,10 @@ const NPC_CLUES = {
     `Whether he's fool or oracle, I couldn't tell you.`,
   ],
   QUINN: [
-    `QUINN dusts sand from her palms. "You listen better than you fight."`,
-    `QUINN: The dunes remember. Three shadows fled through the Wild March.`,
+    `QUINN adjusts his sleeve — a plain-clothed Seer, doing a poor job of hiding it. "You listen better than you fight."`,
+    `QUINN: I watch this road all day. Three shadows fled through the Wild March.`,
     `They split three ways. ORRYX went south — into the Pit of No Return.`,
-    `That's all the sand told me. Take my silver key and go find the rest.`,
+    `That's what I saw. Take my silver key and go find the rest.`,
   ],
 };
 function queueNpcTrainerClue(name) {
@@ -25974,21 +26089,23 @@ function grantXP(p, defeated, isFinalKo) {
     if (!levelUp(p)) { p.xp = 0; break; }   // levelUp returns false when tier-capped
     p.xp -= need;
   }
-  // V2.40 · V3.13.2 — SHARDSHARE: broadcast the SAME (already-scaled)
-  // xpGained to every OTHER alive party Zyrex.  Not divided — everyone
-  // alive earns the full (post-cut) amount.
+  // V2.40 · V3.13.2 · 2026-07-30 — SHARDSHARE: broadcast 33% of the
+  // (already-scaled) xpGained to every OTHER alive party Zyrex.  The old
+  // 100% purple-gem share was rebalanced when the collar was added: fair
+  // cut for the rest of the team, but the fighter still earns the most.
   if (game.player.shardshareGranted) {
+    const shareXp = Math.max(1, Math.floor(xpGained * 0.33));
     for (const r of game.player.party) {
       if (!r || r === p) continue;
       if (r.hp <= 0) continue;   // must be alive
-      r.xp += xpGained;
+      r.xp += shareXp;
       while (r.xp >= xpForNext(r.lv, r.species)) {
         const need = xpForNext(r.lv, r.species);
         if (!levelUp(r)) { r.xp = 0; break; }
         r.xp -= need;
       }
     }
-    logBattle(`◈ SHARDSHARE  ·  +${xpGained} XP to the rest of the party`);
+    logBattle(`◈ SHARDSHARE  ·  +${shareXp} XP (33%) to the rest of the party`);
   }
 }
 
@@ -26091,6 +26208,7 @@ function exitBattle() {
   if (chip) chip.classList.remove('show');
   game.mode = 'overworld';
   game.battle = null;
+  if (typeof clearAllNpcFacing === 'function') clearAllNpcFacing();
   refreshMusicContext();   // V2.12 — back to overworld/home track based on mapId
 }
 

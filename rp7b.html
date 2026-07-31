@@ -18707,7 +18707,12 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
 // every existing mode (title, creator, overworld, dialog, battle, party,
 // shops, menus, and overlays) follows the same battle-tested input routing.
 (function nativeGamepadController() {
-  if (!navigator.getGamepads) return;
+  // ★ 2026-07-31 · Idempotency guard + status-in-DOM fix matching the
+  // proven RP8 pattern.  Prior RP7 poller created the status element
+  // but NEVER appended it to the DOM, so the user had no confirmation
+  // the pad was detected.  Also could double-register on hot reload.
+  if (!navigator.getGamepads || window.__rp7GamepadController) return;
+  window.__rp7GamepadController = true;
 
   const status = document.createElement('div');
   status.id = 'gamepad-status';
@@ -18720,8 +18725,7 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
     'pointer-events:none', 'opacity:.78'
   ].join(';');
   status.textContent = 'CONTROLLER · PRESS A BUTTON';
-  // Keep controller detection available to the input layer without
-  // drawing the old bottom-left connection text over the game.
+  document.body.appendChild(status);
 
   let activeIndex = null;
   let previousButtons = [];
@@ -28248,7 +28252,7 @@ menuBackdrop.addEventListener('click', () => {
 })();
 
 </script>
-  <script src="aov-gamepad-boot.js"></script>
+  <script src="/aov-gamepad-boot.js"></script>
   <script>
     // ★ 2026-07-27 · RP7 owns the pad entirely (its own poller dispatches
     // every button as a keyboard event).  The shared nav helper must
@@ -28257,6 +28261,6 @@ menuBackdrop.addEventListener('click', () => {
     window.aovNavOwnedByGame = true;
     window.aovNavRequireOverlay = true;
   </script>
-  <script src="card-game-controller-nav.js" data-gamepad-owner="native"></script>
+  <script src="/card-game-controller-nav.js" data-gamepad-owner="native"></script>
 </body>
 </html>

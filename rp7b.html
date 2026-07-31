@@ -8975,6 +8975,16 @@ BETA_FLOOR.granite.src = 'assets/rp7/beta_assets/floor/floor_granite_native.png'
 BETA_FLOOR.marble.src  = 'assets/rp7/beta_assets/floor/floor_marble_native.png';
 BETA_FLOOR.water = new Image();
 BETA_FLOOR.water.src = 'assets/rp7/beta_assets/floor/floor_water_native.png';
+// ★ 2026-07-30 · Wild-gemgrass 5-frame flip sheet.  Frame 0 = idle tuft
+// (replaces the old dark-green procedural patch); frames 1-4 = disturbed /
+// mid-flow / leaves-ejecting when the player's feet cross the tile.  Rest
+// auto-returns when the player leaves.  drawBetaGemgrass() picks the frame.
+const BETA_GEMGRASS = [0,1,2,3,4].map(i => { const im = new Image();
+  im.src = `assets/rp7/beta_assets/floor/gemgrass_${i}.png`; return im; });
+// ★ 2026-07-30 · Sonya's LIVE RECEIVER · replaces the procedural '^' broadcast
+// tower.  Placed on random grass tile per district (see broadcast placement below).
+const BETA_SONYA_RECEIVER = new Image();
+BETA_SONYA_RECEIVER.src = 'assets/rp7/beta_assets/props/sonya_receiver.png';
 // ★ 2026-07-29 · FOUNTAIN.  Replaces the old flowing-water pond.  A
 // contiguous W-cluster in the map data renders as ONE animated fountain
 // sprite (4 frames, 96x96 each = spans a 3x3 tile block).  Each W tile
@@ -9060,6 +9070,27 @@ Object.keys(BETA_FLOOR_ATLAS_TILES).forEach(kind => {
   const img = BETA_FLOOR[kind];
   if (img) img.addEventListener('load', () => _bakeFloorAtlas(kind), { once: true });
 });
+// ★ 2026-07-30 · Beta gemgrass renderer.  Idle frame 0 sits over the base
+// grass tile.  When the player is STANDING on this exact tile, cycle 1→4
+// on a 110-ms clock so the tuft flutters as they cross.  Rest state
+// (frame 0) returns automatically the moment they walk off.  Blit is
+// aspect-preserving and feet-anchored.
+function drawBetaGemgrass(px, py, mx, my) {
+  drawBetaFloor(px, py, mx, my);   // base grass under the tuft
+  const p = game.player;
+  let frame = 0;
+  if (p && p.x === mx && p.y === my) {
+    const ts = p.gemgrassStartTs || performance.now();
+    frame = 1 + (Math.floor((performance.now() - ts) / 110) % 4);
+  }
+  const img = BETA_GEMGRASS[frame];
+  if (!img || !img.complete || !img.naturalWidth) return true;
+  const aspect = img.naturalWidth / img.naturalHeight;
+  const dh = Math.round(TILE * 1.05);
+  const dw = Math.round(dh * aspect);
+  ctx.drawImage(img, Math.round(px + (TILE - dw) / 2), py + TILE - dh, dw, dh);
+  return true;
+}
 function drawBetaFloor(px, py, mx, my) {
   const mapId = (game.player && game.player.mapId) || '';
   const kind = betaFloorFor(mapId);
@@ -13018,6 +13049,37 @@ function drawTile(x, y, ch, mx, my) {
       && BETA_HOME_FURNITURE_TILES.has(ch)) {
     drawTile(x, y, '.', mx, my);
     return;
+  }
+  // ★ 2026-07-30 · Beta gemgrass override — swap the procedural dark-green
+  // 'G' patch for the 5-frame flip sheet.  Idle at rest, foot-flow while
+  // the player is standing on this exact tile.
+  if (isBeta() && ch === 'G') {
+    drawBetaGemgrass(px, py, mx, my);
+    return;
+  }
+  // ★ 2026-07-30 · Sonya's LIVE RECEIVER — swaps the procedural '^' tower
+  // lattice for the receiver PNG at realistic handheld scale (0.9 tiles)
+  // with high-quality resampling so the dial + gem lens + speaker survive
+  // the downscale.
+  if (isBeta() && ch === '^') {
+    drawTile(x, y, ',', mx, my);
+    const img = BETA_SONYA_RECEIVER;
+    if (img && img.complete && img.naturalWidth) {
+      const aspect = img.naturalWidth / img.naturalHeight;
+      const dh = Math.round(TILE * 0.9);
+      const dw = Math.round(dh * aspect);
+      const prevSmooth = ctx.imageSmoothingEnabled;
+      const prevQual   = ctx.imageSmoothingQuality;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img,
+        Math.round(px + TILE/2 - dw/2),
+        py + TILE - dh,
+        dw, dh);
+      ctx.imageSmoothingEnabled = prevSmooth;
+      ctx.imageSmoothingQuality = prevQual;
+      return;
+    }
   }
   switch (ch) {
     case '#': {
@@ -18820,6 +18882,13 @@ function tryMove(dx, dy) {
   // ★ 2026-07-23 · Global step counter (used by grow-your-own flower
   // pots to gate harvest readiness after N steps).
   game.player.totalSteps = (game.player.totalSteps || 0) + 1;
+  // ★ 2026-07-30 · Gemgrass foot-flow — stamp start-of-animation clock the
+  // moment the player enters a G tile; clear it the moment they leave.
+  {
+    const nt2 = tileAt(nx, ny);
+    if (nt2 === 'G') game.player.gemgrassStartTs = performance.now();
+    else            delete game.player.gemgrassStartTs;
+  }
   // V2.46 · V3.17.9 — RUN: holding B (desktop 'b' key OR mobile B button
   // which dispatches Shift) halves the walk cooldown → 2x run speed.
   // Both keys[] slots are checked so either input source works.

@@ -8601,6 +8601,7 @@ function drawBetaPlayer(cx, cy, dir) {
 const BETA_FLOOR = {
   wood: new Image(), grass: new Image(), stone: new Image(),
   granite: new Image(), marble: new Image(),
+  grass_zarvane: new Image(),   // ★ 2026-07-31 · per-district grass
 };
 // ★ Which floor a map wears.  Pattern-matched rather than listed, so all ten
 // town halls and every Seer HQ level are covered without an entry each:
@@ -8612,6 +8613,10 @@ function betaFloorFor(mapId) {
   if (/_hall$/.test(mapId)) return 'marble';
   if (mapId.indexOf('seer_hq') === 0) return 'granite';
   if (typeof INDOOR_MAPS !== 'undefined' && INDOOR_MAPS.has(mapId)) return 'wood';
+  // ★ 2026-07-31 · Per-district grass override.  If BETA_FLOOR has a
+  // 'grass_<mapId>' texture loaded, use it; else fall back to generic grass.
+  const districtKey = 'grass_' + mapId;
+  if (BETA_FLOOR[districtKey] && _imgOk(BETA_FLOOR[districtKey])) return districtKey;
   return 'grass';
 }
 // ★ RP7 BETA · named-NPC sprites, same 48x72 feet-anchored cell as player0.
@@ -9012,6 +9017,7 @@ function drawBetaNpc(id, px, py, mx, my) {
 }
 BETA_FLOOR.wood.src  = 'assets/rp7/beta_assets/floor/floor_wood_native.png';
 BETA_FLOOR.grass.src = 'assets/rp7/beta_assets/floor/floor_grass_native.png';
+BETA_FLOOR.grass_zarvane.src = 'assets/rp7/beta_assets/floor/grass_zarvane_native.png';
 BETA_FLOOR.stone.src   = 'assets/rp7/beta_assets/floor/floor_stone_native.png';
 BETA_FLOOR.granite.src = 'assets/rp7/beta_assets/floor/floor_granite_native.png';
 BETA_FLOOR.marble.src  = 'assets/rp7/beta_assets/floor/floor_marble_native.png';
@@ -9097,7 +9103,7 @@ function drawBetaWater(px, py, mx, my) {
 // `n × TILE` at boot, then sampled 1:1 during render.  Smaller n = tighter
 // downscale = thinner / sharper features.  Wood at 6 tiles (192px) shrinks
 // the source's ~32-px planks to ~11-px planks — closer to real board width.
-const BETA_FLOOR_ATLAS_TILES = { grass: 12, wood: 6 };
+const BETA_FLOOR_ATLAS_TILES = { grass: 12, wood: 6, grass_zarvane: 12 };
 function _bakeFloorAtlas(kind) {
   const img = BETA_FLOOR[kind];
   const nTiles = BETA_FLOOR_ATLAS_TILES[kind];
@@ -15436,16 +15442,17 @@ function drawQuietChildren(cam) {
 }
 function drawQuietChild(cx, cy, mx, my) {
   if (isBeta() && _imgOk(BETA_QUIET_CHILD)) {
-    const CW = 64, CH = 88, FEET_Y = 80;   // ★ Same baseline as BETA_NPC — feet
-    // land on the tile's bottom edge exactly, so child + player + Mom/Dad all
-    // stand on the same horizontal foot-line when they share a map row.  The
-    // old (groundY - CH) offset placed feet 8-9 px above the tile bottom.
+    // ★ 2026-07-31 · Sample only content rows (y=32-79) — content is 48 px
+    // tall in an 88-tall cell.  Pulling the full 88 caused adjacent-row
+    // tile draws to clip the child's head/feet (Vengrizz-teddy crop bug).
+    const CW = 64;
+    const SRC_Y = 32, CONTENT_H = 48, FEET_Y = CONTENT_H - 1;
     const mapId = game.player.mapId || '';
     const dir = quietChildFacingAt(mapId, mx, my);
     const sx = (QUIET_CHILD_DIR_COLS[dir] || 0) * CW;
     const dy = Math.round(cy + TILE / 2 - FEET_Y);
     const dx = Math.round(cx - CW / 2);
-    ctx.drawImage(BETA_QUIET_CHILD, sx, 0, CW, CH, dx, dy, CW, CH);
+    ctx.drawImage(BETA_QUIET_CHILD, sx, SRC_Y, CW, CONTENT_H, dx, dy, CW, CONTENT_H);
     return;
   }
   // Faint ground shadow — very soft, the child is small

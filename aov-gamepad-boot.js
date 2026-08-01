@@ -63,6 +63,14 @@
     console.warn('[AOV gamepad] navigator.getGamepads not available — no boot.');
     return;
   }
+  // ★ 2026-07-31 · Skip on touch-first devices (phones/tablets).  Users
+  // there see the in-game touch controller instead — the "Press any button
+  // on your controller" banner just covers content and wastes portrait
+  // viewport space.  Bluetooth pads on tablets still work; the per-game
+  // pollers keep running, they just have no visible affordance.
+  const _touchOnly = typeof window !== 'undefined' && window.matchMedia &&
+    window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  if (_touchOnly) { window.aovGamepadReady = true; return; }
 
   window.aovGamepadReady = false;
   let banner = null;

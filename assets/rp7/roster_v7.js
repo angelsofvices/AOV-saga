@@ -1,30 +1,30 @@
-// ★ 2026-07-30 · RP7 v7 official roster · auto-generated staging file.
-// Registers into window.V7_STAGING · rp7.html main script merges it
-// into SPECIES right after const SPECIES = {...}.
-// DO NOT hand-edit — regenerate via the Python builder.
+// ★ 2026-07-31 · RP7 v7 official roster · auto-generated staging.
+// Wild-level bands: Malezor L5-15 · Zarvane L15-25 · Andrannor L25-35 ·
+// Veridan L35-45 · Netharion L45-55 · Vorashil L55-65 · Xilnar L65-75 ·
+// Baelgor L75-85 · Thardin L85-95 · Korathen L95-100.
 (function(){
   window.V7_STAGING = window.V7_STAGING || { species:{}, ids:[], pool:{} };
   const V7 = window.V7_STAGING.species;
   V7.abyssarach = {
-    flavor: "A aquatic-typed Zyrex of the Netharion region.",
-    name: 'ABYSSARACH', type: 'Aquatic', type2: null, type3: null, region: 'Netharion',
+    flavor: "A aquatic-typed Zyrex of the Vorashil region.",
+    name: 'ABYSSARACH', type: 'Aquatic', type2: null, type3: null, region: 'Vorashil',
     tier: 4, catchRate: 30, shape: 'fish',
     base: { hp:90,atk:60,def:70,spd:50,spc:80 },
     sprite: ['#48b8ff','#0a2036','#a8eaff'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'netharion', homeDistricts: ['netharion'],
+    primaryDistrict: 'vorashil', homeDistricts: ['vorashil'],
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.abyssiq = {
-    flavor: "A extraterrestrial-typed Zyrex of the Andrannor region.",
-    name: 'ABYSSIQ', type: 'Extraterrestrial', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A extraterrestrial-typed Zyrex of the Netharion region.",
+    name: 'ABYSSIQ', type: 'Extraterrestrial', type2: null, type3: null, region: 'Netharion',
     tier: 2, catchRate: 50, shape: 'alien',
     base: { hp:50,atk:60,def:50,spd:90,spc:100 },
     sprite: ['#4a5c98','#1c2650','#8ba0d8'],
     moves: [],
     evolveTo: 'abyssarach', evolveLv: 20,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'netharion', homeDistricts: ['netharion'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Common' },
   };
   V7.aetherwing = {
@@ -94,14 +94,14 @@
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.astravyx = {
-    flavor: "A extraterrestrial-typed Zyrex of the Andrannor region.",
-    name: 'ASTRAVYX', type: 'Extraterrestrial', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A extraterrestrial-typed Zyrex of the Korathen region.",
+    name: 'ASTRAVYX', type: 'Extraterrestrial', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'alien',
     base: { hp:50,atk:60,def:50,spd:90,spc:100 },
     sprite: ['#4a5c98','#1c2650','#8ba0d8'],
     moves: [],
     evolveTo: 'astralape', evolveLv: 20,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Rare' },
   };
   V7.auralux = {
@@ -127,14 +127,14 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.aurarat = {
-    flavor: "A beast-typed Zyrex of the Zarvane region.",
-    name: 'AURARAT', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
+    flavor: "A beast-typed Zyrex of the Malezor region.",
+    name: 'AURARAT', type: 'Beast', type2: null, type3: null, region: 'Malezor',
     tier: 1, catchRate: 60, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: 'auramantle', evolveLv: 20,
-    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
+    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Common' },
   };
   V7.aurokine = {
@@ -171,25 +171,25 @@
     codex: { class: 'Warrior', tc: 'Gemlord', archetype: 'CHIMERIC', ladder: 'Epsilon', rarity: 'Legendary' },
   };
   V7.barkchitter = {
-    flavor: "A beast-typed Zyrex of the Zarvane region.",
-    name: 'BARKCHITTER', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
+    flavor: "A beast-typed Zyrex of the Malezor region.",
+    name: 'BARKCHITTER', type: 'Beast', type2: null, type3: null, region: 'Malezor',
     tier: 1, catchRate: 60, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: 'chronocrow', evolveLv: 40,
-    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
+    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.bastonshell = {
-    flavor: "A beast-typed Zyrex of the Andrannor region.",
-    name: 'BASTONSHELL', type: 'Beast', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A beast-typed Zyrex of the Zarvane region.",
+    name: 'BASTONSHELL', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
     tier: 2, catchRate: 50, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: 'blazonon', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.blazonon = {
@@ -204,14 +204,14 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.bogarion = {
-    flavor: "A beast-typed Zyrex of the Andrannor region.",
-    name: 'BOGARION', type: 'Beast', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A beast-typed Zyrex of the Zarvane region.",
+    name: 'BOGARION', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
     tier: 2, catchRate: 50, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: 'bonemaw', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.bonemaw = {
@@ -259,25 +259,25 @@
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.celestryx = {
-    flavor: "A spirit-typed Zyrex of the Thardin region.",
-    name: 'CELESTRYX', type: 'Spirit', type2: null, type3: null, region: 'Thardin',
+    flavor: "A spirit-typed Zyrex of the Baelgor region.",
+    name: 'CELESTRYX', type: 'Spirit', type2: null, type3: null, region: 'Baelgor',
     tier: 7, catchRate: 6, shape: 'ghost',
     base: { hp:60,atk:50,def:60,spd:80,spc:100 },
     sprite: ['#5cd0ff','#1c4a70','#a8eaff'],
     moves: [],
     evolveTo: 'inferleon', evolveLv: 40,
-    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
+    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Delta', rarity: 'Legendary' },
   };
   V7.cerebrion = {
-    flavor: "A void-typed Zyrex of the Veridan region.",
-    name: 'CEREBRION', type: 'Void', type2: null, type3: null, region: 'Veridan',
+    flavor: "A void-typed Zyrex of the Xilnar region.",
+    name: 'CEREBRION', type: 'Void', type2: null, type3: null, region: 'Xilnar',
     tier: 3, catchRate: 40, shape: 'ghost',
     base: { hp:50,atk:60,def:50,spd:90,spc:100 },
     sprite: ['#7a4ab8','#3a1e5a','#c896ff'],
     moves: [],
     evolveTo: 'feliux', evolveLv: 40,
-    primaryDistrict: 'veridan', homeDistricts: ['veridan'],
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.chameleor = {
@@ -292,14 +292,14 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.chronocrow = {
-    flavor: "A chrono-typed Zyrex of the Malezor region.",
-    name: 'CHRONOCROW', type: 'Chrono', type2: null, type3: null, region: 'Malezor',
+    flavor: "A chrono-typed Zyrex of the Korathen region.",
+    name: 'CHRONOCROW', type: 'Chrono', type2: null, type3: null, region: 'Korathen',
     tier: 1, catchRate: 60, shape: 'ghost',
     base: { hp:50,atk:60,def:60,spd:110,spc:70 },
     sprite: ['#9c78d0','#3a2560','#d8bff8'],
     moves: [],
     evolveTo: 'otterlin', evolveLv: 40,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.cinderant = {
@@ -314,14 +314,14 @@
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.cinderbeetle = {
-    flavor: "A beast-typed Zyrex of the Andrannor region.",
-    name: 'CINDERBEETLE', type: 'Beast', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A beast-typed Zyrex of the Zarvane region.",
+    name: 'CINDERBEETLE', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
     tier: 2, catchRate: 50, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: 'cindercrown', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.cindercrown = {
@@ -358,14 +358,14 @@
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.cryptovex = {
-    flavor: "A tech-typed Zyrex of the Veridan region.",
-    name: 'CRYPTOVEX', type: 'Tech', type2: null, type3: null, region: 'Veridan',
+    flavor: "A tech-typed Zyrex of the Thardin region.",
+    name: 'CRYPTOVEX', type: 'Tech', type2: null, type3: null, region: 'Thardin',
     tier: 3, catchRate: 40, shape: 'mech',
     base: { hp:70,atk:80,def:100,spd:40,spc:60 },
     sprite: ['#a56830','#4a3018','#d09c68'],
     moves: [],
     evolveTo: 'crycarys', evolveLv: 20,
-    primaryDistrict: 'veridan', homeDistricts: ['veridan'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.devormor = {
@@ -402,14 +402,14 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Rare' },
   };
   V7.dredgill = {
-    flavor: "A beast-typed Zyrex of the Andrannor region.",
-    name: 'DREDGILL', type: 'Beast', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A beast-typed Zyrex of the Zarvane region.",
+    name: 'DREDGILL', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
     tier: 2, catchRate: 50, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: 'ferrophix', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.dunechitter = {
@@ -446,58 +446,58 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.dustmanecrane = {
-    flavor: "A beast-typed Zyrex of the Andrannor region.",
-    name: 'DUSTMANE CRANE', type: 'Beast', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A beast-typed Zyrex of the Zarvane region.",
+    name: 'DUSTMANE CRANE', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
     tier: 2, catchRate: 50, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.elzoran = {
-    flavor: "A draconic-typed Zyrex of the Vorashil region.",
-    name: 'ELZORAN', type: 'Draconic', type2: null, type3: null, region: 'Vorashil',
+    flavor: "A draconic-typed Zyrex of the Thardin region.",
+    name: 'ELZORAN', type: 'Draconic', type2: null, type3: null, region: 'Thardin',
     tier: 5, catchRate: 20, shape: 'wyrm',
     base: { hp:90,atk:100,def:80,spd:50,spc:60 },
     sprite: ['#e04848','#5a1010','#ff8a8a'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'vorashil', homeDistricts: ['vorashil'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Epsilon', rarity: 'Legendary' },
   };
   V7.embercrest = {
-    flavor: "A elemental-typed Zyrex of the Netharion region.",
-    name: 'EMBERCREST', type: 'Elemental', type2: null, type3: null, region: 'Netharion',
+    flavor: "A elemental-typed Zyrex of the Xilnar region.",
+    name: 'EMBERCREST', type: 'Elemental', type2: null, type3: null, region: 'Xilnar',
     tier: 4, catchRate: 30, shape: 'flame',
     base: { hp:60,atk:90,def:60,spd:60,spc:80 },
     sprite: ['#e06030','#7a2c14','#ff8a5c'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'netharion', homeDistricts: ['netharion'],
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.embermoth = {
-    flavor: "A elemental-typed Zyrex of the Veridan region.",
-    name: 'EMBERMOTH', type: 'Elemental', type2: null, type3: null, region: 'Veridan',
+    flavor: "A elemental-typed Zyrex of the Baelgor region.",
+    name: 'EMBERMOTH', type: 'Elemental', type2: null, type3: null, region: 'Baelgor',
     tier: 3, catchRate: 40, shape: 'flame',
     base: { hp:60,atk:90,def:60,spd:60,spc:80 },
     sprite: ['#e06030','#7a2c14','#ff8a5c'],
     moves: [],
     evolveTo: 'emberuk', evolveLv: 20,
-    primaryDistrict: 'veridan', homeDistricts: ['veridan'],
+    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.emberuk = {
-    flavor: "A elemental-typed Zyrex of the Veridan region.",
-    name: 'EMBERUK', type: 'Elemental', type2: null, type3: null, region: 'Veridan',
+    flavor: "A elemental-typed Zyrex of the Xilnar region.",
+    name: 'EMBERUK', type: 'Elemental', type2: null, type3: null, region: 'Xilnar',
     tier: 3, catchRate: 40, shape: 'flame',
     base: { hp:60,atk:90,def:60,spd:60,spc:80 },
     sprite: ['#e06030','#7a2c14','#ff8a5c'],
     moves: [],
     evolveTo: 'embercrest', evolveLv: 40,
-    primaryDistrict: 'veridan', homeDistricts: ['veridan'],
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.emeralix = {
@@ -523,14 +523,14 @@
     codex: { class: 'Warrior', tc: 'Gemlord', archetype: 'CHIMERIC', ladder: 'Epsilon', rarity: 'Legendary' },
   };
   V7.feliux = {
-    flavor: "A spirit-typed Zyrex of the Andrannor region.",
-    name: 'FELIUX', type: 'Spirit', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A spirit-typed Zyrex of the Korathen region.",
+    name: 'FELIUX', type: 'Spirit', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'ghost',
     base: { hp:60,atk:50,def:60,spd:80,spc:100 },
     sprite: ['#5cd0ff','#1c4a70','#a8eaff'],
     moves: [],
     evolveTo: 'hopbeam', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.ferrophix = {
@@ -556,14 +556,14 @@
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.flarewisp = {
-    flavor: "A radiant-typed Zyrex of the Zarvane region.",
-    name: 'FLAREWISP', type: 'Radiant', type2: null, type3: null, region: 'Zarvane',
+    flavor: "A radiant-typed Zyrex of the Baelgor region.",
+    name: 'FLAREWISP', type: 'Radiant', type2: null, type3: null, region: 'Baelgor',
     tier: 1, catchRate: 60, shape: 'aura',
     base: { hp:80,atk:50,def:60,spd:60,spc:100 },
     sprite: ['#f8e878','#c89838','#fff8b0'],
     moves: [],
     evolveTo: 'flarepaw', evolveLv: 20,
-    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
+    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.floravex = {
@@ -589,14 +589,14 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.frostphen = {
-    flavor: "A elemental-typed Zyrex of the Malezor region.",
-    name: 'FROSTPHEN', type: 'Elemental', type2: null, type3: null, region: 'Malezor',
+    flavor: "A elemental-typed Zyrex of the Xilnar region.",
+    name: 'FROSTPHEN', type: 'Elemental', type2: null, type3: null, region: 'Xilnar',
     tier: 2, catchRate: 50, shape: 'flame',
     base: { hp:60,atk:90,def:60,spd:60,spc:80 },
     sprite: ['#e06030','#7a2c14','#ff8a5c'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.frostwisp = {
@@ -611,25 +611,25 @@
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.gearbyte = {
-    flavor: "A tech-typed Zyrex of the Malezor region.",
-    name: 'GEARBYTE', type: 'Tech', type2: null, type3: null, region: 'Malezor',
+    flavor: "A tech-typed Zyrex of the Thardin region.",
+    name: 'GEARBYTE', type: 'Tech', type2: null, type3: null, region: 'Thardin',
     tier: 2, catchRate: 50, shape: 'mech',
     base: { hp:70,atk:80,def:100,spd:40,spc:60 },
     sprite: ['#a56830','#4a3018','#d09c68'],
     moves: [],
     evolveTo: 'impyxid', evolveLv: 40,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.gemorid = {
-    flavor: "A crystal-typed Zyrex of the Netharion region.",
-    name: 'GEMORID', type: 'Crystal', type2: null, type3: null, region: 'Netharion',
+    flavor: "A crystal-typed Zyrex of the Thardin region.",
+    name: 'GEMORID', type: 'Crystal', type2: null, type3: null, region: 'Thardin',
     tier: 4, catchRate: 30, shape: 'shell',
     base: { hp:90,atk:60,def:100,spd:40,spc:60 },
     sprite: ['#8ba0d8','#2a3660','#c8d8ff'],
     moves: [],
     evolveTo: 'grevotor', evolveLv: 40,
-    primaryDistrict: 'netharion', homeDistricts: ['netharion'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.glaciobolt = {
@@ -666,25 +666,25 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Rare' },
   };
   V7.gravelor = {
-    flavor: "A humanoid-typed Zyrex of the Andrannor region.",
-    name: 'GRAVELOR', type: 'Humanoid', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A humanoid-typed Zyrex of the Korathen region.",
+    name: 'GRAVELOR', type: 'Humanoid', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'biped',
     base: { hp:70,atk:70,def:70,spd:70,spc:70 },
     sprite: ['#c8a878','#6a4a28','#f0d8a8'],
     moves: [],
     evolveTo: 'graveskull', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.gravemite = {
-    flavor: "A spirit-typed Zyrex of the Zarvane region.",
-    name: 'GRAVEMITE', type: 'Spirit', type2: null, type3: null, region: 'Zarvane',
+    flavor: "A spirit-typed Zyrex of the Baelgor region.",
+    name: 'GRAVEMITE', type: 'Spirit', type2: null, type3: null, region: 'Baelgor',
     tier: 1, catchRate: 60, shape: 'ghost',
     base: { hp:60,atk:50,def:60,spd:80,spc:100 },
     sprite: ['#5cd0ff','#1c4a70','#a8eaff'],
     moves: [],
     evolveTo: 'gravemourn', evolveLv: 20,
-    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
+    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Common' },
   };
   V7.gravemourn = {
@@ -710,14 +710,14 @@
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.grevotor = {
-    flavor: "A nature-typed Zyrex of the Netharion region.",
-    name: 'GREVOTOR', type: 'Nature', type2: null, type3: null, region: 'Netharion',
+    flavor: "A nature-typed Zyrex of the Andrannor region.",
+    name: 'GREVOTOR', type: 'Nature', type2: null, type3: null, region: 'Andrannor',
     tier: 4, catchRate: 30, shape: 'plant',
     base: { hp:90,atk:60,def:100,spd:40,spc:60 },
     sprite: ['#4a9a58','#1e5030','#8be0a0'],
     moves: [],
     evolveTo: 'avianex', evolveLv: 40,
-    primaryDistrict: 'netharion', homeDistricts: ['netharion'],
+    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.grimhog = {
@@ -754,14 +754,14 @@
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.hopbeam = {
-    flavor: "A aura-typed Zyrex of the Andrannor region.",
-    name: 'HOPBEAM', type: 'Aura', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A aura-typed Zyrex of the Korathen region.",
+    name: 'HOPBEAM', type: 'Aura', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'aura',
     base: { hp:60,atk:50,def:60,spd:70,spc:110 },
     sprite: ['#e8b048','#8a5c1c','#ffd882'],
     moves: [],
     evolveTo: 'iguanax', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.iguanax = {
@@ -798,14 +798,14 @@
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Delta', rarity: 'Legendary' },
   };
   V7.irondrake = {
-    flavor: "A draconic-typed Zyrex of the Andrannor region.",
-    name: 'IRONDRAKE', type: 'Draconic', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A draconic-typed Zyrex of the Baelgor region.",
+    name: 'IRONDRAKE', type: 'Draconic', type2: null, type3: null, region: 'Baelgor',
     tier: 3, catchRate: 40, shape: 'wyrm',
     base: { hp:90,atk:100,def:80,spd:50,spc:60 },
     sprite: ['#e04848','#5a1010','#ff8a8a'],
     moves: [],
     evolveTo: 'jetron', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.ivirium = {
@@ -820,25 +820,25 @@
     codex: { class: 'Warrior', tc: 'Gemlord', archetype: 'CHIMERIC', ladder: 'Epsilon', rarity: 'Legendary' },
   };
   V7.jetron = {
-    flavor: "A tech-typed Zyrex of the Veridan region.",
-    name: 'JETRON', type: 'Tech', type2: null, type3: null, region: 'Veridan',
+    flavor: "A tech-typed Zyrex of the Thardin region.",
+    name: 'JETRON', type: 'Tech', type2: null, type3: null, region: 'Thardin',
     tier: 3, catchRate: 40, shape: 'mech',
     base: { hp:70,atk:80,def:100,spd:40,spc:60 },
     sprite: ['#a56830','#4a3018','#d09c68'],
     moves: [],
     evolveTo: 'luminacor', evolveLv: 40,
-    primaryDistrict: 'veridan', homeDistricts: ['veridan'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.levanium = {
-    flavor: "A void-typed Zyrex of the Malezor region.",
-    name: 'LEVANIUM', type: 'Void', type2: null, type3: null, region: 'Malezor',
+    flavor: "A void-typed Zyrex of the Xilnar region.",
+    name: 'LEVANIUM', type: 'Void', type2: null, type3: null, region: 'Xilnar',
     tier: 2, catchRate: 50, shape: 'ghost',
     base: { hp:50,atk:60,def:50,spd:90,spc:100 },
     sprite: ['#7a4ab8','#3a1e5a','#c896ff'],
     moves: [],
     evolveTo: 'noxiclaw', evolveLv: 40,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.luminacor = {
@@ -886,14 +886,14 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.mantisaris = {
-    flavor: "A beast-typed Zyrex of the Andrannor region.",
-    name: 'MANTISARIS', type: 'Beast', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A beast-typed Zyrex of the Zarvane region.",
+    name: 'MANTISARIS', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
     tier: 2, catchRate: 50, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: 'manticorpus', evolveLv: 20,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.marisyth = {
@@ -908,14 +908,14 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.mealux = {
-    flavor: "A aura-typed Zyrex of the Andrannor region.",
-    name: 'MEALUX', type: 'Aura', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A aura-typed Zyrex of the Korathen region.",
+    name: 'MEALUX', type: 'Aura', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'aura',
     base: { hp:60,atk:50,def:60,spd:70,spc:110 },
     sprite: ['#e8b048','#8a5c1c','#ffd882'],
     moves: [],
     evolveTo: 'mudlarion', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.mudlarion = {
@@ -930,14 +930,14 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.mutamech = {
-    flavor: "A extraterrestrial-typed Zyrex of the Andrannor region.",
-    name: 'MUTAMECH', type: 'Extraterrestrial', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A extraterrestrial-typed Zyrex of the Korathen region.",
+    name: 'MUTAMECH', type: 'Extraterrestrial', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'alien',
     base: { hp:50,atk:60,def:50,spd:90,spc:100 },
     sprite: ['#4a5c98','#1c2650','#8ba0d8'],
     moves: [],
     evolveTo: 'nimbovis', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.mutaryn = {
@@ -952,14 +952,14 @@
     codex: { class: 'Warrior', tc: 'Gemlord', archetype: 'CHIMERIC', ladder: 'Epsilon', rarity: 'Legendary' },
   };
   V7.neuromoo = {
-    flavor: "A tech-typed Zyrex of the Malezor region.",
-    name: 'NEUROMOO', type: 'Tech', type2: null, type3: null, region: 'Malezor',
+    flavor: "A tech-typed Zyrex of the Thardin region.",
+    name: 'NEUROMOO', type: 'Tech', type2: null, type3: null, region: 'Thardin',
     tier: 2, catchRate: 50, shape: 'mech',
     base: { hp:70,atk:80,def:100,spd:40,spc:60 },
     sprite: ['#a56830','#4a3018','#d09c68'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.nimbovis = {
@@ -974,14 +974,14 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.noctron = {
-    flavor: "A spirit-typed Zyrex of the Andrannor region.",
-    name: 'NOCTRON', type: 'Spirit', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A spirit-typed Zyrex of the Baelgor region.",
+    name: 'NOCTRON', type: 'Spirit', type2: null, type3: null, region: 'Baelgor',
     tier: 3, catchRate: 40, shape: 'ghost',
     base: { hp:60,atk:50,def:60,spd:80,spc:100 },
     sprite: ['#5cd0ff','#1c4a70','#a8eaff'],
     moves: [],
     evolveTo: 'nyctopus', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.noxiclaw = {
@@ -996,14 +996,14 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.nullis = {
-    flavor: "A crystal-typed Zyrex of the Xilnar region.",
-    name: 'NULLIS', type: 'Crystal', type2: null, type3: null, region: 'Xilnar',
+    flavor: "A crystal-typed Zyrex of the Vorashil region.",
+    name: 'NULLIS', type: 'Crystal', type2: null, type3: null, region: 'Vorashil',
     tier: 5, catchRate: 20, shape: 'shell',
     base: { hp:90,atk:60,def:100,spd:40,spc:60 },
     sprite: ['#8ba0d8','#2a3660','#c8d8ff'],
     moves: [],
     evolveTo: 'phantuar', evolveLv: 40,
-    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
+    primaryDistrict: 'vorashil', homeDistricts: ['vorashil'],
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.nyctopus = {
@@ -1084,14 +1084,14 @@
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.pebblequil = {
-    flavor: "A crystal-typed Zyrex of the Malezor region.",
-    name: 'PEBBLEQUIL', type: 'Crystal', type2: null, type3: null, region: 'Malezor',
+    flavor: "A crystal-typed Zyrex of the Xilnar region.",
+    name: 'PEBBLEQUIL', type: 'Crystal', type2: null, type3: null, region: 'Xilnar',
     tier: 1, catchRate: 60, shape: 'shell',
     base: { hp:90,atk:60,def:100,spd:40,spc:60 },
     sprite: ['#8ba0d8','#2a3660','#c8d8ff'],
     moves: [],
     evolveTo: 'sunhoop', evolveLv: 40,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.petragryff = {
@@ -1106,14 +1106,14 @@
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Legendary' },
   };
   V7.phantuar = {
-    flavor: "A spirit-typed Zyrex of the Xilnar region.",
-    name: 'PHANTUAR', type: 'Spirit', type2: null, type3: null, region: 'Xilnar',
+    flavor: "A spirit-typed Zyrex of the Netharion region.",
+    name: 'PHANTUAR', type: 'Spirit', type2: null, type3: null, region: 'Netharion',
     tier: 5, catchRate: 20, shape: 'ghost',
     base: { hp:60,atk:50,def:60,spd:80,spc:100 },
     sprite: ['#5cd0ff','#1c4a70','#a8eaff'],
     moves: [],
     evolveTo: 'robotryx', evolveLv: 40,
-    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
+    primaryDistrict: 'netharion', homeDistricts: ['netharion'],
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.phrenetic = {
@@ -1205,14 +1205,14 @@
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.rustbyte = {
-    flavor: "A tech-typed Zyrex of the Malezor region.",
-    name: 'RUSTBYTE', type: 'Tech', type2: null, type3: null, region: 'Malezor',
+    flavor: "A tech-typed Zyrex of the Thardin region.",
+    name: 'RUSTBYTE', type: 'Tech', type2: null, type3: null, region: 'Thardin',
     tier: 2, catchRate: 50, shape: 'mech',
     base: { hp:70,atk:80,def:100,spd:40,spc:60 },
     sprite: ['#a56830','#4a3018','#d09c68'],
     moves: [],
     evolveTo: 'rustmaw', evolveLv: 20,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.rustmaw = {
@@ -1304,25 +1304,25 @@
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.sharkfin = {
-    flavor: "A aquatic-typed Zyrex of the Xilnar region.",
-    name: 'SHARKFIN', type: 'Aquatic', type2: null, type3: null, region: 'Xilnar',
+    flavor: "A aquatic-typed Zyrex of the Vorashil region.",
+    name: 'SHARKFIN', type: 'Aquatic', type2: null, type3: null, region: 'Vorashil',
     tier: 5, catchRate: 20, shape: 'fish',
     base: { hp:90,atk:60,def:70,spd:50,spc:80 },
     sprite: ['#48b8ff','#0a2036','#a8eaff'],
     moves: [],
     evolveTo: 'solcryst', evolveLv: 40,
-    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
+    primaryDistrict: 'vorashil', homeDistricts: ['vorashil'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.sigilmor = {
-    flavor: "A extraterrestrial-typed Zyrex of the Andrannor region.",
-    name: 'SIGILMOR', type: 'Extraterrestrial', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A extraterrestrial-typed Zyrex of the Korathen region.",
+    name: 'SIGILMOR', type: 'Extraterrestrial', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'alien',
     base: { hp:50,atk:60,def:50,spd:90,spc:100 },
     sprite: ['#4a5c98','#1c2650','#8ba0d8'],
     moves: [],
     evolveTo: 'skorleax', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.silkora = {
@@ -1370,14 +1370,14 @@
     codex: { class: 'Warrior', tc: 'Pseudoimmortal', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Legendary' },
   };
   V7.smogrim = {
-    flavor: "A extraterrestrial-typed Zyrex of the Andrannor region.",
-    name: 'SMOGRIM', type: 'Extraterrestrial', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A extraterrestrial-typed Zyrex of the Netharion region.",
+    name: 'SMOGRIM', type: 'Extraterrestrial', type2: null, type3: null, region: 'Netharion',
     tier: 3, catchRate: 40, shape: 'alien',
     base: { hp:50,atk:60,def:50,spd:90,spc:100 },
     sprite: ['#4a5c98','#1c2650','#8ba0d8'],
     moves: [],
     evolveTo: 'snok', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'netharion', homeDistricts: ['netharion'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.snok = {
@@ -1392,25 +1392,25 @@
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.solaryx = {
-    flavor: "A beast-typed Zyrex of the Baelgor region.",
-    name: 'SOLARYX', type: 'Beast', type2: null, type3: null, region: 'Baelgor',
+    flavor: "A beast-typed Zyrex of the Xilnar region.",
+    name: 'SOLARYX', type: 'Beast', type2: null, type3: null, region: 'Xilnar',
     tier: 6, catchRate: 12, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Legendary' },
   };
   V7.solcryst = {
-    flavor: "A aura-typed Zyrex of the Vorashil region.",
-    name: 'SOLCRYST', type: 'Aura', type2: null, type3: null, region: 'Vorashil',
+    flavor: "A aura-typed Zyrex of the Korathen region.",
+    name: 'SOLCRYST', type: 'Aura', type2: null, type3: null, region: 'Korathen',
     tier: 5, catchRate: 20, shape: 'aura',
     base: { hp:60,atk:50,def:60,spd:70,spc:110 },
     sprite: ['#e8b048','#8a5c1c','#ffd882'],
     moves: [],
     evolveTo: 'strixel', evolveLv: 40,
-    primaryDistrict: 'vorashil', homeDistricts: ['vorashil'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.solvarion = {
@@ -1436,36 +1436,36 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.sparkbud = {
-    flavor: "A nature-typed Zyrex of the Malezor region.",
-    name: 'SPARKBUD', type: 'Nature', type2: null, type3: null, region: 'Malezor',
+    flavor: "A nature-typed Zyrex of the Andrannor region.",
+    name: 'SPARKBUD', type: 'Nature', type2: null, type3: null, region: 'Andrannor',
     tier: 1, catchRate: 60, shape: 'plant',
     base: { hp:90,atk:60,def:100,spd:40,spc:60 },
     sprite: ['#4a9a58','#1e5030','#8be0a0'],
     moves: [],
     evolveTo: 'spargus', evolveLv: 20,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.steelden = {
-    flavor: "A humanoid-typed Zyrex of the Zarvane region.",
-    name: 'STEELDEN', type: 'Humanoid', type2: null, type3: null, region: 'Zarvane',
+    flavor: "A humanoid-typed Zyrex of the Thardin region.",
+    name: 'STEELDEN', type: 'Humanoid', type2: null, type3: null, region: 'Thardin',
     tier: 2, catchRate: 50, shape: 'biped',
     base: { hp:70,atk:70,def:70,spd:70,spc:70 },
     sprite: ['#c8a878','#6a4a28','#f0d8a8'],
     moves: [],
     evolveTo: 'terralith', evolveLv: 40,
-    primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.strixel = {
-    flavor: "A creature-typed Zyrex of the Vorashil region.",
-    name: 'STRIXEL', type: 'Creature', type2: null, type3: null, region: 'Vorashil',
+    flavor: "A creature-typed Zyrex of the Andrannor region.",
+    name: 'STRIXEL', type: 'Creature', type2: null, type3: null, region: 'Andrannor',
     tier: 5, catchRate: 20, shape: 'quadruped',
     base: { hp:100,atk:70,def:80,spd:50,spc:50 },
     sprite: ['#8a6c48','#4a3620','#c8a878'],
     moves: [],
     evolveTo: 'talenko', evolveLv: 40,
-    primaryDistrict: 'vorashil', homeDistricts: ['vorashil'],
+    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Legendary' },
   };
   V7.sunhoop = {
@@ -1502,14 +1502,14 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.titanova = {
-    flavor: "A tech-typed Zyrex of the Andrannor region.",
-    name: 'TITANOVA', type: 'Tech', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A tech-typed Zyrex of the Thardin region.",
+    name: 'TITANOVA', type: 'Tech', type2: null, type3: null, region: 'Thardin',
     tier: 3, catchRate: 40, shape: 'mech',
     base: { hp:70,atk:80,def:100,spd:40,spc:60 },
     sprite: ['#a56830','#4a3018','#d09c68'],
     moves: [],
     evolveTo: 'titantusk', evolveLv: 20,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
   V7.titantusk = {
@@ -1524,14 +1524,14 @@
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Legendary' },
   };
   V7.tonitrex = {
-    flavor: "A beast-typed Zyrex of the Baelgor region.",
-    name: 'TONITREX', type: 'Beast', type2: null, type3: null, region: 'Baelgor',
+    flavor: "A beast-typed Zyrex of the Xilnar region.",
+    name: 'TONITREX', type: 'Beast', type2: null, type3: null, region: 'Xilnar',
     tier: 6, catchRate: 12, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
     evolveTo: 'vengrizz', evolveLv: 40,
-    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Legendary' },
   };
   V7.torchpuff = {
@@ -1601,14 +1601,14 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.veylith = {
-    flavor: "A spirit-typed Zyrex of the Andrannor region.",
-    name: 'VEYLITH', type: 'Spirit', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A spirit-typed Zyrex of the Korathen region.",
+    name: 'VEYLITH', type: 'Spirit', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'ghost',
     base: { hp:60,atk:50,def:60,spd:80,spc:100 },
     sprite: ['#5cd0ff','#1c4a70','#a8eaff'],
     moves: [],
     evolveTo: 'voiden', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.vipercrow = {
@@ -1634,14 +1634,14 @@
     codex: { class: 'Warrior', tc: 'Pseudoimmortal', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Legendary' },
   };
   V7.voiden = {
-    flavor: "A humanoid-typed Zyrex of the Andrannor region.",
-    name: 'VOIDEN', type: 'Humanoid', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A humanoid-typed Zyrex of the Thardin region.",
+    name: 'VOIDEN', type: 'Humanoid', type2: null, type3: null, region: 'Thardin',
     tier: 3, catchRate: 40, shape: 'biped',
     base: { hp:70,atk:70,def:70,spd:70,spc:70 },
     sprite: ['#c8a878','#6a4a28','#f0d8a8'],
     moves: [],
     evolveTo: 'arcemur', evolveLv: 40,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
   V7.volitimite = {
@@ -1667,14 +1667,14 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Delta', rarity: 'Common' },
   };
   V7.voltigrax = {
-    flavor: "A elemental-typed Zyrex of the Thardin region.",
-    name: 'VOLTIGRAX', type: 'Elemental', type2: null, type3: null, region: 'Thardin',
+    flavor: "A elemental-typed Zyrex of the Baelgor region.",
+    name: 'VOLTIGRAX', type: 'Elemental', type2: null, type3: null, region: 'Baelgor',
     tier: 7, catchRate: 6, shape: 'flame',
     base: { hp:60,atk:90,def:60,spd:60,spc:80 },
     sprite: ['#e06030','#7a2c14','#ff8a5c'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
+    primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Pseudoimmortal', archetype: 'CHIMERIC', ladder: 'Delta', rarity: 'Legendary' },
   };
   V7.voltmantis = {
@@ -1689,25 +1689,25 @@
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
   V7.voltyran = {
-    flavor: "A creature-typed Zyrex of the Thardin region.",
-    name: 'VOLTYRAN', type: 'Creature', type2: null, type3: null, region: 'Thardin',
+    flavor: "A creature-typed Zyrex of the Andrannor region.",
+    name: 'VOLTYRAN', type: 'Creature', type2: null, type3: null, region: 'Andrannor',
     tier: 7, catchRate: 6, shape: 'quadruped',
     base: { hp:100,atk:70,def:80,spd:50,spc:50 },
     sprite: ['#8a6c48','#4a3620','#c8a878'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'thardin', homeDistricts: ['thardin'],
+    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
     codex: { class: 'Warrior', tc: 'Pseudoimmortal', archetype: 'CHIMERIC', ladder: 'Delta', rarity: 'Legendary' },
   };
   V7.vulcanax = {
-    flavor: "A crystal-typed Zyrex of the Andrannor region.",
-    name: 'VULCANAX', type: 'Crystal', type2: null, type3: null, region: 'Andrannor',
+    flavor: "A crystal-typed Zyrex of the Korathen region.",
+    name: 'VULCANAX', type: 'Crystal', type2: null, type3: null, region: 'Korathen',
     tier: 3, catchRate: 40, shape: 'shell',
     base: { hp:90,atk:60,def:100,spd:40,spc:60 },
     sprite: ['#8ba0d8','#2a3660','#c8d8ff'],
     moves: [],
     evolveTo: null, evolveLv: null,
-    primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
+    primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Beta', rarity: 'Rare' },
   };
   V7.vulkarmor = {
@@ -1726,47 +1726,42 @@
   window.V7_STAGING.pool = {
     malezor: [
       { id: 'aetherwing', tier: 1, lv: 12 },
+      { id: 'aurarat', tier: 1, lv: 12 },
       { id: 'aurokine', tier: 1, lv: 12 },
-      { id: 'chronocrow', tier: 1, lv: 12 },
+      { id: 'barkchitter', tier: 1, lv: 12 },
       { id: 'cinderant', tier: 1, lv: 12 },
       { id: 'dunechitter', tier: 1, lv: 12 },
       { id: 'dunestinger', tier: 1, lv: 12 },
       { id: 'frostwisp', tier: 1, lv: 12 },
       { id: 'otterlin', tier: 1, lv: 12 },
-      { id: 'pebblequil', tier: 1, lv: 12 },
       { id: 'sandskitter', tier: 1, lv: 12 },
-      { id: 'sparkbud', tier: 1, lv: 12 },
       { id: 'sunhoop', tier: 1, lv: 12 },
       { id: 'torchpuff', tier: 1, lv: 12 },
       { id: 'verdanix', tier: 1, lv: 12 },
       { id: 'vipercrow', tier: 1, lv: 12 },
       { id: 'volitimite', tier: 1, lv: 12 },
       { id: 'vulkarmor', tier: 1, lv: 12 },
-      { id: 'frostphen', tier: 2, lv: 15 },
-      { id: 'gearbyte', tier: 2, lv: 15 },
-      { id: 'levanium', tier: 2, lv: 15 },
-      { id: 'neuromoo', tier: 2, lv: 15 },
-      { id: 'rustbyte', tier: 2, lv: 15 },
       { id: 'rakoron', tier: 8, lv: 15 },
     ],
     zarvane: [
-      { id: 'aurarat', tier: 1, lv: 12 },
-      { id: 'barkchitter', tier: 1, lv: 12 },
-      { id: 'flarewisp', tier: 1, lv: 12 },
-      { id: 'gravemite', tier: 1, lv: 12 },
+      { id: 'bastonshell', tier: 2, lv: 25 },
       { id: 'blazonon', tier: 2, lv: 25 },
+      { id: 'bogarion', tier: 2, lv: 25 },
       { id: 'bonemaw', tier: 2, lv: 25 },
       { id: 'chameleor', tier: 2, lv: 25 },
+      { id: 'cinderbeetle', tier: 2, lv: 25 },
       { id: 'cindercrown', tier: 2, lv: 25 },
+      { id: 'dredgill', tier: 2, lv: 25 },
       { id: 'duskgrave', tier: 2, lv: 25 },
+      { id: 'dustmanecrane', tier: 2, lv: 25 },
       { id: 'ferrophix', tier: 2, lv: 25 },
       { id: 'flarepaw', tier: 2, lv: 25 },
       { id: 'gravemourn', tier: 2, lv: 25 },
       { id: 'impyxid', tier: 2, lv: 25 },
+      { id: 'mantisaris', tier: 2, lv: 25 },
       { id: 'pyrocarapax', tier: 2, lv: 25 },
       { id: 'salaris', tier: 2, lv: 25 },
       { id: 'silkora', tier: 2, lv: 25 },
-      { id: 'steelden', tier: 2, lv: 25 },
       { id: 'vampella', tier: 2, lv: 25 },
       { id: 'veridrax', tier: 2, lv: 25 },
       { id: 'voltibex', tier: 2, lv: 25 },
@@ -1774,52 +1769,30 @@
       { id: 'ivirium', tier: 8, lv: 25 },
     ],
     andrannor: [
-      { id: 'abyssiq', tier: 2, lv: 25 },
-      { id: 'bastonshell', tier: 2, lv: 25 },
-      { id: 'bogarion', tier: 2, lv: 25 },
+      { id: 'sparkbud', tier: 1, lv: 25 },
       { id: 'buzzolt', tier: 2, lv: 25 },
-      { id: 'cinderbeetle', tier: 2, lv: 25 },
-      { id: 'dredgill', tier: 2, lv: 25 },
-      { id: 'dustmanecrane', tier: 2, lv: 25 },
       { id: 'glaciogre', tier: 2, lv: 25 },
       { id: 'grimhog', tier: 2, lv: 25 },
-      { id: 'mantisaris', tier: 2, lv: 25 },
       { id: 'noxiclaw', tier: 2, lv: 25 },
       { id: 'riftipple', tier: 2, lv: 25 },
       { id: 'saburrow', tier: 2, lv: 25 },
       { id: 'spargus', tier: 2, lv: 25 },
       { id: 'terralith', tier: 2, lv: 25 },
-      { id: 'astravyx', tier: 3, lv: 35 },
-      { id: 'feliux', tier: 3, lv: 35 },
-      { id: 'gravelor', tier: 3, lv: 35 },
-      { id: 'hopbeam', tier: 3, lv: 35 },
-      { id: 'irondrake', tier: 3, lv: 35 },
-      { id: 'mealux', tier: 3, lv: 35 },
-      { id: 'mutamech', tier: 3, lv: 35 },
-      { id: 'noctron', tier: 3, lv: 35 },
-      { id: 'sigilmor', tier: 3, lv: 35 },
-      { id: 'smogrim', tier: 3, lv: 35 },
-      { id: 'titanova', tier: 3, lv: 35 },
-      { id: 'veylith', tier: 3, lv: 35 },
-      { id: 'voiden', tier: 3, lv: 35 },
-      { id: 'vulcanax', tier: 3, lv: 35 },
+      { id: 'grevotor', tier: 4, lv: 35 },
+      { id: 'strixel', tier: 5, lv: 35 },
+      { id: 'voltyran', tier: 7, lv: 35 },
       { id: 'mutaryn', tier: 8, lv: 35 },
     ],
     veridan: [
       { id: 'animarion', tier: 3, lv: 37 },
       { id: 'apexaur', tier: 3, lv: 37 },
       { id: 'auramantle', tier: 3, lv: 37 },
-      { id: 'cerebrion', tier: 3, lv: 37 },
       { id: 'cindercur', tier: 3, lv: 37 },
-      { id: 'cryptovex', tier: 3, lv: 37 },
       { id: 'drakaryx', tier: 3, lv: 37 },
-      { id: 'embermoth', tier: 3, lv: 37 },
-      { id: 'emberuk', tier: 3, lv: 37 },
       { id: 'floravex', tier: 3, lv: 37 },
       { id: 'florlyan', tier: 3, lv: 37 },
       { id: 'glaucivor', tier: 3, lv: 37 },
       { id: 'iguanax', tier: 3, lv: 37 },
-      { id: 'jetron', tier: 3, lv: 37 },
       { id: 'luminacor', tier: 3, lv: 37 },
       { id: 'luxquid', tier: 3, lv: 37 },
       { id: 'lyncora', tier: 3, lv: 37 },
@@ -1841,63 +1814,90 @@
       { id: 'emeralix', tier: 8, lv: 45 },
     ],
     netharion: [
-      { id: 'abyssarach', tier: 4, lv: 50 },
+      { id: 'abyssiq', tier: 2, lv: 45 },
+      { id: 'smogrim', tier: 3, lv: 45 },
       { id: 'arcemur', tier: 4, lv: 50 },
       { id: 'auralux', tier: 4, lv: 50 },
       { id: 'boreursa', tier: 4, lv: 50 },
       { id: 'crycarys', tier: 4, lv: 50 },
-      { id: 'embercrest', tier: 4, lv: 50 },
-      { id: 'gemorid', tier: 4, lv: 50 },
       { id: 'graveskull', tier: 4, lv: 50 },
-      { id: 'grevotor', tier: 4, lv: 50 },
       { id: 'solvarion', tier: 4, lv: 50 },
+      { id: 'phantuar', tier: 5, lv: 55 },
       { id: 'eurakeon', tier: 8, lv: 55 },
       { id: 'omegoran', tier: 8, lv: 55 },
     ],
     vorashil: [
+      { id: 'abyssarach', tier: 4, lv: 55 },
       { id: 'avianex', tier: 5, lv: 62 },
       { id: 'canythra', tier: 5, lv: 62 },
       { id: 'devormor', tier: 5, lv: 62 },
       { id: 'dracaryze', tier: 5, lv: 62 },
-      { id: 'elzoran', tier: 5, lv: 62 },
       { id: 'glaciobolt', tier: 5, lv: 62 },
       { id: 'grizzigor', tier: 5, lv: 62 },
+      { id: 'nullis', tier: 5, lv: 62 },
       { id: 'robotryx', tier: 5, lv: 62 },
       { id: 'royalden', tier: 5, lv: 62 },
       { id: 'serperyx', tier: 5, lv: 62 },
-      { id: 'solcryst', tier: 5, lv: 62 },
-      { id: 'strixel', tier: 5, lv: 62 },
+      { id: 'sharkfin', tier: 5, lv: 62 },
       { id: 'talenko', tier: 5, lv: 62 },
       { id: 'azurel', tier: 8, lv: 65 },
     ],
     xilnar: [
-      { id: 'astralape', tier: 5, lv: 62 },
-      { id: 'gryphycore', tier: 5, lv: 62 },
-      { id: 'nullis', tier: 5, lv: 62 },
-      { id: 'phantuar', tier: 5, lv: 62 },
-      { id: 'sharkfin', tier: 5, lv: 62 },
+      { id: 'pebblequil', tier: 1, lv: 65 },
+      { id: 'frostphen', tier: 2, lv: 65 },
+      { id: 'levanium', tier: 2, lv: 65 },
+      { id: 'cerebrion', tier: 3, lv: 65 },
+      { id: 'emberuk', tier: 3, lv: 65 },
+      { id: 'embercrest', tier: 4, lv: 65 },
+      { id: 'astralape', tier: 5, lv: 65 },
+      { id: 'gryphycore', tier: 5, lv: 65 },
       { id: 'petragryff', tier: 6, lv: 75 },
+      { id: 'solaryx', tier: 6, lv: 75 },
+      { id: 'tonitrex', tier: 6, lv: 75 },
       { id: 'vitricon', tier: 6, lv: 75 },
       { id: 'obsidius', tier: 8, lv: 75 },
     ],
     baelgor: [
+      { id: 'flarewisp', tier: 1, lv: 75 },
+      { id: 'gravemite', tier: 1, lv: 75 },
+      { id: 'embermoth', tier: 3, lv: 75 },
+      { id: 'irondrake', tier: 3, lv: 75 },
+      { id: 'noctron', tier: 3, lv: 75 },
       { id: 'phrenetic', tier: 6, lv: 75 },
       { id: 'skyrathon', tier: 6, lv: 75 },
-      { id: 'solaryx', tier: 6, lv: 75 },
       { id: 'titantusk', tier: 6, lv: 75 },
-      { id: 'tonitrex', tier: 6, lv: 75 },
       { id: 'vengrizz', tier: 6, lv: 75 },
+      { id: 'celestryx', tier: 7, lv: 85 },
       { id: 'oraculi', tier: 7, lv: 85 },
+      { id: 'voltigrax', tier: 7, lv: 85 },
       { id: 'ambrevon', tier: 8, lv: 85 },
     ],
     thardin: [
-      { id: 'celestryx', tier: 7, lv: 87 },
+      { id: 'gearbyte', tier: 2, lv: 85 },
+      { id: 'neuromoo', tier: 2, lv: 85 },
+      { id: 'rustbyte', tier: 2, lv: 85 },
+      { id: 'steelden', tier: 2, lv: 85 },
+      { id: 'cryptovex', tier: 3, lv: 85 },
+      { id: 'jetron', tier: 3, lv: 85 },
+      { id: 'titanova', tier: 3, lv: 85 },
+      { id: 'voiden', tier: 3, lv: 85 },
+      { id: 'gemorid', tier: 4, lv: 85 },
+      { id: 'elzoran', tier: 5, lv: 85 },
       { id: 'inferleon', tier: 7, lv: 87 },
-      { id: 'voltigrax', tier: 7, lv: 87 },
-      { id: 'voltyran', tier: 7, lv: 87 },
-      { id: 'oathane', tier: 8, lv: 92 },
+      { id: 'oathane', tier: 8, lv: 95 },
     ],
     korathen: [
+      { id: 'chronocrow', tier: 1, lv: 95 },
+      { id: 'astravyx', tier: 3, lv: 95 },
+      { id: 'feliux', tier: 3, lv: 95 },
+      { id: 'gravelor', tier: 3, lv: 95 },
+      { id: 'hopbeam', tier: 3, lv: 95 },
+      { id: 'mealux', tier: 3, lv: 95 },
+      { id: 'mutamech', tier: 3, lv: 95 },
+      { id: 'sigilmor', tier: 3, lv: 95 },
+      { id: 'veylith', tier: 3, lv: 95 },
+      { id: 'vulcanax', tier: 3, lv: 95 },
+      { id: 'solcryst', tier: 5, lv: 95 },
       { id: 'oatheus', tier: 8, lv: 100 },
     ],
   };

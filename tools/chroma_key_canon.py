@@ -48,3 +48,29 @@ def tight_crop(im):
     if not len(ys): return im
     y0,y1,x0,x1 = ys.min(), ys.max()+1, xs.min(), xs.max()+1
     return Image.fromarray(arr[y0:y1, x0:x1], 'RGBA')
+
+def resize_and_key(pil, target, chroma_rgb=(255, 0, 255)):
+    """Chroma-safe downscale.
+
+    LANCZOS on an already-keyed RGBA image lets the underlying transparent
+    magenta pixels bleed BACK into the visible sprite as pink-purple ghosts
+    (Pillow does not premultiply alpha).  The safe pipeline is:
+      1) pre-key + tight-crop the original
+      2) composite the sprite onto the SOLID chroma color
+      3) downscale that solid RGB image (no alpha bleed possible)
+      4) re-key the downscaled image against the same chroma
+      5) direct-kill any enclosed magenta pocket the flood couldn't reach
+
+    Use this any time an art asset needs to be resized before it ships.
+    """
+    prekey = tight_crop(flood_key(pil.convert('RGB')))
+    w0, h0 = prekey.size
+    bg = Image.new('RGB', (w0, h0), chroma_rgb)
+    bg.paste(prekey, mask=prekey.split()[-1])
+    small = bg.resize(target, Image.LANCZOS)
+    final = flood_key(small)
+    arr = np.array(final)
+    r, g, b, al = arr[..., 0], arr[..., 1], arr[..., 2], arr[..., 3]
+    core = is_chroma(r, g, b) & (al > 0)
+    arr[core] = [0, 0, 0, 0]
+    return Image.fromarray(arr, 'RGBA')

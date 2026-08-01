@@ -85,13 +85,19 @@
       min-height: 100vh;
       position: relative;
     }
-    /* V2.33.5 — On portrait mobile, anchor the stage to the top so wasted
-       vertical space collapses down under the game (where the controller
-       sits). Also honors the notch via safe-area padding. */
+    /* ★ 2026-07-31 · MOBILE PORTRAIT LAYOUT REWORK.  Reserve bottom band
+       for the touch controller and let the stage fill the remainder at max
+       width, letterboxed 20:14.  No more wasted vertical gap. */
     @media (max-width: 900px) and (orientation: portrait) {
       body {
         justify-content: flex-start;
-        padding-top: max(12px, env(safe-area-inset-top, 0px));
+        padding-top: max(8px, env(safe-area-inset-top, 0px));
+        padding-bottom: min(34dvh, 320px);
+      }
+      .stage {
+        max-height: calc(100dvh - min(34dvh, 320px) - max(8px, env(safe-area-inset-top, 0px)));
+        width:  min(100vw, calc((100dvh - min(34dvh, 320px)) * 20 / 14));
+        height: min(calc(100dvh - min(34dvh, 320px)), calc(100vw * 14 / 20));
       }
     }
 
@@ -8086,9 +8092,9 @@ const HOUSE_MAP = [
   '=.t.................=', // 3  · t kitchen dining table
   '=...................=', // 4
   '=.........cn........=', // 5  · c couch (faces fireplace) + n LAMP TABLE at right end
-  '=...................=', // 6
+  '=................@..=', // 6  · @ ancient statue · placed to the LEFT of the staircase (col 17)
   '=....m..............=', // 7  · Mom (between kitchen and couch, on entry path)
-  '=&................@.=', // 8  · & tall plant on west wall  ·  @ ancient statue on east wall
+  '=&..................=', // 8  · & tall plant on west wall
   '=...................=', // 9
   '=...................=', // 10
   '=...................=', // 11
@@ -8753,7 +8759,11 @@ BETA_HOME_FURNITURE.stove.src      = 'assets/rp7/beta_assets/furniture/stove.png
 BETA_HOME_FURNITURE.dining.src     = 'assets/rp7/beta_assets/furniture/island_stools.png';
 BETA_HOME_FURNITURE.desk.src       = 'assets/rp7/beta_assets/bedroom/bed03.png';
 BETA_HOME_FURNITURE.computer.src   = 'assets/rp7/beta_assets/bedroom/bed00.png';
-BETA_HOME_FURNITURE.experiment.src = 'assets/rp7/beta_assets/bedroom/bed05.png';
+// ★ 2026-07-31 · Player's science-project desk (basement bedroom 'j' tile).
+// Elaborate alchemy-lab bench: notebook of diagrams, two beakers (green/purple),
+// microscope, battery + jumper cables, safety goggles, headphones, screwdriver,
+// pencil cup.  Framed as the player's version of Dad's workbench.
+BETA_HOME_FURNITURE.experiment.src = 'assets/rp7/beta_assets/bedroom/player_science_project.png';
 // ★ 2026-07-29 · Dad's science bench upgraded to the elaborate alchemy-lab
 // asset (beakers, microscope, tome, scales, magnifier).  Same 'y' tile char
 // still fires interactAurabeastWorkbench() — the pre-starter Aurabeast gift
@@ -11698,47 +11708,35 @@ function computeHomeDistricts(sp) {
     sp.isHumanoid = types.some(t => HUMAN_TYPES.has(t));
   }
 })();
+// ★ 2026-07-31 · HARD district level bands (see rp7b.html for canon).
+const V7_DISTRICT_BAND = {
+  malezor:[5,15], zarvane:[15,25], andrannor:[25,35], veridan:[35,45],
+  netharion:[45,55], vorashil:[55,65], xilnar:[65,75], baelgor:[75,85],
+  thardin:[85,95], korathen:[95,100],
+};
 function districtWildPool(mapId) {
-  // ★ 2026-07-30 · V7 ROSTER PATH.  If the v7 pool is loaded, use it as the
-  // source-of-truth for wild encounters.  Pokemon-style spawn weighting:
-  //  · native-district species: FULL weight (10× each)
-  //  · adjacent districts: 40% weight (4× each) — natural spillover
-  //  · early T1/T2 commons appear anywhere at 25% weight (Pidgey/Rattata rule)
-  //  · high-tier finals (T5+) locked to late districts (no backward spill)
-  // Level = each species' baked wild_level ±3.
-  if (window.V7_DISTRICT_POOL && DISTRICT_META[mapId]) {
+  // ★ 2026-07-31 · V7 ROSTER PATH · HARD district bands.
+  if (window.V7_DISTRICT_POOL && DISTRICT_META[mapId] && V7_DISTRICT_BAND[mapId]) {
     const DIST_ORDER = ['malezor','zarvane','andrannor','veridan','netharion',
                         'vorashil','xilnar','baelgor','thardin','korathen'];
     const myIdx = DIST_ORDER.indexOf(mapId);
     if (myIdx >= 0) {
+      const [bandLo, bandHi] = V7_DISTRICT_BAND[mapId];
       const native = window.V7_DISTRICT_POOL[mapId] || [];
       const ids = [];
-      let loSum = 0, hiSum = 0, count = 0;
-      // 1) Native · full weight
-      for (const s of native) {
-        for (let i = 0; i < 10; i++) ids.push(s.id);
-        loSum += Math.max(1, s.lv - 3);
-        hiSum += Math.min(100, s.lv + 3);
-        count++;
-      }
-      // 2) Adjacent-district spill · 40% weight
+      for (const s of native) for (let i = 0; i < 10; i++) ids.push(s.id);
       for (const nIdx of [myIdx - 1, myIdx + 1]) {
         if (nIdx < 0 || nIdx >= DIST_ORDER.length) continue;
         const adj = window.V7_DISTRICT_POOL[DIST_ORDER[nIdx]] || [];
-        for (const s of adj) for (let i = 0; i < 4; i++) ids.push(s.id);
+        for (const s of adj) for (let i = 0; i < 3; i++) ids.push(s.id);
       }
-      // 3) Global T1/T2 commons · 25% weight (Pidgey/Rattata rule)
       for (let i = 0; i < DIST_ORDER.length; i++) {
-        if (Math.abs(i - myIdx) <= 1) continue;   // already covered
+        if (Math.abs(i - myIdx) <= 1) continue;
         const pool = window.V7_DISTRICT_POOL[DIST_ORDER[i]] || [];
-        for (const s of pool) if (s.tier <= 2) for (let j = 0; j < 2; j++) ids.push(s.id);
+        for (const s of pool) if (s.tier <= 2) ids.push(s.id);
       }
       const filtered = ids.filter(id => SPECIES[id]);
-      if (filtered.length) {
-        const lo = count ? Math.round(loSum / count) : 1;
-        const hi = count ? Math.round(hiSum / count) : 5;
-        return { ids: filtered, lvRange: [lo, hi] };
-      }
+      if (filtered.length) return { ids: filtered, lvRange: [bandLo, bandHi] };
     }
   }
   // ★ PART 2 wild pools (2026-07-17) — Old Conquest / New Conquest /
@@ -12942,6 +12940,27 @@ function walkable(x, y) {
   //  z posters, k computer, j experiment stay blockers too.
   //  'U' up-stairs / 'w' down-stairs are WALKABLE — stepping onto them triggers travel.
   if ('#TWMSBh=btmdkjrcFeLvaAIy~Z@l+*&^?on'.includes(t)) return false;  // V2.43 L, V2.47 v, V2.74 a=hall decor, V3.0 A=Seer HQ wall, V3.11.3 I=Town Hall wall, V3.15.1 y=Dad's workbench, V3.16.4 ~ =fireplace, V3.16.6 Z=radio receiver, V3.17.6 @=ancient statue, V3.17.8 l=Psychosyd's signed red guitar (V3.17.9 removed 'z' poster tile) · V3.17.30 + = Gemlord Sanctum pillar, * = Gemlord throne · V3.17.34 & = Mom's plant · V3.17.41 ^ = Broadcast Tower · 2026-07-23 ? = Ancient Fossil Skull (Malezor)
+  // ★ 2026-07-31 · WING COLLISION for wide bottom-anchored furniture.
+  // Every anchor draws a sprite noticeably wider than 1 tile — anchor blocks
+  // the center, wings block the adjacent tiles so the sprite is a solid
+  // footprint (no phase-through).  Widths from BETA_HOME_FURNITURE assets:
+  //   'j' science project   96×48  = 3 tiles wide  · 1 wing each side
+  //   'y' Dad's workbench   96×64  = 3 tiles wide  · 1 wing each side
+  //   'c' couch             64×32  = 2 tiles wide  · 1 wing each side
+  // 't' at parents_bedroom is Dad's desk (~1.9 tiles) and gets wings ONLY
+  // in that map — 't' in home_interior is the small dining island (~1.2
+  // tiles) and stays a single-tile blocker.
+  const _WIDE_FURN_WINGS = ['j','y','c'];
+  const _WIDE_FURN_MAP_WINGS = { parents_bedroom: ['t'] };
+  for (const _wch of _WIDE_FURN_WINGS) {
+    if (tileAt(x - 1, y) === _wch || tileAt(x + 1, y) === _wch) return false;
+  }
+  {
+    const _mw = _WIDE_FURN_MAP_WINGS[game.player.mapId];
+    if (_mw) for (const _wch of _mw) {
+      if (tileAt(x - 1, y) === _wch || tileAt(x + 1, y) === _wch) return false;
+    }
+  }
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)
   if (isQuietChildAt(game.player.mapId, x, y)) return false;
   // ★ 2026-07-29 · Elzebub-egg (Forgotten Homunculus) is now a solid object —
@@ -18746,6 +18765,8 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
   // the pad was detected.  Also could double-register on hot reload.
   if (!navigator.getGamepads || window.__rp7GamepadController) return;
   window.__rp7GamepadController = true;
+  // ★ 2026-07-31 · Skip the whole status-pill on touch devices.
+  const _isTouch = window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
   const status = document.createElement('div');
   status.id = 'gamepad-status';
@@ -18758,7 +18779,7 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
     'pointer-events:none', 'opacity:.78'
   ].join(';');
   status.textContent = 'CONTROLLER · PRESS A BUTTON';
-  document.body.appendChild(status);
+  if (!_isTouch) document.body.appendChild(status);   // hide on touch devices
 
   let activeIndex = null;
   let previousButtons = [];
@@ -19959,6 +19980,22 @@ function tryInteract() {
     setQuietChildFacing(game.player.mapId, tx, ty, opp[game.player.dir] || 'down');
     handleQuietChildInteract();
     return;
+  }
+  // ★ 2026-07-31 · WING-TILE INTERACT REDIRECT.  If the faced tile is a
+  // wing slot for wide bottom-anchored furniture ('j','y','c', + 't' in
+  // parents_bedroom), retarget the interact to the anchor.  Keep the char
+  // set in sync with the walkable() wing-collision block above.
+  {
+    const _wingCh = tileAt(tx, ty);
+    if (_wingCh === '.') {
+      const _INTERACT_WING_CHARS = ['j','y','c'];
+      const _INTERACT_MAP_CHARS = { parents_bedroom: ['t'] };
+      const _pool = _INTERACT_WING_CHARS.concat(_INTERACT_MAP_CHARS[game.player.mapId] || []);
+      const _left  = tileAt(tx - 1, ty);
+      const _right = tileAt(tx + 1, ty);
+      if      (_pool.includes(_left))  { tx = tx - 1; }
+      else if (_pool.includes(_right)) { tx = tx + 1; }
+    }
   }
   const t = tileAt(tx, ty);
   // ★ Any NPC you interact with TURNS to face you (they never walk), and is
@@ -24084,12 +24121,13 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
       //   - Hall Rizers = 6 at top of band (handled in the R branch above)
       //   - Part 2 = 6 mixed at 90-100
       //   Level bands = district# × 10 (Malezor max Lv 10 → Korathen max Lv 100).
+      // ★ 2026-07-31 · MIN 3 / MAX 6 party floor for every trainer type.
       let chainSize;
-      if (inPart2)           chainSize = (typeof MAX_PARTY !== 'undefined' ? MAX_PARTY : 6);
-      else if (isCommander)  chainSize = 4 + Math.floor(Math.random() * 2);   // 4 or 5
-      else if (inMain)       chainSize = Math.max(2, Math.min(3, 1 + Math.floor(num / 5)));    // was 1 warm-up → 2-3
-      else if (inBasement)   chainSize = Math.max(3, Math.min(4, 2 + Math.floor(num / 5)));    // was 2 → 3-4
-      else                   chainSize = Math.max(2, Math.min(4, 2 + Math.floor(num / 4)));    // was 1-3 → 2-4
+      if (inPart2)           chainSize = 6;
+      else if (isCommander)  chainSize = 5 + Math.floor(Math.random() * 2);   // 5 or 6
+      else if (inMain)       chainSize = 3 + Math.floor(Math.random() * 2);   // 3 or 4
+      else if (inBasement)   chainSize = 4 + Math.floor(Math.random() * 2);   // 4 or 5
+      else                   chainSize = 3 + Math.floor(Math.random() * 3);   // 3-5
       const [lo, hi] = pool.lvRange;
       const mid = Math.max(lo, Math.round((lo + hi) / 2));
       chainSpecs = [];
@@ -24107,6 +24145,27 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
         else if (inMain)      lv = Math.max(1, lo + Math.floor(Math.random() * (mid - lo + 1)));
         else if (inBasement)  lv = Math.max(1, mid + Math.floor(Math.random() * Math.max(1, hi - mid)));
         else                  lv = Math.max(1, mid + Math.floor(Math.random() * (hi - mid + 1)));
+        chainSpecs.push([id, lv]);
+      }
+    }
+  }
+  // ★ 2026-07-31 · NAMED DISTRICT TRAINERS (Y=Yara, J=Jax, Q=Quinn) —
+  // rebuild from district wild pool, min 3 / max 6 party at top of band.
+  if (tileChar === 'Y' || tileChar === 'J' || tileChar === 'Q') {
+    const pool = districtWildPool(game.player.mapId);
+    if (pool && pool.ids && pool.ids.length && pool.lvRange) {
+      const [lo, hi] = pool.lvRange;
+      const mid = Math.max(lo, Math.round((lo + hi) / 2));
+      let chainSize;
+      if      (tileChar === 'Y') chainSize = 4;
+      else if (tileChar === 'J') chainSize = 5;
+      else                       chainSize = 3;
+      chainSpecs = [];
+      for (let i = 0; i < chainSize; i++) {
+        const id = pool.ids[Math.floor(Math.random() * pool.ids.length)];
+        let lv;
+        if (tileChar === 'Q') lv = Math.max(1, mid + Math.floor(Math.random() * Math.max(1, hi - mid + 1)));
+        else                  lv = Math.max(1, hi - Math.floor(Math.random() * 2));
         chainSpecs.push([id, lv]);
       }
     }
@@ -27974,16 +28033,26 @@ menuBackdrop.addEventListener('click', () => {
        (title, character creator, starter picker, prologue) can breathe. */
     .mob-root.hidden .mob-btn, .mob-root.hidden .mob-pad, .mob-root.hidden .mob-pill { display: none; }
 
-    /* Portrait layout */
-    .mob-root.portrait .mob-deck { position: absolute; left: 0; right: 0; bottom: 0;
-                                    height: min(38dvh, 340px); background: linear-gradient(to bottom, rgba(15,10,28,0) 0%, rgba(15,10,28,0.7) 40%);
-                                    pointer-events: none; }
-    .mob-root.portrait .mob-pad         { left: max(16px, calc(env(safe-area-inset-left, 0px) + 4vw)); bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); width: max(144px, min(40vw, 24dvh, 210px)); aspect-ratio: 1 / 1; }
-    .mob-root.portrait .mob-btn.b-A     { right: max(28px, calc(env(safe-area-inset-right, 0px) + 8vw)); bottom: calc(env(safe-area-inset-bottom, 0px) + 154px); width: 64px; height: 64px; border-radius: 999px; font-size: 22px; }
-    .mob-root.portrait .mob-btn.b-B     { right: max(82px, calc(env(safe-area-inset-right, 0px) + 20vw)); bottom: calc(env(safe-area-inset-bottom, 0px) + 74px); width: 64px; height: 64px; border-radius: 999px; font-size: 22px; }
-    .mob-root.portrait .mob-pill.p-MENU { left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); }
-    .mob-root.portrait .mob-pill.p-SELECT { left: 29%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); }
-    .mob-root.portrait .mob-pill.p-START  { right: 29%; transform: translateX(50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); }
+    /* ★ 2026-07-31 · PORTRAIT LAYOUT REWORK · matches the .stage max-height
+       reserve of min(34dvh, 320px).  Controller sits flush against stage. */
+    .mob-root.portrait .mob-deck        { position: absolute; left: 0; right: 0; bottom: 0;
+                                          height: min(34dvh, 320px);
+                                          background: linear-gradient(to bottom, rgba(15,10,28,0.35) 0%, rgba(15,10,28,0.85) 40%);
+                                          pointer-events: none;
+                                          border-top: 1px solid rgba(232,200,120,0.25); }
+    .mob-root.portrait .mob-pad         { left: max(16px, calc(env(safe-area-inset-left, 0px) + 4vw));
+                                          bottom: calc(env(safe-area-inset-bottom, 0px) + 52px);
+                                          width: min(38vw, 22dvh, 200px);
+                                          aspect-ratio: 1 / 1; }
+    .mob-root.portrait .mob-btn.b-A     { right: max(26px, calc(env(safe-area-inset-right, 0px) + 7vw));
+                                          bottom: calc(env(safe-area-inset-bottom, 0px) + 130px);
+                                          width: 60px; height: 60px; border-radius: 999px; font-size: 22px; }
+    .mob-root.portrait .mob-btn.b-B     { right: max(82px, calc(env(safe-area-inset-right, 0px) + 20vw));
+                                          bottom: calc(env(safe-area-inset-bottom, 0px) + 58px);
+                                          width: 60px; height: 60px; border-radius: 999px; font-size: 22px; }
+    .mob-root.portrait .mob-pill.p-MENU   { left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); }
+    .mob-root.portrait .mob-pill.p-SELECT { left: 25%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); }
+    .mob-root.portrait .mob-pill.p-START  { right: 25%; transform: translateX(50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); }
 
     /* V2.33.4 — Landscape layout uses vmin so buttons don't shrink in short-height view.
        D-pad bottom-left, A/B stacked bottom-right, MENU top-center, SELECT + START on

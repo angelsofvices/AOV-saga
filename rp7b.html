@@ -8798,6 +8798,10 @@ const MORI_SPRITE = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 80 };
 MORI_SPRITE.sheet.src = 'assets/rp7/beta_assets/enemies/mori_native.png';
 const MORI_HURT_SPRITE = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 80, frameCount: 3 };
 MORI_HURT_SPRITE.sheet.src = 'assets/rp7/beta_assets/enemies/mori_hurt_native.png';
+// ★ 2026-08-02 · MORI ATTACK anim · 4 dirs × 4 frames (windup / pre-strike /
+// STRIKE / recovery).  Damage applied on frame 2 if player still adjacent.
+const MORI_ATTACK_SPRITE = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 80, frameCount: 4 };
+MORI_ATTACK_SPRITE.sheet.src = 'assets/rp7/beta_assets/enemies/mori_attack_native.png';
 
 const _imgOk = (i) => !!(i && i.complete && i.naturalWidth);
 
@@ -8986,6 +8990,13 @@ function drawMoriEnemies(cam) {
       const frameIdx = Math.min(2, Math.floor((260 - e.hurtMs) / 90));
       ctx.drawImage(HS.sheet, frameIdx * HS.cellW, rowIdx * HS.cellH, HS.cellW, HS.cellH,
         dx, dy, HS.cellW, HS.cellH);
+    } else if (e.ai === 'attack' && _imgOk(MORI_ATTACK_SPRITE.sheet)) {
+      // ★ 2026-08-02 · ATTACK anim · 4 frames per direction, timing driven
+      // by attackMs / attackFrame set in tickEnemies (fluid, no snap).
+      const AS = MORI_ATTACK_SPRITE;
+      const col = Math.min(3, Math.max(0, e.attackFrame | 0));
+      ctx.drawImage(AS.sheet, col * AS.cellW, rowIdx * AS.cellH, AS.cellW, AS.cellH,
+        dx, dy, AS.cellW, AS.cellH);
     } else if (_imgOk(S.sheet)) {
       // Walk · ping-pong across cols 0/1/2
       const walkOrder = [0, 1, 2, 1];
@@ -24211,11 +24222,18 @@ function isMounted() {
 //   Patrol → contact damage → dissolve on death → 2-min dust pile.
 // ============================================================================
 const MORI_MAX_HP    = 12;
-const MORI_TOUCH_DMG = 3;
-const MORI_STEP_MS   = 700;   // patrol tick
-const MORI_DAMAGE_LIGHT = 3;  // player Square swing dmg vs mori
-const MORI_DAMAGE_HEAVY = 6;  // player Triangle swing dmg vs mori
-const DUST_PERSIST_MS   = 120000;  // 2 min
+const MORI_TOUCH_DMG = 3;         // damage dealt by attack STRIKE frame
+const MORI_STEP_MS   = 700;       // patrol tick
+const MORI_CHASE_STEP_MS = 260;   // chase step (faster than patrol)
+const MORI_SIGHT_TILES   = 5;     // detect radius (chebyshev)
+const MORI_ATTACK_RANGE  = 1;     // adjacent tile · 8-directional
+const MORI_ATTACK_MS     = 550;   // full swing duration (4 frames × ~140ms)
+const MORI_ATTACK_STRIKE_MS = 300; // damage dispensed at this point in the swing
+const MORI_ATTACK_CD_MS  = 400;   // recovery lockout after each swing
+const MORI_LOSE_FOCUS_MS = 2200;  // out-of-range this long → back to patrol
+const MORI_DAMAGE_LIGHT = 3;      // player Square swing dmg vs mori
+const MORI_DAMAGE_HEAVY = 6;      // player Triangle swing dmg vs mori
+const DUST_PERSIST_MS   = 120000; // 2 min
 
 // game.enemies keyed by mapId → array of {id, x, y, dir, hp, anchor, radius, aiState, aiMs, hurtMs, dying, dieMs, ...}
 function _enemyBucket(mapId) {
@@ -24245,6 +24263,13 @@ function spawnMori(mapId, x, y, opts) {
     aiMs: 0, animMs: 0, frame: 0,
     hurtMs: 0,     // >0 = playing hurt anim
     dying: false, dieMs: 0,
+    // ★ 2026-08-02 · AI state machine · patrol / chase / attack.
+    ai: 'patrol',            // patrol · chase · attack
+    attackMs: 0,             // >0 while playing attack anim
+    attackFrame: 0,          // current attack frame (0-3)
+    attackStruck: false,     // damage-once guard per swing
+    attackCd: 0,             // >0 = post-swing lockout
+    losePocketMs: 0,         // out-of-range accumulator for chase→patrol
   });
 }
 function seedMalezorWildmarch() {
@@ -24275,8 +24300,9 @@ function tickEnemies(dt) {
       continue;
     }
     if (e.hurtMs > 0) { e.hurtMs -= dt; }
+    if (e.attackCd > 0) { e.attackCd = Math.max(0, e.attackCd - dt); }
     // ★ 2026-08-02 · SMOOTH movement · lerp visual position toward logical
-    // tile over moveDurMs (~400ms per tile) instead of teleporting.
+    // tile over moveDurMs per tile instead of teleporting.
     if (e.moveMs > 0) {
       e.moveMs = Math.max(0, e.moveMs - dt);
       const t = 1 - (e.moveMs / e.moveDurMs);
@@ -24285,8 +24311,88 @@ function tickEnemies(dt) {
     } else {
       e.visX = e.x; e.visY = e.y;
     }
-    // Patrol · move toward random tile within radius every MORI_STEP_MS.
-    // Only step when previous move has fully resolved (moveMs === 0).
+    // ★ AI · sight check · chebyshev distance to player.
+    const distX = Math.abs(e.x - game.player.x);
+    const distY = Math.abs(e.y - game.player.y);
+    const cheby = Math.max(distX, distY);
+    const inSight = cheby <= MORI_SIGHT_TILES;
+    // ─── ATTACK STATE ────────────────────────────────────────────────
+    if (e.ai === 'attack') {
+      e.attackMs += dt;
+      const frameMs = MORI_ATTACK_MS / 4;
+      e.attackFrame = Math.min(3, Math.floor(e.attackMs / frameMs));
+      // Deal damage EXACTLY once when we cross the strike-frame threshold.
+      if (!e.attackStruck && e.attackMs >= MORI_ATTACK_STRIKE_MS) {
+        e.attackStruck = true;
+        const dxNow = Math.abs(e.x - game.player.x);
+        const dyNow = Math.abs(e.y - game.player.y);
+        if (Math.max(dxNow, dyNow) <= MORI_ATTACK_RANGE) {
+          const h = game.player.hurtState;
+          if (!h || !h.active) takeHitPlayer(MORI_TOUCH_DMG, 0, 0);
+        }
+      }
+      if (e.attackMs >= MORI_ATTACK_MS) {
+        // Swing complete · reset for next decision.
+        e.attackMs = 0; e.attackFrame = 0; e.attackStruck = false;
+        e.attackCd = MORI_ATTACK_CD_MS;
+        e.ai = inSight ? 'chase' : 'patrol';
+      }
+      continue;   // no movement during attack swing
+    }
+    // ─── CHASE STATE ─────────────────────────────────────────────────
+    if (e.ai === 'chase') {
+      if (!inSight) {
+        e.losePocketMs += dt;
+        if (e.losePocketMs >= MORI_LOSE_FOCUS_MS) {
+          e.ai = 'patrol';
+          e.losePocketMs = 0;
+        }
+      } else {
+        e.losePocketMs = 0;
+      }
+      // If adjacent → start attack (respect cooldown).
+      if (cheby <= MORI_ATTACK_RANGE && e.attackCd === 0 && e.moveMs === 0) {
+        e.dir = (distX > distY)
+          ? (game.player.x > e.x ? 'right' : 'left')
+          : (game.player.y > e.y ? 'down'  : 'up');
+        e.ai = 'attack';
+        e.attackMs = 0; e.attackFrame = 0; e.attackStruck = false;
+        continue;
+      }
+      // Chase step · move one tile toward player when previous move done.
+      e.aiMs += dt;
+      if (e.aiMs >= MORI_CHASE_STEP_MS && e.moveMs === 0) {
+        e.aiMs = 0;
+        // Prefer the axis with the larger delta so we approach diagonally.
+        let stepDx = 0, stepDy = 0;
+        if (distX >= distY && game.player.x !== e.x) stepDx = Math.sign(game.player.x - e.x);
+        else if (game.player.y !== e.y)              stepDy = Math.sign(game.player.y - e.y);
+        const nx = e.x + stepDx, ny = e.y + stepDy;
+        if (typeof tileAt === 'function') {
+          const t = tileAt(nx, ny);
+          const solid = '#=TWCLKtGmMpqUw?~ijycHxs'.includes(t);
+          const onPlayer = (nx === game.player.x && ny === game.player.y);
+          if (!solid && !onPlayer && (stepDx !== 0 || stepDy !== 0)) {
+            e.dir = stepDx > 0 ? 'right' : stepDx < 0 ? 'left' : stepDy > 0 ? 'down' : 'up';
+            e.srcX = e.x; e.srcY = e.y;
+            e.x = nx; e.y = ny;
+            e.moveMs = 300;   // faster than patrol for a hunted feel
+            e.moveDurMs = 300;
+          } else if (onPlayer) {
+            // Player IS the next tile → start swinging.
+            if (e.attackCd === 0) {
+              e.dir = stepDx > 0 ? 'right' : stepDx < 0 ? 'left' : stepDy > 0 ? 'down' : 'up';
+              e.ai = 'attack';
+              e.attackMs = 0; e.attackFrame = 0; e.attackStruck = false;
+            }
+          }
+        }
+      }
+      continue;
+    }
+    // ─── PATROL STATE ────────────────────────────────────────────────
+    // Auto-alert when player enters sight radius.
+    if (inSight) { e.ai = 'chase'; e.losePocketMs = 0; continue; }
     e.aiMs += dt;
     if (e.aiMs >= MORI_STEP_MS && e.moveMs === 0) {
       e.aiMs = 0;
@@ -24302,16 +24408,10 @@ function tickEnemies(dt) {
             e.dir = pick[0] > 0 ? 'right' : pick[0] < 0 ? 'left' : pick[1] > 0 ? 'down' : 'up';
             e.srcX = e.x; e.srcY = e.y;
             e.x = nx; e.y = ny;
-            e.moveMs = e.moveDurMs;
+            e.moveMs = 400; e.moveDurMs = 400;
           }
         }
       }
-    }
-    // Contact damage: same tile as player → damage.  Guarded by hurtState
-    // i-frames so mori-on-tile doesn't spam damage every frame.
-    if (e.x === game.player.x && e.y === game.player.y) {
-      const h = game.player.hurtState;
-      if (!h || !h.active) takeHitPlayer(MORI_TOUCH_DMG, 0, 0);
     }
   }
   // Purge dust older than 2 min.

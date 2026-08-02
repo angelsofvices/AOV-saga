@@ -152,6 +152,108 @@
       line-height: 1.4;
     }
 
+    /* ★ 2026-08-02 · WEAPON WHEEL · GTA-style radial overlay.
+       Hidden by default; JS toggles .open.  Slot count is dynamic (2-8
+       weapons); layout math done in JS.  Uses body coord space so it
+       covers the stage regardless of letterboxing. */
+    .weapon-wheel {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 50%, rgba(5,3,16,0.72) 0%, rgba(5,3,16,0.88) 60%, rgba(5,3,16,0.94) 100%);
+      z-index: 90000;
+      user-select: none;
+      opacity: 0;
+      transition: opacity 90ms ease-out;
+    }
+    .weapon-wheel.open {
+      display: flex;
+      opacity: 1;
+    }
+    .weapon-wheel .ww-ring {
+      position: absolute;
+      width: min(60vh, 60vw);
+      height: min(60vh, 60vw);
+      max-width: 520px; max-height: 520px;
+      pointer-events: none;
+      filter: drop-shadow(0 0 24px rgba(232, 200, 120, 0.28));
+    }
+    .weapon-wheel .ww-slots {
+      position: absolute;
+      width: min(60vh, 60vw);
+      height: min(60vh, 60vw);
+      max-width: 520px; max-height: 520px;
+      pointer-events: none;
+    }
+    .weapon-wheel .ww-slot {
+      position: absolute;
+      width: 96px; height: 96px;
+      margin: -48px 0 0 -48px;
+      display: flex;
+      align-items: center; justify-content: center;
+      flex-direction: column;
+      background: rgba(20, 12, 42, 0.72);
+      border: 2px solid rgba(232, 200, 120, 0.4);
+      border-radius: 14px;
+      color: var(--ivory);
+      font-family: 'VT323', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: transform 90ms ease-out, background 90ms ease-out, border-color 90ms ease-out;
+    }
+    .weapon-wheel .ww-slot img {
+      width: 56px; height: 56px;
+      image-rendering: pixelated;
+      pointer-events: none;
+    }
+    .weapon-wheel .ww-slot .ww-slot-label {
+      margin-top: 3px;
+      font-size: 0.62rem;
+      color: rgba(243,236,220,0.75);
+      max-width: 88px;
+      text-align: center;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .weapon-wheel .ww-slot.equipped {
+      border-color: rgba(232, 200, 120, 0.75);
+    }
+    .weapon-wheel .ww-slot.selected {
+      transform: scale(1.14);
+      background: rgba(56, 30, 12, 0.9);
+      border-color: var(--gold-bright, #ffd870);
+      box-shadow: 0 0 24px rgba(255, 216, 112, 0.55);
+    }
+    .weapon-wheel .ww-center {
+      position: relative;
+      z-index: 2;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+      padding: 12px 22px;
+      background: rgba(5, 3, 16, 0.72);
+      border: 1px solid rgba(232, 200, 120, 0.35);
+      border-radius: 12px;
+      color: var(--ivory);
+      font-family: 'VT323', monospace;
+      letter-spacing: 0.16em;
+      text-align: center;
+      min-width: 220px;
+    }
+    .weapon-wheel .ww-selected-name {
+      color: var(--gold-bright, #ffd870);
+      font-size: 1.15rem;
+      text-transform: uppercase;
+    }
+    .weapon-wheel .ww-selected-stats {
+      color: rgba(243,236,220,0.85);
+      font-size: 0.9rem;
+    }
+    .weapon-wheel .ww-hint {
+      color: rgba(232, 200, 120, 0.65);
+      font-size: 0.72rem;
+      margin-top: 4px;
+    }
+
     .stars {
       position: fixed; inset: 0; z-index: -1; pointer-events: none;
       background:
@@ -1894,6 +1996,21 @@
     <div class="rn-icon" aria-hidden="true"></div>
     <div class="rn-title">Rotate to Landscape</div>
     <div class="rn-sub">Rizing Powers of Zyraxis plays best on your side.  Turn your device to continue.</div>
+  </div>
+
+  <!-- ★ 2026-08-02 · WEAPON WHEEL · GTA-style radial overlay.
+       Hold L1 (or 'q' key) to open · left analog picks slot · release to
+       equip.  Tap L1 to cycle through owned weapons instead.  Populated on
+       open by openWeaponWheel() based on player.rizerWeapons.  Fists are
+       always slot 0. -->
+  <div class="weapon-wheel" id="weapon-wheel" role="dialog" aria-label="Weapon wheel" aria-hidden="true">
+    <svg class="ww-ring" viewBox="0 0 300 300" aria-hidden="true"></svg>
+    <div class="ww-slots" id="ww-slots"></div>
+    <div class="ww-center">
+      <div class="ww-selected-name" id="ww-selected-name">BARE FISTS</div>
+      <div class="ww-selected-stats" id="ww-selected-stats">□ 0 · △ 0</div>
+      <div class="ww-hint">L1 release to equip · ○ cancel</div>
+    </div>
   </div>
 
   <!-- ============ STAGE ============ -->
@@ -11882,6 +11999,24 @@ const V7_DISTRICT_BAND = {
   netharion:[45,55], vorashil:[55,65], xilnar:[65,75], baelgor:[75,85],
   thardin:[85,95], korathen:[95,100],
 };
+// ★ 2026-08-02 · GEMLORD LOCKDOWN · the ten Gemlords are strictly locked
+// inside their cave sanctums and only face-able as scripted post-Part 1
+// duels (see aov-rp7-master-roster-v7 + aov-zyraxis-ten-districts memory
+// entries).  They must NEVER appear in wild encounters or NPC trainer
+// chains.  Enforced at the wild-pool filter below and in
+// startNpcTrainerBattle's chain build (both grunt and hall paths).
+const GEMLORD_IDS = new Set([
+  'rakoron',   // Malezor · ruby
+  'ivirium',   // Zarvane · pearl
+  'mutaryn',   // Andrannor · citrine
+  'emeralix',  // Veridan · emerald
+  'eurakeon',  // Netharion · amethyst
+  'azurel',    // Vorashil · sapphire
+  'obsidius',  // Xilnar · onyx
+  'ambrevon',  // Baelgor · amber
+  'oathane',   // Thardin · anomaly
+  'oatheus',   // Korathen · ultra
+]);
 function districtWildPool(mapId) {
   // ★ 2026-07-31 · V7 ROSTER PATH · HARD district bands.
   // Wild pool composition:
@@ -11912,7 +12047,11 @@ function districtWildPool(mapId) {
         const pool = window.V7_DISTRICT_POOL[DIST_ORDER[i]] || [];
         for (const s of pool) if (s.tier <= 2) ids.push(s.id);
       }
-      const filtered = ids.filter(id => SPECIES[id]);
+      // ★ 2026-08-02 · Gemlord lockdown · zero wild spawn rate.  Filter
+      // GEMLORD_IDS out of the pool AFTER weighting so nothing slips
+      // through via native/adjacent/global paths.  Trainer chains reuse
+      // this pool, so this single filter cleans both spawn systems.
+      const filtered = ids.filter(id => SPECIES[id] && !GEMLORD_IDS.has(id));
       if (filtered.length) {
         // Level range = HARD district band.  Never crosses into a
         // higher- or lower-tier district's zone.
@@ -16274,10 +16413,11 @@ function closeSettings() {
 // egg + all easter-egg Zyrex to the party (bypasses MAX_PARTY for the
 // grant batch) so patches can be tested without full playtest.
 const _ULTHARIS_ROSTER = [
-  { id: 'diviniara', lv: 5 },
-  { id: 'pyrothrax', lv: 5 },
-  { id: 'voltaryx',  lv: 5 },
-  { id: 'scaleon',   lv: 5 },
+  // Aurabeasts match the workbench easter-egg grant level (Lv 15).
+  { id: 'diviniara', lv: 15 },
+  { id: 'pyrothrax', lv: 15 },
+  { id: 'voltaryx',  lv: 15 },
+  { id: 'scaleon',   lv: 15 },
   { id: 'petragryff', lv: 40 },
   { id: 'vengrizz',  lv: 80 },
   { id: 'anciuxor',  lv: 100 },
@@ -18533,6 +18673,32 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     return;
   }
+  // ★ 2026-08-02 · WEAPON WHEEL · keyboard alias = Tab (mirrors L1).  Hold
+  // opens the radial wheel · release equips.  Tap cycles to the next weapon.
+  // While the wheel is open, cancel keys close it without equipping.
+  if (e.key === 'Tab' && !e.repeat) {
+    onWeaponWheelPress();
+    e.preventDefault();
+    return;
+  }
+  if (game.mode === 'weaponwheel') {
+    // Arrow keys map to an analog vector while the wheel is open.
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'].includes(k)) {
+      let vx = 0, vy = 0;
+      if (k === 'arrowleft'  || k === 'a') vx = -1;
+      if (k === 'arrowright' || k === 'd') vx =  1;
+      if (k === 'arrowup'    || k === 'w') vy = -1;
+      if (k === 'arrowdown'  || k === 's') vy =  1;
+      setWeaponWheelAxes(vx, vy);
+      e.preventDefault(); return;
+    }
+    if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Shift' || k === 'b') {
+      cancelWeaponWheel(); e.preventDefault(); return;
+    }
+    if (isConfirm) { closeWeaponWheel(true); e.preventDefault(); return; }
+    // Otherwise swallow the input — no attack/menu/interact while wheel is up.
+    e.preventDefault(); return;
+  }
   // V3.17.9 · V3.17.10 · V3.17.11 — PC keyboard shortcuts mirror the
   // mobile bottom-bar buttons:
   //   1        = SELECT (opens whatever the player assigned via SELECT ASSIGN)
@@ -18787,14 +18953,17 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- Prologue: confirm → next; left/up → previous; X/Esc → skip ----
+  // ---- Prologue: confirm → next; left/up → previous; X/Esc/START → skip ----
+  //  ★ 2026-08-02 · START (F3 · k === '3' on controller Options) also skips
+  //  the whole 10-page intro summary so returning players can bounce past
+  //  the read they've already done.
   if (game.mode === 'prologue') {
     if (isConfirm || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       $prologueNext.click(); e.preventDefault();
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       if (prologueIdx > 0) { prologueIdx--; showProloguePage(prologueIdx); }
       e.preventDefault();
-    } else if (isBack) {
+    } else if (isBack || k === '3' || e.key === 'F3') {
       $prologueSkip.click(); e.preventDefault();
     }
     return;
@@ -18966,7 +19135,12 @@ document.addEventListener('keydown', (e) => {
 
   // (V2.15.1 — standalone-overlay X-close moved to top of handler)
 });
-document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+document.addEventListener('keyup', (e) => {
+  keys[e.key.toLowerCase()] = false;
+  // ★ 2026-08-02 · Tab release · finish weapon wheel (equip on HOLD-release,
+  // cycle on TAP-release).  See onWeaponWheelRelease for the timing logic.
+  if (e.key === 'Tab') { onWeaponWheelRelease(); e.preventDefault(); }
+});
 
 // V3.17.65 — Native PS5 DualSense / standard Gamepad API support.
 // Controller input is translated into RP7's canonical keyboard actions so
@@ -19140,6 +19314,23 @@ document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; }
     const nextDirections = new Set();
     const axisX = pad.axes[0] || 0;
     const axisY = pad.axes[1] || 0;
+    // ★ 2026-08-02 · L1 (button 4) · GTA-style weapon wheel.
+    //   HOLD  = open radial wheel · analog stick picks slice · release equips
+    //   TAP   = cycle to next owned weapon
+    // Feed left stick to the wheel while it's open · skip the movement /
+    // combo D-pad path so arrows don't trigger walk-attempts under the overlay.
+    const l1Pressed = !!pad.buttons[4]?.pressed;
+    const l1Was     = !!previousButtons[4];
+    if (l1Pressed && !l1Was) onWeaponWheelPress();
+    if (!l1Pressed && l1Was) onWeaponWheelRelease();
+    if (typeof _WW !== 'undefined' && _WW.open) {
+      setWeaponWheelAxes(axisX, axisY);
+      // Circle (button 1) cancels the wheel without equipping.
+      if (!!pad.buttons[1]?.pressed && !previousButtons[1]) cancelWeaponWheel();
+      previousButtons = pad.buttons.map(button => button.pressed);
+      requestAnimationFrame(pollGamepad);
+      return;   // suppress movement + button dispatch while wheel is up
+    }
     if (axisX < -DEAD_ZONE || pad.buttons[14]?.pressed) nextDirections.add('ArrowLeft');
     if (axisX >  DEAD_ZONE || pad.buttons[15]?.pressed) nextDirections.add('ArrowRight');
     if (axisY < -DEAD_ZONE || pad.buttons[12]?.pressed) nextDirections.add('ArrowUp');
@@ -20576,7 +20767,9 @@ function grantElzebubPrompt() {
     "«ACCEPT ELZEBUB?»",
   ], () => {
     game.player.elzebubGranted = true;
-    const zy = makeZyrex('elzebub', 5);
+    // ★ 2026-08-02 · Elzebub promoted Lv 5 → Lv 15 to match the Aurabeast
+    // easter-egg tier · rare quest-reward Zyrex deserve real teeth on grant.
+    const zy = makeZyrex('elzebub', 15);
     const partySlots = game.player.party.filter(Boolean).length;
     if (partySlots < MAX_PARTY) game.player.party.push(zy);
     else                        game.player.box.push(zy);
@@ -20584,7 +20777,7 @@ function grantElzebubPrompt() {
     save();
     showToast('◈  ELZEBUB  JOINED YOU', 2600);
     showDialog([
-      `ELZEBUB (Lv 5) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
+      `ELZEBUB (Lv 15) has joined your ${partySlots < MAX_PARTY ? 'party' : 'box'}.`,
     ]);
   });
 }
@@ -20740,24 +20933,26 @@ function grantAurabeastsFromDad() {
     'DAD: I was going to give you Elzebub.  A hatchling.  Something you could carry.',
     'DAD: But you found the quartet.  So take them all.',
     'DAD: They are heavier than they look, and they will grow into more than either of us can guess.',
-    '«◈ DIVINIARA (Lv 5) joins your party.»',
-    '«◈ PYROTHRAX  (Lv 5) joins your party.»',
-    '«◈ VOLTARYX   (Lv 5) joins your party.»',
-    '«◈ SCALEON    (Lv 5) joins your party.»',
+    '«◈ DIVINIARA (Lv 15) joins your party.»',
+    '«◈ PYROTHRAX  (Lv 15) joins your party.»',
+    '«◈ VOLTARYX   (Lv 15) joins your party.»',
+    '«◈ SCALEON    (Lv 15) joins your party.»',
   ], () => {
     game.player.aurabeastGiftGiven = true;
-    // V3.17.4 — quartet gift (was trio in V3.15.1).  All 4 fit in the
-    // 6-slot party; leftover overflow goes to PC box for safety.
+    // ★ 2026-08-02 · Aurabeasts promoted Lv 5 → Lv 15 · they're a hidden
+    // easter-egg reward, not a Lv-5 starter equivalent · deserve to hit the
+    // world with real teeth.  All 4 fit in the 6-slot party; overflow goes
+    // to PC box.
     const roster = ['diviniara', 'pyrothrax', 'voltaryx', 'scaleon'];
     for (const id of roster) {
-      const zy = makeZyrex(id, 5);
+      const zy = makeZyrex(id, 15);
       if (!zy) continue;
       if (game.player.party.filter(Boolean).length < MAX_PARTY) game.player.party.push(zy);
       else                                                      game.player.box.push(zy);
       markCaught(id);
     }
     save();
-    showToast('◈  AURABEASTS  ·  four Lv 5 partners', 3200);
+    showToast('◈  AURABEASTS  ·  four Lv 15 partners', 3200);
   });
 }
 
@@ -21663,6 +21858,10 @@ function advanceDialog() {
   } else {
     $dialog.classList.add('hidden');
     game.mode = 'overworld';
+    // ★ 2026-08-02 · Dialog end returns to overworld — if we just came out
+    // of a battle-triggered dialog, kill the battle track and restore the
+    // right overworld/home track.  Cheap idempotent call.
+    if (typeof refreshMusicContext === 'function') refreshMusicContext();
     const cb = game.dialogCb;
     game.dialogCb = null;
     clearAllNpcFacing();
@@ -22206,15 +22405,23 @@ function interactMom() {
       : null;
     const lines = [
       `MOM: Look at you — already a Rizer.`,
-      `MOM: Before you go, take a nurse's kit for the road.`,
+      `MOM: Your father told me what he gave you.  Both of them.`,
+      `MOM: He warned you about the daemons, didn't he.  Good.  Then you'll need this too.`,
+      ``,
+      `«MOM gives you HER FIELD BACKPACK.»`,
+      `MOM: I stitched it myself.  Head-nurse kit — sealed compartments,`,
+      `pouch straps for the spheres, side loops for the dagger sheath.`,
     ];
     if (kitchenLine) lines.push(kitchenLine);
     lines.push(
-      `MOM: Potions for the wounds.  And these — brand-new Zyspheres, straight from the Thardun engineers.`,
-      `MOM: Click them open next to a wild Zyrex.  If your target's astralites submit, the sphere binds them.  If not — you'll have to weaken them first.`,
-      `«+${potionGift} POTIONS  ·  +${sphereGift} ZYSPHERES»`,
-      `MOM: Come find me any time you're hurt. I'll patch you up.`,
-      `MOM: The door's always open. Come home safe.`,
+      `MOM: I packed it already.  Potions for the wounds.  And these —`,
+      `brand-new ZYSPHERES, straight from the Thardun engineers.`,
+      `MOM: Click a sphere open next to a wild Zyrex.  If its astralites submit,`,
+      `the sphere binds them.  If not — weaken it first, then throw.`,
+      `«+${potionGift} POTIONS  ·  +${sphereGift} ZYSPHERES  ·  BACKPACK»`,
+      ``,
+      `MOM: Come find me any time you're hurt.  I'll patch you up — Zyrex too.`,
+      `MOM: The door's always open, ${nm}.  Come home safe.`,
     );
     showDialog(lines, () => {
       items.potion = (items.potion || 0) + potionGift;
@@ -22314,6 +22521,13 @@ function interactDad() {
       game.mode = 'starter';
       renderStarterScreen();
     });
+  } else if (!game.player.metDadNotebook) {
+    // ★ 2026-08-02 · Kit dialog gate for the Aurabeast easter-egg path.
+    // If the player got their first Zyrex from the workbench (bypassing
+    // chooseStarter), they still need the notebook + dagger + daemon-lore
+    // beat.  Fires exactly once — metDadNotebook flag is set inside the
+    // dialog callback so it can't repeat.
+    showDadStarterKitDialog(null);
   } else if (game.player.shardshareReady && !game.player.shardshareGranted) {
     // V2.40 — Shardshare handoff. Only fires once, after the player has
     // touched both Mothergem shards on Malezor.
@@ -23644,6 +23858,238 @@ function tickRizerAttack() {
   st.frame = Math.min(cfg.frames - 1, Math.floor(elapsed / cfg.frameMs));
 }
 
+// ============================================================================
+// ★ 2026-08-02 · WEAPON WHEEL · GTA-style radial swap.
+//
+//   HOLD L1  (>250ms)  → open wheel · left analog picks slot · release equips
+//   TAP  L1  (<250ms)  → cycle to next owned weapon in the pack
+//   ○ Circle           → cancel while open (no equip change)
+//
+// Fists are always slot 0.  Each additional entry in player.rizerWeapons gets
+// its own slot around the ring.  While open, game.mode = 'weaponwheel' freezes
+// movement and blocks Square/Triangle attacks.  Analog input is fed through
+// setWeaponWheelAxes() by the gamepad poller and by keyboard arrows.
+// ============================================================================
+const WW_HOLD_THRESHOLD = 250;   // ms · press shorter than this = TAP
+const WW_DEADZONE       = 0.35;  // analog magnitude below this = no selection
+const _WW = {
+  open: false,
+  pressActive: false,
+  pressStart: 0,
+  slots: [],           // [{id, weapon, angleRad, x, y}]
+  selectedIdx: 0,
+  axisX: 0, axisY: 0,
+};
+
+function _wwOverlay()   { return document.getElementById('weapon-wheel'); }
+function _wwSlotsEl()   { return document.getElementById('ww-slots'); }
+function _wwRingEl()    { return _wwOverlay() && _wwOverlay().querySelector('.ww-ring'); }
+function _wwNameEl()    { return document.getElementById('ww-selected-name'); }
+function _wwStatsEl()   { return document.getElementById('ww-selected-stats'); }
+
+function _wwOwnedList() {
+  // slot 0 is always 'fists' (bare hands are never "owned", they're always
+  // there); the rest come from player.rizerWeapons in order of pickup.
+  const owned = ['fists'];
+  const pack = (game.player && game.player.rizerWeapons) || [];
+  for (const id of pack) {
+    if (id === 'fists') continue;
+    if (!owned.includes(id) && RIZER_WEAPONS[id]) owned.push(id);
+  }
+  return owned;
+}
+
+function _wwCurrentEquippedId() {
+  const eq = game.player && game.player.rizerWeapon;
+  return eq && RIZER_WEAPONS[eq] ? eq : 'fists';
+}
+
+function _wwBuildSlots() {
+  const overlay = _wwOverlay(); if (!overlay) return;
+  const slotsEl = _wwSlotsEl(); slotsEl.innerHTML = '';
+  const ringEl  = _wwRingEl();  ringEl.innerHTML  = '';
+  const owned = _wwOwnedList();
+  const N = owned.length;
+  const eqId = _wwCurrentEquippedId();
+  // Place slots evenly around a ring · slot 0 sits at 12 o'clock (−90°).
+  const radiusPct = 38; // percent of overlay wheel diameter
+  _WW.slots = owned.map((id, i) => {
+    const angle = (-Math.PI / 2) + (i / N) * Math.PI * 2;
+    const xPct = 50 + Math.cos(angle) * radiusPct;
+    const yPct = 50 + Math.sin(angle) * radiusPct;
+    return { id, weapon: RIZER_WEAPONS[id], angleRad: angle, xPct, yPct };
+  });
+  // Ring guide arcs (SVG) — subtle segment dividers.
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const ringBg = document.createElementNS(svgNS, 'circle');
+  ringBg.setAttribute('cx', 150); ringBg.setAttribute('cy', 150);
+  ringBg.setAttribute('r', 114);
+  ringBg.setAttribute('fill', 'none');
+  ringBg.setAttribute('stroke', 'rgba(232,200,120,0.22)');
+  ringBg.setAttribute('stroke-width', '2');
+  ringEl.appendChild(ringBg);
+  for (let i = 0; i < N; i++) {
+    const a = (-Math.PI / 2) + ((i + 0.5) / N) * Math.PI * 2;
+    const x1 = 150 + Math.cos(a) * 96;
+    const y1 = 150 + Math.sin(a) * 96;
+    const x2 = 150 + Math.cos(a) * 132;
+    const y2 = 150 + Math.sin(a) * 132;
+    const seg = document.createElementNS(svgNS, 'line');
+    seg.setAttribute('x1', x1); seg.setAttribute('y1', y1);
+    seg.setAttribute('x2', x2); seg.setAttribute('y2', y2);
+    seg.setAttribute('stroke', 'rgba(232,200,120,0.32)');
+    seg.setAttribute('stroke-width', '2');
+    ringEl.appendChild(seg);
+  }
+  // Slot DOM
+  _WW.slots.forEach((slot, i) => {
+    const el = document.createElement('div');
+    el.className = 'ww-slot' + (slot.id === eqId ? ' equipped' : '');
+    el.style.left = slot.xPct + '%';
+    el.style.top  = slot.yPct + '%';
+    if (slot.weapon.icon) {
+      const img = document.createElement('img');
+      img.src = slot.weapon.icon; img.alt = slot.weapon.name;
+      el.appendChild(img);
+    } else {
+      const glyph = document.createElement('div');
+      glyph.style.cssText = 'font-size:2.4rem;line-height:1;color:var(--ivory);';
+      glyph.textContent = (slot.id === 'fists') ? '✊' : '⚔️'; // ✊ / ⚔️
+      el.appendChild(glyph);
+    }
+    const lbl = document.createElement('div');
+    lbl.className = 'ww-slot-label';
+    lbl.textContent = slot.weapon.name.replace(/^BEASTBONE\s+/, 'B.');
+    el.appendChild(lbl);
+    slotsEl.appendChild(el);
+    slot._el = el;
+  });
+  // Default selection = currently-equipped weapon.
+  _WW.selectedIdx = Math.max(0, _WW.slots.findIndex(s => s.id === eqId));
+  _wwRepaintSelection();
+}
+
+function _wwRepaintSelection() {
+  const nameEl = _wwNameEl(); const statsEl = _wwStatsEl();
+  _WW.slots.forEach((slot, i) => {
+    if (!slot._el) return;
+    slot._el.classList.toggle('selected', i === _WW.selectedIdx);
+  });
+  const sel = _WW.slots[_WW.selectedIdx];
+  if (sel && nameEl && statsEl) {
+    nameEl.textContent  = sel.weapon.name;
+    statsEl.textContent = '□ ' + (sel.weapon.light || 0) + ' · △ ' + (sel.weapon.heavy || 0);
+  }
+}
+
+function openWeaponWheel() {
+  if (_WW.open || !game.player) return;
+  const overlay = _wwOverlay(); if (!overlay) return;
+  _WW.open = true;
+  _wwBuildSlots();
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  // Freeze the game mode · restore on close.
+  _WW.prevMode = game.mode;
+  game.mode = 'weaponwheel';
+}
+
+function closeWeaponWheel(commit) {
+  if (!_WW.open) return;
+  const overlay = _wwOverlay(); if (overlay) {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+  _WW.open = false;
+  if (commit) {
+    const sel = _WW.slots[_WW.selectedIdx];
+    if (sel) equipWeaponFromWheel(sel.id);
+  }
+  game.mode = _WW.prevMode || 'overworld';
+  _WW.prevMode = null;
+  _WW.axisX = 0; _WW.axisY = 0;
+}
+
+function equipWeaponFromWheel(id) {
+  const p = game.player; if (!p) return;
+  if (!RIZER_WEAPONS[id]) return;
+  const prev = p.rizerWeapon || 'fists';
+  if (id === 'fists') {
+    p.rizerWeapon = null;
+  } else {
+    if (!p.rizerWeapons) p.rizerWeapons = [];
+    if (!p.rizerWeapons.includes(id)) p.rizerWeapons.push(id);
+    p.rizerWeapon = id;
+  }
+  if (id !== prev && typeof showToast === 'function') {
+    const w = RIZER_WEAPONS[id];
+    showToast('EQUIPPED · ' + w.name, 1600);
+  }
+  if (typeof syncRizerSkills === 'function') syncRizerSkills();
+}
+
+// TAP L1 · advance rizerWeapon to the next owned slot (wraps).  Fists count
+// as slot 0, so cycling always includes them.
+function cycleWeaponForward() {
+  const owned = _wwOwnedList();
+  if (owned.length < 2) return;
+  const eq  = _wwCurrentEquippedId();
+  const idx = owned.indexOf(eq);
+  const next = owned[(idx + 1) % owned.length];
+  equipWeaponFromWheel(next);
+}
+
+// Called every frame while wheel is open with the current LEFT analog stick
+// or arrow-key vector.  Magnitude below dead-zone leaves selection unchanged;
+// above it, the nearest slot by angle wins.
+function setWeaponWheelAxes(x, y) {
+  _WW.axisX = x; _WW.axisY = y;
+  if (!_WW.open) return;
+  const mag = Math.hypot(x, y);
+  if (mag < WW_DEADZONE) return;
+  // canvas Y grows DOWN · same as CSS · use Math.atan2 as-is.
+  const angle = Math.atan2(y, x);
+  let bestIdx = _WW.selectedIdx, bestD = Infinity;
+  for (let i = 0; i < _WW.slots.length; i++) {
+    let d = Math.abs(angle - _WW.slots[i].angleRad);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    if (d < bestD) { bestD = d; bestIdx = i; }
+  }
+  if (bestIdx !== _WW.selectedIdx) {
+    _WW.selectedIdx = bestIdx;
+    _wwRepaintSelection();
+  }
+}
+
+// L1 press/release handlers.  Both gamepad + keyboard funnel through here so
+// hold-vs-tap logic lives in one place.
+function onWeaponWheelPress() {
+  if (_WW.pressActive) return;
+  _WW.pressActive = true;
+  _WW.pressStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  // Small delay before opening so a quick tap doesn't flicker the overlay.
+  _WW._openTimer = setTimeout(() => {
+    if (_WW.pressActive && !_WW.open) openWeaponWheel();
+  }, WW_HOLD_THRESHOLD);
+}
+function onWeaponWheelRelease() {
+  if (!_WW.pressActive) return;
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const held = now - _WW.pressStart;
+  _WW.pressActive = false;
+  if (_WW._openTimer) { clearTimeout(_WW._openTimer); _WW._openTimer = null; }
+  if (_WW.open) {
+    closeWeaponWheel(true);   // commit selection
+  } else if (held < WW_HOLD_THRESHOLD) {
+    cycleWeaponForward();     // TAP · cycle
+  }
+}
+function cancelWeaponWheel() {
+  if (_WW.open) closeWeaponWheel(false);
+  if (_WW._openTimer) { clearTimeout(_WW._openTimer); _WW._openTimer = null; }
+  _WW.pressActive = false;
+}
+
 // ---- Panel 2: RIZER PROFILE CARD ----
 function openRizerProfile() {
   try { playSfx('menu-open'); } catch(_) {}
@@ -24597,6 +25043,13 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
         chainSpecs.push([id, lv]);
       }
     }
+  }
+  // ★ 2026-08-02 · Gemlord lockdown · defense-in-depth.  Even if a
+  // hand-authored NPC_TRAINERS chain or hall Rizer chain manages to list a
+  // Gemlord id, strip it here before the battle spawns anything.  Gemlords
+  // ONLY appear in their scripted cave-sanctum duels post-Part 1.
+  if (Array.isArray(chainSpecs) && typeof GEMLORD_IDS !== 'undefined') {
+    chainSpecs = chainSpecs.filter(spec => !GEMLORD_IDS.has(spec[0]));
   }
   // V3.5 — defensive: if chain resolution somehow failed (missing district
   // meta, corrupted save, etc.) synthesize a Tier I fallback so the battle
@@ -27000,12 +27453,31 @@ function chooseStarter(id) {
   updateHUD();
   game.mode = 'overworld';
   save();
+  // ★ 2026-08-02 · Kit dialog extracted so the Aurabeast workbench easter
+  // egg path also gets it (previously the easter egg filled party directly
+  // and Dad's interactDad gate skipped the whole notebook/dagger/daemon-lore
+  // beat because party was already non-empty).
+  showDadStarterKitDialog(id);
+}
+
+// ★ 2026-08-02 · Dad's post-starter kit dialog · fires ONCE per playthrough
+// via metDadNotebook flag.  Called from:
+//   · chooseStarter(id)          — normal 3-starter picker path
+//   · interactDad()              — Aurabeast easter-egg path (party filled
+//                                   by grantAurabeastsFromDad, no dialog fired)
+// The `id` arg is optional; when omitted (easter-egg path) the opening line
+// falls back to a generic "your Zyrex" phrasing.
+function showDadStarterKitDialog(id) {
   const nm = game.player.name || 'RIZER';
-  // V2.32 — Phase 2 of Dad's first meeting: Zyrex acknowledged →
-  //          Mothergem lore → NOTEBOOK handoff → "go see Mom for supplies".
+  const openingLine = (id && SPECIES[id])
+    ? `DAD: The ${SPECIES[id].name} hummed for you, ${nm}. It's yours.`
+    : `DAD: You found the project before I meant you to, ${nm}. Take them all — they chose you.`;
+  const tierLine = (id && SPECIES[id])
+    ? `Lv 5 · Tier I. Not much yet — but real.`
+    : `Four Aurabeasts.  Diviniara and her daughters.  Heavier than they look.`;
   showDialog([
-    `DAD: The ${SPECIES[id].name} hummed for you, ${nm}. It's yours.`,
-    `Lv 5 · Tier I. Not much yet — but real.`,
+    openingLine,
+    tierLine,
     ``,
     // ---- LORE ----
     `DAD: Sit for a moment. Let me tell you what I know.`,
@@ -27027,25 +27499,63 @@ function chooseStarter(id) {
     `DAD: The cave east of here — RAKORON'S lair — is sealed. Ruby`,
     `glyphs, old wards. Don't waste time on him. It's not the time.`,
     ``,
-    // ---- NOTEBOOK ----
-    `DAD: One more thing before you go, ${nm}.`,
-    `DAD: This was mine when I was your age. My FIRST NOTEBOOK — field notes`,
-    `on every Zyrex I ever met. Every page I filled, I filled myself.`,
+    // ---- DAEMON OUTBREAK LORE (★ 2026-08-02) ----
+    `DAD: One more thing you need to know before you go, ${nm}.`,
+    `DAD: The Seers aren't just STEALING gemshards.  In every district they've`,
+    `built LABS.  They splice captured Zyrex into humanoid flesh.  Trying to`,
+    `build the "perfect Rizer."  Most experiments fail.`,
+    ``,
+    `DAD: The failures don't stay in the labs.  The Seers cut them loose.`,
+    `DAD: MORI, they call the small ones.  DAEMONS, the big ones.  Corrupted`,
+    `humanoids that walk the wilds now.  Some slip into the towns themselves.`,
+    ``,
+    `DAD: Your Zyrex can't fight them.  They're humanoid — the ancient Accord`,
+    `doesn't cover flesh-and-flesh brawls.  You'll have to answer them yourself.`,
+    ``,
+    // ---- NOTEBOOK (Zyrex path) ----
+    `DAD: So.  Two things I want you carrying when you leave this door.`,
+    `DAD: First — this was mine when I was your age.  My FIRST NOTEBOOK.  Field`,
+    `notes on every Zyrex I ever met.  Every page I filled, I filled myself.`,
     ``,
     `«DAD gives you HIS FIRST NOTEBOOK.»`,
-    `DAD: Fill it up. That's how you learn a world — one page at a time.`,
+    `DAD: Fill it up.  That's how you learn a world — one page at a time.`,
+    `DAD: This is your ZYREX PATH.  Bond.  Learn.  Rise.`,
+    ``,
+    // ---- BEASTBONE DAGGER (Rizer path) ----
+    `DAD: Second — my hands aren't clean.  I made this the year you were born.`,
+    `DAD: A BEASTBONE DAGGER — carved from the first Zyrex ossuary find of my`,
+    `career.  Beast oil keeps the edge.  Never dulls.`,
+    ``,
+    `«DAD gives you the BEASTBONE DAGGER.»`,
+    `DAD: This is your RIZER PATH.  When a Mori steps out of the tall grass,`,
+    `you draw this and you cut it back down.  □ for a jab, △ for a heavy swing.`,
+    `DAD: You've got both paths now, ${nm}.  Every Rizer walks them both.`,
     ``,
     // ---- HAND OFF TO MOM ----
-    `DAD: Head back downstairs. Your mother's packed something for the road —`,
-    `potions, zyspheres, the works. Nurse's supplies.`,
+    `DAD: Head back downstairs.  Your mother has your backpack ready —`,
+    `potions, zyspheres, the works.  Nurse's supplies.`,
     ``,
     `DAD: Come home safe, ${nm}.`,
   ], () => {
+    // Grant the notebook (existing toast + flag).
     if (!game.player.metDadNotebook) {
       game.player.metDadNotebook = true;
-      save();
       showToast('📖  DAD\'S FIRST NOTEBOOK', 2400);
     }
+    // ★ 2026-08-02 · Grant + auto-equip the Beastbone Dagger so the player
+    // walks out of this dialog already wielding it.  Adds to rizerWeapons
+    // pack, sets rizerWeapon = 'knife', triggers the equipped-idle skin
+    // swap in drawBetaPlayer on the very next render tick.
+    if (!game.player.rizerWeapons) game.player.rizerWeapons = [];
+    if (!game.player.rizerWeapons.includes('knife')) {
+      game.player.rizerWeapons.push('knife');
+    }
+    game.player.rizerWeapon = 'knife';
+    // Sync any level-gated skills the player already qualified for.
+    if (typeof syncRizerSkills === 'function') syncRizerSkills();
+    // Small delay so the notebook toast reads before the dagger toast.
+    setTimeout(() => showToast('🗡  BEASTBONE DAGGER equipped', 2400), 900);
+    save();
   });
 }
 
@@ -27915,13 +28425,13 @@ const PROLOGUE_PAGES = [
   { n: 'I',    body: 'NARRATOR: Before every age, the Mothergem falls.' },
   { n: 'II',   body: 'A cosmic stone from beyond Aenor — carrying the frequencies of ten primal wills. It breaks on Zyraxis. Ten Gemlords rise from its shards.' },
   { n: 'III',  body: 'Districts I to X. Malezor · Zarvane · Andrannor · Veridan · Netharion at the center · Vorashil · Xilnar · Baelgor · Thardun · Korathen.' },
-  { n: 'IV',   body: 'For millennia the Gemlords ruled and the beasts of Zyraxis — the Zyrex — walked beside them as partners in cosmic power.' },
+  { n: 'IV',   body: 'For millennia the Gemlords ruled and the beasts of Zyraxis — the ZYREX — walked beside them as partners in cosmic power. Humanoids bonded with them. This is the ancient way.' },
   { n: 'V',    body: 'Then the SEERS rose. Human Rizers who came to believe absolute gem power belonged to them, not the beasts. Not the Zyrex. Not even the Gemlords.' },
-  { n: 'VI',   body: 'Three of them lead — AEL\'THARION the founder, ORRYX, and OPHIRA. Their grunts fanned out across every district. They struck the Gemlords\' shrines and STOLE the ten Gemshards.' },
-  { n: 'VII',  body: 'The Gemlords retreated into their caves — powerless without their gems. Zyraxis fell dark. Every district has been occupied by Seer forces ever since.' },
-  { n: 'VIII', body: 'YOUR MISSION: journey through every district. Beat the Rizers who guard each town. Defeat the SEER MINI-BOSS. Reclaim that district\'s stolen GEMSHARD. Ten in all.' },
-  { n: 'IX',   body: 'When all ten are yours, the three Seer leaders will finally reveal themselves. Face them. Win, and the shards return home. Every Gemlord will owe you a duel.' },
-  { n: 'X',    body: 'Tonight, the Mothergem hums again. A shard is looking for you, {name}. Rise. Ten gemshards. Three Seers. And ten friendly duels waiting for you at the end. GO.' },
+  { n: 'VI',   body: 'Three of them lead — XENOXIL the founder, ORRYX, and OPHIRA. Their grunts fanned out across every district and STOLE the ten Gemshards. The Gemlords retreated into their caves — powerless without their gems.' },
+  { n: 'VII',  body: 'But the Seers weren\'t only stealing. In every occupied town they built LABS. They spliced captured Zyrex into humanoid flesh and called it progress. The failures — the MORI, the DAEMONS — they cut loose to roam. Corrupted humanoids stalk the wilds now. Some slip into the towns themselves.' },
+  { n: 'VIII', body: 'THE ZYREX PATH: bond with the beasts. Fill your notebook. Face every Rizer who guards each town, then the SEER MINI-BOSS at their local HQ. Reclaim that district\'s GEMSHARD. Ten in all.' },
+  { n: 'IX',   body: 'THE RIZER PATH: draw steel yourself. Cut down the corrupted humanoids the Seers turn loose. Answer the daemon outbreaks. Both paths run at once, {name}. Every Rizer walks them both.' },
+  { n: 'X',    body: 'Tonight, the Mothergem hums again. A shard is looking for you. Rise. Ten gemshards. Three Seers. Ten friendly duels waiting for you at the end — and a hundred fights nobody warned you about along the way. GO.' },
 ];
 const $prologue = document.getElementById('prologue-screen');
 const $prologueNumeral = document.getElementById('prologue-numeral');
@@ -28160,9 +28670,11 @@ function refreshLoadButtonState() {
 // ★ RP7 BETA ENTRY.  Reuses the EXACT classic NEW GAME handler — the only
 // difference is which render mode is active when it runs, so classic and beta
 // can never drift apart.
-// ★ 2026-08-02 · wireRp7Modes IIFE removed · classic mode is dead, isBeta()
-// is force-locked true, and the beta button starts the game directly via its
-// own onclick above.  No wrapper needed.
+// ★ 2026-08-02 · wireRp7Modes removed but we still need applyRp7Mode('beta')
+// to run on boot so <body> gets the rp7-beta class (that's what the battle
+// backdrop CSS keys off — without it, battles fall back to the default
+// purple gradient instead of the malezor / seer HQ / town hall art).
+applyRp7Mode('beta');
 refreshLoadButtonState();
 setTimeout(focusTitleDefault, 30);
 // Re-check whenever the title screen becomes visible (rare, but cheap)
@@ -28319,26 +28831,39 @@ function playTrack(name) {
     // Same track — just make sure it is playing at the right volume.
     nextEl.volume = tgt;
     if (!audioSys.muted) nextEl.play().catch(()=>{});
+    // ★ 2026-08-02 · Belt-and-suspenders · silence every OTHER track in
+    // case a stray element is still audible from a previous rapid switch.
+    for (const k in audioSys.els) {
+      if (k !== name) { try { audioSys.els[k].pause(); audioSys.els[k].volume = 0; } catch(_) {} }
+    }
     return;
   }
   const prevEl = audioSys.current ? audioSys.els[audioSys.current] : null;
   audioSys.current = name;
+  // ★ 2026-08-02 · If a previous crossfade is still running its interval
+  // never gets to pause the outgoing track (the interval is cleared before
+  // its terminal step fires).  Immediately hard-pause EVERY non-target
+  // track so only one song can ever be audible — no matter how fast the
+  // game bounces between battle / overworld / home modes.
   if (audioSys.fadeTimer) { clearInterval(audioSys.fadeTimer); audioSys.fadeTimer = null; }
+  for (const k in audioSys.els) {
+    if (k !== name) {
+      const el = audioSys.els[k];
+      try { el.pause(); el.currentTime = 0; el.volume = 0; } catch(_) {}
+    }
+  }
   nextEl.currentTime = 0;
   nextEl.volume = 0;
   if (!audioSys.muted) nextEl.play().catch(()=>{});
-  const startPrev = prevEl ? prevEl.volume : 0;
-  const steps = 12, ms = 22;   // ~260ms crossfade
+  const steps = 12, ms = 22;   // ~260ms fade-in on next track (prev is already paused)
   let i = 0;
   audioSys.fadeTimer = setInterval(() => {
     i++;
-    const t = i / steps;
-    if (prevEl) prevEl.volume = Math.max(0, startPrev * (1 - t));
-    nextEl.volume = tgt * t;
+    nextEl.volume = tgt * (i / steps);
     if (i >= steps) {
       clearInterval(audioSys.fadeTimer);
       audioSys.fadeTimer = null;
-      if (prevEl) { prevEl.pause(); prevEl.currentTime = 0; }
+      nextEl.volume = tgt;
     }
   }, ms);
 }
@@ -28421,6 +28946,16 @@ let lastTime = 0;
 function loop(now) {
   const dt = now - lastTime;
   lastTime = now;
+  // ★ 2026-08-02 · Safety: if mode changed while the wheel was open (rare
+  // edge case · e.g. an encounter fires from a timer), tear the overlay down
+  // so it doesn't hang over battle / dialog UI.
+  if (typeof _WW !== 'undefined' && _WW.open && game.mode !== 'weaponwheel') {
+    const ov = document.getElementById('weapon-wheel');
+    if (ov) { ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true'); }
+    _WW.open = false;
+    _WW.pressActive = false;
+    if (_WW._openTimer) { clearTimeout(_WW._openTimer); _WW._openTimer = null; }
+  }
   if (game.mode === 'overworld') {
     game.player.step++;
     if (game.player.moveCd > 0) game.player.moveCd -= dt;

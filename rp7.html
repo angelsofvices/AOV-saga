@@ -1946,10 +1946,8 @@
         The Seers march on the Ten Districts. They mean to harvest every Gemlord's Fathergem core. Only you can stop them. You must save the world.
       </p>
       <div class="title-btns">
-        <!-- V2.50 — NEW GAME / LOAD GAME.  Save-state UI is deferred; LOAD
-             is intentionally disabled + greyed until we ship save slots. -->
-        <button class="title-cta" id="btn-new">NEW GAME</button>
-        <button class="title-cta beta" id="btn-new-beta">NEW GAME <span class="beta-tag">BETA</span></button>
+        <!-- ★ 2026-08-02 · Classic dead · single NEW GAME + LOAD GAME. -->
+        <button class="title-cta beta" id="btn-new-beta">NEW GAME</button>
         <button class="title-cta secondary" id="btn-continue" disabled aria-disabled="true" title="Save states coming soon">LOAD GAME</button>
       </div>
       <div class="title-controls" aria-label="Controls">
@@ -2457,10 +2455,12 @@ let RP7_MODE        = 'beta';
 let SPRITE_TILES_H  = RP7_MODES.beta.spriteTilesH;
 let CHAR_ART_SCALE  = RP7_MODES.beta.charArtScale;
 let SPRITE_ANCHOR   = RP7_MODES.beta.anchor;
-function rp7Mode() { return RP7_MODES[RP7_MODE] || RP7_MODES.classic; }
-function isBeta()  { return RP7_MODE === 'beta'; }
+// ★ 2026-08-01 · RP7 CLASSIC IS DEAD.  Beta is THE game.  isBeta() force-locked.
+function rp7Mode() { return RP7_MODES.beta; }
+function isBeta()  { return true; }
 function applyRp7Mode(mode) {
-  if (!RP7_MODES[mode]) mode = 'classic';
+  mode = 'beta';
+  if (!RP7_MODES[mode]) mode = 'beta';
   RP7_MODE = mode;
   const cfg = RP7_MODES[mode];
   COLS = cfg.cols;  ROWS = cfg.rows;
@@ -8000,6 +8000,18 @@ const game = {
     rizerLv: 1,
     rizerXp: 0,
     rizerLvHigh: 1,           // remembered peak for future analytics / titles
+    // ★ 2026-08-01 · RIZER COMBAT STATS (Zelda-style overworld bump combat
+    // vs corrupted humanoids in Wild Zones · Square = light, Triangle = heavy).
+    rizerHp:      20,
+    rizerHpMax:   20,
+    rizerAtk:      3,
+    rizerDef:      1,
+    rizerLuck:     5,
+    rizerWeapon:   null,
+    rizerWeapons:  [],
+    rizerSkills:   [],
+    rizerPotions:  0,
+    attackState:  { active: false, kind: null, dirLocked: null, startTime: 0, frame: 0, cooldownUntil: 0 },
     // V3.10 — Zysphere variants stacked separately so BAG can show a picker.
     zyspheresVoid: 0,
     zyspheresUltra: 0,
@@ -8562,24 +8574,37 @@ const BETA_PLAYER = {
   idle: new Image(),
   walk: new Image(),
   run:  new Image(),
-  // ★ Must match the sheets: cells were rebuilt at 64x88 with the feet
-  // baseline at 80.  These were left at 48x72/70 when BETA_NPC was updated,
-  // which sliced the player's new sheets at the OLD cell size — that is the
-  // clipping.  Character height is unchanged; only the cell grew.
+  // ★ 2026-08-02 · Bare-fists PUNCH/KICK sheets from RP4 combat sheet.
+  attackLight: new Image(),
+  attackHeavy: new Image(),
   cellW: 64, cellH: 88, feetY: 80,
   rows:    { down: 0, left: 1, right: 2, up: 3 },
   idleCol: { down: 0, left: 1, right: 2, up: 3 },
   standCol: 1,
-  order: [0, 1, 2, 1],   // 3-frame ping-pong — rp4's frames[facing][order[animFrame]]
-  // player0_idle.png is a DIFFERENT render pass from the walk sheet (different
-  // face, warmer skin, 9.75x downscale vs 3.4x) so the character visibly swapped
-  // costume on stopping.  Idle therefore uses the walk sheet's STAND column.
-  // Flip to true to use the hi-detail idle art for the DOWN facing.
+  order: [0, 1, 2, 1],
+  attackOrder: [0, 1, 2],
   useIdleArt: false,
 };
-BETA_PLAYER.idle.src = 'assets/rp7/beta_assets/player/player0_idle_native.png';
-BETA_PLAYER.walk.src = 'assets/rp7/beta_assets/player/player0_walk_native.png';
-BETA_PLAYER.run.src  = 'assets/rp7/beta_assets/player/player0_run_native.png';
+BETA_PLAYER.idle.src        = 'assets/rp7/beta_assets/player/player0_idle_native.png';
+BETA_PLAYER.walk.src        = 'assets/rp7/beta_assets/player/player0_walk_native.png';
+BETA_PLAYER.run.src         = 'assets/rp7/beta_assets/player/player0_run_native.png';
+BETA_PLAYER.attackLight.src = 'assets/rp7/beta_assets/player/player0_attack_light_fists_native.png';
+BETA_PLAYER.attackHeavy.src = 'assets/rp7/beta_assets/player/player0_attack_heavy_fists_native.png';
+
+// ★ 2026-08-02 · Beastbone Dagger equipped-player sheet · same geometry as BETA_PLAYER.
+const BETA_PLAYER_KNIFE = {
+  idle: new Image(), walk: new Image(), run: new Image(),
+  attackLight: new Image(), attackHeavy: new Image(),
+  cellW: 64, cellH: 88, feetY: 80,
+  rows: { down: 0, left: 1, right: 2, up: 3 },
+  idleCol: { down: 0, left: 1, right: 2, up: 3 },
+  standCol: 1, order: [0, 1, 2, 1], attackOrder: [0, 1, 2], useIdleArt: false,
+};
+BETA_PLAYER_KNIFE.idle.src        = 'assets/rp7/beta_assets/player/player0_idle_knife_native.png';
+BETA_PLAYER_KNIFE.walk.src        = 'assets/rp7/beta_assets/player/player0_walk_knife_native.png';
+BETA_PLAYER_KNIFE.run.src         = 'assets/rp7/beta_assets/player/player0_run_knife_native.png';
+BETA_PLAYER_KNIFE.attackLight.src = 'assets/rp7/beta_assets/player/player0_attack_light_knife_native.png';
+BETA_PLAYER_KNIFE.attackHeavy.src = 'assets/rp7/beta_assets/player/player0_attack_heavy_knife_native.png';
 // ★ 2026-07-29 · PSYCHOSYD SKIN — full player swap unlocked by strumming
 // the signed red guitar in the bedroom.  Same 3x4-of-64x88 geometry as
 // BETA_PLAYER (sliced from assets/psychosyd_outfit sheets), so drawBetaPlayer
@@ -8620,20 +8645,36 @@ function drawBetaShadow(cx, groundY, width, strength) {
 // heading.  game.player.dir already persists, so idle just renders that
 // facing's stand pose instead of snapping back to 'down'.
 function drawBetaPlayer(cx, cy, dir) {
-  // ★ 2026-07-29 · Psychosyd Skin swap.  Same geometry as BETA_PLAYER
-  // (64x88 · 3x4), so only the source-image bundle differs.  Reuses
-  // BETA_PLAYER's grid metadata (cellW/cellH/rows/etc.) to avoid drift.
-  const skin = (game.player && game.player.psychosydSkinEquipped) ? BETA_PSYCHOSYD : BETA_PLAYER;
+  // ★ 2026-08-02 · Weapon skin priority: Psychosyd cosmetic > weapon > default.
+  let skin = BETA_PLAYER;
+  if (game.player && game.player.psychosydSkinEquipped) {
+    skin = BETA_PSYCHOSYD;
+  } else if (game.player && game.player.rizerWeapon === 'knife') {
+    skin = BETA_PLAYER_KNIFE;
+  }
   const S = { ...BETA_PLAYER, idle: skin.idle, walk: skin.walk, run: skin.run };
-  const d = (S.rows[dir] === undefined) ? 'down' : dir;
+  if (typeof tickRizerAttack === 'function') tickRizerAttack();
+  const atkSt = game.player.attackState;
+  // Any skin with attack sheets loaded qualifies — no weapon required.
+  const atkActive = !!(atkSt && atkSt.active && (skin.attackLight || skin.attackHeavy));
+  const d = atkActive
+    ? ((S.rows[atkSt.dirLocked] === undefined) ? 'down' : atkSt.dirLocked)
+    : ((S.rows[dir] === undefined) ? 'down' : dir);
   const moving = (game.player.moveCd || 0) > 0;
-  // RUN pairs with the one flag tryMove already computes (shift OR b OR the
-  // gamepad Circle mapping all funnel through it), so every run input drives
-  // the run sheet for free.  Cadence too: running halves moveCd, so tiles
-  // arrive twice as fast and animFrame — which ticks per tile — follows.
   const sprinting = moving && !!game.player.running && _imgOk(S.run);
   let img, sx, sy;
-  if (sprinting) {
+  if (atkActive) {
+    const atkImg = atkSt.kind === 'heavy' ? S.attackHeavy : S.attackLight;
+    if (_imgOk(atkImg)) {
+      img = atkImg;
+      const order = S.attackOrder || [0, 1, 2];
+      sx = order[Math.min(order.length - 1, atkSt.frame | 0)] * S.cellW;
+      sy = S.rows[d] * S.cellH;
+    } else {
+      img = _imgOk(S.walk) ? S.walk : S.idle;
+      sx = S.standCol * S.cellW; sy = S.rows[d] * S.cellH;
+    }
+  } else if (sprinting) {
     img = S.run;
     sx = S.order[(game.player.animFrame | 0) % S.order.length] * S.cellW;
     sy = S.rows[d] * S.cellH;
@@ -8646,7 +8687,7 @@ function drawBetaPlayer(cx, cy, dir) {
   } else if (_imgOk(S.idle)) {
     img = S.idle;  sx = S.idleCol[d] * S.cellW;  sy = 0;
   } else {
-    return false;   // sheets not loaded yet — procedural chibi covers the frame
+    return false;
   }
   drawBetaShadow(cx, cy + TILE / 2 - 2, 34, 0.32);
   ctx.drawImage(img, sx, sy, S.cellW, S.cellH,
@@ -18373,7 +18414,8 @@ document.addEventListener('keydown', (e) => {
   //   * Anywhere else (menus, dialogs, overlays, battle prompts), Shift
   //     acts as BACK / CLOSE — matching mobile B (which dispatches Shift
   //     via the V2.46 remap).
-  const isBack    = (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Shift' || k === 'x' || k === 'b');
+  // ★ 2026-08-02 · Square ('x') dropped from isBack · Square is combat-only now.
+  const isBack    = (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Shift' || k === 'b');
   // V2.52 · V3.17.9 — Overworld gate: Shift AND B are both RUN modifiers
   // on the map, so neither should open the pause menu when tapped there.
   // Everywhere else, plain isBack still resolves (Shift closes overlays,
@@ -18778,13 +18820,16 @@ document.addEventListener('keydown', (e) => {
   // overworld does NOT open the menu (Shift is the run modifier).  All
   // other overlays/menus use plain isBack so Shift closes them.
   if (game.mode === 'overworld') {
-    // V2.66 — If a wild encounter is armed (post-gemgrass '!' indicator),
-    // A engages it and nothing else responds until then.
     if (game.pendingEncounter) {
       if (isConfirm) { engagePendingEncounter(); e.preventDefault(); return; }
-      // Don't allow opening the menu while frozen either.
       if (isBackOverworldGated) { e.preventDefault(); return; }
       return;
+    }
+    // ★ 2026-08-02 · Square = light, Triangle = heavy · ALWAYS.  Fists =
+    // punch/kick, dagger = beastbone swings.  Square NEVER opens the menu.
+    if (!e.repeat && game.player) {
+      if (k === 'x') { if (startRizerAttack('light')) { e.preventDefault(); return; } }
+      if (k === 'y') { if (startRizerAttack('heavy')) { e.preventDefault(); return; } }
     }
     if (isBackOverworldGated) { openMainMenu(); e.preventDefault(); return; }
     if (isConfirm) { tryInteract(); e.preventDefault(); return; }
@@ -19036,10 +19081,16 @@ canvas.addEventListener('click', (e) => {
 
 function tryMove(dx, dy) {
   if (game.mode !== 'overworld') return;
-  // V2.66 — Freeze movement while a wild encounter is armed.  The
-  // player must press A (isConfirm) to engage before they can walk again.
   if (game.pendingEncounter) return;
   if (game.player.moveCd > 0) return;
+  // ★ 2026-08-02 · Heavy attack ROOTS the player · light attack does not.
+  {
+    const st = game.player.attackState;
+    if (st && st.active) {
+      const cfg = (typeof RIZER_ATTACK_TIMINGS !== 'undefined') && RIZER_ATTACK_TIMINGS[st.kind];
+      if (cfg && cfg.rootsPlayer) return;
+    }
+  }
   const dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
   game.player.dir = dir;
   const nx = game.player.x + dx, ny = game.player.y + dy;
@@ -23355,6 +23406,88 @@ document.getElementById('allies-overlay').addEventListener('click', (e) => {
 //  Panel 4 (Shards)   → openGemshardTracker()
 // ============================================================================
 
+// ============================================================================
+// ★ 2026-08-01 · RIZER COMBAT DATA (Zelda-style overworld bump combat).
+// See rp7b.html for canon docs.  Kept in sync so this file renders the
+// same Rizer profile panel.
+// ============================================================================
+const RIZER_WEAPONS = {
+  fists:      { name: 'BARE FISTS',        light: 0,  heavy: 0,  tier: 0, icon: null,
+                flavor: 'You always have these.' },
+  knife:      { name: 'BEASTBONE DAGGER',  light: 2,  heavy: 1,  tier: 1,
+                icon: 'assets/rp7/beta_assets/items/beastbone_dagger_icon.png',
+                flavor: 'Dad carved this from his first Zyrex ossuary find.  Beast oil keeps the edge.' },
+  baton:      { name: 'IRON BATON',         light: 3,  heavy: 3,  tier: 2, flavor: 'Balanced sting · Silver Lodge stock.' },
+  cleaver:    { name: 'BEASTBONE CLEAVER',  light: 2,  heavy: 7,  tier: 3, flavor: 'Slow, crushing · Wildmarch chest.' },
+  saber:      { name: 'ZARVANE SABER',      light: 4,  heavy: 5,  tier: 4, flavor: 'Waterlands trade-blade.' },
+  glaive:     { name: 'ANDRAN GLAIVE',      light: 3,  heavy: 8,  tier: 5, flavor: 'Reach and pain in one shaft.' },
+  spear:      { name: 'VERIDAN SPEAR',      light: 5,  heavy: 6,  tier: 6, flavor: 'Emerald-cored, always keen.' },
+  blade:      { name: 'NETHARIAN BLADE',    light: 6,  heavy: 9,  tier: 7, flavor: 'Amethyst-forged relic.' },
+  greatsword: { name: 'BAELGOR GREATSWORD', light: 5,  heavy: 12, tier: 8, flavor: 'Two-handed monster.' },
+  prismblade: { name: 'PRISM BLADE',        light: 9,  heavy: 15, tier: 9, flavor: 'Only Bond Master Rizers wield it.' },
+};
+const RIZER_SKILLS = [
+  { id: 'guard',    minLv: 3,  label: 'GUARD',      desc: 'Hold direction INTO enemy without stepping · incoming −50%.' },
+  { id: 'dash',     minLv: 5,  label: 'DASH',       desc: 'Shift + direction hops one tile · skips combat on that step (short cooldown).' },
+  { id: 'firstaid', minLv: 8,  label: 'FIRST AID',  desc: 'X on overworld · heal 5 HP · consumes 1 potion.' },
+  { id: 'slash',    minLv: 12, label: 'SLASH',      desc: 'First bump after standing still 2s deals +50%.' },
+  { id: 'cleave',   minLv: 20, label: 'CLEAVE',     desc: 'Bump splashes 1 tile in facing direction (weapon-dependent).' },
+];
+function rizerWeaponFor(id) { return (id && RIZER_WEAPONS[id]) || RIZER_WEAPONS.fists; }
+function rizerLightAtk(p)   { return (p.rizerAtk || 0) + rizerWeaponFor(p.rizerWeapon).light; }
+function rizerHeavyAtk(p)   { return (p.rizerAtk || 0) + rizerWeaponFor(p.rizerWeapon).heavy; }
+function syncRizerSkills() {
+  const p = game.player; if (!p) return;
+  if (!p.rizerSkills) p.rizerSkills = [];
+  for (const sk of RIZER_SKILLS) {
+    if ((p.rizerLv || 1) >= sk.minLv && !p.rizerSkills.includes(sk.id)) {
+      p.rizerSkills.push(sk.id);
+    }
+  }
+}
+
+// ★ 2026-08-02 · RIZER ATTACK STATE MACHINE · see rp7b.html for canon docs.
+const RIZER_ATTACK_TIMINGS = {
+  light: { frames: 3, frameMs: 80,  cooldownMs: 200, rootsPlayer: false },
+  heavy: { frames: 3, frameMs: 200, cooldownMs: 350, rootsPlayer: true  },
+};
+function rizerCanAttack() {
+  if (!game || !game.player) return false;
+  if (game.mode !== 'overworld') return false;
+  if (game.pendingEncounter) return false;
+  const st = game.player.attackState || {};
+  if (st.active) return false;
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  if (st.cooldownUntil && now < st.cooldownUntil) return false;
+  return true;
+}
+function startRizerAttack(kind) {
+  if (kind !== 'light' && kind !== 'heavy') return false;
+  if (!rizerCanAttack()) return false;
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  game.player.attackState = {
+    active: true, kind: kind, dirLocked: game.player.dir || 'down',
+    startTime: now, frame: 0, cooldownUntil: 0,
+  };
+  // ★ 2026-08-02 · No SFX on swing start · dedicated combat sounds land later.
+  return true;
+}
+function tickRizerAttack() {
+  const st = game.player && game.player.attackState;
+  if (!st || !st.active) return;
+  const cfg = RIZER_ATTACK_TIMINGS[st.kind];
+  if (!cfg) { st.active = false; return; }
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const elapsed = now - (st.startTime || now);
+  const totalMs = cfg.frames * cfg.frameMs;
+  if (elapsed >= totalMs) {
+    st.active = false; st.frame = 0;
+    st.cooldownUntil = now + (cfg.cooldownMs || 0);
+    return;
+  }
+  st.frame = Math.min(cfg.frames - 1, Math.floor(elapsed / cfg.frameMs));
+}
+
 // ---- Panel 2: RIZER PROFILE CARD ----
 function openRizerProfile() {
   try { playSfx('menu-open'); } catch(_) {}
@@ -23373,6 +23506,15 @@ function openRizerProfile() {
   const rXpPct = rCapped ? 100 : Math.min(100, Math.round((rXp / Math.max(1, rXpNext)) * 100));
   const name = p.name || 'Rizer';
   const gender = p.gender || 'boy';
+  // ★ 2026-08-01 · Rizer combat block · Zelda-style overworld bump.
+  syncRizerSkills();
+  const rHp     = Math.max(0, Math.min(p.rizerHpMax || 20, p.rizerHp == null ? (p.rizerHpMax || 20) : p.rizerHp));
+  const rHpMax  = p.rizerHpMax || 20;
+  const rHpPct  = Math.round((rHp / Math.max(1, rHpMax)) * 100);
+  const weapon  = rizerWeaponFor(p.rizerWeapon);
+  const lightAtk = rizerLightAtk(p);
+  const heavyAtk = rizerHeavyAtk(p);
+  const skillsOwned = new Set(p.rizerSkills || []);
   // Aggregate stats from various player fields
   const districtsVisitedCount = Object.keys(p.districtsVisited || {}).length;
   const alliesMetCount = Object.keys(p.alliesMet || {}).length;
@@ -23408,6 +23550,67 @@ function openRizerProfile() {
       <div style="height:6px; background:rgba(20,10,40,0.60); border-radius:3px; overflow:hidden;">
         <div style="height:100%; width:${rXpPct}%; background:linear-gradient(90deg, #b87cff, #f8c840);"></div>
       </div>
+    </div>
+    <!-- ★ 2026-08-01 · RIZER COMBAT sub-panel · HP + stats + weapon + skills -->
+    <div style="padding:10px; background:rgba(90,40,140,0.10); border:1px solid var(--border-gold); border-radius:4px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-family:var(--font-display); font-size:11px; color:var(--gold-bright); letter-spacing:0.20em;">
+        <span>◈ COMBAT</span>
+        <span style="color:${rHpPct < 30 ? '#ff6c6c' : 'var(--mist)'}; font-size:11px;">HP ${rHp} / ${rHpMax}</span>
+      </div>
+      <div style="height:8px; background:rgba(20,10,40,0.60); border-radius:3px; overflow:hidden;">
+        <div style="height:100%; width:${rHpPct}%; background:${rHpPct < 30 ? 'linear-gradient(90deg,#ff4040,#ff8c40)' : 'linear-gradient(90deg,#ff6c6c,#ffb46c)'};"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; font-family:var(--font-display); font-size:11px; letter-spacing:0.12em;">
+        <div style="padding:6px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:3px; text-align:center;">
+          <div style="color:var(--mist); font-size:9px; letter-spacing:0.20em;">ATK</div>
+          <div style="color:var(--gold-bright); font-size:14px; margin-top:2px;">${p.rizerAtk || 3}</div>
+        </div>
+        <div style="padding:6px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:3px; text-align:center;">
+          <div style="color:var(--mist); font-size:9px; letter-spacing:0.20em;">DEF</div>
+          <div style="color:var(--gold-bright); font-size:14px; margin-top:2px;">${p.rizerDef || 1}</div>
+        </div>
+        <div style="padding:6px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:3px; text-align:center;">
+          <div style="color:var(--mist); font-size:9px; letter-spacing:0.20em;">LUCK</div>
+          <div style="color:var(--gold-bright); font-size:14px; margin-top:2px;">${p.rizerLuck || 5}%</div>
+        </div>
+      </div>
+      <div style="padding:8px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:3px;">
+        <div style="font-family:var(--font-display); font-size:9px; color:var(--mist); letter-spacing:0.20em; margin-bottom:4px;">WEAPON EQUIPPED</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          ${weapon.icon ? `
+          <div style="width:48px; height:48px; flex:0 0 48px; display:flex; align-items:center; justify-content:center; background:rgba(10,6,20,0.55); border:1px solid var(--border-gold); border-radius:3px; padding:2px;">
+            <img src="${weapon.icon}" alt="${weapon.name}" style="max-width:100%; max-height:100%; image-rendering:pixelated;" />
+          </div>` : `
+          <div style="width:48px; height:48px; flex:0 0 48px; display:flex; align-items:center; justify-content:center; background:rgba(10,6,20,0.55); border:1px dashed var(--border-soft); border-radius:3px; font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.14em;">FISTS</div>`}
+          <div style="flex:1; min-width:0;">
+            <div style="font-family:var(--font-display); font-size:13px; color:var(--gold-bright); letter-spacing:0.14em;">${weapon.name}</div>
+            <div style="font-size:10px; opacity:0.65; margin-top:2px; font-style:italic;">${weapon.flavor}</div>
+          </div>
+          <div style="text-align:right; font-family:var(--font-display); font-size:10px; letter-spacing:0.14em;">
+            <div style="color:var(--gold-bright);">□ LIGHT ${lightAtk}</div>
+            <div style="color:var(--gold-bright); margin-top:2px;">△ HEAVY ${heavyAtk}</div>
+          </div>
+        </div>
+        ${(p.rizerWeapons || []).length > 0 ? `
+        <div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--border-soft); font-size:10px; color:var(--mist); letter-spacing:0.10em;">
+          PACK: ${(p.rizerWeapons || []).map(id => RIZER_WEAPONS[id] ? RIZER_WEAPONS[id].name : id).join(' · ') || '(empty)'}
+        </div>` : ''}
+      </div>
+      <div style="padding:8px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:3px;">
+        <div style="font-family:var(--font-display); font-size:9px; color:var(--mist); letter-spacing:0.20em; margin-bottom:6px;">SKILLS</div>
+        ${RIZER_SKILLS.map(sk => {
+          const owned = skillsOwned.has(sk.id);
+          return `<div style="display:flex; gap:8px; padding:4px 0; opacity:${owned ? 1 : 0.35};">
+            <div style="width:14px; color:${owned ? 'var(--gold-bright)' : 'var(--mist)'}; font-family:var(--font-display); font-size:12px;">${owned ? '◈' : '○'}</div>
+            <div style="flex:1;">
+              <div style="font-family:var(--font-display); font-size:11px; color:${owned ? 'var(--gold-bright)' : 'var(--mist)'}; letter-spacing:0.14em;">${sk.label} · Lv ${sk.minLv}</div>
+              <div style="font-size:10px; opacity:0.75; margin-top:1px;">${sk.desc}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${(p.rizerPotions || 0) > 0 ? `
+      <div style="font-size:10px; color:var(--mist); letter-spacing:0.14em; text-align:center;">◈ FIRST-AID POTIONS · ${p.rizerPotions}</div>` : ''}
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
       <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
@@ -27643,10 +27846,10 @@ $prologueSkip.onclick = endPrologue;
 const $title = document.getElementById('title-screen');
 const $starter = document.getElementById('starter-screen');
 function focusTitleDefault() {
-  const newGame = document.getElementById('btn-new');
+  const newGame = document.getElementById('btn-new-beta');
   if (newGame) newGame.focus();
 }
-document.getElementById('btn-new').onclick = () => {
+document.getElementById('btn-new-beta').onclick = () => {
   // Reset state
   game.player = {
     x: 4, y: 8,
@@ -27683,6 +27886,17 @@ document.getElementById('btn-new').onclick = () => {
     rizerLv: 1,
     rizerXp: 0,
     rizerLvHigh: 1,
+    // ★ 2026-08-01 · Rizer combat stats (see base template for docs).
+    rizerHp:      20,
+    rizerHpMax:   20,
+    rizerAtk:      3,
+    rizerDef:      1,
+    rizerLuck:     5,
+    rizerWeapon:   null,
+    rizerWeapons:  [],
+    rizerSkills:   [],
+    rizerPotions:  0,
+    attackState:  { active: false, kind: null, dirLocked: null, startTime: 0, frame: 0, cooldownUntil: 0 },
     // V3.10 — Zysphere variant counters.
     zyspheresVoid: 0,
     zyspheresUltra: 0,
@@ -27782,14 +27996,7 @@ function refreshLoadButtonState() {
 // ★ RP7 BETA ENTRY.  Reuses the EXACT classic NEW GAME handler — the only
 // difference is which render mode is active when it runs, so classic and beta
 // can never drift apart.
-(function wireRp7Modes() {
-  const classicBtn = document.getElementById('btn-new');
-  const betaBtn    = document.getElementById('btn-new-beta');
-  if (!classicBtn) return;
-  const startGame = classicBtn.onclick;
-  classicBtn.onclick = () => { applyRp7Mode('classic'); startGame(); };
-  if (betaBtn) betaBtn.onclick = () => { applyRp7Mode('beta'); startGame(); };
-})();
+// ★ 2026-08-02 · wireRp7Modes removed · classic is dead, beta is the game.
 refreshLoadButtonState();
 setTimeout(focusTitleDefault, 30);
 // Re-check whenever the title screen becomes visible (rare, but cheap)

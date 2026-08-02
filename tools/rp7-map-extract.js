@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* RP7 · ASCII-map -> data-driven map extractor
- * Reads rp7.html, pulls every hand-authored ASCII map + the MAPS/HALL_MAPS
+ * Reads rp7b.html, pulls every hand-authored ASCII map + the MAPS/HALL_MAPS
  * registries, and emits:
  *   data/maps/<id>.json        · RP7-native map (layers + events + encounters)
  *   data/maps/<id>.tmj         · Tiled map, opens directly in Tiled
@@ -8,7 +8,7 @@
  * No game code is modified.  Re-runnable; safe to run on every change.
  */
 const fs = require('fs'), path = require('path');
-const SRC = process.argv[2] || 'rp7.html';
+const SRC = process.argv[2] || 'rp7b.html';
 const OUT = process.argv[3] || 'data';
 const src = fs.readFileSync(SRC, 'utf8');
 

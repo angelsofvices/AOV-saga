@@ -8777,6 +8777,27 @@ const BETA_PSYCHOSYD = {
 BETA_PSYCHOSYD.idle.src = 'assets/rp7/beta_assets/player/psychosyd_idle_native.png';
 BETA_PSYCHOSYD.walk.src = 'assets/rp7/beta_assets/player/psychosyd_walk_native.png';
 BETA_PSYCHOSYD.run.src  = 'assets/rp7/beta_assets/player/psychosyd_run_native.png';
+
+// ★ 2026-08-02 · SLEEP IDLE bundle · 4 rows × 4 frames · 64×88 cells.
+//   row 0 = resting standing, row 1 = sleep (lying), row 2 = nap (sitting),
+//   row 3 = ground (curled on ground).  Ping-pong 4-frame anim per phase.
+const BETA_PLAYER_SLEEP = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 80 };
+BETA_PLAYER_SLEEP.sheet.src = 'assets/rp7/beta_assets/player/player0_sleep_native.png';
+
+// ★ 2026-08-02 · HOVERBOARD mount · 4 dirs × 5 frames.  1.5× base run speed.
+const BETA_PLAYER_HOVERBOARD = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 82, frameCount: 5 };
+BETA_PLAYER_HOVERBOARD.sheet.src = 'assets/rp7/beta_assets/player/player0_hoverboard_native.png';
+
+// ★ 2026-08-02 · WINGS/FLY mount · 4 dirs × 4 frames.  2× base run speed.
+const BETA_PLAYER_FLY = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 82, frameCount: 4 };
+BETA_PLAYER_FLY.sheet.src = 'assets/rp7/beta_assets/player/player0_fly_native.png';
+
+// ★ 2026-08-02 · MORI ENEMY · 4 dirs × 6 cols (walk 0-2, dissolve 3-5).
+const MORI_SPRITE = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 80 };
+MORI_SPRITE.sheet.src = 'assets/rp7/beta_assets/enemies/mori_native.png';
+const MORI_HURT_SPRITE = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 80, frameCount: 3 };
+MORI_HURT_SPRITE.sheet.src = 'assets/rp7/beta_assets/enemies/mori_hurt_native.png';
+
 const _imgOk = (i) => !!(i && i.complete && i.naturalWidth);
 
 // ★ 2026-07-29 — LIGHT BLACK CONTACT SHADOW.  A soft, low-alpha ellipse under
@@ -8807,6 +8828,49 @@ function drawBetaShadow(cx, groundY, width, strength) {
 // heading.  game.player.dir already persists, so idle just renders that
 // facing's stand pose instead of snapping back to 'down'.
 function drawBetaPlayer(cx, cy, dir) {
+  // ★ 2026-08-02 · SLEEP · AFK player renders lying/sitting/curled pose.
+  //   Priority: sleep beats mount beats weapon-skin beats cosmetic.
+  const sleep = game.player && game.player.sleepState;
+  if (sleep && sleep.phase === 'lie' && _imgOk(BETA_PLAYER_SLEEP.sheet)) {
+    // rows 1/2/3 = sleep/nap/ground; 4 frames per row.
+    const rowIdx = ({ sleep: 1, nap: 2, ground: 3 })[sleep.pose] || 1;
+    const S = BETA_PLAYER_SLEEP;
+    drawBetaShadow(cx, cy + TILE / 2 - 2, 34, 0.32);
+    ctx.drawImage(S.sheet, (sleep.frame % 4) * S.cellW, rowIdx * S.cellH, S.cellW, S.cellH,
+      Math.round(cx - S.cellW / 2), Math.round((cy + TILE / 2) - S.feetY), S.cellW, S.cellH);
+    return true;
+  }
+  if (sleep && sleep.phase === 'rest' && _imgOk(BETA_PLAYER_SLEEP.sheet)) {
+    // Row 0 = resting (standing but drowsy · 4 frames).
+    const S = BETA_PLAYER_SLEEP;
+    drawBetaShadow(cx, cy + TILE / 2 - 2, 34, 0.32);
+    ctx.drawImage(S.sheet, (sleep.frame % 4) * S.cellW, 0, S.cellW, S.cellH,
+      Math.round(cx - S.cellW / 2), Math.round((cy + TILE / 2) - S.feetY), S.cellW, S.cellH);
+    return true;
+  }
+  // ★ 2026-08-02 · MOUNTS · hoverboard / wings render.
+  if (game.player && game.player.mount === 'hoverboard' && _imgOk(BETA_PLAYER_HOVERBOARD.sheet)) {
+    const S = BETA_PLAYER_HOVERBOARD;
+    const rowMap = { up: 0, left: 1, right: 2, down: 3 };
+    const rowIdx = rowMap[dir] !== undefined ? rowMap[dir] : 3;
+    game.player.mountAnim.ms += 60;
+    if (game.player.mountAnim.ms > 90) { game.player.mountAnim.ms = 0; game.player.mountAnim.frame = (game.player.mountAnim.frame + 1) % S.frameCount; }
+    drawBetaShadow(cx, cy + TILE / 2 - 2, 38, 0.42);
+    ctx.drawImage(S.sheet, game.player.mountAnim.frame * S.cellW, rowIdx * S.cellH, S.cellW, S.cellH,
+      Math.round(cx - S.cellW / 2), Math.round((cy + TILE / 2) - S.feetY - 4), S.cellW, S.cellH);
+    return true;
+  }
+  if (game.player && game.player.mount === 'wings' && _imgOk(BETA_PLAYER_FLY.sheet)) {
+    const S = BETA_PLAYER_FLY;
+    const rowMap = { up: 0, left: 1, right: 2, down: 3 };
+    const rowIdx = rowMap[dir] !== undefined ? rowMap[dir] : 3;
+    game.player.mountAnim.ms += 60;
+    if (game.player.mountAnim.ms > 110) { game.player.mountAnim.ms = 0; game.player.mountAnim.frame = (game.player.mountAnim.frame + 1) % S.frameCount; }
+    drawBetaShadow(cx, cy + TILE / 2 + 6, 30, 0.22);
+    ctx.drawImage(S.sheet, game.player.mountAnim.frame * S.cellW, rowIdx * S.cellH, S.cellW, S.cellH,
+      Math.round(cx - S.cellW / 2), Math.round((cy + TILE / 2) - S.feetY - 10), S.cellW, S.cellH);
+    return true;
+  }
   // ★ 2026-07-29 · Psychosyd Skin swap.  Same geometry as BETA_PLAYER
   // (64x88 · 3x4), so only the source-image bundle differs.  Reuses
   // BETA_PLAYER's grid metadata (cellW/cellH/rows/etc.) to avoid drift.
@@ -8866,11 +8930,121 @@ function drawBetaPlayer(cx, cy, dir) {
     return false;   // sheets not loaded yet — procedural chibi covers the frame
   }
   drawBetaShadow(cx, cy + TILE / 2 - 2, 34, 0.32);
-  ctx.drawImage(img, sx, sy, S.cellW, S.cellH,
-                Math.round(cx - S.cellW / 2),
-                Math.round((cy + TILE / 2) - S.feetY),
-                S.cellW, S.cellH);
+  // ★ 2026-08-02 · HIT REACTION render effects.
+  const hp = (typeof hurtPhase === 'function') ? hurtPhase() : null;
+  let yOff = 0;
+  if (hp === 'hop') yOff = -10;
+  const dx = Math.round(cx - S.cellW / 2);
+  const dy = Math.round((cy + TILE / 2) - S.feetY) + yOff;
+  ctx.drawImage(img, sx, sy, S.cellW, S.cellH, dx, dy, S.cellW, S.cellH);
+  if (hp === 'flash' || hp === 'wince') {
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = 'rgba(220, 40, 30, 0.65)';
+    ctx.fillRect(dx, dy, S.cellW, S.cellH);
+    ctx.restore();
+  }
+  if (hp === 'hop') {
+    // motion streaks
+    ctx.save();
+    ctx.fillStyle = 'rgba(170,170,190,0.55)';
+    ctx.fillRect(dx - 2, dy + S.cellH - 18, 2, 8);
+    ctx.fillRect(dx + S.cellW, dy + S.cellH - 20, 2, 10);
+    ctx.restore();
+  }
   return true;
+}
+
+// ★ 2026-08-02 · MORI + dust + gem render helpers · called before drawBetaPlayer.
+function drawMoriEnemies(cam) {
+  if (!game.enemies || !game.enemies[game.player.mapId]) return;
+  const bucket = game.enemies[game.player.mapId];
+  const S = MORI_SPRITE, HS = MORI_HURT_SPRITE;
+  const rowMap = { down: 0, left: 1, right: 2, up: 3 };
+  for (const e of bucket) {
+    const cx = (e.x - cam.x) * TILE + TILE / 2;
+    const cy = (e.y - cam.y) * TILE + TILE / 2;
+    const dx = Math.round(cx - S.cellW / 2);
+    const dy = Math.round((cy + TILE / 2) - S.feetY);
+    const rowIdx = rowMap[e.dir] !== undefined ? rowMap[e.dir] : 0;
+    drawBetaShadow(cx, cy + TILE / 2 - 2, 30, 0.28);
+    if (e.dying) {
+      // Dissolve · frames 3/4/5 of walk sheet (cols 3-5) across die time.
+      const frameIdx = Math.min(2, Math.floor(e.dieMs / 300));
+      const col = 3 + frameIdx;
+      if (_imgOk(S.sheet)) {
+        ctx.drawImage(S.sheet, col * S.cellW, rowIdx * S.cellH, S.cellW, S.cellH,
+          dx, dy, S.cellW, S.cellH);
+      }
+      continue;
+    }
+    if (e.hurtMs > 0 && _imgOk(HS.sheet)) {
+      const frameIdx = Math.min(2, Math.floor((260 - e.hurtMs) / 90));
+      ctx.drawImage(HS.sheet, frameIdx * HS.cellW, rowIdx * HS.cellH, HS.cellW, HS.cellH,
+        dx, dy, HS.cellW, HS.cellH);
+    } else if (_imgOk(S.sheet)) {
+      // Walk · ping-pong across cols 0/1/2
+      const walkOrder = [0, 1, 2, 1];
+      const col = walkOrder[e.frame % walkOrder.length];
+      ctx.drawImage(S.sheet, col * S.cellW, rowIdx * S.cellH, S.cellW, S.cellH,
+        dx, dy, S.cellW, S.cellH);
+    }
+    // HP bar
+    if (e.hp < e.maxHp) {
+      const bw = 30, bh = 3;
+      const bx = cx - bw/2, by = dy - 4;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = '#d24030';
+      ctx.fillRect(bx, by, bw * (e.hp / e.maxHp), bh);
+    }
+  }
+}
+function drawDustPiles(cam) {
+  if (!game.dustPiles || !game.dustPiles[game.player.mapId]) return;
+  const dust = game.dustPiles[game.player.mapId];
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const S = MORI_SPRITE;
+  for (const d of dust) {
+    const cx = (d.x - cam.x) * TILE + TILE / 2;
+    const cy = (d.y - cam.y) * TILE + TILE / 2;
+    const dx = Math.round(cx - S.cellW / 2);
+    const dy = Math.round((cy + TILE / 2) - S.feetY);
+    // Age fade: solid until 90s, then fade over last 30s.
+    const age = now - d.spawnedAt;
+    let alpha = 1.0;
+    if (age > 90000) alpha = Math.max(0, 1 - (age - 90000) / 30000);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (_imgOk(S.sheet)) {
+      // Use col 5 row 0 = smallest dust pile from any dir row
+      ctx.drawImage(S.sheet, 5 * S.cellW, 0, S.cellW, S.cellH, dx, dy, S.cellW, S.cellH);
+    }
+    ctx.restore();
+  }
+}
+function drawGroundGems(cam) {
+  if (!game.groundGems || !game.groundGems[game.player.mapId]) return;
+  const bucket = game.groundGems[game.player.mapId];
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const gemColors = { blue:'#5cd0ff', pearl:'#f3ecdc', green:'#48c880', orange:'#e08840', purple:'#c896ff', red:'#e04848', silver:'#c8d0e0', gold:'#ffd870' };
+  for (const g of bucket) {
+    const cx = (g.x - cam.x) * TILE + TILE / 2;
+    const cy = (g.y - cam.y) * TILE + TILE / 2;
+    const bob = Math.sin((now + g.spawnedAt) / 250) * 3;
+    ctx.save();
+    ctx.fillStyle = gemColors[g.type] || '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx, cy + 4 + bob, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // sparkle
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(cx - 2, cy + 2 + bob, 2, 2);
+    ctx.restore();
+  }
 }
 
 // ★ RP7 BETA · floors.  Wood indoors, grass outdoors.  Each atlas is 512x512 =
@@ -9338,6 +9512,12 @@ window.BETA_SHARDSHARE_COLLAR = BETA_SHARDSHARE_COLLAR;
 // is unchanged; the fountain IS the water tile visually.
 const FOUNTAIN_IMG = new Image();
 FOUNTAIN_IMG.src = 'assets/rp7/beta_assets/props/fountain_native.png';
+// ★ 2026-08-02 · UNIVERSAL TREE · every district's 'T' tile now renders this
+// green oak with purple crystal fruit.  Replaces the old per-district
+// procedural tree switch.  Draws ~48w × 44h footprint anchored on tile bottom
+// so the canopy hangs into the tile above the character line.
+const TREE_IMG = new Image();
+TREE_IMG.src = 'assets/rp7/beta_assets/props/tree.png';
 // ★ 2026-07-29 · Animated ornate FIREPLACE — 4-frame sheet, 64×64 per frame
 // = one 2-tile-wide × 2-tile-tall sprite anchored on the wall's ~~ block.
 const FIREPLACE_IMG = new Image();
@@ -13562,10 +13742,23 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'T': {
-      // V2.43 — district-tinted tree. Style dictated by DISTRICT_DECOR.treeStyle.
+      // ★ 2026-08-02 · UNIVERSAL TREE — single asset for every district.  The
+      // per-district procedural styles below stay as fallback only while the
+      // image loads on first frames.  Anchored feet-at-tile-bottom, canopy
+      // reaches ~1 tile above the T cell so it reads as a real tree above
+      // the character line.
+      drawTile(x, y, ',', mx, my); // ground under tree
+      if (TREE_IMG.complete && TREE_IMG.naturalWidth > 0) {
+        // ★ 2026-08-02 · Enlarged from 44 to 64 · trees now read like real
+        // landmarks, canopy extends ~1 tile above the T cell.
+        const TW = 64, TH = 64;
+        const dx = px + (TILE - TW) / 2;
+        const dy = py + TILE - TH + 6;   // feet planted at tile bottom (+6 nudge)
+        ctx.drawImage(TREE_IMG, dx, dy, TW, TH);
+        break;
+      }
       const decor = (_dm && DISTRICT_DECOR[game.player.mapId]) || {};
       const style = decor.treeStyle || 'beast';
-      drawTile(x, y, ',', mx, my); // ground under tree
       const trunkX = px + TILE / 2;
       if (style === 'gold') {
         // Zarvane — tall gold cypress
@@ -16161,6 +16354,11 @@ function renderMap() {
   // ★ 2026-07-29 · Psychosyd Skin routes through the BETA path in BOTH modes
   // — the PNG sheets ARE the outfit, so the procedural chibi cannot render it.
   const _usePsychosydPath = !!(game.player && game.player.psychosydSkinEquipped);
+  // ★ 2026-08-02 · Draw MORI enemies + dust piles + ground gems BEFORE the
+  // player so player sprite composites on top.
+  drawMoriEnemies(cam);
+  drawDustPiles(cam);
+  drawGroundGems(cam);
   if (!((isBeta() || _usePsychosydPath) && drawBetaPlayer(px, py, game.player.dir))) {
     drawCharacter(px, py, game.player.dir, pal.primary, pal.accent, { spiky: true, hair: pal.accent, pants: pal.pants, hairStyle: (game.player.hairStyle || 'spiky'), shirtStyle: (game.player.shirtStyle || 'plain') });
   }
@@ -19103,9 +19301,16 @@ document.addEventListener('keydown', (e) => {
     // ★ 2026-08-02 · Square = light, Triangle = heavy · ALWAYS.  Bare fists
     // = punch (light) / kick (heavy) with RP4 combat sheets; dagger equipped
     // = the beastbone light/heavy swings.  Square NEVER opens the menu.
-    if (!e.repeat && game.player) {
+    // Mounts + hurt-state lock out attack input.
+    const _lockedAttack = (typeof isMounted === 'function' && isMounted()) ||
+                          (game.player.hurtState && game.player.hurtState.active);
+    if (!e.repeat && game.player && !_lockedAttack) {
       if (k === 'x') { if (startRizerAttack('light')) { e.preventDefault(); return; } }
       if (k === 'y') { if (startRizerAttack('heavy')) { e.preventDefault(); return; } }
+    }
+    // ★ 2026-08-02 · 'r' (R1) cycles mount when overworld idle.
+    if (!e.repeat && game.player && k === 'r') {
+      cycleMount(); e.preventDefault(); return;
     }
     if (isBackOverworldGated) { openMainMenu(); e.preventDefault(); return; }
     if (isConfirm) { tryInteract(); e.preventDefault(); return; }
@@ -19453,7 +19658,10 @@ function tryMove(dx, dy) {
   // which dispatches Shift) halves the walk cooldown → 2x run speed.
   // Both keys[] slots are checked so either input source works.
   const running = !!keys['shift'] || !!keys['b'];
-  game.player.moveCd = running ? 80 : 160;
+  // ★ 2026-08-02 · Mount speed multiplier · hoverboard 1.5×, wings 2× · applied
+  // by dividing the tile cooldown (shorter cd = faster movement).
+  const _mmult = (typeof mountSpeedMult === 'function') ? mountSpeedMult() : 1.0;
+  game.player.moveCd = (running ? 80 : 160) / _mmult;
   // ★ Single source of truth for "is the player sprinting" — already covers
   // keyboard Shift, B, and the gamepad Circle mapping.
   game.player.running = running;
@@ -21768,7 +21976,15 @@ function openChest(x, y) {
     game.player.chestLoot[key] = loot;
   }
   game.player.chestsOpened[key] = true;
-  if (loot.kind === 'gems')      { game.player.gems       = (game.player.gems       || 0) + loot.amount; showToast(`◈ +${loot.amount} GEMS`); }
+  if (loot.kind === 'gems')      {
+    game.player.gems = (game.player.gems || 0) + loot.amount;
+    // ★ 2026-08-02 · Also spawn visual gems that bounce out onto the ground
+    // for the player to walk over.  Feeds the per-type gemBag inventory.
+    if (typeof dropGemsFromChest === 'function') {
+      dropGemsFromChest(mapId, x, y, Math.min(6, Math.ceil(loot.amount / 3)));
+    }
+    showToast(`◈ +${loot.amount} GEMS`);
+  }
   else if (loot.kind === 'coins')    { game.player.coins      = (game.player.coins      || 0) + loot.amount; showToast(`¢ +${loot.amount} COINS`); }
   else if (loot.kind === 'potion')   { game.player.items = game.player.items || {}; game.player.items.potion = (game.player.items.potion || 0) + loot.amount; showToast(`✚ +${loot.amount} POTION${loot.amount === 1 ? '' : 'S'}`); }
   else if (loot.kind === 'gemsphere' || loot.kind === 'zysphere'){ game.player.zyspheres = (game.player.zyspheres || 0) + loot.amount; showToast(`◉ +${loot.amount} ZYSPHERE${loot.amount === 1 ? '' : 'S'}`); }
@@ -23783,6 +23999,359 @@ function syncRizerSkills() {
   for (const sk of RIZER_SKILLS) {
     if ((p.rizerLv || 1) >= sk.minLv && !p.rizerSkills.includes(sk.id)) {
       p.rizerSkills.push(sk.id);
+    }
+  }
+}
+
+// ============================================================================
+// ★ 2026-08-02 · SLEEP IDLE · AFK timer.  After 8s of no input the player
+// transitions to a resting pose; after 30s they lie down / nap / curl up
+// (one of the three sleep variants chosen at start of sleep).  Any keyboard
+// or gamepad input resets to normal idle immediately.
+// ============================================================================
+const SLEEP_REST_MS = 8000;
+const SLEEP_LIE_MS  = 30000;
+const SLEEP_POSES   = ['sleep', 'nap', 'ground'];   // rows 1/2/3 of sheet
+
+function initSleepState() {
+  if (!game.player.sleepState) {
+    game.player.sleepState = { phase: 'active', idleMs: 0, pose: 'sleep', frame: 0, animMs: 0 };
+  }
+}
+function noteInputActivity() {
+  if (game.player && game.player.sleepState) {
+    game.player.sleepState.idleMs = 0;
+    game.player.sleepState.phase  = 'active';
+  }
+}
+function tickSleep(dt) {
+  if (!game.player || game.mode !== 'overworld') return;
+  initSleepState();
+  const s = game.player.sleepState;
+  // Any movement or attack breaks sleep.
+  const st = game.player.attackState;
+  if (game.player.moveCd > 0 || (st && st.active)) {
+    s.idleMs = 0; s.phase = 'active'; return;
+  }
+  // Held direction keys count as active input.
+  if (keys['arrowup']||keys['arrowdown']||keys['arrowleft']||keys['arrowright']||
+      keys['w']||keys['a']||keys['s']||keys['d']) {
+    s.idleMs = 0; s.phase = 'active'; return;
+  }
+  s.idleMs += dt;
+  s.animMs += dt;
+  if (s.idleMs >= SLEEP_LIE_MS) {
+    if (s.phase !== 'lie') {
+      s.phase = 'lie';
+      s.pose  = SLEEP_POSES[Math.floor(Math.random() * SLEEP_POSES.length)];
+      s.frame = 0; s.animMs = 0;
+    }
+    // 4-frame ping-pong every 250ms
+    if (s.animMs > 250) { s.animMs = 0; s.frame = (s.frame + 1) % 4; }
+  } else if (s.idleMs >= SLEEP_REST_MS) {
+    if (s.phase !== 'rest') { s.phase = 'rest'; s.frame = 0; s.animMs = 0; }
+    if (s.animMs > 300) { s.animMs = 0; s.frame = (s.frame + 1) % 4; }
+  }
+}
+
+// ============================================================================
+// ★ 2026-08-02 · PLAYER HIT REACTION · programmatic (canvas tint + hop).
+//   phase 1 (0-100ms)  · HIT FLASH · red overlay tint via source-atop
+//   phase 2 (100-200ms)· WINCE     · same tint, slight y-bob
+//   phase 3 (200-350ms)· HOP       · lift 12px, motion streaks
+//   attacks blocked entire duration.
+// ============================================================================
+const HURT_TOTAL_MS = 350;
+function initHurtState() {
+  if (!game.player.hurtState) {
+    game.player.hurtState = { active: false, startMs: 0, kbDx: 0, kbDy: 0 };
+  }
+}
+function takeHitPlayer(dmg, srcDx, srcDy) {
+  if (!game.player) return;
+  initHurtState();
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  if (game.player.hurtState.active) return;   // i-frames until anim finishes
+  game.player.hurtState = { active: true, startMs: now, kbDx: srcDx||0, kbDy: srcDy||0 };
+  game.player.hp = Math.max(0, (game.player.hp || 20) - dmg);
+  // Break sleep + cancel any in-progress attack.
+  noteInputActivity();
+  if (game.player.attackState) game.player.attackState.active = false;
+  // Check for KO immediately after damage applied.
+  if (game.player.hp <= 0) { setTimeout(() => triggerPlayerKO(), 240); }
+  else if (typeof showToast === 'function') {
+    showToast('-' + dmg + ' HP', 800);
+  }
+}
+function tickHurt() {
+  if (!game.player || !game.player.hurtState || !game.player.hurtState.active) return;
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  if (now - game.player.hurtState.startMs >= HURT_TOTAL_MS) {
+    game.player.hurtState.active = false;
+  }
+}
+function hurtPhase() {
+  const h = game.player && game.player.hurtState;
+  if (!h || !h.active) return null;
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const t = now - h.startMs;
+  if (t < 100) return 'flash';
+  if (t < 200) return 'wince';
+  return 'hop';
+}
+
+// ============================================================================
+// ★ 2026-08-02 · NUZLOCKE KO FLOW · player HP ≤ 0.
+//   fade to black → wake in bedroom → party trimmed to ONE random survivor.
+//   No permadeath for the Rizer themself · this is a "carried home unconscious"
+//   beat, not gameover.  Dad-line about daemons ties into the mori encounter.
+// ============================================================================
+function triggerPlayerKO() {
+  if (!game.player) return;
+  // Fade-to-black overlay.
+  let ov = document.getElementById('ko-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'ko-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:80000;pointer-events:none;transition:opacity 900ms ease-out;';
+    document.body.appendChild(ov);
+  }
+  requestAnimationFrame(() => { ov.style.opacity = '1'; });
+  setTimeout(() => {
+    // Warp home · pick bedroom coords (see MALEZOR / HOME_MAP).
+    try {
+      if (typeof enterMap === 'function') {
+        enterMap('malezor_home_2f', 8, 10, 'down');   // upstairs bedroom
+      }
+    } catch(_) {}
+    // Trim party to ONE random survivor.  Others "escape into the wild."
+    const party = game.player.party || [];
+    if (party.length > 1) {
+      const survivor = party[Math.floor(Math.random() * party.length)];
+      const lost = party.length - 1;
+      game.player.party = [survivor];
+      if (typeof showToast === 'function') {
+        showToast('☠  You awoke.  Only ' + (survivor.nickname || survivor.speciesId).toUpperCase() + ' stayed by your side.  ' + lost + ' fled into the wild.', 5200);
+      }
+    }
+    // Restore Rizer HP to full for a fresh start.
+    game.player.hp = game.player.maxHp || 20;
+    if (game.player.hurtState) game.player.hurtState.active = false;
+    // Optional: fire Dad dialog if the function is available and exists on this floor.
+    setTimeout(() => {
+      if (typeof showDialog === 'function') {
+        showDialog([
+          'DAD: You\'re awake.  Thank the Gemlords.',
+          'DAD: The MORI carried you here.  They were still hunting when your Zyrex broke ranks and drew them off.',
+          'DAD: Rest.  The daemon-tide is rising sooner than we thought.',
+        ]);
+      }
+    }, 1200);
+    ov.style.transition = 'opacity 1200ms ease-in';
+    ov.style.opacity = '0';
+    setTimeout(() => { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 1400);
+  }, 1000);
+}
+
+// ============================================================================
+// ★ 2026-08-02 · MOUNTS · R1 cycle on-foot → hoverboard (1.5×) → wings (2×).
+//   Attacks locked while mounted (travel mechanics only).
+// ============================================================================
+const MOUNT_CYCLE      = ['foot', 'hoverboard', 'wings'];
+const MOUNT_SPEED_MULT = { foot: 1.0, hoverboard: 1.5, wings: 2.0 };
+function initMount() {
+  if (!game.player.mount) game.player.mount = 'foot';
+  if (!game.player.mountAnim) game.player.mountAnim = { frame: 0, ms: 0 };
+}
+function cycleMount() {
+  if (!game.player) return;
+  initMount();
+  const cur = game.player.mount;
+  const idx = MOUNT_CYCLE.indexOf(cur);
+  const nxt = MOUNT_CYCLE[(idx + 1) % MOUNT_CYCLE.length];
+  game.player.mount = nxt;
+  game.player.mountAnim = { frame: 0, ms: 0 };
+  if (typeof showToast === 'function') {
+    const label = nxt === 'foot' ? 'ON FOOT' : nxt === 'hoverboard' ? '🛹 HOVERBOARD · 1.5×' : '🕊  WINGS · 2×';
+    showToast(label, 1400);
+  }
+}
+function mountSpeedMult() {
+  return MOUNT_SPEED_MULT[(game.player && game.player.mount) || 'foot'] || 1.0;
+}
+function isMounted() {
+  return !!(game.player && game.player.mount && game.player.mount !== 'foot');
+}
+
+// ============================================================================
+// ★ 2026-08-02 · MORI ENEMY SYSTEM · overworld corrupted humanoids.
+//   Patrol → contact damage → dissolve on death → 2-min dust pile.
+// ============================================================================
+const MORI_MAX_HP    = 12;
+const MORI_TOUCH_DMG = 3;
+const MORI_STEP_MS   = 700;   // patrol tick
+const MORI_DAMAGE_LIGHT = 3;  // player Square swing dmg vs mori
+const MORI_DAMAGE_HEAVY = 6;  // player Triangle swing dmg vs mori
+const DUST_PERSIST_MS   = 120000;  // 2 min
+
+// game.enemies keyed by mapId → array of {id, x, y, dir, hp, anchor, radius, aiState, aiMs, hurtMs, dying, dieMs, ...}
+function _enemyBucket(mapId) {
+  if (!game.enemies) game.enemies = {};
+  if (!game.enemies[mapId]) game.enemies[mapId] = [];
+  return game.enemies[mapId];
+}
+function _dustBucket(mapId) {
+  if (!game.dustPiles) game.dustPiles = {};
+  if (!game.dustPiles[mapId]) game.dustPiles[mapId] = [];
+  return game.dustPiles[mapId];
+}
+function spawnMori(mapId, x, y, opts) {
+  opts = opts || {};
+  const arr = _enemyBucket(mapId);
+  arr.push({
+    id: 'mori_' + mapId + '_' + arr.length + '_' + Date.now(),
+    type: 'mori', x, y,
+    dir: 'down',
+    hp: opts.hp || MORI_MAX_HP, maxHp: opts.hp || MORI_MAX_HP,
+    anchor: { x, y },
+    radius: opts.radius || 4,
+    aiMs: 0, animMs: 0, frame: 0,
+    hurtMs: 0,     // >0 = playing hurt anim
+    dying: false, dieMs: 0,
+  });
+}
+function seedMalezorWildmarch() {
+  const bucket = _enemyBucket('malezor');
+  if (bucket.length > 0) return;   // already seeded
+  // Northern wildmarch edge · a handful clustered so you can find them fast.
+  spawnMori('malezor', 15,  3, { radius: 3 });
+  spawnMori('malezor', 20,  4, { radius: 3 });
+  spawnMori('malezor', 25,  2, { radius: 3 });
+  spawnMori('malezor', 30,  5, { radius: 3 });
+}
+function tickEnemies(dt) {
+  if (!game.player || game.mode !== 'overworld') return;
+  const mapId = game.player.mapId;
+  const bucket = _enemyBucket(mapId);
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  for (let i = bucket.length - 1; i >= 0; i--) {
+    const e = bucket[i];
+    e.animMs = (e.animMs || 0) + dt;
+    if (e.animMs > 220) { e.animMs = 0; e.frame = (e.frame + 1) % 3; }
+    if (e.dying) {
+      e.dieMs += dt;
+      if (e.dieMs > 900) {
+        // Death anim done · spawn dust pile · remove enemy.
+        _dustBucket(mapId).push({ x: e.x, y: e.y, spawnedAt: now });
+        bucket.splice(i, 1);
+      }
+      continue;
+    }
+    if (e.hurtMs > 0) { e.hurtMs -= dt; }
+    // Patrol · move toward random tile within radius every MORI_STEP_MS.
+    e.aiMs += dt;
+    if (e.aiMs >= MORI_STEP_MS) {
+      e.aiMs = 0;
+      const dx = Math.sign((e.anchor.x + Math.floor(Math.random()*e.radius*2 - e.radius)) - e.x);
+      const dy = Math.sign((e.anchor.y + Math.floor(Math.random()*e.radius*2 - e.radius)) - e.y);
+      const pick = Math.random() < 0.5 ? [dx,0] : [0,dy];
+      // Only step if target tile is walkable and not on the player.
+      const nx = e.x + pick[0], ny = e.y + pick[1];
+      if (nx !== game.player.x || ny !== game.player.y) {
+        if (typeof tileAt === 'function') {
+          const t = tileAt(nx, ny);
+          const solid = '#=TWCLKtGmMpqUw?~ijycHxs'.includes(t);
+          if (!solid) {
+            e.dir = pick[0] > 0 ? 'right' : pick[0] < 0 ? 'left' : pick[1] > 0 ? 'down' : 'up';
+            e.x = nx; e.y = ny;
+          }
+        }
+      }
+    }
+    // Contact damage: on same tile as player → damage player.
+    if (e.x === game.player.x && e.y === game.player.y) {
+      takeHitPlayer(MORI_TOUCH_DMG, 0, 0);
+    }
+  }
+  // Purge dust older than 2 min.
+  const dust = _dustBucket(mapId);
+  for (let i = dust.length - 1; i >= 0; i--) {
+    if (now - dust[i].spawnedAt > DUST_PERSIST_MS) dust.splice(i, 1);
+  }
+}
+// Called from the attack tick: check if a mori is on the tile in front of the
+// player during an active swing.  If so, damage it once per swing.
+function resolveAttackHit() {
+  const p = game.player; if (!p) return;
+  const st = p.attackState; if (!st || !st.active) return;
+  if (st.hitApplied) return;
+  const dirDx = { up: 0, down: 0, left: -1, right: 1 }[p.dir || 'down'];
+  const dirDy = { up: -1, down: 1, left: 0, right: 0 }[p.dir || 'down'];
+  const tx = p.x + dirDx, ty = p.y + dirDy;
+  const bucket = _enemyBucket(p.mapId);
+  for (const e of bucket) {
+    if (e.dying) continue;
+    if (e.x === tx && e.y === ty) {
+      const dmg = st.kind === 'heavy' ? MORI_DAMAGE_HEAVY : MORI_DAMAGE_LIGHT;
+      const weaponBonus = (typeof rizerWeaponFor === 'function') ? rizerWeaponFor(p.rizerWeapon)[st.kind] : 0;
+      e.hp -= dmg + weaponBonus;
+      e.hurtMs = 260;
+      st.hitApplied = true;
+      if (e.hp <= 0) {
+        e.dying = true; e.dieMs = 0;
+        if (typeof showToast === 'function') showToast('MORI dissolves.  +12 XP', 1400);
+        p.rizerXp = (p.rizerXp || 0) + 12;
+      }
+      break;
+    }
+  }
+}
+
+// ============================================================================
+// ★ 2026-08-02 · CHEST GEM DROPS · gems bounce out of opened chests and
+// wait on the floor to be walked over.  Utility (Rizer/Zyrex upgrades)
+// programmed later.
+// ============================================================================
+const GEM_TYPES = ['blue','pearl','green','orange','purple','red','silver','gold'];
+function initGemInventory() {
+  if (!game.player.gemBag) {
+    game.player.gemBag = {};
+    for (const g of GEM_TYPES) game.player.gemBag[g] = 0;
+  }
+}
+function _gemBucket(mapId) {
+  if (!game.groundGems) game.groundGems = {};
+  if (!game.groundGems[mapId]) game.groundGems[mapId] = [];
+  return game.groundGems[mapId];
+}
+function dropGemsFromChest(mapId, tx, ty, count) {
+  count = count || (1 + Math.floor(Math.random() * 3));
+  const bucket = _gemBucket(mapId);
+  for (let i = 0; i < count; i++) {
+    const type = GEM_TYPES[Math.floor(Math.random() * GEM_TYPES.length)];
+    // random adjacent offset · gem bounces one tile then settles.
+    const dxs = [-1, 0, 1, 0, -1, 1, -1, 1];
+    const dys = [ 0, 1, 0,-1,  1, 1, -1,-1];
+    const p = i % dxs.length;
+    bucket.push({
+      type, x: tx + dxs[p], y: ty + dys[p],
+      spawnedAt: (typeof performance !== 'undefined') ? performance.now() : Date.now(),
+      bounceMs: 0, collected: false,
+    });
+  }
+}
+function tickGems(dt) {
+  if (!game.player || game.mode !== 'overworld') return;
+  const bucket = _gemBucket(game.player.mapId);
+  for (let i = bucket.length - 1; i >= 0; i--) {
+    const g = bucket[i];
+    g.bounceMs += dt;
+    if (g.x === game.player.x && g.y === game.player.y && !g.collected) {
+      initGemInventory();
+      game.player.gemBag[g.type] = (game.player.gemBag[g.type] || 0) + 1;
+      g.collected = true;
+      if (typeof showToast === 'function') showToast('💎 +1 ' + g.type.toUpperCase() + ' gem', 1200);
+      bucket.splice(i, 1);
     }
   }
 }
@@ -28968,6 +29537,16 @@ function loop(now) {
     }
     updateHUD();
     if (!anyOverlayOpen()) tickNpcTrainers(dt);   // pause NPC patrol too
+    // ★ 2026-08-02 · Sleep + hurt + enemy + gem ticks.  All no-ops off overworld.
+    if (typeof tickSleep    === 'function') tickSleep(dt);
+    if (typeof tickHurt     === 'function') tickHurt();
+    if (typeof tickEnemies  === 'function') tickEnemies(dt);
+    if (typeof tickGems     === 'function') tickGems(dt);
+    if (typeof resolveAttackHit === 'function') resolveAttackHit();
+    // Seed Malezor mori on entry (idempotent · won't double-spawn).
+    if (game.player.mapId === 'malezor' && typeof seedMalezorWildmarch === 'function') {
+      seedMalezorWildmarch();
+    }
   }
   if (game.mode !== 'title' && game.mode !== 'starter') renderMap();
   requestAnimationFrame(loop);

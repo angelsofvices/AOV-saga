@@ -85,41 +85,66 @@
       min-height: 100vh;
       position: relative;
     }
-    /* ★ 2026-08-01 · MOBILE PORTRAIT LAYOUT · v5 · GBA + full-UI overlays.
-       Stage fills full viewport so UI overlays (title / creator / prologue
-       / starter) render full-screen and never clip.  Game canvas is
-       positioned separately at top-center at native 20:14. */
+    /* ★ 2026-08-01 · MOBILE PORTRAIT · LANDSCAPE-ONLY POLICY.
+       User canon: "just force the game landscape."  Portrait shows a
+       rotate-to-landscape overlay and hides the game entirely. */
     @media (max-width: 900px) and (orientation: portrait) {
-      body {
-        display: block;
-        padding: 0;
-        margin: 0;
-      }
-      .stage {
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        height: 100dvh;
-        max-width: none;
-        max-height: none;
-        aspect-ratio: auto;
-        border: none;
-        border-radius: 0;
-      }
-      canvas#game {
-        position: absolute;
-        left: 0; right: 0;
-        top: max(24px, calc(env(safe-area-inset-top, 0px) + 12px));
-        margin: 0 auto;
-        width:  100vw;
-        height: calc(100vw * 14 / 20);
-        max-width: 100vw;
-        max-height: calc(100vw * 14 / 20);
-      }
-      .title-screen, .creator-screen, .prologue-screen, .starter-screen {
-        padding-bottom: min(36dvh, 340px) !important;
-      }
+      .stage, .mob-root { display: none !important; }
+      body { background: #050310; }
+      .rotate-nudge { display: flex !important; }
+    }
+    .rotate-nudge {
+      display: none;
+      position: fixed; inset: 0;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 22px;
+      padding: 32px;
+      background:
+        radial-gradient(ellipse at 50% 40%, rgba(232, 200, 120, 0.14), transparent 60%),
+        #050310;
+      color: var(--ivory);
+      font-family: 'Playfair Display', serif;
+      text-align: center;
+      z-index: 100000;
+      user-select: none;
+    }
+    .rotate-nudge .rn-icon {
+      width: 84px; height: 84px;
+      border: 2px solid var(--gold);
+      border-radius: 12px;
+      position: relative;
+      animation: rn-tip 2.4s ease-in-out infinite;
+      box-shadow: 0 0 24px rgba(232, 200, 120, 0.35);
+    }
+    .rotate-nudge .rn-icon::after {
+      content: '';
+      position: absolute;
+      left: 50%; bottom: -14px;
+      transform: translateX(-50%);
+      width: 32px; height: 4px;
+      background: var(--gold);
+      border-radius: 2px;
+      opacity: 0.65;
+    }
+    @keyframes rn-tip {
+      0%, 100% { transform: rotate(0deg); }
+      45%      { transform: rotate(-90deg); }
+      55%      { transform: rotate(-90deg); }
+    }
+    .rotate-nudge .rn-title {
+      font-size: 1.4rem;
+      letter-spacing: 0.18em;
+      color: var(--gold-bright);
+      text-transform: uppercase;
+      margin-top: 12px;
+    }
+    .rotate-nudge .rn-sub {
+      font-family: 'VT323', monospace;
+      font-size: 0.95rem;
+      letter-spacing: 0.14em;
+      color: var(--mist);
+      max-width: 320px;
+      line-height: 1.4;
     }
 
     .stars {
@@ -1857,6 +1882,13 @@
     </ul>
   </nav>
 
+  <!-- ★ 2026-08-01 · Rotate-to-landscape nudge for mobile portrait. -->
+  <div class="rotate-nudge" id="rotate-nudge" role="dialog" aria-label="Rotate device">
+    <div class="rn-icon" aria-hidden="true"></div>
+    <div class="rn-title">Rotate to Landscape</div>
+    <div class="rn-sub">Rizing Powers of Zyraxis plays best on your side.  Turn your device to continue.</div>
+  </div>
+
   <!-- ============ STAGE ============ -->
   <div class="stage" id="stage">
     <canvas id="game" width="640" height="448"></canvas>
@@ -1947,7 +1979,8 @@
       <div class="starter-title">Three Shards Fell Last Night</div>
       <div class="starter-lead">"Orphans of the last Corefall. Each of them is looking for a Rizer. One of them, I think, is looking for <em>you</em>."</div>
       <div class="starter-grid" id="starter-grid"></div>
-      <button class="starter-back" id="starter-back">← Back</button>
+      <!-- starter-back HIDDEN · picker is a commit point (see keydown handler). -->
+      <button class="starter-back" id="starter-back" style="display:none" aria-hidden="true" tabindex="-1">← Back</button>
     </div>
 
     <!-- Party screen -->
@@ -18566,7 +18599,9 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- Starter picker: arrows walk cards, Enter picks (no back — commit choice) ----
+  // ---- Starter picker: arrows walk cards, Enter picks · BACK IS BLOCKED.
+  //      Hard-block isBack so mobile B doesn't fall through to the
+  //      hidden starter-back button and boot the player to the title. ----
   if (game.mode === 'starter') {
     const container = document.getElementById('starter-grid');
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
@@ -18574,6 +18609,7 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     if (isConfirm) { if (activateFocused()) e.preventDefault(); return; }
+    if (isBack) { e.preventDefault(); return; }   // hard-block back
     return;
   }
 
@@ -27932,6 +27968,35 @@ function refreshMusicContext() {
   if (!audioSys.primed) return;
   playTrack(musicContextForState());
 }
+// ★ 2026-08-01 · Kill audio when tab / app is backgrounded.
+(function wireAudioVisibilityGate() {
+  let wasPlaying = false;
+  function suspendAll() {
+    wasPlaying = false;
+    if (audioSys && audioSys.current && audioSys.els && audioSys.els[audioSys.current]) {
+      const el = audioSys.els[audioSys.current];
+      wasPlaying = !el.paused;
+      try { el.pause(); } catch(_) {}
+    }
+    if (typeof sfxPool === 'object' && sfxPool) {
+      for (const k in sfxPool) { try { sfxPool[k].pause(); } catch(_) {} }
+    }
+  }
+  function resumeIfEligible() {
+    if (!audioSys || audioSys.muted || !audioSys.primed) return;
+    if (!wasPlaying) return;
+    const cur = audioSys.current;
+    const el = cur ? (audioSys.els && audioSys.els[cur]) : null;
+    if (el) { try { el.play().catch(()=>{}); } catch(_) {} }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) suspendAll();
+    else                 resumeIfEligible();
+  });
+  window.addEventListener('pagehide', suspendAll);
+  window.addEventListener('blur',     suspendAll);
+  window.addEventListener('focus',    resumeIfEligible);
+})();
 function setMusicMuted(m) {
   audioSys.muted = !!m;
   if (audioSys.muted) {
@@ -28054,15 +28119,12 @@ menuBackdrop.addEventListener('click', () => {
        (title, character creator, starter picker, prologue) can breathe. */
     .mob-root.hidden .mob-btn, .mob-root.hidden .mob-pad, .mob-root.hidden .mob-pill { display: none; }
 
-    /* ★ 2026-08-01 · PORTRAIT LAYOUT · v4 · GBA style.  Controller stays
-       fixed at viewport BOTTOM (its default position) — no reposition.
-       The natural black gap between stage-bottom and controller-top reads
-       as the device's chassis. */
+    /* Portrait mobile is landscape-forced via .rotate-nudge overlay; the
+       portrait controller styles below are dead code kept as a fallback. */
     .mob-root.portrait .mob-deck        { position: absolute; left: 0; right: 0; bottom: 0;
                                           height: min(34dvh, 320px);
-                                          background: linear-gradient(to bottom, rgba(15,10,28,0.35) 0%, rgba(15,10,28,0.85) 40%);
-                                          pointer-events: none;
-                                          border-top: 1px solid rgba(232,200,120,0.25); }
+                                          background: linear-gradient(to bottom, rgba(15,10,28,0) 0%, rgba(15,10,28,0.7) 40%);
+                                          pointer-events: none; }
     .mob-root.portrait .mob-pad         { left: max(16px, calc(env(safe-area-inset-left, 0px) + 4vw));
                                           bottom: calc(env(safe-area-inset-bottom, 0px) + 52px);
                                           width: min(38vw, 22dvh, 200px);

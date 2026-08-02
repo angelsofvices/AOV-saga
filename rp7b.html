@@ -8778,10 +8778,11 @@ BETA_PSYCHOSYD.idle.src = 'assets/rp7/beta_assets/player/psychosyd_idle_native.p
 BETA_PSYCHOSYD.walk.src = 'assets/rp7/beta_assets/player/psychosyd_walk_native.png';
 BETA_PSYCHOSYD.run.src  = 'assets/rp7/beta_assets/player/psychosyd_run_native.png';
 
-// ★ 2026-08-02 · SLEEP IDLE bundle · 4 rows × 4 frames · 64×88 cells.
+// ★ 2026-08-02 · SLEEP IDLE bundle · 4 rows × 4 frames · 96×88 cells
+// (wider than portrait to fit lying-down poses).
 //   row 0 = resting standing, row 1 = sleep (lying), row 2 = nap (sitting),
 //   row 3 = ground (curled on ground).  Ping-pong 4-frame anim per phase.
-const BETA_PLAYER_SLEEP = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 80 };
+const BETA_PLAYER_SLEEP = { sheet: new Image(), cellW: 96, cellH: 88, feetY: 82 };
 BETA_PLAYER_SLEEP.sheet.src = 'assets/rp7/beta_assets/player/player0_sleep_native.png';
 
 // ★ 2026-08-02 · HOVERBOARD mount · 4 dirs × 5 frames.  1.5× base run speed.
@@ -8962,8 +8963,11 @@ function drawMoriEnemies(cam) {
   const S = MORI_SPRITE, HS = MORI_HURT_SPRITE;
   const rowMap = { down: 0, left: 1, right: 2, up: 3 };
   for (const e of bucket) {
-    const cx = (e.x - cam.x) * TILE + TILE / 2;
-    const cy = (e.y - cam.y) * TILE + TILE / 2;
+    // ★ 2026-08-02 · Draw at interpolated visX/visY for smooth stepping.
+    const vx = (e.visX !== undefined) ? e.visX : e.x;
+    const vy = (e.visY !== undefined) ? e.visY : e.y;
+    const cx = (vx - cam.x) * TILE + TILE / 2;
+    const cy = (vy - cam.y) * TILE + TILE / 2;
     const dx = Math.round(cx - S.cellW / 2);
     const dy = Math.round((cy + TILE / 2) - S.feetY);
     const rowIdx = rowMap[e.dir] !== undefined ? rowMap[e.dir] : 0;
@@ -21976,13 +21980,14 @@ function openChest(x, y) {
     game.player.chestLoot[key] = loot;
   }
   game.player.chestsOpened[key] = true;
+  // ★ 2026-08-02 · RP4 chest pattern · EVERY chest drops 1-3 visual gems
+  // that bounce out around the chest tile.  Independent of loot kind so
+  // potion/coin chests still give the player collectable gems.
+  if (typeof dropGemsFromChest === 'function') {
+    dropGemsFromChest(mapId, x, y, 2 + Math.floor(Math.random() * 3));   // 2-4 gems
+  }
   if (loot.kind === 'gems')      {
     game.player.gems = (game.player.gems || 0) + loot.amount;
-    // ★ 2026-08-02 · Also spawn visual gems that bounce out onto the ground
-    // for the player to walk over.  Feeds the per-type gemBag inventory.
-    if (typeof dropGemsFromChest === 'function') {
-      dropGemsFromChest(mapId, x, y, Math.min(6, Math.ceil(loot.amount / 3)));
-    }
     showToast(`◈ +${loot.amount} GEMS`);
   }
   else if (loot.kind === 'coins')    { game.player.coins      = (game.player.coins      || 0) + loot.amount; showToast(`¢ +${loot.amount} COINS`); }
@@ -22509,7 +22514,16 @@ function walkNpcToPlayer(n) {
         `${npc.name}: There! You — Rizer!`,
         npc.intro,
         `«BATTLE ${npc.name}?»`,
-      ], () => startNpcTrainerBattle(n.tile, n.homeX, n.homeY));
+      ], () => {
+        try {
+          console.log('[trainer] cb firing · tile=', n.tile, 'at', n.homeX, n.homeY);
+          startNpcTrainerBattle(n.tile, n.homeX, n.homeY);
+          console.log('[trainer] after startNpcTrainerBattle · mode=', game.mode);
+        } catch (err) {
+          console.error('[trainer] startNpcTrainerBattle threw:', err);
+          showToast('BATTLE FAILED: ' + err.message, 3000);
+        }
+      });
       return;
     }
     // ★ 2026-07-29 — AXIS FALLBACK.  Now that every NPC is permanently solid,
@@ -22536,7 +22550,16 @@ function walkNpcToPlayer(n) {
           `${npc.name}: There! You — Rizer!`,
           npc.intro,
           `«BATTLE ${npc.name}?»`,
-        ], () => startNpcTrainerBattle(n.tile, n.homeX, n.homeY));
+        ], () => {
+        try {
+          console.log('[trainer] cb firing · tile=', n.tile, 'at', n.homeX, n.homeY);
+          startNpcTrainerBattle(n.tile, n.homeX, n.homeY);
+          console.log('[trainer] after startNpcTrainerBattle · mode=', game.mode);
+        } catch (err) {
+          console.error('[trainer] startNpcTrainerBattle threw:', err);
+          showToast('BATTLE FAILED: ' + err.message, 3000);
+        }
+      });
         return;
       }
       n.x = nx; n.y = ny;
@@ -24118,12 +24141,12 @@ function triggerPlayerKO() {
   }
   requestAnimationFrame(() => { ov.style.opacity = '1'; });
   setTimeout(() => {
-    // Warp home · pick bedroom coords (see MALEZOR / HOME_MAP).
+    // Warp home · parents_bedroom (top floor) then face down as if just woke.
     try {
       if (typeof enterMap === 'function') {
-        enterMap('malezor_home_2f', 8, 10, 'down');   // upstairs bedroom
+        enterMap('parents_bedroom', 12, 2, 'down');   // parents_bedroom entry tile
       }
-    } catch(_) {}
+    } catch(err) { console.warn('[KO] enterMap failed', err); }
     // Trim party to ONE random survivor.  Others "escape into the wild."
     const party = game.player.party || [];
     if (party.length > 1) {
@@ -24211,6 +24234,10 @@ function spawnMori(mapId, x, y, opts) {
   arr.push({
     id: 'mori_' + mapId + '_' + arr.length + '_' + Date.now(),
     type: 'mori', x, y,
+    // ★ 2026-08-02 · Smooth-move fields.  Visual position lerps from
+    // (visX,visY) toward (x,y) whenever moveMs > 0.  Prevents the
+    // teleport skip on each patrol step.
+    visX: x, visY: y, moveMs: 0, moveDurMs: 400,
     dir: 'down',
     hp: opts.hp || MORI_MAX_HP, maxHp: opts.hp || MORI_MAX_HP,
     anchor: { x, y },
@@ -24248,29 +24275,43 @@ function tickEnemies(dt) {
       continue;
     }
     if (e.hurtMs > 0) { e.hurtMs -= dt; }
+    // ★ 2026-08-02 · SMOOTH movement · lerp visual position toward logical
+    // tile over moveDurMs (~400ms per tile) instead of teleporting.
+    if (e.moveMs > 0) {
+      e.moveMs = Math.max(0, e.moveMs - dt);
+      const t = 1 - (e.moveMs / e.moveDurMs);
+      e.visX = e.srcX + (e.x - e.srcX) * t;
+      e.visY = e.srcY + (e.y - e.srcY) * t;
+    } else {
+      e.visX = e.x; e.visY = e.y;
+    }
     // Patrol · move toward random tile within radius every MORI_STEP_MS.
+    // Only step when previous move has fully resolved (moveMs === 0).
     e.aiMs += dt;
-    if (e.aiMs >= MORI_STEP_MS) {
+    if (e.aiMs >= MORI_STEP_MS && e.moveMs === 0) {
       e.aiMs = 0;
       const dx = Math.sign((e.anchor.x + Math.floor(Math.random()*e.radius*2 - e.radius)) - e.x);
       const dy = Math.sign((e.anchor.y + Math.floor(Math.random()*e.radius*2 - e.radius)) - e.y);
       const pick = Math.random() < 0.5 ? [dx,0] : [0,dy];
-      // Only step if target tile is walkable and not on the player.
       const nx = e.x + pick[0], ny = e.y + pick[1];
       if (nx !== game.player.x || ny !== game.player.y) {
         if (typeof tileAt === 'function') {
           const t = tileAt(nx, ny);
           const solid = '#=TWCLKtGmMpqUw?~ijycHxs'.includes(t);
-          if (!solid) {
+          if (!solid && (pick[0] !== 0 || pick[1] !== 0)) {
             e.dir = pick[0] > 0 ? 'right' : pick[0] < 0 ? 'left' : pick[1] > 0 ? 'down' : 'up';
+            e.srcX = e.x; e.srcY = e.y;
             e.x = nx; e.y = ny;
+            e.moveMs = e.moveDurMs;
           }
         }
       }
     }
-    // Contact damage: on same tile as player → damage player.
+    // Contact damage: same tile as player → damage.  Guarded by hurtState
+    // i-frames so mori-on-tile doesn't spam damage every frame.
     if (e.x === game.player.x && e.y === game.player.y) {
-      takeHitPlayer(MORI_TOUCH_DMG, 0, 0);
+      const h = game.player.hurtState;
+      if (!h || !h.active) takeHitPlayer(MORI_TOUCH_DMG, 0, 0);
     }
   }
   // Purge dust older than 2 min.
@@ -25692,7 +25733,13 @@ function firstAlive() {
 
 function enterBattle(enemy, kind, extras) {
   const idx = firstAlive();
-  if (idx < 0) { fullPartyKO(); return; }
+  if (idx < 0) {
+    console.warn('[enterBattle] no alive Zyrex · party=', JSON.stringify((game.player.party||[]).map(z => z ? { id: z.speciesId||z.id, hp: z.hp } : null)));
+    fullPartyKO();
+    return;
+  }
+  if (!enemy) { console.warn('[enterBattle] enemy is null · kind=', kind, 'extras=', extras); return; }
+  console.log('[enterBattle] mode → battle · enemy=', enemy && (enemy.name || enemy.speciesId), 'kind=', kind);
   game.mode = 'battle';
   game.battle = {
     enemy,

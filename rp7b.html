@@ -8814,6 +8814,13 @@ MORI_HURT_SPRITE.sheet.src = 'assets/rp7/beta_assets/enemies/mori_hurt_native.pn
 const MORI_ATTACK_SPRITE = { sheet: new Image(), cellW: 64, cellH: 88, feetY: 80, frameCount: 4 };
 MORI_ATTACK_SPRITE.sheet.src = 'assets/rp7/beta_assets/enemies/mori_attack_native.png';
 
+// ★ 2026-08-03 · GEM SPRITE SHEET · 4 cols × 2 rows of 32×48 crystal spires.
+// Layout: red / blue / green / yellow · white / orange / purple / black.
+// Loaded once; drawGroundGems blits the correct cell per gem type.
+const GEM_SHEET = { sheet: new Image(), cellW: 32, cellH: 48 };
+GEM_SHEET.sheet.src = 'assets/rp7/beta_assets/items/gems/gems_sheet.png';
+const GEM_SHEET_INDEX = { red:0, blue:1, green:2, yellow:3, white:4, orange:5, purple:6, black:7 };
+
 const _imgOk = (i) => !!(i && i.complete && i.naturalWidth);
 
 // ★ 2026-07-29 — LIGHT BLACK CONTACT SHADOW.  A soft, low-alpha ellipse under
@@ -9049,77 +9056,43 @@ function drawDustPiles(cam) {
     ctx.restore();
   }
 }
-// ★ 2026-08-03 · Crystal-spire gem render.  Matches user's reference sheet ·
-// tall spire body + smaller flanking shards + radial glow + bright core
-// highlight + pulsing sparkles.  Draws entirely from canvas paths so the
-// gems ship without any PNG dependency (procedural placeholder until the
-// PNG sheet is baked in).
+// ★ 2026-08-03 · Gem render · blits the pre-baked crystal sprite from
+// GEM_SHEET · adds a radial color-glow behind + pulsing sparkle overlay
+// so gems still shimmer on the ground.  The gem PIXELS themselves come
+// straight from the sheet (untouched, per user rule).
 function drawGroundGems(cam) {
   if (!game.groundGems || !game.groundGems[game.player.mapId]) return;
   const bucket = game.groundGems[game.player.mapId];
   const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const CELL_W = GEM_SHEET.cellW, CELL_H = GEM_SHEET.cellH;
+  const DRAW_W = 22, DRAW_H = 32;  // scaled-down size on the overworld tile
   for (const g of bucket) {
     const cx = (g.x - cam.x) * TILE + TILE / 2;
     const cy = (g.y - cam.y) * TILE + TILE / 2;
     const bob = Math.sin((now + g.spawnedAt) / 250) * 2;
     const pal = GEM_PALETTE[g.type] || GEM_PALETTE.white;
-    const gy = cy + 6 + bob;   // gem visual center Y (slightly below tile center)
+    const gy = cy + 4 + bob;
     ctx.save();
-    // Radial glow · biggest layer, drawn first.
-    const glow = ctx.createRadialGradient(cx, gy, 2, cx, gy, 18);
+    // Radial color-glow behind the gem · biggest, softest.
+    const glow = ctx.createRadialGradient(cx, gy, 2, cx, gy, 20);
     glow.addColorStop(0, pal.glow);
     glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow;
-    ctx.fillRect(cx - 18, gy - 18, 36, 36);
-    // Flanking shards · two smaller crystals on each side.
-    const drawShard = (sx, sy, w, h, tilt) => {
-      ctx.beginPath();
-      ctx.moveTo(sx, sy - h);
-      ctx.lineTo(sx + w, sy - h*0.4 + tilt);
-      ctx.lineTo(sx + w*0.7, sy);
-      ctx.lineTo(sx - w*0.7, sy);
-      ctx.lineTo(sx - w, sy - h*0.4 + tilt);
-      ctx.closePath();
-      const shardGrad = ctx.createLinearGradient(sx - w, sy - h, sx + w, sy);
-      shardGrad.addColorStop(0, pal.core);
-      shardGrad.addColorStop(0.5, pal.mid);
-      shardGrad.addColorStop(1, pal.dark);
-      ctx.fillStyle = shardGrad;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1;
-      ctx.stroke();
-    };
-    drawShard(cx - 6, gy + 4, 3, 6, 0);
-    drawShard(cx + 6, gy + 4, 3, 6, 0);
-    drawShard(cx - 4, gy + 5, 2, 4, 0);
-    drawShard(cx + 4, gy + 5, 2, 4, 0);
-    // Main spire · tall pointed crystal.
-    ctx.beginPath();
-    ctx.moveTo(cx, gy - 12);           // top point
-    ctx.lineTo(cx + 5, gy - 4);        // top-right shoulder
-    ctx.lineTo(cx + 4, gy + 5);        // bottom-right
-    ctx.lineTo(cx, gy + 8);            // bottom point
-    ctx.lineTo(cx - 4, gy + 5);        // bottom-left
-    ctx.lineTo(cx - 5, gy - 4);        // top-left shoulder
-    ctx.closePath();
-    const bodyGrad = ctx.createLinearGradient(cx - 6, gy - 12, cx + 6, gy + 8);
-    bodyGrad.addColorStop(0, pal.core);
-    bodyGrad.addColorStop(0.5, pal.mid);
-    bodyGrad.addColorStop(1, pal.dark);
-    ctx.fillStyle = bodyGrad;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 1;
-    ctx.stroke();
-    // White highlight streak on the left face.
-    ctx.beginPath();
-    ctx.moveTo(cx - 2, gy - 10);
-    ctx.lineTo(cx - 1, gy - 8);
-    ctx.lineTo(cx - 1, gy + 2);
-    ctx.lineTo(cx - 3, gy + 0);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fill();
-    // Sparkles · 3 tiny cross-stars that pulse (staggered).
+    ctx.fillRect(cx - 20, gy - 20, 40, 40);
+    // The gem sprite itself.
+    if (_imgOk(GEM_SHEET.sheet)) {
+      const idx = GEM_SHEET_INDEX[g.type];
+      if (idx !== undefined) {
+        const col = idx % 4, row = (idx / 4) | 0;
+        ctx.drawImage(
+          GEM_SHEET.sheet,
+          col * CELL_W, row * CELL_H, CELL_W, CELL_H,
+          Math.round(cx - DRAW_W / 2), Math.round(gy - DRAW_H + 6),
+          DRAW_W, DRAW_H
+        );
+      }
+    }
+    // Pulsing sparkle overlay · 3 staggered mini-stars.
     const sparklePhase = (now / 300) + (g.spawnedAt / 100);
     const drawSparkle = (sx, sy, phase) => {
       const alpha = 0.4 + 0.5 * Math.max(0, Math.sin(sparklePhase + phase));
@@ -9127,9 +9100,9 @@ function drawGroundGems(cam) {
       ctx.fillRect(sx - 1, sy, 3, 1);
       ctx.fillRect(sx, sy - 1, 1, 3);
     };
-    drawSparkle(cx + 4, gy - 8, 0);
-    drawSparkle(cx - 6, gy - 2, 1.2);
-    drawSparkle(cx + 6, gy + 2, 2.4);
+    drawSparkle(cx + 6, gy - 14, 0);
+    drawSparkle(cx - 8, gy - 4, 1.2);
+    drawSparkle(cx + 7, gy + 4, 2.4);
     ctx.restore();
   }
 }

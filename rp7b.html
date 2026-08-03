@@ -24294,49 +24294,81 @@ function hurtPhase() {
 // ============================================================================
 function triggerPlayerKO() {
   if (!game.player) return;
+  // Idempotency guard · don't stack KOs if takeHitPlayer fires multiple times.
+  if (game._koInFlight) return;
+  game._koInFlight = true;
+
   // Fade-to-black overlay.
   let ov = document.getElementById('ko-overlay');
   if (!ov) {
     ov = document.createElement('div');
     ov.id = 'ko-overlay';
-    ov.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:80000;pointer-events:none;transition:opacity 900ms ease-out;';
+    ov.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:80000;pointer-events:none;transition:opacity 700ms ease-out;';
     document.body.appendChild(ov);
   }
   requestAnimationFrame(() => { ov.style.opacity = '1'; });
+
+  // ★ 2026-08-03 · Force-cleanup timer · guarantees the overlay comes down
+  // and the flag resets even if enterMap / dialog throws.  User was getting
+  // stuck at black screen on mori KO because a mid-flow throw skipped the
+  // fade-out block.
+  const forceCleanup = setTimeout(() => {
+    const stray = document.getElementById('ko-overlay');
+    if (stray && stray.parentNode) stray.parentNode.removeChild(stray);
+    game._koInFlight = false;
+  }, 4000);
+
   setTimeout(() => {
-    // Warp home · parents_bedroom (top floor) then face down as if just woke.
     try {
+      // Warp home · parents_bedroom exists in MAPS registry (14×9).
+      // Coords (7, 6) sits in the middle of the room · safely walkable.
       if (typeof enterMap === 'function') {
-        enterMap('parents_bedroom', 12, 2, 'down');   // parents_bedroom entry tile
+        enterMap('parents_bedroom', 7, 6, 'down');
       }
-    } catch(err) { console.warn('[KO] enterMap failed', err); }
-    // Trim party to ONE random survivor.  Others "escape into the wild."
-    const party = game.player.party || [];
-    if (party.length > 1) {
-      const survivor = party[Math.floor(Math.random() * party.length)];
-      const lost = party.length - 1;
-      game.player.party = [survivor];
-      if (typeof showToast === 'function') {
-        showToast('☠  You awoke.  Only ' + (survivor.nickname || survivor.speciesId).toUpperCase() + ' stayed by your side.  ' + lost + ' fled into the wild.', 5200);
+      // Trim party to ONE random survivor.
+      const party = (game.player.party || []).filter(Boolean);
+      if (party.length > 1) {
+        const survivor = party[Math.floor(Math.random() * party.length)];
+        const lost = party.length - 1;
+        // Also heal the survivor to full so they can defend the player.
+        survivor.hp = survivor.maxHp || survivor.hp;
+        game.player.party = [survivor];
+        if (typeof showToast === 'function') {
+          showToast('☠  You awoke.  Only ' + (survivor.nickname || survivor.speciesId || 'your Zyrex').toString().toUpperCase() + ' stayed by your side.  ' + lost + ' fled into the wild.', 5200);
+        }
+      } else if (party.length === 1) {
+        party[0].hp = party[0].maxHp || party[0].hp;
       }
+      // Restore Rizer HP + max HP fallback.
+      game.player.hp = game.player.maxHp || game.player.rizerHpMax || 20;
+      if (game.player.hurtState) game.player.hurtState.active = false;
+      if (game.player.sleepState) { game.player.sleepState.phase = 'active'; game.player.sleepState.idleMs = 0; }
+      // Make sure the game is in overworld mode so player regains control.
+      game.mode = 'overworld';
+      // Save so the respawn state persists.
+      try { if (typeof save === 'function') save(); } catch(_) {}
+    } catch (err) {
+      console.warn('[KO] warp/trim failed · continuing with fade-out', err);
     }
-    // Restore Rizer HP to full for a fresh start.
-    game.player.hp = game.player.maxHp || 20;
-    if (game.player.hurtState) game.player.hurtState.active = false;
-    // Optional: fire Dad dialog if the function is available and exists on this floor.
-    setTimeout(() => {
-      if (typeof showDialog === 'function') {
-        showDialog([
-          'DAD: You\'re awake.  Thank the Gemlords.',
-          'DAD: The MORI carried you here.  They were still hunting when your Zyrex broke ranks and drew them off.',
-          'DAD: Rest.  The daemon-tide is rising sooner than we thought.',
-        ]);
-      }
-    }, 1200);
-    ov.style.transition = 'opacity 1200ms ease-in';
+    // ALWAYS fade the overlay back out.
+    ov.style.transition = 'opacity 900ms ease-in';
     ov.style.opacity = '0';
-    setTimeout(() => { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 1400);
-  }, 1000);
+    setTimeout(() => {
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      game._koInFlight = false;
+      clearTimeout(forceCleanup);
+      // Fire Dad dialog AFTER the fade completes so the player sees him.
+      try {
+        if (typeof showDialog === 'function') {
+          showDialog([
+            'DAD: You\'re awake.  Thank the Gemlords.',
+            'DAD: The MORI carried you here.  They were still hunting when your Zyrex broke ranks and drew them off.',
+            'DAD: Rest.  The daemon-tide is rising sooner than we thought.',
+          ]);
+        }
+      } catch(_) {}
+    }, 950);
+  }, 900);
 }
 
 // ============================================================================

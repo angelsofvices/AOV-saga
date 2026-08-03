@@ -8025,7 +8025,18 @@ function statAtLv(maxStat, lv, maxLv) {
 }
 
 function makeZyrex(speciesId, lv) {
+  // ★ 2026-08-02 · Safety guard · unknown / gemlord IDs return null instead of
+  // throwing.  Callers (chain builders) filter nulls before spawning.  This
+  // prevents ONE bad ID from silently killing an entire trainer battle.
   const s = SPECIES[speciesId];
+  if (!s) {
+    console.warn('[makeZyrex] unknown species id →', speciesId, '· skipping');
+    return null;
+  }
+  if (typeof GEMLORD_IDS !== 'undefined' && GEMLORD_IDS.has(speciesId)) {
+    console.warn('[makeZyrex] gemlord id blocked from party →', speciesId, '· skipping');
+    return null;
+  }
   lv = Math.max(1, Math.min(lv, 100));
   // V2.70 — Level-driven stats.  pool(lv) distributed by species weights;
   // codex block acts as the ANCHOR (species's tier × 10 level matches its
@@ -20470,7 +20481,8 @@ function startEndgameEncounter() {
     const specs = SEER_ENDGAME_CHAIN.slice();
     const first = specs.shift();
     const lead  = makeZyrex(first[0], first[1]);
-    const chain = specs.map(([id, lv]) => makeZyrex(id, lv));
+    // ★ 2026-08-02 · null-safe · unknown/gemlord ids get dropped, not crashed.
+    const chain = specs.map(([id, lv]) => makeZyrex(id, lv)).filter(Boolean);
     if (!lead) {
       // Species failed to hydrate — abort gracefully.
       showDialog(['The reveal shudders.  The three Seers fade back into shadow.  (Endgame roster not wired — contact the maker.)']);
@@ -25768,10 +25780,22 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
     console.warn('[V3.5] empty chainSpecs for', tileChar, 'at', x, y, '— using Tier I fallback');
     chainSpecs = [['valenkit', 5]];
   }
-  const chain = chainSpecs.map(([id, lv]) => makeZyrex(id, lv));
+  // ★ 2026-08-02 · Chain build is null-safe · makeZyrex returns null for
+  // unknown/gemlord IDs.  Filter first, then guarantee at least one alive
+  // Zyrex — synthesize a district-appropriate fallback if the chain empties.
+  let chain = chainSpecs.map(([id, lv]) => makeZyrex(id, lv)).filter(Boolean);
+  if (!chain.length) {
+    console.warn('[NPC battle] every chain spec resolved to null (probable gemlord filter or unknown IDs) · synthesizing safe fallback');
+    // Use district pool to pull a legal T1-T2 species at the district's level.
+    const pool = (typeof districtWildPool === 'function') ? districtWildPool(game.player.mapId) : null;
+    const fallbackId = (pool && pool.ids && pool.ids[0]) || 'gnashling';
+    const fallbackLv = (pool && pool.lvRange && pool.lvRange[0]) || 5;
+    const fb = makeZyrex(fallbackId, fallbackLv);
+    if (fb) chain = [fb];
+  }
   const lead = chain.shift();
   if (!lead) {
-    console.warn('[V3.5] chain shift produced no lead — aborting battle safely');
+    console.warn('[NPC battle] no lead after fallback — aborting');
     showDialog(['They step back and vanish into shadow. (Encounter deferred.)']);
     return;
   }

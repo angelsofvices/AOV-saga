@@ -25012,8 +25012,11 @@ function openRizerProfile() {
           <div style="color:var(--gold-bright); font-size:14px; margin-top:2px;">${p.rizerLuck || 5}%</div>
         </div>
       </div>
-      <div style="padding:8px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:3px;">
-        <div style="font-family:var(--font-display); font-size:9px; color:var(--mist); letter-spacing:0.20em; margin-bottom:4px;">WEAPON EQUIPPED</div>
+      <div id="rizer-weapon-panel" onclick="openWeaponPicker()" title="Click to change weapon" style="padding:8px; background:rgba(20,10,40,0.30); border:1px solid var(--border-soft); border-radius:3px; cursor:pointer; transition:background 120ms;" onmouseover="this.style.background='rgba(40,20,80,0.40)'" onmouseout="this.style.background='rgba(20,10,40,0.30)'">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
+          <div style="font-family:var(--font-display); font-size:9px; color:var(--mist); letter-spacing:0.20em;">WEAPON EQUIPPED</div>
+          <div style="font-family:var(--font-display); font-size:9px; color:var(--gold-bright); letter-spacing:0.16em;">▸ CHANGE</div>
+        </div>
         <div style="display:flex; gap:10px; align-items:center;">
           ${weapon.icon ? `
           <div style="width:48px; height:48px; flex:0 0 48px; display:flex; align-items:center; justify-content:center; background:rgba(10,6,20,0.55); border:1px solid var(--border-gold); border-radius:3px; padding:2px;">
@@ -25089,6 +25092,77 @@ document.getElementById('rizer-profile-close').onclick = () => document.getEleme
 document.getElementById('rizer-profile-overlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('rizer-profile-overlay')) e.target.classList.remove('active');
 });
+
+// ★ 2026-08-03 · WEAPON PICKER · click the WEAPON EQUIPPED panel in the
+// Rizer profile to swap weapons.  Lists FISTS (always available) + every
+// weapon in game.player.rizerWeapons.  Click a row to equip it and refresh
+// the profile.  Non-owned weapons don't appear · pickups still route
+// through the pack (see rizerWeapons.push in dialog handlers).
+function openWeaponPicker() {
+  try { playSfx('menu-open'); } catch(_) {}
+  const body = document.getElementById('rizer-profile-body');
+  if (!body || !game.player) return;
+  const p = game.player;
+  const currentId = p.rizerWeapon || 'fists';
+  // Build the option list · fists first, then owned weapons in pickup order.
+  const owned = ['fists'];
+  for (const id of (p.rizerWeapons || [])) {
+    if (id === 'fists') continue;
+    if (!owned.includes(id) && RIZER_WEAPONS[id]) owned.push(id);
+  }
+  const optionHtml = owned.map(id => {
+    const w = RIZER_WEAPONS[id] || RIZER_WEAPONS.fists;
+    const isCurrent = (id === currentId);
+    const iconCell = w.icon
+      ? `<img src="${w.icon}" alt="${w.name}" style="max-width:100%; max-height:100%; image-rendering:pixelated;" />`
+      : `<div style="font-family:var(--font-display); font-size:11px; color:var(--mist); letter-spacing:0.14em;">${id === 'fists' ? 'FISTS' : '?'}</div>`;
+    return `<div class="weapon-picker-row" data-weapon="${id}" style="display:flex; gap:10px; align-items:center; padding:10px; background:${isCurrent ? 'rgba(56,30,12,0.55)' : 'rgba(20,10,40,0.30)'}; border:1px solid ${isCurrent ? 'var(--gold-bright)' : 'var(--border-soft)'}; border-radius:4px; cursor:pointer; transition:background 120ms; margin-bottom:6px;" onmouseover="this.style.background='rgba(56,30,12,0.55)'" onmouseout="this.style.background='${isCurrent ? 'rgba(56,30,12,0.55)' : 'rgba(20,10,40,0.30)'}'">
+      <div style="width:48px; height:48px; flex:0 0 48px; display:flex; align-items:center; justify-content:center; background:rgba(10,6,20,0.55); border:1px ${isCurrent ? 'solid var(--border-gold)' : 'dashed var(--border-soft)'}; border-radius:3px; padding:2px;">
+        ${iconCell}
+      </div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-family:var(--font-display); font-size:13px; color:${isCurrent ? 'var(--gold-bright)' : 'var(--ivory)'}; letter-spacing:0.14em;">${w.name}${isCurrent ? '  ▸ EQUIPPED' : ''}</div>
+        <div style="font-size:10px; opacity:0.65; margin-top:2px; font-style:italic;">${w.flavor}</div>
+      </div>
+      <div style="text-align:right; font-family:var(--font-display); font-size:10px; letter-spacing:0.14em; color:var(--gold-bright);">
+        <div>□ ${w.light}</div>
+        <div style="margin-top:2px;">△ ${w.heavy}</div>
+      </div>
+    </div>`;
+  }).join('');
+  body.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+      <div style="font-family:var(--font-display); font-size:14px; color:var(--gold-bright); letter-spacing:0.16em;">◈ SELECT WEAPON</div>
+      <div onclick="openRizerProfile()" style="cursor:pointer; padding:4px 10px; border:1px solid var(--border-soft); border-radius:3px; font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.14em;">◂ BACK</div>
+    </div>
+    <div style="font-size:11px; color:var(--mist); margin-bottom:10px; opacity:0.75;">Click any weapon to equip it.  Fists are always available.</div>
+    ${optionHtml}
+    ${owned.length === 1 ? `<div style="text-align:center; font-size:11px; color:var(--mist); opacity:0.6; margin-top:16px; font-style:italic;">No weapons in pack yet.  Find them in chests, quests, or dialog rewards.</div>` : ''}
+  `;
+  // Wire click handlers on each row.
+  body.querySelectorAll('.weapon-picker-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      const id = row.getAttribute('data-weapon');
+      equipWeaponFromPicker(id);
+    });
+  });
+}
+
+function equipWeaponFromPicker(id) {
+  if (!game.player) return;
+  if (id === 'fists') {
+    game.player.rizerWeapon = null;
+    showToast('◈ EQUIPPED · BARE FISTS', 1600);
+  } else if (RIZER_WEAPONS[id] && (game.player.rizerWeapons || []).includes(id)) {
+    game.player.rizerWeapon = id;
+    showToast('◈ EQUIPPED · ' + RIZER_WEAPONS[id].name, 1600);
+  }
+  if (typeof syncRizerSkills === 'function') syncRizerSkills();
+  try { playSfx('menu-confirm'); } catch(_) {}
+  save();
+  // Reopen the profile so the WEAPON EQUIPPED panel reflects the new state.
+  openRizerProfile();
+}
 
 // ---- Panel 3: MERCHANT'S LEDGER ----
 function openMerchantLedger() {
@@ -28396,19 +28470,18 @@ function showDadStarterKitDialog(id) {
       game.player.metDadNotebook = true;
       showToast('📖  DAD\'S FIRST NOTEBOOK', 2400);
     }
-    // ★ 2026-08-02 · Grant + auto-equip the Beastbone Dagger so the player
-    // walks out of this dialog already wielding it.  Adds to rizerWeapons
-    // pack, sets rizerWeapon = 'knife', triggers the equipped-idle skin
-    // swap in drawBetaPlayer on the very next render tick.
+    // ★ 2026-08-03 · Grant the Beastbone Dagger to the pack — do NOT
+    // auto-equip.  User rule: weapons go into the pack, player manually
+    // equips from the Rizer profile weapon panel.  Player exits this
+    // dialog with fists still equipped by default.
     if (!game.player.rizerWeapons) game.player.rizerWeapons = [];
     if (!game.player.rizerWeapons.includes('knife')) {
       game.player.rizerWeapons.push('knife');
     }
-    game.player.rizerWeapon = 'knife';
     // Sync any level-gated skills the player already qualified for.
     if (typeof syncRizerSkills === 'function') syncRizerSkills();
     // Small delay so the notebook toast reads before the dagger toast.
-    setTimeout(() => showToast('🗡  BEASTBONE DAGGER equipped', 2400), 900);
+    setTimeout(() => showToast('🗡  BEASTBONE DAGGER added to pack · equip from Rizer profile', 2800), 900);
     save();
   });
 }

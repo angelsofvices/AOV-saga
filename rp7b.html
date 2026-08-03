@@ -9049,26 +9049,87 @@ function drawDustPiles(cam) {
     ctx.restore();
   }
 }
+// ★ 2026-08-03 · Crystal-spire gem render.  Matches user's reference sheet ·
+// tall spire body + smaller flanking shards + radial glow + bright core
+// highlight + pulsing sparkles.  Draws entirely from canvas paths so the
+// gems ship without any PNG dependency (procedural placeholder until the
+// PNG sheet is baked in).
 function drawGroundGems(cam) {
   if (!game.groundGems || !game.groundGems[game.player.mapId]) return;
   const bucket = game.groundGems[game.player.mapId];
   const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-  const gemColors = { blue:'#5cd0ff', pearl:'#f3ecdc', green:'#48c880', orange:'#e08840', purple:'#c896ff', red:'#e04848', silver:'#c8d0e0', gold:'#ffd870' };
   for (const g of bucket) {
     const cx = (g.x - cam.x) * TILE + TILE / 2;
     const cy = (g.y - cam.y) * TILE + TILE / 2;
-    const bob = Math.sin((now + g.spawnedAt) / 250) * 3;
+    const bob = Math.sin((now + g.spawnedAt) / 250) * 2;
+    const pal = GEM_PALETTE[g.type] || GEM_PALETTE.white;
+    const gy = cy + 6 + bob;   // gem visual center Y (slightly below tile center)
     ctx.save();
-    ctx.fillStyle = gemColors[g.type] || '#ffffff';
+    // Radial glow · biggest layer, drawn first.
+    const glow = ctx.createRadialGradient(cx, gy, 2, cx, gy, 18);
+    glow.addColorStop(0, pal.glow);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - 18, gy - 18, 36, 36);
+    // Flanking shards · two smaller crystals on each side.
+    const drawShard = (sx, sy, w, h, tilt) => {
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - h);
+      ctx.lineTo(sx + w, sy - h*0.4 + tilt);
+      ctx.lineTo(sx + w*0.7, sy);
+      ctx.lineTo(sx - w*0.7, sy);
+      ctx.lineTo(sx - w, sy - h*0.4 + tilt);
+      ctx.closePath();
+      const shardGrad = ctx.createLinearGradient(sx - w, sy - h, sx + w, sy);
+      shardGrad.addColorStop(0, pal.core);
+      shardGrad.addColorStop(0.5, pal.mid);
+      shardGrad.addColorStop(1, pal.dark);
+      ctx.fillStyle = shardGrad;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1;
+      ctx.stroke();
+    };
+    drawShard(cx - 6, gy + 4, 3, 6, 0);
+    drawShard(cx + 6, gy + 4, 3, 6, 0);
+    drawShard(cx - 4, gy + 5, 2, 4, 0);
+    drawShard(cx + 4, gy + 5, 2, 4, 0);
+    // Main spire · tall pointed crystal.
     ctx.beginPath();
-    ctx.arc(cx, cy + 4 + bob, 6, 0, Math.PI * 2);
+    ctx.moveTo(cx, gy - 12);           // top point
+    ctx.lineTo(cx + 5, gy - 4);        // top-right shoulder
+    ctx.lineTo(cx + 4, gy + 5);        // bottom-right
+    ctx.lineTo(cx, gy + 8);            // bottom point
+    ctx.lineTo(cx - 4, gy + 5);        // bottom-left
+    ctx.lineTo(cx - 5, gy - 4);        // top-left shoulder
+    ctx.closePath();
+    const bodyGrad = ctx.createLinearGradient(cx - 6, gy - 12, cx + 6, gy + 8);
+    bodyGrad.addColorStop(0, pal.core);
+    bodyGrad.addColorStop(0.5, pal.mid);
+    bodyGrad.addColorStop(1, pal.dark);
+    ctx.fillStyle = bodyGrad;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 1;
     ctx.stroke();
-    // sparkle
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillRect(cx - 2, cy + 2 + bob, 2, 2);
+    // White highlight streak on the left face.
+    ctx.beginPath();
+    ctx.moveTo(cx - 2, gy - 10);
+    ctx.lineTo(cx - 1, gy - 8);
+    ctx.lineTo(cx - 1, gy + 2);
+    ctx.lineTo(cx - 3, gy + 0);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fill();
+    // Sparkles · 3 tiny cross-stars that pulse (staggered).
+    const sparklePhase = (now / 300) + (g.spawnedAt / 100);
+    const drawSparkle = (sx, sy, phase) => {
+      const alpha = 0.4 + 0.5 * Math.max(0, Math.sin(sparklePhase + phase));
+      ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha.toFixed(2) + ')';
+      ctx.fillRect(sx - 1, sy, 3, 1);
+      ctx.fillRect(sx, sy - 1, 1, 3);
+    };
+    drawSparkle(cx + 4, gy - 8, 0);
+    drawSparkle(cx - 6, gy - 2, 1.2);
+    drawSparkle(cx + 6, gy + 2, 2.4);
     ctx.restore();
   }
 }
@@ -24465,7 +24526,20 @@ function resolveAttackHit() {
 // wait on the floor to be walked over.  Utility (Rizer/Zyrex upgrades)
 // programmed later.
 // ============================================================================
-const GEM_TYPES = ['blue','pearl','green','orange','purple','red','silver','gold'];
+// ★ 2026-08-03 · Canonical 8 gem colors matching the crystal-spire palette
+// the user provided.  Order matches the top-left → bottom-right layout of
+// the reference sheet.
+const GEM_TYPES = ['red', 'blue', 'green', 'yellow', 'white', 'orange', 'purple', 'black'];
+const GEM_PALETTE = {
+  red:    { core: '#ff6a5c', mid: '#e02830', dark: '#8a0e14', glow: 'rgba(255, 80, 60, 0.55)' },
+  blue:   { core: '#6ac8ff', mid: '#2a80e8', dark: '#0e2c8a', glow: 'rgba(96, 168, 255, 0.55)' },
+  green:  { core: '#7cf090', mid: '#28b048', dark: '#0e5820', glow: 'rgba(96, 240, 128, 0.55)' },
+  yellow: { core: '#fff28a', mid: '#f0c020', dark: '#8a6008', glow: 'rgba(255, 224, 96, 0.55)' },
+  white:  { core: '#ffffff', mid: '#e0e8f0', dark: '#8090a8', glow: 'rgba(240, 248, 255, 0.55)' },
+  orange: { core: '#ffb060', mid: '#e07020', dark: '#8a3008', glow: 'rgba(255, 160, 80, 0.55)' },
+  purple: { core: '#e0a0ff', mid: '#a848e0', dark: '#5a1c8a', glow: 'rgba(200, 128, 255, 0.55)' },
+  black:  { core: '#8a8a9a', mid: '#3a3a48', dark: '#0a0a12', glow: 'rgba(150, 150, 170, 0.45)' },
+};
 function initGemInventory() {
   if (!game.player.gemBag) {
     game.player.gemBag = {};

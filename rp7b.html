@@ -8851,23 +8851,17 @@ function drawBetaShadow(cx, groundY, width, strength) {
 // heading.  game.player.dir already persists, so idle just renders that
 // facing's stand pose instead of snapping back to 'down'.
 function drawBetaPlayer(cx, cy, dir) {
-  // ★ 2026-08-02 · SLEEP · AFK player renders lying/sitting/curled pose.
-  //   Priority: sleep beats mount beats weapon-skin beats cosmetic.
+  // ★ 2026-08-03 · SLEEP · direction-preserving.  When AFK for 10s the
+  // player lies down facing the SAME direction they were standing (dir).
+  // Sheet layout: row 0 = down, 1 = left, 2 = right, 3 = up.  4 breathing
+  // frames per row.
   const sleep = game.player && game.player.sleepState;
-  if (sleep && sleep.phase === 'lie' && _imgOk(BETA_PLAYER_SLEEP.sheet)) {
-    // rows 1/2/3 = sleep/nap/ground; 4 frames per row.
-    const rowIdx = ({ sleep: 1, nap: 2, ground: 3 })[sleep.pose] || 1;
+  if (sleep && sleep.phase === 'sleep' && _imgOk(BETA_PLAYER_SLEEP.sheet)) {
     const S = BETA_PLAYER_SLEEP;
+    const rowMap = { down: 0, left: 1, right: 2, up: 3 };
+    const rowIdx = rowMap[dir] !== undefined ? rowMap[dir] : 0;
     drawBetaShadow(cx, cy + TILE / 2 - 2, 34, 0.32);
     ctx.drawImage(S.sheet, (sleep.frame % 4) * S.cellW, rowIdx * S.cellH, S.cellW, S.cellH,
-      Math.round(cx - S.cellW / 2), Math.round((cy + TILE / 2) - S.feetY), S.cellW, S.cellH);
-    return true;
-  }
-  if (sleep && sleep.phase === 'rest' && _imgOk(BETA_PLAYER_SLEEP.sheet)) {
-    // Row 0 = resting (standing but drowsy · 4 frames).
-    const S = BETA_PLAYER_SLEEP;
-    drawBetaShadow(cx, cy + TILE / 2 - 2, 34, 0.32);
-    ctx.drawImage(S.sheet, (sleep.frame % 4) * S.cellW, 0, S.cellW, S.cellH,
       Math.round(cx - S.cellW / 2), Math.round((cy + TILE / 2) - S.feetY), S.cellW, S.cellH);
     return true;
   }
@@ -24151,18 +24145,18 @@ function syncRizerSkills() {
 }
 
 // ============================================================================
-// ★ 2026-08-02 · SLEEP IDLE · AFK timer.  After 8s of no input the player
-// transitions to a resting pose; after 30s they lie down / nap / curl up
-// (one of the three sleep variants chosen at start of sleep).  Any keyboard
-// or gamepad input resets to normal idle immediately.
+// ★ 2026-08-03 · SLEEP IDLE · direction-preserving AFK.  After 10s of no
+// input the player lies down FACING WHICHEVER DIRECTION they were.  Any
+// keyboard / gamepad / attack input resets to normal idle immediately.
+// The sleep sheet is 4 dirs × 4 frames (down/left/right/up) so the render
+// picks the row by the player's current dir.
 // ============================================================================
-const SLEEP_REST_MS = 8000;
-const SLEEP_LIE_MS  = 30000;
-const SLEEP_POSES   = ['sleep', 'nap', 'ground'];   // rows 1/2/3 of sheet
+const SLEEP_TRIGGER_MS = 10000;   // 10 s of quiet → sleep
+const SLEEP_FRAME_MS   = 320;     // 4-frame anim cadence
 
 function initSleepState() {
   if (!game.player.sleepState) {
-    game.player.sleepState = { phase: 'active', idleMs: 0, pose: 'sleep', frame: 0, animMs: 0 };
+    game.player.sleepState = { phase: 'active', idleMs: 0, frame: 0, animMs: 0 };
   }
 }
 function noteInputActivity() {
@@ -24175,29 +24169,20 @@ function tickSleep(dt) {
   if (!game.player || game.mode !== 'overworld') return;
   initSleepState();
   const s = game.player.sleepState;
-  // Any movement or attack breaks sleep.
+  // Any movement, attack, or held direction key breaks sleep.
   const st = game.player.attackState;
   if (game.player.moveCd > 0 || (st && st.active)) {
     s.idleMs = 0; s.phase = 'active'; return;
   }
-  // Held direction keys count as active input.
   if (keys['arrowup']||keys['arrowdown']||keys['arrowleft']||keys['arrowright']||
       keys['w']||keys['a']||keys['s']||keys['d']) {
     s.idleMs = 0; s.phase = 'active'; return;
   }
   s.idleMs += dt;
   s.animMs += dt;
-  if (s.idleMs >= SLEEP_LIE_MS) {
-    if (s.phase !== 'lie') {
-      s.phase = 'lie';
-      s.pose  = SLEEP_POSES[Math.floor(Math.random() * SLEEP_POSES.length)];
-      s.frame = 0; s.animMs = 0;
-    }
-    // 4-frame ping-pong every 250ms
-    if (s.animMs > 250) { s.animMs = 0; s.frame = (s.frame + 1) % 4; }
-  } else if (s.idleMs >= SLEEP_REST_MS) {
-    if (s.phase !== 'rest') { s.phase = 'rest'; s.frame = 0; s.animMs = 0; }
-    if (s.animMs > 300) { s.animMs = 0; s.frame = (s.frame + 1) % 4; }
+  if (s.idleMs >= SLEEP_TRIGGER_MS) {
+    if (s.phase !== 'sleep') { s.phase = 'sleep'; s.frame = 0; s.animMs = 0; }
+    if (s.animMs >= SLEEP_FRAME_MS) { s.animMs = 0; s.frame = (s.frame + 1) % 4; }
   }
 }
 

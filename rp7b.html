@@ -2028,7 +2028,7 @@
     <div class="hud" id="hud" style="display:none;">
       <div class="badge" id="hud-location" title="Open the world map"                     onclick="openMapView()"><span class="l1">Malezor</span><span class="l2">Beastlands</span></div>
       <div class="badge" id="hud-rizer"    title="Open your Rizer profile"                onclick="openRizerProfile()"><span class="l1">★ R.Lv 1</span><span class="l2">0 / 150</span></div>
-      <div class="badge" id="hud-coins"    title="Open the Merchant's Ledger"             onclick="openMerchantLedger()"><span class="l1">COINS</span><span class="l2">¢ 0</span></div>
+      <div class="badge" id="hud-zyrex"    title="Open your party"                        onclick="openParty()"><span class="l1">ZYREX</span><span class="l2">◈ 0 / 6</span></div>
       <div class="badge" id="hud-clues"    title="Open the Gemshard / Fathergem tracker"  onclick="openGemshardTracker()"><span class="l1">SHARDS</span><span class="l2">◈ 0/10</span></div>
     </div>
     <!-- Character creator -->
@@ -25053,6 +25053,16 @@ function openRizerProfile() {
       ${(p.rizerPotions || 0) > 0 ? `
       <div style="font-size:10px; color:var(--mist); letter-spacing:0.14em; text-align:center;">◈ FIRST-AID POTIONS · ${p.rizerPotions}</div>` : ''}
     </div>
+    <!-- ★ 2026-08-03 · WALLET · coins moved out of the HUD and into the Rizer
+         profile.  Clicking opens the Merchant's Ledger (formerly the HUD
+         coin badge's action) for the full purchase history. -->
+    <div onclick="openMerchantLedger()" title="Open the Merchant's Ledger" style="padding:10px; background:linear-gradient(90deg, rgba(232,180,72,0.18), rgba(232,180,72,0.06) 60%, rgba(20,10,40,0.10)); border:1px solid var(--border-gold); border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; transition:background 120ms;" onmouseover="this.style.background='linear-gradient(90deg, rgba(232,180,72,0.28), rgba(232,180,72,0.10) 60%, rgba(20,10,40,0.14))'" onmouseout="this.style.background='linear-gradient(90deg, rgba(232,180,72,0.18), rgba(232,180,72,0.06) 60%, rgba(20,10,40,0.10))'">
+      <div>
+        <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.20em;">WALLET</div>
+        <div style="font-family:var(--font-display); font-size:20px; color:var(--gold-bright); letter-spacing:0.14em; margin-top:2px;">¢ ${p.coins || 0}</div>
+      </div>
+      <div style="font-family:var(--font-display); font-size:10px; color:var(--gold-bright); letter-spacing:0.16em; opacity:0.75;">▸ LEDGER</div>
+    </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
       <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
         <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.16em;">DISTRICTS VISITED</div>
@@ -29103,11 +29113,15 @@ function updateHUD() {
       hintEl.style.display = 'none';
     };
   }
-  // V3.10.8 — HUD reduced to four badges (location · R.Lv · coins ·
-  // shards).  Party count + gems moved to the Items overlay.  Every
-  // badge renders as exactly two rows via .l1 / .l2 spans.
-  const coinEl = document.getElementById('hud-coins');
-  if (coinEl) coinEl.innerHTML = `<span class="l1">COINS</span><span class="l2">¢ ${game.player.coins || 0}</span>`;
+  // V3.10.8 — HUD four badges (location · R.Lv · zyrex · shards).
+  // ★ 2026-08-03 · COINS moved into Rizer profile; slot repurposed as
+  // live party-count meter (◈ current alive / MAX_PARTY).
+  const zyEl = document.getElementById('hud-zyrex');
+  if (zyEl) {
+    const partyCount = (game.player.party || []).filter(Boolean).length;
+    const maxParty = (typeof MAX_PARTY !== 'undefined') ? MAX_PARTY : 6;
+    zyEl.innerHTML = `<span class="l1">ZYREX</span><span class="l2">◈ ${partyCount} / ${maxParty}</span>`;
+  }
   // V2.22 — HUD tracks stolen Gemshards recovered from Seer mini-bosses (0/10).
   const cluesEl = document.getElementById('hud-clues');
   if (cluesEl) {

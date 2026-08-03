@@ -12399,7 +12399,11 @@ function districtWildPool(mapId) {
       // GEMLORD_IDS out of the pool AFTER weighting so nothing slips
       // through via native/adjacent/global paths.  Trainer chains reuse
       // this pool, so this single filter cleans both spawn systems.
-      const filtered = ids.filter(id => SPECIES[id] && !GEMLORD_IDS.has(id));
+      // ★ 2026-08-03 · Read gemlord set via window.* to sidestep the TDZ
+      // caused by the local `const GEMLORD_IDS` further down in this same
+      // function (function-scope shadow throws on any earlier reference).
+      const _gemBlockA = (typeof window !== 'undefined' && window.GEMLORD_IDS) || null;
+      const filtered = ids.filter(id => SPECIES[id] && !(_gemBlockA && _gemBlockA.has(id)));
       if (filtered.length) {
         // Level range = HARD district band.  Never crosses into a
         // higher- or lower-tier district's zone.
@@ -12459,13 +12463,16 @@ function districtWildPool(mapId) {
   // in the wild.  T8 = Gemlord tier — those species live ONLY in their
   // caves.  Wild encounters cap at T7 (rare legendary sightings).
   const WILD_TIER_MAX = 7;
-  const GEMLORD_IDS = new Set(['rakoron','ivirium','mutaryn','emeralix','eurakeon','azurel','obsidius','ambrevon','oathane','oatheus']);
+  // ★ 2026-08-03 · TDZ FIX · removed local `const GEMLORD_IDS` that was
+  // shadowing the outer const for the ENTIRE function scope, throwing
+  // ReferenceError on every earlier read.  Read via window.* instead.
+  const _wildGemlords = (typeof window !== 'undefined' && window.GEMLORD_IDS) || null;
   const catchable = (id) => {
     const sp = SPECIES[id];
     if (!sp || sp.easterEgg) return false;
     // Gods and Gemlord species never spawn in the wild.
     if ((sp.tier || 1) > WILD_TIER_MAX) return false;
-    if (GEMLORD_IDS.has(id)) return false;
+    if (_wildGemlords && _wildGemlords.has(id)) return false;
     // ★ 2026-07-23 · Humanoid characters (Rizers, townspeople, Seers)
     // are people, not Zyrex.  They never appear in wild encounters or
     // in trainer chains — a Rizer cannot field a Rizer.

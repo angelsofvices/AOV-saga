@@ -2647,80 +2647,97 @@ ctx.imageSmoothingEnabled = false;
 //   defender strong vs attack → 0.5× (resistant)
 //   neither → 1× (neutral)
 // V2.29 — expanded to 20 types (10 originals + 10 new). See V2.26.HANDOFF for design report.
+// ★ 2026-08-03 · CODEX v14.8 · 12-TYPE SYSTEM (supersedes the 20-type).
+//   ORIGINAL 7 · Aura, Beast, Humanoid, Tech, Spirit, Nature, Unknown
+//   EXPERIAN 5 · Draconic, Crystal, Divine, Corrupted, Aquatic
+//   Ultimate · reserved 13th (True Gods only · Anciuxor)
+//
+// Legacy 20-type names fold into the 12 at load time via TYPE_FOLD_MAP.
+// Existing SPECIES entries stay unchanged in source; retagged in-place on
+// script startup so every downstream lookup sees the canonical 12.
 const TYPES = [
-  'Aura','Beast','Creature','Extraterrestrial','Humanoid-Noid','Nature','Tech','Spirit','Ultramax','Unknown-Void',
-  'Draconic','Crystal','Radiant','Divine','Corrupted','Verdant','Aquatic','Chrono','Astral','Elemental',
-  // ★ 21st TYPE (2026-07-17) — 'Ultimate'.  Combination of all 20 types.
-  // Deals 3× damage to every other type.  Has NO weaknesses (nothing
-  // super-effective back).  ONLY Anciuxor bears this type — He is the
-  // divine physical form of the God, the "Divine Hit."  See typeMult.
+  // Original 7
+  'Aura','Beast','Humanoid','Tech','Spirit','Nature','Unknown',
+  // Experian 5
+  'Draconic','Crystal','Divine','Corrupted','Aquatic',
+  // Reserved 13th
   'Ultimate',
 ];
-// V2.29 — 20-type chart from V2.26.HANDOFF (2026-07-12 canon lock).
-// 20 types × 3 strengths / 3 weaknesses = 60 directed edges. Verified: perfect
-// symmetry (in-degree = out-degree = 3 for all 20), zero mutual counters.
-// Each of the original 10 types keeps 2 legacy strengths + gains 1 new-type edge.
-// V2.26's third old-type edge is superseded by the handoff's new-type edge.
-const TYPE_STRONG_VS = {
-  // ---- Original 10 (legacy strengths preserved + 1 new-type addition each) ----
-  'Aura':              ['Spirit','Unknown-Void','Corrupted'],           // + Corrupted (cleansing radiance burns the warped)
-  'Beast':             ['Creature','Spirit','Verdant'],                 // + Verdant (fauna devours flora)
-  'Creature':          ['Nature','Aura','Aquatic'],                     // + Aquatic (bonded hunting-fauna prowl the shallows)
-  'Extraterrestrial':  ['Aura','Nature','Divine'],                      // + Divine (xeno-origin outside the pantheon)
-  'Humanoid-Noid':     ['Beast','Ultramax','Draconic'],                 // + Draconic (the dragonslayer tradition)
-  'Nature':            ['Tech','Unknown-Void','Elemental'],             // + Elemental (living world tames raw elements)
-  'Tech':              ['Humanoid-Noid','Extraterrestrial','Crystal'],  // + Crystal (machinery mines the gem-bodied)
-  'Spirit':            ['Humanoid-Noid','Tech','Chrono'],               // + Chrono (the dead stand outside time)
-  'Ultramax':          ['Extraterrestrial','Beast','Astral'],           // + Astral (peak power outshines the star-born)
-  'Unknown-Void':      ['Ultramax','Creature','Radiant'],               // + Radiant (the void devours light)
-  // ---- 10 new types ----
-  'Draconic':          ['Beast','Elemental','Aquatic'],                 // apex wyrms; dragonhide; sea-serpents are wyrms
-  'Crystal':           ['Spirit','Radiant','Chrono'],                   // soul-gems; prism traps light; quartz locks time
-  'Radiant':           ['Aura','Aquatic','Chrono'],                     // blaze outshines aura; pierces abyss; outraces time
-  'Divine':            ['Unknown-Void','Corrupted','Draconic'],         // consecration seals; sanctity purges; gods bind wyrms
-  'Corrupted':         ['Humanoid-Noid','Radiant','Verdant'],           // mortals succumb; warped devour bright; blight withers
-  'Verdant':           ['Tech','Crystal','Astral'],                     // overgrowth swallows machines; roots crack stone; canopy drinks starlight
-  'Aquatic':           ['Nature','Elemental','Corrupted'],              // tide swallows soil; sea quenches storm; tide washes corruption
-  'Chrono':            ['Ultramax','Astral','Divine'],                  // time erodes power; stars die; pantheons fall
-  'Astral':            ['Extraterrestrial','Draconic','Divine'],        // cosmos outranks xeno; stars above wyrms; cosmic order precedes pantheon
-  'Elemental':         ['Creature','Verdant','Crystal'],                // raw force overwhelms fauna; wildfire razes forest; shatters gem-bodied
+// Fold-in map · retag every legacy 20-type name to its v14.8 canonical.
+const TYPE_FOLD_MAP = {
+  'Creature':         'Beast',     // fauna subtype folds into Beast
+  'Extraterrestrial': 'Tech',      // xeno-tech absorbs ET
+  'Humanoid-Noid':    'Humanoid',  // rename
+  'Ultramax':         'Aura',      // peak-radiance folds into Aura
+  'Unknown-Void':     'Unknown',   // rename
+  'Radiant':          'Aura',      // luminous folds into Aura
+  'Verdant':          'Nature',    // flora folds into Nature
+  'Chrono':           'Spirit',    // time-beings fold into Spirit
+  'Astral':           'Spirit',    // star-touched folds into Spirit
+  'Elemental':        'Nature',    // pure-element folds into Nature
+  // Original 7 + Experian 5 map to themselves
 };
+function foldType(t) { return TYPE_FOLD_MAP[t] || t; }
+// ★ 12×12 EFFECTIVENESS · each attacker has 3 strong-vs targets.  Distributed
+// so no type is defenceless (every type has 2-3 incoming attackers) and no
+// mutual counter-pairs (A strong vs B, B not strong vs A).
+const TYPE_STRONG_VS = {
+  'Aura':       ['Spirit','Unknown','Corrupted'],    // radiance burns dark
+  'Beast':      ['Nature','Humanoid','Crystal'],     // predator devours
+  'Humanoid':   ['Beast','Draconic','Divine'],       // dragonslayer + iconoclast
+  'Tech':       ['Humanoid','Crystal','Nature'],     // machine over flesh/mineral/growth
+  'Spirit':     ['Tech','Aquatic','Beast'],          // soul haunts machine/deep/flesh
+  'Nature':     ['Tech','Aquatic','Unknown'],        // green swallows all
+  'Unknown':    ['Aura','Draconic','Divine'],        // void devours light/wyrm/sanctity
+  'Draconic':   ['Beast','Nature','Crystal'],        // wyrm apex crushes
+  'Crystal':    ['Spirit','Aura','Divine'],          // prism traps light/soul
+  'Divine':     ['Corrupted','Unknown','Aquatic'],   // sanctity purges void/tide
+  'Corrupted':  ['Humanoid','Divine','Aura'],        // blight warps mortals/faith
+  'Aquatic':    ['Nature','Corrupted','Draconic'],   // tide erodes growth/wyrm
+  // Ultimate · Anciuxor only.  No weaknesses (nothing hits it 2×), and
+  // every defender takes 3× damage from Ultimate attacks.  See _typeMultSingle.
+  'Ultimate':   [],
+};
+// ★ Codex v14.8 · 12-type palette.  Legacy names alias to their fold target
+// so any un-migrated data still renders a sensible color instead of white.
 const TYPE_COLORS = {
-  // Original 10
-  'Aura':              '#f5dc9c',
-  'Beast':             '#c98a4a',
-  'Creature':          '#8bc466',
-  'Extraterrestrial':  '#5fa8ff',
-  'Humanoid-Noid':     '#e8c878',
-  'Nature':            '#2fe6a8',
-  'Tech':              '#a0b8d8',
-  'Spirit':            '#b87cff',
-  'Ultramax':          '#ff5c5c',
-  'Unknown-Void':      '#6b5a8a',
-  // V2.29 — 10 new types
-  'Draconic':          '#c8384a',   // crimson-gold — wyrms, dragonhide
-  'Crystal':           '#8be8ff',   // cyan prism
-  'Radiant':           '#ffe860',   // sunburst
-  'Divine':            '#f8ecc8',   // pale gold-white — sanctified
-  'Corrupted':         '#4a1e5c',   // deep warped violet
-  'Verdant':           '#4a8a44',   // forest green
-  'Aquatic':           '#2478c8',   // deep tidal blue
-  'Chrono':            '#b0b8c8',   // silvered temporal
-  'Astral':            '#9878ff',   // cosmic purple — star-touched
-  'Elemental':         '#ff5c1a',   // raw fire-orange
-  // ★ 21st type — Ultimate (Anciuxor only) — layered gold + white palette
-  'Ultimate':          '#fff8c8',   // divine gold-white · the Ultimate combination
+  // Original 7
+  'Aura':      '#f5dc9c',
+  'Beast':     '#c98a4a',
+  'Humanoid':  '#e8c878',
+  'Tech':      '#a0b8d8',
+  'Spirit':    '#b87cff',
+  'Nature':    '#2fe6a8',
+  'Unknown':   '#6b5a8a',
+  // Experian 5
+  'Draconic':  '#c8384a',   // crimson-gold — wyrms
+  'Crystal':   '#8be8ff',   // cyan prism
+  'Divine':    '#f8ecc8',   // pale gold-white — sanctified
+  'Corrupted': '#4a1e5c',   // deep warped violet
+  'Aquatic':   '#2478c8',   // deep tidal blue
+  // Reserved 13th
+  'Ultimate':  '#fff8c8',   // divine gold-white
+  // Legacy aliases (folded → same swatch as their target)
+  'Creature':         '#c98a4a',
+  'Extraterrestrial': '#a0b8d8',
+  'Humanoid-Noid':    '#e8c878',
+  'Ultramax':         '#f5dc9c',
+  'Unknown-Void':     '#6b5a8a',
+  'Radiant':          '#f5dc9c',
+  'Verdant':          '#2fe6a8',
+  'Chrono':           '#b87cff',
+  'Astral':           '#b87cff',
+  'Elemental':        '#2fe6a8',
 };
 const TYPE_SHORT = {
-  // Original 10
-  'Aura':'AURA','Beast':'BEAST','Creature':'CRTR','Extraterrestrial':'E.T.',
-  'Humanoid-Noid':'HUM-N','Nature':'NATR','Tech':'TECH','Spirit':'SPRT',
-  'Ultramax':'ULTMX','Unknown-Void':'VOID',
-  // V2.29 — 10 new types
-  'Draconic':'DRAG','Crystal':'CRYS','Radiant':'RAD','Divine':'DIVI',
-  'Corrupted':'CORR','Verdant':'VERD','Aquatic':'AQUA','Chrono':'CHRO',
-  'Astral':'ASTR','Elemental':'ELEM',
+  'Aura':'AURA','Beast':'BEAST','Humanoid':'HUM','Tech':'TECH','Spirit':'SPRT',
+  'Nature':'NATR','Unknown':'UNK',
+  'Draconic':'DRAG','Crystal':'CRYS','Divine':'DIVI','Corrupted':'CORR','Aquatic':'AQUA',
   'Ultimate':'ULTI',
+  // Legacy aliases
+  'Creature':'BEAST','Extraterrestrial':'TECH','Humanoid-Noid':'HUM','Ultramax':'AURA',
+  'Unknown-Void':'UNK','Radiant':'AURA','Verdant':'NATR','Chrono':'SPRT','Astral':'SPRT',
+  'Elemental':'NATR',
 };
 function _typeMultSingle(atk, def) {
   // ★ ULTIMATE — Anciuxor's sole type.  Attacker='Ultimate' hits ANY type
@@ -7661,6 +7678,22 @@ const SPECIES = {
   },
 };
 
+// ★ 2026-08-03 · Codex v14.8 · retag every SPECIES entry with the 12-type
+// canonical.  Runs after both the base SPECIES + v7 roster merge so it
+// catches every species regardless of origin.  Idempotent · re-running
+// leaves already-canonical types untouched.
+function _applyV148TypeFolds() {
+  if (typeof SPECIES !== 'object') return;
+  let touched = 0;
+  for (const id in SPECIES) {
+    const s = SPECIES[id]; if (!s) continue;
+    if (s.type && TYPE_FOLD_MAP[s.type]) { s.type  = TYPE_FOLD_MAP[s.type];  touched++; }
+    if (s.type2 && TYPE_FOLD_MAP[s.type2]) { s.type2 = TYPE_FOLD_MAP[s.type2]; touched++; }
+    if (s.type3 && TYPE_FOLD_MAP[s.type3]) { s.type3 = TYPE_FOLD_MAP[s.type3]; touched++; }
+  }
+  console.log('[v14.8] retagged', touched, 'species type slots to 12-type system');
+}
+
 // ★ 2026-07-30 · V7 OFFICIAL ROSTER MERGE — see assets/rp7/roster_v7.js.
 // Adds 156 catchable species from ROSTER DROP.pdf on top of the legacy
 // SPECIES block.  Legacy species stay resident so story references (Elzebub,
@@ -7677,6 +7710,11 @@ try {
     window.V7_SPECIES_IDS = null;
   }
 } catch (e) { console.error('[RP7B] v7 merge failed', e); window.V7_SPECIES_IDS = null; }
+
+// ★ 2026-08-03 · Codex v14.8 · fold legacy 20-type names into the canonical
+// 12 immediately after the v7 merge · every downstream SPECIES lookup sees
+// the retagged types (Creature→Beast, Radiant→Aura, etc.).
+try { _applyV148TypeFolds(); } catch (e) { console.warn('[v14.8] fold pass failed', e); }
 
 // Any Zyrex persisted under the old key still resolves via SPECIES lookup.
 

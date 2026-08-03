@@ -8033,7 +8033,11 @@ function makeZyrex(speciesId, lv) {
     console.warn('[makeZyrex] unknown species id →', speciesId, '· skipping');
     return null;
   }
-  if (typeof GEMLORD_IDS !== 'undefined' && GEMLORD_IDS.has(speciesId)) {
+  // ★ 2026-08-03 · TDZ FIX · typeof on a const still throws ReferenceError
+  // during the temporal dead zone.  Read through window.* which returns
+  // undefined for uninitialized names instead of throwing.
+  const _gemSet = (typeof window !== 'undefined') ? window.GEMLORD_IDS : null;
+  if (_gemSet && _gemSet.has && _gemSet.has(speciesId)) {
     console.warn('[makeZyrex] gemlord id blocked from party →', speciesId, '· skipping');
     return null;
   }
@@ -12318,6 +12322,9 @@ const GEMLORD_IDS = new Set([
   'oathane',   // Thardin · anomaly
   'oatheus',   // Korathen · ultra
 ]);
+// ★ 2026-08-03 · Expose on window so early / TDZ-safe reads (makeZyrex,
+// startNpcTrainerBattle) can access without ReferenceError.
+if (typeof window !== 'undefined') window.GEMLORD_IDS = GEMLORD_IDS;
 function districtWildPool(mapId) {
   // ★ 2026-07-31 · V7 ROSTER PATH · HARD district bands.
   // Wild pool composition:
@@ -25953,8 +25960,11 @@ function startNpcTrainerBattle(tileChar, x, y, opts) {
   // hand-authored NPC_TRAINERS chain or hall Rizer chain manages to list a
   // Gemlord id, strip it here before the battle spawns anything.  Gemlords
   // ONLY appear in their scripted cave-sanctum duels post-Part 1.
-  if (Array.isArray(chainSpecs) && typeof GEMLORD_IDS !== 'undefined') {
-    chainSpecs = chainSpecs.filter(spec => !GEMLORD_IDS.has(spec[0]));
+  // ★ 2026-08-03 · TDZ-safe read via window.* (typeof on a const still throws
+  // ReferenceError during the temporal dead zone).
+  const _gemSet2 = (typeof window !== 'undefined') ? window.GEMLORD_IDS : null;
+  if (Array.isArray(chainSpecs) && _gemSet2 && _gemSet2.has) {
+    chainSpecs = chainSpecs.filter(spec => !_gemSet2.has(spec[0]));
   }
   // V3.5 — defensive: if chain resolution somehow failed (missing district
   // meta, corrupted save, etc.) synthesize a Tier I fallback so the battle

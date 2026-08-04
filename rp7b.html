@@ -22819,38 +22819,57 @@ function _borderEntry(mapId, side) {
   return table[side] || table.W;
 }
 // Hub-and-spoke portal router.
-// - If player is on a SPOKE and hits east/west portal: return to Capital.
-// - If player is on Capital and hits a portal: route to matching spoke.
-// - If player is on Capital + east portal + all zones cleared: cross to
-//   Zarvane instead of just wrapping back.
+// - Spoke → Capital: any portal press returns to Capital via the spoke's
+//   own return side.
+// - Capital west → R (Resident zone · malezor).
+// - Capital east → Zarvane gate (only opens after full 8-zone clear).
+// - R (malezor) east → returns to Capital.
+// - R (malezor) west → blocked (start of the world).
+// The other 6 spokes reached via any portal on their map bounce to Capital.
+// Deeper spoke selection (MQ/SQ/HQ/etc via specific Capital borders) is
+// Phase 2b · MVP just supports the R↔Capital↔Zarvane path so players
+// can traverse without getting stuck.
 function malezorCircuitStep(currentMapId, dir) {
   // Track that this zone was visited.
   noteMalezorZoneVisit(currentMapId);
 
-  // On a spoke: any exit returns to Capital via its own border side.
+  // ---- R (malezor) special case: east → Capital, west → block ----
+  if (currentMapId === 'malezor') {
+    if (dir > 0) {
+      const cap = MAPS[MALEZOR_HUB];
+      if (cap) return { map: MALEZOR_HUB, entry: { x: 1, y: Math.floor(cap.rows / 2), dir: 'right' } };
+    }
+    return null;   // west from R = world edge
+  }
+
+  // ---- Any OTHER spoke: portal press returns to Capital via spoke's return side ----
   if (currentMapId !== MALEZOR_HUB && MALEZOR_SPOKES[currentMapId]) {
     const spoke = MALEZOR_SPOKES[currentMapId];
     const entry = _borderEntry(MALEZOR_HUB, spoke.side);
     return { map: MALEZOR_HUB, entry };
   }
 
-  // On the hub: east portal is the district exit gate.
-  if (currentMapId === MALEZOR_HUB && dir > 0) {
-    if (malezorAllZonesCleared()) {
-      // gate open · cross to Zarvane
-      const zar = MAPS['zarvane'];
-      if (zar) return { map: 'zarvane', entry: { x: 1, y: Math.floor(zar.rows / 2), dir: 'right' } };
-    } else {
-      // gate closed — player toast + block
+  // ---- Capital ----
+  if (currentMapId === MALEZOR_HUB) {
+    if (dir > 0) {
+      // East → Zarvane gate
+      if (malezorAllZonesCleared()) {
+        const zar = MAPS['zarvane'];
+        if (zar) return { map: 'zarvane', entry: { x: 1, y: Math.floor(zar.rows / 2), dir: 'right' } };
+      }
+      // Gate closed → toast + block
       const visited = (game.player && game.player.malezorZonesVisited) || {};
       const remain = [...MALEZOR_ZONE_IDS].filter(id => !visited[id]).length;
       if (typeof showToast === 'function') {
         showToast('◈ Complete all ' + MALEZOR_ZONE_IDS.size + ' Malezor zones first · ' + remain + ' remaining', 3200);
       }
-      return null;   // block travelDistrict from firing
+      return null;
+    } else {
+      // West → back to R (Resident zone)
+      const r = MAPS['malezor'];
+      if (r) return { map: 'malezor', entry: { x: r.cols - 2, y: Math.floor(r.rows / 2), dir: 'left' } };
     }
   }
-  // West from Capital = no destination (Malezor is the start)
   return null;
 }
 

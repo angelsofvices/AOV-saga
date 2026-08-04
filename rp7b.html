@@ -30855,15 +30855,30 @@ menuBackdrop.addEventListener('click', () => {
 })();
 
 </script>
-  <script src="/aov-gamepad-boot.js"></script>
   <script>
-    // ★ 2026-07-27 · RP7 owns the pad entirely (its own poller dispatches
-    // every button as a keyboard event).  The shared nav helper must
-    // stand down completely — otherwise Cross-clicks double-fire and can
-    // hit a stray drawer link (previously navigated to /return.html).
-    window.aovNavOwnedByGame = true;
-    window.aovNavRequireOverlay = true;
+    // ★ 2026-08-04 · Protocol-aware script injection.  Netlify/Cloudflare
+    // deploys need root-absolute paths (/aov-gamepad-boot.js) so subpage
+    // routes still find them; file:// local playtest needs document-
+    // relative paths (aov-gamepad-boot.js) so the browser doesn't try
+    // to load from the OS filesystem root.  Detect protocol at boot and
+    // inject the right src.  Idempotency guard on window.__aovGamepadBoot
+    // still fires either way.
+    (function loadGamepadStack() {
+      const rel = (location.protocol === 'file:') ? '' : '/';
+      const s1 = document.createElement('script');
+      s1.src = rel + 'aov-gamepad-boot.js';
+      document.body.appendChild(s1);
+      // ★ 2026-07-27 · RP7 owns the pad entirely (its own poller dispatches
+      // every button as a keyboard event).  The shared nav helper must
+      // stand down completely — otherwise Cross-clicks double-fire and can
+      // hit a stray drawer link (previously navigated to /return.html).
+      window.aovNavOwnedByGame = true;
+      window.aovNavRequireOverlay = true;
+      const s2 = document.createElement('script');
+      s2.src = rel + 'card-game-controller-nav.js';
+      s2.dataset.gamepadOwner = 'native';
+      document.body.appendChild(s2);
+    })();
   </script>
-  <script src="/card-game-controller-nav.js" data-gamepad-owner="native"></script>
 </body>
 </html>

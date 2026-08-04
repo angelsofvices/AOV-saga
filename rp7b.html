@@ -13802,6 +13802,25 @@ function enterMap(mapId, spawnX, spawnY, dir) {
   MAP = m.data;
   MAP_COLS = m.cols;
   MAP_ROWS = m.rows;
+  // ★ 2026-08-04 · Mom's warning · fires the FIRST time the player steps
+  // out of the home into Malezor with no Zyrex.  Playtest hook so user
+  // can explore world without picking a starter but the world still
+  // reacts appropriately.
+  try {
+    if (prevMapId === 'home_interior' && mapId === 'malezor' &&
+        game.player && (!game.player.party || game.player.party.filter(Boolean).length === 0) &&
+        !game.player.metMomBeSafe) {
+      game.player.metMomBeSafe = true;
+      setTimeout(() => {
+        if (typeof showDialog === 'function') {
+          showDialog([
+            "MOM: Be safe out there, sweetheart.",
+            "MOM: Don't wander into the tall grass without a Zyrex.  Come home before dark.",
+          ]);
+        }
+      }, 400);
+    }
+  } catch(_) {}
   game.player.mapId = mapId;
   try {
     const _mid = mapId || '';
@@ -20230,6 +20249,14 @@ function tryMove(dx, dy) {
       }
     }
   }
+  // ★ 2026-08-04 · No-Zyrex playtest guards · block wild grass entry +
+  // district exit while party is empty.
+  if (typeof _blockNoZyrexWildGrass === 'function' && _blockNoZyrexWildGrass(nx, ny)) {
+    game.player.moveCd = 200; return;
+  }
+  if (typeof _blockNoZyrexDistrictExit === 'function' && _blockNoZyrexDistrictExit(nx, ny)) {
+    game.player.moveCd = 200; return;
+  }
   if (!walkable(nx, ny)) { game.player.moveCd = 120; return; }
   game.player.x = nx;
   game.player.y = ny;
@@ -20269,6 +20296,35 @@ function tryMove(dx, dy) {
     }
   }
 }
+// ★ 2026-08-04 · Playtest safety rules for "no Zyrex" state · lets user
+// walk the world without picking a starter.  Called from tryMove BEFORE
+// the movement resolves so blocked tiles just cancel the step.
+function _hasAnyZyrex() {
+  const p = game.player; if (!p || !p.party) return false;
+  return p.party.filter(Boolean).length > 0;
+}
+function _blockNoZyrexWildGrass(tx, ty) {
+  if (_hasAnyZyrex()) return false;
+  if (!isGemgrass(tx, ty)) return false;
+  if (typeof showToast === 'function') {
+    showToast('◈ Dad told me not to go in without a Zyrex.', 2600);
+  }
+  return true;
+}
+function _blockNoZyrexDistrictExit(tx, ty) {
+  if (_hasAnyZyrex()) return false;
+  const t = tileAt(tx, ty);
+  if (t !== '<' && t !== '>') return false;
+  // Only enforce ON THE MALEZOR district (the starting one).  Once you
+  // have a Zyrex you can cross · this rule only matters pre-selection.
+  const mid = game.player.mapId || '';
+  if (mid.indexOf('malezor') !== 0 && mid !== 'malezor') return false;
+  if (typeof showToast === 'function') {
+    showToast("◈ I can't leave Malezor without a Zyrex.", 2600);
+  }
+  return true;
+}
+
 // V2.66 — Arm a pending wild encounter (roll enemy now, freeze player,
 // draw '!' indicator, wait for A press).  See startWildEncounter for
 // the immediate-engage path used by story triggers that shouldn't defer.
@@ -23357,6 +23413,33 @@ function walkNpcToPlayer(n) {
     const adjacent = (Math.abs(game.player.x - n.x) + Math.abs(game.player.y - n.y)) <= 1;
     if (adjacent) {
       const npc = NPC_TRAINERS[n.tile];
+      // ★ 2026-08-04 · No-Zyrex playtest rules.
+      //  · Seer NPC (X commander, N grunt) → KIDNAP · hard reset save
+      //  · Any other Rizer → mock the player, no battle
+      if (!_hasAnyZyrex()) {
+        const isSeer = (n.tile === 'X' || n.tile === 'N');
+        if (isSeer) {
+          showDialog([
+            `${npc.name || 'SEER'}: A Rizer without a Zyrex.  How careless.`,
+            `${npc.name || 'SEER'}: Xenoxil has a use for those who wander unarmed.`,
+            'You are dragged into the shadows.',
+            '',
+            '☠  YOU WERE KIDNAPPED BY THE SEERS.',
+          ], () => {
+            try {
+              if (typeof localStorage !== 'undefined') localStorage.removeItem('rp7-save');
+            } catch(_) {}
+            setTimeout(() => location.reload(), 900);
+          });
+          return;
+        }
+        // Non-Seer Rizer trainer · mock dialog, no battle
+        showDialog([
+          `${npc.name}: You want to battle?  With WHAT?`,
+          `${npc.name}: Come back when Dad hands you your first Zyrex.  Until then · walk on.`,
+        ]);
+        return;
+      }
       showDialog([
         `${npc.name}: There! You — Rizer!`,
         npc.intro,

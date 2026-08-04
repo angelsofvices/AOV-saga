@@ -13122,6 +13122,18 @@ function walkable(x, y) {
     if (t === undefined || t === null || t === '') return false;
     return true;
   }
+  // ★ 2026-08-03 · MORI ENEMIES BLOCK MOVEMENT.  A living mori occupying a
+  // tile stops the player from phasing through · dying/dust piles do not
+  // block.  Applies to whichever map the player is currently on.
+  if (typeof game !== 'undefined' && game.player && game.enemies) {
+    const bucket = game.enemies[game.player.mapId];
+    if (bucket) {
+      for (const e of bucket) {
+        if (e.dying) continue;
+        if (e.x === x && e.y === y) return false;
+      }
+    }
+  }
   // ★ 2026-07-30 · Shardshare Collar (V) — Silver Lodge floor loot.
   // Blocks the tile until the player picks it up; after pickup the tile
   // renders as plain floor and stops blocking.
@@ -23974,15 +23986,20 @@ function spawnMori(mapId, x, y, opts) {
     losePocketMs: 0,         // out-of-range accumulator for chase→patrol
   });
 }
-function seedMalezorWildmarch() {
-  const bucket = _enemyBucket('malezor');
-  if (bucket.length > 0) return;   // already seeded
-  // Northern wildmarch edge · a handful clustered so you can find them fast.
-  spawnMori('malezor', 15,  3, { radius: 3 });
-  spawnMori('malezor', 20,  4, { radius: 3 });
-  spawnMori('malezor', 25,  2, { radius: 3 });
-  spawnMori('malezor', 30,  5, { radius: 3 });
+// ★ 2026-08-03 · RELOCATED to Zarvane per Part I story canon (Act II
+// begins in the Auralands · Malezor stays untouched during Act I).
+// Mori outbreak hits Zarvane first because Ophira's shrine-corruption
+// starts there.  Malezor stays clean until the Baelgor siege wave.
+function seedZarvaneWildmarch() {
+  const bucket = _enemyBucket('zarvane');
+  if (bucket.length > 0) return;
+  spawnMori('zarvane', 15,  3, { radius: 3 });
+  spawnMori('zarvane', 20,  4, { radius: 3 });
+  spawnMori('zarvane', 25,  2, { radius: 3 });
+  spawnMori('zarvane', 30,  5, { radius: 3 });
 }
+// Back-compat alias in case any caller still references the old name.
+function seedMalezorWildmarch() { return seedZarvaneWildmarch(); }
 function tickEnemies(dt) {
   if (!game.player || game.mode !== 'overworld') return;
   const mapId = game.player.mapId;
@@ -24026,9 +24043,19 @@ function tickEnemies(dt) {
       // Deal damage EXACTLY once when we cross the strike-frame threshold.
       if (!e.attackStruck && e.attackMs >= MORI_ATTACK_STRIKE_MS) {
         e.attackStruck = true;
-        const dxNow = Math.abs(e.x - game.player.x);
-        const dyNow = Math.abs(e.y - game.player.y);
-        if (Math.max(dxNow, dyNow) <= MORI_ATTACK_RANGE) {
+        // ★ 2026-08-03 · Accurate hitbox · only damage if player is in the
+        // tile DIRECTLY IN FRONT of the mori (respect its facing dir), OR
+        // on the SAME tile.  Diagonals no longer count · matches the arm
+        // reach visible in the swing frames.
+        const dxNow = game.player.x - e.x;
+        const dyNow = game.player.y - e.y;
+        const sameTile = (dxNow === 0 && dyNow === 0);
+        const facingHit =
+          (e.dir === 'right' && dxNow ===  1 && dyNow === 0) ||
+          (e.dir === 'left'  && dxNow === -1 && dyNow === 0) ||
+          (e.dir === 'down'  && dyNow ===  1 && dxNow === 0) ||
+          (e.dir === 'up'    && dyNow === -1 && dxNow === 0);
+        if (sameTile || facingHit) {
           const h = game.player.hurtState;
           if (!h || !h.active) takeHitPlayer(MORI_TOUCH_DMG, 0, 0);
         }
@@ -24645,12 +24672,37 @@ function openRizerProfile() {
     <!-- ★ 2026-08-03 · WALLET · coins moved out of the HUD and into the Rizer
          profile.  Clicking opens the Merchant's Ledger (formerly the HUD
          coin badge's action) for the full purchase history. -->
-    <div onclick="openMerchantLedger()" title="Open the Merchant's Ledger" style="padding:10px; background:linear-gradient(90deg, rgba(232,180,72,0.18), rgba(232,180,72,0.06) 60%, rgba(20,10,40,0.10)); border:1px solid var(--border-gold); border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; transition:background 120ms;" onmouseover="this.style.background='linear-gradient(90deg, rgba(232,180,72,0.28), rgba(232,180,72,0.10) 60%, rgba(20,10,40,0.14))'" onmouseout="this.style.background='linear-gradient(90deg, rgba(232,180,72,0.18), rgba(232,180,72,0.06) 60%, rgba(20,10,40,0.10))'">
-      <div>
-        <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.20em;">WALLET</div>
-        <div style="font-family:var(--font-display); font-size:20px; color:var(--gold-bright); letter-spacing:0.14em; margin-top:2px;">¢ ${p.coins || 0}</div>
+    <!-- ★ 2026-08-03 · WALLET now shows COINS + full GEM BAG · gems are
+         both currency (sellable at merchant) AND raw material (convertible
+         to shards at the Science Station device for Zyrex stat boosts,
+         once built). -->
+    <div onclick="openMerchantLedger()" title="Open the Merchant's Ledger" style="padding:10px; background:linear-gradient(90deg, rgba(232,180,72,0.18), rgba(232,180,72,0.06) 60%, rgba(20,10,40,0.10)); border:1px solid var(--border-gold); border-radius:4px; cursor:pointer; transition:background 120ms;" onmouseover="this.style.background='linear-gradient(90deg, rgba(232,180,72,0.28), rgba(232,180,72,0.10) 60%, rgba(20,10,40,0.14))'" onmouseout="this.style.background='linear-gradient(90deg, rgba(232,180,72,0.18), rgba(232,180,72,0.06) 60%, rgba(20,10,40,0.10))'">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.20em;">WALLET</div>
+          <div style="font-family:var(--font-display); font-size:20px; color:var(--gold-bright); letter-spacing:0.14em; margin-top:2px;">¢ ${p.coins || 0}</div>
+        </div>
+        <div style="font-family:var(--font-display); font-size:10px; color:var(--gold-bright); letter-spacing:0.16em; opacity:0.75;">▸ LEDGER</div>
       </div>
-      <div style="font-family:var(--font-display); font-size:10px; color:var(--gold-bright); letter-spacing:0.16em; opacity:0.75;">▸ LEDGER</div>
+      ${(() => {
+        const bag = p.gemBag || {};
+        const total = Object.values(bag).reduce((a,b) => a+(b||0), 0);
+        const gemCols = { red:'#e02830', blue:'#2a80e8', green:'#28b048', yellow:'#f0c020',
+                          white:'#e0e8f0', orange:'#e07020', purple:'#a848e0', black:'#3a3a48' };
+        const rows = ['red','blue','green','yellow','white','orange','purple','black'].map(t => `
+          <div style="display:flex; align-items:center; gap:4px; padding:3px 6px; background:rgba(10,6,20,0.6); border:1px solid rgba(232,200,120,0.25); border-radius:3px; min-width:52px;">
+            <div style="width:8px; height:12px; background:${gemCols[t]}; border:1px solid rgba(0,0,0,0.6); clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);"></div>
+            <div style="font-family:var(--font-display); font-size:11px; color:var(--ivory); letter-spacing:0.08em;">${bag[t] || 0}</div>
+          </div>`).join('');
+        return `
+        <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(232,200,120,0.25);">
+          <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px;">
+            <div style="font-family:var(--font-display); font-size:10px; color:var(--mist); letter-spacing:0.20em;">GEM BAG · ${total}</div>
+            <div style="font-family:var(--font-display); font-size:9px; color:var(--mist); letter-spacing:0.12em; opacity:0.6; font-style:italic;">craft SHARDS at Science Station</div>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:4px;">${rows}</div>
+        </div>`;
+      })()}
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
       <div style="padding:8px; background:rgba(20,10,40,0.20); border:1px solid var(--border-soft); border-radius:4px;">
@@ -27955,7 +28007,12 @@ function renderStarterScreen() {
     const card = document.createElement('div');
     card.className = 'starter-card';
     card.tabIndex = 0;
-    card.style.setProperty('--r-accent', TYPE_COLORS[s.type]);
+    // ★ 2026-08-03 · Accent uses the sprite's primary palette color so the
+    // card border matches what the player actually sees (verdanix green /
+    // otterlin blue / volcanut orange).  TYPE_COLORS[Aura] is pale gold,
+    // which mismatched volcanut's molten-orange body.
+    const _spritePrimary = (s.sprite && s.sprite[0]) || TYPE_COLORS[s.type];
+    card.style.setProperty('--r-accent', _spritePrimary);
     card.innerHTML = `
       <canvas class="starter-sprite" width="72" height="72"></canvas>
       <div class="starter-name">${s.name}</div>
@@ -29508,8 +29565,9 @@ function loop(now) {
     if (typeof tickGems     === 'function') tickGems(dt);
     if (typeof resolveAttackHit === 'function') resolveAttackHit();
     // Seed Malezor mori on entry (idempotent · won't double-spawn).
-    if (game.player.mapId === 'malezor' && typeof seedMalezorWildmarch === 'function') {
-      seedMalezorWildmarch();
+    // ★ 2026-08-03 · Mori outbreak now seeds in ZARVANE, not Malezor.
+    if (game.player.mapId === 'zarvane' && typeof seedZarvaneWildmarch === 'function') {
+      seedZarvaneWildmarch();
     }
   }
   if (game.mode !== 'title' && game.mode !== 'starter') renderMap();

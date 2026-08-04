@@ -22897,16 +22897,24 @@ function tickNpcTrainers(dt) {
     }
   }
 }
+// ★ 2026-08-03 · SEER trainers ('X', 'N' commander/grunt tiles) have
+// UNLIMITED line-of-sight down their facing direction · they hunt.
+// Normal town-hall / hall-Rizer NPCs stay at the standard 4-tile
+// sight so they don't ambush from across the map.
+const SEER_TRAINER_TILES = new Set(['X', 'N']);
 function npcSees(n, tx, ty) {
   const dx = n.dir === 'right' ? 1 : n.dir === 'left' ? -1 : 0;
   const dy = n.dir === 'down'  ? 1 : n.dir === 'up'   ? -1 : 0;
   if (!dx && !dy) return false;
-  for (let step = 1; step <= NPC_SIGHT_RANGE; step++) {
+  const isSeer = SEER_TRAINER_TILES.has(n.tile);
+  const maxRange = isSeer ? 999 : NPC_SIGHT_RANGE;   // Seers see forever
+  for (let step = 1; step <= maxRange; step++) {
     const sx = n.x + dx * step;
     const sy = n.y + dy * step;
     const t = tileAt(sx, sy);
-    if ('#TWHMS'.includes(t)) return false;                    // opaque blockers stop sight
-    if ('YJQN'.includes(t) && !(sx === n.x && sy === n.y)) return false;  // other trainers block sight
+    if (t === undefined || t === null || t === '') return false;   // off-map
+    if ('#TWHMS'.includes(t)) return false;                        // opaque blockers stop sight
+    if ('YJQN'.includes(t) && !(sx === n.x && sy === n.y)) return false;
     if (sx === tx && sy === ty) return true;
   }
   return false;

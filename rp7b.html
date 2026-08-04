@@ -9568,7 +9568,7 @@ const BUILDING_ROSTER = [
   ['malezor_townhall',   7, 9], ['zarvane_townhall',   7, 9], ['andrannor_townhall', 7, 9],
   ['veridan_townhall',   7, 9], ['netharion_townhall', 7, 9], ['vorashil_townhall',  7, 9],
   ['xilnar_townhall',    7, 9], ['baelgor_townhall',   8, 10],['thardin_townhall',   7, 9],
-  ['korathen_townhall',  8, 10],['rizer_academy',      5, 7],
+  ['korathen_townhall',  8, 10],['rizer_academy',      6, 9],
   // Seer HQs — same civic scale bump for consistency.
   ['malezor_seerhq',   7, 9], ['zarvane_seerhq',   7, 9], ['andrannor_seerhq', 7, 9],
   ['veridan_seerhq',   7, 9], ['netharion_seerhq', 7, 9], ['vorashil_seerhq',  7, 9],
@@ -9650,14 +9650,15 @@ const DISTRICT_BORDER = {};
     DISTRICT_BORDER[d] = img;
   });
 
-// Draw the district border tiling horizontally along the top wall row of
-// the current outdoor map.  Sprite bottom anchors to the bottom of tile
-// row 1 (so it sits just above walkable ground while the canopy
-// overlays the north wall).  Skipped on interiors + gemlord caves.
+// Draw the district border along all four map edges.  Top row uses the
+// native sprite tiled horizontally.  Bottom = flipped vertically to
+// mirror the treeline back inward.  Left + right = rotated so the trunks
+// face inward (canopy inside the map, roots at the outer edge).  Skipped
+// on interiors, halls, shops, caves.  Also punches a dark-tunnel overlay
+// at any portal gap so wall-gaps read as "path leading somewhere".
 function drawDistrictBorder(cam) {
   if (!game.player || !MAP) return;
   const mapId = game.player.mapId || '';
-  // Only render on outdoor district maps (skip interiors, halls, caves).
   const isInterior = /_(hall|shop|interior|bedroom)$/.test(mapId) ||
     mapId === 'basement' || mapId === 'parents_bedroom' ||
     /_cottage$/.test(mapId) || /_lodge$/.test(mapId) ||
@@ -9667,17 +9668,89 @@ function drawDistrictBorder(cam) {
   const dist = baseDistrictId(mapId);
   const img  = DISTRICT_BORDER[dist];
   if (!img || !_imgOk(img)) return;
-  // Render at ~4 tiles tall · preserve aspect · tile horizontally.
-  const targetH = TILE * 4;
-  const scale = targetH / img.height;
-  const w = img.width  * scale;
-  const h = img.height * scale;
-  // Bottom of sprite at bottom of tile row 1 (y = 2 tiles in world).
-  const canvasY = (2 - cam.y) * TILE - h;
-  const canvasStartX = (0 - cam.x) * TILE;
-  const canvasEndX   = (MAP_COLS - cam.x) * TILE;
-  for (let cx = canvasStartX; cx < canvasEndX; cx += w) {
-    ctx.drawImage(img, cx, canvasY, w, h);
+
+  const worldW = MAP_COLS * TILE;
+  const worldH = MAP_ROWS * TILE;
+  const canvasX0 = -cam.x * TILE;
+  const canvasY0 = -cam.y * TILE;
+
+  // === TOP ===============================================================
+  const topH = TILE * 4;
+  const topScale = topH / img.height;
+  const topW = img.width * topScale;
+  const topY = canvasY0 + 2 * TILE - topH;
+  for (let cx = canvasX0; cx < canvasX0 + worldW; cx += topW) {
+    ctx.drawImage(img, cx, topY, topW, topH);
+  }
+
+  // === BOTTOM (flipped vertically) ======================================
+  ctx.save();
+  ctx.translate(0, canvasY0 + worldH);
+  ctx.scale(1, -1);
+  for (let cx = canvasX0; cx < canvasX0 + worldW; cx += topW) {
+    ctx.drawImage(img, cx, 2 * TILE - topH, topW, topH);
+  }
+  ctx.restore();
+
+  // === LEFT (rotated 90° CCW so canopy faces inward / rocks outward) =====
+  // Native sprite rotated: what was "horizontal along top" is now
+  // "vertical along left".  Tile down the side.
+  const sideW = TILE * 4;                       // depth into the map
+  const sideScale = sideW / img.height;         // scale so canopy depth = sideW
+  const sideSegH = img.width * sideScale;       // segment length along the side
+  ctx.save();
+  ctx.translate(canvasX0, canvasY0 + worldH);
+  ctx.rotate(-Math.PI / 2);                     // now drawing "up" on rotated canvas
+  // After rotation, x axis runs along the map's vertical, y axis into the map.
+  // Draw sprite bottom at (2*TILE - sideW) so canopy points into the map.
+  for (let cy = 0; cy < worldH; cy += sideSegH) {
+    ctx.drawImage(img, cy, 2 * TILE - sideW, sideSegH, sideW);
+  }
+  ctx.restore();
+
+  // === RIGHT (mirror of left — rotated 90° CW) ==========================
+  ctx.save();
+  ctx.translate(canvasX0 + worldW, canvasY0);
+  ctx.rotate(Math.PI / 2);
+  for (let cy = 0; cy < worldH; cy += sideSegH) {
+    ctx.drawImage(img, cy, 2 * TILE - sideW, sideSegH, sideW);
+  }
+  ctx.restore();
+
+  // === DARK TUNNELS at portal gaps ======================================
+  // Scan the border walls for `,` (portal gaps) and draw a black
+  // gradient rectangle behind the gap so it reads as "a path into
+  // shadow" instead of a hole in the treeline.
+  const exits = (typeof MALEZOR_ZONE_EXITS !== 'undefined' && MALEZOR_ZONE_EXITS[mapId]) || {};
+  const gapDepth = TILE * 2;
+  const drawTunnel = (worldPxX, worldPxY, w, h) => {
+    const cx = canvasX0 + worldPxX;
+    const cy = canvasY0 + worldPxY;
+    const grad = ctx.createLinearGradient(cx, cy, cx + (w ? 0 : 0), cy + (h > w ? h : 0));
+    ctx.fillStyle = 'rgba(6, 4, 10, 0.92)';
+    ctx.fillRect(cx, cy, w, h);
+  };
+  const row = (r) => (MAP && MAP[r]) || '';
+  const col = (c) => Array.from({length: MAP_ROWS}, (_, r) => (MAP[r] || '')[c] || '');
+  // North gap · scan top row
+  const topRow = row(0);
+  for (let x = 0; x < topRow.length; x++) {
+    if (topRow[x] === ',') drawTunnel(x * TILE, 0, TILE, gapDepth);
+  }
+  // South gap
+  const botRow = row(MAP_ROWS - 1);
+  for (let x = 0; x < botRow.length; x++) {
+    if (botRow[x] === ',') drawTunnel(x * TILE, worldH - gapDepth, TILE, gapDepth);
+  }
+  // West gap
+  const leftCol = col(0);
+  for (let y = 0; y < leftCol.length; y++) {
+    if (leftCol[y] === ',') drawTunnel(0, y * TILE, gapDepth, TILE);
+  }
+  // East gap
+  const rightCol = col(MAP_COLS - 1);
+  for (let y = 0; y < rightCol.length; y++) {
+    if (rightCol[y] === ',') drawTunnel(worldW - gapDepth, y * TILE, gapDepth, TILE);
   }
 }
 
@@ -16616,10 +16689,10 @@ function renderMap() {
   // ★ 2026-08-03 · Building overlay pass · scans map for I/A/C/S/K anchors +
   // custom landmark markers, blits per-district building PNGs at scale.
   // Runs BEFORE enemies/gems so those composite on top of building bases.
-  drawBuildingOverlay(cam);
-  // ★ 2026-08-04 · District horizontal border · tiled forest/rock/etc.
-  // along the top of every outdoor subdistrict in the district.
+  // ★ 2026-08-04 · District border FIRST · draws N/E/S/W biome walls
+  // BEHIND everything else (buildings + player composite on top).
   if (typeof drawDistrictBorder === 'function') drawDistrictBorder(cam);
+  drawBuildingOverlay(cam);
   // ★ 2026-08-02 · Draw MORI enemies + dust piles + ground gems BEFORE the
   // player so player sprite composites on top.
   drawMoriEnemies(cam);

@@ -7821,36 +7821,30 @@ const game = {
 // (30 × 20).  User is remapping every district from paper — this stays
 // as visual scale reference until their Resident paper map arrives.
 const MALEZOR_MAP = [
-  // ★ 2026-08-04 · Malezor RESIDENT relayout (user):
-  //   Player home H       → top-LEFT  (col 4,  row 4)
-  //   Neighbor house 2    → top-RIGHT (col 25, row 4)
-  //   School f            → top CENTER (col 12, row 12) · offset left so
-  //                         col 15 vertical corridor stays free for the
-  //                         N portal.  Canopy blocks cols 10-14 rows 6-12
-  //   Other neighbor 2    → bottom CENTER (col 18, row 17) · offset right
-  //                         so col 15 vertical corridor stays free for the
-  //                         S portal.  Canopy blocks cols 17-19 rows 14-17
-  //   Trees at cols 2, 27 · rows 8, 17 · none inside a building canopy or
-  //   on a portal path.
+  // ★ 2026-08-04 · Pokemon-style road network (dirt '-' + stone '_').
+  //   Main N-S dirt road at col 15 (N portal → S portal)
+  //   Main E-W dirt road at row 10 (west wall → E portal)
+  //   Stone spurs '_' from main road to each building door
+  //   One tile per grounding type · no overlaps · '-'/'_' walkable.
   '###############,##############', // 0 · N portal → CAPITAL
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 1
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 2
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 3
-  '#,,,H,,,,,,,,,,,,,,,,,,,,2,,,#', // 4 · H top-left · 2 top-right
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 5
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 6
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 7
-  '#,,T,,,,,,,,,,,,,,,,,,,,,,,T,#', // 8 · shade trees (off walls)
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 9
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,', // 10 · E portal → WILD (col 29)
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 11
-  '#,,,,,,,,,,f,,,,,,,,,,,,,,,,,#', // 12 · f = SCHOOL top center (col 11 · canopy cols 9-13 · leaves col 15 clear for N portal)
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 13
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 14
-  '#,,,,,,,,,,,,,,,,,,,,,,,?,,,,#', // 15 · ? = broadcast tower
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 16
-  '#,,T,,,,,,,,,,,,,,2,,,,,,,,T,#', // 17 · shade trees + bottom-center house (offset col 18)
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 18
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 1
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 2
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 3
+  '#,,,H,,,,,,,,,,-,,,,,,,,,,2,,#', // 4 · H top-left · 2 top-right
+  '#,,,__,,,,,,,,,-,,,,,,,,,,__,#', // 5 · stone spurs under top-row doors
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 6
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 7
+  '#,,T,,,,,,,,,,,-,,,,,,,,,,,T,#', // 8 · shade trees (off walls)
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 9
+  '#----------------------------,', // 10 · E-W dirt road · E portal col 29
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 11
+  '#,,,,,,,,,,,f,,-,,,,,,,,,,,,,#', // 12 · f = SCHOOL top center (col 11)
+  '#,,,,,,,,,,,__,-,,,,,,,,,,,,,#', // 13 · stone spur under school door
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 14
+  '#,,,,,,,,,,,,,,-,,,,,,,,,?,,,#', // 15 · ? = broadcast tower
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 16
+  '#,,T,,,,,,,,,,,-,,,2,,,,,,,T,#', // 17 · shade trees + bottom house (col 18)
+  '#,,,,,,,,,,,,,,-,,,__,,,,,,,,#', // 18 · stone spur under bottom house
   '###############,##############' // 19 · S portal → BATTLEGROUNDS
 ];
 
@@ -9546,6 +9540,11 @@ BETA_FLOOR.grass_korathen.src  = 'assets/rp7/beta_assets/floor/floor_korathen_na
 BETA_FLOOR.stone.src   = 'assets/rp7/beta_assets/floor/floor_stone_native.png';
 BETA_FLOOR.granite.src = 'assets/rp7/beta_assets/floor/floor_granite_native.png';
 BETA_FLOOR.marble.src  = 'assets/rp7/beta_assets/floor/floor_marble_native.png';
+// ★ 2026-08-04 · Pokemon-style road tiles for overworld paths.
+BETA_FLOOR.dirt = new Image();
+BETA_FLOOR.dirt.src = 'assets/rp7/beta_assets/floor/floor_dirt_native.png';
+BETA_FLOOR.stone_road = new Image();
+BETA_FLOOR.stone_road.src = 'assets/rp7/beta_assets/floor/floor_stone_road_native.png';
 BETA_FLOOR.water = new Image();
 BETA_FLOOR.water.src = 'assets/rp7/beta_assets/floor/floor_water_native.png';
 // ★ 2026-07-30 · Wild-gemgrass 5-frame flip sheet.  Frame 0 = idle tuft
@@ -14138,6 +14137,34 @@ function drawTile(x, y, ch, mx, my) {
       if ((x + y * 3) % 4 === 0) {
         ctx.fillStyle = 'rgba(232, 200, 120, 0.3)';
         ctx.fillRect(px + 8 + (x % 3) * 6, py + 20, 2, 2);
+      }
+      break;
+    }
+    case '-': {
+      // ★ 2026-08-04 · DIRT ROAD tile · Pokemon-style dry path.
+      const img = BETA_FLOOR.dirt;
+      if (img && img.complete && img.naturalWidth > 0) {
+        const W = img.naturalWidth, H = img.naturalHeight;
+        const sx = ((mx * TILE) % W + W) % W;
+        const sy = ((my * TILE) % H + H) % H;
+        ctx.drawImage(img, sx, sy, TILE, TILE, px, py, TILE, TILE);
+      } else {
+        ctx.fillStyle = '#8a5a30';
+        ctx.fillRect(px, py, TILE, TILE);
+      }
+      break;
+    }
+    case '_': {
+      // ★ 2026-08-04 · STONE ROAD tile · cobblestone path.
+      const img = BETA_FLOOR.stone_road;
+      if (img && img.complete && img.naturalWidth > 0) {
+        const W = img.naturalWidth, H = img.naturalHeight;
+        const sx = ((mx * TILE) % W + W) % W;
+        const sy = ((my * TILE) % H + H) % H;
+        ctx.drawImage(img, sx, sy, TILE, TILE, px, py, TILE, TILE);
+      } else {
+        ctx.fillStyle = '#7a7378';
+        ctx.fillRect(px, py, TILE, TILE);
       }
       break;
     }

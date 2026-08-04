@@ -7832,7 +7832,7 @@ const MALEZOR_MAP = [
   '#T,,,,,,,,,,,,,,,,,,,,,,,GG,,#', // 8
   '#,,,,,,,,,,,,,,,,,K,,,,,,,,,,#', // 9
   '#,,,,,,,,,,,,,v,,,,,,,,,,,,,,,', // 10 · E portal gap col 29 → WILD  (v = lore)
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 11
+  '#,,,,,,,,,,,,,,,,,,,,,,,f,,,,#', // 11 · f = SCHOOL · Rizer Academy 4×5 sprite renders above
   '#,,,,,,,,GG,,,,,,,,,,,,,,,,,T#', // 12
   '#,,,,,,,,GG,,,,,,,,,,,,?,,,,,#', // 13 · ? = broadcast tower
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 14
@@ -7866,14 +7866,79 @@ function _placeholderMap(W, H, portals, filler) {
   return rows;
 }
 
-// MALEZOR CAPITAL · MEDIUM 45×30 · S portal → Resident.
-const MALEZOR_CAPITAL_MAP = _placeholderMap(45, 30, { south: true });
-// MALEZOR BATTLEGROUNDS · MEDIUM 45×30 · N portal → Resident.
-const MALEZOR_BATTLEGROUNDS_MAP = _placeholderMap(45, 30, { north: true });
-// MALEZOR WILD · LARGE 60×40 · W→Resident · S→Gemlord Cave · E→Zarvane.
-const MALEZOR_WILD_MAP = _placeholderMap(60, 40, { west: true, south: true, east: true });
-// MALEZOR GEMLORD CAVE · LARGE 60×40 · N portal → Wild.
-const MALEZOR_GEMLORD_CAVE_MAP = _placeholderMap(60, 40, { north: true });
+// Utility: overlay content markers onto a placeholder base.
+// content = [ [x, y, char], ... ] · positions clamp within bounds.
+function _mapWithContent(W, H, portals, content) {
+  const rows = _placeholderMap(W, H, portals).map(r => r.split(''));
+  for (const [x, y, ch] of content) {
+    if (y >= 0 && y < H && x >= 0 && x < W) rows[y][x] = ch;
+  }
+  return rows.map(r => r.join(''));
+}
+
+// ★ 2026-08-04 · DISTRICT FORMULA (per user 2026-08-04):
+//   RESIDENT      = homes + one school
+//   BATTLEGROUNDS = Rizer Hall + Zyrex training arena
+//   CAPITAL       = town hall + shops + landmark + fountain
+//   WILD          = Seer HQ + many gemgrass patches
+//   CAVE          = Gemlord's sanctum (Rakoron in Malezor's)
+
+// MALEZOR CAPITAL · MEDIUM 45×30 · Town Hall + Shop + Landmark + Fountain.
+const MALEZOR_CAPITAL_MAP = _mapWithContent(45, 30, { south: true }, [
+  [22, 10, 'D'],                                                // town hall door
+  [8,  22, 'S'],                                                // rustic shop
+  [34, 22, 'i'],                                                // landmark (fallen titan)
+  [20, 16, 'W'], [21, 16, 'W'], [22, 16, 'W'],                  // fountain WWW cluster
+  [20, 17, 'W'], [21, 17, 'W'], [22, 17, 'W'],
+  [6,  6,  'T'], [10, 4,  'T'], [38, 6,  'T'], [40, 5,  'T'],   // trees around plaza
+  [4,  14, 'T'], [40, 14, 'T'], [3,  25, 'T'], [41, 25, 'T'],
+]);
+
+// MALEZOR BATTLEGROUNDS · MEDIUM 45×30 · Rizer Hall + Zyrex training arena.
+const MALEZOR_BATTLEGROUNDS_MAP = _mapWithContent(45, 30, { north: true }, [
+  [12, 12, 'f'],                                                // Rizer Hall (rizer_academy sprite)
+  [32, 20, '1'],                                                // Zyrex training arena
+  [5,  6,  'T'], [40, 6,  'T'], [5,  25, 'T'], [40, 25, 'T'],   // corner trees
+  [22, 6,  'T'], [22, 25, 'T'],                                 // approach trees
+]);
+
+// MALEZOR WILD · LARGE 60×40 · Seer HQ + many gemgrass patches.
+const MALEZOR_WILD_MAP = _mapWithContent(60, 40, { west: true, south: true, east: true }, [
+  [45, 14, 'E'],                                                // Seer HQ entrance
+  // Gemgrass patches scattered · pairs stitched 2×2 for visible clumps.
+  [6,  6,  'G'], [7,  6,  'G'], [6,  7,  'G'], [7,  7,  'G'],
+  [12, 10, 'G'], [13, 10, 'G'], [12, 11, 'G'], [13, 11, 'G'],
+  [20, 5,  'G'], [21, 5,  'G'], [20, 6,  'G'], [21, 6,  'G'],
+  [30, 4,  'G'], [31, 4,  'G'], [30, 5,  'G'], [31, 5,  'G'],
+  [8,  22, 'G'], [9,  22, 'G'], [8,  23, 'G'], [9,  23, 'G'],
+  [18, 26, 'G'], [19, 26, 'G'], [18, 27, 'G'], [19, 27, 'G'],
+  [28, 30, 'G'], [29, 30, 'G'], [28, 31, 'G'], [29, 31, 'G'],
+  [40, 26, 'G'], [41, 26, 'G'], [40, 27, 'G'], [41, 27, 'G'],
+  [50, 8,  'G'], [51, 8,  'G'], [50, 9,  'G'], [51, 9,  'G'],
+  [52, 32, 'G'], [53, 32, 'G'], [52, 33, 'G'], [53, 33, 'G'],
+  [10, 34, 'G'], [11, 34, 'G'], [10, 35, 'G'], [11, 35, 'G'],
+  // Trees for cover
+  [4,  4,  'T'], [16, 8,  'T'], [24, 14, 'T'], [35, 8,  'T'],
+  [54, 4,  'T'], [4,  30, 'T'], [24, 34, 'T'], [45, 30, 'T'],
+  // Chests hidden in the wild
+  [16, 22, 'K'], [38, 34, 'K'], [52, 22, 'K'],
+]);
+
+// MALEZOR GEMLORD CAVE · LARGE 60×40 · Rakoron's Ruby Sanctum.
+// + = pillar · * = throne · % = glyph · # = cave wall.  Rakoron sits on
+// the throne at (30, 4); approach for dialog (NPC wiring pending).
+const MALEZOR_GEMLORD_CAVE_MAP = _mapWithContent(60, 40, { north: true }, [
+  // Pillar rows lining the approach corridor
+  [10, 8,  '+'], [20, 8,  '+'], [30, 8,  '+'], [40, 8,  '+'], [50, 8,  '+'],
+  [10, 16, '+'], [20, 16, '+'], [30, 16, '+'], [40, 16, '+'], [50, 16, '+'],
+  [10, 24, '+'], [20, 24, '+'], [30, 24, '+'], [40, 24, '+'], [50, 24, '+'],
+  [10, 32, '+'], [20, 32, '+'], [30, 32, '+'], [40, 32, '+'], [50, 32, '+'],
+  // Rakoron's throne at deep-south end (60×40 map · far from N portal at row 0)
+  [30, 36, '*'],
+  // Ruby glyphs in a semi-circle around the throne
+  [26, 34, '%'], [34, 34, '%'], [28, 37, '%'], [32, 37, '%'],
+  [22, 36, '%'], [38, 36, '%'],
+]);
 // ZARVANE RESIDENT · SMALL 30×20 · W → Malezor Wild · E → Zarvane Capital.
 const ZARVANE_MAP = _placeholderMap(30, 20, { west: true, east: true });
 // ZARVANE CAPITAL · MEDIUM 45×30 · W→Resident · N→Battle · S→Wild · E→Andrannor.
@@ -8699,6 +8764,29 @@ function drawBuildingOverlay(cam) {
         blit('goddess_statue', x, y, 1, 3);
         continue;
       }
+      // ★ 2026-08-04 · district-formula tile-chars.
+      // Rizer Academy / Rizer Hall (f) · same sprite, dual purpose:
+      //   in RESIDENT     it's the school
+      //   in BATTLEGROUNDS it's the Rizer Hall
+      if (t === 'f') {
+        blit('rizer_academy', x, y, 4, 5);
+        continue;
+      }
+      // Zyrex Training arena (1) · reuses battlegrounds_stone sprite.
+      if (t === '1') {
+        blit('battlegrounds_stone', x, y, 4, 3);
+        continue;
+      }
+      // Landmark (i) · district-specific iconic prop (Capital only).
+      // Malezor gets fallen_titan (a giant Zyrex skeleton), pending art per
+      // district.  Add DISTRICT_LANDMARK for per-district asset mapping.
+      if (t === 'i') {
+        const slug = (typeof DISTRICT_LANDMARK !== 'undefined' && DISTRICT_LANDMARK[dist])
+                     || 'landmark_fallen_titan';
+        const [fw, fh] = BUILDING_FOOTPRINT[slug] || [5, 5];
+        blit(slug, x, y, fw, fh);
+        continue;
+      }
       // Fountain (W) · only the SW corner of a WWW cluster anchors it
       if (t === 'W') {
         // Find NW corner of the WWW block
@@ -9476,6 +9564,19 @@ const DISTRICT_GEMCAVE = {
   veridan:'gemlord_cave_emerald',netharion:'gemlord_cave_amethyst', vorashil:'gemlord_cave_sapphire',
   xilnar:'gemlord_cave_onyx',    baelgor:'gemlord_cave_amber',   thardin:'gemlord_cave_anomaly',
   korathen:'gemlord_cave_ultra',
+};
+// Per-district Capital landmark · tile 'i' looks up the district then blits.
+const DISTRICT_LANDMARK = {
+  malezor:  'landmark_fallen_titan',
+  zarvane:  'landmark_astralite_crater',
+  andrannor:'landmark_ancient_observatory',
+  veridan:  'landmark_worldroot_tree',
+  netharion:'landmark_astralite_crater',
+  vorashil: 'landmark_ancient_observatory',
+  xilnar:   'landmark_worldroot_tree',
+  baelgor:  'landmark_colossal_waterfall',
+  thardin:  'landmark_ancient_observatory',
+  korathen: 'landmark_bridge_of_hope',
 };
 // Extract the base district id from any subdistrict map id (malezor_mq → malezor).
 function baseDistrictId(mapId) {

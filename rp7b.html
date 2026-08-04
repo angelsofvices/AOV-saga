@@ -20074,17 +20074,24 @@ document.addEventListener('keyup', (e) => {
     //   TAP   = cycle to next owned weapon
     // Feed left stick to the wheel while it's open · skip the movement /
     // combo D-pad path so arrows don't trigger walk-attempts under the overlay.
+    // ★ 2026-08-03 · Bulletproof against TDZ · read _WW/onWeaponWheelPress
+    // via window.* so a race with the const declarations can't throw and
+    // kill the whole controller loop.
     const l1Pressed = !!pad.buttons[4]?.pressed;
     const l1Was     = !!previousButtons[4];
-    if (l1Pressed && !l1Was) onWeaponWheelPress();
-    if (!l1Pressed && l1Was) onWeaponWheelRelease();
-    if (typeof _WW !== 'undefined' && _WW.open) {
-      setWeaponWheelAxes(axisX, axisY);
-      // Circle (button 1) cancels the wheel without equipping.
-      if (!!pad.buttons[1]?.pressed && !previousButtons[1]) cancelWeaponWheel();
+    const _wp = window.onWeaponWheelPress;
+    const _wr = window.onWeaponWheelRelease;
+    if (l1Pressed && !l1Was && typeof _wp === 'function') { try { _wp(); } catch(_) {} }
+    if (!l1Pressed && l1Was && typeof _wr === 'function') { try { _wr(); } catch(_) {} }
+    const wheelState = window._WW;
+    if (wheelState && wheelState.open) {
+      try {
+        if (typeof window.setWeaponWheelAxes === 'function') window.setWeaponWheelAxes(axisX, axisY);
+        if (!!pad.buttons[1]?.pressed && !previousButtons[1] && typeof window.cancelWeaponWheel === 'function') window.cancelWeaponWheel();
+      } catch(_) {}
       previousButtons = pad.buttons.map(button => button.pressed);
       requestAnimationFrame(pollGamepad);
-      return;   // suppress movement + button dispatch while wheel is up
+      return;
     }
     if (axisX < -DEAD_ZONE || pad.buttons[14]?.pressed) nextDirections.add('ArrowLeft');
     if (axisX >  DEAD_ZONE || pad.buttons[15]?.pressed) nextDirections.add('ArrowRight');
@@ -25343,6 +25350,8 @@ const _WW = {
   selectedIdx: 0,
   axisX: 0, axisY: 0,
 };
+// ★ 2026-08-03 · Expose on window for the gamepad poller (TDZ-safe reads).
+if (typeof window !== 'undefined') window._WW = _WW;
 
 function _wwOverlay()   { return document.getElementById('weapon-wheel'); }
 function _wwSlotsEl()   { return document.getElementById('ww-slots'); }

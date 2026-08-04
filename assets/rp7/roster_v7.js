@@ -34,7 +34,7 @@
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
-    evolveTo: 'barkchitter', evolveLv: 20,
+    evolveTo: 'rhinoxis', evolveLv: 20,
     primaryDistrict: 'malezor', homeDistricts: ['malezor'],
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
@@ -133,18 +133,18 @@
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
-    evolveTo: 'auramantle', evolveLv: 20,
+    evolveTo: 'aurelik', evolveLv: 20,
     primaryDistrict: 'malezor', homeDistricts: ['malezor'],
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Common' },
   };
   V7.aurokine = {
     flavor: "A beast-typed Zyrex of the Malezor region.",
-    name: 'AUROKINE', type: 'Beast', type2: null, type3: null, region: 'Malezor',
-    tier: 1, catchRate: 60, shape: 'quadruped',
+    name: 'AUROKINE', type: 'Beast', type2: 'Nature', type3: 'Aura', region: 'Malezor',
+    tier: 3, catchRate: 60, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
-    evolveTo: 'neuromoo', evolveLv: 20,
+    evolveTo: null, evolveLv: null,
     primaryDistrict: 'malezor', homeDistricts: ['malezor'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
@@ -227,12 +227,12 @@
   };
   V7.buzzolt = {
     flavor: "A creature-typed Zyrex of the Andrannor region.",
-    name: 'BUZZOLT', type: 'Creature', type2: null, type3: null, region: 'Andrannor',
-    tier: 2, catchRate: 50, shape: 'quadruped',
+    name: 'BUZZOLT', type: 'Beast', type2: 'Nature', type3: 'Aura', region: 'Andrannor',
+    tier: 3, catchRate: 50, shape: 'quadruped',
     base: { hp:100,atk:70,def:80,spd:50,spc:50 },
     sprite: ['#8a6c48','#4a3620','#c8a878'],
     moves: [],
-    evolveTo: 'chameleor', evolveLv: 40,
+    evolveTo: null, evolveLv: null,
     primaryDistrict: 'andrannor', homeDistricts: ['andrannor'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
@@ -282,12 +282,12 @@
   };
   V7.chronocrow = {
     flavor: "A chrono-typed Zyrex of the Korathen region.",
-    name: 'CHRONOCROW', type: 'Chrono', type2: null, type3: null, region: 'Korathen',
-    tier: 1, catchRate: 60, shape: 'ghost',
+    name: 'CHRONOCROW', type: 'Spirit', type2: 'Unknown', type3: null, region: 'Korathen',
+    tier: 2, catchRate: 60, shape: 'ghost',
     base: { hp:50,atk:60,def:60,spd:110,spc:70 },
     sprite: ['#9c78d0','#3a2560','#d8bff8'],
     moves: [],
-    evolveTo: 'otterlin', evolveLv: 40,
+    evolveTo: 'chronohawk', evolveLv: 40,
     primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
   };
@@ -1118,12 +1118,12 @@
   };
   V7.rhinoxis = {
     flavor: "A beast-typed Zyrex of the Veridan region.",
-    name: 'RHINOXIS', type: 'Beast', type2: null, type3: null, region: 'Veridan',
-    tier: 3, catchRate: 40, shape: 'quadruped',
+    name: 'RHINOXIS', type: 'Beast', type2: 'Nature', type3: null, region: 'Veridan',
+    tier: 2, catchRate: 40, shape: 'quadruped',
     base: { hp:60,atk:100,def:70,spd:60,spc:60 },
     sprite: ['#c98a4a','#5a3820','#f5c896'],
     moves: [],
-    evolveTo: 'ryterrhax', evolveLv: 40,
+    evolveTo: 'buzzolt', evolveLv: 40,
     primaryDistrict: 'veridan', homeDistricts: ['veridan'],
     codex: { class: 'Warrior', tc: 'Apex', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Rare' },
   };
@@ -1723,7 +1723,51 @@
     primaryDistrict: 'zarvane', homeDistricts: ['zarvane'],
     codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: null, rarity: 'Common' },
   };
-window.V7_STAGING.ids = ["boltwisp", "emberpaw", "shadeseed", "sprutish", "abyssarach", "abyssiq", "aetherwing", "ambrevon", "animarion", "apexaur", "arcemur", "astralape", "astravyx", "auralux", "auramantle", "aurarat", "aurokine", "avianex", "azurel", "bastonshell", "blazonon", "bogarion", "bonemaw", "boreursa", "buzzolt", "canythra", "celestryx", "cerebrion", "chameleor", "chronocrow", "cinderant", "cinderbeetle", "cindercrown", "cindercur", "crycarys", "cryptovex", "devormor", "dracaryze", "drakaryx", "dredgill", "dunestinger", "duskgrave", "dustmanecrane", "elzoran", "embercrest", "embermoth", "emberuk", "emeralix", "eurakeon", "feliux", "ferrophix", "floravex", "florlyan", "frostphen", "frostwisp", "gearbyte", "gemorid", "glaciobolt", "glaciogre", "glaucivor", "gravelor", "gravemite", "gravemourn", "graveskull", "grevotor", "grimhog", "grizzigor", "gryphycore", "hopbeam", "iguanax", "impyxid", "inferleon", "irondrake", "ivirium", "jetron", "levanium", "luminacor", "luxquid", "lyncora", "manticorpus", "mantisaris", "marisyth", "mealux", "mudlarion", "mutamech", "mutaryn", "neuromoo", "nimbovis", "noctron", "noxiclaw", "nullis", "nyctopus", "oathane", "oatheus", "obsidius", "omegoran", "oraculi", "otterlin", "pebblequil", "petragryff", "phantuar", "phrenetic", "pyranhya", "pyrocarapax", "rakoron", "rhinoxis", "riftipple", "robotryx", "royalden", "rustbyte", "rustmaw", "ryterrhax", "saburrow", "sagamorne", "salaris", "sanaraine", "sandskitter", "serperyx", "sharkfin", "sigilmor", "silkora", "skorleax", "skybeam", "skyrathon", "smogrim", "snok", "solaryx", "solcryst", "solvarion", "spargus", "sparkbud", "steelden", "strixel", "sunhoop", "talenko", "terralith", "titanova", "titantusk", "tonitrex", "torchpuff", "umbracat", "vampella", "vengrizz", "verdanix", "veridrax", "veylith", "vipercrow", "vitricon", "voiden", "votimite", "voltibex", "voltigrax", "voltmantis", "voltyran", "vulcanax", "vulkarmor"];
+  V7.aurelik = {
+    flavor: "A radiant beast-aura Zyrex · midform of the aurarat lineage.",
+    name: 'AURELIK', type: 'Beast', type2: 'Nature', type3: null, region: 'Malezor',
+    tier: 2, catchRate: 45, shape: 'quadruped',
+    base: { hp:70,atk:85,def:75,spd:80,spc:80 },
+    sprite: ['#f5dc9c','#8a5a20','#ffe8a8'],
+    moves: [],
+    evolveTo: 'aurokine', evolveLv: 40,
+    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    codex: { class: 'Warrior', tc: 'Core', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
+  };
+    V7.chronohawk = {
+    flavor: "A spirit-typed Zyrex from the Xilnar region.",
+    name: 'CHRONOHAWK', type: 'Spirit', type2: 'Unknown', type3: 'Divine', region: 'Xilnar',
+    tier: 3, catchRate: 30, shape: 'quadruped',
+    base: { hp:80,atk:84,def:84,spd:75,spc:84 },
+    sprite: ['#c98a4a','#5a3820','#f5c896'],
+    moves: [],
+    evolveTo: null, evolveLv: null,
+    primaryDistrict: 'xilnar', homeDistricts: ['xilnar'],
+    codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
+  };
+    V7.gravvik = {
+    flavor: "A corrupted-typed Zyrex from the Malezor region.",
+    name: 'GRAVVIK', type: 'Corrupted', type2: 'Beast', type3: null, region: 'Malezor',
+    tier: 2, catchRate: 45, shape: 'quadruped',
+    base: { hp:70,atk:76,def:76,spd:70,spc:76 },
+    sprite: ['#c98a4a','#5a3820','#f5c896'],
+    moves: [],
+    evolveTo: 'savorik', evolveLv: 40,
+    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
+  };
+    V7.savorik = {
+    flavor: "A corrupted-typed Zyrex from the Malezor region.",
+    name: 'SAVORIK', type: 'Corrupted', type2: 'Beast', type3: 'Draconic', region: 'Malezor',
+    tier: 3, catchRate: 30, shape: 'quadruped',
+    base: { hp:80,atk:84,def:84,spd:75,spc:84 },
+    sprite: ['#c98a4a','#5a3820','#f5c896'],
+    moves: [],
+    evolveTo: null, evolveLv: null,
+    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
+    codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
+  };
+  window.V7_STAGING.ids = ["savorik", "gravvik", "chronohawk", "aurelik", "boltwisp", "emberpaw", "shadeseed", "sprutish", "abyssarach", "abyssiq", "aetherwing", "ambrevon", "animarion", "apexaur", "arcemur", "astralape", "astravyx", "auralux", "auramantle", "aurarat", "aurokine", "avianex", "azurel", "bastonshell", "blazonon", "bogarion", "bonemaw", "boreursa", "buzzolt", "canythra", "celestryx", "cerebrion", "chameleor", "chronocrow", "cinderant", "cinderbeetle", "cindercrown", "cindercur", "crycarys", "cryptovex", "devormor", "dracaryze", "drakaryx", "dredgill", "dunestinger", "duskgrave", "dustmanecrane", "elzoran", "embercrest", "embermoth", "emberuk", "emeralix", "eurakeon", "feliux", "ferrophix", "floravex", "florlyan", "frostphen", "frostwisp", "gearbyte", "gemorid", "glaciobolt", "glaciogre", "glaucivor", "gravelor", "gravemite", "gravemourn", "graveskull", "grevotor", "grimhog", "grizzigor", "gryphycore", "hopbeam", "iguanax", "impyxid", "inferleon", "irondrake", "ivirium", "jetron", "levanium", "luminacor", "luxquid", "lyncora", "manticorpus", "mantisaris", "marisyth", "mealux", "mudlarion", "mutamech", "mutaryn", "neuromoo", "nimbovis", "noctron", "noxiclaw", "nullis", "nyctopus", "oathane", "oatheus", "obsidius", "omegoran", "oraculi", "otterlin", "pebblequil", "petragryff", "phantuar", "phrenetic", "pyranhya", "pyrocarapax", "rakoron", "rhinoxis", "riftipple", "robotryx", "royalden", "rustbyte", "rustmaw", "ryterrhax", "saburrow", "sagamorne", "salaris", "sanaraine", "sandskitter", "serperyx", "sharkfin", "sigilmor", "silkora", "skorleax", "skybeam", "skyrathon", "smogrim", "snok", "solaryx", "solcryst", "solvarion", "spargus", "sparkbud", "steelden", "strixel", "sunhoop", "talenko", "terralith", "titanova", "titantusk", "tonitrex", "torchpuff", "umbracat", "vampella", "vengrizz", "verdanix", "veridrax", "veylith", "vipercrow", "vitricon", "voiden", "votimite", "voltibex", "voltigrax", "voltmantis", "voltyran", "vulcanax", "vulkarmor"];
   window.V7_STAGING.pool = {
     malezor: [
       { id: 'aetherwing', tier: 1, lv: 12 },

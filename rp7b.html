@@ -8820,23 +8820,21 @@ function drawBuildingOverlay(cam) {
         blit('battlegrounds_stone', x, y, 4, 3);
         continue;
       }
-      // ★ 2026-08-04 · Player home (H) render · was invisible after the
-      // hhhh body pattern was retired.  Use house_02 as the canonical
-      // player home so it looks distinct.  4×5 footprint matches the
-      // slightly-bigger scale the neighbor houses render at.
+      // ★ 2026-08-04 · Player home (H) render · reads footprint from roster
+      // so global 2× player scale rule applies.
       if (t === 'H') {
-        blit('house_02', x, y, 4, 5);
+        const [fw, fh] = BUILDING_FOOTPRINT['house_02'] || [5, 6];
+        blit('house_02', x, y, fw, fh);
         continue;
       }
-      // ★ 2026-08-04 · Neighbor house (2) · picks one of house_01..house_16
-      // by deterministic hash of tile position, so each Residential zone
-      // shows variety but the same house lands on the same tile every
-      // reload.  4×5 footprint · anchor bottom-center · aspect preserved
-      // (bumped from 3×4 per user 2026-08-04).
+      // ★ 2026-08-04 · Neighbor house (2) · deterministic random from the
+      // 16-sprite pool by tile position hash.  Footprint pulled from roster
+      // so all houses render at the canon 2× player scale.
       if (t === '2') {
         const idx = ((x * 31 + y * 17) % 16) + 1;
         const slug = 'house_' + (idx < 10 ? '0' : '') + idx;
-        blit(slug, x, y, 4, 5);
+        const [fw, fh] = BUILDING_FOOTPRINT[slug] || [5, 6];
+        blit(slug, x, y, fw, fh);
         continue;
       }
       // Landmark (i) · district-specific iconic prop (Capital only).
@@ -9561,19 +9559,25 @@ TREE_IMG.src = 'assets/rp7/beta_assets/props/tree.png';
 // preserving aspect (whichever axis hits target first wins).
 const BUILDING_IMGS = {};
 const BUILDING_ROSTER = [
-  // ★ 2026-08-04 · Footprints bumped so grand civic buildings render at a
-  // presence closer to their native pixel dimensions.  Old 5×6 shrank the
-  // ~314×481 town hall PNGs to ~4-tile-tall silhouettes; 7×9 lets the
-  // roof + chimney render at legible scale.  Anchor stays bottom-center.
-  ['malezor_townhall',   7, 9], ['zarvane_townhall',   7, 9], ['andrannor_townhall', 7, 9],
-  ['veridan_townhall',   7, 9], ['netharion_townhall', 7, 9], ['vorashil_townhall',  7, 9],
-  ['xilnar_townhall',    7, 9], ['baelgor_townhall',   8, 10],['thardin_townhall',   7, 9],
-  ['korathen_townhall',  8, 10],['rizer_academy',      6, 9],
-  // Seer HQs — same civic scale bump for consistency.
-  ['malezor_seerhq',   7, 9], ['zarvane_seerhq',   7, 9], ['andrannor_seerhq', 7, 9],
-  ['veridan_seerhq',   7, 9], ['netharion_seerhq', 7, 9], ['vorashil_seerhq',  7, 9],
-  ['xilnar_seerhq',    7, 9], ['baelgor_seerhq',   7, 9], ['thardin_seerhq',   7, 9],
-  ['korathen_seerhq',  7, 9],
+  // ★ 2026-08-04 · Player-relative scale calibration (user 2026-08-04).
+  //   Player sprite renders at ~88 px tall.  Class scale rules:
+  //     Trees                         · 1.5× player (handled in tile 'T' at 130 px)
+  //     Houses                        · 2×   player → footprint 5×6  (renders ~192 px)
+  //     Rizer Hall / Zyrex Arena      · 2.5× player → footprint 6×7  (renders ~224 px)
+  //     Seer HQ                       · 2.5× player → footprint 6×7  (renders ~224 px)
+  //     Town Halls                    · 3×   player → footprint 8×9  (renders ~288 px)
+  //   Sprites still fit-inside (aspect preserved) · nearest-neighbor
+  //   scaling from source pixels (canvas imageSmoothingEnabled=false) so
+  //   the pixel art stays sharp at the enlarged sizes.
+  ['malezor_townhall',   8, 9], ['zarvane_townhall',   8, 9], ['andrannor_townhall', 8, 9],
+  ['veridan_townhall',   8, 9], ['netharion_townhall', 8, 9], ['vorashil_townhall',  8, 9],
+  ['xilnar_townhall',    8, 9], ['baelgor_townhall',   9, 10],['thardin_townhall',   8, 9],
+  ['korathen_townhall',  9, 10],['rizer_academy',      6, 7],
+  // Seer HQs · 2.5× scale
+  ['malezor_seerhq',   6, 7], ['zarvane_seerhq',   6, 7], ['andrannor_seerhq', 6, 7],
+  ['veridan_seerhq',   6, 7], ['netharion_seerhq', 6, 7], ['vorashil_seerhq',  6, 7],
+  ['xilnar_seerhq',    6, 7], ['baelgor_seerhq',   6, 7], ['thardin_seerhq',   6, 7],
+  ['korathen_seerhq',  6, 7],
   // Gemlord caves (cave mouth · 3w × 4h · one per gem color)
   ['gemlord_cave_ruby',    3, 4], ['gemlord_cave_pearl',    3, 4],
   ['gemlord_cave_citrine', 3, 4], ['gemlord_cave_emerald',  3, 4],
@@ -9591,10 +9595,11 @@ const BUILDING_ROSTER = [
   // ★ 2026-08-04 · 16-house residential set (user upload) · anchor bottom-
   // center · 3×4 footprint · rotated per-tile via deterministic hash so
   // each Residential zone shows variety without hand-picking.
-  ['house_01', 3, 4], ['house_02', 3, 4], ['house_03', 3, 4], ['house_04', 3, 4],
-  ['house_05', 3, 4], ['house_06', 3, 4], ['house_07', 3, 4], ['house_08', 3, 4],
-  ['house_09', 3, 4], ['house_10', 3, 4], ['house_11', 3, 4], ['house_12', 3, 4],
-  ['house_13', 3, 4], ['house_14', 3, 4], ['house_15', 3, 4], ['house_16', 3, 4],
+  // Houses 2× player scale · 5×6 footprint (renders ~192 px tall).
+  ['house_01', 5, 6], ['house_02', 5, 6], ['house_03', 5, 6], ['house_04', 5, 6],
+  ['house_05', 5, 6], ['house_06', 5, 6], ['house_07', 5, 6], ['house_08', 5, 6],
+  ['house_09', 5, 6], ['house_10', 5, 6], ['house_11', 5, 6], ['house_12', 5, 6],
+  ['house_13', 5, 6], ['house_14', 5, 6], ['house_15', 5, 6], ['house_16', 5, 6],
   // world props (small anchor items)
   ['broadcast_tower', 1, 3], ['fountain',       3, 3],
   ['goddess_statue',  1, 3], ['fossil_skull',   2, 1],
@@ -14076,7 +14081,8 @@ function drawTile(x, y, ch, mx, my) {
       if (TREE_IMG.complete && TREE_IMG.naturalWidth > 0) {
         // ★ 2026-08-03 · Bumped from 64 to 80 · one size larger for extra
         // landmark presence, canopy now hangs ~1.5 tiles above the T cell.
-        const TW = 80, TH = 80;
+        // ★ 2026-08-04 · Trees 1.5× player scale · was 80×80, now 130×130.
+        const TW = 130, TH = 130;
         const dx = px + (TILE - TW) / 2;
         const dy = py + TILE - TH + 8;   // feet planted at tile bottom (+8 nudge)
         ctx.drawImage(TREE_IMG, dx, dy, TW, TH);

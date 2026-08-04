@@ -38,7 +38,6 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { FBXLoader }  from 'three/addons/loaders/FBXLoader.js';
 
 /* ============================================================================
  * RP10 · 3D RIZE OF POWER · SCAFFOLDING v0.1
@@ -193,14 +192,17 @@ _placeholder.position.y = 0.9;
 _placeholder.castShadow = true;
 player.add(_placeholder);
 
-// Load rigged mesh + Idle animation first · walking.fbx clip attaches later
-new FBXLoader().load(`${MODELS}/animations/idle.fbx`, (fbx) => {
-  // FBX loaded successfully · drop the placeholder
+// Load rigged mesh + Idle animation as GLB (baked from Mixamo FBX via
+// Blender · Three.js GLTFLoader handles skinned meshes + animations
+// natively · no FBXLoader flakiness).  Extra clips attach after.
+new GLTFLoader().load(`${MODELS}/animations/idle.glb`, (gltf) => {
+  // Loaded · drop the red placeholder
   player.remove(_placeholder);
   _placeholder.geometry.dispose();
   _placeholder.material.dispose();
-  const model = fbx;
-  model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+
+  const model = gltf.scene;
+  model.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; } });
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3(); box.getSize(size);
   const TARGET_H = 1.7;
@@ -215,25 +217,22 @@ new FBXLoader().load(`${MODELS}/animations/idle.fbx`, (fbx) => {
 
   playerMixer = new THREE.AnimationMixer(model);
 
-  if (fbx.animations && fbx.animations.length) {
-    playerActions.idle = playerMixer.clipAction(fbx.animations[0]);
+  if (gltf.animations && gltf.animations.length) {
+    playerActions.idle = playerMixer.clipAction(gltf.animations[0]);
     playAction('idle', 0);
-    console.log(`[rp10] idle clip loaded · ${fbx.animations[0].duration.toFixed(2)}s`);
+    console.log(`[rp10] idle clip loaded · ${gltf.animations[0].duration.toFixed(2)}s`);
   }
 
-  // ── Load additional clips onto the SAME mixer ──────────────────────
-  // Mixamo exports each animation with its own copy of the rig · we only
-  // want the animation TRACKS, so we grab clip[0] from each and re-target
-  // to the mixer bound to our first FBX's skeleton.
+  // ── Attach additional GLB clips onto the same mixer ────────────────
   const extraClips = [
-    ['walk', 'walking.fbx'],
-    // ['run',         'running.fbx'],       // add as clips arrive
-    // ['attackLight', 'sword_slash.fbx'],
-    // ['attackHeavy', 'great_sword_slash.fbx'],
-    // ['jump',        'jumping.fbx'],
+    ['walk', 'walking.glb'],
+    // ['run',         'running.glb'],
+    // ['attackLight', 'sword_slash.glb'],
+    // ['attackHeavy', 'great_sword_slash.glb'],
+    // ['jump',        'jumping.glb'],
   ];
   for (const [name, file] of extraClips) {
-    new FBXLoader().load(`${MODELS}/animations/${file}`, (loaded) => {
+    new GLTFLoader().load(`${MODELS}/animations/${file}`, (loaded) => {
       if (!loaded.animations || !loaded.animations.length) {
         console.warn(`[rp10] ${file} · no animation clip found`);
         return;
@@ -242,14 +241,16 @@ new FBXLoader().load(`${MODELS}/animations/idle.fbx`, (fbx) => {
       clip.name = name;
       playerActions[name] = playerMixer.clipAction(clip);
       console.log(`[rp10] ${name} clip loaded · ${clip.duration.toFixed(2)}s`);
-    });
+    }, undefined, (err) => console.warn(`[rp10] ${file} load failed`, err));
   }
 
+  const s = document.getElementById('load-status');
+  if (s) s.textContent = 'Player + idle loaded · walk streaming';
   console.log(`[rp10] player rig loaded · scaled to ${TARGET_H}m (was ${size.y.toFixed(2)}m native)`);
 }, undefined, (err) => {
-  console.error('[rp10] FAILED to load idle.fbx · placeholder stays visible', err);
+  console.error('[rp10] FAILED to load idle.glb · placeholder stays visible', err);
   const s = document.getElementById('load-status');
-  if (s) s.textContent = 'FBX load failed · check console';
+  if (s) s.textContent = 'GLB load failed · check console';
 });
 
 const playerState = { vy: 0, onGround: true, speed: 5.5, runMult: 1.7 };

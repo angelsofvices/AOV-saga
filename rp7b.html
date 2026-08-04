@@ -22808,21 +22808,24 @@ function groupUnlocked(idx) {
 //   SW  → malezor_shop            (C · Rizer Bazaar)
 //   W   → malezor                 (R · Resident + Academy · your home)
 //   NW  → (reserved) faction hall or lore landmark
+// ★ 2026-08-04 · SIMPLIFIED · 4 rich thematic zones per district (was 8).
+// Buildings that share story purpose grouped into one map each:
+//   HOME  (malezor)               · homes + Academy + shop + well
+//   ★     (malezor_capital)       · town hall + statue + tower + fountain
+//                                    + faction meets + sidequest NPCs
+//   WILD  (malezor_wild)          · wildmarch + Gemlord cave + Seer HQ
+//                                    (all dark content clustered)
+//   B     (malezor_battlegrounds) · Rizer PvP arena + Novarian bracket
+//
+// Circuit is LINEAR east: HOME → Capital → Wild → Battlegrounds → Zarvane.
+// West reverses.  Retired subdistricts (malezor_mq, malezor_sq, malezor_shop,
+// malezor_hq) remain in MAPS as unused entries · buildings folded into the
+// 4 surviving zones.
 const MALEZOR_HUB = 'malezor_capital';
-const MALEZOR_SPOKES = {
-  // fromMap → returnDirection (which border you enter Capital on)
-  malezor:                { side: 'W', fromSide: 'E' },
-  malezor_mq:             { side: 'N', fromSide: 'S' },
-  malezor_sq:             { side: 'NE', fromSide: 'SW' },
-  malezor_hq:             { side: 'E', fromSide: 'W' },
-  malezor_battlegrounds:  { side: 'SE', fromSide: 'NW' },
-  malezor_wild:           { side: 'S', fromSide: 'N' },
-  malezor_shop:           { side: 'SW', fromSide: 'NE' },
-};
 const MALEZOR_ZONE_IDS = new Set([
-  MALEZOR_HUB, 'malezor', 'malezor_mq', 'malezor_sq', 'malezor_hq',
-  'malezor_battlegrounds', 'malezor_wild', 'malezor_shop',
+  'malezor', MALEZOR_HUB, 'malezor_wild', 'malezor_battlegrounds',
 ]);
+const MALEZOR_LINEAR = ['malezor', 'malezor_capital', 'malezor_wild', 'malezor_battlegrounds'];
 // Progression: every zone the player has stepped into gets recorded.  East
 // portal from Capital only opens once all 8 zone ids are in the set.
 function malezorAllZonesCleared() {
@@ -22866,6 +22869,43 @@ function _borderEntry(mapId, side) {
 function malezorCircuitStep(currentMapId, dir) {
   // Track that this zone was visited.
   noteMalezorZoneVisit(currentMapId);
+
+  // ★ 2026-08-04 · SIMPLIFIED 4-zone linear circuit.  Overrides all the
+  // prior 8-spoke compass logic.  HOME → Capital → Wild → Battlegrounds
+  // → (Zarvane if all 4 visited).  West reverses.
+  const linearIdx = MALEZOR_LINEAR.indexOf(currentMapId);
+  if (linearIdx >= 0) {
+    if (dir > 0) {
+      // East progression
+      if (linearIdx < MALEZOR_LINEAR.length - 1) {
+        const target = MALEZOR_LINEAR[linearIdx + 1];
+        const m = MAPS[target];
+        if (m) return { map: target, entry: { x: 1, y: Math.floor(m.rows / 2), dir: 'right' } };
+      } else {
+        // End of Malezor circuit · east from Battlegrounds → Zarvane if cleared
+        if (malezorAllZonesCleared()) {
+          const zar = MAPS['zarvane'];
+          if (zar) return { map: 'zarvane', entry: { x: 1, y: Math.floor(zar.rows / 2), dir: 'right' } };
+        } else {
+          const visited = (game.player && game.player.malezorZonesVisited) || {};
+          const remain = [...MALEZOR_ZONE_IDS].filter(id => !visited[id]).length;
+          if (typeof showToast === 'function') {
+            showToast('◈ Visit all ' + MALEZOR_ZONE_IDS.size + ' Malezor zones · ' + remain + ' remaining', 3200);
+          }
+          return null;
+        }
+      }
+    } else {
+      // West retreat
+      if (linearIdx > 0) {
+        const target = MALEZOR_LINEAR[linearIdx - 1];
+        const m = MAPS[target];
+        if (m) return { map: target, entry: { x: m.cols - 2, y: Math.floor(m.rows / 2), dir: 'left' } };
+      }
+      return null;   // west from HOME = world edge
+    }
+    return null;
+  }
 
   // ---- R (malezor) special case: east → Capital, west → block ----
   if (currentMapId === 'malezor') {

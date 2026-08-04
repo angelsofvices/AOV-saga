@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Rizing Powers of Zyraxis — 2.5D · rp7c BETA</title>
+<style>
+  html, body { margin:0; padding:0; background:#000; overflow:hidden;
+    font-family: 'VT323', monospace; color:#e8c878; }
+  #stage { position:fixed; inset:0; }
+  #hud { position:fixed; top:6px; left:6px; z-index:10;
+    background:rgba(5,3,16,.82); border:1px solid rgba(232,200,120,.35);
+    padding:6px 10px; font-size:14px; letter-spacing:.1em; }
+  #controller-hint { position:fixed; bottom:8px; left:8px; z-index:10;
+    background:rgba(5,3,16,.82); border:1px solid rgba(232,200,120,.35);
+    padding:4px 8px; font-size:12px; color:#b8aec8; letter-spacing:.12em; }
+  #version { position:fixed; top:6px; right:6px; z-index:10;
+    background:rgba(5,3,16,.82); border:1px solid rgba(232,200,120,.35);
+    padding:4px 8px; font-size:11px; color:#8080a0; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div id="hud">MALEZOR · Resident<br/>WASD / Arrows · Z interact</div>
+<div id="controller-hint">DUALSENSE · PRESS A BUTTON</div>
+<div id="version">rp7c · 2.5D prototype v0.1</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ============================================================================
+ * RP7C · 2.5D THREE.JS PROTOTYPE
+ * ----------------------------------------------------------------------------
+ * Mirrors the opening Malezor Resident scene from rp7b (2D flat build).
+ * Renders the same 30×20 tile map from a tilted orthographic camera
+ * (~40° pitch) so the world reads as B/W-style depth while sprites stay
+ * as billboards.  Movement, collision, and portal logic will mirror rp7b
+ * exactly — this file grows in lockstep as we port each system.
+ *
+ * PORT STATUS (v0.1)
+ *   ✓ Scene · orthographic tilt camera · ambient + directional light
+ *   ✓ Tile map rendering (grass · dirt road · stone spur)
+ *   ✓ Player billboard sprite (idle · walk 4-dir)
+ *   ✓ WASD / arrow movement + tile collision
+ *   ✓ Building billboards (H player home · f school · 2 neighbors · ? tower)
+ *   ✓ N/S/E portal warp stubs (wired to log for now)
+ *   ✗ Home interior scene (bedroom → main floor → exit) — next pass
+ *   ✗ Mom dialog · Dad starter handoff — next pass
+ *   ✗ NPC trainers, battles, wild grass encounters — later passes
+ *   ✗ Menus, HUD, save/load — later
+ * ========================================================================== */
+
+// ── Constants (mirror rp7b) ────────────────────────────────────────────
+const TILE = 1;                        // one world unit per tile
+const MAP_COLS = 30, MAP_ROWS = 20;
+const ASSETS = 'assets/rp7/beta_assets';
+
+// ── Malezor Resident tile map · copied verbatim from rp7b ────────────
+// Tile chars: # wall (void) · , grass · - dirt · / stone spur ·
+//            T tree · G gemgrass · H player home · 2 neighbor house ·
+//            f school · ? broadcast tower · portals via ',' gaps in wall
+const MALEZOR_MAP = [
+  '###############,##############', // 0 · N portal → CAPITAL
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 1
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 2
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 3
+  '#,,,H,,,,,,,,,,-,,,,,,,,,,2,,#', // 4
+  '#,,,//,,,,,,,,,-,,,,,,,,,,//,#', // 5
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 6
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 7
+  '#,,T,,,,,,,,,,,-,,,,,,,,,,,T,#', // 8
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 9
+  '#----------------------------,', // 10 · E portal col 29
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 11
+  '#,,,,,,,,,,,f,,-,,,,,,,,,,,,,#', // 12
+  '#,,,,,,,,,,,//,-,,,,,,,,,,,,,#', // 13
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 14
+  '#,,,,,,,,,,,,,,-,,,,,,,,,?,,,#', // 15
+  '#,,,,,,,,,,,,,,-,,,,,,,,,,,,,#', // 16
+  '#,,T,,,,,,,,,,,-,,,2,,,,,,,T,#', // 17
+  '#,,,,,,,,,,,,,,-,,,//,,,,,,,,#', // 18
+  '###############,##############', // 19 · S portal
+];
+
+// Tiles the player cannot step onto (walls + trees + building anchors + tower)
+const BLOCKER_CHARS = new Set('#T?Hf2'.split(''));
+
+// ── Scene ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x000000, 1);
+function resize() {
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+}
+window.addEventListener('resize', resize); resize();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0510);
+
+// Tilted orthographic camera · classic B/W look
+// Frustum height in world units → controls zoom level
+const CAM_HEIGHT_UNITS = 14;
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+camera.position.set(MAP_COLS / 2, -8, 12);   // south + above
+camera.lookAt(MAP_COLS / 2, MAP_ROWS / 2, 0);
+function updateCamera() {
+  const aspect = window.innerWidth / window.innerHeight;
+  const h = CAM_HEIGHT_UNITS / 2;
+  camera.left   = -h * aspect;
+  camera.right  =  h * aspect;
+  camera.top    =  h;
+  camera.bottom = -h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', updateCamera); updateCamera();
+
+// Lights — flat ambient + soft directional for depth cue
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const sun = new THREE.DirectionalLight(0xfff0d8, 0.45);
+sun.position.set(6, -8, 15);
+scene.add(sun);
+
+// ── Texture loader with nearest-neighbor filtering (pixel-perfect) ──
+const texLoader = new THREE.TextureLoader();
+function loadPixelTex(path) {
+  const t = texLoader.load(path);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.wrapS = THREE.RepeatWrapping;
+  t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const TEX = {
+  grass: loadPixelTex(`${ASSETS}/floor/floor_malezor_native.png`),
+  dirt:  loadPixelTex(`${ASSETS}/floor/floor_dirt_native.png`),
+  stone: loadPixelTex(`${ASSETS}/floor/floor_stone_road_native.png`),
+};
+
+// ── Ground tile mesh · one plane per non-wall tile ──────────────────
+// Grass = base plane spanning the whole map · roads = colored planes on top
+// Walls (#) render as void black — no plane at all (background shows through).
+const tileGroup = new THREE.Group();
+scene.add(tileGroup);
+
+function tileTexture(ch) {
+  if (ch === '-') return TEX.dirt;
+  if (ch === '/') return TEX.stone;
+  return TEX.grass;
+}
+function buildTiles() {
+  const geom = new THREE.PlaneGeometry(TILE, TILE);
+  for (let y = 0; y < MAP_ROWS; y++) {
+    for (let x = 0; x < MAP_COLS; x++) {
+      const ch = MALEZOR_MAP[y][x];
+      if (ch === '#') continue;   // void
+      const tex = tileTexture(ch);
+      const mat = new THREE.MeshLambertMaterial({ map: tex, transparent: false });
+      const mesh = new THREE.Mesh(geom, mat);
+      // Flip so world Y = tile row (row 0 at top of map == +Y direction)
+      // World coords: X = col, Y = -row, Z = 0 (ground plane)
+      mesh.position.set(x + 0.5, -(y + 0.5), 0);
+      tileGroup.add(mesh);
+    }
+  }
+}
+buildTiles();
+
+// ── Billboard sprite helper ─────────────────────────────────────────
+function makeBillboard(texturePath, tilesW, tilesH, feetOffset = 0) {
+  const tex = loadPixelTex(texturePath);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(tilesW, tilesH, 1);
+  sprite.center.set(0.5, 0);   // anchor bottom-center of sprite
+  sprite.userData.feetOffset = feetOffset;
+  return sprite;
+}
+
+// ── Buildings · billboards planted at their anchor tile ─────────────
+const BUILDINGS = [
+  // [tileChar, sprite path, footprint W tiles, footprint H tiles]
+  ['H', `${ASSETS}/buildings/house_02.png`,          5, 6],
+  ['2', `${ASSETS}/buildings/house_01.png`,          5, 6],  // placeholder (all '2' use house_01 in prototype)
+  ['f', `${ASSETS}/buildings/rizer_academy.png`,     6, 9],
+  ['?', `${ASSETS}/buildings/broadcast_tower.png`,   1, 3],
+];
+function placeBuildings() {
+  for (let y = 0; y < MAP_ROWS; y++) {
+    for (let x = 0; x < MAP_COLS; x++) {
+      const ch = MALEZOR_MAP[y][x];
+      const spec = BUILDINGS.find(b => b[0] === ch);
+      if (!spec) continue;
+      const [, path, w, h] = spec;
+      const sprite = makeBillboard(path, w, h);
+      // Anchor at bottom-center of the tile (feet on ground)
+      sprite.position.set(x + 0.5, -(y + 0.5), 0);
+      scene.add(sprite);
+    }
+  }
+}
+placeBuildings();
+
+// ── Trees · billboards at 'T' tiles ─────────────────────────────────
+const TREE_PATH = `${ASSETS}/props/tree.png`;
+function placeTrees() {
+  for (let y = 0; y < MAP_ROWS; y++) {
+    for (let x = 0; x < MAP_COLS; x++) {
+      if (MALEZOR_MAP[y][x] !== 'T') continue;
+      const t = makeBillboard(TREE_PATH, 3, 3);
+      t.position.set(x + 0.5, -(y + 0.5), 0);
+      scene.add(t);
+    }
+  }
+}
+placeTrees();
+
+// ── Player · billboard sprite with 4-dir walk cycle ─────────────────
+// Sheet: player0_walk_native.png · 3 cols × 4 rows @ 64×88 px = 192×352.
+// Rows: 0=down, 1=left, 2=right, 3=up · cols: standCol=1 (idle), 0/1/2 walk.
+const PLAYER_SHEET = loadPixelTex(`${ASSETS}/player/player0_walk_native.png`);
+PLAYER_SHEET.wrapS = THREE.ClampToEdgeWrapping;
+PLAYER_SHEET.wrapT = THREE.ClampToEdgeWrapping;
+const PLAYER_COLS = 3, PLAYER_ROWS = 4;
+PLAYER_SHEET.repeat.set(1 / PLAYER_COLS, 1 / PLAYER_ROWS);
+
+const playerMat = new THREE.SpriteMaterial({ map: PLAYER_SHEET.clone(), transparent: true });
+playerMat.map.needsUpdate = true;
+playerMat.map.repeat.set(1 / PLAYER_COLS, 1 / PLAYER_ROWS);
+const player = new THREE.Sprite(playerMat);
+player.scale.set(1.2, 1.7, 1);      // slightly bigger than a tile
+player.center.set(0.5, 0);          // feet on ground
+player.position.set(15 + 0.5, -(18 + 0.5), 0.01);    // spawn near S wall on the road
+scene.add(player);
+
+const playerState = {
+  tileX: 15, tileY: 18,    // logical tile position
+  facing: 'up',            // down / left / right / up
+  moving: false,
+  animFrame: 1,            // walk-cycle frame index
+  animTimer: 0,
+};
+const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
+
+function setPlayerSpriteFrame() {
+  const row = DIR_ROW[playerState.facing];
+  const col = playerState.moving ? (playerState.animFrame % 3) : 1;   // standCol=1 idle
+  const uv = playerMat.map;
+  uv.offset.x = col / PLAYER_COLS;
+  // NOTE · Three.js sprite UV origin is bottom-left · flip row so row 0 = top of sheet
+  uv.offset.y = 1 - (row + 1) / PLAYER_ROWS;
+}
+setPlayerSpriteFrame();
+
+// ── Input · WASD / Arrows ───────────────────────────────────────────
+const keys = new Set();
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  keys.add(k);
+});
+window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+
+// ── Collision + tile-portal check ───────────────────────────────────
+function tileAt(x, y) {
+  if (y < 0 || y >= MAP_ROWS) return '#';
+  const row = MALEZOR_MAP[y];
+  if (x < 0 || x >= row.length) return '#';
+  return row[x];
+}
+function walkable(x, y) {
+  return !BLOCKER_CHARS.has(tileAt(x, y));
+}
+
+// N/S/E portals · mirror rp7b MALEZOR_ZONE_EXITS
+const PORTAL_TARGETS = {
+  north: 'malezor_capital',
+  south: 'malezor_battlegrounds',
+  east:  'malezor_wild',
+};
+function portalCheck(nx, ny) {
+  let side = null;
+  if (ny < 0)              side = 'north';
+  else if (ny >= MAP_ROWS) side = 'south';
+  else if (nx < 0)         side = 'west';
+  else if (nx >= MAP_COLS) side = 'east';
+  if (!side) return null;
+  return PORTAL_TARGETS[side] || null;
+}
+
+// ── Movement ─────────────────────────────────────────────────────────
+let stepCooldownMs = 0;
+const STEP_MS = 160;   // one tile per 160ms (matches rp7b feel)
+
+function tryStep(dt) {
+  stepCooldownMs -= dt;
+  if (stepCooldownMs > 0) { playerState.moving = false; return; }
+
+  let dx = 0, dy = 0, dir = null;
+  if (keys.has('w') || keys.has('arrowup'))    { dy = -1; dir = 'up'; }
+  else if (keys.has('s') || keys.has('arrowdown')) { dy =  1; dir = 'down'; }
+  else if (keys.has('a') || keys.has('arrowleft')) { dx = -1; dir = 'left'; }
+  else if (keys.has('d') || keys.has('arrowright')){ dx =  1; dir = 'right'; }
+
+  if (dir) playerState.facing = dir;
+
+  if (dx === 0 && dy === 0) {
+    playerState.moving = false;
+    return;
+  }
+  const nx = playerState.tileX + dx;
+  const ny = playerState.tileY + dy;
+
+  // Off-edge → portal
+  const portal = portalCheck(nx, ny);
+  if (portal) {
+    console.log(`[rp7c] portal fire · off-edge → ${portal}`);
+    stepCooldownMs = STEP_MS * 2;    // debounce so we don't spam
+    return;
+  }
+  if (!walkable(nx, ny)) {
+    playerState.moving = false;
+    return;
+  }
+  playerState.tileX = nx;
+  playerState.tileY = ny;
+  playerState.moving = true;
+  playerState.animFrame = (playerState.animFrame + 1) % 3;
+  stepCooldownMs = STEP_MS;
+}
+
+// ── Camera follow · trail the player smoothly ──────────────────────
+function updateCameraFollow() {
+  const tx = playerState.tileX + 0.5;
+  const ty = -(playerState.tileY + 0.5);
+  camera.position.x += (tx - camera.position.x) * 0.15;
+  // Camera Y sits south of player (tilted looking north) so we offset -8
+  const targetY = ty - 8;
+  camera.position.y += (targetY - camera.position.y) * 0.15;
+  camera.lookAt(tx, ty, 0);
+}
+
+// ── Render loop ──────────────────────────────────────────────────────
+let lastMs = performance.now();
+function frame(nowMs) {
+  const dt = Math.min(50, nowMs - lastMs);
+  lastMs = nowMs;
+  tryStep(dt);
+  setPlayerSpriteFrame();
+  // Snap player world position to tile grid
+  player.position.set(playerState.tileX + 0.5, -(playerState.tileY + 0.5), 0.01);
+  updateCameraFollow();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+console.log('[rp7c] 2.5D prototype booted · Malezor Resident · walk with WASD/arrows');
+</script>
+
+<script src="aov-gamepad-boot.js"></script>
+</body>
+</html>

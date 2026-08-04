@@ -26446,17 +26446,33 @@ function riftTeleportTo(districtId) {
   enterMap(districtId, spawn.x, spawn.y, spawn.dir);
 }
 function exitHouseToMalezor() {
-  if (!game.player.party.length) {
-    showDialog([
-      `You feel the pull of the door — but not yet.`,
-      `Talk to DAD first. He has your Zyrex.`,
-    ]);
+  const p = game.player;
+  const noParty = !p.party || p.party.filter(Boolean).length === 0;
+
+  // ★ 2026-08-04 · No-Zyrex playtest exit — Mom warns at the door but
+  // does NOT block the exit.  Player can wander Malezor without a
+  // starter; world blocks (wild grass, district border, Seer kidnap)
+  // handle the consequences downstream.
+  if (noParty) {
+    const walkOut = () => {
+      const homeExit = tileSouthOfDoor('malezor', 'H') || { x: 4, y: 5 };
+      enterMap('malezor', homeExit.x, homeExit.y, 'down');
+    };
+    if (!p.metMomBeSafe) {
+      p.metMomBeSafe = true;
+      showDialog([
+        "MOM: Wait — you're heading out without a Zyrex?",
+        "MOM: Be safe out there, sweetheart.  Don't wander into the tall grass alone.  Come home before dark.",
+      ], walkOut);
+    } else {
+      walkOut();
+    }
     return;
   }
+
   // ★ ZYCUBE GRANT — Mom's departure gift.  Fires on the first home-exit.
   // The Zycube is the CUBE utility Prism · storage.  Every Zyraxian
   // carries one.  Requirement for Kelthor's Novarian enrollment.
-  const p = game.player;
   const firstExit = !(p.items && p.items.zycube > 0);
   if (firstExit) {
     p.items = p.items || {};

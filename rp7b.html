@@ -9126,6 +9126,110 @@ function drawBetaPlayer(cx, cy, dir) {
 }
 
 // ★ 2026-08-02 · MORI + dust + gem render helpers · called before drawBetaPlayer.
+// ★ 2026-08-03 · Building overlay pass.  Scans the visible portion of the
+// current map for canonical building marker tiles (I, A, D door, C cave,
+// S shop, ^ tower, W fountain, @ statue, ? skull, B bench-arena, R hall
+// podium) and blits the correct PNG at logical scale.  Multi-tile buildings
+// use a "north-west anchor" convention · we render the sprite once at the
+// top-left `I` (or `A`, etc.) and skip subsequent tiles of the same block.
+function drawBuildingOverlay(cam) {
+  if (typeof MAP === 'undefined' || !MAP) return;
+  const mapId = game.player && game.player.mapId;
+  const dist  = baseDistrictId(mapId) || 'malezor';
+  const seen  = Object.create(null);
+  const rendered = new Set();  // "y,x" tiles already blitted (skip block interiors)
+
+  // Camera-visible tile range (padded so tall buildings above the fold still render)
+  const y0 = Math.max(0, cam.y - 3);
+  const y1 = Math.min(MAP_ROWS - 1, cam.y + Math.ceil(canvas.height / TILE) + 3);
+  const x0 = Math.max(0, cam.x - 3);
+  const x1 = Math.min(MAP_COLS - 1, cam.x + Math.ceil(canvas.width  / TILE) + 3);
+
+  const at = (x, y) => (MAP[y] || '')[x] || '';
+
+  function blit(slug, ax, ay, footprintW, footprintH) {
+    if (!slug || !BUILDING_IMGS[slug]) return;
+    drawBuildingSprite(slug, ax, ay, cam);
+    // mark all footprint tiles as rendered so we don't double-blit
+    for (let dy = 0; dy < footprintH; dy++) {
+      for (let dx = -Math.floor(footprintW / 2); dx <= Math.floor(footprintW / 2); dx++) {
+        rendered.add((ay - dy) + ',' + (ax + dx));
+      }
+    }
+  }
+
+  for (let y = y0; y <= y1; y++) {
+    const row = MAP[y] || '';
+    for (let x = x0; x <= x1; x++) {
+      const key = y + ',' + x;
+      if (rendered.has(key)) continue;
+      const t = row[x];
+      if (!t) continue;
+
+      // Town-hall block (I I I I I I / I I D I I I) · anchor at the D door tile
+      if (t === 'D') {
+        const slug = DISTRICT_TOWNHALL[dist];
+        if (slug) {
+          const [fw, fh] = BUILDING_FOOTPRINT[slug] || [5, 6];
+          blit(slug, x, y, fw, fh);
+        }
+        continue;
+      }
+      // Seer HQ block (A blocks) · anchor at 'E' entrance
+      if (t === 'E') {
+        const slug = DISTRICT_SEERHQ[dist];
+        if (slug) {
+          const [fw, fh] = BUILDING_FOOTPRINT[slug] || [5, 6];
+          blit(slug, x, y, fw, fh);
+        }
+        continue;
+      }
+      // Gemlord cave · standalone C tile
+      if (t === 'C') {
+        const slug = DISTRICT_GEMCAVE[dist];
+        if (slug) {
+          const [fw, fh] = BUILDING_FOOTPRINT[slug] || [3, 4];
+          blit(slug, x, y, fw, fh);
+        }
+        continue;
+      }
+      // Shop marker · use rustic in beast/wild districts, urban elsewhere
+      if (t === 'S') {
+        const rustic = ['malezor','veridan','xilnar'].includes(dist);
+        const slug = rustic ? 'shop_rustic' : 'shop_urban';
+        blit(slug, x, y, 3, 3);
+        continue;
+      }
+      // Broadcast tower (^)
+      if (t === '^') {
+        blit('broadcast_tower', x, y, 1, 3);
+        continue;
+      }
+      // Fossil skull (?)
+      if (t === '?') {
+        blit('fossil_skull', x, y, 2, 1);
+        continue;
+      }
+      // Goddess statue (@)
+      if (t === '@') {
+        blit('goddess_statue', x, y, 1, 3);
+        continue;
+      }
+      // Fountain (W) · only the SW corner of a WWW cluster anchors it
+      if (t === 'W') {
+        // Find NW corner of the WWW block
+        let ax = x, ay = y;
+        while (ax > 0 && at(ax - 1, y) === 'W') ax--;
+        while (ay > 0 && at(ax, ay - 1) === 'W') ay--;
+        // Blit only at the top-left W of the cluster
+        if (ax === x && ay === y) {
+          blit('fountain', x + 1, y + 2, 3, 3);
+        }
+      }
+    }
+  }
+}
+
 function drawMoriEnemies(cam) {
   if (!game.enemies || !game.enemies[game.player.mapId]) return;
   const bucket = game.enemies[game.player.mapId];
@@ -9792,6 +9896,112 @@ FOUNTAIN_IMG.src = 'assets/rp7/beta_assets/props/fountain_native.png';
 // so the canopy hangs into the tile above the character line.
 const TREE_IMG = new Image();
 TREE_IMG.src = 'assets/rp7/beta_assets/props/tree.png';
+
+// ★ 2026-08-03 · BUILDING ASSETS · 59 chunky pixel-art pieces from the
+// ChatGPT batch.  Preload all as Image objects · per-building logical
+// footprint (in tiles) is authored below · scale at render time preserves
+// aspect (never stretched · nearest-neighbor).
+//
+// Naming convention: slugs match asset filenames verbatim.
+// Footprint: [tilesW, tilesH] · asset is fit within that footprint while
+// preserving aspect (whichever axis hits target first wins).
+const BUILDING_IMGS = {};
+const BUILDING_ROSTER = [
+  // town halls (grand civic centers · 5w x 6h · anchor bottom-center)
+  ['malezor_townhall',   5, 6], ['zarvane_townhall',   5, 6], ['andrannor_townhall', 5, 6],
+  ['veridan_townhall',   5, 6], ['netharion_townhall', 5, 6], ['vorashil_townhall',  5, 6],
+  ['xilnar_townhall',    5, 6], ['baelgor_townhall',   6, 7], ['thardin_townhall',   5, 6],
+  ['korathen_townhall',  6, 7], ['rizer_academy',      4, 5],
+  // Seer HQs (same civic scale, darker aesthetic)
+  ['malezor_seerhq',   5, 6], ['zarvane_seerhq',   5, 6], ['andrannor_seerhq', 5, 6],
+  ['veridan_seerhq',   5, 6], ['netharion_seerhq', 5, 6], ['vorashil_seerhq',  5, 6],
+  ['xilnar_seerhq',    5, 6], ['baelgor_seerhq',   5, 6], ['thardin_seerhq',   5, 6],
+  ['korathen_seerhq',  5, 6],
+  // Gemlord caves (cave mouth · 3w × 4h · one per gem color)
+  ['gemlord_cave_ruby',    3, 4], ['gemlord_cave_pearl',    3, 4],
+  ['gemlord_cave_citrine', 3, 4], ['gemlord_cave_emerald',  3, 4],
+  ['gemlord_cave_amethyst',3, 4], ['gemlord_cave_sapphire', 3, 4],
+  ['gemlord_cave_onyx',    3, 4], ['gemlord_cave_amber',    3, 4],
+  ['gemlord_cave_anomaly', 3, 4], ['gemlord_cave_ultra',    3, 4],
+  // shops (storefront · 3w × 3h)
+  ['shop_rustic', 3, 3], ['shop_urban', 3, 3],
+  // battleground arenas (open oval · 4w × 3h)
+  ['battlegrounds_stone', 4, 3], ['battlegrounds_tech', 4, 3],
+  // residential houses (compact 2×3 up to grand 3×4)
+  ['house_small_cottage', 2, 3], ['house_medium',        3, 4],
+  ['house_large_manor',   3, 4], ['house_player_home',   3, 4],
+  ['house_shack',         2, 3], ['house_mountain_lodge',3, 4],
+  // world props (small anchor items)
+  ['broadcast_tower', 1, 3], ['fountain',       3, 3],
+  ['goddess_statue',  1, 3], ['fossil_skull',   2, 1],
+  ['signpost',        1, 2], ['well',           1, 1],
+  // interior furniture (used inside home_interior maps · 1×1 to 2×2)
+  ['furniture_bed',            2, 2], ['furniture_stove_fridge',   2, 2],
+  ['furniture_bookshelf',      1, 2], ['furniture_alchemy_table',  2, 2],
+  ['furniture_dresser_mirror', 1, 2], ['furniture_fireplace',      2, 2],
+  // landmarks (iconic world-map destinations · 5w × 5h)
+  ['landmark_worldroot_tree',      5, 6], ['landmark_astralite_crater',    5, 4],
+  ['landmark_fallen_titan',        5, 5], ['landmark_ancient_observatory', 5, 5],
+  ['landmark_bridge_of_hope',      6, 3], ['landmark_colossal_waterfall',  5, 6],
+];
+const BUILDING_FOOTPRINT = {};
+for (const [slug, w, h] of BUILDING_ROSTER) {
+  const img = new Image();
+  img.src = 'assets/rp7/beta_assets/buildings/' + slug + '.png';
+  BUILDING_IMGS[slug] = img;
+  BUILDING_FOOTPRINT[slug] = [w, h];
+}
+
+// Per-district building resolvers · maps district id → asset slug for each
+// canonical building kind so tile 'I' / 'A' / 'C' can be swapped out with
+// the right art.
+const DISTRICT_TOWNHALL = {
+  malezor:'malezor_townhall',   zarvane:'zarvane_townhall',   andrannor:'andrannor_townhall',
+  veridan:'veridan_townhall',   netharion:'netharion_townhall', vorashil:'vorashil_townhall',
+  xilnar:'xilnar_townhall',     baelgor:'baelgor_townhall',   thardin:'thardin_townhall',
+  korathen:'korathen_townhall',
+};
+const DISTRICT_SEERHQ = {
+  malezor:'malezor_seerhq',   zarvane:'zarvane_seerhq',   andrannor:'andrannor_seerhq',
+  veridan:'veridan_seerhq',   netharion:'netharion_seerhq', vorashil:'vorashil_seerhq',
+  xilnar:'xilnar_seerhq',     baelgor:'baelgor_seerhq',   thardin:'thardin_seerhq',
+  korathen:'korathen_seerhq',
+};
+const DISTRICT_GEMCAVE = {
+  malezor:'gemlord_cave_ruby',   zarvane:'gemlord_cave_pearl',   andrannor:'gemlord_cave_citrine',
+  veridan:'gemlord_cave_emerald',netharion:'gemlord_cave_amethyst', vorashil:'gemlord_cave_sapphire',
+  xilnar:'gemlord_cave_onyx',    baelgor:'gemlord_cave_amber',   thardin:'gemlord_cave_anomaly',
+  korathen:'gemlord_cave_ultra',
+};
+// Extract the base district id from any subdistrict map id (malezor_mq → malezor).
+function baseDistrictId(mapId) {
+  if (!mapId) return null;
+  const idx = mapId.indexOf('_');
+  return idx < 0 ? mapId : mapId.slice(0, idx);
+}
+
+// Blit a building asset with preserved aspect, anchored bottom-center on
+// its footprint's base tile.  fpW/fpH = footprint in tiles; the sprite
+// scales to fit that box while preserving its native aspect ratio.
+function drawBuildingSprite(slug, tileX, tileY, cam) {
+  const img = BUILDING_IMGS[slug];
+  if (!img || !img.complete || !img.naturalWidth) return false;
+  const fp = BUILDING_FOOTPRINT[slug] || [3, 3];
+  const [fpW, fpH] = fp;
+  const boxW = fpW * TILE;
+  const boxH = fpH * TILE;
+  // Fit-inside · preserve aspect
+  const aspect = img.naturalWidth / img.naturalHeight;
+  const boxAspect = boxW / boxH;
+  let dstW, dstH;
+  if (aspect > boxAspect) { dstW = boxW; dstH = boxW / aspect; }
+  else                    { dstH = boxH; dstW = boxH * aspect; }
+  // Anchor · bottom-center of the footprint's base tile (tileX, tileY)
+  const px = (tileX + 0.5 - cam.x) * TILE - dstW / 2;
+  const py = (tileY + 1  - cam.y) * TILE - dstH;
+  ctx.drawImage(img, Math.round(px), Math.round(py), Math.round(dstW), Math.round(dstH));
+  return true;
+}
 // ★ 2026-07-29 · Animated ornate FIREPLACE — 4-frame sheet, 64×64 per frame
 // = one 2-tile-wide × 2-tile-tall sprite anchored on the wall's ~~ block.
 const FIREPLACE_IMG = new Image();
@@ -16651,6 +16861,10 @@ function renderMap() {
   // ★ 2026-07-29 · Psychosyd Skin routes through the BETA path in BOTH modes
   // — the PNG sheets ARE the outfit, so the procedural chibi cannot render it.
   const _usePsychosydPath = !!(game.player && game.player.psychosydSkinEquipped);
+  // ★ 2026-08-03 · Building overlay pass · scans map for I/A/C/S/K anchors +
+  // custom landmark markers, blits per-district building PNGs at scale.
+  // Runs BEFORE enemies/gems so those composite on top of building bases.
+  drawBuildingOverlay(cam);
   // ★ 2026-08-02 · Draw MORI enemies + dust piles + ground gems BEFORE the
   // player so player sprite composites on top.
   drawMoriEnemies(cam);

@@ -22,7 +22,8 @@
 <body>
 <canvas id="stage"></canvas>
 <div id="hud">RP10 · Malezor Resident<br/>3D · Blender-authored assets</div>
-<div id="load-status">Loading…</div>
+<div id="load-status">Booting Three.js…</div>
+<noscript><div style="color:#f88;padding:20px">JavaScript disabled — RP10 requires JS + WebGL.</div></noscript>
 <div id="controls">WASD move · Space jump · Mouse orbit · Shift run</div>
 
 <script type="importmap">
@@ -164,10 +165,71 @@ scene.add(player);
 
 const playerState = { vy: 0, onGround: true, speed: 5.5, runMult: 1.7 };
 
-// ── Input ────────────────────────────────────────────────────────────
+// ── Input · keyboard + PS5 DualSense (locked mappings) ─────────────
+// ★ CANON per [[aov-controller-priority]] — every AOV build ships with
+// working controller from day one.  PS5 button → keyboard key mapping is
+// LOCKED to match rp7b so muscle memory transfers between builds:
+//   Cross (×)   → 'z'      confirm / interact / jump
+//   Circle (○)  → 'shift'  run
+//   Square (□)  → 'x'      light attack
+//   Triangle (△)→ 'y'      heavy attack
+//   R1          → 'r'      cycle mount (later)
+//   L1          → 'l'      party menu (later)
+//   Options     → 'escape' pause
+//   D-Pad + LS  → WASD / arrow-keys (movement)
 const keys = new Set();
 window.addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
 window.addEventListener('keyup',   e => keys.delete(e.key.toLowerCase()));
+
+// PS5 DualSense standard-gamepad-mapping button index → RP-canon key.
+const PAD_BTN = {
+  0: 'z',       // Cross
+  1: 'shift',   // Circle
+  2: 'x',       // Square
+  3: 'y',       // Triangle
+  4: 'l',       // L1
+  5: 'r',       // R1
+  9: 'escape',  // Options
+  12: 'arrowup', 13: 'arrowdown', 14: 'arrowleft', 15: 'arrowright',   // D-Pad
+};
+const PAD_DEAD = 0.35;   // analog stick deadzone
+const pressed = new Set();
+let padActive = null;
+
+window.addEventListener('gamepadconnected', (e) => {
+  padActive = e.gamepad.index;
+  console.log(`[rp10] gamepad · ${e.gamepad.id}`);
+  const el = document.getElementById('controls');
+  if (el) el.textContent = 'DUALSENSE · ' + e.gamepad.id.split('(')[0].trim() + ' · × confirm · ○ run';
+});
+
+function pollGamepad() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const pad  = pads[padActive] || pads.find(p => p);
+  if (!pad) return;
+  // Buttons
+  for (const i in PAD_BTN) {
+    const key = PAD_BTN[i];
+    if (pad.buttons[i] && pad.buttons[i].pressed) {
+      if (!pressed.has(key)) {
+        pressed.add(key);
+        keys.add(key);
+        if (key === 'z') keys.add(' ');   // Cross also fires Space (jump)
+      }
+    } else if (pressed.has(key)) {
+      pressed.delete(key);
+      keys.delete(key);
+      if (key === 'z') keys.delete(' ');
+    }
+  }
+  // Left stick → WASD equivalents
+  const lx = pad.axes[0] || 0, ly = pad.axes[1] || 0;
+  const setAxis = (key, on) => on ? keys.add(key) : keys.delete(key);
+  setAxis('w', ly < -PAD_DEAD);
+  setAxis('s', ly >  PAD_DEAD);
+  setAxis('a', lx < -PAD_DEAD);
+  setAxis('d', lx >  PAD_DEAD);
+}
 
 // ── Character controller · WASD + Space jump ────────────────────────
 function updatePlayer(dt) {
@@ -222,6 +284,7 @@ boot();
 const clock = new THREE.Clock();
 function frame() {
   const dt = Math.min(0.05, clock.getDelta());
+  pollGamepad();     // ★ PS5 DualSense · fires every frame
   updatePlayer(dt);
   controls.update();
   renderer.render(scene, camera);

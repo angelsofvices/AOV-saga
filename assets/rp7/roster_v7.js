@@ -1017,18 +1017,7 @@
     primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Pseudoimmortal', archetype: 'CHIMERIC', ladder: 'Delta', rarity: 'Legendary' },
   };
-  V7.otterlin = {
-    flavor: "A beast-typed Zyrex of the Malezor region.",
-    name: 'OTTERLIN', type: 'Beast', type2: null, type3: null, region: 'Malezor',
-    tier: 1, catchRate: 60, shape: 'quadruped',
-    base: { hp:60,atk:100,def:70,spd:60,spc:60 },
-    sprite: ['#c98a4a','#5a3820','#f5c896'],
-    moves: [],
-    evolveTo: 'pebblequil', evolveLv: 40,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
-    codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
-  };
-  V7.pebblequil = {
+    V7.pebblequil = {
     flavor: "A crystal-typed Zyrex of the Xilnar region.",
     name: 'PEBBLEQUIL', type: 'Crystal', type2: null, type3: null, region: 'Xilnar',
     tier: 1, catchRate: 60, shape: 'shell',
@@ -1523,18 +1512,7 @@
     primaryDistrict: 'baelgor', homeDistricts: ['baelgor'],
     codex: { class: 'Warrior', tc: 'Legend', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Legendary' },
   };
-  V7.verdanix = {
-    flavor: "A beast-typed Zyrex of the Malezor region.",
-    name: 'VERDANIX', type: 'Beast', type2: null, type3: null, region: 'Malezor',
-    tier: 1, catchRate: 60, shape: 'quadruped',
-    base: { hp:60,atk:100,def:70,spd:60,spc:60 },
-    sprite: ['#c98a4a','#5a3820','#f5c896'],
-    moves: [],
-    evolveTo: 'veridrax', evolveLv: 20,
-    primaryDistrict: 'malezor', homeDistricts: ['malezor'],
-    codex: { class: 'Warrior', tc: 'Basic', archetype: 'CHIMERIC', ladder: 'Alpha', rarity: 'Common' },
-  };
-  V7.veridrax = {
+    V7.veridrax = {
     flavor: "A beast-typed Zyrex of the Zarvane region.",
     name: 'VERIDRAX', type: 'Beast', type2: null, type3: null, region: 'Zarvane',
     tier: 2, catchRate: 50, shape: 'quadruped',
@@ -1836,7 +1814,7 @@
     primaryDistrict: 'korathen', homeDistricts: ['korathen'],
     codex: { class: 'Warrior', tc: 'Champion', archetype: 'CHIMERIC', ladder: 'Gamma', rarity: 'Rare' },
   };
-  window.V7_STAGING.ids = ["scenarill", "cravodor", "drakaryze", "insidirim", "g11266", "imysarach", "frosalys", "pharorix", "savorik", "gravvik", "chronohawk", "aurelik", "boltwisp", "emberpaw", "shadeseed", "sprutish", "abyssarach", "abyssiq", "aetherwing", "ambrevon", "animarion", "apexaur", "arcemur", "astralape", "astravyx", "auralux", "auramantle", "aurarat", "aurokine", "avianex", "azurel", "bastonshell", "blazonon", "bogarion", "bonemaw", "boreursa", "buzzolt", "canythra", "celestryx", "cerebrion", "chameleor", "chronocrow", "cinderant", "cinderbeetle", "cindercrown", "cindercur", "crycarys", "cryptovex", "devormor", "dracaryze", "drakaryx", "dredgill", "dunestinger", "duskgrave", "elzoran", "embercrest", "embermoth", "emberuk", "emeralix", "eurakeon", "feliux", "ferrophix", "floravex", "florlyan", "frostphen", "frosane", "gearbyte", "gemorid", "glaciobolt", "glaciogre", "glaucivor", "gravelor", "gravemite", "gravemourn", "graveskull", "grevotor", "grimhog", "grizzigor", "gryphycore", "hopbeam", "iguanax", "impyxid", "inferleon", "irondrake", "ivirium", "jetron", "levanium", "luminacor", "luxquid", "lyncora", "manticorpus", "mantisaris", "marisyth", "mealux", "mudlarion", "mutamech", "mutaryn", "neuromoo", "nimbovis", "noctron", "noxiclaw", "nullis", "nyctopus", "oathane", "oatheus", "obsidius", "omegoran", "oraculi", "otterlin", "pebblequil", "petragryff", "phantuar", "phrenetic", "pyranhya", "pyrocarapax", "rakoron", "rhinoxis", "riftipple", "robotryx", "royalden", "rustbyte", "rustmaw", "ryterrhax", "saburrow", "sagamorne", "salaris", "sanaraine", "sandskitter", "serperyx", "sharkfin", "sigilmor", "silkora", "skorleax", "skybeam", "skyrathon", "smogrim", "snok", "solaryx", "solcryst", "solvarion", "spargus", "sparkbud", "steelden", "strixel", "sunhoop", "talenko", "terralith", "titanova", "titantusk", "tonitrex", "torchpuff", "umbracat", "vampella", "vengrizz", "verdanix", "veridrax", "veylith", "vipercrow", "vitricon", "voiden", "votimite", "voltibex", "voltigrax", "voltmantis", "voltyran", "vulcanax", "vulkarmor"];
+  window.V7_STAGING.ids = ["scenarill", "cravodor", "drakaryze", "insidirim", "g11266", "imysarach", "frosalys", "pharorix", "savorik", "gravvik", "chronohawk", "aurelik", "boltwisp", "emberpaw", "shadeseed", "sprutish", "abyssarach", "abyssiq", "aetherwing", "ambrevon", "animarion", "apexaur", "arcemur", "astralape", "astravyx", "auralux", "auramantle", "aurarat", "aurokine", "avianex", "azurel", "bastonshell", "blazonon", "bogarion", "bonemaw", "boreursa", "buzzolt", "canythra", "celestryx", "cerebrion", "chameleor", "chronocrow", "cinderant", "cinderbeetle", "cindercrown", "cindercur", "crycarys", "cryptovex", "devormor", "dracaryze", "drakaryx", "dredgill", "dunestinger", "duskgrave", "elzoran", "embercrest", "embermoth", "emberuk", "emeralix", "eurakeon", "feliux", "ferrophix", "floravex", "florlyan", "frostphen", "frosane", "gearbyte", "gemorid", "glaciobolt", "glaciogre", "glaucivor", "gravelor", "gravemite", "gravemourn", "graveskull", "grevotor", "grimhog", "grizzigor", "gryphycore", "hopbeam", "iguanax", "impyxid", "inferleon", "irondrake", "ivirium", "jetron", "levanium", "luminacor", "luxquid", "lyncora", "manticorpus", "mantisaris", "marisyth", "mealux", "mudlarion", "mutamech", "mutaryn", "neuromoo", "nimbovis", "noctron", "noxiclaw", "nullis", "nyctopus", "oathane", "oatheus", "obsidius", "omegoran", "oraculi", "pebblequil", "petragryff", "phantuar", "phrenetic", "pyranhya", "pyrocarapax", "rakoron", "rhinoxis", "riftipple", "robotryx", "royalden", "rustbyte", "rustmaw", "ryterrhax", "saburrow", "sagamorne", "salaris", "sanaraine", "sandskitter", "serperyx", "sharkfin", "sigilmor", "silkora", "skorleax", "skybeam", "skyrathon", "smogrim", "snok", "solaryx", "solcryst", "solvarion", "spargus", "sparkbud", "steelden", "strixel", "sunhoop", "talenko", "terralith", "titanova", "titantusk", "tonitrex", "torchpuff", "umbracat", "vampella", "vengrizz", "veridrax", "veylith", "vipercrow", "vitricon", "voiden", "votimite", "voltibex", "voltigrax", "voltmantis", "voltyran", "vulcanax", "vulkarmor"];
   window.V7_STAGING.pool = {
     malezor: [
       { id: 'aetherwing', tier: 1, lv: 12 },

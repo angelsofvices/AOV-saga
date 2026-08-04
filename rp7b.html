@@ -22304,7 +22304,26 @@ function travelDistrict(dir) {
     const routeId  = ROUTE_ORDER[routeIdx];
     const routeMap = MAPS[routeId];
     const routeMeta = ROUTE_META[routeId];
-    if (!routeMap || !routeMeta) { showToast('ROUTE NOT WIRED', 1600); return; }
+    if (!routeMap || !routeMeta) {
+      // ★ 2026-08-03 · Phase 1 fallback · routes aren't built yet, so hop
+      // directly to the neighbor district's opposite-side portal.  Keeps
+      // the whole continent traversable while Phase 3 (routes) is pending.
+      const nextIdx = (dir > 0) ? currentIdx + 1 : currentIdx - 1;
+      if (nextIdx < 0 || nextIdx >= DISTRICT_ORDER.length) {
+        showToast('NO WAY THAT WAY.', 1600); return;
+      }
+      const nextDistId = DISTRICT_ORDER[nextIdx];
+      const nextMap = MAPS[nextDistId];
+      if (!nextMap) { showToast('DISTRICT NOT WIRED', 1600); return; }
+      // Enter on the opposite side.  Portals sit at row 15 · east = col 0, west = col (cols-2).
+      const entryX = (dir > 0) ? 1 : (nextMap.cols - 2);
+      const entryY = 15;
+      const facing = (dir > 0) ? 'right' : 'left';
+      enterMap(nextDistId, entryX, entryY, facing);
+      const nextMeta = DISTRICT_META[nextDistId] || {};
+      showToast('◈ ' + ((nextMeta.name || nextDistId).toUpperCase()) + ' · ' + ((nextMeta.land || '').toUpperCase()), 2400);
+      return;
+    }
     const midY = Math.floor(routeMap.rows / 2);
     const spawnX = (dir > 0) ? 1 : routeMap.cols - 2;
     const spawnDir = (dir > 0) ? 'right' : 'left';

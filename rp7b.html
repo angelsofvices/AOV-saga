@@ -8536,13 +8536,13 @@ const MALEZOR_SQ_MAP = [
 const MALEZOR_CAPITAL_MAP = [
   '##############################', // 0
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 1
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 2
+  '<,,,,,,,,,,,,,,,,,,,,,,,,,,,,>', // 2
   '#,,hhhh,,,,,,,,,,,,,,,hhhh,,,#', // 3
   '#,,hhhh,,,,,,,,,,,,,,,hhhh,,,#', // 4
   '#,,hHhh,,,,,,,,,,,,,,,hhHh,,,#', // 5
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 6
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 7
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,K,,#', // 8
+  '<,,,,,,,,,,,,,,,,,,,,,,,,,K,,>', // 8
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 9
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 10
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 11
@@ -8560,13 +8560,13 @@ const MALEZOR_CAPITAL_MAP = [
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 23
   '#,,,,,T,,,,,,,,,,,,,,,,,,,,,,#', // 24
   '#,,,,,,,,,,,,,,,T,,,,,,,,,,,,#', // 25
-  '#,,,,,,,,,,,,,,T,,,,,,,,,,,,,#', // 26
+  '<,,,,,,,,,,,,,,T,,,,,,,,,,,,,>', // 26
   '#,,T,,,,,,,,,,,,,,,,,,,,,,,,,#', // 27
   '#,,,,,,,,,,,,,,,,,,,,,,,,,T,,#', // 28
   '#,,,,,K,,,,,,,,,,,,,,,,,GG,,,#', // 29
   '#,,,,T,,,,,,,,,,,,,,,,,,GG,,,#', // 30
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 31
-  '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 32
+  '<,,,,,,,,,,,,,,,,,,,,,,,,,,,,>', // 32
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 33
   '##############################' // 34
 ];
@@ -14848,13 +14848,20 @@ function drawTile(x, y, ch, mx, my) {
       break;
     }
     case 'I': {
-      // V3.11.3 · V3.11.4 — TOWN HALL WALL.  Surrounds the D door in a
-      // 3x3 civic-building footprint.  Blocker.  Deliberate visual
-      // OPPOSITE of the Seer Ministry HQ (which is grey stone + dark):
-      //   * WHITE ivory-stone walls
-      //   * DISTRICT-ACCENT trim, mortar, and window pane
-      //   * ALWAYS-GOLD peaked roof on the top row (the civic-building
-      //     signature of the Keepers of the Ancient Oath)
+      // ★ 2026-08-04 · If the district-specific town hall PNG is loaded,
+      // the overlay pass will render it on top — so just draw the floor
+      // and skip the placeholder brick.  Falls through to procedural
+      // drawing only when the asset hasn't loaded yet.
+      {
+        const _bd = (typeof baseDistrictId === 'function') ? baseDistrictId(_mapId) : null;
+        const _slug = _bd && DISTRICT_TOWNHALL && DISTRICT_TOWNHALL[_bd];
+        const _img  = _slug && BUILDING_IMGS && BUILDING_IMGS[_slug];
+        if (_img && _img.complete && _img.naturalWidth) {
+          drawTile(x, y, ',', mx, my);
+          break;
+        }
+      }
+      // V3.11.3 · V3.11.4 — TOWN HALL WALL (procedural fallback).
       const districtAccent = (_dm && _dm.accent) || '#e8c878';
       const HALL_WHITE = '#eee8dc';   // ivory-white stone
       const HALL_SHADE = '#cfc7b1';   // subtle shadow for depth
@@ -22878,23 +22885,60 @@ function malezorCircuitStep(currentMapId, dir) {
 
   // ---- Capital ----
   if (currentMapId === MALEZOR_HUB) {
+    // ★ 2026-08-04 · Capital hub compass routing.  Player's Y position on
+    // the border determines which spoke they enter, so a single east/west
+    // portal press can reach any of the 8 subdistricts based on where
+    // along the border they stepped off.  East border thirds:
+    //   top-third   → SQ (NE quadrant)
+    //   middle-third → HQ (E quadrant)
+    //   bottom-third → Battlegrounds (SE quadrant)
+    // West border thirds:
+    //   top-third    → MQ (NW / N slot)
+    //   middle-third → R  (Resident · default west route)
+    //   bottom-third → C  (SW · Shop)
+    // Extreme north (y < 3) always routes to MQ regardless of east/west.
+    // Extreme south (y > rows-4) always routes to Wildmarch Z regardless.
+    const cap = MAPS[MALEZOR_HUB]; if (!cap) return null;
+    const py  = game.player.y;
+    const rows = cap.rows;
+    const third1 = Math.floor(rows / 3);
+    const third2 = Math.floor(2 * rows / 3);
+
+    // Top / bottom extreme edges → dedicated spokes.
+    if (py < 3) {
+      // North exit → MQ
+      const t = MAPS['malezor_mq'];
+      if (t) return { map: 'malezor_mq', entry: { x: Math.floor(t.cols / 2), y: t.rows - 2, dir: 'up' } };
+    }
+    if (py > rows - 4) {
+      // South exit → Wildmarch Z
+      const t = MAPS['malezor_wild'];
+      if (t) return { map: 'malezor_wild', entry: { x: Math.floor(t.cols / 2), y: 1, dir: 'down' } };
+    }
+
     if (dir > 0) {
-      // East → Zarvane gate
-      if (malezorAllZonesCleared()) {
+      // East side · pick spoke by Y-third
+      let target = null;
+      if (py < third1)      target = 'malezor_sq';            // top-third → SQ
+      else if (py < third2) target = 'malezor_hq';            // mid → HQ
+      else                  target = 'malezor_battlegrounds'; // bot → B
+      // Special · if all zones cleared AND player exits at exact mid, cross to Zarvane
+      if (py === Math.floor(rows / 2) && malezorAllZonesCleared()) {
         const zar = MAPS['zarvane'];
         if (zar) return { map: 'zarvane', entry: { x: 1, y: Math.floor(zar.rows / 2), dir: 'right' } };
       }
-      // Gate closed → toast + block
-      const visited = (game.player && game.player.malezorZonesVisited) || {};
-      const remain = [...MALEZOR_ZONE_IDS].filter(id => !visited[id]).length;
-      if (typeof showToast === 'function') {
-        showToast('◈ Complete all ' + MALEZOR_ZONE_IDS.size + ' Malezor zones first · ' + remain + ' remaining', 3200);
-      }
+      const t = MAPS[target];
+      if (t) return { map: target, entry: { x: 1, y: Math.floor(t.rows / 2), dir: 'right' } };
       return null;
     } else {
-      // West → back to R (Resident zone)
-      const r = MAPS['malezor'];
-      if (r) return { map: 'malezor', entry: { x: r.cols - 2, y: Math.floor(r.rows / 2), dir: 'left' } };
+      // West side · pick spoke by Y-third
+      let target = null;
+      if (py < third1)      target = 'malezor_mq';    // top-third → MQ
+      else if (py < third2) target = 'malezor';       // mid → R (Resident · your start zone)
+      else                  target = 'malezor_shop';  // bot → C (Shop)
+      const t = MAPS[target];
+      if (t) return { map: target, entry: { x: t.cols - 2, y: Math.floor(t.rows / 2), dir: 'left' } };
+      return null;
     }
   }
   return null;

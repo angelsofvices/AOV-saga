@@ -171,38 +171,85 @@ player.position.set(0, 0, 0);
 scene.add(player);
 
 let playerMixer = null;
-const playerActions = {};   // { idle: AnimationAction, walk: ..., etc. }
+const playerActions = {};   // { idle, walk, run, attackLight, attackHeavy, jump }
+let currentAction = null;   // AnimationAction currently playing
 
+// Cross-fade helper · 0.15s blend between clips
+function playAction(name, fadeMs = 150) {
+  const next = playerActions[name];
+  if (!next || next === currentAction) return;
+  next.reset().setEffectiveWeight(1).fadeIn(fadeMs / 1000).play();
+  if (currentAction) currentAction.fadeOut(fadeMs / 1000);
+  currentAction = next;
+}
+
+// Visible RED CAPSULE placeholder · replaced when Idle.fbx streams in.
+// So we always know the player exists in the scene even if the FBX fails.
+const _placeholder = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.4, 1.0, 4, 8),
+  new THREE.MeshStandardMaterial({ color: 0xd83030 })
+);
+_placeholder.position.y = 0.9;
+_placeholder.castShadow = true;
+player.add(_placeholder);
+
+// Load rigged mesh + Idle animation first · walking.fbx clip attaches later
 new FBXLoader().load(`${MODELS}/animations/idle.fbx`, (fbx) => {
+  // FBX loaded successfully · drop the placeholder
+  player.remove(_placeholder);
+  _placeholder.geometry.dispose();
+  _placeholder.material.dispose();
   const model = fbx;
-  // Mixamo FBX comes at 100× Three.js scale (cm vs m) · normalize to ~1.9m tall
   model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3(); box.getSize(size);
-  // Auto-scale to a target height of 1.7m (standard humanoid so Mixamo anims match)
   const TARGET_H = 1.7;
   const scale = TARGET_H / size.y;
   model.scale.setScalar(scale);
-  // Re-measure after scale + shift feet to y=0
   const box2 = new THREE.Box3().setFromObject(model);
-  const size2 = new THREE.Vector3(); box2.getSize(size2);
   const center2 = new THREE.Vector3(); box2.getCenter(center2);
   model.position.y = -box2.min.y;
   model.position.x = -center2.x;
   model.position.z = -center2.z;
   player.add(model);
 
-  // Animation mixer · fire Idle immediately
+  playerMixer = new THREE.AnimationMixer(model);
+
   if (fbx.animations && fbx.animations.length) {
-    playerMixer = new THREE.AnimationMixer(model);
-    const idleClip = fbx.animations[0];
-    playerActions.idle = playerMixer.clipAction(idleClip);
-    playerActions.idle.play();
-    console.log(`[rp10] Idle animation started · ${idleClip.duration.toFixed(2)}s clip`);
-  } else {
-    console.warn('[rp10] Idle.fbx had no animation clips');
+    playerActions.idle = playerMixer.clipAction(fbx.animations[0]);
+    playAction('idle', 0);
+    console.log(`[rp10] idle clip loaded · ${fbx.animations[0].duration.toFixed(2)}s`);
   }
+
+  // ── Load additional clips onto the SAME mixer ──────────────────────
+  // Mixamo exports each animation with its own copy of the rig · we only
+  // want the animation TRACKS, so we grab clip[0] from each and re-target
+  // to the mixer bound to our first FBX's skeleton.
+  const extraClips = [
+    ['walk', 'walking.fbx'],
+    // ['run',         'running.fbx'],       // add as clips arrive
+    // ['attackLight', 'sword_slash.fbx'],
+    // ['attackHeavy', 'great_sword_slash.fbx'],
+    // ['jump',        'jumping.fbx'],
+  ];
+  for (const [name, file] of extraClips) {
+    new FBXLoader().load(`${MODELS}/animations/${file}`, (loaded) => {
+      if (!loaded.animations || !loaded.animations.length) {
+        console.warn(`[rp10] ${file} · no animation clip found`);
+        return;
+      }
+      const clip = loaded.animations[0];
+      clip.name = name;
+      playerActions[name] = playerMixer.clipAction(clip);
+      console.log(`[rp10] ${name} clip loaded · ${clip.duration.toFixed(2)}s`);
+    });
+  }
+
   console.log(`[rp10] player rig loaded · scaled to ${TARGET_H}m (was ${size.y.toFixed(2)}m native)`);
+}, undefined, (err) => {
+  console.error('[rp10] FAILED to load idle.fbx · placeholder stays visible', err);
+  const s = document.getElementById('load-status');
+  if (s) s.textContent = 'FBX load failed · check console';
 });
 
 const playerState = { vy: 0, onGround: true, speed: 5.5, runMult: 1.7 };
@@ -280,7 +327,9 @@ window.addEventListener('mouseup',   () => dragging = false);
 window.addEventListener('mousemove', (e) => {
   if (!dragging) return;
   const dx = e.clientX - lastMx, dy = e.clientY - lastMy;
-  camRig.yaw   -= dx * 0.005;
+  // ★ 2026-08-04 · Fixed mirror to match right-stick convention:
+  //   mouse RIGHT → camera pans clockwise · mouse DOWN → look down.
+  camRig.yaw   += dx * 0.005;
   camRig.pitch  = Math.max(0.1, Math.min(1.3, camRig.pitch - dy * 0.005));
   lastMx = e.clientX; lastMy = e.clientY;
 });
@@ -299,11 +348,13 @@ pollGamepad = function() {
 
 // ── Third-person character controller · WASD + Space jump ─────────
 function updatePlayer(dt) {
-  // Camera yaw from right stick (gamepad drives even when not dragging)
-  // ★ 2026-08-04 · RS Y axis flipped · pushing stick UP now pitches UP.
+  // Camera yaw + pitch from right stick.
+  // ★ 2026-08-04 · Fixed mirror · standard TP convention:
+  //   RS RIGHT → camera pans clockwise (yaw INCREASES)
+  //   RS DOWN  → look DOWN (pitch DECREASES)
   if (rsX || rsY) {
-    camRig.yaw   -= rsX * 2.4 * dt;
-    camRig.pitch  = Math.max(0.1, Math.min(1.3, camRig.pitch + rsY * 1.8 * dt));
+    camRig.yaw   += rsX * 2.4 * dt;
+    camRig.pitch  = Math.max(0.1, Math.min(1.3, camRig.pitch - rsY * 1.8 * dt));
   }
 
   const running = keys.has('shift');
@@ -325,9 +376,13 @@ function updatePlayer(dt) {
   if (move.lengthSq() > 0) {
     move.normalize().multiplyScalar(spd * dt);
     player.position.add(move);
-    // Face the direction of motion (character rotates smoothly)
     const targetYaw = Math.atan2(move.x, move.z);
     player.rotation.y += (targetYaw - player.rotation.y) * 0.25;
+    // ★ Anim state · switch to walk (or run · TBD when running clip lands)
+    playAction(running && playerActions.run ? 'run' : 'walk');
+  } else {
+    // ★ Anim state · idle when no movement
+    playAction('idle');
   }
 
   // Gravity + jump

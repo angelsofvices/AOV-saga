@@ -7835,7 +7835,7 @@ const MALEZOR_MAP = [
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 5
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 6
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 7
-  '#T,,,,,,,,,,,,,,,,,,,,,,,,,,T#', // 8 · corner shade trees
+  '#,,T,,,,,,,,,,,,,,,,,,,,,,,T,#', // 8 · corner shade trees (moved off walls)
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 9
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,', // 10 · E portal → WILD
   '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#', // 11
@@ -13841,6 +13841,31 @@ function walkable(x, y) {
     const _mw = _WIDE_FURN_MAP_WINGS[game.player.mapId];
     if (_mw) for (const _wch of _mw) {
       if (tileAt(x - 1, y) === _wch || tileAt(x + 1, y) === _wch) return false;
+    }
+  }
+  // ★ 2026-08-04 · Multi-tile BUILDING CANOPY collision.  Building anchors
+  // draw a sprite that occupies many tiles above/beside the door tile.  If
+  // we only block the anchor tile, the player can phase into the roof.
+  // For each canopy shape, scan a small neighborhood of the query tile
+  // (x, y) for the anchor char.  If found within the anchor's footprint,
+  // treat (x, y) as blocked.  Widths are HALF-WIDTHS (both sides of the
+  // anchor).  Heights are UPWARD only (sprite grows toward the top).
+  const _CANOPIES = {
+    'f': { halfW: 2, up: 6 },   // Rizer Academy / school   · 5 wide × 7 tall
+    'D': { halfW: 3, up: 7 },   // Town Hall                · 7 wide × 8 tall
+    'E': { halfW: 2, up: 5 },   // Seer HQ                  · 5 wide × 6 tall
+    'z': { halfW: 2, up: 5 },   // Zyrex Shop               · 5 wide × 6 tall
+    'H': { halfW: 1, up: 3 },   // Player home              · 3 wide × 4 tall
+    '2': { halfW: 1, up: 3 },   // Neighbor house           · 3 wide × 4 tall
+    'S': { halfW: 1, up: 2 },   // Shop                     · 3 wide × 3 tall
+    'i': { halfW: 2, up: 4 },   // Landmark                 · 5 wide × 5 tall
+    '@': { halfW: 0, up: 3 },   // Goddess statue           · 1 wide × 4 tall
+  };
+  for (const [ch, fp] of Object.entries(_CANOPIES)) {
+    for (let dy = 1; dy <= fp.up; dy++) {
+      for (let dx = -fp.halfW; dx <= fp.halfW; dx++) {
+        if (tileAt(x + dx, y + dy) === ch) return false;
+      }
     }
   }
   // V3.12 — Quiet Child sighting tiles block movement (they stand there)

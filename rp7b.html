@@ -8568,9 +8568,18 @@ function drawBetaPlayer(cx, cy, dir) {
     const S = BETA_PLAYER_SLEEP;
     const rowMap = { down: 0, left: 1, right: 2, up: 3 };
     const rowIdx = rowMap[dir] !== undefined ? rowMap[dir] : 0;
+    // ★ 2026-08-04 · Sleep sprite scale-down · match idle player scale.
+    // Idle player is 64×88 (feetY 80).  Sleep sheet is baked at 96×112
+    // (feetY 96) — 1.5× too wide.  Scale destination to 64 wide so the
+    // sleeping figure matches walking scale.  Height & feetY scale
+    // proportionally so the character stays anchored to the tile floor.
+    const SCALE = 64 / S.cellW;                 // 0.667
+    const destW = Math.round(S.cellW * SCALE);  // 64
+    const destH = Math.round(S.cellH * SCALE);  // ~75
+    const destFeetY = S.feetY * SCALE;          // 64
     drawBetaShadow(cx, cy + TILE / 2 - 2, 34, 0.32);
     ctx.drawImage(S.sheet, (sleep.frame % 4) * S.cellW, rowIdx * S.cellH, S.cellW, S.cellH,
-      Math.round(cx - S.cellW / 2), Math.round((cy + TILE / 2) - S.feetY), S.cellW, S.cellH);
+      Math.round(cx - destW / 2), Math.round((cy + TILE / 2) - destFeetY), destW, destH);
     return true;
   }
   // ★ 2026-08-02 · MOUNTS · hoverboard / wings render.
@@ -8783,14 +8792,23 @@ function drawBuildingOverlay(cam) {
         blit('battlegrounds_stone', x, y, 4, 3);
         continue;
       }
+      // ★ 2026-08-04 · Player home (H) render · was invisible after the
+      // hhhh body pattern was retired.  Use house_02 as the canonical
+      // player home so it looks distinct.  4×5 footprint matches the
+      // slightly-bigger scale the neighbor houses render at.
+      if (t === 'H') {
+        blit('house_02', x, y, 4, 5);
+        continue;
+      }
       // ★ 2026-08-04 · Neighbor house (2) · picks one of house_01..house_16
       // by deterministic hash of tile position, so each Residential zone
       // shows variety but the same house lands on the same tile every
-      // reload.  3×4 footprint · anchor bottom-center · aspect preserved.
+      // reload.  4×5 footprint · anchor bottom-center · aspect preserved
+      // (bumped from 3×4 per user 2026-08-04).
       if (t === '2') {
         const idx = ((x * 31 + y * 17) % 16) + 1;
         const slug = 'house_' + (idx < 10 ? '0' : '') + idx;
-        blit(slug, x, y, 3, 4);
+        blit(slug, x, y, 4, 5);
         continue;
       }
       // Landmark (i) · district-specific iconic prop (Capital only).
@@ -9588,6 +9606,50 @@ const DISTRICT_GEMCAVE = {
   xilnar:'gemlord_cave_onyx',    baelgor:'gemlord_cave_amber',   thardin:'gemlord_cave_anomaly',
   korathen:'gemlord_cave_ultra',
 };
+// ★ 2026-08-04 · Per-district horizontal border · a natural biome wall
+// (forest / sandstone / volcanic / etc.) that tiles across the top edge
+// of every outdoor subdistrict map to signal 'district boundary' without
+// looking like a UI wall.  Assets under assets/rp7/beta_assets/props/
+// border_<district>.png · loaded lazily · missing files no-op.
+const DISTRICT_BORDER = {};
+['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen']
+  .forEach(d => {
+    const img = new Image();
+    img.src = `assets/rp7/beta_assets/props/border_${d}.png`;
+    DISTRICT_BORDER[d] = img;
+  });
+
+// Draw the district border tiling horizontally along the top wall row of
+// the current outdoor map.  Sprite bottom anchors to the bottom of tile
+// row 1 (so it sits just above walkable ground while the canopy
+// overlays the north wall).  Skipped on interiors + gemlord caves.
+function drawDistrictBorder(cam) {
+  if (!game.player || !MAP) return;
+  const mapId = game.player.mapId || '';
+  // Only render on outdoor district maps (skip interiors, halls, caves).
+  const isInterior = /_(hall|shop|interior|bedroom)$/.test(mapId) ||
+    mapId === 'basement' || mapId === 'parents_bedroom' ||
+    /_cottage$/.test(mapId) || /_lodge$/.test(mapId) ||
+    mapId.indexOf('seer_hq') === 0 || mapId.indexOf('gemlord_cave') >= 0 ||
+    /_gemlord_cave$/.test(mapId);
+  if (isInterior) return;
+  const dist = baseDistrictId(mapId);
+  const img  = DISTRICT_BORDER[dist];
+  if (!img || !_imgOk(img)) return;
+  // Render at ~4 tiles tall · preserve aspect · tile horizontally.
+  const targetH = TILE * 4;
+  const scale = targetH / img.height;
+  const w = img.width  * scale;
+  const h = img.height * scale;
+  // Bottom of sprite at bottom of tile row 1 (y = 2 tiles in world).
+  const canvasY = (2 - cam.y) * TILE - h;
+  const canvasStartX = (0 - cam.x) * TILE;
+  const canvasEndX   = (MAP_COLS - cam.x) * TILE;
+  for (let cx = canvasStartX; cx < canvasEndX; cx += w) {
+    ctx.drawImage(img, cx, canvasY, w, h);
+  }
+}
+
 // Per-district Capital landmark · tile 'i' looks up the district then blits.
 const DISTRICT_LANDMARK = {
   malezor:  'landmark_fallen_titan',
@@ -13255,6 +13317,11 @@ for (const routeId of ROUTE_ORDER) {
 // Which map to enter when the player walks through a door tile.
 // entry[0..1] is the spawn tile on the destination map, facing 'up'.
 const DOOR_TARGETS = {
+  // ★ 2026-08-04 · Neighbor house door — walking into '2' warps to a
+  // placeholder home_interior (same as player H for now).  Per-house
+  // interiors get their own maps later.  Player exits back to the
+  // south-of-door tile via exitHouseToMalezor + tileSouthOfDoor.
+  '2': { map: 'home_interior', x: 11, y: 12, dir: 'up' },
   H: { map: 'home_interior',  x: 11, y: 12, dir: 'up' },   // ★ 2026-07-29 — living room expanded 1.5× → x tile moved to (11, 12)
   x: { map: 'malezor',        x: 2, y: 5, dir: 'down' },   // interior 'x' -> Malezor (south of H at 2,4)
   p: { map: 'bronze_cottage', x: 5, y: 5, dir: 'up',   key: 'bronze', label: 'Bronze Cottage' },
@@ -16519,6 +16586,9 @@ function renderMap() {
   // custom landmark markers, blits per-district building PNGs at scale.
   // Runs BEFORE enemies/gems so those composite on top of building bases.
   drawBuildingOverlay(cam);
+  // ★ 2026-08-04 · District horizontal border · tiled forest/rock/etc.
+  // along the top of every outdoor subdistrict in the district.
+  if (typeof drawDistrictBorder === 'function') drawDistrictBorder(cam);
   // ★ 2026-08-02 · Draw MORI enemies + dust piles + ground gems BEFORE the
   // player so player sprite composites on top.
   drawMoriEnemies(cam);
@@ -21118,6 +21188,11 @@ function tryInteract() {
   } else if (t === 'H') {
     // V2.10.1 — walk INTO H to enter (tryMove auto-triggers via DOOR_TARGETS).
     // Pressing Z from an adjacent tile also enters the home directly.
+    enterMap('home_interior', 6, 7, 'up');
+  } else if (t === '2') {
+    // ★ 2026-08-04 · Neighbor house door · placeholder enters the same
+    // home_interior for now (walk in / walk out proves the flow).  Per-
+    // house interiors slot in later.
     enterMap('home_interior', 6, 7, 'up');
   } else if (t === 'M') {
     handleMothergemTouch(tx, ty);

@@ -9673,11 +9673,17 @@ const DISTRICT_GEMCAVE = {
 // looking like a UI wall.  Assets under assets/rp7/beta_assets/props/
 // border_<district>.png · loaded lazily · missing files no-op.
 const DISTRICT_BORDER = {};
+const DISTRICT_BORDER_LEFT = {};   // ★ 2026-08-04 · dedicated vertical
+                                    // side asset per district · falls back
+                                    // to rotated top border if missing.
 ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen']
   .forEach(d => {
     const img = new Image();
     img.src = `assets/rp7/beta_assets/props/border_${d}.png`;
     DISTRICT_BORDER[d] = img;
+    const side = new Image();
+    side.src = `assets/rp7/beta_assets/props/border_${d}_left.png`;
+    DISTRICT_BORDER_LEFT[d] = side;
   });
 
 // Draw the district border along all four map edges.  Top row uses the
@@ -9722,30 +9728,48 @@ function drawDistrictBorder(cam) {
   }
   ctx.restore();
 
-  // === LEFT (rotated 90° CCW so canopy faces inward / rocks outward) =====
-  // Native sprite rotated: what was "horizontal along top" is now
-  // "vertical along left".  Tile down the side.
-  const sideW = TILE * 4;                       // depth into the map
-  const sideScale = sideW / img.height;         // scale so canopy depth = sideW
-  const sideSegH = img.width * sideScale;       // segment length along the side
-  ctx.save();
-  ctx.translate(canvasX0, canvasY0 + worldH);
-  ctx.rotate(-Math.PI / 2);                     // now drawing "up" on rotated canvas
-  // After rotation, x axis runs along the map's vertical, y axis into the map.
-  // Draw sprite bottom at (2*TILE - sideW) so canopy points into the map.
-  for (let cy = 0; cy < worldH; cy += sideSegH) {
-    ctx.drawImage(img, cy, 2 * TILE - sideW, sideSegH, sideW);
+  // === LEFT + RIGHT sides ================================================
+  // Prefer dedicated per-district side asset (border_<dist>_left.png ·
+  // native vertical orientation, canopy on the right of the image ·
+  // trunks/rocks on the left).  Right side uses same asset mirrored
+  // horizontally.  Falls back to rotated top-border if side asset missing.
+  const sideImg = DISTRICT_BORDER_LEFT[dist];
+  const sideW = TILE * 4;
+  if (sideImg && _imgOk(sideImg)) {
+    // Native vertical asset · width = depth into map · height = segment.
+    const scale = sideW / sideImg.width;
+    const segH  = sideImg.height * scale;
+    // LEFT · draw at x=0, tile down the height
+    for (let cy = 0; cy < worldH; cy += segH) {
+      ctx.drawImage(sideImg, canvasX0, canvasY0 + cy, sideW, segH);
+    }
+    // RIGHT · mirror horizontally so canopy still faces inward
+    ctx.save();
+    ctx.translate(canvasX0 + worldW, 0);
+    ctx.scale(-1, 1);
+    for (let cy = 0; cy < worldH; cy += segH) {
+      ctx.drawImage(sideImg, 0, canvasY0 + cy, sideW, segH);
+    }
+    ctx.restore();
+  } else {
+    // Fallback · rotate the horizontal top-border sprite 90° for each side.
+    const sideScale = sideW / img.height;
+    const sideSegH = img.width * sideScale;
+    ctx.save();
+    ctx.translate(canvasX0, canvasY0 + worldH);
+    ctx.rotate(-Math.PI / 2);
+    for (let cy = 0; cy < worldH; cy += sideSegH) {
+      ctx.drawImage(img, cy, 2 * TILE - sideW, sideSegH, sideW);
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.translate(canvasX0 + worldW, canvasY0);
+    ctx.rotate(Math.PI / 2);
+    for (let cy = 0; cy < worldH; cy += sideSegH) {
+      ctx.drawImage(img, cy, 2 * TILE - sideW, sideSegH, sideW);
+    }
+    ctx.restore();
   }
-  ctx.restore();
-
-  // === RIGHT (mirror of left — rotated 90° CW) ==========================
-  ctx.save();
-  ctx.translate(canvasX0 + worldW, canvasY0);
-  ctx.rotate(Math.PI / 2);
-  for (let cy = 0; cy < worldH; cy += sideSegH) {
-    ctx.drawImage(img, cy, 2 * TILE - sideW, sideSegH, sideW);
-  }
-  ctx.restore();
 
   // === DARK TUNNELS at portal gaps ======================================
   // Scan the border walls for `,` (portal gaps) and draw a black

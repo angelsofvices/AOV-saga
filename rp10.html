@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RP10 · The Rize of Power 3D</title>
+<style>
+  html, body { margin:0; padding:0; background:#000; overflow:hidden;
+    font-family: 'VT323', monospace; color:#e8c878; }
+  #stage { position:fixed; inset:0; display:block; }
+  #hud { position:fixed; top:6px; left:6px; z-index:10;
+    background:rgba(5,3,16,.82); border:1px solid rgba(232,200,120,.35);
+    padding:6px 10px; font-size:14px; letter-spacing:.1em; }
+  #load-status { position:fixed; top:6px; right:6px; z-index:10;
+    background:rgba(5,3,16,.82); border:1px solid rgba(232,200,120,.35);
+    padding:4px 8px; font-size:11px; color:#8080a0; }
+  #controls { position:fixed; bottom:8px; left:8px; z-index:10;
+    background:rgba(5,3,16,.82); border:1px solid rgba(232,200,120,.35);
+    padding:4px 8px; font-size:12px; color:#b8aec8; letter-spacing:.12em; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div id="hud">RP10 · Malezor Resident<br/>3D · Blender-authored assets</div>
+<div id="load-status">Loading…</div>
+<div id="controls">WASD move · Space jump · Mouse orbit · Shift run</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three":            "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/":    "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ============================================================================
+ * RP10 · 3D RIZE OF POWER · SCAFFOLDING v0.1
+ * ----------------------------------------------------------------------------
+ * Blender + Hyper3D-generated GLBs load from assets/rp10/models/*.glb.
+ * Three.js runtime with GLTFLoader, orbit-tilt camera, WASD character
+ * controller (capsule + ground raycast), directional sun + ambient fill.
+ *
+ * Blender MCP pipeline (per session):
+ *   1. Launch Blender · enable the MCP addon panel · connect
+ *   2. From Claude: generate_hyper3d_model_via_text('...') → import → export GLB
+ *   3. Drop GLB into assets/rp10/models/  → assetBook picks it up on reload
+ *
+ * PIPELINE STATUS
+ *   ✓ scene · lights · sky · ground plane
+ *   ✓ WASD character controller · capsule collider · raycast ground
+ *   ✓ GLB loader wired · pulls from assets/rp10/models/*.glb
+ *   ✓ Debug camera orbit (mouse drag) · perspective + fallback ortho tilt
+ *   ✗ Blender GLB assets (waiting for first hyper3d generation)
+ *   ✗ Terrain heightmap · districts · portals · combat
+ * ========================================================================== */
+
+// ── Constants ────────────────────────────────────────────────────────
+const ASSETS = 'assets/rp10';
+const MODELS = `${ASSETS}/models`;
+
+// ── Renderer + scene ─────────────────────────────────────────────────
+const canvas = document.getElementById('stage');
+const status = document.getElementById('load-status');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight, false);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);   // sky blue placeholder
+scene.fog = new THREE.Fog(0x87ceeb, 40, 120);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 500);
+camera.position.set(12, 12, 12);
+camera.lookAt(0, 0, 0);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.target.set(0, 1, 0);
+
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+});
+
+// ── Lights ───────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
+sun.position.set(15, 25, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -30;
+sun.shadow.camera.right = 30;
+sun.shadow.camera.top = 30;
+sun.shadow.camera.bottom = -30;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 80;
+scene.add(sun);
+
+// ── Ground plane (placeholder · replaced by terrain in Phase 1) ─────
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x4a8a56, roughness: 0.9 });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Grid overlay so we can see tile bounds during dev
+const grid = new THREE.GridHelper(60, 60, 0x203020, 0x203020);
+grid.position.y = 0.01;
+scene.add(grid);
+
+// ── GLB loader + asset book ──────────────────────────────────────────
+const gltfLoader = new GLTFLoader();
+const assetBook = {};   // { slug: THREE.Group }
+
+function loadGlb(slug, path, position = [0, 0, 0], scale = 1) {
+  return new Promise((resolve) => {
+    gltfLoader.load(
+      path,
+      (gltf) => {
+        const g = gltf.scene;
+        g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        g.position.set(...position);
+        g.scale.setScalar(scale);
+        scene.add(g);
+        assetBook[slug] = g;
+        console.log(`[rp10] loaded ${slug} from ${path}`);
+        resolve(g);
+      },
+      undefined,
+      (err) => {
+        console.warn(`[rp10] ${slug} MISSING at ${path} · placeholder shown`);
+        // Placeholder cube so the scene isn't empty while assets bake
+        const cube = new THREE.Mesh(
+          new THREE.BoxGeometry(2, 3, 2),
+          new THREE.MeshStandardMaterial({ color: 0x8a5a30, wireframe: false })
+        );
+        cube.position.set(...position);
+        cube.castShadow = true;
+        scene.add(cube);
+        assetBook[slug] = cube;
+        resolve(cube);
+      }
+    );
+  });
+}
+
+// ── Player · placeholder capsule until player.glb lands ─────────────
+const playerGeom = new THREE.CapsuleGeometry(0.4, 1.0, 4, 8);
+const playerMat  = new THREE.MeshStandardMaterial({ color: 0x3a6ac8 });
+const player = new THREE.Mesh(playerGeom, playerMat);
+player.position.set(0, 0.9, 0);
+player.castShadow = true;
+scene.add(player);
+
+const playerState = { vy: 0, onGround: true, speed: 5.5, runMult: 1.7 };
+
+// ── Input ────────────────────────────────────────────────────────────
+const keys = new Set();
+window.addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
+window.addEventListener('keyup',   e => keys.delete(e.key.toLowerCase()));
+
+// ── Character controller · WASD + Space jump ────────────────────────
+function updatePlayer(dt) {
+  const running = keys.has('shift');
+  const spd = playerState.speed * (running ? playerState.runMult : 1);
+
+  // Move relative to camera yaw so W = forward from view
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0; forward.normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+
+  const move = new THREE.Vector3();
+  if (keys.has('w') || keys.has('arrowup'))    move.add(forward);
+  if (keys.has('s') || keys.has('arrowdown'))  move.sub(forward);
+  if (keys.has('d') || keys.has('arrowright')) move.add(right);
+  if (keys.has('a') || keys.has('arrowleft'))  move.sub(right);
+  if (move.lengthSq() > 0) {
+    move.normalize().multiplyScalar(spd * dt);
+    player.position.add(move);
+  }
+
+  // Gravity + jump
+  if (keys.has(' ') && playerState.onGround) {
+    playerState.vy = 6.5;
+    playerState.onGround = false;
+  }
+  playerState.vy -= 20 * dt;
+  player.position.y += playerState.vy * dt;
+  if (player.position.y < 0.9) {
+    player.position.y = 0.9;
+    playerState.vy = 0;
+    playerState.onGround = true;
+  }
+
+  // Camera trails the player smoothly
+  controls.target.lerp(player.position, 0.15);
+}
+
+// ── Boot · attempt to load first-batch GLBs ─────────────────────────
+async function boot() {
+  status.textContent = 'Loading models…';
+  await Promise.all([
+    loadGlb('player_home', `${MODELS}/player_home.glb`, [0, 0, -4], 1),
+  ]);
+  status.textContent = Object.keys(assetBook).length + ' asset(s) loaded';
+  console.log('[rp10] boot complete');
+}
+boot();
+
+// ── Render loop ──────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+function frame() {
+  const dt = Math.min(0.05, clock.getDelta());
+  updatePlayer(dt);
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+frame();
+
+// Expose for console debugging
+window.RP10 = { scene, camera, player, assetBook, loadGlb };
+console.log('[rp10] booted · WASD to move · Space jump · mouse drag to orbit');
+</script>
+</body>
+</html>

@@ -185,8 +185,9 @@ player.position.set(0, 0, 0);
 scene.add(player);
 
 let playerMixer = null;
-let playerCharacter = null;   // ref to the loaded GLB scene for bbox targeting
-let playerAimHeight = 1.0;    // chest-height offset from player root for camera aim
+let playerCharacter = null;    // ref to the loaded GLB scene root
+let playerHipsBone = null;     // Mixamo mixamorigHips bone · used for camera aim
+let playerAimHeight = 1.0;     // Y offset above hips for lookAt target
 const playerActions = {};   // { idle, walk, run, attackLight, attackHeavy, jump }
 let currentAction = null;   // AnimationAction currently playing
 
@@ -261,13 +262,22 @@ new GLTFLoader().load(`${MODELS}/animations/idle.glb`, (gltf) => {
   const center2 = new THREE.Vector3(); box2.getCenter(center2);
 
   // Simplest possible placement · shift model so feet land at player root.
-  // The player Group's origin IS the character's foot position.
   model.position.set(-center2.x, -box2.min.y, -center2.z);
   player.add(model);
   playerCharacter = model;
 
-  playerAimHeight = size2.y * 0.55;
-  console.log(`[rp10] scaled · scale=${scale.toFixed(4)} · size=(${size2.x.toFixed(2)}, ${size2.y.toFixed(2)}, ${size2.z.toFixed(2)}) · model.pos=(${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)}) · aim=${playerAimHeight.toFixed(2)}`);
+  // ★ Grab the Mixamo HIPS bone · every frame we point the camera at THIS
+  // bone's world position (with a Y offset).  Bones follow skinning; bbox
+  // does not · so this is the only reliable way to track a skinned
+  // character's actual on-screen position.
+  model.traverse(o => {
+    if (o.isBone && /hips?$/i.test(o.name)) playerHipsBone = o;
+  });
+  if (playerHipsBone) console.log(`[rp10] tracking bone: ${playerHipsBone.name}`);
+  else                console.warn('[rp10] no hips bone found · camera falls back to player.position');
+
+  playerAimHeight = 0.6;   // aim ~60 cm above the hips = head-ish height
+  console.log(`[rp10] scaled · scale=${scale.toFixed(4)} · size=(${size2.x.toFixed(2)}, ${size2.y.toFixed(2)}, ${size2.z.toFixed(2)}) · model.pos=(${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)})`);
 
   playerMixer = new THREE.AnimationMixer(model);
 
@@ -456,14 +466,17 @@ function updatePlayer(dt) {
     playerState.onGround = true;
   }
 
-  // ★ Third-person camera · aim at (player root + playerAimHeight) which
-  // is set on GLB load to ~55% of the character's height (chest-ish).
-  // Simple + reliable · no per-frame bbox math.
-  const aimTarget = new THREE.Vector3(
-    player.position.x,
-    player.position.y + playerAimHeight,
-    player.position.z
-  );
+  // ★ Third-person camera · aim at the HIPS BONE world position + head-
+  // offset.  For skinned characters, bones move with animation and
+  // reflect the actual on-screen position of the mesh.  Falls back to
+  // player.position if the bone hasn't loaded yet.
+  const aimTarget = new THREE.Vector3();
+  if (playerHipsBone) {
+    playerHipsBone.getWorldPosition(aimTarget);
+    aimTarget.y += playerAimHeight;
+  } else {
+    aimTarget.set(player.position.x, player.position.y + 1.0, player.position.z);
+  }
 
   const cy = Math.cos(camRig.yaw), sy = Math.sin(camRig.yaw);
   const cp = Math.cos(camRig.pitch), sp = Math.sin(camRig.pitch);

@@ -202,23 +202,34 @@ new GLTFLoader().load(`${MODELS}/animations/idle.glb`, (gltf) => {
   _placeholder.material.dispose();
 
   const model = gltf.scene;
+  // ★ CRITICAL for skinned meshes · geometry.boundingBox is often null after
+  // GLTF load · Box3.setFromObject then returns garbage → scale explodes.
+  // Force-compute per-geometry bounding boxes BEFORE any bbox math.
   model.traverse(o => {
-    if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; }
+    if (o.isMesh || o.isSkinnedMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+      o.frustumCulled = false;   // skinned meshes shouldn't cull based on stale bbox
+      if (o.geometry) {
+        o.geometry.computeBoundingBox();
+        o.geometry.computeBoundingSphere();
+      }
+    }
   });
-  // Reset any transform baked into the root group · we'll compute fresh below.
-  model.position.set(0, 0, 0);
-  model.rotation.set(0, 0, 0);
-  model.scale.set(1, 1, 1);
   model.updateMatrixWorld(true);
+
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3(); box.getSize(size);
   const center = new THREE.Vector3(); box.getCenter(center);
-  console.log(`[rp10] raw model bbox · size=(${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}) center=(${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)})`);
+  console.log(`[rp10] raw model bbox · size=(${size.x.toFixed(3)}, ${size.y.toFixed(3)}, ${size.z.toFixed(3)}) center=(${center.x.toFixed(3)}, ${center.y.toFixed(3)}, ${center.z.toFixed(3)})`);
+
+  // Guard against zero-size bbox (skinned mesh w/o geometry) · default 1m tall
+  const rawH = size.y > 0.001 ? size.y : 1.0;
   const TARGET_H = 1.7;
-  const scale = TARGET_H / size.y;
+  const scale = TARGET_H / rawH;
   model.scale.setScalar(scale);
   model.updateMatrixWorld(true);
-  // Re-measure and shift to plant feet at y=0, horizontally centered at 0
+  // Re-measure with new scale
   const box2 = new THREE.Box3().setFromObject(model);
   const size2 = new THREE.Vector3(); box2.getSize(size2);
   const center2 = new THREE.Vector3(); box2.getCenter(center2);

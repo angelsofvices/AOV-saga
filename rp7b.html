@@ -163,8 +163,14 @@ function scanBBoxes(cvs, cols, rows){
 // Hardcoded fallback bboxes · used when chroma-key/scan throws on file://
 // Measured from the source PNGs via Python (r>180 & b>180 & g<80 mask).
 // Each entry: [bx, by, bw, bh] within its cell.
+// ★ 2026-08-05 · All three sheets are now 4x4 / 313x313 (user standard).
 const BBOX_FALLBACK = {
-  idle: [[[169,122,291,480],[157,122,251,480],[118,122,255,480],[68,122,286,480]]],
+  idle: [
+    [[122,53,141,247],[88,52,139,248],[54,53,141,247],[22,54,139,247]],
+    [[130,28,125,245],[99,28,124,245],[70,28,124,245],[34,28,123,245]],
+    [[123,4,119,309],[94,4,118,309],[58,4,120,309],[30,5,119,308]],
+    [[121,0,133,223],[89,0,132,223],[58,0,132,223],[25,0,132,223]],
+  ],
   walk: [
     [[123,54,158,259],[88,55,158,258],[53,54,159,259],[19,54,158,259]],
     [[131,0,144,293],[93,0,144,299],[58,0,143,294],[23,0,142,294]],
@@ -179,13 +185,22 @@ const BBOX_FALLBACK = {
   ],
 };
 
+// ★ Canonical head-to-feet source height across ALL character sheets.
+// This is the universal source→destination scale anchor — every source
+// pixel maps to the same destination pixel size no matter which sheet
+// or which cell.  Result: character body dimensions (belt width, hair
+// spike length, arm thickness) are IDENTICAL across idle/walk/run.
+// Measured from the tallest bbox across all sheets (idle row 2 = 309px).
+const CHAR_SOURCE_H = 309;
+
+// All three sheets share the same 4x4 layout · one canonical config.
+const SHEET_CFG = { cellW: 313, cellH: 313, cols: 4, rows: 4 };
 const RIZER = {
-  idle: { img: new Image(), cvs: null, cellW: 543, cellH: 724, cols: 4, rows: 1, bboxes: null, key: 'idle' },
-  walk: { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: null, key: 'walk' },
-  run:  { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: null, key: 'run'  },
+  idle: { img: new Image(), cvs: null, ...SHEET_CFG, bboxes: null, key: 'idle' },
+  walk: { img: new Image(), cvs: null, ...SHEET_CFG, bboxes: null, key: 'walk' },
+  run:  { img: new Image(), cvs: null, ...SHEET_CFG, bboxes: null, key: 'run'  },
 };
-const DIR_ROW  = { down: 0, left: 1, right: 2, up: 3 };
-const IDLE_COL = { down: 0, left: 1, right: 2, up: 3 };
+const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
 
 function loadAsset(bundle, url){
   return new Promise(resolve => {
@@ -352,15 +367,12 @@ function drawPlayer(){
   const src = bundle.cvs || bundle.img;
   if (!src) return;
 
-  // Which cell (row, col) is this state?
-  let row, col;
-  if (bundle === RIZER.idle) { row = 0; col = IDLE_COL[player.dir]; }
-  else                       { row = DIR_ROW[player.dir]; col = player.animFrame % bundle.cols; }
+  // All three sheets are 4x4 · row = direction · col = animation frame.
+  const row = DIR_ROW[player.dir];
+  const col = player.animFrame % bundle.cols;
 
-  // Pull the character's ACTUAL pixel bbox (not the padded cell).  This is
-  // the fix for cross-sheet size consistency: source == real character box,
-  // destination == fixed 2-tile head-to-feet, so the on-screen player is
-  // always the same size whether standing, walking, or running.
+  // Pull the character's actual pixel bbox (not the padded cell) so the
+  // source rect is the CHARACTER, not the whitespace around it.
   const bboxes = bundle.bboxes;
   let bx = 0, by = 0, bw = bundle.cellW, bh = bundle.cellH;
   if (bboxes && bboxes[row] && bboxes[row][col]){
@@ -369,10 +381,14 @@ function drawPlayer(){
   const sx = col * bundle.cellW + bx;
   const sy = row * bundle.cellH + by;
 
-  // Destination: character body always exactly 2 tiles head-to-feet.
-  // Width preserves the character's own pixel aspect ratio (not the cell's).
-  const drawH = TILE * 2;
-  const drawW = Math.max(1, Math.round(drawH * (bw / bh)));
+  // ★ UNIVERSAL scale: every source pixel = same dest pixel size, always.
+  // Anchor: canonical head-to-feet (309px source) maps to 2 tiles on screen.
+  // Result: character body dimensions are identical across idle/walk/run.
+  // Any bbox-height variance between poses = natural crouch/reach, not
+  // a size change — smaller bbox draws smaller because the pose IS smaller.
+  const SCALE = (TILE * 2) / CHAR_SOURCE_H;
+  const drawH = Math.max(1, Math.round(bh * SCALE));
+  const drawW = Math.max(1, Math.round(bw * SCALE));
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2);
   const dy = Math.floor(player.y * TILE + TILE - drawH);
 
@@ -384,6 +400,9 @@ let last = performance.now();
 function frame(now){
   const dt = now - last; last = now;
   tryMove(dt);
+  // Idle sway · 4 frames at 250ms each = 1s loop.  Walking/running frame
+  // advance still lives in tryMove where it ticks per tile step.
+  if (!player.moving) player.animFrame = Math.floor(now / 250) % 4;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGrass();

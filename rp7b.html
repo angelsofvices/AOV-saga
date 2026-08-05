@@ -13695,6 +13695,25 @@ function enterMap(mapId, spawnX, spawnY, dir) {
     game.player.districtsVisited = game.player.districtsVisited || {};
     if (!game.player.districtsVisited[mapId]) {
       game.player.districtsVisited[mapId] = true;
+      // ★ 2026-08-05 · OPEN WORLD · Wild-level fence UX signal.
+      // First visit into a district whose lo-band exceeds party avg+10
+      // shows a heads-up toast so the fence-by-difficulty feels fair.
+      try {
+        const band = (typeof V7_DISTRICT_BAND !== 'undefined') ? V7_DISTRICT_BAND[mapId] : null;
+        if (band) {
+          const party = (game.player.party || []).filter(z => z && (z.level || z.lv));
+          const avg   = party.length
+            ? party.reduce((s, z) => s + (z.level || z.lv || 1), 0) / party.length
+            : 1;
+          const meta = (typeof DISTRICT_META !== 'undefined') ? (DISTRICT_META[mapId] || {}) : {};
+          const name = (meta.name || mapId).toUpperCase();
+          if (band[0] > avg + 10 && typeof showToast === 'function') {
+            showToast('◈ ENTERING ' + name + ' · WILD Lv ' + band[0] + '-' + band[1] + ' · TURN BACK IF UNDER-LEVELED', 3600);
+          } else if (typeof showToast === 'function') {
+            showToast('◈ ' + name + ' · WILD Lv ' + band[0] + '-' + band[1], 2200);
+          }
+        }
+      } catch(_) {}
       save();
     }
   }
@@ -22953,14 +22972,12 @@ function malezorCircuitStep(currentMapId, dir) {
     const side = (dir > 0) ? 'east' : 'west';
     const target = exits[side];
     if (!target) return null;
-    if (target === 'zarvane' && !malezorAllZonesCleared()) {
-      const visited = (game.player && game.player.malezorZonesVisited) || {};
-      const remain = [...MALEZOR_ZONE_IDS].filter(id => !visited[id]).length;
-      if (typeof showToast === 'function') {
-        showToast('◈ Visit all ' + MALEZOR_ZONE_IDS.size + ' Malezor zones · ' + remain + ' remaining', 3200);
-      }
-      return null;
-    }
+    // ★ 2026-08-05 · OPEN WORLD PIVOT · Zarvane cross-gate REMOVED.
+    // Was: gated crossing until all Malezor zones visited.  Replaced by
+    // the wild-level fence (V7_DISTRICT_BAND · see distanceScaledWildLevel):
+    // stepping into Zarvane just means wild Zyrex there scale to lv 11-25,
+    // Andrannor to 21-40, ... Korathen to 91-100 — under-leveled parties
+    // simply lose the fight.  No portals gated by story flags.
     const entry = _entryOnSide(target, _oppositeSide(side));
     if (entry) return { map: target, entry };
     return null;
@@ -23082,25 +23099,12 @@ function travelDistrict(dir) {
       showToast('NO WAY WEST.', 1600);
       return;
     }
-    // V3.0 — Progression gate at the district exit.
-    // V3.17.29 — guard: skip gate when we're at the terminal district (no next district).
-    if (dir > 0 && currentIdx < DISTRICT_ORDER.length - 1) {
-      const nextDistrictId = DISTRICT_ORDER[currentIdx + 1];
-      const nextGroup = districtGroupIndex(nextDistrictId);
-      const currentGroup = districtGroupIndex(currentMapId);
-      if (nextGroup > currentGroup && !groupUnlocked(nextGroup)) {
-        const need = DISTRICT_GROUPS[nextGroup - 1] || [];
-        const flags = game.player.seerCommandersDefeated || {};
-        const remain = need.filter(d => !flags[d]).map(d => (DISTRICT_META[d] && DISTRICT_META[d].name) || d);
-        showDialog([
-          'A Ministry watchpost seals the border.',
-          'The eastern road is barred until every Seer Commander of this district group falls.',
-          remain.length ? `Still standing: ${remain.join(' · ')}.` : 'The way opens — this side is done.',
-          'Return to their Ministries.  Clear the basements.  Face the Commanders.',
-        ]);
-        return;
-      }
-    }
+    // ★ 2026-08-05 · OPEN WORLD PIVOT · commander group-gate REMOVED.
+    // Was V3.0: district→route step blocked until every Seer Commander
+    // in the current group was defeated (seerCommandersDefeated flags).
+    // Replaced by wild-level fence — any district is walkable but wild
+    // Zyrex level scales to V7_DISTRICT_BAND, so untrained parties die.
+    // Commanders still exist as bosses; they just don't gate travel.
     // Enter the ROUTE that sits between currentMapId and its neighbor.
     const routeIdx = (dir > 0) ? currentIdx : (currentIdx - 1);
     const routeId  = ROUTE_ORDER[routeIdx];
@@ -23147,25 +23151,8 @@ function travelDistrict(dir) {
     }
     const destMap = MAPS[destDistrictId];
     if (!destMap) { showToast('DISTRICT NOT WIRED', 1600); return; }
-    // V3.7.1 — Gate again on the far portal so the route can't be used
-    // to bypass the group seal.  Only fires on FORWARD travel across a
-    // group boundary; backtracking is always free.
-    if (dir > 0) {
-      const nextGroup    = districtGroupIndex(destDistrictId);
-      const currentGroup = districtGroupIndex(meta.west);
-      if (nextGroup > currentGroup && !groupUnlocked(nextGroup)) {
-        const need   = DISTRICT_GROUPS[nextGroup - 1] || [];
-        const flags  = game.player.seerCommandersDefeated || {};
-        const remain = need.filter(d => !flags[d]).map(d => (DISTRICT_META[d] && DISTRICT_META[d].name) || d);
-        showDialog([
-          'A Ministry watchpost seals the road ahead.',
-          'The eastern district is barred until every Seer Commander of this district group falls.',
-          remain.length ? `Still standing: ${remain.join(' · ')}.` : 'The way opens — this side is done.',
-          'Return west.  Clear the Ministries.  Face the Commanders.',
-        ]);
-        return;
-      }
-    }
+    // ★ 2026-08-05 · OPEN WORLD PIVOT · route→district commander gate REMOVED.
+    // Was V3.7.1 far-portal seal.  Superseded by wild-level fence.
     const destMeta = DISTRICT_META[destDistrictId];
     const midY = Math.floor(destMap.rows / 2);
     const spawnX = (dir > 0) ? 1 : destMap.cols - 2;

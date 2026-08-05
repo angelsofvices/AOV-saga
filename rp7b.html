@@ -169,43 +169,25 @@ function walkable(x, y){
 }
 
 // -- Per-cell content bboxes ------------------------------------------------
-// ★ 2026-08-05 · Sprite PNGs ship pre-keyed (alpha baked in at build time
-// via scripts/bake_sprite_alpha.py — see aov-sprite-4x4-standard memory).
-// No runtime chroma-key needed · sheets load with transparent bg on both
-// file:// and HTTP identically.
+// ★ 2026-08-05 · RIZER SPRITES PURGED · awaiting fresh delivery from user.
+// When new sheets arrive, they're pre-baked (alpha=0 bg via
+// scripts/bake_sprite_alpha.py) and bboxes get measured with the
+// flood-fill island filter (min 50-pixel cluster) before landing here.
+// Layout contract stays: 4x4 sheets (row=direction · col=frame · dims
+// per aov-sprite-4x4-standard memory).
 //
-// Bboxes are pre-measured with a flood-fill island filter (min 50-pixel
-// cluster) so magenta-adjacent noise from the source doesn't inflate the
-// bbox.  Threshold: r>180 & b>180 & g<80.  All three sheets are 4x4 /
-// 313x313 cells (user's standing sprite delivery standard).
-const BBOX_FALLBACK = {
-  idle: [
-    [[122,51,139,249],[88,52,137,249],[55,51,138,250],[23,52,136,249]],
-    [[131,34,124,239],[98,34,123,239],[68,34,123,239],[32,34,123,239]],
-    [[124,12,120,301],[92,12,121,301],[59,12,120,301],[27,12,120,301]],
-    [[122,0,132,223],[89,0,131,223],[58,0,130,223],[26,0,130,223]],
-  ],
-  walk: [
-    [[99,45,112,206],[73,45,109,202],[45,45,109,207],[18,45,109,202]],
-    [[99,30,104,195],[77,29,99,196],[49,30,105,195],[25,30,98,195]],
-    [[99,10,102,246],[73,10,96,246],[47,10,104,246],[19,10,96,246]],
-    [[99,0,108,182],[74,0,104,182],[47,0,106,182],[19,0,105,182]],
-  ],
-  run: [
-    [[104,55,116,192],[78,55,115,193],[49,54,117,193],[22,54,114,193]],
-    [[102,36,125,182],[72,33,126,185],[51,33,131,186],[25,33,122,185]],
-    [[91,16,114,240],[55,16,124,240],[33,18,123,238],[7,16,120,240]],
-    [[104,0,109,174],[71,0,112,174],[43,0,115,173],[18,0,111,173]],
-  ],
-};
+// Until sprites are re-added, drawPlayer draws a placeholder rectangle
+// so the player position is still visible during playtest.
+// Empty until user re-delivers rizer sprites.
+const BBOX_FALLBACK = { idle: null, walk: null, run: null };
 
-// Every sheet is 4x4 (row=direction, col=frame) but the CELL SIZE varies
-// per sheet · derived from image_dims / 4.  Bboxes are recorded in the
-// sheet's own pixel space, so this stays consistent.
+// ★ Rizer bundles are placeholders until user re-delivers sprites.
+// When new sheets arrive, fill in cellW/cellH from image_dims/4 and
+// wire bundle.img.src to the file path.
 const RIZER = {
-  idle: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, key: 'idle' },
-  walk: { img: new Image(), cellW: 256, cellH: 256, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk' },
-  run:  { img: new Image(), cellW: 256, cellH: 256, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run'  },
+  idle: { img: new Image(), cellW: 0, cellH: 0, cols: 4, rows: 4, bboxes: null, key: 'idle', loaded: false },
+  walk: { img: new Image(), cellW: 0, cellH: 0, cols: 4, rows: 4, bboxes: null, key: 'walk', loaded: false },
+  run:  { img: new Image(), cellW: 0, cellH: 0, cols: 4, rows: 4, bboxes: null, key: 'run',  loaded: false },
 };
 const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
 
@@ -220,11 +202,19 @@ function loadAsset(bundle, url){
 const GRASS = new Image();
 GRASS.src = 'assets/2D%20sprites/tiles/outdoor-grass.png';
 
+// ★ Rizer sprite loading disabled during reset · re-enable once user
+// re-delivers idle/walk/run.  When re-adding:
+//   1. Drop the three baked PNGs into /assets/2D sprites/rizer/
+//   2. Set RIZER.idle.cellW/cellH etc. to image_dims / 4
+//   3. Set RIZER.<sheet>.bboxes via BBOX_FALLBACK re-measurement
+//   4. Uncomment the Promise.all below
+/*
 Promise.all([
   loadAsset(RIZER.idle, 'assets/2D%20sprites/rizer/idle.png'),
   loadAsset(RIZER.walk, 'assets/2D%20sprites/rizer/walk.png'),
   loadAsset(RIZER.run,  'assets/2D%20sprites/rizer/run.png'),
-]).then(() => { console.log('[rp7b] rizer sheets ready · chroma-keyed'); });
+]).then(() => { console.log('[rp7b] rizer sheets ready'); });
+*/
 
 // -- Input · keyboard --------------------------------------------------------
 const keys = {};
@@ -389,7 +379,27 @@ function drawPlayer(){
   const useWalk = player.moving && RIZER.walk.loaded;
   const bundle  = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.loaded ? RIZER.idle : null);
 
-  if (!bundle) return;
+  // ★ PLACEHOLDER · sprites purged pending fresh delivery.  Draw a
+  // 1x2-tile gold rectangle at the player's feet-anchored position so
+  // world state is still visible during the reset.
+  if (!bundle){
+    const pw = TILE, ph = TILE * 2;
+    const pdx = Math.floor(player.x * TILE + (TILE - pw) / 2) - _cam.x;
+    const pdy = Math.floor(player.y * TILE + TILE - ph)       - _cam.y;
+    ctx.fillStyle = '#d4af37';
+    ctx.fillRect(pdx, pdy, pw, ph);
+    ctx.strokeStyle = '#0b0b10';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(pdx, pdy, pw, ph);
+    // tiny direction pip on the "front"
+    ctx.fillStyle = '#0b0b10';
+    const cx = pdx + pw/2, cy = pdy + ph*0.35;
+    if (player.dir === 'up')    ctx.fillRect(cx-3, pdy+4,   6, 4);
+    if (player.dir === 'down')  ctx.fillRect(cx-3, pdy+ph-8, 6, 4);
+    if (player.dir === 'left')  ctx.fillRect(pdx+4,    cy-3, 4, 6);
+    if (player.dir === 'right') ctx.fillRect(pdx+pw-8, cy-3, 4, 6);
+    return;
+  }
   const src = bundle.img;
   if (!src || !src.complete) return;
 

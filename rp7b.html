@@ -109,7 +109,10 @@ function walkable(x, y){
   return x >= 0 && y >= 0 && x < MAP_COLS && y < MAP_ROWS;
 }
 
-// -- Magenta chroma-key (canon: solid magenta → transparent) -----------------
+// -- Magenta chroma-key + per-cell content bbox scan -------------------------
+// Canon: 4-corner flood-fill.  Skeleton uses loosened tolerance to catch
+// anti-aliased magenta halos across all three sheets (sampled bg values
+// range r=203-234, g=10-38, b=202-230 · threshold r>180 & b>180 & g<80).
 function chromaKey(img){
   const c = document.createElement('canvas');
   c.width = img.naturalWidth; c.height = img.naturalHeight;
@@ -119,16 +122,67 @@ function chromaKey(img){
   const d = data.data;
   for (let i = 0; i < d.length; i += 4){
     const r = d[i], g = d[i+1], b = d[i+2];
-    if (r > 220 && b > 220 && g < 80) d[i+3] = 0;
+    if (r > 180 && b > 180 && g < 80) d[i+3] = 0;
   }
   cx.putImageData(data, 0, 0);
   return c;
 }
 
+// Scan the chroma-keyed canvas for each cell's opaque-pixel bounding box.
+// Returns [[bx,by,bw,bh], ...] indexed by row*cols + col.  Requires the
+// canvas to be non-tainted (i.e. same-origin or HTTP).
+function scanBBoxes(cvs, cols, rows){
+  const cw = Math.floor(cvs.width  / cols);
+  const ch = Math.floor(cvs.height / rows);
+  const cx = cvs.getContext('2d');
+  const out = [];
+  for (let r = 0; r < rows; r++){
+    const rowOut = [];
+    for (let c = 0; c < cols; c++){
+      const img = cx.getImageData(c*cw, r*ch, cw, ch);
+      const d = img.data;
+      let xmin = cw, xmax = -1, ymin = ch, ymax = -1;
+      for (let y = 0; y < ch; y++){
+        for (let x = 0; x < cw; x++){
+          if (d[(y*cw + x)*4 + 3] > 0){
+            if (x < xmin) xmin = x;
+            if (x > xmax) xmax = x;
+            if (y < ymin) ymin = y;
+            if (y > ymax) ymax = y;
+          }
+        }
+      }
+      if (xmax < 0) rowOut.push([0, 0, cw, ch]);
+      else          rowOut.push([xmin, ymin, xmax - xmin + 1, ymax - ymin + 1]);
+    }
+    out.push(rowOut);
+  }
+  return out;
+}
+
+// Hardcoded fallback bboxes · used when chroma-key/scan throws on file://
+// Measured from the source PNGs via Python (r>180 & b>180 & g<80 mask).
+// Each entry: [bx, by, bw, bh] within its cell.
+const BBOX_FALLBACK = {
+  idle: [[[169,122,291,480],[157,122,251,480],[118,122,255,480],[68,122,286,480]]],
+  walk: [
+    [[123,54,158,259],[88,55,158,258],[53,54,159,259],[19,54,158,259]],
+    [[131,0,144,293],[93,0,144,299],[58,0,143,294],[23,0,142,294]],
+    [[127,11,144,302],[90,14,143,299],[55,14,142,299],[18,13,143,300]],
+    [[121,0,156,251],[83,0,155,251],[48,0,154,250],[11,0,155,250]],
+  ],
+  run: [
+    [[128,51,154,262],[95,50,155,263],[57,53,159,260],[20,52,158,261]],
+    [[113,0,180,285],[81,0,181,285],[49,0,176,289],[6,0,183,285]],
+    [[109,12,165,301],[71,11,164,302],[33,11,280,302],[0,12,166,301]],
+    [[123,0,147,250],[84,0,145,250],[48,0,143,250],[17,0,143,250]],
+  ],
+};
+
 const RIZER = {
-  idle: { img: new Image(), cvs: null, cellW: 543, cellH: 724, cols: 4, rows: 1 },
-  walk: { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4 },
-  run:  { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4 },
+  idle: { img: new Image(), cvs: null, cellW: 543, cellH: 724, cols: 4, rows: 1, bboxes: null, key: 'idle' },
+  walk: { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: null, key: 'walk' },
+  run:  { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: null, key: 'run'  },
 };
 const DIR_ROW  = { down: 0, left: 1, right: 2, up: 3 };
 const IDLE_COL = { down: 0, left: 1, right: 2, up: 3 };
@@ -138,13 +192,15 @@ function loadAsset(bundle, url){
     bundle.img.onload = () => {
       try {
         bundle.cvs = chromaKey(bundle.img);
+        bundle.bboxes = scanBBoxes(bundle.cvs, bundle.cols, bundle.rows);
       } catch (e) {
         // Chrome taints canvases on file:// origins → getImageData throws.
-        // Fallback: leave cvs null; drawPlayer will use raw bundle.img
-        // (magenta background visible — signal to serve over HTTP).
-        console.warn('[rp7b] chroma-key failed for', url, '·', e.message,
-                     '· serve via http://localhost to enable transparency');
+        // Fall back to raw <img> + hardcoded bboxes so the character still
+        // renders at correct size (with a magenta background as diagnostic).
+        console.warn('[rp7b] chroma/bbox failed for', url, '·', e.message,
+                     '· serve via http://localhost for transparency');
         bundle.cvs = null;
+        bundle.bboxes = BBOX_FALLBACK[bundle.key] || null;
       }
       bundle.loaded = true;
       resolve();
@@ -282,16 +338,7 @@ function drawPlayer(){
   const useWalk = player.moving && RIZER.walk.loaded;
   const bundle  = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.loaded ? RIZER.idle : null);
 
-  // Target height: 2 tiles · width preserves source cell aspect.
-  const cellW = bundle ? bundle.cellW : 543;
-  const cellH = bundle ? bundle.cellH : 724;
-  const drawH = TILE * 2;
-  const drawW = Math.round(drawH * (cellW / cellH));
-
-  const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2);
-  const dy = Math.floor(player.y * TILE + TILE - drawH);
-
-  // shadow at the player's foot tile
+  // shadow at the player's foot tile (always renders even before sprites load)
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
   ctx.ellipse(
@@ -302,23 +349,34 @@ function drawPlayer(){
   ctx.fill();
 
   if (!bundle) return;
-
-  // Source: chroma-keyed canvas if available, else raw <img> (with magenta bg).
   const src = bundle.cvs || bundle.img;
   if (!src) return;
 
-  let sx, sy, sw, sh;
-  if (bundle === RIZER.idle){
-    const col = IDLE_COL[player.dir];
-    sw = RIZER.idle.cellW; sh = RIZER.idle.cellH;
-    sx = col * sw; sy = 0;
-  } else {
-    const row = DIR_ROW[player.dir];
-    const col = player.animFrame % bundle.cols;
-    sw = bundle.cellW; sh = bundle.cellH;
-    sx = col * sw; sy = row * sh;
+  // Which cell (row, col) is this state?
+  let row, col;
+  if (bundle === RIZER.idle) { row = 0; col = IDLE_COL[player.dir]; }
+  else                       { row = DIR_ROW[player.dir]; col = player.animFrame % bundle.cols; }
+
+  // Pull the character's ACTUAL pixel bbox (not the padded cell).  This is
+  // the fix for cross-sheet size consistency: source == real character box,
+  // destination == fixed 2-tile head-to-feet, so the on-screen player is
+  // always the same size whether standing, walking, or running.
+  const bboxes = bundle.bboxes;
+  let bx = 0, by = 0, bw = bundle.cellW, bh = bundle.cellH;
+  if (bboxes && bboxes[row] && bboxes[row][col]){
+    [bx, by, bw, bh] = bboxes[row][col];
   }
-  ctx.drawImage(src, sx, sy, sw, sh, dx, dy, drawW, drawH);
+  const sx = col * bundle.cellW + bx;
+  const sy = row * bundle.cellH + by;
+
+  // Destination: character body always exactly 2 tiles head-to-feet.
+  // Width preserves the character's own pixel aspect ratio (not the cell's).
+  const drawH = TILE * 2;
+  const drawW = Math.max(1, Math.round(drawH * (bw / bh)));
+  const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2);
+  const dy = Math.floor(player.y * TILE + TILE - drawH);
+
+  ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
 }
 
 // -- Loop --------------------------------------------------------------------

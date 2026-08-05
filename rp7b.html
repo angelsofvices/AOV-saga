@@ -66,7 +66,7 @@
 </head>
 <body>
   <div id="stage">
-    <canvas id="game" width="720" height="720"></canvas>
+    <canvas id="game" width="528" height="528"></canvas>
   </div>
   <div id="hud">RP7 · RIZE OF POWER · skeleton v0.3 · 15×15 grass</div>
   <div id="hint">Arrows / D-pad · × / X interact · L3 sprint toggle · Options pause</div>
@@ -95,6 +95,16 @@ const MAP_COLS = 15, MAP_ROWS = 15;
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
+
+// ★ Pokemon-GBA-style camera · player is ALWAYS at viewport center.
+// World draw offset is subtracted from every world-space coordinate so
+// the world scrolls under a fixed-center player.  Black shows past map
+// edges when the player is near a corner (no clamping).
+const _cam = { x: 0, y: 0 };
+function updateCamera(){
+  _cam.x = Math.floor(player.x * TILE + TILE / 2 - canvas.width  / 2);
+  _cam.y = Math.floor(player.y * TILE + TILE / 2 - canvas.height / 2);
+}
 
 // -- Player state ------------------------------------------------------------
 const player = {
@@ -219,12 +229,12 @@ Promise.all([
 // -- Input · keyboard --------------------------------------------------------
 const keys = {};
 addEventListener('keydown', e => {
-  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const k = e.key.toLowerCase();
   keys[k] = true;
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
 });
 addEventListener('keyup', e => {
-  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const k = e.key.toLowerCase();
   keys[k] = false;
 });
 
@@ -272,7 +282,8 @@ addEventListener('keyup', e => {
   function dispatchKey(type, key){
     const ev = new KeyboardEvent(type, { key: key, bubbles: true });
     window.dispatchEvent(ev);
-    const k = key.length === 1 ? key.toLowerCase() : key;
+    // Normalize to lowercase to match the keydown listener's keys map.
+    const k = key.toLowerCase();
     if (type === 'keydown') keys[k] = true; else keys[k] = false;
   }
 
@@ -353,18 +364,22 @@ function tryMove(dt){
 
 // -- Renderer ----------------------------------------------------------------
 function drawGrass(){
-  // 1:1 — the grass PNG IS one tile.  Scale the full image to TILE per cell.
+  // Cull to visible tile range so we only draw what's on screen.
+  const startCol = Math.max(0, Math.floor(_cam.x / TILE));
+  const endCol   = Math.min(MAP_COLS, Math.ceil((_cam.x + canvas.width)  / TILE));
+  const startRow = Math.max(0, Math.floor(_cam.y / TILE));
+  const endRow   = Math.min(MAP_ROWS, Math.ceil((_cam.y + canvas.height) / TILE));
   if (GRASS.complete && GRASS.naturalWidth){
-    for (let ty = 0; ty < MAP_ROWS; ty++){
-      for (let tx = 0; tx < MAP_COLS; tx++){
+    for (let ty = startRow; ty < endRow; ty++){
+      for (let tx = startCol; tx < endCol; tx++){
         ctx.drawImage(GRASS,
           0, 0, GRASS.naturalWidth, GRASS.naturalHeight,
-          tx * TILE, ty * TILE, TILE, TILE);
+          tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
       }
     }
   } else {
     ctx.fillStyle = '#3a6b3a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(-_cam.x, -_cam.y, MAP_COLS * TILE, MAP_ROWS * TILE);
   }
 }
 
@@ -401,8 +416,8 @@ function drawPlayer(){
   const drawH = TILE * 2;
   const rawW  = Math.round(drawH * (bw / bh));
   const drawW = Math.min(rawW, Math.round(TILE * 1.6));
-  const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2);
-  const dy = Math.floor(player.y * TILE + TILE - drawH);
+  const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
+  const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y;
 
   ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
 }
@@ -444,9 +459,9 @@ function tryInteract(){
 }
 let _lastInteract = 0;
 addEventListener('keydown', e => {
-  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const k = e.key.toLowerCase();
   // z (Cross), x (Square · Xbox-X), Enter, Space — all trigger interact.
-  if (k === 'z' || k === 'x' || k === 'Enter' || k === ' '){
+  if (k === 'z' || k === 'x' || k === 'enter' || k === ' '){
     const now = performance.now();
     if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
   }
@@ -475,8 +490,11 @@ function drawProp(p){
   const drawW = p.tileW * TILE;
   const drawH = Math.round(drawW * (bh / bw));   // preserve source aspect
   // Anchor: bottom-center of prop sits on bottom edge of tile (tileX, tileY)
-  const dx = Math.floor((p.tileX + 0.5) * TILE - drawW / 2);
-  const dy = Math.floor((p.tileY + 1)   * TILE - drawH);
+  const dx = Math.floor((p.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+  const dy = Math.floor((p.tileY + 1)   * TILE - drawH)     - _cam.y;
+  // Cull: skip props whose whole footprint is off-screen
+  if (dx + drawW < 0 || dx > canvas.width)  return;
+  if (dy + drawH < 0 || dy > canvas.height) return;
   ctx.drawImage(p.img, bx, by, bw, bh, dx, dy, drawW, drawH);
 }
 
@@ -488,6 +506,7 @@ function frame(now){
   // Idle sway · 4 frames at 250ms each = 1s loop.  Walking/running frame
   // advance still lives in tryMove where it ticks per tile step.
   if (!player.moving) player.animFrame = Math.floor(now / 250) % 4;
+  updateCamera();
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGrass();

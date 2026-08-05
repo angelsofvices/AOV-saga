@@ -90,11 +90,12 @@
 //////////////////////////////////////////////////////////////////////////////
 
 const TILE = 48;
-// World is 3 vertical grass bands · 15x15 each · stacked north→middle→south.
-// Middle band = rows 15-29 (the original 15x15 · contains the player home).
-// North band  = rows 0-14 (added 2026-08-05).
-// South band  = rows 30-44 (added 2026-08-05).
-const MAP_COLS = 15, MAP_ROWS = 45;
+// World is 4 vertical grass bands · 15x15 each · stacked N→N2→middle→S.
+// Northmost band  = rows 0-14  (added 2026-08-05 · holds MALEZOR TOWN HALL)
+// North band      = rows 15-29 (empty grass buffer)
+// Middle band     = rows 30-44 (contains PLAYER HOME · player spawn)
+// South band      = rows 45-59
+const MAP_COLS = 15, MAP_ROWS = 60;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -112,7 +113,7 @@ function updateCamera(){
 
 // -- Player state ------------------------------------------------------------
 const player = {
-  x: 7, y: 23,                  // tile coords · one below player home door (middle band)
+  x: 7, y: 38,                  // tile coords · one below player home door (middle band)
   dir: 'up',                    // start facing the home
   moving: false,
   moveCd: 0,
@@ -135,7 +136,7 @@ const WORLD_PROPS = [
     img: new Image(),
     src: 'assets/2D%20sprites/buildings/player-home.png',
     bbox: [121, 89, 1012, 1056],
-    tileX: 7, tileY: 22,      // door tile · middle band (rows 15-29)
+    tileX: 7, tileY: 37,      // door tile · middle band (rows 30-44)
     tileW: 5, tileH: 5,       // 5 tiles wide, 5 tiles tall on screen
     // Footprint offsets relative to (tileX, tileY) — the full 5x5 base is
     // solid.  Door tile IS blocked (player can't walk onto it) but is
@@ -152,6 +153,27 @@ const WORLD_PROPS = [
     })(),
     door:  [0, 0],                              // interact target at tile 7,7
     onInteract: () => showToast('◈ HOME · door is locked for now.', 2200),
+  },
+  {
+    id: 'malezor_town_hall',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/town-hall.png',
+    // Content bbox in source sheet (65, 27, 1273, 987) · aspect 1.29
+    bbox: [65, 27, 1273, 987],
+    tileX: 7, tileY: 10,       // door tile · new northmost band (rows 0-14)
+    tileW: 11, tileH: 9,       // 11 wide x 9 tall on screen (grand hall)
+    // Full 11x9 footprint solid · door tile at (7,10) is interact-only
+    footprint: (function(){
+      const f = [];
+      for (let dy = -8; dy <= 0; dy++){
+        for (let dx = -5; dx <= 5; dx++){
+          f.push([dx, dy]);
+        }
+      }
+      return f;
+    })(),
+    door:  [0, 0],
+    onInteract: () => showToast('◈ MALEZOR TOWN HALL · Closed for now.', 2200),
   },
 ];
 

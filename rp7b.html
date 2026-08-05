@@ -3,33 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>The AOV Saga · Rize of Power (RP7B · rewrite skeleton)</title>
-  <meta name="description" content="RP7 Rize of Power — clean-slate skeleton build. Canvas + controller + walking Rizer.">
+  <title>The AOV Saga · Rize of Power (RP7B · rewrite skeleton v0.2)</title>
+  <meta name="description" content="RP7 Rize of Power — clean-slate skeleton build v0.2. 30x30 grass field + rizer sprite.">
 
   <!-- ★ AOV controller boot · absolute paths (canon per aov-controller-priority) -->
   <script src="/aov-gamepad-boot.js"></script>
   <script>
-    // Game owns its own poller; keep the shared boot passive.
-    window.aovNavOwnedByGame  = true;
+    window.aovNavOwnedByGame    = true;
     window.aovNavRequireOverlay = true;
   </script>
   <script src="/card-game-controller-nav.js" data-gamepad-owner="native"></script>
 
   <style>
-    :root{
-      --bg: #0b0b10;
-      --hud: #f0eadf;
-      --accent: #d4af37;
-      --grass: #3a6b3a;
-      --grass2: #4a7d4a;
-      --path: #b39b6a;
-      --wall: #2c2c33;
-      --shadow: rgba(0,0,0,0.5);
-    }
     *{box-sizing:border-box}
     html,body{
       margin:0; padding:0; width:100%; height:100%;
-      background:var(--bg); color:var(--hud);
+      background:#000; color:#f0eadf;
       font-family: "Courier New", ui-monospace, Menlo, monospace;
       overflow:hidden; user-select:none;
     }
@@ -44,15 +33,16 @@
       image-rendering: pixelated;
       image-rendering: crisp-edges;
       background:#000;
-      max-width:100%; max-height:100%;
+      max-width:min(100vw, 100vh);
+      max-height:min(100vw, 100vh);
       width:auto; height:auto;
     }
     #hud{
       position:fixed; top:12px; left:12px;
       background: rgba(0,0,0,0.55);
-      color:var(--hud); padding:6px 10px;
+      color:#f0eadf; padding:6px 10px;
       font-size:12px; letter-spacing:.08em;
-      border-left:2px solid var(--accent);
+      border-left:2px solid #d4af37;
       pointer-events:none;
       z-index:5;
     }
@@ -68,138 +58,101 @@
       position:fixed; bottom:12px; right:12px;
       background: rgba(0,0,0,0.5);
       color:#ddd; font-size:11px; letter-spacing:.08em;
-      padding:6px 10px; border-right:2px solid var(--accent);
+      padding:6px 10px; border-right:2px solid #d4af37;
       pointer-events:none;
       z-index:5;
     }
-    #toast{
-      position:fixed; top:50%; left:50%;
-      transform:translate(-50%,-50%);
-      background:rgba(0,0,0,0.8); color:var(--accent);
-      padding:12px 20px; font-size:14px;
-      border:1px solid var(--accent);
-      opacity:0; transition: opacity 240ms ease;
-      pointer-events:none; z-index:10;
-    }
-    #toast.show{ opacity:1 }
   </style>
 </head>
 <body>
   <div id="stage">
-    <canvas id="game" width="480" height="336"></canvas>
+    <canvas id="game" width="720" height="720"></canvas>
   </div>
-  <div id="hud">RP7 · RIZE OF POWER · skeleton v0.1</div>
-  <div id="hint">WASD / arrows to move · Cross / Z to interact · Circle / Shift to run</div>
-  <div id="toast"></div>
+  <div id="hud">RP7 · RIZE OF POWER · skeleton v0.2 · 30×30 grass</div>
+  <div id="hint">WASD / arrows / D-pad · Circle / Shift to run</div>
 
 <script>
 'use strict';
 
 //////////////////////////////////////////////////////////////////////////////
-// RP7B · CLEAN-SLATE SKELETON (2026-08-05)
+// RP7B · CLEAN-SLATE SKELETON v0.2 (2026-08-05)
 //
-// Goals of this file:
-//   1. Canvas 2D tile-based render (30x20 grid, 20x14 viewport window)
-//   2. Working keyboard + PS5 DualSense input (canon controller mapping)
-//   3. Player sprite from assets/rp7/beta_assets/player (4-dir, 3-frame walk)
-//   4. Camera follows player, clamped to map bounds
-//   5. Nothing else — no battle, no NPCs, no dialog.  All that gets layered in.
-//
-// The 31k-line prior build lives at /rp7b-archive.html for reference.
+// - 30x30 tile map, ALL grass (720x720 canvas at TILE=24)
+// - Grass texture tiled from /assets/2D sprites/tiles/outdoor-grass.png
+// - Player sprite from /assets/2D sprites/rizer/{idle,walk,run}.png
+//     idle.png = 2172x724  (4 cols x 1 row · down/left/right/up · cell 543x724)
+//     walk.png = 1254x1254 (4 cols x 4 rows · 4 frames x 4 dirs   · cell 313x313)
+//     run.png  = 1254x1254 (same layout as walk)
+// - Magenta chroma-key applied on load (canon aov-chroma-key-canon).
+// - Full 30x30 visible at once — no camera scroll.
 //////////////////////////////////////////////////////////////////////////////
 
-const TILE = 24;                // px per tile
-const COLS = 20, ROWS = 14;     // viewport in tiles → 480×336 canvas
-const MAP_COLS = 30, MAP_ROWS = 20;
+const TILE = 24;
+const MAP_COLS = 30, MAP_ROWS = 30;
 
-// -- Map · Malezor Resident starter zone -------------------------------------
-// Legend:
-//   . = grass
-//   , = darker grass
-//   # = wall / border (non-walkable)
-//   T = tree (non-walkable, drawn on top)
-//   p = dirt path
-//   ~ = water (non-walkable)
-//
-// Simple hand-authored map — enough to prove movement + camera clamp.
-const MAP_STR = [
-  '##############################',
-  '#..T........,,,,,........T...#',
-  '#............,,,..........T..#',
-  '#....pppppppppppppppp........#',
-  '#....p..............p........#',
-  '#....p...T....T.....p.....T..#',
-  '#....p..............p........#',
-  '#....p......,,,,....p...T....#',
-  '#....pppppppppppppppp........#',
-  '#............,,,,............#',
-  '#.T........................T.#',
-  '#.....,,,,,,.................#',
-  '#....,,,,,,,,.......T........#',
-  '#....,,,,,,,,................#',
-  '#.....,,,,,,........T........#',
-  '#..T................,,,,,....#',
-  '#....................,,,,....#',
-  '#.T........T................T#',
-  '#............................#',
-  '##############################',
-];
-
-function tileAt(x, y){
-  if (x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) return '#';
-  return MAP_STR[y].charAt(x);
-}
-
-function walkable(x, y){
-  const t = tileAt(x, y);
-  return t === '.' || t === ',' || t === 'p';
-}
-
-// -- Player state ------------------------------------------------------------
-const player = {
-  x: 8, y: 10,               // tile coords
-  px: 8 * TILE, py: 10 * TILE,   // pixel coords (for smooth slide)
-  dir: 'down',
-  moving: false,
-  moveCd: 0,                 // ms cooldown between tile steps
-  animFrame: 0,              // 0..2 for 3-frame ping-pong
-  running: false,
-};
-
-// -- Sprite bundle · matches archive's BETA_PLAYER layout --------------------
-const SPRITE = {
-  idle: new Image(),
-  walk: new Image(),
-  run:  new Image(),
-  cellW: 64, cellH: 88, feetY: 80,
-  rows: { down: 0, left: 1, right: 2, up: 3 },
-  order: [0, 1, 2, 1],       // 3-frame ping-pong
-  ready: false,
-};
-SPRITE.idle.src = 'assets/rp7/beta_assets/player/player0_idle_native.png';
-SPRITE.walk.src = 'assets/rp7/beta_assets/player/player0_walk_native.png';
-SPRITE.run.src  = 'assets/rp7/beta_assets/player/player0_run_native.png';
-let _loaded = 0;
-[SPRITE.idle, SPRITE.walk, SPRITE.run].forEach(img => {
-  img.onload = () => { _loaded++; if (_loaded >= 3) SPRITE.ready = true; };
-  img.onerror = () => { console.warn('sprite load failed:', img.src); };
-});
-
-// -- Canvas + camera ---------------------------------------------------------
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-const camera = { x: 0, y: 0 };
-function updateCamera(){
-  // player-centered, clamped to map bounds; centered when map smaller than viewport
-  const halfW = (COLS * TILE) / 2, halfH = (ROWS * TILE) / 2;
-  const mapPxW = MAP_COLS * TILE, mapPxH = MAP_ROWS * TILE;
-  if (mapPxW <= COLS * TILE) camera.x = -(COLS * TILE - mapPxW) / 2;
-  else camera.x = Math.max(0, Math.min(mapPxW - COLS * TILE, player.px + TILE/2 - halfW));
-  if (mapPxH <= ROWS * TILE) camera.y = -(ROWS * TILE - mapPxH) / 2;
-  else camera.y = Math.max(0, Math.min(mapPxH - ROWS * TILE, player.py + TILE/2 - halfH));
+// -- Player state ------------------------------------------------------------
+const player = {
+  x: 15, y: 15,                 // tile coords (center of map)
+  dir: 'down',
+  moving: false,
+  moveCd: 0,
+  animFrame: 0,                 // walk 4-frame index 0..3
+  running: false,
+};
+function walkable(x, y){
+  return x >= 0 && y >= 0 && x < MAP_COLS && y < MAP_ROWS;
 }
+
+// -- Asset load + chroma-key (magenta → transparent) -------------------------
+// Canon: 4-corner flood-fill.  Skeleton uses tolerance-based magenta match
+// which handles the flat #FF00FF fill in these sheets without erasing outfit
+// pixels (the outfit is blue/gold — nothing near magenta).
+function chromaKey(img){
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const cx = c.getContext('2d');
+  cx.drawImage(img, 0, 0);
+  const data = cx.getImageData(0, 0, c.width, c.height);
+  const d = data.data;
+  for (let i = 0; i < d.length; i += 4){
+    const r = d[i], g = d[i+1], b = d[i+2];
+    // magenta: r high · g low · b high
+    if (r > 220 && b > 220 && g < 80) d[i+3] = 0;
+  }
+  cx.putImageData(data, 0, 0);
+  return c;
+}
+
+const RIZER = {
+  idle: { img: new Image(), cvs: null, cellW: 543, cellH: 724, cols: 4, rows: 1 },
+  walk: { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4 },
+  run:  { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4 },
+};
+// Direction row index (walk/run) — down, left, right, up.
+const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
+// Direction column (idle turnaround) — down, left, right, up.
+const IDLE_COL = { down: 0, left: 1, right: 2, up: 3 };
+
+function loadAsset(bundle, url){
+  return new Promise(resolve => {
+    bundle.img.onload = () => { bundle.cvs = chromaKey(bundle.img); resolve(); };
+    bundle.img.onerror = () => { console.warn('sprite load failed:', url); resolve(); };
+    bundle.img.src = url;
+  });
+}
+
+const GRASS = new Image();
+GRASS.src = 'assets/2D%20sprites/tiles/outdoor-grass.png';
+
+Promise.all([
+  loadAsset(RIZER.idle, 'assets/2D%20sprites/rizer/idle.png'),
+  loadAsset(RIZER.walk, 'assets/2D%20sprites/rizer/walk.png'),
+  loadAsset(RIZER.run,  'assets/2D%20sprites/rizer/run.png'),
+]).then(() => { console.log('[rp7b] rizer sheets ready · chroma-keyed'); });
 
 // -- Input · keyboard --------------------------------------------------------
 const keys = {};
@@ -208,15 +161,12 @@ addEventListener('keydown', e => {
   keys[k] = true;
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
 });
-addEventListener('keyup',   e => {
+addEventListener('keyup', e => {
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   keys[k] = false;
 });
 
-// -- Input · PS5 DualSense poller · canon mapping ----------------------------
-// Per aov-controller-priority memory:
-//   Cross(×)=z, Circle(○)=shift, Square(□)=x, Triangle(△)=y,
-//   L1=l, R1=r, Options=escape, D-pad+LS=WASD/arrows
+// -- PS5 DualSense poller · canon mapping ------------------------------------
 (function nativeGamepadController(){
   if (!navigator.getGamepads || window.__rp7SkeletonPad) return;
   window.__rp7SkeletonPad = true;
@@ -226,54 +176,36 @@ addEventListener('keyup',   e => {
   status.textContent = 'PRESS ANY BUTTON';
   document.body.appendChild(status);
 
+  // Cross=z · Circle=Shift · Square=x · Triangle=y · L1=l · R1=r
   const BTN = {
-    0: 'z',        // Cross / A
-    1: 'Shift',    // Circle / B
-    2: 'x',        // Square / X
-    3: 'y',        // Triangle / Y
-    4: 'l',        // L1
-    5: 'r',        // R1
-    8: '1',        // Create / Back
-    9: '3',        // Options / Start
-    12: 'ArrowUp',
-    13: 'ArrowDown',
-    14: 'ArrowLeft',
-    15: 'ArrowRight',
+    0: 'z', 1: 'Shift', 2: 'x', 3: 'y', 4: 'l', 5: 'r',
+    8: '1', 9: '3',
+    12: 'ArrowUp', 13: 'ArrowDown', 14: 'ArrowLeft', 15: 'ArrowRight',
   };
   const prev = {};
-  let activeIndex = null;
   const AXIS_DEAD = 0.35;
 
   function dispatchKey(type, key){
-    const isChar = key.length === 1;
-    const evKey = isChar ? key : key;
-    addEventListener; // no-op
-    const ev = new KeyboardEvent(type, { key: evKey, bubbles: true });
+    const ev = new KeyboardEvent(type, { key: key, bubbles: true });
     window.dispatchEvent(ev);
-    // also sync our keys map (skeleton uses lowercase single-char)
-    const k = isChar ? key.toLowerCase() : key;
-    if (type === 'keydown') keys[k] = true;
-    else                    keys[k] = false;
+    const k = key.length === 1 ? key.toLowerCase() : key;
+    if (type === 'keydown') keys[k] = true; else keys[k] = false;
   }
 
   function poll(){
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     let pad = null;
-    for (let i = 0; i < pads.length; i++){
-      if (pads[i]){ pad = pads[i]; if (activeIndex == null) activeIndex = i; break; }
-    }
+    for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
     if (pad){
       status.textContent = 'DUALSENSE · CONNECTED · × CONFIRM · ○ RUN';
       status.style.color = '#8f8';
-      // buttons
       pad.buttons.forEach((b, i) => {
         const key = BTN[i]; if (!key) return;
         const pressed = b.pressed || b.value > 0.5;
         if (pressed && !prev[i]) dispatchKey('keydown', key);
-        else if (!pressed && prev[i]) dispatchKey('keyup',  key);
+        else if (!pressed && prev[i]) dispatchKey('keyup', key);
         prev[i] = pressed;
       });
-      // left stick → WASD-style arrow keys
       const lx = pad.axes[0] || 0, ly = pad.axes[1] || 0;
       const axisState = {
         ArrowLeft:  lx < -AXIS_DEAD,
@@ -290,21 +222,10 @@ addEventListener('keyup',   e => {
     }
     requestAnimationFrame(poll);
   }
-  addEventListener('gamepadconnected', e => { if (activeIndex == null) activeIndex = e.gamepad.index; });
   requestAnimationFrame(poll);
 })();
 
-// -- Toast helper ------------------------------------------------------------
-const toastEl = document.getElementById('toast');
-let toastTimer = 0;
-function showToast(msg, ms){
-  toastEl.textContent = msg;
-  toastEl.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 1800);
-}
-
-// -- Movement logic · one tile step per moveCd interval ----------------------
+// -- Movement · one tile step per moveCd interval ----------------------------
 function tryMove(dt){
   player.moveCd -= dt;
   if (player.moveCd > 0) return;
@@ -314,161 +235,92 @@ function tryMove(dt){
   else if (keys['arrowdown']  || keys['s']) { dy =  1; dir = 'down';  }
   else if (keys['arrowleft']  || keys['a']) { dx = -1; dir = 'left';  }
   else if (keys['arrowright'] || keys['d']) { dx =  1; dir = 'right'; }
-  // gamepad also dispatches these arrow keys · normalized above.
 
-  if (!dx && !dy){
-    player.moving = false;
-    return;
-  }
+  if (!dx && !dy){ player.moving = false; return; }
 
   const nx = player.x + dx, ny = player.y + dy;
   player.dir = dir;
-
-  if (!walkable(nx, ny)){
-    player.moveCd = 120;    // brief bump cooldown
-    player.moving = false;
-    return;
-  }
+  if (!walkable(nx, ny)){ player.moveCd = 120; player.moving = false; return; }
 
   player.x = nx; player.y = ny;
-  player.px = nx * TILE; player.py = ny * TILE;
   player.moving = true;
-  player.animFrame = (player.animFrame + 1) % SPRITE.order.length;
+  player.animFrame = (player.animFrame + 1) % 4;
 
   const running = !!keys['shift'] || !!keys['b'];
   player.running = running;
   player.moveCd = running ? 90 : 170;
 }
 
-// -- Interact --------------------------------------------------------------
-function tryInteract(){
-  let fx = player.x, fy = player.y;
-  if (player.dir === 'up')    fy--;
-  if (player.dir === 'down')  fy++;
-  if (player.dir === 'left')  fx--;
-  if (player.dir === 'right') fx++;
-  const t = tileAt(fx, fy);
-  if (t === 'T') showToast('◈ A tree.  Nothing to harvest yet.');
-  else if (t === '#') showToast('◈ A wall.');
-  else if (t === ',') showToast('◈ Tall grass — wild encounter zone (not wired yet).');
-  else if (t === 'p') showToast('◈ Dirt path.');
-  else showToast('◈ Grass.  All quiet.');
-}
-
-let _lastInteract = 0;
-addEventListener('keydown', e => {
-  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  if (k === 'z' || k === 'Enter' || k === ' '){
-    const now = performance.now();
-    if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
-  }
-});
-
 // -- Renderer ----------------------------------------------------------------
-function drawMap(){
-  // draw only the visible tile range for the current camera
-  const startCol = Math.floor(camera.x / TILE);
-  const endCol   = startCol + COLS + 1;
-  const startRow = Math.floor(camera.y / TILE);
-  const endRow   = startRow + ROWS + 1;
-
-  for (let ty = startRow; ty < endRow; ty++){
-    for (let tx = startCol; tx < endCol; tx++){
-      const t = tileAt(tx, ty);
-      const dx = Math.floor(tx * TILE - camera.x);
-      const dy = Math.floor(ty * TILE - camera.y);
-
-      // ground base
-      if (t === '#'){
-        ctx.fillStyle = '#000';        // canonical GBA no-walk
-      } else if (t === ',' ) {
-        ctx.fillStyle = 'var-ignored';
-        ctx.fillStyle = '#2f5a2f';
-      } else if (t === 'p'){
-        ctx.fillStyle = '#b39b6a';
-      } else if (t === 'T'){
-        ctx.fillStyle = '#3a6b3a';     // grass under the tree
-      } else if (t === '~'){
-        ctx.fillStyle = '#3a5a8a';
-      } else {
-        ctx.fillStyle = '#3a6b3a';
-      }
-      ctx.fillRect(dx, dy, TILE, TILE);
-
-      // subtle grid on grass
-      if (t === '.' || t === ','){
-        ctx.fillStyle = 'rgba(0,0,0,0.06)';
-        ctx.fillRect(dx, dy + TILE - 1, TILE, 1);
-        ctx.fillRect(dx + TILE - 1, dy, 1, TILE);
-      }
-
-      // tree overlay
-      if (t === 'T'){
-        ctx.fillStyle = '#5a3a1e';
-        ctx.fillRect(dx + TILE/2 - 2, dy + TILE/2, 4, TILE/2 - 2);
-        ctx.fillStyle = '#2a5a2a';
-        ctx.beginPath();
-        ctx.arc(dx + TILE/2, dy + TILE/2 - 2, TILE/2 - 2, 0, Math.PI * 2);
-        ctx.fill();
+function drawGrass(){
+  // Tile the grass texture: sample a 96x96 block from the source (arbitrary,
+  // picks a nice-looking region), scale it to TILE and repeat across the map.
+  if (GRASS.complete && GRASS.naturalWidth){
+    const src = 96;   // source region size per tile
+    for (let ty = 0; ty < MAP_ROWS; ty++){
+      for (let tx = 0; tx < MAP_COLS; tx++){
+        // pick a source offset that varies subtly by tile position to avoid
+        // an obvious repeat pattern
+        const sx = ((tx * 37 + ty * 19) % (GRASS.naturalWidth  - src));
+        const sy = ((tx * 53 + ty * 29) % (GRASS.naturalHeight - src));
+        ctx.drawImage(GRASS, sx, sy, src, src, tx * TILE, ty * TILE, TILE, TILE);
       }
     }
+  } else {
+    // fallback flat green until image loads
+    ctx.fillStyle = '#3a6b3a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 }
 
 function drawPlayer(){
-  const sheet = player.running && SPRITE.run.complete ? SPRITE.run
-              : player.moving  && SPRITE.walk.complete ? SPRITE.walk
-              : SPRITE.idle;
-  const cw = SPRITE.cellW, ch = SPRITE.cellH;
-  const row = SPRITE.rows[player.dir] || 0;
-  const col = player.moving ? SPRITE.order[player.animFrame] : 1;   // stand col = 1
+  // Choose sheet: run > walk > idle (falls back to idle if run/walk not ready)
+  const useRun  = player.running && player.moving && RIZER.run.cvs;
+  const useWalk = player.moving && RIZER.walk.cvs;
+  const bundle  = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.cvs ? RIZER.idle : null);
 
-  // destination — scale sprite to ~1 tile wide (chibi override the raw 64×88)
+  // destination — character sized to ~1 tile wide × ~1.5 tile tall, feet on tile
   const drawW = TILE;
-  const drawH = TILE * (ch / cw);
-  const dx = Math.floor(player.px - camera.x + (TILE - drawW) / 2);
-  // feet-anchored: sprite foot y = feetY, aim to land at player.py + TILE
-  const dy = Math.floor(player.py - camera.y + TILE - drawH * (SPRITE.feetY / ch));
+  const drawH = TILE * 1.5;
+  const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2);
+  const dy = Math.floor(player.y * TILE + TILE - drawH);
 
-  if (sheet && sheet.complete && sheet.naturalWidth){
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.ellipse(dx + drawW/2, dy + drawH - 2, drawW/2 - 2, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.drawImage(sheet,
-      col * cw, row * ch, cw, ch,
-      dx, dy, drawW, drawH);
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(dx + drawW/2, dy + drawH - 2, drawW/2 - 2, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (!bundle) return;
+
+  let sx, sy, sw, sh;
+  if (bundle === RIZER.idle){
+    const col = IDLE_COL[player.dir];
+    sw = RIZER.idle.cellW; sh = RIZER.idle.cellH;
+    sx = col * sw; sy = 0;
   } else {
-    // fallback placeholder
-    ctx.fillStyle = '#d4af37';
-    ctx.fillRect(dx + 4, dy + 4, drawW - 8, drawH - 8);
+    const row = DIR_ROW[player.dir];
+    const col = player.animFrame % bundle.cols;
+    sw = bundle.cellW; sh = bundle.cellH;
+    sx = col * sw; sy = row * sh;
   }
+  ctx.drawImage(bundle.cvs, sx, sy, sw, sh, dx, dy, drawW, drawH);
 }
 
 // -- Loop --------------------------------------------------------------------
 let last = performance.now();
 function frame(now){
   const dt = now - last; last = now;
-
   tryMove(dt);
-  updateCamera();
-
-  // clear
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  drawMap();
+  drawGrass();
   drawPlayer();
-
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(now => { last = now; frame(now); });
 
-// welcome
-showToast('◈ RP7 · rewrite skeleton · walk with WASD', 2200);
-
-console.log('[rp7b] skeleton ready · v0.1 · map', MAP_COLS + 'x' + MAP_ROWS);
+console.log('[rp7b] skeleton v0.2 ready · map', MAP_COLS + 'x' + MAP_ROWS);
 </script>
 </body>
 </html>

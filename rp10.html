@@ -81,12 +81,14 @@ scene.fog = new THREE.Fog(0x87ceeb, 40, 120);
 // ★ Third-person perspective camera · trails behind the player
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 500);
 // Camera state · rotates around player based on right-stick / mouse
+// ★ Wind Waker-style TP camera · trails higher + closer, character in
+// lower third of frame, aims at head level so background fills view above.
 const camRig = {
   yaw:   0,           // horizontal rotation (radians)
-  pitch: 0.5,         // vertical tilt · ~30° above horizon
-  distance: 7,        // meters behind the player
-  height:   3,        // meters above player root
-  lookAtHeight: 1.2,  // aim at chest, not feet
+  pitch: 0.35,        // gentle downward tilt (~20° above horizon)
+  distance: 5,        // meters behind the player (closer than before)
+  height:   2.2,      // meters above player root
+  lookAtHeight: 1.5,  // aim near HEAD height so character sits in lower third
 };
 // ★ Initial camera at the TRAILING position (behind player · -Z) so the
 // first frame doesn't lerp through the character's face.
@@ -237,6 +239,12 @@ new GLTFLoader().load(`${MODELS}/animations/idle.glb`, (gltf) => {
   const size = new THREE.Vector3(); box.getSize(size);
   const center = new THREE.Vector3(); box.getCenter(center);
   console.log(`[rp10] raw model bbox · size=(${size.x.toFixed(3)}, ${size.y.toFixed(3)}, ${size.z.toFixed(3)}) center=(${center.x.toFixed(3)}, ${center.y.toFixed(3)}, ${center.z.toFixed(3)})`);
+  // ★ Dump scene tree so we can see any nested transforms baked into the GLB.
+  model.traverse(o => {
+    if (o !== model && (o.position.lengthSq() > 0.001 || Math.abs(o.rotation.x) + Math.abs(o.rotation.y) + Math.abs(o.rotation.z) > 0.01)) {
+      console.log(`  child ${o.name || o.type} · pos=(${o.position.x.toFixed(2)}, ${o.position.y.toFixed(2)}, ${o.position.z.toFixed(2)}) rot=(${o.rotation.x.toFixed(2)}, ${o.rotation.y.toFixed(2)}, ${o.rotation.z.toFixed(2)})`);
+    }
+  });
 
   // Guard against zero-size bbox (skinned mesh w/o geometry) · default 1m tall
   const rawH = size.y > 0.001 ? size.y : 1.0;
@@ -252,18 +260,14 @@ new GLTFLoader().load(`${MODELS}/animations/idle.glb`, (gltf) => {
   const size2 = new THREE.Vector3(); box2.getSize(size2);
   const center2 = new THREE.Vector3(); box2.getCenter(center2);
 
-  // Wrapper group holds the offset · model stays at (0,0,0) inside it ·
-  // player Group's world position is always the logical foot anchor.
-  const characterWrap = new THREE.Group();
-  characterWrap.add(model);
-  // Shift so bbox min.y (feet) sits at wrapper local 0 · horizontal center at 0
+  // Simplest possible placement · shift model so feet land at player root.
+  // The player Group's origin IS the character's foot position.
   model.position.set(-center2.x, -box2.min.y, -center2.z);
-  player.add(characterWrap);
-  playerCharacter = characterWrap;
+  player.add(model);
+  playerCharacter = model;
 
-  // Character-anchor offset for camera aim · center height above player root
-  playerAimHeight = size2.y * 0.55;   // aim slightly above center · roughly chest
-  console.log(`[rp10] scaled · scale=${scale.toFixed(4)} · size=(${size2.x.toFixed(2)}, ${size2.y.toFixed(2)}, ${size2.z.toFixed(2)}) · aim height ${playerAimHeight.toFixed(2)}`);
+  playerAimHeight = size2.y * 0.55;
+  console.log(`[rp10] scaled · scale=${scale.toFixed(4)} · size=(${size2.x.toFixed(2)}, ${size2.y.toFixed(2)}, ${size2.z.toFixed(2)}) · model.pos=(${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)}) · aim=${playerAimHeight.toFixed(2)}`);
 
   playerMixer = new THREE.AnimationMixer(model);
 

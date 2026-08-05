@@ -98,15 +98,61 @@ ctx.imageSmoothingEnabled = false;
 
 // -- Player state ------------------------------------------------------------
 const player = {
-  x: 7, y: 7,                   // tile coords · center of 15x15
-  dir: 'down',
+  x: 7, y: 8,                   // tile coords · one below player home door
+  dir: 'up',                    // start facing the home
   moving: false,
   moveCd: 0,
   animFrame: 0,
   running: false,
 };
+
+// -- World props (buildings, trees, decor) ----------------------------------
+// Each prop has:
+//   img      · <img> element (pre-baked RGBA · no runtime chroma-key)
+//   bbox     · [bx,by,bw,bh] in source pixels · crops out padding
+//   tileX/Y  · tile coordinates of the prop's FEET/BASE (bottom-center)
+//   tileW/H  · visual size in tiles (drawH derived from source aspect)
+//   footprint· array of [dx,dy] offsets from base tile that BLOCK movement
+//   door     · optional [dx,dy] tile that IS walkable within the footprint
+const WORLD_PROPS = [
+  {
+    id: 'player_home',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/player-home.png',
+    bbox: [121, 89, 1012, 1056],
+    tileX: 7, tileY: 7,       // door is here (tile 7,7)
+    tileW: 5, tileH: 5,       // 5 tiles wide, 5 tiles tall on screen
+    // Footprint offsets relative to (tileX, tileY) — all solid tiles
+    footprint: (function(){
+      const f = [];
+      for (let dy = -4; dy <= 0; dy++){
+        for (let dx = -2; dx <= 2; dx++){
+          if (dx === 0 && dy === 0) continue;   // skip door tile
+          f.push([dx, dy]);
+        }
+      }
+      return f;
+    })(),
+    door:  [0, 0],                              // tile 7,7 is the door itself
+    onInteract: () => showToast('◈ HOME · door is locked for now.', 2200),
+  },
+];
+
+// Load prop images (pre-baked · no chroma-key needed)
+WORLD_PROPS.forEach(p => { p.img.src = p.src; });
+
+// Collision map — computed once from prop footprints.  Key: `${x},${y}` → prop
+const _propBlocked = new Set();
+const _propDoors   = new Map();
+WORLD_PROPS.forEach(p => {
+  p.footprint.forEach(([dx,dy]) => _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`));
+  if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
+});
+
 function walkable(x, y){
-  return x >= 0 && y >= 0 && x < MAP_COLS && y < MAP_ROWS;
+  if (x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) return false;
+  if (_propBlocked.has(`${x},${y}`)) return false;
+  return true;
 }
 
 // -- Per-cell content bboxes ------------------------------------------------
@@ -328,6 +374,78 @@ function drawPlayer(){
   ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
 }
 
+// -- Toast (mid-screen ephemeral text) ---------------------------------------
+const toastEl = document.getElementById('toast') || (function(){
+  const el = document.createElement('div');
+  el.id = 'toast';
+  Object.assign(el.style, {
+    position:'fixed', top:'50%', left:'50%',
+    transform:'translate(-50%,-50%)',
+    background:'rgba(0,0,0,0.8)', color:'#d4af37',
+    padding:'12px 20px', fontSize:'14px',
+    border:'1px solid #d4af37', letterSpacing:'.08em',
+    opacity:'0', transition:'opacity 240ms ease',
+    pointerEvents:'none', zIndex:'10',
+  });
+  document.body.appendChild(el);
+  return el;
+})();
+let toastTimer = 0;
+function showToast(msg, ms){
+  toastEl.textContent = msg;
+  toastEl.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.style.opacity = '0', ms || 1800);
+}
+
+// -- Interact (Z / Cross / Enter / Space) ------------------------------------
+function tryInteract(){
+  let fx = player.x, fy = player.y;
+  if (player.dir === 'up')    fy--;
+  if (player.dir === 'down')  fy++;
+  if (player.dir === 'left')  fx--;
+  if (player.dir === 'right') fx++;
+  const doorProp = _propDoors.get(`${fx},${fy}`);
+  if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
+  showToast('◈ Grass.  All quiet.');
+}
+let _lastInteract = 0;
+addEventListener('keydown', e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'z' || k === 'Enter' || k === ' '){
+    const now = performance.now();
+    if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
+  }
+});
+
+// -- Props renderer · depth-sorted with player ------------------------------
+// Feet-Y anchor: props draw with their bottom edge on tileY.  Player is at
+// tile (px, py) with feet on the bottom of the tile.  Renderables with
+// smaller feet-Y draw first (further from camera).
+function drawWorldLayer(){
+  const renderables = [];
+  WORLD_PROPS.forEach(p => {
+    if (!p.img.complete || !p.img.naturalWidth) return;
+    renderables.push({ kind:'prop', prop:p, footY: p.tileY });
+  });
+  renderables.push({ kind:'player', footY: player.y });
+  renderables.sort((a,b) => a.footY - b.footY);
+  for (const r of renderables){
+    if (r.kind === 'prop') drawProp(r.prop);
+    else                   drawPlayer();
+  }
+}
+
+function drawProp(p){
+  const [bx, by, bw, bh] = p.bbox;
+  const drawW = p.tileW * TILE;
+  const drawH = Math.round(drawW * (bh / bw));   // preserve source aspect
+  // Anchor: bottom-center of prop sits on bottom edge of tile (tileX, tileY)
+  const dx = Math.floor((p.tileX + 0.5) * TILE - drawW / 2);
+  const dy = Math.floor((p.tileY + 1)   * TILE - drawH);
+  ctx.drawImage(p.img, bx, by, bw, bh, dx, dy, drawW, drawH);
+}
+
 // -- Loop --------------------------------------------------------------------
 let last = performance.now();
 function frame(now){
@@ -339,12 +457,12 @@ function frame(now){
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGrass();
-  drawPlayer();
+  drawWorldLayer();   // props + player, depth-sorted by feet-Y
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(now => { last = now; frame(now); });
 
-console.log('[rp7b] skeleton v0.3 ready · map', MAP_COLS + 'x' + MAP_ROWS, '· TILE', TILE);
+console.log('[rp7b] skeleton v0.7 ready · map', MAP_COLS + 'x' + MAP_ROWS, '· TILE', TILE, '· props', WORLD_PROPS.length);
 </script>
 </body>
 </html>

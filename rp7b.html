@@ -182,7 +182,12 @@ function walkable(x, y){
 // idle/walk pending re-delivery from user.
 const BBOX_FALLBACK = {
   idle: null,
-  walk: null,
+  walk: [
+    [[131,73,139,233],[95,73,138,233],[62,73,140,233],[29,73,138,233]],
+    [[133,48,124,221],[95,45,125,224],[69,46,123,223],[30,46,124,223]],
+    [[128,25,123,288],[98,25,123,288],[67,26,123,287],[33,25,121,288]],
+    [[128, 0,131,215],[94, 0,131,215],[59, 0,133,215],[28, 0,131,215]],
+  ],
   run: [
     [[131,70,143,236],[93,70,139,236],[59,70,146,236],[32,70,135,236]],
     [[127,46,152,221],[90,44,150,223],[66,44,154,223],[28,44,152,219]],
@@ -196,7 +201,7 @@ const BBOX_FALLBACK = {
 // wire bundle.img.src to the file path.
 const RIZER = {
   idle: { img: new Image(), cellW: 0,   cellH: 0,   cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, key: 'idle', loaded: false },
-  walk: { img: new Image(), cellW: 0,   cellH: 0,   cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk', loaded: false },
+  walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk', loaded: false },
   run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run',  loaded: false },
 };
 const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
@@ -213,9 +218,11 @@ const GRASS = new Image();
 GRASS.src = 'assets/2D%20sprites/tiles/outdoor-grass.png';
 
 // Rizer sprite loading · only sheets that have been delivered are wired.
-// idle/walk pending re-delivery from user.
-loadAsset(RIZER.run,  'assets/2D%20sprites/rizer/run.png')
-  .then(() => console.log('[rp7b] rizer RUN loaded'));
+// idle pending re-delivery from user.
+Promise.all([
+  loadAsset(RIZER.walk, 'assets/2D%20sprites/rizer/walk.png'),
+  loadAsset(RIZER.run,  'assets/2D%20sprites/rizer/run.png'),
+]).then(() => console.log('[rp7b] rizer WALK + RUN loaded'));
 
 // -- Input · keyboard --------------------------------------------------------
 const keys = {};
@@ -374,6 +381,26 @@ function drawGrass(){
   }
 }
 
+// ★ Universal per-source-pixel scale · anchored to tallest bbox seen
+// across ALL loaded rizer bundles.  This is the ONE knob for character
+// size — every source pixel maps to the same dest pixel size regardless
+// of which sheet or which cell.  Result: belt/hair/arms are identical
+// pixel size across idle/walk/run, and pose-height variance (crouch vs
+// full stride) renders naturally instead of being squished to a fixed
+// on-screen height.  Recomputed each frame in case a bundle just loaded.
+function currentCharScale(){
+  let maxH = 1;
+  for (const b of [RIZER.idle, RIZER.walk, RIZER.run]){
+    if (!b.loaded || !b.bboxes) continue;
+    for (const row of b.bboxes){
+      for (const cell of row){
+        if (cell[3] > maxH) maxH = cell[3];
+      }
+    }
+  }
+  return (2 * TILE) / maxH;
+}
+
 function drawPlayer(){
   // Pick the sheet based on state · fall back to whichever bundle is
   // actually loaded so we still see the character while sheets are
@@ -432,11 +459,28 @@ function drawPlayer(){
   // state — no bounce, no cross-sheet size drift.  A hard cap on drawW
   // stops any freak-wide bbox (extended-arm running frames) from over-
   // spreading beyond ~1.5 tiles wide.
-  const drawH = TILE * 2;
-  const rawW  = Math.round(drawH * (bw / bh));
-  const drawW = Math.min(rawW, Math.round(TILE * 1.6));
+  // ★ Universal per-pixel scale · same source→dest ratio for every cell
+  // and every sheet.  drawH varies naturally with bbox_h (crouching
+  // stride = slightly shorter · full stride = slightly taller) but
+  // character body pixels (belt, hair, face) stay identical size.
+  const SCALE = currentCharScale();
+  const drawH = Math.max(1, Math.round(bh * SCALE));
+  const drawW = Math.max(1, Math.round(bw * SCALE));
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
   const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y;
+
+  // Ground shadow at the CHARACTER'S actual feet · drawn just under
+  // dy+drawH (bbox bottom = feet).  Gives a solid ground contact so
+  // the sprite doesn't feel like it's floating.
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(
+    dx + drawW / 2,
+    dy + drawH - 2,
+    Math.min(drawW / 2, TILE / 2 - 2),
+    3, 0, 0, Math.PI * 2
+  );
+  ctx.fill();
 
   ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
 }

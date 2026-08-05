@@ -184,6 +184,7 @@ scene.add(player);
 
 let playerMixer = null;
 let playerCharacter = null;   // ref to the loaded GLB scene for bbox targeting
+let playerAimHeight = 1.0;    // chest-height offset from player root for camera aim
 const playerActions = {};   // { idle, walk, run, attackLight, attackHeavy, jump }
 let currentAction = null;   // AnimationAction currently playing
 
@@ -243,14 +244,26 @@ new GLTFLoader().load(`${MODELS}/animations/idle.glb`, (gltf) => {
   const scale = TARGET_H / rawH;
   model.scale.setScalar(scale);
   model.updateMatrixWorld(true);
-  // Re-measure with new scale
+
+  // Re-measure with new scale to find where the mesh actually sits after
+  // scaling · we'll compensate in an INNER wrapper so the outer player
+  // Group stays at its logical position (feet at world 0, at origin).
   const box2 = new THREE.Box3().setFromObject(model);
   const size2 = new THREE.Vector3(); box2.getSize(size2);
   const center2 = new THREE.Vector3(); box2.getCenter(center2);
+
+  // Wrapper group holds the offset · model stays at (0,0,0) inside it ·
+  // player Group's world position is always the logical foot anchor.
+  const characterWrap = new THREE.Group();
+  characterWrap.add(model);
+  // Shift so bbox min.y (feet) sits at wrapper local 0 · horizontal center at 0
   model.position.set(-center2.x, -box2.min.y, -center2.z);
-  console.log(`[rp10] scaled model · scale=${scale.toFixed(4)} · size=(${size2.x.toFixed(2)}, ${size2.y.toFixed(2)}, ${size2.z.toFixed(2)}) · placed at (${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)})`);
-  player.add(model);
-  playerCharacter = model;   // camera aim uses actual bbox of this each frame
+  player.add(characterWrap);
+  playerCharacter = characterWrap;
+
+  // Character-anchor offset for camera aim · center height above player root
+  playerAimHeight = size2.y * 0.55;   // aim slightly above center · roughly chest
+  console.log(`[rp10] scaled · scale=${scale.toFixed(4)} · size=(${size2.x.toFixed(2)}, ${size2.y.toFixed(2)}, ${size2.z.toFixed(2)}) · aim height ${playerAimHeight.toFixed(2)}`);
 
   playerMixer = new THREE.AnimationMixer(model);
 
@@ -399,11 +412,11 @@ function updatePlayer(dt) {
   const spd = playerState.speed * (running ? playerState.runMult : 1);
 
   // Movement is RELATIVE TO CAMERA YAW (third-person feel)
-  // ★ 2026-08-04 · forward vector flipped (was pointing at camera) · W now
-  // moves player AWAY from camera as expected · A/S/D follow the same fix.
+  //   forward = camera's forward on the ground plane
+  //   right   = camera's right on the ground plane (flipped after user reported A/D swapped)
   const yaw = camRig.yaw;
   const forward = new THREE.Vector3( Math.sin(yaw), 0,  Math.cos(yaw));
-  const right   = new THREE.Vector3( Math.cos(yaw), 0, -Math.sin(yaw));
+  const right   = new THREE.Vector3(-Math.cos(yaw), 0,  Math.sin(yaw));
 
   const move = new THREE.Vector3();
   if (keys.has('w') || keys.has('arrowup'))    move.add(forward);
@@ -439,21 +452,14 @@ function updatePlayer(dt) {
     playerState.onGround = true;
   }
 
-  // ★ Third-person camera · aim at the actual character world center
-  // (computed from the loaded GLB's bbox) not just player.position + fixed
-  // height offset · handles any centering mismatch inside the model.
+  // ★ Third-person camera · aim at (player root + playerAimHeight) which
+  // is set on GLB load to ~55% of the character's height (chest-ish).
+  // Simple + reliable · no per-frame bbox math.
   const aimTarget = new THREE.Vector3(
     player.position.x,
-    player.position.y + camRig.lookAtHeight,
+    player.position.y + playerAimHeight,
     player.position.z
   );
-  if (playerCharacter) {
-    const cb = new THREE.Box3().setFromObject(playerCharacter);
-    if (isFinite(cb.min.y) && isFinite(cb.max.y)) {
-      const c = new THREE.Vector3(); cb.getCenter(c);
-      aimTarget.set(c.x, c.y, c.z);
-    }
-  }
 
   const cy = Math.cos(camRig.yaw), sy = Math.sin(camRig.yaw);
   const cp = Math.cos(camRig.pitch), sp = Math.sin(camRig.pitch);

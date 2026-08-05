@@ -178,16 +178,26 @@ function walkable(x, y){
 //
 // Until sprites are re-added, drawPlayer draws a placeholder rectangle
 // so the player position is still visible during playtest.
-// Empty until user re-delivers rizer sprites.
-const BBOX_FALLBACK = { idle: null, walk: null, run: null };
+// Bboxes measured with flood-fill island filter (min 50-px cluster).
+// idle/walk pending re-delivery from user.
+const BBOX_FALLBACK = {
+  idle: null,
+  walk: null,
+  run: [
+    [[131,70,143,236],[93,70,139,236],[59,70,146,236],[32,70,135,236]],
+    [[127,46,152,221],[90,44,150,223],[66,44,154,223],[28,44,152,219]],
+    [[109,23,142,290],[81,23,139,290],[49,24,141,289],[11,23,147,290]],
+    [[127, 0,132,213],[91, 0,137,211],[55, 0,138,213],[28, 0,136,214]],
+  ],
+};
 
 // ★ Rizer bundles are placeholders until user re-delivers sprites.
 // When new sheets arrive, fill in cellW/cellH from image_dims/4 and
 // wire bundle.img.src to the file path.
 const RIZER = {
-  idle: { img: new Image(), cellW: 0, cellH: 0, cols: 4, rows: 4, bboxes: null, key: 'idle', loaded: false },
-  walk: { img: new Image(), cellW: 0, cellH: 0, cols: 4, rows: 4, bboxes: null, key: 'walk', loaded: false },
-  run:  { img: new Image(), cellW: 0, cellH: 0, cols: 4, rows: 4, bboxes: null, key: 'run',  loaded: false },
+  idle: { img: new Image(), cellW: 0,   cellH: 0,   cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, key: 'idle', loaded: false },
+  walk: { img: new Image(), cellW: 0,   cellH: 0,   cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk', loaded: false },
+  run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run',  loaded: false },
 };
 const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
 
@@ -202,19 +212,10 @@ function loadAsset(bundle, url){
 const GRASS = new Image();
 GRASS.src = 'assets/2D%20sprites/tiles/outdoor-grass.png';
 
-// ★ Rizer sprite loading disabled during reset · re-enable once user
-// re-delivers idle/walk/run.  When re-adding:
-//   1. Drop the three baked PNGs into /assets/2D sprites/rizer/
-//   2. Set RIZER.idle.cellW/cellH etc. to image_dims / 4
-//   3. Set RIZER.<sheet>.bboxes via BBOX_FALLBACK re-measurement
-//   4. Uncomment the Promise.all below
-/*
-Promise.all([
-  loadAsset(RIZER.idle, 'assets/2D%20sprites/rizer/idle.png'),
-  loadAsset(RIZER.walk, 'assets/2D%20sprites/rizer/walk.png'),
-  loadAsset(RIZER.run,  'assets/2D%20sprites/rizer/run.png'),
-]).then(() => { console.log('[rp7b] rizer sheets ready'); });
-*/
+// Rizer sprite loading · only sheets that have been delivered are wired.
+// idle/walk pending re-delivery from user.
+loadAsset(RIZER.run,  'assets/2D%20sprites/rizer/run.png')
+  .then(() => console.log('[rp7b] rizer RUN loaded'));
 
 // -- Input · keyboard --------------------------------------------------------
 const keys = {};
@@ -374,10 +375,18 @@ function drawGrass(){
 }
 
 function drawPlayer(){
-  // Pick the sheet based on state · fall back to whichever bundle is loaded.
+  // Pick the sheet based on state · fall back to whichever bundle is
+  // actually loaded so we still see the character while sheets are
+  // being re-delivered (e.g. only run is wired right now).
   const useRun  = player.running && player.moving && RIZER.run.loaded;
   const useWalk = player.moving && RIZER.walk.loaded;
-  const bundle  = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.loaded ? RIZER.idle : null);
+  let bundle = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.loaded ? RIZER.idle : null);
+  if (!bundle){
+    // Fall through in priority order: run > walk > idle
+    if (RIZER.run.loaded)       bundle = RIZER.run;
+    else if (RIZER.walk.loaded) bundle = RIZER.walk;
+    else if (RIZER.idle.loaded) bundle = RIZER.idle;
+  }
 
   // ★ PLACEHOLDER · sprites purged pending fresh delivery.  Draw a
   // 1x2-tile gold rectangle at the player's feet-anchored position so

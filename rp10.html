@@ -202,17 +202,28 @@ new GLTFLoader().load(`${MODELS}/animations/idle.glb`, (gltf) => {
   _placeholder.material.dispose();
 
   const model = gltf.scene;
-  model.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  model.traverse(o => {
+    if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; }
+  });
+  // Reset any transform baked into the root group · we'll compute fresh below.
+  model.position.set(0, 0, 0);
+  model.rotation.set(0, 0, 0);
+  model.scale.set(1, 1, 1);
+  model.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3(); box.getSize(size);
+  const center = new THREE.Vector3(); box.getCenter(center);
+  console.log(`[rp10] raw model bbox · size=(${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}) center=(${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)})`);
   const TARGET_H = 1.7;
   const scale = TARGET_H / size.y;
   model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+  // Re-measure and shift to plant feet at y=0, horizontally centered at 0
   const box2 = new THREE.Box3().setFromObject(model);
+  const size2 = new THREE.Vector3(); box2.getSize(size2);
   const center2 = new THREE.Vector3(); box2.getCenter(center2);
-  model.position.y = -box2.min.y;
-  model.position.x = -center2.x;
-  model.position.z = -center2.z;
+  model.position.set(-center2.x, -box2.min.y, -center2.z);
+  console.log(`[rp10] scaled model · scale=${scale.toFixed(4)} · size=(${size2.x.toFixed(2)}, ${size2.y.toFixed(2)}, ${size2.z.toFixed(2)}) · placed at (${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)})`);
   player.add(model);
 
   playerMixer = new THREE.AnimationMixer(model);

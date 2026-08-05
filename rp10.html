@@ -81,26 +81,27 @@ scene.fog = new THREE.Fog(0x87ceeb, 40, 120);
 // ★ Third-person perspective camera · trails behind the player
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 500);
 // Camera state · rotates around player based on right-stick / mouse
-// ★ Wind Waker-style TP camera · trails higher + closer, character in
-// lower third of frame, aims at head level so background fills view above.
+// ★ RP9 · proven third-person camera math · ported verbatim, retuned
+// for chibi scale (1.7m character instead of RP9's 4m Zyrex).
+// yaw = π puts camera BEHIND character facing +Z.  pitch controls
+// downward tilt.  Camera position formula uses sin/cos directly so
+// there's no ambiguity about direction.
 const camRig = {
-  yaw:   0,           // horizontal rotation (radians)
-  pitch: 0.35,        // gentle downward tilt (~20° above horizon)
-  distance: 5,        // meters behind the player (closer than before)
-  height:   2.2,      // meters above player root
-  lookAtHeight: 1.5,  // aim near HEAD height so character sits in lower third
+  yaw:      Math.PI,   // camera starts BEHIND player facing forward
+  pitch:    0.36,      // ~21° down tilt · Wind-Waker feel
+  distance: 5,         // meters back from player
+  baseY:    2.0,       // camera baseline height above player root
+  aimY:     1.4,       // aim slightly above character head (chibi 1.7m)
 };
-// ★ Initial camera at the TRAILING position (behind player · -Z) so the
-// first frame doesn't lerp through the character's face.
+// ★ Seed initial camera at RP9-style trailing position (no lerp overshoot)
 {
-  const _cy = Math.cos(camRig.yaw), _sy = Math.sin(camRig.yaw);
-  const _cp = Math.cos(camRig.pitch), _sp = Math.sin(camRig.pitch);
+  const horizontal = Math.cos(camRig.pitch) * camRig.distance;
   camera.position.set(
-    -_sy * camRig.distance * _cp,
-    camRig.height + camRig.distance * _sp * 0.5,
-    -_cy * camRig.distance * _cp
+    0 + Math.sin(camRig.yaw) * horizontal,
+    0 + camRig.baseY + Math.sin(camRig.pitch) * camRig.distance,
+    0 + Math.cos(camRig.yaw) * horizontal
   );
-  camera.lookAt(0, camRig.lookAtHeight, 0);
+  camera.lookAt(0, camRig.aimY, 0);
 }
 
 window.addEventListener('resize', () => {
@@ -392,11 +393,9 @@ window.addEventListener('mouseup',   () => dragging = false);
 window.addEventListener('mousemove', (e) => {
   if (!dragging) return;
   const dx = e.clientX - lastMx, dy = e.clientY - lastMy;
-  // ★ 2026-08-04 · Standard TP camera:
-  //   drag RIGHT → camera orbits clockwise around player (yaw −)
-  //   drag DOWN  → camera arcs higher, looks down more (pitch +)
-  camRig.yaw   -= dx * 0.005;
-  camRig.pitch  = Math.max(0.1, Math.min(1.3, camRig.pitch + dy * 0.005));
+  // RP9-standard sensitivity + direction
+  camRig.yaw   -= dx * 0.006;
+  camRig.pitch  = Math.max(0.12, Math.min(0.85, camRig.pitch + dy * 0.004));
   lastMx = e.clientX; lastMy = e.clientY;
 });
 // Right-stick camera look (added into pollGamepad via pad.axes[2],[3])
@@ -412,41 +411,39 @@ pollGamepad = function() {
   rsY = Math.abs(ry) > PAD_DEAD ? ry : 0;
 };
 
-// ── Third-person character controller · WASD + Space jump ─────────
+// ── Third-person character controller · RP9 pattern ────────────────
+const _fwd = new THREE.Vector3();
+const _rt  = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+const _desiredCam = new THREE.Vector3();
+
 function updatePlayer(dt) {
-  // Camera yaw + pitch from right stick (standard TP camera):
-  //   RS RIGHT → camera orbits CLOCKWISE around player (yaw −)
-  //   RS DOWN  → camera arcs HIGHER, looks DOWN more (pitch +)
+  // Right-stick camera look (gamepad)
   if (rsX || rsY) {
-    camRig.yaw   -= rsX * 2.4 * dt;
-    camRig.pitch  = Math.max(0.1, Math.min(1.3, camRig.pitch + rsY * 1.8 * dt));
+    camRig.yaw   -= rsX * 2.2 * dt;
+    camRig.pitch  = Math.max(0.12, Math.min(0.85, camRig.pitch + rsY * 1.5 * dt));
   }
 
   const running = keys.has('shift');
-  const spd = playerState.speed * (running ? playerState.runMult : 1);
+  const spd = (running ? 9.5 : 5.6);
 
-  // Movement is RELATIVE TO CAMERA YAW (third-person feel)
-  //   forward = camera's forward on the ground plane
-  //   right   = camera's right on the ground plane (flipped after user reported A/D swapped)
-  const yaw = camRig.yaw;
-  const forward = new THREE.Vector3( Math.sin(yaw), 0,  Math.cos(yaw));
-  const right   = new THREE.Vector3(-Math.cos(yaw), 0,  Math.sin(yaw));
+  // Build a move vector · x = strafe, y = forward
+  const mvX = (keys.has('d') || keys.has('arrowright') ? 1 : 0)
+            - (keys.has('a') || keys.has('arrowleft')  ? 1 : 0);
+  const mvY = (keys.has('w') || keys.has('arrowup')    ? 1 : 0)
+            - (keys.has('s') || keys.has('arrowdown')  ? 1 : 0);
 
-  const move = new THREE.Vector3();
-  if (keys.has('w') || keys.has('arrowup'))    move.add(forward);
-  if (keys.has('s') || keys.has('arrowdown'))  move.sub(forward);
-  if (keys.has('d') || keys.has('arrowright')) move.add(right);
-  if (keys.has('a') || keys.has('arrowleft'))  move.sub(right);
-
-  if (move.lengthSq() > 0) {
-    move.normalize().multiplyScalar(spd * dt);
-    player.position.add(move);
-    const targetYaw = Math.atan2(move.x, move.z);
-    player.rotation.y += (targetYaw - player.rotation.y) * 0.25;
-    // ★ Anim state · switch to walk (or run · TBD when running clip lands)
+  const moving = (mvX !== 0 || mvY !== 0);
+  if (moving) {
+    // RP9 formula · works, use it verbatim
+    _fwd.set(-Math.sin(camRig.yaw), 0, -Math.cos(camRig.yaw));
+    _rt.set(-_fwd.z, 0, _fwd.x);
+    _dir.copy(_fwd).multiplyScalar(mvY).addScaledVector(_rt, mvX).normalize();
+    player.position.addScaledVector(_dir, spd * dt);
+    // Face movement direction
+    player.rotation.y = Math.atan2(_dir.x, _dir.z);
     playAction(running && playerActions.run ? 'run' : 'walk');
   } else {
-    // ★ Anim state · idle when no movement
     playAction('idle');
   }
 
@@ -457,39 +454,21 @@ function updatePlayer(dt) {
   }
   playerState.vy -= 20 * dt;
   player.position.y += playerState.vy * dt;
-  // ★ 2026-08-04 · Feet-at-0 ground clamp · player is a Group with model
-  // shifted up so its own bbox.min sits at local y=0.  Group's world y
-  // therefore equals foot height.
   if (player.position.y < 0) {
     player.position.y = 0;
     playerState.vy = 0;
     playerState.onGround = true;
   }
 
-  // ★ Third-person camera · aim at the HIPS BONE world position + head-
-  // offset.  For skinned characters, bones move with animation and
-  // reflect the actual on-screen position of the mesh.  Falls back to
-  // player.position if the bone hasn't loaded yet.
-  const aimTarget = new THREE.Vector3();
-  if (playerHipsBone) {
-    playerHipsBone.getWorldPosition(aimTarget);
-    aimTarget.y += playerAimHeight;
-  } else {
-    aimTarget.set(player.position.x, player.position.y + 1.0, player.position.z);
-  }
-
-  const cy = Math.cos(camRig.yaw), sy = Math.sin(camRig.yaw);
-  const cp = Math.cos(camRig.pitch), sp = Math.sin(camRig.pitch);
-  const camOffX = -sy * camRig.distance * cp;
-  const camOffZ = -cy * camRig.distance * cp;
-  const camOffY = camRig.height + camRig.distance * sp * 0.5;
-  const targetCamPos = new THREE.Vector3(
-    aimTarget.x + camOffX,
-    aimTarget.y + camOffY,
-    aimTarget.z + camOffZ
+  // ★ RP9 camera position formula (proven working)
+  const horizontal = Math.cos(camRig.pitch) * camRig.distance;
+  _desiredCam.set(
+    player.position.x + Math.sin(camRig.yaw) * horizontal,
+    player.position.y + camRig.baseY + Math.sin(camRig.pitch) * camRig.distance,
+    player.position.z + Math.cos(camRig.yaw) * horizontal
   );
-  camera.position.lerp(targetCamPos, 0.18);
-  camera.lookAt(aimTarget);
+  camera.position.lerp(_desiredCam, 1 - Math.pow(0.002, dt));
+  camera.lookAt(player.position.x, player.position.y + camRig.aimY, player.position.z);
 }
 
 // ── Boot · attempt to load first-batch GLBs ─────────────────────────

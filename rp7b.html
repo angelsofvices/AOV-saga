@@ -213,7 +213,13 @@ const RIZER = {
   walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk', loaded: false },
   run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run',  loaded: false },
 };
-const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
+// ★ Right = mirrored Left (2026-08-05).  The artist's right-facing cells
+// include cape/coat pixels that extend well below the character's feet,
+// so bbox bottom lands on the cape tip and the actual feet render above
+// the tile ("floating right").  Aliasing right → left and horizontally
+// flipping on draw guarantees identical feet position + character size
+// between the two profiles.
+const DIR_ROW = { down: 0, left: 1, right: 1, up: 3 };
 
 function loadAsset(bundle, url){
   return new Promise(resolve => {
@@ -491,7 +497,16 @@ function drawPlayer(){
   );
   ctx.fill();
 
-  ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
+  // Horizontal flip when facing right (we source from the left row).
+  if (player.dir === 'right'){
+    ctx.save();
+    ctx.translate(dx + drawW, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(src, sx, sy, bw, bh, 0, dy, drawW, drawH);
+    ctx.restore();
+  } else {
+    ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
+  }
 }
 
 // -- Toast (mid-screen ephemeral text) ---------------------------------------

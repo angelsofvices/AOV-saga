@@ -161,9 +161,10 @@ function scanBBoxes(cvs, cols, rows){
 }
 
 // Hardcoded fallback bboxes · used when chroma-key/scan throws on file://
-// Measured from the source PNGs via Python (r>180 & b>180 & g<80 mask).
-// Each entry: [bx, by, bw, bh] within its cell.
-// ★ 2026-08-05 · All three sheets are now 4x4 / 313x313 (user standard).
+// Measured from the source PNGs via Python with a flood-fill island filter
+// (min 50 pixels per cluster) so magenta-adjacent noise doesn't inflate
+// the bbox.  Threshold: r>180 & b>180 & g<80.
+// ★ 2026-08-05 · All three sheets are 4x4 / 313x313 (user standard).
 const BBOX_FALLBACK = {
   idle: [
     [[122,53,141,247],[88,52,139,248],[54,53,141,247],[22,54,139,247]],
@@ -179,19 +180,11 @@ const BBOX_FALLBACK = {
   ],
   run: [
     [[128,51,154,262],[95,50,155,263],[57,53,159,260],[20,52,158,261]],
-    [[113,0,180,285],[81,0,181,285],[49,0,176,289],[6,0,183,285]],
-    [[109,12,165,301],[71,11,164,302],[33,11,280,302],[0,12,166,301]],
+    [[113,0,180,285],[81,0,181,285],[49,0,176,289],[6,39,183,246]],
+    [[109,12,165,301],[71,11,164,302],[33,11,169,302],[0,12,166,301]],
     [[123,0,147,250],[84,0,145,250],[48,0,143,250],[17,0,143,250]],
   ],
 };
-
-// ★ Canonical head-to-feet source height across ALL character sheets.
-// This is the universal source→destination scale anchor — every source
-// pixel maps to the same destination pixel size no matter which sheet
-// or which cell.  Result: character body dimensions (belt width, hair
-// spike length, arm thickness) are IDENTICAL across idle/walk/run.
-// Measured from the tallest bbox across all sheets (idle row 2 = 309px).
-const CHAR_SOURCE_H = 309;
 
 // All three sheets share the same 4x4 layout · one canonical config.
 const SHEET_CFG = { cellW: 313, cellH: 313, cols: 4, rows: 4 };
@@ -207,16 +200,19 @@ function loadAsset(bundle, url){
     bundle.img.onload = () => {
       try {
         bundle.cvs = chromaKey(bundle.img);
-        bundle.bboxes = scanBBoxes(bundle.cvs, bundle.cols, bundle.rows);
       } catch (e) {
         // Chrome taints canvases on file:// origins → getImageData throws.
-        // Fall back to raw <img> + hardcoded bboxes so the character still
-        // renders at correct size (with a magenta background as diagnostic).
-        console.warn('[rp7b] chroma/bbox failed for', url, '·', e.message,
+        // Fall back to raw <img> (with visible magenta bg as diagnostic).
+        console.warn('[rp7b] chroma-key failed for', url, '·', e.message,
                      '· serve via http://localhost for transparency');
         bundle.cvs = null;
-        bundle.bboxes = BBOX_FALLBACK[bundle.key] || null;
       }
+      // ★ Bboxes ALWAYS come from BBOX_FALLBACK (pre-measured with island
+      // filter · same result on file:// and HTTP).  Runtime scanBBoxes is
+      // available for future dynamic sprites but not used for the shipped
+      // Rizer sheets — the offline measurement handles edge-case noise
+      // (run row 2 col 2 had spurious 280-wide bbox from magenta halos).
+      bundle.bboxes = BBOX_FALLBACK[bundle.key] || null;
       bundle.loaded = true;
       resolve();
     };
@@ -381,14 +377,15 @@ function drawPlayer(){
   const sx = col * bundle.cellW + bx;
   const sy = row * bundle.cellH + by;
 
-  // ★ UNIVERSAL scale: every source pixel = same dest pixel size, always.
-  // Anchor: canonical head-to-feet (309px source) maps to 2 tiles on screen.
-  // Result: character body dimensions are identical across idle/walk/run.
-  // Any bbox-height variance between poses = natural crouch/reach, not
-  // a size change — smaller bbox draws smaller because the pose IS smaller.
-  const SCALE = (TILE * 2) / CHAR_SOURCE_H;
-  const drawH = Math.max(1, Math.round(bh * SCALE));
-  const drawW = Math.max(1, Math.round(bw * SCALE));
+  // ★ CONSTANT head-to-feet extent · every cell renders at drawH = 2 tiles.
+  // Width preserves the character's own bbox aspect ratio (not the cell's).
+  // Result: character is exactly 2 tiles head-to-feet in every animation
+  // state — no bounce, no cross-sheet size drift.  A hard cap on drawW
+  // stops any freak-wide bbox (extended-arm running frames) from over-
+  // spreading beyond ~1.5 tiles wide.
+  const drawH = TILE * 2;
+  const rawW  = Math.round(drawH * (bw / bh));
+  const drawW = Math.min(rawW, Math.round(TILE * 1.6));
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2);
   const dy = Math.floor(player.y * TILE + TILE - drawH);
 

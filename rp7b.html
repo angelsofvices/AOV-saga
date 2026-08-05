@@ -109,62 +109,16 @@ function walkable(x, y){
   return x >= 0 && y >= 0 && x < MAP_COLS && y < MAP_ROWS;
 }
 
-// -- Magenta chroma-key + per-cell content bbox scan -------------------------
-// Canon: 4-corner flood-fill.  Skeleton uses loosened tolerance to catch
-// anti-aliased magenta halos across all three sheets (sampled bg values
-// range r=203-234, g=10-38, b=202-230 · threshold r>180 & b>180 & g<80).
-function chromaKey(img){
-  const c = document.createElement('canvas');
-  c.width = img.naturalWidth; c.height = img.naturalHeight;
-  const cx = c.getContext('2d');
-  cx.drawImage(img, 0, 0);
-  const data = cx.getImageData(0, 0, c.width, c.height);
-  const d = data.data;
-  for (let i = 0; i < d.length; i += 4){
-    const r = d[i], g = d[i+1], b = d[i+2];
-    if (r > 180 && b > 180 && g < 80) d[i+3] = 0;
-  }
-  cx.putImageData(data, 0, 0);
-  return c;
-}
-
-// Scan the chroma-keyed canvas for each cell's opaque-pixel bounding box.
-// Returns [[bx,by,bw,bh], ...] indexed by row*cols + col.  Requires the
-// canvas to be non-tainted (i.e. same-origin or HTTP).
-function scanBBoxes(cvs, cols, rows){
-  const cw = Math.floor(cvs.width  / cols);
-  const ch = Math.floor(cvs.height / rows);
-  const cx = cvs.getContext('2d');
-  const out = [];
-  for (let r = 0; r < rows; r++){
-    const rowOut = [];
-    for (let c = 0; c < cols; c++){
-      const img = cx.getImageData(c*cw, r*ch, cw, ch);
-      const d = img.data;
-      let xmin = cw, xmax = -1, ymin = ch, ymax = -1;
-      for (let y = 0; y < ch; y++){
-        for (let x = 0; x < cw; x++){
-          if (d[(y*cw + x)*4 + 3] > 0){
-            if (x < xmin) xmin = x;
-            if (x > xmax) xmax = x;
-            if (y < ymin) ymin = y;
-            if (y > ymax) ymax = y;
-          }
-        }
-      }
-      if (xmax < 0) rowOut.push([0, 0, cw, ch]);
-      else          rowOut.push([xmin, ymin, xmax - xmin + 1, ymax - ymin + 1]);
-    }
-    out.push(rowOut);
-  }
-  return out;
-}
-
-// Hardcoded fallback bboxes · used when chroma-key/scan throws on file://
-// Measured from the source PNGs via Python with a flood-fill island filter
-// (min 50 pixels per cluster) so magenta-adjacent noise doesn't inflate
-// the bbox.  Threshold: r>180 & b>180 & g<80.
-// ★ 2026-08-05 · All three sheets are 4x4 / 313x313 (user standard).
+// -- Per-cell content bboxes ------------------------------------------------
+// ★ 2026-08-05 · Sprite PNGs ship pre-keyed (alpha baked in at build time
+// via scripts/bake_sprite_alpha.py — see aov-sprite-4x4-standard memory).
+// No runtime chroma-key needed · sheets load with transparent bg on both
+// file:// and HTTP identically.
+//
+// Bboxes are pre-measured with a flood-fill island filter (min 50-pixel
+// cluster) so magenta-adjacent noise from the source doesn't inflate the
+// bbox.  Threshold: r>180 & b>180 & g<80.  All three sheets are 4x4 /
+// 313x313 cells (user's standing sprite delivery standard).
 const BBOX_FALLBACK = {
   idle: [
     [[122,53,141,247],[88,52,139,248],[54,53,141,247],[22,54,139,247]],
@@ -189,33 +143,15 @@ const BBOX_FALLBACK = {
 // All three sheets share the same 4x4 layout · one canonical config.
 const SHEET_CFG = { cellW: 313, cellH: 313, cols: 4, rows: 4 };
 const RIZER = {
-  idle: { img: new Image(), cvs: null, ...SHEET_CFG, bboxes: null, key: 'idle' },
-  walk: { img: new Image(), cvs: null, ...SHEET_CFG, bboxes: null, key: 'walk' },
-  run:  { img: new Image(), cvs: null, ...SHEET_CFG, bboxes: null, key: 'run'  },
+  idle: { img: new Image(), ...SHEET_CFG, bboxes: BBOX_FALLBACK.idle, key: 'idle' },
+  walk: { img: new Image(), ...SHEET_CFG, bboxes: BBOX_FALLBACK.walk, key: 'walk' },
+  run:  { img: new Image(), ...SHEET_CFG, bboxes: BBOX_FALLBACK.run,  key: 'run'  },
 };
 const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
 
 function loadAsset(bundle, url){
   return new Promise(resolve => {
-    bundle.img.onload = () => {
-      try {
-        bundle.cvs = chromaKey(bundle.img);
-      } catch (e) {
-        // Chrome taints canvases on file:// origins → getImageData throws.
-        // Fall back to raw <img> (with visible magenta bg as diagnostic).
-        console.warn('[rp7b] chroma-key failed for', url, '·', e.message,
-                     '· serve via http://localhost for transparency');
-        bundle.cvs = null;
-      }
-      // ★ Bboxes ALWAYS come from BBOX_FALLBACK (pre-measured with island
-      // filter · same result on file:// and HTTP).  Runtime scanBBoxes is
-      // available for future dynamic sprites but not used for the shipped
-      // Rizer sheets — the offline measurement handles edge-case noise
-      // (run row 2 col 2 had spurious 280-wide bbox from magenta halos).
-      bundle.bboxes = BBOX_FALLBACK[bundle.key] || null;
-      bundle.loaded = true;
-      resolve();
-    };
+    bundle.img.onload  = () => { bundle.loaded = true; resolve(); };
     bundle.img.onerror = () => { console.error('[rp7b] sprite load failed:', url); resolve(); };
     bundle.img.src = url;
   });
@@ -360,8 +296,8 @@ function drawPlayer(){
   ctx.fill();
 
   if (!bundle) return;
-  const src = bundle.cvs || bundle.img;
-  if (!src) return;
+  const src = bundle.img;
+  if (!src || !src.complete) return;
 
   // All three sheets are 4x4 · row = direction · col = animation frame.
   const row = DIR_ROW[player.dir];

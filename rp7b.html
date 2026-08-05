@@ -135,8 +135,21 @@ const IDLE_COL = { down: 0, left: 1, right: 2, up: 3 };
 
 function loadAsset(bundle, url){
   return new Promise(resolve => {
-    bundle.img.onload = () => { bundle.cvs = chromaKey(bundle.img); resolve(); };
-    bundle.img.onerror = () => { console.warn('sprite load failed:', url); resolve(); };
+    bundle.img.onload = () => {
+      try {
+        bundle.cvs = chromaKey(bundle.img);
+      } catch (e) {
+        // Chrome taints canvases on file:// origins → getImageData throws.
+        // Fallback: leave cvs null; drawPlayer will use raw bundle.img
+        // (magenta background visible — signal to serve over HTTP).
+        console.warn('[rp7b] chroma-key failed for', url, '·', e.message,
+                     '· serve via http://localhost to enable transparency');
+        bundle.cvs = null;
+      }
+      bundle.loaded = true;
+      resolve();
+    };
+    bundle.img.onerror = () => { console.error('[rp7b] sprite load failed:', url); resolve(); };
     bundle.img.src = url;
   });
 }
@@ -264,11 +277,12 @@ function drawGrass(){
 }
 
 function drawPlayer(){
-  const useRun  = player.running && player.moving && RIZER.run.cvs;
-  const useWalk = player.moving && RIZER.walk.cvs;
-  const bundle  = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.cvs ? RIZER.idle : null);
+  // Pick the sheet based on state · fall back to whichever bundle is loaded.
+  const useRun  = player.running && player.moving && RIZER.run.loaded;
+  const useWalk = player.moving && RIZER.walk.loaded;
+  const bundle  = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.loaded ? RIZER.idle : null);
 
-  // Target height: 2 tiles.  Width preserves source cell aspect.
+  // Target height: 2 tiles · width preserves source cell aspect.
   const cellW = bundle ? bundle.cellW : 543;
   const cellH = bundle ? bundle.cellH : 724;
   const drawH = TILE * 2;
@@ -289,6 +303,10 @@ function drawPlayer(){
 
   if (!bundle) return;
 
+  // Source: chroma-keyed canvas if available, else raw <img> (with magenta bg).
+  const src = bundle.cvs || bundle.img;
+  if (!src) return;
+
   let sx, sy, sw, sh;
   if (bundle === RIZER.idle){
     const col = IDLE_COL[player.dir];
@@ -300,7 +318,7 @@ function drawPlayer(){
     sw = bundle.cellW; sh = bundle.cellH;
     sx = col * sw; sy = row * sh;
   }
-  ctx.drawImage(bundle.cvs, sx, sy, sw, sh, dx, dy, drawW, drawH);
+  ctx.drawImage(src, sx, sy, sw, sh, dx, dy, drawW, drawH);
 }
 
 // -- Loop --------------------------------------------------------------------

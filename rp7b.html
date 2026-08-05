@@ -69,7 +69,7 @@
     <canvas id="game" width="720" height="720"></canvas>
   </div>
   <div id="hud">RP7 · RIZE OF POWER · skeleton v0.3 · 15×15 grass</div>
-  <div id="hint">WASD / arrows / D-pad · Circle / Shift to run</div>
+  <div id="hint">Arrows / D-pad · × / X interact · L3 sprint toggle · Options pause</div>
 
 <script>
 'use strict';
@@ -103,7 +103,8 @@ const player = {
   moving: false,
   moveCd: 0,
   animFrame: 0,
-  running: false,
+  running: false,               // computed per-frame · true when moving fast
+  sprintLocked: false,          // toggled by L3 click · adds to shift/b sprint holds
 };
 
 // -- World props (buildings, trees, decor) ----------------------------------
@@ -181,10 +182,10 @@ const BBOX_FALLBACK = {
     [[99,0,108,182],[74,0,104,182],[47,0,106,182],[19,0,105,182]],
   ],
   run: [
-    [[128,51,154,262],[95,50,155,263],[57,53,159,260],[20,52,158,261]],
-    [[113,0,180,285],[81,0,181,285],[49,0,176,289],[6,39,183,246]],
-    [[109,12,165,301],[71,11,164,302],[33,11,169,302],[0,12,166,301]],
-    [[123,0,147,250],[84,0,145,250],[48,0,143,250],[17,0,143,250]],
+    [[104,55,116,192],[78,55,115,193],[49,54,117,193],[22,54,114,193]],
+    [[102,36,125,182],[72,33,126,185],[51,33,131,186],[25,33,122,185]],
+    [[91,16,114,240],[55,16,124,240],[33,18,123,238],[7,16,120,240]],
+    [[104,0,109,174],[71,0,112,174],[43,0,115,173],[18,0,111,173]],
   ],
 };
 
@@ -194,7 +195,7 @@ const BBOX_FALLBACK = {
 const RIZER = {
   idle: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, key: 'idle' },
   walk: { img: new Image(), cellW: 256, cellH: 256, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk' },
-  run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run'  },
+  run:  { img: new Image(), cellW: 256, cellH: 256, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run'  },
 };
 const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
 
@@ -227,7 +228,15 @@ addEventListener('keyup', e => {
   keys[k] = false;
 });
 
-// -- PS5 DualSense poller · canon mapping ------------------------------------
+// -- PS5 DualSense poller · full RP7 canon mapping ---------------------------
+// Per aov-controller-priority memory · buttons dispatch synthetic
+// KeyboardEvent so keyboard router still works.  Menus follow RP7 classic:
+//   Create   → '1' (SELECT · weapon-wheel select assignment)
+//   Touchpad → '2' (main menu)
+//   Options  → '3' (settings / pause)
+// L3 click (button 10) toggles sprint-lock — hands-free running until pressed
+// again.  Cross AND Square both fire interact so 'X' works in both PS5 ('×'
+// = Cross) and Xbox ('X' = left face button = Square) terminology.
 (function nativeGamepadController(){
   if (!navigator.getGamepads || window.__rp7SkeletonPad) return;
   window.__rp7SkeletonPad = true;
@@ -237,10 +246,25 @@ addEventListener('keyup', e => {
   status.textContent = 'PRESS ANY BUTTON';
   document.body.appendChild(status);
 
+  // Standard gamepad button index → key mapping
   const BTN = {
-    0: 'z', 1: 'Shift', 2: 'x', 3: 'y', 4: 'l', 5: 'r',
-    8: '1', 9: '3',
-    12: 'ArrowUp', 13: 'ArrowDown', 14: 'ArrowLeft', 15: 'ArrowRight',
+    0:  'z',        // Cross    · interact / confirm
+    1:  'Shift',    // Circle   · hold-sprint (parallel to Shift key)
+    2:  'x',        // Square   · interact (Xbox-X convention)
+    3:  'y',        // Triangle · reserved (attack later)
+    4:  'l',        // L1       · party menu
+    5:  'r',        // R1       · cycle mount
+    6:  'q',        // L2       · quests menu
+    7:  'i',        // R2       · items menu
+    8:  '1',        // Create   · SELECT assignment
+    9:  '3',        // Options  · settings / pause
+    // 10 (L3) handled separately below · SPRINT TOGGLE
+    11: 'Tab',      // R3       · weapon wheel
+    12: 'ArrowUp',
+    13: 'ArrowDown',
+    14: 'ArrowLeft',
+    15: 'ArrowRight',
+    17: '2',        // Touchpad · main menu
   };
   const prev = {};
   const AXIS_DEAD = 0.35;
@@ -257,15 +281,30 @@ addEventListener('keyup', e => {
     let pad = null;
     for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
     if (pad){
-      status.textContent = 'DUALSENSE · CONNECTED · × CONFIRM · ○ RUN';
+      const lock = player.sprintLocked ? ' · SPRINT LOCKED' : '';
+      status.textContent = 'DUALSENSE · CONNECTED · × INTERACT · L3 SPRINT' + lock;
       status.style.color = '#8f8';
+
+      // ★ L3 click (button 10) · sprint toggle · edge-triggered on press.
+      const l3 = pad.buttons[10];
+      const l3Pressed = l3 && (l3.pressed || l3.value > 0.5);
+      if (l3Pressed && !prev[10]){
+        player.sprintLocked = !player.sprintLocked;
+        showToast(player.sprintLocked ? '◈ SPRINT LOCKED' : '◈ SPRINT UNLOCKED', 1200);
+      }
+      prev[10] = l3Pressed;
+
+      // Standard buttons
       pad.buttons.forEach((b, i) => {
+        if (i === 10) return;   // handled above
         const key = BTN[i]; if (!key) return;
         const pressed = b.pressed || b.value > 0.5;
         if (pressed && !prev[i]) dispatchKey('keydown', key);
         else if (!pressed && prev[i]) dispatchKey('keyup', key);
         prev[i] = pressed;
       });
+
+      // Left stick → arrow keys
       const lx = pad.axes[0] || 0, ly = pad.axes[1] || 0;
       const axisState = {
         ArrowLeft:  lx < -AXIS_DEAD,
@@ -306,7 +345,8 @@ function tryMove(dt){
   player.moving = true;
   player.animFrame = (player.animFrame + 1) % 4;
 
-  const running = !!keys['shift'] || !!keys['b'];
+  // Sprint sources: hold Shift/B key · hold Circle button · OR L3-toggled lock.
+  const running = !!keys['shift'] || !!keys['b'] || player.sprintLocked;
   player.running = running;
   player.moveCd = running ? 90 : 170;
 }
@@ -333,16 +373,6 @@ function drawPlayer(){
   const useRun  = player.running && player.moving && RIZER.run.loaded;
   const useWalk = player.moving && RIZER.walk.loaded;
   const bundle  = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.loaded ? RIZER.idle : null);
-
-  // shadow at the player's foot tile (always renders even before sprites load)
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath();
-  ctx.ellipse(
-    player.x * TILE + TILE / 2,
-    player.y * TILE + TILE - 4,
-    TILE / 2 - 3, 4, 0, 0, Math.PI * 2
-  );
-  ctx.fill();
 
   if (!bundle) return;
   const src = bundle.img;
@@ -415,7 +445,8 @@ function tryInteract(){
 let _lastInteract = 0;
 addEventListener('keydown', e => {
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  if (k === 'z' || k === 'Enter' || k === ' '){
+  // z (Cross), x (Square · Xbox-X), Enter, Space — all trigger interact.
+  if (k === 'z' || k === 'x' || k === 'Enter' || k === ' '){
     const now = performance.now();
     if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
   }

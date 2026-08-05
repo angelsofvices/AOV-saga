@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>The AOV Saga · Rize of Power (RP7B · rewrite skeleton v0.2)</title>
-  <meta name="description" content="RP7 Rize of Power — clean-slate skeleton build v0.2. 30x30 grass field + rizer sprite.">
+  <title>The AOV Saga · Rize of Power (RP7B · rewrite skeleton v0.3)</title>
+  <meta name="description" content="RP7 Rize of Power — clean-slate skeleton build v0.3. 15x15 grass field + rizer sprite standing.">
 
   <!-- ★ AOV controller boot · absolute paths (canon per aov-controller-priority) -->
   <script src="/aov-gamepad-boot.js"></script>
@@ -68,27 +68,29 @@
   <div id="stage">
     <canvas id="game" width="720" height="720"></canvas>
   </div>
-  <div id="hud">RP7 · RIZE OF POWER · skeleton v0.2 · 30×30 grass</div>
+  <div id="hud">RP7 · RIZE OF POWER · skeleton v0.3 · 15×15 grass</div>
   <div id="hint">WASD / arrows / D-pad · Circle / Shift to run</div>
 
 <script>
 'use strict';
 
 //////////////////////////////////////////////////////////////////////////////
-// RP7B · CLEAN-SLATE SKELETON v0.2 (2026-08-05)
+// RP7B · CLEAN-SLATE SKELETON v0.3 (2026-08-05)
 //
-// - 30x30 tile map, ALL grass (720x720 canvas at TILE=24)
-// - Grass texture tiled from /assets/2D sprites/tiles/outdoor-grass.png
+// - 15x15 tile map, ALL grass (720x720 canvas at TILE=48)
+// - Each grass tile = one full outdoor-grass.png (1:1 · one PNG per tile)
 // - Player sprite from /assets/2D sprites/rizer/{idle,walk,run}.png
-//     idle.png = 2172x724  (4 cols x 1 row · down/left/right/up · cell 543x724)
-//     walk.png = 1254x1254 (4 cols x 4 rows · 4 frames x 4 dirs   · cell 313x313)
-//     run.png  = 1254x1254 (same layout as walk)
-// - Magenta chroma-key applied on load (canon aov-chroma-key-canon).
-// - Full 30x30 visible at once — no camera scroll.
+//     idle 2172x724  · 4 cols x 1 row · cell 543x724 (down/left/right/up)
+//     walk 1254x1254 · 4 cols x 4 rows · cell 313x313
+//     run  1254x1254 · same layout as walk
+// - Magenta chroma-key on load (canon aov-chroma-key-canon)
+// - Player drawn 2 tiles tall (canon override for this rewrite) with
+//   aspect preserved from the source cell — feet anchored to tile bottom.
+// - Full 15x15 visible at once — no camera scroll.
 //////////////////////////////////////////////////////////////////////////////
 
-const TILE = 24;
-const MAP_COLS = 30, MAP_ROWS = 30;
+const TILE = 48;
+const MAP_COLS = 15, MAP_ROWS = 15;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -96,21 +98,18 @@ ctx.imageSmoothingEnabled = false;
 
 // -- Player state ------------------------------------------------------------
 const player = {
-  x: 15, y: 15,                 // tile coords (center of map)
+  x: 7, y: 7,                   // tile coords · center of 15x15
   dir: 'down',
   moving: false,
   moveCd: 0,
-  animFrame: 0,                 // walk 4-frame index 0..3
+  animFrame: 0,
   running: false,
 };
 function walkable(x, y){
   return x >= 0 && y >= 0 && x < MAP_COLS && y < MAP_ROWS;
 }
 
-// -- Asset load + chroma-key (magenta → transparent) -------------------------
-// Canon: 4-corner flood-fill.  Skeleton uses tolerance-based magenta match
-// which handles the flat #FF00FF fill in these sheets without erasing outfit
-// pixels (the outfit is blue/gold — nothing near magenta).
+// -- Magenta chroma-key (canon: solid magenta → transparent) -----------------
 function chromaKey(img){
   const c = document.createElement('canvas');
   c.width = img.naturalWidth; c.height = img.naturalHeight;
@@ -120,7 +119,6 @@ function chromaKey(img){
   const d = data.data;
   for (let i = 0; i < d.length; i += 4){
     const r = d[i], g = d[i+1], b = d[i+2];
-    // magenta: r high · g low · b high
     if (r > 220 && b > 220 && g < 80) d[i+3] = 0;
   }
   cx.putImageData(data, 0, 0);
@@ -132,9 +130,7 @@ const RIZER = {
   walk: { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4 },
   run:  { img: new Image(), cvs: null, cellW: 313, cellH: 313, cols: 4, rows: 4 },
 };
-// Direction row index (walk/run) — down, left, right, up.
-const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
-// Direction column (idle turnaround) — down, left, right, up.
+const DIR_ROW  = { down: 0, left: 1, right: 2, up: 3 };
 const IDLE_COL = { down: 0, left: 1, right: 2, up: 3 };
 
 function loadAsset(bundle, url){
@@ -176,7 +172,6 @@ addEventListener('keyup', e => {
   status.textContent = 'PRESS ANY BUTTON';
   document.body.appendChild(status);
 
-  // Cross=z · Circle=Shift · Square=x · Triangle=y · L1=l · R1=r
   const BTN = {
     0: 'z', 1: 'Shift', 2: 'x', 3: 'y', 4: 'l', 5: 'r',
     8: '1', 9: '3',
@@ -253,42 +248,43 @@ function tryMove(dt){
 
 // -- Renderer ----------------------------------------------------------------
 function drawGrass(){
-  // Tile the grass texture: sample a 96x96 block from the source (arbitrary,
-  // picks a nice-looking region), scale it to TILE and repeat across the map.
+  // 1:1 — the grass PNG IS one tile.  Scale the full image to TILE per cell.
   if (GRASS.complete && GRASS.naturalWidth){
-    const src = 96;   // source region size per tile
     for (let ty = 0; ty < MAP_ROWS; ty++){
       for (let tx = 0; tx < MAP_COLS; tx++){
-        // pick a source offset that varies subtly by tile position to avoid
-        // an obvious repeat pattern
-        const sx = ((tx * 37 + ty * 19) % (GRASS.naturalWidth  - src));
-        const sy = ((tx * 53 + ty * 29) % (GRASS.naturalHeight - src));
-        ctx.drawImage(GRASS, sx, sy, src, src, tx * TILE, ty * TILE, TILE, TILE);
+        ctx.drawImage(GRASS,
+          0, 0, GRASS.naturalWidth, GRASS.naturalHeight,
+          tx * TILE, ty * TILE, TILE, TILE);
       }
     }
   } else {
-    // fallback flat green until image loads
     ctx.fillStyle = '#3a6b3a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 }
 
 function drawPlayer(){
-  // Choose sheet: run > walk > idle (falls back to idle if run/walk not ready)
   const useRun  = player.running && player.moving && RIZER.run.cvs;
   const useWalk = player.moving && RIZER.walk.cvs;
   const bundle  = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.cvs ? RIZER.idle : null);
 
-  // destination — character sized to ~1 tile wide × ~1.5 tile tall, feet on tile
-  const drawW = TILE;
-  const drawH = TILE * 1.5;
+  // Target height: 2 tiles.  Width preserves source cell aspect.
+  const cellW = bundle ? bundle.cellW : 543;
+  const cellH = bundle ? bundle.cellH : 724;
+  const drawH = TILE * 2;
+  const drawW = Math.round(drawH * (cellW / cellH));
+
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2);
   const dy = Math.floor(player.y * TILE + TILE - drawH);
 
-  // shadow
+  // shadow at the player's foot tile
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(dx + drawW/2, dy + drawH - 2, drawW/2 - 2, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    player.x * TILE + TILE / 2,
+    player.y * TILE + TILE - 4,
+    TILE / 2 - 3, 4, 0, 0, Math.PI * 2
+  );
   ctx.fill();
 
   if (!bundle) return;
@@ -320,7 +316,7 @@ function frame(now){
 }
 requestAnimationFrame(now => { last = now; frame(now); });
 
-console.log('[rp7b] skeleton v0.2 ready · map', MAP_COLS + 'x' + MAP_ROWS);
+console.log('[rp7b] skeleton v0.3 ready · map', MAP_COLS + 'x' + MAP_ROWS, '· TILE', TILE);
 </script>
 </body>
 </html>

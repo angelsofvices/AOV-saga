@@ -185,28 +185,32 @@ function walkable(x, y){
 // Bboxes measured with flood-fill island filter (min 50-px cluster).
 // idle/walk pending re-delivery from user.
 const BBOX_FALLBACK = {
-  // Row 3 (up-facing) bboxes use within-cell measurements only.  The
-  // artist's hair spikes that leak above cell boundary in the source
-  // are NOT captured — including them makes up-facing render "larger"
-  // than other poses because their extra pixels get squeezed into the
-  // constant 2-tile drawH.  Same-size across poses is the priority.
+  // ★ CONNECTED-COMPONENT extractor (v0.19) · every bbox captures the
+  // character's FULL connected shape regardless of cell boundary, then
+  // assigns to the cell containing the feet.  Two consequences:
+  //   - Up-facing bboxes now have NEGATIVE by to include hair spikes
+  //     that overflow into row 2's cell area (idle -21, walk -19, run -23)
+  //   - Right-facing bboxes are now clean because the disconnected cape
+  //     trail that used to inflate bh=288 is a separate CC and ignored
+  // Result: all bboxes across all poses in the tight 213-236 range,
+  // so constant drawH renders truly consistent character size.
   idle: [
-    [[132,70,134,233],[96,69,136,234],[64,70,135,233],[29,70,135,233]],
-    [[140,44,114,226],[102,44,114,226],[72,44,114,226],[36,44,114,226]],
-    [[142,21,111,292],[109,21,112,292],[79,22,111,291],[42,21,111,292]],
-    [[130, 0,130,207],[95, 0,132,207],[62, 0,131,207],[29, 0,130,207]],
+    [[132, 70,134,233],[ 96, 69,136,234],[64, 70,135,233],[29, 70,135,233]],
+    [[140, 44,114,226],[102, 44,114,226],[72, 44,114,226],[36, 44,114,226]],
+    [[142, 21,111,224],[109, 21,112,225],[79, 22,111,223],[42, 21,111,224]],
+    [[130,-21,130,228],[ 95,-21,132,228],[62,-21,131,228],[29,-21,130,228]],
   ],
   walk: [
-    [[131,73,139,233],[95,73,138,233],[62,73,140,233],[29,73,138,233]],
-    [[133,48,124,221],[95,45,125,224],[69,46,123,223],[30,46,124,223]],
-    [[128,25,123,288],[98,25,123,288],[67,26,123,287],[33,25,121,288]],
-    [[128, 0,131,215],[94, 0,131,215],[59, 0,133,215],[28, 0,131,215]],
+    [[131, 73,139,233],[ 95, 73,138,233],[62, 73,140,233],[29, 73,138,233]],
+    [[133, 48,124,221],[ 95, 45,125,224],[69, 46,123,223],[30, 46,124,223]],
+    [[128, 25,123,214],[ 98, 25,123,214],[67, 26,123,213],[33, 25,121,214]],
+    [[128,-19,131,234],[ 94,-19,131,234],[59,-19,133,234],[28,-19,131,234]],
   ],
   run: [
-    [[131,70,143,236],[93,70,139,236],[59,70,146,236],[32,70,135,236]],
-    [[127,46,152,221],[90,44,150,223],[66,44,154,223],[28,44,152,219]],
-    [[109,23,142,290],[81,23,139,290],[49,24,141,289],[11,23,147,290]],
-    [[127, 0,132,213],[91, 0,137,211],[55, 0,138,213],[28, 0,136,214]],
+    [[131, 70,143,236],[ 93, 70,139,236],[59, 70,146,236],[32, 70,135,236]],
+    [[127, 46,152,221],[ 90, 44,150,223],[66, 44,154,223],[28, 44,152,219]],
+    [[109, 23,142,218],[ 81, 23,139,216],[49, 24,141,214],[11, 23,147,222]],
+    [[127,-23,132,236],[ 91,-23,137,234],[55,-22,138,235],[28,-22,136,236]],
   ],
 };
 
@@ -218,13 +222,10 @@ const RIZER = {
   walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk', loaded: false },
   run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run',  loaded: false },
 };
-// ★ Right = mirrored Left (2026-08-05).  The artist's right-facing cells
-// include cape/coat pixels that extend well below the character's feet,
-// so bbox bottom lands on the cape tip and the actual feet render above
-// the tile ("floating right").  Aliasing right → left and horizontally
-// flipping on draw guarantees identical feet position + character size
-// between the two profiles.
-const DIR_ROW = { down: 0, left: 1, right: 1, up: 3 };
+// Right uses the actual right-facing cells (row 2).  The old cape-tail
+// float was fixed by the CC extractor · disconnected cape pixels are
+// ignored so right-facing bbox is now clean (bh ~214 · same as left).
+const DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
 
 function loadAsset(bundle, url){
   return new Promise(resolve => {
@@ -504,16 +505,7 @@ function drawPlayer(){
   );
   ctx.fill();
 
-  // Horizontal flip when facing right (we source from the left row).
-  if (player.dir === 'right'){
-    ctx.save();
-    ctx.translate(dx + drawW, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(src, sx, sy, bw, bh, 0, dy, drawW, drawH);
-    ctx.restore();
-  } else {
-    ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
-  }
+  ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
 }
 
 // -- Toast (mid-screen ephemeral text) ---------------------------------------

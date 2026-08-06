@@ -965,13 +965,14 @@ const NPCS = [
       [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
       [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
     ];
-    // Positions inside the arm corridor · east of the L-hedge (col 45).
+    // Each Mori is anchored inside/next to a gemgrass patch and wanders
+    // within a small radius so they pace between the blades.
     const MORI_SPOTS = [
-      { x: 55, y: 165, dir: 'left'  },
-      { x: 70, y: 172, dir: 'down'  },
-      { x: 85, y: 178, dir: 'left'  },
-      { x:100, y: 168, dir: 'down'  },
-      { x:110, y: 180, dir: 'left'  },
+      { x: 50, y: 163, dir: 'left', r: 4 },  // patch (48,162,5x4)
+      { x: 60, y: 172, dir: 'down', r: 4 },  // patch (58,170,6x5)
+      { x: 82, y: 176, dir: 'left', r: 4 },  // patch (80,174,6x5)
+      { x: 94, y: 165, dir: 'down', r: 4 },  // patch (92,163,5x5)
+      { x:106, y: 172, dir: 'left', r: 4 },  // patch (104,170,6x5)
     ];
     return MORI_SPOTS.map((s, i) => ({
       id: `mori_${i + 1}`,
@@ -984,11 +985,13 @@ const NPCS = [
       homeX: s.x, homeY: s.y,
       homeScene: 'overworld',
       scene: 'overworld',
+      wanderRadius: s.r,                // paces within r tiles of spawn
       dir: s.dir,
-      mode: 'stationary',
+      mode: 'wander',                   // v0.69 · walk logic added
       moving: false,
       animFrame: 0,
       idleFrame: 0,
+      moveCd: 800 + Math.random() * 1400,
       blinkTimer: 9e9,                  // Mori doesn't blink (skeletal)
       isEnemy: true,                    // future combat trigger uses this
       onInteract: (n) => showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000),
@@ -2516,12 +2519,16 @@ function drawNPC(n){
     n._downScale = (TILE * 2) / dbh;
   }
   const row = DIR_ROW_NPC[n.dir] || 0;
-  // Moving → walk sheet at animFrame · standing → idle sheet at idleFrame
-  // (defaults to 0; NPCs with a blink loop set n.idleFrame in tickNPC).
+  // Frame pick:
+  //   moving + walkSheet loaded → walk sheet at animFrame
+  //   moving + no walkSheet     → idle sheet cycled at animFrame (walk-in-place)
+  //   idle                      → idle sheet at idleFrame (blink loop)
   const useWalk = n.moving && n.walkSheet && n.walkSheet.complete && n.walkSheet.naturalWidth;
   const bank    = useWalk ? n.walkBboxes : n.bboxes;
   const img     = useWalk ? n.walkSheet  : n.sheet;
-  const col     = useWalk ? (n.animFrame % n.cols) : ((n.idleFrame || 0) % n.cols);
+  const col     = useWalk               ? (n.animFrame % n.cols)
+                : n.moving              ? (n.animFrame % n.cols)
+                                        : ((n.idleFrame || 0) % n.cols);
   const [bx, by, bw, bh] = bank[row][col];
   const sx = col * n.cellW + bx;
   const sy = row * n.cellH + by;

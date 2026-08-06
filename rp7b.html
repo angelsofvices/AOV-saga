@@ -134,7 +134,8 @@ const AUDIO = {
     menuOpen:  new Audio('audio/ui-menu-open.mp3'),
     menuClose: new Audio('audio/ui-menu-close.mp3'),
     dialog:    new Audio('audio/ui-dialog-advance.mp3'),
-    coins:     new Audio('audio/sfx-coins.mp3'),   // chest unlock · coin drop
+    coins:     new Audio('audio/sfx-coins.mp3'),         // chest unlock · coin drop
+    caveGrowl: new Audio('audio/sfx-cave-growl.mp3'),    // locked Rakoron cave
   },
 };
 Object.values(AUDIO.bgm).forEach(a => { a.loop = true; a.volume = 0.32; });
@@ -156,11 +157,12 @@ function playSFX(name){
   clone.play().catch(() => {});
 }
 // First keydown/pointerdown seeds the audio subsystem so BGM can play.
+// (Home BGM starts only after NEW GAME is selected on the title screen ·
+// this seed just unlocks the browser autoplay gate.)
 let _audioSeeded = false;
 function seedAudio(){
   if (_audioSeeded) return;
   _audioSeeded = true;
-  playBGM('home');
 }
 addEventListener('keydown',   seedAudio, { once: false });
 addEventListener('pointerdown', seedAudio, { once: false });
@@ -252,6 +254,32 @@ const BUILDING_TILE_POSITIONS = [
   [22, 38],                                                       // Zyrex Research Facility
 ];
 
+// ★ Building coverage set · tiles under building footprints so the grass
+// IIFE can skip them (user 2026-08-06: 'no grass should under buildings').
+// Manually enumerated per building · MUST stay in sync with WORLD_PROPS.
+const _buildingCovered = new Set();
+(function markCoverage(){
+  const mark = (cx, cy, w, h) => {
+    const halfW = Math.floor(w / 2);
+    for (let dy = -(h - 1); dy <= 0; dy++){
+      for (let dx = -halfW; dx <= halfW; dx++){
+        _buildingCovered.add(`${cx+dx},${cy+dy}`);
+      }
+    }
+  };
+  mark(22, 105,  5,  5);   // player home
+  mark(22,  78, 11,  9);   // town hall
+  mark(22,  38, 13,  9);   // research facility
+  mark(25, 126, 11,  9);   // school
+  mark(10, 138,  7,  7);   // potion shop
+  mark(35, 138,  9,  7);   // zyrex farm
+  mark(22, 156, 11,  9);   // hospital
+  mark(22,   5, 13,  5);   // Rakoron cave entrance
+  // Villager homes (5x5) + red-roof homes (5x5)
+  [[10,50],[35,60],[10,80],[10,110],[35,120]].forEach(([x,y]) => mark(x,y,5,5));
+  [[ 6,90],[36,89],[22,94],[12,98],[32,98]].forEach(([x,y]) => mark(x,y,5,5));
+})();
+
 // ★ Gemgrass patch definitions · shared by both the grass IIFE and the
 // flower-perimeter IIFE below.  Sized 1x2 to 5x7 in naturally open
 // spaces between homes.  Any change here re-drives both grass + flowers.
@@ -333,7 +361,10 @@ const WORLD_PROPS = [
       return f;
     })(),
     door: [0, 0],                     // interact tile inside footprint · player stands at (22,6) facing up
-    onInteract: () => showToast('◈ RAKORON\'S CAVE · Sealed by an ancient gemlock.', 2400),
+    onInteract: () => {
+      playSFX('caveGrowl');
+      showToast('◈ RAKORON\'S CAVE · Sealed.  Something inside snarls at your unworthiness.', 2800);
+    },
   },
   {
     // Malezor Zyrex Research Facility · sits between Rakoron's Cave (row 5)
@@ -612,6 +643,8 @@ const WORLD_PROPS = [
       for (let dy = 0; dy < p.h; dy++){
         for (let dx = 0; dx < p.w; dx++){
           const x = p.x + dx, y = p.y + dy;
+          // Skip tiles that sit UNDER a building footprint (no grass indoors).
+          if (_buildingCovered.has(`${x},${y}`)) continue;
           // (1) Grassblade — dev standard visual + wildZone marker
           // (re-enabled 2026-08-05 · fires wild-Zyrex battle when
           // player.party.length > 0)
@@ -863,8 +896,67 @@ const INTERIOR_CAVE = {
 };
 INTERIOR_CAVE.tileImg.src = 'assets/2D%20sprites/tiles/cave-stone-floor.png';
 
-// Scene state: 'overworld' | 'interior_home' | 'interior_cave'
-const game = { scene: 'overworld', overworldReturn: null };
+// Scene state: 'title' | 'overworld' | 'interior_home' | 'interior_cave'
+const game = { scene: 'title', overworldReturn: null };
+
+// Title screen assets + state
+const TITLE_IMG = new Image();
+TITLE_IMG.src = 'assets/2D%20sprites/ui/title-screen.png';
+const TITLE_OPTIONS = ['NEW GAME', 'LOAD GAME'];
+let titleSelectedIdx = 0;
+function startNewGame(){
+  game.scene = 'overworld';
+  playBGM('home');
+  showToast('◈ Welcome to Malezor.', 2000);
+}
+function loadSavedGame(){
+  showToast('◈ Save system not wired yet.  Starting new game.', 2200);
+  startNewGame();
+}
+function drawTitleScreen(){
+  if (game.scene !== 'title') return;
+  const W = canvas.width, H = canvas.height;
+  // Background · title art (native 16:9 · scaled to canvas · never stretch)
+  if (TITLE_IMG.complete && TITLE_IMG.naturalWidth){
+    const imgAR = TITLE_IMG.naturalWidth / TITLE_IMG.naturalHeight;
+    const canvasAR = W / H;
+    let dw, dh, dx, dy;
+    if (canvasAR > imgAR){
+      dh = H; dw = Math.round(H * imgAR);
+      dx = Math.floor((W - dw) / 2); dy = 0;
+    } else {
+      dw = W; dh = Math.round(W / imgAR);
+      dx = 0; dy = Math.floor((H - dh) / 2);
+    }
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(TITLE_IMG, dx, dy, dw, dh);
+  } else {
+    ctx.fillStyle = '#0b0b10';
+    ctx.fillRect(0, 0, W, H);
+  }
+  // Menu · centered, bottom-third
+  const btnW = 260, btnH = 44, gap = 12;
+  const totalH = TITLE_OPTIONS.length * btnH + (TITLE_OPTIONS.length - 1) * gap;
+  const startY = Math.floor(H * 0.62);
+  TITLE_OPTIONS.forEach((label, i) => {
+    const x = Math.floor((W - btnW) / 2);
+    const y = startY + i * (btnH + gap);
+    const sel = (i === titleSelectedIdx);
+    ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.75)';
+    ctx.fillRect(x, y, btnW, btnH);
+    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, btnW, btnH);
+    ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
+    ctx.font = 'bold 18px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + btnW / 2, y + 28);
+  });
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.fillText('▲▼ nav · × select', W / 2, H - 20);
+  ctx.textAlign = 'left';
+}
 
 function enterInterior(sceneKey, cfg, toast){
   if (game.scene !== 'overworld') return;
@@ -1008,8 +1100,8 @@ addEventListener('keyup', e => {
 
 // -- Movement · one tile step per moveCd interval ----------------------------
 function tryMove(dt){
-  // Freeze player when any UI overlay or battle owns input.
-  if (settingsMenuOpen || zyrexMenuOpen || battleState){
+  // Freeze player when title screen, any UI overlay, or battle owns input.
+  if (game.scene === 'title' || settingsMenuOpen || zyrexMenuOpen || battleState){
     player.moving = false;
     return;
   }
@@ -1278,6 +1370,23 @@ addEventListener('keydown', e => {
     }
     _lastTouchpadTime = now;
     // Fall through · handled per-mode below.
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 0.5) TITLE SCREEN · owns input entirely when scene === 'title'
+  // ═══════════════════════════════════════════════════════════════
+  if (game.scene === 'title'){
+    if (k === 'arrowup' || k === 'arrowdown'){
+      titleSelectedIdx = (titleSelectedIdx + 1) % TITLE_OPTIONS.length;
+      playSFX('cursor');
+      return;
+    }
+    if (k === 'z' || k === 'x' || k === 'enter'){
+      playSFX('confirm');
+      if (titleSelectedIdx === 0) startNewGame();
+      else                        loadSavedGame();
+    }
+    return;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1995,7 +2104,9 @@ function frame(now){
   updateCamera();
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  if (game.scene === 'interior_home' || game.scene === 'interior_cave'){
+  if (game.scene === 'title'){
+    drawTitleScreen();
+  } else if (game.scene === 'interior_home' || game.scene === 'interior_cave'){
     drawInteriorFloor();
     drawPlayer();       // no props inside for MVP
   } else {

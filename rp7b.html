@@ -126,7 +126,6 @@ const player = {
   animFrame: 0,
   running: false,               // computed per-frame · true when moving fast
   sprintLocked: false,          // toggled by L3 click · adds to shift/b sprint holds
-  stepsInGrass: 0,              // counts consecutive gemgrass tiles for encounter roll
   party: [],                    // caught Zyrex list · touchpad toggles menu
 };
 
@@ -268,58 +267,6 @@ const WORLD_PROPS = [
       return chest;
     });
   })(),
-  // ── FLOWERS · perimeter of every wildZone patch ────────────────────
-  // Residential "safe area" signal · flowers ring every gemgrass patch
-  // to tell the player "wild encounters live here" without needing HUD.
-  // Malezor-only convention (per user 2026-08-05): future districts past
-  // town/capital will use these sparingly or not at all.
-  ...(function(){
-    const _flowerImg = new Image();
-    _flowerImg.src = 'assets/2D%20sprites/decor/flowers.png';
-    const _flowerBBox = [196, 288, 1052, 518];    // content in 1402x1122
-    // Build a Set of already-planted tile keys so we don't stack multiple
-    // flowers on the same tile when patch perimeters touch.
-    const _placed = new Set();
-    // Also avoid placing flowers ON TOP of wildZone tiles (they're the
-    // inside of the patch, not the border).
-    const _grassTiles = new Set();
-    for (const p of GEMGRASS_PATCHES){
-      for (let dy = 0; dy < p.h; dy++){
-        for (let dx = 0; dx < p.w; dx++){
-          _grassTiles.add(`${p.x + dx},${p.y + dy}`);
-        }
-      }
-    }
-    const tiles = [];
-    for (const p of GEMGRASS_PATCHES){
-      // Ring 1 tile outside the patch on all 4 sides
-      const x0 = p.x - 1, x1 = p.x + p.w;
-      const y0 = p.y - 1, y1 = p.y + p.h;
-      for (let x = x0; x <= x1; x++){
-        for (let y = y0; y <= y1; y++){
-          // Skip interior tiles (only the perimeter ring)
-          const onRing = (x === x0 || x === x1 || y === y0 || y === y1);
-          if (!onRing) continue;
-          // Skip out-of-bounds tiles
-          if (x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) continue;
-          // Skip tiles already flowered or inside another wildZone
-          const key = `${x},${y}`;
-          if (_placed.has(key) || _grassTiles.has(key)) continue;
-          _placed.add(key);
-          tiles.push({
-            id: `flower_${x}_${y}`,
-            img: _flowerImg,
-            src: 'assets/2D%20sprites/decor/flowers.png',
-            bbox: _flowerBBox,
-            tileX: x, tileY: y,
-            tileW: 1, tileH: 1,       // small flower cluster · aspect ~2:1
-            footprint: [],             // walkable · pure decor
-          });
-        }
-      }
-    }
-    return tiles;
-  })(),
   // ── GEMGRASS PATCHES + per-tile grass overlay ──────────────────────
   // Every wildZone (grassblade) tile gets a PAIRED grass-patch overlay
   // (A or B chosen by non-uniform hash) so the pretty layer covers 100%
@@ -345,7 +292,8 @@ const WORLD_PROPS = [
       for (let dy = 0; dy < p.h; dy++){
         for (let dx = 0; dx < p.w; dx++){
           const x = p.x + dx, y = p.y + dy;
-          // (1) Grassblade — dev standard + wildZone marker (below overlay)
+          // (1) Grassblade — dev standard visual (wildZone detector was
+          // removed 2026-08-05 per user · grass is now pure decor)
           tiles.push({
             id: `gemgrass_${x}_${y}`,
             img: _grassImg,
@@ -354,7 +302,6 @@ const WORLD_PROPS = [
             tileX: x, tileY: y,
             tileW: 1, tileH: 1,
             footprint: [],
-            wildZone: true,
           });
           // (2) Pretty grass patch overlay · one per grassblade tile
           const a = useA(x, y);
@@ -477,14 +424,12 @@ const WORLD_PROPS = [
 // Load prop images (pre-baked · no chroma-key needed)
 WORLD_PROPS.forEach(p => { p.img.src = p.src; });
 
-// Collision + interact + wild-zone maps · computed once from props.
+// Collision + interact maps · computed once from props.
 const _propBlocked = new Set();     // "x,y" of solid tiles
 const _propDoors   = new Map();     // "x,y" → prop with onInteract
-const _wildZones   = new Set();     // "x,y" of tiles that spawn Zyrex
 WORLD_PROPS.forEach(p => {
   p.footprint.forEach(([dx,dy]) => _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`));
   if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
-  if (p.wildZone) _wildZones.add(`${p.tileX},${p.tileY}`);
 });
 
 function walkable(x, y){
@@ -700,19 +645,6 @@ function tryMove(dt){
   const running = !!keys['shift'] || !!keys['b'] || player.sprintLocked;
   player.running = running;
   player.moveCd = running ? 90 : 170;
-
-  // ★ Wild-encounter zone · stepping onto gemgrass rolls for a Zyrex
-  // spawn per RP7 canon (aov-rp7-gameplay-loop-canon · 14% roll after
-  // 2 steps).  Real battle system pending · fires a stub toast for now.
-  if (_wildZones.has(`${nx},${ny}`)){
-    player.stepsInGrass = (player.stepsInGrass || 0) + 1;
-    if (player.stepsInGrass >= 2 && Math.random() < 0.14){
-      player.stepsInGrass = 0;
-      showToast('◈ Wild Zyrex approaches! (battle system pending)', 1800);
-    }
-  } else {
-    player.stepsInGrass = 0;
-  }
 }
 
 // -- Renderer ----------------------------------------------------------------
@@ -887,6 +819,8 @@ addEventListener('keydown', e => {
   }
   // Touchpad ('2' via canonical controller map) toggles the Zyrex menu.
   if (k === '2'){ zyrexMenuOpen = !zyrexMenuOpen; }
+  // Options ('3' via canonical controller map) toggles the Settings menu.
+  if (k === '3'){ settingsMenuOpen = !settingsMenuOpen; }
   // '9' · dev spawn Elzebub Lv 5 into party (per user request 2026-08-05)
   if (k === '9'){ giveDevElzebub(); }
 });
@@ -936,6 +870,42 @@ function giveDevElzebub(){
   const z = createZyrex('elzebub', 5);
   player.party.push(z);
   showToast(`◈ ${z.name} Lv ${z.level} joined the party!`, 2200);
+}
+
+// -- Settings menu overlay (same style as Zyrex menu) ------------------------
+// Options button ('3') toggles.  4 items: Items · Gear · Save State · Options.
+let settingsMenuOpen = false;
+const SETTINGS_ITEMS = [
+  '1. ITEMS',
+  '2. GEAR',
+  '3. SAVE STATE',
+  '4. OPTIONS',
+];
+function drawSettingsMenu(){
+  if (!settingsMenuOpen) return;
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.86)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#d4af37';
+  ctx.font = 'bold 20px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('SETTINGS', 24, 40);
+  ctx.strokeStyle = '#d4af37';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(24, 50); ctx.lineTo(W - 24, 50); ctx.stroke();
+
+  ctx.fillStyle = '#f0eadf';
+  ctx.font = 'bold 16px "Courier New", monospace';
+  SETTINGS_ITEMS.forEach((label, i) => {
+    ctx.fillText(label, 32, 100 + i * 40);
+  });
+
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('Options / 3 · close', W - 24, H - 20);
+  ctx.textAlign = 'left';
 }
 
 // -- Zyrex party menu overlay ------------------------------------------------
@@ -1029,8 +999,9 @@ function frame(now){
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGrass();
-  drawWorldLayer();   // props + player, depth-sorted by feet-Y
-  drawZyrexMenu();    // overlay · only draws when zyrexMenuOpen === true
+  drawWorldLayer();     // props + player, depth-sorted by feet-Y
+  drawZyrexMenu();      // overlay · touchpad ('2') toggles
+  drawSettingsMenu();   // overlay · Options ('3') toggles
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(now => { last = now; frame(now); });

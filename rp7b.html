@@ -95,18 +95,21 @@
 //////////////////////////////////////////////////////////////////////////////
 
 const TILE = 48;
-// World grid: 45 cols x 90 rows (each 15x15 sub-map).  Horizontal:
-//   cols 0-14   · west band   (empty grass · 2026-08-05)
-//   cols 15-29  · center band (has all placed content)
-//   cols 30-44  · east band   (empty grass · 2026-08-05)
-// Vertical (6 stacked 15-row bands):
-//   rows 0-14   · far-north      (empty)
-//   rows 15-29  · north-2        (empty)
-//   rows 30-44  · town-hall      (MALEZOR TOWN HALL + 14 bushes)
-//   rows 45-59  · north buffer   (empty)
-//   rows 60-74  · middle         (PLAYER HOME · player spawn)
-//   rows 75-89  · south          (empty)
-const MAP_COLS = 45, MAP_ROWS = 90;
+// World grid: 45 cols x 158 rows.  Horizontal 3 bands, vertical 10.5.
+// 2026-08-05 · extended south x2 (potion + zyrex farm) + north x2.5.
+//   cols 0-14    · west band       (empty grass)
+//   cols 15-29   · center band     (all main content)
+//   cols 30-44   · east band       (empty grass)
+//   rows 0-37    · north+ (2.5 bands · empty · added 2026-08-05)
+//   rows 38-52   · far-north       (empty)
+//   rows 53-67   · north-2         (empty)
+//   rows 68-82   · town-hall       (Malezor Town Hall + bushes)
+//   rows 83-97   · north buffer    (red-roof houses)
+//   rows 98-112  · middle          (player home · spawn)
+//   rows 113-127 · south           (Malezor School)
+//   rows 128-142 · south-2         (POTION SHOP left · ZYREX FARM right · under school)
+//   rows 143-157 · south-3         (grass clusters)
+const MAP_COLS = 45, MAP_ROWS = 158;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -172,7 +175,7 @@ function updateCamera(){
 
 // -- Player state ------------------------------------------------------------
 const player = {
-  x: 22, y: 68,                 // tile coords · one below player home door (middle band, center col)
+  x: 22, y: 106,                // tile coords · one below player home door (middle band, center col)
   dir: 'up',                    // start facing the home
   moving: false,
   moveCd: 0,
@@ -233,45 +236,64 @@ function sortedInventoryEntries(){
 // ★ Shared prop-position tables · module-scope so the portal IIFE can
 // pick a spawn tile that's LOW-DENSITY and AWAY from chests (per user).
 const CHEST_TILE_POSITIONS = [
-  [13,  5], [32, 12], [ 5, 22], [28, 17],
-  [ 5, 44], [44, 45], [25, 50], [44, 82],
+  [13, 43], [32, 50], [ 5, 60], [28, 55],
+  [ 5, 82], [44, 83], [25, 88], [44,120],
 ];
 const BUILDING_TILE_POSITIONS = [
-  [22, 67], [22, 40],                                             // home + town hall
-  [10, 12], [35, 22], [10, 42], [10, 72], [35, 82],               // villager homes
-  [ 6, 52], [36, 51], [22, 56], [12, 60], [32, 60],               // red-roof homes
+  [22,105], [22, 78],                                             // home + town hall
+  [10, 50], [35, 60], [10, 80], [10,110], [35,120],               // villager homes
+  [ 6, 90], [36, 89], [22, 94], [12, 98], [32, 98],               // red-roof homes
+  [25,126],                                                       // school
+  [10,138], [35,138],                                             // potion shop + zyrex farm (south-2)
 ];
 
 // ★ Gemgrass patch definitions · shared by both the grass IIFE and the
 // flower-perimeter IIFE below.  Sized 1x2 to 5x7 in naturally open
 // spaces between homes.  Any change here re-drives both grass + flowers.
 const GEMGRASS_PATCHES = [
-  // Far-north band (rows 0-14)
-  { x: 15, y:  2, w: 5, h: 4 },
-  { x: 25, y:  8, w: 4, h: 3 },
-  { x:  2, y: 12, w: 3, h: 3 },
-  // North-2 band (rows 15-29)
-  { x: 25, y: 15, w: 3, h: 3 },
-  { x: 15, y: 25, w: 5, h: 4 },
-  { x:  3, y: 20, w: 4, h: 3 },
-  // Town-hall band edges (rows 30-44)
-  { x:  2, y: 32, w: 2, h: 5 },
-  { x: 40, y: 30, w: 3, h: 5 },
-  { x: 40, y: 40, w: 5, h: 4 },
-  // Buffer band (rows 45-59)
-  { x: 15, y: 45, w: 5, h: 2 },
-  { x: 26, y: 47, w: 3, h: 3 },
-  { x: 40, y: 52, w: 4, h: 5 },
-  { x:  0, y: 55, w: 3, h: 4 },
-  // Middle band (rows 60-74) — has player home
-  { x: 40, y: 62, w: 4, h: 5 },
-  { x:  2, y: 62, w: 3, h: 4 },
-  { x: 26, y: 63, w: 4, h: 3 },
-  // South band (rows 75-89)
-  { x:  3, y: 76, w: 5, h: 5 },
-  { x: 15, y: 82, w: 5, h: 7 },
-  { x: 40, y: 78, w: 5, h: 5 },
-  { x: 25, y: 75, w: 4, h: 3 },
+  // North+ extension bands (rows 0-37) · added 2026-08-05
+  { x: 10, y:  4, w: 4, h: 4 },
+  { x: 32, y:  8, w: 4, h: 3 },
+  { x: 20, y: 18, w: 5, h: 4 },
+  { x:  4, y: 24, w: 4, h: 3 },
+  { x: 38, y: 28, w: 4, h: 4 },
+  // Far-north band (rows 38-52)
+  { x: 15, y: 40, w: 5, h: 4 },
+  { x: 25, y: 46, w: 4, h: 3 },
+  { x:  2, y: 50, w: 3, h: 3 },
+  // North-2 band (rows 53-67)
+  { x: 25, y: 53, w: 3, h: 3 },
+  { x: 15, y: 63, w: 5, h: 4 },
+  { x:  3, y: 58, w: 4, h: 3 },
+  // Town-hall band edges (rows 68-82)
+  { x:  2, y: 70, w: 2, h: 5 },
+  { x: 40, y: 68, w: 3, h: 5 },
+  { x: 40, y: 78, w: 5, h: 4 },
+  // Buffer band (rows 83-97)
+  { x: 15, y: 83, w: 5, h: 2 },
+  { x: 26, y: 85, w: 3, h: 3 },
+  { x: 40, y: 90, w: 4, h: 5 },
+  { x:  0, y: 93, w: 3, h: 4 },
+  // Middle band (rows 98-112) — player home
+  { x: 40, y:100, w: 4, h: 5 },
+  { x:  2, y:100, w: 3, h: 4 },
+  { x: 26, y:101, w: 4, h: 3 },
+  // South band (rows 113-127) — school
+  { x:  3, y:114, w: 5, h: 5 },
+  { x: 15, y:120, w: 5, h: 7 },
+  { x: 40, y:116, w: 5, h: 5 },
+  { x: 25, y:113, w: 4, h: 3 },
+  // South-2 band (rows 128-142) · potion + farm sit here · added 2026-08-05
+  { x:  2, y:130, w: 3, h: 3 },
+  { x: 22, y:130, w: 5, h: 3 },
+  { x: 42, y:132, w: 3, h: 3 },
+  { x: 20, y:140, w: 5, h: 3 },
+  // South-3 band (rows 143-157) · "last grass grouping" · added 2026-08-05
+  { x:  5, y:145, w: 4, h: 4 },
+  { x: 35, y:145, w: 5, h: 4 },
+  { x: 18, y:150, w: 5, h: 5 },
+  { x:  5, y:154, w: 3, h: 3 },
+  { x: 35, y:153, w: 4, h: 4 },
 ];
 
 const WORLD_PROPS = [
@@ -280,7 +302,7 @@ const WORLD_PROPS = [
     img: new Image(),
     src: 'assets/2D%20sprites/buildings/player-home.png',
     bbox: [121, 89, 1012, 1056],
-    tileX: 22, tileY: 67,     // door tile · middle band, center col
+    tileX: 22, tileY: 105,    // door tile · middle band, center col
     tileW: 5, tileH: 5,       // 5 tiles wide, 5 tiles tall on screen
     // Footprint offsets relative to (tileX, tileY) — the full 5x5 base is
     // solid.  Door tile IS blocked (player can't walk onto it) but is
@@ -304,7 +326,7 @@ const WORLD_PROPS = [
     src: 'assets/2D%20sprites/buildings/town-hall.png',
     // Content bbox in source sheet (65, 27, 1273, 987) · aspect 1.29
     bbox: [65, 27, 1273, 987],
-    tileX: 22, tileY: 40,      // door tile · town-hall band, center col
+    tileX: 22, tileY: 78,      // door tile · town-hall band, center col
     tileW: 11, tileH: 9,       // 11 wide x 9 tall on screen (grand hall)
     // Full 11x9 footprint solid · door tile at (7,10) is interact-only
     footprint: (function(){
@@ -327,7 +349,7 @@ const WORLD_PROPS = [
     img: new Image(),
     src: 'assets/2D%20sprites/buildings/school.png',
     bbox: [76, 61, 1177, 998],       // content bbox in 1333x1180 sheet · aspect 1.18
-    tileX: 25, tileY: 88,            // door tile · south band (rows 75-89)
+    tileX: 25, tileY: 126,           // door tile · south band (rows 113-127)
     tileW: 11, tileH: 9,
     footprint: (function(){
       const f = [];
@@ -340,6 +362,44 @@ const WORLD_PROPS = [
     })(),
     door: [0, 0],
     onInteract: () => showToast('◈ MALEZOR SCHOOL · Closed for now.', 2200),
+  },
+  {
+    // Malezor Potion Shop · south-2 band · LEFT of center under school.
+    // 7x7 footprint · cols 7-13 rows 132-138.
+    id: 'malezor_potion_shop',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/potion-shop.png',
+    bbox: [101, 84, 1053, 1027],     // aspect 1.025 · roughly square
+    tileX: 10, tileY: 138,
+    tileW: 7, tileH: 7,
+    footprint: (function(){
+      const f = [];
+      for (let dy = -6; dy <= 0; dy++){
+        for (let dx = -3; dx <= 3; dx++){ f.push([dx, dy]); }
+      }
+      return f;
+    })(),
+    door: [0, 0],
+    onInteract: () => showToast('◈ MALEZOR POTION SHOP · Closed for now.', 2200),
+  },
+  {
+    // Malezor Zyrex Farm · south-2 band · RIGHT of center under school.
+    // 9x7 footprint · cols 31-39 rows 132-138.
+    id: 'malezor_zyrex_farm',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/zyrex-farm.png',
+    bbox: [37, 54, 1256, 958],       // aspect 1.311 · barn-wide
+    tileX: 35, tileY: 138,
+    tileW: 9, tileH: 7,
+    footprint: (function(){
+      const f = [];
+      for (let dy = -6; dy <= 0; dy++){
+        for (let dx = -4; dx <= 4; dx++){ f.push([dx, dy]); }
+      }
+      return f;
+    })(),
+    door: [0, 0],
+    onInteract: () => showToast('◈ MALEZOR ZYREX FARM · Closed for now.', 2200),
   },
   // ── CLOSED PORTAL · smart random spawn (never near chests · least dense) ─
   // Per user 2026-08-05: portal MUST NOT spawn near a chest, and always
@@ -493,11 +553,11 @@ const WORLD_PROPS = [
   // green villager-homes at (10,42) and (10,72).  5-tile footprint.
   ...(function(){
     const RR_POSITIONS = [
-      [ 6, 52],   // W upper-buffer   · footprint cols 4-8   rows 48-52
-      [36, 51],   // E upper-buffer   · footprint cols 34-38 rows 47-51
-      [22, 56],   // C middle-buffer  · footprint cols 20-24 rows 52-56
-      [12, 60],   // SW lower-buffer  · footprint cols 10-14 rows 56-60
-      [32, 60],   // SE lower-buffer  · footprint cols 30-34 rows 56-60
+      [ 6, 90],   // W upper-buffer
+      [36, 89],   // E upper-buffer
+      [22, 94],   // C middle-buffer
+      [12, 98],   // SW lower-buffer
+      [32, 98],   // SE lower-buffer
     ];
     const _rrImg = new Image();
     _rrImg.src = 'assets/2D%20sprites/buildings/red-roof-home.png';
@@ -526,11 +586,11 @@ const WORLD_PROPS = [
   ...(function(){
     // Each entry: [tileX, tileY, band-label] · door tile = (tileX, tileY)
     const HOUSE_POSITIONS = [
-      [10, 12, 'far-north west'],   // far-north band (rows 0-14)
-      [35, 22, 'north-2 east'],     // north-2 band (rows 15-29)
-      [10, 42, 'town-hall west'],   // town-hall band, west of hall + bushes
-      [10, 72, 'middle west'],      // middle band, west of player home
-      [35, 82, 'south east'],       // south band (rows 75-89)
+      [10, 50, 'far-north west'],   // far-north band (rows 38-52)
+      [35, 60, 'north-2 east'],     // north-2 band (rows 53-67)
+      [10, 80, 'town-hall west'],   // town-hall band
+      [10,110, 'middle west'],      // middle band, west of player home
+      [35,120, 'south east'],       // south band (rows 113-127)
     ];
     const _vhImg = new Image();
     _vhImg.src = 'assets/2D%20sprites/buildings/villager-home.png';
@@ -561,14 +621,14 @@ const WORLD_PROPS = [
   // outer decor.  Door approach column 7 stays clear.
   ...(function(){
     const BUSH_POSITIONS = [
-      // Front flanks (row 41, immediately south of the building base)
-      [18, 41], [20, 41], [24, 41], [26, 41],
-      // Side hedges along west (col 16) and east (col 28) of building
-      [16, 35], [16, 37], [16, 39],
-      [28, 35], [28, 37], [28, 39],
+      // Front flanks (row 79, immediately south of the town-hall base)
+      [18, 79], [20, 79], [24, 79], [26, 79],
+      // Side hedges along west (col 16) and east (col 28)
+      [16, 73], [16, 75], [16, 77],
+      [28, 73], [28, 75], [28, 77],
       // Mid-lawn landscaping (leaves col 22 door path clear)
-      [17, 42], [27, 42],
-      [19, 43], [25, 43],
+      [17, 80], [27, 80],
+      [19, 81], [25, 81],
     ];
     // Share ONE image + bbox across all bush instances so we only
     // load the PNG once (browser dedupes but this keeps state clean).
@@ -1135,28 +1195,65 @@ addEventListener('keydown', e => {
 // Stats follow the T×333 pool rule (per aov-t333-stat-pool memory).  Elzebub
 // is the T1 base form of the Elzebub → Elzimir → Elzoran → Omegoran line
 // (per aov-rp7-elzoran-v258).  Draconic/Elemental typing.
+// SPECIES roster · Malezor T1-T2 pool sourced from data/rp7_roster_v7.js
+// (user delivery 2026-08-05).  spc from roster maps to both satk + sdef
+// for the split-stat battle formula.  Levels 1-25 canon per Malezor band.
 const SPECIES = {
+  // ── T1 · Malezor (Beast-dominant) ────────────────────────────────
+  aetherwing: { id:'aetherwing', name:'Aetherwing', tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'rhinoxis',   evolveLv:20, moves:['Tackle','Scratch','Growl','Ember'] },
+  aurarat:    { id:'aurarat',    name:'Aurarat',    tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'aurelik',    evolveLv:20, moves:['Tackle','Scratch','Growl','Ember'] },
+  cinderant:  { id:'cinderant',  name:'Cinderant',  tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'cindercur',  evolveLv:20, moves:['Tackle','Scratch','Growl','Ember'] },
+  dunestinger:{ id:'dunestinger',name:'Dunestinger',tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'skybeam',    evolveLv:20, moves:['Tackle','Scratch','Growl','Ember'] },
+  frosane:    { id:'frosane',    name:'Frosane',    tier:1, type:'Aquatic',    type2:null,
+    baseHP:60, baseATK:90,  baseDEF:60, baseSPD:60, baseSATK:80, baseSDEF:80,
+    evolveTo:'frostphen',  evolveLv:20, moves:['Tackle','Scratch','Growl','Ember'] },
+  sandskitter:{ id:'sandskitter',name:'Sandskitter',tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'sanaraine',  evolveLv:20, moves:['Tackle','Scratch','Growl','Ember'] },
+  sunhoop:    { id:'sunhoop',    name:'Sunhoop',    tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'torchpuff',  evolveLv:40, moves:['Tackle','Scratch','Growl','Ember'] },
+  torchpuff:  { id:'torchpuff',  name:'Torchpuff',  tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'vipercrow',  evolveLv:40, moves:['Tackle','Scratch','Growl','Ember'] },
+  vipercrow:  { id:'vipercrow',  name:'Vipercrow',  tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'votimite',   evolveLv:40, moves:['Tackle','Scratch','Growl','Ember'] },
+  votimite:   { id:'votimite',   name:'Votimite',   tier:1, type:'Elemental',  type2:null,
+    baseHP:60, baseATK:90,  baseDEF:60, baseSPD:60, baseSATK:80, baseSDEF:80,
+    evolveTo:'bastonshell',evolveLv:40, moves:['Tackle','Scratch','Growl','Ember'] },
+  vulkarmor:  { id:'vulkarmor',  name:'Vulkarmor',  tier:1, type:'Beast',      type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:60, baseSDEF:60,
+    evolveTo:'vulcanax',   evolveLv:20, moves:['Tackle','Scratch','Growl','Ember'] },
+
+  // ── T2 · Malezor (evolved forms occasionally roam here) ─────────
+  aurelik:    { id:'aurelik',    name:'Aurelik',    tier:2, type:'Beast',      type2:'Nature',
+    baseHP:70, baseATK:85,  baseDEF:75, baseSPD:80, baseSATK:80, baseSDEF:80,
+    evolveTo:'aurokine',   evolveLv:40, moves:['Tackle','Scratch','Growl','Ember'] },
+  gravvik:    { id:'gravvik',    name:'Gravvik',    tier:2, type:'Corrupted',  type2:'Beast',
+    baseHP:70, baseATK:76,  baseDEF:76, baseSPD:70, baseSATK:76, baseSDEF:76,
+    evolveTo:'savorik',    evolveLv:40, moves:['Tackle','Scratch','Growl','Ember'] },
+
+  // ── Legacy · Elzebub kept for the future Dad-grants-starter arc ──
   elzebub: {
-    id: 'elzebub',
-    name: 'Elzebub',
-    tier: 1,
-    type:  'Draconic',
-    type2: 'Elemental',
-    // T×333 base pool split across the 6 stats
-    baseHP: 60, baseATK: 55, baseDEF: 45, baseSPD: 55, baseSATK: 60, baseSDEF: 58,
-    moves: ['Ember', 'Tackle', 'Scratch', 'Growl'],
+    id:'elzebub', name:'Elzebub', tier:1, type:'Draconic', type2:'Elemental',
+    baseHP:60, baseATK:55, baseDEF:45, baseSPD:55, baseSATK:60, baseSDEF:58,
+    moves:['Ember','Tackle','Scratch','Growl'],
   },
-  // Elzoran · 3rd form of the Elzebub → Elzimir → Elzoran → Omegoran line
-  // (per aov-rp7-elzoran-v258).  T5 · Draconic/Elemental · dev-test spawn.
+
+  // ── Dev-spawn · T5 mid-form (double-tap Touchpad) ────────────────
   elzoran: {
-    id: 'elzoran',
-    name: 'Elzoran',
-    tier: 5,
-    type:  'Draconic',
-    type2: 'Elemental',
-    // T5 pool = 5 × 333 = 1665 spread across 6 stats
-    baseHP: 300, baseATK: 285, baseDEF: 260, baseSPD: 280, baseSATK: 290, baseSDEF: 250,
-    moves: ['Dragon Claw', 'Elemental Burst', 'Ember', 'Roar'],
+    id:'elzoran', name:'Elzoran', tier:5, type:'Draconic', type2:'Elemental',
+    baseHP:300, baseATK:285, baseDEF:260, baseSPD:280, baseSATK:290, baseSDEF:250,
+    moves:['Dragon Claw','Elemental Burst','Ember','Roar'],
   },
 };
 
@@ -1171,10 +1268,27 @@ const MOVES = {
   Roar:             { name: 'Roar',             power:  0, type: 'Normal'    },
 };
 
-// Malezor wild pool · Elzebub (canonical T1) + Elzoran (added 2026-08-05
-// so the battle sprite can render as a wild opponent for dev testing).
-// Weighted: Elzebub 3× more common than Elzoran.
-const MALEZOR_WILD_POOL = ['elzebub', 'elzebub', 'elzebub', 'elzoran'];
+// Malezor wild pool · T1-T2 only per user 2026-08-05 · sourced from
+// data/rp7_roster_v7.js.  Weighted: T1 species appear 3x for each T2
+// (T1 = 11 · T2 = 2 · pool entries = 33 + 2 = 35).  Elzebub kept out
+// of the wild pool (reserved for Dad-grants-starter later).  Elzoran
+// stays out too (T5, dev-spawn only).
+const MALEZOR_WILD_POOL = [
+  // T1 x3 each
+  'aetherwing','aetherwing','aetherwing',
+  'aurarat','aurarat','aurarat',
+  'cinderant','cinderant','cinderant',
+  'dunestinger','dunestinger','dunestinger',
+  'frosane','frosane','frosane',
+  'sandskitter','sandskitter','sandskitter',
+  'sunhoop','sunhoop','sunhoop',
+  'torchpuff','torchpuff','torchpuff',
+  'vipercrow','vipercrow','vipercrow',
+  'votimite','votimite','votimite',
+  'vulkarmor','vulkarmor','vulkarmor',
+  // T2 x1 each
+  'aurelik', 'gravvik',
+];
 
 // Per-species BATTLE SPRITE (opponent portrait shown in the upper-right
 // area of the battle overlay).  Assets sourced from
@@ -1240,7 +1354,7 @@ function startWildBattle(){
   const active = player.party[0];
   if (!active || active.hp <= 0) return;   // no live Zyrex to fight with
   const speciesId = MALEZOR_WILD_POOL[Math.floor(Math.random() * MALEZOR_WILD_POOL.length)];
-  const wildLv = 1 + Math.floor(Math.random() * 5);   // 1..5 per user
+  const wildLv = 1 + Math.floor(Math.random() * 25);   // 1..25 per Malezor band (user)
   const wild = createZyrex(speciesId, wildLv);
   battleState = {
     player: active,

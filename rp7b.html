@@ -779,7 +779,32 @@ const WORLD_PROPS = [
 // Load prop images (pre-baked · no chroma-key needed)
 WORLD_PROPS.forEach(p => { p.img.src = p.src; });
 
-// Collision + interact + wildZone maps · computed once from props.
+// -- NPCs (idle-only for MVP) -----------------------------------------------
+// Each NPC has its own sprite sheet, bboxes, position + facing direction,
+// and an onInteract handler.  Blocks its tile · rendered depth-sorted with
+// props + player · face direction determines which sheet cell to sample.
+const NPCS = [
+  {
+    id: 'crazy',
+    name: 'Crazy',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/npcs/crazy.png',
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    // Row = dir · col = frame · idle uses frame 0
+    bboxes: [
+      [[107,80,123,216],[101,80,123,216],[82,80,123,216],[66,80,122,216]],
+      [[100,55,130,209],[ 94,55,130,209],[73,55,130,209],[58,55,129,209]],
+      [[102,19,129,207],[ 94,19,130,207],[78,19,128,207],[64,19,129,207]],
+      [[107, 0,123,202],[101, 0,123,202],[82, 0,123,202],[67, 0,122,202]],
+    ],
+    tileX: 26, tileY: 105,        // east of player home · same row as door
+    dir:   'left',                // facing west toward player approach
+    onInteract: () => showToast('◈ Crazy · "Yo Rizer! Wild ones out there today.  Watch yourself."', 3200),
+  },
+];
+NPCS.forEach(n => { n.sheet.src = n.src; });
+
+// Collision + interact + wildZone maps · computed once from props + NPCs.
 const _propBlocked = new Set();     // "x,y" of solid tiles
 const _propDoors   = new Map();     // "x,y" → prop with onInteract
 const _wildZones   = new Set();     // "x,y" tiles that spawn wild Zyrex
@@ -787,6 +812,11 @@ WORLD_PROPS.forEach(p => {
   p.footprint.forEach(([dx,dy]) => _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`));
   if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
   if (p.wildZone) _wildZones.add(`${p.tileX},${p.tileY}`);
+});
+// NPCs block their own tile and register as interact targets.
+NPCS.forEach(n => {
+  _propBlocked.add(`${n.tileX},${n.tileY}`);
+  _propDoors.set(`${n.tileX},${n.tileY}`, { onInteract: n.onInteract });
 });
 
 function walkable(x, y){
@@ -2088,12 +2118,35 @@ function drawWorldLayer(){
     if (!p.img.complete || !p.img.naturalWidth) return;
     renderables.push({ kind:'prop', prop:p, footY: p.tileY });
   });
+  NPCS.forEach(n => {
+    if (!n.sheet.complete || !n.sheet.naturalWidth) return;
+    renderables.push({ kind:'npc', npc:n, footY: n.tileY });
+  });
   renderables.push({ kind:'player', footY: player.y });
   renderables.sort((a,b) => a.footY - b.footY);
   for (const r of renderables){
-    if (r.kind === 'prop') drawProp(r.prop);
-    else                   drawPlayer();
+    if (r.kind === 'prop')      drawProp(r.prop);
+    else if (r.kind === 'npc')  drawNPC(r.npc);
+    else                        drawPlayer();
   }
+}
+
+const DIR_ROW_NPC = { down: 0, left: 1, right: 2, up: 3 };
+function drawNPC(n){
+  // Per-sheet SCALE anchored to NPC's own down bh (same rule as player).
+  if (n._downScale == null){
+    const dbh = n.bboxes && n.bboxes[0] && n.bboxes[0][0] ? n.bboxes[0][0][3] : 216;
+    n._downScale = (TILE * 2) / dbh;
+  }
+  const row = DIR_ROW_NPC[n.dir] || 0;
+  const [bx, by, bw, bh] = n.bboxes[row][0];    // idle = frame 0
+  const sx = 0 * n.cellW + bx;
+  const sy = row * n.cellH + by;
+  const drawH = Math.max(1, Math.round(bh * n._downScale));
+  const drawW = Math.max(1, Math.round(bw * n._downScale));
+  const dx = Math.floor(n.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+  const dy = Math.floor(n.tileY * TILE + TILE - drawH)       - _cam.y;
+  ctx.drawImage(n.sheet, sx, sy, bw, bh, dx, dy, drawW, drawH);
 }
 
 function drawProp(p){

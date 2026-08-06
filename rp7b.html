@@ -245,6 +245,7 @@ const BUILDING_TILE_POSITIONS = [
   [ 6, 90], [36, 89], [22, 94], [12, 98], [32, 98],               // red-roof homes
   [25,126],                                                       // school
   [10,138], [35,138],                                             // potion shop + zyrex farm (south-2)
+  [22,156],                                                       // Malezor Hospital (south-3 bottom)
   [22,  5],                                                       // Rakoron's Cave (north edge · L3 entrance)
 ];
 
@@ -461,6 +462,41 @@ const WORLD_PROPS = [
     })(),
     door: [0, 0],
     onInteract: () => showToast('◈ MALEZOR ZYREX FARM · Closed for now.', 2200),
+  },
+  {
+    // Malezor Hospital · south-3 band · bottom-center below the shops.
+    // Heals all party Zyrex to full HP for 50 coins.
+    id: 'malezor_hospital',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/hospital.png',
+    bbox: [67, 60, 1196, 1033],       // aspect 1.158
+    tileX: 22, tileY: 156,            // door tile · south-3 bottom-center
+    tileW: 11, tileH: 9,
+    footprint: (function(){
+      const f = [];
+      for (let dy = -8; dy <= 0; dy++){
+        for (let dx = -5; dx <= 5; dx++){ f.push([dx, dy]); }
+      }
+      return f;
+    })(),
+    door: [0, 0],
+    onInteract: () => {
+      const COST = 50;
+      const coins = player.items.coins || 0;
+      const alive = (player.party || []).filter(z => z);
+      if (alive.length === 0){ showToast('◈ Hospital · No Zyrex to heal.', 2000); return; }
+      const needsHealing = alive.some(z => z.hp < z.maxHp);
+      if (!needsHealing){ showToast('◈ Hospital · Your party is already at full health.', 2200); return; }
+      if (coins < COST){
+        showToast(`◈ Hospital · Full heal costs ${COST}c · You have ${coins}c.`, 2400);
+        playSFX('disabled');
+        return;
+      }
+      player.items.coins = coins - COST;
+      alive.forEach(z => { z.hp = z.maxHp; });
+      playSFX('confirm');
+      showToast(`◈ MALEZOR HOSPITAL · Party restored · -${COST} coins`, 2600);
+    },
   },
   // ── CLOSED PORTAL · smart random spawn (never near chests · least dense) ─
   // Per user 2026-08-05: portal MUST NOT spawn near a chest, and always

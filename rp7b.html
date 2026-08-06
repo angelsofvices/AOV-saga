@@ -1111,10 +1111,16 @@ const INTERIOR_HOME_2F = {
 };
 INTERIOR_HOME_2F.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
-// Staircase decor · one image reused for every home's stairs.
-const STAIRCASE_IMG = new Image();
-STAIRCASE_IMG.src = 'assets/2D%20sprites/decor/staircase.png';
-const STAIRCASE_BBOX = [271, 100, 712, 1054];   // content bbox in 1254x1254 sheet
+// Staircase decor · two variants.  Every 1F of a two-floor home uses the
+// UP sprite; every 2F uses the DOWN sprite (walk into the dark opening to
+// descend).  Chosen at render time by stairs.target on the interior cfg.
+const STAIRCASE_UP_IMG = new Image();
+STAIRCASE_UP_IMG.src = 'assets/2D%20sprites/decor/staircase-up.png';
+const STAIRCASE_UP_BBOX = [271, 100, 712, 1054];
+
+const STAIRCASE_DOWN_IMG = new Image();
+STAIRCASE_DOWN_IMG.src = 'assets/2D%20sprites/decor/staircase-down.png';
+const STAIRCASE_DOWN_BBOX = [263,  98, 713, 1058];
 
 // Crazy's house · 15x15 wood floor (same tile as player home) · Crazy
 // wanders inside · player interacts to talk / recruit as companion.
@@ -1470,12 +1476,18 @@ function drawInteriorFloor(){
     ctx.fillRect(-_cam.x, -_cam.y, C * TILE, R * TILE);
   }
   // Staircase decor · draws the 2x3-tile sprite in the upper corner.
+  // 1F-to-2F stairs use the UP art · 2F-to-1F stairs use the DOWN art.
   const s = cfg.stairs;
-  if (s && STAIRCASE_IMG.complete && STAIRCASE_IMG.naturalWidth){
-    const [sx, sy, sw, sh] = STAIRCASE_BBOX;
-    const dx = s.visX * TILE - _cam.x;
-    const dy = s.visY * TILE - _cam.y;
-    ctx.drawImage(STAIRCASE_IMG, sx, sy, sw, sh, dx, dy, s.visW * TILE, s.visH * TILE);
+  if (s){
+    const goingUp = s.target && s.target.endsWith('_2f');
+    const img  = goingUp ? STAIRCASE_UP_IMG  : STAIRCASE_DOWN_IMG;
+    const bb   = goingUp ? STAIRCASE_UP_BBOX : STAIRCASE_DOWN_BBOX;
+    if (img.complete && img.naturalWidth){
+      const [sx, sy, sw, sh] = bb;
+      const dx = s.visX * TILE - _cam.x;
+      const dy = s.visY * TILE - _cam.y;
+      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, s.visW * TILE, s.visH * TILE);
+    }
   }
 }
 

@@ -95,21 +95,22 @@
 //////////////////////////////////////////////////////////////////////////////
 
 const TILE = 48;
-// World grid: 45 cols x 158 rows.  Horizontal 3 bands, vertical 10.5.
-// 2026-08-05 · extended south x2 (potion + zyrex farm) + north x2.5.
+// World grid: 45 cols x 188 rows.  2026-08-05 · +2 more south grass blocks.
 //   cols 0-14    · west band       (empty grass)
 //   cols 15-29   · center band     (all main content)
 //   cols 30-44   · east band       (empty grass)
-//   rows 0-37    · north+ (2.5 bands · empty · added 2026-08-05)
+//   rows 0-37    · north+ (2.5 bands · empty)
 //   rows 38-52   · far-north       (empty)
 //   rows 53-67   · north-2         (empty)
 //   rows 68-82   · town-hall       (Malezor Town Hall + bushes)
 //   rows 83-97   · north buffer    (red-roof houses)
 //   rows 98-112  · middle          (player home · spawn)
 //   rows 113-127 · south           (Malezor School)
-//   rows 128-142 · south-2         (POTION SHOP left · ZYREX FARM right · under school)
-//   rows 143-157 · south-3         (grass clusters)
-const MAP_COLS = 45, MAP_ROWS = 158;
+//   rows 128-142 · south-2         (POTION SHOP + ZYREX FARM)
+//   rows 143-157 · south-3         (Hospital · grass clusters)
+//   rows 158-172 · south-4         (NEW · empty grass)
+//   rows 173-187 · south-5         (NEW · empty grass)
+const MAP_COLS = 45, MAP_ROWS = 188;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -133,6 +134,7 @@ const AUDIO = {
     menuOpen:  new Audio('audio/ui-menu-open.mp3'),
     menuClose: new Audio('audio/ui-menu-close.mp3'),
     dialog:    new Audio('audio/ui-dialog-advance.mp3'),
+    coins:     new Audio('audio/sfx-coins.mp3'),   // chest unlock · coin drop
   },
 };
 Object.values(AUDIO.bgm).forEach(a => { a.loop = true; a.volume = 0.32; });
@@ -297,6 +299,18 @@ const GEMGRASS_PATCHES = [
   { x: 18, y:150, w: 5, h: 5 },
   { x:  5, y:154, w: 3, h: 3 },
   { x: 35, y:153, w: 4, h: 4 },
+  // South-4 band (rows 158-172) · new 2026-08-05
+  { x:  3, y:160, w: 4, h: 3 },
+  { x: 22, y:161, w: 5, h: 4 },
+  { x: 40, y:159, w: 4, h: 4 },
+  { x: 10, y:168, w: 5, h: 4 },
+  { x: 32, y:168, w: 5, h: 4 },
+  // South-5 band (rows 173-187) · new 2026-08-05
+  { x:  2, y:175, w: 4, h: 4 },
+  { x: 20, y:178, w: 5, h: 5 },
+  { x: 38, y:175, w: 5, h: 4 },
+  { x: 12, y:184, w: 4, h: 3 },
+  { x: 30, y:184, w: 5, h: 3 },
 ];
 
 const WORLD_PROPS = [
@@ -319,7 +333,7 @@ const WORLD_PROPS = [
       return f;
     })(),
     door: [0, 0],                     // interact tile inside footprint · player stands at (22,6) facing up
-    onInteract: () => enterCaveInterior(),
+    onInteract: () => showToast('◈ RAKORON\'S CAVE · Sealed by an ancient gemlock.', 2400),
   },
   {
     // Malezor Zyrex Research Facility · sits between Rakoron's Cave (row 5)
@@ -567,6 +581,7 @@ const WORLD_PROPS = [
         chest.bbox = OPEN_BBOX;
         const coins = 1 + Math.floor(Math.random() * 100);
         addItems({ coins });
+        playSFX('coins');
         showToast(`◈ WOOD CHEST · ${coins}× Coins`, 2400);
       };
       return chest;
@@ -829,17 +844,22 @@ GRASS.src = 'assets/2D%20sprites/tiles/outdoor-grass.png';
 // Homes = Level 2 · Caves = Level 3 · overworld = Level 1.
 // Player home · 15x15 wood-floor · spawn lower-center facing up.
 // Rakoron's Cave zone 1 · 10x25 dark-stone tunnel going up · spawn bottom-center facing up.
+// Exit tile = the door position (bottom-center) · spawn is 1 tile INTO
+// the room from the door facing up.  Player must walk back to the exit
+// tile and press X (or stand on it + X) to leave · Circle no longer exits.
 const INTERIOR_HOME = {
   cols: 15, rows: 15,
   tileImg: new Image(),
-  spawn: { x: 7, y: 14, dir: 'up' },
+  spawn: { x: 7, y: 13, dir: 'up' },
+  exit:  { x: 7, y: 14 },
 };
 INTERIOR_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
 const INTERIOR_CAVE = {
   cols: 10, rows: 25,
   tileImg: new Image(),
-  spawn: { x: 4, y: 24, dir: 'up' },
+  spawn: { x: 4, y: 23, dir: 'up' },
+  exit:  { x: 4, y: 24 },
 };
 INTERIOR_CAVE.tileImg.src = 'assets/2D%20sprites/tiles/cave-stone-floor.png';
 
@@ -1216,6 +1236,17 @@ function tryInteract(){
   if (player.dir === 'down')  fy++;
   if (player.dir === 'left')  fx--;
   if (player.dir === 'right') fx++;
+  // Interior scenes · X while facing OR standing on the exit tile leaves.
+  if (game.scene === 'interior_home' || game.scene === 'interior_cave'){
+    const cfg = game.scene === 'interior_cave' ? INTERIOR_CAVE : INTERIOR_HOME;
+    const e = cfg.exit;
+    if ((fx === e.x && fy === e.y) || (player.x === e.x && player.y === e.y)){
+      exitInterior();
+      playSFX('menuClose');
+      return;
+    }
+    return;   // no other interactions inside for MVP
+  }
   const doorProp = _propDoors.get(`${fx},${fy}`);
   if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
   showToast('◈ Grass.  All quiet.');
@@ -1281,9 +1312,15 @@ addEventListener('keydown', e => {
       if (k === 'arrowleft' || k === 'arrowright'){ battleState.selectedMoveIdx = (battleState.selectedMoveIdx ^ 1); playSFX('cursor'); }
       if (k === 'shift'){ battleState.menu = 'main'; playSFX('cancel'); return; }
       if (k === 'z' || k === 'x' || k === 'enter'){
-        const move = moves[battleState.selectedMoveIdx % moves.length];
+        const idx = battleState.selectedMoveIdx % moves.length;
+        const slot = moves[idx];
+        if (!slot || slot.pp <= 0){
+          playSFX('disabled');
+          battleAppendLog(`${slot ? slot.name : 'Move'} has no PP left!`);
+          return;
+        }
         playSFX('confirm');
-        battleExecuteMove(move);
+        battleExecuteMove(idx);
         if (!battleState.over) battleState.menu = 'main';
       }
       return;
@@ -1330,12 +1367,8 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   // 4) OVERWORLD / INTERIOR KEYS
   // ═══════════════════════════════════════════════════════════════
-  // Circle (Shift) leaves any interior scene back to overworld.
-  if (game.scene !== 'overworld' && k === 'shift'){
-    exitInterior();
-    playSFX('menuClose');
-    return;
-  }
+  // Circle no longer exits interiors · user must walk to the door tile
+  // and press X to interact (like a real door).  Handled in tryInteract().
   if (k === 'z' || k === 'x' || k === 'enter' || k === ' '){
     const now = performance.now();
     if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
@@ -1471,6 +1504,9 @@ function xpToNextLevel(lv){
   return next - cur;
 }
 
+// PP per move slot · user 2026-08-05: 1st=20 · 2nd=15 · 3rd=10 · 4th=5
+const MOVE_PP_BY_SLOT = [20, 15, 10, 5];
+
 function createZyrex(speciesId, level){
   const sp = SPECIES[speciesId];
   if (!sp) return null;
@@ -1491,7 +1527,11 @@ function createZyrex(speciesId, level){
     spd:  Math.floor(sp.baseSPD  * s),
     satk: Math.floor(sp.baseSATK * s),
     sdef: Math.floor(sp.baseSDEF * s),
-    moves: sp.moves.slice(0, 4),
+    // Move slot = { name, pp, maxPp } · slot index drives max PP.
+    moves: sp.moves.slice(0, 4).map((mname, i) => {
+      const max = MOVE_PP_BY_SLOT[i] || 5;
+      return { name: mname, pp: max, maxPp: max };
+    }),
   };
 }
 
@@ -1542,22 +1582,34 @@ function battleAppendLog(msg){
 }
 
 // Execute one full round · attacker moves first, defender counters if alive.
-function battleExecuteMove(playerMoveName){
+function battleExecuteMove(playerMoveIdx){
   const p = battleState.player, w = battleState.wild;
-  // Random wild move
-  const wildMove = w.moves[Math.floor(Math.random() * w.moves.length)];
+  const playerSlot = p.moves[playerMoveIdx];
+  if (!playerSlot || playerSlot.pp <= 0){
+    battleAppendLog(`${playerSlot ? playerSlot.name : 'Move'} has no PP left!`);
+    playSFX('disabled');
+    return;
+  }
+  playerSlot.pp -= 1;
+  // Random wild move · pick from moves with pp remaining
+  const wildUsable = w.moves.filter(m => m.pp > 0);
+  const wildSlot   = wildUsable.length
+    ? wildUsable[Math.floor(Math.random() * wildUsable.length)]
+    : w.moves[0];
+  if (wildSlot && wildSlot.pp > 0) wildSlot.pp -= 1;
   // Speed order · higher SPD goes first
   const playerFirst = p.spd >= w.spd;
   const acts = playerFirst
-    ? [['player', playerMoveName], ['wild', wildMove]]
-    : [['wild', wildMove], ['player', playerMoveName]];
-  for (const [who, mv] of acts){
+    ? [['player', playerSlot], ['wild', wildSlot]]
+    : [['wild', wildSlot], ['player', playerSlot]];
+  for (const [who, slot] of acts){
     if (p.hp <= 0 || w.hp <= 0) break;
-    const atk  = who === 'player' ? p : w;
-    const def  = who === 'player' ? w : p;
-    const dmg  = calcDamage(atk, def, mv);
+    const atk = who === 'player' ? p : w;
+    const def = who === 'player' ? w : p;
+    const mvName = slot ? slot.name : 'Struggle';
+    const dmg = calcDamage(atk, def, mvName);
     def.hp = Math.max(0, def.hp - dmg);
-    battleAppendLog(`${atk.name} used ${mv}!` + (dmg > 0 ? ` (${dmg} dmg)` : ' (no effect)'));
+    battleAppendLog(`${atk.name} used ${mvName}!` + (dmg > 0 ? ` (${dmg} dmg)` : ' (no effect)'));
   }
   // Resolve
   if (w.hp <= 0){
@@ -1598,11 +1650,16 @@ function battleRun(){
     battleState.menu = 'over';
   } else {
     battleAppendLog(`Couldn't escape!`);
-    // Wild gets a free hit
-    const wildMove = battleState.wild.moves[Math.floor(Math.random() * battleState.wild.moves.length)];
-    const dmg = calcDamage(battleState.wild, battleState.player, wildMove);
+    // Wild gets a free hit · pick from PP-having moves
+    const usable = battleState.wild.moves.filter(m => m.pp > 0);
+    const slot = usable.length
+      ? usable[Math.floor(Math.random() * usable.length)]
+      : battleState.wild.moves[0];
+    if (slot && slot.pp > 0) slot.pp -= 1;
+    const mvName = slot ? slot.name : 'Struggle';
+    const dmg = calcDamage(battleState.wild, battleState.player, mvName);
     battleState.player.hp = Math.max(0, battleState.player.hp - dmg);
-    battleAppendLog(`Wild ${battleState.wild.name} used ${wildMove}! (${dmg} dmg)`);
+    battleAppendLog(`Wild ${battleState.wild.name} used ${mvName}! (${dmg} dmg)`);
     if (battleState.player.hp <= 0){
       battleAppendLog(`${battleState.player.name} fainted!  You blacked out.`);
       battleState.over = true;
@@ -1766,21 +1823,23 @@ function drawBattleOverlay(){
     });
   } else if (battleState.menu === 'fight'){
     const moves = p.moves;
-    moves.forEach((mname, i) => {
+    moves.forEach((slot, i) => {
       const col = i % 2, row = Math.floor(i / 2);
       const x = menuX + col * (btnW + gap);
       const y = menuY + row * (btnH + gap);
       const sel = (i === battleState.selectedMoveIdx);
-      const mv = MOVES[mname];
-      ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.7)';
+      const empty = slot.pp <= 0;
+      const mv = MOVES[slot.name];
+      ctx.fillStyle = sel && !empty ? '#d4af37' : 'rgba(0,0,0,0.7)';
       ctx.fillRect(x, y, btnW, btnH);
-      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
+      ctx.strokeStyle = empty ? '#555' : '#d4af37'; ctx.lineWidth = 1;
       ctx.strokeRect(x, y, btnW, btnH);
-      ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
+      const nameColor = sel && !empty ? '#0b0b10' : (empty ? '#666' : '#f0eadf');
+      ctx.fillStyle = nameColor;
       ctx.font = 'bold 11px "Courier New", monospace';
-      ctx.fillText(mname, x + 6, y + 14);
+      ctx.fillText(slot.name, x + 6, y + 14);
       ctx.font = '9px "Courier New", monospace';
-      ctx.fillText(`${mv ? mv.type : '?'} · ${mv ? mv.power : 0}`, x + 6, y + 27);
+      ctx.fillText(`PP ${slot.pp}/${slot.maxPp} · ${mv ? mv.power : 0}`, x + 6, y + 27);
     });
     ctx.fillStyle = '#8ff';
     ctx.font = '11px "Courier New", monospace';

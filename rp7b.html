@@ -879,10 +879,40 @@ const NPCS = [
       }
     },
   },
+  {
+    // ── Mom · stationary NPC inside the player's home (interior_home) ──
+    // v0.59.  Idle-only sheet (4 cols per row).  Col 2 is the eyes-closed
+    // (blink) frame; the blink loop sits on col 0 most of the time and
+    // briefly flashes col 2 every ~3s.  Mom never wanders.
+    id: 'mom',
+    name: 'Mom',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/npcs/mom.png',
+    bboxes: [
+      [[135,76,121,236],[100,76,122,237],[76,76,122,236],[44,76,122,236]],
+      [[138,57,109,229],[105,57,109,229],[79,57,110,229],[48,57,107,229]],
+      [[138,28,105,225],[105,28,104,225],[79,28,105,225],[48,28,104,225]],
+      [[137,-5,113,231],[104,-5,112,231],[76,-5,113,231],[47,-5,113,231]],
+    ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    tileX: 7, tileY: 5,                    // center-back of 15x10 player home
+    homeX: 7, homeY: 5,
+    homeScene: 'interior_home',
+    scene: 'interior_home',
+    dir: 'down',
+    mode: 'stationary',                    // never wanders
+    moving: false,
+    animFrame: 0,
+    idleFrame: 0,
+    blinkTimer: 1200 + Math.random() * 2000,
+    onInteract: (n) => {
+      showToast('◈ Mom · "Stay safe out there, honey."', 2400);
+    },
+  },
 ];
 NPCS.forEach(n => {
   n.sheet.src = n.src;
-  n.walkSheet.src = n.walkSrc;
+  if (n.walkSheet && n.walkSrc) n.walkSheet.src = n.walkSrc;
 });
 
 // Collision + interact + wildZone maps · computed once from props + NPCs.
@@ -1006,10 +1036,10 @@ GRASS.src = 'assets/2D%20sprites/tiles/outdoor-grass.png';
 // the room from the door facing up.  Player must walk back to the exit
 // tile and press X (or stand on it + X) to leave · Circle no longer exits.
 const INTERIOR_HOME = {
-  cols: 15, rows: 15,
+  cols: 15, rows: 10,                           // v0.59 · was 15x15
   tileImg: new Image(),
-  spawn: { x: 7, y: 13, dir: 'up' },
-  exit:  { x: 7, y: 14 },
+  spawn: { x: 7, y: 8, dir: 'up' },
+  exit:  { x: 7, y: 9 },
 };
 INTERIOR_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
@@ -2285,11 +2315,12 @@ function drawNPC(n){
     n._downScale = (TILE * 2) / dbh;
   }
   const row = DIR_ROW_NPC[n.dir] || 0;
-  // Moving → walk sheet at animFrame · standing → idle sheet frame 0
-  const useWalk = n.moving && n.walkSheet && n.walkSheet.complete;
+  // Moving → walk sheet at animFrame · standing → idle sheet at idleFrame
+  // (defaults to 0; NPCs with a blink loop set n.idleFrame in tickNPC).
+  const useWalk = n.moving && n.walkSheet && n.walkSheet.complete && n.walkSheet.naturalWidth;
   const bank    = useWalk ? n.walkBboxes : n.bboxes;
   const img     = useWalk ? n.walkSheet  : n.sheet;
-  const col     = useWalk ? (n.animFrame % n.cols) : 0;
+  const col     = useWalk ? (n.animFrame % n.cols) : ((n.idleFrame || 0) % n.cols);
   const [bx, by, bw, bh] = bank[row][col];
   const sx = col * n.cellW + bx;
   const sy = row * n.cellH + by;
@@ -2316,6 +2347,31 @@ function stepNPCTo(n, nx, ny, newDir){
   return true;
 }
 function tickNPC(n, dt){
+  // ── Blink loop (any NPC · runs every frame, independent of moveCd) ──
+  // Idle frame sits at 0.  Every ~2.5-4s, flash frame 2 (eyes closed) for
+  // ~140ms.  Suppressed while moving (walk animation uses animFrame).
+  if (!n.moving){
+    n.blinkTimer = (n.blinkTimer == null ? 2000 + Math.random() * 2000 : n.blinkTimer - dt);
+    if (n.blinkTimer <= 0){
+      n.idleFrame = 2;
+      if (n._blinkHold == null) n._blinkHold = 140;
+      n._blinkHold -= dt;
+      if (n._blinkHold <= 0){
+        n.idleFrame = 0;
+        n._blinkHold = null;
+        n.blinkTimer = 2500 + Math.random() * 2000;
+      }
+    } else {
+      n.idleFrame = 0;
+    }
+  } else {
+    n.idleFrame = 0;
+    n.blinkTimer = 2000 + Math.random() * 2000;
+  }
+
+  // Stationary NPCs (Mom) don't wander or follow · blink loop is all.
+  if (n.mode === 'stationary') return;
+
   n.moveCd = (n.moveCd || 0) - dt;
   if (n.moveCd > 0){ /* wait */ return; }
   if (n.mode === 'follow'){

@@ -823,12 +823,12 @@ const BBOX_FALLBACK = {
   //     trail that used to inflate bh=288 is a separate CC and ignored
   // Result: all bboxes across all poses in the tight 213-236 range,
   // so constant drawH renders truly consistent character size.
-  // 2026-08-06 · new dedicated idle sheet · 1254x1254 / 313 cell · bh 284-309
+  // 2026-08-06 · rescaled chibi idle · 1254x1254 / 313 cell · bh 145-187
   idle: [
-    [[84,29,207,284],[67,29,205,284],[48,29,207,284],[31,29,208,284]],
-    [[111, 0,164,309],[93, 0,163,309],[74, 0,165,309],[58, 0,164,309]],
-    [[106,14,161,299],[88,14,160,299],[69,14,160,299],[53,14,161,299]],
-    [[85, 0,206,291],[67, 0,205,290],[48, 0,207,291],[32, 0,207,291]],
+    [[138,93,113,187],[100,93,114,186],[79,93,113,185],[47,93,113,185]],
+    [[135,60, 98,167],[100,60, 99,166],[79,59,100,166],[49,59, 97,166]],
+    [[141,18, 97,165],[111,18, 97,164],[87,17, 97,164],[58,17, 97,164]],
+    [[137, 0,111,147],[106, 0,110,146],[77, 0,111,145],[50, 0,109,145]],
   ],
   // 2026-08-06 · new walk sheet · 1254x1254 / 313 cell · bh 284-309 (matches idle)
   // (spread of only 23) · row = direction (down/left/right/up).
@@ -842,12 +842,15 @@ const BBOX_FALLBACK = {
     [[107,15,159,298],[88,15,160,298],[70,15,158,298],[53,15,160,298]],
     [[86, 0,204,291],[67, 0,205,291],[48, 0,206,291],[32, 0,205,291]],
   ],
-  // 2026-08-06 · new run sheet · 1254x1254 / 313 cell · bh 282-308 (matches idle+walk)
+  // 2026-08-06 · rescaled run sheet · 1254x1254 / 313 cell · smaller chibi run
+  // Row 2 (right): raw bh=298 · pixel-scan showed a stray second silhouette
+  // near cell bottom · clamped bh=165 to match left row (main body only) ·
+  // feet still anchor at bbox bottom on screen.
   run: [
-    [[77,31,217,282],[44,31,223,282],[42,31,228,282],[19,31,222,282]],
-    [[86, 0,176,307],[79, 0,174,303],[63, 0,171,308],[47, 0,176,308]],
-    [[88,16,165,297],[68,16,174,297],[51,16,179,297],[48,16,167,297]],
-    [[77, 0,210,292],[64, 0,203,293],[41, 0,224,289],[19, 0,220,293]],
+    [[124,92,135,193],[81,92,139,191],[69,92,139,191],[35,93,135,193]],
+    [[130,57,108,166],[100,57,109,163],[81,55,105,168],[52,56,109,167]],
+    [[133,15,107,165],[101,15,109,165],[75,15,112,165],[56,15,105,165]],
+    [[127, 0,127,153],[100, 0,123,153],[69, 0,136,150],[40, 0,132,153]],
   ],
 };
 
@@ -1284,8 +1287,16 @@ function drawPlayer(){
   // Feet always land at tile bottom (dy formula unchanged) so there's
   // no float even though drawH differs per pose.  No shadow trickery
   // needed · this is the literal ratio-lock the user asked for.
-  const REF_BH_DOWN = 284;                          // matches new idle+walk down bh
-  const SCALE       = (TILE * 2) / REF_BH_DOWN;      // 0.338 · per-pixel universal
+  // ★ Per-sheet scale · anchored to EACH bundle's own DOWN row (row 0
+  // frame 0).  Any sheet renders its down-facing frame at exactly 2 tiles
+  // tall, regardless of the artist's source-pixel size on that sheet.
+  // Cross-sheet down transitions are always visually consistent.
+  if (bundle._downScale == null){
+    const dbh = bundle.bboxes && bundle.bboxes[0] && bundle.bboxes[0][0]
+              ? bundle.bboxes[0][0][3] : 284;
+    bundle._downScale = (TILE * 2) / dbh;
+  }
+  const SCALE = bundle._downScale;
   const drawH       = Math.max(1, Math.round(bh * SCALE));
   const drawW       = Math.max(1, Math.round(bw * SCALE));
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;

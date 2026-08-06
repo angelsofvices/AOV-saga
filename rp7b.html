@@ -340,7 +340,7 @@ const WORLD_PROPS = [
       return f;
     })(),
     door:  [0, 0],                              // interact target at tile 7,7
-    onInteract: () => showToast('◈ HOME · door is locked for now.', 2200),
+    onInteract: () => enterHomeInterior(),
   },
   {
     id: 'malezor_town_hall',
@@ -683,6 +683,9 @@ WORLD_PROPS.forEach(p => {
 });
 
 function walkable(x, y){
+  if (game.scene === 'interior_home'){
+    return x >= 0 && y >= 0 && x < INTERIOR_HOME.cols && y < INTERIOR_HOME.rows;
+  }
   if (x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) return false;
   if (_propBlocked.has(`${x},${y}`)) return false;
   return true;
@@ -759,6 +762,42 @@ function loadAsset(bundle, url){
 
 const GRASS = new Image();
 GRASS.src = 'assets/2D%20sprites/tiles/outdoor-grass.png';
+
+// -- Interior scenes (Level 2 per aov-cave-home-level-canon) ---------------
+// Player home interior · 15x15 wood-floor room · spawn lower-center
+// facing up.  Press Circle (Shift) or interact with the bottom-center
+// tile to exit back to the overworld door position.
+const INTERIOR_HOME = {
+  cols: 15,
+  rows: 15,
+  tileImg: new Image(),
+  spawn: { x: 7, y: 14, dir: 'up' },
+  exitTile: { x: 7, y: 14 },
+};
+INTERIOR_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
+
+// Scene state: 'overworld' or 'interior_home'.  Overworld is default.
+const game = { scene: 'overworld', overworldReturn: null };
+
+function enterHomeInterior(){
+  if (game.scene === 'interior_home') return;
+  game.overworldReturn = { x: player.x, y: player.y, dir: player.dir };
+  game.scene = 'interior_home';
+  player.x = INTERIOR_HOME.spawn.x;
+  player.y = INTERIOR_HOME.spawn.y;
+  player.dir = INTERIOR_HOME.spawn.dir;
+  player.moving = false;
+  player.animFrame = 0;
+  showToast('◈ HOME · press ○ to leave', 1600);
+}
+function exitHomeInterior(){
+  if (game.scene !== 'interior_home') return;
+  const r = game.overworldReturn || { x: 22, y: 106, dir: 'down' };
+  game.scene = 'overworld';
+  player.x = r.x; player.y = r.y; player.dir = r.dir;
+  player.moving = false;
+  player.animFrame = 0;
+}
 
 // Rizer sprite loading · all three sheets delivered.
 Promise.all([
@@ -939,6 +978,29 @@ function drawGrass(){
   } else {
     ctx.fillStyle = '#3a6b3a';
     ctx.fillRect(-_cam.x, -_cam.y, MAP_COLS * TILE, MAP_ROWS * TILE);
+  }
+}
+
+// Interior floor · 1:1 wood-plank tile, drawn same way as grass.
+// Sized to INTERIOR_HOME.cols x rows.  Camera still player-centered.
+function drawInteriorFloor(){
+  const img = INTERIOR_HOME.tileImg;
+  const C = INTERIOR_HOME.cols, R = INTERIOR_HOME.rows;
+  const startCol = Math.max(0, Math.floor(_cam.x / TILE));
+  const endCol   = Math.min(C, Math.ceil((_cam.x + canvas.width)  / TILE));
+  const startRow = Math.max(0, Math.floor(_cam.y / TILE));
+  const endRow   = Math.min(R, Math.ceil((_cam.y + canvas.height) / TILE));
+  if (img.complete && img.naturalWidth){
+    for (let ty = startRow; ty < endRow; ty++){
+      for (let tx = startCol; tx < endCol; tx++){
+        ctx.drawImage(img,
+          0, 0, img.naturalWidth, img.naturalHeight,
+          tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
+      }
+    }
+  } else {
+    ctx.fillStyle = '#7a4a1e';
+    ctx.fillRect(-_cam.x, -_cam.y, C * TILE, R * TILE);
   }
 }
 
@@ -1195,8 +1257,14 @@ addEventListener('keydown', e => {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 4) OVERWORLD KEYS
+  // 4) OVERWORLD / INTERIOR KEYS
   // ═══════════════════════════════════════════════════════════════
+  // Circle (Shift) leaves the interior back to overworld · Level-2 canon.
+  if (game.scene === 'interior_home' && k === 'shift'){
+    exitHomeInterior();
+    playSFX('menuClose');
+    return;
+  }
   if (k === 'z' || k === 'x' || k === 'enter' || k === ' '){
     const now = performance.now();
     if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
@@ -1659,32 +1727,39 @@ function drawBattleOverlay(){
   }
 }
 
-function drawBattleCard(z, x, y, label, isTop){
+function drawBattleCard(z, x, y, _label, isTop){
+  // 2026-08-05 · WILD/YOUR labels removed · stat line removed · XP bar
+  // added (smaller than HP).  Card height 90 unchanged.
   const cw = 220, ch = 90;
   ctx.fillStyle = 'rgba(0,0,0,0.7)';
   ctx.fillRect(x, y, cw, ch);
   ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2;
   ctx.strokeRect(x, y, cw, ch);
-  ctx.fillStyle = '#d4af37';
-  ctx.font = '10px "Courier New", monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText(label, x + 8, y + 14);
   ctx.fillStyle = '#f0eadf';
   ctx.font = 'bold 14px "Courier New", monospace';
-  ctx.fillText(`${z.name.toUpperCase()}  Lv ${z.level}  T${z.tier}`, x + 8, y + 32);
+  ctx.textAlign = 'left';
+  ctx.fillText(`${z.name.toUpperCase()}  Lv ${z.level}  T${z.tier}`, x + 8, y + 18);
   ctx.font = '10px "Courier New", monospace';
   ctx.fillStyle = '#aaa';
-  ctx.fillText(`${z.type}${z.type2 ? ' / ' + z.type2 : ''}`, x + 8, y + 46);
-  // HP bar
-  const barX = x + 8, barY = y + 54, barW = cw - 16, barH = 10;
-  ctx.strokeStyle = '#666'; ctx.strokeRect(barX, barY, barW, barH);
-  const frac = z.hp / z.maxHp;
-  ctx.fillStyle = frac > 0.5 ? '#5f5' : frac > 0.2 ? '#fd5' : '#f55';
-  ctx.fillRect(barX + 1, barY + 1, (barW - 2) * frac, barH - 2);
+  ctx.fillText(`${z.type}${z.type2 ? ' / ' + z.type2 : ''}`, x + 8, y + 32);
+  // HP bar (taller · primary stat)
+  const barX = x + 8, hpBarY = y + 40, barW = cw - 16, hpBarH = 10;
+  ctx.strokeStyle = '#666'; ctx.strokeRect(barX, hpBarY, barW, hpBarH);
+  const hpFrac = z.hp / z.maxHp;
+  ctx.fillStyle = hpFrac > 0.5 ? '#5f5' : hpFrac > 0.2 ? '#fd5' : '#f55';
+  ctx.fillRect(barX + 1, hpBarY + 1, (barW - 2) * hpFrac, hpBarH - 2);
   ctx.fillStyle = '#f0eadf';
-  // Line: 'HP curHP/maxHP   atk def spd satk sdef' (numbers only, no labels
-  // per user 2026-08-05).  HP label kept because user asked for it.
-  ctx.fillText(`HP ${z.hp}/${z.maxHp}   ${z.atk} ${z.def} ${z.spd} ${z.satk} ${z.sdef}`, x + 8, y + 80);
+  ctx.fillText(`HP ${z.hp}/${z.maxHp}`, x + 8, y + 62);
+  // XP bar (shorter · gold accent · to-next-level)
+  const xpMax  = xpToNextLevel(z.level);
+  const xpCur  = Math.max(0, Math.min(z.xp || 0, xpMax));
+  const xpBarY = y + 70, xpBarH = 5;
+  ctx.strokeStyle = '#666'; ctx.strokeRect(barX, xpBarY, barW, xpBarH);
+  ctx.fillStyle = '#d4af37';
+  ctx.fillRect(barX + 1, xpBarY + 1, (barW - 2) * (xpCur / Math.max(1, xpMax)), xpBarH - 2);
+  ctx.fillStyle = '#f0eadf';
+  ctx.font = '9px "Courier New", monospace';
+  ctx.fillText(`XP ${xpCur}/${xpMax}`, x + 8, y + 84);
 }
 
 // -- Zyrex party menu overlay ------------------------------------------------
@@ -1779,8 +1854,13 @@ function frame(now){
   updateCamera();
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  drawGrass();
-  drawWorldLayer();     // props + player, depth-sorted by feet-Y
+  if (game.scene === 'interior_home'){
+    drawInteriorFloor();
+    drawPlayer();       // no props inside for MVP
+  } else {
+    drawGrass();
+    drawWorldLayer();   // props + player, depth-sorted by feet-Y
+  }
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles
   drawBattleOverlay();  // owns whole screen while battleState is set

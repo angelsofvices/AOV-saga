@@ -1076,11 +1076,11 @@ const INTERIOR_HOME = {
   // Player walks NORTH onto tile (1,2) → auto-transitions to 2F.
   stairs: {
     visX: 0, visY: 0, visW: 2, visH: 3,           // staircase image footprint
-    trigger: { x: 1, y: 2 },                      // step-on tile (bottom-right of visual)
+    triggers: [[0,2],[1,2]],                      // both base tiles trigger the swap
     target: 'interior_home_2f',
     spawnAt: { x: 1, y: 3, dir: 'down' },         // land BELOW stairs, facing away
   },
-  blocked: [[0,0],[1,0], [0,1],[1,1], [0,2]],     // stairs body (trigger tile stays walkable)
+  blocked: [[0,0],[1,0], [0,1],[1,1]],            // stairs body (both base tiles walkable)
 };
 INTERIOR_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
@@ -1103,11 +1103,11 @@ const INTERIOR_HOME_2F = {
   // Walk onto (1,2) from any direction to descend.
   stairs: {
     visX: 0, visY: 0, visW: 2, visH: 3,
-    trigger: { x: 1, y: 2 },
+    triggers: [[0,2],[1,2]],
     target: 'interior_home',
     spawnAt: { x: 1, y: 3, dir: 'down' },
   },
-  blocked: [[0,0],[1,0], [0,1],[1,1], [0,2]],
+  blocked: [[0,0],[1,0], [0,1],[1,1]],
 };
 INTERIOR_HOME_2F.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
@@ -1408,14 +1408,16 @@ function tryMove(dt){
   player.running = running;
   player.moveCd = running ? 90 : 170;
 
-  // Auto-transition · step onto a staircase trigger tile → change floors.
+  // Auto-transition · step onto any staircase trigger tile → change floors.
   const _cfg = interiorConfig(game.scene);
-  if (_cfg && _cfg.stairs && _cfg.stairs.trigger
-      && player.x === _cfg.stairs.trigger.x
-      && player.y === _cfg.stairs.trigger.y){
-    useStairs(_cfg.stairs);
-    playSFX('menuOpen');
-    return;
+  if (_cfg && _cfg.stairs && _cfg.stairs.triggers){
+    for (const [tx, ty] of _cfg.stairs.triggers){
+      if (player.x === tx && player.y === ty){
+        useStairs(_cfg.stairs);
+        playSFX('menuOpen');
+        return;
+      }
+    }
   }
 
   // Wild-Zyrex encounter · only fires when player has ≥1 Zyrex in party.

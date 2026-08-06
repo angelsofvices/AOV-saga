@@ -254,51 +254,47 @@ const WORLD_PROPS = [
     door:  [0, 0],
     onInteract: () => showToast('◈ MALEZOR TOWN HALL · Closed for now.', 2200),
   },
-  // ── CHESTS · tier-based loot · swaps sprite when opened ────────────
-  // Three tiers (wood/silver/gold) with escalating loot tables.  Each
-  // chest starts closed, swaps to open-chest sprite on first interact,
-  // and stays silent on re-interact (no dead-actor prompt).
+  // ── CLOSED PORTAL · random spawn per page load · matches player height ──
   ...(function(){
-    // [tileX, tileY, tier]
+    const _portalImg = new Image();
+    _portalImg.src = 'assets/2D%20sprites/portal/portal_closed.png';
+    // Content bbox measured: 363x1196 in 1254x1254 · aspect 0.304
+    const PORTAL_BBOX = [445, 40, 363, 1196];
+    // Safe-zone tile candidates · far west/east grass margins (always clear
+    // of buildings/props).  Picked at page-load time via Math.random().
+    const PORTAL_SPOTS = [
+      [ 1,  5], [ 2, 18], [ 3, 30], [ 1, 45], [ 2, 58], [ 3, 70], [ 1, 84],
+      [42,  5], [43, 18], [42, 30], [43, 45], [42, 58], [43, 70], [42, 84],
+      [12, 30], [30, 30], [12, 55], [30, 55],
+    ];
+    const [tx, ty] = PORTAL_SPOTS[Math.floor(Math.random() * PORTAL_SPOTS.length)];
+    return [{
+      id: 'portal_closed',
+      img: _portalImg,
+      src: 'assets/2D%20sprites/portal/portal_closed.png',
+      bbox: PORTAL_BBOX,
+      tileX: tx, tileY: ty,
+      // Height = 2 tiles (matches player · aspect preserved → ~0.6 wide)
+      tileW: 1, tileH: 2,
+      footprint: [[0, 0]],       // 1-tile solid at feet
+      door: [0, 0],
+      onInteract: () => showToast('◈ Portal · sealed shut.', 2000),
+    }];
+  })(),
+  // ── CHESTS · all wood · 1-100 random coins · sets base purchase math ──
+  // Simplified 2026-08-05 per user: no more tier system, no gems/potions/
+  // Zyspheres.  Every chest is wood, drops 1-100 coins.  Coin math is the
+  // base unit for future shop prices.
+  ...(function(){
     const CHEST_POSITIONS = [
-      [13,  5, 'wood'],           // far-north NW
-      [32, 12, 'silver'],         // far-north NE
-      [ 5, 22, 'wood'],           // north-2 W
-      [28, 17, 'wood'],           // north-2 NE
-      [ 5, 44, 'silver'],         // town-hall SW
-      [44, 45, 'gold'],           // buffer NE corner
-      [25, 50, 'silver'],         // buffer center between reds
-      [44, 82, 'gold'],           // south SE corner
+      [13,  5], [32, 12], [ 5, 22], [28, 17],
+      [ 5, 44], [44, 45], [25, 50], [44, 82],
     ];
     const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/chest.png';
     const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
-    const CLOSED_BBOX = [362, 329, 676, 467];   // aspect 1.45
-    const OPEN_BBOX   = [290, 240, 673, 741];   // aspect 0.91 (taller · lid up)
-    // Structured loot · each entry is a { itemKey: count } dict.  On chest
-    // open, we (a) merge these counts into player.items and (b) build a
-    // human-readable string for the toast.  Item keys match INVENTORY_META
-    // labels so Settings > Items can render them nicely.
-    const LOOT_BY_TIER = {
-      wood: [
-        { coins: 10 },
-        { coins: 15, potion: 1 },
-        { coins: 5, gem: 3 },
-        { zysphere_basic: 1 },
-      ],
-      silver: [
-        { coins: 50, gem: 5 },
-        { zysphere_void: 2 },
-        { zysphere_silver: 1, potion: 1 },
-        { coins: 75, moon_gem: 1 },
-      ],
-      gold: [
-        { coins: 200, gem: 10 },
-        { zysphere_ultra: 1, rare_item: 1 },
-        { coins: 100, moon_gem: 3 },
-        { prismshard: 1 },
-      ],
-    };
-    return CHEST_POSITIONS.map(([tx, ty, tier], i) => {
+    const CLOSED_BBOX = [362, 329, 676, 467];
+    const OPEN_BBOX   = [290, 240, 673, 741];
+    return CHEST_POSITIONS.map(([tx, ty], i) => {
       const chest = {
         id: `chest_${i}`,
         img: _closedImg,
@@ -309,17 +305,15 @@ const WORLD_PROPS = [
         footprint: [[0, 0]],
         door: [0, 0],
         opened: false,
-        tier,
       };
       chest.onInteract = () => {
-        if (chest.opened) return;   // dead actor · no re-interact prompt
+        if (chest.opened) return;
         chest.opened = true;
         chest.img = _openImg;
         chest.bbox = OPEN_BBOX;
-        const table = LOOT_BY_TIER[tier] || LOOT_BY_TIER.wood;
-        const drop  = table[Math.floor(Math.random() * table.length)];
-        addItems(drop);   // merge into player.items · defined below
-        showToast(`◈ ${tier.toUpperCase()} CHEST · ${lootToString(drop)}`, 2800);
+        const coins = 1 + Math.floor(Math.random() * 100);
+        addItems({ coins });
+        showToast(`◈ WOOD CHEST · ${coins}× Coins`, 2400);
       };
       return chest;
     });
@@ -897,8 +891,29 @@ let _lastInteract = 0;
 // Settings menu selection state (arrow-nav + confirm on Z/X)
 let settingsSelectedIdx = 0;
 
+// Touchpad double-tap tracking (Elzoran dev spawn).
+let _lastTouchpadTime = 0;
+
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
+
+  // ═══════════════════════════════════════════════════════════════
+  // 0) TOUCHPAD DOUBLE-TAP · centralized so it works in every mode
+  //    · 2 presses within 500ms grants Elzoran and swallows the event
+  //    · falls through to per-mode single-press handling otherwise
+  // ═══════════════════════════════════════════════════════════════
+  if (k === '2'){
+    const now = performance.now();
+    if (now - _lastTouchpadTime < 500){
+      giveDevElzoran();
+      _lastTouchpadTime = 0;
+      // Ensure menu closes so grant toast is visible.
+      zyrexMenuOpen = false;
+      return;
+    }
+    _lastTouchpadTime = now;
+    // Fall through · handled per-mode below.
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // 1) BATTLE INPUT · owns keys entirely while battleState !== null
@@ -975,7 +990,6 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   if (zyrexMenuOpen){
     if (k === '2' || k === 'shift') zyrexMenuOpen = false;
-    if (k === '9') giveDevElzebub();
     return;
   }
 
@@ -986,9 +1000,10 @@ addEventListener('keydown', e => {
     const now = performance.now();
     if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
   }
-  if (k === '2'){ zyrexMenuOpen    = !zyrexMenuOpen; }
+  // Touchpad single-press toggles the Zyrex menu.  Double-tap is caught
+  // in the centralized guard at the top of the handler (grants Elzoran).
+  if (k === '2'){ zyrexMenuOpen = !zyrexMenuOpen; }
   if (k === '3'){ settingsMenuOpen = !settingsMenuOpen; }
-  if (k === '9'){ giveDevElzebub(); }
 });
 
 // -- Zyrex species roster (adopted from RP7 beta/classic) --------------------
@@ -1006,14 +1021,29 @@ const SPECIES = {
     baseHP: 60, baseATK: 55, baseDEF: 45, baseSPD: 55, baseSATK: 60, baseSDEF: 58,
     moves: ['Ember', 'Tackle', 'Scratch', 'Growl'],
   },
+  // Elzoran · 3rd form of the Elzebub → Elzimir → Elzoran → Omegoran line
+  // (per aov-rp7-elzoran-v258).  T5 · Draconic/Elemental · dev-test spawn.
+  elzoran: {
+    id: 'elzoran',
+    name: 'Elzoran',
+    tier: 5,
+    type:  'Draconic',
+    type2: 'Elemental',
+    // T5 pool = 5 × 333 = 1665 spread across 6 stats
+    baseHP: 300, baseATK: 285, baseDEF: 260, baseSPD: 280, baseSATK: 290, baseSDEF: 250,
+    moves: ['Dragon Claw', 'Elemental Burst', 'Ember', 'Roar'],
+  },
 };
 
 // Move data · MVP damage-only (status/debuff moves land with real battle sys)
 const MOVES = {
-  Tackle:  { name: 'Tackle',  power: 10, type: 'Normal'   },
-  Scratch: { name: 'Scratch', power: 10, type: 'Normal'   },
-  Ember:   { name: 'Ember',   power: 15, type: 'Elemental'},
-  Growl:   { name: 'Growl',   power:  0, type: 'Normal'   },   // no-op
+  Tackle:           { name: 'Tackle',           power: 10, type: 'Normal'    },
+  Scratch:          { name: 'Scratch',          power: 10, type: 'Normal'    },
+  Ember:            { name: 'Ember',            power: 15, type: 'Elemental' },
+  Growl:            { name: 'Growl',            power:  0, type: 'Normal'    },
+  'Dragon Claw':    { name: 'Dragon Claw',      power: 40, type: 'Draconic'  },
+  'Elemental Burst':{ name: 'Elemental Burst',  power: 55, type: 'Elemental' },
+  Roar:             { name: 'Roar',             power:  0, type: 'Normal'    },
 };
 
 // Malezor wild pool · confirmed Tier-1 canon only (per aov-t1-foundation-canon
@@ -1058,6 +1088,11 @@ function giveDevElzebub(){
   const z = createZyrex('elzebub', 5);
   player.party.push(z);
   showToast(`◈ ${z.name} Lv ${z.level} joined the party!`, 2200);
+}
+function giveDevElzoran(){
+  const z = createZyrex('elzoran', 60);   // just-evolved level per canon (60)
+  player.party.push(z);
+  showToast(`◈ ${z.name} Lv ${z.level} joined the party!`, 2400);
 }
 
 // -- Battle state + logic (turn-based · speed-first · per aov-rp7 canon) -----
@@ -1381,7 +1416,7 @@ function drawZyrexMenu(){
   if (player.party.length === 0){
     ctx.fillText('· PARTY EMPTY ·', 24, 90);
     ctx.fillStyle = '#8ff';
-    ctx.fillText('press 9 to spawn Elzebub Lv 5', 24, 115);
+    ctx.fillText('double-tap Touchpad · dev spawn Elzoran Lv 60', 24, 115);
   } else {
     player.party.forEach((z, i) => {
       const y = 90 + i * 68;

@@ -787,22 +787,49 @@ const NPCS = [
   {
     id: 'crazy',
     name: 'Crazy',
+    // Idle sheet (frame 0 per direction)
     sheet: new Image(),
     src:   'assets/2D%20sprites/npcs/crazy.png',
-    cellW: 313, cellH: 313, cols: 4, rows: 4,
-    // Row = dir · col = frame · idle uses frame 0
     bboxes: [
       [[107,80,123,216],[101,80,123,216],[82,80,123,216],[66,80,122,216]],
       [[100,55,130,209],[ 94,55,130,209],[73,55,130,209],[58,55,129,209]],
       [[102,19,129,207],[ 94,19,130,207],[78,19,128,207],[64,19,129,207]],
       [[107, 0,123,202],[101, 0,123,202],[82, 0,123,202],[67, 0,122,202]],
     ],
-    tileX: 26, tileY: 105,        // east of player home · same row as door
-    dir:   'left',                // facing west toward player approach
-    onInteract: () => showToast('◈ Crazy · "Yo Rizer! Wild ones out there today.  Watch yourself."', 3200),
+    // Walk sheet (4 frames per direction · cycles per tile step)
+    walkSheet: new Image(),
+    walkSrc:   'assets/2D%20sprites/npcs/crazy-walk.png',
+    walkBboxes: [
+      [[108,80,122,218],[101,80,123,218],[82,80,122,218],[65,80,122,218]],
+      [[101,56,129,212],[ 95,56,129,212],[73,56,130,212],[57,56,129,212]],
+      [[103,20,128,208],[ 95,20,129,206],[78,20,127,209],[63,20,128,207]],
+      [[108, 0,122,202],[101, 0,123,202],[82, 0,122,202],[67, 0,121,202]],
+    ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    tileX: 26, tileY: 105,
+    homeX: 26, homeY: 105,        // wander origin
+    wanderRadius: 4,              // Manhattan tiles from home
+    dir: 'left',                  // facing west toward player approach
+    mode: 'wander',               // 'wander' | 'follow'
+    moving: false,
+    animFrame: 0,
+    moveCd: 1500 + Math.random() * 1000,
+    onInteract: (n) => {
+      if (n.mode === 'follow'){
+        n.mode = 'wander';
+        n.tileX = n.homeX; n.tileY = n.homeY;   // teleport home on dismiss
+        showToast('◈ Crazy · "Alright, catch you later."', 2200);
+      } else {
+        n.mode = 'follow';
+        showToast('◈ Crazy · "Yo! I got your back.  Let\'s roll."', 2400);
+      }
+    },
   },
 ];
-NPCS.forEach(n => { n.sheet.src = n.src; });
+NPCS.forEach(n => {
+  n.sheet.src = n.src;
+  n.walkSheet.src = n.walkSrc;
+});
 
 // Collision + interact + wildZone maps · computed once from props + NPCs.
 const _propBlocked = new Set();     // "x,y" of solid tiles
@@ -813,11 +840,8 @@ WORLD_PROPS.forEach(p => {
   if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
   if (p.wildZone) _wildZones.add(`${p.tileX},${p.tileY}`);
 });
-// NPCs block their own tile and register as interact targets.
-NPCS.forEach(n => {
-  _propBlocked.add(`${n.tileX},${n.tileY}`);
-  _propDoors.set(`${n.tileX},${n.tileY}`, { onInteract: n.onInteract });
-});
+// NPC tiles are DYNAMIC (they wander) · checked in walkable() + tryInteract()
+// live from NPCS[].tileX/Y · not baked into the static _propBlocked/_propDoors.
 
 function walkable(x, y){
   if (game.scene === 'interior_home'){
@@ -828,6 +852,8 @@ function walkable(x, y){
   }
   if (x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) return false;
   if (_propBlocked.has(`${x},${y}`)) return false;
+  // NPCs block their live tile (dynamic · wander/follow moves them)
+  for (const n of NPCS){ if (n.tileX === x && n.tileY === y) return false; }
   return true;
 }
 
@@ -1168,6 +1194,10 @@ function tryMove(dt){
   // Fix frame-skip · on transition from idle to moving, start walk cycle
   // at frame 0 (not frame 1) so the sheet reads 0→1→2→3→0 cleanly.
   player.animFrame = wasMoving ? (player.animFrame + 1) % 4 : 0;
+  // Companion trail · NPCs in follow mode step through recent player tiles.
+  if (!player.trail) player.trail = [];
+  player.trail.push({ x: nx, y: ny, dir: player.dir });
+  if (player.trail.length > 12) player.trail.shift();
 
   // Sprint sources: hold Shift/B key · hold Circle button · OR L3-toggled lock.
   const running = !!keys['shift'] || !!keys['b'] || player.sprintLocked;
@@ -1393,6 +1423,17 @@ function tryInteract(){
       return;
     }
     return;   // no other interactions inside for MVP
+  }
+  // NPC interact takes priority (dynamic position)
+  for (const n of NPCS){
+    if (n.tileX === fx && n.tileY === fy){
+      // Face the player when talked to
+      const opp = { up:'down', down:'up', left:'right', right:'left' };
+      n.dir = opp[player.dir] || n.dir;
+      n.moving = false;
+      if (n.onInteract) n.onInteract(n);
+      return;
+    }
   }
   const doorProp = _propDoors.get(`${fx},${fy}`);
   if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
@@ -2139,14 +2180,94 @@ function drawNPC(n){
     n._downScale = (TILE * 2) / dbh;
   }
   const row = DIR_ROW_NPC[n.dir] || 0;
-  const [bx, by, bw, bh] = n.bboxes[row][0];    // idle = frame 0
-  const sx = 0 * n.cellW + bx;
+  // Moving → walk sheet at animFrame · standing → idle sheet frame 0
+  const useWalk = n.moving && n.walkSheet && n.walkSheet.complete;
+  const bank    = useWalk ? n.walkBboxes : n.bboxes;
+  const img     = useWalk ? n.walkSheet  : n.sheet;
+  const col     = useWalk ? (n.animFrame % n.cols) : 0;
+  const [bx, by, bw, bh] = bank[row][col];
+  const sx = col * n.cellW + bx;
   const sy = row * n.cellH + by;
   const drawH = Math.max(1, Math.round(bh * n._downScale));
   const drawW = Math.max(1, Math.round(bw * n._downScale));
   const dx = Math.floor(n.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
   const dy = Math.floor(n.tileY * TILE + TILE - drawH)       - _cam.y;
-  ctx.drawImage(n.sheet, sx, sy, bw, bh, dx, dy, drawW, drawH);
+  ctx.drawImage(img, sx, sy, bw, bh, dx, dy, drawW, drawH);
+}
+
+// ── NPC AI · wander (default) + follow (companion) ────────────────────────
+// Wander: random 1-tile step every 1.5-3s, stays within wanderRadius
+// of home.  Follow: trails player 2 steps behind via player.trail buffer.
+// Interact toggles mode (see NPC.onInteract).
+const _DIR_VEC = { up:{dx:0,dy:-1}, down:{dx:0,dy:1}, left:{dx:-1,dy:0}, right:{dx:1,dy:0} };
+function stepNPCTo(n, nx, ny, newDir){
+  if (!walkable(nx, ny)) return false;
+  // Also block moving onto player tile
+  if (player.x === nx && player.y === ny) return false;
+  n.tileX = nx; n.tileY = ny;
+  n.dir = newDir;
+  n.moving = true;
+  n.animFrame = (n.animFrame + 1) % 4;
+  return true;
+}
+function tickNPC(n, dt){
+  n.moveCd = (n.moveCd || 0) - dt;
+  if (n.moveCd > 0){ /* wait */ return; }
+  if (n.mode === 'follow'){
+    // Follow player · target = 2 tiles behind in player's trail
+    const trail = player.trail || [];
+    const target = trail[trail.length - 3] || trail[trail.length - 2] || trail[trail.length - 1];
+    if (!target){ n.moving = false; n.moveCd = 200; return; }
+    const dx0 = target.x - n.tileX, dy0 = target.y - n.tileY;
+    if (dx0 === 0 && dy0 === 0){
+      n.moving = false;
+      n.dir = player.dir;              // idle facing same way as player
+      n.moveCd = 120;
+      return;
+    }
+    // Step 1 tile toward target · prefer horizontal first if bigger delta
+    let dir;
+    if (Math.abs(dx0) >= Math.abs(dy0)) dir = dx0 > 0 ? 'right' : 'left';
+    else                                dir = dy0 > 0 ? 'down'  : 'up';
+    const v = _DIR_VEC[dir];
+    if (stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
+      n.moveCd = player.running ? 90 : 170;   // match player pace roughly
+    } else {
+      // Try the OTHER axis if primary is blocked
+      const altDir = (dir === 'left' || dir === 'right')
+        ? (dy0 > 0 ? 'down' : 'up')
+        : (dx0 > 0 ? 'right' : 'left');
+      const av = _DIR_VEC[altDir];
+      if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, altDir)){
+        n.moveCd = 170;
+      } else {
+        n.moving = false; n.moveCd = 200;
+      }
+    }
+  } else {
+    // Wander: pick random direction · 30% chance to just stand still
+    if (Math.random() < 0.3){
+      n.moving = false;
+      n.moveCd = 800 + Math.random() * 1200;
+      return;
+    }
+    const dirs = ['up','down','left','right'];
+    const dir  = dirs[Math.floor(Math.random() * 4)];
+    const v    = _DIR_VEC[dir];
+    const nx = n.tileX + v.dx, ny = n.tileY + v.dy;
+    // Stay within wanderRadius of home
+    if (Math.abs(nx - n.homeX) + Math.abs(ny - n.homeY) > n.wanderRadius){
+      n.dir = dir;                     // face the direction we wanted to go
+      n.moving = false;
+      n.moveCd = 700;
+      return;
+    }
+    if (stepNPCTo(n, nx, ny, dir)){
+      n.moveCd = 350 + Math.random() * 400;   // between-step wait
+    } else {
+      n.dir = dir; n.moving = false; n.moveCd = 500;
+    }
+  }
 }
 
 function drawProp(p){
@@ -2176,6 +2297,10 @@ let last = performance.now();
 function frame(now){
   const dt = now - last; last = now;
   tryMove(dt);
+  // NPC ticks · wander or follow · only in overworld scene
+  if (game.scene === 'overworld' && !battleState){
+    for (const n of NPCS) tickNPC(n, dt);
+  }
   // No idle animation · lock to frame 0 of the current direction when
   // not moving.  Walking/running frame advance still lives in tryMove.
   if (!player.moving) player.animFrame = 0;

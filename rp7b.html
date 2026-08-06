@@ -62,7 +62,7 @@
     }
     /* ── Rizer HUD (v0.77) · top-right · clickable · dynamic bars ── */
     #rizerHud{
-      position:fixed; top:12px; right:12px;
+      position:fixed; top:0; right:0;
       width: 440px; height: 230px;
       background-image: url('assets/2D%20sprites/ui/rizer-hud.png');
       background-size: contain; background-repeat: no-repeat;
@@ -1182,12 +1182,12 @@ const NPCS = [
         n.mode = 'wander';
         n.scene = n.homeScene;
         n.tileX = n.homeX; n.tileY = n.homeY;
-        showToast('◈ Crazy · "Alright, catch you later."', 2200);
+        showDialog({ speaker: 'CRAZY', lines: ['Alright, catch you later.'] });
       } else {
         // Recruit: mode=follow · if player is inside Crazy's house, he'll
         // transfer to overworld when player exits (exitInterior handles it).
         n.mode = 'follow';
-        showToast('◈ Crazy · "Yo! I got your back.  Let\'s roll."', 2400);
+        showDialog({ speaker: 'CRAZY', lines: ["Yo! I got your back.  Let's roll."] });
       }
     },
   },
@@ -1218,7 +1218,10 @@ const NPCS = [
     idleFrame: 0,
     blinkTimer: 1200 + Math.random() * 2000,
     onInteract: (n) => {
-      showToast('◈ Mom · "Stay safe out there, honey."', 2400);
+      showDialog({ speaker: 'MOM', lines: [
+        'Stay safe out there, honey.',
+        'Your father is at the Research Facility · he had something to give you today.',
+      ]});
     },
   },
   {
@@ -1246,7 +1249,10 @@ const NPCS = [
     idleFrame: 0,
     blinkTimer: 2000 + Math.random() * 2000,
     onInteract: (n) => {
-      showToast('◈ Dad · "Bring back a strong Zyrex, kid."', 2600);
+      showDialog({ speaker: 'DAD', lines: [
+        'Bring back a strong Zyrex, kid.',
+        'The bond you build today will follow you across every district of Zyraxis.',
+      ]});
     },
   },
   // ── Mori enemies in the Malezor→Zarvane wild arm corridor (v0.68) ──
@@ -1748,10 +1754,114 @@ addEventListener('keyup', e => {
   requestAnimationFrame(poll);
 })();
 
+// ─────────────────────────────────────────────────────────────
+// DIALOG SYSTEM (v0.79)
+// showDialog({speaker, lines, onDone, frame}) → blocks input, draws
+// frame + speaker name label + wrapped text.  Press X (or Enter/Z) to
+// advance the line · closes on last line + fires onDone.
+// Per-speaker frames auto-picked from DIALOG_FRAMES; anyone missing
+// uses the blank template (dialog-frame.png) with the speaker name
+// rendered into the label slot.
+// ─────────────────────────────────────────────────────────────
+const DIALOG_FRAMES = {
+  MOM:   { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-mom.png',   bbox: [15, 227, 1633, 457], hasName: true },
+  RIZER: { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-rizer.png', bbox: [13, 221, 1636, 464], hasName: true },
+  _tpl:  { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-frame.png', bbox: [14, 224, 1635, 461], hasName: false },
+};
+Object.values(DIALOG_FRAMES).forEach(f => f.img.src = f.src);
+
+let dialogState = null;
+function showDialog(opts){
+  const speaker = (opts && opts.speaker) || '';
+  const lines   = (opts && opts.lines) || [''];
+  const key = speaker.toUpperCase();
+  const frame = DIALOG_FRAMES[key] || DIALOG_FRAMES._tpl;
+  dialogState = {
+    speaker, lines,
+    idx: 0,
+    frame,
+    onDone: opts && opts.onDone,
+  };
+  playSFX('dialog');
+}
+function advanceDialog(){
+  if (!dialogState) return;
+  if (dialogState.idx + 1 < dialogState.lines.length){
+    dialogState.idx++;
+    playSFX('dialog');
+  } else {
+    const cb = dialogState.onDone;
+    dialogState = null;
+    playSFX('menuClose');
+    if (cb) cb();
+  }
+}
+function drawDialogOverlay(){
+  if (!dialogState) return;
+  const W = canvas.width, H = canvas.height;
+  const frame = dialogState.frame;
+  // Draw the frame across the bottom third · aspect preserved · scaled.
+  const [sx, sy, sw, sh] = frame.bbox;
+  const targetW = Math.min(W - 40, 900);
+  const scale   = targetW / sw;
+  const targetH = Math.round(sh * scale);
+  const dx = Math.floor((W - targetW) / 2);
+  const dy = H - targetH - 16;
+  if (frame.img.complete && frame.img.naturalWidth){
+    ctx.drawImage(frame.img, sx, sy, sw, sh, dx, dy, targetW, targetH);
+  } else {
+    // Fallback · dark rounded rect while art loads
+    ctx.fillStyle = 'rgba(10,14,22,0.94)';
+    ctx.fillRect(dx, dy, targetW, targetH);
+  }
+  // Layout metrics (relative to targetH) · matched to frame art:
+  //   Portrait medallion sits at left ~10-19% of frame width.
+  //   Name label sits at ~28-52% width, top ~10-25% of the frame.
+  //   Text body sits at ~28-95% width, ~35-90% of the frame.
+  const nameX = dx + Math.round(targetW * 0.32);
+  const nameY = dy + Math.round(targetH * 0.15);
+  const textX = dx + Math.round(targetW * 0.31);
+  const textY = dy + Math.round(targetH * 0.44);
+  const textW = Math.round(targetW * 0.62);
+  // Speaker name (only render for template frames · custom frames have
+  // the name baked in as art).
+  if (!frame.hasName && dialogState.speaker){
+    ctx.fillStyle = '#f4ead2';
+    ctx.font = 'bold 20px "Courier New", monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(dialogState.speaker.toUpperCase(), nameX, nameY);
+  }
+  // Wrapped body text
+  ctx.fillStyle = '#eaf0ff';
+  ctx.font = '18px "Courier New", monospace';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  const line = dialogState.lines[dialogState.idx] || '';
+  const words = String(line).split(/\s+/);
+  const wrapped = [];
+  let cur = '';
+  for (const w of words){
+    const test = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(test).width > textW){ wrapped.push(cur); cur = w; }
+    else cur = test;
+  }
+  if (cur) wrapped.push(cur);
+  const lineHeight = 24;
+  for (let i = 0; i < wrapped.length; i++){
+    ctx.fillText(wrapped[i], textX, textY + i * lineHeight);
+  }
+  // "More" indicator when additional lines follow
+  if (dialogState.idx + 1 < dialogState.lines.length){
+    ctx.fillStyle = '#ffd66b';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('▼', dx + targetW - 40, dy + targetH - 30);
+  }
+}
+
 // -- Movement · one tile step per moveCd interval ----------------------------
 function tryMove(dt){
   // Freeze player when title screen, any UI overlay, or battle owns input.
-  if (game.scene === 'title' || settingsMenuOpen || zyrexMenuOpen || battleState){
+  if (game.scene === 'title' || settingsMenuOpen || zyrexMenuOpen || battleState || dialogState){
     player.moving = false;
     return;
   }
@@ -2211,7 +2321,12 @@ addEventListener('keydown', e => {
   // and press X to interact (like a real door).  Handled in tryInteract().
   if (k === 'z' || k === 'x' || k === 'enter' || k === ' '){
     const now = performance.now();
-    if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
+    // Dialog owns the interact key while open · advance/close instead.
+    if (dialogState){
+      if (now - _lastInteract > 180){ advanceDialog(); _lastInteract = now; }
+    } else if (now - _lastInteract > 220){
+      tryInteract(); _lastInteract = now;
+    }
   }
   // Touchpad single-press toggles the Zyrex menu.  Double-tap is caught
   // in the centralized guard at the top of the handler (grants Elzoran).
@@ -2996,6 +3111,7 @@ function frame(now){
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles
   drawBattleOverlay();  // owns whole screen while battleState is set
+  drawDialogOverlay();  // shown when dialogState is set (v0.79)
   updateHUD();          // live tile coordinates in top-left
   updateRizerHUD();     // Rizer HUD bars + panel refresh (top-right)
   requestAnimationFrame(frame);

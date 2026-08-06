@@ -95,10 +95,15 @@
 //////////////////////////////////////////////////////////////////////////////
 
 const TILE = 48;
-// World grid: 45 cols x 188 rows.  2026-08-05 · +2 more south grass blocks.
+// World grid: L-shape.
+//   Rows 0..157   → cols 0..44   (original Malezor stem · 45 wide)
+//   Rows 158..187 → cols 0..119  (Malezor Wild Arm · 120 wide extending east
+//                                 to the north Zarvane border · v0.58)
 //   cols 0-14    · west band       (empty grass)
 //   cols 15-29   · center band     (all main content)
 //   cols 30-44   · east band       (empty grass)
+//   cols 45-119  · WILD ARM        (rows 158-187 only · Malezor T1-T2 pool ·
+//                                   ends at Zarvane border hedge cols 116-118)
 //   rows 0-37    · north+ (2.5 bands · empty)
 //   rows 38-52   · far-north       (empty)
 //   rows 53-67   · north-2         (empty)
@@ -108,9 +113,17 @@ const TILE = 48;
 //   rows 113-127 · south           (Malezor School)
 //   rows 128-142 · south-2         (POTION SHOP + ZYREX FARM)
 //   rows 143-157 · south-3         (Hospital · grass clusters)
-//   rows 158-172 · south-4         (NEW · empty grass)
-//   rows 173-187 · south-5         (NEW · empty grass)
-const MAP_COLS = 45, MAP_ROWS = 188;
+//   rows 158-172 · south-4         (Wild Arm west half · dense grass)
+//   rows 173-187 · south-5         (Wild Arm east half · dense grass)
+const MAP_COLS = 120, MAP_ROWS = 188;
+const MAP_STEM_COLS = 45;                 // width of original stem (rows 0..157)
+const MAP_ARM_START_ROW = 158;            // rows >= this open up to full MAP_COLS
+// Row-conditional width. Everything north of the arm keeps the 45-wide stem;
+// the arm opens the east. walkable() + drawGrass() consult this so the world
+// naturally reads as an L without invisible walls.
+function mapWidthAt(row){
+  return row >= MAP_ARM_START_ROW ? MAP_COLS : MAP_STEM_COLS;
+}
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -339,6 +352,19 @@ const GEMGRASS_PATCHES = [
   { x: 38, y:175, w: 5, h: 4 },
   { x: 12, y:184, w: 4, h: 3 },
   { x: 30, y:184, w: 5, h: 3 },
+  // ── Malezor Wild Arm (v0.58) · rows 158-187 · cols 45-115 ──────────
+  // Long east corridor connecting to the north Zarvane border.  Dense
+  // gemgrass patches along the corridor · same Malezor T1-T2 pool.
+  { x: 48, y:162, w: 5, h: 4 },
+  { x: 58, y:170, w: 6, h: 5 },
+  { x: 70, y:161, w: 5, h: 4 },
+  { x: 80, y:174, w: 6, h: 5 },
+  { x: 92, y:163, w: 5, h: 5 },
+  { x:104, y:170, w: 6, h: 5 },
+  { x: 50, y:180, w: 4, h: 4 },
+  { x: 66, y:180, w: 5, h: 4 },
+  { x: 88, y:180, w: 4, h: 4 },
+  { x:100, y:182, w: 5, h: 4 },
 ];
 
 const WORLD_PROPS = [
@@ -549,8 +575,9 @@ const WORLD_PROPS = [
 
     // Score every valid interior tile · lower density = better
     const candidates = [];
-    for (let x = 1; x < MAP_COLS - 1; x++){
-      for (let y = 2; y < MAP_ROWS - 1; y++){
+    for (let y = 2; y < MAP_ROWS - 1; y++){
+      const xMax = mapWidthAt(y) - 1;
+      for (let x = 1; x < xMax; x++){
         // Skip if too close to ANY chest (hard rule)
         let banned = false;
         for (const [cx, cy] of chestPositions){
@@ -763,20 +790,36 @@ const WORLD_PROPS = [
       [17, 80], [27, 80],
       [19, 81], [25, 81],
     ];
+    // ── Zarvane border hedge (v0.58) · east cap of the wild arm ──
+    // Dense wall at cols 116-118 across rows 158-187 · blocks passage
+    // east into Zarvane (which the player can't yet enter · content pending).
+    for (let y = 158; y <= 187; y++){
+      BUSH_POSITIONS.push([116, y]);
+      BUSH_POSITIONS.push([117, y]);
+      BUSH_POSITIONS.push([118, y]);
+    }
     // Share ONE image + bbox across all bush instances so we only
     // load the PNG once (browser dedupes but this keeps state clean).
     const _bushImg = new Image();
     _bushImg.src = 'assets/2D%20sprites/decor/bush.png';
     const _bushBBox = [291, 274, 965, 471];
-    return BUSH_POSITIONS.map(([tx, ty], i) => ({
-      id: `bush_${i}`,
-      img: _bushImg,
-      src: 'assets/2D%20sprites/decor/bush.png',
-      bbox: _bushBBox,
-      tileX: tx, tileY: ty,
-      tileW: 2, tileH: 1,           // 2-tile wide visual, feet at tileY
-      footprint: [[0, 0]],           // single-tile collision at anchor
-    }));
+    return BUSH_POSITIONS.map(([tx, ty], i) => {
+      const bush = {
+        id: `bush_${i}`,
+        img: _bushImg,
+        src: 'assets/2D%20sprites/decor/bush.png',
+        bbox: _bushBBox,
+        tileX: tx, tileY: ty,
+        tileW: 2, tileH: 1,           // 2-tile wide visual, feet at tileY
+        footprint: [[0, 0]],           // single-tile collision at anchor
+      };
+      // Zarvane border sign · interact from the west side.
+      if (tx === 116 && ty === 172){
+        bush.door = [0, 0];
+        bush.onInteract = () => showToast('◈ ZARVANE BORDER · The path east opens later.', 2600);
+      }
+      return bush;
+    });
   })(),
 ];
 
@@ -864,7 +907,8 @@ function walkable(x, y){
     }
     return true;
   }
-  if (x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) return false;
+  if (x < 0 || y < 0 || y >= MAP_ROWS) return false;
+  if (x >= mapWidthAt(y)) return false;                    // L-shape bound
   if (_propBlocked.has(`${x},${y}`)) return false;
   // Overworld NPCs
   for (const n of NPCS){
@@ -1273,7 +1317,8 @@ function drawGrass(){
   const endRow   = Math.min(MAP_ROWS, Math.ceil((_cam.y + canvas.height) / TILE));
   if (GRASS.complete && GRASS.naturalWidth){
     for (let ty = startRow; ty < endRow; ty++){
-      for (let tx = startCol; tx < endCol; tx++){
+      const rowMax = Math.min(endCol, mapWidthAt(ty));    // L-shape clip
+      for (let tx = startCol; tx < rowMax; tx++){
         ctx.drawImage(GRASS,
           0, 0, GRASS.naturalWidth, GRASS.naturalHeight,
           tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);

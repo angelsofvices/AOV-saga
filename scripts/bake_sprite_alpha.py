@@ -27,17 +27,21 @@ def bake(path):
     H, W, _ = im.shape
     r, g, b = im[..., 0], im[..., 1], im[..., 2]
 
+    # Magenta chroma-key (character sprites / props)
     mag_hard = (r > 200) & (b > 200) & (g < 50)
     mag_soft = (r > 180) & (b > 180) & (g < 80) & ~mag_hard
+    # Neon-green chroma-key (battle sprites / large art per aov-chroma-key-canon)
+    grn_hard = (g > 200) & (r < 100) & (b < 100)
+    grn_soft = (g > 180) & (r < 120) & (b < 120) & ~grn_hard
 
     alpha = np.full((H, W), 255, dtype=np.uint8)
-    alpha[mag_hard] = 0
-    alpha[mag_soft] = 0
+    alpha[mag_hard | grn_hard] = 0
+    alpha[mag_soft | grn_soft] = 0
 
     rgba = np.dstack([im, alpha])
     Image.fromarray(rgba, 'RGBA').save(path)
     total = H * W
-    n = int(mag_hard.sum() + mag_soft.sum())
+    n = int((mag_hard | mag_soft | grn_hard | grn_soft).sum())
     print(f'  {path}  transparent={100*n/total:.1f}%  ({n:,} px of {total:,})')
 
 

@@ -708,7 +708,11 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
-      onInteract: () => showToast('◈ A neighbor\'s home.  Locked for now.', 2200),
+      // Index 4 (tile 32,98) = Crazy's house · walkable interior.
+      // The other four remain locked-for-now placeholder toasts.
+      onInteract: (i === 4)
+        ? () => enterCrazyHomeInterior()
+        : () => showToast('◈ A neighbor\'s home.  Locked for now.', 2200),
     }));
   })(),
   // ── VILLAGER HOUSES · 5 scattered across all bands ─────────────────
@@ -806,20 +810,27 @@ const NPCS = [
       [[108, 0,122,202],[101, 0,123,202],[82, 0,122,202],[67, 0,121,202]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
-    tileX: 26, tileY: 105,
-    homeX: 26, homeY: 105,        // wander origin
-    wanderRadius: 4,              // Manhattan tiles from home
-    dir: 'left',                  // facing west toward player approach
-    mode: 'wander',               // 'wander' | 'follow'
+    // Crazy STARTS inside his own house (red home at 32,98 · interior 15x15)
+    tileX: 7, tileY: 7,
+    homeX: 7, homeY: 7,           // home = center of interior 15x15
+    homeScene: 'interior_crazy_home',
+    scene: 'interior_crazy_home', // NPC only ticks/renders in this scene
+    wanderRadius: 5,              // room to roam inside the 15x15 room
+    dir: 'down',
+    mode: 'wander',
     moving: false,
     animFrame: 0,
     moveCd: 1500 + Math.random() * 1000,
     onInteract: (n) => {
-      if (n.mode === 'follow'){
+      if (n.scene === 'overworld' && n.mode === 'follow'){
+        // Dismiss: send Crazy back home to wander inside his house.
         n.mode = 'wander';
-        n.tileX = n.homeX; n.tileY = n.homeY;   // teleport home on dismiss
+        n.scene = n.homeScene;
+        n.tileX = n.homeX; n.tileY = n.homeY;
         showToast('◈ Crazy · "Alright, catch you later."', 2200);
       } else {
+        // Recruit: mode=follow · if player is inside Crazy's house, he'll
+        // transfer to overworld when player exits (exitInterior handles it).
         n.mode = 'follow';
         showToast('◈ Crazy · "Yo! I got your back.  Let\'s roll."', 2400);
       }
@@ -844,16 +855,21 @@ WORLD_PROPS.forEach(p => {
 // live from NPCS[].tileX/Y · not baked into the static _propBlocked/_propDoors.
 
 function walkable(x, y){
-  if (game.scene === 'interior_home'){
-    return x >= 0 && y >= 0 && x < INTERIOR_HOME.cols && y < INTERIOR_HOME.rows;
-  }
-  if (game.scene === 'interior_cave'){
-    return x >= 0 && y >= 0 && x < INTERIOR_CAVE.cols && y < INTERIOR_CAVE.rows;
+  const cfg = interiorConfig(game.scene);
+  if (cfg){
+    if (!(x >= 0 && y >= 0 && x < cfg.cols && y < cfg.rows)) return false;
+    // NPCs in this interior scene block their tile
+    for (const n of NPCS){
+      if (n.scene === game.scene && n.tileX === x && n.tileY === y) return false;
+    }
+    return true;
   }
   if (x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) return false;
   if (_propBlocked.has(`${x},${y}`)) return false;
-  // NPCs block their live tile (dynamic · wander/follow moves them)
-  for (const n of NPCS){ if (n.tileX === x && n.tileY === y) return false; }
+  // Overworld NPCs
+  for (const n of NPCS){
+    if (n.scene === 'overworld' && n.tileX === x && n.tileY === y) return false;
+  }
   return true;
 }
 
@@ -961,6 +977,16 @@ const INTERIOR_CAVE = {
 };
 INTERIOR_CAVE.tileImg.src = 'assets/2D%20sprites/tiles/cave-stone-floor.png';
 
+// Crazy's house · 15x15 wood floor (same tile as player home) · Crazy
+// wanders inside · player interacts to talk / recruit as companion.
+const INTERIOR_CRAZY_HOME = {
+  cols: 15, rows: 15,
+  tileImg: new Image(),
+  spawn: { x: 7, y: 13, dir: 'up' },
+  exit:  { x: 7, y: 14 },
+};
+INTERIOR_CRAZY_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
+
 // Scene state: 'title' | 'overworld' | 'interior_home' | 'interior_cave'
 const game = { scene: 'title', overworldReturn: null };
 
@@ -1037,15 +1063,34 @@ function enterInterior(sceneKey, cfg, toast){
   player.animFrame = 0;
   if (toast) showToast(toast, 1600);
 }
-function enterHomeInterior(){ enterInterior('interior_home', INTERIOR_HOME, '◈ HOME · press ○ to leave'); }
-function enterCaveInterior(){ enterInterior('interior_cave', INTERIOR_CAVE, '◈ RAKORON\'S CAVE · Zone 1 · press ○ to leave'); }
+function enterHomeInterior(){       enterInterior('interior_home',        INTERIOR_HOME,        '◈ HOME · press X on the door to leave'); }
+function enterCaveInterior(){       enterInterior('interior_cave',        INTERIOR_CAVE,        '◈ RAKORON\'S CAVE · Zone 1 · press X on the door to leave'); }
+function enterCrazyHomeInterior(){  enterInterior('interior_crazy_home',  INTERIOR_CRAZY_HOME,  '◈ CRAZY\'S HOUSE · press X on the door to leave'); }
+function interiorConfig(scene){
+  if (scene === 'interior_home')        return INTERIOR_HOME;
+  if (scene === 'interior_cave')        return INTERIOR_CAVE;
+  if (scene === 'interior_crazy_home')  return INTERIOR_CRAZY_HOME;
+  return null;
+}
 function exitInterior(){
   if (game.scene === 'overworld') return;
+  const priorScene = game.scene;
   const r = game.overworldReturn || { x: 22, y: 106, dir: 'down' };
   game.scene = 'overworld';
   player.x = r.x; player.y = r.y; player.dir = r.dir;
   player.moving = false;
   player.animFrame = 0;
+  // Any NPC that was 'follow' in the interior we just left · transfer to
+  // overworld right behind the player · they walk out with us.
+  for (const n of NPCS){
+    if (n.scene === priorScene && n.mode === 'follow'){
+      n.scene  = 'overworld';
+      n.tileX  = r.x;
+      n.tileY  = r.y + 1;               // 1 tile south of exit spawn
+      n.moving = false;
+      n.moveCd = 200;
+    }
+  }
 }
 // Back-compat alias
 function exitHomeInterior(){ exitInterior(); }
@@ -1241,7 +1286,7 @@ function drawGrass(){
 
 // Interior floor · 1:1 tile drawn same way as grass · dispatches on scene.
 function drawInteriorFloor(){
-  const cfg = game.scene === 'interior_cave' ? INTERIOR_CAVE : INTERIOR_HOME;
+  const cfg = interiorConfig(game.scene) || INTERIOR_HOME;
   const img = cfg.tileImg;
   const C = cfg.cols, R = cfg.rows;
   const startCol = Math.max(0, Math.floor(_cam.x / TILE));
@@ -1413,21 +1458,34 @@ function tryInteract(){
   if (player.dir === 'down')  fy++;
   if (player.dir === 'left')  fx--;
   if (player.dir === 'right') fx++;
-  // Interior scenes · X while facing OR standing on the exit tile leaves.
-  if (game.scene === 'interior_home' || game.scene === 'interior_cave'){
-    const cfg = game.scene === 'interior_cave' ? INTERIOR_CAVE : INTERIOR_HOME;
-    const e = cfg.exit;
-    if ((fx === e.x && fy === e.y) || (player.x === e.x && player.y === e.y)){
-      exitInterior();
-      playSFX('menuClose');
-      return;
+  // Interior scenes · NPC in same scene FIRST, then X on exit tile.
+  {
+    const cfg = interiorConfig(game.scene);
+    if (cfg){
+      // NPC interact takes priority
+      for (const n of NPCS){
+        if (n.scene !== game.scene) continue;
+        if (n.tileX === fx && n.tileY === fy){
+          const opp = { up:'down', down:'up', left:'right', right:'left' };
+          n.dir = opp[player.dir] || n.dir;
+          n.moving = false;
+          if (n.onInteract) n.onInteract(n);
+          return;
+        }
+      }
+      const e = cfg.exit;
+      if ((fx === e.x && fy === e.y) || (player.x === e.x && player.y === e.y)){
+        exitInterior();
+        playSFX('menuClose');
+        return;
+      }
+      return;   // no other interactions inside for MVP
     }
-    return;   // no other interactions inside for MVP
   }
-  // NPC interact takes priority (dynamic position)
+  // NPC interact takes priority (overworld scene · dynamic position)
   for (const n of NPCS){
+    if (n.scene !== 'overworld') continue;
     if (n.tileX === fx && n.tileY === fy){
-      // Face the player when talked to
       const opp = { up:'down', down:'up', left:'right', right:'left' };
       n.dir = opp[player.dir] || n.dir;
       n.moving = false;
@@ -2160,6 +2218,7 @@ function drawWorldLayer(){
     renderables.push({ kind:'prop', prop:p, footY: p.tileY });
   });
   NPCS.forEach(n => {
+    if (n.scene !== 'overworld') return;                          // only overworld here
     if (!n.sheet.complete || !n.sheet.naturalWidth) return;
     renderables.push({ kind:'npc', npc:n, footY: n.tileY });
   });
@@ -2297,9 +2356,9 @@ let last = performance.now();
 function frame(now){
   const dt = now - last; last = now;
   tryMove(dt);
-  // NPC ticks · wander or follow · only in overworld scene
-  if (game.scene === 'overworld' && !battleState){
-    for (const n of NPCS) tickNPC(n, dt);
+  // NPC ticks · wander or follow · only NPCs in the current scene
+  if (game.scene !== 'title' && !battleState){
+    for (const n of NPCS){ if (n.scene === game.scene) tickNPC(n, dt); }
   }
   // No idle animation · lock to frame 0 of the current direction when
   // not moving.  Walking/running frame advance still lives in tryMove.
@@ -2309,9 +2368,20 @@ function frame(now){
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   if (game.scene === 'title'){
     drawTitleScreen();
-  } else if (game.scene === 'interior_home' || game.scene === 'interior_cave'){
+  } else if (game.scene === 'interior_home' || game.scene === 'interior_cave' || game.scene === 'interior_crazy_home'){
     drawInteriorFloor();
-    drawPlayer();       // no props inside for MVP
+    // Depth-sort NPCs in this scene + player by feet-Y
+    const rends = [{ kind:'player', footY: player.y }];
+    for (const n of NPCS){
+      if (n.scene !== game.scene) continue;
+      if (!n.sheet.complete || !n.sheet.naturalWidth) continue;
+      rends.push({ kind:'npc', npc:n, footY: n.tileY });
+    }
+    rends.sort((a,b) => a.footY - b.footY);
+    for (const r of rends){
+      if (r.kind === 'npc') drawNPC(r.npc);
+      else                  drawPlayer();
+    }
   } else {
     drawGrass();
     drawWorldLayer();   // props + player, depth-sorted by feet-Y

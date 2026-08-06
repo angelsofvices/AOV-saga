@@ -823,23 +823,24 @@ const BBOX_FALLBACK = {
   //     trail that used to inflate bh=288 is a separate CC and ignored
   // Result: all bboxes across all poses in the tight 213-236 range,
   // so constant drawH renders truly consistent character size.
+  // 2026-08-06 · new dedicated idle sheet · 1254x1254 / 313 cell · bh 284-309
   idle: [
-    [[132, 70,134,233],[ 96, 69,136,234],[64, 70,135,233],[29, 70,135,233]],
-    [[140, 44,114,226],[102, 44,114,226],[72, 44,114,226],[36, 44,114,226]],
-    [[142, 21,111,224],[109, 21,112,225],[79, 22,111,223],[42, 21,111,224]],
-    [[130,-21,130,228],[ 95,-21,132,228],[62,-21,131,228],[29,-21,130,228]],
+    [[84,29,207,284],[67,29,205,284],[48,29,207,284],[31,29,208,284]],
+    [[111, 0,164,309],[93, 0,163,309],[74, 0,165,309],[58, 0,164,309]],
+    [[106,14,161,299],[88,14,160,299],[69,14,160,299],[53,14,161,299]],
+    [[85, 0,206,291],[67, 0,205,290],[48, 0,207,291],[32, 0,207,291]],
   ],
-  // 2026-08-05 · walk sheet v4 · uniform scale delivery · bh range 290-313
+  // 2026-08-06 · new walk sheet · 1254x1254 / 313 cell · bh 284-309 (matches idle)
   // (spread of only 23) · row = direction (down/left/right/up).
   // Row 0 col 2 (down, frame 2): raw measurement gave bw=279 because the
   // character's silhouette leaks into col 1/col 3 cells and the flood-fill
   // captured cross-cell pixels · manually clamped to neighbor-average
   // ~196 to keep the walk cycle width steady.
   walk: [
-    [[86, 23,198,290],[52, 23,196,290],[52, 23,196,290],[ 0, 23,192,290]],
-    [[109, 0,161,313],[66, 0,165,313],[55, 0,163,313],[14, 0,163,313]],
-    [[105, 0,162,313],[60, 0,163,313],[42, 0,163,313],[ 9, 0,163,313]],
-    [[108, 0,159,312],[66, 0,158,310],[47, 0,158,312],[ 3, 0,160,311]],
+    [[85,29,205,284],[69,29,204,284],[48,29,206,284],[32,29,205,284]],
+    [[112, 0,162,308],[94, 0,162,309],[75, 0,163,308],[59, 0,162,309]],
+    [[107,15,159,298],[88,15,160,298],[70,15,158,298],[53,15,160,298]],
+    [[86, 0,204,291],[67, 0,205,291],[48, 0,206,291],[32, 0,205,291]],
   ],
   run: [
     [[131, 70,143,236],[ 93, 70,139,236],[59, 70,146,236],[32, 70,135,236]],
@@ -1123,9 +1124,12 @@ function tryMove(dt){
   player.dir = dir;
   if (!walkable(nx, ny)){ player.moveCd = 120; player.moving = false; return; }
 
+  const wasMoving = player.moving;
   player.x = nx; player.y = ny;
   player.moving = true;
-  player.animFrame = (player.animFrame + 1) % 4;
+  // Fix frame-skip · on transition from idle to moving, start walk cycle
+  // at frame 0 (not frame 1) so the sheet reads 0→1→2→3→0 cleanly.
+  player.animFrame = wasMoving ? (player.animFrame + 1) % 4 : 0;
 
   // Sprint sources: hold Shift/B key · hold Circle button · OR L3-toggled lock.
   const running = !!keys['shift'] || !!keys['b'] || player.sprintLocked;
@@ -1211,16 +1215,18 @@ function currentCharScale(){
 }
 
 function drawPlayer(){
-  // Sheet selection (per user 2026-08-05 · walk[dir][frame 0] = idle pose):
+  // Sheet selection (2026-08-06 · dedicated idle sheet rewired):
   //   running + moving → run sheet
   //   moving           → walk sheet
-  //   standing         → walk sheet at frame 0 (player.animFrame already
-  //                      locks to 0 when !moving per v0.24)
-  // idle.png is retired but still loaded harmlessly.
-  const useRun = player.running && player.moving && RIZER.run.loaded;
-  let bundle = useRun ? RIZER.run : (RIZER.walk.loaded ? RIZER.walk : null);
+  //   standing         → idle sheet (frame 0 per direction)
+  const useRun  = player.running && player.moving && RIZER.run.loaded;
+  const useWalk = player.moving && RIZER.walk.loaded;
+  let bundle = useRun ? RIZER.run
+             : useWalk ? RIZER.walk
+             : (RIZER.idle.loaded ? RIZER.idle : null);
   if (!bundle){
-    if (RIZER.run.loaded)       bundle = RIZER.run;
+    if (RIZER.walk.loaded)      bundle = RIZER.walk;
+    else if (RIZER.run.loaded)  bundle = RIZER.run;
     else if (RIZER.idle.loaded) bundle = RIZER.idle;
   }
 
@@ -1277,8 +1283,8 @@ function drawPlayer(){
   // Feet always land at tile bottom (dy formula unchanged) so there's
   // no float even though drawH differs per pose.  No shadow trickery
   // needed · this is the literal ratio-lock the user asked for.
-  const REF_BH_DOWN = 270;
-  const SCALE       = (TILE * 2) / REF_BH_DOWN;
+  const REF_BH_DOWN = 284;                          // matches new idle+walk down bh
+  const SCALE       = (TILE * 2) / REF_BH_DOWN;      // 0.338 · per-pixel universal
   const drawH       = Math.max(1, Math.round(bh * SCALE));
   const drawW       = Math.max(1, Math.round(bw * SCALE));
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;

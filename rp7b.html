@@ -126,6 +126,8 @@ const player = {
   animFrame: 0,
   running: false,               // computed per-frame · true when moving fast
   sprintLocked: false,          // toggled by L3 click · adds to shift/b sprint holds
+  stepsInGrass: 0,              // counts consecutive gemgrass tiles for encounter roll
+  party: [],                    // caught Zyrex list · touchpad toggles menu
 };
 
 // -- World props (buildings, trees, decor) ----------------------------------
@@ -181,112 +183,66 @@ const WORLD_PROPS = [
     door:  [0, 0],
     onInteract: () => showToast('◈ MALEZOR TOWN HALL · Closed for now.', 2200),
   },
-  // ── GRASS-PATCH OVERLAYS · pretty visual on top of wildZone tiles ──
-  // The single grassblade layer (below) is the DEV STANDARD wildZone
-  // marker · these bigger A/B fern/grass patches layer on top for visual
-  // polish.  Alternated by (tileX+tileY)%2 checkerboard so no two adjacent
-  // overlays look identical.  Non-blocking · walkable · 2 tiles wide x
-  // 3 tall visual (96x128 source scaled by prop system).
+  // ── CHESTS · tier-based loot · swaps sprite when opened ────────────
+  // Three tiers (wood/silver/gold) with escalating loot tables.  Each
+  // chest starts closed, swaps to open-chest sprite on first interact,
+  // and stays silent on re-interact (no dead-actor prompt).
   ...(function(){
-    const _gaImg = new Image();
-    _gaImg.src = 'assets/2D%20sprites/decor/grass-patch-a.png';
-    const _gbImg = new Image();
-    _gbImg.src = 'assets/2D%20sprites/decor/grass-patch-b.png';
-    const _gaBBox = [ 0, 0, 96, 128];   // patch A content bbox
-    const _gbBBox = [32, 0, 96, 128];   // patch B content bbox
-
-    // 25 feet-anchor positions · 1-2 overlays per gemgrass patch from v0.27
-    const OVERLAY_POSITIONS = [
-      // 1 overlay per small/medium patch
-      [17,  5], [27, 10], [ 3, 14],       // far-north
-      [26, 17], [17, 28], [ 5, 22],       // north-2
-      [ 3, 36], [41, 34], [42, 43],       // town-hall edges
-      [17, 46], [27, 49], [42, 56], [ 1, 58],   // buffer
-      [42, 66], [ 3, 65], [27, 65],       // middle
-      [ 5, 80], [17, 88], [42, 82], [26, 77],   // south
-      // extra overlays for the larger (5x5, 5x7) patches
-      [18, 26],       // north-2 large
-      [17, 84],       // south MAX
-      [ 5, 77],       // south large NW
-      [42, 79],       // south large E
-      [42, 41],       // town-hall SE large
-    ];
-    return OVERLAY_POSITIONS.map(([tx, ty], i) => {
-      const useA = ((tx + ty) & 1) === 0;
-      return {
-        id: `grass_overlay_${i}`,
-        img: useA ? _gaImg : _gbImg,
-        src: useA ? 'assets/2D%20sprites/decor/grass-patch-a.png'
-                  : 'assets/2D%20sprites/decor/grass-patch-b.png',
-        bbox: useA ? _gaBBox : _gbBBox,
-        tileX: tx, tileY: ty,
-        tileW: 2, tileH: 3,
-        footprint: [],                 // walkable · dev grassblade below drives wildZone
-      };
-    });
-  })(),
-  // ── CHESTS · exploration rewards (per aov-item-acquisition-rule) ───
-  // 8 chests in natural exploration corners.  1 tile wide, small feet-
-  // anchored chest visual.  First interact rolls loot + marks chest
-  // opened in a shared Set · second interact says 'Empty chest.'
-  ...(function(){
+    // [tileX, tileY, tier]
     const CHEST_POSITIONS = [
-      [13,  5, 'far-north NW'],
-      [32, 12, 'far-north NE'],
-      [ 5, 22, 'north-2 W'],
-      [28, 17, 'north-2 NE'],
-      [ 5, 44, 'town-hall SW corner'],
-      [44, 45, 'buffer NE corner'],
-      [25, 50, 'buffer center between reds'],
-      [44, 82, 'south SE corner'],
+      [13,  5, 'wood'],           // far-north NW
+      [32, 12, 'silver'],         // far-north NE
+      [ 5, 22, 'wood'],           // north-2 W
+      [28, 17, 'wood'],           // north-2 NE
+      [ 5, 44, 'silver'],         // town-hall SW
+      [44, 45, 'gold'],           // buffer NE corner
+      [25, 50, 'silver'],         // buffer center between reds
+      [44, 82, 'gold'],           // south SE corner
     ];
-    const _chestImg = new Image();
-    _chestImg.src = 'assets/2D%20sprites/decor/chest.png';
-    const _chestBBox = [362, 329, 676, 467];
-    const _openedChests = window._openedChests = new Set();
-    const LOOT_TABLE = [
-      '10 coins',
-      '25 coins + 3 gems',
-      '1 Basic Zysphere',
-      '2 Healing Potions',
-      '1 Void Zysphere + 5 gems',
-      '15 coins + 1 potion',
-      '50 coins',
-      '3 Moon Gems',
-    ];
-    return CHEST_POSITIONS.map(([tx, ty], i) => {
-      const chestId = `chest_${i}`;
-      return {
-        id: chestId,
-        img: _chestImg,
+    const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/chest.png';
+    const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
+    const CLOSED_BBOX = [362, 329, 676, 467];   // aspect 1.45
+    const OPEN_BBOX   = [290, 240, 673, 741];   // aspect 0.91 (taller · lid up)
+    const LOOT_BY_TIER = {
+      wood:   ['10 coins', '15 coins + 1 potion', '3 gems + 5 coins', '1 Basic Zysphere'],
+      silver: ['50 coins + 5 gems', '2 Void Zyspheres', '1 Silver Zysphere + potion',
+               '75 coins + 1 Moon Gem'],
+      gold:   ['200 coins + 10 gems', 'Ultra Zysphere + Rare Item',
+               '3 Moon Gems + 100 coins', 'Legendary Prismshard'],
+    };
+    return CHEST_POSITIONS.map(([tx, ty, tier], i) => {
+      const chest = {
+        id: `chest_${i}`,
+        img: _closedImg,
         src: 'assets/2D%20sprites/decor/chest.png',
-        bbox: _chestBBox,
+        bbox: CLOSED_BBOX,
         tileX: tx, tileY: ty,
-        tileW: 1, tileH: 1,           // realistic 1-tile chest
-        footprint: [[0, 0]],           // 1-tile solid
-        door: [0, 0],                  // interact target
-        onInteract: () => {
-          if (_openedChests.has(chestId)){
-            showToast('◈ Empty chest.', 1600);
-          } else {
-            _openedChests.add(chestId);
-            const loot = LOOT_TABLE[Math.floor(Math.random() * LOOT_TABLE.length)];
-            showToast('◈ CHEST OPENED! ' + loot, 2400);
-          }
-        },
+        tileW: 1, tileH: 1,
+        footprint: [[0, 0]],
+        door: [0, 0],
+        opened: false,
+        tier,
       };
+      chest.onInteract = () => {
+        if (chest.opened) return;   // dead actor · no re-interact prompt
+        chest.opened = true;
+        chest.img = _openImg;
+        chest.bbox = OPEN_BBOX;
+        const table = LOOT_BY_TIER[tier] || LOOT_BY_TIER.wood;
+        const loot  = table[Math.floor(Math.random() * table.length)];
+        showToast(`◈ ${tier.toUpperCase()} CHEST · ${loot}`, 2600);
+      };
+      return chest;
     });
   })(),
-  // ── GEMGRASS PATCHES · Zyrex wild-encounter zones ──────────────────
-  // Per RP7 canon (aov-rp7-gameplay-loop-canon · aov-district-type-pool ·
-  // aov-rp7-master-roster-v7): stepping on gemgrass rolls for a wild
-  // Zyrex from the current district's type pool.  Malezor spawns are
-  // low-tier local T1s (see aov-t1-foundation-canon for the 54-canon list).
-  //
-  // Patches sized 1x2 to 5x7 placed in naturally open spaces between
-  // homes.  Each grass tile is a decorative + WALKABLE prop (empty
-  // footprint) with wildZone flag · tryMove reads _wildZones to fire
-  // an encounter toast when the player steps onto one.
+  // ── GEMGRASS PATCHES + per-tile grass overlay ──────────────────────
+  // Every wildZone (grassblade) tile gets a PAIRED grass-patch overlay
+  // (A or B chosen by non-uniform hash) so the pretty layer covers 100%
+  // of the encounter area · no two adjacent tiles share the same variant.
+  // Grassblade layer stays as the DEV VISUAL STANDARD + wildZone marker.
+  // Both are non-blocking (walkable).  Zyrex spawns per RP7 canon
+  // (aov-rp7-gameplay-loop-canon · aov-district-type-pool · Malezor T1s
+  // from aov-t1-foundation-canon).
   ...(function(){
     const PATCHES = [
       // Far-north band (rows 0-14)
@@ -319,20 +275,40 @@ const WORLD_PROPS = [
     const _grassImg = new Image();
     _grassImg.src = 'assets/2D%20sprites/decor/grassblade.png';
     const _grassBBox = [112, 366, 1179, 446];   // content in 1402x1122
-    // Expand every patch into per-tile grass props.
+    const _gaImg = new Image(); _gaImg.src = 'assets/2D%20sprites/decor/grass-patch-a.png';
+    const _gbImg = new Image(); _gbImg.src = 'assets/2D%20sprites/decor/grass-patch-b.png';
+    const _gaBBox = [ 0, 0, 96, 128];
+    const _gbBBox = [32, 0, 96, 128];
+    // Non-uniform A/B hash — mixes across x & y with prime-multipliers
+    // so no obvious checkerboard or stripe pattern.
+    const useA = (x, y) => ((x * 13 + y * 7 + x * y) & 1) === 0;
     const tiles = [];
     for (const p of PATCHES){
       for (let dy = 0; dy < p.h; dy++){
         for (let dx = 0; dx < p.w; dx++){
+          const x = p.x + dx, y = p.y + dy;
+          // (1) Grassblade — dev standard + wildZone marker (below overlay)
           tiles.push({
-            id: `gemgrass_${p.x + dx}_${p.y + dy}`,
+            id: `gemgrass_${x}_${y}`,
             img: _grassImg,
             src: 'assets/2D%20sprites/decor/grassblade.png',
             bbox: _grassBBox,
-            tileX: p.x + dx, tileY: p.y + dy,
-            tileW: 1, tileH: 1,        // 1-tile wide, short strip visual
-            footprint: [],              // WALKABLE · no collision
-            wildZone: true,             // stepping here rolls for Zyrex
+            tileX: x, tileY: y,
+            tileW: 1, tileH: 1,
+            footprint: [],
+            wildZone: true,
+          });
+          // (2) Pretty grass patch overlay · one per grassblade tile
+          const a = useA(x, y);
+          tiles.push({
+            id: `grass_overlay_${x}_${y}`,
+            img: a ? _gaImg : _gbImg,
+            src: a ? 'assets/2D%20sprites/decor/grass-patch-a.png'
+                   : 'assets/2D%20sprites/decor/grass-patch-b.png',
+            bbox: a ? _gaBBox : _gbBBox,
+            tileX: x, tileY: y,
+            tileW: 1, tileH: 1,       // 1-tile visual (aspect preserved · ~1.33 tall)
+            footprint: [],
           });
         }
       }
@@ -851,7 +827,106 @@ addEventListener('keydown', e => {
     const now = performance.now();
     if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
   }
+  // Touchpad ('2' via canonical controller map) toggles the Zyrex menu.
+  if (k === '2'){ zyrexMenuOpen = !zyrexMenuOpen; }
+  // '9' · dev spawn Elzebub Lv 5 into party (per user request 2026-08-05)
+  if (k === '9'){ giveDevElzebub(); }
 });
+
+// -- Zyrex species roster (adopted from RP7 beta/classic) --------------------
+// Stats follow the T×333 pool rule (per aov-t333-stat-pool memory).  Elzebub
+// is the T1 base form of the Elzebub → Elzimir → Elzoran → Omegoran line
+// (per aov-rp7-elzoran-v258).  Draconic/Elemental typing.
+const SPECIES = {
+  elzebub: {
+    id: 'elzebub',
+    name: 'Elzebub',
+    tier: 1,
+    type:  'Draconic',
+    type2: 'Elemental',
+    // T×333 base pool split across the 6 stats
+    baseHP: 60, baseATK: 55, baseDEF: 45, baseSPD: 55, baseSATK: 60, baseSDEF: 58,
+    moves: ['Ember', 'Tackle', 'Scratch', 'Growl'],
+  },
+};
+
+function createZyrex(speciesId, level){
+  const sp = SPECIES[speciesId];
+  if (!sp) return null;
+  // Level scaling: +5% per level above 1 (simple starter formula · real
+  // build_codex growth curves land with the full battle system).
+  const s = 1 + (level - 1) * 0.05;
+  return {
+    speciesId,
+    name: sp.name,
+    tier: sp.tier,
+    type: sp.type, type2: sp.type2,
+    level,
+    xp: 0,
+    hp:   Math.floor(sp.baseHP   * s),
+    maxHp: Math.floor(sp.baseHP  * s),
+    atk:  Math.floor(sp.baseATK  * s),
+    def:  Math.floor(sp.baseDEF  * s),
+    spd:  Math.floor(sp.baseSPD  * s),
+    satk: Math.floor(sp.baseSATK * s),
+    sdef: Math.floor(sp.baseSDEF * s),
+    moves: sp.moves.slice(0, 4),
+  };
+}
+
+function giveDevElzebub(){
+  const z = createZyrex('elzebub', 5);
+  player.party.push(z);
+  showToast(`◈ ${z.name} Lv ${z.level} joined the party!`, 2200);
+}
+
+// -- Zyrex party menu overlay ------------------------------------------------
+let zyrexMenuOpen = false;
+function drawZyrexMenu(){
+  if (!zyrexMenuOpen) return;
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.86)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#d4af37';
+  ctx.font = 'bold 20px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('ZYREX PARTY', 24, 40);
+  ctx.strokeStyle = '#d4af37';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(24, 50); ctx.lineTo(W - 24, 50); ctx.stroke();
+
+  ctx.fillStyle = '#f0eadf';
+  ctx.font = '13px "Courier New", monospace';
+  if (player.party.length === 0){
+    ctx.fillText('· PARTY EMPTY ·', 24, 90);
+    ctx.fillStyle = '#8ff';
+    ctx.fillText('press 9 to spawn Elzebub Lv 5', 24, 115);
+  } else {
+    player.party.forEach((z, i) => {
+      const y = 90 + i * 68;
+      ctx.fillStyle = '#f0eadf';
+      ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.fillText(`${i+1}. ${z.name.toUpperCase()}  Lv ${z.level}  T${z.tier}`, 24, y);
+      ctx.font = '11px "Courier New", monospace';
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(`${z.type}${z.type2 ? ' / ' + z.type2 : ''}`, 24, y + 16);
+      // HP bar
+      const barX = 24, barY = y + 24, barW = W - 48, barH = 8;
+      ctx.strokeStyle = '#666';
+      ctx.strokeRect(barX, barY, barW, barH);
+      ctx.fillStyle = z.hp / z.maxHp > 0.5 ? '#5f5' : z.hp / z.maxHp > 0.2 ? '#fd5' : '#f55';
+      ctx.fillRect(barX + 1, barY + 1, (barW - 2) * (z.hp / z.maxHp), barH - 2);
+      ctx.fillStyle = '#f0eadf';
+      ctx.fillText(`HP ${z.hp}/${z.maxHp}   ATK ${z.atk}  DEF ${z.def}  SPD ${z.spd}`, barX, barY + barH + 12);
+    });
+  }
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('Touchpad / 2 · close', W - 24, H - 20);
+  ctx.textAlign = 'left';
+}
 
 // -- Props renderer · depth-sorted with player ------------------------------
 // Feet-Y anchor: props draw with their bottom edge on tileY.  Player is at
@@ -897,6 +972,7 @@ function frame(now){
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGrass();
   drawWorldLayer();   // props + player, depth-sorted by feet-Y
+  drawZyrexMenu();    // overlay · only draws when zyrexMenuOpen === true
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(now => { last = now; frame(now); });

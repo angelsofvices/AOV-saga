@@ -1324,6 +1324,7 @@ function walkable(x, y){
   const cfg = interiorConfig(game.scene);
   if (cfg){
     if (!(x >= 0 && y >= 0 && x < cfg.cols && y < cfg.rows)) return false;
+    if (cfg.wallImg && y === 0) return false;         // upper wall band blocks row 0
     if (cfg.blocked){
       for (const [bx,by] of cfg.blocked){ if (bx===x && by===y) return false; }
     }
@@ -1451,6 +1452,7 @@ const INTERIOR_HOME = {
   exit:  { x: 7, y: 9 },                        //          exit is same tile
   // Decor rug · 3 tiles wide × 1 tall · on row 9 · player enters onto it.
   rug: { x: 6, y: 9, w: 3, h: 1 },
+  wallImg: 'malezor',                           // v0.81 · Malezor upper wall
   // Stairs UP to 2F · v0.60 · upper-LEFT corner · 2 wide x 3 tall visual.
   // v0.64 · pushed up 1 row · top row (visY=-1) sits in the black
   // out-of-bounds zone above the room to symbolize the level transition.
@@ -1488,6 +1490,7 @@ const INTERIOR_HOME_2F = {
     spawnAt: { x: 1, y: 2, dir: 'down' },
   },
   blocked: [[0,0],[1,0]],
+  wallImg: 'malezor',                           // v0.81 · Malezor upper wall
 };
 INTERIOR_HOME_2F.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
@@ -1502,6 +1505,16 @@ const STAIRCASE_DOWN_IMG = new Image();
 STAIRCASE_DOWN_IMG.src = 'assets/2D%20sprites/decor/staircase-down.png';
 const STAIRCASE_DOWN_BBOX = [263,  98, 713, 1058];
 
+// Malezor home upper wall · continuous wallpaper band drawn at row 0
+// of every interior that opts in via cfg.wallImg = 'malezor'.  Row 0
+// auto-blocks so player can't walk into the wall.
+const MALEZOR_WALL_IMG = new Image();
+MALEZOR_WALL_IMG.src = 'assets/2D%20sprites/tiles/malezor-home-wall.png';
+function wallImageFor(key){
+  if (key === 'malezor') return MALEZOR_WALL_IMG;
+  return null;
+}
+
 // WELCOME rug · non-blocking decor placed on interior floors.
 const RUG_IMG  = new Image();
 RUG_IMG.src    = 'assets/2D%20sprites/decor/welcome-rug.png';
@@ -1514,6 +1527,7 @@ const INTERIOR_CRAZY_HOME = {
   tileImg: new Image(),
   spawn: { x: 7, y: 13, dir: 'up' },
   exit:  { x: 7, y: 14 },
+  wallImg: 'malezor',                           // v0.81 · Malezor upper wall
 };
 INTERIOR_CRAZY_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
@@ -1981,6 +1995,15 @@ function drawInteriorFloor(){
   } else {
     ctx.fillStyle = '#7a4a1e';
     ctx.fillRect(-_cam.x, -_cam.y, C * TILE, R * TILE);
+  }
+  // Upper wall band · continuous wallpaper across row 0 (blocked in walkable()).
+  const wallImg = wallImageFor(cfg.wallImg);
+  if (wallImg && wallImg.complete && wallImg.naturalWidth){
+    for (let tx = startCol; tx < endCol; tx++){
+      ctx.drawImage(wallImg,
+        0, 0, wallImg.naturalWidth, wallImg.naturalHeight,
+        tx * TILE - _cam.x, 0 * TILE - _cam.y, TILE, TILE);
+    }
   }
   // WELCOME rug decor · drawn on the floor, non-blocking.
   const rug = cfg.rug;

@@ -182,6 +182,18 @@ function sortedInventoryEntries(){
 //   footprint· array of [dx,dy] offsets from base tile that BLOCK movement
 //   door     · optional [dx,dy] tile that IS walkable within the footprint
 
+// ★ Shared prop-position tables · module-scope so the portal IIFE can
+// pick a spawn tile that's LOW-DENSITY and AWAY from chests (per user).
+const CHEST_TILE_POSITIONS = [
+  [13,  5], [32, 12], [ 5, 22], [28, 17],
+  [ 5, 44], [44, 45], [25, 50], [44, 82],
+];
+const BUILDING_TILE_POSITIONS = [
+  [22, 67], [22, 40],                                             // home + town hall
+  [10, 12], [35, 22], [10, 42], [10, 72], [35, 82],               // villager homes
+  [ 6, 52], [36, 51], [22, 56], [12, 60], [32, 60],               // red-roof homes
+];
+
 // ★ Gemgrass patch definitions · shared by both the grass IIFE and the
 // flower-perimeter IIFE below.  Sized 1x2 to 5x7 in naturally open
 // spaces between homes.  Any change here re-drives both grass + flowers.
@@ -259,29 +271,58 @@ const WORLD_PROPS = [
     door:  [0, 0],
     onInteract: () => showToast('◈ MALEZOR TOWN HALL · Closed for now.', 2200),
   },
-  // ── CLOSED PORTAL · random spawn per page load · matches player height ──
+  // ── CLOSED PORTAL · smart random spawn (never near chests · least dense) ─
+  // Per user 2026-08-05: portal MUST NOT spawn near a chest, and always
+  // picks a low-density corner where the fewest other props exist within
+  // radius.  Random tie-break among the 8 lowest-density valid tiles.
   ...(function(){
     const _portalImg = new Image();
     _portalImg.src = 'assets/2D%20sprites/portal/portal_closed.png';
-    // Content bbox measured: 363x1196 in 1254x1254 · aspect 0.304
-    const PORTAL_BBOX = [445, 40, 363, 1196];
-    // Safe-zone tile candidates · far west/east grass margins (always clear
-    // of buildings/props).  Picked at page-load time via Math.random().
-    const PORTAL_SPOTS = [
-      [ 1,  5], [ 2, 18], [ 3, 30], [ 1, 45], [ 2, 58], [ 3, 70], [ 1, 84],
-      [42,  5], [43, 18], [42, 30], [43, 45], [42, 58], [43, 70], [42, 84],
-      [12, 30], [30, 30], [12, 55], [30, 55],
+    const PORTAL_BBOX = [445, 40, 363, 1196];      // aspect 0.304
+
+    // Build the "prop centers" density table from the shared module tables
+    // + grass patch centers.  Chest positions get a HARD-BAN radius.
+    const chestPositions    = CHEST_TILE_POSITIONS;
+    const CHEST_AVOID       = 10;                  // Manhattan tiles
+    const DENSITY_RADIUS    = 7;                   // Manhattan tiles
+    const propCenters       = [
+      ...CHEST_TILE_POSITIONS,
+      ...BUILDING_TILE_POSITIONS,
+      ...GEMGRASS_PATCHES.map(p => [p.x + Math.floor(p.w/2), p.y + Math.floor(p.h/2)]),
     ];
-    const [tx, ty] = PORTAL_SPOTS[Math.floor(Math.random() * PORTAL_SPOTS.length)];
+
+    // Score every valid interior tile · lower density = better
+    const candidates = [];
+    for (let x = 1; x < MAP_COLS - 1; x++){
+      for (let y = 2; y < MAP_ROWS - 1; y++){
+        // Skip if too close to ANY chest (hard rule)
+        let banned = false;
+        for (const [cx, cy] of chestPositions){
+          if (Math.abs(x - cx) + Math.abs(y - cy) < CHEST_AVOID){ banned = true; break; }
+        }
+        if (banned) continue;
+        // Count prop centers within DENSITY_RADIUS · lower = quieter
+        let density = 0;
+        for (const [px, py] of propCenters){
+          if (Math.abs(x - px) + Math.abs(y - py) <= DENSITY_RADIUS) density++;
+        }
+        candidates.push({ x, y, density });
+      }
+    }
+    candidates.sort((a, b) => a.density - b.density);
+    const topN = candidates.slice(0, Math.max(1, Math.min(12, candidates.length)));
+    const pick = topN[Math.floor(Math.random() * topN.length)];
+    const tx = pick ? pick.x : 1, ty = pick ? pick.y : 5;
+
     return [{
       id: 'portal_closed',
       img: _portalImg,
       src: 'assets/2D%20sprites/portal/portal_closed.png',
       bbox: PORTAL_BBOX,
       tileX: tx, tileY: ty,
-      // Height = 2 tiles (matches player · aspect preserved → ~0.6 wide)
+      // Height = 2 tiles (matches player) · aspect preserved → ~0.6 tile wide
       tileW: 1, tileH: 2,
-      footprint: [[0, 0]],       // 1-tile solid at feet
+      footprint: [[0, 0]],
       door: [0, 0],
       onInteract: () => showToast('◈ Portal · sealed shut.', 2000),
     }];
@@ -291,10 +332,7 @@ const WORLD_PROPS = [
   // Zyspheres.  Every chest is wood, drops 1-100 coins.  Coin math is the
   // base unit for future shop prices.
   ...(function(){
-    const CHEST_POSITIONS = [
-      [13,  5], [32, 12], [ 5, 22], [28, 17],
-      [ 5, 44], [44, 45], [25, 50], [44, 82],
-    ];
+    const CHEST_POSITIONS = CHEST_TILE_POSITIONS;
     const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/chest.png';
     const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
     const CLOSED_BBOX = [362, 329, 676, 467];
@@ -526,15 +564,14 @@ const BBOX_FALLBACK = {
     [[142, 21,111,224],[109, 21,112,225],[79, 22,111,223],[42, 21,111,224]],
     [[130,-21,130,228],[ 95,-21,132,228],[62,-21,131,228],[29,-21,130,228]],
   ],
-  // 2026-08-05 · new walk sheet · CC extractor merged neighboring cells
-  // (adjacent character silhouettes touch across boundaries) · fell back
-  // to per-cell island-filter measurement.  Row = direction (down/left/
-  // right/up), col = frame 0..3.
+  // 2026-08-05 · walk sheet v3 · user spec: frame 0 of each row DOUBLES
+  // as the idle pose for that direction · character weight preserved
+  // (bh range 247-303 · tight span) · row = direction (down/left/right/up).
   walk: [
-    [[120,47,171,266],[99,50,156,263],[50,53,162,260],[14,53,177,260]],
-    [[124, 0,169,313],[99, 0,156,313],[53, 0,161,313],[16, 0,180,313]],
-    [[117, 0,172,313],[95, 0,157,313],[49, 0,158,313],[16, 0,176,313]],
-    [[122, 0,168,297],[93, 0,154,289],[59, 0,158,289],[19, 0,175,290]],
+    [[128,43,164,270],[107,43,162,270],[63,43,164,270],[25,43,164,270]],
+    [[136, 0,137,284],[105, 0,142,285],[74, 0,141,285],[31, 0,138,285]],
+    [[143,10,135,303],[104,10,138,303],[73,10,138,303],[38,10,136,303]],
+    [[126, 0,155,247],[ 95, 0,154,249],[63, 0,152,247],[22, 0,155,249]],
   ],
   run: [
     [[131, 70,143,236],[ 93, 70,139,236],[59, 70,146,236],[32, 70,135,236]],
@@ -771,16 +808,16 @@ function currentCharScale(){
 }
 
 function drawPlayer(){
-  // Pick the sheet based on state · fall back to whichever bundle is
-  // actually loaded so we still see the character while sheets are
-  // being re-delivered (e.g. only run is wired right now).
-  const useRun  = player.running && player.moving && RIZER.run.loaded;
-  const useWalk = player.moving && RIZER.walk.loaded;
-  let bundle = useRun ? RIZER.run : useWalk ? RIZER.walk : (RIZER.idle.loaded ? RIZER.idle : null);
+  // Sheet selection (per user 2026-08-05 · walk[dir][frame 0] = idle pose):
+  //   running + moving → run sheet
+  //   moving           → walk sheet
+  //   standing         → walk sheet at frame 0 (player.animFrame already
+  //                      locks to 0 when !moving per v0.24)
+  // idle.png is retired but still loaded harmlessly.
+  const useRun = player.running && player.moving && RIZER.run.loaded;
+  let bundle = useRun ? RIZER.run : (RIZER.walk.loaded ? RIZER.walk : null);
   if (!bundle){
-    // Fall through in priority order: run > walk > idle
     if (RIZER.run.loaded)       bundle = RIZER.run;
-    else if (RIZER.walk.loaded) bundle = RIZER.walk;
     else if (RIZER.idle.loaded) bundle = RIZER.idle;
   }
 

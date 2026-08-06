@@ -90,14 +90,18 @@
 //////////////////////////////////////////////////////////////////////////////
 
 const TILE = 48;
-// World is 6 vertical grass bands · 15x15 each · stacked far-north → south.
-// Rows 0-14   · far-north band  (empty grass · 2026-08-05)
-// Rows 15-29  · north-2 band    (empty grass · 2026-08-05)
-// Rows 30-44  · town-hall band  (MALEZOR TOWN HALL · added 2026-08-05)
-// Rows 45-59  · north buffer    (empty grass)
-// Rows 60-74  · middle band     (PLAYER HOME · player spawn)
-// Rows 75-89  · south band      (empty grass)
-const MAP_COLS = 15, MAP_ROWS = 90;
+// World grid: 45 cols x 90 rows (each 15x15 sub-map).  Horizontal:
+//   cols 0-14   · west band   (empty grass · 2026-08-05)
+//   cols 15-29  · center band (has all placed content)
+//   cols 30-44  · east band   (empty grass · 2026-08-05)
+// Vertical (6 stacked 15-row bands):
+//   rows 0-14   · far-north      (empty)
+//   rows 15-29  · north-2        (empty)
+//   rows 30-44  · town-hall      (MALEZOR TOWN HALL + 14 bushes)
+//   rows 45-59  · north buffer   (empty)
+//   rows 60-74  · middle         (PLAYER HOME · player spawn)
+//   rows 75-89  · south          (empty)
+const MAP_COLS = 45, MAP_ROWS = 90;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -115,7 +119,7 @@ function updateCamera(){
 
 // -- Player state ------------------------------------------------------------
 const player = {
-  x: 7, y: 68,                  // tile coords · one below player home door (middle band)
+  x: 22, y: 68,                 // tile coords · one below player home door (middle band, center col)
   dir: 'up',                    // start facing the home
   moving: false,
   moveCd: 0,
@@ -138,7 +142,7 @@ const WORLD_PROPS = [
     img: new Image(),
     src: 'assets/2D%20sprites/buildings/player-home.png',
     bbox: [121, 89, 1012, 1056],
-    tileX: 7, tileY: 67,      // door tile · middle band (rows 60-74)
+    tileX: 22, tileY: 67,     // door tile · middle band, center col
     tileW: 5, tileH: 5,       // 5 tiles wide, 5 tiles tall on screen
     // Footprint offsets relative to (tileX, tileY) — the full 5x5 base is
     // solid.  Door tile IS blocked (player can't walk onto it) but is
@@ -162,7 +166,7 @@ const WORLD_PROPS = [
     src: 'assets/2D%20sprites/buildings/town-hall.png',
     // Content bbox in source sheet (65, 27, 1273, 987) · aspect 1.29
     bbox: [65, 27, 1273, 987],
-    tileX: 7, tileY: 40,       // door tile · town-hall band (rows 30-44)
+    tileX: 22, tileY: 40,      // door tile · town-hall band, center col
     tileW: 11, tileH: 9,       // 11 wide x 9 tall on screen (grand hall)
     // Full 11x9 footprint solid · door tile at (7,10) is interact-only
     footprint: (function(){
@@ -184,13 +188,13 @@ const WORLD_PROPS = [
   ...(function(){
     const BUSH_POSITIONS = [
       // Front flanks (row 41, immediately south of the building base)
-      [3, 41], [5, 41], [9, 41], [11, 41],
-      // Side hedges along west (col 1) and east (col 13) of building
-      [1, 35], [1, 37], [1, 39],
-      [13, 35], [13, 37], [13, 39],
-      // Mid-lawn landscaping (leaves col 7 door path clear)
-      [2, 42], [12, 42],
-      [4, 43], [10, 43],
+      [18, 41], [20, 41], [24, 41], [26, 41],
+      // Side hedges along west (col 16) and east (col 28) of building
+      [16, 35], [16, 37], [16, 39],
+      [28, 35], [28, 37], [28, 39],
+      // Mid-lawn landscaping (leaves col 22 door path clear)
+      [17, 42], [27, 42],
+      [19, 43], [25, 43],
     ];
     // Share ONE image + bbox across all bush instances so we only
     // load the PNG once (browser dedupes but this keeps state clean).

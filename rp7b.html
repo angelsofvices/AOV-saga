@@ -319,6 +319,28 @@ const WORLD_PROPS = [
     door:  [0, 0],
     onInteract: () => showToast('◈ MALEZOR TOWN HALL · Closed for now.', 2200),
   },
+  {
+    // Malezor School · south-band placement (rows 80-88, cols 20-30) ·
+    // clear of villager home (35,82), grass patches, and chest (44,82).
+    // Same 11-wide x 9-tall footprint scale as the town hall for parity.
+    id: 'malezor_school',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/school.png',
+    bbox: [76, 61, 1177, 998],       // content bbox in 1333x1180 sheet · aspect 1.18
+    tileX: 25, tileY: 88,            // door tile · south band (rows 75-89)
+    tileW: 11, tileH: 9,
+    footprint: (function(){
+      const f = [];
+      for (let dy = -8; dy <= 0; dy++){
+        for (let dx = -5; dx <= 5; dx++){
+          f.push([dx, dy]);
+        }
+      }
+      return f;
+    })(),
+    door: [0, 0],
+    onInteract: () => showToast('◈ MALEZOR SCHOOL · Closed for now.', 2200),
+  },
   // ── CLOSED PORTAL · smart random spawn (never near chests · least dense) ─
   // Per user 2026-08-05: portal MUST NOT spawn near a chest, and always
   // picks a low-density corner where the fewest other props exist within
@@ -612,14 +634,17 @@ const BBOX_FALLBACK = {
     [[142, 21,111,224],[109, 21,112,225],[79, 22,111,223],[42, 21,111,224]],
     [[130,-21,130,228],[ 95,-21,132,228],[62,-21,131,228],[29,-21,130,228]],
   ],
-  // 2026-08-05 · walk sheet v3 · user spec: frame 0 of each row DOUBLES
-  // as the idle pose for that direction · character weight preserved
-  // (bh range 247-303 · tight span) · row = direction (down/left/right/up).
+  // 2026-08-05 · walk sheet v4 · uniform scale delivery · bh range 290-313
+  // (spread of only 23) · row = direction (down/left/right/up).
+  // Row 0 col 2 (down, frame 2): raw measurement gave bw=279 because the
+  // character's silhouette leaks into col 1/col 3 cells and the flood-fill
+  // captured cross-cell pixels · manually clamped to neighbor-average
+  // ~196 to keep the walk cycle width steady.
   walk: [
-    [[128,43,164,270],[107,43,162,270],[63,43,164,270],[25,43,164,270]],
-    [[136, 0,137,284],[105, 0,142,285],[74, 0,141,285],[31, 0,138,285]],
-    [[143,10,135,303],[104,10,138,303],[73,10,138,303],[38,10,136,303]],
-    [[126, 0,155,247],[ 95, 0,154,249],[63, 0,152,247],[22, 0,155,249]],
+    [[86, 23,198,290],[52, 23,196,290],[52, 23,196,290],[ 0, 23,192,290]],
+    [[109, 0,161,313],[66, 0,165,313],[55, 0,163,313],[14, 0,163,313]],
+    [[105, 0,162,313],[60, 0,163,313],[42, 0,163,313],[ 9, 0,163,313]],
+    [[108, 0,159,312],[66, 0,158,310],[47, 0,158,312],[ 3, 0,160,311]],
   ],
   run: [
     [[131, 70,143,236],[ 93, 70,139,236],[59, 70,146,236],[32, 70,135,236]],
@@ -1035,11 +1060,13 @@ addEventListener('keydown', e => {
     }
     if (battleState.menu === 'fight'){
       const moves = battleState.player.moves;
-      if (k === 'arrowup'){   battleState.selectedMoveIdx = (battleState.selectedMoveIdx + moves.length - 1) % moves.length; playSFX('cursor'); }
-      if (k === 'arrowdown'){ battleState.selectedMoveIdx = (battleState.selectedMoveIdx + 1) % moves.length; playSFX('cursor'); }
+      // 2x2 grid nav matches the main battle menu · up/down swaps row,
+      // left/right swaps col (per user 2026-08-05).
+      if (k === 'arrowup' || k === 'arrowdown'){ battleState.selectedMoveIdx = (battleState.selectedMoveIdx + 2) % 4; playSFX('cursor'); }
+      if (k === 'arrowleft' || k === 'arrowright'){ battleState.selectedMoveIdx = (battleState.selectedMoveIdx ^ 1); playSFX('cursor'); }
       if (k === 'shift'){ battleState.menu = 'main'; playSFX('cancel'); return; }
       if (k === 'z' || k === 'x' || k === 'enter'){
-        const move = moves[battleState.selectedMoveIdx];
+        const move = moves[battleState.selectedMoveIdx % moves.length];
         playSFX('confirm');
         battleExecuteMove(move);
         if (!battleState.over) battleState.menu = 'main';

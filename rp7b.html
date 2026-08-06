@@ -99,8 +99,10 @@ const TILE = 48;
 //   Rows 0..157   → cols 0..44   (original Malezor stem · 45 wide)
 //   Rows 158..187 → cols 0..119  (Malezor Wild Arm · 120 wide extending east
 //                                 to the north Zarvane border · v0.58)
-//   Rows 188..219 → cols 0..119  (SE Zarvane block · row 188 grass→sand
-//                                 transition · rows 189..219 full sand)
+//   Rows 188..307 → cols 60..119 (SE Zarvane block · 60 wide × 120 tall ·
+//                                 row 188 grass→sand transition · rows
+//                                 189..307 full sand · sits under the
+//                                 eastern half of the wild arm)
 //   cols 0-14    · west band       (empty grass)
 //   cols 15-29   · center band     (all main content)
 //   cols 30-44   · east band       (empty grass)
@@ -117,8 +119,9 @@ const TILE = 48;
 //   rows 143-157 · south-3         (Hospital · grass clusters)
 //   rows 158-172 · south-4         (Wild Arm west half · dense grass)
 //   rows 173-187 · south-5         (Wild Arm east half · dense grass)
-const MAP_COLS = 120, MAP_ROWS = 220;
+const MAP_COLS = 120, MAP_ROWS = 308;
 const MAP_ZARVANE_START_ROW = 188;        // row 188 = transition · 189+ = full sand
+const MAP_ZARVANE_MIN_COL   = 60;         // SE block starts at col 60 (60 wide × 120 tall)
 const MAP_STEM_COLS = 45;                 // width of original stem (rows 0..157)
 const MAP_ARM_START_ROW = 158;            // rows >= this open up to full MAP_COLS
 // Row-conditional width. Everything north of the arm keeps the 45-wide stem;
@@ -126,6 +129,10 @@ const MAP_ARM_START_ROW = 158;            // rows >= this open up to full MAP_CO
 // naturally reads as an L without invisible walls.
 function mapWidthAt(row){
   return row >= MAP_ARM_START_ROW ? MAP_COLS : MAP_STEM_COLS;
+}
+// Some rows have a minimum column (SE Zarvane block is offset east of col 60).
+function mapMinXAt(row){
+  return row >= MAP_ZARVANE_START_ROW ? MAP_ZARVANE_MIN_COL : 0;
 }
 
 const canvas = document.getElementById('game');
@@ -580,8 +587,9 @@ const WORLD_PROPS = [
     // Score every valid interior tile · lower density = better
     const candidates = [];
     for (let y = 2; y < MAP_ROWS - 1; y++){
-      const xMax = mapWidthAt(y) - 1;
-      for (let x = 1; x < xMax; x++){
+      const xMin = Math.max(1,               mapMinXAt(y));
+      const xMax = Math.min(mapWidthAt(y) - 1, mapWidthAt(y) - 1);
+      for (let x = xMin; x < xMax; x++){
         // Skip if too close to ANY chest (hard rule)
         let banned = false;
         for (const [cx, cy] of chestPositions){
@@ -977,7 +985,7 @@ function walkable(x, y){
     return true;
   }
   if (x < 0 || y < 0 || y >= MAP_ROWS) return false;
-  if (x >= mapWidthAt(y)) return false;                    // L-shape bound
+  if (x < mapMinXAt(y) || x >= mapWidthAt(y)) return false; // L-shape + SE offset
   if (_propBlocked.has(`${x},${y}`)) return false;
   // Overworld NPCs
   for (const n of NPCS){
@@ -1472,10 +1480,11 @@ function drawGrass(){
   const endRow   = Math.min(MAP_ROWS, Math.ceil((_cam.y + canvas.height) / TILE));
   if (GRASS.complete && GRASS.naturalWidth){
     for (let ty = startRow; ty < endRow; ty++){
-      const rowMax = Math.min(endCol, mapWidthAt(ty));    // L-shape clip
+      const rowMin = Math.max(startCol, mapMinXAt(ty));   // SE offset
+      const rowMax = Math.min(endCol,   mapWidthAt(ty));  // L-shape clip
       const tile = terrainAt(ty);                          // grass · transition · sand
       if (!tile.complete || !tile.naturalWidth) continue;
-      for (let tx = startCol; tx < rowMax; tx++){
+      for (let tx = rowMin; tx < rowMax; tx++){
         ctx.drawImage(tile,
           0, 0, tile.naturalWidth, tile.naturalHeight,
           tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);

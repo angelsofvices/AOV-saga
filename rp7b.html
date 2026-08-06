@@ -748,10 +748,16 @@ const WORLD_PROPS = [
     const _grassImg = new Image();
     _grassImg.src = 'assets/2D%20sprites/decor/grassblade.png';
     const _grassBBox = [112, 366, 1179, 446];   // content in 1402x1122
+    // Malezor overlay (green)
     const _gaImg = new Image(); _gaImg.src = 'assets/2D%20sprites/decor/grass-patch-a.png';
     const _gbImg = new Image(); _gbImg.src = 'assets/2D%20sprites/decor/grass-patch-b.png';
     const _gaBBox = [ 0, 0, 96, 128];
     const _gbBBox = [32, 0, 96, 128];
+    // Zarvane overlay (golden · v0.75.2) · used for patches at row >= 188
+    const _zaImg = new Image(); _zaImg.src = 'assets/2D%20sprites/decor/zarvane-grass-a.png';
+    const _zbImg = new Image(); _zbImg.src = 'assets/2D%20sprites/decor/zarvane-grass-b.png';
+    const _zaBBox = [  0, 0, 669, 885];
+    const _zbBBox = [220, 0, 669, 885];
     // Non-uniform A/B hash — mixes across x & y with prime-multipliers
     // so no obvious checkerboard or stripe pattern.
     const useA = (x, y) => ((x * 13 + y * 7 + x * y) & 1) === 0;
@@ -762,31 +768,46 @@ const WORLD_PROPS = [
           const x = p.x + dx, y = p.y + dy;
           // Skip tiles that sit UNDER a building footprint (no grass indoors).
           if (_buildingCovered.has(`${x},${y}`)) continue;
-          // (1) Grassblade — dev standard visual + wildZone marker
-          // (re-enabled 2026-08-05 · fires wild-Zyrex battle when
-          // player.party.length > 0)
-          tiles.push({
-            id: `gemgrass_${x}_${y}`,
-            img: _grassImg,
-            src: 'assets/2D%20sprites/decor/grassblade.png',
-            bbox: _grassBBox,
-            tileX: x, tileY: y,
-            tileW: 1, tileH: 1,
-            footprint: [],
-            wildZone: true,
-          });
-          // (2) Pretty grass patch overlay · one per grassblade tile
+          const zarvane = y >= MAP_ZARVANE_START_ROW;
           const a = useA(x, y);
-          tiles.push({
-            id: `grass_overlay_${x}_${y}`,
-            img: a ? _gaImg : _gbImg,
-            src: a ? 'assets/2D%20sprites/decor/grass-patch-a.png'
-                   : 'assets/2D%20sprites/decor/grass-patch-b.png',
-            bbox: a ? _gaBBox : _gbBBox,
-            tileX: x, tileY: y,
-            tileW: 1, tileH: 1,       // 1-tile visual (aspect preserved · ~1.33 tall)
-            footprint: [],
-          });
+          // (1) Wild-zone marker.  Malezor uses the green grassblade sprite;
+          //     Zarvane uses its own golden grass sprite (skips grassblade
+          //     so green blades don't render on sand).
+          if (zarvane){
+            tiles.push({
+              id: `gemgrass_${x}_${y}`,
+              img:  a ? _zaImg  : _zbImg,
+              src:  a ? 'assets/2D%20sprites/decor/zarvane-grass-a.png'
+                      : 'assets/2D%20sprites/decor/zarvane-grass-b.png',
+              bbox: a ? _zaBBox : _zbBBox,
+              tileX: x, tileY: y,
+              tileW: 1, tileH: 1,
+              footprint: [],
+              wildZone: true,
+            });
+          } else {
+            tiles.push({
+              id: `gemgrass_${x}_${y}`,
+              img: _grassImg,
+              src: 'assets/2D%20sprites/decor/grassblade.png',
+              bbox: _grassBBox,
+              tileX: x, tileY: y,
+              tileW: 1, tileH: 1,
+              footprint: [],
+              wildZone: true,
+            });
+            // (2) Pretty green overlay · Malezor only.
+            tiles.push({
+              id: `grass_overlay_${x}_${y}`,
+              img: a ? _gaImg : _gbImg,
+              src: a ? 'assets/2D%20sprites/decor/grass-patch-a.png'
+                     : 'assets/2D%20sprites/decor/grass-patch-b.png',
+              bbox: a ? _gaBBox : _gbBBox,
+              tileX: x, tileY: y,
+              tileW: 1, tileH: 1,
+              footprint: [],
+            });
+          }
         }
       }
     }

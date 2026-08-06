@@ -95,10 +95,12 @@
 //////////////////////////////////////////////////////////////////////////////
 
 const TILE = 48;
-// World grid: L-shape.
+// World grid: L-shape with SE Zarvane block (v0.66).
 //   Rows 0..157   → cols 0..44   (original Malezor stem · 45 wide)
 //   Rows 158..187 → cols 0..119  (Malezor Wild Arm · 120 wide extending east
 //                                 to the north Zarvane border · v0.58)
+//   Rows 188..219 → cols 0..119  (SE Zarvane block · row 188 grass→sand
+//                                 transition · rows 189..219 full sand)
 //   cols 0-14    · west band       (empty grass)
 //   cols 15-29   · center band     (all main content)
 //   cols 30-44   · east band       (empty grass)
@@ -115,7 +117,8 @@ const TILE = 48;
 //   rows 143-157 · south-3         (Hospital · grass clusters)
 //   rows 158-172 · south-4         (Wild Arm west half · dense grass)
 //   rows 173-187 · south-5         (Wild Arm east half · dense grass)
-const MAP_COLS = 120, MAP_ROWS = 188;
+const MAP_COLS = 120, MAP_ROWS = 220;
+const MAP_ZARVANE_START_ROW = 188;        // row 188 = transition · 189+ = full sand
 const MAP_STEM_COLS = 45;                 // width of original stem (rows 0..157)
 const MAP_ARM_START_ROW = 158;            // rows >= this open up to full MAP_COLS
 // Row-conditional width. Everything north of the arm keeps the 45-wide stem;
@@ -1064,6 +1067,19 @@ function loadAsset(bundle, url){
 const GRASS = new Image();
 GRASS.src = 'assets/2D%20sprites/tiles/malezor-outdoor.png';
 
+// Terrain tiles for the SE Zarvane block (v0.66).
+const TRANSITION_TILE = new Image();
+TRANSITION_TILE.src = 'assets/2D%20sprites/tiles/tile-grass-to-sand.png';
+const SAND_TILE = new Image();
+SAND_TILE.src = 'assets/2D%20sprites/tiles/outdoor-zarvane.png';
+// Per-row terrain picker.  Row MAP_ZARVANE_START_ROW is a one-row transition
+// band; every row below is pure sand.  Everything above is Malezor grass.
+function terrainAt(y){
+  if (y >  MAP_ZARVANE_START_ROW) return SAND_TILE;
+  if (y === MAP_ZARVANE_START_ROW) return TRANSITION_TILE;
+  return GRASS;
+}
+
 // -- Interior scenes (per aov-cave-home-level-canon) ------------------------
 // Homes = Level 2 · Caves = Level 3 · overworld = Level 1.
 // Player home · 15x15 wood-floor · spawn lower-center facing up.
@@ -1457,9 +1473,11 @@ function drawGrass(){
   if (GRASS.complete && GRASS.naturalWidth){
     for (let ty = startRow; ty < endRow; ty++){
       const rowMax = Math.min(endCol, mapWidthAt(ty));    // L-shape clip
+      const tile = terrainAt(ty);                          // grass · transition · sand
+      if (!tile.complete || !tile.naturalWidth) continue;
       for (let tx = startCol; tx < rowMax; tx++){
-        ctx.drawImage(GRASS,
-          0, 0, GRASS.naturalWidth, GRASS.naturalHeight,
+        ctx.drawImage(tile,
+          0, 0, tile.naturalWidth, tile.naturalHeight,
           tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
       }
     }

@@ -138,6 +138,39 @@ const player = {
 //   tileW/H  · visual size in tiles (drawH derived from source aspect)
 //   footprint· array of [dx,dy] offsets from base tile that BLOCK movement
 //   door     · optional [dx,dy] tile that IS walkable within the footprint
+
+// ★ Gemgrass patch definitions · shared by both the grass IIFE and the
+// flower-perimeter IIFE below.  Sized 1x2 to 5x7 in naturally open
+// spaces between homes.  Any change here re-drives both grass + flowers.
+const GEMGRASS_PATCHES = [
+  // Far-north band (rows 0-14)
+  { x: 15, y:  2, w: 5, h: 4 },
+  { x: 25, y:  8, w: 4, h: 3 },
+  { x:  2, y: 12, w: 3, h: 3 },
+  // North-2 band (rows 15-29)
+  { x: 25, y: 15, w: 3, h: 3 },
+  { x: 15, y: 25, w: 5, h: 4 },
+  { x:  3, y: 20, w: 4, h: 3 },
+  // Town-hall band edges (rows 30-44)
+  { x:  2, y: 32, w: 2, h: 5 },
+  { x: 40, y: 30, w: 3, h: 5 },
+  { x: 40, y: 40, w: 5, h: 4 },
+  // Buffer band (rows 45-59)
+  { x: 15, y: 45, w: 5, h: 2 },
+  { x: 26, y: 47, w: 3, h: 3 },
+  { x: 40, y: 52, w: 4, h: 5 },
+  { x:  0, y: 55, w: 3, h: 4 },
+  // Middle band (rows 60-74) — has player home
+  { x: 40, y: 62, w: 4, h: 5 },
+  { x:  2, y: 62, w: 3, h: 4 },
+  { x: 26, y: 63, w: 4, h: 3 },
+  // South band (rows 75-89)
+  { x:  3, y: 76, w: 5, h: 5 },
+  { x: 15, y: 82, w: 5, h: 7 },
+  { x: 40, y: 78, w: 5, h: 5 },
+  { x: 25, y: 75, w: 4, h: 3 },
+];
+
 const WORLD_PROPS = [
   {
     id: 'player_home',
@@ -235,6 +268,58 @@ const WORLD_PROPS = [
       return chest;
     });
   })(),
+  // ── FLOWERS · perimeter of every wildZone patch ────────────────────
+  // Residential "safe area" signal · flowers ring every gemgrass patch
+  // to tell the player "wild encounters live here" without needing HUD.
+  // Malezor-only convention (per user 2026-08-05): future districts past
+  // town/capital will use these sparingly or not at all.
+  ...(function(){
+    const _flowerImg = new Image();
+    _flowerImg.src = 'assets/2D%20sprites/decor/flowers.png';
+    const _flowerBBox = [196, 288, 1052, 518];    // content in 1402x1122
+    // Build a Set of already-planted tile keys so we don't stack multiple
+    // flowers on the same tile when patch perimeters touch.
+    const _placed = new Set();
+    // Also avoid placing flowers ON TOP of wildZone tiles (they're the
+    // inside of the patch, not the border).
+    const _grassTiles = new Set();
+    for (const p of GEMGRASS_PATCHES){
+      for (let dy = 0; dy < p.h; dy++){
+        for (let dx = 0; dx < p.w; dx++){
+          _grassTiles.add(`${p.x + dx},${p.y + dy}`);
+        }
+      }
+    }
+    const tiles = [];
+    for (const p of GEMGRASS_PATCHES){
+      // Ring 1 tile outside the patch on all 4 sides
+      const x0 = p.x - 1, x1 = p.x + p.w;
+      const y0 = p.y - 1, y1 = p.y + p.h;
+      for (let x = x0; x <= x1; x++){
+        for (let y = y0; y <= y1; y++){
+          // Skip interior tiles (only the perimeter ring)
+          const onRing = (x === x0 || x === x1 || y === y0 || y === y1);
+          if (!onRing) continue;
+          // Skip out-of-bounds tiles
+          if (x < 0 || y < 0 || x >= MAP_COLS || y >= MAP_ROWS) continue;
+          // Skip tiles already flowered or inside another wildZone
+          const key = `${x},${y}`;
+          if (_placed.has(key) || _grassTiles.has(key)) continue;
+          _placed.add(key);
+          tiles.push({
+            id: `flower_${x}_${y}`,
+            img: _flowerImg,
+            src: 'assets/2D%20sprites/decor/flowers.png',
+            bbox: _flowerBBox,
+            tileX: x, tileY: y,
+            tileW: 1, tileH: 1,       // small flower cluster · aspect ~2:1
+            footprint: [],             // walkable · pure decor
+          });
+        }
+      }
+    }
+    return tiles;
+  })(),
   // ── GEMGRASS PATCHES + per-tile grass overlay ──────────────────────
   // Every wildZone (grassblade) tile gets a PAIRED grass-patch overlay
   // (A or B chosen by non-uniform hash) so the pretty layer covers 100%
@@ -244,34 +329,7 @@ const WORLD_PROPS = [
   // (aov-rp7-gameplay-loop-canon · aov-district-type-pool · Malezor T1s
   // from aov-t1-foundation-canon).
   ...(function(){
-    const PATCHES = [
-      // Far-north band (rows 0-14)
-      { x: 15, y:  2, w: 5, h: 4 },   // center-north large
-      { x: 25, y:  8, w: 4, h: 3 },   // NE medium
-      { x:  2, y: 12, w: 3, h: 3 },   // SW-of-far-north small
-      // North-2 band (rows 15-29)
-      { x: 25, y: 15, w: 3, h: 3 },   // NE small
-      { x: 15, y: 25, w: 5, h: 4 },   // center-mid large
-      { x:  3, y: 20, w: 4, h: 3 },   // W medium
-      // Town-hall band edges (rows 30-44)
-      { x:  2, y: 32, w: 2, h: 5 },   // far W strip
-      { x: 40, y: 30, w: 3, h: 5 },   // far NE medium
-      { x: 40, y: 40, w: 5, h: 4 },   // far SE large
-      // Buffer band (rows 45-59)
-      { x: 15, y: 45, w: 5, h: 2 },   // upper-center strip 1x2 style
-      { x: 26, y: 47, w: 3, h: 3 },   // between-reds small
-      { x: 40, y: 52, w: 4, h: 5 },   // far E medium
-      { x:  0, y: 55, w: 3, h: 4 },   // far W medium
-      // Middle band (rows 60-74) — has player home
-      { x: 40, y: 62, w: 4, h: 5 },   // far E medium
-      { x:  2, y: 62, w: 3, h: 4 },   // W of home
-      { x: 26, y: 63, w: 4, h: 3 },   // E of home
-      // South band (rows 75-89)
-      { x:  3, y: 76, w: 5, h: 5 },   // NW-south large
-      { x: 15, y: 82, w: 5, h: 7 },   // MAX 5x7 center-south
-      { x: 40, y: 78, w: 5, h: 5 },   // E-south large
-      { x: 25, y: 75, w: 4, h: 3 },   // upper-south medium
-    ];
+    const PATCHES = GEMGRASS_PATCHES;
     const _grassImg = new Image();
     _grassImg.src = 'assets/2D%20sprites/decor/grassblade.png';
     const _grassBBox = [112, 366, 1179, 446];   // content in 1402x1122

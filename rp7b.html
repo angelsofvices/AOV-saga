@@ -112,6 +112,54 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
+// -- Audio (BGM + SFX) ------------------------------------------------------
+// Autoplay policy: browsers require a user gesture before .play() succeeds ·
+// we gate the first BGM start on the first keydown/tap.  All BGM loops.
+const AUDIO = {
+  bgm: {
+    home:   new Audio('audio/home.mp3'),
+    town:   new Audio('audio/town.mp3'),
+    battle: new Audio('audio/battle.mp3'),
+  },
+  sfx: {
+    confirm:   new Audio('audio/ui-confirm.mp3'),
+    cancel:    new Audio('audio/ui-cancel.mp3'),
+    cursor:    new Audio('audio/ui-cursor.mp3'),
+    disabled:  new Audio('audio/ui-disabled.mp3'),
+    toast:     new Audio('audio/ui-toast.mp3'),
+    menuOpen:  new Audio('audio/ui-menu-open.mp3'),
+    menuClose: new Audio('audio/ui-menu-close.mp3'),
+    dialog:    new Audio('audio/ui-dialog-advance.mp3'),
+  },
+};
+Object.values(AUDIO.bgm).forEach(a => { a.loop = true; a.volume = 0.32; });
+Object.values(AUDIO.sfx).forEach(a => { a.volume = 0.55; });
+
+let _currentBGM = null;
+function playBGM(name){
+  const track = AUDIO.bgm[name];
+  if (!track || track === _currentBGM) return;
+  if (_currentBGM){ _currentBGM.pause(); _currentBGM.currentTime = 0; }
+  _currentBGM = track;
+  track.play().catch(() => { /* autoplay blocked until first gesture */ });
+}
+function playSFX(name){
+  const s = AUDIO.sfx[name]; if (!s) return;
+  // Clone-and-play so overlapping SFX don't cut each other off.
+  const clone = s.cloneNode();
+  clone.volume = s.volume;
+  clone.play().catch(() => {});
+}
+// First keydown/pointerdown seeds the audio subsystem so BGM can play.
+let _audioSeeded = false;
+function seedAudio(){
+  if (_audioSeeded) return;
+  _audioSeeded = true;
+  playBGM('home');
+}
+addEventListener('keydown',   seedAudio, { once: false });
+addEventListener('pointerdown', seedAudio, { once: false });
+
 // ★ Pokemon-GBA-style camera · player is ALWAYS at viewport center.
 // World draw offset is subtracted from every world-space coordinate so
 // the world scrolls under a fixed-center player.  Black shows past map
@@ -973,27 +1021,26 @@ addEventListener('keydown', e => {
       return;
     }
     if (battleState.menu === 'main'){
-      // Menu: 0=FIGHT · 1=BAG · 2=SWAP · 3=RUN (grid 2x2)
-      if (k === 'arrowup')    battleState.selectedMenuIdx = (battleState.selectedMenuIdx + 2) % 4;
-      if (k === 'arrowdown')  battleState.selectedMenuIdx = (battleState.selectedMenuIdx + 2) % 4;
-      if (k === 'arrowleft')  battleState.selectedMenuIdx = (battleState.selectedMenuIdx ^ 1);
-      if (k === 'arrowright') battleState.selectedMenuIdx = (battleState.selectedMenuIdx ^ 1);
+      if (k === 'arrowup' || k === 'arrowdown'){ battleState.selectedMenuIdx = (battleState.selectedMenuIdx + 2) % 4; playSFX('cursor'); }
+      if (k === 'arrowleft' || k === 'arrowright'){ battleState.selectedMenuIdx = (battleState.selectedMenuIdx ^ 1); playSFX('cursor'); }
       if (k === 'z' || k === 'x' || k === 'enter'){
         const opt = battleState.selectedMenuIdx;
+        playSFX('confirm');
         if (opt === 0){ battleState.menu = 'fight'; battleState.selectedMoveIdx = 0; }
-        else if (opt === 1){ battleAppendLog('Bag not wired yet.'); }
-        else if (opt === 2){ battleAppendLog('Swap not wired yet.'); }
+        else if (opt === 1){ battleAppendLog('Bag not wired yet.'); playSFX('disabled'); }
+        else if (opt === 2){ battleAppendLog('Swap not wired yet.'); playSFX('disabled'); }
         else if (opt === 3){ battleRun(); }
       }
       return;
     }
     if (battleState.menu === 'fight'){
       const moves = battleState.player.moves;
-      if (k === 'arrowup')    battleState.selectedMoveIdx = (battleState.selectedMoveIdx + moves.length - 1) % moves.length;
-      if (k === 'arrowdown')  battleState.selectedMoveIdx = (battleState.selectedMoveIdx + 1) % moves.length;
-      if (k === 'shift'){ battleState.menu = 'main'; return; }   // Circle = back
+      if (k === 'arrowup'){   battleState.selectedMoveIdx = (battleState.selectedMoveIdx + moves.length - 1) % moves.length; playSFX('cursor'); }
+      if (k === 'arrowdown'){ battleState.selectedMoveIdx = (battleState.selectedMoveIdx + 1) % moves.length; playSFX('cursor'); }
+      if (k === 'shift'){ battleState.menu = 'main'; playSFX('cancel'); return; }
       if (k === 'z' || k === 'x' || k === 'enter'){
         const move = moves[battleState.selectedMoveIdx];
+        playSFX('confirm');
         battleExecuteMove(move);
         if (!battleState.over) battleState.menu = 'main';
       }
@@ -1006,26 +1053,25 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   if (settingsMenuOpen){
     if (settingsPage === 'root'){
-      if (k === 'arrowup')   settingsSelectedIdx = (settingsSelectedIdx + SETTINGS_ITEMS.length - 1) % SETTINGS_ITEMS.length;
-      if (k === 'arrowdown') settingsSelectedIdx = (settingsSelectedIdx + 1) % SETTINGS_ITEMS.length;
+      if (k === 'arrowup'){   settingsSelectedIdx = (settingsSelectedIdx + SETTINGS_ITEMS.length - 1) % SETTINGS_ITEMS.length; playSFX('cursor'); }
+      if (k === 'arrowdown'){ settingsSelectedIdx = (settingsSelectedIdx + 1) % SETTINGS_ITEMS.length; playSFX('cursor'); }
       if (k === 'z' || k === 'x' || k === 'enter'){
-        // Enter selected sub-page
         settingsPage = SETTINGS_PAGE_IDS[settingsSelectedIdx];
+        playSFX('confirm');
       }
-      // Circle OR Options both CLOSE from root.
       if (k === 'shift' || k === '3'){
         settingsMenuOpen = false;
         settingsSelectedIdx = 0;
         settingsPage = 'root';
+        playSFX('menuClose');
       }
     } else {
-      // Sub-page: Circle backs to root.  Options CLOSES entirely.
-      if (k === 'shift'){
-        settingsPage = 'root';
-      } else if (k === '3'){
+      if (k === 'shift'){ settingsPage = 'root'; playSFX('cancel'); }
+      else if (k === '3'){
         settingsMenuOpen = false;
         settingsSelectedIdx = 0;
         settingsPage = 'root';
+        playSFX('menuClose');
       }
     }
     return;
@@ -1035,7 +1081,7 @@ addEventListener('keydown', e => {
   // 3) ZYREX MENU · read-only inspect for now · Touchpad/2 closes
   // ═══════════════════════════════════════════════════════════════
   if (zyrexMenuOpen){
-    if (k === '2' || k === 'shift') zyrexMenuOpen = false;
+    if (k === '2' || k === 'shift'){ zyrexMenuOpen = false; playSFX('menuClose'); }
     return;
   }
 
@@ -1048,8 +1094,14 @@ addEventListener('keydown', e => {
   }
   // Touchpad single-press toggles the Zyrex menu.  Double-tap is caught
   // in the centralized guard at the top of the handler (grants Elzoran).
-  if (k === '2'){ zyrexMenuOpen = !zyrexMenuOpen; }
-  if (k === '3'){ settingsMenuOpen = !settingsMenuOpen; }
+  if (k === '2'){
+    zyrexMenuOpen = !zyrexMenuOpen;
+    playSFX(zyrexMenuOpen ? 'menuOpen' : 'menuClose');
+  }
+  if (k === '3'){
+    settingsMenuOpen = !settingsMenuOpen;
+    playSFX(settingsMenuOpen ? 'menuOpen' : 'menuClose');
+  }
 });
 
 // -- Zyrex species roster (adopted from RP7 beta/classic) --------------------
@@ -1172,6 +1224,7 @@ function startWildBattle(){
     selectedMenuIdx: 0,
     selectedMoveIdx: 0,
   };
+  playBGM('battle');
 }
 
 // Damage: max(1, floor((atk - def/2) * power / 20))
@@ -1261,6 +1314,7 @@ function battleExit(){
   // If we blacked out, restore player-side to 1 HP so we're not stuck-dead.
   if (p && p.hp <= 0) p.hp = 1;
   battleState = null;
+  playBGM('home');
 }
 
 // -- Settings menu overlay (same style as Zyrex menu) ------------------------
@@ -1387,46 +1441,49 @@ function drawBattleOverlay(){
     ctx.fillText(line, 20, logY + i * 16);
   });
 
-  // Menu
+  // Menu · positioned directly under the player card (bottom-right area,
+  // per user 2026-08-05).  Player card at (W-240, H-220) is 220 wide x
+  // 90 tall · bottom = H-130 · menu grid starts at H-124 with 4px gap.
+  const menuX  = W - 240;
+  const menuY  = H - 124;
+  const btnW   = 108, btnH = 32, gap = 4;
   if (battleState.menu === 'main'){
     const items = ['FIGHT', 'BAG', 'SWAP', 'RUN'];
-    const bx = 20, by = H - 100, cw = 130, ch = 34, gap = 6;
     items.forEach((label, i) => {
       const col = i % 2, row = Math.floor(i / 2);
-      const x = bx + col * (cw + gap);
-      const y = by + row * (ch + gap);
+      const x = menuX + col * (btnW + gap);
+      const y = menuY + row * (btnH + gap);
       const sel = (i === battleState.selectedMenuIdx);
-      ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.6)';
-      ctx.fillRect(x, y, cw, ch);
+      ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.7)';
+      ctx.fillRect(x, y, btnW, btnH);
       ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, cw, ch);
+      ctx.strokeRect(x, y, btnW, btnH);
       ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
-      ctx.font = 'bold 14px "Courier New", monospace';
-      ctx.fillText(label, x + 16, y + 22);
+      ctx.font = 'bold 13px "Courier New", monospace';
+      ctx.fillText(label, x + 12, y + 21);
     });
   } else if (battleState.menu === 'fight'){
     const moves = p.moves;
-    const bx = 20, by = H - 100, cw = 130, ch = 34, gap = 6;
     moves.forEach((mname, i) => {
       const col = i % 2, row = Math.floor(i / 2);
-      const x = bx + col * (cw + gap);
-      const y = by + row * (ch + gap);
+      const x = menuX + col * (btnW + gap);
+      const y = menuY + row * (btnH + gap);
       const sel = (i === battleState.selectedMoveIdx);
       const mv = MOVES[mname];
-      ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.6)';
-      ctx.fillRect(x, y, cw, ch);
+      ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.7)';
+      ctx.fillRect(x, y, btnW, btnH);
       ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, cw, ch);
+      ctx.strokeRect(x, y, btnW, btnH);
       ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
-      ctx.font = 'bold 12px "Courier New", monospace';
-      ctx.fillText(mname, x + 8, y + 16);
-      ctx.font = '10px "Courier New", monospace';
-      ctx.fillText(`${mv ? mv.type : '?'} · pow ${mv ? mv.power : 0}`, x + 8, y + 30);
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.fillText(mname, x + 6, y + 14);
+      ctx.font = '9px "Courier New", monospace';
+      ctx.fillText(`${mv ? mv.type : '?'} · ${mv ? mv.power : 0}`, x + 6, y + 27);
     });
     ctx.fillStyle = '#8ff';
     ctx.font = '11px "Courier New", monospace';
     ctx.textAlign = 'right';
-    ctx.fillText('○ back', W - 20, H - 20);
+    ctx.fillText('○ back', W - 20, H - 8);
     ctx.textAlign = 'left';
   } else if (battleState.menu === 'over'){
     ctx.fillStyle = 'rgba(0,0,0,0.6)';

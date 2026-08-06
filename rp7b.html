@@ -292,8 +292,9 @@ const WORLD_PROPS = [
       for (let dy = 0; dy < p.h; dy++){
         for (let dx = 0; dx < p.w; dx++){
           const x = p.x + dx, y = p.y + dy;
-          // (1) Grassblade — dev standard visual (wildZone detector was
-          // removed 2026-08-05 per user · grass is now pure decor)
+          // (1) Grassblade — dev standard visual + wildZone marker
+          // (re-enabled 2026-08-05 · fires wild-Zyrex battle when
+          // player.party.length > 0)
           tiles.push({
             id: `gemgrass_${x}_${y}`,
             img: _grassImg,
@@ -302,6 +303,7 @@ const WORLD_PROPS = [
             tileX: x, tileY: y,
             tileW: 1, tileH: 1,
             footprint: [],
+            wildZone: true,
           });
           // (2) Pretty grass patch overlay · one per grassblade tile
           const a = useA(x, y);
@@ -424,12 +426,14 @@ const WORLD_PROPS = [
 // Load prop images (pre-baked · no chroma-key needed)
 WORLD_PROPS.forEach(p => { p.img.src = p.src; });
 
-// Collision + interact maps · computed once from props.
+// Collision + interact + wildZone maps · computed once from props.
 const _propBlocked = new Set();     // "x,y" of solid tiles
 const _propDoors   = new Map();     // "x,y" → prop with onInteract
+const _wildZones   = new Set();     // "x,y" tiles that spawn wild Zyrex
 WORLD_PROPS.forEach(p => {
   p.footprint.forEach(([dx,dy]) => _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`));
   if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
+  if (p.wildZone) _wildZones.add(`${p.tileX},${p.tileY}`);
 });
 
 function walkable(x, y){
@@ -622,6 +626,11 @@ addEventListener('keyup', e => {
 
 // -- Movement · one tile step per moveCd interval ----------------------------
 function tryMove(dt){
+  // Freeze player when any UI overlay or battle owns input.
+  if (settingsMenuOpen || zyrexMenuOpen || battleState){
+    player.moving = false;
+    return;
+  }
   player.moveCd -= dt;
   if (player.moveCd > 0) return;
 
@@ -645,6 +654,19 @@ function tryMove(dt){
   const running = !!keys['shift'] || !!keys['b'] || player.sprintLocked;
   player.running = running;
   player.moveCd = running ? 90 : 170;
+
+  // Wild-Zyrex encounter · only fires when player has ≥1 Zyrex in party.
+  // Grassblade / grass-patch tiles carry wildZone: true.  Stepping in
+  // rolls the RP7 canon 14% chance after 2 consecutive grass steps.
+  if (_wildZones.has(`${nx},${ny}`) && player.party.filter(z => z && z.hp > 0).length > 0){
+    player.stepsInGrass = (player.stepsInGrass || 0) + 1;
+    if (player.stepsInGrass >= 2 && Math.random() < 0.14){
+      player.stepsInGrass = 0;
+      startWildBattle();
+    }
+  } else {
+    player.stepsInGrass = 0;
+  }
 }
 
 // -- Renderer ----------------------------------------------------------------
@@ -810,18 +832,88 @@ function tryInteract(){
   showToast('◈ Grass.  All quiet.');
 }
 let _lastInteract = 0;
+
+// Settings menu selection state (arrow-nav + confirm on Z/X)
+let settingsSelectedIdx = 0;
+
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
-  // z (Cross), x (Square · Xbox-X), Enter, Space — all trigger interact.
+
+  // ═══════════════════════════════════════════════════════════════
+  // 1) BATTLE INPUT · owns keys entirely while battleState !== null
+  // ═══════════════════════════════════════════════════════════════
+  if (battleState){
+    if (battleState.menu === 'over'){
+      // Any confirm exits back to overworld.
+      if (k === 'z' || k === 'x' || k === 'enter' || k === ' ' || k === 'shift'){
+        battleExit();
+      }
+      return;
+    }
+    if (battleState.menu === 'main'){
+      // Menu: 0=FIGHT · 1=BAG · 2=SWAP · 3=RUN (grid 2x2)
+      if (k === 'arrowup')    battleState.selectedMenuIdx = (battleState.selectedMenuIdx + 2) % 4;
+      if (k === 'arrowdown')  battleState.selectedMenuIdx = (battleState.selectedMenuIdx + 2) % 4;
+      if (k === 'arrowleft')  battleState.selectedMenuIdx = (battleState.selectedMenuIdx ^ 1);
+      if (k === 'arrowright') battleState.selectedMenuIdx = (battleState.selectedMenuIdx ^ 1);
+      if (k === 'z' || k === 'x' || k === 'enter'){
+        const opt = battleState.selectedMenuIdx;
+        if (opt === 0){ battleState.menu = 'fight'; battleState.selectedMoveIdx = 0; }
+        else if (opt === 1){ battleAppendLog('Bag not wired yet.'); }
+        else if (opt === 2){ battleAppendLog('Swap not wired yet.'); }
+        else if (opt === 3){ battleRun(); }
+      }
+      return;
+    }
+    if (battleState.menu === 'fight'){
+      const moves = battleState.player.moves;
+      if (k === 'arrowup')    battleState.selectedMoveIdx = (battleState.selectedMoveIdx + moves.length - 1) % moves.length;
+      if (k === 'arrowdown')  battleState.selectedMoveIdx = (battleState.selectedMoveIdx + 1) % moves.length;
+      if (k === 'shift'){ battleState.menu = 'main'; return; }   // Circle = back
+      if (k === 'z' || k === 'x' || k === 'enter'){
+        const move = moves[battleState.selectedMoveIdx];
+        battleExecuteMove(move);
+        if (!battleState.over) battleState.menu = 'main';
+      }
+      return;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 2) SETTINGS MENU · owns keys entirely while open
+  // ═══════════════════════════════════════════════════════════════
+  if (settingsMenuOpen){
+    if (k === 'arrowup')   settingsSelectedIdx = (settingsSelectedIdx + SETTINGS_ITEMS.length - 1) % SETTINGS_ITEMS.length;
+    if (k === 'arrowdown') settingsSelectedIdx = (settingsSelectedIdx + 1) % SETTINGS_ITEMS.length;
+    if (k === 'z' || k === 'x' || k === 'enter'){
+      showToast(`◈ ${SETTINGS_ITEMS[settingsSelectedIdx]} · not wired yet`, 1600);
+    }
+    // Circle (Shift) OR Options (3) both close · same-menu-press-exists.
+    if (k === 'shift' || k === '3'){
+      settingsMenuOpen = false;
+      settingsSelectedIdx = 0;
+    }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 3) ZYREX MENU · read-only inspect for now · Touchpad/2 closes
+  // ═══════════════════════════════════════════════════════════════
+  if (zyrexMenuOpen){
+    if (k === '2' || k === 'shift') zyrexMenuOpen = false;
+    if (k === '9') giveDevElzebub();
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 4) OVERWORLD KEYS
+  // ═══════════════════════════════════════════════════════════════
   if (k === 'z' || k === 'x' || k === 'enter' || k === ' '){
     const now = performance.now();
     if (now - _lastInteract > 220){ tryInteract(); _lastInteract = now; }
   }
-  // Touchpad ('2' via canonical controller map) toggles the Zyrex menu.
-  if (k === '2'){ zyrexMenuOpen = !zyrexMenuOpen; }
-  // Options ('3' via canonical controller map) toggles the Settings menu.
+  if (k === '2'){ zyrexMenuOpen    = !zyrexMenuOpen; }
   if (k === '3'){ settingsMenuOpen = !settingsMenuOpen; }
-  // '9' · dev spawn Elzebub Lv 5 into party (per user request 2026-08-05)
   if (k === '9'){ giveDevElzebub(); }
 });
 
@@ -841,6 +933,28 @@ const SPECIES = {
     moves: ['Ember', 'Tackle', 'Scratch', 'Growl'],
   },
 };
+
+// Move data · MVP damage-only (status/debuff moves land with real battle sys)
+const MOVES = {
+  Tackle:  { name: 'Tackle',  power: 10, type: 'Normal'   },
+  Scratch: { name: 'Scratch', power: 10, type: 'Normal'   },
+  Ember:   { name: 'Ember',   power: 15, type: 'Elemental'},
+  Growl:   { name: 'Growl',   power:  0, type: 'Normal'   },   // no-op
+};
+
+// Malezor wild pool · confirmed Tier-1 canon only (per aov-t1-foundation-canon
+// + aov-district-type-pool).  Elzebub is our dev-test T1 · expand as user
+// confirms more canonical T1s.
+const MALEZOR_WILD_POOL = ['elzebub'];
+
+// XP · Fast growth curve (T1 species) per aov-zyrex-growth-curves.
+// Total XP required at level N = floor(0.8 * N^3).  xpToNextLevel returns
+// the delta from current level to next.
+function xpToNextLevel(lv){
+  const cur  = Math.floor(0.8 * Math.pow(lv,     3));
+  const next = Math.floor(0.8 * Math.pow(lv + 1, 3));
+  return next - cur;
+}
 
 function createZyrex(speciesId, level){
   const sp = SPECIES[speciesId];
@@ -872,6 +986,117 @@ function giveDevElzebub(){
   showToast(`◈ ${z.name} Lv ${z.level} joined the party!`, 2200);
 }
 
+// -- Battle state + logic (turn-based · speed-first · per aov-rp7 canon) -----
+// battleState is null when in overworld · object during battle.
+//   { player, wild, log[], menu:'main'|'fight'|'over', turnPending:'player'|'wild'|null }
+let battleState = null;
+
+function startWildBattle(){
+  const active = player.party[0];
+  if (!active || active.hp <= 0) return;   // no live Zyrex to fight with
+  const speciesId = MALEZOR_WILD_POOL[Math.floor(Math.random() * MALEZOR_WILD_POOL.length)];
+  const wildLv = 1 + Math.floor(Math.random() * 5);   // 1..5 per user
+  const wild = createZyrex(speciesId, wildLv);
+  battleState = {
+    player: active,
+    wild,
+    log: [`A wild ${wild.name} appeared! (Lv ${wildLv})`],
+    menu: 'main',       // 'main' | 'fight' | 'over'
+    over: false,        // true when either fainted
+    selectedMenuIdx: 0,
+    selectedMoveIdx: 0,
+  };
+}
+
+// Damage: max(1, floor((atk - def/2) * power / 20))
+function calcDamage(attacker, defender, moveName){
+  const mv = MOVES[moveName]; if (!mv || mv.power === 0) return 0;
+  const raw = (attacker.atk - defender.def / 2) * mv.power / 20;
+  return Math.max(1, Math.floor(raw));
+}
+
+function battleAppendLog(msg){
+  battleState.log.push(msg);
+  if (battleState.log.length > 4) battleState.log = battleState.log.slice(-4);
+}
+
+// Execute one full round · attacker moves first, defender counters if alive.
+function battleExecuteMove(playerMoveName){
+  const p = battleState.player, w = battleState.wild;
+  // Random wild move
+  const wildMove = w.moves[Math.floor(Math.random() * w.moves.length)];
+  // Speed order · higher SPD goes first
+  const playerFirst = p.spd >= w.spd;
+  const acts = playerFirst
+    ? [['player', playerMoveName], ['wild', wildMove]]
+    : [['wild', wildMove], ['player', playerMoveName]];
+  for (const [who, mv] of acts){
+    if (p.hp <= 0 || w.hp <= 0) break;
+    const atk  = who === 'player' ? p : w;
+    const def  = who === 'player' ? w : p;
+    const dmg  = calcDamage(atk, def, mv);
+    def.hp = Math.max(0, def.hp - dmg);
+    battleAppendLog(`${atk.name} used ${mv}!` + (dmg > 0 ? ` (${dmg} dmg)` : ' (no effect)'));
+  }
+  // Resolve
+  if (w.hp <= 0){
+    // Award XP · enemyLv × (8 + tier×8) × 1.0 × 0.80 (wild fight)
+    const gained = Math.floor(w.level * (8 + p.tier * 8) * 0.80);
+    p.xp += gained;
+    battleAppendLog(`Wild ${w.name} fainted!  +${gained} XP`);
+    // Level ups
+    while (p.xp >= xpToNextLevel(p.level)){
+      p.xp -= xpToNextLevel(p.level);
+      p.level += 1;
+      // Recompute stats · scale to new level
+      const sp = SPECIES[p.speciesId];
+      const s = 1 + (p.level - 1) * 0.05;
+      const oldMax = p.maxHp;
+      p.maxHp = Math.floor(sp.baseHP * s);
+      p.hp   += (p.maxHp - oldMax);      // heal by the diff
+      p.atk   = Math.floor(sp.baseATK  * s);
+      p.def   = Math.floor(sp.baseDEF  * s);
+      p.spd   = Math.floor(sp.baseSPD  * s);
+      p.satk  = Math.floor(sp.baseSATK * s);
+      p.sdef  = Math.floor(sp.baseSDEF * s);
+      battleAppendLog(`${p.name} leveled up to Lv ${p.level}!`);
+    }
+    battleState.over = true;
+    battleState.menu = 'over';
+  } else if (p.hp <= 0){
+    battleAppendLog(`${p.name} fainted!  You blacked out.`);
+    battleState.over = true;
+    battleState.menu = 'over';
+  }
+}
+
+function battleRun(){
+  if (Math.random() < 0.5){
+    battleAppendLog('Got away safely.');
+    battleState.over = true;
+    battleState.menu = 'over';
+  } else {
+    battleAppendLog(`Couldn't escape!`);
+    // Wild gets a free hit
+    const wildMove = battleState.wild.moves[Math.floor(Math.random() * battleState.wild.moves.length)];
+    const dmg = calcDamage(battleState.wild, battleState.player, wildMove);
+    battleState.player.hp = Math.max(0, battleState.player.hp - dmg);
+    battleAppendLog(`Wild ${battleState.wild.name} used ${wildMove}! (${dmg} dmg)`);
+    if (battleState.player.hp <= 0){
+      battleAppendLog(`${battleState.player.name} fainted!  You blacked out.`);
+      battleState.over = true;
+      battleState.menu = 'over';
+    }
+  }
+}
+
+function battleExit(){
+  const p = battleState && battleState.player;
+  // If we blacked out, restore player-side to 1 HP so we're not stuck-dead.
+  if (p && p.hp <= 0) p.hp = 1;
+  battleState = null;
+}
+
 // -- Settings menu overlay (same style as Zyrex menu) ------------------------
 // Options button ('3') toggles.  4 items: Items · Gear · Save State · Options.
 let settingsMenuOpen = false;
@@ -895,17 +1120,127 @@ function drawSettingsMenu(){
   ctx.beginPath();
   ctx.moveTo(24, 50); ctx.lineTo(W - 24, 50); ctx.stroke();
 
-  ctx.fillStyle = '#f0eadf';
   ctx.font = 'bold 16px "Courier New", monospace';
   SETTINGS_ITEMS.forEach((label, i) => {
-    ctx.fillText(label, 32, 100 + i * 40);
+    const selected = (i === settingsSelectedIdx);
+    if (selected){
+      ctx.fillStyle = '#d4af37';
+      ctx.fillRect(24, 82 + i * 40, W - 48, 30);
+      ctx.fillStyle = '#0b0b10';
+    } else {
+      ctx.fillStyle = '#f0eadf';
+    }
+    ctx.fillText(`${selected ? '▶ ' : '  '}${label}`, 32, 103 + i * 40);
   });
 
   ctx.fillStyle = '#8ff';
   ctx.font = '11px "Courier New", monospace';
   ctx.textAlign = 'right';
-  ctx.fillText('Options / 3 · close', W - 24, H - 20);
+  ctx.fillText('▲▼ nav · × select · ○/Options close', W - 24, H - 20);
   ctx.textAlign = 'left';
+}
+
+// -- Battle overlay ---------------------------------------------------------
+// Full-screen turn-based battle UI · owns input while battleState !== null.
+function drawBattleOverlay(){
+  if (!battleState) return;
+  const W = canvas.width, H = canvas.height;
+  const p = battleState.player, w = battleState.wild;
+
+  // Background · dark gradient-ish
+  ctx.fillStyle = '#0b0b10';
+  ctx.fillRect(0, 0, W, H);
+
+  // Wild card · top
+  drawBattleCard(w, 20, 40, 'WILD', true);
+  // Player card · bottom
+  drawBattleCard(p, W - 20 - 220, H - 220, 'YOUR', false);
+
+  // Battle log · center-top
+  ctx.fillStyle = '#f0eadf';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  const logY = H - 380;
+  battleState.log.forEach((line, i) => {
+    ctx.fillText(line, 20, logY + i * 16);
+  });
+
+  // Menu
+  if (battleState.menu === 'main'){
+    const items = ['FIGHT', 'BAG', 'SWAP', 'RUN'];
+    const bx = 20, by = H - 100, cw = 130, ch = 34, gap = 6;
+    items.forEach((label, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const x = bx + col * (cw + gap);
+      const y = by + row * (ch + gap);
+      const sel = (i === battleState.selectedMenuIdx);
+      ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.6)';
+      ctx.fillRect(x, y, cw, ch);
+      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, cw, ch);
+      ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
+      ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.fillText(label, x + 16, y + 22);
+    });
+  } else if (battleState.menu === 'fight'){
+    const moves = p.moves;
+    const bx = 20, by = H - 100, cw = 130, ch = 34, gap = 6;
+    moves.forEach((mname, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const x = bx + col * (cw + gap);
+      const y = by + row * (ch + gap);
+      const sel = (i === battleState.selectedMoveIdx);
+      const mv = MOVES[mname];
+      ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.6)';
+      ctx.fillRect(x, y, cw, ch);
+      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, cw, ch);
+      ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
+      ctx.font = 'bold 12px "Courier New", monospace';
+      ctx.fillText(mname, x + 8, y + 16);
+      ctx.font = '10px "Courier New", monospace';
+      ctx.fillText(`${mv ? mv.type : '?'} · pow ${mv ? mv.power : 0}`, x + 8, y + 30);
+    });
+    ctx.fillStyle = '#8ff';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('○ back', W - 20, H - 20);
+    ctx.textAlign = 'left';
+  } else if (battleState.menu === 'over'){
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, H - 60, W, 60);
+    ctx.fillStyle = '#d4af37';
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('press × to continue', W / 2, H - 28);
+    ctx.textAlign = 'left';
+  }
+}
+
+function drawBattleCard(z, x, y, label, isTop){
+  const cw = 220, ch = 90;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(x, y, cw, ch);
+  ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, cw, ch);
+  ctx.fillStyle = '#d4af37';
+  ctx.font = '10px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, x + 8, y + 14);
+  ctx.fillStyle = '#f0eadf';
+  ctx.font = 'bold 14px "Courier New", monospace';
+  ctx.fillText(`${z.name.toUpperCase()}  Lv ${z.level}  T${z.tier}`, x + 8, y + 32);
+  ctx.font = '10px "Courier New", monospace';
+  ctx.fillStyle = '#aaa';
+  ctx.fillText(`${z.type}${z.type2 ? ' / ' + z.type2 : ''}`, x + 8, y + 46);
+  // HP bar
+  const barX = x + 8, barY = y + 54, barW = cw - 16, barH = 10;
+  ctx.strokeStyle = '#666'; ctx.strokeRect(barX, barY, barW, barH);
+  const frac = z.hp / z.maxHp;
+  ctx.fillStyle = frac > 0.5 ? '#5f5' : frac > 0.2 ? '#fd5' : '#f55';
+  ctx.fillRect(barX + 1, barY + 1, (barW - 2) * frac, barH - 2);
+  ctx.fillStyle = '#f0eadf';
+  ctx.fillText(`HP ${z.hp}/${z.maxHp}   SPD ${z.spd}`, x + 8, y + 80);
 }
 
 // -- Zyrex party menu overlay ------------------------------------------------
@@ -1002,6 +1337,7 @@ function frame(now){
   drawWorldLayer();     // props + player, depth-sorted by feet-Y
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles
+  drawBattleOverlay();  // owns whole screen while battleState is set
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(now => { last = now; frame(now); });

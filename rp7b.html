@@ -181,6 +181,50 @@ const WORLD_PROPS = [
     door:  [0, 0],
     onInteract: () => showToast('◈ MALEZOR TOWN HALL · Closed for now.', 2200),
   },
+  // ── GRASS-PATCH OVERLAYS · pretty visual on top of wildZone tiles ──
+  // The single grassblade layer (below) is the DEV STANDARD wildZone
+  // marker · these bigger A/B fern/grass patches layer on top for visual
+  // polish.  Alternated by (tileX+tileY)%2 checkerboard so no two adjacent
+  // overlays look identical.  Non-blocking · walkable · 2 tiles wide x
+  // 3 tall visual (96x128 source scaled by prop system).
+  ...(function(){
+    const _gaImg = new Image();
+    _gaImg.src = 'assets/2D%20sprites/decor/grass-patch-a.png';
+    const _gbImg = new Image();
+    _gbImg.src = 'assets/2D%20sprites/decor/grass-patch-b.png';
+    const _gaBBox = [ 0, 0, 96, 128];   // patch A content bbox
+    const _gbBBox = [32, 0, 96, 128];   // patch B content bbox
+
+    // 25 feet-anchor positions · 1-2 overlays per gemgrass patch from v0.27
+    const OVERLAY_POSITIONS = [
+      // 1 overlay per small/medium patch
+      [17,  5], [27, 10], [ 3, 14],       // far-north
+      [26, 17], [17, 28], [ 5, 22],       // north-2
+      [ 3, 36], [41, 34], [42, 43],       // town-hall edges
+      [17, 46], [27, 49], [42, 56], [ 1, 58],   // buffer
+      [42, 66], [ 3, 65], [27, 65],       // middle
+      [ 5, 80], [17, 88], [42, 82], [26, 77],   // south
+      // extra overlays for the larger (5x5, 5x7) patches
+      [18, 26],       // north-2 large
+      [17, 84],       // south MAX
+      [ 5, 77],       // south large NW
+      [42, 79],       // south large E
+      [42, 41],       // town-hall SE large
+    ];
+    return OVERLAY_POSITIONS.map(([tx, ty], i) => {
+      const useA = ((tx + ty) & 1) === 0;
+      return {
+        id: `grass_overlay_${i}`,
+        img: useA ? _gaImg : _gbImg,
+        src: useA ? 'assets/2D%20sprites/decor/grass-patch-a.png'
+                  : 'assets/2D%20sprites/decor/grass-patch-b.png',
+        bbox: useA ? _gaBBox : _gbBBox,
+        tileX: tx, tileY: ty,
+        tileW: 2, tileH: 3,
+        footprint: [],                 // walkable · dev grassblade below drives wildZone
+      };
+    });
+  })(),
   // ── CHESTS · exploration rewards (per aov-item-acquisition-rule) ───
   // 8 chests in natural exploration corners.  1 tile wide, small feet-
   // anchored chest visual.  First interact rolls loot + marks chest

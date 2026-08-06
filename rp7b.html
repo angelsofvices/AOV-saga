@@ -68,6 +68,41 @@
       pointer-events:none;
       z-index:5;
     }
+    #devBtn{
+      position:fixed; bottom:12px; left:12px;
+      background: rgba(0,0,0,0.75);
+      color:#8fffb0; font-size:11px; letter-spacing:.12em;
+      padding:6px 12px; border:1px solid #2a5;
+      cursor:pointer;
+      z-index:6;
+      user-select:none;
+      font-family:inherit;
+    }
+    #devBtn:hover{ background: rgba(0,50,20,0.85); }
+    #devPanel{
+      position:fixed; bottom:44px; left:12px;
+      background: rgba(0,0,0,0.92);
+      color:#eaf; padding:14px 16px;
+      border:1px solid #4d5; border-left:3px solid #8fffb0;
+      font-size:12px; letter-spacing:.06em;
+      z-index:7;
+      min-width: 280px;
+      display:none;
+      font-variant-numeric: tabular-nums;
+    }
+    #devPanel h4{ margin:0 0 8px; color:#8fffb0; font-size:12px; letter-spacing:.14em; }
+    #devPanel .row{ margin: 6px 0; display:flex; gap:6px; align-items:center; }
+    #devPanel input[type="number"]{
+      width: 68px; background:#111; color:#fff; border:1px solid #4d5;
+      padding:3px 6px; font-family:inherit; font-size:12px;
+    }
+    #devPanel button{
+      background:#132; color:#8fffb0; border:1px solid #4d5;
+      padding:4px 9px; font-family:inherit; font-size:11px;
+      letter-spacing:.08em; cursor:pointer;
+    }
+    #devPanel button:hover{ background:#264; }
+    #devPanel .warp-links{ display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
   </style>
 </head>
 <body>
@@ -76,6 +111,38 @@
   </div>
   <div id="hud">TILE (—, —) · scene —</div>
   <div id="hint">Arrows / D-pad · × / X interact · L3 sprint toggle · Options pause</div>
+  <div id="devBtn">[ DEV MODE ]</div>
+  <div id="devPanel">
+    <h4>◈ DEV TOOLS</h4>
+    <div class="row">
+      <span>Teleport →</span>
+      <input id="devWarpX" type="number" min="0" max="500" value="22">
+      <input id="devWarpY" type="number" min="0" max="500" value="106">
+      <button id="devWarpBtn">GO</button>
+    </div>
+    <div class="row" style="flex-direction:column; align-items:flex-start;">
+      <span>Warp presets:</span>
+      <div class="warp-links">
+        <button data-warp="22,106,overworld">Home</button>
+        <button data-warp="22,5,overworld">Rakoron Cave</button>
+        <button data-warp="22,156,overworld">Hospital</button>
+        <button data-warp="22,80,overworld">Town Hall</button>
+        <button data-warp="60,175,overworld">Wild Arm</button>
+        <button data-warp="90,247,overworld">Zarvane Hub</button>
+        <button data-warp="150,247,overworld">Wilds Branch</button>
+      </div>
+    </div>
+    <div class="row">
+      <span>Give:</span>
+      <button data-give="coins,500">+500 Coins</button>
+      <button data-give="potion,5">+5 Potions</button>
+      <button data-give="zysphere_basic,10">+10 Zyspheres</button>
+    </div>
+    <div class="row">
+      <button id="devHealBtn">Full Heal Party</button>
+      <button id="devCloseBtn">Close</button>
+    </div>
+  </div>
 
 <script>
 'use strict';
@@ -2881,6 +2948,57 @@ function frame(now){
   updateHUD();          // live tile coordinates in top-right
   requestAnimationFrame(frame);
 }
+
+// ─────────────────────────────────────────────────────────────
+// DEV MODE panel (v0.74)
+// Click "[ DEV MODE ]" in the bottom-left to open · warp presets +
+// coordinate teleport + item grants + full heal.  Nothing here is
+// gated by a flag · this is a rewrite/dev build.
+// ─────────────────────────────────────────────────────────────
+(function wireDevPanel(){
+  const btn   = document.getElementById('devBtn');
+  const panel = document.getElementById('devPanel');
+  if (!btn || !panel) return;
+  const show = (on) => { panel.style.display = on ? 'block' : 'none'; };
+  btn.addEventListener('click', () => show(panel.style.display !== 'block'));
+  document.getElementById('devCloseBtn').addEventListener('click', () => show(false));
+
+  const warpTo = (x, y, scene) => {
+    if (scene && scene !== game.scene){
+      game.scene = scene;
+      if (scene === 'overworld') playBGM('home');
+    }
+    player.x = x|0; player.y = y|0;
+    player.moving = false; player.animFrame = 0;
+    showToast(`◈ DEV · warped to (${player.x}, ${player.y})`, 1500);
+  };
+
+  document.getElementById('devWarpBtn').addEventListener('click', () => {
+    const x = +document.getElementById('devWarpX').value;
+    const y = +document.getElementById('devWarpY').value;
+    warpTo(x, y, 'overworld');
+  });
+
+  panel.querySelectorAll('button[data-warp]').forEach(b => {
+    b.addEventListener('click', () => {
+      const [x, y, scene] = b.dataset.warp.split(',');
+      warpTo(+x, +y, scene);
+    });
+  });
+
+  panel.querySelectorAll('button[data-give]').forEach(b => {
+    b.addEventListener('click', () => {
+      const [key, n] = b.dataset.give.split(',');
+      addItems({ [key]: +n });
+      showToast(`◈ DEV · +${n} ${key}`, 1500);
+    });
+  });
+
+  document.getElementById('devHealBtn').addEventListener('click', () => {
+    (player.party || []).forEach(z => { if (z){ z.hp = z.hpMax || z.hp || 1; } });
+    showToast('◈ DEV · party fully healed', 1500);
+  });
+})();
 
 // Live HUD · shows current tile position + scene name so the map can be
 // authored by real coordinates the player can read off screen.

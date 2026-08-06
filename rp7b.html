@@ -1046,10 +1046,21 @@ const MOVES = {
   Roar:             { name: 'Roar',             power:  0, type: 'Normal'    },
 };
 
-// Malezor wild pool · confirmed Tier-1 canon only (per aov-t1-foundation-canon
-// + aov-district-type-pool).  Elzebub is our dev-test T1 · expand as user
-// confirms more canonical T1s.
-const MALEZOR_WILD_POOL = ['elzebub'];
+// Malezor wild pool · Elzebub (canonical T1) + Elzoran (added 2026-08-05
+// so the battle sprite can render as a wild opponent for dev testing).
+// Weighted: Elzebub 3× more common than Elzoran.
+const MALEZOR_WILD_POOL = ['elzebub', 'elzebub', 'elzebub', 'elzoran'];
+
+// Per-species BATTLE SPRITE (opponent portrait shown in the upper-right
+// area of the battle overlay).  Assets sourced from
+// /assets/2D sprites/battle/wild/<species>.png · pre-baked alpha.
+const BATTLE_SPRITES = {
+  elzoran: (function(){
+    const img = new Image();
+    img.src = 'assets/2D%20sprites/battle/wild/elzoran.png';
+    return { img, bbox: [544, 42, 686, 557] };
+  })(),
+};
 
 // XP · Fast growth curve (T1 species) per aov-zyrex-growth-curves.
 // Total XP required at level N = floor(0.8 * N^3).  xpToNextLevel returns
@@ -1301,8 +1312,21 @@ function drawBattleOverlay(){
   ctx.fillStyle = '#0b0b10';
   ctx.fillRect(0, 0, W, H);
 
-  // Wild card · top
+  // Wild card · top-left (text stats)
   drawBattleCard(w, 20, 40, 'WILD', true);
+
+  // Wild BATTLE SPRITE · top-right (per aov-chroma-key-canon · green-keyed)
+  const spriteInfo = BATTLE_SPRITES[w.speciesId];
+  if (spriteInfo && spriteInfo.img && spriteInfo.img.complete && spriteInfo.img.naturalWidth){
+    const [sbx, sby, sbw, sbh] = spriteInfo.bbox;
+    // Anchor: upper-right area · target box 260x210 (aspect-preserved)
+    const targetW = 260;
+    const targetH = Math.round(targetW * (sbh / sbw));
+    const dx = W - targetW - 20;
+    const dy = 20;
+    ctx.drawImage(spriteInfo.img, sbx, sby, sbw, sbh, dx, dy, targetW, targetH);
+  }
+
   // Player card · bottom
   drawBattleCard(p, W - 20 - 220, H - 220, 'YOUR', false);
 

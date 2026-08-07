@@ -53,12 +53,24 @@
       font-variant-numeric: tabular-nums;
     }
     #padStatus{
-      position:fixed; bottom:12px; left:12px;
+      position:fixed; top:40px; left:12px;                /* v0.88.3 · under tile HUD */
       background: rgba(0,0,0,0.6);
       color:#8ff; font-size:11px; letter-spacing:.1em;
       padding:6px 10px; border:1px solid #244;
       pointer-events:none;
       z-index:5;
+    }
+    /* Weapon HUD · bottom-left · mirrors RHUD size/offset */
+    #weaponHud{
+      position:fixed; bottom:-55px; left:8px;
+      width: 500px; height: 262px;
+      background-image: url('assets/2D%20sprites/ui/weapon-hud.png');
+      background-size: contain; background-repeat: no-repeat;
+      background-position: left bottom;
+      cursor: pointer;
+      z-index: 6;
+      image-rendering: pixelated;
+      display: none;
     }
     /* ── Rizer HUD · top-right · vertical-aligned with coord HUD ── */
     #rizerHud{
@@ -164,6 +176,7 @@
   </div>
   <div id="hud">TILE (—, —) · scene —</div>
   <div id="rizerHud" title="Rizer status · click to open"></div>
+  <div id="weaponHud" title="Weapon wheel · click to open"></div>
   <div id="rizerPanel">
     <h4>◈ RIZER STATUS</h4>
     <div class="row"><span>Rizer Level</span><span id="rzLvl">1</span></div>
@@ -332,6 +345,7 @@ const AUDIO = {
     coins:     new Audio('audio/sfx-coins.mp3'),         // chest unlock · coin drop
     caveGrowl: new Audio('audio/sfx-cave-growl.mp3'),    // locked Rakoron cave
     doorLock:  new Audio('audio/sfx-door-lock.mp3'),     // locked residential building
+    portalLocked: new Audio('audio/sfx-portal-locked.mp3'),  // v0.88.3 · sealed portal
   },
 };
 Object.values(AUDIO.bgm).forEach(a => { a.loop = true; a.volume = 0.32; });
@@ -702,9 +716,11 @@ const WORLD_PROPS = [
     bbox: [37, 54, 1256, 958],       // aspect 1.311 · barn-wide
     tileX: 35, tileY: 138,
     tileW: 11, tileH: 9,             // v0.88 · bumped 9x7 → 11x9 (larger)
+    // v0.88.4 · collision footprint trimmed from 9 rows → 5 rows so the
+    // block-zone matches the visual barn base (not the roof)
     footprint: (function(){
       const f = [];
-      for (let dy = -8; dy <= 0; dy++){
+      for (let dy = -4; dy <= 0; dy++){
         for (let dx = -5; dx <= 5; dx++){ f.push([dx, dy]); }
       }
       return f;
@@ -787,10 +803,8 @@ const WORLD_PROPS = [
         candidates.push({ x, y, density });
       }
     }
-    candidates.sort((a, b) => a.density - b.density);
-    const topN = candidates.slice(0, Math.max(1, Math.min(12, candidates.length)));
-    const pick = topN[Math.floor(Math.random() * topN.length)];
-    const tx = pick ? pick.x : 1, ty = pick ? pick.y : 5;
+    // v0.88.4 · Malezor portal fixed at (3, 3) per user
+    const tx = 3, ty = 3;
 
     return [{
       id: 'portal_closed',
@@ -802,7 +816,8 @@ const WORLD_PROPS = [
       tileW: 1, tileH: 2,
       footprint: [[0, 0]],
       door: [0, 0],
-      onInteract: () => showToast('◈ Portal · sealed shut.', 2000),
+      _levitate: true,
+      onInteract: () => { showToast('◈ Portal · sealed shut.', 2000); playSFX('portalLocked'); },
     }, {
       // ── ZARVANE portal (v0.88.2) · fixed at (174, 243) inside Wilds Branch ──
       id: 'zarvane_portal_closed',
@@ -813,7 +828,8 @@ const WORLD_PROPS = [
       tileW: 1, tileH: 2,
       footprint: [[0, 0]],
       door: [0, 0],
-      onInteract: () => showToast('◈ Zarvane portal · sealed shut.', 2000),
+      _levitate: true,
+      onInteract: () => { showToast('◈ Zarvane portal · sealed shut.', 2000); playSFX('portalLocked'); },
     }];
   })(),
   // ── CHESTS · all wood · 1-100 random coins · sets base purchase math ──
@@ -1630,16 +1646,17 @@ const NPCS = [
     idleFrame: 0,
     blinkTimer: 2000 + Math.random() * 2000,
     turnToInteract: true,               // faces player during dialog · resets to down
+    scaleMul: 1.15,                     // v0.88.4 · taller than Rizer
     onInteract: (n) => {
       showDialog({ speaker: 'AURAXION', lines: [
         'I read the astral currents.  You walk a bright path, Rizer.',
       ]});
     },
   },
-  // ── GEARBYTE · rusted mech-companion at (16, 180) · beside Auraxion (v0.88.2) ──
+  // ── RUSTBYTE · rusted mech-companion at (16, 180) · beside Auraxion (v0.88.2) ──
   {
-    id: 'gearbyte',
-    name: 'Gearbyte',
+    id: 'rustbyte',
+    name: 'Rustbyte',
     sheet: new Image(),
     src:   'assets/2D%20sprites/npcs/gearbyte.png',
     bboxes: [
@@ -1660,8 +1677,9 @@ const NPCS = [
     idleFrame: 0,
     blinkTimer: 2200 + Math.random() * 2000,
     turnToInteract: false,              // always front-facing · never turns
+    scaleMul: 0.7,                      // v0.88.4 · small makeshift robot
     onInteract: (n) => {
-      showDialog({ speaker: 'GEARBYTE', lines: [
+      showDialog({ speaker: 'RUSTBYTE', lines: [
         '*whirrr*  ...system nominal.  Bleep.',
       ]});
     },
@@ -2314,6 +2332,8 @@ const DIALOG_FRAMES = {
   ORREN:        { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-orren.png', bbox: [17, 231, 1629, 453], hasName: true },
   'ALBERT ORREN': { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-orren.png', bbox: [17, 231, 1629, 453], hasName: true },
   SCRAPJAW:     { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-scrapjaw.png', bbox: [18, 233, 1628, 450], hasName: true },
+  RUSTBYTE:     { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-rustbyte.png', bbox: [17, 231, 1630, 452], hasName: true },
+  GEARBYTE:     { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-rustbyte.png', bbox: [17, 231, 1630, 452], hasName: true },
   _tpl:    { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-frame.png',   bbox: [14, 224, 1635, 461], hasName: false },
 };
 Object.values(DIALOG_FRAMES).forEach(f => f.img.src = f.src);
@@ -2743,8 +2763,11 @@ function tryInteract(){
     if (n.scene !== 'overworld') continue;
     if (n.tileX === fx && n.tileY === fy){
       const opp = { up:'down', down:'up', left:'right', right:'left' };
-      n.dir = opp[player.dir] || n.dir;
+      const shouldTurn = (n.turnToInteract !== false);
+      const priorDir = n.dir;
+      if (shouldTurn) n.dir = opp[player.dir] || n.dir;
       n.moving = false;
+      n._resetDirOnDialogClose = shouldTurn ? 'down' : priorDir;
       if (n.onInteract) n.onInteract(n);
       return;
     }
@@ -3534,7 +3557,7 @@ function drawNPC(n){
   // Per-sheet SCALE anchored to NPC's own down bh (same rule as player).
   if (n._downScale == null){
     const dbh = n.bboxes && n.bboxes[0] && n.bboxes[0][0] ? n.bboxes[0][0][3] : 216;
-    n._downScale = (TILE * 2) / dbh;
+    n._downScale = (TILE * 2) / dbh * (n.scaleMul || 1);   // v0.88.4 · per-NPC scale
   }
   const row = DIR_ROW_NPC[n.dir] || 0;
   // Frame pick:
@@ -3661,9 +3684,11 @@ function drawProp(p){
   const [bx, by, bw, bh] = p.bbox;
   const drawW = p.tileW * TILE;
   const drawH = Math.round(drawW * (bh / bw));   // preserve source aspect
-  // Anchor: bottom-center of prop sits on bottom edge of tile (tileX, tileY)
+  // Anchor: bottom-center of prop sits on bottom edge of tile (tileX, tileY).
+  // Levitating props (portals · v0.88.4) bob subtly on a sine wave.
+  const lev = p._levitate ? Math.round(Math.sin(performance.now() / 500) * 4) : 0;
   const dx = Math.floor((p.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
-  const dy = Math.floor((p.tileY + 1)   * TILE - drawH)     - _cam.y;
+  const dy = Math.floor((p.tileY + 1)   * TILE - drawH)     - _cam.y + lev;
   // Cull: skip props whose whole footprint is off-screen
   if (dx + drawW < 0 || dx > canvas.width)  return;
   if (dy + drawH < 0 || dy > canvas.height) return;
@@ -3863,8 +3888,10 @@ function updateRizerHUD(){
   // dialog, or during battle (all treated as cutscenes).
   const widget = document.getElementById('rizerHud');
   const panel  = document.getElementById('rizerPanel');
+  const whud   = document.getElementById('weaponHud');
   const show   = (game.scene === 'overworld') && !dialogState && !battleState;
   if (widget) widget.style.display = show ? 'block' : 'none';
+  if (whud)   whud.style.display   = show ? 'block' : 'none';
   if (!show && panel) panel.style.display = 'none';   // auto-close panel when hiding
   if (!panel || panel.style.display !== 'block') return;
   if (_rzLvlEl) _rzLvlEl.textContent = player.rizerLvl;

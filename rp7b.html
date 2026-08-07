@@ -3364,29 +3364,24 @@ addEventListener('keydown', e => {
   // 0.5) TITLE SCREEN · owns input entirely when scene === 'title'
   // ═══════════════════════════════════════════════════════════════
   if (game.scene === 'title'){
-    // v0.93 · Intro video · hold X (or Z / Enter) to skip
-    if (introState === 'playing'){
-      if (k === 'z' || k === 'x' || k === 'enter'){
-        if (introHoldStart === 0) introHoldStart = performance.now();
-        // On any subsequent frames with key still down, tryMove-style poll
-        // catches the hold · here we check duration on repeat events
-        if (performance.now() - introHoldStart >= INTRO_HOLD_MS){
-          skipIntroVideo();
-          introHoldStart = 0;
-        }
+    // v0.93.5 · Once title buttons are revealed (hold-X reveal OR 33s
+    // auto-appear), arrow keys navigate and X/Z/Enter activate · works
+    // even while video is still playing.
+    if (game.showTitleButtons){
+      if (k === 'arrowup' || k === 'arrowdown'){
+        titleSelectedIdx = (titleSelectedIdx + 1) % TITLE_OPTIONS.length;
+        playSFX('cursor');
+        return;
       }
-      return;
+      if (k === 'z' || k === 'x' || k === 'enter'){
+        playSFX('confirm');
+        if (titleSelectedIdx === 0) startNewGame();
+        else                        loadSavedGame();
+        return;
+      }
     }
-    if (k === 'arrowup' || k === 'arrowdown'){
-      titleSelectedIdx = (titleSelectedIdx + 1) % TITLE_OPTIONS.length;
-      playSFX('cursor');
-      return;
-    }
-    if (k === 'z' || k === 'x' || k === 'enter'){
-      playSFX('confirm');
-      if (titleSelectedIdx === 0) startNewGame();
-      else                        loadSavedGame();
-    }
+    // Video plays and buttons NOT yet revealed · hold-X to reveal.
+    // (Hold detection also runs in the frame loop for reliability.)
     return;
   }
 
@@ -4386,8 +4381,9 @@ function frame(now){
   const dt = now - last; last = now;
   tryMove(dt);
   tickFootprints(dt);                            // v0.87 · sand-trail decay
-  // v0.93 · Title intro · frame-level hold-X detection to skip video
-  if (introState === 'playing'){
+  // v0.93 · Title intro · frame-level hold-X detection to reveal menu
+  // (disabled once buttons are already shown to avoid re-trigger spam)
+  if (introState === 'playing' && !game.showTitleButtons){
     const held = keys['z'] || keys['x'] || keys['enter'];
     if (held){
       if (introHoldStart === 0) introHoldStart = performance.now();

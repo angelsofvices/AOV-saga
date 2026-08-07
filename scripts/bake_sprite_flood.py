@@ -66,6 +66,17 @@ def bake(path):
         if all(sum((c[i]-u[i])**2 for i in range(3)) > 30*30 for u in uniq):
             uniq.append(c)
     kill = flood_bg_mask(rgb, uniq, tol=60)
+    # Enclosed-pocket sweep: any remaining pixel that closely matches a
+    # corner ref color (tol=60) is background too, even if the flood couldn't
+    # reach it (e.g., magenta trapped inside desk legs).  True interior
+    # pinks (lava lamp, cheeks, etc.) survive because they're > tol from
+    # the pure background magenta.
+    r, g, b = rgb[..., 0].astype(np.int32), rgb[..., 1].astype(np.int32), rgb[..., 2].astype(np.int32)
+    pocket = np.zeros_like(kill)
+    for (rr, gg, bb) in uniq:
+        d2 = (r-rr)**2 + (g-gg)**2 + (b-bb)**2
+        pocket |= (d2 <= 70*70)   # v0.95.13 · sweet spot · catches enclosed bg / spares lava-lamp pink
+    kill = kill | pocket
     # 1-pixel dilation into pixels that are still near-background (tol 90)
     r, g, b = rgb[..., 0].astype(np.int32), rgb[..., 1].astype(np.int32), rgb[..., 2].astype(np.int32)
     near = np.zeros_like(kill)

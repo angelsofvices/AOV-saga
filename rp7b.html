@@ -4581,14 +4581,23 @@ function drawWorldLayer(){
 
 const DIR_ROW_NPC = { down: 0, left: 1, right: 2, up: 3 };
 function drawNPC(n){
-  // Per-sheet SCALE anchored to NPC's own down bh (same rule as player).
+  // v0.95.6 · SCALE reference is the LARGEST bh across all 4 directions of
+  // the idle sheet (col 0 of each row).  This kills the "front pose looks
+  // inflated / feet cropped" class-of-bug: previously uniformScale scaled
+  // each row to 2 tiles independently, so a row with no hair spike (small
+  // bh) drew visually larger than a row with a hair spike (large bh).
+  // Now every row shares one scale · drawH per row = bh * scale · feet
+  // anchored to tile bottom via `dy = tileY*TILE + TILE - drawH`.
   if (n._downScale == null){
-    const dbh = n.bboxes && n.bboxes[0] && n.bboxes[0][0] ? n.bboxes[0][0][3] : 216;
-    n._downScale = (TILE * 2) / dbh * (n.scaleMul || 1);   // v0.88.4 · per-NPC scale
+    let maxBh = 216;
+    if (n.bboxes){
+      for (let r = 0; r < n.bboxes.length; r++){
+        const cell0 = n.bboxes[r] && n.bboxes[r][0];
+        if (cell0 && cell0[3] > maxBh) maxBh = cell0[3];
+      }
+    }
+    n._downScale = (TILE * 2) / maxBh * (n.scaleMul || 1);
   }
-  // v0.91.3 · uniformScale: normalize each row's draw size to 2 tiles tall
-  // by computing scale from THAT row's bh · avoids clipping when side/up
-  // sheets have different heights than down.
   const row = DIR_ROW_NPC[n.dir] || 0;
   // Frame pick:
   //   moving + walkSheet loaded → walk sheet at animFrame
@@ -4603,8 +4612,9 @@ function drawNPC(n){
   const [bx, by, bw, bh] = bank[row][col];
   const sx = col * n.cellW + bx;
   const sy = row * n.cellH + by;
-  // v0.91.3 · per-row scale if uniformScale · every direction ~2 tiles tall
-  const rowScale = n.uniformScale ? ((TILE * 2) / bh * (n.scaleMul || 1)) : n._downScale;
+  // v0.95.6 · single scale across all directions (see _downScale calc above).
+  // uniformScale flag is now a no-op — every NPC uses one consistent scale.
+  const rowScale = n._downScale;
   const drawH = Math.max(1, Math.round(bh * rowScale));
   const drawW = Math.max(1, Math.round(bw * rowScale));
   const dx = Math.floor(n.tileX * TILE + (TILE - drawW) / 2) - _cam.x;

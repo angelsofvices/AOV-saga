@@ -213,6 +213,16 @@
     <div class="btn btnR1"   data-mk="3"></div>
   </div>
   <div id="devBtn">[ DEV MODE ]</div>
+  <!-- v0.95.9 · Nebulaport 3000 · retro minigame launcher -->
+  <div id="nebulaPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
+    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:520px; max-height:78vh; overflow:auto; background:rgba(10,6,18,0.98); border:2px solid #ff88f0; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
+      <div style="color:#ff88f0; font-size:11px; letter-spacing:0.18em; margin-bottom:4px;">◈ NEBULAPORT 3000</div>
+      <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:6px;">SELECT CARTRIDGE</div>
+      <div style="color:#bcd; font-size:12px; margin-bottom:14px;">Boot up any RP-series cartridge you own. Minigames earn coins, cosmetics, and lore fragments.</div>
+      <div id="nebulaGameList" style="font-size:13px; line-height:1.6;"></div>
+      <div style="margin-top:14px; text-align:right; font-size:11px; color:#8ff;">1-9 to boot · ○ / B / Esc to close</div>
+    </div>
+  </div>
   <!-- v0.95.7 · Guitar · play songs to raise Rizer Bond with party Zyrex -->
   <div id="guitarPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
     <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-height:78vh; overflow:auto; background:rgba(6,10,18,0.98); border:2px solid #ff88aa; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
@@ -2286,7 +2296,8 @@ const INTERIOR_HOME_2F = {
     [6,1],[7,1],
     [12,8],[13,8],[14,8],   // bed pillow/mattress top row
     [12,9],[13,9],[14,9],   // bed base
-    [10,1],[11,1],          // v0.95.8 · guitar+amp footprint (row 1, cols 10-11)
+    [10,1],                 // v0.95.9 · guitar (1 tile wide, col 10)
+    [8,1],                  // v0.95.9 · Nebulaport 3000 · floor next to TV
   ],
   wallImg: 'malezor',
   rizerRoom: true,                              // v0.95 · label + experiment table
@@ -2700,6 +2711,86 @@ const MAIN_QUESTS = [
       'Meet the Andrannor Town Hall keeper',
     ]},
 ];
+
+// v0.95.9 · Nebulaport 3000 · retro-console minigame launcher · procedural sprite
+// Draws a small game console (dark hull, glowing purple screen, controller ports)
+// directly onto the canvas at tile (tx, ty).  Occupies ~1 tile visually and lives
+// on the floor next to the Rizer TV.  Interact → openNebulaportPanel().
+function drawNebulaport(tx, ty){
+  const w = TILE - 6;                              // slightly under one tile wide
+  const h = Math.round(TILE * 0.55);               // low-profile flat console
+  const x = Math.floor(tx * TILE + (TILE - w) / 2) - _cam.x;
+  const y = Math.floor((ty + 1) * TILE - h)       - _cam.y;
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(x + 2, y + h - 3, w - 4, 3);
+  // hull
+  ctx.fillStyle = '#20232b';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#0f1116';
+  ctx.fillRect(x, y + h - 6, w, 6);               // base band
+  // screen · purple/pink neon
+  const sw = Math.round(w * 0.55), sh = Math.round(h * 0.45);
+  const sx = x + Math.round((w - sw) / 2), sy = y + 4;
+  ctx.fillStyle = '#4a1f5c';
+  ctx.fillRect(sx, sy, sw, sh);
+  const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 350);
+  ctx.fillStyle = `rgba(255, 132, 240, ${pulse})`;
+  ctx.fillRect(sx + 2, sy + 2, sw - 4, sh - 4);
+  // 2 controller ports (bottom band)
+  ctx.fillStyle = '#3b1a52';
+  ctx.fillRect(x + 4,        y + h - 5, 8, 3);
+  ctx.fillRect(x + w - 12,   y + h - 5, 8, 3);
+  // brand LED (right of screen)
+  ctx.fillStyle = pulse > 0.85 ? '#ff88f0' : '#552266';
+  ctx.fillRect(x + w - 6, y + 3, 2, 2);
+}
+
+// v0.95.9 · Nebulaport minigame catalog · each entry launches a mini-scene
+// stub for now · full implementations shipped incrementally with future
+// versions.  Kept in a simple list so the panel keys stay 1..N.
+const NEBULA_GAMES = [
+  { id: 'rp1_demo',  title: 'RP1 · Zyrex Rush',      status: 'DEMO'   },
+  { id: 'rp2_demo',  title: 'RP2 · Gemlord Dungeon', status: 'DEMO'   },
+  { id: 'rp3_demo',  title: 'RP3 · Astral Racer',    status: 'LOCKED' },
+  { id: 'rp4_demo',  title: 'RP4 · Prism Wars',      status: 'LOCKED' },
+];
+
+(function wireNebulaBackdrop(){
+  const p = document.getElementById('nebulaPanel');
+  if (!p) return;
+  p.addEventListener('click', e => { if (e.target === p) closeNebulaPanel(); });
+})();
+function openNebulaPanel(){
+  const p = document.getElementById('nebulaPanel');
+  const list = document.getElementById('nebulaGameList');
+  if (!p || !list) return;
+  list.innerHTML = NEBULA_GAMES.map((g, i) => {
+    const locked = g.status === 'LOCKED';
+    const color  = locked ? '#666' : '#ffd66b';
+    const label  = locked ? 'LOCKED · beat main story to unlock' : g.status;
+    return `<div style="color:${color}; padding:5px 0;">
+      <b>${i+1}.</b> ${g.title} <span style="color:#8ff; font-size:11px;">— ${label}</span>
+    </div>`;
+  }).join('');
+  p.style.display = 'block';
+  game.nebulaPanelOpen = true;
+  playSFX('menuOpen');
+}
+function closeNebulaPanel(){
+  const p = document.getElementById('nebulaPanel');
+  if (p) p.style.display = 'none';
+  game.nebulaPanelOpen = false;
+  playSFX('menuClose');
+}
+function launchNebulaGame(idx){
+  const g = NEBULA_GAMES[idx];
+  if (!g) return;
+  if (g.status === 'LOCKED'){ showToast('◈ Cartridge missing · unlock by progressing story.', 2400); playSFX('disabled'); return; }
+  showToast(`◈ Booting cartridge · ${g.title}...  (minigame stub)`, 2800);
+  playSFX('confirm');
+  // TODO: hook actual minigame scene when built.
+}
 
 // v0.95.7 · Guitar · Rizer Bond system
 // Every Zyrex has a bond (0-100) with the player.  Songs played on the
@@ -3269,6 +3360,7 @@ function tryMove(dt){
       || game.expPanelOpen                                // v0.95 · freeze while experiment table open
       || game.tvPanelOpen                                 // v0.95.1 · freeze while Rizer TV open
       || game.guitarPanelOpen                             // v0.95.7 · freeze while guitar panel open
+      || game.nebulaPanelOpen                             // v0.95.9 · freeze while Nebulaport open
       || _sleepFade                                       // v0.95.4 · freeze while napping
       || (document.getElementById('devPanel') && document.getElementById('devPanel').style.display === 'block')){  // v0.92.1 · freeze while dev panel open
     player.moving = false;
@@ -3419,15 +3511,17 @@ function drawInteriorFloor(){
       const dy = Math.floor((9  + 1)   * TILE - drawH)     - _cam.y;
       ctx.drawImage(BED_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
-    // v0.95.8 · Guitar+Amp · 1.5 tiles wide · centered on col 10, base row 1
+    // v0.95.9 · Guitar+Amp · 1 tile wide (shrunk further) · centered on col 10, base row 1
     if (GUITAR_IMG.complete && GUITAR_IMG.naturalWidth){
       const [sx, sy, sw, sh] = GUITAR_BBOX;
-      const drawW = Math.round(1.5 * TILE);
+      const drawW = TILE;
       const drawH = Math.round(drawW * (sh / sw));
       const dx = Math.floor((10 + 0.5) * TILE - drawW / 2) - _cam.x;
       const dy = Math.floor((1  + 1)   * TILE - drawH)     - _cam.y;
       ctx.drawImage(GUITAR_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
+    // v0.95.9 · Nebulaport 3000 · procedural console · floor next to TV (col 8, row 1)
+    drawNebulaport(8, 1);
   }
   // WELCOME rug decor · drawn on the floor, non-blocking.
   const rug = cfg.rug;
@@ -3680,10 +3774,16 @@ function tryInteract(){
         const nearBed = (fx >= 12 && fx <= 14 && (fy === 7 || fy === 8 || fy === 9)) ||
                         ((fx === 11 || fx === 15) && (fy === 8 || fy === 9));
         if (nearBed){ sleepInBed(); return; }
-        // v0.95.8 · Guitar footprint cols 10-11 row 1 · interact from row 2 or sides
-        const nearGuitar = (fx >= 10 && fx <= 11 && (fy === 1 || fy === 2)) ||
-                           ((fx === 9 || fx === 12) && fy === 1);
+        // v0.95.9 · Guitar footprint col 10 row 1 · interact from row 2 or sides
+        const nearGuitar = (fx === 10 && (fy === 1 || fy === 2)) ||
+                           ((fx === 9 || fx === 11) && fy === 1);
         if (nearGuitar){ openGuitarPanel(); return; }
+        // v0.95.9 · Nebulaport 3000 · tile (8,1) · interact from row 2 or sides
+        const nearNebula = (fx === 8 && (fy === 1 || fy === 2)) ||
+                           ((fx === 7 || fx === 9) && fy === 1);
+        // Guard: fx===9 fy===1 is the guitar's side too — guitar wins because
+        // its check runs first above.  Nebula only fires on remaining tiles.
+        if (nearNebula){ openNebulaPanel(); return; }
       }
       // Stairs are triggered by WALKING onto their trigger tile (see tryMove).
       // No X-press interaction here.
@@ -3754,6 +3854,13 @@ addEventListener('keydown', e => {
     if (k === 'b' || k === 'escape' || k === 'shift'){ closeGuitarPanel(); return; }
     const n = parseInt(k, 10);
     if (!isNaN(n) && n >= 1 && n <= 9){ playGuitarSong(n - 1); }
+    return;
+  }
+  // v0.95.9 · Nebulaport panel owns keys while open · 1-9 boots cartridge
+  if (game.nebulaPanelOpen){
+    if (k === 'b' || k === 'escape' || k === 'shift'){ closeNebulaPanel(); return; }
+    const n = parseInt(k, 10);
+    if (!isNaN(n) && n >= 1 && n <= 9){ launchNebulaGame(n - 1); }
     return;
   }
 

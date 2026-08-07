@@ -258,7 +258,7 @@
 <body>
   <div id="stage">
     <canvas id="game" width="960" height="528"></canvas>
-    <video id="introVid" src="https://github.com/angelsofvices/AOV-saga/releases/download/assets-v1/rp7introvid.mp4" playsinline preload="auto"
+    <video id="introVid" src="https://github.com/angelsofvices/AOV-saga/releases/download/assets-v1/rp7introvid.mp4" playsinline webkit-playsinline muted preload="auto" crossorigin="anonymous"
            style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:20; display:none;"></video>
     <div id="titleBtns" style="position:absolute; inset:0; display:none; z-index:25; pointer-events:none;">
       <div style="position:absolute; left:50%; bottom:14%; transform:translateX(-50%); display:flex; flex-direction:column; gap:14px; pointer-events:auto;">
@@ -2627,6 +2627,7 @@ function startIntroVideo(){
   game.showTitleButtons = false;                    // buttons hidden while video plays
   introVid.style.display = 'block';
   introVid.currentTime = 0;
+  introVid.muted = true;                            // v0.95.33 · required for mobile autoplay
   const tryPlay = () => introVid.play().catch(err => console.warn('[intro] play blocked:', err));
   tryPlay();
   // Retry on first gesture in case autoplay was blocked
@@ -2638,7 +2639,23 @@ function startIntroVideo(){
   };
   window.addEventListener('keydown', gesture, { once: true });
   window.addEventListener('pointerdown', gesture, { once: true });
-  introVid.addEventListener('error', e => console.warn('[intro] video error', introVid.error));
+  // v0.95.33 · Mobile fallback · if the video errors OR fails to actually
+  // start playing within 6s (common on cellular / iOS Safari with cross-
+  // origin CDN video), bail out to the title buttons so the player isn't
+  // stuck on the splash forever.
+  const bail = (reason) => {
+    if (introState !== 'playing') return;
+    console.warn('[intro] bailing to title:', reason);
+    introState = 'ended';
+    try { introVid.pause(); } catch(e){}
+    introVid.style.display = 'none';
+    game.showTitleButtons = true;
+  };
+  introVid.addEventListener('error', () => bail('video error: ' + (introVid.error && introVid.error.code)));
+  introVid.addEventListener('stalled', () => setTimeout(() => { if (introVid.readyState < 2) bail('stalled'); }, 4000));
+  setTimeout(() => {
+    if (introState === 'playing' && (introVid.paused || introVid.currentTime === 0)) bail('load timeout (6s)');
+  }, 6000);
   introVid.addEventListener('ended', () => {
     introState = 'ended';
     introVid.style.display = 'none';

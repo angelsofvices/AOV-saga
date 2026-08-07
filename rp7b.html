@@ -172,6 +172,9 @@
     </div>
     <div class="row">
       <button id="devHealBtn">Full Heal Party</button>
+      <button id="devUnlockDoors">Unlock All Doors: OFF</button>
+    </div>
+    <div class="row">
       <button id="devCloseBtn">Close</button>
     </div>
   </div>
@@ -891,11 +894,15 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
-      // Index 4 (tile 32,98) = Crazy's house · walkable interior.
-      // The other four remain locked-for-now placeholder toasts.
+      // Index 4 (tile 32,98) = Crazy's house · walkable interior always.
+      // Others open their own interior when Dev "Unlock All Doors" is
+      // active; otherwise fire the locked-door toast.
       onInteract: (i === 4)
         ? () => enterCrazyHomeInterior()
-        : () => { showToast('◈ A neighbor\'s home.  Locked for now.', 2200); playSFX('doorLock'); },
+        : () => {
+            if (game.devUnlockDoors) enterMalezorHome(`redroof_${i}`);
+            else { showToast('◈ A neighbor\'s home.  Locked for now.', 2200); playSFX('doorLock'); }
+          },
     }));
   })(),
   // ── VILLAGER HOUSES · 5 scattered across all bands ─────────────────
@@ -928,7 +935,10 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
-      onInteract: () => { showToast('◈ Somebody lives here.  Door is locked.', 2200); playSFX('doorLock'); },
+      onInteract: () => {
+        if (game.devUnlockDoors) enterMalezorHome(`villager_${i}`);
+        else { showToast('◈ Somebody lives here.  Door is locked.', 2200); playSFX('doorLock'); }
+      },
     }));
   })(),
   // ── ZARVANE HOMES · 10 across the SE block · 2×5 equidistant (v0.70) ──
@@ -1716,6 +1726,30 @@ const INTERIOR_RESEARCH_LAB = {
 };
 INTERIOR_RESEARCH_LAB.tileImg.src = 'assets/2D%20sprites/tiles/research-lab-floor.png';
 
+// Generic Malezor home interiors (v0.85) · every locked villager /
+// red-roof home gets its own scene lazily · shared 15×10 layout with
+// Mom's floor tile + the Malezor upper-wall band · no stairs.
+const MALEZOR_HOME_INTERIORS = {};
+function makeMalezorHomeInterior(sceneId){
+  if (MALEZOR_HOME_INTERIORS[sceneId]) return MALEZOR_HOME_INTERIORS[sceneId];
+  const cfg = {
+    cols: 15, rows: 10,
+    tileImg: new Image(),
+    spawn: { x: 7, y: 9, dir: 'up' },
+    exit:  { x: 7, y: 9 },
+    rug:   { x: 6, y: 9, w: 3, h: 1 },
+    wallImg: 'malezor',
+  };
+  cfg.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
+  MALEZOR_HOME_INTERIORS[sceneId] = cfg;
+  return cfg;
+}
+function enterMalezorHome(id){
+  const sceneId = `interior_malezor_home_${id}`;
+  const cfg = makeMalezorHomeInterior(sceneId);
+  enterInterior(sceneId, cfg, '◈ Inside · press X on the door to leave');
+}
+
 // Scene state: 'title' | 'overworld' | 'interior_home' | 'interior_cave'
 const game = { scene: 'title', overworldReturn: null };
 
@@ -1803,6 +1837,7 @@ function interiorConfig(scene){
   if (scene === 'interior_research_lab')return INTERIOR_RESEARCH_LAB;
   if (scene === 'interior_cave')        return INTERIOR_CAVE;
   if (scene === 'interior_crazy_home')  return INTERIOR_CRAZY_HOME;
+  if (MALEZOR_HOME_INTERIORS[scene])    return MALEZOR_HOME_INTERIORS[scene];
   return null;
 }
 // Move the player from one interior to another via stairs.  NPCs stay put
@@ -3388,6 +3423,16 @@ function frame(now){
     (player.party || []).forEach(z => { if (z){ z.hp = z.hpMax || z.hp || 1; } });
     showToast('◈ DEV · party fully healed', 1500);
   });
+
+  // Unlock All Doors toggle · flag drives locked-home onInteract routes.
+  const unlockBtn = document.getElementById('devUnlockDoors');
+  if (unlockBtn){
+    unlockBtn.addEventListener('click', () => {
+      game.devUnlockDoors = !game.devUnlockDoors;
+      unlockBtn.textContent = `Unlock All Doors: ${game.devUnlockDoors ? 'ON' : 'OFF'}`;
+      showToast(`◈ DEV · doors ${game.devUnlockDoors ? 'UNLOCKED' : 'locked'}`, 1500);
+    });
+  }
 })();
 
 // ─────────────────────────────────────────────────────────────

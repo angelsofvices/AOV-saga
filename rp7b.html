@@ -213,6 +213,16 @@
     <div class="btn btnR1"   data-mk="3"></div>
   </div>
   <div id="devBtn">[ DEV MODE ]</div>
+  <!-- v0.95.10 · Punching Bag · consume move-scrolls to teach party Zyrex -->
+  <div id="bagPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
+    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-height:78vh; overflow:auto; background:rgba(10,4,18,0.98); border:2px solid #b8ff5e; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
+      <div style="color:#b8ff5e; font-size:11px; letter-spacing:0.18em; margin-bottom:4px;">◈ TRAINING DUMMY</div>
+      <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:6px;">LEARN A NEW MOVE</div>
+      <div style="color:#bcd; font-size:12px; margin-bottom:14px;">Move scrolls found in the world can be taught here. Consuming a scroll teaches the move to the selected Zyrex (replaces slot 4 · ultimate).</div>
+      <div id="bagStep" style="font-size:13px; line-height:1.6;"></div>
+      <div style="margin-top:14px; text-align:right; font-size:11px; color:#8ff;">1-9 to pick · ○ / B / Esc to close</div>
+    </div>
+  </div>
   <!-- v0.95.9 · Nebulaport 3000 · retro minigame launcher -->
   <div id="nebulaPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
     <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:520px; max-height:78vh; overflow:auto; background:rgba(10,6,18,0.98); border:2px solid #ff88f0; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
@@ -2298,6 +2308,7 @@ const INTERIOR_HOME_2F = {
     [12,9],[13,9],[14,9],   // bed base
     [10,1],                 // v0.95.9 · guitar (1 tile wide, col 10)
     [8,1],                  // v0.95.9 · Nebulaport 3000 · floor next to TV
+    [1,8],                  // v0.95.10 · Punching Bag base
   ],
   wallImg: 'malezor',
   rizerRoom: true,                              // v0.95 · label + experiment table
@@ -2676,6 +2687,17 @@ const BED_BBOX = [33, 31, 379, 251];
 const GUITAR_IMG = new Image();
 GUITAR_IMG.src = 'assets/2D%20sprites/decor/guitar.png';
 const GUITAR_BBOX = [39, 36, 209, 313];
+
+// v0.95.10 · Punching Bag · Zyrex training dummy · teaches new moves from scrolls
+const PUNCHING_BAG_IMG = new Image();
+PUNCHING_BAG_IMG.src = 'assets/2D%20sprites/decor/punching-bag.png';
+const PUNCHING_BAG_BBOX = [354, 27, 546, 1200];
+if (player.moveScrolls == null){
+  // Seed one demo scroll so the bag is immediately testable · real drops
+  // arrive as world loot (chests / trainer defeats / quest rewards).
+  player.moveScrolls = ['Ember'];
+}
+
 if (player.knownRecipes == null) player.knownRecipes = [];
 if (player.ownedHomes == null)   player.ownedHomes   = [];   // ids of homes the player has bought
 if (player.mainQuestStep == null) player.mainQuestStep = 0;  // v0.95.1 · index into MAIN_QUESTS
@@ -2712,38 +2734,21 @@ const MAIN_QUESTS = [
     ]},
 ];
 
-// v0.95.9 · Nebulaport 3000 · retro-console minigame launcher · procedural sprite
-// Draws a small game console (dark hull, glowing purple screen, controller ports)
-// directly onto the canvas at tile (tx, ty).  Occupies ~1 tile visually and lives
-// on the floor next to the Rizer TV.  Interact → openNebulaportPanel().
+// v0.95.10 · Nebulaport 3000 · real sprite (console body only · controller
+// portion of source sheet is skipped via bbox).  Sheet also contains the
+// controller pad below the console, but for the floor decor we render just
+// the console.  Bbox measured after chroma bake.
+const NEBULAPORT_IMG = new Image();
+NEBULAPORT_IMG.src = 'assets/2D%20sprites/decor/nebulaport.png';
+const NEBULAPORT_CONSOLE_BBOX = [209, 103, 834, 542];  // wide console w/antennas
 function drawNebulaport(tx, ty){
-  const w = TILE - 6;                              // slightly under one tile wide
-  const h = Math.round(TILE * 0.55);               // low-profile flat console
-  const x = Math.floor(tx * TILE + (TILE - w) / 2) - _cam.x;
-  const y = Math.floor((ty + 1) * TILE - h)       - _cam.y;
-  // shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(x + 2, y + h - 3, w - 4, 3);
-  // hull
-  ctx.fillStyle = '#20232b';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#0f1116';
-  ctx.fillRect(x, y + h - 6, w, 6);               // base band
-  // screen · purple/pink neon
-  const sw = Math.round(w * 0.55), sh = Math.round(h * 0.45);
-  const sx = x + Math.round((w - sw) / 2), sy = y + 4;
-  ctx.fillStyle = '#4a1f5c';
-  ctx.fillRect(sx, sy, sw, sh);
-  const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 350);
-  ctx.fillStyle = `rgba(255, 132, 240, ${pulse})`;
-  ctx.fillRect(sx + 2, sy + 2, sw - 4, sh - 4);
-  // 2 controller ports (bottom band)
-  ctx.fillStyle = '#3b1a52';
-  ctx.fillRect(x + 4,        y + h - 5, 8, 3);
-  ctx.fillRect(x + w - 12,   y + h - 5, 8, 3);
-  // brand LED (right of screen)
-  ctx.fillStyle = pulse > 0.85 ? '#ff88f0' : '#552266';
-  ctx.fillRect(x + w - 6, y + 3, 2, 2);
+  if (!(NEBULAPORT_IMG.complete && NEBULAPORT_IMG.naturalWidth)) return;
+  const [sx, sy, sw, sh] = NEBULAPORT_CONSOLE_BBOX;
+  const drawW = Math.round(1.25 * TILE);
+  const drawH = Math.round(drawW * (sh / sw));
+  const dx = Math.floor((tx + 0.5) * TILE - drawW / 2) - _cam.x;
+  const dy = Math.floor((ty + 1)   * TILE - drawH)     - _cam.y;
+  ctx.drawImage(NEBULAPORT_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
 }
 
 // v0.95.9 · Nebulaport minigame catalog · each entry launches a mini-scene
@@ -2790,6 +2795,95 @@ function launchNebulaGame(idx){
   showToast(`◈ Booting cartridge · ${g.title}...  (minigame stub)`, 2800);
   playSFX('confirm');
   // TODO: hook actual minigame scene when built.
+}
+
+// v0.95.10 · Punching Bag · consume scrolls to teach party Zyrex new moves
+// Two-step flow: pick a scroll, then pick which party Zyrex to teach.
+let _bagPickedScroll = null;   // scroll id (move name) currently being taught
+(function wireBagBackdrop(){
+  const p = document.getElementById('bagPanel');
+  if (!p) return;
+  p.addEventListener('click', e => { if (e.target === p) closePunchingBagPanel(); });
+})();
+function openPunchingBagPanel(){
+  const p = document.getElementById('bagPanel');
+  if (!p) return;
+  _bagPickedScroll = null;
+  refreshBagPanel();
+  p.style.display = 'block';
+  game.bagPanelOpen = true;
+  playSFX('menuOpen');
+}
+function closePunchingBagPanel(){
+  const p = document.getElementById('bagPanel');
+  if (p) p.style.display = 'none';
+  game.bagPanelOpen = false;
+  _bagPickedScroll = null;
+  playSFX('menuClose');
+}
+function refreshBagPanel(){
+  const step = document.getElementById('bagStep');
+  if (!step) return;
+  if (!_bagPickedScroll){
+    // Step 1 · pick a scroll
+    const scrolls = player.moveScrolls || [];
+    if (scrolls.length === 0){
+      step.innerHTML = '<i style="color:#886;">No move scrolls in your bag. Explore chests, defeat trainers, or complete quests to find them.</i>';
+      return;
+    }
+    step.innerHTML = '<div style="color:#b8ff5e; margin-bottom:8px;">STEP 1 · Pick a scroll to teach:</div>' +
+      scrolls.map((mv, i) => {
+        const m = MOVES[mv] || { name: mv, type: '?', power: 0 };
+        return `<div style="padding:4px 0;"><b>${i+1}.</b> ${m.name} <span style="color:#8ff; font-size:11px;">— ${m.type} · pow ${m.power}</span></div>`;
+      }).join('');
+  } else {
+    // Step 2 · pick a party Zyrex
+    const alive = (player.party || []).filter(z => z);
+    if (alive.length === 0){
+      step.innerHTML = '<i style="color:#886;">No party Zyrex to teach. Catch or receive one first.</i>';
+      return;
+    }
+    const m = MOVES[_bagPickedScroll] || { name: _bagPickedScroll };
+    step.innerHTML = `<div style="color:#b8ff5e; margin-bottom:8px;">STEP 2 · Teach <b>${m.name}</b> to which Zyrex?</div>` +
+      alive.map((z, i) => {
+        const already = (z.moves || []).some(mm => mm && (mm.name === _bagPickedScroll));
+        const color = already ? '#666' : '#ffd66b';
+        const tag   = already ? ' — already knows it' : '';
+        return `<div style="color:${color}; padding:4px 0;"><b>${i+1}.</b> ${z.name} Lv ${z.level}${tag}</div>`;
+      }).join('') +
+      '<div style="margin-top:8px; color:#886; font-size:11px;">0 · back to scroll list</div>';
+  }
+}
+function bagPick(idx){
+  if (!_bagPickedScroll){
+    // Selecting scroll
+    const scrolls = player.moveScrolls || [];
+    if (idx < 0 || idx >= scrolls.length) return;
+    _bagPickedScroll = scrolls[idx];
+    playSFX('menuOpen');
+    refreshBagPanel();
+  } else {
+    // Selecting Zyrex to teach
+    if (idx === -1){ _bagPickedScroll = null; refreshBagPanel(); playSFX('menuClose'); return; }
+    const alive = (player.party || []).filter(z => z);
+    const z = alive[idx];
+    if (!z) return;
+    if ((z.moves || []).some(mm => mm && mm.name === _bagPickedScroll)){
+      showToast(`◈ ${z.name} already knows ${_bagPickedScroll}.`, 2200); playSFX('disabled'); return;
+    }
+    // Teach · place in slot 4 (ultimate) · replaces any existing slot-4 move
+    const move = MOVES[_bagPickedScroll] || { name: _bagPickedScroll, power: 40, type: 'Normal' };
+    z.moves = z.moves || [null, null, null, null];
+    z.moves[3] = { name: move.name, pp: 5, maxPp: 5, power: move.power, type: move.type };
+    // Consume the scroll
+    const idxScroll = player.moveScrolls.indexOf(_bagPickedScroll);
+    if (idxScroll >= 0) player.moveScrolls.splice(idxScroll, 1);
+    playSFX('confirm');
+    showToast(`◈ ${z.name} learned ${move.name}!  (Slot 4)`, 2800);
+    _bagPickedScroll = null;
+    refreshBagPanel();
+    saveGame();
+  }
 }
 
 // v0.95.7 · Guitar · Rizer Bond system
@@ -3361,6 +3455,7 @@ function tryMove(dt){
       || game.tvPanelOpen                                 // v0.95.1 · freeze while Rizer TV open
       || game.guitarPanelOpen                             // v0.95.7 · freeze while guitar panel open
       || game.nebulaPanelOpen                             // v0.95.9 · freeze while Nebulaport open
+      || game.bagPanelOpen                                // v0.95.10 · freeze while training dummy open
       || _sleepFade                                       // v0.95.4 · freeze while napping
       || (document.getElementById('devPanel') && document.getElementById('devPanel').style.display === 'block')){  // v0.92.1 · freeze while dev panel open
     player.moving = false;
@@ -3520,8 +3615,17 @@ function drawInteriorFloor(){
       const dy = Math.floor((1  + 1)   * TILE - drawH)     - _cam.y;
       ctx.drawImage(GUITAR_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
-    // v0.95.9 · Nebulaport 3000 · procedural console · floor next to TV (col 8, row 1)
+    // v0.95.9 · Nebulaport 3000 · console · floor next to TV (col 8, row 1)
     drawNebulaport(8, 1);
+    // v0.95.10 · Punching Bag · 1.25 tiles wide · centered on col 1, base row 8
+    if (PUNCHING_BAG_IMG.complete && PUNCHING_BAG_IMG.naturalWidth){
+      const [sx, sy, sw, sh] = PUNCHING_BAG_BBOX;
+      const drawW = Math.round(1.25 * TILE);
+      const drawH = Math.round(drawW * (sh / sw));
+      const dx = Math.floor((1 + 0.5) * TILE - drawW / 2) - _cam.x;
+      const dy = Math.floor((8 + 1)   * TILE - drawH)     - _cam.y;
+      ctx.drawImage(PUNCHING_BAG_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+    }
   }
   // WELCOME rug decor · drawn on the floor, non-blocking.
   const rug = cfg.rug;
@@ -3784,6 +3888,10 @@ function tryInteract(){
         // Guard: fx===9 fy===1 is the guitar's side too — guitar wins because
         // its check runs first above.  Nebula only fires on remaining tiles.
         if (nearNebula){ openNebulaPanel(); return; }
+        // v0.95.10 · Punching Bag · tile (1,8) · interact from any adjacent
+        const nearBag = (fx === 1 && (fy === 7 || fy === 8 || fy === 9)) ||
+                        ((fx === 0 || fx === 2) && fy === 8);
+        if (nearBag){ openPunchingBagPanel(); return; }
       }
       // Stairs are triggered by WALKING onto their trigger tile (see tryMove).
       // No X-press interaction here.
@@ -3861,6 +3969,14 @@ addEventListener('keydown', e => {
     if (k === 'b' || k === 'escape' || k === 'shift'){ closeNebulaPanel(); return; }
     const n = parseInt(k, 10);
     if (!isNaN(n) && n >= 1 && n <= 9){ launchNebulaGame(n - 1); }
+    return;
+  }
+  // v0.95.10 · Punching Bag · 1-9 picks scroll or Zyrex · 0 = back
+  if (game.bagPanelOpen){
+    if (k === 'b' || k === 'escape' || k === 'shift'){ closePunchingBagPanel(); return; }
+    if (k === '0'){ bagPick(-1); return; }
+    const n = parseInt(k, 10);
+    if (!isNaN(n) && n >= 1 && n <= 9){ bagPick(n - 1); }
     return;
   }
 
@@ -4301,10 +4417,12 @@ function saveGame(){
         mainQuestStep: player.mainQuestStep || 0,  // v0.95.1 · main quest tracker index
         songsKnown: player.songsKnown || ['starter_chord'],   // v0.95.7
         songCooldowns: player.songCooldowns || {},            // v0.95.7
+        moveScrolls: player.moveScrolls || [],                // v0.95.10
         party: (player.party || []).map(z => z ? {
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
           maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,
           bond: z.bond || 0,                                  // v0.95.7 · Rizer Bond
+          moves: z.moves || null,                             // v0.95.10 · taught moves
         } : null),
       },
       collectedFae: _fae.filter(f => f.collected).map(f => f.id),

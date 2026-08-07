@@ -5479,6 +5479,52 @@ function frame(now){
   if (!btn || !panel) return;
   const show = (on) => { panel.style.display = on ? 'block' : 'none'; };
   btn.addEventListener('click', () => show(panel.style.display !== 'block'));
+
+  // v0.95.49 · Drag-and-drop the [DEV MODE] button anywhere in the
+  // viewport for accessibility across screen sizes.  Position persists
+  // across sessions via localStorage.  Drag threshold ≥6px so a normal
+  // tap still toggles the panel (no false-drag on click).
+  const DEV_POS_KEY = 'rp7b_devbtn_pos_v1';
+  try {
+    const saved = JSON.parse(localStorage.getItem(DEV_POS_KEY) || 'null');
+    if (saved && typeof saved.left === 'number' && typeof saved.top === 'number'){
+      btn.style.left  = saved.left + 'px';
+      btn.style.top   = saved.top  + 'px';
+      btn.style.right = 'auto';
+      btn.style.bottom = 'auto';
+    }
+  } catch(e){}
+  let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  btn.addEventListener('pointerdown', e => {
+    dragging = true; moved = false;
+    sx = e.clientX; sy = e.clientY;
+    const r = btn.getBoundingClientRect();
+    ox = r.left; oy = r.top;
+    btn.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  btn.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!moved && (Math.abs(dx) + Math.abs(dy)) < 6) return;   // sub-threshold · treat as tap
+    moved = true;
+    const nx = Math.max(0, Math.min(window.innerWidth  - btn.offsetWidth,  ox + dx));
+    const ny = Math.max(0, Math.min(window.innerHeight - btn.offsetHeight, oy + dy));
+    btn.style.left = nx + 'px'; btn.style.top = ny + 'px';
+    btn.style.right = 'auto';   btn.style.bottom = 'auto';
+  });
+  btn.addEventListener('pointerup', e => {
+    if (!dragging) return;
+    dragging = false;
+    try { btn.releasePointerCapture(e.pointerId); } catch(err){}
+    if (moved){
+      const r = btn.getBoundingClientRect();
+      try { localStorage.setItem(DEV_POS_KEY, JSON.stringify({ left: r.left, top: r.top })); } catch(err){}
+      e.preventDefault();
+      e.stopPropagation();                                     // swallow the click that would follow
+    }
+  });
+  btn.addEventListener('click', e => { if (moved){ e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
   document.getElementById('devCloseBtn').addEventListener('click', () => { show(false); game.devPanelKeyboard = false; });
 
   const warpTo = (x, y, scene) => {

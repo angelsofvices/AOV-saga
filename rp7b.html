@@ -87,6 +87,40 @@
     #rizerPanel .row{ margin: 4px 0; display:flex; justify-content:space-between; gap:12px; }
     #rizerPanel .row span:last-child{ color:#fff; }
     #rizerPanel .subhead{ margin-top:10px; color:#8fffb0; font-size:11px; letter-spacing:.14em; }
+    /* ── Mobile controller overlay (v0.86) ── */
+    #mobileCtrl{
+      position:fixed; inset:0;
+      background: url('assets/2D%20sprites/ui/mobile-controller.png') center/contain no-repeat;
+      pointer-events:none;                             /* pass through except on hit zones */
+      z-index: 8;
+      display: none;
+      image-rendering: pixelated;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #mobileCtrl .btn{
+      position:absolute;
+      pointer-events:auto;
+      cursor:pointer;
+      touch-action: none;
+    }
+    #mobileCtrl .btn:active{ filter: brightness(1.4); }
+    /* D-pad hit zones · left circle · center ~(18%, 65%) */
+    #mobileCtrl .dpUp    { left: 15%; top: 47%; width: 6%; height: 8%; }
+    #mobileCtrl .dpDown  { left: 15%; top: 74%; width: 6%; height: 8%; }
+    #mobileCtrl .dpLeft  { left:  8%; top: 61%; width: 8%; height: 6%; }
+    #mobileCtrl .dpRight { left: 21%; top: 61%; width: 8%; height: 6%; }
+    /* Face buttons · right circle · center ~(82%, 65%) */
+    #mobileCtrl .btnTri  { right: 15%; top: 47%; width: 6%; height: 8%; }
+    #mobileCtrl .btnX    { right: 15%; top: 74%; width: 6%; height: 8%; }
+    #mobileCtrl .btnSq   { right: 21%; top: 61%; width: 8%; height: 6%; }
+    #mobileCtrl .btnCir  { right:  8%; top: 61%; width: 8%; height: 6%; }
+    /* Shoulder buttons */
+    #mobileCtrl .btnL2   { left: 1%;  top:  1%; width: 18%; height: 12%; }
+    #mobileCtrl .btnL1   { left: 1%;  top: 14%; width: 18%; height: 12%; }
+    #mobileCtrl .btnR2   { right: 1%; top:  1%; width: 18%; height: 12%; }
+    #mobileCtrl .btnR1   { right: 1%; top: 14%; width: 18%; height: 12%; }
     #devBtn{
       position:fixed; bottom:12px; right:12px;
       background: rgba(0,0,0,0.75);
@@ -143,6 +177,20 @@
       <span style="color:#888">— empty —</span>
     </div>
   </div>
+  <div id="mobileCtrl">
+    <div class="btn dpUp"    data-mk="ArrowUp"></div>
+    <div class="btn dpDown"  data-mk="ArrowDown"></div>
+    <div class="btn dpLeft"  data-mk="ArrowLeft"></div>
+    <div class="btn dpRight" data-mk="ArrowRight"></div>
+    <div class="btn btnTri"  data-mk="y"></div>
+    <div class="btn btnX"    data-mk="z"></div>
+    <div class="btn btnSq"   data-mk="x"></div>
+    <div class="btn btnCir"  data-mk="b"></div>
+    <div class="btn btnL2"   data-mk="1"></div>
+    <div class="btn btnL1"   data-mk="Tab"></div>
+    <div class="btn btnR2"   data-mk="r"></div>
+    <div class="btn btnR1"   data-mk="3"></div>
+  </div>
   <div id="devBtn">[ DEV MODE ]</div>
   <div id="devPanel">
     <h4>◈ DEV TOOLS</h4>
@@ -173,6 +221,9 @@
     <div class="row">
       <button id="devHealBtn">Full Heal Party</button>
       <button id="devUnlockDoors">Unlock All Doors: OFF</button>
+    </div>
+    <div class="row">
+      <button id="devMobileCtrl">Mobile Controller: AUTO</button>
     </div>
     <div class="row">
       <button id="devCloseBtn">Close</button>
@@ -3457,6 +3508,50 @@ function frame(now){
     (player.party || []).forEach(z => { if (z){ z.hp = z.hpMax || z.hp || 1; } });
     showToast('◈ DEV · party fully healed', 1500);
   });
+
+  // ── Mobile controller (v0.86) ──
+  // Touch device auto-shows.  Dev toggle cycles AUTO → ON → OFF.
+  const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  game.mobileCtrlMode = 'auto';                     // 'auto' | 'on' | 'off'
+  const mcCtrlEl = document.getElementById('mobileCtrl');
+  function shouldShowMobileCtrl(){
+    if (game.mobileCtrlMode === 'off') return false;
+    if (game.mobileCtrlMode === 'on')  return game.scene === 'overworld' && !dialogState && !battleState;
+    // 'auto' · touch devices only, in overworld, no overlays
+    return IS_TOUCH && game.scene === 'overworld' && !dialogState && !battleState;
+  }
+  function refreshMobileCtrl(){
+    if (mcCtrlEl) mcCtrlEl.style.display = shouldShowMobileCtrl() ? 'block' : 'none';
+  }
+  // Dispatch synthetic keyboard events for each button (mirrors gamepad path).
+  function mcPress(key, down){
+    const type = down ? 'keydown' : 'keyup';
+    window.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }));
+    keys[key.toLowerCase()] = down;
+  }
+  document.querySelectorAll('#mobileCtrl .btn').forEach(el => {
+    const key = el.dataset.mk;
+    const down = e => { e.preventDefault(); mcPress(key, true);  };
+    const up   = e => { e.preventDefault(); mcPress(key, false); };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointerup',   up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('pointerleave',  up);
+  });
+  // Refresh visibility every frame via a light interval (state may change
+  // from scene transitions, dialog open/close, etc.)
+  setInterval(refreshMobileCtrl, 200);
+
+  const mcBtn = document.getElementById('devMobileCtrl');
+  if (mcBtn){
+    mcBtn.addEventListener('click', () => {
+      const cycle = { auto: 'on', on: 'off', off: 'auto' };
+      game.mobileCtrlMode = cycle[game.mobileCtrlMode] || 'auto';
+      mcBtn.textContent = `Mobile Controller: ${game.mobileCtrlMode.toUpperCase()}`;
+      refreshMobileCtrl();
+      showToast(`◈ DEV · mobile controller ${game.mobileCtrlMode.toUpperCase()}`, 1200);
+    });
+  }
 
   // Unlock All Doors toggle · flag drives locked-home onInteract routes.
   const unlockBtn = document.getElementById('devUnlockDoors');

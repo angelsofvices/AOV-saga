@@ -3495,13 +3495,21 @@ function tryMove(dt){
   player.moveCd = running ? 90 : 170;
 
   // Auto-transition · step onto any staircase trigger tile → change floors.
+  // v0.95.24 · 1s cooldown after any stair use so a sprint doesn't
+  // ping-pong up→down→up on consecutive frames.  useStairs sets
+  // player.stairsCd = now + 1000.
   const _cfg = interiorConfig(game.scene);
   if (_cfg && _cfg.stairs && _cfg.stairs.triggers){
-    for (const [tx, ty] of _cfg.stairs.triggers){
-      if (player.x === tx && player.y === ty){
-        useStairs(_cfg.stairs);
-        playSFX('menuOpen');
-        return;
+    const now = performance.now();
+    const cdActive = player.stairsCd && now < player.stairsCd;
+    if (!cdActive){
+      for (const [tx, ty] of _cfg.stairs.triggers){
+        if (player.x === tx && player.y === ty){
+          player.stairsCd = now + 1000;
+          useStairs(_cfg.stairs);
+          playSFX('menuOpen');
+          return;
+        }
       }
     }
   }

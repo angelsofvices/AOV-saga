@@ -405,6 +405,23 @@
     </div>
   </div>
   <div id="devBtn">[ DEV MODE ]</div>
+  <!-- v0.95.50 · Nebuladock 9000 · mass inventory PC · Zyrex / items / weapons / recipes / songs -->
+  <div id="dockPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.85); pointer-events:auto;">
+    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:640px; max-width:92vw; max-height:82vh; overflow:auto; background:rgba(4,8,22,0.98); border:2px solid #4fb3ff; padding:22px 24px; font-family:'Courier New',monospace; color:#eaf0ff;">
+      <div style="color:#4fb3ff; font-size:11px; letter-spacing:0.18em; margin-bottom:4px;">◈ NEBULADOCK 9000</div>
+      <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:14px;">MASS INVENTORY SYSTEM</div>
+      <div id="dockTabs" style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;">
+        <button class="dockTab" data-tab="zyrex"   style="background:rgba(0,0,0,0.55); color:#4fb3ff; border:1px solid #4fb3ff; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">ZYREX</button>
+        <button class="dockTab" data-tab="items"   style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">ITEMS</button>
+        <button class="dockTab" data-tab="weapons" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">WEAPONS</button>
+        <button class="dockTab" data-tab="recipes" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">RECIPES</button>
+        <button class="dockTab" data-tab="songs"   style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">SONGS</button>
+        <button class="dockTab" data-tab="scrolls" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">SCROLLS</button>
+      </div>
+      <div id="dockBody" style="font-size:13px; line-height:1.55; min-height:180px;"></div>
+      <div style="margin-top:14px; text-align:right; font-size:11px; color:#8ff;">1-6 to switch tabs · ○ / B / Esc to close</div>
+    </div>
+  </div>
   <!-- v0.95.10 · Punching Bag · consume move-scrolls to teach party Zyrex -->
   <div id="bagPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
     <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-height:78vh; overflow:auto; background:rgba(10,4,18,0.98); border:2px solid #b8ff5e; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
@@ -2552,6 +2569,7 @@ const INTERIOR_HOME_2F = {
     [10,1],                 // v0.95.9 · guitar (1 tile wide, col 10)
     [8,3],                  // v0.95.26 · Nebulaport 3000 · block just controller row (8,2 walkable to pass between TV/guitar/console)
     [1,6],[1,7],[1,8],      // v0.95.15 · Punching Bag full silhouette (base + upper body)
+    [5,6],[6,6],[7,6],[8,6],[9,6],  // v0.95.50 · Nebuladock 9000 base row
   ],
   wallImg: 'malezor',
   rizerRoom: true,                              // v0.95 · label + experiment table
@@ -2962,6 +2980,11 @@ const GUITAR_BBOX = [38, 35, 213, 316];  // v0.95.11 · re-tightened after flood
 const PUNCHING_BAG_IMG = new Image();
 PUNCHING_BAG_IMG.src = 'assets/2D%20sprites/decor/punching-bag.png';
 const PUNCHING_BAG_BBOX = [352, 26, 549, 1202];  // v0.95.11 · re-tightened after flood-fill re-bake
+
+// v0.95.50 · Nebuladock 9000 · mass inventory PC · centerpiece of Rizer Room
+const NEBULADOCK_IMG = new Image();
+NEBULADOCK_IMG.src = 'assets/2D%20sprites/decor/nebuladock.png';
+const NEBULADOCK_BBOX = [53, 61, 1427, 917];
 if (player.moveScrolls == null){
   // Seed one demo scroll so the bag is immediately testable · real drops
   // arrive as world loot (chests / trainer defeats / quest rewards).
@@ -3065,6 +3088,77 @@ function launchNebulaGame(idx){
   showToast(`◈ Booting cartridge · ${g.title}...  (minigame stub)`, 2800);
   playSFX('confirm');
   // TODO: hook actual minigame scene when built.
+}
+
+// v0.95.50 · Nebuladock 9000 · mass inventory system
+// Tabbed browser for Zyrex box, items, weapons, recipes, songs, scrolls.
+// Read-only for now — future work: transfer between party ↔ box, sort filters.
+let _dockTab = 'zyrex';
+const DOCK_TABS = ['zyrex','items','weapons','recipes','songs','scrolls'];
+(function wireDockBackdrop(){
+  const p = document.getElementById('dockPanel');
+  if (!p) return;
+  p.addEventListener('click', e => { if (e.target === p) closeDockPanel(); });
+  document.querySelectorAll('.dockTab').forEach(el => {
+    el.addEventListener('click', () => switchDockTab(el.dataset.tab));
+  });
+})();
+function openDockPanel(){
+  const p = document.getElementById('dockPanel');
+  if (!p) return;
+  ensureBondFields();
+  switchDockTab(_dockTab);
+  p.style.display = 'block';
+  game.dockPanelOpen = true;
+  playSFX('menuOpen');
+}
+function closeDockPanel(){
+  const p = document.getElementById('dockPanel');
+  if (p) p.style.display = 'none';
+  game.dockPanelOpen = false;
+  playSFX('menuClose');
+}
+function switchDockTab(tab){
+  if (!DOCK_TABS.includes(tab)) return;
+  _dockTab = tab;
+  document.querySelectorAll('.dockTab').forEach(el => {
+    const on = el.dataset.tab === tab;
+    el.style.color        = on ? '#4fb3ff' : '#8ff';
+    el.style.borderColor  = on ? '#4fb3ff' : '#366';
+  });
+  const body = document.getElementById('dockBody');
+  if (!body) return;
+  if (tab === 'zyrex'){
+    const party = (player.party || []).filter(z => z);
+    if (party.length === 0){ body.innerHTML = '<i style="color:#886;">No Zyrex bonded yet.</i>'; return; }
+    body.innerHTML = '<div style="color:#4fb3ff; margin-bottom:8px;">◈ PARTY (' + party.length + '/6)</div>' +
+      party.map(z => `<div style="padding:4px 0; border-bottom:1px solid #223;">
+        <b>${z.name}</b> <span style="color:#8ff;">Lv ${z.level} · T${z.tier || '?'} · ${z.type||''}${z.type2?'/'+z.type2:''}</span>
+        <span style="float:right; color:#ffd66b;">HP ${z.hp}/${z.maxHp} · Bond ${z.bond||0}/100</span>
+      </div>`).join('');
+  } else if (tab === 'items'){
+    const items = Object.entries(player.items || {}).filter(([k,v]) => v > 0);
+    body.innerHTML = items.length === 0
+      ? '<i style="color:#886;">Bag is empty.</i>'
+      : items.map(([k,v]) => `<div style="padding:3px 0;"><b>${k}</b> <span style="color:#8ff;">× ${v}</span></div>`).join('');
+  } else if (tab === 'weapons'){
+    body.innerHTML = '<i style="color:#886;">Weapon rack empty · unlock via chest loot + quest rewards.</i>';
+  } else if (tab === 'recipes'){
+    const r = player.knownRecipes || [];
+    body.innerHTML = r.length === 0
+      ? '<i style="color:#886;">No recipes learned yet · find scrolls in the world.</i>'
+      : r.map(x => `<div style="padding:3px 0;">◆ ${x}</div>`).join('');
+  } else if (tab === 'songs'){
+    const s = player.songsKnown || [];
+    body.innerHTML = s.length === 0
+      ? '<i style="color:#886;">No songs known.</i>'
+      : s.map(id => `<div style="padding:3px 0;">♪ ${(SONGS[id] && SONGS[id].title) || id}</div>`).join('');
+  } else if (tab === 'scrolls'){
+    const sc = player.moveScrolls || [];
+    body.innerHTML = sc.length === 0
+      ? '<i style="color:#886;">No move scrolls · use them at the Punching Bag to teach party Zyrex.</i>'
+      : sc.map(m => `<div style="padding:3px 0;">📜 ${m}</div>`).join('');
+  }
 }
 
 // v0.95.10 · Punching Bag · consume scrolls to teach party Zyrex new moves
@@ -3492,7 +3586,7 @@ addEventListener('keydown', e => {
       const anyModal = settingsMenuOpen || zyrexMenuOpen
                     || game.expPanelOpen || game.tvPanelOpen
                     || game.guitarPanelOpen || game.nebulaPanelOpen
-                    || game.bagPanelOpen || _sleepFade;
+                    || game.bagPanelOpen || game.dockPanelOpen || _sleepFade;
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModal){
         const mode = (k === 'j') ? 'punch' : 'kick';
         const dur  = (mode === 'kick') ? 400 : 300;
@@ -3738,6 +3832,7 @@ function tryMove(dt){
       || game.guitarPanelOpen                             // v0.95.7 · freeze while guitar panel open
       || game.nebulaPanelOpen                             // v0.95.9 · freeze while Nebulaport open
       || game.bagPanelOpen                                // v0.95.10 · freeze while training dummy open
+      || game.dockPanelOpen                               // v0.95.50 · freeze while Nebuladock open
       || _sleepFade                                       // v0.95.4 · freeze while napping
       || (document.getElementById('devPanel') && document.getElementById('devPanel').style.display === 'block')){  // v0.92.1 · freeze while dev panel open
     player.moving = false;
@@ -3926,6 +4021,15 @@ function drawInteriorFloor(){
     }
     // v0.95.23 · Nebulaport 3000 · shrunk · repositioned to (8, 3)
     drawNebulaport(8, 3);
+    // v0.95.50 · Nebuladock 9000 · 5 tiles wide · centered on col 7, base row 6
+    if (NEBULADOCK_IMG.complete && NEBULADOCK_IMG.naturalWidth){
+      const [sx, sy, sw, sh] = NEBULADOCK_BBOX;
+      const drawW = 5 * TILE;
+      const drawH = Math.round(drawW * (sh / sw));
+      const dx = Math.floor((7 + 0.5) * TILE - drawW / 2) - _cam.x;
+      const dy = Math.floor((6 + 1)   * TILE - drawH)     - _cam.y;
+      ctx.drawImage(NEBULADOCK_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+    }
     // v0.95.10 · Punching Bag · 1.25 tiles wide · centered on col 1, base row 8
     if (PUNCHING_BAG_IMG.complete && PUNCHING_BAG_IMG.naturalWidth){
       const [sx, sy, sw, sh] = PUNCHING_BAG_BBOX;
@@ -4201,6 +4305,9 @@ function tryInteract(){
         const nearBag = (fx === 1 && (fy === 5 || fy === 9)) ||
                         ((fx === 0 || fx === 2) && fy >= 6 && fy <= 8);
         if (nearBag){ openPunchingBagPanel(); return; }
+        // v0.95.50 · Nebuladock 9000 · face any tile in row 6 cols 5-9
+        const nearDock = (fx >= 5 && fx <= 9 && fy === 6);
+        if (nearDock){ openDockPanel(); return; }
       }
       // Stairs are triggered by WALKING onto their trigger tile (see tryMove).
       // No X-press interaction here.
@@ -4286,6 +4393,13 @@ addEventListener('keydown', e => {
     if (k === '0'){ bagPick(-1); return; }
     const n = parseInt(k, 10);
     if (!isNaN(n) && n >= 1 && n <= 9){ bagPick(n - 1); }
+    return;
+  }
+  // v0.95.50 · Nebuladock 9000 · 1-6 switches tab · B closes
+  if (game.dockPanelOpen){
+    if (k === 'b' || k === 'escape' || k === 'shift'){ closeDockPanel(); return; }
+    const n = parseInt(k, 10);
+    if (!isNaN(n) && n >= 1 && n <= DOCK_TABS.length){ switchDockTab(DOCK_TABS[n-1]); }
     return;
   }
 
@@ -5577,7 +5691,7 @@ function frame(now){
     return settingsMenuOpen || zyrexMenuOpen
         || game.expPanelOpen || game.tvPanelOpen
         || game.guitarPanelOpen || game.nebulaPanelOpen
-        || game.bagPanelOpen || _sleepFade;
+        || game.bagPanelOpen || game.dockPanelOpen || _sleepFade;
   }
   function shouldShowMobileCtrl(){
     // Never show during title/dialog/battle/modal overlays.

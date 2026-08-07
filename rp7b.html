@@ -1139,7 +1139,8 @@ const WORLD_PROPS = [
       bbox: [41, 150, 1188, 937],
       tileX: 173, tileY: 234,                      // v0.89.3 · down 3, right 3 from prior
       tileW: 6, tileH: 5,                          // realistic pool size · genie lamp shows well
-      footprint: [[0, 0]],                         // non-blocking · walk through/around freely
+      // v0.89.6 · tight collision around the water · outer sand walkable
+      footprint: [[-1,-1],[0,-1],[1,-1],[-1,-2],[0,-2],[1,-2],[0,0]],
     };
   })(),
   // ── ZARVANE ASTRALITE REFINERY · (143, 232) in Wilds Branch (v0.89.1) ──
@@ -1163,6 +1164,49 @@ const WORLD_PROPS = [
       door: [0, 0],
       onInteract: () => { showToast('◈ ZARVANE ASTRALITE REFINERY · Closed for now.', 2400); playSFX('doorLock'); },
     };
+  })(),
+  // ── ANDRANNOR TOWN HALL · upper-center of NW residential zone (v0.89.6) ──
+  (function(){
+    const _athImg = new Image();
+    _athImg.src = 'assets/2D%20sprites/buildings/andrannor-town-hall.png';
+    return {
+      id: 'andrannor_town_hall',
+      img: _athImg,
+      src: 'assets/2D%20sprites/buildings/andrannor-town-hall.png',
+      bbox: [54, 138, 1145, 938],
+      tileX: 240, tileY: 316,                       // center col of 181-300 · upper of 308-337
+      tileW: 11, tileH: 9,
+      footprint: (function(){
+        const f = [];
+        for (let dy = -8; dy <= 0; dy++){
+          for (let dx = -5; dx <= 5; dx++){ f.push([dx, dy]); }
+        }
+        return f;
+      })(),
+      door: [0, 0],
+      onInteract: () => { showToast('◈ ANDRANNOR TOWN HALL · Closed for now.', 2400); playSFX('doorLock'); },
+    };
+  })(),
+  // ── ANDRANNOR BUSHES · flanking the town hall (v0.89.6) ──
+  ...(function(){
+    const _abushImg = new Image();
+    _abushImg.src = 'assets/2D%20sprites/decor/andrannor-bush.png';
+    const _abushBBox = [51, 318, 1151, 671];
+    // Hall spans cols 235-245 rows 308-316 · row 317 = front · lay bushes
+    // flanking the door path (col 240 kept clear).
+    const POS = [
+      [234, 317], [237, 317], [243, 317], [246, 317],   // front row
+      [232, 318], [248, 318],                            // outer flanks
+    ];
+    return POS.map(([tx, ty], i) => ({
+      id: `andrannor_bush_${i}`,
+      img: _abushImg,
+      src: 'assets/2D%20sprites/decor/andrannor-bush.png',
+      bbox: _abushBBox,
+      tileX: tx, tileY: ty,
+      tileW: 2, tileH: 1,
+      footprint: [[0, 0]],
+    }));
   })(),
   // ── MALEZOR FARM BACKYARD · rotated 90° CW · placed at (35, 133) (v0.89.3) ──
   (function(){
@@ -1733,8 +1777,8 @@ const NPCS = [
       [[70, 27,222,236],[54, 27,222,236],[37, 27,222,236],[22, 27,222,236]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
-    tileX: 14, tileY: 180,               // v0.89.1 · west of Auraxion
-    homeX: 14, homeY: 180,
+    tileX: 17, tileY: 180,               // v0.89.6 · east of Auraxion
+    homeX: 17, homeY: 180,
     homeScene: 'overworld',
     scene: 'overworld',
     dir: 'down',
@@ -2584,21 +2628,11 @@ function drawGrass(){
       for (let tx = rowMin; tx < rowMax; tx++){
         const tile = terrainAtTile(tx, ty);
         if (!tile.complete || !tile.naturalWidth) continue;
-        // v0.89.1/4 · large 1254-px terrain tiles (Andrannor, Zarvane sand)
-        // render from a 96×96 crop with a per-tile offset so pattern reads
-        // crisp instead of a muddy 26× downsample.
-        if (tile === ANDRANNOR_TILE || tile === SAND_TILE){
-          const CW = 96;
-          const maxOff = tile.naturalWidth - CW;
-          const sx = Math.abs((tx * 17 + ty * 31) * 96) % maxOff;
-          const sy = Math.abs((tx * 41 + ty * 23) * 96) % maxOff;
-          ctx.drawImage(tile, sx, sy, CW, CW,
-            tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
-        } else {
-          ctx.drawImage(tile,
-            0, 0, tile.naturalWidth, tile.naturalHeight,
-            tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
-        }
+        // v0.89.5 · reverted per-tile crop · all terrain tiles use the same
+        // full-image downsample (Andrannor now visually matches Zarvane).
+        ctx.drawImage(tile,
+          0, 0, tile.naturalWidth, tile.naturalHeight,
+          tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
       }
     }
   } else {

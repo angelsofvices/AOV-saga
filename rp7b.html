@@ -3006,7 +3006,15 @@ function drawPlayer(){
   if (!src || !src.complete) return;
 
   // All three sheets are 4x4 · row = direction · col = animation frame.
-  const row = DIR_ROW[player.dir];
+  // v0.91.8 · during attack, right-facing rows source from left-facing row
+  // and mirror-flip on draw (attack sheet's right row has bh/anchor issues
+  // that caused the character to visually float · left row is clean).
+  let row = DIR_ROW[player.dir];
+  let mirrorAttack = false;
+  if (inAttack && player.dir === 'right'){
+    row = DIR_ROW.left;
+    mirrorAttack = true;
+  }
   // v0.91.3 · attack anim uses its own frame clock (linear over duration)
   let col;
   if (inAttack){
@@ -3083,7 +3091,16 @@ function drawPlayer(){
   );
   ctx.fill();
 
-  ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
+  if (mirrorAttack){
+    // Mirror-flip · draw left-attack pose as right-attack
+    ctx.save();
+    ctx.translate(dx + drawW, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(src, sx, sy, bw, bh, 0, 0, drawW, drawH);
+    ctx.restore();
+  } else {
+    ctx.drawImage(src, sx, sy, bw, bh, dx, dy, drawW, drawH);
+  }
 }
 
 // -- Toast (mid-screen ephemeral text) ---------------------------------------

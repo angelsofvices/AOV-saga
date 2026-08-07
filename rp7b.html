@@ -2437,8 +2437,10 @@ let titleSelectedIdx = 0;
 const introVid = document.getElementById('introVid');
 let introState = 'idle';   // 'idle' | 'playing' | 'skipping' | 'showButtons' | 'ended'
 let introHoldStart = 0;    // performance.now() when X hold started
-const INTRO_HOLD_MS  = 600;     // hold X this long to skip
-const INTRO_BUTTONS_AT = 33000; // 33s in
+let introLastXTap  = 0;    // v0.94.4 · timestamp of last X-tap (for double-tap detect)
+const INTRO_HOLD_MS       = 600;   // hold X this long to reveal menu
+const INTRO_DOUBLETAP_MS  = 400;   // OR double-tap X within this window
+const INTRO_BUTTONS_AT    = 33000; // 33s in · buttons auto-appear
 function startIntroVideo(){
   if (!introVid || introState !== 'idle') return;
   introState = 'playing';
@@ -2584,7 +2586,7 @@ function drawTitleScreen(){
     ctx.fillStyle = '#ffd66b';
     ctx.font = 'bold 12px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('HOLD × TO REVEAL MENU', W/2, H - 26);
+    ctx.fillText('HOLD × OR DOUBLE-TAP × TO REVEAL MENU', W/2, H - 26);
     ctx.textAlign = 'left';
     return;
   }
@@ -3409,7 +3411,20 @@ addEventListener('keydown', e => {
         return;
       }
     }
-    // Video plays and buttons NOT yet revealed · hold-X to reveal.
+    // v0.94.4 · Double-tap X/Z/Enter within 400ms reveals the menu (alt to hold-X)
+    if (introState === 'playing' && !game.showTitleButtons){
+      if (k === 'z' || k === 'x' || k === 'enter'){
+        const now = performance.now();
+        if (now - introLastXTap < INTRO_DOUBLETAP_MS){
+          skipIntroVideo();
+          introLastXTap = 0;
+          playSFX('menuOpen');
+          return;
+        }
+        introLastXTap = now;
+      }
+    }
+    // Video plays and buttons NOT yet revealed · hold-X or double-tap-X to reveal.
     // (Hold detection also runs in the frame loop for reliability.)
     return;
   }

@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>The AOV Saga · Rize of Power (RP7B · rewrite skeleton v0.3)</title>
   <meta name="description" content="RP7 Rize of Power — clean-slate skeleton build v0.3. 15x15 grass field + rizer sprite standing.">
 
@@ -21,6 +23,15 @@
       background:#000; color:#f0eadf;
       font-family: "Courier New", ui-monospace, Menlo, monospace;
       overflow:hidden; user-select:none;
+      /* v0.95.48 · iOS QoL · kill hold-to-select / double-tap-zoom /
+         pinch-zoom / callout menu / tap highlight so button presses
+         never trigger native gestures. */
+      touch-action: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-drag: none;
+      overscroll-behavior: none;
     }
     #stage{
       position:fixed; inset:0;
@@ -596,6 +607,48 @@ const AUDIO = {
 };
 Object.values(AUDIO.bgm).forEach(a => { a.loop = true; a.volume = 0.32; });
 Object.values(AUDIO.sfx).forEach(a => { a.volume = 0.55; });
+
+// v0.95.48 · Kill iOS native touch gestures that would otherwise steal
+// controller button presses.  Long-press callout, double-tap zoom,
+// pinch-to-zoom, right-click context, gesturestart, and iOS text-select
+// all get swallowed.  Runs at capture phase so nothing hijacks them.
+['contextmenu','gesturestart','gesturechange','gestureend','selectstart'].forEach(t => {
+  window.addEventListener(t, e => e.preventDefault(), { passive: false, capture: true });
+});
+// Extra double-tap-zoom guard: iOS Safari fires two touchend events within
+// 300ms on double-tap and zooms.  Preventing the 2nd blocks the zoom
+// without interfering with normal button taps (single touchend passes).
+let _lastTouchEnd = 0;
+document.addEventListener('touchend', e => {
+  const now = performance.now();
+  if (now - _lastTouchEnd < 300) e.preventDefault();
+  _lastTouchEnd = now;
+}, { passive: false });
+// Block pinch-zoom via touchmove with >1 finger.
+document.addEventListener('touchmove', e => {
+  if (e.touches && e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+
+// v0.95.48 · Pause every Audio element when the tab is hidden / user
+// switches apps / closes the window · resume BGM on unhide so the game
+// isn't silent-locked when they come back.
+function suspendAllAudio(){
+  Object.values(AUDIO.bgm).forEach(a => { try { a.pause(); } catch(e){} });
+  Object.values(AUDIO.sfx).forEach(a => { try { a.pause(); a.currentTime = 0; } catch(e){} });
+}
+function resumeBGM(){
+  if (_currentBGM && document.visibilityState === 'visible'){
+    const track = AUDIO.bgm[_currentBGM];
+    if (track){ track.play().catch(()=>{}); }
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') suspendAllAudio();
+  else resumeBGM();
+});
+window.addEventListener('pagehide', suspendAllAudio);
+window.addEventListener('blur',     suspendAllAudio);
+window.addEventListener('focus',    resumeBGM);
 
 let _currentBGM = null;
 function playBGM(name){

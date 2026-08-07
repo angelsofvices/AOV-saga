@@ -213,6 +213,18 @@
     <div class="btn btnR1"   data-mk="3"></div>
   </div>
   <div id="devBtn">[ DEV MODE ]</div>
+  <!-- v0.95.1 · Rizer TV · main quest news tracker -->
+  <div id="tvPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
+    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-height:78vh; overflow:auto; background:rgba(6,10,18,0.98); border:2px solid #4fb3ff; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+        <span style="width:10px; height:10px; background:#f44; border-radius:50%; box-shadow:0 0 8px #f44;"></span>
+        <span style="color:#4fb3ff; font-size:11px; letter-spacing:0.18em;">RIZER NEWS · LIVE</span>
+      </div>
+      <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:14px;">◈ MAIN QUEST TRACKER</div>
+      <div id="tvQuestList" style="font-size:13px; line-height:1.55;"></div>
+      <div style="margin-top:16px; text-align:right; font-size:11px; color:#8ff;">press ○ / B to close</div>
+    </div>
+  </div>
   <!-- v0.95 · Experiment Table panel -->
   <div id="expPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.78); pointer-events:auto;">
     <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:480px; max-height:70vh; overflow:auto; background:rgba(10,14,22,0.98); border:2px solid #d4af37; padding:20px; font-family:'Courier New',monospace; color:#f0eadf;">
@@ -2619,8 +2631,81 @@ function drawTitleScreen(){
 const EXPERIMENT_TABLE_IMG = new Image();
 EXPERIMENT_TABLE_IMG.src = 'assets/2D%20sprites/decor/experiment-table.png';
 const EXPERIMENT_TABLE_BBOX = [13, 31, 477, 345];
+// v0.95.1 · Rizer TV · main-quest news tracker
+const RIZER_TV_IMG = new Image();
+RIZER_TV_IMG.src = 'assets/2D%20sprites/decor/rizer-tv.png';
+const RIZER_TV_BBOX = [28, 30, 310, 307];
 if (player.knownRecipes == null) player.knownRecipes = [];
 if (player.ownedHomes == null)   player.ownedHomes   = [];   // ids of homes the player has bought
+if (player.mainQuestStep == null) player.mainQuestStep = 0;  // v0.95.1 · index into MAIN_QUESTS
+
+// v0.95.1 · Main quest chain · tracks progress across districts.
+// Each entry: { town, title, steps[] }.  steps[] rendered as checklist.
+const MAIN_QUESTS = [
+  { town: 'MALEZOR', title: 'Chapter 1 · The Bonder\'s Gift',
+    steps: [
+      'Meet Mom in the kitchen',
+      'Visit Dad at the Zyrex Research Facility',
+      'Receive your starter Zyrex',
+      'Tutorial battle against Dad\'s Zyrex',
+    ]},
+  { town: 'MALEZOR', title: 'Chapter 2 · The Neighbor',
+    steps: [
+      'Talk to Crazy outside his house',
+      'Enter Rakoron\'s Cave',
+      'Catch your first wild Zyrex',
+    ]},
+  { town: 'ZARVANE', title: 'Chapter 3 · Whispers in the Wild',
+    steps: [
+      'Talk to Dad about the missing villagers',
+      'Head south into the Wild Arm',
+      'Defeat 5 Mori foot soldiers',
+      'Cross into Zarvane at the sand transition',
+      'Report to the Zarvane Town Hall',
+    ]},
+  { town: 'ANDRANNOR', title: 'Chapter 4 · Toward Andrannor',
+    steps: [
+      'Cross the Wilds Branch',
+      'Reach the Andrannor NW border stone',
+      'Meet the Andrannor Town Hall keeper',
+    ]},
+];
+
+// v0.95.1 · Rizer TV panel controller
+(function wireTvPanelBackdrop(){
+  const p = document.getElementById('tvPanel');
+  if (!p) return;
+  p.addEventListener('click', e => { if (e.target === p) closeTvPanel(); });
+})();
+function openTvPanel(){
+  const p = document.getElementById('tvPanel');
+  const list = document.getElementById('tvQuestList');
+  if (!p || !list) return;
+  const cur = player.mainQuestStep || 0;
+  list.innerHTML = MAIN_QUESTS.map((q, i) => {
+    const status = i <  cur ? 'done'
+                 : i === cur ? 'active'
+                 :              'locked';
+    const color = status === 'done' ? '#5a5' : status === 'active' ? '#ffd66b' : '#666';
+    const glyph = status === 'done' ? '✓' : status === 'active' ? '▶' : '·';
+    const steps = status === 'locked'
+      ? '<div style="color:#555; font-style:italic; padding-left:16px;">— locked · progress previous chapter to unlock</div>'
+      : q.steps.map(s => `<div style="padding-left:16px; color:${status==='done'?'#8a8':'#eaf0ff'};">• ${s}</div>`).join('');
+    return `<div style="margin-bottom:14px;">
+      <div style="color:${color}; font-weight:bold; letter-spacing:0.08em;">${glyph} ${q.town} — ${q.title}</div>
+      ${steps}
+    </div>`;
+  }).join('');
+  p.style.display = 'block';
+  game.tvPanelOpen = true;
+  playSFX('menuOpen');
+}
+function closeTvPanel(){
+  const p = document.getElementById('tvPanel');
+  if (p) p.style.display = 'none';
+  game.tvPanelOpen = false;
+  playSFX('menuClose');
+}
 
 // v0.95 · Experiment Table panel controller
 (function wireExpPanelBackdrop(){
@@ -3023,6 +3108,7 @@ function tryMove(dt){
   // Freeze player when title screen, any UI overlay, or battle owns input.
   if (game.scene === 'title' || settingsMenuOpen || zyrexMenuOpen || battleState || dialogState
       || game.expPanelOpen                                // v0.95 · freeze while experiment table open
+      || game.tvPanelOpen                                 // v0.95.1 · freeze while Rizer TV open
       || (document.getElementById('devPanel') && document.getElementById('devPanel').style.display === 'block')){  // v0.92.1 · freeze while dev panel open
     player.moving = false;
     return;
@@ -3143,15 +3229,26 @@ function drawInteriorFloor(){
         tx * TILE - _cam.x, 0 * TILE - _cam.y, TILE, TILE);
     }
   }
-  // v0.95 · Rizer Room decor · Experiment Table centered on tile (7, 4)
-  if (cfg.rizerRoom && EXPERIMENT_TABLE_IMG.complete && EXPERIMENT_TABLE_IMG.naturalWidth){
-    const [sx, sy, sw, sh] = EXPERIMENT_TABLE_BBOX;
-    const tileX = 7, tileY = 4;
-    const drawW = 4 * TILE;                     // 4 tiles wide
-    const drawH = Math.round(drawW * (sh / sw)); // preserve aspect
-    const dx = Math.floor((tileX + 0.5) * TILE - drawW / 2) - _cam.x;
-    const dy = Math.floor((tileY + 1)   * TILE - drawH)     - _cam.y;
-    ctx.drawImage(EXPERIMENT_TABLE_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+  // v0.95.1 · Rizer Room decor · Experiment Table right-edge (14, 1) + Rizer TV (7, 1)
+  if (cfg.rizerRoom){
+    // Experiment Table · 3 tiles wide · right edge at tile 14, base row 1
+    if (EXPERIMENT_TABLE_IMG.complete && EXPERIMENT_TABLE_IMG.naturalWidth){
+      const [sx, sy, sw, sh] = EXPERIMENT_TABLE_BBOX;
+      const drawW = 3 * TILE;
+      const drawH = Math.round(drawW * (sh / sw));
+      const dx = Math.floor((14 + 1) * TILE - drawW) - _cam.x;
+      const dy = Math.floor((1  + 1) * TILE - drawH) - _cam.y;
+      ctx.drawImage(EXPERIMENT_TABLE_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+    }
+    // Rizer TV · 2 tiles wide · centered on tile 7, base row 1
+    if (RIZER_TV_IMG.complete && RIZER_TV_IMG.naturalWidth){
+      const [sx, sy, sw, sh] = RIZER_TV_BBOX;
+      const drawW = 2 * TILE;
+      const drawH = Math.round(drawW * (sh / sw));
+      const dx = Math.floor((7 + 0.5) * TILE - drawW / 2) - _cam.x;
+      const dy = Math.floor((1 + 1)   * TILE - drawH)     - _cam.y;
+      ctx.drawImage(RIZER_TV_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+    }
   }
   // WELCOME rug decor · drawn on the floor, non-blocking.
   const rug = cfg.rug;
@@ -3389,11 +3486,16 @@ function tryInteract(){
           return;
         }
       }
-      // v0.95 · Rizer Room · Experiment Table at (7, 4) · interact from adjacent
+      // v0.95.1 · Rizer Room · Experiment Table right-edge (14,1) · TV (7,1)
       if (cfg.rizerRoom){
-        const nearTable = (fx === 7 && fy >= 4 && fy <= 5) ||
-                          (fx >= 6 && fx <= 8 && fy === 5);
+        // Experiment Table spans cols 12-14, row 1 · interact from row 2
+        const nearTable = (fx >= 12 && fx <= 14 && fy === 2) ||
+                          (fx >= 12 && fx <= 14 && fy === 1);
         if (nearTable){ openExperimentPanel(); return; }
+        // TV spans cols 6-7 (centered on 7), row 1 · interact from row 2
+        const nearTv = (fx >= 6 && fx <= 7 && fy === 2) ||
+                       (fx >= 6 && fx <= 7 && fy === 1);
+        if (nearTv){ openTvPanel(); return; }
       }
       // Stairs are triggered by WALKING onto their trigger tile (see tryMove).
       // No X-press interaction here.
@@ -3449,6 +3551,13 @@ addEventListener('keydown', e => {
   if (game.expPanelOpen){
     if (k === 'b' || k === 'escape' || k === 'shift'){
       closeExperimentPanel();
+    }
+    return;
+  }
+  // v0.95.1 · Rizer TV panel owns keys while open · B / Escape closes
+  if (game.tvPanelOpen){
+    if (k === 'b' || k === 'escape' || k === 'shift'){
+      closeTvPanel();
     }
     return;
   }
@@ -3887,6 +3996,7 @@ function saveGame(){
         items: player.items || {},
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
         knownRecipes: player.knownRecipes || [],   // v0.95 · discovered experiment recipes
+        mainQuestStep: player.mainQuestStep || 0,  // v0.95.1 · main quest tracker index
         party: (player.party || []).map(z => z ? {
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
           maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,

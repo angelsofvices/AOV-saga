@@ -175,6 +175,12 @@
     <canvas id="game" width="960" height="528"></canvas>
     <video id="introVid" src="video/title-intro.mp4" playsinline preload="auto"
            style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:20; display:none;"></video>
+    <div id="titleBtns" style="position:absolute; inset:0; display:none; z-index:25; pointer-events:none;">
+      <div style="position:absolute; left:50%; bottom:14%; transform:translateX(-50%); display:flex; flex-direction:column; gap:14px; pointer-events:auto;">
+        <button class="tBtn" data-idx="0" style="width:280px; padding:14px 20px; font: bold 20px 'Courier New',monospace; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; cursor:pointer; letter-spacing:0.08em;">NEW GAME</button>
+        <button class="tBtn" data-idx="1" style="width:280px; padding:14px 20px; font: bold 20px 'Courier New',monospace; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; cursor:pointer; letter-spacing:0.08em;">LOAD GAME</button>
+      </div>
+    </div>
   </div>
   <div id="hud">TILE (—, —) · scene —</div>
   <div id="rizerHud" title="Rizer status · click to open"></div>
@@ -2473,6 +2479,30 @@ function stopIntroVideo(){
   introVid.pause();
   introVid.style.display = 'none';
 }
+// v0.93.4 · Title buttons live in DOM so they sit ABOVE the video overlay.
+const titleBtnsEl = document.getElementById('titleBtns');
+(function wireTitleBtns(){
+  if (!titleBtnsEl) return;
+  titleBtnsEl.querySelectorAll('.tBtn').forEach(el => {
+    el.addEventListener('mouseenter', () => { el.style.borderWidth = '4px'; });
+    el.addEventListener('mouseleave', () => { el.style.borderWidth = '2px'; });
+    el.addEventListener('click', () => {
+      playSFX('confirm');
+      if (el.dataset.idx === '0') startNewGame();
+      else                        loadSavedGame();
+    });
+  });
+})();
+function syncTitleBtns(){
+  if (!titleBtnsEl) return;
+  const show = game.scene === 'title' && game.showTitleButtons;
+  titleBtnsEl.style.display = show ? 'block' : 'none';
+  // Highlight the keyboard-selected one
+  titleBtnsEl.querySelectorAll('.tBtn').forEach((el, i) => {
+    el.style.borderWidth = (i === titleSelectedIdx) ? '4px' : '2px';
+  });
+}
+
 // v0.93.2 · Intro starts on FIRST user gesture (not auto).  drawTitleScreen
 // no longer auto-triggers it · a one-shot listener below fires startIntroVideo.
 function ensureIntroStarted(){ /* no-op · gesture-driven now */ }
@@ -2504,7 +2534,8 @@ function loadSavedGame(){
   }
 }
 function drawTitleScreen(){
-  if (game.scene !== 'title') return;
+  if (game.scene !== 'title'){ syncTitleBtns(); return; }
+  syncTitleBtns();
   const W = canvas.width, H = canvas.height;
   // v0.93.2 · Black canvas underneath the video (no title-image · no BGM).
   ctx.fillStyle = '#000';
@@ -2535,30 +2566,8 @@ function drawTitleScreen(){
     ctx.textAlign = 'left';
     return;
   }
-  // Menu · centered, bottom-third
-  const btnW = 260, btnH = 44, gap = 12;
-  const totalH = TITLE_OPTIONS.length * btnH + (TITLE_OPTIONS.length - 1) * gap;
-  const startY = Math.floor(H * 0.62);
-  TITLE_OPTIONS.forEach((label, i) => {
-    const x = Math.floor((W - btnW) / 2);
-    const y = startY + i * (btnH + gap);
-    const sel = (i === titleSelectedIdx);
-    // Fill stays the same dim panel for BOTH states · only the border
-    // highlights on selection (user 2026-08-06: no solid fill).
-    ctx.fillStyle = 'rgba(0,0,0,0.75)';
-    ctx.fillRect(x, y, btnW, btnH);
-    ctx.strokeStyle = '#d4af37';
-    ctx.lineWidth = sel ? 4 : 1;
-    ctx.strokeRect(x, y, btnW, btnH);
-    ctx.fillStyle = '#f0eadf';
-    ctx.font = 'bold 18px "Courier New", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(label, x + btnW / 2, y + 28);
-  });
-  ctx.fillStyle = '#8ff';
-  ctx.font = '11px "Courier New", monospace';
-  ctx.fillText('▲▼ nav · × select', W / 2, H - 20);
-  ctx.textAlign = 'left';
+  // v0.93.4 · buttons are DOM elements in #titleBtns · rendered over the
+  // <video> overlay so they're actually visible.  Canvas draws nothing here.
 }
 
 function enterInterior(sceneKey, cfg, toast){

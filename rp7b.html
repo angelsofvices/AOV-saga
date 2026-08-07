@@ -299,6 +299,8 @@ let _audioSeeded = false;
 function seedAudio(){
   if (_audioSeeded) return;
   _audioSeeded = true;
+  // Retry the currently-armed BGM · autoplay was blocked before this gesture.
+  if (_currentBGM){ _currentBGM.play().catch(() => {}); }
 }
 addEventListener('keydown',   seedAudio, { once: false });
 addEventListener('pointerdown', seedAudio, { once: false });
@@ -1090,7 +1092,7 @@ const WORLD_PROPS = [
       img: _zcsImg,
       src: 'assets/2D%20sprites/buildings/zarvane-costume-shop.png',
       bbox: [80, 125, 1078, 983],
-      tileX: 109, tileY: 281,                       // v0.82.2 · relocated
+      tileX: 110, tileY: 228,                       // v0.84 · relocated
       tileW: 9, tileH: 8,
       footprint: (function(){
         const f = [];
@@ -1165,16 +1167,50 @@ const WORLD_PROPS = [
       footprint: [[0, 0]],                              // single-tile collision at feet
     }));
   })(),
+  // ── MALEZOR TREES · natural scatter · extra cluster to Rakoron cave (v0.84) ──
+  ...(function(){
+    const _treeImg = new Image();
+    _treeImg.src = 'assets/2D%20sprites/decor/malezor-tree.png';
+    const TREE_BBOX = [73, 79, 1104, 1134];
+    // Kept off building footprints + wild-grass patches · manually curated.
+    // Extra density along the north path leading to Rakoron's Cave (row 5+).
+    const TREES = [
+      // North path to Rakoron's Cave · dense treeline flanking cols 20-24
+      [ 8, 12],[ 6, 18],[ 4, 25],[ 2, 32],
+      [40, 12],[42, 20],[41, 28],[43, 35],
+      [15, 10],[29, 10], [16, 20],[28, 22],
+      [12, 30],[32, 32],
+      // Mid-north band (rows 40-70)
+      [ 3, 45],[42, 47],[ 5, 62],[40, 65],
+      // Around town hall band (edges)
+      [ 3, 72],[42, 74],
+      // Near player home (light scatter, not overcrowded)
+      [ 3,100],[41,102],
+      // Southern bands
+      [ 3,120],[42,122], [ 3,145],[42,148],
+      // South-4/5
+      [ 3,170],[42,172],[ 3,182],[42,180],
+    ];
+    return TREES.map(([tx, ty], i) => ({
+      id: `malezor_tree_${i}`,
+      img: _treeImg,
+      src: 'assets/2D%20sprites/decor/malezor-tree.png',
+      bbox: TREE_BBOX,
+      tileX: tx, tileY: ty,
+      tileW: 2, tileH: 2,
+      footprint: [[0, 0]],
+    }));
+  })(),
   // ── ZARVANE WILDS BUSHES · perimeter of Wilds Branch (v0.83) ──
   ...(function(){
     const _zwbImg = new Image();
     _zwbImg.src = 'assets/2D%20sprites/decor/zarvane-bush.png';
-    const ZWB_BBOX = [18, 211, 1221, 830];
-    // North edge (row 227) + South edge (row 266) + East cap (col 179).
+    const ZWB_BBOX = [16, 209, 1225, 834];           // v0.84 · re-baked with purple berries
+    // Tighter perimeter: step 3 tiles (was 6) · closer together
     const POS = [];
-    for (let x = 122; x <= 178; x += 6) POS.push([x, 227]);   // N edge · SE→NE
-    for (let x = 122; x <= 178; x += 6) POS.push([x, 266]);   // S edge
-    for (let y = 232; y <= 262; y += 6) POS.push([179, y]);   // E edge (both corners)
+    for (let x = 121; x <= 178; x += 3) POS.push([x, 227]);   // N edge
+    for (let x = 121; x <= 178; x += 3) POS.push([x, 266]);   // S edge
+    for (let y = 230; y <= 263; y += 3) POS.push([179, y]);   // E edge
     return POS.map(([tx, ty], i) => ({
       id: `zarvane_wilds_bush_${i}`,
       img: _zwbImg,

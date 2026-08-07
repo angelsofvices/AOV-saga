@@ -2267,6 +2267,9 @@ const INTERIOR_HOME = {
   spawn: { x: 7, y: 9, dir: 'up' },             // v0.78 · spawn on the rug
   exit:  { x: 7, y: 9 },                        //          exit is same tile
   autoExit: true,                               // v0.95.25 · walk-out door (no Z press)
+  // v0.95.27 · always drop the player 1 tile below the door facing down,
+  // so they aren't standing on the house prop after exit.
+  overworldDrop: { x: 22, y: 106, dir: 'down' },
   // Decor rug · 3 tiles wide × 1 tall · on row 9 · player enters onto it.
   rug: { x: 6, y: 9, w: 3, h: 1 },
   wallImg: 'malezor',                           // v0.81 · Malezor upper wall
@@ -3175,10 +3178,15 @@ function useStairs(s){
 function exitInterior(){
   if (game.scene === 'overworld') return;
   const priorScene = game.scene;
-  const r = game.overworldReturn || { x: 22, y: 106, dir: 'down' };
+  // v0.95.27 · Prefer cfg.overworldDrop if the interior defines one (e.g.,
+  // player home always drops to 22,106 facing down, never on the house).
+  const priorCfg = interiorConfig(priorScene);
+  const r = (priorCfg && priorCfg.overworldDrop)
+          || game.overworldReturn
+          || { x: 22, y: 106, dir: 'down' };
   game.scene = 'overworld';
   player.x = r.x; player.y = r.y;
-  player.dir = 'down';               // always face away from the door on exit
+  player.dir = r.dir || 'down';      // always face away from the door on exit
   player.moving = false;
   player.animFrame = 0;
   // Any NPC that was 'follow' in the interior we just left · transfer to
@@ -3216,11 +3224,17 @@ addEventListener('keydown', e => {
     if (k === 'tab' || k === 'l' || k === 'r'){
       if (game.scene === 'overworld' && !dialogState && !battleState) playSFX('whudScroll');
     }
-    // v0.91.3 · Melee attacks (J = punch/Square/x-button · K = kick/Triangle/y-button)
-    if ((k === 'j' || k === 'k') && game.scene === 'overworld' && !dialogState && !battleState){
-      const mode = (k === 'j') ? 'punch' : 'kick';
-      const dur  = (mode === 'kick') ? 400 : 300;
-      if (!player.attackMode || performance.now() >= (player.attackUntil || 0)){
+    // v0.95.27 · Melee attacks (J = punch/Square · K = kick/Triangle)
+    // Fires in ANY scene except title/dialog/battle/menus — never dropped.
+    // Every fresh keydown starts a new swing (no mid-attack lockout).
+    if (k === 'j' || k === 'k'){
+      const anyModal = settingsMenuOpen || zyrexMenuOpen
+                    || game.expPanelOpen || game.tvPanelOpen
+                    || game.guitarPanelOpen || game.nebulaPanelOpen
+                    || game.bagPanelOpen || _sleepFade;
+      if (game.scene !== 'title' && !dialogState && !battleState && !anyModal){
+        const mode = (k === 'j') ? 'punch' : 'kick';
+        const dur  = (mode === 'kick') ? 400 : 300;
         player.attackMode  = mode;
         player.attackUntil = performance.now() + dur;
       }

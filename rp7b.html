@@ -213,6 +213,17 @@
     <div class="btn btnR1"   data-mk="3"></div>
   </div>
   <div id="devBtn">[ DEV MODE ]</div>
+  <!-- v0.95.7 · Guitar · play songs to raise Rizer Bond with party Zyrex -->
+  <div id="guitarPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
+    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-height:78vh; overflow:auto; background:rgba(6,10,18,0.98); border:2px solid #ff88aa; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
+      <div style="color:#ff88aa; font-size:11px; letter-spacing:0.18em; margin-bottom:4px;">◈ RIZER GUITAR</div>
+      <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:6px;">PLAY A SONG</div>
+      <div style="color:#bcd; font-size:12px; margin-bottom:14px;">Songs raise your <b>Rizer Bond</b> with every Zyrex in your party. Higher bond unlocks the ability to sync and borrow their powers in battle.</div>
+      <div id="guitarSongList" style="font-size:13px; line-height:1.6;"></div>
+      <div id="guitarPartyState" style="margin-top:14px; padding-top:12px; border-top:1px solid #334; font-size:12px; color:#8ff;"></div>
+      <div style="margin-top:14px; text-align:right; font-size:11px; color:#8ff;">1-9 to play a song · ○ / B / Esc to close</div>
+    </div>
+  </div>
   <!-- v0.95.1 · Rizer TV · main quest news tracker -->
   <div id="tvPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
     <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-height:78vh; overflow:auto; background:rgba(6,10,18,0.98); border:2px solid #4fb3ff; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
@@ -2275,6 +2286,7 @@ const INTERIOR_HOME_2F = {
     [6,1],[7,1],
     [12,8],[13,8],[14,8],   // bed pillow/mattress top row
     [12,9],[13,9],[14,9],   // bed base
+    [3,2],[4,2],[3,3],[4,3],// guitar+amp footprint (2×2 base)
   ],
   wallImg: 'malezor',
   rizerRoom: true,                              // v0.95 · label + experiment table
@@ -2648,6 +2660,11 @@ const RIZER_TV_BBOX = [29, 31, 308, 305];  // v0.95.2 · retightened after rebak
 const BED_IMG = new Image();
 BED_IMG.src = 'assets/2D%20sprites/decor/bed.png';
 const BED_BBOX = [33, 31, 379, 251];
+
+// v0.95.7 · Guitar + Amp · play songs to raise Rizer Bond with party Zyrex
+const GUITAR_IMG = new Image();
+GUITAR_IMG.src = 'assets/2D%20sprites/decor/guitar.png';
+const GUITAR_BBOX = [39, 36, 209, 313];
 if (player.knownRecipes == null) player.knownRecipes = [];
 if (player.ownedHomes == null)   player.ownedHomes   = [];   // ids of homes the player has bought
 if (player.mainQuestStep == null) player.mainQuestStep = 0;  // v0.95.1 · index into MAIN_QUESTS
@@ -2683,6 +2700,90 @@ const MAIN_QUESTS = [
       'Meet the Andrannor Town Hall keeper',
     ]},
 ];
+
+// v0.95.7 · Guitar · Rizer Bond system
+// Every Zyrex has a bond (0-100) with the player.  Songs played on the
+// Guitar in the Rizer Room raise the bond of every party Zyrex.  At high
+// bond the player unlocks Sync (borrow the Zyrex's power in battle) and
+// eventually PrismSynch (see aov-prismsynch-move memory).
+if (player.songsKnown == null) player.songsKnown = ['starter_chord'];
+// Ensure any current party members have a bond field.
+function ensureBondFields(){
+  for (const z of (player.party || [])){
+    if (z && z.bond == null) z.bond = 0;
+  }
+}
+const SONGS = {
+  // id            title                     unlock       bondGain  cooldownSec
+  starter_chord: { title: 'Starter Chord',   unlock: 'DEFAULT',           gain: 3,  cd: 60 },
+  bond_ballad:   { title: 'Bond Ballad',     unlock: '★ any Zyrex ≥ Lv 5', gain: 5, cd: 90 },
+  ember_song:    { title: 'Ember Song',      unlock: '★ any Fire Zyrex bond ≥ 30', gain: 7, cd: 120 },
+  astral_hymn:   { title: 'Astral Hymn',     unlock: '★ any Zyrex bond ≥ 60', gain: 10, cd: 180 },
+};
+// track last-played timestamps so cooldowns persist across scenes
+if (player.songCooldowns == null) player.songCooldowns = {};
+
+(function wireGuitarPanelBackdrop(){
+  const p = document.getElementById('guitarPanel');
+  if (!p) return;
+  p.addEventListener('click', e => { if (e.target === p) closeGuitarPanel(); });
+})();
+function openGuitarPanel(){
+  const p = document.getElementById('guitarPanel');
+  if (!p) return;
+  ensureBondFields();
+  refreshGuitarPanel();
+  p.style.display = 'block';
+  game.guitarPanelOpen = true;
+  playSFX('menuOpen');
+}
+function closeGuitarPanel(){
+  const p = document.getElementById('guitarPanel');
+  if (p) p.style.display = 'none';
+  game.guitarPanelOpen = false;
+  playSFX('menuClose');
+}
+function refreshGuitarPanel(){
+  const list = document.getElementById('guitarSongList');
+  const state = document.getElementById('guitarPartyState');
+  if (!list || !state) return;
+  const now = Math.floor(performance.now() / 1000);
+  const entries = Object.entries(SONGS);
+  list.innerHTML = entries.map(([id, s], i) => {
+    const known = player.songsKnown.includes(id);
+    const remaining = Math.max(0, (player.songCooldowns[id] || 0) - now);
+    const color = !known    ? '#666'
+                : remaining ? '#886'
+                :             '#ffd66b';
+    const label = !known    ? `LOCKED · ${s.unlock}`
+                : remaining ? `cooldown ${remaining}s`
+                :             `+${s.gain} bond · ${s.cd}s cd`;
+    return `<div style="color:${color}; padding:4px 0;">
+      <b>${i+1}.</b> ${s.title} <span style="color:#8ff; font-size:11px;">— ${label}</span>
+    </div>`;
+  }).join('');
+  const alive = (player.party || []).filter(z => z);
+  state.innerHTML = alive.length === 0
+    ? '<i>Your party is empty · catch or receive a Zyrex before playing.</i>'
+    : 'Party bond: ' + alive.map(z => `<b>${z.name}</b> ${z.bond|0}/100`).join(' · ');
+}
+function playGuitarSong(idx){
+  const entries = Object.entries(SONGS);
+  if (idx < 0 || idx >= entries.length) return;
+  const [id, song] = entries[idx];
+  if (!player.songsKnown.includes(id)){ showToast('◈ Song locked · ' + song.unlock, 2400); playSFX('disabled'); return; }
+  const now = Math.floor(performance.now() / 1000);
+  const remaining = Math.max(0, (player.songCooldowns[id] || 0) - now);
+  if (remaining > 0){ showToast(`◈ ${song.title} · cooldown ${remaining}s`, 2000); playSFX('disabled'); return; }
+  const alive = (player.party || []).filter(z => z);
+  if (alive.length === 0){ showToast('◈ No party Zyrex to bond with.', 2200); return; }
+  alive.forEach(z => { z.bond = Math.min(100, (z.bond || 0) + song.gain); });
+  player.songCooldowns[id] = now + song.cd;
+  playSFX('confirm');
+  showToast(`◈ Played "${song.title}" · +${song.gain} bond to all party Zyrex`, 2600);
+  refreshGuitarPanel();
+  saveGame();
+}
 
 // v0.95.4 · Bed · sleep to fully heal Rizer + Zyrex party · FREE
 // Canon: only place in the game where healing is free. Hospitals cost coins
@@ -3167,6 +3268,7 @@ function tryMove(dt){
   if (game.scene === 'title' || settingsMenuOpen || zyrexMenuOpen || battleState || dialogState
       || game.expPanelOpen                                // v0.95 · freeze while experiment table open
       || game.tvPanelOpen                                 // v0.95.1 · freeze while Rizer TV open
+      || game.guitarPanelOpen                             // v0.95.7 · freeze while guitar panel open
       || _sleepFade                                       // v0.95.4 · freeze while napping
       || (document.getElementById('devPanel') && document.getElementById('devPanel').style.display === 'block')){  // v0.92.1 · freeze while dev panel open
     player.moving = false;
@@ -3316,6 +3418,15 @@ function drawInteriorFloor(){
       const dx = Math.floor((13 + 0.5) * TILE - drawW / 2) - _cam.x;
       const dy = Math.floor((9  + 1)   * TILE - drawH)     - _cam.y;
       ctx.drawImage(BED_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+    }
+    // v0.95.7 · Guitar+Amp · 2 tiles wide · centered on col 4, base row 3
+    if (GUITAR_IMG.complete && GUITAR_IMG.naturalWidth){
+      const [sx, sy, sw, sh] = GUITAR_BBOX;
+      const drawW = 2 * TILE;
+      const drawH = Math.round(drawW * (sh / sw));
+      const dx = Math.floor((4 + 0.5) * TILE - drawW / 2) - _cam.x;
+      const dy = Math.floor((3 + 1)   * TILE - drawH)     - _cam.y;
+      ctx.drawImage(GUITAR_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
   }
   // WELCOME rug decor · drawn on the floor, non-blocking.
@@ -3569,6 +3680,10 @@ function tryInteract(){
         const nearBed = (fx >= 12 && fx <= 14 && (fy === 7 || fy === 8 || fy === 9)) ||
                         ((fx === 11 || fx === 15) && (fy === 8 || fy === 9));
         if (nearBed){ sleepInBed(); return; }
+        // v0.95.7 · Guitar footprint cols 3-4 rows 2-3 · interact from below or sides
+        const nearGuitar = (fx >= 3 && fx <= 4 && (fy === 2 || fy === 3 || fy === 4)) ||
+                           ((fx === 2 || fx === 5) && (fy === 2 || fy === 3));
+        if (nearGuitar){ openGuitarPanel(); return; }
       }
       // Stairs are triggered by WALKING onto their trigger tile (see tryMove).
       // No X-press interaction here.
@@ -3632,6 +3747,13 @@ addEventListener('keydown', e => {
     if (k === 'b' || k === 'escape' || k === 'shift'){
       closeTvPanel();
     }
+    return;
+  }
+  // v0.95.7 · Guitar panel owns keys while open · 1-9 plays songs · B closes
+  if (game.guitarPanelOpen){
+    if (k === 'b' || k === 'escape' || k === 'shift'){ closeGuitarPanel(); return; }
+    const n = parseInt(k, 10);
+    if (!isNaN(n) && n >= 1 && n <= 9){ playGuitarSong(n - 1); }
     return;
   }
 
@@ -4070,9 +4192,12 @@ function saveGame(){
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
         knownRecipes: player.knownRecipes || [],   // v0.95 · discovered experiment recipes
         mainQuestStep: player.mainQuestStep || 0,  // v0.95.1 · main quest tracker index
+        songsKnown: player.songsKnown || ['starter_chord'],   // v0.95.7
+        songCooldowns: player.songCooldowns || {},            // v0.95.7
         party: (player.party || []).map(z => z ? {
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
           maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,
+          bond: z.bond || 0,                                  // v0.95.7 · Rizer Bond
         } : null),
       },
       collectedFae: _fae.filter(f => f.collected).map(f => f.id),

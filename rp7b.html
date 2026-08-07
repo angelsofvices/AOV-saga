@@ -195,9 +195,9 @@
     <div class="btn dpDown"  data-mk="ArrowDown"></div>
     <div class="btn dpLeft"  data-mk="ArrowLeft"></div>
     <div class="btn dpRight" data-mk="ArrowRight"></div>
-    <div class="btn btnTri"  data-mk="y"></div>
+    <div class="btn btnTri"  data-mk="k"></div>
     <div class="btn btnX"    data-mk="z"></div>
-    <div class="btn btnSq"   data-mk="x"></div>
+    <div class="btn btnSq"   data-mk="j"></div>
     <div class="btn btnCir"  data-mk="b"></div>
     <div class="btn btnL2"   data-mk="1"></div>
     <div class="btn btnL1"   data-mk="Tab"></div>
@@ -1672,8 +1672,8 @@ const NPCS = [
       [[106, 6,156,281],[79, 6,157,281],[54, 6,156,281],[28, 7,156,280]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
-    tileX: 22, tileY: 159,                        // south of Malezor Hospital door (22, 156)
-    homeX: 22, homeY: 159,
+    tileX: 22, tileY: 158,                        // v0.91.3 · pulled 1 tile closer to hospital door
+    homeX: 22, homeY: 158,
     homeScene: 'overworld',
     scene: 'overworld',
     dir: 'down',
@@ -1736,6 +1736,7 @@ const NPCS = [
       [[50,25,237,275],[34,25,237,275],[20,25,238,275],[ 7,25,237,275]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true,                       // v0.91.3 · up/right no longer clipped
     tileX: 27, tileY: 128,                    // v0.89.9 · front-right of school door
     homeX: 27, homeY: 128,
     homeScene: 'overworld',
@@ -1882,17 +1883,22 @@ const NPCS = [
   // Stands south of the hall door · back to the door (facing south) ·
   // greets the young Rizer and points them toward greatness.
   (function(){
-    const kelthorFrames = [
-      [45,162,369,583],[36,162,369,583],[27,162,369,583],[18,162,368,583],
-    ];
     return {
       id: 'kelthor',
       name: 'Kelthor',
       sheet: new Image(),
       src:   'assets/2D%20sprites/npcs/kelthor.png',
-      // Only "down" row 0 is used · replicate across all 4 dirs for safety.
-      bboxes: [ kelthorFrames, kelthorFrames, kelthorFrames, kelthorFrames ],
-      cellW: 443, cellH: 887, cols: 4, rows: 4,
+      // v0.91.3 · full 4x4 directional sheet (was single-row) · uniformScale
+      // normalizes every direction to 2-tile height (matches down)
+      bboxes: [
+        [[59,32,191,281],[60,32,190,281],[60,32,190,281],[60,32,190,281]],
+        [[89, 0,142,313],[89, 0,142,313],[89, 0,142,313],[90, 0,142,313]],
+        [[82, 0,142,313],[82, 0,142,313],[82, 0,142,313],[82, 0,142,313]],
+        [[61, 0,184,289],[61, 0,184,289],[61, 0,185,289],[61, 0,185,289]],
+      ],
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      uniformScale: true,
+      turnToInteract: true,
       tileX: 22, tileY: 82,                      // just south of town-hall garden
       homeX: 22, homeY: 82,
       homeScene: 'overworld',
@@ -2069,6 +2075,18 @@ const RIZER = {
   idle: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, key: 'idle', loaded: false },
   walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk', loaded: false },
   run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run',  loaded: false },
+  punch:{ img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[145,100,100,176],[108,100,100,175],[83,99,103,176],[50,98,101,178]],
+    [[138, 66, 90,158],[82, 65,111,159],[50, 65,122,159],[47, 65, 92,159]],
+    [[146, 24, 87,289],[116, 24,112,289],[93, 24,118,289],[63, 25, 86,288]],
+    [[142,  0,102,144],[110,  0,106,144],[88,  0,103,144],[53,  0,101,144]],
+  ], key: 'punch', loaded: false },
+  kick: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[154,107,100,196],[112,107, 99,196],[69,108,101,199],[49,107,100,196]],
+    [[155, 77, 91,176],[115, 78, 94,175],[30, 78,150,175],[51, 77, 90,176]],
+    [[157, 38, 89,275],[114, 37, 94,276],[79, 38,145,275],[53, 38, 89,275]],
+    [[150,  0,100,172],[112,  0, 97,172],[82,  0, 99,172],[47,  0, 99,172]],
+  ], key: 'kick', loaded: false },
 };
 // Right uses the actual right-facing cells (row 2).  The old cape-tail
 // float was fixed by the CC extractor · disconnected cape pixels are
@@ -2470,9 +2488,11 @@ function exitHomeInterior(){ exitInterior(); }
 
 // Rizer sprite loading · all three sheets delivered.
 Promise.all([
-  loadAsset(RIZER.idle, 'assets/2D%20sprites/rizer/idle.png'),
-  loadAsset(RIZER.walk, 'assets/2D%20sprites/rizer/walk.png'),
-  loadAsset(RIZER.run,  'assets/2D%20sprites/rizer/run.png'),
+  loadAsset(RIZER.idle,  'assets/2D%20sprites/rizer/idle.png'),
+  loadAsset(RIZER.walk,  'assets/2D%20sprites/rizer/walk.png'),
+  loadAsset(RIZER.run,   'assets/2D%20sprites/rizer/run.png'),
+  loadAsset(RIZER.punch, 'assets/2D%20sprites/rizer/punch.png'),
+  loadAsset(RIZER.kick,  'assets/2D%20sprites/rizer/kick.png'),
 ]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run)'));
 
 // -- Input · keyboard --------------------------------------------------------
@@ -2484,6 +2504,15 @@ addEventListener('keydown', e => {
     // v0.91.2 · L1/R1 (tab / r · gamepad L1 → Tab, R1 → r) plays weapon-wheel scroll SFX
     if (k === 'tab' || k === 'r'){
       if (game.scene === 'overworld' && !dialogState && !battleState) playSFX('whudScroll');
+    }
+    // v0.91.3 · Melee attacks (J = punch/Square/x-button · K = kick/Triangle/y-button)
+    if ((k === 'j' || k === 'k') && game.scene === 'overworld' && !dialogState && !battleState){
+      const mode = (k === 'j') ? 'punch' : 'kick';
+      const dur  = (mode === 'kick') ? 400 : 300;
+      if (!player.attackMode || performance.now() >= (player.attackUntil || 0)){
+        player.attackMode  = mode;
+        player.attackUntil = performance.now() + dur;
+      }
     }
   }
   keys[k] = true;
@@ -2885,9 +2914,14 @@ function drawPlayer(){
   //   running + moving → run sheet
   //   moving           → walk sheet
   //   standing         → idle sheet (frame 0 per direction)
+  // v0.91.3 · attack anim overrides all locomotion sheets while active
+  const now = performance.now();
+  const inAttack = player.attackMode && now < (player.attackUntil || 0);
+  if (!inAttack && player.attackMode){ player.attackMode = null; }
   const useRun  = player.running && player.moving && RIZER.run.loaded;
   const useWalk = player.moving && RIZER.walk.loaded;
-  let bundle = useRun ? RIZER.run
+  let bundle = inAttack && RIZER[player.attackMode] && RIZER[player.attackMode].loaded ? RIZER[player.attackMode]
+             : useRun ? RIZER.run
              : useWalk ? RIZER.walk
              : (RIZER.idle.loaded ? RIZER.idle : null);
   if (!bundle){
@@ -2922,7 +2956,15 @@ function drawPlayer(){
 
   // All three sheets are 4x4 · row = direction · col = animation frame.
   const row = DIR_ROW[player.dir];
-  const col = player.animFrame % bundle.cols;
+  // v0.91.3 · attack anim uses its own frame clock (linear over duration)
+  let col;
+  if (inAttack){
+    const dur = player.attackMode === 'kick' ? 400 : 300;
+    const elapsed = dur - (player.attackUntil - now);
+    col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
+  } else {
+    col = player.animFrame % bundle.cols;
+  }
 
   // Pull the character's actual pixel bbox (not the padded cell) so the
   // source rect is the CHARACTER, not the whitespace around it.
@@ -3843,6 +3885,9 @@ function drawNPC(n){
     const dbh = n.bboxes && n.bboxes[0] && n.bboxes[0][0] ? n.bboxes[0][0][3] : 216;
     n._downScale = (TILE * 2) / dbh * (n.scaleMul || 1);   // v0.88.4 · per-NPC scale
   }
+  // v0.91.3 · uniformScale: normalize each row's draw size to 2 tiles tall
+  // by computing scale from THAT row's bh · avoids clipping when side/up
+  // sheets have different heights than down.
   const row = DIR_ROW_NPC[n.dir] || 0;
   // Frame pick:
   //   moving + walkSheet loaded → walk sheet at animFrame
@@ -3857,8 +3902,10 @@ function drawNPC(n){
   const [bx, by, bw, bh] = bank[row][col];
   const sx = col * n.cellW + bx;
   const sy = row * n.cellH + by;
-  const drawH = Math.max(1, Math.round(bh * n._downScale));
-  const drawW = Math.max(1, Math.round(bw * n._downScale));
+  // v0.91.3 · per-row scale if uniformScale · every direction ~2 tiles tall
+  const rowScale = n.uniformScale ? ((TILE * 2) / bh * (n.scaleMul || 1)) : n._downScale;
+  const drawH = Math.max(1, Math.round(bh * rowScale));
+  const drawW = Math.max(1, Math.round(bw * rowScale));
   const dx = Math.floor(n.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
   const dy = Math.floor(n.tileY * TILE + TILE - drawH)       - _cam.y;
   ctx.drawImage(img, sx, sy, bw, bh, dx, dy, drawW, drawH);

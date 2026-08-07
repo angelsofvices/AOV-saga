@@ -1220,7 +1220,7 @@ const WORLD_PROPS = [
       src: 'assets/2D%20sprites/decor/zarvane-prismatic-beacon.png',
       bbox: [331, 86, 587, 1148],                  // tall narrow ar 0.51
       tileX: 74, tileY: 353,
-      tileW: 3, tileH: 6,                          // tight visual footprint
+      tileW: 6, tileH: 12,                         // v0.91.6 · doubled for crisp downsample
       footprint: [[-1, 0], [0, 0], [1, 0], [0, -1]],  // tight base collision (base tile + one above)
       door: [0, 0],
       onInteract: () => showToast('◈ Zarvane Prismatic Beacon · humming softly.', 2400),
@@ -3019,11 +3019,15 @@ function drawPlayer(){
   const SCALE = bundle._downScale;
   let drawH       = Math.max(1, Math.round(bh * SCALE));
   let drawW       = Math.max(1, Math.round(bw * SCALE));
-  // v0.91.4/5 · in-attack: force character to always render at 2 tiles
-  // tall regardless of attack sheet's per-row bh drift.  This kills the
-  // shrink/grow jump illusion when attacking sideways.
-  if (inAttack){
-    const targetH = TILE * 2;                          // constant 2 tiles
+  // v0.91.6 · in-attack: use IDLE's per-row drawH so the character stays
+  // exactly the same on-screen size as when idle (no shrink/grow/float).
+  // Fall back to row 0 idle if row-specific bbox missing.
+  if (inAttack && RIZER.idle.bboxes){
+    const idleRow = RIZER.idle.bboxes[row] || RIZER.idle.bboxes[0];
+    const idleBh  = (idleRow && idleRow[0] && idleRow[0][3]) || 284;
+    const idleAnchor = RIZER.idle.bboxes[0][0][3] || 284;
+    const idleScale  = (TILE * 2) / idleAnchor;
+    const targetH = Math.round(idleBh * idleScale);
     const attackScale = targetH / bh;
     drawH = targetH;
     drawW = Math.max(1, Math.round(bw * attackScale));

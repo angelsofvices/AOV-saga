@@ -258,7 +258,7 @@
 <body>
   <div id="stage">
     <canvas id="game" width="960" height="528"></canvas>
-    <video id="introVid" src="video/intro-v2.mp4" playsinline webkit-playsinline muted preload="auto"
+    <video id="introVid" src="video/intro-v2.mp4" playsinline webkit-playsinline preload="auto"
            style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:20; display:none;"></video>
     <div id="titleBtns" style="position:absolute; inset:0; display:none; z-index:25; pointer-events:none;">
       <div style="position:absolute; left:50%; bottom:14%; transform:translateX(-50%); display:flex; flex-direction:column; gap:14px; pointer-events:auto;">
@@ -2627,13 +2627,23 @@ function startIntroVideo(){
   game.showTitleButtons = false;                    // buttons hidden while video plays
   introVid.style.display = 'block';
   introVid.currentTime = 0;
-  introVid.muted = true;                            // v0.95.33 · required for mobile autoplay
-  const tryPlay = () => introVid.play().catch(err => console.warn('[intro] play blocked:', err));
+  // v0.95.37 · Start UNMUTED · this call is already inside the pregame
+  // splash's user-gesture stack, so browsers (incl. iOS Safari) allow
+  // audio autoplay.  If .play() rejects anyway, fall back to muted so
+  // at least the video shows, then the next tap unmutes it.
+  introVid.muted = false;
+  const tryPlay = () => introVid.play().catch(err => {
+    console.warn('[intro] unmuted play blocked · falling back to muted:', err);
+    introVid.muted = true;
+    introVid.play().catch(err2 => console.warn('[intro] muted play also blocked:', err2));
+  });
   tryPlay();
-  // Retry on first gesture in case autoplay was blocked
+  // If we ended up muted, unmute on the next user gesture.
   const gesture = () => {
-    if (introState === 'playing' && introVid.paused){ tryPlay(); }
-    introVid.muted = false;                         // unmute after user gesture
+    if (introState === 'playing'){
+      introVid.muted = false;
+      if (introVid.paused) tryPlay();
+    }
     window.removeEventListener('keydown', gesture);
     window.removeEventListener('pointerdown', gesture);
   };

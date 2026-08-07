@@ -1240,8 +1240,11 @@ const WORLD_PROPS = [
       // Mid-lawn landscaping (leaves col 22 door path clear)
       [17, 80], [27, 80],
       [19, 81], [25, 81],
-      // ── Zarvane Town Hall garden (v0.84.8) · same layout, mirrored ──
-      // Hall at (113, 247) · 11 wide × 9 tall · spans cols 108-118 rows 239-247.
+    ];
+    // ── Zarvane Town Hall garden (v0.84.8/9) · same layout, mirrored,
+    //    ZARVANE bush sprite (purple berries) ──
+    // Hall at (113, 247) · 11 wide × 9 tall · spans cols 108-118 rows 239-247.
+    const ZARVANE_BUSH_POSITIONS = [
       // Front flanks row 248 (skip col 113 for door path)
       [109, 248], [111, 248], [115, 248], [117, 248],
       // Side hedges · west col 107 · east col 119
@@ -1271,7 +1274,7 @@ const WORLD_PROPS = [
     const _bushImg = new Image();
     _bushImg.src = 'assets/2D%20sprites/decor/bush.png';
     const _bushBBox = [291, 274, 965, 471];
-    return BUSH_POSITIONS.map(([tx, ty], i) => {
+    const malezorBushes = BUSH_POSITIONS.map(([tx, ty], i) => {
       const bush = {
         id: `bush_${i}`,
         img: _bushImg,
@@ -1290,6 +1293,20 @@ const WORLD_PROPS = [
       }
       return bush;
     });
+    // Zarvane town-hall garden uses the purple-berry Zarvane bush.
+    const _zBushImg = new Image();
+    _zBushImg.src = 'assets/2D%20sprites/decor/zarvane-bush.png';
+    const _zBushBBox = [16, 209, 1225, 834];
+    const zarvaneBushes = ZARVANE_BUSH_POSITIONS.map(([tx, ty], i) => ({
+      id: `zarvane_hall_bush_${i}`,
+      img: _zBushImg,
+      src: 'assets/2D%20sprites/decor/zarvane-bush.png',
+      bbox: _zBushBBox,
+      tileX: tx, tileY: ty,
+      tileW: 3, tileH: 2,             // matches zarvane wilds bush footprint
+      footprint: [[0, 0]],
+    }));
+    return [...malezorBushes, ...zarvaneBushes];
   })(),
 ];
 
@@ -1425,16 +1442,17 @@ const NPCS = [
     ];
     // Each Mori is anchored inside/next to a gemgrass patch and wanders
     // within a small radius so they pace between the blades.
+    // v0.84.10 · widened wander radius (roams further from anchor).
     const MORI_SPOTS = [
-      { x: 50, y: 163, dir: 'left', r: 4 },  // patch (48,162,5x4)
-      { x: 60, y: 172, dir: 'down', r: 4 },  // patch (58,170,6x5)
-      { x: 82, y: 176, dir: 'left', r: 4 },  // patch (80,174,6x5)
-      { x: 94, y: 165, dir: 'down', r: 4 },  // patch (92,163,5x5)
-      { x:106, y: 172, dir: 'left', r: 4 },  // patch (104,170,6x5)
-      { x: 52, y: 182, dir: 'right', r: 3 }, // patch (50,180,4x4)  · v0.69.1
-      { x: 68, y: 182, dir: 'left',  r: 3 }, // patch (66,180,5x4)  · v0.69.1
-      { x: 75, y: 163, dir: 'down',  r: 3 }, // patch (70,161,5x4)  · v0.69.1
-      { x: 90, y: 182, dir: 'left',  r: 3 }, // patch (88,180,4x4)  · v0.69.1
+      { x: 50, y: 163, dir: 'left', r: 7 },
+      { x: 60, y: 172, dir: 'down', r: 7 },
+      { x: 82, y: 176, dir: 'left', r: 7 },
+      { x: 94, y: 165, dir: 'down', r: 7 },
+      { x:106, y: 172, dir: 'left', r: 7 },
+      { x: 52, y: 182, dir: 'right', r: 6 },
+      { x: 68, y: 182, dir: 'left',  r: 6 },
+      { x: 75, y: 163, dir: 'down',  r: 6 },
+      { x: 90, y: 182, dir: 'left',  r: 6 },
     ];
     return MORI_SPOTS.map((s, i) => ({
       id: `mori_${i + 1}`,
@@ -1453,7 +1471,7 @@ const NPCS = [
       moving: false,
       animFrame: 0,
       idleFrame: 0,
-      moveCd: 800 + Math.random() * 1400,
+      moveCd: 250 + Math.random() * 350,     // v0.84.10 · faster stride
       blinkTimer: 9e9,                  // Mori doesn't blink (skeletal)
       isEnemy: true,                    // future combat trigger uses this
       onInteract: (n) => showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000),
@@ -3230,10 +3248,10 @@ function tickNPC(n, dt){
       }
     }
   } else {
-    // Wander: pick random direction · 30% chance to just stand still
-    if (Math.random() < 0.3){
+    // Wander: pick random direction · 12% chance to just pause (was 30%)
+    if (Math.random() < 0.12){
       n.moving = false;
-      n.moveCd = 800 + Math.random() * 1200;
+      n.moveCd = 500 + Math.random() * 600;
       return;
     }
     const dirs = ['up','down','left','right'];
@@ -3242,15 +3260,15 @@ function tickNPC(n, dt){
     const nx = n.tileX + v.dx, ny = n.tileY + v.dy;
     // Stay within wanderRadius of home
     if (Math.abs(nx - n.homeX) + Math.abs(ny - n.homeY) > n.wanderRadius){
-      n.dir = dir;                     // face the direction we wanted to go
+      n.dir = dir;
       n.moving = false;
-      n.moveCd = 700;
+      n.moveCd = 300;
       return;
     }
     if (stepNPCTo(n, nx, ny, dir)){
-      n.moveCd = 350 + Math.random() * 400;   // between-step wait
+      n.moveCd = 160 + Math.random() * 180;   // v0.84.10 · faster stride
     } else {
-      n.dir = dir; n.moving = false; n.moveCd = 500;
+      n.dir = dir; n.moving = false; n.moveCd = 220;
     }
   }
 }

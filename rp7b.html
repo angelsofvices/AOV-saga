@@ -346,6 +346,7 @@ const AUDIO = {
     caveGrowl: new Audio('audio/sfx-cave-growl.mp3'),    // locked Rakoron cave
     doorLock:  new Audio('audio/sfx-door-lock.mp3'),     // locked residential building
     portalLocked: new Audio('audio/sfx-portal-locked.mp3'),  // v0.88.3 · sealed portal
+    whudScroll:   new Audio('audio/sfx-whud-scroll.mp3'),    // v0.89.1 · R1/L1 weapon cycle
   },
 };
 Object.values(AUDIO.bgm).forEach(a => { a.loop = true; a.volume = 0.32; });
@@ -1136,9 +1137,47 @@ const WORLD_PROPS = [
       img: _oasisImg,
       src: 'assets/2D%20sprites/decor/zarvane-oasis.png',
       bbox: [41, 150, 1188, 937],
-      tileX: 95, tileY: 255,                       // south of home (95, 224) · west of town hall
+      tileX: 170, tileY: 231,                      // v0.89.2 · relocated to Wilds Branch NE corner
       tileW: 6, tileH: 5,                          // realistic pool size · genie lamp shows well
       footprint: [[0, 0]],                         // non-blocking · walk through/around freely
+    };
+  })(),
+  // ── ZARVANE ASTRALITE REFINERY · (143, 232) in Wilds Branch (v0.89.1) ──
+  (function(){
+    const _refImg = new Image();
+    _refImg.src = 'assets/2D%20sprites/buildings/zarvane-astralite-refinery.png';
+    return {
+      id: 'zarvane_astralite_refinery',
+      img: _refImg,
+      src: 'assets/2D%20sprites/buildings/zarvane-astralite-refinery.png',
+      bbox: [32, 63, 1187, 1046],
+      tileX: 143, tileY: 232,
+      tileW: 9, tileH: 8,
+      footprint: (function(){
+        const f = [];
+        for (let dy = -6; dy <= 0; dy++){
+          for (let dx = -4; dx <= 4; dx++){ f.push([dx, dy]); }
+        }
+        return f;
+      })(),
+      door: [0, 0],
+      onInteract: () => { showToast('◈ ZARVANE ASTRALITE REFINERY · Closed for now.', 2400); playSFX('doorLock'); },
+    };
+  })(),
+  // ── NOVARIUS STATUE · (8, 29) north Malezor · monument, non-blocking (v0.89.2) ──
+  (function(){
+    const _statueImg = new Image();
+    _statueImg.src = 'assets/2D%20sprites/decor/novarius-statue.png';
+    return {
+      id: 'novarius_statue',
+      img: _statueImg,
+      src: 'assets/2D%20sprites/decor/novarius-statue.png',
+      bbox: [338, 25, 578, 1210],
+      tileX: 8, tileY: 29,
+      tileW: 2, tileH: 4,
+      footprint: [[0, 0]],
+      door: [0, 0],
+      onInteract: () => showToast('◈ Statue of NOVARIUS · First Beast Master.', 2400),
     };
   })(),
   // ── ZARVANE COSMETIC SHOP · (110, 282) south-east side (v0.88) ──
@@ -1660,7 +1699,7 @@ const NPCS = [
     idleFrame: 0,
     blinkTimer: 2000 + Math.random() * 2000,
     turnToInteract: true,               // faces player during dialog · resets to down
-    scaleMul: 1.15,                     // v0.88.4 · taller than Rizer
+    scaleMul: 1.10,                     // v0.89.1 · slightly taller than Rizer (uniform across dirs)
     onInteract: (n) => {
       showDialog({ speaker: 'AURAXION', lines: [
         'I read the astral currents.  You walk a bright path, Rizer.',
@@ -1680,8 +1719,8 @@ const NPCS = [
       [[70, 27,222,236],[54, 27,222,236],[37, 27,222,236],[22, 27,222,236]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
-    tileX: 16, tileY: 180,
-    homeX: 16, homeY: 180,
+    tileX: 14, tileY: 180,               // v0.89.1 · west of Auraxion
+    homeX: 14, homeY: 180,
     homeScene: 'overworld',
     scene: 'overworld',
     dir: 'down',
@@ -1690,8 +1729,8 @@ const NPCS = [
     animFrame: 0,
     idleFrame: 0,
     blinkTimer: 2200 + Math.random() * 2000,
-    turnToInteract: false,              // always front-facing · never turns
-    scaleMul: 0.7,                      // v0.88.4 · small makeshift robot
+    turnToInteract: true,                // v0.89.1 · now turns based on new scale
+    scaleMul: 0.55,                      // v0.89.1 · head reaches Auraxion's elbow
     onInteract: (n) => {
       showDialog({ speaker: 'RUSTBYTE', lines: [
         '*whirrr*  ...system nominal.  Bleep.',
@@ -2006,10 +2045,11 @@ const FOOTPRINT_ROW = { up: 0, left: 1, right: 2, down: 3 };
 const FOOTPRINT_LIFE_MS = 2000;                // 2s total lifetime
 const _footprints = [];                        // {tx, ty, dir, age}
 function spawnFootprint(tx, ty, dir){
-  // Sand only · gate on Zarvane rows (>= MAP_ZARVANE_START_ROW+1 = 189)
-  if (ty <= MAP_ZARVANE_START_ROW) return;
+  // v0.89.1 · Zarvane desert only · exclude Andrannor/transition/grass tiles.
+  const t = terrainAtTile(tx, ty);
+  if (t !== SAND_TILE) return;
   _footprints.push({ tx, ty, dir, age: 0 });
-  if (_footprints.length > 40) _footprints.shift();   // hard cap
+  if (_footprints.length > 40) _footprints.shift();
 }
 function tickFootprints(dt){
   for (let i = _footprints.length - 1; i >= 0; i--){
@@ -2530,9 +2570,21 @@ function drawGrass(){
       for (let tx = rowMin; tx < rowMax; tx++){
         const tile = terrainAtTile(tx, ty);
         if (!tile.complete || !tile.naturalWidth) continue;
-        ctx.drawImage(tile,
-          0, 0, tile.naturalWidth, tile.naturalHeight,
-          tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
+        // v0.89.1 · Andrannor renders from a smaller 96×96 crop so pattern
+        // stays crisp (was downsampling full 1254 → 48 into muddy noise).
+        // Crop offset varies with tile coords for anti-repeat variety.
+        if (tile === ANDRANNOR_TILE){
+          const CW = 96;
+          const maxOff = tile.naturalWidth - CW;
+          const sx = Math.abs((tx * 17 + ty * 31) * 96) % maxOff;
+          const sy = Math.abs((tx * 41 + ty * 23) * 96) % maxOff;
+          ctx.drawImage(tile, sx, sy, CW, CW,
+            tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
+        } else {
+          ctx.drawImage(tile,
+            0, 0, tile.naturalWidth, tile.naturalHeight,
+            tx * TILE - _cam.x, ty * TILE - _cam.y, TILE, TILE);
+        }
       }
     }
   } else {

@@ -733,16 +733,21 @@ const WORLD_PROPS = [
     // solid.  Door tile IS blocked (player can't walk onto it) but is
     // registered in _propDoors so pressing Z while facing it triggers the
     // door dialog from the adjacent tile.
+    // v0.95.25 · Door tile (0,0) is EXCLUDED from footprint so player can
+    // walk straight in/out.  autoEnter flag → walking onto the tile fires
+    // the transition automatically (no Z press).
     footprint: (function(){
       const f = [];
       for (let dy = -4; dy <= 0; dy++){
         for (let dx = -2; dx <= 2; dx++){
+          if (dx === 0 && dy === 0) continue;    // door tile stays walkable
           f.push([dx, dy]);
         }
       }
       return f;
     })(),
-    door:  [0, 0],                              // interact target at tile 7,7
+    door:  [0, 0],
+    autoEnter: true,                            // v0.95.25 · walk-through door
     onInteract: () => enterHomeInterior(),
   },
   {
@@ -2261,6 +2266,7 @@ const INTERIOR_HOME = {
   tileImg: new Image(),
   spawn: { x: 7, y: 9, dir: 'up' },             // v0.78 · spawn on the rug
   exit:  { x: 7, y: 9 },                        //          exit is same tile
+  autoExit: true,                               // v0.95.25 · walk-out door (no Z press)
   // Decor rug · 3 tiles wide × 1 tall · on row 9 · player enters onto it.
   rug: { x: 6, y: 9, w: 3, h: 1 },
   wallImg: 'malezor',                           // v0.81 · Malezor upper wall
@@ -3494,6 +3500,25 @@ function tryMove(dt){
   player.running = running;
   player.moveCd = running ? 90 : 170;
 
+  // v0.95.25 · Auto-enter overworld doors flagged autoEnter (e.g., player's
+  // home) · stepping on the door tile fires onInteract without pressing Z.
+  if (game.scene === 'overworld'){
+    const doorProp = _propDoors.get(`${player.x},${player.y}`);
+    if (doorProp && doorProp.autoEnter && typeof doorProp.onInteract === 'function'){
+      doorProp.onInteract();
+      return;
+    }
+  }
+  // v0.95.25 · Auto-exit interior scenes · stepping onto cfg.exit tile
+  // walks the player back out to the overworld door tile.
+  {
+    const cfgAE = interiorConfig(game.scene);
+    if (cfgAE && cfgAE.exit && cfgAE.autoExit
+        && player.x === cfgAE.exit.x && player.y === cfgAE.exit.y){
+      exitInterior();
+      return;
+    }
+  }
   // Auto-transition · step onto any staircase trigger tile → change floors.
   // v0.95.24 · 1s cooldown after any stair use so a sprint doesn't
   // ping-pong up→down→up on consecutive frames.  useStairs sets

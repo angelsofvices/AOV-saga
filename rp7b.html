@@ -173,7 +173,7 @@
 <body>
   <div id="stage">
     <canvas id="game" width="960" height="528"></canvas>
-    <video id="introVid" src="video/title-intro.mp4" playsinline preload="auto" muted
+    <video id="introVid" src="video/title-intro.mp4" playsinline preload="auto"
            style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:20; display:none;"></video>
   </div>
   <div id="hud">TILE (—, —) · scene —</div>
@@ -2468,12 +2468,18 @@ function skipIntroVideo(){
   introVid.style.display = 'none';
   game.showTitleButtons = true;
 }
-// Kick off on first render of title screen
-function ensureIntroStarted(){
-  if (game.scene === 'title' && introState === 'idle'){
-    startIntroVideo();
-  }
-}
+// v0.93.2 · Intro starts on FIRST user gesture (not auto).  drawTitleScreen
+// no longer auto-triggers it · a one-shot listener below fires startIntroVideo.
+function ensureIntroStarted(){ /* no-op · gesture-driven now */ }
+(function armIntroGesture(){
+  const kick = () => {
+    if (game.scene === 'title' && introState === 'idle'){ startIntroVideo(); }
+    window.removeEventListener('keydown',   kick);
+    window.removeEventListener('pointerdown', kick);
+  };
+  window.addEventListener('keydown',   kick, { once: true });
+  window.addEventListener('pointerdown', kick, { once: true });
+})();
 
 function startNewGame(){
   clearSave();                                     // v0.92 · wipe any prior save on New Game
@@ -2494,30 +2500,22 @@ function loadSavedGame(){
 }
 function drawTitleScreen(){
   if (game.scene !== 'title') return;
-  ensureIntroStarted();                          // v0.93 · start intro video on first title frame
-  // While intro is playing, silence title BGM (video has its own audio)
-  if (introState !== 'playing') playBGM('title');
   const W = canvas.width, H = canvas.height;
-  // Background · title art (native 16:9 · scaled to canvas · never stretch)
-  if (TITLE_IMG.complete && TITLE_IMG.naturalWidth){
-    const imgAR = TITLE_IMG.naturalWidth / TITLE_IMG.naturalHeight;
-    const canvasAR = W / H;
-    let dw, dh, dx, dy;
-    if (canvasAR > imgAR){
-      dh = H; dw = Math.round(H * imgAR);
-      dx = Math.floor((W - dw) / 2); dy = 0;
-    } else {
-      dw = W; dh = Math.round(W / imgAR);
-      dx = 0; dy = Math.floor((H - dh) / 2);
-    }
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
-    ctx.drawImage(TITLE_IMG, dx, dy, dw, dh);
-  } else {
-    ctx.fillStyle = '#0b0b10';
-    ctx.fillRect(0, 0, W, H);
+  // v0.93.2 · Black canvas underneath the video (no title-image · no BGM).
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  // Buttons/hint over the video are the only UI drawn here.
+  if (introState === 'idle'){
+    // Waiting for first gesture to start the video
+    ctx.fillStyle = '#f0eadf';
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('PRESS ANY KEY TO BEGIN', W/2, H/2);
+    ctx.textAlign = 'left';
+    return;
   }
-  // v0.93 · Buttons hidden while intro video plays until skip or 33s mark.
+  // v0.93.2 · Old TITLE_IMG background removed · canvas stays black behind
+  // the <video> overlay.  Only hint/buttons draw here.
   if (introState === 'playing' && !game.showTitleButtons){
     // Show hold-X hint over the video
     ctx.fillStyle = 'rgba(0,0,0,0.55)';

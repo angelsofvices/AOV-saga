@@ -2428,6 +2428,9 @@ const game = { scene: 'title', overworldReturn: null };
 // Title screen assets + state
 const TITLE_IMG = new Image();
 TITLE_IMG.src = 'assets/2D%20sprites/ui/title-screen.png';
+// v0.94 · pregame splash · shown before the intro video starts
+const PREGAME_IMG = new Image();
+PREGAME_IMG.src = 'assets/2D%20sprites/ui/pregame-splash.png';
 const TITLE_OPTIONS = ['NEW GAME', 'LOAD GAME'];
 let titleSelectedIdx = 0;
 // v0.93 · Title intro video controller
@@ -2546,12 +2549,27 @@ function drawTitleScreen(){
   ctx.fillRect(0, 0, W, H);
   // Buttons/hint over the video are the only UI drawn here.
   if (introState === 'idle'){
-    // Waiting for first gesture to start the video
-    ctx.fillStyle = '#f0eadf';
-    ctx.font = 'bold 16px "Courier New", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('PRESS ANY KEY TO BEGIN', W/2, H/2);
-    ctx.textAlign = 'left';
+    // v0.94 · pregame splash · aspect-preserved cover of canvas
+    if (PREGAME_IMG.complete && PREGAME_IMG.naturalWidth){
+      const iw = PREGAME_IMG.naturalWidth, ih = PREGAME_IMG.naturalHeight;
+      const scale = Math.max(W / iw, H / ih);      // cover · never leave black bars
+      const dw = Math.round(iw * scale), dh = Math.round(ih * scale);
+      const dx = Math.floor((W - dw) / 2), dy = Math.floor((H - dh) / 2);
+      ctx.drawImage(PREGAME_IMG, dx, dy, dw, dh);
+    }
+    // Blinking "PRESS ANY KEY TO BEGIN" pill along the bottom
+    const t = Math.floor(performance.now() / 500) % 2;
+    if (t === 0){
+      ctx.fillStyle = 'rgba(0,0,0,0.72)';
+      ctx.fillRect(W/2 - 190, H - 60, 380, 40);
+      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2;
+      ctx.strokeRect(W/2 - 190, H - 60, 380, 40);
+      ctx.fillStyle = '#ffd66b';
+      ctx.font = 'bold 16px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('PRESS ANY KEY TO BEGIN', W/2, H - 34);
+      ctx.textAlign = 'left';
+    }
     return;
   }
   // v0.93.2 · Old TITLE_IMG background removed · canvas stays black behind

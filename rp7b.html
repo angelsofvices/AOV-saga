@@ -236,6 +236,9 @@
       <button id="devUnlockDoors">Unlock All Doors: OFF</button>
     </div>
     <div class="row">
+      <button id="devGiveElzoran">Give Elzoran (T5 Lv 50)</button>
+    </div>
+    <div class="row">
       <button id="devMobileCtrl">Mobile Controller: AUTO</button>
     </div>
     <div class="row">
@@ -2420,13 +2423,19 @@ TITLE_IMG.src = 'assets/2D%20sprites/ui/title-screen.png';
 const TITLE_OPTIONS = ['NEW GAME', 'LOAD GAME'];
 let titleSelectedIdx = 0;
 function startNewGame(){
+  clearSave();                                     // v0.92 · wipe any prior save on New Game
   game.scene = 'overworld';
   playBGM('home');
   showToast('◈ Welcome to Malezor.', 2000);
 }
 function loadSavedGame(){
-  showToast('◈ Save system not wired yet.  Starting new game.', 2200);
-  startNewGame();
+  if (loadGame()){
+    playBGM('home');
+    showToast('◈ Save loaded.  Welcome back.', 2000);
+  } else {
+    showToast('◈ No save found.  Starting new game.', 2200);
+    startNewGame();
+  }
 }
 function drawTitleScreen(){
   if (game.scene !== 'title') return;
@@ -3191,6 +3200,14 @@ let settingsSelectedIdx = 0;
 
 // Touchpad double-tap tracking (Elzoran dev spawn).
 let _lastTouchpadTime = 0;
+let devPanelSel = 0;   // v0.92 · highlighted dev panel button index
+function highlightDevBtn(items, idx){
+  items.forEach((el, i) => {
+    el.style.outline = (i === idx) ? '2px solid #8fffb0' : '';
+    el.style.outlineOffset = (i === idx) ? '2px' : '';
+    if (i === idx) el.scrollIntoView({ block: 'nearest' });
+  });
+}
 
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
@@ -3212,14 +3229,50 @@ addEventListener('keydown', e => {
   if (k === '2'){
     const now = performance.now();
     if (now - _lastTouchpadTime < 500){
-      giveDevElzoran();
+      // v0.92 · double-tap touchpad · toggle dev panel (was: grant Elzoran)
+      const p = document.getElementById('devPanel');
+      if (p){
+        const opening = p.style.display !== 'block';
+        p.style.display = opening ? 'block' : 'none';
+        game.devPanelKeyboard = opening;                 // enable keyboard nav
+        devPanelSel = 0;
+        playSFX(opening ? 'menuOpen' : 'menuClose');
+      }
       _lastTouchpadTime = 0;
-      // Ensure menu closes so grant toast is visible.
       zyrexMenuOpen = false;
       return;
     }
     _lastTouchpadTime = now;
     // Fall through · handled per-mode below.
+  }
+  // ── DEV PANEL KEYBOARD NAV (v0.92) ───────────────────────────────
+  if (game.devPanelKeyboard){
+    const items = Array.from(document.querySelectorAll('#devPanel button'));
+    if (items.length){
+      if (k === 'arrowup' || k === 'arrowleft'){
+        devPanelSel = (devPanelSel + items.length - 1) % items.length;
+        highlightDevBtn(items, devPanelSel);
+        playSFX('cursor');
+        return;
+      }
+      if (k === 'arrowdown' || k === 'arrowright'){
+        devPanelSel = (devPanelSel + 1) % items.length;
+        highlightDevBtn(items, devPanelSel);
+        playSFX('cursor');
+        return;
+      }
+      if (k === 'z' || k === 'enter' || k === ' '){
+        items[devPanelSel].click();
+        playSFX('confirm');
+        return;
+      }
+      if (k === 'b' || k === 'shift'){
+        document.getElementById('devPanel').style.display = 'none';
+        game.devPanelKeyboard = false;
+        playSFX('menuClose');
+        return;
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -3298,6 +3351,27 @@ addEventListener('keydown', e => {
         playSFX('confirm');
       }
       if (k === 'shift' || k === '3'){
+        settingsMenuOpen = false;
+        settingsSelectedIdx = 0;
+        settingsPage = 'root';
+        playSFX('menuClose');
+      }
+    } else if (settingsPage === 'save'){
+      // v0.92 · save/load submenu nav
+      if (k === 'arrowup'   || k === 'arrowdown'){ saveMenuSel = 1 - saveMenuSel; playSFX('cursor'); }
+      if (k === 'z' || k === 'enter'){
+        if (saveMenuSel === 0){
+          const ok = saveGame();
+          showToast(ok ? '◈ Game saved.' : '◈ Save failed.', 1600);
+          playSFX(ok ? 'confirm' : 'cancel');
+        } else {
+          const ok = loadGame();
+          showToast(ok ? '◈ Save loaded.' : '◈ No save found.', 1800);
+          playSFX(ok ? 'confirm' : 'cancel');
+        }
+      }
+      if (k === 'shift'){ settingsPage = 'root'; playSFX('cancel'); }
+      else if (k === '3'){
         settingsMenuOpen = false;
         settingsSelectedIdx = 0;
         settingsPage = 'root';
@@ -3525,6 +3599,58 @@ function giveDevElzebub(){
   player.party.push(z);
   showToast(`◈ ${z.name} Lv ${z.level} joined the party!`, 2200);
 }
+// ─────────────────────────────────────────────────────────────
+// SAVE / LOAD system (v0.92) · localStorage-backed
+// ─────────────────────────────────────────────────────────────
+const SAVE_KEY = 'rp7b_save_v1';
+function saveGame(){
+  try {
+    const snap = {
+      version: 1,
+      ts: Date.now(),
+      scene: game.scene,
+      player: {
+        x: player.x, y: player.y, dir: player.dir,
+        hp: player.hp, hpMax: player.hpMax,
+        astral: player.astral, astralMax: player.astralMax,
+        rizerLvl: player.rizerLvl, rizerXP: player.rizerXP, rizerXPMax: player.rizerXPMax,
+        faeCollected: player.faeCollected || 0,
+        items: player.items || {},
+        party: (player.party || []).map(z => z ? {
+          speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
+          maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,
+        } : null),
+      },
+      collectedFae: _fae.filter(f => f.collected).map(f => f.id),
+      devUnlockDoors: !!game.devUnlockDoors,
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+    return true;
+  } catch(e){ console.warn('[rp7b] save failed', e); return false; }
+}
+function hasSave(){ try { return !!localStorage.getItem(SAVE_KEY); } catch(e){ return false; } }
+function loadGame(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!s || !s.player) return false;
+    game.scene = s.scene || 'overworld';
+    Object.assign(player, s.player);
+    // Restore fae collected flags
+    const ids = new Set(s.collectedFae || []);
+    for (const f of _fae) f.collected = ids.has(f.id);
+    game.devUnlockDoors = !!s.devUnlockDoors;
+    player.moving = false; player.animFrame = 0;
+    return true;
+  } catch(e){ console.warn('[rp7b] load failed', e); return false; }
+}
+function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
+// Auto-save timer · every 5 seconds while in overworld
+setInterval(() => {
+  if (game.scene !== 'title' && !battleState) saveGame();
+}, 5000);
+
 function giveDevElzoran(){
   const z = createZyrex('elzoran', 50);   // T5 Lv 50 · dev spawn (user spec)
   player.party.push(z);
@@ -3670,9 +3796,10 @@ let settingsPage = 'root';    // 'root' | 'items' | 'gear' | 'save' | 'options'
 const SETTINGS_ITEMS = [
   '1. ITEMS',
   '2. GEAR',
-  '3. SAVE STATE',
+  '3. SAVE & LOAD',
   '4. OPTIONS',
 ];
+let saveMenuSel = 0;  // 0=SAVE STATE, 1=LOAD STATE
 const SETTINGS_PAGE_IDS = ['items', 'gear', 'save', 'options'];
 function drawSettingsMenu(){
   if (!settingsMenuOpen) return;
@@ -3735,8 +3862,41 @@ function drawSettingsMenu(){
     ctx.textAlign = 'right';
     ctx.fillText('○ back · ○/Options close', W - 24, H - 20);
     ctx.textAlign = 'left';
+  } else if (settingsPage === 'save'){
+    ctx.font = 'bold 16px "Courier New", monospace';
+    const opts = ['1. SAVE STATE', '2. LOAD STATE'];
+    opts.forEach((label, i) => {
+      const selected = (i === saveMenuSel);
+      if (selected){
+        ctx.fillStyle = '#d4af37';
+        ctx.fillRect(24, 82 + i * 40, W - 48, 30);
+        ctx.fillStyle = '#0b0b10';
+      } else {
+        ctx.fillStyle = '#f0eadf';
+      }
+      ctx.fillText(`${selected ? '▶ ' : '  '}${label}`, 32, 103 + i * 40);
+    });
+    // Save meta
+    ctx.font = '12px "Courier New", monospace';
+    ctx.fillStyle = '#aaa';
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (raw){
+        const s = JSON.parse(raw);
+        const d = new Date(s.ts || Date.now());
+        ctx.fillText(`Last save: ${d.toLocaleString()}`, 32, 82 + opts.length * 40 + 20);
+        ctx.fillText(`Player: Lv ${s.player.rizerLvl||1} · ${s.player.faeCollected||0} fae · scene ${s.scene}`, 32, 82 + opts.length * 40 + 40);
+      } else {
+        ctx.fillText('No save data · New Game will start fresh.', 32, 82 + opts.length * 40 + 20);
+      }
+    } catch(e){}
+    ctx.fillStyle = '#8ff';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('▲▼ nav · × select · ○ back', W - 24, H - 20);
+    ctx.textAlign = 'left';
   } else {
-    // Gear / Save / Options placeholder
+    // Gear / Options placeholder
     ctx.fillStyle = '#aaa';
     ctx.font = '14px "Courier New", monospace';
     ctx.fillText('· page not wired yet ·', 32, 90);
@@ -4176,7 +4336,7 @@ function frame(now){
   if (!btn || !panel) return;
   const show = (on) => { panel.style.display = on ? 'block' : 'none'; };
   btn.addEventListener('click', () => show(panel.style.display !== 'block'));
-  document.getElementById('devCloseBtn').addEventListener('click', () => show(false));
+  document.getElementById('devCloseBtn').addEventListener('click', () => { show(false); game.devPanelKeyboard = false; });
 
   const warpTo = (x, y, scene) => {
     if (scene && scene !== game.scene){
@@ -4256,6 +4416,12 @@ function frame(now){
       refreshMobileCtrl();
       showToast(`◈ DEV · mobile controller ${game.mobileCtrlMode.toUpperCase()}`, 1200);
     });
+  }
+
+  // v0.92 · Give Elzoran button (moved here from touchpad double-tap)
+  const elzoranBtn = document.getElementById('devGiveElzoran');
+  if (elzoranBtn){
+    elzoranBtn.addEventListener('click', () => { giveDevElzoran(); });
   }
 
   // Unlock All Doors toggle · flag drives locked-home onInteract routes.

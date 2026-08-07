@@ -213,6 +213,15 @@
     <div class="btn btnR1"   data-mk="3"></div>
   </div>
   <div id="devBtn">[ DEV MODE ]</div>
+  <!-- v0.95 · Experiment Table panel -->
+  <div id="expPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.78); pointer-events:auto;">
+    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:480px; max-height:70vh; overflow:auto; background:rgba(10,14,22,0.98); border:2px solid #d4af37; padding:20px; font-family:'Courier New',monospace; color:#f0eadf;">
+      <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:6px;">◈ EXPERIMENT TABLE</div>
+      <div style="color:#8ff; font-size:11px; letter-spacing:0.06em; margin-bottom:14px;">Craft consumables · temporary + permanent stat boosts</div>
+      <div id="expRecipeList" style="font-size:13px; line-height:1.6;"></div>
+      <div style="margin-top:16px; text-align:right; font-size:11px; color:#8ff;">press ○ / B to close</div>
+    </div>
+  </div>
   <div id="devPanel">
     <h4>◈ DEV TOOLS</h4>
     <div class="row">
@@ -1032,8 +1041,14 @@ const WORLD_PROPS = [
       onInteract: (i === 4)
         ? () => enterCrazyHomeInterior()
         : () => {
-            if (game.devUnlockDoors) enterMalezorHome(`redroof_${i}`);
-            else { showToast('◈ A neighbor\'s home.  Locked for now.', 2200); playSFX('doorLock'); }
+            const homeId = `redroof_${i}`;
+            if (player.ownedHomes && player.ownedHomes.includes(homeId)){
+              tryPurchaseHome(homeId, tx, ty);        // owned · enters as Rizer Room
+            } else if (game.devUnlockDoors){
+              enterMalezorHome(homeId);
+            } else {
+              tryPurchaseHome(homeId, tx, ty);         // v0.95 · purchase or NPC-owned check
+            }
           },
     }));
   })(),
@@ -1068,8 +1083,14 @@ const WORLD_PROPS = [
       })(),
       door: [0, 0],
       onInteract: () => {
-        if (game.devUnlockDoors) enterMalezorHome(`villager_${i}`);
-        else { showToast('◈ Somebody lives here.  Door is locked.', 2200); playSFX('doorLock'); }
+        const homeId = `villager_${i}`;
+        if (player.ownedHomes && player.ownedHomes.includes(homeId)){
+          tryPurchaseHome(homeId, tx, ty);
+        } else if (game.devUnlockDoors){
+          enterMalezorHome(homeId);
+        } else {
+          tryPurchaseHome(homeId, tx, ty);            // v0.95 · purchase or NPC-owned check
+        }
       },
     }));
   })(),
@@ -2221,15 +2242,13 @@ const INTERIOR_CAVE = {
 };
 INTERIOR_CAVE.tileImg.src = 'assets/2D%20sprites/tiles/cave-stone-floor.png';
 
-// Player home · 2ND FLOOR · v0.60 · 15x10 wood floor · reached via stairs
-// on 1F.  Dad (stationary + blink) lives up here.  Stairs on 2F go back
-// down to 1F.  No overworld exit on this scene.
+// Player home · 2ND FLOOR = RIZER ROOM (v0.95)
+// The base of operations · Experiment Table lives here.  Any home the
+// player purchases spawns another Rizer Room using this same layout.
 const INTERIOR_HOME_2F = {
   cols: 15, rows: 10,
   tileImg: new Image(),
-  spawn: { x: 1, y: 3, dir: 'down' },           // just below the stairs
-  // Stairs DOWN to 1F · same layout as 1F stairs (upper-left corner).
-  // v0.64 · pushed up 1 row so the top hangs above the room.
+  spawn: { x: 1, y: 3, dir: 'down' },
   stairs: {
     visX: 0, visY: -1, visW: 2, visH: 3,
     triggers: [[0,1],[1,1]],
@@ -2237,7 +2256,9 @@ const INTERIOR_HOME_2F = {
     spawnAt: { x: 1, y: 2, dir: 'down' },
   },
   blocked: [[0,0],[1,0]],
-  wallImg: 'malezor',                           // v0.81 · Malezor upper wall
+  wallImg: 'malezor',
+  rizerRoom: true,                              // v0.95 · label + experiment table
+  label: 'RIZER ROOM',
 };
 INTERIOR_HOME_2F.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
@@ -2594,6 +2615,89 @@ function drawTitleScreen(){
   // <video> overlay so they're actually visible.  Canvas draws nothing here.
 }
 
+// v0.95 · Experiment Table asset + Rizer Room lookup
+const EXPERIMENT_TABLE_IMG = new Image();
+EXPERIMENT_TABLE_IMG.src = 'assets/2D%20sprites/decor/experiment-table.png';
+const EXPERIMENT_TABLE_BBOX = [13, 31, 477, 345];
+if (player.knownRecipes == null) player.knownRecipes = [];
+if (player.ownedHomes == null)   player.ownedHomes   = [];   // ids of homes the player has bought
+
+// v0.95 · Experiment Table panel controller
+(function wireExpPanelBackdrop(){
+  const p = document.getElementById('expPanel');
+  if (!p) return;
+  p.addEventListener('click', e => { if (e.target === p) closeExperimentPanel(); });
+})();
+function openExperimentPanel(){
+  const p = document.getElementById('expPanel');
+  const list = document.getElementById('expRecipeList');
+  if (!p || !list) return;
+  if (player.knownRecipes.length === 0){
+    list.innerHTML = '<div style="color:#888; font-style:italic;">No recipes yet.</div>' +
+                     '<div style="color:#aaa; margin-top:6px;">Explore Malezor, Zarvane, and beyond to discover recipe scrolls.</div>' +
+                     '<div style="color:#8fffb0; margin-top:14px; font-size:11px;">Consumables you craft here will grant temporary AND permanent Rizer + Zyrex stat boosts.</div>';
+  } else {
+    list.innerHTML = player.knownRecipes.map(r => (
+      `<div style="border:1px solid #444; padding:8px; margin-bottom:6px;">
+        <div style="color:#ffd66b; font-weight:bold;">${r.name}</div>
+        <div style="color:#aaa; font-size:11px;">${r.effect}</div>
+        <div style="color:#8ff; font-size:11px;">Ingredients: ${r.ingredients.join(' · ')}</div>
+      </div>`
+    )).join('');
+  }
+  p.style.display = 'block';
+  game.expPanelOpen = true;
+  playSFX('menuOpen');
+}
+function closeExperimentPanel(){
+  const p = document.getElementById('expPanel');
+  if (p) p.style.display = 'none';
+  game.expPanelOpen = false;
+  playSFX('menuClose');
+}
+
+// v0.95 · Home ownership · 10-tile front proximity to any NPC = owned by NPC
+function homeOwnedByNpc(doorX, doorY){
+  for (const n of NPCS){
+    if (n.scene !== 'overworld') continue;
+    const dx = Math.abs(n.tileX - doorX);
+    const dy = n.tileY - doorY;   // + = in front (south), - = behind
+    if (dx <= 3 && dy >= 0 && dy <= 10) return n;    // NPC within 10 front tiles
+  }
+  return null;
+}
+const HOME_PRICE = 500;
+function tryPurchaseHome(homeId, doorX, doorY){
+  const owner = homeOwnedByNpc(doorX, doorY);
+  if (owner){
+    showDialog({ speaker: (owner.name || owner.id).toUpperCase(),
+      lines: ['This is my home.  You cannot purchase it.'] });
+    return;
+  }
+  if (player.ownedHomes.includes(homeId)){
+    // Owned by player · enter directly (Rizer Room)
+    const sceneId = `interior_rizer_room_${homeId}`;
+    if (!MALEZOR_HOME_INTERIORS[sceneId]){
+      const cfg = makeMalezorHomeInterior(sceneId);
+      cfg.rizerRoom = true;
+      cfg.label = `RIZER ROOM · ${homeId}`;
+    }
+    enterInterior(sceneId, MALEZOR_HOME_INTERIORS[sceneId], `◈ RIZER ROOM · press X on door to leave`);
+    return;
+  }
+  const coins = (player.items && player.items.coins) || 0;
+  if (coins < HOME_PRICE){
+    showToast(`◈ This home is unclaimed · PURCHASE ${HOME_PRICE} coins · you have ${coins}`, 2800);
+    playSFX('doorLock');
+    return;
+  }
+  // Purchase!
+  player.items.coins = coins - HOME_PRICE;
+  player.ownedHomes.push(homeId);
+  showToast(`◈ Home purchased · new RIZER ROOM unlocked!  (-${HOME_PRICE} coins)`, 3200);
+  playSFX('confirm');
+}
+
 function enterInterior(sceneKey, cfg, toast){
   if (game.scene !== 'overworld') return;
   game.overworldReturn = { x: player.x, y: player.y, dir: player.dir };
@@ -2603,7 +2707,10 @@ function enterInterior(sceneKey, cfg, toast){
   player.dir = cfg.spawn.dir;
   player.moving = false;
   player.animFrame = 0;
-  if (toast) showToast(toast, 1600);
+  // v0.95 · Rizer Room · always show scene label as toast on entry
+  const label = cfg.label || toast;
+  if (label) showToast(label, 1800);
+  else if (toast) showToast(toast, 1600);
 }
 function enterHomeInterior(){       enterInterior('interior_home',        INTERIOR_HOME,        '◈ HOME · press X on the door to leave'); }
 function enterCaveInterior(){       enterInterior('interior_cave',        INTERIOR_CAVE,        '◈ RAKORON\'S CAVE · Zone 1 · press X on the door to leave'); }
@@ -2915,6 +3022,7 @@ function drawDialogOverlay(){
 function tryMove(dt){
   // Freeze player when title screen, any UI overlay, or battle owns input.
   if (game.scene === 'title' || settingsMenuOpen || zyrexMenuOpen || battleState || dialogState
+      || game.expPanelOpen                                // v0.95 · freeze while experiment table open
       || (document.getElementById('devPanel') && document.getElementById('devPanel').style.display === 'block')){  // v0.92.1 · freeze while dev panel open
     player.moving = false;
     return;
@@ -3034,6 +3142,16 @@ function drawInteriorFloor(){
         0, 0, wallImg.naturalWidth, wallImg.naturalHeight,
         tx * TILE - _cam.x, 0 * TILE - _cam.y, TILE, TILE);
     }
+  }
+  // v0.95 · Rizer Room decor · Experiment Table centered on tile (7, 4)
+  if (cfg.rizerRoom && EXPERIMENT_TABLE_IMG.complete && EXPERIMENT_TABLE_IMG.naturalWidth){
+    const [sx, sy, sw, sh] = EXPERIMENT_TABLE_BBOX;
+    const tileX = 7, tileY = 4;
+    const drawW = 4 * TILE;                     // 4 tiles wide
+    const drawH = Math.round(drawW * (sh / sw)); // preserve aspect
+    const dx = Math.floor((tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+    const dy = Math.floor((tileY + 1)   * TILE - drawH)     - _cam.y;
+    ctx.drawImage(EXPERIMENT_TABLE_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
   }
   // WELCOME rug decor · drawn on the floor, non-blocking.
   const rug = cfg.rug;
@@ -3271,6 +3389,12 @@ function tryInteract(){
           return;
         }
       }
+      // v0.95 · Rizer Room · Experiment Table at (7, 4) · interact from adjacent
+      if (cfg.rizerRoom){
+        const nearTable = (fx === 7 && fy >= 4 && fy <= 5) ||
+                          (fx >= 6 && fx <= 8 && fy === 5);
+        if (nearTable){ openExperimentPanel(); return; }
+      }
       // Stairs are triggered by WALKING onto their trigger tile (see tryMove).
       // No X-press interaction here.
       const e = cfg.exit;
@@ -3320,6 +3444,14 @@ function highlightDevBtn(items, idx){
 
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
+
+  // v0.95 · Experiment Table panel owns keys while open · B / Escape closes
+  if (game.expPanelOpen){
+    if (k === 'b' || k === 'escape' || k === 'shift'){
+      closeExperimentPanel();
+    }
+    return;
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // 0) TOUCHPAD DOUBLE-TAP · centralized so it works in every mode
@@ -3753,6 +3885,8 @@ function saveGame(){
         rizerLvl: player.rizerLvl, rizerXP: player.rizerXP, rizerXPMax: player.rizerXPMax,
         faeCollected: player.faeCollected || 0,
         items: player.items || {},
+        ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
+        knownRecipes: player.knownRecipes || [],   // v0.95 · discovered experiment recipes
         party: (player.party || []).map(z => z ? {
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
           maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,

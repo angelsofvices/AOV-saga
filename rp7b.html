@@ -2141,6 +2141,74 @@ const STAIRCASE_DOWN_BBOX = [263,  98, 713, 1058];
 const MALEZOR_WALL_IMG = new Image();
 MALEZOR_WALL_IMG.src = 'assets/2D%20sprites/tiles/malezor-home-wall.png';
 
+// ── FAE COLLECTIBLES (v0.91) ──────────────────────────────────────────
+// Tiny 1-tile floating sparks scattered across the entire world.  4-frame
+// cycle (2172×724 sheet · 543×724 per frame).  Float ~half-tile above
+// ground = eye level of standing Rizer.  Interact adjacent tile to
+// collect · counter increments · Celestryx unlock at threshold.
+const FAE_IMG = new Image();
+FAE_IMG.src = 'assets/2D%20sprites/decor/fae.png';
+const FAE_FRAMES = 4;
+const FAE_FRAME_MS = 220;
+const FAE_UNLOCK_COUNT = 10;
+if (player.faeCollected == null) player.faeCollected = 0;
+
+// 30 scatter positions across all districts · avoid buildings/props
+const FAE_POSITIONS = [
+  // Malezor stem
+  [ 6, 15],[38, 22],[14, 42],[36, 55],[ 8, 68],[42, 75],[ 6, 92],
+  [42, 95],[ 8,115],[42,118],[ 5,138],[42,142],[ 6,165],[42,168],
+  // Wild Arm
+  [55,170],[70,178],[88,175],[102,168],[112,180],
+  // SE Zarvane
+  [70,205],[85,220],[100,240],[65,260],[95,285],[80,300],
+  // Wilds Branch
+  [130,240],[150,245],[168,258],
+  // Andrannor NW
+  [200,320],[260,325],
+];
+let _fae = FAE_POSITIONS.map(([x, y], i) => ({
+  id: `fae_${i}`, x, y, collected: false, phase: Math.random() * 6.28,
+}));
+function tickFae(dt){
+  // pure animation drives · nothing to tick here (phase used per-frame)
+}
+function drawFae(){
+  if (!FAE_IMG.complete || !FAE_IMG.naturalWidth) return;
+  const fw = FAE_IMG.naturalWidth / FAE_FRAMES;
+  const fh = FAE_IMG.naturalHeight;
+  const now = performance.now();
+  for (const f of _fae){
+    if (f.collected) continue;
+    // Cull off-screen
+    const dx = f.x * TILE - _cam.x;
+    const dy = f.y * TILE - _cam.y;
+    if (dx < -TILE || dx > canvas.width || dy < -TILE || dy > canvas.height) continue;
+    const frame = Math.floor(now / FAE_FRAME_MS + f.phase * 4) % FAE_FRAMES;
+    const bob   = Math.sin(now / 400 + f.phase) * 3;
+    // 1-tile sprite · anchored to tile center · floats above tile mid-height
+    ctx.drawImage(FAE_IMG, frame * fw, 0, fw, fh, dx, dy - 12 + bob, TILE, TILE);
+  }
+}
+function collectFaeAt(tx, ty){
+  for (const f of _fae){
+    if (f.collected) continue;
+    if (f.x === tx && f.y === ty){
+      f.collected = true;
+      player.faeCollected += 1;
+      const need = Math.max(0, FAE_UNLOCK_COUNT - player.faeCollected);
+      if (need <= 0){
+        showToast(`◈ FAE  ${player.faeCollected}/${FAE_UNLOCK_COUNT} · Celestryx summon UNLOCKED!`, 3200);
+      } else {
+        showToast(`◈ FAE  ${player.faeCollected}/${FAE_UNLOCK_COUNT} · ${need} more to summon Celestryx`, 2400);
+      }
+      playSFX('coins');
+      return true;
+    }
+  }
+  return false;
+}
+
 // Sand-footprints overlay (v0.87) · Pokemon-style tracks that appear
 // while walking on Zarvane sand and fade over 2 seconds through 4
 // darkness stages.  Sheet is 4x4:
@@ -2944,6 +3012,8 @@ function tryInteract(){
   }
   const doorProp = _propDoors.get(`${fx},${fy}`);
   if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
+  // v0.91 · fae collectible check (faced tile or standing tile)
+  if (collectFaeAt(fx, fy) || collectFaeAt(player.x, player.y)) return;
   showToast('◈ Grass.  All quiet.');
 }
 let _lastInteract = 0;
@@ -3910,6 +3980,7 @@ function frame(now){
     drawGrass();
     drawFootprints();   // v0.87 · sand-trail overlay (Zarvane rows only)
     drawWorldLayer();   // props + player, depth-sorted by feet-Y
+    drawFae();          // v0.91 · fae collectibles float above ground
   }
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles

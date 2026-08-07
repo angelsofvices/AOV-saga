@@ -1210,6 +1210,22 @@ const WORLD_PROPS = [
       footprint: [[0, 0]],
     }));
   })(),
+  // ── ZARVANE PRISMATIC BEACON · (74, 353) southern Zarvane (v0.91.5) ──
+  (function(){
+    const _pbImg = new Image();
+    _pbImg.src = 'assets/2D%20sprites/decor/zarvane-prismatic-beacon.png';
+    return {
+      id: 'zarvane_prismatic_beacon',
+      img: _pbImg,
+      src: 'assets/2D%20sprites/decor/zarvane-prismatic-beacon.png',
+      bbox: [331, 86, 587, 1148],                  // tall narrow ar 0.51
+      tileX: 74, tileY: 353,
+      tileW: 3, tileH: 6,                          // tight visual footprint
+      footprint: [[-1, 0], [0, 0], [1, 0], [0, -1]],  // tight base collision (base tile + one above)
+      door: [0, 0],
+      onInteract: () => showToast('◈ Zarvane Prismatic Beacon · humming softly.', 2400),
+    };
+  })(),
   // ── NOVARIUS STATUE · (8, 29) north Malezor · monument, non-blocking (v0.89.2) ──
   (function(){
     const _statueImg = new Image();
@@ -2545,8 +2561,8 @@ addEventListener('keyup', e => {
   const BTN = {
     0:  'z',        // Cross    · interact / confirm
     1:  'Shift',    // Circle   · hold-sprint (parallel to Shift key)
-    2:  'x',        // Square   · interact (Xbox-X convention)
-    3:  'y',        // Triangle · reserved (attack later)
+    2:  'j',        // Square   · v0.91.5 · light melee (punch)
+    3:  'k',        // Triangle · v0.91.5 · heavy melee (kick)
     4:  'l',        // L1       · party menu
     5:  'r',        // R1       · cycle mount
     6:  'q',        // L2       · quests menu
@@ -3003,13 +3019,11 @@ function drawPlayer(){
   const SCALE = bundle._downScale;
   let drawH       = Math.max(1, Math.round(bh * SCALE));
   let drawW       = Math.max(1, Math.round(bw * SCALE));
-  // v0.91.4 · in-attack: match this row's IDLE drawH so character doesn't
-  // shrink/grow (and therefore appear to jump) between locomotion + attack.
-  if (inAttack && RIZER.idle.loaded && RIZER.idle.bboxes && RIZER.idle.bboxes[row]){
-    const idleBB = RIZER.idle.bboxes[row][0];
-    const idleH  = idleBB[3];
-    const idleScale = RIZER.idle._downScale || ((TILE * 2) / (RIZER.idle.bboxes[0][0][3] || 284));
-    const targetH = Math.round(idleH * idleScale);
+  // v0.91.4/5 · in-attack: force character to always render at 2 tiles
+  // tall regardless of attack sheet's per-row bh drift.  This kills the
+  // shrink/grow jump illusion when attacking sideways.
+  if (inAttack){
+    const targetH = TILE * 2;                          // constant 2 tiles
     const attackScale = targetH / bh;
     drawH = targetH;
     drawW = Math.max(1, Math.round(bw * attackScale));
@@ -3255,9 +3269,9 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   // 4) OVERWORLD / INTERIOR KEYS
   // ═══════════════════════════════════════════════════════════════
-  // Circle no longer exits interiors · user must walk to the door tile
-  // and press X to interact (like a real door).  Handled in tryInteract().
-  if (k === 'z' || k === 'x' || k === 'enter' || k === ' '){
+  // v0.91.5 · X (Square) removed from interact list · Square is punch only.
+  //   Interact keys: Z (Cross) · Enter · Space
+  if (k === 'z' || k === 'enter' || k === ' '){
     const now = performance.now();
     // Dialog owns the interact key while open · advance/close instead.
     if (dialogState){

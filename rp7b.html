@@ -2461,12 +2461,17 @@ function startIntroVideo(){
     }
   });
 }
+// v0.93.3 · hold-X no longer PAUSES the video · it just shows the buttons
+// over the still-playing video.  Picking NEW/LOAD is what stops it.
 function skipIntroVideo(){
   if (introState !== 'playing') return;
-  introState = 'showButtons';
+  game.showTitleButtons = true;                    // buttons overlay · video keeps playing
+}
+function stopIntroVideo(){
+  if (!introVid) return;
+  introState = 'ended';
   introVid.pause();
   introVid.style.display = 'none';
-  game.showTitleButtons = true;
 }
 // v0.93.2 · Intro starts on FIRST user gesture (not auto).  drawTitleScreen
 // no longer auto-triggers it · a one-shot listener below fires startIntroVideo.
@@ -2483,14 +2488,14 @@ function ensureIntroStarted(){ /* no-op · gesture-driven now */ }
 
 function startNewGame(){
   clearSave();                                     // v0.92 · wipe any prior save on New Game
-  introState = 'ended';
-  if (introVid){ introVid.pause(); introVid.style.display = 'none'; }
+  stopIntroVideo();                                // v0.93.3 · kill intro on new game
   game.scene = 'overworld';
   playBGM('home');
   showToast('◈ Welcome to Malezor.', 2000);
 }
 function loadSavedGame(){
   if (loadGame()){
+    stopIntroVideo();                             // v0.93.3 · kill intro on load
     playBGM('home');
     showToast('◈ Save loaded.  Welcome back.', 2000);
   } else {
@@ -2526,7 +2531,7 @@ function drawTitleScreen(){
     ctx.fillStyle = '#ffd66b';
     ctx.font = 'bold 12px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('HOLD × TO SKIP INTRO', W/2, H - 26);
+    ctx.fillText('HOLD × TO REVEAL MENU', W/2, H - 26);
     ctx.textAlign = 'left';
     return;
   }

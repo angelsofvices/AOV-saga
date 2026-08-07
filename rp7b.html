@@ -1810,8 +1810,11 @@ const STAIRCASE_DOWN_BBOX = [263,  98, 713, 1058];
 // auto-blocks so player can't walk into the wall.
 const MALEZOR_WALL_IMG = new Image();
 MALEZOR_WALL_IMG.src = 'assets/2D%20sprites/tiles/malezor-home-wall.png';
+const LAB_WALL_IMG = new Image();
+LAB_WALL_IMG.src = 'assets/2D%20sprites/tiles/research-lab-wall.png';
 function wallImageFor(key){
   if (key === 'malezor') return MALEZOR_WALL_IMG;
+  if (key === 'lab')     return LAB_WALL_IMG;
   return null;
 }
 
@@ -1838,6 +1841,7 @@ const INTERIOR_RESEARCH_LAB = {
   tileImg: new Image(),
   spawn: { x: 10, y: 18, dir: 'up' },
   exit:  { x: 10, y: 19 },
+  wallImg: 'lab',                                  // v0.86.3 · lab upper wall band
 };
 INTERIOR_RESEARCH_LAB.tileImg.src = 'assets/2D%20sprites/tiles/research-lab-floor.png';
 
@@ -3186,39 +3190,45 @@ function drawBattleOverlay(){
 }
 
 function drawBattleCard(z, x, y, _label, isTop){
-  // 2026-08-05 · WILD/YOUR labels removed · stat line removed · XP bar
-  // added (smaller than HP).  Card height 90 unchanged.
+  // v0.86.2 · tightened spacing · shorter XP bar with text to its RIGHT
+  // so nothing overlaps and the card stays 220x90.
   const cw = 220, ch = 90;
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
   ctx.fillRect(x, y, cw, ch);
   ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2;
   ctx.strokeRect(x, y, cw, ch);
+  // Header: name + Lv + tier
   ctx.fillStyle = '#f0eadf';
   ctx.font = 'bold 14px "Courier New", monospace';
   ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
   ctx.fillText(`${z.name.toUpperCase()}  Lv ${z.level}  T${z.tier}`, x + 8, y + 18);
+  // Type line
   ctx.font = '10px "Courier New", monospace';
   ctx.fillStyle = '#aaa';
   ctx.fillText(`${z.type}${z.type2 ? ' / ' + z.type2 : ''}`, x + 8, y + 32);
-  // HP bar (taller · primary stat)
+  // HP bar · full-width primary stat
   const barX = x + 8, hpBarY = y + 40, barW = cw - 16, hpBarH = 10;
   ctx.strokeStyle = '#666'; ctx.strokeRect(barX, hpBarY, barW, hpBarH);
-  const hpFrac = z.hp / z.maxHp;
+  const hpFrac = Math.max(0, Math.min(1, z.hp / z.maxHp));
   ctx.fillStyle = hpFrac > 0.5 ? '#5f5' : hpFrac > 0.2 ? '#fd5' : '#f55';
   ctx.fillRect(barX + 1, hpBarY + 1, (barW - 2) * hpFrac, hpBarH - 2);
   ctx.fillStyle = '#f0eadf';
   ctx.fillText(`HP ${z.hp}/${z.maxHp}`, x + 8, y + 62);
-  // XP bar · PLAYER SIDE ONLY (per user 2026-08-05 · wild doesn't accumulate XP)
+  // XP bar · PLAYER SIDE ONLY · shorter width + XP text sits to the right
   if (!isTop){
     const xpMax  = xpToNextLevel(z.level);
     const xpCur  = Math.max(0, Math.min(z.xp || 0, xpMax));
-    const xpBarY = y + 70, xpBarH = 5;
-    ctx.strokeStyle = '#666'; ctx.strokeRect(barX, xpBarY, barW, xpBarH);
+    const xpBarW = 110;                              // v0.86.2 · shorter (was full width)
+    const xpBarY = y + 74, xpBarH = 4;
+    ctx.strokeStyle = '#666'; ctx.strokeRect(barX, xpBarY, xpBarW, xpBarH);
     ctx.fillStyle = '#d4af37';
-    ctx.fillRect(barX + 1, xpBarY + 1, (barW - 2) * (xpCur / Math.max(1, xpMax)), xpBarH - 2);
+    ctx.fillRect(barX + 1, xpBarY + 1, (xpBarW - 2) * (xpCur / Math.max(1, xpMax)), xpBarH - 2);
     ctx.fillStyle = '#f0eadf';
     ctx.font = '9px "Courier New", monospace';
-    ctx.fillText(`XP ${xpCur}/${xpMax}`, x + 8, y + 84);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`XP ${xpCur}/${xpMax}`, barX + xpBarW + 6, xpBarY + xpBarH / 2);
+    ctx.textBaseline = 'alphabetic';
   }
 }
 

@@ -4258,12 +4258,14 @@ function sleepInBed(){
   }, 1200);
   setTimeout(() => { _sleepFade = null; }, 2400);
 }
-// v0.95.143 · Dream video · un-skippable · on end restore HP to max + party heal
+// v0.95.146 · Dream video · plays full 7.22s (natural end) · manual skip allowed
+// Skip: any keypress (X/Enter/Space) or tap while video is up.  Restore fires
+// on natural 'ended' event OR skip · never truncated early otherwise.
 let _dreamPlaying = false;
+let _dreamSkipHandlers = null;
 function playDreamVideo(alive){
   const vid = document.getElementById('dreamVid');
   if (!vid){
-    // Fallback: no video element · do the classic sleep restore instead
     if (player.hp != null && player.maxHp) player.hp = player.maxHp;
     (alive || []).forEach(z => { z.hp = z.maxHp; });
     saveGame(); playSFX('confirm');
@@ -4271,7 +4273,6 @@ function playDreamVideo(alive){
     return;
   }
   _dreamPlaying = true;
-  // Fade in the video · pause game input (freezeReasons already covers this via _dreamPlaying flag path via _sleepFade)
   _sleepFade = { t0: performance.now(), dur: 900 };
   playSFX('menuOpen');
   vid.style.display = 'block';
@@ -4285,21 +4286,39 @@ function playDreamVideo(alive){
     vid.play().catch(err2 => console.warn('[dream] muted play also blocked:', err2));
   });
   tryPlay();
-  const finish = () => {
+  const finish = (reason) => {
+    if (!_dreamPlaying) return;                      // guard against double-fire
+    _dreamPlaying = false;
     vid.pause();
     vid.style.display = 'none';
-    // Restore HP · party
     if (player.hp != null && player.maxHp) player.hp = player.maxHp;
     (alive || (player.party || []).filter(z => z)).forEach(z => { z.hp = z.maxHp; });
     saveGame();
-    _dreamPlaying = false;
     _sleepFade = null;
     playSFX('confirm');
-    showToast('◈ Fully rested · Rizer HP restored to 100.', 2600);
+    showToast(`◈ Fully rested · Rizer HP restored to 100${reason === 'skip' ? ' (skipped)' : ''}.`, 2600);
+    if (_dreamSkipHandlers){
+      window.removeEventListener('keydown',    _dreamSkipHandlers.k, true);
+      window.removeEventListener('pointerdown',_dreamSkipHandlers.p, true);
+      _dreamSkipHandlers = null;
+    }
   };
-  vid.addEventListener('ended', finish, { once: true });
-  // Safety net · if video errors, still restore
-  vid.addEventListener('error', () => { console.warn('[dream] video error · restoring anyway'); finish(); }, { once: true });
+  vid.addEventListener('ended', () => finish('end'), { once: true });
+  vid.addEventListener('error', () => { console.warn('[dream] video error · restoring anyway'); finish('error'); }, { once: true });
+  // v0.95.146 · Manual skip · keydown (X/Enter/Space/Esc) or tap
+  _dreamSkipHandlers = {
+    k: (e) => {
+      const k = (e.key || '').toLowerCase();
+      if (['x','z','a','enter',' ','escape'].includes(k)){
+        e.preventDefault(); e.stopPropagation();
+        finish('skip');
+      }
+    },
+    p: (e) => { e.preventDefault(); e.stopPropagation(); finish('skip'); },
+  };
+  // Use capture so we intercept before other listeners
+  window.addEventListener('keydown',    _dreamSkipHandlers.k, true);
+  window.addEventListener('pointerdown',_dreamSkipHandlers.p, true);
 }
 
 // v0.95.4 · Sleep fade overlay · black flash triangle during nap

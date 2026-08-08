@@ -445,6 +445,11 @@
       <div style="margin-top:14px; text-align:right; font-size:11px; color:#8ff;">1-6 to switch tabs · ○ / B / Esc to close</div>
     </div>
   </div>
+  <!-- v0.95.92 · Poster viewer · full-screen dimmed art · Circle/B closes -->
+  <div id="posterView" style="position:fixed; inset:0; display:none; z-index:31; background:rgba(0,0,0,0.85); pointer-events:auto; align-items:center; justify-content:center;">
+    <img id="posterImg" alt="poster" style="max-width:82vw; max-height:88vh; object-fit:contain; image-rendering:pixelated; box-shadow:0 0 32px rgba(212,175,55,0.35);" />
+    <div style="position:absolute; bottom:4%; left:50%; transform:translateX(-50%); color:#f0eadf; font:bold 12px 'Courier New',monospace; letter-spacing:0.14em; background:rgba(0,0,0,0.65); padding:6px 14px; border:1px solid #d4af37;">○ / B / ESC · CLOSE</div>
+  </div>
   <!-- v0.95.10 · Punching Bag · consume move-scrolls to teach party Zyrex -->
   <div id="bagPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
     <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-height:78vh; overflow:auto; background:rgba(10,4,18,0.98); border:2px solid #b8ff5e; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
@@ -3281,6 +3286,36 @@ function switchDockTab(tab){
   }
 }
 
+// v0.95.92 · POSTER FULL-SCREEN VIEWER
+// Maps a Rizer Room wall tile → poster image path.  When player faces a
+// registered tile and presses A/X, the game dims the world and shows the
+// full poster.  Circle/B/Esc closes the view.
+const POSTERS = {
+  '5,0': { src: 'assets/2D%20sprites/decor/ferrarch-poster.png', title: 'FERRARCH SIX' },
+};
+function openPosterView(id){
+  const info = POSTERS[id];
+  if (!info) return;
+  const view = document.getElementById('posterView');
+  const img  = document.getElementById('posterImg');
+  if (!view || !img) return;
+  img.src = info.src;
+  view.style.display = 'flex';
+  game.posterViewOpen = true;
+  playSFX('menuOpen');
+}
+function closePosterView(){
+  const view = document.getElementById('posterView');
+  if (view) view.style.display = 'none';
+  game.posterViewOpen = false;
+  playSFX('menuClose');
+}
+(function wirePosterBackdrop(){
+  const view = document.getElementById('posterView');
+  if (!view) return;
+  view.addEventListener('click', () => closePosterView());
+})();
+
 // v0.95.10 · Punching Bag · consume scrolls to teach party Zyrex new moves
 // Two-step flow: pick a scroll, then pick which party Zyrex to teach.
 let _bagPickedScroll = null;   // scroll id (move name) currently being taught
@@ -3729,7 +3764,7 @@ addEventListener('keydown', e => {
       const anyModal2 = settingsMenuOpen || zyrexMenuOpen
                      || game.expPanelOpen || game.tvPanelOpen
                      || game.guitarPanelOpen || game.nebulaPanelOpen
-                     || game.bagPanelOpen || game.dockPanelOpen || _sleepFade;
+                     || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModal2 && !player.ridingChair){
         const now = performance.now();
         if (!player.dodgeUntil || now >= player.dodgeUntil){
@@ -3770,7 +3805,7 @@ addEventListener('keydown', e => {
       const anyModal = settingsMenuOpen || zyrexMenuOpen
                     || game.expPanelOpen || game.tvPanelOpen
                     || game.guitarPanelOpen || game.nebulaPanelOpen
-                    || game.bagPanelOpen || game.dockPanelOpen || _sleepFade;
+                    || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModal){
         const mode = (k === 'j') ? 'punch' : 'kick';
         const dur  = (mode === 'kick') ? 400 : 300;
@@ -4049,6 +4084,7 @@ function tryMove(dt){
       || game.nebulaPanelOpen                             // v0.95.9 · freeze while Nebulaport open
       || game.bagPanelOpen                                // v0.95.10 · freeze while training dummy open
       || game.dockPanelOpen                               // v0.95.50 · freeze while Nebuladock open
+      || game.posterViewOpen                              // v0.95.92 · freeze while poster full-screen open
       || _sleepFade                                       // v0.95.4 · freeze while napping
       || (document.getElementById('devPanel') && document.getElementById('devPanel').style.display === 'block')){  // v0.92.1 · freeze while dev panel open
     player.moving = false;
@@ -4628,6 +4664,9 @@ function tryInteract(){
         // v0.95.79 · Nebuladock PC · desk row (6-8, 7) + monitor (7, 6) only
         const nearDock = (fy === 7 && fx >= 6 && fx <= 8) || (fx === 7 && fy === 6);
         if (nearDock){ openDockPanel(); return; }
+        // v0.95.92 · Poster on wall · faced tile lookup in POSTERS registry
+        const posterId = `${fx},${fy}`;
+        if (POSTERS[posterId]){ openPosterView(posterId); return; }
         // v0.95.63 · Gaming Chair · interact to mount
         if (!player.ridingChair && fx === player.chairX && fy === player.chairY){
           player.ridingChair = true;
@@ -4714,6 +4753,11 @@ addEventListener('keydown', e => {
     if (k === 'b' || k === 'escape' || k === 'shift'){ closeNebulaPanel(); return; }
     const n = parseInt(k, 10);
     if (!isNaN(n) && n >= 1 && n <= 9){ launchNebulaGame(n - 1); }
+    return;
+  }
+  // v0.95.92 · Poster full-screen viewer · B/Esc/A closes
+  if (game.posterViewOpen){
+    if (k === 'b' || k === 'a' || k === 'escape' || k === 'shift'){ closePosterView(); }
     return;
   }
   // v0.95.10 · Punching Bag · 1-9 picks scroll or Zyrex · 0 = back
@@ -6099,7 +6143,7 @@ function frame(now){
     return settingsMenuOpen || zyrexMenuOpen
         || game.expPanelOpen || game.tvPanelOpen
         || game.guitarPanelOpen || game.nebulaPanelOpen
-        || game.bagPanelOpen || game.dockPanelOpen || _sleepFade;
+        || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
   }
   function shouldShowMobileCtrl(){
     // Never show during title/dialog/battle/modal overlays.

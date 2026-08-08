@@ -5287,18 +5287,46 @@ addEventListener('keydown', e => {
     if (dialogState){
       if (now - _lastInteract > 180){ advanceDialog(); _lastInteract = now; }
     } else if (now - _lastInteract > 220){
-      // v0.95.72 · If player is MOVING when A/X pressed, jump instead of
-      // interacting.  Same idea as fae collection: while airborne you pass
-      // over the chest/interactable rather than triggering it.
+      // v0.95.107 · If player is MOVING when A/X pressed, jump instead of
+      // interacting — UNLESS the faced tile is an actual interactable
+      // (chest, NPC, prop, boulder).  Interact always wins for those.
       if (player.moving && !player.ridingChair){
-        _lastInteract = now;
-        if (!player.jumpUntil || now >= player.jumpUntil){
-          player.jumpStart = now;
-          player.jumpUntil = now + 380;
-          player.jumpSheet = 'runJump';
-          setTimeout(() => { playSFX('jumpLand'); }, 380);
+        let fx = player.x, fy = player.y;
+        if (player.dir === 'up')    fy--;
+        if (player.dir === 'down')  fy++;
+        if (player.dir === 'left')  fx--;
+        if (player.dir === 'right') fx++;
+        let hasInteract = false;
+        if (game.scene === 'overworld'){
+          if (_propDoors.has(`${fx},${fy}`)) hasInteract = true;
+          if (!hasInteract){
+            for (const n of NPCS){
+              if (n.scene === 'overworld' && n.tileX === fx && n.tileY === fy){ hasInteract = true; break; }
+            }
+          }
+          if (!hasInteract && boulderAt('overworld', fx, fy)) hasInteract = true;
+        } else if (interiorConfig(game.scene)){
+          // Interior scenes have NPCs, exit tile, and Rizer Room props ·
+          // conservative: any NPC on faced tile OR the exit tile counts.
+          const cfg = interiorConfig(game.scene);
+          if (cfg && cfg.exit && fx === cfg.exit.x && fy === cfg.exit.y) hasInteract = true;
+          if (!hasInteract){
+            for (const n of NPCS){
+              if (n.scene === game.scene && n.tileX === fx && n.tileY === fy){ hasInteract = true; break; }
+            }
+          }
         }
-        return;
+        if (!hasInteract){
+          _lastInteract = now;
+          if (!player.jumpUntil || now >= player.jumpUntil){
+            player.jumpStart = now;
+            player.jumpUntil = now + 380;
+            player.jumpSheet = 'runJump';
+            setTimeout(() => { playSFX('jumpLand'); }, 380);
+          }
+          return;
+        }
+        // fall through to interact logic below · interact anim + tryInteract
       }
       // v0.95.65 · Snapshot state, run tryInteract, then compare.  If
       // nothing meaningful happened (no dialog / no scene change / no

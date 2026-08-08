@@ -2245,10 +2245,12 @@ const NPCS = [
       [[50,36,239,275],[35,36,240,275],[21,36,240,275],[10,36,237,275]],
       [[73,25,175,275],[59,25,174,275],[45,25,176,275],[33,25,172,275]],
       [[81,25,175,275],[65,25,175,275],[52,25,175,275],[38,25,175,275]],
-      [[50,25,237,275],[34,25,237,275],[20,25,238,275],[ 7,25,237,275]],
+      // v0.95.124 · up-row · pull by=-28 to include trunk/ear bleed above cell
+      [[50,-28,237,303],[34,-28,237,303],[20,-28,238,303],[ 7,-28,237,303]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     uniformScale: true,                       // v0.91.3 · up/right no longer clipped
+    mirrorRightAsLeft: true,                  // v0.95.124 · right pose = left row flipped
     tileX: 27, tileY: 128,                    // v0.89.9 · front-right of school door
     homeX: 27, homeY: 128,
     homeScene: 'overworld',
@@ -6397,11 +6399,13 @@ function drawNPC(n){
     }
     n._downScale = (TILE * 2) / maxBh * (n.scaleMul || 1);
   }
-  const row = DIR_ROW_NPC[n.dir] || 0;
-  // Frame pick:
-  //   moving + walkSheet loaded → walk sheet at animFrame
-  //   moving + no walkSheet     → idle sheet cycled at animFrame (walk-in-place)
-  //   idle                      → idle sheet at idleFrame (blink loop)
+  let row = DIR_ROW_NPC[n.dir] || 0;
+  // v0.95.124 · mirrorRightAsLeft · right pose sources left row + h-flip
+  let mirror = false;
+  if (n.mirrorRightAsLeft && n.dir === 'right'){
+    row = DIR_ROW_NPC.left;
+    mirror = true;
+  }
   const useWalk = n.moving && n.walkSheet && n.walkSheet.complete && n.walkSheet.naturalWidth;
   const bank    = useWalk ? n.walkBboxes : n.bboxes;
   const img     = useWalk ? n.walkSheet  : n.sheet;
@@ -6411,14 +6415,20 @@ function drawNPC(n){
   const [bx, by, bw, bh] = bank[row][col];
   const sx = col * n.cellW + bx;
   const sy = row * n.cellH + by;
-  // v0.95.6 · single scale across all directions (see _downScale calc above).
-  // uniformScale flag is now a no-op — every NPC uses one consistent scale.
   const rowScale = n._downScale;
   const drawH = Math.max(1, Math.round(bh * rowScale));
   const drawW = Math.max(1, Math.round(bw * rowScale));
   const dx = Math.floor(n.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
   const dy = Math.floor(n.tileY * TILE + TILE - drawH)       - _cam.y;
-  ctx.drawImage(img, sx, sy, bw, bh, dx, dy, drawW, drawH);
+  if (mirror){
+    ctx.save();
+    ctx.translate(dx + drawW, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, sx, sy, bw, bh, 0, 0, drawW, drawH);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, sx, sy, bw, bh, dx, dy, drawW, drawH);
+  }
 }
 
 // ── NPC AI · wander (default) + follow (companion) ────────────────────────

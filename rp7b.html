@@ -3774,6 +3774,23 @@ Promise.all([
 const keys = {};
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
+  // v0.95.95 · PANIC RESET · press backtick (`) to force-close every UI
+  // modal and unfreeze the player.  Escape hatch for any stuck state.
+  if (k === '`'){
+    settingsMenuOpen = false; zyrexMenuOpen = false;
+    game.expPanelOpen = false; game.tvPanelOpen = false;
+    game.guitarPanelOpen = false; game.nebulaPanelOpen = false;
+    game.bagPanelOpen = false; game.dockPanelOpen = false;
+    game.posterViewOpen = false;
+    _sleepFade = null;
+    // hide any DOM modals
+    ['expPanel','tvPanel','guitarPanel','nebulaPanel','bagPanel','dockPanel','posterView','devPanel']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    // stop any playing song
+    if (typeof stopCurrentSong === 'function') stopCurrentSong();
+    showToast('◈ UI reset · player unfrozen', 1500);
+    return;
+  }
   // Ignore key repeats (avoid SFX spam when key is held)
   if (!keys[k]){
     // v0.91.9 · L1/R1 whud scroll SFX · gamepad L1 dispatches 'l' (not 'tab'),
@@ -4118,19 +4135,31 @@ function drawDialogOverlay(){
 // -- Movement · one tile step per moveCd interval ----------------------------
 function tryMove(dt){
   // Freeze player when title screen, any UI overlay, or battle owns input.
-  if (game.scene === 'title' || settingsMenuOpen || zyrexMenuOpen || battleState || dialogState
-      || game.expPanelOpen                                // v0.95 · freeze while experiment table open
-      || game.tvPanelOpen                                 // v0.95.1 · freeze while Rizer TV open
-      || game.guitarPanelOpen                             // v0.95.7 · freeze while guitar panel open
-      || game.nebulaPanelOpen                             // v0.95.9 · freeze while Nebulaport open
-      || game.bagPanelOpen                                // v0.95.10 · freeze while training dummy open
-      || game.dockPanelOpen                               // v0.95.50 · freeze while Nebuladock open
-      || game.posterViewOpen                              // v0.95.92 · freeze while poster full-screen open
-      || _sleepFade                                       // v0.95.4 · freeze while napping
-      || (document.getElementById('devPanel') && document.getElementById('devPanel').style.display === 'block')){  // v0.92.1 · freeze while dev panel open
+  const freezeReasons = [];
+  if (game.scene === 'title')       freezeReasons.push('title');
+  if (settingsMenuOpen)             freezeReasons.push('settingsMenu');
+  if (zyrexMenuOpen)                freezeReasons.push('zyrexMenu');
+  if (battleState)                  freezeReasons.push('battle');
+  if (dialogState)                  freezeReasons.push('dialog');
+  if (game.expPanelOpen)            freezeReasons.push('expPanel');
+  if (game.tvPanelOpen)             freezeReasons.push('tvPanel');
+  if (game.guitarPanelOpen)         freezeReasons.push('guitarPanel');
+  if (game.nebulaPanelOpen)         freezeReasons.push('nebulaPanel');
+  if (game.bagPanelOpen)            freezeReasons.push('bagPanel');
+  if (game.dockPanelOpen)           freezeReasons.push('dockPanel');
+  if (game.posterViewOpen)          freezeReasons.push('posterView');
+  if (_sleepFade)                   freezeReasons.push('sleepFade');
+  const devPanelEl = document.getElementById('devPanel');
+  if (devPanelEl && devPanelEl.style.display === 'block') freezeReasons.push('devPanel');
+  if (freezeReasons.length){
+    if (!tryMove._lastReason || tryMove._lastReason !== freezeReasons.join(',')){
+      console.warn('[rp7b] player frozen · reasons:', freezeReasons);
+      tryMove._lastReason = freezeReasons.join(',');
+    }
     player.moving = false;
     return;
   }
+  tryMove._lastReason = '';
   player.moveCd -= dt;
   if (player.moveCd > 0) return;
 

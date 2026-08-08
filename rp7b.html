@@ -4129,18 +4129,30 @@ function drawInteriorFloor(){
       const dy = Math.floor((7 + 1)   * TILE - drawH)     - _cam.y;
       ctx.drawImage(NEBULADOCK_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
-    // v0.95.63 · Gaming Chair (empty · 4x4 directional).  When player is
-    // NOT riding, draw chair at its saved tile.  When riding, chair follows
-    // player and player renders as chairride sprite (see drawPlayer branch).
+    // v0.95.66 · Gaming Chair (empty · 4x4 directional) · per-row bbox
+    // feet-anchored so the base of the sprite kisses the tile floor.
+    // Scaled to ~2.4 tiles tall to match player idle proportion.
     if (!player.ridingChair && GAMING_CHAIR_IMG.complete && GAMING_CHAIR_IMG.naturalWidth){
-      const cellW = 313, cellH = 313;
+      const W = GAMING_CHAIR_IMG.naturalWidth, H = GAMING_CHAIR_IMG.naturalHeight;
+      const cellW = W / 4, cellH = H / 4;
+      // Per-row content bboxes (col 0)  measured post-bake
+      // Row 0 down · Row 1 left · Row 2 right · Row 3 up
+      const CHAIR_BB = [
+        [ 94,   0, 185, 303],
+        [109,  15, 157, 284],
+        [100,  17, 150, 277],
+        [ 96,  13, 177, 289],
+      ];
       const row = DIR_ROW[player.chairDir || 'down'];
-      const sx = 0, sy = row * cellH;
-      const drawW = TILE * 1.5;
-      const drawH = TILE * 2;
+      const [bx, by, bw, bh] = CHAIR_BB[row];
+      const drawH  = Math.round(TILE * 2.4);
+      const scale  = drawH / bh;
+      const drawW  = Math.round(bw * scale);
+      const sx = Math.floor(0 * cellW + bx);
+      const sy = Math.floor(row * cellH + by);
       const dx = Math.floor(player.chairX * TILE + (TILE - drawW) / 2) - _cam.x;
       const dy = Math.floor(player.chairY * TILE + TILE - drawH)       - _cam.y;
-      ctx.drawImage(GAMING_CHAIR_IMG, sx, sy, cellW, cellH, dx, dy, drawW, drawH);
+      ctx.drawImage(GAMING_CHAIR_IMG, sx, sy, bw, bh, dx, dy, drawW, drawH);
     }
     // v0.95.10 · Punching Bag · 1.25 tiles wide · centered on col 1, base row 8
     if (PUNCHING_BAG_IMG.complete && PUNCHING_BAG_IMG.naturalWidth){
@@ -4207,14 +4219,26 @@ function drawPlayer(){
   // v0.95.63 · Chair-ride branch · when riding, draw the chairride sheet
   // at the player's tile.  Rider replaces normal player sprite entirely.
   if (player.ridingChair && CHAIRRIDE_IMG.complete && CHAIRRIDE_IMG.naturalWidth){
-    const cellW = 313, cellH = 313;
+    const W = CHAIRRIDE_IMG.naturalWidth, H = CHAIRRIDE_IMG.naturalHeight;
+    const cellW = W / 4, cellH = H / 4;
+    // v0.95.66 · per-row bboxes · feet-anchored · 2.6 tiles tall (bigger to
+    // match idle proportion + chair rider stack).  Row order: down/left/right/up.
+    const CR_BB = [
+      [144,   0, 162, 302],
+      [158,  13, 148, 284],
+      [153,   5, 153, 285],
+      [150,   1, 156, 297],
+    ];
     const row = DIR_ROW[player.dir];
-    const sx = 0, sy = row * cellH;
-    const drawW = TILE * 1.75;
-    const drawH = TILE * 2.25;
+    const [bx, by, bw, bh] = CR_BB[row];
+    const drawH = Math.round(TILE * 2.6);
+    const scale = drawH / bh;
+    const drawW = Math.round(bw * scale);
+    const sx = Math.floor(0 * cellW + bx);
+    const sy = Math.floor(row * cellH + by);
     const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
     const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y + _jumpOffset;
-    ctx.drawImage(CHAIRRIDE_IMG, sx, sy, cellW, cellH, dx, dy, drawW, drawH);
+    ctx.drawImage(CHAIRRIDE_IMG, sx, sy, bw, bh, dx, dy, drawW, drawH);
     return;
   }
   // Sheet selection (2026-08-06 · dedicated idle sheet rewired):

@@ -870,6 +870,7 @@ const INVENTORY_META = {
   fruit:            { label: 'Fruits',             order: 81 },   // from trees   (M=2 Z=4 A=6)
   verdant_elixir:   { label: 'Verdant Elixir',     order: 82 },   // 30 berries + 15 fruits · 1st science exp
   seed:             { label: 'Seeds',              order: 83 },   // 1 elixir → 50 seeds · currency for later mechanics
+  fae:              { label: 'Fae',                 order: 90 },   // v0.95.135 · collectibles · mirrors faeCollected
 };
 function addItems(drop){
   for (const key in drop){
@@ -886,11 +887,17 @@ function lootToString(drop){
   return parts.join(' + ');
 }
 function sortedInventoryEntries(){
+  // v0.95.135 · Sync fae counter into items so it appears in bag
+  if (player.faeCollected != null){
+    if (!player.items) player.items = {};
+    player.items.fae = player.faeCollected;
+  }
+  // v0.95.135 · Alphabetical by display label (temporary · categorized later)
   const meta = INVENTORY_META;
+  const labelOf = k => (meta[k] && meta[k].label) || k;
   return Object.entries(player.items)
     .filter(([, n]) => n > 0)
-    .sort((a, b) => ((meta[a[0]] && meta[a[0]].order) || 999) -
-                    ((meta[b[0]] && meta[b[0]].order) || 999));
+    .sort((a, b) => labelOf(a[0]).localeCompare(labelOf(b[0])));
 }
 
 // -- World props (buildings, trees, decor) ----------------------------------
@@ -3059,6 +3066,9 @@ function collectFaeAt(tx, ty){
     if (f.x === tx && f.y === ty){
       f.collected = true;
       player.faeCollected += 1;
+      // v0.95.135 · Mirror fae count into items so it shows in bag
+      if (!player.items) player.items = {};
+      player.items.fae = player.faeCollected;
       const need = Math.max(0, FAE_UNLOCK_COUNT - player.faeCollected);
       if (need <= 0){
         showToast(`◈ FAE  ${player.faeCollected}/${FAE_UNLOCK_COUNT} · Celestryx summon UNLOCKED!`, 3200);
@@ -3561,17 +3571,20 @@ function plantKind(prop){
   if (s.includes('bush'))  return 'bush';
   return null;
 }
-// Find prop whose FOOTPRINT covers (x,y).  Only bushes/trees.
+// Find prop whose visual footprint covers (x,y).  Only bushes/trees.
+// v0.95.135 · widened detection · bushes span tileW · trees span tileW around trunk
 function plantPropAt(x, y){
-  for (const p of PROPS){
+  for (const p of WORLD_PROPS){
     if (plantKind(p) == null) continue;
-    const fp = p.footprint || [[0,0]];
-    for (const [dx, dy] of fp){
-      if (p.tileX + dx === x && p.tileY + dy === y) return p;
-    }
-    // Trees have a 4-wide visual centred on tileX · treat trunk tile + neighbours as harvest tiles
-    if (plantKind(p) === 'tree'){
-      if (y === p.tileY && Math.abs(x - p.tileX) <= 1) return p;
+    const kind = plantKind(p);
+    const tw = p.tileW || 1;
+    const th = p.tileH || 1;
+    if (kind === 'tree'){
+      // Trees: visual centred on tileX with tileW wide · feet at tileY
+      if (y === p.tileY && x >= p.tileX - Math.floor(tw/2) && x <= p.tileX + Math.floor(tw/2)) return p;
+    } else {
+      // Bushes: visual spans tileX..tileX+tw-1 · tileY..tileY+th-1
+      if (y >= p.tileY - (th - 1) && y <= p.tileY && x >= p.tileX && x <= p.tileX + tw - 1) return p;
     }
   }
   return null;

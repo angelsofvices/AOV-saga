@@ -1691,7 +1691,10 @@ const WORLD_PROPS = [
       // v0.90.1 · water-only collision · 3-tile-tall bowl · outer sand walkable
       footprint: [[-1,-1],[0,-1],[1,-1],[-1,-2],[0,-2],[1,-2],[-1,-3],[0,-3],[1,-3]],
       depthOffset: -4,                             // v0.89.9 · render before feet-Y so player stands ON rim
-      // v0.95.153 · Fish for Soulphish · Basic Fae Net = 14% catch rate per cast
+      // v0.95.154 · Fish for Soulphish · interact on oasis WATER tile with Fae Net
+      // 14% catch rate with basic net · fires the fae-catch (net swing) animation
+      // then resolves outcome after net-swing finishes.  Soulphish goes to bag ·
+      // consume later from Items menu (+full astral).
       door: [0, -2],                               // interact-face tile · water centre
       onInteract: () => {
         if (!(player.items && player.items.faenet)){
@@ -1699,15 +1702,24 @@ const WORLD_PROPS = [
           playSFX('menuClose');
           return;
         }
-        const rate = 0.14;                         // basic net rate · upgraded nets later
-        if (Math.random() < rate){
-          addItems({ soulphish: 1 });
-          playSFX('confirm');
-          showToast('◈ Fae Net caught a Soulphish! (+1)', 2400);
-        } else {
-          playSFX('menuClose');
-          showToast('◈ You cast the net... no bites.', 1800);
+        // Play the net-swing anim in place (same as fae catch)
+        const now = performance.now();
+        if (RIZER.faeCatch && RIZER.faeCatch.loaded){
+          player.faeCatchStart = now;
+          player.faeCatchUntil = now + 420;
         }
+        // Resolve the cast after the swing lands
+        setTimeout(() => {
+          const rate = 0.14;                       // basic net rate · upgraded nets later
+          if (Math.random() < rate){
+            addItems({ soulphish: 1 });
+            playSFX('confirm');
+            showToast('◈ Fae Net caught a Soulphish! (+1) · consume from bag for +Astral', 2600);
+          } else {
+            playSFX('menuClose');
+            showToast('◈ You cast the net... no bites.', 1800);
+          }
+        }, 300);
       },
     };
   })(),

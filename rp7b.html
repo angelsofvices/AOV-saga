@@ -3003,6 +3003,19 @@ const NEBULADOCK_BBOX = [53, 61, 1426, 916];      // v0.95.51 · raw source (no 
 const RIZER_RUG_IMG = new Image();
 RIZER_RUG_IMG.src = 'assets/2D%20sprites/decor/rizer-rug.png';
 const RIZER_RUG_BBOX = [1, 0, 1188, 801];
+
+// v0.95.63 · Gaming Chair · sit-and-ride (empty chair sprite + 4x4 sit sheet)
+const GAMING_CHAIR_IMG = new Image();
+GAMING_CHAIR_IMG.src = 'assets/2D%20sprites/decor/gaming-chair.png';
+const GAMING_CHAIR_BBOX = [248, 32, 758, 1190];
+const CHAIRRIDE_IMG = new Image();
+CHAIRRIDE_IMG.src = 'assets/2D%20sprites/npcs/chairride.png';
+// 4×4 · 313 per cell · row = direction (down/left/right/up) · col = frame
+if (player.chairHome  == null) player.chairHome  = { x: 7, y: 8 };
+if (player.chairX     == null) player.chairX     = 7;
+if (player.chairY     == null) player.chairY     = 8;
+if (player.ridingChair == null) player.ridingChair = false;
+if (player.chairDir == null)    player.chairDir    = 'down';
 if (player.moveScrolls == null){
   // Seed one demo scroll so the bag is immediately testable · real drops
   // arrive as world loot (chests / trainer defeats / quest rewards).
@@ -3540,6 +3553,16 @@ function interiorConfig(scene){
 // (each NPC's `scene` field pins them · Mom on 1F, Dad on 2F).
 function useStairs(s){
   if (!s || !s.target) return;
+  // v0.95.63 · Chair-ride safety · dismount before any scene swap and
+  // reset chair to its home tile so player can never get stuck at stairs.
+  if (player.ridingChair){
+    player.ridingChair = false;
+    if (player.chairHome){
+      player.chairX = player.chairHome.x;
+      player.chairY = player.chairHome.y;
+    }
+    showToast('◈ Dismounted · chair returned to its home spot.', 2000);
+  }
   game.scene = s.target;
   const spawn = s.spawnAt || { x: 2, y: 2, dir: 'down' };
   player.x = spawn.x; player.y = spawn.y;
@@ -3600,6 +3623,14 @@ addEventListener('keydown', e => {
     // v0.95.27 · Melee attacks (J = punch/Square · K = kick/Triangle)
     // Fires in ANY scene except title/dialog/battle/menus — never dropped.
     // Every fresh keydown starts a new swing (no mid-attack lockout).
+    // v0.95.63 · B (or Shift) dismounts chair — must run BEFORE the melee
+    // guard so B doesn't get swallowed as "sprint" during chair ride.
+    if ((k === 'b' || k === 'shift') && player.ridingChair){
+      player.ridingChair = false;
+      playSFX('menuClose');
+      showToast('◈ Off the chair · it stays right here', 1600);
+      keys[k] = true; return;
+    }
     if (k === 'j' || k === 'k'){
       const anyModal = settingsMenuOpen || zyrexMenuOpen
                     || game.expPanelOpen || game.tvPanelOpen
@@ -3919,6 +3950,13 @@ function tryMove(dt){
   player.running = running;
   player.moveCd = running ? 90 : 170;
 
+  // v0.95.63 · Chair-ride · chair follows the player every step.  Also
+  // block descending stairs while riding (return chair home on descent).
+  if (player.ridingChair){
+    player.chairX = player.x;
+    player.chairY = player.y;
+    player.chairDir = player.dir;
+  }
   // v0.95.25 · Auto-enter overworld doors flagged autoEnter (e.g., player's
   // home) · stepping on the door tile fires onInteract without pressing Z.
   if (game.scene === 'overworld'){
@@ -4088,6 +4126,19 @@ function drawInteriorFloor(){
       const dy = Math.floor((7 + 1)   * TILE - drawH)     - _cam.y;
       ctx.drawImage(NEBULADOCK_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
+    // v0.95.63 · Gaming Chair (empty · 4x4 directional).  When player is
+    // NOT riding, draw chair at its saved tile.  When riding, chair follows
+    // player and player renders as chairride sprite (see drawPlayer branch).
+    if (!player.ridingChair && GAMING_CHAIR_IMG.complete && GAMING_CHAIR_IMG.naturalWidth){
+      const cellW = 313, cellH = 313;
+      const row = DIR_ROW[player.chairDir || 'down'];
+      const sx = 0, sy = row * cellH;
+      const drawW = TILE * 1.5;
+      const drawH = TILE * 2;
+      const dx = Math.floor(player.chairX * TILE + (TILE - drawW) / 2) - _cam.x;
+      const dy = Math.floor(player.chairY * TILE + TILE - drawH)       - _cam.y;
+      ctx.drawImage(GAMING_CHAIR_IMG, sx, sy, cellW, cellH, dx, dy, drawW, drawH);
+    }
     // v0.95.10 · Punching Bag · 1.25 tiles wide · centered on col 1, base row 8
     if (PUNCHING_BAG_IMG.complete && PUNCHING_BAG_IMG.naturalWidth){
       const [sx, sy, sw, sh] = PUNCHING_BAG_BBOX;
@@ -4143,6 +4194,19 @@ function currentCharScale(){
 }
 
 function drawPlayer(){
+  // v0.95.63 · Chair-ride branch · when riding, draw the chairride sheet
+  // at the player's tile.  Rider replaces normal player sprite entirely.
+  if (player.ridingChair && CHAIRRIDE_IMG.complete && CHAIRRIDE_IMG.naturalWidth){
+    const cellW = 313, cellH = 313;
+    const row = DIR_ROW[player.dir];
+    const sx = 0, sy = row * cellH;
+    const drawW = TILE * 1.75;
+    const drawH = TILE * 2.25;
+    const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
+    const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y;
+    ctx.drawImage(CHAIRRIDE_IMG, sx, sy, cellW, cellH, dx, dy, drawW, drawH);
+    return;
+  }
   // Sheet selection (2026-08-06 · dedicated idle sheet rewired):
   //   running + moving → run sheet
   //   moving           → walk sheet
@@ -4368,6 +4432,15 @@ function tryInteract(){
         // (facing down) to open the panel.  Also fires from side/back tiles.
         const nearDock = (fy === 6 && fx >= 6 && fx <= 8) || (fx === 7 && fy === 7);
         if (nearDock){ openDockPanel(); return; }
+        // v0.95.63 · Gaming Chair · interact to mount
+        if (!player.ridingChair && fx === player.chairX && fy === player.chairY){
+          player.ridingChair = true;
+          player.x = player.chairX; player.y = player.chairY;
+          player.dir = player.chairDir || 'down';
+          playSFX('confirm');
+          showToast('◈ Riding the Nebuladock chair · press B to dismount', 2400);
+          return;
+        }
       }
       // Stairs are triggered by WALKING onto their trigger tile (see tryMove).
       // No X-press interaction here.

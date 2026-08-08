@@ -702,9 +702,9 @@ function suspendAllAudio(){
   Object.values(AUDIO.sfx).forEach(a => { try { a.pause(); a.currentTime = 0; } catch(e){} });
 }
 function resumeBGM(){
+  // v0.95.101 · _currentBGM IS the Audio object · play it directly.
   if (_currentBGM && document.visibilityState === 'visible'){
-    const track = AUDIO.bgm[_currentBGM];
-    if (track){ track.play().catch(()=>{}); }
+    try { _currentBGM.play().catch(()=>{}); } catch(e){}
   }
 }
 document.addEventListener('visibilitychange', () => {
@@ -719,8 +719,14 @@ let _currentBGM = null;
 function playBGM(name){
   const track = AUDIO.bgm[name];
   if (!track || track === _currentBGM) return;
-  if (_currentBGM){ _currentBGM.pause(); _currentBGM.currentTime = 0; }
+  // v0.95.101 · Hard-stop EVERY bgm track (not just _currentBGM) so no
+  // stale layer keeps playing after a scene swap.  Then loop-arm + start.
+  Object.values(AUDIO.bgm).forEach(a => {
+    try { a.pause(); a.currentTime = 0; } catch(e){}
+  });
   _currentBGM = track;
+  track.loop = true;                        // belt-and-suspenders loop
+  track.currentTime = 0;
   track.play().catch(() => { /* autoplay blocked until first gesture */ });
 }
 function playSFX(name){

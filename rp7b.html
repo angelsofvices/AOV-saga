@@ -3520,8 +3520,23 @@ function stopSplashMusic(){
   try { SPLASH_MUSIC.pause(); SPLASH_MUSIC.currentTime = 0; } catch(e){}
   _splashMusicStarted = false;
 }
-// Attempt autoplay ASAP · will likely be blocked by browsers · gesture handler covers fallback
-window.addEventListener('load', () => { startSplashMusic(); }, { once: true });
+// v0.95.173 · NO autoplay on load · was leaking sound into every preview reload
+// Music only starts after the user actually gestures on THIS window (see the
+// title-gesture handler below).  Also pauses when the tab is hidden and resumes
+// when it comes back — so an in-progress splash never keeps playing in bg.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){
+    try { SPLASH_MUSIC.pause(); } catch(e){}
+  } else if (_splashMusicStarted && game.scene === 'title' && introState === 'idle'){
+    // Only auto-resume if we're STILL on the splash · never once the intro/game began
+    try { SPLASH_MUSIC.play().catch(()=>{}); } catch(e){}
+  }
+});
+// Also pause on window blur (background tab / other window) so audio doesn't
+// leak into other browser tabs during live preview / iteration cycles.
+window.addEventListener('blur', () => {
+  try { SPLASH_MUSIC.pause(); } catch(e){}
+});
 const TITLE_OPTIONS = ['NEW GAME', 'LOAD GAME'];
 let titleSelectedIdx = 0;
 // v0.93 · Title intro video controller

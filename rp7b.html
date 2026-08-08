@@ -1095,6 +1095,7 @@ function hurtPlayer(amt, srcName){
   player._hurtShakeUntil  = now + 320;                   // v0.95.167 · screen-shake window
   player._hurtSpriteUntil = now + 380;                   // v0.95.170 · hurt.png sprite override
   player._invulnUntil     = now + 700;                   // brief i-frames
+  if (window.__rumbleHit) window.__rumbleHit('hurt');    // v0.95.217 · haptic jolt on damage taken
   // v0.95.181 · Damage toast removed · anim + HP deduct only · HUD bar shows the loss
   if (player.hp === 0){
     showToast('◈ You collapse... find a bed to recover.', 2600);
@@ -4192,6 +4193,7 @@ function hitBoulder(b, dmg){
   if (b.hp === 0 && !b.breaking){
     b.breaking = performance.now();
     playSFX('boulderCrumble');                   // v0.95.119 · final-hit crumble sfx
+    if (window.__rumbleHit) window.__rumbleHit('boulder');   // v0.95.217 · haptic pop on crumble
   }
 }
 
@@ -4209,7 +4211,31 @@ function spawnHitFx(tx, ty, mode){
              : mode === 'kick'        ? { dur: 340, color: '#ffb04a', ringMax: 38 }   // A2 · orange
              :                          { dur: 260, color: '#ffe770', ringMax: 30 };  // A1 · yellow (default punch)
   HIT_FX.push({ x: tx, y: ty, t0: performance.now(), ...spec });
+  // v0.95.217 · Haptic hit-confirm on connected gamepad (DualSense over Chrome/macOS · GamepadHapticActuator)
+  rumbleHit(mode);
 }
+// v0.95.217 · Gamepad haptic feedback helper · escalates by attack slot
+// Chrome 68+ supports 'dual-rumble' on desktop DualSense/Xbox pads
+// Fails silently on browsers/pads that don't expose vibrationActuator
+function rumbleHit(mode){
+  try {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let pad = null;
+    for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
+    if (!pad || !pad.vibrationActuator || !pad.vibrationActuator.playEffect) return;
+    // Intensity ladder mirrors the visual hit-FX palette + damage ladder
+    const spec = mode === 'ultimate' ? { duration: 260, strongMagnitude: 1.00, weakMagnitude: 0.85 }   // A4 · peak jolt
+               : mode === 'astral'   ? { duration: 200, strongMagnitude: 0.80, weakMagnitude: 0.55 }   // A3 · heavy
+               : mode === 'kick'     ? { duration: 150, strongMagnitude: 0.60, weakMagnitude: 0.35 }   // A2 · medium
+               : mode === 'kill'     ? { duration: 320, strongMagnitude: 0.95, weakMagnitude: 0.70 }   // KO · finisher pulse
+               : mode === 'hurt'     ? { duration: 180, strongMagnitude: 0.70, weakMagnitude: 0.50 }   // player takes damage
+               : mode === 'boulder'  ? { duration: 220, strongMagnitude: 0.85, weakMagnitude: 0.55 }   // boulder crumble
+               :                       { duration: 100, strongMagnitude: 0.40, weakMagnitude: 0.25 }; // A1 · light punch (default)
+    pad.vibrationActuator.playEffect('dual-rumble', spec).catch(() => {});
+  } catch (e) { /* no-op · haptics unavailable */ }
+}
+// Expose rumble so non-hitFx paths (kill · hurt · boulder crumble) can trigger it too
+window.__rumbleHit = rumbleHit;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.95.210 · A3 ASTRALSTRIKE · Rizer palm-blast handblast projectile
@@ -4292,6 +4318,7 @@ function applyAstralHit(tx, ty){
       hit.scene = '__dead__';
       player.rizerXP = (player.rizerXP || 0) + 20;
       recordMoriKill('astralstrike');
+      if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
     }
     anyHit = true;
   }
@@ -5994,6 +6021,7 @@ addEventListener('keydown', e => {
               hit.scene = '__dead__';
               player.rizerXP = (player.rizerXP || 0) + 12;
               recordMoriKill(mode);                     // v0.95.140 · cosmetic combat core
+              if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
             }
           }
           if (boulderHit){

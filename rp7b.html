@@ -2490,6 +2490,8 @@ function walkable(x, y){
   if (x < 0 || y < 0 || y >= MAP_ROWS) return false;
   if (x < mapMinXAt(y) || x >= mapWidthAt(y)) return false; // L-shape + SE offset
   if (_propBlocked.has(`${x},${y}`)) return false;
+  // v0.95.105 · Boulders block their tile until crumbled
+  if (boulderAt('overworld', x, y)) return false;
   // v0.91.1 · fae tiles block until collected
   for (const f of _fae){
     if (!f.collected && f.x === x && f.y === y) return false;
@@ -2769,6 +2771,36 @@ let _fae = FAE_POSITIONS.map(([x, y], i) => ({
 function tickFae(dt){
   // pure animation drives · nothing to tick here (phase used per-frame)
 }
+// v0.95.105 · Draw boulders · frame index based on hp + crumble timer
+function drawBoulders(){
+  if (!BOULDER_IMG.complete || !BOULDER_IMG.naturalWidth) return;
+  const now = performance.now();
+  for (const b of BOULDERS){
+    if (b.scene !== 'overworld') continue;
+    if (b.gone) continue;
+    let frameIdx;
+    if (b.breaking){
+      const t = (now - b.breaking) / BOULDER_CRUMBLE_MS;
+      if (t >= 1){ b.gone = true; continue; }
+      // Frames 9-15 are crumble/smoke (7 frames)
+      frameIdx = 9 + Math.min(6, Math.floor(t * 7));
+    } else {
+      // HP 9 → frame 0, HP 1 → frame 8
+      frameIdx = Math.max(0, BOULDER_MAX_HP - b.hp);
+    }
+    const col = frameIdx % 4;
+    const row = Math.floor(frameIdx / 4);
+    const sx = col * BOULDER_CELL_W;
+    const sy = row * BOULDER_CELL_H;
+    // Draw at ~1.4 tiles wide/tall, feet-anchored to tile bottom
+    const drawW = Math.round(TILE * 1.4);
+    const drawH = Math.round(TILE * 1.4);
+    const dx = Math.floor((b.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+    const dy = Math.floor((b.tileY + 1)   * TILE - drawH)     - _cam.y;
+    ctx.drawImage(BOULDER_IMG, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
+  }
+}
+
 function drawFae(){
   if (!FAE_IMG.complete || !FAE_IMG.naturalWidth) return;
   const fw = FAE_IMG.naturalWidth / FAE_FRAMES;
@@ -3185,6 +3217,33 @@ if (player.chairX     == null) player.chairX     = 7;
 if (player.chairY     == null) player.chairY     = 8;
 if (player.ridingChair == null) player.ridingChair = false;
 if (player.chairDir == null)    player.chairDir    = 'down';
+
+// v0.95.105 · BREAKABLE BOULDERS · 4x4 sheet · frames 0-8 damage stages,
+// 9-15 crumble/smoke.  HP 9 · punch = 1 dmg · kick = 2 dmg.  When HP hits
+// 0 the crumble sequence plays and the tile becomes walkable.
+const BOULDER_IMG = new Image();
+BOULDER_IMG.src = 'assets/2D%20sprites/decor/boulder.png';
+const BOULDER_CELL_W = 313;   // sheet 1254 / 4
+const BOULDER_CELL_H = 313;
+const BOULDER_MAX_HP = 9;
+const BOULDER_CRUMBLE_MS = 700;                // total crumble anim length
+// Locations to spawn boulders (tileX, tileY).  Start with one just east
+// of the player's home door so it's the first thing you see on exit.
+const BOULDERS = [
+  { tileX: 24, tileY: 106, hp: BOULDER_MAX_HP, breaking: 0, gone: false, scene: 'overworld' },
+];
+function boulderAt(scene, x, y){
+  for (const b of BOULDERS){
+    if (b.scene === scene && !b.gone && b.tileX === x && b.tileY === y) return b;
+  }
+  return null;
+}
+function hitBoulder(b, dmg){
+  if (!b || b.gone) return;
+  b.hp = Math.max(0, b.hp - dmg);
+  // (sfx handled by outer melee routine so we don't double-play)
+  if (b.hp === 0 && !b.breaking) b.breaking = performance.now();
+}
 
 // v0.95.72 · FERRARCH SIX poster · easter egg for future Ferros Planet 26 saga
 const FERRARCH_IMG = new Image();
@@ -3997,7 +4056,9 @@ addEventListener('keydown', e => {
         // Bag occupies cols 1 rows 7-8 · face any of those from adjacent.
         const cfgHit = interiorConfig(game.scene);
         const isBagTile = cfgHit && cfgHit.rizerRoom && hx === 1 && (hy === 7 || hy === 8);
-        if (hit || isBagTile){
+        // v0.95.105 · Boulder at hit tile · 1 dmg punch, 2 dmg kick
+        const boulderHit = !cfgHit ? boulderAt('overworld', hx, hy) : null;
+        if (hit || isBagTile || boulderHit){
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           if (hit){
             hit.hp = (hit.hp == null ? 3 : hit.hp) - (mode === 'kick' ? 2 : 1);
@@ -4005,6 +4066,9 @@ addEventListener('keydown', e => {
               hit.scene = '__dead__';
               player.rizerXP = (player.rizerXP || 0) + 12;
             }
+          }
+          if (boulderHit){
+            hitBoulder(boulderHit, mode === 'kick' ? 2 : 1);
           }
         } else {
           playSFX('meleeMiss');
@@ -6250,6 +6314,7 @@ function frame(now){
     drawFootprints();   // v0.87 · sand-trail overlay (Zarvane rows only)
     drawWorldLayer();   // props + player, depth-sorted by feet-Y
     drawFae();          // v0.91 · fae collectibles float above ground
+    drawBoulders();     // v0.95.105 · breakable stones with damage + smoke
   }
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles

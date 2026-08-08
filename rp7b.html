@@ -2382,6 +2382,9 @@ function walkable(x, y){
     for (const n of NPCS){
       if (n.scene === game.scene && n.tileX === x && n.tileY === y) return false;
     }
+    // v0.95.65 · Gaming chair blocks its tile when NOT ridden (in Rizer Room)
+    if (cfg.rizerRoom && !player.ridingChair
+        && player.chairX === x && player.chairY === y) return false;
     return true;
   }
   if (x < 0 || y < 0 || y >= MAP_ROWS) return false;
@@ -3007,7 +3010,7 @@ const RIZER_RUG_BBOX = [1, 0, 1188, 801];
 // v0.95.63 · Gaming Chair · sit-and-ride (empty chair sprite + 4x4 sit sheet)
 const GAMING_CHAIR_IMG = new Image();
 GAMING_CHAIR_IMG.src = 'assets/2D%20sprites/decor/gaming-chair.png';
-const GAMING_CHAIR_BBOX = [248, 32, 758, 1190];
+const GAMING_CHAIR_BBOX = [94, 0, 1012, 1220];   // v0.95.65 · new sheet
 const CHAIRRIDE_IMG = new Image();
 CHAIRRIDE_IMG.src = 'assets/2D%20sprites/npcs/chairride.png';
 // 4×4 · 313 per cell · row = direction (down/left/right/up) · col = frame
@@ -4194,6 +4197,13 @@ function currentCharScale(){
 }
 
 function drawPlayer(){
+  // v0.95.65 · Jump arc · sine-based Y offset applied to whichever sprite
+  // renders next (chair-ride or normal player).
+  const _jumpNow = performance.now();
+  const _jumping = player.jumpUntil && _jumpNow < player.jumpUntil;
+  const _jumpOffset = _jumping
+    ? -Math.round(Math.sin(Math.PI * (_jumpNow - player.jumpStart) / (player.jumpUntil - player.jumpStart)) * (TILE * 0.55))
+    : 0;
   // v0.95.63 · Chair-ride branch · when riding, draw the chairride sheet
   // at the player's tile.  Rider replaces normal player sprite entirely.
   if (player.ridingChair && CHAIRRIDE_IMG.complete && CHAIRRIDE_IMG.naturalWidth){
@@ -4203,7 +4213,7 @@ function drawPlayer(){
     const drawW = TILE * 1.75;
     const drawH = TILE * 2.25;
     const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
-    const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y;
+    const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y + _jumpOffset;
     ctx.drawImage(CHAIRRIDE_IMG, sx, sy, cellW, cellH, dx, dy, drawW, drawH);
     return;
   }
@@ -4322,7 +4332,7 @@ function drawPlayer(){
     drawW = Math.max(1, Math.round(bw * attackScale));
   }
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
-  const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y;
+  const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y + _jumpOffset;
 
   // Ground shadow at the CHARACTER'S actual feet · drawn just under
   // dy+drawH (bbox bottom = feet).  Gives a solid ground contact so
@@ -4760,7 +4770,36 @@ addEventListener('keydown', e => {
     if (dialogState){
       if (now - _lastInteract > 180){ advanceDialog(); _lastInteract = now; }
     } else if (now - _lastInteract > 220){
-      tryInteract(); _lastInteract = now;
+      // v0.95.65 · Snapshot state, run tryInteract, then compare.  If
+      // nothing meaningful happened (no dialog / no scene change / no
+      // modal opened), fall back to a JUMP animation.
+      const snap = {
+        scene: game.scene,
+        dialog: !!dialogState,
+        battle: !!battleState,
+        exp: !!game.expPanelOpen,   tv:   !!game.tvPanelOpen,
+        gui: !!game.guitarPanelOpen, neb: !!game.nebulaPanelOpen,
+        bag: !!game.bagPanelOpen,   dock: !!game.dockPanelOpen,
+        set: !!settingsMenuOpen,    zyr:  !!zyrexMenuOpen,
+        ride: !!player.ridingChair,
+      };
+      tryInteract();
+      _lastInteract = now;
+      const changed = snap.scene !== game.scene
+        || snap.dialog !== !!dialogState || snap.battle !== !!battleState
+        || snap.exp !== !!game.expPanelOpen || snap.tv !== !!game.tvPanelOpen
+        || snap.gui !== !!game.guitarPanelOpen || snap.neb !== !!game.nebulaPanelOpen
+        || snap.bag !== !!game.bagPanelOpen   || snap.dock !== !!game.dockPanelOpen
+        || snap.set !== !!settingsMenuOpen    || snap.zyr !== !!zyrexMenuOpen
+        || snap.ride !== !!player.ridingChair;
+      if (!changed && !player.ridingChair){
+        // No target → jump animation
+        if (!player.jumpUntil || now >= player.jumpUntil){
+          player.jumpStart = now;
+          player.jumpUntil = now + 380;   // 380ms hop
+          playSFX('menuOpen');
+        }
+      }
     }
   }
   // Touchpad single-press toggles the Zyrex menu.  Double-tap is caught

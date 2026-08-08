@@ -3013,6 +3013,26 @@ TITLE_IMG.src = 'assets/2D%20sprites/ui/title-screen.png';
 // v0.94 · pregame splash · shown before the intro video starts
 const PREGAME_IMG = new Image();
 PREGAME_IMG.src = 'assets/2D%20sprites/ui/pregame-splash.png';
+// v0.95.125 · splash music · loops on splash · stops when intro video starts
+const SPLASH_MUSIC = new Audio('audio/splash-music.mp3');
+SPLASH_MUSIC.loop     = true;
+SPLASH_MUSIC.volume   = 0.75;
+SPLASH_MUSIC.preload  = 'auto';
+let _splashMusicStarted = false;
+function startSplashMusic(){
+  if (_splashMusicStarted) return;
+  const p = SPLASH_MUSIC.play();
+  if (p && typeof p.then === 'function'){
+    p.then(() => { _splashMusicStarted = true; })
+     .catch(err => console.warn('[splash-music] autoplay blocked:', err));
+  } else { _splashMusicStarted = true; }
+}
+function stopSplashMusic(){
+  try { SPLASH_MUSIC.pause(); SPLASH_MUSIC.currentTime = 0; } catch(e){}
+  _splashMusicStarted = false;
+}
+// Attempt autoplay ASAP · will likely be blocked by browsers · gesture handler covers fallback
+window.addEventListener('load', () => { startSplashMusic(); }, { once: true });
 const TITLE_OPTIONS = ['NEW GAME', 'LOAD GAME'];
 let titleSelectedIdx = 0;
 // v0.93 · Title intro video controller
@@ -3026,6 +3046,7 @@ const INTRO_BUTTONS_AT    = 33000; // 33s in · buttons auto-appear
 function startIntroVideo(){
   if (!introVid || introState !== 'idle') return;
   introState = 'playing';
+  stopSplashMusic();                                // v0.95.125 · splash music ends when video begins
   game.showTitleButtons = false;                    // buttons hidden while video plays
   introVid.style.display = 'block';
   introVid.currentTime = 0;
@@ -3129,8 +3150,19 @@ function syncTitleBtns(){
 // no longer auto-triggers it · a one-shot listener below fires startIntroVideo.
 function ensureIntroStarted(){ /* no-op · gesture-driven now */ }
 (function armIntroGesture(){
+  // v0.95.125 · first gesture starts splash music (if autoplay was blocked)
+  // then arms video-start on a short delay so music has time to be heard.
+  // If music was already autoplaying, video starts immediately.
   const kick = () => {
-    if (game.scene === 'title' && introState === 'idle'){ startIntroVideo(); }
+    if (game.scene !== 'title' || introState !== 'idle'){
+      window.removeEventListener('keydown',   kick);
+      window.removeEventListener('pointerdown', kick);
+      return;
+    }
+    const wasPlaying = _splashMusicStarted && !SPLASH_MUSIC.paused;
+    startSplashMusic();
+    const delay = wasPlaying ? 0 : 3500;             // give music audible time if starting fresh
+    setTimeout(() => { if (introState === 'idle') startIntroVideo(); }, delay);
     window.removeEventListener('keydown',   kick);
     window.removeEventListener('pointerdown', kick);
   };

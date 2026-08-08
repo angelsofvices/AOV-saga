@@ -572,6 +572,7 @@
     </div>
     <div class="row">
       <button id="devCombatFx">Combat FX: ON</button>
+      <button id="devLightMode">Light: OFF</button>
     </div>
     <div class="row">
       <button id="devCloseBtn">Close</button>
@@ -4078,6 +4079,67 @@ function drawNpcInfoOverlay(){
                bx + 18, by + 148);
   ctx.fillText('□ Square / ○ Circle · close', bx + 18, by + 172);
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.175 · World light modes · dev toggle
+// 'off'   → no overlay · normal render (default)
+// 'night' → deep-blue ambient overlay · radial-gradient light holes punched
+//           over player + registered light sources.  Canvas trick:
+//             1) fill off-screen canvas with dark colour
+//             2) composite 'destination-out' with radial gradients to punch
+//                holes (bright edge = full transparency)
+//             3) drawImage the off-screen buffer over the main canvas
+// This mirrors the "darken + subtract holes" technique researched by user.
+// ═══════════════════════════════════════════════════════════════════════════
+if (game.lightMode == null) game.lightMode = 'off';
+const _lightBuffer = document.createElement('canvas');
+const _lightCtx    = _lightBuffer.getContext('2d');
+// Registered light sources per scene · [{scene, x, y, radiusTiles, intensity}]
+// tileX/tileY in world coords · radius in tiles.
+const LIGHT_SOURCES = [
+  // Malezor overworld · lanterns + landmarks (subtle · reveal path at night)
+  { scene:'overworld', x: 22, y:106, r: 3.5, i:0.9 },  // player home doorway
+  { scene:'overworld', x: 22, y: 80, r: 3.5, i:0.9 },  // Malezor town hall
+  { scene:'overworld', x:113, y:248, r: 3.5, i:0.9 },  // Zarvane town hall
+  { scene:'overworld', x:240, y:317, r: 3.5, i:0.9 },  // Andrannor town hall
+];
+function drawLightMode(){
+  if (game.lightMode !== 'night') return;
+  const W = canvas.width, H = canvas.height;
+  if (_lightBuffer.width !== W || _lightBuffer.height !== H){
+    _lightBuffer.width = W; _lightBuffer.height = H;
+  }
+  // 1) Fill with deep-blue night ambient
+  _lightCtx.globalCompositeOperation = 'source-over';
+  _lightCtx.fillStyle = 'rgba(4, 8, 26, 0.78)';
+  _lightCtx.fillRect(0, 0, W, H);
+  // 2) Punch light holes with destination-out radial gradients
+  _lightCtx.globalCompositeOperation = 'destination-out';
+  const punch = (cx, cy, r, alpha) => {
+    if (cx + r < 0 || cx - r > W || cy + r < 0 || cy - r > H) return;   // cull off-screen
+    const g = _lightCtx.createRadialGradient(cx, cy, Math.max(4, r * 0.15), cx, cy, r);
+    g.addColorStop(0.00, `rgba(0,0,0,${alpha})`);
+    g.addColorStop(0.55, `rgba(0,0,0,${alpha * 0.55})`);
+    g.addColorStop(1.00, 'rgba(0,0,0,0)');
+    _lightCtx.fillStyle = g;
+    _lightCtx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  };
+  // Player lantern · always on
+  const pcx = player.x * TILE + TILE / 2 - _cam.x;
+  const pcy = player.y * TILE + TILE / 2 - _cam.y;
+  // Warm flicker (subtle radius jitter · looks like torchlight)
+  const flick = 1 + 0.04 * Math.sin(performance.now() / 90);
+  punch(pcx, pcy, TILE * 5.5 * flick, 0.95);
+  // Registered light sources in current scene
+  for (const L of LIGHT_SOURCES){
+    if (L.scene !== game.scene) continue;
+    const lcx = L.x * TILE + TILE / 2 - _cam.x;
+    const lcy = L.y * TILE + TILE / 2 - _cam.y;
+    punch(lcx, lcy, TILE * (L.r || 3), L.i || 0.85);
+  }
+  // 3) Composite over main canvas
+  ctx.drawImage(_lightBuffer, 0, 0);
+}
+
 function drawHitFx(){
   const now = performance.now();
   for (let i = HIT_FX.length - 1; i >= 0; i--){
@@ -8167,6 +8229,7 @@ function frame(now){
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }
   drawHitFx();          // v0.95.149 · combat hit glow · above world under menus
+  drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawNpcInfoOverlay(); // v0.95.174 · companion/bond info panel
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles
@@ -8393,6 +8456,19 @@ function frame(now){
         return `${r.name}: ${Math.min(have, r.at)}/${r.at} (${done})`;
       });
       showToast('◈ FAE · ' + lines.join(' · '), 4600);
+    });
+  }
+  // v0.95.175 · Dev · Light Mode cycler (OFF ↔ NIGHT)
+  const lightBtn = document.getElementById('devLightMode');
+  if (lightBtn){
+    const LIGHT_MODES = ['off', 'night'];
+    const labelLight = () => `Light: ${(game.lightMode || 'off').toUpperCase()}`;
+    lightBtn.textContent = labelLight();
+    lightBtn.addEventListener('click', () => {
+      const cur = LIGHT_MODES.indexOf(game.lightMode || 'off');
+      game.lightMode = LIGHT_MODES[(cur + 1) % LIGHT_MODES.length];
+      lightBtn.textContent = labelLight();
+      showToast(`◈ DEV · Light Mode → ${game.lightMode.toUpperCase()}`, 1600);
     });
   }
   // v0.95.149 · Dev · Combat FX toggle · punch/kick glow effects

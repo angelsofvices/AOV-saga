@@ -539,6 +539,9 @@
       <button id="devMobileCtrl2">Show Mobile Controller 1: OFF</button>
     </div>
     <div class="row">
+      <button id="devCameraMode">Camera: LOCKED</button>
+    </div>
+    <div class="row">
       <button id="devCloseBtn">Close</button>
     </div>
   </div>
@@ -755,9 +758,34 @@ addEventListener('pointerdown', seedAudio, { once: false });
 // the world scrolls under a fixed-center player.  Black shows past map
 // edges when the player is near a corner (no clamping).
 const _cam = { x: 0, y: 0 };
+// v0.95.104 · DBZ Legacy-of-Goku-II style camera · dead zone + lerp
+game.cameraMode = 'locked';                 // 'locked' (default) | 'gba'
+const CAM_DEADZONE_X = 60;                  // half-width of dead zone (px)
+const CAM_DEADZONE_Y = 44;                  // half-height
+const CAM_LERP       = 0.14;                // fraction of remaining dist per frame
 function updateCamera(){
-  _cam.x = Math.floor(player.x * TILE + TILE / 2 - canvas.width  / 2);
-  _cam.y = Math.floor(player.y * TILE + TILE / 2 - canvas.height / 2);
+  const targetX = player.x * TILE + TILE / 2 - canvas.width  / 2;
+  const targetY = player.y * TILE + TILE / 2 - canvas.height / 2;
+  if (game.cameraMode !== 'gba'){
+    _cam.x = Math.floor(targetX);
+    _cam.y = Math.floor(targetY);
+    return;
+  }
+  // GBA-style: dead zone (camera holds until player leaves the box) then
+  // lerp toward the target so the follow feels loose + delayed.
+  const dx = targetX - _cam.x;
+  const dy = targetY - _cam.y;
+  let moveX = 0, moveY = 0;
+  if (Math.abs(dx) > CAM_DEADZONE_X){
+    const over = dx - Math.sign(dx) * CAM_DEADZONE_X;
+    moveX = over * CAM_LERP;
+  }
+  if (Math.abs(dy) > CAM_DEADZONE_Y){
+    const over = dy - Math.sign(dy) * CAM_DEADZONE_Y;
+    moveY = over * CAM_LERP;
+  }
+  _cam.x = Math.floor(_cam.x + moveX);
+  _cam.y = Math.floor(_cam.y + moveY);
 }
 
 // -- Player state ------------------------------------------------------------
@@ -6404,6 +6432,17 @@ function frame(now){
       mc2Btn.textContent = `Show Mobile Controller 1: ${game.mobileCtrl2On ? 'ON' : 'OFF'}`;
       refreshMobileCtrl2();
       showToast(`◈ DEV · Mobile Controller 1 ${game.mobileCtrl2On ? 'ON' : 'OFF'}`, 1200);
+    });
+  }
+  // v0.95.104 · Camera mode toggle · LOCKED (default) ↔ GBA (dead-zone + lerp)
+  const camBtn = document.getElementById('devCameraMode');
+  if (camBtn){
+    const label = () => `Camera: ${(game.cameraMode || 'locked').toUpperCase()}`;
+    camBtn.textContent = label();
+    camBtn.addEventListener('click', () => {
+      game.cameraMode = (game.cameraMode === 'gba') ? 'locked' : 'gba';
+      camBtn.textContent = label();
+      showToast(`◈ DEV · Camera → ${game.cameraMode.toUpperCase()}`, 1400);
     });
   }
 

@@ -460,6 +460,7 @@
         <button class="dockTab" data-tab="songs"   style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">SONGS</button>
         <button class="dockTab" data-tab="scrolls" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">SCROLLS</button>
         <button class="dockTab" data-tab="devices" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">DEVICES</button>
+        <button class="dockTab" data-tab="store"   style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">STORE ⇢ PC</button>
       </div>
       <div id="dockBody" style="font-size:13px; line-height:1.55; min-height:180px;"></div>
       <div style="margin-top:14px; text-align:right; font-size:11px; color:#8ff;">1-6 to switch tabs · ○ / B / Esc to close</div>
@@ -3970,7 +3971,7 @@ function launchNebulaGame(idx){
 // Tabbed browser for Zyrex box, items, weapons, recipes, songs, scrolls.
 // Read-only for now — future work: transfer between party ↔ box, sort filters.
 let _dockTab = 'zyrex';
-const DOCK_TABS = ['zyrex','items','weapons','recipes','songs','scrolls','devices'];   // v0.95.164 · Devices tab
+const DOCK_TABS = ['zyrex','items','weapons','recipes','songs','scrolls','devices','store'];   // v0.95.165 · Store (Send to PC) tab
 (function wireDockBackdrop(){
   const p = document.getElementById('dockPanel');
   if (!p) return;
@@ -4097,6 +4098,51 @@ function switchDockTab(tab){
     body.innerHTML = sc.length === 0
       ? '<i style="color:#886;">No move scrolls · use them at the Punching Bag to teach party Zyrex.</i>'
       : sc.map(m => `<div style="padding:3px 0;">📜 ${m}</div>`).join('');
+  } else if (tab === 'store'){
+    // v0.95.165 · SEND TO PC · offload bag items into player.pcStorage
+    // Left column: bag (→ PC).  Right column: PC storage (← withdraw).
+    if (!player.pcStorage) player.pcStorage = {};
+    const bagEntries = Object.entries(player.items || {}).filter(([k,v]) => v > 0);
+    const pcEntries  = Object.entries(player.pcStorage    ).filter(([k,v]) => v > 0);
+    const row = (label, k, v, dir) => `
+      <div class="storeRow" data-key="${k}" data-dir="${dir}" style="display:flex; align-items:center; justify-content:space-between; padding:5px 8px; margin:3px 0; background:rgba(0,0,0,0.35); border:1px solid #244; cursor:pointer;">
+        <span style="color:#eaf0ff;"><b>${label}</b> <span style="color:#8ff;">× ${v}</span></span>
+        <span style="color:#ffd66b; font-weight:bold;">${dir === 'toPc' ? '→ PC' : '← BAG'}</span>
+      </div>`;
+    const bagHTML = bagEntries.length === 0
+      ? '<i style="color:#886;">Bag is empty.</i>'
+      : bagEntries.map(([k,v]) => row((INVENTORY_META[k]?.label) || k, k, v, 'toPc')).join('');
+    const pcHTML  = pcEntries.length === 0
+      ? '<i style="color:#886;">PC storage is empty.</i>'
+      : pcEntries.map(([k,v]) => row((INVENTORY_META[k]?.label) || k, k, v, 'toBag')).join('');
+    body.innerHTML = `
+      <div style="color:#4fb3ff; margin-bottom:8px;">◈ SEND TO PC · free up mobile bag space</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div>
+          <div style="color:#ffd66b; font-weight:bold; margin-bottom:4px;">BAG (mobile)</div>
+          ${bagHTML}
+        </div>
+        <div>
+          <div style="color:#ffd66b; font-weight:bold; margin-bottom:4px;">PC STORAGE</div>
+          ${pcHTML}
+        </div>
+      </div>
+      <div style="font-size:11px; color:#8ff; margin-top:10px;">Click a row to move 1 · hold Shift-click (or press X while highlighted) to move ALL.</div>`;
+    body.querySelectorAll('.storeRow').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const k = el.dataset.key;
+        const toPc = el.dataset.dir === 'toPc';
+        const moveAll = e.shiftKey;
+        const src  = toPc ? player.items      : player.pcStorage;
+        const dest = toPc ? player.pcStorage  : player.items;
+        const n = moveAll ? (src[k] || 0) : 1;
+        if ((src[k] || 0) < n){ playSFX('cancel'); return; }
+        src[k]  = (src[k]  || 0) - n;
+        dest[k] = (dest[k] || 0) + n;
+        playSFX('confirm');
+        switchDockTab('store');
+      });
+    });
   } else if (tab === 'devices'){
     // v0.95.164 · DEVICES catalogue · click to buy/claim to bag
     // Z-Phone by ZYCELLYTE · Thardin's telephone brand · call faction NPCs when bond is high enough
@@ -6044,11 +6090,25 @@ addEventListener('keydown', e => {
   // v0.95.118 · Nebuladock 9000 · 1-6 switches tab · B goes back / closes
   // D-pad Up/Down navigates items in ITEMS tab · A/X uses selected item.
   if (game.dockPanelOpen){
+    // v0.95.165 · Global tab-cycle · L1/R1 (Q/E) + D-pad Left/Right + Ctrl-Tab
+    if (k === 'q' || k === 'arrowleft'){
+      const i = DOCK_TABS.indexOf(_dockTab);
+      switchDockTab(DOCK_TABS[(i - 1 + DOCK_TABS.length) % DOCK_TABS.length]);
+      playSFX('cursor');
+      return;
+    }
+    if (k === 'e' || k === 'arrowright'){
+      const i = DOCK_TABS.indexOf(_dockTab);
+      switchDockTab(DOCK_TABS[(i + 1) % DOCK_TABS.length]);
+      playSFX('cursor');
+      return;
+    }
     if (_dockTab === 'items'){
-      // Get item list (filtered same way as tab renderer)
       const items = Object.entries(player.items || {}).filter(([k,v]) => v > 0);
       if (k === 'arrowup'   && items.length){ player._dockItemSel = ((player._dockItemSel|0) - 1 + items.length) % items.length; highlightDockItem(items); playSFX('cursor'); return; }
       if (k === 'arrowdown' && items.length){ player._dockItemSel = ((player._dockItemSel|0) + 1) % items.length; highlightDockItem(items); playSFX('cursor'); return; }
+      // X on items loops selection (advance) if not first press; A/Z/Enter uses
+      if (k === 'x' && items.length){ player._dockItemSel = ((player._dockItemSel|0) + 1) % items.length; highlightDockItem(items); playSFX('cursor'); return; }
       if ((k === 'a' || k === 'z' || k === 'enter') && items.length){
         const [key] = items[(player._dockItemSel|0) % items.length];
         useDockItem(key);

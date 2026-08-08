@@ -2588,6 +2588,12 @@ const RIZER = {
     [[172, 78, 93,167],[129, 59,101,166],[107, 66,103,168],[ 79, 81, 93,164]],
     [[157,  3,113,163],[126,  0,114,149],[100,  0,113,159],[ 64,  3,116,163]],
   ], key: 'idleJump', loaded: false },
+  guitarPlay: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[47, 74,249,239],[29, 74,248,239],[19, 74,251,239],[ 8, 76,250,237]],
+    [[47,  0,253,285],[31,  0,255,285],[21,  0,256,285],[11,  0,272,285]],
+    [[46, 51,225,209],[28, 51,227,209],[18, 51,224,209],[ 8, 50,221,210]],
+    [[45,  8,249,231],[26,  8,271,231],[19,  8,257,231],[ 6,  8,272,231]],
+  ], key: 'guitarPlay', loaded: false },
   faeCatch: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
     [[ 69,108,184,184],[ 14, 96,204,196],[ 83,109,106,183],[ 39,109,221,196]],
     [[129, 93,172,172],[ 94, 91,181,174],[ 75, 96,216,169],[ 37, 96,199,169]],
@@ -3954,6 +3960,7 @@ Promise.all([
   loadAsset(RIZER.skate,    'assets/2D%20sprites/rizer/skate.png'),
   loadAsset(RIZER.interact, 'assets/2D%20sprites/rizer/interact.png'),
   loadAsset(RIZER.faeCatch, 'assets/2D%20sprites/rizer/fae-catch.png'),
+  loadAsset(RIZER.guitarPlay, 'assets/2D%20sprites/rizer/guitar-play.png'),
 ]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge)'));
 
 // -- Input · keyboard --------------------------------------------------------
@@ -4747,8 +4754,12 @@ function drawPlayer(){
   const _catchingFae = player.faeCatchUntil && now < player.faeCatchUntil;
   if (!_catchingFae && player.faeCatchUntil) player.faeCatchUntil = 0;
   const faeBundle = _catchingFae && RIZER.faeCatch && RIZER.faeCatch.loaded ? RIZER.faeCatch : null;
+  // v0.95.114 · Guitar-play looped anim while song active
+  const guitarBundle = player.playingGuitar && RIZER.guitarPlay && RIZER.guitarPlay.loaded ? RIZER.guitarPlay : null;
   let bundle = faeBundle
              ? faeBundle
+             : guitarBundle
+             ? guitarBundle
              : interactBundle
              ? interactBundle
              : dodgeBundle
@@ -4820,6 +4831,9 @@ function drawPlayer(){
     const dur = player.faeCatchUntil - player.faeCatchStart;
     const elapsed = now - player.faeCatchStart;
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
+  } else if (guitarBundle){
+    // v0.95.114 · loop 4 frames at ~200ms/frame while song plays
+    col = Math.floor(now / 200) % bundle.cols;
   } else if (interactBundle){
     const dur = player.interactUntil - player.interactStart;
     const elapsed = now - player.interactStart;

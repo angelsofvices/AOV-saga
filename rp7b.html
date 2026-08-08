@@ -894,7 +894,76 @@ const player = {
   hp: 100, maxHp: 100,          // v0.95.134 · Rizer HP · 100 · no auto-regen · sleep/potion/hospital
   astral: 100, astralMax: 100,  // v0.95.152 · Astralite Energy · powers amplified attacks (-1 light · -2 heavy)
   _hurtFlashUntil: 0,           // v0.95.129 · red flash cd
+  bonds: {},                    // v0.95.174 · npc-id → 0-100 bond level · used for companion + Z-Phone gates
+  companion: null,              // v0.95.174 · id of active follower NPC (null = none)
 };
+// v0.95.174 · NPC info overlay state · Square on friendly opens · Square/Circle closes
+game.npcInfoOverlay = null;     // { npcId } or null · rendered above world
+function openNpcInfo(n){
+  game.npcInfoOverlay = { npcId: n.id };
+  playSFX('menuOpen');
+}
+function closeNpcInfo(){
+  if (!game.npcInfoOverlay) return;
+  game.npcInfoOverlay = null;
+  playSFX('menuClose');
+}
+function findNpcById(id){
+  for (const n of NPCS){ if (n.id === id) return n; }
+  return null;
+}
+function companionize(n){
+  if (!n) return;
+  // Detach prior companion first
+  if (player.companion && player.companion !== n.id){
+    const prev = findNpcById(player.companion);
+    if (prev) uncompanionize(prev, /*silent*/ true);
+  }
+  player.companion = n.id;
+  n.mode = 'follow';
+  n._nativeX = n.homeX; n._nativeY = n.homeY; n._nativeScene = n.homeScene;
+  n.homeX = player.x; n.homeY = player.y;      // follow trail uses homeX/Y as fallback anchor
+  n.scene = game.scene;
+  playSFX('confirm');
+  showToast(`◈ ${n.name} joins as your Companion.`, 2400);
+}
+function uncompanionize(n, silent){
+  if (!n) return;
+  n.mode = 'stationary';
+  n.moving = false;
+  if (n._nativeX != null){
+    n.tileX = n._nativeX; n.tileY = n._nativeY;
+    n.homeX = n._nativeX; n.homeY = n._nativeY;
+    n.scene = n._nativeScene || 'overworld';
+    n._nativeX = n._nativeY = n._nativeScene = null;
+  }
+  if (player.companion === n.id) player.companion = null;
+  if (!silent){ playSFX('menuClose'); showToast(`◈ ${n.name} returns home.`, 2200); }
+}
+// Friendly NPC = not Mori, not Daemon, not player-hostile
+function isFriendlyNpc(n){
+  if (!n) return false;
+  const nm = (n.name || '').toLowerCase();
+  return !n.isEnemy && nm !== 'mori' && nm !== 'daemon';
+}
+function facedNpc(){
+  let fx = player.x, fy = player.y;
+  if (player.dir === 'up')    fy--;
+  if (player.dir === 'down')  fy++;
+  if (player.dir === 'left')  fx--;
+  if (player.dir === 'right') fx++;
+  for (const n of NPCS){
+    if (n.scene !== game.scene) continue;
+    if (n.tileX === fx && n.tileY === fy) return n;
+    // Wide-hitbox NPCs (Elzoran)
+    if (n.interactHitbox){
+      for (const [dx, dy] of n.interactHitbox){
+        if (n.tileX + dx === fx && n.tileY + dy === fy) return n;
+      }
+    }
+  }
+  return null;
+}
 // v0.95.129 · Rizer damage funnel · red flash + toast + prevent negative
 function hurtPlayer(amt, srcName){
   if ((player._invulnUntil || 0) > performance.now()) return;
@@ -2622,6 +2691,18 @@ const NPCS = [
       [[80,  3,168,253],[71,  3,168,253],[61,  3,168,253],[53,  3,167,253]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
+    // v0.95.174 · Companion (follow) sheet · flying astronaut · 5×4 · rowMap for UP/LEFT/RIGHT/DOWN
+    companionSrc: 'assets/2D%20sprites/npcs/auraxion-follow.png',
+    companionSheet: new Image(),
+    companionCellW: 250, companionCellH: 313, companionCols: 5, companionRows: 4,
+    companionBboxes: [
+      // Per-row union (all 5 cols share) · sprite stays in place while jet/cape animate
+      [[0, 58,250,255],[0, 58,250,255],[0, 58,250,255],[0, 58,250,255],[0, 58,250,255]],
+      [[0,  0,250,298],[0,  0,250,298],[0,  0,250,298],[0,  0,250,298],[0,  0,250,298]],
+      [[0, 34,250,279],[0, 34,250,279],[0, 34,250,279],[0, 34,250,279],[0, 34,250,279]],
+      [[0,  0,250,256],[0,  0,250,256],[0,  0,250,256],[0,  0,250,256],[0,  0,250,256]],
+    ],
+    companionRowMap: { up: 0, left: 1, right: 2, down: 3 },
     tileX: 15, tileY: 180,
     homeX: 15, homeY: 180,
     homeScene: 'overworld',
@@ -2912,7 +2993,15 @@ const NPCS = [
       // v0.95.167 · Daemons use their own sprite sheet (row order UP/LEFT/RIGHT/DOWN)
       src:   s.mode === 'daemon' ? 'assets/2D%20sprites/npcs/daemon.png' : 'assets/2D%20sprites/npcs/mori.png',
       rowMap: s.mode === 'daemon' ? { up:0, left:1, right:2, down:3 } : null,
-      bboxes: MORI_BBOXES,
+      // v0.95.174 · Daemon bboxes = col-0 tight repeated · Mori-adjacent scale
+      // Sheet order UP/LEFT/RIGHT/DOWN · captures full daemon body
+      bboxes: s.mode === 'daemon' ? [
+        [[154, 18,159,240],[154, 18,159,240],[154, 18,159,240],[154, 18,159,240]],
+        [[144, 35,169,239],[144, 35,169,239],[144, 35,169,239],[144, 35,169,239]],
+        [[145, 40,168,239],[145, 40,168,239],[145, 40,168,239],[145, 40,168,239]],
+        [[131, 47,182,248],[131, 47,182,248],[131, 47,182,248],[131, 47,182,248]],
+      ] : MORI_BBOXES,
+      uniformScale: s.mode === 'daemon' ? true : undefined,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       tileX: s.x, tileY: s.y,
       homeX: s.x, homeY: s.y,
@@ -2936,6 +3025,8 @@ const NPCS = [
 NPCS.forEach(n => {
   n.sheet.src = n.src;
   if (n.walkSheet && n.walkSrc) n.walkSheet.src = n.walkSrc;
+  // v0.95.174 · Companion sheet (fly anim for Auraxion, etc.)
+  if (n.companionSheet && n.companionSrc) n.companionSheet.src = n.companionSrc;
 });
 
 // Collision + interact + wildZone maps · computed once from props + NPCs.
@@ -3952,6 +4043,40 @@ function spawnHitFx(tx, ty, mode){
     color: mode === 'kick' ? '#ffb04a' : '#ffe770',   // orange kick · yellow punch
     ringMax: mode === 'kick' ? 38 : 30,
   });
+}
+// v0.95.174 · NPC Info Overlay (companion/bond panel)
+function drawNpcInfoOverlay(){
+  if (!game.npcInfoOverlay) return;
+  const n = findNpcById(game.npcInfoOverlay.npcId);
+  if (!n) return;
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+  const bw = 380, bh = 200;
+  const bx = Math.floor(W/2 - bw/2), by = Math.floor(H/2 - bh/2);
+  ctx.fillStyle = 'rgba(10,10,20,0.98)';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2;
+  ctx.strokeRect(bx, by, bw, bh);
+  const bond = (player.bonds && player.bonds[n.id]) || 0;
+  const isMine = player.companion === n.id;
+  ctx.fillStyle = '#ffd66b';
+  ctx.font = 'bold 18px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`◈ ${n.name || n.id}`, bx + 18, by + 32);
+  ctx.font = '13px "Courier New", monospace';
+  ctx.fillStyle = '#f0eadf';
+  ctx.fillText(`Bond: ${bond}/100`, bx + 18, by + 62);
+  // Bond bar
+  ctx.strokeStyle = '#6b6250'; ctx.strokeRect(bx + 18, by + 72, 344, 12);
+  ctx.fillStyle = '#8fffb0'; ctx.fillRect(bx + 20, by + 74, Math.floor(340 * bond / 100), 8);
+  ctx.fillStyle = isMine ? '#8fffb0' : '#aaa';
+  ctx.fillText(isMine ? '★ Companion · following you' : 'Not a companion yet', bx + 18, by + 108);
+  ctx.fillStyle = '#8ff';
+  ctx.font = '12px "Courier New", monospace';
+  ctx.fillText(isMine ? '△ Triangle · dismiss (return home)' : '△ Triangle · make companion',
+               bx + 18, by + 148);
+  ctx.fillText('□ Square / ○ Circle · close', bx + 18, by + 172);
 }
 function drawHitFx(){
   const now = performance.now();
@@ -5210,6 +5335,37 @@ addEventListener('keydown', e => {
         keys[k] = true; return;
       }
     }
+    // v0.95.174 · NPC Info Overlay is open · Square/Circle close, Triangle companion-toggle
+    if (game.npcInfoOverlay){
+      if (k === 'j' || k === 'b' || k === 'escape' || k === 'backspace'){
+        closeNpcInfo(); return;
+      }
+      if (k === 'k'){
+        const n = findNpcById(game.npcInfoOverlay.npcId);
+        if (n){
+          if (player.companion === n.id) uncompanionize(n);
+          else                            companionize(n);
+        }
+        closeNpcInfo(); return;
+      }
+      return;
+    }
+    // v0.95.174 · Square (j) on faced friendly NPC opens Info · blocks punch
+    if (k === 'j'){
+      const facing = facedNpc();
+      if (facing && isFriendlyNpc(facing)){
+        openNpcInfo(facing); return;
+      }
+    }
+    // v0.95.174 · Triangle (k) on faced friendly NPC · direct companion toggle
+    if (k === 'k'){
+      const facing = facedNpc();
+      if (facing && isFriendlyNpc(facing)){
+        if (player.companion === facing.id) uncompanionize(facing);
+        else                                 companionize(facing);
+        return;
+      }
+    }
     if (k === 'j' || k === 'k'){
       const anyModal = settingsMenuOpen || zyrexMenuOpen
                     || game.expPanelOpen || game.tvPanelOpen
@@ -5531,6 +5687,7 @@ function tryMove(dt){
   if (game.posterViewOpen)          freezeReasons.push('posterView');
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
+  if (game.npcInfoOverlay)          freezeReasons.push('npcInfoOverlay');// v0.95.174 · companion overlay
   const devPanelEl = document.getElementById('devPanel');
   if (devPanelEl && devPanelEl.style.display === 'block') freezeReasons.push('devPanel');
   if (freezeReasons.length){
@@ -7714,15 +7871,25 @@ function drawNPC(n){
     row = DIR_ROW_NPC.left;
     mirror = true;
   }
-  const useWalk = n.moving && n.walkSheet && n.walkSheet.complete && n.walkSheet.naturalWidth;
-  const bank    = useWalk ? n.walkBboxes : n.bboxes;
-  const img     = useWalk ? n.walkSheet  : n.sheet;
-  const col     = useWalk               ? (n.animFrame % n.cols)
-                : n.moving              ? (n.animFrame % n.cols)
-                                        : ((n.idleFrame || 0) % n.cols);
+  // v0.95.174 · Companion (follow) mode overrides sheet + bboxes with fly anim
+  const useCompanion = n.mode === 'follow' && n.companionSheet && n.companionSheet.complete && n.companionSheet.naturalWidth && n.companionBboxes;
+  const useWalk = !useCompanion && n.moving && n.walkSheet && n.walkSheet.complete && n.walkSheet.naturalWidth;
+  const bank    = useCompanion ? n.companionBboxes : (useWalk ? n.walkBboxes : n.bboxes);
+  const img     = useCompanion ? n.companionSheet  : (useWalk ? n.walkSheet  : n.sheet);
+  const useCW   = useCompanion ? n.companionCellW : n.cellW;
+  const useCH   = useCompanion ? n.companionCellH : n.cellH;
+  const useCols = useCompanion ? n.companionCols  : n.cols;
+  if (useCompanion){
+    // Remap row based on companionRowMap
+    if (n.companionRowMap) row = n.companionRowMap[n.dir] ?? row;
+  }
+  const col     = useCompanion            ? Math.floor(performance.now() / 120) % useCols
+                : useWalk                 ? (n.animFrame % n.cols)
+                : n.moving                ? (n.animFrame % n.cols)
+                                          : ((n.idleFrame || 0) % n.cols);
   const [bx, by, bw, bh] = bank[row][col];
-  const sx = col * n.cellW + bx;
-  const sy = row * n.cellH + by;
+  const sx = col * useCW + bx;
+  const sy = row * useCH + by;
   const rowScale = n._downScale;
   const drawH = Math.max(1, Math.round(bh * rowScale));
   const drawW = Math.max(1, Math.round(bw * rowScale));
@@ -8000,6 +8167,7 @@ function frame(now){
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }
   drawHitFx();          // v0.95.149 · combat hit glow · above world under menus
+  drawNpcInfoOverlay(); // v0.95.174 · companion/bond info panel
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles
   drawBattleOverlay();  // owns whole screen while battleState is set

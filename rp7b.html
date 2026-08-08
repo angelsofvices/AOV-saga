@@ -459,6 +459,7 @@
         <button class="dockTab" data-tab="recipes" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">RECIPES</button>
         <button class="dockTab" data-tab="songs"   style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">SONGS</button>
         <button class="dockTab" data-tab="scrolls" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">SCROLLS</button>
+        <button class="dockTab" data-tab="devices" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">DEVICES</button>
       </div>
       <div id="dockBody" style="font-size:13px; line-height:1.55; min-height:180px;"></div>
       <div style="margin-top:14px; text-align:right; font-size:11px; color:#8ff;">1-6 to switch tabs · ○ / B / Esc to close</div>
@@ -922,6 +923,7 @@ const INVENTORY_META = {
   fae:              { label: 'Fae',                 order: 90 },   // v0.95.135 · collectibles · mirrors faeCollected
   ale:              { label: 'Ale',                  order: 32 },   // v0.95.150 · +25% Rizer HP heal item
   soulphish:        { label: 'Soulphish',             order: 91 },   // v0.95.152 · spirit fish · 1 → full astral energy
+  zphone:           { label: 'Z-Phone (ZYCELLYTE)',    order: 5  },   // v0.95.164 · Thardin phone · call faction NPCs at bond ≥ 60
 };
 function addItems(drop){
   for (const key in drop){
@@ -3968,7 +3970,7 @@ function launchNebulaGame(idx){
 // Tabbed browser for Zyrex box, items, weapons, recipes, songs, scrolls.
 // Read-only for now — future work: transfer between party ↔ box, sort filters.
 let _dockTab = 'zyrex';
-const DOCK_TABS = ['zyrex','items','weapons','recipes','songs','scrolls'];
+const DOCK_TABS = ['zyrex','items','weapons','recipes','songs','scrolls','devices'];   // v0.95.164 · Devices tab
 (function wireDockBackdrop(){
   const p = document.getElementById('dockPanel');
   if (!p) return;
@@ -4095,6 +4097,33 @@ function switchDockTab(tab){
     body.innerHTML = sc.length === 0
       ? '<i style="color:#886;">No move scrolls · use them at the Punching Bag to teach party Zyrex.</i>'
       : sc.map(m => `<div style="padding:3px 0;">📜 ${m}</div>`).join('');
+  } else if (tab === 'devices'){
+    // v0.95.164 · DEVICES catalogue · click to buy/claim to bag
+    // Z-Phone by ZYCELLYTE · Thardin's telephone brand · call faction NPCs when bond is high enough
+    const hasZ = (player.items?.zphone || 0) > 0;
+    body.innerHTML = `
+      <div style="color:#4fb3ff; margin-bottom:8px;">◈ DEVICE STORE · Thardin Consumer Tech</div>
+      <div class="devCard" data-device="zphone" style="padding:10px 12px; margin:6px 0; background:rgba(4,20,50,0.55); border:1px solid ${hasZ?'#ffd66b':'#4fb3ff'}; cursor:${hasZ?'default':'pointer'};">
+        <div style="color:#ffd66b; font-weight:bold; letter-spacing:0.06em;">📱 Z-Phone <span style="color:#8ff; font-weight:normal; font-size:11px;">(by ZYCELLYTE)</span></div>
+        <div style="color:#aaa; font-size:11px; margin-top:2px;">ZYCELLYTE's flagship handset · a Thardin subsidiary.</div>
+        <div style="color:#8fffb0; font-size:11px; margin-top:4px;">
+          Call any faction NPC from anywhere in the world · once bond ≥ 60.
+        </div>
+        <div style="color:${hasZ?'#ffd66b':'#8ff'}; font-size:11px; margin-top:6px; font-weight:bold;">
+          ${hasZ ? '★ In your bag' : 'CLICK to claim (free · dev build)'}
+        </div>
+      </div>`;
+    if (!hasZ){
+      const card = body.querySelector('.devCard[data-device="zphone"]');
+      if (card){
+        card.addEventListener('click', () => {
+          addItems({ zphone: 1 });
+          playSFX('confirm');
+          showToast('◈ Z-Phone added to bag · by ZYCELLYTE (Thardin)', 2600);
+          switchDockTab('devices');   // re-render as owned
+        });
+      }
+    }
   }
 }
 
@@ -4841,6 +4870,15 @@ addEventListener('keydown', e => {
           player.hp = Math.min(player.maxHp || 100, before + amt);
           playSFX('heal');
           showToast(`◈ ★ Ale · +${player.hp - before} HP`, 1600);
+        } else if (fav === 'zphone' && have > 0){
+          // v0.95.164 · Z-Phone CREATE quick-use · same faction call logic
+          const contacts = (player.factionBonds && Object.entries(player.factionBonds).filter(([_,b]) => (b||0) >= 60)) || [];
+          playSFX('confirm');
+          if (contacts.length === 0){
+            showToast('◈ ★ Z-Phone · no contacts · raise faction bonds ≥ 60', 2400);
+          } else {
+            showToast('◈ ★ Z-Phone · calling ' + contacts[0][0] + ' (UI pending)', 2400);
+          }
         } else if (fav === 'soulphish' && have > 0){
           player.items.soulphish -= 1;
           const before = player.astral || 0;
@@ -6267,6 +6305,15 @@ addEventListener('keydown', e => {
             player.hp = Math.min(player.maxHp || 100, before + amt);
             playSFX('heal');
             showToast(`◈ Ale · +${player.hp - before} HP`, 1800);
+          } else if (key === 'zphone' && (player.items?.zphone || 0) > 0){
+            // v0.95.164 · Z-Phone · faction call · needs at least one bonded NPC (bond ≥ 60)
+            const contacts = (player.factionBonds && Object.entries(player.factionBonds).filter(([_,b]) => (b||0) >= 60)) || [];
+            playSFX('confirm');
+            if (contacts.length === 0){
+              showToast('◈ Z-Phone · no contacts yet · raise faction bonds to 60+ to unlock calls', 3000);
+            } else {
+              showToast('◈ Z-Phone · contacts: ' + contacts.map(([n]) => n).join(', ') + ' (call UI wiring pending)', 3200);
+            }
           } else if (key === 'soulphish' && (player.items?.soulphish || 0) > 0){
             // v0.95.152 · Soulphish · full Astralite Energy restore
             player.items.soulphish -= 1;

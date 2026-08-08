@@ -647,6 +647,8 @@ const AUDIO = {
     kickHit:      new Audio('audio/sfx-kick-hit.mp3'),       // v0.95.59 · Triangle heavy melee contact
     meleeMiss:    new Audio('audio/sfx-melee-miss.mp3'),     // v0.95.59 · whoosh on air/props/npcs
     jumpLand:     new Audio('audio/sfx-jump-land.mp3'),      // v0.95.67 · touchdown thud after A/X jump
+    auraxion:     new Audio('audio/sfx-auraxion.mp3'),       // v0.95.85 · "just like the simulations" on Auraxion talk
+    barrelRoll:   new Audio('audio/sfx-barrelroll.mp3'),     // v0.95.85 · "do a barrel roll" after 3 rapid dodges
   },
 };
 Object.values(AUDIO.bgm).forEach(a => {
@@ -2279,6 +2281,7 @@ const NPCS = [
     turnToInteract: true,               // faces player during dialog · resets to down
     scaleMul: 1.10,                     // v0.89.1 · slightly taller than Rizer (uniform across dirs)
     onInteract: (n) => {
+      playSFX('auraxion');                              // v0.95.85 · "just like the simulations"
       showDialog({ speaker: 'AURAXION', lines: [
         'I read the astral currents.  You walk a bright path, Rizer.',
       ]});
@@ -3740,6 +3743,15 @@ addEventListener('keydown', e => {
           player.y = player.dodgeToY;
           player.moveCd = 220;                 // brief post-dodge cooldown
           playSFX('menuOpen');
+          // v0.95.85 · "Do a barrel roll!" · fires when 3 dodges happen
+          // within a 1.6-second rolling window.  Keeps the last 3 stamps.
+          if (!player._dodgeStamps) player._dodgeStamps = [];
+          player._dodgeStamps.push(now);
+          if (player._dodgeStamps.length > 3) player._dodgeStamps.shift();
+          if (player._dodgeStamps.length === 3 && (now - player._dodgeStamps[0]) <= 1600){
+            playSFX('barrelRoll');
+            player._dodgeStamps = [];          // reset so it doesn't retrigger next dodge
+          }
         }
       }
     }

@@ -373,6 +373,9 @@
     <canvas id="game" width="960" height="528"></canvas>
     <video id="introVid" src="video/intro-v2.mp4" playsinline webkit-playsinline preload="auto"
            style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:20; display:none;"></video>
+    <!-- v0.95.143 · Dream video · plays on bed sleep · un-skippable · full HP restore on end -->
+    <video id="dreamVid" src="video/dream.mp4" playsinline webkit-playsinline preload="auto"
+           style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:22; display:none;"></video>
     <!-- v0.95.60 · Skip hint · shown 3s over intro video, then fades · skip stays active -->
     <div id="introSkipHint" style="position:absolute; left:50%; bottom:6%; transform:translateX(-50%); z-index:24; display:none; pointer-events:none; padding:10px 22px; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; font: bold 14px 'Courier New',monospace; letter-spacing:0.12em; text-align:center; opacity:1; transition:opacity 0.8s ease-out;">HOLD X · ENTER · OR TAP TO SKIP</div>
     <div id="titleBtns" style="position:absolute; inset:0; display:none; z-index:25; pointer-events:none;">
@@ -3723,6 +3726,17 @@ if (!player.knownRecipes.find(r => r.id === 'verdant_elixir')){
     output: { verdant_elixir: 1 },
   });
 }
+// v0.95.143 · Alternative recipe · pure-seed synthesis (Verdant Elixir · 250 seeds)
+if (!player.knownRecipes.find(r => r.id === 'verdant_elixir_seeds')){
+  player.knownRecipes.push({
+    id: 'verdant_elixir_seeds',
+    name: 'Verdant Elixir · Seed Synth',
+    effect: 'Same elixir · brewed directly from concentrated seeds when berries + fruit are scarce.',
+    ingredients: ['250× Seeds'],
+    cost: { seed: 250 },
+    output: { verdant_elixir: 1 },
+  });
+}
 if (player.ownedHomes == null)   player.ownedHomes   = [];   // ids of homes the player has bought
 if (player.mainQuestStep == null) player.mainQuestStep = 0;  // v0.95.1 · index into MAIN_QUESTS
 
@@ -4206,8 +4220,13 @@ function playGuitarSong(idx){
 // Canon: only place in the game where healing is free. Hospitals cost coins
 // (Nurse Rein quest loop will reduce that cost over time).
 let _sleepFade = null;  // { t0, dur } while active
+// v0.95.143 · Sleep in bed
+//   1. Interact triggers this
+//   2. If HP full (Rizer + party) · no-op toast
+//   3. If Rizer HP < max → fade + play DREAM VIDEO (un-skippable) · on end · restore + resume
+//   4. If only party needs healing (Rizer already full) → old quick sleep fade
 function sleepInBed(){
-  if (_sleepFade) return;                                    // already napping
+  if (_sleepFade || _dreamPlaying) return;
   const alive = (player.party || []).filter(z => z);
   const zyrexNeeds = alive.some(z => z.hp < z.maxHp);
   const rizerNeeds = (player.hp != null) && (player.hp < (player.maxHp || player.hp));
@@ -4216,19 +4235,64 @@ function sleepInBed(){
     playSFX('menuClose');
     return;
   }
+  if (rizerNeeds){
+    playDreamVideo(alive);                                   // deep sleep = video path
+    return;
+  }
+  // Rizer already at max · quick nap for party only
   playSFX('menuOpen');
-  showToast('◈ You lie down and drift into a healing dream...', 2600);
+  showToast('◈ You rest with your Zyrex...', 2200);
   _sleepFade = { t0: performance.now(), dur: 2400 };
   setTimeout(() => {
-    // Full heal · Rizer + every Zyrex in party
-    if (player.hp != null && player.maxHp) player.hp = player.maxHp;
-    if (player.astral != null && player.astralMax) player.astral = player.astralMax;
     alive.forEach(z => { z.hp = z.maxHp; });
-    saveGame();                                              // persist the rest
+    saveGame();
     playSFX('confirm');
-    showToast('◈ Rizer + Zyrex party fully restored.  (FREE)', 3000);
+    showToast('◈ Zyrex party fully restored.', 2400);
   }, 1200);
   setTimeout(() => { _sleepFade = null; }, 2400);
+}
+// v0.95.143 · Dream video · un-skippable · on end restore HP to max + party heal
+let _dreamPlaying = false;
+function playDreamVideo(alive){
+  const vid = document.getElementById('dreamVid');
+  if (!vid){
+    // Fallback: no video element · do the classic sleep restore instead
+    if (player.hp != null && player.maxHp) player.hp = player.maxHp;
+    (alive || []).forEach(z => { z.hp = z.maxHp; });
+    saveGame(); playSFX('confirm');
+    showToast('◈ Fully rested.', 2200);
+    return;
+  }
+  _dreamPlaying = true;
+  // Fade in the video · pause game input (freezeReasons already covers this via _dreamPlaying flag path via _sleepFade)
+  _sleepFade = { t0: performance.now(), dur: 900 };
+  playSFX('menuOpen');
+  vid.style.display = 'block';
+  vid.currentTime = 0;
+  vid.muted = false;
+  vid.controls = false;
+  vid.setAttribute('disablepictureinpicture', '');
+  const tryPlay = () => vid.play().catch(err => {
+    console.warn('[dream] unmuted play blocked · falling back to muted:', err);
+    vid.muted = true;
+    vid.play().catch(err2 => console.warn('[dream] muted play also blocked:', err2));
+  });
+  tryPlay();
+  const finish = () => {
+    vid.pause();
+    vid.style.display = 'none';
+    // Restore HP · party
+    if (player.hp != null && player.maxHp) player.hp = player.maxHp;
+    (alive || (player.party || []).filter(z => z)).forEach(z => { z.hp = z.maxHp; });
+    saveGame();
+    _dreamPlaying = false;
+    _sleepFade = null;
+    playSFX('confirm');
+    showToast('◈ Fully rested · Rizer HP restored to 100.', 2600);
+  };
+  vid.addEventListener('ended', finish, { once: true });
+  // Safety net · if video errors, still restore
+  vid.addEventListener('error', () => { console.warn('[dream] video error · restoring anyway'); finish(); }, { once: true });
 }
 
 // v0.95.4 · Sleep fade overlay · black flash triangle during nap
@@ -4928,6 +4992,7 @@ function tryMove(dt){
   if (game.dockPanelOpen)           freezeReasons.push('dockPanel');
   if (game.posterViewOpen)          freezeReasons.push('posterView');
   if (_sleepFade)                   freezeReasons.push('sleepFade');
+  if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
   const devPanelEl = document.getElementById('devPanel');
   if (devPanelEl && devPanelEl.style.display === 'block') freezeReasons.push('devPanel');
   if (freezeReasons.length){

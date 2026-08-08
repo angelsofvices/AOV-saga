@@ -668,8 +668,28 @@ const AUDIO = {
     boulderCrumble: new Audio('audio/sfx-boulder-crumble.mp3'), // v0.95.119 · rock crumble on last hit
     moriGrunt:    new Audio('audio/sfx-mori-grunt.mp3'),      // v0.95.120 · Mori pained grunt at 40% hp
     moriDeath:    new Audio('audio/sfx-mori-death.mp3'),      // v0.95.120 · bone-crack on Mori death
+    moriNearby:   new Audio('audio/sfx-mori-nearby.mp3'),     // v0.95.121 · proximity detector (10-tile radius, 15s cd)
   },
 };
+// v0.95.121 · Mori proximity detector · 500ms poll · 10-tile radius · 15s cd
+let _moriNearbyCd = 0;
+setInterval(() => {
+  if (game.scene !== 'overworld' || battleState || dialogState) return;
+  const now = performance.now();
+  if (now < _moriNearbyCd) return;
+  for (const n of NPCS){
+    if (n.scene !== 'overworld') continue;
+    if ((n.name || '').toLowerCase() !== 'mori') continue;
+    const dx = Math.abs(n.tileX - player.x);
+    const dy = Math.abs(n.tileY - player.y);
+    if (Math.max(dx, dy) <= 10){
+      playSFX('moriNearby');
+      _moriNearbyCd = now + 15000;
+      break;
+    }
+  }
+}, 500);
+
 Object.values(AUDIO.bgm).forEach(a => {
   a.loop = true;
   a.volume = 0.32;
@@ -2791,34 +2811,28 @@ let _fae = FAE_POSITIONS.map(([x, y], i) => ({
 function tickFae(dt){
   // pure animation drives · nothing to tick here (phase used per-frame)
 }
-// v0.95.105 · Draw boulders · frame index based on hp + crumble timer
-function drawBoulders(){
+// v0.95.122 · Single-boulder draw · called from depth-sorted world layer
+function drawBoulder(b){
   if (!BOULDER_IMG.complete || !BOULDER_IMG.naturalWidth) return;
+  if (b.gone) return;
   const now = performance.now();
-  for (const b of BOULDERS){
-    if (b.scene !== 'overworld') continue;
-    if (b.gone) continue;
-    let frameIdx;
-    if (b.breaking){
-      const t = (now - b.breaking) / BOULDER_CRUMBLE_MS;
-      if (t >= 1){ b.gone = true; continue; }
-      // Frames 9-15 are crumble/smoke (7 frames)
-      frameIdx = 9 + Math.min(6, Math.floor(t * 7));
-    } else {
-      // HP 9 → frame 0, HP 1 → frame 8
-      frameIdx = Math.max(0, BOULDER_MAX_HP - b.hp);
-    }
-    const col = frameIdx % 4;
-    const row = Math.floor(frameIdx / 4);
-    const sx = col * BOULDER_CELL_W;
-    const sy = row * BOULDER_CELL_H;
-    // Draw at ~1.4 tiles wide/tall, feet-anchored to tile bottom
-    const drawW = Math.round(TILE * 1.4);
-    const drawH = Math.round(TILE * 1.4);
-    const dx = Math.floor((b.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
-    const dy = Math.floor((b.tileY + 1)   * TILE - drawH)     - _cam.y;
-    ctx.drawImage(BOULDER_IMG, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
+  let frameIdx;
+  if (b.breaking){
+    const t = (now - b.breaking) / BOULDER_CRUMBLE_MS;
+    if (t >= 1){ b.gone = true; return; }
+    frameIdx = 9 + Math.min(6, Math.floor(t * 7));
+  } else {
+    frameIdx = Math.max(0, BOULDER_MAX_HP - b.hp);
   }
+  const col = frameIdx % 4;
+  const row = Math.floor(frameIdx / 4);
+  const sx = col * BOULDER_CELL_W;
+  const sy = row * BOULDER_CELL_H;
+  const drawW = Math.round(TILE * 1.4);
+  const drawH = Math.round(TILE * 1.4);
+  const dx = Math.floor((b.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+  const dy = Math.floor((b.tileY + 1)   * TILE - drawH)     - _cam.y;
+  ctx.drawImage(BOULDER_IMG, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
 }
 
 function drawFae(){
@@ -6320,10 +6334,17 @@ function drawWorldLayer(){
     renderables.push({ kind:'npc', npc:n, footY: n.tileY });
   });
   renderables.push({ kind:'player', footY: player.y });
+  // v0.95.122 · Include boulders in the depth sort so player/hair renders
+  // above boulders when their feet-Y is >= boulder feet-Y.
+  BOULDERS.forEach(b => {
+    if (b.scene !== 'overworld' || b.gone) return;
+    renderables.push({ kind:'boulder', boulder:b, footY: b.tileY });
+  });
   renderables.sort((a,b) => a.footY - b.footY);
   for (const r of renderables){
     if (r.kind === 'prop')      drawProp(r.prop);
     else if (r.kind === 'npc')  drawNPC(r.npc);
+    else if (r.kind === 'boulder') drawBoulder(r.boulder);
     else                        drawPlayer();
   }
 }
@@ -6580,7 +6601,7 @@ function frame(now){
     drawFootprints();   // v0.87 · sand-trail overlay (Zarvane rows only)
     drawWorldLayer();   // props + player, depth-sorted by feet-Y
     drawFae();          // v0.91 · fae collectibles float above ground
-    drawBoulders();     // v0.95.105 · breakable stones with damage + smoke
+    // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles

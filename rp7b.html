@@ -2573,7 +2573,7 @@ const INTERIOR_HOME_2F = {
     [12,9],[13,9],[14,9],   // bed base
     [10,1],                 // v0.95.9 · guitar (1 tile wide, col 10)
     [8,3],                  // v0.95.26 · Nebulaport 3000 · block just controller row (8,2 walkable to pass between TV/guitar/console)
-    [1,6],[1,7],[1,8],      // v0.95.15 · Punching Bag full silhouette (base + upper body)
+    [1,7],[1,8],            // v0.95.61 · Punching Bag base + torso only · (1,6) walkable stop-tile like Nebuladock
     [6,7],[7,7],[8,7],[6,6],[7,6],[8,6],  // v0.95.58 · Nebuladock · left desk + center + right speaker/tower + monitor row
   ],
   wallImg: 'malezor',
@@ -3624,12 +3624,18 @@ addEventListener('keydown', e => {
           if ((n.name || '').toLowerCase() !== 'mori') continue;
           if (n.tileX === hx && n.tileY === hy){ hit = n; break; }
         }
-        if (hit){
+        // v0.95.61 · Punching Bag counts as a hit target in Rizer Room.
+        // Bag occupies cols 1 rows 7-8 · face any of those from adjacent.
+        const cfgHit = interiorConfig(game.scene);
+        const isBagTile = cfgHit && cfgHit.rizerRoom && hx === 1 && (hy === 7 || hy === 8);
+        if (hit || isBagTile){
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
-          hit.hp = (hit.hp == null ? 3 : hit.hp) - (mode === 'kick' ? 2 : 1);
-          if (hit.hp <= 0){
-            hit.scene = '__dead__';
-            player.rizerXP = (player.rizerXP || 0) + 12;
+          if (hit){
+            hit.hp = (hit.hp == null ? 3 : hit.hp) - (mode === 'kick' ? 2 : 1);
+            if (hit.hp <= 0){
+              hit.scene = '__dead__';
+              player.rizerXP = (player.rizerXP || 0) + 12;
+            }
           }
         } else {
           playSFX('meleeMiss');
@@ -5636,6 +5642,20 @@ function frame(now){
       const cutSh = Math.round(sh * cutFrac);
       const cutDh = Math.round(drawH * cutFrac);
       ctx.drawImage(NEBULADOCK_IMG, sx, sy, sw, cutSh, dx, dy, drawW, cutDh);
+    }
+    // v0.95.61 · Punching Bag · head/upper-body overlay so it renders
+    // above the player when they stand at (1,6) walk-stop tile.
+    if (cfgOL && cfgOL.rizerRoom
+        && PUNCHING_BAG_IMG.complete && PUNCHING_BAG_IMG.naturalWidth){
+      const [bsx, bsy, bsw, bsh] = PUNCHING_BAG_BBOX;
+      const bDrawW = Math.round(1.25 * TILE);
+      const bDrawH = Math.round(bDrawW * (bsh / bsw));
+      const bDx = Math.floor((1 + 0.5) * TILE - bDrawW / 2) - _cam.x;
+      const bDy = Math.floor((8 + 1)   * TILE - bDrawH)     - _cam.y;
+      const bCutFrac = 0.55;
+      const bCutSh = Math.round(bsh * bCutFrac);
+      const bCutDh = Math.round(bDrawH * bCutFrac);
+      ctx.drawImage(PUNCHING_BAG_IMG, bsx, bsy, bsw, bCutSh, bDx, bDy, bDrawW, bCutDh);
     }
   } else {
     drawGrass();

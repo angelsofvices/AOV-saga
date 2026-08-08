@@ -3433,6 +3433,26 @@ function closeDockPanel(){
   game.dockPanelOpen = false;
   playSFX('menuClose');
 }
+// v0.95.118 · Dock ITEMS tab · D-pad selection + A-to-use helpers
+function highlightDockItem(items){
+  const nodes = document.querySelectorAll('#dockBody .dockItem');
+  const sel = (player._dockItemSel|0) % Math.max(1, items.length);
+  nodes.forEach((n, i) => {
+    n.style.borderColor = i === sel ? '#4fb3ff' : '#244';
+    n.style.background  = i === sel ? 'rgba(20,60,110,0.55)' : 'rgba(0,0,0,0.35)';
+    if (i === sel) n.scrollIntoView({ block: 'nearest' });
+  });
+}
+function useDockItem(key){
+  if (key === 'skateboard'){
+    player.skating = !player.skating;
+    playSFX(player.skating ? 'confirm' : 'menuClose');
+    showToast(`◈ ${key} · ${player.skating ? 'ON' : 'OFF'}`, 1400);
+    switchDockTab('items');
+  } else {
+    showToast(`◈ ${key} · no use-action wired yet`, 1600);
+  }
+}
 function switchDockTab(tab){
   if (!DOCK_TABS.includes(tab)) return;
   _dockTab = tab;
@@ -3470,6 +3490,9 @@ function switchDockTab(tab){
             ${star}<b>${k}</b> <span style="color:#8ff;">× ${v}</span>
           </div>`;
         }).join('');
+    // v0.95.118 · Snap D-pad selection into first item on tab open
+    if (player._dockItemSel == null || player._dockItemSel >= items.length) player._dockItemSel = 0;
+    setTimeout(() => highlightDockItem(items), 0);
     // Wire click-to-use + hold-3s-to-assign
     body.querySelectorAll('.dockItem').forEach(el => {
       const itemKey = el.dataset.item;
@@ -4895,6 +4918,12 @@ function drawPlayer(){
     row = DIR_ROW.left;
     mirrorAttack = true;
   }
+  // v0.95.118 · Skate · mirror RIGHT-facing row for LEFT (right art is the
+  // clean anchor · left row art was causing frame-jumps).  Flip on draw.
+  if (bundle === RIZER.skate && player.dir === 'left'){
+    row = DIR_ROW.right;
+    mirrorAttack = true;
+  }
   // v0.91.3 · attack anim uses its own frame clock (linear over duration)
   // v0.95.69 · jump anim has its own clock too · 4 frames across 380ms arc
   let col;
@@ -5188,8 +5217,21 @@ addEventListener('keydown', e => {
     if (!isNaN(n) && n >= 1 && n <= 9){ bagPick(n - 1); }
     return;
   }
-  // v0.95.50 · Nebuladock 9000 · 1-6 switches tab · B closes
+  // v0.95.118 · Nebuladock 9000 · 1-6 switches tab · B goes back / closes
+  // D-pad Up/Down navigates items in ITEMS tab · A/X uses selected item.
   if (game.dockPanelOpen){
+    if (_dockTab === 'items'){
+      // Get item list (filtered same way as tab renderer)
+      const items = Object.entries(player.items || {}).filter(([k,v]) => v > 0);
+      if (k === 'arrowup'   && items.length){ player._dockItemSel = ((player._dockItemSel|0) - 1 + items.length) % items.length; highlightDockItem(items); playSFX('cursor'); return; }
+      if (k === 'arrowdown' && items.length){ player._dockItemSel = ((player._dockItemSel|0) + 1) % items.length; highlightDockItem(items); playSFX('cursor'); return; }
+      if ((k === 'a' || k === 'z' || k === 'enter') && items.length){
+        const [key] = items[(player._dockItemSel|0) % items.length];
+        useDockItem(key);
+        return;
+      }
+      if (k === 'b' || k === 'escape' || k === 'shift'){ closeDockPanel(); return; }
+    }
     if (k === 'b' || k === 'escape' || k === 'shift'){ closeDockPanel(); return; }
     const n = parseInt(k, 10);
     if (!isNaN(n) && n >= 1 && n <= DOCK_TABS.length){ switchDockTab(DOCK_TABS[n-1]); }
@@ -5334,8 +5376,8 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   if (battleState){
     if (battleState.menu === 'over'){
-      // Any confirm exits back to overworld.
-      if (k === 'z' || k === 'x' || k === 'enter' || k === ' ' || k === 'shift'){
+      // v0.95.118 · Any confirm exits back to overworld · X-Cross-'a' + Enter added
+      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === 'return' || k === ' ' || k === 'shift' || k === 'b'){
         battleExit();
       }
       return;

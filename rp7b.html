@@ -4515,15 +4515,26 @@ function openExperimentPanel(){
         const id = btn.dataset.craft;
         const r = player.knownRecipes.find(x => x.id === id);
         if (!r || !r.cost) return;
-        // Verify
+        // Guard · double-check ingredient counts before spending
         for (const k in r.cost){
-          if ((player.items?.[k] || 0) < r.cost[k]){ playSFX('cancel'); return; }
+          if ((player.items?.[k] || 0) < r.cost[k]){
+            playSFX('cancel');
+            showToast('◈ Not enough ingredients.', 1600);
+            return;
+          }
         }
+        // Consume ingredients
+        if (!player.items) player.items = {};
         for (const k in r.cost)   player.items[k] = (player.items[k]||0) - r.cost[k];
+        // Craft output → bag  (uses addItems so counts stack)
         for (const k in r.output) addItems({ [k]: r.output[k] });
+        // v0.95.155 · Explicit bag-add toast · lists what landed in the bag
+        const bagList = Object.keys(r.output)
+          .map(k => `${r.output[k]}× ${(INVENTORY_META[k] && INVENTORY_META[k].label) || k}`)
+          .join(', ');
         playSFX('confirm');
-        showToast(`◈ Crafted ${r.name}!`, 2200);
-        openExperimentPanel();  // re-render
+        showToast(`◈ Crafted ${r.name} · added to bag (${bagList})`, 2600);
+        openExperimentPanel();  // re-render live inventory + buttons
       });
     });
   }

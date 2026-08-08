@@ -2556,6 +2556,12 @@ const RIZER = {
     [[172, 78, 93,167],[129, 59,101,166],[107, 66,103,168],[ 79, 81, 93,164]],
     [[157,  3,113,163],[126,  0,114,149],[100,  0,113,159],[ 64,  3,116,163]],
   ], key: 'idleJump', loaded: false },
+  interact: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[142, 94,111,188],[110, 95,129,187],[ 61, 94,138,188],[ 49, 95,113,187]],
+    [[140, 66,102,178],[105, 65,121,179],[ 61, 65,128,179],[ 58, 65,101,179]],
+    [[144, 35, 99,177],[103, 35,109,177],[ 89, 35,122,177],[ 61, 35, 99,177]],
+    [[139,  2,112,174],[103,  1,130,175],[ 55,  2,140,174],[ 49,  2,112,174]],
+  ], key: 'interact', loaded: false },
   skate:    { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
     [[117, 86,140,217],[ 94, 82,112,221],[ 65, 85,154,220],[ 38, 81,111,221]],
     [[111, 54,159,226],[ 81, 54,159,226],[ 53, 53,168,224],[ 30, 53,153,227]],
@@ -3835,6 +3841,7 @@ Promise.all([
   loadAsset(RIZER.runJump,  'assets/2D%20sprites/rizer/run-jump.png'),
   loadAsset(RIZER.dodge,    'assets/2D%20sprites/rizer/dodge.png'),
   loadAsset(RIZER.skate,    'assets/2D%20sprites/rizer/skate.png'),
+  loadAsset(RIZER.interact, 'assets/2D%20sprites/rizer/interact.png'),
 ]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge)'));
 
 // -- Input · keyboard --------------------------------------------------------
@@ -4599,7 +4606,13 @@ function drawPlayer(){
   const _dodging = player.dodgeUntil && now < player.dodgeUntil;
   if (!_dodging && player.dodgeUntil) player.dodgeUntil = 0;
   const dodgeBundle = _dodging && RIZER.dodge.loaded ? RIZER.dodge : null;
-  let bundle = dodgeBundle
+  // v0.95.102 · Interact-with-X anim · brief reach pose during interact
+  const _interacting = player.interactUntil && now < player.interactUntil;
+  if (!_interacting && player.interactUntil) player.interactUntil = 0;
+  const interactBundle = _interacting && RIZER.interact && RIZER.interact.loaded ? RIZER.interact : null;
+  let bundle = interactBundle
+             ? interactBundle
+             : dodgeBundle
              ? dodgeBundle
              : jumpBundle
              ? jumpBundle
@@ -4664,7 +4677,11 @@ function drawPlayer(){
   // v0.91.3 · attack anim uses its own frame clock (linear over duration)
   // v0.95.69 · jump anim has its own clock too · 4 frames across 380ms arc
   let col;
-  if (dodgeBundle){
+  if (interactBundle){
+    const dur = player.interactUntil - player.interactStart;
+    const elapsed = now - player.interactStart;
+    col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
+  } else if (dodgeBundle){
     const dur = player.dodgeUntil - player.dodgeStart;
     const elapsed = now - player.dodgeStart;
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
@@ -5187,6 +5204,15 @@ addEventListener('keydown', e => {
           setTimeout(() => { playSFX('jumpLand'); }, 380);
         }
         return;
+      }
+      // v0.95.102 · Play interact-with-X animation FIRST, then hand off
+      // to the real interact logic 220ms later so the pose sells the
+      // reach.  Only fires when we're about to call tryInteract; jump
+      // fallback below still works because the interact anim doesn't
+      // change any modal flags.
+      if (RIZER.interact && RIZER.interact.loaded){
+        player.interactStart = now;
+        player.interactUntil = now + 260;
       }
       // v0.95.65 · Snapshot state, run tryInteract, then compare.  If
       // nothing meaningful happened (no dialog / no scene change / no

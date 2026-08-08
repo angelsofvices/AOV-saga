@@ -569,6 +569,9 @@
       <button id="devDreamworld">Visit Dreamworld: OFF</button>
     </div>
     <div class="row">
+      <button id="devCombatFx">Combat FX: ON</button>
+    </div>
+    <div class="row">
       <button id="devCloseBtn">Close</button>
     </div>
   </div>
@@ -2681,6 +2684,7 @@ const NPCS = [
       moveCd: 250 + Math.random() * 350,
       blinkTimer: 9e9,
       isEnemy: true,
+      // v0.95.149 · Daemon = 2× Mori durability (6 hp vs 3 hp base) · drainer sits between
       hpMax: s.mode === 'daemon' ? 6 : (s.mode === 'drainer' ? 4 : 3),
       onInteract: (n) => showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000),
     }));
@@ -2722,7 +2726,8 @@ const NPCS = [
       moveCd: 250 + Math.random() * 350,
       blinkTimer: 9e9,
       isEnemy: true,
-      hpMax: s.mode === 'daemon' ? 7 : 4,
+      // v0.95.149 · Daemon = 2× Mori durability (6 hp vs 3 hp base)
+      hpMax: s.mode === 'daemon' ? 6 : 4,
       onInteract: (n) => showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000),
     }));
   })(),
@@ -3592,6 +3597,57 @@ function hitBoulder(b, dmg){
   if (b.hp === 0 && !b.breaking){
     b.breaking = performance.now();
     playSFX('boulderCrumble');                   // v0.95.119 · final-hit crumble sfx
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.149 · Combat hit FX · glowing burst on Mori/Daemon/Boulder impact
+// Dev toggle: game.devCombatFxOn (default ON).  Each hit spawns a short-lived
+// impact ring that renders in world-space above the target tile.
+// ═══════════════════════════════════════════════════════════════════════════
+if (game.devCombatFxOn == null) game.devCombatFxOn = true;
+const HIT_FX = [];
+function spawnHitFx(tx, ty, mode){
+  HIT_FX.push({
+    x: tx, y: ty,
+    t0: performance.now(),
+    dur: mode === 'kick' ? 340 : 260,
+    color: mode === 'kick' ? '#ffb04a' : '#ffe770',   // orange kick · yellow punch
+    ringMax: mode === 'kick' ? 38 : 30,
+  });
+}
+function drawHitFx(){
+  const now = performance.now();
+  for (let i = HIT_FX.length - 1; i >= 0; i--){
+    const f = HIT_FX[i];
+    const p = (now - f.t0) / f.dur;
+    if (p >= 1){ HIT_FX.splice(i, 1); continue; }
+    const cx = f.x * TILE + TILE/2 - _cam.x;
+    const cy = f.y * TILE + TILE/2 - _cam.y;
+    // Expanding ring
+    const r = 6 + p * f.ringMax;
+    const a = 1 - p;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    // Outer glow
+    ctx.fillStyle = f.color;
+    ctx.globalAlpha = 0.28 * a;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 1.4, 0, Math.PI * 2); ctx.fill();
+    // Bright ring
+    ctx.globalAlpha = 0.9 * a;
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    // Spark cross (only for punch/kick · pop feel)
+    ctx.strokeStyle = '#ffffff';
+    ctx.globalAlpha = a * 0.85;
+    ctx.lineWidth = 2;
+    const sp = r * 0.9;
+    ctx.beginPath();
+    ctx.moveTo(cx - sp, cy); ctx.lineTo(cx + sp, cy);
+    ctx.moveTo(cx, cy - sp); ctx.lineTo(cx, cy + sp);
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -4731,7 +4787,8 @@ addEventListener('keydown', e => {
         let hit = null;
         for (const n of NPCS){
           if (n.scene !== game.scene) continue;
-          if ((n.name || '').toLowerCase() !== 'mori') continue;
+          // v0.95.149 · Daemons (2x more durable than Mori) also hittable · match by isEnemy
+          if (!n.isEnemy) continue;
           if (n.tileX === hx && n.tileY === hy){ hit = n; break; }
         }
         // v0.95.61 · Punching Bag counts as a hit target in Rizer Room.
@@ -4745,6 +4802,12 @@ addEventListener('keydown', e => {
         if (hit || isBagTile || boulderHit || plantHit){
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           recordHitLanded(mode);                        // v0.95.134 · achievement tracker
+          // v0.95.149 · Glowing combat effect on hit · toggleable in dev mode
+          if (game.devCombatFxOn !== false && (hit || boulderHit)){
+            const tx = hit ? hit.tileX : boulderHit.tileX;
+            const ty = hit ? hit.tileY : boulderHit.tileY;
+            spawnHitFx(tx, ty, mode);
+          }
           if (hit){
             const maxHp = hit.hpMax || 3;
             if (hit.hp == null) hit.hp = maxHp;
@@ -7365,6 +7428,7 @@ function frame(now){
     drawFae();          // v0.91 · fae collectibles float above ground
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }
+  drawHitFx();          // v0.95.149 · combat hit glow · above world under menus
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles
   drawBattleOverlay();  // owns whole screen while battleState is set
@@ -7590,6 +7654,17 @@ function frame(now){
         return `${r.name}: ${Math.min(have, r.at)}/${r.at} (${done})`;
       });
       showToast('◈ FAE · ' + lines.join(' · '), 4600);
+    });
+  }
+  // v0.95.149 · Dev · Combat FX toggle · punch/kick glow effects
+  const cfxBtn = document.getElementById('devCombatFx');
+  if (cfxBtn){
+    const label = () => `Combat FX: ${game.devCombatFxOn === false ? 'OFF' : 'ON'}`;
+    cfxBtn.textContent = label();
+    cfxBtn.addEventListener('click', () => {
+      game.devCombatFxOn = !(game.devCombatFxOn !== false);
+      cfxBtn.textContent = label();
+      showToast(`◈ DEV · Combat FX ${game.devCombatFxOn ? 'ON' : 'OFF'}`, 1400);
     });
   }
   // v0.95.144 · Dev · Visit Dreamworld toggle · sleep always plays dream video

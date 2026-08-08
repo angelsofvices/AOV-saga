@@ -2478,6 +2478,20 @@ const RIZER = {
     [[157, 38, 89,275],[114, 37, 94,276],[79, 38,145,275],[53, 38, 89,275]],
     [[150,  0,100,172],[112,  0, 97,172],[82,  0, 99,172],[47,  0, 99,172]],
   ], key: 'kick', loaded: false },
+  // v0.95.69 · Jump sheets · idle (standing hop) + run (mid-run leap) ·
+  // 4x4 · row = direction · col = 4-frame arc (windup/apex/apex/land)
+  idleJump: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[154,131,121,176],[121, 75,122,188],[ 98,105,120,186],[ 61,132,121,175]],
+    [[172, 78, 93,167],[129, 59,101,166],[107, 66,103,168],[ 79, 81, 93,164]],
+    [[164, 43, 90,163],[135, 25,100,288],[110, 38,100,275],[ 77, 43, 91,163]],
+    [[157,  3,113,163],[126,  0,114,149],[100,  0,113,159],[ 64,  3,116,163]],
+  ], key: 'idleJump', loaded: false },
+  runJump:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[127,120,126,190],[ 95, 90,128,185],[ 58, 68,125,187],[ 30,125,131,186]],
+    [[105, 93,136,176],[ 63, 84,137,175],[ 31, 64,132,171],[  8, 94,131,177]],
+    [[145, 66,132,176],[108, 56,131,257],[ 69, 41,131,272],[ 50, 68,130,174]],
+    [[139, 11,116,183],[110,  0,105,166],[ 77,  0,115,159],[ 47, 12,113,186]],
+  ], key: 'runJump', loaded: false },
 };
 // Right uses the actual right-facing cells (row 2).  The old cape-tail
 // float was fixed by the CC extractor · disconnected cape pixels are
@@ -3612,7 +3626,9 @@ Promise.all([
   loadAsset(RIZER.run,   'assets/2D%20sprites/rizer/run.png'),
   loadAsset(RIZER.punch, 'assets/2D%20sprites/rizer/punch.png'),
   loadAsset(RIZER.kick,  'assets/2D%20sprites/rizer/kick.png'),
-]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run)'));
+  loadAsset(RIZER.idleJump, 'assets/2D%20sprites/rizer/idle-jump.png'),
+  loadAsset(RIZER.runJump,  'assets/2D%20sprites/rizer/run-jump.png'),
+]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps)'));
 
 // -- Input · keyboard --------------------------------------------------------
 const keys = {};
@@ -4253,7 +4269,14 @@ function drawPlayer(){
   if (!inAttack && player.attackMode){ player.attackMode = null; }
   const useRun  = player.running && player.moving && RIZER.run.loaded;
   const useWalk = player.moving && RIZER.walk.loaded;
-  let bundle = inAttack && RIZER[player.attackMode] && RIZER[player.attackMode].loaded ? RIZER[player.attackMode]
+  // v0.95.69 · Jump sheet overrides idle/walk/run while jumping.  Choice
+  // (idleJump vs runJump) was frozen at jump-init based on movement state.
+  const jumpBundleKey = _jumping ? (player.jumpSheet || 'idleJump') : null;
+  const jumpBundle    = jumpBundleKey && RIZER[jumpBundleKey] && RIZER[jumpBundleKey].loaded
+                        ? RIZER[jumpBundleKey] : null;
+  let bundle = jumpBundle
+             ? jumpBundle
+             : inAttack && RIZER[player.attackMode] && RIZER[player.attackMode].loaded ? RIZER[player.attackMode]
              : useRun ? RIZER.run
              : useWalk ? RIZER.walk
              : (RIZER.idle.loaded ? RIZER.idle : null);
@@ -4298,8 +4321,13 @@ function drawPlayer(){
     mirrorAttack = true;
   }
   // v0.91.3 · attack anim uses its own frame clock (linear over duration)
+  // v0.95.69 · jump anim has its own clock too · 4 frames across 380ms arc
   let col;
-  if (inAttack){
+  if (jumpBundle){
+    const jumpDur = player.jumpUntil - player.jumpStart;
+    const elapsed = now - player.jumpStart;
+    col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (jumpDur / bundle.cols))));
+  } else if (inAttack){
     const dur = player.attackMode === 'kick' ? 400 : 300;
     const elapsed = dur - (player.attackUntil - now);
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
@@ -4823,6 +4851,8 @@ addEventListener('keydown', e => {
         if (!player.jumpUntil || now >= player.jumpUntil){
           player.jumpStart = now;
           player.jumpUntil = now + 380;   // 380ms hop
+          // v0.95.69 · pick jump sheet based on movement state at launch
+          player.jumpSheet = player.moving ? 'runJump' : 'idleJump';
           // v0.95.68 · only the landing thud plays · no confirm sfx on jump
           setTimeout(() => { playSFX('jumpLand'); }, 380);
         }

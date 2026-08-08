@@ -575,6 +575,10 @@
       <button id="devLightMode">Light: OFF</button>
     </div>
     <div class="row">
+      <button id="devMaxBond">Max Bond: OFF</button>
+      <button id="devFillBonds">Fill All Bonds → 100</button>
+    </div>
+    <div class="row">
       <button id="devCloseBtn">Close</button>
     </div>
   </div>
@@ -916,6 +920,13 @@ function findNpcById(id){
 }
 function companionize(n){
   if (!n) return;
+  // v0.95.177 · Bond gate · needs 100/100 · dev "Max Bond" toggle bypasses
+  const bond = (player.bonds && player.bonds[n.id]) || 0;
+  if (bond < 100 && !game.devMaxBond){
+    playSFX('cancel');
+    showToast(`◈ ${n.name} · Bond ${bond}/100 · complete their quest to earn Companion trust.`, 3200);
+    return;
+  }
   // Detach prior companion first
   if (player.companion && player.companion !== n.id){
     const prev = findNpcById(player.companion);
@@ -4072,11 +4083,16 @@ function drawNpcInfoOverlay(){
   // Bond bar
   ctx.strokeStyle = '#6b6250'; ctx.strokeRect(bx + 18, by + 72, 344, 12);
   ctx.fillStyle = '#8fffb0'; ctx.fillRect(bx + 20, by + 74, Math.floor(340 * bond / 100), 8);
-  ctx.fillStyle = isMine ? '#8fffb0' : '#aaa';
-  ctx.fillText(isMine ? '★ Companion · following you' : 'Not a companion yet', bx + 18, by + 108);
+  const canCompanion = bond >= 100 || game.devMaxBond;
+  ctx.fillStyle = isMine ? '#8fffb0' : (canCompanion ? '#ffd66b' : '#aaa');
+  ctx.fillText(isMine ? '★ Companion · following you'
+               : canCompanion ? '✓ Bond maxed · ready to companionize'
+               : `Complete ${n.name}'s quest to raise bond`, bx + 18, by + 108);
   ctx.fillStyle = '#8ff';
   ctx.font = '12px "Courier New", monospace';
-  ctx.fillText(isMine ? '△ Triangle · dismiss (return home)' : '△ Triangle · make companion',
+  ctx.fillText(isMine
+               ? '△ Triangle · dismiss (return home)'
+               : (canCompanion ? '△ Triangle · make companion' : '△ Triangle · locked · bond < 100'),
                bx + 18, by + 148);
   ctx.fillText('□ Square / ○ Circle · close', bx + 18, by + 172);
 }
@@ -8457,6 +8473,27 @@ function frame(now){
         return `${r.name}: ${Math.min(have, r.at)}/${r.at} (${done})`;
       });
       showToast('◈ FAE · ' + lines.join(' · '), 4600);
+    });
+  }
+  // v0.95.177 · Dev · Max Bond toggle · bypasses bond gate for companionize
+  const maxBondBtn = document.getElementById('devMaxBond');
+  if (maxBondBtn){
+    const label = () => `Max Bond: ${game.devMaxBond ? 'ON' : 'OFF'}`;
+    maxBondBtn.textContent = label();
+    maxBondBtn.addEventListener('click', () => {
+      game.devMaxBond = !game.devMaxBond;
+      maxBondBtn.textContent = label();
+      showToast(`◈ DEV · Max Bond gate bypass ${game.devMaxBond ? 'ON · any NPC can be companion' : 'OFF · bond ≥ 100 required'}`, 2400);
+    });
+  }
+  // v0.95.177 · Dev · Fill All Bonds · sets every friendly NPC's bond to 100
+  const fillBondsBtn = document.getElementById('devFillBonds');
+  if (fillBondsBtn){
+    fillBondsBtn.addEventListener('click', () => {
+      if (!player.bonds) player.bonds = {};
+      NPCS.forEach(n => { if (isFriendlyNpc(n)) player.bonds[n.id] = 100; });
+      playSFX('confirm');
+      showToast('◈ DEV · All friendly NPC bonds → 100', 2000);
     });
   }
   // v0.95.175 · Dev · Light Mode cycler (OFF ↔ NIGHT)

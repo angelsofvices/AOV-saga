@@ -666,6 +666,8 @@ const AUDIO = {
     mom:          new Audio('audio/sfx-mom.mp3'),            // v0.95.91 · Mom greeting VO on interact
     stairs:       new Audio('audio/sfx-stairs.mp3'),         // v0.95.103 · footstep sequence on stair traversal
     boulderCrumble: new Audio('audio/sfx-boulder-crumble.mp3'), // v0.95.119 · rock crumble on last hit
+    moriGrunt:    new Audio('audio/sfx-mori-grunt.mp3'),      // v0.95.120 · Mori pained grunt at 40% hp
+    moriDeath:    new Audio('audio/sfx-mori-death.mp3'),      // v0.95.120 · bone-crack on Mori death
   },
 };
 Object.values(AUDIO.bgm).forEach(a => {
@@ -4190,8 +4192,16 @@ addEventListener('keydown', e => {
         if (hit || isBagTile || boulderHit){
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           if (hit){
-            hit.hp = (hit.hp == null ? 3 : hit.hp) - (mode === 'kick' ? 2 : 1);
+            const maxHp = hit.hpMax || 3;
+            if (hit.hp == null) hit.hp = maxHp;
+            hit.hp -= (mode === 'kick' ? 2 : 1);
+            // v0.95.120 · Mori pained grunt when crossing 40% HP threshold
+            if (hit.hp > 0 && !hit._gruntPlayed && hit.hp <= maxHp * 0.4){
+              hit._gruntPlayed = true;
+              playSFX('moriGrunt');
+            }
             if (hit.hp <= 0){
+              playSFX('moriDeath');                     // v0.95.120 · bone-crack on kill
               hit.scene = '__dead__';
               player.rizerXP = (player.rizerXP || 0) + 12;
             }

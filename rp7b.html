@@ -2550,6 +2550,12 @@ const RIZER = {
     [[172, 78, 93,167],[129, 59,101,166],[107, 66,103,168],[ 79, 81, 93,164]],
     [[157,  3,113,163],[126,  0,114,149],[100,  0,113,159],[ 64,  3,116,163]],
   ], key: 'idleJump', loaded: false },
+  skate:    { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[117, 86,140,217],[ 94, 82,112,221],[ 65, 85,154,220],[ 38, 81,111,221]],
+    [[111, 54,159,226],[ 81, 54,159,226],[ 53, 53,168,224],[ 30, 53,153,227]],
+    [[107, 27,159,225],[ 76, 28,160,285],[ 47, 30,166,283],[ 22, 27,155,286]],
+    [[118,  1,122,207],[100,  0,110,211],[ 61,  0,126,213],[ 38,  0,110,211]],
+  ], key: 'skate', loaded: false },
   dodge:    { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
     [[133, 99,117,190],[ 80,155,136,134],[ 61,133,137,153],[  9,146,167,143]],
     [[115, 66,105,190],[ 63,107,182,145],[ 48,124,138,128],[ 21,102,192,150]],
@@ -3306,7 +3312,14 @@ function switchDockTab(tab){
     const items = Object.entries(player.items || {}).filter(([k,v]) => v > 0);
     body.innerHTML = items.length === 0
       ? '<i style="color:#886;">Bag is empty.</i>'
-      : items.map(([k,v]) => `<div style="padding:3px 0;"><b>${k}</b> <span style="color:#8ff;">× ${v}</span></div>`).join('');
+      : items.map(([k,v]) => {
+          // v0.95.100 · Skateboard shows toggle state
+          if (k === 'skateboard'){
+            const on = !!player.skating;
+            return `<div style="padding:3px 0;"><b>${k}</b> <span style="color:${on?'#ffd66b':'#8ff'};">${on?'[ ON ]':'[ OFF ]'}</span> <span style="color:#8ff; font-size:11px;">· press T to toggle</span></div>`;
+          }
+          return `<div style="padding:3px 0;"><b>${k}</b> <span style="color:#8ff;">× ${v}</span></div>`;
+        }).join('');
   } else if (tab === 'weapons'){
     body.innerHTML = '<i style="color:#886;">Weapon rack empty · unlock via chest loot + quest rewards.</i>';
   } else if (tab === 'recipes'){
@@ -3815,6 +3828,7 @@ Promise.all([
   loadAsset(RIZER.idleJump, 'assets/2D%20sprites/rizer/idle-jump.png'),
   loadAsset(RIZER.runJump,  'assets/2D%20sprites/rizer/run-jump.png'),
   loadAsset(RIZER.dodge,    'assets/2D%20sprites/rizer/dodge.png'),
+  loadAsset(RIZER.skate,    'assets/2D%20sprites/rizer/skate.png'),
 ]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge)'));
 
 // -- Input · keyboard --------------------------------------------------------
@@ -3905,6 +3919,13 @@ addEventListener('keydown', e => {
           }
         }
       }
+    }
+    // v0.95.100 · Skateboard toggle · press T to switch skate mode on/off
+    if (k === 't' && player.items?.skateboard){
+      player.skating = !player.skating;
+      playSFX(player.skating ? 'confirm' : 'menuClose');
+      showToast(player.skating ? '◈ Skateboard · ON · faster movement' : '◈ Skateboard · OFF', 1800);
+      keys[k] = true; return;
     }
     if (k === 'j' || k === 'k'){
       const anyModal = settingsMenuOpen || zyrexMenuOpen
@@ -4240,7 +4261,8 @@ function tryMove(dt){
   // Sprint sources: hold Shift/B key · hold Circle button · OR L3-toggled lock.
   const running = !!keys['shift'] || !!keys['b'] || player.sprintLocked;
   player.running = running;
-  player.moveCd = running ? 90 : 170;
+  // v0.95.100 · Skateboard cuts move-cd nearly in half regardless of sprint
+  player.moveCd = player.skating ? (running ? 55 : 95) : (running ? 90 : 170);
 
   // v0.95.63 · Chair-ride · chair follows the player every step.  Also
   // block descending stairs while riding (return chair home on descent).
@@ -4407,8 +4429,8 @@ function drawInteriorFloor(){
       const dy = Math.floor((9  + 1)   * TILE - drawH)     - _cam.y;
       ctx.drawImage(BED_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
-    // v0.95.98 · Skateboard leaning on wall at (3,1) · shrunk to 0.75t wide
-    if (SKATE_IMG.complete && SKATE_IMG.naturalWidth){
+    // v0.95.100 · Skateboard hidden from wall once picked up
+    if (!player.items?.skateboard && SKATE_IMG.complete && SKATE_IMG.naturalWidth){
       const [sx, sy, sw, sh] = SKATE_BBOX;
       const drawW = Math.round(0.75 * TILE);
       const drawH = Math.round(drawW * (sh / sw));
@@ -4561,6 +4583,7 @@ function drawPlayer(){
   if (!inAttack && player.attackMode){ player.attackMode = null; }
   const useRun  = player.running && player.moving && RIZER.run.loaded;
   const useWalk = player.moving && RIZER.walk.loaded;
+  const useSkate = player.skating && RIZER.skate.loaded;
   // v0.95.69 · Jump sheet overrides idle/walk/run while jumping.  Choice
   // (idleJump vs runJump) was frozen at jump-init based on movement state.
   const jumpBundleKey = _jumping ? (player.jumpSheet || 'idleJump') : null;
@@ -4575,6 +4598,7 @@ function drawPlayer(){
              : jumpBundle
              ? jumpBundle
              : inAttack && RIZER[player.attackMode] && RIZER[player.attackMode].loaded ? RIZER[player.attackMode]
+             : useSkate ? RIZER.skate                      // v0.95.100 · skate replaces run/walk/idle
              : useRun ? RIZER.run
              : useWalk ? RIZER.walk
              : (RIZER.idle.loaded ? RIZER.idle : null);
@@ -4792,6 +4816,14 @@ function tryInteract(){
         // Guitar · blocks (10, 1)
         const nearGuitar = (fx === 10 && fy === 1);
         if (nearGuitar){ openGuitarPanel(); return; }
+        // v0.95.100 · Skateboard prop at (3,1) · pick up → add to bag
+        if (fx === 3 && fy === 1 && !player.items?.skateboard){
+          player.items = player.items || {};
+          player.items.skateboard = 1;
+          playSFX('confirm');
+          showToast('◈ Skateboard added to bag · press T to toggle skate mode', 3000);
+          return;
+        }
         // v0.95.79 · Nebulaport 3000 · face the actual blocked tile (8,3) only
         const nearNebula = (fx === 8 && fy === 3);
         if (nearNebula){ openNebulaPanel(); return; }

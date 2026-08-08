@@ -828,7 +828,7 @@ const player = {
   sprintLocked: false,          // toggled by L3 click · adds to shift/b sprint holds
   party: [],                    // caught Zyrex list · touchpad toggles menu
   stepsInGrass: 0,              // consecutive gemgrass steps for encounter roll
-  items: {},                    // inventory · {itemKey: count} · chests + NPCs
+  items: { faenet: 1 },         // inventory · v0.95.132 · Fae Net standard-issue
   hp: 20, maxHp: 20,            // v0.95.129 · Rizer HP · drained by adjacent Mori
   _hurtFlashUntil: 0,           // v0.95.129 · red flash cd
 };
@@ -859,6 +859,8 @@ const INVENTORY_META = {
   zysphere_ultra:   { label: 'Ultra Zysphere',    order: 43 },
   rare_item:        { label: 'Rare Item',         order: 50 },
   prismshard:       { label: 'Legendary Prismshard', order: 60 },
+  faenet:           { label: 'Fae Net',            order: 35 },   // v0.95.132 · standard-issue Rizer net
+  skateboard:       { label: 'Skateboard',         order: 70 },
 };
 function addItems(drop){
   for (const key in drop){
@@ -2259,7 +2261,8 @@ const NPCS = [
       [[ 97,24,200,305],[70,24,201,305],[50,24,201,305],[34,24,201,305]],
       [[114,25,173,281],[89,25,173,281],[67,25,173,281],[51,25,173,281]],
       [[ 76,25,169,281],[51,25,169,281],[29,25,170,281],[11,25,168,281]],
-      [[ 71,25,186,281],[47,25,187,281],[25,25,188,281],[ 8,25,186,281]],
+      // v0.95.132 · up-row · pull by=0 · content sits at y=0 within cell · head no longer clipped
+      [[ 71, 0,186,281],[47, 0,187,281],[25, 0,188,281],[ 8, 0,186,281]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     tileX: 35, tileY: 140,
@@ -2766,11 +2769,14 @@ const RIZER = {
     [[46, 51,225,209],[28, 51,227,209],[18, 51,224,209],[ 8, 50,221,210]],
     [[45,  8,249,231],[26,  8,271,231],[19,  8,257,231],[ 6,  8,272,231]],
   ], key: 'guitarPlay', loaded: false },
+  // v0.95.132 · faeCatch bboxes = per-row UNION across all 4 frames.
+  //   Rizer stays IN PLACE while net swings inside the constant rect.
+  //   No crop · no shift · boots + hair preserved · magenta re-baked.
   faeCatch: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
-    [[ 69,108,184,184],[ 14, 96,204,196],[ 83,109,106,183],[ 39,109,221,196]],
-    [[129, 93,172,172],[ 94, 91,181,174],[ 75, 96,216,169],[ 37, 96,199,169]],
-    [[ 78, 58,171,170],[ 36, 50,177,178],[ 84, 59,229,169],[  0, 59,267,169]],
-    [[136, 24,145,174],[104, 16,179,182],[ 85, 29,102,169],[ 34, 30,202,168]],
+    [[14, 96,246,209],[14, 96,246,209],[14, 96,246,209],[14, 96,246,209]],
+    [[37, 91,264,174],[37, 91,264,174],[37, 91,264,174],[37, 91,264,174]],
+    [[ 0, 50,313,178],[ 0, 50,313,178],[ 0, 50,313,178],[ 0, 50,313,178]],
+    [[34, 16,250,182],[34, 16,250,182],[34, 16,250,182],[34, 16,250,182]],
   ], key: 'faeCatch', loaded: false },
   interact: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
     [[142, 94,111,188],[110, 95,129,187],[ 61, 94,138,188],[ 49, 95,113,187]],
@@ -3320,6 +3326,9 @@ function startNewGame(){
   game.showTitleButtons = false;                   // v0.93.6 · hide DOM buttons
   if (titleBtnsEl) titleBtnsEl.style.display = 'none';
   game.scene = 'overworld';
+  // v0.95.132 · Rizer starts with standard-issue Fae Net in bag
+  player.items = player.items || {};
+  if (!player.items.faenet) player.items.faenet = 1;
   playBGM('home');
   showToast('◈ Welcome to Malezor.', 2000);
 }
@@ -5302,12 +5311,14 @@ function tryInteract(){
         // Guitar · blocks (10, 1)
         const nearGuitar = (fx === 10 && fy === 1);
         if (nearGuitar){ openGuitarPanel(); return; }
-        // v0.95.100 · Skateboard prop at (3,1) · pick up → add to bag
+        // v0.95.100 · Skateboard prop at (3,1) · GRAB → add to bag
+        // v0.95.131 · fires the grab (= interact) anim upstream, then this
+        // silent add + toast happens on the same A-press.
         if (fx === 3 && fy === 1 && !player.items?.skateboard){
           player.items = player.items || {};
           player.items.skateboard = 1;
           playSFX('confirm');
-          showToast('◈ Skateboard added to bag · press T to toggle skate mode', 3000);
+          showToast('◈ Grabbed skateboard · added to bag · press T to toggle skate mode', 3000);
           return;
         }
         // v0.95.79 · Nebulaport 3000 · face the actual blocked tile (8,3) only
@@ -5806,6 +5817,14 @@ addEventListener('keydown', e => {
               if (n.scene === game.scene && n.tileX === fx && n.tileY === fy){ _faceHasInteract = true; break; }
             }
           }
+          // v0.95.131 · Grab (= interact anim alias) fires over Jump when
+          // facing the Skateboard prop in Rizer Room 2F.  Prop is silent-
+          // effect (just addItems + toast) so no snapshot flag would flip;
+          // detect the tile explicitly here.
+          if (!_faceHasInteract && cfg && cfg.rizerRoom
+              && fx === 3 && fy === 1 && !player.items?.skateboard){
+            _faceHasInteract = true;
+          }
         }
       }
       // v0.95.65 · Snapshot state, run tryInteract, then compare.  If
@@ -5833,6 +5852,7 @@ addEventListener('keydown', e => {
       if (changed || _faceHasInteract){
         // v0.95.123 · Something actually interacted (or facing a chest/NPC/
         // prop/boulder even if it only made a toast) · reach anim, no jump.
+        // v0.95.131 · This is the same animation as "grab" (interact ≡ grab).
         if (RIZER.interact && RIZER.interact.loaded){
           player.interactStart = now;
           player.interactUntil = now + 260;

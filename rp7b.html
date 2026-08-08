@@ -1251,6 +1251,7 @@ const WORLD_PROPS = [
     src: 'assets/2D%20sprites/buildings/rakoron-cave-entrance.png',
     bbox: [55, 201, 1425, 584],       // aspect 2.44 · wide short banner
     tileX: 22, tileY: 4,              // v0.95.190 · moved up 1 (was row 5) · aligns with new stair position
+    subY: 0.5,                         // v0.95.192 · half-tile nudge down · fine seam alignment with stairs
     tileW: 13, tileH: 5,              // 13 wide x 5 tall footprint (rows 1-5)
     footprint: (function(){
       const f = [];
@@ -1277,6 +1278,7 @@ const WORLD_PROPS = [
     tileX: 22, tileY: 10,                // v0.95.190 · moved up 2 (was row 12) · alignment lock
     tileW: 13, tileH: 6,                 // spans cols 16-28 rows 5-10 visually
     footprint: [],                       // no collision · walkable overhead
+    depthOffset: -100,                    // v0.95.192 · always render below Rizer + NPCs (ground layer)
   },
   {
     // Malezor Zyrex Research Facility · sits between Rakoron's Cave (row 5)
@@ -3965,7 +3967,7 @@ const _boulderSpots = [
   { x: 110, y: 173 },
   // Path north to Rakoron's Cave · between the tree flanks
   { x: 20, y: 40 }, { x: 25, y: 32 }, { x: 21, y: 24 },
-  { x: 24, y: 16 }, { x: 20, y: 10 },
+  { x: 24, y: 16 }, { x: 20, y: 13 },   // v0.95.192 · (20,10)→(20,13) · moved 3 down · off the new stair span
 ];
 const BOULDERS = _boulderSpots.map(s => ({
   tileX: s.x, tileY: s.y, hp: BOULDER_MAX_HP, breaking: 0, gone: false, scene: 'overworld'
@@ -8304,8 +8306,10 @@ function drawProp(p){
   // Anchor: bottom-center of prop sits on bottom edge of tile (tileX, tileY).
   // Levitating props (portals · v0.88.4) bob subtly on a sine wave.
   const lev = p._levitate ? Math.round(Math.sin(performance.now() / 500) * 4) : 0;
+  // v0.95.192 · sub-tile Y nudge (fractional tiles · e.g. 0.5 pushes down half a tile)
+  const subY = p.subY || 0;
   const dx = Math.floor((p.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
-  const dy = Math.floor((p.tileY + 1)   * TILE - drawH)     - _cam.y + lev;
+  const dy = Math.floor((p.tileY + 1 + subY) * TILE - drawH) - _cam.y + lev;
   // Cull: skip props whose whole footprint is off-screen
   if (dx + drawW < 0 || dx > canvas.width)  return;
   if (dy + drawH < 0 || dy > canvas.height) return;

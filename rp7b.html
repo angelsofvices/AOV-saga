@@ -936,6 +936,15 @@ const INVENTORY_META = {
   ale:              { label: 'Ale',                  order: 32 },   // v0.95.150 · +25% Rizer HP heal item
   soulphish:        { label: 'Soulphish',             order: 91 },   // v0.95.152 · spirit fish · 1 → full astral energy
   zphone:           { label: 'Z-Phone (ZYCELLYTE)',    order: 5  },   // v0.95.164 · Thardin phone · call faction NPCs at bond ≥ 60
+  // v0.95.171 · Gems · 8 colors · dropped by chests · utility TBD
+  gem_red:          { label: 'Red Gem',            order: 100 },
+  gem_blue:         { label: 'Blue Gem',           order: 101 },
+  gem_green:        { label: 'Green Gem',          order: 102 },
+  gem_yellow:       { label: 'Yellow Gem',         order: 103 },
+  gem_white:        { label: 'White Gem',          order: 104 },
+  gem_orange:       { label: 'Orange Gem',         order: 105 },
+  gem_purple:       { label: 'Purple Gem',         order: 106 },
+  gem_black:        { label: 'Black Gem',          order: 107 },
 };
 function addItems(drop){
   for (const key in drop){
@@ -1427,7 +1436,9 @@ const WORLD_PROPS = [
         const coins = 1 + Math.floor(Math.random() * 100);
         addItems({ coins });
         playSFX('coins');
-        popCoinLabel(coins);                     // v0.95.142 · pop over coin HUD (no center toast)
+        popCoinLabel(coins);
+        // v0.95.171 · Gems pop out · 1-3 colored gems around chest tile · walk to collect
+        spawnChestGems('overworld', chest.tileX, chest.tileY);
       };
       return chest;
     });
@@ -1827,7 +1838,7 @@ const WORLD_PROPS = [
   ...(function(){
     const _atrImg = new Image();
     _atrImg.src = 'assets/2D%20sprites/decor/andrannor-tree.png';
-    const _atrBBox = [190, 50, 884, 1159];
+    const _atrBBox = [192, 51, 881, 1158];   // v0.95.171 · user-recleaned CK · near-identical bbox
     // v0.95.166 · Density bump · roads reserved rows 322-324 (E-W) + cols 258-262 (N-S)
     // Extra branch alleys open at rows 310, 316, 330, 336 for city expansion.
     const POS = [
@@ -3805,6 +3816,71 @@ function boulderAt(scene, x, y){
   }
   return null;
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.171 · Gem drop entities · pop out of chests · walk onto to collect
+// 8 colors · sit on floor · sleek shine pulse until picked up · 0.40 tile scale
+// ═══════════════════════════════════════════════════════════════════════════
+const GEM_COLORS = ['red','blue','green','yellow','white','orange','purple','black'];
+const GEM_IMG = {};
+GEM_COLORS.forEach(c => {
+  GEM_IMG[c] = new Image();
+  GEM_IMG[c].src = `assets/2D%20sprites/decor/gem-${c}.png`;
+});
+const GEM_ENTITIES = [];    // { x, y, color, scene, collected, phase, born }
+function spawnGemDrop(scene, x, y, color){
+  GEM_ENTITIES.push({ scene, x, y, color, collected: false, phase: Math.random() * 6.28, born: performance.now() });
+}
+function spawnChestGems(scene, tx, ty){
+  // 1-3 gems in ring around chest · random colors · random tile within 1 tile
+  const n = 1 + Math.floor(Math.random() * 3);
+  const offs = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+  const picks = offs.slice().sort(() => Math.random() - 0.5).slice(0, n);
+  picks.forEach(([dx, dy]) => {
+    const c = GEM_COLORS[Math.floor(Math.random() * GEM_COLORS.length)];
+    spawnGemDrop(scene, tx + dx, ty + dy, c);
+  });
+}
+function collectGemAt(scene, x, y){
+  let hit = false;
+  for (const g of GEM_ENTITIES){
+    if (g.collected || g.scene !== scene) continue;
+    if (g.x === x && g.y === y){
+      g.collected = true;
+      addItems({ ['gem_' + g.color]: 1 });
+      playSFX('coins');
+      popCoinLabel(`+1 ${g.color}`);        // reuse coin pop label · shows gem color
+      hit = true;
+    }
+  }
+  return hit;
+}
+function drawGems(){
+  const now = performance.now();
+  for (const g of GEM_ENTITIES){
+    if (g.collected || g.scene !== game.scene) continue;
+    const img = GEM_IMG[g.color];
+    if (!img || !img.complete || !img.naturalWidth) continue;
+    const drawSize = Math.round(TILE * 0.40);         // 0.40× tile · sits on floor
+    const bob = Math.sin(now / 500 + g.phase) * 2;
+    const dx = Math.floor(g.x * TILE + (TILE - drawSize) / 2) - _cam.x;
+    const dy = Math.floor(g.y * TILE + TILE - drawSize - 4) - _cam.y + bob;
+    // Sleek shine pulse · slow alpha wave
+    const pulse = 0.75 + 0.25 * (0.5 + 0.5 * Math.sin(now / 320 + g.phase));
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.drawImage(img, dx, dy, drawSize, drawSize);
+    // subtle glow underneath
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.18 * pulse;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(dx + drawSize/2, dy + drawSize - 1,
+                drawSize * 0.45, 2.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function hitBoulder(b, dmg){
   if (!b || b.gone) return;
   b.hp = Math.max(0, b.hp - dmg);
@@ -5437,6 +5513,8 @@ function tryMove(dt){
 
   const wasMoving = player.moving;
   player.x = nx; player.y = ny;
+  // v0.95.171 · Auto-collect gems when stepping onto their tile
+  if (game.scene === 'overworld') collectGemAt('overworld', nx, ny);
   // v0.95.93 · Walking cancels any guitar song + upcoming play animation
   if (_currentSongAudio) stopCurrentSong();
   player.moving = true;
@@ -7872,6 +7950,7 @@ function frame(now){
     drawFootprints();   // v0.87 · sand-trail overlay (Zarvane rows only)
     drawWorldLayer();   // props + player, depth-sorted by feet-Y
     drawFae();          // v0.91 · fae collectibles float above ground
+    drawGems();         // v0.95.171 · chest-drop gem entities · shine pulse
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }
   drawHitFx();          // v0.95.149 · combat hit glow · above world under menus

@@ -789,6 +789,7 @@ const AUDIO = {
     ufoLanding:   new Audio('audio/sfx-ufo-landing.mp3'),    // v0.95.199 · UFO interact · low-hum landing
     elzoran:      new Audio('audio/sfx-elzoran.mp3'),        // v0.95.205 · Smoke-the-Dragon growl on Elzoran interact
     astralstrike: new Audio('audio/sfx-astralstrike.mp3'),   // v0.95.212 · A3 handblast cast SFX
+    astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
     barrelRoll:   new Audio('audio/sfx-barrelroll.mp3'),     // v0.95.85 · "do a barrel roll" after 3 rapid dodges
     rustbyte:     new Audio('audio/sfx-rustbyte.mp3'),       // v0.95.86 · whoosh-bike-on cue on Rustbyte talk
     dodge:        new Audio('audio/sfx-dodge.mp3'),          // v0.95.87 · swish on each dodge (skipped on barrel-roll trigger)
@@ -4289,7 +4290,8 @@ function applyAstralHit(tx, ty){
     hit.hp -= (player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT;
     playSFX('moriGrunt');
     if (hit.hp <= 0){
-      playSFX('moriDeath');
+      // v0.95.215 · Dedicated A3-kill SFX (alien-stomach splat) instead of the generic bone-crack
+      playSFX('astralKill');
       hit.scene = '__dead__';
       player.rizerXP = (player.rizerXP || 0) + 20;
       recordMoriKill('astralstrike');
@@ -4342,6 +4344,9 @@ function drawProjectiles(){
   const now = performance.now();
   for (const p of PROJECTILES){
     if (p.scene !== game.scene) continue;
+    // v0.95.215 · Only render AFTER palm-burst frame plays (~250ms into 500ms cast)
+    // so the projectile doesn't sit visible behind the charging Rizer sprite
+    if (p.state === 'flight' && now - p.t0 < 250) continue;
     const row = dirRow[p.dir] || 0;
     let col;
     if (p.state === 'explode'){
@@ -6875,7 +6880,9 @@ function drawPlayer(){
     drawW = Math.max(1, Math.round(bw * attackScale));
   }
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
-  const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y + _jumpOffset;
+  // v0.95.215 · Astralstrike cast lifts the sprite 0.5 tiles · dramatic hover on cast
+  const astralLift = (inAttack && player.attackMode === 'astralstrike') ? Math.round(TILE * 0.5) : 0;
+  const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y + _jumpOffset - astralLift;
 
   // Ground shadow at the CHARACTER'S actual feet · drawn just under
   // dy+drawH (bbox bottom = feet).  Gives a solid ground contact so

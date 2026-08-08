@@ -829,7 +829,21 @@ const player = {
   party: [],                    // caught Zyrex list · touchpad toggles menu
   stepsInGrass: 0,              // consecutive gemgrass steps for encounter roll
   items: {},                    // inventory · {itemKey: count} · chests + NPCs
+  hp: 20, maxHp: 20,            // v0.95.129 · Rizer HP · drained by adjacent Mori
+  _hurtFlashUntil: 0,           // v0.95.129 · red flash cd
 };
+// v0.95.129 · Rizer damage funnel · red flash + toast + prevent negative
+function hurtPlayer(amt, srcName){
+  if ((player._invulnUntil || 0) > performance.now()) return;
+  player.hp = Math.max(0, (player.hp || 0) - amt);
+  player._hurtFlashUntil = performance.now() + 220;
+  player._invulnUntil    = performance.now() + 700;     // brief i-frames
+  if (srcName) showToast(`◈ ${srcName} drains ${amt} HP`, 1000);
+  if (player.hp === 0){
+    showToast('◈ You collapse... find a bed to recover.', 2600);
+    player.hp = 1;                                       // soft-death · full KO wiring later
+  }
+}
 
 // -- Inventory / items ------------------------------------------------------
 // Every item source (chests, NPCs later) funnels through addItems(drop).
@@ -1688,6 +1702,34 @@ const WORLD_PROPS = [
       footprint: [[0, 0]],
     }));
   })(),
+  // ── ANDRANNOR TREES · purple palm w/ dragonfruit · v0.95.130 ──
+  // 12 trees scattered in NW wild branch (cols 181-300 rows 308-337).
+  // 2:1 tree:mori ratio (12 trees · 6 mori · from v0.95.129).
+  // Layout preserves future branching road: horizontal band rows 322-324
+  // stays clear (main E-W path), col 258-262 stays clear (N-S branch),
+  // town hall footprint (cols 234-248 rows 307-318) untouched.
+  ...(function(){
+    const _atrImg = new Image();
+    _atrImg.src = 'assets/2D%20sprites/decor/andrannor-tree.png';
+    const _atrBBox = [190, 50, 884, 1159];
+    // Natural-looking scatter · avoids road corridor + town hall
+    const POS = [
+      [185, 310], [195, 328], [202, 320], [210, 335],
+      [220, 312], [228, 320], [250, 315], [255, 335],
+      [270, 312], [278, 328], [285, 318], [295, 335],
+    ];
+    return POS.map(([tx, ty], i) => ({
+      id: `andrannor_tree_${i}`,
+      img: _atrImg,
+      src: 'assets/2D%20sprites/decor/andrannor-tree.png',
+      bbox: _atrBBox,
+      tileX: tx, tileY: ty,
+      tileW: 4, tileH: 5,
+      // Trunk-only collision · footprint is the centre tile beneath the crown.
+      // tileW=4 means visual spans tx-1..tx+2 centred; trunk sits at (0,0) local.
+      footprint: [[0, 0]],
+    }));
+  })(),
   // ── ZARVANE PRISMATIC BEACON · (74, 353) southern Zarvane (v0.91.5) ──
   (function(){
     const _pbImg = new Image();
@@ -2483,6 +2525,104 @@ const NPCS = [
       blinkTimer: 9e9,                  // Mori doesn't blink (skeletal)
       isEnemy: true,                    // future combat trigger uses this
       onInteract: (n) => showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000),
+    }));
+  })(),
+  // ── Mori · ZARVANE wild region · v0.95.129 · heavier population than Malezor ──
+  // Districts progress: Malezor=passive wander · Zarvane=mix of wander + drainers
+  //                     + one daemon lurking deep south · Andrannor=daemon-heavy.
+  ...(function(){
+    const MORI_BBOXES = [
+      [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
+      [[71,45,189,254],[49,49,206,250],[17,45,207,251],[27,45,170,254]],
+      [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
+      [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
+    ];
+    // 16 spawns across Zarvane wild + Wilds Branch + Southern extension.
+    // mode: 'wander' | 'drainer' | 'daemon'
+    const SPOTS = [
+      // SE Zarvane block (cols 62-116 rows 195-303)
+      { x:  68, y: 200, dir:'down',  r: 6, mode:'wander'  },
+      { x:  85, y: 205, dir:'left',  r: 7, mode:'wander'  },
+      { x: 100, y: 210, dir:'down',  r: 7, mode:'drainer' },
+      { x:  72, y: 225, dir:'right', r: 6, mode:'drainer' },
+      { x:  95, y: 235, dir:'up',    r: 7, mode:'wander'  },
+      { x: 110, y: 245, dir:'left',  r: 7, mode:'drainer' },
+      { x:  78, y: 260, dir:'down',  r: 8, mode:'drainer' },
+      { x:  92, y: 275, dir:'right', r: 8, mode:'wander'  },
+      { x: 108, y: 285, dir:'up',    r: 8, mode:'drainer' },
+      // Wilds Branch east extension (cols 120-179 rows 227-266)
+      { x: 130, y: 235, dir:'right', r: 8, mode:'wander'  },
+      { x: 150, y: 245, dir:'down',  r: 8, mode:'drainer' },
+      { x: 165, y: 255, dir:'left',  r: 8, mode:'drainer' },
+      // Southern Zarvane extension (rows 315-362)
+      { x:  75, y: 325, dir:'up',    r: 8, mode:'drainer' },
+      { x:  95, y: 340, dir:'right', r: 8, mode:'drainer' },
+      { x: 110, y: 350, dir:'left',  r: 8, mode:'drainer' },
+      { x:  85, y: 360, dir:'down',  r: 10, mode:'daemon' },   // lone daemon lurking deep south
+    ];
+    return SPOTS.map((s, i) => ({
+      id: `mori_zar_${i + 1}`,
+      name: 'Mori',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/npcs/mori.png',
+      bboxes: MORI_BBOXES,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      tileX: s.x, tileY: s.y,
+      homeX: s.x, homeY: s.y,
+      homeScene: 'overworld',
+      scene: 'overworld',
+      wanderRadius: s.r,
+      dir: s.dir,
+      mode: s.mode,
+      moving: false,
+      animFrame: 0,
+      idleFrame: 0,
+      moveCd: 250 + Math.random() * 350,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      hpMax: s.mode === 'daemon' ? 6 : (s.mode === 'drainer' ? 4 : 3),
+      onInteract: (n) => showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000),
+    }));
+  })(),
+  // ── Mori · ANDRANNOR NW wild branch · v0.95.129 · daemon-heavy ──
+  // Cols 181-300 rows 308-337 · smaller area than Zarvane but MORE aggressive mix.
+  ...(function(){
+    const MORI_BBOXES = [
+      [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
+      [[71,45,189,254],[49,49,206,250],[17,45,207,251],[27,45,170,254]],
+      [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
+      [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
+    ];
+    const SPOTS = [
+      { x: 195, y: 318, dir:'down',  r: 6, mode:'drainer' },
+      { x: 215, y: 325, dir:'left',  r: 7, mode:'drainer' },
+      { x: 235, y: 330, dir:'right', r: 7, mode:'daemon'  },
+      { x: 255, y: 320, dir:'up',    r: 8, mode:'drainer' },
+      { x: 275, y: 328, dir:'down',  r: 8, mode:'daemon'  },
+      { x: 290, y: 335, dir:'left',  r: 8, mode:'daemon'  },
+    ];
+    return SPOTS.map((s, i) => ({
+      id: `mori_and_${i + 1}`,
+      name: s.mode === 'daemon' ? 'Daemon' : 'Mori',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/npcs/mori.png',
+      bboxes: MORI_BBOXES,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      tileX: s.x, tileY: s.y,
+      homeX: s.x, homeY: s.y,
+      homeScene: 'overworld',
+      scene: 'overworld',
+      wanderRadius: s.r,
+      dir: s.dir,
+      mode: s.mode,
+      moving: false,
+      animFrame: 0,
+      idleFrame: 0,
+      moveCd: 250 + Math.random() * 350,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      hpMax: s.mode === 'daemon' ? 7 : 4,
+      onInteract: (n) => showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000),
     }));
   })(),
 ];
@@ -6549,6 +6689,53 @@ function tickNPC(n, dt){
 
   n.moveCd = (n.moveCd || 0) - dt;
   if (n.moveCd > 0){ /* wait */ return; }
+  // v0.95.129 · Mori AI · drainer / daemon
+  //   drainer · slow shamble toward player when within detectR · adjacent = drain HP
+  //   daemon  · fast chase within detectR, ignores wanderRadius fence · higher drain
+  if (n.mode === 'drainer' || n.mode === 'daemon'){
+    const isDaemon  = n.mode === 'daemon';
+    const detectR   = n.detectR || (isDaemon ? 14 : 8);
+    const stepCd    = isDaemon ? 130 : 230;
+    const idleCd    = isDaemon ? 380 : 620;
+    const drainAmt  = isDaemon ? 2 : 1;
+    const dxp = player.x - n.tileX, dyp = player.y - n.tileY;
+    const manh = Math.abs(dxp) + Math.abs(dyp);
+    // Adjacent contact → drain life
+    if (manh === 1 && game.scene === 'overworld'){
+      hurtPlayer(drainAmt, n.name || 'Mori');
+      // face player after strike
+      n.dir = Math.abs(dxp) >= Math.abs(dyp)
+        ? (dxp > 0 ? 'right' : 'left')
+        : (dyp > 0 ? 'down'  : 'up');
+      n.moving = false;
+      n.moveCd = isDaemon ? 350 : 620;
+      return;
+    }
+    // Out of detection range → fall back to wander step
+    if (manh > detectR){
+      // wander step (bounded by wanderRadius if defined) — same code path as default
+    } else {
+      // Chase step · prefer larger axis · try alt axis if blocked
+      let dir;
+      if (Math.abs(dxp) >= Math.abs(dyp)) dir = dxp > 0 ? 'right' : 'left';
+      else                                dir = dyp > 0 ? 'down'  : 'up';
+      const v = _DIR_VEC[dir];
+      if (stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
+        n.moveCd = stepCd;
+      } else {
+        const altDir = (dir === 'left' || dir === 'right')
+          ? (dyp > 0 ? 'down' : 'up')
+          : (dxp > 0 ? 'right' : 'left');
+        const av = _DIR_VEC[altDir];
+        if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, altDir)){
+          n.moveCd = stepCd;
+        } else {
+          n.dir = dir; n.moving = false; n.moveCd = idleCd;
+        }
+      }
+      return;
+    }
+  }
   if (n.mode === 'follow'){
     // Follow player · target = 2 tiles behind in player's trail
     const trail = player.trail || [];
@@ -6722,6 +6909,12 @@ function frame(now){
   drawBattleOverlay();  // owns whole screen while battleState is set
   drawDialogOverlay();  // shown when dialogState is set (v0.79)
   drawSleepFade();      // v0.95.4 · black-out overlay while napping in bed
+  // v0.95.129 · red vignette when Rizer takes drain damage
+  if ((player._hurtFlashUntil || 0) > performance.now()){
+    const rem = (player._hurtFlashUntil - performance.now()) / 220;
+    ctx.fillStyle = `rgba(220, 40, 40, ${0.28 * rem})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
   updateHUD();          // live tile coordinates in top-left
   updateRizerHUD();     // Rizer HUD bars + panel refresh (top-right)
   requestAnimationFrame(frame);

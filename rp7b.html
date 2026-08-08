@@ -592,6 +592,10 @@
       <button id="devFillBonds">Fill All Bonds → 100</button>
     </div>
     <div class="row">
+      <button id="devSurvivalMode">Survival Horde (×3): OFF</button>
+      <button id="devExtremeMode">Extreme Horde (×6 + 3m respawn): OFF</button>
+    </div>
+    <div class="row">
       <button id="devCloseBtn">Close</button>
     </div>
   </div>
@@ -904,6 +908,17 @@ function updateCamera(){
   }
   _cam.x = Math.floor(_cam.fx + swayX + shakeX);
   _cam.y = Math.floor(_cam.fy + swayY + shakeY);
+}
+// v0.95.198 · Hard-snap camera to player · used on scene changes so GBA
+// mode doesn't have to catch up · caller ensures player.x/y are already set.
+function snapCameraToPlayer(){
+  const targetX = player.x * TILE + TILE / 2 - canvas.width  / 2;
+  const targetY = player.y * TILE + TILE / 2 - canvas.height / 2;
+  _cam.fx = targetX;
+  _cam.fy = targetY;
+  _cam.x  = Math.floor(targetX);
+  _cam.y  = Math.floor(targetY);
+  _camSwayEase = 0;   // idle · no sway until first movement
 }
 
 // -- Player state ------------------------------------------------------------
@@ -4331,6 +4346,69 @@ function recordHitLanded(mode){
 }
 // v0.95.140 · Cosmetic Combat Core · counts only LIGHT (punch) + HEAVY (kick)
 // melee kills.  Other actions (dodge, throw, etc.) never contribute here.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.198 · Survival + Extreme dev modes · zombie horde multipliers
+// Survival ON  → +2× extra Mori/Daemon clones (total ~3×)
+// Extreme  ON  → +5× extra Mori/Daemon clones (total ~6×) + 3-min respawn
+// Toggle bound in dev panel · both mutually exclusive (extreme implies survival)
+// ═══════════════════════════════════════════════════════════════════════════
+function _isEnemyNpc(n){ return n && n.isEnemy && !n._extraSpawn; }   // base only
+let _hordeRespawnTimer = null;
+function stripHordeExtras(){
+  for (let i = NPCS.length - 1; i >= 0; i--){
+    if (NPCS[i]._extraSpawn){ NPCS.splice(i, 1); }
+  }
+}
+function cloneMoriBase(base, dx, dy){
+  const clone = Object.assign({}, base);
+  clone.id      = `${base.id}_x${Math.floor(Math.random()*99999)}`;
+  clone.tileX   = base.tileX + dx;
+  clone.tileY   = base.tileY + dy;
+  clone.homeX   = clone.tileX;
+  clone.homeY   = clone.tileY;
+  clone.hp      = clone.hpMax;
+  clone._gruntPlayed = false;
+  clone.scene   = 'overworld';
+  clone.animFrame = 0;
+  clone.idleFrame = 0;
+  clone.moveCd    = 200 + Math.random() * 400;
+  clone.blinkTimer = 9e9;
+  clone.moving  = false;
+  clone._extraSpawn = true;
+  // Fresh sheet image per clone (shared img cache is fine)
+  clone.sheet = base.sheet;   // reuse loaded image
+  return clone;
+}
+function respawnHordeExtras(mult){
+  stripHordeExtras();
+  if (mult <= 0) return;
+  const bases = NPCS.filter(_isEnemyNpc);
+  // Radius scatter around each base
+  const OFFSETS = [[-2,0],[2,0],[0,-2],[0,2],[-2,-2],[2,2],[-2,2],[2,-2],[-3,0],[3,0]];
+  bases.forEach(base => {
+    for (let i = 0; i < mult; i++){
+      const [ox, oy] = OFFSETS[(i + Math.floor(Math.random()*OFFSETS.length)) % OFFSETS.length];
+      const jitterX  = ox + (Math.random() < 0.5 ? -1 : 1);
+      const jitterY  = oy + (Math.random() < 0.5 ? -1 : 1);
+      NPCS.push(cloneMoriBase(base, jitterX, jitterY));
+    }
+  });
+}
+function applyHordeMode(){
+  const survival = !!game.survivalMode;
+  const extreme  = !!game.extremeMode;
+  const mult = extreme ? 5 : (survival ? 2 : 0);
+  respawnHordeExtras(mult);
+  // Extreme respawn timer · every 3 min · if any horde spawn is dead, revive
+  if (_hordeRespawnTimer){ clearInterval(_hordeRespawnTimer); _hordeRespawnTimer = null; }
+  if (extreme){
+    _hordeRespawnTimer = setInterval(() => {
+      const anyDead = NPCS.some(n => n._extraSpawn && n.scene === '__dead__');
+      if (anyDead){ respawnHordeExtras(5); showToast('◈ EXTREME · Horde respawned', 2000); }
+    }, 180000);   // 3 min
+  }
+}
+
 function recordMoriKill(mode){
   player.stats.moriKills = (player.stats.moriKills || 0) + 1;
   if (mode === 'kick') player.stats.moriKillsHeavy = (player.stats.moriKillsHeavy || 0) + 1;
@@ -5313,6 +5391,8 @@ function enterInterior(sceneKey, cfg, toast){
   player.dir = cfg.spawn.dir;
   player.moving = false;
   player.animFrame = 0;
+  // v0.95.198 · Snap GBA camera to player on scene entry · no catch-up sway
+  snapCameraToPlayer();
   // v0.95 · Rizer Room · always show scene label as toast on entry
   const label = cfg.label || toast;
   if (label) showToast(label, 1800);
@@ -5367,6 +5447,8 @@ function exitInterior(){
   player.dir = r.dir || 'down';      // always face away from the door on exit
   player.moving = false;
   player.animFrame = 0;
+  // v0.95.198 · Snap GBA camera on scene exit too · idle focus on player
+  snapCameraToPlayer();
   // Any NPC that was 'follow' in the interior we just left · transfer to
   // overworld right behind the player · they walk out with us.
   for (const n of NPCS){
@@ -8684,6 +8766,37 @@ function frame(now){
       NPCS.forEach(n => { if (isFriendlyNpc(n)) player.bonds[n.id] = 100; });
       playSFX('confirm');
       showToast('◈ DEV · All friendly NPC bonds → 100', 2000);
+    });
+  }
+  // v0.95.198 · Dev · Survival + Extreme Horde toggles · multiply Mori/Daemon spawns
+  const survivalBtn = document.getElementById('devSurvivalMode');
+  const extremeBtn  = document.getElementById('devExtremeMode');
+  const labelSurvival = () => `Survival Horde (×3): ${game.survivalMode ? 'ON' : 'OFF'}`;
+  const labelExtreme  = () => `Extreme Horde (×6 + 3m respawn): ${game.extremeMode ? 'ON' : 'OFF'}`;
+  const refreshHordeLabels = () => {
+    if (survivalBtn) survivalBtn.textContent = labelSurvival();
+    if (extremeBtn)  extremeBtn.textContent  = labelExtreme();
+  };
+  refreshHordeLabels();
+  if (survivalBtn){
+    survivalBtn.addEventListener('click', () => {
+      game.survivalMode = !game.survivalMode;
+      // Mutually exclusive · turning Survival on turns Extreme off
+      if (game.survivalMode) game.extremeMode = false;
+      applyHordeMode();
+      refreshHordeLabels();
+      playSFX('confirm');
+      showToast(`◈ DEV · Survival Horde ${game.survivalMode ? 'ON · 3× zombies across map' : 'OFF · base spawns restored'}`, 2400);
+    });
+  }
+  if (extremeBtn){
+    extremeBtn.addEventListener('click', () => {
+      game.extremeMode = !game.extremeMode;
+      if (game.extremeMode) game.survivalMode = false;
+      applyHordeMode();
+      refreshHordeLabels();
+      playSFX('confirm');
+      showToast(`◈ DEV · Extreme Horde ${game.extremeMode ? 'ON · 6× zombies · 3-min respawn' : 'OFF · base spawns restored'}`, 2600);
     });
   }
   // v0.95.175 · Dev · Light Mode cycler (OFF ↔ NIGHT)

@@ -3357,6 +3357,22 @@ const RIZER = {
     ],
     key: 'hurt', loaded: false,
   },
+  // v0.95.210 · A3 Astralstrike · Rizer palm-blast cast animation · 4 frames per row
+  // Row 0 DOWN · Row 1 LEFT · Row 2 RIGHT · Row 3 UP · frames: charge → surge → palm burst → follow-through
+  astralstrike: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[119, 92,138,186],[ 97, 91,120,187],[ 53, 92,126,203],[ 44, 91,118,190]],
+    [[137, 66, 96,167],[ 59, 66,254,167],[  0, 65,168,168],[  2, 66,152,167]],
+    [[144, 28, 90,285],[110, 28,130,285],[ 79, 28,182,285],[ 58, 28,146,285]],
+    [[130,  0,133,157],[ 97,  0,142,157],[ 56,  0,116,157],[ 39,  0,133,157]],
+  ], key: 'astralstrike', loaded: false },
+  // v0.95.210 · Astralite handblast · the traveling projectile itself · 4 frames per row
+  // Row 0 DOWN · Row 1 LEFT · Row 2 RIGHT · Row 3 UP · frames: launch → flight → contact → explosion
+  astralProj: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[131,161, 85,120],[ 99, 78,117,232],[ 48, 36,265,277],[  0, 63,273,250]],
+    [[ 96,147,138, 86],[ 51,144,237,103],[ 55,  0,192,289],[ 18,  0,248,313]],
+    [[ 85,114,136, 86],[ 35,112,223, 97],[ 50, 70,169,178],[ 14,  0,247,277]],
+    [[131, 78, 83,124],[100, 50,109,204],[ 41, 36,197,178],[  2,  6,273,268]],
+  ], key: 'astralProj', loaded: false },
 };
 // Right uses the actual right-facing cells (row 2).  The old cape-tail
 // float was fixed by the CC extractor · disconnected cape pixels are
@@ -4191,6 +4207,127 @@ function spawnHitFx(tx, ty, mode){
     color: mode === 'kick' ? '#ffb04a' : '#ffe770',   // orange kick · yellow punch
     ringMax: mode === 'kick' ? 38 : 30,
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.210 · A3 ASTRALSTRIKE · Rizer palm-blast handblast projectile
+// L1 + R1 + Square chord fires this · consumes Blue Diamond ◆ · projectile
+// travels in facing direction at ~10 tiles/sec · explodes on first NPC/boulder
+// contact or after max range · uses the 4x4 astralProj sheet:
+//   frame 0 launch · frame 1 flight · frame 2 contact · frame 3 explosion
+// ═══════════════════════════════════════════════════════════════════════════
+const ASTRAL_STRIKE = {
+  DUR_MS:       500,      // Rizer cast animation length
+  DIAMOND_COST: 10,       // per cast (Blue Diamond ◆ · numerics pending v15.8+)
+  DAMAGE:       10,       // damage on hit (Mori ≈ 15hp → ~2 casts to kill)
+  RANGE_TILES:  6,        // max travel before fizzling
+  TILE_MS:      100,      // ms per tile step (~10 tiles/sec)
+  EXPLODE_MS:   240,      // explosion frame linger before despawn
+};
+const PROJECTILES = [];   // {x,y (tile floats · x/y in tile units), dir, dist, state, t0, hit}
+function fireAstralstrike(){
+  const now = performance.now();
+  // Diamond gate · A3 is a magical attack per gem canon [[aov-rhud-meter-functions]]
+  if ((player.diamond || 0) < ASTRAL_STRIKE.DIAMOND_COST){
+    showToast('◆ Not enough Diamond for Astralstrike', 1600);
+    playSFX('meleeMiss');
+    return;
+  }
+  player.diamond = Math.max(0, (player.diamond || 0) - ASTRAL_STRIKE.DIAMOND_COST);
+  player.attackMode  = 'astralstrike';
+  player.attackUntil = now + ASTRAL_STRIKE.DUR_MS;
+  // Spawn projectile at Rizer's tile · it will step 1 tile per TILE_MS
+  const dir = player.dir;
+  PROJECTILES.push({
+    tileX: player.x,
+    tileY: player.y,
+    dir,
+    dist: 0,
+    state: 'flight',   // 'flight' | 'explode'
+    t0: now,
+    lastStep: now + 180,   // small delay so the palm-burst frame lines up before it leaves the hand
+    scene: game.scene,
+  });
+  // v0.95.210 · reuse the punch-hit SFX as a cast whoosh · replace with dedicated
+  // 'astralCast' SFX when audio ships
+  playSFX('punchHit');
+}
+function tickProjectiles(now){
+  for (let i = PROJECTILES.length - 1; i >= 0; i--){
+    const p = PROJECTILES[i];
+    if (p.scene !== game.scene){ PROJECTILES.splice(i, 1); continue; }
+    if (p.state === 'explode'){
+      if (now - p.explodeT0 > ASTRAL_STRIKE.EXPLODE_MS){
+        PROJECTILES.splice(i, 1);
+      }
+      continue;
+    }
+    // Advance one tile per TILE_MS
+    if (now >= p.lastStep + ASTRAL_STRIKE.TILE_MS){
+      p.lastStep = now;
+      if (p.dir === 'up')    p.tileY--;
+      if (p.dir === 'down')  p.tileY++;
+      if (p.dir === 'left')  p.tileX--;
+      if (p.dir === 'right') p.tileX++;
+      p.dist++;
+      // Hit test · enemy NPC at target tile
+      let hit = null;
+      for (const n of NPCS){
+        if (n.scene !== game.scene) continue;
+        if (!n.isEnemy) continue;
+        if (n.tileX === p.tileX && n.tileY === p.tileY){ hit = n; break; }
+      }
+      // Boulder also stops the projectile
+      const boulder = boulderAt(game.scene, p.tileX, p.tileY);
+      if (hit || boulder){
+        p.state = 'explode';
+        p.explodeT0 = now;
+        if (hit){
+          const maxHp = hit.hpMax || 3;
+          if (hit.hp == null) hit.hp = maxHp;
+          hit.hp -= ASTRAL_STRIKE.DAMAGE;
+          playSFX('moriGrunt');
+          if (hit.hp <= 0){
+            playSFX('moriDeath');
+            hit.scene = '__dead__';
+            player.rizerXP = (player.rizerXP || 0) + 20;
+            recordMoriKill('astralstrike');
+          }
+        }
+        if (boulder) hitBoulder(boulder, 3);
+        continue;
+      }
+      // Out of range · fizzle silently
+      if (p.dist >= ASTRAL_STRIKE.RANGE_TILES){
+        p.state = 'explode';
+        p.explodeT0 = now;
+      }
+    }
+  }
+}
+function drawProjectiles(){
+  if (!PROJECTILES.length) return;
+  const bundle = RIZER.astralProj;
+  if (!bundle || !bundle.loaded) return;
+  const dirRow = { down: 0, left: 1, right: 2, up: 3 };
+  const now = performance.now();
+  for (const p of PROJECTILES){
+    if (p.scene !== game.scene) continue;
+    const row = dirRow[p.dir] || 0;
+    let col;
+    if (p.state === 'explode'){
+      col = 3;   // explosion frame
+    } else {
+      // flight · cycle frames 0-1-2 based on distance travelled (0 launch, 1 flight, 2 contact prep)
+      col = Math.min(2, Math.floor((now - p.t0) / 80) % 3);
+    }
+    const [bx, by, bw, bh] = bundle.bboxes[row][col];
+    const drawW = Math.max(24, Math.round(bw * 0.35));
+    const drawH = Math.max(24, Math.round(bh * 0.35));
+    const dx = Math.floor(p.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+    const dy = Math.floor(p.tileY * TILE + (TILE - drawH) / 2) - _cam.y;
+    ctx.drawImage(bundle.img, bx, by, bw, bh, dx, dy, drawW, drawH);
+  }
 }
 // v0.95.174 · NPC Info Overlay (companion/bond panel)
 function drawNpcInfoOverlay(){
@@ -5544,6 +5681,8 @@ Promise.all([
   loadAsset(RIZER.faeCatch, 'assets/2D%20sprites/rizer/fae-catch.png'),
   loadAsset(RIZER.guitarPlay, 'assets/2D%20sprites/rizer/guitar-play.png'),
   loadAsset(RIZER.hurt,       'assets/2D%20sprites/rizer/hurt.png'),        // v0.95.170
+  loadAsset(RIZER.astralstrike, 'assets/2D%20sprites/rizer/astralstrike.png'),                  // v0.95.210 · A3 cast
+  loadAsset(RIZER.astralProj,   'assets/2D%20sprites/vfx/astralstrike-projectile.png'),         // v0.95.210 · A3 projectile
 ]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge+hurt)'));
 
 // -- Input · keyboard --------------------------------------------------------
@@ -5741,6 +5880,19 @@ addEventListener('keydown', e => {
         if (player.companion === facing.id) uncompanionize(facing);
         else                                 companionize(facing);
         return;
+      }
+    }
+    // v0.95.210 · A3 ASTRALSTRIKE chord · L1 + R1 held while Square is pressed
+    // fires the handblast · consumes Blue Diamond ◆ · spawns a traveling
+    // projectile that explodes on tile contact
+    if (k === 'j' && keys['l'] && keys['r']){
+      const anyModalCast = settingsMenuOpen || zyrexMenuOpen
+                    || game.expPanelOpen || game.tvPanelOpen
+                    || game.guitarPanelOpen || game.nebulaPanelOpen
+                    || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
+      if (game.scene !== 'title' && !dialogState && !battleState && !anyModalCast){
+        fireAstralstrike();
+        return;   // swallow · do NOT also punch
       }
     }
     if (k === 'j' || k === 'k'){
@@ -6631,7 +6783,10 @@ function drawPlayer(){
     const elapsed = now - player.jumpStart;
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (jumpDur / bundle.cols))));
   } else if (inAttack){
-    const dur = player.attackMode === 'kick' ? 400 : 300;
+    // v0.95.210 · astralstrike cast duration = 500 (slower · dramatic)
+    const dur = player.attackMode === 'kick' ? 400
+              : player.attackMode === 'astralstrike' ? 500
+              : 300;
     const elapsed = dur - (player.attackUntil - now);
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
   } else {
@@ -8538,6 +8693,10 @@ function frame(now){
   if (game.scene !== 'title' && !battleState){
     for (const n of NPCS){ if (n.scene === game.scene) tickNPC(n, dt); }
   }
+  // v0.95.210 · Astralstrike projectiles · advance one tile per step + hit test
+  if (game.scene !== 'title' && !battleState){
+    tickProjectiles(performance.now());
+  }
   // No idle animation · lock to frame 0 of the current direction when
   // not moving.  Walking/running frame advance still lives in tryMove.
   if (!player.moving) player.animFrame = 0;
@@ -8604,6 +8763,7 @@ function frame(now){
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }
   drawHitFx();          // v0.95.149 · combat hit glow · above world under menus
+  drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawNpcInfoOverlay(); // v0.95.174 · companion/bond info panel
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
@@ -9033,6 +9193,9 @@ if (player.hp        == null) player.hp    = 100;
 if (player.hpMax     == null) player.hpMax = 100;
 if (player.astral    == null) player.astral    = 100;
 if (player.astralMax == null) player.astralMax = 100;
+// v0.95.210 · Blue Diamond ◆ · fuels A3 Astralstrike (per [[aov-rhud-meter-functions]])
+if (player.diamond    == null) player.diamond    = 100;
+if (player.diamondMax == null) player.diamondMax = 100;
 
 (function wireRizerHud(){
   const widget = document.getElementById('rizerHud');

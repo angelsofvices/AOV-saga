@@ -2486,6 +2486,12 @@ const RIZER = {
     [[172, 78, 93,167],[129, 59,101,166],[107, 66,103,168],[ 79, 81, 93,164]],
     [[157,  3,113,163],[126,  0,114,149],[100,  0,113,159],[ 64,  3,116,163]],
   ], key: 'idleJump', loaded: false },
+  dodge:    { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[133, 99,117,190],[ 80,155,136,134],[ 61,133,137,153],[  9,146,167,143]],
+    [[115, 66,105,190],[ 63,107,182,145],[ 48,124,138,128],[ 21,102,192,150]],
+    [[119, 30,101,283],[ 53, 70,180,146],[ 70, 78,243,138],[  0, 70,174,146]],
+    [[122,  0,122,201],[ 88, 65,139,136],[ 70, 55,114,141],[ 17, 52,162,149]],
+  ], key: 'dodge', loaded: false },
   runJump:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
     [[127,120,126,190],[ 95, 90,128,185],[ 58, 68,125,187],[ 30,125,131,186]],
     [[145, 66,132,176],[108, 56,131,257],[ 69, 41,131,272],[ 50, 68,130,174]],
@@ -3633,7 +3639,8 @@ Promise.all([
   loadAsset(RIZER.kick,  'assets/2D%20sprites/rizer/kick.png'),
   loadAsset(RIZER.idleJump, 'assets/2D%20sprites/rizer/idle-jump.png'),
   loadAsset(RIZER.runJump,  'assets/2D%20sprites/rizer/run-jump.png'),
-]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps)'));
+  loadAsset(RIZER.dodge,    'assets/2D%20sprites/rizer/dodge.png'),
+]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge)'));
 
 // -- Input · keyboard --------------------------------------------------------
 const keys = {};
@@ -3656,6 +3663,38 @@ addEventListener('keydown', e => {
       playSFX('menuClose');
       showToast('◈ Off the chair · it stays right here', 1600);
       keys[k] = true; return;
+    }
+    // v0.95.80 · DODGE · Circle/B tap · same fallback pattern as jump on A.
+    // Only fires when B has nothing to cancel · roll 2 tiles in facing dir.
+    if (k === 'b' && !keys['b']){
+      const anyModal2 = settingsMenuOpen || zyrexMenuOpen
+                     || game.expPanelOpen || game.tvPanelOpen
+                     || game.guitarPanelOpen || game.nebulaPanelOpen
+                     || game.bagPanelOpen || game.dockPanelOpen || _sleepFade;
+      if (game.scene !== 'title' && !dialogState && !battleState && !anyModal2 && !player.ridingChair){
+        const now = performance.now();
+        if (!player.dodgeUntil || now >= player.dodgeUntil){
+          player.dodgeStart  = now;
+          player.dodgeUntil  = now + 320;
+          player.dodgeDir    = player.dir;
+          player.dodgeFromX  = player.x;
+          player.dodgeFromY  = player.y;
+          // Hop up to 2 tiles forward · walk-checked · no wall clip
+          const vx = { up:0, down:0, left:-1, right:1 }[player.dir];
+          const vy = { up:-1, down:1, left:0,  right:0 }[player.dir];
+          let dist = 0;
+          for (let s = 1; s <= 2; s++){
+            const tx = player.x + vx*s, ty = player.y + vy*s;
+            if (walkable(tx, ty)) dist = s; else break;
+          }
+          player.dodgeToX = player.x + vx*dist;
+          player.dodgeToY = player.y + vy*dist;
+          player.x = player.dodgeToX;
+          player.y = player.dodgeToY;
+          player.moveCd = 220;                 // brief post-dodge cooldown
+          playSFX('menuOpen');
+        }
+      }
     }
     if (k === 'j' || k === 'k'){
       const anyModal = settingsMenuOpen || zyrexMenuOpen
@@ -4282,7 +4321,13 @@ function drawPlayer(){
   const jumpBundleKey = _jumping ? (player.jumpSheet || 'idleJump') : null;
   const jumpBundle    = jumpBundleKey && RIZER[jumpBundleKey] && RIZER[jumpBundleKey].loaded
                         ? RIZER[jumpBundleKey] : null;
-  let bundle = jumpBundle
+  // v0.95.80 · Dodge sheet overrides everything else while dodging.
+  const _dodging = player.dodgeUntil && now < player.dodgeUntil;
+  if (!_dodging && player.dodgeUntil) player.dodgeUntil = 0;
+  const dodgeBundle = _dodging && RIZER.dodge.loaded ? RIZER.dodge : null;
+  let bundle = dodgeBundle
+             ? dodgeBundle
+             : jumpBundle
              ? jumpBundle
              : inAttack && RIZER[player.attackMode] && RIZER[player.attackMode].loaded ? RIZER[player.attackMode]
              : useRun ? RIZER.run
@@ -4338,7 +4383,11 @@ function drawPlayer(){
   // v0.91.3 · attack anim uses its own frame clock (linear over duration)
   // v0.95.69 · jump anim has its own clock too · 4 frames across 380ms arc
   let col;
-  if (jumpBundle){
+  if (dodgeBundle){
+    const dur = player.dodgeUntil - player.dodgeStart;
+    const elapsed = now - player.dodgeStart;
+    col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
+  } else if (jumpBundle){
     const jumpDur = player.jumpUntil - player.jumpStart;
     const elapsed = now - player.jumpStart;
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (jumpDur / bundle.cols))));

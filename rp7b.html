@@ -693,6 +693,7 @@ const AUDIO = {
     mom:          new Audio('audio/sfx-mom.mp3'),            // v0.95.91 · Mom greeting VO on interact
     elarian:      new Audio('audio/sfx-elarian.mp3'),        // v0.95.126 · "You're a wizard" VO on Prof Elarian interact
     nurseRein:    new Audio('audio/sfx-nurse-rein.mp3'),     // v0.95.128 · sakura chime VO on Nurse Rein interact
+    heal:         new Audio('audio/sfx-heal.mp3'),           // v0.95.150 · magical shim for RHP/ZHP heal items (ales/potions/elixirs)
     stairs:       new Audio('audio/sfx-stairs.mp3'),         // v0.95.103 · footstep sequence on stair traversal
     boulderCrumble: new Audio('audio/sfx-boulder-crumble.mp3'), // v0.95.119 · rock crumble on last hit
     moriGrunt:    new Audio('audio/sfx-mori-grunt.mp3'),      // v0.95.120 · Mori pained grunt at 40% hp
@@ -894,6 +895,7 @@ const INVENTORY_META = {
   verdant_elixir:   { label: 'Verdant Elixir',     order: 82 },   // 30 berries + 15 fruits · 1st science exp
   seed:             { label: 'Seeds',              order: 83 },   // 1 elixir → 50 seeds · currency for later mechanics
   fae:              { label: 'Fae',                 order: 90 },   // v0.95.135 · collectibles · mirrors faeCollected
+  ale:              { label: 'Ale',                  order: 32 },   // v0.95.150 · +25% Rizer HP heal item
 };
 function addItems(drop){
   for (const key in drop){
@@ -4745,14 +4747,22 @@ addEventListener('keydown', e => {
           const healed = (player.maxHp || 100) - (player.hp || 0);
           player.hp = player.maxHp || 100;
           addItems({ seed: 50 });
-          playSFX('confirm');
+          playSFX('heal');
           showToast(`◈ ★ Verdant Elixir · +${healed} HP · +50 Seeds`, 2200);
         } else if (fav === 'potion' && have > 0){
           player.items.potion -= 1;
-          const healed = Math.min(50, (player.maxHp || 100) - (player.hp || 0));
-          player.hp = Math.min(player.maxHp || 100, (player.hp || 0) + 50);
-          playSFX('confirm');
-          showToast(`◈ ★ Potion · +${healed} HP`, 1600);
+          const amt = Math.round((player.maxHp || 100) * 0.5);
+          const before = player.hp || 0;
+          player.hp = Math.min(player.maxHp || 100, before + amt);
+          playSFX('heal');
+          showToast(`◈ ★ Potion · +${player.hp - before} HP`, 1600);
+        } else if (fav === 'ale' && have > 0){
+          player.items.ale -= 1;
+          const amt = Math.round((player.maxHp || 100) * 0.25);
+          const before = player.hp || 0;
+          player.hp = Math.min(player.maxHp || 100, before + amt);
+          playSFX('heal');
+          showToast(`◈ ★ Ale · +${player.hp - before} HP`, 1600);
         } else if (fav === 'faenet'){
           // Fae Net is passive-equipped · CREATE just confirms it's ready
           playSFX('confirm');
@@ -6147,13 +6157,29 @@ addEventListener('keydown', e => {
             playSFX('confirm');
             showToast(player.skating ? '◈ Skateboard · ON · faster movement' : '◈ Skateboard · OFF', 1600);
           } else if (key === 'verdant_elixir' && (player.items?.verdant_elixir || 0) > 0){
-            // v0.95.137 · Use elixir · full HP restore on the go + 50 seeds
+            // v0.95.137/150 · Elixir · full HP restore + 50 seeds · heal SFX
             player.items.verdant_elixir -= 1;
             const healed = (player.maxHp || 100) - (player.hp || 0);
             player.hp = player.maxHp || 100;
             addItems({ seed: 50 });
-            playSFX('confirm');
+            playSFX('heal');
             showToast(`◈ Verdant Elixir consumed · +${healed} HP restored · +50 Seeds`, 2600);
+          } else if (key === 'potion' && (player.items?.potion || 0) > 0){
+            // v0.95.150 · Potion · +50% max HP
+            player.items.potion -= 1;
+            const amt = Math.round((player.maxHp || 100) * 0.5);
+            const before = player.hp || 0;
+            player.hp = Math.min(player.maxHp || 100, before + amt);
+            playSFX('heal');
+            showToast(`◈ Potion · +${player.hp - before} HP`, 1800);
+          } else if (key === 'ale' && (player.items?.ale || 0) > 0){
+            // v0.95.150 · Ale · +25% max HP
+            player.items.ale -= 1;
+            const amt = Math.round((player.maxHp || 100) * 0.25);
+            const before = player.hp || 0;
+            player.hp = Math.min(player.maxHp || 100, before + amt);
+            playSFX('heal');
+            showToast(`◈ Ale · +${player.hp - before} HP`, 1800);
           } else {
             playSFX('cancel');
           }

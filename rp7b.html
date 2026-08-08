@@ -3417,9 +3417,10 @@ function ensureBondFields(){
     if (z && z.bond == null) z.bond = 0;
   }
 }
+// v0.95.93 · Songs registry · `audio` optional MP3 path fired at play time
 const SONGS = {
-  // id            title                     unlock       bondGain  cooldownSec
-  starter_chord: { title: 'Starter Chord',   unlock: 'DEFAULT',           gain: 3,  cd: 60 },
+  // id            title                     unlock       bondGain  cooldownSec  audio
+  starter_chord: { title: 'Beat It · Solo',  unlock: 'DEFAULT',           gain: 3,  cd: 60, audio: 'audio/song-beat-it-solo.mp3' },
   bond_ballad:   { title: 'Bond Ballad',     unlock: '★ any Zyrex ≥ Lv 5', gain: 5, cd: 90 },
   ember_song:    { title: 'Ember Song',      unlock: '★ any Fire Zyrex bond ≥ 30', gain: 7, cd: 120 },
   astral_hymn:   { title: 'Astral Hymn',     unlock: '★ any Zyrex bond ≥ 60', gain: 10, cd: 180 },
@@ -3471,6 +3472,17 @@ function refreshGuitarPanel(){
     ? '<i>Your party is empty · catch or receive a Zyrex before playing.</i>'
     : 'Party bond: ' + alive.map(z => `<b>${z.name}</b> ${z.bond|0}/100`).join(' · ');
 }
+// v0.95.93 · Current song playback state.  Walking cancels via stopCurrentSong.
+let _currentSongAudio = null;
+let _currentSongId    = null;
+function stopCurrentSong(){
+  if (_currentSongAudio){
+    try { _currentSongAudio.pause(); _currentSongAudio.currentTime = 0; } catch(e){}
+    _currentSongAudio = null;
+    _currentSongId    = null;
+    player.playingGuitar = false;
+  }
+}
 function playGuitarSong(idx){
   const entries = Object.entries(SONGS);
   if (idx < 0 || idx >= entries.length) return;
@@ -3485,6 +3497,19 @@ function playGuitarSong(idx){
   player.songCooldowns[id] = now + song.cd;
   playSFX('confirm');
   showToast(`◈ Played "${song.title}" · +${song.gain} bond to all party Zyrex`, 2600);
+  // v0.95.93 · Play the actual audio if the song has one, and mark playing
+  // state so future guitar-playing animation swaps and so walking cancels.
+  if (song.audio){
+    stopCurrentSong();
+    _currentSongAudio = new Audio(song.audio);
+    _currentSongAudio.volume = 0.55;
+    _currentSongAudio.addEventListener('ended', stopCurrentSong);
+    _currentSongAudio.play().catch(e => console.warn('[guitar] play failed', e));
+    _currentSongId = id;
+    player.playingGuitar = true;
+    // Close guitar panel so player can see themselves + can move to cancel.
+    closeGuitarPanel();
+  }
   refreshGuitarPanel();
   saveGame();
 }
@@ -4107,6 +4132,8 @@ function tryMove(dt){
 
   const wasMoving = player.moving;
   player.x = nx; player.y = ny;
+  // v0.95.93 · Walking cancels any guitar song + upcoming play animation
+  if (_currentSongAudio) stopCurrentSong();
   player.moving = true;
   // Fix frame-skip · on transition from idle to moving, start walk cycle
   // at frame 0 (not frame 1) so the sheet reads 0→1→2→3→0 cleanly.

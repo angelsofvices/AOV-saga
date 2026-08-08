@@ -549,6 +549,9 @@
       <button id="devHitStats">Hit Stats</button>
     </div>
     <div class="row">
+      <button id="devFaeCounter">Fae Counter</button>
+    </div>
+    <div class="row">
       <button id="devCloseBtn">Close</button>
     </div>
   </div>
@@ -832,7 +835,7 @@ const player = {
   sprintLocked: false,          // toggled by L3 click · adds to shift/b sprint holds
   party: [],                    // caught Zyrex list · touchpad toggles menu
   stepsInGrass: 0,              // consecutive gemgrass steps for encounter roll
-  items: { faenet: 1 },         // inventory · v0.95.132 · Fae Net standard-issue
+  items: {},                    // inventory · v0.95.141 · Fae Net no longer starter · Kaizari gifts it
   hp: 100, maxHp: 100,          // v0.95.134 · Rizer HP · 100 · no auto-regen · sleep/potion/hospital
   _hurtFlashUntil: 0,           // v0.95.129 · red flash cd
 };
@@ -2293,10 +2296,23 @@ const NPCS = [
     blinkTimer: 2000 + Math.random() * 2000,
     turnToInteract: true,
     onInteract: (n) => {
-      showDialog({ speaker: 'KAIZARI', lines: [
-        '*tail flicks*  You move quiet for a Rizer.  Good.',
-        'Malezor gets meaner past the arm.  Keep your Zyrex sharp.',
-      ]});
+      // v0.95.141 · Cheetah huntress · gifts Fae Net on FIRST interaction
+      player.items = player.items || {};
+      if (!player.faenetGifted){
+        player.faenetGifted = true;
+        player.items.faenet = (player.items.faenet || 0) + 1;
+        playSFX('confirm');
+        showDialog({ speaker: 'KAIZARI', lines: [
+          '*tail flicks · claws out*  A Rizer with no net?  That is not hunting · that is asking.',
+          'Take mine.  Feet quiet, breath quieter · that\'s how you catch a fae.',
+          '*hands you a woven-vine Fae Net*  Bring me stories of the ones you catch.  Hunt well, little Rizer.',
+        ]});
+      } else {
+        showDialog({ speaker: 'KAIZARI', lines: [
+          '*tail flicks*  You move quiet for a Rizer.  Good.',
+          'Malezor gets meaner past the arm.  Keep your Zyrex sharp.',
+        ]});
+      }
     },
   },
   // ── PROFESSOR ELARIAN · elephant scholar · in front of Malezor School (v0.89.7) ──
@@ -3005,7 +3021,7 @@ const FAE_IMG = new Image();
 FAE_IMG.src = 'assets/2D%20sprites/decor/fae.png';
 const FAE_FRAMES = 4;
 const FAE_FRAME_MS = 220;
-const FAE_UNLOCK_COUNT = 10;
+const FAE_UNLOCK_COUNT = 200;   // v0.95.141 · 200 fae to summon Celestryx (was 10)
 if (player.faeCollected == null) player.faeCollected = 0;
 
 // 30 scatter positions across all districts · avoid buildings/props
@@ -3085,11 +3101,11 @@ function collectFaeAt(tx, ty){
         showToast('◈ ACHIEVEMENT · AMPLIFICATION unlocked · 100 Fae crafted · super-form pending', 3400);
         playSFX('confirm');
       }
-      const need = Math.max(0, FAE_UNLOCK_COUNT - player.faeCollected);
-      if (need <= 0){
-        showToast(`◈ FAE  ${player.faeCollected}/${FAE_UNLOCK_COUNT} · Celestryx summon UNLOCKED!`, 3200);
-      } else {
-        showToast(`◈ FAE  ${player.faeCollected}/${FAE_UNLOCK_COUNT} · ${need} more to summon Celestryx`, 2400);
+      // v0.95.141 · Only fire the ONE-TIME unlock toast · silent progress otherwise
+      // (progress lives in Dev Mode · Fae Counter · quiet gameplay for the player)
+      if (!player.unlocks.celestryx && player.faeCollected >= FAE_UNLOCK_COUNT){
+        player.unlocks.celestryx = true;
+        showToast(`◈ ACHIEVEMENT · Celestryx summon UNLOCKED · ${FAE_UNLOCK_COUNT} Fae collected`, 3400);
       }
       playSFX('faeCollect');
       return true;
@@ -3401,9 +3417,8 @@ function startNewGame(){
   game.showTitleButtons = false;                   // v0.93.6 · hide DOM buttons
   if (titleBtnsEl) titleBtnsEl.style.display = 'none';
   game.scene = 'overworld';
-  // v0.95.132 · Rizer starts with standard-issue Fae Net in bag
+  // v0.95.141 · Fae Net no longer auto-granted · Kaizari (cheetah huntress) gifts it on first interaction
   player.items = player.items || {};
-  if (!player.items.faenet) player.items.faenet = 1;
   playBGM('home');
   showToast('◈ Welcome to Malezor.', 2000);
 }
@@ -7424,6 +7439,22 @@ function frame(now){
       addItems({ seed: 50 });
       showToast('◈ DEV · +50 Seeds granted', 1400);
       playSFX('confirm');
+    });
+  }
+  // v0.95.141 · Dev · Fae Counter · progress toward each fae-based unlock
+  const faeCounterBtn = document.getElementById('devFaeCounter');
+  if (faeCounterBtn){
+    faeCounterBtn.addEventListener('click', () => {
+      const have = player.faeCollected || 0;
+      const rows = [
+        { name: 'Amplification', at: 100 },
+        { name: 'Celestryx',     at: FAE_UNLOCK_COUNT },
+      ];
+      const lines = rows.map(r => {
+        const done = have >= r.at ? '✓' : `${Math.max(0, r.at - have)} to go`;
+        return `${r.name}: ${Math.min(have, r.at)}/${r.at} (${done})`;
+      });
+      showToast('◈ FAE · ' + lines.join(' · '), 4600);
     });
   }
   // v0.95.134 · Dev · Hit Stats readout

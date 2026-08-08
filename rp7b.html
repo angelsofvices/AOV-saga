@@ -1817,11 +1817,17 @@ const WORLD_PROPS = [
     const _atrImg = new Image();
     _atrImg.src = 'assets/2D%20sprites/decor/andrannor-tree.png';
     const _atrBBox = [190, 50, 884, 1159];
-    // Natural-looking scatter · avoids road corridor + town hall
+    // v0.95.166 · Density bump · roads reserved rows 322-324 (E-W) + cols 258-262 (N-S)
+    // Extra branch alleys open at rows 310, 316, 330, 336 for city expansion.
     const POS = [
       [185, 310], [195, 328], [202, 320], [210, 335],
       [220, 312], [228, 320], [250, 315], [255, 335],
       [270, 312], [278, 328], [285, 318], [295, 335],
+      // +18 trees · off the road corridors · natural clusters
+      [183, 317], [189, 331], [198, 315], [205, 330], [213, 320],
+      [225, 336], [232, 315], [240, 328], [244, 335], [265, 320],
+      [272, 335], [280, 315], [288, 328], [292, 315], [299, 328],
+      [193, 336], [267, 328], [275, 320],
     ];
     return POS.map(([tx, ty], i) => ({
       id: `andrannor_tree_${i}`,
@@ -1832,6 +1838,30 @@ const WORLD_PROPS = [
       tileW: 4, tileH: 5,
       // Trunk-only collision · footprint is the centre tile beneath the crown.
       // tileW=4 means visual spans tx-1..tx+2 centred; trunk sits at (0,0) local.
+      footprint: [[0, 0]],
+    }));
+  })(),
+  // ── ANDRANNOR WILD BUSHES · v0.95.166 · scatter in NW branch ──
+  // Reuses andrannor-bush.png (same one used at town hall).  Fills the gaps
+  // between trees for a naturalistic hedge feel · road corridors stay clear.
+  ...(function(){
+    const _abwImg = new Image();
+    _abwImg.src = 'assets/2D%20sprites/decor/andrannor-bush.png';
+    const _abwBBox = [51, 318, 1151, 671];
+    const POS = [
+      [186, 320], [192, 314], [200, 336], [208, 316], [216, 330],
+      [219, 336], [227, 314], [230, 328], [237, 335], [242, 320],
+      [247, 314], [251, 335], [254, 316], [263, 330], [269, 315],
+      [274, 336], [281, 320], [284, 335], [289, 315], [296, 328],
+      [200, 328], [212, 336], [235, 320], [258, 336], [278, 335],
+    ];
+    return POS.map(([tx, ty], i) => ({
+      id: `andrannor_wild_bush_${i}`,
+      img: _abwImg,
+      src: 'assets/2D%20sprites/decor/andrannor-bush.png',
+      bbox: _abwBBox,
+      tileX: tx, tileY: ty,
+      tileW: 2, tileH: 1,
       footprint: [[0, 0]],
     }));
   })(),
@@ -2765,6 +2795,8 @@ const NPCS = [
       [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
       [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
     ];
+    // v0.95.166 · Andrannor population bump · +10 Mori, +6 Daemons · off future road
+    // Roads reserved: rows 322-324 (E-W) + cols 258-262 (N-S) stay clear
     const SPOTS = [
       { x: 195, y: 318, dir:'down',  r: 6, mode:'drainer' },
       { x: 215, y: 325, dir:'left',  r: 7, mode:'drainer' },
@@ -2772,6 +2804,24 @@ const NPCS = [
       { x: 255, y: 320, dir:'up',    r: 8, mode:'drainer' },
       { x: 275, y: 328, dir:'down',  r: 8, mode:'daemon'  },
       { x: 290, y: 335, dir:'left',  r: 8, mode:'daemon'  },
+      // +10 Mori spread across the branch
+      { x: 188, y: 314, dir:'right', r: 5, mode:'wander'  },
+      { x: 202, y: 336, dir:'up',    r: 6, mode:'wander'  },
+      { x: 210, y: 315, dir:'down',  r: 6, mode:'wander'  },
+      { x: 224, y: 317, dir:'left',  r: 6, mode:'drainer' },
+      { x: 228, y: 336, dir:'right', r: 6, mode:'wander'  },
+      { x: 246, y: 337, dir:'up',    r: 6, mode:'drainer' },
+      { x: 252, y: 314, dir:'down',  r: 7, mode:'wander'  },
+      { x: 267, y: 336, dir:'left',  r: 6, mode:'drainer' },
+      { x: 282, y: 315, dir:'right', r: 7, mode:'wander'  },
+      { x: 297, y: 320, dir:'down',  r: 7, mode:'drainer' },
+      // +6 Daemons · nastier corners
+      { x: 192, y: 328, dir:'right', r: 8, mode:'daemon' },
+      { x: 217, y: 314, dir:'down',  r: 8, mode:'daemon' },
+      { x: 244, y: 328, dir:'up',    r: 8, mode:'daemon' },
+      { x: 253, y: 337, dir:'left',  r: 9, mode:'daemon' },
+      { x: 268, y: 315, dir:'right', r: 8, mode:'daemon' },
+      { x: 285, y: 328, dir:'down',  r: 8, mode:'daemon' },
     ];
     return SPOTS.map((s, i) => ({
       id: `mori_and_${i + 1}`,
@@ -2826,7 +2876,11 @@ function walkable(x, y){
     if (!(x >= 0 && y >= 0 && x < cfg.cols && y < cfg.rows)) return false;
     if (cfg.wallImg && y === 0) return false;         // upper wall band blocks row 0
     if (cfg.blocked){
-      for (const [bx,by] of cfg.blocked){ if (bx===x && by===y) return false; }
+      for (const [bx,by] of cfg.blocked){
+        // v0.95.166 · Skateboard tile (3,1) walkable once grabbed to bag
+        if (bx === 3 && by === 1 && cfg.rizerRoom && player.items?.skateboard) continue;
+        if (bx===x && by===y) return false;
+      }
     }
     // NPCs in this interior scene block their tile
     for (const n of NPCS){
@@ -3128,8 +3182,11 @@ const FAE_POSITIONS = [
   [70,205],[85,220],[100,240],[65,260],[95,285],[80,300],
   // Wilds Branch
   [130,240],[150,245],[168,258],
-  // Andrannor NW
+  // Andrannor NW · v0.95.166 · densified · off road corridors
   [200,320],[260,325],
+  [188,315],[194,330],[207,318],[214,335],[222,325],[234,317],
+  [240,330],[247,336],[252,315],[266,320],[273,336],[280,330],
+  [287,320],[293,335],[299,325],[210,328],[277,315],[219,331],
 ];
 let _fae = FAE_POSITIONS.map(([x, y], i) => ({
   id: `fae_${i}`, x, y, collected: false, phase: Math.random() * 6.28,
@@ -6357,6 +6414,20 @@ addEventListener('keydown', e => {
             player.hp = Math.min(player.maxHp || 100, before + amt);
             playSFX('heal');
             showToast(`◈ Potion · +${player.hp - before} HP`, 1800);
+          } else if (key === 'berry' && (player.items?.berry || 0) > 0){
+            // v0.95.166 · Berry · +2 HP · consume 1
+            player.items.berry -= 1;
+            const before = player.hp || 0;
+            player.hp = Math.min(player.maxHp || 100, before + 2);
+            playSFX('heal');
+            showToast(`◈ Berry · +${player.hp - before} HP`, 1400);
+          } else if (key === 'fruit' && (player.items?.fruit || 0) > 0){
+            // v0.95.166 · Fruit · +4 HP · consume 1
+            player.items.fruit -= 1;
+            const before = player.hp || 0;
+            player.hp = Math.min(player.maxHp || 100, before + 4);
+            playSFX('heal');
+            showToast(`◈ Fruit · +${player.hp - before} HP`, 1400);
           } else if (key === 'ale' && (player.items?.ale || 0) > 0){
             // v0.95.150 · Ale · +25% max HP
             player.items.ale -= 1;

@@ -2985,6 +2985,11 @@ const PUNCHING_BAG_BBOX = [352, 26, 549, 1202];  // v0.95.11 · re-tightened aft
 const NEBULADOCK_IMG = new Image();
 NEBULADOCK_IMG.src = 'assets/2D%20sprites/decor/nebuladock.png';
 const NEBULADOCK_BBOX = [53, 61, 1426, 916];      // v0.95.51 · raw source (no bake)
+
+// v0.95.56 · Rizer Rug · decor rug at (13, 2)
+const RIZER_RUG_IMG = new Image();
+RIZER_RUG_IMG.src = 'assets/2D%20sprites/decor/rizer-rug.png';
+const RIZER_RUG_BBOX = [1, 0, 1188, 801];
 if (player.moveScrolls == null){
   // Seed one demo scroll so the bag is immediately testable · real drops
   // arrive as world loot (chests / trainer defeats / quest rewards).
@@ -3983,6 +3988,15 @@ function drawInteriorFloor(){
   }
   // v0.95.1 · Rizer Room decor · Experiment Table right-edge (14, 1) + Rizer TV (7, 1)
   if (cfg.rizerRoom){
+    // v0.95.56 · Rizer Rug · flat floor decor · centered on (13, 2), 3 tiles wide
+    if (RIZER_RUG_IMG.complete && RIZER_RUG_IMG.naturalWidth){
+      const [rsx, rsy, rsw, rsh] = RIZER_RUG_BBOX;
+      const rDrawW = 3 * TILE;
+      const rDrawH = Math.round(rDrawW * (rsh / rsw));
+      const rDx = Math.floor((13 + 0.5) * TILE - rDrawW / 2) - _cam.x;
+      const rDy = Math.floor((2 + 0.5)  * TILE - rDrawH / 2) - _cam.y;
+      ctx.drawImage(RIZER_RUG_IMG, rsx, rsy, rsw, rsh, rDx, rDy, rDrawW, rDrawH);
+    }
     // Experiment Table · 3 tiles wide · right edge at tile 14, base row 1
     if (EXPERIMENT_TABLE_IMG.complete && EXPERIMENT_TABLE_IMG.naturalWidth){
       const [sx, sy, sw, sh] = EXPERIMENT_TABLE_BBOX;
@@ -5566,6 +5580,25 @@ function frame(now){
     for (const r of rends){
       if (r.kind === 'npc') drawNPC(r.npc);
       else                  drawPlayer();
+    }
+    // v0.95.55 · Nebuladock 9000 · monitor overlay · Z-order fix.
+    // The monitor visually sits above the desk in the sprite, so it needs
+    // to render AFTER the player when the player stands behind it (at
+    // stop-tile 7,5).  We re-blit the TOP HALF of the sprite over the
+    // player pixels · desk portion already drew behind in the floor pass.
+    const cfgOL = interiorConfig(game.scene);
+    if (cfgOL && cfgOL.rizerRoom
+        && NEBULADOCK_IMG.complete && NEBULADOCK_IMG.naturalWidth){
+      const [sx, sy, sw, sh] = NEBULADOCK_BBOX;
+      const drawW = Math.round(3.5 * TILE);
+      const drawH = Math.round(drawW * (sh / sw));
+      const dx = Math.floor((7 + 0.5) * TILE - drawW / 2) - _cam.x;
+      const dy = Math.floor((7 + 1)   * TILE - drawH)     - _cam.y;
+      // Top 55% of the sprite = monitor + speakers + tower top
+      const cutFrac = 0.55;
+      const cutSh = Math.round(sh * cutFrac);
+      const cutDh = Math.round(drawH * cutFrac);
+      ctx.drawImage(NEBULADOCK_IMG, sx, sy, sw, cutSh, dx, dy, drawW, cutDh);
     }
   } else {
     drawGrass();

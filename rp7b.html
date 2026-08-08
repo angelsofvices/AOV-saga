@@ -633,6 +633,7 @@
       </div>
       <div class="row">
         <button id="devDreamland">Visit Dreamland: OFF</button>
+        <button id="devUnlimitedAstral">Unlimited Astralites: OFF</button>
       </div>
       <div class="row">
         <button id="devSurvivalMode">Survival Horde (×3): OFF</button>
@@ -4228,13 +4229,17 @@ const ASTRAL_STRIKE = {
 const PROJECTILES = [];   // {x,y (tile floats · x/y in tile units), dir, dist, state, t0, hit}
 function fireAstralstrike(){
   const now = performance.now();
-  // Diamond gate · A3 is a magical attack per gem canon [[aov-rhud-meter-functions]]
-  if ((player.diamond || 0) < ASTRAL_STRIKE.DIAMOND_COST){
-    showToast('◆ Not enough Diamond for Astralstrike', 1600);
-    playSFX('meleeMiss');
-    return;
+  // v0.95.213 · Dev toggle bypasses the Diamond gate entirely
+  const unlim = !!game.devUnlimitedAstral;
+  if (!unlim){
+    // Diamond gate · A3 is a magical attack per gem canon [[aov-rhud-meter-functions]]
+    if ((player.diamond || 0) < ASTRAL_STRIKE.DIAMOND_COST){
+      showToast('◆ Not enough Diamond for Astralstrike', 1600);
+      playSFX('meleeMiss');
+      return;
+    }
+    player.diamond = Math.max(0, (player.diamond || 0) - ASTRAL_STRIKE.DIAMOND_COST);
   }
-  player.diamond = Math.max(0, (player.diamond || 0) - ASTRAL_STRIKE.DIAMOND_COST);
   player.attackMode  = 'astralstrike';
   player.attackUntil = now + ASTRAL_STRIKE.DUR_MS;
   // Spawn projectile at Rizer's tile · it will step 1 tile per TILE_MS
@@ -4277,9 +4282,14 @@ function tickProjectiles(now){
         if (!n.isEnemy) continue;
         if (n.tileX === p.tileX && n.tileY === p.tileY){ hit = n; break; }
       }
-      // Boulder also stops the projectile
-      const boulder = boulderAt(game.scene, p.tileX, p.tileY);
-      if (hit || boulder){
+      // v0.95.213 · Traveling collision also stops on boulders, plants (trees/bushes),
+      // and the Rizer Room punching bag dummy · gives players clear feedback that
+      // the blast is a real projectile rather than a hitscan
+      const cfgP = interiorConfig(game.scene);
+      const boulder = !cfgP ? boulderAt(game.scene, p.tileX, p.tileY) : null;
+      const plant   = !cfgP ? plantPropAt(p.tileX, p.tileY)           : null;
+      const bagHit  = cfgP && cfgP.rizerRoom && p.tileX === 1 && (p.tileY === 7 || p.tileY === 8);
+      if (hit || boulder || plant || bagHit){
         p.state = 'explode';
         p.explodeT0 = now;
         if (hit){
@@ -4296,6 +4306,8 @@ function tickProjectiles(now){
           }
         }
         if (boulder) hitBoulder(boulder, 3);
+        if (plant)   chargePlant(plant, true);   // heavy charge (like a kick)
+        if (bagHit)  { playSFX('punchHit'); recordHitLanded('kick'); }
         continue;
       }
       // Out of range · fizzle silently
@@ -5883,10 +5895,10 @@ addEventListener('keydown', e => {
         return;
       }
     }
-    // v0.95.210 · A3 ASTRALSTRIKE chord · L1 + R1 held while Square is pressed
-    // fires the handblast · consumes Blue Diamond ◆ · spawns a traveling
-    // projectile that explodes on tile contact
-    if (k === 'j' && keys['l'] && keys['r']){
+    // v0.95.213 · A3 ASTRALSTRIKE chord · L2 held while Square is pressed
+    // fires the handblast (L2 dispatches 'q' per BTN map · square = 'j')
+    // consumes Blue Diamond ◆ · spawns a traveling projectile that explodes on contact
+    if (k === 'j' && keys['q']){
       const anyModalCast = settingsMenuOpen || zyrexMenuOpen
                     || game.expPanelOpen || game.tvPanelOpen
                     || game.guitarPanelOpen || game.nebulaPanelOpen
@@ -9134,6 +9146,17 @@ function frame(now){
       game.devVisitDreamland = !game.devVisitDreamland;
       dreamBtn.textContent = label();
       showToast(`◈ DEV · Visit Dreamland ${game.devVisitDreamland ? 'ON · sleep plays video even at 100 HP' : 'OFF'}`, 2000);
+    });
+  }
+  // v0.95.213 · Dev · Unlimited Astralites toggle · bypass Diamond ◆ cost for A3+A4
+  const unlimAstralBtn = document.getElementById('devUnlimitedAstral');
+  if (unlimAstralBtn){
+    const labelUA = () => `Unlimited Astralites: ${game.devUnlimitedAstral ? 'ON' : 'OFF'}`;
+    unlimAstralBtn.textContent = labelUA();
+    unlimAstralBtn.addEventListener('click', () => {
+      game.devUnlimitedAstral = !game.devUnlimitedAstral;
+      unlimAstralBtn.textContent = labelUA();
+      showToast(`◈ DEV · Unlimited Astralites ${game.devUnlimitedAstral ? 'ON · Diamond cost bypassed' : 'OFF · Diamond gate active'}`, 2200);
     });
   }
   // v0.95.134 · Dev · Hit Stats readout

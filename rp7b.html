@@ -3640,6 +3640,19 @@ function recordHitLanded(mode){
     playSFX('confirm');
   }
 }
+// v0.95.140 · Cosmetic Combat Core · counts only LIGHT (punch) + HEAVY (kick)
+// melee kills.  Other actions (dodge, throw, etc.) never contribute here.
+function recordMoriKill(mode){
+  player.stats.moriKills = (player.stats.moriKills || 0) + 1;
+  if (mode === 'kick') player.stats.moriKillsHeavy = (player.stats.moriKillsHeavy || 0) + 1;
+  else                 player.stats.moriKillsLight = (player.stats.moriKillsLight || 0) + 1;
+  // 5 Mori killed → Thrilleon outfit unlock
+  if (!player.unlocks.thrilleon && player.stats.moriKills >= 5){
+    player.unlocks.thrilleon = true;
+    showToast('◈ ACHIEVEMENT · Thrilleon outfit unlocked · dress in Rizer Room closet', 3200);
+    playSFX('confirm');
+  }
+}
 
 // v0.95.111 · Dad's work desk · Zyrex Research Lab decor at (10, 2)
 const DADS_DESK_IMG = new Image();
@@ -4622,6 +4635,7 @@ addEventListener('keydown', e => {
               playSFX('moriDeath');                     // v0.95.120 · bone-crack on kill
               hit.scene = '__dead__';
               player.rizerXP = (player.rizerXP || 0) + 12;
+              recordMoriKill(mode);                     // v0.95.140 · cosmetic combat core
             }
           }
           if (boulderHit){
@@ -7416,9 +7430,9 @@ function frame(now){
   const hitStatsBtn = document.getElementById('devHitStats');
   if (hitStatsBtn){
     hitStatsBtn.addEventListener('click', () => {
-      const s = player.stats || { punches:0, kicks:0 };
+      const s = player.stats || {};
       const unlocks = Object.keys(player.unlocks || {}).filter(k => player.unlocks[k]).join(', ') || 'none';
-      showToast(`◈ Punches: ${s.punches} · Kicks: ${s.kicks} · Unlocks: ${unlocks}`, 3200);
+      showToast(`◈ Punches: ${s.punches||0} · Kicks: ${s.kicks||0} · Mori kills: ${s.moriKills||0} (L${s.moriKillsLight||0}/H${s.moriKillsHeavy||0}) · Unlocks: ${unlocks}`, 4200);
     });
   }
   // v0.95.104 · Camera mode toggle · LOCKED (default) ↔ GBA (dead-zone + lerp)

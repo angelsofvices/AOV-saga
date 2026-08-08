@@ -658,6 +658,7 @@ const AUDIO = {
     dodge:        new Audio('audio/sfx-dodge.mp3'),          // v0.95.87 · swish on each dodge (skipped on barrel-roll trigger)
     dad:          new Audio('audio/sfx-dad.mp3'),            // v0.95.90 · Dad greeting VO on interact
     mom:          new Audio('audio/sfx-mom.mp3'),            // v0.95.91 · Mom greeting VO on interact
+    stairs:       new Audio('audio/sfx-stairs.mp3'),         // v0.95.103 · footstep sequence on stair traversal
   },
 };
 Object.values(AUDIO.bgm).forEach(a => {
@@ -4316,7 +4317,7 @@ function tryMove(dt){
         if (player.x === tx && player.y === ty){
           player.stairsCd = now + 1000;
           useStairs(_cfg.stairs);
-          playSFX('menuOpen');
+          playSFX('stairs');                          // v0.95.103 · footstep sequence
           return;
         }
       }
@@ -5205,15 +5206,6 @@ addEventListener('keydown', e => {
         }
         return;
       }
-      // v0.95.102 · Play interact-with-X animation FIRST, then hand off
-      // to the real interact logic 220ms later so the pose sells the
-      // reach.  Only fires when we're about to call tryInteract; jump
-      // fallback below still works because the interact anim doesn't
-      // change any modal flags.
-      if (RIZER.interact && RIZER.interact.loaded){
-        player.interactStart = now;
-        player.interactUntil = now + 260;
-      }
       // v0.95.65 · Snapshot state, run tryInteract, then compare.  If
       // nothing meaningful happened (no dialog / no scene change / no
       // modal opened), fall back to a JUMP animation.
@@ -5236,8 +5228,15 @@ addEventListener('keydown', e => {
         || snap.bag !== !!game.bagPanelOpen   || snap.dock !== !!game.dockPanelOpen
         || snap.set !== !!settingsMenuOpen    || snap.zyr !== !!zyrexMenuOpen
         || snap.ride !== !!player.ridingChair;
-      if (!changed && !player.ridingChair){
-        // No target → jump animation
+      if (changed){
+        // v0.95.103 · Something actually interacted · fire reach animation
+        // NOW (mutually exclusive with jump).
+        if (RIZER.interact && RIZER.interact.loaded){
+          player.interactStart = now;
+          player.interactUntil = now + 260;
+        }
+      } else if (!player.ridingChair){
+        // No target → jump animation (interact anim never armed)
         if (!player.jumpUntil || now >= player.jumpUntil){
           player.jumpStart = now;
           player.jumpUntil = now + 380;   // 380ms hop

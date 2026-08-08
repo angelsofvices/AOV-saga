@@ -511,8 +511,19 @@
       </div>
       <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:14px;">◈ MAIN QUEST TRACKER</div>
       <div id="tvQuestList" style="font-size:13px; line-height:1.55;"></div>
+      <!-- v0.95.178 · Movie Collection · scrolls below quest tracker -->
+      <div style="margin-top:18px; padding-top:14px; border-top:1px solid #244;">
+        <div style="color:#4fb3ff; font-size:11px; letter-spacing:0.18em; margin-bottom:8px;">🎬 MOVIE COLLECTION</div>
+        <div id="tvMovieList" style="font-size:13px; line-height:1.55;"></div>
+      </div>
       <div style="margin-top:16px; text-align:right; font-size:11px; color:#8ff;">press ○ / B to close</div>
     </div>
+  </div>
+  <!-- v0.95.178 · TV Movie player · reuses the intro video src · ○ / B closes -->
+  <div id="tvMovieOverlay" style="position:fixed; inset:0; display:none; z-index:32; background:#000; pointer-events:auto;">
+    <video id="tvMovieVid" src="video/intro-v2.mp4" playsinline webkit-playsinline preload="auto"
+           style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000;"></video>
+    <div style="position:absolute; bottom:4%; left:50%; transform:translateX(-50%); z-index:33; padding:8px 18px; background:rgba(0,0,0,0.7); color:#f0eadf; border:2px solid #d4af37; font:bold 12px 'Courier New',monospace; letter-spacing:0.14em;">○ / B / ESC · EXIT MOVIE</div>
   </div>
   <!-- v0.95 · Experiment Table panel -->
   <div id="expPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.78); pointer-events:auto;">
@@ -5014,6 +5025,22 @@ function drawSleepFade(){
   if (!p) return;
   p.addEventListener('click', e => { if (e.target === p) closeTvPanel(); });
 })();
+// v0.95.178 · MOVIE CATALOG · collectibles unlocked in world · Title Reel is baseline
+const MOVIES = {
+  title_reel:  { title: 'Title Reel · Prism of Fate',  src: 'video/intro-v2.mp4' },
+  dream_reel:  { title: 'Dream Reel · Verdant Vision', src: 'video/dream.mp4'    },
+};
+function initMoviesCollected(){
+  if (!player.moviesCollected) player.moviesCollected = ['title_reel'];   // seed
+}
+function grantMovie(id){
+  initMoviesCollected();
+  if (!MOVIES[id] || player.moviesCollected.includes(id)) return false;
+  player.moviesCollected.push(id);
+  playSFX('confirm');
+  showToast(`◈ New Movie unlocked · "${MOVIES[id].title}"`, 2600);
+  return true;
+}
 function openTvPanel(){
   const p = document.getElementById('tvPanel');
   const list = document.getElementById('tvQuestList');
@@ -5033,10 +5060,61 @@ function openTvPanel(){
       ${steps}
     </div>`;
   }).join('');
+  // v0.95.178 · Movie collection list · Play button per owned movie
+  initMoviesCollected();
+  const movieList = document.getElementById('tvMovieList');
+  if (movieList){
+    const owned = player.moviesCollected;
+    if (owned.length === 0){
+      movieList.innerHTML = '<div style="color:#666; font-style:italic;">No movies collected yet · explore the world to find film reels.</div>';
+    } else {
+      movieList.innerHTML = owned.map(id => {
+        const m = MOVIES[id]; if (!m) return '';
+        return `<div class="tvMovieRow" data-movie="${id}" style="padding:8px 10px; margin:4px 0; background:rgba(0,0,0,0.35); border:1px solid #244; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+          <span>▶ <b>${m.title}</b></span>
+          <span style="color:#ffd66b; font-size:11px;">PLAY</span>
+        </div>`;
+      }).join('');
+      movieList.querySelectorAll('.tvMovieRow').forEach(el => {
+        el.addEventListener('click', () => playTvMovie(el.dataset.movie));
+      });
+    }
+  }
   p.style.display = 'block';
   game.tvPanelOpen = true;
   playSFX('menuOpen');
 }
+// v0.95.178 · TV Movie player · reuses tvMovieVid · ○/B/Esc closes
+let _tvMoviePlaying = false;
+function playTvMovie(id){
+  const m = MOVIES[id]; if (!m) return;
+  const ov = document.getElementById('tvMovieOverlay');
+  const vid = document.getElementById('tvMovieVid');
+  if (!ov || !vid) return;
+  vid.src = m.src;
+  ov.style.display = 'block';
+  _tvMoviePlaying = true;
+  vid.currentTime = 0;
+  vid.muted = false;
+  vid.play().catch(err => {
+    console.warn('[tv-movie] unmuted play blocked · muted fallback', err);
+    vid.muted = true;
+    vid.play().catch(err2 => console.warn('[tv-movie] muted play blocked too', err2));
+  });
+  vid.onended = () => closeTvMovie();
+}
+function closeTvMovie(){
+  const ov = document.getElementById('tvMovieOverlay');
+  const vid = document.getElementById('tvMovieVid');
+  if (vid){ try { vid.pause(); } catch(e){} }
+  if (ov) ov.style.display = 'none';
+  _tvMoviePlaying = false;
+}
+(function wireTvMovieClickClose(){
+  const ov = document.getElementById('tvMovieOverlay');
+  if (!ov) return;
+  ov.addEventListener('click', () => closeTvMovie());
+})();
 function closeTvPanel(){
   const p = document.getElementById('tvPanel');
   if (p) p.style.display = 'none';
@@ -5415,6 +5493,11 @@ addEventListener('keydown', e => {
       }
     }
     // v0.95.174 · NPC Info Overlay is open · Square/Circle close, Triangle companion-toggle
+    // v0.95.178 · TV movie owns input · Circle/B/Esc closes
+    if (_tvMoviePlaying){
+      if (k === 'b' || k === 'escape' || k === 'backspace'){ closeTvMovie(); return; }
+      return;
+    }
     if (game.npcInfoOverlay){
       if (k === 'j' || k === 'b' || k === 'escape' || k === 'backspace'){
         closeNpcInfo(); return;
@@ -5767,6 +5850,7 @@ function tryMove(dt){
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
   if (game.npcInfoOverlay)          freezeReasons.push('npcInfoOverlay');// v0.95.174 · companion overlay
+  if (_tvMoviePlaying)              freezeReasons.push('tvMovie');       // v0.95.178 · TV movie player
   const devPanelEl = document.getElementById('devPanel');
   if (devPanelEl && devPanelEl.style.display === 'block') freezeReasons.push('devPanel');
   if (freezeReasons.length){

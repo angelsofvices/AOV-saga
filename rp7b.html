@@ -5577,6 +5577,35 @@ addEventListener('keydown', e => {
         }
         // fall through to interact logic below · interact anim + tryInteract
       }
+      // v0.95.123 · Detect whether the FACED tile has an interactable BEFORE
+      // running tryInteract so silent-side-effect interacts (chest opens with
+      // just a toast, NPC hits with only text) still fire the reach anim and
+      // suppress the jump fallback.
+      let _faceHasInteract = false;
+      {
+        let fx = player.x, fy = player.y;
+        if (player.dir === 'up')    fy--;
+        if (player.dir === 'down')  fy++;
+        if (player.dir === 'left')  fx--;
+        if (player.dir === 'right') fx++;
+        if (game.scene === 'overworld'){
+          if (_propDoors.has(`${fx},${fy}`)) _faceHasInteract = true;
+          if (!_faceHasInteract){
+            for (const n of NPCS){
+              if (n.scene === 'overworld' && n.tileX === fx && n.tileY === fy){ _faceHasInteract = true; break; }
+            }
+          }
+          if (!_faceHasInteract && boulderAt('overworld', fx, fy)) _faceHasInteract = true;
+        } else if (interiorConfig(game.scene)){
+          const cfg = interiorConfig(game.scene);
+          if (cfg && cfg.exit && fx === cfg.exit.x && fy === cfg.exit.y) _faceHasInteract = true;
+          if (!_faceHasInteract){
+            for (const n of NPCS){
+              if (n.scene === game.scene && n.tileX === fx && n.tileY === fy){ _faceHasInteract = true; break; }
+            }
+          }
+        }
+      }
       // v0.95.65 · Snapshot state, run tryInteract, then compare.  If
       // nothing meaningful happened (no dialog / no scene change / no
       // modal opened), fall back to a JUMP animation.
@@ -5599,9 +5628,9 @@ addEventListener('keydown', e => {
         || snap.bag !== !!game.bagPanelOpen   || snap.dock !== !!game.dockPanelOpen
         || snap.set !== !!settingsMenuOpen    || snap.zyr !== !!zyrexMenuOpen
         || snap.ride !== !!player.ridingChair;
-      if (changed){
-        // v0.95.103 · Something actually interacted · fire reach animation
-        // NOW (mutually exclusive with jump).
+      if (changed || _faceHasInteract){
+        // v0.95.123 · Something actually interacted (or facing a chest/NPC/
+        // prop/boulder even if it only made a toast) · reach anim, no jump.
         if (RIZER.interact && RIZER.interact.loaded){
           player.interactStart = now;
           player.interactUntil = now + 260;

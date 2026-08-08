@@ -542,6 +542,9 @@
       <button id="devCameraMode">Camera: LOCKED</button>
     </div>
     <div class="row">
+      <button id="devRideSkate">Ride Skateboard: OFF</button>
+    </div>
+    <div class="row">
       <button id="devCloseBtn">Close</button>
     </div>
   </div>
@@ -2608,8 +2611,9 @@ const RIZER = {
   ], key: 'interact', loaded: false },
   skate:    { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
     [[117, 86,140,217],[ 94, 82,112,221],[ 65, 85,154,220],[ 38, 81,111,221]],
-    [[111, 54,159,226],[ 81, 54,159,226],[ 53, 53,168,224],[ 30, 53,153,227]],
+    // v0.95.117 · rows 1<->2 swapped in file · bboxes swapped to match
     [[107, 27,159,225],[ 76, 28,160,285],[ 47, 30,166,283],[ 22, 27,155,286]],
+    [[111, 54,159,226],[ 81, 54,159,226],[ 53, 53,168,224],[ 30, 53,153,227]],
     [[118,  1,122,207],[100,  0,110,211],[ 61,  0,126,213],[ 38,  0,110,211]],
   ], key: 'skate', loaded: false },
   dodge:    { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
@@ -2724,7 +2728,7 @@ const INTERIOR_HOME_2F = {
     [10,1],                 // v0.95.9 · guitar (1 tile wide, col 10)
     [8,3],                  // v0.95.26 · Nebulaport 3000 · block just controller row (8,2 walkable to pass between TV/guitar/console)
     [1,7],[1,8],            // v0.95.61 · Punching Bag base + torso only · (1,6) walkable stop-tile like Nebuladock
-    [6,7],[7,7],[8,7],                    // v0.95.75 · Nebuladock desk row · edge-to-edge (sides walkable for interact)
+    [5,7],[6,7],[7,7],[8,7],[9,7],        // v0.95.116 · Nebuladock full desk row blocked (5-9) · no chair-riding onto sides
     [7,6],                                //          · monitor center only
     [3,1],                                // v0.95.97 · Skateboard leaning on wall
     [11,9],                               // v0.95.97 · Basketball beside bed
@@ -3451,14 +3455,47 @@ function switchDockTab(tab){
     const items = Object.entries(player.items || {}).filter(([k,v]) => v > 0);
     body.innerHTML = items.length === 0
       ? '<i style="color:#886;">Bag is empty.</i>'
-      : items.map(([k,v]) => {
-          // v0.95.100 · Skateboard shows toggle state
+      : '<div style="font-size:11px; color:#8ff; margin-bottom:8px;">Click an item to use · hold X on an item for 3s to assign it to CREATE (favorite shortcut).</div>' +
+        items.map(([k,v]) => {
+          const isFav = player.favoriteItem === k;
+          const star  = isFav ? '<span style="color:#ffd66b;">★</span> ' : '';
           if (k === 'skateboard'){
             const on = !!player.skating;
-            return `<div style="padding:3px 0;"><b>${k}</b> <span style="color:${on?'#ffd66b':'#8ff'};">${on?'[ ON ]':'[ OFF ]'}</span> <span style="color:#8ff; font-size:11px;">· press T to toggle</span></div>`;
+            return `<div class="dockItem" data-item="${k}" style="padding:6px 8px; margin:2px 0; background:rgba(0,0,0,0.35); border:1px solid #244; cursor:pointer;">
+              ${star}<b>skateboard</b> <span style="color:${on?'#ffd66b':'#8ff'};">${on?'[ ON ]':'[ OFF ]'}</span>
+              <span style="color:#8ff; font-size:11px; float:right;">click / T · toggle</span>
+            </div>`;
           }
-          return `<div style="padding:3px 0;"><b>${k}</b> <span style="color:#8ff;">× ${v}</span></div>`;
+          return `<div class="dockItem" data-item="${k}" style="padding:6px 8px; margin:2px 0; background:rgba(0,0,0,0.35); border:1px solid #244; cursor:pointer;">
+            ${star}<b>${k}</b> <span style="color:#8ff;">× ${v}</span>
+          </div>`;
         }).join('');
+    // Wire click-to-use + hold-3s-to-assign
+    body.querySelectorAll('.dockItem').forEach(el => {
+      const itemKey = el.dataset.item;
+      let holdTimer = null, holdStart = 0;
+      const useItem = () => {
+        if (itemKey === 'skateboard'){
+          player.skating = !player.skating;
+          switchDockTab('items');   // refresh
+        }
+      };
+      el.addEventListener('mousedown', () => {
+        holdStart = performance.now();
+        holdTimer = setTimeout(() => {
+          player.favoriteItem = itemKey;
+          playSFX('confirm');
+          showToast(`◈ ★ ${itemKey} assigned to CREATE button`, 2400);
+          switchDockTab('items');
+        }, 3000);
+      });
+      const cancel = () => { if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; } };
+      el.addEventListener('mouseup', () => {
+        cancel();
+        if (performance.now() - holdStart < 400) useItem();
+      });
+      el.addEventListener('mouseleave', cancel);
+    });
   } else if (tab === 'weapons'){
     body.innerHTML = '<i style="color:#886;">Weapon rack empty · unlock via chest loot + quest rewards.</i>';
   } else if (tab === 'recipes'){
@@ -4072,6 +4109,26 @@ addEventListener('keydown', e => {
       playSFX(player.skating ? 'confirm' : 'menuClose');
       showToast(player.skating ? '◈ Skateboard · ON · faster movement' : '◈ Skateboard · OFF', 1800);
       keys[k] = true; return;
+    }
+    // v0.95.116 · CREATE button (key '1') · fires favoriteItem shortcut
+    // in overworld/interior when no modal is open.  For skateboard → toggle.
+    if (k === '1'){
+      const anyModal = settingsMenuOpen || zyrexMenuOpen
+                    || game.expPanelOpen || game.tvPanelOpen
+                    || game.guitarPanelOpen || game.nebulaPanelOpen
+                    || game.bagPanelOpen || game.dockPanelOpen
+                    || game.posterViewOpen || _sleepFade || dialogState || battleState;
+      if (!anyModal && game.scene !== 'title' && player.favoriteItem){
+        const fav = player.favoriteItem;
+        if (fav === 'skateboard' && player.items?.skateboard){
+          player.skating = !player.skating;
+          playSFX(player.skating ? 'confirm' : 'menuClose');
+          showToast(`◈ ★ ${fav} · ${player.skating ? 'ON' : 'OFF'}`, 1600);
+        } else {
+          showToast(`◈ ★ ${fav} · no action wired yet`, 1800);
+        }
+        keys[k] = true; return;
+      }
     }
     if (k === 'j' || k === 'k'){
       const anyModal = settingsMenuOpen || zyrexMenuOpen
@@ -5330,7 +5387,7 @@ addEventListener('keydown', e => {
         settingsPage = SETTINGS_PAGE_IDS[settingsSelectedIdx];
         playSFX('confirm');
       }
-      if (k === 'shift' || k === '3'){
+      if (k === 'shift' || k === '3' || k === 'b' || k === 'escape'){
         settingsMenuOpen = false;
         settingsSelectedIdx = 0;
         settingsPage = 'root';
@@ -5350,7 +5407,7 @@ addEventListener('keydown', e => {
           playSFX(ok ? 'confirm' : 'cancel');
         }
       }
-      if (k === 'shift'){ settingsPage = 'root'; playSFX('cancel'); }
+      if (k === 'shift' || k === 'b' || k === 'escape'){ settingsPage = 'root'; playSFX('cancel'); }
       else if (k === '3'){
         settingsMenuOpen = false;
         settingsSelectedIdx = 0;
@@ -5358,7 +5415,7 @@ addEventListener('keydown', e => {
         playSFX('menuClose');
       }
     } else {
-      if (k === 'shift'){ settingsPage = 'root'; playSFX('cancel'); }
+      if (k === 'shift' || k === 'b' || k === 'escape'){ settingsPage = 'root'; playSFX('cancel'); }
       else if (k === '3'){
         settingsMenuOpen = false;
         settingsSelectedIdx = 0;
@@ -5373,7 +5430,7 @@ addEventListener('keydown', e => {
   // 3) ZYREX MENU · read-only inspect for now · Touchpad/2 closes
   // ═══════════════════════════════════════════════════════════════
   if (zyrexMenuOpen){
-    if (k === '2' || k === 'shift'){ zyrexMenuOpen = false; playSFX('menuClose'); }
+    if (k === '2' || k === 'shift' || k === 'b' || k === 'escape'){ zyrexMenuOpen = false; playSFX('menuClose'); }
     return;
   }
 
@@ -5703,6 +5760,7 @@ function saveGame(){
         songsKnown: player.songsKnown || ['starter_chord'],   // v0.95.7
         songCooldowns: player.songCooldowns || {},            // v0.95.7
         moveScrolls: player.moveScrolls || [],                // v0.95.10
+        favoriteItem: player.favoriteItem || null,            // v0.95.116 · CREATE shortcut
         party: (player.party || []).map(z => z ? {
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
           maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,
@@ -6649,6 +6707,19 @@ function frame(now){
       mc2Btn.textContent = `Show Mobile Controller 1: ${game.mobileCtrl2On ? 'ON' : 'OFF'}`;
       refreshMobileCtrl2();
       showToast(`◈ DEV · Mobile Controller 1 ${game.mobileCtrl2On ? 'ON' : 'OFF'}`, 1200);
+    });
+  }
+  // v0.95.116 · Dev Ride Skateboard toggle (bypasses pickup requirement)
+  const rideSkateBtn = document.getElementById('devRideSkate');
+  if (rideSkateBtn){
+    const rsLabel = () => `Ride Skateboard: ${player.skating ? 'ON' : 'OFF'}`;
+    rideSkateBtn.textContent = rsLabel();
+    rideSkateBtn.addEventListener('click', () => {
+      player.items = player.items || {};
+      if (!player.items.skateboard) player.items.skateboard = 1;
+      player.skating = !player.skating;
+      rideSkateBtn.textContent = rsLabel();
+      showToast(`◈ DEV · Skateboard ${player.skating ? 'ON' : 'OFF'}`, 1200);
     });
   }
   // v0.95.104 · Camera mode toggle · LOCKED (default) ↔ GBA (dead-zone + lerp)

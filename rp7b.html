@@ -4526,12 +4526,34 @@ addEventListener('keydown', e => {
                     || game.posterViewOpen || _sleepFade || dialogState || battleState;
       if (!anyModal && game.scene !== 'title' && player.favoriteItem){
         const fav = player.favoriteItem;
-        if (fav === 'skateboard' && player.items?.skateboard){
+        const have = (player.items?.[fav] || 0);
+        // v0.95.138 · CREATE quick-use dispatch · covers current + future items
+        if (fav === 'skateboard' && have > 0){
           player.skating = !player.skating;
           playSFX(player.skating ? 'confirm' : 'menuClose');
-          showToast(`◈ ★ ${fav} · ${player.skating ? 'ON' : 'OFF'}`, 1600);
+          showToast(`◈ ★ Skateboard · ${player.skating ? 'ON' : 'OFF'}`, 1600);
+        } else if (fav === 'verdant_elixir' && have > 0){
+          player.items.verdant_elixir -= 1;
+          const healed = (player.maxHp || 100) - (player.hp || 0);
+          player.hp = player.maxHp || 100;
+          addItems({ seed: 50 });
+          playSFX('confirm');
+          showToast(`◈ ★ Verdant Elixir · +${healed} HP · +50 Seeds`, 2200);
+        } else if (fav === 'potion' && have > 0){
+          player.items.potion -= 1;
+          const healed = Math.min(50, (player.maxHp || 100) - (player.hp || 0));
+          player.hp = Math.min(player.maxHp || 100, (player.hp || 0) + 50);
+          playSFX('confirm');
+          showToast(`◈ ★ Potion · +${healed} HP`, 1600);
+        } else if (fav === 'faenet'){
+          // Fae Net is passive-equipped · CREATE just confirms it's ready
+          playSFX('confirm');
+          showToast('◈ ★ Fae Net ready · press A near a fae to catch', 1800);
+        } else if (have === 0){
+          playSFX('cancel');
+          showToast(`◈ ★ ${INVENTORY_META[fav]?.label || fav} · none in bag`, 1600);
         } else {
-          showToast(`◈ ★ ${fav} · no action wired yet`, 1800);
+          showToast(`◈ ★ ${INVENTORY_META[fav]?.label || fav} · action pending`, 1800);
         }
         keys[k] = true; return;
       }
@@ -5855,6 +5877,16 @@ addEventListener('keydown', e => {
       if (entries.length){
         if (k === 'arrowup'){   itemsCursor = (itemsCursor + entries.length - 1) % entries.length; playSFX('cursor'); }
         if (k === 'arrowdown'){ itemsCursor = (itemsCursor + 1) % entries.length; playSFX('cursor'); }
+        // v0.95.138 · Triangle (k) · assign highlighted item as CREATE quick-use
+        if (k === 'k'){
+          const [key] = entries[itemsCursor] || [];
+          if (key){
+            player.favoriteItem = key;
+            playSFX('confirm');
+            const label = (INVENTORY_META[key] && INVENTORY_META[key].label) || key;
+            showToast(`◈ ★ ${label} assigned to CREATE (△)`, 2000);
+          }
+        }
         if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
           const [key] = entries[itemsCursor] || [];
           if (key === 'skateboard'){
@@ -6543,14 +6575,16 @@ function drawSettingsMenu(){
         if (key === 'skateboard'){
           suffix = player.skating ? '   [ ON ]' : '   [ OFF ]';
         }
+        // v0.95.138 · star marker for CREATE-assigned favorite
+        const star = (player.favoriteItem === key) ? ' ★△' : '';
         ctx.fillStyle = selected ? '#ffd66b' : '#f0eadf';
-        ctx.fillText(`${selected ? '▶ ' : '  '}${label.padEnd(22, ' ')} x ${n}${suffix}`, 32, y);
+        ctx.fillText(`${selected ? '▶ ' : '  '}${label.padEnd(20, ' ')} x ${n}${suffix}${star}`, 32, y);
       });
     }
     ctx.fillStyle = '#8ff';
     ctx.font = '11px "Courier New", monospace';
     ctx.textAlign = 'right';
-    ctx.fillText('▲▼ nav · × toggle · ○ back · ○/Options close', W - 24, H - 20);
+    ctx.fillText('▲▼ nav · × use/toggle · △ assign to CREATE · ○ back · ○/Options close', W - 24, H - 20);
     ctx.textAlign = 'left';
   } else if (settingsPage === 'save'){
     ctx.font = 'bold 16px "Courier New", monospace';

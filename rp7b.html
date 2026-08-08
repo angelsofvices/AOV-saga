@@ -3820,25 +3820,56 @@ function boulderAt(scene, x, y){
 // v0.95.171 · Gem drop entities · pop out of chests · walk onto to collect
 // 8 colors · sit on floor · sleek shine pulse until picked up · 0.40 tile scale
 // ═══════════════════════════════════════════════════════════════════════════
+// v0.95.172 · Gem rarity ladder · red most common → black rarest
+// Weights halved each step: 128 / 64 / 32 / 16 / 8 / 4 / 2 / 1 = 255
 const GEM_COLORS = ['red','blue','green','yellow','white','orange','purple','black'];
+const GEM_WEIGHTS = [128, 64, 32, 16, 8, 4, 2, 1];
+const GEM_WEIGHT_TOTAL = GEM_WEIGHTS.reduce((a,b)=>a+b, 0);
+function pickWeightedGemColor(){
+  let r = Math.random() * GEM_WEIGHT_TOTAL;
+  for (let i = 0; i < GEM_COLORS.length; i++){
+    r -= GEM_WEIGHTS[i];
+    if (r < 0) return GEM_COLORS[i];
+  }
+  return GEM_COLORS[0];
+}
 const GEM_IMG = {};
 GEM_COLORS.forEach(c => {
   GEM_IMG[c] = new Image();
   GEM_IMG[c].src = `assets/2D%20sprites/decor/gem-${c}.png`;
 });
 const GEM_ENTITIES = [];    // { x, y, color, scene, collected, phase, born }
+function isTileFreeForGem(scene, x, y){
+  if (scene === 'overworld' && !walkable(x, y)) return false;
+  for (const g of GEM_ENTITIES){
+    if (!g.collected && g.scene === scene && g.x === x && g.y === y) return false;
+  }
+  if (player.x === x && player.y === y) return false;
+  return true;
+}
 function spawnGemDrop(scene, x, y, color){
   GEM_ENTITIES.push({ scene, x, y, color, collected: false, phase: Math.random() * 6.28, born: performance.now() });
 }
 function spawnChestGems(scene, tx, ty){
-  // 1-3 gems in ring around chest · random colors · random tile within 1 tile
-  const n = 1 + Math.floor(Math.random() * 3);
-  const offs = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
-  const picks = offs.slice().sort(() => Math.random() - 0.5).slice(0, n);
-  picks.forEach(([dx, dy]) => {
-    const c = GEM_COLORS[Math.floor(Math.random() * GEM_COLORS.length)];
-    spawnGemDrop(scene, tx + dx, ty + dy, c);
-  });
+  // v0.95.172 · One gem per wooden chest · weighted color · nearest empty floor tile
+  const color = pickWeightedGemColor();
+  // Try 8-neighbour ring first · fall back to widening search
+  const rings = [
+    [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]],
+    [[-2,0],[2,0],[0,-2],[0,2],[-2,-1],[2,-1],[-2,1],[2,1],[-1,-2],[1,-2],[-1,2],[1,2]],
+  ];
+  for (const ring of rings){
+    const shuffled = ring.slice().sort(() => Math.random() - 0.5);
+    for (const [dx, dy] of shuffled){
+      const nx = tx + dx, ny = ty + dy;
+      if (isTileFreeForGem(scene, nx, ny)){
+        spawnGemDrop(scene, nx, ny, color);
+        return;
+      }
+    }
+  }
+  // Last-resort: on the chest tile itself
+  spawnGemDrop(scene, tx, ty, color);
 }
 function collectGemAt(scene, x, y){
   let hit = false;

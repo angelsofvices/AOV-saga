@@ -1335,47 +1335,42 @@ const GEMGRASS_PATCHES = [
 
 const WORLD_PROPS = [
   {
-    // Rakoron's Cave (Gemlord Cave · Malezor) · marks the NORTH TERMINUS of
-    // the overworld.  Interact = enter the first zone of Level 3 (cave
-    // interior · to be built).  Per canon locked 2026-08-05: all caves
-    // are Level-3 zones, all homes are Level-2 zones.
-    id: 'rakoron_cave_entrance',
+    // v0.95.209 · MERGED · Rakoron's Cave entrance + stone stairs now ship as
+    // ONE composite asset (rakoron-cave-full.png · 1300×1050 · 13w × 10.5h tiles).
+    // Compositing done via scripts/compose_rakoron_cave.py — entrance top at row
+    // 0.5, stairs bottom at row 11, matching the exact stack we had with two
+    // props.  Benefit: single scale + single depth-sort · lets us grow the rest
+    // of the cave (side walls, upper terraces) as further composited layers.
+    // Anchor tileY = 10 puts feet-Y = 11 · drawH auto-derived from aspect
+    // (drawW=13*TILE=624 → drawH=504) → top edge at row 0.5.
+    id: 'rakoron_cave',
     img: new Image(),
-    src: 'assets/2D%20sprites/buildings/rakoron-cave-entrance.png',
-    bbox: [55, 201, 1425, 584],       // aspect 2.44 · wide short banner
-    tileX: 22, tileY: 4,              // v0.95.190 · moved up 1 (was row 5) · aligns with new stair position
-    subY: 0.5,                         // v0.95.192 · half-tile nudge down · fine seam alignment with stairs
-    tileW: 13, tileH: 5,              // 13 wide x 5 tall footprint (rows 1-5)
+    src: 'assets/2D%20sprites/buildings/rakoron-cave-full.png',
+    bbox: [0, 0, 1300, 1050],
+    tileX: 22, tileY: 10,
+    tileW: 13, tileH: 11,             // footprint reference · actual draw height fits 10.5 tiles
+    // Collision: only the entrance/cliff face blocks — stair region stays walkable
+    // Entrance blocked rows in old coords were dy -4..0 from (22,4) → world rows 0..4
+    // In new anchor (22,10) those rows are dy -10..-6.
     footprint: (function(){
       const f = [];
-      for (let dy = -4; dy <= 0; dy++){
+      for (let dy = -10; dy <= -6; dy++){
         for (let dx = -6; dx <= 6; dx++){ f.push([dx, dy]); }
       }
       return f;
     })(),
-    door: [0, 0],                     // interact tile inside footprint · player stands at (22,6) facing up
+    // Interact door · player stands at (22,6) facing up · door was [0,0] at (22,4)
+    // In new anchor (22,10) → door = [0, -6]
+    door: [0, -6],
+    // Z-sort · feet at row 11 · we want the whole composite to draw at sort ~4.5
+    // (before any actor on rows 5+) so players climbing the stair region render
+    // OVER the merged prop.  Offset -6.5 = feet 11 + offset -6.5 = sort 4.5.
+    depthOffset: -6.5,
     onInteract: () => {
       playSFX('caveGrowl');
-      // v0.95.182 · Show Rakoron portrait full-screen (same logic as poster viewer)
       openPosterView('rakoron');
     },
   },
-  // v0.95.186/189 · Rakoron's stone stairs · illusion of ascent
-  // v0.95.189 · Moved 6 tiles down (was tileY=6 → 12) · cave entrance stays at (22,5)
-  // Walkable overhead so grass header sits below player as they climb.
-  {
-    id: 'rakoron_stairs',
-    img: new Image(),
-    src: 'assets/2D%20sprites/decor/rakoron-stairs.png',
-    bbox: [49, 202, 1430, 666],
-    tileX: 22, tileY: 10,                // v0.95.190 · moved up 2 (was row 12) · alignment lock
-    tileW: 13, tileH: 6,                 // spans cols 16-28 rows 5-10 visually
-    footprint: [],                       // no collision · walkable overhead
-    // v0.95.193 · Z stack: cave (feet-Y 4) → stairs (sort 4.5) → player/NPCs (row ≥ 5)
-    // depthOffset -5.5 pins stairs to render just AFTER cave but BEFORE any actor.
-    depthOffset: -5.5,
-  },
-  // v0.95.194 · Rakoron stair wings removed for now (asset kept for later)
   {
     // Malezor Zyrex Research Facility · sits between Rakoron's Cave (row 5)
     // and the Town Hall (row 78) · centered vertically at row 38.  This is

@@ -3417,7 +3417,8 @@ function ensureBondFields(){
     if (z && z.bond == null) z.bond = 0;
   }
 }
-// v0.95.93 · Songs registry · `audio` optional MP3 path fired at play time
+// v0.95.94 · Songs registry · audio pre-registered at load so browsers
+// (esp. iOS) don't need a fresh network fetch during the user-gesture stack.
 const SONGS = {
   // id            title                     unlock       bondGain  cooldownSec  audio
   starter_chord: { title: 'Beat It · Solo',  unlock: 'DEFAULT',           gain: 3,  cd: 60, audio: 'audio/song-beat-it-solo.mp3' },
@@ -3472,16 +3473,25 @@ function refreshGuitarPanel(){
     ? '<i>Your party is empty · catch or receive a Zyrex before playing.</i>'
     : 'Party bond: ' + alive.map(z => `<b>${z.name}</b> ${z.bond|0}/100`).join(' · ');
 }
-// v0.95.93 · Current song playback state.  Walking cancels via stopCurrentSong.
-let _currentSongAudio = null;
-let _currentSongId    = null;
+// v0.95.94 · Pre-registered per-song Audio · one persistent element per id.
+// Preloaded so play() inside the user-gesture stack starts instantly.
+const _SONG_AUDIO = {};
+Object.entries(SONGS).forEach(([id, s]) => {
+  if (!s.audio) return;
+  const a = new Audio(s.audio);
+  a.preload = 'auto';
+  a.volume = 0.55;
+  a.addEventListener('ended', () => stopCurrentSong());
+  a.addEventListener('error', () => console.warn('[guitar] audio load error', s.audio, a.error));
+  _SONG_AUDIO[id] = a;
+});
+let _currentSongId = null;
 function stopCurrentSong(){
-  if (_currentSongAudio){
-    try { _currentSongAudio.pause(); _currentSongAudio.currentTime = 0; } catch(e){}
-    _currentSongAudio = null;
-    _currentSongId    = null;
-    player.playingGuitar = false;
-  }
+  if (!_currentSongId) return;
+  const a = _SONG_AUDIO[_currentSongId];
+  if (a){ try { a.pause(); a.currentTime = 0; } catch(e){} }
+  _currentSongId = null;
+  player.playingGuitar = false;
 }
 function playGuitarSong(idx){
   const entries = Object.entries(SONGS);
@@ -3497,17 +3507,16 @@ function playGuitarSong(idx){
   player.songCooldowns[id] = now + song.cd;
   playSFX('confirm');
   showToast(`◈ Played "${song.title}" · +${song.gain} bond to all party Zyrex`, 2600);
-  // v0.95.93 · Play the actual audio if the song has one, and mark playing
-  // state so future guitar-playing animation swaps and so walking cancels.
-  if (song.audio){
+  // v0.95.94 · Play the pre-registered Audio element for this song.  Called
+  // from inside the user gesture (key or click) so autoplay policies pass.
+  const a = _SONG_AUDIO[id];
+  if (a){
     stopCurrentSong();
-    _currentSongAudio = new Audio(song.audio);
-    _currentSongAudio.volume = 0.55;
-    _currentSongAudio.addEventListener('ended', stopCurrentSong);
-    _currentSongAudio.play().catch(e => console.warn('[guitar] play failed', e));
+    try { a.currentTime = 0; } catch(e){}
+    a.play().catch(e => console.warn('[guitar] play failed', e));
     _currentSongId = id;
     player.playingGuitar = true;
-    // Close guitar panel so player can see themselves + can move to cancel.
+    // Close guitar panel so player can see themselves + cancel via Circle
     closeGuitarPanel();
   }
   refreshGuitarPanel();
@@ -3775,6 +3784,13 @@ addEventListener('keydown', e => {
     // v0.95.27 · Melee attacks (J = punch/Square · K = kick/Triangle)
     // Fires in ANY scene except title/dialog/battle/menus — never dropped.
     // Every fresh keydown starts a new swing (no mid-attack lockout).
+    // v0.95.94 · B/Circle cancels an active guitar song (highest priority
+    // among B intercepts so it beats dodge / dismount / sprint).
+    if ((k === 'b' || k === 'shift') && player.playingGuitar){
+      stopCurrentSong();
+      playSFX('menuClose');
+      keys[k] = true; return;
+    }
     // v0.95.63 · B (or Shift) dismounts chair — must run BEFORE the melee
     // guard so B doesn't get swallowed as "sprint" during chair ride.
     if ((k === 'b' || k === 'shift') && player.ridingChair){
@@ -4315,8 +4331,8 @@ function drawInteriorFloor(){
       const dy = Math.floor((9  + 1)   * TILE - drawH)     - _cam.y;
       ctx.drawImage(BED_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
-    // v0.95.9 · Guitar+Amp · 1 tile wide (shrunk further) · centered on col 10, base row 1
-    if (GUITAR_IMG.complete && GUITAR_IMG.naturalWidth){
+    // v0.95.94 · Guitar+Amp · hidden while player is playing (Rizer holds it)
+    if (!player.playingGuitar && GUITAR_IMG.complete && GUITAR_IMG.naturalWidth){
       const [sx, sy, sw, sh] = GUITAR_BBOX;
       const drawW = TILE;
       const drawH = Math.round(drawW * (sh / sw));

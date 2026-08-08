@@ -4242,20 +4242,64 @@ function fireAstralstrike(){
   }
   player.attackMode  = 'astralstrike';
   player.attackUntil = now + ASTRAL_STRIKE.DUR_MS;
-  // Spawn projectile at Rizer's tile · it will step 1 tile per TILE_MS
+  // v0.95.214 · TRAIL DAMAGE · the palm-burst + surge frames cover the 2 tiles
+  // directly in front of Rizer at cast time · any enemy/plant/bag/boulder there
+  // takes the same A3 damage as a projectile hit, so the visible energy trail is
+  // mechanically real (not just decoration).  Projectile then spawns AT tile+2
+  // and continues forward from there · no double-hit on the trail tiles.
   const dir = player.dir;
+  const dxStep = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
+  const dyStep = dir === 'up'   ? -1 : dir === 'down'  ? 1 : 0;
+  for (let step = 1; step <= 2; step++){
+    const tx = player.x + dxStep * step;
+    const ty = player.y + dyStep * step;
+    applyAstralHit(tx, ty);
+  }
+  // Projectile picks up at tile+2 so its next step is tile+3 · trail already covered
   PROJECTILES.push({
-    tileX: player.x,
-    tileY: player.y,
+    tileX: player.x + dxStep * 2,
+    tileY: player.y + dyStep * 2,
     dir,
-    dist: 0,
-    state: 'flight',   // 'flight' | 'explode'
+    dist: 2,           // already 2 tiles out
+    state: 'flight',
     t0: now,
-    lastStep: now + 180,   // small delay so the palm-burst frame lines up before it leaves the hand
+    lastStep: now + 180,
     scene: game.scene,
   });
   // v0.95.212 · dedicated 1s astralstrike cast SFX
   playSFX('astralstrike');
+}
+// v0.95.214 · Shared hit resolver · single tile · used by both trail damage
+// at cast time and per-step projectile collision · keeps damage math identical
+function applyAstralHit(tx, ty){
+  let hit = null;
+  for (const n of NPCS){
+    if (n.scene !== game.scene) continue;
+    if (!n.isEnemy) continue;
+    if (n.tileX === tx && n.tileY === ty){ hit = n; break; }
+  }
+  const cfgP = interiorConfig(game.scene);
+  const boulder = !cfgP ? boulderAt(game.scene, tx, ty) : null;
+  const plant   = !cfgP ? plantPropAt(tx, ty)           : null;
+  const bagHit  = cfgP && cfgP.rizerRoom && tx === 1 && (ty === 7 || ty === 8);
+  let anyHit = false;
+  if (hit){
+    const maxHp = hit.hpMax || 125;
+    if (hit.hp == null) hit.hp = maxHp;
+    hit.hp -= (player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT;
+    playSFX('moriGrunt');
+    if (hit.hp <= 0){
+      playSFX('moriDeath');
+      hit.scene = '__dead__';
+      player.rizerXP = (player.rizerXP || 0) + 20;
+      recordMoriKill('astralstrike');
+    }
+    anyHit = true;
+  }
+  if (boulder){ hitBoulder(boulder, 3);            anyHit = true; }
+  if (plant)  { chargePlant(plant, true);          anyHit = true; }
+  if (bagHit) { playSFX('punchHit'); recordHitLanded('kick'); anyHit = true; }
+  return anyHit;
 }
 function tickProjectiles(now){
   for (let i = PROJECTILES.length - 1; i >= 0; i--){
@@ -4275,39 +4319,11 @@ function tickProjectiles(now){
       if (p.dir === 'left')  p.tileX--;
       if (p.dir === 'right') p.tileX++;
       p.dist++;
-      // Hit test · enemy NPC at target tile
-      let hit = null;
-      for (const n of NPCS){
-        if (n.scene !== game.scene) continue;
-        if (!n.isEnemy) continue;
-        if (n.tileX === p.tileX && n.tileY === p.tileY){ hit = n; break; }
-      }
-      // v0.95.213 · Traveling collision also stops on boulders, plants (trees/bushes),
-      // and the Rizer Room punching bag dummy · gives players clear feedback that
-      // the blast is a real projectile rather than a hitscan
-      const cfgP = interiorConfig(game.scene);
-      const boulder = !cfgP ? boulderAt(game.scene, p.tileX, p.tileY) : null;
-      const plant   = !cfgP ? plantPropAt(p.tileX, p.tileY)           : null;
-      const bagHit  = cfgP && cfgP.rizerRoom && p.tileX === 1 && (p.tileY === 7 || p.tileY === 8);
-      if (hit || boulder || plant || bagHit){
+      // v0.95.214 · Delegate per-step collision to the shared resolver
+      // so trail damage + projectile damage use identical logic
+      if (applyAstralHit(p.tileX, p.tileY)){
         p.state = 'explode';
         p.explodeT0 = now;
-        if (hit){
-          const maxHp = hit.hpMax || 125;
-          if (hit.hp == null) hit.hp = maxHp;
-          // v0.95.211 · A3 canon damage · baseAtk × 3
-          hit.hp -= (player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT;
-          playSFX('moriGrunt');
-          if (hit.hp <= 0){
-            playSFX('moriDeath');
-            hit.scene = '__dead__';
-            player.rizerXP = (player.rizerXP || 0) + 20;
-            recordMoriKill('astralstrike');
-          }
-        }
-        if (boulder) hitBoulder(boulder, 3);
-        if (plant)   chargePlant(plant, true);   // heavy charge (like a kick)
-        if (bagHit)  { playSFX('punchHit'); recordHitLanded('kick'); }
         continue;
       }
       // Out of range · fizzle silently

@@ -654,6 +654,15 @@ function mapMinXAt(row){
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+// v0.95.163 · Click/tap the game view (or dialog box) to advance dialogue
+canvas.addEventListener('pointerdown', (e) => {
+  if (dialogState){
+    e.preventDefault();
+    e.stopPropagation();
+    const now = performance.now();
+    if (now - (_lastInteract || 0) > 180){ advanceDialog(); _lastInteract = now; }
+  }
+});
 ctx.imageSmoothingEnabled = false;
 
 // -- Audio (BGM + SFX) ------------------------------------------------------
@@ -6321,6 +6330,13 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   // 4) OVERWORLD / INTERIOR KEYS
   // ═══════════════════════════════════════════════════════════════
+  // v0.95.163 · Dialog advance is generous · X / Enter / Space / A / Z all work
+  // Only when a dialog is open · outside dialogs X still does its normal thing
+  if (dialogState && (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' ')){
+    const now = performance.now();
+    if (now - _lastInteract > 180){ advanceDialog(); _lastInteract = now; }
+    return;
+  }
   // v0.91.5 · X (Square) removed from interact list · Square is punch only.
   //   Interact keys: Z (Cross) · Enter · Space
   if (k === 'z' || k === 'a' || k === 'enter' || k === ' '){
@@ -6389,6 +6405,11 @@ addEventListener('keydown', e => {
               if (n.scene === game.scene && n.tileX === fx && n.tileY === fy){ hasInteract = true; break; }
             }
           }
+          // v0.95.162 · Bed tiles in Rizer Room count as interactables (rest/dream)
+          if (!hasInteract && cfg && cfg.rizerRoom
+              && fx >= 12 && fx <= 14 && (fy === 8 || fy === 9)){
+            hasInteract = true;
+          }
         }
         if (!hasInteract){
           _lastInteract = now;
@@ -6429,6 +6450,11 @@ addEventListener('keydown', e => {
             for (const n of NPCS){
               if (n.scene === game.scene && n.tileX === fx && n.tileY === fy){ _faceHasInteract = true; break; }
             }
+          }
+          // v0.95.162 · Bed tiles (rest/dream) count as interactable · no jump
+          if (!_faceHasInteract && cfg && cfg.rizerRoom
+              && fx >= 12 && fx <= 14 && (fy === 8 || fy === 9)){
+            _faceHasInteract = true;
           }
           // v0.95.131 · Grab (= interact anim alias) fires over Jump when
           // facing the Skateboard prop in Rizer Room 2F.  Prop is silent-

@@ -5499,6 +5499,30 @@ addEventListener('keydown', e => {
         settingsPage = 'root';
         playSFX('menuClose');
       }
+    } else if (settingsPage === 'items'){
+      // v0.95.127 · Items page · controller nav + toggle on skateboard
+      const entries = sortedInventoryEntries();
+      if (entries.length){
+        if (k === 'arrowup'){   itemsCursor = (itemsCursor + entries.length - 1) % entries.length; playSFX('cursor'); }
+        if (k === 'arrowdown'){ itemsCursor = (itemsCursor + 1) % entries.length; playSFX('cursor'); }
+        if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
+          const [key] = entries[itemsCursor] || [];
+          if (key === 'skateboard'){
+            player.skating = !player.skating;
+            playSFX('confirm');
+            showToast(player.skating ? '◈ Skateboard · ON · faster movement' : '◈ Skateboard · OFF', 1600);
+          } else {
+            playSFX('cancel');
+          }
+        }
+      }
+      if (k === 'shift' || k === 'b' || k === 'escape'){ settingsPage = 'root'; playSFX('cancel'); }
+      else if (k === '3'){
+        settingsMenuOpen = false;
+        settingsSelectedIdx = 0;
+        settingsPage = 'root';
+        playSFX('menuClose');
+      }
     } else if (settingsPage === 'save'){
       // v0.92 · save/load submenu nav
       if (k === 'arrowup'   || k === 'arrowdown'){ saveMenuSel = 1 - saveMenuSel; playSFX('cursor'); }
@@ -6082,6 +6106,7 @@ const SETTINGS_ITEMS = [
   '4. OPTIONS',
 ];
 let saveMenuSel = 0;  // 0=SAVE STATE, 1=LOAD STATE
+let itemsCursor = 0;  // v0.95.127 · cursor for ITEMS page (controller-selectable)
 const SETTINGS_PAGE_IDS = ['items', 'gear', 'save', 'options'];
 function drawSettingsMenu(){
   if (!settingsMenuOpen) return;
@@ -6132,17 +6157,31 @@ function drawSettingsMenu(){
       ctx.font = '11px "Courier New", monospace';
       ctx.fillText('open chests or talk to NPCs to collect items', 32, 115);
     } else {
-      ctx.fillStyle = '#f0eadf';
+      // v0.95.127 · controller cursor · highlight row · show toggle state for skateboard
+      if (itemsCursor >= entries.length) itemsCursor = entries.length - 1;
+      if (itemsCursor < 0) itemsCursor = 0;
       entries.forEach(([key, n], i) => {
         const meta = INVENTORY_META[key];
         const label = (meta && meta.label) || key;
-        ctx.fillText(`${label.padEnd(24, ' ')} x ${n}`, 32, 90 + i * 22);
+        const selected = (i === itemsCursor);
+        const y = 90 + i * 22;
+        if (selected){
+          ctx.fillStyle = 'rgba(212,175,55,0.22)';
+          ctx.fillRect(24, y - 16, W - 48, 22);
+        }
+        // Toggle-state suffix for togglable items
+        let suffix = '';
+        if (key === 'skateboard'){
+          suffix = player.skating ? '   [ ON ]' : '   [ OFF ]';
+        }
+        ctx.fillStyle = selected ? '#ffd66b' : '#f0eadf';
+        ctx.fillText(`${selected ? '▶ ' : '  '}${label.padEnd(22, ' ')} x ${n}${suffix}`, 32, y);
       });
     }
     ctx.fillStyle = '#8ff';
     ctx.font = '11px "Courier New", monospace';
     ctx.textAlign = 'right';
-    ctx.fillText('○ back · ○/Options close', W - 24, H - 20);
+    ctx.fillText('▲▼ nav · × toggle · ○ back · ○/Options close', W - 24, H - 20);
     ctx.textAlign = 'left';
   } else if (settingsPage === 'save'){
     ctx.font = 'bold 16px "Courier New", monospace';

@@ -867,8 +867,16 @@ function updateCamera(){
   const phase = performance.now() / CAM_SWAY_PERIOD * Math.PI * 2;
   const swayX = Math.sin(phase) * CAM_SWAY_AMP_X;
   const swayY = Math.cos(phase * 0.7) * CAM_SWAY_AMP_Y;
-  _cam.x = Math.floor(_cam.fx + swayX);
-  _cam.y = Math.floor(_cam.fy + swayY);
+  // v0.95.167 · Hurt shake · brief random offset on top of tracked position
+  let shakeX = 0, shakeY = 0;
+  if (typeof player !== 'undefined' && (player._hurtShakeUntil || 0) > performance.now()){
+    const t = (player._hurtShakeUntil - performance.now()) / 320;   // 1→0
+    const amp = 5 * t;
+    shakeX = (Math.random() * 2 - 1) * amp;
+    shakeY = (Math.random() * 2 - 1) * amp;
+  }
+  _cam.x = Math.floor(_cam.fx + swayX + shakeX);
+  _cam.y = Math.floor(_cam.fy + swayY + shakeY);
 }
 
 // -- Player state ------------------------------------------------------------
@@ -891,8 +899,10 @@ const player = {
 function hurtPlayer(amt, srcName){
   if ((player._invulnUntil || 0) > performance.now()) return;
   player.hp = Math.max(0, (player.hp || 0) - amt);
-  player._hurtFlashUntil = performance.now() + 220;
-  player._invulnUntil    = performance.now() + 700;     // brief i-frames
+  const now = performance.now();
+  player._hurtFlashUntil = now + 380;                    // v0.95.167 · longer red flash
+  player._hurtShakeUntil = now + 320;                    // v0.95.167 · screen-shake window
+  player._invulnUntil    = now + 700;                    // brief i-frames
   if (srcName) showToast(`◈ ${srcName} drains ${amt} HP`, 1000);
   if (player.hp === 0){
     showToast('◈ You collapse... find a bed to recover.', 2600);
@@ -2498,6 +2508,64 @@ const NPCS = [
       ]});
     },
   },
+  // ── YARA · your little sister · beside Mom in player home · v0.95.167 ──
+  // Static single-frame idle (awaiting 4x4).  Cheerful · looks up to Rizer.
+  {
+    id: 'yara',
+    name: 'Yara',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/npcs/yara.png',
+    staticSprite: true,
+    staticBBox: [285, 290, 455, 547],
+    scaleMul: 0.85,                          // little sister · shorter than Mom
+    tileX: 9, tileY: 5,
+    homeX: 9, homeY: 5,
+    homeScene: 'interior_home',
+    scene: 'interior_home',
+    dir: 'down',
+    mode: 'stationary',
+    moving: false,
+    animFrame: 0,
+    idleFrame: 0,
+    blinkTimer: 9e9,
+    turnToInteract: false,
+    onInteract: (n) => {
+      showDialog({ speaker: 'YARA', lines: [
+        "*grins* Lucky you got your own room upstairs.  I'm still sharing wall with Mom's snoring.",
+        "When you catch a really cool Zyrex, bring it back to show me, okay??",
+        "*bounces on her toes*  You're gonna be the best Rizer ever, big bro.",
+      ]});
+    },
+  },
+  // ── ZORYN · bestfriend / rival from school · in front of Rakoron Cave · v0.95.167 ──
+  // Static single-frame idle (awaiting 4x4).  Dreams of studying the Gemlords.
+  {
+    id: 'zoryn',
+    name: 'Zoryn',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/npcs/zoryn.png',
+    staticSprite: true,
+    staticBBox: [254, 92, 520, 746],
+    scaleMul: 1.0,                           // same-age rival · Rizer scale
+    tileX: 22, tileY: 7,
+    homeX: 22, homeY: 7,
+    homeScene: 'overworld',
+    scene: 'overworld',
+    dir: 'down',
+    mode: 'stationary',
+    moving: false,
+    animFrame: 0,
+    idleFrame: 0,
+    blinkTimer: 9e9,
+    turnToInteract: false,
+    onInteract: (n) => {
+      showDialog({ speaker: 'ZORYN', lines: [
+        "*eyes on the cave mouth*  You feel that?  Ancient Astralite hums out here.",
+        "One day I'll walk in and meet a Gemlord face-to-face.  Not just read about them.",
+        "*smirks*  You'd better keep up, Rizer.  I'm not losing our little race.",
+      ]});
+    },
+  },
   // ── ALBERT ORREN · bear neighbor · in front of his green home (v0.86.1) ──
   {
     id: 'albert_orren',
@@ -2827,7 +2895,9 @@ const NPCS = [
       id: `mori_and_${i + 1}`,
       name: s.mode === 'daemon' ? 'Daemon' : 'Mori',
       sheet: new Image(),
-      src:   'assets/2D%20sprites/npcs/mori.png',
+      // v0.95.167 · Daemons use their own sprite sheet (row order UP/LEFT/RIGHT/DOWN)
+      src:   s.mode === 'daemon' ? 'assets/2D%20sprites/npcs/daemon.png' : 'assets/2D%20sprites/npcs/mori.png',
+      rowMap: s.mode === 'daemon' ? { up:0, left:1, right:2, down:3 } : null,
       bboxes: MORI_BBOXES,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       tileX: s.x, tileY: s.y,
@@ -7435,7 +7505,24 @@ function drawWorldLayer(){
 }
 
 const DIR_ROW_NPC = { down: 0, left: 1, right: 2, up: 3 };
+// v0.95.167 · staticSprite NPCs · draw a single frame regardless of facing
+// (used for characters whose 4x4 hasn't been delivered yet).  bbox = [bx,by,bw,bh]
+function drawStaticNPC(n){
+  if (!n.sheet || !n.sheet.complete || !n.sheet.naturalWidth) return;
+  const [bx, by, bw, bh] = n.staticBBox;
+  if (n._downScale == null){
+    n._downScale = (TILE * 2) / bh * (n.scaleMul || 1);
+  }
+  const scale = n._downScale;
+  const drawH = Math.max(1, Math.round(bh * scale));
+  const drawW = Math.max(1, Math.round(bw * scale));
+  const dx = Math.floor(n.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+  const dy = Math.floor(n.tileY * TILE + TILE - drawH)       - _cam.y;
+  ctx.drawImage(n.sheet, bx, by, bw, bh, dx, dy, drawW, drawH);
+}
 function drawNPC(n){
+  // v0.95.167 · static single-frame NPCs (Yara, Zoryn awaiting 4x4)
+  if (n.staticSprite && n.staticBBox){ drawStaticNPC(n); return; }
   // v0.95.6 · SCALE reference is the LARGEST bh across all 4 directions of
   // the idle sheet (col 0 of each row).  This kills the "front pose looks
   // inflated / feet cropped" class-of-bug: previously uniformScale scaled
@@ -7454,6 +7541,9 @@ function drawNPC(n){
     n._downScale = (TILE * 2) / maxBh * (n.scaleMul || 1);
   }
   let row = DIR_ROW_NPC[n.dir] || 0;
+  // v0.95.167 · rowMap · override which sheet row corresponds to a facing dir
+  // (used for Daemon sheet where row order is UP/LEFT/RIGHT/DOWN vs canon DOWN/LEFT/RIGHT/UP)
+  if (n.rowMap){ row = n.rowMap[n.dir] ?? row; }
   // v0.95.124 · mirrorRightAsLeft · right pose sources left row + h-flip
   let mirror = false;
   if (n.mirrorRightAsLeft && n.dir === 'right'){

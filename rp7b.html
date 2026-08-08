@@ -1665,7 +1665,7 @@ const WORLD_PROPS = [
       id: 'auraxion_ufo',
       img: _ufoImg,
       src: 'assets/2D%20sprites/decor/auraxion-ufo.png',
-      bbox: [16, 371, 994, 263],
+      bbox: [33, 471, 1187, 321],   // v0.95.96 · Aetherstride sprite
       tileX: 11, tileY: 175,
       tileW: 10, tileH: 3,                  // v0.95.89 · realer craft scale · 10x3 tiles
       footprint: [[0,0],[1,0],[2,0],[3,0],[-1,0],[-2,0],[-3,0],[-4,0],[-5,0],[-6,0],
@@ -2854,6 +2854,27 @@ function enterMalezorHome(id){
 
 // Scene state: 'title' | 'overworld' | 'interior_home' | 'interior_cave'
 const game = { scene: 'title', overworldReturn: null };
+// v0.95.96 · Boot-time guard · explicitly initialize every UI-modal flag
+// to false so nothing gets left in an "open" state after a cached reload.
+game.expPanelOpen    = false;
+game.tvPanelOpen     = false;
+game.guitarPanelOpen = false;
+game.nebulaPanelOpen = false;
+game.bagPanelOpen    = false;
+game.dockPanelOpen   = false;
+game.posterViewOpen  = false;
+// v0.95.96 · Global song-playback state (was implicit — caused
+// ReferenceError in tryMove and completely froze the player).
+let _currentSongAudio = null;
+let _currentSongId    = null;
+function stopCurrentSong(){
+  if (_currentSongAudio){
+    try { _currentSongAudio.pause(); _currentSongAudio.currentTime = 0; } catch(e){}
+    _currentSongAudio = null;
+    _currentSongId    = null;
+    if (typeof player !== 'undefined') player.playingGuitar = false;
+  }
+}
 
 // Title screen assets + state
 const TITLE_IMG = new Image();
@@ -3485,14 +3506,20 @@ Object.entries(SONGS).forEach(([id, s]) => {
   a.addEventListener('error', () => console.warn('[guitar] audio load error', s.audio, a.error));
   _SONG_AUDIO[id] = a;
 });
-let _currentSongId = null;
-function stopCurrentSong(){
-  if (!_currentSongId) return;
-  const a = _SONG_AUDIO[_currentSongId];
-  if (a){ try { a.pause(); a.currentTime = 0; } catch(e){} }
-  _currentSongId = null;
-  player.playingGuitar = false;
-}
+// v0.95.96 · _currentSongId + stopCurrentSong hoisted to boot-guard block
+// above.  Re-assign the pre-registered-Audio-aware implementation here.
+stopCurrentSong = function(){
+  if (_currentSongId){
+    const a = _SONG_AUDIO[_currentSongId];
+    if (a){ try { a.pause(); a.currentTime = 0; } catch(e){} }
+    _currentSongId = null;
+  }
+  if (_currentSongAudio){
+    try { _currentSongAudio.pause(); _currentSongAudio.currentTime = 0; } catch(e){}
+    _currentSongAudio = null;
+  }
+  if (typeof player !== 'undefined') player.playingGuitar = false;
+};
 function playGuitarSong(idx){
   const entries = Object.entries(SONGS);
   if (idx < 0 || idx >= entries.length) return;

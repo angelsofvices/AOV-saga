@@ -813,36 +813,47 @@ addEventListener('pointerdown', seedAudio, { once: false });
 // World draw offset is subtracted from every world-space coordinate so
 // the world scrolls under a fixed-center player.  Black shows past map
 // edges when the player is near a corner (no clamping).
-const _cam = { x: 0, y: 0 };
+const _cam = { x: 0, y: 0, fx: 0, fy: 0 };   // v0.95.151 · fx/fy = smooth float target
 // v0.95.106 · DBZ Legacy-of-Goku-II style camera · dead zone + lerp.
-// (cameraMode default init moved to boot-guard block since `game` isn't
-// declared yet at this point — TDZ would ReferenceError and kill script.)
-const CAM_DEADZONE_X = 60;                  // half-width of dead zone (px)
-const CAM_DEADZONE_Y = 44;                  // half-height
-const CAM_LERP       = 0.14;                // fraction of remaining dist per frame
+// v0.95.151 · Smoother + dreamier:
+//   · Wider dead-zone so the camera swings with the player instead of tracking
+//   · dt-based lerp (frame-rate independent · consistent feel at any FPS)
+//   · Fractional camera position stored as float · only rounded at draw time
+//   · Subtle sine-wave sway (~2px amp, 8s period) gives a dreamy drift
+//   · Ease-out response: slow far · quick close · settle without overshoot
+const CAM_DEADZONE_X = 72;                  // was 60 · wider box · loose swing
+const CAM_DEADZONE_Y = 52;                  // was 44
+const CAM_LERP_RATE  = 3.8;                 // 1/sec · higher = snappier
+const CAM_SWAY_AMP_X = 2.2;                 // px · subtle horizontal drift
+const CAM_SWAY_AMP_Y = 1.6;                 // px · subtle vertical drift
+const CAM_SWAY_PERIOD = 8200;               // ms · slow breathing cadence
+let   _camDt = 16;                          // updated each frame from frame()
 function updateCamera(){
   const targetX = player.x * TILE + TILE / 2 - canvas.width  / 2;
   const targetY = player.y * TILE + TILE / 2 - canvas.height / 2;
   if (game.cameraMode !== 'gba'){
+    _cam.fx = targetX; _cam.fy = targetY;
     _cam.x = Math.floor(targetX);
     _cam.y = Math.floor(targetY);
     return;
   }
-  // GBA-style: dead zone (camera holds until player leaves the box) then
-  // lerp toward the target so the follow feels loose + delayed.
-  const dx = targetX - _cam.x;
-  const dy = targetY - _cam.y;
-  let moveX = 0, moveY = 0;
-  if (Math.abs(dx) > CAM_DEADZONE_X){
-    const over = dx - Math.sign(dx) * CAM_DEADZONE_X;
-    moveX = over * CAM_LERP;
-  }
-  if (Math.abs(dy) > CAM_DEADZONE_Y){
-    const over = dy - Math.sign(dy) * CAM_DEADZONE_Y;
-    moveY = over * CAM_LERP;
-  }
-  _cam.x = Math.floor(_cam.x + moveX);
-  _cam.y = Math.floor(_cam.y + moveY);
+  // Dead zone · only compute delta once player pushes past the box.
+  const dx = targetX - _cam.fx;
+  const dy = targetY - _cam.fy;
+  const overX = Math.abs(dx) > CAM_DEADZONE_X ? dx - Math.sign(dx) * CAM_DEADZONE_X : 0;
+  const overY = Math.abs(dy) > CAM_DEADZONE_Y ? dy - Math.sign(dy) * CAM_DEADZONE_Y : 0;
+  // Frame-rate independent lerp: fraction = 1 - exp(-rate * dt)
+  // Clamp dt so a browser stall doesn't teleport the camera.
+  const dt = Math.min(_camDt, 64) / 1000;
+  const t  = 1 - Math.exp(-CAM_LERP_RATE * dt);
+  _cam.fx += overX * t;
+  _cam.fy += overY * t;
+  // Dreamy sway · slow sine on top of the tracked position
+  const phase = performance.now() / CAM_SWAY_PERIOD * Math.PI * 2;
+  const swayX = Math.sin(phase) * CAM_SWAY_AMP_X;
+  const swayY = Math.cos(phase * 0.7) * CAM_SWAY_AMP_Y;
+  _cam.x = Math.floor(_cam.fx + swayX);
+  _cam.y = Math.floor(_cam.fy + swayY);
 }
 
 // -- Player state ------------------------------------------------------------
@@ -7394,6 +7405,7 @@ function frame(now){
   // No idle animation · lock to frame 0 of the current direction when
   // not moving.  Walking/running frame advance still lives in tryMove.
   if (!player.moving) player.animFrame = 0;
+  _camDt = dt;                                   // v0.95.151 · feed dt to camera lerp
   updateCamera();
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);

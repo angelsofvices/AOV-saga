@@ -4203,13 +4203,12 @@ function hitBoulder(b, dmg){
 if (game.devCombatFxOn == null) game.devCombatFxOn = true;
 const HIT_FX = [];
 function spawnHitFx(tx, ty, mode){
-  HIT_FX.push({
-    x: tx, y: ty,
-    t0: performance.now(),
-    dur: mode === 'kick' ? 340 : 260,
-    color: mode === 'kick' ? '#ffb04a' : '#ffe770',   // orange kick · yellow punch
-    ringMax: mode === 'kick' ? 38 : 30,
-  });
+  // v0.95.216 · Palette per attack slot · A1 yellow · A2 orange · A3 blue · A4 purple
+  const spec = mode === 'ultimate'    ? { dur: 420, color: '#c060ff', ringMax: 46 }   // A4 · purple
+             : mode === 'astral'      ? { dur: 380, color: '#4ac8ff', ringMax: 40 }   // A3 · electric blue
+             : mode === 'kick'        ? { dur: 340, color: '#ffb04a', ringMax: 38 }   // A2 · orange
+             :                          { dur: 260, color: '#ffe770', ringMax: 30 };  // A1 · yellow (default punch)
+  HIT_FX.push({ x: tx, y: ty, t0: performance.now(), ...spec });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4243,25 +4242,23 @@ function fireAstralstrike(){
   }
   player.attackMode  = 'astralstrike';
   player.attackUntil = now + ASTRAL_STRIKE.DUR_MS;
-  // v0.95.214 · TRAIL DAMAGE · the palm-burst + surge frames cover the 2 tiles
-  // directly in front of Rizer at cast time · any enemy/plant/bag/boulder there
-  // takes the same A3 damage as a projectile hit, so the visible energy trail is
-  // mechanically real (not just decoration).  Projectile then spawns AT tile+2
-  // and continues forward from there · no double-hit on the trail tiles.
+  // v0.95.216 · TRAIL DAMAGE · 3-tile forward radius covers the whole cast anim
+  // Any Mori/Daemon/plant/boulder/bag standing in tiles 1-2-3 in front of Rizer
+  // at cast time takes A3 damage · projectile then continues from tile+3
   const dir = player.dir;
   const dxStep = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
   const dyStep = dir === 'up'   ? -1 : dir === 'down'  ? 1 : 0;
-  for (let step = 1; step <= 2; step++){
+  for (let step = 1; step <= 3; step++){
     const tx = player.x + dxStep * step;
     const ty = player.y + dyStep * step;
     applyAstralHit(tx, ty);
   }
-  // Projectile picks up at tile+2 so its next step is tile+3 · trail already covered
+  // Projectile picks up at tile+3 so its next step is tile+4 · trail already covered
   PROJECTILES.push({
-    tileX: player.x + dxStep * 2,
-    tileY: player.y + dyStep * 2,
+    tileX: player.x + dxStep * 3,
+    tileY: player.y + dyStep * 3,
     dir,
-    dist: 2,           // already 2 tiles out
+    dist: 3,           // already 3 tiles out
     state: 'flight',
     t0: now,
     lastStep: now + 180,
@@ -4301,6 +4298,11 @@ function applyAstralHit(tx, ty){
   if (boulder){ hitBoulder(boulder, 3);            anyHit = true; }
   if (plant)  { chargePlant(plant, true);          anyHit = true; }
   if (bagHit) { playSFX('punchHit'); recordHitLanded('kick'); anyHit = true; }
+  // v0.95.216 · Blue hit-confirm glow on any A3 impact (mirrors punch/kick FX)
+  // A4 will use 'ultimate' mode (purple) when it ships
+  if (anyHit && game.devCombatFxOn !== false){
+    spawnHitFx(tx, ty, 'astral');
+  }
   return anyHit;
 }
 function tickProjectiles(now){

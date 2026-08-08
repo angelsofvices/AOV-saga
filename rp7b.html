@@ -3664,12 +3664,15 @@ function playGuitarSong(idx){
   const now = Math.floor(performance.now() / 1000);
   const remaining = Math.max(0, (player.songCooldowns[id] || 0) - now);
   if (remaining > 0){ showToast(`◈ ${song.title} · cooldown ${remaining}s`, 2000); playSFX('disabled'); return; }
+  // v0.95.110 · Play the song no matter what; only skip the bond bump if
+  // there's nobody in the party to bond with (was blocking playback entirely).
   const alive = (player.party || []).filter(z => z);
-  if (alive.length === 0){ showToast('◈ No party Zyrex to bond with.', 2200); return; }
   alive.forEach(z => { z.bond = Math.min(100, (z.bond || 0) + song.gain); });
   player.songCooldowns[id] = now + song.cd;
   playSFX('confirm');
-  showToast(`◈ Played "${song.title}" · +${song.gain} bond to all party Zyrex`, 2600);
+  showToast(alive.length
+    ? `◈ Played "${song.title}" · +${song.gain} bond to all party Zyrex`
+    : `◈ Playing "${song.title}" · (no party · bond skipped)`, 2600);
   // v0.95.94 · Play the pre-registered Audio element for this song.  Called
   // from inside the user gesture (key or click) so autoplay policies pass.
   const a = _SONG_AUDIO[id];

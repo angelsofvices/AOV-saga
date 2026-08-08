@@ -331,8 +331,10 @@
     #mobileCtrl .btnCir  { grid-column: 3; grid-row: 2; }   /* right  · run */
     #mobileCtrl .btnX    { grid-column: 2; grid-row: 3; }   /* bottom · interact */
     #mobileCtrl .btnSq   { grid-column: 1; grid-row: 2; }   /* left   · punch */
+    /* v0.95.196 · Dev Mode button now sits in TOP-LEFT UI stack,
+       directly under the "DUALSENSE · CONNECTED" chip.  Still draggable. */
     #devBtn{
-      position:fixed; bottom:12px; right:12px;
+      position:fixed; top:60px; left:12px;
       background: rgba(0,0,0,0.75);
       color:#8fffb0; font-size:11px; letter-spacing:.12em;
       padding:6px 12px; border:1px solid #2a5;
@@ -861,6 +863,7 @@ const CAM_SWAY_AMP_X = 2.2;                 // px · subtle horizontal drift
 const CAM_SWAY_AMP_Y = 1.6;                 // px · subtle vertical drift
 const CAM_SWAY_PERIOD = 8200;               // ms · slow breathing cadence
 let   _camDt = 16;                          // updated each frame from frame()
+let   _camSwayEase = 0;                     // v0.95.196 · 0..1 · gates sway to moving state
 function updateCamera(){
   const targetX = player.x * TILE + TILE / 2 - canvas.width  / 2;
   const targetY = player.y * TILE + TILE / 2 - canvas.height / 2;
@@ -881,10 +884,16 @@ function updateCamera(){
   const t  = 1 - Math.exp(-CAM_LERP_RATE * dt);
   _cam.fx += overX * t;
   _cam.fy += overY * t;
-  // Dreamy sway · slow sine on top of the tracked position
+  // v0.95.196 · Dreamy sway ONLY while player is in motion (walk/run/skate)
+  // Idle · camera locks to player · no drift.  Also decays smoothly.
+  const wantSway = !!(player && player.moving);
+  if (_camSwayEase == null) _camSwayEase = 0;
+  const easeRate = 3.0;   // 1/sec
+  const easeT    = 1 - Math.exp(-easeRate * dt);
+  _camSwayEase  += ((wantSway ? 1 : 0) - _camSwayEase) * easeT;
   const phase = performance.now() / CAM_SWAY_PERIOD * Math.PI * 2;
-  const swayX = Math.sin(phase) * CAM_SWAY_AMP_X;
-  const swayY = Math.cos(phase * 0.7) * CAM_SWAY_AMP_Y;
+  const swayX = Math.sin(phase) * CAM_SWAY_AMP_X * _camSwayEase;
+  const swayY = Math.cos(phase * 0.7) * CAM_SWAY_AMP_Y * _camSwayEase;
   // v0.95.167 · Hurt shake · brief random offset on top of tracked position
   let shakeX = 0, shakeY = 0;
   if (typeof player !== 'undefined' && (player._hurtShakeUntil || 0) > performance.now()){

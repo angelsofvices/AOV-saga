@@ -5100,17 +5100,42 @@ addEventListener('keydown', e => {
   if (game.devPanelKeyboard){
     const items = Array.from(document.querySelectorAll('#devPanel button'));
     if (items.length){
-      if (k === 'arrowup' || k === 'arrowleft'){
+      // v0.95.108 · Group buttons by their DOM row (Y position rounded to
+      // 4px) so up/down can jump full rows while left/right stays linear.
+      const rects = items.map(el => Math.round(el.getBoundingClientRect().top / 4) * 4);
+      const rows = [];
+      const rowOf = new Map();          // button-idx → row idx
+      rects.forEach((y, i) => {
+        let r = rows.indexOf(y);
+        if (r === -1){ rows.push(y); r = rows.length - 1; }
+        rowOf.set(i, r);
+      });
+      const rowMembers = rows.map((_, r) => items.map((_, i) => i).filter(i => rowOf.get(i) === r));
+      const curRow = rowOf.get(devPanelSel);
+      const curCol = rowMembers[curRow].indexOf(devPanelSel);
+      if (k === 'arrowleft'){
         devPanelSel = (devPanelSel + items.length - 1) % items.length;
         highlightDevBtn(items, devPanelSel);
-        playSFX('cursor');
-        return;
+        playSFX('cursor'); return;
       }
-      if (k === 'arrowdown' || k === 'arrowright'){
+      if (k === 'arrowright'){
         devPanelSel = (devPanelSel + 1) % items.length;
         highlightDevBtn(items, devPanelSel);
-        playSFX('cursor');
-        return;
+        playSFX('cursor'); return;
+      }
+      if (k === 'arrowup'){
+        const newRow = (curRow - 1 + rows.length) % rows.length;
+        const targetCol = Math.min(curCol, rowMembers[newRow].length - 1);
+        devPanelSel = rowMembers[newRow][targetCol];
+        highlightDevBtn(items, devPanelSel);
+        playSFX('cursor'); return;
+      }
+      if (k === 'arrowdown'){
+        const newRow = (curRow + 1) % rows.length;
+        const targetCol = Math.min(curCol, rowMembers[newRow].length - 1);
+        devPanelSel = rowMembers[newRow][targetCol];
+        highlightDevBtn(items, devPanelSel);
+        playSFX('cursor'); return;
       }
       if (k === 'z' || k === 'a' || k === 'enter' || k === ' '){
         items[devPanelSel].click();

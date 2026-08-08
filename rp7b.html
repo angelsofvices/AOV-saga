@@ -3082,8 +3082,8 @@ const NPCS = [
       moveCd: 250 + Math.random() * 350,
       blinkTimer: 9e9,
       isEnemy: true,
-      // v0.95.149 · Daemon = 2× Mori durability (6 hp vs 3 hp base) · drainer sits between
-      hpMax: s.mode === 'daemon' ? 6 : (s.mode === 'drainer' ? 4 : 3),
+      // v0.95.211 · CANON HP · Mori 125 · Daemon 250 (2× Mori) · drainer 175 (mid)
+      hpMax: s.mode === 'daemon' ? 250 : (s.mode === 'drainer' ? 175 : 125),
       onInteract: (n) => { playSFX('moriPoke'); showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
@@ -3154,8 +3154,8 @@ const NPCS = [
       moveCd: 250 + Math.random() * 350,
       blinkTimer: 9e9,
       isEnemy: true,
-      // v0.95.149 · Daemon = 2× Mori durability (6 hp vs 3 hp base)
-      hpMax: s.mode === 'daemon' ? 6 : 4,
+      // v0.95.211 · CANON HP · Mori 125 · Daemon 250 (2× Mori) · Andrannor variants
+      hpMax: s.mode === 'daemon' ? 250 : 125,
       onInteract: (n) => { playSFX('moriPoke'); showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
@@ -4219,7 +4219,7 @@ function spawnHitFx(tx, ty, mode){
 const ASTRAL_STRIKE = {
   DUR_MS:       500,      // Rizer cast animation length
   DIAMOND_COST: 10,       // per cast (Blue Diamond ◆ · numerics pending v15.8+)
-  DAMAGE:       10,       // damage on hit (Mori ≈ 15hp → ~2 casts to kill)
+  DMG_MULT:     3,        // v0.95.211 · A3 canon · baseAtk × 3 · 25 × 3 = 75
   RANGE_TILES:  6,        // max travel before fizzling
   TILE_MS:      100,      // ms per tile step (~10 tiles/sec)
   EXPLODE_MS:   240,      // explosion frame linger before despawn
@@ -4283,9 +4283,10 @@ function tickProjectiles(now){
         p.state = 'explode';
         p.explodeT0 = now;
         if (hit){
-          const maxHp = hit.hpMax || 3;
+          const maxHp = hit.hpMax || 125;
           if (hit.hp == null) hit.hp = maxHp;
-          hit.hp -= ASTRAL_STRIKE.DAMAGE;
+          // v0.95.211 · A3 canon damage · baseAtk × 3
+          hit.hp -= (player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT;
           playSFX('moriGrunt');
           if (hit.hp <= 0){
             playSFX('moriDeath');
@@ -5943,9 +5944,11 @@ addEventListener('keydown', e => {
             spawnHitFx(tx, ty, mode);
           }
           if (hit){
-            const maxHp = hit.hpMax || 3;
+            const maxHp = hit.hpMax || 125;
             if (hit.hp == null) hit.hp = maxHp;
-            hit.hp -= (mode === 'kick' ? 2 : 1);
+            // v0.95.211 · CANON damage · A1 punch = baseAtk × 1 · A2 kick = baseAtk × 2
+            const dmgMult = (mode === 'kick') ? 2 : 1;
+            hit.hp -= (player.baseAtk || 25) * dmgMult;
             // v0.95.120 · Mori pained grunt when crossing 40% HP threshold
             if (hit.hp > 0 && !hit._gruntPlayed && hit.hp <= maxHp * 0.4){
               hit._gruntPlayed = true;
@@ -9196,6 +9199,8 @@ if (player.astralMax == null) player.astralMax = 100;
 // v0.95.210 · Blue Diamond ◆ · fuels A3 Astralstrike (per [[aov-rhud-meter-functions]])
 if (player.diamond    == null) player.diamond    = 100;
 if (player.diamondMax == null) player.diamondMax = 100;
+// v0.95.211 · CANON base attack · A1×1 · A2×2 · A3×3 · A4×4
+if (player.baseAtk    == null) player.baseAtk    = 25;
 
 (function wireRizerHud(){
   const widget = document.getElementById('rizerHud');

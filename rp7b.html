@@ -2508,17 +2508,26 @@ const NPCS = [
     name: 'Elzoran',
     sheet: new Image(),
     src:   'assets/2D%20sprites/npcs/elzoran.png',
-    // Row order per user: DOWN / LEFT / RIGHT / UP · content-tight bboxes
-    // baked from the sprite sheet after magenta flood (v0.95.133).
+    // v0.95.139 · Rebuilt · true per-row content extents · fixes feet + hair
+    // crop.  Down bleeds 14px below cell (foot).  Up bleeds 35px above cell
+    // (crest/horns).  Left/right sit tight in-cell.
     bboxes: [
-      [[ 37, 59,274,254],[ 37, 59,274,254],[ 35, 61,252,252],[  8, 59,273,254]],
-      [[ 77,  0,225,293],[ 77,  0,231,293],[ 63,  0,222,293],[ 51,  0,220,293]],
-      [[ 26,  3,211,310],[ 26,  4,211,309],[ 11,  3,250,310],[  0,  3,210,310]],
-      [[ 52,  0,233,224],[ 49,  0,232,224],[ 30,  0,235,224],[ 23,  0,232,224]],
+      [[ 37, 59,274,268],[ 37, 59,274,268],[ 35, 61,252,266],[  8, 59,273,268]],
+      [[ 77, 44,225,249],[ 77, 45,231,248],[ 63, 45,222,248],[ 51, 43,220,250]],
+      [[ 26,  3,211,248],[ 26,  4,211,248],[ 11,  3,250,248],[  0,  3,210,248]],
+      [[ 52,-35,233,259],[ 49,-35,232,259],[ 30,-34,235,258],[ 23,-35,232,259]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     uniformScale: true,                       // single scale across all dirs (no jitter)
-    scaleMul: 1.35,                           // flagship dragon · larger than humanoids
+    scaleMul: 1.25,                           // v0.95.139 · slight dial-down · fits new taller bboxes
+    // v0.95.139 · wings span 3 tiles horizontally · block passage
+    footprint: [[-1, 0], [0, 0], [1, 0]],
+    // v0.95.139 · Interact from wings, back, or face · any of these tiles counts as "on him"
+    interactHitbox: [
+      [-1, 0], [0, 0], [1, 0],    // wings + centre
+      [0, 1],                     // back (behind him · he faces up)
+      [0, -1],                    // face (in front)
+    ],
     tileX: 5, tileY: 28,
     homeX: 5, homeY: 28,
     homeScene: 'overworld',
@@ -3069,6 +3078,13 @@ function collectFaeAt(tx, ty){
       // v0.95.135 · Mirror fae count into items so it shows in bag
       if (!player.items) player.items = {};
       player.items.fae = player.faeCollected;
+      // v0.95.139 · 100 fae → Amplification (super-saiyan) unlock · wiring pending
+      if (!player.unlocks) player.unlocks = {};
+      if (!player.unlocks.amplification && player.faeCollected >= 100){
+        player.unlocks.amplification = true;
+        showToast('◈ ACHIEVEMENT · AMPLIFICATION unlocked · 100 Fae crafted · super-form pending', 3400);
+        playSFX('confirm');
+      }
       const need = Math.max(0, FAE_UNLOCK_COUNT - player.faeCollected);
       if (need <= 0){
         showToast(`◈ FAE  ${player.faeCollected}/${FAE_UNLOCK_COUNT} · Celestryx summon UNLOCKED!`, 3200);
@@ -3517,7 +3533,7 @@ const BOULDER_CRUMBLE_MS = 700;                // total crumble anim length
 // cols 50-106 · spread between Mori spawns) + 5 on the path leading north
 // to Rakoron's Cave (cols 19-25 · rows 8-40, flanking the tree corridor).
 const _boulderSpots = [
-  { x: 24, y: 106 },                    // beside home (test)
+  { x: 30, y: 130 },                    // v0.95.139 · was (24,106) beside home · moved SE off spawn path
   // Malezor Wild horizontal route · between the Mori
   { x: 46,  y: 170 }, { x: 55,  y: 178 }, { x: 63,  y: 165 },
   { x: 70,  y: 174 }, { x: 78,  y: 168 }, { x: 85,  y: 179 },
@@ -5559,9 +5575,19 @@ function tryInteract(){
     }
   }
   // NPC interact takes priority (overworld scene · dynamic position)
+  // v0.95.139 · interactHitbox lets big NPCs (Elzoran) accept interact from wings/back/face
+  const _npcAt = (n, x, y) => {
+    if (n.tileX === x && n.tileY === y) return true;
+    if (n.interactHitbox){
+      for (const [dx, dy] of n.interactHitbox){
+        if (n.tileX + dx === x && n.tileY + dy === y) return true;
+      }
+    }
+    return false;
+  };
   for (const n of NPCS){
     if (n.scene !== 'overworld') continue;
-    if (n.tileX === fx && n.tileY === fy){
+    if (_npcAt(n, fx, fy)){
       const opp = { up:'down', down:'up', left:'right', right:'left' };
       const shouldTurn = (n.turnToInteract !== false);
       const priorDir = n.dir;
@@ -6005,6 +6031,16 @@ addEventListener('keydown', e => {
           }
           if (!hasInteract && boulderAt('overworld', fx, fy)) hasInteract = true;
           if (!hasInteract && plantPropAt(fx, fy))            hasInteract = true;  // v0.95.136 · bush/tree grab wins over jump
+          if (!hasInteract){
+            // v0.95.139 · big-NPC interactHitbox (Elzoran wings, back, face)
+            for (const n of NPCS){
+              if (n.scene !== 'overworld' || !n.interactHitbox) continue;
+              for (const [ddx, ddy] of n.interactHitbox){
+                if (n.tileX + ddx === fx && n.tileY + ddy === fy){ hasInteract = true; break; }
+              }
+              if (hasInteract) break;
+            }
+          }
         } else if (interiorConfig(game.scene)){
           // Interior scenes have NPCs, exit tile, and Rizer Room props ·
           // conservative: any NPC on faced tile OR the exit tile counts.

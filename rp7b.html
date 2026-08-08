@@ -141,6 +141,21 @@
         font-size: 11px; padding: 4px 8px;
       }
     }
+    /* v0.95.142 · Coin +N pop-label above coin HUD (fires on chest grab) */
+    #coinPop{
+      position:fixed; top:196px; right:16px;
+      color:#ffd66b; font:bold 16px 'Courier New', monospace;
+      letter-spacing:.14em;
+      text-shadow: 0 0 6px rgba(255,214,107,0.9), 0 1px 2px #000;
+      z-index: 7; pointer-events: none;
+      opacity: 0; transform: translateY(0);
+      transition: opacity 320ms ease, transform 900ms ease-out;
+      user-select: none;
+    }
+    #coinPop.pop{ opacity: 1; transform: translateY(-14px); }
+    @media (orientation: portrait){
+      #coinPop{ top: calc(33vh - 2.5vw + 86px); right: 8px; font-size: 13px; }
+    }
     #rizerPanel{
       position:fixed; top:220px; right:8px;
       background: rgba(0,0,0,0.92);
@@ -370,6 +385,7 @@
   <div id="hud">TILE (—, —) · scene —</div>
   <div id="rizerHud" title="Rizer status · click to open"></div>
   <div id="coinHud" title="Coins">◆ 0c</div>
+  <div id="coinPop"></div>
   <div id="weaponHud" title="Weapon wheel · click to open"></div>
   <div id="rizerPanel">
     <h4>◈ RIZER STATUS</h4>
@@ -1365,7 +1381,7 @@ const WORLD_PROPS = [
         const coins = 1 + Math.floor(Math.random() * 100);
         addItems({ coins });
         playSFX('coins');
-        showToast(`◈ WOOD CHEST · ${coins}× Coins`, 2400);
+        popCoinLabel(coins);                     // v0.95.142 · pop over coin HUD (no center toast)
       };
       return chest;
     });
@@ -5518,6 +5534,23 @@ function showToast(msg, ms){
   toastEl.style.opacity = '1';
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.style.opacity = '0', ms || 1800);
+}
+// v0.95.142 · Coin +N pop label above coin HUD (fires on chest grab · replaces center toast)
+let _coinPopTimer = 0, _coinPopClearTimer = 0;
+function popCoinLabel(n){
+  const el = document.getElementById('coinPop');
+  if (!el) return;
+  el.textContent = `+${n}c`;
+  // Force reflow so the CSS transition retriggers each call
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+  clearTimeout(_coinPopTimer);
+  clearTimeout(_coinPopClearTimer);
+  _coinPopTimer = setTimeout(() => {
+    el.classList.remove('pop');
+    _coinPopClearTimer = setTimeout(() => { el.textContent = ''; }, 400);
+  }, 1000);
 }
 
 // -- Interact (Z / Cross / Enter / Space) ------------------------------------

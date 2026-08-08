@@ -900,9 +900,10 @@ function hurtPlayer(amt, srcName){
   if ((player._invulnUntil || 0) > performance.now()) return;
   player.hp = Math.max(0, (player.hp || 0) - amt);
   const now = performance.now();
-  player._hurtFlashUntil = now + 380;                    // v0.95.167 · longer red flash
-  player._hurtShakeUntil = now + 320;                    // v0.95.167 · screen-shake window
-  player._invulnUntil    = now + 700;                    // brief i-frames
+  player._hurtFlashUntil  = now + 380;                   // v0.95.167 · longer red flash
+  player._hurtShakeUntil  = now + 320;                   // v0.95.167 · screen-shake window
+  player._hurtSpriteUntil = now + 380;                   // v0.95.170 · hurt.png sprite override
+  player._invulnUntil     = now + 700;                   // brief i-frames
   if (srcName) showToast(`◈ ${srcName} drains ${amt} HP`, 1000);
   if (player.hp === 0){
     showToast('◈ You collapse... find a bed to recover.', 2600);
@@ -3103,6 +3104,19 @@ const RIZER = {
     [[105, 93,136,176],[ 63, 84,137,175],[ 31, 64,132,171],[  8, 94,131,177]],
     [[139, 11,116,183],[110,  0,105,166],[ 77,  0,115,159],[ 47, 12,113,186]],
   ], key: 'runJump', loaded: false },
+  // v0.95.170 · Hurt animation · 4 pose frames measured from irregular sheet
+  // (frames not on grid).  Each entry is [bx,by,bw,bh] absolute src coords.
+  // Draw scales per-frame so bh = 2 tiles · feet-anchored to player tile.
+  // ★ Retains all pixel data · no crop · no shift.
+  hurt: { img: new Image(),
+    frames: [
+      [198, 288, 214, 357],   // frame 0 · red hurt L
+      [496, 168, 243, 477],   // frame 1 · red hurt R (bigger swing)
+      [867, 262, 224, 350],   // frame 2 · dark stagger L
+      [1218,284, 213, 361],   // frame 3 · dark stagger R
+    ],
+    key: 'hurt', loaded: false,
+  },
 };
 // Right uses the actual right-facing cells (row 2).  The old cape-tail
 // float was fixed by the CC extractor · disconnected cape pixels are
@@ -4910,7 +4924,8 @@ Promise.all([
   loadAsset(RIZER.interact, 'assets/2D%20sprites/rizer/interact.png'),
   loadAsset(RIZER.faeCatch, 'assets/2D%20sprites/rizer/fae-catch.png'),
   loadAsset(RIZER.guitarPlay, 'assets/2D%20sprites/rizer/guitar-play.png'),
-]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge)'));
+  loadAsset(RIZER.hurt,       'assets/2D%20sprites/rizer/hurt.png'),        // v0.95.170
+]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge+hurt)'));
 
 // -- Input · keyboard --------------------------------------------------------
 const keys = {};
@@ -5791,6 +5806,29 @@ function drawPlayer(){
   const jumpBundleKey = _jumping ? (player.jumpSheet || 'idleJump') : null;
   const jumpBundle    = jumpBundleKey && RIZER[jumpBundleKey] && RIZER[jumpBundleKey].loaded
                         ? RIZER[jumpBundleKey] : null;
+  // v0.95.170 · Hurt sprite override · draws hurt.png frames feet-anchored
+  // in place · full pixel data retained (no crop) · scales to 2 tiles.
+  const _hurting = (player._hurtSpriteUntil || 0) > now;
+  if (_hurting && RIZER.hurt && RIZER.hurt.loaded && RIZER.hurt.frames){
+    const dur = 380;
+    const elapsed = dur - Math.max(0, player._hurtSpriteUntil - now);
+    const frames = RIZER.hurt.frames;
+    const idx = Math.min(frames.length - 1, Math.max(0, Math.floor(elapsed / (dur / frames.length))));
+    const [hbx, hby, hbw, hbh] = frames[idx];
+    const scale = (TILE * 2) / hbh;
+    const drawH = Math.max(1, Math.round(hbh * scale));
+    const drawW = Math.max(1, Math.round(hbw * scale));
+    const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
+    const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y;
+    // subtle contact shadow (matches other draws)
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(dx + drawW / 2, dy + drawH - 2,
+                Math.min(drawW / 2, TILE / 2 - 2), 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(RIZER.hurt.img, hbx, hby, hbw, hbh, dx, dy, drawW, drawH);
+    return;
+  }
   // v0.95.80 · Dodge sheet overrides everything else while dodging.
   const _dodging = player.dodgeUntil && now < player.dodgeUntil;
   if (!_dodging && player.dodgeUntil) player.dodgeUntil = 0;

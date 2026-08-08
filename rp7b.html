@@ -620,6 +620,9 @@ const AUDIO = {
     portalLocked: new Audio('audio/sfx-portal-locked.mp3'),  // v0.88.3 · sealed portal
     whudScroll:   new Audio('audio/sfx-whud-scroll.mp3'),    // v0.89.1 · R1/L1 weapon cycle
     faeCollect:   new Audio('audio/sfx-fae-collect.mp3'),    // v0.91.2 · fairy-dust twinkle
+    punchHit:     new Audio('audio/sfx-punch-hit.mp3'),      // v0.95.59 · Square light melee contact
+    kickHit:      new Audio('audio/sfx-kick-hit.mp3'),       // v0.95.59 · Triangle heavy melee contact
+    meleeMiss:    new Audio('audio/sfx-melee-miss.mp3'),     // v0.95.59 · whoosh on air/props/npcs
   },
 };
 Object.values(AUDIO.bgm).forEach(a => { a.loop = true; a.volume = 0.32; });
@@ -3597,6 +3600,30 @@ addEventListener('keydown', e => {
         const dur  = (mode === 'kick') ? 400 : 300;
         player.attackMode  = mode;
         player.attackUntil = performance.now() + dur;
+        // v0.95.59 · Hitbox check · exact tile in front of player (based on
+        // real-time facing dir).  Only Mori enemies at that tile count as
+        // a hit right now.  Hit → contact sfx.  Miss → whoosh.
+        let hx = player.x, hy = player.y;
+        if (player.dir === 'up')    hy--;
+        if (player.dir === 'down')  hy++;
+        if (player.dir === 'left')  hx--;
+        if (player.dir === 'right') hx++;
+        let hit = null;
+        for (const n of NPCS){
+          if (n.scene !== game.scene) continue;
+          if ((n.name || '').toLowerCase() !== 'mori') continue;
+          if (n.tileX === hx && n.tileY === hy){ hit = n; break; }
+        }
+        if (hit){
+          playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
+          hit.hp = (hit.hp == null ? 3 : hit.hp) - (mode === 'kick' ? 2 : 1);
+          if (hit.hp <= 0){
+            hit.scene = '__dead__';
+            player.rizerXP = (player.rizerXP || 0) + 12;
+          }
+        } else {
+          playSFX('meleeMiss');
+        }
       }
     }
   }

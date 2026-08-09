@@ -4447,7 +4447,11 @@ function drawProjectiles(){
       continue;
     }
 
-    const row = dirRow[p.dir] || 0;
+    // v0.95.231 · RIGHT-facing frames on the projectile sheet are cropped ·
+    // pull LEFT-facing row (index 1) and mirror-flip on draw so we retain the full orb
+    let row = dirRow[p.dir] || 0;
+    let mirrorX = false;
+    if (p.dir === 'right'){ row = dirRow.left; mirrorX = true; }
     // Flight · cycle frames 0-1-2 based on distance travelled (0 launch, 1 flight, 2 contact prep)
     const col = Math.min(2, Math.floor((now - p.t0) / 80) % 3);
     const [bx, by, bw, bh] = bundle.bboxes[row][col];
@@ -4455,7 +4459,15 @@ function drawProjectiles(){
     const drawH = Math.max(24, Math.round(bh * 0.35));
     const dx = Math.floor(p.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
     const dy = Math.floor(p.tileY * TILE + (TILE - drawH) / 2) - _cam.y;
-    ctx.drawImage(bundle.img, bx, by, bw, bh, dx, dy, drawW, drawH);
+    if (mirrorX){
+      ctx.save();
+      ctx.translate(dx + drawW, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(bundle.img, bx, by, bw, bh, 0, dy, drawW, drawH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(bundle.img, bx, by, bw, bh, dx, dy, drawW, drawH);
+    }
   }
 }
 // v0.95.174 · NPC Info Overlay (companion/bond panel)

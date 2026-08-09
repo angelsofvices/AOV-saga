@@ -5993,7 +5993,16 @@ addEventListener('keydown', e => {
         const boulderHit = !cfgHit ? boulderAt('overworld', hx, hy) : null;
         // v0.95.134 · Plants (bushes/trees) · hit SFX + astralite charge · never break
         const plantHit = !cfgHit ? plantPropAt(hx, hy) : null;
-        if (hit || isBagTile || boulderHit || plantHit){
+        // v0.95.219 · Chest at hit tile · punch OR kick opens it (fires onInteract once)
+        let chestHit = null;
+        if (!cfgHit){
+          for (const p of WORLD_PROPS){
+            if (!p || !p.id || !p.id.startsWith('chest_')) continue;
+            if (p.opened) continue;
+            if (p.tileX === hx && p.tileY === hy){ chestHit = p; break; }
+          }
+        }
+        if (hit || isBagTile || boulderHit || plantHit || chestHit){
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           recordHitLanded(mode);                        // v0.95.134 · achievement tracker
           // v0.95.152 · Amplified attack cost · light -1 · heavy -2 · never below 0
@@ -6029,6 +6038,9 @@ addEventListener('keydown', e => {
           }
           if (plantHit){
             chargePlant(plantHit, mode === 'kick');
+          }
+          if (chestHit && typeof chestHit.onInteract === 'function'){
+            chestHit.onInteract();                    // v0.95.219 · punch/kick opens chest
           }
         } else {
           playSFX('meleeMiss');

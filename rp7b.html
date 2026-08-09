@@ -3378,6 +3378,10 @@ const RIZER = {
     [[144, 28, 90,285],[110, 28,130,285],[ 79, 28,182,285],[ 58, 28,146,285]],
     [[130,  0,133,157],[ 97,  0,142,157],[ 56,  0,116,157],[ 39,  0,133,157]],
   ], key: 'astralstrike', loaded: false },
+  // v0.95.227 · A3 FINAL BOOM · single-frame 8-point starburst · plays as the last
+  // beat of every astralstrike explosion (bigger than sheet frame 3 · dramatic finish)
+  // Tight bbox from CC flood-fill: [153, 86, 948, 1084] (l, t, w, h) on 1254x1254 canvas
+  astralBoom: { img: new Image(), bbox: [153, 86, 948, 1084], key: 'astralBoom', loaded: false },
   // v0.95.210 · Astralite handblast · the traveling projectile itself · 4 frames per row
   // Row 0 DOWN · Row 1 LEFT · Row 2 RIGHT · Row 3 UP · frames: launch → flight → contact → explosion
   astralProj: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
@@ -4259,7 +4263,7 @@ const ASTRAL_STRIKE = {
   DMG_MULT:     3,        // v0.95.211 · A3 canon · baseAtk × 3 · 25 × 3 = 75
   RANGE_TILES:  8,        // v0.95.218 · max travel · trail covers 5, projectile continues 3 more
   TILE_MS:      100,      // ms per tile step (~10 tiles/sec)
-  EXPLODE_MS:   240,      // explosion frame linger before despawn
+  EXPLODE_MS:   520,      // v0.95.227 · extended · first 220ms sheet frame 3 · last 300ms final BOOM overlay
 };
 const PROJECTILES = [];   // {x,y (tile floats · x/y in tile units), dir, dist, state, t0, hit}
 function fireAstralstrike(){
@@ -4305,16 +4309,21 @@ function fireAstralstrike(){
 // v0.95.214 · Shared hit resolver · single tile · used by both trail damage
 // at cast time and per-step projectile collision · keeps damage math identical
 // v0.95.226 · Horizontal A3 has a WAVY vertical hitbox · one tile down + half tile up
-// Half-tile up = we still hit ty-1 (tile-level collision) but the visual + intent is
-// a 0.5-tile crest above the main line and a full 1-tile trough below.  So horizontal
-// shots damage 3 rows: ty (main) · ty+1 (full trough) · ty-1 (half-crest).
-// Vertical shots stay single-tile (up/down have no spread per user spec).
+// v0.95.227 · Vertical A3 mirrors the spread horizontally · 1.5-tile wavy band
+// Both directions damage a 3-tile band perpendicular to travel · center + ±1 tile
+// (tile granularity approximates the "half-crest" / "trough" visual wave)
 function applyAstralHitWavy(tx, ty, dir){
+  let anyHit = false;
   if (dir === 'left' || dir === 'right'){
-    let anyHit = false;
     if (applyAstralHit(tx, ty - 1)) anyHit = true;   // half-crest above
     if (applyAstralHit(tx, ty))     anyHit = true;   // main line
     if (applyAstralHit(tx, ty + 1)) anyHit = true;   // full trough below
+    return anyHit;
+  }
+  if (dir === 'up' || dir === 'down'){
+    if (applyAstralHit(tx - 1, ty)) anyHit = true;   // half-crest left
+    if (applyAstralHit(tx,     ty)) anyHit = true;   // main line
+    if (applyAstralHit(tx + 1, ty)) anyHit = true;   // full trough right
     return anyHit;
   }
   return applyAstralHit(tx, ty);
@@ -4399,10 +4408,35 @@ function drawProjectiles(){
     // v0.95.215 · Only render AFTER palm-burst frame plays (~250ms into 500ms cast)
     // so the projectile doesn't sit visible behind the charging Rizer sprite
     if (p.state === 'flight' && now - p.t0 < 250) continue;
+
+    // v0.95.227 · Explode = two-phase · first half plays sheet frame 3 (contact spark)
+    // then swaps to the dedicated BOOM overlay for the finisher
+    if (p.state === 'explode'){
+      const elapsed = now - p.explodeT0;
+      const boom = RIZER.astralBoom;
+      if (elapsed >= 220 && boom && boom.loaded){
+        // Final boom · scale up over its 300ms window · fade out last 30%
+        const t = (elapsed - 220) / 300;                 // 0..1
+        const scale = 1.6 + t * 1.8;                     // grow from 1.6x tile to 3.4x tile
+        const alpha = t < 0.7 ? 1.0 : 1.0 - (t - 0.7) / 0.3;
+        const [bx, by, bw, bh] = boom.bbox;
+        const drawW = Math.max(48, Math.round(TILE * scale));
+        const drawH = Math.max(48, Math.round(TILE * scale * (bh / bw)));
+        const dx = Math.floor(p.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+        const dy = Math.floor(p.tileY * TILE + (TILE - drawH) / 2) - _cam.y;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.drawImage(boom.img, bx, by, bw, bh, dx, dy, drawW, drawH);
+        ctx.restore();
+        continue;
+      }
+      // First half · sheet frame 3 contact spark (fall through)
+    }
+
     const row = dirRow[p.dir] || 0;
     let col;
     if (p.state === 'explode'){
-      col = 3;   // explosion frame
+      col = 3;   // contact-spark frame
     } else {
       // flight · cycle frames 0-1-2 based on distance travelled (0 launch, 1 flight, 2 contact prep)
       col = Math.min(2, Math.floor((now - p.t0) / 80) % 3);
@@ -5890,6 +5924,7 @@ Promise.all([
   loadAsset(RIZER.hurt,       'assets/2D%20sprites/rizer/hurt.png'),        // v0.95.170
   loadAsset(RIZER.astralstrike, 'assets/2D%20sprites/rizer/astralstrike.png'),                  // v0.95.210 · A3 cast
   loadAsset(RIZER.astralProj,   'assets/2D%20sprites/vfx/astralstrike-projectile.png'),         // v0.95.210 · A3 projectile
+  loadAsset(RIZER.astralBoom,   'assets/2D%20sprites/vfx/astralstrike-boom.png'),               // v0.95.227 · A3 final-boom overlay
 ]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge+hurt)'));
 
 // -- Input · keyboard --------------------------------------------------------

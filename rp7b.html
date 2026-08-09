@@ -790,6 +790,7 @@ const AUDIO = {
     elzoran:      new Audio('audio/sfx-elzoran.mp3'),        // v0.95.205 · Smoke-the-Dragon growl on Elzoran interact
     astralstrike: new Audio('audio/sfx-astralstrike.mp3'),   // v0.95.212 · A3 handblast cast SFX
     astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
+    astralkick:   new Audio('audio/sfx-astralkick.mp3'),     // v0.95.238 · A4 powerful anime kick
     barrelRoll:   new Audio('audio/sfx-barrelroll.mp3'),     // v0.95.85 · "do a barrel roll" after 3 rapid dodges
     rustbyte:     new Audio('audio/sfx-rustbyte.mp3'),       // v0.95.86 · whoosh-bike-on cue on Rustbyte talk
     dodge:        new Audio('audio/sfx-dodge.mp3'),          // v0.95.87 · swish on each dodge (skipped on barrel-roll trigger)
@@ -3382,6 +3383,15 @@ const RIZER = {
   // beat of every astralstrike explosion (bigger than sheet frame 3 · dramatic finish)
   // Tight bbox from CC flood-fill: [153, 86, 948, 1084] (l, t, w, h) on 1254x1254 canvas
   astralBoom: { img: new Image(), bbox: [153, 86, 948, 1084], key: 'astralBoom', loaded: false },
+  // v0.95.238 · A4 ASTRALKICK · bicycle-kick AOE sprite sheet (4x4 · D/L/R/U rows)
+  astralkick: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
+    [[116, 99,141,213],[ 64,106,186,175],[ 71,110,129,184],[ 43,164,128,146]],
+    [[102, 77,132,207],[ 56, 85,183,175],[ 57, 97,140,175],[ 37,152,151,148]],
+    [[118, 51,123,208],[ 50, 64,188,167],[ 69, 70,139,179],[ 29,133,151,146]],
+    [[109, 24,135,193],[ 53, 26,167,167],[ 57, 49,144,176],[ 39, 90,128,159]],
+  ], key: 'astralkick', loaded: false },
+  // v0.95.238 · A4 RED BOOM · red-tinted starburst (channel-swap of astralBoom)
+  astralkickBoom: { img: new Image(), bbox: [153, 86, 948, 1084], key: 'astralkickBoom', loaded: false },
   // v0.95.210 · Astralite handblast · the traveling projectile itself · 4 frames per row
   // Row 0 DOWN · Row 1 LEFT · Row 2 RIGHT · Row 3 UP · frames: launch → flight → contact → explosion
   astralProj: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
@@ -4323,6 +4333,94 @@ function fireAstralstrike(){
   // v0.95.212 · dedicated 1s astralstrike cast SFX
   playSFX('astralstrike');
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.238 · A4 ASTRALKICK · L2 + Triangle chord · bicycle-kick AOE
+// baseAtk × 4 = 100 damage · Diamond cost 20 · instant 3-tile arc in front of Rizer
+// (main tile + perpendicular ±1) · big red BOOM overlay finisher · no projectile
+// ═══════════════════════════════════════════════════════════════════════════
+const ASTRAL_KICK = {
+  DUR_MS:       620,     // slightly longer than A3 for the bicycle-kick arc
+  DIAMOND_COST: 20,      // 2× A3 cost
+  DMG_MULT:     4,       // A4 canon · baseAtk × 4 = 100
+  BOOM_MS:      560,     // full boom window
+};
+function fireAstralkick(){
+  const now = performance.now();
+  const unlim = !!game.devUnlimitedAstral;
+  if (!unlim){
+    if ((player.diamond || 0) < ASTRAL_KICK.DIAMOND_COST){
+      showToast('◆ Not enough Diamond for Astralkick', 1600);
+      playSFX('meleeMiss');
+      return;
+    }
+    player.diamond = Math.max(0, (player.diamond || 0) - ASTRAL_KICK.DIAMOND_COST);
+  }
+  player.attackMode  = 'astralkick';
+  player.attackUntil = now + ASTRAL_KICK.DUR_MS;
+  playSFX('astralkick');
+  // AOE damage in the 3-tile arc in front of Rizer (perpendicular spread ±1)
+  const dir = player.dir;
+  const dxStep = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
+  const dyStep = dir === 'up'   ? -1 : dir === 'down'  ? 1 : 0;
+  const perp = (dir === 'left' || dir === 'right') ? [[0,-1],[0,0],[0,1]] : [[-1,0],[0,0],[1,0]];
+  // Delay damage tick to land on the mid-frame (apex spin ~310ms) so the impact feels earned
+  setTimeout(() => {
+    // Front tile + ±1 tile arc, then a second row (2 tiles ahead) also main + perp
+    for (let reach = 1; reach <= 2; reach++){
+      for (const [px, py] of perp){
+        const tx = player.x + dxStep * reach + px;
+        const ty = player.y + dyStep * reach + py;
+        applyAstralkickHit(tx, ty);
+      }
+    }
+    // Spawn a boom overlay at tile+1 in facing dir (short-lived · non-traveling)
+    PROJECTILES.push({
+      tileX: player.x + dxStep * 1,
+      tileY: player.y + dyStep * 1,
+      dir,
+      dist: 999,
+      state: 'kickboom',   // custom state · drawProjectiles branches to red boom
+      t0: performance.now(),
+      explodeT0: performance.now(),
+      lastStep: performance.now() + 99999,   // never advances
+      scene: game.scene,
+    });
+  }, 310);
+}
+function applyAstralkickHit(tx, ty){
+  let hit = null;
+  for (const n of NPCS){
+    if (n.scene !== game.scene) continue;
+    if (!n.isEnemy || n._dying) continue;
+    if (n.tileX === tx && n.tileY === ty){ hit = n; break; }
+  }
+  const cfgP = interiorConfig(game.scene);
+  const boulder = !cfgP ? boulderAt(game.scene, tx, ty) : null;
+  const plant   = !cfgP ? plantPropAt(tx, ty)           : null;
+  const bagHit  = cfgP && cfgP.rizerRoom && tx === 1 && (ty === 7 || ty === 8);
+  let anyHit = false;
+  if (hit){
+    const maxHp = hit.hpMax || 125;
+    if (hit.hp == null) hit.hp = maxHp;
+    hit.hp -= (player.baseAtk || 25) * ASTRAL_KICK.DMG_MULT;
+    playSFX('moriGrunt');
+    if (hit.hp <= 0){
+      playSFX('astralKill');
+      startMoriDeath(hit);
+      player.rizerXP = (player.rizerXP || 0) + 30;
+      recordMoriKill('astralkick');
+      if (window.__rumbleHit) window.__rumbleHit('kill');
+    }
+    anyHit = true;
+  }
+  if (boulder){ hitBoulder(boulder, 5);            anyHit = true; }
+  if (plant)  { chargePlant(plant, true);          anyHit = true; }
+  if (bagHit) { playSFX('kickHit'); recordHitLanded('kick'); anyHit = true; }
+  if (anyHit && game.devCombatFxOn !== false){
+    spawnHitFx(tx, ty, 'ultimate');   // purple ring (spawnHitFx already fires 'ultimate' rumble)
+  }
+  return anyHit;
+}
 // v0.95.214 · Shared hit resolver · single tile · used by both trail damage
 // at cast time and per-step projectile collision · keeps damage math identical
 // v0.95.226 · Horizontal A3 has a WAVY vertical hitbox · one tile down + half tile up
@@ -4388,6 +4486,11 @@ function tickProjectiles(now){
   for (let i = PROJECTILES.length - 1; i >= 0; i--){
     const p = PROJECTILES[i];
     if (p.scene !== game.scene){ PROJECTILES.splice(i, 1); continue; }
+    if (p.state === 'kickboom'){
+      // v0.95.238 · KICKBOOM despawns after its full BOOM_MS window
+      if (now - p.explodeT0 > ASTRAL_KICK.BOOM_MS){ PROJECTILES.splice(i, 1); }
+      continue;
+    }
     if (p.state === 'explode'){
       if (now - p.explodeT0 > ASTRAL_STRIKE.EXPLODE_MS){
         PROJECTILES.splice(i, 1);
@@ -4428,6 +4531,26 @@ function drawProjectiles(){
     // so the projectile doesn't sit visible behind the charging Rizer sprite
     if (p.state === 'flight' && now - p.t0 < 250) continue;
 
+    // v0.95.238 · KICKBOOM · A4 red starburst overlay · non-traveling · big + slow
+    if (p.state === 'kickboom'){
+      const boom = RIZER.astralkickBoom;
+      if (boom && boom.loaded){
+        const t = Math.min(1, (now - p.explodeT0) / ASTRAL_KICK.BOOM_MS);
+        const scale = 1.4 + t * 2.6;   // grow 1.4x -> 4.0x tile · larger than A3 boom
+        const alpha = t < 0.65 ? 1.0 : 1.0 - (t - 0.65) / 0.35;
+        const [bx, by, bw, bh] = boom.bbox;
+        const drawW = Math.max(48, Math.round(TILE * scale));
+        const drawH = Math.max(48, Math.round(TILE * scale * (bh / bw)));
+        const dx = Math.floor(p.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+        const dy = Math.floor(p.tileY * TILE + (TILE - drawH) / 2) - _cam.y;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.drawImage(boom.img, bx, by, bw, bh, dx, dy, drawW, drawH);
+        ctx.restore();
+        if (t >= 1){ p._done = true; }
+      }
+      continue;
+    }
     // v0.95.229 · Explode = ENTIRE window is the BOOM overlay (sheet frame 3 retired)
     // Boom scales from 1.1x -> 2.5x tile across full EXPLODE_MS with fade in last 30%
     if (p.state === 'explode'){
@@ -5983,6 +6106,8 @@ Promise.all([
   loadAsset(RIZER.astralstrike, 'assets/2D%20sprites/rizer/astralstrike.png'),                  // v0.95.210 · A3 cast
   loadAsset(RIZER.astralProj,   'assets/2D%20sprites/vfx/astralstrike-projectile.png'),         // v0.95.210 · A3 projectile
   loadAsset(RIZER.astralBoom,   'assets/2D%20sprites/vfx/astralstrike-boom.png'),               // v0.95.227 · A3 final-boom overlay
+  loadAsset(RIZER.astralkick,    'assets/2D%20sprites/rizer/astralkick.png'),                    // v0.95.238 · A4 bicycle-kick cast
+  loadAsset(RIZER.astralkickBoom,'assets/2D%20sprites/vfx/astralkick-boom.png'),                 // v0.95.238 · A4 red final-boom
 ]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge+hurt)'));
 
 // -- Input · keyboard --------------------------------------------------------
@@ -6193,6 +6318,18 @@ addEventListener('keydown', e => {
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModalCast){
         fireAstralstrike();
         return;   // swallow · do NOT also punch
+      }
+    }
+    // v0.95.238 · A4 ASTRALKICK chord · L2 held while Triangle is pressed
+    // fires the bicycle-kick AOE (L2 = 'q' · triangle = 'k') · consumes 20 Diamond
+    if (k === 'k' && keys['q']){
+      const anyModalKick = settingsMenuOpen || zyrexMenuOpen
+                    || game.expPanelOpen || game.tvPanelOpen
+                    || game.guitarPanelOpen || game.nebulaPanelOpen
+                    || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
+      if (game.scene !== 'title' && !dialogState && !battleState && !anyModalKick){
+        fireAstralkick();
+        return;   // swallow · do NOT also kick
       }
     }
     if (k === 'j' || k === 'k'){
@@ -7112,9 +7249,10 @@ function drawPlayer(){
     const elapsed = now - player.jumpStart;
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (jumpDur / bundle.cols))));
   } else if (inAttack){
-    // v0.95.210 · astralstrike cast duration = 500 (slower · dramatic)
+    // v0.95.210/238 · astralstrike cast = 500 · astralkick cast = 620
     const dur = player.attackMode === 'kick' ? 400
               : player.attackMode === 'astralstrike' ? 500
+              : player.attackMode === 'astralkick'   ? 620
               : 300;
     const elapsed = dur - (player.attackUntil - now);
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
@@ -7173,8 +7311,10 @@ function drawPlayer(){
     drawW = Math.max(1, Math.round(bw * attackScale));
   }
   const dx = Math.floor(player.x * TILE + (TILE - drawW) / 2) - _cam.x;
-  // v0.95.215 · Astralstrike cast lifts the sprite 0.5 tiles · dramatic hover on cast
-  const astralLift = (inAttack && player.attackMode === 'astralstrike') ? Math.round(TILE * 0.5) : 0;
+  // v0.95.215/238 · Astralstrike/kick cast lifts the sprite for dramatic hover
+  const astralLift = (inAttack && player.attackMode === 'astralstrike') ? Math.round(TILE * 0.5)
+                   : (inAttack && player.attackMode === 'astralkick')   ? Math.round(TILE * 0.75)
+                   : 0;
   const dy = Math.floor(player.y * TILE + TILE - drawH)       - _cam.y + _jumpOffset - astralLift;
 
   // Ground shadow at the CHARACTER'S actual feet · drawn just under

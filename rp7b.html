@@ -4472,26 +4472,31 @@ const LIGHT_SOURCES = [
 //   Each blob wobbles on sin waves (organic morph substitute for a noise shader)
 //   Parallax speeds: high 0.35× / mid 1.0× / fg 1.8× the base drift
 // ═══════════════════════════════════════════════════════════════════════════
+// v0.95.223 · yFrac = vertical position as a fraction of canvas height (0=top, 1=bottom)
+// This anchors clouds to the SCREEN vertically (so they're always visible) while their
+// horizontal drift stays world-tempo (parallax with camera on x).  Fixed a v0.95.222 bug
+// where clouds were placed at world y 100-700 but the player camera sits ~row 106 → far off-screen.
 const DAYLIGHT_CLOUDS_HIGH = [
-  { wx:  200, wy:  120, rx: 460, ry: 180, speed: 5, phase:    0 },
-  { wx: 1100, wy:  260, rx: 520, ry: 220, speed: 6, phase: 4200 },
-  { wx: 2000, wy:  150, rx: 480, ry: 190, speed: 5, phase: 2100 },
+  { xOff:  200, yFrac: 0.14, rx: 500, ry: 200, speed: 12, phase:    0 },
+  { xOff: 1100, yFrac: 0.28, rx: 560, ry: 240, speed: 14, phase: 4200 },
+  { xOff: 2000, yFrac: 0.18, rx: 520, ry: 210, speed: 13, phase: 2100 },
 ];
 const DAYLIGHT_CLOUDS_MID = [
-  { wx:  400, wy:  300, rx: 260, ry: 180, speed: 14, phase:    0 },
-  { wx:  900, wy:  560, rx: 340, ry: 220, speed: 11, phase: 1500 },
-  { wx: 1400, wy:  340, rx: 220, ry: 160, speed: 16, phase: 3200 },
-  { wx:  200, wy:  760, rx: 300, ry: 210, speed: 12, phase:  800 },
-  { wx: 1700, wy:  620, rx: 280, ry: 190, speed: 13, phase: 2400 },
+  { xOff:  200, yFrac: 0.20, rx: 260, ry: 180, speed: 32, phase:    0 },
+  { xOff:  700, yFrac: 0.55, rx: 340, ry: 220, speed: 28, phase: 1500 },
+  { xOff: 1200, yFrac: 0.35, rx: 220, ry: 160, speed: 36, phase: 3200 },
+  { xOff:  100, yFrac: 0.78, rx: 300, ry: 210, speed: 30, phase:  800 },
+  { xOff: 1600, yFrac: 0.62, rx: 280, ry: 190, speed: 34, phase: 2400 },
+  { xOff: 2100, yFrac: 0.45, rx: 260, ry: 180, speed: 30, phase: 1200 },
 ];
 const DAYLIGHT_WISPS_FG = [
-  { wx:  100, wy:  400, rx: 120, ry:  40, speed: 26, phase:    0 },
-  { wx:  700, wy:  200, rx: 150, ry:  55, speed: 30, phase:  900 },
-  { wx: 1200, wy:  680, rx: 110, ry:  38, speed: 28, phase: 1800 },
-  { wx: 1900, wy:  520, rx: 140, ry:  50, speed: 32, phase:  400 },
+  { xOff:  100, yFrac: 0.42, rx: 140, ry:  48, speed: 60, phase:    0 },
+  { xOff:  700, yFrac: 0.22, rx: 170, ry:  60, speed: 66, phase:  900 },
+  { xOff: 1200, yFrac: 0.72, rx: 130, ry:  44, speed: 62, phase: 1800 },
+  { xOff: 1900, yFrac: 0.55, rx: 160, ry:  55, speed: 68, phase:  400 },
 ];
 function _driftX(c, tSec, wrap){
-  return ((c.wx + (tSec + c.phase / 1000) * c.speed) % wrap + wrap) % wrap - 200;
+  return ((c.xOff + (tSec + c.phase / 1000) * c.speed) % wrap + wrap) % wrap - 300;
 }
 function _wobble(t, phase, amp){
   return Math.sin((t / 1000) * 0.6 + phase / 700) * amp;
@@ -4503,74 +4508,60 @@ function drawDaylightMode(){
   const WRAP = 2600;
 
   // 1) SKY AMBIENT · pale desaturated blue-white multiply · matches sky horizon
+  //    v0.95.223 · bumped visibility · was 0.14 (too subtle to notice)
   ctx.save();
   ctx.globalCompositeOperation = 'multiply';
-  ctx.fillStyle = 'rgba(232, 240, 250, 0.14)';
+  ctx.fillStyle = 'rgba(210, 225, 245, 0.32)';
   ctx.fillRect(0, 0, W, H);
   ctx.restore();
 
-  // 2) HIGH CLOUD LAYER · farthest · slowest · large soft blobs · very subtle shadow
+  // Layer helper · yFrac gives screen-anchored vertical, x drifts in world tempo
+  //   camScale 0.35 = high (barely moves with camera) · 1.0 = mid (world-locked) · 1.8 = fg (parallax past)
+  const drawLayer = (list, camScale, gradStops) => {
+    for (const c of list){
+      const wx = _driftX(c, tSec, WRAP);
+      const cx = wx - Math.floor(_cam.x * camScale) + _wobble(now, c.phase, 8);
+      const cy = Math.floor(c.yFrac * H) + _wobble(now, c.phase + 300, 6);
+      const rx = c.rx + _wobble(now, c.phase + 700, 14);
+      const ry = c.ry + _wobble(now, c.phase + 1100, 9);
+      if (cx + rx < 0 || cx - rx > W || cy + ry < 0 || cy - ry > H) continue;
+      const g = ctx.createRadialGradient(cx, cy, rx * 0.15, cx, cy, rx);
+      for (const [stop, color] of gradStops) g.addColorStop(stop, color);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  // 2) HIGH CLOUD LAYER · farthest · large soft blue-gray shadows · barely parallax
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
-  for (const c of DAYLIGHT_CLOUDS_HIGH){
-    const wx = _driftX(c, tSec, WRAP);
-    const cx = wx - Math.floor(_cam.x * 0.35);   // parallax · high clouds barely move with camera
-    const cy = c.wy - Math.floor(_cam.y * 0.35) + _wobble(now, c.phase, 6);
-    const rx = c.rx + _wobble(now, c.phase + 500, 14);
-    const ry = c.ry + _wobble(now, c.phase + 900,  8);
-    if (cx + rx < 0 || cx - rx > W || cy + ry < 0 || cy - ry > H) continue;
-    const g = ctx.createRadialGradient(cx, cy, rx * 0.15, cx, cy, rx);
-    g.addColorStop(0.00, 'rgba(60, 78, 110, 0.11)');
-    g.addColorStop(0.60, 'rgba(60, 78, 110, 0.06)');
-    g.addColorStop(1.00, 'rgba(60, 78, 110, 0.00)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  drawLayer(DAYLIGHT_CLOUDS_HIGH, 0.35, [
+    [0.00, 'rgba(40, 55, 90, 0.28)'],
+    [0.60, 'rgba(40, 55, 90, 0.14)'],
+    [1.00, 'rgba(40, 55, 90, 0.00)'],
+  ]);
   ctx.restore();
 
-  // 3) MID CLOUD SHADOWS · main visible layer · anchored to world (parallax 1.0×)
+  // 3) MID CLOUD SHADOWS · main visible layer · world-locked drift
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
-  for (const c of DAYLIGHT_CLOUDS_MID){
-    const wx = _driftX(c, tSec, WRAP);
-    const cx = wx - _cam.x + _wobble(now, c.phase, 8);
-    const cy = c.wy - _cam.y + _wobble(now, c.phase + 300, 6);
-    const rx = c.rx + _wobble(now, c.phase + 700, 12);
-    const ry = c.ry + _wobble(now, c.phase + 1100, 9);
-    if (cx + rx < 0 || cx - rx > W || cy + ry < 0 || cy - ry > H) continue;
-    const g = ctx.createRadialGradient(cx, cy, rx * 0.2, cx, cy, rx);
-    g.addColorStop(0.00, 'rgba(30, 40, 65, 0.22)');
-    g.addColorStop(0.65, 'rgba(30, 40, 65, 0.10)');
-    g.addColorStop(1.00, 'rgba(30, 40, 65, 0.00)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  drawLayer(DAYLIGHT_CLOUDS_MID, 1.0, [
+    [0.00, 'rgba(15, 25, 50, 0.55)'],
+    [0.55, 'rgba(15, 25, 50, 0.28)'],
+    [1.00, 'rgba(15, 25, 50, 0.00)'],
+  ]);
   ctx.restore();
 
-  // 4) FG WISP LAYER · fast small pale wisps passing IN FRONT of player · parallax 1.8×
-  //    Uses 'lighten' composite so wisps read as bright vapor over the world
+  // 4) FG WISP LAYER · fast pale wisps passing IN FRONT of player · lighten composite
   ctx.save();
   ctx.globalCompositeOperation = 'lighten';
-  for (const w of DAYLIGHT_WISPS_FG){
-    const wx = _driftX(w, tSec, WRAP);
-    const cx = wx - Math.floor(_cam.x * 1.8) + _wobble(now, w.phase, 4);
-    const cy = w.wy - Math.floor(_cam.y * 1.0) + _wobble(now, w.phase + 200, 3);
-    const rx = w.rx + _wobble(now, w.phase + 400, 10);
-    const ry = w.ry + _wobble(now, w.phase + 600,  6);
-    if (cx + rx < 0 || cx - rx > W || cy + ry < 0 || cy - ry > H) continue;
-    const g = ctx.createRadialGradient(cx, cy, rx * 0.1, cx, cy, rx);
-    g.addColorStop(0.00, 'rgba(240, 246, 255, 0.28)');
-    g.addColorStop(0.55, 'rgba(240, 246, 255, 0.10)');
-    g.addColorStop(1.00, 'rgba(240, 246, 255, 0.00)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  drawLayer(DAYLIGHT_WISPS_FG, 1.8, [
+    [0.00, 'rgba(255, 255, 255, 0.60)'],
+    [0.45, 'rgba(255, 255, 255, 0.25)'],
+    [1.00, 'rgba(255, 255, 255, 0.00)'],
+  ]);
   ctx.restore();
 }
 function drawLightMode(){

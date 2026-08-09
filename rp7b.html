@@ -4472,28 +4472,43 @@ const LIGHT_SOURCES = [
 //   Each blob wobbles on sin waves (organic morph substitute for a noise shader)
 //   Parallax speeds: high 0.35× / mid 1.0× / fg 1.8× the base drift
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.95.223 · yFrac = vertical position as a fraction of canvas height (0=top, 1=bottom)
-// This anchors clouds to the SCREEN vertically (so they're always visible) while their
-// horizontal drift stays world-tempo (parallax with camera on x).  Fixed a v0.95.222 bug
-// where clouds were placed at world y 100-700 but the player camera sits ~row 106 → far off-screen.
+// v0.95.224 · REAL CLOUD SPRITES · 3 HIGH / 5 MID / 3 FG variants preloaded once
+// Each layer entry picks a `sprite` index into the corresponding image bank
+// scale = draw size multiplier on top of the native asset size
+const CLOUD_IMGS = { high: [], mid: [], fg: [] };
+(function loadClouds(){
+  const load = (bank, path) => {
+    const img = new Image();
+    img.src = path;
+    bank.push(img);
+  };
+  for (let i = 1; i <= 3; i++) load(CLOUD_IMGS.high, `assets/2D%20sprites/vfx/clouds/cloud-high-${i}.png`);
+  for (let i = 1; i <= 5; i++) load(CLOUD_IMGS.mid,  `assets/2D%20sprites/vfx/clouds/cloud-mid-${i}.png`);
+  for (let i = 1; i <= 3; i++) load(CLOUD_IMGS.fg,   `assets/2D%20sprites/vfx/clouds/cloud-fg-${i}.png`);
+})();
+// yFrac = vertical position as a fraction of canvas height (0=top, 1=bottom)
+// scale = size multiplier on the native PNG (native HIGH 1400x400, MID 800x400, FG 500x150)
 const DAYLIGHT_CLOUDS_HIGH = [
-  { xOff:  200, yFrac: 0.14, rx: 500, ry: 200, speed: 12, phase:    0 },
-  { xOff: 1100, yFrac: 0.28, rx: 560, ry: 240, speed: 14, phase: 4200 },
-  { xOff: 2000, yFrac: 0.18, rx: 520, ry: 210, speed: 13, phase: 2100 },
+  { xOff:  200, yFrac: 0.14, scale: 1.0, sprite: 0, speed: 12, phase:    0 },
+  { xOff: 1400, yFrac: 0.28, scale: 1.1, sprite: 1, speed: 14, phase: 4200 },
+  { xOff: 2600, yFrac: 0.20, scale: 0.95,sprite: 2, speed: 13, phase: 2100 },
+  { xOff:  700, yFrac: 0.36, scale: 1.05,sprite: 0, speed: 12, phase: 3600 },
 ];
 const DAYLIGHT_CLOUDS_MID = [
-  { xOff:  200, yFrac: 0.20, rx: 260, ry: 180, speed: 32, phase:    0 },
-  { xOff:  700, yFrac: 0.55, rx: 340, ry: 220, speed: 28, phase: 1500 },
-  { xOff: 1200, yFrac: 0.35, rx: 220, ry: 160, speed: 36, phase: 3200 },
-  { xOff:  100, yFrac: 0.78, rx: 300, ry: 210, speed: 30, phase:  800 },
-  { xOff: 1600, yFrac: 0.62, rx: 280, ry: 190, speed: 34, phase: 2400 },
-  { xOff: 2100, yFrac: 0.45, rx: 260, ry: 180, speed: 30, phase: 1200 },
+  { xOff:  200, yFrac: 0.20, scale: 1.0, sprite: 0, speed: 32, phase:    0 },
+  { xOff:  800, yFrac: 0.55, scale: 1.1, sprite: 1, speed: 28, phase: 1500 },
+  { xOff: 1400, yFrac: 0.35, scale: 0.9, sprite: 2, speed: 36, phase: 3200 },
+  { xOff:  100, yFrac: 0.78, scale: 1.05,sprite: 3, speed: 30, phase:  800 },
+  { xOff: 1900, yFrac: 0.62, scale: 1.0, sprite: 4, speed: 34, phase: 2400 },
+  { xOff: 2500, yFrac: 0.45, scale: 0.95,sprite: 0, speed: 30, phase: 1200 },
+  { xOff: 1100, yFrac: 0.15, scale: 0.85,sprite: 2, speed: 34, phase: 4100 },
 ];
 const DAYLIGHT_WISPS_FG = [
-  { xOff:  100, yFrac: 0.42, rx: 140, ry:  48, speed: 60, phase:    0 },
-  { xOff:  700, yFrac: 0.22, rx: 170, ry:  60, speed: 66, phase:  900 },
-  { xOff: 1200, yFrac: 0.72, rx: 130, ry:  44, speed: 62, phase: 1800 },
-  { xOff: 1900, yFrac: 0.55, rx: 160, ry:  55, speed: 68, phase:  400 },
+  { xOff:  100, yFrac: 0.42, scale: 1.0, sprite: 0, speed: 60, phase:    0 },
+  { xOff:  700, yFrac: 0.22, scale: 1.1, sprite: 1, speed: 66, phase:  900 },
+  { xOff: 1200, yFrac: 0.72, scale: 0.9, sprite: 2, speed: 62, phase: 1800 },
+  { xOff: 1900, yFrac: 0.55, scale: 1.0, sprite: 0, speed: 68, phase:  400 },
+  { xOff: 2400, yFrac: 0.30, scale: 0.95,sprite: 1, speed: 64, phase: 2200 },
 ];
 function _driftX(c, tSec, wrap){
   return ((c.xOff + (tSec + c.phase / 1000) * c.speed) % wrap + wrap) % wrap - 300;
@@ -4515,53 +4530,44 @@ function drawDaylightMode(){
   ctx.fillRect(0, 0, W, H);
   ctx.restore();
 
-  // Layer helper · yFrac gives screen-anchored vertical, x drifts in world tempo
-  //   camScale 0.35 = high (barely moves with camera) · 1.0 = mid (world-locked) · 1.8 = fg (parallax past)
-  const drawLayer = (list, camScale, gradStops) => {
+  // v0.95.224 · Sprite-based layer renderer · draws PNG cloud assets with parallax + wobble
+  //   camScale · 0.35 = high (barely moves with camera) · 1.0 = mid (world-locked) · 1.8 = fg (parallax past)
+  //   alpha · per-layer opacity so we can dial each layer independently
+  const drawSpriteLayer = (list, imgBank, camScale, alpha) => {
+    ctx.globalAlpha = alpha;
     for (const c of list){
+      const img = imgBank[c.sprite];
+      if (!img || !img.complete || !img.naturalWidth) continue;
+      const dw = Math.round(img.naturalWidth  * c.scale);
+      const dh = Math.round(img.naturalHeight * c.scale);
       const wx = _driftX(c, tSec, WRAP);
       const cx = wx - Math.floor(_cam.x * camScale) + _wobble(now, c.phase, 8);
       const cy = Math.floor(c.yFrac * H) + _wobble(now, c.phase + 300, 6);
-      const rx = c.rx + _wobble(now, c.phase + 700, 14);
-      const ry = c.ry + _wobble(now, c.phase + 1100, 9);
-      if (cx + rx < 0 || cx - rx > W || cy + ry < 0 || cy - ry > H) continue;
-      const g = ctx.createRadialGradient(cx, cy, rx * 0.15, cx, cy, rx);
-      for (const [stop, color] of gradStops) g.addColorStop(stop, color);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // Draw centered on (cx, cy)
+      const dx = Math.floor(cx - dw / 2);
+      const dy = Math.floor(cy - dh / 2);
+      if (dx + dw < 0 || dx > W || dy + dh < 0 || dy > H) continue;
+      ctx.drawImage(img, dx, dy, dw, dh);
     }
+    ctx.globalAlpha = 1.0;
   };
 
-  // 2) HIGH CLOUD LAYER · farthest · large soft blue-gray shadows · barely parallax
+  // 2) HIGH CLOUD LAYER · farthest · barely parallax · very subtle
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
-  drawLayer(DAYLIGHT_CLOUDS_HIGH, 0.35, [
-    [0.00, 'rgba(40, 55, 90, 0.28)'],
-    [0.60, 'rgba(40, 55, 90, 0.14)'],
-    [1.00, 'rgba(40, 55, 90, 0.00)'],
-  ]);
+  drawSpriteLayer(DAYLIGHT_CLOUDS_HIGH, CLOUD_IMGS.high, 0.35, 0.45);
   ctx.restore();
 
-  // 3) MID CLOUD SHADOWS · main visible layer · world-locked drift
+  // 3) MID CLOUD LAYER · main visible drift · world-locked · full opacity target
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
-  drawLayer(DAYLIGHT_CLOUDS_MID, 1.0, [
-    [0.00, 'rgba(15, 25, 50, 0.55)'],
-    [0.55, 'rgba(15, 25, 50, 0.28)'],
-    [1.00, 'rgba(15, 25, 50, 0.00)'],
-  ]);
+  drawSpriteLayer(DAYLIGHT_CLOUDS_MID, CLOUD_IMGS.mid, 1.0, 0.85);
   ctx.restore();
 
-  // 4) FG WISP LAYER · fast pale wisps passing IN FRONT of player · lighten composite
+  // 4) FG WISP LAYER · fast passing IN FRONT of player · parallax 1.8× · slightly transparent
   ctx.save();
-  ctx.globalCompositeOperation = 'lighten';
-  drawLayer(DAYLIGHT_WISPS_FG, 1.8, [
-    [0.00, 'rgba(255, 255, 255, 0.60)'],
-    [0.45, 'rgba(255, 255, 255, 0.25)'],
-    [1.00, 'rgba(255, 255, 255, 0.00)'],
-  ]);
+  ctx.globalCompositeOperation = 'source-over';
+  drawSpriteLayer(DAYLIGHT_WISPS_FG, CLOUD_IMGS.fg, 1.8, 0.70);
   ctx.restore();
 }
 function drawLightMode(){

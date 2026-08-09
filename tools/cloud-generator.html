@@ -1,0 +1,231 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AOV Cloud Sprite Generator</title>
+<style>
+  body { background:#1a1a24; color:#eee; font-family:system-ui, sans-serif; margin:0; padding:20px; }
+  h1 { color:#8fffb0; letter-spacing:0.1em; font-size:16px; margin:0 0 4px; }
+  h2 { color:#5ae; font-size:13px; margin:14px 0 6px; letter-spacing:0.14em; text-transform:uppercase; }
+  .sub { color:#888; font-size:11px; margin:0 0 16px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
+  label { color:#aaa; font-size:12px; }
+  button { background:#132; color:#8fffb0; border:1px solid #4d5; padding:6px 12px;
+           font-family:inherit; font-size:12px; cursor:pointer; letter-spacing:0.08em; }
+  button:hover { background:#264; }
+  button.primary { background:#264; border-color:#8fffb0; }
+  input[type=number], input[type=text], select {
+    background:#111; color:#fff; border:1px solid #4d5; padding:4px 8px;
+    font-family:inherit; font-size:12px; width:80px;
+  }
+  select { width:auto; }
+  .stage { background:linear-gradient(#7ac,#ade); padding:12px; margin:12px 0; border-radius:4px;
+           display:flex; gap:12px; flex-wrap:wrap; }
+  .stage.dark { background:linear-gradient(#233,#455); }
+  canvas { background:transparent; border:1px solid #444; display:block; }
+  .card { display:flex; flex-direction:column; gap:6px; align-items:center; }
+  .card .fname { color:#8fffb0; font-size:10px; }
+  .card .dim   { color:#888; font-size:9px; }
+</style>
+</head>
+<body>
+
+<h1>◈ AOV CLOUD SPRITE GENERATOR</h1>
+<p class="sub">
+  Procedural cloud PNGs with feathered soft edges · matches the drawSpriteLayer sizes wired in rp7b.html
+  · click BATCH to generate a full layer set · right-click any canvas → Save Image As →
+  <code>cloud-{layer}-{n}.png</code> → drop in <code>assets/2D sprites/vfx/clouds/</code>
+</p>
+
+<h2>Controls</h2>
+<div class="row">
+  <label>Layer:</label>
+  <select id="layer">
+    <option value="high">HIGH · 1400×400 (wispy cirrus)</option>
+    <option value="mid" selected>MID · 800×400 (main cumulus)</option>
+    <option value="fg">FG · 500×150 (fast pale wisps)</option>
+  </select>
+  <label>Variants:</label>
+  <input id="count" type="number" value="5" min="1" max="10">
+  <label>Seed:</label>
+  <input id="seed" type="number" value="7" min="0" max="9999">
+  <label>Blur px:</label>
+  <input id="blur" type="number" value="18" min="0" max="60">
+  <button class="primary" onclick="generate()">GENERATE BATCH</button>
+  <button onclick="downloadAll()">DOWNLOAD ALL</button>
+</div>
+
+<h2>Preview on Sky (game-lit)</h2>
+<div id="stageSky" class="stage"></div>
+
+<h2>Preview on Dark Grass (contrast check)</h2>
+<div id="stageDark" class="stage dark"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// LAYER PRESETS · match the sizes wired in rp7b.html drawSpriteLayer calls
+// ─────────────────────────────────────────────────────────────────────────────
+const LAYERS = {
+  high: { w: 1400, h: 400,  blobs: 22, minR: 0.10, maxR: 0.35, coreAlpha: 0.55, edgeAlpha: 0.00, tone: '#ffffff' },
+  mid:  { w:  800, h: 400,  blobs: 18, minR: 0.14, maxR: 0.40, coreAlpha: 0.85, edgeAlpha: 0.00, tone: '#ffffff' },
+  fg:   { w:  500, h: 150,  blobs: 12, minR: 0.16, maxR: 0.42, coreAlpha: 0.70, edgeAlpha: 0.00, tone: '#f6faff' },
+};
+
+// Seeded RNG · mulberry32 · deterministic + fast
+function makeRng(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// Draws one cloud into a canvas of size (W, H) using multiple overlapping soft blobs
+// then applies a heavy Gaussian blur pass so edges are soft/organic (no sharp circles)
+function drawCloud(canvas, layer, rng, blurPx){
+  const cfg = LAYERS[layer];
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Off-screen buffer we composite blobs into · then blit blurred onto main canvas
+  const buf = document.createElement('canvas');
+  buf.width = W; buf.height = H;
+  const bctx = buf.getContext('2d');
+
+  // Compose an organic silhouette from many overlapping soft radial blobs
+  // Center-weighted so the cloud has body in the middle, wispy edges
+  const cx = W / 2, cy = H / 2;
+  const spreadX = W * 0.42;
+  const spreadY = H * 0.35;
+  for (let i = 0; i < cfg.blobs; i++){
+    // Gaussian-ish drift towards center via 2-sample average
+    const gx = (rng() + rng()) / 2 - 0.5;
+    const gy = (rng() + rng()) / 2 - 0.5;
+    const bx = cx + gx * spreadX * 2;
+    const by = cy + gy * spreadY * 2;
+    const r  = (cfg.minR + rng() * (cfg.maxR - cfg.minR)) * Math.min(W, H) * 0.9;
+    const stretchY = 0.55 + rng() * 0.35;   // clouds are wider than tall
+    const g = bctx.createRadialGradient(bx, by, r * 0.05, bx, by, r);
+    g.addColorStop(0.00, hexToRgba(cfg.tone, cfg.coreAlpha));
+    g.addColorStop(0.60, hexToRgba(cfg.tone, cfg.coreAlpha * 0.35));
+    g.addColorStop(1.00, hexToRgba(cfg.tone, cfg.edgeAlpha));
+    bctx.fillStyle = g;
+    bctx.beginPath();
+    bctx.ellipse(bx, by, r, r * stretchY, 0, 0, Math.PI * 2);
+    bctx.fill();
+  }
+
+  // Heavy blur pass · this is what makes edges look organic instead of sharp
+  ctx.filter = `blur(${blurPx}px)`;
+  ctx.drawImage(buf, 0, 0);
+  ctx.filter = 'none';
+
+  // Second pass · small hint of highlight for volume · optional additive white top
+  const highlight = document.createElement('canvas');
+  highlight.width = W; highlight.height = H;
+  const hctx = highlight.getContext('2d');
+  hctx.globalCompositeOperation = 'source-over';
+  hctx.drawImage(canvas, 0, 0);
+  // Trim highlight to inside the cloud shape (source-in with the blurred alpha)
+  hctx.globalCompositeOperation = 'source-in';
+  const hg = hctx.createLinearGradient(0, 0, 0, H);
+  hg.addColorStop(0.00, 'rgba(255,255,255,0.45)');
+  hg.addColorStop(0.55, 'rgba(255,255,255,0.05)');
+  hg.addColorStop(1.00, 'rgba(255,255,255,0.00)');
+  hctx.fillStyle = hg;
+  hctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.drawImage(highlight, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function hexToRgba(hex, a){
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BATCH GENERATE · fills preview stages with N variants for the selected layer
+// ─────────────────────────────────────────────────────────────────────────────
+let LAST_CANVASES = [];
+function generate(){
+  const layer = document.getElementById('layer').value;
+  const count = +document.getElementById('count').value;
+  const seed  = +document.getElementById('seed').value;
+  const blur  = +document.getElementById('blur').value;
+  const cfg   = LAYERS[layer];
+
+  const sky  = document.getElementById('stageSky');
+  const dark = document.getElementById('stageDark');
+  sky.innerHTML = ''; dark.innerHTML = '';
+  LAST_CANVASES = [];
+
+  for (let i = 1; i <= count; i++){
+    const rng = makeRng(seed * 1000 + i * 137);
+
+    // Full-size canvas (final asset) · downscaled preview shown on stage
+    const full = document.createElement('canvas');
+    full.width = cfg.w; full.height = cfg.h;
+    drawCloud(full, layer, rng, blur);
+
+    const previewW = Math.min(cfg.w, 420);
+    const previewH = Math.round(cfg.h * (previewW / cfg.w));
+
+    // Sky-lit preview
+    const p1 = document.createElement('canvas');
+    p1.width = previewW; p1.height = previewH;
+    p1.getContext('2d').drawImage(full, 0, 0, previewW, previewH);
+
+    // Dark-grass preview
+    const p2 = document.createElement('canvas');
+    p2.width = previewW; p2.height = previewH;
+    p2.getContext('2d').drawImage(full, 0, 0, previewW, previewH);
+
+    const filename = `cloud-${layer}-${i}.png`;
+    sky.appendChild(makeCard(p1, full, filename, cfg));
+    dark.appendChild(makeCard(p2, full, filename, cfg));
+
+    LAST_CANVASES.push({ canvas: full, filename });
+  }
+}
+
+function makeCard(previewCanvas, fullCanvas, filename, cfg){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.appendChild(previewCanvas);
+  const fn = document.createElement('div'); fn.className = 'fname'; fn.textContent = filename;
+  const dim = document.createElement('div'); dim.className = 'dim'; dim.textContent = `${cfg.w}×${cfg.h}`;
+  const btn = document.createElement('button');
+  btn.textContent = 'Download';
+  btn.onclick = () => downloadCanvas(fullCanvas, filename);
+  card.appendChild(fn);
+  card.appendChild(dim);
+  card.appendChild(btn);
+  return card;
+}
+
+function downloadCanvas(canvas, filename){
+  canvas.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+}
+
+function downloadAll(){
+  LAST_CANVASES.forEach((entry, i) => {
+    setTimeout(() => downloadCanvas(entry.canvas, entry.filename), i * 200);
+  });
+}
+
+// First run
+generate();
+</script>
+</body>
+</html>

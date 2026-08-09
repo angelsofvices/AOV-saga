@@ -4454,7 +4454,48 @@ const LIGHT_SOURCES = [
   { scene:'overworld', x:113, y:248, r: 3.5, i:0.9 },  // Zarvane town hall
   { scene:'overworld', x:240, y:317, r: 3.5, i:0.9 },  // Andrannor town hall
 ];
+// v0.95.220 · DAYLIGHT mode · warm sunlight tint + slow-drifting cloud shadows
+// Scaffold pass · scales/colors tunable in the next lighting polish pass
+function drawDaylightMode(){
+  const W = canvas.width, H = canvas.height;
+  const now = performance.now();
+  // 1) Warm golden sunlight tint · very subtle multiply layer over the world
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = 'rgba(255, 232, 176, 0.16)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+  // 2) Cloud shadows · 3 large soft blobs drift across world space at ~12 px/sec
+  //    Uses world coords so shadows anchor to terrain, not to camera pan
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  const CLOUDS = [
+    { wx: 400,  wy: 200, r: 240, speed: 14, phase: 0 },
+    { wx: 900,  wy: 500, r: 320, speed: 10, phase: 1500 },
+    { wx: 1400, wy: 300, r: 200, speed: 16, phase: 3200 },
+    { wx: 200,  wy: 700, r: 280, speed: 12, phase: 800 },
+  ];
+  const driftT = now / 1000;
+  for (const c of CLOUDS){
+    // Drift east over time, wrap around a wide swath
+    const wrap = 2200;
+    const wx = ((c.wx + (driftT + c.phase / 1000) * c.speed) % wrap + wrap) % wrap - 100;
+    const cx = wx - _cam.x;
+    const cy = c.wy - _cam.y;
+    if (cx + c.r < 0 || cx - c.r > W || cy + c.r < 0 || cy - c.r > H) continue;
+    const g = ctx.createRadialGradient(cx, cy, c.r * 0.2, cx, cy, c.r);
+    g.addColorStop(0.00, 'rgba(20, 24, 40, 0.22)');
+    g.addColorStop(0.65, 'rgba(20, 24, 40, 0.10)');
+    g.addColorStop(1.00, 'rgba(20, 24, 40, 0.00)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, c.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
 function drawLightMode(){
+  if (game.lightMode === 'daylight'){ drawDaylightMode(); return; }
   if (game.lightMode !== 'night') return;
   const W = canvas.width, H = canvas.height;
   if (_lightBuffer.width !== W || _lightBuffer.height !== H){
@@ -9181,7 +9222,7 @@ function frame(now){
   // v0.95.175 · Dev · Light Mode cycler (OFF ↔ NIGHT)
   const lightBtn = document.getElementById('devLightMode');
   if (lightBtn){
-    const LIGHT_MODES = ['off', 'night'];
+    const LIGHT_MODES = ['off', 'daylight', 'night'];
     const labelLight = () => `Light: ${(game.lightMode || 'off').toUpperCase()}`;
     lightBtn.textContent = labelLight();
     lightBtn.addEventListener('click', () => {

@@ -4358,31 +4358,31 @@ function fireAstralkick(){
   player.attackMode  = 'astralkick';
   player.attackUntil = now + ASTRAL_KICK.DUR_MS;
   playSFX('astralkick');
-  // AOE damage in the 3-tile arc in front of Rizer (perpendicular spread ±1)
+  // v0.95.239 · AOE = 5×5 square centered on Rizer · 2 tiles each direction
+  // (forward + back + left + right) · direction-independent · omnidirectional
   const dir = player.dir;
   const dxStep = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
   const dyStep = dir === 'up'   ? -1 : dir === 'down'  ? 1 : 0;
-  const perp = (dir === 'left' || dir === 'right') ? [[0,-1],[0,0],[0,1]] : [[-1,0],[0,0],[1,0]];
-  // Delay damage tick to land on the mid-frame (apex spin ~310ms) so the impact feels earned
+  // Delay damage tick to land on the mid-frame (apex spin ~310ms) so impact feels earned
   setTimeout(() => {
-    // Front tile + ±1 tile arc, then a second row (2 tiles ahead) also main + perp
-    for (let reach = 1; reach <= 2; reach++){
-      for (const [px, py] of perp){
-        const tx = player.x + dxStep * reach + px;
-        const ty = player.y + dyStep * reach + py;
-        applyAstralkickHit(tx, ty);
+    // 5×5 box · dx = -2..+2, dy = -2..+2 · Rizer's tile INCLUDED in the AOE
+    for (let dy = -2; dy <= 2; dy++){
+      for (let dx = -2; dx <= 2; dx++){
+        if (dx === 0 && dy === 0) continue;   // skip Rizer's own tile
+        applyAstralkickHit(player.x + dx, player.y + dy);
       }
     }
-    // Spawn a boom overlay at tile+1 in facing dir (short-lived · non-traveling)
+    // v0.95.239 · Boom centered at Rizer's tile shifted 0.5 tile BACK (opposite facing)
+    // then drawn UNDER the Rizer via drawKickBoomsUnder() so his flip lands on top of it
     PROJECTILES.push({
-      tileX: player.x + dxStep * 1,
-      tileY: player.y + dyStep * 1,
+      tileX: player.x - dxStep * 0.5,
+      tileY: player.y - dyStep * 0.5,
       dir,
       dist: 999,
-      state: 'kickboom',   // custom state · drawProjectiles branches to red boom
+      state: 'kickboom',
       t0: performance.now(),
       explodeT0: performance.now(),
-      lastStep: performance.now() + 99999,   // never advances
+      lastStep: performance.now() + 99999,
       scene: game.scene,
     });
   }, 310);
@@ -4519,6 +4519,31 @@ function tickProjectiles(now){
     }
   }
 }
+// v0.95.239 · KICKBOOM under-pass · runs BEFORE the world depth-sort so the burst
+// sits behind Rizer + NPCs · covers the 5×5 AOE zone visually (~5 tile diameter)
+function drawKickBoomsUnder(){
+  if (!PROJECTILES.length) return;
+  const boom = RIZER.astralkickBoom;
+  if (!boom || !boom.loaded) return;
+  const now = performance.now();
+  for (const p of PROJECTILES){
+    if (p.scene !== game.scene) continue;
+    if (p.state !== 'kickboom') continue;
+    const t = Math.min(1, (now - p.explodeT0) / ASTRAL_KICK.BOOM_MS);
+    // Scale bloom to cover the full 5×5 AOE box · grows 2.0x -> 5.5x tile
+    const scale = 2.0 + t * 3.5;
+    const alpha = t < 0.65 ? 1.0 : 1.0 - (t - 0.65) / 0.35;
+    const [bx, by, bw, bh] = boom.bbox;
+    const drawW = Math.max(48, Math.round(TILE * scale));
+    const drawH = Math.max(48, Math.round(TILE * scale * (bh / bw)));
+    const dx = Math.floor(p.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+    const dy = Math.floor(p.tileY * TILE + (TILE - drawH) / 2) - _cam.y;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.drawImage(boom.img, bx, by, bw, bh, dx, dy, drawW, drawH);
+    ctx.restore();
+  }
+}
 function drawProjectiles(){
   if (!PROJECTILES.length) return;
   const bundle = RIZER.astralProj;
@@ -4531,26 +4556,9 @@ function drawProjectiles(){
     // so the projectile doesn't sit visible behind the charging Rizer sprite
     if (p.state === 'flight' && now - p.t0 < 250) continue;
 
-    // v0.95.238 · KICKBOOM · A4 red starburst overlay · non-traveling · big + slow
-    if (p.state === 'kickboom'){
-      const boom = RIZER.astralkickBoom;
-      if (boom && boom.loaded){
-        const t = Math.min(1, (now - p.explodeT0) / ASTRAL_KICK.BOOM_MS);
-        const scale = 1.4 + t * 2.6;   // grow 1.4x -> 4.0x tile · larger than A3 boom
-        const alpha = t < 0.65 ? 1.0 : 1.0 - (t - 0.65) / 0.35;
-        const [bx, by, bw, bh] = boom.bbox;
-        const drawW = Math.max(48, Math.round(TILE * scale));
-        const drawH = Math.max(48, Math.round(TILE * scale * (bh / bw)));
-        const dx = Math.floor(p.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
-        const dy = Math.floor(p.tileY * TILE + (TILE - drawH) / 2) - _cam.y;
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-        ctx.drawImage(boom.img, bx, by, bw, bh, dx, dy, drawW, drawH);
-        ctx.restore();
-        if (t >= 1){ p._done = true; }
-      }
-      continue;
-    }
+    // v0.95.239 · KICKBOOM renders in drawKickBoomsUnder() (BEFORE player) so
+    // Rizer's bicycle-kick sprite lands on top of the burst · skip it here
+    if (p.state === 'kickboom') continue;
     // v0.95.229 · Explode = ENTIRE window is the BOOM overlay (sheet frame 3 retired)
     // Boom scales from 1.1x -> 2.5x tile across full EXPLODE_MS with fade in last 30%
     if (p.state === 'explode'){
@@ -8885,6 +8893,7 @@ function drawWorldLayer(){
     renderables.push({ kind:'boulder', boulder:b, footY: b.tileY });
   });
   renderables.sort((a,b) => a.footY - b.footY);
+  drawKickBoomsUnder();     // v0.95.239 · red bloom sits under actors so Rizer flip lands on top
   for (const r of renderables){
     if (r.kind === 'prop')      drawProp(r.prop);
     else if (r.kind === 'npc')  drawNPC(r.npc);
@@ -9267,6 +9276,7 @@ function frame(now){
       rends.push({ kind:'npc', npc:n, footY: n.tileY });
     }
     rends.sort((a,b) => a.footY - b.footY);
+    drawKickBoomsUnder();   // v0.95.239 · same under-pass in interiors
     for (const r of rends){
       if (r.kind === 'npc') drawNPC(r.npc);
       else                  drawPlayer();

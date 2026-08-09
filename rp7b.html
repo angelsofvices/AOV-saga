@@ -1633,18 +1633,27 @@ const WORLD_PROPS = [
         footprint: [[0, 0]],
         door: [0, 0],
         opened: false,
+        looted: false,       // v0.95.221 · loot-drop guard · separate from visual open/close
+        // v0.95.221 · Sprite refs stashed for the close-back path (PvP loot traps)
+        _closedImg,
+        _openImg,
+        _closedBbox: CLOSED_BBOX,
+        _openBbox:   OPEN_BBOX,
       };
       chest.onInteract = () => {
-        if (chest.opened) return;
+        if (chest.opened) return;              // already open · X-interact is a no-op
         chest.opened = true;
         chest.img = _openImg;
         chest.bbox = OPEN_BBOX;
-        const coins = 1 + Math.floor(Math.random() * 100);
-        addItems({ coins });
-        playSFX('coins');
-        popCoinLabel(coins);
-        // v0.95.171 · Gems pop out · 1-3 colored gems around chest tile · walk to collect
-        spawnChestGems('overworld', chest.tileX, chest.tileY);
+        // v0.95.221 · Loot drops only ONCE per chest · re-close then re-open yields nothing
+        if (!chest.looted){
+          chest.looted = true;
+          const coins = 1 + Math.floor(Math.random() * 100);
+          addItems({ coins });
+          playSFX('coins');
+          popCoinLabel(coins);
+          spawnChestGems('overworld', chest.tileX, chest.tileY);
+        }
       };
       return chest;
     });
@@ -6034,12 +6043,12 @@ addEventListener('keydown', e => {
         const boulderHit = !cfgHit ? boulderAt('overworld', hx, hy) : null;
         // v0.95.134 · Plants (bushes/trees) · hit SFX + astralite charge · never break
         const plantHit = !cfgHit ? plantPropAt(hx, hy) : null;
-        // v0.95.219 · Chest at hit tile · punch OR kick opens it (fires onInteract once)
+        // v0.95.219/221 · Chest at hit tile · punch/kick opens on first hit + can close/reopen
+        // an empty chest for PvP loot-trap gameplay (looter can cover their tracks)
         let chestHit = null;
         if (!cfgHit){
           for (const p of WORLD_PROPS){
             if (!p || !p.id || !p.id.startsWith('chest_')) continue;
-            if (p.opened) continue;
             if (p.tileX === hx && p.tileY === hy){ chestHit = p; break; }
           }
         }
@@ -6080,8 +6089,20 @@ addEventListener('keydown', e => {
           if (plantHit){
             chargePlant(plantHit, mode === 'kick');
           }
-          if (chestHit && typeof chestHit.onInteract === 'function'){
-            chestHit.onInteract();                    // v0.95.219 · punch/kick opens chest
+          if (chestHit){
+            // v0.95.221 · Punch/kick toggles a chest · open on first hit (drops loot once)
+            // then close on subsequent hits to disguise it as untouched (PvP trap bait).
+            if (!chestHit.opened){
+              // Opening path · fires loot only if not previously looted
+              if (typeof chestHit.onInteract === 'function') chestHit.onInteract();
+            } else {
+              // Close it back · visual only · no loot re-drop
+              chestHit.opened = false;
+              chestHit.img  = chestHit._closedImg;
+              chestHit.bbox = chestHit._closedBbox;
+              playSFX('coins');   // placeholder click · replace with dedicated chest-close SFX later
+              showToast('◈ Chest closed · empty (trap set)', 1600);
+            }
           }
         } else {
           playSFX('meleeMiss');

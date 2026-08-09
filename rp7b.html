@@ -4286,7 +4286,7 @@ function fireAstralstrike(){
   for (let step = 1; step <= 5; step++){
     const tx = player.x + dxStep * step;
     const ty = player.y + dyStep * step;
-    applyAstralHit(tx, ty);
+    applyAstralHitWavy(tx, ty, dir);        // v0.95.226 · horizontal spreads to 3-tile wave
   }
   // Projectile picks up at tile+5 so its next step is tile+6 · trail already covered
   PROJECTILES.push({
@@ -4304,6 +4304,21 @@ function fireAstralstrike(){
 }
 // v0.95.214 · Shared hit resolver · single tile · used by both trail damage
 // at cast time and per-step projectile collision · keeps damage math identical
+// v0.95.226 · Horizontal A3 has a WAVY vertical hitbox · one tile down + half tile up
+// Half-tile up = we still hit ty-1 (tile-level collision) but the visual + intent is
+// a 0.5-tile crest above the main line and a full 1-tile trough below.  So horizontal
+// shots damage 3 rows: ty (main) · ty+1 (full trough) · ty-1 (half-crest).
+// Vertical shots stay single-tile (up/down have no spread per user spec).
+function applyAstralHitWavy(tx, ty, dir){
+  if (dir === 'left' || dir === 'right'){
+    let anyHit = false;
+    if (applyAstralHit(tx, ty - 1)) anyHit = true;   // half-crest above
+    if (applyAstralHit(tx, ty))     anyHit = true;   // main line
+    if (applyAstralHit(tx, ty + 1)) anyHit = true;   // full trough below
+    return anyHit;
+  }
+  return applyAstralHit(tx, ty);
+}
 function applyAstralHit(tx, ty){
   let hit = null;
   for (const n of NPCS){
@@ -4359,9 +4374,8 @@ function tickProjectiles(now){
       if (p.dir === 'left')  p.tileX--;
       if (p.dir === 'right') p.tileX++;
       p.dist++;
-      // v0.95.214 · Delegate per-step collision to the shared resolver
-      // so trail damage + projectile damage use identical logic
-      if (applyAstralHit(p.tileX, p.tileY)){
+      // v0.95.214/226 · Wavy-aware per-step collision · horizontal shots hit 3 rows
+      if (applyAstralHitWavy(p.tileX, p.tileY, p.dir)){
         p.state = 'explode';
         p.explodeT0 = now;
         continue;

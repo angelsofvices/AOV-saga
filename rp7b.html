@@ -4350,6 +4350,7 @@ function applyAstralHit(tx, ty){
   for (const n of NPCS){
     if (n.scene !== game.scene) continue;
     if (!n.isEnemy) continue;
+    if (n._dying) continue;   // v0.95.236 · dying Mori are inert
     if (n.tileX === tx && n.tileY === ty){ hit = n; break; }
   }
   const cfgP = interiorConfig(game.scene);
@@ -4365,7 +4366,8 @@ function applyAstralHit(tx, ty){
     if (hit.hp <= 0){
       // v0.95.215 · Dedicated A3-kill SFX (alien-stomach splat) instead of the generic bone-crack
       playSFX('astralKill');
-      hit.scene = '__dead__';
+      // v0.95.236 · Play crumble-to-stone death anim before hiding
+      startMoriDeath(hit);
       player.rizerXP = (player.rizerXP || 0) + 20;
       recordMoriKill('astralstrike');
       if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
@@ -6218,6 +6220,7 @@ addEventListener('keydown', e => {
           if (n.scene !== game.scene) continue;
           // v0.95.149 · Daemons (2x more durable than Mori) also hittable · match by isEnemy
           if (!n.isEnemy) continue;
+          if (n._dying) continue;   // v0.95.236 · dying Mori are inert
           if (n.tileX === hx && n.tileY === hy){ hit = n; break; }
         }
         // v0.95.61 · Punching Bag counts as a hit target in Rizer Room.
@@ -6262,7 +6265,8 @@ addEventListener('keydown', e => {
             }
             if (hit.hp <= 0){
               playSFX('moriDeath');                     // v0.95.120 · bone-crack on kill
-              hit.scene = '__dead__';
+              // v0.95.236 · Play crumble-to-stone death anim before hiding
+              startMoriDeath(hit);
               player.rizerXP = (player.rizerXP || 0) + 12;
               recordMoriKill(mode);                     // v0.95.140 · cosmetic combat core
               if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
@@ -8750,6 +8754,48 @@ function drawWorldLayer(){
 }
 
 const DIR_ROW_NPC = { down: 0, left: 1, right: 2, up: 3 };
+
+// v0.95.236 · MORI DEATH · crumble-to-stone anim · plays before scene-flips to __dead__
+const MORI_DEATH = {
+  img: new Image(), loaded: false, cellW: 313, cellH: 313, cols: 4, rows: 4,
+  bboxes: [
+    [[84, 74,165,239],[53, 32,191,281],[49,118,181,195],[35,115,180,198]],   // DOWN
+    [[81,  0,182,298],[48,  0,163,299],[48,  0,180,301],[40,  0,167,301]],   // LEFT
+    [[86, 46,173,231],[62, 21,185,292],[48, 61,176,218],[40, 94,170,185]],   // RIGHT
+    [[91, 23,147,240],[50,  0,168,264],[44, 74,180,192],[33, 73,180,193]],   // UP
+  ],
+};
+MORI_DEATH.img.onload = () => { MORI_DEATH.loaded = true; };
+MORI_DEATH.img.src = 'assets/2D%20sprites/npcs/mori-death.png';
+
+// v0.95.237 · DAEMON DEATH · melt-to-fire anim · Daemons get their own death sheet
+// (Drainers fall back to Mori sheet · they're mid-tier · no unique art yet)
+const DAEMON_DEATH = {
+  img: new Image(), loaded: false, cellW: 313, cellH: 313, cols: 4, rows: 4,
+  bboxes: [
+    [[73, 78,195,235],[42, 59,237,254],[35,165,238,148],[64,233,144, 80]],   // DOWN
+    [[75,  0,196,313],[64,  0,200,313],[58,  0,206,313],[23,  0,222,313]],   // LEFT
+    [[73,  0,197,294],[72,  0,195,295],[47,  0,204,300],[24,  0,220,300]],   // RIGHT
+    [[62, 42,218,238],[41, 38,237,242],[47,141,212,143],[28,162,216,122]],   // UP
+  ],
+};
+DAEMON_DEATH.img.onload = () => { DAEMON_DEATH.loaded = true; };
+DAEMON_DEATH.img.src = 'assets/2D%20sprites/npcs/daemon-death.png';
+
+const MORI_DEATH_DUR = 720;   // 4 frames × 180ms each · applies to both sheets
+// Pick the right death sheet for the enemy type (Daemon → fire · everyone else → stone)
+function deathSheetFor(n){
+  if (n && n.mode === 'daemon' && DAEMON_DEATH.loaded) return DAEMON_DEATH;
+  return MORI_DEATH;
+}
+// Kick off crumble-to-stone (Mori) or melt-to-fire (Daemon) · called from every enemy-kill path
+function startMoriDeath(n){
+  if (!n || n._dying) return;
+  n._dying     = true;
+  n._deathT0   = performance.now();
+  n.moving     = false;
+  // AI + hit tests skip anyone with _dying so no re-hits or wandering
+}
 // v0.95.167 · staticSprite NPCs · draw a single frame regardless of facing
 // (used for characters whose 4x4 hasn't been delivered yet).  bbox = [bx,by,bw,bh]
 function drawStaticNPC(n){
@@ -8766,6 +8812,29 @@ function drawStaticNPC(n){
   ctx.drawImage(n.sheet, bx, by, bw, bh, dx, dy, drawW, drawH);
 }
 function drawNPC(n){
+  // v0.95.236/237 · Death animation override · Mori crumbles to stone · Daemon melts to fire
+  if (n._dying){
+    const sheet = deathSheetFor(n);
+    if (sheet.loaded){
+      const elapsed = performance.now() - n._deathT0;
+      const frameIdx = Math.min(3, Math.floor(elapsed / (MORI_DEATH_DUR / 4)));
+      const row = DIR_ROW_NPC[n.dir] || 0;
+      const [bx, by, bw, bh] = sheet.bboxes[row][frameIdx];
+      const sx = frameIdx * sheet.cellW + bx;
+      const sy = row * sheet.cellH + by;
+      const rowScale = n._downScale || ((TILE * 2) / 216);
+      const drawH = Math.max(1, Math.round(bh * rowScale));
+      const drawW = Math.max(1, Math.round(bw * rowScale));
+      const dx = Math.floor(n.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+      const dy = Math.floor(n.tileY * TILE + TILE - drawH)       - _cam.y;
+      const alpha = frameIdx === 3 ? 0.85 : 1.0;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(sheet.img, sx, sy, bw, bh, dx, dy, drawW, drawH);
+      ctx.restore();
+      return;
+    }
+  }
   // v0.95.167 · static single-frame NPCs (Yara, Zoryn awaiting 4x4)
   if (n.staticSprite && n.staticBBox){ drawStaticNPC(n); return; }
   // v0.95.6 · SCALE reference is the LARGEST bh across all 4 directions of
@@ -8846,6 +8915,14 @@ function stepNPCTo(n, nx, ny, newDir){
   return true;
 }
 function tickNPC(n, dt){
+  // v0.95.236 · Dying Mori · no AI, no movement, no blinking · after MORI_DEATH_DUR flip scene
+  if (n._dying){
+    if (performance.now() - n._deathT0 >= MORI_DEATH_DUR){
+      n.scene = '__dead__';
+      n._dying = false;
+    }
+    return;
+  }
   // ── Blink loop (any NPC · runs every frame, independent of moveCd) ──
   // Idle frame sits at 0.  Every ~2.5-4s, flash frame 2 (eyes closed) for
   // ~140ms.  Suppressed while moving (walk animation uses animFrame).

@@ -7312,7 +7312,10 @@ function tryInteract(){
     }
   }
   const doorProp = _propDoors.get(`${fx},${fy}`);
-  if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
+  // v0.95.232 · autoEnter props (player home + future purchased property) are walk-through only ·
+  // pressing X on them is a no-op so nothing feels blocked · they enter automatically when stepped on
+  if (doorProp && doorProp.autoEnter) { /* no-op · use walk-through path instead */ }
+  else if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
   // v0.91 · fae collectible check (faced tile or standing tile)
   if (collectFaeAt(fx, fy) || collectFaeAt(player.x, player.y)) return;
   // v0.95.134 · Bush/tree harvest · adds berries/fruit to bag (district-scaled + charge bonus)
@@ -7808,12 +7811,16 @@ addEventListener('keydown', e => {
                        || _fae.find(f => !f.collected && f.x === player.x && f.y === player.y);
         if (faeOnTile){
           _lastInteract = now;
-          if (RIZER.faeCatch && RIZER.faeCatch.loaded){
+          // v0.95.232 · Fae-net swing anim ONLY fires after Kaizari gifts the Faenet
+          // Before that · X on a fae tile falls through to collectFaeAt which shows
+          // the "need a Faenet · visit Kaizari" hint (v0.95.230) without any swing
+          const hasFaenet = !!(player.items && player.items.faenet);
+          if (hasFaenet && RIZER.faeCatch && RIZER.faeCatch.loaded){
             player.faeCatchStart = now;
             player.faeCatchUntil = now + 380;
           }
-          // Trigger collect after a brief net swing so the animation lands
-          setTimeout(() => { collectFaeAt(faeOnTile.x, faeOnTile.y); }, 200);
+          // Trigger collect after a brief net swing so the animation lands (if we swung)
+          setTimeout(() => { collectFaeAt(faeOnTile.x, faeOnTile.y); }, hasFaenet ? 200 : 0);
           return;
         }
       }

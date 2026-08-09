@@ -4409,15 +4409,13 @@ function drawProjectiles(){
     // so the projectile doesn't sit visible behind the charging Rizer sprite
     if (p.state === 'flight' && now - p.t0 < 250) continue;
 
-    // v0.95.227 · Explode = two-phase · first half plays sheet frame 3 (contact spark)
-    // then swaps to the dedicated BOOM overlay for the finisher
+    // v0.95.229 · Explode = ENTIRE window is the BOOM overlay (sheet frame 3 retired)
+    // Boom scales from 1.1x -> 2.5x tile across full EXPLODE_MS with fade in last 30%
     if (p.state === 'explode'){
-      const elapsed = now - p.explodeT0;
       const boom = RIZER.astralBoom;
-      if (elapsed >= 220 && boom && boom.loaded){
-        // Final boom · scale up over its 300ms window · fade out last 30%
-        const t = (elapsed - 220) / 300;                 // 0..1
-        const scale = 1.1 + t * 1.4;                     // v0.95.228 · smaller native · 1.1x -> 2.5x tile bloom
+      if (boom && boom.loaded){
+        const t = Math.min(1, (now - p.explodeT0) / ASTRAL_STRIKE.EXPLODE_MS);
+        const scale = 1.1 + t * 1.4;
         const alpha = t < 0.7 ? 1.0 : 1.0 - (t - 0.7) / 0.3;
         const [bx, by, bw, bh] = boom.bbox;
         const drawW = Math.max(48, Math.round(TILE * scale));
@@ -4428,19 +4426,13 @@ function drawProjectiles(){
         ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
         ctx.drawImage(boom.img, bx, by, bw, bh, dx, dy, drawW, drawH);
         ctx.restore();
-        continue;
       }
-      // First half · sheet frame 3 contact spark (fall through)
+      continue;
     }
 
     const row = dirRow[p.dir] || 0;
-    let col;
-    if (p.state === 'explode'){
-      col = 3;   // contact-spark frame
-    } else {
-      // flight · cycle frames 0-1-2 based on distance travelled (0 launch, 1 flight, 2 contact prep)
-      col = Math.min(2, Math.floor((now - p.t0) / 80) % 3);
-    }
+    // Flight · cycle frames 0-1-2 based on distance travelled (0 launch, 1 flight, 2 contact prep)
+    const col = Math.min(2, Math.floor((now - p.t0) / 80) % 3);
     const [bx, by, bw, bh] = bundle.bboxes[row][col];
     const drawW = Math.max(24, Math.round(bw * 0.35));
     const drawH = Math.max(24, Math.round(bh * 0.35));

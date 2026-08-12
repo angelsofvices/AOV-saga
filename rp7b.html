@@ -10401,6 +10401,74 @@ addEventListener('keydown', e => {
         settingsPage = 'root';
         playSFX('menuClose');
       }
+    } else if (settingsPage === 'bindings'){
+      // v0.95.263 · CONTROLLER BINDINGS nav + rebind
+      // In listen mode: the FIRST keydown captures the new binding (except Esc = cancel).
+      if (keybindListenMode){
+        if (k === 'escape'){
+          keybindListenMode = false;
+          playSFX('cancel');
+        } else {
+          // Reject certain "trap" keys that would break the game if bound
+          const forbidden = ['`', 'meta', 'control', 'alt', 'contextmenu'];
+          if (forbidden.includes(k)){
+            showToast('◈ Key reserved · pick another', 1400);
+            playSFX('cancel');
+          } else {
+            const row = BINDING_ROWS[bindingsSelectedIdx];
+            if (row){
+              KEY_BINDINGS[row.action] = k;
+              saveKeyBindings();
+              showToast(`◈ ${row.label} → ${prettyKey(k)}`, 1400);
+              playSFX('confirm');
+            }
+          }
+          keybindListenMode = false;
+        }
+        e.preventDefault();
+        return;
+      }
+      if (k === 'arrowup' || k === 'arrowdown' || k === 'arrowleft' || k === 'arrowright'){
+        const N = BINDING_ROWS.length;
+        if (k === 'arrowup' || k === 'arrowdown'){
+          const step = k === 'arrowdown' ? 1 : -1;
+          bindingsSelectedIdx = (bindingsSelectedIdx + step + N) % N;
+        } else {
+          // Column jump (two columns · left half rows 0-7 · right half rows 8-14)
+          const inRight = bindingsSelectedIdx >= 8;
+          if (k === 'arrowright' && !inRight) bindingsSelectedIdx = Math.min(N - 1, bindingsSelectedIdx + 8);
+          else if (k === 'arrowleft' && inRight) bindingsSelectedIdx = Math.max(0, bindingsSelectedIdx - 8);
+        }
+        playSFX('cursor');
+      }
+      else if (k === 'enter' || k === 'z' || k === 'a' || k === ' '){
+        keybindListenMode = true;
+        playSFX('confirm');
+      }
+      else if (k === 'backspace'){
+        const row = BINDING_ROWS[bindingsSelectedIdx];
+        if (row){
+          KEY_BINDINGS[row.action] = KEY_DEFAULTS[row.action];
+          saveKeyBindings();
+          showToast(`◈ ${row.label} reset → ${prettyKey(KEY_DEFAULTS[row.action])}`, 1400);
+          playSFX('confirm');
+        }
+      }
+      else if (k === 'r'){
+        resetKeyBindings();
+        showToast('◈ All bindings reset to defaults', 1600);
+        playSFX('confirm');
+      }
+      else if (k === 'shift' || k === 'b' || k === 'escape'){
+        settingsPage = 'options';
+        playSFX('cancel');
+      }
+      else if (k === '3'){
+        settingsMenuOpen = false;
+        settingsSelectedIdx = 0;
+        settingsPage = 'root';
+        playSFX('menuClose');
+      }
     } else {
       if (k === 'shift' || k === 'b' || k === 'escape'){ settingsPage = 'root'; playSFX('cancel'); }
       else if (k === '3'){
@@ -11548,9 +11616,51 @@ function drawSettingsMenu(){
     ctx.fillStyle = '#aaa';
     ctx.font = '11px "Courier New", monospace';
     ctx.fillText('Motion Blur Camera · GBA-style dreamy sway when moving · locked focus when idle', 32, 82 + OPTIONS_ROWS.length * 40 + 24);
+    ctx.fillText('Controller Bindings · PC keyboard rebinds · mobile / PS5 pad unaffected', 32, 82 + OPTIONS_ROWS.length * 40 + 44);
     ctx.fillStyle = '#8ff';
     ctx.textAlign = 'right';
     ctx.fillText('▲▼ nav · × toggle · ○ back · ○/Options close', W - 24, H - 20);
+    ctx.textAlign = 'left';
+  } else if (settingsPage === 'bindings'){
+    // v0.95.263 · CONTROLLER BINDINGS page · PC keyboard rebinds
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.fillStyle = '#d4af37';
+    ctx.fillText('CONTROLLER BINDINGS · PC KEYBOARD', 32, 60);
+    ctx.font = '13px "Courier New", monospace';
+    const rowH = 22;
+    const startY = 82;
+    // Two-column layout so 15+ rows fit
+    const colW = (W - 48) / 2;
+    BINDING_ROWS.forEach((row, i) => {
+      const col = (i >= 8) ? 1 : 0;
+      const rowInCol = (i >= 8) ? (i - 8) : i;
+      const x = 24 + col * colW;
+      const y = startY + rowInCol * rowH;
+      const selected = (i === bindingsSelectedIdx);
+      if (selected){
+        ctx.fillStyle = keybindListenMode ? '#5ae' : '#d4af37';
+        ctx.fillRect(x, y, colW - 8, rowH - 2);
+        ctx.fillStyle = '#0b0b10';
+      } else {
+        ctx.fillStyle = '#f0eadf';
+      }
+      const cur = KEY_BINDINGS[row.action];
+      const def = KEY_DEFAULTS[row.action];
+      const changed = (cur && cur.toLowerCase() !== def.toLowerCase());
+      const keyLabel = (selected && keybindListenMode) ? 'PRESS ANY KEY…' : `[ ${prettyKey(cur)} ]${changed ? ' *' : ''}`;
+      ctx.fillText(`${selected ? '▶' : ' '} ${row.label}`, x + 4, y + 15);
+      ctx.textAlign = 'right';
+      ctx.fillText(keyLabel, x + colW - 12, y + 15);
+      ctx.textAlign = 'left';
+    });
+    // Footer · reset defaults + hints
+    ctx.fillStyle = '#8ff';
+    ctx.font = '11px "Courier New", monospace';
+    const footY = startY + 8 * rowH + 18;
+    ctx.fillText('Enter/× · rebind selected · Backspace · reset selected · R · reset ALL · * = changed from default', 32, footY);
+    ctx.fillText('Mobile always uses on-screen controller · PS5 pad is fixed (not rebindable here)', 32, footY + 16);
+    ctx.textAlign = 'right';
+    ctx.fillText('○ back · ○/Options close', W - 24, H - 20);
     ctx.textAlign = 'left';
   } else {
     // Gear placeholder
@@ -11578,7 +11688,119 @@ const OPTIONS_ROWS = [
       showToast(`◈ Motion Blur Camera ${game.cameraMode === 'gba' ? 'ON' : 'OFF'}`, 1400);
     },
   },
+  {
+    label: 'Controller Bindings',
+    state: () => '▸',
+    toggle: () => {
+      settingsPage = 'bindings';
+      bindingsSelectedIdx = 0;
+      keybindListenMode = false;
+      playSFX('confirm');
+    },
+  },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.95.263 · KEY REBINDS · PC only (mobile stays mobile controller / PS5 bound)
+// - KEY_DEFAULTS = canonical action → default key (matches every existing
+//   `if (k === 'x')` handler in the file — game code never has to change)
+// - KEY_BINDINGS = current user-mapped key per action (localStorage-backed)
+// - A capture-phase keydown remapper reads the pressed key, resolves the bound
+//   action, and re-dispatches a synthetic KeyboardEvent whose .key is the
+//   canonical default → the whole game keeps working with its hardcoded keys.
+// ─────────────────────────────────────────────────────────────────────────────
+const KEY_DEFAULTS = {
+  interact:    'x',      // door open, NPC talk, pickup, chest, confirm-ish
+  confirm:     'z',      // menu confirm alt
+  cancel:      'b',      // menu cancel / dodge alt
+  punch:       'j',      // A1 light
+  kick:        'k',      // A2 heavy
+  astralMod:   'l',      // L2 modifier for A3/A4 chords
+  sprint:      'shift',  // sprint hold + toggle (double-tap)
+  menuMain:    '1',      // main menu
+  menuPause:   '2',      // pause
+  menuPhone:   '3',      // Z-Phone (was Options/settings)
+  menuBag:     '4',      // bag/inventory
+  moveUp:      'w',
+  moveDown:    's',
+  moveLeft:    'a',
+  moveRight:   'd',
+};
+const KEY_BINDINGS = Object.assign({}, KEY_DEFAULTS);
+try {
+  const saved = JSON.parse(localStorage.getItem('rp7b_keybinds_v1') || 'null');
+  if (saved && typeof saved === 'object'){
+    for (const k in saved){
+      if (k in KEY_DEFAULTS && typeof saved[k] === 'string') KEY_BINDINGS[k] = saved[k];
+    }
+  }
+} catch(e){}
+function saveKeyBindings(){
+  try { localStorage.setItem('rp7b_keybinds_v1', JSON.stringify(KEY_BINDINGS)); } catch(e){}
+}
+function resetKeyBindings(){
+  Object.assign(KEY_BINDINGS, KEY_DEFAULTS);
+  saveKeyBindings();
+}
+let bindingsSelectedIdx = 0;
+let keybindListenMode = false;   // when true, next keydown captures the new binding
+const BINDING_ROWS = [
+  { action: 'interact',  label: 'Interact / Pickup' },
+  { action: 'confirm',   label: 'Confirm (menus)' },
+  { action: 'cancel',    label: 'Cancel / Dodge' },
+  { action: 'punch',     label: 'A1 · Punch (light)' },
+  { action: 'kick',      label: 'A2 · Kick (heavy)' },
+  { action: 'astralMod', label: 'A3/A4 Modifier (L2)' },
+  { action: 'sprint',    label: 'Sprint · hold / double-tap toggle' },
+  { action: 'menuMain',  label: 'Main Menu' },
+  { action: 'menuPause', label: 'Pause' },
+  { action: 'menuPhone', label: 'Z-Phone' },
+  { action: 'menuBag',   label: 'Bag / Inventory' },
+  { action: 'moveUp',    label: 'Move Up' },
+  { action: 'moveDown',  label: 'Move Down' },
+  { action: 'moveLeft',  label: 'Move Left' },
+  { action: 'moveRight', label: 'Move Right' },
+];
+
+// Capture-phase key remapper.  Runs BEFORE any of the game's keydown
+// listeners.  If the physical key the user pressed is bound to an action
+// whose canonical default is DIFFERENT, we swallow the raw event and
+// re-dispatch a synthetic one carrying the canonical key.  All the
+// existing `if (k === 'x')` game logic keeps working untouched.
+(function installKeyRemapper(){
+  if (window.__rp7bKeyRemapInstalled) return;
+  window.__rp7bKeyRemapInstalled = true;
+  window.addEventListener('keydown', function(e){
+    if (e.__rp7bRemapped) return;
+    if (keybindListenMode) return;  // rebind panel wants the raw key
+    const phys = (e.key || '').toLowerCase();
+    if (!phys) return;
+    for (const action in KEY_BINDINGS){
+      const bound = (KEY_BINDINGS[action] || '').toLowerCase();
+      const def   = (KEY_DEFAULTS[action]  || '').toLowerCase();
+      if (bound && bound === phys && def && def !== phys){
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        const synth = new KeyboardEvent('keydown', {
+          key: def, code: def, bubbles: true, cancelable: true,
+          shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey,
+        });
+        synth.__rp7bRemapped = true;
+        window.dispatchEvent(synth);
+        return;
+      }
+    }
+  }, true);
+})();
+
+// Pretty-print a key value for the bindings list
+function prettyKey(k){
+  if (!k) return '—';
+  const map = { ' ': 'SPACE', 'arrowup': '↑', 'arrowdown': '↓', 'arrowleft': '←', 'arrowright': '→',
+                'escape': 'ESC', 'shift': 'SHIFT', 'enter': 'ENTER', 'tab': 'TAB', 'backspace': 'BACK' };
+  const lo = k.toLowerCase();
+  return map[lo] || k.toUpperCase();
+}
 
 // -- Battle overlay ---------------------------------------------------------
 function drawWildBattleStage(s){

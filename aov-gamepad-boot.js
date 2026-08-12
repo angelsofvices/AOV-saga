@@ -76,6 +76,7 @@
   let banner = null;
   let confirmed = false;
   let bannerVisible = false;
+  let bannerDismissed = false;   // v0.95.265 · user pressed a key → banner is gone for good
   let bootTime = Date.now();
   let macBTHintShown = false;
   const AXIS_DEAD = 0.35;
@@ -130,7 +131,7 @@
     }
   }
   function showBanner() {
-    if (bannerVisible) return;
+    if (bannerVisible || bannerDismissed) return;   // v0.95.265 · respect user dismiss
     const el = ensureBanner();
     bannerVisible = true;
     el.getBoundingClientRect();
@@ -141,6 +142,17 @@
     bannerVisible = false;
     banner.style.opacity = '0';
   }
+  // v0.95.265 · User pressed a key / clicked → dismiss the "no controller"
+  // banner and stop it from re-appearing.  Only applies while no controller
+  // has been confirmed — once confirmed the "connected" chip auto-hides
+  // via its own timer.  Playtesters on keyboard shouldn't see the pill at all.
+  function dismissBanner() {
+    if (confirmed) return;
+    bannerDismissed = true;
+    hideBanner();
+    if (banner) { try { banner.remove(); } catch(_) {} banner = null; }
+  }
+  window.aovGamepadDismissBanner = dismissBanner;   // export for external callers
 
   // --------------------------------------------------------------------
   // State machine
@@ -198,7 +210,7 @@
         if (padHasInput(pad)) { markReady(pad); break; }
       }
       // Status text update (only when banner is visible and not yet confirmed).
-      if (bannerVisible && !confirmed) {
+      if (bannerVisible && !confirmed && !bannerDismissed) {
         if (anyEnumerated) {
           setBanner('◈ Controller detected · press any button');
         } else {
@@ -232,6 +244,21 @@
   function attachGestureListeners() {
     ['click', 'pointerdown', 'keydown', 'focus'].forEach((evt) => {
       window.addEventListener(evt, nudge, { capture: true, passive: true });
+    });
+    // v0.95.265 · Dismiss the "no controller" banner on ANY real user press.
+    // Give the nudge() a beat to enumerate a pad first (Chrome may return one
+    // synchronously) — if still no pad after 120ms, kill the banner for good.
+    // Playtesters on keyboard shouldn't be pestered.
+    const dismissOnce = () => {
+      setTimeout(() => {
+        if (!confirmed) dismissBanner();
+      }, 120);
+      ['click', 'pointerdown', 'keydown'].forEach((evt) => {
+        window.removeEventListener(evt, dismissOnce, { capture: true });
+      });
+    };
+    ['click', 'pointerdown', 'keydown'].forEach((evt) => {
+      window.addEventListener(evt, dismissOnce, { capture: true, passive: true, once: false });
     });
   }
 

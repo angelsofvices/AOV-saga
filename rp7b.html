@@ -12681,6 +12681,22 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   const show = (on) => { panel.style.display = on ? 'block' : 'none'; if(on)refreshDevFactionButtons(); };
   btn.addEventListener('click', () => show(panel.style.display !== 'block'));
 
+  // v0.95.256 · MOBILE · touching the game canvas (outside the dev panel + button)
+  // closes the dev panel · gives touch users an easy escape without a keyboard
+  // Only applies to touch devices so desktop mouse clicks on canvas don't close it.
+  const IS_TOUCH_ESC = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  if (IS_TOUCH_ESC){
+    window.addEventListener('touchstart', (e) => {
+      if (panel.style.display !== 'block') return;
+      const t = e.target;
+      // Ignore touches inside the panel or on the [DEV MODE] button itself
+      if (t && (t.closest && (t.closest('#devPanel') || t.closest('#devBtn')))) return;
+      show(false);
+      game.devPanelKeyboard = false;
+      playSFX('menuClose');
+    }, { passive: true, capture: true });
+  }
+
   // v0.95.204 · Tabbed layout · click header or Q/E to cycle
   const TABS = ['warp','give','party','factions','world','fx','cosmetics','info'];
   const DEV_TAB_KEY = 'rp7b_devpanel_tab_v1';

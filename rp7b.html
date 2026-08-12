@@ -13040,7 +13040,11 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
     mcCtrl2El.style.display = game.mobileCtrl2On ? 'block' : 'none';
   }
   if (mcCtrl2El){
+    // v0.95.260 · Non-dpad hits keep the simple down/up · dpad uses a drag-tracker below
+    const DPAD_CLASSES = ['h-up','h-down','h-left','h-right'];
     mcCtrl2El.querySelectorAll('.hit').forEach(el => {
+      // Skip dpad · drag-tracker owns those 4 zones
+      if (DPAD_CLASSES.some(c => el.classList.contains(c))) return;
       const key = el.dataset.mk;
       const down = e => { e.preventDefault(); mcPress(key, true);  };
       const up   = e => { e.preventDefault(); mcPress(key, false); };
@@ -13049,6 +13053,49 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       el.addEventListener('pointercancel', up);
       el.addEventListener('pointerleave',  up);
     });
+    // v0.95.260 · DPAD DRAG-TRACKER · thumb slides between arrows w/o releasing
+    // Auto-swaps active arrow key when the pointer crosses zones · Pokemon-style
+    const dpadEls = DPAD_CLASSES.map(c => mcCtrl2El.querySelector('.'+c)).filter(Boolean);
+    if (dpadEls.length === 4){
+      let dpadPointerId = null;
+      let dpadActiveKey = null;
+      const releaseDpad = () => {
+        if (dpadActiveKey){ mcPress(dpadActiveKey, false); dpadActiveKey = null; }
+      };
+      const zoneAt = (x, y) => {
+        for (const el of dpadEls){
+          const r = el.getBoundingClientRect();
+          if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom){
+            return el.dataset.mk;   // 'ArrowUp' | 'ArrowDown' | ...
+          }
+        }
+        return null;
+      };
+      const onDown = (e) => {
+        if (dpadPointerId !== null) return;
+        dpadPointerId = e.pointerId;
+        const k = zoneAt(e.clientX, e.clientY);
+        if (k){ dpadActiveKey = k; mcPress(k, true); }
+        e.preventDefault();
+      };
+      const onMove = (e) => {
+        if (e.pointerId !== dpadPointerId) return;
+        const k = zoneAt(e.clientX, e.clientY);
+        if (k !== dpadActiveKey){
+          releaseDpad();
+          if (k){ dpadActiveKey = k; mcPress(k, true); }
+        }
+      };
+      const onUp = (e) => {
+        if (e.pointerId !== dpadPointerId) return;
+        releaseDpad();
+        dpadPointerId = null;
+      };
+      dpadEls.forEach(el => el.addEventListener('pointerdown', onDown));
+      window.addEventListener('pointermove',   onMove,   { passive: true });
+      window.addEventListener('pointerup',     onUp);
+      window.addEventListener('pointercancel', onUp);
+    }
   }
   setInterval(refreshMobileCtrl2, 200);
   const mc2Btn = document.getElementById('devMobileCtrl2');

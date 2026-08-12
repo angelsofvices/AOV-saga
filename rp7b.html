@@ -501,6 +501,28 @@
     </div>
   </div>
   <!-- v0.95.43 · Skin 1 mobile controller · PS5-mapped hit zones -->
+  <!-- v0.95.259 · ZYCELLITE Z-PHONE · GTA-phone-style scaffold · opens on Options
+       Full-screen phone UI will render into #zphoneScreen later · for now tiles: -->
+  <div id="zphonePanel" style="display:none; position:fixed; inset:0; z-index:110; background:rgba(4,8,22,0.94); align-items:center; justify-content:center; padding:20px; font-family:'Courier New',monospace; color:#eaf0ff;">
+    <div id="zphoneScreen" style="width:340px; max-width:92vw; background:linear-gradient(#0e1830,#050a18); border:2px solid #4fb3ff; box-shadow:0 0 24px rgba(79,179,255,0.4); padding:18px 20px 22px;">
+      <div style="text-align:center; color:#4fb3ff; letter-spacing:.14em; font:bold 12px 'Courier New',monospace; margin-bottom:14px;">◈ ZYCELLITE Z-PHONE</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <button class="zpTile" data-zp="factions"    style="padding:16px 8px; background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #4fb3ff; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:pointer;">📞<br>CALL FACTION</button>
+        <button class="zpTile" data-zp="allies"      style="padding:16px 8px; background:rgba(0,0,0,0.55); color:#ffd66b; border:1px solid #d4af37; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:pointer;">📞<br>CALL ALLY</button>
+        <button class="zpTile" data-zp="ufo"         style="padding:16px 8px; background:rgba(0,0,0,0.55); color:#c060ff; border:1px solid #c060ff; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:pointer;">🛸<br>SPAWN UFO</button>
+        <button class="zpTile" data-zp="settings"    style="padding:16px 8px; background:rgba(0,0,0,0.55); color:#f0eadf; border:1px solid #d4af37; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:pointer;">⚙<br>SETTINGS</button>
+      </div>
+      <div style="text-align:center; margin-top:14px; color:#889; font-size:10px; letter-spacing:.14em;">○ / B / OPTIONS · CLOSE</div>
+    </div>
+  </div>
+  <!-- v0.95.259 · Landscape lock for touch-only mobile · portrait is standard (GBA feel) -->
+  <div id="rotateLock" style="display:none; position:fixed; inset:0; z-index:120; background:#000; color:#f0eadf; align-items:center; justify-content:center; padding:24px; text-align:center; font:bold 18px 'Courier New',monospace; letter-spacing:.12em; line-height:1.5;">
+    <div>
+      <div style="font-size:42px; margin-bottom:16px;">↻</div>
+      <div style="color:#d4af37; margin-bottom:12px;">ROTATE TO PORTRAIT</div>
+      <div style="font-size:13px; color:#8ff; max-width:400px;">Rizing Powers mobile plays vertical (GBA style). Landscape support requires a PS5 controller — pair one and this screen unlocks.</div>
+    </div>
+  </div>
   <div id="mobileCtrl2">
     <div class="hit h-l2"     data-mk="q"></div>
     <div class="hit h-l1"     data-mk="l"></div>
@@ -2538,7 +2560,7 @@ const WORLD_PROPS = [
       img: _ufoImg,
       src: 'assets/2D%20sprites/decor/auraxion-ufo.png',
       bbox: [33, 471, 1187, 321],   // v0.95.96 · Aetherstride sprite
-      tileX: 11, tileY: 175,
+      tileX: 17, tileY: 176,                // v0.95.259 · door relocated per user spec
       tileW: 10, tileH: 3,                  // v0.95.89 · realer craft scale · 10x3 tiles
       footprint: [[0,0],[1,0],[2,0],[3,0],[-1,0],[-2,0],[-3,0],[-4,0],[-5,0],[-6,0],
                   [0,-1],[1,-1],[2,-1],[3,-1],[-1,-1],[-2,-1],[-3,-1],[-4,-1],[-5,-1],[-6,-1]],
@@ -6021,13 +6043,22 @@ function fireAstralthrow(options={}){
     }else{
       target._throwHits=(target._throwHits||0)+1;
       if(collisionRock)hitBoulder(collisionRock,direct);
-      const breaks=skinId==='power_upgrade'||target._throwHits>=2;
-      target.tileX=breaks?impactX:lx;target.tileY=breaks?impactY:ly;
-      if(breaks)astralthrowBreakAOE(target,skinId);
-      else{
-        target.hp=Math.max(1,Math.floor(BOULDER_MAX_HP/2));
-        spawnHitFx(impactX,impactY,'kick');
+      // v0.95.259 · Boulder tossed into the Void Sea dissolves into the void
+      // (matches the NPC void-swallow behavior · no debris left, no coin bounce)
+      if(enteredVoid){
+        target.gone=true;
+        spawnHitFx(impactX,impactY,'ultimate');   // purple ring · consumed by void
         playSFX('kickHit');
+        showToast('◈ The boulder dissolves into the Void Sea...', 2200);
+      } else {
+        const breaks=skinId==='power_upgrade'||target._throwHits>=2;
+        target.tileX=breaks?impactX:lx;target.tileY=breaks?impactY:ly;
+        if(breaks)astralthrowBreakAOE(target,skinId);
+        else{
+          target.hp=Math.max(1,Math.floor(BOULDER_MAX_HP/2));
+          spawnHitFx(impactX,impactY,'kick');
+          playSFX('kickHit');
+        }
       }
     }
     if(kind==='npc'&&!enteredVoid){spawnHitFx(lx,ly,skinId==='power_upgrade'?'ultimate':'kick');playSFX('kickHit');}
@@ -10624,10 +10655,67 @@ addEventListener('keydown', e => {
     playSFX(zyrexMenuOpen ? 'menuOpen' : 'menuClose');
   }
   if (k === '3'){
-    settingsMenuOpen = !settingsMenuOpen;
-    playSFX(settingsMenuOpen ? 'menuOpen' : 'menuClose');
+    // v0.95.259 · Options button now opens the Zycellite Z-Phone
+    // (Settings is a tile inside the phone · closing phone closes both)
+    if (game.zphoneOpen){ closeZphonePanel(); }
+    else { openZphonePanel(); }
   }
 });
+// v0.95.259 · ZYCELLITE Z-PHONE · GTA-phone scaffold · call factions/allies + spawn UFO
+function openZphonePanel(){
+  const p = document.getElementById('zphonePanel');
+  if (!p) return;
+  p.style.display = 'flex';
+  game.zphoneOpen = true;
+  playSFX('menuOpen');
+}
+function closeZphonePanel(){
+  const p = document.getElementById('zphonePanel');
+  if (p) p.style.display = 'none';
+  game.zphoneOpen = false;
+  playSFX('menuClose');
+}
+(function wireZphone(){
+  const p = document.getElementById('zphonePanel');
+  if (!p) return;
+  p.querySelectorAll('.zpTile').forEach(el => {
+    el.addEventListener('click', () => {
+      const action = el.dataset.zp;
+      if (action === 'settings'){
+        closeZphonePanel();
+        settingsMenuOpen = true;
+        playSFX('menuOpen');
+      } else if (action === 'ufo'){
+        // Gate on Auraxion companion or in-party (scaffold check via player.companion === 'auraxion' or bond ≥ 100)
+        const hasAuraxion = (player.companion === 'auraxion') ||
+                            (player.bonds && (player.bonds.auraxion || 0) >= 100);
+        if (!hasAuraxion){
+          showToast('◈ UFO SUMMON · locked · bond with Auraxion first', 2600);
+          playSFX('cancel');
+          return;
+        }
+        closeZphonePanel();
+        showToast('◈ Auraxion incoming · UFO descending from the sky...', 2600);
+        // Fly-down scaffold · full flight anim to be wired next pass
+        playSFX('ufoLanding');
+      } else if (action === 'factions'){
+        closeZphonePanel();
+        showToast('◈ FACTION CALL · faction member walking in from off-screen (scaffold)', 2600);
+      } else if (action === 'allies'){
+        closeZphonePanel();
+        showToast('◈ ALLY CALL · Mom / Dad / Zoryn / Kelthor · pick a contact (scaffold)', 2600);
+      }
+    });
+  });
+  // Backdrop click closes
+  p.addEventListener('click', (e) => { if (e.target === p) closeZphonePanel(); });
+})();
+// B/Circle/Esc closes the Z-phone from anywhere
+window.addEventListener('keydown', (e) => {
+  const k = (e.key || '').toLowerCase();
+  if (!game.zphoneOpen) return;
+  if (k === 'b' || k === 'escape' || k === 'shift'){ e.preventDefault(); closeZphonePanel(); }
+}, true);
 
 // -- Zyrex species roster (adopted from RP7 beta/classic) --------------------
 // Stats follow the T×333 pool rule (per aov-t333-stat-pool memory).  Elzebub
@@ -12725,6 +12813,23 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   if (!isDevUnlocked()) btn.style.display = 'none';
   const show = (on) => { panel.style.display = on ? 'block' : 'none'; if(on)refreshDevFactionButtons(); };
   btn.addEventListener('click', () => show(panel.style.display !== 'block'));
+
+  // v0.95.259 · Landscape lock · touch-only mobile w/ no gamepad must play portrait
+  (function wireRotateLock(){
+    const lock = document.getElementById('rotateLock');
+    if (!lock) return;
+    const IS_TOUCH_LOCK = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (!IS_TOUCH_LOCK) return;   // desktop is unaffected
+    const refresh = () => {
+      const landscape = window.innerWidth > window.innerHeight;
+      const noPad = !game.gamepadDetected;
+      lock.style.display = (landscape && noPad) ? 'flex' : 'none';
+    };
+    window.addEventListener('resize', refresh);
+    window.addEventListener('orientationchange', refresh);
+    setInterval(refresh, 500);   // catches gamepad connect after page load
+    refresh();
+  })();
 
   // v0.95.256 · MOBILE · touching the game canvas (outside the dev panel + button)
   // closes the dev panel · gives touch users an easy escape without a keyboard

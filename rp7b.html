@@ -12542,6 +12542,30 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
     if (buf === _DEV_UNLOCK_TYPE) unlockDev();
   }, true);
 })();
+// v0.95.253 · MOBILE unlock · 5 rapid taps in the top-left 60x60 corner
+// (invisible hotspot · nothing visible to public · resets after 900ms of inactivity)
+(function wireTapUnlock(){
+  const HOT_SIZE = 60;
+  const REQUIRED = 5;
+  const RESET_MS = 900;
+  let count = 0, last = 0;
+  const trigger = () => {
+    const now = performance.now();
+    if (now - last > RESET_MS) count = 0;
+    count++;
+    last = now;
+    if (count >= REQUIRED){ count = 0; if (!isDevUnlocked()) unlockDev(); }
+  };
+  const onHit = (x, y) => {
+    if (isDevUnlocked()) return;
+    if (x < HOT_SIZE && y < HOT_SIZE) trigger();
+  };
+  window.addEventListener('touchstart', (e) => {
+    const t = e.touches && e.touches[0]; if (!t) return;
+    onHit(t.clientX, t.clientY);
+  }, { passive: true, capture: true });
+  window.addEventListener('mousedown', (e) => onHit(e.clientX, e.clientY), true);
+})();
 
 (function wireDevPanel(){
   const btn   = document.getElementById('devBtn');

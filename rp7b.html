@@ -9916,8 +9916,8 @@ addEventListener('keydown', e => {
   //    · 2 presses within 500ms grants Elzoran and swallows the event
   //    · falls through to per-mode single-press handling otherwise
   // ═══════════════════════════════════════════════════════════════
-  // '4' key toggles the Dev Mode panel from anywhere (v0.84.1).
-  if (k === '4'){
+  // v0.95.252 · '4' key + touchpad double-tap gated behind creator unlock
+  if (k === '4' && isDevUnlocked()){
     const p = document.getElementById('devPanel');
     if (p){
       p.style.display = p.style.display === 'block' ? 'none' : 'block';
@@ -9927,8 +9927,8 @@ addEventListener('keydown', e => {
   }
   if (k === '2'){
     const now = performance.now();
-    if (now - _lastTouchpadTime < 500){
-      // v0.92 · double-tap touchpad · toggle dev panel (was: grant Elzoran)
+    if (now - _lastTouchpadTime < 500 && isDevUnlocked()){
+      // v0.92 · double-tap touchpad · toggle dev panel (creator-only in v0.95.252)
       const p = document.getElementById('devPanel');
       if (p){
         const opening = p.style.display !== 'block';
@@ -12494,10 +12494,61 @@ function frame(now){
 // coordinate teleport + item grants + full heal.  Nothing here is
 // gated by a flag · this is a rewrite/dev build.
 // ─────────────────────────────────────────────────────────────
+// v0.95.252 · CREATOR-ONLY DEV ACCESS · dev panel is hidden from the public build
+// UNLOCK PATHS (either one unlocks and persists in localStorage forever on that browser):
+//   1) Visit any URL with ?dev=aov-creator-6413 (secret stripped from URL after unlock)
+//   2) Type the sequence "aovdev" on the keyboard while playing (Konami-style fallback)
+// Once unlocked, the [DEV MODE] button appears + touchpad + `4` key work as before.
+// Public playtesters never see the button and can't trigger the panel.
+const _DEV_UNLOCK_SECRET = 'aov-creator-6413';
+const _DEV_UNLOCK_KEY    = 'rp7b_dev_unlocked_v1';
+const _DEV_UNLOCK_TYPE   = 'aovdev';
+function isDevUnlocked(){
+  try { return localStorage.getItem(_DEV_UNLOCK_KEY) === '1'; } catch(e){ return false; }
+}
+function unlockDev(){
+  try { localStorage.setItem(_DEV_UNLOCK_KEY, '1'); } catch(e){}
+  const btn = document.getElementById('devBtn');
+  if (btn) btn.style.display = '';
+  try { showToast('◈ DEV MODE unlocked on this device', 2400); } catch(e){}
+}
+function lockDev(){
+  try { localStorage.removeItem(_DEV_UNLOCK_KEY); } catch(e){}
+  const btn = document.getElementById('devBtn');
+  if (btn) btn.style.display = 'none';
+  const panel = document.getElementById('devPanel');
+  if (panel) panel.style.display = 'none';
+}
+window.__lockDev = lockDev;   // creator can re-lock from console if needed
+// URL-secret unlock · runs at boot · strips param from URL after landing
+(function checkUrlUnlock(){
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('dev') === _DEV_UNLOCK_SECRET){
+      localStorage.setItem(_DEV_UNLOCK_KEY, '1');
+      u.searchParams.delete('dev');
+      history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+    }
+  } catch(e){}
+})();
+// Keyboard-typed unlock · listens globally for "aovdev" sequence
+(function wireTypedUnlock(){
+  let buf = '';
+  window.addEventListener('keydown', (e) => {
+    if (isDevUnlocked()) return;
+    const k = (e.key || '').toLowerCase();
+    if (!/^[a-z]$/.test(k)) { buf = ''; return; }
+    buf = (buf + k).slice(-_DEV_UNLOCK_TYPE.length);
+    if (buf === _DEV_UNLOCK_TYPE) unlockDev();
+  }, true);
+})();
+
 (function wireDevPanel(){
   const btn   = document.getElementById('devBtn');
   const panel = document.getElementById('devPanel');
   if (!btn || !panel) return;
+  // v0.95.252 · Hide the button entirely unless the creator has unlocked dev on this device
+  if (!isDevUnlocked()) btn.style.display = 'none';
   const show = (on) => { panel.style.display = on ? 'block' : 'none'; if(on)refreshDevFactionButtons(); };
   btn.addEventListener('click', () => show(panel.style.display !== 'block'));
 

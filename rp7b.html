@@ -10957,13 +10957,35 @@ addEventListener('keydown', e => {
     }
     // v0.95.285 · FACTION tab · arrow nav + Triangle (k) toggles summon
     if (hudOverlayPage === 'faction'){
-      const party = (player.party || []).filter(Boolean);
-      const N = Math.min(party.length, PARTY_MAX);
+      const N = Math.min((player.party || []).filter(Boolean).length, PARTY_MAX);
       if (N > 0){
-        if (k === 'arrowup'   && factionCursorIdx >= 2) { factionCursorIdx -= 2; playSFX('cursor'); return; }
-        if (k === 'arrowdown' && factionCursorIdx + 2 < N) { factionCursorIdx += 2; playSFX('cursor'); return; }
-        if (k === 'arrowleft' && factionCursorIdx > 0) { factionCursorIdx -= 1; playSFX('cursor'); return; }
-        if (k === 'arrowright'&& factionCursorIdx < N - 1) { factionCursorIdx += 1; playSFX('cursor'); return; }
+        // v0.95.298 · Square (j) = grab/drop for slot reordering
+        // In hold mode, arrow keys SWAP the selected slot with its neighbor
+        if (k === 'j'){
+          factionHoldMode = !factionHoldMode;
+          playSFX(factionHoldMode ? 'menuOpen' : 'confirm');
+          showToast(factionHoldMode ? '◈ Move mode · arrow keys to reorder · □ to drop' : '★ Slot dropped', 1800);
+          return;
+        }
+        const swap = (a, b) => {
+          if (a === b || a < 0 || b < 0 || a >= player.party.length || b >= player.party.length) return;
+          const tmp = player.party[a];
+          player.party[a] = player.party[b];
+          player.party[b] = tmp;
+          factionCursorIdx = b;
+          playSFX('cursor');
+        };
+        if (factionHoldMode){
+          if (k === 'arrowup'   && factionCursorIdx >= 2)     { swap(factionCursorIdx, factionCursorIdx - 2); return; }
+          if (k === 'arrowdown' && factionCursorIdx + 2 < N)  { swap(factionCursorIdx, factionCursorIdx + 2); return; }
+          if (k === 'arrowleft' && factionCursorIdx > 0)      { swap(factionCursorIdx, factionCursorIdx - 1); return; }
+          if (k === 'arrowright'&& factionCursorIdx < N - 1)  { swap(factionCursorIdx, factionCursorIdx + 1); return; }
+        } else {
+          if (k === 'arrowup'   && factionCursorIdx >= 2) { factionCursorIdx -= 2; playSFX('cursor'); return; }
+          if (k === 'arrowdown' && factionCursorIdx + 2 < N) { factionCursorIdx += 2; playSFX('cursor'); return; }
+          if (k === 'arrowleft' && factionCursorIdx > 0) { factionCursorIdx -= 1; playSFX('cursor'); return; }
+          if (k === 'arrowright'&& factionCursorIdx < N - 1) { factionCursorIdx += 1; playSFX('cursor'); return; }
+        }
         if (k === 'k'){
           toggleFactionSummon(factionCursorIdx);
           return;
@@ -10973,6 +10995,7 @@ addEventListener('keydown', e => {
     if (k === '2' || k === 'shift' || k === 'b' || k === 'escape'){
       zyrexMenuOpen = false;
       zycubeRAIDViewerOpen = false;
+      factionHoldMode = false;
       playSFX('menuClose');
     }
     return;
@@ -13705,6 +13728,7 @@ function xpForLevel(lvl){
 const PARTY_MAX = 8;
 // v0.95.285 · Faction summon cursor · Triangle (k) toggles active summon
 let factionCursorIdx = 0;
+let factionHoldMode  = false;   // v0.95.298 · Square-toggled reorder mode
 // Sprite registry for summonable Zyrex · only species with an entry can be
 // summoned as a follower.  Missing entries fall back to a "sprite pending" toast.
 // bboxes + cellW/H copied from the NPCS definitions where these sprites live.
@@ -13872,9 +13896,19 @@ function drawFHUDZyrexPage(W, H){
     drawZyrexCard(cx, cy, cardW, cardH, z, i);
     // v0.95.285 · Cursor highlight + summoned indicator
     if (i === factionCursorIdx){
-      ctx.strokeStyle = '#ffd66b';
-      ctx.lineWidth = 3;
+      // v0.95.298 · Cyan flash border in hold/move mode · gold otherwise
+      ctx.strokeStyle = factionHoldMode ? '#4fb3ff' : '#ffd66b';
+      ctx.lineWidth = factionHoldMode ? 4 : 3;
       ctx.strokeRect(cx - 2, cy - 2, cardW + 4, cardH + 4);
+      if (factionHoldMode){
+        ctx.fillStyle = '#4fb3ff';
+        ctx.fillRect(cx + 4, cy + 4, 68, 16);
+        ctx.fillStyle = '#0b0b10';
+        ctx.font = 'bold 10px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('◆ MOVING', cx + 38, cy + 15);
+        ctx.textAlign = 'left';
+      }
     }
     const followerId = `_summon_${z.speciesId}`;
     const isOut = NPCS.some(n => n && n.id === followerId && n._summoned);
@@ -13892,7 +13926,7 @@ function drawFHUDZyrexPage(W, H){
   ctx.fillStyle = '#8ff';
   ctx.font = '11px "Courier New", monospace';
   ctx.textAlign = 'right';
-  ctx.fillText('▲▼◀▶ nav · △ / K · summon or return · Touchpad / ○ · close', W - 24, H - 30);
+  ctx.fillText('▲▼◀▶ nav · □ · reorder · △ · summon/return · Touchpad / ○ · close', W - 24, H - 30);
   ctx.textAlign = 'left';
 
   // Footer hint

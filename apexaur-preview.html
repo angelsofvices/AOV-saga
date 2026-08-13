@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Apexaur · Zarvane Wilds Preview</title>
+<style>
+  body {
+    margin: 0; padding: 24px;
+    background: #0b1418;
+    color: #f0eadf;
+    font-family: 'Courier New', monospace;
+    text-align: center;
+  }
+  h1 { color: #d4af37; letter-spacing: 0.15em; font-size: 16px; margin: 0 0 4px; }
+  .sub { color: #8ff; font-size: 11px; letter-spacing: 0.12em; margin-bottom: 18px; }
+  .stage {
+    position: relative; display: inline-block;
+    /* Zarvane sand palette · warm ochre + dune shadows */
+    background: linear-gradient(180deg, #c39a5a 0%, #a97a3f 60%, #8b5f30 100%);
+    box-shadow: 0 0 0 3px #7a4d20, 0 0 24px rgba(212,175,55,0.3);
+    padding: 12px;
+    image-rendering: pixelated;
+  }
+  canvas {
+    display: block;
+    background: transparent;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+  .meta { margin-top: 16px; color: #ccc; font-size: 11px; line-height: 1.7; letter-spacing: 0.08em; }
+  .row { margin: 20px 0; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 640px; margin: 0 auto; }
+  .cell {
+    background: linear-gradient(180deg, #c39a5a, #8b5f30);
+    padding: 10px;
+    border: 2px solid #7a4d20;
+  }
+  .cell canvas { margin: 0 auto; }
+  .cell .label { margin-top: 6px; color: #ffd66b; font-size: 10px; letter-spacing: 0.12em; }
+</style>
+</head>
+<body>
+<h1>◈ APEXAUR · ZARVANE WILDS PREVIEW</h1>
+<div class="sub">tile (90, 210) · mode wander · radius 6 · scale 1.6× · Beast tier · peaceful</div>
+
+<div class="row">
+  <div class="stage">
+    <canvas id="hero" width="480" height="320"></canvas>
+  </div>
+</div>
+
+<div class="meta">
+  4×4 sheet · 1536×1024 · cell 384×256 · Rows D / L / R / U · frames measured via CC bbox
+</div>
+
+<div class="row">
+  <div class="grid">
+    <div class="cell"><canvas class="dir" data-row="0" width="128" height="96"></canvas><div class="label">DOWN · idle</div></div>
+    <div class="cell"><canvas class="dir" data-row="1" width="128" height="96"></canvas><div class="label">LEFT · idle</div></div>
+    <div class="cell"><canvas class="dir" data-row="2" width="128" height="96"></canvas><div class="label">RIGHT · idle</div></div>
+    <div class="cell"><canvas class="dir" data-row="3" width="128" height="96"></canvas><div class="label">UP · idle</div></div>
+  </div>
+</div>
+
+<div class="meta">
+  Bellow on interact: <span style="color:#ffd66b;">"GRRUUUAAOO!"</span> · isEnemy: false (peaceful for now · flip when wired into wild battle)
+</div>
+
+<script>
+const SHEET = new Image();
+SHEET.src = 'assets/2D%20sprites/zyrex/apexaur.png';
+const CELL_W = 384, CELL_H = 256;
+// Per-cell bboxes measured after CK bake (from rp7b.html NPC entry)
+const BBOXES = [
+  [[ 85, 21,185,220],[ 59, 21,219,222],[ 52, 21,194,222],[ 23, 21,226,223]],
+  [[ 51, 19,326,183],[ 39, 19,333,182],[ 12, 19,338,183],[  5, 19,329,183]],
+  [[ 49,  3,315,253],[ 24,  3,320,253],[ 10,  3,374,253],[  0,  3,310,253]],
+  [[126,  0,164,197],[105,  0,159,196],[122,  0,179,195],[ 89,  0,192,196]],
+];
+
+// Hero canvas · animated Apexaur wandering across a sand strip
+function drawHero(){
+  const c = document.getElementById('hero');
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, c.width, c.height);
+  // Distant dune line
+  ctx.fillStyle = 'rgba(90,55,25,0.55)';
+  ctx.beginPath();
+  ctx.moveTo(0, 200);
+  for (let x = 0; x <= c.width; x += 12) ctx.lineTo(x, 190 + Math.sin(x/34) * 12);
+  ctx.lineTo(c.width, c.height); ctx.lineTo(0, c.height); ctx.closePath(); ctx.fill();
+  // Scattered pebbles
+  ctx.fillStyle = 'rgba(60,40,20,0.7)';
+  for (let i = 0; i < 12; i++){
+    const x = (i * 47 + 12) % c.width, y = 240 + (i * 13 % 40);
+    ctx.beginPath(); ctx.ellipse(x, y, 4, 2, 0, 0, Math.PI*2); ctx.fill();
+  }
+  // Apexaur strolling
+  if (SHEET.complete && SHEET.naturalWidth){
+    const t = performance.now();
+    const dir = 2;   // right-facing
+    const col = Math.floor(t / 220) % 4;
+    const [bx, by, bw, bh] = BBOXES[dir][col];
+    const drawW = 220, drawH = drawW * (bh / bw);
+    const x = 80 + ((t / 40) % (c.width - 200));
+    const y = 200 - drawH;
+    ctx.drawImage(SHEET, dir * CELL_W + bx, by, bw, bh, x, y, drawW, drawH);
+  }
+  requestAnimationFrame(drawHero);
+}
+
+function drawDirCells(){
+  document.querySelectorAll('canvas.dir').forEach(cv => {
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    const dir = +cv.dataset.row;
+    if (!SHEET.complete || !SHEET.naturalWidth) return;
+    const t = performance.now();
+    const col = Math.floor(t / 260) % 4;
+    const [bx, by, bw, bh] = BBOXES[dir][col];
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const drawW = cv.width - 8, drawH = drawW * (bh / bw);
+    ctx.drawImage(SHEET, dir * CELL_W + bx, by, bw, bh, 4, cv.height - drawH - 4, drawW, drawH);
+  });
+  requestAnimationFrame(drawDirCells);
+}
+
+SHEET.onload = () => { drawHero(); drawDirCells(); };
+if (SHEET.complete) { drawHero(); drawDirCells(); }
+</script>
+</body>
+</html>

@@ -1486,6 +1486,7 @@ const INVENTORY_META = {
   worldmap:         { label: 'World Map',              order: 1  },   // v0.95.183 · Zyraxis map · full-screen viewer
   townmap:          { label: 'Town Map (Malezor)',     order: 2  },   // v0.95.278 · Zoryn's gift · Malezor only · precursor to worldmap
   gearbag:          { label: 'Gearbag',                 order: 3  },   // v0.95.279 · Scrapjaw's gift · outfits + cosmetics live inside
+  elzebub_egg:      { label: 'Elzebub Egg',             order: 4  },   // v0.95.295 · rare egg · found near home · Mom nurses it into Elzebub Lv10
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -3219,8 +3220,27 @@ const NPCS = [
     blinkTimer: 1200 + Math.random() * 2000,
     onInteract: (n) => {
       playSFX('mom');                             // v0.95.91 · Mia clear/smooth VO
-      // v0.95.268 · Mom gifts the Zycube on first interaction (Dad's starter quest)
       player.items = player.items || {};
+      // v0.95.295 · Elzebub Egg hatch branch · Rizer brought Mom the rare egg
+      if ((player.items.elzebub_egg || 0) > 0 && !player.elzebubHatched){
+        player.items.elzebub_egg = 0;
+        player.elzebubHatched = true;
+        const z = (typeof createZyrex === 'function') ? createZyrex('elzebub', 10) : null;
+        if (z){
+          player.party = player.party || [];
+          player.party.push(z);
+          showToast('★ ELZEBUB Lv 10 T1 joined your party!', 3200);
+          try { playSFX('confirm'); } catch(_){}
+        }
+        showDialog({ speaker: 'MOM', lines: [
+          '*gasps · gently takes the egg*  Oh, honey · is this what I think it is?',
+          '*rocks it in her arms, humming softly · the shell warms · a crack, a chirp*',
+          '*a tiny Elzebub blinks up at you, then hops right into your hands*',
+          'Look at that.  It chose you.  You take good care of this one, alright?',
+        ]});
+        return;
+      }
+      // v0.95.268 · Mom gifts the Zycube on first interaction (Dad's starter quest)
       if (!player.zycubeGifted){
         player.zycubeGifted = true;
         player.items.zycube  = (player.items.zycube  || 0) + 1;
@@ -5214,6 +5234,80 @@ function drawBoulder(b){
   ctx.drawImage(BOULDER_IMG, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
 }
 
+// ─────────────────────────────────────────────────────────────
+// v0.95.295 · ELZEBUB EGG spawn · rare 10-tile-radius spawn near
+// Rizer's home (22, 106).  Player finds → picks up → brings to Mom →
+// Mom nurses it → Elzebub Lv 10 T1 joins the party.
+// Canon per aov-rp7-anime-prequel-canon: "first Elzebub egg found
+// in a long time · Mom nurses it back to life · Elzebub chooses Rizer"
+// ─────────────────────────────────────────────────────────────
+let _elzebubEgg = null;   // { x, y, phase } or null when picked up / hatched
+function ensureElzebubEggSpawn(){
+  if (_elzebubEgg) return;
+  if (player.elzebubHatched) return;                       // already got Elzebub · never respawn
+  if ((player.items && player.items.elzebub_egg) > 0) return;   // already holding it
+  const homeX = 22, homeY = 106;
+  const R = 10;
+  // Try up to 40 random spots · pick a walkable tile inside R Chebyshev distance
+  for (let attempt = 0; attempt < 40; attempt++){
+    const dx = Math.floor(Math.random() * (R * 2 + 1)) - R;
+    const dy = Math.floor(Math.random() * (R * 2 + 1)) - R;
+    const tx = homeX + dx, ty = homeY + dy;
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;    // not right on the door
+    if (typeof walkable === 'function' && !walkable(tx, ty)) continue;
+    _elzebubEgg = { x: tx, y: ty, phase: Math.random() * Math.PI * 2 };
+    return;
+  }
+  // Fallback · park it 6 tiles east/south of home
+  _elzebubEgg = { x: homeX + 6, y: homeY + 3, phase: 0 };
+}
+function drawElzebubEgg(){
+  if (!_elzebubEgg) return;
+  const now = performance.now();
+  const dx = _elzebubEgg.x * TILE - _cam.x;
+  const dy = _elzebubEgg.y * TILE - _cam.y;
+  if (dx < -TILE || dx > canvas.width || dy < -TILE || dy > canvas.height) return;
+  const bob = Math.sin(now / 500 + _elzebubEgg.phase) * 3;
+  const cx = dx + TILE / 2, cy = dy + TILE / 2 + bob;
+  const rx = TILE * 0.32, ry = TILE * 0.42;
+  // Soft glow
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,180,90,0.85)';
+  ctx.shadowBlur = 18;
+  // Egg body · warm gradient
+  const g = ctx.createRadialGradient(cx - rx * 0.4, cy - ry * 0.5, 2, cx, cy, ry);
+  g.addColorStop(0, '#fff2c8');
+  g.addColorStop(0.5, '#ffd66b');
+  g.addColorStop(1, '#c25a2a');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // Speckles
+  ctx.fillStyle = 'rgba(80,20,10,0.55)';
+  ctx.beginPath(); ctx.arc(cx - rx * 0.3, cy - ry * 0.1, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + rx * 0.2, cy - ry * 0.3, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + rx * 0.1, cy + ry * 0.25, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx - rx * 0.25, cy + ry * 0.35, 1.1, 0, Math.PI * 2); ctx.fill();
+  // "★" glyph above
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('★', cx, cy - ry - 6);
+  ctx.textAlign = 'left';
+}
+function tryPickupElzebubEgg(fx, fy){
+  if (!_elzebubEgg) return false;
+  if (_elzebubEgg.x !== fx || _elzebubEgg.y !== fy) return false;
+  player.items = player.items || {};
+  player.items.elzebub_egg = (player.items.elzebub_egg || 0) + 1;
+  _elzebubEgg = null;
+  showToast('★ Found: Elzebub Egg · take it to Mom', 3000);
+  try { playSFX('confirm'); } catch(_){}
+  return true;
+}
+
 function drawFae(){
   if (!FAE_IMG.complete || !FAE_IMG.naturalWidth) return;
   const fw = FAE_IMG.naturalWidth / FAE_FRAMES;
@@ -5618,6 +5712,8 @@ function startNewGame(){
   // (previously auto-granted worldmap=1 · removed to honor "you earn things" progression canon)
   playBGM('home');
   showToast('◈ Welcome to Malezor · you\'re in your room · go find Mom', 2600);
+  // v0.95.295 · Roll the rare Elzebub egg spawn near home (10-tile radius)
+  try { ensureElzebubEggSpawn(); } catch(_){}
   // v0.95.255/258/262/266 · Mobile controller = mandatory input on true mobile
   // portrait viewport ONLY.  Desktop Chrome / any full-window browser never
   // shows it, even if the machine is touchscreen or the window is small.
@@ -5646,6 +5742,8 @@ function loadSavedGame(){
     if (titleBtnsEl) titleBtnsEl.style.display = 'none';
     playBGM('home');
     showToast('◈ Save loaded.  Welcome back.', 2000);
+    // v0.95.295 · Roll the Elzebub egg spawn on save-load too (if not held/hatched)
+    try { ensureElzebubEggSpawn(); } catch(_){}
   } else {
     showToast('◈ No save found.  Starting new game.', 2200);
     startNewGame();
@@ -10214,6 +10312,8 @@ function tryInteract(){
   else if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
   // v0.91 · fae collectible check (faced tile or standing tile)
   if (collectFaeAt(fx, fy) || collectFaeAt(player.x, player.y)) return;
+  // v0.95.295 · Elzebub egg pickup · faced tile or standing tile
+  if (tryPickupElzebubEgg(fx, fy) || tryPickupElzebubEgg(player.x, player.y)) return;
   // v0.95.134 · Bush/tree harvest · adds berries/fruit to bag (district-scaled + charge bonus)
   {
     const p = plantPropAt(fx, fy);
@@ -14457,6 +14557,7 @@ function frame(now){
     drawFootprints();   // v0.87 · sand-trail overlay (Zarvane rows only)
     drawWorldLayer();   // props + player, depth-sorted by feet-Y
     drawFae();          // v0.91 · fae collectibles float above ground
+    drawElzebubEgg();   // v0.95.295 · rare 10-radius Elzebub egg spawn near home
     drawGems();         // v0.95.171 · chest-drop gem entities · shine pulse
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }

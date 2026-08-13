@@ -10889,6 +10889,21 @@ addEventListener('keydown', e => {
         if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){ gearbagAct(); return; }
       }
     }
+    // v0.95.285 · FACTION tab · arrow nav + Triangle (k) toggles summon
+    if (hudOverlayPage === 'faction'){
+      const party = (player.party || []).filter(Boolean);
+      const N = Math.min(party.length, PARTY_MAX);
+      if (N > 0){
+        if (k === 'arrowup'   && factionCursorIdx >= 2) { factionCursorIdx -= 2; playSFX('cursor'); return; }
+        if (k === 'arrowdown' && factionCursorIdx + 2 < N) { factionCursorIdx += 2; playSFX('cursor'); return; }
+        if (k === 'arrowleft' && factionCursorIdx > 0) { factionCursorIdx -= 1; playSFX('cursor'); return; }
+        if (k === 'arrowright'&& factionCursorIdx < N - 1) { factionCursorIdx += 1; playSFX('cursor'); return; }
+        if (k === 'k'){
+          toggleFactionSummon(factionCursorIdx);
+          return;
+        }
+      }
+    }
     if (k === '2' || k === 'shift' || k === 'b' || k === 'escape'){
       zyrexMenuOpen = false;
       zycubeRAIDViewerOpen = false;
@@ -11309,17 +11324,12 @@ function pickStarter(id){
   player.party = player.party || [];
   player.party.push(z);
   player.starterChosen = id;
-  // v0.95.282 · If Verdanix chosen, spawn its follower NPC beside Rizer
+  // v0.95.285 · Auto-summon the chosen starter via the generic follower system
+  // (works for any species with a SUMMONABLE_SPRITES entry · verdanix / volcanut / celestryx / apexaur)
   try {
-    if (id === 'verdanix'){
-      const follower = NPCS.find(n => n && n.id === 'verdanix_follower');
-      if (follower){
-        follower.tileX = player.x;
-        follower.tileY = player.y + 1;
-        follower.scene = game.scene;
-        follower.dir   = player.dir;
-        follower._starterFollowerActive = true;
-      }
+    if (typeof toggleFactionSummon === 'function'){
+      const idx = (player.party || []).findIndex(p => p && p.speciesId === id);
+      if (idx >= 0) toggleFactionSummon(idx);
     }
   } catch(_){}
   closeStarterPicker();
@@ -13523,6 +13533,116 @@ function xpForLevel(lvl){
 
 // v0.95.271 · Faction cap = 8 Zyrex · Rizer is the 9th member of his own faction
 const PARTY_MAX = 8;
+// v0.95.285 · Faction summon cursor · Triangle (k) toggles active summon
+let factionCursorIdx = 0;
+// Sprite registry for summonable Zyrex · only species with an entry can be
+// summoned as a follower.  Missing entries fall back to a "sprite pending" toast.
+// bboxes + cellW/H copied from the NPCS definitions where these sprites live.
+const SUMMONABLE_SPRITES = {
+  verdanix: {
+    src: 'assets/2D%20sprites/npcs/verdanix.png',
+    bboxes: [
+      [[53, 65,243,225],[45, 64,225,226],[14, 64,247,230],[18, 65,222,224]],
+      [[46, 38,262,219],[36, 36,253,224],[25, 37,254,227],[12, 37,248,227]],
+      [[53, 21,249,228],[26, 22,255,237],[13, 22,263,237],[ 7, 22,254,234]],
+      [[67, 22,227,229],[46, 17,219,244],[25, 15,259,243],[36, 15,215,243]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.55,   // v0.95.286 · starter scale = Gearbyte baseline
+  },
+  celestryx: {
+    src: 'assets/2D%20sprites/npcs/celestryx.png',
+    bboxes: [
+      [[ 90, 54,279,199],[ 72, 57,277,191],[ 44, 46,289,200],[ 10, 62,305,186]],
+      [[ 99, 25,246,196],[ 79, 35,252,186],[ 58, 34,261,187],[ 24, 34,274,187]],
+      [[101, 10,262,246],[ 67,  2,273,254],[ 51,  4,263,252],[ 31,  4,261,252]],
+      [[ 96,  0,275,179],[ 75,  0,267,179],[ 50,  0,273,179],[ 25,  0,276,179]],
+    ],
+    cellW: 384, cellH: 256, scaleMul: 1.1,
+  },
+  apexaur: {
+    src: 'assets/2D%20sprites/npcs/apexaur.png',
+    bboxes: [
+      [[ 85, 21,185,220],[ 59, 21,219,222],[ 52, 21,194,222],[ 23, 21,226,223]],
+      [[ 51, 19,326,183],[ 39, 19,333,182],[ 12, 19,338,183],[  5, 19,329,183]],
+      [[ 49,  3,315,253],[ 24,  3,320,253],[ 10,  3,374,253],[  0,  3,310,253]],
+      [[126,  0,164,197],[105,  0,159,196],[122,  0,179,195],[ 89,  0,192,196]],
+    ],
+    cellW: 384, cellH: 256, scaleMul: 1.6,
+  },
+  volcanut: {
+    src: 'assets/2D%20sprites/npcs/volcanut.png',
+    bboxes: [
+      [[57,100,225,207],[68,100,218,208],[54,102,228,205],[40,108,230,201]],
+      [[47, 61,266,197],[ 0, 64,313,194],[ 0, 66,303,193],[ 0, 64,287,194]],
+      [[27, 18,273,295],[ 7, 20,306,293],[ 0, 21,313,292],[ 0, 21,261,292]],
+      [[73,  0,164,195],[52,  0,160,197],[45,  0,164,198],[30,  0,157,200]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.55,   // v0.95.286 · starter scale = Gearbyte baseline
+  },
+  // Otterlin sprite pending · SUMMONABLE_SPRITES.otterlin will be added when sheet lands
+};
+// Toggle summon for the Zyrex at party slot idx · one summoned at a time
+function toggleFactionSummon(partyIdx){
+  const party = (player.party || []).filter(Boolean);
+  const z = party[partyIdx];
+  if (!z){ return; }
+  const spriteDef = SUMMONABLE_SPRITES[z.speciesId];
+  // Find existing dynamic follower NPC (if any) for this species
+  const followerId = `_summon_${z.speciesId}`;
+  let follower = NPCS.find(n => n && n.id === followerId);
+  // Case 1: this Zyrex is already summoned somewhere · retire it
+  if (follower && follower._summoned){
+    follower._summoned = false;
+    follower.scene = '__despawn__';
+    playSFX('cancel');
+    showToast(`◈ ${z.name} returned to your ZyCube`, 1800);
+    return;
+  }
+  // Case 2: retire any other summoned Zyrex first (Pokemon-style · one out at a time)
+  NPCS.forEach(n => {
+    if (n && n._summoned){ n._summoned = false; n.scene = '__despawn__'; }
+  });
+  // Sprite gate · if we don't have a sheet for this species, toast + bail
+  if (!spriteDef){
+    showToast(`◈ ${z.name} sprite pending · can't summon yet`, 2400);
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
+  // Reuse or create the follower NPC
+  if (!follower){
+    follower = {
+      id: followerId,
+      name: z.name,
+      sheet: new Image(),
+      src:   spriteDef.src,
+      bboxes: spriteDef.bboxes,
+      cellW: spriteDef.cellW, cellH: spriteDef.cellH,
+      cols: 4, rows: 4,
+      uniformScale: true, scaleMul: spriteDef.scaleMul || 1,
+      dir: player.dir,
+      mode: 'follow',
+      moving: false,
+      animFrame: 0, idleFrame: 0,
+      blinkTimer: 1800 + Math.random() * 2000,
+      _summoned: true, _summonSpeciesId: z.speciesId,
+      onInteract: () => {
+        showDialog({ speaker: z.name.toUpperCase(), lines: [
+          `*${z.name} looks at you · ready to move*`,
+        ]});
+      },
+    };
+    follower.sheet.src = spriteDef.src;
+    NPCS.push(follower);
+  }
+  // Position beside Rizer in current scene
+  follower._summoned = true;
+  follower.scene = game.scene;
+  follower.tileX = player.x;
+  follower.tileY = player.y + 1;
+  follower.dir   = player.dir;
+  playSFX('confirm');
+  showToast(`★ ${z.name} summoned · follows you`, 2000);
+}
 function drawFHUDZyrexPage(W, H){
   const party = (player.party || []).filter(Boolean);
   const total = party.length;
@@ -13571,7 +13691,30 @@ function drawFHUDZyrexPage(W, H){
     const cx = gridX + col * (cardW + gutter);
     const cy = gridY + row * (cardH + gutter);
     drawZyrexCard(cx, cy, cardW, cardH, z, i);
+    // v0.95.285 · Cursor highlight + summoned indicator
+    if (i === factionCursorIdx){
+      ctx.strokeStyle = '#ffd66b';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(cx - 2, cy - 2, cardW + 4, cardH + 4);
+    }
+    const followerId = `_summon_${z.speciesId}`;
+    const isOut = NPCS.some(n => n && n.id === followerId && n._summoned);
+    if (isOut){
+      ctx.fillStyle = 'rgba(95,220,122,0.9)';
+      ctx.fillRect(cx + cardW - 74, cy + 4, 68, 16);
+      ctx.fillStyle = '#0b0b10';
+      ctx.font = 'bold 10px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('★ OUT', cx + cardW - 40, cy + 15);
+      ctx.textAlign = 'left';
+    }
   });
+  // Footer hint · triangle to summon/return
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('▲▼◀▶ nav · △ / K · summon or return · Touchpad / ○ · close', W - 24, H - 30);
+  ctx.textAlign = 'left';
 
   // Footer hint
   ctx.fillStyle = '#8ff';
@@ -13595,8 +13738,10 @@ function drawWorldLayer(){
   NPCS.forEach(n => {
     if (n.scene !== 'overworld') return;                          // only overworld here
     if (!n.sheet.complete || !n.sheet.naturalWidth) return;
-    // v0.95.282 · Verdanix follower only shows when Verdanix is the chosen starter
-    if (n.id === 'verdanix_follower' && player.starterChosen !== 'verdanix') return;
+    // v0.95.285 · Legacy hardcoded verdanix_follower retired · generic _summon_* NPCs now handle followers
+    if (n.id === 'verdanix_follower') return;
+    // Only the currently-summoned follower renders · toggled by Triangle in Faction panel
+    if (n.id && n.id.startsWith('_summon_') && !n._summoned) return;
     renderables.push({ kind:'npc', npc:n, footY: n.tileY });
   });
   if(_factionSoulSwitch&&player.activeActor!=='rizer'){

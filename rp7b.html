@@ -10862,10 +10862,7 @@ addEventListener('keydown', e => {
           if (k === 'arrowdown'){ itemsCursor = (itemsCursor + 1) % entries.length; playSFX('cursor'); return; }
           if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
             const e = entries[itemsCursor];
-            if (e && e.kind === 'raid'){
-              zycubeRAIDViewerOpen = true;
-              playSFX('menuOpen');
-            }
+            if (e) useZycubeItem(e.key);
             return;
           }
         }
@@ -13103,6 +13100,97 @@ function drawZycubePanel(W, H){
   }
 }
 
+// v0.95.290 · Item interactions from the ZyCube Items list
+// Called when player presses × on a highlighted row
+function useZycubeItem(key){
+  if (!key) return;
+  player.items = player.items || {};
+  const qty = player.items[key] || 0;
+  const has = qty > 0 || key === 'raidcard' && player.raidCardGifted;
+  const labelOf = k => (INVENTORY_META[k] && INVENTORY_META[k].label) || k;
+  switch (key){
+    case 'raidcard': {
+      zycubeRAIDViewerOpen = true;
+      playSFX('menuOpen');
+      return;
+    }
+    case 'potion': {
+      if (qty <= 0){ showToast('◈ No potions in your Zycube', 1600); playSFX('cancel'); return; }
+      const model = rizerStatModel();
+      if ((player.hp || 0) >= (model.hp.max || 100)){
+        showToast('◈ HP already full', 1600); playSFX('cancel'); return;
+      }
+      const heal = Math.round(model.hp.max * 0.5);
+      player.hp = Math.min(model.hp.max, (player.hp || 0) + heal);
+      player.items.potion = qty - 1;
+      showToast(`★ Potion used · +${heal} HP`, 2000);
+      playSFX('confirm');
+      return;
+    }
+    case 'ale': {
+      if (qty <= 0){ showToast('◈ No ale left', 1600); playSFX('cancel'); return; }
+      const model = rizerStatModel();
+      const heal = Math.round(model.hp.max * 0.25);
+      player.hp = Math.min(model.hp.max, (player.hp || 0) + heal);
+      player.items.ale = qty - 1;
+      showToast(`★ Ale · +${heal} HP · warmth spreads`, 2000);
+      playSFX('confirm');
+      return;
+    }
+    case 'verdant_elixir': {
+      if (qty <= 0){ showToast('◈ No elixir left', 1600); playSFX('cancel'); return; }
+      const model = rizerStatModel();
+      player.hp = model.hp.max;
+      player.items.verdant_elixir = qty - 1;
+      player.items.seed = (player.items.seed || 0) + 50;
+      showToast('★ Verdant Elixir · FULL HP · +50 seeds', 2400);
+      playSFX('confirm');
+      return;
+    }
+    case 'soulphish': {
+      if (qty <= 0){ showToast('◈ No Soulphish left', 1600); playSFX('cancel'); return; }
+      player.astral = player.astralMax || 100;
+      player.items.soulphish = qty - 1;
+      showToast('★ Soulphish consumed · FULL Astral energy', 2200);
+      playSFX('confirm');
+      return;
+    }
+    case 'skateboard': {
+      if (qty <= 0){ showToast('◈ No skateboard', 1600); playSFX('cancel'); return; }
+      player.skating = !player.skating;
+      showToast(`◈ Skateboard ${player.skating ? 'ON' : 'OFF'}`, 1600);
+      playSFX('confirm');
+      return;
+    }
+    case 'faenet': {
+      const equipped = player.favoriteItem === 'faenet';
+      player.favoriteItem = equipped ? null : 'faenet';
+      showToast(equipped ? '◈ Fae Net unassigned' : '★ Fae Net assigned to △', 1800);
+      playSFX('confirm');
+      return;
+    }
+    case 'gearbag':
+    case 'zycube':
+    case 'townmap':
+    case 'worldmap':
+    case 'zphone':
+    case 'gem_red':
+    case 'gem_blue':
+    case 'gem_purple': {
+      // Gift/reference items · view-only info toast
+      showToast(`◆ ${labelOf(key)} · ${qty > 0 ? qty : has ? 'active' : 'locked'}`, 2000);
+      playSFX('cursor');
+      return;
+    }
+    default: {
+      // Berries / fruits / seeds / rare items · info-only
+      showToast(`◆ ${labelOf(key)} · ${qty}`, 1600);
+      playSFX('cursor');
+      return;
+    }
+  }
+}
+
 function zycubeItemEntries(){
   // v0.95.281 · Items list · RAID card gets a synthetic first entry
   // so it's discoverable as a viewable item · other items follow via sortedInventoryEntries
@@ -13159,13 +13247,26 @@ function drawZycubeItemsList(W, H){
     ctx.font = 'bold 13px "Courier New", monospace';
     ctx.fillStyle = selected ? '#ffd66b' : '#fff';
     ctx.fillText(`${selected ? '▶ ' : '  '}${e.label}`, 34, y + 15);
-    // Qty
+    // Qty + action hint (right-aligned)
     ctx.textAlign = 'right';
     ctx.font = 'bold 11px "Courier New", monospace';
+    // Right column · qty x# then a small action pill for the selected row
+    let rightX = W - 34;
     if (e.kind === 'raid'){
-      ctx.fillStyle = '#4fb3ff'; ctx.fillText('× VIEW', W - 34, y + 15);
+      ctx.fillStyle = '#4fb3ff'; ctx.fillText('× VIEW', rightX, y + 15);
     } else if (e.qty > 1){
-      ctx.fillStyle = '#aab4c8'; ctx.fillText('×' + e.qty, W - 34, y + 15);
+      ctx.fillStyle = '#aab4c8'; ctx.fillText('×' + e.qty, rightX, y + 15);
+      rightX -= ctx.measureText('×' + e.qty).width + 12;
+    }
+    if (selected && e.kind !== 'raid'){
+      // Action hint · use / equip / info based on key
+      let hint = '× USE';
+      if (e.key === 'faenet') hint = player.favoriteItem === 'faenet' ? '× UNASSIGN' : '× EQUIP';
+      else if (e.key === 'skateboard') hint = '× TOGGLE';
+      else if (e.kind === 'gift' || ['gem_red','gem_blue','gem_purple','worldmap','townmap','zycube','gearbag','zphone'].includes(e.key)) hint = '× INFO';
+      else if (['berry','fruit','seed','rare_item','prismshard','fae','moon_gem','gem','coins'].includes(e.key)) hint = '× INFO';
+      ctx.fillStyle = '#ffd66b';
+      ctx.fillText(hint, rightX, y + 15);
     }
     ctx.textAlign = 'left';
   });

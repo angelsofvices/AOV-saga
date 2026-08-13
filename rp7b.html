@@ -3570,6 +3570,75 @@ const NPCS = [
       ]});
     },
   },
+  // ── APEXAUR · wild T3-ish saurian · wanders Zarvane wilds · v0.95.282 ──
+  // 1536x1024 sheet · 4x4 grid · cell 384x256 (horizontal · dinosaur wider than tall)
+  // Rows D/L/R/U · CC-measured bboxes · magenta CK-baked
+  {
+    id: 'apexaur_1',
+    name: 'Apexaur',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/npcs/apexaur.png',
+    bboxes: [
+      [[ 85, 21,185,220],[ 59, 21,219,222],[ 52, 21,194,222],[ 23, 21,226,223]],
+      [[ 51, 19,326,183],[ 39, 19,333,182],[ 12, 19,338,183],[  5, 19,329,183]],
+      [[ 49,  3,315,253],[ 24,  3,320,253],[ 10,  3,374,253],[  0,  3,310,253]],
+      [[126,  0,164,197],[105,  0,159,196],[122,  0,179,195],[ 89,  0,192,196]],
+    ],
+    cellW: 384, cellH: 256, cols: 4, rows: 4,
+    uniformScale: true,
+    scaleMul: 1.6,                        // hulking dino · larger than humanoid NPCs
+    tileX: 90, tileY: 210,                // deep in Zarvane wilds
+    homeX: 90, homeY: 210,
+    homeScene: 'overworld',
+    scene: 'overworld',
+    wanderRadius: 6,
+    dir: 'down',
+    mode: 'wander',
+    moving: false,
+    animFrame: 0,
+    idleFrame: 0,
+    moveCd: 450 + Math.random() * 350,   // slow lumbering stride
+    blinkTimer: 9e9,
+    isEnemy: false,
+    onInteract: (n) => {
+      showToast('◈ Apexaur bellows... "GRRUUUAAOO!"', 2200);
+    },
+  },
+  // ── VERDANIX (STARTER FOLLOWER) · frog-warrior · follows Rizer if chosen · v0.95.282 ──
+  // 1254x1254 · 313 cell · standard 4x4 · CC-measured · magenta CK-baked
+  // Spawns/hides based on player.starterChosen === 'verdanix'
+  {
+    id: 'verdanix_follower',
+    name: 'Verdanix',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/npcs/verdanix.png',
+    bboxes: [
+      [[53, 65,243,225],[45, 64,225,226],[14, 64,247,230],[18, 65,222,224]],
+      [[46, 38,262,219],[36, 36,253,224],[25, 37,254,227],[12, 37,248,227]],
+      [[53, 21,249,228],[26, 22,255,237],[13, 22,263,237],[ 7, 22,254,234]],
+      [[67, 22,227,229],[46, 17,219,244],[25, 15,259,243],[36, 15,215,243]],
+    ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true,
+    scaleMul: 0.85,                       // small frog · knee-high to Rizer
+    tileX: 22, tileY: 106,                // spawns just outside home door
+    homeX: 22, homeY: 106,
+    homeScene: 'overworld',
+    scene: 'overworld',
+    dir: 'down',
+    mode: 'follow',                       // follows Rizer around
+    moving: false,
+    animFrame: 0,
+    idleFrame: 0,
+    blinkTimer: 1800 + Math.random() * 2000,
+    // v0.95.282 · Hidden until Verdanix is the chosen starter
+    onInteract: (n) => {
+      showDialog({ speaker: 'VERDANIX', lines: [
+        '*ribbits softly · big amber eyes on you*',
+        '*taps its staff twice · ready to move when you are*',
+      ]});
+    },
+  },
   // ── ALBERT ORREN · bear neighbor · in front of his green home (v0.86.1) ──
   {
     id: 'albert_orren',
@@ -11192,6 +11261,19 @@ function pickStarter(id){
   player.party = player.party || [];
   player.party.push(z);
   player.starterChosen = id;
+  // v0.95.282 · If Verdanix chosen, spawn its follower NPC beside Rizer
+  try {
+    if (id === 'verdanix'){
+      const follower = NPCS.find(n => n && n.id === 'verdanix_follower');
+      if (follower){
+        follower.tileX = player.x;
+        follower.tileY = player.y + 1;
+        follower.scene = game.scene;
+        follower.dir   = player.dir;
+        follower._starterFollowerActive = true;
+      }
+    }
+  } catch(_){}
   closeStarterPicker();
   playSFX('confirm');
   showToast(`★ ${z.name} Lv 5 joined the party!`, 2800);
@@ -13465,6 +13547,8 @@ function drawWorldLayer(){
   NPCS.forEach(n => {
     if (n.scene !== 'overworld') return;                          // only overworld here
     if (!n.sheet.complete || !n.sheet.naturalWidth) return;
+    // v0.95.282 · Verdanix follower only shows when Verdanix is the chosen starter
+    if (n.id === 'verdanix_follower' && player.starterChosen !== 'verdanix') return;
     renderables.push({ kind:'npc', npc:n, footY: n.tileY });
   });
   if(_factionSoulSwitch&&player.activeActor!=='rizer'){

@@ -775,6 +775,7 @@
       </div>
       <div class="row">
         <button id="devNoWildBattle">No Wild Grass Battle: OFF</button>
+        <button id="devNoJump">Disable Jump: OFF</button>
       </div>
       <div class="row">
         <button id="devExtremeMode">Extreme Horde (×6 + 3m respawn): OFF</button>
@@ -11138,7 +11139,9 @@ addEventListener('keydown', e => {
         }
       }
       // No interactable → jump immediately (preserves keyboard `x` = jump behavior)
+      // v0.95.301 · Dev · Disable Jump toggle → swallow the input instead of hopping
       if (!facingInteract){
+        if (game.devNoJump) return;
         player.jumpStart = jumpTapNow;
         player.jumpUntil = jumpTapNow + 380;
         player.jumpSheet = player.moving ? 'runJump' : 'idleJump';
@@ -11237,6 +11240,8 @@ addEventListener('keydown', e => {
         }
         if (!hasInteract){
           _lastInteract = now;
+          // v0.95.301 · Dev · Disable Jump toggle · skip the moving-A fallback jump
+          if (game.devNoJump){ return; }
           if (!player.jumpUntil || now >= player.jumpUntil){
             player.jumpStart = now;
             player.jumpUntil = now + 380;
@@ -11323,8 +11328,9 @@ addEventListener('keydown', e => {
           player.interactStart = now;
           player.interactUntil = now + 260;
         }
-      } else if (!player.ridingChair){
+      } else if (!player.ridingChair && !game.devNoJump){
         // No target → jump animation (interact anim never armed)
+        // v0.95.301 · gated by devNoJump so dev-mode A/Cross stays quiet when no target
         if (!player.jumpUntil || now >= player.jumpUntil){
           player.jumpStart = now;
           player.jumpUntil = now + 380;   // 380ms hop
@@ -15232,6 +15238,19 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       NPCS.forEach(n => { if (isFriendlyNpc(n)) player.bonds[n.id] = 100; });
       playSFX('confirm');
       showToast('◈ DEV · All friendly NPC bonds → 100', 2000);
+    });
+  }
+  // v0.95.301 · Dev · Disable Jump · silence A/Cross when facing nothing so controller
+  // testing doesn't send Rizer hopping every time you press interact
+  const noJumpBtn = document.getElementById('devNoJump');
+  if (noJumpBtn){
+    const labelNoJump = () => `Disable Jump: ${game.devNoJump ? 'ON' : 'OFF'}`;
+    noJumpBtn.textContent = labelNoJump();
+    noJumpBtn.addEventListener('click', () => {
+      game.devNoJump = !game.devNoJump;
+      noJumpBtn.textContent = labelNoJump();
+      showToast(`◈ DEV · Player jump ${game.devNoJump ? 'DISABLED' : 'ENABLED'}`, 1800);
+      playSFX('confirm');
     });
   }
   // v0.95.299 · Dev · No Wild Grass Battle · block the encounter roll while walking through gemgrass

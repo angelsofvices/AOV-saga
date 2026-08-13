@@ -7975,6 +7975,13 @@ function useStairs(s){
 function exitInterior(){
   if (game.scene === 'overworld') return;
   const priorScene = game.scene;
+  // v0.95.281 · Can't leave home without the Zycube · Mom's mandatory gift
+  // Player home = interior_home (ground) or interior_home_2f (Rizer Room)
+  if ((priorScene === 'interior_home' || priorScene === 'interior_home_2f') && !player.zycubeGifted){
+    showToast('◈ Get your Zycube from Mom before you leave', 2600);
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
   // v0.95.27 · Prefer cfg.overworldDrop if the interior defines one (e.g.,
   // player home always drops to 22,106 facing down, never on the house).
   const priorCfg = interiorConfig(priorScene);
@@ -10709,22 +10716,67 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   if (zyrexMenuOpen){
     if(k==='l'||k==='r'){
-      // v0.95.276/277/278 · Dynamic tab list based on unlocks
-      //   raid    · after Prof Elarian gift
+      // v0.95.276-281 · Dynamic tab list based on unlocks
+      //   zycube  · touchpad default · after Mom's Zycube gift (Items + Gear + RAID card inside Items)
       //   quests  · after Mom's Zycube gift
       //   faction · after Dad grants starter
-      //   map     · after Zoryn gifts Town Map (Malezor) · precursor to world map
-      const pages = ['raid'];
+      //   map     · after Zoryn gifts Town Map
+      const pages = [];
+      if (player.zycubeGifted)   pages.push('zycube');
       if (player.zycubeGifted)   pages.push('quests');
       if (player.starterChosen)  pages.push('faction');
       if (player.townMapGifted)  pages.push('world');
       if (pages.length < 2) return;
       const i = Math.max(0, pages.indexOf(hudOverlayPage));
       hudOverlayPage = pages[(i + (k === 'r' ? 1 : pages.length - 1)) % pages.length];
+      // ZyCube sub-tab (items ↔ gear) via same L1/R1 not needed · dpad handles it in zycube page
       playSFX('whudScroll');
       return;
     }
-    if (k === '2' || k === 'shift' || k === 'b' || k === 'escape'){ zyrexMenuOpen = false; playSFX('menuClose'); }
+    // v0.95.281 · Sub-tab swap + item nav inside the ZyCube panel
+    if (hudOverlayPage === 'zycube'){
+      // RAID card fullscreen viewer · Circle/Esc backs out only
+      if (zycubeRAIDViewerOpen){
+        if (k === 'b' || k === 'shift' || k === 'escape'){
+          zycubeRAIDViewerOpen = false;
+          playSFX('menuClose');
+          return;
+        }
+        return;
+      }
+      // ◀ ▶ swap Items ↔ Gear sub-tab
+      if (k === 'arrowleft' || k === 'arrowright'){
+        zycubeSubTab = (zycubeSubTab === 'items') ? 'gear' : 'items';
+        playSFX('cursor');
+        return;
+      }
+      // ▲▼ nav within active sub-list
+      if (zycubeSubTab === 'items'){
+        const entries = zycubeItemEntries();
+        if (entries.length){
+          if (k === 'arrowup'  ){ itemsCursor = (itemsCursor + entries.length - 1) % entries.length; playSFX('cursor'); return; }
+          if (k === 'arrowdown'){ itemsCursor = (itemsCursor + 1) % entries.length; playSFX('cursor'); return; }
+          if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
+            const e = entries[itemsCursor];
+            if (e && e.kind === 'raid'){
+              zycubeRAIDViewerOpen = true;
+              playSFX('menuOpen');
+            }
+            return;
+          }
+        }
+      } else if (zycubeSubTab === 'gear'){
+        const entries = gearbagEntries();
+        if (k === 'arrowup'  ){ gearCursorIdx = (gearCursorIdx + entries.length - 1) % entries.length; playSFX('cursor'); return; }
+        if (k === 'arrowdown'){ gearCursorIdx = (gearCursorIdx + 1) % entries.length; playSFX('cursor'); return; }
+        if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){ gearbagAct(); return; }
+      }
+    }
+    if (k === '2' || k === 'shift' || k === 'b' || k === 'escape'){
+      zyrexMenuOpen = false;
+      zycubeRAIDViewerOpen = false;
+      playSFX('menuClose');
+    }
     return;
   }
 
@@ -11011,40 +11063,35 @@ addEventListener('keydown', e => {
       }
     }
   }
-  // v0.95.276 · Touchpad opens the RAID CARD (Rizer Academy ID) once
-  // Professor Elarian has gifted it · L1/R1 cycles to FACTION once Dad
-  // grants the first starter Zyrex.  RHUD/FHUD/WORLD MAP expansion
-  // removed from touchpad per user spec (2026-08-12).
+  // v0.95.281 · Touchpad opens the ZYCUBE (Items + Gear · with RAID card
+  // inside Items) as default landing · gated on Mom's Zycube gift ·
+  // L1/R1 cycles: zycube → quests → faction (post-starter) → map (post-Zoryn)
   if (k === '2'){
     if (zyrexMenuOpen){
       zyrexMenuOpen = false;
       playSFX('menuClose');
     } else {
-      if (!player.raidCardGifted){
-        showToast('◈ RAID Card locked · talk to Professor Elarian at the Academy', 2600);
+      if (!player.zycubeGifted){
+        showToast('◈ ZyCube locked · talk to Mom first', 2600);
         try { playSFX('doorLock'); } catch(_){}
         return;
       }
       zyrexMenuOpen = true;
-      // Default landing tab · RAID always available · FACTION after starter
-      hudOverlayPage = 'raid';
+      hudOverlayPage = 'zycube';
+      zycubeSubTab = 'items';   // default landing inside ZyCube
       playSFX('menuOpen');
     }
   }
   if (k === '3'){
-    // v0.95.275 · Options button now opens the ZYCUBE (renamed Settings)
-    // directly · gated on Mom's Zycube gift · Items/Gear/Save/Load/Options
-    // all live inside the ZyCube · Z-Phone is separate (spawn UFO / call ally)
+    // v0.95.281 · START/Options button = pure SETTINGS (save/load, options,
+    // controller bindings) · always available from the moment you can play ·
+    // Items + Gear moved to ZYCUBE which lives on the touchpad ('2') per new
+    // Malezor foundation spec.
     if (settingsMenuOpen){
       settingsMenuOpen = false;
       settingsPage = 'root';
       settingsSelectedIdx = 0;
       playSFX('menuClose');
-      return;
-    }
-    if (!player.zycubeGifted){
-      showToast('◈ ZyCube locked · talk to Mom first', 2200);
-      try { playSFX('doorLock'); } catch(_){}
       return;
     }
     settingsMenuOpen = true;
@@ -11893,16 +11940,17 @@ function battleExit(){
 // Options button ('3') toggles.  4 items: Items · Gear · Save State · Options.
 // Circle (Shift) backs out of a sub-page · closes menu from the root.
 let settingsMenuOpen = false;
-let settingsPage = 'root';    // 'root' | 'items' | 'gear' | 'save' | 'options'
+let settingsPage = 'root';    // 'root' | 'save' | 'options' | 'bindings'
+// v0.95.281 · Settings pared down · Items + Gear moved to ZyCube (touchpad)
+// START/Options button = pure settings only · Save/Load + Options + Bindings
 const SETTINGS_ITEMS = [
-  '1. ITEMS',
-  '2. GEAR',
-  '3. SAVE & LOAD',
-  '4. OPTIONS',
+  '1. SAVE & LOAD',
+  '2. OPTIONS',
+  '3. CONTROLLER BINDINGS',
 ];
 let saveMenuSel = 0;  // 0=SAVE STATE, 1=LOAD STATE
 let itemsCursor = 0;  // v0.95.127 · cursor for ITEMS page (controller-selectable)
-const SETTINGS_PAGE_IDS = ['items', 'gear', 'save', 'options'];
+const SETTINGS_PAGE_IDS = ['save', 'options', 'bindings'];
 function drawSettingsMenu(){
   if (!settingsMenuOpen) return;
   const W = canvas.width, H = canvas.height;
@@ -11913,13 +11961,11 @@ function drawSettingsMenu(){
   ctx.fillStyle = '#d4af37';
   ctx.font = 'bold 20px "Courier New", monospace';
   ctx.textAlign = 'left';
-  // v0.95.275 · Settings renamed ZYCUBE · Mom's cosmic storage cube
-  const title = settingsPage === 'root'     ? '◈ ZYCUBE' :
-                settingsPage === 'items'    ? '◈ ZYCUBE · ITEMS' :
-                settingsPage === 'gear'     ? '◈ ZYCUBE · GEAR' :
-                settingsPage === 'save'     ? '◈ ZYCUBE · SAVE STATE' :
-                settingsPage === 'bindings' ? '◈ ZYCUBE · CONTROLLER BINDINGS' :
-                                              '◈ ZYCUBE · OPTIONS';
+  // v0.95.281 · Renamed back to SETTINGS · pure system panel · Items/Gear moved to Touchpad ZyCube
+  const title = settingsPage === 'root'     ? '◈ SETTINGS' :
+                settingsPage === 'save'     ? '◈ SETTINGS · SAVE STATE' :
+                settingsPage === 'bindings' ? '◈ SETTINGS · CONTROLLER BINDINGS' :
+                                              '◈ SETTINGS · OPTIONS';
   ctx.fillText(title, 24, 40);
   ctx.strokeStyle = '#d4af37';
   ctx.lineWidth = 1;
@@ -12732,24 +12778,24 @@ function drawZyrexMenu(){
   ctx.fillStyle = '#d4af37';
   ctx.font = 'bold 20px "Courier New", monospace';
   ctx.textAlign = 'left';
-  // v0.95.276/277 · Touchpad pages · raid / quests / faction / world
+  // v0.95.281 · Touchpad tabs · zycube (Items+Gear · RAID inside Items) / quests / faction / map
   const overlayTitles={
-    raid:    'R.A.I.D. · RIZER ACADEMY ID',
+    zycube:  '◈ ZYCUBE · YOUR STORAGE',
     quests:  'QUESTS · EXPEDITIONS + SIDE MISSIONS',
     faction: 'FACTION · YOUR ZYREX',
     world:   'WORLD MAP · ZYRAXIS',
   };
-  ctx.fillText(overlayTitles[hudOverlayPage]||overlayTitles.raid,24,40);
+  ctx.fillText(overlayTitles[hudOverlayPage]||overlayTitles.zycube,24,40);
   ctx.font='bold 12px "Courier New", monospace';
   ctx.textAlign='right';
   ctx.fillStyle='#8ff';
-  // Only show tab bar if more than one is unlocked
-  const tabs=['raid'];
+  const tabs=[];
+  if(player.zycubeGifted)  tabs.push('zycube');
   if(player.zycubeGifted)  tabs.push('quests');
   if(player.starterChosen) tabs.push('faction');
   if(player.townMapGifted) tabs.push('world');
   if(tabs.length>1){
-    const labelFor=id=>({raid:'RAID',quests:'QUESTS',faction:'FACTION',world:'MAP'}[id]);
+    const labelFor=id=>({zycube:'ZYCUBE',quests:'QUESTS',faction:'FACTION',world:'MAP'}[id]);
     const tabStr=tabs.map(id=>id===hudOverlayPage?`[ ${labelFor(id)} ]`:labelFor(id)).join('   ');
     ctx.fillText(`L1 ◀  ${tabStr}  ▶ R1`,W-24,40);
   }
@@ -12758,10 +12804,8 @@ function drawZyrexMenu(){
   ctx.beginPath();
   ctx.moveTo(24, 50); ctx.lineTo(W - 24, 50); ctx.stroke();
 
-  if(hudOverlayPage==='raid'){
-    drawRAIDCardPage(W,H);
-    ctx.fillStyle='#8ff';ctx.font='11px "Courier New", monospace';ctx.textAlign='right';
-    ctx.fillText('Touchpad / ○ · close',W-24,H-16);ctx.textAlign='left';
+  if(hudOverlayPage==='zycube'){
+    drawZycubePanel(W,H);
     return;
   }
   if(hudOverlayPage==='quests'){
@@ -12880,6 +12924,129 @@ function drawRAIDCardPage(W, H){
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.textAlign = 'center';
   ctx.fillText('◈ ZYRAXIS FEDERATION · ACADEMY OF MALEZOR · AOV™ ◈', cx + cardW/2, fY + 14);
+  ctx.textAlign = 'left';
+}
+
+// ─────────────────────────────────────────────────────────────
+// v0.95.281 · ZYCUBE panel · touchpad default · Items + Gear sub-tabs
+// RAID Card lives inside Items · click to expand full ID card viewer
+// ─────────────────────────────────────────────────────────────
+let zycubeSubTab = 'items';       // 'items' | 'gear'
+let zycubeRAIDViewerOpen = false; // true when player selects RAID card row
+function drawZycubePanel(W, H){
+  // Sub-tab bar under the header
+  const tabs = ['items', 'gear'];
+  const labelFor = id => ({items:'ITEMS',gear:'GEAR'}[id]);
+  ctx.font = 'bold 12px "Courier New", monospace';
+  let x = 32;
+  tabs.forEach(id => {
+    const selected = (id === zycubeSubTab);
+    const label = `[ ${labelFor(id)} ]`;
+    const w = ctx.measureText(label).width + 12;
+    if (selected){
+      ctx.fillStyle = 'rgba(212,175,55,0.85)';
+      ctx.fillRect(x, 58, w, 22);
+      ctx.fillStyle = '#0b0b10';
+    } else {
+      ctx.fillStyle = '#8ff';
+    }
+    ctx.fillText(label, x + 6, 74);
+    x += w + 8;
+  });
+  ctx.textAlign = 'right';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.fillStyle = '#8ff';
+  ctx.fillText('◀ ▶ swap ITEMS ↔ GEAR · Touchpad / ○ · close', W - 24, 74);
+  ctx.textAlign = 'left';
+  // Body
+  if (zycubeRAIDViewerOpen){
+    // Overlay the full RAID card view on top of the panel
+    drawRAIDCardPage(W, H);
+    ctx.fillStyle = '#8ff';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('○ / B · back to Items', W - 24, H - 16);
+    ctx.textAlign = 'left';
+    return;
+  }
+  if (zycubeSubTab === 'items'){
+    drawZycubeItemsList(W, H);
+  } else {
+    drawGearbagPage(W, H);
+  }
+}
+
+function zycubeItemEntries(){
+  // v0.95.281 · Items list · RAID card gets a synthetic first entry
+  // so it's discoverable as a viewable item · other items follow via sortedInventoryEntries
+  const entries = [];
+  if (player.raidCardGifted){
+    entries.push({
+      key: 'raidcard', label: 'R.A.I.D. Card', qty: 1,
+      kind: 'raid', desc: 'Rizer Academy ID · press × to view',
+    });
+  }
+  const items = sortedInventoryEntries();
+  items.forEach(([key, n]) => {
+    if (key === 'raidcard') return;   // dedupe with synthetic
+    const meta = INVENTORY_META[key];
+    entries.push({
+      key, label: (meta && meta.label) || key, qty: n,
+      kind: (key === 'zycube' || key === 'townmap' || key === 'worldmap' || key === 'gearbag' || key === 'zphone' || key === 'faenet') ? 'gift' : 'item',
+      desc: '',
+    });
+  });
+  return entries;
+}
+function drawZycubeItemsList(W, H){
+  const entries = zycubeItemEntries();
+  if (itemsCursor >= entries.length) itemsCursor = Math.max(0, entries.length - 1);
+  if (itemsCursor < 0) itemsCursor = 0;
+  const startY = 96;
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillText(`${entries.length} entrie${entries.length === 1 ? '' : 's'}`, 32, startY - 4);
+  const rowH = 26;
+  if (entries.length === 0){
+    ctx.fillStyle = '#aab4c8';
+    ctx.font = '13px "Courier New", monospace';
+    ctx.fillText('· Your ZyCube is empty · earn things from Malezor NPCs ·', 32, startY + 30);
+    ctx.fillStyle = '#8ff';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('Touchpad / ○ · close', W - 24, H - 16);
+    ctx.textAlign = 'left';
+    return;
+  }
+  entries.forEach((e, i) => {
+    const y = startY + 10 + i * rowH;
+    if (y + rowH > H - 30) return;
+    const selected = (i === itemsCursor);
+    // Card bg
+    ctx.fillStyle = selected ? 'rgba(212,175,55,0.22)' : 'rgba(20,26,44,0.55)';
+    ctx.fillRect(24, y, W - 48, rowH - 4);
+    // Kind stripe
+    ctx.fillStyle = e.kind === 'raid' ? '#4fb3ff' : e.kind === 'gift' ? '#ffd66b' : '#8ff';
+    ctx.fillRect(24, y, 3, rowH - 4);
+    // Name
+    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillStyle = selected ? '#ffd66b' : '#fff';
+    ctx.fillText(`${selected ? '▶ ' : '  '}${e.label}`, 34, y + 15);
+    // Qty
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 11px "Courier New", monospace';
+    if (e.kind === 'raid'){
+      ctx.fillStyle = '#4fb3ff'; ctx.fillText('× VIEW', W - 34, y + 15);
+    } else if (e.qty > 1){
+      ctx.fillStyle = '#aab4c8'; ctx.fillText('×' + e.qty, W - 34, y + 15);
+    }
+    ctx.textAlign = 'left';
+  });
+  // Footer hint
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('▲▼ nav · × view/use · ◀▶ swap ITEMS↔GEAR · Touchpad / ○ · close', W - 24, H - 16);
   ctx.textAlign = 'left';
 }
 

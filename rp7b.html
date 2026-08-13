@@ -8466,7 +8466,9 @@ function tryStartDoubleJump(now = performance.now(), allowBlockedGroundStart = f
   player.jumpStart = now;
   player.jumpUntil = now + DOUBLE_JUMP_DUR_MS;
   player.jumpSheet = 'doubleJump';
-  player.moveCd = DOUBLE_JUMP_DUR_MS;
+  // v0.95.315 · Skate + double-jump combo · while skating, use a shorter
+  // stall so wheels touch back down and roll immediately (no dead pause)
+  player.moveCd = player.skating ? Math.min(DOUBLE_JUMP_DUR_MS, 260) : DOUBLE_JUMP_DUR_MS;
   playSFX('dodge');
   setTimeout(() => {
     if (!player._doubleJump || player._doubleJump.t0 !== now) return;
@@ -8475,6 +8477,16 @@ function tryStartDoubleJump(now = performance.now(), allowBlockedGroundStart = f
     player.jumpSheet = null;
     if (game.scene === 'overworld') collectGemAt('overworld', player.x, player.y);
     playSFX('jumpLand');
+    // v0.95.315 · On land, if still skating and holding a direction, snap
+    // moveCd to the fast skate cadence so the very next tick can roll
+    if (player.skating){
+      player.moveCd = 0;
+      // Kick the run animation state so the visual carries over
+      if (keys['w'] || keys['a'] || keys['s'] || keys['d']
+          || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']){
+        player.moving = true;
+      }
+    }
   }, DOUBLE_JUMP_DUR_MS);
   return true;
 }

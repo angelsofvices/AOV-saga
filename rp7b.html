@@ -1482,6 +1482,7 @@ const INVENTORY_META = {
   zphone:           { label: 'Z-Phone (ZYCELLYTE)',    order: 5  },   // v0.95.164 · Thardin phone · call faction NPCs at bond ≥ 60
   worldmap:         { label: 'World Map',              order: 1  },   // v0.95.183 · Zyraxis map · full-screen viewer
   townmap:          { label: 'Town Map (Malezor)',     order: 2  },   // v0.95.278 · Zoryn's gift · Malezor only · precursor to worldmap
+  gearbag:          { label: 'Gearbag',                 order: 3  },   // v0.95.279 · Scrapjaw's gift · outfits + cosmetics live inside
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -3461,9 +3462,29 @@ const NPCS = [
     blinkTimer: 2000 + Math.random() * 2000,
     onInteract: (n) => {
       playSFX('scrapjaw');                              // v0.95.159 · raspy hyena VO
-      showDialog({ speaker: 'SCRAPJAW', lines: [
-        '*sniff* ...you smell like a rookie Rizer.  Text box coming soon.',
-      ]});
+      // v0.95.279 · Scrapjaw gifts the GEARBAG on first talk · stores outfits + cosmetics
+      // Unlocks the GEAR page in the ZyCube menu
+      player.items = player.items || {};
+      if (!player.gearbagGifted){
+        player.gearbagGifted = true;
+        player.items.gearbag = (player.items.gearbag || 0) + 1;
+        // Ensure the starter skin is "owned" so the gearbag shows at least one entry
+        player.ownedCosmetics = player.ownedCosmetics || {};
+        player.ownedCosmetics.normal = true;
+        showToast('★ Received: Gearbag · outfits + cosmetics live here', 2800);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'SCRAPJAW', lines: [
+          '*sniff*  ...you smell like a rookie Rizer.  I like rookies.  Rookies buy stuff.',
+          '*tosses you a battered leather bag*  Gearbag.  Every outfit, every cosmetic, every fresh look you unlock — lives in here.',
+          'Open your ZyCube → GEAR to see what you\'re working with.  Right now?  Not much.  Come back when you\'ve earned some drip.',
+          '*grins*  I\'ll be here.',
+        ]});
+      } else {
+        showDialog({ speaker: 'SCRAPJAW', lines: [
+          '*sniff*  Still that rookie smell.  But at least you\'ve got the bag now.',
+          'Come by when the Gear Shop opens · I\'ll have fresh drops.',
+        ]});
+      }
     },
   },
   // ── YARA · your little sister · beside Mom in player home · v0.95.167 ──
@@ -10545,6 +10566,21 @@ addEventListener('keydown', e => {
         settingsPage = 'root';
         playSFX('menuClose');
       }
+    } else if (settingsPage === 'gear'){
+      // v0.95.279 · GEAR page nav (only active if gearbag gifted · locked page ignores input except back)
+      if (player.gearbagGifted){
+        const entries = gearbagEntries();
+        if (k === 'arrowup'  ){ gearCursorIdx = (gearCursorIdx + entries.length - 1) % entries.length; playSFX('cursor'); }
+        if (k === 'arrowdown'){ gearCursorIdx = (gearCursorIdx + 1) % entries.length; playSFX('cursor'); }
+        if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){ gearbagAct(); }
+      }
+      if (k === 'shift' || k === 'b' || k === 'escape'){ settingsPage = 'root'; playSFX('cancel'); }
+      else if (k === '3'){
+        settingsMenuOpen = false;
+        settingsSelectedIdx = 0;
+        settingsPage = 'root';
+        playSFX('menuClose');
+      }
     } else if (settingsPage === 'save'){
       // v0.92 · save/load submenu nav
       if (k === 'arrowup'   || k === 'arrowdown'){ saveMenuSel = 1 - saveMenuSel; playSFX('cursor'); }
@@ -12043,8 +12079,24 @@ function drawSettingsMenu(){
     ctx.textAlign = 'right';
     ctx.fillText('○ back · ○/Options close', W - 24, H - 20);
     ctx.textAlign = 'left';
+  } else if (settingsPage === 'gear'){
+    // v0.95.279 · GEAR page = Gearbag contents · outfits + cosmetics
+    // Gated on Scrapjaw's gift (player.gearbagGifted) · locked message otherwise
+    if (!player.gearbagGifted){
+      ctx.fillStyle = '#aaa';
+      ctx.font = '14px "Courier New", monospace';
+      ctx.fillText('· Gearbag locked ·', 32, 90);
+      ctx.fillStyle = '#8ff';
+      ctx.font = '11px "Courier New", monospace';
+      ctx.fillText('Talk to Scrapjaw at the Malezor Gear Shop to receive your Gearbag.', 32, 115);
+      ctx.textAlign = 'right';
+      ctx.fillText('○ back · ○/Options close', W - 24, H - 20);
+      ctx.textAlign = 'left';
+    } else {
+      drawGearbagPage(W, H);
+    }
   } else {
-    // Gear placeholder
+    // Fallback for any unknown page
     ctx.fillStyle = '#aaa';
     ctx.font = '14px "Courier New", monospace';
     ctx.fillText('· page not wired yet ·', 32, 90);
@@ -12053,6 +12105,114 @@ function drawSettingsMenu(){
     ctx.textAlign = 'right';
     ctx.fillText('○ back · ○/Options close', W - 24, H - 20);
     ctx.textAlign = 'left';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// v0.95.279 · Gearbag renderer · outfits + cosmetics inside the ZyCube
+// Currently sourced from PLAYER_SKINS · one row per owned skin · shows
+// which is EQUIPPED · future cosmetics (hats/accessories) hook in same
+// ─────────────────────────────────────────────────────────────
+let gearCursorIdx = 0;
+function gearbagEntries(){
+  const entries = [];
+  const owned = player.ownedCosmetics || {};
+  // Always include 'normal' baseline
+  entries.push({ id: 'normal', kind: 'outfit', name: 'Normal',
+    desc: 'Standard-issue Rizer look', owned: true });
+  if (owned.power_upgrade || player.cosmeticSkin === 'power_upgrade'){
+    entries.push({ id: 'power_upgrade', kind: 'outfit', name: 'Power Upgrade',
+      desc: 'Amplified S2 form · unlocked via Dreamland', owned: true });
+  } else {
+    entries.push({ id: 'power_upgrade', kind: 'outfit', name: 'Power Upgrade',
+      desc: 'Locked · earn via Dreamland arc', owned: false });
+  }
+  // Reserved cosmetic slots — locked placeholders (populated later)
+  entries.push({ id: 'fury_fist', kind: 'cosmetic', name: 'Fury Fist Gloves',
+    desc: 'Locked · 100 punching-bag hits', owned: !!(player.unlocks && player.unlocks.furyFist) });
+  return entries;
+}
+function drawGearbagPage(W, H){
+  const entries = gearbagEntries();
+  if (gearCursorIdx >= entries.length) gearCursorIdx = entries.length - 1;
+  if (gearCursorIdx < 0) gearCursorIdx = 0;
+  // Header
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillText(`GEARBAG · ${entries.filter(e=>e.owned).length}/${entries.length} owned`, 24, 66);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.fillText('▲▼ nav · × equip · ○ back', W - 24, 66);
+  ctx.textAlign = 'left';
+  // List
+  const rowH = 44;
+  entries.forEach((e, i) => {
+    const y = 84 + i * (rowH + 6);
+    const selected = (i === gearCursorIdx);
+    const equipped = (e.kind === 'outfit' && player.cosmeticSkin === e.id);
+    // Card bg
+    ctx.fillStyle = equipped ? 'rgba(212,175,55,0.22)'
+                  : selected ? 'rgba(79,179,255,0.18)'
+                  : 'rgba(20,26,44,0.6)';
+    ctx.fillRect(24, y, W - 48, rowH);
+    // Left color stripe · kind indicator
+    ctx.fillStyle = e.kind === 'outfit' ? '#4fb3ff' : '#c060ff';
+    ctx.fillRect(24, y, 3, rowH);
+    // Type icon
+    ctx.font = 'bold 22px "Courier New", monospace';
+    ctx.fillStyle = e.owned ? (equipped ? '#ffd66b' : '#f0eadf') : 'rgba(255,255,255,0.28)';
+    ctx.fillText(e.kind === 'outfit' ? '◈' : '✦', 36, y + 28);
+    // Name + status
+    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillStyle = e.owned ? (equipped ? '#ffd66b' : '#fff') : 'rgba(255,255,255,0.4)';
+    ctx.fillText(e.name.toUpperCase(), 62, y + 18);
+    // Status pill on the right
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 10px "Courier New", monospace';
+    if (equipped){
+      ctx.fillStyle = '#ffd66b';
+      ctx.fillText('✓ EQUIPPED', W - 32, y + 18);
+    } else if (e.owned){
+      ctx.fillStyle = '#8ff';
+      ctx.fillText(selected ? '× EQUIP' : '● OWNED', W - 32, y + 18);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillText('▸ LOCKED', W - 32, y + 18);
+    }
+    ctx.textAlign = 'left';
+    // Desc
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillStyle = e.owned ? 'rgba(200,220,255,0.7)' : 'rgba(200,220,255,0.35)';
+    ctx.fillText(e.desc, 62, y + 34);
+  });
+  // Footer
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('○ back · ○/Options close', W - 24, H - 20);
+  ctx.textAlign = 'left';
+}
+function gearbagAct(){
+  const entries = gearbagEntries();
+  const e = entries[gearCursorIdx];
+  if (!e) return;
+  if (!e.owned){
+    showToast('◈ Locked · ' + e.desc, 2200);
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
+  if (e.kind === 'outfit'){
+    if (player.cosmeticSkin === e.id){
+      showToast('◈ Already equipped', 1600);
+      return;
+    }
+    try {
+      if (typeof setPlayerSkin === 'function') setPlayerSkin(e.id, true);
+      else if (typeof applyPlayerSkin === 'function') applyPlayerSkin(e.id, true);
+      else player.cosmeticSkin = e.id;
+    } catch(_) { player.cosmeticSkin = e.id; }
+    playSFX('confirm');
   }
 }
 // v0.95.254 · OPTIONS toggle rows · state fn + toggle fn per row

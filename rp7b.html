@@ -10446,19 +10446,22 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if(e.__roomEditHandled)return;
 
-  // v0.95.303 · Dev panel takes EXCLUSIVE input · while it's open, no key
-  // reaches player action / movement paths.  Only dev-tab-cycle bumpers
-  // (L1/R1 → q/e/l/r) and the close hotkey get through so you can navigate
-  // the panel with keyboard or controller.  Also clears any held movement
-  // keys so Rizer doesn't drift the moment you close the panel.
+  // v0.95.303/307 · Dev panel takes EXCLUSIVE input while open · pass through
+  // the specific navigation keys the dev panel needs (arrows for D-pad grid,
+  // X/A/Z/Enter/Space for confirm/toggle, B/Shift/Escape for back-to-overworld,
+  // Q/E/L/R for tab bumpers), block WASD + everything else so Rizer never moves.
   if (isDevPanelOpen()){
-    if (k === 'q' || k === 'e' || k === 'l' || k === 'r'){
-      // Fall through to dev tab cycle · handled further down in the same listener
-    } else {
+    const DEV_PASS = ['arrowup','arrowdown','arrowleft','arrowright',
+                      'x','a','z','enter',' ',
+                      'b','shift','escape',
+                      'q','e','l','r','i'];
+    if (!DEV_PASS.includes(k)){
       ['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].forEach(kk => { keys[kk] = false; });
-      // Also silence player action inputs while dev is open
       return;
     }
+    // For the pass-through keys, always kill any held movement state so we
+    // don't get stuck drifting once the panel closes
+    ['w','s','d'].forEach(kk => { keys[kk] = false; });
   }
 
   // v0.95.255 · Double-tap SHIFT (keyboard) toggles sprint lock · mirrors L3 gamepad toggle
@@ -10647,12 +10650,14 @@ addEventListener('keydown', e => {
         highlightDevBtn(items, devPanelSel);
         playSFX('cursor'); return;
       }
-      if (k === 'z' || k === 'a' || k === 'enter' || k === ' '){
+      // v0.95.307 · X (Cross) added to confirm/toggle · matches user spec
+      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
         items[devPanelSel].click();
         playSFX('confirm');
         return;
       }
-      if (k === 'b' || k === 'shift'){
+      // Circle (b) / Shift / Escape · back to overworld
+      if (k === 'b' || k === 'shift' || k === 'escape'){
         document.getElementById('devPanel').style.display = 'none';
         game.devPanelKeyboard = false;
         playSFX('menuClose');

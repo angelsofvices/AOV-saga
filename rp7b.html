@@ -2500,6 +2500,36 @@ const WORLD_PROPS = [
       },
     };
   })(),
+  // ── CLUB 50 · Andrannor nightlife hub · Vladimir Valenov's venue (v0.95.302) ──
+  // Per aov-club-50-andrannor memory + spec 'nightlife hub of North Zyraxis'
+  // Andrannor spans cols 181-300 rows 308-337 · Town Hall at (240, 316) center
+  // Placed east of Town Hall on the SE residential strip · clear of the hall
+  // bush ring (up to col 248) · content aspect 1178x1064 ≈ 1.1:1 nearly square
+  (function(){
+    const _c50Img = new Image();
+    _c50Img.src = 'assets/2D%20sprites/buildings/club-50.png';
+    return {
+      id: 'club_50',
+      img: _c50Img,
+      src: 'assets/2D%20sprites/buildings/club-50.png',
+      bbox: [38, 47, 1140, 1017],                   // trims transparent padding
+      tileX: 270, tileY: 325,                       // east of Town Hall, in residential zone
+      tileW: 9, tileH: 8,
+      footprint: (function(){
+        const f = [];
+        // 9-wide × 8-tall solid mass · door tile (0,0) stays walkable
+        for (let dy = -7; dy <= 0; dy++){
+          for (let dx = -4; dx <= 4; dx++){
+            if (dx === 0 && dy === 0) continue;    // door tile is walkable
+            f.push([dx, dy]);
+          }
+        }
+        return f;
+      })(),
+      door: [0, 0],
+      onInteract: () => { showToast('◈ CLUB 50 · Vladimir\'s not open yet · come back after dark.', 2600); playSFX('doorLock'); },
+    };
+  })(),
   // ── ANDRANNOR TOWN HALL · upper-center of NW residential zone (v0.89.6) ──
   (function(){
     const _athImg = new Image();
@@ -5939,10 +5969,10 @@ function moveRoomEdit(dx,dy,dir){
 // 0 the crumble sequence plays and the tile becomes walkable.
 const BOULDER_IMG = new Image();
 BOULDER_IMG.src = 'assets/2D%20sprites/decor/boulder.png';
-// v0.95.300 · Astralite Stone · same 4x4 break sheet + throwable · restores astral on shatter
+// v0.95.300 · Astralite Stone · same 4x4 break sheet + throwable
+// v0.95.302 · reward changed to 50% Special Energy (diamond) not astral
 const ASTRALITE_STONE_IMG = new Image();
 ASTRALITE_STONE_IMG.src = 'assets/2D%20sprites/props/astralite-stone.png';
-const ASTRALITE_STONE_REWARD = 30;   // astral energy restored on shatter
 const BOULDER_CELL_W = 313;   // sheet 1254 / 4
 const BOULDER_CELL_H = 313;
 const BOULDER_MAX_HP = 9;
@@ -6119,13 +6149,14 @@ function hitBoulder(b, dmg){
     b.breaking = performance.now();
     playSFX('boulderCrumble');                   // v0.95.119 · final-hit crumble sfx
     if (window.__rumbleHit) window.__rumbleHit('boulder');   // v0.95.217 · haptic pop on crumble
-    // v0.95.300 · Astralite stone shatter · +30 Astral energy to Rizer
+    // v0.95.302 · Astralite stone shatter · restores SPECIAL energy by 50% of max
+    // (canonical Special = player.diamond · max = player.diamondMax || 100)
     if (b.type === 'astralite'){
-      const max = player.astralMax || 100;
-      const before = player.astral || 0;
-      player.astral = Math.min(max, before + ASTRALITE_STONE_REWARD);
-      const gained = player.astral - before;
-      showToast(`◈ Astralite shatter · +${gained} Astral Energy`, 2200);
+      const max = player.diamondMax || 100;
+      const before = player.diamond || 0;
+      player.diamond = Math.min(max, before + Math.round(max * 0.5));
+      const gained = player.diamond - before;
+      showToast(`◈ Astralite shatter · +${gained} Special Energy`, 2200);
       try { playSFX('confirm'); } catch(_){}
     }
   }

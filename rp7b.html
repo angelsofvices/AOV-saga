@@ -775,7 +775,6 @@
       </div>
       <div class="row">
         <button id="devNoWildBattle">No Wild Grass Battle: OFF</button>
-        <button id="devNoJump">Disable Jump: OFF</button>
       </div>
       <div class="row">
         <button id="devExtremeMode">Extreme Horde (×6 + 3m respawn): OFF</button>
@@ -9087,6 +9086,8 @@ function tryMove(dt){
   if (game.posterViewOpen)          freezeReasons.push('posterView');
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
+  // v0.95.303 · Dev panel takes exclusive input · no player movement/action while it's open
+  if (typeof isDevPanelOpen === 'function' && isDevPanelOpen()) freezeReasons.push('devPanel');
   if (_rizerDeath)                  freezeReasons.push('rizerDeath');
   if (player._doubleJump)           freezeReasons.push('doubleJump');
   if (game.npcInfoOverlay)          freezeReasons.push('npcInfoOverlay');// v0.95.174 · companion overlay
@@ -10420,6 +10421,11 @@ let settingsSelectedIdx = 0;
 // Touchpad double-tap tracking (Elzoran dev spawn).
 let _lastTouchpadTime = 0;
 let devPanelSel = 0;   // v0.92 · highlighted dev panel button index
+// v0.95.303 · Dev panel = exclusive input · reads the DOM display state
+function isDevPanelOpen(){
+  const el = document.getElementById('devPanel');
+  return !!(el && el.style.display === 'block');
+}
 function highlightDevBtn(items, idx){
   items.forEach((el, i) => {
     el.style.outline = (i === idx) ? '2px solid #8fffb0' : '';
@@ -10431,6 +10437,21 @@ function highlightDevBtn(items, idx){
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if(e.__roomEditHandled)return;
+
+  // v0.95.303 · Dev panel takes EXCLUSIVE input · while it's open, no key
+  // reaches player action / movement paths.  Only dev-tab-cycle bumpers
+  // (L1/R1 → q/e/l/r) and the close hotkey get through so you can navigate
+  // the panel with keyboard or controller.  Also clears any held movement
+  // keys so Rizer doesn't drift the moment you close the panel.
+  if (isDevPanelOpen()){
+    if (k === 'q' || k === 'e' || k === 'l' || k === 'r'){
+      // Fall through to dev tab cycle · handled further down in the same listener
+    } else {
+      ['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].forEach(kk => { keys[kk] = false; });
+      // Also silence player action inputs while dev is open
+      return;
+    }
+  }
 
   // v0.95.255 · Double-tap SHIFT (keyboard) toggles sprint lock · mirrors L3 gamepad toggle
   // Only fires on fresh press (ignores auto-repeat) · 400ms window between taps
@@ -11170,9 +11191,7 @@ addEventListener('keydown', e => {
         }
       }
       // No interactable → jump immediately (preserves keyboard `x` = jump behavior)
-      // v0.95.301 · Dev · Disable Jump toggle → swallow the input instead of hopping
       if (!facingInteract){
-        if (game.devNoJump) return;
         player.jumpStart = jumpTapNow;
         player.jumpUntil = jumpTapNow + 380;
         player.jumpSheet = player.moving ? 'runJump' : 'idleJump';
@@ -11271,8 +11290,6 @@ addEventListener('keydown', e => {
         }
         if (!hasInteract){
           _lastInteract = now;
-          // v0.95.301 · Dev · Disable Jump toggle · skip the moving-A fallback jump
-          if (game.devNoJump){ return; }
           if (!player.jumpUntil || now >= player.jumpUntil){
             player.jumpStart = now;
             player.jumpUntil = now + 380;
@@ -11359,9 +11376,8 @@ addEventListener('keydown', e => {
           player.interactStart = now;
           player.interactUntil = now + 260;
         }
-      } else if (!player.ridingChair && !game.devNoJump){
+      } else if (!player.ridingChair){
         // No target → jump animation (interact anim never armed)
-        // v0.95.301 · gated by devNoJump so dev-mode A/Cross stays quiet when no target
         if (!player.jumpUntil || now >= player.jumpUntil){
           player.jumpStart = now;
           player.jumpUntil = now + 380;   // 380ms hop
@@ -15269,19 +15285,6 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       NPCS.forEach(n => { if (isFriendlyNpc(n)) player.bonds[n.id] = 100; });
       playSFX('confirm');
       showToast('◈ DEV · All friendly NPC bonds → 100', 2000);
-    });
-  }
-  // v0.95.301 · Dev · Disable Jump · silence A/Cross when facing nothing so controller
-  // testing doesn't send Rizer hopping every time you press interact
-  const noJumpBtn = document.getElementById('devNoJump');
-  if (noJumpBtn){
-    const labelNoJump = () => `Disable Jump: ${game.devNoJump ? 'ON' : 'OFF'}`;
-    noJumpBtn.textContent = labelNoJump();
-    noJumpBtn.addEventListener('click', () => {
-      game.devNoJump = !game.devNoJump;
-      noJumpBtn.textContent = labelNoJump();
-      showToast(`◈ DEV · Player jump ${game.devNoJump ? 'DISABLED' : 'ENABLED'}`, 1800);
-      playSFX('confirm');
     });
   }
   // v0.95.299 · Dev · No Wild Grass Battle · block the encounter roll while walking through gemgrass

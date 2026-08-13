@@ -761,6 +761,9 @@
         <button id="devLightMode">Light: OFF</button>
       </div>
       <div class="row">
+        <button id="devMobileTestMode">Mobile Test Mode: OFF</button>
+      </div>
+      <div class="row">
         <button id="devDreamland">Visit Dreamland: OFF</button>
         <button id="devUnlimitedAstral">Unlimited Astralites: OFF</button>
       </div>
@@ -12670,6 +12673,8 @@ function xpForLevel(lvl){
   return Math.max(100, Math.floor((4/5) * l * l * l));
 }
 
+// v0.95.271 · Faction cap = 8 Zyrex · Rizer is the 9th member of his own faction
+const PARTY_MAX = 8;
 function drawFHUDZyrexPage(W, H){
   const party = (player.party || []).filter(Boolean);
   const total = party.length;
@@ -12677,7 +12682,7 @@ function drawFHUDZyrexPage(W, H){
   // Subheader summary row
   ctx.font = 'bold 12px "Courier New", monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillText(`YOUR ZYREX · PARTY ${total}/6`, 24, 66);
+  ctx.fillText(`YOUR FACTION · ${total}/${PARTY_MAX} ZYREX · +RIZER (9th)`, 24, 66);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#8ff';
   ctx.font = '11px "Courier New", monospace';
@@ -12701,15 +12706,18 @@ function drawFHUDZyrexPage(W, H){
     return;
   }
 
-  // Card grid · 2 columns, up to 3 rows (party cap 6)
+  // Card grid · 2 columns × up to 4 rows (party cap 8)
   const cols = 2;
-  const gutter = 14;
+  const rows = Math.ceil(PARTY_MAX / cols);
+  const gutter = 12;
   const gridX = 24;
   const gridY = 84;
   const gridW = W - 48;
+  const gridH = H - gridY - 40;
   const cardW = Math.floor((gridW - gutter * (cols - 1)) / cols);
-  const cardH = 218;
-  party.slice(0, 6).forEach((z, i) => {
+  // Auto-fit card height to available vertical space so 8 cards fit
+  const cardH = Math.max(150, Math.min(218, Math.floor((gridH - gutter * (rows - 1)) / rows)));
+  party.slice(0, PARTY_MAX).forEach((z, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const cx = gridX + col * (cardW + gutter);
@@ -13707,6 +13715,13 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   // the window.  Gate is strict: coarse pointer + portrait + narrow viewport.
   const mcCtrl2El = document.getElementById('mobileCtrl2');
   function isMobilePortraitViewport(){
+    // v0.95.271 · ?mobile=1 URL param forces mobile-portrait mode for playtest
+    try {
+      if (window.__forceMobilePortrait || /[?&]mobile=1/.test(location.search)){
+        window.__forceMobilePortrait = true;
+        return true;
+      }
+    } catch(_){}
     // Coarse pointer + no hover ≈ real phone/tablet (not a laptop touchscreen)
     const coarse   = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     const noHover  = window.matchMedia && window.matchMedia('(hover: none)').matches;
@@ -14009,6 +14024,27 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       if (optBtn) optBtn.textContent = `Motion Blur Camera: ${game.cameraMode === 'gba' ? 'ON' : 'OFF'}`;
       showToast(`◈ Motion Blur Camera ${game.cameraMode === 'gba' ? 'ON' : 'OFF'}`, 1400);
     });
+  }
+  // v0.95.271 · Mobile Test Mode · desktop dev toggle · fakes portrait phone
+  // viewport so the mobile controller + HUD hitboxes + RHUD-tap-to-toggle-form
+  // all appear in a normal desktop Chrome window.  Persists via localStorage.
+  const mtBtn = document.getElementById('devMobileTestMode');
+  if (mtBtn){
+    const applyMobileTest = (on) => {
+      window.__forceMobilePortrait = !!on;
+      try { localStorage.setItem('rp7b_mobile_test_mode', on ? '1' : '0'); } catch(_){}
+      // Reflect on the root element for CSS-based framing later
+      document.documentElement.classList.toggle('mobile-test-mode', !!on);
+      // Immediately re-evaluate controller visibility
+      try { if (typeof refreshMobileCtrl2 === 'function') refreshMobileCtrl2(); } catch(_){}
+      mtBtn.textContent = `Mobile Test Mode: ${on ? 'ON' : 'OFF'}`;
+      showToast(`◈ Mobile Test Mode ${on ? 'ON' : 'OFF'}${on ? ' · tap RHUD to swap forms' : ''}`, 1800);
+    };
+    // Restore prior state on load
+    let initial = false;
+    try { initial = localStorage.getItem('rp7b_mobile_test_mode') === '1'; } catch(_){}
+    applyMobileTest(initial);
+    mtBtn.addEventListener('click', () => applyMobileTest(!window.__forceMobilePortrait));
   }
 
   const mcBtn = document.getElementById('devMobileCtrl');

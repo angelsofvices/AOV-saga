@@ -2442,7 +2442,52 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
-      onInteract: () => { showToast('◈ ZARVANE ASTRALITE REFINERY · Closed for now.', 2400); playSFX('doorLock'); },
+      // v0.95.283 · Astralite Refinery = Celestryx summon altar
+      // Collect faes (FAE_UNLOCK_COUNT = 200) → interact → summon Celestryx to party
+      // Consumes 100 fae per summon · one-time party join, then re-locks
+      onInteract: () => {
+        try {
+          const fae = player.faeCollected || 0;
+          const REQ = 100;                                // 100 fae per summon
+          const alreadyHave = (player.party || []).some(z => z && z.speciesId === 'celestryx');
+          if (alreadyHave){
+            showToast('◈ You already carry a Celestryx · the altar hums quietly', 2600);
+            try { playSFX('doorLock'); } catch(_){}
+            return;
+          }
+          if (fae < REQ){
+            showToast(`◈ ASTRALITE ALTAR · ${fae}/${REQ} fae · collect more before it will answer`, 3200);
+            try { playSFX('doorLock'); } catch(_){}
+            return;
+          }
+          // Ensure Celestryx species is registered
+          if (typeof SPECIES !== 'undefined' && !SPECIES.celestryx){
+            SPECIES.celestryx = {
+              id: 'celestryx', name: 'Celestryx', tier: 6,
+              type: 'Astral', type2: 'Aura',
+              baseHP: 340, baseATK: 320, baseDEF: 300, baseSPD: 330, baseSATK: 350, baseSDEF: 320,
+              moves: ['Halo Beam', 'Wing Strike', 'Astral Chorus', 'Radiance'],
+            };
+          }
+          const z = createZyrex('celestryx', 60);   // canon Lv60 summon
+          if (!z){
+            showToast('◈ ERROR · Celestryx failed to summon', 2000);
+            return;
+          }
+          player.faeCollected = Math.max(0, fae - REQ);
+          player.party = player.party || [];
+          player.party.push(z);
+          try { playSFX('confirm'); } catch(_){}
+          showToast(`★ CELESTRYX summoned · Lv 60 T6 · -${REQ} fae`, 3600);
+          showDialog({ speaker: 'CELESTRYX', lines: [
+            '*the altar cracks open · light spills across the sand*',
+            '*a winged star descends · halo humming · eyes closed in serenity*',
+            '★ Celestryx has joined your party.',
+          ]});
+        } catch(err){
+          showToast('◈ ASTRALITE REFINERY · summon failed · '+err.message, 2400);
+        }
+      },
     };
   })(),
   // ── ANDRANNOR TOWN HALL · upper-center of NW residential zone (v0.89.6) ──

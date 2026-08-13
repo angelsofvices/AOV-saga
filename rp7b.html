@@ -5182,6 +5182,10 @@ MALEZOR_WALL_IMG.src = 'assets/2D%20sprites/tiles/malezor-home-wall.png';
 // collect · counter increments · Celestryx unlock at threshold.
 const FAE_IMG = new Image();
 FAE_IMG.src = 'assets/2D%20sprites/decor/fae.png';
+// v0.95.296 · Elzebub Egg custom asset · 1254x1254 · CK-baked · content bbox [2,3,1251,1250]
+const ELZEBUB_EGG_IMG = new Image();
+ELZEBUB_EGG_IMG.src = 'assets/2D%20sprites/props/elzebub-egg.png';
+const ELZEBUB_EGG_BBOX = [2, 3, 1249, 1247];
 const FAE_FRAMES = 4;
 const FAE_FRAME_MS = 220;
 const FAE_UNLOCK_COUNT = 200;   // v0.95.141 · 200 fae to summon Celestryx (was 10)
@@ -5263,38 +5267,30 @@ function ensureElzebubEggSpawn(){
 }
 function drawElzebubEgg(){
   if (!_elzebubEgg) return;
+  if (!ELZEBUB_EGG_IMG.complete || !ELZEBUB_EGG_IMG.naturalWidth) return;
   const now = performance.now();
   const dx = _elzebubEgg.x * TILE - _cam.x;
   const dy = _elzebubEgg.y * TILE - _cam.y;
   if (dx < -TILE || dx > canvas.width || dy < -TILE || dy > canvas.height) return;
   const bob = Math.sin(now / 500 + _elzebubEgg.phase) * 3;
-  const cx = dx + TILE / 2, cy = dy + TILE / 2 + bob;
-  const rx = TILE * 0.32, ry = TILE * 0.42;
-  // Soft glow
+  const [bx, by, bw, bh] = ELZEBUB_EGG_BBOX;
+  // Draw slightly larger than 1 tile so the ornate art reads clearly
+  const drawW = Math.round(TILE * 1.15);
+  const drawH = Math.round(drawW * (bh / bw));
+  const cx = dx + TILE / 2 - drawW / 2;
+  const cy = dy + TILE / 2 - drawH / 2 + bob - 4;
+  // Soft warm halo behind the egg
   ctx.save();
-  ctx.shadowColor = 'rgba(255,180,90,0.85)';
-  ctx.shadowBlur = 18;
-  // Egg body · warm gradient
-  const g = ctx.createRadialGradient(cx - rx * 0.4, cy - ry * 0.5, 2, cx, cy, ry);
-  g.addColorStop(0, '#fff2c8');
-  g.addColorStop(0.5, '#ffd66b');
-  g.addColorStop(1, '#c25a2a');
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.shadowColor = 'rgba(255,180,90,0.9)';
+  ctx.shadowBlur = 22;
+  ctx.drawImage(ELZEBUB_EGG_IMG, bx, by, bw, bh, cx, cy, drawW, drawH);
   ctx.restore();
-  // Speckles
-  ctx.fillStyle = 'rgba(80,20,10,0.55)';
-  ctx.beginPath(); ctx.arc(cx - rx * 0.3, cy - ry * 0.1, 1.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + rx * 0.2, cy - ry * 0.3, 1.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + rx * 0.1, cy + ry * 0.25, 1.4, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx - rx * 0.25, cy + ry * 0.35, 1.1, 0, Math.PI * 2); ctx.fill();
-  // "★" glyph above
-  ctx.fillStyle = '#fff';
+  // Sparkle glyph above · signals "special interactable"
+  const sparkle = 0.6 + 0.4 * Math.abs(Math.sin(now / 260));
+  ctx.fillStyle = `rgba(255,240,180,${sparkle})`;
   ctx.font = 'bold 12px "Courier New", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('★', cx, cy - ry - 6);
+  ctx.fillText('★', dx + TILE / 2, cy - 4);
   ctx.textAlign = 'left';
 }
 function tryPickupElzebubEgg(fx, fy){

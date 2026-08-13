@@ -3467,8 +3467,8 @@ const NPCS = [
     turnToInteract: true,
     onInteract: (n) => {
       playSFX('kaizari');                             // v0.95.157 · warm huntress VO
-      // v0.95.141 · Cheetah huntress · gifts Fae Net on FIRST interaction
       player.items = player.items || {};
+      // v0.95.141 · Cheetah huntress · gifts Fae Net on FIRST interaction
       if (!player.faenetGifted){
         player.faenetGifted = true;
         player.items.faenet = (player.items.faenet || 0) + 1;
@@ -3478,12 +3478,28 @@ const NPCS = [
           'Take mine.  Feet quiet, breath quieter · that\'s how you catch a fae.',
           '*hands you a woven-vine Fae Net*  Bring me stories of the ones you catch.  Hunt well, little Rizer.',
         ]});
-      } else {
-        showDialog({ speaker: 'KAIZARI', lines: [
-          '*tail flicks*  You move quiet for a Rizer.  Good.',
-          'Malezor gets meaner past the arm.  Keep your Zyrex sharp.',
-        ]});
+        return;
       }
+      // v0.95.309 · Training Farm · unlocked once player has 10+ fae + 1+ Zyrex
+      const fae = player.faeCollected || 0;
+      const party = (player.party || []).filter(Boolean).length;
+      if (fae >= 10 && party >= 1){
+        // Auto-open the farm on interact once unlocked
+        showDialog({ speaker: 'KAIZARI', lines: [
+          '*tail flicks · unlocks a wooden gate behind her*  You\'ve earned this, hunter.',
+          '10 fae in your pocket · a Zyrex at your side · you\'re ready to train.',
+          '*steps aside*  Go in.  Sharpen what you have before the wilds sharpen you first.',
+        ], onDone: () => {
+          try { enterTrainingFarm(); } catch(_){}
+        }});
+        return;
+      }
+      // Locked · show progress toward unlock
+      showDialog({ speaker: 'KAIZARI', lines: [
+        '*tail flicks*  Come back with more fae, and at least one Zyrex.',
+        `Right now: ${fae}/10 fae · ${party}/1 Zyrex.`,
+        'The Training Farm opens when you\'re ready · not before.',
+      ]});
     },
   },
   // ── PROFESSOR ELARIAN · elephant scholar · in front of Malezor School (v0.89.7) ──
@@ -5501,6 +5517,26 @@ const INTERIOR_RESEARCH_LAB = {
              [19,1] ],                              // v0.95.112 · Dad's coat rack
 };
 INTERIOR_RESEARCH_LAB.tileImg.src = 'assets/2D%20sprites/tiles/research-lab-floor.png';
+
+// v0.95.309 · ZYREX TRAINING FARM · Kaizari's private practice arena
+// Same footprint as Dad's Research Lab (20×20) · wood plank + green trim floor
+// Unlocked once player has 10+ fae AND 1+ Zyrex in party
+const INTERIOR_TRAINING_FARM = {
+  cols: 20, rows: 20,
+  tileImg: new Image(),
+  spawn: { x: 10, y: 18, dir: 'up' },
+  exit:  { x: 10, y: 19 },
+  wallImg: 'malezor',
+  trainingFarm: true,
+  blocked: [
+    // Practice dummy row along the top (rows 2-3)
+    [4, 3], [8, 3], [12, 3], [16, 3],
+    // Barrel/crate stack in the corners
+    [1, 1], [2, 1], [18, 1],
+  ],
+  label: '◈ ZYREX TRAINING FARM · press X on the door to leave',
+};
+INTERIOR_TRAINING_FARM.tileImg.src = 'assets/2D%20sprites/tiles/training-farm-floor.png';
 
 // Generic Malezor home interiors (v0.85) · every locked villager /
 // red-roof home gets its own scene lazily · shared 15×10 layout with
@@ -8215,10 +8251,12 @@ function enterCaveInterior(){
 }
 function enterCrazyHomeInterior(){  enterInterior('interior_crazy_home',  INTERIOR_CRAZY_HOME,  '◈ CRAZY\'S HOUSE · press X on the door to leave'); }
 function enterResearchLab(){        enterInterior('interior_research_lab', INTERIOR_RESEARCH_LAB, '◈ ZYREX RESEARCH LAB · press X on the door to leave'); }
+function enterTrainingFarm(){       enterInterior('interior_training_farm', INTERIOR_TRAINING_FARM, INTERIOR_TRAINING_FARM.label); }
 function interiorConfig(scene){
   if (scene === 'interior_home')        return INTERIOR_HOME;
   if (scene === 'interior_home_2f')     return INTERIOR_HOME_2F;
   if (scene === 'interior_research_lab')return INTERIOR_RESEARCH_LAB;
+  if (scene === 'interior_training_farm')return INTERIOR_TRAINING_FARM;
   if (scene === 'interior_cave')        return INTERIOR_CAVE;
   if (scene === 'interior_crazy_home')  return INTERIOR_CRAZY_HOME;
   if (MALEZOR_HOME_INTERIORS[scene])    return MALEZOR_HOME_INTERIORS[scene];

@@ -3274,6 +3274,7 @@ const NPCS = [
       if ((player.items.elzebub_egg || 0) > 0 && !player.elzebubHatched){
         player.items.elzebub_egg = 0;
         player.elzebubHatched = true;
+        try { awardRizerXP(3000); } catch(_){}   // v0.95.317 · Elzebub hatch = rare bond moment
         const z = (typeof createZyrex === 'function') ? createZyrex('elzebub', 10) : null;
         if (z){
           player.party = player.party || [];
@@ -3292,6 +3293,7 @@ const NPCS = [
       // v0.95.268 · Mom gifts the Zycube on first interaction (Dad's starter quest)
       if (!player.zycubeGifted){
         player.zycubeGifted = true;
+        try { awardRizerXP(500); } catch(_){}   // v0.95.317 · side-quest XP
         player.items.zycube  = (player.items.zycube  || 0) + 1;
         // v0.95.275 · Mom also stocks 2 potions for the road when she gives the Zycube
         player.items.potion  = (player.items.potion  || 0) + 2;
@@ -3380,6 +3382,8 @@ const NPCS = [
         inv.zysphere_basic  = (inv.zysphere_basic || 0) + 5;
         showToast('★ QUEST COMPLETE · +300 coins · +1 Elixir · +5 Zyspheres', 2800);
         try { playSFX('confirm'); } catch(_){}
+        // v0.95.317 · Rizer XP · Dad's starter quest completion · 8K main-quest tier
+        try { awardRizerXP(8000); } catch(_){}
         // v0.95.312 · Dad points player to his WORKBENCH · picker no longer auto-opens
         showDialog({ speaker: 'DAD', lines: [
           'Look at you.  Every item accounted for.  That\'s a Rizer.',
@@ -3486,6 +3490,7 @@ const NPCS = [
       // v0.95.141 · Cheetah huntress · gifts Fae Net on FIRST interaction
       if (!player.faenetGifted){
         player.faenetGifted = true;
+        try { awardRizerXP(1000); } catch(_){}   // v0.95.317 · Kaizari's gift = tool unlock
         player.items.faenet = (player.items.faenet || 0) + 1;
         playSFX('confirm');
         showDialog({ speaker: 'KAIZARI', lines: [
@@ -3551,6 +3556,7 @@ const NPCS = [
       player.items = player.items || {};
       if (!player.raidCardGifted){
         player.raidCardGifted = true;
+        try { awardRizerXP(500); } catch(_){}   // v0.95.317 · Prof Elarian RAID card
         player.items.raidcard = (player.items.raidcard || 0) + 1;
         showToast('★ Received: RAID Card · Rizer Academy ID', 2600);
         try { playSFX('confirm'); } catch(_){}
@@ -3601,6 +3607,7 @@ const NPCS = [
       player.items = player.items || {};
       if (!player.gearbagGifted){
         player.gearbagGifted = true;
+        try { awardRizerXP(500); } catch(_){}   // v0.95.317 · Scrapjaw's gearbag
         player.items.gearbag = (player.items.gearbag || 0) + 1;
         // Ensure the starter skin is "owned" so the gearbag shows at least one entry
         player.ownedCosmetics = player.ownedCosmetics || {};
@@ -3690,6 +3697,7 @@ const NPCS = [
       player.items = player.items || {};
       if (!player.townMapGifted){
         player.townMapGifted = true;
+        try { awardRizerXP(1500); } catch(_){}   // v0.95.317 · Zoryn's Town Map unlocks map tab
         player.items.townmap = (player.items.townmap || 0) + 1;
         // Zoryn's map = town map only (Malezor) · NOT the full world map
         showToast('★ Received: Town Map (Malezor)', 2600);
@@ -6442,7 +6450,8 @@ function applyAstralkickHit(tx, ty, skinId = player.cosmeticSkin){
     if (hit.hp <= 0){
       playSFX('astralKill');
       startMoriDeath(hit);
-      player.rizerXP = (player.rizerXP || 0) + 30;
+      // v0.95.317 · A4 astralkick kill · 2× base kill bonus for using ultimate
+      awardRizerXP(((hit.tier || 1) * 16 + (hit.level || 1) * 2) * 2);
       recordMoriKill('astralkick');
       if (window.__rumbleHit) window.__rumbleHit('kill');
     }
@@ -6719,7 +6728,8 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
       playSFX('astralKill');
       // v0.95.236 · Play crumble-to-stone death anim before hiding
       startMoriDeath(hit);
-      player.rizerXP = (player.rizerXP || 0) + 20;
+      // v0.95.317 · A3 astralstrike kill · 1.5× base kill bonus for the ranged tech
+      awardRizerXP(Math.round(((hit.tier || 1) * 16 + (hit.level || 1) * 2) * 1.5));
       recordMoriKill('astralstrike');
       if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
     }
@@ -8907,7 +8917,9 @@ addEventListener('keydown', e => {
               playSFX('moriDeath');                     // v0.95.120 · bone-crack on kill
               // v0.95.236 · Play crumble-to-stone death anim before hiding
               startMoriDeath(hit);
-              player.rizerXP = (player.rizerXP || 0) + 12;
+              // v0.95.317 · Rizer XP · Mori kill · scales with enemy tier via awardRizerXP
+              // Sanity check for early Malezor: ~32 XP/kill · 125 kills = Lv 6 tutorial pace
+              awardRizerXP((hit.tier || 1) * 16 + (hit.level || 1) * 2);
               recordMoriKill(mode);                     // v0.95.140 · cosmetic combat core
               if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
             }
@@ -15750,9 +15762,49 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
 // RIZER HUD (v0.77) · top-right widget · 3 dynamic bars + click panel
 // ─────────────────────────────────────────────────────────────
 // Player stat block · initialize once (safe to add fields later)
+// v0.95.317 · CANONICAL RIZER LEVELING CURVE
+// totalXP(L) = 100 × L²  ·  clean quadratic · Lv50 = 250K · Lv100 = 1M
+// Design targets: Part 1 (10 districts) → Lv 50 · Part 2 (Novarian Challenge) → Lv 100
+const RIZER_LEVEL_CAP = 100;
+function rizerTotalXPFor(level){
+  const L = Math.max(1, Math.min(RIZER_LEVEL_CAP, level));
+  return 100 * L * L;
+}
+function rizerXPToNext(currentLevel){
+  const L = Math.max(1, Math.min(RIZER_LEVEL_CAP - 1, currentLevel));
+  return rizerTotalXPFor(L + 1) - rizerTotalXPFor(L);
+}
+// Award Rizer XP · handles level-ups (may cross multiple levels at once)
+// Every 10 levels triggers a milestone toast so 10 celebration beats across 1-100
+function awardRizerXP(amount){
+  if (!amount || amount <= 0) return;
+  if ((player.rizerLvl || 1) >= RIZER_LEVEL_CAP){
+    player.rizerXP = 0;
+    player.rizerXPMax = 1;
+    return;
+  }
+  player.rizerXP = (player.rizerXP || 0) + amount;
+  while ((player.rizerLvl || 1) < RIZER_LEVEL_CAP && player.rizerXP >= player.rizerXPMax){
+    player.rizerXP -= player.rizerXPMax;
+    player.rizerLvl = (player.rizerLvl || 1) + 1;
+    player.rizerXPMax = rizerXPToNext(player.rizerLvl);
+    try { playSFX('confirm'); } catch(_){}
+    if (player.rizerLvl % 10 === 0){
+      showToast(`★ RIZER LEVEL ${player.rizerLvl} · milestone`, 2600);
+    } else {
+      showToast(`★ RIZER LEVEL UP · Lv ${player.rizerLvl}`, 1800);
+    }
+  }
+  if ((player.rizerLvl || 1) >= RIZER_LEVEL_CAP){
+    player.rizerLvl = RIZER_LEVEL_CAP;
+    player.rizerXP = 0;
+    player.rizerXPMax = 1;
+  }
+}
 if (player.rizerLvl == null) player.rizerLvl = 1;
 if (player.rizerXP  == null) player.rizerXP  = 0;
-if (player.rizerXPMax == null) player.rizerXPMax = 100;
+// v0.95.317 · rizerXPMax is DERIVED from the curve · never trust stored value
+player.rizerXPMax = rizerXPToNext(player.rizerLvl);
 if (player.hp        == null) player.hp    = 100;
 if (player.hpMax     == null) player.hpMax = 100;
 if (player.astral    == null) player.astral    = 100;

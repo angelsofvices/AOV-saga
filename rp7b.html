@@ -1453,6 +1453,7 @@ const INVENTORY_META = {
   rare_item:        { label: 'Rare Item',         order: 50 },
   prismshard:       { label: 'Legendary Prismshard', order: 60 },
   faenet:           { label: 'Fae Net',            order: 35 },   // v0.95.132 · standard-issue Rizer net
+  zycube:           { label: 'Zycube',              order: 36 },   // v0.95.268 · utility Prism · storage · Mom gifts on 1st talk
   skateboard:       { label: 'Skateboard',         order: 70 },
   // v0.95.134 · Harvesting + science crafting
   berry:            { label: 'Berries',            order: 80 },   // from bushes  (M=1 Z=2 A=3)
@@ -3150,10 +3151,24 @@ const NPCS = [
     blinkTimer: 1200 + Math.random() * 2000,
     onInteract: (n) => {
       playSFX('mom');                             // v0.95.91 · Mia clear/smooth VO
-      showDialog({ speaker: 'MOM', lines: [
-        'Stay safe out there, honey.',
-        'Your father is at the Research Facility · he had something to give you today.',
-      ]});
+      // v0.95.268 · Mom gifts the Zycube on first interaction (Dad's starter quest)
+      player.items = player.items || {};
+      if (!player.zycubeGifted){
+        player.zycubeGifted = true;
+        player.items.zycube = (player.items.zycube || 0) + 1;
+        showToast('★ Received: Zycube', 2200);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'MOM', lines: [
+          'Oh honey — before you go...',
+          '*hands you a smooth cube of woven starlight*  This is my Zycube.  It stores anything you find on the road.',
+          'Your father is at the Research Facility · take it to him.',
+        ]});
+      } else {
+        showDialog({ speaker: 'MOM', lines: [
+          'Stay safe out there, honey.',
+          'Your father is at the Research Facility · he had something to give you today.',
+        ]});
+      }
     },
   },
   {
@@ -3182,9 +3197,78 @@ const NPCS = [
     blinkTimer: 2000 + Math.random() * 2000,
     onInteract: (n) => {
       playSFX('dad');                             // v0.95.90 · Jerry-B southern narration cue
+      // v0.95.268 · Dad's Starter Bonder Quest · gate for exploration essentials
+      // Required: Fae Net (Kaizari) + Zycube (Mom) + 10 berries + 10 seeds + 10 fruits
+      player.items = player.items || {};
+      const inv        = player.items;
+      const hasFaenet  = (inv.faenet || 0) >= 1;
+      const hasZycube  = (inv.zycube || 0) >= 1;
+      const nBerries   = inv.berry  || 0;
+      const nSeeds     = inv.seed   || 0;
+      const nFruits    = inv.fruit  || 0;
+      const REQ = 10;
+      const done = hasFaenet && hasZycube && nBerries >= REQ && nSeeds >= REQ && nFruits >= REQ;
+
+      // First talk · give the quest
+      if (!player.dadStarterQuestGiven){
+        player.dadStarterQuestGiven = true;
+        showDialog({ speaker: 'DAD', lines: [
+          'Ah, there you are, kid.  Come here.',
+          'A Rizer that steps into the wild empty-handed comes back the same way — or not at all.',
+          'Before I let you loose on Zyraxis, prove you can gather.  Bring me back:',
+          '  ✦ Fae Net · Kaizari the cheetah huntress will give you hers',
+          '  ✦ Zycube · your mother has one waiting downstairs',
+          '  ✦ 10 Berries · punch a bush',
+          '  ✦ 10 Fruits · punch a tree',
+          '  ✦ 10 Seeds · harvest bonus on bushes and trees',
+          'Come back when the list is complete.  Then the real training begins.',
+        ]});
+        showToast('★ QUEST · Dad · The Bonder\'s Starter Kit', 2400);
+        return;
+      }
+
+      // Completion · take items + acknowledge
+      if (done && !player.dadStarterQuestComplete){
+        player.dadStarterQuestComplete = true;
+        // Consume the tribute
+        inv.berry = Math.max(0, nBerries - REQ);
+        inv.seed  = Math.max(0, nSeeds   - REQ);
+        inv.fruit = Math.max(0, nFruits  - REQ);
+        // Reward: coins + a Verdant Elixir + Basic Zyspheres so the loop rolls
+        inv.coins           = (inv.coins || 0) + 300;
+        inv.verdant_elixir  = (inv.verdant_elixir || 0) + 1;
+        inv.zysphere_basic  = (inv.zysphere_basic || 0) + 5;
+        showToast('★ QUEST COMPLETE · +300 coins · +1 Elixir · +5 Zyspheres', 2800);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'DAD', lines: [
+          'Look at you.  Every item accounted for.  That\'s a Rizer.',
+          '*takes the tribute · nods once*',
+          'Coins for the road.  A Verdant Elixir for the first bad wound.  Five basic Zyspheres to catch what you find.',
+          'Now go earn the rest of it.',
+        ]});
+        return;
+      }
+
+      // Already completed
+      if (player.dadStarterQuestComplete){
+        showDialog({ speaker: 'DAD', lines: [
+          'Bring back a strong Zyrex, kid.',
+          'The bond you build today will follow you across every district of Zyraxis.',
+        ]});
+        return;
+      }
+
+      // Progress recap · checklist with live counts
+      const mark = (ok) => ok ? '✓' : '·';
+      const clamp = (n,cap) => Math.min(n,cap);
       showDialog({ speaker: 'DAD', lines: [
-        'Bring back a strong Zyrex, kid.',
-        'The bond you build today will follow you across every district of Zyraxis.',
+        'Not yet, kid.  Let me see where you\'re at.',
+        `  ${mark(hasFaenet)}  Fae Net             (${hasFaenet ? '1/1' : '0/1'})`,
+        `  ${mark(hasZycube)}  Zycube              (${hasZycube ? '1/1' : '0/1'})`,
+        `  ${mark(nBerries>=REQ)}  Berries             (${clamp(nBerries,REQ)}/${REQ})`,
+        `  ${mark(nFruits>=REQ)}  Fruits              (${clamp(nFruits,REQ)}/${REQ})`,
+        `  ${mark(nSeeds>=REQ)}  Seeds               (${clamp(nSeeds,REQ)}/${REQ})`,
+        'Come back when the list is full.',
       ]});
     },
   },

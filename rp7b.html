@@ -5604,7 +5604,17 @@ function buildDevInteriorForProp(prop){
   DEV_INTERIOR_CACHE.set(sceneKey, cfg);
   return { key: sceneKey, cfg };
 }
+// v0.95.318 · Props that should NEVER get the dev template (UFO cockpit,
+// chests, boulders, throwable stones, decorative items).  These have their
+// own scripted interact logic (boarding, loot pop, etc.) and would be
+// broken by a template interior.
+const DEV_INTERIOR_BLACKLIST = /^(auraxion_ufo|chest|boulder|astralite_stone|nebulaport|nebuladock|gemlord|broadcast|dummy|couch|tv|rug|banner|plant|elzoran|omniris|apexaur|verdanix|volcanut|otterlin|celestryx)/i;
+function shouldSkipDevInterior(prop){
+  if (!prop || !prop.id) return true;
+  return DEV_INTERIOR_BLACKLIST.test(prop.id);
+}
 function openDevInteriorFor(prop){
+  if (shouldSkipDevInterior(prop)) return;   // no template for these
   const { key, cfg } = buildDevInteriorForProp(prop);
   try { enterInterior(key, cfg, cfg.label); }
   catch(e){ showToast('◈ DEV · interior failed: ' + e.message, 2200); }
@@ -11605,6 +11615,15 @@ addEventListener('keydown', e => {
     }
   }
   if (k === '3'){
+    // v0.95.318 · Double-tap Options (3) → toggle AGGRESSIVE Zyrex mode
+    // Summoned Zyrex go hunt Mori/Daemon · double-tap again to stand down
+    const _now = performance.now();
+    if (_now - _lastOptionsTapTime < 400){
+      _lastOptionsTapTime = 0;
+      setAggressiveMode(!isAggressiveMode());
+      return;
+    }
+    _lastOptionsTapTime = _now;
     // v0.95.281 · START/Options button = pure SETTINGS (save/load, options,
     // controller bindings) · always available from the moment you can play ·
     // Items + Gear moved to ZYCUBE which lives on the touchpad ('2') per new
@@ -14160,6 +14179,124 @@ const SUMMONABLE_SPRITES = {
     cellW: 313, cellH: 313, scaleMul: 0.55,   // matches Gearbyte baseline · Core Four starter trio complete
   },
 };
+// ─────────────────────────────────────────────────────────────
+// v0.95.318 · AGGRESSIVE ZYREX COMBAT · double-tap Options (key '3')
+// Summoned Zyrex enter attack-AI mode · auto-target nearest Mori/Daemon
+// within 6 tiles · step toward + strike when adjacent · type-themed VFX
+// Damage: baseDmg = tier×30 + level×2 · scales cleanly against Mori HP 125
+// (T1 Lv5 = 40 dmg · 3 hits kill · T6 Lv60 = 300 dmg · 1-shots Daemon)
+// ─────────────────────────────────────────────────────────────
+let _lastOptionsTapTime = 0;
+function computeZyrexDamage(z){
+  if (!z) return 20;
+  return Math.max(10, (z.tier || 1) * 30 + (z.level || 1) * 2);
+}
+// Aggressive mode helpers
+function isAggressiveMode(){ return !!game.zyrexAggressive; }
+function setAggressiveMode(on){
+  game.zyrexAggressive = !!on;
+  showToast(on
+    ? '★ AGGRESSIVE MODE ON · your Zyrex fights with you'
+    : '◈ Aggressive mode OFF · Zyrex hold position',
+    2200);
+  try { playSFX(on ? 'confirm' : 'menuClose'); } catch(_){}
+}
+// Type-themed attack VFX · uses ZYREX_TYPE_THEME palette · reuses HIT_FX buffer
+const _zyrexAttackFx = [];
+function emitZyrexAttackFx(tileX, tileY, zyrexType){
+  const theme = (typeof ZYREX_TYPE_THEME !== 'undefined' && ZYREX_TYPE_THEME[zyrexType])
+    || (typeof ZYREX_TYPE_THEME !== 'undefined' && ZYREX_TYPE_THEME._default)
+    || { border: '#ffd66b', glow: 'rgba(255,214,107,0.5)', icon: '★' };
+  _zyrexAttackFx.push({
+    x: tileX, y: tileY, t0: performance.now(), dur: 380,
+    color: theme.border, glow: theme.glow, icon: theme.icon,
+  });
+}
+function drawZyrexAttackFx(){
+  const now = performance.now();
+  for (let i = _zyrexAttackFx.length - 1; i >= 0; i--){
+    const fx = _zyrexAttackFx[i];
+    const t = (now - fx.t0) / fx.dur;
+    if (t >= 1){ _zyrexAttackFx.splice(i, 1); continue; }
+    const cx = fx.x * TILE + TILE / 2 - _cam.x;
+    const cy = fx.y * TILE + TILE / 2 - _cam.y;
+    const r  = 14 + t * 32;
+    ctx.save();
+    ctx.shadowColor = fx.glow; ctx.shadowBlur = 14;
+    ctx.strokeStyle = fx.color;
+    ctx.lineWidth = Math.max(1, 4 * (1 - t));
+    ctx.globalAlpha = 1 - t;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.font = `bold ${Math.round(20 + t * 8)}px "Courier New", monospace`;
+    ctx.fillStyle = fx.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(fx.icon || '★', cx, cy + 8);
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }
+}
+// AI tick · called for each summoned _summon_* NPC when aggressive mode is on
+function tickAggressiveZyrex(n){
+  if (!n._summoned || n.scene !== 'overworld') return;
+  if ((n._nextAttackAt || 0) > performance.now()) { n.moving = false; return; }
+  // Find nearest Mori/Daemon within 6 tiles (Manhattan)
+  const RANGE = 6;
+  let best = null, bestD = Infinity;
+  for (const enemy of NPCS){
+    if (!enemy || !enemy.isEnemy || enemy._dying) continue;
+    if (enemy.scene !== 'overworld') continue;
+    const d = Math.abs(enemy.tileX - n.tileX) + Math.abs(enemy.tileY - n.tileY);
+    if (d <= RANGE && d < bestD){ best = enemy; bestD = d; }
+  }
+  if (!best){
+    // No target · follow player instead so we don't get lost
+    const trail = player.trail || [];
+    const t = trail[trail.length - 3] || trail[trail.length - 2] || trail[trail.length - 1];
+    if (t && (t.x !== n.tileX || t.y !== n.tileY)){
+      const dx = Math.sign(t.x - n.tileX), dy = Math.sign(t.y - n.tileY);
+      const dir = Math.abs(t.x - n.tileX) >= Math.abs(t.y - n.tileY)
+        ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      const v = _DIR_VEC[dir];
+      if (v && stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
+        n.moveCd = 200; return;
+      }
+    }
+    n.moving = false; n.moveCd = 300; return;
+  }
+  const dx = best.tileX - n.tileX, dy = best.tileY - n.tileY;
+  const manh = Math.abs(dx) + Math.abs(dy);
+  if (manh <= 1){
+    // Adjacent · strike
+    const partyMember = (player.party || []).find(z => z && z.speciesId === n._summonSpeciesId);
+    const dmg = computeZyrexDamage(partyMember);
+    if (best.hp == null) best.hp = best.hpMax || 125;
+    best.hp -= dmg;
+    const type = (partyMember && (partyMember.type || partyMember.type2)) || 'Beast';
+    emitZyrexAttackFx(best.tileX, best.tileY, type);
+    n.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    try { playSFX('astralstrike'); } catch(_){}
+    if (best.hp <= 0){
+      try { playSFX('astralKill'); } catch(_){}
+      startMoriDeath(best);
+      const xp = ((best.tier || 1) * 16 + (best.level || 1) * 2);
+      awardRizerXP(xp);
+    }
+    n._nextAttackAt = performance.now() + 700;
+    n.moving = false;
+    return;
+  }
+  // Step toward target
+  const dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+  const v = _DIR_VEC[dir];
+  if (v && stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
+    n.moveCd = 200;
+  } else {
+    n.dir = dir; n.moving = false; n.moveCd = 300;
+  }
+}
+
 // Toggle summon for the Zyrex at party slot idx · one summoned at a time
 function toggleFactionSummon(partyIdx){
   const party = (player.party || []).filter(Boolean);
@@ -14790,6 +14927,11 @@ function tickNPC(n, dt){
     }
   }
   if (n.mode === 'follow'){
+    // v0.95.318 · Aggressive Zyrex combat AI · summoned Zyrex fight enemies
+    if (isAggressiveMode() && n.id && n.id.startsWith('_summon_') && n._summoned){
+      tickAggressiveZyrex(n);
+      return;
+    }
     // Follow player · target = 2 tiles behind in player's trail
     const trail = player.trail || [];
     const target = trail[trail.length - 3] || trail[trail.length - 2] || trail[trail.length - 1];
@@ -14976,6 +15118,7 @@ function frame(now){
   }
   drawAoeImpactBursts();// all large AOE bursts · above tall/wild grass
   drawHitFx();          // shared impact rings · above world under menus
+  drawZyrexAttackFx();  // v0.95.318 · type-themed Zyrex attack VFX
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

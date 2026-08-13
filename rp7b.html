@@ -744,7 +744,7 @@
     </div>
 
     <!-- FACTIONS · canonical ally grants unlock Companion 1 + Companion 2 -->
-    <div class="devtab" data-devtab="factions">
+    <div class="devtab" data-devtab="factions"><!-- v0.95.314 · row 0 = new obtainable Zyrex (starter trio + Celestryx + Apexaur + Elzebub) -->
       <div class="row" style="flex-direction:column;align-items:flex-start;">
         <span>Grant faction ally · unlocks Lv1 Follow + Lv2 Soul Switch:</span>
         <button id="devFactionElzoran">giveElzoran: OFF</button>
@@ -752,7 +752,21 @@
         <button id="devFactionGearbyte">giveGearbyte: OFF</button>
         <button id="devFactionVoltaryn">giveVoltaryn: OFF</button>
         <button id="devFactionOmniris">giveOmniris: OFF</button>
+      </div>
+      <div class="row">
+        <!-- v0.95.314 · newly obtainable Zyrex · individual toggles -->
+        <button id="devFactionVerdanix">giveVerdanix: OFF</button>
+        <button id="devFactionVolcanut">giveVolcanut: OFF</button>
+        <button id="devFactionOtterlin">giveOtterlin: OFF</button>
+      </div>
+      <div class="row">
+        <button id="devFactionCelestryx">giveCelestryx: OFF</button>
+        <button id="devFactionApexaur">giveApexaur: OFF</button>
+        <button id="devFactionElzebub">giveElzebub: OFF</button>
+      </div>
+      <div class="row">
         <button id="devFactionAll">giveAllFaction: OFF</button>
+        <button id="devCallFaction" style="background:#132;color:#ffd66b;border:1px solid #d4af37;">★ CALL FACTION · summon party to Rizer</button>
       </div>
       <div class="row" id="devFactionStatus">Faction allies granted: 0</div>
     </div>
@@ -11818,6 +11832,17 @@ const SPECIES = {
     baseHP:333, baseATK:333, baseDEF:333, baseSPD:333, baseSATK:333, baseSDEF:333,
     moves:['Tackle','Scratch','Growl','Ember'],
   },
+  // v0.95.314 · SPECIES entries for the new obtainable Zyrex (dev faction toggle needs them)
+  celestryx: {
+    id:'celestryx', name:'Celestryx', tier:6, type:'Astral', type2:'Aura',
+    baseHP:340, baseATK:320, baseDEF:300, baseSPD:330, baseSATK:350, baseSDEF:320,
+    moves:['Halo Beam','Wing Strike','Astral Chorus','Radiance'],
+  },
+  apexaur: {
+    id:'apexaur', name:'Apexaur', tier:3, type:'Beast', type2:'Elemental',
+    baseHP:180, baseATK:210, baseDEF:200, baseSPD:120, baseSATK:150, baseSDEF:170,
+    moves:['Tackle','Roar','Ember','Scratch'],
+  },
   // Faction ally · Voltaryn · T4 / Lv40 canonical dev grant.
   voltaryn: {
     id:'voltaryn', name:'Voltaryn', tier:4, type:'Elemental', type2:'Beast',
@@ -12037,6 +12062,13 @@ const DEV_FACTION_ACTORS={
   gearbyte:{label:'Gearbyte',level:10,buttonId:'devFactionGearbyte'},
   voltaryn:{label:'Voltaryn',level:40,buttonId:'devFactionVoltaryn'},
   omniris:{label:'Omniris',level:60,buttonId:'devFactionOmniris'},
+  // v0.95.314 · Newly obtainable Zyrex · toggleable individually
+  verdanix:{label:'Verdanix',level:5,buttonId:'devFactionVerdanix'},
+  volcanut:{label:'Volcanut',level:5,buttonId:'devFactionVolcanut'},
+  otterlin:{label:'Otterlin',level:5,buttonId:'devFactionOtterlin'},
+  celestryx:{label:'Celestryx',level:60,buttonId:'devFactionCelestryx'},
+  apexaur:{label:'Apexaur',level:30,buttonId:'devFactionApexaur'},
+  elzebub:{label:'Elzebub',level:10,buttonId:'devFactionElzebub'},
 };
 function setDevFactionActor(id,enabled,opts={}){
   const silent=!!opts.silent, deferRefresh=!!opts.deferRefresh;
@@ -12075,6 +12107,61 @@ function setDevAllFactions(enabled){
   showToast(`◈ FACTIONS · ${target?'ALL MEMBERS GRANTED · Lv1 Follow + Lv2 Soul Switch':'ALL MEMBERS REMOVED'}`,1900);
   return true;
 }
+// v0.95.314 · Call Faction · summon EVERY party Zyrex out beside Rizer at once
+// Uses the same _summon_<speciesId> follower NPCs the Faction touchpad panel
+// creates via toggleFactionSummon().  Toggle OFF marks them all _summoned=false
+// which the render filter treats as despawn (they return to their ZIC everworld).
+let _callFactionActive = false;
+function callFactionSummonAll(on){
+  _callFactionActive = !!on;
+  const party = (player.party || []).filter(Boolean);
+  if (on){
+    // Ring the player · spread positions around
+    const RING = [[0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+    party.slice(0, 8).forEach((z, i) => {
+      const spriteDef = SUMMONABLE_SPRITES[z.speciesId];
+      if (!spriteDef) return;
+      const followerId = `_summon_${z.speciesId}`;
+      let n = NPCS.find(x => x && x.id === followerId);
+      if (!n){
+        n = {
+          id: followerId, name: z.name,
+          sheet: new Image(), src: spriteDef.src,
+          bboxes: spriteDef.bboxes,
+          cellW: spriteDef.cellW, cellH: spriteDef.cellH,
+          cols: 4, rows: 4,
+          uniformScale: true, scaleMul: spriteDef.scaleMul || 1,
+          dir: 'down', mode: 'stationary',
+          moving: false, animFrame: 0, idleFrame: 0,
+          blinkTimer: 1800 + Math.random() * 2000,
+          onInteract: () => showDialog({ speaker: z.name.toUpperCase(), lines: [`*${z.name} at your side*`] }),
+        };
+        n.sheet.src = spriteDef.src;
+        NPCS.push(n);
+      }
+      const [dx, dy] = RING[i % RING.length];
+      n._summoned = true;
+      n.scene = game.scene;
+      n.tileX = player.x + dx;
+      n.tileY = player.y + dy;
+      n.dir   = 'down';
+      n.mode  = 'stationary';   // pose · don't wander around during preview
+    });
+    try { playSFX('confirm'); } catch(_){}
+    showToast(`★ DEV · Faction called · ${party.length} Zyrex around Rizer`, 2200);
+  } else {
+    // Send them home · despawn every _summon_*
+    NPCS.forEach(n => {
+      if (n && n.id && n.id.startsWith('_summon_')){
+        n._summoned = false;
+        n.scene = '__despawn__';
+      }
+    });
+    try { playSFX('menuClose'); } catch(_){}
+    showToast('◈ DEV · Faction dismissed · Zyrex returned to their ZIC everworld', 2200);
+  }
+}
+
 function refreshDevFactionButtons(){
   let count=0;
   for(const [id,cfg] of Object.entries(DEV_FACTION_ACTORS)){
@@ -15141,6 +15228,18 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
     if(factionBtn)factionBtn.addEventListener('click',()=>setDevFactionActor(id,!factionAllyInParty(id)));
   }
   document.getElementById('devFactionAll')?.addEventListener('click',()=>setDevAllFactions());
+  // v0.95.314 · Call Faction · summon party around Rizer for sprite preview
+  const callBtn = document.getElementById('devCallFaction');
+  if (callBtn){
+    const labelCall = () => `${_callFactionActive ? 'DISMISS' : 'CALL'} FACTION · ${_callFactionActive ? 'summoned' : 'send home'}`;
+    callBtn.textContent = '★ CALL FACTION · summon party to Rizer';
+    callBtn.addEventListener('click', () => {
+      callFactionSummonAll(!_callFactionActive);
+      callBtn.textContent = _callFactionActive
+        ? '★ DISMISS FACTION · send back to ZIC'
+        : '★ CALL FACTION · summon party to Rizer';
+    });
+  }
   refreshDevFactionButtons();
 
   // ── Wireframe mobile controller (v0.95.29) ──

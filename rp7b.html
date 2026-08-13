@@ -10526,13 +10526,22 @@ function tryInteract(){
   // v0.95.232 · autoEnter props (player home + future purchased property) are walk-through only ·
   // pressing X on them is a no-op so nothing feels blocked · they enter automatically when stepped on
   if (doorProp && doorProp.autoEnter) { /* no-op · use walk-through path instead */ }
+  else if (doorProp && doorProp.onInteract){
+    // v0.95.313 · Fire the prop's REAL onInteract first · if that opens a real
+    // interior (scene changes) we're done · if the scene stayed put AND the
+    // dev toggle is on, fall through to the generic template interior
+    const beforeScene = game.scene;
+    doorProp.onInteract();
+    if (game.scene === beforeScene && game.devUnlockAllDoors && doorProp.id){
+      openDevInteriorFor(doorProp);
+    }
+    return;
+  }
   else if (doorProp && game.devUnlockAllDoors && doorProp.id){
-    // v0.95.311 · Dev · Unlock All Doors · grandfather every locked prop into a
-    // generic template interior · homes → INTERIOR_HOME clone · buildings → lab clone
+    // Prop has no onInteract at all · dev toggle opens template anyway
     openDevInteriorFor(doorProp);
     return;
   }
-  else if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
   // v0.91 · fae collectible check (faced tile or standing tile)
   if (collectFaeAt(fx, fy) || collectFaeAt(player.x, player.y)) return;
   // v0.95.295 · Elzebub egg pickup · faced tile or standing tile
@@ -14018,13 +14027,14 @@ const SUMMONABLE_SPRITES = {
   },
   volcanut: {
     src: 'assets/2D%20sprites/zyrex/volcanut.png',
+    // v0.95.313 · TRUE Volcanut · fiery spiky lizard w/ orange runes · new bboxes
     bboxes: [
-      [[57,100,225,207],[68,100,218,208],[54,102,228,205],[40,108,230,201]],
-      [[47, 61,266,197],[ 0, 64,313,194],[ 0, 66,303,193],[ 0, 64,287,194]],
-      [[27, 18,273,295],[ 7, 20,306,293],[ 0, 21,313,292],[ 0, 21,261,292]],
-      [[73,  0,164,195],[52,  0,160,197],[45,  0,164,198],[30,  0,157,200]],
+      [[92,111,160,202],[72,107,164,206],[61,111,163,202],[45,111,166,202]],
+      [[43,  0,270,304],[ 0,  0,305,304],[23,  0,273,304],[ 8,  0,272,304]],
+      [[26, 84,271,180],[15, 84,273,180],[ 5, 84,308,180],[ 0, 84,262,180]],
+      [[90,  8,153,239],[67,  8,159,239],[63,  8,155,239],[63,  9,151,238]],
     ],
-    cellW: 313, cellH: 313, scaleMul: 0.55,   // v0.95.286 · starter scale = Gearbyte baseline
+    cellW: 313, cellH: 313, scaleMul: 0.55,   // starter scale = Gearbyte baseline
   },
   otterlin: {
     src: 'assets/2D%20sprites/zyrex/otterlin.png',

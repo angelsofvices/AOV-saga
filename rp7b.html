@@ -774,6 +774,9 @@
         <button id="devSurvivalMode">Survival Horde (×3): OFF</button>
       </div>
       <div class="row">
+        <button id="devNoWildBattle">No Wild Grass Battle: OFF</button>
+      </div>
+      <div class="row">
         <button id="devExtremeMode">Extreme Horde (×6 + 3m respawn): OFF</button>
       </div>
     </div>
@@ -9190,7 +9193,8 @@ function tryMove(dt){
     : !!interiorWildCfg?.gemgrass?.some(([gx,gy])=>gx===nx&&gy===ny);
   if (player.activeActor==='rizer'&&onDeclaredGemgrass && player.party.filter(z => z && z.hp > 0).length > 0){
     player.stepsInGrass = (player.stepsInGrass || 0) + 1;
-    if (player.stepsInGrass >= 2 && Math.random() < 0.14){
+    // v0.95.299 · Dev · No Wild Grass Battle toggle · game.devNoWildBattle blocks the roll
+    if (!game.devNoWildBattle && player.stepsInGrass >= 2 && Math.random() < 0.14){
       player.stepsInGrass = 0;
       startWildBattle();
     }
@@ -15180,6 +15184,18 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       NPCS.forEach(n => { if (isFriendlyNpc(n)) player.bonds[n.id] = 100; });
       playSFX('confirm');
       showToast('◈ DEV · All friendly NPC bonds → 100', 2000);
+    });
+  }
+  // v0.95.299 · Dev · No Wild Grass Battle · block the encounter roll while walking through gemgrass
+  const noWildBtn = document.getElementById('devNoWildBattle');
+  if (noWildBtn){
+    const labelNoWild = () => `No Wild Grass Battle: ${game.devNoWildBattle ? 'ON' : 'OFF'}`;
+    noWildBtn.textContent = labelNoWild();
+    noWildBtn.addEventListener('click', () => {
+      game.devNoWildBattle = !game.devNoWildBattle;
+      noWildBtn.textContent = labelNoWild();
+      showToast(`◈ DEV · Wild grass encounters ${game.devNoWildBattle ? 'DISABLED' : 'ENABLED'}`, 1800);
+      playSFX('confirm');
     });
   }
   // v0.95.198 · Dev · Survival + Extreme Horde toggles · multiply Mori/Daemon spawns

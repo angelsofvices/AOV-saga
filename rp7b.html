@@ -524,6 +524,19 @@
       <div style="text-align:center; margin-top:14px; color:#889; font-size:10px; letter-spacing:.14em;">○ / B / OPTIONS · CLOSE</div>
     </div>
   </div>
+  <!-- v0.95.269 · Starter picker · opens on Dad's quest completion · one-time -->
+  <div id="starterPickerPanel" style="display:none; position:fixed; inset:0; z-index:115; background:rgba(4,8,22,0.94); align-items:center; justify-content:center; padding:20px; font-family:'Courier New',monospace; color:#eaf0ff;">
+    <div style="width:640px; max-width:96vw; background:linear-gradient(#0e1830,#050a18); border:2px solid #d4af37; box-shadow:0 0 24px rgba(212,175,55,0.4); padding:22px 24px;">
+      <div style="text-align:center; color:#d4af37; letter-spacing:.14em; font:bold 14px 'Courier New',monospace; margin-bottom:6px;">◈ DAD · CHOOSE YOUR FIRST ZYREX</div>
+      <div style="text-align:center; color:#8ff; font:11px 'Courier New',monospace; margin-bottom:16px; letter-spacing:.08em;">Tier 1 · Level 5 · this Zyrex is yours to bond with · choose carefully</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+        <button class="starterTile" data-starter="volcanut" style="padding:18px 10px; background:rgba(60,20,10,0.55); color:#ff9c66; border:2px solid #ff6a3d; font:bold 12px 'Courier New',monospace; letter-spacing:.06em; cursor:pointer; text-align:center; line-height:1.6;">🔥<br><span style="color:#ffd66b; font-size:14px;">VOLCANUT</span><br><span style="color:#f88;">Elemental</span><br><span style="color:#c8ffb0; font-size:10px;">Zoryn's partner</span></button>
+        <button class="starterTile" data-starter="verdanix" style="padding:18px 10px; background:rgba(10,50,20,0.55); color:#8fffb0; border:2px solid #4fdc7a; font:bold 12px 'Courier New',monospace; letter-spacing:.06em; cursor:pointer; text-align:center; line-height:1.6;">🌿<br><span style="color:#c8ff8f; font-size:14px;">VERDANIX</span><br><span style="color:#8fffb0;">Nature</span><br><span style="color:#c8ffb0; font-size:10px;">Lilo's partner</span></button>
+        <button class="starterTile" data-starter="otterlin" style="padding:18px 10px; background:rgba(10,30,60,0.55); color:#8ff; border:2px solid #4fb3ff; font:bold 12px 'Courier New',monospace; letter-spacing:.06em; cursor:pointer; text-align:center; line-height:1.6;">💧<br><span style="color:#aef; font-size:14px;">OTTERLIN</span><br><span style="color:#8ff;">Aquatic</span><br><span style="color:#c8ffb0; font-size:10px;">Maerys' partner</span></button>
+      </div>
+      <div style="text-align:center; margin-top:14px; color:#889; font-size:10px; letter-spacing:.14em;">← → NAV · × / ENTER · CONFIRM</div>
+    </div>
+  </div>
   <!-- v0.95.259 · Landscape lock for touch-only mobile · portrait is standard (GBA feel) -->
   <div id="rotateLock" style="display:none; position:fixed; inset:0; z-index:120; background:#000; color:#f0eadf; align-items:center; justify-content:center; padding:24px; text-align:center; font:bold 18px 'Courier New',monospace; letter-spacing:.12em; line-height:1.5;">
     <div>
@@ -3227,7 +3240,7 @@ const NPCS = [
         return;
       }
 
-      // Completion · take items + acknowledge
+      // Completion · take items + acknowledge · then open starter picker
       if (done && !player.dadStarterQuestComplete){
         player.dadStarterQuestComplete = true;
         // Consume the tribute
@@ -3244,13 +3257,23 @@ const NPCS = [
           'Look at you.  Every item accounted for.  That\'s a Rizer.',
           '*takes the tribute · nods once*',
           'Coins for the road.  A Verdant Elixir for the first bad wound.  Five basic Zyspheres to catch what you find.',
-          'Now go earn the rest of it.',
-        ]});
+          'Now for the real thing.  Every young Rizer bonds with their first Zyrex here in Malezor.',
+          'I\'ve got three eggs almost ready.  Volcanut · Verdanix · Otterlin.  All Tier 1, Level 5.  Pick the one that calls to you.',
+        ], onDone: () => {
+          if (!player.starterChosen) openStarterPicker();
+        }});
         return;
       }
 
       // Already completed
       if (player.dadStarterQuestComplete){
+        // If they never actually PICKED a starter, prompt again
+        if (!player.starterChosen){
+          showDialog({ speaker: 'DAD', lines: [
+            'Still haven\'t picked, huh?  Take another look — this Zyrex is yours to bond with.',
+          ], onDone: () => openStarterPicker() });
+          return;
+        }
         showDialog({ speaker: 'DAD', lines: [
           'Bring back a strong Zyrex, kid.',
           'The bond you build today will follow you across every district of Zyraxis.',
@@ -10875,6 +10898,85 @@ function closeZphonePanel(){
   // Backdrop click closes
   p.addEventListener('click', (e) => { if (e.target === p) closeZphonePanel(); });
 })();
+// ─────────────────────────────────────────────────────────────
+// v0.95.269 · STARTER PICKER · Dad's quest completion opens this
+// One-time · picks Otterlin / Volcanut / Verdanix at Lv 5 T1
+// ─────────────────────────────────────────────────────────────
+let starterPickerIdx = 0;
+const STARTER_IDS = ['volcanut', 'verdanix', 'otterlin'];
+function openStarterPicker(){
+  const p = document.getElementById('starterPickerPanel');
+  if (!p) return;
+  p.style.display = 'flex';
+  game.starterPickerOpen = true;
+  starterPickerIdx = 0;
+  paintStarterPickerSelection();
+  playSFX('menuOpen');
+}
+function closeStarterPicker(){
+  const p = document.getElementById('starterPickerPanel');
+  if (p) p.style.display = 'none';
+  game.starterPickerOpen = false;
+}
+function paintStarterPickerSelection(){
+  const tiles = document.querySelectorAll('#starterPickerPanel .starterTile');
+  tiles.forEach((el, i) => {
+    el.style.outline = (i === starterPickerIdx) ? '3px solid #ffd66b' : 'none';
+    el.style.outlineOffset = '2px';
+    el.style.transform = (i === starterPickerIdx) ? 'scale(1.03)' : 'scale(1)';
+    el.style.transition = 'transform 120ms ease-out';
+  });
+}
+function pickStarter(id){
+  if (!STARTER_IDS.includes(id)) return;
+  if (player.starterChosen){
+    closeStarterPicker();
+    return;
+  }
+  const z = createZyrex(id, 5);
+  if (!z){
+    showToast('◈ ERROR · starter not found', 2000);
+    return;
+  }
+  player.party = player.party || [];
+  player.party.push(z);
+  player.starterChosen = id;
+  closeStarterPicker();
+  playSFX('confirm');
+  showToast(`★ ${z.name} Lv 5 joined the party!`, 2800);
+  showDialog({ speaker: 'DAD', lines: [
+    `${z.name}. Good choice, kid.`,
+    'Bond with it.  Feed it.  Fight beside it.  Everything else follows.',
+    'Now — get out there.',
+  ]});
+}
+(function wireStarterPicker(){
+  const p = document.getElementById('starterPickerPanel');
+  if (!p) return;
+  p.querySelectorAll('.starterTile').forEach((el, i) => {
+    el.addEventListener('mouseenter', () => { starterPickerIdx = i; paintStarterPickerSelection(); });
+    el.addEventListener('click', () => { pickStarter(el.dataset.starter); });
+  });
+})();
+// Keyboard/gamepad nav for the starter picker
+window.addEventListener('keydown', (e) => {
+  if (!game || !game.starterPickerOpen) return;
+  const k = (e.key || '').toLowerCase();
+  if (k === 'arrowleft' || k === 'a'){
+    starterPickerIdx = (starterPickerIdx + STARTER_IDS.length - 1) % STARTER_IDS.length;
+    paintStarterPickerSelection();
+    playSFX('cursor');
+    e.preventDefault();
+  } else if (k === 'arrowright' || k === 'd'){
+    starterPickerIdx = (starterPickerIdx + 1) % STARTER_IDS.length;
+    paintStarterPickerSelection();
+    playSFX('cursor');
+    e.preventDefault();
+  } else if (k === 'enter' || k === ' ' || k === 'x' || k === 'z'){
+    pickStarter(STARTER_IDS[starterPickerIdx]);
+    e.preventDefault();
+  }
+}, true);
 // B/Circle/Esc closes the Z-phone from anywhere
 window.addEventListener('keydown', (e) => {
   const k = (e.key || '').toLowerCase();
@@ -10938,6 +11040,23 @@ const SPECIES = {
     id:'elzebub', name:'Elzebub', tier:1, type:'Draconic', type2:'Elemental',
     baseHP:60, baseATK:55, baseDEF:45, baseSPD:55, baseSATK:60, baseSDEF:58,
     moves:['Ember','Tackle','Scratch','Growl'],
+  },
+  // ── v0.95.269 · Dad's starter trio · Malezor Core Four Zyrex partners (anime canon)
+  // Zoryn+Volcanut · Lilo+Verdanix · Maerys+Otterlin · Lv 5 T1
+  volcanut: {
+    id:'volcanut', name:'Volcanut', tier:1, type:'Elemental', type2:null,
+    baseHP:60, baseATK:100, baseDEF:70, baseSPD:60, baseSATK:70, baseSDEF:60,
+    moves:['Ember','Tackle','Growl','Scratch'],
+  },
+  verdanix: {
+    id:'verdanix', name:'Verdanix', tier:1, type:'Nature', type2:null,
+    baseHP:70, baseATK:80, baseDEF:80, baseSPD:55, baseSATK:75, baseSDEF:70,
+    moves:['Vine Whip','Tackle','Growl','Leaf Cut'],
+  },
+  otterlin: {
+    id:'otterlin', name:'Otterlin', tier:1, type:'Aquatic', type2:null,
+    baseHP:65, baseATK:75, baseDEF:65, baseSPD:80, baseSATK:80, baseSDEF:75,
+    moves:['Water Splash','Tackle','Growl','Bubble'],
   },
 
   // ── Faction ally · Gearbyte card/state ──────────────────────────

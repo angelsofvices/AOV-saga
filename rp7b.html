@@ -774,7 +774,9 @@
         <button id="devSurvivalMode">Survival Horde (×3): OFF</button>
       </div>
       <div class="row">
-        <button id="devNoWildBattle">No Wild Grass Battle: OFF</button>
+        <!-- v0.95.310 · button retained but wild-grass Zyrex encounters are permanently retired · grass now emits Mori/Daemon aggro noise instead -->
+        <button id="devNoWildBattle" title="Wild grass Zyrex encounters are permanently retired (v0.95.310). Grass = aggro noise now.">Wild Battle · retired</button>
+        <button id="devUnlockAllDoors">Unlock All Doors: OFF</button>
       </div>
       <div class="row">
         <button id="devExtremeMode">Extreme Horde (×6 + 3m respawn): OFF</button>
@@ -3364,25 +3366,24 @@ const NPCS = [
         inv.zysphere_basic  = (inv.zysphere_basic || 0) + 5;
         showToast('★ QUEST COMPLETE · +300 coins · +1 Elixir · +5 Zyspheres', 2800);
         try { playSFX('confirm'); } catch(_){}
+        // v0.95.312 · Dad points player to his WORKBENCH · picker no longer auto-opens
         showDialog({ speaker: 'DAD', lines: [
           'Look at you.  Every item accounted for.  That\'s a Rizer.',
           '*takes the tribute · nods once*',
           'Coins for the road.  A Verdant Elixir for the first bad wound.  Five basic Zyspheres to catch what you find.',
-          'Now for the real thing.  Every young Rizer bonds with their first Zyrex here in Malezor.',
-          'I\'ve got three eggs almost ready.  Volcanut · Verdanix · Otterlin.  All Tier 1, Level 5.  Pick the one that calls to you.',
-        ], onDone: () => {
-          if (!player.starterChosen) openStarterPicker();
-        }});
+          'Now — over to my workbench.  Three eggs are ready: Volcanut · Verdanix · Otterlin.',
+          '*points to the workbench*  Pick the one that calls to you.  I\'ll be right here.',
+        ]});
         return;
       }
 
       // Already completed
       if (player.dadStarterQuestComplete){
-        // If they never actually PICKED a starter, prompt again
+        // v0.95.312 · Direct player to the workbench instead of auto-opening picker
         if (!player.starterChosen){
           showDialog({ speaker: 'DAD', lines: [
-            'Still haven\'t picked, huh?  Take another look — this Zyrex is yours to bond with.',
-          ], onDone: () => openStarterPicker() });
+            'Still haven\'t picked, huh?  Walk over to my workbench and choose.  Volcanut · Verdanix · Otterlin.',
+          ]});
           return;
         }
         showDialog({ speaker: 'DAD', lines: [
@@ -5537,6 +5538,53 @@ const INTERIOR_TRAINING_FARM = {
   label: '◈ ZYREX TRAINING FARM · press X on the door to leave',
 };
 INTERIOR_TRAINING_FARM.tileImg.src = 'assets/2D%20sprites/tiles/training-farm-floor.png';
+
+// v0.95.311 · DEV · Unlock All Doors template interiors
+// Two templates cover every locked building: HOME (15×10, modeled after
+// INTERIOR_HOME · Malezor wall + wood floor + welcome-rug spawn) and
+// BUILDING (20×20, modeled after INTERIOR_RESEARCH_LAB · lab wall + floor).
+// Every unlocked prop gets a per-prop scene key: 'interior_dev_<propId>' so
+// scenes are cached and props keep independent state.
+const DEV_INTERIOR_CACHE = new Map();
+function isHomeStyleProp(prop){
+  if (!prop) return false;
+  const id = String(prop.id || '').toLowerCase();
+  // Anything with 'home' or 'house' in the ID is a home · everything else = building
+  return /home|house|villa|residence|apartment|dorm|cabin/.test(id);
+}
+function buildDevInteriorForProp(prop){
+  const sceneKey = `interior_dev_${prop.id}`;
+  if (DEV_INTERIOR_CACHE.has(sceneKey)) return { key: sceneKey, cfg: DEV_INTERIOR_CACHE.get(sceneKey) };
+  const isHome = isHomeStyleProp(prop);
+  const cfg = isHome ? {
+    // Home template (modeled after INTERIOR_HOME · 15×10)
+    cols: 15, rows: 10,
+    tileImg: INTERIOR_HOME.tileImg,          // reuse wood floor
+    spawn: { x: 7, y: 9, dir: 'up' },
+    exit:  { x: 7, y: 9 },
+    autoExit: true,
+    rug:   { x: 6, y: 9, w: 3, h: 1 },
+    wallImg: 'malezor',
+    blocked: [],
+    label: `◈ ${prop.name || 'HOME'} · walk out the door to leave`,
+  } : {
+    // Building template (modeled after INTERIOR_RESEARCH_LAB · 20×20)
+    cols: 20, rows: 20,
+    tileImg: INTERIOR_RESEARCH_LAB.tileImg,  // reuse lab floor
+    spawn: { x: 10, y: 18, dir: 'up' },
+    exit:  { x: 10, y: 19 },
+    wallImg: 'lab',
+    blocked: [],
+    label: `◈ ${prop.name || 'BUILDING'} · press X on the door to leave`,
+  };
+  DEV_INTERIOR_CACHE.set(sceneKey, cfg);
+  return { key: sceneKey, cfg };
+}
+function openDevInteriorFor(prop){
+  const { key, cfg } = buildDevInteriorForProp(prop);
+  try { enterInterior(key, cfg, cfg.label); }
+  catch(e){ showToast('◈ DEV · interior failed: ' + e.message, 2200); }
+}
 
 // Generic Malezor home interiors (v0.85) · every locked villager /
 // red-roof home gets its own scene lazily · shared 15×10 layout with
@@ -8257,6 +8305,10 @@ function interiorConfig(scene){
   if (scene === 'interior_home_2f')     return INTERIOR_HOME_2F;
   if (scene === 'interior_research_lab')return INTERIOR_RESEARCH_LAB;
   if (scene === 'interior_training_farm')return INTERIOR_TRAINING_FARM;
+  // v0.95.311 · Dev · Unlock-All-Doors dynamic scenes · look up by prefix
+  if (typeof scene === 'string' && scene.startsWith('interior_dev_')){
+    return DEV_INTERIOR_CACHE.get(scene) || null;
+  }
   if (scene === 'interior_cave')        return INTERIOR_CAVE;
   if (scene === 'interior_crazy_home')  return INTERIOR_CRAZY_HOME;
   if (MALEZOR_HOME_INTERIORS[scene])    return MALEZOR_HOME_INTERIORS[scene];
@@ -9318,15 +9370,36 @@ function tryMove(dt){
   const onDeclaredGemgrass=game.scene==='overworld'
     ? _wildZones.has(`${nx},${ny}`)
     : !!interiorWildCfg?.gemgrass?.some(([gx,gy])=>gx===nx&&gy===ny);
-  if (player.activeActor==='rizer'&&onDeclaredGemgrass && player.party.filter(z => z && z.hp > 0).length > 0){
+  // v0.95.310 · CANON SHIFT · Zyrex catching is QUEST-ONLY.  Wild grass never
+  // rolls a Zyrex encounter.  Instead, every grass step emits NOISE that alerts
+  // nearby Mori/Daemon patrols and pulls them into an aggro/chase state.
+  // Per memory aov-catching-philosophy: "grass = terrain flavor + noise that
+  // draws Mori/Daemon aggro · differentiates AOV from Pokemon".
+  if (player.activeActor === 'rizer' && onDeclaredGemgrass){
     player.stepsInGrass = (player.stepsInGrass || 0) + 1;
-    // v0.95.299 · Dev · No Wild Grass Battle toggle · game.devNoWildBattle blocks the roll
-    if (!game.devNoWildBattle && player.stepsInGrass >= 2 && Math.random() < 0.14){
-      player.stepsInGrass = 0;
-      startWildBattle();
-    }
+    emitGrassNoise(nx, ny);
   } else {
     player.stepsInGrass = 0;
+  }
+}
+
+// v0.95.310 · Grass noise → Mori/Daemon aggro pull
+// Every enemy NPC within GRASS_NOISE_RADIUS in the same scene switches
+// from wander to a short-lived aggro state whose target is the player tile.
+const GRASS_NOISE_RADIUS = 8;
+const AGGRO_DURATION_MS  = 5000;
+function emitGrassNoise(px, py){
+  if (game.scene !== 'overworld') return;
+  for (const n of NPCS){
+    if (!n || !n.isEnemy) continue;
+    if (n.scene !== 'overworld') continue;
+    const dx = n.tileX - px, dy = n.tileY - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > GRASS_NOISE_RADIUS * GRASS_NOISE_RADIUS) continue;
+    // Enter/refresh aggro · store target + expiry · aggro AI reads these in tickNPC
+    n._aggroUntil = performance.now() + AGGRO_DURATION_MS;
+    n._aggroTx = px;
+    n._aggroTy = py;
   }
 }
 
@@ -10344,6 +10417,23 @@ function tryInteract(){
           return;
         }
       }
+      // v0.95.312 · Dad's WORKBENCH · Zyrex Research Lab · cols 9-11 row 2
+      // After completing Dad's quest, walking up to the workbench opens the
+      // starter picker (Volcanut / Verdanix / Otterlin · Lv 5 T1)
+      if (cfg.researchLab && fy === 2 && fx >= 9 && fx <= 11){
+        if (player.dadStarterQuestComplete && !player.starterChosen){
+          if (typeof openStarterPicker === 'function'){
+            openStarterPicker();
+            return;
+          }
+        }
+        if (player.starterChosen){
+          showToast(`◈ Workbench · your ${(SPECIES && SPECIES[player.starterChosen] && SPECIES[player.starterChosen].name) || 'starter'} is with you now`, 2200);
+          return;
+        }
+        showToast('◈ Workbench · finish Dad\'s starter quest first', 2200);
+        return;
+      }
       // v0.95.79 · Rizer Room · FACED TILE must be the actual collision
       // tile for every interactable (no reaching over empty tiles).
       if (cfg.rizerRoom){
@@ -10436,6 +10526,12 @@ function tryInteract(){
   // v0.95.232 · autoEnter props (player home + future purchased property) are walk-through only ·
   // pressing X on them is a no-op so nothing feels blocked · they enter automatically when stepped on
   if (doorProp && doorProp.autoEnter) { /* no-op · use walk-through path instead */ }
+  else if (doorProp && game.devUnlockAllDoors && doorProp.id){
+    // v0.95.311 · Dev · Unlock All Doors · grandfather every locked prop into a
+    // generic template interior · homes → INTERIOR_HOME clone · buildings → lab clone
+    openDevInteriorFor(doorProp);
+    return;
+  }
   else if (doorProp && doorProp.onInteract){ doorProp.onInteract(); return; }
   // v0.91 · fae collectible check (faced tile or standing tile)
   if (collectFaeAt(fx, fy) || collectFaeAt(player.x, player.y)) return;
@@ -14521,9 +14617,14 @@ function tickNPC(n, dt){
   // v0.95.129 · Mori AI · drainer / daemon
   //   drainer · slow shamble toward player when within detectR · adjacent = drain HP
   //   daemon  · fast chase within detectR, ignores wanderRadius fence · higher drain
-  if (n.mode === 'drainer' || n.mode === 'daemon'){
+  if (n.mode === 'drainer' || n.mode === 'daemon' || (n.isEnemy && (n._aggroUntil||0) > performance.now())){
     const isDaemon  = n.mode === 'daemon';
-    const detectR   = n.detectR || (isDaemon ? 14 : 8);
+    // v0.95.310 · Grass noise aggro · while aggro is active, effective detect
+    // radius jumps so distant Mori/Daemon still investigate the noise source
+    const aggroActive = (n._aggroUntil || 0) > performance.now();
+    const detectR   = aggroActive
+      ? Math.max(n.detectR || 0, isDaemon ? 22 : 16)
+      : (n.detectR || (isDaemon ? 14 : 8));
     const stepCd    = isDaemon ? 130 : 230;
     const idleCd    = isDaemon ? 380 : 620;
     const drainAmt  = isDaemon ? 10 : 5;             // v0.95.134 · basic Mori = 5 dmg · daemon = 10
@@ -15339,6 +15440,18 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       NPCS.forEach(n => { if (isFriendlyNpc(n)) player.bonds[n.id] = 100; });
       playSFX('confirm');
       showToast('◈ DEV · All friendly NPC bonds → 100', 2000);
+    });
+  }
+  // v0.95.311 · Dev · Unlock All Doors · grandfather every locked prop to a template interior
+  const unlockDoorsBtn = document.getElementById('devUnlockAllDoors');
+  if (unlockDoorsBtn){
+    const labelUnlock = () => `Unlock All Doors: ${game.devUnlockAllDoors ? 'ON' : 'OFF'}`;
+    unlockDoorsBtn.textContent = labelUnlock();
+    unlockDoorsBtn.addEventListener('click', () => {
+      game.devUnlockAllDoors = !game.devUnlockAllDoors;
+      unlockDoorsBtn.textContent = labelUnlock();
+      showToast(`◈ DEV · All doors ${game.devUnlockAllDoors ? 'UNLOCKED (home + building templates)' : 'RESTORED'}`, 2200);
+      playSFX('confirm');
     });
   }
   // v0.95.299 · Dev · No Wild Grass Battle · block the encounter roll while walking through gemgrass

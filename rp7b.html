@@ -3410,10 +3410,26 @@ const NPCS = [
     turnToInteract: true,
     onInteract: (n) => {
       playSFX('elarian');                               // v0.95.126 · "You're a wizard" cue
-      showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
-        '*adjusts spectacles*  Ah, the young Rizer.  Punctual, I hope?',
-        'The Academy holds the oldest bond-lore in Zyraxis · come by when the doors open.',
-      ]});
+      // v0.95.276 · Professor Elarian gifts the RAID Card (Rizer Academy ID)
+      // on first interaction · Touchpad opens the RAID card viewer thereafter
+      player.items = player.items || {};
+      if (!player.raidCardGifted){
+        player.raidCardGifted = true;
+        player.items.raidcard = (player.items.raidcard || 0) + 1;
+        showToast('★ Received: RAID Card · Rizer Academy ID', 2600);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
+          '*adjusts spectacles*  Ah, the young Rizer.  Punctual, I hope?',
+          '*produces a shimmering silver card*  Your R.A.I.D. — Rizer Academy Identification.  Every student carries one.',
+          'Tap the touchpad (or press 2) to bring it up anytime · rank, faction, credits, class standing · all there.',
+          'The Academy holds the oldest bond-lore in Zyraxis · come by when the doors open.',
+        ]});
+      } else {
+        showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
+          '*adjusts spectacles*  Keep your R.A.I.D. close, young Rizer.',
+          'The Academy holds the oldest bond-lore in Zyraxis · come by when the doors open.',
+        ]});
+      }
     },
   },
   // ── SCRAPJAW · hyena bandit · outside Malezor Gear Shop (v0.87) ──
@@ -3695,10 +3711,46 @@ const NPCS = [
       blinkTimer: 2000 + Math.random() * 2000,   // blink loop uses frame 2 (eyes closed)
       onInteract: (n) => {
         playSFX('kelthor');
+        // v0.95.276 · Kelthor's First Quest · unlocks WORLD MAP tab on completion
+        // Task: Face the cave, prove your worth by entering Rakoron's Cave
+        // Progress tracked via player.kelthorFirstQuestGiven / Complete flags
+        player.items = player.items || {};
+        const cavePropped = player.kelthorCaveEntered;   // set when player enters interior_cave (see cave entry handler)
+        // First talk · give quest
+        if (!player.kelthorFirstQuestGiven){
+          player.kelthorFirstQuestGiven = true;
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "Ah, young one.  I've watched Rizers come and go for a hundred cycles.",
+            "You carry your father's fire.  I can see it in your bond with the Zyrex.",
+            "Your first task: go north to Rakoron's Cave.  Step inside · face what's there.",
+            "Come back to me when you have · then the map of Zyraxis will open to you.",
+          ]});
+          showToast('★ QUEST · Kelthor · Face the Cave', 2400);
+          return;
+        }
+        // Completion · player has entered the cave · reward = world map unlock
+        if (cavePropped && !player.kelthorFirstQuestComplete){
+          player.kelthorFirstQuestComplete = true;
+          player.items.worldmap = (player.items.worldmap || 0) + 1;
+          showToast('★ QUEST COMPLETE · World Map unlocked on touchpad', 2800);
+          try { playSFX('confirm'); } catch(_){}
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "You came back.  Most don't · not after Rakoron looks at them.",
+            "*hands you a folded map of Zyraxis*  You've earned this.",
+            "Press the touchpad · your world just got bigger, young Rizer.",
+          ]});
+          return;
+        }
+        if (player.kelthorFirstQuestComplete){
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "Malezor is your foundation.  Every district you conquer builds on it.",
+            "Come back often.  This town has more to teach you than you know.",
+          ]});
+          return;
+        }
+        // Given but not yet completed
         showDialog({ speaker: 'KELTHOR', lines: [
-          "Ah, young one.  I've watched Rizers come and go for a hundred cycles.",
-          "You carry your father's fire.  I can see it in your bond with the Zyrex.",
-          "Go north to Rakoron.  Face the cave, prove your worth · then all of Zyraxis will open to you.",
+          "Rakoron's Cave awaits.  Step inside, then return to me.",
         ]});
       },
     };
@@ -7871,7 +7923,14 @@ function enterInterior(sceneKey, cfg, toast){
   else if (toast) showToast(toast, 1600);
 }
 function enterHomeInterior(){       enterInterior('interior_home',        INTERIOR_HOME,        '◈ HOME · press X on the door to leave'); }
-function enterCaveInterior(){       enterInterior('interior_cave',        INTERIOR_CAVE,        '◈ RAKORON\'S CAVE · Zone 1 · press X on the door to leave'); }
+function enterCaveInterior(){
+  enterInterior('interior_cave', INTERIOR_CAVE, '◈ RAKORON\'S CAVE · Zone 1 · press X on the door to leave');
+  // v0.95.276 · Mark Kelthor's first-quest cave-visit flag · unlocks world map on return-talk
+  player.kelthorCaveEntered = true;
+  if (player.kelthorFirstQuestGiven && !player.kelthorFirstQuestComplete){
+    showToast('◈ You entered the cave · return to Kelthor', 2400);
+  }
+}
 function enterCrazyHomeInterior(){  enterInterior('interior_crazy_home',  INTERIOR_CRAZY_HOME,  '◈ CRAZY\'S HOUSE · press X on the door to leave'); }
 function enterResearchLab(){        enterInterior('interior_research_lab', INTERIOR_RESEARCH_LAB, '◈ ZYREX RESEARCH LAB · press X on the door to leave'); }
 function interiorConfig(scene){
@@ -10620,13 +10679,25 @@ addEventListener('keydown', e => {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 3) TOUCHPAD HUD OVERLAY · RHUD/FHUD/WORLD MAP cycle with L1/R1
+  // 3) TOUCHPAD HUD OVERLAY · RAID card + FACTION cycle with L1/R1
+  // v0.95.276 · RHUD expansion removed · touchpad now opens the RAID
+  // Card (Rizer Academy ID) received from Professor Elarian.  Once
+  // Dad grants the first starter Zyrex, the FACTION tab unlocks.
   // ═══════════════════════════════════════════════════════════════
   if (zyrexMenuOpen){
     if(k==='l'||k==='r'){
-      const pages=['rizer','zyrex','world'];
-      const i=Math.max(0,pages.indexOf(hudOverlayPage));
-      hudOverlayPage=pages[(i+(k==='r'?1:pages.length-1))%pages.length];
+      // v0.95.276/277 · Dynamic tab list based on unlocks
+      //   raid    · always after Prof Elarian gift
+      //   quests  · always after Mom's Zycube gift (log of expeditions + side quests)
+      //   faction · after Dad grants starter
+      //   world   · after Kelthor's first quest (enter Rakoron's cave then return)
+      const pages = ['raid'];
+      if (player.zycubeGifted)               pages.push('quests');
+      if (player.starterChosen)              pages.push('faction');
+      if (player.kelthorFirstQuestComplete)  pages.push('world');
+      if (pages.length < 2) return;
+      const i = Math.max(0, pages.indexOf(hudOverlayPage));
+      hudOverlayPage = pages[(i + (k === 'r' ? 1 : pages.length - 1)) % pages.length];
       playSFX('whudScroll');
       return;
     }
@@ -10917,13 +10988,25 @@ addEventListener('keydown', e => {
       }
     }
   }
-  // Touchpad opens the shared viewer on RHUD. L1/R1 cycle RHUD/FHUD/WORLD.
-  // Double-tap remains reserved for the centralized Dev Mode shortcut.
+  // v0.95.276 · Touchpad opens the RAID CARD (Rizer Academy ID) once
+  // Professor Elarian has gifted it · L1/R1 cycles to FACTION once Dad
+  // grants the first starter Zyrex.  RHUD/FHUD/WORLD MAP expansion
+  // removed from touchpad per user spec (2026-08-12).
   if (k === '2'){
-    const opening=!zyrexMenuOpen;
-    zyrexMenuOpen=opening;
-    if(opening)hudOverlayPage='rizer';
-    playSFX(zyrexMenuOpen ? 'menuOpen' : 'menuClose');
+    if (zyrexMenuOpen){
+      zyrexMenuOpen = false;
+      playSFX('menuClose');
+    } else {
+      if (!player.raidCardGifted){
+        showToast('◈ RAID Card locked · talk to Professor Elarian at the Academy', 2600);
+        try { playSFX('doorLock'); } catch(_){}
+        return;
+      }
+      zyrexMenuOpen = true;
+      // Default landing tab · RAID always available · FACTION after starter
+      hudOverlayPage = 'raid';
+      playSFX('menuOpen');
+    }
   }
   if (k === '3'){
     // v0.95.275 · Options button now opens the ZYCUBE (renamed Settings)
@@ -12502,48 +12585,42 @@ function drawZyrexMenu(){
   ctx.fillStyle = '#d4af37';
   ctx.font = 'bold 20px "Courier New", monospace';
   ctx.textAlign = 'left';
-  const overlayTitles={rizer:'RHUD · RIZER',zyrex:'FHUD · FACTIONS',world:'WORLD MAP · ZYRAXIS'};
-  ctx.fillText(overlayTitles[hudOverlayPage]||overlayTitles.rizer,24,40);
+  // v0.95.276/277 · Touchpad pages · raid / quests / faction / world
+  const overlayTitles={
+    raid:    'R.A.I.D. · RIZER ACADEMY ID',
+    quests:  'QUESTS · EXPEDITIONS + SIDE MISSIONS',
+    faction: 'FACTION · YOUR ZYREX',
+    world:   'WORLD MAP · ZYRAXIS',
+  };
+  ctx.fillText(overlayTitles[hudOverlayPage]||overlayTitles.raid,24,40);
   ctx.font='bold 12px "Courier New", monospace';
   ctx.textAlign='right';
   ctx.fillStyle='#8ff';
-  const overlayTabs=['rizer','zyrex','world'].map(id=>id===hudOverlayPage?`[ ${id==='rizer'?'RHUD':id==='zyrex'?'FHUD':'MAP'} ]`:(id==='rizer'?'RHUD':id==='zyrex'?'FHUD':'MAP')).join('   ');
-  ctx.fillText(`L1 ◀  ${overlayTabs}  ▶ R1`,W-24,40);
+  // Only show tab bar if more than one is unlocked
+  const tabs=['raid'];
+  if(player.zycubeGifted)              tabs.push('quests');
+  if(player.starterChosen)             tabs.push('faction');
+  if(player.kelthorFirstQuestComplete) tabs.push('world');
+  if(tabs.length>1){
+    const labelFor=id=>({raid:'RAID',quests:'QUESTS',faction:'FACTION',world:'MAP'}[id]);
+    const tabStr=tabs.map(id=>id===hudOverlayPage?`[ ${labelFor(id)} ]`:labelFor(id)).join('   ');
+    ctx.fillText(`L1 ◀  ${tabStr}  ▶ R1`,W-24,40);
+  }
   ctx.strokeStyle = '#d4af37';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(24, 50); ctx.lineTo(W - 24, 50); ctx.stroke();
 
-  if(hudOverlayPage==='rizer'){
-    const skin=player.cosmeticSkin==='power_upgrade'?'power_upgrade':'normal';
-    const img=RHUD_OVERLAY_IMGS[skin];
-    if(img.complete&&img.naturalWidth){
-      const dw=Math.min(445,W*.47),dh=dw*(img.naturalHeight/img.naturalWidth);
-      ctx.drawImage(img,30,72,dw,dh);
-      drawCanvasRizerMeters(30,72,dw,dh);
-    }
-    const x=Math.round(W*.54),y=100;
-    ctx.textAlign='left';
-    ctx.fillStyle=skin==='power_upgrade'?'#d89cff':'#8fcfff';
-    ctx.font='bold 16px "Courier New", monospace';
-    ctx.fillText(`${PLAYER_SKINS[skin].name.toUpperCase()} · ${playerDamageMultiplier(skin)}× POWER`,x,y);
-    const rows=[
-      ['Rizer Level',player.rizerLvl||1],
-      ['Rizer XP',`${player.rizerXP||0} / ${player.rizerXPMax||100}`],
-      ['HP',`${rizerStatModel().hp.value} / ${rizerStatModel().hp.max}`],
-      ['Astral Energy',`${rizerStatModel().energy.value} / ${rizerStatModel().energy.max}`],
-      ['Special',`${rizerStatModel().special.value} / ${rizerStatModel().special.max}`],
-      ['Coins',((player.items&&player.items.coins)||0).toLocaleString()],
-    ];
-    ctx.font='13px "Courier New", monospace';
-    rows.forEach(([label,value],i)=>{
-      const ry=y+42+i*34;
-      ctx.fillStyle='#aab4c8';ctx.fillText(label,x,ry);
-      ctx.fillStyle='#fff';ctx.textAlign='right';ctx.fillText(String(value),W-36,ry);ctx.textAlign='left';
-      ctx.strokeStyle='rgba(212,175,55,.3)';ctx.beginPath();ctx.moveTo(x,ry+10);ctx.lineTo(W-36,ry+10);ctx.stroke();
-    });
+  if(hudOverlayPage==='raid'){
+    drawRAIDCardPage(W,H);
     ctx.fillStyle='#8ff';ctx.font='11px "Courier New", monospace';ctx.textAlign='right';
-    ctx.fillText('Touchpad / ○ · close',W-24,H-20);ctx.textAlign='left';
+    ctx.fillText('Touchpad / ○ · close',W-24,H-16);ctx.textAlign='left';
+    return;
+  }
+  if(hudOverlayPage==='quests'){
+    drawQuestsPage(W,H);
+    ctx.fillStyle='#8ff';ctx.font='11px "Courier New", monospace';ctx.textAlign='right';
+    ctx.fillText('Touchpad / ○ · close',W-24,H-16);ctx.textAlign='left';
     return;
   }
 
@@ -12561,6 +12638,239 @@ function drawZyrexMenu(){
   // and 4 move slots w/ PP.  Empty slots read as "· EMPTY SLOT ·".
   // ─────────────────────────────────────────────────────────────
   drawFHUDZyrexPage(W, H);
+}
+
+// ─────────────────────────────────────────────────────────────
+// v0.95.276 · R.A.I.D. Card renderer · Rizer Academy ID
+// Received from Professor Elarian on first talk · always the
+// default touchpad landing page.
+// ─────────────────────────────────────────────────────────────
+function drawRAIDCardPage(W, H){
+  // Card sits centered · classic ID card aspect (1.6:1)
+  const cardW = Math.min(W - 60, 620);
+  const cardH = Math.round(cardW / 1.6);
+  const cx = Math.round((W - cardW) / 2);
+  const cy = 82;
+
+  // Outer glow
+  ctx.save();
+  ctx.shadowColor = 'rgba(79,179,255,0.4)';
+  ctx.shadowBlur = 20;
+  const grad = ctx.createLinearGradient(cx, cy, cx, cy + cardH);
+  grad.addColorStop(0, '#0a1830'); grad.addColorStop(1, '#050a18');
+  ctx.fillStyle = grad;
+  ctx.fillRect(cx, cy, cardW, cardH);
+  ctx.restore();
+  // Border
+  ctx.strokeStyle = '#4fb3ff'; ctx.lineWidth = 3;
+  ctx.strokeRect(cx + 1.5, cy + 1.5, cardW - 3, cardH - 3);
+  // Inner border
+  ctx.strokeStyle = 'rgba(212,175,55,0.6)'; ctx.lineWidth = 1;
+  ctx.strokeRect(cx + 8, cy + 8, cardW - 16, cardH - 16);
+
+  // Header bar
+  ctx.fillStyle = 'rgba(79,179,255,0.22)';
+  ctx.fillRect(cx + 10, cy + 10, cardW - 20, 34);
+  ctx.font = 'bold 14px "Courier New", monospace';
+  ctx.fillStyle = '#4fb3ff';
+  ctx.textAlign = 'left';
+  ctx.fillText('◈ RIZER ACADEMY · MALEZOR', cx + 20, cy + 32);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffd66b';
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.fillText('R.A.I.D. #' + (player._raidNumber || (player._raidNumber = 4200 + Math.floor(Math.random() * 899))), cx + cardW - 20, cy + 32);
+  ctx.textAlign = 'left';
+
+  // Portrait (left column)
+  const pW = Math.round(cardH * 0.5);
+  const pX = cx + 20, pY = cy + 56;
+  const pg = ctx.createRadialGradient(pX + pW/2, pY + pW/2, 6, pX + pW/2, pY + pW/2, pW/1.4);
+  pg.addColorStop(0, '#3a5a7a'); pg.addColorStop(1, '#0f1a2a');
+  ctx.fillStyle = pg;
+  ctx.fillRect(pX, pY, pW, pW);
+  ctx.strokeStyle = '#4fb3ff'; ctx.lineWidth = 2;
+  ctx.strokeRect(pX + 0.5, pY + 0.5, pW - 1, pW - 1);
+  // Sillhouette placeholder · Rizer glyph
+  ctx.font = 'bold 60px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText('◈', pX + pW/2, pY + pW/2 + 22);
+  ctx.textAlign = 'left';
+
+  // Right column · student info
+  const iX = pX + pW + 20;
+  let iY = pY + 4;
+  const rows = [
+    ['NAME',        (player.displayName || 'RIZER').toString().toUpperCase()],
+    ['CLASS',       'Year 5 · Bond Practicum'],
+    ['FACTION',     player.starterChosen ? 'THE CORE FOUR (forming)' : 'PENDING'],
+    ['RANK',        'Cadet · Malezor'],
+    ['RIZER LV',    String(player.rizerLvl || 1)],
+    ['MENTOR',      'Prof. Elarian · Master Kelthor'],
+    ['ISSUED',      'Malezor Academy · Reg. Office'],
+    ['CREDITS',     ((player.items && player.items.coins) || 0).toLocaleString()],
+  ];
+  ctx.font = '11px "Courier New", monospace';
+  rows.forEach(([label, value]) => {
+    ctx.fillStyle = 'rgba(200,220,255,0.55)';
+    ctx.fillText(label, iX, iY);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(value, iX + 84, iY);
+    ctx.strokeStyle = 'rgba(79,179,255,0.18)';
+    ctx.beginPath(); ctx.moveTo(iX, iY + 6); ctx.lineTo(cx + cardW - 20, iY + 6); ctx.stroke();
+    iY += 18;
+  });
+
+  // Footer holo strip
+  const fY = cy + cardH - 32;
+  const holo = ctx.createLinearGradient(cx + 10, fY, cx + cardW - 10, fY);
+  holo.addColorStop(0.0, 'rgba(79,179,255,0.15)');
+  holo.addColorStop(0.5, 'rgba(212,175,55,0.35)');
+  holo.addColorStop(1.0, 'rgba(79,179,255,0.15)');
+  ctx.fillStyle = holo;
+  ctx.fillRect(cx + 10, fY, cardW - 20, 20);
+  ctx.font = 'bold 9px "Courier New", monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.textAlign = 'center';
+  ctx.fillText('◈ ZYRAXIS FEDERATION · ACADEMY OF MALEZOR · AOV™ ◈', cx + cardW/2, fY + 14);
+  ctx.textAlign = 'left';
+}
+
+// ─────────────────────────────────────────────────────────────
+// v0.95.277 · Quest Log renderer · two-section list
+//   EXPEDITIONS = main story · Rizer + Zyrex arc
+//   QUESTS      = side missions · upgrades / hidden / cosmetics / achievements
+// Both pull from player.* flags · no separate DB · lightweight
+// ─────────────────────────────────────────────────────────────
+function buildQuestLog(){
+  const expeditions = [];
+  const quests      = [];
+  // EXPEDITIONS · story beats
+  if (player.zycubeGifted){
+    expeditions.push({
+      title: 'The Bonder\'s Starter Kit',
+      giver: 'Dad · Research Facility 2F',
+      status: player.dadStarterQuestComplete ? 'complete' :
+              player.dadStarterQuestGiven    ? 'active'   : 'available',
+      steps: [
+        { done: (player.items?.faenet||0) >= 1,  label: 'Fae Net from Kaizari' },
+        { done: (player.items?.zycube||0) >= 1,  label: 'Zycube from Mom' },
+        { done: (player.items?.berry||0)  >= 10 || player.dadStarterQuestComplete, label: '10 Berries (bush)' },
+        { done: (player.items?.fruit||0)  >= 10 || player.dadStarterQuestComplete, label: '10 Fruits (tree)' },
+        { done: (player.items?.seed||0)   >= 10 || player.dadStarterQuestComplete, label: '10 Seeds (harvest)' },
+        { done: !!player.starterChosen, label: 'Choose starter Zyrex' },
+      ],
+    });
+  }
+  if (player.kelthorFirstQuestGiven){
+    expeditions.push({
+      title: 'Face the Cave',
+      giver: 'Kelthor · Malezor Town Hall',
+      status: player.kelthorFirstQuestComplete ? 'complete' :
+              player.kelthorCaveEntered        ? 'active·return' : 'active',
+      steps: [
+        { done: !!player.kelthorCaveEntered,       label: 'Enter Rakoron\'s Cave' },
+        { done: !!player.kelthorFirstQuestComplete, label: 'Report back to Kelthor' },
+      ],
+      reward: 'World Map unlock',
+    });
+  }
+  // QUESTS · side missions (dynamic based on player state)
+  quests.push({
+    title: 'Punching Bag · 100 Hits',
+    giver: 'Rizer Room · self-training',
+    status: ((player.stats && player.stats.punches) || 0) >= 100 ? 'complete' : 'active',
+    steps: [ { done: ((player.stats?.punches)||0) >= 100, label: `Punches (${(player.stats?.punches)||0}/100)` } ],
+    reward: 'Fury Fist cosmetic',
+  });
+  quests.push({
+    title: 'Broadcast Tower · Malezor',
+    giver: 'Myara interview',
+    status: player.malezorBroadcastDone ? 'complete' : 'available',
+    steps: [ { done: !!player.malezorBroadcastDone, label: 'Find and interact with the Malezor broadcast tower' } ],
+    reward: '+150 Rizer XP',
+  });
+  quests.push({
+    title: 'Fill the Faenet',
+    giver: 'Kaizari',
+    status: (player.faeCollected||0) >= 5 ? 'complete' : 'active',
+    steps: [ { done: (player.faeCollected||0) >= 5, label: `Catch 5 fae (${player.faeCollected||0}/5)` } ],
+    reward: 'Astral energy bonus',
+  });
+  return { expeditions, quests };
+}
+
+function drawQuestsPage(W, H){
+  const { expeditions, quests } = buildQuestLog();
+  const colGap = 20;
+  const colW   = Math.floor((W - 48 - colGap) / 2);
+  const leftX  = 24, rightX = leftX + colW + colGap;
+  const startY = 74;
+
+  const drawColumn = (title, items, x, headerColor) => {
+    ctx.fillStyle = headerColor;
+    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillText(title, x + 2, startY);
+    ctx.strokeStyle = headerColor;
+    ctx.beginPath(); ctx.moveTo(x, startY + 6); ctx.lineTo(x + colW, startY + 6); ctx.stroke();
+    let y = startY + 20;
+    if (items.length === 0){
+      ctx.fillStyle = 'rgba(200,220,255,0.4)';
+      ctx.font = '11px "Courier New", monospace';
+      ctx.fillText('· none available yet ·', x + 4, y + 14);
+      return;
+    }
+    items.forEach((q) => {
+      const rowsForQuest = 2 + q.steps.length + (q.reward ? 1 : 0);
+      const cardH = 14 + rowsForQuest * 13 + 8;
+      if (y + cardH > H - 30) return;
+      // Card bg
+      ctx.fillStyle = q.status === 'complete' ? 'rgba(20,55,32,0.6)'
+                    : q.status.startsWith('active') ? 'rgba(60,50,20,0.6)'
+                    : 'rgba(30,40,60,0.55)';
+      ctx.fillRect(x, y, colW, cardH);
+      // Left status stripe
+      ctx.fillStyle = q.status === 'complete' ? '#5fdc7a'
+                    : q.status.startsWith('active') ? '#ffd66b'
+                    : '#4fb3ff';
+      ctx.fillRect(x, y, 3, cardH);
+      // Title + status pill
+      ctx.font = 'bold 12px "Courier New", monospace';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(q.title, x + 10, y + 15);
+      ctx.textAlign = 'right';
+      const pill = q.status === 'complete' ? '✓ DONE'
+                 : q.status === 'active·return' ? '↩ RETURN'
+                 : q.status.startsWith('active') ? '● ACTIVE'
+                 : '▸ AVAILABLE';
+      ctx.font = 'bold 9px "Courier New", monospace';
+      ctx.fillStyle = q.status === 'complete' ? '#5fdc7a'
+                    : q.status.startsWith('active') ? '#ffd66b' : '#4fb3ff';
+      ctx.fillText(pill, x + colW - 8, y + 15);
+      ctx.textAlign = 'left';
+      // Giver
+      ctx.font = '10px "Courier New", monospace';
+      ctx.fillStyle = 'rgba(200,220,255,0.55)';
+      ctx.fillText(q.giver, x + 10, y + 29);
+      // Steps
+      q.steps.forEach((s, i) => {
+        const sy = y + 45 + i * 13;
+        ctx.font = '10px "Courier New", monospace';
+        ctx.fillStyle = s.done ? '#5fdc7a' : 'rgba(255,255,255,0.75)';
+        ctx.fillText((s.done ? '✓ ' : '· ') + s.label, x + 12, sy);
+      });
+      // Reward
+      if (q.reward){
+        const ry = y + 45 + q.steps.length * 13;
+        ctx.font = 'bold 10px "Courier New", monospace';
+        ctx.fillStyle = '#ffd66b';
+        ctx.fillText('★ ' + q.reward, x + 12, ry);
+      }
+      y += cardH + 8;
+    });
+  };
+  drawColumn('EXPEDITIONS · MAIN', expeditions, leftX,  '#c060ff');
+  drawColumn('QUESTS · SIDE',     quests,      rightX, '#4fb3ff');
 }
 
 // Type → theme colors (border, portrait swatch, glow)

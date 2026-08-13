@@ -3171,12 +3171,15 @@ const NPCS = [
       player.items = player.items || {};
       if (!player.zycubeGifted){
         player.zycubeGifted = true;
-        player.items.zycube = (player.items.zycube || 0) + 1;
-        showToast('★ Received: Zycube', 2200);
+        player.items.zycube  = (player.items.zycube  || 0) + 1;
+        // v0.95.275 · Mom also stocks 2 potions for the road when she gives the Zycube
+        player.items.potion  = (player.items.potion  || 0) + 2;
+        showToast('★ Received: Zycube + 2 Potions', 2400);
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'MOM', lines: [
           'Oh honey — before you go...',
           '*hands you a smooth cube of woven starlight*  This is my Zycube.  It stores anything you find on the road.',
+          '*tucks two potions inside*  And take these — heal a scrape before it becomes a scar.',
           'Your father is at the Research Facility · take it to him.',
         ]});
       } else {
@@ -4927,11 +4930,16 @@ const INTERIOR_HOME = {
   },
   // v0.95.185 · Living-room decor · TV tower at (14,5) + couch/rug set at (8,5)
   // v0.95.188 · Mom's plant at (2, 1)
+  // v0.95.275 · Collision fixed · living-room set draws 4.7 tiles wide
+  // centered on (8.5, 5) so it visually covers tiles 6-10 row 5 (5-wide)
+  // Extended blocked to include (6,5) and (11,5) edge tiles player could
+  // previously walk into.  TV tower stays at (14,5) only (1.4-wide fits).
   blocked: [
-    [0,0],[1,0],                        // stairs body (both base tiles walkable)
-    [14, 5],                            // Living-room TV
-    [7, 5], [8, 5], [9, 5], [10, 5],    // Couch + coffee-table + rug set (4-wide)
-    [2, 1],                             // Mom's plant
+    [0,0],[1,0],                                   // stairs body
+    [14, 5],                                       // Living-room TV
+    [6, 5], [7, 5], [8, 5], [9, 5], [10, 5],       // Couch/rug set full 5-wide footprint
+    [11, 5],                                       // Right-edge overlap tile
+    [2, 1],                                        // Mom's plant
   ],
   playerHome: true,                      // decor draw flag
 };
@@ -5447,13 +5455,19 @@ function startNewGame(){
   stopIntroVideo();                                // v0.93.3 · kill intro on new game
   game.showTitleButtons = false;                   // v0.93.6 · hide DOM buttons
   if (titleBtnsEl) titleBtnsEl.style.display = 'none';
-  game.scene = 'overworld';
+  // v0.95.275 · Spawn every new game in Rizer's Room (2F of home)
+  // Player wakes up in their room · walk downstairs to meet Mom
+  game.scene = 'interior_home_2f';
+  const s = (INTERIOR_HOME_2F && INTERIOR_HOME_2F.spawn) || { x: 1, y: 3, dir: 'down' };
+  player.x = s.x; player.y = s.y; player.dir = s.dir;
+  player.moving = false; player.animFrame = 0;
+  try { snapCameraToPlayer(); } catch(_){}
   // v0.95.141 · Fae Net no longer auto-granted · Kaizari (cheetah huntress) gifts it on first interaction
   player.items = player.items || {};
   // v0.95.183 · Rizer starts with the Zyraxis World Map
   if (!player.items.worldmap) player.items.worldmap = 1;
   playBGM('home');
-  showToast('◈ Welcome to Malezor.', 2000);
+  showToast('◈ Welcome to Malezor · you\'re in your room · go find Mom', 2600);
   // v0.95.255/258/262/266 · Mobile controller = mandatory input on true mobile
   // portrait viewport ONLY.  Desktop Chrome / any full-window browser never
   // shows it, even if the machine is touchscreen or the window is small.
@@ -10912,10 +10926,25 @@ addEventListener('keydown', e => {
     playSFX(zyrexMenuOpen ? 'menuOpen' : 'menuClose');
   }
   if (k === '3'){
-    // v0.95.259 · Options button now opens the Zycellite Z-Phone
-    // (Settings is a tile inside the phone · closing phone closes both)
-    if (game.zphoneOpen){ closeZphonePanel(); }
-    else { openZphonePanel(); }
+    // v0.95.275 · Options button now opens the ZYCUBE (renamed Settings)
+    // directly · gated on Mom's Zycube gift · Items/Gear/Save/Load/Options
+    // all live inside the ZyCube · Z-Phone is separate (spawn UFO / call ally)
+    if (settingsMenuOpen){
+      settingsMenuOpen = false;
+      settingsPage = 'root';
+      settingsSelectedIdx = 0;
+      playSFX('menuClose');
+      return;
+    }
+    if (!player.zycubeGifted){
+      showToast('◈ ZyCube locked · talk to Mom first', 2200);
+      try { playSFX('doorLock'); } catch(_){}
+      return;
+    }
+    settingsMenuOpen = true;
+    settingsPage = 'root';
+    settingsSelectedIdx = 0;
+    playSFX('menuOpen');
   }
 });
 // v0.95.259 · ZYCELLITE Z-PHONE · GTA-phone scaffold · call factions/allies + spawn UFO
@@ -11778,11 +11807,13 @@ function drawSettingsMenu(){
   ctx.fillStyle = '#d4af37';
   ctx.font = 'bold 20px "Courier New", monospace';
   ctx.textAlign = 'left';
-  const title = settingsPage === 'root' ? 'SETTINGS' :
-                settingsPage === 'items' ? 'SETTINGS · ITEMS' :
-                settingsPage === 'gear'  ? 'SETTINGS · GEAR' :
-                settingsPage === 'save'  ? 'SETTINGS · SAVE STATE' :
-                                           'SETTINGS · OPTIONS';
+  // v0.95.275 · Settings renamed ZYCUBE · Mom's cosmic storage cube
+  const title = settingsPage === 'root'     ? '◈ ZYCUBE' :
+                settingsPage === 'items'    ? '◈ ZYCUBE · ITEMS' :
+                settingsPage === 'gear'     ? '◈ ZYCUBE · GEAR' :
+                settingsPage === 'save'     ? '◈ ZYCUBE · SAVE STATE' :
+                settingsPage === 'bindings' ? '◈ ZYCUBE · CONTROLLER BINDINGS' :
+                                              '◈ ZYCUBE · OPTIONS';
   ctx.fillText(title, 24, 40);
   ctx.strokeStyle = '#d4af37';
   ctx.lineWidth = 1;

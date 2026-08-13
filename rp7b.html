@@ -10650,21 +10650,81 @@ addEventListener('keydown', e => {
       if (tryStartDoubleJump(jumpTapNow, true)) return;
     }
     _lastCrossJumpTap = jumpTapNow;
-    // Literal keyboard X starts the first hop; controller Cross continues
-    // through the established `a` interaction/jump path below.
+    // v0.95.274 · Cross / X is now smart: interact if facing an interactable,
+    // otherwise jump.  Standing still + facing NPC/chest/door/prop/boulder/
+    // plant → the interact branch below owns it.  Anything else → jump.
     if (k === 'x' && !player.jumpUntil && !player.ridingChair){
-      player.jumpStart = jumpTapNow;
-      player.jumpUntil = jumpTapNow + 380;
-      player.jumpSheet = player.moving ? 'runJump' : 'idleJump';
-      setTimeout(() => {
-        if (!player._doubleJump && performance.now() >= player.jumpUntil) playSFX('jumpLand');
-      }, 380);
-      return;
+      // Facing-interactable check · mirrors the moving-A logic (line ~10703)
+      let fx = player.x, fy = player.y;
+      if (player.dir === 'up')    fy--;
+      if (player.dir === 'down')  fy++;
+      if (player.dir === 'left')  fx--;
+      if (player.dir === 'right') fx++;
+      let facingInteract = false;
+      if (game.scene === 'overworld'){
+        if (_propDoors.has(`${fx},${fy}`)) facingInteract = true;
+        if (!facingInteract){
+          for (const n of NPCS){
+            if (n.scene === 'overworld' && n.tileX === fx && n.tileY === fy){ facingInteract = true; break; }
+          }
+        }
+        if (!facingInteract && boulderAt('overworld', fx, fy)) facingInteract = true;
+        if (!facingInteract && plantPropAt(fx, fy))            facingInteract = true;
+        if (!facingInteract){
+          for (const n of NPCS){
+            if (n.scene !== 'overworld' || !n.interactHitbox) continue;
+            for (const [ddx, ddy] of n.interactHitbox){
+              if (n.tileX + ddx === fx && n.tileY + ddy === fy){ facingInteract = true; break; }
+            }
+            if (facingInteract) break;
+          }
+        }
+        if (!facingInteract){
+          for (const p of WORLD_PROPS){
+            if (!p || !p.id || !p.id.startsWith('chest_')) continue;
+            if (p.tileX === fx && p.tileY === fy){ facingInteract = true; break; }
+          }
+        }
+        // Fae on the faced tile count as interactable too
+        if (!facingInteract){
+          const faeOnTile = _fae && _fae.find(f => !f.collected && f.x === fx && f.y === fy);
+          if (faeOnTile) facingInteract = true;
+        }
+      } else if (interiorConfig(game.scene)){
+        const cfg = interiorConfig(game.scene);
+        if (cfg && cfg.exit && fx === cfg.exit.x && fy === cfg.exit.y) facingInteract = true;
+        if (!facingInteract){
+          for (const n of NPCS){
+            if (n.scene === game.scene && n.tileX === fx && n.tileY === fy){ facingInteract = true; break; }
+          }
+        }
+        // Bed tile in Rizer Room
+        if (!facingInteract && cfg && cfg.rizerRoom
+            && fx >= 12 && fx <= 14 && (fy === 8 || fy === 9)){
+          facingInteract = true;
+        }
+      }
+      // No interactable → jump immediately (preserves keyboard `x` = jump behavior)
+      if (!facingInteract){
+        player.jumpStart = jumpTapNow;
+        player.jumpUntil = jumpTapNow + 380;
+        player.jumpSheet = player.moving ? 'runJump' : 'idleJump';
+        setTimeout(() => {
+          if (!player._doubleJump && performance.now() >= player.jumpUntil) playSFX('jumpLand');
+        }, 380);
+        return;
+      }
+      // Facing an interactable → fall through to the interact/jump-fallback
+      // path below so the interact fires normally
     }
   }
   // v0.91.5 · X (Square) removed from interact list · Square is punch only.
   //   Interact keys: Z (Cross) · Enter · Space
-  if (k === 'z' || k === 'a' || k === 'enter' || k === ' '){
+  // v0.95.274 · X added back into interact list · Cross now dispatches 'x'
+  // per v0.95.273, and 'x' pressed while facing an interactable should
+  // interact (smart A · falls through from the branch above when facing an
+  // interactable was detected).
+  if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
     const now = performance.now();
     if (k === 'a' && (player._astralslamInputUntil || 0) > now) return;
     // Dialog owns the interact key while open · advance/close instead.

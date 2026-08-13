@@ -128,19 +128,16 @@ Portrait-viewport-gated (coarse pointer + no hover + portrait + ≤780 px). Each
 
 These are the things to fix or intentionally accept.
 
-### 🔴 Hard conflicts
+### ✅ Resolved in v0.95.273
 
-1. **`a` — Cross alias vs. WASD moveLeft**
-   The DualSense Cross dispatches `a` as a keydown, marking `keys['a'] = true` until keyup. The movement loop checks `keys['arrowleft'] || keys['a']`, so **holding Cross drifts Rizer left**. Same for a rebind that maps moveLeft to `a` (the default!) while also using `a` as a menu-confirm alias.
-   **Fix idea:** rebind moveLeft default to `left` (arrow) only, or gate the WASD movement check to require the key isn't currently being consumed by a Cross dispatch.
+1. **~~`a` — Cross alias vs. WASD moveLeft~~** → FIXED
+   Cross now dispatches `x` (was `a`). WASD moveLeft continues to work on plain `a` because gamepad no longer sets `keys['a']`. Astralslam chord updated to accept both `keys['x']` and `keys['a']` for backward compat.
 
-2. **`l` — L1 alias vs. A3/A4 astral modifier**
-   L1 canonically dispatches `l` for weapon-wheel scroll. The Controller Bindings panel also defaults **astralMod** to `l`. Holding L1 will register as the astral modifier and vice-versa.
-   **Fix idea:** move astralMod default to a dedicated key like `shift` or a separate modifier not overloaded with a menu action.
+2. **~~`l` — L1 vs. A3/A4 astral modifier~~** → FIXED
+   `KEY_DEFAULTS.astralMod` retargeted from `l` to `q` so the Controller Bindings panel actually maps the key the game reads. Bumped localStorage key `rp7b_keybinds_v1` → `v2` to invalidate stale saves.
 
-3. **`q` — L2 alias vs. quests menu opener vs. astral chord**
-   L2 dispatches `q`. `q` opens the quests menu on desktop. But `q` is also the chord for A3/A4. Pressing `q` alone opens quests; pressing `q + j` fires A3 but MAY also open quests on the same keydown depending on handler order.
-   **Fix idea:** open quests menu only on `q` **keyup with no chord partner**, i.e. delay the menu 100 ms to see if `j` or `k` follows.
+3. **~~`q` — L2 alias vs. quests menu opener vs. astral chord~~** → NOT A CONFLICT
+   Investigation showed plain `q` in the overworld does nothing (the `BTN[6]` comment was outdated). L2 = `q` = astral chord modifier only. No fix needed; comment corrected.
 
 ### 🟡 Soft conflicts (intentional or benign)
 

@@ -8291,7 +8291,9 @@ addEventListener('keydown', e => {
       return;
     }
     // Astralslam · Cross + Square, accepted in either press order.
-    if ((k === 'j' && keys['a']) || (k === 'a' && keys['j'])){
+    // v0.95.273 · Cross now dispatches 'x' (was 'a') · check both for
+    // backward-compat with any old flow still driving Cross via 'a'.
+    if ((k === 'j' && (keys['x'] || keys['a'])) || ((k === 'x' || k === 'a') && keys['j'])){
       const blocked = settingsMenuOpen || zyrexMenuOpen || dialogState || battleState
                    || game.expPanelOpen || game.tvPanelOpen || game.guitarPanelOpen
                    || game.nebulaPanelOpen || game.bagPanelOpen || game.dockPanelOpen
@@ -8497,18 +8499,22 @@ addEventListener('keyup', e => {
 
   // Standard gamepad button index → key mapping
   const BTN = {
-    0:  'a',        // Cross    · v0.95.64 · interact/confirm (was 'z' — 'a' now the canonical alias)
-    1:  'b',        // Circle   · v0.95.64 · hold-sprint (was 'Shift' — 'b' now the canonical alias)
-    2:  'j',        // Square   · v0.91.5 · light melee (punch)
-    3:  'k',        // Triangle · v0.91.5 · heavy melee (kick)
-    4:  'l',        // L1       · party menu
-    5:  'r',        // R1       · cycle mount
-    6:  'q',        // L2       · quests menu
-    7:  'i',        // R2       · Auraxion phase-flight toggle when soul-switched
-    8:  '1',        // Create   · SELECT assignment
-    9:  '3',        // Options  · settings / pause
+    // v0.95.273 · Cross now dispatches 'x' (was 'a').  Fixes long-standing
+    // WASD conflict: 'a' is also the keyboard moveLeft key, so holding Cross
+    // used to drift Rizer left.  'x' is the canonical interact key and every
+    // confirm handler already accepts it.  Astralslam chord updated in sync.
+    0:  'x',        // Cross    · canonical interact/confirm (was 'a' · caused moveLeft drift)
+    1:  'b',        // Circle   · hold-sprint / dodge / cancel
+    2:  'j',        // Square   · A1 punch (light melee)
+    3:  'k',        // Triangle · A2 kick (heavy melee)
+    4:  'l',        // L1       · weapon-wheel scroll
+    5:  'r',        // R1       · weapon-wheel scroll
+    6:  'q',        // L2       · A3/A4 chord modifier (no menu on plain press)
+    7:  'i',        // R2       · Auraxion phase-flight when soul-switched
+    8:  '1',        // Create   · main menu / SELECT assignment
+    9:  '3',        // Options  · Zycellite Z-Phone (was settings)
     // 10 (L3) handled separately below · SPRINT TOGGLE
-    // 11 (R3) handled separately below · S1/S2 COSMETIC TOGGLE
+    // 11 (R3) handled separately below · S1/S2 form toggle
     12: 'ArrowUp',
     13: 'ArrowDown',
     14: 'ArrowLeft',
@@ -11929,7 +11935,7 @@ const KEY_DEFAULTS = {
   cancel:      'b',      // menu cancel / dodge alt
   punch:       'j',      // A1 light
   kick:        'k',      // A2 heavy
-  astralMod:   'l',      // L2 modifier for A3/A4 chords
+  astralMod:   'q',      // v0.95.273 · L2 modifier for A3/A4 chords · was 'l' but game reads 'q' (matches BTN[6]=q)
   sprint:      'shift',  // sprint hold + toggle (double-tap)
   menuMain:    '1',      // main menu
   menuPause:   '2',      // pause
@@ -11942,7 +11948,7 @@ const KEY_DEFAULTS = {
 };
 const KEY_BINDINGS = Object.assign({}, KEY_DEFAULTS);
 try {
-  const saved = JSON.parse(localStorage.getItem('rp7b_keybinds_v1') || 'null');
+  const saved = JSON.parse(localStorage.getItem('rp7b_keybinds_v2') || 'null');
   if (saved && typeof saved === 'object'){
     for (const k in saved){
       if (k in KEY_DEFAULTS && typeof saved[k] === 'string') KEY_BINDINGS[k] = saved[k];
@@ -11950,7 +11956,7 @@ try {
   }
 } catch(e){}
 function saveKeyBindings(){
-  try { localStorage.setItem('rp7b_keybinds_v1', JSON.stringify(KEY_BINDINGS)); } catch(e){}
+  try { localStorage.setItem('rp7b_keybinds_v2', JSON.stringify(KEY_BINDINGS)); } catch(e){}
 }
 function resetKeyBindings(){
   Object.assign(KEY_BINDINGS, KEY_DEFAULTS);

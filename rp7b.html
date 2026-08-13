@@ -1481,6 +1481,7 @@ const INVENTORY_META = {
   soulphish:        { label: 'Soulphish',             order: 91 },   // v0.95.152 · spirit fish · 1 → full astral energy
   zphone:           { label: 'Z-Phone (ZYCELLYTE)',    order: 5  },   // v0.95.164 · Thardin phone · call faction NPCs at bond ≥ 60
   worldmap:         { label: 'World Map',              order: 1  },   // v0.95.183 · Zyraxis map · full-screen viewer
+  townmap:          { label: 'Town Map (Malezor)',     order: 2  },   // v0.95.278 · Zoryn's gift · Malezor only · precursor to worldmap
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -3523,6 +3524,24 @@ const NPCS = [
     blinkTimer: 9e9,
     turnToInteract: false,
     onInteract: (n) => {
+      // v0.95.278 · Zoryn gives the Town Map after Rizer loses his · scolds him
+      // "be more responsible if you want to be a legendary rizer"
+      player.items = player.items || {};
+      if (!player.townMapGifted){
+        player.townMapGifted = true;
+        player.items.townmap = (player.items.townmap || 0) + 1;
+        // Zoryn's map = town map only (Malezor) · NOT the full world map
+        showToast('★ Received: Town Map (Malezor)', 2600);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'ZORYN', lines: [
+          "*folds his arms*  You lost your map already?  Seriously, Rizer?",
+          "It's day one.  DAY ONE.",
+          "*sighs, digs into his pack*  Here.  Take my Town Map.  Malezor only — no world map, you'll earn that back.",
+          "Be more responsible if you want to be a legendary Rizer, alright?",
+          "*smirks*  Now try not to lose this one before lunch.",
+        ]});
+        return;
+      }
       showDialog({ speaker: 'ZORYN', lines: [
         "*eyes on the cave mouth*  You feel that?  Ancient Astralite hums out here.",
         "One day I'll walk in and meet a Gemlord face-to-face.  Not just read about them.",
@@ -3711,46 +3730,14 @@ const NPCS = [
       blinkTimer: 2000 + Math.random() * 2000,   // blink loop uses frame 2 (eyes closed)
       onInteract: (n) => {
         playSFX('kelthor');
-        // v0.95.276 · Kelthor's First Quest · unlocks WORLD MAP tab on completion
-        // Task: Face the cave, prove your worth by entering Rakoron's Cave
-        // Progress tracked via player.kelthorFirstQuestGiven / Complete flags
-        player.items = player.items || {};
-        const cavePropped = player.kelthorCaveEntered;   // set when player enters interior_cave (see cave entry handler)
-        // First talk · give quest
-        if (!player.kelthorFirstQuestGiven){
-          player.kelthorFirstQuestGiven = true;
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "Ah, young one.  I've watched Rizers come and go for a hundred cycles.",
-            "You carry your father's fire.  I can see it in your bond with the Zyrex.",
-            "Your first task: go north to Rakoron's Cave.  Step inside · face what's there.",
-            "Come back to me when you have · then the map of Zyraxis will open to you.",
-          ]});
-          showToast('★ QUEST · Kelthor · Face the Cave', 2400);
-          return;
-        }
-        // Completion · player has entered the cave · reward = world map unlock
-        if (cavePropped && !player.kelthorFirstQuestComplete){
-          player.kelthorFirstQuestComplete = true;
-          player.items.worldmap = (player.items.worldmap || 0) + 1;
-          showToast('★ QUEST COMPLETE · World Map unlocked on touchpad', 2800);
-          try { playSFX('confirm'); } catch(_){}
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "You came back.  Most don't · not after Rakoron looks at them.",
-            "*hands you a folded map of Zyraxis*  You've earned this.",
-            "Press the touchpad · your world just got bigger, young Rizer.",
-          ]});
-          return;
-        }
-        if (player.kelthorFirstQuestComplete){
-          showDialog({ speaker: 'KELTHOR', lines: [
-            "Malezor is your foundation.  Every district you conquer builds on it.",
-            "Come back often.  This town has more to teach you than you know.",
-          ]});
-          return;
-        }
-        // Given but not yet completed
+        // v0.95.278 · Kelthor is Rizer's Beastwarden mentor — no cave quest yet.
+        // Reverted from v0.95.276 · cave gate removed per user spec "no more cave yet"
+        // World Map unlock now comes from Zoryn's Town Map (townMapGifted) as a stepping stone.
         showDialog({ speaker: 'KELTHOR', lines: [
-          "Rakoron's Cave awaits.  Step inside, then return to me.",
+          "Ah, young one.  I've watched Rizers come and go for a hundred cycles.",
+          "You carry your father's fire.  I can see it in your bond with the Zyrex.",
+          "Malezor is your foundation.  Every district you conquer will build on it.",
+          "Come back often · this town has more to teach you than you know.",
         ]});
       },
     };
@@ -5516,8 +5503,8 @@ function startNewGame(){
   try { snapCameraToPlayer(); } catch(_){}
   // v0.95.141 · Fae Net no longer auto-granted · Kaizari (cheetah huntress) gifts it on first interaction
   player.items = player.items || {};
-  // v0.95.183 · Rizer starts with the Zyraxis World Map
-  if (!player.items.worldmap) player.items.worldmap = 1;
+  // v0.95.278 · Rizer NO LONGER starts with the world map · he lost it · Zoryn gives him a town map
+  // (previously auto-granted worldmap=1 · removed to honor "you earn things" progression canon)
   playBGM('home');
   showToast('◈ Welcome to Malezor · you\'re in your room · go find Mom', 2600);
   // v0.95.255/258/262/266 · Mobile controller = mandatory input on true mobile
@@ -10686,15 +10673,15 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   if (zyrexMenuOpen){
     if(k==='l'||k==='r'){
-      // v0.95.276/277 · Dynamic tab list based on unlocks
-      //   raid    · always after Prof Elarian gift
-      //   quests  · always after Mom's Zycube gift (log of expeditions + side quests)
+      // v0.95.276/277/278 · Dynamic tab list based on unlocks
+      //   raid    · after Prof Elarian gift
+      //   quests  · after Mom's Zycube gift
       //   faction · after Dad grants starter
-      //   world   · after Kelthor's first quest (enter Rakoron's cave then return)
+      //   map     · after Zoryn gifts Town Map (Malezor) · precursor to world map
       const pages = ['raid'];
-      if (player.zycubeGifted)               pages.push('quests');
-      if (player.starterChosen)              pages.push('faction');
-      if (player.kelthorFirstQuestComplete)  pages.push('world');
+      if (player.zycubeGifted)   pages.push('quests');
+      if (player.starterChosen)  pages.push('faction');
+      if (player.townMapGifted)  pages.push('world');
       if (pages.length < 2) return;
       const i = Math.max(0, pages.indexOf(hudOverlayPage));
       hudOverlayPage = pages[(i + (k === 'r' ? 1 : pages.length - 1)) % pages.length];
@@ -12598,9 +12585,9 @@ function drawZyrexMenu(){
   ctx.fillStyle='#8ff';
   // Only show tab bar if more than one is unlocked
   const tabs=['raid'];
-  if(player.zycubeGifted)              tabs.push('quests');
-  if(player.starterChosen)             tabs.push('faction');
-  if(player.kelthorFirstQuestComplete) tabs.push('world');
+  if(player.zycubeGifted)  tabs.push('quests');
+  if(player.starterChosen) tabs.push('faction');
+  if(player.townMapGifted) tabs.push('world');
   if(tabs.length>1){
     const labelFor=id=>({raid:'RAID',quests:'QUESTS',faction:'FACTION',world:'MAP'}[id]);
     const tabStr=tabs.map(id=>id===hudOverlayPage?`[ ${labelFor(id)} ]`:labelFor(id)).join('   ');
@@ -12762,19 +12749,16 @@ function buildQuestLog(){
       ],
     });
   }
-  if (player.kelthorFirstQuestGiven){
-    expeditions.push({
-      title: 'Face the Cave',
-      giver: 'Kelthor · Malezor Town Hall',
-      status: player.kelthorFirstQuestComplete ? 'complete' :
-              player.kelthorCaveEntered        ? 'active·return' : 'active',
-      steps: [
-        { done: !!player.kelthorCaveEntered,       label: 'Enter Rakoron\'s Cave' },
-        { done: !!player.kelthorFirstQuestComplete, label: 'Report back to Kelthor' },
-      ],
-      reward: 'World Map unlock',
-    });
-  }
+  // v0.95.278 · Zoryn's Town Map · replaces the retired Kelthor cave quest
+  expeditions.push({
+    title: 'Where\'s Your Map?',
+    giver: 'Zoryn · Malezor overworld',
+    status: player.townMapGifted ? 'complete' : 'available',
+    steps: [
+      { done: !!player.townMapGifted, label: 'Track down Zoryn and get bailed out' },
+    ],
+    reward: 'Town Map (Malezor) · unlocks MAP tab',
+  });
   // QUESTS · side missions (dynamic based on player state)
   quests.push({
     title: 'Punching Bag · 100 Hits',

@@ -783,7 +783,7 @@
       <div class="row">
         <span>Personal:</span>
         <div class="warp-links">
-          <button data-warp="-34,4,overworld">Rizer Treehouse</button>
+          <button data-warp="20,-19,overworld">Rizer Treehouse</button>
           <button data-warp="272,313,overworld">Zarakai spot</button>
           <button data-warp="120,255,overworld">Apexaur territory</button>
         </div>
@@ -2116,7 +2116,7 @@ const WORLD_PROPS = [
     img: new Image(),
     src: 'assets/2D%20sprites/buildings/rizer-treehouse.png',
     bbox: [99, 22, 1047, 1182],           // content bbox trims transparent padding
-    tileX: -34, tileY: 3,
+    tileX: 20, tileY: -20,                 // v0.95.380 · relocated per user spec
     tileW: 8, tileH: 9,                    // canopy fills 8 wide × 9 tall footprint
     footprint: (function(){
       const f = [];
@@ -3754,59 +3754,67 @@ const NPCS = [
       const nBerries   = inv.berry  || 0;
       const nSeeds     = inv.seed   || 0;
       const nFruits    = inv.fruit  || 0;
+      const nFae       = player.faeCollected || 0;
       const REQ = 10;
-      const done = hasFaenet && hasZycube && nBerries >= REQ && nSeeds >= REQ && nFruits >= REQ;
+      const done = nFae >= REQ && nBerries >= REQ && nSeeds >= REQ && nFruits >= REQ;
 
-      // First talk · give the quest
+      // v0.95.380 · First talk · GIFT DAD'S NOTEBOOK · unlocks Quests tab in touchpad
+      // + hands out the 10/10/10/10 gather quest (Fae · Fruits · Berries · Seeds)
+      // Fae Net + Zycube prerequisites moved out · Notebook is the true quest-log unlock
       if (!player.dadStarterQuestGiven){
         player.dadStarterQuestGiven = true;
+        player.dadNotebookGifted    = true;
+        inv.dads_notebook           = (inv.dads_notebook || 0) + 1;
+        try { awardRizerXP(400); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        showToast('★ DAD\'S NOTEBOOK · in your bag · Quests tab unlocked (touchpad)', 3600);
         showDialog({ speaker: 'DAD', lines: [
-          'Ah, there you are, kid.  Come here.',
-          'A Rizer that steps into the wild empty-handed comes back the same way — or not at all.',
-          'Before I let you loose on Zyraxis, prove you can gather.  Bring me back:',
-          '  ✦ Fae Net · Kaizari the cheetah huntress will give you hers',
-          '  ✦ Zycube · your mother has one waiting downstairs',
-          '  ✦ 10 Berries · punch a bush',
-          '  ✦ 10 Fruits · punch a tree',
-          '  ✦ 10 Seeds · harvest bonus on bushes and trees',
-          'Come back when the list is complete.  Then the real training begins.',
+          'Ah, there you are, kid.  Come here — got something for you.',
+          '*hands you a leather-bound notebook · his own handwriting fills the first few pages*',
+          'This is my field notebook.  Every quest you take, every expedition you pull off — it goes in here.',
+          'Open your touchpad to see the QUESTS tab now.  Everything worth remembering lives there.',
+          'And here\'s your first entry:  I need 10 Fae, 10 Fruits, 10 Berries, 10 Seeds.',
+          'Fae glow in the fields.  Fruits fall from trees.  Berries from bushes.  Seeds drop on harvest.',
+          'Bring the tribute back and I\'ll set you up with your first Zyrex.',
         ]});
-        showToast('★ QUEST · Dad · The Bonder\'s Starter Kit', 2400);
         return;
       }
 
-      // Completion · take items + acknowledge · then open starter picker
+      // Completion · take items + acknowledge · open starter picker · starter follows
       if (done && !player.dadStarterQuestComplete){
         player.dadStarterQuestComplete = true;
-        // Consume the tribute
         inv.berry = Math.max(0, nBerries - REQ);
         inv.seed  = Math.max(0, nSeeds   - REQ);
         inv.fruit = Math.max(0, nFruits  - REQ);
-        // Reward: coins + a Verdant Elixir + Basic Zyspheres so the loop rolls
+        player.faeCollected = Math.max(0, nFae - REQ);
+        inv.fae   = player.faeCollected;
         inv.coins           = (inv.coins || 0) + 300;
         inv.verdant_elixir  = (inv.verdant_elixir || 0) + 1;
         inv.zysphere_basic  = (inv.zysphere_basic || 0) + 5;
         showToast('★ QUEST COMPLETE · +300 coins · +1 Elixir · +5 Zyspheres', 2800);
         try { playSFX('confirm'); } catch(_){}
-        // v0.95.317 · Rizer XP · Dad's starter quest completion · 8K main-quest tier
         try { awardRizerXP(8000); } catch(_){}
-        // v0.95.312 · Dad points player to his WORKBENCH · picker no longer auto-opens
         showDialog({ speaker: 'DAD', lines: [
-          'Look at you.  Every item accounted for.  That\'s a Rizer.',
+          'Every last piece.  You listen better than I did at your age.',
           '*takes the tribute · nods once*',
-          'Coins for the road.  A Verdant Elixir for the first bad wound.  Five basic Zyspheres to catch what you find.',
+          'Coins.  Elixir.  Five basic Zyspheres.  Enough to get you off my porch.',
           'Now — over to my workbench.  Three eggs are ready: Volcanut · Verdanix · Otterlin.',
-          '*points to the workbench*  Pick the one that calls to you.  I\'ll be right here.',
+          '*points to the workbench*  Pick the one that calls to you.  Your first Zyrex will walk with you when we\'re done.',
         ]});
         return;
       }
 
-      // Already completed
-      if (player.dadStarterQuestComplete){
-        // v0.95.312 · Direct player to the workbench instead of auto-opening picker
-        if (!player.starterChosen){
+      // v0.95.380 · Post-starter · Dad points player to Kaizari (no map marker · explore + ask)
+      if (player.dadStarterQuestComplete && player.starterChosen){
+        if (!player.kaizariHintGiven){
+          player.kaizariHintGiven = true;
+          try { awardRizerXP(600); } catch(_){}
+          showToast('★ Hint · seek KAIZARI · ask around Malezor', 3200);
           showDialog({ speaker: 'DAD', lines: [
-            'Still haven\'t picked, huh?  Walk over to my workbench and choose.  Volcanut · Verdanix · Otterlin.',
+            'Good pick, kid.  That one has fight in it.',
+            'You need a Fae Net if you\'re going to catch anything wild — and only KAIZARI hands those out.',
+            'She trains new Rizers on her farm.  I won\'t point you to it · a Rizer earns their trail.',
+            'Talk to people around Malezor.  Someone will know where the cheetah huntress lives.',
           ]});
           return;
         }
@@ -3817,16 +3825,23 @@ const NPCS = [
         return;
       }
 
+      // Starter picker pending · nudge to workbench
+      if (player.dadStarterQuestComplete && !player.starterChosen){
+        showDialog({ speaker: 'DAD', lines: [
+          'Still haven\'t picked, huh?  Walk over to my workbench and choose.  Volcanut · Verdanix · Otterlin.',
+        ]});
+        return;
+      }
+
       // Progress recap · checklist with live counts
       const mark = (ok) => ok ? '✓' : '·';
       const clamp = (n,cap) => Math.min(n,cap);
       showDialog({ speaker: 'DAD', lines: [
         'Not yet, kid.  Let me see where you\'re at.',
-        `  ${mark(hasFaenet)}  Fae Net             (${hasFaenet ? '1/1' : '0/1'})`,
-        `  ${mark(hasZycube)}  Zycube              (${hasZycube ? '1/1' : '0/1'})`,
-        `  ${mark(nBerries>=REQ)}  Berries             (${clamp(nBerries,REQ)}/${REQ})`,
-        `  ${mark(nFruits>=REQ)}  Fruits              (${clamp(nFruits,REQ)}/${REQ})`,
-        `  ${mark(nSeeds>=REQ)}  Seeds               (${clamp(nSeeds,REQ)}/${REQ})`,
+        `  ${mark(nFae>=REQ)}  Fae     (${clamp(nFae,REQ)}/${REQ})`,
+        `  ${mark(nBerries>=REQ)}  Berries (${clamp(nBerries,REQ)}/${REQ})`,
+        `  ${mark(nFruits>=REQ)}  Fruits  (${clamp(nFruits,REQ)}/${REQ})`,
+        `  ${mark(nSeeds>=REQ)}  Seeds   (${clamp(nSeeds,REQ)}/${REQ})`,
         'Come back when the list is full.',
       ]});
     },
@@ -9166,12 +9181,18 @@ function openTvPanel(){
   playSFX('menuOpen');
 }
 // v0.95.178 · TV Movie player · reuses tvMovieVid · ○/B/Esc closes
+// v0.95.379 · Overworld BGM + SFX pause while movie is playing · resume on close
 let _tvMoviePlaying = false;
 function playTvMovie(id){
   const m = MOVIES[id]; if (!m) return;
   const ov = document.getElementById('tvMovieOverlay');
   const vid = document.getElementById('tvMovieVid');
   if (!ov || !vid) return;
+  // Pause every BGM + SFX audio element so only the movie audio is heard
+  try {
+    Object.values(AUDIO.bgm).forEach(a => { try { a.pause(); } catch(_){} });
+    Object.values(AUDIO.sfx).forEach(a => { try { a.pause(); a.currentTime = 0; } catch(_){} });
+  } catch(_){}
   vid.src = m.src;
   ov.style.display = 'block';
   _tvMoviePlaying = true;
@@ -9190,6 +9211,8 @@ function closeTvMovie(){
   if (vid){ try { vid.pause(); } catch(e){} }
   if (ov) ov.style.display = 'none';
   _tvMoviePlaying = false;
+  // Restore the overworld soundtrack via the existing resumeBGM helper
+  try { if (typeof resumeBGM === 'function') resumeBGM(); } catch(_){}
 }
 (function wireTvMovieClickClose(){
   const ov = document.getElementById('tvMovieOverlay');
@@ -12596,7 +12619,7 @@ addEventListener('keydown', e => {
       //   map     · after Zoryn gifts Town Map
       const pages = [];
       if (player.zycubeGifted)   pages.push('zycube');
-      if (player.zycubeGifted)   pages.push('quests');
+      if (player.dadNotebookGifted) pages.push('quests');   // v0.95.380 · Dad's Notebook unlocks Quests tab
       if (player.starterChosen)  pages.push('faction');
       if (player.townMapGifted)  pages.push('world');
       if (pages.length < 2) return;
@@ -12995,21 +13018,12 @@ addEventListener('keydown', e => {
       zyrexMenuOpen = false;
       playSFX('menuClose');
     } else {
-      // v0.95.326 · Touchpad requires the backpack FIRST (no bag, no touchpad)
+      // v0.95.379 · Touchpad requires ONLY the backpack (no ZyCube or RAID gates)
+      // Bag opens with backpack alone · ZyCube tab shows an "empty · get from Mom"
+      // state pre-gift · other tabs (Quests/Faction/Map) stay hidden until their
+      // respective flags flip (zycubeGifted / raidCardGifted / townMapGifted)
       if (!player.hasBackpack){
         showToast('◈ Touchpad locked · grab your Backpack from your room', 2600);
-        try { playSFX('doorLock'); } catch(_){}
-        return;
-      }
-      // v0.95.338 · Zyrex menu gate moved to RAID CARD (from Prof Elarian)
-      // Walk Yara to the professor · earn the RAID · unlocks the whole touchpad
-      if (!player.raidCardGifted){
-        showToast('◈ ZyCube locked · walk your sister to Professor Elarian first', 2800);
-        try { playSFX('doorLock'); } catch(_){}
-        return;
-      }
-      if (!player.zycubeGifted){
-        showToast('◈ ZyCube locked · talk to Mom first', 2600);
         try { playSFX('doorLock'); } catch(_){}
         return;
       }
@@ -15158,7 +15172,7 @@ function drawZyrexMenu(){
   ctx.fillStyle='#8ff';
   const tabs=[];
   if(player.zycubeGifted)  tabs.push('zycube');
-  if(player.zycubeGifted)  tabs.push('quests');
+  if(player.dadNotebookGifted) tabs.push('quests');   // v0.95.380 · Dad's Notebook
   if(player.starterChosen) tabs.push('faction');
   if(player.townMapGifted) tabs.push('world');
   if(tabs.length>1){

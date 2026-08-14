@@ -802,6 +802,7 @@
       <div class="row">
         <!-- v0.95.310 · button retained but wild-grass Zyrex encounters are permanently retired · grass now emits Mori/Daemon aggro noise instead -->
         <button id="devNoWildBattle" title="Wild grass Zyrex encounters are permanently retired (v0.95.310). Grass = aggro noise now.">Wild Battle · retired</button>
+        <button id="devNoDefeat">No Defeat: OFF</button>
         <button id="devUnlockAllDoors">Unlock All Doors: OFF</button>
       </div>
       <div class="row">
@@ -1489,6 +1490,12 @@ function hurtPlayer(amt, srcName){
   if (window.__rumbleHit) window.__rumbleHit('hurt');    // v0.95.217 · haptic jolt on damage taken
   // v0.95.181 · Damage toast removed · anim + HP deduct only · HUD bar shows the loss
   if (player.hp === 0){
+    // v0.95.342 · No-Defeat dev toggle · resurrect at 1 HP instead of KO
+    if (game.devNoDefeat){
+      player.hp = 1;
+      showToast('◈ DEV · No Defeat · saved from KO', 1400);
+      return;
+    }
     startRizerDeath();
   }
 }
@@ -16542,6 +16549,18 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       game.devUnlockAllDoors = !game.devUnlockAllDoors;
       unlockDoorsBtn.textContent = labelUnlock();
       showToast(`◈ DEV · All doors ${game.devUnlockAllDoors ? 'UNLOCKED (home + building templates)' : 'RESTORED'}`, 2200);
+      playSFX('confirm');
+    });
+  }
+  // v0.95.342 · Dev · No Defeat · playtest hostile areas without KO/dream sequence
+  const noDefeatBtn = document.getElementById('devNoDefeat');
+  if (noDefeatBtn){
+    const label = () => `No Defeat: ${game.devNoDefeat ? 'ON' : 'OFF'}`;
+    noDefeatBtn.textContent = label();
+    noDefeatBtn.addEventListener('click', () => {
+      game.devNoDefeat = !game.devNoDefeat;
+      noDefeatBtn.textContent = label();
+      showToast(`◈ DEV · No Defeat ${game.devNoDefeat ? 'ON · resurrects at 1 HP' : 'OFF · vanilla KO'}`, 2000);
       playSFX('confirm');
     });
   }

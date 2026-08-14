@@ -2640,6 +2640,78 @@ const WORLD_PROPS = [
       onInteract: () => { showToast('◈ ANDRANNOR TOWN HALL · Closed for now.', 2400); playSFX('doorLock'); },
     };
   })(),
+  // ── ANDRANNOR HOMES · 3 house types placed across the district ──
+  // v0.95.330 · MANOR (widest · palatial · lantern-flanked door) · far-east
+  // COTTAGE (tall gothic peak + palm crown) · center-west
+  // BALCONY (2-story w/ upper-door balcony) · far-west
+  // Andrannor spans cols 181-300 rows 308-337 · avoid the town-hall footprint
+  // (235-245 x 308-316) and the bush ring at row 317-318 (cols 232-248)
+  (function(){
+    const img = new Image();
+    img.src = 'assets/2D%20sprites/buildings/andrannor-house-manor.png';
+    return {
+      id: 'andrannor_home_manor',
+      img, src: 'assets/2D%20sprites/buildings/andrannor-house-manor.png',
+      bbox: [114, 101, 1172, 889],
+      tileX: 285, tileY: 320, tileW: 10, tileH: 7,
+      footprint: (function(){
+        const f = [];
+        for (let dy = -6; dy <= 0; dy++){
+          for (let dx = -4; dx <= 4; dx++){
+            if (dx === 0 && dy === 0) continue;
+            f.push([dx, dy]);
+          }
+        }
+        return f;
+      })(),
+      door: [0, 0], depthOffset: -3,
+      onInteract: () => { showToast('◈ ANDRANNOR MANOR · locked · come back after dark', 2200); playSFX('doorLock'); },
+    };
+  })(),
+  (function(){
+    const img = new Image();
+    img.src = 'assets/2D%20sprites/buildings/andrannor-house-cottage.png';
+    return {
+      id: 'andrannor_home_cottage',
+      img, src: 'assets/2D%20sprites/buildings/andrannor-house-cottage.png',
+      bbox: [240, 94, 771, 1041],
+      tileX: 265, tileY: 313, tileW: 6, tileH: 8,
+      footprint: (function(){
+        const f = [];
+        for (let dy = -7; dy <= 0; dy++){
+          for (let dx = -2; dx <= 3; dx++){
+            if (dx === 0 && dy === 0) continue;
+            f.push([dx, dy]);
+          }
+        }
+        return f;
+      })(),
+      door: [0, 0], depthOffset: -3.5,
+      onInteract: () => { showToast('◈ ANDRANNOR COTTAGE · locked · come back after dark', 2200); playSFX('doorLock'); },
+    };
+  })(),
+  (function(){
+    const img = new Image();
+    img.src = 'assets/2D%20sprites/buildings/andrannor-house-balcony.png';
+    return {
+      id: 'andrannor_home_balcony',
+      img, src: 'assets/2D%20sprites/buildings/andrannor-house-balcony.png',
+      bbox: [161, 119, 1077, 884],
+      tileX: 200, tileY: 320, tileW: 9, tileH: 7,
+      footprint: (function(){
+        const f = [];
+        for (let dy = -6; dy <= 0; dy++){
+          for (let dx = -4; dx <= 4; dx++){
+            if (dx === 0 && dy === 0) continue;
+            f.push([dx, dy]);
+          }
+        }
+        return f;
+      })(),
+      door: [0, 0], depthOffset: -3,
+      onInteract: () => { showToast('◈ ANDRANNOR BALCONY HOUSE · locked · come back after dark', 2200); playSFX('doorLock'); },
+    };
+  })(),
   // ── ANDRANNOR BUSHES · flanking the town hall (v0.89.6) ──
   ...(function(){
     const _abushImg = new Image();
@@ -9701,22 +9773,28 @@ function emitGrassNoise(px, py){
     n._aggroTx = px;
     n._aggroTy = py;
   }
-  // v0.95.321 · Mori spawn on gemgrass steps · 8% chance per step to spawn a
-  // fresh Mori within 6-8 tiles of player · caps at 4 active grass-spawned
-  // Mori at once so density stays manageable · aov-catching-philosophy canon:
+  // v0.95.330 · Mori spawn from grass · TIGHT gate · never spawn on camera
+  // (min 20 tiles from player) · require 3+ consecutive grass steps before
+  // rolling · caps at 4 active grass-spawned Mori · aov-catching-philosophy:
   // 'grass = terrain flavor + noise that draws Mori/Daemon aggro'
   try {
-    if (Math.random() >= 0.08) return;
+    // Require at least 3 consecutive grass tiles walked before rolling
+    if ((player.stepsInGrass || 0) < 3) return;
+    if (Math.random() >= 0.20) return;
     const activeGrassMori = NPCS.filter(n => n && n._grassSpawn && n.scene === 'overworld' && !n._dying).length;
     if (activeGrassMori >= 4) return;
-    // Pick a walkable tile 6-8 tiles from player
-    for (let attempt = 0; attempt < 20; attempt++){
+    // Spawn 20-28 tiles away (well off-camera at any zoom) so Mori has to
+    // walk toward the player · aggro tick handles the pull
+    for (let attempt = 0; attempt < 30; attempt++){
       const angle = Math.random() * Math.PI * 2;
-      const dist  = 6 + Math.random() * 2;
+      const dist  = 20 + Math.random() * 8;
       const tx = Math.round(px + Math.cos(angle) * dist);
       const ty = Math.round(py + Math.sin(angle) * dist);
       if (typeof walkable === 'function' && !walkable(tx, ty)) continue;
       spawnGrassMori(tx, ty);
+      // Reset the grass-step counter so the player has to walk another 3
+      // consecutive grass tiles before the next roll
+      player.stepsInGrass = 0;
       return;
     }
   } catch(_){}

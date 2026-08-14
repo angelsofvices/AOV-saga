@@ -744,6 +744,10 @@
       <div class="row">
         <button id="devSummonAllZyrex">★ SUMMON ALL OBTAINABLE ZYREX (sprite playtest)</button>
       </div>
+      <!-- v0.95.357 · Spawn UFO toggle · teleports Auraxion UFO to Rizer's location · toggle-off returns it to home coords (17,176) -->
+      <div class="row">
+        <button id="devSpawnUfo">Spawn UFO here: OFF</button>
+      </div>
     </div>
 
     <!-- GIVE · inventory grants -->
@@ -17258,6 +17262,66 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       game.devUnlockDoors = !game.devUnlockDoors;
       unlockBtn.textContent = `Unlock All Doors: ${game.devUnlockDoors ? 'ON' : 'OFF'}`;
       showToast(`◈ DEV · doors ${game.devUnlockDoors ? 'UNLOCKED' : 'locked'}`, 1500);
+    });
+  }
+  // v0.95.357 · Spawn UFO toggle · brings Auraxion UFO to Rizer's current location
+  // for playtest · toggle-off returns craft to canonical parked coords (17, 176)
+  // Uses existing ufoCanLand() so it only lands where the 10x3 hull cleanly fits
+  const spawnUfoBtn = document.getElementById('devSpawnUfo');
+  if (spawnUfoBtn){
+    spawnUfoBtn.addEventListener('click', () => {
+      try {
+        const prop = (typeof auraxionUfoProp === 'function') ? auraxionUfoProp() : null;
+        if (!prop){ showToast('◈ DEV · UFO prop not found', 2000); return; }
+        // Toggle OFF · return to home coords
+        if (game.devUfoSpawned){
+          const home = game.devUfoHome || { x: 17, y: 176 };
+          try { clearUfoWorldCollision(prop); } catch(_){}
+          prop.tileX = home.x; prop.tileY = home.y;
+          try { restoreUfoWorldCollision(prop); } catch(_){}
+          game.devUfoSpawned = false;
+          spawnUfoBtn.textContent = 'Spawn UFO here: OFF';
+          try { playSFX('menuClose'); } catch(_){}
+          showToast(`◈ DEV · UFO returned to home (${home.x}, ${home.y})`, 2400);
+          try { saveGame(); } catch(_){}
+          return;
+        }
+        // Toggle ON · find a landing anchor near Rizer that fits the 10x3 hull
+        // Spiral outward from player's tile · center + column offsets in [-3..3]
+        const px = Math.round(player.x), py = Math.round(player.y);
+        let anchor = null;
+        outer:
+        for (let r = 2; r <= 24; r++){
+          for (let dy = -r; dy <= r; dy++){
+            for (let dx = -r; dx <= r; dx++){
+              if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;   // ring
+              const ax = px + dx, ay = py + dy;
+              if (typeof ufoCanLand === 'function' && ufoCanLand(ax, ay)){
+                anchor = { x: ax, y: ay }; break outer;
+              }
+            }
+          }
+        }
+        if (!anchor){
+          showToast('◈ DEV · No 10x3 clear landing zone within 24 tiles · move to open ground', 2800);
+          try { playSFX('doorLock'); } catch(_){}
+          return;
+        }
+        // Save the current home coords first time so toggle-off can restore them
+        if (!game.devUfoHome) game.devUfoHome = { x: prop.tileX, y: prop.tileY };
+        try { clearUfoWorldCollision(prop); } catch(_){}
+        prop.tileX = anchor.x; prop.tileY = anchor.y;
+        prop._inFlight = false;
+        try { restoreUfoWorldCollision(prop); } catch(_){}
+        game.devUfoSpawned = true;
+        spawnUfoBtn.textContent = `Spawn UFO here: ON (${anchor.x},${anchor.y})`;
+        try { playSFX('confirm'); } catch(_){}
+        showToast(`★ DEV · Auraxion UFO landed at (${anchor.x}, ${anchor.y}) · toggle off to send home`, 3200);
+        try { saveGame(); } catch(_){}
+      } catch(err){
+        showToast('◈ DEV · Spawn UFO failed · check console', 2400);
+        console.warn('devSpawnUfo error:', err);
+      }
     });
   }
   // v0.95.352 · Summon-all-obtainable-Zyrex · sprite playtest button

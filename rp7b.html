@@ -1829,7 +1829,7 @@ const INVENTORY_META = {
   soulphish:        { label: 'Soulphish',             order: 91 },   // v0.95.152 · spirit fish · 1 → full astral energy
   zphone:           { label: 'ZyPhone (ZYCELLITE)',    order: 5  },   // v0.95.164 · Thardin phone · call faction NPCs at bond ≥ 60
   worldmap:         { label: 'World Map',              order: 1  },   // v0.95.183 · Zyraxis map · full-screen viewer
-  townmap:          { label: 'Town Map (Malezor)',     order: 2  },   // v0.95.278 · Zoryn's gift · Malezor only · precursor to worldmap
+  // townmap RETIRED v0.95.419 · Zoryn now grants worldmap directly · only one map item exists
   gearbag:          { label: 'Gearbag',                 order: 3  },   // v0.95.279 · Scrapjaw's gift · outfits + cosmetics live inside
   backpack:         { label: 'Backpack',                order: 0.5},   // v0.95.326 · Rizer's first-grab · gates touchpad + house exit
   elzebub_egg:      { label: 'Elzebub Egg',             order: 4  },   // v0.95.295 · rare egg · found near home · Mom nurses it into Elzebub Lv10
@@ -4323,7 +4323,8 @@ const NPCS = [
       if (!player.townMapGifted){
         player.townMapGifted = true; try{pingNextObjective()}catch(_){}
         try { awardRizerXP(1500); } catch(_){}   // v0.95.317 · Zoryn's Town Map unlocks map tab
-        player.items.townmap = (player.items.townmap || 0) + 1; try{playItemGain('townmap')}catch(_){}
+        // v0.95.419 · Zoryn grants the WORLD MAP directly (townmap item retired · one map only)
+        player.items.worldmap = (player.items.worldmap || 0) + 1; try{playItemGain('worldmap')}catch(_){}
         // Zoryn's map = town map only (Malezor) · NOT the full world map
         showToast('★ Received: Town Map (Malezor)', 2600);
         try { playSFX('confirm'); } catch(_){}
@@ -13632,6 +13633,21 @@ addEventListener('keydown', e => {
   // The phone IS the game menu now · every panel lives inside it
   if (k === '2'){
     if (e.repeat) return;   // v0.95.414 · guard against auto-repeat toggling open/close during hold
+    // v0.95.420 · L2 or R2 + TOUCHPAD chord = dev panel toggle (creator-only)
+    // L2='q' · R2='i' per gamepad BTN map · replaces the old '4' + double-tap
+    if ((keys['q'] || keys['i']) && (typeof isDevUnlocked === 'function' && isDevUnlocked())){
+      const p = document.getElementById('devPanel');
+      if (p){
+        const opening = p.style.display !== 'block';
+        p.style.display = opening ? 'block' : 'none';
+        game.devPanelKeyboard = opening;
+        devPanelSel = 0;
+        try { playSFX(opening ? 'menuOpen' : 'menuClose'); } catch(_){}
+      }
+      _lastTouchpadTime = 0;
+      zyrexMenuOpen = false;
+      return;
+    }
     if (game.zphoneOpen){
       // Tap while open = close (unless hold-5s emergency-return is ticking)
       try { closeZphonePanel(); } catch(_){}
@@ -14214,7 +14230,7 @@ function renderZycellZycube(){
   const items = player.items || {};
   const meta = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META : {};
   const rows = Object.entries(items)
-    .filter(([, n]) => n > 0)
+    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag')   // v0.95.419 · retired items hidden
     .sort((a, b) => ((meta[a[0]] && meta[a[0]].order) || 99) - ((meta[b[0]] && meta[b[0]].order) || 99))
     .map(([k, n]) => {
       const label = (meta[k] && meta[k].label) || k;
@@ -14319,14 +14335,15 @@ function renderZycellMap(){
     <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:${(posMap.rf * 200).toFixed(1)}%; padding-bottom:${(posMap.rf * 200).toFixed(1)}%; border:3px solid rgba(79,179,255,0.9); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 22px rgba(79,179,255,0.6); box-sizing:border-box; pointer-events:none; animation:zyPulse 1.6s ease-in-out infinite;"></div>
     <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:12px; height:12px; background:#ffd66b; border:2px solid #fff; border-radius:50%; box-shadow:0 0 18px #ffd66b; transform:translate(-50%,-50%); pointer-events:none;"></div>
   ` : '';
+  // v0.95.419 · Map fills the phone content area · height 68vh so it goes edge-to-edge
   return `
     <style>@keyframes zyPulse { 0%,100% { opacity:0.55; } 50% { opacity:1; } }</style>
-    <div style="border:1px solid #d4af37; background:rgba(0,0,0,0.4); padding:12px;">
-      <div style="color:#ffd66b; font-weight:bold; letter-spacing:.12em; font-size:11px; margin-bottom:8px; display:flex; justify-content:space-between;">
+    <div style="border:1px solid #d4af37; background:rgba(0,0,0,0.4); padding:8px; display:flex; flex-direction:column; height:100%;">
+      <div style="color:#ffd66b; font-weight:bold; letter-spacing:.12em; font-size:12px; margin-bottom:8px; display:flex; justify-content:space-between; padding:0 4px;">
         <span>🗺  WORLD MAP · ZYRAXIS</span>
         <span style="color:#8ff;">📍 ${label}</span>
       </div>
-      <div style="width:100%; padding-bottom:56%; background:url('assets/2D%20sprites/ui/pages/world-map-hero.png') center/contain no-repeat; border:1px solid rgba(79,179,255,0.35); position:relative;">
+      <div style="flex:1; min-height:60vh; background:url('assets/2D%20sprites/ui/pages/world-map-hero.png') center/contain no-repeat; border:1px solid rgba(79,179,255,0.35); position:relative;">
         ${pinHTML}
       </div>
       <div style="color:#8ff; font-size:11px; margin-top:8px; text-align:center;">YOU · ${( (player.activeActor||'rizer').toUpperCase() )} · TILE (${Math.round(player.x)}, ${Math.round(player.y)})</div>
@@ -14689,13 +14706,31 @@ window.addEventListener('keydown', (e) => {
 }, true);
 // v0.95.373 · ZyCellite key router · fires BEFORE gameplay handlers when the
 // phone is open · handles nav-cycle + cursor + close for kb + gamepad + mobile
-// (gamepad button 17 = touchpad → key '2' · Options button 9 → key '3' etc)
+// v0.95.421 · Phone acts like PAUSE · ALL overworld input blocked while open
+// (no walk / jump / dodge / attack / astral chords) · phone owns input fully
 window.addEventListener('keydown', (e) => {
   const k = (e.key || '').toLowerCase();
   if (!game.zphoneOpen) return;
+  // Route panel-nav keys · everything else is swallowed
   if (handleZycellKey(k)){ e.preventDefault(); e.stopImmediatePropagation(); return; }
-  // Fallback close
-  if (k === 'b' || k === 'escape' || k === 'shift'){ e.preventDefault(); closeZphonePanel(); }
+  if (k === 'b' || k === 'escape' || k === 'shift'){
+    e.preventDefault(); e.stopImmediatePropagation();
+    closeZphonePanel();
+    return;
+  }
+  // v0.95.421 · Swallow every other key so overworld gameplay is fully paused
+  e.preventDefault();
+  e.stopImmediatePropagation();
+}, true);
+// Also block keyup so held-state doesn't linger after phone closes
+window.addEventListener('keyup', (e) => {
+  if (!game.zphoneOpen) return;
+  const k = (e.key || '').toLowerCase();
+  // Let touchpad keyup through so the hold-5s timer clears · everything else is blocked
+  if (k === '2') return;
+  keys[k] = false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
 }, true);
 // Live-refresh the header widgets every second while open
 setInterval(() => { if (game.zphoneOpen) paintZycellNav(); }, 1000);

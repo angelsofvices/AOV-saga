@@ -5479,77 +5479,79 @@ function restoreUfoWorldCollision(prop){
 // is populated + isWorldBorderTile is defined so we can safely gate spawns
 // away from all buildings/NPCs.  Pushes directly into the existing NPCS array.
 // ══════════════════════════════════════════════════════════════════════
-// v0.95.398 · SKELLOR spawn system · psychache-humanoid rare loot event
-// - Every 3 real-time minutes in overworld · 1-3 skellors spawn off-camera
-// - Walk toward player (passive · no attack)
-// - 3 HP · every hit staggers · 3rd hit drops loot bag
-// - Interact loot bag → random coins 10-50 + 10% chance of a colored gem
-// - Only 1 GROUP active at a time · re-arms 3 min after last group cleared
+// v0.95.402 · SKELLOR · psychache humanoid · CoD-Zombies-style resurrect-to-finish
+// - Scatter across map at HALF Mori density (perimeter spawn · not timer-based)
+// - 9 punches to fully defeat · progressive hurt-sheet frames between hits
+// - Fall cycle: 3 hits per fall × 3 fall cycles = 9 total · stand > react > fall > stand > repeat
+// - Final hit locks the slain frame permanently (breadcrumb + loot bag)
+// - Stronger moves fit animation states · kick=2 hits, astral moves=3 hits
+// - Scale matches regular Mori (1.0) · walks toward player passively (no attack)
 // ══════════════════════════════════════════════════════════════════════
 const SKELLOR_IMG = new Image();
 SKELLOR_IMG.src = 'assets/2D%20sprites/enemies/skellor.png';
+const SKELLOR_HURT_IMG = new Image();
+SKELLOR_HURT_IMG.src = 'assets/2D%20sprites/enemies/skellor-hurt.png';
 const SKELLOR_BBOXES = [
   [[78,41,152,233],[74,35,156,239],[78,34,159,243],[65,37,144,238]],
   [[93,31,123,227],[81,29,134,227],[80,31,131,223],[78,26,138,225]],
   [[97,25,125,226],[72,25,134,226],[81,25,130,225],[62,22,145,229]],
   [[79,14,148,237],[80, 8,147,240],[63,13,155,240],[72,16,143,237]],
 ];
-const SKELLOR_SPAWN_MS = 3 * 60 * 1000;
-// v0.95.398 · defer game.* init since `game` const isn't declared yet at this line
-// (spawn state gets initialized lazily inside tickSkellorSpawn/spawnSkellorGroup)
+// Hurt sheet is 1586x992 · ~5 rows × 8 cols at ~198px cells
+// Frame index → (row, col) mapping for the 9-hit progression
+// (each fall = 3 hits · final hit 9 = permanent slain body-with-bag)
+const SKELLOR_HURT_CELL_W = 198;
+const SKELLOR_HURT_CELL_H = 198;
+const SKELLOR_HURT_FRAMES = [
+  // Fall cycle 1 · hits 1-3
+  { r: 0, c: 0 },  // hit 1 · yellow flash
+  { r: 1, c: 1 },  // hit 2 · deeper stagger
+  { r: 1, c: 3 },  // hit 3 · standing recovery
+  // Fall cycle 2 · hits 4-6
+  { r: 2, c: 0 },  // hit 4 · flinch flash
+  { r: 2, c: 3 },  // hit 5 · crouched
+  { r: 3, c: 4 },  // hit 6 · getting up
+  // Fall cycle 3 · hits 7-9
+  { r: 4, c: 0 },  // hit 7 · flash + wobble
+  { r: 4, c: 2 },  // hit 8 · panicked
+  { r: 4, c: 7 },  // hit 9 · SLAIN (body + bag · permanent)
+];
+const SKELLOR_MAX_HITS = SKELLOR_HURT_FRAMES.length;
 
-function spawnSkellorGroup(){
-  if (game._skellorGroupActive) return;
-  if (game.scene !== 'overworld') return;
-  const groupSize = 1 + Math.floor(Math.random() * 3);   // 1..3
-  // Pick a spawn anchor 12-18 tiles from player · off-camera direction
-  const camRadius = 14 + Math.floor(Math.random() * 5);
-  const angle = Math.random() * Math.PI * 2;
-  const ax = Math.round(player.x + Math.cos(angle) * camRadius);
-  const ay = Math.round(player.y + Math.sin(angle) * camRadius);
-  const spawned = [];
-  for (let i = 0; i < groupSize; i++){
-    const dx = i === 0 ? 0 : (Math.floor(Math.random() * 3) - 1);
-    const dy = i === 0 ? 0 : (Math.floor(Math.random() * 3) - 1);
-    const sx = ax + dx, sy = ay + dy;
-    if (!isWorldLandTile(sx, sy) || isWorldBorderTile(sx, sy)) continue;
-    if (_propBlocked.has(`${sx},${sy}`)) continue;
-    const idNum = (game._skellorCounter = (game._skellorCounter || 0) + 1);
-    const n = {
-      id: `skellor_${idNum}`,
-      name: 'Skellor',
-      sheet: new Image(),
-      src: 'assets/2D%20sprites/enemies/skellor.png',
-      bboxes: SKELLOR_BBOXES,
-      cellW: 313, cellH: 313, cols: 4, rows: 4,
-      uniformScale: true, scaleMul: 1.15,
-      tileX: sx, tileY: sy, homeX: sx, homeY: sy,
-      homeScene: 'overworld', scene: 'overworld',
-      dir: 'down', mode: 'skellor',
-      moving: false, animFrame: 0, idleFrame: 0,
-      moveCd: 400 + Math.random() * 400,
-      blinkTimer: 9e9,
-      isEnemy: true,
-      hp: 3, hpMax: 3, tier: 1, level: 2,
-      _skellorFalls: 0,
-      onInteract: () => { playSFX('moriPoke'); showToast('◈ SKELLOR shuffles closer, groaning...', 2200); },
-    };
-    n.sheet.src = n.src;
-    NPCS.push(n);
-    spawned.push(n);
-  }
-  if (spawned.length){
-    game._skellorGroupActive = true;
-    game._skellorGroupIds = spawned.map(n => n.id);
-    showToast(`◈ SKELLOR${spawned.length > 1 ? 's' : ''} · ${spawned.length} shuffled in`, 2200);
-  }
+// Compact NPC factory · used by the perimeter scatter pass below
+function _makeSkellor(sx, sy, idNum){
+  const n = {
+    id: `skellor_${idNum}`,
+    name: 'Skellor',
+    sheet: new Image(),
+    src: 'assets/2D%20sprites/enemies/skellor.png',
+    bboxes: SKELLOR_BBOXES,
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true, scaleMul: 1.00,        // v0.95.402 · match regular Mori scale
+    tileX: sx, tileY: sy, homeX: sx, homeY: sy,
+    homeScene: 'overworld', scene: 'overworld',
+    dir: 'down', mode: 'skellor',
+    moving: false, animFrame: 0, idleFrame: 0,
+    moveCd: 400 + Math.random() * 400,
+    blinkTimer: 9e9,
+    isEnemy: true,
+    hp: SKELLOR_MAX_HITS, hpMax: SKELLOR_MAX_HITS, tier: 1, level: 2,
+    _skellorHits: 0,
+    _skellorFrame: -1,     // when >=0, render hurt sheet cell instead of walk
+    _hurtFlashUntil: 0,
+    onInteract: () => { playSFX('moriPoke'); showToast('◈ SKELLOR shuffles closer, groaning...', 2200); },
+  };
+  n.sheet.src = n.src;
+  return n;
 }
 
 // Skellor-specific tick · walks toward player · called from generic NPC tick when mode==='skellor'
 function tickSkellor(n){
   if (!n || n.scene !== 'overworld') return;
-  if (n._dying) return;
+  if (n._dying || n._skellorDead) return;   // frozen once fully slain
   if ((n.moveCd = (n.moveCd || 0) - 16) > 0) return;
+  // Pause movement briefly during hurt flash (react animation shows)
+  if ((n._hurtFlashUntil || 0) > performance.now()){ n.moveCd = 200; n.moving = false; return; }
   // Walk one tile toward player
   const dx0 = player.x - n.tileX, dy0 = player.y - n.tileY;
   if (Math.abs(dx0) + Math.abs(dy0) <= 1){
@@ -5560,78 +5562,84 @@ function tickSkellor(n){
   let dir = (Math.abs(dx0) >= Math.abs(dy0)) ? (dx0 > 0 ? 'right' : 'left') : (dy0 > 0 ? 'down' : 'up');
   const v = _DIR_VEC[dir];
   if (v && stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
-    n.moveCd = 550 + Math.random() * 250;
+    n.moveCd = 620 + Math.random() * 240;
   } else {
     const alt = (dir === 'left' || dir === 'right') ? (dy0 > 0 ? 'down' : 'up') : (dx0 > 0 ? 'right' : 'left');
     const av = _DIR_VEC[alt];
-    if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, alt)){
-      n.moveCd = 550;
-    } else {
-      n.moveCd = 400;
-    }
+    if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, alt)){ n.moveCd = 620; } else { n.moveCd = 400; }
   }
 }
 
-// Skellor hit response · 3 stagger rounds · 3rd = death + loot bag drop
+// Skellor hit response · 9 punches to defeat · stronger moves consume more hits
+// dmg=1 punch · dmg=2 kick · dmg=3 astral · caps at SKELLOR_MAX_HITS
 function skellorTakeHit(n, dmg){
-  if (!n || n._dying) return;
-  n._skellorFalls = (n._skellorFalls || 0) + 1;
-  n._hurtFlashUntil = performance.now() + 250;
+  if (!n || n._skellorDead) return;
+  const now = performance.now();
+  n._skellorHits = Math.min(SKELLOR_MAX_HITS, (n._skellorHits || 0) + (dmg || 1));
+  n._skellorFrame = n._skellorHits - 1;      // frame index into SKELLOR_HURT_FRAMES
+  n._hurtFlashUntil = now + 550;             // ~half-second react
+  n.hp = SKELLOR_MAX_HITS - n._skellorHits;
   playSFX('moriPoke');
-  if (n._skellorFalls >= 3){
-    n._dying = true;
-    n.isEnemy = false;
-    n.scene = 'overworld';
-    n.hp = 0;
+  if (n._skellorHits >= SKELLOR_MAX_HITS){
+    // Final slain state · lock the last frame permanently · become a loot bag NPC
+    n._skellorDead = true;
+    n.isEnemy = false;                       // stops enemy AI targeting
+    n.scene = 'overworld';                   // keep visible as breadcrumb
     n.mode = 'stationary';
     n.moving = false;
+    n._hurtFlashUntil = 0;                   // frame stays locked via _skellorFrame
     n.name = 'Skellor (loot bag)';
     n.onInteract = () => lootSkellor(n);
-    showToast('★ Skellor collapsed · interact its bag for loot', 2600);
-    // Check if group is fully down · re-arm the spawn timer
-    const groupAlive = NPCS.some(x =>
-      x && x.id && (game._skellorGroupIds || []).includes(x.id) && !x._dying && x.isEnemy);
-    if (!groupAlive){
-      game._skellorGroupActive = false;
-      game._skellorNextSpawn = performance.now() + SKELLOR_SPAWN_MS;
-    }
+    showToast('★ Skellor slain · interact the bag for loot', 2600);
   } else {
-    showToast(`◈ Skellor stumbles · fall ${n._skellorFalls}/3`, 1400);
+    const fall = Math.floor(n._skellorHits / 3) + 1;
+    const inFall = ((n._skellorHits - 1) % 3) + 1;
+    showToast(`◈ Skellor hit ${n._skellorHits}/${SKELLOR_MAX_HITS} · fall ${Math.min(3,fall)} · react ${inFall}/3`, 1200);
   }
 }
 
-// Loot the corpse bag · random coins 10-50 · 10% colored gem drop · body persists as breadcrumb
+// Loot bag · random coins 10-50 + 10% chance colored gem · body persists after
 let _skellorLootedIds = new Set();
 function lootSkellor(n){
   if (!n) return;
-  if (_skellorLootedIds.has(n.id)){
-    showToast('◈ Empty bag · already looted', 1600);
-    return;
-  }
+  if (_skellorLootedIds.has(n.id)){ showToast('◈ Empty bag · already looted', 1600); return; }
   _skellorLootedIds.add(n.id);
   const coins = 10 + Math.floor(Math.random() * 41);
   player.items = player.items || {};
   player.items.coins = (player.items.coins || 0) + coins;
-  const gemRoll = Math.random();
   let gemMsg = '';
-  if (gemRoll < 0.10){
-    const gemColors = ['gem_red', 'gem_blue', 'gem_purple'];
-    const gem = gemColors[Math.floor(Math.random() * gemColors.length)];
-    player.items[gem] = (player.items[gem] || 0) + 1;
-    gemMsg = ` + 1 ${gem.replace('gem_', '').toUpperCase()} GEM`;
+  if (Math.random() < 0.10){
+    const gems = ['gem_red', 'gem_blue', 'gem_purple'];
+    const g = gems[Math.floor(Math.random() * gems.length)];
+    player.items[g] = (player.items[g] || 0) + 1;
+    gemMsg = ` + 1 ${g.replace('gem_', '').toUpperCase()} GEM`;
   }
   playSFX('coins');
   showToast(`★ Looted Skellor bag · +${coins} coins${gemMsg}`, 2800);
 }
 
-// Global spawn tick · called every frame · fires when timer elapses
-function tickSkellorSpawn(){
-  if (game.scene !== 'overworld') return;
-  if (game._skellorGroupActive) return;
+// Overlay renderer · paints the current hurt-sheet frame OVER the Skellor
+// when they're mid-reaction OR permanently slain · called every frame from
+// the main draw loop after regular NPC render so the frame sits on top
+function drawSkellorOverlay(){
+  if (!SKELLOR_HURT_IMG.complete || !SKELLOR_HURT_IMG.naturalWidth) return;
   const now = performance.now();
-  if (now < game._skellorNextSpawn) return;
-  game._skellorNextSpawn = now + SKELLOR_SPAWN_MS;
-  spawnSkellorGroup();
+  for (const n of NPCS){
+    if (!n || n.mode !== 'skellor') continue;
+    if (n.scene !== game.scene) continue;
+    if (n._skellorFrame == null || n._skellorFrame < 0) continue;
+    const showFrame = n._skellorDead || (n._hurtFlashUntil || 0) > now;
+    if (!showFrame) continue;
+    const f = SKELLOR_HURT_FRAMES[Math.min(SKELLOR_MAX_HITS - 1, n._skellorFrame)];
+    const sx = f.c * SKELLOR_HURT_CELL_W;
+    const sy = f.r * SKELLOR_HURT_CELL_H;
+    const sw = SKELLOR_HURT_CELL_W, sh = SKELLOR_HURT_CELL_H;
+    const drawH = Math.round(TILE * 2);
+    const drawW = Math.round(drawH * (sw / sh));
+    const dx = Math.floor((n.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+    const dy = Math.floor((n.tileY + 1)   * TILE - drawH)     - _cam.y;
+    ctx.drawImage(SKELLOR_HURT_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+  }
 }
 
 (function spawnPerimeterEnemies(){
@@ -5703,6 +5711,11 @@ function tickSkellorSpawn(){
     hp: 250, hpMax: 250, tier: 3, level: 15,
     onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
   }));
+  // v0.95.402 · SKELLOR scatter · perimeter-style like Mori/Daemon · HALF density since they drop loot
+  // Malezor: 22 (was 45 Mori) · Andrannor: 17 (was 35) · Zarvane also gets a set for variety
+  pickPerimeterSpots('malezor',   22, 0xB0EFACE, 7).forEach((s, i) => NPCS.push(_makeSkellor(s.x, s.y, `mal_${i+1}`)));
+  pickPerimeterSpots('zarvane',   16, 0xB0EFACF, 7).forEach((s, i) => NPCS.push(_makeSkellor(s.x, s.y, `zar_${i+1}`)));
+  pickPerimeterSpots('andrannor', 17, 0xB0EFAD0, 7).forEach((s, i) => NPCS.push(_makeSkellor(s.x, s.y, `and_${i+1}`)));
   // Rebuild sprite src assignments (Image objects need explicit .src set)
   NPCS.forEach(n => { if (n.sheet && n.src && !n.sheet.src) n.sheet.src = n.src; });
 })();
@@ -10571,9 +10584,9 @@ addEventListener('keydown', e => {
             spawnHitFx(tx, ty, mode);
           }
           if (hit){
-            // v0.95.398 · Skellors take stagger-hits · 3rd fall = death + loot drop
+            // v0.95.402 · Skellors · punch=1, kick=2 hits · stronger moves fit anim states
             if (hit.mode === 'skellor'){
-              skellorTakeHit(hit, 1);
+              skellorTakeHit(hit, mode === 'kick' ? 2 : 1);
               return;
             }
             const maxHp = hit.hpMax || 125;
@@ -18450,7 +18463,7 @@ function frame(now){
   drawZyrexAttackAnims();// v0.95.320 · per-species attack sprite sheets
   try { tickBagDrag(); } catch(_){}  // v0.95.321 · bag follows Rizer while dragging
   try { tickFae(); } catch(_){}      // v0.95.397 · fae respawn cycle (5-min off-camera)
-  try { tickSkellorSpawn(); } catch(_){}  // v0.95.398 · 3-min Skellor loot-event
+  try { drawSkellorOverlay(); } catch(_){}  // v0.95.402 · hurt-frame overlay + slain body render
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

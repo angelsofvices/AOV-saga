@@ -164,37 +164,64 @@
         width: 200px; height: 105px;                     /* v0.95.38 · 40% scale for mobile */
       }
     }
-    /* v0.95.387 · Coin counter · pixel-art panel · clickable → opens wallet
-       Layout: number populates the dark box which sits to the LEFT of the gold coin */
+    /* v0.95.388 · Coin counter · pixel-art panel · clickable → opens wallet
+       Coin symbol on the LEFT (native orientation) · number in the dark box to its RIGHT
+       Positioned directly under the RHUD portrait for a clean upper-right stack */
     #coinHud{
-      position:fixed; top:220px; right:16px;
-      width: 180px; height: 46px;
+      position:fixed; top:140px; right:12px;
+      width: 168px; height: 44px;
       background: url('assets/2D%20sprites/ui/coin-panel.png') no-repeat center/contain;
-      /* Flip horizontally so the gold coin now sits on the RIGHT side of the panel · number lives in the dark box to its LEFT */
-      transform: scaleX(-1);
       z-index: 6;
       cursor: pointer;
       display: none;
       user-select: none;
     }
     #coinHud .coinNum{
-      /* Un-flip so the number reads normally · pin to the LEFT-of-coin area */
       display:block; width:100%; height:100%;
-      transform: scaleX(-1);
       font: bold 20px 'Courier New', monospace;
       color:#ffd66b; letter-spacing:.10em;
-      text-align: right; padding: 12px 62px 0 12px;
+      /* Coin icon is on the LEFT · pad left to clear it · number fills the RIGHT dark box */
+      text-align: right; padding: 11px 20px 0 60px;
       box-sizing: border-box;
       text-shadow: 0 0 6px rgba(255,214,107,0.7), 0 1px 2px #000;
     }
     #coinHud:hover .coinNum{ color:#fff; text-shadow: 0 0 8px #ffd66b, 0 1px 2px #000; }
     @media (orientation: portrait){
       #coinHud{
-        top: calc(33vh - 2.5vw + 110px);
+        top: calc(33vh - 2.5vw + 90px);
         right: 8px;
-        width: 140px; height: 36px;
+        width: 132px; height: 36px;
       }
-      #coinHud .coinNum{ font-size: 15px; padding: 9px 48px 0 8px; }
+      #coinHud .coinNum{ font-size: 15px; padding: 8px 12px 0 48px; }
+    }
+    /* v0.95.388 · Gem HUD · sits directly UNDER the coin HUD · same left-icon layout
+       Rainbow gem on the LEFT · count in the dark box to its RIGHT · powers future
+       RIZER UPGRADES currency in the touchpad */
+    #gemHud{
+      position:fixed; top:190px; right:12px;
+      width: 168px; height: 44px;
+      background: url('assets/2D%20sprites/ui/gem-panel.png') no-repeat center/contain;
+      z-index: 6;
+      cursor: pointer;
+      display: none;
+      user-select: none;
+    }
+    #gemHud .gemNum{
+      display:block; width:100%; height:100%;
+      font: bold 20px 'Courier New', monospace;
+      color:#c8f0ff; letter-spacing:.10em;
+      text-align: right; padding: 11px 20px 0 60px;
+      box-sizing: border-box;
+      text-shadow: 0 0 6px rgba(200,240,255,0.8), 0 1px 2px #000;
+    }
+    #gemHud:hover .gemNum{ color:#fff; text-shadow: 0 0 10px #c8f0ff, 0 1px 2px #000; }
+    @media (orientation: portrait){
+      #gemHud{
+        top: calc(33vh - 2.5vw + 132px);
+        right: 8px;
+        width: 132px; height: 36px;
+      }
+      #gemHud .gemNum{ font-size: 15px; padding: 8px 12px 0 48px; }
     }
     /* v0.95.387 · Wallet panel · opens on coin-HUD click · full currency breakdown */
     #walletPanel{
@@ -527,6 +554,8 @@
   </div>
   <!-- v0.95.387 · pixel-art coin panel · click to open wallet · number lives in the box LEFT of the gold coin -->
   <div id="coinHud" title="Click to open Wallet"><span class="coinNum">0</span></div>
+  <!-- v0.95.388 · pixel-art gem panel · click to open wallet · number = countGems() (sum of red+blue+purple weighted) · powers future RIZER UPGRADES -->
+  <div id="gemHud" title="Click to open Wallet · gems power Rizer upgrades"><span class="gemNum">0</span></div>
   <!-- v0.95.387 · Wallet panel · opens on coin-HUD click · lists every currency the player carries -->
   <div id="walletPanel"><div class="box">
     <h2>◈ WALLET</h2>
@@ -13238,6 +13267,17 @@ addEventListener('keydown', e => {
     playSFX('menuOpen');
   }
 });
+// v0.95.388 · countGems() · weighted total across held colored gems
+// Weights: red=1 (common) · blue=2 · purple=3 (rarest) · lets Rizer Upgrades
+// price everything against a single "gem-value" pool without caring which
+// specific gem the player prefers to spend
+function countGems(){
+  const it = (player && player.items) || {};
+  const r = it.gem_red    || 0;
+  const b = it.gem_blue   || 0;
+  const p = it.gem_purple || 0;
+  return r * 1 + b * 2 + p * 3;
+}
 // v0.95.387 · Wallet panel · pops from coin-HUD click · shows every currency the player carries
 function openWalletPanel(){
   const p = document.getElementById('walletPanel');
@@ -13279,8 +13319,10 @@ function closeWalletPanel(){
 }
 (function wireWalletHud(){
   const hud = document.getElementById('coinHud');
+  const gem = document.getElementById('gemHud');
   const p   = document.getElementById('walletPanel');
   if (hud){ hud.addEventListener('click', (e) => { e.stopPropagation(); openWalletPanel(); }); }
+  if (gem){ gem.addEventListener('click', (e) => { e.stopPropagation(); openWalletPanel(); }); }
   if (p){ p.addEventListener('click', (e) => { if (e.target === p) closeWalletPanel(); }); }
   window.addEventListener('keydown', (e) => {
     if (!game.walletPanelOpen) return;
@@ -18803,6 +18845,16 @@ function updateRizerHUD(){
     // v0.95.387 · Populate the coin number in the LEFT box · gold coin sits on the right (CSS-flipped)
     const numEl = coinEl.querySelector('.coinNum');
     if (numEl) numEl.textContent = coins.toLocaleString();
+  }
+  // v0.95.388 · Gem HUD · same layout as coin panel · shows countGems() total
+  // countGems weights red=1, blue=2, purple=3 (rarity ascending) so upgrades
+  // can scale their cost against a single unified "gem-value" pool
+  const gemEl = document.getElementById('gemHud');
+  if (gemEl){
+    gemEl.style.display = show ? 'block' : 'none';
+    const val = (typeof countGems === 'function') ? countGems() : 0;
+    const numEl = gemEl.querySelector('.gemNum');
+    if (numEl) numEl.textContent = val.toLocaleString();
   }
   const model=rizerStatModel();
   paintRizerMeterElement(widget?.querySelector('[data-rizer-meter="hp"]'),model.hp);

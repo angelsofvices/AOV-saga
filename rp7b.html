@@ -815,6 +815,7 @@
         <button id="devFactionSnok">giveSnok: OFF</button>
         <button id="devFactionAnciuxor">giveAnciuxor: OFF</button>
         <button id="devFactionVoltigrax">giveVoltigrax: OFF</button>
+        <button id="devFactionRakoron">giveRakoron: OFF</button>
       </div>
       <div class="row">
         <button id="devFactionAll">giveAllFaction: OFF</button>
@@ -4313,6 +4314,67 @@ const NPCS = [
             player.party = player.party || [];
             player.party.push(z);
             showToast('★ ANCIUXOR Lv 100 T10 ULTIMATE joined your party!', 4000);
+            try { playSFX('confirm'); } catch(_){}
+            n.scene = '__recruited__';
+          }
+        } catch(_){}
+      }});
+    },
+  },
+  // ── RAKORON · v0.95.368 · Malezor Gemlord (I) · far end of Rakoron's Cave interior
+  // Idle-lay = curled resting pose at his throne · walk swap when he stirs
+  // Recruit dialog fires on X · far-end tile (10, 3) inside interior_cave
+  {
+    id: 'rakoron_cave_boss',
+    name: 'Rakoron',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/zyrex/rakoron-sit.png',
+    bboxes: [
+      [[31, 50,254,247],[31, 50,282,257],[ 0, 48,306,257],[31, 50,254,247]],
+      [[28, 58,277,227],[13, 58,300,227],[ 0, 58,306,227],[29, 58,276,227]],
+      [[16, 40,272,228],[ 0, 40,313,228],[ 0, 40,275,228],[15, 40,272,228]],
+      [[48,  6,212,264],[41,  8,239,262],[11,  7,267,263],[48,  6,212,264]],
+    ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true, scaleMul: 1.55,
+    walkSheet: (function(){ const im = new Image(); im.src = 'assets/2D%20sprites/zyrex/rakoron.png'; return im; })(),
+    walkBboxes: [
+      [[24, 57,278,255],[21, 56,277,257],[18, 63,267,248],[13, 63,264,247]],
+      [[24, 67,288,202],[ 8, 65,297,206],[ 0, 66,304,200],[ 5, 74,301,199]],
+      [[13, 47,281,204],[ 8, 45,285,206],[ 1, 54,289,196],[ 8, 55,286,199]],
+      [[21, 17,270,237],[19, 15,272,242],[21, 17,266,231],[15, 16,256,235]],
+    ],
+    tileX: 10, tileY: 3,
+    homeX: 10, homeY: 3,
+    homeScene: 'interior_cave', scene: 'interior_cave',
+    dir: 'down', mode: 'stationary',   // The Gemlord holds his throne
+    moving: false, animFrame: 0, idleFrame: 0,
+    idleCycleMs: 950,
+    blinkTimer: 3200 + Math.random() * 2200,
+    isEnemy: false,
+    turnToInteract: false,   // He faces the entrance · you approach Him
+    onInteract: (n) => {
+      if ((player.party || []).some(z => z && z.speciesId === 'rakoron')){
+        showDialog({ speaker: 'RAKORON', lines: [
+          '*a low rumbling purr shakes the sanctum · the crimson Fathergem pulses*',
+          '"We fly together, Rizer.  The old wound remembers your name."',
+        ]});
+        return;
+      }
+      showDialog({ speaker: 'RAKORON', lines: [
+        '*a colossal red-black dragon lifts his crowned head · the sanctum trembles*',
+        '*the crimson Fathergem set into his chest flares with each breath*',
+        '"So the young Rizer climbs my cave.  Bold, or foolish · I have seen both."',
+        '"The Seers made my kin flightless.  I alone kept my Gem.  I alone remember the sky."',
+        '"Prove worthy of Astralite and I will carry you upon my back.  Take my signature."',
+        '*bows his horned head · offers his Gemlord bond*',
+      ], onDone: () => {
+        try {
+          const z = createZyrex('rakoron', 80);
+          if (z){
+            player.party = player.party || [];
+            player.party.push(z);
+            showToast('★ RAKORON Lv 80 T8 · Malezor Gemlord joined your party!', 3600);
             try { playSFX('confirm'); } catch(_){}
             n.scene = '__recruited__';
           }
@@ -13002,7 +13064,13 @@ const SPECIES = {
     baseHP:340, baseATK:325, baseDEF:310, baseSPD:265, baseSATK:295, baseSDEF:290,
     moves:['Storm Fang','Thunder Pounce','Voltaic Roar','Astral Guard'],
   },
-  // v0.95.349 · ANCIUXOR · THE GOD · Tier X Ultimate · Korathen · 999 across the board
+  // v0.95.368 · RAKORON · Malezor Gemlord (I) · Tier VIII armored red-black dragon
+  // Wields the crimson Fathergem · lives at the end of Rakoron's Cave (interior_cave)
+  rakoron: {
+    id:'rakoron', name:'Rakoron', tier:8, type:'Draconic', type2:'Elemental',
+    baseHP:520, baseATK:470, baseDEF:490, baseSPD:380, baseSATK:445, baseSDEF:430,
+    moves:['Crimson Breath','Gemlord Wing','Fathergem Pulse','Ember Sovereign'],
+  },
   // Wields the Key of Anciuxor (ULTIMATE Astralite Prism · canon per aov-astralite-prisms)
   // Endgame Zyrex · answer to the Empty Throne of Oatheus · 9-type absorption
   anciuxor: {
@@ -13243,6 +13311,7 @@ const DEV_FACTION_ACTORS={
   snok:   {label:'Snok',   level:35,buttonId:'devFactionSnok'},      // v0.95.348 · Veridan vine-beast
   anciuxor:{label:'Anciuxor',level:100,buttonId:'devFactionAnciuxor'},// v0.95.349 · THE GOD · Korathen T10 999-all
   voltigrax:{label:'Voltigrax',level:50,buttonId:'devFactionVoltigrax'},// v0.95.356 · Zarvane armored lion T6
+  rakoron:{label:'Rakoron',level:80,buttonId:'devFactionRakoron'},   // v0.95.368 · Malezor Gemlord T8
 };
 function setDevFactionActor(id,enabled,opts={}){
   const silent=!!opts.silent, deferRefresh=!!opts.deferRefresh;
@@ -15399,6 +15468,24 @@ const SUMMONABLE_SPRITES = {
       [[40,  0,271,289],[30,  0,275,288],[25,  0,275,288],[15,  0,269,288]],
       [[33, 18,271,295],[24, 12,270,301],[14, 10,276,303],[12, 18,265,295]],
       [[83,  0,166,253],[47,  0,208,260],[55,  0,201,250],[57,  0,166,253]],
+    ],
+  },
+  // v0.95.368 · Rakoron · Malezor Gemlord · walk (spread wings) + idle-lay (curled resting) · scaleMul 1.55 dwarfs Rizer
+  rakoron: {
+    src: 'assets/2D%20sprites/zyrex/rakoron.png',
+    bboxes: [
+      [[24, 57,278,255],[21, 56,277,257],[18, 63,267,248],[13, 63,264,247]],
+      [[24, 67,288,202],[ 8, 65,297,206],[ 0, 66,304,200],[ 5, 74,301,199]],
+      [[13, 47,281,204],[ 8, 45,285,206],[ 1, 54,289,196],[ 8, 55,286,199]],
+      [[21, 17,270,237],[19, 15,272,242],[21, 17,266,231],[15, 16,256,235]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 1.55,
+    idleSrc: 'assets/2D%20sprites/zyrex/rakoron-sit.png',
+    idleBboxes: [
+      [[31, 50,254,247],[31, 50,282,257],[ 0, 48,306,257],[31, 50,254,247]],
+      [[28, 58,277,227],[13, 58,300,227],[ 0, 58,306,227],[29, 58,276,227]],
+      [[16, 40,272,228],[ 0, 40,313,228],[ 0, 40,275,228],[15, 40,272,228]],
+      [[48,  6,212,264],[41,  8,239,262],[11,  7,267,263],[48,  6,212,264]],
     ],
   },
   // v0.95.349 · Anciuxor · Korathen Ultimate God · GOD-scale

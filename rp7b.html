@@ -4632,16 +4632,160 @@ const NPCS = [
       blinkTimer: 2000 + Math.random() * 2000,   // blink loop uses frame 2 (eyes closed)
       onInteract: (n) => {
         playSFX('kelthor');
-        // v0.95.371 · Flag first-meeting for Malezor Ch 5 quest gate
+        // v0.95.372 · Kelthor's 8-Step Ladder · dispatch by current step
+        // Each step = a specific dialog + XP reward + optional tangible unlock
+        // Advances only when the step's task condition is met.  See buildQuestLog
+        // (Ch 5) for the canonical step targets + Rizer-level gates.
+        player.kelthorStep = player.kelthorStep || {};
+        const KS = player.kelthorStep;
+        const RL   = player.rizerLvl || 1;
+        const bond = () => player.bonds?.kelthor || 0;
+        const bumpBond = (n) => { player.bonds = player.bonds || {}; player.bonds.kelthor = Math.min(100, (player.bonds.kelthor||0) + n); };
+        // Step 1 · First meeting · sets kelthorMet + kicks off the ladder
         if (!player.kelthorMet){
           player.kelthorMet = true;
-          try { showToast('◈ Quest updated · Beastwarden\'s Ladder begins', 2600); } catch(_){}
+          bumpBond(12);
+          try { awardRizerXP(500); } catch(_){}
+          showToast('◈ Quest · Kelthor\'s 8-Step Ladder begins', 2600);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "Ah.  The young Rizer at last.  I've watched a hundred cycles of your kind climb this hall.",
+            "Malezor is your foundation.  Every district you conquer builds on what I teach you here.",
+            "Eight steps.  One ladder.  Reach the top and I place a Prismshard in your palm.",
+            "Come back when Rizer Lv 5 · bring 5 berries + 5 seeds · we begin with Feed the Ward.",
+          ]});
+          return;
         }
+        // Step 2 · Feed the Ward · Lv 5 gate · 5 berries + 5 seeds
+        if (!KS.s2){
+          if (RL < 5){
+            showDialog({ speaker: 'KELTHOR', lines: [`Grow first, Rizer.  Reach Level 5 (you are Lv ${RL}) then return with berries + seeds.`]});
+            return;
+          }
+          const b = player.items?.berry || 0, s = player.items?.seed || 0;
+          if (b < 5 || s < 5){
+            showDialog({ speaker: 'KELTHOR', lines: [`Not yet.  I need 5 berries (have ${b}) and 5 seeds (have ${s}).  Harvest from Malezor's wild.`]});
+            return;
+          }
+          player.items.berry -= 5; player.items.seed -= 5;
+          KS.s2 = true; bumpBond(13);
+          try { awardRizerXP(1500); } catch(_){}
+          showToast('★ Step 2 · Feed the Ward · complete · +1500 RXP · +13 Bond', 3000);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "*takes the berries + seeds · his old Zyrex growl in approval*",
+            "A Rizer who feeds his kin is a Rizer worth training.",
+            "Step 3 waits at Rizer Lv 12 · groom my three wards at the basin behind the hall.",
+          ]});
+          return;
+        }
+        // Step 3 · Groom his wards · Lv 12 gate · needs 3 grooms
+        if (!KS.s3){
+          const g = player.kelthorGrooms || 0;
+          if (RL < 12){
+            showDialog({ speaker: 'KELTHOR', lines: [`Not yet.  Reach Rizer Lv 12 (you are Lv ${RL}) · then groom my wards.`]});
+            return;
+          }
+          if (g < 3){
+            showDialog({ speaker: 'KELTHOR', lines: [`You've groomed ${g} of 3.  The basin is behind the hall · interact with each of my three wards.`]});
+            return;
+          }
+          KS.s3 = true; bumpBond(15);
+          try { awardRizerXP(3500); } catch(_){}
+          showToast('★ Step 3 · Groom complete · +3500 RXP · +15 Bond', 3000);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "You have gentle hands for a punch-first Rizer.",
+            "Bond Regeneration is yours · your party's bond ticks up passively when you rest.",
+            "Step 4 waits at Rizer Lv 22 · spar with me three times · sanctioned wins only.",
+          ]});
+          return;
+        }
+        // Step 4 · Spar · Lv 22 gate · 3 wins
+        if (!KS.s4){
+          const w = player.kelthorSparWins || 0;
+          if (RL < 22){ showDialog({ speaker: 'KELTHOR', lines: [`Not ready · Rizer Lv 22 required (you are Lv ${RL}).`]}); return; }
+          if (w < 3){  showDialog({ speaker: 'KELTHOR', lines: [`Sparring board · ${w} of 3 wins.  Challenge me on the mat behind the hall.`]}); return; }
+          KS.s4 = true; bumpBond(15);
+          try { awardRizerXP(8000); } catch(_){}
+          showToast('★ Step 4 · Spar complete · +8000 RXP · +15 Bond', 3000);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "Three clean wins.  Your form is truer than your father's at your age.",
+            "The sparring board stays open · come back anytime for repeatable RXP.",
+            "Step 5 waits at Rizer Lv 35 · guard the perimeter at night · 15 kills in the Wild Arm.",
+          ]});
+          return;
+        }
+        // Step 5 · Night Watch · Lv 35 gate · 15 nocturnal kills
+        if (!KS.s5){
+          const k = player.kelthorNightKills || 0;
+          if (RL < 35){ showDialog({ speaker: 'KELTHOR', lines: [`Come back at Rizer Lv 35 (you are Lv ${RL}).`]}); return; }
+          if (k < 15){ showDialog({ speaker: 'KELTHOR', lines: [`Night Watch · ${k} of 15.  Hunt in the Wild Arm after dusk.`]}); return; }
+          KS.s5 = true; bumpBond(12);
+          try { awardRizerXP(18000); } catch(_){}
+          showToast('★ Step 5 · Night Watch · +18k RXP · +12 Bond · S1 preview', 3200);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "Fifteen shadows down.  You've earned a taste of what waits.",
+            "Amplified Mode S1 · preview form · unlocks in your R.HUD.  Use it sparingly.",
+            "Step 6 waits at Rizer Lv 50 · five Daemons.  Any district.",
+          ]});
+          return;
+        }
+        // Step 6 · Elder Trial · Lv 50 gate · 5 Daemons
+        if (!KS.s6){
+          const d = player.kelthorDaemonKills || 0;
+          if (RL < 50){ showDialog({ speaker: 'KELTHOR', lines: [`Rizer Lv 50 first · you are Lv ${RL}.`]}); return; }
+          if (d < 5){  showDialog({ speaker: 'KELTHOR', lines: [`Elder Trial · ${d} of 5 Daemons.  Andrannor is thick with them.`]}); return; }
+          KS.s6 = true; bumpBond(12);
+          try { awardRizerXP(40000); } catch(_){}
+          showToast('★ Step 6 · Elder Trial · +40k RXP · Astralstrike A3 upgrade', 3400);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "Five Daemons.  You walk with the weight of your father now.",
+            "Your Astralstrike is refined · A3 damage +40%.  Feel the difference.",
+            "Step 7 waits at Rizer Lv 70 · bond a Malezor-native Zyrex to Stage 3.",
+          ]});
+          return;
+        }
+        // Step 7 · Stage 3 evolution · Lv 70 gate
+        if (!KS.s7){
+          if (RL < 70){ showDialog({ speaker: 'KELTHOR', lines: [`Rizer Lv 70 first · you are Lv ${RL}.`]}); return; }
+          if (!player.kelthorStage3Evolved){
+            showDialog({ speaker: 'KELTHOR', lines: [
+              "The Prismsynch move slot only opens for a Rizer who has raised a bloodline.",
+              "Evolve one Malezor-native Zyrex all the way to Stage 3 · return when it is done.",
+            ]});
+            return;
+          }
+          KS.s7 = true; bumpBond(12);
+          try { awardRizerXP(90000); } catch(_){}
+          showToast('★ Step 7 · Bloodline raised · +90k RXP · Prismsynch slot', 3600);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "A full evolution.  Rare.  Fitting.",
+            "Prismsynch move slot opens on that Zyrex's card · one Prism-locked strike per battle.",
+            "Step 8 waits at Rizer Lv 90 · return for the Prismshard Ceremony.",
+          ]});
+          return;
+        }
+        // Step 8 · Prismshard Ceremony · Lv 90 gate · endgame gift
+        if (!KS.s8){
+          if (RL < 90){ showDialog({ speaker: 'KELTHOR', lines: [`Rizer Lv 90 first.  You stand at Lv ${RL}.  Grow.`]}); return; }
+          KS.s8 = true;
+          player.prismshardOwned = true;
+          player.items = player.items || {};
+          player.items.prismshard = (player.items.prismshard||0) + 1;
+          bumpBond(11);
+          try { awardRizerXP(150000); } catch(_){}
+          showToast('★ Step 8 · PRISMSHARD RECEIVED · Master Bonder title unlocked', 4200);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "*presses a warm, veined shard into your palm · it hums against your gem*",
+            "The Prismshard.  Progenitor of the Zysphere.  Your climb is complete.",
+            "You are a Master Bonder now, Rizer.  The old title.  Walk with it.",
+            "The rest of Zyraxis is yours.  Come back for stories · not lessons.",
+          ]});
+          return;
+        }
+        // Post-ladder · casual banter + sparring board
         showDialog({ speaker: 'KELTHOR', lines: [
-          "Ah, young one.  I've watched Rizers come and go for a hundred cycles.",
-          "You carry your father's fire.  I can see it in your bond with the Zyrex.",
-          "Malezor is your foundation.  Every district you conquer will build on it.",
-          "Come back often · this town has more to teach you than you know.",
+          "*leans on his staff · watches your Zyrex settle*",
+          "Master Bonder.  My ladder gave what it could.  What you build now is yours.",
+          "The sparring board stays open · return whenever you want a stretch.",
         ]});
       },
     };
@@ -15127,21 +15271,55 @@ function buildQuestLog(){
     });
   }
 
-  // Quest 5 · The Beastwarden's Ladder · unlocks after Elzebub hatches
+  // ══════════════════════════════════════════════════════════════════════
+  // v0.95.372 · KELTHOR'S 8-STEP BOND LADDER · Rizer's Lv 1-100 spine
+  // Every step gates on the previous + a Rizer-level threshold + a specific
+  // task that also rewards RXP.  Step 8 = Prismshard + Master Bonder title.
+  // This IS the game's meta-progression loop.  Each unlock is documented in
+  // aov-malezor-foundation + aov-bonded-astralite-combat + aov-prismshards.
+  // ══════════════════════════════════════════════════════════════════════
   if (eg){
+    const RL   = player.rizerLvl || 1;
+    const bond = player.bonds?.kelthor || 0;
+    const KS = player.kelthorStep = player.kelthorStep || {};
+    // Precomputed step-complete booleans · flags OR live-counter fallbacks
+    const s1 = kh;                                                   // Meet Kelthor
+    const s2 = !!KS.s2 || ((player.items?.berry||0) >= 5 && (player.items?.seed||0) >= 5 && s1 && RL >= 5);
+    const s3 = !!KS.s3 || ((player.kelthorGrooms||0) >= 3 && s2 && RL >= 12);
+    const s4 = !!KS.s4 || ((player.kelthorSparWins||0) >= 3 && s3 && RL >= 22);
+    const s5 = !!KS.s5 || ((player.kelthorNightKills||0) >= 15 && s4 && RL >= 35);
+    const s6 = !!KS.s6 || ((player.kelthorDaemonKills||0) >= 5 && s5 && RL >= 50);
+    const s7 = !!KS.s7 || (!!player.kelthorStage3Evolved && s6 && RL >= 70);
+    const s8 = !!KS.s8 || !!player.prismshardOwned;
+    // Overall status pill
+    const allDone = s1 && s2 && s3 && s4 && s5 && s6 && s7 && s8;
+    const anyProg = s1;
+    const stat = allDone ? 'complete' : (anyProg ? 'active' : 'available');
+    // Live progress counters render inline; locked steps show the Rizer-lvl gate
+    const lvGate = (need) => (RL >= need) ? '' : ` · Rizer Lv ${need}`;
     expeditions.push({
-      title: 'Malezor · Ch 5 · The Beastwarden\'s Ladder',
+      title: 'Malezor · Ch 5 · Kelthor\'s 8-Step Ladder',
       giver: 'Warden Kelthor · Beastwarden\'s Hall',
-      status: kh ? 'active' : 'available',
+      status: stat,
       steps: [
-        { done: kh, label: 'Meet Warden Kelthor at the Beastwarden\'s Hall' },
-        { done: (player.bonds?.kelthor||0) >= 20, label: `Bond Step 1 · Feed his Zyrex (${player.bonds?.kelthor||0}/20)` },
-        { done: (player.bonds?.kelthor||0) >= 40, label: `Bond Step 2 · Groom his Zyrex (${player.bonds?.kelthor||0}/40)` },
-        { done: (player.bonds?.kelthor||0) >= 60, label: `Bond Step 3 · Spar with Kelthor (${player.bonds?.kelthor||0}/60)` },
-        { done: (player.bonds?.kelthor||0) >= 80, label: `Bond Step 4 · Guard duty (${player.bonds?.kelthor||0}/80)` },
-        { done: (player.bonds?.kelthor||0) >= 100, label: `Bond Step 5 · Mentor's trust (${player.bonds?.kelthor||0}/100)` },
+        { done: s1, label: `Step 1 · Meet the Warden${s1?' · ✓':''}` },
+        { done: s2, label: `Step 2 · Feed the Ward · 5 berries + 5 seeds (${Math.min(5,player.items?.berry||0)}/5 · ${Math.min(5,player.items?.seed||0)}/5)${lvGate(5)}` },
+        { done: s3, label: `Step 3 · Groom his 3 wards (${Math.min(3,player.kelthorGrooms||0)}/3)${lvGate(12)}` },
+        { done: s4, label: `Step 4 · Spar · 3 sanctioned wins (${Math.min(3,player.kelthorSparWins||0)}/3)${lvGate(22)}` },
+        { done: s5, label: `Step 5 · Night Watch · 15 kills after dark (${Math.min(15,player.kelthorNightKills||0)}/15)${lvGate(35)}` },
+        { done: s6, label: `Step 6 · Elder Trial · 5 Daemons (${Math.min(5,player.kelthorDaemonKills||0)}/5)${lvGate(50)}` },
+        { done: s7, label: `Step 7 · Bond a Zyrex to Stage 3 (${player.kelthorStage3Evolved?'done':'pending'})${lvGate(70)}` },
+        { done: s8, label: `Step 8 · Prismshard Ceremony${lvGate(90)}` },
       ],
-      reward: 'Kelthor Companion + Prismshard unlocked',
+      reward: s8 ? '✓ Prismshard + Master Bonder title' :
+              s7 ? '→ Prismshard (Step 8 gate: Rizer Lv 90)' :
+              s6 ? '→ Prismsynch move slot (Step 7)' :
+              s5 ? '→ Astralstrike A3 upgrade (Step 6)' :
+              s4 ? '→ Amplified Mode S1 preview (Step 5)' :
+              s3 ? '→ Kelthor sparring board · repeatable RXP (Step 4)' :
+              s2 ? '→ Bond regeneration passive (Step 3)' :
+              s1 ? '→ BondFeed mechanic (Step 2)' :
+                   '→ Bond tracker + full ladder (Step 1)',
     });
   }
 

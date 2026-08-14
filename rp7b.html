@@ -10462,6 +10462,46 @@ function drawGrass(){
   }
 }
 
+// v0.95.358 · Veridan grass↔water autotile · 4x4 sheet w/ 313px cells
+// Bitmask key = (waterN<<0)|(waterE<<1)|(waterS<<2)|(waterW<<3) computed from
+// the four cardinal neighbors of a GRASS tile that touches river water.  For
+// each bitmask we pick the appropriate border tile from the 16-cell sheet.
+// Sheet row/col convention (0-indexed, reading left-to-right top-to-bottom):
+//   Row 0 · straight banks   · 0=N-only  1=E-only  2=S-only  3=W-only
+//   Row 1 · 2-side corners   · 4=NE  5=ES  6=SW  7=NW
+//   Row 2 · 3-side T-inlets  · 8=NES  9=ESW  10=NSW  11=NEW
+//   Row 3 · channels+all     · 12=NS(vert)  13=EW(horiz)  14=NESW(all)  15=peninsula
+// User can rearrange the sheet or edit the map · loading is lazy + cached.
+const VERIDAN_BORDER_IMG = new Image();
+VERIDAN_BORDER_IMG.src = 'assets/2D%20sprites/tiles/veridan-border-4x4.png';
+const VERIDAN_BORDER_MAP = {
+  0b0001: 0,   // N
+  0b0010: 1,   // E
+  0b0100: 2,   // S
+  0b1000: 3,   // W
+  0b0011: 4,   // NE
+  0b0110: 5,   // ES
+  0b1100: 6,   // SW
+  0b1001: 7,   // NW
+  0b0111: 8,   // NES
+  0b1110: 9,   // ESW
+  0b1101: 10,  // NSW
+  0b1011: 11,  // NEW
+  0b0101: 12,  // NS
+  0b1010: 13,  // EW
+  0b1111: 14,  // all
+};
+function veridanBorderMaskAt(x, y){
+  // Only fire on GRASS tiles that touch water · returns 0 for water-tiles or fully-inland grass
+  if (isVeridanRiverTile(x, y)) return 0;
+  let m = 0;
+  if (isVeridanRiverTile(x,   y-1)) m |= 0b0001;
+  if (isVeridanRiverTile(x+1, y  )) m |= 0b0010;
+  if (isVeridanRiverTile(x,   y+1)) m |= 0b0100;
+  if (isVeridanRiverTile(x-1, y  )) m |= 0b1000;
+  return m;
+}
+
 function drawVeridanFreshwaterRiver(){
   const img=OCEAN_FLOW;
   const startCol=Math.max(548,Math.floor(_cam.x/TILE)-1);
@@ -10492,22 +10532,45 @@ function drawVeridanFreshwaterRiver(){
   drawFrame(Math.floor(now/210)%16);
   drawFrame((Math.floor(now/430)+6)%16,.14,'screen');
 
-  // Moss banks sit inside the water edge, preserving the exact Veridan floor
-  // outside the river while softening the otherwise square tile boundary.
-  const dark='rgba(12,55,39,.92)',light='rgba(89,173,111,.82)';
-  for(let y=startRow;y<endRow;y++)for(let x=startCol;x<endCol;x++){
-    if(!isVeridanRiverTile(x,y))continue;
-    const dx=x*TILE-_cam.x,dy=y*TILE-_cam.y;
-    const edges=[
-      [x,y-1,dx,dy,TILE,3,dx,dy,TILE,1],
-      [x,y+1,dx,dy+TILE-3,TILE,3,dx,dy+TILE-1,TILE,1],
-      [x-1,y,dx,dy,3,TILE,dx,dy,1,TILE],
-      [x+1,y,dx+TILE-3,dy,3,TILE,dx+TILE-1,dy,1,TILE],
-    ];
-    for(const [nx,ny,bx,by,bw,bh,lx,ly,lw,lh] of edges){
-      if(isVeridanRiverTile(nx,ny))continue;
-      ctx.fillStyle=dark;ctx.fillRect(bx,by,bw,bh);
-      ctx.fillStyle=light;ctx.fillRect(lx,ly,lw,lh);
+  // v0.95.358 · Autotile borders on the GRASS side of every water-adjacent tile
+  // Replaces the old rectangular moss-bank overlay w/ user's 4x4 tile set.
+  // Falls back to the legacy moss ONLY if the border sheet failed to load.
+  const borderReady = VERIDAN_BORDER_IMG.complete && VERIDAN_BORDER_IMG.naturalWidth;
+  if (borderReady){
+    // Scan one-tile ring beyond the river bbox so grass-side tiles at the edge draw
+    const bcw = VERIDAN_BORDER_IMG.naturalWidth / 4;
+    const bch = VERIDAN_BORDER_IMG.naturalHeight / 4;
+    const scanR0 = startRow - 1, scanR1 = endRow + 1;
+    const scanC0 = startCol - 1, scanC1 = endCol + 1;
+    for (let y = scanR0; y < scanR1; y++){
+      for (let x = scanC0; x < scanC1; x++){
+        const mask = veridanBorderMaskAt(x, y);
+        if (!mask) continue;
+        const idx = VERIDAN_BORDER_MAP[mask];
+        if (idx == null || idx < 0) continue;
+        const col = idx & 3, row = idx >> 2;
+        ctx.drawImage(VERIDAN_BORDER_IMG,
+          col * bcw, row * bch, bcw, bch,
+          x * TILE - _cam.x, y * TILE - _cam.y, TILE + .4, TILE + .4);
+      }
+    }
+  } else {
+    // Fallback moss-bank overlay while sheet is still loading
+    const dark='rgba(12,55,39,.92)',light='rgba(89,173,111,.82)';
+    for(let y=startRow;y<endRow;y++)for(let x=startCol;x<endCol;x++){
+      if(!isVeridanRiverTile(x,y))continue;
+      const dx=x*TILE-_cam.x,dy=y*TILE-_cam.y;
+      const edges=[
+        [x,y-1,dx,dy,TILE,3,dx,dy,TILE,1],
+        [x,y+1,dx,dy+TILE-3,TILE,3,dx,dy+TILE-1,TILE,1],
+        [x-1,y,dx,dy,3,TILE,dx,dy,1,TILE],
+        [x+1,y,dx+TILE-3,dy,3,TILE,dx+TILE-1,dy,1,TILE],
+      ];
+      for(const [nx,ny,bx,by,bw,bh,lx,ly,lw,lh] of edges){
+        if(isVeridanRiverTile(nx,ny))continue;
+        ctx.fillStyle=dark;ctx.fillRect(bx,by,bw,bh);
+        ctx.fillStyle=light;ctx.fillRect(lx,ly,lw,lh);
+      }
     }
   }
 }

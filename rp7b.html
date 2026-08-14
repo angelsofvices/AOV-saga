@@ -783,7 +783,8 @@
       <div class="row">
         <span>Personal:</span>
         <div class="warp-links">
-          <button data-warp="20,-19,overworld">Rizer Treehouse</button>
+          <button data-warp="20,-19,overworld">Rizer Treehouse (door)</button>
+          <button id="devEnterTreehouse">Treehouse INTERIOR</button>
           <button data-warp="272,313,overworld">Zarakai spot</button>
           <button data-warp="120,255,overworld">Apexaur territory</button>
         </div>
@@ -6586,17 +6587,18 @@ INTERIOR_TRAINING_FARM.tileImg.src = 'assets/2D%20sprites/tiles/training-farm-fl
 // v0.95.325 · RIZER'S TREEHOUSE HIDEOUT · empty 5×5 wood floor room · autoExit
 // walk-through door mirrors player home · spawn on the rug tile, walk out
 // through the same tile to leave
-// v0.95.382 · Treehouse interior · 15x15 · spawn at bottom-center facing up
-// · autoExit drops Rizer at overworld (20, -19) facing DOWN per user spec
+// v0.95.386 · Treehouse interior · 30x30 · childhood-secret-base social hub
+// · all owned Zyrex NOT in the active party wander here (PC storage substrate)
+// · spawn at bottom-center · autoExit drops Rizer at overworld (20, -19) facing DOWN
 const INTERIOR_TREEHOUSE = {
-  cols: 15, rows: 15,
+  cols: 30, rows: 30,
   tileImg: INTERIOR_HOME.tileImg,          // reuse wood floor
-  spawn: { x: 7, y: 14, dir: 'up' },
-  exit:  { x: 7, y: 14 },
+  spawn: { x: 15, y: 29, dir: 'up' },
+  exit:  { x: 15, y: 29 },
   autoExit: true,
   wallImg: 'malezor',
   blocked: [],
-  label: '◈ TREEHOUSE HIDEOUT · walk out the door to leave',
+  label: '◈ TREEHOUSE HIDEOUT · your Zyrex socialize here · walk out to leave',
   overworldDrop: { x: 20, y: -19, dir: 'down' },   // drop 1 tile below the trunk
 };
 
@@ -9404,7 +9406,98 @@ function enterCaveInterior(){
 function enterCrazyHomeInterior(){  enterInterior('interior_crazy_home',  INTERIOR_CRAZY_HOME,  '◈ CRAZY\'S HOUSE · press X on the door to leave'); }
 function enterResearchLab(){        enterInterior('interior_research_lab', INTERIOR_RESEARCH_LAB, '◈ ZYREX RESEARCH LAB · press X on the door to leave'); }
 function enterTrainingFarm(){       enterInterior('interior_training_farm', INTERIOR_TRAINING_FARM, INTERIOR_TRAINING_FARM.label); }
-function enterTreehouse(){          enterInterior('interior_treehouse',     INTERIOR_TREEHOUSE,     INTERIOR_TREEHOUSE.label); }
+function enterTreehouse(){
+  enterInterior('interior_treehouse', INTERIOR_TREEHOUSE, INTERIOR_TREEHOUSE.label);
+  try { spawnTreehouseZyrex(); } catch(err){ console.warn('treehouse spawn', err); }
+}
+
+// v0.95.386 · TREEHOUSE SOCIAL HUB · every owned Zyrex NOT in the active
+// party wanders here · think overworld PC storage · secret-base lore
+// Owned = every species that was ever in party (tracked in player.zyrexEverOwned)
+// Sprites pulled from SUMMONABLE_SPRITES · positions scattered across 30x30
+function ensureZyrexEverOwned(){
+  player.zyrexEverOwned = player.zyrexEverOwned || {};
+  (player.party || []).forEach(z => {
+    if (z && z.speciesId){
+      const prev = player.zyrexEverOwned[z.speciesId] || { level: 1 };
+      player.zyrexEverOwned[z.speciesId] = {
+        level: Math.max(prev.level || 1, z.level || 1),
+        tier:  z.tier,
+        name:  z.name,
+      };
+    }
+  });
+}
+function spawnTreehouseZyrex(){
+  if (typeof NPCS === 'undefined' || typeof SUMMONABLE_SPRITES === 'undefined') return;
+  ensureZyrexEverOwned();
+  const owned = Object.keys(player.zyrexEverOwned || {});
+  const inParty = new Set((player.party || []).filter(Boolean).map(z => z.speciesId));
+  // Retire any lingering treehouse spawns first · avoid duplicates on re-enter
+  NPCS.forEach(n => {
+    if (n && n.id && n.id.startsWith('_th_zyrex_')){
+      n.scene = '__despawn__';
+    }
+  });
+  // Scattered spawn tiles inside the 30x30 room · avoid the door tile + walls
+  const spots = [
+    [5,6],[10,7],[15,5],[20,8],[25,7],
+    [4,12],[9,13],[14,11],[19,13],[24,12],
+    [6,17],[11,18],[16,16],[21,18],[26,17],
+    [5,22],[10,23],[15,22],[20,23],[25,22],
+    [8,26],[14,26],[20,26],[24,26],[7,9],
+  ];
+  let idx = 0;
+  owned.forEach(sid => {
+    if (inParty.has(sid)) return;                       // active party skips
+    const spriteDef = SUMMONABLE_SPRITES[sid];
+    if (!spriteDef) return;                             // no sprite = no spawn
+    const spot = spots[idx % spots.length]; idx++;
+    const npcId = `_th_zyrex_${sid}`;
+    let n = NPCS.find(x => x && x.id === npcId);
+    if (!n){
+      n = {
+        id: npcId,
+        name: (player.zyrexEverOwned[sid] && player.zyrexEverOwned[sid].name) || sid,
+        sheet: new Image(),
+        src:   spriteDef.src,
+        bboxes: spriteDef.bboxes,
+        cellW: spriteDef.cellW, cellH: spriteDef.cellH,
+        cols: 4, rows: 4,
+        uniformScale: true, scaleMul: spriteDef.scaleMul || 1,
+        cols_: 4, rows_: 4,
+        dir: 'down', mode: 'wander',
+        moving: false, animFrame: 0, idleFrame: 0,
+        wanderRadius: 3,
+        moveCd: 400 + Math.random() * 800,
+        blinkTimer: 2000 + Math.random() * 2000,
+        isEnemy: false,
+        turnToInteract: true,
+        onInteract: () => showDialog({ speaker: n.name.toUpperCase(), lines: [
+          `*${n.name} bounces up and greets you · the treehouse hums with bond energy*`,
+          'Come back for adventure anytime, Rizer.',
+        ]}),
+      };
+      n.sheet.src = spriteDef.src;
+      // Optional idle-sit split (Anciuxor/Elzebub/Zarakai/Snok pattern)
+      if (spriteDef.idleSrc){
+        n.walkSheet = n.sheet;
+        n.walkBboxes = spriteDef.bboxes;
+        n.sheet = new Image();
+        n.sheet.src = spriteDef.idleSrc;
+        n.bboxes = spriteDef.idleBboxes || spriteDef.bboxes;
+      }
+      NPCS.push(n);
+    }
+    n.scene   = 'interior_treehouse';
+    n.tileX   = spot[0]; n.tileY = spot[1];
+    n.homeX   = spot[0]; n.homeY = spot[1];
+    n.homeScene = 'interior_treehouse';
+    n.mode    = 'wander';
+    n.moving  = false;
+    n.dir     = 'down';
+  });
+}
 function interiorConfig(scene){
   if (scene === 'interior_home')        return INTERIOR_HOME;
   if (scene === 'interior_home_2f')     return INTERIOR_HOME_2F;
@@ -18092,6 +18185,23 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       } catch(_){}
       showToast('★ DEV · GIVE ALL · ZyCube fully stocked · every gate open', 3200);
       playSFX('confirm');
+    });
+  }
+  // v0.95.386 · Dev · warp directly INTO the Treehouse interior (30x30 social hub)
+  const devTHBtn = document.getElementById('devEnterTreehouse');
+  if (devTHBtn){
+    devTHBtn.addEventListener('click', () => {
+      try {
+        // Force overworld first so enterInterior's guard passes
+        if (game.scene !== 'overworld'){
+          game.scene = 'overworld';
+        }
+        enterTreehouse();
+        showToast('★ DEV · warped into TREEHOUSE · owned Zyrex spawned to wander', 2600);
+      } catch(err){
+        showToast('◈ DEV · Treehouse warp failed · check console', 2200);
+        console.warn('devEnterTreehouse', err);
+      }
     });
   }
   // v0.95.337 · Dev · state-skip toggles · unlock gates without playing scenes

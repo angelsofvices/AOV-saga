@@ -614,6 +614,7 @@
           <button class="zyNav" data-zynav="map"         style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🗺  MAP</button>
           <button class="zyNav" data-zynav="expeditions" style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">📋  EXPEDITIONS</button>
           <button class="zyNav" data-zynav="contacts"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">👥  CONTACTS</button>
+          <button class="zyNav" data-zynav="animations"  style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">▶  ANIMATIONS</button>
           <button class="zyNav" data-zynav="settings"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">⚙  SETTINGS</button>
         </div>
         <!-- CENTER CONTENT · dispatched by zycellPage · pass-1 stub -->
@@ -4400,6 +4401,8 @@ const NPCS = [
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     uniformScale: true, scaleMul: 0.85,
+    // v0.95.425 · Right-facing frames have cell-bleed · mirror the LEFT row instead
+    mirrorRightAsLeft: true,
     // Walk/float cycle sheet · used while wandering
     walkSheet: (function(){ const im = new Image(); im.src = 'assets/2D%20sprites/zyrex/zarakai.png'; return im; })(),
     walkBboxes: [
@@ -5652,7 +5655,7 @@ function lootSkellor(n){
 function tickSkellorRespawn(){
   if (game.scene !== 'overworld') return;
   const now = performance.now();
-  if (!game._skellorRespawnAt) game._skellorRespawnAt = now + 5 * 60 * 1000;   // first spawn 5min after boot
+  if (!game._skellorRespawnAt) game._skellorRespawnAt = now + 30 * 1000;   // first stalker 30s after boot
   if (now < game._skellorRespawnAt) return;
   // Only spawn if no live Skellor is currently stalking
   const anyAlive = NPCS.some(n => n && n.mode === 'skellor' && !n._skellorDead);
@@ -5677,8 +5680,8 @@ function tickSkellorRespawn(){
     (window._skellorNatives || new Set()).add(n.id);
     placed = true;
   }
-  // Re-arm the 5-min timer (whether we placed or not · retry next window)
-  game._skellorRespawnAt = now + 5 * 60 * 1000;
+  // v0.95.425 · Faster spawn cadence · re-arm every 90s (was 5min)
+  game._skellorRespawnAt = now + 90 * 1000;
 }
 // Overlay renderer retired · drawSkellorHurtFrame handles per-Skellor render now
 function drawSkellorOverlay(){
@@ -14161,7 +14164,7 @@ function closeWalletPanel(){
 // all funnel through paintZycellNav() + handleZycellKey() so behavior is
 // identical across every partition · content panels ship in later passes
 // ══════════════════════════════════════════════════════════════════════
-const ZYCELL_PANELS = ['home','zycube','rizer','faction','map','expeditions','contacts','settings'];
+const ZYCELL_PANELS = ['home','zycube','rizer','faction','map','expeditions','contacts','animations','settings'];
 let zycellPage = 'home';
 function paintZycellNav(){
   const p = document.getElementById('zphonePanel');
@@ -14217,6 +14220,7 @@ function paintZycellContent(){
     map:         renderZycellMap,
     expeditions: renderZycellExpeditions,
     contacts:    renderZycellContacts,
+    animations:  renderZycellAnimations,
     settings:    renderZycellSettings,
   };
   const fn = map[zycellPage] || renderZycellHome;
@@ -14434,6 +14438,43 @@ function renderZycellContacts(){
   }).join('');
   return _zySection('👥 CONTACTS · call/bond hub', rows) +
     `<div style="text-align:center; color:#8ff; font-size:10px; padding:6px;">Bond ≥ 50 = follow · Bond = 100 = soul-swap · Call UI wiring pending</div>`;
+}
+
+// ── ANIMATIONS · in-world summons + set-piece triggers ─────────────
+function renderZycellAnimations(){
+  const active = (player.party || []).filter(Boolean)[0];
+  const followerId = active ? `_summon_${active.speciesId}` : null;
+  const isOut = active && NPCS.some(n => n && n.id === followerId && n._summoned);
+  const btnBg = isOut ? 'rgba(95,220,122,0.28)' : 'rgba(79,179,255,0.25)';
+  const btnLabel = active
+    ? (isOut ? `◄ RETURN ${active.name.toUpperCase()} TO CUBE` : `★ CALL ${active.name.toUpperCase()}`)
+    : '· no active Zyrex ·';
+  const disabled = !active;
+  const body = `
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button id="zyAnimCall" ${disabled ? 'disabled' : ''}
+        style="padding:14px; background:${btnBg}; color:#fff; border:2px solid #4fb3ff; font:bold 13px 'Courier New',monospace; letter-spacing:.10em; cursor:${disabled?'not-allowed':'pointer'}; opacity:${disabled?0.4:1};">
+        ${btnLabel}
+      </button>
+      <div style="color:#8ff; font-size:10px; letter-spacing:.06em; text-align:center;">
+        Summons your active Zyrex beside Rizer · press again to return
+      </div>
+    </div>`;
+  setTimeout(() => {
+    const btn = document.getElementById('zyAnimCall');
+    if (!btn || btn._zyBound || disabled) return;
+    btn._zyBound = true;
+    btn.addEventListener('click', () => {
+      try {
+        const idx = (player.party || []).findIndex(p => p && p.speciesId === active.speciesId);
+        if (idx >= 0 && typeof toggleFactionSummon === 'function'){
+          toggleFactionSummon(idx);
+          closeZphonePanel();
+        }
+      } catch(_){}
+    });
+  }, 0);
+  return _zySection('▶ ANIMATIONS · in-world summons', body);
 }
 
 // ── SETTINGS · save/load + system ──────────────────────────────────

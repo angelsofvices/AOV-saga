@@ -1326,6 +1326,9 @@ function factionAllyInParty(id){
   return (player.party||[]).some(z=>z&&z.speciesId===id);
 }
 function startFactionSoulSwitch(n){
+  // v0.95.338 · Yara (sister) can never be soul-swapped · she is not a Zyrex
+  if (n && n.noSoulSwap){ playSFX('doorLock'); showToast('◈ Cannot soul-swap with a humanoid ally.', 2000); return true; }
+
   if(!n||!DEV_FACTION_ACTORS[n.id]||game.scene!=='overworld'||player.activeActor!=='rizer')return false;
   if(!factionAllyInParty(n.id))return false;
   if(player.ufoFlying)return false;
@@ -3864,11 +3867,15 @@ const NPCS = [
     idleFrame: 0,
     blinkTimer: 2200 + Math.random() * 2000,
     turnToInteract: true,
+    noSoulSwap: true,                        // v0.95.338 · sister · not a faction Zyrex, no soul swap allowed
     onInteract: (n) => {
+      // v0.95.338 · X press = talk (existing behavior · dialog)
       showDialog({ speaker: 'YARA', lines: [
         "*grins* Lucky you got your own room upstairs.  I'm still sharing wall with Mom's snoring.",
         "When you catch a really cool Zyrex, bring it back to show me, okay??",
-        "*bounces on her toes*  You're gonna be the best Rizer ever, big bro.",
+        player.companion === 'yara'
+          ? "*swings her arm*  I'll follow · take me to Professor Elarian!"
+          : "*bounces on her toes*  You're gonna be the best Rizer ever, big bro.",
       ]});
     },
   },
@@ -9134,6 +9141,16 @@ addEventListener('keydown', e => {
     // v0.95.174 · Square (j) on faced friendly NPC opens Info · blocks punch
     if (k === 'j'){
       const facing = facedNpc();
+      // v0.95.338 · Square inspection · Yara-when-following → SEND HOME (stand with Mom)
+      if (facing && facing.id === 'yara' && player.companion === 'yara'){
+        try { uncompanionize(facing, /*silent*/ true); } catch(_){}
+        facing.scene = 'interior_home';
+        facing.tileX = facing.homeX = 9; facing.tileY = facing.homeY = 3;
+        facing.dir = 'down';
+        showToast('★ Yara headed home to stand with Mom', 2200);
+        try { playSFX('confirm'); } catch(_){}
+        return;
+      }
       if (facing && isFriendlyNpc(facing)){
         openNpcInfo(facing); return;
       }
@@ -12096,6 +12113,13 @@ addEventListener('keydown', e => {
       // v0.95.326 · Touchpad requires the backpack FIRST (no bag, no touchpad)
       if (!player.hasBackpack){
         showToast('◈ Touchpad locked · grab your Backpack from your room', 2600);
+        try { playSFX('doorLock'); } catch(_){}
+        return;
+      }
+      // v0.95.338 · Zyrex menu gate moved to RAID CARD (from Prof Elarian)
+      // Walk Yara to the professor · earn the RAID · unlocks the whole touchpad
+      if (!player.raidCardGifted){
+        showToast('◈ ZyCube locked · walk your sister to Professor Elarian first', 2800);
         try { playSFX('doorLock'); } catch(_){}
         return;
       }
@@ -15666,7 +15690,7 @@ function drawProp(p){
 // v0.95.335 · Fountain SFX loop · volume scales with distance from player
 // Maxes out within 2 tiles (interactable range) · silent beyond 16 tiles
 (function wireFountainSfx(){
-  const el = sfx && sfx.fountain;
+  const el = (typeof AUDIO !== 'undefined' && AUDIO.sfx) ? AUDIO.sfx.fountain : null;
   if (!el) return;
   el.loop = true;
   el.volume = 0;

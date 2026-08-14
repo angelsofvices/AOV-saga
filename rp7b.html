@@ -5597,16 +5597,19 @@ function skellorTakeHit(n, dmg){
   try { playSFX('skellor'); } catch(_){}
   playSFX('moriPoke');
   if (n._skellorHits >= SKELLOR_MAX_HITS){
-    // Final slain state · lock the last frame permanently · become a loot bag NPC
+    // v0.95.406 · Final slain state · lock the LAST frame of the hurt sheet
+    // (SKELLOR_HURT_FRAMES[8] = {r:4,c:7} = body-face-down-with-bag) as a
+    // permanent breadcrumb · KEEP mode='skellor' so drawWorldLayer's skellor
+    // branch continues to render the hurt sheet cell (not the walk sheet)
     n._skellorDead = true;
+    n._skellorFrame = SKELLOR_MAX_HITS - 1;  // force last frame explicitly
     n.isEnemy = false;                       // stops enemy AI targeting
     n.scene = 'overworld';                   // keep visible as breadcrumb
-    n.mode = 'stationary';
     n.moving = false;
     n._hurtFlashUntil = 0;                   // frame stays locked via _skellorFrame
     n.name = 'Skellor (loot bag)';
     n.onInteract = () => lootSkellor(n);
-    showToast('★ Skellor slain · interact the bag for loot', 2600);
+    showToast('★ Skellor freed · interact the bag for loot', 2600);
   } else {
     const fall = Math.floor(n._skellorHits / 3) + 1;
     const inFall = ((n._skellorHits - 1) % 3) + 1;
@@ -5641,31 +5644,40 @@ function lootSkellor(n){
   showToast(`★ Looted Skellor bag · +${coins} coins${gemMsg}`, 2800);
 }
 
-// v0.95.404 · Off-frame Skellor respawn · while ANY native Skellor is still alive
-// (not slain) a new one spawns off-camera every 10 seconds · easy farm loop since
-// Skellors never attack · stops entirely once every native is put down
-// (game._skellorRespawnAt initializes lazily inside the tick · game const isn't declared yet at this scope)
+// v0.95.406 · SKELLOR spawn logic · 1 stalker every 5 real minutes
+// - Only ONE live Skellor at a time (must be freed before another appears)
+// - Spawns off-camera (14-20 tile ring around player · same-district land)
+// - Walks toward player passively · pleads to be freed from misery
 function tickSkellorRespawn(){
   if (game.scene !== 'overworld') return;
   const now = performance.now();
-  if (!game._skellorRespawnAt) game._skellorRespawnAt = now + 10 * 1000;
+  if (!game._skellorRespawnAt) game._skellorRespawnAt = now + 5 * 60 * 1000;   // first spawn 5min after boot
   if (now < game._skellorRespawnAt) return;
-  game._skellorRespawnAt = now + 10 * 1000;
-  const natives = window._skellorNatives || new Set();
-  const anyAlive = NPCS.some(n => n && n._native && n.mode === 'skellor' && !n._skellorDead);
-  if (!anyAlive) return;
-  // Pick a spawn tile 14-20 tiles off-camera around Rizer · in same district
-  const dist = 14 + Math.floor(Math.random() * 7);
-  const angle = Math.random() * Math.PI * 2;
-  const sx = Math.round(player.x + Math.cos(angle) * dist);
-  const sy = Math.round(player.y + Math.sin(angle) * dist);
-  if (!isWorldLandTile(sx, sy) || isWorldBorderTile(sx, sy)) return;
-  if (_propBlocked.has(`${sx},${sy}`)) return;
-  const id = `resp_${(game._skellorRespCount = (game._skellorRespCount || 0) + 1)}`;
-  const n = _makeSkellor(sx, sy, id);
-  n._native = true;
-  NPCS.push(n);
-  natives.add(n.id);
+  // Only spawn if no live Skellor is currently stalking
+  const anyAlive = NPCS.some(n => n && n.mode === 'skellor' && !n._skellorDead);
+  if (anyAlive){
+    // Delay recheck 20s · don't stack timers while one is still active
+    game._skellorRespawnAt = now + 20 * 1000;
+    return;
+  }
+  // Try up to 20 candidate tiles until we find a clean off-camera spawn
+  let placed = false;
+  for (let tries = 0; tries < 20 && !placed; tries++){
+    const dist = 14 + Math.floor(Math.random() * 7);
+    const angle = Math.random() * Math.PI * 2;
+    const sx = Math.round(player.x + Math.cos(angle) * dist);
+    const sy = Math.round(player.y + Math.sin(angle) * dist);
+    if (!isWorldLandTile(sx, sy) || isWorldBorderTile(sx, sy)) continue;
+    if (_propBlocked.has(`${sx},${sy}`)) continue;
+    const id = `stalker_${(game._skellorRespCount = (game._skellorRespCount || 0) + 1)}`;
+    const n = _makeSkellor(sx, sy, id);
+    n._native = true;
+    NPCS.push(n);
+    (window._skellorNatives || new Set()).add(n.id);
+    placed = true;
+  }
+  // Re-arm the 5-min timer (whether we placed or not · retry next window)
+  game._skellorRespawnAt = now + 5 * 60 * 1000;
 }
 // Overlay renderer retired · drawSkellorHurtFrame handles per-Skellor render now
 function drawSkellorOverlay(){
@@ -5758,18 +5770,9 @@ function drawSkellorOverlay(){
     hp: 250, hpMax: 250, tier: 3, level: 15,
     onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
   }));
-  // v0.95.404 · SKELLOR scatter · 1:1 with Mori density · matches perimeter pattern
-  // Native Skellors kept as a Set so the respawn-if-alive loop below can track them
-  window._skellorNatives = window._skellorNatives || new Set();
-  const _pushSkellor = (s, id) => {
-    const npc = _makeSkellor(s.x, s.y, id);
-    npc._native = true;
-    NPCS.push(npc);
-    window._skellorNatives.add(npc.id);
-  };
-  pickPerimeterSpots('malezor',   45, 0xB0EFACE, 7).forEach((s, i) => _pushSkellor(s, `mal_${i+1}`));
-  pickPerimeterSpots('zarvane',   35, 0xB0EFACF, 7).forEach((s, i) => _pushSkellor(s, `zar_${i+1}`));
-  pickPerimeterSpots('andrannor', 35, 0xB0EFAD0, 7).forEach((s, i) => _pushSkellor(s, `and_${i+1}`));
+  // v0.95.406 · No native scatter · Skellors are pure stalker events now
+  // (see tickSkellorRespawn · 1 spawn every 5 minutes)
+  window._skellorNatives = new Set();
   // Rebuild sprite src assignments (Image objects need explicit .src set)
   NPCS.forEach(n => { if (n.sheet && n.src && !n.sheet.src) n.sheet.src = n.src; });
 })();

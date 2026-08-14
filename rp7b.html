@@ -1861,6 +1861,34 @@ const WORLD_PROPS = [
       openPosterView('rakoron');
     },
   },
+  // v0.95.325 · RIZER'S TREEHOUSE HIDEOUT · Malezor at (-34, 3) · secluded
+  // navy-and-gold cabin built into the tree · autoExit walk-through so
+  // stepping onto the base tile auto-enters the 5×5 interior hideout
+  {
+    id: 'rizer_treehouse',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/rizer-treehouse.png',
+    bbox: [99, 22, 1047, 1182],           // content bbox trims transparent padding
+    tileX: -34, tileY: 3,
+    tileW: 8, tileH: 9,                    // canopy fills 8 wide × 9 tall footprint
+    footprint: (function(){
+      const f = [];
+      // Block the whole canopy + trunk EXCEPT the base door tile which is
+      // walkable and doubles as the auto-enter trigger
+      for (let dy = -8; dy <= 0; dy++){
+        for (let dx = -4; dx <= 3; dx++){
+          if (dx === 0 && dy === 0) continue;   // door / auto-enter tile
+          f.push([dx, dy]);
+        }
+      }
+      return f;
+    })(),
+    door: [0, 0],
+    autoEnter: true,                       // step onto base = enter (like home)
+    depthOffset: -5.5,
+    onInteract: () => enterTreehouse(),
+    onWalkOn:    () => enterTreehouse(),   // autoEnter hook · triggers on step
+  },
   // v0.95.293 · Rakoron cave right extension REMOVED for now · art still lives at
   // assets/2D sprites/buildings/rakoron-cave-adjacent.png for a future re-add.
   {
@@ -5672,6 +5700,21 @@ const INTERIOR_TRAINING_FARM = {
 };
 INTERIOR_TRAINING_FARM.tileImg.src = 'assets/2D%20sprites/tiles/training-farm-floor.png';
 
+// v0.95.325 · RIZER'S TREEHOUSE HIDEOUT · empty 5×5 wood floor room · autoExit
+// walk-through door mirrors player home · spawn on the rug tile, walk out
+// through the same tile to leave
+const INTERIOR_TREEHOUSE = {
+  cols: 5, rows: 5,
+  tileImg: INTERIOR_HOME.tileImg,          // reuse wood floor
+  spawn: { x: 2, y: 4, dir: 'up' },
+  exit:  { x: 2, y: 4 },
+  autoExit: true,
+  wallImg: 'malezor',
+  blocked: [],
+  label: '◈ TREEHOUSE HIDEOUT · walk out the door to leave',
+  overworldDrop: { x: -34, y: 4, dir: 'down' },   // drop 1 tile below the trunk
+};
+
 // v0.95.311 · DEV · Unlock All Doors template interiors
 // Two templates cover every locked building: HOME (15×10, modeled after
 // INTERIOR_HOME · Malezor wall + wood floor + welcome-rug spawn) and
@@ -8445,11 +8488,13 @@ function enterCaveInterior(){
 function enterCrazyHomeInterior(){  enterInterior('interior_crazy_home',  INTERIOR_CRAZY_HOME,  '◈ CRAZY\'S HOUSE · press X on the door to leave'); }
 function enterResearchLab(){        enterInterior('interior_research_lab', INTERIOR_RESEARCH_LAB, '◈ ZYREX RESEARCH LAB · press X on the door to leave'); }
 function enterTrainingFarm(){       enterInterior('interior_training_farm', INTERIOR_TRAINING_FARM, INTERIOR_TRAINING_FARM.label); }
+function enterTreehouse(){          enterInterior('interior_treehouse',     INTERIOR_TREEHOUSE,     INTERIOR_TREEHOUSE.label); }
 function interiorConfig(scene){
   if (scene === 'interior_home')        return INTERIOR_HOME;
   if (scene === 'interior_home_2f')     return INTERIOR_HOME_2F;
   if (scene === 'interior_research_lab')return INTERIOR_RESEARCH_LAB;
   if (scene === 'interior_training_farm')return INTERIOR_TRAINING_FARM;
+  if (scene === 'interior_treehouse')return INTERIOR_TREEHOUSE;
   // v0.95.311 · Dev · Unlock-All-Doors dynamic scenes · look up by prefix
   if (typeof scene === 'string' && scene.startsWith('interior_dev_')){
     return DEV_INTERIOR_CACHE.get(scene) || null;

@@ -14208,8 +14208,9 @@ function _zySection(title, body, headerColor){
     </div>`;
 }
 
-// ── ZYCUBE · consumables + key items + materials · one grid ─────────
+// ── ZYCUBE · clickable inventory · scroll + use + set favorite ──────
 function renderZycellZycube(){
+  // v0.95.418 · Interactive item rows · click row = use · click ★ = toggle favorite
   const items = player.items || {};
   const meta = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META : {};
   const rows = Object.entries(items)
@@ -14217,15 +14218,47 @@ function renderZycellZycube(){
     .sort((a, b) => ((meta[a[0]] && meta[a[0]].order) || 99) - ((meta[b[0]] && meta[b[0]].order) || 99))
     .map(([k, n]) => {
       const label = (meta[k] && meta[k].label) || k;
-      const star = player.favoriteItem === k ? ' ★' : '';
-      return `<div style="display:flex; justify-content:space-between; padding:5px 8px; border-bottom:1px solid rgba(79,179,255,0.15); font-size:11px;">
-        <span style="color:#cfe;">${label}${star}</span><span style="color:#fff; font-weight:bold;">×${n}</span>
+      const isFav = player.favoriteItem === k;
+      const star = isFav ? '★' : '☆';
+      const starColor = isFav ? '#ffd66b' : 'rgba(200,220,255,0.4)';
+      return `<div class="zyBagRow" data-item="${k}"
+          style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-bottom:1px solid rgba(79,179,255,0.15); font-size:12px; cursor:pointer; transition:background 120ms;"
+          onmouseover="this.style.background='rgba(79,179,255,0.18)'"
+          onmouseout="this.style.background='transparent'">
+        <span class="zyBagFav" data-item="${k}" style="color:${starColor}; font-weight:bold; font-size:16px; padding-right:10px; cursor:pointer;">${star}</span>
+        <span style="flex:1; color:#cfe;">${label}</span>
+        <span style="color:#fff; font-weight:bold;">×${n}</span>
       </div>`;
     }).join('');
-  return _zySection('◈ ZYCUBE · YOUR STORAGE',
-    rows.length
-      ? `<div style="max-height:420px; overflow:auto;">${rows}</div>`
-      : `<div style="color:#889; text-align:center; padding:20px;">· bag is empty ·</div>`);
+  const body = rows.length
+    ? `<div id="zyBagList" style="max-height:420px; overflow:auto; pointer-events:auto;">${rows}</div>
+       <div style="text-align:center; color:#8ff; font-size:10px; padding:6px; letter-spacing:.06em;">Click ROW · use item · Click ★ · toggle CREATE favorite</div>`
+    : `<div style="color:#889; text-align:center; padding:20px;">· bag is empty ·</div>`;
+  // Delay row-handler wiring until DOM lands · run after paintZycellContent injects the HTML
+  setTimeout(() => {
+    const list = document.getElementById('zyBagList');
+    if (!list || list._zyBound) return;
+    list._zyBound = true;
+    list.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const favEl = ev.target.closest('.zyBagFav');
+      if (favEl){
+        const k = favEl.dataset.item;
+        player.favoriteItem = (player.favoriteItem === k) ? null : k;
+        try { playSFX('confirm'); } catch(_){}
+        showToast(player.favoriteItem === k ? `★ ${k} → CREATE hotkey` : `☆ ${k} unfavorited`, 1800);
+        try { paintZycellContent(); } catch(_){}
+        return;
+      }
+      const rowEl = ev.target.closest('.zyBagRow');
+      if (rowEl){
+        const k = rowEl.dataset.item;
+        try { useZycubeItem(k); } catch(_){}
+        try { paintZycellContent(); } catch(_){}
+      }
+    });
+  }, 0);
+  return _zySection('◈ ZYCUBE · YOUR STORAGE', body);
 }
 
 // ── RIZER · cosmetic loadout + 5 stat rows ──────────────────────────

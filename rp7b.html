@@ -164,25 +164,60 @@
         width: 200px; height: 105px;                     /* v0.95.38 · 40% scale for mobile */
       }
     }
-    /* v0.95.82 · Coin counter under RHUD · top-right stack */
+    /* v0.95.387 · Coin counter · pixel-art panel · clickable → opens wallet
+       Layout: number populates the dark box which sits to the LEFT of the gold coin */
     #coinHud{
       position:fixed; top:220px; right:16px;
-      background: rgba(0,0,0,0.65);
-      color:#ffd66b; padding:6px 12px;
-      font: bold 14px 'Courier New', monospace;
-      letter-spacing:.14em;
-      border:1px solid #d4af37; border-right:3px solid #ffd66b;
+      width: 180px; height: 46px;
+      background: url('assets/2D%20sprites/ui/coin-panel.png') no-repeat center/contain;
+      /* Flip horizontally so the gold coin now sits on the RIGHT side of the panel · number lives in the dark box to its LEFT */
+      transform: scaleX(-1);
       z-index: 6;
-      pointer-events: none;
+      cursor: pointer;
       display: none;
       user-select: none;
     }
+    #coinHud .coinNum{
+      /* Un-flip so the number reads normally · pin to the LEFT-of-coin area */
+      display:block; width:100%; height:100%;
+      transform: scaleX(-1);
+      font: bold 20px 'Courier New', monospace;
+      color:#ffd66b; letter-spacing:.10em;
+      text-align: right; padding: 12px 62px 0 12px;
+      box-sizing: border-box;
+      text-shadow: 0 0 6px rgba(255,214,107,0.7), 0 1px 2px #000;
+    }
+    #coinHud:hover .coinNum{ color:#fff; text-shadow: 0 0 8px #ffd66b, 0 1px 2px #000; }
     @media (orientation: portrait){
       #coinHud{
-        top: calc(33vh - 2.5vw + 110px);                 /* under mobile-scaled RHUD */
+        top: calc(33vh - 2.5vw + 110px);
         right: 8px;
-        font-size: 11px; padding: 4px 8px;
+        width: 140px; height: 36px;
       }
+      #coinHud .coinNum{ font-size: 15px; padding: 9px 48px 0 8px; }
+    }
+    /* v0.95.387 · Wallet panel · opens on coin-HUD click · full currency breakdown */
+    #walletPanel{
+      position:fixed; inset:0; display:none; z-index:112;
+      background:rgba(4,8,22,0.86); align-items:center; justify-content:center;
+      font-family:'Courier New',monospace; color:#eaf0ff; padding:20px;
+    }
+    #walletPanel .box{
+      width:min(520px, 92vw); background:linear-gradient(#0e1830,#050a18);
+      border:2px solid #d4af37; box-shadow:0 0 24px rgba(255,214,107,0.4);
+      padding:20px 24px 18px;
+    }
+    #walletPanel h2{
+      margin:0 0 12px; color:#ffd66b; letter-spacing:.16em; font-size:14px;
+      text-align:center; border-bottom:1px solid rgba(212,175,55,0.35); padding-bottom:8px;
+    }
+    #walletPanel .row{
+      display:flex; justify-content:space-between; align-items:center;
+      padding:6px 0; font-size:13px; letter-spacing:.06em; color:#cfe;
+    }
+    #walletPanel .row .amt{ color:#fff; font-weight:bold; }
+    #walletPanel .hint{
+      text-align:center; margin-top:14px; color:#889; font-size:10px; letter-spacing:.14em;
     }
     /* v0.95.142 · Coin +N pop-label above coin HUD (fires on chest grab) */
     #coinPop{
@@ -490,7 +525,14 @@
     <div class="rizerLiveMeter energy" data-rizer-meter="energy" aria-label="Astral Energy"></div>
     <div class="rizerLiveMeter special" data-rizer-meter="special" aria-label="Special"></div>
   </div>
-  <div id="coinHud" title="Coins">◆ 0c</div>
+  <!-- v0.95.387 · pixel-art coin panel · click to open wallet · number lives in the box LEFT of the gold coin -->
+  <div id="coinHud" title="Click to open Wallet"><span class="coinNum">0</span></div>
+  <!-- v0.95.387 · Wallet panel · opens on coin-HUD click · lists every currency the player carries -->
+  <div id="walletPanel"><div class="box">
+    <h2>◈ WALLET</h2>
+    <div id="walletRows"></div>
+    <div class="hint">CLICK ANYWHERE / B / ESC · CLOSE</div>
+  </div></div>
   <div id="coinPop"></div>
   <div id="weaponHud" title="Weapon wheel · click to open"></div>
   <div id="rizerPanel">
@@ -4913,7 +4955,9 @@ const NPCS = [
     uniformScale: true,                       // single scale across all dirs (no jitter)
     scaleMul: 1.25,                           // v0.95.139 · slight dial-down · fits new taller bboxes
     // v0.95.139 · wings span 3 tiles horizontally · block passage
-    footprint: [[-1, 0], [0, 0], [1, 0]],
+    // v0.95.387 · Extend blocked footprint half-a-tile out on each side so Rizer
+    // never clips behind the wing pixels · adds (-2,0) and (2,0) as pure collision
+    footprint: [[-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0]],
     // v0.95.139 · Interact from wings, back, or face · any of these tiles counts as "on him"
     interactHitbox: [
       [-1, 0], [0, 0], [1, 0],    // wings + centre
@@ -13194,6 +13238,57 @@ addEventListener('keydown', e => {
     playSFX('menuOpen');
   }
 });
+// v0.95.387 · Wallet panel · pops from coin-HUD click · shows every currency the player carries
+function openWalletPanel(){
+  const p = document.getElementById('walletPanel');
+  const rows = document.getElementById('walletRows');
+  if (!p || !rows) return;
+  const items = player.items || {};
+  const entries = [
+    ['◈ Coins',            (items.coins || 0).toLocaleString()],
+    ['★ Rizer XP',         (player.rizerXP || 0).toLocaleString() + ' / ' + (player.rizerXPMax || 0).toLocaleString()],
+    ['Rizer Level',        String(player.rizerLvl || 1)],
+    ['◆ Astralite Shards', String(items.astralite_shard || items.astralite || 0)],
+    ['◈ Rizer Shard',      String(items.rizer_shard || 0)],
+    ['◈ Data Core',        String(items.data_core || 0)],
+    ['♦ Red Gems',         String(items.gem_red || 0)],
+    ['♦ Blue Gems',        String(items.gem_blue || 0)],
+    ['♦ Purple Gems',      String(items.gem_purple || 0)],
+    ['◈ Basic Zyspheres',  String(items.zysphere_basic || 0)],
+    ['◈ Silver Zyspheres', String(items.zysphere_silver || 0)],
+    ['◈ Ultra Zyspheres',  String(items.zysphere_ultra || 0)],
+    ['✦ Prismshards',      String(items.prismshard || 0)],
+    ['♥ Potions',          String(items.potion || 0)],
+    ['♠ Verdant Elixirs',  String(items.verdant_elixir || 0)],
+    ['✿ Soulphish',        String(items.soulphish || 0)],
+  ].filter(([_, v]) => v !== '0' && v !== '0 / 0');
+  if (!entries.length){
+    rows.innerHTML = '<div class="row"><span>· nothing yet ·</span><span class="amt">0</span></div>';
+  } else {
+    rows.innerHTML = entries.map(([k,v]) => `<div class="row"><span>${k}</span><span class="amt">${v}</span></div>`).join('');
+  }
+  p.style.display = 'flex';
+  game.walletPanelOpen = true;
+  try { playSFX('menuOpen'); } catch(_){}
+}
+function closeWalletPanel(){
+  const p = document.getElementById('walletPanel');
+  if (p) p.style.display = 'none';
+  game.walletPanelOpen = false;
+  try { playSFX('menuClose'); } catch(_){}
+}
+(function wireWalletHud(){
+  const hud = document.getElementById('coinHud');
+  const p   = document.getElementById('walletPanel');
+  if (hud){ hud.addEventListener('click', (e) => { e.stopPropagation(); openWalletPanel(); }); }
+  if (p){ p.addEventListener('click', (e) => { if (e.target === p) closeWalletPanel(); }); }
+  window.addEventListener('keydown', (e) => {
+    if (!game.walletPanelOpen) return;
+    const k = (e.key || '').toLowerCase();
+    if (k === 'b' || k === 'escape' || k === 'shift'){ e.preventDefault(); closeWalletPanel(); }
+  }, true);
+})();
+
 // ══════════════════════════════════════════════════════════════════════
 // v0.95.373 · ZYCELLITE panel · pass 1 · frame + nav rail + input contract
 // Console (gamepad synth-keys) · PC (kb) · Mobile (touch → same synth-keys)
@@ -18705,7 +18800,9 @@ function updateRizerHUD(){
   if (coinEl){
     coinEl.style.display = show ? 'block' : 'none';
     const coins = (player.items && player.items.coins) || 0;
-    coinEl.textContent = `◆ ${coins.toLocaleString()}c`;
+    // v0.95.387 · Populate the coin number in the LEFT box · gold coin sits on the right (CSS-flipped)
+    const numEl = coinEl.querySelector('.coinNum');
+    if (numEl) numEl.textContent = coins.toLocaleString();
   }
   const model=rizerStatModel();
   paintRizerMeterElement(widget?.querySelector('[data-rizer-meter="hp"]'),model.hp);

@@ -9174,31 +9174,27 @@ addEventListener('keydown', e => {
         return;
       }
     }
-    // Triangle (k) = SOUL SWAP · full bond + not-enemy + not noSoulSwap
+    // Triangle (k) = SOUL SWAP on FRIENDLY companion · full bond gate
+    // v0.95.344 · Enemies FALL THROUGH to normal kick/L2+Triangle combat · no
+    // interact/toast interference · Triangle only tries soul-swap on friendly NPCs
     if (k === 'k'){
       const facing = facedNpc();
-      if (facing){
-        if (facing.isEnemy){
+      if (facing && !facing.isEnemy && isFriendlyNpc(facing)){
+        if (facing.noSoulSwap){
+          try { playSFX('doorLock'); } catch(_){}
+          showToast(`◈ ${facing.name} · humanoid ally · no soul-swap`, 2200);
+          return;
+        }
+        const bond = (player.bonds && player.bonds[facing.id]) || 0;
+        if (bond < 100 && !game.devMaxBond){
           try { playSFX('cancel'); } catch(_){}
-          showToast('◈ Cannot soul-swap with an enemy', 1800);
+          showToast(`◈ ${facing.name} · Bond ${bond}/100 to soul-swap`, 2600);
           return;
         }
-        if (isFriendlyNpc(facing)){
-          if (facing.noSoulSwap){
-            try { playSFX('doorLock'); } catch(_){}
-            showToast(`◈ ${facing.name} · humanoid ally · no soul-swap`, 2200);
-            return;
-          }
-          const bond = (player.bonds && player.bonds[facing.id]) || 0;
-          if (bond < 100 && !game.devMaxBond){
-            try { playSFX('cancel'); } catch(_){}
-            showToast(`◈ ${facing.name} · Bond ${bond}/100 to soul-swap`, 2600);
-            return;
-          }
-          startFactionSoulSwitch(facing);
-          return;
-        }
+        startFactionSoulSwitch(facing);
+        return;
       }
+      // Facing an enemy (or nothing) · let kick / L2+Triangle combat fire below
     }
     // v0.95.213 · A3 ASTRALSTRIKE chord · L2 held while Square is pressed
     // fires the handblast (L2 dispatches 'q' per BTN map · square = 'j')

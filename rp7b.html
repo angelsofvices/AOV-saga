@@ -1578,18 +1578,31 @@ function companionize(n){
   playSFX('confirm');
   showToast(`◈ ${n.name} joins as your Companion.`, 2400);
 }
+// v0.95.385 · Escort/return NPCs actually WALK back to their coord
+// instead of teleporting · sets mode='walkHome' + target + timer
+function walkNpcHome(n, x, y, scene){
+  if (!n) return false;
+  n._walkHomeTarget = { x, y, scene: scene || n._nativeScene || n.homeScene || 'overworld' };
+  n._walkHomeStart = performance.now();
+  n.mode = 'walkHome';
+  n.moving = false;
+  n.dir = n.dir || 'down';
+  return true;
+}
 function uncompanionize(n, silent){
   if (!n) return;
-  n.mode = 'stationary';
-  n.moving = false;
-  if (n._nativeX != null){
-    n.tileX = n._nativeX; n.tileY = n._nativeY;
-    n.homeX = n._nativeX; n.homeY = n._nativeY;
-    n.scene = n._nativeScene || 'overworld';
-    n._nativeX = n._nativeY = n._nativeScene = null;
-  }
   if (player.companion === n.id) player.companion = null;
-  if (!silent){ playSFX('menuClose'); showToast(`◈ ${n.name} returns home.`, 2200); }
+  // v0.95.385 · Walk back to native/home coords instead of teleporting
+  const homeX = (n._nativeX != null) ? n._nativeX : n.homeX;
+  const homeY = (n._nativeX != null) ? n._nativeY : n.homeY;
+  const homeScene = n._nativeScene || n.homeScene || 'overworld';
+  n._nativeX = n._nativeY = n._nativeScene = null;
+  if (homeX != null && homeY != null){
+    walkNpcHome(n, homeX, homeY, homeScene);
+  } else {
+    n.mode = 'stationary'; n.moving = false;
+  }
+  if (!silent){ playSFX('menuClose'); showToast(`◈ ${n.name} heading home...`, 2200); }
 }
 // Friendly NPC = not Mori, not Daemon, not player-hostile
 function isFriendlyNpc(n){
@@ -4002,12 +4015,17 @@ const NPCS = [
           if (yaraFollowing){
             const yara = findNpcById('yara');
             if (yara){
-              try { uncompanionize(yara, /*silent*/ true); } catch(_){}
-              yara.tileX = yara._nativeX || yara.homeX || 9;
-              yara.tileY = yara._nativeY || yara.homeY || 3;
-              yara.scene = yara._nativeScene || yara.homeScene || 'interior_home';
-              yara.mode = 'stationary'; yara.moving = false;
-              showToast('★ Yara heads home to Mom · escort complete', 2400);
+              // v0.95.385 · Yara actually WALKS home to Mom · no teleport
+              try {
+                // Capture home before uncompanionize wipes _nativeX/Y
+                const hx = (yara._nativeX != null) ? yara._nativeX : (yara.homeX != null ? yara.homeX : 9);
+                const hy = (yara._nativeX != null) ? yara._nativeY : (yara.homeY != null ? yara.homeY : 3);
+                const hs = yara._nativeScene || yara.homeScene || 'interior_home';
+                if (player.companion === 'yara') player.companion = null;
+                yara._nativeX = yara._nativeY = yara._nativeScene = null;
+                walkNpcHome(yara, hx, hy, hs);
+              } catch(_){}
+              showToast('★ Yara walking home to Mom · escort complete', 2400);
             }
           }
         }});
@@ -7018,10 +7036,10 @@ const PUNCHING_BAG_BBOX = [352, 26, 549, 1202];  // v0.95.11 · re-tightened aft
 const NEBULADOCK_IMG = new Image();
 NEBULADOCK_IMG.src = 'assets/2D%20sprites/decor/nebuladock.png';
 const NEBULADOCK_BBOX = [53, 61, 1426, 916];      // v0.95.51 · raw source (no bake)
-// v0.95.383 · Phoneless desk sprite · normalized to 1536x1024 canvas +
-// content rescaled into the ORIGINAL nebuladock bbox (53, 61, 1426, 916)
-// so both sprites use IDENTICAL BBOX + IDENTICAL draw dims · phoneless
-// layers pixel-perfect over the phone-equipped desk after Z-Phone grab
+// v0.95.385 · Phoneless desk sprite · native 1536x1024 · strict chroma bake
+// so every PC/speaker/monitor/desk pixel is PIXEL-IDENTICAL to the original ·
+// only the phone + charging-dock region differs · shares NEBULADOCK_BBOX so
+// on-screen size + feet-Y anchor stay identical between the two variants
 const NEBULADOCK_PHONELESS_IMG = new Image();
 NEBULADOCK_PHONELESS_IMG.src = 'assets/2D%20sprites/decor/nebuladock-phoneless.png';
 function currentNebuladockImg(){
@@ -17223,6 +17241,54 @@ function tickNPC(n, dt){
       }
       return;
     }
+  }
+  // v0.95.385 · walkHome mode · escort allies + returning Zyrex actually WALK
+  // to their assigned coord instead of teleporting · reverts to stationary
+  // on arrival · falls back to teleport after ~10s if pathing keeps failing
+  if (n.mode === 'walkHome'){
+    const tgt = n._walkHomeTarget;
+    if (!tgt){ n.mode = 'stationary'; n.moving = false; return; }
+    // Scene mismatch means we're in a different room · silently teleport (interior traversal not modeled)
+    if (tgt.scene && n.scene !== tgt.scene){
+      n.scene = tgt.scene; n.tileX = tgt.x; n.tileY = tgt.y;
+      n.homeX = tgt.x; n.homeY = tgt.y; n.homeScene = tgt.scene;
+      n.mode = 'stationary'; n.moving = false; n._walkHomeTarget = null;
+      return;
+    }
+    // Arrived
+    if (n.tileX === tgt.x && n.tileY === tgt.y){
+      n.mode = 'stationary'; n.moving = false; n.dir = 'down';
+      n.homeX = tgt.x; n.homeY = tgt.y;
+      n._walkHomeTarget = null;
+      return;
+    }
+    // Bail-out timer · after 10s of trying, give up and snap (avoid infinite pathing)
+    if (n._walkHomeStart && (performance.now() - n._walkHomeStart) > 10000){
+      n.tileX = tgt.x; n.tileY = tgt.y;
+      n.mode = 'stationary'; n.moving = false;
+      n._walkHomeTarget = null;
+      return;
+    }
+    // Step one tile toward target · prefer axis w/ bigger delta · try alt if blocked
+    const dx0 = tgt.x - n.tileX, dy0 = tgt.y - n.tileY;
+    let dir;
+    if (Math.abs(dx0) >= Math.abs(dy0)) dir = dx0 > 0 ? 'right' : 'left';
+    else                                dir = dy0 > 0 ? 'down'  : 'up';
+    const v = _DIR_VEC[dir];
+    if (stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
+      n.moveCd = 200;
+    } else {
+      const altDir = (dir === 'left' || dir === 'right') ? (dy0 > 0 ? 'down' : 'up') : (dx0 > 0 ? 'right' : 'left');
+      const av = _DIR_VEC[altDir];
+      if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, altDir)){
+        n.moveCd = 200;
+      } else {
+        // Stuck · nudge to a random open dir to unstick
+        n.dir = altDir || dir;
+        n.moveCd = 400;
+      }
+    }
+    return;
   }
   if (n.mode === 'follow'){
     // v0.95.318 · Aggressive Zyrex combat AI · summoned Zyrex fight enemies

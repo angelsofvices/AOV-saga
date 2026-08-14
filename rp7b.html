@@ -13653,6 +13653,50 @@ function ensureRizerSkinState(){
 }
 function drawRizerUpgradesPage(W, H){
   ensureRizerSkinState();
+  // v0.95.401 · Official hero image · use it 1:1 with dynamic overlays
+  // Overlay live coin + gem counts on top of the header numbers · outfit
+  // selection glow renders on top of the highlighted skin tile · the rest
+  // of the UI (stat rows, portrait, control hints) is baked into the PNG
+  if (RIZER_UPGRADES_HERO_IMG.complete && RIZER_UPGRADES_HERO_IMG.naturalWidth){
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(RIZER_UPGRADES_HERO_IMG, 0, 0, W, H);
+    // ── Header · live coin + gem counts ────────────────────────────
+    const coins = (player.items?.coins || 0);
+    const gemVal = (typeof countGems === 'function') ? countGems() : 0;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 26px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    // Coin position: right of $ icon at ~x=1195/1672 · y=~65/941
+    ctx.fillText(coins.toLocaleString(), Math.round(W * 0.735), Math.round(H * 0.075));
+    // Gem position: right of gem icon at ~x=1590/1672 · y=~65/941
+    ctx.fillText(gemVal.toLocaleString(), Math.round(W * 0.965), Math.round(H * 0.075));
+    ctx.textAlign = 'left';
+    // ── Outfit selection glow · overlays selected skin tile in left grid ──
+    // Grid is 2×4 tiles inside the left panel · roughly x 0.03-0.29 · y 0.145-0.86
+    const gridX0f = 0.030, gridY0f = 0.155, gridWf = 0.260, gridHf = 0.700;
+    const gridX = Math.round(W * gridX0f), gridY = Math.round(H * gridY0f);
+    const gridW = Math.round(W * gridWf), gridH = Math.round(H * gridHf);
+    const cellW = Math.round(gridW / 2);
+    const cellH = Math.round(gridH / 4);
+    const ci = player.rizerSkinCursor || 0;
+    if (ci < 8){
+      const col = ci % 2, row = Math.floor(ci / 2);
+      const rx = gridX + col * cellW + 4;
+      const ry = gridY + row * cellH + 4;
+      const rw = cellW - 8;
+      const rh = cellH - 8;
+      ctx.save();
+      ctx.shadowColor = '#4fb3ff'; ctx.shadowBlur = 22;
+      ctx.strokeStyle = '#4fb3ff'; ctx.lineWidth = 4;
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = 'rgba(79,179,255,0.75)'; ctx.lineWidth = 2;
+      ctx.strokeRect(rx + 5, ry + 5, rw - 10, rh - 10);
+      ctx.restore();
+    }
+    return;   // full hero-image mode · skip the fallback scaffold below
+  }
+  // ── Fallback procedural render (hero not loaded) ─────────────────
   // ── Layout metrics ──────────────────────────────────────────────
   const M = 20;                             // outer margin
   const barY = 62;                          // below outer title bar
@@ -15168,9 +15212,43 @@ function drawSettingsMenu(){
   ctx.moveTo(24, 50); ctx.lineTo(W - 24, 50); ctx.stroke();
 
   if (settingsPage === 'root'){
-    // v0.95.378 · Root SETTINGS = 3-card horizontal layout · mockup canon
-    // Cards: 1 · SAVE & LOAD  2 · GAME OPTIONS  3 · CONTROLLER OPTIONS
-    // ← → moves cursor · X selects · B/Options closes · LB/RB alias L/R for switch
+    // v0.95.401 · SETTINGS · official hero image · overlay blue glow on selected 1/3 panel
+    // The hero PNG already carries yellow-default borders + diamond corners + title bar,
+    // so we blit it edge-to-edge and cover the previously-drawn '◈ SETTINGS' title strip
+    if (SETTINGS_HERO_IMG.complete && SETTINGS_HERO_IMG.naturalWidth){
+      // Clear any earlier title/underline the outer drew · start clean canvas
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.62)';
+      ctx.fillRect(0, 0, W, H);
+      // Fit hero image edge-to-edge (keeps mockup 1:1 with the canvas)
+      ctx.drawImage(SETTINGS_HERO_IMG, 0, 0, W, H);
+      // Selection glow · draws only over the highlighted card region
+      const cardRects = [
+        // xf, yf, wf, hf · derived from mockup 1672x941 · Card 1 (SAVE), 2 (OPTS), 3 (CTRL)
+        { xf: 0.048, yf: 0.155, wf: 0.288, hf: 0.700 },
+        { xf: 0.367, yf: 0.155, wf: 0.263, hf: 0.700 },
+        { xf: 0.660, yf: 0.155, wf: 0.303, hf: 0.700 },
+      ];
+      const r = cardRects[settingsSelectedIdx] || cardRects[0];
+      const rx = Math.round(r.xf * W), ry = Math.round(r.yf * H);
+      const rw = Math.round(r.wf * W), rh = Math.round(r.hf * H);
+      ctx.save();
+      ctx.shadowColor = '#4fb3ff';
+      ctx.shadowBlur = 26;
+      ctx.strokeStyle = '#4fb3ff';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(rx, ry, rw, rh);
+      // Second inner stroke for a punchy double-glow like the mockup
+      ctx.shadowBlur = 14;
+      ctx.strokeStyle = 'rgba(79,179,255,0.85)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rx + 6, ry + 6, rw - 12, rh - 12);
+      ctx.restore();
+      // Click-to-select region tracker · so canvas pointerdown can dispatch
+      game._settingsCardRegions = cardRects;
+      return;
+    }
+    // ── Fallback to procedural cards if hero image hasn't loaded yet ──────
     const cards = [
       { n: 1, title: 'SAVE & LOAD',        sub: 'Manage Adventure Data', icon: '◆', iconColor: '#4fb3ff' },
       { n: 2, title: 'GAME OPTIONS',       sub: 'Adjust Game Settings',  icon: '⚙', iconColor: '#d4af37' },
@@ -16110,6 +16188,11 @@ function drawZyrexMenu(){
 // ─────────────────────────────────────────────────────────────
 // v0.95.320 · RAID card portrait image · replaces the procedural canvas card
 // when the user opens the RAID viewer from ZyCube Items list
+// v0.95.401 · Hero PNG backdrops for full-screen menu pages
+const SETTINGS_HERO_IMG = new Image();
+SETTINGS_HERO_IMG.src = 'assets/2D%20sprites/ui/pages/settings-hero.png';
+const RIZER_UPGRADES_HERO_IMG = new Image();
+RIZER_UPGRADES_HERO_IMG.src = 'assets/2D%20sprites/ui/pages/rizer-upgrades-hero.png';
 const RAID_CARD_IMG = new Image();
 RAID_CARD_IMG.src = 'assets/2D%20sprites/ui/raid-card.png';
 function drawRAIDCardPage(W, H){

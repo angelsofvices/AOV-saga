@@ -4887,111 +4887,7 @@ function worldBorderDirections(x,y){
 }
 function isWorldBorderTile(x,y){ return worldBorderDirections(x,y).length>0; }
 
-// ══════════════════════════════════════════════════════════════════════
-// v0.95.362 · FULL DISTRICT NATURE SCATTER · Malezor + Zarvane + Andrannor
-// Relocated here so _propBlocked + isWorldBorderTile are both defined.
-// Layering handled by depth-sort: grass (footprint=[]) draws under
-// trees/bushes (footprint=[[0,0]]) which sort by footY with buildings + player.
-// ══════════════════════════════════════════════════════════════════════
-(function populateDistrictNature(){
-  const districts = [
-    { id:'malezor',   seed: 0x71E3A11, trees: 260, bushes: 380, grass: 620,
-      treeSrc: 'assets/2D%20sprites/decor/malezor-tree.png',   treeBbox: [72,77,1107,1138],
-      bushSrc: 'assets/2D%20sprites/decor/bush.png',           bushBbox: [291,274,965,471],
-      grassSrcA:'assets/2D%20sprites/decor/grass-patch-a.png', grassBboxA:[0,0,96,128],
-      grassSrcB:'assets/2D%20sprites/decor/grass-patch-b.png', grassBboxB:[32,0,96,128] },
-    { id:'zarvane',   seed: 0x7A1F00D, trees: 240, bushes: 400, grass: 720,
-      treeSrc: 'assets/2D%20sprites/decor/malezor-tree.png',   treeBbox: [72,77,1107,1138],
-      bushSrc: 'assets/2D%20sprites/decor/zarvane-bush.png',   bushBbox: [0,0,313,313],
-      grassSrcA:'assets/2D%20sprites/decor/zarvane-grass-a.png',grassBboxA:[0,0,313,313],
-      grassSrcB:'assets/2D%20sprites/decor/zarvane-grass-b.png',grassBboxB:[0,0,313,313] },
-    { id:'andrannor', seed: 0xA1D3411, trees: 220, bushes: 340, grass: 560,
-      treeSrc: 'assets/2D%20sprites/decor/andrannor-tree.png', treeBbox: [0,0,313,313],
-      bushSrc: 'assets/2D%20sprites/decor/andrannor-bush.png', bushBbox: [0,0,313,313],
-      grassSrcA:'assets/2D%20sprites/decor/andrannor-grass.png',grassBboxA:[0,0,313,313],
-      grassSrcB:'assets/2D%20sprites/decor/andrannor-grass.png',grassBboxB:[0,0,313,313] },
-  ];
-  const imgCache = {};
-  const getImg = src => (imgCache[src] || (imgCache[src] = (() => { const im = new Image(); im.src = src; return im; })()));
-  const placedTree = [], placedBush = [];
-  const grassTiles = new Set();
-  const deepInDistrict = (id, x, y, r) => {
-    if (worldDistrictAt(x, y) !== id) return false;
-    if (isWorldBorderTile(x, y)) return false;
-    if (worldDistrictAt(x+r, y) !== id || worldDistrictAt(x-r, y) !== id) return false;
-    if (worldDistrictAt(x, y+r) !== id || worldDistrictAt(x, y-r) !== id) return false;
-    // v0.95.363 · Skip isVeridanRiverTile check · VERIDAN_RIVER_TILES const
-    // isn't in scope until line ~5950 (TDZ) · Malezor/Zarvane/Andrannor
-    // never overlap the Veridan river so this check is redundant here anyway
-    return true;
-  };
-  const clearArea = (x, y, r) => {
-    for (let oy = -r; oy <= r; oy++){
-      for (let ox = -r; ox <= r; ox++){
-        if (_propBlocked.has(`${x+ox},${y+oy}`)) return false;
-      }
-    }
-    return true;
-  };
-  const farFrom = (list, x, y, minD) => !list.some(p => Math.hypot(p.x - x, p.y - y) < minD);
-  const addProp = (obj) => {
-    WORLD_PROPS.push(obj);
-    // Load image immediately since the initial .img.src loop already ran before this block
-    if (obj.img && obj.src && !obj.img.src) obj.img.src = obj.src;
-    // Bake this prop's footprint into _propBlocked so subsequent scatter respects it
-    if (obj.footprint && obj.footprint.length){
-      obj.footprint.forEach(([dx, dy]) => _propBlocked.add(`${obj.tileX+dx},${obj.tileY+dy}`));
-    }
-    if (obj.wildZone) _wildZones.add(`${obj.tileX},${obj.tileY}`);
-  };
-  const scatterOne = (d, kind, count) => {
-    const rng = _makeWorldRng(d.seed + (kind === 'tree' ? 1 : kind === 'bush' ? 2 : 3));
-    let placed = 0;
-    for (let attempts = 0; attempts < count * 60 && placed < count; attempts++){
-      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
-      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
-      if (kind === 'tree'){
-        if (!deepInDistrict(d.id, x, y, 4)) continue;
-        if (!clearArea(x, y, 3)) continue;
-        if (!farFrom(placedTree, x, y, 5)) continue;
-        addProp({
-          id: `${d.id}_nat_tree_${x}_${y}`, img: getImg(d.treeSrc), src: d.treeSrc,
-          bbox: d.treeBbox, tileX: x, tileY: y, tileW: 3, tileH: 3, footprint: [[0,0]],
-        });
-        placedTree.push({x,y}); placed++;
-      } else if (kind === 'bush'){
-        if (!deepInDistrict(d.id, x, y, 2)) continue;
-        if (!clearArea(x, y, 1)) continue;
-        if (!farFrom(placedBush, x, y, 3)) continue;
-        if (!farFrom(placedTree, x, y, 2)) continue;
-        addProp({
-          id: `${d.id}_nat_bush_${x}_${y}`, img: getImg(d.bushSrc), src: d.bushSrc,
-          bbox: d.bushBbox, tileX: x, tileY: y, tileW: 2, tileH: 1, footprint: [[0,0]],
-        });
-        placedBush.push({x,y}); placed++;
-      } else if (kind === 'grass'){
-        if (!deepInDistrict(d.id, x, y, 1)) continue;
-        const key = `${x},${y}`;
-        if (grassTiles.has(key)) continue;
-        if (_propBlocked.has(key)) continue;
-        const a = ((Math.imul(x, 13) + Math.imul(y, 7) + x * y) & 1) === 0;
-        addProp({
-          id: `${d.id}_nat_grass_${x}_${y}`,
-          img: getImg(a ? d.grassSrcA : d.grassSrcB), src: a ? d.grassSrcA : d.grassSrcB,
-          bbox: a ? d.grassBboxA : d.grassBboxB, tileX: x, tileY: y,
-          tileW: 1, tileH: 1, footprint: [], wildZone: true,
-        });
-        grassTiles.add(key); placed++;
-      }
-    }
-  };
-  for (const d of districts){
-    scatterOne(d, 'grass', d.grass);
-    scatterOne(d, 'tree',  d.trees);
-    scatterOne(d, 'bush',  d.bushes);
-  }
-  window.__natureTreePlacements = placedTree;
-})();
+// v0.95.365 · REVERTED · nature/enemy/stone extensions removed · each district must ship its own custom assets · see prior v0.95.361-363
 function nearestWorldInteriorTile(x,y,maxRadius=8){
   for(let r=1;r<=maxRadius;r++){
     for(let dy=-r;dy<=r;dy++){
@@ -5129,30 +5025,6 @@ function restoreUfoWorldCollision(prop){
     }
     return placed;
   }
-  // v0.95.361 · Wider spawn: allow enemies across FULL district (not just expansion)
-  function pickDistrictSpots(district, target, seed, minSpacing){
-    const rng = _makeWorldRng(seed);
-    const placed = [];
-    for (let attempts = 0; attempts < 12000 && placed.length < target; attempts++){
-      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
-      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
-      if (worldDistrictAt(x, y) !== district) continue;
-      if (isWorldBorderTile(x, y)) continue;
-      // v0.95.363 · isVeridanRiverTile guard removed · TDZ (const not in scope
-      // until ~5950) · Zarvane/Andrannor don't overlap Veridan river anyway
-      if (_propBlocked.has(`${x},${y}`)) continue;
-      let nearProp = false;
-      for (let dy = -4; dy <= 4 && !nearProp; dy++){
-        for (let dx = -4; dx <= 4; dx++){
-          if (_propBlocked.has(`${x+dx},${y+dy}`)){ nearProp = true; break; }
-        }
-      }
-      if (nearProp) continue;
-      if (placed.some(p => Math.hypot(p.x - x, p.y - y) < minSpacing)) continue;
-      placed.push({ x, y });
-    }
-    return placed;
-  }
   pickPerimeterSpots('malezor', 45, 0xFEEDBA5, 6).forEach((s, i) => NPCS.push({
     id: `mori_perim_${i + 1}`, name: 'Mori',
     sheet: new Image(),
@@ -5167,34 +5039,6 @@ function restoreUfoWorldCollision(prop){
     moveCd: 250 + Math.random() * 350,
     blinkTimer: 9e9, isEnemy: true,
     hp: 125, hpMax: 125, tier: 1, level: 2,
-    onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
-  }));
-  // v0.95.361 · MORI spread across Zarvane (Mori everywhere in first 2 districts)
-  pickDistrictSpots('zarvane', 60, 0xF00DBA5, 6).forEach((s, i) => NPCS.push({
-    id: `mori_zar_${i + 1}`, name: 'Mori',
-    sheet: new Image(), src: 'assets/2D%20sprites/enemies/mori.png',
-    bboxes: MORI_BBOXES_PERIM, cellW: 313, cellH: 313, cols: 4, rows: 4,
-    tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
-    homeScene: 'overworld', scene: 'overworld',
-    wanderRadius: 7, dir: 'down', mode: 'wander',
-    moving: false, animFrame: 0, idleFrame: 0,
-    moveCd: 250 + Math.random() * 350,
-    blinkTimer: 9e9, isEnemy: true,
-    hp: 125, hpMax: 125, tier: 1, level: 3,
-    onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
-  }));
-  // v0.95.361 · MORI ALSO in Andrannor (Andrannor has Mori + Daemon per canon)
-  pickDistrictSpots('andrannor', 40, 0xF00DAA5, 6).forEach((s, i) => NPCS.push({
-    id: `mori_andr_${i + 1}`, name: 'Mori',
-    sheet: new Image(), src: 'assets/2D%20sprites/enemies/mori.png',
-    bboxes: MORI_BBOXES_PERIM, cellW: 313, cellH: 313, cols: 4, rows: 4,
-    tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
-    homeScene: 'overworld', scene: 'overworld',
-    wanderRadius: 7, dir: 'down', mode: 'wander',
-    moving: false, animFrame: 0, idleFrame: 0,
-    moveCd: 250 + Math.random() * 350,
-    blinkTimer: 9e9, isEnemy: true,
-    hp: 125, hpMax: 125, tier: 1, level: 5,
     onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
   }));
   pickPerimeterSpots('andrannor', 35, 0xDEA110C, 7).forEach((s, i) => NPCS.push({
@@ -7029,37 +6873,6 @@ const _boulderSpots = [
     for(let oy=-2;oy<=2&&!occupied;oy++)for(let ox=-2;ox<=2;ox++)if(_propBlocked.has(`${x+ox},${y+oy}`)){occupied=true;break;}
     if(occupied||_boulderSpots.some(b=>Math.hypot(b.x-x,b.y-y)<5)||placed.some(b=>Math.hypot(b.x-x,b.y-y)<7))continue;
     const spot={x,y};placed.push(spot);_boulderSpots.push(spot);
-  }
-})();
-// v0.95.361 · Extended stone scatter for Zarvane + Andrannor · matches Malezor density
-// Uses tree placements from populateDistrictNature() to avoid stones inside groves
-(function addZarvaneAndrannorBoulders(){
-  const nature = window.__natureTreePlacements || [];
-  const passes = [
-    { district: 'zarvane',   seed: 0xB01D5AB, target: 95 },
-    { district: 'andrannor', seed: 0xB01D5A6, target: 80 },
-  ];
-  for (const cfg of passes){
-    const rng = _makeWorldRng(cfg.seed), placed = [];
-    for (let attempts = 0; attempts < 8000 && placed.length < cfg.target; attempts++){
-      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
-      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
-      if (worldDistrictAt(x, y) !== cfg.district || isWorldBorderTile(x, y)) continue;
-      if (worldDistrictAt(x+3, y) !== cfg.district || worldDistrictAt(x-3, y) !== cfg.district) continue;
-      if (worldDistrictAt(x, y+3) !== cfg.district || worldDistrictAt(x, y-3) !== cfg.district) continue;
-      if (typeof isVeridanRiverTile === 'function' && isVeridanRiverTile(x, y)) continue;
-      let occupied = false;
-      for (let oy = -2; oy <= 2 && !occupied; oy++){
-        for (let ox = -2; ox <= 2; ox++){
-          if (_propBlocked.has(`${x+ox},${y+oy}`)) { occupied = true; break; }
-        }
-      }
-      if (occupied) continue;
-      if (_boulderSpots.some(b => Math.hypot(b.x-x, b.y-y) < 5)) continue;
-      if (placed.some(b => Math.hypot(b.x-x, b.y-y) < 7)) continue;
-      if (nature.some(t => Math.hypot(t.x-x, t.y-y) < 3)) continue;
-      const spot = { x, y }; placed.push(spot); _boulderSpots.push(spot);
-    }
   }
 })();
 const BOULDERS = _boulderSpots.filter(s=>!isWorldBorderTile(s.x,s.y)).map(s => ({

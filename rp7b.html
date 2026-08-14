@@ -10993,6 +10993,7 @@ function tryMove(dt){
   if (game.zphoneOpen)              freezeReasons.push('zphonePanel');
   if (game.walletPanelOpen)         freezeReasons.push('walletPanel');
   if (game.dadsNotebookOpen)        freezeReasons.push('dadsNotebook');
+  if (game.paused)                  freezeReasons.push('paused');   // v0.95.413 · Options-pause
   if (_rizerDeath)                  freezeReasons.push('rizerDeath');
   if (player._doubleJump)           freezeReasons.push('doubleJump');
   if (game.npcInfoOverlay)          freezeReasons.push('npcInfoOverlay');// v0.95.174 · companion overlay
@@ -13627,32 +13628,30 @@ addEventListener('keydown', e => {
       }
     }
   }
-  // v0.95.281 · Touchpad opens the ZYCUBE (Items + Gear · with RAID card
-  // inside Items) as default landing · gated on Mom's Zycube gift ·
-  // L1/R1 cycles: zycube → quests → faction (post-starter) → map (post-Zoryn)
+  // v0.95.413 · TOUCHPAD (kb '2' · gamepad 17 · mobile tile) = open ZyPhone
+  // The phone IS the game menu now · every panel lives inside it
   if (k === '2'){
-    if (zyrexMenuOpen){
-      zyrexMenuOpen = false;
-      playSFX('menuClose');
-    } else {
-      // v0.95.379 · Touchpad requires ONLY the backpack (no ZyCube or RAID gates)
-      // Bag opens with backpack alone · ZyCube tab shows an "empty · get from Mom"
-      // state pre-gift · other tabs (Quests/Faction/Map) stay hidden until their
-      // respective flags flip (zycubeGifted / raidCardGifted / townMapGifted)
-      if (!player.hasBackpack){
-        showToast('◈ Touchpad locked · grab your Backpack from your room', 2600);
-        try { playSFX('doorLock'); } catch(_){}
-        return;
-      }
-      zyrexMenuOpen = true;
-      hudOverlayPage = 'zycube';
-      zycubeSubTab = 'items';   // default landing inside ZyCube
-      playSFX('menuOpen');
+    if (game.zphoneOpen){
+      // Tap while open = close (unless hold-5s emergency-return is ticking)
+      try { closeZphonePanel(); } catch(_){}
+      return;
     }
+    if (!player.hasBackpack){
+      showToast('◈ Backpack first · then your ZyPhone opens the game menu', 2600);
+      try { playSFX('doorLock'); } catch(_){}
+      return;
+    }
+    if (!(player.items?.zphone > 0)){
+      showToast('◈ Grab the ZyPhone from your PC desk · unlocks the game menu', 2800);
+      try { playSFX('doorLock'); } catch(_){}
+      return;
+    }
+    try { openZphonePanel(); } catch(_){}
+    return;
   }
+  // v0.95.413 · OPTIONS (kb '3' · gamepad 9 · mobile tile) = PAUSE ONLY
+  // Settings moved into the ZyPhone SETTINGS tab · Aggressive-Zyrex double-tap preserved
   if (k === '3'){
-    // v0.95.318 · Double-tap Options (3) → toggle AGGRESSIVE Zyrex mode
-    // Summoned Zyrex go hunt Mori/Daemon · double-tap again to stand down
     const _now = performance.now();
     if (_now - _lastOptionsTapTime < 400){
       _lastOptionsTapTime = 0;
@@ -13660,21 +13659,27 @@ addEventListener('keydown', e => {
       return;
     }
     _lastOptionsTapTime = _now;
-    // v0.95.281 · START/Options button = pure SETTINGS (save/load, options,
-    // controller bindings) · always available from the moment you can play ·
-    // Items + Gear moved to ZYCUBE which lives on the touchpad ('2') per new
-    // Malezor foundation spec.
-    if (settingsMenuOpen){
-      settingsMenuOpen = false;
-      settingsPage = 'root';
-      settingsSelectedIdx = 0;
-      playSFX('menuClose');
-      return;
+    if (game.paused){
+      game.paused = false;
+      const p = document.getElementById('pauseOverlay');
+      if (p) p.style.display = 'none';
+      try { playSFX('menuClose'); } catch(_){}
+    } else {
+      game.paused = true;
+      let p = document.getElementById('pauseOverlay');
+      if (!p){
+        p = document.createElement('div');
+        p.id = 'pauseOverlay';
+        p.style.cssText = 'position:fixed;inset:0;display:flex;z-index:114;background:rgba(4,8,22,0.88);align-items:center;justify-content:center;color:#ffd66b;font-family:"Courier New",monospace;text-align:center;flex-direction:column;gap:12px;pointer-events:none;';
+        p.innerHTML = `
+          <div style="font-size:44px; letter-spacing:.28em; font-weight:bold; text-shadow:0 0 20px rgba(255,214,107,0.7);">◈ PAUSED ◈</div>
+          <div style="font-size:12px; letter-spacing:.16em; color:#8ff;">Press OPTIONS · to resume</div>
+          <div style="font-size:10px; letter-spacing:.12em; color:#889; margin-top:20px;">Menu → Touchpad · Favorite → Create</div>`;
+        document.body.appendChild(p);
+      }
+      p.style.display = 'flex';
+      try { playSFX('menuOpen'); } catch(_){}
     }
-    settingsMenuOpen = true;
-    settingsPage = 'root';
-    settingsSelectedIdx = 0;
-    playSFX('menuOpen');
   }
 });
 // ══════════════════════════════════════════════════════════════════════

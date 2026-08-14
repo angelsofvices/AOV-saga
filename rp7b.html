@@ -1031,6 +1031,7 @@ const AUDIO = {
     punchHit:     new Audio('audio/sfx-punch-hit.mp3'),      // v0.95.59 · Square light melee contact
     kickHit:      new Audio('audio/sfx-kick-hit.mp3'),       // v0.95.59 · Triangle heavy melee contact
     walkingGrass: new Audio('audio/sfx-walking-grass.mp3'),  // v0.95.333 · loud gemgrass step · attracts Mori
+    fountain:     new Audio('audio/sfx-fountain.mp3'),       // v0.95.335 · Andrannor fountain loop · distance-scaled volume
     kick:         new Audio('audio/sfx-kick.mp3'),           // v0.95.184 · powerful heavy-attack takeoff (plays on kick swing)
     meleeMiss:    new Audio('audio/sfx-melee-miss.mp3'),     // v0.95.59 · whoosh on air/props/npcs
     jumpLand:     new Audio('audio/sfx-jump-land.mp3'),      // v0.95.67 · touchdown thud after A/X jump
@@ -1674,6 +1675,7 @@ const _buildingCovered = new Set();
   mark(200, 320, 10, 8);   // andrannor balcony house
   mark(270, 325, 10, 9);   // club 50 (v0.95.302)
   mark(-34, 3,   9, 10);   // rizer's treehouse (v0.95.325)
+  mark(240, 322, 5, 4);    // andrannor fountain (v0.95.335)
 })();
 
 // ★ Gemgrass patch definitions · shared by both the grass IIFE and the
@@ -2648,6 +2650,45 @@ const WORLD_PROPS = [
       })(),
       door: [0, 0],
       onInteract: () => { showToast('◈ ANDRANNOR TOWN HALL · Closed for now.', 2400); playSFX('doorLock'); },
+    };
+  })(),
+  // ── v0.95.335 · ANDRANNOR FOUNTAIN · purple starwater · plaza south of Town Hall
+  // 4-frame animated sheet · distance-scaled loop SFX (louder as you approach)
+  // Interact within 2 tiles = collect a Soulphish (higher rate than oasis fishing)
+  (function(){
+    const img = new Image();
+    img.src = 'assets/2D%20sprites/decor/andrannor-fountain.png';
+    return {
+      id: 'andrannor_fountain',
+      img, src: 'assets/2D%20sprites/decor/andrannor-fountain.png',
+      // Fountain sheet · 4 frames · animated in drawProp via _animFrames field
+      bbox: [15, 73, 525, 569],           // frame-0 content bbox (all frames share layout)
+      _animCells: 4, _animCellW: 543, _animCellH: 724,
+      tileX: 240, tileY: 322,             // 6 tiles south of Town Hall front (240, 316)
+      tileW: 5, tileH: 4,
+      footprint: (function(){
+        const f = [];
+        for (let dy = -3; dy <= 0; dy++){
+          for (let dx = -2; dx <= 2; dx++){ f.push([dx, dy]); }
+        }
+        return f;
+      })(),
+      door: [0, 0],
+      depthOffset: -2,
+      onInteract: () => {
+        // Higher-rate Soulphish collection · always yields (no minigame · no gate)
+        player.items = player.items || {};
+        const before = player.items.soulphish || 0;
+        // 70% rate · vs oasis 14%
+        if (Math.random() < 0.70){
+          player.items.soulphish = before + 1;
+          try { playSFX('confirm'); } catch(_){}
+          showToast('★ Soulphish from the Andrannor Fountain (+1)', 2000);
+        } else {
+          showToast('◈ The starwater ripples · nothing this time', 1600);
+          try { playSFX('cancel'); } catch(_){}
+        }
+      },
     };
   })(),
   // ── ANDRANNOR HOMES · 3 house types placed across the district ──
@@ -14124,9 +14165,15 @@ function useZycubeItem(key){
     }
     case 'soulphish': {
       if (qty <= 0){ showToast('◈ No Soulphish left', 1600); playSFX('cancel'); return; }
-      player.astral = player.astralMax || 100;
+      // v0.95.336 · +16%% HP · +33%% Special Energy · nourishing spirit-fish canon
+      const hpModel = rizerStatModel();
+      const hpGain  = Math.round(hpModel.hp.max * 0.16);
+      player.hp     = Math.min(hpModel.hp.max, (player.hp || 0) + hpGain);
+      const spMax   = player.diamondMax || 100;
+      const spGain  = Math.round(spMax * 0.33);
+      player.diamond = Math.min(spMax, (player.diamond || 0) + spGain);
       player.items.soulphish = qty - 1;
-      showToast('★ Soulphish consumed · FULL Astral energy', 2200);
+      showToast(`★ Soulphish · +${hpGain} HP · +${spGain} Special`, 2400);
       playSFX('confirm');
       return;
     }
@@ -15588,17 +15635,59 @@ function drawProp(p){
   // Cull: skip props whose whole footprint is off-screen
   if (dx + drawW < 0 || dx > canvas.width)  return;
   if (dy + drawH < 0 || dy > canvas.height) return;
+  // v0.95.335 · Animated multi-cell props (fountain) · cycle the source X by frame
+  let srcX = bx;
+  if (p._animCells && p._animCells > 1 && p._animCellW){
+    const frameIdx = Math.floor(performance.now() / 220) % p._animCells;
+    srcX = bx + frameIdx * p._animCellW;
+  }
   if (p.mirrorX){
     // Horizontal flip · re-use a left-facing asset as a right-facing one.
     ctx.save();
     ctx.translate(dx + drawW, 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(p.img, bx, by, bw, bh, 0, dy, drawW, drawH);
+    ctx.drawImage(p.img, srcX, by, bw, bh, 0, dy, drawW, drawH);
     ctx.restore();
   } else {
-    ctx.drawImage(p.img, bx, by, bw, bh, dx, dy, drawW, drawH);
+    ctx.drawImage(p.img, srcX, by, bw, bh, dx, dy, drawW, drawH);
   }
 }
+
+// v0.95.335 · Fountain SFX loop · volume scales with distance from player
+// Maxes out within 2 tiles (interactable range) · silent beyond 16 tiles
+(function wireFountainSfx(){
+  const el = sfx && sfx.fountain;
+  if (!el) return;
+  el.loop = true;
+  el.volume = 0;
+  let started = false;
+  function tick(){
+    try {
+      const p = (typeof WORLD_PROPS !== 'undefined')
+        ? WORLD_PROPS.find(x => x && x.id === 'andrannor_fountain') : null;
+      if (!p || game.scene !== 'overworld' || player.activeActor !== 'rizer'){
+        el.volume = 0;
+      } else {
+        const d = Math.hypot(p.tileX - player.x, p.tileY - player.y);
+        // Full volume within 2 tiles · fade to 0 at 16 tiles
+        let v = 0;
+        if (d <= 2)       v = 0.95;
+        else if (d < 16)  v = 0.95 * (1 - (d - 2) / 14);
+        el.volume = Math.max(0, Math.min(1, v));
+        if (v > 0.02 && !started){
+          started = true;
+          el.play().catch(() => { started = false; });
+        }
+        if (v <= 0.02 && started){
+          started = false;
+          try { el.pause(); } catch(_){}
+        }
+      }
+    } catch(_){}
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
 
 // -- Loop --------------------------------------------------------------------
 let last = performance.now();

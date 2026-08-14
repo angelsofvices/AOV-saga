@@ -7016,6 +7016,15 @@ const PUNCHING_BAG_BBOX = [352, 26, 549, 1202];  // v0.95.11 · re-tightened aft
 const NEBULADOCK_IMG = new Image();
 NEBULADOCK_IMG.src = 'assets/2D%20sprites/decor/nebuladock.png';
 const NEBULADOCK_BBOX = [53, 61, 1426, 916];      // v0.95.51 · raw source (no bake)
+// v0.95.381 · Phoneless desk sprite · shown after player grabs the Z-Phone
+const NEBULADOCK_PHONELESS_IMG = new Image();
+NEBULADOCK_PHONELESS_IMG.src = 'assets/2D%20sprites/decor/nebuladock-phoneless.png';
+const NEBULADOCK_PHONELESS_BBOX = [9, 11, 1654, 915];   // measured after chroma bake
+function currentNebuladockImg(){
+  return (player.items?.zphone > 0 && NEBULADOCK_PHONELESS_IMG.complete && NEBULADOCK_PHONELESS_IMG.naturalWidth)
+    ? { img: NEBULADOCK_PHONELESS_IMG, bbox: NEBULADOCK_PHONELESS_BBOX }
+    : { img: NEBULADOCK_IMG,           bbox: NEBULADOCK_BBOX };
+}
 
 // v0.95.56 · Rizer Rug · decor rug at (13, 2)
 const RIZER_RUG_IMG = new Image();
@@ -11127,29 +11136,9 @@ function drawInteriorFloor(){
       const dy = Math.floor((pos.y+1)*TILE-drawH)-_cam.y;
       ctx.drawImage(SKATE_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
-    // v0.95.377 · Z-Phone lives on the LEFT charging dock baked into the
-    // Nebuladock PC sprite (tile 5,7 · leftmost item next to the left speaker).
-    // After pickup we overlay an "empty dock" state · matches desk wood color
-    // + subtle dock base so the phone visually vanishes without a re-baked asset.
-    if (player.items?.zphone > 0){
-      const pos = RIZER_ROOM_ITEMS.zphone;
-      const dx = Math.floor((pos.x + 0.5) * TILE) - _cam.x;
-      const dy = Math.floor((pos.y + 0.55) * TILE) - _cam.y;
-      ctx.save();
-      // Wood-color patch covers the phone body area (leaves the desk untouched around it)
-      ctx.fillStyle = 'rgba(60,32,20,0.98)';
-      ctx.fillRect(dx - 10, dy - 22, 20, 24);
-      // Charging dock base (slim navy-gold pedestal left behind)
-      ctx.fillStyle = 'rgba(28,44,90,0.95)';
-      ctx.fillRect(dx - 9, dy - 4, 18, 6);
-      ctx.strokeStyle = 'rgba(212,175,55,0.75)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(dx - 9, dy - 4, 18, 6);
-      // Empty-slot indicator · a dim sapphire slot where the phone plugged in
-      ctx.fillStyle = 'rgba(79,179,255,0.35)';
-      ctx.fillRect(dx - 1, dy - 3, 2, 3);
-      ctx.restore();
-    }
+    // v0.95.381 · Z-Phone visibility is now handled by swapping the whole
+    // Nebuladock sprite (see currentNebuladockImg) · the phoneless variant
+    // paints the charging dock as empty · procedural overlay retired
     // v0.95.97 · Basketball beside bed at (11,9)
     if (BBALL_IMG.complete && BBALL_IMG.naturalWidth){
       const pos=RIZER_ROOM_ITEMS.basketball;
@@ -11173,14 +11162,17 @@ function drawInteriorFloor(){
     // v0.95.23 · Nebulaport 3000 · shrunk · repositioned to (8, 3)
     drawNebulaport(RIZER_ROOM_ITEMS.console.x,RIZER_ROOM_ITEMS.console.y);
     // v0.95.52 · Nebuladock 9000 · 3.5 tiles wide · centered on col 7, base row 7 (moved down 1)
-    if (NEBULADOCK_IMG.complete && NEBULADOCK_IMG.naturalWidth){
-      const pos=RIZER_ROOM_ITEMS.pc;
-      const [sx, sy, sw, sh] = NEBULADOCK_BBOX;
-      const drawW = Math.round(3.5 * TILE);
-      const drawH = Math.round(drawW * (sh / sw));
-      const dx = Math.floor((pos.x+.5)*TILE-drawW/2)-_cam.x;
-      const dy = Math.floor((pos.y+1)*TILE-drawH)-_cam.y;
-      ctx.drawImage(NEBULADOCK_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+    { // v0.95.381 · swap between phone/phoneless desk based on pickup state
+      const nd = currentNebuladockImg();
+      if (nd.img.complete && nd.img.naturalWidth){
+        const pos=RIZER_ROOM_ITEMS.pc;
+        const [sx, sy, sw, sh] = nd.bbox;
+        const drawW = Math.round(3.5 * TILE);
+        const drawH = Math.round(drawW * (sh / sw));
+        const dx = Math.floor((pos.x+.5)*TILE-drawW/2)-_cam.x;
+        const dy = Math.floor((pos.y+1)*TILE-drawH)-_cam.y;
+        ctx.drawImage(nd.img, sx, sy, sw, sh, dx, dy, drawW, drawH);
+      }
     }
     // v0.95.66 · Gaming Chair (empty · 4x4 directional) · per-row bbox
     // feet-anchored so the base of the sprite kisses the tile floor.
@@ -11883,12 +11875,25 @@ function tryInteract(){
           return;
         }
         // v0.95.376 · Z-Phone pickup · left side of the Nebuladock PC desk (col 5, row 7)
-        // Adds `zphone` item to the backpack · vanishes from the desk after grab
-        // roomItemAtTile check happens BEFORE pc-desk match so zphone wins that tile
+        // v0.95.381 · Gated on player.hasBackpack (no bag = no phone) · triggers
+        // the Rizer interact-grab animation (~260ms reach) same as any pickup
         const nearZphone = facedRoomItem?.id==='zphone';
         if (nearZphone && !(player.items?.zphone > 0)){
+          if (!player.hasBackpack){
+            showToast('◈ Need the Backpack first · grab it from the shelf', 2600);
+            try { playSFX('doorLock'); } catch(_){}
+            return;
+          }
           player.items = player.items || {};
           player.items.zphone = (player.items.zphone || 0) + 1;
+          // Fire the interact-grab animation manually so the reach reads clearly
+          try {
+            const _now = performance.now();
+            if (RIZER && RIZER.interact && RIZER.interact.loaded){
+              player.interactStart = _now;
+              player.interactUntil = _now + 260;
+            }
+          } catch(_){}
           showToast('★ Got the Z-Phone (ZYCELLYTE) · in your bag · favorite it for CREATE shortcut', 3600);
           try { playSFX('confirm'); } catch(_){}
           return;
@@ -17375,20 +17380,23 @@ function frame(now){
     // stop-tile 7,5).  We re-blit the TOP HALF of the sprite over the
     // player pixels · desk portion already drew behind in the floor pass.
     const cfgOL = interiorConfig(game.scene);
-    if (cfgOL && cfgOL.rizerRoom
-        && NEBULADOCK_IMG.complete && NEBULADOCK_IMG.naturalWidth){
-      const pcPos=RIZER_ROOM_ITEMS.pc;
-      const [sx, sy, sw, sh] = NEBULADOCK_BBOX;
-      const drawW = Math.round(3.5 * TILE);
-      const drawH = Math.round(drawW * (sh / sw));
-      const dx = Math.floor((pcPos.x+.5)*TILE-drawW/2)-_cam.x;
-      const dy = Math.floor((pcPos.y+1)*TILE-drawH)-_cam.y;
-      // v0.95.76 · Only monitor+speakers overlay player (top ~35%) · desk
-      // top edge stays behind so player sits ABOVE desk sides on Z-axis.
-      const cutFrac = 0.35;
-      const cutSh = Math.round(sh * cutFrac);
-      const cutDh = Math.round(drawH * cutFrac);
-      ctx.drawImage(NEBULADOCK_IMG, sx, sy, sw, cutSh, dx, dy, drawW, cutDh);
+    if (cfgOL && cfgOL.rizerRoom){
+      // v0.95.381 · swap between phone/phoneless desk for the monitor-overlay pass too
+      const nd = currentNebuladockImg();
+      if (nd.img.complete && nd.img.naturalWidth){
+        const pcPos=RIZER_ROOM_ITEMS.pc;
+        const [sx, sy, sw, sh] = nd.bbox;
+        const drawW = Math.round(3.5 * TILE);
+        const drawH = Math.round(drawW * (sh / sw));
+        const dx = Math.floor((pcPos.x+.5)*TILE-drawW/2)-_cam.x;
+        const dy = Math.floor((pcPos.y+1)*TILE-drawH)-_cam.y;
+        // v0.95.76 · Only monitor+speakers overlay player (top ~35%) · desk
+        // top edge stays behind so player sits ABOVE desk sides on Z-axis.
+        const cutFrac = 0.35;
+        const cutSh = Math.round(sh * cutFrac);
+        const cutDh = Math.round(drawH * cutFrac);
+        ctx.drawImage(nd.img, sx, sy, sw, cutSh, dx, dy, drawW, cutDh);
+      }
     }
     // v0.95.61 · Punching Bag · head/upper-body overlay so it renders
     // above the player when they stand at (1,6) walk-stop tile.

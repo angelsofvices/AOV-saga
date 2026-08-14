@@ -2032,9 +2032,24 @@ const WORLD_PROPS = [
     // (before any actor on rows 5+) so players climbing the stair region render
     // OVER the merged prop.  Offset -6.5 = feet 11 + offset -6.5 = sort 4.5.
     depthOffset: -6.5,
+    // v0.95.364 · Interact = ENTER the 20x40 cave interior (was poster view)
+    // Player lands at bottom-center facing up · long climb north to Rakoron.
     onInteract: () => {
       playSFX('caveGrowl');
-      openPosterView('rakoron');
+      try {
+        const cfg = INTERIOR_CAVE;
+        game.scene = 'interior_cave';
+        player.x = cfg.spawn.x;
+        player.y = cfg.spawn.y;
+        player.dir = cfg.spawn.dir;
+        player.moving = false;
+        player.animFrame = 0;
+        player.moveCd = 200;
+        if (typeof snapCameraToPlayer === 'function') snapCameraToPlayer();
+      } catch(err){
+        console.warn('rakoron cave enter failed', err);
+        openPosterView('rakoron');
+      }
     },
   },
   // v0.95.325 · RIZER'S TREEHOUSE HIDEOUT · Malezor at (-34, 3) · secluded
@@ -6045,13 +6060,22 @@ const INTERIOR_HOME = {
 };
 INTERIOR_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
+// v0.95.364 · RAKORON'S CAVE · 20x40 dark-stone corridor · rakoron-cave-floor.png
+// Player enters at bottom-center facing up · long climb north to the far end
+// where Rakoron the Gemlord will be placed later (~row 2-3, center columns).
+// Exit is the bottom-center tile · autoExit steps player back onto the stairs
+// tile just south of the cave prop at (22, 8) facing down.  Wall art matches
+// Malezor palette so the transition from Malezor overworld reads clean.
 const INTERIOR_CAVE = {
-  cols: 10, rows: 25,
+  cols: 20, rows: 40,
   tileImg: new Image(),
-  spawn: { x: 4, y: 23, dir: 'up' },
-  exit:  { x: 4, y: 24 },
+  spawn: { x: 10, y: 38, dir: 'up' },
+  exit:  { x: 10, y: 39 },
+  autoExit: true,
+  overworldDrop: { x: 22, y: 8, dir: 'down' },
+  wallImg: 'malezor',
 };
-INTERIOR_CAVE.tileImg.src = 'assets/2D%20sprites/tiles/cave-stone-floor.png';
+INTERIOR_CAVE.tileImg.src = 'assets/2D%20sprites/tiles/rakoron-cave-floor.png';
 
 // Player home · 2ND FLOOR = RIZER ROOM (v0.95)
 // The base of operations · Experiment Table lives here.  Any home the

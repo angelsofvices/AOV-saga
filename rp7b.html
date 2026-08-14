@@ -586,7 +586,7 @@
     </div>
   </div>
   <!-- v0.95.43 · Skin 1 mobile controller · PS5-mapped hit zones -->
-  <!-- v0.95.259 · ZYCELLITE Z-PHONE · GTA-phone-style scaffold · opens on Options
+  <!-- v0.95.259 · ZYPHONE (by ZyCellite · Thardin tech corp) · GTA-phone-style scaffold · opens on Options
        Full-screen phone UI will render into #zphoneScreen later · for now tiles: -->
   <!-- v0.95.373 · ZYCELLITE PANEL · full 8-tab UI · pass 1 = frame + nav rail + input · content areas empty (filled in later passes) -->
   <div id="zphonePanel" style="display:none; position:fixed; inset:0; z-index:110; background:rgba(4,8,22,0.94); align-items:center; justify-content:center; padding:20px; font-family:'Courier New',monospace; color:#eaf0ff;">
@@ -595,7 +595,7 @@
       <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 18px; border-bottom:1px solid rgba(79,179,255,0.35); background:linear-gradient(90deg, rgba(79,179,255,0.15), rgba(212,175,55,0.08), rgba(79,179,255,0.15));">
         <div style="display:flex; align-items:center; gap:10px;">
           <span style="color:#4fb3ff; font-size:16px;">◈</span>
-          <span style="color:#4fb3ff; letter-spacing:.14em; font-weight:bold; font-size:13px;">ZYCELLITE</span>
+          <span style="color:#4fb3ff; letter-spacing:.14em; font-weight:bold; font-size:13px;">ZYPHONE <span style="color:#8ff; font-size:9px; letter-spacing:.10em;">by ZYCELLITE</span></span>
         </div>
         <div id="zycellDistrict" style="color:#ffd66b; letter-spacing:.18em; font-weight:bold; font-size:14px;">MALEZOR</div>
         <div style="display:flex; align-items:center; gap:14px; color:#8ff; font-size:11px; letter-spacing:.06em;">
@@ -1179,6 +1179,34 @@ canvas.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     const now = performance.now();
     if (now - (_lastInteract || 0) > 180){ advanceDialog(); _lastInteract = now; }
+    return;
+  }
+  // v0.95.395 · Settings SAVE / LOAD rows are click-targets · maps click to
+  // row rect and fires saveGame() or loadGame() with the same toast the keyboard
+  // path uses · works on mouse + touchscreen tap · save is stored in localStorage
+  // and persists locally until overwritten by the next Save State
+  if (settingsMenuOpen && settingsPage === 'save'){
+    const rect = canvas.getBoundingClientRect();
+    const cx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const cy = (e.clientY - rect.top)  * (canvas.height / rect.height);
+    const W = canvas.width;
+    for (let i = 0; i < 2; i++){
+      const rx = 24, ry = 82 + i * 40, rw = W - 48, rh = 30;
+      if (cx >= rx && cx <= rx + rw && cy >= ry && cy <= ry + rh){
+        saveMenuSel = i;
+        e.preventDefault(); e.stopPropagation();
+        if (i === 0){
+          const ok = saveGame();
+          showToast(ok ? '◈ Save state stored · this exact moment' : '◈ Save failed', 1800);
+          playSFX(ok ? 'confirm' : 'cancel');
+        } else {
+          const ok = loadGame();
+          showToast(ok ? '◈ Save state loaded · restored moment' : '◈ No save found', 1800);
+          playSFX(ok ? 'confirm' : 'cancel');
+        }
+        return;
+      }
+    }
   }
 });
 ctx.imageSmoothingEnabled = false;
@@ -1785,7 +1813,7 @@ const INVENTORY_META = {
   fae:              { label: 'Fae',                 order: 90 },   // v0.95.135 · collectibles · mirrors faeCollected
   ale:              { label: 'Ale',                  order: 32 },   // v0.95.150 · +25% Rizer HP heal item
   soulphish:        { label: 'Soulphish',             order: 91 },   // v0.95.152 · spirit fish · 1 → full astral energy
-  zphone:           { label: 'Z-Phone (ZYCELLYTE)',    order: 5  },   // v0.95.164 · Thardin phone · call faction NPCs at bond ≥ 60
+  zphone:           { label: 'ZyPhone (ZYCELLITE)',    order: 5  },   // v0.95.164 · Thardin phone · call faction NPCs at bond ≥ 60
   worldmap:         { label: 'World Map',              order: 1  },   // v0.95.183 · Zyraxis map · full-screen viewer
   townmap:          { label: 'Town Map (Malezor)',     order: 2  },   // v0.95.278 · Zoryn's gift · Malezor only · precursor to worldmap
   gearbag:          { label: 'Gearbag',                 order: 3  },   // v0.95.279 · Scrapjaw's gift · outfits + cosmetics live inside
@@ -7161,10 +7189,10 @@ const RIZER_ROOM_ITEMS={
   skateboard:{name:'Skateboard',x:3,y:1,homeX:3,homeY:1,footprint:[[0,0]]},
   guitar:{name:'Guitar',x:10,y:1,homeX:10,homeY:1,footprint:[[0,0]]},
   console:{name:'Game Console',x:8,y:3,homeX:8,homeY:3,footprint:[[0,0]]},
-  // v0.95.376 · Z-Phone resting on the LEFT side of the PC desk · tile (5, 7)
+  // v0.95.376 · ZyPhone resting on the LEFT side of the PC desk · tile (5, 7)
   // Interact grants player.items.zphone + vanishes · listed BEFORE pc so roomItemAtTile
   // returns zphone at (5,7) before matching the pc footprint that also covers it
-  zphone:{name:'Z-Phone',x:5,y:7,homeX:5,homeY:7,footprint:[[0,0]]},
+  zphone:{name:'ZyPhone',x:5,y:7,homeX:5,homeY:7,footprint:[[0,0]]},
   pc:{name:'Nebuladock PC',x:7,y:7,homeX:7,homeY:7,footprint:[[-2,0],[-1,0],[0,0],[1,0],[2,0],[0,-1]]},
   chair:{name:'Gaming Chair',x:player.chairX,y:player.chairY,homeX:7,homeY:8,footprint:[[0,0]]},
   dummy:{name:'Training Dummy',x:1,y:8,homeX:1,homeY:8,footprint:[[0,-1],[0,0]]},
@@ -8826,13 +8854,13 @@ function switchDockTab(tab){
     });
   } else if (tab === 'devices'){
     // v0.95.164 · DEVICES catalogue · click to buy/claim to bag
-    // Z-Phone by ZYCELLYTE · Thardin's telephone brand · call faction NPCs when bond is high enough
+    // ZyPhone by ZYCELLITE · Thardin's telephone brand · call faction NPCs when bond is high enough
     const hasZ = (player.items?.zphone || 0) > 0;
     body.innerHTML = `
       <div style="color:#4fb3ff; margin-bottom:8px;">◈ DEVICE STORE · Thardin Consumer Tech</div>
       <div class="devCard" data-device="zphone" style="padding:10px 12px; margin:6px 0; background:rgba(4,20,50,0.55); border:1px solid ${hasZ?'#ffd66b':'#4fb3ff'}; cursor:${hasZ?'default':'pointer'};">
-        <div style="color:#ffd66b; font-weight:bold; letter-spacing:0.06em;">📱 Z-Phone <span style="color:#8ff; font-weight:normal; font-size:11px;">(by ZYCELLYTE)</span></div>
-        <div style="color:#aaa; font-size:11px; margin-top:2px;">ZYCELLYTE's flagship handset · a Thardin subsidiary.</div>
+        <div style="color:#ffd66b; font-weight:bold; letter-spacing:0.06em;">📱 ZyPhone <span style="color:#8ff; font-weight:normal; font-size:11px;">(by ZYCELLITE)</span></div>
+        <div style="color:#aaa; font-size:11px; margin-top:2px;">ZYCELLITE's flagship handset · a Thardin surveillance-tech corp.</div>
         <div style="color:#8fffb0; font-size:11px; margin-top:4px;">
           Call any faction NPC from anywhere in the world · once bond ≥ 60.
         </div>
@@ -8846,7 +8874,7 @@ function switchDockTab(tab){
         card.addEventListener('click', () => {
           addItems({ zphone: 1 });
           playSFX('confirm');
-          showToast('◈ Z-Phone added to bag · by ZYCELLYTE (Thardin)', 2600);
+          showToast('◈ ZyPhone added to bag · by ZYCELLITE (Thardin)', 2600);
           switchDockTab('devices');   // re-render as owned
         });
       }
@@ -10013,7 +10041,7 @@ addEventListener('keydown', e => {
           playSFX('heal');
           showToast(`◈ ★ Ale · +${player.hp - before} HP`, 1600);
         } else if (fav === 'zphone' && have > 0){
-          // v0.95.375 · Z-Phone favorite → CREATE (key '1') opens the full ZyCellite panel
+          // v0.95.375 · ZyPhone favorite → CREATE (key '1') opens the full ZyCellite panel
           // Canonical control contract: touchpad=bag · options=settings · create=fav-hotkey
           // Works identically across keyboard (1) · gamepad Create button 8 · mobile Create tile
           try {
@@ -10021,7 +10049,7 @@ addEventListener('keydown', e => {
             if (typeof hudOverlayOpen !== 'undefined') hudOverlayOpen = false;
             openZphonePanel();
             playSFX('confirm');
-          } catch(_){ showToast('◈ ★ Z-Phone · panel unavailable', 1800); }
+          } catch(_){ showToast('◈ ★ ZyPhone · panel unavailable', 1800); }
         } else if (fav === 'soulphish' && have > 0){
           player.items.soulphish -= 1;
           const before = player.astral || 0;
@@ -10383,7 +10411,7 @@ addEventListener('keyup', e => {
     6:  'q',        // L2       · A3/A4 chord modifier (no menu on plain press)
     7:  'i',        // R2       · Auraxion phase-flight when soul-switched
     8:  '1',        // Create   · main menu / SELECT assignment
-    9:  '3',        // Options  · Zycellite Z-Phone (was settings)
+    9:  '3',        // Options  · Zycellite ZyPhone (was settings)
     // 10 (L3) handled separately below · SPRINT TOGGLE
     // 11 (R3) handled separately below · S1/S2 form toggle
     12: 'ArrowUp',
@@ -11352,7 +11380,7 @@ function drawInteriorFloor(){
       const dy = Math.floor((pos.y+1)*TILE-drawH)-_cam.y;
       ctx.drawImage(SKATE_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
-    // v0.95.381 · Z-Phone visibility is now handled by swapping the whole
+    // v0.95.381 · ZyPhone visibility is now handled by swapping the whole
     // Nebuladock sprite (see currentNebuladockImg) · the phoneless variant
     // paints the charging dock as empty · procedural overlay retired
     // v0.95.97 · Basketball beside bed at (11,9)
@@ -12109,7 +12137,7 @@ function tryInteract(){
           try { playSFX('confirm'); } catch(_){}
           return;
         }
-        // v0.95.376 · Z-Phone pickup · left side of the Nebuladock PC desk (col 5, row 7)
+        // v0.95.376 · ZyPhone pickup · left side of the Nebuladock PC desk (col 5, row 7)
         // v0.95.381 · Gated on player.hasBackpack (no bag = no phone) · triggers
         // the Rizer interact-grab animation (~260ms reach) same as any pickup
         const nearZphone = facedRoomItem?.id==='zphone';
@@ -12129,7 +12157,7 @@ function tryInteract(){
               player.interactUntil = _now + 260;
             }
           } catch(_){}
-          showToast('★ Got the Z-Phone (ZYCELLYTE) · in your bag · favorite it for CREATE shortcut', 3600);
+          showToast('★ Got the ZyPhone (ZYCELLITE) · in your bag · favorite it for CREATE shortcut', 3600);
           try { playSFX('confirm'); } catch(_){}
           return;
         }
@@ -12677,7 +12705,7 @@ addEventListener('keydown', e => {
             playSFX('heal');
             showToast(`◈ Ale · +${player.hp - before} HP`, 1800);
           } else if (key === 'zphone' && (player.items?.zphone || 0) > 0){
-            // v0.95.375 · Z-Phone bag interact → open the full ZYCELLITE panel
+            // v0.95.375 · ZyPhone bag interact → open the full ZYCELLITE panel
             // (Contacts/Faction call lives inside the panel now · pass-1 shell + pass-2 HOME wired)
             try {
               // Close the ZyCube panel first so the phone owns the screen cleanly
@@ -12685,7 +12713,7 @@ addEventListener('keydown', e => {
               if (typeof hudOverlayOpen !== 'undefined') hudOverlayOpen = false;
               openZphonePanel();
             } catch(_){
-              showToast('◈ Z-Phone · panel unavailable', 2000);
+              showToast('◈ ZyPhone · panel unavailable', 2000);
             }
           } else if (key === 'worldmap' && (player.items?.worldmap || 0) > 0){
             // v0.95.183 · World Map · opens full-screen viewer · closes on Circle
@@ -12725,16 +12753,16 @@ addEventListener('keydown', e => {
         playSFX('menuClose');
       }
     } else if (settingsPage === 'save'){
-      // v0.92 · save/load submenu nav
+      // v0.92 · save/load submenu nav · v0.95.395 · full input parity (x/a for Cross)
       if (k === 'arrowup'   || k === 'arrowdown'){ saveMenuSel = 1 - saveMenuSel; playSFX('cursor'); }
-      if (k === 'z' || k === 'enter'){
+      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
         if (saveMenuSel === 0){
           const ok = saveGame();
-          showToast(ok ? '◈ Game saved.' : '◈ Save failed.', 1600);
+          showToast(ok ? '◈ Save state stored · this exact moment' : '◈ Save failed', 1800);
           playSFX(ok ? 'confirm' : 'cancel');
         } else {
           const ok = loadGame();
-          showToast(ok ? '◈ Save loaded.' : '◈ No save found.', 1800);
+          showToast(ok ? '◈ Save state loaded · restored moment' : '◈ No save found', 1800);
           playSFX(ok ? 'confirm' : 'cancel');
         }
       }
@@ -15040,7 +15068,7 @@ const KEY_DEFAULTS = {
   sprint:      'shift',  // sprint hold + toggle (double-tap)
   menuMain:    '1',      // main menu
   menuPause:   '2',      // pause
-  menuPhone:   '3',      // Z-Phone (was Options/settings)
+  menuPhone:   '3',      // ZyPhone (was Options/settings)
   menuBag:     '4',      // bag/inventory
   moveUp:      'w',
   moveDown:    's',
@@ -15075,7 +15103,7 @@ const BINDING_ROWS = [
   { action: 'sprint',    label: 'Sprint · hold / double-tap toggle' },
   { action: 'menuMain',  label: 'Main Menu' },
   { action: 'menuPause', label: 'Pause' },
-  { action: 'menuPhone', label: 'Z-Phone' },
+  { action: 'menuPhone', label: 'ZyPhone' },
   { action: 'menuBag',   label: 'Bag / Inventory' },
   { action: 'moveUp',    label: 'Move Up' },
   { action: 'moveDown',  label: 'Move Down' },

@@ -775,6 +775,7 @@
         <button id="devFactionCelestryx">giveCelestryx: OFF</button>
         <button id="devFactionApexaur">giveApexaur: OFF</button>
         <button id="devFactionElzebub">giveElzebub: OFF</button>
+        <button id="devFactionZarakai">giveZarakai: OFF</button>
       </div>
       <div class="row">
         <button id="devFactionAll">giveAllFaction: OFF</button>
@@ -3976,6 +3977,71 @@ const NPCS = [
     isEnemy: false,
     onInteract: (n) => {
       showToast('◈ Apexaur bellows... "GRRUUUAAOO!"', 2200);
+    },
+  },
+  // ── ZARAKAI · v0.95.345 · Andrannor obtainable Zyrex · purple cat-warrior
+  // Sits at (272, 313) inside the Andrannor district · idle-sit sheet is the
+  // canonical resting state · walk/float cycle plays when he wanders · X to
+  // recruit into party (respects catching-philosophy · quest-only path)
+  {
+    id: 'zarakai_wild',
+    name: 'Zarakai',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/zyrex/zarakai-sit.png',
+    // Idle-sit sheet on the base · walk sheet swapped in via companionSheet
+    // pattern when he starts wandering (v0.95.174 sheet-swap)
+    bboxes: [
+      [[65, 48,221,265],[63, 49,221,264],[57, 52,220,261],[51, 55,218,258]],
+      [[68,  0,193,294],[40,  0,194,298],[47,  0,195,298],[31,  0,195,301]],
+      [[79, 14,194,266],[59, 14,195,268],[66, 19,194,267],[50, 19,194,264]],
+      [[65,  1,203,261],[54,  1,202,256],[47,  5,203,256],[32,  5,203,256]],
+    ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true, scaleMul: 0.85,
+    // Walk/float cycle sheet · used while wandering
+    walkSheet: (function(){ const im = new Image(); im.src = 'assets/2D%20sprites/zyrex/zarakai.png'; return im; })(),
+    walkBboxes: [
+      [[63, 52,211,256],[50, 74,214,235],[ 4, 73,261,229],[10, 72,242,230]],
+      [[66, 27,183,255],[27, 38,213,237],[27, 46,232,229],[15, 41,224,240]],
+      [[83, 18,177,295],[32, 24,221,289],[18, 26,235,287],[30, 23,216,290]],
+      [[63,  0,190,242],[34,  0,216,238],[20,  0,236,235],[ 1,  0,232,235]],
+    ],
+    tileX: 272, tileY: 313,
+    homeX: 272, homeY: 313,
+    homeScene: 'overworld', scene: 'overworld',
+    wanderRadius: 6,
+    dir: 'down', mode: 'wander',
+    moving: false, animFrame: 0, idleFrame: 0,
+    moveCd: 550 + Math.random() * 400,
+    blinkTimer: 2400 + Math.random() * 2000,
+    isEnemy: false,
+    turnToInteract: true,
+    onInteract: (n) => {
+      // v0.95.345 · Wild Zarakai encounter · one-time recruit into party
+      if ((player.party || []).some(z => z && z.speciesId === 'zarakai')){
+        showDialog({ speaker: 'ZARAKAI', lines: [
+          '*flicks his tail · nods once*  We move together, Rizer.',
+        ]});
+        return;
+      }
+      showDialog({ speaker: 'ZARAKAI', lines: [
+        '*a purple-furred cat-warrior lowers his crystal blade*',
+        '"You carry the mark of a true Rizer.  Astralite recognizes astralite."',
+        '"I have watched Andrannor grow soft in its lantern-light.  Take me with you."',
+        '*sheathes his sword · offers his signature*',
+      ], onDone: () => {
+        try {
+          const z = createZyrex('zarakai', 35);
+          if (z){
+            player.party = player.party || [];
+            player.party.push(z);
+            showToast('★ ZARAKAI Lv 35 T4 joined your party!', 3000);
+            try { playSFX('confirm'); } catch(_){}
+            // Retire the world NPC so he doesn't respawn on save-load
+            n.scene = '__recruited__';
+          }
+        } catch(_){}
+      }});
     },
   },
   // v0.95.288 · Legacy verdanix_follower NPC RETIRED entirely · replaced by generic
@@ -12475,6 +12541,12 @@ const SPECIES = {
     baseHP:180, baseATK:210, baseDEF:200, baseSPD:120, baseSATK:150, baseSDEF:170,
     moves:['Tackle','Roar','Ember','Scratch'],
   },
+  // v0.95.345 · Zarakai · Andrannor obtainable Zyrex · purple cat-warrior with crystal blade
+  zarakai: {
+    id:'zarakai', name:'Zarakai', tier:4, type:'Astral', type2:'Beast',
+    baseHP:230, baseATK:265, baseDEF:210, baseSPD:270, baseSATK:230, baseSDEF:200,
+    moves:['Crystal Slash','Shadow Pounce','Astral Cut','Feral Roar'],
+  },
   // Faction ally · Voltaryn · T4 / Lv40 canonical dev grant.
   voltaryn: {
     id:'voltaryn', name:'Voltaryn', tier:4, type:'Elemental', type2:'Beast',
@@ -12701,6 +12773,7 @@ const DEV_FACTION_ACTORS={
   celestryx:{label:'Celestryx',level:60,buttonId:'devFactionCelestryx'},
   apexaur:{label:'Apexaur',level:30,buttonId:'devFactionApexaur'},
   elzebub:{label:'Elzebub',level:10,buttonId:'devFactionElzebub'},
+  zarakai:{label:'Zarakai',level:35,buttonId:'devFactionZarakai'},   // v0.95.345
 };
 function setDevFactionActor(id,enabled,opts={}){
   const silent=!!opts.silent, deferRefresh=!!opts.deferRefresh;
@@ -14809,6 +14882,24 @@ const SUMMONABLE_SPRITES = {
       [[92,  0,198,223],[70,  0,191,223],[52,  0,202,218],[28,  0,187,218]],
     ],
     cellW: 313, cellH: 313, scaleMul: 0.55,   // matches Gearbyte baseline · Core Four starter trio complete
+  },
+  // v0.95.345 · Zarakai · Andrannor obtainable · purple cat-warrior · idle-sit + walk/float cycle
+  zarakai: {
+    src: 'assets/2D%20sprites/zyrex/zarakai.png',
+    bboxes: [
+      [[63, 52,211,256],[50, 74,214,235],[ 4, 73,261,229],[10, 72,242,230]],
+      [[66, 27,183,255],[27, 38,213,237],[27, 46,232,229],[15, 41,224,240]],
+      [[83, 18,177,295],[32, 24,221,289],[18, 26,235,287],[30, 23,216,290]],
+      [[63,  0,190,242],[34,  0,216,238],[20,  0,236,235],[ 1,  0,232,235]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.75,
+    idleSrc: 'assets/2D%20sprites/zyrex/zarakai-sit.png',
+    idleBboxes: [
+      [[65, 48,221,265],[63, 49,221,264],[57, 52,220,261],[51, 55,218,258]],
+      [[68,  0,193,294],[40,  0,194,298],[47,  0,195,298],[31,  0,195,301]],
+      [[79, 14,194,266],[59, 14,195,268],[66, 19,194,267],[50, 19,194,264]],
+      [[65,  1,203,261],[54,  1,202,256],[47,  5,203,256],[32,  5,203,256]],
+    ],
   },
   // v0.95.331 · Elzebub walking sprite · 4x4 D/L/R/U · chubby blue-dragon starter · from Mom's hatched egg
   // v0.95.340 · Idle-sit sheet added · swaps in when the follower isn't moving · smooth transition to walk

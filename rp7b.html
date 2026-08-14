@@ -1335,7 +1335,7 @@ const player = {
   hp: 100, maxHp: 100,          // v0.95.134 · Rizer HP · 100 · no auto-regen · sleep/potion/hospital
   astral: 100, astralMax: 100,  // v0.95.152 · Astralite Energy · powers amplified attacks (-1 light · -2 heavy)
   _hurtFlashUntil: 0,           // v0.95.129 · red flash cd
-  bonds: {},                    // v0.95.174 · npc-id → 0-100 bond level · used for companion + Z-Phone gates
+  bonds: { yara: 100 },         // v0.95.174 · npc-id → 0-100 bond level · v0.95.360 · Yara starts at 100 so Rizer can walk her to Professor Elarian
   companion: null,              // v0.95.174 · id of active follower NPC (null = none)
   cosmeticSkin: 'normal',       // v0.95.240 · dev Cosmetics actor-sheet selection
   ufoFlying: false,             // S2-only · Auraxion UFO overworld traversal
@@ -3457,6 +3457,113 @@ function _makeWorldRng(seed){
   }
 })();
 
+// ══════════════════════════════════════════════════════════════════════
+// v0.95.361 · FULL DISTRICT NATURE SCATTER · Malezor + Zarvane + Andrannor
+// Populates each district's ENTIRE irregular footprint (not just an
+// expansion arm) with per-district themed vegetation.  Layering handled
+// by the existing depth-sort (footY ascending): grass has footprint=[]
+// so it draws under everything and stays walkable · trees/bushes/stones
+// have footprint=[[0,0]] so they block their anchor tile + sort with
+// player + building depth.  Enemies scatter separately (see below).
+// Uses shared helpers `deepInDistrict` + `clearArea` + `_propBlocked`
+// to skip existing homes, town halls, gates, roads, and other reserved
+// tiles so nothing overlaps hand-placed content.
+// ══════════════════════════════════════════════════════════════════════
+(function populateDistrictNature(){
+  const districts = [
+    { id:'malezor',   seed: 0x71E3A11, trees: 260, bushes: 380, grass: 620, stones: 90,
+      treeSrc: 'assets/2D%20sprites/decor/malezor-tree.png',   treeBbox: [72,77,1107,1138],
+      bushSrc: 'assets/2D%20sprites/decor/bush.png',           bushBbox: [291,274,965,471],
+      grassSrcA:'assets/2D%20sprites/decor/grass-patch-a.png', grassBboxA:[0,0,96,128],
+      grassSrcB:'assets/2D%20sprites/decor/grass-patch-b.png', grassBboxB:[32,0,96,128] },
+    { id:'zarvane',   seed: 0x7A1F00D, trees: 240, bushes: 400, grass: 720, stones: 80,
+      treeSrc: 'assets/2D%20sprites/decor/malezor-tree.png',   treeBbox: [72,77,1107,1138],
+      bushSrc: 'assets/2D%20sprites/decor/zarvane-bush.png',   bushBbox: [0,0,313,313],
+      grassSrcA:'assets/2D%20sprites/decor/zarvane-grass-a.png',grassBboxA:[0,0,313,313],
+      grassSrcB:'assets/2D%20sprites/decor/zarvane-grass-b.png',grassBboxB:[0,0,313,313] },
+    { id:'andrannor', seed: 0xA1D3411, trees: 220, bushes: 340, grass: 560, stones: 70,
+      treeSrc: 'assets/2D%20sprites/decor/andrannor-tree.png', treeBbox: [0,0,313,313],
+      bushSrc: 'assets/2D%20sprites/decor/andrannor-bush.png', bushBbox: [0,0,313,313],
+      grassSrcA:'assets/2D%20sprites/decor/andrannor-grass.png',grassBboxA:[0,0,313,313],
+      grassSrcB:'assets/2D%20sprites/decor/andrannor-grass.png',grassBboxB:[0,0,313,313] },
+  ];
+  // Shared image caches so we don't dupe Image() per prop
+  const imgCache = {};
+  const getImg = src => (imgCache[src] || (imgCache[src] = (() => { const im = new Image(); im.src = src; return im; })()));
+  // Track this pass's placements so we can enforce spacing without walking WORLD_PROPS every time
+  const placedTree = [], placedBush = [], placedStone = [];
+  const grassTiles = new Set();
+  const deepInDistrict = (id, x, y, r) => {
+    if (worldDistrictAt(x, y) !== id) return false;
+    if (isWorldBorderTile(x, y)) return false;
+    // Corners must also stay inside district (prevents props leaking across seams)
+    if (worldDistrictAt(x+r, y) !== id || worldDistrictAt(x-r, y) !== id) return false;
+    if (worldDistrictAt(x, y+r) !== id || worldDistrictAt(x, y-r) !== id) return false;
+    if (typeof isVeridanRiverTile === 'function' && isVeridanRiverTile(x, y)) return false;
+    return true;
+  };
+  const clearArea = (x, y, r) => {
+    for (let oy = -r; oy <= r; oy++){
+      for (let ox = -r; ox <= r; ox++){
+        if (_propBlocked && _propBlocked.has(`${x+ox},${y+oy}`)) return false;
+      }
+    }
+    return true;
+  };
+  const farFrom = (list, x, y, minD) =>
+    !list.some(p => Math.hypot(p.x - x, p.y - y) < minD);
+  const scatterOne = (d, kind, count) => {
+    const rng = _makeWorldRng(d.seed + (kind === 'tree' ? 1 : kind === 'bush' ? 2 : kind === 'grass' ? 3 : 4));
+    let placed = 0;
+    for (let attempts = 0; attempts < count * 60 && placed < count; attempts++){
+      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+      if (kind === 'tree'){
+        if (!deepInDistrict(d.id, x, y, 4)) continue;
+        if (!clearArea(x, y, 3)) continue;
+        if (!farFrom(placedTree, x, y, 5)) continue;
+        WORLD_PROPS.push({
+          id: `${d.id}_nat_tree_${x}_${y}`, img: getImg(d.treeSrc), src: d.treeSrc,
+          bbox: d.treeBbox, tileX: x, tileY: y, tileW: 3, tileH: 3, footprint: [[0,0]],
+        });
+        placedTree.push({x,y}); placed++;
+      } else if (kind === 'bush'){
+        if (!deepInDistrict(d.id, x, y, 2)) continue;
+        if (!clearArea(x, y, 1)) continue;
+        if (!farFrom(placedBush, x, y, 3)) continue;
+        if (!farFrom(placedTree, x, y, 2)) continue;
+        WORLD_PROPS.push({
+          id: `${d.id}_nat_bush_${x}_${y}`, img: getImg(d.bushSrc), src: d.bushSrc,
+          bbox: d.bushBbox, tileX: x, tileY: y, tileW: 2, tileH: 1, footprint: [[0,0]],
+        });
+        placedBush.push({x,y}); placed++;
+      } else if (kind === 'grass'){
+        if (!deepInDistrict(d.id, x, y, 1)) continue;
+        const key = `${x},${y}`;
+        if (grassTiles.has(key)) continue;
+        if (_propBlocked && _propBlocked.has(key)) continue;
+        const a = ((Math.imul(x, 13) + Math.imul(y, 7) + x * y) & 1) === 0;
+        WORLD_PROPS.push({
+          id: `${d.id}_nat_grass_${x}_${y}`,
+          img: getImg(a ? d.grassSrcA : d.grassSrcB), src: a ? d.grassSrcA : d.grassSrcB,
+          bbox: a ? d.grassBboxA : d.grassBboxB, tileX: x, tileY: y,
+          tileW: 1, tileH: 1, footprint: [], wildZone: true,   // walkable + attracts enemies
+        });
+        grassTiles.add(key); placed++;
+      }
+    }
+  };
+  for (const d of districts){
+    scatterOne(d, 'grass', d.grass);
+    scatterOne(d, 'tree',  d.trees);
+    scatterOne(d, 'bush',  d.bushes);
+  }
+  // v0.95.361 · Stash placed-tree list on window so the later _boulderSpots
+  // scatter (line ~6837) can avoid overlap.  Stones themselves are added
+  // in that same block since _boulderSpots isn't declared until then.
+  window.__natureTreePlacements = placedTree;
+})();
+
 // Load prop images (pre-baked · no chroma-key needed)
 WORLD_PROPS.forEach(p => { p.img.src = p.src; });
 
@@ -3887,18 +3994,42 @@ const NPCS = [
       // v0.95.276 · Professor Elarian gifts the RAID Card (Rizer Academy ID)
       // on first interaction · Touchpad opens the RAID card viewer thereafter
       player.items = player.items || {};
+      // v0.95.360 · If Yara is currently following, she chose to come to school
+      // Return her home to Mom's side after the ceremony (part of the escort quest)
+      const yaraFollowing = (player.companion === 'yara');
       if (!player.raidCardGifted){
         player.raidCardGifted = true;
         try { awardRizerXP(500); } catch(_){}   // v0.95.317 · Prof Elarian RAID card
         player.items.raidcard = (player.items.raidcard || 0) + 1;
         showToast('★ Received: RAID Card · Rizer Academy ID', 2600);
         try { playSFX('confirm'); } catch(_){}
-        showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
+        const lines = yaraFollowing ? [
+          '*spots Yara at your side · smiles warmly*  You brought your sister · very good, Rizer.',
+          '*adjusts spectacles*  Punctual and family-minded.  The Academy notices.',
+          '*produces a shimmering silver card*  Your R.A.I.D. — Rizer Academy Identification.  Every student carries one.',
+          'Tap the touchpad (or press 2) to bring it up anytime · rank, faction, credits, class standing · all there.',
+          'The Academy holds the oldest bond-lore in Zyraxis · come by when the doors open.',
+          '*to Yara*  Off you go, little one · your mother will be waiting.',
+        ] : [
           '*adjusts spectacles*  Ah, the young Rizer.  Punctual, I hope?',
           '*produces a shimmering silver card*  Your R.A.I.D. — Rizer Academy Identification.  Every student carries one.',
           'Tap the touchpad (or press 2) to bring it up anytime · rank, faction, credits, class standing · all there.',
           'The Academy holds the oldest bond-lore in Zyraxis · come by when the doors open.',
-        ]});
+        ];
+        showDialog({ speaker: 'PROFESSOR ELARIAN', lines, onDone: () => {
+          // v0.95.360 · Send Yara back home to Mom after the escort completes
+          if (yaraFollowing){
+            const yara = findNpcById('yara');
+            if (yara){
+              try { uncompanionize(yara, /*silent*/ true); } catch(_){}
+              yara.tileX = yara._nativeX || yara.homeX || 9;
+              yara.tileY = yara._nativeY || yara.homeY || 3;
+              yara.scene = yara._nativeScene || yara.homeScene || 'interior_home';
+              yara.mode = 'stationary'; yara.moving = false;
+              showToast('★ Yara heads home to Mom · escort complete', 2400);
+            }
+          }
+        }});
       } else {
         showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
           '*adjusts spectacles*  Keep your R.A.I.D. close, young Rizer.',
@@ -4982,6 +5113,29 @@ function restoreUfoWorldCollision(prop){
     }
     return placed;
   }
+  // v0.95.361 · Wider spawn: allow enemies across FULL district (not just expansion)
+  function pickDistrictSpots(district, target, seed, minSpacing){
+    const rng = _makeWorldRng(seed);
+    const placed = [];
+    for (let attempts = 0; attempts < 12000 && placed.length < target; attempts++){
+      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+      if (worldDistrictAt(x, y) !== district) continue;
+      if (isWorldBorderTile(x, y)) continue;
+      if (typeof isVeridanRiverTile === 'function' && isVeridanRiverTile(x, y)) continue;
+      if (_propBlocked.has(`${x},${y}`)) continue;
+      let nearProp = false;
+      for (let dy = -4; dy <= 4 && !nearProp; dy++){
+        for (let dx = -4; dx <= 4; dx++){
+          if (_propBlocked.has(`${x+dx},${y+dy}`)){ nearProp = true; break; }
+        }
+      }
+      if (nearProp) continue;
+      if (placed.some(p => Math.hypot(p.x - x, p.y - y) < minSpacing)) continue;
+      placed.push({ x, y });
+    }
+    return placed;
+  }
   pickPerimeterSpots('malezor', 45, 0xFEEDBA5, 6).forEach((s, i) => NPCS.push({
     id: `mori_perim_${i + 1}`, name: 'Mori',
     sheet: new Image(),
@@ -4996,6 +5150,34 @@ function restoreUfoWorldCollision(prop){
     moveCd: 250 + Math.random() * 350,
     blinkTimer: 9e9, isEnemy: true,
     hp: 125, hpMax: 125, tier: 1, level: 2,
+    onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
+  }));
+  // v0.95.361 · MORI spread across Zarvane (Mori everywhere in first 2 districts)
+  pickDistrictSpots('zarvane', 60, 0xF00DBA5, 6).forEach((s, i) => NPCS.push({
+    id: `mori_zar_${i + 1}`, name: 'Mori',
+    sheet: new Image(), src: 'assets/2D%20sprites/enemies/mori.png',
+    bboxes: MORI_BBOXES_PERIM, cellW: 313, cellH: 313, cols: 4, rows: 4,
+    tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
+    homeScene: 'overworld', scene: 'overworld',
+    wanderRadius: 7, dir: 'down', mode: 'wander',
+    moving: false, animFrame: 0, idleFrame: 0,
+    moveCd: 250 + Math.random() * 350,
+    blinkTimer: 9e9, isEnemy: true,
+    hp: 125, hpMax: 125, tier: 1, level: 3,
+    onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
+  }));
+  // v0.95.361 · MORI ALSO in Andrannor (Andrannor has Mori + Daemon per canon)
+  pickDistrictSpots('andrannor', 40, 0xF00DAA5, 6).forEach((s, i) => NPCS.push({
+    id: `mori_andr_${i + 1}`, name: 'Mori',
+    sheet: new Image(), src: 'assets/2D%20sprites/enemies/mori.png',
+    bboxes: MORI_BBOXES_PERIM, cellW: 313, cellH: 313, cols: 4, rows: 4,
+    tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
+    homeScene: 'overworld', scene: 'overworld',
+    wanderRadius: 7, dir: 'down', mode: 'wander',
+    moving: false, animFrame: 0, idleFrame: 0,
+    moveCd: 250 + Math.random() * 350,
+    blinkTimer: 9e9, isEnemy: true,
+    hp: 125, hpMax: 125, tier: 1, level: 5,
     onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
   }));
   pickPerimeterSpots('andrannor', 35, 0xDEA110C, 7).forEach((s, i) => NPCS.push({
@@ -6821,6 +7003,37 @@ const _boulderSpots = [
     for(let oy=-2;oy<=2&&!occupied;oy++)for(let ox=-2;ox<=2;ox++)if(_propBlocked.has(`${x+ox},${y+oy}`)){occupied=true;break;}
     if(occupied||_boulderSpots.some(b=>Math.hypot(b.x-x,b.y-y)<5)||placed.some(b=>Math.hypot(b.x-x,b.y-y)<7))continue;
     const spot={x,y};placed.push(spot);_boulderSpots.push(spot);
+  }
+})();
+// v0.95.361 · Extended stone scatter for Zarvane + Andrannor · matches Malezor density
+// Uses tree placements from populateDistrictNature() to avoid stones inside groves
+(function addZarvaneAndrannorBoulders(){
+  const nature = window.__natureTreePlacements || [];
+  const passes = [
+    { district: 'zarvane',   seed: 0xB01D5AB, target: 95 },
+    { district: 'andrannor', seed: 0xB01D5A6, target: 80 },
+  ];
+  for (const cfg of passes){
+    const rng = _makeWorldRng(cfg.seed), placed = [];
+    for (let attempts = 0; attempts < 8000 && placed.length < cfg.target; attempts++){
+      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+      if (worldDistrictAt(x, y) !== cfg.district || isWorldBorderTile(x, y)) continue;
+      if (worldDistrictAt(x+3, y) !== cfg.district || worldDistrictAt(x-3, y) !== cfg.district) continue;
+      if (worldDistrictAt(x, y+3) !== cfg.district || worldDistrictAt(x, y-3) !== cfg.district) continue;
+      if (typeof isVeridanRiverTile === 'function' && isVeridanRiverTile(x, y)) continue;
+      let occupied = false;
+      for (let oy = -2; oy <= 2 && !occupied; oy++){
+        for (let ox = -2; ox <= 2; ox++){
+          if (_propBlocked.has(`${x+ox},${y+oy}`)) { occupied = true; break; }
+        }
+      }
+      if (occupied) continue;
+      if (_boulderSpots.some(b => Math.hypot(b.x-x, b.y-y) < 5)) continue;
+      if (placed.some(b => Math.hypot(b.x-x, b.y-y) < 7)) continue;
+      if (nature.some(t => Math.hypot(t.x-x, t.y-y) < 3)) continue;
+      const spot = { x, y }; placed.push(spot); _boulderSpots.push(spot);
+    }
   }
 })();
 const BOULDERS = _boulderSpots.filter(s=>!isWorldBorderTile(s.x,s.y)).map(s => ({
@@ -13142,6 +13355,9 @@ function loadGame(){
     const ids = new Set(s.collectedFae || []);
     for (const f of _fae) f.collected = ids.has(f.id);
     game.devUnlockDoors = !!s.devUnlockDoors;
+    // v0.95.360 · Force Yara bond to 100 in every save · she's the sister · walk-to-school gate
+    if (!player.bonds) player.bonds = {};
+    player.bonds.yara = 100;
     player.moving = false; player.animFrame = 0;
     refreshDevFactionButtons();
     return true;

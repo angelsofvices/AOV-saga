@@ -4632,9 +4632,11 @@ const NPCS = [
       blinkTimer: 2000 + Math.random() * 2000,   // blink loop uses frame 2 (eyes closed)
       onInteract: (n) => {
         playSFX('kelthor');
-        // v0.95.278 · Kelthor is Rizer's Beastwarden mentor — no cave quest yet.
-        // Reverted from v0.95.276 · cave gate removed per user spec "no more cave yet"
-        // World Map unlock now comes from Zoryn's Town Map (townMapGifted) as a stepping stone.
+        // v0.95.371 · Flag first-meeting for Malezor Ch 5 quest gate
+        if (!player.kelthorMet){
+          player.kelthorMet = true;
+          try { showToast('◈ Quest updated · Beastwarden\'s Ladder begins', 2600); } catch(_){}
+        }
         showDialog({ speaker: 'KELTHOR', lines: [
           "Ah, young one.  I've watched Rizers come and go for a hundred cycles.",
           "You carry your father's fire.  I can see it in your bond with the Zyrex.",
@@ -9664,6 +9666,11 @@ addEventListener('keydown', e => {
         }
         if (player.companion === facing.id) uncompanionize(facing);
         else                                 companionize(facing);
+        // v0.95.371 · Quest hooks · flag first-time follow starts for Malezor Ch 2
+        if (facing.id === 'yara' && player.companion === facing.id && !player.yaraFollowStarted){
+          player.yaraFollowStarted = true;
+          showToast('◈ Quest updated · walk Yara to Prof Elarian', 2400);
+        }
         return;
       }
     }
@@ -15043,24 +15050,102 @@ function drawZycubeItemsList(W, H){
 function buildQuestLog(){
   const expeditions = [];
   const quests      = [];
-  // EXPEDITIONS · story beats
-  if (player.zycubeGifted){
+  // ══════════════════════════════════════════════════════════════════════
+  // v0.95.371 · MALEZOR EXPEDITION CHAIN · playable questline · chronological
+  // · quests unlock in strict order · each step wired to an existing game flag
+  // Hooks: hasBackpack · zycubeGifted · raidCardGifted · starterChosen ·
+  // elzebubHatched · kelthorMet · dadStarterQuest* · faenet item · townMapGifted
+  // ══════════════════════════════════════════════════════════════════════
+  const raid = !!player.raidCardGifted;
+  const zc   = !!player.zycubeGifted;
+  const bp   = !!player.hasBackpack;
+  const st   = !!player.starterChosen;
+  const eg   = !!player.elzebubHatched;
+  const kh   = !!player.kelthorMet;
+
+  // Quest 1 · The First Morning · starts at game boot · always shown
+  expeditions.push({
+    title: 'Malezor · Ch 1 · The First Morning',
+    giver: 'Mom · Kitchen · Malezor home',
+    status: zc ? 'complete' : (bp ? 'active' : 'active·return'),
+    steps: [
+      { done: bp,   label: 'Grab your Backpack from your room' },
+      { done: bp,   label: 'Head downstairs' },
+      { done: zc,   label: 'Talk to Mom in the kitchen' },
+      { done: zc,   label: 'Receive the ZyCube from Mom' },
+    ],
+    reward: 'ZyCube · unlocks touchpad',
+  });
+
+  // Quest 2 · Walk Yara to School · unlocks after Zycube
+  if (zc){
     expeditions.push({
-      title: 'The Bonder\'s Starter Kit',
-      giver: 'Dad · Research Facility 2F',
-      status: player.dadStarterQuestComplete ? 'complete' :
-              player.dadStarterQuestGiven    ? 'active'   : 'available',
+      title: 'Malezor · Ch 2 · Walk Yara to School',
+      giver: 'Yara · upstairs · Malezor home',
+      status: raid ? 'complete' : 'active',
       steps: [
-        { done: (player.items?.faenet||0) >= 1,  label: 'Fae Net from Kaizari' },
-        { done: (player.items?.zycube||0) >= 1,  label: 'Zycube from Mom' },
-        { done: (player.items?.berry||0)  >= 10 || player.dadStarterQuestComplete, label: '10 Berries (bush)' },
-        { done: (player.items?.fruit||0)  >= 10 || player.dadStarterQuestComplete, label: '10 Fruits (tree)' },
-        { done: (player.items?.seed||0)   >= 10 || player.dadStarterQuestComplete, label: '10 Seeds (harvest)' },
-        { done: !!player.starterChosen, label: 'Choose starter Zyrex' },
+        { done: raid || !!player.yaraFollowStarted, label: 'Talk to Yara · Square to have her follow' },
+        { done: raid, label: 'Escort Yara out of the house' },
+        { done: raid, label: 'Bring Yara to Professor Elarian at the Academy' },
+        { done: raid, label: 'Receive the R.A.I.D. Card' },
       ],
+      reward: 'R.A.I.D. Card · unlocks Faction touchpad',
     });
   }
-  // v0.95.278 · Zoryn's Town Map · replaces the retired Kelthor cave quest
+
+  // Quest 3 · Your First Bond · unlocks after RAID
+  if (raid){
+    const dad = !!player.dadStarterQuestGiven;
+    expeditions.push({
+      title: 'Malezor · Ch 3 · Your First Bond',
+      giver: 'Dad · Research Facility 2F',
+      status: st ? 'complete' : (dad ? 'active' : 'available'),
+      steps: [
+        { done: dad || st, label: 'Meet Dad at the Research Facility' },
+        { done: (player.items?.berry||0) >= 10 || st, label: `10 Berries (${Math.min(10, player.items?.berry||0)}/10)` },
+        { done: (player.items?.fruit||0) >= 10 || st, label: `10 Fruits (${Math.min(10, player.items?.fruit||0)}/10)` },
+        { done: (player.items?.seed||0)  >= 10 || st, label: `10 Seeds (${Math.min(10, player.items?.seed||0)}/10)` },
+        { done: st, label: 'Choose your starter · Volcanut / Verdanix / Otterlin' },
+      ],
+      reward: 'Starter Zyrex Lv 5',
+    });
+  }
+
+  // Quest 4 · An Egg by the Path · unlocks after starter chosen
+  if (st){
+    const hasEgg = (player.items?.elzebub_egg||0) >= 1;
+    expeditions.push({
+      title: 'Malezor · Ch 4 · An Egg by the Path',
+      giver: 'World event · outside Malezor home',
+      status: eg ? 'complete' : (hasEgg ? 'active·return' : 'active'),
+      steps: [
+        { done: hasEgg || eg, label: 'Find the Elzebub egg outside your home' },
+        { done: eg, label: 'Bring the egg to Mom · she will nurse it' },
+        { done: eg, label: 'Elzebub hatches into your party at Lv 10' },
+      ],
+      reward: 'Elzebub Lv 10 · Draconic/Elemental',
+    });
+  }
+
+  // Quest 5 · The Beastwarden's Ladder · unlocks after Elzebub hatches
+  if (eg){
+    expeditions.push({
+      title: 'Malezor · Ch 5 · The Beastwarden\'s Ladder',
+      giver: 'Warden Kelthor · Beastwarden\'s Hall',
+      status: kh ? 'active' : 'available',
+      steps: [
+        { done: kh, label: 'Meet Warden Kelthor at the Beastwarden\'s Hall' },
+        { done: (player.bonds?.kelthor||0) >= 20, label: `Bond Step 1 · Feed his Zyrex (${player.bonds?.kelthor||0}/20)` },
+        { done: (player.bonds?.kelthor||0) >= 40, label: `Bond Step 2 · Groom his Zyrex (${player.bonds?.kelthor||0}/40)` },
+        { done: (player.bonds?.kelthor||0) >= 60, label: `Bond Step 3 · Spar with Kelthor (${player.bonds?.kelthor||0}/60)` },
+        { done: (player.bonds?.kelthor||0) >= 80, label: `Bond Step 4 · Guard duty (${player.bonds?.kelthor||0}/80)` },
+        { done: (player.bonds?.kelthor||0) >= 100, label: `Bond Step 5 · Mentor's trust (${player.bonds?.kelthor||0}/100)` },
+      ],
+      reward: 'Kelthor Companion + Prismshard unlocked',
+    });
+  }
+
+  // Legacy · Zoryn's Town Map (side path · shown throughout)
   expeditions.push({
     title: 'Where\'s Your Map?',
     giver: 'Zoryn · Malezor overworld',

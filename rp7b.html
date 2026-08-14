@@ -9138,30 +9138,59 @@ addEventListener('keydown', e => {
     if(k==='j'&&game.scene==='overworld'&&!dialogState&&!battleState&&tryUfoFactionRally()){
       return;
     }
-    // v0.95.174 · Square (j) on faced friendly NPC opens Info · blocks punch
+    // v0.95.339 · CANONICAL COMPANION INPUT CONTRACT · X talk · Square follow · Triangle soul swap
+    // Bond gates: talk (any) · follow (≥50) · soul swap (≥100 + not enemy + not noSoulSwap flag)
+    // (X handled by existing tryInteract → onInteract → dialog path, no override needed here)
+    // Square (j) = FOLLOW toggle
     if (k === 'j'){
       const facing = facedNpc();
-      // v0.95.338 · Square inspection · Yara-when-following → SEND HOME (stand with Mom)
-      if (facing && facing.id === 'yara' && player.companion === 'yara'){
-        try { uncompanionize(facing, /*silent*/ true); } catch(_){}
-        facing.scene = 'interior_home';
-        facing.tileX = facing.homeX = 9; facing.tileY = facing.homeY = 3;
-        facing.dir = 'down';
-        showToast('★ Yara headed home to stand with Mom', 2200);
-        try { playSFX('confirm'); } catch(_){}
-        return;
-      }
       if (facing && isFriendlyNpc(facing)){
-        openNpcInfo(facing); return;
-      }
-    }
-    // v0.95.174 · Triangle (k) on faced friendly NPC · direct companion toggle
-    if (k === 'k'){
-      const facing = facedNpc();
-      if (facing && isFriendlyNpc(facing)){
+        const bond = (player.bonds && player.bonds[facing.id]) || 0;
+        // v0.95.339 · Square while ALREADY following the sister-type sends them home
+        if (player.companion === facing.id && facing.noSoulSwap){
+          try { uncompanionize(facing, true); } catch(_){}
+          if (facing.homeScene){ facing.scene = facing.homeScene; }
+          if (facing.homeX != null){ facing.tileX = facing.homeX; facing.tileY = facing.homeY; }
+          facing.dir = 'down';
+          showToast(`★ ${facing.name} headed home`, 2000);
+          try { playSFX('confirm'); } catch(_){}
+          return;
+        }
+        // Bond gate · half required to follow
+        if (bond < 50 && !game.devMaxBond){
+          try { playSFX('cancel'); } catch(_){}
+          showToast(`◈ ${facing.name} · Bond ${bond}/50 to follow · talk first, deepen bond`, 3000);
+          return;
+        }
         if (player.companion === facing.id) uncompanionize(facing);
         else                                 companionize(facing);
         return;
+      }
+    }
+    // Triangle (k) = SOUL SWAP · full bond + not-enemy + not noSoulSwap
+    if (k === 'k'){
+      const facing = facedNpc();
+      if (facing){
+        if (facing.isEnemy){
+          try { playSFX('cancel'); } catch(_){}
+          showToast('◈ Cannot soul-swap with an enemy', 1800);
+          return;
+        }
+        if (isFriendlyNpc(facing)){
+          if (facing.noSoulSwap){
+            try { playSFX('doorLock'); } catch(_){}
+            showToast(`◈ ${facing.name} · humanoid ally · no soul-swap`, 2200);
+            return;
+          }
+          const bond = (player.bonds && player.bonds[facing.id]) || 0;
+          if (bond < 100 && !game.devMaxBond){
+            try { playSFX('cancel'); } catch(_){}
+            showToast(`◈ ${facing.name} · Bond ${bond}/100 to soul-swap`, 2600);
+            return;
+          }
+          startFactionSoulSwitch(facing);
+          return;
+        }
       }
     }
     // v0.95.213 · A3 ASTRALSTRIKE chord · L2 held while Square is pressed

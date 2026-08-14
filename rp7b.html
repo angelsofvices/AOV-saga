@@ -1413,6 +1413,77 @@ function endFactionSoulSwitch(){
   snapCameraToPlayer();
   return true;
 }
+// v0.95.353 · TOUCHPAD HOLD-5s emergency escape · unified reset:
+//   1) Force soul-swap back to Rizer (if currently in another actor)
+//   2) Reset companion mode (release any follower)
+//   3) Send every summoned Zyrex + faction-mission NPC back to their home coords
+//      · retires all _summon_* followers · resets any NPC with a native/home anchor
+// Rationale: playtest safety net · one gesture unstuck from any bad state.
+function emergencyReturnToRizer(){
+  let didSoulSwap = false;
+  let releasedCompanion = false;
+  let sentHome = 0;
+  // 1) Soul return
+  if (player.activeActor && player.activeActor !== 'rizer'){
+    try { didSoulSwap = !!endFactionSoulSwitch(); } catch(_){}
+  }
+  // 2) Companion release
+  if (player.companion){
+    const comp = findNpcById(player.companion);
+    if (comp){ try { uncompanionize(comp, /*silent*/ true); releasedCompanion = true; } catch(_){} }
+    else { player.companion = null; releasedCompanion = true; }
+  }
+  // 3) Send summoned + factionMission NPCs home
+  if (Array.isArray(NPCS)){
+    NPCS.forEach(n => {
+      if (!n) return;
+      // Retire generic _summon_* followers (Faction touchpad Triangle + Call Faction dev button)
+      if (n.id && n.id.startsWith('_summon_') && n._summoned){
+        n._summoned = false;
+        n.scene = '__despawn__';
+        n.moving = false;
+        sentHome++;
+        return;
+      }
+      // Faction mission members · restore native anchor if it was captured
+      if (n.mode === 'factionMission' || n.mode === 'follow' || n.mode === 'actor'){
+        n.mode = 'stationary';
+        n.moving = false;
+        if (n._nativeX != null){
+          n.tileX = n._nativeX; n.tileY = n._nativeY;
+          n.homeX = n._nativeX; n.homeY = n._nativeY;
+          n.scene = n._nativeScene || n.homeScene || 'overworld';
+          n._nativeX = n._nativeY = n._nativeScene = null;
+        } else if (n.homeX != null){
+          n.tileX = n.homeX; n.tileY = n.homeY;
+          n.scene = n.homeScene || 'overworld';
+        }
+        sentHome++;
+        return;
+      }
+      // Any wandering NPC whose home was overridden · snap back to home
+      if (n.homeX != null && (n.tileX !== n.homeX || n.tileY !== n.homeY)){
+        // Only snap wander-mode NPCs · leave stationary ones alone
+        if (n.mode === 'wander'){
+          n.tileX = n.homeX; n.tileY = n.homeY;
+          n.scene = n.homeScene || n.scene || 'overworld';
+          n.moving = false;
+          // Don't count these · they're constant background · avoid a noisy toast
+        }
+      }
+    });
+  }
+  // Clear the top-level Call-Faction flag too so the dev-summon-all state resets
+  try { if (typeof _callFactionActive !== 'undefined') _callFactionActive = false; } catch(_){}
+  try { playSFX('confirm'); } catch(_){}
+  const parts = [];
+  if (didSoulSwap) parts.push('SOUL RETURN → Rizer');
+  if (releasedCompanion) parts.push('companion released');
+  if (sentHome > 0) parts.push(`${sentHome} Zyrex sent home`);
+  const msg = parts.length ? parts.join(' · ') : 'already Rizer · nothing to reset';
+  showToast(`◈ TOUCHPAD HOLD 5s · ${msg}`, 3000);
+}
+
 function companionize(n){
   if (!n) return;
   // Named faction allies require an explicit faction grant. A grant unlocks
@@ -9580,6 +9651,12 @@ addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
   keys[k] = false;
   releaseWildBattleKey(k);
+  // v0.95.353 · Cancel touchpad-hold if released before 5s
+  if (k === '2' && game._touchpadHoldTimer){
+    clearTimeout(game._touchpadHoldTimer);
+    game._touchpadHoldTimer = null;
+    game._touchpadHoldStart = 0;
+  }
   // v0.95.321 · Punching bag hold-to-drag resolution on Square keyup
   if (k === 'j' && game._bagHoldStart){
     const held = performance.now() - game._bagHoldStart;
@@ -11529,6 +11606,17 @@ addEventListener('keydown', e => {
   }
   if (k === '2'){
     const now = performance.now();
+    // v0.95.353 · TOUCHPAD HOLD-5s · emergency force soul-swap back to Rizer +
+    // reset every companion state + send every summoned Zyrex back to their
+    // home coords. Only starts the timer once per press (until keyup clears it)
+    if (!e.repeat && !game._touchpadHoldTimer){
+      game._touchpadHoldStart = now;
+      game._touchpadHoldTimer = setTimeout(() => {
+        try { emergencyReturnToRizer(); } catch(err){ console.warn('emergencyReturnToRizer', err); }
+        game._touchpadHoldTimer = null;
+        game._touchpadHoldStart = 0;
+      }, 5000);
+    }
     if (now - _lastTouchpadTime < 500 && isDevUnlocked()){
       // v0.92 · double-tap touchpad · toggle dev panel (creator-only in v0.95.252)
       const p = document.getElementById('devPanel');
@@ -12988,9 +13076,21 @@ function callFactionSummonAll(on){
   _callFactionActive = !!on;
   const party = (player.party || []).filter(Boolean);
   if (on){
-    // Ring the player · spread positions around
-    const RING = [[0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
-    party.slice(0, 8).forEach((z, i) => {
+    // v0.95.353 · No 8-cap · ring EVERY party member so Zarakai/Celestryx/Anciuxor
+    // (and any beyond PARTY_MAX) all appear · dynamic 3-ring layout (8+16+24 slots)
+    // covers up to 48 Zyrex around Rizer
+    const RING = [
+      // Ring 1 · 8 slots at radius 1
+      [0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1],
+      // Ring 2 · 16 slots at radius 2
+      [0,2],[2,0],[-2,0],[0,-2],[2,2],[-2,2],[2,-2],[-2,-2],
+      [1,2],[-1,2],[2,1],[-2,1],[1,-2],[-1,-2],[2,-1],[-2,-1],
+      // Ring 3 · 24 slots at radius 3
+      [0,3],[3,0],[-3,0],[0,-3],[3,3],[-3,3],[3,-3],[-3,-3],
+      [1,3],[-1,3],[3,1],[-3,1],[1,-3],[-1,-3],[3,-1],[-3,-1],
+      [2,3],[-2,3],[3,2],[-3,2],[2,-3],[-2,-3],[3,-2],[-3,-2],
+    ];
+    party.forEach((z, i) => {
       const spriteDef = SUMMONABLE_SPRITES[z.speciesId];
       if (!spriteDef) return;
       const followerId = `_summon_${z.speciesId}`;
@@ -17060,8 +17160,10 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
     });
   }
   // v0.95.352 · Summon-all-obtainable-Zyrex · sprite playtest button
-  // Pushes every SUMMONABLE_SPRITES species into player.party at Lv 35
-  // Bonded or not · skips duplicates already in the party · unlocks Faction/Zyrex menu
+  // v0.95.353 · FIX · iterate DEV_FACTION_ACTORS (canonical obtainable roster)
+  // instead of SUMMONABLE_SPRITES · previous iteration missed auraxion/gearbyte
+  // /voltaryn/omniris (species with no sprite yet · still valid obtainables)
+  // Uses each entry's per-species level (Anciuxor 100 · Celestryx 60 · etc)
   const summonAllBtn = document.getElementById('devSummonAllZyrex');
   if (summonAllBtn){
     summonAllBtn.addEventListener('click', () => {
@@ -17069,23 +17171,22 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
         player.party = player.party || [];
         const owned = new Set(player.party.filter(Boolean).map(z => z.speciesId));
         let added = 0;
-        const speciesIds = Object.keys(SUMMONABLE_SPRITES);
-        for (const sid of speciesIds){
+        for (const [sid, cfg] of Object.entries(DEV_FACTION_ACTORS)){
           if (owned.has(sid)) continue;
           if (!SPECIES[sid]) continue;
-          const lv = (sid === 'anciuxor') ? 100 : 35;
           try {
-            const z = createZyrex(sid, lv);
+            const z = createZyrex(sid, cfg.level);
             if (z){ player.party.push(z); owned.add(sid); added++; }
           } catch(_){}
         }
         // Ensure Zyrex menu is unlocked so the touchpad Faction page renders
         player.zyrexMenuUnlocked = true;
+        try { refreshDevFactionButtons(); } catch(_){}
         if (added > 0){
           try { playSFX('confirm'); } catch(_){}
-          showToast(`★ DEV · ${added} obtainable Zyrex summoned · touchpad → Faction to view + scroll`, 3200);
+          showToast(`★ DEV · ${added} obtainable Zyrex added (Zarakai, Celestryx, Anciuxor + all) · touchpad → Faction to scroll`, 3400);
         } else {
-          showToast('◈ DEV · Party already has every summonable Zyrex', 2400);
+          showToast('◈ DEV · Party already has every obtainable Zyrex', 2400);
         }
         try { saveGame(); } catch(_){}
       } catch(err){

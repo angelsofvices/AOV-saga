@@ -1713,7 +1713,12 @@ function uncompanionize(n, silent){
 // Friendly NPC = not Mori, not Daemon, not player-hostile
 function isFriendlyNpc(n){
   if (!n) return false;
+  // v0.95.404 · Skellors are combat NPCs · never companion/soulswap/talk
+  // even after being slain (isEnemy=false is set for AI · but they still
+  // aren't a friendly bond target)
+  if (n.mode === 'skellor' || n._skellorDead) return false;
   const nm = (n.name || '').toLowerCase();
+  if (nm.startsWith('skellor')) return false;
   return !n.isEnemy && nm !== 'mori' && nm !== 'daemon';
 }
 function facedNpc(){
@@ -5618,9 +5623,33 @@ function lootSkellor(n){
   showToast(`★ Looted Skellor bag · +${coins} coins${gemMsg}`, 2800);
 }
 
-// Overlay renderer · paints the current hurt-sheet frame OVER the Skellor
-// when they're mid-reaction OR permanently slain · called every frame from
-// the main draw loop after regular NPC render so the frame sits on top
+// v0.95.404 · Off-frame Skellor respawn · while ANY native Skellor is still alive
+// (not slain) a new one spawns off-camera every 10 seconds · easy farm loop since
+// Skellors never attack · stops entirely once every native is put down
+// (game._skellorRespawnAt initializes lazily inside the tick · game const isn't declared yet at this scope)
+function tickSkellorRespawn(){
+  if (game.scene !== 'overworld') return;
+  const now = performance.now();
+  if (!game._skellorRespawnAt) game._skellorRespawnAt = now + 10 * 1000;
+  if (now < game._skellorRespawnAt) return;
+  game._skellorRespawnAt = now + 10 * 1000;
+  const natives = window._skellorNatives || new Set();
+  const anyAlive = NPCS.some(n => n && n._native && n.mode === 'skellor' && !n._skellorDead);
+  if (!anyAlive) return;
+  // Pick a spawn tile 14-20 tiles off-camera around Rizer · in same district
+  const dist = 14 + Math.floor(Math.random() * 7);
+  const angle = Math.random() * Math.PI * 2;
+  const sx = Math.round(player.x + Math.cos(angle) * dist);
+  const sy = Math.round(player.y + Math.sin(angle) * dist);
+  if (!isWorldLandTile(sx, sy) || isWorldBorderTile(sx, sy)) return;
+  if (_propBlocked.has(`${sx},${sy}`)) return;
+  const id = `resp_${(game._skellorRespCount = (game._skellorRespCount || 0) + 1)}`;
+  const n = _makeSkellor(sx, sy, id);
+  n._native = true;
+  NPCS.push(n);
+  natives.add(n.id);
+}
+// Overlay renderer retired · drawSkellorHurtFrame handles per-Skellor render now
 function drawSkellorOverlay(){
   if (!SKELLOR_HURT_IMG.complete || !SKELLOR_HURT_IMG.naturalWidth) return;
   const now = performance.now();
@@ -5711,11 +5740,18 @@ function drawSkellorOverlay(){
     hp: 250, hpMax: 250, tier: 3, level: 15,
     onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
   }));
-  // v0.95.402 · SKELLOR scatter · perimeter-style like Mori/Daemon · HALF density since they drop loot
-  // Malezor: 22 (was 45 Mori) · Andrannor: 17 (was 35) · Zarvane also gets a set for variety
-  pickPerimeterSpots('malezor',   22, 0xB0EFACE, 7).forEach((s, i) => NPCS.push(_makeSkellor(s.x, s.y, `mal_${i+1}`)));
-  pickPerimeterSpots('zarvane',   16, 0xB0EFACF, 7).forEach((s, i) => NPCS.push(_makeSkellor(s.x, s.y, `zar_${i+1}`)));
-  pickPerimeterSpots('andrannor', 17, 0xB0EFAD0, 7).forEach((s, i) => NPCS.push(_makeSkellor(s.x, s.y, `and_${i+1}`)));
+  // v0.95.404 · SKELLOR scatter · 1:1 with Mori density · matches perimeter pattern
+  // Native Skellors kept as a Set so the respawn-if-alive loop below can track them
+  window._skellorNatives = window._skellorNatives || new Set();
+  const _pushSkellor = (s, id) => {
+    const npc = _makeSkellor(s.x, s.y, id);
+    npc._native = true;
+    NPCS.push(npc);
+    window._skellorNatives.add(npc.id);
+  };
+  pickPerimeterSpots('malezor',   45, 0xB0EFACE, 7).forEach((s, i) => _pushSkellor(s, `mal_${i+1}`));
+  pickPerimeterSpots('zarvane',   35, 0xB0EFACF, 7).forEach((s, i) => _pushSkellor(s, `zar_${i+1}`));
+  pickPerimeterSpots('andrannor', 35, 0xB0EFAD0, 7).forEach((s, i) => _pushSkellor(s, `and_${i+1}`));
   // Rebuild sprite src assignments (Image objects need explicit .src set)
   NPCS.forEach(n => { if (n.sheet && n.src && !n.sheet.src) n.sheet.src = n.src; });
 })();
@@ -17687,13 +17723,39 @@ function drawWorldLayer(){
     renderables.push({ kind:'boulder', boulder:b, footY: b.tileY });
   });
   renderables.sort((a,b) => a.footY - b.footY);
+  const _now = performance.now();
   for (const r of renderables){
     if (r.kind === 'prop')      drawProp(r.prop);
-    else if (r.kind === 'npc')  drawNPC(r.npc);
+    else if (r.kind === 'npc'){
+      // v0.95.404 · Skellor sprite pipeline · overlay REPLACES base render
+      // during hurt flash + when slain · avoids the double-sprite issue
+      const n = r.npc;
+      if (n && n.mode === 'skellor' && (n._skellorDead || (n._hurtFlashUntil || 0) > _now)){
+        drawSkellorHurtFrame(n);
+      } else {
+        drawNPC(n);
+      }
+    }
     else if (r.kind === 'boulder') drawBoulder(r.boulder);
     else if (r.kind === 'rizerShell') drawRizerSoulShell();
     else                        drawPlayer();
   }
+}
+// v0.95.404 · Extracted per-skellor renderer · pulls current hurt frame from
+// SKELLOR_HURT_FRAMES · used in place of drawNPC when hurt/dead so the walk
+// sprite doesn't stack behind the hurt animation
+function drawSkellorHurtFrame(n){
+  if (!SKELLOR_HURT_IMG.complete || !SKELLOR_HURT_IMG.naturalWidth){ drawNPC(n); return; }
+  const idx = Math.max(0, Math.min(SKELLOR_MAX_HITS - 1, n._skellorFrame == null ? 0 : n._skellorFrame));
+  const f = SKELLOR_HURT_FRAMES[idx];
+  const sx = f.c * SKELLOR_HURT_CELL_W;
+  const sy = f.r * SKELLOR_HURT_CELL_H;
+  const sw = SKELLOR_HURT_CELL_W, sh = SKELLOR_HURT_CELL_H;
+  const drawH = Math.round(TILE * 2);
+  const drawW = Math.round(drawH * (sw / sh));
+  const dx = Math.floor((n.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+  const dy = Math.floor((n.tileY + 1)   * TILE - drawH)     - _cam.y;
+  ctx.drawImage(SKELLOR_HURT_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
 }
 
 function drawAuraxionUfoFlight(){
@@ -18436,7 +18498,8 @@ function frame(now){
   drawZyrexAttackAnims();// v0.95.320 · per-species attack sprite sheets
   try { tickBagDrag(); } catch(_){}  // v0.95.321 · bag follows Rizer while dragging
   try { tickFae(); } catch(_){}      // v0.95.397 · fae respawn cycle (5-min off-camera)
-  try { drawSkellorOverlay(); } catch(_){}  // v0.95.402 · hurt-frame overlay + slain body render
+  // v0.95.404 · Skellor hurt-frame render moved into drawWorldLayer's NPC loop
+  try { tickSkellorRespawn(); } catch(_){}   // 10s farm-loop respawn while natives alive
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

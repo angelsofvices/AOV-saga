@@ -1151,6 +1151,7 @@ const AUDIO = {
     dodge:        new Audio('audio/sfx-dodge.mp3'),          // v0.95.87 · swish on each dodge (skipped on barrel-roll trigger)
     dad:          new Audio('audio/sfx-dad.mp3'),            // v0.95.90 · Dad greeting VO on interact
     mom:          new Audio('audio/sfx-mom.mp3'),            // v0.95.91 · Mom greeting VO on interact
+    yara:         new Audio('audio/sfx-yara.mp3'),           // v0.95.377 · Yara VO on interact
     elarian:      new Audio('audio/sfx-elarian.mp3'),        // v0.95.126 · "You're a wizard" VO on Prof Elarian interact
     nurseRein:    new Audio('audio/sfx-nurse-rein.mp3'),     // v0.95.128 · sakura chime VO on Nurse Rein interact
     heal:         new Audio('audio/sfx-heal.mp3'),           // v0.95.150 · magical shim for RHP/ZHP heal items (ales/potions/elixirs)
@@ -4089,6 +4090,8 @@ const NPCS = [
     turnToInteract: true,
     noSoulSwap: true,                        // v0.95.338 · sister · not a faction Zyrex, no soul swap allowed
     onInteract: (n) => {
+      // v0.95.377 · Yara VO on interact
+      try { playSFX('yara'); } catch(_){}
       // v0.95.338 · X press = talk (existing behavior · dialog)
       showDialog({ speaker: 'YARA', lines: [
         "*grins* Lucky you got your own room upstairs.  I'm still sharing wall with Mom's snoring.",
@@ -11101,39 +11104,27 @@ function drawInteriorFloor(){
       const dy = Math.floor((pos.y+1)*TILE-drawH)-_cam.y;
       ctx.drawImage(SKATE_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
-    // v0.95.376 · Z-Phone on the LEFT side of the PC desk (5, 7) · hides after pickup
-    if (!(player.items?.zphone > 0)){
+    // v0.95.377 · Z-Phone lives on the LEFT charging dock baked into the
+    // Nebuladock PC sprite (tile 5,7 · leftmost item next to the left speaker).
+    // After pickup we overlay an "empty dock" state · matches desk wood color
+    // + subtle dock base so the phone visually vanishes without a re-baked asset.
+    if (player.items?.zphone > 0){
       const pos = RIZER_ROOM_ITEMS.zphone;
       const dx = Math.floor((pos.x + 0.5) * TILE) - _cam.x;
-      const dy = Math.floor((pos.y + 0.75) * TILE) - _cam.y;
-      const now = performance.now();
-      const pulse = 0.65 + 0.35 * Math.sin(now / 320);
-      // Body · slim rounded slab
+      const dy = Math.floor((pos.y + 0.55) * TILE) - _cam.y;
       ctx.save();
-      ctx.fillStyle = 'rgba(10,18,42,0.9)';
-      ctx.fillRect(dx - 8, dy - 14, 16, 22);
-      ctx.strokeStyle = `rgba(79,179,255,${pulse.toFixed(2)})`;
+      // Wood-color patch covers the phone body area (leaves the desk untouched around it)
+      ctx.fillStyle = 'rgba(60,32,20,0.98)';
+      ctx.fillRect(dx - 10, dy - 22, 20, 24);
+      // Charging dock base (slim navy-gold pedestal left behind)
+      ctx.fillStyle = 'rgba(28,44,90,0.95)';
+      ctx.fillRect(dx - 9, dy - 4, 18, 6);
+      ctx.strokeStyle = 'rgba(212,175,55,0.75)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(dx - 8, dy - 14, 16, 22);
-      // Screen · cyan gradient
-      const g = ctx.createLinearGradient(0, dy - 12, 0, dy + 4);
-      g.addColorStop(0, '#4fb3ff');
-      g.addColorStop(1, '#0a1a3a');
-      ctx.fillStyle = g;
-      ctx.fillRect(dx - 6, dy - 12, 12, 15);
-      // Diamond glyph
-      ctx.fillStyle = `rgba(255,255,255,${pulse.toFixed(2)})`;
-      ctx.font = 'bold 10px "Courier New",monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('◈', dx, dy - 4);
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-      // Glow halo
-      ctx.fillStyle = `rgba(79,179,255,${(0.15 * pulse).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(dx, dy - 3, 14, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.strokeRect(dx - 9, dy - 4, 18, 6);
+      // Empty-slot indicator · a dim sapphire slot where the phone plugged in
+      ctx.fillStyle = 'rgba(79,179,255,0.35)';
+      ctx.fillRect(dx - 1, dy - 3, 2, 3);
       ctx.restore();
     }
     // v0.95.97 · Basketball beside bed at (11,9)

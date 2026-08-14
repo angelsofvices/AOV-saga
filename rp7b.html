@@ -7023,6 +7023,10 @@ const RIZER_ROOM_ITEMS={
   skateboard:{name:'Skateboard',x:3,y:1,homeX:3,homeY:1,footprint:[[0,0]]},
   guitar:{name:'Guitar',x:10,y:1,homeX:10,homeY:1,footprint:[[0,0]]},
   console:{name:'Game Console',x:8,y:3,homeX:8,homeY:3,footprint:[[0,0]]},
+  // v0.95.376 · Z-Phone resting on the LEFT side of the PC desk · tile (5, 7)
+  // Interact grants player.items.zphone + vanishes · listed BEFORE pc so roomItemAtTile
+  // returns zphone at (5,7) before matching the pc footprint that also covers it
+  zphone:{name:'Z-Phone',x:5,y:7,homeX:5,homeY:7,footprint:[[0,0]]},
   pc:{name:'Nebuladock PC',x:7,y:7,homeX:7,homeY:7,footprint:[[-2,0],[-1,0],[0,0],[1,0],[2,0],[0,-1]]},
   chair:{name:'Gaming Chair',x:player.chairX,y:player.chairY,homeX:7,homeY:8,footprint:[[0,0]]},
   dummy:{name:'Training Dummy',x:1,y:8,homeX:1,homeY:8,footprint:[[0,-1],[0,0]]},
@@ -7041,6 +7045,7 @@ const _roomOriginalBlocked=new Set([
 function roomItemAtTile(x,y){
   for(const [id,it] of Object.entries(RIZER_ROOM_ITEMS)){
     if(id==='skateboard'&&player.items?.skateboard)continue;
+    if(id==='zphone'&&player.items?.zphone)continue;   // v0.95.376 · phone gone after pickup
     if(id==='chair'&&player.ridingChair)continue;
     if(it.footprint.some(([dx,dy])=>it.x+dx===x&&it.y+dy===y))return {id,it};
   }
@@ -7048,7 +7053,7 @@ function roomItemAtTile(x,y){
 }
 function roomTileBlockedByItem(x,y,ignoreId=null){
   for(const [id,it] of Object.entries(RIZER_ROOM_ITEMS)){
-    if(id===ignoreId||(id==='skateboard'&&player.items?.skateboard)||(id==='chair'&&player.ridingChair))continue;
+    if(id===ignoreId||(id==='skateboard'&&player.items?.skateboard)||(id==='zphone'&&player.items?.zphone)||(id==='chair'&&player.ridingChair))continue;
     if(it.footprint.some(([dx,dy])=>it.x+dx===x&&it.y+dy===y))return true;
   }
   return false;
@@ -11096,6 +11101,41 @@ function drawInteriorFloor(){
       const dy = Math.floor((pos.y+1)*TILE-drawH)-_cam.y;
       ctx.drawImage(SKATE_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
     }
+    // v0.95.376 · Z-Phone on the LEFT side of the PC desk (5, 7) · hides after pickup
+    if (!(player.items?.zphone > 0)){
+      const pos = RIZER_ROOM_ITEMS.zphone;
+      const dx = Math.floor((pos.x + 0.5) * TILE) - _cam.x;
+      const dy = Math.floor((pos.y + 0.75) * TILE) - _cam.y;
+      const now = performance.now();
+      const pulse = 0.65 + 0.35 * Math.sin(now / 320);
+      // Body · slim rounded slab
+      ctx.save();
+      ctx.fillStyle = 'rgba(10,18,42,0.9)';
+      ctx.fillRect(dx - 8, dy - 14, 16, 22);
+      ctx.strokeStyle = `rgba(79,179,255,${pulse.toFixed(2)})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(dx - 8, dy - 14, 16, 22);
+      // Screen · cyan gradient
+      const g = ctx.createLinearGradient(0, dy - 12, 0, dy + 4);
+      g.addColorStop(0, '#4fb3ff');
+      g.addColorStop(1, '#0a1a3a');
+      ctx.fillStyle = g;
+      ctx.fillRect(dx - 6, dy - 12, 12, 15);
+      // Diamond glyph
+      ctx.fillStyle = `rgba(255,255,255,${pulse.toFixed(2)})`;
+      ctx.font = 'bold 10px "Courier New",monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('◈', dx, dy - 4);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      // Glow halo
+      ctx.fillStyle = `rgba(79,179,255,${(0.15 * pulse).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(dx, dy - 3, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     // v0.95.97 · Basketball beside bed at (11,9)
     if (BBALL_IMG.complete && BBALL_IMG.naturalWidth){
       const pos=RIZER_ROOM_ITEMS.basketball;
@@ -11817,13 +11857,25 @@ function tryInteract(){
         const nearNebula = facedRoomItem?.id==='console';
         if (nearNebula){ openNebulaPanel(); return; }
         // v0.95.79 · Punching Bag · blocks (1, 7) + (1, 8) · face those only
-        // v0.95.326 · Rizer's backpack pickup · unlocks touchpad + house exit
+        // v0.95.326 · Rizer's backpack pickup · unlocks touchpad · bag empty for now
+        // v0.95.376 · Toast wording updated · exit still gated by Zycube from Mom
         const nearBackpack = facedRoomItem?.id==='backpack';
         if (nearBackpack && !player.hasBackpack){
           player.hasBackpack = true;
           player.items = player.items || {};
           player.items.backpack = (player.items.backpack || 0) + 1;
-          showToast('★ Got the Backpack · touchpad unlocked · you can leave the house now', 3200);
+          showToast('★ Got the Backpack · touchpad unlocked · get the Zycube from Mom before leaving', 3400);
+          try { playSFX('confirm'); } catch(_){}
+          return;
+        }
+        // v0.95.376 · Z-Phone pickup · left side of the Nebuladock PC desk (col 5, row 7)
+        // Adds `zphone` item to the backpack · vanishes from the desk after grab
+        // roomItemAtTile check happens BEFORE pc-desk match so zphone wins that tile
+        const nearZphone = facedRoomItem?.id==='zphone';
+        if (nearZphone && !(player.items?.zphone > 0)){
+          player.items = player.items || {};
+          player.items.zphone = (player.items.zphone || 0) + 1;
+          showToast('★ Got the Z-Phone (ZYCELLYTE) · in your bag · favorite it for CREATE shortcut', 3600);
           try { playSFX('confirm'); } catch(_){}
           return;
         }

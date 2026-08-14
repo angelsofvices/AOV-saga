@@ -2032,9 +2032,13 @@ const WORLD_PROPS = [
     // (before any actor on rows 5+) so players climbing the stair region render
     // OVER the merged prop.  Offset -6.5 = feet 11 + offset -6.5 = sort 4.5.
     depthOffset: -6.5,
-    // v0.95.364 · Interact = ENTER the 20x40 cave interior (was poster view)
-    // Player lands at bottom-center facing up · long climb north to Rakoron.
+    // v0.95.366 · X = show the GEMLORD POSTER (reveal Rakoron portrait)
+    //           · Square = ENTER the 20x40 cave interior
     onInteract: () => {
+      playSFX('caveGrowl');
+      openPosterView('rakoron');
+    },
+    onSquare: () => {
       playSFX('caveGrowl');
       try {
         const cfg = INTERIOR_CAVE;
@@ -2048,7 +2052,6 @@ const WORLD_PROPS = [
         if (typeof snapCameraToPlayer === 'function') snapCameraToPlayer();
       } catch(err){
         console.warn('rakoron cave enter failed', err);
-        openPosterView('rakoron');
       }
     },
   },
@@ -9558,6 +9561,18 @@ addEventListener('keydown', e => {
     // v0.95.339 · CANONICAL COMPANION INPUT CONTRACT · X talk · Square follow · Triangle soul swap
     // Bond gates: talk (any) · follow (≥50) · soul swap (≥100 + not enemy + not noSoulSwap flag)
     // (X handled by existing tryInteract → onInteract → dialog path, no override needed here)
+    // v0.95.366 · Square (j) on a prop with onSquare fires it FIRST · lets a
+    // prop define distinct X vs Square behavior (Rakoron cave: X = poster, Square = enter)
+    if (k === 'j' && game.scene === 'overworld' && !dialogState && !battleState){
+      let fx = player.x, fy = player.y;
+      if (player.dir === 'up') fy--; else if (player.dir === 'down') fy++;
+      else if (player.dir === 'left') fx--; else if (player.dir === 'right') fx++;
+      const sqProp = _propDoors.get(`${fx},${fy}`);
+      if (sqProp && typeof sqProp.onSquare === 'function'){
+        sqProp.onSquare();
+        return;
+      }
+    }
     // Square (j) = FOLLOW toggle
     if (k === 'j'){
       const facing = facedNpc();

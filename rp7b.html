@@ -1271,23 +1271,31 @@ const AUDIO = {
     moriGrunt:    new Audio('audio/sfx-mori-grunt.mp3'),      // v0.95.120 · Mori pained grunt at 40% hp
     moriDeath:    new Audio('audio/sfx-mori-death.mp3'),      // v0.95.120 · bone-crack on Mori death
     moriNearby:   new Audio('audio/sfx-mori-nearby.mp3'),     // v0.95.121 · proximity detector (10-tile radius, 15s cd)
+    skellor:      new Audio('audio/sfx-skellor.mp3'),         // v0.95.405 · Skellor groan · proximity SFX + on-hit vocal
   },
 };
 // v0.95.121 · Mori proximity detector · 500ms poll · 10-tile radius · 15s cd
+// v0.95.405 · Skellor proximity groan attached to the same loop (skip slain corpses)
 let _moriNearbyCd = 0;
+let _skellorNearbyCd = 0;
 setInterval(() => {
   if (game.scene !== 'overworld' || battleState || wildBattleState || dialogState) return;
   const now = performance.now();
-  if (now < _moriNearbyCd) return;
+  const moriReady    = now >= _moriNearbyCd;
+  const skellorReady = now >= _skellorNearbyCd;
+  if (!moriReady && !skellorReady) return;
   for (const n of NPCS){
     if (n.scene !== 'overworld') continue;
-    if ((n.name || '').toLowerCase() !== 'mori') continue;
     const dx = Math.abs(n.tileX - player.x);
     const dy = Math.abs(n.tileY - player.y);
-    if (Math.max(dx, dy) <= 10){
+    if (Math.max(dx, dy) > 10) continue;
+    const nm = (n.name || '').toLowerCase();
+    if (moriReady && nm === 'mori'){
       playSFX('moriNearby');
       _moriNearbyCd = now + 15000;
-      break;
+    } else if (skellorReady && n.mode === 'skellor' && !n._skellorDead){
+      playSFX('skellor');
+      _skellorNearbyCd = now + 12000;
     }
   }
 }, 500);
@@ -1906,7 +1914,8 @@ function consumeGemForDiamond(key){
 const ITEM_GAIN_SFX_KEYS = new Set([
   'faenet','zycube','worldmap','townmap','zyrex_id','zyrex_egg','zphone',
   'backpack','skateboard','fruit','seed','berry','soulphish',
-  'gem_red','gem_blue','gem_purple',
+  // v0.95.405 · Full 8-color gem spectrum
+  'gem_red','gem_blue','gem_green','gem_yellow','gem_white','gem_orange','gem_purple','gem_black',
   'raidcard','dads_notebook','prismshard','elzebub_egg','verdant_elixir',
   'zysphere_basic','zysphere_silver','zysphere_ultra',
 ]);
@@ -5584,6 +5593,8 @@ function skellorTakeHit(n, dmg){
   n._skellorFrame = n._skellorHits - 1;      // frame index into SKELLOR_HURT_FRAMES
   n._hurtFlashUntil = now + 550;             // ~half-second react
   n.hp = SKELLOR_MAX_HITS - n._skellorHits;
+  // v0.95.405 · Skellor groan on each hit · pleads for its end to misery
+  try { playSFX('skellor'); } catch(_){}
   playSFX('moriPoke');
   if (n._skellorHits >= SKELLOR_MAX_HITS){
     // Final slain state · lock the last frame permanently · become a loot bag NPC
@@ -5613,11 +5624,18 @@ function lootSkellor(n){
   player.items = player.items || {};
   player.items.coins = (player.items.coins || 0) + coins;
   let gemMsg = '';
-  if (Math.random() < 0.10){
-    const gems = ['gem_red', 'gem_blue', 'gem_purple'];
-    const g = gems[Math.floor(Math.random() * gems.length)];
-    player.items[g] = (player.items[g] || 0) + 1;
-    gemMsg = ` + 1 ${g.replace('gem_', '').toUpperCase()} GEM`;
+  // v0.95.405 · Full 8-color spectrum loot roll · weighted so rare gems drop less
+  if (Math.random() < 0.15){
+    const weighted = [
+      { g:'gem_red',    w:30 }, { g:'gem_blue',   w:22 }, { g:'gem_green', w:16 },
+      { g:'gem_yellow', w:12 }, { g:'gem_white',  w:9  }, { g:'gem_orange',w:6  },
+      { g:'gem_purple', w:4  }, { g:'gem_black',  w:1  },
+    ];
+    const totalW = weighted.reduce((s,e) => s + e.w, 0);
+    let roll = Math.random() * totalW, pick = weighted[0].g;
+    for (const e of weighted){ if ((roll -= e.w) <= 0){ pick = e.g; break; } }
+    player.items[pick] = (player.items[pick] || 0) + 1;
+    gemMsg = ` + 1 ${pick.replace('gem_', '').toUpperCase()} GEM`;
   }
   playSFX('coins');
   showToast(`★ Looted Skellor bag · +${coins} coins${gemMsg}`, 2800);
@@ -13965,16 +13983,20 @@ function drawRizerUpgradesPage(W, H){
   ctx.textAlign = 'left';
 }
 
-// v0.95.388 · countGems() · weighted total across held colored gems
-// Weights: red=1 (common) · blue=2 · purple=3 (rarest) · lets Rizer Upgrades
-// price everything against a single "gem-value" pool without caring which
-// specific gem the player prefers to spend
+// v0.95.405 · countGems() · full 8-color spectrum · linear +20 per rarity tier
+// red=20 · blue=40 · green=60 · yellow=80 · white=100 · orange=120 · purple=140 · black=160
+// One gem-value pool that Rizer Upgrades + Scrapjaw's gear-work price against
+const GEM_VALUES = {
+  gem_red: 20, gem_blue: 40, gem_green: 60, gem_yellow: 80,
+  gem_white: 100, gem_orange: 120, gem_purple: 140, gem_black: 160,
+};
 function countGems(){
   const it = (player && player.items) || {};
-  const r = it.gem_red    || 0;
-  const b = it.gem_blue   || 0;
-  const p = it.gem_purple || 0;
-  return r * 1 + b * 2 + p * 3;
+  let total = 0;
+  for (const key in GEM_VALUES){
+    total += (it[key] || 0) * GEM_VALUES[key];
+  }
+  return total;
 }
 // v0.95.387 · Wallet panel · pops from coin-HUD click · shows every currency the player carries
 function openWalletPanel(){
@@ -13989,9 +14011,15 @@ function openWalletPanel(){
     ['◆ Astralite Shards', String(items.astralite_shard || items.astralite || 0)],
     ['◈ Rizer Shard',      String(items.rizer_shard || 0)],
     ['◈ Data Core',        String(items.data_core || 0)],
-    ['♦ Red Gems',         String(items.gem_red || 0)],
-    ['♦ Blue Gems',        String(items.gem_blue || 0)],
-    ['♦ Purple Gems',      String(items.gem_purple || 0)],
+    // v0.95.405 · Full 8-color gem spectrum · linear +20 per tier
+    ['♦ Red Gems (×20)',    String(items.gem_red    || 0)],
+    ['♦ Blue Gems (×40)',   String(items.gem_blue   || 0)],
+    ['♦ Green Gems (×60)',  String(items.gem_green  || 0)],
+    ['♦ Yellow Gems (×80)', String(items.gem_yellow || 0)],
+    ['♦ White Gems (×100)', String(items.gem_white  || 0)],
+    ['♦ Orange Gems (×120)',String(items.gem_orange || 0)],
+    ['♦ Purple Gems (×140)',String(items.gem_purple || 0)],
+    ['♦ Black Gems (×160)', String(items.gem_black  || 0)],
     ['◈ Basic Zyspheres',  String(items.zysphere_basic || 0)],
     ['◈ Silver Zyspheres', String(items.zysphere_silver || 0)],
     ['◈ Ultra Zyspheres',  String(items.zysphere_ultra || 0)],

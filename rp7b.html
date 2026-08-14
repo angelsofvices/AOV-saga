@@ -740,6 +740,10 @@
       <div class="row">
         <button id="devUnlockDoors">Unlock All Doors: OFF</button>
       </div>
+      <!-- v0.95.352 · Sprite playtest · give every obtainable Zyrex to party (bonded or not) -->
+      <div class="row">
+        <button id="devSummonAllZyrex">★ SUMMON ALL OBTAINABLE ZYREX (sprite playtest)</button>
+      </div>
     </div>
 
     <!-- GIVE · inventory grants -->
@@ -12044,7 +12048,8 @@ addEventListener('keydown', e => {
     }
     // v0.95.285 · FACTION tab · arrow nav + Triangle (k) toggles summon
     if (hudOverlayPage === 'faction'){
-      const N = Math.min((player.party || []).filter(Boolean).length, PARTY_MAX);
+      // v0.95.352 · No PARTY_MAX cap on nav · large-party playtest scrolls freely
+      const N = (player.party || []).filter(Boolean).length;
       if (N > 0){
         // v0.95.298 · Square (j) = grab/drop for slot reordering
         // In hold mode, arrow keys SWAP the selected slot with its neighbor
@@ -14989,6 +14994,7 @@ const PARTY_MAX = 8;
 // v0.95.285 · Faction summon cursor · Triangle (k) toggles active summon
 let factionCursorIdx = 0;
 let factionHoldMode  = false;   // v0.95.298 · Square-toggled reorder mode
+let factionScrollRow = 0;       // v0.95.352 · scroll offset for large parties (>PARTY_MAX)
 // Sprite registry for summonable Zyrex · only species with an entry can be
 // summoned as a follower.  Missing entries fall back to a "sprite pending" toast.
 // bboxes + cellW/H copied from the NPCS definitions where these sprites live.
@@ -15395,7 +15401,7 @@ function drawFHUDZyrexPage(W, H){
   // Subheader summary row
   ctx.font = 'bold 12px "Courier New", monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillText(`YOUR FACTION · ${total}/${PARTY_MAX} ZYREX · +RIZER (9th)`, 24, 66);
+  ctx.fillText(`YOUR FACTION · ${total}${total > PARTY_MAX ? '' : '/' + PARTY_MAX} ZYREX · +RIZER`, 24, 66);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#8ff';
   ctx.font = '11px "Courier New", monospace';
@@ -15419,22 +15425,32 @@ function drawFHUDZyrexPage(W, H){
     return;
   }
 
-  // Card grid · 2 columns × up to 4 rows (party cap 8)
+  // v0.95.352 · Card grid · 2 columns × scrolling rows · shows ALL party (no cap)
+  // for large-party playtest · viewport = 4 rows · auto-scrolls with cursor
   const cols = 2;
-  const rows = Math.ceil(PARTY_MAX / cols);
+  const VISIBLE_ROWS = 4;
+  const totalRows = Math.ceil(party.length / cols);
   const gutter = 12;
   const gridX = 24;
   const gridY = 84;
   const gridW = W - 48;
   const gridH = H - gridY - 40;
   const cardW = Math.floor((gridW - gutter * (cols - 1)) / cols);
-  // Auto-fit card height to available vertical space so 8 cards fit
-  const cardH = Math.max(150, Math.min(218, Math.floor((gridH - gutter * (rows - 1)) / rows)));
-  party.slice(0, PARTY_MAX).forEach((z, i) => {
+  const cardH = Math.max(150, Math.min(218, Math.floor((gridH - gutter * (VISIBLE_ROWS - 1)) / VISIBLE_ROWS)));
+  // v0.95.352 · Auto-scroll · keep cursor row in view
+  const cursorRow = Math.floor(factionCursorIdx / cols);
+  if (cursorRow < factionScrollRow) factionScrollRow = cursorRow;
+  if (cursorRow >= factionScrollRow + VISIBLE_ROWS) factionScrollRow = cursorRow - VISIBLE_ROWS + 1;
+  factionScrollRow = Math.max(0, Math.min(factionScrollRow, Math.max(0, totalRows - VISIBLE_ROWS)));
+  const firstIdx = factionScrollRow * cols;
+  const lastIdx  = Math.min(party.length, firstIdx + VISIBLE_ROWS * cols);
+  party.slice(firstIdx, lastIdx).forEach((z, offset) => {
+    const i = firstIdx + offset;
     const col = i % cols;
-    const row = Math.floor(i / cols);
+    const rowAbs = Math.floor(i / cols);
+    const rowRel = rowAbs - factionScrollRow;
     const cx = gridX + col * (cardW + gutter);
-    const cy = gridY + row * (cardH + gutter);
+    const cy = gridY + rowRel * (cardH + gutter);
     drawZyrexCard(cx, cy, cardW, cardH, z, i);
     // v0.95.285 · Cursor highlight + summoned indicator
     if (i === factionCursorIdx){
@@ -15464,6 +15480,29 @@ function drawFHUDZyrexPage(W, H){
       ctx.textAlign = 'left';
     }
   });
+  // v0.95.352 · Scroll indicators when party overflows viewport
+  if (factionScrollRow > 0){
+    ctx.fillStyle = '#ffd66b';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('▲', W / 2, gridY - 4);
+    ctx.textAlign = 'left';
+  }
+  if (factionScrollRow + VISIBLE_ROWS < totalRows){
+    ctx.fillStyle = '#ffd66b';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼', W / 2, gridY + VISIBLE_ROWS * (cardH + gutter) - 2);
+    ctx.textAlign = 'left';
+  }
+  // Party count + scroll position readout (right of subheader)
+  if (totalRows > VISIBLE_ROWS){
+    ctx.fillStyle = 'rgba(255,214,107,0.85)';
+    ctx.font = 'bold 10px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`scroll ${factionScrollRow + 1}-${Math.min(factionScrollRow + VISIBLE_ROWS, totalRows)} / ${totalRows}`, W - 24, gridY - 4);
+    ctx.textAlign = 'left';
+  }
   // Footer hint · triangle to summon/return
   ctx.fillStyle = '#8ff';
   ctx.font = '11px "Courier New", monospace';
@@ -17018,6 +17057,41 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       game.devUnlockDoors = !game.devUnlockDoors;
       unlockBtn.textContent = `Unlock All Doors: ${game.devUnlockDoors ? 'ON' : 'OFF'}`;
       showToast(`◈ DEV · doors ${game.devUnlockDoors ? 'UNLOCKED' : 'locked'}`, 1500);
+    });
+  }
+  // v0.95.352 · Summon-all-obtainable-Zyrex · sprite playtest button
+  // Pushes every SUMMONABLE_SPRITES species into player.party at Lv 35
+  // Bonded or not · skips duplicates already in the party · unlocks Faction/Zyrex menu
+  const summonAllBtn = document.getElementById('devSummonAllZyrex');
+  if (summonAllBtn){
+    summonAllBtn.addEventListener('click', () => {
+      try {
+        player.party = player.party || [];
+        const owned = new Set(player.party.filter(Boolean).map(z => z.speciesId));
+        let added = 0;
+        const speciesIds = Object.keys(SUMMONABLE_SPRITES);
+        for (const sid of speciesIds){
+          if (owned.has(sid)) continue;
+          if (!SPECIES[sid]) continue;
+          const lv = (sid === 'anciuxor') ? 100 : 35;
+          try {
+            const z = createZyrex(sid, lv);
+            if (z){ player.party.push(z); owned.add(sid); added++; }
+          } catch(_){}
+        }
+        // Ensure Zyrex menu is unlocked so the touchpad Faction page renders
+        player.zyrexMenuUnlocked = true;
+        if (added > 0){
+          try { playSFX('confirm'); } catch(_){}
+          showToast(`★ DEV · ${added} obtainable Zyrex summoned · touchpad → Faction to view + scroll`, 3200);
+        } else {
+          showToast('◈ DEV · Party already has every summonable Zyrex', 2400);
+        }
+        try { saveGame(); } catch(_){}
+      } catch(err){
+        showToast('◈ DEV · Summon-all failed · check console', 2400);
+        console.warn('devSummonAllZyrex error:', err);
+      }
     });
   }
 })();

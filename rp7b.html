@@ -13331,50 +13331,263 @@ addEventListener('keydown', e => {
     playSFX('menuOpen');
   }
 });
-// v0.95.391 · Full-screen RIZER upgrades page · cosmetics/outfits/skins → 5 stat boosts
-// (HP · ATK · DEF · SPD · SPECIAL) · full UI ships when the mockup lands · stub renders
-// a scaffold w/ 5 stat rows + placeholder loadout so the tab is walkable today
+// ══════════════════════════════════════════════════════════════════════
+// v0.95.396 · RIZER UPGRADES · full-screen 3-column layout matching mockup
+// LEFT · OUTFITS / SKINS scroll list w/ favorite ⭐
+// CENTER · large equipped-skin preview over cosmic circle · name + EQUIPPED tag
+// RIGHT · STAT BOOSTS · 5 rows · tier-diamond progress · +stat readout
+// BOTTOM · A EQUIP · X UPGRADE · Y PREVIEW · ⭐ FAVORITE · B BACK
+// State: player.rizerSkins array + player.rizerSkinCursor + player.rizerSkinFav
+// Each skin tracks tier 0..5 per stat · upgrading burns coins + gems (later pass)
+// ══════════════════════════════════════════════════════════════════════
+const RIZER_SKIN_ROSTER = [
+  { id:'academy_uniform',   name:'ACADEMY UNIFORM',      accent:'#4fb3ff', unlocked:true  },
+  { id:'malezor_adventurer',name:'MALEZOR ADVENTURER',   accent:'#c8a76a', unlocked:true  },
+  { id:'zarvane_desert',    name:'ZARVANE DESERT GEAR',  accent:'#e9a76a', unlocked:true  },
+  { id:'andrannor_night',   name:'ANDRANNOR NIGHT ARMOR',accent:'#c060ff', unlocked:true  },
+  { id:'casual_hoodie',     name:'CASUAL HOODIE',        accent:'#8ff',    unlocked:true  },
+  { id:'ferrarch_fansuit',  name:'FERRARCH FAN SUIT',    accent:'#ffd66b', unlocked:true  },
+  { id:'astral_a3',         name:'ASTRAL A3',            accent:'#5fdc7a', unlocked:true  },
+  { id:'locked',            name:'???',                  accent:'#555',    unlocked:false },
+];
+function ensureRizerSkinState(){
+  if (!player.rizerSkins){
+    player.rizerSkins = {};
+    RIZER_SKIN_ROSTER.forEach(s => {
+      player.rizerSkins[s.id] = { tiers: { hp:0, atk:0, def:0, spd:0, spc:0 } };
+    });
+    // Default equipped = academy_uniform · +2 tiers each to match mockup preview
+    player.rizerSkins.academy_uniform.tiers = { hp:2, atk:2, def:2, spd:2, spc:2 };
+    player.rizerSkinActive = 'academy_uniform';
+    player.rizerSkinFav    = 'academy_uniform';
+  }
+  if (!player.rizerSkinActive) player.rizerSkinActive = 'academy_uniform';
+  if (player.rizerSkinCursor == null) player.rizerSkinCursor = 0;
+}
 function drawRizerUpgradesPage(W, H){
-  // Title strip already drawn by outer overlay · start below it
-  ctx.fillStyle = '#f0eadf';
-  ctx.font = 'bold 14px "Courier New", monospace';
-  ctx.fillText('LOADOUT · COSMETIC → STAT BOOST', 32, 76);
-  // Loadout portrait placeholder
-  ctx.fillStyle = 'rgba(20,50,120,0.55)';
-  ctx.fillRect(32, 92, 180, 220);
-  ctx.strokeStyle = '#4fb3ff'; ctx.lineWidth = 2;
-  ctx.strokeRect(32, 92, 180, 220);
-  ctx.fillStyle = '#8ff'; ctx.font = '11px "Courier New", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('current skin', 32 + 90, 92 + 18);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 13px "Courier New", monospace';
-  ctx.fillText((player.cosmeticSkin || 'normal').toUpperCase(), 32 + 90, 92 + 200);
+  ensureRizerSkinState();
+  // ── Layout metrics ──────────────────────────────────────────────
+  const M = 20;                             // outer margin
+  const barY = 62;                          // below outer title bar
+  const bottomBarH = 44;
+  const bodyY = barY + 8;
+  const bodyH = H - bodyY - bottomBarH - 12;
+  const leftW  = Math.round(W * 0.24);
+  const rightW = Math.round(W * 0.30);
+  const midX = M + leftW + 14;
+  const midW = W - leftW - rightW - 14*2 - M*2;
+  const rightX = midX + midW + 14;
+  // ── Header · coins + gems (right-aligned) ───────────────────────
+  ctx.fillStyle = '#ffd66b';
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  const coins = (player.items?.coins || 0);
+  const gemVal = (typeof countGems === 'function') ? countGems() : 0;
+  ctx.fillText(`💰 ${coins.toLocaleString()}    ◆ ${gemVal.toLocaleString()}`, W - M, barY - 8);
   ctx.textAlign = 'left';
-  // 5 stat rows w/ current + upgrade budget preview
-  const stats = [
-    ['❤ HEALTH',   player.hpMax || 100,        '+HP  from cosmetic'],
-    ['⚔ ATTACK',   (player.atk  || 25),        '+ATK from cosmetic'],
-    ['🛡 DEFENSE',  (player.def  || 20),        '+DEF from cosmetic'],
-    ['⚡ SPEED',    (player.spd  || 30),        '+SPD from cosmetic'],
-    ['◆ SPECIAL',  player.astralMax || 100,    '+SPECIAL from cosmetic'],
-  ];
-  const rowX = 236, rowW = W - 236 - 32;
-  stats.forEach(([label, cur, hint], i) => {
-    const y = 100 + i * 42;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(rowX, y, rowW, 34);
-    ctx.strokeStyle = 'rgba(79,179,255,0.35)';
-    ctx.strokeRect(rowX, y, rowW, 34);
-    ctx.fillStyle = '#ffd66b'; ctx.font = 'bold 13px "Courier New", monospace';
-    ctx.fillText(label, rowX + 14, y + 22);
-    ctx.fillStyle = '#fff';
-    ctx.fillText(String(cur), rowX + 160, y + 22);
-    ctx.fillStyle = 'rgba(200,220,255,0.55)'; ctx.font = '11px "Courier New", monospace';
-    ctx.fillText(hint, rowX + 220, y + 22);
+  // ── LEFT COL · OUTFITS / SKINS scroll list ──────────────────────
+  const panelBg = (x, y, w, h, accent) => {
+    ctx.fillStyle = 'rgba(10,18,42,0.85)';
+    ctx.fillRect(x, y, w, h);
+    ctx.lineWidth = 2; ctx.strokeStyle = accent || '#d4af37';
+    ctx.strokeRect(x, y, w, h);
+  };
+  panelBg(M, bodyY, leftW, bodyH);
+  ctx.fillStyle = '#ffd66b';
+  ctx.font = 'bold 13px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('◆ OUTFITS / SKINS ◆', M + leftW/2, bodyY + 22);
+  ctx.textAlign = 'left';
+  // Grid of skin cards · 2 cols · scrollable region
+  const cardW = Math.floor((leftW - 24) / 2);
+  const cardH = 96;
+  const rows  = Math.ceil(RIZER_SKIN_ROSTER.length / 2);
+  RIZER_SKIN_ROSTER.forEach((s, i) => {
+    const col = i % 2, row = Math.floor(i / 2);
+    const cx = M + 8 + col * (cardW + 4);
+    const cy = bodyY + 34 + row * (cardH + 4);
+    const sel = (i === player.rizerSkinCursor);
+    const isFav = (s.id === player.rizerSkinFav);
+    const isActive = (s.id === player.rizerSkinActive);
+    // Card frame
+    ctx.fillStyle = sel ? 'rgba(30,60,120,0.9)' : 'rgba(0,0,0,0.55)';
+    ctx.fillRect(cx, cy, cardW, cardH);
+    ctx.lineWidth = sel ? 3 : 1.5;
+    ctx.strokeStyle = sel ? '#4fb3ff' : (s.unlocked ? s.accent : '#333');
+    ctx.strokeRect(cx, cy, cardW, cardH);
+    // Portrait placeholder · colored plate
+    ctx.fillStyle = s.unlocked ? 'rgba(20,50,120,0.6)' : 'rgba(30,30,30,0.6)';
+    ctx.fillRect(cx + 6, cy + 6, cardW - 12, cardH - 26);
+    // Icon
+    ctx.fillStyle = s.accent;
+    ctx.font = 'bold 30px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.unlocked ? '☆' : '🔒', cx + cardW/2, cy + 52);
+    // Name label
+    ctx.fillStyle = s.unlocked ? '#f0eadf' : '#555';
+    ctx.font = 'bold 9px "Courier New", monospace';
+    ctx.fillText(s.name.length > 22 ? s.name.slice(0, 20) + '..' : s.name, cx + cardW/2, cy + cardH - 6);
+    ctx.textAlign = 'left';
+    // Favorite star · top-right
+    if (isFav){
+      ctx.fillStyle = '#ffd66b';
+      ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.fillText('★', cx + cardW - 16, cy + 16);
+    }
+    // Equipped pip · top-left
+    if (isActive){
+      ctx.fillStyle = '#5fdc7a';
+      ctx.fillRect(cx + 4, cy + 4, 6, 6);
+    }
   });
-  // Coming-soon banner
-  ctx.fillStyle = '#8ff'; ctx.font = 'bold 11px "Courier New", monospace';
-  ctx.fillText('◈ Cosmetic browser + upgrade purchase (gems + coins) · UI mockup pending', 32, H - 44);
+  // ── CENTER COL · large preview ──────────────────────────────────
+  panelBg(midX, bodyY, midW, bodyH, '#d4af37');
+  const active = RIZER_SKIN_ROSTER.find(s => s.id === player.rizerSkinActive) || RIZER_SKIN_ROSTER[0];
+  // Star-field decoration
+  ctx.fillStyle = 'rgba(200,220,255,0.15)';
+  for (let i = 0; i < 30; i++){
+    const sx = midX + 20 + (i * 137) % (midW - 40);
+    const sy = bodyY + 30 + (i * 89)  % (bodyH - 60);
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+  // Cosmic circle at Rizer's feet
+  const cxMid = midX + midW/2;
+  const cyFeet = bodyY + bodyH - 90;
+  ctx.strokeStyle = 'rgba(79,179,255,0.7)';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(cxMid, cyFeet, 110, 30, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(79,179,255,0.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(cxMid, cyFeet, 90, 24, 0, 0, Math.PI*2); ctx.stroke();
+  // Rizer character portrait · draw current player skin sheet if loaded, else placeholder
+  ctx.fillStyle = active.accent;
+  ctx.font = 'bold 120px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('◆', cxMid, cyFeet - 30);
+  // Name plate + EQUIPPED banner
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 20px "Courier New", monospace';
+  ctx.fillText(active.name, cxMid, bodyY + bodyH - 42);
+  ctx.strokeStyle = '#4fb3ff'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(midX + 40, bodyY + bodyH - 32); ctx.lineTo(midX + midW - 40, bodyY + bodyH - 32); ctx.stroke();
+  ctx.fillStyle = '#4fb3ff';
+  ctx.font = 'bold 14px "Courier New", monospace';
+  ctx.fillText('EQUIPPED', cxMid, bodyY + bodyH - 14);
+  ctx.textAlign = 'left';
+  // ── RIGHT COL · STAT BOOSTS ─────────────────────────────────────
+  panelBg(rightX, bodyY, rightW, bodyH);
+  ctx.fillStyle = '#ffd66b';
+  ctx.font = 'bold 13px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('✦ STAT BOOSTS ✦', rightX + rightW/2, bodyY + 22);
+  ctx.textAlign = 'left';
+  const stats = [
+    { key:'hp',  label:'HEALTH',  color:'#ff5b5b', suffix:'HP',  per:10 },
+    { key:'atk', label:'ATTACK',  color:'#ffd66b', suffix:'ATK', per: 3 },
+    { key:'def', label:'DEFENSE', color:'#4fb3ff', suffix:'DEF', per: 3 },
+    { key:'spd', label:'SPEED',   color:'#ffd66b', suffix:'SPD', per: 3 },
+    { key:'spc', label:'SPECIAL', color:'#c060ff', suffix:'SPC', per: 5 },
+  ];
+  const activeTiers = player.rizerSkins[active.id]?.tiers || { hp:0, atk:0, def:0, spd:0, spc:0 };
+  const rowH = Math.floor((bodyH - 46) / stats.length);
+  stats.forEach((s, i) => {
+    const rY = bodyY + 34 + i * rowH;
+    const rX = rightX + 8;
+    const rW = rightW - 16;
+    // Row plate
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(rX, rY, rW, rowH - 6);
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
+    ctx.strokeRect(rX, rY, rW, rowH - 6);
+    // Icon square
+    ctx.fillStyle = s.color;
+    ctx.fillRect(rX + 6, rY + 8, 22, 22);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    const ic = s.key === 'hp' ? '♥' : s.key === 'atk' ? '⚔' : s.key === 'def' ? '⛨' : s.key === 'spd' ? '⚡' : '✦';
+    ctx.textAlign = 'center';
+    ctx.fillText(ic, rX + 17, rY + 24);
+    ctx.textAlign = 'left';
+    // Label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px "Courier New", monospace';
+    ctx.fillText(s.label, rX + 34, rY + 22);
+    // Tier readout
+    const tier = activeTiers[s.key] || 0;
+    ctx.fillStyle = s.color;
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillText(`TIER ${tier} / 5`, rX + 100, rY + 22);
+    // + stat value
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`+${tier * s.per} ${s.suffix}`, rX + rW - 32, rY + 22);
+    ctx.textAlign = 'left';
+    // Tier diamonds row
+    const dY = rY + 34;
+    const dSize = 12;
+    for (let t = 0; t < 5; t++){
+      const dX = rX + 34 + t * 24;
+      if (t < tier){
+        // Filled diamond
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.moveTo(dX + dSize/2, dY);
+        ctx.lineTo(dX + dSize, dY + dSize/2);
+        ctx.lineTo(dX + dSize/2, dY + dSize);
+        ctx.lineTo(dX, dY + dSize/2);
+        ctx.closePath(); ctx.fill();
+      } else {
+        // Locked slot
+        ctx.strokeStyle = 'rgba(150,150,150,0.6)'; ctx.lineWidth = 1;
+        ctx.strokeRect(dX, dY, dSize, dSize);
+        ctx.fillStyle = 'rgba(200,200,200,0.5)';
+        ctx.font = 'bold 9px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('🔒', dX + dSize/2, dY + dSize - 1);
+        ctx.textAlign = 'left';
+      }
+    }
+    // + button (right-most)
+    ctx.fillStyle = s.color;
+    ctx.fillRect(rX + rW - 26, dY - 4, 20, 20);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('+', rX + rW - 16, dY + 11);
+    ctx.textAlign = 'left';
+  });
+  // Hint strip
+  ctx.fillStyle = '#8ff';
+  ctx.font = '10px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('✦ Upgrade skins to unlock permanent stat boosts.', rightX + rightW/2, bodyY + bodyH - 8);
+  ctx.textAlign = 'left';
+  // ── BOTTOM CONTROL BAR ──────────────────────────────────────────
+  const barY2 = H - bottomBarH;
+  ctx.fillStyle = 'rgba(10,18,42,0.85)';
+  ctx.fillRect(0, barY2, W, bottomBarH);
+  ctx.strokeStyle = 'rgba(212,175,55,0.7)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, barY2); ctx.lineTo(W, barY2); ctx.stroke();
+  const controls = [
+    ['Ⓐ', 'EQUIP',    '#5fdc7a'],
+    ['Ⓧ', 'UPGRADE',  '#4fb3ff'],
+    ['Ⓨ', 'PREVIEW',  '#ffd66b'],
+    ['★', 'FAVORITE', '#ffd66b'],
+    ['Ⓑ', 'BACK',     '#ff6a3d'],
+  ];
+  const slot = W / controls.length;
+  controls.forEach((c, i) => {
+    const cxc = i * slot + slot/2;
+    ctx.fillStyle = c[2]; ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(c[0], cxc - 40, barY2 + 28);
+    ctx.fillStyle = '#f0eadf';
+    ctx.font = 'bold 12px "Courier New", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(c[1], cxc - 32, barY2 + 28);
+  });
+  ctx.textAlign = 'left';
 }
 
 // v0.95.388 · countGems() · weighted total across held colored gems

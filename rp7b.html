@@ -9869,10 +9869,35 @@ function tryMove(dt){
   // draws Mori/Daemon aggro · differentiates AOV from Pokemon".
   if (player.activeActor === 'rizer' && onDeclaredGemgrass){
     player.stepsInGrass = (player.stepsInGrass || 0) + 1;
-    // v0.95.333 · Audible grass step · SAME sound that lore-wise draws Mori
-    try { playSFX('walkingGrass'); } catch(_){}
+    // v0.95.341 · Per-step grass SFX · no overlap · restart the base Audio
+    // element instead of clone-and-play so rapid steps don't stack layers
+    try {
+      const s = AUDIO.sfx.walkingGrass;
+      if (s){ s.pause(); s.currentTime = 0; s.volume = 0.85; s.play().catch(() => {}); }
+    } catch(_){}
     emitGrassNoise(nx, ny);
   } else {
+    // v0.95.341 · Just LEFT a grass patch · fire an echo of the last step
+    // (softer + delayed) for a natural fade-out cue
+    if ((player.stepsInGrass || 0) > 0){
+      try {
+        const s = AUDIO.sfx.walkingGrass;
+        if (s){
+          setTimeout(() => {
+            const echo = s.cloneNode();
+            echo.volume = 0.35;
+            echo.playbackRate = 0.85;   // slight pitch-down = "echo" feel
+            echo.play().catch(() => {});
+          }, 180);
+          setTimeout(() => {
+            const echo = s.cloneNode();
+            echo.volume = 0.15;
+            echo.playbackRate = 0.75;
+            echo.play().catch(() => {});
+          }, 480);
+        }
+      } catch(_){}
+    }
     player.stepsInGrass = 0;
   }
 }

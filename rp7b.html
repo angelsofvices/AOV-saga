@@ -182,8 +182,9 @@
       display:block; width:100%; height:100%;
       font: bold 26px 'Courier New', monospace;
       color:#ffd66b; letter-spacing:.10em;
-      /* Coin icon occupies left ~35% of panel · pad left 90 to clear · number sits in right dark box */
-      text-align: right; padding: 40px 28px 0 90px;
+      /* v0.95.392 · Center the number inside the dark box (RIGHT of icon, LEFT of gold border)
+         · text-align:center + left-shift via padding brings number over the target area */
+      text-align: center; padding: 40px 0 0 78px;
       box-sizing: border-box;
       text-shadow: 0 0 6px rgba(255,214,107,0.7), 0 1px 2px #000;
     }
@@ -194,7 +195,7 @@
         right: 8px;
         width: 172px; height: 88px;
       }
-      #coinHud .coinNum{ font-size: 20px; padding: 30px 20px 0 70px; }
+      #coinHud .coinNum{ font-size: 20px; padding: 30px 0 0 60px; }
     }
     /* v0.95.388 · Gem HUD · sits directly UNDER the coin HUD · same left-icon layout
        Rainbow gem on the LEFT · count in the dark box to its RIGHT · powers future
@@ -213,7 +214,8 @@
       display:block; width:100%; height:100%;
       font: bold 26px 'Courier New', monospace;
       color:#c8f0ff; letter-spacing:.10em;
-      text-align: right; padding: 40px 28px 0 90px;
+      /* v0.95.392 · Center number inside dark box (same rule as coinNum) */
+      text-align: center; padding: 40px 0 0 78px;
       box-sizing: border-box;
       text-shadow: 0 0 6px rgba(200,240,255,0.8), 0 1px 2px #000;
     }
@@ -224,7 +226,7 @@
         right: 8px;
         width: 172px; height: 88px;
       }
-      #gemHud .gemNum{ font-size: 20px; padding: 30px 20px 0 70px; }
+      #gemHud .gemNum{ font-size: 20px; padding: 30px 0 0 60px; }
     }
     /* v0.95.387 · Wallet panel · opens on coin-HUD click · full currency breakdown */
     #walletPanel{
@@ -4063,9 +4065,16 @@ const NPCS = [
       // v0.95.276 · Professor Elarian gifts the RAID Card (Rizer Academy ID)
       // on first interaction · Touchpad opens the RAID card viewer thereafter
       player.items = player.items || {};
-      // v0.95.360 · If Yara is currently following, she chose to come to school
-      // Return her home to Mom's side after the ceremony (part of the escort quest)
       const yaraFollowing = (player.companion === 'yara');
+      // v0.95.391 · REJECT if Yara isn't with Rizer · escort her from home first
+      if (!player.raidCardGifted && !yaraFollowing){
+        showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
+          '*peers over his spectacles*  Come back with your sister, Rizer.',
+          'A Rizer\'s first ID is a family occasion.  Bring Yara from your home · then we can begin.',
+        ]});
+        try { playSFX('doorLock'); } catch(_){}
+        return;
+      }
       if (!player.raidCardGifted){
         player.raidCardGifted = true;
         try { awardRizerXP(500); } catch(_){}   // v0.95.317 · Prof Elarian RAID card
@@ -6440,20 +6449,22 @@ function ensureElzebubEggSpawn(){
   if (_elzebubEgg) return;
   if (player.elzebubHatched) return;                       // already got Elzebub · never respawn
   if ((player.items && player.items.elzebub_egg) > 0) return;   // already holding it
+  // v0.95.391 · Egg only spawns AFTER the first starter is chosen from Dad
+  // Radius expanded from 10 to 25 (50×50 area) so it can appear anywhere within
+  // a full sprint of the Malezor home per user spec
+  if (!player.starterChosen) return;
   const homeX = 22, homeY = 106;
-  const R = 10;
-  // Try up to 40 random spots · pick a walkable tile inside R Chebyshev distance
-  for (let attempt = 0; attempt < 40; attempt++){
+  const R = 25;
+  for (let attempt = 0; attempt < 80; attempt++){
     const dx = Math.floor(Math.random() * (R * 2 + 1)) - R;
     const dy = Math.floor(Math.random() * (R * 2 + 1)) - R;
     const tx = homeX + dx, ty = homeY + dy;
-    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;    // not right on the door
+    if (Math.abs(dx) < 3 && Math.abs(dy) < 3) continue;    // not right on the door
     if (typeof walkable === 'function' && !walkable(tx, ty)) continue;
     _elzebubEgg = { x: tx, y: ty, phase: Math.random() * Math.PI * 2 };
     return;
   }
-  // Fallback · park it 6 tiles east/south of home
-  _elzebubEgg = { x: homeX + 6, y: homeY + 3, phase: 0 };
+  _elzebubEgg = { x: homeX + 12, y: homeY + 8, phase: 0 };   // fallback anchor
 }
 function drawElzebubEgg(){
   if (!_elzebubEgg) return;
@@ -12845,12 +12856,13 @@ addEventListener('keydown', e => {
       //   faction · after Dad grants starter
       //   map     · after Zoryn gifts Town Map
       const pages = [];
-      // v0.95.384 · Touchpad tab order · MAP (Zoryn) · UTILITIES (bag) · GEAR (cosmetics) · QUESTS · FACTION
-      if (player.townMapGifted)     pages.push('world');       // WORLD MAP · left of UTILITIES · unlocks post-Zoryn toast
-      if (player.hasBackpack)       pages.push('zycube');      // UTILITIES · main page · bag-unlocked
-      if (player.hasBackpack)       pages.push('gear');        // GEAR · cosmetics · will house Upgrades later
-      if (player.dadNotebookGifted) pages.push('quests');      // v0.95.380 · Dad's Notebook unlocks Quests tab
-      if (player.starterChosen)     pages.push('faction');
+      // v0.95.391 · Touchpad tab order · WORLD MAP · BAG · RIZER (upgrades/analysis) · FACTION (upgrades/analysis)
+      // WORLD (Zoryn) · BAG (backpack) · RIZER (RAID w/ Yara escort) · FACTION (starter) · QUESTS (Dad's Notebook)
+      if (player.townMapGifted)     pages.push('world');       // WORLD MAP · unlocks post-Zoryn toast
+      if (player.hasBackpack)       pages.push('zycube');      // BAG · main storage (ZyCube + skateboard + ZyPhone)
+      if (player.raidCardGifted)    pages.push('gear');        // RIZER · analysis + upgrades · unlocks post-Elarian RAID (Yara escort)
+      if (player.starterChosen)     pages.push('faction');     // FACTION · unlocks post-starter
+      if (player.dadNotebookGifted) pages.push('quests');      // QUESTS · Dad's Notebook
       if (pages.length < 2) return;
       const i = Math.max(0, pages.indexOf(hudOverlayPage));
       hudOverlayPage = pages[(i + (k === 'r' ? 1 : pages.length - 1)) % pages.length];
@@ -13289,6 +13301,52 @@ addEventListener('keydown', e => {
     playSFX('menuOpen');
   }
 });
+// v0.95.391 · Full-screen RIZER upgrades page · cosmetics/outfits/skins → 5 stat boosts
+// (HP · ATK · DEF · SPD · SPECIAL) · full UI ships when the mockup lands · stub renders
+// a scaffold w/ 5 stat rows + placeholder loadout so the tab is walkable today
+function drawRizerUpgradesPage(W, H){
+  // Title strip already drawn by outer overlay · start below it
+  ctx.fillStyle = '#f0eadf';
+  ctx.font = 'bold 14px "Courier New", monospace';
+  ctx.fillText('LOADOUT · COSMETIC → STAT BOOST', 32, 76);
+  // Loadout portrait placeholder
+  ctx.fillStyle = 'rgba(20,50,120,0.55)';
+  ctx.fillRect(32, 92, 180, 220);
+  ctx.strokeStyle = '#4fb3ff'; ctx.lineWidth = 2;
+  ctx.strokeRect(32, 92, 180, 220);
+  ctx.fillStyle = '#8ff'; ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('current skin', 32 + 90, 92 + 18);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 13px "Courier New", monospace';
+  ctx.fillText((player.cosmeticSkin || 'normal').toUpperCase(), 32 + 90, 92 + 200);
+  ctx.textAlign = 'left';
+  // 5 stat rows w/ current + upgrade budget preview
+  const stats = [
+    ['❤ HEALTH',   player.hpMax || 100,        '+HP  from cosmetic'],
+    ['⚔ ATTACK',   (player.atk  || 25),        '+ATK from cosmetic'],
+    ['🛡 DEFENSE',  (player.def  || 20),        '+DEF from cosmetic'],
+    ['⚡ SPEED',    (player.spd  || 30),        '+SPD from cosmetic'],
+    ['◆ SPECIAL',  player.astralMax || 100,    '+SPECIAL from cosmetic'],
+  ];
+  const rowX = 236, rowW = W - 236 - 32;
+  stats.forEach(([label, cur, hint], i) => {
+    const y = 100 + i * 42;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(rowX, y, rowW, 34);
+    ctx.strokeStyle = 'rgba(79,179,255,0.35)';
+    ctx.strokeRect(rowX, y, rowW, 34);
+    ctx.fillStyle = '#ffd66b'; ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillText(label, rowX + 14, y + 22);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(String(cur), rowX + 160, y + 22);
+    ctx.fillStyle = 'rgba(200,220,255,0.55)'; ctx.font = '11px "Courier New", monospace';
+    ctx.fillText(hint, rowX + 220, y + 22);
+  });
+  // Coming-soon banner
+  ctx.fillStyle = '#8ff'; ctx.font = 'bold 11px "Courier New", monospace';
+  ctx.fillText('◈ Cosmetic browser + upgrade purchase (gems + coins) · UI mockup pending', 32, H - 44);
+}
+
 // v0.95.388 · countGems() · weighted total across held colored gems
 // Weights: red=1 (common) · blue=2 · purple=3 (rarest) · lets Rizer Upgrades
 // price everything against a single "gem-value" pool without caring which
@@ -15452,26 +15510,26 @@ function drawZyrexMenu(){
   ctx.fillStyle = '#d4af37';
   ctx.font = 'bold 20px "Courier New", monospace';
   ctx.textAlign = 'left';
-  // v0.95.384 · Touchpad tab order · MAP · UTILITIES · GEAR · QUESTS · FACTION
+  // v0.95.391 · Touchpad tab order · WORLD MAP · BAG · RIZER · FACTION · QUESTS
   const overlayTitles={
     world:      'WORLD MAP · ZYRAXIS',
-    zycube:     '◈ UTILITIES · BAG + ZYCUBE',
-    gear:       '⚙  GEAR · COSMETICS + UPGRADES (soon)',
+    zycube:     '◈ BAG · ZYCUBE / SKATEBOARD / ZYPHONE',
+    gear:       '☆ RIZER · ANALYSIS + UPGRADES',
+    faction:    '◇ FACTION · ANALYSIS + UPGRADES',
     quests:     'QUESTS · EXPEDITIONS + SIDE MISSIONS',
-    faction:    'FACTION · YOUR ZYREX',
   };
   ctx.fillText(overlayTitles[hudOverlayPage]||overlayTitles.zycube,24,40);
   ctx.font='bold 12px "Courier New", monospace';
   ctx.textAlign='right';
   ctx.fillStyle='#8ff';
   const tabs=[];
-  if(player.townMapGifted)     tabs.push('world');    // WORLD MAP left of UTILITIES · Zoryn gates
-  if(player.hasBackpack)       tabs.push('zycube');   // UTILITIES
-  if(player.hasBackpack)       tabs.push('gear');     // GEAR right of UTILITIES
+  if(player.townMapGifted)     tabs.push('world');    // WORLD MAP
+  if(player.hasBackpack)       tabs.push('zycube');   // BAG
+  if(player.raidCardGifted)    tabs.push('gear');     // RIZER · post-Elarian RAID
+  if(player.starterChosen)     tabs.push('faction');  // FACTION · post-starter
   if(player.dadNotebookGifted) tabs.push('quests');
-  if(player.starterChosen)     tabs.push('faction');
   if(tabs.length>1){
-    const labelFor=id=>({world:'MAP',zycube:'UTILITIES',gear:'GEAR',quests:'QUESTS',faction:'FACTION'}[id]);
+    const labelFor=id=>({world:'MAP',zycube:'BAG',gear:'RIZER',faction:'FACTION',quests:'QUESTS'}[id]);
     const tabStr=tabs.map(id=>id===hudOverlayPage?`[ ${labelFor(id)} ]`:labelFor(id)).join('   ');
     ctx.fillText(`L1 ◀  ${tabStr}  ▶ R1`,W-24,40);
   }
@@ -15484,16 +15542,10 @@ function drawZyrexMenu(){
     drawZycubePanel(W,H);
     return;
   }
-  // v0.95.384 · GEAR page · cosmetics + upgrades (upgrades ship later)
+  // v0.95.391 · RIZER page · analysis + upgrades · full-screen stat/cosmetic loadout
   if(hudOverlayPage==='gear'){
-    ctx.font = '13px "Courier New", monospace';
-    ctx.fillStyle = '#f0eadf';
-    ctx.fillText('COSMETICS · UPGRADES (soon) · loadouts', 32, 84);
-    ctx.fillStyle = 'rgba(200,220,255,0.5)';
-    ctx.font = '11px "Courier New", monospace';
-    ctx.fillText('· Rizer skin swaps · faction cosmetics · future Upgrades tree ·', 32, 108);
-    ctx.fillText('· Weapons + gear-slot equips will land here in a follow-up pass ·', 32, 128);
-    ctx.fillStyle = '#8ff'; ctx.textAlign = 'right';
+    drawRizerUpgradesPage(W, H);
+    ctx.fillStyle = '#8ff'; ctx.font = '11px "Courier New", monospace'; ctx.textAlign = 'right';
     ctx.fillText('Touchpad / ○ · close', W - 24, H - 16);
     ctx.textAlign = 'left';
     return;

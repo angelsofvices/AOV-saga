@@ -4072,6 +4072,109 @@ const NPCS = [
       onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
+  // ── v0.95.324 · Mori PERIMETER PASS · outer ring of Malezor district ──
+  // North/east/south edges of Malezor (NOT the town core, NOT any building
+  // footprint, NOT within 8 tiles of a prop-blocked tile).  Weighted like
+  // the wild-arm density above (same 6-7 wanderRadius, same moveCd cadence).
+  ...(function(){
+    const MORI_BBOXES_PERIM = [
+      [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
+      [[71,45,189,254],[49,49,206,250],[17,45,207,251],[27,45,170,254]],
+      [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
+      [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
+    ];
+    const rng = _makeWorldRng(0xFEEDBA5);
+    const placed = [];
+    const TARGET = 45;
+    for (let attempts = 0; attempts < 12000 && placed.length < TARGET; attempts++){
+      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+      if (worldDistrictAt(x, y) !== 'malezor') continue;
+      if (legacyDistrictAt(x, y) === 'malezor') continue;   // skip town core
+      if (isWorldBorderTile(x, y)) continue;
+      if (_propBlocked.has(`${x},${y}`)) continue;
+      // 8-tile buffer from any building/prop tile (keeps main-story areas clear)
+      let nearProp = false;
+      for (let dy = -8; dy <= 8 && !nearProp; dy++){
+        for (let dx = -8; dx <= 8; dx++){
+          if (_propBlocked.has(`${x+dx},${y+dy}`)){ nearProp = true; break; }
+        }
+      }
+      if (nearProp) continue;
+      // Space existing spots at least 6 tiles apart
+      if (placed.some(p => Math.hypot(p.x - x, p.y - y) < 6)) continue;
+      placed.push({ x, y });
+    }
+    return placed.map((s, i) => ({
+      id: `mori_perim_${i + 1}`,
+      name: 'Mori',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/enemies/mori.png',
+      bboxes: MORI_BBOXES_PERIM,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
+      homeScene: 'overworld', scene: 'overworld',
+      wanderRadius: 7,
+      dir: 'down', mode: 'wander',
+      moving: false, animFrame: 0, idleFrame: 0,
+      moveCd: 250 + Math.random() * 350,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      hp: 125, hpMax: 125, tier: 1, level: 2,
+      onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
+    }));
+  })(),
+  // ── v0.95.324 · Daemon PERIMETER PASS · outer ring of ANDRANNOR district ──
+  // Andrannor spans cols 181-300 rows 308-337 · daemons only outside town
+  // core, avoiding all building/prop footprints w/ 8-tile buffer
+  ...(function(){
+    const DAEMON_BBOXES_PERIM = [
+      [[154, 18,159,240],[  0, 18,290,249],[  0, 21,272,242],[ 34, 21,202,246]],
+      [[144, 35,169,239],[  0, 35,285,238],[ 65, 35,183,238],[ 17, 35,205,238]],
+      [[145, 40,168,239],[  0, 40,285,240],[  0, 42,270,237],[ 17, 42,202,237]],
+      [[131, 47,182,248],[  0, 47,285,249],[ 62, 47,207,249],[ 26, 48,195,248]],
+    ];
+    const rng = _makeWorldRng(0xDEA110C);
+    const placed = [];
+    const TARGET = 35;
+    for (let attempts = 0; attempts < 12000 && placed.length < TARGET; attempts++){
+      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+      if (worldDistrictAt(x, y) !== 'andrannor') continue;
+      if (legacyDistrictAt(x, y) === 'andrannor') continue;
+      if (isWorldBorderTile(x, y)) continue;
+      if (_propBlocked.has(`${x},${y}`)) continue;
+      let nearProp = false;
+      for (let dy = -8; dy <= 8 && !nearProp; dy++){
+        for (let dx = -8; dx <= 8; dx++){
+          if (_propBlocked.has(`${x+dx},${y+dy}`)){ nearProp = true; break; }
+        }
+      }
+      if (nearProp) continue;
+      if (placed.some(p => Math.hypot(p.x - x, p.y - y) < 7)) continue;
+      placed.push({ x, y });
+    }
+    return placed.map((s, i) => ({
+      id: `daemon_andr_${i + 1}`,
+      name: 'Daemon',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/enemies/daemon.png',
+      rowMap: { up:0, left:1, right:2, down:3 },
+      bboxes: DAEMON_BBOXES_PERIM,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      uniformScale: true,
+      tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
+      homeScene: 'overworld', scene: 'overworld',
+      wanderRadius: 8,
+      dir: 'down', mode: 'daemon',
+      moving: false, animFrame: 0, idleFrame: 0,
+      moveCd: 200 + Math.random() * 300,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      hp: 250, hpMax: 250, tier: 3, level: 15,
+      onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
+    }));
+  })(),
   // ── Mori · ZARVANE wild region · v0.95.129 · heavier population than Malezor ──
   // Districts progress: Malezor=passive wander · Zarvane=mix of wander + drainers
   //                     + one daemon lurking deep south · Andrannor=daemon-heavy.
@@ -9387,6 +9490,28 @@ function tryMove(dt){
 
   const wasMoving = player.moving;
   player.x = nx; player.y = ny;
+  // v0.95.324 · District-border WARP · when Rizer crosses into a new district
+  // for the first time, banner-toast the district name and cache a warp entry
+  // so future fast-travel can hop the player back here.  Warps also mark the
+  // player.visitedDistricts set for quest/telemetry hooks.
+  if (game.scene === 'overworld'){
+    try {
+      const dist = worldDistrictAt(nx, ny);
+      if (dist && dist !== player._lastDistrict){
+        player._lastDistrict = dist;
+        player.visitedDistricts = player.visitedDistricts || {};
+        const first = !player.visitedDistricts[dist];
+        player.visitedDistricts[dist] = true;
+        // Cache the border-crossing point as a warp anchor
+        player.warpAnchors = player.warpAnchors || {};
+        if (!player.warpAnchors[dist]) player.warpAnchors[dist] = { x: nx, y: ny };
+        if (first){
+          showToast(`★ ENTERED ${dist.toUpperCase()} · warp anchor set`, 2600);
+          try { playSFX('confirm'); } catch(_){}
+        }
+      }
+    } catch(_){}
+  }
   // v0.95.171 · Auto-collect gems when stepping onto their tile
   if (game.scene === 'overworld') collectGemAt('overworld', nx, ny);
   // v0.95.93 · Walking cancels any guitar song + upcoming play animation

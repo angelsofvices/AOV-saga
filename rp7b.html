@@ -16131,57 +16131,97 @@ function worldMapPlayerPosition(){
   const r=game.overworldReturn||{x:player.x,y:player.y};
   return{x:r.x,y:r.y,inside:true};
 }
-function drawWorldMapPage(W,H){
-  const map=_worldMapCache||buildWorldMapCache();
-  const availableW=W-48,availableH=H-142,aspect=map.w/map.h;
-  let dw=Math.min(availableW,availableH*aspect),dh=dw/aspect;
-  if(dh>availableH){dh=availableH;dw=dh*aspect;}
-  const dx=Math.round((W-dw)/2),dy=68;
-  ctx.save();
-  ctx.imageSmoothingEnabled=false;
-  ctx.shadowColor='rgba(0,0,0,.8)';ctx.shadowBlur=14;
-  ctx.drawImage(map.canvas,dx,dy,dw,dh);
-  ctx.shadowBlur=0;ctx.strokeStyle='#d4af37';ctx.lineWidth=2;ctx.strokeRect(dx-.5,dy-.5,dw+1,dh+1);
+// v0.95.407 · World Map hero image · live player pin + district label + outline
+// Per-district normalized (xf, yf, rf) fractions on the hero image (3024×1964)
+// mapping each district center to its stylized island on the illustration
+const WORLD_MAP_DISTRICT_POS = {
+  malezor:   { xf: 0.090, yf: 0.115, rf: 0.135 },   // top-left green island
+  zarvane:   { xf: 0.115, yf: 0.235, rf: 0.145 },   // yellow just below Malezor
+  andrannor: { xf: 0.235, yf: 0.240, rf: 0.115 },   // dark-forest center
+  veridan:   { xf: 0.350, yf: 0.215, rf: 0.135 },   // green top-right of Andrannor
+  netharion: { xf: 0.315, yf: 0.335, rf: 0.115 },   // purple crystal island
+  vorashil:  { xf: 0.245, yf: 0.470, rf: 0.115 },   // light-blue crystal
+  xilnar:    { xf: 0.320, yf: 0.540, rf: 0.100 },   // silver-grey
+  baelgor:   { xf: 0.410, yf: 0.535, rf: 0.100 },   // orange/fire
+  thardin:   { xf: 0.490, yf: 0.530, rf: 0.100 },   // teal machine
+  korathen:  { xf: 0.575, yf: 0.520, rf: 0.110 },   // gold (endgame)
+};
+const WORLD_MAP_HERO_IMG = new Image();
+WORLD_MAP_HERO_IMG.src = 'assets/2D%20sprites/ui/pages/world-map-hero.png';
 
-  // District names are derived from registry centers and therefore retain
-  // their correct position even as the coast masks evolve.
-  const labelFont=Math.max(8,Math.min(12,Math.floor(W/105)));
-  ctx.font=`bold ${labelFont}px "Courier New", monospace`;
-  ctx.textAlign='center';ctx.textBaseline='middle';
-  for(const d of ZYRAXIS_DISTRICTS){
-    const lx=dx+(d.cx-WORLD_MIN_COL)/map.w*dw;
-    const ly=dy+(d.cy-WORLD_MIN_ROW)/map.h*dh;
-    const name=d.id.toUpperCase(),tw=ctx.measureText(name).width+10;
-    ctx.fillStyle='rgba(5,7,20,.76)';ctx.fillRect(lx-tw/2,ly-labelFont*.8,tw,labelFont*1.6);
-    ctx.strokeStyle='rgba(243,213,123,.75)';ctx.lineWidth=1;ctx.strokeRect(lx-tw/2,ly-labelFont*.8,tw,labelFont*1.6);
-    ctx.fillStyle='#fff4c5';ctx.fillText(name,lx,ly+.5);
+function drawWorldMapPage(W, H){
+  const pos = worldMapPlayerPosition();
+  const dist = worldDistrictAt(pos.x, pos.y);
+  // ── Backdrop · cosmic nebula (hero image) fills entire page ──────────
+  if (WORLD_MAP_HERO_IMG.complete && WORLD_MAP_HERO_IMG.naturalWidth){
+    ctx.save();
+    // Cover-fit: scale image so it fills the canvas edge-to-edge, preserving aspect
+    const iw = WORLD_MAP_HERO_IMG.naturalWidth, ih = WORLD_MAP_HERO_IMG.naturalHeight;
+    const scale = Math.max(W / iw, H / ih);
+    const dw = iw * scale, dh = ih * scale;
+    const dx = (W - dw) / 2, dy = (H - dh) / 2;
+    ctx.drawImage(WORLD_MAP_HERO_IMG, dx, dy, dw, dh);
+    // ── Current-district outline · pulses a soft cyan ring around your island ──
+    const dpos = dist && WORLD_MAP_DISTRICT_POS[dist];
+    if (dpos){
+      const cx = dx + dpos.xf * dw;
+      const cy = dy + dpos.yf * dh;
+      const r  = dpos.rf * dw;
+      const pulse = 0.55 + 0.35 * Math.sin(performance.now() / 340);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(79,179,255,${pulse.toFixed(2)})`;
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = `rgba(200,240,255,${(pulse*0.7).toFixed(2)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, r + 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      // ── Live player pin · glowing waypoint at district center ──────────
+      const pinPulse = 6 + Math.sin(performance.now() / 150) * 2.5;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const glow = ctx.createRadialGradient(cx, cy, 1, cx, cy, pinPulse * 2.6);
+      glow.addColorStop(0, 'rgba(255,255,255,0.95)');
+      glow.addColorStop(0.3, 'rgba(255,214,107,0.85)');
+      glow.addColorStop(1, 'rgba(255,214,107,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(cx, cy, pinPulse * 2.6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = player.ufoFlying ? '#8ff' : '#ffd66b';
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, pinPulse * 0.72, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  } else {
+    // Fallback while hero image loads · plain dim + label
+    ctx.fillStyle = 'rgba(4,8,22,0.85)';
+    ctx.fillRect(0, 0, W, H);
   }
-
-  const pos=worldMapPlayerPosition();
-  const rawX=dx+(pos.x-WORLD_MIN_COL)/map.w*dw;
-  const rawY=dy+(pos.y-WORLD_MIN_ROW)/map.h*dh;
-  const mx=Math.max(dx+6,Math.min(dx+dw-6,rawX));
-  const my=Math.max(dy+6,Math.min(dy+dh-6,rawY));
-  const pulse=7+Math.sin(performance.now()/150)*2;
-  ctx.globalCompositeOperation='lighter';
-  const glow=ctx.createRadialGradient(mx,my,1,mx,my,pulse*2.5);
-  glow.addColorStop(0,'rgba(255,255,255,.95)');glow.addColorStop(.3,'rgba(80,225,255,.75)');glow.addColorStop(1,'rgba(80,225,255,0)');
-  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(mx,my,pulse*2.5,0,Math.PI*2);ctx.fill();
-  ctx.globalCompositeOperation='source-over';
-  ctx.fillStyle=player.ufoFlying?'#8ff':'#ffdf62';ctx.strokeStyle='#fff';ctx.lineWidth=2;
-  if(player.ufoFlying){
-    ctx.beginPath();ctx.moveTo(mx,my-pulse);ctx.lineTo(mx+pulse,my);ctx.lineTo(mx,my+pulse);ctx.lineTo(mx-pulse,my);ctx.closePath();ctx.fill();ctx.stroke();
-  }else{ctx.beginPath();ctx.arc(mx,my,pulse*.72,0,Math.PI*2);ctx.fill();ctx.stroke();}
-  const dist=worldDistrictAt(pos.x,pos.y);
-  const location=dist?dist.toUpperCase():'VOID SEA';
-  const actor=player.ufoFlying?'C.O.R.S.U.N. UFO':(player.activeActor||'rizer').toUpperCase();
-  ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.font='bold 12px "Courier New", monospace';
-  ctx.fillStyle='#fff';ctx.fillText(`YOU · ${actor}`,mx,Math.max(dy+18,my-pulse-9));
-  ctx.fillStyle='#8ff';ctx.font='11px "Courier New", monospace';
-  const sceneSuffix=pos.inside?' · INSIDE LOCATION':'';
-  ctx.fillText(`${location} · TILE (${pos.x}, ${pos.y})${sceneSuffix}`,W/2,H-42);
-  ctx.fillStyle='#9ca9bd';ctx.fillText('Gold edge = world border · purple = Void Sea',W/2,H-25);
-  ctx.restore();
+  // ── Header title strip ────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(4,8,22,0.72)';
+  ctx.fillRect(0, 30, W, 40);
+  ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, 70); ctx.lineTo(W, 70); ctx.stroke();
+  ctx.fillStyle = '#ffd66b';
+  ctx.font = 'bold 18px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('◈ WORLD MAP · ZYRAXIS ◈', W / 2, 56);
+  // ── Location readout footer ──────────────────────────────────────
+  const location = dist ? dist.toUpperCase() : 'VOID SEA';
+  const actor = player.ufoFlying ? 'C.O.R.S.U.N. UFO' : (player.activeActor || 'rizer').toUpperCase();
+  const sceneSuffix = pos.inside ? ' · INSIDE LOCATION' : '';
+  ctx.fillStyle = 'rgba(4,8,22,0.82)';
+  ctx.fillRect(0, H - 62, W, 62);
+  ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - 62); ctx.lineTo(W, H - 62); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 15px "Courier New", monospace';
+  ctx.fillText(`◆ ${location} ◆`, W / 2, H - 40);
+  ctx.fillStyle = '#8ff';
+  ctx.font = '12px "Courier New", monospace';
+  ctx.fillText(`YOU · ${actor} · TILE (${pos.x}, ${pos.y})${sceneSuffix}`, W / 2, H - 20);
+  ctx.textAlign = 'left';
 }
 function drawZyrexMenu(){
   if (!zyrexMenuOpen) return;

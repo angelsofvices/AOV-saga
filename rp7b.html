@@ -7533,7 +7533,9 @@ const RIZER_ROOM_ITEMS={
   // v0.95.376 · ZyPhone resting on the LEFT side of the PC desk · tile (5, 7)
   // Interact grants player.items.zphone + vanishes · listed BEFORE pc so roomItemAtTile
   // returns zphone at (5,7) before matching the pc footprint that also covers it
-  zphone:{name:'ZyPhone',x:5,y:7,homeX:5,homeY:7,footprint:[[0,0]]},
+  // v0.95.426 · footprint EMPTIED · (5,7) walkable so player can stand there
+  // interact still fires via roomItemAtTile lookup facing the tile
+  zphone:{name:'ZyPhone',x:5,y:7,homeX:5,homeY:7,footprint:[]},
   // v0.95.399 · Trimmed leftmost desk tile (-2,0)=(5,7) from footprint · was
   // an invisible collision west of the visible desk edge · desk now blocks (6,7)-(9,7)+(7,6)
   pc:{name:'Nebuladock PC',x:7,y:7,homeX:7,homeY:7,footprint:[[-1,0],[0,0],[1,0],[2,0],[0,-1]]},
@@ -7557,6 +7559,9 @@ function roomItemAtTile(x,y){
     if(id==='zphone'&&player.items?.zphone)continue;   // v0.95.376 · phone gone after pickup
     if(id==='chair'&&player.ridingChair)continue;
     if(it.footprint.some(([dx,dy])=>it.x+dx===x&&it.y+dy===y))return {id,it};
+    // v0.95.426 · Empty-footprint items (walkable pickups like ZyPhone) still
+    // match their anchor tile so face-detection + interact works from adjacent
+    if(it.footprint.length===0 && it.x===x && it.y===y) return {id,it};
   }
   return null;
 }
@@ -13529,8 +13534,6 @@ addEventListener('keydown', e => {
             }
           }
         } else if (interiorConfig(game.scene)){
-          // Interior scenes have NPCs, exit tile, and Rizer Room props ·
-          // conservative: any NPC on faced tile OR the exit tile counts.
           const cfg = interiorConfig(game.scene);
           if (cfg && cfg.exit && fx === cfg.exit.x && fy === cfg.exit.y) hasInteract = true;
           if (!hasInteract){
@@ -13541,6 +13544,15 @@ addEventListener('keydown', e => {
           // v0.95.162 · Bed tiles in Rizer Room count as interactables (rest/dream)
           if (!hasInteract && cfg && cfg.rizerRoom
               && fx >= 12 && fx <= 14 && (fy === 8 || fy === 9)){
+            hasInteract = true;
+          }
+          // v0.95.426 · Any RIZER_ROOM_ITEMS prop on faced tile (skateboard/phone/
+          // guitar/backpack/science/dummy/console/pc/chair/basketball/bed) = interact
+          if (!hasInteract && cfg && cfg.rizerRoom && typeof roomItemAtTile === 'function'){
+            if (roomItemAtTile(fx, fy)) hasInteract = true;
+          }
+          // Blocked interior tile (wall/prop) = no jump either
+          if (!hasInteract && typeof walkable === 'function' && !walkable(fx, fy)){
             hasInteract = true;
           }
         }
@@ -13597,6 +13609,22 @@ addEventListener('keydown', e => {
           // detect the tile explicitly here.
           if (!_faceHasInteract && cfg && cfg.rizerRoom
               && fx === 3 && fy === 1 && !player.items?.skateboard){
+            _faceHasInteract = true;
+          }
+          // v0.95.426 · ALL Rizer Room props (phone, science, guitar, TV,
+          // console, PC, backpack, dummy, chair, basketball, egg) fire grab
+          // anim instead of jump when faced.  Silent-effect items would
+          // otherwise pass the snapshot check.
+          if (!_faceHasInteract && cfg && cfg.rizerRoom && typeof roomItemAtTile === 'function'){
+            if (roomItemAtTile(fx, fy)) _faceHasInteract = true;
+          }
+          // Elzebub egg (fixed spawn) also counts
+          if (!_faceHasInteract && typeof _elzebubEgg !== 'undefined' && _elzebubEgg
+              && _elzebubEgg.x === fx && _elzebubEgg.y === fy){
+            _faceHasInteract = true;
+          }
+          // Any blocked interior tile = wall/prop · suppress jump
+          if (!_faceHasInteract && typeof walkable === 'function' && !walkable(fx, fy)){
             _faceHasInteract = true;
           }
         }
@@ -18782,6 +18810,20 @@ function tickNPC(n, dt){
     // v0.95.318 · Aggressive Zyrex combat AI · summoned Zyrex fight enemies
     if (isAggressiveMode() && n.id && n.id.startsWith('_summon_') && n._summoned){
       tickAggressiveZyrex(n);
+      return;
+    }
+    // v0.95.427 · When player is IDLE, companion holds position and turns
+    // to face the player (talk/follow/soulswap cue).  No pacing back and
+    // forth chasing a stale trail target.  Only chase when player moves.
+    if (!player.moving){
+      const pdx = player.x - n.tileX, pdy = player.y - n.tileY;
+      if (pdx !== 0 || pdy !== 0){
+        // Face the player · pick axis with bigger delta
+        if (Math.abs(pdx) >= Math.abs(pdy)) n.dir = pdx > 0 ? 'right' : 'left';
+        else                                 n.dir = pdy > 0 ? 'down'  : 'up';
+      }
+      n.moving = false;
+      n.moveCd = 200;
       return;
     }
     // Follow player · target = 2 tiles behind in player's trail

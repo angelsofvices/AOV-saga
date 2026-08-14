@@ -4181,13 +4181,14 @@ const NPCS = [
       // v0.95.167 · Daemons use their own sprite sheet (row order UP/LEFT/RIGHT/DOWN)
       src:   s.mode === 'daemon' ? 'assets/2D%20sprites/enemies/daemon.png' : 'assets/2D%20sprites/enemies/mori.png',
       rowMap: s.mode === 'daemon' ? { up:0, left:1, right:2, down:3 } : null,
-      // v0.95.174 · Daemon bboxes = col-0 tight repeated · Mori-adjacent scale
-      // Sheet order UP/LEFT/RIGHT/DOWN · captures full daemon body
+      // v0.95.321 · Daemon per-frame bboxes · clamped tight to cell to kill
+      // cross-cell tail/wing bleed on walk animation · rows UP/LEFT/RIGHT/DOWN
+      // measured via CC bbox extractor, then constrained to bx>=0, bx+bw<=313
       bboxes: s.mode === 'daemon' ? [
-        [[154, 18,159,240],[154, 18,159,240],[154, 18,159,240],[154, 18,159,240]],
-        [[144, 35,169,239],[144, 35,169,239],[144, 35,169,239],[144, 35,169,239]],
-        [[145, 40,168,239],[145, 40,168,239],[145, 40,168,239],[145, 40,168,239]],
-        [[131, 47,182,248],[131, 47,182,248],[131, 47,182,248],[131, 47,182,248]],
+        [[154, 18,159,240],[  0, 18,290,249],[  0, 21,272,242],[ 34, 21,202,246]],
+        [[144, 35,169,239],[  0, 35,285,238],[ 65, 35,183,238],[ 17, 35,205,238]],
+        [[145, 40,168,239],[  0, 40,285,240],[  0, 42,270,237],[ 17, 42,202,237]],
+        [[131, 47,182,248],[  0, 47,285,249],[ 62, 47,207,249],[ 26, 48,195,248]],
       ] : MORI_BBOXES,
       uniformScale: s.mode === 'daemon' ? true : undefined,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
@@ -8862,6 +8863,32 @@ addEventListener('keydown', e => {
                     || game.guitarPanelOpen || game.nebulaPanelOpen
                     || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModal){
+        // v0.95.321 · Punching bag hold-to-drag · while facing the dummy bag,
+        // Square keydown starts a hold timer · release <350ms = punch (normal)
+        // release >=350ms = enter DRAG mode where bag follows Rizer's faced tile
+        if (k === 'j' && !e.repeat){
+          const cfgHitPre = interiorConfig(game.scene);
+          if (cfgHitPre && cfgHitPre.rizerRoom){
+            let fx0 = player.x, fy0 = player.y;
+            if (player.dir === 'up')    fy0--;
+            if (player.dir === 'down')  fy0++;
+            if (player.dir === 'left')  fx0--;
+            if (player.dir === 'right') fx0++;
+            const facedBag = roomItemAtTile(fx0, fy0)?.id === 'dummy';
+            if (facedBag){
+              // If already dragging, DROP the bag (Square = release)
+              if (game._bagDragging){
+                game._bagDragging = false;
+                showToast('◈ Bag dropped', 1400);
+                try { playSFX('confirm'); } catch(_){}
+                return;
+              }
+              // Start hold timer · defer decision to keyup
+              game._bagHoldStart = performance.now();
+              return;
+            }
+          }
+        }
         const mode = (k === 'j') ? 'punch' : 'kick';
         if(performance.now()<(player.attackUntil||0))return;
         const dur  = Math.round(((mode === 'kick') ? 400 : 300)*rizerAttackTimeScale());
@@ -8973,6 +9000,21 @@ addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
   keys[k] = false;
   releaseWildBattleKey(k);
+  // v0.95.321 · Punching bag hold-to-drag resolution on Square keyup
+  if (k === 'j' && game._bagHoldStart){
+    const held = performance.now() - game._bagHoldStart;
+    game._bagHoldStart = 0;
+    if (held >= 350){
+      // Enter drag mode · bag now follows Rizer's faced tile until Square is pressed again
+      game._bagDragging = true;
+      showToast('◈ Bag grabbed · move Rizer · Square to drop', 2200);
+      try { playSFX('confirm'); } catch(_){}
+    } else {
+      // Short tap · fire a normal punch on the bag
+      try { firePunchOnBag(); } catch(_){}
+    }
+    return;
+  }
   // UFO Square is a held projection: release immediately retracts the
   // CORSUN beam while steering remains available throughout the attack.
   if(k==='j'&&player.ufoFlying)stopUfoBeam();
@@ -9456,6 +9498,51 @@ function emitGrassNoise(px, py){
     n._aggroTx = px;
     n._aggroTy = py;
   }
+  // v0.95.321 · Mori spawn on gemgrass steps · 8% chance per step to spawn a
+  // fresh Mori within 6-8 tiles of player · caps at 4 active grass-spawned
+  // Mori at once so density stays manageable · aov-catching-philosophy canon:
+  // 'grass = terrain flavor + noise that draws Mori/Daemon aggro'
+  try {
+    if (Math.random() >= 0.08) return;
+    const activeGrassMori = NPCS.filter(n => n && n._grassSpawn && n.scene === 'overworld' && !n._dying).length;
+    if (activeGrassMori >= 4) return;
+    // Pick a walkable tile 6-8 tiles from player
+    for (let attempt = 0; attempt < 20; attempt++){
+      const angle = Math.random() * Math.PI * 2;
+      const dist  = 6 + Math.random() * 2;
+      const tx = Math.round(px + Math.cos(angle) * dist);
+      const ty = Math.round(py + Math.sin(angle) * dist);
+      if (typeof walkable === 'function' && !walkable(tx, ty)) continue;
+      spawnGrassMori(tx, ty);
+      return;
+    }
+  } catch(_){}
+}
+// Spawn a fresh grass-Mori at (x,y) · reuses the Mori sprite + AI · marked
+// with _grassSpawn so we can cap/count them
+function spawnGrassMori(tileX, tileY){
+  const template = NPCS.find(n => n && n.id && n.id.startsWith('mori_') && n.src && n.src.includes('mori.png'));
+  if (!template) return;
+  const clone = {
+    id: `mori_grass_${performance.now()|0}_${Math.random().toString(36).slice(2,6)}`,
+    name: 'Mori',
+    sheet: template.sheet,
+    src: template.src,
+    bboxes: template.bboxes,
+    cellW: template.cellW, cellH: template.cellH, cols: 4, rows: 4,
+    tileX, tileY, homeX: tileX, homeY: tileY,
+    homeScene: 'overworld', scene: 'overworld',
+    wanderRadius: 5,
+    dir: 'down', mode: 'wander',
+    moving: false, animFrame: 0, idleFrame: 0,
+    moveCd: 250 + Math.random() * 350,
+    blinkTimer: 9e9,
+    isEnemy: true,
+    _grassSpawn: true,
+    hp: 125, hpMax: 125, tier: 1, level: 2,
+    onInteract: () => showToast('◈ Mori snarls · "SSSKRRAAH!"', 1600),
+  };
+  NPCS.push(clone);
 }
 
 // -- Renderer ----------------------------------------------------------------
@@ -11252,7 +11339,7 @@ addEventListener('keydown', e => {
         playSFX('cursor');
         return;
       }
-      // ▲▼ nav within active sub-list
+      // ▲▼ nav within active sub-list (wraps at ends per v0.95.322 spec · reset to top after end)
       if (zycubeSubTab === 'items'){
         const entries = zycubeItemEntries();
         if (entries.length){
@@ -11261,6 +11348,21 @@ addEventListener('keydown', e => {
           if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
             const e = entries[itemsCursor];
             if (e) useZycubeItem(e.key);
+            return;
+          }
+          // v0.95.322 · Triangle (k) assigns favorite for SELECT/CREATE shortcut
+          if (k === 'k'){
+            const e = entries[itemsCursor];
+            if (e){
+              if (player.favoriteItem === e.key){
+                player.favoriteItem = null;
+                showToast(`◈ ★ ${e.label} unassigned from △/CREATE`, 1800);
+              } else {
+                player.favoriteItem = e.key;
+                showToast(`★ ${e.label} assigned to △/CREATE shortcut`, 2200);
+              }
+              try { playSFX('confirm'); } catch(_){}
+            }
             return;
           }
         }
@@ -13753,10 +13855,16 @@ function drawZycubeItemsList(W, H){
   if (itemsCursor >= entries.length) itemsCursor = Math.max(0, entries.length - 1);
   if (itemsCursor < 0) itemsCursor = 0;
   const startY = 96;
+  const rowH = 26;
+  const availH = H - 30 - (startY + 10);
+  const maxVisible = Math.max(1, Math.floor(availH / rowH));
+  // v0.95.322 · Scrollable list · window slides so cursor stays visible
+  // Reset to top when we wrap past the last item (see arrow nav handler)
+  const scrollTop = Math.max(0, Math.min(entries.length - maxVisible,
+    itemsCursor - Math.floor(maxVisible / 2)));
   ctx.font = 'bold 12px "Courier New", monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.fillText(`${entries.length} entrie${entries.length === 1 ? '' : 's'}`, 32, startY - 4);
-  const rowH = 26;
+  ctx.fillText(`${entries.length} entrie${entries.length === 1 ? '' : 's'} · ${itemsCursor+1}/${entries.length}`, 32, startY - 4);
   if (entries.length === 0){
     ctx.fillStyle = '#aab4c8';
     ctx.font = '13px "Courier New", monospace';
@@ -13768,9 +13876,10 @@ function drawZycubeItemsList(W, H){
     ctx.textAlign = 'left';
     return;
   }
-  entries.forEach((e, i) => {
-    const y = startY + 10 + i * rowH;
-    if (y + rowH > H - 30) return;
+  const visible = entries.slice(scrollTop, scrollTop + maxVisible);
+  visible.forEach((e, vi) => {
+    const i = scrollTop + vi;
+    const y = startY + 10 + vi * rowH;
     const selected = (i === itemsCursor);
     // Card bg
     ctx.fillStyle = selected ? 'rgba(212,175,55,0.22)' : 'rgba(20,26,44,0.55)';
@@ -13778,10 +13887,11 @@ function drawZycubeItemsList(W, H){
     // Kind stripe
     ctx.fillStyle = e.kind === 'raid' ? '#4fb3ff' : e.kind === 'gift' ? '#ffd66b' : '#8ff';
     ctx.fillRect(24, y, 3, rowH - 4);
-    // Name
+    // Name (+ ★ favorite marker)
     ctx.font = 'bold 13px "Courier New", monospace';
     ctx.fillStyle = selected ? '#ffd66b' : '#fff';
-    ctx.fillText(`${selected ? '▶ ' : '  '}${e.label}`, 34, y + 15);
+    const fav = (player.favoriteItem === e.key) ? ' ★' : '';
+    ctx.fillText(`${selected ? '▶ ' : '  '}${e.label}${fav}`, 34, y + 15);
     // Qty + action hint (right-aligned)
     ctx.textAlign = 'right';
     ctx.font = 'bold 11px "Courier New", monospace';
@@ -14382,6 +14492,43 @@ function drawZyrexAttackAnims(){
     ctx.restore();
   }
 }
+// v0.95.321 · Fire a light-punch on the training dummy · used when Square
+// was tapped (short press) while facing the bag · replays the SFX + hit fx
+// without going through the general melee pipeline (which we bypass to give
+// the hold-to-drag mechanic input priority)
+function firePunchOnBag(){
+  try {
+    playSFX('punchHit');
+    recordHitLanded('punch');
+    const cfg = interiorConfig(game.scene);
+    if (cfg && cfg.rizerRoom){
+      const pos = RIZER_ROOM_ITEMS.dummy;
+      if (pos && typeof spawnHitFx === 'function') spawnHitFx(pos.x, pos.y, 'punch');
+    }
+  } catch(_){}
+}
+// v0.95.321 · Bag drag position tick · while game._bagDragging is true,
+// slide the dummy's tile to sit in front of Rizer (his faced tile)
+function tickBagDrag(){
+  if (!game._bagDragging) return;
+  const cfg = interiorConfig(game.scene);
+  if (!cfg || !cfg.rizerRoom){
+    game._bagDragging = false;
+    return;
+  }
+  let fx = player.x, fy = player.y;
+  if (player.dir === 'up')    fy--;
+  if (player.dir === 'down')  fy++;
+  if (player.dir === 'left')  fx--;
+  if (player.dir === 'right') fx++;
+  // Clamp inside room + skip blocked tiles other than the bag itself
+  if (fx < 0 || fy < 0 || fx >= cfg.cols || fy >= cfg.rows) return;
+  const pos = RIZER_ROOM_ITEMS.dummy;
+  if (!pos) return;
+  pos.x = fx;
+  pos.y = fy;
+}
+
 // Toggle summon for the Zyrex at party slot idx · one summoned at a time
 function toggleFactionSummon(partyIdx){
   const party = (player.party || []).filter(Boolean);
@@ -15210,6 +15357,7 @@ function frame(now){
   drawHitFx();          // shared impact rings · above world under menus
   drawZyrexAttackFx();  // v0.95.318 · type-themed Zyrex attack VFX (ring fallback)
   drawZyrexAttackAnims();// v0.95.320 · per-species attack sprite sheets
+  try { tickBagDrag(); } catch(_){}  // v0.95.321 · bag follows Rizer while dragging
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

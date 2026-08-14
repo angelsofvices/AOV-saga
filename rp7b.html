@@ -4197,28 +4197,32 @@ const NPCS = [
     blinkTimer: 2000 + Math.random() * 2000,
     onInteract: (n) => {
       playSFX('scrapjaw');                              // v0.95.159 · raspy hyena VO
-      // v0.95.279 · Scrapjaw gifts the GEARBAG on first talk · stores outfits + cosmetics
-      // Unlocks the GEAR page in the ZyCube menu
+      // v0.95.400 · Scrapjaw is the RIZER tab unlock · no more gearbag item · his
+      // first talk flips player.scrapjawMet which the touchpad checks to reveal
+      // the RIZER (analysis + upgrades) tab · replaces the deprecated gearbag flow
       player.items = player.items || {};
-      if (!player.gearbagGifted){
-        player.gearbagGifted = true;
-        try { awardRizerXP(500); } catch(_){}   // v0.95.317 · Scrapjaw's gearbag
-        player.items.gearbag = (player.items.gearbag || 0) + 1;
-        // Ensure the starter skin is "owned" so the gearbag shows at least one entry
+      if (!player.scrapjawMet){
+        player.scrapjawMet = true;
+        player.gearbagGifted = true;                     // legacy alias · keeps old saves happy
+        try { awardRizerXP(500); } catch(_){}
         player.ownedCosmetics = player.ownedCosmetics || {};
         player.ownedCosmetics.normal = true;
-        showToast('★ Received: Gearbag · outfits + cosmetics live here', 2800);
+        showToast('★ RIZER tab unlocked · touchpad → RIZER · outfits + stat upgrades', 3200);
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'SCRAPJAW', lines: [
           '*sniff*  ...you smell like a rookie Rizer.  I like rookies.  Rookies buy stuff.',
-          '*tosses you a battered leather bag*  Gearbag.  Every outfit, every cosmetic, every fresh look you unlock — lives in here.',
-          'Open your ZyCube → GEAR to see what you\'re working with.  Right now?  Not much.  Come back when you\'ve earned some drip.',
-          '*grins*  I\'ll be here.',
+          '*leans in*  Listen · every Rizer worth a damn keeps a RIZER page.  Skins, cosmetics, stat boosts, all the drip.',
+          'Bring me GEMS · I work your gear · you get bumps to HEALTH · ATTACK · DEFENSE · SPEED · STAMINA.  Five stats · five ways to survive.',
+          'Just unlocked the RIZER tab on your touchpad · right of your bag.  Come back when you\'ve got gems.',
+          '*grins*  Get my bond to 50 and I\'ll walk with you · upgrade your gear right in the field.',
         ]});
       } else {
+        const bond = (player.bonds && player.bonds.scrapjaw) || 0;
         showDialog({ speaker: 'SCRAPJAW', lines: [
-          '*sniff*  Still that rookie smell.  But at least you\'ve got the bag now.',
-          'Come by when the Gear Shop opens · I\'ll have fresh drops.',
+          bond >= 50
+            ? '*grins*  Bond\'s high enough · Square me to take me with you.  I\'ll gear you up wherever you stand.'
+            : `*sniff*  Bond ${bond}/50 · keep coming back · once we\'re tight I\'ll follow you and upgrade your gear on the road.`,
+          'Bring gems anytime · RIZER tab on your touchpad · five stats waiting.',
         ]});
       }
     },
@@ -4604,6 +4608,55 @@ const NPCS = [
       }});
     },
   },
+  // ══════════════════════════════════════════════════════════════════════
+  // v0.95.400 · THE FERRARCH SIX · cosmic warriors from Ferros
+  // Cobalt (blue) · Jade (green) · Topaz (yellow) · Jasper (purple) ·
+  // Garnet (orange) · Scarlett (red) · scattered across THARDIN · they are
+  // Rizer's favorite superfaction (why the poster is in his room) · will
+  // be assembled as allies late-game vs the mechanical Mori/Daemon hordes
+  // + Zycellite corp arc · idle sheet base · walkSheet swap when moving
+  // ══════════════════════════════════════════════════════════════════════
+  ...([
+    { id:'cobalt',   name:'Cobalt',   x:718, y:645, accent:'BLUE',   bio:'Ice-forged lancer · leads the Six in cold silence.' },
+    { id:'jade',     name:'Jade',     x:745, y:640, accent:'GREEN',  bio:'Verdant scout · reads the ground before every fight.' },
+    { id:'topaz',    name:'Topaz',    x:762, y:660, accent:'YELLOW', bio:'Radiant tactician · the calm voice in every storm.' },
+    { id:'jasper',   name:'Jasper',   x:713, y:670, accent:'PURPLE', bio:'Void-blade duelist · barely tethered to reality.' },
+    { id:'garnet',   name:'Garnet',   x:700, y:656, accent:'ORANGE', bio:'Powerhouse anchor · takes the first Daemon hit for the team.' },
+    { id:'scarlett', name:'Scarlett', x:742, y:668, accent:'RED',    bio:'Ember-fist finisher · seals every bout with fire.' },
+  ].map(m => {
+    // Load per-color bboxes measured post-bake · idle base + walk swap
+    const BB = {
+      cobalt:   { idle:[[[174,61,139,252],[0,62,289,251],[30,61,283,252],[0,61,141,252]],[[205,0,108,297],[0,0,271,297],[63,0,250,297],[0,0,112,297]],[[204,18,102,295],[135,19,101,294],[58,19,255,294],[0,19,80,294]],[[174,0,139,255],[0,0,291,257],[27,0,286,257],[0,0,139,257]]], walk:[[[85,64,150,219],[80,67,152,222],[61,75,173,217],[75,82,168,207]],[[63,57,172,205],[59,60,211,205],[65,60,214,205],[66,74,198,191]],[[56,45,194,200],[27,51,225,194],[42,48,201,197],[56,56,191,189]],[[85,31,151,219],[71,36,150,214],[81,39,156,211],[84,42,140,208]]] },
+      jade:     { idle:[[[121,40,136,269],[83,40,156,269],[47,40,198,269],[45,40,147,269]],[[136,26,123,273],[118,26,141,274],[69,26,175,274],[71,26,124,274]],[[119,14,119,274],[83,14,139,274],[46,14,172,274],[49,14,123,274]],[[120,3,135,270],[105,3,156,270],[53,3,192,270],[58,3,135,270]]], walk:[[[97,62,188,251],[96,72,175,234],[100,67,179,239],[95,75,176,238]],[[82,0,218,302],[63,67,233,236],[64,71,236,233],[56,0,224,310]],[[31,46,212,240],[24,43,230,235],[19,49,223,237],[10,51,241,239]],[[57,18,156,237],[62,22,152,224],[43,21,171,235],[20,24,193,232]]] },
+      topaz:    { idle:[[[153,43,160,265],[0,44,266,264],[57,43,162,265],[4,44,163,264]],[[159,25,121,265],[109,26,122,264],[60,27,120,264],[10,29,120,264]],[[180,11,95,302],[132,12,92,301],[85,16,90,297],[38,17,89,296]],[[153,0,160,253],[103,0,159,253],[54,0,160,254],[5,0,160,256]]], walk:[[[97,66,138,238],[91,66,136,235],[85,66,133,238],[73,65,138,241]],[[87,45,178,220],[68,50,210,221],[83,47,144,227],[51,46,180,225]],[[85,26,168,223],[23,29,211,220],[38,32,182,220],[37,30,173,222]],[[92,5,129,228],[86,6,132,227],[77,5,129,228],[55,5,129,228]]] },
+      jasper:   { idle:[[[111,27,164,286],[81,28,163,285],[56,28,163,285],[30,28,164,285]],[[139,0,117,305],[108,0,118,305],[83,0,119,305],[58,0,118,306]],[[118,18,113,280],[90,18,114,280],[65,18,114,280],[39,18,114,280]],[[112,5,157,282],[82,8,156,281],[56,8,157,281],[30,8,157,281]]], walk:[[[90,45,157,260],[84,45,229,260],[0,48,300,257],[72,49,159,251]],[[96,44,197,244],[82,43,229,243],[1,53,287,233],[57,52,221,234]],[[45,26,268,244],[0,26,225,241],[12,37,301,231],[0,35,206,233]],[[101,7,136,253],[36,5,187,243],[6,11,220,253],[72,11,129,253]]] },
+      garnet:   { idle:[[[30,33,252,280],[30,33,252,280],[31,33,252,280],[31,33,251,280]],[[85,0,143,308],[85,0,143,308],[85,0,143,308],[86,0,142,308]],[[88,31,120,273],[89,31,119,273],[88,31,120,273],[89,31,120,273]],[[29,21,253,268],[28,21,252,268],[29,21,253,268],[31,21,251,268]]], walk:[[[69,33,218,268],[49,33,207,268],[47,33,213,269],[38,28,208,270]],[[70,36,197,245],[64,38,183,243],[42,36,200,242],[36,35,210,243]],[[83,18,183,295],[41,21,183,292],[41,21,202,292],[19,18,213,295]],[[61,0,205,259],[49,0,195,262],[45,0,201,262],[27,0,203,257]]] },
+      scarlett: { idle:[[[93,40,144,273],[94,40,143,273],[78,40,145,273],[64,43,144,270]],[[105,0,139,309],[105,0,139,309],[85,0,151,310],[80,0,139,309]],[[73,26,138,250],[73,26,138,250],[58,27,139,249],[48,26,137,250]],[[83,1,138,253],[80,1,138,253],[73,1,138,253],[63,11,134,248]]], walk:[[[137,70,113,235],[93,84,106,221],[48,80,132,225],[40,89,138,216]],[[140,66,169,193],[88,66,180,194],[50,68,182,192],[25,68,188,191]],[[98,30,170,283],[55,30,177,283],[18,32,295,281],[0,32,173,281]],[[131,0,115,206],[93,0,109,206],[51,0,118,206],[34,0,121,206]]] },
+    }[m.id];
+    return {
+      id: `ferrarch_${m.id}`, name: m.name,
+      sheet: new Image(), src: `assets/2D%20sprites/npcs/ferrarch/${m.id}-idle.png`,
+      bboxes: BB.idle,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      uniformScale: true, scaleMul: 1.10,
+      walkSheet: (function(){ const im = new Image(); im.src = `assets/2D%20sprites/npcs/ferrarch/${m.id}-walk.png`; return im; })(),
+      walkBboxes: BB.walk,
+      tileX: m.x, tileY: m.y, homeX: m.x, homeY: m.y,
+      homeScene: 'overworld', scene: 'overworld',
+      wanderRadius: 4,
+      dir: 'down', mode: 'wander',
+      moving: false, animFrame: 0, idleFrame: 0,
+      moveCd: 500 + Math.random() * 400,
+      blinkTimer: 2600 + Math.random() * 2000,
+      isEnemy: false,
+      turnToInteract: true,
+      onInteract: () => showDialog({ speaker: m.name.toUpperCase(), lines: [
+        `*a ${m.accent}-armored Ferrarch warrior nods · circuit-etched plates hum softly*`,
+        `"${m.bio}"`,
+        `"Come find me when the Mori hordes need answering.  The Six ride together or not at all."`,
+      ]}),
+    };
+  })),
   // ── SNOK · v0.95.348 · Veridan obtainable Zyrex · vine-beast w/ pod-fanged crown
   // Placed at (526, 249) inside Veridan · idle-sit is his canonical resting pose
   // (arms hanging, pods drooping) · walk sheet shows the crouched stalking gait
@@ -13124,7 +13177,7 @@ addEventListener('keydown', e => {
       // WORLD (Zoryn) · BAG (backpack) · RIZER (RAID w/ Yara escort) · FACTION (starter) · QUESTS (Dad's Notebook)
       if (player.townMapGifted)     pages.push('world');       // WORLD MAP · unlocks post-Zoryn toast
       if (player.hasBackpack)       pages.push('zycube');      // BAG · main storage (ZyCube + skateboard + ZyPhone)
-      if (player.raidCardGifted)    pages.push('gear');        // RIZER · analysis + upgrades · unlocks post-Elarian RAID (Yara escort)
+      if (player.scrapjawMet)       pages.push('gear');        // v0.95.400 · RIZER · Scrapjaw unlocks the tab
       if (player.starterChosen)     pages.push('faction');     // FACTION · unlocks post-starter
       if (player.dadNotebookGifted) pages.push('quests');      // QUESTS · Dad's Notebook
       if (pages.length < 2) return;
@@ -16002,7 +16055,7 @@ function drawZyrexMenu(){
   const tabs=[];
   if(player.townMapGifted)     tabs.push('world');    // WORLD MAP
   if(player.hasBackpack)       tabs.push('zycube');   // BAG
-  if(player.raidCardGifted)    tabs.push('gear');     // RIZER · post-Elarian RAID
+  if(player.scrapjawMet)       tabs.push('gear');     // v0.95.400 · RIZER · Scrapjaw unlocks the tab
   if(player.starterChosen)     tabs.push('faction');  // FACTION · post-starter
   if(player.dadNotebookGifted) tabs.push('quests');
   if(tabs.length>1){

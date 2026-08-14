@@ -12333,9 +12333,15 @@ addEventListener('keydown', e => {
   // ═══════════════════════════════════════════════════════════════
   if (settingsMenuOpen){
     if (settingsPage === 'root'){
-      if (k === 'arrowup'){   settingsSelectedIdx = (settingsSelectedIdx + SETTINGS_ITEMS.length - 1) % SETTINGS_ITEMS.length; playSFX('cursor'); }
-      if (k === 'arrowdown'){ settingsSelectedIdx = (settingsSelectedIdx + 1) % SETTINGS_ITEMS.length; playSFX('cursor'); }
-      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter'){
+      // v0.95.378 · Root SETTINGS · 3-card horizontal · arrows OR L1/R1 cycle · X selects
+      const N = SETTINGS_ITEMS.length;
+      if (k === 'arrowleft' || k === 'q' || k === 'l' || k === 'arrowup'){
+        settingsSelectedIdx = (settingsSelectedIdx + N - 1) % N; playSFX('cursor');
+      }
+      if (k === 'arrowright' || k === 'i' || k === 'r' || k === 'arrowdown'){
+        settingsSelectedIdx = (settingsSelectedIdx + 1) % N; playSFX('cursor');
+      }
+      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
         settingsPage = SETTINGS_PAGE_IDS[settingsSelectedIdx];
         playSFX('confirm');
       }
@@ -14267,22 +14273,89 @@ function drawSettingsMenu(){
   ctx.moveTo(24, 50); ctx.lineTo(W - 24, 50); ctx.stroke();
 
   if (settingsPage === 'root'){
-    ctx.font = 'bold 16px "Courier New", monospace';
-    SETTINGS_ITEMS.forEach((label, i) => {
-      const selected = (i === settingsSelectedIdx);
-      if (selected){
-        ctx.fillStyle = '#d4af37';
-        ctx.fillRect(24, 82 + i * 40, W - 48, 30);
-        ctx.fillStyle = '#0b0b10';
-      } else {
-        ctx.fillStyle = '#f0eadf';
+    // v0.95.378 · Root SETTINGS = 3-card horizontal layout · mockup canon
+    // Cards: 1 · SAVE & LOAD  2 · GAME OPTIONS  3 · CONTROLLER OPTIONS
+    // ← → moves cursor · X selects · B/Options closes · LB/RB alias L/R for switch
+    const cards = [
+      { n: 1, title: 'SAVE & LOAD',        sub: 'Manage Adventure Data', icon: '◆', iconColor: '#4fb3ff' },
+      { n: 2, title: 'GAME OPTIONS',       sub: 'Adjust Game Settings',  icon: '⚙', iconColor: '#d4af37' },
+      { n: 3, title: 'CONTROLLER OPTIONS', sub: 'Configure Controls',    icon: '🎮', iconColor: '#c060ff' },
+    ];
+    const gap = 24;
+    const cardW = Math.floor((W - 48 - gap * 2) / 3);
+    const cardH = Math.min(360, H - 160);
+    const y0 = 88;
+    cards.forEach((c, i) => {
+      const x = 24 + i * (cardW + gap);
+      const sel = (i === settingsSelectedIdx);
+      // Card background
+      ctx.fillStyle = sel ? 'rgba(20,50,120,0.85)' : 'rgba(10,18,42,0.82)';
+      ctx.fillRect(x, y0, cardW, cardH);
+      // Border · glow on selection
+      ctx.lineWidth = sel ? 3 : 1.5;
+      ctx.strokeStyle = sel ? '#4fb3ff' : 'rgba(79,179,255,0.35)';
+      ctx.strokeRect(x, y0, cardW, cardH);
+      if (sel){
+        // Outer halo · mockup blue glow effect
+        ctx.save();
+        ctx.shadowColor = '#4fb3ff';
+        ctx.shadowBlur = 22;
+        ctx.strokeStyle = '#4fb3ff';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 3, y0 + 3, cardW - 6, cardH - 6);
+        ctx.restore();
       }
-      ctx.fillText(`${selected ? '▶ ' : '  '}${label}`, 32, 103 + i * 40);
+      // Card corner diamonds (mockup accent)
+      ctx.fillStyle = sel ? '#4fb3ff' : 'rgba(79,179,255,0.55)';
+      [[x+8,y0+8],[x+cardW-8,y0+8],[x+8,y0+cardH-8],[x+cardW-8,y0+cardH-8]].forEach(([cx,cy]) => {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy-4); ctx.lineTo(cx+4, cy); ctx.lineTo(cx, cy+4); ctx.lineTo(cx-4, cy); ctx.closePath();
+        ctx.fill();
+      });
+      // Number
+      ctx.fillStyle = '#d4af37';
+      ctx.font = 'bold 42px "Courier New", monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(String(c.n), x + 22, y0 + 62);
+      // Title
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 18px "Courier New", monospace';
+      ctx.fillText(c.title, x + 60, y0 + 58);
+      // Underline divider
+      ctx.strokeStyle = 'rgba(79,179,255,0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 22, y0 + 92); ctx.lineTo(x + cardW - 22, y0 + 92); ctx.stroke();
+      // Diamond dot on the underline
+      ctx.fillStyle = '#4fb3ff';
+      ctx.beginPath();
+      ctx.moveTo(x + cardW/2, y0 + 88); ctx.lineTo(x + cardW/2 + 4, y0 + 92);
+      ctx.lineTo(x + cardW/2, y0 + 96); ctx.lineTo(x + cardW/2 - 4, y0 + 92); ctx.closePath();
+      ctx.fill();
+      // Subtitle
+      ctx.fillStyle = '#8ff';
+      ctx.font = '13px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(c.sub, x + cardW / 2, y0 + 118);
+      // Big icon glyph · centered in the lower ~60% of the card
+      ctx.fillStyle = c.iconColor;
+      ctx.font = 'bold 120px "Courier New", monospace';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(c.icon, x + cardW / 2, y0 + cardH / 2 + 40);
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';
     });
+    // Bottom control-hint bar (matches mockup)
+    ctx.fillStyle = 'rgba(10,18,42,0.85)';
+    ctx.fillRect(0, H - 40, W, 40);
+    ctx.strokeStyle = 'rgba(79,179,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, H - 40); ctx.lineTo(W, H - 40); ctx.stroke();
+    ctx.font = 'bold 12px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    const hint = '◄ ► SELECT   ·   Ⓑ BACK   ·   LB / RB SWITCH PANEL   ·   OPTIONS CLOSE';
     ctx.fillStyle = '#8ff';
-    ctx.font = '11px "Courier New", monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText('▲▼ nav · × select · ○/Options close', W - 24, H - 20);
+    ctx.fillText(hint, W / 2, H - 16);
     ctx.textAlign = 'left';
   } else if (settingsPage === 'items'){
     const entries = sortedInventoryEntries();

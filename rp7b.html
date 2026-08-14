@@ -617,7 +617,7 @@
           <button class="zyNav" data-zynav="settings"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">⚙  SETTINGS</button>
         </div>
         <!-- CENTER CONTENT · dispatched by zycellPage · pass-1 stub -->
-        <div id="zycellContent" style="flex:1; padding:16px 18px; overflow:auto; color:#dfe8ff;">
+        <div id="zycellContent" style="flex:1; padding:16px 18px; overflow-y:auto; overflow-x:hidden; color:#dfe8ff; pointer-events:auto; user-select:text; -webkit-overflow-scrolling:touch;">
           <div id="zycellStub" style="text-align:center; color:rgba(200,220,255,0.55); font-size:12px; line-height:1.9; padding:60px 20px;">
             <div style="font-size:32px; color:#4fb3ff; margin-bottom:16px;">◈</div>
             <div style="letter-spacing:.14em; color:#8ff; margin-bottom:8px;">ZYCELLITE · PASS 1</div>
@@ -8246,6 +8246,11 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
   const bagHit  = cfgP && cfgP.rizerRoom && tx === 1 && (ty === 7 || ty === 8);
   let anyHit = false;
   if (hit){
+    // v0.95.423 · Skellor · ANY astral move = instant kill · same fall-loop drop-bag anim
+    if (hit.mode === 'skellor' && !hit._skellorDead){
+      try { skellorTakeHit(hit, SKELLOR_MAX_HITS); } catch(_){}
+      return true;
+    }
     const maxHp = hit.hpMax || 125;
     if (hit.hp == null) hit.hp = maxHp;
     hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT, skinId);
@@ -10560,16 +10565,23 @@ addEventListener('keydown', e => {
             if (player.dir === 'right') fx0++;
             const facedBag = roomItemAtTile(fx0, fy0)?.id === 'dummy';
             if (facedBag){
-              // If already dragging, DROP the bag (Square = release)
+              // v0.95.424 · L2 or R2 held w/ Square = DRAG the bag · else PUNCH it
+              // L2='q' · R2='i' · plain Square keeps punching the bag normally
+              const dragChord = (keys['q'] || keys['i']);
               if (game._bagDragging){
+                // Already dragging → Square releases (chord or plain)
                 game._bagDragging = false;
                 showToast('◈ Bag dropped', 1400);
                 try { playSFX('confirm'); } catch(_){}
                 return;
               }
-              // Start hold timer · defer decision to keyup
-              game._bagHoldStart = performance.now();
-              return;
+              if (dragChord){
+                game._bagDragging = true;
+                showToast('◈ Bag grabbed · move Rizer · Square to drop', 2200);
+                try { playSFX('confirm'); } catch(_){}
+                return;
+              }
+              // No chord = plain Square = fall through to normal punch below
             }
           }
         }
@@ -10696,7 +10708,8 @@ addEventListener('keyup', e => {
     game._touchpadHoldStart = 0;
   }
   // v0.95.321 · Punching bag hold-to-drag resolution on Square keyup
-  if (k === 'j' && game._bagHoldStart){
+  // v0.95.424 · Legacy hold-350ms bag-drag retired · L2/R2+Square chord handles grab now
+  if (false && k === 'j' && game._bagHoldStart){
     const held = performance.now() - game._bagHoldStart;
     game._bagHoldStart = 0;
     if (held >= 350){
@@ -14303,17 +14316,40 @@ function renderZycellRizer(){
     <div style="text-align:center; color:#8ff; font-size:10px; padding:6px;">Visit Scrapjaw in Malezor to trade gems for stat upgrades.</div>`;
 }
 
-// ── FACTION · party grid + faction ally roster ──────────────────────
+// ── FACTION · 2×4 party grid · click a slot for details ─────────────
 function renderZycellFaction(){
-  const party = (player.party || []).filter(Boolean);
-  const rows = party.map((z, i) => `
-    <div style="display:flex; justify-content:space-between; padding:6px 10px; margin-bottom:3px; background:rgba(0,0,0,0.4); border-left:3px solid #4fb3ff;">
-      <span style="color:#fff; font-weight:bold; font-size:11px;">${i+1}. ${z.name || z.speciesId}</span>
-      <span style="color:#cfe; font-size:11px;">Lv ${z.level || 1} · T${z.tier || '?'}</span>
-      <span style="color:#8ff; font-size:11px;">HP ${z.hp}/${z.maxHp}</span>
-    </div>`).join('');
-  return _zySection(`◇ FACTION · ${party.length}/8 ZYREX`,
-    rows.length ? rows : `<div style="color:#889; text-align:center; padding:20px;">· no Zyrex yet · complete Dad's starter quest ·</div>`);
+  // v0.95.423 · Always render 8 tiles (2 cols × 4 rows) · filled or empty
+  const party = (player.party || []);
+  const cells = [];
+  for (let i = 0; i < 8; i++){
+    const z = party[i];
+    const filled = !!z;
+    cells.push(`<div class="zyFactionSlot" data-slot="${i}"
+      style="border:2px solid ${filled ? '#4fb3ff' : 'rgba(79,179,255,0.3)'}; background:${filled ? 'rgba(20,50,120,0.55)' : 'rgba(0,0,0,0.4)'}; padding:10px; min-height:96px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; transition:transform 120ms, box-shadow 120ms;"
+      onmouseover="this.style.transform='scale(1.03)';this.style.boxShadow='0 0 14px rgba(79,179,255,0.5)'"
+      onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
+      ${filled
+        ? `<div style="color:#ffd66b; font-weight:bold; font-size:11px; letter-spacing:.06em;">${(z.name || z.speciesId).toUpperCase()}</div>
+           <div style="color:#8ff; font-size:10px; margin-top:4px;">Lv ${z.level || 1} · T${z.tier || '?'}</div>
+           <div style="color:#cfe; font-size:10px;">HP ${z.hp}/${z.maxHp}</div>`
+        : `<div style="color:rgba(200,220,255,0.4); font-size:22px;">+</div>
+           <div style="color:rgba(200,220,255,0.4); font-size:9px; letter-spacing:.10em; margin-top:4px;">EMPTY SLOT</div>`}
+    </div>`);
+  }
+  const grid = `<div style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(4,1fr); gap:8px;">${cells.join('')}</div>`;
+  setTimeout(() => {
+    document.querySelectorAll('.zyFactionSlot').forEach(el => {
+      if (el._zyBound) return; el._zyBound = true;
+      el.addEventListener('click', () => {
+        const idx = +el.dataset.slot;
+        const z = (player.party || [])[idx];
+        if (!z){ showToast('◇ Slot empty · recruit more Zyrex to fill it', 2200); return; }
+        try { playSFX('cursor'); } catch(_){}
+        showToast(`◇ ${z.name} · Lv ${z.level} · T${z.tier} · HP ${z.hp}/${z.maxHp} · bond ${(player.bonds?.[z.speciesId])||0}/100`, 3200);
+      });
+    });
+  }, 0);
+  return _zySection(`◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX`, grid);
 }
 
 // ── MAP · locked until Zoryn Town Map · then live pin + district outline ──
@@ -14587,7 +14623,8 @@ function zycellMoveCursor(dir){
 // so this function alone covers all three partitions.
 function handleZycellKey(k){
   if (!game.zphoneOpen) return false;
-  if (k === 'b' || k === 'escape' || k === '3'){ closeZphonePanel(); return true; }
+  // v0.95.424 · Close on Circle (b) OR Touchpad (2) · Options (3) is pause-only now
+  if (k === 'b' || k === 'escape' || k === '2'){ closeZphonePanel(); return true; }
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
   if (k === 'arrowleft' || k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
@@ -14631,6 +14668,9 @@ function openStarterPicker(){
   starterPickerIdx = 0;
   paintStarterPickerSelection();
   playSFX('menuOpen');
+  // v0.95.424 · debounce · ignore confirm keys for 400ms so the SAME X press
+  // that opened the picker doesn't auto-pick Volcanut (idx 0)
+  game._starterPickerOpenedAt = performance.now();
 }
 function closeStarterPicker(){
   const p = document.getElementById('starterPickerPanel');
@@ -14689,17 +14729,19 @@ function pickStarter(id){
 window.addEventListener('keydown', (e) => {
   if (!game || !game.starterPickerOpen) return;
   const k = (e.key || '').toLowerCase();
-  if (k === 'arrowleft' || k === 'a'){
+  if (k === 'arrowleft'){        // v0.95.424 · drop the 'a' alias · Cross should CONFIRM only
     starterPickerIdx = (starterPickerIdx + STARTER_IDS.length - 1) % STARTER_IDS.length;
     paintStarterPickerSelection();
     playSFX('cursor');
     e.preventDefault();
-  } else if (k === 'arrowright' || k === 'd'){
+  } else if (k === 'arrowright'){
     starterPickerIdx = (starterPickerIdx + 1) % STARTER_IDS.length;
     paintStarterPickerSelection();
     playSFX('cursor');
     e.preventDefault();
   } else if (k === 'enter' || k === ' ' || k === 'x' || k === 'z'){
+    // v0.95.424 · debounce · ignore confirm for 400ms after open to stop auto-pick
+    if (performance.now() - (game._starterPickerOpenedAt || 0) < 400){ e.preventDefault(); return; }
     pickStarter(STARTER_IDS[starterPickerIdx]);
     e.preventDefault();
   }
@@ -18846,14 +18888,17 @@ function frame(now){
       introHoldStart = 0;
     }
   }
+  // v0.95.422 · FULL FREEZE gate · ZyPhone open OR game.paused = every world
+  // tick halts (NPCs, projectiles, animation) · only rendering + BGM continue
+  const _paused = game.zphoneOpen || game.paused;
   // NPC ticks · wander or follow · only NPCs in the current scene
   // v0.95.306 · Settings menu pauses overworld gameplay · NPC wander / astral proj / etc. all freeze
-  if (game.scene !== 'title' && !battleState && !wildBattleState && !settingsMenuOpen){
+  if (!_paused && game.scene !== 'title' && !battleState && !wildBattleState && !settingsMenuOpen){
     for (const n of NPCS){ if (n.scene === game.scene) tickNPC(n, dt); }
   }
   // v0.95.210 · Astralstrike projectiles · advance one tile per step + hit test
   // v0.95.306 · Settings menu pauses projectile advance too
-  if (game.scene !== 'title' && !battleState && !wildBattleState && !settingsMenuOpen){
+  if (!_paused && game.scene !== 'title' && !battleState && !wildBattleState && !settingsMenuOpen){
     tickProjectiles(performance.now());
   }
   // No idle animation · lock to frame 0 of the current direction when
@@ -18934,8 +18979,11 @@ function frame(now){
   drawHitFx();          // shared impact rings · above world under menus
   drawZyrexAttackFx();  // v0.95.318 · type-themed Zyrex attack VFX (ring fallback)
   drawZyrexAttackAnims();// v0.95.320 · per-species attack sprite sheets
-  try { tickBagDrag(); } catch(_){}  // v0.95.321 · bag follows Rizer while dragging
-  try { tickFae(); } catch(_){}      // v0.95.397 · fae respawn cycle (5-min off-camera)
+  // v0.95.422 · Same global-freeze gate on ambient ticks
+  if (!(game.zphoneOpen || game.paused)){
+    try { tickBagDrag(); } catch(_){}
+    try { tickFae(); } catch(_){}
+  }
   // v0.95.404 · Skellor hurt-frame render moved into drawWorldLayer's NPC loop
   try { tickSkellorRespawn(); } catch(_){}   // 10s farm-loop respawn while natives alive
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)

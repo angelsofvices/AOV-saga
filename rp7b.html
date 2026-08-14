@@ -8494,9 +8494,10 @@ function tryStartDoubleJump(now = performance.now(), allowBlockedGroundStart = f
   player.jumpStart = now;
   player.jumpUntil = now + DOUBLE_JUMP_DUR_MS;
   player.jumpSheet = 'doubleJump';
-  // v0.95.315 · Skate + double-jump combo · while skating, use a shorter
-  // stall so wheels touch back down and roll immediately (no dead pause)
-  player.moveCd = player.skating ? Math.min(DOUBLE_JUMP_DUR_MS, 260) : DOUBLE_JUMP_DUR_MS;
+  // v0.95.315/323 · Shorter stall for skate AND run/walk so movement snaps
+  // back the moment we land · no dead pause · matches user spec 'kill the
+  // pause on double jump to run/walk · same way u did for skate path'
+  player.moveCd = player.skating ? Math.min(DOUBLE_JUMP_DUR_MS, 260) : Math.min(DOUBLE_JUMP_DUR_MS, 300);
   playSFX('dodge');
   setTimeout(() => {
     if (!player._doubleJump || player._doubleJump.t0 !== now) return;
@@ -8505,15 +8506,13 @@ function tryStartDoubleJump(now = performance.now(), allowBlockedGroundStart = f
     player.jumpSheet = null;
     if (game.scene === 'overworld') collectGemAt('overworld', player.x, player.y);
     playSFX('jumpLand');
-    // v0.95.315 · On land, if still skating and holding a direction, snap
-    // moveCd to the fast skate cadence so the very next tick can roll
-    if (player.skating){
-      player.moveCd = 0;
-      // Kick the run animation state so the visual carries over
-      if (keys['w'] || keys['a'] || keys['s'] || keys['d']
-          || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']){
-        player.moving = true;
-      }
+    // v0.95.323 · On land · snap moveCd to 0 for BOTH skate and run/walk so
+    // the next tick rolls immediately if a direction is held · preserves the
+    // moving state so the run animation carries over the seam
+    player.moveCd = 0;
+    if (keys['w'] || keys['a'] || keys['s'] || keys['d']
+        || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']){
+      player.moving = true;
     }
   }, DOUBLE_JUMP_DUR_MS);
   return true;

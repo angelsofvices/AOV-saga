@@ -9406,6 +9406,18 @@ function interiorConfig(scene){
 // (each NPC's `scene` field pins them · Mom on 1F, Dad on 2F).
 function useStairs(s){
   if (!s || !s.target) return;
+  // v0.95.384 · Realistic-teen check · leaving the Rizer Room requires BAG + PHONE
+  // Fires only on the 2F → 1F transition · never blocks going UPSTAIRS to rest
+  if (game.scene === 'interior_home_2f' && s.target === 'interior_home'){
+    if (!player.hasBackpack || !(player.items?.zphone > 0)){
+      const missing = [];
+      if (!player.hasBackpack)       missing.push('backpack');
+      if (!(player.items?.zphone>0)) missing.push('phone');
+      showToast(`◈ hmm... I might be forgetting something (${missing.join(' + ')})`, 2800);
+      try { playSFX('doorLock'); } catch(_){}
+      return;
+    }
+  }
   // v0.95.63 · Chair-ride safety · dismount before any scene swap and
   // reset chair to its home tile so player can never get stuck at stairs.
   if (player.ridingChair){
@@ -12627,10 +12639,12 @@ addEventListener('keydown', e => {
       //   faction · after Dad grants starter
       //   map     · after Zoryn gifts Town Map
       const pages = [];
-      if (player.zycubeGifted)   pages.push('zycube');
-      if (player.dadNotebookGifted) pages.push('quests');   // v0.95.380 · Dad's Notebook unlocks Quests tab
-      if (player.starterChosen)  pages.push('faction');
-      if (player.townMapGifted)  pages.push('world');
+      // v0.95.384 · Touchpad tab order · MAP (Zoryn) · UTILITIES (bag) · GEAR (cosmetics) · QUESTS · FACTION
+      if (player.townMapGifted)     pages.push('world');       // WORLD MAP · left of UTILITIES · unlocks post-Zoryn toast
+      if (player.hasBackpack)       pages.push('zycube');      // UTILITIES · main page · bag-unlocked
+      if (player.hasBackpack)       pages.push('gear');        // GEAR · cosmetics · will house Upgrades later
+      if (player.dadNotebookGifted) pages.push('quests');      // v0.95.380 · Dad's Notebook unlocks Quests tab
+      if (player.starterChosen)     pages.push('faction');
       if (pages.length < 2) return;
       const i = Math.max(0, pages.indexOf(hudOverlayPage));
       hudOverlayPage = pages[(i + (k === 'r' ? 1 : pages.length - 1)) % pages.length];
@@ -15168,24 +15182,26 @@ function drawZyrexMenu(){
   ctx.fillStyle = '#d4af37';
   ctx.font = 'bold 20px "Courier New", monospace';
   ctx.textAlign = 'left';
-  // v0.95.281 · Touchpad tabs · zycube (Items+Gear · RAID inside Items) / quests / faction / map
+  // v0.95.384 · Touchpad tab order · MAP · UTILITIES · GEAR · QUESTS · FACTION
   const overlayTitles={
-    zycube:  '◈ ZYCUBE · YOUR STORAGE',
-    quests:  'QUESTS · EXPEDITIONS + SIDE MISSIONS',
-    faction: 'FACTION · YOUR ZYREX',
-    world:   'WORLD MAP · ZYRAXIS',
+    world:      'WORLD MAP · ZYRAXIS',
+    zycube:     '◈ UTILITIES · BAG + ZYCUBE',
+    gear:       '⚙  GEAR · COSMETICS + UPGRADES (soon)',
+    quests:     'QUESTS · EXPEDITIONS + SIDE MISSIONS',
+    faction:    'FACTION · YOUR ZYREX',
   };
   ctx.fillText(overlayTitles[hudOverlayPage]||overlayTitles.zycube,24,40);
   ctx.font='bold 12px "Courier New", monospace';
   ctx.textAlign='right';
   ctx.fillStyle='#8ff';
   const tabs=[];
-  if(player.zycubeGifted)  tabs.push('zycube');
-  if(player.dadNotebookGifted) tabs.push('quests');   // v0.95.380 · Dad's Notebook
-  if(player.starterChosen) tabs.push('faction');
-  if(player.townMapGifted) tabs.push('world');
+  if(player.townMapGifted)     tabs.push('world');    // WORLD MAP left of UTILITIES · Zoryn gates
+  if(player.hasBackpack)       tabs.push('zycube');   // UTILITIES
+  if(player.hasBackpack)       tabs.push('gear');     // GEAR right of UTILITIES
+  if(player.dadNotebookGifted) tabs.push('quests');
+  if(player.starterChosen)     tabs.push('faction');
   if(tabs.length>1){
-    const labelFor=id=>({zycube:'ZYCUBE',quests:'QUESTS',faction:'FACTION',world:'MAP'}[id]);
+    const labelFor=id=>({world:'MAP',zycube:'UTILITIES',gear:'GEAR',quests:'QUESTS',faction:'FACTION'}[id]);
     const tabStr=tabs.map(id=>id===hudOverlayPage?`[ ${labelFor(id)} ]`:labelFor(id)).join('   ');
     ctx.fillText(`L1 ◀  ${tabStr}  ▶ R1`,W-24,40);
   }
@@ -15196,6 +15212,20 @@ function drawZyrexMenu(){
 
   if(hudOverlayPage==='zycube'){
     drawZycubePanel(W,H);
+    return;
+  }
+  // v0.95.384 · GEAR page · cosmetics + upgrades (upgrades ship later)
+  if(hudOverlayPage==='gear'){
+    ctx.font = '13px "Courier New", monospace';
+    ctx.fillStyle = '#f0eadf';
+    ctx.fillText('COSMETICS · UPGRADES (soon) · loadouts', 32, 84);
+    ctx.fillStyle = 'rgba(200,220,255,0.5)';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillText('· Rizer skin swaps · faction cosmetics · future Upgrades tree ·', 32, 108);
+    ctx.fillText('· Weapons + gear-slot equips will land here in a follow-up pass ·', 32, 128);
+    ctx.fillStyle = '#8ff'; ctx.textAlign = 'right';
+    ctx.fillText('Touchpad / ○ · close', W - 24, H - 16);
+    ctx.textAlign = 'left';
     return;
   }
   if(hudOverlayPage==='quests'){

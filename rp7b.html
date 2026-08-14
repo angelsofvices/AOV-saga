@@ -1507,6 +1507,7 @@ const INVENTORY_META = {
   worldmap:         { label: 'World Map',              order: 1  },   // v0.95.183 · Zyraxis map · full-screen viewer
   townmap:          { label: 'Town Map (Malezor)',     order: 2  },   // v0.95.278 · Zoryn's gift · Malezor only · precursor to worldmap
   gearbag:          { label: 'Gearbag',                 order: 3  },   // v0.95.279 · Scrapjaw's gift · outfits + cosmetics live inside
+  backpack:         { label: 'Backpack',                order: 0.5},   // v0.95.326 · Rizer's first-grab · gates touchpad + house exit
   elzebub_egg:      { label: 'Elzebub Egg',             order: 4  },   // v0.95.295 · rare egg · found near home · Mom nurses it into Elzebub Lv10
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
@@ -4100,109 +4101,8 @@ const NPCS = [
       onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
-  // ── v0.95.324 · Mori PERIMETER PASS · outer ring of Malezor district ──
-  // North/east/south edges of Malezor (NOT the town core, NOT any building
-  // footprint, NOT within 8 tiles of a prop-blocked tile).  Weighted like
-  // the wild-arm density above (same 6-7 wanderRadius, same moveCd cadence).
-  ...(function(){
-    const MORI_BBOXES_PERIM = [
-      [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
-      [[71,45,189,254],[49,49,206,250],[17,45,207,251],[27,45,170,254]],
-      [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
-      [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
-    ];
-    const rng = _makeWorldRng(0xFEEDBA5);
-    const placed = [];
-    const TARGET = 45;
-    for (let attempts = 0; attempts < 12000 && placed.length < TARGET; attempts++){
-      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
-      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
-      if (worldDistrictAt(x, y) !== 'malezor') continue;
-      if (legacyDistrictAt(x, y) === 'malezor') continue;   // skip town core
-      if (isWorldBorderTile(x, y)) continue;
-      if (_propBlocked.has(`${x},${y}`)) continue;
-      // 8-tile buffer from any building/prop tile (keeps main-story areas clear)
-      let nearProp = false;
-      for (let dy = -8; dy <= 8 && !nearProp; dy++){
-        for (let dx = -8; dx <= 8; dx++){
-          if (_propBlocked.has(`${x+dx},${y+dy}`)){ nearProp = true; break; }
-        }
-      }
-      if (nearProp) continue;
-      // Space existing spots at least 6 tiles apart
-      if (placed.some(p => Math.hypot(p.x - x, p.y - y) < 6)) continue;
-      placed.push({ x, y });
-    }
-    return placed.map((s, i) => ({
-      id: `mori_perim_${i + 1}`,
-      name: 'Mori',
-      sheet: new Image(),
-      src:   'assets/2D%20sprites/enemies/mori.png',
-      bboxes: MORI_BBOXES_PERIM,
-      cellW: 313, cellH: 313, cols: 4, rows: 4,
-      tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
-      homeScene: 'overworld', scene: 'overworld',
-      wanderRadius: 7,
-      dir: 'down', mode: 'wander',
-      moving: false, animFrame: 0, idleFrame: 0,
-      moveCd: 250 + Math.random() * 350,
-      blinkTimer: 9e9,
-      isEnemy: true,
-      hp: 125, hpMax: 125, tier: 1, level: 2,
-      onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
-    }));
-  })(),
-  // ── v0.95.324 · Daemon PERIMETER PASS · outer ring of ANDRANNOR district ──
-  // Andrannor spans cols 181-300 rows 308-337 · daemons only outside town
-  // core, avoiding all building/prop footprints w/ 8-tile buffer
-  ...(function(){
-    const DAEMON_BBOXES_PERIM = [
-      [[154, 18,159,240],[  0, 18,290,249],[  0, 21,272,242],[ 34, 21,202,246]],
-      [[144, 35,169,239],[  0, 35,285,238],[ 65, 35,183,238],[ 17, 35,205,238]],
-      [[145, 40,168,239],[  0, 40,285,240],[  0, 42,270,237],[ 17, 42,202,237]],
-      [[131, 47,182,248],[  0, 47,285,249],[ 62, 47,207,249],[ 26, 48,195,248]],
-    ];
-    const rng = _makeWorldRng(0xDEA110C);
-    const placed = [];
-    const TARGET = 35;
-    for (let attempts = 0; attempts < 12000 && placed.length < TARGET; attempts++){
-      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
-      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
-      if (worldDistrictAt(x, y) !== 'andrannor') continue;
-      if (legacyDistrictAt(x, y) === 'andrannor') continue;
-      if (isWorldBorderTile(x, y)) continue;
-      if (_propBlocked.has(`${x},${y}`)) continue;
-      let nearProp = false;
-      for (let dy = -8; dy <= 8 && !nearProp; dy++){
-        for (let dx = -8; dx <= 8; dx++){
-          if (_propBlocked.has(`${x+dx},${y+dy}`)){ nearProp = true; break; }
-        }
-      }
-      if (nearProp) continue;
-      if (placed.some(p => Math.hypot(p.x - x, p.y - y) < 7)) continue;
-      placed.push({ x, y });
-    }
-    return placed.map((s, i) => ({
-      id: `daemon_andr_${i + 1}`,
-      name: 'Daemon',
-      sheet: new Image(),
-      src:   'assets/2D%20sprites/enemies/daemon.png',
-      rowMap: { up:0, left:1, right:2, down:3 },
-      bboxes: DAEMON_BBOXES_PERIM,
-      cellW: 313, cellH: 313, cols: 4, rows: 4,
-      uniformScale: true,
-      tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
-      homeScene: 'overworld', scene: 'overworld',
-      wanderRadius: 8,
-      dir: 'down', mode: 'daemon',
-      moving: false, animFrame: 0, idleFrame: 0,
-      moveCd: 200 + Math.random() * 300,
-      blinkTimer: 9e9,
-      isEnemy: true,
-      hp: 250, hpMax: 250, tier: 3, level: 15,
-      onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
-    }));
-  })(),
+  // v0.95.324 · Mori/Daemon perimeter passes MOVED to deferred init after
+  // _propBlocked + isWorldBorderTile are defined (see v0.95.326 hotfix)
   // ── Mori · ZARVANE wild region · v0.95.129 · heavier population than Malezor ──
   // Districts progress: Malezor=passive wander · Zarvane=mix of wander + drainers
   //                     + one daemon lurking deep south · Andrannor=daemon-heavy.
@@ -4492,6 +4392,82 @@ function restoreUfoWorldCollision(prop){
   for(const [dx,dy] of prop.footprint||[])_propBlocked.add(`${prop.tileX+dx},${prop.tileY+dy}`);
   if(prop.door)_propDoors.set(`${prop.tileX+prop.door[0]},${prop.tileY+prop.door[1]}`,prop);
 }
+
+// v0.95.326 · Deferred Mori/Daemon perimeter passes · run AFTER _propBlocked
+// is populated + isWorldBorderTile is defined so we can safely gate spawns
+// away from all buildings/NPCs.  Pushes directly into the existing NPCS array.
+(function spawnPerimeterEnemies(){
+  const MORI_BBOXES_PERIM = [
+    [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
+    [[71,45,189,254],[49,49,206,250],[17,45,207,251],[27,45,170,254]],
+    [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
+    [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
+  ];
+  const DAEMON_BBOXES_PERIM = [
+    [[154, 18,159,240],[  0, 18,290,249],[  0, 21,272,242],[ 34, 21,202,246]],
+    [[144, 35,169,239],[  0, 35,285,238],[ 65, 35,183,238],[ 17, 35,205,238]],
+    [[145, 40,168,239],[  0, 40,285,240],[  0, 42,270,237],[ 17, 42,202,237]],
+    [[131, 47,182,248],[  0, 47,285,249],[ 62, 47,207,249],[ 26, 48,195,248]],
+  ];
+  function pickPerimeterSpots(district, target, seed, minSpacing){
+    const rng = _makeWorldRng(seed);
+    const placed = [];
+    for (let attempts = 0; attempts < 12000 && placed.length < target; attempts++){
+      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+      if (worldDistrictAt(x, y) !== district) continue;
+      if (legacyDistrictAt(x, y) === district) continue;
+      if (isWorldBorderTile(x, y)) continue;
+      if (_propBlocked.has(`${x},${y}`)) continue;
+      let nearProp = false;
+      for (let dy = -8; dy <= 8 && !nearProp; dy++){
+        for (let dx = -8; dx <= 8; dx++){
+          if (_propBlocked.has(`${x+dx},${y+dy}`)){ nearProp = true; break; }
+        }
+      }
+      if (nearProp) continue;
+      if (placed.some(p => Math.hypot(p.x - x, p.y - y) < minSpacing)) continue;
+      placed.push({ x, y });
+    }
+    return placed;
+  }
+  pickPerimeterSpots('malezor', 45, 0xFEEDBA5, 6).forEach((s, i) => NPCS.push({
+    id: `mori_perim_${i + 1}`, name: 'Mori',
+    sheet: new Image(),
+    src: 'assets/2D%20sprites/enemies/mori.png',
+    bboxes: MORI_BBOXES_PERIM,
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
+    homeScene: 'overworld', scene: 'overworld',
+    wanderRadius: 7,
+    dir: 'down', mode: 'wander',
+    moving: false, animFrame: 0, idleFrame: 0,
+    moveCd: 250 + Math.random() * 350,
+    blinkTimer: 9e9, isEnemy: true,
+    hp: 125, hpMax: 125, tier: 1, level: 2,
+    onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
+  }));
+  pickPerimeterSpots('andrannor', 35, 0xDEA110C, 7).forEach((s, i) => NPCS.push({
+    id: `daemon_andr_${i + 1}`, name: 'Daemon',
+    sheet: new Image(),
+    src: 'assets/2D%20sprites/enemies/daemon.png',
+    rowMap: { up:0, left:1, right:2, down:3 },
+    bboxes: DAEMON_BBOXES_PERIM,
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true,
+    tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
+    homeScene: 'overworld', scene: 'overworld',
+    wanderRadius: 8,
+    dir: 'down', mode: 'daemon',
+    moving: false, animFrame: 0, idleFrame: 0,
+    moveCd: 200 + Math.random() * 300,
+    blinkTimer: 9e9, isEnemy: true,
+    hp: 250, hpMax: 250, tier: 3, level: 15,
+    onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
+  }));
+  // Rebuild sprite src assignments (Image objects need explicit .src set)
+  NPCS.forEach(n => { if (n.sheet && n.src && !n.sheet.src) n.sheet.src = n.src; });
+})();
 function boardAuraxionUfo(){
   if(game.scene!=='overworld'||player.ufoFlying||player.activeActor!=='rizer')return false;
   if(player.cosmeticSkin!=='power_upgrade'){
@@ -6141,6 +6117,10 @@ const GUITAR_BBOX = [38, 35, 213, 316];  // v0.95.11 · re-tightened after flood
 // v0.95.10 · Punching Bag · Zyrex training dummy · teaches new moves from scrolls
 const PUNCHING_BAG_IMG = new Image();
 PUNCHING_BAG_IMG.src = 'assets/2D%20sprites/decor/punching-bag.png';
+// v0.95.326 · Rizer's backpack · first-grab item · sits in his room until he picks it up
+const RIZER_BACKPACK_IMG = new Image();
+RIZER_BACKPACK_IMG.src = 'assets/2D%20sprites/props/rizer-backpack.png';
+const RIZER_BACKPACK_BBOX = [185, 188, 884, 802];
 const PUNCHING_BAG_BBOX = [352, 26, 549, 1202];  // v0.95.11 · re-tightened after flood-fill re-bake
 
 // v0.95.50 · Nebuladock 9000 · mass inventory PC · centerpiece of Rizer Room
@@ -6178,6 +6158,9 @@ const RIZER_ROOM_ITEMS={
   bed:{name:'Bed',x:13,y:9,homeX:13,homeY:9,footprint:[[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0]]},
   basketball:{name:'Basketball',x:11,y:9,homeX:11,homeY:9,footprint:[[0,0]]},
   science:{name:'Science Table',x:13,y:1,homeX:13,homeY:1,footprint:[[-1,0],[0,0],[1,0]]},
+  // v0.95.326 · Rizer's backpack · MUST be picked up on new game before he
+  // can leave the house · gates the touchpad ZyCube UI too
+  backpack:{name:'Backpack',x:6,y:9,homeX:6,homeY:9,footprint:[[0,0]]},
 };
 let _roomEdit=null;
 const _roomOriginalBlocked=new Set([
@@ -8529,6 +8512,12 @@ function useStairs(s){
 function exitInterior(){
   if (game.scene === 'overworld') return;
   const priorScene = game.scene;
+  // v0.95.326 · Backpack MUST be grabbed first · gates house exit before Mom
+  if ((priorScene === 'interior_home' || priorScene === 'interior_home_2f') && !player.hasBackpack){
+    showToast('◈ Grab your Backpack from your room first', 2600);
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
   // v0.95.281 · Can't leave home without the Zycube · Mom's mandatory gift
   // Player home = interior_home (ground) or interior_home_2f (Rizer Room)
   if ((priorScene === 'interior_home' || priorScene === 'interior_home_2f') && !player.zycubeGifted){
@@ -10127,6 +10116,22 @@ function drawInteriorFloor(){
       const dy = Math.floor(player.chairY * TILE + TILE - drawH)       - _cam.y;
       ctx.drawImage(GAMING_CHAIR_IMG, sx, sy, bw, bh, dx, dy, drawW, drawH);
     }
+    // v0.95.326 · Rizer's backpack · only shown until picked up
+    if (!player.hasBackpack && RIZER_BACKPACK_IMG.complete && RIZER_BACKPACK_IMG.naturalWidth){
+      const pos = RIZER_ROOM_ITEMS.backpack;
+      if (pos){
+        const [sx, sy, sw, sh] = RIZER_BACKPACK_BBOX;
+        const drawW = Math.round(0.8 * TILE);
+        const drawH = Math.round(drawW * (sh / sw));
+        const dx = Math.floor((pos.x + 0.5) * TILE - drawW / 2) - _cam.x;
+        const dy = Math.floor((pos.y + 1) * TILE - drawH) - _cam.y;
+        ctx.save();
+        ctx.shadowColor = 'rgba(79,179,255,0.6)';
+        ctx.shadowBlur = 12 + 6 * Math.abs(Math.sin(performance.now() / 480));
+        ctx.drawImage(RIZER_BACKPACK_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
+        ctx.restore();
+      }
+    }
     // v0.95.10 · Punching Bag · 1.25 tiles wide · centered on col 1, base row 8
     if (PUNCHING_BAG_IMG.complete && PUNCHING_BAG_IMG.naturalWidth){
       const pos=RIZER_ROOM_ITEMS.dummy;
@@ -10774,6 +10779,16 @@ function tryInteract(){
         const nearNebula = facedRoomItem?.id==='console';
         if (nearNebula){ openNebulaPanel(); return; }
         // v0.95.79 · Punching Bag · blocks (1, 7) + (1, 8) · face those only
+        // v0.95.326 · Rizer's backpack pickup · unlocks touchpad + house exit
+        const nearBackpack = facedRoomItem?.id==='backpack';
+        if (nearBackpack && !player.hasBackpack){
+          player.hasBackpack = true;
+          player.items = player.items || {};
+          player.items.backpack = (player.items.backpack || 0) + 1;
+          showToast('★ Got the Backpack · touchpad unlocked · you can leave the house now', 3200);
+          try { playSFX('confirm'); } catch(_){}
+          return;
+        }
         const nearBag = facedRoomItem?.id==='dummy';
         if (nearBag){ openPunchingBagPanel(); return; }
         // v0.95.79 · Nebuladock PC · desk row (6-8, 7) + monitor (7, 6) only
@@ -11879,6 +11894,12 @@ addEventListener('keydown', e => {
       zyrexMenuOpen = false;
       playSFX('menuClose');
     } else {
+      // v0.95.326 · Touchpad requires the backpack FIRST (no bag, no touchpad)
+      if (!player.hasBackpack){
+        showToast('◈ Touchpad locked · grab your Backpack from your room', 2600);
+        try { playSFX('doorLock'); } catch(_){}
+        return;
+      }
       if (!player.zycubeGifted){
         showToast('◈ ZyCube locked · talk to Mom first', 2600);
         try { playSFX('doorLock'); } catch(_){}

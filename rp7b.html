@@ -6427,8 +6427,58 @@ const FAE_POSITIONS = [
 let _fae = FAE_POSITIONS.filter(([x,y])=>!isWorldBorderTile(x,y)).map(([x, y], i) => ({
   id: `fae_${i}`, x, y, collected: false, phase: Math.random() * 6.28,
 }));
+// v0.95.397 · +1.5x fae · procedurally seeded across every district for evenly
+// dense wild coverage · avoids water/border/prop tiles · deterministic RNG so
+// positions stay identical between saves
+(function seedExtraFae(){
+  if (typeof _makeWorldRng !== 'function' || typeof worldDistrictAt !== 'function') return;
+  const districts = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+  const baseCount = _fae.length;
+  const target = Math.round(baseCount * 1.5);              // 1.5x more · total ≈ 2.5x original
+  const rng = _makeWorldRng(0xFAE5EED);
+  const placed = [];
+  const occupied = new Set(_fae.map(f => `${f.x},${f.y}`));
+  let attempts = 0;
+  while (placed.length < target && attempts < target * 40){
+    attempts++;
+    const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+    const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+    if (!districts.includes(worldDistrictAt(x, y))) continue;
+    if (isWorldBorderTile(x, y)) continue;
+    if (typeof isVeridanRiverTile === 'function' && isVeridanRiverTile(x, y)) continue;
+    if (_propBlocked.has(`${x},${y}`)) continue;
+    const key = `${x},${y}`;
+    if (occupied.has(key)) continue;
+    // spacing: keep at least 3 tiles from any prior fae so they don't cluster
+    if (placed.some(p => Math.abs(p.x - x) + Math.abs(p.y - y) < 3)) continue;
+    occupied.add(key);
+    placed.push({ x, y });
+  }
+  placed.forEach((p, i) => {
+    _fae.push({
+      id: `fae_extra_${i}`, x: p.x, y: p.y, collected: false,
+      phase: Math.random() * 6.28,
+    });
+  });
+  console.log('[rp7b] fae seeded · base:', baseCount, '+ extra:', placed.length, '= total:', _fae.length);
+})();
+// v0.95.397 · Respawn collected fae after 5 real-time minutes · only when the
+// fae's tile is currently OFF-CAMERA so the player never sees them pop in
+const FAE_RESPAWN_MS = 5 * 60 * 1000;
 function tickFae(dt){
-  // pure animation drives · nothing to tick here (phase used per-frame)
+  const now = performance.now();
+  for (const f of _fae){
+    if (!f.collected) continue;
+    if (!f._collectedAt) f._collectedAt = now;
+    if (now - f._collectedAt < FAE_RESPAWN_MS) continue;
+    // Off-camera check · translate tile → screen coords, skip if visible
+    const sx = f.x * TILE - _cam.x;
+    const sy = f.y * TILE - _cam.y;
+    if (sx >= -TILE && sx <= canvas.width + TILE && sy >= -TILE && sy <= canvas.height + TILE) continue;
+    f.collected = false;
+    f._collectedAt = null;
+    f.phase = Math.random() * 6.28;
+  }
 }
 // v0.95.122 · Single-boulder draw · called from depth-sorted world layer
 function drawBoulder(b){
@@ -6569,6 +6619,7 @@ function collectFaeAt(tx, ty){
     if (f.collected) continue;
     if (f.x === tx && f.y === ty){
       f.collected = true;
+      f._collectedAt = performance.now();   // v0.95.397 · 5-min off-camera respawn timer
       player.faeCollected += 1;
       // v0.95.135 · Mirror fae count into items so it shows in bag
       if (!player.items) player.items = {};
@@ -18077,6 +18128,7 @@ function frame(now){
   drawZyrexAttackFx();  // v0.95.318 · type-themed Zyrex attack VFX (ring fallback)
   drawZyrexAttackAnims();// v0.95.320 · per-species attack sprite sheets
   try { tickBagDrag(); } catch(_){}  // v0.95.321 · bag follows Rizer while dragging
+  try { tickFae(); } catch(_){}      // v0.95.397 · fae respawn cycle (5-min off-camera)
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

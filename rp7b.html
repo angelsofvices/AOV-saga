@@ -3457,112 +3457,7 @@ function _makeWorldRng(seed){
   }
 })();
 
-// ══════════════════════════════════════════════════════════════════════
-// v0.95.361 · FULL DISTRICT NATURE SCATTER · Malezor + Zarvane + Andrannor
-// Populates each district's ENTIRE irregular footprint (not just an
-// expansion arm) with per-district themed vegetation.  Layering handled
-// by the existing depth-sort (footY ascending): grass has footprint=[]
-// so it draws under everything and stays walkable · trees/bushes/stones
-// have footprint=[[0,0]] so they block their anchor tile + sort with
-// player + building depth.  Enemies scatter separately (see below).
-// Uses shared helpers `deepInDistrict` + `clearArea` + `_propBlocked`
-// to skip existing homes, town halls, gates, roads, and other reserved
-// tiles so nothing overlaps hand-placed content.
-// ══════════════════════════════════════════════════════════════════════
-(function populateDistrictNature(){
-  const districts = [
-    { id:'malezor',   seed: 0x71E3A11, trees: 260, bushes: 380, grass: 620, stones: 90,
-      treeSrc: 'assets/2D%20sprites/decor/malezor-tree.png',   treeBbox: [72,77,1107,1138],
-      bushSrc: 'assets/2D%20sprites/decor/bush.png',           bushBbox: [291,274,965,471],
-      grassSrcA:'assets/2D%20sprites/decor/grass-patch-a.png', grassBboxA:[0,0,96,128],
-      grassSrcB:'assets/2D%20sprites/decor/grass-patch-b.png', grassBboxB:[32,0,96,128] },
-    { id:'zarvane',   seed: 0x7A1F00D, trees: 240, bushes: 400, grass: 720, stones: 80,
-      treeSrc: 'assets/2D%20sprites/decor/malezor-tree.png',   treeBbox: [72,77,1107,1138],
-      bushSrc: 'assets/2D%20sprites/decor/zarvane-bush.png',   bushBbox: [0,0,313,313],
-      grassSrcA:'assets/2D%20sprites/decor/zarvane-grass-a.png',grassBboxA:[0,0,313,313],
-      grassSrcB:'assets/2D%20sprites/decor/zarvane-grass-b.png',grassBboxB:[0,0,313,313] },
-    { id:'andrannor', seed: 0xA1D3411, trees: 220, bushes: 340, grass: 560, stones: 70,
-      treeSrc: 'assets/2D%20sprites/decor/andrannor-tree.png', treeBbox: [0,0,313,313],
-      bushSrc: 'assets/2D%20sprites/decor/andrannor-bush.png', bushBbox: [0,0,313,313],
-      grassSrcA:'assets/2D%20sprites/decor/andrannor-grass.png',grassBboxA:[0,0,313,313],
-      grassSrcB:'assets/2D%20sprites/decor/andrannor-grass.png',grassBboxB:[0,0,313,313] },
-  ];
-  // Shared image caches so we don't dupe Image() per prop
-  const imgCache = {};
-  const getImg = src => (imgCache[src] || (imgCache[src] = (() => { const im = new Image(); im.src = src; return im; })()));
-  // Track this pass's placements so we can enforce spacing without walking WORLD_PROPS every time
-  const placedTree = [], placedBush = [], placedStone = [];
-  const grassTiles = new Set();
-  const deepInDistrict = (id, x, y, r) => {
-    if (worldDistrictAt(x, y) !== id) return false;
-    if (isWorldBorderTile(x, y)) return false;
-    // Corners must also stay inside district (prevents props leaking across seams)
-    if (worldDistrictAt(x+r, y) !== id || worldDistrictAt(x-r, y) !== id) return false;
-    if (worldDistrictAt(x, y+r) !== id || worldDistrictAt(x, y-r) !== id) return false;
-    if (typeof isVeridanRiverTile === 'function' && isVeridanRiverTile(x, y)) return false;
-    return true;
-  };
-  const clearArea = (x, y, r) => {
-    for (let oy = -r; oy <= r; oy++){
-      for (let ox = -r; ox <= r; ox++){
-        if (_propBlocked && _propBlocked.has(`${x+ox},${y+oy}`)) return false;
-      }
-    }
-    return true;
-  };
-  const farFrom = (list, x, y, minD) =>
-    !list.some(p => Math.hypot(p.x - x, p.y - y) < minD);
-  const scatterOne = (d, kind, count) => {
-    const rng = _makeWorldRng(d.seed + (kind === 'tree' ? 1 : kind === 'bush' ? 2 : kind === 'grass' ? 3 : 4));
-    let placed = 0;
-    for (let attempts = 0; attempts < count * 60 && placed < count; attempts++){
-      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
-      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
-      if (kind === 'tree'){
-        if (!deepInDistrict(d.id, x, y, 4)) continue;
-        if (!clearArea(x, y, 3)) continue;
-        if (!farFrom(placedTree, x, y, 5)) continue;
-        WORLD_PROPS.push({
-          id: `${d.id}_nat_tree_${x}_${y}`, img: getImg(d.treeSrc), src: d.treeSrc,
-          bbox: d.treeBbox, tileX: x, tileY: y, tileW: 3, tileH: 3, footprint: [[0,0]],
-        });
-        placedTree.push({x,y}); placed++;
-      } else if (kind === 'bush'){
-        if (!deepInDistrict(d.id, x, y, 2)) continue;
-        if (!clearArea(x, y, 1)) continue;
-        if (!farFrom(placedBush, x, y, 3)) continue;
-        if (!farFrom(placedTree, x, y, 2)) continue;
-        WORLD_PROPS.push({
-          id: `${d.id}_nat_bush_${x}_${y}`, img: getImg(d.bushSrc), src: d.bushSrc,
-          bbox: d.bushBbox, tileX: x, tileY: y, tileW: 2, tileH: 1, footprint: [[0,0]],
-        });
-        placedBush.push({x,y}); placed++;
-      } else if (kind === 'grass'){
-        if (!deepInDistrict(d.id, x, y, 1)) continue;
-        const key = `${x},${y}`;
-        if (grassTiles.has(key)) continue;
-        if (_propBlocked && _propBlocked.has(key)) continue;
-        const a = ((Math.imul(x, 13) + Math.imul(y, 7) + x * y) & 1) === 0;
-        WORLD_PROPS.push({
-          id: `${d.id}_nat_grass_${x}_${y}`,
-          img: getImg(a ? d.grassSrcA : d.grassSrcB), src: a ? d.grassSrcA : d.grassSrcB,
-          bbox: a ? d.grassBboxA : d.grassBboxB, tileX: x, tileY: y,
-          tileW: 1, tileH: 1, footprint: [], wildZone: true,   // walkable + attracts enemies
-        });
-        grassTiles.add(key); placed++;
-      }
-    }
-  };
-  for (const d of districts){
-    scatterOne(d, 'grass', d.grass);
-    scatterOne(d, 'tree',  d.trees);
-    scatterOne(d, 'bush',  d.bushes);
-  }
-  // v0.95.361 · Stash placed-tree list on window so the later _boulderSpots
-  // scatter (line ~6837) can avoid overlap.  Stones themselves are added
-  // in that same block since _boulderSpots isn't declared until then.
-  window.__natureTreePlacements = placedTree;
-})();
+// v0.95.362 · District nature scatter RELOCATED below (see line ~4970) after _propBlocked exists · fixes black-screen TDZ error from v0.95.361
 
 // Load prop images (pre-baked · no chroma-key needed)
 WORLD_PROPS.forEach(p => { p.img.src = p.src; });
@@ -4976,6 +4871,110 @@ function worldBorderDirections(x,y){
   ].filter(([,nx,ny])=>!isWorldLandTile(nx,ny)).map(([dir])=>dir);
 }
 function isWorldBorderTile(x,y){ return worldBorderDirections(x,y).length>0; }
+
+// ══════════════════════════════════════════════════════════════════════
+// v0.95.362 · FULL DISTRICT NATURE SCATTER · Malezor + Zarvane + Andrannor
+// Relocated here so _propBlocked + isWorldBorderTile are both defined.
+// Layering handled by depth-sort: grass (footprint=[]) draws under
+// trees/bushes (footprint=[[0,0]]) which sort by footY with buildings + player.
+// ══════════════════════════════════════════════════════════════════════
+(function populateDistrictNature(){
+  const districts = [
+    { id:'malezor',   seed: 0x71E3A11, trees: 260, bushes: 380, grass: 620,
+      treeSrc: 'assets/2D%20sprites/decor/malezor-tree.png',   treeBbox: [72,77,1107,1138],
+      bushSrc: 'assets/2D%20sprites/decor/bush.png',           bushBbox: [291,274,965,471],
+      grassSrcA:'assets/2D%20sprites/decor/grass-patch-a.png', grassBboxA:[0,0,96,128],
+      grassSrcB:'assets/2D%20sprites/decor/grass-patch-b.png', grassBboxB:[32,0,96,128] },
+    { id:'zarvane',   seed: 0x7A1F00D, trees: 240, bushes: 400, grass: 720,
+      treeSrc: 'assets/2D%20sprites/decor/malezor-tree.png',   treeBbox: [72,77,1107,1138],
+      bushSrc: 'assets/2D%20sprites/decor/zarvane-bush.png',   bushBbox: [0,0,313,313],
+      grassSrcA:'assets/2D%20sprites/decor/zarvane-grass-a.png',grassBboxA:[0,0,313,313],
+      grassSrcB:'assets/2D%20sprites/decor/zarvane-grass-b.png',grassBboxB:[0,0,313,313] },
+    { id:'andrannor', seed: 0xA1D3411, trees: 220, bushes: 340, grass: 560,
+      treeSrc: 'assets/2D%20sprites/decor/andrannor-tree.png', treeBbox: [0,0,313,313],
+      bushSrc: 'assets/2D%20sprites/decor/andrannor-bush.png', bushBbox: [0,0,313,313],
+      grassSrcA:'assets/2D%20sprites/decor/andrannor-grass.png',grassBboxA:[0,0,313,313],
+      grassSrcB:'assets/2D%20sprites/decor/andrannor-grass.png',grassBboxB:[0,0,313,313] },
+  ];
+  const imgCache = {};
+  const getImg = src => (imgCache[src] || (imgCache[src] = (() => { const im = new Image(); im.src = src; return im; })()));
+  const placedTree = [], placedBush = [];
+  const grassTiles = new Set();
+  const deepInDistrict = (id, x, y, r) => {
+    if (worldDistrictAt(x, y) !== id) return false;
+    if (isWorldBorderTile(x, y)) return false;
+    if (worldDistrictAt(x+r, y) !== id || worldDistrictAt(x-r, y) !== id) return false;
+    if (worldDistrictAt(x, y+r) !== id || worldDistrictAt(x, y-r) !== id) return false;
+    if (typeof isVeridanRiverTile === 'function' && isVeridanRiverTile(x, y)) return false;
+    return true;
+  };
+  const clearArea = (x, y, r) => {
+    for (let oy = -r; oy <= r; oy++){
+      for (let ox = -r; ox <= r; ox++){
+        if (_propBlocked.has(`${x+ox},${y+oy}`)) return false;
+      }
+    }
+    return true;
+  };
+  const farFrom = (list, x, y, minD) => !list.some(p => Math.hypot(p.x - x, p.y - y) < minD);
+  const addProp = (obj) => {
+    WORLD_PROPS.push(obj);
+    // Load image immediately since the initial .img.src loop already ran before this block
+    if (obj.img && obj.src && !obj.img.src) obj.img.src = obj.src;
+    // Bake this prop's footprint into _propBlocked so subsequent scatter respects it
+    if (obj.footprint && obj.footprint.length){
+      obj.footprint.forEach(([dx, dy]) => _propBlocked.add(`${obj.tileX+dx},${obj.tileY+dy}`));
+    }
+    if (obj.wildZone) _wildZones.add(`${obj.tileX},${obj.tileY}`);
+  };
+  const scatterOne = (d, kind, count) => {
+    const rng = _makeWorldRng(d.seed + (kind === 'tree' ? 1 : kind === 'bush' ? 2 : 3));
+    let placed = 0;
+    for (let attempts = 0; attempts < count * 60 && placed < count; attempts++){
+      const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+      const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+      if (kind === 'tree'){
+        if (!deepInDistrict(d.id, x, y, 4)) continue;
+        if (!clearArea(x, y, 3)) continue;
+        if (!farFrom(placedTree, x, y, 5)) continue;
+        addProp({
+          id: `${d.id}_nat_tree_${x}_${y}`, img: getImg(d.treeSrc), src: d.treeSrc,
+          bbox: d.treeBbox, tileX: x, tileY: y, tileW: 3, tileH: 3, footprint: [[0,0]],
+        });
+        placedTree.push({x,y}); placed++;
+      } else if (kind === 'bush'){
+        if (!deepInDistrict(d.id, x, y, 2)) continue;
+        if (!clearArea(x, y, 1)) continue;
+        if (!farFrom(placedBush, x, y, 3)) continue;
+        if (!farFrom(placedTree, x, y, 2)) continue;
+        addProp({
+          id: `${d.id}_nat_bush_${x}_${y}`, img: getImg(d.bushSrc), src: d.bushSrc,
+          bbox: d.bushBbox, tileX: x, tileY: y, tileW: 2, tileH: 1, footprint: [[0,0]],
+        });
+        placedBush.push({x,y}); placed++;
+      } else if (kind === 'grass'){
+        if (!deepInDistrict(d.id, x, y, 1)) continue;
+        const key = `${x},${y}`;
+        if (grassTiles.has(key)) continue;
+        if (_propBlocked.has(key)) continue;
+        const a = ((Math.imul(x, 13) + Math.imul(y, 7) + x * y) & 1) === 0;
+        addProp({
+          id: `${d.id}_nat_grass_${x}_${y}`,
+          img: getImg(a ? d.grassSrcA : d.grassSrcB), src: a ? d.grassSrcA : d.grassSrcB,
+          bbox: a ? d.grassBboxA : d.grassBboxB, tileX: x, tileY: y,
+          tileW: 1, tileH: 1, footprint: [], wildZone: true,
+        });
+        grassTiles.add(key); placed++;
+      }
+    }
+  };
+  for (const d of districts){
+    scatterOne(d, 'grass', d.grass);
+    scatterOne(d, 'tree',  d.trees);
+    scatterOne(d, 'bush',  d.bushes);
+  }
+  window.__natureTreePlacements = placedTree;
+})();
 function nearestWorldInteriorTile(x,y,maxRadius=8){
   for(let r=1;r<=maxRadius;r++){
     for(let dy=-r;dy<=r;dy++){

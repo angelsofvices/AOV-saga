@@ -1257,6 +1257,7 @@ const AUDIO = {
     dad:          new Audio('audio/sfx-dad.mp3'),            // v0.95.90 · Dad greeting VO on interact
     mom:          new Audio('audio/sfx-mom.mp3'),            // v0.95.91 · Mom greeting VO on interact
     yara:         new Audio('audio/sfx-yara.mp3'),           // v0.95.377 · Yara VO on interact
+    itemGain:     new Audio('audio/sfx-item-gain.mp3'),      // v0.95.398 · classic pickup jingle · plays on any first-time item gain (not coins)
     elarian:      new Audio('audio/sfx-elarian.mp3'),        // v0.95.126 · "You're a wizard" VO on Prof Elarian interact
     nurseRein:    new Audio('audio/sfx-nurse-rein.mp3'),     // v0.95.128 · sakura chime VO on Nurse Rein interact
     heal:         new Audio('audio/sfx-heal.mp3'),           // v0.95.150 · magical shim for RHP/ZHP heal items (ales/potions/elixirs)
@@ -1895,9 +1896,26 @@ function consumeGemForDiamond(key){
   showToast(`◆ ${(INVENTORY_META[key]?.label || key)} consumed · +${gained} SPECIAL${gained < value ? ' · MAX' : ''}`, 2200);
   return true;
 }
+// v0.95.398 · Universal item-gain SFX helper · fires the classic pickup jingle
+// on any FIRST-time pickup of a listed key · skips coins per user spec
+const ITEM_GAIN_SFX_KEYS = new Set([
+  'faenet','zycube','worldmap','townmap','zyrex_id','zyrex_egg','zphone',
+  'backpack','skateboard','fruit','seed','berry','soulphish',
+  'gem_red','gem_blue','gem_purple',
+  'raidcard','dads_notebook','prismshard','elzebub_egg','verdant_elixir',
+  'zysphere_basic','zysphere_silver','zysphere_ultra',
+]);
+function playItemGain(key){
+  if (!key || key === 'coins') return;
+  if (!ITEM_GAIN_SFX_KEYS.has(key)) return;
+  try { playSFX('itemGain'); } catch(_){}
+}
 function addItems(drop){
   for (const key in drop){
-    player.items[key] = (player.items[key] || 0) + drop[key];
+    const prev = player.items[key] || 0;
+    player.items[key] = prev + drop[key];
+    // Fire item-gain jingle only when the count crosses 0 (true first pickup for that key)
+    if (prev === 0 && drop[key] > 0) playItemGain(key);
   }
 }
 function lootToString(drop){
@@ -3882,7 +3900,7 @@ const NPCS = [
       if (!player.dadStarterQuestGiven){
         player.dadStarterQuestGiven = true;
         player.dadNotebookGifted    = true;
-        inv.dads_notebook           = (inv.dads_notebook || 0) + 1;
+        inv.dads_notebook           = (inv.dads_notebook || 0) + 1; try{playItemGain('dads_notebook')}catch(_){}
         try { awardRizerXP(400); } catch(_){}
         try { playSFX('confirm'); } catch(_){}
         showToast('★ DAD\'S NOTEBOOK · in your bag · Quests tab unlocked (touchpad)', 3600);
@@ -4030,7 +4048,7 @@ const NPCS = [
       if (!player.faenetGifted){
         player.faenetGifted = true;
         try { awardRizerXP(1000); } catch(_){}   // v0.95.317 · Kaizari's gift = tool unlock
-        player.items.faenet = (player.items.faenet || 0) + 1;
+        player.items.faenet = (player.items.faenet || 0) + 1; try{playItemGain('faenet')}catch(_){}
         playSFX('confirm');
         showDialog({ speaker: 'KAIZARI', lines: [
           '*tail flicks · claws out*  A Rizer with no net?  That is not hunting · that is asking.',
@@ -4106,7 +4124,7 @@ const NPCS = [
       if (!player.raidCardGifted){
         player.raidCardGifted = true;
         try { awardRizerXP(500); } catch(_){}   // v0.95.317 · Prof Elarian RAID card
-        player.items.raidcard = (player.items.raidcard || 0) + 1;
+        player.items.raidcard = (player.items.raidcard || 0) + 1; try{playItemGain('raidcard')}catch(_){}
         showToast('★ Received: RAID Card · Rizer Academy ID', 2600);
         try { playSFX('confirm'); } catch(_){}
         const lines = yaraFollowing ? [
@@ -4285,7 +4303,7 @@ const NPCS = [
       if (!player.townMapGifted){
         player.townMapGifted = true;
         try { awardRizerXP(1500); } catch(_){}   // v0.95.317 · Zoryn's Town Map unlocks map tab
-        player.items.townmap = (player.items.townmap || 0) + 1;
+        player.items.townmap = (player.items.townmap || 0) + 1; try{playItemGain('townmap')}catch(_){}
         // Zoryn's map = town map only (Malezor) · NOT the full world map
         showToast('★ Received: Town Map (Malezor)', 2600);
         try { playSFX('confirm'); } catch(_){}
@@ -5405,6 +5423,162 @@ function restoreUfoWorldCollision(prop){
 // v0.95.326 · Deferred Mori/Daemon perimeter passes · run AFTER _propBlocked
 // is populated + isWorldBorderTile is defined so we can safely gate spawns
 // away from all buildings/NPCs.  Pushes directly into the existing NPCS array.
+// ══════════════════════════════════════════════════════════════════════
+// v0.95.398 · SKELLOR spawn system · psychache-humanoid rare loot event
+// - Every 3 real-time minutes in overworld · 1-3 skellors spawn off-camera
+// - Walk toward player (passive · no attack)
+// - 3 HP · every hit staggers · 3rd hit drops loot bag
+// - Interact loot bag → random coins 10-50 + 10% chance of a colored gem
+// - Only 1 GROUP active at a time · re-arms 3 min after last group cleared
+// ══════════════════════════════════════════════════════════════════════
+const SKELLOR_IMG = new Image();
+SKELLOR_IMG.src = 'assets/2D%20sprites/enemies/skellor.png';
+const SKELLOR_BBOXES = [
+  [[78,41,152,233],[74,35,156,239],[78,34,159,243],[65,37,144,238]],
+  [[93,31,123,227],[81,29,134,227],[80,31,131,223],[78,26,138,225]],
+  [[97,25,125,226],[72,25,134,226],[81,25,130,225],[62,22,145,229]],
+  [[79,14,148,237],[80, 8,147,240],[63,13,155,240],[72,16,143,237]],
+];
+const SKELLOR_SPAWN_MS = 3 * 60 * 1000;
+// v0.95.398 · defer game.* init since `game` const isn't declared yet at this line
+// (spawn state gets initialized lazily inside tickSkellorSpawn/spawnSkellorGroup)
+
+function spawnSkellorGroup(){
+  if (game._skellorGroupActive) return;
+  if (game.scene !== 'overworld') return;
+  const groupSize = 1 + Math.floor(Math.random() * 3);   // 1..3
+  // Pick a spawn anchor 12-18 tiles from player · off-camera direction
+  const camRadius = 14 + Math.floor(Math.random() * 5);
+  const angle = Math.random() * Math.PI * 2;
+  const ax = Math.round(player.x + Math.cos(angle) * camRadius);
+  const ay = Math.round(player.y + Math.sin(angle) * camRadius);
+  const spawned = [];
+  for (let i = 0; i < groupSize; i++){
+    const dx = i === 0 ? 0 : (Math.floor(Math.random() * 3) - 1);
+    const dy = i === 0 ? 0 : (Math.floor(Math.random() * 3) - 1);
+    const sx = ax + dx, sy = ay + dy;
+    if (!isWorldLandTile(sx, sy) || isWorldBorderTile(sx, sy)) continue;
+    if (_propBlocked.has(`${sx},${sy}`)) continue;
+    const idNum = (game._skellorCounter = (game._skellorCounter || 0) + 1);
+    const n = {
+      id: `skellor_${idNum}`,
+      name: 'Skellor',
+      sheet: new Image(),
+      src: 'assets/2D%20sprites/enemies/skellor.png',
+      bboxes: SKELLOR_BBOXES,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      uniformScale: true, scaleMul: 1.15,
+      tileX: sx, tileY: sy, homeX: sx, homeY: sy,
+      homeScene: 'overworld', scene: 'overworld',
+      dir: 'down', mode: 'skellor',
+      moving: false, animFrame: 0, idleFrame: 0,
+      moveCd: 400 + Math.random() * 400,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      hp: 3, hpMax: 3, tier: 1, level: 2,
+      _skellorFalls: 0,
+      onInteract: () => { playSFX('moriPoke'); showToast('◈ SKELLOR shuffles closer, groaning...', 2200); },
+    };
+    n.sheet.src = n.src;
+    NPCS.push(n);
+    spawned.push(n);
+  }
+  if (spawned.length){
+    game._skellorGroupActive = true;
+    game._skellorGroupIds = spawned.map(n => n.id);
+    showToast(`◈ SKELLOR${spawned.length > 1 ? 's' : ''} · ${spawned.length} shuffled in`, 2200);
+  }
+}
+
+// Skellor-specific tick · walks toward player · called from generic NPC tick when mode==='skellor'
+function tickSkellor(n){
+  if (!n || n.scene !== 'overworld') return;
+  if (n._dying) return;
+  if ((n.moveCd = (n.moveCd || 0) - 16) > 0) return;
+  // Walk one tile toward player
+  const dx0 = player.x - n.tileX, dy0 = player.y - n.tileY;
+  if (Math.abs(dx0) + Math.abs(dy0) <= 1){
+    n.dir = dx0 > 0 ? 'right' : dx0 < 0 ? 'left' : (dy0 > 0 ? 'down' : 'up');
+    n.moving = false; n.moveCd = 500;
+    return;
+  }
+  let dir = (Math.abs(dx0) >= Math.abs(dy0)) ? (dx0 > 0 ? 'right' : 'left') : (dy0 > 0 ? 'down' : 'up');
+  const v = _DIR_VEC[dir];
+  if (v && stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)){
+    n.moveCd = 550 + Math.random() * 250;
+  } else {
+    const alt = (dir === 'left' || dir === 'right') ? (dy0 > 0 ? 'down' : 'up') : (dx0 > 0 ? 'right' : 'left');
+    const av = _DIR_VEC[alt];
+    if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, alt)){
+      n.moveCd = 550;
+    } else {
+      n.moveCd = 400;
+    }
+  }
+}
+
+// Skellor hit response · 3 stagger rounds · 3rd = death + loot bag drop
+function skellorTakeHit(n, dmg){
+  if (!n || n._dying) return;
+  n._skellorFalls = (n._skellorFalls || 0) + 1;
+  n._hurtFlashUntil = performance.now() + 250;
+  playSFX('moriPoke');
+  if (n._skellorFalls >= 3){
+    n._dying = true;
+    n.isEnemy = false;
+    n.scene = 'overworld';
+    n.hp = 0;
+    n.mode = 'stationary';
+    n.moving = false;
+    n.name = 'Skellor (loot bag)';
+    n.onInteract = () => lootSkellor(n);
+    showToast('★ Skellor collapsed · interact its bag for loot', 2600);
+    // Check if group is fully down · re-arm the spawn timer
+    const groupAlive = NPCS.some(x =>
+      x && x.id && (game._skellorGroupIds || []).includes(x.id) && !x._dying && x.isEnemy);
+    if (!groupAlive){
+      game._skellorGroupActive = false;
+      game._skellorNextSpawn = performance.now() + SKELLOR_SPAWN_MS;
+    }
+  } else {
+    showToast(`◈ Skellor stumbles · fall ${n._skellorFalls}/3`, 1400);
+  }
+}
+
+// Loot the corpse bag · random coins 10-50 · 10% colored gem drop · body persists as breadcrumb
+let _skellorLootedIds = new Set();
+function lootSkellor(n){
+  if (!n) return;
+  if (_skellorLootedIds.has(n.id)){
+    showToast('◈ Empty bag · already looted', 1600);
+    return;
+  }
+  _skellorLootedIds.add(n.id);
+  const coins = 10 + Math.floor(Math.random() * 41);
+  player.items = player.items || {};
+  player.items.coins = (player.items.coins || 0) + coins;
+  const gemRoll = Math.random();
+  let gemMsg = '';
+  if (gemRoll < 0.10){
+    const gemColors = ['gem_red', 'gem_blue', 'gem_purple'];
+    const gem = gemColors[Math.floor(Math.random() * gemColors.length)];
+    player.items[gem] = (player.items[gem] || 0) + 1;
+    gemMsg = ` + 1 ${gem.replace('gem_', '').toUpperCase()} GEM`;
+  }
+  playSFX('coins');
+  showToast(`★ Looted Skellor bag · +${coins} coins${gemMsg}`, 2800);
+}
+
+// Global spawn tick · called every frame · fires when timer elapses
+function tickSkellorSpawn(){
+  if (game.scene !== 'overworld') return;
+  if (game._skellorGroupActive) return;
+  const now = performance.now();
+  if (now < game._skellorNextSpawn) return;
+  game._skellorNextSpawn = now + SKELLOR_SPAWN_MS;
+  spawnSkellorGroup();
+}
+
 (function spawnPerimeterEnemies(){
   const MORI_BBOXES_PERIM = [
     [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
@@ -10340,6 +10514,11 @@ addEventListener('keydown', e => {
             spawnHitFx(tx, ty, mode);
           }
           if (hit){
+            // v0.95.398 · Skellors take stagger-hits · 3rd fall = death + loot drop
+            if (hit.mode === 'skellor'){
+              skellorTakeHit(hit, 1);
+              return;
+            }
             const maxHp = hit.hpMax || 125;
             if (hit.hp == null) hit.hp = maxHp;
             // v0.95.211 · CANON damage · A1 punch = baseAtk × 1 · A2 kick = baseAtk × 2
@@ -12149,7 +12328,7 @@ function tryInteract(){
         // silent add + toast happens on the same A-press.
         if (facedRoomItem?.id==='skateboard'&&!player.items?.skateboard){
           player.items = player.items || {};
-          player.items.skateboard = 1;
+          player.items.skateboard = 1; try{playItemGain('skateboard')}catch(_){}
           // v0.95.389 · Fire the grab/interact anim explicitly (was: relying on
           // upstream auto-detect which sometimes fell through to the jump anim)
           try {
@@ -12174,7 +12353,7 @@ function tryInteract(){
         if (nearBackpack && !player.hasBackpack){
           player.hasBackpack = true;
           player.items = player.items || {};
-          player.items.backpack = (player.items.backpack || 0) + 1;
+          player.items.backpack = (player.items.backpack || 0) + 1; try{playItemGain('backpack')}catch(_){}
           // v0.95.389 · Fire the grab/interact anim explicitly + suppress any queued jump
           try {
             const _now = performance.now();
@@ -12199,7 +12378,7 @@ function tryInteract(){
             return;
           }
           player.items = player.items || {};
-          player.items.zphone = (player.items.zphone || 0) + 1;
+          player.items.zphone = (player.items.zphone || 0) + 1; try{playItemGain('zphone')}catch(_){}
           // Fire the interact-grab animation manually so the reach reads clearly
           try {
             const _now = performance.now();
@@ -17843,6 +18022,8 @@ function tickNPC(n, dt){
   // v0.95.385 · walkHome mode · escort allies + returning Zyrex actually WALK
   // to their assigned coord instead of teleporting · reverts to stationary
   // on arrival · falls back to teleport after ~10s if pathing keeps failing
+  // v0.95.398 · Skellor mode · shuffles toward player passively
+  if (n.mode === 'skellor'){ tickSkellor(n); return; }
   if (n.mode === 'walkHome'){
     const tgt = n._walkHomeTarget;
     if (!tgt){ n.mode = 'stationary'; n.moving = false; return; }
@@ -18129,6 +18310,7 @@ function frame(now){
   drawZyrexAttackAnims();// v0.95.320 · per-species attack sprite sheets
   try { tickBagDrag(); } catch(_){}  // v0.95.321 · bag follows Rizer while dragging
   try { tickFae(); } catch(_){}      // v0.95.397 · fae respawn cycle (5-min off-camera)
+  try { tickSkellorSpawn(); } catch(_){}  // v0.95.398 · 3-min Skellor loot-event
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

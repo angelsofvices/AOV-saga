@@ -1781,6 +1781,32 @@ const GEMGRASS_PATCHES = [
   { x: 63, y:358, w: 3, h: 3 },
   { x: 88, y:360, w: 4, h: 3 },
   { x:108, y:362, w: 3, h: 3 },
+  // v0.95.329 · Andrannor grass patches · cols 181-300 rows 308-337
+  // Avoids Town Hall footprint at (240, 316) + bush ring (through col 248)
+  // Same clustered-band pattern as Malezor/Zarvane
+  // Western Andrannor band
+  { x:185, y:311, w: 4, h: 3 },
+  { x:192, y:318, w: 5, h: 3 },
+  { x:200, y:314, w: 4, h: 4 },
+  { x:208, y:322, w: 5, h: 3 },
+  { x:215, y:315, w: 4, h: 3 },
+  { x:220, y:326, w: 5, h: 4 },
+  // Central-north Andrannor (above town hall)
+  { x:225, y:309, w: 4, h: 3 },
+  { x:232, y:311, w: 5, h: 3 },
+  { x:245, y:310, w: 4, h: 3 },
+  // South of town hall
+  { x:230, y:325, w: 4, h: 4 },
+  { x:238, y:328, w: 4, h: 3 },
+  { x:246, y:329, w: 5, h: 3 },
+  // Eastern Andrannor
+  { x:255, y:311, w: 5, h: 4 },
+  { x:262, y:319, w: 4, h: 3 },
+  { x:270, y:314, w: 5, h: 4 },
+  { x:275, y:325, w: 5, h: 3 },
+  { x:282, y:317, w: 4, h: 4 },
+  { x:288, y:322, w: 5, h: 3 },
+  { x:293, y:329, w: 4, h: 3 },
 ];
 
 const WORLD_PROPS = [
@@ -2202,6 +2228,11 @@ const WORLD_PROPS = [
     const _zbImg = new Image(); _zbImg.src = 'assets/2D%20sprites/decor/zarvane-grass-b.png';
     const _zaBBox = [  0, 0, 669, 885];
     const _zbBBox = [220, 0, 669, 885];
+    // v0.95.329 · Andrannor grass · dark-charcoal blades w/ gold accents · single sheet
+    // with two variants side-by-side (left + right halves)
+    const _andrImg = new Image(); _andrImg.src = 'assets/2D%20sprites/decor/andrannor-grass.png';
+    const _andrABBox = [ 51, 366, 536, 528];
+    const _andrBBBox = [675, 366, 537, 528];
     // Non-uniform A/B hash — mixes across x & y with prime-multipliers
     // so no obvious checkerboard or stripe pattern.
     const useA = (x, y) => ((x * 13 + y * 7 + x * y) & 1) === 0;
@@ -2217,10 +2248,21 @@ const WORLD_PROPS = [
           if (isWorldBorderTile(x,y)) continue;
           const zarvane = y >= MAP_ZARVANE_START_ROW;
           const a = useA(x, y);
-          // (1) Wild-zone marker.  Malezor uses the green grassblade sprite;
-          //     Zarvane uses its own golden grass sprite (skips grassblade
-          //     so green blades don't render on sand).
-          if (zarvane){
+          // v0.95.329 · Andrannor grass · same sprite-swap pattern as Zarvane
+          // Andrannor spans cols 181-300 rows 308-337 · match district explicitly
+          const andrannor = (typeof worldDistrictAt === 'function' && worldDistrictAt(x, y) === 'andrannor');
+          if (andrannor){
+            tiles.push({
+              id: `gemgrass_${x}_${y}`,
+              img:  _andrImg,
+              src:  'assets/2D%20sprites/decor/andrannor-grass.png',
+              bbox: a ? _andrABBox : _andrBBBox,
+              tileX: x, tileY: y,
+              tileW: 1, tileH: 1,
+              footprint: [],
+              wildZone: true,
+            });
+          } else if (zarvane){
             tiles.push({
               id: `gemgrass_${x}_${y}`,
               img:  a ? _zaImg  : _zbImg,
@@ -6163,7 +6205,7 @@ const RIZER_ROOM_ITEMS={
   science:{name:'Science Table',x:13,y:1,homeX:13,homeY:1,footprint:[[-1,0],[0,0],[1,0]]},
   // v0.95.326 · Rizer's backpack · MUST be picked up on new game before he
   // can leave the house · gates the touchpad ZyCube UI too
-  backpack:{name:'Backpack',x:14,y:2,homeX:14,homeY:2,footprint:[]},   // v0.95.328 · moved to (14,2) + no collision (walk through it, X to grab)
+  backpack:{name:'Backpack',x:14,y:2,homeX:14,homeY:2,footprint:[[0,0]]},   // v0.95.329 · collision restored · tile becomes walkable AFTER pickup via room-block rebuild
 };
 let _roomEdit=null;
 const _roomOriginalBlocked=new Set([

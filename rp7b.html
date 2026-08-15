@@ -8481,9 +8481,21 @@ const _boulderSpots = [
     let occupied=false;
     for(let oy=-2;oy<=2&&!occupied;oy++)for(let ox=-2;ox<=2;ox++)if(_propBlocked.has(`${x+ox},${y+oy}`)){occupied=true;break;}
     if(occupied||_boulderSpots.some(b=>Math.hypot(b.x-x,b.y-y)<5)||placed.some(b=>Math.hypot(b.x-x,b.y-y)<7))continue;
+    if(_tileHasNpcHalo(x,y,3))continue;   // v0.95.467 · no stones on NPC tiles
     const spot={x,y};placed.push(spot);_boulderSpots.push(spot);
   }
 })();
+// v0.95.467 · Shared helper · true if any overworld NPC sits within halo tiles
+// of (x, y).  Used by every boulder/astralite/life-stone pass so we never drop
+// a stone on top of Kelthor / Kaizari / Elarian / etc.
+function _tileHasNpcHalo(x, y, halo){
+  const H = halo || 2;
+  for (const n of NPCS){
+    if (!n || n.scene !== 'overworld') continue;
+    if (Math.abs(n.tileX - x) <= H && Math.abs(n.tileY - y) <= H) return true;
+  }
+  return false;
+}
 // v0.95.429 · GLOBAL BOULDER PASS · 2x density spread across EVERY district
 // naturally · standalone logic · never on top of other props · never on borders ·
 // wide min-spacing so they scatter as terrain instead of clumping into piles
@@ -8508,6 +8520,8 @@ const _boulderSpots = [
       }
     }
     if (occupied) continue;
+    // v0.95.467 · NEVER on top of Kelthor / Kaizari / any overworld NPC (3-tile halo)
+    if (_tileHasNpcHalo(x, y, 3)) continue;
     // Min-spacing against every already-committed boulder + this pass
     if (_boulderSpots.some(b => Math.hypot(b.x - x, b.y - y) < 6)) continue;
     if (placed.some(b => Math.hypot(b.x - x, b.y - y) < 8)) continue;
@@ -8516,7 +8530,7 @@ const _boulderSpots = [
     _boulderSpots.push(spot);
   }
 })();
-const BOULDERS = _boulderSpots.filter(s=>!isWorldBorderTile(s.x,s.y)).map(s => ({
+const BOULDERS = _boulderSpots.filter(s=>!isWorldBorderTile(s.x,s.y) && !_tileHasNpcHalo(s.x, s.y, 2)).map(s => ({
   tileX: s.x, tileY: s.y, hp: BOULDER_MAX_HP, breaking: 0, gone: false, scene: 'overworld'
 }));
 // v0.95.300 · ASTRALITE STONES · scattered around Malezor + Zarvane · same 4x4 break
@@ -8538,7 +8552,7 @@ const _astraliteStoneSpots = [
   { x: 82, y: 336 }, { x: 100, y: 350 }, { x: 118, y: 360 },
 ];
 _astraliteStoneSpots
-  .filter(s => !isWorldBorderTile(s.x, s.y))
+  .filter(s => !isWorldBorderTile(s.x, s.y) && !_tileHasNpcHalo(s.x, s.y, 2))
   .forEach(s => BOULDERS.push({
     tileX: s.x, tileY: s.y, hp: BOULDER_MAX_HP, breaking: 0, gone: false,
     scene: 'overworld', type: 'astralite'
@@ -8557,7 +8571,7 @@ const _lifeStoneSpots = [
   { x: 96, y: 342 },    // Wilds Branch south
 ];
 _lifeStoneSpots
-  .filter(s => !isWorldBorderTile(s.x, s.y))
+  .filter(s => !isWorldBorderTile(s.x, s.y) && !_tileHasNpcHalo(s.x, s.y, 2))
   .forEach(s => BOULDERS.push({
     tileX: s.x, tileY: s.y, hp: BOULDER_MAX_HP, breaking: 0, gone: false,
     scene: 'overworld', type: 'life'
@@ -8584,6 +8598,7 @@ _lifeStoneSpots
       }
     }
     if (occupied) continue;
+    if (_tileHasNpcHalo(x, y, 3)) continue;   // v0.95.467 · no stone on NPC tiles
     // Wide min-spacing vs boulders (8) + astralite (8) + other life stones (12)
     if (_boulderSpots.some(b => Math.hypot(b.x - x, b.y - y) < 8)) continue;
     if (_astraliteStoneSpots.some(s => Math.hypot(s.x - x, s.y - y) < 8)) continue;
@@ -8619,6 +8634,7 @@ _lifeStoneSpots
       }
     }
     if (occupied) continue;
+    if (_tileHasNpcHalo(x, y, 3)) continue;   // v0.95.467 · no stone on NPC tiles
     // Wide min-spacing against every boulder + every stone (curated + this pass)
     if (_boulderSpots.some(b => Math.hypot(b.x - x, b.y - y) < 6)) continue;
     if (_astraliteStoneSpots.some(s => Math.hypot(s.x - x, s.y - y) < 8)) continue;

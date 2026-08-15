@@ -145,6 +145,58 @@
       background:rgba(2,5,13,.94);
       box-shadow:inset 0 0 2px rgba(90,125,175,.45);
     }
+    /* ── v0.95.449 · Zyrex HUD · top-LEFT mirror of Rizer HUD ─────── */
+    #zyrexHud{
+      position:fixed; top:-30px; left:8px;
+      width: 460px; height: 258px;
+      background-image: url('assets/2D%20sprites/ui/hud/zyrex-hud-frame.png');
+      background-size: contain; background-repeat: no-repeat;
+      background-position: left top;
+      cursor: pointer;
+      z-index: 6;
+      image-rendering: pixelated;
+      display: none;
+    }
+    /* HP + XP segmented meters · 8 cells each · overlay dark mask per empty cell */
+    #zyrexHud .zLiveMeter{
+      position:absolute; left:37.5%; width:57%; height:5.4%;
+      display:grid; grid-template-columns:repeat(8,1fr); column-gap:1.2%;
+      pointer-events:none;
+    }
+    #zyrexHud .zLiveMeter.hp{top:26.5%}
+    #zyrexHud .zLiveMeter.xp{top:53.8%}
+    #zyrexHud .zLiveMeter i{
+      position:relative; display:block; overflow:hidden; border-radius:2px;
+    }
+    #zyrexHud .zLiveMeter i::after{
+      content:""; position:absolute; top:0; right:0; bottom:0;
+      width:var(--empty,0%);
+      background:rgba(2,5,13,.94);
+      box-shadow:inset 0 0 2px rgba(90,125,175,.45);
+    }
+    /* Nameplate banner text · lives in the lower nameplate cutout of the frame */
+    #zyrexHud .zName{
+      position:absolute; left:5%; top:80%; width:41%; height:11%;
+      display:flex; align-items:center; justify-content:center;
+      color:#ffd66b; font:bold 12px 'Courier New',monospace;
+      letter-spacing:.14em; text-shadow:0 1px 2px rgba(0,0,0,.9);
+      text-transform:uppercase; pointer-events:none; text-align:center;
+    }
+    /* Level chip · top-left of the portrait circle */
+    #zyrexHud .zLvl{
+      position:absolute; left:12%; top:4%; padding:2px 6px;
+      background:rgba(4,8,22,.85); border:1px solid #ffd66b;
+      color:#ffd66b; font:bold 11px 'Courier New',monospace;
+      letter-spacing:.10em; pointer-events:none; border-radius:2px;
+    }
+    @media (orientation: portrait){
+      #zyrexHud{
+        top: calc(33vh - 2.5vw); left:4px;
+        width: 184px; height: 103px;
+      }
+      #zyrexHud .zName{ font-size:9px; letter-spacing:.06em; }
+      #zyrexHud .zLvl{  font-size:8px;  padding:1px 4px; }
+    }
     /* Cosmetic transformation · Dreamland cloud spiral around Rizer + RHUD. */
     #cosmeticDreamFx{
       position:fixed; inset:0; z-index:50; pointer-events:none; overflow:hidden;
@@ -556,6 +608,13 @@
     <div class="rizerLiveMeter hp" data-rizer-meter="hp" aria-label="HP"></div>
     <div class="rizerLiveMeter energy" data-rizer-meter="energy" aria-label="Astral Energy"></div>
     <div class="rizerLiveMeter special" data-rizer-meter="special" aria-label="Special"></div>
+  </div>
+  <!-- v0.95.449 · Active Zyrex HUD · top-LEFT mirror · 8-segment HP + XP bars -->
+  <div id="zyrexHud" title="Active Zyrex · touchpad → Faction to swap">
+    <div class="zLvl"    data-zyrex-lvl>Lv 1</div>
+    <div class="zLiveMeter hp" data-zyrex-meter="hp"></div>
+    <div class="zLiveMeter xp" data-zyrex-meter="xp"></div>
+    <div class="zName"  data-zyrex-name>— NONE —</div>
   </div>
   <!-- v0.95.387 · pixel-art coin panel · click to open wallet · number lives in the box LEFT of the gold coin -->
   <div id="coinHud" title="Click to open Wallet"><span class="coinNum">0</span></div>
@@ -20347,6 +20406,7 @@ function frame(now){
   }
   updateHUD();          // live tile coordinates in top-left
   updateRizerHUD();     // Rizer HUD bars + panel refresh (top-right)
+  try { updateZyrexHUD(); } catch(_){}   // v0.95.449 · Active Zyrex HUD · top-left mirror
   requestAnimationFrame(frame);
 }
 
@@ -21369,6 +21429,52 @@ function paintRizerMeterElement(el,stat){
   if(el.children.length!==5)el.replaceChildren(...Array.from({length:5},()=>document.createElement('i')));
   Array.from(el.children).forEach((cell,i)=>cell.style.setProperty('--empty',`${(1-meterCellFill(stat.value,stat.max,i))*100}%`));
   el.setAttribute('aria-label',`${el.dataset.rizerMeter||'stat'} ${stat.value} of ${stat.max}`);
+}
+// v0.95.449 · Zyrex HUD segmented meter · 8 cells · matches new frame art
+function paintZyrexMeterElement(el, value, max){
+  if (!el) return;
+  if (el.children.length !== 8){
+    el.replaceChildren(...Array.from({length: 8}, () => document.createElement('i')));
+  }
+  const perCell = Math.max(1, max) / 8;
+  Array.from(el.children).forEach((cell, i) => {
+    const cellStart = i * perCell;
+    const cellFill = Math.max(0, Math.min(1, (value - cellStart) / perCell));
+    cell.style.setProperty('--empty', `${(1 - cellFill) * 100}%`);
+  });
+  el.setAttribute('aria-label', `${el.dataset.zyrexMeter || 'stat'} ${Math.round(value)} of ${Math.round(max)}`);
+}
+function updateZyrexHUD(){
+  const widget = document.getElementById('zyrexHud');
+  if (!widget) return;
+  // Match Rizer HUD visibility rules exactly
+  const devPanel = document.getElementById('devPanel');
+  const devOpen  = devPanel && devPanel.style.display === 'block';
+  const anyModal = settingsMenuOpen || zyrexMenuOpen
+                || game.expPanelOpen || game.tvPanelOpen
+                || game.guitarPanelOpen || game.nebulaPanelOpen
+                || game.bagPanelOpen || devOpen || _sleepFade || game.zphoneOpen;
+  const show = game.scene !== 'title' && !dialogState && !battleState && !wildBattleState && !anyModal;
+  widget.style.display = show ? 'block' : 'none';
+  if (!show) return;
+  // Pick active Zyrex · same rule as awardActiveZyrexXP
+  const z = (typeof activeZyrexRef === 'function') ? activeZyrexRef() : null;
+  const nameEl = widget.querySelector('[data-zyrex-name]');
+  const lvlEl  = widget.querySelector('[data-zyrex-lvl]');
+  const hpEl   = widget.querySelector('[data-zyrex-meter="hp"]');
+  const xpEl   = widget.querySelector('[data-zyrex-meter="xp"]');
+  if (!z){
+    if (nameEl) nameEl.textContent = '— NONE —';
+    if (lvlEl)  lvlEl.textContent  = 'Lv —';
+    paintZyrexMeterElement(hpEl, 0, 1);
+    paintZyrexMeterElement(xpEl, 0, 1);
+    return;
+  }
+  if (nameEl) nameEl.textContent = (z.name || z.speciesId || '?').toString();
+  if (lvlEl)  lvlEl.textContent  = `Lv ${z.level || 1}`;
+  paintZyrexMeterElement(hpEl, z.hp || 0, z.maxHp || 1);
+  const xpMax = (typeof xpToNextLevel === 'function') ? xpToNextLevel(z.level || 1) : 100;
+  paintZyrexMeterElement(xpEl, z.xp || 0, xpMax || 1);
 }
 function drawCanvasRizerMeters(x,y,w,h){
   const model=rizerStatModel();

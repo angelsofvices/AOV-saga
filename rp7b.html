@@ -1171,6 +1171,42 @@ function worldDistrictAt(x,y){
   return null;
 }
 
+// v0.95.439 · ULTRA-EARLY TOUCHPAD HARDLINE · window capture · fires before EVERY
+// other keydown listener on the page.  This is the outermost trap for '2' — the
+// zphone opens/closes even if some downstream handler crashes or gates the event.
+window.addEventListener('keydown', (ev) => {
+  if (!ev || ev.repeat) return;
+  const _k = (ev.key || '').toLowerCase();
+  if (_k !== '2') return;
+  // Bail if no phone in the DOM yet (page still booting)
+  const _pnl = document.getElementById('zphonePanel');
+  if (!_pnl) return;
+  // Player-state check (safe optional chains — this listener runs before game inits too)
+  const _hasKit = (typeof player === 'object' && player &&
+                   !!player.hasBackpack && (player.items?.zphone || 0) > 0);
+  const _devBypass = (typeof isDevUnlocked === 'function' && isDevUnlocked());
+  if (!_hasKit && !_devBypass) return;                    // let normal gate toasts fire below
+  // Kill dev panel visibility so the phone paints on top of a clean canvas
+  const _dp = document.getElementById('devPanel');
+  if (_dp && _dp.style.display === 'block'){
+    _dp.style.display = 'none';
+    if (typeof game === 'object') game.devPanelKeyboard = false;
+  }
+  const _disp = getComputedStyle(_pnl).display || _pnl.style.display;
+  const _isOpen = _disp && _disp !== 'none';
+  if (_isOpen){
+    _pnl.style.display = 'none';
+    if (typeof game === 'object'){ game.zphoneOpen = false; game._zycellFocus = 'nav'; game._zycellItemIdx = 0; }
+    try { playSFX('menuClose'); } catch(_){}
+  } else {
+    _pnl.style.display = 'flex';
+    if (typeof game === 'object'){ game.zphoneOpen = true; game._zycellFocus = 'nav'; game._zycellItemIdx = 0; }
+    try { paintZycellNav(); } catch(err){ console.warn('paintZycellNav failed', err); }
+    try { playSFX('menuOpen'); } catch(_){}
+  }
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+}, true);
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 // v0.95.163 · Click/tap the game view (or dialog box) to advance dialogue
@@ -1784,6 +1820,32 @@ function hurtPlayer(amt, srcName){
   // no attack path to its hull and cannot damage Rizer through the cockpit.
   if (player.ufoFlying) return;
   if ((player._invulnUntil || 0) > performance.now()) return;
+  // v0.95.439 · BLOCK stance · absorb the hit · no HP loss until block breaks
+  // S1 (normal) absorbs 3 hits · S2 (power_upgrade) absorbs 6 · then break-stun
+  if (player.blocking && !(player._blockStunUntil > performance.now())){
+    const cap = (player.cosmeticSkin === 'power_upgrade') ? 6 : 3;
+    player.blockHitsAbsorbed = (player.blockHitsAbsorbed || 0) + 1;
+    player._blockHitFlashUntil = performance.now() + 220;         // sparkle frame col 3
+    player._invulnUntil = performance.now() + 220;
+    try { playSFX('punchHit'); } catch(_){}
+    if (window.__rumbleHit) window.__rumbleHit('block');
+    if (player.blockHitsAbsorbed >= cap){
+      // BLOCK BREAK · brief stun, block unavailable for 1200ms, take partial dmg
+      player.blocking = false;
+      player.blockStart = 0;
+      player.blockHitsAbsorbed = 0;
+      player._blockStunUntil = performance.now() + 1200;
+      player._hurtSpriteUntil = performance.now() + 380;
+      player._hurtFlashUntil  = performance.now() + 380;
+      player._hurtShakeUntil  = performance.now() + 320;
+      const bleed = Math.max(1, Math.round(rizerIncomingDamage(amt) * 0.5));
+      player.hp = Math.max(0, (player.hp || 0) - bleed);
+      showToast('◈ BLOCK BREAK · stunned', 1400);
+      try { playSFX('cancel'); } catch(_){}
+      if (player.hp === 0 && !game.devNoDefeat) startRizerDeath();
+    }
+    return;
+  }
   player.hp = Math.max(0, (player.hp || 0) - rizerIncomingDamage(amt));
   const now = performance.now();
   player._hurtFlashUntil  = now + 380;                   // v0.95.167 · longer red flash
@@ -6479,6 +6541,23 @@ const ASTRALSLAM_S2_MORI = makeRizerSheet('astralslam-s2-mori', [
 const ASTRALSLAM_S2_DAEMON = makeRizerSheet('astralslam-s2-daemon', [
  [[63,61,207,247],[39,124,221,184],[12,36,301,277],[0,70,276,243]], [[36,66,221,209],[16,73,233,205],[14,0,299,301],[0,0,274,313]],
  [[62,46,213,197],[11,39,225,210],[14,6,299,307],[0,0,276,285]], [[75,14,177,216],[19,27,217,207],[15,0,298,256],[0,11,274,249]] ]);
+// v0.95.439 · BLOCK sheets · R2 hold enters block stance · S1 = 3 hits · S2 = 6 hits
+// 4x4 sheet · rows D/L/R/U · cols: 0=stance-in · 1=charge · 2=SHIELD UP · 3=hit-spark
+// Bboxes use safe union rects (art is centered ~ (313,313) cell). We can CC-tighten
+// later once you playtest — for now the wide union guarantees no clip on any frame.
+const RIZER_S1_BLOCK = makeRizerSheet('block', [
+ [[70,20,180,290],[70,20,180,290],[70,20,180,290],[70,20,180,290]],
+ [[70,20,180,290],[70,20,180,290],[70,20,180,290],[70,20,180,290]],
+ [[70,20,180,290],[70,20,180,290],[70,20,180,290],[70,20,180,290]],
+ [[70,20,180,290],[70,20,180,290],[70,20,180,290],[70,20,180,290]],
+]);
+const RIZER_S2_BLOCK = makeRizerSheet('block-power-upgrade', [
+ [[70,20,180,290],[70,20,180,290],[70,20,180,290],[70,20,180,290]],
+ [[70,20,180,290],[70,20,180,290],[70,20,180,290],[70,20,180,290]],
+ [[70,20,180,290],[70,20,180,290],[70,20,180,290],[70,20,180,290]],
+ [[70,20,180,290],[70,20,180,290],[70,20,180,290],[70,20,180,290]],
+]);
+RIZER.block = RIZER_S1_BLOCK;
 const PLAYER_SKINS = {
   normal:        { name: 'Normal', damageMult: 1, overrides: {} },
   power_upgrade: { name: 'Power Upgrade', damageMult: 2, overrides: {
@@ -10416,7 +10495,9 @@ Promise.all([
   loadAsset(RIZER.astralkick,    'assets/2D%20sprites/rizer/astralkick.png'),                    // v0.95.238 · A4 bicycle-kick cast
   loadAsset(RIZER.astralthrow,   'assets/2D%20sprites/rizer/astralthrow.png'),
   loadAsset(RIZER.astralkickBoom,'assets/2D%20sprites/vfx/astralkick-boom.png'),                 // v0.95.238 · A4 red final-boom
-]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge+hurt)'));
+  loadAsset(RIZER_S1_BLOCK,  'assets/2D%20sprites/rizer/block.png'),                             // v0.95.439 · S1 block stance
+  loadAsset(RIZER_S2_BLOCK,  'assets/2D%20sprites/rizer/block-power-upgrade.png'),               // v0.95.439 · S2 block stance
+]).then(() => console.log('[rp7b] rizer sheets loaded (idle+walk+run+jumps+dodge+hurt+block)'));
 
 // Double-tap Cross front flip. World position commits to the landing tile
 // immediately for deterministic collision; drawPlayer interpolates the
@@ -10553,6 +10634,21 @@ addEventListener('keydown', e => {
   }
   if(k==='j'&&startRoomEdit()){
     keys[k]=true;e.__roomEditHandled=true;e.preventDefault();return;
+  }
+  // v0.95.439 · R2 HOLD = BLOCK stance · fires on FIRST keydown (fresh press) ·
+  // ignores auto-repeats · doesn't fire while UFO piloting, dev panel open, dialog,
+  // battle, phone, or during another attack (attack owns anims)
+  if (k === 'i' && !keys[k] && !e.repeat
+      && player && player.activeActor === 'rizer'
+      && !player.ufoFlying
+      && !document.getElementById('devPanel')?.style.display === 'block'
+      && !dialogState && !battleState && !wildBattleState && !game.zphoneOpen && !game.paused
+      && !(player.attackUntil && performance.now() < player.attackUntil)){
+    player.blocking = true;
+    player.blockStart = performance.now();
+    player.blockHitsAbsorbed = 0;
+    player._blockHitFlashUntil = 0;
+    try { playSFX('confirm'); } catch(_){}
   }
   // R2 / I · Auraxion-only phase-flight toggle. Keep R2's existing Dev-mode
   // close behavior intact whenever that panel is open.
@@ -11016,6 +11112,12 @@ addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
   keys[k] = false;
   releaseWildBattleKey(k);
+  // v0.95.439 · R2 release · exit block stance
+  if (k === 'i' && player && player.blocking){
+    player.blocking = false;
+    player.blockStart = 0;
+    player._blockHitFlashUntil = 0;
+  }
   // v0.95.353 · Cancel touchpad-hold if released before 5s
   if (k === '2' && game._touchpadHoldTimer){
     clearTimeout(game._touchpadHoldTimer);
@@ -12290,6 +12392,13 @@ function drawPlayer(){
   const faeBundle = faeCandidate && faeCandidate.loaded ? faeCandidate : null;
   // v0.95.114 · Guitar-play looped anim while song active
   const guitarBundle = player.playingGuitar && RIZER.guitarPlay && RIZER.guitarPlay.loaded ? RIZER.guitarPlay : null;
+  // v0.95.439 · BLOCK stance · R2 held · takes priority over walk/idle/attack
+  // (skips attack because blocking cancels the swing).  Not over death/hurt/dodge/jump/fae/guitar.
+  const _blocking = !!player.blocking && !inAttack;
+  const blockCandidate = _blocking
+    ? (player.cosmeticSkin === 'power_upgrade' ? RIZER_S2_BLOCK : RIZER_S1_BLOCK)
+    : null;
+  const blockBundle = blockCandidate && blockCandidate.loaded ? blockCandidate : null;
   let bundle = deathBundle
              ? deathBundle
              : faeBundle
@@ -12302,6 +12411,8 @@ function drawPlayer(){
              ? dodgeBundle
              : jumpBundle
              ? jumpBundle
+             : blockBundle                                                     // v0.95.439 · block > attack
+             ? blockBundle
              : attackCandidate && attackCandidate.loaded ? attackCandidate
              : useSkate ? RIZER.skate                      // v0.95.100 · skate replaces run/walk/idle
              : useRun ? runBundle
@@ -12419,6 +12530,20 @@ function drawPlayer(){
     const jumpDur = player.jumpUntil - player.jumpStart;
     const elapsed = now - player.jumpStart;
     col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (jumpDur / bundle.cols))));
+  } else if (blockBundle){
+    // v0.95.439 · block anim · 0=stance-in, 1=charge (~120ms), 2=SHIELD UP (held),
+    // 3=hit-spark (flashes on impact via player._blockHitFlashUntil)
+    const _now = now;
+    const held = _now - (player.blockStart || _now);
+    if ((player._blockHitFlashUntil || 0) > _now){
+      col = 3;                                  // absorb flash · sparkle frame
+    } else if (held < 90){
+      col = 0;                                  // stance-in
+    } else if (held < 180){
+      col = 1;                                  // charge
+    } else {
+      col = 2;                                  // shield up · held until R2 release
+    }
   } else if (inAttack){
     // v0.95.210/238 · astralstrike cast = 500 · astralkick cast = 620
     const dur = (player.attackMode==='punch'||player.attackMode==='kick')

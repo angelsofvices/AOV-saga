@@ -6947,14 +6947,22 @@ function drawBoulder(b){
     ctx.shadowBlur = 16;
     ctx.drawImage(sheet, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
     ctx.restore();
-  } else if (b.type === 'life' && !b.breaking){
-    // v0.95.431 · Life stone · warm pink/red pulsing glow · signals full heal
+  } else if (b.type === 'life'){
+    // v0.95.432 · Life stone · single 1254×1254 frame (not a 4×4 crumble sheet) ·
+    // draw the full source image · pulsing red-orange glow · fade out during crumble
     ctx.save();
-    const pulse = 0.55 + 0.25 * Math.sin(now / 380);
-    ctx.shadowColor = `rgba(255,110,140,${pulse.toFixed(2)})`;
-    ctx.shadowBlur = 20;
-    ctx.drawImage(sheet, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
+    const alpha = b.breaking
+      ? Math.max(0, 1 - ((now - b.breaking) / BOULDER_CRUMBLE_MS))
+      : 1;
+    ctx.globalAlpha = alpha;
+    if (!b.breaking){
+      const pulse = 0.55 + 0.25 * Math.sin(now / 380);
+      ctx.shadowColor = `rgba(255,110,140,${pulse.toFixed(2)})`;
+      ctx.shadowBlur = 22;
+    }
+    ctx.drawImage(sheet, 0, 0, sheet.naturalWidth, sheet.naturalHeight, dx, dy, drawW, drawH);
     ctx.restore();
+    if (b.breaking && (now - b.breaking) >= BOULDER_CRUMBLE_MS){ b.gone = true; }
   } else {
     ctx.drawImage(sheet, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
   }

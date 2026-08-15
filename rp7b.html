@@ -1820,10 +1820,10 @@ function hurtPlayer(amt, srcName){
   // no attack path to its hull and cannot damage Rizer through the cockpit.
   if (player.ufoFlying) return;
   if ((player._invulnUntil || 0) > performance.now()) return;
-  // v0.95.439 · BLOCK stance · absorb the hit · no HP loss until block breaks
-  // S1 (normal) absorbs 3 hits · S2 (power_upgrade) absorbs 6 · then break-stun
+  // v0.95.440 · BLOCK stance · absorb the hit · no HP loss until block breaks
+  // S1 (normal) absorbs 1 hit · S2 (power_upgrade) absorbs 3 · then break-stun
   if (player.blocking && !(player._blockStunUntil > performance.now())){
-    const cap = (player.cosmeticSkin === 'power_upgrade') ? 6 : 3;
+    const cap = (player.cosmeticSkin === 'power_upgrade') ? 3 : 1;
     player.blockHitsAbsorbed = (player.blockHitsAbsorbed || 0) + 1;
     player._blockHitFlashUntil = performance.now() + 220;         // sparkle frame col 3
     player._invulnUntil = performance.now() + 220;
@@ -14904,18 +14904,27 @@ function renderZycellMap(){
     <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:${(posMap.rf * 200).toFixed(1)}%; padding-bottom:${(posMap.rf * 200).toFixed(1)}%; border:3px solid rgba(79,179,255,0.9); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 22px rgba(79,179,255,0.6); box-sizing:border-box; pointer-events:none; animation:zyPulse 1.6s ease-in-out infinite;"></div>
     <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:12px; height:12px; background:#ffd66b; border:2px solid #fff; border-radius:50%; box-shadow:0 0 18px #ffd66b; transform:translate(-50%,-50%); pointer-events:none;"></div>
   ` : '';
-  // v0.95.419 · Map fills the phone content area · height 68vh so it goes edge-to-edge
+  // v0.95.440 · Map fits the phone content · uses <img> so district overlay percentages
+  // align with the ACTUAL image bounds (no letterbox drift from background:contain).
+  // District outline highlights the current island directly instead of a floating pin ring.
+  const outlineHTML = posMap ? `
+    <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:${(posMap.rf * 200).toFixed(1)}%; padding-bottom:${(posMap.rf * 200).toFixed(1)}%; border:4px solid rgba(255,214,107,0.95); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 22px rgba(255,214,107,0.65), inset 0 0 18px rgba(255,214,107,0.35); box-sizing:border-box; pointer-events:none; animation:zyPulse 1.4s ease-in-out infinite;"></div>
+    <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:14px; height:14px; background:#ffd66b; border:2px solid #fff; border-radius:50%; box-shadow:0 0 20px #ffd66b; transform:translate(-50%,-50%); pointer-events:none;"></div>
+  ` : '';
   return `
-    <style>@keyframes zyPulse { 0%,100% { opacity:0.55; } 50% { opacity:1; } }</style>
-    <div style="border:1px solid #d4af37; background:rgba(0,0,0,0.4); padding:8px; display:flex; flex-direction:column; height:100%;">
-      <div style="color:#ffd66b; font-weight:bold; letter-spacing:.12em; font-size:12px; margin-bottom:8px; display:flex; justify-content:space-between; padding:0 4px;">
+    <style>@keyframes zyPulse { 0%,100% { opacity:0.6; transform:translate(-50%,-50%) scale(1); } 50% { opacity:1; transform:translate(-50%,-50%) scale(1.04); } }</style>
+    <div style="border:1px solid #d4af37; background:rgba(0,0,0,0.4); padding:6px; display:flex; flex-direction:column; height:100%; min-height:0; box-sizing:border-box;">
+      <div style="color:#ffd66b; font-weight:bold; letter-spacing:.12em; font-size:12px; margin-bottom:6px; display:flex; justify-content:space-between; padding:0 4px; flex:0 0 auto;">
         <span>🗺  WORLD MAP · ZYRAXIS</span>
         <span style="color:#8ff;">📍 ${label}</span>
       </div>
-      <div style="flex:1; min-height:60vh; background:url('assets/2D%20sprites/ui/pages/world-map-hero.png') center/contain no-repeat; border:1px solid rgba(79,179,255,0.35); position:relative;">
-        ${pinHTML}
+      <div style="flex:1 1 0; min-height:0; position:relative; border:1px solid rgba(79,179,255,0.35); background:rgba(4,8,22,0.6); display:flex; align-items:center; justify-content:center; overflow:hidden;">
+        <div style="position:relative; aspect-ratio: 1459/1078; max-width:100%; max-height:100%; height:100%;">
+          <img src="assets/2D%20sprites/ui/pages/world-map-hero.png" style="width:100%; height:100%; display:block; object-fit:contain;" alt="world map"/>
+          <div style="position:absolute; inset:0; pointer-events:none;">${outlineHTML}</div>
+        </div>
       </div>
-      <div style="color:#8ff; font-size:11px; margin-top:8px; text-align:center;">YOU · ${( (player.activeActor||'rizer').toUpperCase() )} · TILE (${Math.round(player.x)}, ${Math.round(player.y)})</div>
+      <div style="color:#8ff; font-size:10px; margin-top:6px; text-align:center; flex:0 0 auto;">YOU · ${( (player.activeActor||'rizer').toUpperCase() )} · TILE (${Math.round(player.x)}, ${Math.round(player.y)})</div>
     </div>`;
 }
 
@@ -18661,6 +18670,21 @@ function tickBagDrag(){
 }
 
 // Toggle summon for the Zyrex at party slot idx · one summoned at a time
+// v0.95.440 · "Active combat" gate · true when ANY isEnemy NPC (Mori/Daemon/Skellor/etc)
+// is within 8 tiles of the player and in the same scene · used to lock 'return to Zycube'
+// so you can't cheese by yanking your Zyrex off the field mid-fight.
+function isInActiveCombat(){
+  if (!NPCS || !player) return false;
+  const px = player.x, py = player.y, scn = game.scene;
+  for (const n of NPCS){
+    if (!n || n.scene !== scn) continue;
+    if (!n.isEnemy) continue;
+    if (n._dying || n._voidSwallow) continue;
+    if (n._skellorDead) continue;
+    if (Math.abs(n.tileX - px) <= 8 && Math.abs(n.tileY - py) <= 8) return true;
+  }
+  return false;
+}
 function toggleFactionSummon(partyIdx){
   const party = (player.party || []).filter(Boolean);
   const z = party[partyIdx];
@@ -18671,6 +18695,12 @@ function toggleFactionSummon(partyIdx){
   let follower = NPCS.find(n => n && n.id === followerId);
   // Case 1: this Zyrex is already summoned somewhere · retire it
   if (follower && follower._summoned){
+    // v0.95.440 · Combat lock · can't send home while enemies are nearby
+    if (isInActiveCombat()){
+      showToast('◈ Active combat · clear the stage before sending Zyrex home', 2600);
+      try { playSFX('doorLock'); } catch(_){}
+      return;
+    }
     follower._summoned = false;
     follower.scene = '__despawn__';
     playSFX('cancel');

@@ -1247,6 +1247,12 @@ window.addEventListener('keydown', (ev) => {
   // Bail if no phone in the DOM yet (page still booting)
   const _pnl = document.getElementById('zphonePanel');
   if (!_pnl) return;
+  // v0.95.472 · Scene gate · touchpad only works AFTER game start (not on title,
+  // not during intro video, not on the NEW GAME / LOAD splash).  In-game only.
+  if (typeof game !== 'object' || !game) return;
+  if (game.scene === 'title') return;
+  if (typeof introState !== 'undefined' && introState === 'playing') return;
+  if (typeof _dreamPlaying !== 'undefined' && _dreamPlaying) return;
   // Player-state check (safe optional chains — this listener runs before game inits too)
   const _hasKit = (typeof player === 'object' && player &&
                    !!player.hasBackpack && (player.items?.zphone || 0) > 0);
@@ -13780,9 +13786,13 @@ addEventListener('keydown', e => {
   // whole handler so nothing downstream can eat it.
   // ═══════════════════════════════════════════════════════════════
   if (k === '2' && !e.repeat){
+    // v0.95.472 · Scene gate · touchpad only after game started (skip title/intro/dream)
+    const _titleBlock = game.scene === 'title'
+      || (typeof introState !== 'undefined' && introState === 'playing')
+      || (typeof _dreamPlaying !== 'undefined' && _dreamPlaying);
     const _hasKit = !!player.hasBackpack && (player.items?.zphone || 0) > 0;
     const _devBypass = (typeof isDevUnlocked === 'function' && isDevUnlocked());
-    if (_hasKit || _devBypass){
+    if (!_titleBlock && (_hasKit || _devBypass)){
       const _panel = document.getElementById('zphonePanel');
       if (_panel){
         const _liveDisp = getComputedStyle(_panel).display || _panel.style.display;
@@ -14630,6 +14640,33 @@ addEventListener('keydown', e => {
     if (dialogState){
       if (now - _lastInteract > 180){ advanceDialog(); _lastInteract = now; }
     } else if (now - _lastInteract > 220){
+      // ═══════════════════════════════════════════════════════════════
+      // v0.95.472 · RIZER ROOM INTERACT HARDLINE · face any room item
+      // (backpack / skateboard / zphone / dummy / pc / science / etc)
+      // and pressing X ALWAYS fires the grab, NEVER jumps.  Kills any
+      // queued jump timers up front + forces the interact anim + calls
+      // tryInteract directly.  Handles every path (moving/idle/etc)
+      // before any downstream code can misfire a jump.
+      // ═══════════════════════════════════════════════════════════════
+      const _icfg = interiorConfig(game.scene);
+      if (_icfg && _icfg.rizerRoom){
+        let _fx = player.x, _fy = player.y;
+        if (player.dir === 'up')    _fy--;
+        if (player.dir === 'down')  _fy++;
+        if (player.dir === 'left')  _fx--;
+        if (player.dir === 'right') _fx++;
+        if (typeof roomItemAtTile === 'function' && roomItemAtTile(_fx, _fy)){
+          // Kill any queued jump AND force the grab/reach anim
+          player.jumpStart = 0; player.jumpUntil = 0; player._doubleJump = false;
+          if (typeof RIZER === 'object' && RIZER && RIZER.interact && RIZER.interact.loaded){
+            player.interactStart = now;
+            player.interactUntil = now + 260;
+          }
+          try { tryInteract(); } catch(_){}
+          _lastInteract = now;
+          return;
+        }
+      }
       // v0.95.113 · Fae catch takes absolute priority · face a fae tile +
       // press A → fire fae-catch animation + collect, no jump ever.
       {
@@ -21783,17 +21820,10 @@ function updateRizerHUD(){
                 || game.guitarPanelOpen || game.nebulaPanelOpen
                 || game.bagPanelOpen || devOpen || _sleepFade;
   const show   = game.scene !== 'title' && !dialogState && !battleState && !wildBattleState && !anyModal;
-  // v0.95.470 · Rizer HUD only appears when Rizer is DAMAGED (any stat below max).
-  // Full-stat state hides it entirely so the HUD only reads when it needs to.
-  // 4-second grace window after damage so the HUD lingers post-heal instead of
-  // flickering off the second HP snaps back.
-  const _model = rizerStatModel();
-  const damaged = _model.hp.value < _model.hp.max
-               || _model.energy.value < _model.energy.max
-               || _model.special.value < _model.special.max;
-  if (damaged) player._rhudLingerUntil = performance.now() + 4000;
-  const rhudShow = show && (damaged || (player._rhudLingerUntil || 0) > performance.now());
-  if (widget) widget.style.display = rhudShow ? 'block' : 'none';
+  // v0.95.472 · Reverted the damaged-only hide · HUD stays visible whenever the
+  // overworld/interior owns the screen so player can see stats + upgrades at all
+  // times.  The damaged-only mode caused it to disappear entirely when full.
+  if (widget) widget.style.display = show ? 'block' : 'none';
   if (whud)   whud.style.display   = show ? 'block' : 'none';
   // v0.95.82 · Coin counter · same visibility as RHUD, live-updated
   const coinEl = document.getElementById('coinHud');

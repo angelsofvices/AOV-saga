@@ -11848,11 +11848,19 @@ addEventListener('keyup', e => {
   const AXIS_DEAD = 0.35;
 
   function dispatchKey(type, key){
+    // v0.95.458 · Pause / phone freeze · block gamepad-synthesized keys the same
+    // way we block keyboard ones · pass '2' (touchpad · phone toggle), '3'
+    // (options · pause toggle), and escape/circle so the user can EXIT the menu
+    const _k = (key || '').toLowerCase();
+    const menuOpen = (typeof game === 'object') && (game.paused || game.zphoneOpen);
+    const menuAllow = _k === '2' || _k === '3' || _k === 'escape' || _k === 'b' || _k === 'shift';
+    if (menuOpen && !menuAllow){
+      // Swallow entirely · don't set keys[] and don't dispatch the event
+      return;
+    }
     const ev = new KeyboardEvent(type, { key: key, bubbles: true });
     window.dispatchEvent(ev);
-    // Normalize to lowercase to match the keydown listener's keys map.
-    const k = key.toLowerCase();
-    if (type === 'keydown') keys[k] = true; else keys[k] = false;
+    if (type === 'keydown') keys[_k] = true; else keys[_k] = false;
   }
 
   function poll(){
@@ -14867,6 +14875,18 @@ addEventListener('keydown', e => {
       try { playSFX('menuClose'); } catch(_){}
     } else {
       game.paused = true;
+      // v0.95.458 · Hard-freeze on pause open · zero held keys + cancel in-flight
+      // actions so no attack/dodge/jump SFX can bleed through the overlay
+      if (typeof keys === 'object' && keys){ for (const kk of Object.keys(keys)) keys[kk] = false; }
+      player.moving = false;
+      player.attackUntil = 0; player.jumpUntil = 0; player.dodgeUntil = 0;
+      player.interactUntil = 0; player.faeCatchUntil = 0; player._doubleJump = false;
+      if (player.blocking){ player.blocking = false; player._blockStunUntil = 0; }
+      if (player._astralthrowState){
+        try { clearTimeout(player._astralthrowState.releaseTimer); } catch(_){}
+        try { clearTimeout(player._astralthrowState.holdTimer); } catch(_){}
+        player._astralthrowState = null;
+      }
       let p = document.getElementById('pauseOverlay');
       if (!p){
         p = document.createElement('div');
@@ -16110,27 +16130,47 @@ window.addEventListener('keydown', (e) => {
 // v0.95.373 · ZyCellite key router · fires BEFORE gameplay handlers when the
 // phone is open · handles nav-cycle + cursor + close for kb + gamepad + mobile
 // v0.95.421 · Phone acts like PAUSE · ALL overworld input blocked while open
-// (no walk / jump / dodge / attack / astral chords) · phone owns input fully
+// v0.95.458 · PAUSE also gets a hard router · nothing runs while game.paused
+// except '3' (Options · unpause) and Circle/Escape/Shift.  No jump/dodge/attack
+// SFX ever fires while the pause overlay is up.  Real-game pause behavior.
 window.addEventListener('keydown', (e) => {
   const k = (e.key || '').toLowerCase();
+  // ── PAUSE ROUTER ── options / circle / escape release · everything else eaten
+  if (game.paused && !game.zphoneOpen){
+    if (k === '3' || k === 'escape' || k === 'b' || k === 'shift'){
+      // Let the pause-toggle keydown reach its own handler downstream · don't
+      // swallow, but also don't kick off any world action.  The main handler's
+      // pause-branch will flip game.paused = false.
+      return;
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
+  // ── PHONE ROUTER ── panel-nav routes through handleZycellKey · rest eaten
   if (!game.zphoneOpen) return;
-  // Route panel-nav keys · everything else is swallowed
   if (handleZycellKey(k)){ e.preventDefault(); e.stopImmediatePropagation(); return; }
   if (k === 'b' || k === 'escape' || k === 'shift'){
     e.preventDefault(); e.stopImmediatePropagation();
     closeZphonePanel();
     return;
   }
-  // v0.95.421 · Swallow every other key so overworld gameplay is fully paused
   e.preventDefault();
   e.stopImmediatePropagation();
 }, true);
-// Also block keyup so held-state doesn't linger after phone closes
+// Keyup mirror · while pause OR phone owns input, block key-releases too so
+// held movement/attack state never carries over when the menu closes.
 window.addEventListener('keyup', (e) => {
-  if (!game.zphoneOpen) return;
   const k = (e.key || '').toLowerCase();
-  // Let touchpad keyup through so the hold-5s timer clears · everything else is blocked
-  if (k === '2') return;
+  if (game.paused && !game.zphoneOpen){
+    if (k === '3' || k === 'escape' || k === 'b' || k === 'shift') return;   // let pause-toggle release
+    keys[k] = false;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
+  if (!game.zphoneOpen) return;
+  if (k === '2') return;   // touchpad keyup passes so hold-5s timer clears
   keys[k] = false;
   e.preventDefault();
   e.stopImmediatePropagation();

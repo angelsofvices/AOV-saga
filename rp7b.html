@@ -9535,10 +9535,65 @@ function applyHordeMode(){
   }
 }
 
+// v0.95.446 · Active Zyrex overworld XP · fires whenever Rizer clears an enemy
+// Scales with the same enemy-tier/level ladder as awardRizerXP · rewards the
+// currently-summoned Zyrex (or party[0] fallback) · caps at Lv 100.
+const ZYREX_LEVEL_CAP = 100;
+function activeZyrexRef(){
+  const party = (player.party || []).filter(Boolean);
+  if (!party.length) return null;
+  // Prefer whoever is currently OUT in the overworld
+  for (const z of party){
+    const fid = `_summon_${z.speciesId}`;
+    if (NPCS && NPCS.some(n => n && n.id === fid && n._summoned)) return z;
+  }
+  return party[0];   // fallback · always first slot when nothing is summoned
+}
+function awardActiveZyrexXP(amount){
+  if (!amount || amount <= 0) return;
+  const z = activeZyrexRef();
+  if (!z) return;
+  if ((z.level || 1) >= ZYREX_LEVEL_CAP){ z.xp = 0; return; }
+  z.xp = (z.xp || 0) + Math.floor(amount);
+  let leveled = false;
+  while ((z.level || 1) < ZYREX_LEVEL_CAP && z.xp >= xpToNextLevel(z.level || 1)){
+    z.xp -= xpToNextLevel(z.level || 1);
+    z.level = (z.level || 1) + 1;
+    // Recompute stats · same 5% per-level scale used elsewhere
+    const sp = (typeof SPECIES !== 'undefined') && SPECIES[z.speciesId];
+    if (sp){
+      const s = 1 + (z.level - 1) * 0.05;
+      const oldMax = z.maxHp || 0;
+      z.maxHp = Math.floor(sp.baseHP * s);
+      z.hp   = Math.min(z.maxHp, (z.hp || z.maxHp) + (z.maxHp - oldMax));
+      z.atk  = Math.floor(sp.baseATK  * s);
+      z.def  = Math.floor(sp.baseDEF  * s);
+      z.spd  = Math.floor(sp.baseSPD  * s);
+      z.satk = Math.floor(sp.baseSATK * s);
+      z.sdef = Math.floor(sp.baseSDEF * s);
+    }
+    leveled = true;
+  }
+  if ((z.level || 1) >= ZYREX_LEVEL_CAP){ z.level = ZYREX_LEVEL_CAP; z.xp = 0; }
+  if (leveled){
+    try { playSFX('confirm'); } catch(_){}
+    showToast(`★ ${z.name} LEVEL UP · Lv ${z.level}`, 2000);
+  }
+}
 function recordMoriKill(mode, npc){
   player.stats.moriKills = (player.stats.moriKills || 0) + 1;
   if (mode === 'kick') player.stats.moriKillsHeavy = (player.stats.moriKillsHeavy || 0) + 1;
   else                 player.stats.moriKillsLight = (player.stats.moriKillsLight || 0) + 1;
+  // v0.95.446 · Active Zyrex gets combat XP · scales with enemy tier + level ·
+  // matches the existing awardRizerXP tier-ladder so both progress in parallel
+  if (npc){
+    const enemyTier  = npc.tier  || 1;
+    const enemyLevel = npc.level || 1;
+    // Same shape as Rizer XP · slightly boosted for stronger enemies
+    // Mori (tier 1 lv 2) ≈ 20 XP · Daemon (tier 3 lv 15) ≈ 105 XP · Vilerok (tier 5 lv ??) ≈ scaling
+    const zyrexXpGain = enemyLevel * (10 + enemyTier * 6);
+    awardActiveZyrexXP(zyrexXpGain);
+  }
   // v0.95.428 · Scrapjaw's Radio Tower quest · count tagged tower KOs
   if (npc && npc._towerMori && player.towerQuestStarted && !player.radioTowerFixed){
     player.towerMoriKills = (player.towerMoriKills || 0) + 1;
@@ -15156,24 +15211,39 @@ function renderZycellRizer(){
 // ── FACTION · 2×4 party grid · click a slot for details ─────────────
 function renderZycellFaction(){
   // v0.95.423 · Always render 8 tiles (2 cols × 4 rows) · filled or empty
+  // v0.95.446 · Cards tagged data-zyitem for keyboard focus · Triangle summons
   const party = (player.party || []);
   const cells = [];
   for (let i = 0; i < 8; i++){
     const z = party[i];
     const filled = !!z;
-    cells.push(`<div class="zyFactionSlot" data-slot="${i}"
-      style="border:2px solid ${filled ? '#4fb3ff' : 'rgba(79,179,255,0.3)'}; background:${filled ? 'rgba(20,50,120,0.55)' : 'rgba(0,0,0,0.4)'}; padding:10px; min-height:96px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; transition:transform 120ms, box-shadow 120ms;"
+    const summonedId = z ? `_summon_${z.speciesId}` : null;
+    const isOut = z && (typeof NPCS !== 'undefined')
+      && NPCS.some(n => n && n.id === summonedId && n._summoned);
+    const summonBadge = isOut
+      ? `<div style="position:absolute; top:4px; right:6px; color:#5fdc7a; font-size:10px; font-weight:bold; letter-spacing:.08em;">◉ OUT</div>`
+      : '';
+    const xpMax = filled ? xpToNextLevel(z.level || 1) : 1;
+    const xpPct = filled ? Math.min(100, ((z.xp || 0) / xpMax) * 100) : 0;
+    cells.push(`<div class="zyFactionSlot" data-slot="${i}" ${filled ? `data-zyitem="fac_${i}" data-zysummon="${i}"` : ''}
+      style="position:relative; border:2px solid ${isOut ? '#5fdc7a' : filled ? '#4fb3ff' : 'rgba(79,179,255,0.3)'}; background:${filled ? 'rgba(20,50,120,0.55)' : 'rgba(0,0,0,0.4)'}; padding:10px; min-height:96px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; transition:transform 120ms, box-shadow 120ms;"
       onmouseover="this.style.transform='scale(1.03)';this.style.boxShadow='0 0 14px rgba(79,179,255,0.5)'"
       onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
+      ${summonBadge}
       ${filled
         ? `<div style="color:#ffd66b; font-weight:bold; font-size:11px; letter-spacing:.06em;">${(z.name || z.speciesId).toUpperCase()}</div>
            <div style="color:#8ff; font-size:10px; margin-top:4px;">Lv ${z.level || 1} · T${z.tier || '?'}</div>
-           <div style="color:#cfe; font-size:10px;">HP ${z.hp}/${z.maxHp}</div>`
+           <div style="color:#cfe; font-size:10px;">HP ${z.hp}/${z.maxHp}</div>
+           <div style="width:80%; height:4px; background:rgba(0,0,0,0.5); margin-top:5px;">
+             <div style="height:100%; width:${xpPct}%; background:linear-gradient(90deg,#ffd66b,#ff9c66);"></div>
+           </div>
+           <div style="color:#8ff; font-size:9px; margin-top:2px;">XP ${z.xp || 0}/${xpMax}</div>`
         : `<div style="color:rgba(200,220,255,0.4); font-size:22px;">+</div>
            <div style="color:rgba(200,220,255,0.4); font-size:9px; letter-spacing:.10em; margin-top:4px;">EMPTY SLOT</div>`}
     </div>`);
   }
   const grid = `<div style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(4,1fr); gap:8px;">${cells.join('')}</div>`;
+  const hint = `<div style="color:#8ff; font-size:10px; text-align:center; margin-top:8px; letter-spacing:.06em;">▲ TRIANGLE (K) · summon / recall selected · ◉ OUT = currently in the overworld</div>`;
   setTimeout(() => {
     document.querySelectorAll('.zyFactionSlot').forEach(el => {
       if (el._zyBound) return; el._zyBound = true;
@@ -15182,11 +15252,11 @@ function renderZycellFaction(){
         const z = (player.party || [])[idx];
         if (!z){ showToast('◇ Slot empty · recruit more Zyrex to fill it', 2200); return; }
         try { playSFX('cursor'); } catch(_){}
-        showToast(`◇ ${z.name} · Lv ${z.level} · T${z.tier} · HP ${z.hp}/${z.maxHp} · bond ${(player.bonds?.[z.speciesId])||0}/100`, 3200);
+        showToast(`◇ ${z.name} · Lv ${z.level} · T${z.tier} · HP ${z.hp}/${z.maxHp} · bond ${(player.bonds?.[z.speciesId])||0}/100 · press K to summon`, 3400);
       });
     });
   }, 0);
-  return _zySection(`◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX`, grid);
+  return _zySection(`◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX`, grid + hint);
 }
 
 // ── MAP · locked until Zoryn Town Map · then live pin + district outline ──
@@ -15603,20 +15673,23 @@ function handleZycellKey(k){
     if (k === 'arrowleft'){ zycellExitContent(); return true; }
     if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
       const el = items[game._zycellItemIdx];
-      if (el){
-        // Prefer favoriting via a nested .zyBagFav star click · falls back to using the row
-        const fav = el.querySelector('.zyBagFav') || el.querySelector('[data-zyfav]');
-        // v0.95.436 · Triangle (k) toggles favorite · X/Enter uses the item
-        const useFav = (k === 'y');   // reserved for future triangle
-        if (useFav && fav){ fav.click(); return true; }
-        el.click();
-      }
+      if (el) el.click();
       return true;
     }
-    if (k === 'y'){                    // Triangle · toggle favorite on selected row
+    // v0.95.446 · Triangle (k) · context-sensitive · data-zysummon = summon
+    // Zyrex to overworld · else data-zyfav / .zyBagFav toggles favorite
+    if (k === 'k' || k === 'y'){
       const el = items[game._zycellItemIdx];
-      const fav = el && (el.querySelector('.zyBagFav') || el.querySelector('[data-zyfav]'));
+      if (!el) return true;
+      const summonIdx = el.getAttribute('data-zysummon');
+      if (summonIdx != null){
+        try { toggleFactionSummon(+summonIdx); } catch(err){ console.warn('summon failed', err); }
+        try { closeZphonePanel(); } catch(_){}
+        return true;
+      }
+      const fav = el.querySelector('.zyBagFav') || el.querySelector('[data-zyfav]');
       if (fav){ fav.click(); return true; }
+      return true;
     }
     return true;                       // swallow anything else while in content focus
   }

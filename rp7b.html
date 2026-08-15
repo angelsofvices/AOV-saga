@@ -15711,7 +15711,13 @@ function renderZycellContacts(){
       callBtn = `<button data-call="${id}" data-name="${name}" style="margin-top:4px; padding:5px 9px; background:rgba(79,179,255,0.20); color:#4fb3ff; border:1px solid #4fb3ff; font:bold 10px 'Courier New',monospace; cursor:pointer; letter-spacing:.08em;">☎ CALL</button>`;
     }
     const hereBadge = isHere ? '<span style="color:#5fdc7a; font-size:10px;">◉ WITH YOU</span>' : '';
-    return `<div style="padding:8px 10px; margin-bottom:4px; background:rgba(0,0,0,0.4); border-left:3px solid ${isHere ? '#5fdc7a' : bond >= 50 ? '#5fdc7a' : '#4fb3ff'}; display:flex; justify-content:space-between; font-size:11px; gap:8px;">
+    // v0.95.464 · Whole row is now clickable + tagged for keyboard focus
+    // (data-zyitem lets the two-pane focus system walk contact rows with arrows,
+    // then X/A fires the row click which routes to the same CALL logic as the button)
+    return `<div class="zyContactRow" data-zyitem="contact_${id}" data-call="${id}" data-name="${name}" data-trusted="${trusted?'1':'0'}"
+        style="padding:8px 10px; margin-bottom:4px; background:rgba(0,0,0,0.4); border-left:3px solid ${isHere ? '#5fdc7a' : bond >= 50 ? '#5fdc7a' : '#4fb3ff'}; display:flex; justify-content:space-between; font-size:11px; gap:8px; cursor:${canCall?'pointer':'default'}; transition:background 120ms;"
+        onmouseover="this.style.background='rgba(79,179,255,0.18)'"
+        onmouseout="this.style.background='rgba(0,0,0,0.4)'">
       <div><div style="color:#fff; font-weight:bold;">${name} ${hereBadge}</div><div style="color:#8ff; font-size:10px;">${loc}</div>${callBtn}</div>
       <div style="text-align:right;">${status}<div style="color:#cfe; font-size:10px;">Bond ${bond}/100</div></div>
     </div>`;
@@ -15719,29 +15725,45 @@ function renderZycellContacts(){
   const footer = canCall
     ? `<div style="text-align:center; color:#5fdc7a; font-size:10px; padding:6px;">✦ Phone Battery installed · TRUSTED contacts (bond 100) teleport to you on dial</div>`
     : `<div style="text-align:center; color:#ffd66b; font-size:10px; padding:6px;">◈ Calls locked · finish Scrapjaw's Radio Tower quest to get the Phone Battery</div>`;
-  // Bind call buttons after paint
+  // v0.95.464 · Fire the call from EITHER the row (data-zyitem for kb focus)
+  // OR the inline button · both dispatch to the same handler below
   if (canCall){
     setTimeout(() => {
+      const _fireCall = (id, nm, trusted) => {
+        try { playSFX('confirm'); } catch(_){}
+        if (trusted){
+          toggleContactCall(id, nm);
+          closeZphonePanel();
+          return;
+        }
+        const bond = (player.bonds && player.bonds[id]) || 0;
+        closeZphonePanel();
+        const lines = bond >= 50
+          ? [`*ring ring*  ${nm} picks up.`, `"Hey Rizer · signal\'s clear.  What\'s up?"`, `*click*  · line closed`]
+          : [`*ring ring*  ${nm} picks up.`, `"...oh, it\'s you.  Not really the time."`, `*click*  · they hung up`];
+        showDialog({ speaker: nm.toUpperCase(), lines });
+      };
+      // Row-level click (also captures keyboard X/A via _zycellContentItems focus + el.click())
+      document.querySelectorAll('.zyContactRow').forEach(row => {
+        if (row._zyBound) return; row._zyBound = true;
+        row.addEventListener('click', (ev) => {
+          // If the click hit the inner button, don't double-fire
+          if (ev.target && ev.target.closest && ev.target.closest('button[data-call]')) return;
+          const id = row.getAttribute('data-call');
+          const nm = row.getAttribute('data-name');
+          const trusted = row.getAttribute('data-trusted') === '1';
+          _fireCall(id, nm, trusted);
+        });
+      });
+      // Inline button click (mouse/touch on the pill button itself)
       document.querySelectorAll('button[data-call]').forEach(btn => {
-        if (btn._zyBound) return;
-        btn._zyBound = true;
-        btn.addEventListener('click', () => {
+        if (btn._zyBound) return; btn._zyBound = true;
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
           const id = btn.getAttribute('data-call');
           const nm = btn.getAttribute('data-name');
           const trusted = btn.getAttribute('data-trusted') === '1';
-          try { playSFX('confirm'); } catch(_){}
-          if (trusted){
-            toggleContactCall(id, nm);
-            closeZphonePanel();
-            return;
-          }
-          // Non-trusted contacts still get the classic voicemail dialog
-          const bond = (player.bonds && player.bonds[id]) || 0;
-          closeZphonePanel();
-          const lines = bond >= 50
-            ? [`*ring ring*  ${nm} picks up.`, `"Hey Rizer · signal\'s clear.  What\'s up?"`, `*click*  · line closed`]
-            : [`*ring ring*  ${nm} picks up.`, `"...oh, it\'s you.  Not really the time."`, `*click*  · they hung up`];
-          showDialog({ speaker: nm.toUpperCase(), lines });
+          _fireCall(id, nm, trusted);
         });
       });
     }, 0);

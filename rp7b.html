@@ -5059,6 +5059,40 @@ const NPCS = [
         const RL   = player.rizerLvl || 1;
         const bond = () => player.bonds?.kelthor || 0;
         const bumpBond = (n) => { player.bonds = player.bonds || {}; player.bonds.kelthor = Math.min(100, (player.bonds.kelthor||0) + n); };
+        // v0.95.442 · VILEROK PURGE quest · check FIRST · overrides ladder dialog
+        // Introduced whenever kelthorMet · completes when player.vilerokKills >= 5
+        if (player.kelthorMet && (player.vilerokKills || 0) >= 5 && !player.vilerokQuestDone){
+          player.vilerokQuestDone = true;
+          bumpBond(20);
+          try { awardRizerXP(6000); } catch(_){}
+          showToast('★ VILEROK PURGE complete · +6000 RXP · +20 Bond', 3400);
+          try { playSFX('confirm'); } catch(_){}
+          showDialog({ speaker: 'KELTHOR', lines: [
+            '*bows his old head slowly*  All five Vileroks... you did what my wards could not.',
+            'Those beasts crawled out of the deep wards during the Verdant scars · they should not exist.',
+            'Malezor breathes easier tonight.  Take this bond · take this RXP · take my thanks.',
+            'The ladder continues where it left off · you\'ve earned a Warden\'s trust.',
+          ]});
+          return;
+        }
+        if (player.kelthorMet && !player.vilerokQuestGiven){
+          player.vilerokQuestGiven = true;
+          showToast('★ NEW QUEST · Vilerok Purge · hunt 5 Vilerok bosses across Malezor', 3600);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            '*grips your shoulder*  Before we continue the ladder · Malezor has a rot I need you to burn out.',
+            'Five VILEROKS · Mori-kin gone wrong · walking my district ringed by their own escorts.',
+            'Find them.  Kill them.  Report back.  I\'ll owe you more than words.',
+          ]});
+          return;
+        }
+        if (player.kelthorMet && !player.vilerokQuestDone){
+          const k = player.vilerokKills || 0;
+          showDialog({ speaker: 'KELTHOR', lines: [
+            `Vilerok count · ${k}/5.  Keep hunting · they'll be ringed by Mori escorts wherever they hide.`,
+            'The ladder waits · your Purge comes first.',
+          ]});
+          return;
+        }
         // Step 1 · First meeting · sets kelthorMet + kicks off the ladder
         if (!player.kelthorMet){
           player.kelthorMet = true; try{pingNextObjective()}catch(_){}
@@ -5447,6 +5481,132 @@ const NPCS = [
         },
       };
     });
+  })(),
+  // ── v0.95.442 · VILEROK · elite Mori BOSS variant · Malezor only · 5 spawns ──
+  // Kill all 5 → completes Kelthor's Vilerok Purge quest.  Each Vilerok has
+  // 3-4 Mori escorts spawning in a ring around them.  Boss-tier stats · sits
+  // above Daemon in threat.  Uses 4-sheet swap (idle/run/light/heavy) driven
+  // by vilerokPickSheet() called from drawNPC preamble.
+  ...(function(){
+    // Idle sheet used as PRIMARY · other sheets stashed in n._vSheets for swap
+    const VILEROK_IDLE_BBOXES = [
+      [[18,60,294,233],[8,59,294,234],[0,59,313,234],[0,59,291,235]],
+      [[24,48,244,248],[15,48,244,248],[7,48,244,248],[5,48,244,248]],
+      [[55,46,244,246],[44,45,244,247],[35,46,245,246],[34,46,243,246]],
+      [[22,40,277,231],[17,40,277,231],[8,40,276,231],[5,40,277,231]],
+    ];
+    const VILEROK_RUN_BBOXES = [
+      [[42,55,269,258],[63,57,231,247],[25,56,235,257],[24,58,255,251]],
+      [[26,0,279,308],[45,72,268,234],[0,0,313,307],[0,77,294,223]],
+      [[16,71,284,240],[47,65,210,234],[23,71,290,234],[0,79,303,219]],
+      [[27,41,272,245],[33,42,220,238],[49,43,223,236],[6,44,272,241]],
+    ];
+    const VILEROK_LIGHT_BBOXES = [
+      [[18,60,294,233],[16,73,242,228],[19,72,239,241],[21,64,245,229]],
+      [[24,48,244,248],[35,47,278,221],[0,0,313,288],[0,48,248,248]],
+      [[55,46,164,246],[13,44,229,214],[4,67,309,246],[0,46,277,246]],
+      [[22,40,277,231],[24,29,246,253],[37,0,232,283],[4,40,277,231]],
+    ];
+    const VILEROK_HEAVY_BBOXES = [
+      [[14,83,299,226],[21,8,265,292],[12,91,301,222],[0,117,271,196]],
+      [[23,91,239,221],[68,20,245,290],[0,0,269,313],[0,0,235,308]],
+      [[49,81,238,224],[52,14,172,290],[3,0,310,313],[0,91,267,208]],
+      [[16,62,270,222],[7,15,266,269],[14,0,269,289],[11,81,277,193]],
+    ];
+    // Load run/light/heavy as separate Image objects · idle is n.sheet
+    const runImg   = new Image(); runImg.src   = 'assets/2D%20sprites/enemies/vilerok-run.png';
+    const lightImg = new Image(); lightImg.src = 'assets/2D%20sprites/enemies/vilerok-light.png';
+    const heavyImg = new Image(); heavyImg.src = 'assets/2D%20sprites/enemies/vilerok-heavy.png';
+    // 5 Malezor boss spots · spread across the district
+    const SPOTS = [
+      { x: 15, y:  40 },   // NW · Rakoron corridor
+      { x: 38, y:  25 },   // NE · near Radio Tower plaza
+      { x: 18, y:  72 },   // Central stem
+      { x: 35, y: 130 },   // SE hometown outskirts
+      { x:  8, y: 152 },   // SW deep · wild-arm entry
+    ];
+    return SPOTS.map((s, i) => ({
+      id: `vilerok_${i + 1}`,
+      name: 'Vilerok',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/enemies/vilerok-idle.png',
+      bboxes: VILEROK_IDLE_BBOXES,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      uniformScale: true,
+      scaleMul: 1.45,                              // slightly above Elzoran's 1.25
+      tileX: s.x, tileY: s.y,
+      homeX: s.x, homeY: s.y,
+      homeScene: 'overworld',
+      scene: 'overworld',
+      wanderRadius: 5,
+      dir: 'down',
+      mode: 'drainer',
+      moving: false,
+      animFrame: 0,
+      idleFrame: 0,
+      moveCd: 400 + Math.random() * 400,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      detectR: 12,
+      hpMax: 500, hp: 500,                         // 2x Daemon
+      drainAmt: 15,                                // heaviest strike in Malezor
+      tier: 5,
+      _vilerok: true,
+      _vSheets: {
+        idle:  { img: null, bboxes: VILEROK_IDLE_BBOXES  },   // null → use n.sheet (idle)
+        run:   { img: runImg,   bboxes: VILEROK_RUN_BBOXES   },
+        light: { img: lightImg, bboxes: VILEROK_LIGHT_BBOXES },
+        heavy: { img: heavyImg, bboxes: VILEROK_HEAVY_BBOXES },
+      },
+      // 2-tile footprint so this hulking beast blocks passage properly
+      footprint: [[0, 0], [-1, 0]],
+      interactHitbox: [[-1, 0], [0, 0], [1, 0]],
+      onInteract: (n) => {
+        showToast('◈ VILEROK · "The Warden\'s bane returns..."', 2600);
+      },
+    }));
+  })(),
+  // ── v0.95.442 · VILEROK MORI ESCORTS · 4 Mori per boss (20 total) ──
+  ...(function(){
+    const MORI_BBOXES = [
+      [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
+      [[71,45,189,254],[49,49,206,250],[17,45,207,251],[27,45,170,254]],
+      [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
+      [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
+    ];
+    const BOSSES = [
+      { x: 15, y:  40 }, { x: 38, y:  25 }, { x: 18, y:  72 },
+      { x: 35, y: 130 }, { x:  8, y: 152 },
+    ];
+    const escorts = [];
+    BOSSES.forEach((b, bi) => {
+      const ring = [[-3,0],[3,0],[0,-3],[0,3]];       // 4 Mori in cardinal ring
+      ring.forEach((off, ei) => {
+        escorts.push({
+          id: `vilerok_${bi + 1}_mori_${ei + 1}`,
+          name: 'Mori',
+          sheet: new Image(),
+          src: 'assets/2D%20sprites/enemies/mori.png',
+          bboxes: MORI_BBOXES,
+          cellW: 313, cellH: 313, cols: 4, rows: 4,
+          tileX: b.x + off[0], tileY: b.y + off[1],
+          homeX: b.x + off[0], homeY: b.y + off[1],
+          homeScene: 'overworld',
+          scene: 'overworld',
+          wanderRadius: 4,
+          dir: 'down',
+          mode: 'wander',
+          moving: false,
+          animFrame: 0, idleFrame: 0,
+          moveCd: 250 + Math.random() * 350,
+          blinkTimer: 9e9,
+          isEnemy: true,
+          _vilerokEscort: bi + 1,
+          onInteract: (n) => { playSFX('moriPoke'); showToast('◈ Mori · Vilerok escort', 1800); },
+        });
+      });
+    });
+    return escorts;
   })(),
   // v0.95.324 · Mori/Daemon perimeter passes MOVED to deferred init after
   // _propBlocked + isWorldBorderTile are defined (see v0.95.326 hotfix)
@@ -19165,6 +19325,17 @@ function startMoriDeath(n){
   n._dying     = true;
   n._deathT0   = performance.now();
   n.moving     = false;
+  // v0.95.442 · Vilerok kill tracker · counts toward Kelthor's Vilerok Purge quest
+  if (n._vilerok){
+    player.vilerokKills = (player.vilerokKills || 0) + 1;
+    const left = 5 - player.vilerokKills;
+    if (left > 0){
+      showToast(`◈ VILEROK slain · ${player.vilerokKills}/5 · report to Kelthor after 5`, 3200);
+    } else {
+      showToast('★ All 5 VILEROK slain · return to Warden Kelthor for your reward', 4200);
+    }
+    try { playSFX('confirm'); } catch(_){}
+  }
   // AI + hit tests skip anyone with _dying so no re-hits or wandering
 }
 // v0.95.167 · staticSprite NPCs · draw a single frame regardless of facing
@@ -19182,9 +19353,38 @@ function drawStaticNPC(n){
   const dy = Math.floor(n.tileY * TILE + TILE - drawH)       - _cam.y;
   ctx.drawImage(n.sheet, bx, by, bw, bh, dx, dy, drawW, drawH);
 }
+// v0.95.442 · Vilerok · pick idle/run/light/heavy sheet per frame based on state
+function vilerokPickSheet(n){
+  if (!n || !n._vilerok || !n._vSheets) return;
+  const now = performance.now();
+  let key = 'idle';
+  if ((n._heavyUntil || 0) > now)      key = 'heavy';
+  else if ((n._lightUntil || 0) > now) key = 'light';
+  else if (n.moving)                   key = 'run';
+  const swap = n._vSheets[key];
+  if (!swap) return;
+  // idle branch keeps the primary n.sheet + bboxes · other keys swap to their pair
+  if (key === 'idle'){
+    if (n._activeSheetKey !== 'idle'){
+      n.sheet  = n._vSheets.idle._idleImgRef || n.sheet;
+      n.bboxes = n._vSheets.idle.bboxes;
+      n._activeSheetKey = 'idle';
+    }
+    // Stash the original idle image the first time so switches back can restore
+    if (!n._vSheets.idle._idleImgRef) n._vSheets.idle._idleImgRef = n.sheet;
+    return;
+  }
+  if (swap.img && swap.img.complete && swap.img.naturalWidth){
+    if (!n._vSheets.idle._idleImgRef) n._vSheets.idle._idleImgRef = n.sheet;
+    n.sheet  = swap.img;
+    n.bboxes = swap.bboxes;
+    n._activeSheetKey = key;
+  }
+}
 function drawNPC(n){
   if(n._ufoBeamVictim)return;
   if (n._astralslamHeld || n._astralthrowHeld) return;
+  vilerokPickSheet(n);   // v0.95.442
   // Void-Sea execution · enemy sinks, compresses, and fades into a violet
   // whirlpool instead of playing its normal land death animation.
   if(n._voidSwallow){
@@ -19437,6 +19637,12 @@ function tickNPC(n, dt){
     const idleCd    = isDaemon ? 380 : 620;
     // v0.95.441 · per-NPC drainAmt override (Seer Grunts sit between Mori and Daemon)
     const drainAmt  = (typeof n.drainAmt === 'number') ? n.drainAmt : (isDaemon ? 10 : 5);
+    // v0.95.442 · Vilerok · fire light OR heavy attack sheet on adjacent strike
+    if (n._vilerok && manh === 1 && game.scene === 'overworld'){
+      const heavy = Math.random() < 0.35;
+      if (heavy){ n._heavyUntil = performance.now() + 520; }
+      else      { n._lightUntil = performance.now() + 340; }
+    }
     const dxp = player.x - n.tileX, dyp = player.y - n.tileY;
     const manh = Math.abs(dxp) + Math.abs(dyp);
     // Adjacent contact → drain life

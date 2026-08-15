@@ -2106,8 +2106,9 @@ function addItems(drop){
   for (const key in drop){
     const prev = player.items[key] || 0;
     player.items[key] = prev + drop[key];
-    // Fire item-gain jingle only when the count crosses 0 (true first pickup for that key)
-    if (prev === 0 && drop[key] > 0) playItemGain(key);
+    // v0.95.470 · Fire item-gain jingle on EVERY pickup (was: first-time only)
+    // so ZyCube gains always audibly land · still gated by ITEM_GAIN_SFX_KEYS
+    if (drop[key] > 0) playItemGain(key);
   }
 }
 function lootToString(drop){
@@ -4480,21 +4481,23 @@ const NPCS = [
         player.gearbagGifted = true;                     // legacy alias · keeps old saves happy
         player.towerQuestStarted = true;
         player.towerMoriKills = 0;
+        player.towerBossKilled = false;                  // v0.95.470 · Vilerok boss gate
         try { awardRizerXP(500); } catch(_){}
         player.ownedCosmetics = player.ownedCosmetics || {};
         player.ownedCosmetics.normal = true;
-        showToast('★ RIZER tab unlocked · NEW QUEST · clear 12 Mori at the NE Radio Tower', 3600);
+        showToast('★ RIZER tab unlocked · NEW QUEST · 6 Mori + 1 VILEROK at the NE Radio Tower', 3600);
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'SCRAPJAW', lines: [
           '*sniff*  ...you smell like a rookie Rizer.  I like rookies.  Rookies buy stuff.',
           '*leans in*  Listen · every Rizer worth a damn keeps a RIZER page.  Skins, cosmetics, stat boosts, all the drip.',
           'Bring me GEMS · I work your gear · you get bumps to HEALTH · ATTACK · DEFENSE · SPEED · STAMINA.  Five stats · five ways to survive.',
           'Just unlocked the RIZER tab on your touchpad · right of your bag.  Come back when you\'ve got gems.',
-          '*ear twitches*  One more thing · our RADIO TOWER out in the northeast?  Smashed.  A pack of MORI have been swarming the base for weeks · my repair crew won\'t set foot near it.',
-          'Clear out the swarm · TWELVE Mori · and I\'ll send my staff up to patch her back together.  Do that and I\'ll owe you something PRECIOUS.',
+          '*ear twitches*  One more thing · our RADIO TOWER out in the northeast?  Smashed.  Six Mori swarm the base · and a VILEROK boss patrols the plaza · my repair crew won\'t set foot near it.',
+          'Kill the six Mori · put down the VILEROK · and I\'ll send my staff up to patch her back together.  Do that and I\'ll owe you something PRECIOUS.',
           '*grins*  Get my bond to 50 and I\'ll walk with you · upgrade your gear right in the field.',
         ]});
-      } else if (player.towerQuestStarted && !player.radioTowerFixed && (player.towerMoriKills || 0) >= 12){
+      } else if (player.towerQuestStarted && !player.radioTowerFixed
+              && (player.towerMoriKills || 0) >= 6 && player.towerBossKilled){
         // TOWER QUEST COMPLETE · fix the tower + gift Phone Battery
         player.radioTowerFixed = true;
         player.phoneBattery = true;
@@ -4503,7 +4506,7 @@ const NPCS = [
         showToast('★ Radio Tower RESTORED · Phone Battery received · overworld calls unlocked', 4200);
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'SCRAPJAW', lines: [
-          '*whistles*  All twelve?  You don\'t mess around, kid.',
+          '*whistles*  Six down AND the Vilerok?  You don\'t mess around, kid.',
           'My crew\'s already climbing the tower · antennas back up · signal cleaner than the day it was raised.',
           'Here · take this.  Fresh PHONE BATTERY straight off the workbench.  Slot it into that ZyCellite of yours.',
           '*taps his temple*  You can now CALL every contact in your book from anywhere in Zyraxis · no more running clear across a district for a chat.',
@@ -4512,10 +4515,11 @@ const NPCS = [
       } else if (player.towerQuestStarted && !player.radioTowerFixed){
         // TOWER QUEST IN PROGRESS
         const k = player.towerMoriKills || 0;
+        const bossLine = player.towerBossKilled ? 'VILEROK · DOWN ✓' : 'VILEROK · still standing';
         showDialog({ speaker: 'SCRAPJAW', lines: [
-          `*sniff*  ${k}/12 Mori down at the tower · keep at it.`,
-          'Head NORTHEAST · past the statue · you\'ll see the broken spire before you see the swarm.',
-          'Twelve down and I fire up the repair crew · you get your PHONE BATTERY · game changer for a Rizer on the move.',
+          `*sniff*  ${k}/6 Mori down · ${bossLine}`,
+          'Head NORTHEAST · past the statue · the six Mori ring the base and the VILEROK patrols wider.',
+          'Six + the boss down · then I fire up the repair crew and you walk with a PHONE BATTERY.',
         ]});
       } else {
         const bond = (player.bonds && player.bonds.scrapjaw) || 0;
@@ -5520,10 +5524,9 @@ const NPCS = [
       onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
-  // ── v0.95.428 · RADIO TOWER MORI · 12 spawns around the NE tower base ──
-  // Tagged `_towerMori: true` · Scrapjaw's tower quest counts these KOs only.
-  // Tower anchor (38, 14) w/ 3x4 base footprint · Mori roam the plaza to the
-  // north + west of the tower · Rizer approaches from the south (Malezor stem).
+  // ── v0.95.470 · RADIO TOWER GUARD · 6 Mori + the NE Vilerok (tagged elsewhere)
+  // Tighter cluster · wanderRadius=2 so they stay near the tower base and the
+  // quest can always be completed without hunting them down across Malezor
   ...(function(){
     const MORI_BBOXES = [
       [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
@@ -5531,19 +5534,14 @@ const NPCS = [
       [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
       [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
     ];
+    // 6 spawns · ringed around the tower base at (38,14) · TIGHT wander radius
     const TOWER_MORI = [
-      { x: 34, y: 20, dir: 'right', r: 4 },
-      { x: 36, y: 21, dir: 'up',    r: 4 },
-      { x: 38, y: 21, dir: 'up',    r: 4 },
-      { x: 41, y: 20, dir: 'left',  r: 4 },
-      { x: 34, y: 16, dir: 'down',  r: 3 },
-      { x: 42, y: 16, dir: 'down',  r: 3 },
-      { x: 33, y: 12, dir: 'right', r: 3 },
-      { x: 35, y:  9, dir: 'down',  r: 3 },
-      { x: 40, y:  9, dir: 'down',  r: 3 },
-      { x: 42, y: 12, dir: 'left',  r: 3 },
-      { x: 37, y:  6, dir: 'down',  r: 3 },
-      { x: 39, y:  6, dir: 'down',  r: 3 },
+      { x: 35, y: 20, dir: 'right' },
+      { x: 41, y: 20, dir: 'left'  },
+      { x: 34, y: 16, dir: 'down'  },
+      { x: 42, y: 16, dir: 'down'  },
+      { x: 36, y: 22, dir: 'up'    },
+      { x: 40, y: 22, dir: 'up'    },
     ];
     return TOWER_MORI.map((s, i) => ({
       id: `tower_mori_${i + 1}`,
@@ -5556,7 +5554,7 @@ const NPCS = [
       homeX: s.x, homeY: s.y,
       homeScene: 'overworld',
       scene: 'overworld',
-      wanderRadius: s.r,
+      wanderRadius: 2,                     // v0.95.470 · CONTAINED · can't drift out of area
       dir: s.dir,
       mode: 'wander',
       moving: false,
@@ -5565,7 +5563,7 @@ const NPCS = [
       moveCd: 250 + Math.random() * 350,
       blinkTimer: 9e9,
       isEnemy: true,
-      _towerMori: true,                    // v0.95.428 · Scrapjaw tower-quest tag
+      _towerMori: true,                    // Scrapjaw tower-quest tag
       onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI · guarding the broken tower', 2000); },
     }));
   })(),
@@ -5698,18 +5696,15 @@ const NPCS = [
     // Zarvane/Andrannor · quest still triggers at 5 kills (any Vilerok counts)
     const SPOTS = [
       // ── MALEZOR · quest set · Kelthor Vilerok Purge ──
-      { x: 15, y:  40 },   // NW · Rakoron corridor
-      { x: 38, y:  25 },   // NE · near Radio Tower plaza
-      { x: 18, y:  72 },   // Central stem
-      { x: 35, y: 130 },   // SE hometown outskirts
-      { x:  8, y: 152 },   // SW deep · wild-arm entry
-      // ── ZARVANE · wild set · 3 spots ──
-      { x: 75, y: 220 },   // NW Zarvane
-      { x: 105, y: 258 },  // mid Zarvane
-      { x: 88, y: 292 },   // south Zarvane
-      // ── ANDRANNOR · wild set · 2 spots ──
-      { x: 210, y: 322 },  // central Andrannor
-      { x: 262, y: 340 },  // east Andrannor
+      { x: 15, y:  40 },
+      { x: 38, y:  25, towerBoss: true },   // NE · Radio Tower plaza · Scrapjaw quest boss
+      { x: 18, y:  72 },
+      { x: 35, y: 130 },
+      { x:  8, y: 152 },
+      // ── ZARVANE · wild set ──
+      { x: 75, y: 220 }, { x: 105, y: 258 }, { x: 88, y: 292 },
+      // ── ANDRANNOR · wild set ──
+      { x: 210, y: 322 }, { x: 262, y: 340 },
     ];
     return SPOTS.map((s, i) => ({
       id: `vilerok_${i + 1}`,
@@ -5747,6 +5742,7 @@ const NPCS = [
       // 2-tile footprint so this hulking beast blocks passage properly
       footprint: [[0, 0], [-1, 0]],
       interactHitbox: [[-1, 0], [0, 0], [1, 0]],
+      _towerBoss: !!s.towerBoss,          // v0.95.470 · Radio Tower quest boss (NE spawn only)
       onInteract: (n) => {
         showToast('◈ VILEROK · "The Warden\'s bane returns..."', 2600);
       },
@@ -9903,14 +9899,27 @@ function recordMoriKill(mode, npc){
     const zyrexXpGain = enemyLevel * (10 + enemyTier * 6);
     awardActiveZyrexXP(zyrexXpGain);
   }
-  // v0.95.428 · Scrapjaw's Radio Tower quest · count tagged tower KOs
-  if (npc && npc._towerMori && player.towerQuestStarted && !player.radioTowerFixed){
-    player.towerMoriKills = (player.towerMoriKills || 0) + 1;
-    const left = 12 - player.towerMoriKills;
-    if (left > 0){
-      showToast(`◈ TOWER · Mori down · ${player.towerMoriKills}/12 · return to Scrapjaw after 12`, 2200);
-    } else {
-      showToast('★ TOWER · all 12 Mori cleared · return to Scrapjaw at the Gear Shop', 3400);
+  // v0.95.470 · Scrapjaw's Radio Tower quest · 6 tagged Mori + 1 tagged Vilerok boss
+  if (npc && player.towerQuestStarted && !player.radioTowerFixed){
+    if (npc._towerMori){
+      player.towerMoriKills = (player.towerMoriKills || 0) + 1;
+      const bossPart = player.towerBossKilled ? 'VILEROK ✓' : 'VILEROK still up';
+      if (player.towerMoriKills < 6){
+        showToast(`◈ TOWER · Mori down · ${player.towerMoriKills}/6 · ${bossPart}`, 2200);
+      } else if (!player.towerBossKilled){
+        showToast('★ TOWER · all 6 Mori cleared · VILEROK still up · take him down', 3200);
+      } else {
+        showToast('★ TOWER · all clear · return to Scrapjaw at the Gear Shop', 3400);
+        try { playSFX('confirm'); } catch(_){}
+        try { pingNextObjective(); } catch(_){}
+      }
+    }
+    if (npc._towerBoss && !player.towerBossKilled){
+      player.towerBossKilled = true;
+      const moriDone = (player.towerMoriKills || 0) >= 6;
+      showToast(moriDone
+        ? '★ TOWER · VILEROK slain · all clear · return to Scrapjaw'
+        : `★ TOWER · VILEROK slain · ${(player.towerMoriKills||0)}/6 Mori remaining`, 3600);
       try { playSFX('confirm'); } catch(_){}
       try { pingNextObjective(); } catch(_){}
     }
@@ -11636,36 +11645,11 @@ addEventListener('keydown', e => {
         // v0.95.321 · Punching bag hold-to-drag · while facing the dummy bag,
         // Square keydown starts a hold timer · release <350ms = punch (normal)
         // release >=350ms = enter DRAG mode where bag follows Rizer's faced tile
-        if (k === 'j' && !e.repeat){
-          const cfgHitPre = interiorConfig(game.scene);
-          if (cfgHitPre && cfgHitPre.rizerRoom){
-            let fx0 = player.x, fy0 = player.y;
-            if (player.dir === 'up')    fy0--;
-            if (player.dir === 'down')  fy0++;
-            if (player.dir === 'left')  fx0--;
-            if (player.dir === 'right') fx0++;
-            const facedBag = roomItemAtTile(fx0, fy0)?.id === 'dummy';
-            if (facedBag){
-              // v0.95.437 · L2-ONLY drag chord · R2 is BLOCK now (unrelated) ·
-              // plain Square ALWAYS punches the bag · movement never blocks it ·
-              // punch has priority over EVERY other bag-facing behavior
-              const dragChord = keys['q'];   // L2 only (was L2 or R2)
-              if (dragChord){
-                if (game._bagDragging){
-                  game._bagDragging = false;
-                  showToast('◈ Bag dropped', 1400);
-                } else {
-                  game._bagDragging = true;
-                  showToast('◈ Bag grabbed · L2+Square to drop · Square alone still PUNCHES', 2600);
-                }
-                try { playSFX('confirm'); } catch(_){}
-                return;
-              }
-              // Plain Square = PUNCH always · fall through to normal punch below ·
-              // never blocked by drag state · never blocked by player.moving
-            }
-          }
-        }
+        // v0.95.470 · Dummy bag · SQUARE ALWAYS PUNCHES · drag chord retired
+        // Previous L2+Square drag was firing accidentally when keys['q'] got
+        // stuck true from another chord.  Punch is now the sole Square action
+        // on the bag · move-bag mechanic can come back later on a cleaner input
+        if (game._bagDragging){ game._bagDragging = false; }
         const mode = (k === 'j') ? 'punch' : 'kick';
         if(performance.now()<(player.attackUntil||0))return;
         const dur  = Math.round(((mode === 'kick') ? 400 : 300)*rizerAttackTimeScale());
@@ -15281,8 +15265,11 @@ function nextObjectiveHint(){
   if (!player.scrapjawMet)          return 'Track down Scrapjaw at the Malezor Gear Shop';
   if (player.towerQuestStarted && !player.radioTowerFixed){
     const k = player.towerMoriKills || 0;
-    if (k < 12)                     return `Clear 12 Mori at the NE Radio Tower · ${k}/12`;
-    return 'Return to Scrapjaw · tower ready to be fixed';
+    const boss = !!player.towerBossKilled;
+    if (k < 6 && !boss)             return `Radio Tower · ${k}/6 Mori · VILEROK still up`;
+    if (k < 6 &&  boss)             return `Radio Tower · ${k}/6 Mori · VILEROK ✓`;
+    if (k >= 6 && !boss)            return `Radio Tower · Mori cleared · take down the VILEROK`;
+    return 'Radio Tower · all clear · return to Scrapjaw';
   }
   if (!player.kelthorMet)           return 'Meet Warden Kelthor at the Beastwarden\'s Hall';
   if (!player.townMapGifted)        return 'Find Zoryn in Malezor · he owes you a Town Map';
@@ -21782,7 +21769,17 @@ function updateRizerHUD(){
                 || game.guitarPanelOpen || game.nebulaPanelOpen
                 || game.bagPanelOpen || devOpen || _sleepFade;
   const show   = game.scene !== 'title' && !dialogState && !battleState && !wildBattleState && !anyModal;
-  if (widget) widget.style.display = show ? 'block' : 'none';
+  // v0.95.470 · Rizer HUD only appears when Rizer is DAMAGED (any stat below max).
+  // Full-stat state hides it entirely so the HUD only reads when it needs to.
+  // 4-second grace window after damage so the HUD lingers post-heal instead of
+  // flickering off the second HP snaps back.
+  const _model = rizerStatModel();
+  const damaged = _model.hp.value < _model.hp.max
+               || _model.energy.value < _model.energy.max
+               || _model.special.value < _model.special.max;
+  if (damaged) player._rhudLingerUntil = performance.now() + 4000;
+  const rhudShow = show && (damaged || (player._rhudLingerUntil || 0) > performance.now());
+  if (widget) widget.style.display = rhudShow ? 'block' : 'none';
   if (whud)   whud.style.display   = show ? 'block' : 'none';
   // v0.95.82 · Coin counter · same visibility as RHUD, live-updated
   const coinEl = document.getElementById('coinHud');

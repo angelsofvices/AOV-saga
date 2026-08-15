@@ -10703,16 +10703,13 @@ addEventListener('keydown', e => {
           player.hp = Math.min(player.maxHp || 100, before + amt);
           playSFX('heal');
           showToast(`◈ ★ Ale · +${player.hp - before} HP`, 1600);
-        } else if (fav === 'zphone' && have > 0){
-          // v0.95.375 · ZyPhone favorite → CREATE (key '1') opens the full ZyCellite panel
-          // Canonical control contract: touchpad=bag · options=settings · create=fav-hotkey
-          // Works identically across keyboard (1) · gamepad Create button 8 · mobile Create tile
-          try {
-            if (typeof zyrexMenuOpen !== 'undefined') zyrexMenuOpen = false;
-            if (typeof hudOverlayOpen !== 'undefined') hudOverlayOpen = false;
-            openZphonePanel();
-            playSFX('confirm');
-          } catch(_){ showToast('◈ ★ ZyPhone · panel unavailable', 1800); }
+        } else if (fav === 'zphone'){
+          // v0.95.435 · ZyPhone can NOT be favorited to CREATE anymore ·
+          // TOUCHPAD is the sole phone launcher · CREATE is bag-quick-use only.
+          // If someone lands here via a legacy save, clear the favorite silently.
+          player.favoriteItem = null;
+          playSFX('cancel');
+          showToast('◈ ZyPhone opens with TOUCHPAD · favorite a bag item for CREATE', 2400);
         } else if (fav === 'soulphish' && have > 0){
           player.items.soulphish -= 1;
           const before = player.astral || 0;
@@ -12829,9 +12826,9 @@ function tryInteract(){
           }
           player.items = player.items || {};
           player.items.zphone = (player.items.zphone || 0) + 1; try{playItemGain('zphone')}catch(_){} try{pingNextObjective()}catch(_){}
-          // v0.95.410 · Auto-favorite ZyPhone · CREATE button now opens the game menu
-          // (ZyPhone IS the real UI system now · fastest access from anywhere)
-          if (!player.favoriteItem) player.favoriteItem = 'zphone';
+          // v0.95.435 · NO auto-favorite · TOUCHPAD is the sole phone launcher ·
+          // CREATE stays free for a bag quick-use item (potion, ale, faenet, etc.)
+          if (player.favoriteItem === 'zphone') player.favoriteItem = null;
           // Fire the interact-grab animation manually so the reach reads clearly
           try {
             const _now = performance.now();
@@ -12840,7 +12837,7 @@ function tryInteract(){
               player.interactUntil = _now + 260;
             }
           } catch(_){}
-          showToast('★ Got the ZyPhone · CREATE button opens your game menu · bag/quests/map/settings all live here', 3800);
+          showToast('★ Got the ZyPhone · TOUCHPAD opens the phone · favorite a bag item for CREATE', 3800);
           try { playSFX('confirm'); } catch(_){}
           return;
         }
@@ -14634,6 +14631,12 @@ function renderZycellZycube(){
       const favEl = ev.target.closest('.zyBagFav');
       if (favEl){
         const k = favEl.dataset.item;
+        // v0.95.435 · ZyPhone is not favoritable · TOUCHPAD launches the phone
+        if (k === 'zphone'){
+          try { playSFX('cancel'); } catch(_){}
+          showToast('◈ ZyPhone opens with TOUCHPAD · pick a consumable to star', 2200);
+          return;
+        }
         player.favoriteItem = (player.favoriteItem === k) ? null : k;
         try { playSFX('confirm'); } catch(_){}
         showToast(player.favoriteItem === k ? `★ ${k} → CREATE hotkey` : `☆ ${k} unfavorited`, 1800);

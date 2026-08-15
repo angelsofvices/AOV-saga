@@ -10902,10 +10902,11 @@ addEventListener('keydown', e => {
   // v0.95.439 · R2 HOLD = BLOCK stance · fires on FIRST keydown (fresh press) ·
   // ignores auto-repeats · doesn't fire while UFO piloting, dev panel open, dialog,
   // battle, phone, or during another attack (attack owns anims)
+  const _blockDevOpen = document.getElementById('devPanel')?.style.display === 'block';
   if (k === 'i' && !keys[k] && !e.repeat
       && player && player.activeActor === 'rizer'
       && !player.ufoFlying
-      && !document.getElementById('devPanel')?.style.display === 'block'
+      && !_blockDevOpen
       && !dialogState && !battleState && !wildBattleState && !game.zphoneOpen && !game.paused
       && !(player.attackUntil && performance.now() < player.attackUntil)){
     player.blocking = true;
@@ -19184,20 +19185,26 @@ function drawWorldLayer(){
   renderables.sort((a,b) => a.footY - b.footY);
   const _now = performance.now();
   for (const r of renderables){
-    if (r.kind === 'prop')      drawProp(r.prop);
-    else if (r.kind === 'npc'){
-      // v0.95.404 · Skellor sprite pipeline · overlay REPLACES base render
-      // during hurt flash + when slain · avoids the double-sprite issue
-      const n = r.npc;
-      if (n && n.mode === 'skellor' && (n._skellorDead || (n._hurtFlashUntil || 0) > _now)){
-        drawSkellorHurtFrame(n);
-      } else {
-        drawNPC(n);
+    try {
+      if (r.kind === 'prop')      drawProp(r.prop);
+      else if (r.kind === 'npc'){
+        // v0.95.404 · Skellor sprite pipeline · overlay REPLACES base render
+        // during hurt flash + when slain · avoids the double-sprite issue
+        const n = r.npc;
+        if (n && n.mode === 'skellor' && (n._skellorDead || (n._hurtFlashUntil || 0) > _now)){
+          drawSkellorHurtFrame(n);
+        } else {
+          drawNPC(n);
+        }
       }
+      else if (r.kind === 'boulder') drawBoulder(r.boulder);
+      else if (r.kind === 'rizerShell') drawRizerSoulShell();
+      else                        drawPlayer();
+    } catch(err){
+      // v0.95.444 · one bad renderable never freezes the whole world layer
+      const tag = r.kind === 'npc' ? (r.npc && r.npc.id) : r.kind === 'prop' ? (r.prop && r.prop.id) : r.kind;
+      console.warn('[rp7b] drawWorldLayer skip · ' + tag, err);
     }
-    else if (r.kind === 'boulder') drawBoulder(r.boulder);
-    else if (r.kind === 'rizerShell') drawRizerSoulShell();
-    else                        drawPlayer();
   }
 }
 // v0.95.404 · Extracted per-skellor renderer · pulls current hurt frame from
@@ -19416,7 +19423,9 @@ function vilerokPickSheet(n){
 function drawNPC(n){
   if(n._ufoBeamVictim)return;
   if (n._astralslamHeld || n._astralthrowHeld) return;
-  vilerokPickSheet(n);   // v0.95.442
+  try { vilerokPickSheet(n); } catch(_){}   // v0.95.442 · defensive · never propagate a swap crash
+  // v0.95.444 · If sheet swap left n.sheet in a broken state, drop this frame
+  if (!n.sheet || !n.sheet.complete || !n.sheet.naturalWidth) return;
   // Void-Sea execution · enemy sinks, compresses, and fades into a violet
   // whirlpool instead of playing its normal land death animation.
   if(n._voidSwallow){
@@ -19940,7 +19949,12 @@ function frame(now){
   // NPC ticks · wander or follow · only NPCs in the current scene
   // v0.95.306 · Settings menu pauses overworld gameplay · NPC wander / astral proj / etc. all freeze
   if (!_paused && game.scene !== 'title' && !battleState && !wildBattleState && !settingsMenuOpen){
-    for (const n of NPCS){ if (n.scene === game.scene) tickNPC(n, dt); }
+    // v0.95.444 · Defensive · one bad NPC shouldn't freeze the whole frame loop
+    for (const n of NPCS){
+      if (n.scene !== game.scene) continue;
+      try { tickNPC(n, dt); }
+      catch(err){ console.warn('[rp7b] tickNPC crash · id=' + (n && n.id) + ' · dumping', err); }
+    }
   }
   // v0.95.210 · Astralstrike projectiles · advance one tile per step + hit test
   // v0.95.306 · Settings menu pauses projectile advance too

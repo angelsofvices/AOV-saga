@@ -5621,6 +5621,79 @@ const NPCS = [
       },
     }));
   })(),
+  // ── v0.95.447 · MORLISK · winged demon · sits between Daemon and Vilerok ──
+  // 4-sheet swap: idle · fly (while moving) · light (35% strike) · heavy (65% strike)
+  // Placed in mid-tier districts (Andrannor + Veridan + Zarvane south) · winged
+  // silhouette + purple attack VFX baked into light/heavy PNGs.
+  ...(function(){
+    const MORLISK_IDLE_BBOXES = [
+      [[33,72,251,239],[5,52,292,245],[20,44,264,253],[31,70,250,235]],
+      [[69,92,216,212],[43,38,207,267],[50,92,238,211],[52,94,226,210]],
+      [[35,87,219,210],[63,33,208,265],[25,87,237,210],[16,87,216,210]],
+      [[33,64,251,236],[5,52,292,241],[20,43,264,250],[31,64,250,235]],
+    ];
+    const MORLISK_FLY_BBOXES = [
+      [[21,55,292,237],[0,114,313,178],[0,180,313,111],[0,111,285,181]],
+      [[43,48,199,235],[22,107,239,178],[19,164,290,116],[46,59,200,228]],
+      [[47,37,197,238],[6,98,307,180],[0,161,270,116],[41,51,198,231]],
+      [[21,35,292,233],[0,109,313,159],[0,173,313,102],[0,108,278,160]],
+    ];
+    const MORLISK_LIGHT_BBOXES = [
+      [[33,72,252,238],[5,52,279,255],[10,75,293,238],[26,72,258,238]],
+      [[68,90,217,214],[33,37,280,261],[0,0,313,297],[0,88,280,204]],
+      [[35,84,221,213],[40,23,273,272],[0,78,313,235],[0,69,254,215]],
+      [[33,61,252,238],[5,25,290,270],[17,0,279,297],[26,51,256,245]],
+    ];
+    const MORLISK_HEAVY_BBOXES = [
+      [[33,71,252,239],[29,46,284,238],[0,104,298,209],[31,70,251,235]],
+      [[69,91,217,212],[52,40,261,273],[0,0,286,313],[52,91,226,213]],
+      [[35,85,220,213],[42,0,271,291],[0,0,295,313],[16,85,217,212]],
+      [[34,52,251,238],[42,41,220,213],[4,0,277,280],[31,52,251,238]],
+    ];
+    const flyImg   = new Image(); flyImg.src   = 'assets/2D%20sprites/enemies/morlisk-fly.png';
+    const lightImg = new Image(); lightImg.src = 'assets/2D%20sprites/enemies/morlisk-light.png';
+    const heavyImg = new Image(); heavyImg.src = 'assets/2D%20sprites/enemies/morlisk-heavy.png';
+    // Placements · rare · 8 total · Andrannor central + Veridan cliffs + deep Zarvane
+    const SPOTS = [
+      { x: 190, y: 328 }, { x: 235, y: 320 }, { x: 270, y: 332 },   // Andrannor
+      { x: 330, y: 215 }, { x: 360, y: 226 }, { x: 348, y: 245 },   // Veridan cliffs
+      { x:  92, y: 268 }, { x: 118, y: 288 },                        // deep Zarvane
+    ];
+    return SPOTS.map((s, i) => ({
+      id: `morlisk_${i + 1}`,
+      name: 'Morlisk',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/enemies/morlisk-idle.png',
+      bboxes: MORLISK_IDLE_BBOXES,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      uniformScale: true,
+      scaleMul: 1.25,
+      tileX: s.x, tileY: s.y,
+      homeX: s.x, homeY: s.y,
+      homeScene: 'overworld',
+      scene: 'overworld',
+      wanderRadius: 8,
+      dir: 'down',
+      mode: 'drainer',
+      moving: false,
+      animFrame: 0, idleFrame: 0,
+      moveCd: 220 + Math.random() * 300,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      detectR: 14,                                 // flying = wider detection
+      hpMax: 350, hp: 350,                         // between Daemon 250 and Vilerok 500
+      drainAmt: 12,                                // between Daemon 10 and Vilerok 15
+      tier: 4,
+      _morlisk: true,
+      _vSheets: {
+        idle:  { img: null,     bboxes: MORLISK_IDLE_BBOXES  },
+        fly:   { img: flyImg,   bboxes: MORLISK_FLY_BBOXES   },
+        light: { img: lightImg, bboxes: MORLISK_LIGHT_BBOXES },
+        heavy: { img: heavyImg, bboxes: MORLISK_HEAVY_BBOXES },
+      },
+      onInteract: (n) => { showToast('◈ MORLISK · a winged wail cuts the air', 2200); },
+    }));
+  })(),
   // ── v0.95.442 · VILEROK MORI ESCORTS · 4 Mori per boss (20 total) ──
   ...(function(){
     const MORI_BBOXES = [
@@ -19504,32 +19577,36 @@ function drawStaticNPC(n){
   const dy = Math.floor(n.tileY * TILE + TILE - drawH)       - _cam.y;
   ctx.drawImage(n.sheet, bx, by, bw, bh, dx, dy, drawW, drawH);
 }
-// v0.95.442 · Vilerok · pick idle/run/light/heavy sheet per frame based on state
+// v0.95.442/447 · Multi-sheet enemy picker · Vilerok + Morlisk share this
+// Picks the correct sheet per frame: heavy > light > move > idle
+// _vSheets contract: { idle:{img,bboxes}, run|fly:{img,bboxes}, light:{...}, heavy:{...} }
+// idle bank uses n.sheet (loaded at spawn) · idle.img null is fine
 function vilerokPickSheet(n){
-  if (!n || !n._vilerok || !n._vSheets) return;
+  if (!n || !n._vSheets) return;
   const now = performance.now();
+  const bank = n._vSheets;
+  const moveKey = bank.fly ? 'fly' : 'run';       // Morlisk uses fly · Vilerok uses run
   let key = 'idle';
   if ((n._heavyUntil || 0) > now)      key = 'heavy';
   else if ((n._lightUntil || 0) > now) key = 'light';
-  else if (n.moving)                   key = 'run';
-  const swap = n._vSheets[key];
+  else if (n.moving)                   key = moveKey;
+  const swap = bank[key];
   if (!swap) return;
-  // idle branch keeps the primary n.sheet + bboxes · other keys swap to their pair
+  if (!bank.idle._idleImgRef) bank.idle._idleImgRef = n.sheet;   // stash original idle sheet once
   if (key === 'idle'){
     if (n._activeSheetKey !== 'idle'){
-      n.sheet  = n._vSheets.idle._idleImgRef || n.sheet;
-      n.bboxes = n._vSheets.idle.bboxes;
+      n.sheet  = bank.idle._idleImgRef;
+      n.bboxes = bank.idle.bboxes;
       n._activeSheetKey = 'idle';
     }
-    // Stash the original idle image the first time so switches back can restore
-    if (!n._vSheets.idle._idleImgRef) n._vSheets.idle._idleImgRef = n.sheet;
     return;
   }
   if (swap.img && swap.img.complete && swap.img.naturalWidth){
-    if (!n._vSheets.idle._idleImgRef) n._vSheets.idle._idleImgRef = n.sheet;
-    n.sheet  = swap.img;
-    n.bboxes = swap.bboxes;
-    n._activeSheetKey = key;
+    if (n._activeSheetKey !== key){
+      n.sheet  = swap.img;
+      n.bboxes = swap.bboxes;
+      n._activeSheetKey = key;
+    }
   }
 }
 function drawNPC(n){
@@ -19790,8 +19867,9 @@ function tickNPC(n, dt){
     const idleCd    = isDaemon ? 380 : 620;
     // v0.95.441 · per-NPC drainAmt override (Seer Grunts sit between Mori and Daemon)
     const drainAmt  = (typeof n.drainAmt === 'number') ? n.drainAmt : (isDaemon ? 10 : 5);
-    // v0.95.442 · Vilerok · fire light OR heavy attack sheet on adjacent strike
-    if (n._vilerok && manh === 1 && game.scene === 'overworld'){
+    // v0.95.442/447 · Multi-sheet enemy attack anim · Vilerok + Morlisk both fire
+    // light/heavy strike frames on adjacent hit · vilerokPickSheet reads these timers
+    if (n._vSheets && manh === 1 && game.scene === 'overworld'){
       const heavy = Math.random() < 0.35;
       if (heavy){ n._heavyUntil = performance.now() + 520; }
       else      { n._lightUntil = performance.now() + 340; }

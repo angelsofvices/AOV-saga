@@ -179,9 +179,10 @@
       background:rgba(2,5,13,.94);
       box-shadow:inset 0 0 2px rgba(90,125,175,.45);
     }
-    /* Nameplate banner text · lives in the lower nameplate cutout of the frame */
+    /* v0.95.462 · Nameplate text repositioned INTO the frame's banner cutout
+       (was sitting under the frame · needed to move up + left) */
     #zyrexHud .zName{
-      position:absolute; left:5%; top:80%; width:41%; height:11%;
+      position:absolute; left:3%; top:70%; width:40%; height:14%;
       display:flex; align-items:center; justify-content:center;
       color:#ffd66b; font:bold 12px 'Courier New',monospace;
       letter-spacing:.14em; text-shadow:0 1px 2px rgba(0,0,0,.9);
@@ -15623,6 +15624,44 @@ function renderZycellExpeditions(){
 }
 
 // ── CONTACTS · bond-gated call list ────────────────────────────────
+// v0.95.462 · Contact-call spawn · trusted contacts (bond >= 100) teleport to
+// Rizer's overworld tile when dialed · original home saved to _phoneHomeX/Y /
+// _phoneHomeScene · re-tap the CALL row (now labeled "SEND HOME") returns them
+function toggleContactCall(npcId, name){
+  const n = (typeof findNpcById === 'function') ? findNpcById(npcId) : null;
+  if (!n){
+    showToast(`◈ ${name} · not answering`, 2000);
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
+  // Return home path
+  if (n._phoneSpawned){
+    n.scene = n._phoneHomeScene || 'overworld';
+    n.tileX = (typeof n._phoneHomeX === 'number') ? n._phoneHomeX : n.homeX;
+    n.tileY = (typeof n._phoneHomeY === 'number') ? n._phoneHomeY : n.homeY;
+    n.moving = false;
+    n._phoneSpawned = false;
+    n._phoneHomeX = null; n._phoneHomeY = null; n._phoneHomeScene = null;
+    showToast(`◈ ${name} heads home`, 2200);
+    try { playSFX('menuClose'); } catch(_){}
+    return;
+  }
+  // Spawn-at-player path · save current home first, then relocate adjacent to Rizer
+  n._phoneHomeX = n.tileX; n._phoneHomeY = n.tileY; n._phoneHomeScene = n.scene;
+  n._phoneSpawned = true;
+  n.scene = 'overworld';
+  // Land on the tile in front of Rizer if walkable, else 1 tile south
+  const v = _DIR_VEC[player.dir] || { dx: 0, dy: 1 };
+  let tx = player.x + v.dx, ty = player.y + v.dy;
+  if (typeof walkable === 'function' && !walkable(tx, ty)){
+    tx = player.x; ty = player.y + 1;
+  }
+  n.tileX = tx; n.tileY = ty;
+  n.dir = ({up:'down',down:'up',left:'right',right:'left'})[player.dir] || 'down';
+  n.moving = false;
+  showToast(`◈ ${name} teleports in beside you · re-dial to send home`, 3000);
+  try { playSFX('confirm'); } catch(_){}
+}
 function renderZycellContacts(){
   const bonds = player.bonds || {};
   const canCall = !!player.phoneBattery;               // v0.95.428 · Scrapjaw's Phone Battery
@@ -15638,19 +15677,30 @@ function renderZycellContacts(){
   ];
   const rows = contacts.map(([id, name, loc]) => {
     const bond = bonds[id] || 0;
-    const status = bond >= 100 ? '<span style="color:#5fdc7a;">✦ TRUSTED</span>'
+    const trusted = bond >= 100;
+    const npc = (typeof findNpcById === 'function') ? findNpcById(id) : null;
+    const isHere = !!(npc && npc._phoneSpawned);
+    const status = trusted ? '<span style="color:#5fdc7a;">✦ TRUSTED</span>'
                  : bond >= 50 ? '<span style="color:#ffd66b;">● BONDED</span>'
                  : '<span style="color:#889;">◯ acquaintance</span>';
-    const callBtn = canCall
-      ? `<button data-call="${id}" data-name="${name}" style="margin-top:4px; padding:5px 9px; background:rgba(95,220,122,0.25); color:#5fdc7a; border:1px solid #5fdc7a; font:bold 10px 'Courier New',monospace; cursor:pointer; letter-spacing:.08em;">☎ CALL</button>`
-      : '';
-    return `<div style="padding:8px 10px; margin-bottom:4px; background:rgba(0,0,0,0.4); border-left:3px solid ${bond >= 50 ? '#5fdc7a' : '#4fb3ff'}; display:flex; justify-content:space-between; font-size:11px; gap:8px;">
-      <div><div style="color:#fff; font-weight:bold;">${name}</div><div style="color:#8ff; font-size:10px;">${loc}</div>${callBtn}</div>
+    // v0.95.462 · TRUSTED contacts get a spawn/return toggle button · others still show a ring-ring dialog
+    let callBtn = '';
+    if (canCall && trusted){
+      const label = isHere ? '◄ SEND HOME' : '☎ CALL · SPAWN AT YOU';
+      const bg    = isHere ? 'rgba(255,214,107,0.25)' : 'rgba(95,220,122,0.25)';
+      const bord  = isHere ? '#ffd66b' : '#5fdc7a';
+      callBtn = `<button data-call="${id}" data-name="${name}" data-trusted="1" style="margin-top:4px; padding:5px 9px; background:${bg}; color:${bord}; border:1px solid ${bord}; font:bold 10px 'Courier New',monospace; cursor:pointer; letter-spacing:.08em;">${label}</button>`;
+    } else if (canCall){
+      callBtn = `<button data-call="${id}" data-name="${name}" style="margin-top:4px; padding:5px 9px; background:rgba(79,179,255,0.20); color:#4fb3ff; border:1px solid #4fb3ff; font:bold 10px 'Courier New',monospace; cursor:pointer; letter-spacing:.08em;">☎ CALL</button>`;
+    }
+    const hereBadge = isHere ? '<span style="color:#5fdc7a; font-size:10px;">◉ WITH YOU</span>' : '';
+    return `<div style="padding:8px 10px; margin-bottom:4px; background:rgba(0,0,0,0.4); border-left:3px solid ${isHere ? '#5fdc7a' : bond >= 50 ? '#5fdc7a' : '#4fb3ff'}; display:flex; justify-content:space-between; font-size:11px; gap:8px;">
+      <div><div style="color:#fff; font-weight:bold;">${name} ${hereBadge}</div><div style="color:#8ff; font-size:10px;">${loc}</div>${callBtn}</div>
       <div style="text-align:right;">${status}<div style="color:#cfe; font-size:10px;">Bond ${bond}/100</div></div>
     </div>`;
   }).join('');
   const footer = canCall
-    ? `<div style="text-align:center; color:#5fdc7a; font-size:10px; padding:6px;">✦ Phone Battery installed · dial any contact from anywhere</div>`
+    ? `<div style="text-align:center; color:#5fdc7a; font-size:10px; padding:6px;">✦ Phone Battery installed · TRUSTED contacts (bond 100) teleport to you on dial</div>`
     : `<div style="text-align:center; color:#ffd66b; font-size:10px; padding:6px;">◈ Calls locked · finish Scrapjaw's Radio Tower quest to get the Phone Battery</div>`;
   // Bind call buttons after paint
   if (canCall){
@@ -15661,8 +15711,15 @@ function renderZycellContacts(){
         btn.addEventListener('click', () => {
           const id = btn.getAttribute('data-call');
           const nm = btn.getAttribute('data-name');
-          const bond = (player.bonds && player.bonds[id]) || 0;
+          const trusted = btn.getAttribute('data-trusted') === '1';
           try { playSFX('confirm'); } catch(_){}
+          if (trusted){
+            toggleContactCall(id, nm);
+            closeZphonePanel();
+            return;
+          }
+          // Non-trusted contacts still get the classic voicemail dialog
+          const bond = (player.bonds && player.bonds[id]) || 0;
           closeZphonePanel();
           const lines = bond >= 50
             ? [`*ring ring*  ${nm} picks up.`, `"Hey Rizer · signal\'s clear.  What\'s up?"`, `*click*  · line closed`]

@@ -6917,7 +6917,10 @@ function tickFae(dt){
 // v0.95.122 · Single-boulder draw · called from depth-sorted world layer
 function drawBoulder(b){
   // v0.95.300 · Astralite stones share this render path · pick their sheet by type
-  const sheet = (b.type === 'astralite') ? ASTRALITE_STONE_IMG : BOULDER_IMG;
+  // v0.95.431 · Life stones added · red-pink glow · restores 100% HP on shatter
+  const sheet = (b.type === 'life')      ? LIFE_STONE_IMG
+              : (b.type === 'astralite') ? ASTRALITE_STONE_IMG
+              :                            BOULDER_IMG;
   if (!sheet.complete || !sheet.naturalWidth) return;
   if (b.gone || b._astralthrowHeld || (b._astralthrowVisualUntil||0)>performance.now()) return;
   const now = performance.now();
@@ -6942,6 +6945,14 @@ function drawBoulder(b){
     ctx.save();
     ctx.shadowColor = 'rgba(90,180,255,0.75)';
     ctx.shadowBlur = 16;
+    ctx.drawImage(sheet, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
+    ctx.restore();
+  } else if (b.type === 'life' && !b.breaking){
+    // v0.95.431 · Life stone · warm pink/red pulsing glow · signals full heal
+    ctx.save();
+    const pulse = 0.55 + 0.25 * Math.sin(now / 380);
+    ctx.shadowColor = `rgba(255,110,140,${pulse.toFixed(2)})`;
+    ctx.shadowBlur = 20;
     ctx.drawImage(sheet, sx, sy, BOULDER_CELL_W, BOULDER_CELL_H, dx, dy, drawW, drawH);
     ctx.restore();
   } else {
@@ -7750,6 +7761,9 @@ BOULDER_IMG.src = 'assets/2D%20sprites/decor/boulder.png';
 // v0.95.302 · reward changed to 50% Special Energy (diamond) not astral
 const ASTRALITE_STONE_IMG = new Image();
 ASTRALITE_STONE_IMG.src = 'assets/2D%20sprites/props/astralite-stone.png';
+// v0.95.431 · LIFE STONES · rarer than astralite · shatter restores 100% HP
+const LIFE_STONE_IMG = new Image();
+LIFE_STONE_IMG.src = 'assets/2D%20sprites/props/life-stone.png';
 const BOULDER_CELL_W = 313;   // sheet 1254 / 4
 const BOULDER_CELL_H = 313;
 const BOULDER_MAX_HP = 9;
@@ -7848,6 +7862,61 @@ _astraliteStoneSpots
     tileX: s.x, tileY: s.y, hp: BOULDER_MAX_HP, breaking: 0, gone: false,
     scene: 'overworld', type: 'astralite'
   }));
+// v0.95.431 · LIFE STONES · rarer than astralite · 100% HP restore on shatter
+// Curated seeds along the main travel corridors so early-game finds are guaranteed
+const _lifeStoneSpots = [
+  { x: 26, y: 112 },    // Malezor · south of home, quick tutorial find
+  { x: 31, y: 90  },    // Malezor · mid-stem
+  { x: 22, y: 55  },    // Malezor · north path to Rakoron's Cave
+  { x: 66, y: 176 },    // Malezor Wild Arm · corridor east
+  { x: 96, y: 172 },    // Malezor Wild Arm · deeper east
+  { x: 88, y: 230 },    // Zarvane transition
+  { x: 108, y: 265 },   // Zarvane wilds
+  { x: 140, y: 258 },   // Zarvane far east
+  { x: 96, y: 342 },    // Wilds Branch south
+];
+_lifeStoneSpots
+  .filter(s => !isWorldBorderTile(s.x, s.y))
+  .forEach(s => BOULDERS.push({
+    tileX: s.x, tileY: s.y, hp: BOULDER_MAX_HP, breaking: 0, gone: false,
+    scene: 'overworld', type: 'life'
+  }));
+// v0.95.431 · GLOBAL LIFE-STONE PASS · rarer than astralite · ~half density ·
+// spread across EVERY district · never on top of other props · wider min-spacing
+(function addGlobalLifeStones(){
+  const rng = _makeWorldRng(0x1FE570);
+  const placed = [];
+  // Target: half of astralite count so life stones stay a scarcer, higher-reward drop
+  const TARGET_EXTRA = Math.max(6, Math.floor(_astraliteStoneSpots.length / 2));
+  for (let attempts = 0; attempts < 20000 && placed.length < TARGET_EXTRA; attempts++){
+    const x = Math.floor(WORLD_MIN_COL + rng() * 330);
+    const y = Math.floor(WORLD_MIN_ROW + rng() * 315);
+    if (worldDistrictAt(x, y) == null) continue;
+    if (isWorldBorderTile(x, y)) continue;
+    if (worldDistrictAt(x + 2, y) == null || worldDistrictAt(x - 2, y) == null
+     || worldDistrictAt(x, y + 2) == null || worldDistrictAt(x, y - 2) == null) continue;
+    // Never on top of any prop
+    let occupied = false;
+    for (let oy = -2; oy <= 2 && !occupied; oy++){
+      for (let ox = -2; ox <= 2; ox++){
+        if (_propBlocked.has(`${x + ox},${y + oy}`)){ occupied = true; break; }
+      }
+    }
+    if (occupied) continue;
+    // Wide min-spacing vs boulders (8) + astralite (8) + other life stones (12)
+    if (_boulderSpots.some(b => Math.hypot(b.x - x, b.y - y) < 8)) continue;
+    if (_astraliteStoneSpots.some(s => Math.hypot(s.x - x, s.y - y) < 8)) continue;
+    if (_lifeStoneSpots.some(s => Math.hypot(s.x - x, s.y - y) < 12)) continue;
+    if (placed.some(s => Math.hypot(s.x - x, s.y - y) < 14)) continue;
+    const spot = { x, y };
+    placed.push(spot);
+    _lifeStoneSpots.push(spot);
+    BOULDERS.push({
+      tileX: x, tileY: y, hp: BOULDER_MAX_HP, breaking: 0, gone: false,
+      scene: 'overworld', type: 'life'
+    });
+  }
+})();
 // v0.95.429 · GLOBAL ASTRALITE PASS · 2x density spread across EVERY district
 // naturally · standalone logic · never on top of other props · avoids boulders
 (function addGlobalAstraliteStones(){
@@ -8000,6 +8069,15 @@ function hitBoulder(b, dmg){
       player.diamond = Math.min(max, before + Math.round(max * 0.5));
       const gained = player.diamond - before;
       showToast(`◈ Astralite shatter · +${gained} Special Energy`, 2200);
+      try { playSFX('confirm'); } catch(_){}
+    }
+    // v0.95.431 · Life stone shatter · restore Rizer HP to 100%
+    if (b.type === 'life'){
+      const max = player.hpMax || 100;
+      const before = player.hp || 0;
+      player.hp = max;
+      const gained = max - before;
+      showToast(`◈ Life stone shatter · HP fully restored (+${gained})`, 2400);
       try { playSFX('confirm'); } catch(_){}
     }
   }
@@ -8256,6 +8334,15 @@ function astralthrowBreakAOE(b,skinId){
     player.diamond = Math.min(max, before + Math.round(max * 0.5));
     const gained = player.diamond - before;
     showToast(`◈ Astralite thrown-shatter · +${gained} Special Energy`, 2200);
+    try { playSFX('confirm'); } catch(_){}
+  }
+  // v0.95.431 · Life stone thrown-shatter · restore Rizer HP to 100%
+  if (b.type === 'life'){
+    const max = player.hpMax || 100;
+    const before = player.hp || 0;
+    player.hp = max;
+    const gained = max - before;
+    showToast(`◈ Life stone thrown-shatter · HP fully restored (+${gained})`, 2400);
     try { playSFX('confirm'); } catch(_){}
   }
 }

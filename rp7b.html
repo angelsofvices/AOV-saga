@@ -76,9 +76,10 @@
       color:#f0eadf; padding:6px 10px;
       font-size:12px; letter-spacing:.08em;
       border-left:2px solid #d4af37;
-      pointer-events:none;
-      z-index: 7;                                        /* v0.95.38 · above HUDs */
-      z-index:5;
+      pointer-events:auto;                                /* v0.95.451 · draggable */
+      cursor: move;
+      user-select: none;
+      z-index: 7;
       font-variant-numeric: tabular-nums;
     }
     #padStatus{
@@ -86,8 +87,10 @@
       background: rgba(0,0,0,0.6);
       color:#8ff; font-size:11px; letter-spacing:.1em;
       padding:6px 10px; border:1px solid #244;
-      pointer-events:none;
-      z-index:7;                                         /* v0.95.38 · above HUDs */
+      pointer-events:auto;                                /* v0.95.451 · draggable */
+      cursor: move;
+      user-select: none;
+      z-index:7;
     }
     /* v0.95.262 · Hide tile counter + PRESS ANY BUTTON pad status on mobile
        (dev-facing HUDs · playtesters shouldn't see them on phone / touch) */
@@ -1266,6 +1269,53 @@ window.addEventListener('keydown', (ev) => {
   ev.preventDefault();
   ev.stopImmediatePropagation();
 }, true);
+// v0.95.451 · Shared draggable-overlay helper · same UX as the DEV MODE button
+// Persists (left, top) per storageKey · 6px drag threshold so a tap ≠ drag ·
+// clamps inside viewport · pointer-capture prevents mid-drag drops
+function makeOverlayDraggable(el, storageKey){
+  if (!el || el._rp7Draggable) return;
+  el._rp7Draggable = true;
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    if (saved && typeof saved.left === 'number' && typeof saved.top === 'number'){
+      el.style.left = saved.left + 'px';
+      el.style.top  = saved.top  + 'px';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+    }
+  } catch(_){}
+  let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  el.addEventListener('pointerdown', e => {
+    dragging = true; moved = false;
+    sx = e.clientX; sy = e.clientY;
+    const r = el.getBoundingClientRect();
+    ox = r.left; oy = r.top;
+    try { el.setPointerCapture(e.pointerId); } catch(_){}
+    e.preventDefault();
+  });
+  el.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!moved && (Math.abs(dx) + Math.abs(dy)) < 6) return;
+    moved = true;
+    const nx = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  ox + dx));
+    const ny = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, oy + dy));
+    el.style.left = nx + 'px'; el.style.top = ny + 'px';
+    el.style.right = 'auto';   el.style.bottom = 'auto';
+  });
+  el.addEventListener('pointerup', e => {
+    if (!dragging) return;
+    dragging = false;
+    try { el.releasePointerCapture(e.pointerId); } catch(_){}
+    if (moved){
+      const r = el.getBoundingClientRect();
+      try { localStorage.setItem(storageKey, JSON.stringify({ left: r.left, top: r.top })); } catch(_){}
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+  el.addEventListener('click', e => { if (moved){ e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+}
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 // v0.95.163 · Click/tap the game view (or dialog box) to advance dialogue
@@ -11744,6 +11794,10 @@ addEventListener('keyup', e => {
   status.id = 'padStatus';
   status.textContent = 'PRESS ANY BUTTON';
   document.body.appendChild(status);
+  // v0.95.451 · pad status + tile HUD are now movable · shared helper below
+  try { makeOverlayDraggable(status, 'rp7b_padstatus_pos_v1'); } catch(_){}
+  const hudEl = document.getElementById('hud');
+  if (hudEl){ try { makeOverlayDraggable(hudEl, 'rp7b_hud_pos_v1'); } catch(_){} }
 
   // Standard gamepad button index → key mapping
   const BTN = {

@@ -130,6 +130,7 @@
     }
     /* Live RHUD action layer. The portrait/frame remain authored artwork;
        these masks make each of the five 20% cells respond to real stats. */
+    /* v0.95.463 · Segmented meter · S1 default coords · S2 override below */
     #rizerHud .rizerLiveMeter{
       position:absolute; left:73.55%; width:21.05%; height:4.55%;
       display:grid; grid-template-columns:repeat(5,1fr); column-gap:2.55%;
@@ -138,9 +139,14 @@
     #rizerHud .rizerLiveMeter.hp{top:32.65%}
     #rizerHud .rizerLiveMeter.energy{top:48.78%}
     #rizerHud .rizerLiveMeter.special{top:65.30%}
+    /* v0.95.463 · Solid dark trough BEHIND each meter cell · masks any
+       over-chromakeyed holes in the HUD art so floor never bleeds through */
     #rizerHud .rizerLiveMeter i{
       position:relative; display:block; overflow:hidden;
       border-radius:1px;
+      background: linear-gradient(#12203a, #050914);
+      box-shadow: inset 0 0 0 1px rgba(212,175,55,0.55),
+                  inset 0 0 4px rgba(0,0,0,0.85);
     }
     #rizerHud .rizerLiveMeter i::after{
       content:""; position:absolute; top:0; right:0; bottom:0;
@@ -148,6 +154,15 @@
       background:rgba(2,5,13,.94);
       box-shadow:inset 0 0 2px rgba(90,125,175,.45);
     }
+    /* v0.95.463 · S2 (power_upgrade) HUD art places its meters slightly
+       differently · per-skin coordinate override keyed off data-skin so both
+       skins land pixel-accurate without touching the paint code */
+    #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter{
+      left:72.5%; width:22%;
+    }
+    #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter.hp     { top:31.8%; }
+    #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter.energy { top:48.0%; }
+    #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter.special{ top:64.5%; }
     /* ── v0.95.449 · Zyrex HUD · top-LEFT mirror of Rizer HUD ─────── */
     /* v0.95.457 · 40% smaller (500x281 → 300x169) · flush upper-LEFT
        (aspect preserved · asset native AR 1672/941 = 1.78) */
@@ -7189,6 +7204,8 @@ function applyPlayerSkin(id, announce = true){
   const rizerHud = document.getElementById('rizerHud');
   if (rizerHud){
     rizerHud.style.backgroundImage = `url('${rizerHudAsset(id)}')`;
+    // v0.95.463 · Skin flag drives per-skin meter coordinate overrides in CSS
+    rizerHud.setAttribute('data-skin', id);
   }
   document.querySelectorAll('[data-player-skin]').forEach(b => {
     b.classList.toggle('active', b.dataset.playerSkin === id);

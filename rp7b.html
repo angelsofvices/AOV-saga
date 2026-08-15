@@ -12968,6 +12968,47 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if(e.__roomEditHandled)return;
 
+  // ═══════════════════════════════════════════════════════════════
+  // v0.95.438 · HARDLINE · TOUCHPAD ALWAYS TOGGLES ZYPHONE
+  // Once player has backpack + zphone, pressing '2' bypasses EVERY other
+  // menu/state check and toggles the phone directly.  No dev panel gate,
+  // no settings menu gate, no zyrexMenu gate — this is the top of the
+  // whole handler so nothing downstream can eat it.
+  // ═══════════════════════════════════════════════════════════════
+  if (k === '2' && !e.repeat){
+    const _hasKit = !!player.hasBackpack && (player.items?.zphone || 0) > 0;
+    const _devBypass = (typeof isDevUnlocked === 'function' && isDevUnlocked());
+    if (_hasKit || _devBypass){
+      const _panel = document.getElementById('zphonePanel');
+      if (_panel){
+        const _liveDisp = getComputedStyle(_panel).display || _panel.style.display;
+        const _isOpen = _liveDisp && _liveDisp !== 'none';
+        // Close any dev panel that could be in the way so the phone paints on top
+        const _devPanel = document.getElementById('devPanel');
+        if (_devPanel && _devPanel.style.display === 'block'){
+          _devPanel.style.display = 'none';
+          game.devPanelKeyboard = false;
+        }
+        if (_isOpen){
+          _panel.style.display = 'none';
+          game.zphoneOpen = false;
+          game._zycellFocus = 'nav';
+          game._zycellItemIdx = 0;
+          try { playSFX('menuClose'); } catch(_){}
+        } else {
+          _panel.style.display = 'flex';
+          game.zphoneOpen = true;
+          game._zycellFocus = 'nav';
+          game._zycellItemIdx = 0;
+          try { paintZycellNav(); } catch(err){ console.warn('paintZycellNav failed', err); }
+          try { playSFX('menuOpen'); } catch(_){}
+        }
+        e.preventDefault();
+        return;
+      }
+    }
+  }
+
   // v0.95.303/307 · Dev panel takes EXCLUSIVE input while open · pass through
   // the specific navigation keys the dev panel needs (arrows for D-pad grid,
   // X/A/Z/Enter/Space for confirm/toggle, B/Shift/Escape for back-to-overworld,

@@ -3235,6 +3235,42 @@ const WORLD_PROPS = [
       onInteract: () => showToast('◈ Statue of NOVARIUS · First Beast Master.', 2400),
     };
   })(),
+  // ── v0.95.428 · MALEZOR RADIO TOWER · northeast Malezor · (38, 14) ──
+  // Two states · broken (default) vs fixed (after Scrapjaw's 12-Mori quest).
+  // drawProp reads _towerFixed at paint time to hot-swap the sprite/bbox.
+  (function(){
+    const brokenImg = new Image(); brokenImg.src = 'assets/2D%20sprites/decor/radio-tower-broken.png';
+    const fixedImg  = new Image(); fixedImg.src  = 'assets/2D%20sprites/decor/radio-tower-fixed.png';
+    const prop = {
+      id: 'malezor_radio_tower',
+      img: brokenImg,
+      src: 'assets/2D%20sprites/decor/radio-tower-broken.png',
+      bbox: [1, 1, 702, 1479],
+      tileX: 38, tileY: 14,
+      tileW: 5, tileH: 11,
+      // 3-wide × 4-tall base footprint · door tile is (0,0) at the front stone base
+      footprint: (function(){
+        const f = [];
+        for (let dy = -3; dy <= 0; dy++){
+          for (let dx = -1; dx <= 1; dx++){ f.push([dx, dy]); }
+        }
+        return f;
+      })(),
+      door: [0, 0],
+      _towerBrokenImg: brokenImg,
+      _towerFixedImg: fixedImg,
+      _towerBrokenBbox: [1, 1, 702, 1479],
+      _towerFixedBbox: [0, 0, 652, 1450],
+      onInteract: () => {
+        if (player.radioTowerFixed){
+          showToast('◈ Malezor Radio Tower · restored · signal broadcasting', 2400);
+        } else {
+          showToast('◈ Malezor Radio Tower · smashed antennas · Mori swarm the base', 2600);
+        }
+      },
+    };
+    return prop;
+  })(),
   // ── AURAXION'S UFO · (11, 175) Malezor wild arm · post-Part-1 fast-travel ──
   // Locked until endgame · will unlock interstellar travel after Part 1.
   (function(){
@@ -4217,19 +4253,48 @@ const NPCS = [
       // the RIZER (analysis + upgrades) tab · replaces the deprecated gearbag flow
       player.items = player.items || {};
       if (!player.scrapjawMet){
+        // v0.95.428 · FIRST TALK · introduces Scrapjaw · unlocks RIZER tab AND
+        // starts the Malezor Radio Tower quest (kill 12 Mori around the NE tower)
         player.scrapjawMet = true; try{pingNextObjective()}catch(_){}
         player.gearbagGifted = true;                     // legacy alias · keeps old saves happy
+        player.towerQuestStarted = true;
+        player.towerMoriKills = 0;
         try { awardRizerXP(500); } catch(_){}
         player.ownedCosmetics = player.ownedCosmetics || {};
         player.ownedCosmetics.normal = true;
-        showToast('★ RIZER tab unlocked · touchpad → RIZER · outfits + stat upgrades', 3200);
+        showToast('★ RIZER tab unlocked · NEW QUEST · clear 12 Mori at the NE Radio Tower', 3600);
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'SCRAPJAW', lines: [
           '*sniff*  ...you smell like a rookie Rizer.  I like rookies.  Rookies buy stuff.',
           '*leans in*  Listen · every Rizer worth a damn keeps a RIZER page.  Skins, cosmetics, stat boosts, all the drip.',
           'Bring me GEMS · I work your gear · you get bumps to HEALTH · ATTACK · DEFENSE · SPEED · STAMINA.  Five stats · five ways to survive.',
           'Just unlocked the RIZER tab on your touchpad · right of your bag.  Come back when you\'ve got gems.',
+          '*ear twitches*  One more thing · our RADIO TOWER out in the northeast?  Smashed.  A pack of MORI have been swarming the base for weeks · my repair crew won\'t set foot near it.',
+          'Clear out the swarm · TWELVE Mori · and I\'ll send my staff up to patch her back together.  Do that and I\'ll owe you something PRECIOUS.',
           '*grins*  Get my bond to 50 and I\'ll walk with you · upgrade your gear right in the field.',
+        ]});
+      } else if (player.towerQuestStarted && !player.radioTowerFixed && (player.towerMoriKills || 0) >= 12){
+        // TOWER QUEST COMPLETE · fix the tower + gift Phone Battery
+        player.radioTowerFixed = true;
+        player.phoneBattery = true;
+        try { awardRizerXP(750); } catch(_){}
+        try { pingNextObjective(); } catch(_){}
+        showToast('★ Radio Tower RESTORED · Phone Battery received · overworld calls unlocked', 4200);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'SCRAPJAW', lines: [
+          '*whistles*  All twelve?  You don\'t mess around, kid.',
+          'My crew\'s already climbing the tower · antennas back up · signal cleaner than the day it was raised.',
+          'Here · take this.  Fresh PHONE BATTERY straight off the workbench.  Slot it into that ZyCellite of yours.',
+          '*taps his temple*  You can now CALL every contact in your book from anywhere in Zyraxis · no more running clear across a district for a chat.',
+          'Try it · touchpad → CONTACTS · pick a name · dial.  Signal comes through my tower now.',
+        ]});
+      } else if (player.towerQuestStarted && !player.radioTowerFixed){
+        // TOWER QUEST IN PROGRESS
+        const k = player.towerMoriKills || 0;
+        showDialog({ speaker: 'SCRAPJAW', lines: [
+          `*sniff*  ${k}/12 Mori down at the tower · keep at it.`,
+          'Head NORTHEAST · past the statue · you\'ll see the broken spire before you see the swarm.',
+          'Twelve down and I fire up the repair crew · you get your PHONE BATTERY · game changer for a Rizer on the move.',
         ]});
       } else {
         const bond = (player.bonds && player.bonds.scrapjaw) || 0;
@@ -4238,6 +4303,7 @@ const NPCS = [
             ? '*grins*  Bond\'s high enough · Square me to take me with you.  I\'ll gear you up wherever you stand.'
             : `*sniff*  Bond ${bond}/50 · keep coming back · once we\'re tight I\'ll follow you and upgrade your gear on the road.`,
           'Bring gems anytime · RIZER tab on your touchpad · five stats waiting.',
+          'And thanks again for the tower · signal\'s clean · Zycellite crew owes you a beer.',
         ]});
       }
     },
@@ -5199,6 +5265,55 @@ const NPCS = [
       onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
+  // ── v0.95.428 · RADIO TOWER MORI · 12 spawns around the NE tower base ──
+  // Tagged `_towerMori: true` · Scrapjaw's tower quest counts these KOs only.
+  // Tower anchor (38, 14) w/ 3x4 base footprint · Mori roam the plaza to the
+  // north + west of the tower · Rizer approaches from the south (Malezor stem).
+  ...(function(){
+    const MORI_BBOXES = [
+      [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
+      [[71,45,189,254],[49,49,206,250],[17,45,207,251],[27,45,170,254]],
+      [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
+      [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
+    ];
+    const TOWER_MORI = [
+      { x: 34, y: 20, dir: 'right', r: 4 },
+      { x: 36, y: 21, dir: 'up',    r: 4 },
+      { x: 38, y: 21, dir: 'up',    r: 4 },
+      { x: 41, y: 20, dir: 'left',  r: 4 },
+      { x: 34, y: 16, dir: 'down',  r: 3 },
+      { x: 42, y: 16, dir: 'down',  r: 3 },
+      { x: 33, y: 12, dir: 'right', r: 3 },
+      { x: 35, y:  9, dir: 'down',  r: 3 },
+      { x: 40, y:  9, dir: 'down',  r: 3 },
+      { x: 42, y: 12, dir: 'left',  r: 3 },
+      { x: 37, y:  6, dir: 'down',  r: 3 },
+      { x: 39, y:  6, dir: 'down',  r: 3 },
+    ];
+    return TOWER_MORI.map((s, i) => ({
+      id: `tower_mori_${i + 1}`,
+      name: 'Mori',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/enemies/mori.png',
+      bboxes: MORI_BBOXES,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      tileX: s.x, tileY: s.y,
+      homeX: s.x, homeY: s.y,
+      homeScene: 'overworld',
+      scene: 'overworld',
+      wanderRadius: s.r,
+      dir: s.dir,
+      mode: 'wander',
+      moving: false,
+      animFrame: 0,
+      idleFrame: 0,
+      moveCd: 250 + Math.random() * 350,
+      blinkTimer: 9e9,
+      isEnemy: true,
+      _towerMori: true,                    // v0.95.428 · Scrapjaw tower-quest tag
+      onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI · guarding the broken tower', 2000); },
+    }));
+  })(),
   // v0.95.324 · Mori/Daemon perimeter passes MOVED to deferred init after
   // _propBlocked + isWorldBorderTile are defined (see v0.95.326 hotfix)
   // ── Mori · ZARVANE wild region · v0.95.129 · heavier population than Malezor ──
@@ -5473,7 +5588,7 @@ function tickUfoMelt(now){
   if(target){
     target._ufoBeamVictim=false;
     target.hp=0;target.scene='__dead__';target.moving=false;
-    recordMoriKill('ufo');
+    recordMoriKill('ufo', target);
     playSFX(target.mode==='daemon'?'astralKill':'moriDeath');
   }
   _ufoMelt=null;
@@ -7530,12 +7645,11 @@ const RIZER_ROOM_ITEMS={
   skateboard:{name:'Skateboard',x:3,y:1,homeX:3,homeY:1,footprint:[[0,0]]},
   guitar:{name:'Guitar',x:10,y:1,homeX:10,homeY:1,footprint:[[0,0]]},
   console:{name:'Game Console',x:8,y:3,homeX:8,homeY:3,footprint:[[0,0]]},
-  // v0.95.376 · ZyPhone resting on the LEFT side of the PC desk · tile (5, 7)
-  // Interact grants player.items.zphone + vanishes · listed BEFORE pc so roomItemAtTile
-  // returns zphone at (5,7) before matching the pc footprint that also covers it
-  // v0.95.426 · footprint EMPTIED · (5,7) walkable so player can stand there
-  // interact still fires via roomItemAtTile lookup facing the tile
-  zphone:{name:'ZyPhone',x:5,y:7,homeX:5,homeY:7,footprint:[]},
+  // v0.95.428 · ZyPhone lives on the PC desk's middle-left edge tile (6, 7) ·
+  // same tile PC's -1,0 footprint occupies so it's blocked (non-walkable) ·
+  // player must face it from LEFT (5,7) · TOP (6,6) · or BOTTOM (6,8) · no
+  // invisible interact · listed BEFORE pc so roomItemAtTile returns zphone first
+  zphone:{name:'ZyPhone',x:6,y:7,homeX:6,homeY:7,footprint:[[0,0]]},
   // v0.95.399 · Trimmed leftmost desk tile (-2,0)=(5,7) from footprint · was
   // an invisible collision west of the visible desk edge · desk now blocks (6,7)-(9,7)+(7,6)
   pc:{name:'Nebuladock PC',x:7,y:7,homeX:7,homeY:7,footprint:[[-1,0],[0,0],[1,0],[2,0],[0,-1]]},
@@ -7559,9 +7673,6 @@ function roomItemAtTile(x,y){
     if(id==='zphone'&&player.items?.zphone)continue;   // v0.95.376 · phone gone after pickup
     if(id==='chair'&&player.ridingChair)continue;
     if(it.footprint.some(([dx,dy])=>it.x+dx===x&&it.y+dy===y))return {id,it};
-    // v0.95.426 · Empty-footprint items (walkable pickups like ZyPhone) still
-    // match their anchor tile so face-detection + interact works from adjacent
-    if(it.footprint.length===0 && it.x===x && it.y===y) return {id,it};
   }
   return null;
 }
@@ -7987,7 +8098,7 @@ function applyAstralkickHit(tx, ty, skinId = player.cosmeticSkin){
       startMoriDeath(hit);
       // v0.95.317 · A4 astralkick kill · 2× base kill bonus for using ultimate
       awardRizerXP(((hit.tier || 1) * 16 + (hit.level || 1) * 2) * 2);
-      recordMoriKill('astralkick');
+      recordMoriKill('astralkick', hit);
       if (window.__rumbleHit) window.__rumbleHit('kill');
     }
     anyHit = true;
@@ -8270,7 +8381,7 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
       startMoriDeath(hit);
       // v0.95.317 · A3 astralstrike kill · 1.5× base kill bonus for the ranged tech
       awardRizerXP(Math.round(((hit.tier || 1) * 16 + (hit.level || 1) * 2) * 1.5));
-      recordMoriKill('astralstrike');
+      recordMoriKill('astralstrike', hit);
       if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
     }
     anyHit = true;
@@ -8855,10 +8966,22 @@ function applyHordeMode(){
   }
 }
 
-function recordMoriKill(mode){
+function recordMoriKill(mode, npc){
   player.stats.moriKills = (player.stats.moriKills || 0) + 1;
   if (mode === 'kick') player.stats.moriKillsHeavy = (player.stats.moriKillsHeavy || 0) + 1;
   else                 player.stats.moriKillsLight = (player.stats.moriKillsLight || 0) + 1;
+  // v0.95.428 · Scrapjaw's Radio Tower quest · count tagged tower KOs
+  if (npc && npc._towerMori && player.towerQuestStarted && !player.radioTowerFixed){
+    player.towerMoriKills = (player.towerMoriKills || 0) + 1;
+    const left = 12 - player.towerMoriKills;
+    if (left > 0){
+      showToast(`◈ TOWER · Mori down · ${player.towerMoriKills}/12 · return to Scrapjaw after 12`, 2200);
+    } else {
+      showToast('★ TOWER · all 12 Mori cleared · return to Scrapjaw at the Gear Shop', 3400);
+      try { playSFX('confirm'); } catch(_){}
+      try { pingNextObjective(); } catch(_){}
+    }
+  }
   // 5 Mori killed → Thrilleon outfit unlock
   if (!player.unlocks.thrilleon && player.stats.moriKills >= 5){
     player.unlocks.thrilleon = true;
@@ -10573,23 +10696,22 @@ addEventListener('keydown', e => {
             if (player.dir === 'right') fx0++;
             const facedBag = roomItemAtTile(fx0, fy0)?.id === 'dummy';
             if (facedBag){
-              // v0.95.424 · L2 or R2 held w/ Square = DRAG the bag · else PUNCH it
-              // L2='q' · R2='i' · plain Square keeps punching the bag normally
+              // v0.95.428 · CHORD-ONLY bag drag · plain Square ALWAYS punches
+              // L2='q' · R2='i' · both grab AND drop require the chord so
+              // Square alone can never accidentally move the bag mid-punch
               const dragChord = (keys['q'] || keys['i']);
-              if (game._bagDragging){
-                // Already dragging → Square releases (chord or plain)
-                game._bagDragging = false;
-                showToast('◈ Bag dropped', 1400);
-                try { playSFX('confirm'); } catch(_){}
-                return;
-              }
               if (dragChord){
-                game._bagDragging = true;
-                showToast('◈ Bag grabbed · move Rizer · Square to drop', 2200);
+                if (game._bagDragging){
+                  game._bagDragging = false;
+                  showToast('◈ Bag dropped', 1400);
+                } else {
+                  game._bagDragging = true;
+                  showToast('◈ Bag grabbed · L2/R2+Square to drop', 2200);
+                }
                 try { playSFX('confirm'); } catch(_){}
                 return;
               }
-              // No chord = plain Square = fall through to normal punch below
+              // Plain Square = PUNCH always · fall through to normal punch below
             }
           }
         }
@@ -10671,7 +10793,7 @@ addEventListener('keydown', e => {
               // v0.95.317 · Rizer XP · Mori kill · scales with enemy tier via awardRizerXP
               // Sanity check for early Malezor: ~32 XP/kill · 125 kills = Lv 6 tutorial pace
               awardRizerXP((hit.tier || 1) * 16 + (hit.level || 1) * 2);
-              recordMoriKill(mode);                     // v0.95.140 · cosmetic combat core
+              recordMoriKill(mode, hit);                // v0.95.140 · cosmetic combat core
               if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
             }
           }
@@ -14096,6 +14218,11 @@ function nextObjectiveHint(){
   if (!player.elzebubHatched)       return 'Find the Elzebub egg near (187, 45) · bring it home to Mom';
   if (!player.kaizariHintGiven)     return 'Return to Dad · ask about Kaizari';
   if (!player.scrapjawMet)          return 'Track down Scrapjaw at the Malezor Gear Shop';
+  if (player.towerQuestStarted && !player.radioTowerFixed){
+    const k = player.towerMoriKills || 0;
+    if (k < 12)                     return `Clear 12 Mori at the NE Radio Tower · ${k}/12`;
+    return 'Return to Scrapjaw · tower ready to be fixed';
+  }
   if (!player.kelthorMet)           return 'Meet Warden Kelthor at the Beastwarden\'s Hall';
   if (!player.townMapGifted)        return 'Find Zoryn in Malezor · he owes you a Town Map';
   return 'Free wander · every Kelthor step + expedition open on your ZyPhone';
@@ -14444,6 +14571,7 @@ function renderZycellExpeditions(){
 // ── CONTACTS · bond-gated call list ────────────────────────────────
 function renderZycellContacts(){
   const bonds = player.bonds || {};
+  const canCall = !!player.phoneBattery;               // v0.95.428 · Scrapjaw's Phone Battery
   const contacts = [
     ['mom','Mom','Home · Malezor'],
     ['dad','Dad','Research Facility'],
@@ -14459,13 +14587,38 @@ function renderZycellContacts(){
     const status = bond >= 100 ? '<span style="color:#5fdc7a;">✦ TRUSTED</span>'
                  : bond >= 50 ? '<span style="color:#ffd66b;">● BONDED</span>'
                  : '<span style="color:#889;">◯ acquaintance</span>';
-    return `<div style="padding:8px 10px; margin-bottom:4px; background:rgba(0,0,0,0.4); border-left:3px solid ${bond >= 50 ? '#5fdc7a' : '#4fb3ff'}; display:flex; justify-content:space-between; font-size:11px;">
-      <div><div style="color:#fff; font-weight:bold;">${name}</div><div style="color:#8ff; font-size:10px;">${loc}</div></div>
+    const callBtn = canCall
+      ? `<button data-call="${id}" data-name="${name}" style="margin-top:4px; padding:5px 9px; background:rgba(95,220,122,0.25); color:#5fdc7a; border:1px solid #5fdc7a; font:bold 10px 'Courier New',monospace; cursor:pointer; letter-spacing:.08em;">☎ CALL</button>`
+      : '';
+    return `<div style="padding:8px 10px; margin-bottom:4px; background:rgba(0,0,0,0.4); border-left:3px solid ${bond >= 50 ? '#5fdc7a' : '#4fb3ff'}; display:flex; justify-content:space-between; font-size:11px; gap:8px;">
+      <div><div style="color:#fff; font-weight:bold;">${name}</div><div style="color:#8ff; font-size:10px;">${loc}</div>${callBtn}</div>
       <div style="text-align:right;">${status}<div style="color:#cfe; font-size:10px;">Bond ${bond}/100</div></div>
     </div>`;
   }).join('');
-  return _zySection('👥 CONTACTS · call/bond hub', rows) +
-    `<div style="text-align:center; color:#8ff; font-size:10px; padding:6px;">Bond ≥ 50 = follow · Bond = 100 = soul-swap · Call UI wiring pending</div>`;
+  const footer = canCall
+    ? `<div style="text-align:center; color:#5fdc7a; font-size:10px; padding:6px;">✦ Phone Battery installed · dial any contact from anywhere</div>`
+    : `<div style="text-align:center; color:#ffd66b; font-size:10px; padding:6px;">◈ Calls locked · finish Scrapjaw's Radio Tower quest to get the Phone Battery</div>`;
+  // Bind call buttons after paint
+  if (canCall){
+    setTimeout(() => {
+      document.querySelectorAll('button[data-call]').forEach(btn => {
+        if (btn._zyBound) return;
+        btn._zyBound = true;
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-call');
+          const nm = btn.getAttribute('data-name');
+          const bond = (player.bonds && player.bonds[id]) || 0;
+          try { playSFX('confirm'); } catch(_){}
+          closeZphonePanel();
+          const lines = bond >= 50
+            ? [`*ring ring*  ${nm} picks up.`, `"Hey Rizer · signal\'s clear.  What\'s up?"`, `*click*  · line closed`]
+            : [`*ring ring*  ${nm} picks up.`, `"...oh, it\'s you.  Not really the time."`, `*click*  · they hung up`];
+          showDialog({ speaker: nm.toUpperCase(), lines });
+        });
+      });
+    }, 0);
+  }
+  return _zySection('👥 CONTACTS · call/bond hub', rows) + footer;
 }
 
 // ── ANIMATIONS · in-world summons + set-piece triggers ─────────────
@@ -18883,6 +19036,12 @@ function tickNPC(n, dt){
 }
 
 function drawProp(p){
+  // v0.95.428 · Malezor Radio Tower · dynamic broken→fixed swap
+  if (p && p.id === 'malezor_radio_tower' && p._towerFixedImg){
+    const fixed = !!player.radioTowerFixed;
+    p.img  = fixed ? p._towerFixedImg  : p._towerBrokenImg;
+    p.bbox = fixed ? p._towerFixedBbox : p._towerBrokenBbox;
+  }
   const [bx, by, bw, bh] = p.bbox;
   const drawW = p.tileW * TILE;
   const drawH = Math.round(drawW * (bh / bw));   // preserve source aspect

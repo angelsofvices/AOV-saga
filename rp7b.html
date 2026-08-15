@@ -19240,23 +19240,32 @@ function tickAggressiveZyrex(n){
 
 // v0.95.320 · Per-Zyrex attack animation sheets · 4 horizontal frames each
 // wind-up → charge → strike → recovery · CK-baked from ChatGPT prompt spec
+// v0.95.452 · CRITICAL FIX · files on disk are named attack_<species>.png · the
+// previous no-prefix paths were 404ing so this whole per-species pipeline never
+// fired.  All paths now point at the real filenames + zarakai moved into the
+// same attacks/ subfolder for consistency.
 const ZYREX_ATTACK_SHEETS = {
-  volcanut:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/volcanut.png' },
-  celestryx: { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/celestryx.png' },
-  rustbyte:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/rustbyte.png' },
-  apexaur:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/apexaur.png' },
-  auraxion:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/auraxion.png' },
-  otterlin:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/otterlin.png' },
-  elzoran:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/elzoran.png' },
-  voltaryn:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/voltaryn.png' },
-  elzebub:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/elzebub.png' },
-  // v0.95.450 · Zarakai · 4x4 sheet (D/L/R/U rows) · new engine flag: rows:4
-  // makes emitZyrexAttackSprite pick row 0 (front slash) at proper cell height
-  zarakai:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/zarakai-attack.png', rows: 4 },
+  volcanut:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_volcanut.png' },
+  celestryx: { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_celestryx.png' },
+  rustbyte:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_rustbyte.png' },
+  apexaur:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_apexaur.png' },
+  auraxion:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_auraxion.png' },
+  otterlin:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_otterlin.png' },
+  elzoran:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_elzoran.png' },
+  voltaryn:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_voltaryn.png' },
+  elzebub:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_elzebub.png' },
+  // Zarakai · 4x4 directional sheet (D/L/R/U rows) · engine flag rows:4 makes
+  // drawZyrexAttackAnims sample row 0 (front slash) at the correct cell height
+  zarakai:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_zarakai.png', rows: 4 },
 };
 Object.values(ZYREX_ATTACK_SHEETS).forEach(a => a.img.src = a.src);
-// Rustbyte = Gearbyte alias for the SPECIES id lookup
-ZYREX_ATTACK_SHEETS.gearbyte = ZYREX_ATTACK_SHEETS.rustbyte;
+// Rustbyte = Gearbyte alias for the SPECIES id lookup (post-rename compat)
+if (ZYREX_ATTACK_SHEETS.rustbyte) ZYREX_ATTACK_SHEETS.gearbyte = ZYREX_ATTACK_SHEETS.rustbyte;
+// Load-error logger · surfaces any surviving 404s in the console instead of
+// silently returning false from emitZyrexAttackSprite forever
+Object.entries(ZYREX_ATTACK_SHEETS).forEach(([id, a]) => {
+  a.img.addEventListener('error', () => console.warn('[rp7b] zyrex attack sheet 404 · ' + id + ' · ' + a.src));
+});
 // Attach a sprite-based attack animation instead of the ring-only VFX
 const _zyrexAttackAnims = [];
 function emitZyrexAttackSprite(speciesId, x, y){

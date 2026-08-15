@@ -5376,6 +5376,78 @@ const NPCS = [
       onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI · guarding the broken tower', 2000); },
     }));
   })(),
+  // ── v0.95.441 · SEER GRUNT · new humanoid enemy · between Mori and Daemon ──
+  // Grunt A (leaner) + Grunt B (bulkier) · progressive density outward from home:
+  //   Malezor outskirts = 5 · Zarvane = 10 · Andrannor = 15 · Veridan = 18
+  // Both use mode: 'drainer' (chase-and-strike AI) with drainAmt override.
+  ...(function(){
+    // CC bboxes extracted from the attack sheets · rows D/L/R/U · cols 0-3 (col 2 = strike)
+    const GRUNT_A_BBOXES = [
+      [[134,84,118,209],[96,87,137,206],[61,100,159,213],[57,90,121,203]],
+      [[139,57,133,171],[104,57,149,171],[16,0,229,228],[68,57,133,171]],
+      [[109,21,140,173],[94,22,147,291],[68,21,226,292],[39,20,135,174]],
+      [[135,6,109,205],[110,0,106,211],[81,0,113,211],[66,6,112,205]],
+    ];
+    const GRUNT_B_BBOXES = [
+      [[170,74,112,228],[103,74,152,228],[69,74,173,228],[32,75,110,227]],
+      [[163,57,109,217],[89,60,144,212],[7,63,203,209],[41,58,109,216]],
+      [[160,27,108,286],[105,33,141,207],[63,35,200,278],[38,27,108,286]],
+      [[163,0,115,218],[89,3,138,220],[83,0,107,233],[34,0,117,218]],
+    ];
+    // Curated seed spawns · outskirts of Malezor hometown (rows 100-150, cols 5-40)
+    // Zarvane wild band gets more · Andrannor/Veridan get most
+    const SPOTS = [
+      // ── MALEZOR OUTSKIRTS · 5 spawns · rings the hometown perimeter ──
+      { x:  8, y: 118, v:'A' }, { x: 40, y: 128, v:'B' },
+      { x: 15, y: 148, v:'A' }, { x: 34, y: 152, v:'A' }, { x: 25, y: 160, v:'B' },
+      // ── ZARVANE · 10 spawns · wild-arm + SE block ──
+      { x: 55, y: 200, v:'A' }, { x: 70, y: 205, v:'B' }, { x: 82, y: 210, v:'A' },
+      { x: 96, y: 215, v:'B' }, { x:110, y: 220, v:'A' },
+      { x: 68, y: 245, v:'B' }, { x: 88, y: 258, v:'A' }, { x:104, y: 268, v:'B' },
+      { x: 78, y: 285, v:'A' }, { x: 96, y: 298, v:'B' },
+      // ── ANDRANNOR · 15 spawns · central band ──
+      { x:180, y: 310, v:'A' }, { x:195, y: 316, v:'B' }, { x:210, y: 322, v:'A' },
+      { x:225, y: 328, v:'B' }, { x:245, y: 320, v:'A' }, { x:260, y: 315, v:'B' },
+      { x:275, y: 325, v:'A' }, { x:195, y: 335, v:'B' }, { x:215, y: 340, v:'A' },
+      { x:235, y: 345, v:'B' }, { x:255, y: 335, v:'A' }, { x:270, y: 340, v:'B' },
+      { x:200, y: 348, v:'B' }, { x:230, y: 352, v:'A' }, { x:265, y: 350, v:'B' },
+    ];
+    return SPOTS.map((s, i) => {
+      const isA = s.v === 'A';
+      return {
+        id: `seer_grunt_${s.v.toLowerCase()}_${i + 1}`,
+        name: isA ? 'Seer Grunt' : 'Seer Grunt Elite',
+        sheet: new Image(),
+        src: isA ? 'assets/2D%20sprites/enemies/seer-grunt-a-attack.png'
+                 : 'assets/2D%20sprites/enemies/seer-grunt-b-attack.png',
+        bboxes: isA ? GRUNT_A_BBOXES : GRUNT_B_BBOXES,
+        cellW: 313, cellH: 313, cols: 4, rows: 4,
+        tileX: s.x, tileY: s.y,
+        homeX: s.x, homeY: s.y,
+        homeScene: 'overworld',
+        scene: 'overworld',
+        wanderRadius: 6,
+        dir: 'down',
+        mode: 'drainer',                    // chase + adjacent strike AI
+        moving: false,
+        animFrame: 0,
+        idleFrame: 0,
+        moveCd: 300 + Math.random() * 300,
+        blinkTimer: 9e9,
+        isEnemy: true,
+        detectR: isA ? 10 : 12,             // Grunt B senses farther
+        hpMax: isA ? 175 : 200,             // between Mori 125 and Daemon 250
+        hp:    isA ? 175 : 200,
+        drainAmt: isA ? 7 : 8,              // between Mori 5 and Daemon 10
+        tier: isA ? 2 : 3,                  // xp reward tier
+        _seerGrunt: true,
+        onInteract: (n) => {
+          const nm = isA ? 'SEER GRUNT' : 'SEER GRUNT ELITE';
+          showToast(`◈ ${nm} · "The Seers see all... die, Rizer."`, 2400);
+        },
+      };
+    });
+  })(),
   // v0.95.324 · Mori/Daemon perimeter passes MOVED to deferred init after
   // _propBlocked + isWorldBorderTile are defined (see v0.95.326 hotfix)
   // ── Mori · ZARVANE wild region · v0.95.129 · heavier population than Malezor ──
@@ -19363,7 +19435,8 @@ function tickNPC(n, dt){
       : (n.detectR || (isDaemon ? 14 : 8));
     const stepCd    = isDaemon ? 130 : 230;
     const idleCd    = isDaemon ? 380 : 620;
-    const drainAmt  = isDaemon ? 10 : 5;             // v0.95.134 · basic Mori = 5 dmg · daemon = 10
+    // v0.95.441 · per-NPC drainAmt override (Seer Grunts sit between Mori and Daemon)
+    const drainAmt  = (typeof n.drainAmt === 'number') ? n.drainAmt : (isDaemon ? 10 : 5);
     const dxp = player.x - n.tileX, dyp = player.y - n.tileY;
     const manh = Math.abs(dxp) + Math.abs(dyp);
     // Adjacent contact → drain life

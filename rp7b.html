@@ -1430,6 +1430,8 @@ let _moriNearbyCd = 0;
 let _skellorNearbyCd = 0;
 setInterval(() => {
   if (game.scene !== 'overworld' || battleState || wildBattleState || dialogState) return;
+  // v0.95.456 · Phone / pause = FULL freeze · no proximity groans while menu is up
+  if (game.zphoneOpen || game.paused) return;
   const now = performance.now();
   const moriReady    = now >= _moriNearbyCd;
   const skellorReady = now >= _skellorNearbyCd;
@@ -4264,9 +4266,25 @@ const NPCS = [
     turnToInteract: true,
     onInteract: (n) => {
       playSFX('nurseRein');                             // v0.95.128 · sakura chime
+      // v0.95.456 · Free full-heal on every talk · Rizer + every party Zyrex → 100% HP
+      const hpMaxR = player.hpMax || 100;
+      const missingR = Math.max(0, hpMaxR - (player.hp || 0));
+      player.hp = hpMaxR;
+      let healedZ = 0;
+      (player.party || []).forEach(z => {
+        if (!z) return;
+        const mx = z.maxHp || z.hpMax || 0;
+        if (mx > 0 && (z.hp || 0) < mx){ z.hp = mx; healedZ++; }
+      });
+      try { playSFX('heal'); } catch(_){}
+      const summary = missingR > 0
+        ? `+${missingR} HP restored${healedZ ? ` · ${healedZ} Zyrex healed` : ''}`
+        : (healedZ ? `${healedZ} Zyrex healed` : 'already at full strength');
+      showToast(`★ Nurse Rein · ${summary}`, 2600);
       showDialog({ speaker: 'NURSE REIN', lines: [
-        'Welcome, dear Rizer!  Your mother speaks highly of you.',
-        'Come inside when your Zyrex need patching up · we heal humans AND Zyrex here.',
+        'Welcome, dear Rizer!  Come here · let me look at those wounds.',
+        `*sakura chime*  There · every hit patched · every Zyrex ready.`,
+        'The hospital is always open for you · free of charge.  Your mother\'s son doesn\'t pay here.',
       ]});
     },
   },
@@ -19925,7 +19943,22 @@ function drawNPC(n){
     // Remap row based on companionRowMap
     if (n.companionRowMap) row = n.companionRowMap[n.dir] ?? row;
   }
-  const col     = useCompanion            ? Math.floor(performance.now() / (n.companionFrameMs || 200)) % useCols
+  // v0.95.456 · Attack anim cycle · when Vilerok/Morlisk/Satyrbeast is playing
+  // a light/heavy strike, walk the 4 cols across the strike duration so the
+  // slash actually READS instead of freezing on col 0
+  let _attackCol = -1;
+  if (n._vSheets){
+    const _now2 = performance.now();
+    if ((n._heavyUntil || 0) > _now2){
+      const dur = 520; const start = n._heavyUntil - dur;
+      _attackCol = Math.min(3, Math.max(0, Math.floor(((_now2 - start) / dur) * 4)));
+    } else if ((n._lightUntil || 0) > _now2){
+      const dur = 340; const start = n._lightUntil - dur;
+      _attackCol = Math.min(3, Math.max(0, Math.floor(((_now2 - start) / dur) * 4)));
+    }
+  }
+  const col     = _attackCol >= 0            ? _attackCol
+                : useCompanion            ? Math.floor(performance.now() / (n.companionFrameMs || 200)) % useCols
                 : useWalk                 ? (n.animFrame % n.cols)
                 : n.moving                ? (n.animFrame % n.cols)
                 : n.idleCycleMs            ? Math.floor(performance.now() / n.idleCycleMs) % useCols
@@ -20367,6 +20400,26 @@ function frame(now){
   // v0.95.422 · FULL FREEZE gate · ZyPhone open OR game.paused = every world
   // tick halts (NPCs, projectiles, animation) · only rendering + BGM continue
   const _paused = game.zphoneOpen || game.paused;
+  // v0.95.456 · Hard freeze · zero out every player-input key + attack/dodge/jump
+  // timers so nothing carries through the menu.  Real-game pause behavior.
+  if (_paused){
+    if (typeof keys === 'object' && keys){
+      for (const k of Object.keys(keys)) keys[k] = false;
+    }
+    // Cancel in-flight actions so they don't resume mid-swing when the menu closes
+    player.moving = false;
+    if (player.attackUntil)   player.attackUntil = 0;
+    if (player.jumpUntil)     player.jumpUntil = 0;
+    if (player.dodgeUntil)    player.dodgeUntil = 0;
+    if (player.interactUntil) player.interactUntil = 0;
+    if (player.faeCatchUntil) player.faeCatchUntil = 0;
+    if (player._doubleJump)   player._doubleJump  = false;
+    if (player._astralthrowState){
+      try { clearTimeout(player._astralthrowState.releaseTimer); } catch(_){}
+      try { clearTimeout(player._astralthrowState.holdTimer); } catch(_){}
+    }
+    if (player.blocking){ player.blocking = false; player._blockStunUntil = 0; }
+  }
   // NPC ticks · wander or follow · only NPCs in the current scene
   // v0.95.306 · Settings menu pauses overworld gameplay · NPC wander / astral proj / etc. all freeze
   if (!_paused && game.scene !== 'title' && !battleState && !wildBattleState && !settingsMenuOpen){
@@ -20466,7 +20519,8 @@ function frame(now){
     try { tickFae(); } catch(_){}
   }
   // v0.95.404 · Skellor hurt-frame render moved into drawWorldLayer's NPC loop
-  try { tickSkellorRespawn(); } catch(_){}   // 10s farm-loop respawn while natives alive
+  // v0.95.456 · Skellor spawner also freezes during phone / pause (full menu freeze)
+  if (!(game.zphoneOpen || game.paused)){ try { tickSkellorRespawn(); } catch(_){} }
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

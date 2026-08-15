@@ -5767,21 +5767,9 @@ function lootSkellor(n){
 // - Only ONE live Skellor at a time (must be freed before another appears)
 // - Spawns off-camera (14-20 tile ring around player · same-district land)
 // - Walks toward player passively · pleads to be freed from misery
-function tickSkellorRespawn(){
-  if (game.scene !== 'overworld') return;
-  const now = performance.now();
-  if (!game._skellorRespawnAt) game._skellorRespawnAt = now + 30 * 1000;   // first stalker 30s after boot
-  if (now < game._skellorRespawnAt) return;
-  // Only spawn if no live Skellor is currently stalking
-  const anyAlive = NPCS.some(n => n && n.mode === 'skellor' && !n._skellorDead);
-  if (anyAlive){
-    // Delay recheck 20s · don't stack timers while one is still active
-    game._skellorRespawnAt = now + 20 * 1000;
-    return;
-  }
-  // Try up to 20 candidate tiles until we find a clean off-camera spawn
-  let placed = false;
-  for (let tries = 0; tries < 20 && !placed; tries++){
+// v0.95.430 · Shared spawn helper · picks a clean off-camera tile + pushes NPC
+function _spawnStalkerSkellor(reason){
+  for (let tries = 0; tries < 24; tries++){
     const dist = 14 + Math.floor(Math.random() * 7);
     const angle = Math.random() * Math.PI * 2;
     const sx = Math.round(player.x + Math.cos(angle) * dist);
@@ -5791,12 +5779,40 @@ function tickSkellorRespawn(){
     const id = `stalker_${(game._skellorRespCount = (game._skellorRespCount || 0) + 1)}`;
     const n = _makeSkellor(sx, sy, id);
     n._native = true;
+    n._spawnReason = reason;
     NPCS.push(n);
     (window._skellorNatives || new Set()).add(n.id);
-    placed = true;
+    return true;
   }
-  // v0.95.425 · Faster spawn cadence · re-arm every 90s (was 5min)
-  game._skellorRespawnAt = now + 90 * 1000;
+  return false;
+}
+
+function tickSkellorRespawn(){
+  if (game.scene !== 'overworld') return;
+  const now = performance.now();
+
+  // ── NATURAL CADENCE · 2 min timer · ignores alive count · always tops up ──
+  if (!game._skellorRespawnAt) game._skellorRespawnAt = now + 30 * 1000;   // first stalker 30s after boot
+  if (now >= game._skellorRespawnAt){
+    _spawnStalkerSkellor('natural');
+    game._skellorRespawnAt = now + 120 * 1000;                              // v0.95.430 · 2 min cadence
+  }
+
+  // ── IDLE-COMPOUND SPAWNER · every 10s of player idle time → +1 Skellor ──
+  // Resets the instant the player moves · keeps game pace flowing when the
+  // user parks Rizer · compounds indefinitely until movement resumes.
+  const idleReset = () => { game._playerIdleStart = now; game._skellorIdleNextAt = now + 10000; };
+  if (game._playerLastX !== player.x || game._playerLastY !== player.y || player.moving){
+    game._playerLastX = player.x;
+    game._playerLastY = player.y;
+    idleReset();
+  }
+  // Don't fire idle spawns during dialog/battle/menus · pause = pause
+  const anyModal = !!(dialogState || battleState || wildBattleState || game.zphoneOpen || game.paused);
+  if (!anyModal && game._skellorIdleNextAt && now >= game._skellorIdleNextAt){
+    _spawnStalkerSkellor('idle-compound');
+    game._skellorIdleNextAt = now + 10000;                                  // next compound spawn in another 10s
+  }
 }
 // Overlay renderer retired · drawSkellorHurtFrame handles per-Skellor render now
 function drawSkellorOverlay(){
@@ -5890,7 +5906,7 @@ function drawSkellorOverlay(){
     onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
   }));
   // v0.95.406 · No native scatter · Skellors are pure stalker events now
-  // (see tickSkellorRespawn · 1 spawn every 5 minutes)
+  // (see tickSkellorRespawn · 1 natural spawn every 2 min · +1 per 10s idle · v0.95.430)
   window._skellorNatives = new Set();
   // Rebuild sprite src assignments (Image objects need explicit .src set)
   NPCS.forEach(n => { if (n.sheet && n.src && !n.sheet.src) n.sheet.src = n.src; });

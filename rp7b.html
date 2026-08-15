@@ -5694,6 +5694,89 @@ const NPCS = [
       onInteract: (n) => { showToast('◈ MORLISK · a winged wail cuts the air', 2200); },
     }));
   })(),
+  // ── v0.95.448 · SATYRBEAST · pack hunter · goat-warrior · sight-aggro ──
+  // 4-sheet swap · pack spawns (4 per pack · 4 packs = 16 total) · long detectR
+  // so if they SEE the player they lock on and chase.  Stats sit between Grunt B
+  // and Daemon in the ladder — pack tactics are the real threat, not raw HP.
+  ...(function(){
+    const S_IDLE = [
+      [[47,54,220,259],[49,42,215,271],[46,32,219,281],[44,56,216,257]],
+      [[25,0,268,303],[21,0,269,303],[19,0,270,303],[20,0,269,303]],
+      [[32,62,272,235],[33,61,273,236],[31,61,274,236],[29,62,274,235]],
+      [[69,33,183,266],[67,33,184,266],[67,26,184,273],[67,33,183,266]],
+    ];
+    const S_RUN = [
+      [[83,61,155,248],[71,66,156,247],[63,64,154,247],[25,76,184,225]],
+      [[29,65,280,205],[17,0,282,278],[11,88,300,184],[4,74,280,201]],
+      [[23,73,290,210],[0,72,290,212],[14,72,277,208],[7,73,275,194]],
+      [[84,42,147,251],[78,40,144,247],[70,37,147,250],[62,37,147,250]],
+    ];
+    const S_LIGHT = [
+      [[47,51,220,262],[51,50,221,263],[56,58,227,255],[44,56,216,257]],
+      [[28,0,262,303],[50,0,263,300],[0,0,287,300],[23,0,262,303]],
+      [[31,64,262,233],[17,61,250,233],[31,64,282,249],[0,61,302,236]],
+      [[70,30,180,268],[38,26,205,271],[22,0,232,297],[67,30,182,268]],
+    ];
+    const S_HEAVY = [
+      [[48,101,217,190],[33,130,226,161],[18,94,250,219],[29,101,213,190]],
+      [[34,80,237,196],[28,103,285,174],[0,0,284,280],[15,81,236,196]],
+      [[50,60,218,188],[13,78,300,166],[0,65,298,248],[34,60,218,188]],
+      [[76,14,159,221],[34,28,200,207],[21,0,201,237],[50,14,160,221]],
+    ];
+    const runImg   = new Image(); runImg.src   = 'assets/2D%20sprites/enemies/satyrbeast-run.png';
+    const lightImg = new Image(); lightImg.src = 'assets/2D%20sprites/enemies/satyrbeast-light.png';
+    const heavyImg = new Image(); heavyImg.src = 'assets/2D%20sprites/enemies/satyrbeast-heavy.png';
+    // ── PACK ANCHORS · 4 members per pack · 16 total ──
+    const PACKS = [
+      { cx:  80, cy: 240 },     // Zarvane wild NW pack
+      { cx: 105, cy: 275 },     // Zarvane wild SE pack
+      { cx: 215, cy: 335 },     // Andrannor central pack
+      { cx: 345, cy: 225 },     // Veridan cliffs pack
+    ];
+    // 4-tile ring layout · each pack member spawns 1-2 tiles from anchor
+    const RING = [[-2,-1],[2,-1],[-2,1],[2,1]];
+    const list = [];
+    PACKS.forEach((p, pi) => {
+      RING.forEach((off, mi) => {
+        list.push({
+          id: `satyrbeast_p${pi + 1}_${mi + 1}`,
+          name: 'Satyrbeast',
+          sheet: new Image(),
+          src:   'assets/2D%20sprites/enemies/satyrbeast-idle.png',
+          bboxes: S_IDLE,
+          cellW: 313, cellH: 313, cols: 4, rows: 4,
+          uniformScale: true,
+          scaleMul: 1.15,
+          tileX: p.cx + off[0], tileY: p.cy + off[1],
+          homeX: p.cx + off[0], homeY: p.cy + off[1],
+          homeScene: 'overworld',
+          scene: 'overworld',
+          wanderRadius: 4,                    // stays near pack anchor
+          dir: 'down',
+          mode: 'drainer',                    // chase + adjacent strike
+          moving: false,
+          animFrame: 0, idleFrame: 0,
+          moveCd: 200 + Math.random() * 250,
+          blinkTimer: 9e9,
+          isEnemy: true,
+          detectR: 15,                        // LONG sight · sees Rizer from far
+          hpMax: 230, hp: 230,                // between Grunt B 200 and Daemon 250
+          drainAmt: 9,                        // just under Daemon
+          tier: 3,
+          _satyrbeast: true,
+          _packId: pi + 1,
+          _vSheets: {
+            idle:  { img: null,     bboxes: S_IDLE  },
+            run:   { img: runImg,   bboxes: S_RUN   },
+            light: { img: lightImg, bboxes: S_LIGHT },
+            heavy: { img: heavyImg, bboxes: S_HEAVY },
+          },
+          onInteract: (n) => { showToast('◈ SATYRBEAST · the pack howls · they SAW you', 2400); },
+        });
+      });
+    });
+    return list;
+  })(),
   // ── v0.95.442 · VILEROK MORI ESCORTS · 4 Mori per boss (20 total) ──
   ...(function(){
     const MORI_BBOXES = [
@@ -19867,15 +19950,25 @@ function tickNPC(n, dt){
     const idleCd    = isDaemon ? 380 : 620;
     // v0.95.441 · per-NPC drainAmt override (Seer Grunts sit between Mori and Daemon)
     const drainAmt  = (typeof n.drainAmt === 'number') ? n.drainAmt : (isDaemon ? 10 : 5);
-    // v0.95.442/447 · Multi-sheet enemy attack anim · Vilerok + Morlisk both fire
-    // light/heavy strike frames on adjacent hit · vilerokPickSheet reads these timers
+    const dxp = player.x - n.tileX, dyp = player.y - n.tileY;
+    const manh = Math.abs(dxp) + Math.abs(dyp);
+    // v0.95.442/447 · Multi-sheet enemy attack anim · Vilerok + Morlisk + Satyrbeast
+    // fire light/heavy strike frames on adjacent hit · vilerokPickSheet reads these timers
     if (n._vSheets && manh === 1 && game.scene === 'overworld'){
       const heavy = Math.random() < 0.35;
       if (heavy){ n._heavyUntil = performance.now() + 520; }
       else      { n._lightUntil = performance.now() + 340; }
     }
-    const dxp = player.x - n.tileX, dyp = player.y - n.tileY;
-    const manh = Math.abs(dxp) + Math.abs(dyp);
+    // v0.95.448 · SATYRBEAST pack aggro · if any pack member spots the player
+    // (within detectR), alert the whole pack for 6s so they charge together
+    if (n._satyrbeast && n._packId && manh <= detectR){
+      const now2 = performance.now();
+      for (const other of NPCS){
+        if (other && other._satyrbeast && other._packId === n._packId && other !== n){
+          other._aggroUntil = Math.max(other._aggroUntil || 0, now2 + 6000);
+        }
+      }
+    }
     // Adjacent contact → drain life
     if (manh === 1 && game.scene === 'overworld'){
       hurtPlayer(drainAmt, n.name || 'Mori');

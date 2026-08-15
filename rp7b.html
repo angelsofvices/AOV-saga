@@ -14027,6 +14027,8 @@ addEventListener('keydown', e => {
     // Force-open the panel directly so no exception in openZphonePanel prevents visibility
     if (_zPanel) _zPanel.style.display = 'flex';
     game.zphoneOpen = true;
+    game._zycellFocus = 'nav';                 // v0.95.436 · fresh open always lands on nav
+    game._zycellItemIdx = 0;
     try { paintZycellNav(); } catch(err){ console.warn('paintZycellNav failed', err); }
     try { playSFX('menuOpen'); } catch(_){}
     return;
@@ -14608,7 +14610,7 @@ function renderZycellZycube(){
       const isFav = player.favoriteItem === k;
       const star = isFav ? '★' : '☆';
       const starColor = isFav ? '#ffd66b' : 'rgba(200,220,255,0.4)';
-      return `<div class="zyBagRow" data-item="${k}"
+      return `<div class="zyBagRow" data-item="${k}" data-zyitem="${k}"
           style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-bottom:1px solid rgba(79,179,255,0.15); font-size:12px; cursor:pointer; transition:background 120ms;"
           onmouseover="this.style.background='rgba(79,179,255,0.18)'"
           onmouseout="this.style.background='transparent'">
@@ -15023,6 +15025,8 @@ function openZphonePanel(){
   if (!p) return;
   p.style.display = 'flex';
   game.zphoneOpen = true;
+  game._zycellFocus = 'nav';               // v0.95.436 · always land on nav rail
+  game._zycellItemIdx = 0;
   paintZycellNav();
   playSFX('menuOpen');
 }
@@ -15030,11 +15034,15 @@ function closeZphonePanel(){
   const p = document.getElementById('zphonePanel');
   if (p) p.style.display = 'none';
   game.zphoneOpen = false;
+  game._zycellFocus = 'nav';               // v0.95.436 · reset so next open starts clean
+  game._zycellItemIdx = 0;
   playSFX('menuClose');
 }
 function zycellCyclePage(dir){
   const i = ZYCELL_PANELS.indexOf(zycellPage);
   zycellPage = ZYCELL_PANELS[(i + dir + ZYCELL_PANELS.length) % ZYCELL_PANELS.length];
+  game._zycellFocus = 'nav';                 // v0.95.436 · new page = back to nav
+  game._zycellItemIdx = 0;
   playSFX('cursor');
   paintZycellNav();
 }
@@ -15043,8 +15051,50 @@ function zycellMoveCursor(dir){
   const n = i + dir;
   if (n < 0 || n >= ZYCELL_PANELS.length) return;
   zycellPage = ZYCELL_PANELS[n];
+  game._zycellFocus = 'nav';                 // v0.95.436 · new page = back to nav
+  game._zycellItemIdx = 0;
   playSFX('cursor');
   paintZycellNav();
+}
+// v0.95.436 · Two-pane focus model · LEFT (nav rail) vs MIDDLE (content items)
+// game._zycellFocus === 'nav' | 'content' · X/Right enters content · B/Left exits back
+// Content items are auto-collected from the middle pane's [data-zyitem] children so
+// every panel that opts in gets keyboard nav for free.
+function _zycellContentItems(){
+  const c = document.getElementById('zycellContent');
+  if (!c) return [];
+  return Array.from(c.querySelectorAll('[data-zyitem]')).filter(el => el.offsetParent !== null);
+}
+function _zycellPaintFocus(){
+  const items = _zycellContentItems();
+  const cursor = game._zycellItemIdx || 0;
+  items.forEach((el, i) => {
+    if (game._zycellFocus === 'content' && i === cursor){
+      el.style.outline = '2px solid #ffd66b';
+      el.style.outlineOffset = '2px';
+      el.scrollIntoView({ block: 'nearest' });
+    } else {
+      el.style.outline = '';
+    }
+  });
+  // Dim nav rail while content is focused so the split reads
+  const nav = document.getElementById('zycellNav');
+  if (nav) nav.style.opacity = game._zycellFocus === 'content' ? '0.55' : '1';
+}
+function zycellEnterContent(){
+  const items = _zycellContentItems();
+  if (!items.length){ playSFX('cancel'); return false; }
+  game._zycellFocus = 'content';
+  game._zycellItemIdx = 0;
+  _zycellPaintFocus();
+  playSFX('cursor');
+  return true;
+}
+function zycellExitContent(){
+  game._zycellFocus = 'nav';
+  game._zycellItemIdx = 0;
+  _zycellPaintFocus();
+  playSFX('cursor');
 }
 // Central key handler · gamepad + kb + mobile all dispatch the same synth-keys
 // so this function alone covers all three partitions.
@@ -15056,16 +15106,51 @@ function handleZycellKey(k){
   const _domOpen = _panelEl && _liveDisp && _liveDisp !== 'none';
   if (!_domOpen){ game.zphoneOpen = false; return false; }
   game.zphoneOpen = true;
-  // v0.95.424 · Close on Circle (b) OR Touchpad (2) · Options (3) is pause-only now
-  if (k === 'b' || k === 'escape' || k === '2'){ closeZphonePanel(); return true; }
+  if (!game._zycellFocus) game._zycellFocus = 'nav';
+  // Circle/Escape/Touchpad close · but if focused on content, first Circle pops back to nav
+  if (k === 'b' || k === 'escape'){
+    if (game._zycellFocus === 'content'){ zycellExitContent(); return true; }
+    closeZphonePanel(); game._zycellFocus = 'nav'; return true;
+  }
+  if (k === '2'){ closeZphonePanel(); game._zycellFocus = 'nav'; return true; }
+  // ── CONTENT FOCUS · arrows walk the item list · X uses/interacts · triangle stars
+  if (game._zycellFocus === 'content'){
+    const items = _zycellContentItems();
+    if (!items.length){ zycellExitContent(); return true; }
+    if (game._zycellItemIdx >= items.length) game._zycellItemIdx = 0;
+    if (k === 'arrowup')   { game._zycellItemIdx = (game._zycellItemIdx - 1 + items.length) % items.length; _zycellPaintFocus(); playSFX('cursor'); return true; }
+    if (k === 'arrowdown') { game._zycellItemIdx = (game._zycellItemIdx + 1) % items.length; _zycellPaintFocus(); playSFX('cursor'); return true; }
+    if (k === 'arrowleft'){ zycellExitContent(); return true; }
+    if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
+      const el = items[game._zycellItemIdx];
+      if (el){
+        // Prefer favoriting via a nested .zyBagFav star click · falls back to using the row
+        const fav = el.querySelector('.zyBagFav') || el.querySelector('[data-zyfav]');
+        // v0.95.436 · Triangle (k) toggles favorite · X/Enter uses the item
+        const useFav = (k === 'y');   // reserved for future triangle
+        if (useFav && fav){ fav.click(); return true; }
+        el.click();
+      }
+      return true;
+    }
+    if (k === 'y'){                    // Triangle · toggle favorite on selected row
+      const el = items[game._zycellItemIdx];
+      const fav = el && (el.querySelector('.zyBagFav') || el.querySelector('[data-zyfav]'));
+      if (fav){ fav.click(); return true; }
+    }
+    return true;                       // swallow anything else while in content focus
+  }
+  // ── NAV FOCUS · arrows walk the rail · X enters the content pane ──
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
   if (k === 'arrowleft' || k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
-  if (k === 'arrowright'|| k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
+  if (k === 'arrowright'){ zycellEnterContent(); return true; }   // NEW · Right enters content
+  if (k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
   if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
-    // Selection stub · content-panel-specific actions land in pass 2+
-    showToast(`◈ ZyCellite · ${zycellPage.toUpperCase()} · panel content ships next pass`, 2200);
-    playSFX('confirm');
+    // v0.95.436 · X on nav = enter the middle content pane (was: stub toast)
+    if (!zycellEnterContent()){
+      showToast(`◈ ZyCellite · ${zycellPage.toUpperCase()} · no interactive items yet`, 2000);
+    }
     return true;
   }
   return false;

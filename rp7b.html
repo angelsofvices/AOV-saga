@@ -14001,30 +14001,37 @@ addEventListener('keydown', e => {
       zyrexMenuOpen = false;
       return;
     }
-    // v0.95.433 · Self-heal state drift · if game.zphoneOpen claims true but the
-    // DOM panel is hidden (localStorage load / stale flag), reset and open fresh
+    // v0.95.434 · Stateless toggle · read DOM directly · flag drift can't lock us out
+    // Read the LIVE display value (computedStyle, not just inline .style) so any
+    // CSS-injected 'none' or missing inline gets caught the same way.
     const _zPanel = document.getElementById('zphonePanel');
-    const _domOpen = _zPanel && _zPanel.style.display && _zPanel.style.display !== 'none';
-    if (game.zphoneOpen && !_domOpen){ game.zphoneOpen = false; }
-    if (game.zphoneOpen){
-      // Tap while open = close (unless hold-5s emergency-return is ticking)
+    const _liveDisp = _zPanel ? (getComputedStyle(_zPanel).display || _zPanel.style.display) : 'none';
+    const _domOpen = _zPanel && _liveDisp && _liveDisp !== 'none';
+    game.zphoneOpen = _domOpen;                              // resync flag to reality
+    if (_domOpen){
       try { closeZphonePanel(); } catch(_){}
       return;
     }
-    // v0.95.433 · Dev-unlocked players bypass the tutorial gates · touchpad
-    // always opens the phone so we can test late-game systems without the intro
+    // v0.95.434 · Gates only apply when phone isn't obtained yet · post-pickup
+    // (player.items.zphone > 0) the touchpad ALWAYS opens the phone · fixes the
+    // 'grabbed the phone but touchpad still gated' regression
+    const _hasPhone = (player.items?.zphone || 0) > 0;
     const _devBypass = (typeof isDevUnlocked === 'function' && isDevUnlocked());
-    if (!_devBypass && !player.hasBackpack){
+    if (!_hasPhone && !_devBypass && !player.hasBackpack){
       showToast('◈ Backpack first · then your ZyPhone opens the game menu', 2600);
       try { playSFX('doorLock'); } catch(_){}
       return;
     }
-    if (!_devBypass && !(player.items?.zphone > 0)){
+    if (!_hasPhone && !_devBypass){
       showToast('◈ Grab the ZyPhone from your PC desk · unlocks the game menu', 2800);
       try { playSFX('doorLock'); } catch(_){}
       return;
     }
-    try { openZphonePanel(); } catch(_){}
+    // Force-open the panel directly so no exception in openZphonePanel prevents visibility
+    if (_zPanel) _zPanel.style.display = 'flex';
+    game.zphoneOpen = true;
+    try { paintZycellNav(); } catch(err){ console.warn('paintZycellNav failed', err); }
+    try { playSFX('menuOpen'); } catch(_){}
     return;
   }
   // v0.95.413 · OPTIONS (kb '3' · gamepad 9 · mobile tile) = PAUSE ONLY
@@ -15039,7 +15046,13 @@ function zycellMoveCursor(dir){
 // Central key handler · gamepad + kb + mobile all dispatch the same synth-keys
 // so this function alone covers all three partitions.
 function handleZycellKey(k){
-  if (!game.zphoneOpen) return false;
+  // v0.95.434 · Cross-check the DOM · flag drift can otherwise trap keys in the
+  // 'panel is open' branch even after the panel has visually closed
+  const _panelEl = document.getElementById('zphonePanel');
+  const _liveDisp = _panelEl ? (getComputedStyle(_panelEl).display || _panelEl.style.display) : 'none';
+  const _domOpen = _panelEl && _liveDisp && _liveDisp !== 'none';
+  if (!_domOpen){ game.zphoneOpen = false; return false; }
+  game.zphoneOpen = true;
   // v0.95.424 · Close on Circle (b) OR Touchpad (2) · Options (3) is pause-only now
   if (k === 'b' || k === 'escape' || k === '2'){ closeZphonePanel(); return true; }
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }

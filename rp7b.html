@@ -11832,18 +11832,14 @@ addEventListener('keyup', e => {
   const AXIS_DEAD = 0.35;
 
   function dispatchKey(type, key){
-    // v0.95.458 · Pause / phone freeze · block gamepad-synthesized keys the same
-    // way we block keyboard ones · pass '2' (touchpad · phone toggle), '3'
-    // (options · pause toggle), and escape/circle so the user can EXIT the menu
+    // v0.95.460 · PAUSE = hard freeze · only '3' (unpause) survives.  PHONE =
+    // FULL PASSTHROUGH · every gamepad button reaches the ZyPhone router so
+    // the touchpad UI (arrows, X/Cross, Y/Triangle, L1/R1, B/Circle, Options)
+    // is fully navigable.  The router itself owns the world-input swallow so
+    // downstream game handlers still never fire during phone.
     const _k = (key || '').toLowerCase();
-    const menuOpen = (typeof game === 'object') && (game.paused || game.zphoneOpen);
-    // Pause: only '3' (unpause).  Phone: '2' (close) + '3' pass through.
-    const menuAllow = game.paused
-      ? (_k === '3')
-      : (_k === '2' || _k === '3' || _k === 'escape' || _k === 'b' || _k === 'shift');
-    if (menuOpen && !menuAllow){
-      // Swallow entirely · don't set keys[] and don't dispatch the event
-      return;
+    if (typeof game === 'object' && game.paused && !game.zphoneOpen && _k !== '3'){
+      return;   // pause is a hard freeze · '3' toggles unpause · nothing else
     }
     const ev = new KeyboardEvent(type, { key: key, bubbles: true });
     window.dispatchEvent(ev);

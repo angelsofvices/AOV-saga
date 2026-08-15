@@ -5607,10 +5607,10 @@ const NPCS = [
       { x: 72, y: 173, v:'B' }, { x: 74, y: 173, v:'A' }, { x: 76, y: 173, v:'B' },
       { x: 78, y: 173, v:'A' }, { x: 75, y: 174, v:'B' },
       // ── v0.95.445 · 2x SCATTER · +30 more grunts across the L-shape ──
-      // Malezor stem extra (5) · Malezor wild arm (6) · Zarvane extra (7) ·
-      // Andrannor east extra (6) · Veridan (6)
-      { x: 12, y:  95, v:'A' }, { x: 30, y: 105, v:'B' }, { x: 20, y: 128, v:'A' },
-      { x: 38, y: 118, v:'B' }, { x: 25, y: 142, v:'A' },
+      // v0.95.471 · Malezor stem picks moved OUT of the mid-line safe corridor
+      // (cols 15-30, rows 25-140) so the main town street stays walkable
+      { x: 10, y:  95, v:'A' }, { x: 38, y:  95, v:'B' }, { x:  8, y: 128, v:'A' },
+      { x: 38, y: 118, v:'B' }, { x: 40, y: 145, v:'A' },
       { x: 50, y: 172, v:'B' }, { x: 62, y: 168, v:'A' }, { x: 85, y: 178, v:'B' },
       { x: 98, y: 172, v:'A' }, { x:108, y: 180, v:'B' }, { x: 65, y: 185, v:'A' },
       { x: 60, y: 218, v:'A' }, { x: 75, y: 230, v:'B' }, { x: 92, y: 240, v:'A' },
@@ -6484,6 +6484,15 @@ function drawSkellorOverlay(){
     [[145, 40,168,239],[  0, 40,285,240],[  0, 42,270,237],[ 17, 42,202,237]],
     [[131, 47,182,248],[  0, 47,285,249],[ 62, 47,207,249],[ 26, 48,195,248]],
   ];
+  // v0.95.471 · MALEZOR SAFE CORRIDOR · the midline of buildings (home, school,
+  // hospital, town hall, gear shop, hall of beastwardens) runs down cols 15-30
+  // between rows 25-140.  Any enemy spawn whose HOME tile lands inside this
+  // rectangle is rejected · players can now walk the main town corridor
+  // without getting jumped.  Off-corridor Malezor = fair game.  Wild-arm south
+  // of row 158 stays dangerous by design (unchanged).
+  function _inMalezorSafeCorridor(x, y){
+    return x >= 15 && x <= 30 && y >= 25 && y <= 140;
+  }
   function pickPerimeterSpots(district, target, seed, minSpacing){
     const rng = _makeWorldRng(seed);
     const placed = [];
@@ -6494,6 +6503,8 @@ function drawSkellorOverlay(){
       if (legacyDistrictAt(x, y) === district) continue;
       if (isWorldBorderTile(x, y)) continue;
       if (_propBlocked.has(`${x},${y}`)) continue;
+      // v0.95.471 · Malezor midline safe corridor · never spawn here
+      if (district === 'malezor' && _inMalezorSafeCorridor(x, y)) continue;
       let nearProp = false;
       for (let dy = -8; dy <= 8 && !nearProp; dy++){
         for (let dx = -8; dx <= 8; dx++){
@@ -6545,11 +6556,14 @@ function drawSkellorOverlay(){
       onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
     }));
   };
-  // v0.95.445 · 2x scatter · MORI everywhere · DAEMONS in mid-late districts
-  _pushMori('malezor',   90, 0xFEEDBA5, 6);   // was 45
-  _pushMori('zarvane',   80, 0xBEE5EED, 6);   // new
-  _pushMori('andrannor', 60, 0xC0FFEE1, 6);   // new
-  _pushMori('veridan',   50, 0x51DECAB, 6);   // new
+  // v0.95.471 · Malezor breathes now · midline safe corridor + halved density
+  // (90 → 40) so exploration OFF the main street is where the danger lives.
+  // Other districts keep their heavier scatter.  Wild-arm + tower quest packs
+  // stay unchanged (they live south of the safe corridor already).
+  _pushMori('malezor',   40, 0xFEEDBA5, 8);   // was 90 · spacing 6 → 8
+  _pushMori('zarvane',   80, 0xBEE5EED, 6);
+  _pushMori('andrannor', 60, 0xC0FFEE1, 6);
+  _pushMori('veridan',   50, 0x51DECAB, 6);
   _pushDaemon('andrannor', 70, 0xDEA110C, 7); // was 35
   _pushDaemon('zarvane',   40, 0xDEA5EED, 7); // new
   _pushDaemon('veridan',   35, 0xDEADFAB, 7); // new

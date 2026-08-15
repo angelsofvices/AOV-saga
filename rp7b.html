@@ -14001,17 +14001,25 @@ addEventListener('keydown', e => {
       zyrexMenuOpen = false;
       return;
     }
+    // v0.95.433 · Self-heal state drift · if game.zphoneOpen claims true but the
+    // DOM panel is hidden (localStorage load / stale flag), reset and open fresh
+    const _zPanel = document.getElementById('zphonePanel');
+    const _domOpen = _zPanel && _zPanel.style.display && _zPanel.style.display !== 'none';
+    if (game.zphoneOpen && !_domOpen){ game.zphoneOpen = false; }
     if (game.zphoneOpen){
       // Tap while open = close (unless hold-5s emergency-return is ticking)
       try { closeZphonePanel(); } catch(_){}
       return;
     }
-    if (!player.hasBackpack){
+    // v0.95.433 · Dev-unlocked players bypass the tutorial gates · touchpad
+    // always opens the phone so we can test late-game systems without the intro
+    const _devBypass = (typeof isDevUnlocked === 'function' && isDevUnlocked());
+    if (!_devBypass && !player.hasBackpack){
       showToast('◈ Backpack first · then your ZyPhone opens the game menu', 2600);
       try { playSFX('doorLock'); } catch(_){}
       return;
     }
-    if (!(player.items?.zphone > 0)){
+    if (!_devBypass && !(player.items?.zphone > 0)){
       showToast('◈ Grab the ZyPhone from your PC desk · unlocks the game menu', 2800);
       try { playSFX('doorLock'); } catch(_){}
       return;

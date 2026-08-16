@@ -1408,6 +1408,11 @@ const AUDIO = {
     elzoran:      new Audio('audio/sfx-elzoran.mp3'),        // v0.95.205 · Smoke-the-Dragon growl on Elzoran interact
     astralstrike: new Audio('audio/sfx-astralstrike.mp3'),   // v0.95.212 · A3 handblast cast SFX
     readyToBlast: new Audio('audio/sfx-ready-to-blast.mp3'), // v0.95.493 · Rizer VO on SPECIAL max fill
+    okayBuddy:    new Audio('audio/sfx-okay-buddy.mp3'),     // v0.95.494 · Rizer VO on HP dropping ≤20%
+    astralkickKo: new Audio('audio/sfx-astralkick-ko.mp3'),  // v0.95.494 · Rizer VO on astralkick KO
+    astralstrikeKo: new Audio('audio/sfx-astralstrike-ko.mp3'), // v0.95.494 · Rizer VO on astralstrike KO
+    halfHp:       new Audio('audio/sfx-half-hp.mp3'),        // v0.95.494 · Rizer VO on HP dropping ≤50%
+    threeQuarterHp: new Audio('audio/sfx-75-hp.mp3'),        // v0.95.494 · Rizer VO on HP dropping ≤75%
     astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
     astralkick:   new Audio('audio/sfx-astralkick.mp3'),     // v0.95.238 · A4 powerful anime kick
     barrelRoll:   new Audio('audio/sfx-barrelroll.mp3'),     // v0.95.85 · "do a barrel roll" after 3 rapid dodges
@@ -1938,6 +1943,35 @@ function startRizerDeath(){
 }
 
 // v0.95.129 · Rizer damage funnel · red flash + prevent negative
+// v0.95.494 · Three-stage Rizer HP-warning VO.  Each stage fires ONCE per
+// descent past its threshold and resets after a small hysteresis heal-back:
+//   ≤ 75% → 'threeQuarterHp' VO (early nudge) · resets when hp > 80%
+//   ≤ 50% → 'halfHp' VO         (mid-fight)   · resets when hp > 55%
+//   ≤ 20% → 'okayBuddy' VO      (crit)        · resets when hp > 25%
+// Silent if hp is 0 (death path owns the audio at that point).
+function _checkRizerLowHpWarn(){
+  const max = player.hpMax || player.maxHp || 100;
+  const hp  = player.hp || 0;
+  const pct = hp / Math.max(1, max);
+  if (pct > 0.80) player._threeQuarterHpWarned = false;
+  if (pct > 0.55) player._halfHpWarned         = false;
+  if (pct > 0.25) player._lowHpWarned          = false;
+  if (hp > 0 && pct <= 0.75 && !player._threeQuarterHpWarned){
+    player._threeQuarterHpWarned = true;
+    try { playSFX('threeQuarterHp'); } catch(_){}
+    showToast('◈ HP · ' + Math.round(pct*100) + '%', 1200);
+  }
+  if (hp > 0 && pct <= 0.50 && !player._halfHpWarned){
+    player._halfHpWarned = true;
+    try { playSFX('halfHp'); } catch(_){}
+    showToast('◈ HP · ' + Math.round(pct*100) + '%', 1400);
+  }
+  if (hp > 0 && pct <= 0.20 && !player._lowHpWarned){
+    player._lowHpWarned = true;
+    try { playSFX('okayBuddy'); } catch(_){}
+    showToast('◈ HP CRITICAL · ' + Math.round(pct*100) + '%', 1800);
+  }
+}
 function hurtPlayer(amt, srcName){
   if (_rizerDeath || _dreamPlaying) return;
   // The piloted UFO occupies the absolute aerial layer. Ground enemies have
@@ -1965,6 +1999,7 @@ function hurtPlayer(amt, srcName){
       player._hurtShakeUntil  = performance.now() + 320;
       const bleed = Math.max(1, Math.round(rizerIncomingDamage(amt) * 0.5));
       player.hp = Math.max(0, (player.hp || 0) - bleed);
+      _checkRizerLowHpWarn();                                 // v0.95.494
       showToast('◈ BLOCK BREAK · stunned', 1400);
       try { playSFX('cancel'); } catch(_){}
       if (player.hp === 0 && !game.devNoDefeat) startRizerDeath();
@@ -1972,6 +2007,7 @@ function hurtPlayer(amt, srcName){
     return;
   }
   player.hp = Math.max(0, (player.hp || 0) - rizerIncomingDamage(amt));
+  _checkRizerLowHpWarn();                                     // v0.95.494
   const now = performance.now();
   player._hurtFlashUntil  = now + 380;                   // v0.95.167 · longer red flash
   player._hurtShakeUntil  = now + 320;                   // v0.95.167 · screen-shake window
@@ -9239,6 +9275,8 @@ function applyAstralkickHit(tx, ty, skinId = player.cosmeticSkin){
     playSFX('moriGrunt');
     if (hit.hp <= 0){
       playSFX('astralKill');
+      // v0.95.494 · Rizer "astralkick KO" VO plays over the kill flourish · once per KO
+      try { playSFX('astralkickKo'); } catch(_){}
       startMoriDeath(hit);
       // v0.95.317 · A4 astralkick kill · 2× base kill bonus for using ultimate
       // v0.95.488 · RXP kill formula = level × (tier + 4) · this is the Astralkick 2x branch
@@ -9546,6 +9584,8 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
     if (hit.hp <= 0){
       // v0.95.215 · Dedicated A3-kill SFX (alien-stomach splat) instead of the generic bone-crack
       playSFX('astralKill');
+      // v0.95.494 · Rizer "astralstrike KO" VO plays over the kill flourish · once per KO
+      try { playSFX('astralstrikeKo'); } catch(_){}
       // v0.95.236 · Play crumble-to-stone death anim before hiding
       startMoriDeath(hit);
       // v0.95.317 · A3 astralstrike kill · 1.5× base kill bonus for the ranged tech

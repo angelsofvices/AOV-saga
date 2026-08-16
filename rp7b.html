@@ -622,6 +622,17 @@
     <div class="zLiveMeter xp" data-zyrex-meter="xp"></div>
     <div class="zName"  data-zyrex-name>— NONE —</div>
   </div>
+  <!-- v0.95.501 · Floating COMBO counter · shows hit-streak (hits without taking damage)
+       Hidden by default · fades in at 2+ hits · auto-hides after 2.5s of no new hit -->
+  <div id="comboCounter" style="
+       position:fixed; top:22%; left:50%; transform:translate(-50%, 0) scale(1);
+       z-index:120; pointer-events:none; opacity:0; transition:opacity 240ms ease-out, transform 160ms ease-out;
+       font-family:'Courier New',monospace; text-align:center;
+       text-shadow:0 2px 12px rgba(0,0,0,0.85), 0 0 22px rgba(255,214,107,0.55);
+       user-select:none;">
+    <div id="comboNumber" style="font-size:64px; font-weight:900; color:#ffd66b; letter-spacing:.04em; line-height:1;">0</div>
+    <div style="font-size:11px; color:#fff; letter-spacing:.32em; margin-top:4px; font-weight:bold;">COMBO · NO HIT</div>
+  </div>
   <!-- v0.95.459 · Coin + Gem panels grouped into one right-stack · transform:scale
        shrinks all 4 assets (both panels + both counter texts) as ONE unit and
        transform-origin:top right keeps them pinned to the corner. -->
@@ -1960,6 +1971,8 @@ function _checkRizerLowHpWarn(){
   // v0.95.499 · Any hit that makes it through hurtPlayer breaks the flawless
   // kill streak used for the "too easy" VO (recordMoriKill increments it)
   player._killStreak = 0;
+  // v0.95.501 · Same reset breaks the floating COMBO hit-streak counter
+  try { resetCombo(true); } catch(_){}
   const max = player.hpMax || player.maxHp || 100;
   const hp  = player.hp || 0;
   const pct = hp / Math.max(1, max);
@@ -9282,6 +9295,43 @@ function spawnHitFx(tx, ty, mode){
   HIT_FX.push({ x: tx, y: ty, t0: performance.now(), ...spec });
   // v0.95.217 · Haptic hit-confirm on connected gamepad (DualSense over Chrome/macOS · GamepadHapticActuator)
   rumbleHit(mode);
+  // v0.95.501 · Every visual hit-confirm bumps the floating COMBO counter · resets on Rizer damage
+  try { bumpCombo(); } catch(_){}
+}
+
+// v0.95.501 · Floating combo counter · shows hits landed without taking damage.
+// Increments on every spawnHitFx call, resets inside _checkRizerLowHpWarn.
+// Auto-hides 2.5s after the last hit if the player stops attacking.
+let _comboHideTimer = null;
+function bumpCombo(){
+  player._hitStreak = (player._hitStreak || 0) + 1;
+  const el = document.getElementById('comboCounter');
+  const num = document.getElementById('comboNumber');
+  if (!el || !num) return;
+  num.textContent = player._hitStreak;
+  // Color shifts as streak grows for feedback
+  const c = player._hitStreak >= 20 ? '#c060ff'    // legendary
+          : player._hitStreak >= 10 ? '#ff9c66'    // heavy
+          : player._hitStreak >= 5  ? '#ffd66b'    // solid
+          :                            '#fff';     // early
+  num.style.color = c;
+  // Only show at 2+ hits (single-hit doesn't need a counter)
+  if (player._hitStreak >= 2){
+    el.style.opacity = '1';
+    // Punch scale on each new hit for a hit-stop feel
+    el.style.transform = 'translate(-50%, 0) scale(1.18)';
+    setTimeout(() => { if (el) el.style.transform = 'translate(-50%, 0) scale(1)'; }, 120);
+  }
+  if (_comboHideTimer) clearTimeout(_comboHideTimer);
+  _comboHideTimer = setTimeout(() => {
+    resetCombo(false);   // fade after 2.5s of no new hits (silent · no reset SFX)
+  }, 2500);
+}
+function resetCombo(dueToDamage){
+  player._hitStreak = 0;
+  const el = document.getElementById('comboCounter');
+  if (el){ el.style.opacity = '0'; }
+  if (_comboHideTimer){ clearTimeout(_comboHideTimer); _comboHideTimer = null; }
 }
 // v0.95.217 · Gamepad haptic feedback helper · escalates by attack slot
 // Chrome 68+ supports 'dual-rumble' on desktop DualSense/Xbox pads

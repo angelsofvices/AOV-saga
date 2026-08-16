@@ -10715,7 +10715,10 @@ function switchDockTab(tab){
         <span style="float:right; color:#ffd66b;">HP ${z.hp}/${z.maxHp} · Bond ${z.bond||0}/100</span>
       </div>`).join('');
   } else if (tab === 'items'){
-    const items = Object.entries(player.items || {}).filter(([k,v]) => v > 0);
+    // v0.95.504 · Auto-sort alphabetical by display label
+    const items = Object.entries(player.items || {})
+      .filter(([k,v]) => v > 0)
+      .sort((a, b) => ((INVENTORY_META[a[0]]?.label) || a[0]).localeCompare((INVENTORY_META[b[0]]?.label) || b[0]));
     body.innerHTML = items.length === 0
       ? '<i style="color:#886;">Bag is empty.</i>'
       : '<div style="font-size:11px; color:#8ff; margin-bottom:8px;">Click an item to use · hold X on an item for 3s to assign it to CREATE (favorite shortcut).</div>' +
@@ -10780,8 +10783,10 @@ function switchDockTab(tab){
     // v0.95.165 · SEND TO PC · offload bag items into player.pcStorage
     // Left column: bag (→ PC).  Right column: PC storage (← withdraw).
     if (!player.pcStorage) player.pcStorage = {};
-    const bagEntries = Object.entries(player.items || {}).filter(([k,v]) => v > 0);
-    const pcEntries  = Object.entries(player.pcStorage    ).filter(([k,v]) => v > 0);
+    // v0.95.504 · Alphabetize both columns of the SEND-TO-PC panel
+    const _byLabel = (a, b) => ((INVENTORY_META[a[0]]?.label) || a[0]).localeCompare((INVENTORY_META[b[0]]?.label) || b[0]);
+    const bagEntries = Object.entries(player.items || {}).filter(([k,v]) => v > 0).sort(_byLabel);
+    const pcEntries  = Object.entries(player.pcStorage    ).filter(([k,v]) => v > 0).sort(_byLabel);
     const row = (label, k, v, dir) => `
       <div class="storeRow" data-key="${k}" data-dir="${dir}" style="display:flex; align-items:center; justify-content:space-between; padding:5px 8px; margin:3px 0; background:rgba(0,0,0,0.35); border:1px solid #244; cursor:pointer;">
         <span style="color:#eaf0ff;"><b>${label}</b> <span style="color:#8ff;">× ${v}</span></span>
@@ -16116,7 +16121,12 @@ function renderZycellZycube(){
   const rows = Object.entries(items)
     // v0.95.478 · worldmap hidden from ZyCube · lives ONLY in the MAP panel unlocked by Zoryn
     .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap')
-    .sort((a, b) => ((meta[a[0]] && meta[a[0]].order) || 99) - ((meta[b[0]] && meta[b[0]].order) || 99))
+    // v0.95.504 · Auto-sort ALPHABETICAL by display label (was: static `.order` field)
+    .sort((a, b) => {
+      const la = (meta[a[0]] && meta[a[0]].label) || a[0];
+      const lb = (meta[b[0]] && meta[b[0]].label) || b[0];
+      return la.localeCompare(lb);
+    })
     .map(([k, n]) => {
       const label = (meta[k] && meta[k].label) || k;
       const isFav = player.favoriteItem === k;
@@ -16377,9 +16387,12 @@ function renderZycellContacts(){
     // v0.95.495 · Nurse Rein · unlocked by delivering 2 life stones · CALL = 10-min field heal
     ['nurse_rein',        'Nurse Rein',    'Malezor Hospital',     () => !!player.nurseReinAllied],
   ];
-  const contacts = ALL_CONTACTS.filter(([id, name, loc, gate]) => {
-    try { return typeof gate === 'function' ? gate() : true; } catch(_){ return false; }
-  });
+  const contacts = ALL_CONTACTS
+    .filter(([id, name, loc, gate]) => {
+      try { return typeof gate === 'function' ? gate() : true; } catch(_){ return false; }
+    })
+    // v0.95.504 · Auto-sort contacts alphabetical by display name
+    .sort((a, b) => (a[1] || '').localeCompare(b[1] || ''));
   if (!contacts.length){
     return _zySection('☎ CONTACTS', `<div style="color:#889; text-align:center; padding:14px 8px; line-height:1.7;">· no contacts yet ·<br><span style="font-size:9px; color:#667;">talk to allies to register them in your book</span></div>`);
   }

@@ -3607,49 +3607,10 @@ const WORLD_PROPS = [
     };
     return chest;
   })(),
-  // ── v0.95.496 · NURSE REIN QUEST STONES · two life-heart props sitting right
-  // in front of the Malezor Hospital (door at 22, 156).  Walk up + X to pick up.
-  // Each pickup adds 1x life_stone item to bag and hides the prop.  Delivering
-  // BOTH to Nurse Rein registers her as a callable contact (see her onInteract).
-  ...(function(){
-    const _img = new Image();
-    _img.src = 'assets/2D%20sprites/props/life-stone.png';
-    const BBOX = [154, 137, 947, 967];    // content bbox measured from 1254×1254 source
-    const SPOTS = [
-      { id: 'hospital_life_stone_a', tileX: 21, tileY: 157, flag: 'lifeStonePickedA' },
-      { id: 'hospital_life_stone_b', tileX: 23, tileY: 157, flag: 'lifeStonePickedB' },
-    ];
-    return SPOTS.map(s => {
-      const prop = {
-        id: s.id,
-        img: _img,
-        src: 'assets/2D%20sprites/props/life-stone.png',
-        bbox: BBOX,
-        tileX: s.tileX, tileY: s.tileY,
-        tileW: 1, tileH: 1,
-        footprint: [],                    // walkable · pure pickup
-        depthOffset: -1,
-        _pickupFlag: s.flag,              // renderer/interact reads this on player
-      };
-      // Getter/setter so _hidden always mirrors the persisted player flag ·
-      // covers save/reload without needing a one-shot init pass.
-      Object.defineProperty(prop, '_hidden', {
-        get(){ try { return !!(typeof player !== 'undefined' && player && player[s.flag]); } catch(_){ return false; } },
-        set(v){ try { if (typeof player !== 'undefined' && player) player[s.flag] = !!v; } catch(_){} },
-      });
-      prop.onInteract = () => {
-        if (player[s.flag]) return;
-        player[s.flag] = true;
-        player.items = player.items || {};
-        player.items.life_stone = (player.items.life_stone || 0) + 1;
-        const cnt = player.items.life_stone;
-        try { playSFX('confirm'); } catch(_){}
-        try { pingNextObjective(); } catch(_){}
-        showToast(`★ LIFE STONE picked up (${cnt}/2) · deliver to Nurse Rein at the Hospital`, 3400);
-      };
-      return prop;
-    });
-  })(),
+  // v0.95.502 · Hospital life-stone props REMOVED · quest now sources stones
+  // from the wild-shattered life boulders (each shatter drops 1 life_stone
+  // to the bag).  Delivery is proximity-based: walk within 5 tiles of Nurse
+  // Rein carrying 2 stones · auto-registers her as a callable contact.
   // ── v0.95.495 · METEOR CRASH · visual crater under the ASTRALCORE chest ──
   // Same tile as the chest (5, 195) · non-blocking (empty footprint) so player
   // walks over the crater to open the chest sitting inside it · rendered with
@@ -4515,31 +4476,18 @@ const NPCS = [
         ? `+${missingR} HP restored${healedZ ? ` · ${healedZ} Zyrex healed` : ''}`
         : (healedZ ? `${healedZ} Zyrex healed` : 'already at full strength');
       showToast(`★ Nurse Rein · ${summary}`, 2400);
-      // v0.95.495 · LIFE STONE side quest · 2 stones → she becomes callable healer contact
+      // v0.95.502 · Life stone delivery is PROXIMITY-based (5-tile perimeter) ·
+      // handled by tickNurseReinLifeStoneProximity() in the world tick loop.
+      // Here we only render dialogue based on current state.
       const stones = (player.items && player.items.life_stone) || 0;
-      if (!player.nurseReinAllied && stones >= 2){
-        player.items.life_stone -= 2;
-        player.nurseReinAllied = true;
-        player.bonds = player.bonds || {}; player.bonds.nurse_rein = Math.min(100, (player.bonds.nurse_rein||0) + 20);
-        try { awardRizerXP(1000); } catch(_){}
-        try { pingNextObjective(); } catch(_){}
-        showToast('★ Nurse Rein registered as CONTACT · call her for a field heal', 4200);
-        showDialog({ speaker: 'NURSE REIN', lines: [
-          '*eyes widen at the two glowing life stones*  Where did you find these?  These are old sanctum stones.',
-          '*folds them gently into her satchel*  I can distill emergency doses from these · a Rizer in the field will never bleed out again.',
-          '*taps your ZyCellite*  Add me to your Contacts · dial when you\'re wounded far from town · I bring the salve to you.',
-          'One call every ten minutes · I move as fast as my hooves allow, dear.',
-        ]});
-        return;
-      }
       if (!player.nurseReinAllied){
         const need = Math.max(0, 2 - stones);
         showDialog({ speaker: 'NURSE REIN', lines: [
           'Welcome, dear Rizer!  Come here · let me look at those wounds.',
           `*sakura chime*  There · every hit patched · every Zyrex ready.`,
           need > 0
-            ? `*leans in*  Say · if you ever come across two LIFE STONES out in the wilds · bring them to me.  I can distill field-heals from them · then I\'ll answer any call you make.  (Have ${stones}/2)`
-            : 'Bring me two LIFE STONES from the wilds and I\'ll follow you into the field.',
+            ? `*leans in*  Say · if you ever come across two LIFE STONES out in the wilds · just carry them close.  I\'ll sense them when you\'re nearby.  (Have ${stones}/2)`
+            : '*eyes lift toward your satchel*  You carry TWO life stones · come closer, dear · let me register you properly.',
         ]});
       } else {
         showDialog({ speaker: 'NURSE REIN', lines: [
@@ -6802,6 +6750,32 @@ function _spawnStalkerSkellor(reason){
     return true;
   }
   return false;
+}
+
+// v0.95.502 · NURSE REIN AUTO-REGISTRATION · fires when player carrying 2+
+// life stones enters a 5-tile Chebyshev perimeter around Nurse Rein
+// (Manhattan would also work · using max(dx,dy) so any tile within a 5-tile
+// square counts).  Consumes 2 stones, registers her as callable contact,
+// bumps bond, awards RXP.  Runs on the same tick as skellor respawn.
+function tickNurseReinLifeStoneProximity(){
+  if (player.nurseReinAllied) return;
+  if (game.scene !== 'overworld') return;
+  const stones = (player.items && player.items.life_stone) || 0;
+  if (stones < 2) return;
+  const nurse = (typeof findNpcById === 'function') ? findNpcById('nurse_rein') : null;
+  if (!nurse || nurse.scene !== 'overworld') return;
+  const dx = Math.abs((nurse.tileX || 0) - player.x);
+  const dy = Math.abs((nurse.tileY || 0) - player.y);
+  if (Math.max(dx, dy) > 5) return;
+  // TRIGGER
+  player.items.life_stone = Math.max(0, (player.items.life_stone || 0) - 2);
+  player.nurseReinAllied = true;
+  player.bonds = player.bonds || {}; player.bonds.nurse_rein = Math.min(100, (player.bonds.nurse_rein||0) + 20);
+  try { awardRizerXP(1000); } catch(_){}
+  try { pingNextObjective(); } catch(_){}
+  try { playSFX('nurseRein'); } catch(_){}
+  try { playSFX('confirm'); } catch(_){}
+  showToast('★ Nurse Rein sensed the LIFE STONES · registered in your ZyCellite · call anywhere for a field heal', 4600);
 }
 
 function tickSkellorRespawn(){
@@ -9265,15 +9239,17 @@ function hitBoulder(b, dmg){
       try { playSFX('confirm'); } catch(_){}
     }
     // v0.95.431 · Life stone shatter · restore Rizer HP to 100%
-    // v0.95.496 · Reverted the bag-drop from v0.95.495 · quest-specific life
-    // stones now sit as pickup props in front of the Malezor Hospital (see
-    // WORLD_PROPS · hospital_life_stone_a / _b).  Wild shatter is heal-only again.
+    // v0.95.502 · Wild shatter also drops 1x life_stone item to bag ·
+    // player carries 2 within 5 tiles of Nurse Rein to unlock her call.
     if (b.type === 'life'){
       const max = player.hpMax || 100;
       const before = player.hp || 0;
       player.hp = max;
       const gained = max - before;
-      showToast(`◈ Life stone shatter · HP fully restored (+${gained})`, 2400);
+      player.items = player.items || {};
+      player.items.life_stone = (player.items.life_stone || 0) + 1;
+      const cnt = player.items.life_stone;
+      showToast(`◈ Life stone shatter · HP +${gained} · +1 Life Stone (${cnt} carried)`, 2800);
       try { playSFX('confirm'); } catch(_){}
     }
   }
@@ -21518,6 +21494,7 @@ function frame(now){
   // v0.95.404 · Skellor hurt-frame render moved into drawWorldLayer's NPC loop
   // v0.95.456 · Skellor spawner also freezes during phone / pause (full menu freeze)
   if (!(game.zphoneOpen || game.paused)){ try { tickSkellorRespawn(); } catch(_){} }
+  if (!(game.zphoneOpen || game.paused)){ try { tickNurseReinLifeStoneProximity(); } catch(_){} }
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

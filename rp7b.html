@@ -15549,6 +15549,9 @@ function paintZycellContent(){
   const fn = map[zycellPage] || renderZycellHome;
   try { c.innerHTML = fn(); }
   catch(e){ console.warn('paintZycellContent', e); c.innerHTML = `<div style="padding:60px;color:#f88;">Panel error · ${e.message}</div>`; }
+  // v0.95.479 · Persistent focus highlight · re-apply after every content redraw
+  // so the 1-sec refresh interval doesn't wipe the gold outline off the cursor
+  try { if (typeof _zycellPaintFocus === 'function') _zycellPaintFocus(); } catch(_){}
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -16188,9 +16191,41 @@ function handleZycellKey(k){
     const items = _zycellContentItems();
     if (!items.length){ zycellExitContent(); return true; }
     if (game._zycellItemIdx >= items.length) game._zycellItemIdx = 0;
+    // v0.95.479 · All 4 arrows walk items · grid-aware · left/right step columns
+    // if items sit in a row (Faction 2x8 grid), else step 1 item as prev/next
+    const _sameRowIndex = (dir) => {
+      const cur = items[game._zycellItemIdx];
+      if (!cur) return -1;
+      const curTop = Math.round(cur.getBoundingClientRect().top);
+      let best = -1, bestDx = Infinity;
+      const curLeft = cur.getBoundingClientRect().left;
+      for (let i = 0; i < items.length; i++){
+        if (i === game._zycellItemIdx) continue;
+        const r = items[i].getBoundingClientRect();
+        if (Math.abs(Math.round(r.top) - curTop) > 4) continue;   // different row
+        const dx = r.left - curLeft;
+        if ((dir === 'right' && dx > 0 && dx < bestDx) ||
+            (dir === 'left'  && dx < 0 && -dx < bestDx)){
+          bestDx = Math.abs(dx); best = i;
+        }
+      }
+      return best;
+    };
     if (k === 'arrowup')   { game._zycellItemIdx = (game._zycellItemIdx - 1 + items.length) % items.length; _zycellPaintFocus(); playSFX('cursor'); return true; }
     if (k === 'arrowdown') { game._zycellItemIdx = (game._zycellItemIdx + 1) % items.length; _zycellPaintFocus(); playSFX('cursor'); return true; }
-    if (k === 'arrowleft'){ zycellExitContent(); return true; }
+    if (k === 'arrowleft'){
+      const sib = _sameRowIndex('left');
+      if (sib >= 0){ game._zycellItemIdx = sib; _zycellPaintFocus(); playSFX('cursor'); return true; }
+      // No same-row neighbor to the left · fall back to prev-item wrap
+      game._zycellItemIdx = (game._zycellItemIdx - 1 + items.length) % items.length;
+      _zycellPaintFocus(); playSFX('cursor'); return true;
+    }
+    if (k === 'arrowright'){
+      const sib = _sameRowIndex('right');
+      if (sib >= 0){ game._zycellItemIdx = sib; _zycellPaintFocus(); playSFX('cursor'); return true; }
+      game._zycellItemIdx = (game._zycellItemIdx + 1) % items.length;
+      _zycellPaintFocus(); playSFX('cursor'); return true;
+    }
     if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
       const el = items[game._zycellItemIdx];
       if (el) el.click();

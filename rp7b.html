@@ -15655,11 +15655,12 @@ function renderZycellRizer(){
 
 // ── FACTION · 2×4 party grid · click a slot for details ─────────────
 function renderZycellFaction(){
-  // v0.95.423 · Always render 8 tiles (2 cols × 4 rows) · filled or empty
-  // v0.95.446 · Cards tagged data-zyitem for keyboard focus · Triangle summons
+  // v0.95.480 · Show ALL party members · always at least 8 slots for the empty
+  // grid presentation · scrolls when party grows beyond 8
   const party = (player.party || []);
+  const total = Math.max(8, party.length);
   const cells = [];
-  for (let i = 0; i < 8; i++){
+  for (let i = 0; i < total; i++){
     const z = party[i];
     const filled = !!z;
     const summonedId = z ? `_summon_${z.speciesId}` : null;
@@ -15687,8 +15688,11 @@ function renderZycellFaction(){
            <div style="color:rgba(200,220,255,0.4); font-size:9px; letter-spacing:.10em; margin-top:4px;">EMPTY SLOT</div>`}
     </div>`);
   }
-  const grid = `<div style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(4,1fr); gap:8px;">${cells.join('')}</div>`;
-  const hint = `<div style="color:#8ff; font-size:10px; text-align:center; margin-top:8px; letter-spacing:.06em;">▲ TRIANGLE (K) · summon / recall selected · ◉ OUT = currently in the overworld</div>`;
+  // v0.95.480 · Wrap grid in a scrollable container so >8 party members are reachable
+  const grid = `<div style="max-height:420px; overflow-y:auto; padding-right:6px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">${cells.join('')}</div>
+  </div>`;
+  const hint = `<div style="color:#8ff; font-size:10px; text-align:center; margin-top:8px; letter-spacing:.06em;">▲ TRIANGLE (K) · summon / recall selected · ◉ OUT = currently in the overworld · scroll for more</div>`;
   setTimeout(() => {
     document.querySelectorAll('.zyFactionSlot').forEach(el => {
       if (el._zyBound) return; el._zyBound = true;
@@ -16211,20 +16215,27 @@ function handleZycellKey(k){
       }
       return best;
     };
-    if (k === 'arrowup')   { game._zycellItemIdx = (game._zycellItemIdx - 1 + items.length) % items.length; _zycellPaintFocus(); playSFX('cursor'); return true; }
-    if (k === 'arrowdown') { game._zycellItemIdx = (game._zycellItemIdx + 1) % items.length; _zycellPaintFocus(); playSFX('cursor'); return true; }
+    // v0.95.480 · Clamp instead of wrap · up/down stop at the ends · left/right
+    // step columns for grid layouts (Faction 2-col) · no wrap so nav feels linear
+    if (k === 'arrowup')  {
+      const next = Math.max(0, game._zycellItemIdx - 1);
+      if (next !== game._zycellItemIdx){ game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor'); }
+      return true;
+    }
+    if (k === 'arrowdown'){
+      const next = Math.min(items.length - 1, game._zycellItemIdx + 1);
+      if (next !== game._zycellItemIdx){ game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor'); }
+      return true;
+    }
     if (k === 'arrowleft'){
       const sib = _sameRowIndex('left');
-      if (sib >= 0){ game._zycellItemIdx = sib; _zycellPaintFocus(); playSFX('cursor'); return true; }
-      // No same-row neighbor to the left · fall back to prev-item wrap
-      game._zycellItemIdx = (game._zycellItemIdx - 1 + items.length) % items.length;
-      _zycellPaintFocus(); playSFX('cursor'); return true;
+      if (sib >= 0){ game._zycellItemIdx = sib; _zycellPaintFocus(); playSFX('cursor'); }
+      return true;   // no-op if already leftmost
     }
     if (k === 'arrowright'){
       const sib = _sameRowIndex('right');
-      if (sib >= 0){ game._zycellItemIdx = sib; _zycellPaintFocus(); playSFX('cursor'); return true; }
-      game._zycellItemIdx = (game._zycellItemIdx + 1) % items.length;
-      _zycellPaintFocus(); playSFX('cursor'); return true;
+      if (sib >= 0){ game._zycellItemIdx = sib; _zycellPaintFocus(); playSFX('cursor'); }
+      return true;   // no-op if already rightmost
     }
     if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
       const el = items[game._zycellItemIdx];

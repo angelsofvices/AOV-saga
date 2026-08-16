@@ -4487,8 +4487,9 @@ const NPCS = [
         player.scrapjawMet = true; try{pingNextObjective()}catch(_){}
         player.gearbagGifted = true;                     // legacy alias · keeps old saves happy
         player.towerQuestStarted = true;
-        player.towerMoriKills = 0;
-        player.towerBossKilled = false;                  // v0.95.470 · Vilerok boss gate
+        // v0.95.477 · Resurrect the 6 tower Mori + tower-boss Vilerok on quest
+        // start so early explorers who cleared them still get a fair fight
+        try { resurrectScrapjawTowerPack(); } catch(_){}
         try { awardRizerXP(500); } catch(_){}
         player.ownedCosmetics = player.ownedCosmetics || {};
         player.ownedCosmetics.normal = true;
@@ -6478,6 +6479,72 @@ function drawSkellorOverlay(){
   }
 }
 
+// v0.95.477 · SCRAPJAW TOWER QUEST · resurrect the 6 tower Mori + the tower-boss
+// Vilerok when the quest starts.  Prevents lockout if the player wandered up
+// early and cleared them before hearing Scrapjaw's ask.  Idempotent — safe to
+// call every time towerQuestStarted flips true.
+function resurrectScrapjawTowerPack(){
+  if (!NPCS || !NPCS.length) return;
+  const TOWER_MORI_HOMES = {
+    tower_mori_1: [35, 20, 'right'],
+    tower_mori_2: [41, 20, 'left'],
+    tower_mori_3: [34, 16, 'down'],
+    tower_mori_4: [42, 16, 'down'],
+    tower_mori_5: [36, 22, 'up'],
+    tower_mori_6: [40, 22, 'up'],
+  };
+  let count = 0;
+  for (const n of NPCS){
+    if (!n) continue;
+    // Match the 6 tower Mori by id · homes are canon
+    const home = TOWER_MORI_HOMES[n.id];
+    if (home){
+      n.scene   = 'overworld';
+      n.tileX   = home[0];
+      n.tileY   = home[1];
+      n.homeX   = home[0];
+      n.homeY   = home[1];
+      n.dir     = home[2];
+      n.hp      = 125;
+      n.hpMax   = 125;
+      n._dying  = false;
+      n._deathT0 = 0;
+      n.moving  = false;
+      n.animFrame = 0;
+      n.idleFrame = 0;
+      n.moveCd  = 250 + Math.random() * 350;
+      delete n._voidSwallow;
+      delete n._ufoBeamVictim;
+      count++;
+    }
+    // The tower-boss Vilerok · resurrect at (38, 25)
+    if (n._vilerok && n._towerBoss){
+      n.scene   = 'overworld';
+      n.tileX   = 38;
+      n.tileY   = 25;
+      n.homeX   = 38;
+      n.homeY   = 25;
+      n.dir     = 'down';
+      n.hp      = n.hpMax || 500;
+      n._dying  = false;
+      n._deathT0 = 0;
+      n.moving  = false;
+      n.animFrame = 0;
+      n.idleFrame = 0;
+      n.moveCd  = 400 + Math.random() * 400;
+      n._heavyUntil = 0;
+      n._lightUntil = 0;
+      n._activeSheetKey = 'idle';
+      delete n._voidSwallow;
+      delete n._ufoBeamVictim;
+      count++;
+    }
+  }
+  // Reset quest counters so re-killing them counts fresh
+  player.towerMoriKills = 0;
+  player.towerBossKilled = false;
+  return count;
+}
 (function spawnPerimeterEnemies(){
   const MORI_BBOXES_PERIM = [
     [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],

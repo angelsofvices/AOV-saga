@@ -3589,6 +3589,49 @@ const WORLD_PROPS = [
     };
     return chest;
   })(),
+  // ── v0.95.496 · NURSE REIN QUEST STONES · two life-heart props sitting right
+  // in front of the Malezor Hospital (door at 22, 156).  Walk up + X to pick up.
+  // Each pickup adds 1x life_stone item to bag and hides the prop.  Delivering
+  // BOTH to Nurse Rein registers her as a callable contact (see her onInteract).
+  ...(function(){
+    const _img = new Image();
+    _img.src = 'assets/2D%20sprites/props/life-stone.png';
+    const BBOX = [154, 137, 947, 967];    // content bbox measured from 1254×1254 source
+    const SPOTS = [
+      { id: 'hospital_life_stone_a', tileX: 21, tileY: 157, flag: 'lifeStonePickedA' },
+      { id: 'hospital_life_stone_b', tileX: 23, tileY: 157, flag: 'lifeStonePickedB' },
+    ];
+    return SPOTS.map(s => {
+      const prop = {
+        id: s.id,
+        img: _img,
+        src: 'assets/2D%20sprites/props/life-stone.png',
+        bbox: BBOX,
+        tileX: s.tileX, tileY: s.tileY,
+        tileW: 1, tileH: 1,
+        footprint: [],                    // walkable · pure pickup
+        depthOffset: -1,
+        _pickupFlag: s.flag,              // renderer/interact reads this on player
+      };
+      // Getter/setter so _hidden always mirrors the persisted player flag ·
+      // covers save/reload without needing a one-shot init pass.
+      Object.defineProperty(prop, '_hidden', {
+        get(){ try { return !!(typeof player !== 'undefined' && player && player[s.flag]); } catch(_){ return false; } },
+        set(v){ try { if (typeof player !== 'undefined' && player) player[s.flag] = !!v; } catch(_){} },
+      });
+      prop.onInteract = () => {
+        if (player[s.flag]) return;
+        player[s.flag] = true;
+        player.items = player.items || {};
+        player.items.life_stone = (player.items.life_stone || 0) + 1;
+        const cnt = player.items.life_stone;
+        try { playSFX('confirm'); } catch(_){}
+        try { pingNextObjective(); } catch(_){}
+        showToast(`★ LIFE STONE picked up (${cnt}/2) · deliver to Nurse Rein at the Hospital`, 3400);
+      };
+      return prop;
+    });
+  })(),
   // ── v0.95.495 · METEOR CRASH · visual crater under the ASTRALCORE chest ──
   // Same tile as the chest (5, 195) · non-blocking (empty footprint) so player
   // walks over the crater to open the chest sitting inside it · rendered with
@@ -9196,17 +9239,15 @@ function hitBoulder(b, dmg){
       try { playSFX('confirm'); } catch(_){}
     }
     // v0.95.431 · Life stone shatter · restore Rizer HP to 100%
-    // v0.95.495 · Also deposits 1x life_stone item to inventory · Nurse Rein
-    // wants 2 delivered to unlock her heal-summon contact
+    // v0.95.496 · Reverted the bag-drop from v0.95.495 · quest-specific life
+    // stones now sit as pickup props in front of the Malezor Hospital (see
+    // WORLD_PROPS · hospital_life_stone_a / _b).  Wild shatter is heal-only again.
     if (b.type === 'life'){
       const max = player.hpMax || 100;
       const before = player.hp || 0;
       player.hp = max;
       const gained = max - before;
-      player.items = player.items || {};
-      player.items.life_stone = (player.items.life_stone || 0) + 1;
-      const cnt = player.items.life_stone;
-      showToast(`◈ Life stone · HP +${gained} · +1 to bag (${cnt} total)`, 2600);
+      showToast(`◈ Life stone shatter · HP fully restored (+${gained})`, 2400);
       try { playSFX('confirm'); } catch(_){}
     }
   }
@@ -20468,6 +20509,7 @@ function drawWorldLayer(){
   const renderables = [];
   WORLD_PROPS.forEach(p => {
     if(p.id==='auraxion_ufo'&&p._inFlight)return;
+    if (p._hidden) return;                                          // v0.95.496 · pickup props hide themselves after use
     if (!p.img.complete || !p.img.naturalWidth) return;
     renderables.push({ kind:'prop', prop:p, footY: p.tileY + (p.depthOffset || 0) });
   });

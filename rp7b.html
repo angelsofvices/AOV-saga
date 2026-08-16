@@ -1413,6 +1413,8 @@ const AUDIO = {
     astralstrikeKo: new Audio('audio/sfx-astralstrike-ko.mp3'), // v0.95.494 · Rizer VO on astralstrike KO
     halfHp:       new Audio('audio/sfx-half-hp.mp3'),        // v0.95.494 · Rizer VO on HP dropping ≤50%
     threeQuarterHp: new Audio('audio/sfx-75-hp.mp3'),        // v0.95.494 · Rizer VO on HP dropping ≤75%
+    gotcha:       new Audio('audio/sfx-gotcha.mp3'),         // v0.95.495 · Rizer VO on fae catch
+    damageTick:   new Audio('audio/sfx-damage-tick.mp3'),    // v0.95.495 · Rizer VO every 2 damage hits (skips if any HP-threshold VO fired same tick)
     astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
     astralkick:   new Audio('audio/sfx-astralkick.mp3'),     // v0.95.238 · A4 powerful anime kick
     barrelRoll:   new Audio('audio/sfx-barrelroll.mp3'),     // v0.95.85 · "do a barrel roll" after 3 rapid dodges
@@ -1948,6 +1950,9 @@ function startRizerDeath(){
 //   ≤ 75% → 'threeQuarterHp' VO (early nudge) · resets when hp > 80%
 //   ≤ 50% → 'halfHp' VO         (mid-fight)   · resets when hp > 55%
 //   ≤ 20% → 'okayBuddy' VO      (crit)        · resets when hp > 25%
+// v0.95.495 · Adds a 4th channel: damageTick fires every 2nd damage hit as a
+// generic "ow" beat.  If ANY of the three thresholds fires this hit, the tick
+// is suppressed so voices never overlap.
 // Silent if hp is 0 (death path owns the audio at that point).
 function _checkRizerLowHpWarn(){
   const max = player.hpMax || player.maxHp || 100;
@@ -1956,20 +1961,33 @@ function _checkRizerLowHpWarn(){
   if (pct > 0.80) player._threeQuarterHpWarned = false;
   if (pct > 0.55) player._halfHpWarned         = false;
   if (pct > 0.25) player._lowHpWarned          = false;
+  let firedThresholdVO = false;
   if (hp > 0 && pct <= 0.75 && !player._threeQuarterHpWarned){
     player._threeQuarterHpWarned = true;
     try { playSFX('threeQuarterHp'); } catch(_){}
     showToast('◈ HP · ' + Math.round(pct*100) + '%', 1200);
+    firedThresholdVO = true;
   }
   if (hp > 0 && pct <= 0.50 && !player._halfHpWarned){
     player._halfHpWarned = true;
     try { playSFX('halfHp'); } catch(_){}
     showToast('◈ HP · ' + Math.round(pct*100) + '%', 1400);
+    firedThresholdVO = true;
   }
   if (hp > 0 && pct <= 0.20 && !player._lowHpWarned){
     player._lowHpWarned = true;
     try { playSFX('okayBuddy'); } catch(_){}
     showToast('◈ HP CRITICAL · ' + Math.round(pct*100) + '%', 1800);
+    firedThresholdVO = true;
+  }
+  // v0.95.495 · Every-2-hits damage tick · counter increments per hit that made
+  // it through hurtPlayer (block-absorbed hits don't count · they never call us)
+  // · fires ONLY on even hits and ONLY if no threshold VO already claimed the frame
+  if (hp > 0 && !firedThresholdVO){
+    player._damageTickCount = ((player._damageTickCount || 0) + 1);
+    if (player._damageTickCount % 2 === 0){
+      try { playSFX('damageTick'); } catch(_){}
+    }
   }
 }
 function hurtPlayer(amt, srcName){
@@ -2059,6 +2077,7 @@ const INVENTORY_META = {
   elzebub_egg:      { label: 'Elzebub Egg',             order: 4  },   // v0.95.295 · rare egg · found near home · Mom nurses it into Elzebub Lv10
   scrap_metal:      { label: 'Scrap Metal',             order: 45 },   // v0.95.490 · chest loot outside Radio Tower · trade to Scrapjaw for Phone Battery
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
+  life_stone:       { label: 'Life Stone',              order: 47 },   // v0.95.495 · dropped when a life stone shatters · deliver 2 to Nurse Rein to make her a callable healer contact
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -3570,6 +3589,25 @@ const WORLD_PROPS = [
     };
     return chest;
   })(),
+  // ── v0.95.495 · METEOR CRASH · visual crater under the ASTRALCORE chest ──
+  // Same tile as the chest (5, 195) · non-blocking (empty footprint) so player
+  // walks over the crater to open the chest sitting inside it · rendered with
+  // negative depthOffset so it draws BEHIND the chest (chest sits inside crater)
+  (function(){
+    const _crashImg = new Image();
+    _crashImg.src = 'assets/2D%20sprites/decor/meteor-crash.png';
+    return {
+      id: 'meteor_crash_wildarm',
+      img: _crashImg,
+      src: 'assets/2D%20sprites/decor/meteor-crash.png',
+      bbox: [125, 125, 773, 774],   // content extracted from 1024×1024 source
+      tileX: 5, tileY: 195,
+      tileW: 4, tileH: 3,
+      footprint: [],                 // walkable · pure visual
+      depthOffset: -3,               // renders BEHIND the chest (chest depth wins)
+      onInteract: () => {},
+    };
+  })(),
   // ── v0.95.492 · ASTRALCORE CHEST · Malezor deep wild arm · Auraxion mission ──
   // Auraxion sends the Rizer here to fetch the ASTRALCORE that repowers his UFO.
   // Placed at (5, 195) south-west of Auraxion (15, 180) · off the main path so
@@ -4401,7 +4439,7 @@ const NPCS = [
     turnToInteract: true,
     onInteract: (n) => {
       playSFX('nurseRein');                             // v0.95.128 · sakura chime
-      // v0.95.456 · Free full-heal on every talk · Rizer + every party Zyrex → 100% HP
+      // v0.95.495 · Free heal is FIRST · then LIFE STONE side quest handled below
       const hpMaxR = player.hpMax || 100;
       const missingR = Math.max(0, hpMaxR - (player.hp || 0));
       player.hp = hpMaxR;
@@ -4415,12 +4453,39 @@ const NPCS = [
       const summary = missingR > 0
         ? `+${missingR} HP restored${healedZ ? ` · ${healedZ} Zyrex healed` : ''}`
         : (healedZ ? `${healedZ} Zyrex healed` : 'already at full strength');
-      showToast(`★ Nurse Rein · ${summary}`, 2600);
-      showDialog({ speaker: 'NURSE REIN', lines: [
-        'Welcome, dear Rizer!  Come here · let me look at those wounds.',
-        `*sakura chime*  There · every hit patched · every Zyrex ready.`,
-        'The hospital is always open for you · free of charge.  Your mother\'s son doesn\'t pay here.',
-      ]});
+      showToast(`★ Nurse Rein · ${summary}`, 2400);
+      // v0.95.495 · LIFE STONE side quest · 2 stones → she becomes callable healer contact
+      const stones = (player.items && player.items.life_stone) || 0;
+      if (!player.nurseReinAllied && stones >= 2){
+        player.items.life_stone -= 2;
+        player.nurseReinAllied = true;
+        player.bonds = player.bonds || {}; player.bonds.nurse_rein = Math.min(100, (player.bonds.nurse_rein||0) + 20);
+        try { awardRizerXP(1000); } catch(_){}
+        try { pingNextObjective(); } catch(_){}
+        showToast('★ Nurse Rein registered as CONTACT · call her for a field heal', 4200);
+        showDialog({ speaker: 'NURSE REIN', lines: [
+          '*eyes widen at the two glowing life stones*  Where did you find these?  These are old sanctum stones.',
+          '*folds them gently into her satchel*  I can distill emergency doses from these · a Rizer in the field will never bleed out again.',
+          '*taps your ZyCellite*  Add me to your Contacts · dial when you\'re wounded far from town · I bring the salve to you.',
+          'One call every ten minutes · I move as fast as my hooves allow, dear.',
+        ]});
+        return;
+      }
+      if (!player.nurseReinAllied){
+        const need = Math.max(0, 2 - stones);
+        showDialog({ speaker: 'NURSE REIN', lines: [
+          'Welcome, dear Rizer!  Come here · let me look at those wounds.',
+          `*sakura chime*  There · every hit patched · every Zyrex ready.`,
+          need > 0
+            ? `*leans in*  Say · if you ever come across two LIFE STONES out in the wilds · bring them to me.  I can distill field-heals from them · then I\'ll answer any call you make.  (Have ${stones}/2)`
+            : 'Bring me two LIFE STONES from the wilds and I\'ll follow you into the field.',
+        ]});
+      } else {
+        showDialog({ speaker: 'NURSE REIN', lines: [
+          '*sakura chime*  Patched up, dear.',
+          '*taps ZyCellite*  Dial me anywhere · once every ten minutes I bring a full heal to your tile.',
+        ]});
+      }
     },
   },
   // ── KAIZARI · cheetah warrior at (35, 140) (v0.90) ──
@@ -5224,6 +5289,44 @@ const NPCS = [
     blinkTimer: 2000 + Math.random() * 2000,  // standard blink loop (frame 2 = eyes closed)
     onInteract: (n) => {
       playSFX('orren');                                 // v0.95.158 · warm mountain-man VO
+      // v0.95.495 · SIDE QUEST · dodge 10 times while adjacent to a Seer Grunt
+      //   Counter fires from the dodge input handler when a Seer Grunt sits in
+      //   Manhattan distance ≤ 2 of the Rizer at dodge-time.
+      const need = 10;
+      const done = player.orrenGruntDodges || 0;
+      if (!player.orrenQuestGiven){
+        player.orrenQuestGiven = true; try{pingNextObjective()}catch(_){}
+        try { awardRizerXP(300); } catch(_){}
+        showToast('★ NEW QUEST · Dodge between 10 Seer Grunts in combat (Albert Orren)', 3600);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'ALBERT ORREN', lines: [
+          "*grumbles* Ah, the Rizer kid.  Been meaning to say hello.",
+          "Watch yourself past the town hall · Seer Grunts move fast for boots that big.",
+          "Tell you what · learn to DODGE between them · not run · dodge · circle strafe them like the old-guard rizers used to.",
+          "Show me 10 clean dodges while a Grunt is on you · come back · I\'ll teach you my father\'s old grapple trick.",
+        ]});
+        return;
+      }
+      if (!player.orrenQuestDone && done >= need){
+        player.orrenQuestDone = true;
+        player.bonds = player.bonds || {}; player.bonds.albert_orren = Math.min(100, (player.bonds.albert_orren||0) + 12);
+        try { awardRizerXP(2500); } catch(_){}
+        try { pingNextObjective(); } catch(_){}
+        showToast('★ ORREN · Dodge Trial complete · +12 bond · +2500 RXP', 4000);
+        showDialog({ speaker: 'ALBERT ORREN', lines: [
+          "*belly laugh*  Ten clean dodges under a Grunt\'s nose.  That\'s the old rhythm right there.",
+          "*claps you on the shoulder*  Your father would be proud.  Mine sure would.",
+          "Keep dancing like that and no Seer will land a swing on you.",
+        ]});
+        return;
+      }
+      if (!player.orrenQuestDone){
+        showDialog({ speaker: 'ALBERT ORREN', lines: [
+          `*grumbles*  Dodge progress · ${Math.min(need, done)}/${need} · need a Seer Grunt within 2 tiles when you dodge · running doesn\'t count.`,
+          "Head for the Seer HQ front-guard line if you can\'t find a Grunt on you fast enough.",
+        ]});
+        return;
+      }
       showDialog({ speaker: 'ALBERT ORREN', lines: [
         "*grumbles* Ah, the Rizer kid.  Been meaning to say hello.",
         "Watch yourself past the town hall.  Something's not right in the wilds.",
@@ -8050,6 +8153,7 @@ function collectFaeAt(tx, ty){
       f.collected = true;
       f._collectedAt = performance.now();   // v0.95.397 · 5-min off-camera respawn timer
       player.faeCollected += 1;
+      try { playSFX('gotcha'); } catch(_){}   // v0.95.495 · Rizer "gotcha!" VO on every catch
       // v0.95.135 · Mirror fae count into items so it shows in bag
       if (!player.items) player.items = {};
       player.items.fae = player.faeCollected;
@@ -9092,12 +9196,17 @@ function hitBoulder(b, dmg){
       try { playSFX('confirm'); } catch(_){}
     }
     // v0.95.431 · Life stone shatter · restore Rizer HP to 100%
+    // v0.95.495 · Also deposits 1x life_stone item to inventory · Nurse Rein
+    // wants 2 delivered to unlock her heal-summon contact
     if (b.type === 'life'){
       const max = player.hpMax || 100;
       const before = player.hp || 0;
       player.hp = max;
       const gained = max - before;
-      showToast(`◈ Life stone shatter · HP fully restored (+${gained})`, 2400);
+      player.items = player.items || {};
+      player.items.life_stone = (player.items.life_stone || 0) + 1;
+      const cnt = player.items.life_stone;
+      showToast(`◈ Life stone · HP +${gained} · +1 to bag (${cnt} total)`, 2600);
       try { playSFX('confirm'); } catch(_){}
     }
   }
@@ -11751,6 +11860,24 @@ addEventListener('keydown', e => {
           player.dodgeDir    = player.dir;
           player.dodgeFromX  = player.x;
           player.dodgeFromY  = player.y;
+          // v0.95.495 · Albert Orren side quest counter · every dodge performed while
+          // a Seer Grunt sits within 2 tiles of Rizer credits toward the 10-total.
+          if (player.orrenQuestGiven && !player.orrenQuestDone){
+            const gruntNear = (typeof NPCS !== 'undefined') && NPCS.some(nn =>
+              nn && nn._seerGrunt && !nn._dying &&
+              nn.scene === game.scene &&
+              Math.abs((nn.tileX||0) - player.x) + Math.abs((nn.tileY||0) - player.y) <= 2
+            );
+            if (gruntNear){
+              player.orrenGruntDodges = (player.orrenGruntDodges || 0) + 1;
+              if (player.orrenGruntDodges === 10){
+                showToast('★ ORREN · 10/10 Grunt dodges · return to Albert Orren', 3400);
+                try { playSFX('confirm'); } catch(_){}
+              } else if (player.orrenGruntDodges % 3 === 0){
+                showToast(`◈ ORREN · ${player.orrenGruntDodges}/10 Grunt dodges`, 1800);
+              }
+            }
+          }
           // v0.95.81 · Prefer full 2-tile leap · fall back to 1 only if
           // the destination tile is blocked · dodge in place if both are.
           const vx = { up:0, down:0, left:-1, right:1 }[player.dir];
@@ -16112,6 +16239,8 @@ function renderZycellContacts(){
     ['kaizari',           'Kaizari',       'Training Farm',        () => !!player.faenetGifted],
     ['professor_elarian', 'Prof Elarian',  'Rizer Academy',        () => !!player.raidCardGifted],
     ['auraxion',          'Auraxion',      'Wild Arm · UFO pilot', () => !!player.auraxionMissionComplete],
+    // v0.95.495 · Nurse Rein · unlocked by delivering 2 life stones · CALL = 10-min field heal
+    ['nurse_rein',        'Nurse Rein',    'Malezor Hospital',     () => !!player.nurseReinAllied],
   ];
   const contacts = ALL_CONTACTS.filter(([id, name, loc, gate]) => {
     try { return typeof gate === 'function' ? gate() : true; } catch(_){ return false; }
@@ -16158,6 +16287,35 @@ function renderZycellContacts(){
     setTimeout(() => {
       const _fireCall = (id, nm, trusted) => {
         try { playSFX('confirm'); } catch(_){}
+        // v0.95.495 · NURSE REIN · dedicated heal-summon on any call (bond-independent)
+        // 10-minute cooldown · full-heals Rizer + every party Zyrex on arrival
+        if (id === 'nurse_rein'){
+          const now = performance.now();
+          const CD_MS = 10 * 60 * 1000;
+          const remain = (player._nurseReinNextCallAt || 0) - now;
+          if (remain > 0){
+            closeZphonePanel();
+            const mins = Math.ceil(remain / 60000);
+            showToast(`◈ Nurse Rein · on call cooldown · ~${mins} min remaining`, 3000);
+            try { playSFX('doorLock'); } catch(_){}
+            return;
+          }
+          player._nurseReinNextCallAt = now + CD_MS;
+          const hpMax = player.hpMax || 100;
+          const missing = Math.max(0, hpMax - (player.hp || 0));
+          player.hp = hpMax;
+          let healedZ = 0;
+          (player.party || []).forEach(z => {
+            if (!z) return;
+            const mx = z.maxHp || z.hpMax || 0;
+            if (mx > 0 && (z.hp || 0) < mx){ z.hp = mx; healedZ++; }
+          });
+          try { playSFX('heal'); } catch(_){}
+          try { playSFX('nurseRein'); } catch(_){}
+          closeZphonePanel();
+          showToast(`★ Nurse Rein · field heal · +${missing} HP${healedZ ? ` · ${healedZ} Zyrex` : ''} · next call in 10 min`, 4200);
+          return;
+        }
         if (trusted){
           toggleContactCall(id, nm);
           closeZphonePanel();
@@ -16722,7 +16880,9 @@ window.addEventListener('keydown', (e) => {
   // ── PHONE ROUTER ── panel-nav routes through handleZycellKey · rest eaten
   if (!game.zphoneOpen) return;
   if (handleZycellKey(k)){ e.preventDefault(); e.stopImmediatePropagation(); return; }
-  if (k === 'b' || k === 'escape' || k === 'shift'){
+  // v0.95.495 · Shift no longer exits the ZyPhone (per user QoL request) ·
+  // only B / Escape close it now · shift is free to be a modifier inside menus
+  if (k === 'b' || k === 'escape'){
     e.preventDefault(); e.stopImmediatePropagation();
     closeZphonePanel();
     return;
@@ -19249,6 +19409,37 @@ function buildQuestLog(){
         { done: done,            label: 'UFO repowered · Auraxion joins Contacts' },
       ],
       reward: done ? '✓ UFO flight + Auraxion ally (+15 bond)' : 'UFO flight + Auraxion ally',
+    });
+  }
+  // v0.95.495 · Nurse Rein · life-stone delivery unlocks callable field-heal
+  if (player.nurseReinAllied || (player.items?.life_stone || 0) >= 1){
+    const have = player.items?.life_stone || 0;
+    const done = !!player.nurseReinAllied;
+    quests.push({
+      title: 'Nurse Rein · Life Stone Delivery',
+      giver: 'Nurse Rein · Malezor Hospital',
+      status: done ? 'complete' : 'active',
+      steps: [
+        { done: done || have >= 1, label: `Find LIFE STONE #1 (${Math.min(2, have)}/2)` },
+        { done: done || have >= 2, label: `Find LIFE STONE #2 (${Math.min(2, have)}/2)` },
+        { done: done,              label: 'Deliver both to Nurse Rein at the Hospital' },
+      ],
+      reward: done ? '✓ Nurse Rein registered · 10-min field heal call' : 'Nurse Rein contact · 10-min field heal',
+    });
+  }
+  // v0.95.495 · Albert Orren · dodge 10 times adjacent to a Seer Grunt
+  if (player.orrenQuestGiven){
+    const done = !!player.orrenQuestDone;
+    const cnt  = Math.min(10, player.orrenGruntDodges || 0);
+    quests.push({
+      title: 'Albert Orren · Dodge Trial',
+      giver: 'Albert Orren · outside his home',
+      status: done ? 'complete' : 'active',
+      steps: [
+        { done: cnt >= 10, label: `Dodge with a Seer Grunt within 2 tiles (${cnt}/10)` },
+        { done: done,      label: 'Return to Albert Orren' },
+      ],
+      reward: done ? '✓ +12 bond · +2500 RXP · old grapple lore' : '+12 bond · +2500 RXP',
     });
   }
   // Fill the Faenet · Kaizari gives · trigger = Kaizari's first talk (faenetGifted)

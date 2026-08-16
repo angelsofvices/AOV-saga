@@ -9189,6 +9189,8 @@ function fireAstralslam(){
   player.attackMode='astralslam'; player.attackUntil=performance.now()+ASTRAL_SLAM.DUR_MS; player.moveCd=ASTRAL_SLAM.DUR_MS;
   target._astralslamHeld=true;
   playSFX('kick');
+  // v0.95.491 · Astralslam charges SPECIAL +15% of diamondMax (grabs are effortful)
+  changePlayerDiamond(Math.max(1, Math.round((player.diamondMax || 100) * 0.15)));
   setTimeout(()=>{
     if(!target._astralslamHeld) return;
     target._astralslamHeld=false;
@@ -9278,6 +9280,9 @@ function fireAstralthrow(options={}){
     ? (throwSkin==='power_upgrade'?ASTRALTHROW_S2_BOULDER:ASTRALTHROW_S1_BOULDER)
     : null;
   playSFX('kick');
+  // v0.95.491 · Astralthrow charges SPECIAL +20% of diamondMax on lift (before
+  // release · applies whether target is boulder or NPC · one charge per throw)
+  changePlayerDiamond(Math.max(1, Math.round((player.diamondMax || 100) * 0.20)));
   const throwState={target,kind,skinId:throwSkin,released:false,carrying:false,releaseTimer:0,holdTimer:0,crossCarry,inputKey};
   player._astralthrowState=throwState;
   const release=()=>{
@@ -11871,8 +11876,13 @@ addEventListener('keydown', e => {
         player.attackStart = performance.now();
         player.attackDuration = dur;
         player.attackUntil = player.attackStart + dur;
-        // Every accepted normal melee swing charges SPECIAL by exactly +1.
-        changePlayerDiamond(1);
+        // v0.95.491 · Light melee SPECIAL charge · punch = +5% · kick = +10% (of diamondMax)
+        // Was flat +1 per swing · new canon rewards the light kick as the higher-charge poke
+        {
+          const _dmax = player.diamondMax || 100;
+          const _pct  = (mode === 'kick') ? 0.10 : 0.05;
+          changePlayerDiamond(Math.max(1, Math.round(_dmax * _pct)));
+        }
         // v0.95.184 · Heavy kick takeoff SFX · plays on every kick swing
         if (mode === 'kick') playSFX('kick');
         // v0.95.59 · Hitbox check · exact tile in front of player (based on

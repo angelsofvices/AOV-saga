@@ -9939,17 +9939,18 @@ function activeZyrexRef(){
   }
   return party[0];   // fallback · always first slot when nothing is summoned
 }
-function awardActiveZyrexXP(amount){
-  if (!amount || amount <= 0) return;
-  const z = activeZyrexRef();
-  if (!z) return;
+// v0.95.486 · ZXP is per-Zyrex · only the summoned Zyrex that lands the kill
+// earns · awardZyrexXP(z, amount) grants to a SPECIFIC party member (no more
+// silent-XP-to-party[0] on Rizer melee kills).  activeZyrexRef stays around for
+// the ZHUD read (which shows party[0] by design).
+function awardZyrexXP(z, amount){
+  if (!z || !amount || amount <= 0) return;
   if ((z.level || 1) >= ZYREX_LEVEL_CAP){ z.xp = 0; return; }
   z.xp = (z.xp || 0) + Math.floor(amount);
   let leveled = false;
   while ((z.level || 1) < ZYREX_LEVEL_CAP && z.xp >= xpToNextLevel(z.level || 1)){
     z.xp -= xpToNextLevel(z.level || 1);
     z.level = (z.level || 1) + 1;
-    // Recompute stats · same 5% per-level scale used elsewhere
     const sp = (typeof SPECIES !== 'undefined') && SPECIES[z.speciesId];
     if (sp){
       const s = 1 + (z.level - 1) * 0.05;
@@ -9970,20 +9971,16 @@ function awardActiveZyrexXP(amount){
     showToast(`★ ${z.name} LEVEL UP · Lv ${z.level}`, 2000);
   }
 }
+// Legacy alias · kept so old callers don't crash · now awards nothing (Rizer
+// kills no longer feed Zyrex XP · that only happens when the Zyrex kills)
+function awardActiveZyrexXP(){ /* v0.95.486 · noop · use awardZyrexXP(z, amount) */ }
 function recordMoriKill(mode, npc){
   player.stats.moriKills = (player.stats.moriKills || 0) + 1;
   if (mode === 'kick') player.stats.moriKillsHeavy = (player.stats.moriKillsHeavy || 0) + 1;
   else                 player.stats.moriKillsLight = (player.stats.moriKillsLight || 0) + 1;
-  // v0.95.446 · Active Zyrex gets combat XP · scales with enemy tier + level ·
-  // matches the existing awardRizerXP tier-ladder so both progress in parallel
-  if (npc){
-    const enemyTier  = npc.tier  || 1;
-    const enemyLevel = npc.level || 1;
-    // Same shape as Rizer XP · slightly boosted for stronger enemies
-    // Mori (tier 1 lv 2) ≈ 20 XP · Daemon (tier 3 lv 15) ≈ 105 XP · Vilerok (tier 5 lv ??) ≈ scaling
-    const zyrexXpGain = enemyLevel * (10 + enemyTier * 6);
-    awardActiveZyrexXP(zyrexXpGain);
-  }
+  // v0.95.486 · Zyrex XP intentionally NOT awarded here · Rizer melee kills
+  // give ZERO ZXP · a Zyrex only earns ZXP when IT lands the killing blow
+  // (see tickAggressiveZyrex adjacent-strike branch)
   // v0.95.470 · Scrapjaw's Radio Tower quest · 6 tagged Mori + 1 tagged Vilerok boss
   if (npc && player.towerQuestStarted && !player.radioTowerFixed){
     if (npc._towerMori){
@@ -19550,6 +19547,12 @@ function tickAggressiveZyrex(n){
       startMoriDeath(best);
       const xp = ((best.tier || 1) * 16 + (best.level || 1) * 2);
       awardRizerXP(xp);
+      // v0.95.486 · The KILLING Zyrex gets its own ZXP · scales with enemy
+      // tier + level · only fires here (Rizer melee kills don't feed Zyrex XP)
+      if (partyMember){
+        const zxp = (best.level || 1) * (10 + (best.tier || 1) * 6);
+        awardZyrexXP(partyMember, zxp);
+      }
     }
     n._nextAttackAt = performance.now() + 700;
     n.moving = false;

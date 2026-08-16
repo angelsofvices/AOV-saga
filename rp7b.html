@@ -2020,6 +2020,7 @@ const INVENTORY_META = {
   gearbag:          { label: 'Gearbag',                 order: 3  },   // v0.95.279 · Scrapjaw's gift · outfits + cosmetics live inside
   backpack:         { label: 'Backpack',                order: 0.5},   // v0.95.326 · Rizer's first-grab · gates touchpad + house exit
   elzebub_egg:      { label: 'Elzebub Egg',             order: 4  },   // v0.95.295 · rare egg · found near home · Mom nurses it into Elzebub Lv10
+  scrap_metal:      { label: 'Scrap Metal',             order: 45 },   // v0.95.490 · chest loot outside Radio Tower · trade to Scrapjaw for Phone Battery
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -3480,11 +3481,54 @@ const WORLD_PROPS = [
         if (player.radioTowerFixed){
           showToast('◈ Malezor Radio Tower · restored · signal broadcasting', 2400);
         } else {
-          showToast('◈ Malezor Radio Tower · smashed antennas · Mori swarm the base', 2600);
+          showToast('◈ Malezor Radio Tower · smashed antennas · scrap in the chest at the base', 2600);
         }
       },
     };
     return prop;
+  })(),
+  // ── v0.95.490 · TOWER SCRAP CHEST · directly in front of Radio Tower door ──
+  // Contains SCRAP METAL · Rizer brings it to Scrapjaw in exchange for the
+  // PHONE BATTERY (unlocks contact calls).  Anti-softlock: player no longer
+  // has to defeat the tower Mori + Vilerok to complete the exchange · the kill
+  // set is now a BONUS bond track handled inside Scrapjaw's onInteract.
+  // Placed 2 tiles south of tower door (38, 14) at (38, 16).
+  (function(){
+    const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/chest.png';
+    const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
+    const CLOSED_BBOX = [362, 329, 676, 467];
+    const OPEN_BBOX   = [290, 240, 673, 741];
+    const chest = {
+      id: 'chest_tower_scrap',
+      img: _closedImg,
+      src: 'assets/2D%20sprites/decor/chest.png',
+      bbox: CLOSED_BBOX,
+      tileX: 38, tileY: 16,
+      tileW: 1, tileH: 1,
+      footprint: [[0, 0]],
+      door: [0, 0],
+      opened: false,
+      looted: false,
+      _closedImg,
+      _openImg,
+      _closedBbox: CLOSED_BBOX,
+      _openBbox:   OPEN_BBOX,
+    };
+    chest.onInteract = () => {
+      if (chest.opened) return;
+      chest.opened = true;
+      chest.img = _openImg;
+      chest.bbox = OPEN_BBOX;
+      if (!chest.looted){
+        chest.looted = true;
+        player.items = player.items || {};
+        player.items.scrap_metal = (player.items.scrap_metal || 0) + 1;
+        try { playItemGain('scrap_metal'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+        try { pingNextObjective(); } catch(_){}
+        showToast('★ SCRAP METAL retrieved · bring it to Scrapjaw at the Gear Shop', 3600);
+      }
+    };
+    return chest;
   })(),
   // ── AURAXION'S UFO · (11, 175) Malezor wild arm · post-Part-1 fast-travel ──
   // Locked until endgame · will unlock interstellar travel after Part 1.
@@ -4482,54 +4526,84 @@ const NPCS = [
       // v0.95.400 · Scrapjaw is the RIZER tab unlock · no more gearbag item · his
       // first talk flips player.scrapjawMet which the touchpad checks to reveal
       // the RIZER (analysis + upgrades) tab · replaces the deprecated gearbag flow
+      // v0.95.490 · REWORKED TOWER QUEST · anti-softlock design
+      //   MAIN task = fetch SCRAP METAL from the chest at the tower base
+      //   BONUS    = wipe the 6 Mori + Vilerok so his repair crew can work
+      //   Player can complete the exchange with scrap only · extermination is
+      //   an optional bond track that pays extra when done.
       player.items = player.items || {};
+      const bumpBond = (n) => { player.bonds = player.bonds || {}; player.bonds.scrapjaw = Math.min(100, (player.bonds.scrapjaw||0) + n); };
       if (!player.scrapjawMet){
-        // v0.95.428 · FIRST TALK · introduces Scrapjaw · unlocks RIZER tab AND
-        // starts the Malezor Radio Tower quest (kill 12 Mori around the NE tower)
+        // v0.95.428 · FIRST TALK · unlocks RIZER tab + starts Radio Tower quest
         player.scrapjawMet = true; try{pingNextObjective()}catch(_){}
         player.gearbagGifted = true;                     // legacy alias · keeps old saves happy
         player.towerQuestStarted = true;
-        // v0.95.477 · Resurrect the 6 tower Mori + tower-boss Vilerok on quest
-        // start so early explorers who cleared them still get a fair fight
+        // v0.95.477 · Resurrect the tower pack so late-arrivals can still fight
         try { resurrectScrapjawTowerPack(); } catch(_){}
         try { awardRizerXP(500); } catch(_){}
         player.ownedCosmetics = player.ownedCosmetics || {};
         player.ownedCosmetics.normal = true;
-        showToast('★ RIZER tab unlocked · NEW QUEST · 6 Mori + 1 VILEROK at the NE Radio Tower', 3600);
+        showToast('★ RIZER tab unlocked · NEW QUEST · fetch SCRAP METAL from the tower chest', 3600);
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'SCRAPJAW', lines: [
           '*sniff*  ...you smell like a rookie Rizer.  I like rookies.  Rookies buy stuff.',
-          '*leans in*  Listen · every Rizer worth a damn keeps a RIZER page.  Skins, cosmetics, stat boosts, all the drip.',
-          'Bring me GEMS · I work your gear · you get bumps to HEALTH · ATTACK · DEFENSE · SPEED · STAMINA.  Five stats · five ways to survive.',
-          'Just unlocked the RIZER tab on your touchpad · right of your bag.  Come back when you\'ve got gems.',
-          '*ear twitches*  One more thing · our RADIO TOWER out in the northeast?  Smashed.  Six Mori swarm the base · and a VILEROK boss patrols the plaza · my repair crew won\'t set foot near it.',
-          'Kill the six Mori · put down the VILEROK · and I\'ll send my staff up to patch her back together.  Do that and I\'ll owe you something PRECIOUS.',
-          '*grins*  Get my bond to 50 and I\'ll walk with you · upgrade your gear right in the field.',
+          '*leans in*  Every Rizer worth a damn keeps a RIZER page · skins, cosmetics, stat boosts.  Just unlocked yours on the touchpad · bring me GEMS to run upgrades.',
+          '*ear twitches*  While you\'re out there · I need a favor.  Our RADIO TOWER out northeast is DOWN · my crew left a chest of SCRAP METAL at the base before the Mori chased them off.',
+          'Grab that scrap · bring it back to me · I\'ll build you a PHONE BATTERY on the spot.  Lets you call your contacts from anywhere in Zyraxis.',
+          '*grins*  BONUS · if you clear the 6 Mori AND that VILEROK boss patrolling the plaza · my crew can climb the tower and I\'ll bump your bond hard.  Extermination\'s optional · scrap alone gets you the battery.',
+          'Get my bond to 50 and I\'ll follow you into the field · gear-work wherever you stand.',
         ]});
       } else if (player.towerQuestStarted && !player.radioTowerFixed
-              && (player.towerMoriKills || 0) >= 6 && player.towerBossKilled){
-        // TOWER QUEST COMPLETE · fix the tower + gift Phone Battery
+              && (player.items.scrap_metal || 0) >= 1){
+        // v0.95.490 · SCRAP DELIVERY · exchange scrap → phone battery
+        // Base reward always fires · bonus reward stacks if extermination done
+        player.items.scrap_metal -= 1;
         player.radioTowerFixed = true;
         player.phoneBattery = true;
         try { awardRizerXP(750); } catch(_){}
+        bumpBond(4);                                       // base bond bump for delivery
+        const killedAll = (player.towerMoriKills || 0) >= 6 && player.towerBossKilled;
+        if (killedAll){
+          try { awardRizerXP(500); } catch(_){}            // BONUS RXP
+          bumpBond(6);                                     // BONUS bond bump (total +10 vs +4)
+          player.scrapjawFullClear = true;
+        }
         try { pingNextObjective(); } catch(_){}
-        showToast('★ Radio Tower RESTORED · Phone Battery received · overworld calls unlocked', 4200);
+        showToast(killedAll
+          ? '★ SCRAP delivered + Tower CLEARED · Phone Battery + BONUS bond (+10 total)'
+          : '★ SCRAP delivered · Phone Battery received · overworld calls unlocked', 4400);
         try { playSFX('confirm'); } catch(_){}
-        showDialog({ speaker: 'SCRAPJAW', lines: [
-          '*whistles*  Six down AND the Vilerok?  You don\'t mess around, kid.',
-          'My crew\'s already climbing the tower · antennas back up · signal cleaner than the day it was raised.',
-          'Here · take this.  Fresh PHONE BATTERY straight off the workbench.  Slot it into that ZyCellite of yours.',
-          '*taps his temple*  You can now CALL every contact in your book from anywhere in Zyraxis · no more running clear across a district for a chat.',
-          'Try it · touchpad → CONTACTS · pick a name · dial.  Signal comes through my tower now.',
+        showDialog({ speaker: 'SCRAPJAW', lines: killedAll ? [
+          '*whistles*  Scrap AND a cleared plaza?  You don\'t mess around, kid.',
+          'My crew\'s already climbing · antennas back up · signal cleaner than the day it was raised.',
+          '*hands you a fresh workbench-warm PHONE BATTERY*  Slot this into your ZyCellite · CONTACTS tab · dial any name in your book.',
+          '*grins wide*  And a full bond bump for saving me a whole staff.  You earned every point.',
+        ] : [
+          '*sniff*  Ah · you brought the scrap.  Nice work sneaking past those Mori.',
+          '*taps the metal · takes it*  My crew\'s not gonna climb with the plaza still swarming · but that\'s their problem · I\'ll get them up there once they nerve up.',
+          '*hands you a fresh workbench-warm PHONE BATTERY*  Slot this into your ZyCellite · CONTACTS tab · dial any name in your book.',
+          '*ear twitches*  Come back if you decide to wipe those 6 Mori and the Vilerok · bigger bond in it for you.',
         ]});
       } else if (player.towerQuestStarted && !player.radioTowerFixed){
-        // TOWER QUEST IN PROGRESS
+        // TOWER QUEST IN PROGRESS · no scrap yet
         const k = player.towerMoriKills || 0;
         const bossLine = player.towerBossKilled ? 'VILEROK · DOWN ✓' : 'VILEROK · still standing';
         showDialog({ speaker: 'SCRAPJAW', lines: [
-          `*sniff*  ${k}/6 Mori down · ${bossLine}`,
-          'Head NORTHEAST · past the statue · the six Mori ring the base and the VILEROK patrols wider.',
-          'Six + the boss down · then I fire up the repair crew and you walk with a PHONE BATTERY.',
+          `*sniff*  No scrap yet · head NORTHEAST · CHEST sits right at the tower base.`,
+          `MAIN · grab the SCRAP METAL from the chest · brings back a PHONE BATTERY.`,
+          `BONUS · plaza still hot · ${k}/6 Mori down · ${bossLine} · clear the whole set for extra bond.`,
+        ]});
+      } else if (player.towerQuestStarted && player.radioTowerFixed && !player.scrapjawFullClear
+              && ((player.towerMoriKills || 0) >= 6 && player.towerBossKilled)){
+        // v0.95.490 · POST-DELIVERY · player came back after clearing the plaza
+        player.scrapjawFullClear = true;
+        try { awardRizerXP(500); } catch(_){}
+        bumpBond(6);
+        showToast('★ Tower cleared post-delivery · BONUS bond (+6)', 3800);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'SCRAPJAW', lines: [
+          '*whistles*  Came back to finish the job, huh?  Plaza\'s clean · my crew can breathe.',
+          '*grins*  Bond bump for the effort · a Rizer who honors both halves of a deal is a Rizer worth calling friend.',
         ]});
       } else {
         const bond = (player.bonds && player.bonds.scrapjaw) || 0;
@@ -5321,7 +5395,8 @@ const NPCS = [
         if (!KS.s5){
           if (RL < 12){ showDialog({ speaker: 'KELTHOR', lines: [`Lv 12 first · you are Lv ${RL}.`]}); return; }
           if (!player.radioTowerFixed){
-            showDialog({ speaker: 'KELTHOR', lines: [`Scrapjaw's Radio Tower still down · 6 Mori and the Vilerok at the plaza · finish his quest first.`]});
+            // v0.95.490 · Radio Tower quest = scrap-metal fetch (main) · Kelthor waits on Scrapjaw's signal restoration
+            showDialog({ speaker: 'KELTHOR', lines: [`Scrapjaw's Radio Tower still down · fetch the SCRAP METAL from the chest at the tower base · bring it to him for the Phone Battery.`]});
             return;
           }
           KS.s5 = true; bumpBond(1);
@@ -15450,13 +15525,11 @@ function nextObjectiveHint(){
   if (!player.elzebubHatched)       return 'Find the Elzebub egg near (187, 45) · bring it home to Mom';
   if (!player.kaizariHintGiven)     return 'Return to Dad · ask about Kaizari';
   if (!player.scrapjawMet)          return 'Track down Scrapjaw at the Malezor Gear Shop';
+  // v0.95.490 · Tower quest = grab SCRAP METAL chest (main) · extermination optional
   if (player.towerQuestStarted && !player.radioTowerFixed){
-    const k = player.towerMoriKills || 0;
-    const boss = !!player.towerBossKilled;
-    if (k < 6 && !boss)             return `Radio Tower · ${k}/6 Mori · VILEROK still up`;
-    if (k < 6 &&  boss)             return `Radio Tower · ${k}/6 Mori · VILEROK ✓`;
-    if (k >= 6 && !boss)            return `Radio Tower · Mori cleared · take down the VILEROK`;
-    return 'Radio Tower · all clear · return to Scrapjaw';
+    const hasScrap = (player.items?.scrap_metal || 0) >= 1;
+    if (!hasScrap)                  return 'Radio Tower · open the CHEST at the tower base for SCRAP METAL';
+    return 'Return to Scrapjaw · trade SCRAP METAL for the Phone Battery';
   }
   if (!player.kelthorMet)           return 'Meet Warden Kelthor at the Beastwarden\'s Hall';
   if (!player.townMapGifted)        return 'Find Zoryn in Malezor · he owes you a Town Map';
@@ -18932,7 +19005,7 @@ function buildQuestLog(){
         { done: s2, label: `Step 2 · Feed the Ward · 5 berries + 5 seeds (${Math.min(5,player.items?.berry||0)}/5 · ${Math.min(5,player.items?.seed||0)}/5)${lvGate(3)}` },
         { done: s3, label: `Step 3 · First Bond · own a Zyrex${lvGate(5)}` },
         { done: s4, label: `Step 4 · Home Rank · Backpack + Skateboard + ZyPhone${lvGate(8)}` },
-        { done: s5, label: `Step 5 · Signal Restored · Scrapjaw Radio Tower${lvGate(12)}` },
+        { done: s5, label: `Step 5 · Signal Restored · deliver Scrapjaw's SCRAP METAL${lvGate(12)}` },
         { done: s6, label: `Step 6 · Vilerok Purge · defeat all 5 (${Math.min(5,player.vilerokKills||0)}/5)${lvGate(18)}` },
         { done: s7, label: `Step 7 · Rakoron Path · meet Rakoron in NW cave${lvGate(25)}` },
         { done: s8, label: `Step 8 · Zarvane Bridge · 3 Soulphish from Zarvane Oasis (${Math.min(3,player.items?.soulphish||0)}/3)${lvGate(30)}` },
@@ -18984,6 +19057,31 @@ function buildQuestLog(){
       status: 'complete',
       steps: [ { done: true, label: 'Find and interact with the Malezor broadcast tower' } ],
       reward: '+150 Rizer XP',
+    });
+  }
+  // v0.95.490 · Scrapjaw's Radio Tower · citizen-ally side quest
+  // MAIN objective = fetch SCRAP METAL chest at tower base · trade to Scrapjaw
+  //                  for the PHONE BATTERY (unlocks overworld calls)
+  // BONUS objective = wipe 6 Mori + Vilerok at the plaza · extra bond
+  if (player.scrapjawMet){
+    const hasScrap = (player.items?.scrap_metal || 0) >= 1;
+    const fixed    = !!player.radioTowerFixed;
+    const moriK    = player.towerMoriKills || 0;
+    const bossDown = !!player.towerBossKilled;
+    const bonusDone = !!player.scrapjawFullClear;
+    quests.push({
+      title: 'Radio Tower · Scrap Run',
+      giver: 'Scrapjaw · Malezor Gear Shop',
+      status: fixed && bonusDone ? 'complete' : (fixed ? 'active' : 'active'),
+      steps: [
+        { done: fixed || hasScrap, label: 'Open the CHEST at the Radio Tower base (NE Malezor)' },
+        { done: fixed,             label: 'Return the SCRAP METAL to Scrapjaw' },
+        { done: fixed,             label: 'Receive the PHONE BATTERY (unlocks calls)' },
+        { done: (moriK >= 6),      label: `BONUS · Clear 6 Mori at the tower plaza (${Math.min(6, moriK)}/6)` },
+        { done: bossDown,          label: 'BONUS · Defeat the VILEROK plaza boss' },
+        { done: bonusDone,         label: 'BONUS · Return to Scrapjaw for the bond bump' },
+      ],
+      reward: bonusDone ? '✓ Phone Battery + full bond bump (+10)' : (fixed ? 'Phone Battery ✓ · bonus bond still open' : 'Phone Battery · calls unlock · +bond'),
     });
   }
   // Fill the Faenet · Kaizari gives · trigger = Kaizari's first talk (faenetGifted)

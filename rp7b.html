@@ -9978,9 +9978,24 @@ function recordMoriKill(mode, npc){
   player.stats.moriKills = (player.stats.moriKills || 0) + 1;
   if (mode === 'kick') player.stats.moriKillsHeavy = (player.stats.moriKillsHeavy || 0) + 1;
   else                 player.stats.moriKillsLight = (player.stats.moriKillsLight || 0) + 1;
-  // v0.95.486 · Zyrex XP intentionally NOT awarded here · Rizer melee kills
-  // give ZERO ZXP · a Zyrex only earns ZXP when IT lands the killing blow
-  // (see tickAggressiveZyrex adjacent-strike branch)
+  // v0.95.487 · PASSIVE SHARE · when Rizer kills, the currently-summoned Zyrex
+  // gets a SMALL scaled share (present-in-overworld share).  Party members not
+  // summoned get nothing UNLESS player.shareshardActive is true (Shareshard item
+  // ships later · gives passive share to every party member regardless of summon).
+  if (npc){
+    const shareXp = (npc.level || 1) * (1 + (npc.tier || 1) * 1);   // Mori L2 T1 = 4
+    const summonedIds = new Set(
+      (NPCS || []).filter(n => n && n._summoned && n.id && n.id.startsWith('_summon_'))
+                  .map(n => n._summonSpeciesId)
+    );
+    (player.party || []).forEach(z => {
+      if (!z) return;
+      const isOut = summonedIds.has(z.speciesId);
+      if (isOut || player.shareshardActive){
+        awardZyrexXP(z, shareXp);
+      }
+    });
+  }
   // v0.95.470 · Scrapjaw's Radio Tower quest · 6 tagged Mori + 1 tagged Vilerok boss
   if (npc && player.towerQuestStarted && !player.radioTowerFixed){
     if (npc._towerMori){
@@ -19542,16 +19557,20 @@ function tickAggressiveZyrex(n){
     if (partyMember && !emitZyrexAttackSprite(partyMember.speciesId, best.tileX, best.tileY)){ /* fallback = ring */ }
     n.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
     try { playSFX('astralstrike'); } catch(_){}
+    // v0.95.487 · MEDIUM ZXP per HIT landed by the Zyrex · scales w/ enemy tier + level
+    if (partyMember){
+      const hitXp = (best.level || 1) * (2 + (best.tier || 1) * 2);   // Mori L2 T1 = 8
+      awardZyrexXP(partyMember, hitXp);
+    }
     if (best.hp <= 0){
       try { playSFX('astralKill'); } catch(_){}
       startMoriDeath(best);
       const xp = ((best.tier || 1) * 16 + (best.level || 1) * 2);
       awardRizerXP(xp);
-      // v0.95.486 · The KILLING Zyrex gets its own ZXP · scales with enemy
-      // tier + level · only fires here (Rizer melee kills don't feed Zyrex XP)
+      // LARGE ZXP bonus on the KILLING blow · this Zyrex owns the kill
       if (partyMember){
-        const zxp = (best.level || 1) * (10 + (best.tier || 1) * 6);
-        awardZyrexXP(partyMember, zxp);
+        const killXp = (best.level || 1) * (10 + (best.tier || 1) * 6);   // Mori L2 T1 = 32
+        awardZyrexXP(partyMember, killXp);
       }
     }
     n._nextAttackAt = performance.now() + 700;

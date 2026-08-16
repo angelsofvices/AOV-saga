@@ -4577,6 +4577,8 @@ const NPCS = [
     onInteract: (n) => {
       // v0.95.377 · Yara VO on interact
       try { playSFX('yara'); } catch(_){}
+      // v0.95.489 · Talking to Yara triggers the "Walk Yara to School" quest in the log
+      if (!player.yaraMet){ player.yaraMet = true; try{pingNextObjective()}catch(_){} }
       // v0.95.338 · X press = talk (existing behavior · dialog)
       showDialog({ speaker: 'YARA', lines: [
         "*grins* Lucky you got your own room upstairs.  I'm still sharing wall with Mom's snoring.",
@@ -15824,7 +15826,7 @@ function renderZycellMap(){
 function renderZycellExpeditions(){
   const log = (typeof buildQuestLog === 'function') ? buildQuestLog() : { expeditions:[], quests:[] };
   const list = (title, items, headerColor) => {
-    if (!items.length) return _zySection(title, `<div style="color:#889; text-align:center;">· none yet ·</div>`, headerColor);
+    if (!items.length) return _zySection(title, `<div style="color:#889; text-align:center; padding:12px 8px; line-height:1.6;">· none yet ·<br><span style="font-size:9px; color:#667;">talk to allies to unlock quests</span></div>`, headerColor);
     const rows = items.map(q => {
       const done = q.steps.filter(s => s.done).length;
       const total = q.steps.length;
@@ -16150,7 +16152,7 @@ function renderZycellHome(){
         <span style="color:#fff; font-size:10px;">${missionPct}%</span>
       </div>
     </div>` : `
-    <div style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.35); padding:14px; color:#889; font-size:11px; text-align:center;">no active mission</div>`;
+    <div style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.35); padding:14px; color:#889; font-size:11px; text-align:center; line-height:1.6;">no active mission<br><span style="font-size:9px; color:#667;">talk to allies to trigger quests</span></div>`;
   // ── District Map mini · shows Rizer pin + nearby waypoints ────────
   const districtName = (typeof worldDistrictAt === 'function') ? (worldDistrictAt(p.x, p.y) || '') : '';
   const map = `
@@ -18817,23 +18819,31 @@ function buildQuestLog(){
   const st   = !!player.starterChosen;
   const eg   = !!player.elzebubHatched;
   const kh   = !!player.kelthorMet;
+  // v0.95.489 · TRIGGER GATE · every expedition/quest below only appears in the
+  // log AFTER the player has spoken to the assigned NPC ally (or picked up the
+  // world-event trigger for the few quests with no ally giver).  Ally triggers
+  // reuse existing "first-talk" flags where they already exist; new flags were
+  // added (yaraMet) where none existed.  Rule: no NPC talk = no quest entry.
 
-  // Quest 1 · The First Morning · starts at game boot · always shown
-  expeditions.push({
-    title: 'Malezor · Ch 1 · The First Morning',
-    giver: 'Mom · Kitchen · Malezor home',
-    status: zc ? 'complete' : (bp ? 'active' : 'active·return'),
-    steps: [
-      { done: bp,   label: 'Grab your Backpack from your room' },
-      { done: bp,   label: 'Head downstairs' },
-      { done: zc,   label: 'Talk to Mom in the kitchen' },
-      { done: zc,   label: 'Receive the ZyCube from Mom' },
-    ],
-    reward: 'ZyCube · unlocks touchpad',
-  });
-
-  // Quest 2 · Walk Yara to School · unlocks after Zycube
+  // Quest 1 · The First Morning · Mom gives it · trigger = Mom's first talk
+  // (Mom's onInteract sets zycubeGifted on turn 1 → treat that as the trigger)
   if (zc){
+    expeditions.push({
+      title: 'Malezor · Ch 1 · The First Morning',
+      giver: 'Mom · Kitchen · Malezor home',
+      status: zc ? 'complete' : (bp ? 'active' : 'active·return'),
+      steps: [
+        { done: bp,   label: 'Grab your Backpack from your room' },
+        { done: bp,   label: 'Head downstairs' },
+        { done: zc,   label: 'Talk to Mom in the kitchen' },
+        { done: zc,   label: 'Receive the ZyCube from Mom' },
+      ],
+      reward: 'ZyCube · unlocks touchpad',
+    });
+  }
+
+  // Quest 2 · Walk Yara to School · Yara gives it · trigger = talking to Yara
+  if (player.yaraMet || raid){
     expeditions.push({
       title: 'Malezor · Ch 2 · Walk Yara to School',
       giver: 'Yara · upstairs · Malezor home',
@@ -18848,8 +18858,8 @@ function buildQuestLog(){
     });
   }
 
-  // Quest 3 · Your First Bond · unlocks after RAID
-  if (raid){
+  // Quest 3 · Your First Bond · Dad gives it · trigger = Dad's dialogue
+  if (player.dadStarterQuestGiven || st){
     const dad = !!player.dadStarterQuestGiven;
     expeditions.push({
       title: 'Malezor · Ch 3 · Your First Bond',
@@ -18866,20 +18876,22 @@ function buildQuestLog(){
     });
   }
 
-  // Quest 4 · An Egg by the Path · unlocks after starter chosen
-  if (st){
+  // Quest 4 · An Egg by the Path · world event · trigger = picking up the egg
+  {
     const hasEgg = (player.items?.elzebub_egg||0) >= 1;
-    expeditions.push({
-      title: 'Malezor · Ch 4 · An Egg by the Path',
-      giver: 'World event · outside Malezor home',
-      status: eg ? 'complete' : (hasEgg ? 'active·return' : 'active'),
-      steps: [
-        { done: hasEgg || eg, label: 'Find the Elzebub egg outside your home' },
-        { done: eg, label: 'Bring the egg to Mom · she will nurse it' },
-        { done: eg, label: 'Elzebub hatches into your party at Lv 10' },
-      ],
-      reward: 'Elzebub Lv 10 · Draconic/Elemental',
-    });
+    if (hasEgg || eg){
+      expeditions.push({
+        title: 'Malezor · Ch 4 · An Egg by the Path',
+        giver: 'World event · outside Malezor home',
+        status: eg ? 'complete' : (hasEgg ? 'active·return' : 'active'),
+        steps: [
+          { done: hasEgg || eg, label: 'Find the Elzebub egg outside your home' },
+          { done: eg, label: 'Bring the egg to Mom · she will nurse it' },
+          { done: eg, label: 'Elzebub hatches into your party at Lv 10' },
+        ],
+        reward: 'Elzebub Lv 10 · Draconic/Elemental',
+      });
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -18889,7 +18901,9 @@ function buildQuestLog(){
   // This IS the game's meta-progression loop.  Each unlock is documented in
   // aov-malezor-foundation + aov-bonded-astralite-combat + aov-prismshards.
   // ══════════════════════════════════════════════════════════════════════
-  if (eg){
+  // v0.95.489 · Kelthor ladder now trigger-gates on Kelthor's first meeting (kh)
+  // instead of the Elzebub-hatch (eg) · quest only appears once the Warden speaks.
+  if (kh){
     const RL   = player.rizerLvl || 1;
     const bond = player.bonds?.kelthor || 0;
     const KS = player.kelthorStep = player.kelthorStep || {};
@@ -18935,38 +18949,53 @@ function buildQuestLog(){
     });
   }
 
-  // Legacy · Zoryn's Town Map (side path · shown throughout)
-  expeditions.push({
-    title: 'Where\'s Your Map?',
-    giver: 'Zoryn · Malezor overworld',
-    status: player.townMapGifted ? 'complete' : 'available',
-    steps: [
-      { done: !!player.townMapGifted, label: 'Track down Zoryn and get bailed out' },
-    ],
-    reward: 'Town Map (Malezor) · unlocks MAP tab',
-  });
-  // QUESTS · side missions (dynamic based on player state)
-  quests.push({
-    title: 'Punching Bag · 100 Hits',
-    giver: 'Rizer Room · self-training',
-    status: ((player.stats && player.stats.punches) || 0) >= 100 ? 'complete' : 'active',
-    steps: [ { done: ((player.stats?.punches)||0) >= 100, label: `Punches (${(player.stats?.punches)||0}/100)` } ],
-    reward: 'Fury Fist cosmetic',
-  });
-  quests.push({
-    title: 'Broadcast Tower · Malezor',
-    giver: 'Myara interview',
-    status: player.malezorBroadcastDone ? 'complete' : 'available',
-    steps: [ { done: !!player.malezorBroadcastDone, label: 'Find and interact with the Malezor broadcast tower' } ],
-    reward: '+150 Rizer XP',
-  });
-  quests.push({
-    title: 'Fill the Faenet',
-    giver: 'Kaizari',
-    status: (player.faeCollected||0) >= 5 ? 'complete' : 'active',
-    steps: [ { done: (player.faeCollected||0) >= 5, label: `Catch 5 fae (${player.faeCollected||0}/5)` } ],
-    reward: 'Astral energy bonus',
-  });
+  // Legacy · Zoryn's Town Map (Zoryn gives it · trigger = Zoryn's first talk
+  // which sets townMapGifted immediately · one-hit ally quest)
+  if (player.townMapGifted){
+    expeditions.push({
+      title: 'Where\'s Your Map?',
+      giver: 'Zoryn · Malezor overworld',
+      status: 'complete',
+      steps: [
+        { done: true, label: 'Track down Zoryn and get bailed out' },
+      ],
+      reward: 'Town Map (Malezor) · unlocks MAP tab',
+    });
+  }
+  // v0.95.489 · QUESTS · side missions · same trigger rule applies · every
+  // entry must be spoken/discovered before it appears in the log.
+
+  // Punching Bag · self-training (no NPC) · trigger = first punch landed
+  if (((player.stats?.punches)||0) >= 1){
+    quests.push({
+      title: 'Punching Bag · 100 Hits',
+      giver: 'Rizer Room · self-training',
+      status: ((player.stats && player.stats.punches) || 0) >= 100 ? 'complete' : 'active',
+      steps: [ { done: ((player.stats?.punches)||0) >= 100, label: `Punches (${(player.stats?.punches)||0}/100)` } ],
+      reward: 'Fury Fist cosmetic',
+    });
+  }
+  // Broadcast Tower · Myara interview · trigger = first tower interact
+  // (currently only fires on completion · Myara pre-interview wiring pending)
+  if (player.malezorBroadcastDone){
+    quests.push({
+      title: 'Broadcast Tower · Malezor',
+      giver: 'Myara interview',
+      status: 'complete',
+      steps: [ { done: true, label: 'Find and interact with the Malezor broadcast tower' } ],
+      reward: '+150 Rizer XP',
+    });
+  }
+  // Fill the Faenet · Kaizari gives · trigger = Kaizari's first talk (faenetGifted)
+  if (player.faenetGifted){
+    quests.push({
+      title: 'Fill the Faenet',
+      giver: 'Kaizari',
+      status: (player.faeCollected||0) >= 5 ? 'complete' : 'active',
+      steps: [ { done: (player.faeCollected||0) >= 5, label: `Catch 5 fae (${player.faeCollected||0}/5)` } ],
+      reward: 'Astral energy bonus',
+    });
+  }
   return { expeditions, quests };
 }
 

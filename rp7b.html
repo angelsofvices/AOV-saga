@@ -2021,6 +2021,7 @@ const INVENTORY_META = {
   backpack:         { label: 'Backpack',                order: 0.5},   // v0.95.326 · Rizer's first-grab · gates touchpad + house exit
   elzebub_egg:      { label: 'Elzebub Egg',             order: 4  },   // v0.95.295 · rare egg · found near home · Mom nurses it into Elzebub Lv10
   scrap_metal:      { label: 'Scrap Metal',             order: 45 },   // v0.95.490 · chest loot outside Radio Tower · trade to Scrapjaw for Phone Battery
+  astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -3530,8 +3531,49 @@ const WORLD_PROPS = [
     };
     return chest;
   })(),
-  // ── AURAXION'S UFO · (11, 175) Malezor wild arm · post-Part-1 fast-travel ──
-  // Locked until endgame · will unlock interstellar travel after Part 1.
+  // ── v0.95.492 · ASTRALCORE CHEST · Malezor deep wild arm · Auraxion mission ──
+  // Auraxion sends the Rizer here to fetch the ASTRALCORE that repowers his UFO.
+  // Placed at (5, 195) south-west of Auraxion (15, 180) · off the main path so
+  // player has to explore the wild arm to find it.  Chest drops 1x astralcore.
+  (function(){
+    const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/chest.png';
+    const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
+    const CLOSED_BBOX = [362, 329, 676, 467];
+    const OPEN_BBOX   = [290, 240, 673, 741];
+    const chest = {
+      id: 'chest_wildarm_astralcore',
+      img: _closedImg,
+      src: 'assets/2D%20sprites/decor/chest.png',
+      bbox: CLOSED_BBOX,
+      tileX: 5, tileY: 195,
+      tileW: 1, tileH: 1,
+      footprint: [[0, 0]],
+      door: [0, 0],
+      opened: false,
+      looted: false,
+      _closedImg,
+      _openImg,
+      _closedBbox: CLOSED_BBOX,
+      _openBbox:   OPEN_BBOX,
+    };
+    chest.onInteract = () => {
+      if (chest.opened) return;
+      chest.opened = true;
+      chest.img = _openImg;
+      chest.bbox = OPEN_BBOX;
+      if (!chest.looted){
+        chest.looted = true;
+        player.items = player.items || {};
+        player.items.astralcore = (player.items.astralcore || 0) + 1;
+        try { playItemGain('astralcore'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+        try { pingNextObjective(); } catch(_){}
+        showToast('★ ASTRALCORE retrieved · bring it to Auraxion in the wild arm', 3800);
+      }
+    };
+    return chest;
+  })(),
+  // ── AURAXION'S UFO · (17, 176) Malezor wild arm · gated on Auraxion mission ──
+  // v0.95.492 · Locked until player completes Auraxion's ASTRALCORE fetch quest.
   (function(){
     const _ufoImg = new Image();
     _ufoImg.src = 'assets/2D%20sprites/decor/auraxion-ufo.png';
@@ -5190,9 +5232,50 @@ const NPCS = [
     onInteract: (n) => {
       if(startFactionSoulSwitch(n))return;
       playSFX('auraxion');                              // v0.95.85 · "just like the simulations"
-      showDialog({ speaker: 'AURAXION', lines: [
-        'I read the astral currents.  You walk a bright path, Rizer.',
-      ]});
+      // v0.95.492 · ASTRALCORE FETCH QUEST · gates UFO flight + Auraxion ally
+      player.items = player.items || {};
+      const bumpBond = (amt) => { player.bonds = player.bonds || {}; player.bonds.auraxion = Math.min(100, (player.bonds.auraxion||0) + amt); };
+      if (!player.auraxionMet){
+        // FIRST TALK · gives the quest · registers Auraxion as a contact
+        player.auraxionMet = true; try{pingNextObjective()}catch(_){}
+        try { awardRizerXP(500); } catch(_){}
+        showToast('★ NEW QUEST · Find an ASTRALCORE for Auraxion (Malezor wild arm)', 3800);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'AURAXION', lines: [
+          'I read the astral currents.  You walk a bright path, Rizer.',
+          '*gestures at his silent craft*  My UFO is COLD · the flight matrix drained its last core cycles ago.  Without power she does not lift.',
+          'Somewhere in this wild arm sits an ASTRALCORE · pure crystallized astral, sealed in a chest.  Restores full SPECIAL on consume · repowers the matrix on install.',
+          'Find it · bring it to me · I open the sky for you.  Fly wherever the currents call.',
+        ]});
+      } else if (!player.auraxionMissionComplete && (player.items.astralcore || 0) >= 1){
+        // MISSION COMPLETE · consume astralcore · unlock UFO + become ally
+        player.items.astralcore -= 1;
+        player.auraxionMissionComplete = true;
+        try { awardRizerXP(1500); } catch(_){}
+        bumpBond(15);                                      // sizeable jump · unlocks ally
+        try { pingNextObjective(); } catch(_){}
+        showToast('★ UFO REPOWERED · Auraxion joins your Contacts · UFO now flyable', 4200);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'AURAXION', lines: [
+          '*eyes flare with starlight as you hand him the core*  This is the pulse I have been listening for.',
+          '*slots the core into a chest-plate socket · the UFO hums awake behind him*',
+          'The matrix answers you now, Rizer.  Step aboard when the wild calls · she will lift you above every district.',
+          '*taps his chest-piece*  And add me to your ZyCellite · I answer any call from now on.  We are allies · same current.',
+        ]});
+      } else if (!player.auraxionMissionComplete){
+        // QUEST IN PROGRESS · reminder
+        showDialog({ speaker: 'AURAXION', lines: [
+          '*eyes closed · scanning*  The ASTRALCORE still hums somewhere in the wild arm · a chest, sealed, low in the currents.',
+          'Bring it here · the sky will open for you.',
+        ]});
+      } else {
+        // POST-MISSION · casual banter · ally state
+        const bond = (player.bonds && player.bonds.auraxion) || 0;
+        showDialog({ speaker: 'AURAXION', lines: [
+          '*the UFO thrums quietly overhead*  The currents run clear today, Rizer.',
+          bond >= 50 ? '*grins*  Whenever you fly · I fly with you.' : '*gestures at the craft*  She is yours to lift · touch the hull to board.',
+        ]});
+      }
     },
   },
   // ── GEARBYTE · small mech faction ally · beside Auraxion ──
@@ -6753,9 +6836,12 @@ function resurrectScrapjawTowerPack(){
 })();
 function boardAuraxionUfo(){
   if(game.scene!=='overworld'||player.ufoFlying||player.activeActor!=='rizer')return false;
-  if(player.cosmeticSkin!=='power_upgrade'){
+  // v0.95.492 · UFO locked until Auraxion's ASTRALCORE mission is complete.
+  // Was S2-skin gated · replaced with mission gate so early-game exploration
+  // can't board the craft without earning Auraxion's trust first.
+  if(!player.auraxionMissionComplete){
     playSFX('doorLock');
-    showToast('◈ The flight matrix answers only Rizer S2.',1800);
+    showToast('◈ UFO cold · Auraxion needs an ASTRALCORE to repower it.',2200);
     return false;
   }
   const prop=auraxionUfoProp();
@@ -15970,16 +16056,26 @@ function toggleContactCall(npcId, name){
 function renderZycellContacts(){
   const bonds = player.bonds || {};
   const canCall = !!player.phoneBattery;               // v0.95.428 · Scrapjaw's Phone Battery
-  const contacts = [
-    ['mom','Mom','Home · Malezor'],
-    ['dad','Dad','Research Facility'],
-    ['yara','Yara','Home · sister'],
-    ['zoryn','Zoryn','Malezor · best friend'],
-    ['kelthor','Kelthor','Beastwarden\'s Hall'],
-    ['scrapjaw','Scrapjaw','Malezor Gear Shop'],
-    ['kaizari','Kaizari','Training Farm'],
-    ['professor_elarian','Prof Elarian','Rizer Academy'],
+  // v0.95.492 · REGISTRATION GATE · every contact only appears in the ZyPhone
+  // book after the player has spoken to that NPC.  Reuses each ally's existing
+  // first-talk flag (or a *Met flag added when none existed).  No talk = no row.
+  const ALL_CONTACTS = [
+    ['mom',               'Mom',           'Home · Malezor',       () => !!player.zycubeGifted],
+    ['dad',               'Dad',           'Research Facility',    () => !!player.dadStarterQuestGiven],
+    ['yara',              'Yara',          'Home · sister',        () => !!player.yaraMet],
+    ['zoryn',             'Zoryn',         'Malezor · best friend',() => !!player.townMapGifted],
+    ['kelthor',           'Kelthor',       'Beastwarden\'s Hall',  () => !!player.kelthorMet],
+    ['scrapjaw',          'Scrapjaw',      'Malezor Gear Shop',    () => !!player.scrapjawMet],
+    ['kaizari',           'Kaizari',       'Training Farm',        () => !!player.faenetGifted],
+    ['professor_elarian', 'Prof Elarian',  'Rizer Academy',        () => !!player.raidCardGifted],
+    ['auraxion',          'Auraxion',      'Wild Arm · UFO pilot', () => !!player.auraxionMissionComplete],
   ];
+  const contacts = ALL_CONTACTS.filter(([id, name, loc, gate]) => {
+    try { return typeof gate === 'function' ? gate() : true; } catch(_){ return false; }
+  });
+  if (!contacts.length){
+    return _zySection('☎ CONTACTS', `<div style="color:#889; text-align:center; padding:14px 8px; line-height:1.7;">· no contacts yet ·<br><span style="font-size:9px; color:#667;">talk to allies to register them in your book</span></div>`);
+  }
   const rows = contacts.map(([id, name, loc]) => {
     const bond = bonds[id] || 0;
     const trusted = bond >= 100;
@@ -19092,6 +19188,24 @@ function buildQuestLog(){
         { done: bonusDone,         label: 'BONUS · Return to Scrapjaw for the bond bump' },
       ],
       reward: bonusDone ? '✓ Phone Battery + full bond bump (+10)' : (fixed ? 'Phone Battery ✓ · bonus bond still open' : 'Phone Battery · calls unlock · +bond'),
+    });
+  }
+  // v0.95.492 · Auraxion's Astralcore · UFO repower quest
+  // MAIN = fetch ASTRALCORE from Malezor wild-arm chest · deliver to Auraxion
+  //        · unlocks UFO flight + adds Auraxion to Contacts
+  if (player.auraxionMet){
+    const hasCore = (player.items?.astralcore || 0) >= 1;
+    const done    = !!player.auraxionMissionComplete;
+    quests.push({
+      title: 'Auraxion · Astralcore Fetch',
+      giver: 'Auraxion · Malezor wild arm',
+      status: done ? 'complete' : 'active',
+      steps: [
+        { done: done || hasCore, label: 'Find the ASTRALCORE chest in the wild arm (~5, 195)' },
+        { done: done,            label: 'Return the ASTRALCORE to Auraxion' },
+        { done: done,            label: 'UFO repowered · Auraxion joins Contacts' },
+      ],
+      reward: done ? '✓ UFO flight + Auraxion ally (+15 bond)' : 'UFO flight + Auraxion ally',
     });
   }
   // Fill the Faenet · Kaizari gives · trigger = Kaizari's first talk (faenetGifted)

@@ -2096,6 +2096,7 @@ const INVENTORY_META = {
   scrap_metal:      { label: 'Scrap Metal',             order: 45 },   // v0.95.490 · chest loot outside Radio Tower · trade to Scrapjaw for Phone Battery
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
   life_stone:       { label: 'Life Stone',              order: 47 },   // v0.95.495 · dropped when a life stone shatters · deliver 2 to Nurse Rein to make her a callable healer contact
+  astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -5400,17 +5401,22 @@ const NPCS = [
         ]});
       } else if (!player.auraxionMissionComplete && (player.items.astralcore || 0) >= 1){
         // MISSION COMPLETE · consume astralcore · unlock UFO + become ally
+        // v0.95.503 · Also grants an ASTRALCORE TRANSPONDER · bag item that
+        // summons the UFO to the player's tile from anywhere in the overworld
         player.items.astralcore -= 1;
+        player.items.astralcore_transponder = (player.items.astralcore_transponder || 0) + 1;
+        try { playItemGain('astralcore_transponder'); } catch(_){}
         player.auraxionMissionComplete = true;
         try { awardRizerXP(1500); } catch(_){}
         bumpBond(15);                                      // sizeable jump · unlocks ally
         try { pingNextObjective(); } catch(_){}
-        showToast('★ UFO REPOWERED · Auraxion joins your Contacts · UFO now flyable', 4200);
+        showToast('★ UFO REPOWERED · Auraxion joins Contacts · TRANSPONDER added to bag', 4400);
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'AURAXION', lines: [
           '*eyes flare with starlight as you hand him the core*  This is the pulse I have been listening for.',
           '*slots the core into a chest-plate socket · the UFO hums awake behind him*',
           'The matrix answers you now, Rizer.  Step aboard when the wild calls · she will lift you above every district.',
+          '*presses a small crystal disc into your palm*  ASTRALCORE TRANSPONDER · lose the ship in the wilds · pop this from your bag · she comes to you.',
           '*taps his chest-piece*  And add me to your ZyCellite · I answer any call from now on.  We are allies · same current.',
         ]});
       } else if (!player.auraxionMissionComplete){
@@ -14826,6 +14832,47 @@ addEventListener('keydown', e => {
             player.astral = player.astralMax || 100;
             playSFX('chomp');
             showToast(`◈ Soulphish consumed · +${player.astral - before} Astral`, 2000);
+          } else if (key === 'astralcore_transponder' && (player.items?.astralcore_transponder || 0) > 0){
+            // v0.95.503 · ASTRALCORE TRANSPONDER · Auraxion's gift · summons the
+            // UFO to the nearest clear landing zone around the player.  REUSABLE
+            // (no consumption).  Requires overworld scene · UFO cannot summon
+            // while already being flown.
+            try {
+              if (game.scene !== 'overworld'){
+                showToast('◈ Transponder · no signal indoors · use outside', 2200);
+                playSFX('doorLock');
+              } else {
+                const prop = (typeof auraxionUfoProp === 'function') ? auraxionUfoProp() : null;
+                if (!prop){ showToast('◈ Transponder · UFO offline', 2000); playSFX('cancel'); }
+                else if (prop._inFlight){ showToast('◈ Transponder · UFO already airborne', 2000); playSFX('cancel'); }
+                else {
+                  const px = Math.round(player.x), py = Math.round(player.y);
+                  let anchor = null;
+                  outer:
+                  for (let r = 2; r <= 24; r++){
+                    for (let dy = -r; dy <= r; dy++){
+                      for (let dx = -r; dx <= r; dx++){
+                        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+                        const ax = px + dx, ay = py + dy;
+                        if (typeof ufoCanLand === 'function' && ufoCanLand(ax, ay)){
+                          anchor = { x: ax, y: ay }; break outer;
+                        }
+                      }
+                    }
+                  }
+                  if (!anchor){
+                    showToast('◈ Transponder · no clear 10×3 landing zone within 24 tiles · move to open ground', 3200);
+                    playSFX('cancel');
+                  } else {
+                    try { clearUfoWorldCollision(prop); } catch(_){}
+                    prop.tileX = anchor.x; prop.tileY = anchor.y;
+                    try { restoreUfoWorldCollision(prop); } catch(_){}
+                    try { playSFX('corsunUfo'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+                    showToast(`◈ TRANSPONDER · UFO summoned to (${anchor.x}, ${anchor.y})`, 3000);
+                  }
+                }
+              }
+            } catch(_){ playSFX('cancel'); }
           } else {
             playSFX('cancel');
           }

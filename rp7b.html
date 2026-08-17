@@ -5797,11 +5797,46 @@ const NPCS = [
     onInteract: (n) => {
       if(startFactionSoulSwitch(n))return;
       playSFX('elzoran');                                // v0.95.205 · dragon growl VO
+      // v0.95.508 · Elzoran's loneliness quest · bringing an Elzebub or Elzimir
+      // out with you (as your active overworld companion) instantly bonds him
+      // to max.  Elzoran views these two as his direct kin/descendants and the
+      // reunion floods him with recognition.  Only fires ONCE (elzoranBonded flag).
+      const KIN_IDS = new Set(['elzebub','elzimir']);
+      const companion = (typeof NPCS !== 'undefined')
+        ? NPCS.find(nn => nn && nn._summoned && nn.id && nn.id.startsWith('_summon_')
+                       && KIN_IDS.has(nn._summonSpeciesId))
+        : null;
+      if (companion && !player.elzoranBonded){
+        player.elzoranBonded = true;
+        player.bonds = player.bonds || {};
+        player.bonds.elzoran = 100;                       // INSTANT MAX BOND
+        try { awardRizerXP(2000); } catch(_){}
+        try { pingNextObjective(); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        const kinName = companion._summonSpeciesId === 'elzebub' ? 'ELZEBUB' : 'ELZIMIR';
+        showToast(`★ ELZORAN's loneliness lifted · ${kinName} at your side · bond MAX (100/100)`, 4400);
+        showDialog({ speaker: 'ELZORAN', lines: [
+          `*eyes lock on ${kinName} at your side · a long, shaking breath*`,
+          '*a low reverent growl breaks into something softer · almost weeping*  My kin.  My blood.',
+          'Novarius fell · but the line survived.  You carry it back to me · after all these cycles at the statue.',
+          '*bows the crown of his horns to the little one, then to you*  You are family now, Rizer.  Whatever fire I have left · it lifts with you.',
+        ]});
+        return;
+      }
+      if (player.elzoranBonded){
+        showDialog({ speaker: 'ELZORAN', lines: [
+          '*a warm rumble*  Family.  Walk with the fire.',
+          companion
+            ? `*nods to your ${companion._summonSpeciesId === 'elzebub' ? 'Elzebub' : 'Elzimir'}*  Keep them close.`
+            : 'Bring the little one around again · they lift the old weight.',
+        ]});
+        return;
+      }
       showDialog({ speaker: 'ELZORAN', lines: [
         '*a low reverent growl*  Rizer.  You stand at the feet of a giant.',
         'Novarius and I fought as one · through the Pit, past the Void Seas, up to Oatheus\' empty throne.',
         'The Challenge takes everything.  I am one of few who returned.  He was not.',
-        'Bond your Zyrex like brothers, Rizer.  It is the only thing the Challenge cannot take from you.',
+        '*a heavier growl · almost a sigh*  Bring me one of my kin someday · Elzebub, Elzimir · walk with them at your side and let me see the line again.',
       ]});
     },
   },

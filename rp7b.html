@@ -3693,6 +3693,62 @@ const WORLD_PROPS = [
   // from the wild-shattered life boulders (each shatter drops 1 life_stone
   // to the bag).  Delivery is proximity-based: walk within 5 tiles of Nurse
   // Rein carrying 2 stones · auto-registers her as a callable contact.
+  // ── v0.95.519 · SEER TERRITORIAL MARKERS · non-blocking decor placed in the
+  // wild zones of Malezor / Zarvane / Andrannor.  Four sprite variants: two
+  // tombstones + two gargoyles (crouch + standing).  Seers set these to mark
+  // territory.  Pure visual · empty footprint · tiny X-interact flavor toast.
+  ...(function(){
+    const SPRITES = [
+      { key: 'seer_rip',       src: 'assets/2D%20sprites/decor/seer-rip.png',              bbox: [168,185,308,260], tileW: 2, tileH: 2, msg: '◈ SEER MARKER · "R.I.P." · they have been here' },
+      { key: 'seer_cross',     src: 'assets/2D%20sprites/decor/seer-cross.png',            bbox: [ 89,155,274,290], tileW: 2, tileH: 2, msg: '◈ SEER MARKER · a broken cross · their sign' },
+      { key: 'seer_gargoyle_a',src: 'assets/2D%20sprites/decor/seer-gargoyle_crouch.png',  bbox: [158,113,300,275], tileW: 2, tileH: 2, msg: '◈ SEER GARGOYLE · stone eyes track you · do not linger' },
+      { key: 'seer_gargoyle_b',src: 'assets/2D%20sprites/decor/seer-gargoyle_stand.png',   bbox: [ 61,115,322,273], tileW: 2, tileH: 2, msg: '◈ SEER GARGOYLE · wings outstretched · claim posture' },
+    ];
+    // One Image object per sprite variant · reused across placements
+    const _imgs = {};
+    SPRITES.forEach(s => { _imgs[s.key] = new Image(); _imgs[s.key].src = s.src; });
+    // Placements across Malezor wild-arm south (rows 155-200), Zarvane wilds
+    // (rows 210-300), and Andrannor mid-band (rows 315-360)
+    const SPOTS = [
+      // Malezor wild arm · SW/SE clusters
+      [ 8, 168, 'seer_rip'      ],
+      [12, 175, 'seer_gargoyle_a'],
+      [ 6, 188, 'seer_cross'    ],
+      [40, 172, 'seer_gargoyle_b'],
+      [45, 190, 'seer_rip'      ],
+      [30, 195, 'seer_cross'    ],
+      // Zarvane · scattered wilds
+      [ 62, 218, 'seer_gargoyle_a'],
+      [ 96, 232, 'seer_rip'      ],
+      [ 78, 255, 'seer_cross'    ],
+      [108, 270, 'seer_gargoyle_b'],
+      [ 68, 288, 'seer_rip'      ],
+      [ 95, 302, 'seer_gargoyle_a'],
+      // Andrannor · central band
+      [188, 324, 'seer_cross'    ],
+      [222, 340, 'seer_gargoyle_b'],
+      [258, 328, 'seer_rip'      ],
+      [285, 344, 'seer_gargoyle_a'],
+      [200, 354, 'seer_cross'    ],
+    ];
+    return SPOTS
+      .filter(([tx, ty]) => !isWorldBorderTile(tx, ty))
+      .map(([tx, ty, key], i) => {
+        const spec = SPRITES.find(s => s.key === key);
+        const prop = {
+          id: `seer_marker_${i}_${key}`,
+          img: _imgs[key],
+          src: spec.src,
+          bbox: spec.bbox,
+          tileX: tx, tileY: ty,
+          tileW: spec.tileW, tileH: spec.tileH,
+          footprint: [],                 // walkable · pure decor
+          depthOffset: -1,
+        };
+        prop.onInteract = () => showToast(spec.msg, 2600);
+        return prop;
+      });
+  })(),
   // ── v0.95.495 · METEOR CRASH · visual crater under the ASTRALCORE chest ──
   // Same tile as the chest (5, 195) · non-blocking (empty footprint) so player
   // walks over the crater to open the chest sitting inside it · rendered with

@@ -19554,16 +19554,8 @@ function buildQuestLog(){
   // v0.95.489 · QUESTS · side missions · same trigger rule applies · every
   // entry must be spoken/discovered before it appears in the log.
 
-  // Punching Bag · self-training (no NPC) · trigger = first punch landed
-  if (((player.stats?.punches)||0) >= 1){
-    quests.push({
-      title: 'Punching Bag · 100 Hits',
-      giver: 'Rizer Room · self-training',
-      status: ((player.stats && player.stats.punches) || 0) >= 100 ? 'complete' : 'active',
-      steps: [ { done: ((player.stats?.punches)||0) >= 100, label: `Punches (${(player.stats?.punches)||0}/100)` } ],
-      reward: 'Fury Fist cosmetic',
-    });
-  }
+  // v0.95.509 · Punching Bag · 100 Hits challenge REMOVED (was noisy in the log ·
+  // punches still tracked in player.stats.punches for future achievement use)
   // Broadcast Tower · Myara interview · trigger = first tower interact
   // (currently only fires on completion · Myara pre-interview wiring pending)
   if (player.malezorBroadcastDone){
@@ -19575,30 +19567,45 @@ function buildQuestLog(){
       reward: '+150 Rizer XP',
     });
   }
-  // v0.95.490 · Scrapjaw's Radio Tower · citizen-ally side quest
-  // MAIN objective = fetch SCRAP METAL chest at tower base · trade to Scrapjaw
-  //                  for the PHONE BATTERY (unlocks overworld calls)
-  // BONUS objective = wipe 6 Mori + Vilerok at the plaza · extra bond
+  // v0.95.509 · Scrapjaw's Radio Tower · citizen-ally side quest
+  // MAIN objective (3 steps) = fetch SCRAP METAL → deliver → Phone Battery
+  // Quest marks COMPLETE the moment the tower is fixed (delivery done).
+  // The plaza-clear bonus is now a SEPARATE side-quest entry that only appears
+  // if the player actually starts working on it (so it doesn't cap the main
+  // quest at 67% when they never intended to pursue the fight).
   if (player.scrapjawMet){
     const hasScrap = (player.items?.scrap_metal || 0) >= 1;
     const fixed    = !!player.radioTowerFixed;
-    const moriK    = player.towerMoriKills || 0;
-    const bossDown = !!player.towerBossKilled;
-    const bonusDone = !!player.scrapjawFullClear;
     quests.push({
       title: 'Radio Tower · Scrap Run',
       giver: 'Scrapjaw · Malezor Gear Shop',
-      status: fixed && bonusDone ? 'complete' : (fixed ? 'active' : 'active'),
+      status: fixed ? 'complete' : 'active',
       steps: [
         { done: fixed || hasScrap, label: 'Open the CHEST at the Radio Tower base (NE Malezor)' },
         { done: fixed,             label: 'Return the SCRAP METAL to Scrapjaw' },
         { done: fixed,             label: 'Receive the PHONE BATTERY (unlocks calls)' },
-        { done: (moriK >= 6),      label: `BONUS · Clear 6 Mori at the tower plaza (${Math.min(6, moriK)}/6)` },
-        { done: bossDown,          label: 'BONUS · Defeat the VILEROK plaza boss' },
-        { done: bonusDone,         label: 'BONUS · Return to Scrapjaw for the bond bump' },
       ],
-      reward: bonusDone ? '✓ Phone Battery + full bond bump (+10)' : (fixed ? 'Phone Battery ✓ · bonus bond still open' : 'Phone Battery · calls unlock · +bond'),
+      reward: fixed ? '✓ Phone Battery received' : 'Phone Battery · calls unlock',
     });
+    // Bonus plaza clear · only surfaces after the player has engaged (any tower
+    // Mori kill OR the boss down).  Keeps the log clean for players who skip.
+    const moriK    = player.towerMoriKills || 0;
+    const bossDown = !!player.towerBossKilled;
+    const bonusEngaged = moriK > 0 || bossDown || !!player.scrapjawFullClear;
+    if (bonusEngaged){
+      const bonusDone = !!player.scrapjawFullClear;
+      quests.push({
+        title: 'Radio Tower · Plaza Clear (bonus)',
+        giver: 'Scrapjaw · Malezor Gear Shop',
+        status: bonusDone ? 'complete' : 'active',
+        steps: [
+          { done: moriK >= 6,  label: `Clear 6 Mori at the tower plaza (${Math.min(6, moriK)}/6)` },
+          { done: bossDown,    label: 'Defeat the VILEROK plaza boss' },
+          { done: bonusDone,   label: 'Return to Scrapjaw for the bond bump' },
+        ],
+        reward: bonusDone ? '✓ +10 total bond' : '+6 bonus bond',
+      });
+    }
   }
   // v0.95.492 · Auraxion's Astralcore · UFO repower quest
   // MAIN = fetch ASTRALCORE from Malezor wild-arm chest · deliver to Auraxion

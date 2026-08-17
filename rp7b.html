@@ -1443,7 +1443,8 @@ const AUDIO = {
     newDistrict:  new Audio('audio/sfx-new-district.mp3'),   // v0.95.527 · Rizer VO on FIRST entry into a new district ("hmm I never seen this before")
     aleReeks:     new Audio('audio/sfx-ale-reeks.mp3'),      // v0.95.528 · Rizer VO on ale drink ("ugh this stuff reeks")
     potion:       new Audio('audio/sfx-potion.mp3'),         // v0.95.528 · Rizer VO on potion drink ("hmm not too bad")
-    elixir:       new Audio('audio/sfx-elixir.mp3'),         // v0.95.529 · Rizer VO on elixir drink ("wow delicious")
+    elixir:       new Audio('audio/sfx-elixir.mp3'),         // v0.95.529 · Rizer generic "wow delicious" · unused after Mythic rename
+    mythicElixir: new Audio('audio/sfx-mythic-elixir.mp3'),  // v0.95.530 · Rizer VO on Mythic Elixir consume ("okay who made this and where can i buy 5 more")
     heatingUp:    new Audio('audio/sfx-heating-up.mp3'),     // v0.95.500 · Rizer VO on 6-kill flawless streak
     astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
     astralkick:   new Audio('audio/sfx-astralkick.mp3'),     // v0.95.238 · A4 powerful anime kick
@@ -2101,7 +2102,7 @@ const INVENTORY_META = {
   // v0.95.134 · Harvesting + science crafting
   berry:            { label: 'Berries',            order: 80 },   // from bushes  (M=1 Z=2 A=3)
   fruit:            { label: 'Fruits',             order: 81 },   // from trees   (M=2 Z=4 A=6)
-  verdant_elixir:   { label: 'Verdant Elixir',     order: 82 },   // 30 berries + 15 fruits · 1st science exp
+  verdant_elixir:   { label: 'Mythic Elixir',      order: 82 },   // v0.95.530 · RENAMED Verdant→Mythic · 100% HP restore (was 30%) · storage key kept for save compat
   seed:             { label: 'Seeds',              order: 83 },   // 1 elixir → 50 seeds · currency for later mechanics
   fae:              { label: 'Fae',                 order: 90 },   // v0.95.135 · collectibles · mirrors faeCollected
   ale:              { label: 'Ale',                  order: 32 },   // v0.95.150 · +25% Rizer HP heal item
@@ -2870,7 +2871,7 @@ const WORLD_PROPS = [
                      : roll < 2/3 ? 'potion'
                      :              'verdant_elixir';
           addItems({ [pick]: 1 });
-          const nice = pick === 'verdant_elixir' ? 'Verdant Elixir'
+          const nice = pick === 'verdant_elixir' ? 'Mythic Elixir'    // v0.95.530 · renamed from Verdant Elixir
                      : pick === 'potion'         ? 'Potion'
                      :                              'Ale';
           showToast(`◈ Chest · +${coins} coins · +1 ${nice}`, 2600);
@@ -19705,19 +19706,19 @@ function useZycubeItem(key){
       try { playSFX('potion'); } catch(_){}    // v0.95.528 · "hmm not too bad"
       return;
     }
-    case 'verdant_elixir': {
-      if (qty <= 0){ showToast('◈ No elixir left', 1600); playSFX('cancel'); return; }
+    case 'verdant_elixir': {   // storage key preserved for save compat · label = 'Mythic Elixir'
+      if (qty <= 0){ showToast('◈ No Mythic Elixir left', 1600); playSFX('cancel'); return; }
       const model = rizerStatModel();
       if ((player.hp || 0) >= (model.hp.max || 100)){
-        showToast('◈ HP already full · save the elixir', 1800); playSFX('cancel'); return;
+        showToast('◈ HP already full · save the Mythic Elixir', 1800); playSFX('cancel'); return;
       }
-      const heal = Math.max(1, Math.round(model.hp.max * 0.30));
+      // v0.95.530 · Mythic Elixir now restores 100% HP (was 30%)
       const before = player.hp || 0;
-      player.hp = Math.min(model.hp.max, before + heal);
+      player.hp = model.hp.max;
       player.items.verdant_elixir = qty - 1;
-      showToast(`★ Verdant Elixir · +${player.hp - before} HP`, 2200);
+      showToast(`★ MYTHIC ELIXIR · FULL HP restored (+${player.hp - before})`, 2600);
       playSFX('confirm');
-      try { playSFX('elixir'); } catch(_){}    // v0.95.529 · "wow delicious"
+      try { playSFX('mythicElixir'); } catch(_){}   // v0.95.530 · "okay who made this and where can i buy 5 more"
       return;
     }
     // v0.95.505 · Zyrex HP consumables · berry/fruit/seed = 10/20/30 ZHP to

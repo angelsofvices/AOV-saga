@@ -2839,6 +2839,18 @@ const WORLD_PROPS = [
           playSFX('coins');
           popCoinLabel(coins);
           spawnChestGems('overworld', chest.tileX, chest.tileY);
+          // v0.95.505 · Every coin chest also drops ONE HP consumable · uniform
+          // 1/3 pick between ale (+10% HP), potion (+20%), elixir (+30%) ·
+          // consumed later from the ZyPhone bag panel
+          const roll = Math.random();
+          const pick = roll < 1/3 ? 'ale'
+                     : roll < 2/3 ? 'potion'
+                     :              'verdant_elixir';
+          addItems({ [pick]: 1 });
+          const nice = pick === 'verdant_elixir' ? 'Verdant Elixir'
+                     : pick === 'potion'         ? 'Potion'
+                     :                              'Ale';
+          showToast(`◈ Chest · +${coins} coins · +1 ${nice}`, 2600);
         }
       };
       return chest;
@@ -14778,44 +14790,12 @@ addEventListener('keydown', e => {
             player.skating = !player.skating;
             playSFX('confirm');
             showToast(player.skating ? '◈ Skateboard · ON · faster movement' : '◈ Skateboard · OFF', 1600);
-          } else if (key === 'verdant_elixir' && (player.items?.verdant_elixir || 0) > 0){
-            // v0.95.137/150 · Elixir · full HP restore + 50 seeds · heal SFX
-            player.items.verdant_elixir -= 1;
-            const healed = (player.maxHp || 100) - (player.hp || 0);
-            player.hp = player.maxHp || 100;
-            addItems({ seed: 50 });
-            playSFX('heal');
-            showToast(`◈ Verdant Elixir consumed · +${healed} HP restored · +50 Seeds`, 2600);
-          } else if (key === 'potion' && (player.items?.potion || 0) > 0){
-            // v0.95.150 · Potion · +50% max HP
-            player.items.potion -= 1;
-            const amt = Math.round((player.maxHp || 100) * 0.5);
-            const before = player.hp || 0;
-            player.hp = Math.min(player.maxHp || 100, before + amt);
-            playSFX('heal');
-            showToast(`◈ Potion · +${player.hp - before} HP`, 1800);
-          } else if (key === 'berry' && (player.items?.berry || 0) > 0){
-            // v0.95.166 · Berry · +2 HP · consume 1 · v0.95.191 · chomp SFX
-            player.items.berry -= 1;
-            const before = player.hp || 0;
-            player.hp = Math.min(player.maxHp || 100, before + 2);
-            playSFX('chomp');
-            showToast(`◈ Berry · +${player.hp - before} HP`, 1400);
-          } else if (key === 'fruit' && (player.items?.fruit || 0) > 0){
-            // v0.95.166 · Fruit · +4 HP · consume 1 · v0.95.191 · chomp SFX
-            player.items.fruit -= 1;
-            const before = player.hp || 0;
-            player.hp = Math.min(player.maxHp || 100, before + 4);
-            playSFX('chomp');
-            showToast(`◈ Fruit · +${player.hp - before} HP`, 1400);
-          } else if (key === 'ale' && (player.items?.ale || 0) > 0){
-            // v0.95.150 · Ale · +25% max HP
-            player.items.ale -= 1;
-            const amt = Math.round((player.maxHp || 100) * 0.25);
-            const before = player.hp || 0;
-            player.hp = Math.min(player.maxHp || 100, before + amt);
-            playSFX('heal');
-            showToast(`◈ Ale · +${player.hp - before} HP`, 1800);
+          } else if (key === 'verdant_elixir' || key === 'potion' || key === 'ale' ||
+                     key === 'berry' || key === 'fruit' || key === 'seed'){
+            // v0.95.505 · Legacy settings-menu consume routes into the single
+            // canonical useZycubeItem() so ale/potion/elixir and berry/fruit/seed
+            // stay in sync with the phone consume path.
+            try { useZycubeItem(key); } catch(_){ playSFX('cancel'); }
           } else if (key === 'zphone' && (player.items?.zphone || 0) > 0){
             // v0.95.375 · ZyPhone bag interact → open the full ZYCELLITE panel
             // (Contacts/Faction call lives inside the panel now · pass-1 shell + pass-2 HOME wired)
@@ -19138,37 +19118,72 @@ function useZycubeItem(key){
       playSFX('menuOpen');
       return;
     }
+    // v0.95.505 · Rizer HP consumables · ale/potion/elixir = 10/20/30 % max HP
+    // Blocked when Rizer HP is already at max.  All three consume from Zycube.
+    case 'ale': {
+      if (qty <= 0){ showToast('◈ No ale left', 1600); playSFX('cancel'); return; }
+      const model = rizerStatModel();
+      if ((player.hp || 0) >= (model.hp.max || 100)){
+        showToast('◈ HP already full · save the ale', 1800); playSFX('cancel'); return;
+      }
+      const heal = Math.max(1, Math.round(model.hp.max * 0.10));
+      const before = player.hp || 0;
+      player.hp = Math.min(model.hp.max, before + heal);
+      player.items.ale = qty - 1;
+      showToast(`★ Ale · +${player.hp - before} HP · warmth spreads`, 2000);
+      playSFX('confirm');
+      return;
+    }
     case 'potion': {
       if (qty <= 0){ showToast('◈ No potions in your Zycube', 1600); playSFX('cancel'); return; }
       const model = rizerStatModel();
       if ((player.hp || 0) >= (model.hp.max || 100)){
-        showToast('◈ HP already full', 1600); playSFX('cancel'); return;
+        showToast('◈ HP already full · save the potion', 1800); playSFX('cancel'); return;
       }
-      const heal = Math.round(model.hp.max * 0.5);
-      player.hp = Math.min(model.hp.max, (player.hp || 0) + heal);
+      const heal = Math.max(1, Math.round(model.hp.max * 0.20));
+      const before = player.hp || 0;
+      player.hp = Math.min(model.hp.max, before + heal);
       player.items.potion = qty - 1;
-      showToast(`★ Potion used · +${heal} HP`, 2000);
-      playSFX('confirm');
-      return;
-    }
-    case 'ale': {
-      if (qty <= 0){ showToast('◈ No ale left', 1600); playSFX('cancel'); return; }
-      const model = rizerStatModel();
-      const heal = Math.round(model.hp.max * 0.25);
-      player.hp = Math.min(model.hp.max, (player.hp || 0) + heal);
-      player.items.ale = qty - 1;
-      showToast(`★ Ale · +${heal} HP · warmth spreads`, 2000);
+      showToast(`★ Potion · +${player.hp - before} HP`, 2000);
       playSFX('confirm');
       return;
     }
     case 'verdant_elixir': {
       if (qty <= 0){ showToast('◈ No elixir left', 1600); playSFX('cancel'); return; }
       const model = rizerStatModel();
-      player.hp = model.hp.max;
+      if ((player.hp || 0) >= (model.hp.max || 100)){
+        showToast('◈ HP already full · save the elixir', 1800); playSFX('cancel'); return;
+      }
+      const heal = Math.max(1, Math.round(model.hp.max * 0.30));
+      const before = player.hp || 0;
+      player.hp = Math.min(model.hp.max, before + heal);
       player.items.verdant_elixir = qty - 1;
-      player.items.seed = (player.items.seed || 0) + 50;
-      showToast('★ Verdant Elixir · FULL HP · +50 seeds', 2400);
+      showToast(`★ Verdant Elixir · +${player.hp - before} HP`, 2200);
       playSFX('confirm');
+      return;
+    }
+    // v0.95.505 · Zyrex HP consumables · berry/fruit/seed = 10/20/30 ZHP to
+    // the first party Zyrex that isn't at full HP.  Blocked when every party
+    // Zyrex is at max (or the party is empty).
+    case 'berry':
+    case 'fruit':
+    case 'seed': {
+      if (qty <= 0){ showToast(`◈ No ${labelOf(key).toLowerCase()} left`, 1600); playSFX('cancel'); return; }
+      const heal = key === 'seed' ? 30 : key === 'fruit' ? 20 : 10;
+      const party = (player.party || []).filter(Boolean);
+      if (!party.length){
+        showToast('◈ No Zyrex in your party', 1800); playSFX('cancel'); return;
+      }
+      const target = party.find(z => (z.hp || 0) < (z.maxHp || z.hpMax || 0));
+      if (!target){
+        showToast('◈ Every Zyrex is at full HP', 1800); playSFX('cancel'); return;
+      }
+      const mx = target.maxHp || target.hpMax || 100;
+      const before = target.hp || 0;
+      target.hp = Math.min(mx, before + heal);
+      player.items[key] = qty - 1;
+      showToast(`★ ${labelOf(key)} · ${target.name} · +${target.hp - before} ZHP`, 2200);
+      playSFX('chomp');
       return;
     }
     case 'soulphish': {

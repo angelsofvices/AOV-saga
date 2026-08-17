@@ -16679,16 +16679,31 @@ function renderZycellMap(){
   const label = d ? d.toUpperCase() : 'VOID SEA';
   // Live pin position from WORLD_MAP_DISTRICT_POS (if district is known)
   const posMap = (typeof WORLD_MAP_DISTRICT_POS !== 'undefined') ? WORLD_MAP_DISTRICT_POS[d] : null;
-  const pinHTML = posMap ? `
-    <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:${(posMap.rf * 200).toFixed(1)}%; padding-bottom:${(posMap.rf * 200).toFixed(1)}%; border:3px solid rgba(79,179,255,0.9); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 22px rgba(79,179,255,0.6); box-sizing:border-box; pointer-events:none; animation:zyPulse 1.6s ease-in-out infinite;"></div>
-    <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:12px; height:12px; background:#ffd66b; border:2px solid #fff; border-radius:50%; box-shadow:0 0 18px #ffd66b; transform:translate(-50%,-50%); pointer-events:none;"></div>
-  ` : '';
+  // v0.95.531 · Rizer pin now tracks player's ACTUAL world coord within the
+  // district (not just the district center).  Convert player.x/y (tile space)
+  // to a normalized offset inside the district's ZYRAXIS_DISTRICTS ellipse
+  // (rx, ry world-tile radii), then apply that offset to the map-image
+  // fractional radius so the pin moves proportionally on the illustration.
+  const districtBounds = (typeof ZYRAXIS_DISTRICT_BY_ID !== 'undefined') ? ZYRAXIS_DISTRICT_BY_ID[d] : null;
+  let pinX = posMap ? posMap.xf : null, pinY = posMap ? posMap.yf : null;
+  if (posMap && districtBounds){
+    const rawDx = (player.x - districtBounds.cx) / Math.max(1, districtBounds.rx);
+    const rawDy = (player.y - districtBounds.cy) / Math.max(1, districtBounds.ry);
+    // Clamp to 0.9 so pin never leaves the outline circle
+    const dx = Math.max(-0.9, Math.min(0.9, rawDx));
+    const dy = Math.max(-0.9, Math.min(0.9, rawDy));
+    // Map illustration is aspect 1459/1078 · rf is normalized on IMAGE WIDTH ·
+    // multiply the vertical offset by the aspect to compensate the container
+    const aspect = 1459 / 1078;
+    pinX = posMap.xf + dx * posMap.rf;
+    pinY = posMap.yf + dy * posMap.rf * aspect;
+  }
   // v0.95.440 · Map fits the phone content · uses <img> so district overlay percentages
   // align with the ACTUAL image bounds (no letterbox drift from background:contain).
-  // District outline highlights the current island directly instead of a floating pin ring.
+  // District outline highlights the current island · Rizer pin lives inside the outline.
   const outlineHTML = posMap ? `
     <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:${(posMap.rf * 200).toFixed(1)}%; padding-bottom:${(posMap.rf * 200).toFixed(1)}%; border:4px solid rgba(255,214,107,0.95); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 22px rgba(255,214,107,0.65), inset 0 0 18px rgba(255,214,107,0.35); box-sizing:border-box; pointer-events:none; animation:zyPulse 1.4s ease-in-out infinite;"></div>
-    <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:14px; height:14px; background:#ffd66b; border:2px solid #fff; border-radius:50%; box-shadow:0 0 20px #ffd66b; transform:translate(-50%,-50%); pointer-events:none;"></div>
+    <div style="position:absolute; left:${(pinX * 100).toFixed(2)}%; top:${(pinY * 100).toFixed(2)}%; width:14px; height:14px; background:#4fb3ff; border:2px solid #fff; border-radius:50%; box-shadow:0 0 20px #4fb3ff, 0 0 8px #fff; transform:translate(-50%,-50%); pointer-events:none;"></div>
   ` : '';
   return `
     <style>@keyframes zyPulse { 0%,100% { opacity:0.6; transform:translate(-50%,-50%) scale(1); } 50% { opacity:1; transform:translate(-50%,-50%) scale(1.04); } }</style>
@@ -19358,20 +19373,33 @@ function drawWorldMapPage(W, H){
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(cx, cy, r + 6, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
-      // ── Live player pin · glowing waypoint at district center ──────────
+      // ── Live player pin · v0.95.531 · tracks ACTUAL world coord within the
+      // district (not just the district center) · maps player's tile position
+      // to a normalized offset within ZYRAXIS_DISTRICTS bounds then places it
+      // proportionally on the map illustration
+      const districtBounds = (typeof ZYRAXIS_DISTRICT_BY_ID !== 'undefined') ? ZYRAXIS_DISTRICT_BY_ID[dist] : null;
+      let pinCx = cx, pinCy = cy;
+      if (districtBounds){
+        const rawDx = (pos.x - districtBounds.cx) / Math.max(1, districtBounds.rx);
+        const rawDy = (pos.y - districtBounds.cy) / Math.max(1, districtBounds.ry);
+        const dcx = Math.max(-0.9, Math.min(0.9, rawDx));
+        const dcy = Math.max(-0.9, Math.min(0.9, rawDy));
+        pinCx = cx + dcx * r;
+        pinCy = cy + dcy * r;
+      }
       const pinPulse = 6 + Math.sin(performance.now() / 150) * 2.5;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      const glow = ctx.createRadialGradient(cx, cy, 1, cx, cy, pinPulse * 2.6);
+      const glow = ctx.createRadialGradient(pinCx, pinCy, 1, pinCx, pinCy, pinPulse * 2.6);
       glow.addColorStop(0, 'rgba(255,255,255,0.95)');
-      glow.addColorStop(0.3, 'rgba(255,214,107,0.85)');
-      glow.addColorStop(1, 'rgba(255,214,107,0)');
+      glow.addColorStop(0.3, 'rgba(79,179,255,0.85)');
+      glow.addColorStop(1, 'rgba(79,179,255,0)');
       ctx.fillStyle = glow;
-      ctx.beginPath(); ctx.arc(cx, cy, pinPulse * 2.6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(pinCx, pinCy, pinPulse * 2.6, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-      ctx.fillStyle = player.ufoFlying ? '#8ff' : '#ffd66b';
+      ctx.fillStyle = player.ufoFlying ? '#8ff' : '#4fb3ff';
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy, pinPulse * 0.72, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(pinCx, pinCy, pinPulse * 0.72, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
     ctx.restore();
   } else {

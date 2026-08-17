@@ -21339,6 +21339,22 @@ function startMoriDeath(n){
   n._dying     = true;
   n._deathT0   = performance.now();
   n.moving     = false;
+  // v0.95.522 · UNIVERSAL RXP FLOOR · every enemy death awards base kill XP
+  // if nothing has already awarded it (attack-specific multipliers like
+  // astralstrike 1.5x / astralkick 2x still fire at their sites; those set
+  // n._rxpAwarded=true after firing so this fallback doesn't double up).
+  // Covers void-sea throws, UFO Corsun beam, astralthrow release, astralslam
+  // impact, sword swings, and any future kill path that just calls
+  // startMoriDeath without a manual XP award.
+  try {
+    if (!n._rxpAwarded){
+      n._rxpAwarded = true;
+      const xp = (n.level || 1) * ((n.tier || 1) + 4);   // canon formula
+      if (typeof awardRizerXP === 'function') awardRizerXP(xp);
+      // Also route through recordMoriKill for streak + Zyrex share bookkeeping
+      if (typeof recordMoriKill === 'function') recordMoriKill('kill', n);
+    }
+  } catch(_){}
   // v0.95.442 · Vilerok kill tracker · counts toward Kelthor's Vilerok Purge quest
   if (n._vilerok){
     player.vilerokKills = (player.vilerokKills || 0) + 1;

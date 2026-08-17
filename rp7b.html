@@ -23231,16 +23231,16 @@ function tickHpFlash(){
     f.mode = 'none';
   }
   f.prevPct = pct;
-  // v0.95.522 · SPECIAL max blue pulse · constant while diamond == diamondMax
-  if (!player._spcFlash) player._spcFlash = { on:false, startedAt:0 };
+  // v0.95.523 · SPECIAL max blue pulse · SINGLE pulse on crossing UP to max
+  // (matches full-HP green pulse pattern · retriggers on next transition after
+  // dropping below and refilling to max)
+  if (!player._spcFlash) player._spcFlash = { on:false, startedAt:0, prevPct:0 };
   const sf = player._spcFlash;
   const dMax = player.diamondMax || 100;
   const dCur = player.diamond || 0;
-  if (dCur >= dMax){
-    if (!sf.on){ sf.on = true; sf.startedAt = now; }
-  } else {
-    sf.on = false;
-  }
+  const dPct = dCur / Math.max(1, dMax);
+  if (dPct >= 1.0 && sf.prevPct < 1.0){ sf.on = true; sf.startedAt = now; }
+  sf.prevPct = dPct;
 }
 function drawHpFlash(){
   const now = performance.now();
@@ -23269,15 +23269,19 @@ function drawHpFlash(){
       ctx.restore();
     }
   }
-  // v0.95.522 · SPECIAL max · constant blue pulse
+  // v0.95.523 · SPECIAL max · SINGLE 800ms blue pulse (matches full-heal green)
   const sf = player._spcFlash;
   if (sf && sf.on){
     const el = now - (sf.startedAt || now);
-    const alpha = 0.12 + 0.18 * (0.5 + 0.5 * Math.sin(el / 950 * Math.PI * 2));
-    ctx.save();
-    ctx.fillStyle = `rgba(79,179,255,${alpha.toFixed(3)})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
+    const t = el / 800;
+    if (t >= 1){ sf.on = false; }
+    else {
+      const alpha = Math.sin(t * Math.PI) * 0.32;
+      ctx.save();
+      ctx.fillStyle = `rgba(79,179,255,${alpha.toFixed(3)})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
   }
 }
 

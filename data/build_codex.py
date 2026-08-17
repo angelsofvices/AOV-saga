@@ -306,10 +306,29 @@ def main():
     # humanoid classes are skipped (they'll drive NPC design later, not the
     # catchable roster).
     slim = {}
-    NORM_TYPE = {'Void': 'Unknown-Void', 'Humanoid': 'Humanoid-Noid'}
+    # v0.95.525 · aov-type-tier-level-master canon (2026-08-17) · 20-type restored
+    # Canonical remaps: Void was never in the 20 → fold to Unknown.  Astral spelling
+    # standardized to Astra.  Aquatic (not in the 20) → Elemental.  Humanoid-Noid
+    # kept as an in-codex subclassification tag for noid-humanoid distinction.
+    NORM_TYPE = {
+        'Void':     'Unknown',
+        'Astral':   'Astra',
+        'Aquatic':  'Elemental',
+        'Humanoid': 'Humanoid-Noid',
+    }
+    # Whitelist for audits · warn on any type outside these 20 (+ noid variant)
+    CANON_TYPES_20 = {
+        'Aura','Beast','Creature','Nature','Humanoid','Tech','Unknown','Spirit',
+        'Corrupted','Divine','Ultimate','Ultramax','Draconic','Crystal','Radiant',
+        'Elemental','Verdant','Chrono','Astra','Extraterrestrial',
+        'Humanoid-Noid',   # legacy sub-tag preserved
+    }
     def norm_type(t):
         t = (t or '').strip()
-        return NORM_TYPE.get(t, t) if t else None
+        n = NORM_TYPE.get(t, t) if t else None
+        if n and n not in CANON_TYPES_20:
+            print(f'  [WARN] non-canon type "{n}" (was "{t}") — surface for Creator review')
+        return n
     for id, e in entries.items():
         if e.get('role') != 'zyrex':
             continue

@@ -16,18 +16,27 @@
   - Cindercur pulled from Cinderbeetle chain
   - New Flarewisp-line locked as Alpha 3-stage: **Flarewisp T1 → Flarepaw T2 → Cindercur T3**
   - Solaryx-line trimmed to Solvarion T4 → Solaryx T6 (Gamma upper partial)
+- **v7.1 (2026-08-17) · Type/Tier Master canon migration:**
+  - 20-type canon restored (12-type consolidation reversed)
+  - Retired types remapped: `Astral → Astra` · `Void → Unknown` · `Aquatic → Elemental`
+  - Elzoran-line tier corrections applied (Perfect Epsilon locked):
+    - Elzebub T1 → Elzimir T3 (L30) → Elzoran T5 (L50) → Omegoran T8 (L80)
+    - Omegoran gains tri-type · Draconic / Elemental / Corrupted
+  - 12 field changes total · full histogram post-migration in the roster tail
 
-## Canon reference · Zyraxian Power Theory
+## Canon reference · Zyraxian Power Theory (v7.1 · 2026-08-17)
 
-| Line | S1 | S2 | S3 | S4 | Rarity |
-|------|----|----|----|----|--------|
-| **Alpha**   | T1 | T2 | T3 | — | Common |
-| **Beta**    | T1 | T3 | T5 | — | Rare |
-| **Gamma**   | T1 | T4 | T6 | — | Pseudolegendary |
-| **Delta**   | T1 | T5 | T7 | — | Legendary |
-| **Epsilon** | T1 | T5 | T7 | **T8** | Mythic · Immortal + |
+| Line | Tier path | Rarity band |
+|------|-----------|-------------|
+| **Alpha**   | T1 → T2 → T3       | Common |
+| **Beta**    | T1 → T3 → T5       | Rare |
+| **Gamma**   | T1 → T4 → T6       | Pseudolegendary |
+| **Delta**   | T1 → T5 → T7       | Legendary |
+| **Epsilon** | reaches ~T8 (species-specific intermediates) | Mythic · Immortal + |
 
-Rules: every catchable species has ≥3 stages · Epsilon = 4 · T9-10 exempt · evolve marks L20/40/60 (±5) · Epsilon perfect 20/40/60/80 · stat pool = tier × 333.
+**Perfect Ladder** (new · 2026-08-17): a MODIFIER on any of the 5 families. Every evolution occurs at `New Tier × 10` (T2 @ L20 · T3 @ L30 · T5 @ L50 · T8 @ L80). Elzebub is the reference **Perfect Epsilon**.
+
+**Standing rules:** stat pool = tier × 333 · 5 canonical stats (Health/Attack/Defense/Speed/Special) · variable evolution length (some solo, most 2-stage, few 3-stage, very few 4-stage) · T9-T10 solo apex, outside ladder system · type COUNT gated by TIER: T1-T5 up to 2 · T6-T8 up to 3 · T9 exactly 3 · T10 4 or all.
 
 ## Tier distribution
 

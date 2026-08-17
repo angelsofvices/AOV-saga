@@ -2859,6 +2859,67 @@ const WORLD_PROPS = [
       return chest;
     });
   })(),
+  // ── v0.95.510 · SEER EXPLOSIVE CHESTS · dark chest w/ blue gem · trap loot ──
+  // Set by the Seers in shady corners of Zyraxis · try to open one and it
+  // detonates in your face for 50% max Rizer HP.  Same tile footprint as the
+  // wooden chest (1×1) so it slots into the world exactly the same.  Tagged
+  // _seerExplosive + _dmgPct so the future PICK-UP-AND-THROW system can
+  // arm one as a projectile that detonates on impact with enemies.
+  ...(function(){
+    const _img = new Image();
+    _img.src = 'assets/2D%20sprites/decor/seer-chest.png';
+    const BBOX = [257, 240, 501, 337];   // content bbox measured from 1024x819 source
+    const SPOTS = [
+      // Malezor · one just off the main street, one south perimeter
+      [16, 62], [ 42, 118],
+      // Zarvane · shady oasis rim + south wilds
+      [ 76, 214], [110, 292],
+      // Andrannor · central band
+      [225, 336], [270, 322],
+      // Veridan · northern cliffs
+      [350, 232],
+    ];
+    return SPOTS.filter(([tx, ty]) => !isWorldBorderTile(tx, ty)).map(([tx, ty], i) => {
+      const prop = {
+        id: `seer_chest_${i}`,
+        img: _img,
+        src: 'assets/2D%20sprites/decor/seer-chest.png',
+        bbox: BBOX,
+        tileX: tx, tileY: ty,
+        tileW: 1, tileH: 1,
+        footprint: [[0, 0]],
+        door: [0, 0],
+        detonated: false,
+        // v0.95.510 · Trap tags · future throwable-explosive system reads these
+        _seerExplosive: true,
+        _dmgPct: 0.50,           // % of max Rizer HP dealt on detonation
+      };
+      // Getter/setter mirrors detonated state to a persisted player flag so
+      // save/reload keeps blown chests invisible.
+      const flag = `seerChestBlown_${i}`;
+      Object.defineProperty(prop, '_hidden', {
+        get(){ try { return !!(typeof player !== 'undefined' && player && (player[flag] || prop.detonated)); } catch(_){ return false; } },
+        set(v){ try { if (typeof player !== 'undefined' && player) player[flag] = !!v; prop.detonated = !!v; } catch(_){} },
+      });
+      prop.onInteract = () => {
+        if (prop.detonated || (player && player[flag])) return;
+        prop.detonated = true;
+        if (player) player[flag] = true;
+        // Explosion FX · purple ultimate ring at the chest tile + screen shake
+        try { spawnHitFx(prop.tileX, prop.tileY, 'ultimate'); } catch(_){}
+        try { playSFX('astralkickBoom'); } catch(_){ try { playSFX('astralkick'); } catch(_){} }
+        try { if (window.__rumbleHit) window.__rumbleHit('ultimate'); } catch(_){}
+        const hpMax = player.hpMax || player.maxHp || 100;
+        const dmg   = Math.max(1, Math.round(hpMax * (prop._dmgPct || 0.5)));
+        showToast(`◈ SEER TRAP · chest detonated · -${dmg} HP`, 3200);
+        try { hurtPlayer(dmg, 'Seer explosive chest'); } catch(_){
+          // Fallback if hurtPlayer errors: still subtract HP directly
+          player.hp = Math.max(0, (player.hp || 0) - dmg);
+        }
+      };
+      return prop;
+    });
+  })(),
   // ── GEMGRASS PATCHES + per-tile grass overlay ──────────────────────
   // Every wildZone (grassblade) tile gets a PAIRED grass-patch overlay
   // (A or B chosen by non-uniform hash) so the pretty layer covers 100%

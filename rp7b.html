@@ -694,7 +694,7 @@
           <button class="zyNav" data-zynav="map"         style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🗺  MAP</button>
           <button class="zyNav" data-zynav="expeditions" style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">📋  EXPEDITIONS</button>
           <button class="zyNav" data-zynav="contacts"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">👥  CONTACTS</button>
-          <button class="zyNav" data-zynav="animations"  style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">▶  ANIMATIONS</button>
+          <button class="zyNav" data-zynav="leaderboard" style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🏆  LEADERBOARD</button>
           <button class="zyNav" data-zynav="settings"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">⚙  SETTINGS</button>
         </div>
         <!-- CENTER CONTENT · dispatched by zycellPage · pass-1 stub -->
@@ -1932,6 +1932,8 @@ function facedNpc(){
 // Rizer KO sequence · stage-specific collapse/dust, Dreamland, then bedroom.
 let _rizerDeath = null;
 function startRizerDeath(){
+  // v0.95.520 · leaderboard · count deaths for the stats panel
+  try { player.stats = player.stats || {}; player.stats.deaths = (player.stats.deaths || 0) + 1; } catch(_){}
   if (_rizerDeath || _dreamPlaying) return;
   const now = performance.now();
   _rizerDeath = { t0: now, dur: 1800, skin: player.cosmeticSkin || 'normal' };
@@ -3701,8 +3703,9 @@ const WORLD_PROPS = [
     const SPRITES = [
       { key: 'seer_rip',       src: 'assets/2D%20sprites/decor/seer-rip.png',              bbox: [168,185,308,260], tileW: 2, tileH: 2, msg: '◈ SEER MARKER · "R.I.P." · they have been here' },
       { key: 'seer_cross',     src: 'assets/2D%20sprites/decor/seer-cross.png',            bbox: [ 89,155,274,290], tileW: 2, tileH: 2, msg: '◈ SEER MARKER · a broken cross · their sign' },
-      { key: 'seer_gargoyle_a',src: 'assets/2D%20sprites/decor/seer-gargoyle_crouch.png',  bbox: [158,113,300,275], tileW: 2, tileH: 2, msg: '◈ SEER GARGOYLE · stone eyes track you · do not linger' },
-      { key: 'seer_gargoyle_b',src: 'assets/2D%20sprites/decor/seer-gargoyle_stand.png',   bbox: [ 61,115,322,273], tileW: 2, tileH: 2, msg: '◈ SEER GARGOYLE · wings outstretched · claim posture' },
+      // v0.95.521 · gargoyles shrunk to rustbyte-sized (1x1 tile) per user
+      { key: 'seer_gargoyle_a',src: 'assets/2D%20sprites/decor/seer-gargoyle_crouch.png',  bbox: [158,113,300,275], tileW: 1, tileH: 1, msg: '◈ SEER GARGOYLE · stone eyes track you · do not linger' },
+      { key: 'seer_gargoyle_b',src: 'assets/2D%20sprites/decor/seer-gargoyle_stand.png',   bbox: [ 61,115,322,273], tileW: 1, tileH: 1, msg: '◈ SEER GARGOYLE · wings outstretched · claim posture' },
     ];
     // One Image object per sprite variant · reused across placements
     const _imgs = {};
@@ -11747,14 +11750,27 @@ function tryOpenTreehouseChest(){
   return true;
 }
 
-// v0.95.516 · Sapphire Sword sprite sheet · 4x4 D/L/R/U · replaces the punch
+// v0.95.516/520 · Sapphire Sword sprite sheet · 4x4 D/L/R/U · replaces the punch
 // animation for cosmeticSkin='normal' (S1) when player.swordEquipped is true.
+// v0.95.520 · Fixed load-order bug: onload MUST bind BEFORE .src is set so
+// cached loads don't miss the handler.  Also promoted to loadAsset pattern
+// so boot awaits it consistently with the other Rizer sheets.
 const RIZER_SAPPHIRE_SWORD = {
   img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
   key: 'sapphire-sword', loaded: false,
 };
-RIZER_SAPPHIRE_SWORD.img.src = 'assets/2D%20sprites/rizer/sapphire-sword.png';
-RIZER_SAPPHIRE_SWORD.img.onload = () => { RIZER_SAPPHIRE_SWORD.loaded = true; };
+(function _loadSapphireSword(){
+  const url = 'assets/2D%20sprites/rizer/sapphire-sword.png';
+  RIZER_SAPPHIRE_SWORD.img.onload  = () => {
+    RIZER_SAPPHIRE_SWORD.loaded = true;
+    console.info('[rp7b] sapphire-sword sheet loaded · animation ready');
+  };
+  RIZER_SAPPHIRE_SWORD.img.onerror = () => {
+    RIZER_SAPPHIRE_SWORD.loaded = false;
+    console.error('[rp7b] sapphire-sword sheet missing at ' + url + ' · equip toggle will fall back to punch animation until the file is added');
+  };
+  RIZER_SAPPHIRE_SWORD.img.src = url;
+})();
 
 function spawnTreehouseZyrex(){
   if (typeof NPCS === 'undefined' || typeof SUMMONABLE_SPRITES === 'undefined') return;
@@ -12477,6 +12493,12 @@ addEventListener('keydown', e => {
           const _pct  = (mode === 'kick') ? 0.10 : 0.05;
           changePlayerDiamond(Math.max(1, Math.round(_dmax * _pct)));
         }
+        // v0.95.520 · leaderboard · every swing counted (hit or miss) for accuracy calc
+        try {
+          player.stats = player.stats || {};
+          if (mode === 'kick') player.stats.kickSwings = (player.stats.kickSwings || 0) + 1;
+          else                 player.stats.punchSwings = (player.stats.punchSwings || 0) + 1;
+        } catch(_){}
         // v0.95.516 · Sapphire Sword · every SWORD swing (punch mode + equipped + S1)
         // eats one durability point · breaks at 0 · forces unequip
         if (mode === 'punch' && player.swordEquipped && !player.swordBroken
@@ -13074,6 +13096,8 @@ function tryMove(dt){
   }
   // v0.95.171 · Auto-collect gems when stepping onto their tile
   if (game.scene === 'overworld') collectGemAt('overworld', nx, ny);
+  // v0.95.520 · leaderboard · +1 tile every completed step (any scene)
+  try { player.stats = player.stats || {}; player.stats.tilesWalked = (player.stats.tilesWalked || 0) + 1; } catch(_){}
   // v0.95.93 · Walking cancels any guitar song + upcoming play animation
   if (_currentSongAudio) stopCurrentSong();
   player.moving = true;
@@ -16271,7 +16295,7 @@ function closeWalletPanel(){
 // all funnel through paintZycellNav() + handleZycellKey() so behavior is
 // identical across every partition · content panels ship in later passes
 // ══════════════════════════════════════════════════════════════════════
-const ZYCELL_PANELS = ['home','zycube','rizer','faction','weapons','map','expeditions','contacts','animations','settings'];
+const ZYCELL_PANELS = ['home','zycube','rizer','faction','weapons','map','expeditions','contacts','leaderboard','settings'];
 let zycellPage = 'home';
 function paintZycellNav(){
   const p = document.getElementById('zphonePanel');
@@ -16328,7 +16352,7 @@ function paintZycellContent(){
     map:         renderZycellMap,
     expeditions: renderZycellExpeditions,
     contacts:    renderZycellContacts,
-    animations:  renderZycellAnimations,
+    leaderboard: renderZycellLeaderboard,
     settings:    renderZycellSettings,
   };
   const fn = map[zycellPage] || renderZycellHome;
@@ -16562,7 +16586,12 @@ function renderZycellWeapons(){
         }
         player.swordEquipped = !player.swordEquipped;
         try { playSFX('confirm'); } catch(_){}
-        showToast(player.swordEquipped ? '★ SAPPHIRE SWORD equipped · punch becomes slash' : '◇ Sapphire Sword unequipped', 2400);
+        // v0.95.520 · Warn if sword sheet asset is missing when equipping
+        if (player.swordEquipped && !RIZER_SAPPHIRE_SWORD.loaded){
+          showToast('⚠ Sapphire Sword equipped but sheet missing · assets/2D sprites/rizer/sapphire-sword.png · anim will fall back to punch until file lands', 5000);
+        } else {
+          showToast(player.swordEquipped ? '★ SAPPHIRE SWORD equipped · punch becomes slash' : '◇ Sapphire Sword unequipped', 2400);
+        }
         try { paintZycellContent(); } catch(_){}
       });
     }
@@ -16840,7 +16869,117 @@ function renderZycellContacts(){
   return _zySection('👥 CONTACTS · call/bond hub', rows) + footer;
 }
 
-// ── ANIMATIONS · in-world summons + set-piece triggers ─────────────
+// v0.95.520 · LEADERBOARD · every trackable Rizer stat in one panel · seeds
+// the eventual achievement system (each row can become an unlock trigger)
+function renderZycellLeaderboard(){
+  const s  = player.stats || {};
+  const p  = player;
+  // ── derived counters
+  const punchSw = s.punchSwings || 0;
+  const kickSw  = s.kickSwings  || 0;
+  const punchHit = s.punches || 0;
+  const kickHit  = s.kicks || 0;
+  const swings = punchSw + kickSw;
+  const hits   = punchHit + kickHit;
+  const acc = swings > 0 ? Math.round((hits / swings) * 100) : 0;
+  const moriKills = s.moriKills || 0;
+  const totalKills = moriKills + (player.vilerokKills || 0);
+  const tiles = s.tilesWalked || 0;
+  const walkKm = (tiles * 1.5 / 1000).toFixed(2);   // ~1.5m per tile → km
+  const deaths = s.deaths || 0;
+  const fae = p.faeCollected || 0;
+  const rzLv = p.rizerLvl || 1;
+  const rzXP = p.rizerXP || 0;
+  const partySize = (p.party || []).filter(Boolean).length;
+  const bonds = p.bonds || {};
+  const bondedZ = (p.party || []).filter(z => z && (bonds[z.speciesId] || 0) > 0).length;
+  const zyrexEver = Object.keys(p.zyrexEverOwned || {}).length;
+  // NPC-met roster (mirrors the contact registration gates)
+  const npcsMet = [
+    !!p.zycubeGifted, !!p.yaraMet, !!p.dadStarterQuestGiven, !!p.raidCardGifted,
+    !!p.faenetGifted, !!p.townMapGifted, !!p.kelthorMet, !!p.scrapjawMet,
+    !!p.auraxionMet, !!p.nurseReinAllied, !!p.orrenQuestGiven, !!p.elzoranBonded,
+  ].filter(Boolean).length;
+  // Missions/quests · derived from buildQuestLog if available
+  let expDone = 0, expTotal = 0, qDone = 0, qTotal = 0;
+  try {
+    const log = (typeof buildQuestLog === 'function') ? buildQuestLog() : { expeditions:[], quests:[] };
+    expTotal = log.expeditions.length; expDone = log.expeditions.filter(q => q.status === 'complete').length;
+    qTotal = log.quests.length;         qDone = log.quests.filter(q => q.status === 'complete').length;
+  } catch(_){}
+  // Item / gem / coin snapshots
+  const coins = (p.items && p.items.coins) || 0;
+  const gems  = (typeof countGems === 'function') ? countGems() : 0;
+  const bagCount = p.items ? Object.values(p.items).filter(v => (v || 0) > 0).length : 0;
+  // Bond wallet · % averaged
+  const bondPct = (() => {
+    const vals = ['kelthor','scrapjaw','kaizari','nurse_rein','auraxion','albert_orren'].map(k => bonds[k] || 0);
+    const s2 = vals.reduce((a,b) => a+b, 0);
+    return Math.round(s2 / vals.length);
+  })();
+  // Kill-streak best (approximation · not persistent yet)
+  const bestFlawless = s.bestKillStreak || 0;
+  const bestCombo    = s.bestHitCombo || 0;
+  // Astral · fae · faedust · soulphish
+  const soulphish = (p.items && p.items.soulphish) || 0;
+  const vilerok = p.vilerokKills || 0;
+
+  const row = (label, value, sub, color = '#4fb3ff') => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; margin-bottom:4px; background:rgba(0,0,0,0.4); border-left:3px solid ${color}; font-size:11px;">
+      <div>
+        <div style="color:#fff; font-weight:bold; letter-spacing:.04em;">${label}</div>
+        ${sub ? `<div style="color:#8ff; font-size:9px; margin-top:2px; letter-spacing:.06em;">${sub}</div>` : ''}
+      </div>
+      <div style="color:${color}; font-weight:bold; font-size:14px; letter-spacing:.04em;">${value}</div>
+    </div>`;
+  const section = (title, rows, headerColor = '#c060ff') => `
+    <div style="margin-bottom:12px;">
+      <div style="color:${headerColor}; font-weight:bold; letter-spacing:.14em; font-size:11px; padding:6px 4px; border-bottom:1px solid ${headerColor}55;">${title}</div>
+      <div style="padding:6px 0;">${rows.join('')}</div>
+    </div>`;
+
+  const combat = section('◆ COMBAT', [
+    row('Total kills',        totalKills.toLocaleString(), 'Mori · Daemon · Vilerok · all enemies', '#ff9c66'),
+    row('Vilerok slain',      vilerok, 'apex boss kills', '#c060ff'),
+    row('Rizer accuracy',     `${acc}%`, `${hits} hits / ${swings} swings`, '#5fdc7a'),
+    row('Punches landed',     punchHit.toLocaleString(), `of ${punchSw} swings`),
+    row('Kicks landed',       kickHit.toLocaleString(),  `of ${kickSw} swings`),
+    row('Deaths',             deaths.toLocaleString(), 'field defeats', '#ff5b5b'),
+    row('Best flawless streak', bestFlawless, 'kills without taking a hit', '#ffd66b'),
+    row('Best hit combo',     bestCombo, 'hits without damage'),
+  ]);
+  const exploration = section('◆ EXPLORATION', [
+    row('Tiles walked',       tiles.toLocaleString(), `~${walkKm} km`, '#4fb3ff'),
+    row('Fae collected',      fae.toLocaleString(), 'lifetime butterflies snared', '#8ff'),
+    row('Soulphish carried',  soulphish, 'astral fish in bag'),
+    row('Bag items',          bagCount, 'unique stacks in inventory'),
+    row('Coins',              coins.toLocaleString(), 'lifetime chest loot spend'),
+    row('Gem value',          gems.toLocaleString(), 'countGems() weighted total', '#c060ff'),
+  ]);
+  const rizer = section('◆ RIZER PROGRESSION', [
+    row('Rizer Level',        rzLv,   `${rzXP.toLocaleString()} XP toward next`, '#ffd66b'),
+    row('Party size',         `${partySize}/8`, 'Zyrex in active faction'),
+    row('Zyrex bonded',       bondedZ, 'party members with bond > 0', '#5fdc7a'),
+    row('Zyrex ever owned',   zyrexEver, 'lifetime species collected'),
+    row('NPCs met',           npcsMet, 'named allies engaged'),
+    row('Bond wallet avg',    `${bondPct}%`, 'averaged Warden + citizen bonds'),
+  ]);
+  const missions = section('◆ MISSIONS', [
+    row('Expeditions complete', `${expDone}/${expTotal}`, 'main-story chapters + ladders', '#c060ff'),
+    row('Side quests complete', `${qDone}/${qTotal}`, 'citizen + world-event quests', '#4fb3ff'),
+  ]);
+  const body = `
+    <div style="max-height:520px; overflow-y:auto; padding-right:6px;">
+      <div style="color:#8ff; font-size:10px; letter-spacing:.10em; padding:0 4px 10px; text-align:center;">TRACKS EVERYTHING · achievements coming</div>
+      ${combat}
+      ${exploration}
+      ${rizer}
+      ${missions}
+    </div>`;
+  return _zySection('🏆 LEADERBOARD · lifetime stats', body);
+}
+
+// ── ANIMATIONS · legacy render kept as a no-op (panel replaced by leaderboard)
 function renderZycellAnimations(){
   const active = (player.party || []).filter(Boolean)[0];
   const followerId = active ? `_summon_${active.speciesId}` : null;
@@ -21930,6 +22069,8 @@ function frame(now){
   drawHitFx();          // shared impact rings · above world under menus
   drawZyrexAttackFx();  // v0.95.318 · type-themed Zyrex attack VFX (ring fallback)
   drawZyrexAttackAnims();// v0.95.320 · per-species attack sprite sheets
+  // v0.95.521 · HP flash overlay · low-HP constant red pulse, mid-HP yellow triple, full-heal green single
+  try { tickHpFlash(); drawHpFlash(); } catch(_){}
   // v0.95.422 · Same global-freeze gate on ambient ticks
   if (!(game.zphoneOpen || game.paused)){
     try { tickBagDrag(); } catch(_){}
@@ -23043,6 +23184,60 @@ function drawCanvasRizerMeters(x,y,w,h){
   });
   ctx.restore();
 }
+// v0.95.521 · HP FLASH OVERLAY · full-screen tint pulse driven by HP %
+//   ≤ 20% HP · CONSTANT red pulse (never stops until healed above 20%)
+//   crossing ≤ 50% descending · YELLOW · 3 pulses (~1.8s total)
+//   crossing to 100% full-heal · GREEN · SINGLE pulse (~0.8s)
+// State machine keeps mode + startedAt · redraws each frame from drawHpFlash().
+function tickHpFlash(){
+  const max = player.hpMax || player.maxHp || 100;
+  const hp  = player.hp || 0;
+  const pct = hp / Math.max(1, max);
+  const now = performance.now();
+  if (!player._hpFlash) player._hpFlash = { mode:'none', startedAt:0, prevPct:1.0 };
+  const f = player._hpFlash;
+  const prev = f.prevPct;
+  // Full heal · single green pulse fires on crossing UP to 1.0
+  if (pct >= 1.0 && prev < 1.0 && hp > 0){ f.mode = 'green';  f.startedAt = now; }
+  // 50% descending · yellow triple pulse fires on crossing DOWN through 0.50
+  else if (pct <= 0.50 && prev > 0.50 && hp > 0){ f.mode = 'yellow'; f.startedAt = now; }
+  // ≤ 20% · CONSTANT red pulse · always runs while below threshold
+  if (hp > 0 && pct <= 0.20){
+    if (f.mode !== 'red'){ f.mode = 'red'; f.startedAt = now; }
+  } else if (f.mode === 'red'){
+    // Player healed above 20% · clear red
+    f.mode = 'none';
+  }
+  f.prevPct = pct;
+}
+function drawHpFlash(){
+  const f = player._hpFlash;
+  if (!f || f.mode === 'none') return;
+  const now = performance.now();
+  const el = now - (f.startedAt || now);
+  let alpha = 0, color = null;
+  if (f.mode === 'green'){
+    const t = el / 800;
+    if (t >= 1){ f.mode = 'none'; return; }
+    alpha = Math.sin(t * Math.PI) * 0.32;
+    color = '95,220,122';
+  } else if (f.mode === 'yellow'){
+    const t = el / 1800;
+    if (t >= 1){ f.mode = 'none'; return; }
+    alpha = Math.max(0, Math.sin(t * Math.PI * 3)) * 0.32;
+    color = '255,214,107';
+  } else if (f.mode === 'red'){
+    // 900ms period constant pulse · 0.15..0.35 alpha
+    alpha = 0.15 + 0.20 * (0.5 + 0.5 * Math.sin(el / 900 * Math.PI * 2));
+    color = '255,91,91';
+  }
+  if (!color || alpha <= 0) return;
+  ctx.save();
+  ctx.fillStyle = `rgba(${color},${alpha.toFixed(3)})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+}
+
 // v0.95.517 · WEAPON WHEEL wiring · REMOVED for now (user request).  Weapon
 // equip/unequip lives in ZyPhone → Weapons only until per-weapon WHUD
 // headshot art is ready.  Function kept as a no-op stub so any stray call

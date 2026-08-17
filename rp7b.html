@@ -647,7 +647,28 @@
     <div class="hint">CLICK ANYWHERE / B / ESC · CLOSE</div>
   </div></div>
   <div id="coinPop"></div>
-  <div id="weaponHud" title="Weapon wheel · click to open"></div>
+  <!-- v0.95.517 · WEAPON WHEEL · lives on the WHUD background art · one big
+       equipped slot on the left + a 4-slot mini-wheel · click a slot to equip/
+       unequip · shows durability arc + BROKEN state · click empty slot = hint -->
+  <div id="weaponHud" title="Weapon wheel · click to open">
+    <div id="whudSlots" style="position:absolute; inset:0; pointer-events:auto; display:flex; align-items:center; justify-content:flex-start; gap:10px; padding:34px 24px 34px 42px; box-sizing:border-box; font-family:'Courier New',monospace;">
+      <!-- Equipped slot · big -->
+      <div id="whudEquipped" data-weapon="__equipped__" style="width:104px; height:104px; border:3px solid rgba(79,179,255,0.85); background:radial-gradient(circle at 50% 40%, rgba(20,50,120,0.7), rgba(4,10,30,0.85)); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 0 14px rgba(79,179,255,0.55); position:relative;">
+        <div id="whudEquippedIcon" style="font-size:36px; color:#8ff; line-height:1;">◯</div>
+        <div id="whudEquippedName" style="color:#ffd66b; font-weight:bold; font-size:9px; letter-spacing:.10em; margin-top:3px;">NONE</div>
+        <div id="whudEquippedDur" style="position:absolute; left:6px; right:6px; bottom:6px; height:5px; background:rgba(0,0,0,0.6); border:1px solid rgba(79,179,255,0.35); display:none;">
+          <div id="whudEquippedDurFill" style="height:100%; width:100%; background:linear-gradient(90deg,#4fb3ff,#8ff);"></div>
+        </div>
+      </div>
+      <!-- Mini wheel · 4 quick-slots -->
+      <div id="whudWheel" style="display:grid; grid-template-columns:repeat(2,1fr); grid-template-rows:repeat(2,1fr); gap:6px;">
+        <div class="whudSlot" data-weapon="sapphire_sword" style="width:44px; height:44px; border:2px solid rgba(79,179,255,0.55); background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:20px; color:#4fb3ff;">⚔</div>
+        <div class="whudSlot" data-weapon="__empty__" style="width:44px; height:44px; border:2px solid rgba(79,179,255,0.25); background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; cursor:default; font-size:16px; color:rgba(200,220,255,0.35);">◯</div>
+        <div class="whudSlot" data-weapon="__empty__" style="width:44px; height:44px; border:2px solid rgba(79,179,255,0.25); background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; cursor:default; font-size:16px; color:rgba(200,220,255,0.35);">◯</div>
+        <div class="whudSlot" data-weapon="__empty__" style="width:44px; height:44px; border:2px solid rgba(79,179,255,0.25); background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; cursor:default; font-size:16px; color:rgba(200,220,255,0.35);">◯</div>
+      </div>
+    </div>
+  </div>
   <div id="rizerPanel">
     <h4>◈ RIZER STATUS</h4>
     <div class="row"><span>Rizer Level</span><span id="rzLvl">1</span></div>
@@ -7290,6 +7311,10 @@ function walkable(x, y){
       }
     }
     if(cfg.rizerRoom&&roomTileBlockedByItem(x,y,_roomEdit?.id||null))return false;
+    // v0.95.517 · Treehouse silver chest tile · always blocks (before + after
+    // opening) so player has to face it from an adjacent tile to X-interact
+    if (game.scene === 'interior_treehouse'
+        && x === TREEHOUSE_CHEST.tileX && y === TREEHOUSE_CHEST.tileY) return false;
     // NPCs in this interior scene block their tile
     for (const n of NPCS){
       if (n.scene === game.scene && !n._astralslamHeld && !n._astralthrowHeld && n.tileX === x && n.tileY === y) return false;
@@ -11667,25 +11692,23 @@ function drawTreehouseChest(){
 }
 function tryOpenTreehouseChest(){
   if (game.scene !== 'interior_treehouse') return false;
-  // Player must be on the tile just south of the chest facing UP, OR next to it any dir
-  const cx = TREEHOUSE_CHEST.tileX, cy = TREEHOUSE_CHEST.tileY;
-  const px = Math.round(player.x), py = Math.round(player.y);
-  const near = (Math.abs(px - cx) + Math.abs(py - cy)) <= 1 && player.dir &&
-               ((player.dir === 'up'    && py === cy + 1 && px === cx) ||
-                (player.dir === 'down'  && py === cy - 1 && px === cx) ||
-                (player.dir === 'left'  && px === cx + 1 && py === cy) ||
-                (player.dir === 'right' && px === cx - 1 && py === cy));
-  if (!near) return false;
+  // Caller (tryInteract) already verified fx/fy match the chest tile
   if (player.treehouseSwordChestOpened) return false;
   player.treehouseSwordChestOpened = true;
   player.items = player.items || {};
   player.items.sapphire_sword = (player.items.sapphire_sword || 0) + 1;
+  // v0.95.517 · Silver chest also drops coins + gems like a wooden chest
+  const coins = 25 + Math.floor(Math.random() * 76);   // 25-100 coins
+  addItems({ coins });
+  try { popCoinLabel(coins); } catch(_){}
+  try { playSFX('coins'); } catch(_){}
+  try { spawnChestGems('interior_treehouse', TREEHOUSE_CHEST.tileX, TREEHOUSE_CHEST.tileY); } catch(_){}
   // Fresh durability + not-broken · saved for later toggle in phone
   player.swordDurability = 50;
   player.swordBroken     = false;
   try { playItemGain('sapphire_sword'); } catch(_){}
   try { playSFX('confirm'); } catch(_){}
-  showToast('★ SAPPHIRE SWORD received · toggle it from ZyPhone → Weapons (S1 only)', 4600);
+  showToast(`★ SAPPHIRE SWORD + ${coins} coins · toggle from ZyPhone → Weapons (S1 only)`, 5000);
   return true;
 }
 
@@ -21899,6 +21922,7 @@ function frame(now){
   }
   updateHUD();          // live tile coordinates in top-left
   updateRizerHUD();     // Rizer HUD bars + panel refresh (top-right)
+  try { updateWeaponHUD(); } catch(_){}   // v0.95.517 · WHUD wheel + durability
   try { updateZyrexHUD(); } catch(_){}   // v0.95.449 · Active Zyrex HUD · top-left mirror
   requestAnimationFrame(frame);
 }
@@ -22984,6 +23008,122 @@ function drawCanvasRizerMeters(x,y,w,h){
     }
   });
   ctx.restore();
+}
+// v0.95.517 · WEAPON WHEEL wiring · updates the WHUD slots each frame + binds
+// click handlers once.  The equipped slot mirrors player.swordEquipped state
+// and shows a live durability bar; clicking any slot equips/unequips.
+function updateWeaponHUD(){
+  const whud = document.getElementById('weaponHud');
+  if (!whud) return;
+  const has  = (player.items && player.items.sapphire_sword) || 0;
+  const isS1 = (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+  const dur  = Math.max(0, Math.min(50, player.swordDurability == null ? 50 : player.swordDurability));
+  const broken = !!player.swordBroken || dur <= 0;
+  const equipped = !!player.swordEquipped && !broken && isS1 && has > 0;
+  // Slot 1 · sapphire sword
+  const slot1 = whud.querySelector('.whudSlot[data-weapon="sapphire_sword"]');
+  if (slot1){
+    if (!has){
+      slot1.style.opacity = '0.35';
+      slot1.style.borderColor = 'rgba(79,179,255,0.25)';
+      slot1.style.color = 'rgba(200,220,255,0.35)';
+      slot1.textContent = '⚔';
+      slot1.title = 'Sapphire Sword · locked · find it in the treehouse';
+    } else if (broken){
+      slot1.style.opacity = '1';
+      slot1.style.borderColor = '#ff5b5b';
+      slot1.style.color = '#ff5b5b';
+      slot1.textContent = '⛔';
+      slot1.title = 'Sapphire Sword · BROKEN · repair in ZyPhone → Weapons (100 gems)';
+    } else if (equipped){
+      slot1.style.opacity = '1';
+      slot1.style.borderColor = '#5fdc7a';
+      slot1.style.color = '#5fdc7a';
+      slot1.style.boxShadow = '0 0 10px rgba(95,220,122,0.6)';
+      slot1.textContent = '⚔';
+      slot1.title = 'Sapphire Sword · EQUIPPED · click to unequip';
+    } else {
+      slot1.style.opacity = '1';
+      slot1.style.borderColor = 'rgba(79,179,255,0.55)';
+      slot1.style.color = '#4fb3ff';
+      slot1.style.boxShadow = 'none';
+      slot1.textContent = '⚔';
+      slot1.title = isS1 ? 'Sapphire Sword · click to equip' : 'Sapphire Sword · S1 only · switch skin';
+    }
+  }
+  // Equipped-big slot mirror
+  const icon = document.getElementById('whudEquippedIcon');
+  const name = document.getElementById('whudEquippedName');
+  const durEl = document.getElementById('whudEquippedDur');
+  const durFill = document.getElementById('whudEquippedDurFill');
+  if (icon && name && durEl && durFill){
+    if (equipped){
+      icon.textContent = '⚔';
+      icon.style.color = '#5fdc7a';
+      name.textContent = 'SAPPHIRE';
+      name.style.color = '#5fdc7a';
+      durEl.style.display = 'block';
+      const pct = (dur / 50) * 100;
+      durFill.style.width = pct + '%';
+      durFill.style.background = dur > 25 ? 'linear-gradient(90deg,#4fb3ff,#8ff)'
+                                : dur > 10 ? 'linear-gradient(90deg,#ffd66b,#ff9c66)'
+                                :            'linear-gradient(90deg,#ff5b5b,#ff9494)';
+    } else if (broken){
+      icon.textContent = '⛔';
+      icon.style.color = '#ff5b5b';
+      name.textContent = 'BROKEN';
+      name.style.color = '#ff5b5b';
+      durEl.style.display = 'none';
+    } else {
+      icon.textContent = '◯';
+      icon.style.color = '#8ff';
+      name.textContent = 'NONE';
+      name.style.color = '#ffd66b';
+      durEl.style.display = 'none';
+    }
+  }
+  // Bind click handlers ONCE
+  if (!whud._whudBound){
+    whud._whudBound = true;
+    const _toggleSword = () => {
+      const _has  = (player.items && player.items.sapphire_sword) || 0;
+      const _dur  = Math.max(0, player.swordDurability == null ? 50 : player.swordDurability);
+      const _brk  = !!player.swordBroken || _dur <= 0;
+      const _isS1 = (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+      if (!_has){
+        try { playSFX('doorLock'); } catch(_){}
+        showToast('◈ No Sapphire Sword · find it in the treehouse chest', 2600);
+        return;
+      }
+      if (_brk){
+        try { playSFX('doorLock'); } catch(_){}
+        showToast('⛔ Sapphire Sword · BROKEN · repair 100 gems (ZyPhone → Weapons)', 3000);
+        return;
+      }
+      if (!_isS1){
+        try { playSFX('doorLock'); } catch(_){}
+        showToast('◈ Sapphire Sword · S1 only · switch out of S2', 2600);
+        return;
+      }
+      player.swordEquipped = !player.swordEquipped;
+      try { playSFX('confirm'); } catch(_){}
+      showToast(player.swordEquipped ? '★ Sapphire Sword EQUIPPED' : '◇ Sapphire Sword UNEQUIPPED', 2000);
+    };
+    whud.querySelectorAll('.whudSlot').forEach(el => {
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const w = el.dataset.weapon;
+        if (w === 'sapphire_sword'){ _toggleSword(); return; }
+        if (w === '__empty__'){
+          try { playSFX('cursor'); } catch(_){}
+          showToast('◈ Empty weapon slot · earn more weapons across Zyraxis', 2200);
+          return;
+        }
+      });
+    });
+    const bigSlot = document.getElementById('whudEquipped');
+    if (bigSlot) bigSlot.addEventListener('click', (ev) => { ev.stopPropagation(); _toggleSword(); });
+  }
 }
 function updateRizerHUD(){
   // Visibility · only in the overworld · hidden on title screen, during

@@ -690,6 +690,7 @@
           <button class="zyNav" data-zynav="zycube"      style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">◈  ZYCUBE</button>
           <button class="zyNav" data-zynav="rizer"       style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">☆  RIZER</button>
           <button class="zyNav" data-zynav="faction"     style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">◇  FACTION</button>
+          <button class="zyNav" data-zynav="weapons"     style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">⚔  WEAPONS</button>
           <button class="zyNav" data-zynav="map"         style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🗺  MAP</button>
           <button class="zyNav" data-zynav="expeditions" style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">📋  EXPEDITIONS</button>
           <button class="zyNav" data-zynav="contacts"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">👥  CONTACTS</button>
@@ -2097,6 +2098,7 @@ const INVENTORY_META = {
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
   life_stone:       { label: 'Life Stone',              order: 47 },   // v0.95.495 · dropped when a life stone shatters · deliver 2 to Nurse Rein to make her a callable healer contact
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
+  sapphire_sword:   { label: 'Sapphire Sword',          order: 7 },   // v0.95.516 · Silver chest inside treehouse · S1-only · toggle in ZyPhone → Weapons · replaces punch anim · same dmg as S2 punch · breaks after 50 uses · repair with 100 gems
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -2186,7 +2188,7 @@ const ITEM_GAIN_SFX_KEYS = new Set([
   'zysphere_basic','zysphere_silver','zysphere_ultra',
   // v0.95.507 · Quest items · every retrievable quest pickup now fires the jingle
   'scrap_metal','astralcore','astralcore_transponder','life_stone',
-  'ale','potion',
+  'ale','potion','sapphire_sword',
 ]);
 function playItemGain(key){
   if (!key || key === 'coins') return;
@@ -11637,6 +11639,65 @@ function ensureZyrexEverOwned(){
     }
   });
 }
+// v0.95.516 · Silver chest inside the treehouse · one-shot loot: SAPPHIRE SWORD.
+// Once opened, chest.hidden mirrors player.treehouseSwordChestOpened across saves.
+// Tile (16, 15) sits in the middle of the 30x30 treehouse floor.
+const SILVER_CHEST_IMG = new Image();
+SILVER_CHEST_IMG.src = 'assets/2D%20sprites/decor/silver-chest.png';
+const CHEST_OPEN_IMG = new Image();
+CHEST_OPEN_IMG.src = 'assets/2D%20sprites/decor/chest-open.png';
+const _SILVER_CLOSED_BBOX = [145, 164, 948, 893];
+const _CHEST_OPEN_BBOX    = [290, 240, 673, 741];
+const TREEHOUSE_CHEST = { tileX: 16, tileY: 15 };
+function drawTreehouseChest(){
+  if (game.scene !== 'interior_treehouse') return;
+  const opened = !!player.treehouseSwordChestOpened;
+  const img = opened ? CHEST_OPEN_IMG : SILVER_CHEST_IMG;
+  const bbox = opened ? _CHEST_OPEN_BBOX : _SILVER_CLOSED_BBOX;
+  if (!img.complete || !img.naturalWidth) return;
+  const [bx, by, bw, bh] = bbox;
+  const drawW = TILE;
+  const drawH = Math.round(drawW * (bh / bw));
+  const dx = Math.floor(TREEHOUSE_CHEST.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+  const dy = Math.floor((TREEHOUSE_CHEST.tileY + 1) * TILE - drawH)      - _cam.y;
+  const prev = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, bx, by, bw, bh, dx, dy, drawW, drawH);
+  ctx.imageSmoothingEnabled = prev;
+}
+function tryOpenTreehouseChest(){
+  if (game.scene !== 'interior_treehouse') return false;
+  // Player must be on the tile just south of the chest facing UP, OR next to it any dir
+  const cx = TREEHOUSE_CHEST.tileX, cy = TREEHOUSE_CHEST.tileY;
+  const px = Math.round(player.x), py = Math.round(player.y);
+  const near = (Math.abs(px - cx) + Math.abs(py - cy)) <= 1 && player.dir &&
+               ((player.dir === 'up'    && py === cy + 1 && px === cx) ||
+                (player.dir === 'down'  && py === cy - 1 && px === cx) ||
+                (player.dir === 'left'  && px === cx + 1 && py === cy) ||
+                (player.dir === 'right' && px === cx - 1 && py === cy));
+  if (!near) return false;
+  if (player.treehouseSwordChestOpened) return false;
+  player.treehouseSwordChestOpened = true;
+  player.items = player.items || {};
+  player.items.sapphire_sword = (player.items.sapphire_sword || 0) + 1;
+  // Fresh durability + not-broken · saved for later toggle in phone
+  player.swordDurability = 50;
+  player.swordBroken     = false;
+  try { playItemGain('sapphire_sword'); } catch(_){}
+  try { playSFX('confirm'); } catch(_){}
+  showToast('★ SAPPHIRE SWORD received · toggle it from ZyPhone → Weapons (S1 only)', 4600);
+  return true;
+}
+
+// v0.95.516 · Sapphire Sword sprite sheet · 4x4 D/L/R/U · replaces the punch
+// animation for cosmeticSkin='normal' (S1) when player.swordEquipped is true.
+const RIZER_SAPPHIRE_SWORD = {
+  img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+  key: 'sapphire-sword', loaded: false,
+};
+RIZER_SAPPHIRE_SWORD.img.src = 'assets/2D%20sprites/rizer/sapphire-sword.png';
+RIZER_SAPPHIRE_SWORD.img.onload = () => { RIZER_SAPPHIRE_SWORD.loaded = true; };
+
 function spawnTreehouseZyrex(){
   if (typeof NPCS === 'undefined' || typeof SUMMONABLE_SPRITES === 'undefined') return;
   ensureZyrexEverOwned();
@@ -12358,6 +12419,20 @@ addEventListener('keydown', e => {
           const _pct  = (mode === 'kick') ? 0.10 : 0.05;
           changePlayerDiamond(Math.max(1, Math.round(_dmax * _pct)));
         }
+        // v0.95.516 · Sapphire Sword · every SWORD swing (punch mode + equipped + S1)
+        // eats one durability point · breaks at 0 · forces unequip
+        if (mode === 'punch' && player.swordEquipped && !player.swordBroken
+            && (player.cosmeticSkin || 'normal') !== 'power_upgrade'){
+          player.swordDurability = Math.max(0, (player.swordDurability == null ? 50 : player.swordDurability) - 1);
+          if (player.swordDurability <= 0){
+            player.swordBroken   = true;
+            player.swordEquipped = false;
+            try { playSFX('cancel'); } catch(_){}
+            showToast('⛔ SAPPHIRE SWORD broke · repair with 100 gems (ZyPhone → Weapons)', 3800);
+          } else if (player.swordDurability === 10){
+            showToast('⚠ Sapphire Sword · 10 swings left', 2400);
+          }
+        }
         // v0.95.184 · Heavy kick takeoff SFX · plays on every kick swing
         if (mode === 'kick') playSFX('kick');
         // v0.95.59 · Hitbox check · exact tile in front of player (based on
@@ -12413,8 +12488,14 @@ addEventListener('keydown', e => {
             const maxHp = hit.hpMax || 125;
             if (hit.hp == null) hit.hp = maxHp;
             // v0.95.211 · CANON damage · A1 punch = baseAtk × 1 · A2 kick = baseAtk × 2
+            // v0.95.516 · SAPPHIRE SWORD swap · S1 punch with sword equipped =
+            // same damage as S2 punch (baseAtk × 1 × S2 multiplier)
             const dmgMult = (mode === 'kick') ? 2 : 1;
-            hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * dmgMult);
+            const _swordSwing = mode === 'punch' && player.swordEquipped && !player.swordBroken
+                             && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+            let outDmg = playerOutgoingDamage((player.baseAtk || 25) * dmgMult);
+            if (_swordSwing) outDmg = (player.baseAtk || 25) * dmgMult * playerDamageMultiplier('power_upgrade');
+            hit.hp -= outDmg;
             // v0.95.120 · Mori pained grunt when crossing 40% HP threshold
             if (hit.hp > 0 && !hit._gruntPlayed && hit.hp <= maxHp * 0.4){
               hit._gruntPlayed = true;
@@ -13756,10 +13837,17 @@ function drawPlayer(){
   if (!_dodging && player.dodgeUntil) player.dodgeUntil = 0;
   const dodgeCandidate = _dodging ? activeRizerBundle('dodge') : null;
   const dodgeBundle = dodgeCandidate && dodgeCandidate.loaded ? dodgeCandidate : null;
+  // v0.95.516 · Sapphire Sword swap · S1 punch anim → sword-slash sheet when
+  // player.swordEquipped is true (and skin is S1 and sword not broken)
+  const _swordActive = inAttack && player.attackMode === 'punch'
+                    && !!player.swordEquipped && !player.swordBroken
+                    && (player.cosmeticSkin || 'normal') !== 'power_upgrade'
+                    && RIZER_SAPPHIRE_SWORD.loaded;
   const attackCandidate = inAttack && player.attackMode === 'astralslam'
     ? player._astralslamBundle
     : inAttack && player.attackMode === 'astralthrow' && player._astralthrowBundle
     ? player._astralthrowBundle
+    : _swordActive ? RIZER_SAPPHIRE_SWORD
     : (inAttack ? activeRizerBundle(player.attackMode) : null);
   // v0.95.102 · Interact-with-X anim · brief reach pose during interact
   const _interacting = player.interactUntil && now < player.interactUntil;
@@ -14231,6 +14319,10 @@ function tryInteract(){
   {
     const cfg = interiorConfig(game.scene);
     if (cfg){
+      // v0.95.516 · Treehouse silver chest · X on the chest tile opens it
+      if (game.scene === 'interior_treehouse' && fx === TREEHOUSE_CHEST.tileX && fy === TREEHOUSE_CHEST.tileY){
+        if (tryOpenTreehouseChest()) return;
+      }
       // NPC interact takes priority
       for (const n of NPCS){
         if (n.scene !== game.scene) continue;
@@ -16121,7 +16213,7 @@ function closeWalletPanel(){
 // all funnel through paintZycellNav() + handleZycellKey() so behavior is
 // identical across every partition · content panels ship in later passes
 // ══════════════════════════════════════════════════════════════════════
-const ZYCELL_PANELS = ['home','zycube','rizer','faction','map','expeditions','contacts','animations','settings'];
+const ZYCELL_PANELS = ['home','zycube','rizer','faction','weapons','map','expeditions','contacts','animations','settings'];
 let zycellPage = 'home';
 function paintZycellNav(){
   const p = document.getElementById('zphonePanel');
@@ -16174,6 +16266,7 @@ function paintZycellContent(){
     zycube:      renderZycellZycube,
     rizer:       renderZycellRizer,
     faction:     renderZycellFaction,
+    weapons:     renderZycellWeapons,
     map:         renderZycellMap,
     expeditions: renderZycellExpeditions,
     contacts:    renderZycellContacts,
@@ -16349,6 +16442,103 @@ function renderZycellFaction(){
     });
   }, 0);
   return _zySection(`◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX`, grid + hint);
+}
+
+// v0.95.516 · WEAPONS panel · currently just the Sapphire Sword row with
+// toggle/durability/repair.  Panel is empty (with a hint) until player finds
+// their first weapon in the world (treehouse silver chest).
+function renderZycellWeapons(){
+  const hasSword = (player.items && player.items.sapphire_sword) || 0;
+  const isS1     = (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+  if (!hasSword){
+    return _zySection('⚔ WEAPONS', `<div style="color:#889; text-align:center; padding:20px 12px; line-height:1.7;">· no weapons yet ·<br><span style="font-size:9px; color:#667;">explore the world · silver chests hold gear</span></div>`);
+  }
+  const dur = Math.max(0, Math.min(50, player.swordDurability == null ? 50 : player.swordDurability));
+  const broken = !!player.swordBroken || dur <= 0;
+  const equipped = !!player.swordEquipped && !broken && isS1;
+  const gemCount = (typeof countGems === 'function') ? countGems() : 0;
+  const durPct = (dur / 50) * 100;
+  const barColor = broken ? '#ff5b5b' : dur > 25 ? '#4fb3ff' : dur > 10 ? '#ffd66b' : '#ff9c66';
+  const equipLabel = broken ? '⛔ BROKEN' : (equipped ? '● EQUIPPED · tap to unequip' : (isS1 ? '☆ tap to equip' : '⚠ S1 skin only'));
+  const equipColor = broken ? '#ff5b5b' : (equipped ? '#5fdc7a' : (isS1 ? '#4fb3ff' : '#889'));
+  const repairBtn = broken
+    ? `<button id="zySwordRepair" style="margin-top:8px; padding:8px 14px; background:${gemCount >= 100 ? 'rgba(95,220,122,0.22)' : 'rgba(120,120,140,0.18)'}; color:${gemCount >= 100 ? '#5fdc7a' : '#889'}; border:1px solid ${gemCount >= 100 ? '#5fdc7a' : '#556'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:${gemCount >= 100 ? 'pointer' : 'not-allowed'};">🔧 REPAIR · 100 GEMS (you have ${gemCount})</button>`
+    : '';
+  const row = `
+    <div id="zySwordRow" data-zyitem="sapphire_sword" style="border:2px solid ${broken ? '#ff5b5b' : '#4fb3ff'}; background:linear-gradient(180deg, rgba(20,50,120,0.55), rgba(4,10,30,0.65)); padding:14px; margin-bottom:8px; cursor:${isS1 && !broken ? 'pointer' : 'default'};">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:52px; height:52px; border:2px solid #4fb3ff; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">⚔</div>
+        <div style="flex:1;">
+          <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:13px;">SAPPHIRE SWORD</div>
+          <div style="color:#8ff; font-size:10px; margin-top:2px;">S1 only · dmg = S2 light punch · breaks after 50 uses · repair with 100 gems</div>
+        </div>
+        <div style="color:${equipColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${equipLabel}</div>
+      </div>
+      <div style="margin-top:10px;">
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:#cfe;">
+          <span>DURABILITY</span><span style="color:#fff;">${dur}/50</span>
+        </div>
+        <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(79,179,255,0.25); margin-top:3px;">
+          <div style="height:100%; width:${durPct}%; background:${barColor};"></div>
+        </div>
+      </div>
+      ${repairBtn}
+    </div>`;
+  // Bind toggle + repair after HTML lands
+  setTimeout(() => {
+    const rowEl = document.getElementById('zySwordRow');
+    const repairEl = document.getElementById('zySwordRepair');
+    if (rowEl && !rowEl._zyBound){
+      rowEl._zyBound = true;
+      rowEl.addEventListener('click', (ev) => {
+        if (ev.target.id === 'zySwordRepair') return;
+        if (player.swordBroken || (player.swordDurability|0) <= 0){
+          try { playSFX('doorLock'); } catch(_){}
+          showToast('◈ Sword is BROKEN · repair with 100 gems first', 2400);
+          return;
+        }
+        if ((player.cosmeticSkin || 'normal') === 'power_upgrade'){
+          try { playSFX('doorLock'); } catch(_){}
+          showToast('◈ Sapphire Sword · S1 only · switch out of S2 to equip', 2400);
+          return;
+        }
+        player.swordEquipped = !player.swordEquipped;
+        try { playSFX('confirm'); } catch(_){}
+        showToast(player.swordEquipped ? '★ SAPPHIRE SWORD equipped · punch becomes slash' : '◇ Sapphire Sword unequipped', 2400);
+        try { paintZycellContent(); } catch(_){}
+      });
+    }
+    if (repairEl && !repairEl._zyBound){
+      repairEl._zyBound = true;
+      repairEl.addEventListener('click', () => {
+        const gc = (typeof countGems === 'function') ? countGems() : 0;
+        if (gc < 100){
+          try { playSFX('doorLock'); } catch(_){}
+          showToast(`◈ Not enough gems · need 100 (have ${gc})`, 2400);
+          return;
+        }
+        // Spend 100 gems worth · pick cheapest first
+        let need = 100;
+        const spendOrder = ['gem_yellow','gem_green','gem_blue','gem_red','gem_white','gem_orange','gem_purple','gem_black'];
+        for (const k of spendOrder){
+          if (need <= 0) break;
+          const val = (typeof GEM_VALUES !== 'undefined' && GEM_VALUES[k]) || 1;
+          const have = player.items[k] || 0;
+          while (have > 0 && need > 0){
+            player.items[k] -= 1;
+            need -= val;
+            if (player.items[k] <= 0) break;
+          }
+        }
+        player.swordDurability = 50;
+        player.swordBroken = false;
+        try { playSFX('confirm'); } catch(_){}
+        showToast('★ Sapphire Sword REPAIRED · durability 50/50', 2600);
+        try { paintZycellContent(); } catch(_){}
+      });
+    }
+  }, 0);
+  return _zySection('⚔ WEAPONS', row);
 }
 
 // ── MAP · locked until Zoryn Town Map · then live pin + district outline ──
@@ -21610,16 +21800,21 @@ function frame(now){
     drawTitleScreen();
   } else if (interiorConfig(game.scene)){
     drawInteriorFloor();
-    // Depth-sort NPCs in this scene + player by feet-Y
+    // Depth-sort NPCs in this scene + player + treehouse chest by feet-Y
     const rends = [{ kind:'player', footY: player.y }];
     for (const n of NPCS){
       if (n.scene !== game.scene) continue;
       if (!n.sheet.complete || !n.sheet.naturalWidth) continue;
       rends.push({ kind:'npc', npc:n, footY: n.tileY });
     }
+    // v0.95.516 · Treehouse silver chest
+    if (game.scene === 'interior_treehouse'){
+      rends.push({ kind:'treehouseChest', footY: TREEHOUSE_CHEST.tileY });
+    }
     rends.sort((a,b) => a.footY - b.footY);
     for (const r of rends){
       if (r.kind === 'npc') drawNPC(r.npc);
+      else if (r.kind === 'treehouseChest') drawTreehouseChest();
       else                  drawPlayer();
     }
     // v0.95.55 · Nebuladock 9000 · monitor overlay · Z-order fix.

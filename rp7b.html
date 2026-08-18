@@ -1466,6 +1466,7 @@ const AUDIO = {
     ahImOut:      new Audio('audio/sfx-ah-im-out.mp3'),      // v0.95.564 · Rizer VO on SPECIAL depleted to 0 ("ah im out") · fires on transition · complements needJuice
     ughGyat:      new Audio('audio/sfx-ugh-gyat.mp3'),       // v0.95.565 · Rizer death VO ("ugh gyat") · fires on defeat right before dreamland fade
     gottaFixIt:   new Audio('audio/sfx-gotta-fix-it.mp3'),   // v0.95.571 · Rizer VO on any weapon break ("gotta fix it") · points player to gem repair
+    zyrexGo:      new Audio('audio/sfx-zyrex-go.mp3'),       // v0.95.617 · Rizer "GO!" VO on every Zyrex summon (Triangle from FACTION panel · single-summon path)
     rubypawSwing: new Audio('audio/sfx-rubypaw-swing.mp3'),  // v0.95.573 · Rubypaw sword swing/slash · plays on every S2-square punch swing (hit or miss)
     rubypawKill:  new Audio('audio/sfx-rubypaw-kill.mp3'),   // v0.95.574 · Rubypaw kill · flesh-ripping impact · fires only on Rubypaw-driven KOs
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
@@ -1681,7 +1682,7 @@ const RVOX_PRIORITY = {
   // 50 · contextual
   newDistrict: 50, seeYaLater: 45, laterMom: 48,
   // 40 · catches + reward pickups + fail cues
-  gotcha: 40, gemVox: 40, needJuice: 42,
+  gotcha: 40, gemVox: 40, needJuice: 42, zyrexGo: 45,
   // 30 · combat action beats (most frequent · lowest priority)
   astralthrowVox: 30, kickVox: 25, punchVox: 25, damageTick: 20, damageTick2: 20, damageTick3: 20,
 };
@@ -2117,9 +2118,12 @@ let _rizerDeathAtX = null, _rizerDeathAtY = null;   // v0.95.582 · captured for
 // v0.95.614 · DEATH-GARGOYLE breadcrumb spawner · leaves a stone gargoyle at
 // the overworld tile Rizer died on (25% roll from startRizerDeath).  Persists
 // to save so breadcrumbs survive refresh + accumulate across a full playthrough.
+// v0.95.617 · Uniform pick of 4 breadcrumb sprites · ALWAYS spawns one at
+// every overworld death tile.  All rendered at ~3/4 tile so they read as
+// headstones regardless of sprite variance.
 function spawnDeathGargoyle(tx, ty){
   if (!Number.isFinite(tx) || !Number.isFinite(ty)) return;
-  const specs = (typeof window !== 'undefined' && window._SEER_GARGOYLE_SPECS) || [];
+  const specs = (typeof window !== 'undefined' && window._SEER_DEATH_SPECS) || [];
   if (!specs.length || typeof WORLD_PROPS === 'undefined') return;
   const spec = specs[Math.floor(Math.random() * specs.length)];
   const img = new Image(); img.src = spec.src;
@@ -2129,22 +2133,21 @@ function spawnDeathGargoyle(tx, ty){
     src: spec.src,
     bbox: spec.bbox,
     tileX: Math.round(tx), tileY: Math.round(ty),
-    tileW: spec.tileW, tileH: spec.tileH,
+    tileW: 0.75, tileH: 0.75,   // v0.95.617 · headstone scale · 3/4 tile
     footprint: [],
     depthOffset: -1,
     _deathGargoyle: true,
     _gargoyleKey: spec.key,
-    onInteract: () => showToast('◈ Death Gargoyle · a Rizer fell here', 2600),
+    onInteract: () => showToast('◈ Fallen Rizer · a memorial marks this spot', 2600),
   };
   WORLD_PROPS.push(prop);
-  // Persist
   player.deathGargoyles = player.deathGargoyles || [];
   player.deathGargoyles.push({ x: prop.tileX, y: prop.tileY, key: spec.key });
   if (player.deathGargoyles.length > 500) player.deathGargoyles.splice(0, player.deathGargoyles.length - 500);
 }
 function restoreDeathGargoyles(){
   const list = player.deathGargoyles || [];
-  const specs = (typeof window !== 'undefined' && window._SEER_GARGOYLE_SPECS) || [];
+  const specs = (typeof window !== 'undefined' && window._SEER_DEATH_SPECS) || [];
   if (!list.length || !specs.length || typeof WORLD_PROPS === 'undefined') return;
   for (const g of list){
     const spec = specs.find(s => s.key === g.key) || specs[0];
@@ -2152,10 +2155,11 @@ function restoreDeathGargoyles(){
     WORLD_PROPS.push({
       id: `death_gargoyle_saved_${g.x}_${g.y}`,
       img, src: spec.src, bbox: spec.bbox,
-      tileX: g.x, tileY: g.y, tileW: spec.tileW, tileH: spec.tileH,
+      tileX: g.x, tileY: g.y,
+      tileW: 0.75, tileH: 0.75,   // v0.95.617
       footprint: [], depthOffset: -1,
       _deathGargoyle: true, _gargoyleKey: g.key,
-      onInteract: () => showToast('◈ Death Gargoyle · a Rizer fell here', 2600),
+      onInteract: () => showToast('◈ Fallen Rizer · a memorial marks this spot', 2600),
     });
   }
 }
@@ -2170,11 +2174,11 @@ function startRizerDeath(){
       _rizerDeathAtX = player.x; _rizerDeathAtY = player.y;
     }
   } catch(_){}
-  // v0.95.614 · DEATH-GARGOYLE BREADCRUMB · 1-in-4 chance to leave a stone
-  // gargoyle at the overworld death tile.  Persists across saves so the
-  // Rizer's fall-history quietly accumulates across the map.
+  // v0.95.617 · DEATH BREADCRUMB · ALWAYS spawn one at the overworld death
+  // tile · uniform 25% pick between 2 gargoyles + tombstone + cross · all
+  // rendered at ~3/4 tile (headstone size).  Persists across saves.
   try {
-    if (game.scene === 'overworld' && Math.random() < 0.25){
+    if (game.scene === 'overworld'){
       spawnDeathGargoyle(player.x, player.y);
     }
   } catch(_){}
@@ -4256,11 +4260,16 @@ const WORLD_PROPS = [
     // v0.95.614 · Static gargoyles removed · they now spawn at Rizer death
     // sites (1/4 chance) as breadcrumbs.  Tombstones + crosses remain as
     // static Seer territorial decor.
-    // v0.95.614 · Expose gargoyle sprite specs globally for spawnDeathGargoyle
+    // v0.95.617 · Expose all 4 death-breadcrumb sprite specs globally
+    //   (2 gargoyles + tombstone + cross) · spawnDeathGargoyle uniformly picks
+    //   one at 25% each · always spawns exactly one at every death tile.
+    //   All rendered at 3/4 tile (headstone size) for consistent scale.
     if (typeof window !== 'undefined'){
-      window._SEER_GARGOYLE_SPECS = [
-        { key:'seer_gargoyle_a', src:'assets/2D%20sprites/decor/seer-gargoyle_crouch.png', bbox:[158,113,300,275], tileW:1, tileH:1 },
-        { key:'seer_gargoyle_b', src:'assets/2D%20sprites/decor/seer-gargoyle_stand.png',  bbox:[ 61,115,322,273], tileW:1, tileH:1 },
+      window._SEER_DEATH_SPECS = [
+        { key:'seer_gargoyle_a', src:'assets/2D%20sprites/decor/seer-gargoyle_crouch.png', bbox:[158,113,300,275] },
+        { key:'seer_gargoyle_b', src:'assets/2D%20sprites/decor/seer-gargoyle_stand.png',  bbox:[ 61,115,322,273] },
+        { key:'seer_rip',        src:'assets/2D%20sprites/decor/seer-rip.png',              bbox:[168,185,308,260] },
+        { key:'seer_cross',      src:'assets/2D%20sprites/decor/seer-cross.png',            bbox:[ 89,155,274,290] },
       ];
     }
     const SPOTS = [
@@ -24041,6 +24050,9 @@ function toggleFactionSummon(partyIdx){
   follower.tileY = player.y + 1 + otherOut;
   follower.dir   = player.dir;
   playSFX('confirm');
+  // v0.95.617 · Rizer "GO!" VO on every send-out · rides on the standard
+  // send-out beat right after the confirm ping (RVOX priority 45).
+  try { playSFX('zyrexGo'); } catch(_){}
   showToast(`★ ${z.name} summoned · follows you`, 2000);
 }
 function drawFHUDZyrexPage(W, H){

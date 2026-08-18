@@ -14598,30 +14598,55 @@ function _fireCorsunCue(){
   } catch(_){}
 }
 let toastTimer = 0;   // legacy (kept so external clearTimeout calls stay safe)
-// v0.95.546 · Combat-vs-quest toast classifier · CORSUN "you have a new message"
-// cue should only fire for quest / story / social notifications (the AI is
-// telling you someone texted you).  Combat spam (damage, streaks, +XP pops,
-// KO callouts, RHP/ZHP warnings, capture rolls) still renders the card but
-// plays no audio.
-const _COMBAT_TOAST_HINTS = [
-  'rxp', 'xp', 'exp', 'damage', 'crit', 'ko', 'kill', 'streak',
-  'wild', 'battle', 'attack', 'defense', 'dodge',
-  'astralthrow', 'astralkick', 'astralstrike', 'astralshot',
-  'faint', 'fainted', 'downed', 'defeated',
-  'hp ', ' hp', 'rhp', 'zhp', 'health',
-  'combo', 'flawless', 'heating up', 'too easy',
-  'sword', 'kick swing', 'shot lands', 'lifted',
-  'caught a', 'gotcha',            // capture pops go through the phone contacts panel already
-];
-function _isCombatToast(msg){
-  if (battleState || wildBattleState) return true;
-  const s = String(msg || '').toLowerCase();
-  for (const h of _COMBAT_TOAST_HINTS){ if (s.indexOf(h) >= 0) return true; }
-  return false;
+// v0.95.548 · SIMPLIFIED · Phone card + CORSUN VO fire ONLY for milestone
+// toasts marked with the ★ prefix.  This matches the codebase's existing
+// convention (★ = quest/story/reward beat, ◈ = generic tip/item flavor).
+// Everything else falls back to a lightweight text toast in the same corner
+// so players still see the message — just without the phone chrome + audio.
+// Combat/battle state also forces the plain fallback as a safety net.
+function _isPhoneWorthy(msg, opts){
+  if (opts && opts.phone === false) return false;
+  if (opts && opts.phone === true)  return true;
+  if (battleState || wildBattleState) return false;
+  const s = String(msg || '');
+  return s.indexOf('★') >= 0;   // ★ prefix = milestone / quest / story / achievement
+}
+function _appendPlainToast(msg, dur){
+  try {
+    const card = document.createElement('div');
+    Object.assign(card.style, {
+      background: 'linear-gradient(180deg, rgba(4,10,26,0.92), rgba(2,6,16,0.92))',
+      border: '1px solid rgba(212,175,55,0.55)',
+      color: '#eaf0ff',
+      padding: '8px 12px',
+      fontSize: '12px',
+      lineHeight: '1.35',
+      letterSpacing: '.04em',
+      opacity: '0',
+      transform: 'translateY(8px)',
+      transition: 'opacity 220ms ease, transform 220ms ease',
+      pointerEvents: 'auto',
+      boxShadow: '0 3px 10px rgba(0,0,0,0.5)',
+    });
+    card.textContent = String(msg);
+    toastStackEl.appendChild(card);
+    while (toastStackEl.children.length > TOAST_STACK_MAX){
+      toastStackEl.removeChild(toastStackEl.firstChild);
+    }
+    requestAnimationFrame(() => {
+      card.style.opacity = '1';
+      card.style.transform = 'translateY(0)';
+    });
+    setTimeout(() => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(-6px)';
+      setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); }, 300);
+    }, dur);
+  } catch(_){}
 }
 function showToast(msg, ms, opts){
-  const dur = ms || 8000;   // v0.95.544 · 8-second auto-dismiss (was 1800ms)
-  const _silent = !!(opts && opts.silent) || _isCombatToast(msg);
+  const _phone = _isPhoneWorthy(msg, opts);
+  const dur = ms || (_phone ? 8000 : 3000);  // v0.95.548 · plain toasts short (3s) · phone cards 8s
   // Push into game.notifications queue for ZyPhone Home feed
   try {
     game.notifications = game.notifications || [];
@@ -14633,6 +14658,11 @@ function showToast(msg, ms, opts){
     });
     if (game.notifications.length > 40) game.notifications.splice(0, game.notifications.length - 40);
   } catch(_){}
+  // v0.95.548 · non-phone toasts use the lightweight text card · zero VO.
+  if (!_phone){
+    _appendPlainToast(msg, dur);
+    return;
+  }
   // Build the notification card · 2.25:1 aspect matches the ZyPhone UI plate.
   try {
     const card = document.createElement('div');
@@ -14689,9 +14719,8 @@ function showToast(msg, ms, opts){
       card.style.transform = 'translateY(-6px)';
       setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); }, 320);
     }, dur);
-    // v0.95.544 · CORSUN cue draws player attention to the bottom-right card.
-    // v0.95.546 · combat toasts are silent · quest/story/social only.
-    if (!_silent) _fireCorsunCue();
+    // v0.95.548 · CORSUN cue only fires with the phone card · ★ toasts only.
+    _fireCorsunCue();
   } catch(_){}
 }
 

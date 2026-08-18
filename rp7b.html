@@ -1446,6 +1446,8 @@ const AUDIO = {
     elixir:       new Audio('audio/sfx-elixir.mp3'),         // v0.95.529 · Rizer generic "wow delicious" · unused after Mythic rename
     mythicElixir: new Audio('audio/sfx-mythic-elixir.mp3'),  // v0.95.530 · Rizer VO on Mythic Elixir consume ("okay who made this and where can i buy 5 more")
     seeYaLater:   new Audio('audio/sfx-see-ya-later.mp3'),   // v0.95.539 · Rizer VO on NPC dialogue close ("see ya later")
+    levelUp:      new Audio('audio/sfx-level-up.mp3'),       // v0.95.540 · Rizer VO on every Rizer level-up (Lv 1-100)
+    kickVox:      new Audio('audio/sfx-kick-vox.mp3'),       // v0.95.540 · Rizer VO fires every 5th kick swing
     heatingUp:    new Audio('audio/sfx-heating-up.mp3'),     // v0.95.500 · Rizer VO on 6-kill flawless streak
     astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
     astralkick:   new Audio('audio/sfx-astralkick.mp3'),     // v0.95.238 · A4 powerful anime kick
@@ -1586,7 +1588,7 @@ const SFX_EXCLUSIVE = new Set([
   // Rizer VOs (already single-fire but guard against machine-gun triggers)
   'readyToBlast','okayBuddy','halfHp','threeQuarterHp','tooEasy','heatingUp',
   'astralkickKo','astralstrikeKo','gotcha','damageTick','newDistrict',
-  'aleReeks','potion','elixir','mythicElixir','seeYaLater',
+  'aleReeks','potion','elixir','mythicElixir','seeYaLater','levelUp','kickVox',
 ]);
 function playSFX(name){
   const s = AUDIO.sfx[name]; if (!s) return;
@@ -12616,8 +12618,15 @@ addEventListener('keydown', e => {
         // v0.95.520 · leaderboard · every swing counted (hit or miss) for accuracy calc
         try {
           player.stats = player.stats || {};
-          if (mode === 'kick') player.stats.kickSwings = (player.stats.kickSwings || 0) + 1;
-          else                 player.stats.punchSwings = (player.stats.punchSwings || 0) + 1;
+          if (mode === 'kick'){
+            player.stats.kickSwings = (player.stats.kickSwings || 0) + 1;
+            // v0.95.540 · Rizer kick VO fires every 5th kick swing
+            if (player.stats.kickSwings % 5 === 0){
+              try { playSFX('kickVox'); } catch(_){}
+            }
+          } else {
+            player.stats.punchSwings = (player.stats.punchSwings || 0) + 1;
+          }
         } catch(_){}
         // v0.95.516 · Sapphire Sword · every SWORD swing (punch mode + equipped + S1)
         // eats one durability point · breaks at 0 · forces unequip
@@ -23402,6 +23411,8 @@ function awardRizerXP(amount){
     player.rizerLvl = (player.rizerLvl || 1) + 1;
     player.rizerXPMax = rizerXPToNext(player.rizerLvl);
     try { playSFX('confirm'); } catch(_){}
+    // v0.95.540 · Rizer level-up VO fires on EVERY level 1-100
+    try { playSFX('levelUp'); } catch(_){}
     if (player.rizerLvl % 10 === 0){
       showToast(`★ RIZER LEVEL ${player.rizerLvl} · milestone`, 2600);
     } else {

@@ -17849,27 +17849,54 @@ function renderZycellMap(){
   const wPos = (typeof worldMapPlayerPosition === 'function')
     ? worldMapPlayerPosition()
     : { x: player.x, y: player.y, inside: false };
-  const curDist = (typeof worldDistrictAt === 'function') ? worldDistrictAt(wPos.x, wPos.y) : null;
-  const label   = curDist ? curDist.toUpperCase() : 'VOID SEA';
+  // v0.95.587 · Unified district resolve · same logic for overworld + interior.
+  // If wPos isn't inside any district (route bridge / wild edge / void sea),
+  // pick the NEAREST district so the outline + label still read meaningfully.
+  let curDist = (typeof worldDistrictAt === 'function') ? worldDistrictAt(wPos.x, wPos.y) : null;
+  let onLand = !!curDist;
+  if (!curDist && typeof ZYRAXIS_DISTRICTS !== 'undefined'){
+    let bestDist = Infinity;
+    for (const d of ZYRAXIS_DISTRICTS){
+      const dx = d.cx - wPos.x, dy = d.cy - wPos.y;
+      const dist = dx*dx + dy*dy;
+      if (dist < bestDist){ bestDist = dist; curDist = d.id; }
+    }
+  }
+  const label = curDist ? (onLand ? curDist.toUpperCase() : `NEAR ${curDist.toUpperCase()}`) : 'VOID SEA';
   const posMap  = (typeof WORLD_MAP_DISTRICT_POS !== 'undefined') ? WORLD_MAP_DISTRICT_POS : {};
   const routes  = (typeof ZYRAXIS_ROUTES !== 'undefined') ? ZYRAXIS_ROUTES : [];
   // Image aspect used for vertical-scale compensation (hero image is 1459×1078)
   const IMG_W = 1459, IMG_H = 1078;
   const aspect = IMG_W / IMG_H;
-  // Helper · project (worldX, worldY) → normalized (xf, yf) fractions on the
-  // image using the current district's bounds table.  Returns null if the
-  // tile isn't in a known district.
+  // v0.95.587 · Unified projection · works for both overworld AND interior
+  // coords.  If (worldX, worldY) is in a known district → project through
+  // that district's image fraction + real-world radii.  Otherwise fall back
+  // to the NEAREST district (by center distance) so the pin still renders
+  // when on a route bridge, wild edge, or void-sea tile.  Same code path
+  // for both interior door coords and overworld tile coords.
   function projectWorldToImage(worldX, worldY){
-    const dId = (typeof worldDistrictAt === 'function') ? worldDistrictAt(worldX, worldY) : null;
+    if (typeof ZYRAXIS_DISTRICT_BY_ID === 'undefined') return null;
+    let dId = (typeof worldDistrictAt === 'function') ? worldDistrictAt(worldX, worldY) : null;
+    // Fallback · nearest district center by Euclidean distance
+    if (!dId){
+      let bestDist = Infinity;
+      for (const d of ZYRAXIS_DISTRICTS){
+        const dx = d.cx - worldX, dy = d.cy - worldY;
+        const dist = dx*dx + dy*dy;
+        if (dist < bestDist){ bestDist = dist; dId = d.id; }
+      }
+    }
     if (!dId) return null;
     const p = posMap[dId];
-    const b = (typeof ZYRAXIS_DISTRICT_BY_ID !== 'undefined') ? ZYRAXIS_DISTRICT_BY_ID[dId] : null;
+    const b = ZYRAXIS_DISTRICT_BY_ID[dId];
     if (!p) return null;
     if (!b) return { x: p.xf, y: p.yf };
     const rawDx = (worldX - b.cx) / Math.max(1, b.rx);
     const rawDy = (worldY - b.cy) / Math.max(1, b.ry);
-    const dx = Math.max(-0.95, Math.min(0.95, rawDx));
-    const dy = Math.max(-0.95, Math.min(0.95, rawDy));
+    // Wider clamp (±1.2) lets route-bridge positions push slightly outside
+    // the district's illustrated island so the pin reads as "leaving town"
+    const dx = Math.max(-1.2, Math.min(1.2, rawDx));
+    const dy = Math.max(-1.2, Math.min(1.2, rawDy));
     return { x: p.xf + dx * p.rf, y: p.yf + dy * p.rf * aspect };
   }
   // Player pin · uses resolved world position (door coord if inside interior)

@@ -1725,6 +1725,7 @@ const player = {
   running: false,               // computed per-frame · true when moving fast
   sprintLocked: false,          // toggled by L3 click · adds to shift/b sprint holds
   party: [],                    // caught Zyrex list · touchpad toggles menu
+  pcZyrex: [],                  // v0.95.536 · PC overflow storage · catches past PARTY_MAX (8) land here
   stepsInGrass: 0,              // consecutive gemgrass steps for encounter roll
   items: { worldmap: 1 },       // v0.95.183 · Rizer starts with Zyraxis World Map · view via bag
   hp: 100, maxHp: 100,          // v0.95.134 · Rizer HP · 100 · no auto-regen · sleep/potion/hospital
@@ -3338,8 +3339,7 @@ const WORLD_PROPS = [
             return;
           }
           player.faeCollected = Math.max(0, fae - REQ);
-          player.party = player.party || [];
-          player.party.push(z);
+          addZyrexToRoster(z);
           try { playSFX('confirm'); } catch(_){}
           showToast(`★ CELESTRYX summoned · Lv 60 T6 · -${REQ} fae`, 3600);
           showDialog({ speaker: 'CELESTRYX', lines: [
@@ -4460,8 +4460,7 @@ const NPCS = [
         try { awardRizerXP(3000); } catch(_){}   // v0.95.317 · Elzebub hatch = rare bond moment
         const z = (typeof createZyrex === 'function') ? createZyrex('elzebub', 10) : null;
         if (z){
-          player.party = player.party || [];
-          player.party.push(z);
+          addZyrexToRoster(z);
           showToast('★ ELZEBUB Lv 10 T1 joined your party!', 3200);
           try { playSFX('confirm'); } catch(_){}
         }
@@ -5160,8 +5159,7 @@ const NPCS = [
         try {
           const z = createZyrex('zarakai', 35);
           if (z){
-            player.party = player.party || [];
-            player.party.push(z);
+            addZyrexToRoster(z);
             showToast('★ ZARAKAI Lv 35 T4 joined your party!', 3000);
             try { playSFX('confirm'); } catch(_){}
             // Retire the world NPC so he doesn't respawn on save-load
@@ -5221,8 +5219,7 @@ const NPCS = [
         try {
           const z = createZyrex('voltigrax', 50);
           if (z){
-            player.party = player.party || [];
-            player.party.push(z);
+            addZyrexToRoster(z);
             showToast('★ VOLTIGRAX Lv 50 T6 joined your party!', 3000);
             try { playSFX('confirm'); } catch(_){}
             n.scene = '__recruited__';
@@ -5277,8 +5274,7 @@ const NPCS = [
         try {
           const z = createZyrex('anciuxor', 100);
           if (z){
-            player.party = player.party || [];
-            player.party.push(z);
+            addZyrexToRoster(z);
             showToast('★ ANCIUXOR Lv 100 T10 ULTIMATE joined your party!', 4000);
             try { playSFX('confirm'); } catch(_){}
             n.scene = '__recruited__';
@@ -5363,8 +5359,7 @@ const NPCS = [
         try {
           const z = createZyrex('rakoron', 80);
           if (z){
-            player.party = player.party || [];
-            player.party.push(z);
+            addZyrexToRoster(z);
             showToast('★ RAKORON Lv 80 T8 · Malezor Gemlord joined your party!', 3600);
             try { playSFX('confirm'); } catch(_){}
             n.scene = '__recruited__';
@@ -5472,8 +5467,7 @@ const NPCS = [
         try {
           const z = createZyrex('snok', 35);
           if (z){
-            player.party = player.party || [];
-            player.party.push(z);
+            addZyrexToRoster(z);
             showToast('★ SNOK Lv 35 T4 joined your party!', 3000);
             try { playSFX('confirm'); } catch(_){}
             n.scene = '__recruited__';
@@ -17585,8 +17579,7 @@ function pickStarter(id){
     showToast('◈ ERROR · starter not found', 2000);
     return;
   }
-  player.party = player.party || [];
-  player.party.push(z);
+  addZyrexToRoster(z);
   player.starterChosen = id; try{pingNextObjective()}catch(_){}
   // v0.95.285 · Auto-summon the chosen starter via the generic follower system
   // (works for any species with a SUMMONABLE_SPRITES entry · verdanix / volcanut / celestryx / apexaur)
@@ -17980,8 +17973,68 @@ function createZyrex(speciesId, level){
 
 function giveDevElzebub(){
   const z = createZyrex('elzebub', 5);
+  addZyrexToRoster(z);
+}
+
+// v0.95.536 · PARTY CAP 8 · overflow → PC STORAGE
+// Every capture routes through addZyrexToRoster.  If party has room, push;
+// otherwise deposit into player.pcZyrex for later swap-in via Nebuladock PC.
+// Callers still get a toast so the player knows where the Zyrex went.
+const PARTY_MAX = 8;
+function addZyrexToRoster(z){
+  // Returns { location: 'party'|'pc'|'none' } so callers can preserve their
+  // own party-add toasts while the helper owns the overflow-to-PC toast.
+  if (!z) return { location: 'none' };
+  player.party = player.party || [];
+  player.pcZyrex = player.pcZyrex || [];
+  const activeCount = player.party.filter(Boolean).length;
+  if (activeCount < PARTY_MAX){
+    player.party.push(z);
+    return { location: 'party' };
+  }
+  player.pcZyrex.push(z);
+  showToast(`◈ Party FULL · ${z.name} sent to PC storage (${player.pcZyrex.length} stored) · swap at Nebuladock`, 3600);
+  try { playSFX('confirm'); } catch(_){}
+  return { location: 'pc' };
+}
+// PC ↔ Party swap helpers · call from the Faction / Nebuladock UI
+function withdrawZyrexFromPC(pcIdx){
+  player.pcZyrex = player.pcZyrex || [];
+  const z = player.pcZyrex[pcIdx];
+  if (!z) return false;
+  if ((player.party || []).filter(Boolean).length >= PARTY_MAX){
+    showToast('◈ Party FULL · deposit one to PC first', 2200);
+    try { playSFX('cancel'); } catch(_){}
+    return false;
+  }
+  player.pcZyrex.splice(pcIdx, 1);
+  player.party = player.party || [];
   player.party.push(z);
-  showToast(`◈ ${z.name} Lv ${z.level} joined the party!`, 2200);
+  showToast(`★ ${z.name} withdrawn from PC · joined party`, 2400);
+  try { playSFX('confirm'); } catch(_){}
+  return true;
+}
+function depositZyrexToPC(partyIdx){
+  player.party = player.party || [];
+  const z = player.party[partyIdx];
+  if (!z) return false;
+  // Refuse to deposit if it's currently summoned in the overworld
+  try {
+    const summonedIds = new Set((NPCS||[])
+      .filter(n => n && n._summoned && n.id && n.id.startsWith('_summon_'))
+      .map(n => n._summonSpeciesId));
+    if (summonedIds.has(z.speciesId)){
+      showToast(`◈ ${z.name} is out in the field · recall to ZyCube first`, 2600);
+      try { playSFX('cancel'); } catch(_){}
+      return false;
+    }
+  } catch(_){}
+  player.party.splice(partyIdx, 1);
+  player.pcZyrex = player.pcZyrex || [];
+  player.pcZyrex.push(z);
+  showToast(`◈ ${z.name} deposited to PC (${player.pcZyrex.length} stored)`, 2400);
+  try { playSFX('confirm'); } catch(_){}
+  return true;
 }
 // ─────────────────────────────────────────────────────────────
 // SAVE / LOAD system (v0.92) · localStorage-backed
@@ -18018,6 +18071,12 @@ function saveGame(){
           bond: z.bond || 0,                                  // v0.95.7 · Rizer Bond
           moves: z.moves || null,                             // v0.95.10 · taught moves
         } : null),
+        // v0.95.536 · PC Zyrex overflow storage
+        pcZyrex: (player.pcZyrex || []).map(z => z ? {
+          speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
+          maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,
+          bond: z.bond || 0, moves: z.moves || null,
+        } : null),
       },
       collectedFae: _fae.filter(f => f.collected).map(f => f.id),
       devUnlockDoors: !!game.devUnlockDoors,
@@ -18035,6 +18094,7 @@ function loadGame(){
     if (!s || !s.player) return false;
     game.scene = s.scene || 'overworld';
     Object.assign(player, s.player);
+    if (!Array.isArray(player.pcZyrex)) player.pcZyrex = [];   // v0.95.536 · back-compat default
     _factionSoulSwitch=player.factionSoulSwitch||null;
     delete player.factionSoulSwitch;
     if(player.activeActor!=='rizer'&&_factionSoulSwitch&&player.activeActor===_factionSoulSwitch.actorId){

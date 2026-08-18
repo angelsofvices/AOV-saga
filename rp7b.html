@@ -1465,6 +1465,7 @@ const AUDIO = {
     timeToShred:  new Audio('audio/sfx-time-to-shred.mp3'),  // v0.95.563 · Rizer VO on skateboard grab ("time to shred!") · one-shot
     ahImOut:      new Audio('audio/sfx-ah-im-out.mp3'),      // v0.95.564 · Rizer VO on SPECIAL depleted to 0 ("ah im out") · fires on transition · complements needJuice
     ughGyat:      new Audio('audio/sfx-ugh-gyat.mp3'),       // v0.95.565 · Rizer death VO ("ugh gyat") · fires on defeat right before dreamland fade
+    gottaFixIt:   new Audio('audio/sfx-gotta-fix-it.mp3'),   // v0.95.571 · Rizer VO on any weapon break ("gotta fix it") · points player to gem repair
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Sword contact SFX · fires only on enemy hit-land
     newDistrict:  new Audio('audio/sfx-new-district.mp3'),   // v0.95.527 · Rizer VO on FIRST entry into a new district ("hmm I never seen this before")
@@ -1661,7 +1662,7 @@ const RVOX_PRIORITY = {
   // 75 · sleep beat (rare but character-defining)
   yawnBed: 75,
   // 70 · consumption / power beats
-  mythicElixir: 70, readyToBlast: 70, ahImOut: 68, elixir: 65, potion: 60, aleReeks: 60,
+  mythicElixir: 70, readyToBlast: 70, ahImOut: 68, gottaFixIt: 72, elixir: 65, potion: 60, aleReeks: 60,
   // 60 · streaks
   tooEasy: 55, heatingUp: 55, dodgeStreak: 55,
   // 50 · contextual
@@ -4859,19 +4860,21 @@ const NPCS = [
     name: 'Kaizari',
     sheet: new Image(),
     src:   'assets/2D%20sprites/npcs/kaizari.png',
-    // v0.91.1 · restored original side/up bboxes · only row 0 (down) bh
-    // bumped 289 → 305 to capture the boots that were being clipped off.
-    // v0.95.566 · bh normalized to 305 across ALL rows so shared _downScale
-    // (= 2*TILE / maxBh) renders her at consistent 2-tile height in every
-    // facing.  Extra pixels are empty headroom (decreased by), never crop
-    // into the next row on the sheet.  Fixes idle→turn shrink to 92%.
+    // v0.95.571 · perRowScale flag · Kaizari's sheet packs cross-row content
+    // (DOWN boots bleed into LEFT top, LEFT into RIGHT, RIGHT into UP).
+    // Normalizing bh across rows drags neighbor bleed into the frame.
+    // Instead we use tight per-row CC-measured bboxes and let the renderer
+    // compute a per-row scale so every facing draws at 2 tiles tall.
+    perRowScale: true,
     bboxes: [
-      [[ 97,24,200,305],[70,24,201,305],[50,24,201,305],[34,24,201,305]],
-      [[114, 1,173,305],[89, 1,173,305],[67, 1,173,305],[51, 1,173,305]],
-      [[ 76, 1,169,305],[51, 1,169,305],[29, 1,170,305],[11, 1,168,305]],
-      // v0.95.132 · up-row · pull by=0 · content sits at y=0 within cell · head no longer clipped
-      // v0.95.566 · bh 281 → 305 · extends downward into empty cell tail (still inside cellH=313)
-      [[ 71, 0,186,305],[47, 0,187,305],[25, 0,188,305],[ 8, 0,186,305]],
+      // DOWN · content y=24-334 (extends 21px into row 1 = boot bleed)
+      [[ 97, 24,200,310],[ 70, 24,201,310],[ 50, 24,201,311],[ 34, 24,201,311]],
+      // LEFT · content y=38-314 (excludes DOWN's boot bleed above)
+      [[114, 38,173,276],[ 89, 38,173,276],[ 67, 39,173,275],[ 51, 38,173,276]],
+      // RIGHT · content y=18-289 (clean · no neighbor bleed)
+      [[ 76, 18,169,271],[ 51, 18,169,271],[ 29, 18,170,271],[ 11, 18,168,271]],
+      // UP · content y=0-289 (uses full clean cell region)
+      [[ 71,  0,186,289],[ 47,  0,187,289],[ 25,  0,188,289],[  8,  0,186,289]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     tileX: 35, tileY: 140,
@@ -12918,6 +12921,7 @@ addEventListener('keydown', e => {
             player.swordEquipped = false;
             try { playSFX('cancel'); } catch(_){}
             showToast('⛔ SAPPHIRE SWORD broke · repair with 100 gems (ZyPhone → Weapons)', 3800);
+            try { playSFX('gottaFixIt'); } catch(_){}   // v0.95.571 · Rizer break VO
           } else if (player.swordDurability === 10){
             showToast('⚠ Sapphire Sword · 10 swings left', 2400);
           }
@@ -12931,6 +12935,7 @@ addEventListener('keydown', e => {
             player.rubypawEquipped = false;
             try { playSFX('cancel'); } catch(_){}
             showToast('⛔ RUBYPAW LONGSWORD broke · repair with 100 gems (ZyPhone → Weapons)', 3800);
+            try { playSFX('gottaFixIt'); } catch(_){}   // v0.95.571 · Rizer break VO
           } else if (player.rubypawDurability === 10){
             showToast('⚠ Rubypaw Longsword · 10 swings left', 2400);
           }
@@ -17909,6 +17914,32 @@ function renderZycellSettings(){
       last = `Last save: ${d.toLocaleString()} · Rizer Lv ${s.player?.rizerLvl || 1} · scene ${s.scene}`;
     }
   } catch(_){}
+  // v0.95.571 · DEV MODE tile · appears only when aovdev is unlocked ·
+  // opens the full dev panel from inside the phone (same DOM instance the
+  // main-menu button uses, so all wiring is shared and always up-to-date).
+  const devUnlocked = (typeof isDevUnlocked === 'function' && isDevUnlocked());
+  const devSection = devUnlocked ? _zySection('🛠 DEV MODE',
+    `<div style="display:flex; flex-direction:column; gap:8px;">
+      <button onclick="try{
+        const p=document.getElementById('devPanel');
+        const zp=document.getElementById('zphonePanel');
+        if(zp) zp.style.display='none';
+        if(typeof game==='object'){game.zphoneOpen=false;}
+        if(p){p.style.display='block';}
+        if(typeof game==='object'){game.devPanelKeyboard=true;}
+        try{playSFX('confirm');}catch(_){}
+      }catch(_){}"
+        style="padding:12px; background:linear-gradient(180deg,rgba(30,190,80,0.35),rgba(10,90,30,0.55)); color:#bfffcf; border:2px solid #5fdc7a; font:bold 12px 'Courier New',monospace; letter-spacing:.12em; cursor:pointer;">
+        [ OPEN DEV PANEL ]
+      </button>
+      <div style="color:#8ff; font-size:10px; text-align:center; line-height:1.5;">
+        aovdev unlocked · full toggle grid (bond · doors · astral · combat FX · warps · faction · UFO) opens in the classic dev overlay
+      </div>
+      <button onclick="try{if(typeof __lockDev==='function'){__lockDev();try{playSFX('cancel');}catch(_){}try{paintZycellContent();}catch(_){}try{showToast('◈ DEV MODE relocked',1800);}catch(_){}}}catch(_){}"
+        style="padding:8px 12px; background:rgba(120,60,60,0.35); color:#ffb0b0; border:1px solid #ff5b5b; font:bold 10px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">
+        🔒 RELOCK DEV MODE
+      </button>
+    </div>`) : '';
   return `
     ${_zySection('◆ SAVE &amp; LOAD',
       `<div style="display:flex; gap:8px; margin-bottom:8px;">
@@ -17918,6 +17949,7 @@ function renderZycellSettings(){
           style="flex:1; padding:10px; background:rgba(212,175,55,0.25); color:#fff; border:1px solid #d4af37; font:bold 12px 'Courier New',monospace; cursor:pointer;">📥 LOAD STATE</button>
       </div>
       <div style="color:#8ff; font-size:10px; text-align:center;">${last}</div>`)}
+    ${devSection}
     ${_zySection('⚙  GAME OPTIONS', `<div style="color:#889; text-align:center; padding:8px;">Audio · brightness · dev toggles · wiring pending</div>`)}
     ${_zySection('🎮 CONTROLLER OPTIONS', `<div style="color:#889; text-align:center; padding:8px;">Rebinding UI · wiring pending</div>`)}`;
 }
@@ -22537,6 +22569,23 @@ function drawNPC(n){
     }
     n._downScale = (TILE * 2) / maxBh * (n.scaleMul || 1);
   }
+  // v0.95.571 · Per-row scale mode · used by NPCs whose sheet packs cross-row
+  // content bleed (e.g. Kaizari: DOWN boots bleed into LEFT cell, LEFT into
+  // RIGHT, etc).  Normalizing bh across rows would pull in neighbor bleed;
+  // per-row scale keeps each facing at 2*TILE using ITS OWN maxBh.  Cached
+  // once per NPC in n._rowScales[rowIdx].
+  if (n.perRowScale && !n._rowScales && n.bboxes){
+    n._rowScales = [];
+    for (let r = 0; r < n.bboxes.length; r++){
+      let rowMax = 1;
+      const row = n.bboxes[r] || [];
+      for (let c = 0; c < row.length; c++){
+        const cell = row[c];
+        if (cell && cell[3] > rowMax) rowMax = cell[3];
+      }
+      n._rowScales[r] = (TILE * 2) / rowMax * (n.scaleMul || 1);
+    }
+  }
   let row = DIR_ROW_NPC[n.dir] || 0;
   // v0.95.167 · rowMap · override which sheet row corresponds to a facing dir
   // (used for Daemon sheet where row order is UP/LEFT/RIGHT/DOWN vs canon DOWN/LEFT/RIGHT/UP)
@@ -22584,7 +22633,11 @@ function drawNPC(n){
   const sy = row * useCH + by;
   // Correct older flight-art silhouette size only after exact cell sampling,
   // so presentation grows without sampling any neighboring frame pixels.
-  const rowScale = n._downScale * (useCompanion ? (n.companionScaleMul || 1) : 1);
+  // v0.95.571 · perRowScale NPCs use per-row scale (idle/walk banks share the row)
+  const _baseScale = (n.perRowScale && n._rowScales && n._rowScales[row] != null)
+    ? n._rowScales[row]
+    : n._downScale;
+  const rowScale = _baseScale * (useCompanion ? (n.companionScaleMul || 1) : 1);
   const drawH = Math.max(1, Math.round(bh * rowScale));
   const drawW = Math.max(1, Math.round(bw * rowScale));
   const dx = Math.floor(n.tileX * TILE + (TILE - drawW) / 2) - _cam.x;

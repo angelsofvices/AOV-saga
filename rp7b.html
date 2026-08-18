@@ -1538,7 +1538,8 @@ Object.values(AUDIO.sfx).forEach(a => { a.volume = 0.55; });
 // v0.95.208 · Per-SFX volume overrides · Elzoran boosted (deep-dragon voice sits below 0.55 baseline)
 if (AUDIO.sfx.elzoran) AUDIO.sfx.elzoran.volume = 1.0;
 // Kaizari's softer voice gets a small lift without changing the global mix.
-if (AUDIO.sfx.kaizari) AUDIO.sfx.kaizari.volume = 0.68;
+// v0.95.549 · bumped 0.68 → 1.0 · her cheetah-huntress delivery was still sitting under other NPCs.
+if (AUDIO.sfx.kaizari) AUDIO.sfx.kaizari.volume = 1.0;
 if (AUDIO.sfx.corsunUfo) AUDIO.sfx.corsunUfo.volume = 0.85;
 
 // v0.95.48 · Kill iOS native touch gestures that would otherwise steal
@@ -1627,6 +1628,17 @@ const RVOX_PRIORITY = {
   // 30 · combat action beats (most frequent · lowest priority)
   astralthrowVox: 30, kickVox: 25, damageTick: 20,
 };
+// v0.95.549 · Cut the CORSUN phone AI cue whenever any real character voice
+// starts.  NPCs and Rizer VOX always take priority · phone should never talk
+// over the cast.
+function _stopCorsunIfLive(){
+  try {
+    if (typeof _corsunLive !== 'undefined' && _corsunLive){
+      try { _corsunLive.pause(); _corsunLive.currentTime = 0; } catch(_){}
+      _corsunLive = null;
+    }
+  } catch(_){}
+}
 function playSFX(name){
   const s = AUDIO.sfx[name]; if (!s) return;
   // Rizer VOX priority hierarchy · only one voice at a time
@@ -1639,6 +1651,7 @@ function playSFX(name){
       try { _rvoxLive.node.pause(); _rvoxLive.node.currentTime = 0; } catch(_){}
       _rvoxLive = null;
     }
+    _stopCorsunIfLive();                            // v0.95.549 · Rizer VOX outranks phone AI
     const node = s.cloneNode();
     node.volume = s.volume;
     _rvoxLive = { node, priority: prio, name };
@@ -1652,6 +1665,7 @@ function playSFX(name){
   if (NPC_VOICES.has(name)){
     const prev = _sfxExclusiveLive.get(name);
     if (prev){ try { prev.pause(); prev.currentTime = 0; } catch(_){} }
+    _stopCorsunIfLive();                            // v0.95.549 · NPC voice outranks phone AI
     const node = s.cloneNode();
     node.volume = s.volume;
     _sfxExclusiveLive.set(name, node);
@@ -14584,10 +14598,30 @@ const ZPHONE_NOTIF_IMG_SRC = 'assets/2D sprites/ui/zyphone-notification.png';
 // CORSUN VO throttle · re-fires only if last cue ended (never overlap itself).
 let _corsunLive = null;
 let _corsunLastAt = 0;
+// v0.95.549 · CORSUN yields to every "real voice" · NPCs, Rizer VOX, and open
+// dialogs.  Phone AI should never talk over a character.  Fires only when the
+// scene is voice-clear (level-ups, quest updates delivered by system, item
+// milestones with no ally attached).
+function _anyVoiceLive(){
+  try {
+    // Open NPC dialog box · always yield · phone can pop up but stays silent.
+    if (dialogState) return true;
+    // Rizer VOX slot occupied (level-up, KO callouts, HP warnings, etc.)
+    if (typeof _rvoxLive !== 'undefined' && _rvoxLive) return true;
+    // Any NPC-exclusive voice currently playing (mom, dad, elzoran, kaizari...)
+    if (typeof _sfxExclusiveLive !== 'undefined' && _sfxExclusiveLive && _sfxExclusiveLive.size){
+      for (const n of _sfxExclusiveLive.values()){
+        if (n && !n.paused && !n.ended) return true;
+      }
+    }
+  } catch(_){}
+  return false;
+}
 function _fireCorsunCue(){
   try {
     if (_corsunLive) return;                         // already speaking · don't stack
     if (performance.now() - _corsunLastAt < 3200) return; // rapid-fire toast burst · 1 cue only
+    if (_anyVoiceLive()) return;                     // v0.95.549 · yield to any live voice
     const s = AUDIO.sfx.corsunNewMsg; if (!s) return;
     const node = s.cloneNode();
     node.volume = s.volume;

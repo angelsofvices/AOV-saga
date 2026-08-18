@@ -5157,9 +5157,49 @@ const NPCS = [
           }
         }});
       } else {
+        // v0.95.592 · Graduation reward gate · after all 16 classmates cleared,
+        // Elarian grants 16 Zyspheres (once).  Requires at least one Zyrex.
+        player.stats = player.stats || {};
+        player.stats.schoolBeaten = player.stats.schoolBeaten || {};
+        const cleared = Object.keys(player.stats.schoolBeaten).filter(k => k.startsWith('school_student_')).length;
+        if (cleared >= 16 && !player.academyZyspheresGifted){
+          const alive = (player.party || []).filter(z => z && z.hp > 0);
+          if (alive.length === 0){
+            showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
+              '*peers over his spectacles*  You cleared the class · but you carry no Zyrex today.',
+              'Bring a partner with you when you come back · I have your graduation package waiting.',
+            ]});
+            try { playSFX('doorLock'); } catch(_){}
+            return;
+          }
+          player.academyZyspheresGifted = true;
+          player.items = player.items || {};
+          player.items.zysphere = (player.items.zysphere || 0) + 16;
+          try { playSFX('confirm'); } catch(_){}
+          try { playItemGain('zysphere'); } catch(_){}
+          try { awardRizerXP(400); } catch(_){}
+          try { pingNextObjective(); } catch(_){}
+          showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
+            '*eyes light up · a slow smile*  All sixteen · cleared.  Well done, Rizer.',
+            '*produces a small case of shimmering orbs*  Sixteen Zyspheres · one for every classmate you outlasted.',
+            'A Zysphere binds a wild Zyrex to your faction · but the bond must first be earned.  Talk to a wild Zyrex out in the world · if your Rizer Bond is strong enough, throw a Sphere and see if they accept you.',
+            '*hands you the case*  Go find your team, young Rizer.  The Academy is proud.',
+          ]});
+          try { showToast('★ ACADEMY GRADUATED · +16 Zyspheres from Prof Elarian', 5200); } catch(_){}
+          return;
+        }
+        if (player.academyZyspheresGifted){
+          showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
+            '*small nod*  Wear your R.A.I.D. proudly, graduate.',
+            'Bond well · fight fair · the world is watching.',
+          ]});
+          return;
+        }
         showDialog({ speaker: 'PROFESSOR ELARIAN', lines: [
           '*adjusts spectacles*  Keep your R.A.I.D. close, young Rizer.',
-          'The Academy holds the oldest bond-lore in Zyraxis · come by when the doors open.',
+          cleared > 0
+            ? `Sixteen classmates in there · you have cleared ${cleared}.  Beat them all · come see me for your Zyspheres.`
+            : 'The Academy is open to you now · step inside · challenge every classmate · then return.',
         ]});
       }
     },
@@ -5394,177 +5434,173 @@ const NPCS = [
       ]});
     },
   },
-  // ── v0.95.590 · MALEZOR ACADEMY interior NPCs · 10 students + 1 sub-professor ──
-  //   Gated behind player.raidCardGifted at the school door.
-  //   Each student = mini-trainer battle via startTrainerBattle(species, level).
-  //   Sub-Professor Vireta (under Prof Elarian) sits at the front lectern
-  //   and offers a graduation match once all 10 students are beaten.
-  //
-  //   Sprite reuse pattern · we rotate through yara.png / zoryn.png / mom.png
-  //   / dad.png so the room reads as diverse without needing 11 new sheets.
-  //   Bboxes match the source sprite's canonical 4×4 D/L/R/U layout.
+  // ── v0.95.592 · MALEZOR ACADEMY interior · 16 students + Zoryn (#17) + Vireta ──
+  //   Class of 18: 16 battlable classmates, Zoryn (top-of-class, non-battleable),
+  //   and the Player.  Sprites pulled from assets/2D sprites/npcs/school-students.png
+  //   (single 1254×1254 sheet · 4×4 grid · one portrait per student).
+  //   Vireta = Assistant Professor at the front lectern (no battle · lore only).
+  //   Graduation reward moved to Prof. Elarian OUTSIDE the school (see line ~5150).
   ...(function(){
-    // Reuse existing NPC sheet sources · bboxes match canonical 4x4 D/L/R/U
-    const STUDENT_SHEETS = [
-      { src:'assets/2D%20sprites/npcs/yara.png',
-        bboxes:[
-          [[ 96, 42,164,269],[ 68, 42,164,270],[ 46, 42,164,269],[ 26, 42,164,269]],
-          [[110, 45,178,270],[ 82, 45,178,270],[ 60, 45,178,270],[ 40, 45,178,270]],
-          [[ 96, 45,178,270],[ 68, 45,178,270],[ 46, 45,178,270],[ 26, 45,178,270]],
-          [[ 96, 45,178,270],[ 68, 45,178,270],[ 46, 45,178,270],[ 26, 45,178,270]],
-        ] },
-      { src:'assets/2D%20sprites/npcs/zoryn.png',
-        bboxes:[
-          [[ 96, 40,164,275],[ 68, 40,164,275],[ 46, 40,164,275],[ 26, 40,164,275]],
-          [[ 96, 40,164,275],[ 68, 40,164,275],[ 46, 40,164,275],[ 26, 40,164,275]],
-          [[ 96, 40,164,275],[ 68, 40,164,275],[ 46, 40,164,275],[ 26, 40,164,275]],
-          [[ 96, 40,164,275],[ 68, 40,164,275],[ 46, 40,164,275],[ 26, 40,164,275]],
-        ] },
-      { src:'assets/2D%20sprites/npcs/mom.png',
-        bboxes:[
-          [[ 96, 30,164,283],[ 68, 30,164,283],[ 46, 30,164,283],[ 26, 30,164,283]],
-          [[ 96, 30,164,283],[ 68, 30,164,283],[ 46, 30,164,283],[ 26, 30,164,283]],
-          [[ 96, 30,164,283],[ 68, 30,164,283],[ 46, 30,164,283],[ 26, 30,164,283]],
-          [[ 96, 30,164,283],[ 68, 30,164,283],[ 46, 30,164,283],[ 26, 30,164,283]],
-        ] },
+    const SCHOOL_SHEET_SRC = 'assets/2D%20sprites/npcs/school-students.png';
+    // CC-measured per-cell bboxes from the 4×4 sheet · each cell 313×313
+    // Row-major order matches the layout (row 0 top, row 3 bottom).
+    const STUDENT_PORTRAITS = [
+      // row 0 · [col0, col1, col2, col3]
+      { bbox:[ 83,  8,170,305] }, { bbox:[ 44, 39,188,274] }, { bbox:[ 36, 14,186,299] }, { bbox:[ 38, 38,168,275] },
+      // row 1
+      { bbox:[ 84,  0,164,313] }, { bbox:[ 39,  0,194,298] }, { bbox:[ 47,  0,168,298] }, { bbox:[ 29,  7,188,295] },
+      // row 2
+      { bbox:[ 82,  0,165,313] }, { bbox:[ 55,  4,168,309] }, { bbox:[ 47,  1,166,312] }, { bbox:[ 31, 21,184,292] },
+      // row 3
+      { bbox:[ 82,  0,170,261] }, { bbox:[ 54,  0,164,261] }, { bbox:[ 23,  0,204,261] }, { bbox:[ 24,  0,169,261] },
     ];
-    // ── 10 STUDENTS · 2 rows of 5 · lower classroom half ──
-    // Layout tiles: back row y=6, front row y=9 · cols 2,4,6,8,10,12
-    const STUDENTS = [
-      { name:'Lira',    tx: 2, ty: 6, sheet:0, species:'aetherwing',  level: 4 },
-      { name:'Bode',    tx: 4, ty: 6, sheet:1, species:'aurarat',     level: 4 },
-      { name:'Marek',   tx: 6, ty: 6, sheet:2, species:'sandskitter', level: 5 },
-      { name:'Ren',     tx: 8, ty: 6, sheet:0, species:'cinderant',   level: 5 },
-      { name:'Sira',    tx:10, ty: 6, sheet:1, species:'dunestinger', level: 6 },
-      { name:'Tovin',   tx: 2, ty: 9, sheet:2, species:'frosane',     level: 6 },
-      { name:'Enna',    tx: 4, ty: 9, sheet:0, species:'aetherwing',  level: 7 },
-      { name:'Karo',    tx: 6, ty: 9, sheet:1, species:'aurarat',     level: 7 },
-      { name:'Nyla',    tx: 8, ty: 9, sheet:2, species:'cinderant',   level: 8 },
-      { name:'Pell',    tx:10, ty: 9, sheet:0, species:'dunestinger', level: 8 },
-    ];
-    const npcs = STUDENTS.map((s, i) => {
-      const sheetDef = STUDENT_SHEETS[s.sheet];
-      return {
-        id: `school_student_${i}`,
-        name: s.name,
-        sheet: new Image(),
-        src:   sheetDef.src,
-        bboxes: sheetDef.bboxes,
-        cellW: 313, cellH: 313, cols: 4, rows: 4,
-        tileX: s.tx, tileY: s.ty,
-        homeX: s.tx, homeY: s.ty,
-        homeScene: 'interior_malezor_school',
-        scene:     'interior_malezor_school',
-        dir: (s.ty === 6) ? 'down' : 'up',   // back row faces DOWN, front row faces UP · natural classroom framing
-        mode: 'stationary',
-        moving: false,
-        animFrame: 0, idleFrame: 0,
-        blinkTimer: 2000 + Math.random() * 2000,
-        turnToInteract: true,
-        _isSchoolStudent: true,
-        _studentSpecies: s.species,
-        _studentLevel:   s.level,
-        onInteract: (n) => {
-          player.stats = player.stats || {};
-          player.stats.schoolBeaten = player.stats.schoolBeaten || {};
-          const already = !!player.stats.schoolBeaten[n.id];
-          if (already){
-            showDialog({ speaker: n.name.toUpperCase(), lines: [
-              '*bows lightly*  Good sparring earlier, Rizer.',
-              'Come back anytime · I need the reps too.',
-            ]});
-            return;
-          }
-          // v0.95.591 · Gate · must have at least one Zyrex to challenge a classmate
-          const alive = (player.party || []).filter(z => z && z.hp > 0);
-          if (alive.length === 0){
-            showDialog({ speaker: n.name.toUpperCase(), lines: [
-              '*eyes your empty faction slots*  You cannot spar without a Zyrex partner, Rizer.',
-              'Return to Dad first · pick your starter · then we\'ll go a round.',
-            ]});
-            try { playSFX('doorLock'); } catch(_){}
-            return;
-          }
-          showDialog({ speaker: n.name.toUpperCase(), lines: [
-            `*grins*  Fellow Rizer!  My ${SPECIES[s.species]?.name || s.species} vs yours · one round.`,
-            `Lv ${s.level} · winner buys lunch.`,
-          ], onDone: () => {
-            try {
-              startTrainerBattle(s.species, s.level);
-              player.stats.schoolBeaten[n.id] = true;
-              try { awardRizerXP(60); } catch(_){}
-            } catch(err){ console.warn('school battle failed', err); }
-          }});
-        },
-      };
+    // Build absolute sheet coords (row * 313 + by, col * 313 + bx)
+    STUDENT_PORTRAITS.forEach((p, i) => {
+      const row = Math.floor(i / 4);
+      const col = i % 4;
+      const [bx, by, bw, bh] = p.bbox;
+      p.staticBBox = [col * 313 + bx, row * 313 + by, bw, bh];
     });
-    // ── SUB-PROFESSOR VIRETA · front lectern · under Prof Elarian ──
-    const SUB_PROF_SHEET = STUDENT_SHEETS[2];    // mom.png reuse · reads as senior instructor
-    npcs.push({
-      id: 'sub_prof_vireta',
-      name: 'Prof. Vireta',
+    // ── 16 STUDENTS · named class roster · positioned in 4 rows of 4 desks ──
+    // Layout: cols 2/6/10/13 · rows 4/7/9 (16 seats fit in the 15×14 room)
+    // Species/level curve rises L→R and back→front so scanning the class
+    // reads as tiered difficulty.
+    const STUDENTS = [
+      // Back row · easiest
+      { name:'Kaelith',  tx: 2, ty: 4, portrait: 0, species:'aetherwing',  level: 4 },
+      { name:'Yuma',     tx: 5, ty: 4, portrait: 1, species:'aurarat',     level: 4 },
+      { name:'Talia',    tx: 8, ty: 4, portrait: 2, species:'sandskitter', level: 5 },
+      { name:'Bren',     tx:11, ty: 4, portrait: 3, species:'cinderant',   level: 5 },
+      // Row 2
+      { name:'Odri',     tx: 2, ty: 6, portrait: 4, species:'dunestinger', level: 6 },
+      { name:'Rin',      tx: 5, ty: 6, portrait: 5, species:'frosane',     level: 6 },
+      { name:'Vex',      tx: 8, ty: 6, portrait: 6, species:'aetherwing',  level: 7 },
+      { name:'Marko',    tx:11, ty: 6, portrait: 7, species:'aurarat',     level: 7 },
+      // Row 3
+      { name:'Solen',    tx: 2, ty: 8, portrait: 8, species:'cinderant',   level: 8 },
+      { name:'Cirri',    tx: 5, ty: 8, portrait: 9, species:'dunestinger', level: 8 },
+      { name:'Zev',      tx: 8, ty: 8, portrait:10, species:'frosane',     level: 9 },
+      { name:'Nova',     tx:11, ty: 8, portrait:11, species:'sandskitter', level: 9 },
+      // Front row · hardest classmates
+      { name:'Rhyven',   tx: 2, ty:10, portrait:12, species:'aetherwing',  level:10 },
+      { name:'Ando',     tx: 5, ty:10, portrait:13, species:'aurarat',     level:10 },
+      { name:'Lyra',     tx: 8, ty:10, portrait:14, species:'cinderant',   level:11 },
+      { name:'Kestra',   tx:11, ty:10, portrait:15, species:'dunestinger', level:11 },
+    ];
+    const npcs = STUDENTS.map((s, i) => ({
+      id: `school_student_${i}`,
+      name: s.name,
       sheet: new Image(),
-      src:   SUB_PROF_SHEET.src,
-      bboxes: SUB_PROF_SHEET.bboxes,
-      cellW: 313, cellH: 313, cols: 4, rows: 4,
-      tileX: 7, tileY: 2,       // front of the classroom, facing students
-      homeX: 7, homeY: 2,
+      src:   SCHOOL_SHEET_SRC,
+      staticBBox: STUDENT_PORTRAITS[s.portrait].staticBBox,
+      // staticSprite convention · single-frame render regardless of facing
+      tileX: s.tx, tileY: s.ty,
+      homeX: s.tx, homeY: s.ty,
       homeScene: 'interior_malezor_school',
       scene:     'interior_malezor_school',
       dir: 'down',
       mode: 'stationary',
       moving: false,
       animFrame: 0, idleFrame: 0,
-      blinkTimer: 2000 + Math.random() * 2000,
-      turnToInteract: true,
-      _isSubProfessor: true,
-      _subProfSpecies: 'aurelik',   // T2 evolved
-      _subProfLevel:   12,
+      blinkTimer: 9e9,   // static portraits · no blink
+      turnToInteract: false,
+      _isSchoolStudent: true,
+      _studentSpecies: s.species,
+      _studentLevel:   s.level,
       onInteract: (n) => {
         player.stats = player.stats || {};
         player.stats.schoolBeaten = player.stats.schoolBeaten || {};
-        const cleared = Object.keys(player.stats.schoolBeaten).filter(k => k.startsWith('school_student_')).length;
-        // Placeholder count · will scale to 16 when the full-class sprite pack ships
-        const REQUIRED = 10;
-        if (cleared < REQUIRED){
-          showDialog({ speaker: 'PROF. VIRETA', lines: [
-            '*peers up from her ledger*  Welcome to Malezor Academy.  I teach the bond-cycle module under Prof. Elarian.',
-            `You have cleared ${cleared}/${REQUIRED} practice matches.  Beat every student first — then I will run your graduation match.`,
-            '*gestures to the students*  Each one runs a different T1 line.  Battle them all to feel the type spread.',
+        const already = !!player.stats.schoolBeaten[n.id];
+        if (already){
+          showDialog({ speaker: n.name.toUpperCase(), lines: [
+            '*bows lightly*  Good sparring earlier, Rizer.',
+            'Come back anytime · I need the reps too.',
           ]});
           return;
         }
-        if (player.stats.schoolBeaten.sub_prof_vireta){
-          showDialog({ speaker: 'PROF. VIRETA', lines: [
-            '*taps her ledger*  Graduation earned, Rizer.  Return anytime to sharpen the reflex.',
-            '*small smile*  Prof. Elarian is proud of your run.  Now go find real Wardens to bond with.',
-          ]});
-          return;
-        }
-        // v0.95.591 · Gate · must have at least one Zyrex to run the graduation match
         const alive = (player.party || []).filter(z => z && z.hp > 0);
         if (alive.length === 0){
-          showDialog({ speaker: 'PROF. VIRETA', lines: [
-            '*shakes her head kindly*  No Zyrex, no graduation.  Bond with your starter first, Rizer.',
+          showDialog({ speaker: n.name.toUpperCase(), lines: [
+            '*eyes your empty faction slots*  You cannot spar without a Zyrex partner, Rizer.',
+            'Return to Dad first · pick your starter · then we\'ll go a round.',
           ]});
           try { playSFX('doorLock'); } catch(_){}
           return;
         }
-        showDialog({ speaker: 'PROF. VIRETA', lines: [
-          '*sets down her chalk · rolls her shoulders*  Every classmate cleared.  Well done, Rizer.',
-          `*produces a T2 partner*  My ${SPECIES[n._subProfSpecies]?.name || n._subProfSpecies} · Lv ${n._subProfLevel}.  Graduation match.`,
+        showDialog({ speaker: n.name.toUpperCase(), lines: [
+          `*grins*  Fellow Rizer!  My ${SPECIES[s.species]?.name || s.species} vs yours · one round.`,
+          `Lv ${s.level} · winner buys lunch.`,
         ], onDone: () => {
           try {
-            startTrainerBattle(n._subProfSpecies, n._subProfLevel);
-            player.stats.schoolBeaten.sub_prof_vireta = true;
-            try { awardRizerXP(400); } catch(_){}
-            // v0.95.591 · Graduation reward · 16 Zyspheres granted straight into the bag
-            player.items = player.items || {};
-            player.items.zysphere = (player.items.zysphere || 0) + 16;
-            try { playItemGain('zysphere'); } catch(_){}
-            try { showToast('★ ACADEMY GRADUATED · +16 Zyspheres · bond wild Zyrex out in the world', 5200); } catch(_){}
-          } catch(err){ console.warn('vireta battle failed', err); }
+            startTrainerBattle(s.species, s.level);
+            player.stats.schoolBeaten[n.id] = true;
+            try { awardRizerXP(60); } catch(_){}
+          } catch(err){ console.warn('school battle failed', err); }
         }});
+      },
+    }));
+    // ── ZORYN #17 · student · graduated top of class · non-battleable ──
+    npcs.push({
+      id: 'school_zoryn',
+      name: 'Zoryn',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/npcs/zoryn.png',
+      staticBBox: [46, 40, 176, 275],   // row 0 col 2 approximation
+      tileX: 13, tileY: 10,   // front-right desk · looks over the class
+      homeX: 13, homeY: 10,
+      homeScene: 'interior_malezor_school',
+      scene:     'interior_malezor_school',
+      dir: 'down',
+      mode: 'stationary',
+      moving: false,
+      turnToInteract: true,
+      blinkTimer: 9e9,
+      _isSchoolStudent: false,
+      _isTopOfClass: true,
+      onInteract: () => {
+        showDialog({ speaker: 'ZORYN', lines: [
+          '*grins at you across the desk*  Look at you · finally showing up to class.',
+          '*taps the top-of-class emblem on his sleeve*  I already graduated · nothing to prove between us here.',
+          'Beat the sixteen and see Prof Elarian · he\'ll dial you in with real Zyspheres.',
+          '*half-wave*  See you outside, hotshot.',
+        ]});
+      },
+    });
+    // ── ASSISTANT PROFESSOR VIRETA · front lectern · lore-only (no battle) ──
+    // Sits at the top of the class per user directive.  Graduation reward
+    // now lives with Prof. Elarian OUTSIDE the school.
+    npcs.push({
+      id: 'sub_prof_vireta',
+      name: 'Prof. Vireta',
+      sheet: new Image(),
+      src:   'assets/2D%20sprites/npcs/mom.png',   // placeholder · swap when Vireta portrait ships
+      staticBBox: [96, 30, 164, 283],
+      tileX: 7, tileY: 2,
+      homeX: 7, homeY: 2,
+      homeScene: 'interior_malezor_school',
+      scene:     'interior_malezor_school',
+      dir: 'down',
+      mode: 'stationary',
+      moving: false,
+      turnToInteract: true,
+      blinkTimer: 9e9,
+      _isAssistantProfessor: true,
+      onInteract: () => {
+        player.stats = player.stats || {};
+        player.stats.schoolBeaten = player.stats.schoolBeaten || {};
+        const cleared = Object.keys(player.stats.schoolBeaten).filter(k => k.startsWith('school_student_')).length;
+        if (cleared < 16){
+          showDialog({ speaker: 'PROF. VIRETA', lines: [
+            '*peers up from her ledger*  Welcome to Malezor Academy · I run the bond-cycle module under Prof Elarian.',
+            `You have cleared ${cleared}/16 practice matches.  Beat every classmate · then see the head professor outside for your Zyspheres.`,
+            '*gestures to the class*  Each classmate runs a different T1 line — battle them all to feel the type spread.',
+          ]});
+        } else {
+          showDialog({ speaker: 'PROF. VIRETA', lines: [
+            '*nods approvingly*  Every classmate cleared.  Impressive.',
+            'Go see Prof Elarian outside · he has been holding your Zyspheres for graduation day.',
+          ]});
+        }
       },
     });
     return npcs;

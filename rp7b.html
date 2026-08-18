@@ -335,6 +335,22 @@
     @media (orientation: portrait){
       #coinPop{ top: calc(33vh - 2.5vw + 86px); right: 8px; font-size: 13px; }
     }
+    /* v0.95.541 · Rizer +N XP pop-label · same pattern as coinPop · slightly
+       higher on-screen so both can float without collision */
+    #rxpPop{
+      position:fixed; top:230px; right:16px;
+      color:#5fdc7a; font:bold 15px 'Courier New', monospace;
+      letter-spacing:.14em;
+      text-shadow: 0 0 6px rgba(95,220,122,0.9), 0 1px 2px #000;
+      z-index: 7; pointer-events: none;
+      opacity: 0; transform: translateY(0);
+      transition: opacity 320ms ease, transform 900ms ease-out;
+      user-select: none;
+    }
+    #rxpPop.pop{ opacity: 1; transform: translateY(-14px); }
+    @media (orientation: portrait){
+      #rxpPop{ top: calc(33vh - 2.5vw + 108px); right: 8px; font-size: 12px; }
+    }
     #rizerPanel{
       position:fixed; top:220px; right:8px;
       background: rgba(0,0,0,0.92);
@@ -658,6 +674,7 @@
     <div class="hint">CLICK ANYWHERE / B / ESC · CLOSE</div>
   </div></div>
   <div id="coinPop"></div>
+  <div id="rxpPop"></div>
   <div id="weaponHud" title="Weapon wheel · click to open"></div>
   <div id="rizerPanel">
     <h4>◈ RIZER STATUS</h4>
@@ -1448,6 +1465,7 @@ const AUDIO = {
     seeYaLater:   new Audio('audio/sfx-see-ya-later.mp3'),   // v0.95.539 · Rizer VO on NPC dialogue close ("see ya later")
     levelUp:      new Audio('audio/sfx-level-up.mp3'),       // v0.95.540 · Rizer VO on every Rizer level-up (Lv 1-100)
     kickVox:      new Audio('audio/sfx-kick-vox.mp3'),       // v0.95.540 · Rizer VO fires every 5th kick swing
+    astralthrowVox: new Audio('audio/sfx-astralthrow-vox.mp3'), // v0.95.541 · Rizer VO on every astralthrow lift
     heatingUp:    new Audio('audio/sfx-heating-up.mp3'),     // v0.95.500 · Rizer VO on 6-kill flawless streak
     astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
     astralkick:   new Audio('audio/sfx-astralkick.mp3'),     // v0.95.238 · A4 powerful anime kick
@@ -1576,28 +1594,59 @@ function playBGM(name){
   track.currentTime = 0;
   track.play().catch(() => { /* autoplay blocked until first gesture */ });
 }
-// v0.95.533 · EXCLUSIVE-PLAY whitelist · NPC voices + Rizer VOs must not
-// overlap themselves when the player interacts in rapid succession.  Any name
-// in this set stops its previous live playback before starting a new one.
-// Everything else keeps clone-and-play (combat overlap intentional).
-const _sfxExclusiveLive = new Map();   // name → live HTMLAudioElement
-const SFX_EXCLUSIVE = new Set([
-  // NPC voices
-  'mom','dad','yara','zoryn','kelthor','scrapjaw','nurseRein','kaizari',
-  'elarian','elzoran','auraxion','orren',
-  // Rizer VOs (already single-fire but guard against machine-gun triggers)
-  'readyToBlast','okayBuddy','halfHp','threeQuarterHp','tooEasy','heatingUp',
-  'astralkickKo','astralstrikeKo','gotcha','damageTick','newDistrict',
-  'aleReeks','potion','elixir','mythicElixir','seeYaLater','levelUp','kickVox',
-]);
+// v0.95.541 · Rizer VOX HIERARCHY · one voice at a time · higher priority
+// interrupts lower · same-or-lower priority DROPS if a VO is already playing.
+// NPC voices exclusive per-name (rapid interact cuts prior).  Combat SFX
+// still clone-and-overlap.
+const _sfxExclusiveLive = new Map();   // name → live HTMLAudioElement (NPC voices)
+let _rvoxLive = null;                  // { node, priority, name } · single global VOX slot
+const NPC_VOICES = new Set(['mom','dad','yara','zoryn','kelthor','scrapjaw',
+  'nurseRein','kaizari','elarian','elzoran','auraxion','orren']);
+// Rizer VO priority tiers · higher wins.  Anything above 0 goes through the
+// hierarchy · same/lower priority is dropped mid-playback of another VO.
+const RVOX_PRIORITY = {
+  // 100 · CRISIS · HP warnings · these OVERRIDE everything
+  okayBuddy: 100, halfHp: 100, threeQuarterHp: 95,
+  // 90 · milestone
+  levelUp: 90,
+  // 80 · KO callouts
+  astralkickKo: 80, astralstrikeKo: 80,
+  // 70 · consumption / power beats
+  mythicElixir: 70, readyToBlast: 70, elixir: 65, potion: 60, aleReeks: 60,
+  // 60 · streaks
+  tooEasy: 55, heatingUp: 55,
+  // 50 · contextual
+  newDistrict: 50, seeYaLater: 45,
+  // 40 · catches
+  gotcha: 40,
+  // 30 · combat action beats (most frequent · lowest priority)
+  astralthrowVox: 30, kickVox: 25, damageTick: 20,
+};
 function playSFX(name){
   const s = AUDIO.sfx[name]; if (!s) return;
-  if (SFX_EXCLUSIVE.has(name)){
-    // Stop any prior live play of this SFX before starting a fresh one
-    const prev = _sfxExclusiveLive.get(name);
-    if (prev){
-      try { prev.pause(); prev.currentTime = 0; } catch(_){}
+  // Rizer VOX priority hierarchy · only one voice at a time
+  const prio = RVOX_PRIORITY[name];
+  if (prio != null){
+    if (_rvoxLive){
+      // Live VO of same or higher priority · drop the new request
+      if (_rvoxLive.priority >= prio) return;
+      // Otherwise cut the lower-priority one
+      try { _rvoxLive.node.pause(); _rvoxLive.node.currentTime = 0; } catch(_){}
+      _rvoxLive = null;
     }
+    const node = s.cloneNode();
+    node.volume = s.volume;
+    _rvoxLive = { node, priority: prio, name };
+    node.play().catch(() => {});
+    node.addEventListener('ended', () => {
+      if (_rvoxLive && _rvoxLive.node === node) _rvoxLive = null;
+    });
+    return;
+  }
+  // NPC voices · exclusive per-name (rapid interact cuts prior instance)
+  if (NPC_VOICES.has(name)){
+    const prev = _sfxExclusiveLive.get(name);
+    if (prev){ try { prev.pause(); prev.currentTime = 0; } catch(_){} }
     const node = s.cloneNode();
     node.volume = s.volume;
     _sfxExclusiveLive.set(name, node);
@@ -1607,7 +1656,7 @@ function playSFX(name){
     });
     return;
   }
-  // Clone-and-play so overlapping SFX don't cut each other off.
+  // Combat SFX + generic effects · clone-and-play so overlaps don't cut
   const clone = s.cloneNode();
   clone.volume = s.volume;
   clone.play().catch(() => {});
@@ -9882,6 +9931,8 @@ function fireAstralthrow(options={}){
     ? (throwSkin==='power_upgrade'?ASTRALTHROW_S2_BOULDER:ASTRALTHROW_S1_BOULDER)
     : null;
   playSFX('kick');
+  // v0.95.541 · Rizer astralthrow VO fires on every lift (priority 30)
+  try { playSFX('astralthrowVox'); } catch(_){}
   // v0.95.491 · Astralthrow charges SPECIAL +20% of diamondMax on lift (before
   // release · applies whether target is boulder or NPC · one charge per throw)
   changePlayerDiamond(Math.max(1, Math.round((player.diamondMax || 100) * 0.20)));
@@ -14545,6 +14596,25 @@ function popCoinLabel(n){
     el.classList.remove('pop');
     _coinPopClearTimer = setTimeout(() => { el.textContent = ''; }, 400);
   }, 1000);
+}
+// v0.95.541 · Rizer +N XP pop-label · fires from awardRizerXP (≥5 gate) so
+// player has SKIN-AGNOSTIC visual feedback that XP is actually being awarded.
+// Accumulates rapid-fire grants (kills in a burst) so the pop reads sum.
+let _rxpPopTimer = 0, _rxpPopClearTimer = 0, _rxpPopAccum = 0;
+function popRXPLabel(n){
+  const el = document.getElementById('rxpPop');
+  if (!el) return;
+  _rxpPopAccum += Math.round(n);
+  el.textContent = `+${_rxpPopAccum} RXP`;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+  clearTimeout(_rxpPopTimer);
+  clearTimeout(_rxpPopClearTimer);
+  _rxpPopTimer = setTimeout(() => {
+    el.classList.remove('pop');
+    _rxpPopClearTimer = setTimeout(() => { el.textContent = ''; _rxpPopAccum = 0; }, 400);
+  }, 1200);
 }
 
 // -- Interact (Z / Cross / Enter / Space) ------------------------------------
@@ -23406,6 +23476,12 @@ function awardRizerXP(amount){
     return;
   }
   player.rizerXP = (player.rizerXP || 0) + amount;
+  // v0.95.541 · Floating +N RXP label on every grant · skin-agnostic feedback
+  // so player always sees XP arrive regardless of S1/S2 state.  Threshold ≥5
+  // avoids fae-spam · +10 filters kills too.  Skin/actor NEVER gates XP.
+  if (amount >= 5){
+    try { popRXPLabel(amount); } catch(_){}
+  }
   while ((player.rizerLvl || 1) < RIZER_LEVEL_CAP && player.rizerXP >= player.rizerXPMax){
     player.rizerXP -= player.rizerXPMax;
     player.rizerLvl = (player.rizerLvl || 1) + 1;

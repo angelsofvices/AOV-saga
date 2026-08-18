@@ -5329,12 +5329,11 @@ const NPCS = [
         ]});
         return;
       }
-      // Gemlord recruit gate · avg Warden bond ≥ 100 (Korathen complete)
-      const bonds = player.bonds || {};
-      const wardenKeys = ['kelthor','zarvane_warden','andrannor_warden','veridan_warden','netharion_warden','vorashil_warden','xilnar_warden','baelgor_warden','thardin_warden','korathen_warden'];
-      const bondSum = wardenKeys.reduce((a, k) => a + (bonds[k] || 0), 0);
-      const bondAvg = Math.round(bondSum / wardenKeys.length);
-      const gemlordUnlocked = bondAvg >= 100 || !!player.korathenWardenComplete;
+      // v0.95.537 · Gemlord recruit gate uses the global Rizer Bond metric
+      // (T8 → needs rizerBondTotal ≥ 8×333 = 2664 · matches faction-add gate)
+      const _bondNow = (typeof rizerBondTotal === 'function') ? rizerBondTotal() : 0;
+      const _need    = 8 * 333;   // T8 Gemlord
+      const gemlordUnlocked = _bondNow >= _need || !!player.korathenWardenComplete;
       if (!gemlordUnlocked){
         showDialog({ speaker: 'RAKORON', lines: [
           '*a colossal red-black dragon lifts his crowned head · the sanctum trembles*',
@@ -5343,7 +5342,7 @@ const NPCS = [
           '"Return when every Warden has taken your measure.  Bond with Kelthor · Zarvane · every district down to Korathen."',
           '"Then · when your bond is complete · come back.  I will carry you on my back."',
           '*settles the horned head back on his forepaws · gaze steady, patient*',
-          '(Gemlord recruits unlock at 100% Warden bond · finish the Korathen ladder first)',
+          `(Gemlord recruits unlock at Rizer Bond ${_need} · you have ${_bondNow})`,
         ]});
         return;
       }
@@ -17099,7 +17098,8 @@ function renderZycellLeaderboard(){
     row('Zyrex bonded',       bondedZ, 'party members with bond > 0', '#5fdc7a'),
     row('Zyrex ever owned',   zyrexEver, 'lifetime species collected'),
     row('NPCs met',           npcsMet, 'named allies engaged'),
-    row('Bond wallet avg',    `${bondPct}%`, 'averaged Warden + citizen bonds'),
+    // v0.95.537 · Bond wallet avg deprecated · replaced by global Rizer Bond
+    row('Rizer Bond',         `${(typeof rizerBondTotal === 'function' ? rizerBondTotal() : 0).toLocaleString()} / 3330`, `unlocks up to T${Math.max(1, Math.min(10, Math.floor((typeof rizerBondTotal === 'function' ? rizerBondTotal() : 0) / 333)))} faction slot`, '#5fdc7a'),
   ]);
   const missions = section('◆ MISSIONS', [
     row('Expeditions complete', `${expDone}/${expTotal}`, 'main-story chapters + ladders', '#c060ff'),
@@ -17243,8 +17243,12 @@ function renderZycellHome(){
   const rzXP     = p.rizerXP    || 0;
   const rzXPMax  = p.rizerXPMax || 1;
   const rzXPPct  = Math.min(100, (rzXP / Math.max(1, rzXPMax)) * 100);
-  const bondK    = p.bonds?.kelthor || 0;   // Kelthor bond doubles as the Malezor Warden % (0-10 canon)
-  const bondTot  = Math.min(100, bondK);    // will expand as other Wardens ship
+  // v0.95.537 · Global Rizer bond replaces the old Kelthor-only display
+  const bondTot  = (typeof rizerBondTotal === 'function') ? rizerBondTotal() : 0;
+  const bondPct  = Math.min(100, (bondTot / 3330) * 100);
+  const eligibleTier = Math.max(1, Math.min(10, Math.floor(bondTot / 333)));
+  const nextTier = Math.min(10, eligibleTier + 1);
+  const nextGate = nextTier * 333;
   const rizerLevelCard = `
     <div style="border:2px solid #ffd66b; background:linear-gradient(180deg, rgba(60,40,10,0.55), rgba(20,10,0,0.65)); padding:12px; margin-bottom:8px;">
       <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
@@ -17258,7 +17262,10 @@ function renderZycellHome(){
           <div style="height:7px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,214,107,0.35); margin-top:3px;">
             <div style="height:100%; width:${rzXPPct}%; background:linear-gradient(90deg,#ffd66b,#ff9c66);"></div>
           </div>
-          <div style="margin-top:4px;"><span style="color:#8ff;">Bond</span> <b style="color:#fff;">${bondTot}%</b> <span style="color:#8ff; font-size:9px;">· gates Zyrex T${Math.min(10, Math.floor(bondTot/10)+1)}</span></div>
+          <div style="margin-top:6px;"><span style="color:#8ff;">BOND</span> <b style="color:#fff;">${bondTot}</b> / 3330 <span style="color:#8ff; font-size:9px;">· can bond T${eligibleTier}${eligibleTier < 10 ? ` · next gate T${nextTier} @ ${nextGate}` : ' · MAX (Gemlord tier)'}</span></div>
+          <div style="height:5px; background:rgba(0,0,0,0.55); border:1px solid rgba(95,220,122,0.35); margin-top:3px;">
+            <div style="height:100%; width:${bondPct.toFixed(1)}%; background:linear-gradient(90deg,#5fdc7a,#8ff);"></div>
+          </div>
         </div>
       </div>
     </div>`;
@@ -17981,12 +17988,38 @@ function giveDevElzebub(){
 // otherwise deposit into player.pcZyrex for later swap-in via Nebuladock PC.
 // Callers still get a toast so the player knows where the Zyrex went.
 const PARTY_MAX = 8;
+// v0.95.537 · RIZER BOND · a GLOBAL 0-3330 metric that gates which Zyrex tier
+// the player is allowed to add to their active faction (per new canon
+// [[aov-type-tier-level-master]] + [[aov-bond-tier-gate]]).
+//   Tier gate = z.tier × 333 · T1 needs 333, T10 needs 3330 (Gemlord ceiling)
+//   Derived from · sum(player.bonds) × 2   (per-NPC bond bumps · Wardens + allies)
+//                · + (rizerLvl - 1) × 3    (small XP-adjacent contribution)
+// Cap 3330.  Not persisted — recomputed every check so any bond-earn site
+// contributes without needing a per-site sweep.  Design lets side quests +
+// Warden ladders + grind ALL feed the same ceiling · Malezor content targets
+// ~333 (T1 gate) · full 10-district run targets 3330 (T10 gate).
+function rizerBondTotal(){
+  const raw = Object.values(player.bonds || {}).reduce((a, b) => a + (b || 0), 0);
+  const xp  = Math.max(0, (player.rizerLvl || 1) - 1) * 3;
+  return Math.min(3330, raw * 2 + xp);
+}
+function requiredBondForTier(tier){ return Math.max(1, (tier || 1)) * 333; }
 function addZyrexToRoster(z){
-  // Returns { location: 'party'|'pc'|'none' } so callers can preserve their
-  // own party-add toasts while the helper owns the overflow-to-PC toast.
+  // Returns { location: 'party'|'pc'|'none' } · callers keep their own party-
+  // add toasts · helper owns overflow-to-PC + bond-lockout toasts.
   if (!z) return { location: 'none' };
   player.party = player.party || [];
   player.pcZyrex = player.pcZyrex || [];
+  // v0.95.537 · BOND TIER GATE · deposits to PC if Rizer bond too low
+  const tier = z.tier || 1;
+  const need = requiredBondForTier(tier);
+  const have = rizerBondTotal();
+  if (have < need){
+    player.pcZyrex.push(z);
+    showToast(`◈ ${z.name} T${tier} · Rizer bond ${have}/${need} · sent to PC · raise your bond to add to faction`, 4200);
+    try { playSFX('cancel'); } catch(_){}
+    return { location: 'pc', reason: 'bondLow' };
+  }
   const activeCount = player.party.filter(Boolean).length;
   if (activeCount < PARTY_MAX){
     player.party.push(z);
@@ -17995,13 +18028,22 @@ function addZyrexToRoster(z){
   player.pcZyrex.push(z);
   showToast(`◈ Party FULL · ${z.name} sent to PC storage (${player.pcZyrex.length} stored) · swap at Nebuladock`, 3600);
   try { playSFX('confirm'); } catch(_){}
-  return { location: 'pc' };
+  return { location: 'pc', reason: 'partyFull' };
 }
 // PC ↔ Party swap helpers · call from the Faction / Nebuladock UI
 function withdrawZyrexFromPC(pcIdx){
   player.pcZyrex = player.pcZyrex || [];
   const z = player.pcZyrex[pcIdx];
   if (!z) return false;
+  // v0.95.537 · Same bond tier gate as fresh capture
+  const tier = z.tier || 1;
+  const need = requiredBondForTier(tier);
+  const have = rizerBondTotal();
+  if (have < need){
+    showToast(`◈ ${z.name} T${tier} · bond ${have}/${need} · not enough to withdraw · finish more allies + missions`, 3400);
+    try { playSFX('cancel'); } catch(_){}
+    return false;
+  }
   if ((player.party || []).filter(Boolean).length >= PARTY_MAX){
     showToast('◈ Party FULL · deposit one to PC first', 2200);
     try { playSFX('cancel'); } catch(_){}

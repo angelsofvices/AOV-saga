@@ -18743,7 +18743,90 @@ function renderZycellSettings(){
       <div style="color:#8ff; font-size:10px; text-align:center;">${last}</div>`)}
     ${devSection}
     ${_zySection('⚙  GAME OPTIONS', `<div style="color:#889; text-align:center; padding:8px;">Audio · brightness · dev toggles · wiring pending</div>`)}
-    ${_zySection('🎮 CONTROLLER OPTIONS', `<div style="color:#889; text-align:center; padding:8px;">Rebinding UI · wiring pending</div>`)}`;
+    ${renderZycellControls()}`;
+}
+// v0.95.597 · CONTROLLER OPTIONS · every keyboard + controller binding in the
+// game, grouped by category · treats the player as brand-new · each row is
+// a focusable card (data-zyitem) so controller/mouse can walk the whole list.
+function renderZycellControls(){
+  const CTRL_GROUPS = [
+    { title: '▸ MOVEMENT', color: '#8ff', rows: [
+      ['Walk',          'Arrow Keys  /  W A S D',       'D-Pad  /  Left Stick'],
+      ['Sprint (hold)', 'B key',                        'Circle (hold)'],
+      ['Sprint LOCK (toggle)', '—',                     'L3 (click Left Stick)'],
+      ['Dodge (2-tile leap)', 'B (tap)',                'Circle (tap)'],
+      ['Skateboard toggle', 'T',                        '—'],
+    ]},
+    { title: '▸ COMBAT · MELEE', color: '#ff9c66', rows: [
+      ['A1 · Punch (light)', 'J',                       'Square'],
+      ['A2 · Kick (heavy)',  'K',                       'Triangle'],
+      ['A3 · Astralstrike',  'Shift + J',               'L2 + Square'],
+      ['A4 · Astralkick',    'Shift + K',               'L2 + Triangle'],
+      ['Sword swing (if equipped)', 'J (S1 = Sapphire · S2 = Rubypaw)', 'Square (skin-gated)'],
+    ]},
+    { title: '▸ COMBAT · SPECIALS', color: '#c060ff', rows: [
+      ['Astralthrow (lift + throw)', 'Hold interact next to enemy',  'Hold X near enemy'],
+      ['Astralslam (grab + slam)',   'Auto during throw chain',      'Hold Circle during Astralthrow'],
+      ['Block stance',               'R2 (hold)',                    'R2 (hold)'],
+      ['Auraxion UFO fly (soul-swapped)', 'R2',                       'R2'],
+    ]},
+    { title: '▸ INTERACT', color: '#5fdc7a', rows: [
+      ['Talk to NPC · open chest · read sign', 'A  /  Z  /  X  /  Enter  /  Space', 'X (Cross)'],
+      ['Advance dialog',              'A  /  Z  /  X  /  Enter  /  Space',      'X (Cross)'],
+      ['Pick up world item',          'Walk over it',                             'Walk over it'],
+    ]},
+    { title: '▸ ZYPHONE  (press 2 / Touchpad)', color: '#4fb3ff', rows: [
+      ['Open / Close phone',          '2',                          'Touchpad'],
+      ['Hold to open (world → phone)', 'Hold X for 2 seconds',      'Hold Cross for 2 seconds'],
+      ['Nav rail  · walk pages',      '↑ / ↓',                      'D-Pad ↑ / ↓'],
+      ['Enter content pane',          '→  /  X / A / Enter',        'D-Pad →  /  Cross'],
+      ['Back to nav rail',            '←',                          'D-Pad ←'],
+      ['Cycle panels (skip)',         'L / Q  (prev) · R / I (next)', 'L1  /  R1'],
+      ['Activate focused item',       'X / A / Enter / Space',      'Cross'],
+      ['Faction slot · summon / recall Zyrex', 'K / Y',             'Triangle'],
+      ['Faction slot · swap slot order', 'J',                       'Square'],
+      ['Close phone',                 'B  /  Escape',               'Circle'],
+    ]},
+    { title: '▸ MENUS & PAUSE', color: '#ffd66b', rows: [
+      ['Pause menu · settings',       '3',                          'Options'],
+      ['Close any panel · exit menu', 'B  /  Escape',               'Circle'],
+    ]},
+    { title: '▸ FACTION / ZYREX', color: '#8ff', rows: [
+      ['Toggle Zyrex Aggression Mode', 'Shift + R3',                'L2 + R3 (chord)'],
+      ['S1 ↔ S2 skin swap',           'R3 (Right Stick click)',     'R3 (Right Stick click)'],
+    ]},
+  ];
+  // Optional dev-only group
+  const devUnlocked = (typeof isDevUnlocked === 'function' && isDevUnlocked());
+  if (devUnlocked){
+    CTRL_GROUPS.push({ title: '▸ DEV MODE (aovdev unlocked)', color: '#5fdc7a', rows: [
+      ['Open Dev Panel',              'Shift + Touchpad · or ZyPhone → Settings → OPEN DEV PANEL', 'L2 + Touchpad'],
+      ['Warp to district',            'Dev Panel · WARP tab',       'Dev Panel · WARP tab'],
+      ['Give Elzoran / bond max / doors / astral / UFO', 'Dev Panel toggles',    'Dev Panel toggles'],
+    ]});
+  }
+  const rowHtml = ({row, gcolor}) => `
+    <div data-zyitem="ctrl_${row[0].replace(/\W+/g,'_').toLowerCase()}"
+         style="display:grid; grid-template-columns:1.4fr 1.3fr 1.3fr; gap:8px; padding:8px 10px; border:1px solid rgba(79,179,255,0.22); background:rgba(0,0,0,0.32); margin-bottom:4px; font-size:11px; cursor:pointer;"
+         onclick="try{showToast('◈ ${row[0].replace(/'/g, '\\\'')}: KB · ${row[1].replace(/'/g,'\\\'')}  /  Pad · ${row[2].replace(/'/g,'\\\'')}',3200);}catch(_){}">
+      <div style="color:${gcolor}; font-weight:bold; letter-spacing:.04em;">${row[0]}</div>
+      <div style="color:#cfe;">${row[1]}</div>
+      <div style="color:#fed;">${row[2]}</div>
+    </div>`;
+  const groups = CTRL_GROUPS.map(g => {
+    const head = `
+      <div style="display:grid; grid-template-columns:1.4fr 1.3fr 1.3fr; gap:8px; padding:6px 10px; margin-bottom:4px; margin-top:8px; color:${g.color}; font-weight:bold; letter-spacing:.10em; font-size:10px; border-bottom:1px solid ${g.color};">
+        <div>${g.title}</div><div style="color:#889;">KEYBOARD</div><div style="color:#889;">CONTROLLER (DualSense)</div>
+      </div>`;
+    const rows = g.rows.map(row => rowHtml({row, gcolor: g.color})).join('');
+    return head + rows;
+  }).join('');
+  const legend = `
+    <div style="color:#8ff; font-size:10px; padding:6px 10px; margin-top:8px; line-height:1.6; border-top:1px solid rgba(79,179,255,0.25);">
+      ★ TIP · every control routes through the same input pipe — controller, keyboard, and mobile touchpad all fire the same actions.<br>
+      ★ Click any row to spotlight the binding as a toast.  Rebinding UI ships in a later patch.
+    </div>`;
+  return _zySection('🎮 CONTROLLER OPTIONS', groups + legend);
 }
 function renderZycellHome(){
   const p = player;

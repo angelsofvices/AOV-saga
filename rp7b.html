@@ -13533,6 +13533,45 @@ addEventListener('keydown', e => {
           if (n._dying) continue;   // v0.95.236 · dying Mori are inert
           if (n.tileX === hx && n.tileY === hy){ hit = n; break; }
         }
+        // v0.95.606 · Rubypaw HEAVY SWEEPING SLASH · when S2 swings punch with
+        // Rubypaw equipped, damage extends across a 5-tile arc: the 3 tiles in
+        // front (front-left/front/front-right) PLUS the 2 tiles at Rizer's
+        // sides (perpendicular to facing).  Primary target above stays the
+        // "focus" tile; the extras are secondary hits collected below and
+        // applied AFTER the primary damage/kill block resolves.
+        const _rubypawSweeper = mode === 'punch'
+          && !!player.rubypawEquipped && !player.rubypawBroken
+          && (player.cosmeticSkin || 'normal') === 'power_upgrade';
+        let _rubypawSweepTiles = null;
+        let _rubypawSweepHits = null;
+        if (_rubypawSweeper){
+          // Facing UP/DOWN → front row is 3 tiles wide, sides are ±1 X
+          // Facing LEFT/RIGHT → front column is 3 tiles tall, sides are ±1 Y
+          if (player.dir === 'up' || player.dir === 'down'){
+            _rubypawSweepTiles = [
+              [hx - 1, hy], [hx + 1, hy],                       // front-left, front-right
+              [player.x - 1, player.y], [player.x + 1, player.y],// direct sides
+            ];
+          } else {
+            _rubypawSweepTiles = [
+              [hx, hy - 1], [hx, hy + 1],                       // front-up, front-down
+              [player.x, player.y - 1], [player.x, player.y + 1],// direct sides
+            ];
+          }
+          _rubypawSweepHits = [];
+          for (const [tx, ty] of _rubypawSweepTiles){
+            for (const n of NPCS){
+              if (n.scene !== game.scene) continue;
+              if (!n.isEnemy) continue;
+              if (n._dying) continue;
+              if (n === hit) continue;   // primary handled below · don't double-strike
+              if (n.tileX === tx && n.tileY === ty){
+                _rubypawSweepHits.push(n);
+                break;
+              }
+            }
+          }
+        }
         // v0.95.61 · Punching Bag counts as a hit target in Rizer Room.
         // Bag occupies cols 1 rows 7-8 · face any of those from adjacent.
         const cfgHit = interiorConfig(game.scene);
@@ -13563,7 +13602,8 @@ addEventListener('keydown', e => {
             treehouseChestHit = 'gold';
           }
         }
-        if (hit || isBagTile || boulderHit || plantHit || chestHit || treehouseChestHit){
+        if (hit || isBagTile || boulderHit || plantHit || chestHit || treehouseChestHit
+            || (_rubypawSweepHits && _rubypawSweepHits.length > 0)){
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           recordHitLanded(mode);                        // v0.95.134 · achievement tracker
           // v0.95.555 · Rizer punch-combo VO ("take this") every 5th landed
@@ -13713,6 +13753,34 @@ addEventListener('keydown', e => {
             try { tryOpenTreehouseChest(); } catch(_){}
           } else if (treehouseChestHit === 'gold'){
             try { tryOpenTreehouseGoldChest(); } catch(_){}
+          }
+          // v0.95.606 · Rubypaw HEAVY SWEEPING SLASH · apply damage to every
+          // enemy in the sweep arc (front-side tiles + direct sides) using the
+          // same Rubypaw damage model as the primary target.
+          if (_rubypawSweeper && _rubypawSweepHits && _rubypawSweepHits.length){
+            const sweepDmg = (player.baseAtk || 25) * 3 * playerDamageMultiplier('power_upgrade');
+            for (const sh of _rubypawSweepHits){
+              if (sh.mode === 'skellor'){ skellorTakeHit(sh, 2); continue; }
+              const sMax = sh.hpMax || 125;
+              if (sh.hp == null) sh.hp = sMax;
+              sh.hp -= sweepDmg;
+              if (game.devCombatFxOn !== false) spawnHitFx(sh.tileX, sh.tileY, mode);
+              if (sh.hp > 0 && !sh._gruntPlayed && sh.hp <= sMax * 0.4){
+                sh._gruntPlayed = true; playSFX('moriGrunt');
+              }
+              if (sh.hp <= 0){
+                playSFX('moriDeath');
+                try {
+                  player.stats = player.stats || {};
+                  player.stats.swordKills = (player.stats.swordKills || 0) + 1;
+                  if (player.stats.swordKills % 3 === 0){ try { playSFX('swordKillVox'); } catch(_){} }
+                } catch(_){}
+                try { playSFX('rubypawKill'); } catch(_){}
+                startMoriDeath(sh);
+                awardRizerXP((sh.level || 1) * ((sh.tier || 1) + 4));
+                recordMoriKill(mode, sh);
+              }
+            }
           }
         } else {
           playSFX('meleeMiss');
@@ -18329,16 +18397,17 @@ function renderZycellMap(){
   // Image aspect used for vertical-scale compensation (hero image is 1459×1078)
   const IMG_W = 1459, IMG_H = 1078;
   const aspect = IMG_W / IMG_H;
-  // v0.95.587 · Unified projection · works for both overworld AND interior
-  // coords.  If (worldX, worldY) is in a known district → project through
-  // that district's image fraction + real-world radii.  Otherwise fall back
-  // to the NEAREST district (by center distance) so the pin still renders
-  // when on a route bridge, wild edge, or void-sea tile.  Same code path
-  // for both interior door coords and overworld tile coords.
+  // v0.95.605 · Fixed projection · world coordinates project into a SAFE
+  // portion of each illustrated island so edge-tile pins stay inside the
+  // outlined circle.  Two changes:
+  //   1. Effective projection radius = rf * PIN_FIT (0.65) so world edges
+  //      land 65% of the way to the illustrated island rim (never clip out).
+  //   2. Hard clamp final pin.x/pin.y to [0.02, 0.98] so nothing ever
+  //      renders off the container.
+  const PIN_FIT = 0.65;
   function projectWorldToImage(worldX, worldY){
     if (typeof ZYRAXIS_DISTRICT_BY_ID === 'undefined') return null;
     let dId = (typeof worldDistrictAt === 'function') ? worldDistrictAt(worldX, worldY) : null;
-    // Fallback · nearest district center by Euclidean distance
     if (!dId){
       let bestDist = Infinity;
       for (const d of ZYRAXIS_DISTRICTS){
@@ -18354,11 +18423,12 @@ function renderZycellMap(){
     if (!b) return { x: p.xf, y: p.yf };
     const rawDx = (worldX - b.cx) / Math.max(1, b.rx);
     const rawDy = (worldY - b.cy) / Math.max(1, b.ry);
-    // Wider clamp (±1.2) lets route-bridge positions push slightly outside
-    // the district's illustrated island so the pin reads as "leaving town"
-    const dx = Math.max(-1.2, Math.min(1.2, rawDx));
-    const dy = Math.max(-1.2, Math.min(1.2, rawDy));
-    return { x: p.xf + dx * p.rf, y: p.yf + dy * p.rf * aspect };
+    const dx = Math.max(-1, Math.min(1, rawDx));
+    const dy = Math.max(-1, Math.min(1, rawDy));
+    const pinRf = p.rf * PIN_FIT;
+    const px = Math.max(0.02, Math.min(0.98, p.xf + dx * pinRf));
+    const py = Math.max(0.02, Math.min(0.98, p.yf + dy * pinRf * aspect));
+    return { x: px, y: py };
   }
   // Player pin · uses resolved world position (door coord if inside interior)
   const pin = projectWorldToImage(wPos.x, wPos.y);
@@ -20199,6 +20269,42 @@ function saveGame(){
         activeActor: player.activeActor||'rizer',
         factionSoulSwitch: _factionSoulSwitch,
         ufoFlying: !!player.ufoFlying,
+        // v0.95.607 · WEAPONS · sword durability + equip state persists across refresh
+        swordEquipped:     !!player.swordEquipped,
+        swordBroken:       !!player.swordBroken,
+        swordDurability:   player.swordDurability   != null ? player.swordDurability   : 200,
+        rubypawEquipped:   !!player.rubypawEquipped,
+        rubypawBroken:     !!player.rubypawBroken,
+        rubypawDurability: player.rubypawDurability != null ? player.rubypawDurability : 200,
+        // v0.95.607 · CONTACTS & STORY PROGRESS · every gate/reward flag captured so
+        // QOL patches (sprites, spawns, animations) don't wipe the player's run
+        hasBackpack:                !!player.hasBackpack,
+        raidCardGifted:             !!player.raidCardGifted,
+        zycubeGifted:               !!player.zycubeGifted,
+        townMapGifted:              !!player.townMapGifted,
+        faenetGifted:               !!player.faenetGifted,
+        starterChosen:              !!player.starterChosen,
+        kaizariHintGiven:           !!player.kaizariHintGiven,
+        elzoranBonded:              !!player.elzoranBonded,
+        elzebubHatched:             !!player.elzebubHatched,
+        auraxionMet:                !!player.auraxionMet,
+        nurseReinAllied:            !!player.nurseReinAllied,
+        orrenQuestGiven:            !!player.orrenQuestGiven,
+        orrenQuestDone:             !!player.orrenQuestDone,
+        orrenGruntDodges:           player.orrenGruntDodges  || 0,
+        treehouseSwordChestOpened:  !!player.treehouseSwordChestOpened,
+        treehouseGoldChestOpened:   !!player.treehouseGoldChestOpened,
+        radioTowerFixed:            !!player.radioTowerFixed,
+        academyZyspheresGifted:     !!player.academyZyspheresGifted,
+        malezorBroadcastDone:       !!player.malezorBroadcastDone,
+        vilerokKills:               player.vilerokKills      || 0,
+        rizerSkinActive:            player.rizerSkinActive   || 'normal',
+        rizerSkins:                 player.rizerSkins        || {},
+        // v0.95.607 · Progression + stats maps · schoolBeaten, kill counters, deaths, punchLands etc.
+        stats:                      player.stats             || {},
+        bonds:                      player.bonds             || {},
+        districtsVisited:           player.districtsVisited  || {},
+        notifications:              (game.notifications || []).slice(-40),
         ufoPark: (()=>{const p=auraxionUfoProp();return p?{x:p.tileX,y:p.tileY}:null;})(),
         party: (player.party || []).map(z => z ? {
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
@@ -20230,6 +20336,13 @@ function loadGame(){
     game.scene = s.scene || 'overworld';
     Object.assign(player, s.player);
     if (!Array.isArray(player.pcZyrex)) player.pcZyrex = [];   // v0.95.536 · back-compat default
+    // v0.95.607 · restore notifications feed so ZyPhone right-rail messages persist
+    game.notifications = Array.isArray(s.player.notifications) ? s.player.notifications.slice() : (game.notifications || []);
+    delete player.notifications;
+    // Defensive defaults for any progression field the save might lack (older snap)
+    if (player.stats == null) player.stats = {};
+    if (player.bonds == null) player.bonds = {};
+    if (player.districtsVisited == null) player.districtsVisited = {};
     _factionSoulSwitch=player.factionSoulSwitch||null;
     delete player.factionSoulSwitch;
     if(player.activeActor!=='rizer'&&_factionSoulSwitch&&player.activeActor===_factionSoulSwitch.actorId){

@@ -14528,29 +14528,84 @@ function drawAstralthrowHeld(t,col){
   ctx.drawImage(img,bx,row*n.cellH+by,bw,bh,Math.round(cx-dw/2),Math.round(cy-dh/2),dw,dh);
 }
 
-// -- Toast (mid-screen ephemeral text) ---------------------------------------
+// v0.95.542 · TOAST STACK · bottom-right THIRD of the screen · all in-game
+// notifications route here + mirror into game.notifications for the ZyPhone
+// Home feed.  Cards stack bottom-up, oldest fades first, cap 6 visible.
+// Preserves legacy toastEl (hidden shell · nothing writes to it anymore).
 const toastEl = document.getElementById('toast') || (function(){
   const el = document.createElement('div');
   el.id = 'toast';
+  Object.assign(el.style, { display: 'none' });
+  document.body.appendChild(el);
+  return el;
+})();
+const toastStackEl = (function(){
+  const el = document.createElement('div');
+  el.id = 'toastStack';
   Object.assign(el.style, {
-    position:'fixed', top:'calc(env(safe-area-inset-top, 0px) + 14px)', left:'50%',
-    transform:'translateX(-50%)',
-    background:'rgba(0,0,0,0.8)', color:'#d4af37',
-    padding:'12px 20px', fontSize:'14px',
-    border:'1px solid #d4af37', letterSpacing:'.08em',
-    maxWidth:'min(88vw, 720px)', textAlign:'center',
-    opacity:'0', transition:'opacity 240ms ease',
-    pointerEvents:'none', zIndex:'10',
+    position: 'fixed',
+    right: '12px', bottom: '12px',
+    width: '33vw', maxWidth: '520px', minWidth: '260px',
+    height: '50vh', maxHeight: '620px',
+    display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+    gap: '6px',
+    pointerEvents: 'none',
+    zIndex: '11',
+    fontFamily: "'Courier New', monospace",
+    overflow: 'hidden',
   });
   document.body.appendChild(el);
   return el;
 })();
-let toastTimer = 0;
+const TOAST_STACK_MAX = 6;
+function _toastCardStyle(){
+  return [
+    'background:linear-gradient(180deg, rgba(4,10,26,0.94), rgba(2,6,16,0.94))',
+    'border:1px solid #d4af37',
+    'box-shadow:0 4px 14px rgba(0,0,0,0.55), 0 0 12px rgba(212,175,55,0.25)',
+    'color:#eaf0ff',
+    'padding:10px 14px',
+    'font-size:12px', 'line-height:1.45', 'letter-spacing:.05em',
+    'opacity:0', 'transform:translateY(10px)',
+    'transition:opacity 240ms ease, transform 240ms ease',
+    'pointer-events:auto',
+  ].join(';');
+}
+let toastTimer = 0;   // legacy (kept so external clearTimeout calls stay safe)
 function showToast(msg, ms){
-  toastEl.textContent = msg;
-  toastEl.style.opacity = '1';
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.style.opacity = '0', ms || 1800);
+  const dur = ms || 1800;
+  // Push into game.notifications queue for ZyPhone Home feed
+  try {
+    game.notifications = game.notifications || [];
+    const d = new Date();
+    game.notifications.push({
+      msg: String(msg),
+      time: `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,
+      ts: Date.now(),
+    });
+    if (game.notifications.length > 40) game.notifications.splice(0, game.notifications.length - 40);
+  } catch(_){}
+  // Append card into the stack
+  try {
+    const card = document.createElement('div');
+    card.setAttribute('style', _toastCardStyle());
+    card.textContent = String(msg);
+    toastStackEl.appendChild(card);
+    // Cap visible stack
+    while (toastStackEl.children.length > TOAST_STACK_MAX){
+      toastStackEl.removeChild(toastStackEl.firstChild);
+    }
+    // Fade in next frame
+    requestAnimationFrame(() => {
+      card.style.opacity = '1';
+      card.style.transform = 'translateY(0)';
+    });
+    setTimeout(() => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(-6px)';
+      setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); }, 320);
+    }, dur);
+  } catch(_){}
 }
 
 // Shared Soulphish cast used by the Zarvane oasis and Veridan freshwater.

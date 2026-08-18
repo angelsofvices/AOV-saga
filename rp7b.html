@@ -14598,8 +14598,30 @@ function _fireCorsunCue(){
   } catch(_){}
 }
 let toastTimer = 0;   // legacy (kept so external clearTimeout calls stay safe)
-function showToast(msg, ms){
+// v0.95.546 · Combat-vs-quest toast classifier · CORSUN "you have a new message"
+// cue should only fire for quest / story / social notifications (the AI is
+// telling you someone texted you).  Combat spam (damage, streaks, +XP pops,
+// KO callouts, RHP/ZHP warnings, capture rolls) still renders the card but
+// plays no audio.
+const _COMBAT_TOAST_HINTS = [
+  'rxp', 'xp', 'exp', 'damage', 'crit', 'ko', 'kill', 'streak',
+  'wild', 'battle', 'attack', 'defense', 'dodge',
+  'astralthrow', 'astralkick', 'astralstrike', 'astralshot',
+  'faint', 'fainted', 'downed', 'defeated',
+  'hp ', ' hp', 'rhp', 'zhp', 'health',
+  'combo', 'flawless', 'heating up', 'too easy',
+  'sword', 'kick swing', 'shot lands', 'lifted',
+  'caught a', 'gotcha',            // capture pops go through the phone contacts panel already
+];
+function _isCombatToast(msg){
+  if (battleState || wildBattleState) return true;
+  const s = String(msg || '').toLowerCase();
+  for (const h of _COMBAT_TOAST_HINTS){ if (s.indexOf(h) >= 0) return true; }
+  return false;
+}
+function showToast(msg, ms, opts){
   const dur = ms || 8000;   // v0.95.544 · 8-second auto-dismiss (was 1800ms)
+  const _silent = !!(opts && opts.silent) || _isCombatToast(msg);
   // Push into game.notifications queue for ZyPhone Home feed
   try {
     game.notifications = game.notifications || [];
@@ -14668,7 +14690,8 @@ function showToast(msg, ms){
       setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); }, 320);
     }, dur);
     // v0.95.544 · CORSUN cue draws player attention to the bottom-right card.
-    _fireCorsunCue();
+    // v0.95.546 · combat toasts are silent · quest/story/social only.
+    if (!_silent) _fireCorsunCue();
   } catch(_){}
 }
 

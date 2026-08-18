@@ -1466,6 +1466,8 @@ const AUDIO = {
     levelUp:      new Audio('audio/sfx-level-up.mp3'),       // v0.95.540 · Rizer VO on every Rizer level-up (Lv 1-100)
     kickVox:      new Audio('audio/sfx-kick-vox.mp3'),       // v0.95.540 · Rizer VO fires every 5th kick swing
     astralthrowVox: new Audio('audio/sfx-astralthrow-vox.mp3'), // v0.95.541 · Rizer VO on every astralthrow lift
+    swordKillVox: new Audio('audio/sfx-sword-kill-vox.mp3'),  // v0.95.543 · Rizer VO on every 3rd sword kill
+    yawnBed:      new Audio('audio/sfx-yawn-bed.mp3'),        // v0.95.543 · Rizer VO on bed sleep (RR + owned homes) · "yawn time for a nap"
     heatingUp:    new Audio('audio/sfx-heating-up.mp3'),     // v0.95.500 · Rizer VO on 6-kill flawless streak
     astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
     astralkick:   new Audio('audio/sfx-astralkick.mp3'),     // v0.95.238 · A4 powerful anime kick
@@ -1610,7 +1612,9 @@ const RVOX_PRIORITY = {
   // 90 · milestone
   levelUp: 90,
   // 80 · KO callouts
-  astralkickKo: 80, astralstrikeKo: 80,
+  astralkickKo: 80, astralstrikeKo: 80, swordKillVox: 78,
+  // 75 · sleep beat (rare but character-defining)
+  yawnBed: 75,
   // 70 · consumption / power beats
   mythicElixir: 70, readyToBlast: 70, elixir: 65, potion: 60, aleReeks: 60,
   // 60 · streaks
@@ -11462,6 +11466,10 @@ function sleepInBed(){
     playSFX('menuClose');
     return;
   }
+  // v0.95.543 · Rizer "yawn · time for a nap" VO fires on ANY successful sleep
+  // (deep-sleep video path OR quick-sleep party-heal fade).  Owned beds only —
+  // this fn already gates on the bed's owner check upstream.
+  try { playSFX('yawnBed'); } catch(_){}
   if (rizerNeeds){
     playDreamVideo(alive);                                   // deep sleep = video path
     return;
@@ -12767,6 +12775,14 @@ addEventListener('keydown', e => {
             }
             if (hit.hp <= 0){
               playSFX('moriDeath');                     // v0.95.120 · bone-crack on kill
+              // v0.95.543 · Rizer sword-kill VO every 3rd sword-driven kill
+              if (_swordSwing){
+                player.stats = player.stats || {};
+                player.stats.swordKills = (player.stats.swordKills || 0) + 1;
+                if (player.stats.swordKills % 3 === 0){
+                  try { playSFX('swordKillVox'); } catch(_){}
+                }
+              }
               // v0.95.236 · Play crumble-to-stone death anim before hiding
               startMoriDeath(hit);
               // v0.95.317 · Rizer XP · Mori kill · scales with enemy tier via awardRizerXP

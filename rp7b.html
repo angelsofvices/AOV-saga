@@ -18182,20 +18182,35 @@ function _zycellContentItems(){
   return Array.from(c.querySelectorAll('[data-zyitem]')).filter(el => el.offsetParent !== null);
 }
 function _zycellPaintFocus(){
+  // v0.95.577 · Paint-only pass · NEVER calls scrollIntoView.  The 1s auto-
+  // refresh + every content re-render triggers this; forcing a scroll here
+  // caused every panel (leaderboard, contacts, expeditions, etc.) to snap
+  // back to the top mid-navigation.  Scroll now happens ONLY inside
+  // _zycellScrollFocusIntoView(), fired from arrow-key handlers.
   const items = _zycellContentItems();
   const cursor = game._zycellItemIdx || 0;
   items.forEach((el, i) => {
     if (game._zycellFocus === 'content' && i === cursor){
       el.style.outline = '2px solid #ffd66b';
       el.style.outlineOffset = '2px';
-      el.scrollIntoView({ block: 'nearest' });
     } else {
       el.style.outline = '';
     }
   });
-  // Dim nav rail while content is focused so the split reads
   const nav = document.getElementById('zycellNav');
   if (nav) nav.style.opacity = game._zycellFocus === 'content' ? '0.55' : '1';
+}
+function _zycellScrollFocusIntoView(){
+  // Only call this when the cursor position INTENTIONALLY changes (arrow
+  // press / entering content).  Never call from a periodic re-render.
+  try {
+    const items = _zycellContentItems();
+    const cursor = game._zycellItemIdx || 0;
+    const el = items[cursor];
+    if (el && game._zycellFocus === 'content'){
+      el.scrollIntoView({ block: 'nearest' });
+    }
+  } catch(_){}
 }
 function zycellEnterContent(){
   const items = _zycellContentItems();
@@ -18203,6 +18218,7 @@ function zycellEnterContent(){
   game._zycellFocus = 'content';
   game._zycellItemIdx = 0;
   _zycellPaintFocus();
+  _zycellScrollFocusIntoView();   // v0.95.577 · scroll only on the intentional entry
   playSFX('cursor');
   return true;
 }
@@ -18242,12 +18258,12 @@ function handleZycellKey(k){
     if (game._zycellItemIdx >= items.length) game._zycellItemIdx = 0;
     if (k === 'arrowup')  {
       const next = (game._zycellItemIdx - 1 + items.length) % items.length;
-      game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor');
+      game._zycellItemIdx = next; _zycellPaintFocus(); _zycellScrollFocusIntoView(); playSFX('cursor');
       return true;
     }
     if (k === 'arrowdown'){
       const next = (game._zycellItemIdx + 1) % items.length;
-      game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor');
+      game._zycellItemIdx = next; _zycellPaintFocus(); _zycellScrollFocusIntoView(); playSFX('cursor');
       return true;
     }
     if (k === 'arrowright' || k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){

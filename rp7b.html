@@ -2276,8 +2276,8 @@ const INVENTORY_META = {
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
   life_stone:       { label: 'Life Stone',              order: 47 },   // v0.95.495 · dropped when a life stone shatters · deliver 2 to Nurse Rein to make her a callable healer contact
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
-  sapphire_sword:   { label: 'Sapphire Sword',          order: 7 },   // v0.95.516 · Silver chest inside treehouse · S1-only · toggle in ZyPhone → Weapons · replaces punch anim · same dmg as S2 punch · breaks after 50 uses · repair with 100 gems
-  rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.568 · Gold chest inside treehouse · S2-only · toggle in ZyPhone → Weapons · replaces punch anim · baseAtk × 5 = 125 dmg (> S2 kick 100) · breaks after 50 uses · repair with 100 gems
+  sapphire_sword:   { label: 'Sapphire Sword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 200 hits (connect-only, no miss-break) · repair 100 gems
+  rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
   // v0.95.244 · Gems · consume to recharge Diamond ◆ (10 × color tier, cap 100)
   gem_red:          { label: 'Red Gem',            order: 100 },
   gem_blue:         { label: 'Blue Gem',           order: 101 },
@@ -12064,7 +12064,7 @@ function tryOpenTreehouseChest(){
   try { playSFX('coins'); } catch(_){}
   try { spawnChestGems('interior_treehouse', TREEHOUSE_CHEST.tileX, TREEHOUSE_CHEST.tileY); } catch(_){}
   // Fresh durability + not-broken · saved for later toggle in phone
-  player.swordDurability = 50;
+  player.swordDurability = 200;
   player.swordBroken     = false;
   try { playItemGain('sapphire_sword'); } catch(_){}
   try { playSFX('confirm'); } catch(_){}
@@ -12086,7 +12086,7 @@ function tryOpenTreehouseGoldChest(){
   try { playSFX('coins'); } catch(_){}
   try { spawnChestGems('interior_treehouse', TREEHOUSE_GOLD_CHEST.tileX, TREEHOUSE_GOLD_CHEST.tileY); } catch(_){}
   // Fresh durability tracked per-weapon so S1 sword + S2 sword don't share HP
-  player.rubypawDurability = 50;
+  player.rubypawDurability = 200;
   player.rubypawBroken     = false;
   try { playItemGain('rubypaw_sword'); } catch(_){}
   try { playSFX('confirm'); } catch(_){}
@@ -12911,35 +12911,9 @@ addEventListener('keydown', e => {
             player.stats.punchSwings = (player.stats.punchSwings || 0) + 1;
           }
         } catch(_){}
-        // v0.95.516 · Sapphire Sword · every SWORD swing (punch mode + equipped + S1)
-        // eats one durability point · breaks at 0 · forces unequip
-        if (mode === 'punch' && player.swordEquipped && !player.swordBroken
-            && (player.cosmeticSkin || 'normal') !== 'power_upgrade'){
-          player.swordDurability = Math.max(0, (player.swordDurability == null ? 50 : player.swordDurability) - 1);
-          if (player.swordDurability <= 0){
-            player.swordBroken   = true;
-            player.swordEquipped = false;
-            try { playSFX('cancel'); } catch(_){}
-            showToast('⛔ SAPPHIRE SWORD broke · repair with 100 gems (ZyPhone → Weapons)', 3800);
-            try { playSFX('gottaFixIt'); } catch(_){}   // v0.95.571 · Rizer break VO
-          } else if (player.swordDurability === 10){
-            showToast('⚠ Sapphire Sword · 10 swings left', 2400);
-          }
-        }
-        // v0.95.568 · Rubypaw Longsword · S2 swing durability · same 50-swing cap · own break flag
-        if (mode === 'punch' && player.rubypawEquipped && !player.rubypawBroken
-            && (player.cosmeticSkin || 'normal') === 'power_upgrade'){
-          player.rubypawDurability = Math.max(0, (player.rubypawDurability == null ? 50 : player.rubypawDurability) - 1);
-          if (player.rubypawDurability <= 0){
-            player.rubypawBroken   = true;
-            player.rubypawEquipped = false;
-            try { playSFX('cancel'); } catch(_){}
-            showToast('⛔ RUBYPAW LONGSWORD broke · repair with 100 gems (ZyPhone → Weapons)', 3800);
-            try { playSFX('gottaFixIt'); } catch(_){}   // v0.95.571 · Rizer break VO
-          } else if (player.rubypawDurability === 10){
-            showToast('⚠ Rubypaw Longsword · 10 swings left', 2400);
-          }
-        }
+        // v0.95.572 · SWORD durability moved to the HIT-LANDED site below · miss
+        // swings no longer eat durability ("no miss breaking").  Both Sapphire
+        // (S1 punch) and Rubypaw (S2 punch) only decrement on connect.
         // v0.95.184 · Heavy kick takeoff SFX · plays on every kick swing
         if (mode === 'kick') playSFX('kick');
         // v0.95.59 · Hitbox check · exact tile in front of player (based on
@@ -13025,10 +12999,34 @@ addEventListener('keydown', e => {
               outDmg = (player.baseAtk || 25) * dmgMult * playerDamageMultiplier('power_upgrade');
               // v0.95.524 · Sword contact SFX · only fires when damage lands on an enemy
               try { playSFX('swordSlice'); } catch(_){}
+              // v0.95.572 · Durability only decrements on CONNECT (no miss-breaking)
+              player.swordDurability = Math.max(0, (player.swordDurability == null ? 200 : player.swordDurability) - 1);
+              if (player.swordDurability <= 0){
+                player.swordBroken   = true;
+                player.swordEquipped = false;
+                try { playSFX('cancel'); } catch(_){}
+                showToast('⛔ SAPPHIRE SWORD broke · repair with 100 gems (ZyPhone → Weapons)', 3800);
+                try { playSFX('gottaFixIt'); } catch(_){}
+              } else if (player.swordDurability === 20){
+                showToast('⚠ Sapphire Sword · 20 swings left', 2400);
+              }
             } else if (_rubypawSwing){
-              // v0.95.568 · Rubypaw = baseAtk × 5 = 125 (> S2 kick 100) · reads as legendary weapon
-              outDmg = (player.baseAtk || 25) * 5;
+              // v0.95.572 · Rubypaw damage = baseAtk × 3 × S2 mult (2) = 150
+              //   · reads as clearly stronger than S2 kick (100).
+              //   Uses same "S2-multiplied" damage model as Sapphire, just heavier.
+              outDmg = (player.baseAtk || 25) * 3 * playerDamageMultiplier('power_upgrade');
               try { playSFX('swordSlice'); } catch(_){}
+              // v0.95.572 · Durability only on connect · 200-hit cap
+              player.rubypawDurability = Math.max(0, (player.rubypawDurability == null ? 200 : player.rubypawDurability) - 1);
+              if (player.rubypawDurability <= 0){
+                player.rubypawBroken   = true;
+                player.rubypawEquipped = false;
+                try { playSFX('cancel'); } catch(_){}
+                showToast('⛔ RUBYPAW LONGSWORD broke · repair with 100 gems (ZyPhone → Weapons)', 3800);
+                try { playSFX('gottaFixIt'); } catch(_){}
+              } else if (player.rubypawDurability === 20){
+                showToast('⚠ Rubypaw Longsword · 20 swings left', 2400);
+              }
             }
             hit.hp -= outDmg;
             // v0.95.120 · Mori pained grunt when crossing 40% HP threshold
@@ -17317,12 +17315,12 @@ function renderZycellWeapons(){
   let row = '';   // v0.95.568 · Weapons panel now composed of multiple rows
   // ─── SAPPHIRE SWORD row ───────────────────────────────────────────
   if (hasSword){
-  const dur = Math.max(0, Math.min(50, player.swordDurability == null ? 50 : player.swordDurability));
+  const dur = Math.max(0, Math.min(200, player.swordDurability == null ? 200 : player.swordDurability));
   const broken = !!player.swordBroken || dur <= 0;
   const equipped = !!player.swordEquipped && !broken && isS1;
   const gemCount = (typeof countGems === 'function') ? countGems() : 0;
-  const durPct = (dur / 50) * 100;
-  const barColor = broken ? '#ff5b5b' : dur > 25 ? '#4fb3ff' : dur > 10 ? '#ffd66b' : '#ff9c66';
+  const durPct = (dur / 200) * 100;
+  const barColor = broken ? '#ff5b5b' : dur > 100 ? '#4fb3ff' : dur > 40 ? '#ffd66b' : '#ff9c66';
   const equipLabel = broken ? '⛔ BROKEN' : (equipped ? '● EQUIPPED · tap to unequip' : (isS1 ? '☆ tap to equip' : '⚠ S1 skin only'));
   const equipColor = broken ? '#ff5b5b' : (equipped ? '#5fdc7a' : (isS1 ? '#4fb3ff' : '#889'));
   const repairBtn = broken
@@ -17334,13 +17332,13 @@ function renderZycellWeapons(){
         <div style="width:52px; height:52px; border:2px solid #4fb3ff; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">⚔</div>
         <div style="flex:1;">
           <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:13px;">SAPPHIRE SWORD</div>
-          <div style="color:#8ff; font-size:10px; margin-top:2px;">S1 only · dmg = S2 light punch · breaks after 50 uses · repair with 100 gems</div>
+          <div style="color:#8ff; font-size:10px; margin-top:2px;">S1 only · square · dmg = S2 light punch · 200 connects (no miss-break) · repair 100 gems</div>
         </div>
         <div style="color:${equipColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${equipLabel}</div>
       </div>
       <div style="margin-top:10px;">
         <div style="display:flex; justify-content:space-between; font-size:10px; color:#cfe;">
-          <span>DURABILITY</span><span style="color:#fff;">${dur}/50</span>
+          <span>DURABILITY</span><span style="color:#fff;">${dur}/200</span>
         </div>
         <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(79,179,255,0.25); margin-top:3px;">
           <div style="height:100%; width:${durPct}%; background:${barColor};"></div>
@@ -17399,10 +17397,10 @@ function renderZycellWeapons(){
             if (player.items[k] <= 0) break;
           }
         }
-        player.swordDurability = 50;
+        player.swordDurability = 200;
         player.swordBroken = false;
         try { playSFX('confirm'); } catch(_){}
-        showToast('★ Sapphire Sword REPAIRED · durability 50/50', 2600);
+        showToast('★ Sapphire Sword REPAIRED · durability 200/200', 2600);
         try { paintZycellContent(); } catch(_){}
       });
     }
@@ -17410,12 +17408,12 @@ function renderZycellWeapons(){
   }   // v0.95.568 · close `if (hasSword)` block
   // ─── RUBYPAW LONGSWORD row · S2's answer to the Sapphire ─────────
   if (hasRuby){
-    const rDur = Math.max(0, Math.min(50, player.rubypawDurability == null ? 50 : player.rubypawDurability));
+    const rDur = Math.max(0, Math.min(200, player.rubypawDurability == null ? 200 : player.rubypawDurability));
     const rBroken = !!player.rubypawBroken || rDur <= 0;
     const rEquipped = !!player.rubypawEquipped && !rBroken && !isS1;   // S2 only
     const rGems = (typeof countGems === 'function') ? countGems() : 0;
-    const rPct = (rDur / 50) * 100;
-    const rBar = rBroken ? '#ff5b5b' : rDur > 25 ? '#ff5b5b' : rDur > 10 ? '#ffd66b' : '#ff9c66';
+    const rPct = (rDur / 200) * 100;
+    const rBar = rBroken ? '#ff5b5b' : rDur > 100 ? '#ff5b5b' : rDur > 40 ? '#ffd66b' : '#ff9c66';
     const rLabel = rBroken ? '⛔ BROKEN' : (rEquipped ? '● EQUIPPED · tap to unequip' : (!isS1 ? '☆ tap to equip' : '⚠ S2 skin only'));
     const rColor = rBroken ? '#ff5b5b' : (rEquipped ? '#5fdc7a' : (!isS1 ? '#ff5b5b' : '#889'));
     const rRepair = rBroken
@@ -17427,13 +17425,13 @@ function renderZycellWeapons(){
           <div style="width:52px; height:52px; border:2px solid #ff5b5b; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">⚔</div>
           <div style="flex:1;">
             <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:13px;">RUBYPAW LONGSWORD</div>
-            <div style="color:#ffb0b0; font-size:10px; margin-top:2px;">S2 only · dmg = 5× baseAtk (125, > S2 kick) · breaks after 50 uses · repair with 100 gems</div>
+            <div style="color:#ffb0b0; font-size:10px; margin-top:2px;">S2 only · square · dmg = 150 (baseAtk × 3 × S2 mult, > S2 kick 100) · 200 connects (no miss-break) · repair 100 gems</div>
           </div>
           <div style="color:${rColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${rLabel}</div>
         </div>
         <div style="margin-top:10px;">
           <div style="display:flex; justify-content:space-between; font-size:10px; color:#fed;">
-            <span>DURABILITY</span><span style="color:#fff;">${rDur}/50</span>
+            <span>DURABILITY</span><span style="color:#fff;">${rDur}/200</span>
           </div>
           <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,91,91,0.25); margin-top:3px;">
             <div style="height:100%; width:${rPct}%; background:${rBar};"></div>
@@ -17463,7 +17461,7 @@ function renderZycellWeapons(){
           if (player.rubypawEquipped && !RIZER_RUBYPAW_SWORD.loaded){
             showToast('⚠ Rubypaw equipped but sheet missing · assets/2D sprites/rizer/rubypaw-sword.png · anim will fall back to punch until file lands', 5000);
           } else {
-            showToast(player.rubypawEquipped ? '★ RUBYPAW LONGSWORD equipped · punch becomes slash (125 dmg)' : '◇ Rubypaw Longsword unequipped', 2400);
+            showToast(player.rubypawEquipped ? '★ RUBYPAW LONGSWORD equipped · S2 punch becomes slash (150 dmg)' : '◇ Rubypaw Longsword unequipped', 2400);
           }
           try { paintZycellContent(); } catch(_){}
         });
@@ -17487,10 +17485,10 @@ function renderZycellWeapons(){
               need -= val;
             }
           }
-          player.rubypawDurability = 50;
+          player.rubypawDurability = 200;
           player.rubypawBroken = false;
           try { playSFX('confirm'); } catch(_){}
-          showToast('★ Rubypaw Longsword REPAIRED · durability 50/50', 2600);
+          showToast('★ Rubypaw Longsword REPAIRED · durability 200/200', 2600);
           try { paintZycellContent(); } catch(_){}
         });
       }
@@ -24399,7 +24397,7 @@ function _updateWeaponHUD_disabled_v518(){
   if (!whud) return;
   const has  = (player.items && player.items.sapphire_sword) || 0;
   const isS1 = (player.cosmeticSkin || 'normal') !== 'power_upgrade';
-  const dur  = Math.max(0, Math.min(50, player.swordDurability == null ? 50 : player.swordDurability));
+  const dur  = Math.max(0, Math.min(200, player.swordDurability == null ? 200 : player.swordDurability));
   const broken = !!player.swordBroken || dur <= 0;
   const equipped = !!player.swordEquipped && !broken && isS1 && has > 0;
   // Slot 1 · sapphire sword
@@ -24445,10 +24443,10 @@ function _updateWeaponHUD_disabled_v518(){
       name.textContent = 'SAPPHIRE';
       name.style.color = '#5fdc7a';
       durEl.style.display = 'block';
-      const pct = (dur / 50) * 100;
+      const pct = (dur / 200) * 100;
       durFill.style.width = pct + '%';
-      durFill.style.background = dur > 25 ? 'linear-gradient(90deg,#4fb3ff,#8ff)'
-                                : dur > 10 ? 'linear-gradient(90deg,#ffd66b,#ff9c66)'
+      durFill.style.background = dur > 100 ? 'linear-gradient(90deg,#4fb3ff,#8ff)'
+                                : dur > 40 ? 'linear-gradient(90deg,#ffd66b,#ff9c66)'
                                 :            'linear-gradient(90deg,#ff5b5b,#ff9494)';
     } else if (broken){
       icon.textContent = '⛔';

@@ -5582,8 +5582,10 @@ const NPCS = [
         [[112,  0,182,234],[ 77,  0,183,235],[ 41,  0,183,235],[  6,  0,182,235]],   // UP
       ],
       cellW: 313, cellH: 313, cols: 4, rows: 4,
-      tileX: 7, tileY: 2,
-      homeX: 7, homeY: 2,
+      // v0.95.595 · Vireta stands in front of the Professor's Desk at (7, 3)
+      // The desk fills rows 0-2 · she anchors at row 3 facing the class
+      tileX: 7, tileY: 3,
+      homeX: 7, homeY: 3,
       homeScene: 'interior_malezor_school',
       scene:     'interior_malezor_school',
       dir: 'down',
@@ -7976,6 +7978,12 @@ function walkable(x, y){
     // v0.95.568 · Same for the gold chest (Rubypaw Longsword)
     if (game.scene === 'interior_treehouse'
         && x === TREEHOUSE_GOLD_CHEST.tileX && y === TREEHOUSE_GOLD_CHEST.tileY) return false;
+    // v0.95.595 · Professor's desk footprint blocks · 6 tiles wide × 2 tall
+    // (rows 1-2, centered on col 7 so cols 4-9 are blocked)
+    if (game.scene === 'interior_malezor_school'
+        && y >= 0 && y <= SCHOOL_DESK_TILE.tileY + 1
+        && x >= SCHOOL_DESK_TILE.tileX - Math.floor(SCHOOL_DESK_TILE_W / 2)
+        && x <= SCHOOL_DESK_TILE.tileX + Math.floor(SCHOOL_DESK_TILE_W / 2)) return false;
     // NPCs in this interior scene block their tile
     for (const n of NPCS){
       if (n.scene === game.scene && !n._astralslamHeld && !n._astralthrowHeld && n.tileX === x && n.tileY === y) return false;
@@ -12480,6 +12488,28 @@ function _drawOneTreehouseChest(chestTile, closedImg, closedBBox, openImg, openB
   const drawH = Math.round(drawW * (bh / bw));
   const dx = Math.floor(chestTile.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
   const dy = Math.floor((chestTile.tileY + 1) * TILE - drawH)      - _cam.y;
+  const prev = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, bx, by, bw, bh, dx, dy, drawW, drawH);
+  ctx.imageSmoothingEnabled = prev;
+}
+// v0.95.595 · Professor's Desk · top-of-class throne + oath crest desk
+// centered at (7, 1) in the school interior · Vireta stands in front (row 3)
+const SCHOOL_DESK_IMG = new Image();
+SCHOOL_DESK_IMG.src = 'assets/2D%20sprites/decor/professor-desk.png';
+const SCHOOL_DESK_BBOX = [59, 174, 1140, 777];   // CC-measured content bbox
+const SCHOOL_DESK_TILE = { tileX: 7, tileY: 1 };   // desk anchor (feet-Y)
+const SCHOOL_DESK_TILE_W = 6;                       // 6 tiles wide on-screen
+function drawSchoolDesk(){
+  if (game.scene !== 'interior_malezor_school') return;
+  const img = SCHOOL_DESK_IMG;
+  if (!img.complete || !img.naturalWidth) return;
+  const [bx, by, bw, bh] = SCHOOL_DESK_BBOX;
+  const drawW = SCHOOL_DESK_TILE_W * TILE;
+  const drawH = Math.round(drawW * (bh / bw));
+  // Anchor bottom-center to the desk's foot-Y (tileY+1), centered horizontally on tileX
+  const dx = Math.floor((SCHOOL_DESK_TILE.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+  const dy = Math.floor((SCHOOL_DESK_TILE.tileY + 1) * TILE - drawH)      - _cam.y;
   const prev = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(img, bx, by, bw, bh, dx, dy, drawW, drawH);
@@ -24287,10 +24317,15 @@ function frame(now){
     if (game.scene === 'interior_treehouse'){
       rends.push({ kind:'treehouseChest', footY: TREEHOUSE_CHEST.tileY });
     }
+    // v0.95.595 · School Professor's Desk · sits at row 1, sorts behind Vireta
+    if (game.scene === 'interior_malezor_school'){
+      rends.push({ kind:'schoolDesk', footY: SCHOOL_DESK_TILE.tileY });
+    }
     rends.sort((a,b) => a.footY - b.footY);
     for (const r of rends){
       if (r.kind === 'npc') drawNPC(r.npc);
       else if (r.kind === 'treehouseChest') drawTreehouseChest();
+      else if (r.kind === 'schoolDesk') drawSchoolDesk();
       else                  drawPlayer();
     }
     // v0.95.55 · Nebuladock 9000 · monitor overlay · Z-order fix.

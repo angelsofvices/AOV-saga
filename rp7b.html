@@ -1465,6 +1465,7 @@ const AUDIO = {
     seeYaLater:   new Audio('audio/sfx-see-ya-later.mp3'),   // v0.95.539 · Rizer VO on NPC dialogue close ("see ya later")
     levelUp:      new Audio('audio/sfx-level-up.mp3'),       // v0.95.540 · Rizer VO on every Rizer level-up (Lv 1-100)
     kickVox:      new Audio('audio/sfx-kick-vox.mp3'),       // v0.95.540 · Rizer VO fires every 5th kick swing
+    punchVox:     new Audio('audio/sfx-punch-vox.mp3'),      // v0.95.555 · Rizer VO on landed punch combo ("take this") · every 5th landed punch · pairs with kickVox rhythm to form combo banter
     astralthrowVox: new Audio('audio/sfx-astralthrow-vox.mp3'), // v0.95.541 · Rizer VO on every astralthrow lift
     swordKillVox: new Audio('audio/sfx-sword-kill-vox.mp3'),  // v0.95.543 · Rizer VO on every 3rd sword kill
     yawnBed:      new Audio('audio/sfx-yawn-bed.mp3'),        // v0.95.543 · Rizer VO on bed sleep (RR + owned homes) · "yawn time for a nap"
@@ -1628,7 +1629,7 @@ const RVOX_PRIORITY = {
   // 40 · catches + reward pickups
   gotcha: 40, gemVox: 40,
   // 30 · combat action beats (most frequent · lowest priority)
-  astralthrowVox: 30, kickVox: 25, damageTick: 20,
+  astralthrowVox: 30, kickVox: 25, punchVox: 25, damageTick: 20,
 };
 // v0.95.549 · Cut the CORSUN phone AI cue whenever any real character voice
 // starts.  NPCs and Rizer VOX always take priority · phone should never talk
@@ -12804,6 +12805,21 @@ addEventListener('keydown', e => {
         if (hit || isBagTile || boulderHit || plantHit || chestHit){
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           recordHitLanded(mode);                        // v0.95.134 · achievement tracker
+          // v0.95.555 · Rizer punch-combo VO ("take this") every 5th landed
+          // punch · matches kickVox's 5-swing cadence so kicks + punches
+          // interleave into combo banter.  Sword-mode punches are excluded
+          // (they already have swordKillVox on the kill site).
+          if (mode === 'punch'
+              && !(player.swordEquipped && !player.swordBroken
+                   && (player.cosmeticSkin || 'normal') !== 'power_upgrade')){
+            try {
+              player.stats = player.stats || {};
+              player.stats.punchLands = (player.stats.punchLands || 0) + 1;
+              if (player.stats.punchLands % 5 === 0){
+                try { playSFX('punchVox'); } catch(_){}
+              }
+            } catch(_){}
+          }
           // Canon RHUD: normal melee charges SPECIAL; healthy ASTRAL ENERGY
           // remains intact until a named status condition modifies it.
           // v0.95.149 · Glowing combat effect on hit · toggleable in dev mode

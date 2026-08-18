@@ -9513,7 +9513,11 @@ function ensureIntroStarted(){ /* no-op · gesture-driven now */ }
 })();
 
 function startNewGame(){
-  clearSave();                                     // v0.92 · wipe any prior save on New Game
+  // v0.95.609 · Do NOT auto-wipe the saved game.  Instead we mark this session
+  // as "unsaved new game" so the 5s autosave skips (only a manual SAVE STATE
+  // from ZyPhone Settings commits · that is when the LOAD slot gets replaced).
+  // Player can still hit LOAD GAME from the title before saving to bail out.
+  game.newGameUnsaved = true;
   stopIntroVideo();                                // v0.93.3 · kill intro on new game
   game.showTitleButtons = false;                   // v0.93.6 · hide DOM buttons
   if (titleBtnsEl) titleBtnsEl.style.display = 'none';
@@ -12438,14 +12442,17 @@ function enterInterior(sceneKey, cfg, toast){
   // v0.95.198 · Snap GBA camera to player on scene entry · no catch-up sway
   snapCameraToPlayer();
   // v0.95.535 · Summoned Zyrex followers walk in with Rizer · every _summon_*
-  // npc marked _summoned=true gets its scene swapped + repositioned behind the
-  // player.  Multi-summon safe · they fan out around the spawn tile.
+  // npc marked _summoned=true gets its scene swapped + repositioned near the
+  // player.  v0.95.608 · Place them IN FRONT of Rizer (facing direction) so
+  // they don't get stranded in the black void behind the entry tile.
+  const _dv = { up:{dx:0,dy:-1}, down:{dx:0,dy:1}, left:{dx:-1,dy:0}, right:{dx:1,dy:0} };
+  const _step = _dv[player.dir] || _dv.up;
   let followerOffset = 1;
   for (const n of NPCS){
     if (n && n._summoned && n.id && n.id.startsWith('_summon_')){
       n.scene  = sceneKey;
-      n.tileX  = player.x;
-      n.tileY  = player.y + followerOffset;
+      n.tileX  = player.x + _step.dx * followerOffset;
+      n.tileY  = player.y + _step.dy * followerOffset;
       n.moving = false;
       n.moveCd = 200;
       followerOffset++;
@@ -18858,7 +18865,7 @@ function renderZycellSettings(){
   return `
     ${_zySection('◆ SAVE &amp; LOAD',
       `<div style="display:flex; gap:8px; margin-bottom:8px;">
-        <button onclick="try{saveGame();showToast('◈ Save state stored',1800);playSFX('confirm');}catch(_){}"
+        <button onclick="try{game.newGameUnsaved=false;saveGame();showToast('◈ Save state stored · autosave now active',2200);playSFX('confirm');}catch(_){}"
           style="flex:1; padding:10px; background:rgba(79,179,255,0.25); color:#fff; border:1px solid #4fb3ff; font:bold 12px 'Courier New',monospace; cursor:pointer;">💾 SAVE STATE</button>
         <button onclick="try{const ok=loadGame();showToast(ok?'◈ Save loaded':'◈ No save found',1800);playSFX(ok?'confirm':'cancel');}catch(_){}"
           style="flex:1; padding:10px; background:rgba(212,175,55,0.25); color:#fff; border:1px solid #d4af37; font:bold 12px 'Courier New',monospace; cursor:pointer;">📥 LOAD STATE</button>
@@ -20369,13 +20376,19 @@ function loadGame(){
     player.bonds.dad  = 100;
     player.moving = false; player.animFrame = 0;
     refreshDevFactionButtons();
+    game.newGameUnsaved = false;   // v0.95.609 · loaded from disk · autosave re-enabled
     return true;
   } catch(e){ console.warn('[rp7b] load failed', e); return false; }
 }
 function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
 // Auto-save timer · every 5 seconds while in overworld
+// v0.95.609 · Skip autosave while game.newGameUnsaved is true so a fresh
+// NEW GAME session never auto-overwrites the previous LOAD slot.  Manual
+// SAVE STATE from ZyPhone Settings clears the flag + commits to disk.
 setInterval(() => {
-  if (game.scene !== 'title' && !battleState && !wildBattleState) saveGame();
+  if (game.scene === 'title' || battleState || wildBattleState) return;
+  if (game.newGameUnsaved) return;
+  saveGame();
 }, 5000);
 
 const DEV_FACTION_ACTORS={
@@ -23064,11 +23077,16 @@ const SUMMONABLE_SPRITES = {
   volcanut: {
     src: 'assets/2D%20sprites/zyrex/volcanut.png',
     // v0.95.313 · TRUE Volcanut · fiery spiky lizard w/ orange runes · new bboxes
+    // v0.95.609 · Cell-bleed cleanup on RUN frames · LEFT + RIGHT rows had
+    // animation tails touching col boundaries · trimmed bx/bw so each frame
+    // only samples ITS OWN cell + preserved run motion arc.
     bboxes: [
       [[92,111,160,202],[72,107,164,206],[61,111,163,202],[45,111,166,202]],
-      [[43,  0,270,304],[ 0,  0,305,304],[23,  0,273,304],[ 8,  0,272,304]],
-      [[26, 84,271,180],[15, 84,273,180],[ 5, 84,308,180],[ 0, 84,262,180]],
-      [[90,  8,153,239],[67,  8,159,239],[63,  8,155,239],[63,  9,151,238]],
+      // LEFT · col0 tail trimmed 270→255 · col1 bx pulled 0→14 & bw 305→285 to skip col0 bleed
+      [[43,  0,255,304],[14,  0,285,304],[23,  0,270,304],[15,  0,260,304]],
+      // RIGHT · col2 was 308 wide (near-full) + col3 was catching left bleed · trimmed both
+      [[26, 84,265,180],[15, 84,270,180],[15, 84,285,180],[15, 84,250,180]],
+      [[91,  8,152,239],[68,  8,157,239],[63,  9,154,238],[64,  9,149,238]],
     ],
     cellW: 313, cellH: 313, scaleMul: 0.55,   // starter scale = Gearbyte baseline
   },

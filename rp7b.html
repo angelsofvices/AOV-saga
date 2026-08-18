@@ -5291,22 +5291,44 @@ const NPCS = [
     isEnemy: false,
     turnToInteract: false,   // He faces the entrance · you approach Him
     onInteract: (n) => {
-      // v0.95.481 · Kelthor ladder step 7 flag · flips on FIRST meeting whether
-      // player recruits Rakoron or just talks to him
+      // v0.95.532 · rakoronMet still fires for lore continuity BUT recruitment
+      // is now GATED behind the Gemlord bond ceiling (per aov-bond-tier-gate ·
+      // 100% Warden bond after Korathen · returning-to-catch-Gemlords loop).
+      // Early-game players get a taunt-lock dialog · no auto-add to party.
       player.rakoronMet = true; try{pingNextObjective()}catch(_){}
-      if ((player.party || []).some(z => z && z.speciesId === 'rakoron')){
+      const alreadyOwned = (player.party || []).some(z => z && z.speciesId === 'rakoron');
+      if (alreadyOwned){
         showDialog({ speaker: 'RAKORON', lines: [
           '*a low rumbling purr shakes the sanctum · the crimson Fathergem pulses*',
           '"We fly together, Rizer.  The old wound remembers your name."',
         ]});
         return;
       }
+      // Gemlord recruit gate · avg Warden bond ≥ 100 (Korathen complete)
+      const bonds = player.bonds || {};
+      const wardenKeys = ['kelthor','zarvane_warden','andrannor_warden','veridan_warden','netharion_warden','vorashil_warden','xilnar_warden','baelgor_warden','thardin_warden','korathen_warden'];
+      const bondSum = wardenKeys.reduce((a, k) => a + (bonds[k] || 0), 0);
+      const bondAvg = Math.round(bondSum / wardenKeys.length);
+      const gemlordUnlocked = bondAvg >= 100 || !!player.korathenWardenComplete;
+      if (!gemlordUnlocked){
+        showDialog({ speaker: 'RAKORON', lines: [
+          '*a colossal red-black dragon lifts his crowned head · the sanctum trembles*',
+          '*the crimson Fathergem set into his chest flares with each breath*',
+          '"So the young Rizer climbs my cave.  Bold · but far from ready."',
+          '"Return when every Warden has taken your measure.  Bond with Kelthor · Zarvane · every district down to Korathen."',
+          '"Then · when your bond is complete · come back.  I will carry you on my back."',
+          '*settles the horned head back on his forepaws · gaze steady, patient*',
+          '(Gemlord recruits unlock at 100% Warden bond · finish the Korathen ladder first)',
+        ]});
+        return;
+      }
+      // Full bond · Rakoron recruits
       showDialog({ speaker: 'RAKORON', lines: [
         '*a colossal red-black dragon lifts his crowned head · the sanctum trembles*',
         '*the crimson Fathergem set into his chest flares with each breath*',
-        '"So the young Rizer climbs my cave.  Bold, or foolish · I have seen both."',
+        '"You return · every Warden behind you · every bond complete."',
         '"The Seers made my kin flightless.  I alone kept my Gem.  I alone remember the sky."',
-        '"Prove worthy of Astralite and I will carry you upon my back.  Take my signature."',
+        '"Now · Rizer · I will carry you upon my back.  Take my signature."',
         '*bows his horned head · offers his Gemlord bond*',
       ], onDone: () => {
         try {
@@ -5822,22 +5844,27 @@ const NPCS = [
           showDialog({ speaker: 'KELTHOR', lines: [
             "All five Vileroks gone.  Malezor breathes easier tonight.",
             "Your Astralstrike is refined · A3 damage +40% permanent.",
-            "Step 7 at Lv 25 · climb the NW path to Rakoron's Cave.  Face the old Gemlord.",
+            "Step 7 at Lv 25 · climb the NW path to Rakoron's Cave.  Find the entrance · that is the whole step.",
           ]});
           return;
         }
-        // ── Step 7 · Rakoron Path · Lv 25 · met Rakoron in NW cave ──
+        // ── Step 7 · Rakoron Path · Lv 25 · FIND the cave entrance ──
+        // v0.95.532 · Reworked · used to require meeting Rakoron himself which
+        // triggered a Gemlord bond too early.  Now the step completes on cave
+        // DISCOVERY (rakoronCaveFound proximity flag) · the trail also puts
+        // Elzoran + Zoryn in the player's path.
         if (!KS.s7){
           if (RL < 25){ showDialog({ speaker: 'KELTHOR', lines: [`Lv 25 first · you are Lv ${RL}.`]}); return; }
-          if (!player.rakoronMet){
-            showDialog({ speaker: 'KELTHOR', lines: [`Climb NW · Rakoron waits in his cave sanctum.  Stand before him · that is the step.`]});
+          if (!player.rakoronCaveFound){
+            showDialog({ speaker: 'KELTHOR', lines: [`Climb NW · the cave sits at the top of the district.  Find its entrance · Elzoran + Zoryn keep watch on the path.  You are NOT ready to face Rakoron himself yet · Gemlord bonds unlock at Korathen.`]});
             return;
           }
           KS.s7 = true; bumpBond(2);
           try { awardRizerXP(10000); } catch(_){}   // v0.95.488 · was 90000
-          showToast('★ Step 7 · Rakoron Path · +10k RXP · +2 Bond · Prismsynch slot', 3600);
+          showToast('★ Step 7 · Cave Found · +10k RXP · +2 Bond · Prismsynch slot', 3600);
           showDialog({ speaker: 'KELTHOR', lines: [
-            "You stood before a Gemlord.  Few Rizers your age can say the same.",
+            "You climbed to Rakoron's threshold.  Few Rizers your age even find the path.",
+            "Elzoran + Zoryn on the way — remember their faces.  You'll cross them again.",
             "Prismsynch move slot opens on your active Zyrex · one Prism-locked strike per battle.",
             "Step 8 at Lv 30 · cross south into Zarvane and fish me 3 Soulphish from the Oasis.  Consider it your bridge to the next Warden.",
           ]});
@@ -13132,6 +13159,21 @@ function tryMove(dt){
   }
   // v0.95.171 · Auto-collect gems when stepping onto their tile
   if (game.scene === 'overworld') collectGemAt('overworld', nx, ny);
+  // v0.95.532 · Rakoron Cave discovery · fires FIRST time player gets within
+  // 6 tiles of the cave entrance at (22, 5) · flips player.rakoronCaveFound.
+  // Kelthor Step 7 uses this flag (was rakoronMet · that required actually
+  // meeting Rakoron who is now gated behind the Gemlord bond ceiling).
+  try {
+    if (!player.rakoronCaveFound && game.scene === 'overworld'){
+      const dx = nx - 22, dy = ny - 5;
+      if ((dx*dx + dy*dy) <= 36){
+        player.rakoronCaveFound = true;
+        try { pingNextObjective(); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        showToast('★ RAKORON\'S CAVE discovered · Elzoran + Zoryn stand watch here · return to Kelthor', 4200);
+      }
+    }
+  } catch(_){}
   // v0.95.520 · leaderboard · +1 tile every completed step (any scene)
   try { player.stats = player.stats || {}; player.stats.tilesWalked = (player.stats.tilesWalked || 0) + 1; } catch(_){}
   // v0.95.93 · Walking cancels any guitar song + upcoming play animation
@@ -20049,7 +20091,7 @@ function buildQuestLog(){
     const s4 = !!KS.s4 || (hasKit && s3 && RL >= 8);
     const s5 = !!KS.s5 || (!!player.radioTowerFixed && s4 && RL >= 12);
     const s6 = !!KS.s6 || ((player.vilerokKills||0) >= 5 && s5 && RL >= 18);
-    const s7 = !!KS.s7 || (!!player.rakoronMet && s6 && RL >= 25);
+    const s7 = !!KS.s7 || (!!player.rakoronCaveFound && s6 && RL >= 25);   // v0.95.532 · was rakoronMet
     const s8 = !!KS.s8 || ((player.items?.soulphish||0) >= 3 && !!player.zarvaneEntered && s7 && RL >= 30);
     const allDone = s1 && s2 && s3 && s4 && s5 && s6 && s7 && s8;
     const anyProg = s1;
@@ -20066,7 +20108,7 @@ function buildQuestLog(){
         { done: s4, label: `Step 4 · Home Rank · Backpack + Skateboard + ZyPhone${lvGate(8)}` },
         { done: s5, label: `Step 5 · Signal Restored · deliver Scrapjaw's SCRAP METAL${lvGate(12)}` },
         { done: s6, label: `Step 6 · Vilerok Purge · defeat all 5 (${Math.min(5,player.vilerokKills||0)}/5)${lvGate(18)}` },
-        { done: s7, label: `Step 7 · Rakoron Path · meet Rakoron in NW cave${lvGate(25)}` },
+        { done: s7, label: `Step 7 · Rakoron Path · FIND the NW cave entrance${lvGate(25)}` },
         { done: s8, label: `Step 8 · Zarvane Bridge · 3 Soulphish from Zarvane Oasis (${Math.min(3,player.items?.soulphish||0)}/3)${lvGate(30)}` },
       ],
       reward: s8 ? '✓ Prismshard + Master Bonder title' :

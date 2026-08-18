@@ -3287,7 +3287,17 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
-      onInteract: () => { showToast('◈ A Zarvane home.  Door is locked.', 2200); playSFX('doorLock'); },
+      // v0.95.553 · Zarvane homes purchasable (1000 coins) · same flow as Malezor red-roofs
+      onInteract: () => {
+        const homeId = `zarvane_home_${i}`;
+        if (player.ownedHomes && player.ownedHomes.includes(homeId)){
+          tryPurchaseHome(homeId, tx, ty);
+        } else if (game.devUnlockDoors){
+          enterMalezorHome(homeId);
+        } else {
+          tryPurchaseHome(homeId, tx, ty);
+        }
+      },
     }));
   })(),
   // ── ZARVANE INNS · 3 wide-facade buildings equidistant (v0.70.2) ──
@@ -3353,7 +3363,11 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
-      onInteract: () => { showToast('◈ ZARVANE CONDO · Locked for now.', 2200); playSFX('doorLock'); },
+      // v0.95.553 · Zarvane condos purchasable (1000 coins · Zarvane price)
+      onInteract: (function(){
+        const _tx = tx, _ty = ty, _id = `zarvane_condo_${i}`;
+        return () => tryPurchaseHome(_id, _tx, _ty);
+      })(),
     }));
   })(),
   // ── ZARVANE OASIS · natural pool near town hall (v0.89) ──
@@ -3564,7 +3578,8 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0], depthOffset: -3,
-      onInteract: () => { showToast('◈ ANDRANNOR MANOR · locked · come back after dark', 2200); playSFX('doorLock'); },
+      // v0.95.553 · Andrannor manor purchasable (1500 coins · Andrannor price)
+      onInteract: () => tryPurchaseHome('andrannor_home_manor', 285, 320),
     };
   })(),
   (function(){
@@ -3586,7 +3601,8 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0], depthOffset: -3.5,
-      onInteract: () => { showToast('◈ ANDRANNOR COTTAGE · locked · come back after dark', 2200); playSFX('doorLock'); },
+      // v0.95.553 · Andrannor cottage purchasable (1500 coins · Andrannor price)
+      onInteract: () => tryPurchaseHome('andrannor_home_cottage', 265, 313),
     };
   })(),
   (function(){
@@ -3608,7 +3624,8 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0], depthOffset: -3,
-      onInteract: () => { showToast('◈ ANDRANNOR BALCONY HOUSE · locked · come back after dark', 2200); playSFX('doorLock'); },
+      // v0.95.553 · Andrannor balcony house purchasable (1500 coins · Andrannor price)
+      onInteract: () => tryPurchaseHome('andrannor_home_balcony', 200, 320),
     };
   })(),
   // ── ANDRANNOR BUSHES · flanking the town hall (v0.89.6) ──
@@ -11804,7 +11821,25 @@ function homeOwnedByNpc(doorX, doorY){
   }
   return null;
 }
-const HOME_PRICE = 500;
+// v0.95.553 · District-scaled home prices · +500 per district (canon: user 2026-08-18).
+// Malezor 500 · Zarvane 1000 · Andrannor 1500 · Veridan 2000 · Netharion 2500 ·
+// Vorashil 3000 · Xilnar 3500 · Baelgor 4000 · Thardin 4500 · Korathen 5000.
+const DISTRICT_HOME_PRICE = {
+  malezor:   500,
+  zarvane:  1000,
+  andrannor:1500,
+  veridan:  2000,
+  netharion:2500,
+  vorashil: 3000,
+  xilnar:   3500,
+  baelgor:  4000,
+  thardin:  4500,
+  korathen: 5000,
+};
+function homePriceAt(doorX, doorY){
+  const d = (typeof districtAt === 'function') ? districtAt(doorX, doorY) : 'malezor';
+  return DISTRICT_HOME_PRICE[d] || 500;
+}
 function tryPurchaseHome(homeId, doorX, doorY){
   const owner = homeOwnedByNpc(doorX, doorY);
   if (owner){
@@ -11823,16 +11858,17 @@ function tryPurchaseHome(homeId, doorX, doorY){
     enterInterior(sceneId, MALEZOR_HOME_INTERIORS[sceneId], `◈ RIZER ROOM · press X on door to leave`);
     return;
   }
+  const price = homePriceAt(doorX, doorY);
   const coins = (player.items && player.items.coins) || 0;
-  if (coins < HOME_PRICE){
-    showToast(`◈ This home is unclaimed · PURCHASE ${HOME_PRICE} coins · you have ${coins}`, 2800);
+  if (coins < price){
+    showToast(`◈ This home is unclaimed · PURCHASE ${price} coins · you have ${coins}`, 2800);
     playSFX('doorLock');
     return;
   }
   // Purchase!
-  player.items.coins = coins - HOME_PRICE;
+  player.items.coins = coins - price;
   player.ownedHomes.push(homeId);
-  showToast(`◈ Home purchased · new RIZER ROOM unlocked!  (-${HOME_PRICE} coins)`, 3200);
+  showToast(`★ Home purchased · new RIZER ROOM unlocked!  (-${price} coins)`, 3400);
   playSFX('confirm');
 }
 

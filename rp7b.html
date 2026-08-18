@@ -1519,6 +1519,17 @@ setInterval(() => {
   if (game.scene !== 'overworld' || battleState || wildBattleState || dialogState) return;
   // v0.95.456 · Phone / pause = FULL freeze · no proximity groans while menu is up
   if (game.zphoneOpen || game.paused) return;
+  // v0.95.603 · Window out-of-frame = FULL SILENCE (same rule as bgm/sfx suspend).
+  // Previously the proximity loop kept firing NEW skellor/mori clones while
+  // the tab was hidden or the window unfocused because the gate above only
+  // checked in-game modals · not window focus.  suspendAllAudio() would kill
+  // clones as they landed but new ones would immediately re-fire on the next
+  // 500ms tick.  Now the loop itself yields to focus state.
+  try {
+    if (typeof document !== 'undefined'
+        && (document.hidden || document.visibilityState === 'hidden')) return;
+    if (typeof document.hasFocus === 'function' && !document.hasFocus()) return;
+  } catch(_){}
   const now = performance.now();
   const moriReady    = now >= _moriNearbyCd;
   const skellorReady = now >= _skellorNearbyCd;

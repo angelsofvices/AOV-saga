@@ -1579,9 +1579,27 @@ document.addEventListener('touchmove', e => {
 // v0.95.48 · Pause every Audio element when the tab is hidden / user
 // switches apps / closes the window · resume BGM on unhide so the game
 // isn't silent-locked when they come back.
+// v0.95.567 · Also pause every LIVE SFX CLONE (Skellor groan, Mori nearby,
+// long ambient VOs, etc.).  Cloned audio nodes aren't in AUDIO.sfx so the
+// old suspend loop couldn't touch them; they'd keep playing over a paused
+// tab.  A dedicated `_liveSfxClones` set collects every clone spawned by
+// playSFX and clears itself on 'ended'.
+const _liveSfxClones = new Set();
+function _stopAllLiveSfxClones(){
+  for (const node of _liveSfxClones){
+    try { node.pause(); node.currentTime = 0; } catch(_){}
+  }
+  _liveSfxClones.clear();
+}
+function _pauseAllLiveSfxClones(){
+  for (const node of _liveSfxClones){
+    try { node.pause(); } catch(_){}
+  }
+}
 function suspendAllAudio(){
   Object.values(AUDIO.bgm).forEach(a => { try { a.pause(); } catch(e){} });
   Object.values(AUDIO.sfx).forEach(a => { try { a.pause(); a.currentTime = 0; } catch(e){} });
+  _stopAllLiveSfxClones();          // v0.95.567 · kill in-flight clones so window blur = full silence
 }
 function resumeBGM(){
   // v0.95.101 · _currentBGM IS the Audio object · play it directly.
@@ -1589,6 +1607,18 @@ function resumeBGM(){
     try { _currentBGM.play().catch(()=>{}); } catch(e){}
   }
 }
+// v0.95.567 · Game-pause audio gate · when game.paused flips true, silence
+// every live SFX clone (music keeps playing).  Polls each frame via a light
+// property watcher — the pause flag is set from many code paths, so the
+// cleanest approach is to react to state, not intercept every setter.
+let _prevGamePaused = false;
+setInterval(() => {
+  const _paused = !!(typeof game === 'object' && game.paused);
+  if (_paused && !_prevGamePaused){
+    _stopAllLiveSfxClones();        // pause menu opened · kill lingering sfx
+  }
+  _prevGamePaused = _paused;
+}, 120);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') suspendAllAudio();
   else resumeBGM();
@@ -1668,30 +1698,36 @@ function playSFX(name){
     const node = s.cloneNode();
     node.volume = s.volume;
     _rvoxLive = { node, priority: prio, name };
-    node.play().catch(() => {});
+    _liveSfxClones.add(node);                       // v0.95.567 · track for pause/blur suspend
+    node.play().catch(() => { _liveSfxClones.delete(node); });
     node.addEventListener('ended', () => {
       if (_rvoxLive && _rvoxLive.node === node) _rvoxLive = null;
+      _liveSfxClones.delete(node);
     });
     return;
   }
   // NPC voices · exclusive per-name (rapid interact cuts prior instance)
   if (NPC_VOICES.has(name)){
     const prev = _sfxExclusiveLive.get(name);
-    if (prev){ try { prev.pause(); prev.currentTime = 0; } catch(_){} }
+    if (prev){ try { prev.pause(); prev.currentTime = 0; _liveSfxClones.delete(prev); } catch(_){} }
     _stopCorsunIfLive();                            // v0.95.549 · NPC voice outranks phone AI
     const node = s.cloneNode();
     node.volume = s.volume;
     _sfxExclusiveLive.set(name, node);
-    node.play().catch(() => {});
+    _liveSfxClones.add(node);                       // v0.95.567 · track for pause/blur suspend
+    node.play().catch(() => { _liveSfxClones.delete(node); });
     node.addEventListener('ended', () => {
       if (_sfxExclusiveLive.get(name) === node) _sfxExclusiveLive.delete(name);
+      _liveSfxClones.delete(node);
     });
     return;
   }
   // Combat SFX + generic effects · clone-and-play so overlaps don't cut
   const clone = s.cloneNode();
   clone.volume = s.volume;
-  clone.play().catch(() => {});
+  _liveSfxClones.add(clone);                        // v0.95.567 · track long clips (Skellor groan, Mori nearby) for pause/blur suspend
+  clone.play().catch(() => { _liveSfxClones.delete(clone); });
+  clone.addEventListener('ended', () => { _liveSfxClones.delete(clone); });
 }
 // UFO boarding has two layered sounds (the craft + C.O.R.S.U.N.'s voice).
 // Normal SFX intentionally clone for combat overlap, but these two need to be

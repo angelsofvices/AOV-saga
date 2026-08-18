@@ -2101,11 +2101,18 @@ function facedNpc(){
 }
 // Rizer KO sequence · stage-specific collapse/dust, Dreamland, then bedroom.
 let _rizerDeath = null;
+let _rizerDeathAtX = null, _rizerDeathAtY = null;   // v0.95.582 · captured for nearest-home wake
 function startRizerDeath(){
   // v0.95.520 · leaderboard · count deaths for the stats panel
   try { player.stats = player.stats || {}; player.stats.deaths = (player.stats.deaths || 0) + 1; } catch(_){}
   if (_rizerDeath || _dreamPlaying) return;
   const now = performance.now();
+  // v0.95.582 · Capture death tile · used by nearest-owned-home wake path
+  try {
+    if (game.scene === 'overworld'){
+      _rizerDeathAtX = player.x; _rizerDeathAtY = player.y;
+    }
+  } catch(_){}
   _rizerDeath = { t0: now, dur: 1800, skin: player.cosmeticSkin || 'normal' };
   player.hp = 0;
   player.moving = false;
@@ -11619,15 +11626,70 @@ function sleepInBed(){
 // on natural 'ended' event OR skip · never truncated early otherwise.
 let _dreamPlaying = false;
 let _dreamSkipHandlers = null;
+// v0.95.582 · Nearest-owned-home resolver · walks player.ownedHomes + Malezor RR
+// baseline · returns the owned interior whose overworld door tile is closest
+// to (fromX,fromY).  Rewards buying property in later districts by making that
+// home the death-respawn point when Rizer dies nearby.
+function _homeIdDoorTile(homeId){
+  if (!Array.isArray(WORLD_PROPS)) return null;
+  for (const p of WORLD_PROPS){
+    if (p && p.id === homeId && typeof p.tileX === 'number'){
+      return { x: p.tileX, y: p.tileY };
+    }
+  }
+  return null;
+}
+function findNearestOwnedHomeSpawn(fromX, fromY){
+  const candidates = [];
+  // Malezor Rizer Room (always available even before any purchase)
+  candidates.push({
+    scene: 'interior_home_2f',
+    door:  { x: 22, y: 106 },
+    spawn: { x: 10, y: 7, dir: 'down' },
+    label: 'RIZER ROOM (Malezor)',
+  });
+  const owned = (player.ownedHomes || []);
+  for (const hid of owned){
+    const door = _homeIdDoorTile(hid);
+    if (!door) continue;
+    candidates.push({
+      scene: `interior_rizer_room_${hid}`,
+      door,
+      spawn: { x: 7, y: 9, dir: 'up' },   // matches makeMalezorHomeInterior spawn
+      label: `RIZER ROOM (${hid})`,
+    });
+  }
+  let best = candidates[0], bestD = Infinity;
+  for (const c of candidates){
+    const d = Math.abs(c.door.x - fromX) + Math.abs(c.door.y - fromY);
+    if (d < bestD){ bestD = d; best = c; }
+  }
+  // Lazy-build the purchased-home interior config if needed
+  if (best.scene !== 'interior_home_2f' && !MALEZOR_HOME_INTERIORS[best.scene]){
+    const cfg = makeMalezorHomeInterior(best.scene);
+    cfg.rizerRoom = true;
+    cfg.label = best.label;
+  }
+  return best;
+}
 function playDreamVideo(alive, opts = {}){
   const vid = document.getElementById('dreamVid');
   const wakeInRizerRoom = () => {
     if (!opts.wakeInRoom) return;
-    game.scene = 'interior_home_2f';
-    // v0.95.533 · Unified spawn tile (10, 7) matches startNewGame · wake in bed pose
-    player.x = 10; player.y = 7; player.dir = 'down';
+    // v0.95.582 · Wake in NEAREST owned home (Malezor RR is always in the pool)
+    const fromX = (_rizerDeathAtX != null) ? _rizerDeathAtX : player.x;
+    const fromY = (_rizerDeathAtY != null) ? _rizerDeathAtY : player.y;
+    const nearest = findNearestOwnedHomeSpawn(fromX, fromY);
+    game.scene = nearest.scene;
+    player.x = nearest.spawn.x; player.y = nearest.spawn.y; player.dir = nearest.spawn.dir;
     player.moving = false; player.animFrame = 0;
     snapCameraToPlayer();
+    // Reset the death-tile capture so a normal nap next time uses current pos
+    _rizerDeathAtX = null; _rizerDeathAtY = null;
+    // Post-wake toast (only on death path, only if not the default Malezor RR)
+    if (opts.fromDeath && nearest.scene !== 'interior_home_2f'){
+      try { showToast(`★ Woke up in your nearest owned home · ${nearest.label}`, 3600); } catch(_){}
+    }
   };
   if (!vid){
     if (player.hp != null && player.maxHp) player.hp = player.maxHp;

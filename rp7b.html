@@ -17158,8 +17158,16 @@ function paintZycellContent(){
 // Every panel reads live from player/game state so re-paint stays accurate
 // ══════════════════════════════════════════════════════════════════════
 function _zySection(title, body, headerColor){
+  // v0.95.578 · Every section wrapper becomes a focusable target so ANY
+  // panel is walkable with UP/DOWN + click-activatable with X.  If a section
+  // has no inner interactive control, focus just scrolls it into view.
+  // Section auto-generates a data-zyitem key from its title so the outline
+  // paints correctly and the click behavior forwards to the first button
+  // inside (if any).
+  const key = String(title || 'section').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
   return `
-    <div style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.4); padding:12px 14px; margin-bottom:10px;">
+    <div data-zyitem="sec_${key}" onclick="try{const b=this.querySelector('button,[data-zyclick]');if(b)b.click();}catch(_){}"
+         style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.4); padding:12px 14px; margin-bottom:10px; cursor:pointer;">
       <div style="color:${headerColor || '#ffd66b'}; font-weight:bold; letter-spacing:.12em; font-size:11px; margin-bottom:8px;">${title}</div>
       ${body}
     </div>`;
@@ -18213,12 +18221,15 @@ function _zycellScrollFocusIntoView(){
   } catch(_){}
 }
 function zycellEnterContent(){
-  const items = _zycellContentItems();
-  if (!items.length){ playSFX('cancel'); return false; }
+  // v0.95.578 · Always flip focus into content · previously a panel with no
+  // [data-zyitem] children would refuse to enter (playSFX cancel + false),
+  // stranding controller users on the nav rail.  Now content focus always
+  // takes · the LEFT arrow (or B/Escape) still exits back to nav.
   game._zycellFocus = 'content';
   game._zycellItemIdx = 0;
+  const items = _zycellContentItems();
   _zycellPaintFocus();
-  _zycellScrollFocusIntoView();   // v0.95.577 · scroll only on the intentional entry
+  if (items.length) _zycellScrollFocusIntoView();
   playSFX('cursor');
   return true;
 }
@@ -18301,10 +18312,9 @@ function handleZycellKey(k){
   if (k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
   if (k === 'arrowleft'){ /* already at nav · no-op */ playSFX('cancel'); return true; }
   if (k === 'arrowright' || k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
-    // v0.95.436 · X/RIGHT on nav = enter the middle content pane
-    if (!zycellEnterContent()){
-      showToast(`◈ ZyCellite · ${zycellPage.toUpperCase()} · no interactive items yet`, 2000);
-    }
+    // v0.95.578 · X/RIGHT on nav always moves focus to content · zycellEnterContent
+    // never rejects now, so every panel is reachable via controller.
+    zycellEnterContent();
     return true;
   }
   return false;

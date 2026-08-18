@@ -4125,7 +4125,7 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
-      onInteract: () => { showToast('◈ ZARVANE WEAPON SHOP · Closed for now.', 2400); playSFX('doorLock'); },
+      onInteract: () => { try { openZarvaneWeaponShop(); } catch(err){ console.warn('weapon shop failed', err); } },
     };
   })(),
   // ── ZARVANE COSTUME SHOP · right of the weapon shop (v0.82) ──
@@ -12136,6 +12136,103 @@ function tryOpenTreehouseChest(){
   return true;
 }
 
+// v0.95.583 · Zarvane Weapon Shop · buy Sapphire (10k) or Rubypaw (20k)
+// Items behave identically to their chest-dropped counterparts: fresh 200
+// durability, unbroken, wired into the same equip/repair logic in ZyPhone.
+function _grantSapphireSword(){
+  player.items = player.items || {};
+  player.items.sapphire_sword = (player.items.sapphire_sword || 0) + 1;
+  player.swordDurability = 200;
+  player.swordBroken     = false;
+  try { playItemGain('sapphire_sword'); } catch(_){}
+  try { playSFX('confirm'); } catch(_){}
+  showToast('★ SAPPHIRE SWORD purchased · toggle in ZyPhone → Weapons (S1)', 4200);
+}
+function _grantRubypawSword(){
+  player.items = player.items || {};
+  player.items.rubypaw_sword = (player.items.rubypaw_sword || 0) + 1;
+  player.rubypawDurability = 200;
+  player.rubypawBroken     = false;
+  try { playItemGain('rubypaw_sword'); } catch(_){}
+  try { playSFX('confirm'); } catch(_){}
+  showToast('★ RUBYPAW LONGSWORD purchased · toggle in ZyPhone → Weapons (S2)', 4200);
+}
+function openZarvaneWeaponShop(){
+  if (game.weaponShopOpen) return;
+  game.weaponShopOpen = true;
+  const overlay = document.createElement('div');
+  overlay.id = 'weaponShopOverlay';
+  Object.assign(overlay.style, {
+    position: 'fixed', inset: '0', zIndex: '9999',
+    background: 'radial-gradient(circle at center, rgba(6,14,36,0.85), rgba(0,0,0,0.94))',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: "'Courier New', monospace",
+  });
+  const coins = (player.items && player.items.coins) || 0;
+  const hasSapphire = (player.items && player.items.sapphire_sword) || 0;
+  const hasRubypaw  = (player.items && player.items.rubypaw_sword)  || 0;
+  const sapAffordable  = coins >= 10000 && !hasSapphire;
+  const rubyAffordable = coins >= 20000 && !hasRubypaw;
+  overlay.innerHTML = `
+    <div style="background:linear-gradient(180deg,rgba(10,22,50,0.96),rgba(4,10,28,0.98)); border:2px solid #d4af37; padding:22px 28px; width:520px; max-width:92vw; box-shadow:0 0 40px rgba(212,175,55,0.35);">
+      <div style="text-align:center; color:#ffd66b; font-weight:bold; letter-spacing:.16em; font-size:14px; margin-bottom:4px;">⚔  ZARVANE WEAPON SHOP  ⚔</div>
+      <div style="text-align:center; color:#8ff; font-size:11px; margin-bottom:14px;">Coins on hand · <b style="color:#fff;">${coins.toLocaleString()}</b></div>
+      <button id="wsBuySap" ${sapAffordable ? '' : 'disabled'}
+        style="width:100%; padding:14px; margin-bottom:10px; background:${sapAffordable ? 'linear-gradient(180deg,rgba(20,50,120,0.7),rgba(4,10,30,0.85))' : 'rgba(30,30,45,0.55)'}; color:${sapAffordable ? '#8ff' : '#556'}; border:2px solid ${sapAffordable ? '#4fb3ff' : '#334'}; font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:${sapAffordable ? 'pointer' : 'not-allowed'}; text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>⚔  SAPPHIRE SWORD  ·  S1 only</span>
+          <span style="color:#ffd66b;">10,000 c</span>
+        </div>
+        <div style="color:#cfe; font-size:10px; margin-top:4px; letter-spacing:.04em;">${hasSapphire ? 'ALREADY OWNED · sold in ZyPhone' : (sapAffordable ? '200 hit durability · connect-only · repair 100 gems' : `NEED ${(10000-coins).toLocaleString()} MORE COINS`)}</div>
+      </button>
+      <button id="wsBuyRuby" ${rubyAffordable ? '' : 'disabled'}
+        style="width:100%; padding:14px; margin-bottom:14px; background:${rubyAffordable ? 'linear-gradient(180deg,rgba(120,20,30,0.7),rgba(30,4,10,0.85))' : 'rgba(30,30,45,0.55)'}; color:${rubyAffordable ? '#ffb0b0' : '#556'}; border:2px solid ${rubyAffordable ? '#ff5b5b' : '#334'}; font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:${rubyAffordable ? 'pointer' : 'not-allowed'}; text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>⚔  RUBYPAW LONGSWORD  ·  S2 only</span>
+          <span style="color:#ffd66b;">20,000 c</span>
+        </div>
+        <div style="color:#fed; font-size:10px; margin-top:4px; letter-spacing:.04em;">${hasRubypaw ? 'ALREADY OWNED · sold in ZyPhone' : (rubyAffordable ? '150 dmg (baseAtk × 3 × S2 mult) · 200 hit durability · repair 100 gems' : `NEED ${(20000-coins).toLocaleString()} MORE COINS`)}</div>
+      </button>
+      <button id="wsClose" style="width:100%; padding:10px; background:rgba(0,0,0,0.5); color:#889; border:1px solid #556; font:bold 11px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">← CLOSE  (B / Escape)</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  try { playSFX('menuOpen'); } catch(_){}
+  const buy = (kind) => {
+    const price = kind === 'sap' ? 10000 : 20000;
+    if ((player.items?.coins || 0) < price){ try { playSFX('doorLock'); } catch(_){}; showToast(`◈ Not enough coins (need ${price.toLocaleString()})`, 2200); return; }
+    player.items.coins -= price;
+    if (kind === 'sap') _grantSapphireSword();
+    else _grantRubypawSword();
+    closeZarvaneWeaponShop();
+  };
+  overlay.querySelector('#wsBuySap').addEventListener('click', () => { if (sapAffordable) buy('sap'); });
+  overlay.querySelector('#wsBuyRuby').addEventListener('click', () => { if (rubyAffordable) buy('ruby'); });
+  overlay.querySelector('#wsClose').addEventListener('click', () => closeZarvaneWeaponShop());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeZarvaneWeaponShop(); });
+  const kh = (e) => {
+    const k = (e.key || '').toLowerCase();
+    if (k === 'b' || k === 'escape' || k === 'a' || k === '3'){
+      e.preventDefault(); e.stopImmediatePropagation();
+      closeZarvaneWeaponShop();
+    } else if (k === 'j' && sapAffordable){
+      e.preventDefault(); e.stopImmediatePropagation(); buy('sap');
+    } else if (k === 'k' && rubyAffordable){
+      e.preventDefault(); e.stopImmediatePropagation(); buy('ruby');
+    }
+  };
+  window.addEventListener('keydown', kh, true);
+  overlay._kh = kh;
+}
+function closeZarvaneWeaponShop(){
+  const el = document.getElementById('weaponShopOverlay');
+  if (el){
+    if (el._kh) window.removeEventListener('keydown', el._kh, true);
+    el.remove();
+  }
+  game.weaponShopOpen = false;
+  try { playSFX('menuClose'); } catch(_){}
+}
+
 // v0.95.568 · Gold chest → Rubypaw Longsword · S2's answer to the Sapphire Sword
 function tryOpenTreehouseGoldChest(){
   if (game.scene !== 'interior_treehouse') return false;
@@ -13509,6 +13606,7 @@ function tryMove(dt){
   if (game.bagPanelOpen)            freezeReasons.push('bagPanel');
   if (game.dockPanelOpen)           freezeReasons.push('dockPanel');
   if (game.posterViewOpen)          freezeReasons.push('posterView');
+  if (game.weaponShopOpen)          freezeReasons.push('weaponShop');   // v0.95.583
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
   // v0.95.303 · Dev panel takes exclusive input · no player movement/action while it's open

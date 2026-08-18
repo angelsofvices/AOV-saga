@@ -17282,7 +17282,7 @@ function renderZycellFaction(){
       : '';
     const xpMax = filled ? xpToNextLevel(z.level || 1) : 1;
     const xpPct = filled ? Math.min(100, ((z.xp || 0) / xpMax) * 100) : 0;
-    cells.push(`<div class="zyFactionSlot" data-slot="${i}" ${filled ? `data-zyitem="fac_${i}" data-zysummon="${i}"` : ''}
+    cells.push(`<div class="zyFactionSlot" data-slot="${i}" ${filled ? `data-zyitem="fac_${i}" data-zysummon="${i}" data-zyswap="${i}" data-zyexamine="${i}"` : ''}
       style="position:relative; border:2px solid ${isOut ? '#5fdc7a' : filled ? '#4fb3ff' : 'rgba(79,179,255,0.3)'}; background:${filled ? 'rgba(20,50,120,0.55)' : 'rgba(0,0,0,0.4)'}; padding:10px; min-height:96px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; transition:transform 120ms, box-shadow 120ms;"
       onmouseover="this.style.transform='scale(1.03)';this.style.boxShadow='0 0 14px rgba(79,179,255,0.5)'"
       onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none'">
@@ -17307,20 +17307,59 @@ function renderZycellFaction(){
   const grid = `<div style="max-height:420px; overflow-y:auto; padding-right:6px;">
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">${cells.join('')}</div>
   </div>`;
-  const hint = `<div style="color:#8ff; font-size:10px; text-align:center; margin-top:8px; letter-spacing:.06em;">▲ TRIANGLE (K) · summon / recall selected · ◉ OUT = currently in the overworld · scroll for more</div>`;
+  const hint = `<div style="color:#8ff; font-size:10px; text-align:center; margin-top:8px; letter-spacing:.06em; line-height:1.6;">
+    ▲ TRIANGLE · summon / recall &nbsp;·&nbsp; ■ SQUARE · swap w/ next slot &nbsp;·&nbsp; ✕ X · examine (stats · moves · lore)
+  </div>`;
   setTimeout(() => {
     document.querySelectorAll('.zyFactionSlot').forEach(el => {
       if (el._zyBound) return; el._zyBound = true;
+      // v0.95.579 · X / left-click always opens the full Examine dialog now
+      // (was: minimal one-line toast).  Triangle still summons via existing
+      // route.  Square swap wired through the content-focus key handler.
       el.addEventListener('click', () => {
         const idx = +el.dataset.slot;
         const z = (player.party || [])[idx];
         if (!z){ showToast('◇ Slot empty · recruit more Zyrex to fill it', 2200); return; }
-        try { playSFX('cursor'); } catch(_){}
-        showToast(`◇ ${z.name} · Lv ${z.level} · T${z.tier} · HP ${z.hp}/${z.maxHp} · bond ${(player.bonds?.[z.speciesId])||0}/100 · press K to summon`, 3400);
+        try { openZyrexExamine(idx); } catch(err){ console.warn('examine failed', err); }
       });
     });
   }, 0);
   return _zySection(`◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX`, grid + hint);
+}
+
+// v0.95.579 · Full-stat examine dialog · SQUARE swap · TRIANGLE summon
+function openZyrexExamine(idx){
+  const z = (player.party || [])[idx];
+  if (!z) return;
+  const bond = (player.bonds && player.bonds[z.speciesId]) || 0;
+  const xpMax = (typeof xpToNextLevel === 'function') ? xpToNextLevel(z.level || 1) : 100;
+  const sp = (typeof SPECIES !== 'undefined') ? SPECIES[z.speciesId] : null;
+  const moves = Array.isArray(z.moves) ? z.moves.filter(Boolean) : [];
+  const movesText = moves.length
+    ? moves.map(m => `  · ${m.name} (${m.pp}/${m.maxPp} · pw ${m.power || '—'} · ${m.type || '—'})`).join('\n')
+    : '  · (no moves learned yet)';
+  const stats = `HP ${z.hp}/${z.maxHp}  ATK ${z.atk || sp?.baseATK || '—'}  DEF ${z.def || sp?.baseDEF || '—'}  SPD ${z.spd || sp?.baseSPD || '—'}`;
+  const typing = `${z.type || sp?.type || '—'}${(z.type2 || sp?.type2) ? '/' + (z.type2 || sp?.type2) : ''}${(z.type3 || sp?.type3) ? '/' + (z.type3 || sp?.type3) : ''}`;
+  const lore = sp?.lore || sp?.pokedex || sp?.description || '(no lore recorded)';
+  const lines = [
+    `═══ ${z.name.toUpperCase()} · Lv ${z.level} · T${z.tier} ═══`,
+    `Type · ${typing}   ·   Bond · ${bond}/100`,
+    `${stats}`,
+    `XP ${z.xp || 0}/${xpMax}`,
+    `\nMOVES:\n${movesText}`,
+    `\nLORE: ${lore}`,
+    `\n[■ SQUARE swap w/ next slot · ▲ TRIANGLE summon/recall · ✕ X close]`,
+  ];
+  showDialog({ speaker: z.name.toUpperCase(), lines: [lines.join('\n')] });
+}
+// v0.95.579 · Swap party slots · called from Square on faction slot
+function swapPartySlots(a, b){
+  const party = player.party || [];
+  if (a === b || !party[a] || (b < 0 || b >= party.length)) return false;
+  const tmp = party[a]; party[a] = party[b]; party[b] = tmp;
+  try { playSFX('cursor'); } catch(_){}
+  try { paintZycellContent(); } catch(_){}
+  return true;
 }
 
 // v0.95.516 · WEAPONS panel · currently just the Sapphire Sword row with
@@ -18280,9 +18319,28 @@ function handleZycellKey(k){
     if (k === 'arrowright' || k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
       // v0.95.576 · RIGHT arrow interacts (mirrors X/A) since RIGHT can't
       // enter a state we're already in.  Keeps arrow behavior meaningful.
+      // v0.95.579 · Faction slot X = examine (rich dialog via the row's click)
       const el = items[game._zycellItemIdx];
       if (el) el.click();
       return true;
+    }
+    // v0.95.579 · SQUARE (J) · Faction · swap this Zyrex with the NEXT party slot
+    if (k === 'j'){
+      const el = items[game._zycellItemIdx];
+      if (!el) return true;
+      const swapAttr = el.getAttribute('data-zyswap');
+      if (swapAttr != null){
+        const i = +swapAttr;
+        const party = player.party || [];
+        // Find next filled OR empty slot to swap into (wraps back to 0)
+        const nextIdx = (i + 1) % Math.max(1, party.length || 8);
+        if (swapPartySlots(i, nextIdx)){
+          try { showToast(`◇ Swapped slot ${i+1} ↔ ${nextIdx+1}`, 1600); } catch(_){}
+          // Keep focus on the SAME visual position (the Zyrex we just moved)
+          game._zycellItemIdx = Math.min(items.length - 1, game._zycellItemIdx);
+        }
+        return true;
+      }
     }
     // v0.95.446 · Triangle (k) · context-sensitive · data-zysummon = summon
     // Zyrex to overworld · else data-zyfav / .zyBagFav toggles favorite

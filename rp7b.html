@@ -1457,6 +1457,8 @@ const AUDIO = {
     damageTick:   new Audio('audio/sfx-damage-tick.mp3'),    // v0.95.495 · Rizer VO every 2 damage hits (skips if any HP-threshold VO fired same tick)
     damageTick2:  new Audio('audio/sfx-damage-tick-2.mp3'),  // v0.95.556 · Rizer VO variation ("ngh!") · alternates with damageTick on every-2-hits beat
     dodgeStreak:  new Audio('audio/sfx-dodge-streak.mp3'),   // v0.95.557 · Rizer VO on 3 consecutive successful in-combat dodges ("nope! too slow") · resets on any hit taken
+    damageTick3:  new Audio('audio/sfx-damage-tick-3.mp3'),  // v0.95.558 · 3rd take-damage variation ("gah!") · joins the every-2-hits rotation
+    needJuice:    new Audio('audio/sfx-need-juice.mp3'),     // v0.95.558 · Rizer VO on failed astral fire ("need some more juice") · 2.5s throttle to avoid spam
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Sword contact SFX · fires only on enemy hit-land
     newDistrict:  new Audio('audio/sfx-new-district.mp3'),   // v0.95.527 · Rizer VO on FIRST entry into a new district ("hmm I never seen this before")
@@ -1628,10 +1630,10 @@ const RVOX_PRIORITY = {
   tooEasy: 55, heatingUp: 55, dodgeStreak: 55,
   // 50 · contextual
   newDistrict: 50, seeYaLater: 45,
-  // 40 · catches + reward pickups
-  gotcha: 40, gemVox: 40,
+  // 40 · catches + reward pickups + fail cues
+  gotcha: 40, gemVox: 40, needJuice: 42,
   // 30 · combat action beats (most frequent · lowest priority)
-  astralthrowVox: 30, kickVox: 25, punchVox: 25, damageTick: 20, damageTick2: 20,
+  astralthrowVox: 30, kickVox: 25, punchVox: 25, damageTick: 20, damageTick2: 20, damageTick3: 20,
 };
 // v0.95.549 · Cut the CORSUN phone AI cue whenever any real character voice
 // starts.  NPCs and Rizer VOX always take priority · phone should never talk
@@ -2132,9 +2134,9 @@ function _checkRizerLowHpWarn(){
   if (hp > 0 && !firedThresholdVO){
     player._damageTickCount = ((player._damageTickCount || 0) + 1);
     if (player._damageTickCount % 2 === 0){
-      // v0.95.556 · Randomize between the two damage-tick variations so hits
-      // don't sound identical.  Both are Rizer VO on the same priority tier.
-      const _v = Math.random() < 0.5 ? 'damageTick' : 'damageTick2';
+      // v0.95.558 · 3-variation damage-tick pool ("oof"/"ngh!"/"gah!") · uniform pick
+      const _pool = ['damageTick','damageTick2','damageTick3'];
+      const _v = _pool[Math.floor(Math.random() * _pool.length)];
       try { playSFX(_v); } catch(_){}
     }
   }
@@ -9750,6 +9752,8 @@ function fireAstralstrike(){
     if ((player.diamond || 0) < ASTRAL_STRIKE.DIAMOND_COST){
       showToast('◆ Not enough SPECIAL for Astralstrike', 1600);
       playSFX('meleeMiss');
+      // v0.95.558 · Rizer "need some more juice" VO · 2.5s throttle across both A3 + A4 fail sites
+      try { _fireNeedJuiceVox(); } catch(_){}
       return;
     }
     changePlayerDiamond(-ASTRAL_STRIKE.DIAMOND_COST);
@@ -9782,6 +9786,15 @@ function fireAstralstrike(){
   // v0.95.212 · dedicated 1s astralstrike cast SFX
   playSFX('astralstrike');
 }
+// v0.95.558 · Shared throttle for "need some more juice" VO across A3 + A4
+// fail sites.  2.5s cooldown so spamming Triangle while empty doesn't loop.
+let _needJuiceLastAt = 0;
+function _fireNeedJuiceVox(){
+  const now = performance.now();
+  if (now - _needJuiceLastAt < 2500) return;
+  _needJuiceLastAt = now;
+  try { playSFX('needJuice'); } catch(_){}
+}
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.95.238 · A4 ASTRALKICK · L2 + Triangle chord · bicycle-kick AOE
 // baseAtk × 4 = 100 damage · Diamond cost 20 · instant 3-tile arc in front of Rizer
@@ -9801,6 +9814,8 @@ function fireAstralkick(){
     if ((player.diamond || 0) < ASTRAL_KICK.DIAMOND_COST){
       showToast('◆ Not enough SPECIAL for Astralkick', 1600);
       playSFX('meleeMiss');
+      // v0.95.558 · Same "need some more juice" VO fires here · shared throttle
+      try { _fireNeedJuiceVox(); } catch(_){}
       return;
     }
     changePlayerDiamond(-ASTRAL_KICK.DIAMOND_COST);

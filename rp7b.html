@@ -1573,8 +1573,37 @@ function playBGM(name){
   track.currentTime = 0;
   track.play().catch(() => { /* autoplay blocked until first gesture */ });
 }
+// v0.95.533 · EXCLUSIVE-PLAY whitelist · NPC voices + Rizer VOs must not
+// overlap themselves when the player interacts in rapid succession.  Any name
+// in this set stops its previous live playback before starting a new one.
+// Everything else keeps clone-and-play (combat overlap intentional).
+const _sfxExclusiveLive = new Map();   // name → live HTMLAudioElement
+const SFX_EXCLUSIVE = new Set([
+  // NPC voices
+  'mom','dad','yara','zoryn','kelthor','scrapjaw','nurseRein','kaizari',
+  'elarian','elzoran','auraxion','orren',
+  // Rizer VOs (already single-fire but guard against machine-gun triggers)
+  'readyToBlast','okayBuddy','halfHp','threeQuarterHp','tooEasy','heatingUp',
+  'astralkickKo','astralstrikeKo','gotcha','damageTick','newDistrict',
+  'aleReeks','potion','elixir','mythicElixir',
+]);
 function playSFX(name){
   const s = AUDIO.sfx[name]; if (!s) return;
+  if (SFX_EXCLUSIVE.has(name)){
+    // Stop any prior live play of this SFX before starting a fresh one
+    const prev = _sfxExclusiveLive.get(name);
+    if (prev){
+      try { prev.pause(); prev.currentTime = 0; } catch(_){}
+    }
+    const node = s.cloneNode();
+    node.volume = s.volume;
+    _sfxExclusiveLive.set(name, node);
+    node.play().catch(() => {});
+    node.addEventListener('ended', () => {
+      if (_sfxExclusiveLive.get(name) === node) _sfxExclusiveLive.delete(name);
+    });
+    return;
+  }
   // Clone-and-play so overlapping SFX don't cut each other off.
   const clone = s.cloneNode();
   clone.volume = s.volume;
@@ -8892,10 +8921,10 @@ function startNewGame(){
   game.showTitleButtons = false;                   // v0.93.6 · hide DOM buttons
   if (titleBtnsEl) titleBtnsEl.style.display = 'none';
   // v0.95.275 · Spawn every new game in Rizer's Room (2F of home)
-  // Player wakes up in their room · walk downstairs to meet Mom
+  // v0.95.533 · Fixed spawn at (10, 7) per user · overrides INTERIOR_HOME_2F.spawn
+  // so the New Game load always drops Rizer in the same room-center pose
   game.scene = 'interior_home_2f';
-  const s = (INTERIOR_HOME_2F && INTERIOR_HOME_2F.spawn) || { x: 1, y: 3, dir: 'down' };
-  player.x = s.x; player.y = s.y; player.dir = s.dir;
+  player.x = 10; player.y = 7; player.dir = 'down';
   player.moving = false; player.animFrame = 0;
   try { snapCameraToPlayer(); } catch(_){}
   // v0.95.141 · Fae Net no longer auto-granted · Kaizari (cheetah huntress) gifts it on first interaction
@@ -11390,7 +11419,8 @@ function playDreamVideo(alive, opts = {}){
   const wakeInRizerRoom = () => {
     if (!opts.wakeInRoom) return;
     game.scene = 'interior_home_2f';
-    player.x = 11; player.y = 8; player.dir = 'right';
+    // v0.95.533 · Unified spawn tile (10, 7) matches startNewGame · wake in bed pose
+    player.x = 10; player.y = 7; player.dir = 'down';
     player.moving = false; player.animFrame = 0;
     snapCameraToPlayer();
   };
@@ -12785,8 +12815,11 @@ addEventListener('keyup', e => {
     // is fully navigable.  The router itself owns the world-input swallow so
     // downstream game handlers still never fire during phone.
     const _k = (key || '').toLowerCase();
-    if (typeof game === 'object' && game.paused && !game.zphoneOpen && _k !== '3'){
-      return;   // pause is a hard freeze · '3' toggles unpause · nothing else
+    // v0.95.533 · Allow B/Circle + Escape through as alternate unpause · window
+    // listener handles the unpause inline so dodge never fires
+    if (typeof game === 'object' && game.paused && !game.zphoneOpen
+        && _k !== '3' && _k !== 'b' && _k !== 'escape'){
+      return;   // pause is a hard freeze · only unpause keys pass
     }
     const ev = new KeyboardEvent(type, { key: key, bubbles: true });
     window.dispatchEvent(ev);
@@ -17297,6 +17330,13 @@ function openZphonePanel(){
   game.zphoneOpen = true;
   game._zycellFocus = 'nav';               // v0.95.436 · always land on nav rail
   game._zycellItemIdx = 0;
+  // v0.95.533 · Block mouse-wheel scroll on the phone content pane per user
+  // request · scroller only moves via arrow-driven paint-focus (scrollIntoView).
+  const content = document.getElementById('zycellContent');
+  if (content && !content._zyWheelBound){
+    content._zyWheelBound = true;
+    content.addEventListener('wheel', (ev) => { ev.preventDefault(); ev.stopPropagation(); }, { passive: false });
+  }
   paintZycellNav();
   playSFX('menuOpen');
 }
@@ -17408,16 +17448,17 @@ function handleZycellKey(k){
       }
       return best;
     };
-    // v0.95.480 · Clamp instead of wrap · up/down stop at the ends · left/right
-    // step columns for grid layouts (Faction 2-col) · no wrap so nav feels linear
+    // v0.95.533 · WRAP · up/down loops the list (top ↔ bottom).  Reverses the
+    // v0.95.480 clamp behavior per user request · left/right still walk columns
+    // for grid layouts (no horizontal wrap · that would confuse Faction 2-col).
     if (k === 'arrowup')  {
-      const next = Math.max(0, game._zycellItemIdx - 1);
-      if (next !== game._zycellItemIdx){ game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor'); }
+      const next = (game._zycellItemIdx - 1 + items.length) % items.length;
+      game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor');
       return true;
     }
     if (k === 'arrowdown'){
-      const next = Math.min(items.length - 1, game._zycellItemIdx + 1);
-      if (next !== game._zycellItemIdx){ game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor'); }
+      const next = (game._zycellItemIdx + 1) % items.length;
+      game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor');
       return true;
     }
     if (k === 'arrowleft'){
@@ -17584,11 +17625,18 @@ window.addEventListener('keydown', (e) => {
 // SFX ever fires while the pause overlay is up.  Real-game pause behavior.
 window.addEventListener('keydown', (e) => {
   const k = (e.key || '').toLowerCase();
-  // ── PAUSE ROUTER ── ONLY the pause-toggle key '3' passes through · everything
-  // else (including B/Shift/Escape which would trigger dodge/sprint/settings) is
-  // eaten so no world action fires while the pause overlay owns the screen
+  // ── PAUSE ROUTER ── v0.95.533 · B/Escape now ALSO unpause · handled INLINE
+  // so the dodge (B) handler downstream never fires from the unpause keydown
   if (game.paused && !game.zphoneOpen){
-    if (k === '3'){ return; }   // options · unpause
+    if (k === 'b' || k === 'escape'){
+      e.preventDefault(); e.stopImmediatePropagation();
+      game.paused = false;
+      const p = document.getElementById('pauseOverlay');
+      if (p) p.style.display = 'none';
+      try { playSFX('menuClose'); } catch(_){}
+      return;
+    }
+    if (k === '3'){ return; }   // options · unpause (goes through the '3' handler)
     e.preventDefault();
     e.stopImmediatePropagation();
     return;

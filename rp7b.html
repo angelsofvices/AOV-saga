@@ -2243,7 +2243,27 @@ function playItemGain(key){
   if (!key || key === 'coins') return;
   if (!ITEM_GAIN_SFX_KEYS.has(key)) return;
   try { playSFX('itemGain'); } catch(_){}
+  // v0.95.538 · KEY-ITEM XP · first-time pickup of quest/story items grants RXP
+  // Uses a per-key flag on player so re-picking doesn't re-award
+  try {
+    const rxp = KEY_ITEM_RXP[key];
+    if (rxp && !player._keyItemsFound) player._keyItemsFound = {};
+    if (rxp && !player._keyItemsFound[key]){
+      player._keyItemsFound[key] = true;
+      awardRizerXP(rxp);
+    }
+  } catch(_){}
 }
+// v0.95.538 · Per-key RXP for FIRST-TIME pickup · story anchors get bigger
+// bumps · common resources (berry/fruit/seed/fae/gems) intentionally omitted
+const KEY_ITEM_RXP = {
+  backpack: 50, zphone: 100, zycube: 100, faenet: 100, worldmap: 200,
+  dads_notebook: 150, skateboard: 75, raidcard: 100,
+  scrap_metal: 150, astralcore: 300, astralcore_transponder: 200,
+  life_stone: 50, sapphire_sword: 250,
+  prismshard: 500,
+  elzebub_egg: 250, verdant_elixir: 100,
+};
 function addItems(drop){
   for (const key in drop){
     const prev = player.items[key] || 0;
@@ -2893,6 +2913,7 @@ const WORLD_PROPS = [
           playSFX('coins');
           popCoinLabel(coins);
           spawnChestGems('overworld', chest.tileX, chest.tileY);
+          try { awardRizerXP(25); } catch(_){}   // v0.95.538 · every wooden chest open = +25 RXP
           // v0.95.505 · Every coin chest also drops ONE HP consumable · uniform
           // 1/3 pick between ale (+10% HP), potion (+20%), elixir (+30%) ·
           // consumed later from the ZyPhone bag panel
@@ -4457,7 +4478,7 @@ const NPCS = [
       if ((player.items.elzebub_egg || 0) > 0 && !player.elzebubHatched){
         player.items.elzebub_egg = 0;
         player.elzebubHatched = true; try{pingNextObjective()}catch(_){}
-        try { awardRizerXP(3000); } catch(_){}   // v0.95.317 · Elzebub hatch = rare bond moment
+        try { awardRizerXP(500); } catch(_){}    // v0.95.538 · rescaled 3000 → 500 (target Malezor main = ~10k XP for Lv 10)
         const z = (typeof createZyrex === 'function') ? createZyrex('elzebub', 10) : null;
         if (z){
           addZyrexToRoster(z);
@@ -4475,7 +4496,7 @@ const NPCS = [
       // v0.95.268 · Mom gifts the Zycube on first interaction (Dad's starter quest)
       if (!player.zycubeGifted){
         player.zycubeGifted = true; try{pingNextObjective()}catch(_){}
-        try { awardRizerXP(500); } catch(_){}   // v0.95.317 · side-quest XP
+        try { awardRizerXP(100); } catch(_){}   // v0.95.538 · Mom Zycube · rescaled 500 → 100
         player.items.zycube  = (player.items.zycube  || 0) + 1;
         try { playItemGain('zycube'); } catch(_){}   // v0.95.507
         // v0.95.275 · Mom also stocks 2 potions for the road when she gives the Zycube
@@ -4543,7 +4564,7 @@ const NPCS = [
         player.dadStarterQuestGiven = true;
         player.dadNotebookGifted    = true; try{pingNextObjective()}catch(_){}
         inv.dads_notebook           = (inv.dads_notebook || 0) + 1; try{playItemGain('dads_notebook')}catch(_){}
-        try { awardRizerXP(400); } catch(_){}
+        try { awardRizerXP(100); } catch(_){}    // v0.95.538 · Dad notebook · rescaled 400 → 100
         try { playSFX('confirm'); } catch(_){}
         showToast('★ DAD\'S NOTEBOOK · in your bag · Quests tab unlocked (touchpad)', 3600);
         showDialog({ speaker: 'DAD', lines: [
@@ -4571,7 +4592,7 @@ const NPCS = [
         inv.zysphere_basic  = (inv.zysphere_basic || 0) + 5;
         showToast('★ QUEST COMPLETE · +300 coins · +1 Elixir · +5 Zyspheres', 2800);
         try { playSFX('confirm'); } catch(_){}
-        try { awardRizerXP(8000); } catch(_){}
+        try { awardRizerXP(800); } catch(_){}    // v0.95.538 · Dad starter-quest turn-in · rescaled 8000 → 800
         showDialog({ speaker: 'DAD', lines: [
           'Every last piece.  You listen better than I did at your age.',
           '*takes the tribute · nods once*',
@@ -4586,7 +4607,7 @@ const NPCS = [
       if (player.dadStarterQuestComplete && player.starterChosen){
         if (!player.kaizariHintGiven){
           player.kaizariHintGiven = true;
-          try { awardRizerXP(600); } catch(_){}
+          try { awardRizerXP(150); } catch(_){}   // v0.95.538 · Dad Kaizari hint · rescaled 600 → 150
           showToast('★ Hint · seek KAIZARI · ask around Malezor', 3200);
           showDialog({ speaker: 'DAD', lines: [
             'Good pick, kid.  That one has fight in it.',
@@ -4719,7 +4740,7 @@ const NPCS = [
       // v0.95.141 · Cheetah huntress · gifts Fae Net on FIRST interaction
       if (!player.faenetGifted){
         player.faenetGifted = true;
-        try { awardRizerXP(1000); } catch(_){}   // v0.95.317 · Kaizari's gift = tool unlock
+        try { awardRizerXP(250); } catch(_){}    // v0.95.538 · Kaizari faenet · rescaled 1000 → 250
         player.items.faenet = (player.items.faenet || 0) + 1; try{playItemGain('faenet')}catch(_){}
         playSFX('confirm');
         showDialog({ speaker: 'KAIZARI', lines: [
@@ -4795,7 +4816,7 @@ const NPCS = [
       }
       if (!player.raidCardGifted){
         player.raidCardGifted = true; try{pingNextObjective()}catch(_){}
-        try { awardRizerXP(500); } catch(_){}   // v0.95.317 · Prof Elarian RAID card
+        try { awardRizerXP(200); } catch(_){}   // v0.95.538 · Elarian R.A.I.D. card · rescaled 500 → 200
         player.items.raidcard = (player.items.raidcard || 0) + 1; try{playItemGain('raidcard')}catch(_){}
         showToast('★ Received: RAID Card · Rizer Academy ID', 2600);
         try { playSFX('confirm'); } catch(_){}
@@ -4884,7 +4905,7 @@ const NPCS = [
         player.towerQuestStarted = true;
         // v0.95.477 · Resurrect the tower pack so late-arrivals can still fight
         try { resurrectScrapjawTowerPack(); } catch(_){}
-        try { awardRizerXP(500); } catch(_){}
+        try { awardRizerXP(250); } catch(_){}    // v0.95.538 · Scrapjaw first-talk · rescaled 500 → 250
         player.ownedCosmetics = player.ownedCosmetics || {};
         player.ownedCosmetics.normal = true;
         showToast('★ RIZER tab unlocked · NEW QUEST · fetch SCRAP METAL from the tower chest', 3600);
@@ -5044,7 +5065,7 @@ const NPCS = [
       player.items = player.items || {};
       if (!player.townMapGifted){
         player.townMapGifted = true; try{pingNextObjective()}catch(_){}
-        try { awardRizerXP(1500); } catch(_){}   // v0.95.317 · Zoryn's Town Map unlocks map tab
+        try { awardRizerXP(400); } catch(_){}    // v0.95.538 · Zoryn town map · rescaled 1500 → 400
         // v0.95.419 · Zoryn grants the WORLD MAP directly (townmap item retired · one map only)
         player.items.worldmap = (player.items.worldmap || 0) + 1; try{playItemGain('worldmap')}catch(_){}
         // Zoryn's map = town map only (Malezor) · NOT the full world map
@@ -5594,7 +5615,7 @@ const NPCS = [
       if (!player.auraxionMet){
         // FIRST TALK · gives the quest · registers Auraxion as a contact
         player.auraxionMet = true; try{pingNextObjective()}catch(_){}
-        try { awardRizerXP(500); } catch(_){}
+        try { awardRizerXP(200); } catch(_){}    // v0.95.538 · Auraxion first-talk · rescaled 500 → 200
         showToast('★ NEW QUEST · Find an ASTRALCORE for Auraxion (Malezor wild arm)', 3800);
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'AURAXION', lines: [
@@ -5767,7 +5788,7 @@ const NPCS = [
           player.kelthorMet = true; try{pingNextObjective()}catch(_){}
           bumpBond(1);   // v0.95.484 · Kelthor total bond capped at 10 across all 8 steps
           // v0.95.488 · Quest XP rescaled to sit closer to combat XP · was 500
-          try { awardRizerXP(200); } catch(_){}
+          try { awardRizerXP(50); } catch(_){}    // v0.95.538 · Kelthor Step 1 · was 200 · new total = ~7,650
           showToast('◈ QUEST · Kelthor\'s 8-Step Ladder · begins', 2600);
           showDialog({ speaker: 'KELTHOR', lines: [
             "Ah.  The young Rizer at last.  I've watched a hundred cycles of your kind climb this hall.",
@@ -5787,7 +5808,7 @@ const NPCS = [
           }
           player.items.berry -= 5; player.items.seed -= 5;
           KS.s2 = true; bumpBond(1);
-          try { awardRizerXP(500); } catch(_){}   // v0.95.488 · was 1500
+          try { awardRizerXP(100); } catch(_){}   // v0.95.538 · Step 2 · was 500 · new total = ~7,650
           showToast('★ Step 2 · Feed the Ward · +500 RXP · +1 Bond', 3000);
           showDialog({ speaker: 'KELTHOR', lines: [
             "*takes the berries and seeds · the old wards stir hungrily in the sanctum*",
@@ -5805,7 +5826,7 @@ const NPCS = [
             return;
           }
           KS.s3 = true; bumpBond(1);
-          try { awardRizerXP(1000); } catch(_){}   // v0.95.488 · was 3500
+          try { awardRizerXP(200); } catch(_){}   // v0.95.538 · Step 3 · was 1000 · new total = ~7,650
           showToast('★ Step 3 · First Bond · +1000 RXP · +1 Bond · Bond Regen unlocked', 3200);
           showDialog({ speaker: 'KELTHOR', lines: [
             "*bows his head to your Zyrex · they mirror it in return*",
@@ -5827,7 +5848,7 @@ const NPCS = [
             return;
           }
           KS.s4 = true; bumpBond(1);
-          try { awardRizerXP(2000); } catch(_){}   // v0.95.488 · was 8000
+          try { awardRizerXP(400); } catch(_){}   // v0.95.538 · Step 4 · was 2000
           showToast('★ Step 4 · Home Rank · +2000 RXP · +1 Bond', 3000);
           showDialog({ speaker: 'KELTHOR', lines: [
             "Backpack.  Board.  Phone.  A Rizer prepared is a Rizer respected.",
@@ -5844,7 +5865,7 @@ const NPCS = [
             return;
           }
           KS.s5 = true; bumpBond(1);
-          try { awardRizerXP(3500); } catch(_){}   // v0.95.488 · was 18000
+          try { awardRizerXP(700); } catch(_){}   // v0.95.538 · Step 5 · was 3500
           showToast('★ Step 5 · Signal Restored · +3500 RXP · +1 Bond', 3200);
           showDialog({ speaker: 'KELTHOR', lines: [
             "The tower hums again · every Warden across the district can hear it.",
@@ -5861,7 +5882,7 @@ const NPCS = [
             return;
           }
           KS.s6 = true; bumpBond(1);
-          try { awardRizerXP(6000); } catch(_){}   // v0.95.488 · was 40000
+          try { awardRizerXP(1200); } catch(_){}   // v0.95.538 · Step 6 · was 6000
           showToast('★ Step 6 · Vilerok Purge · +6k RXP · +1 Bond · Astralstrike A3 +40%', 3600);
           showDialog({ speaker: 'KELTHOR', lines: [
             "All five Vileroks gone.  Malezor breathes easier tonight.",
@@ -5882,7 +5903,7 @@ const NPCS = [
             return;
           }
           KS.s7 = true; bumpBond(2);
-          try { awardRizerXP(10000); } catch(_){}   // v0.95.488 · was 90000
+          try { awardRizerXP(2000); } catch(_){}   // v0.95.538 · Step 7 · was 10000
           showToast('★ Step 7 · Cave Found · +10k RXP · +2 Bond · Prismsynch slot', 3600);
           showDialog({ speaker: 'KELTHOR', lines: [
             "You climbed to Rakoron's threshold.  Few Rizers your age even find the path.",
@@ -5910,7 +5931,7 @@ const NPCS = [
           player.items.prismshard = (player.items.prismshard||0) + 1;
           try { playItemGain('prismshard'); } catch(_){}   // v0.95.507
           bumpBond(2);   // v0.95.484 · ladder total = 10 · 1+1+1+1+1+1+2+2
-          try { awardRizerXP(15000); } catch(_){}   // v0.95.488 · was 150000
+          try { awardRizerXP(3000); } catch(_){}   // v0.95.538 · Step 8 · was 15000 (PRISMSHARD reward)
           showToast('★ Step 8 · PRISMSHARD RECEIVED · +2 Bond · Master Bonder title unlocked', 4200);
           showDialog({ speaker: 'KELTHOR', lines: [
             "*sets the three glowing Soulphish into the sanctum basin · astral flesh feeds astral kin*",
@@ -8456,6 +8477,7 @@ function collectFaeAt(tx, ty){
       f.collected = true;
       f._collectedAt = performance.now();   // v0.95.397 · 5-min off-camera respawn timer
       player.faeCollected += 1;
+      try { awardRizerXP(5); } catch(_){}     // v0.95.538 · every fae catch = +5 RXP
       try { playSFX('gotcha'); } catch(_){}   // v0.95.495 · Rizer "gotcha!" VO on every catch
       // v0.95.135 · Mirror fae count into items so it shows in bag
       if (!player.items) player.items = {};
@@ -13192,10 +13214,14 @@ function tryMove(dt){
         player.warpAnchors = player.warpAnchors || {};
         if (!player.warpAnchors[dist]) player.warpAnchors[dist] = { x: nx, y: ny };
         if (first){
-          showToast(`★ ENTERED ${dist.toUpperCase()} · warp anchor set`, 2600);
+          showToast(`★ ENTERED ${dist.toUpperCase()} · warp anchor set · +500 RXP`, 3200);
           try { playSFX('confirm'); } catch(_){}
           // v0.95.527 · Rizer VO on FIRST-TIME entry into any new district
           try { playSFX('newDistrict'); } catch(_){}
+          // v0.95.538 · First-time district discovery = +500 RXP · scales with tier
+          // of the district approximately (Malezor 500 · Korathen 5000)
+          const distXP = { malezor: 500, zarvane: 800, andrannor: 1200, veridan: 1800, netharion: 2400, vorashil: 3000, xilnar: 3600, baelgor: 4200, thardin: 4800, korathen: 5000 };
+          try { awardRizerXP(distXP[dist] || 500); } catch(_){}
         }
       }
     } catch(_){}
@@ -13211,9 +13237,10 @@ function tryMove(dt){
       const dx = nx - 22, dy = ny - 5;
       if ((dx*dx + dy*dy) <= 36){
         player.rakoronCaveFound = true;
+        try { awardRizerXP(300); } catch(_){}    // v0.95.538 · cave discovery = +300 RXP
         try { pingNextObjective(); } catch(_){}
         try { playSFX('confirm'); } catch(_){}
-        showToast('★ RAKORON\'S CAVE discovered · Elzoran + Zoryn stand watch here · return to Kelthor', 4200);
+        showToast('★ RAKORON\'S CAVE discovered · Elzoran + Zoryn stand watch here · +300 RXP', 4200);
       }
     }
   } catch(_){}
@@ -18023,6 +18050,8 @@ function addZyrexToRoster(z){
   const activeCount = player.party.filter(Boolean).length;
   if (activeCount < PARTY_MAX){
     player.party.push(z);
+    // v0.95.538 · Bonded Zyrex XP · +200 per new party addition · tier bonus
+    try { awardRizerXP(200 + tier * 50); } catch(_){}
     return { location: 'party' };
   }
   player.pcZyrex.push(z);

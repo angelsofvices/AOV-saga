@@ -1456,6 +1456,7 @@ const AUDIO = {
     gotcha:       new Audio('audio/sfx-gotcha.mp3'),         // v0.95.495 · Rizer VO on fae catch
     damageTick:   new Audio('audio/sfx-damage-tick.mp3'),    // v0.95.495 · Rizer VO every 2 damage hits (skips if any HP-threshold VO fired same tick)
     damageTick2:  new Audio('audio/sfx-damage-tick-2.mp3'),  // v0.95.556 · Rizer VO variation ("ngh!") · alternates with damageTick on every-2-hits beat
+    dodgeStreak:  new Audio('audio/sfx-dodge-streak.mp3'),   // v0.95.557 · Rizer VO on 3 consecutive successful in-combat dodges ("nope! too slow") · resets on any hit taken
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Sword contact SFX · fires only on enemy hit-land
     newDistrict:  new Audio('audio/sfx-new-district.mp3'),   // v0.95.527 · Rizer VO on FIRST entry into a new district ("hmm I never seen this before")
@@ -1624,7 +1625,7 @@ const RVOX_PRIORITY = {
   // 70 · consumption / power beats
   mythicElixir: 70, readyToBlast: 70, elixir: 65, potion: 60, aleReeks: 60,
   // 60 · streaks
-  tooEasy: 55, heatingUp: 55,
+  tooEasy: 55, heatingUp: 55, dodgeStreak: 55,
   // 50 · contextual
   newDistrict: 50, seeYaLater: 45,
   // 40 · catches + reward pickups
@@ -2098,6 +2099,8 @@ function _checkRizerLowHpWarn(){
   player._killStreak = 0;
   // v0.95.501 · Same reset breaks the floating COMBO hit-streak counter
   try { resetCombo(true); } catch(_){}
+  // v0.95.557 · Taking damage also breaks the "nope! too slow" dodge streak
+  player._dodgeStreak = 0;
   const max = player.hpMax || player.maxHp || 100;
   const hp  = player.hp || 0;
   const pct = hp / Math.max(1, max);
@@ -12508,6 +12511,23 @@ addEventListener('keydown', e => {
             player._dodgeStamps = [];          // reset for next combo
           } else {
             playSFX('dodge');                  // normal swish on every other dodge
+          }
+          // v0.95.557 · In-combat dodge streak · fires "nope! too slow" VO on
+          // the 3rd consecutive dodge with any enemy within 3 tiles.  Counter
+          // resets whenever Rizer takes a hit (see _checkRizerLowHpWarn) or
+          // when no enemy is in range at dodge-time (dropped out of combat).
+          const _enemyClose = (typeof NPCS !== 'undefined') && NPCS.some(nn =>
+            nn && nn.isEnemy && !nn._dying && nn.scene === game.scene &&
+            Math.abs((nn.tileX||0) - player.x) + Math.abs((nn.tileY||0) - player.y) <= 3
+          );
+          if (_enemyClose){
+            player._dodgeStreak = (player._dodgeStreak || 0) + 1;
+            if (player._dodgeStreak >= 3){
+              try { playSFX('dodgeStreak'); } catch(_){}
+              player._dodgeStreak = 0;         // reset so the line pops every 3, not every dodge after 3
+            }
+          } else {
+            player._dodgeStreak = 0;           // out of combat range · streak drops
           }
         }
       }

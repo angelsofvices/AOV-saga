@@ -2295,6 +2295,7 @@ const INVENTORY_META = {
   scrap_metal:      { label: 'Scrap Metal',             order: 45 },   // v0.95.490 · chest loot outside Radio Tower · trade to Scrapjaw for Phone Battery
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
   life_stone:       { label: 'Life Stone',              order: 47 },   // v0.95.495 · dropped when a life stone shatters · deliver 2 to Nurse Rein to make her a callable healer contact
+  fairy:            { label: 'Fairy',                   order: 48 },   // v0.95.604 · 20% chance drop when Rizer SHATTERS an astralite stone with his HANDS (punch/kick) · the fairy was "pollinating" the stone at the time
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
   sapphire_sword:   { label: 'Sapphire Sword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 200 hits (connect-only, no miss-break) · repair 100 gems
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
@@ -13674,7 +13675,20 @@ addEventListener('keydown', e => {
             }
           }
           if (boulderHit){
+            // v0.95.604 · Track whether THIS melee hit was the shatter blow so
+            // we can drop a Fairy (only on hand-broken astralite stones · the
+            // fairy was pollinating the stone at the time).
+            const _preShatter = !!boulderHit.breaking;
             hitBoulder(boulderHit, playerOutgoingDamage(mode === 'kick' ? 2 : 1));
+            const _justShattered = !_preShatter && !!boulderHit.breaking;
+            if (_justShattered && boulderHit.type === 'astralite' && Math.random() < 0.20){
+              player.items = player.items || {};
+              player.items.fairy = (player.items.fairy || 0) + 1;
+              try { playSFX('confirm'); } catch(_){}
+              try { playItemGain('fairy'); } catch(_){}
+              const cnt = player.items.fairy;
+              showToast(`★ Fairy freed from the stone · she was pollinating it! (+1 Fairy · ${cnt} total)`, 3600);
+            }
           }
           if (plantHit){
             chargePlant(plantHit, mode === 'kick');
@@ -24141,7 +24155,12 @@ function tickNPC(n, dt){
         ? (dxp > 0 ? 'right' : 'left')
         : (dyp > 0 ? 'down'  : 'up');
       n.moving = false;
-      n.moveCd = isDaemon ? 350 : 620;
+      // v0.95.604 · Vilerok slow-down · same 15 dmg per strike but WAY longer
+      // recovery between hits (1400ms · 2.25× drainer default) so early-game
+      // players aren't compounded by fast + hard from a T5 miniboss.
+      n.moveCd = n._vilerok ? 1400
+               : isDaemon   ? 350
+               :              620;
       return;
     }
     // Out of detection range → fall back to wander step

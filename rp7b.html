@@ -2939,7 +2939,14 @@ const WORLD_PROPS = [
       return f;
     })(),
     door: [0, 0],
-    onInteract: () => { showToast('◈ MALEZOR SCHOOL · Closed for now.', 2200); playSFX('doorLock'); },
+    onInteract: () => {
+      if (!player.raidCardGifted){
+        showToast('◈ MALEZOR SCHOOL · locked · Prof Elarian needs to give you your RAID card first', 3400);
+        try { playSFX('doorLock'); } catch(_){}
+        return;
+      }
+      try { enterInterior('interior_malezor_school', INTERIOR_MALEZOR_SCHOOL, '◈ MALEZOR ACADEMY · challenge students to train your Zyrex · walk to the front door to leave'); } catch(err){ console.warn('school enter failed', err); }
+    },
   },
   {
     // Malezor Potion Shop · south-2 band · LEFT of center under school.
@@ -5386,6 +5393,158 @@ const NPCS = [
       ]});
     },
   },
+  // ── v0.95.590 · MALEZOR ACADEMY interior NPCs · 10 students + 1 sub-professor ──
+  //   Gated behind player.raidCardGifted at the school door.
+  //   Each student = mini-trainer battle via startTrainerBattle(species, level).
+  //   Sub-Professor Vireta (under Prof Elarian) sits at the front lectern
+  //   and offers a graduation match once all 10 students are beaten.
+  //
+  //   Sprite reuse pattern · we rotate through yara.png / zoryn.png / mom.png
+  //   / dad.png so the room reads as diverse without needing 11 new sheets.
+  //   Bboxes match the source sprite's canonical 4×4 D/L/R/U layout.
+  ...(function(){
+    // Reuse existing NPC sheet sources · bboxes match canonical 4x4 D/L/R/U
+    const STUDENT_SHEETS = [
+      { src:'assets/2D%20sprites/npcs/yara.png',
+        bboxes:[
+          [[ 96, 42,164,269],[ 68, 42,164,270],[ 46, 42,164,269],[ 26, 42,164,269]],
+          [[110, 45,178,270],[ 82, 45,178,270],[ 60, 45,178,270],[ 40, 45,178,270]],
+          [[ 96, 45,178,270],[ 68, 45,178,270],[ 46, 45,178,270],[ 26, 45,178,270]],
+          [[ 96, 45,178,270],[ 68, 45,178,270],[ 46, 45,178,270],[ 26, 45,178,270]],
+        ] },
+      { src:'assets/2D%20sprites/npcs/zoryn.png',
+        bboxes:[
+          [[ 96, 40,164,275],[ 68, 40,164,275],[ 46, 40,164,275],[ 26, 40,164,275]],
+          [[ 96, 40,164,275],[ 68, 40,164,275],[ 46, 40,164,275],[ 26, 40,164,275]],
+          [[ 96, 40,164,275],[ 68, 40,164,275],[ 46, 40,164,275],[ 26, 40,164,275]],
+          [[ 96, 40,164,275],[ 68, 40,164,275],[ 46, 40,164,275],[ 26, 40,164,275]],
+        ] },
+      { src:'assets/2D%20sprites/npcs/mom.png',
+        bboxes:[
+          [[ 96, 30,164,283],[ 68, 30,164,283],[ 46, 30,164,283],[ 26, 30,164,283]],
+          [[ 96, 30,164,283],[ 68, 30,164,283],[ 46, 30,164,283],[ 26, 30,164,283]],
+          [[ 96, 30,164,283],[ 68, 30,164,283],[ 46, 30,164,283],[ 26, 30,164,283]],
+          [[ 96, 30,164,283],[ 68, 30,164,283],[ 46, 30,164,283],[ 26, 30,164,283]],
+        ] },
+    ];
+    // ── 10 STUDENTS · 2 rows of 5 · lower classroom half ──
+    // Layout tiles: back row y=6, front row y=9 · cols 2,4,6,8,10,12
+    const STUDENTS = [
+      { name:'Lira',    tx: 2, ty: 6, sheet:0, species:'aetherwing',  level: 4 },
+      { name:'Bode',    tx: 4, ty: 6, sheet:1, species:'aurarat',     level: 4 },
+      { name:'Marek',   tx: 6, ty: 6, sheet:2, species:'sandskitter', level: 5 },
+      { name:'Ren',     tx: 8, ty: 6, sheet:0, species:'cinderant',   level: 5 },
+      { name:'Sira',    tx:10, ty: 6, sheet:1, species:'dunestinger', level: 6 },
+      { name:'Tovin',   tx: 2, ty: 9, sheet:2, species:'frosane',     level: 6 },
+      { name:'Enna',    tx: 4, ty: 9, sheet:0, species:'aetherwing',  level: 7 },
+      { name:'Karo',    tx: 6, ty: 9, sheet:1, species:'aurarat',     level: 7 },
+      { name:'Nyla',    tx: 8, ty: 9, sheet:2, species:'cinderant',   level: 8 },
+      { name:'Pell',    tx:10, ty: 9, sheet:0, species:'dunestinger', level: 8 },
+    ];
+    const npcs = STUDENTS.map((s, i) => {
+      const sheetDef = STUDENT_SHEETS[s.sheet];
+      return {
+        id: `school_student_${i}`,
+        name: s.name,
+        sheet: new Image(),
+        src:   sheetDef.src,
+        bboxes: sheetDef.bboxes,
+        cellW: 313, cellH: 313, cols: 4, rows: 4,
+        tileX: s.tx, tileY: s.ty,
+        homeX: s.tx, homeY: s.ty,
+        homeScene: 'interior_malezor_school',
+        scene:     'interior_malezor_school',
+        dir: (s.ty === 6) ? 'down' : 'up',   // back row faces DOWN, front row faces UP · natural classroom framing
+        mode: 'stationary',
+        moving: false,
+        animFrame: 0, idleFrame: 0,
+        blinkTimer: 2000 + Math.random() * 2000,
+        turnToInteract: true,
+        _isSchoolStudent: true,
+        _studentSpecies: s.species,
+        _studentLevel:   s.level,
+        onInteract: (n) => {
+          player.stats = player.stats || {};
+          player.stats.schoolBeaten = player.stats.schoolBeaten || {};
+          const already = !!player.stats.schoolBeaten[n.id];
+          if (already){
+            showDialog({ speaker: n.name.toUpperCase(), lines: [
+              '*bows lightly*  Good sparring earlier, Rizer.',
+              'Come back anytime · I need the reps too.',
+            ]});
+            return;
+          }
+          showDialog({ speaker: n.name.toUpperCase(), lines: [
+            `*grins*  Fellow Rizer!  My ${SPECIES[s.species]?.name || s.species} vs yours · one round.`,
+            `Lv ${s.level} · winner buys lunch.`,
+          ], onDone: () => {
+            try {
+              startTrainerBattle(s.species, s.level);
+              // Mark the win on battle-end via a check hooked into the existing battleState resolver ·
+              // for now optimistically flag them so the player doesn't grind the same match
+              player.stats.schoolBeaten[n.id] = true;
+              try { awardRizerXP(60); } catch(_){}
+            } catch(err){ console.warn('school battle failed', err); }
+          }});
+        },
+      };
+    });
+    // ── SUB-PROFESSOR VIRETA · front lectern · under Prof Elarian ──
+    const SUB_PROF_SHEET = STUDENT_SHEETS[2];    // mom.png reuse · reads as senior instructor
+    npcs.push({
+      id: 'sub_prof_vireta',
+      name: 'Prof. Vireta',
+      sheet: new Image(),
+      src:   SUB_PROF_SHEET.src,
+      bboxes: SUB_PROF_SHEET.bboxes,
+      cellW: 313, cellH: 313, cols: 4, rows: 4,
+      tileX: 7, tileY: 2,       // front of the classroom, facing students
+      homeX: 7, homeY: 2,
+      homeScene: 'interior_malezor_school',
+      scene:     'interior_malezor_school',
+      dir: 'down',
+      mode: 'stationary',
+      moving: false,
+      animFrame: 0, idleFrame: 0,
+      blinkTimer: 2000 + Math.random() * 2000,
+      turnToInteract: true,
+      _isSubProfessor: true,
+      _subProfSpecies: 'aurelik',   // T2 evolved
+      _subProfLevel:   12,
+      onInteract: (n) => {
+        player.stats = player.stats || {};
+        player.stats.schoolBeaten = player.stats.schoolBeaten || {};
+        const cleared = Object.keys(player.stats.schoolBeaten).filter(k => k.startsWith('school_student_')).length;
+        if (cleared < 10){
+          showDialog({ speaker: 'PROF. VIRETA', lines: [
+            '*peers up from her ledger*  Welcome to Malezor Academy.  I teach the bond-cycle module under Prof. Elarian.',
+            `You have cleared ${cleared}/10 practice matches.  Beat every student first — then I will spar with you.`,
+            '*gestures to the students*  Each one runs a different T1 line.  Battle them all to feel the type spread.',
+          ]});
+          return;
+        }
+        if (player.stats.schoolBeaten.sub_prof_vireta){
+          showDialog({ speaker: 'PROF. VIRETA', lines: [
+            '*taps her ledger*  Graduation earned, Rizer.  Return anytime to sharpen the reflex.',
+            '*small smile*  Prof. Elarian is proud of your run.  Now go find real Wardens to bond with.',
+          ]});
+          return;
+        }
+        showDialog({ speaker: 'PROF. VIRETA', lines: [
+          '*sets down her chalk · rolls her shoulders*  All ten cleared.  Well done, Rizer.',
+          `*produces a T2 partner*  My ${SPECIES[n._subProfSpecies]?.name || n._subProfSpecies} · Lv ${n._subProfLevel}.  Graduation match.`,
+        ], onDone: () => {
+          try {
+            startTrainerBattle(n._subProfSpecies, n._subProfLevel);
+            player.stats.schoolBeaten.sub_prof_vireta = true;
+            try { awardRizerXP(400); } catch(_){}
+            try { showToast('★ Academy graduated · Prof. Vireta cleared', 3800); } catch(_){}
+          } catch(err){ console.warn('vireta battle failed', err); }
+        }});
+      },
+    });
+    return npcs;
+  })(),
   // ── APEXAUR · wild armored saurian · wanders Zarvane wilds beside Town Hall · v0.95.305 ──
   // TRUE sheet: 1254x1254 standard 4x4 · cell 313x313 · Rows D/L/R/U · CC-measured bboxes
   // Zarvane Town Hall is at (113, 248) · placing Apexaur ~7E/7S in the wild patch nearby
@@ -8919,6 +9078,22 @@ INTERIOR_TRAINING_FARM.tileImg.src = 'assets/2D%20sprites/tiles/training-farm-fl
 // v0.95.386 · Treehouse interior · 30x30 · childhood-secret-base social hub
 // · all owned Zyrex NOT in the active party wander here (PC storage substrate)
 // · spawn at bottom-center · autoExit drops Rizer at overworld (20, -19) facing DOWN
+// v0.95.590 · MALEZOR ACADEMY interior · classroom layout · 15×14
+// Sub-Professor at the front lectern, 10 students in 2 rows of 5.  Each
+// student is a mini-trainer battle; sub-prof gates the harder challenge
+// after all 10 are cleared.  Opens once Prof Elarian gifts the RAID Card.
+const INTERIOR_MALEZOR_SCHOOL = {
+  cols: 15, rows: 14,
+  tileImg: (typeof INTERIOR_HOME !== 'undefined') ? INTERIOR_HOME.tileImg : new Image(),
+  spawn: { x: 7, y: 13, dir: 'up' },
+  exit:  { x: 7, y: 13 },
+  autoExit: true,
+  wallImg: 'malezor',
+  blocked: [],
+  label: '◈ MALEZOR ACADEMY',
+  overworldDrop: { x: 25, y: 127, dir: 'down' },   // step out below school door
+};
+
 const INTERIOR_TREEHOUSE = {
   cols: 30, rows: 30,
   tileImg: INTERIOR_HOME.tileImg,          // reuse wood floor
@@ -12521,6 +12696,7 @@ function interiorConfig(scene){
   if (scene === 'interior_research_lab')return INTERIOR_RESEARCH_LAB;
   if (scene === 'interior_training_farm')return INTERIOR_TRAINING_FARM;
   if (scene === 'interior_treehouse')return INTERIOR_TREEHOUSE;
+  if (scene === 'interior_malezor_school') return INTERIOR_MALEZOR_SCHOOL;   // v0.95.590
   // v0.95.311 · Dev · Unlock-All-Doors dynamic scenes · look up by prefix
   if (typeof scene === 'string' && scene.startsWith('interior_dev_')){
     return DEV_INTERIOR_CACHE.get(scene) || null;

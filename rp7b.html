@@ -12957,7 +12957,20 @@ addEventListener('keydown', e => {
             if (p.tileX === hx && p.tileY === hy){ chestHit = p; break; }
           }
         }
-        if (hit || isBagTile || boulderHit || plantHit || chestHit){
+        // v0.95.580 · Treehouse silver + gold chests · punch/kick opens them
+        // the same way as wooden overworld chests.  One-shot open (no reclose)
+        // since these are unique reward chests, not PvP loot traps.
+        let treehouseChestHit = null;
+        if (game.scene === 'interior_treehouse'){
+          if (hx === TREEHOUSE_CHEST.tileX && hy === TREEHOUSE_CHEST.tileY
+              && !player.treehouseSwordChestOpened){
+            treehouseChestHit = 'silver';
+          } else if (hx === TREEHOUSE_GOLD_CHEST.tileX && hy === TREEHOUSE_GOLD_CHEST.tileY
+              && !player.treehouseGoldChestOpened){
+            treehouseChestHit = 'gold';
+          }
+        }
+        if (hit || isBagTile || boulderHit || plantHit || chestHit || treehouseChestHit){
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           recordHitLanded(mode);                        // v0.95.134 · achievement tracker
           // v0.95.555 · Rizer punch-combo VO ("take this") every 5th landed
@@ -13088,6 +13101,12 @@ addEventListener('keydown', e => {
               playSFX('coins');   // placeholder click · replace with dedicated chest-close SFX later
               showToast('◈ Chest closed · empty (trap set)', 1600);
             }
+          }
+          // v0.95.580 · Treehouse silver + gold chests · punch/kick opens same as wooden chests
+          if (treehouseChestHit === 'silver'){
+            try { tryOpenTreehouseChest(); } catch(_){}
+          } else if (treehouseChestHit === 'gold'){
+            try { tryOpenTreehouseGoldChest(); } catch(_){}
           }
         } else {
           playSFX('meleeMiss');

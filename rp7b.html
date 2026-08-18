@@ -2296,6 +2296,7 @@ const INVENTORY_META = {
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
   life_stone:       { label: 'Life Stone',              order: 47 },   // v0.95.495 · dropped when a life stone shatters · deliver 2 to Nurse Rein to make her a callable healer contact
   fairy:            { label: 'Fairy',                   order: 48 },   // v0.95.604 · 20% chance drop when Rizer SHATTERS an astralite stone with his HANDS (punch/kick) · the fairy was "pollinating" the stone at the time
+  tower_battery:    { label: 'Tower Battery',           order: 49 },   // v0.95.611 · Scrapjaw tower network · 1 dropped per district-tower Scrap Chest · deliver to Scrapjaw to light up that district's contact-call signal
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
   sapphire_sword:   { label: 'Sapphire Sword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 200 hits (connect-only, no miss-break) · repair 100 gems
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
@@ -4022,6 +4023,114 @@ const WORLD_PROPS = [
     };
     return prop;
   })(),
+  // ── v0.95.611 · SCRAPJAW TOWER NETWORK · 9 more broken towers · one per
+  //    NE quadrant of every district beyond Malezor.  Interact = shows the
+  //    tower state (broken/battery-collected/fixed).  Battery lives in a
+  //    Scrap Chest 2 tiles south of each tower door (added below).
+  ...(function(){
+    const brokenImg = new Image(); brokenImg.src = 'assets/2D%20sprites/decor/radio-tower-broken.png';
+    const fixedImg  = new Image(); fixedImg.src  = 'assets/2D%20sprites/decor/radio-tower-fixed.png';
+    // District NE positions · slight offsets from each district center toward
+    // NE (positive X, negative Y) so towers sit in the upper-right quadrant
+    // of the district body.  Chest anchor is (door.x, door.y + 2).
+    const TOWER_SPOTS = [
+      { dist:'zarvane',   x:170, y:220 },  // Zarvane cx=112 cy=278 → NE
+      { dist:'andrannor', x:395, y:280 },  // Andrannor cx=315 cy=325 → NE
+      { dist:'veridan',   x:600, y:210 },  // Veridan cx=520 cy=255 → NE
+      { dist:'netharion', x:530, y:390 },  // Netharion cx=455 cy=435 → NE
+      { dist:'vorashil',  x:370, y:505 },  // Vorashil cx=300 cy=550 → NE
+      { dist:'xilnar',    x:490, y:610 },  // Xilnar cx=420 cy=655 → NE
+      { dist:'baelgor',   x:650, y:610 },  // Baelgor cx=575 cy=655 → NE
+      { dist:'thardin',   x:810, y:610 },  // Thardin cx=730 cy=655 → NE
+      { dist:'korathen',  x:975, y:610 },  // Korathen cx=895 cy=655 → NE
+    ];
+    return TOWER_SPOTS.map(spot => ({
+      id: `${spot.dist}_radio_tower`,
+      img: brokenImg,
+      src: 'assets/2D%20sprites/decor/radio-tower-broken.png',
+      bbox: [1, 1, 702, 1479],
+      tileX: spot.x, tileY: spot.y,
+      tileW: 5, tileH: 11,
+      footprint: (function(){
+        const f = [];
+        for (let dy = -3; dy <= 0; dy++){
+          for (let dx = -1; dx <= 1; dx++){ f.push([dx, dy]); }
+        }
+        return f;
+      })(),
+      door: [0, 0],
+      _towerBrokenImg: brokenImg,
+      _towerFixedImg: fixedImg,
+      _towerBrokenBbox: [1, 1, 702, 1479],
+      _towerFixedBbox: [0, 0, 652, 1450],
+      _towerDistrict: spot.dist,
+      onInteract: function(){
+        player.scrapjawTowersRestored = player.scrapjawTowersRestored || {};
+        const dist = this._towerDistrict;
+        const fixed = !!player.scrapjawTowersRestored[dist];
+        const districtLabel = dist.toUpperCase();
+        if (fixed){
+          showToast(`◈ ${districtLabel} Radio Tower · restored · signal broadcasting`, 2600);
+        } else {
+          showToast(`◈ ${districtLabel} Radio Tower · smashed antennas · retrieve the battery from the Scrap Chest and bring it to Scrapjaw`, 3600);
+        }
+      },
+    }));
+  })(),
+  // ── v0.95.611 · TOWER BATTERY CHESTS · one Scrap Chest at each new tower base ──
+  //    Silver chest sprite (matches Malezor's scrap chest).  Drops 1 tower_battery
+  //    on first open.  Only visible tag: chest.id === 'tower_battery_chest_<district>'.
+  ...(function(){
+    const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/silver-chest.png';
+    const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
+    const CLOSED_BBOX = [145, 164, 948, 893];
+    const OPEN_BBOX   = [290, 240, 673, 741];
+    const CHESTS = [
+      { dist:'zarvane',   x:170, y:222 },
+      { dist:'andrannor', x:395, y:282 },
+      { dist:'veridan',   x:600, y:212 },
+      { dist:'netharion', x:530, y:392 },
+      { dist:'vorashil',  x:370, y:507 },
+      { dist:'xilnar',    x:490, y:612 },
+      { dist:'baelgor',   x:650, y:612 },
+      { dist:'thardin',   x:810, y:612 },
+      { dist:'korathen',  x:975, y:612 },
+    ];
+    return CHESTS.map(spot => {
+      const chest = {
+        id: `chest_tower_battery_${spot.dist}`,
+        img: _closedImg,
+        src: 'assets/2D%20sprites/decor/silver-chest.png',
+        bbox: CLOSED_BBOX,
+        tileX: spot.x, tileY: spot.y,
+        tileW: 1, tileH: 1,
+        footprint: [[0, 0]],
+        door: [0, 0],
+        opened: false,
+        looted: false,
+        _closedImg, _openImg,
+        _closedBbox: CLOSED_BBOX,
+        _openBbox: OPEN_BBOX,
+        _towerBatteryDist: spot.dist,
+      };
+      chest.onInteract = function(){
+        if (chest.opened) return;
+        chest.opened = true;
+        chest.img = _openImg;
+        chest.bbox = OPEN_BBOX;
+        if (!chest.looted){
+          chest.looted = true;
+          player.items = player.items || {};
+          player.items.tower_battery = (player.items.tower_battery || 0) + 1;
+          try { playItemGain('tower_battery'); } catch(_){}
+          try { playSFX('confirm'); } catch(_){}
+          try { awardRizerXP(60); } catch(_){}
+          showToast(`★ Tower Battery retrieved (${spot.dist.toUpperCase()}) · bring it to Scrapjaw`, 3800);
+        }
+      };
+      return chest;
+    });
+  })(),
   // ── v0.95.490 · TOWER SCRAP CHEST · directly in front of Radio Tower door ──
   // Contains SCRAP METAL · Rizer brings it to Scrapjaw in exchange for the
   // PHONE BATTERY (unlocks contact calls).  Anti-softlock: player no longer
@@ -5243,7 +5352,56 @@ const NPCS = [
     idleFrame: 0,
     blinkTimer: 2000 + Math.random() * 2000,
     onInteract: (n) => {
-      playSFX('scrapjaw');                              // v0.95.159 · raspy hyena VO
+      playSFX('scrapjaw');
+      player.items = player.items || {};
+      const bumpBond = (n) => { player.bonds = player.bonds || {}; player.bonds.scrapjaw = Math.min(100, (player.bonds.scrapjaw||0) + n); };
+      // v0.95.611 · SCRAPJAW TOWER NETWORK · if the player is carrying any
+      // tower batteries, process the delivery FIRST · mark the next
+      // unrestored district's signal live · 6/10 towers = companion join.
+      if ((player.items.tower_battery || 0) > 0){
+        const DIST_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
+        player.scrapjawTowersRestored = player.scrapjawTowersRestored || {};
+        if (player.radioTowerFixed) player.scrapjawTowersRestored.malezor = true;
+        let toDeliver = player.items.tower_battery;
+        const delivered = [];
+        for (const d of DIST_ORDER){
+          if (toDeliver <= 0) break;
+          if (player.scrapjawTowersRestored[d]) continue;
+          player.scrapjawTowersRestored[d] = true;
+          delivered.push(d);
+          toDeliver--;
+        }
+        if (delivered.length > 0){
+          player.items.tower_battery -= delivered.length;
+          const restoredCount = Object.values(player.scrapjawTowersRestored).filter(Boolean).length;
+          bumpBond(6 * delivered.length);
+          try { awardRizerXP(400 * delivered.length); } catch(_){}
+          try { playSFX('confirm'); } catch(_){}
+          // 6/10 → officially companionize Scrapjaw
+          if (restoredCount >= 6 && !player.scrapjawCompanion){
+            player.scrapjawCompanion = true;
+            showToast(`★ SCRAPJAW COMPANION UNLOCKED · ${restoredCount}/10 signal restored`, 5200);
+            showDialog({ speaker: 'SCRAPJAW', lines: [
+              `*hands trembling · grin ear to ear*  Six towers · SIX · you actually did it, rookie.`,
+              '*claps hard on your shoulder*  Grid\'s alive across half of Zyraxis now.  I\'m rollin\' with you from here on out · gear-work wherever you stand.',
+              '*chuffs*  Four towers left · finish the map and we light the whole world.',
+            ]});
+            return;
+          }
+          if (restoredCount >= 10){
+            showToast('★ FULL SIGNAL · every Zyraxis tower is live · Scrapjaw at max tier', 6000);
+          } else {
+            showToast(`★ ${delivered.map(d => d.toUpperCase()).join(' + ')} signal restored · ${restoredCount}/10 towers online`, 4200);
+          }
+          showDialog({ speaker: 'SCRAPJAW', lines: [
+            `*wires the battery in · tower hums*  ${delivered.map(d => d.toUpperCase()).join(' + ')} signal · LIVE.`,
+            restoredCount >= 6
+              ? `Contact calls work anywhere in ${delivered[delivered.length-1].toUpperCase()} now, hotshot.  Keep the batteries coming.`
+              : `Contact calls work anywhere in ${delivered[delivered.length-1].toUpperCase()} now.  Signal grid at ${restoredCount}/10 · get me to 6 and I\'ll follow you into the field.`,
+          ]});
+          return;
+        }
+      }
       // v0.95.400 · Scrapjaw is the RIZER tab unlock · no more gearbag item · his
       // first talk flips player.scrapjawMet which the touchpad checks to reveal
       // the RIZER (analysis + upgrades) tab · replaces the deprecated gearbag flow
@@ -5252,8 +5410,6 @@ const NPCS = [
       //   BONUS    = wipe the 6 Mori + Vilerok so his repair crew can work
       //   Player can complete the exchange with scrap only · extermination is
       //   an optional bond track that pays extra when done.
-      player.items = player.items || {};
-      const bumpBond = (n) => { player.bonds = player.bonds || {}; player.bonds.scrapjaw = Math.min(100, (player.bonds.scrapjaw||0) + n); };
       if (!player.scrapjawMet){
         // v0.95.428 · FIRST TALK · unlocks RIZER tab + starts Radio Tower quest
         player.scrapjawMet = true; try{pingNextObjective()}catch(_){}
@@ -9276,7 +9432,9 @@ function makeMalezorHomeInterior(sceneId){
     tileImg: new Image(),
     spawn: { x: 7, y: 9, dir: 'up' },
     exit:  { x: 7, y: 9 },
-    rug:   { x: 6, y: 9, w: 3, h: 1 },
+    // v0.95.610 · Doormat picked deterministically per home id · 1 of 8
+    // rugs from DOORMAT_KEYS · overrides the default RUG_IMG at render time.
+    rug:   { x: 6, y: 9, w: 3, h: 1, key: pickDoormatKey(sceneId) },
     wallImg: 'malezor',
   };
   cfg.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
@@ -9671,6 +9829,23 @@ function currentNebuladockImg(){
 const RIZER_RUG_IMG = new Image();
 RIZER_RUG_IMG.src = 'assets/2D%20sprites/decor/rizer-rug.png';
 const RIZER_RUG_BBOX = [1, 0, 1188, 801];
+
+// v0.95.610 · Doormat pack · 8 rugs · every purchased Rizer Room deterministically
+// picks one based on a hash of its homeId · original Rizer Room + INTERIOR_HOME
+// keep their existing RUG_IMG (unchanged per user directive).
+const DOORMAT_KEYS = ['welcome','hello','hi','greetings','enjoy','come-in','good-vibes','be-our-guest'];
+const DOORMAT_IMGS = {};
+DOORMAT_KEYS.forEach(k => {
+  const im = new Image();
+  im.src = `assets/2D%20sprites/decor/rugs/${k}.png`;
+  DOORMAT_IMGS[k] = im;
+});
+function pickDoormatKey(seed){
+  const s = String(seed || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++){ h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; }
+  return DOORMAT_KEYS[Math.abs(h) % DOORMAT_KEYS.length];
+}
 
 // v0.95.63 · Gaming Chair · sit-and-ride (empty chair sprite + 4x4 sit sheet)
 const GAMING_CHAIR_IMG = new Image();
@@ -15007,8 +15182,18 @@ function drawInteriorFloor(){
     }
   }
   // WELCOME rug decor · drawn on the floor, non-blocking.
+  // v0.95.610 · If cfg.rug.key is set, render the picked doormat from the
+  // 8-rug pack instead of the default RUG_IMG.  Rug uses its FULL image (no
+  // sub-bbox needed · rugs were pre-cropped when the pack was baked).
   const rug = cfg.rug;
-  if (rug && RUG_IMG.complete && RUG_IMG.naturalWidth){
+  if (rug && rug.key && DOORMAT_IMGS[rug.key]
+      && DOORMAT_IMGS[rug.key].complete && DOORMAT_IMGS[rug.key].naturalWidth){
+    const img = DOORMAT_IMGS[rug.key];
+    const dx = rug.x * TILE - _cam.x;
+    const dy = rug.y * TILE - _cam.y;
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight,
+                  dx, dy, rug.w * TILE, rug.h * TILE);
+  } else if (rug && RUG_IMG.complete && RUG_IMG.naturalWidth){
     const [sx, sy, sw, sh] = RUG_BBOX;
     const dx = rug.x * TILE - _cam.x;
     const dy = rug.y * TILE - _cam.y;
@@ -18507,6 +18692,21 @@ function renderZycellExpeditions(){
 // Rizer's overworld tile when dialed · original home saved to _phoneHomeX/Y /
 // _phoneHomeScene · re-tap the CALL row (now labeled "SEND HOME") returns them
 function toggleContactCall(npcId, name){
+  // v0.95.611 · Scrapjaw tower network signal gate · calls only work in
+  // districts where the local radio tower's battery has been delivered.
+  // Malezor auto-live once player.radioTowerFixed (existing scrap-metal flow).
+  try {
+    const d = (typeof worldDistrictAt === 'function') ? worldDistrictAt(player.x, player.y) : null;
+    if (d){
+      player.scrapjawTowersRestored = player.scrapjawTowersRestored || {};
+      if (d === 'malezor' && player.radioTowerFixed) player.scrapjawTowersRestored.malezor = true;
+      if (!player.scrapjawTowersRestored[d]){
+        showToast(`◈ NO SIGNAL in ${d.toUpperCase()} · restore the tower and bring the battery to Scrapjaw first`, 3400);
+        try { playSFX('doorLock'); } catch(_){}
+        return;
+      }
+    }
+  } catch(_){}
   const n = (typeof findNpcById === 'function') ? findNpcById(npcId) : null;
   if (!n){
     showToast(`◈ ${name} · not answering`, 2000);
@@ -20304,6 +20504,12 @@ function saveGame(){
         radioTowerFixed:            !!player.radioTowerFixed,
         academyZyspheresGifted:     !!player.academyZyspheresGifted,
         malezorBroadcastDone:       !!player.malezorBroadcastDone,
+        // v0.95.611 · Scrapjaw tower network state
+        scrapjawTowersRestored:     player.scrapjawTowersRestored || {},
+        scrapjawCompanion:          !!player.scrapjawCompanion,
+        scrapjawMet:                !!player.scrapjawMet,
+        towerQuestStarted:          !!player.towerQuestStarted,
+        radioTowerFixed_alias:      !!player.radioTowerFixed,   // already saved above · redundancy safe
         vilerokKills:               player.vilerokKills      || 0,
         rizerSkinActive:            player.rizerSkinActive   || 'normal',
         rizerSkins:                 player.rizerSkins        || {},

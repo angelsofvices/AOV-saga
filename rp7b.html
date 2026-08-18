@@ -18232,31 +18232,18 @@ function handleZycellKey(k){
   // ── CONTENT FOCUS · arrows walk the item list · X uses/interacts · triangle stars
   if (game._zycellFocus === 'content'){
     const items = _zycellContentItems();
+    // v0.95.575 · LEFT/RIGHT cycle panels even from content focus.  Player
+    // requested full controller nav — no menu should trap arrow input.
+    // L1/R1 mirror this so trigger-cycle works too.  Grid layouts (Faction
+    // 2-col) now walk with UP/DOWN which wraps · horizontal is always paging.
+    if (k === 'arrowleft' || k === 'l' || k === 'q'){
+      zycellCyclePage(-1); return true;
+    }
+    if (k === 'arrowright' || k === 'r' || k === 'i'){
+      zycellCyclePage(+1); return true;
+    }
     if (!items.length){ zycellExitContent(); return true; }
     if (game._zycellItemIdx >= items.length) game._zycellItemIdx = 0;
-    // v0.95.479 · All 4 arrows walk items · grid-aware · left/right step columns
-    // if items sit in a row (Faction 2x8 grid), else step 1 item as prev/next
-    const _sameRowIndex = (dir) => {
-      const cur = items[game._zycellItemIdx];
-      if (!cur) return -1;
-      const curTop = Math.round(cur.getBoundingClientRect().top);
-      let best = -1, bestDx = Infinity;
-      const curLeft = cur.getBoundingClientRect().left;
-      for (let i = 0; i < items.length; i++){
-        if (i === game._zycellItemIdx) continue;
-        const r = items[i].getBoundingClientRect();
-        if (Math.abs(Math.round(r.top) - curTop) > 4) continue;   // different row
-        const dx = r.left - curLeft;
-        if ((dir === 'right' && dx > 0 && dx < bestDx) ||
-            (dir === 'left'  && dx < 0 && -dx < bestDx)){
-          bestDx = Math.abs(dx); best = i;
-        }
-      }
-      return best;
-    };
-    // v0.95.533 · WRAP · up/down loops the list (top ↔ bottom).  Reverses the
-    // v0.95.480 clamp behavior per user request · left/right still walk columns
-    // for grid layouts (no horizontal wrap · that would confuse Faction 2-col).
     if (k === 'arrowup')  {
       const next = (game._zycellItemIdx - 1 + items.length) % items.length;
       game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor');
@@ -18266,16 +18253,6 @@ function handleZycellKey(k){
       const next = (game._zycellItemIdx + 1) % items.length;
       game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor');
       return true;
-    }
-    if (k === 'arrowleft'){
-      const sib = _sameRowIndex('left');
-      if (sib >= 0){ game._zycellItemIdx = sib; _zycellPaintFocus(); playSFX('cursor'); }
-      return true;   // no-op if already leftmost
-    }
-    if (k === 'arrowright'){
-      const sib = _sameRowIndex('right');
-      if (sib >= 0){ game._zycellItemIdx = sib; _zycellPaintFocus(); playSFX('cursor'); }
-      return true;   // no-op if already rightmost
     }
     if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
       const el = items[game._zycellItemIdx];
@@ -18300,11 +18277,14 @@ function handleZycellKey(k){
     return true;                       // swallow anything else while in content focus
   }
   // ── NAV FOCUS · arrows walk the rail · X enters the content pane ──
+  // v0.95.575 · Unified nav model · LEFT/RIGHT always cycle pages (wraps
+  // through home → zycube → rizer → faction → weapons → map → expeditions →
+  // contacts → leaderboard → settings).  UP/DOWN clamps within the rail
+  // (same-page nav).  L1/R1 mirror LEFT/RIGHT.  X/A enters the content pane.
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
   if (k === 'arrowleft' || k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
-  if (k === 'arrowright'){ zycellEnterContent(); return true; }   // NEW · Right enters content
-  if (k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
+  if (k === 'arrowright' || k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
   if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
     // v0.95.436 · X on nav = enter the middle content pane (was: stub toast)
     if (!zycellEnterContent()){

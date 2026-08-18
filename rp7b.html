@@ -7047,7 +7047,8 @@ function skellorTakeHit(n, dmg){
     n._hurtFlashUntil = 0;                   // frame stays locked via _skellorFrame
     n.name = 'Skellor (loot bag)';
     n.onInteract = () => lootSkellor(n);
-    showToast('★ Skellor freed · interact the bag for loot', 2600);
+    // v0.95.552 · silent · Skellor kill is combat feedback, not a phone message.
+    showToast('★ Skellor freed · interact the bag for loot', 2600, { phone: false });
   } else {
     const fall = Math.floor(n._skellorHits / 3) + 1;
     const inFall = ((n._skellorHits - 1) % 3) + 1;
@@ -13088,6 +13089,10 @@ function advanceDialog(){
     // dialog line (post-dialogue press).  Exclusive-play whitelist ensures
     // rapid interacts don't stack the VO.
     try { playSFX('seeYaLater'); } catch(_){}
+    // v0.95.552 · Flush any phone toasts that arrived while the dialog was open
+    // so the notification cards pop after the box closes (never overlaying).
+    // Small delay lets the "see ya later" VO breathe before CORSUN speaks.
+    try { setTimeout(_flushPendingPhoneToasts, 900); } catch(_){}
     // Reset any NPC dir per turnToInteract rule (v0.88.2)
     for (const n of NPCS){
       if (n._resetDirOnDialogClose){
@@ -14588,10 +14593,12 @@ const toastStackEl = (function(){
   el.id = 'toastStack';
   Object.assign(el.style, {
     position: 'fixed',
-    right: '12px', bottom: '12px',
-    width: '33vw', maxWidth: '460px', minWidth: '300px',
+    right: '14px', bottom: '14px',
+    // v0.95.552 · bumped up · 33vw/460px → 42vw/620px min 380px so the phone
+    // card reads at a glance without needing to lean in.
+    width: '42vw', maxWidth: '620px', minWidth: '380px',
     display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-    gap: '8px',
+    gap: '10px',
     pointerEvents: 'none',
     zIndex: '11',
     fontFamily: "'Courier New', monospace",
@@ -14689,9 +14696,39 @@ function _appendPlainToast(msg, dur){
     }, dur);
   } catch(_){}
 }
+// v0.95.552 · Phone toasts wait for NPC dialog to close · never overlay a
+// conversation.  Deferred cards flush in order when the dialog box exits.
+const _pendingPhoneToasts = [];
+function _flushPendingPhoneToasts(){
+  if (dialogState) return;                // still in a dialog · try again on next close
+  while (_pendingPhoneToasts.length){
+    const { msg, ms, opts } = _pendingPhoneToasts.shift();
+    // Re-enter via showToast so all downstream logic (card build + CORSUN cue) runs.
+    try { showToast(msg, ms, opts); } catch(_){}
+  }
+}
 function showToast(msg, ms, opts){
   const _phone = _isPhoneWorthy(msg, opts);
   const dur = ms || (_phone ? 8000 : 3000);  // v0.95.548 · plain toasts short (3s) · phone cards 8s
+  // v0.95.552 · queue phone-worthy toasts while an NPC is talking · never overlay
+  // the dialog box.  Plain text toasts still surface immediately (they don't
+  // steal focus).  Notifications feed still logs the message so nothing is lost.
+  if (_phone && dialogState){
+    _pendingPhoneToasts.push({ msg, ms, opts });
+    try {
+      // Log into the notifications feed now so the ZyPhone Home shows the message
+      // in-order even before the card pops.
+      game.notifications = game.notifications || [];
+      const d = new Date();
+      game.notifications.push({
+        msg: String(msg),
+        time: `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,
+        ts: Date.now(),
+      });
+      if (game.notifications.length > 40) game.notifications.splice(0, game.notifications.length - 40);
+    } catch(_){}
+    return;
+  }
   // Push into game.notifications queue for ZyPhone Home feed
   try {
     game.notifications = game.notifications || [];

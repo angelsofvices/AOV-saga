@@ -18232,16 +18232,12 @@ function handleZycellKey(k){
   // ── CONTENT FOCUS · arrows walk the item list · X uses/interacts · triangle stars
   if (game._zycellFocus === 'content'){
     const items = _zycellContentItems();
-    // v0.95.575 · LEFT/RIGHT cycle panels even from content focus.  Player
-    // requested full controller nav — no menu should trap arrow input.
-    // L1/R1 mirror this so trigger-cycle works too.  Grid layouts (Faction
-    // 2-col) now walk with UP/DOWN which wraps · horizontal is always paging.
-    if (k === 'arrowleft' || k === 'l' || k === 'q'){
-      zycellCyclePage(-1); return true;
-    }
-    if (k === 'arrowright' || k === 'r' || k === 'i'){
-      zycellCyclePage(+1); return true;
-    }
+    // v0.95.576 · LEFT exits back to nav rail (symmetric with RIGHT-to-enter).
+    // Player asked for arrows as the pure focus-swap · L1/R1 stay page-cycle
+    // shortcuts so trigger-hopping between panels still works from anywhere.
+    if (k === 'arrowleft'){ zycellExitContent(); return true; }
+    if (k === 'l' || k === 'q'){ zycellCyclePage(-1); return true; }
+    if (k === 'r' || k === 'i'){ zycellCyclePage(+1); return true; }
     if (!items.length){ zycellExitContent(); return true; }
     if (game._zycellItemIdx >= items.length) game._zycellItemIdx = 0;
     if (k === 'arrowup')  {
@@ -18254,7 +18250,9 @@ function handleZycellKey(k){
       game._zycellItemIdx = next; _zycellPaintFocus(); playSFX('cursor');
       return true;
     }
-    if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
+    if (k === 'arrowright' || k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
+      // v0.95.576 · RIGHT arrow interacts (mirrors X/A) since RIGHT can't
+      // enter a state we're already in.  Keeps arrow behavior meaningful.
       const el = items[game._zycellItemIdx];
       if (el) el.click();
       return true;
@@ -18277,16 +18275,17 @@ function handleZycellKey(k){
     return true;                       // swallow anything else while in content focus
   }
   // ── NAV FOCUS · arrows walk the rail · X enters the content pane ──
-  // v0.95.575 · Unified nav model · LEFT/RIGHT always cycle pages (wraps
-  // through home → zycube → rizer → faction → weapons → map → expeditions →
-  // contacts → leaderboard → settings).  UP/DOWN clamps within the rail
-  // (same-page nav).  L1/R1 mirror LEFT/RIGHT.  X/A enters the content pane.
+  // v0.95.576 · Arrow model per user directive · RIGHT arrow enters content,
+  // LEFT arrow exits back to nav (from content).  UP/DOWN walks the panel
+  // list within the rail.  L1/Q + R1/I are page-cycle shortcuts that skip
+  // through the whole panel list regardless of focus.
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
-  if (k === 'arrowleft' || k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
-  if (k === 'arrowright' || k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
-  if (k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
-    // v0.95.436 · X on nav = enter the middle content pane (was: stub toast)
+  if (k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
+  if (k === 'i' || k === 'r'){ zycellCyclePage(+1); return true; }
+  if (k === 'arrowleft'){ /* already at nav · no-op */ playSFX('cancel'); return true; }
+  if (k === 'arrowright' || k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
+    // v0.95.436 · X/RIGHT on nav = enter the middle content pane
     if (!zycellEnterContent()){
       showToast(`◈ ZyCellite · ${zycellPage.toUpperCase()} · no interactive items yet`, 2000);
     }

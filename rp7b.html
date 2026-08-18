@@ -13740,6 +13740,7 @@ function tryMove(dt){
   if (game.dockPanelOpen)           freezeReasons.push('dockPanel');
   if (game.posterViewOpen)          freezeReasons.push('posterView');
   if (game.weaponShopOpen)          freezeReasons.push('weaponShop');   // v0.95.583
+  if (game.ultrashardPickerOpen)    freezeReasons.push('ultrashardPicker'); // v0.95.589
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
   // v0.95.303 · Dev panel takes exclusive input · no player movement/action while it's open
@@ -19032,6 +19033,350 @@ setInterval(() => { if (game.zphoneOpen) paintZycellNav(); }, 1000);
 // SPECIES roster · Malezor T1-T2 pool sourced from data/rp7_roster_v7.js
 // (user delivery 2026-08-05).  spc from roster maps to both satk + sdef
 // for the split-stat battle formula.  Levels 1-25 canon per Malezor band.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.589 · MOVE_DEX + ULTRAMAX + PRISMSYNC MASTER TABLE (canon v1.3)
+// See memory [[aov-move-dex-master]] for the design doc.  Every move keyed
+// by canonical name.  A1 20 PP · A2 15 PP · A3 10 PP · A4 5 PP · Ultramax
+// 5 PP (permanent A4 overwrite) · Prismsync 1 PP (per-battle finale).
+// ═══════════════════════════════════════════════════════════════════════════
+const MOVE_DEX = {
+  // ─── A1 (Pw 20-45) ──────────────────────────────────────────────
+  'Fang Snap':        { slot:'A1', type:'Beast',        pw:40,  pp:20, acc:100, effect:'Contact bite' },
+  'Claw Rake':        { slot:'A1', type:'Beast',        pw:35,  pp:20, acc:100, effect:'2-hit rake'   },
+  'Palm Strike':      { slot:'A1', type:'Humanoid',     pw:40,  pp:20, acc:100, effect:'Baseline'     },
+  'Pin Swarm':        { slot:'A1', type:'Creature',     pw:45,  pp:20, acc: 95, effect:'3-hit'        },
+  'Root Trip':        { slot:'A1', type:'Nature',       pw:35,  pp:20, acc:100, effect:'20% root'     },
+  'Verdant Lash':     { slot:'A1', type:'Verdant',      pw:45,  pp:20, acc:100, effect:'Baseline'     },
+  'Ember Snap':       { slot:'A1', type:'Elemental',    pw:40,  pp:20, acc:100, effect:'15% burn'     },
+  'Ripple Slap':      { slot:'A1', type:'Elemental',    pw:40,  pp:20, acc:100, effect:'-'            },
+  'Static Jab':       { slot:'A1', type:'Elemental',    pw:40,  pp:20, acc:100, effect:'15% paralyze' },
+  'Frost Nip':        { slot:'A1', type:'Elemental',    pw:40,  pp:20, acc:100, effect:'10% freeze'   },
+  'Gale Cut':         { slot:'A1', type:'Elemental',    pw:40,  pp:20, acc:100, effect:'+priority'    },
+  'Shardpick':        { slot:'A1', type:'Crystal',      pw:40,  pp:20, acc:100, effect:'+DEF self'    },
+  'Wraith Touch':     { slot:'A1', type:'Spirit',       pw:35,  pp:20, acc:100, effect:'20% confuse'  },
+  'Halo Snap':        { slot:'A1', type:'Divine',       pw:40,  pp:20, acc:100, effect:'-'            },
+  'Glimmer Cut':      { slot:'A1', type:'Radiant',      pw:40,  pp:20, acc:100, effect:'10% blind'    },
+  'Draco Nip':        { slot:'A1', type:'Draconic',     pw:40,  pp:20, acc:100, effect:'-'            },
+  'Bane Bite':        { slot:'A1', type:'Corrupted',    pw:35,  pp:20, acc:100, effect:'25% poison'   },
+  'Mindshiver':       { slot:'A1', type:'Astra',        pw:40,  pp:20, acc:100, effect:'-'            },
+  'Rewind Jab':       { slot:'A1', type:'Chrono',       pw:40,  pp:20, acc:100, effect:'+priority'    },
+  'Aura Pulse':       { slot:'A1', type:'Aura',         pw:40,  pp:20, acc:100, effect:'Always hits'  },
+  'Servo Punch':      { slot:'A1', type:'Tech',         pw:40,  pp:20, acc:100, effect:'-'            },
+  'Xenopulse':        { slot:'A1', type:'Extraterrestrial', pw:40, pp:20, acc:100, effect:'-'         },
+  'Null Strike':      { slot:'A1', type:'Unknown',      pw:40,  pp:20, acc:100, effect:'-'            },
+  // ─── A2 (Pw 50-75) ──────────────────────────────────────────────
+  'Rizer Jab':        { slot:'A2', type:'Beast',        pw:60,  pp:15, acc:100, effect:'+priority T5+' },
+  'Beast Slam':       { slot:'A2', type:'Beast',        pw:70,  pp:15, acc: 90, effect:'30% flinch'    },
+  'Rize Kick':        { slot:'A2', type:'Humanoid',     pw:60,  pp:15, acc:100, effect:'+10% crit'     },
+  'Chain Punch':      { slot:'A2', type:'Humanoid',     pw:60,  pp:15, acc: 85, effect:'4-hit combo'   },
+  'Chitin Cut':       { slot:'A2', type:'Creature',     pw:60,  pp:15, acc:100, effect:'+10% crit'     },
+  'Terra Bash':       { slot:'A2', type:'Nature',       pw:60,  pp:15, acc:100, effect:'Ground'        },
+  'Thorncoil':        { slot:'A2', type:'Verdant',      pw:60,  pp:15, acc: 95, effect:'Bind 2-3t'     },
+  'Ember Cascade':    { slot:'A2', type:'Elemental',    pw:75,  pp:15, acc: 95, effect:'20% burn'      },
+  'Tidebreak':        { slot:'A2', type:'Elemental',    pw:70,  pp:15, acc:100, effect:'-'             },
+  'Zynovolt':         { slot:'A2', type:'Elemental',    pw:75,  pp:15, acc:100, effect:'20% paralyze'  },
+  'Cryoshear':        { slot:'A2', type:'Elemental',    pw:75,  pp:15, acc: 90, effect:'15% freeze'    },
+  'Wing Cyclone':     { slot:'A2', type:'Elemental',    pw:70,  pp:15, acc: 95, effect:'-'             },
+  'Shardhurl':        { slot:'A2', type:'Crystal',      pw:60,  pp:15, acc: 95, effect:'-'             },
+  'Spirit Orb':       { slot:'A2', type:'Spirit',       pw:60,  pp:15, acc:100, effect:'Ignores DEF'   },
+  'Judgment Strike':  { slot:'A2', type:'Divine',       pw:60,  pp:15, acc:100, effect:'-'             },
+  'Sunspear':         { slot:'A2', type:'Radiant',      pw:65,  pp:15, acc:100, effect:'+Sunny boost'  },
+  'Dragon Fang':      { slot:'A2', type:'Draconic',     pw:75,  pp:15, acc:100, effect:'+20% crit'     },
+  'Corrupt Bind':     { slot:'A2', type:'Corrupted',    pw:60,  pp:15, acc: 90, effect:'Poison+bind'   },
+  'Astra Bloom':      { slot:'A2', type:'Astra',        pw:65,  pp:15, acc:100, effect:'20% confuse'   },
+  'Timelock':         { slot:'A2', type:'Chrono',       pw:55,  pp:15, acc:100, effect:'25% skip turn' },
+  'Kinetic Slash':    { slot:'A2', type:'Aura',         pw:65,  pp:15, acc:100, effect:'-'             },
+  'Zap Circuit':      { slot:'A2', type:'Tech',         pw:60,  pp:15, acc:100, effect:'20% paralyze'  },
+  'Void Comet':       { slot:'A2', type:'Extraterrestrial', pw:65, pp:15, acc:100, effect:'-'          },
+  'Warped Cut':       { slot:'A2', type:'Unknown',      pw:60,  pp:15, acc:100, effect:'Random status' },
+  // ─── A3 (Pw 80-100) ─────────────────────────────────────────────
+  'Predator Charge':  { slot:'A3', type:'Beast',        pw: 90, pp:10, acc: 95, effect:'Recoil ¼'    },
+  'Alpha Rend':       { slot:'A3', type:'Beast',        pw: 95, pp:10, acc: 85, effect:'Bleed 3t'    },
+  'Sky Axe':          { slot:'A3', type:'Humanoid',     pw:100, pp:10, acc: 90, effect:'2-turn charge' },
+  'Hivestorm':        { slot:'A3', type:'Creature',     pw: 90, pp:10, acc: 90, effect:'Multi-target' },
+  'Terraquake':       { slot:'A3', type:'Nature',       pw: 95, pp:10, acc:100, effect:'AoE'         },
+  'Bloomburst':       { slot:'A3', type:'Verdant',      pw: 90, pp:10, acc:100, effect:'+20% sleep'  },
+  'Firewall':         { slot:'A3', type:'Elemental',    pw: 90, pp:10, acc:100, effect:'AoE burn'    },
+  'Hydro Wave':       { slot:'A3', type:'Elemental',    pw: 90, pp:10, acc:100, effect:'AoE -SPD'    },
+  'Voltcore Beam':    { slot:'A3', type:'Elemental',    pw: 95, pp:10, acc:100, effect:'30% paralyze'},
+  'Cryocore':         { slot:'A3', type:'Elemental',    pw: 90, pp:10, acc:100, effect:'20% freeze'  },
+  'Skyfracture':      { slot:'A3', type:'Elemental',    pw: 95, pp:10, acc: 95, effect:'+crit air'   },
+  'Facet Barrage':    { slot:'A3', type:'Crystal',      pw: 90, pp:10, acc: 85, effect:'3-5 hit'     },
+  'Soul Rend':        { slot:'A3', type:'Spirit',       pw: 90, pp:10, acc: 85, effect:'30% flinch'  },
+  'Sanctified Ray':   { slot:'A3', type:'Divine',       pw: 90, pp:10, acc:100, effect:'vs Corrupted'},
+  'Solaris Bloom':    { slot:'A3', type:'Radiant',      pw: 90, pp:10, acc:100, effect:'AoE'         },
+  'Draconic Roar':    { slot:'A3', type:'Draconic',     pw: 90, pp:10, acc:100, effect:'Fixed×tier'  },
+  'Voidcurse':        { slot:'A3', type:'Corrupted',    pw: 85, pp:10, acc: 90, effect:'30% flinch'  },
+  'Stellarwave':      { slot:'A3', type:'Astra',        pw: 90, pp:10, acc:100, effect:'Special'     },
+  'Age Field':        { slot:'A3', type:'Chrono',       pw: 85, pp:10, acc:100, effect:'AoE -SPD'    },
+  'Aura Sphere':      { slot:'A3', type:'Aura',         pw: 85, pp:10, acc:999, effect:'Always hits' },
+  'Overload Beam':    { slot:'A3', type:'Tech',         pw: 90, pp:10, acc: 95, effect:'+crit'       },
+  'Gravity Well':     { slot:'A3', type:'Extraterrestrial', pw:90, pp:10, acc: 95, effect:'AoE -SPD' },
+  'Paradox Beam':     { slot:'A3', type:'Unknown',      pw: 90, pp:10, acc: 95, effect:'-'           },
+  // ─── A4 (Pw 110-180) ────────────────────────────────────────────
+  'Apex Maul':        { slot:'A4', type:'Beast',        pw:140, pp:5,  acc: 85, effect:'Recoil ⅓ · bond crit' },
+  'Meteor Dive':      { slot:'A4', type:'Humanoid',     pw:130, pp:5,  acc: 85, effect:'Recoil ⅓'    },
+  "Devourer's Grasp": { slot:'A4', type:'Creature',     pw:120, pp:5,  acc: 85, effect:'Drain 50%'   },
+  "Gaea's Wrath":     { slot:'A4', type:'Nature',       pw:140, pp:5,  acc: 90, effect:'AoE -DEF'    },
+  'Prismshard Beam':  { slot:'A4', type:'Verdant',      pw:120, pp:5,  acc:100, effect:'2-turn charge'},
+  'Nova Collapse':    { slot:'A4', type:'Elemental',    pw:150, pp:5,  acc: 85, effect:'Recoil ¼'    },
+  'Deluge Cannon':    { slot:'A4', type:'Elemental',    pw:130, pp:5,  acc: 85, effect:'AoE'         },
+  'Voltstrike Zero':  { slot:'A4', type:'Elemental',    pw:130, pp:5,  acc: 85, effect:'30% paralyze'},
+  'Absolute Frost':   { slot:'A4', type:'Elemental',    pw:130, pp:5,  acc: 85, effect:'30% freeze AoE' },
+  'Squall Rupture':   { slot:'A4', type:'Elemental',    pw:140, pp:5,  acc: 85, effect:'AoE air'     },
+  'Prism Slam':       { slot:'A4', type:'Crystal',      pw:130, pp:5,  acc: 90, effect:'+DEF self'   },
+  'Nether Judgment':  { slot:'A4', type:'Spirit',       pw:130, pp:5,  acc: 90, effect:'vs Divine ×'  },
+  'Ascension Flare':  { slot:'A4', type:'Divine',       pw:140, pp:5,  acc: 90, effect:'Cures self'  },
+  'Corona Overload':  { slot:'A4', type:'Radiant',      pw:150, pp:5,  acc: 90, effect:'Recoil ⅕ · anti-Spirit' },
+  'Wyrm Vortex':      { slot:'A4', type:'Draconic',     pw:140, pp:5,  acc: 85, effect:'Lock 2-3t'   },
+  'Blackspiral':      { slot:'A4', type:'Corrupted',    pw:130, pp:5,  acc: 85, effect:'Poison+drain 33%' },
+  'Cosmic Judgment':  { slot:'A4', type:'Astra',        pw:140, pp:5,  acc: 90, effect:'-SPC-DEF'    },
+  'Chronal Rupture':  { slot:'A4', type:'Chrono',       pw:130, pp:5,  acc: 90, effect:'Delayed 2nd hit' },
+  'Auracide':         { slot:'A4', type:'Aura',         pw:130, pp:5,  acc: 95, effect:'Ignores mods' },
+  'Meltdown Core':    { slot:'A4', type:'Tech',         pw:140, pp:5,  acc: 85, effect:'Recoil ¼ · anti-Tech' },
+  'Sol Reaver':       { slot:'A4', type:'Extraterrestrial', pw:140, pp:5, acc: 90, effect:'Ignores resist' },
+  'Reality Tear':     { slot:'A4', type:'Unknown',      pw:150, pp:5,  acc: 85, effect:'50% random status' },
+  // ─── ULTRAMAX · per-type (Pw 170-210, replaces A4 permanently via shard) ───
+  'Max Predator Roar':      { slot:'ULTRAMAX', type:'Beast',        pw:175, pp:5, acc:100, effect:'+ATK allies' },
+  'Max Martial Ascension':  { slot:'ULTRAMAX', type:'Humanoid',     pw:175, pp:5, acc:100, effect:'+priority 2t' },
+  'Max Hivestorm':          { slot:'ULTRAMAX', type:'Creature',     pw:175, pp:5, acc: 95, effect:'50% flinch' },
+  'Max Terraquake':         { slot:'ULTRAMAX', type:'Nature',       pw:185, pp:5, acc:100, effect:'Verdant Field' },
+  'Max Worldroot':          { slot:'ULTRAMAX', type:'Verdant',      pw:180, pp:5, acc:100, effect:'Roots 2t' },
+  'Max Novabloom':          { slot:'ULTRAMAX', type:'Elemental',    pw:190, pp:5, acc: 95, effect:'Sunblaze' },
+  'Max Hydrocore':          { slot:'ULTRAMAX', type:'Elemental',    pw:185, pp:5, acc:100, effect:'Rainstorm' },
+  'Max Voltvortex':         { slot:'ULTRAMAX', type:'Elemental',    pw:185, pp:5, acc:100, effect:'Stormcharge' },
+  'Max Cryoveil':           { slot:'ULTRAMAX', type:'Elemental',    pw:185, pp:5, acc: 95, effect:'Blizzard' },
+  'Max Squallcrown':        { slot:'ULTRAMAX', type:'Elemental',    pw:180, pp:5, acc: 95, effect:'Air 2t' },
+  'Max Prismshatter':       { slot:'ULTRAMAX', type:'Crystal',      pw:180, pp:5, acc: 95, effect:'+DEF allies' },
+  'Max Nether Wail':        { slot:'ULTRAMAX', type:'Spirit',       pw:190, pp:5, acc: 90, effect:'Ignores DEF' },
+  'Max Halocore':           { slot:'ULTRAMAX', type:'Divine',       pw:190, pp:5, acc:100, effect:'Cure allies' },
+  'Max Coronacore':         { slot:'ULTRAMAX', type:'Radiant',      pw:195, pp:5, acc: 95, effect:'Sunblaze+blind' },
+  'Max Wyrmking Descent':   { slot:'ULTRAMAX', type:'Draconic',     pw:200, pp:5, acc: 90, effect:'Fixed Lv×3' },
+  'Max Blackspiral':        { slot:'ULTRAMAX', type:'Corrupted',    pw:190, pp:5, acc: 90, effect:'Poison+drain 25%' },
+  'Max Stellar Convergence':{ slot:'ULTRAMAX', type:'Astra',        pw:195, pp:5, acc:100, effect:'-SPC-DEF' },
+  'Max Chronal Rupture':    { slot:'ULTRAMAX', type:'Chrono',       pw:185, pp:5, acc: 95, effect:'2 hits' },
+  'Max Auracide':           { slot:'ULTRAMAX', type:'Aura',         pw:185, pp:5, acc:100, effect:'Ignores mods · always hits' },
+  'Max Meltdown Reactor':   { slot:'ULTRAMAX', type:'Tech',         pw:190, pp:5, acc: 90, effect:'30% paralyze · self recoil' },
+  'Max Xenocataclysm':      { slot:'ULTRAMAX', type:'Extraterrestrial', pw:200, pp:5, acc: 90, effect:'Ignores resist' },
+  'Max Reality Tear':       { slot:'ULTRAMAX', type:'Unknown',      pw:210, pp:5, acc: 85, effect:'66% random status' },
+  // ─── ULTRAMAX SIGNATURES · species-locked (Pw 210-260) ──────────
+  'Ultra Voidcore':          { slot:'ULTRA_SIG', type:'Draconic',   pw:240, pp:5, acc: 90, effect:'Trap+drain 33% 3t' },
+  'Ultra Fathergem Split':   { slot:'ULTRA_SIG', type:'Crystal',    pw:240, pp:5, acc: 95, effect:'2 hits · 2nd crits' },
+  'Ultra Wingbreaker':       { slot:'ULTRA_SIG', type:'Aura',       pw:230, pp:5, acc:100, effect:'AoE +priority -SPD 2' },
+  'Ultra Draconisflare':     { slot:'ULTRA_SIG', type:'Draconic',   pw:250, pp:5, acc: 95, effect:'Sunblaze+burn+drain 25%' },
+  'Ultra Solstice Reign':    { slot:'ULTRA_SIG', type:'Radiant',    pw:250, pp:5, acc:100, effect:'Cure+heal 25% · anti-Corrupted' },
+  'Ultra Nova Meltdown':     { slot:'ULTRA_SIG', type:'Elemental',  pw:240, pp:5, acc: 90, effect:'Recoil ¼ · 100% burn AoE' },
+  'Ultra World-Weaver':      { slot:'ULTRA_SIG', type:'Verdant',    pw:230, pp:5, acc:100, effect:'Roots all 3t · party +33% HP' },
+  'Ultra Abyssal Deluge':    { slot:'ULTRA_SIG', type:'Elemental',  pw:230, pp:5, acc: 95, effect:'Rainstorm -SPC-DEF 2' },
+  'Ultra Beast Sovereign':   { slot:'ULTRA_SIG', type:'Beast',      pw:260, pp:5, acc: 90, effect:'Crit · lock enemy A slot' },
+  'Ultra Circuit Overload':  { slot:'ULTRA_SIG', type:'Tech',       pw:240, pp:5, acc: 95, effect:'Paralyze + 20% DoT 3t' },
+  // ─── PRISMSYNC · 16 finales (Pw 220-350) ────────────────────────
+  'Faedust Cascade':         { slot:'PRISMSYNC', type:'Nature',        pw:240, pp:1, acc:100, effect:'Heal party 25%' },
+  'Solar Immolation':        { slot:'PRISMSYNC', type:'Elemental',     pw:260, pp:1, acc: 95, effect:'Burn AoE' },
+  'Abyssal Requiem':         { slot:'PRISMSYNC', type:'Elemental',     pw:260, pp:1, acc: 95, effect:'Enemy -SPD 2t' },
+  'Stormcrown Verdict':      { slot:'PRISMSYNC', type:'Elemental',     pw:240, pp:1, acc: 95, effect:'Paralyze · pierces DEF' },
+  'Absolute Zero Requiem':   { slot:'PRISMSYNC', type:'Elemental',     pw:260, pp:1, acc: 90, effect:'Freeze AoE' },
+  'Skyforge Rupture':        { slot:'PRISMSYNC', type:'Aura',          pw:250, pp:1, acc:100, effect:'Ignores mods & acc' },
+  'Prismshard Judgment':     { slot:'PRISMSYNC', type:'Crystal',       pw:260, pp:1, acc: 95, effect:'+DEF 2 stages' },
+  'Worldroot Ascension':     { slot:'PRISMSYNC', type:'Verdant',       pw:250, pp:1, acc:100, effect:'Root 2t + heal 30%' },
+  "Wyrmking's Descent":      { slot:'PRISMSYNC', type:'Draconic',      pw:280, pp:1, acc: 90, effect:'2× vs T8+' },
+  'Stellar Convergence':     { slot:'PRISMSYNC', type:'Astra',         pw:260, pp:1, acc:100, effect:'Always crits' },
+  'Rewrite the Instant':     { slot:'PRISMSYNC', type:'Chrono',        pw:240, pp:1, acc:100, effect:'2 hits (now+end)' },
+  'Souldrift Reaping':       { slot:'PRISMSYNC', type:'Spirit',        pw:260, pp:1, acc: 95, effect:'vs Divine · drain 33%' },
+  'Halo of the First':       { slot:'PRISMSYNC', type:'Divine',        pw:260, pp:1, acc:100, effect:'Cure all party' },
+  'Blackstar Collapse':      { slot:'PRISMSYNC', type:'Corrupted',     pw:280, pp:1, acc: 90, effect:'100% poison · self recoil ¼' },
+  'Xenophage Finale':        { slot:'PRISMSYNC', type:'Extraterrestrial', pw:300, pp:1, acc: 85, effect:'Ignores resist' },
+  'Key of Anciuxor':         { slot:'PRISMSYNC', type:'Ultimate',      pw:350, pp:1, acc:100, effect:'★ Rizer+Ultharis/Anciuxor bond only' },
+};
+
+// v0.95.589 · Ultrashard → Type → Ultramax move (per-type universal)
+const SHARD_META = {
+  shard_predator:    { type:'Beast',            move:'Max Predator Roar',       label:'Predator Shard' },
+  shard_martial:     { type:'Humanoid',         move:'Max Martial Ascension',   label:'Martial Shard' },
+  shard_hive:        { type:'Creature',         move:'Max Hivestorm',           label:'Hive Shard' },
+  shard_terra:       { type:'Nature',           move:'Max Terraquake',          label:'Terra Shard' },
+  shard_verdant:     { type:'Verdant',          move:'Max Worldroot',           label:'Verdant Shard' },
+  shard_ember:       { type:'Elemental',        move:'Max Novabloom',           label:'Ember Shard' },
+  shard_tide:        { type:'Elemental',        move:'Max Hydrocore',           label:'Tide Shard' },
+  shard_volt:        { type:'Elemental',        move:'Max Voltvortex',          label:'Volt Shard' },
+  shard_cryo:        { type:'Elemental',        move:'Max Cryoveil',            label:'Cryo Shard' },
+  shard_squall:      { type:'Elemental',        move:'Max Squallcrown',         label:'Squall Shard' },
+  shard_prism:       { type:'Crystal',          move:'Max Prismshatter',        label:'Prism Shard' },
+  shard_wraith:      { type:'Spirit',           move:'Max Nether Wail',         label:'Wraith Shard' },
+  shard_halo:        { type:'Divine',           move:'Max Halocore',            label:'Halo Shard' },
+  shard_corona:      { type:'Radiant',          move:'Max Coronacore',          label:'Corona Shard' },
+  shard_wyrm:        { type:'Draconic',         move:'Max Wyrmking Descent',    label:'Wyrm Shard' },
+  shard_blackspiral: { type:'Corrupted',        move:'Max Blackspiral',         label:'Blackspiral Shard' },
+  shard_stellar:     { type:'Astra',            move:'Max Stellar Convergence', label:'Stellar Shard' },
+  shard_chronal:     { type:'Chrono',           move:'Max Chronal Rupture',     label:'Chronal Shard' },
+  shard_auracide:    { type:'Aura',             move:'Max Auracide',            label:'Auracide Shard' },
+  shard_reactor:     { type:'Tech',             move:'Max Meltdown Reactor',    label:'Reactor Shard' },
+  shard_xeno:        { type:'Extraterrestrial', move:'Max Xenocataclysm',       label:'Xeno Shard' },
+  shard_null:        { type:'Unknown',          move:'Max Reality Tear',        label:'Null Shard' },
+};
+// v0.95.589 · Species-locked Ultramax signatures · when a Zyrex whose species
+// is listed here consumes a compatible shard, they get the SIGNATURE instead
+// of the universal per-type Max move.  Compatibility = shard type matches
+// ANY of the signature's accepted-shard types.
+const ULTRAMAX_SIGNATURES = {
+  omegoran:   { move:'Ultra Voidcore',         acceptedShards:['shard_wyrm','shard_blackspiral'] },
+  rakoron:    { move:'Ultra Fathergem Split',  acceptedShards:['shard_prism'] },
+  celestryx:  { move:'Ultra Wingbreaker',      acceptedShards:['shard_auracide'] },
+  elzoran:    { move:'Ultra Draconisflare',    acceptedShards:['shard_wyrm','shard_ember'] },
+  auraxion:   { move:'Ultra Solstice Reign',   acceptedShards:['shard_corona','shard_halo'] },
+  volcanut:   { move:'Ultra Nova Meltdown',    acceptedShards:['shard_ember'] },
+  verdanix:   { move:'Ultra World-Weaver',     acceptedShards:['shard_verdant','shard_terra'] },
+  otterlin:   { move:'Ultra Abyssal Deluge',   acceptedShards:['shard_tide'] },
+  novarius:   { move:'Ultra Beast Sovereign',  acceptedShards:['shard_predator'] },
+  zoryn:      { move:'Ultra Circuit Overload', acceptedShards:['shard_reactor','shard_volt'] },
+};
+// v0.95.589 · Read the Zyrex's Types as a flat array
+function _zyrexTypes(z){
+  if (!z) return [];
+  const out = [];
+  if (z.type)  out.push(z.type);
+  if (z.type2) out.push(z.type2);
+  if (z.type3) out.push(z.type3);
+  if (z.hasUltramax) out.push('Ultramax');
+  return out;
+}
+function _typeCapForTier(tier){
+  const t = tier || 1;
+  if (t <= 5) return 2;
+  if (t <= 8) return 3;
+  if (t === 9) return 3;
+  return 4;   // T10 · 4 or ALL
+}
+// v0.95.589 · Ultrashard picker overlay · shows every party Zyrex with
+// eligibility badge (type match, capacity check, signature detection).
+function openUltrashardPicker(shardKey){
+  const meta = SHARD_META[shardKey];
+  if (!meta) return;
+  if (game.ultrashardPickerOpen) return;
+  game.ultrashardPickerOpen = true;
+  const el = document.createElement('div');
+  el.id = 'ultrashardPicker';
+  Object.assign(el.style, {
+    position:'fixed', inset:'0', zIndex:'10000',
+    background:'radial-gradient(circle at center, rgba(30,10,60,0.85), rgba(0,0,0,0.94))',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontFamily:"'Courier New', monospace",
+  });
+  const party = (player.party || []).filter(Boolean);
+  const rows = party.map((z, i) => {
+    const zt = _zyrexTypes(z);
+    const typeMatch = zt.includes(meta.type);
+    const cap = _typeCapForTier(z.tier);
+    const hasRoom = zt.length < cap;
+    const already = !!z.hasUltramax;
+    const sig = ULTRAMAX_SIGNATURES[z.speciesId];
+    const isSig = sig && sig.acceptedShards.includes(shardKey);
+    const usable = typeMatch && hasRoom && !already;
+    const badge = already ? '<span style="color:#889;">ALREADY ULTRAMAX</span>'
+                : !typeMatch ? '<span style="color:#ff5b5b;">TYPE MISMATCH</span>'
+                : !hasRoom ? '<span style="color:#ffd66b;">MUST EVOLVE FIRST</span>'
+                : isSig ? '<span style="color:#c060ff;">★ SIGNATURE</span>'
+                : '<span style="color:#5fdc7a;">READY</span>';
+    return `
+      <button data-idx="${i}" ${usable ? '' : 'disabled'}
+        style="width:100%; padding:12px; margin-bottom:8px; background:${usable ? 'linear-gradient(180deg,rgba(50,90,180,0.55),rgba(4,10,30,0.85))' : 'rgba(30,30,45,0.55)'}; color:${usable ? '#fff' : '#667'}; border:2px solid ${isSig && usable ? '#c060ff' : usable ? '#4fb3ff' : '#334'}; font:bold 12px 'Courier New',monospace; text-align:left; cursor:${usable ? 'pointer' : 'not-allowed'};">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>${(z.name || z.speciesId).toUpperCase()} · Lv ${z.level} · T${z.tier}</span>
+          ${badge}
+        </div>
+        <div style="color:#8ff; font-size:10px; margin-top:4px;">
+          Types · ${zt.join(' / ') || '—'}  ·  Cap ${zt.length}/${cap}
+        </div>
+        ${isSig && usable ? `<div style="color:#c060ff; font-size:10px; margin-top:2px;">→ ${sig.move} (species signature)</div>` : ''}
+      </button>`;
+  }).join('');
+  el.innerHTML = `
+    <div style="background:linear-gradient(180deg,rgba(20,10,50,0.96),rgba(6,4,20,0.98)); border:2px solid #c060ff; padding:22px 26px; width:560px; max-width:94vw; max-height:88vh; overflow:auto; box-shadow:0 0 40px rgba(192,96,255,0.45);">
+      <div style="text-align:center; color:#c060ff; font-weight:bold; letter-spacing:.16em; font-size:14px; margin-bottom:2px;">◆ ULTRASHARD · ${meta.label.toUpperCase()}</div>
+      <div style="text-align:center; color:#8ff; font-size:11px; margin-bottom:12px;">
+        Matrix · <b style="color:#fff;">${meta.type}</b> &nbsp;·&nbsp; Grants · <b style="color:#ffd66b;">${meta.move}</b> (permanent A4 overwrite)
+      </div>
+      ${party.length ? rows : '<div style="color:#889; text-align:center; padding:30px;">· no Zyrex in faction ·</div>'}
+      <button id="usClose" style="width:100%; padding:10px; margin-top:8px; background:rgba(0,0,0,0.5); color:#889; border:1px solid #556; font:bold 11px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">← CANCEL (B / Escape)</button>
+    </div>`;
+  document.body.appendChild(el);
+  try { playSFX('menuOpen'); } catch(_){}
+  const closePicker = () => {
+    const p = document.getElementById('ultrashardPicker');
+    if (p){ if (p._kh) window.removeEventListener('keydown', p._kh, true); p.remove(); }
+    game.ultrashardPickerOpen = false;
+    try { playSFX('menuClose'); } catch(_){}
+  };
+  el.querySelectorAll('button[data-idx]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.idx;
+      if (applyUltrashard(shardKey, i)){
+        closePicker();
+      }
+    });
+  });
+  el.querySelector('#usClose').addEventListener('click', closePicker);
+  el.addEventListener('click', (e) => { if (e.target === el) closePicker(); });
+  const kh = (e) => {
+    const k = (e.key || '').toLowerCase();
+    if (k === 'b' || k === 'escape'){ e.preventDefault(); e.stopImmediatePropagation(); closePicker(); }
+  };
+  window.addEventListener('keydown', kh, true);
+  el._kh = kh;
+}
+// v0.95.589 · Consume shard on party Zyrex · one-way, permanent
+//   1. Validate shard exists in bag
+//   2. Match shard type to at least one of Zyrex's types
+//   3. Check tier capacity has room for Ultramax as an extra type
+//   4. Species signature overrides universal Max move if applicable
+//   5. Overwrite move slot 3 (A4) permanently · add hasUltramax flag
+function applyUltrashard(shardKey, partyIdx){
+  const meta = SHARD_META[shardKey];
+  if (!meta){ showToast('◈ Unknown shard', 2000); return false; }
+  if (!(player.items && (player.items[shardKey] || 0) > 0)){
+    showToast(`◈ No ${meta.label} in bag`, 2000); return false;
+  }
+  const z = (player.party || [])[partyIdx];
+  if (!z){ showToast('◈ Slot empty', 2000); return false; }
+  if (z.hasUltramax){ showToast(`◈ ${z.name} already has Ultramax`, 2400); return false; }
+  const zt = _zyrexTypes(z);
+  if (!zt.includes(meta.type)){
+    showToast(`◈ Matrix mismatch · ${z.name} is not ${meta.type}`, 2600);
+    try { playSFX('doorLock'); } catch(_){}
+    return false;
+  }
+  // Type capacity check · adding Ultramax = +1 type
+  const cap = _typeCapForTier(z.tier);
+  const currentCount = zt.length;
+  if (currentCount >= cap){
+    showToast(`◈ Matrix instability · ${z.name} must evolve before accepting Ultramax`, 3200);
+    try { playSFX('doorLock'); } catch(_){}
+    return false;
+  }
+  // Determine the move · species signature wins if the shard is on its list
+  let moveName = meta.move;
+  const sig = ULTRAMAX_SIGNATURES[z.speciesId];
+  if (sig && sig.acceptedShards.includes(shardKey)){
+    moveName = sig.move;
+  }
+  const md = MOVE_DEX[moveName];
+  if (!md){ showToast(`◈ Move not found · ${moveName}`, 2400); return false; }
+  // Consume shard
+  player.items[shardKey] = Math.max(0, (player.items[shardKey] || 0) - 1);
+  // Overwrite A4 (slot index 3)
+  z.moves = z.moves || [null,null,null,null];
+  while (z.moves.length < 4) z.moves.push(null);
+  z.moves[3] = { name: moveName, pp: md.pp, maxPp: md.pp, power: md.pw, type: md.type };
+  // Add Ultramax as an extra Type
+  z.hasUltramax = true;
+  z._ultramaxMove = moveName;
+  try { playSFX('confirm'); } catch(_){}
+  showToast(`★ ${z.name} · ULTRAMAX awakened · A4 → ${moveName} (Pw ${md.pw})`, 5200);
+  try { paintZycellContent(); } catch(_){}
+  try { saveGame(); } catch(_){}
+  return true;
+}
+
 const SPECIES = {
   // ── T1 · Malezor (Beast-dominant) ────────────────────────────────
   aetherwing: { id:'aetherwing', name:'Aetherwing', tier:1, type:'Beast',      type2:null,
@@ -21250,6 +21595,12 @@ function useZycubeItem(key){
   const qty = player.items[key] || 0;
   const has = qty > 0 || key === 'raidcard' && player.raidCardGifted;
   const labelOf = k => (INVENTORY_META[k] && INVENTORY_META[k].label) || k;
+  // v0.95.589 · Ultrashard use · open the party picker to consume onto a Zyrex
+  if (typeof SHARD_META !== 'undefined' && SHARD_META[key]){
+    if (qty <= 0){ showToast(`◈ No ${labelOf(key)} left`, 1600); playSFX('cancel'); return; }
+    try { openUltrashardPicker(key); } catch(err){ console.warn('shard picker failed', err); }
+    return;
+  }
   switch (key){
     case 'raidcard': {
       zycubeRAIDViewerOpen = true;

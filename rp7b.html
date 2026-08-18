@@ -1468,6 +1468,7 @@ const AUDIO = {
     astralthrowVox: new Audio('audio/sfx-astralthrow-vox.mp3'), // v0.95.541 · Rizer VO on every astralthrow lift
     swordKillVox: new Audio('audio/sfx-sword-kill-vox.mp3'),  // v0.95.543 · Rizer VO on every 3rd sword kill
     yawnBed:      new Audio('audio/sfx-yawn-bed.mp3'),        // v0.95.543 · Rizer VO on bed sleep (RR + owned homes) · "yawn time for a nap"
+    corsunNewMsg: new Audio('audio/sfx-corsun-new-msg.mp3'),  // v0.95.544 · CORSUN phone AI VO on every new ZyPhone notification ("you have a new message captain rizer") · fires alongside toast card · draws attention to bottom-right
     heatingUp:    new Audio('audio/sfx-heating-up.mp3'),     // v0.95.500 · Rizer VO on 6-kill flawless streak
     astralKill:   new Audio('audio/sfx-astral-kill.mp3'),    // v0.95.215 · alien-stomach splat · A3 kill only
     astralkick:   new Audio('audio/sfx-astralkick.mp3'),     // v0.95.238 · A4 powerful anime kick
@@ -14561,35 +14562,42 @@ const toastStackEl = (function(){
   Object.assign(el.style, {
     position: 'fixed',
     right: '12px', bottom: '12px',
-    width: '33vw', maxWidth: '520px', minWidth: '260px',
-    height: '50vh', maxHeight: '620px',
+    width: '33vw', maxWidth: '460px', minWidth: '300px',
     display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-    gap: '6px',
+    gap: '8px',
     pointerEvents: 'none',
     zIndex: '11',
     fontFamily: "'Courier New', monospace",
-    overflow: 'hidden',
   });
   document.body.appendChild(el);
   return el;
 })();
-const TOAST_STACK_MAX = 6;
-function _toastCardStyle(){
-  return [
-    'background:linear-gradient(180deg, rgba(4,10,26,0.94), rgba(2,6,16,0.94))',
-    'border:1px solid #d4af37',
-    'box-shadow:0 4px 14px rgba(0,0,0,0.55), 0 0 12px rgba(212,175,55,0.25)',
-    'color:#eaf0ff',
-    'padding:10px 14px',
-    'font-size:12px', 'line-height:1.45', 'letter-spacing:.05em',
-    'opacity:0', 'transform:translateY(10px)',
-    'transition:opacity 240ms ease, transform 240ms ease',
-    'pointer-events:auto',
-  ].join(';');
+// v0.95.544 · toast cards render as the ZyPhone notification UI · cap 3 visible ·
+// 8s auto-dismiss · CORSUN "you have a new message captain rizer" VO cues the
+// player to look bottom-right (audio stimulus).
+const TOAST_STACK_MAX = 3;
+const ZPHONE_NOTIF_IMG_SRC = 'assets/2D sprites/ui/zyphone-notification.png';
+// Preload so the first toast doesn't flash without the frame.
+(function preloadNotifImg(){ try { const im = new Image(); im.src = ZPHONE_NOTIF_IMG_SRC; } catch(_){} })();
+// CORSUN VO throttle · re-fires only if last cue ended (never overlap itself).
+let _corsunLive = null;
+let _corsunLastAt = 0;
+function _fireCorsunCue(){
+  try {
+    if (_corsunLive) return;                         // already speaking · don't stack
+    if (performance.now() - _corsunLastAt < 3200) return; // rapid-fire toast burst · 1 cue only
+    const s = AUDIO.sfx.corsunNewMsg; if (!s) return;
+    const node = s.cloneNode();
+    node.volume = s.volume;
+    _corsunLive = node;
+    _corsunLastAt = performance.now();
+    node.play().catch(() => { _corsunLive = null; });
+    node.addEventListener('ended', () => { if (_corsunLive === node) _corsunLive = null; });
+  } catch(_){}
 }
 let toastTimer = 0;   // legacy (kept so external clearTimeout calls stay safe)
 function showToast(msg, ms){
-  const dur = ms || 1800;
+  const dur = ms || 8000;   // v0.95.544 · 8-second auto-dismiss (was 1800ms)
   // Push into game.notifications queue for ZyPhone Home feed
   try {
     game.notifications = game.notifications || [];
@@ -14601,13 +14609,49 @@ function showToast(msg, ms){
     });
     if (game.notifications.length > 40) game.notifications.splice(0, game.notifications.length - 40);
   } catch(_){}
-  // Append card into the stack
+  // Build the notification card · 2.25:1 aspect matches the ZyPhone UI plate.
   try {
     const card = document.createElement('div');
-    card.setAttribute('style', _toastCardStyle());
-    card.textContent = String(msg);
+    Object.assign(card.style, {
+      position: 'relative',
+      width: '100%',
+      aspectRatio: '2.25 / 1',
+      backgroundImage: `url("${ZPHONE_NOTIF_IMG_SRC}")`,
+      backgroundSize: 'contain',
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'center right',
+      opacity: '0',
+      transform: 'translateY(12px)',
+      transition: 'opacity 260ms ease, transform 260ms ease',
+      pointerEvents: 'auto',
+      filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.55))',
+    });
+    // Message overlay · sits in the right-hand blue plate, over the "??? / ..." baked art.
+    const overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position: 'absolute',
+      left: '38%',           // right of the circular avatar
+      right: '4%',
+      top: '48%',            // sits on the "???" name row and message row
+      bottom: '18%',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      color: '#eaf0ff',
+      fontFamily: "'Courier New', monospace",
+      fontSize: 'clamp(9px, 0.95vw, 13px)',
+      lineHeight: '1.2',
+      letterSpacing: '.03em',
+      textShadow: '0 0 4px rgba(0,0,20,0.9), 0 1px 2px #000',
+      // Mask the baked "???" title + "..." row with the same deep-blue plate.
+      background: 'linear-gradient(180deg, rgba(4,14,42,0.88) 0%, rgba(2,10,34,0.92) 100%)',
+      borderRadius: '3px',
+      padding: '2px 8px',
+    });
+    overlay.textContent = String(msg);
+    card.appendChild(overlay);
     toastStackEl.appendChild(card);
-    // Cap visible stack
+    // Cap visible stack · oldest drops
     while (toastStackEl.children.length > TOAST_STACK_MAX){
       toastStackEl.removeChild(toastStackEl.firstChild);
     }
@@ -14621,8 +14665,51 @@ function showToast(msg, ms){
       card.style.transform = 'translateY(-6px)';
       setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); }, 320);
     }, dur);
+    // v0.95.544 · CORSUN cue draws player attention to the bottom-right card.
+    _fireCorsunCue();
   } catch(_){}
 }
+
+// v0.95.544 · Hold X for 2 seconds → opens the ZyPhone Home panel.
+// Coexists with the tap-X actions (jump/confirm/dock cycle) because those
+// only fire on keydown; the phone-open only fires if X remains held.
+let _xHoldZphoneTimer = 0;
+function _openZphoneFromHold(){
+  _xHoldZphoneTimer = 0;
+  try {
+    if (game.zphoneOpen) return;
+    // Suppress during title / dream / intro (same gate as touchpad '2').
+    const _titleBlock = game.scene === 'title'
+      || (typeof introState !== 'undefined' && introState === 'playing')
+      || (typeof _dreamPlaying !== 'undefined' && _dreamPlaying);
+    if (_titleBlock) return;
+    // Block during battle so hold-X doesn't yank the player out of combat.
+    if (battleState || wildBattleState || dialogState) return;
+    const _hasKit = !!player.hasBackpack && (player.items?.zphone || 0) > 0;
+    const _devBypass = (typeof isDevUnlocked === 'function' && isDevUnlocked());
+    if (!(_hasKit || _devBypass)) return;
+    const _panel = document.getElementById('zphonePanel');
+    if (!_panel) return;
+    _panel.style.display = 'flex';
+    game.zphoneOpen = true;
+    game._zycellFocus = 'nav';
+    game._zycellItemIdx = 0;
+    try { paintZycellNav(); } catch(_){}
+    try { playSFX('menuOpen'); } catch(_){}
+  } catch(_){}
+}
+window.addEventListener('keydown', (e) => {
+  if ((e.key === 'x' || e.key === 'X') && !e.repeat){
+    if (_xHoldZphoneTimer) clearTimeout(_xHoldZphoneTimer);
+    _xHoldZphoneTimer = setTimeout(_openZphoneFromHold, 2000);
+  }
+}, true);
+window.addEventListener('keyup', (e) => {
+  if ((e.key === 'x' || e.key === 'X') && _xHoldZphoneTimer){
+    clearTimeout(_xHoldZphoneTimer);
+    _xHoldZphoneTimer = 0;
+  }
+}, true);
 
 // Shared Soulphish cast used by the Zarvane oasis and Veridan freshwater.
 // Keeping one resolver guarantees identical net animation, catch rate and

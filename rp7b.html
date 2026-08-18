@@ -17843,7 +17843,13 @@ function renderZycellMap(){
         <div style="color:#cfe; font-size:11px; line-height:1.6;">Find <b>Zoryn</b> in Malezor · he owes you a Town Map.<br>Once he hands it over, this tab lights up with the full Zyraxis atlas.</div>
       </div>`;
   }
-  const curDist = (typeof worldDistrictAt === 'function') ? worldDistrictAt(player.x, player.y) : null;
+  // v0.95.586 · Use worldMapPlayerPosition · resolves the overworld door
+  // when the player is inside an interior scene (Rizer Room, shops, caves).
+  // Previously player.x/y was the INTERIOR tile which projected off-map.
+  const wPos = (typeof worldMapPlayerPosition === 'function')
+    ? worldMapPlayerPosition()
+    : { x: player.x, y: player.y, inside: false };
+  const curDist = (typeof worldDistrictAt === 'function') ? worldDistrictAt(wPos.x, wPos.y) : null;
   const label   = curDist ? curDist.toUpperCase() : 'VOID SEA';
   const posMap  = (typeof WORLD_MAP_DISTRICT_POS !== 'undefined') ? WORLD_MAP_DISTRICT_POS : {};
   const routes  = (typeof ZYRAXIS_ROUTES !== 'undefined') ? ZYRAXIS_ROUTES : [];
@@ -17866,8 +17872,8 @@ function renderZycellMap(){
     const dy = Math.max(-0.95, Math.min(0.95, rawDy));
     return { x: p.xf + dx * p.rf, y: p.yf + dy * p.rf * aspect };
   }
-  // Player pin
-  const pin = projectWorldToImage(player.x, player.y);
+  // Player pin · uses resolved world position (door coord if inside interior)
+  const pin = projectWorldToImage(wPos.x, wPos.y);
   // District outline (only the current district glows)
   const curPos = curDist ? posMap[curDist] : null;
   const outlineHTML = curPos ? `
@@ -17904,7 +17910,7 @@ function renderZycellMap(){
           <div style="position:absolute; inset:0; pointer-events:none;">${routeSVG}${outlineHTML}${pinHTML}</div>
         </div>
       </div>
-      <div style="color:#8ff; font-size:10px; margin-top:6px; text-align:center; flex:0 0 auto;">YOU · ${( (player.activeActor||'rizer').toUpperCase() )} · TILE (${Math.round(player.x)}, ${Math.round(player.y)}) · ${label}</div>
+      <div style="color:#8ff; font-size:10px; margin-top:6px; text-align:center; flex:0 0 auto;">YOU · ${( (player.activeActor||'rizer').toUpperCase() )} · TILE (${Math.round(wPos.x)}, ${Math.round(wPos.y)})${wPos.inside ? ' · <span style="color:#ffd66b;">indoors</span>' : ''} · ${label}</div>
     </div>`;
 }
 
@@ -20703,8 +20709,17 @@ function buildWorldMapCache(){
 }
 function worldMapPlayerPosition(){
   if(game.scene==='overworld')return{x:player.x,y:player.y,inside:false};
-  const r=game.overworldReturn||{x:player.x,y:player.y};
-  return{x:r.x,y:r.y,inside:true};
+  // v0.95.586 · When the interior was never entered from the overworld this
+  // session (fresh game start in RR), overworldReturn is null.  Fall back to
+  // known door coords per scene so the map pin still lands on the right
+  // district instead of using the meaningless interior tile.
+  const DOOR_FALLBACK = {
+    interior_home:    { x: 22, y: 106 },
+    interior_home_2f: { x: 22, y: 106 },
+  };
+  const fb = DOOR_FALLBACK[game.scene];
+  const r = game.overworldReturn || fb || { x: player.x, y: player.y };
+  return { x: r.x, y: r.y, inside: true };
 }
 // v0.95.407 · World Map hero image · live player pin + district label + outline
 // Per-district normalized (xf, yf, rf) fractions on the hero image (3024×1964)

@@ -2287,6 +2287,7 @@ const INVENTORY_META = {
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
   sapphire_sword:   { label: 'Sapphire Sword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 200 hits (connect-only, no miss-break) · repair 100 gems
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
+  zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
   // ─── v0.95.588 · ULTRASHARDS · one per canon type · consume on Zyrex to overwrite A4 with Ultramax move + add Ultramax type ─────────────
   shard_predator:   { label: 'Predator Shard',     order:  50 },   // Beast
   shard_martial:    { label: 'Martial Shard',      order:  51 },   // Humanoid
@@ -5474,14 +5475,22 @@ const NPCS = [
             ]});
             return;
           }
+          // v0.95.591 · Gate · must have at least one Zyrex to challenge a classmate
+          const alive = (player.party || []).filter(z => z && z.hp > 0);
+          if (alive.length === 0){
+            showDialog({ speaker: n.name.toUpperCase(), lines: [
+              '*eyes your empty faction slots*  You cannot spar without a Zyrex partner, Rizer.',
+              'Return to Dad first · pick your starter · then we\'ll go a round.',
+            ]});
+            try { playSFX('doorLock'); } catch(_){}
+            return;
+          }
           showDialog({ speaker: n.name.toUpperCase(), lines: [
             `*grins*  Fellow Rizer!  My ${SPECIES[s.species]?.name || s.species} vs yours · one round.`,
             `Lv ${s.level} · winner buys lunch.`,
           ], onDone: () => {
             try {
               startTrainerBattle(s.species, s.level);
-              // Mark the win on battle-end via a check hooked into the existing battleState resolver ·
-              // for now optimistically flag them so the player doesn't grind the same match
               player.stats.schoolBeaten[n.id] = true;
               try { awardRizerXP(60); } catch(_){}
             } catch(err){ console.warn('school battle failed', err); }
@@ -5515,10 +5524,12 @@ const NPCS = [
         player.stats = player.stats || {};
         player.stats.schoolBeaten = player.stats.schoolBeaten || {};
         const cleared = Object.keys(player.stats.schoolBeaten).filter(k => k.startsWith('school_student_')).length;
-        if (cleared < 10){
+        // Placeholder count · will scale to 16 when the full-class sprite pack ships
+        const REQUIRED = 10;
+        if (cleared < REQUIRED){
           showDialog({ speaker: 'PROF. VIRETA', lines: [
             '*peers up from her ledger*  Welcome to Malezor Academy.  I teach the bond-cycle module under Prof. Elarian.',
-            `You have cleared ${cleared}/10 practice matches.  Beat every student first — then I will spar with you.`,
+            `You have cleared ${cleared}/${REQUIRED} practice matches.  Beat every student first — then I will run your graduation match.`,
             '*gestures to the students*  Each one runs a different T1 line.  Battle them all to feel the type spread.',
           ]});
           return;
@@ -5530,15 +5541,28 @@ const NPCS = [
           ]});
           return;
         }
+        // v0.95.591 · Gate · must have at least one Zyrex to run the graduation match
+        const alive = (player.party || []).filter(z => z && z.hp > 0);
+        if (alive.length === 0){
+          showDialog({ speaker: 'PROF. VIRETA', lines: [
+            '*shakes her head kindly*  No Zyrex, no graduation.  Bond with your starter first, Rizer.',
+          ]});
+          try { playSFX('doorLock'); } catch(_){}
+          return;
+        }
         showDialog({ speaker: 'PROF. VIRETA', lines: [
-          '*sets down her chalk · rolls her shoulders*  All ten cleared.  Well done, Rizer.',
+          '*sets down her chalk · rolls her shoulders*  Every classmate cleared.  Well done, Rizer.',
           `*produces a T2 partner*  My ${SPECIES[n._subProfSpecies]?.name || n._subProfSpecies} · Lv ${n._subProfLevel}.  Graduation match.`,
         ], onDone: () => {
           try {
             startTrainerBattle(n._subProfSpecies, n._subProfLevel);
             player.stats.schoolBeaten.sub_prof_vireta = true;
             try { awardRizerXP(400); } catch(_){}
-            try { showToast('★ Academy graduated · Prof. Vireta cleared', 3800); } catch(_){}
+            // v0.95.591 · Graduation reward · 16 Zyspheres granted straight into the bag
+            player.items = player.items || {};
+            player.items.zysphere = (player.items.zysphere || 0) + 16;
+            try { playItemGain('zysphere'); } catch(_){}
+            try { showToast('★ ACADEMY GRADUATED · +16 Zyspheres · bond wild Zyrex out in the world', 5200); } catch(_){}
           } catch(err){ console.warn('vireta battle failed', err); }
         }});
       },

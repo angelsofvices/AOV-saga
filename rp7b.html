@@ -17322,6 +17322,13 @@ function renderZycellFaction(){
            <div style="color:rgba(200,220,255,0.4); font-size:9px; letter-spacing:.10em; margin-top:4px;">EMPTY SLOT</div>`}
     </div>`);
   }
+  // v0.95.581 · Sub-page dispatcher · if game._factionExamineIdx points at a
+  // valid party slot, render the Zyrex Examine detail page IN PLACE of the
+  // 8-slot grid.  LEFT arrow / B closes examine back to the grid, no dialog.
+  const exIdx = (game._factionExamineIdx != null) ? game._factionExamineIdx : null;
+  if (exIdx != null && (player.party || [])[exIdx]){
+    return renderZycellFactionExamine(exIdx);
+  }
   // v0.95.480 · Wrap grid in a scrollable container so >8 party members are reachable
   const grid = `<div style="max-height:420px; overflow-y:auto; padding-right:6px;">
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">${cells.join('')}</div>
@@ -17332,9 +17339,6 @@ function renderZycellFaction(){
   setTimeout(() => {
     document.querySelectorAll('.zyFactionSlot').forEach(el => {
       if (el._zyBound) return; el._zyBound = true;
-      // v0.95.579 · X / left-click always opens the full Examine dialog now
-      // (was: minimal one-line toast).  Triangle still summons via existing
-      // route.  Square swap wired through the content-focus key handler.
       el.addEventListener('click', () => {
         const idx = +el.dataset.slot;
         const z = (player.party || [])[idx];
@@ -17346,30 +17350,117 @@ function renderZycellFaction(){
   return _zySection(`◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX`, grid + hint);
 }
 
-// v0.95.579 · Full-stat examine dialog · SQUARE swap · TRIANGLE summon
+// v0.95.581 · Zyrex Examine page · full-stat detail lives INSIDE the phone
+// (no showDialog).  Themed with the phone's blue/gold sections.  Closed via
+// LEFT/B/Escape or the CLOSE button · reads live from the party slot.
+function renderZycellFactionExamine(idx){
+  const z = (player.party || [])[idx];
+  if (!z) return _zySection('◇ EXAMINE · UNKNOWN', '<div style="color:#889;">Slot empty · press LEFT to go back</div>');
+  const bond   = (player.bonds && player.bonds[z.speciesId]) || 0;
+  const xpMax  = (typeof xpToNextLevel === 'function') ? xpToNextLevel(z.level || 1) : Math.max(1, 100 * (z.level || 1));
+  const xpPct  = Math.min(100, ((z.xp || 0) / xpMax) * 100);
+  const sp     = (typeof SPECIES !== 'undefined') ? SPECIES[z.speciesId] : null;
+  const moves  = Array.isArray(z.moves) ? z.moves.filter(Boolean) : [];
+  const typing = `${z.type || sp?.type || '—'}${(z.type2 || sp?.type2) ? ' / ' + (z.type2 || sp?.type2) : ''}${(z.type3 || sp?.type3) ? ' / ' + (z.type3 || sp?.type3) : ''}`;
+  const lore   = sp?.lore || sp?.pokedex || sp?.description || 'No lore recorded for this Zyrex yet.';
+  // Live-summon badge
+  const summonedId = `_summon_${z.speciesId}`;
+  const isOut = (typeof NPCS !== 'undefined') && NPCS.some(n => n && n.id === summonedId && n._summoned);
+  // Header row · portrait placeholder + name + tier/level pill
+  const header = `
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div style="width:96px; height:96px; border:2px solid #4fb3ff; background:radial-gradient(circle at 40% 30%, rgba(79,179,255,0.35), rgba(20,40,80,0.55)); display:flex; align-items:center; justify-content:center; color:#8ff; font-weight:bold; font-size:11px; text-align:center; letter-spacing:.06em;">
+        ${(z.name || z.speciesId).slice(0,10).toUpperCase()}
+      </div>
+      <div style="flex:1;">
+        <div style="color:#ffd66b; font-weight:bold; font-size:15px; letter-spacing:.10em;">${(z.name || z.speciesId).toUpperCase()}</div>
+        <div style="display:flex; gap:6px; margin-top:6px; align-items:center;">
+          <span style="background:linear-gradient(180deg,#ffd66b,#ff9c66); color:#1a0f00; font-weight:bold; font-size:12px; padding:2px 8px; border:1px solid #fff; letter-spacing:.04em;">Lv ${z.level || 1}</span>
+          <span style="background:rgba(20,50,120,0.7); color:#8ff; border:1px solid #4fb3ff; padding:2px 8px; font-size:11px; font-weight:bold;">TIER ${z.tier || '?'}</span>
+          ${isOut ? `<span style="color:#5fdc7a; font-weight:bold; font-size:11px; letter-spacing:.10em;">◉ OUT</span>` : ''}
+        </div>
+        <div style="color:#cfe; font-size:11px; margin-top:4px;">Type · <b style="color:#8ff;">${typing}</b></div>
+        <div style="color:#cfe; font-size:11px; margin-top:2px;">Bond · <b style="color:#ffd66b;">${bond}</b>/100</div>
+      </div>
+    </div>`;
+  // Stat bars
+  const bar = (label, cur, max, color) => {
+    const pct = Math.max(0, Math.min(100, (cur / Math.max(1, max)) * 100));
+    return `<div style="margin-bottom:5px;">
+      <div style="display:flex; justify-content:space-between; font-size:10px; color:#cfe;">
+        <span>${label}</span><span style="color:#fff;">${cur}${max ? '/' + max : ''}</span>
+      </div>
+      <div style="height:7px; background:rgba(0,0,0,0.55); border:1px solid rgba(79,179,255,0.25); margin-top:2px;">
+        <div style="height:100%; width:${pct}%; background:${color};"></div>
+      </div>
+    </div>`;
+  };
+  const atk = z.atk || sp?.baseATK || 0;
+  const def = z.def || sp?.baseDEF || 0;
+  const spd = z.spd || sp?.baseSPD || 0;
+  const sat = z.satk || sp?.baseSATK || 0;
+  const sdf = z.sdef || sp?.baseSDEF || 0;
+  const statMax = Math.max(atk, def, spd, sat, sdf, 100);
+  const statBlock = `
+    ${bar('HP',  z.hp || 0, z.maxHp || 100, 'linear-gradient(90deg,#ff5b5b,#ff9c66)')}
+    ${bar('ATK', atk, statMax, 'linear-gradient(90deg,#ff9c66,#ffd66b)')}
+    ${bar('DEF', def, statMax, 'linear-gradient(90deg,#4fb3ff,#8ff)')}
+    ${bar('SPD', spd, statMax, 'linear-gradient(90deg,#c8ff8f,#5fdc7a)')}
+    ${bar('SP.ATK', sat, statMax, 'linear-gradient(90deg,#b48fff,#e8a0ff)')}
+    ${bar('SP.DEF', sdf, statMax, 'linear-gradient(90deg,#8fbfff,#b0d8ff)')}
+    ${bar('XP', z.xp || 0, xpMax, 'linear-gradient(90deg,#ffd66b,#ff9c66)')}`;
+  // Moves table
+  const moveRows = moves.length
+    ? moves.map(m => `
+        <div style="display:grid; grid-template-columns:1fr 60px 50px 70px; gap:6px; padding:6px 8px; border:1px solid rgba(79,179,255,0.25); background:rgba(0,0,0,0.35); margin-bottom:4px; align-items:center; font-size:11px;">
+          <div style="color:#ffd66b; font-weight:bold;">${m.name || '—'}</div>
+          <div style="color:#8ff;">PP ${m.pp}/${m.maxPp}</div>
+          <div style="color:#fff;">Pw ${m.power || '—'}</div>
+          <div style="color:#c8ff8f;">${m.type || '—'}</div>
+        </div>`).join('')
+    : '<div style="color:#889; text-align:center; padding:10px; font-size:11px;">· no moves learned yet ·</div>';
+  const abilitiesText = sp?.ability || sp?.abilities || null;
+  const abilities = abilitiesText
+    ? `<div style="color:#cfe; font-size:11px; line-height:1.5;">${Array.isArray(abilitiesText) ? abilitiesText.join(', ') : abilitiesText}</div>`
+    : '<div style="color:#889; font-size:11px;">· no signature ability data ·</div>';
+  // Close button (mouse users)
+  const closeBtn = `
+    <button data-zyclick onclick="try{game._factionExamineIdx=null;paintZycellContent();playSFX('menuClose');}catch(_){}"
+      style="padding:8px 14px; background:rgba(120,80,40,0.35); color:#ffd66b; border:1px solid #d4af37; font:bold 11px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">← BACK TO FACTION</button>`;
+  const hint = `<div style="color:#8ff; font-size:10px; text-align:center; margin-top:10px; letter-spacing:.06em; line-height:1.6;">
+    ← LEFT / B · back &nbsp;·&nbsp; ▲ TRIANGLE · summon / recall &nbsp;·&nbsp; ■ SQUARE · swap w/ next slot
+  </div>`;
+  const body = `
+    ${header}
+    <div style="margin-top:12px;">${statBlock}</div>
+    <div style="margin-top:14px; color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:11px;">MOVES</div>
+    <div style="margin-top:6px;">${moveRows}</div>
+    <div style="margin-top:14px; color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:11px;">SIGNATURE</div>
+    <div style="margin-top:6px;">${abilities}</div>
+    <div style="margin-top:14px; color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:11px;">LORE</div>
+    <div style="margin-top:6px; color:#cfe; font-size:11px; line-height:1.6; font-style:italic;">${lore}</div>
+    <div style="margin-top:14px; display:flex; justify-content:center;">${closeBtn}</div>
+    ${hint}`;
+  return _zySection(`◇ EXAMINE · SLOT ${idx + 1}`, body);
+}
+
+// v0.95.579/581 · Open the Zyrex examine sub-page inside the phone
 function openZyrexExamine(idx){
   const z = (player.party || [])[idx];
   if (!z) return;
-  const bond = (player.bonds && player.bonds[z.speciesId]) || 0;
-  const xpMax = (typeof xpToNextLevel === 'function') ? xpToNextLevel(z.level || 1) : 100;
-  const sp = (typeof SPECIES !== 'undefined') ? SPECIES[z.speciesId] : null;
-  const moves = Array.isArray(z.moves) ? z.moves.filter(Boolean) : [];
-  const movesText = moves.length
-    ? moves.map(m => `  · ${m.name} (${m.pp}/${m.maxPp} · pw ${m.power || '—'} · ${m.type || '—'})`).join('\n')
-    : '  · (no moves learned yet)';
-  const stats = `HP ${z.hp}/${z.maxHp}  ATK ${z.atk || sp?.baseATK || '—'}  DEF ${z.def || sp?.baseDEF || '—'}  SPD ${z.spd || sp?.baseSPD || '—'}`;
-  const typing = `${z.type || sp?.type || '—'}${(z.type2 || sp?.type2) ? '/' + (z.type2 || sp?.type2) : ''}${(z.type3 || sp?.type3) ? '/' + (z.type3 || sp?.type3) : ''}`;
-  const lore = sp?.lore || sp?.pokedex || sp?.description || '(no lore recorded)';
-  const lines = [
-    `═══ ${z.name.toUpperCase()} · Lv ${z.level} · T${z.tier} ═══`,
-    `Type · ${typing}   ·   Bond · ${bond}/100`,
-    `${stats}`,
-    `XP ${z.xp || 0}/${xpMax}`,
-    `\nMOVES:\n${movesText}`,
-    `\nLORE: ${lore}`,
-    `\n[■ SQUARE swap w/ next slot · ▲ TRIANGLE summon/recall · ✕ X close]`,
-  ];
-  showDialog({ speaker: z.name.toUpperCase(), lines: [lines.join('\n')] });
+  game._factionExamineIdx = idx;
+  try { playSFX('confirm'); } catch(_){}
+  try { paintZycellContent(); } catch(_){}
+  // Keep focus in content so LEFT/B backs out cleanly and TRIANGLE/SQUARE still fire
+  game._zycellFocus = 'content';
+  game._zycellItemIdx = 0;
+}
+function closeZyrexExamine(){
+  if (game._factionExamineIdx == null) return false;
+  game._factionExamineIdx = null;
+  try { playSFX('menuClose'); } catch(_){}
+  try { paintZycellContent(); } catch(_){}
+  return true;
 }
 // v0.95.579 · Swap party slots · called from Square on faction slot
 function swapPartySlots(a, b){
@@ -18225,6 +18316,7 @@ function zycellCyclePage(dir){
   zycellPage = ZYCELL_PANELS[(i + dir + ZYCELL_PANELS.length) % ZYCELL_PANELS.length];
   game._zycellFocus = 'nav';                 // v0.95.436 · new page = back to nav
   game._zycellItemIdx = 0;
+  game._factionExamineIdx = null;            // v0.95.581 · clear sub-page state
   playSFX('cursor');
   paintZycellNav();
 }
@@ -18235,6 +18327,7 @@ function zycellMoveCursor(dir){
   zycellPage = ZYCELL_PANELS[n];
   game._zycellFocus = 'nav';                 // v0.95.436 · new page = back to nav
   game._zycellItemIdx = 0;
+  game._factionExamineIdx = null;            // v0.95.581 · clear sub-page state
   playSFX('cursor');
   paintZycellNav();
 }
@@ -18310,6 +18403,8 @@ function handleZycellKey(k){
   if (!game._zycellFocus) game._zycellFocus = 'nav';
   // Circle/Escape/Touchpad close · but if focused on content, first Circle pops back to nav
   if (k === 'b' || k === 'escape'){
+    // v0.95.581 · Zyrex Examine sub-page · B/Escape pops it first before exiting content
+    if (typeof closeZyrexExamine === 'function' && closeZyrexExamine()) return true;
     if (game._zycellFocus === 'content'){ zycellExitContent(); return true; }
     closeZphonePanel(); game._zycellFocus = 'nav'; return true;
   }
@@ -18318,9 +18413,12 @@ function handleZycellKey(k){
   if (game._zycellFocus === 'content'){
     const items = _zycellContentItems();
     // v0.95.576 · LEFT exits back to nav rail (symmetric with RIGHT-to-enter).
-    // Player asked for arrows as the pure focus-swap · L1/R1 stay page-cycle
-    // shortcuts so trigger-hopping between panels still works from anywhere.
-    if (k === 'arrowleft'){ zycellExitContent(); return true; }
+    // v0.95.581 · If Zyrex Examine sub-page is open, LEFT closes IT first
+    // (returns to the Faction grid) before backing out to the nav rail.
+    if (k === 'arrowleft'){
+      if (typeof closeZyrexExamine === 'function' && closeZyrexExamine()) return true;
+      zycellExitContent(); return true;
+    }
     if (k === 'l' || k === 'q'){ zycellCyclePage(-1); return true; }
     if (k === 'r' || k === 'i'){ zycellCyclePage(+1); return true; }
     if (!items.length){ zycellExitContent(); return true; }
@@ -18344,18 +18442,29 @@ function handleZycellKey(k){
       return true;
     }
     // v0.95.579 · SQUARE (J) · Faction · swap this Zyrex with the NEXT party slot
+    // v0.95.581 · Also works from the Zyrex Examine sub-page (uses _factionExamineIdx)
     if (k === 'j'){
+      // Examine sub-page · use the currently examined slot
+      if (zycellPage === 'faction' && game._factionExamineIdx != null){
+        const i = game._factionExamineIdx;
+        const party = player.party || [];
+        const nextIdx = (i + 1) % Math.max(1, party.length || 8);
+        if (swapPartySlots(i, nextIdx)){
+          game._factionExamineIdx = nextIdx;   // follow the Zyrex we just moved
+          try { showToast(`◇ Swapped slot ${i+1} ↔ ${nextIdx+1}`, 1600); } catch(_){}
+          try { paintZycellContent(); } catch(_){}
+        }
+        return true;
+      }
       const el = items[game._zycellItemIdx];
       if (!el) return true;
       const swapAttr = el.getAttribute('data-zyswap');
       if (swapAttr != null){
         const i = +swapAttr;
         const party = player.party || [];
-        // Find next filled OR empty slot to swap into (wraps back to 0)
         const nextIdx = (i + 1) % Math.max(1, party.length || 8);
         if (swapPartySlots(i, nextIdx)){
           try { showToast(`◇ Swapped slot ${i+1} ↔ ${nextIdx+1}`, 1600); } catch(_){}
-          // Keep focus on the SAME visual position (the Zyrex we just moved)
           game._zycellItemIdx = Math.min(items.length - 1, game._zycellItemIdx);
         }
         return true;
@@ -18363,7 +18472,13 @@ function handleZycellKey(k){
     }
     // v0.95.446 · Triangle (k) · context-sensitive · data-zysummon = summon
     // Zyrex to overworld · else data-zyfav / .zyBagFav toggles favorite
+    // v0.95.581 · From Examine sub-page, TRIANGLE summons the examined Zyrex
     if (k === 'k' || k === 'y'){
+      if (zycellPage === 'faction' && game._factionExamineIdx != null){
+        try { toggleFactionSummon(game._factionExamineIdx); } catch(err){ console.warn('summon failed', err); }
+        try { closeZphonePanel(); } catch(_){}
+        return true;
+      }
       const el = items[game._zycellItemIdx];
       if (!el) return true;
       const summonIdx = el.getAttribute('data-zysummon');

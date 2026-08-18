@@ -11741,6 +11741,20 @@ function enterInterior(sceneKey, cfg, toast){
   player.animFrame = 0;
   // v0.95.198 · Snap GBA camera to player on scene entry · no catch-up sway
   snapCameraToPlayer();
+  // v0.95.535 · Summoned Zyrex followers walk in with Rizer · every _summon_*
+  // npc marked _summoned=true gets its scene swapped + repositioned behind the
+  // player.  Multi-summon safe · they fan out around the spawn tile.
+  let followerOffset = 1;
+  for (const n of NPCS){
+    if (n && n._summoned && n.id && n.id.startsWith('_summon_')){
+      n.scene  = sceneKey;
+      n.tileX  = player.x;
+      n.tileY  = player.y + followerOffset;
+      n.moving = false;
+      n.moveCd = 200;
+      followerOffset++;
+    }
+  }
   // v0.95 · Rizer Room · always show scene label as toast on entry
   const label = cfg.label || toast;
   if (label) showToast(label, 1800);
@@ -12009,13 +12023,16 @@ function exitInterior(){
   snapCameraToPlayer();
   // Any NPC that was 'follow' in the interior we just left · transfer to
   // overworld right behind the player · they walk out with us.
+  // v0.95.535 · Multi-summon fan-out · every follower gets its own tile
+  let followerOffset = 1;
   for (const n of NPCS){
-    if (n.scene === priorScene && n.mode === 'follow'){
+    if (n.scene === priorScene && (n.mode === 'follow' || (n._summoned && n.id && n.id.startsWith('_summon_')))){
       n.scene  = 'overworld';
       n.tileX  = r.x;
-      n.tileY  = r.y + 1;               // 1 tile south of exit spawn
+      n.tileY  = r.y + followerOffset;
       n.moving = false;
       n.moveCd = 200;
+      followerOffset++;
     }
   }
 }
@@ -21127,10 +21144,8 @@ function toggleFactionSummon(partyIdx){
     showToast(`◈ ${z.name} returned to your ZyCube`, 1800);
     return;
   }
-  // Case 2: retire any other summoned Zyrex first (Pokemon-style · one out at a time)
-  NPCS.forEach(n => {
-    if (n && n._summoned){ n._summoned = false; n.scene = '__despawn__'; }
-  });
+  // v0.95.535 · MULTI-SUMMON · retirement loop REMOVED · every party Zyrex may
+  // walk with Rizer simultaneously.  Toggle each one independently from FACTION.
   // Sprite gate · if we don't have a sheet for this species, toast + bail
   if (!spriteDef){
     showToast(`◈ ${z.name} sprite pending · can't summon yet`, 2400);
@@ -21173,12 +21188,15 @@ function toggleFactionSummon(partyIdx){
     }
     NPCS.push(follower);
   }
-  // Position beside Rizer in current scene
+  // Position beside Rizer in current scene · v0.95.535 · multi-summon stagger
+  // Count existing summoned Zyrex in this scene to offset the new spawn tile
+  const otherOut = NPCS.filter(n => n && n._summoned && n !== follower
+                                 && n.scene === game.scene).length;
   follower._summoned = true;
   follower.moving = false;   // v0.95.346 · force idle pose on (re)summon
   follower.scene = game.scene;
   follower.tileX = player.x;
-  follower.tileY = player.y + 1;
+  follower.tileY = player.y + 1 + otherOut;
   follower.dir   = player.dir;
   playSFX('confirm');
   showToast(`★ ${z.name} summoned · follows you`, 2000);

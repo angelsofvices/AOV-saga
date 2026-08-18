@@ -17717,6 +17717,19 @@ function paintZycellNav(){
     sigEl.textContent = player.malezorBroadcastDone ? 'STRONG' : 'WEAK';
     sigEl.style.color = player.malezorBroadcastDone ? '#5fdc7a' : '#ffd66b';
   }
+  // v0.95.601 · Right-rail RECENT MESSAGES · populates from the same
+  // game.notifications feed the Home panel used to render inline · latest 8
+  // shown newest-first · timestamps in ally-blue, body in soft white.
+  const msgsEl = document.getElementById('zycellMessages');
+  if (msgsEl){
+    const feed = (game.notifications || []).slice(-8).reverse();
+    msgsEl.innerHTML = feed.length
+      ? feed.map(n => `<div style="margin-bottom:6px; line-height:1.35;">
+          <span style="color:#8ff;">${n.time || '--:--'}</span>
+          <span style="color:#cfe;">${String(n.msg || '').replace(/[<>]/g,'')}</span>
+        </div>`).join('')
+      : '<div style="color:#889;">· messages queue empty ·</div>';
+  }
   // Center content dispatch · pass 2+ renders per-panel
   paintZycellContent();
 }
@@ -18981,18 +18994,20 @@ function renderZycellHome(){
         <div style="position:absolute; right:8px; bottom:6px; color:#8ff; font-size:9px;">(${Math.round(p.x)}, ${Math.round(p.y)})</div>
       </div>
     </div>`;
-  // ── Notifications · pulls from game.notifications queue (fed by showToast forks) ──
-  const notif = (game.notifications || []).slice(-4).reverse();
-  const notifications = `
-    <div style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.35); padding:10px;">
-      <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:11px; margin-bottom:6px;">🔔 NOTIFICATIONS</div>
-      <div style="font-size:10px; line-height:1.7; color:#cfe;">
-        ${notif.length ? notif.map(n => `<div>◦ <span style="color:#8ff;">${n.time || '--:--'}</span> ${n.msg}</div>`).join('') : '<div style="color:#889;">· no notifications ·</div>'}
-      </div>
+  // v0.95.601 · Notifications moved to the right rail (see paintZycellNav
+  // → #zycellMessages) · this slot now hosts a bigger DATE + TIME card.
+  const _now = new Date();
+  const _dow = ['SUN','MON','TUE','WED','THU','FRI','SAT'][_now.getDay()];
+  const _mo  = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][_now.getMonth()];
+  const _dateStr = `${_dow} · ${_mo} ${_now.getDate()} ${_now.getFullYear()}`;
+  const _timeStr = `${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:${String(_now.getSeconds()).padStart(2,'0')}`;
+  const dateTime = `
+    <div style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.35); padding:14px; text-align:center;">
+      <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:11px; margin-bottom:8px;">⌚ DATE &amp; TIME</div>
+      <div style="color:#fff; font-weight:bold; font-size:26px; letter-spacing:.10em; line-height:1;">${_timeStr}</div>
+      <div style="color:#8ff; font-size:11px; margin-top:6px; letter-spacing:.14em;">${_dateStr}</div>
+      <div style="color:#c060ff; font-size:10px; margin-top:8px; letter-spacing:.08em;">Cycle · Day</div>
     </div>`;
-  // Layout · 3 columns · matches mockup proportions
-  // v0.95.488 · Rizer level card sits at the very top of the left column so
-  // level is the first thing the player sees when they open the phone.
   return `
     <div style="display:grid; grid-template-columns: 1fr 1.3fr; gap:10px;">
       <div style="display:flex; flex-direction:column; gap:10px;">
@@ -19004,7 +19019,7 @@ function renderZycellHome(){
       <div style="display:flex; flex-direction:column; gap:10px;">
         ${mission}
         ${map}
-        ${notifications}
+        ${dateTime}
       </div>
     </div>`;
 }
@@ -23519,7 +23534,16 @@ function drawWorldLayer(){
   if(_factionSoulSwitch&&player.activeActor!=='rizer'){
     renderables.push({kind:'rizerShell',footY:_factionSoulSwitch.shell.y});
   }
-  if(!player.ufoFlying)renderables.push({ kind:'player', footY: player.y });
+  // v0.95.602 · Mid-jump z-order boost · when Rizer front-flips (S1 or S2),
+  // bump his depth-sort footY by +2 so he renders OVER any chest/prop he's
+  // arcing over.  Without this, a chest one tile ahead of the takeoff tile
+  // would draw ON TOP of a flying-over Rizer (tile-Y tie → prop wins).
+  if (!player.ufoFlying){
+    const _now2 = performance.now();
+    const _rizerJumping = player.jumpUntil && _now2 < player.jumpUntil;
+    const _footY = player.y + (_rizerJumping ? 2 : 0);
+    renderables.push({ kind:'player', footY: _footY });
+  }
   // v0.95.122 · Include boulders in the depth sort so player/hair renders
   // above boulders when their feet-Y is >= boulder feet-Y.
   BOULDERS.forEach(b => {

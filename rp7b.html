@@ -17828,8 +17828,13 @@ function renderZycellWeapons(){
 }
 
 // ── MAP · locked until Zoryn Town Map · then live pin + district outline ──
+// v0.95.584 · REWRITE · The map now renders straight from ZYRAXIS_DISTRICTS
+// world coordinates via SVG.  Each district's cx/cy + rx/ry places its
+// island ellipse on the same coord system as the overworld tile grid.  The
+// player pin uses player.x/y directly — no hand-tuned image fractions, no
+// per-district hack table.  Routes draw as bridges between neighbors.  What
+// you see on the map is exactly where you are in the world.
 function renderZycellMap(){
-  // v0.95.417 · Gated behind Zoryn's Town Map (player.townMapGifted)
   if (!player.townMapGifted){
     return `
       <div style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.5); padding:60px 20px; text-align:center;">
@@ -17838,50 +17843,82 @@ function renderZycellMap(){
         <div style="color:#cfe; font-size:11px; line-height:1.6;">Find <b>Zoryn</b> in Malezor · he owes you a Town Map.<br>Once he hands it over, this tab lights up with the full Zyraxis atlas.</div>
       </div>`;
   }
-  const d = (typeof worldDistrictAt === 'function') ? (worldDistrictAt(player.x, player.y) || '') : '';
-  const label = d ? d.toUpperCase() : 'VOID SEA';
-  // Live pin position from WORLD_MAP_DISTRICT_POS (if district is known)
-  const posMap = (typeof WORLD_MAP_DISTRICT_POS !== 'undefined') ? WORLD_MAP_DISTRICT_POS[d] : null;
-  // v0.95.531 · Rizer pin now tracks player's ACTUAL world coord within the
-  // district (not just the district center).  Convert player.x/y (tile space)
-  // to a normalized offset inside the district's ZYRAXIS_DISTRICTS ellipse
-  // (rx, ry world-tile radii), then apply that offset to the map-image
-  // fractional radius so the pin moves proportionally on the illustration.
-  const districtBounds = (typeof ZYRAXIS_DISTRICT_BY_ID !== 'undefined') ? ZYRAXIS_DISTRICT_BY_ID[d] : null;
-  let pinX = posMap ? posMap.xf : null, pinY = posMap ? posMap.yf : null;
-  if (posMap && districtBounds){
-    const rawDx = (player.x - districtBounds.cx) / Math.max(1, districtBounds.rx);
-    const rawDy = (player.y - districtBounds.cy) / Math.max(1, districtBounds.ry);
-    // Clamp to 0.9 so pin never leaves the outline circle
-    const dx = Math.max(-0.9, Math.min(0.9, rawDx));
-    const dy = Math.max(-0.9, Math.min(0.9, rawDy));
-    // Map illustration is aspect 1459/1078 · rf is normalized on IMAGE WIDTH ·
-    // multiply the vertical offset by the aspect to compensate the container
-    const aspect = 1459 / 1078;
-    pinX = posMap.xf + dx * posMap.rf;
-    pinY = posMap.yf + dy * posMap.rf * aspect;
+  const districts = (typeof ZYRAXIS_DISTRICTS !== 'undefined') ? ZYRAXIS_DISTRICTS : [];
+  const routes    = (typeof ZYRAXIS_ROUTES     !== 'undefined') ? ZYRAXIS_ROUTES     : [];
+  const curDist   = (typeof worldDistrictAt === 'function') ? worldDistrictAt(player.x, player.y) : null;
+  const label     = curDist ? curDist.toUpperCase() : 'VOID SEA';
+  // World bounding box · derived from district extents (with 40-tile margin so
+  // districts near the edge don't get clipped by the viewport)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const d of districts){
+    if (d.cx - d.rx < minX) minX = d.cx - d.rx;
+    if (d.cy - d.ry < minY) minY = d.cy - d.ry;
+    if (d.cx + d.rx > maxX) maxX = d.cx + d.rx;
+    if (d.cy + d.ry > maxY) maxY = d.cy + d.ry;
   }
-  // v0.95.440 · Map fits the phone content · uses <img> so district overlay percentages
-  // align with the ACTUAL image bounds (no letterbox drift from background:contain).
-  // District outline highlights the current island · Rizer pin lives inside the outline.
-  const outlineHTML = posMap ? `
-    <div style="position:absolute; left:${(posMap.xf * 100).toFixed(2)}%; top:${(posMap.yf * 100).toFixed(2)}%; width:${(posMap.rf * 200).toFixed(1)}%; padding-bottom:${(posMap.rf * 200).toFixed(1)}%; border:4px solid rgba(255,214,107,0.95); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 22px rgba(255,214,107,0.65), inset 0 0 18px rgba(255,214,107,0.35); box-sizing:border-box; pointer-events:none; animation:zyPulse 1.4s ease-in-out infinite;"></div>
-    <div style="position:absolute; left:${(pinX * 100).toFixed(2)}%; top:${(pinY * 100).toFixed(2)}%; width:14px; height:14px; background:#4fb3ff; border:2px solid #fff; border-radius:50%; box-shadow:0 0 20px #4fb3ff, 0 0 8px #fff; transform:translate(-50%,-50%); pointer-events:none;"></div>
-  ` : '';
+  const pad = 40;
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  const vbW = maxX - minX, vbH = maxY - minY;
+  // Per-district palette · matches overworld tile palette so the map reads at a glance
+  const DISTRICT_FILL = {
+    malezor:   ['#3d5a2e', '#2a4020'],   // forest green
+    zarvane:   ['#b58a2f', '#7c5c1e'],   // sunbaked yellow
+    andrannor: ['#2d3a4a', '#1a2432'],   // dusk teal
+    veridan:   ['#4dbb6a', '#2d7a44'],   // fresh green
+    netharion: ['#4a2d6a', '#2a184a'],   // twilight purple
+    vorashil:  ['#5688b8', '#2f5c88'],   // steel blue
+    xilnar:    ['#8892a0', '#4a5260'],   // silver-grey
+    baelgor:   ['#c25a2a', '#7a3418'],   // ember orange
+    thardin:   ['#4a9088', '#2c605c'],   // teal machine
+    korathen:  ['#c7a24a', '#8a6a2a'],   // gold endgame
+  };
+  // Build the SVG body
+  const routeLines = routes.map(([aId, bId, width]) => {
+    const a = ZYRAXIS_DISTRICT_BY_ID[aId], b = ZYRAXIS_DISTRICT_BY_ID[bId];
+    if (!a || !b) return '';
+    return `<line x1="${a.cx}" y1="${a.cy}" x2="${b.cx}" y2="${b.cy}" stroke="rgba(180,140,90,0.55)" stroke-width="${width || 12}" stroke-linecap="round"/>`;
+  }).join('');
+  const districtShapes = districts.map(d => {
+    const [fill, stroke] = DISTRICT_FILL[d.id] || ['#334', '#556'];
+    const isHere = d.id === curDist;
+    return `
+      <ellipse cx="${d.cx}" cy="${d.cy}" rx="${d.rx}" ry="${d.ry}" fill="${fill}" stroke="${isHere ? '#ffd66b' : stroke}" stroke-width="${isHere ? 6 : 3}" opacity="${isHere ? 1 : 0.85}"/>
+      <text x="${d.cx}" y="${d.cy - d.ry - 8}" text-anchor="middle" fill="${isHere ? '#ffd66b' : '#cfe'}" font-family="Courier New, monospace" font-size="18" font-weight="bold" letter-spacing="2" style="text-shadow: 0 0 4px #000;">${d.id.toUpperCase()}</text>`;
+  }).join('');
+  // Player pin at exact world coord
+  const pinR = 8;
+  const pulseSize = pinR + 6;
+  const pinSVG = `
+    <circle cx="${player.x}" cy="${player.y}" r="${pulseSize}" fill="rgba(79,179,255,0.35)">
+      <animate attributeName="r" from="${pinR}" to="${pinR * 2.8}" dur="1.2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" from="0.6" to="0" dur="1.2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="${player.x}" cy="${player.y}" r="${pinR}" fill="#4fb3ff" stroke="#fff" stroke-width="2"/>
+    <circle cx="${player.x}" cy="${player.y}" r="${pinR * 0.35}" fill="#fff"/>`;
+  const svg = `
+    <svg viewBox="${minX} ${minY} ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet"
+         style="width:100%; height:100%; display:block; background:radial-gradient(ellipse at center, rgba(20,30,60,0.6), rgba(4,8,22,0.9));">
+      <defs>
+        <radialGradient id="voidBg" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(20,30,60,0.7)"/>
+          <stop offset="100%" stop-color="rgba(4,8,22,0.95)"/>
+        </radialGradient>
+      </defs>
+      <rect x="${minX}" y="${minY}" width="${vbW}" height="${vbH}" fill="url(#voidBg)"/>
+      ${routeLines}
+      ${districtShapes}
+      ${pinSVG}
+    </svg>`;
   return `
-    <style>@keyframes zyPulse { 0%,100% { opacity:0.6; transform:translate(-50%,-50%) scale(1); } 50% { opacity:1; transform:translate(-50%,-50%) scale(1.04); } }</style>
     <div style="border:1px solid #d4af37; background:rgba(0,0,0,0.4); padding:6px; display:flex; flex-direction:column; height:100%; min-height:0; box-sizing:border-box;">
       <div style="color:#ffd66b; font-weight:bold; letter-spacing:.12em; font-size:12px; margin-bottom:6px; display:flex; justify-content:space-between; padding:0 4px; flex:0 0 auto;">
         <span>🗺  WORLD MAP · ZYRAXIS</span>
         <span style="color:#8ff;">📍 ${label}</span>
       </div>
       <div style="flex:1 1 0; min-height:0; position:relative; border:1px solid rgba(79,179,255,0.35); background:rgba(4,8,22,0.6); display:flex; align-items:center; justify-content:center; overflow:hidden;">
-        <div style="position:relative; aspect-ratio: 1459/1078; max-width:100%; max-height:100%; height:100%;">
-          <img src="assets/2D%20sprites/ui/pages/world-map-hero.png" style="width:100%; height:100%; display:block; object-fit:contain;" alt="world map"/>
-          <div style="position:absolute; inset:0; pointer-events:none;">${outlineHTML}</div>
-        </div>
+        ${svg}
       </div>
-      <div style="color:#8ff; font-size:10px; margin-top:6px; text-align:center; flex:0 0 auto;">YOU · ${( (player.activeActor||'rizer').toUpperCase() )} · TILE (${Math.round(player.x)}, ${Math.round(player.y)})</div>
+      <div style="color:#8ff; font-size:10px; margin-top:6px; text-align:center; flex:0 0 auto;">YOU · ${( (player.activeActor||'rizer').toUpperCase() )} · TILE (${Math.round(player.x)}, ${Math.round(player.y)}) · ${label}</div>
     </div>`;
 }
 

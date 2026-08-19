@@ -21446,6 +21446,7 @@ function loadGame(){
     game.scene = s.scene || 'overworld';
     Object.assign(player, s.player);
     if (!Array.isArray(player.pcZyrex)) player.pcZyrex = [];   // v0.95.536 · back-compat default
+    try { migrateSavedZyrex(); } catch(err){ console.warn('[rp7b] zyrex migration failed', err); }
     // v0.95.607 · restore notifications feed so ZyPhone right-rail messages persist
     game.notifications = Array.isArray(s.player.notifications) ? s.player.notifications.slice() : (game.notifications || []);
     delete player.notifications;
@@ -21483,6 +21484,47 @@ function loadGame(){
     try { if (typeof restoreDeathGargoyles === 'function') restoreDeathGargoyles(); } catch(_){}   // v0.95.614
     return true;
   } catch(e){ console.warn('[rp7b] load failed', e); return false; }
+}
+// v0.95.631 · SAVE MIGRATION · SPECIES is authoritative, the save is not.
+// A snapshot stores tier/type/stats inline, so canon changes (a re-tier, a
+// retype, a pool correction, a delisting) would otherwise persist as stale
+// numbers forever.  On every load we re-sync each stored Zyrex against its
+// current species definition, and evict anything that is no longer a Zyrex.
+function migrateSavedZyrex(){
+  let evicted = 0, resynced = 0, retiered = [];
+  const fix = (list) => (list || []).map(z => {
+    if (!z) return z;
+    // Humanoid allies and delisted species can never sit in the roster.
+    if (isHumanoidAlly(z.speciesId) || !SPECIES[z.speciesId]){
+      console.warn('[migrate] evicted from roster:', z.speciesId || z.name);
+      evicted++; return null;
+    }
+    const sp = SPECIES[z.speciesId];
+    const changed = (z.tier !== sp.tier) || (z.type !== sp.type) || ((z.type2 || null) !== (sp.type2 || null));
+    if (changed){
+      if (z.tier !== sp.tier) retiered.push(`${sp.name} T${z.tier}->T${sp.tier}`);
+      z.tier = sp.tier; z.type = sp.type; z.type2 = sp.type2 || null; z.type3 = sp.type3 || null;
+    }
+    // Re-derive stats from the live species base at the stored level, keeping
+    // the HP fraction so a wounded Zyrex stays wounded.
+    const before = z.maxHp;
+    applyLevelStats(z, true);
+    if (changed || before !== z.maxHp) resynced++;
+    // Prune moves that no longer exist, then top up any unlocked slots.
+    z.moves = (z.moves || []).filter(m => m && moveData(m.name));
+    refreshZyrexMoves(z, { silent: true });
+    return z;
+  }).filter(z => z !== null);
+
+  player.party   = fix(player.party);
+  player.pcZyrex = fix(player.pcZyrex);
+  if (evicted || resynced){
+    console.log(`[migrate] ${resynced} Zyrex resynced to current canon, ${evicted} evicted`);
+    if (retiered.length){
+      try { showToast(`◈ Canon update · ${retiered.join(' · ')}`, 4200); } catch(_){}
+    }
+  }
+  return { evicted, resynced };
 }
 function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
 // Auto-save timer · every 5 seconds while in overworld

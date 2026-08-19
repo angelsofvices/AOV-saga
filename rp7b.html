@@ -11342,7 +11342,63 @@ function drawNpcInfoOverlay(){
 //             3) drawImage the off-screen buffer over the main canvas
 // This mirrors the "darken + subtract holes" technique researched by user.
 // ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+// ★ ZYRAXIS CLOCK · v0.95.635 · Creator directive 2026-08-19
+//   REAL-WORLD TIME + a 12-hour SLEEP SKIP.
+//
+// Zyraxis runs on the player's actual clock — play at night, the world is
+// dark.  Sleeping in any owned bed flips a persistent 12-hour offset, so a
+// daytime player is never locked out of night content and vice versa.
+//
+// Before this, two halves existed and had never been connected: the ZyPhone
+// clock showed raw new Date(), and game.lightMode was a manual dev cycler that
+// nothing ever advanced.  This joins them.
+//
+// clockOffsetHours lives on `player`, so it persists automatically through the
+// v0.95.634 save backfill with no save-code change.
+// ══════════════════════════════════════════════════════════════════════════
+function zyraxisHour(){
+  const off = (typeof player !== 'undefined' && player.clockOffsetHours) || 0;
+  return (new Date().getHours() + off) % 24;
+}
+function zyraxisMinute(){ return new Date().getMinutes(); }
+function zyraxisClockString(){
+  return `${String(zyraxisHour()).padStart(2,'0')}:${String(zyraxisMinute()).padStart(2,'0')}`;
+}
+// Phase bands · dawn 05-08 · day 08-18 · dusk 18-20 · night 20-05
+function zyraxisPhase(){
+  const h = zyraxisHour();
+  if (h >= 20 || h < 5)  return 'night';
+  if (h < 8)             return 'dawn';
+  if (h < 18)            return 'day';
+  return 'dusk';
+}
+function isNightZyraxis(){ return zyraxisPhase() === 'night'; }
+// Night-gated landmarks (Barrow habitats) ask this.
+function nightGateOpen(){ return isNightZyraxis(); }
+// Sleeping skips roughly half a day, to the OPPOSITE half.
+//
+// A flat +12 has a dead zone: sleeping at 18:00 (dusk) lands on 06:00 (dawn),
+// so night is never reached.  That locks night content away for six real hours
+// a day — 05:00-07:59 and 17:00-19:59.  Instead of a fixed delta we snap to the
+// opposite ANCHOR, which is still ~12 hours in feel but always lands somewhere
+// meaningful: deep night (22:00) or mid-morning (08:00).
+const SLEEP_ANCHOR_NIGHT = 22;
+const SLEEP_ANCHOR_DAY   = 8;
+function toggleSleepClockSkip(){
+  const target = isNightZyraxis() ? SLEEP_ANCHOR_DAY : SLEEP_ANCHOR_NIGHT;
+  player.clockOffsetHours = (target - new Date().getHours() + 24) % 24;
+  return zyraxisPhase();
+}
+// game.lightMode is now DERIVED from the hour.  The dev cycler still wins when
+// engaged, so light can be forced for screenshots and testing.
+function refreshLightModeFromClock(){
+  if (game.devLightOverride) return;              // dev cycler holds the wheel
+  const p = zyraxisPhase();
+  game.lightMode = (p === 'night') ? 'night' : (p === 'day' ? 'off' : 'daylight');
+}
 if (game.lightMode == null) game.lightMode = 'off';
+try { refreshLightModeFromClock(); } catch(_){}
 const _lightBuffer = document.createElement('canvas');
 const _lightCtx    = _lightBuffer.getContext('2d');
 // Registered light sources per scene · [{scene, x, y, radiusTiles, intensity}]
@@ -12494,9 +12550,23 @@ function sleepInBed(){
     playDreamVideo(alive);
     return;
   }
+  // v0.95.635 · Sleeping now has a SECOND purpose: skipping 12 hours.  It must
+  // never refuse just because you are healthy, or a daytime player could never
+  // reach night-gated content (Barrow habitats, nocturnal Zyrex).
   if (!zyrexNeeds && !rizerNeeds){
-    showToast('◈ You feel well rested already.  No need to sleep.', 2400);
-    playSFX('menuClose');
+    const phase = toggleSleepClockSkip();
+    try { playSFX('yawnBed'); } catch(_){}
+    playSFX('menuOpen');
+    _sleepFade = { t0: performance.now(), dur: 2400 };
+    setTimeout(() => {
+      try { refreshLightModeFromClock(); } catch(_){}
+      try { saveGame(); } catch(_){}
+      playSFX('confirm');
+      showToast(phase === 'night'
+        ? `◈ You sleep through the day · it is ${zyraxisClockString()}, night over Zyraxis`
+        : `◈ You sleep through the night · it is ${zyraxisClockString()}, ${phase} over Zyraxis`, 3200);
+    }, 1200);
+    setTimeout(() => { _sleepFade = null; }, 2400);
     return;
   }
   // v0.95.543 · Rizer "yawn · time for a nap" VO fires on ANY successful sleep
@@ -12513,9 +12583,12 @@ function sleepInBed(){
   _sleepFade = { t0: performance.now(), dur: 2400 };
   setTimeout(() => {
     alive.forEach(z => { z.hp = z.maxHp; });
+    // v0.95.635 · every sleep advances 12h, healing or not
+    const ph = toggleSleepClockSkip();
+    try { refreshLightModeFromClock(); } catch(_){}
     saveGame();
     playSFX('confirm');
-    showToast('◈ Zyrex party fully restored.', 2400);
+    showToast(`◈ Zyrex party restored · ${zyraxisClockString()} · ${ph} over Zyraxis`, 2800);
   }, 1200);
   setTimeout(() => { _sleepFade = null; }, 2400);
 }
@@ -18566,8 +18639,9 @@ function paintZycellNav(){
   if (cEl) cEl.textContent = `◆ ${(player.credits || player.rizerXP || 0).toLocaleString()}`;
   const clkEl = document.getElementById('zycellClock');
   if (clkEl){
-    const d = new Date();
-    clkEl.textContent = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    // v0.95.635 · Zyraxis time (real clock + sleep offset), not raw system time
+    try { clkEl.textContent = zyraxisClockString(); }
+    catch(_){ const d = new Date(); clkEl.textContent = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
   }
   const sigEl = document.getElementById('zycellSignal');
   if (sigEl){
@@ -27650,6 +27724,7 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
     lightBtn.addEventListener('click', () => {
       const cur = LIGHT_MODES.indexOf(game.lightMode || 'off');
       game.lightMode = LIGHT_MODES[(cur + 1) % LIGHT_MODES.length];
+      game.devLightOverride = true;   // v0.95.635 · manual wins over the clock
       lightBtn.textContent = labelLight();
       showToast(`◈ DEV · Light Mode → ${game.lightMode.toUpperCase()}`, 1600);
     });

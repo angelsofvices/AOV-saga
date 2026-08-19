@@ -18638,7 +18638,41 @@ function renderZycellFaction(){
       });
     });
   }, 0);
-  return _zySection(`◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX`, grid + hint);
+  // ── v0.95.629 · FACTION ALLIES · humanoid contacts, kept VISIBLY separate ──
+  // Creator directive: there must ALWAYS be a difference between faction
+  // CONTACTS (Humanoid primary · earned by Rizer-bonding through quests) and
+  // faction ZYREX (non-Humanoid · earned by Zysphere-bonding).  Different
+  // accent colour (amber vs blue), different glyph, different stat line —
+  // allies show BOND %, Zyrex show Lv/Tier/HP/XP.  They never share a grid.
+  const allies = (typeof factionAllies === 'function') ? factionAllies() : [];
+  let allySection = '';
+  if (allies.length){
+    const allyCells = allies.map(a => `
+      <div style="position:relative; border:2px solid #ffd66b; background:rgba(80,55,10,0.45); padding:8px; min-height:70px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+        <div style="position:absolute; top:3px; left:5px; color:#ffd66b; font-size:9px; letter-spacing:.08em;">☗ ALLY</div>
+        <div style="color:#ffe9a8; font-weight:bold; font-size:11px; letter-spacing:.06em; margin-top:6px;">${(a.name || a.id).toUpperCase()}</div>
+        <div style="color:#d8c48a; font-size:9px; margin-top:2px;">${a.loc}</div>
+        <div style="width:78%; height:4px; background:rgba(0,0,0,0.5); margin-top:5px;">
+          <div style="height:100%; width:${a.bond}%; background:linear-gradient(90deg,#ffd66b,#ff9c66);"></div>
+        </div>
+        <div style="color:#ffd66b; font-size:9px; margin-top:2px;">RIZER BOND ${a.bond}%</div>
+      </div>`).join('');
+    allySection = `
+      <div style="margin-top:14px; border-top:1px solid rgba(255,214,107,0.35); padding-top:10px;">
+        <div style="color:#ffd66b; font:bold 11px 'Courier New',monospace; letter-spacing:.10em; margin-bottom:6px;">
+          ☗ FACTION ALLIES · ${allies.length} CONTACT${allies.length === 1 ? '' : 'S'}
+        </div>
+        <div style="color:#a99765; font-size:9px; letter-spacing:.04em; margin-bottom:8px; line-height:1.6;">
+          humanoids · Rizer-bonded through their quests · cannot be Zybonded or stored in a Zysphere
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">${allyCells}</div>
+      </div>`;
+  }
+  return _zySection(
+    `◇ FACTION · ${party.filter(Boolean).length}/8 ZYREX${allies.length ? ` · ${allies.length} ALLIES` : ''}`,
+    `<div style="color:#8ff; font-size:9px; letter-spacing:.06em; margin-bottom:6px;">◈ ZYREX · Zysphere-bonded</div>`
+    + grid + hint + allySection
+  );
 }
 
 // v0.95.581 · Zyrex Examine page · full-stat detail lives INSIDE the phone
@@ -19157,19 +19191,7 @@ function renderZycellContacts(){
   // v0.95.492 · REGISTRATION GATE · every contact only appears in the ZyPhone
   // book after the player has spoken to that NPC.  Reuses each ally's existing
   // first-talk flag (or a *Met flag added when none existed).  No talk = no row.
-  const ALL_CONTACTS = [
-    ['mom',               'Mom',           'Home · Malezor',       () => !!player.zycubeGifted],
-    ['dad',               'Dad',           'Research Facility',    () => !!player.dadStarterQuestGiven],
-    ['yara',              'Yara',          'Home · sister',        () => !!player.yaraMet],
-    ['zoryn',             'Zoryn',         'Malezor · best friend',() => !!player.townMapGifted],
-    ['kelthor',           'Kelthor',       'Beastwarden\'s Hall',  () => !!player.kelthorMet],
-    ['scrapjaw',          'Scrapjaw',      'Malezor Gear Shop',    () => !!player.scrapjawMet],
-    ['kaizari',           'Kaizari',       'Training Farm',        () => !!player.faenetGifted],
-    ['professor_elarian', 'Prof Elarion',  'Rizer Academy',        () => !!player.raidCardGifted],
-    ['auraxion',          'Auraxion',      'Wild Arm · UFO pilot', () => !!player.auraxionMissionComplete],
-    // v0.95.495 · Nurse Rein · unlocked by delivering 2 life stones · CALL = 10-min field heal
-    ['nurse_rein',        'Nurse Rein',    'Malezor Hospital',     () => !!player.nurseReinAllied],
-  ];
+  const ALL_CONTACTS = FACTION_CONTACTS;
   const contacts = ALL_CONTACTS
     .filter(([id, name, loc, gate]) => {
       try { return typeof gate === 'function' ? gate() : true; } catch(_){ return false; }
@@ -21860,6 +21882,32 @@ const HUMANOID_ALLY_IDS = new Set([
   'professor_elarian','elarian','nurse_rein','orren','vireta','myara',
 ]);
 function isHumanoidAlly(id){ return HUMANOID_ALLY_IDS.has(String(id || '')); }
+
+// v0.95.629 · SINGLE SOURCE OF TRUTH for humanoid faction members.
+// Both the CONTACTS page and the ALLIES half of the FACTION page read this, so
+// the two lists can never drift apart.  [id, display, where, unlock-gate]
+const FACTION_CONTACTS = [
+  ['mom',               'Mom',           'Home · Malezor',       () => !!player.zycubeGifted],
+  ['dad',               'Dad',           'Research Facility',    () => !!player.dadStarterQuestGiven],
+  ['yara',              'Yara',          'Home · sister',        () => !!player.yaraMet],
+  ['zoryn',             'Zoryn',         'Malezor · best friend',() => !!player.townMapGifted],
+  ['kelthor',           'Kelthor',       'Beastwarden\'s Hall',  () => !!player.kelthorMet],
+  ['scrapjaw',          'Scrapjaw',      'Malezor Gear Shop',    () => !!player.scrapjawMet],
+  ['kaizari',           'Kaizari',       'Training Farm',        () => !!player.faenetGifted],
+  ['professor_elarian', 'Prof Elarion',  'Rizer Academy',        () => !!player.raidCardGifted],
+  ['auraxion',          'Auraxion',      'Wild Arm · UFO pilot', () => !!player.auraxionMissionComplete],
+  // v0.95.495 · Nurse Rein · unlocked by delivering 2 life stones · CALL = 10-min field heal
+  ['nurse_rein',        'Nurse Rein',    'Malezor Hospital',     () => !!player.nurseReinAllied],
+];
+// Humanoid allies the Rizer has actually bonded with (their quest gate is met).
+function factionAllies(){
+  return FACTION_CONTACTS.filter(([id, name, loc, gate]) => {
+    try { return typeof gate === 'function' ? gate() : true; } catch(_){ return false; }
+  }).map(([id, name, loc]) => ({
+    id, name, loc,
+    bond: Math.min(100, (player.bonds && player.bonds[id]) || 0),
+  }));
+}
 
 // Legacy type names still present in older SPECIES rows → locked-canon names.
 // 'Aquatic' and 'Mechanical' are NOT among the 20 canon types.

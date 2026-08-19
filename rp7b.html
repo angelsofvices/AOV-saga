@@ -21499,6 +21499,25 @@ function depositZyrexToPC(partyIdx){
 // SAVE / LOAD system (v0.92) · localStorage-backed
 // ─────────────────────────────────────────────────────────────
 const SAVE_KEY = 'rp7b_save_v1';
+
+// v0.95.634 · Keys that must NOT be written to the save — per-frame combat,
+// movement, animation and input state.  Persisting these would restore the
+// player mid-dodge or mid-swing on load.  Anything NOT listed here is treated
+// as progression and is saved automatically by the backfill in saveGame().
+const TRANSIENT_PLAYER_KEYS = new Set([
+  // position/animation are written explicitly above with their own handling
+  'x','y','px','py','dir','facing','moving','animFrame','idleFrame','frame','trail',
+  // attack / block / dodge / jump / interact timers
+  'attackMode','attackStart','attackUntil','attackDuration',
+  'blocking','blockStart','blockHitsAbsorbed',
+  'dodgeDir','dodgeStart','dodgeUntil','dodgeFromX','dodgeFromY','dodgeToX','dodgeToY',
+  'jumpSheet','jumpStart','jumpUntil','interactStart','interactUntil',
+  'faeCatchStart','faeCatchUntil',
+  // locomotion / input
+  'running','skating','sprintLocked','moveCd','stairsCd','stepsInGrass',
+  'ridingChair','chairX','chairY','chairDir','chairHome','playingGuitar',
+  'ufoDashing','ufoFlying','auraxionPhase','companion',
+]);
 function saveGame(){
   try {
     const snap = {
@@ -21597,6 +21616,25 @@ function saveGame(){
       collectedFae: _fae.filter(f => f.collected).map(f => f.id),
       devUnlockDoors: !!game.devUnlockDoors,
     };
+    // ══════════════════════════════════════════════════════════════════════
+    // v0.95.634 · CATCH-ALL BACKFILL · flip the save from an allow-list to a
+    // deny-list.  The hand-maintained snapshot above missed ~25 real quest and
+    // progression flags — most visibly player.phoneBattery (Scrapjaw's gift,
+    // which gates the whole CONTACTS call system), so calls died on reload even
+    // though the quest was complete.  Every new flag added from here on
+    // persists automatically instead of needing a line in this object.
+    // Explicit mappings above always win; only unclaimed keys get backfilled.
+    for (const k in player){
+      if (k.startsWith('_')) continue;                       // private/runtime
+      if (TRANSIENT_PLAYER_KEYS.has(k)) continue;            // per-frame state
+      if (Object.prototype.hasOwnProperty.call(snap.player, k)) continue;
+      const v = player[k];
+      const t = typeof v;
+      if (t === 'function' || t === 'symbol' || t === 'undefined') continue;
+      if (v && t === 'object' && (v instanceof Image || (typeof HTMLElement !== 'undefined' && v instanceof HTMLElement))) continue;
+      try { JSON.stringify(v); } catch(_){ continue; }       // skip circular
+      snap.player[k] = v;
+    }
     localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
     return true;
   } catch(e){ console.warn('[rp7b] save failed', e); return false; }
@@ -21955,6 +21993,13 @@ function startTrainerBattle(speciesId=null,level=null,opts={}){
     forcedSwap:false,
     canRun: !opts.schoolStudentId && !opts.formal,   // formal duels = no fleeing
     schoolStudentId: opts.schoolStudentId || null,
+    // v0.95.634 · XP scaling · caller may pass an explicit type; otherwise
+    // infer it (a school student, a multi-Zyrex faction duel, or a wild fight).
+    xpType: opts.xpType || (opts.schoolStudentId ? 'school'
+            : (Array.isArray(opts.enemyTeam) && opts.enemyTeam.length > 1) ? 'trainer'
+            : (opts.formal ? 'trainer' : 'wild')),
+    // Every Zyrex that takes the field this duel · all of them earn full XP.
+    _participants: new Set(),
     _enemyDeployed:false,
   };
   playBGM('battle');
@@ -21976,6 +22021,10 @@ function battleQueueMsg(lines){
 function battleDeploy(z){
   const B = battleState; if (!B || !z) return;
   B.player = z;
+  // v0.95.634 · record every fighter that takes the field so the whole duel
+  // roster earns full XP, not just whoever happened to land the last hit.
+  if (!B._participants) B._participants = new Set();
+  B._participants.add(z);
   try { playSFX('zyrexGo'); } catch(_){}
   battleQueueMsg([`Rizer sent out ${z.name}!`, `Go! ${z.name}!`]);
   if (!B._enemyDeployed){
@@ -21986,15 +22035,20 @@ function battleDeploy(z){
   B.phase = 'msg';
 }
 
-function grantWildFighterXp(p,w){
-  const gained=Math.floor(w.level*(8+p.tier*8)*.80);
-  p.xp=(p.xp||0)+gained;
-  while(p.xp>=xpToNextLevel(p.level)){
-    p.xp-=xpToNextLevel(p.level);p.level++;
-    const sp=SPECIES[p.speciesId],s=1+(p.level-1)*.05,oldMax=p.maxHp;
-    p.maxHp=Math.floor(sp.baseHP*s);p.hp+=p.maxHp-oldMax;
-    p.atk=Math.floor(sp.baseATK*s);p.def=Math.floor(sp.baseDEF*s);
-    p.spd=Math.floor(sp.baseSPD*s);p.satk=Math.floor(sp.baseSATK*s);p.sdef=Math.floor(sp.baseSDEF*s);
+// v0.95.634 · Was a SECOND, divergent XP path: it wrote p.xp and levelled
+// inline, so it never checked evolveTo — a Zyrex could hit Lv 30 winning
+// overworld fights and simply refuse to evolve, while the same Zyrex WOULD
+// evolve from a faction duel.  It also used the old formula.  Now it routes
+// through the shared reward + grantZyrexXp so both paths behave identically.
+function grantWildFighterXp(p, w){
+  const gained = zyrexXpReward(w, p, 'wild');
+  for (const ev of grantZyrexXp(p, gained)){
+    if (ev.type === 'evolve'){
+      try { playSFX('evolve'); } catch(_){ try { playSFX('levelup'); } catch(_){} }
+      try { showToast(`◈ ${ev.from} evolved into ${ev.to} · Tier ${ev.tier}`, 4200); } catch(_){}
+    } else if (ev.type === 'learn'){
+      try { showToast(`◈ ${p.name} learned ${ev.move}!`, 2600); } catch(_){}
+    }
   }
   return gained;
 }
@@ -22422,26 +22476,40 @@ function battleResolveRound(){
   const p = B.player, w = B.wild;
   if (w.hp <= 0){
     battleQueueMsg([`${p.name} defeated ${w.name}!`, `${w.name} fainted!`]);
-    // XP + Shardshare + level-ups
-    const gained = Math.floor(w.level * (8 + p.tier * 8) * 0.80);
+    // ── v0.95.634 · XP · canon formula, scaled to the DEFEATED foe ──
+    // Difficulty now comes from the foe's level AND tier, times the battle-type
+    // multiplier, times a level-difference bonus for fighting up.
+    const xpType = B.xpType || (B.schoolStudentId ? 'school' : (B.enemyTeam && B.enemyTeam.length > 1 ? 'trainer' : 'wild'));
+    const gained = zyrexXpReward(w, p, xpType);
     const beforeLv = p.level;
     const xpEvents = grantZyrexXp(p, gained);
     battleQueueMsg([`${p.name} gained ${gained} XP!`]);
-    if (player.shardshareFixed){
-      const share = Math.floor(gained * 0.5);
-      if (share > 0){
-        for (const bz of (player.party || [])){
-          if (!bz || bz === p) continue;
-          // Benched party members can evolve off Shardshare XP too.
-          for (const ev of grantZyrexXp(bz, share)){
-            if (ev.type !== 'evolve') continue;
-            battleQueueMsg([`${ev.from} evolved into ${ev.to}!`]);
-            try { showToast(`◈ ${ev.from} evolved into ${ev.to} · Tier ${ev.tier}`, 4000); } catch(_){}
-          }
-        }
-        battleQueueMsg([`Shardshare Collar glows...`, `Party Zyrex each gained ${share} XP!`]);
+
+    // EVERY Zyrex that took the field in this duel earns full XP — a faction
+    // duel is a team effort, so a swapped-out fighter is not punished for it.
+    // Bench members still ride the Shardshare Collar at the reduced rate.
+    const parts = B._participants || new Set();
+    const share = player.shardshareFixed ? Math.floor(gained * 0.5) : 0;
+    const narrate = (bz, evs) => {
+      for (const ev of evs){
+        if (ev.type !== 'evolve') continue;
+        battleQueueMsg([`${ev.from} evolved into ${ev.to}!`]);
+        try { showToast(`◈ ${ev.from} evolved into ${ev.to} · Tier ${ev.tier}`, 4000); } catch(_){}
+      }
+    };
+    let alsoFought = 0, benched = 0;
+    for (const bz of (player.party || [])){
+      if (!bz || bz === p) continue;
+      if (parts.has(bz)){
+        narrate(bz, grantZyrexXp(bz, gained));      // fought this duel · full XP
+        alsoFought++;
+      } else if (share > 0){
+        narrate(bz, grantZyrexXp(bz, share));       // benched · collar share
+        benched++;
       }
     }
+    if (alsoFought) battleQueueMsg([`${alsoFought} other faction Zyrex fought · each gained ${gained} XP!`]);
+    if (benched)    battleQueueMsg([`Shardshare Collar glows...`, `Bench Zyrex each gained ${share} XP!`]);
     if (p.level > beforeLv) battleQueueMsg([`${p.name} grew to Lv ${p.level}!`]);
     // v0.95.626 · narrate new moves + evolutions from the XP events
     for (const ev of xpEvents){
@@ -22579,6 +22647,35 @@ function tryEvolveZyrex(z){
     out.push({ from, to: to.name, tier: to.tier });
   }
   return out;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.95.634 · ZYREX XP REWARD · [[aov-xp-reward-formula]]
+//   enemyLv x (8 + enemyTier x 8) x battleTypeMult x levelDiffMult
+//
+// The old inline formula used the VICTOR's tier and a flat 0.80, so difficulty
+// barely moved the reward — a T1 pushover paid the same as a T5 wall, and
+// fighting up paid nothing extra.  Difficulty now comes from the DEFEATED foe
+// (its level and tier), and levelDiffMult rewards punching above your weight.
+// One formula serves overworld kills and faction duels alike.
+// ══════════════════════════════════════════════════════════════════════════
+const BATTLE_XP_MULT = {
+  wild:      1.00,   // overworld / wild encounter
+  school:    1.20,   // Rizer Academy student
+  trainer:   1.20,   // ordinary Rizer faction duel
+  commander: 1.60,   // Seer Commander (HQ top floor)
+  chief:     2.00,   // Ophira / Orryx
+};
+function zyrexXpReward(foe, victor, battleType){
+  if (!foe) return 0;
+  const fLv   = Math.max(1, foe.level || 1);
+  const fTier = Math.max(1, foe.tier  || 1);
+  const vLv   = Math.max(1, (victor && victor.level) || 1);
+  const typeMult = BATTLE_XP_MULT[battleType] || BATTLE_XP_MULT.wild;
+  // +5% per level the foe is above you, -5% per level below · clamped so a
+  // heavily over-levelled grind still pays something without being farmable.
+  const diffMult = Math.max(0.40, Math.min(2.00, 1 + (fLv - vLv) * 0.05));
+  return Math.max(1, Math.floor(fLv * (8 + fTier * 8) * typeMult * diffMult));
 }
 
 // Returns an event list so callers can narrate: [{type:'level'|'learn'|'evolve'}]

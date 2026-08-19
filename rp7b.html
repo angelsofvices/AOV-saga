@@ -5194,6 +5194,80 @@ const NPCS = [
   },
   // ── NURSE REIN · reindeer head nurse · in front of Malezor Hospital (v0.91.1) ──
   {
+    // ══════════════════════════════════════════════════════════════════
+    // v0.95.632 · ZURELEA · the Malezor Potion Shop owner
+    // Names the "Potion Maker" from [[aov-potion-maker-canon]] (was TBD).
+    // Octopus-woman alchemist · stands in front of her own shop door.
+    // Fetch gate: she cannot trade until Rizer brings the RUBY VIAL from
+    // Seer HQ 1F — its tempered glass is the base of every recipe she brews.
+    // bboxes from connected-component flood fill · two cells legitimately
+    // overflow their nominal cell (negative x) where tentacles trail left;
+    // verified not to collide with the neighbouring frame's art.
+    // ══════════════════════════════════════════════════════════════════
+    id: 'zurelea',
+    name: 'Zurelea',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/npcs/zurelea.png',
+    bboxes: [
+      [[65,35,226,270],[39,35,228,270],[17,35,227,270],[-7,35,228,270]],
+      [[84,35,203,259],[58,35,204,259],[35,35,204,259],[11,35,204,259]],
+      [[72,26,196,258],[47,26,196,258],[24,26,197,258],[0,26,196,258]],
+      [[55,8,221,267],[30,8,221,267],[7,8,221,266],[-18,8,221,267]],
+    ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    // Potion shop occupies cols 7-13 / rows 132-138 with its door at (10,138).
+    // Zurelea stands one row in front and two tiles right so the door stays clear.
+    tileX: 12, tileY: 139,
+    homeX: 12, homeY: 139,
+    homeScene: 'overworld',
+    scene: 'overworld',
+    dir: 'down',
+    mode: 'stationary',
+    moving: false,
+    animFrame: 0,
+    idleFrame: 0,
+    blinkTimer: 2000 + Math.random() * 2000,
+    turnToInteract: true,
+    onInteract: (n) => {
+      const bump = (a) => { player.bonds = player.bonds || {}; player.bonds.zurelea = Math.min(100, (player.bonds.zurelea || 0) + a); };
+      player.items = player.items || {};
+
+      // ── Stage 3 · shop is open ──
+      if (player.zureleaShopOpen){
+        try { openZureleaPotionShop(); } catch(err){ console.warn('potion shop failed', err); }
+        return;
+      }
+      // ── Stage 2 · Rizer is carrying the Ruby Vial ──
+      if ((player.items.ruby_vial || 0) > 0){
+        player.items.ruby_vial -= 1;
+        if (player.items.ruby_vial <= 0) delete player.items.ruby_vial;
+        player.zureleaShopOpen = true;
+        bump(35);
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'ZURELEA', lines: [
+          '*her tentacles uncoil all at once*  You FOUND it. The Ruby Vial — my mother\'s, before the Seers took the shop apart.',
+          'Tempered glass. Nothing else holds a volatile brew without cracking halfway through the boil.',
+          'The shelves are yours now, Rizer. Ales, potions, elixirs — I charge a premium, but I never run dry. Come back whenever you\'re running low.',
+        ]});
+        showToast('★ ZURELEA · Malezor Potion Shop is open for business', 4200);
+        try { pingNextObjective(); } catch(_){}
+        return;
+      }
+      // ── Stage 1 · the ask ──
+      if (!player.zureleaQuestGiven){
+        player.zureleaQuestGiven = true;
+        bump(10);
+        try { pingNextObjective(); } catch(_){}
+      }
+      showDialog({ speaker: 'ZURELEA', lines: [
+        'Welcome to the Malezor Potion Shop. I would love to sell you something. I can\'t.',
+        'The Seers cleared me out — took the shelves, took the stock, and took the RUBY VIAL. Without it I can\'t brew a single thing that won\'t eat through its own bottle.',
+        'It\'ll be somewhere in their headquarters. Ground floor, if they were lazy — and they usually are.',
+        'Bring it back and I\'ll open properly. That\'s a promise, not a sales pitch.',
+      ]});
+    },
+  },
+  {
     id: 'nurse_rein',
     name: 'Nurse Rein',
     sheet: new Image(),
@@ -13072,6 +13146,93 @@ function openZarvaneWeaponShop(){
   window.addEventListener('keydown', kh, true);
   overlay._kh = kh;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// v0.95.632 · ZURELEA'S POTION SHOP · [[aov-potion-maker-canon]]
+// Unlocked by returning the Ruby Vial.  Premium pricing — dearer than late-game
+// crafting, but never sold out, so it is the reliable early-game supply line
+// before the bench and wild gathers scale up.
+// ══════════════════════════════════════════════════════════════════════════
+const ZURELEA_STOCK = [
+  { key:'ale',            label:'Ale',           price:100, note:'Rizer +25% HP · Zyrex 15 HP' },
+  { key:'potion',         label:'Potion',        price:200, note:'Zyrex 30 HP' },
+  { key:'verdant_elixir', label:'Mythic Elixir', price:800, note:'Zyrex 60 HP · rare stock' },
+  { key:'berry',          label:'Berry',         price: 40, note:'Zyrex 10 HP' },
+  { key:'fruit',          label:'Fruit',         price: 70, note:'Zyrex 20 HP' },
+  { key:'seed',           label:'Seed',          price:120, note:'Zyrex 30 HP' },
+];
+function openZureleaPotionShop(){
+  if (game.potionShopOpen) return;
+  game.potionShopOpen = true;
+  const overlay = document.createElement('div');
+  overlay.id = 'potionShopOverlay';
+  Object.assign(overlay.style, {
+    position:'fixed', inset:'0', zIndex:'9999',
+    background:'radial-gradient(circle at center, rgba(30,8,40,0.86), rgba(0,0,0,0.94))',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontFamily:"'Courier New', monospace",
+  });
+  const draw = () => {
+    const coins = (player.items && player.items.coins) || 0;
+    overlay.innerHTML = `
+      <div style="background:linear-gradient(180deg,rgba(42,14,58,0.96),rgba(12,4,20,0.98)); border:2px solid #c77dff; padding:22px 26px; width:540px; max-width:92vw; box-shadow:0 0 40px rgba(199,125,255,0.35);">
+        <div style="text-align:center; color:#e5b8ff; font-weight:bold; letter-spacing:.16em; font-size:14px;">⚗  ZURELEA'S POTION SHOP  ⚗</div>
+        <div style="text-align:center; color:#b98fd6; font-size:10px; margin:4px 0 12px;">Malezor · never sold out</div>
+        <div style="text-align:center; color:#8ff; font-size:11px; margin-bottom:14px;">Coins · <b style="color:#fff;">${coins.toLocaleString()}</b></div>
+        ${ZURELEA_STOCK.map((it, i) => {
+          const can = coins >= it.price;
+          const have = (player.items && player.items[it.key]) || 0;
+          return `<button data-buy="${it.key}" ${can ? '' : 'disabled'}
+            style="width:100%; padding:11px 14px; margin-bottom:8px; background:${can ? 'linear-gradient(180deg,rgba(70,26,96,0.8),rgba(18,6,30,0.9))' : 'rgba(30,24,38,0.55)'}; color:${can ? '#e5b8ff' : '#665570'}; border:2px solid ${can ? '#c77dff' : '#443350'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:${can ? 'pointer' : 'not-allowed'}; text-align:left; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <span>${'JKLUIO'[i] || '·'} · ${it.label.toUpperCase()}<br><span style="font-weight:normal; font-size:9px; color:${can ? '#b98fd6' : '#554465'};">${it.note} · held ${have}</span></span>
+            <span style="color:${can ? '#ffd66b' : '#665570'}; font-size:12px;">${it.price}</span>
+          </button>`;
+        }).join('')}
+        <div style="text-align:center; color:#8a7a96; font-size:10px; margin-top:6px; letter-spacing:.08em;">B / ESC · leave</div>
+      </div>`;
+    overlay.querySelectorAll('[data-buy]').forEach(b => {
+      b.addEventListener('click', () => buy(b.dataset.buy));
+    });
+  };
+  const buy = (key) => {
+    const it = ZURELEA_STOCK.find(s => s.key === key);
+    if (!it) return;
+    const coins = (player.items && player.items.coins) || 0;
+    if (coins < it.price){ try { playSFX('disabled'); } catch(_){} return; }
+    player.items.coins = coins - it.price;
+    player.items[key] = (player.items[key] || 0) + 1;
+    try { playSFX('coins'); } catch(_){}
+    try { playItemGain(key); } catch(_){}
+    showToast(`◈ Bought ${it.label} · -${it.price} coins`, 1800);
+    try { saveGame(); } catch(_){}
+    draw();
+  };
+  draw();
+  document.body.appendChild(overlay);
+  try { playSFX('menuOpen'); } catch(_){}
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeZureleaPotionShop(); });
+  const kh = (e) => {
+    const k = (e.key || '').toLowerCase();
+    if (k === 'b' || k === 'escape' || k === 'a' || k === '3'){
+      e.preventDefault(); e.stopImmediatePropagation(); closeZureleaPotionShop(); return;
+    }
+    const idx = 'jkluio'.indexOf(k);
+    if (idx >= 0 && ZURELEA_STOCK[idx]){
+      e.preventDefault(); e.stopImmediatePropagation(); buy(ZURELEA_STOCK[idx].key);
+    }
+  };
+  window.addEventListener('keydown', kh, true);
+  overlay._kh = kh;
+}
+function closeZureleaPotionShop(){
+  const el = document.getElementById('potionShopOverlay');
+  if (el){
+    if (el._kh) window.removeEventListener('keydown', el._kh, true);
+    el.remove();
+  }
+  game.potionShopOpen = false;
+  try { playSFX('menuClose'); } catch(_){}
+}
+
 function closeZarvaneWeaponShop(){
   const el = document.getElementById('weaponShopOverlay');
   if (el){
@@ -14652,6 +14813,7 @@ function tryMove(dt){
   if (game.dockPanelOpen)           freezeReasons.push('dockPanel');
   if (game.posterViewOpen)          freezeReasons.push('posterView');
   if (game.weaponShopOpen)          freezeReasons.push('weaponShop');   // v0.95.583
+  if (game.potionShopOpen)          freezeReasons.push('potionShop');   // v0.95.632
   if (game.ultrashardPickerOpen)    freezeReasons.push('ultrashardPicker'); // v0.95.589
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
@@ -21371,6 +21533,8 @@ function saveGame(){
         // QOL patches (sprites, spawns, animations) don't wipe the player's run
         hasBackpack:                !!player.hasBackpack,
         raidCardGifted:             !!player.raidCardGifted,
+        zureleaQuestGiven:          !!player.zureleaQuestGiven,   // v0.95.632
+        zureleaShopOpen:            !!player.zureleaShopOpen,
         zycubeGifted:               !!player.zycubeGifted,
         townMapGifted:              !!player.townMapGifted,
         faenetGifted:               !!player.faenetGifted,
@@ -22071,6 +22235,8 @@ const FACTION_CONTACTS = [
   ['auraxion',          'Auraxion',      'Wild Arm · UFO pilot', () => !!player.auraxionMissionComplete],
   // v0.95.495 · Nurse Rein · unlocked by delivering 2 life stones · CALL = 10-min field heal
   ['nurse_rein',        'Nurse Rein',    'Malezor Hospital',     () => !!player.nurseReinAllied],
+  // v0.95.632 · Zurelea · registers once her shop is open
+  ['zurelea',           'Zurelea',       'Malezor Potion Shop',  () => !!player.zureleaShopOpen],
 ];
 // Humanoid allies the Rizer has actually bonded with (their quest gate is met).
 function factionAllies(){

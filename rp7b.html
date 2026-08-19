@@ -22401,25 +22401,47 @@ function drawWildBattleOverlay(){
 //   bottom-sheet FACTION switch · LOCATION bar · enemy-turn lockout (msg
 //   phase shows NOTHING but battlefield + HUD + message box)
 // ═══════════════════════════════════════════════════════════════════════════
+// v0.95.621 · P2 start · Venue backdrop registry · keyed art per battle venue.
+// resolveBattleBackdrop picks by scene/location · null = gradient fallback.
+// Drop more venues in as art lands (school, coliseum, overworld-by-district…).
+const BATTLE_BACKDROPS = {
+  seer_hq: (function(){ const i = new Image(); i.src = 'assets/2D%20sprites/battle/backdrops/seer-hq.png'; return i; })(),
+};
+function resolveBattleBackdrop(B){
+  try {
+    const scene = String(game.scene || '');
+    const loc = String((B && B.location) || '').toUpperCase();
+    if (scene.startsWith('interior_seer_hq') || loc.includes('SEER HQ')) return BATTLE_BACKDROPS.seer_hq;
+  } catch(_){}
+  return null;
+}
 function drawBattleOverlay(){
   if (!battleState) return;
   const B = battleState;
   const W = canvas.width, H = canvas.height;
   const p = B.player, w = B.wild;
 
-  // Backdrop · deep violet gradient (P2 swaps in venue art)
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#0a0618'); bg.addColorStop(0.5, '#140a2e'); bg.addColorStop(1, '#08040f');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-  // Faint duel-circle on the floor
-  ctx.save();
-  ctx.strokeStyle = 'rgba(160,80,255,0.28)';
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.ellipse(W/2, H*0.62, W*0.22, H*0.09, 0, 0, Math.PI*2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(160,80,255,0.16)';
-  ctx.beginPath(); ctx.ellipse(W/2, H*0.62, W*0.15, H*0.06, 0, 0, Math.PI*2); ctx.stroke();
-  ctx.restore();
+  // Backdrop · venue art (cover-fit) when registered · gradient fallback
+  const bdImg = resolveBattleBackdrop(B);
+  if (bdImg && bdImg.complete && bdImg.naturalWidth){
+    const iw = bdImg.naturalWidth, ih = bdImg.naturalHeight;
+    const scale = Math.max(W / iw, H / ih);
+    const dw = iw * scale, dh = ih * scale;
+    ctx.drawImage(bdImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  } else {
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#0a0618'); bg.addColorStop(0.5, '#140a2e'); bg.addColorStop(1, '#08040f');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    // Faint duel-circle on the floor (venue art has its own circle baked in)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(160,80,255,0.28)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(W/2, H*0.62, W*0.22, H*0.09, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(160,80,255,0.16)';
+    ctx.beginPath(); ctx.ellipse(W/2, H*0.62, W*0.15, H*0.06, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
 
   // Sprites · enemy upper-right · player bottom-left (mirrored)
   if (w){

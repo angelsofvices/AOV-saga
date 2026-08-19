@@ -3335,20 +3335,33 @@ const WORLD_PROPS = [
         get(){ try { return !!(typeof player !== 'undefined' && player && (player[flag] || prop.detonated)); } catch(_){ return false; } },
         set(v){ try { if (typeof player !== 'undefined' && player) player[flag] = !!v; prop.detonated = !!v; } catch(_){} },
       });
-      // v0.95.644 · Creator directive: a boom chest NEVER detonates on contact.
-      // It is inert until THROWN, and the LANDING is what sets it off.
+      // v0.95.646 · TWO WAYS TO TOUCH A SEER CHEST — the input decides which:
       //
-      // Previously (v0.95.510) plain X opened it and blew up in Rizer's face for
-      // 50% max HP.  That made it a punishment you could trip by accident, and
-      // it fought the throw mechanic — you could lose half your health simply by
-      // walking up to the thing you were trying to pick up.
+      //   X alone   → you OPENED it.  The Seer trap fires in your face for 50%
+      //               max HP.  This is the original v0.95.510 behaviour and it
+      //               is the punishment for grabbing carelessly.
+      //   L2 + X    → you HANDLED it.  Rizer lifts it instead of opening it.
+      //               Tap tosses it in the facing direction; hold carries it
+      //               and it launches on release.  It then detonates where it
+      //               LANDS, not in your hands.
       //
-      // Now: X = a warning.  L2 + X = lift it.  Release = throw.  It detonates
-      // where it LANDS, and only there.
+      // Same object, opposite outcomes.  Knowing to hold L2 is the skill.
       prop.onInteract = () => {
         if (prop.detonated || (player && player[flag])) return;
-        try { playSFX('menuOpen'); } catch(_){}
-        showToast('◈ SEER CHEST · unstable · L2 + X to lift it, release to throw', 3200);
+        prop.detonated = true;
+        if (player) player[flag] = true;
+        try { spawnHitFx(prop.tileX, prop.tileY, 'ultimate'); } catch(_){}
+        try { playSFX('astralkickBoom'); } catch(_){ try { playSFX('astralkick'); } catch(_){} }
+        try { if (window.__rumbleHit) window.__rumbleHit('ultimate'); } catch(_){}
+        // Show the real explosion sheet here too, so opening one and throwing
+        // one read as the same event from the same object.
+        try { BOOM_BLASTS.push({ tileX: prop.tileX, tileY: prop.tileY, t0: performance.now() }); } catch(_){}
+        const hpMax = player.hpMax || player.maxHp || 100;
+        const dmg   = Math.max(1, Math.round(hpMax * (prop._dmgPct || 0.5)));
+        showToast(`◈ SEER TRAP · you opened it · -${dmg} HP  (hold L2 + X to LIFT one)`, 3600);
+        try { hurtPlayer(dmg, 'Seer explosive chest'); } catch(_){
+          player.hp = Math.max(0, (player.hp || 0) - dmg);
+        }
       };
       return prop;
     });
@@ -11045,10 +11058,12 @@ const BOOM = {
   BLAST_MS:   980,     // DETONATE · 15 sheet frames at ~65ms each
   DEBRIS_MS: 1600,     // AFTER BLAST · scorch + embers outlast the sheet
   DMG_CENTER: 3.0,     // x baseAtk on the LANDING tile
-  DMG_RING:   1.5,     // x baseAtk on the 8 surrounding tiles
+  DMG_RING:   1.5,     // x baseAtk at radius 1, falling off toward the edge
   CHAIN_MS:   180,     // delay before a neighbouring boom chest sympathises
-  AOE_TILES:  3,       // 3x3 · the FX is drawn at exactly this size, so the
-                       // visual cue and the damage footprint cannot disagree
+  RADIUS:     3,       // v0.95.646 · blast radius in tiles (Chebyshev)
+  get AOE_TILES(){ return this.RADIUS * 2 + 1; },   // 7x7 at radius 3.  The FX
+                       // is drawn at exactly this size, so the visual cue and
+                       // the damage footprint can never disagree.
   RANGE_S1:   4,       // throw distance · Sapphire skin
   RANGE_S2:   8,       // throw distance · Rubypaw / power_upgrade skin
 };
@@ -11075,24 +11090,30 @@ function detonateBoomChest(b, skinId){
     if (b._seerExplosive){ b.detonated = true; b._hidden = true; }
     else { b.breaking = performance.now(); }
     BOOM_BLASTS.push({ tileX: b.tileX, tileY: b.tileY, t0: performance.now() });
-    const dmgC = playerOutgoingDamage((player.baseAtk || 25) * BOOM.DMG_CENTER, skinId);
-    const dmgR = playerOutgoingDamage((player.baseAtk || 25) * BOOM.DMG_RING,   skinId);
 
     // ── 3x3 AOE · centre full damage, 8 surrounding tiles reduced ──
+    // Chebyshev distance keeps the blast SQUARE, matching the tile footprint
+    // the FX is drawn over.  Damage falls off toward the rim so a radius-3
+    // blast is not uniformly lethal across 49 tiles.
+    const blastMult = (d) => d === 0 ? BOOM.DMG_CENTER
+                     : BOOM.DMG_RING * (1 - ((d - 1) / BOOM.RADIUS) * 0.6);
     for (const n of NPCS){
       if (n.scene !== game.scene || !n.isEnemy || n._dying) continue;
       const dx = Math.abs(n.tileX - b.tileX), dy = Math.abs(n.tileY - b.tileY);
-      if (dx > 1 || dy > 1) continue;
-      const centre = (dx === 0 && dy === 0);
-      n.hp = (n.hp == null ? n.hpMax || 125 : n.hp) - (centre ? dmgC : dmgR);
+      const d = Math.max(dx, dy);
+      if (d > BOOM.RADIUS) continue;
+      const dmg = playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId);
+      n.hp = (n.hp == null ? n.hpMax || 125 : n.hp) - dmg;
       spawnHitFx(n.tileX, n.tileY, 'ultimate');
       if (n.hp <= 0) startMoriDeath(n);
     }
     // Rizer is not immune — stand in your own blast and you wear it.
     {
       const dx = Math.abs(player.x - b.tileX), dy = Math.abs(player.y - b.tileY);
-      if (dx <= 1 && dy <= 1){
-        const self = Math.round((dx === 0 && dy === 0 ? dmgC : dmgR) * 0.5);
+      const d = Math.max(dx, dy);
+      if (d <= BOOM.RADIUS){
+        const self = Math.max(1, Math.round(
+          playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId) * 0.5));
         player.hp = Math.max(0, (player.hp || 0) - self);
         try { showToast(`◈ Caught in the blast · -${self} HP`, 2200); } catch(_){}
       }
@@ -11100,20 +11121,20 @@ function detonateBoomChest(b, skinId){
     // ── destroys breakable tiles · and CHAIN-DETONATES other boom chests ──
     for (const other of BOULDERS){          // ordinary boulders shatter
       if (other === b || other.gone || other.scene !== b.scene) continue;
-      if (Math.abs(other.tileX - b.tileX) <= 1 && Math.abs(other.tileY - b.tileY) <= 1){
+      if (Math.max(Math.abs(other.tileX - b.tileX), Math.abs(other.tileY - b.tileY)) <= BOOM.RADIUS){
         other.breaking = performance.now();
       }
     }
     for (const other of WORLD_PROPS){       // neighbouring Seer chests sympathise
       if (other === b || !other._seerExplosive) continue;
       if (other._hidden || other.detonated || other._detonatedOnce) continue;
-      if (Math.abs(other.tileX - b.tileX) <= 1 && Math.abs(other.tileY - b.tileY) <= 1){
+      if (Math.max(Math.abs(other.tileX - b.tileX), Math.abs(other.tileY - b.tileY)) <= BOOM.RADIUS){
         setTimeout(() => detonateBoomChest(other, skinId), BOOM.CHAIN_MS);
       }
     }
     // ── temporary debris across the whole 3x3 ──
-    for (let dy = -1; dy <= 1; dy++){
-      for (let dx = -1; dx <= 1; dx++){
+    for (let dy = -BOOM.RADIUS; dy <= BOOM.RADIUS; dy++){
+      for (let dx = -BOOM.RADIUS; dx <= BOOM.RADIUS; dx++){
         BOOM_DEBRIS.push({ tileX: b.tileX + dx, tileY: b.tileY + dy,
                            t0: performance.now(), dur: BOOM.DEBRIS_MS });
       }
@@ -14098,9 +14119,15 @@ addEventListener('keydown', e => {
         const vb = _DIR_VEC[player.dir] || {dx:0,dy:1};
         const tgt = seerChestAt(game.scene, player.x + vb.dx, player.y + vb.dy);
         if (tgt){
+          // v0.95.646 · crossCarry + inputKey 'x' gives BOTH behaviours from one
+          // chord: a TAP presses and releases fast, so the chest launches
+          // immediately in the facing direction; a HOLD keeps it in Rizer's
+          // hands for live re-aiming and launches on key release.
           player._astralthrowInputUntil = performance.now() + 250;
-          fireAstralthrow({ boulderOnly: true });
-          keys[k] = true; return;
+          fireAstralthrow({ boulderOnly: true, crossCarry: true, inputKey: 'x' });
+          keys[k] = true;
+          return;   // ← critical · never fall through to tryInteract, or L2+X
+                    //   would ALSO open the chest and trip its own trap
         }
       }
     }
@@ -17104,6 +17131,19 @@ function tryInteract(){
   if (game.scene === 'overworld'){
     const wz = WILD_ZYREX.find(w => !w._gone && w.tileX === fx && w.tileY === fy);
     if (wz){ tryRecruitWildZyrex(wz); return; }
+  }
+  // ══════════════════════════════════════════════════════════════════════
+  // v0.95.646 · L2 GUARD · the L2+X lift chord lives in a DIFFERENT keydown
+  // listener to this one, so its `return` cannot stop us being called on the
+  // same keypress.  Without this guard, holding L2 would lift the chest AND
+  // open it — tripping the very trap the chord exists to avoid.
+  //
+  // L2 held  = "handle it"  → the chord already lifted it, do nothing here
+  // L2 clear = "open it"    → fall through and let the trap fire
+  // ══════════════════════════════════════════════════════════════════════
+  if (game.scene === 'overworld' && keys['shift']){
+    const chest = seerChestAt(game.scene, fx, fy);
+    if (chest) return;
   }
   // Veridan riverbank fishing: actors remain on land and cast into the
   // faced freshwater tile, exactly like facing a water cell in the oasis.

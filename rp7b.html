@@ -14992,15 +14992,28 @@ addEventListener('keyup', e => {
       }
       prev[11] = r3Pressed;
 
-      // Standard buttons
-      pad.buttons.forEach((b, i) => {
+      // ══════════════════════════════════════════════════════════════════
+      // v0.95.647 · MODIFIERS DISPATCH FIRST · chord-ordering fix
+      // pad.buttons.forEach walked 0,1,2,... so button 0 (Cross/X) was
+      // dispatched BEFORE button 6 (L2 → 'shift').  When both went down in the
+      // same poll frame, X was handled while keys['shift'] was still false —
+      // the chord missed and the bare-X path ran instead.  On a Seer chest that
+      // meant L2+X opened the trap it was supposed to avoid.
+      //
+      // Two passes now: shoulders/triggers (4-7) first so their modifier state
+      // is live, then everything else.  Fixes L2+X, and equally L2+Square (A3)
+      // and L2+Triangle (A4), which had the same latent race.
+      // ══════════════════════════════════════════════════════════════════
+      const _dispatchBtn = (b, i) => {
         if (i === 10 || i === 11) return;   // stick clicks handled above
         const key = BTN[i]; if (!key) return;
         const pressed = b.pressed || b.value > 0.5;
         if (pressed && !prev[i]) dispatchKey('keydown', key);
         else if (!pressed && prev[i]) dispatchKey('keyup', key);
         prev[i] = pressed;
-      });
+      };
+      pad.buttons.forEach((b, i) => { if (i >= 4 && i <= 7) _dispatchBtn(b, i); });  // L1 R1 L2 R2
+      pad.buttons.forEach((b, i) => { if (i <  4 || i >  7) _dispatchBtn(b, i); });  // the rest
 
       // Left stick → arrow keys
       const lx = pad.axes[0] || 0, ly = pad.axes[1] || 0;
@@ -17141,9 +17154,18 @@ function tryInteract(){
   // L2 held  = "handle it"  → the chord already lifted it, do nothing here
   // L2 clear = "open it"    → fall through and let the trap fire
   // ══════════════════════════════════════════════════════════════════════
-  if (game.scene === 'overworld' && keys['shift']){
-    const chest = seerChestAt(game.scene, fx, fy);
-    if (chest) return;
+  // Deliberately NOT seerChestAt() — that helper skips chests already flagged
+  // _astralthrowHeld, and the chord sets exactly that flag before we run.  Using
+  // it here made the guard blind to the chest it was meant to protect, so the
+  // trap fired anyway.  Scan raw instead.
+  if (game.scene === 'overworld'){
+    const chestHere = WORLD_PROPS.find(p => p._seerExplosive
+      && !p._hidden && !p.detonated && p.tileX === fx && p.tileY === fy);
+    // Bail if L2 is down OR a throw is already in flight/hand — either means
+    // this keypress was a LIFT, not an OPEN.
+    if (chestHere && (keys['shift'] || player._astralthrowState
+        || chestHere._astralthrowHeld
+        || (player._astralthrowInputUntil || 0) > performance.now())) return;
   }
   // Veridan riverbank fishing: actors remain on land and cast into the
   // faced freshwater tile, exactly like facing a water cell in the oasis.

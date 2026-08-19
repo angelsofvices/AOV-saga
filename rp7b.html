@@ -9308,82 +9308,33 @@ function tickFae(dt){
   }
 }
 // v0.95.122 · Single-boulder draw · called from depth-sorted world layer
-// v0.95.640 · BOOM CHEST placeholder art · drawn in canvas, zero asset
-// dependency, so the mechanic is playable before the sprite sheet exists.
-// Phases mirror the reference sheet: IDLE -> PRE-IMPACT (fuse) -> DETONATE
-// -> AFTER BLAST.  Swapping in real frames later replaces only this function.
-function drawBoomChest(b){
-  if (b.gone || b._astralthrowHeld || (b._astralthrowVisualUntil||0) > performance.now()) return;
+// v0.95.642 · BOOM BLAST layer · prop-agnostic.  The Seer chests are
+// WORLD_PROPS and draw themselves from seer-chest.png, so all that is needed
+// here is the explosion, sized to exactly the 3x3 it damages.
+function drawBoomBlasts(){
   const now = performance.now();
-  const W = Math.round(TILE * 0.92), H = Math.round(TILE * 0.62);
-  let cx = Math.floor((b.tileX + 0.5) * TILE) - _cam.x;
-  let cy = Math.floor((b.tileY + 1) * TILE) - _cam.y - H * 0.55;
-
-  // ── DETONATE · plays the real 15-frame sheet, sized to the 3x3 AOE ──
-  if (b._boomBlast){
-    const t = (now - b._boomBlast) / BOOM.BLAST_MS;
-    if (t >= 1){ b.gone = true; return; }
-    // Anchor the FX on the tile centre — this is the landing tile, so the
-    // visual and the damage footprint are the same 3x3 by construction.
-    const acx = Math.floor((b.tileX + 0.5) * TILE) - _cam.x;
-    const acy = Math.floor((b.tileY + 0.5) * TILE) - _cam.y;
-    const D = TILE * BOOM.AOE_TILES;                    // 3 tiles across
+  for (let i = BOOM_BLASTS.length - 1; i >= 0; i--){
+    const e = BOOM_BLASTS[i];
+    const t = (now - e.t0) / BOOM.BLAST_MS;
+    if (t >= 1){ BOOM_BLASTS.splice(i, 1); continue; }
+    const cx = Math.floor((e.tileX + 0.5) * TILE) - _cam.x;
+    const cy = Math.floor((e.tileY + 0.5) * TILE) - _cam.y;
+    const D  = TILE * BOOM.AOE_TILES;                    // 3 tiles across
     if (BOOM_FX.complete && BOOM_FX.naturalWidth){
       const idx = Math.min(BOOM_FX_FRAMES - 1, Math.floor(t * BOOM_FX_FRAMES));
       const sx = (idx % BOOM_FX_COLS) * BOOM_FX_CELL;
       const sy = Math.floor(idx / BOOM_FX_COLS) * BOOM_FX_CELL;
-      ctx.save();
       ctx.drawImage(BOOM_FX, sx, sy, BOOM_FX_CELL, BOOM_FX_CELL,
-                    Math.round(acx - D/2), Math.round(acy - D/2), Math.round(D), Math.round(D));
-      ctx.restore();
+                    Math.round(cx - D/2), Math.round(cy - D/2), Math.round(D), Math.round(D));
     } else {
-      // fallback while the sheet loads · keeps the mechanic readable
       const R = TILE * (0.6 + t * 2.2);
       ctx.save();
       ctx.globalAlpha = Math.max(0, 0.85 - t * 0.85);
       ctx.fillStyle = '#ff7a1a';
-      ctx.beginPath(); ctx.arc(acx, acy, R * 0.72, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#ffd23f';
-      ctx.beginPath(); ctx.arc(acx, acy, R * 0.38, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, R * 0.72, 0, Math.PI*2); ctx.fill();
       ctx.restore();
     }
-    return;
   }
-
-  // ── PRE-IMPACT · fuse lit, chest jitters, glow builds ──
-  let fuse = 0;
-  if (b._boomArmed){
-    fuse = Math.min(1, (now - b._boomArmed) / BOOM.FUSE_MS);
-    const shake = 2 + fuse * 4;
-    cx += Math.round((Math.random() - 0.5) * shake);
-    cy += Math.round((Math.random() - 0.5) * shake);
-  }
-
-  ctx.save();
-  // ground shadow
-  ctx.globalAlpha = 0.25; ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.ellipse(cx, cy + H*0.55, W*0.44, H*0.20, 0, 0, Math.PI*2); ctx.fill();
-  ctx.globalAlpha = 1;
-  // danger glow · always faintly lit, flares hard once armed
-  const pulse = b._boomArmed ? (0.35 + fuse * 0.65) : (0.18 + Math.sin(now/500)*0.06);
-  ctx.globalAlpha = pulse;
-  ctx.fillStyle = '#e23b3b';
-  ctx.beginPath(); ctx.arc(cx, cy, W * (0.7 + pulse * 0.5), 0, Math.PI*2); ctx.fill();
-  ctx.globalAlpha = 1;
-  // body · black chest, red iron banding
-  ctx.fillStyle = '#1a1416';
-  ctx.fillRect(cx - W/2, cy - H/2, W, H);
-  ctx.fillStyle = '#c0392b';
-  ctx.fillRect(cx - W/2, cy - H/2, W, Math.max(2, H*0.16));         // lid band
-  ctx.fillRect(cx - W/2, cy + H/2 - Math.max(2,H*0.14), W, Math.max(2,H*0.14));
-  ctx.fillRect(cx - W/2, cy - H/2, Math.max(2,W*0.10), H);          // corner straps
-  ctx.fillRect(cx + W/2 - Math.max(2,W*0.10), cy - H/2, Math.max(2,W*0.10), H);
-  ctx.strokeStyle = '#8e2c22'; ctx.lineWidth = 1.5;
-  ctx.strokeRect(cx - W/2, cy - H/2, W, H);
-  // blue gem lock · brightens with the fuse
-  ctx.fillStyle = b._boomArmed ? '#fff' : '#4fb3ff';
-  ctx.beginPath(); ctx.arc(cx, cy, Math.max(2, W*0.11), 0, Math.PI*2); ctx.fill();
-  ctx.restore();
 }
 // v0.95.640 · AFTER BLAST · temporary debris that fades off the 3x3
 function drawBoomDebris(){
@@ -9412,8 +9363,6 @@ function drawBoomDebris(){
 }
 
 function drawBoulder(b){
-  // v0.95.640 · BOOM chests use their own renderer + phase machine
-  if (b.type === 'boom'){ drawBoomChest(b); return; }
   // v0.95.300 · Astralite stones share this render path · pick their sheet by type
   // v0.95.431 · Life stones added · red-pink glow · restores 100% HP on shatter
   const sheet = (b.type === 'life')      ? LIFE_STONE_IMG
@@ -10486,17 +10435,6 @@ _astraliteStoneSpots
     tileX: s.x, tileY: s.y, hp: BOULDER_MAX_HP, breaking: 0, gone: false,
     scene: 'overworld', type: 'astralite'
   }));
-// v0.95.640 · BOOM CHESTS · black-and-red detonating chests.  Modelled as
-// BOULDERS with type 'boom' so they inherit boulderAt / fireAstralthrow /
-// walkable / depth-sort for free.  Pick up + throw with L2 + X.
-const _boomChestSpots = [
-  { x: 24, y: 100 },   // Malezor · near home · the tutorial chest
-  { x: 30, y: 78  },   // Malezor · mid-stem
-  { x: 20, y: 58  },   // Malezor · north path to Rakoron's Cave
-  { x: 34, y: 40  },   // Malezor · NE wild
-  { x: 33, y: 41  },   // adjacent on purpose — demonstrates the CHAIN reaction
-  { x: 16, y: 120 },   // Malezor · south
-];
 // v0.95.431 · LIFE STONES · rarer than astralite · 100% HP restore on shatter
 // Curated seeds along the main travel corridors so early-game finds are guaranteed
 const _lifeStoneSpots = [
@@ -10553,13 +10491,6 @@ _lifeStoneSpots
     });
   }
 })();
-// v0.95.640 · seed the BOOM chests
-_boomChestSpots
-  .filter(sp => !isWorldBorderTile(sp.x, sp.y))
-  .forEach(sp => BOULDERS.push({
-    tileX: sp.x, tileY: sp.y, hp: BOULDER_MAX_HP, breaking: 0, gone: false,
-    scene: 'overworld', type: 'boom'
-  }));
 // v0.95.429 · GLOBAL ASTRALITE PASS · 2x density spread across EVERY district
 // naturally · standalone logic · never on top of other props · avoids boulders
 (function addGlobalAstraliteStones(){
@@ -10595,6 +10526,22 @@ _boomChestSpots
     });
   }
 })();
+// v0.95.642 · SEER CHEST lookup · the explosive chests are WORLD_PROPS, not
+// boulders, so the throw system needs its own finder.  They were tagged
+// _seerExplosive back in v0.95.510 specifically for this feature.
+function seerChestAt(scene, x, y){
+  if (scene !== 'overworld') return null;
+  for (const p of WORLD_PROPS){
+    if (!p._seerExplosive) continue;
+    if (p._hidden || p.detonated || p._astralthrowHeld) continue;
+    if (p.tileX === x && p.tileY === y) return p;
+  }
+  return null;
+}
+// Anything Rizer can lift and throw: a boulder, or a live Seer chest.
+function throwableAt(scene, x, y){
+  return boulderAt(scene, x, y) || seerChestAt(scene, x, y);
+}
 function boulderAt(scene, x, y){
   for (const b of BOULDERS){
     if (b.scene === scene && !b.gone && !b._astralthrowHeld && b.tileX === x && b.tileY === y) return b;
@@ -11055,16 +11002,21 @@ const BOOM_FX = new Image();
 BOOM_FX.src = 'assets/2D%20sprites/vfx/boom-explosion.png';
 const BOOM_FX_COLS = 4, BOOM_FX_CELL = 313, BOOM_FX_FRAMES = 15;
 const BOOM_DEBRIS = [];   // {tileX,tileY,t0,dur}
+const BOOM_BLASTS = [];   // {tileX,tileY,t0} · explosion FX, prop-agnostic
 
 // Arm a chest: fuse, then blast, then debris.  Safe to call on any boulder.
 function detonateBoomChest(b, skinId){
-  if (!b || b.gone || b._boomArmed) return;
+  if (!b || b.gone || b._boomArmed || b._detonatedOnce) return;
   b._boomArmed = performance.now();
   try { playSFX('doorLock'); } catch(_){}          // fuse hiss placeholder
   setTimeout(() => {
-    if (b.gone) return;
-    b.breaking = performance.now();
-    b._boomBlast = performance.now();
+    if (b._detonatedOnce) return;
+    b._detonatedOnce = true;
+    // Seer chests are PROPS · hide via _hidden, which the existing getter/setter
+    // mirrors to a persisted player flag so a blown chest stays blown on reload.
+    if (b._seerExplosive){ b.detonated = true; b._hidden = true; }
+    else { b.breaking = performance.now(); }
+    BOOM_BLASTS.push({ tileX: b.tileX, tileY: b.tileY, t0: performance.now() });
     const dmgC = playerOutgoingDamage((player.baseAtk || 25) * BOOM.DMG_CENTER, skinId);
     const dmgR = playerOutgoingDamage((player.baseAtk || 25) * BOOM.DMG_RING,   skinId);
 
@@ -11088,13 +11040,17 @@ function detonateBoomChest(b, skinId){
       }
     }
     // ── destroys breakable tiles · and CHAIN-DETONATES other boom chests ──
-    for (const other of BOULDERS){
+    for (const other of BOULDERS){          // ordinary boulders shatter
       if (other === b || other.gone || other.scene !== b.scene) continue;
-      if (Math.abs(other.tileX - b.tileX) > 1 || Math.abs(other.tileY - b.tileY) > 1) continue;
-      if (other.type === 'boom'){
+      if (Math.abs(other.tileX - b.tileX) <= 1 && Math.abs(other.tileY - b.tileY) <= 1){
+        other.breaking = performance.now();
+      }
+    }
+    for (const other of WORLD_PROPS){       // neighbouring Seer chests sympathise
+      if (other === b || !other._seerExplosive) continue;
+      if (other._hidden || other.detonated || other._detonatedOnce) continue;
+      if (Math.abs(other.tileX - b.tileX) <= 1 && Math.abs(other.tileY - b.tileY) <= 1){
         setTimeout(() => detonateBoomChest(other, skinId), BOOM.CHAIN_MS);
-      } else {
-        other.breaking = performance.now();       // ordinary boulder shatters
       }
     }
     // ── temporary debris across the whole 3x3 ──
@@ -11112,7 +11068,7 @@ function detonateBoomChest(b, skinId){
 
 function astralthrowBreakAOE(b,skinId){
   // v0.95.640 · a boom chest does NOT shatter like a rock — it detonates
-  if (b.type === 'boom'){ detonateBoomChest(b, skinId); return; }
+  if (b._seerExplosive){ detonateBoomChest(b, skinId); return; }
   b.breaking=performance.now();
   const splash=playerOutgoingDamage((player.baseAtk||25)*0.75,skinId);
   for(const n of NPCS){
@@ -11167,7 +11123,7 @@ function fireAstralthrow(options={}){
   const pickupVec=_DIR_VEC[pickupDir]||{dx:0,dy:1};
   const tx=player.x+pickupVec.dx, ty=player.y+pickupVec.dy;
   const npc=boulderOnly?null:NPCS.find(n=>n.scene===game.scene&&n.isEnemy&&!n._dying&&!n._astralslamHeld&&!n._astralthrowHeld&&n.tileX===tx&&n.tileY===ty);
-  const rock=npc?null:boulderAt(game.scene,tx,ty);
+  const rock=npc?null:throwableAt(game.scene,tx,ty);   // v0.95.642 · boulders OR Seer chests
   const target=npc||rock;
   if(!target){ playSFX('meleeMiss'); return false; }
   const kind=npc?'npc':'boulder';
@@ -11209,7 +11165,7 @@ function fireAstralthrow(options={}){
     // Canon range: S1 travels 3 tiles; S2 travels 5. Every crossed tile is
     // an active damage lane, while solid terrain/boulders stop the projectile.
     // v0.95.641 · BOOM chests fly further than rocks · S1 3 tiles · S2 6 tiles
-    const isBoom = (kind==='boulder' && target && target.type==='boom');
+    const isBoom = !!(target && target._seerExplosive);
     const throwRange = isBoom
       ? (skinId==='power_upgrade' ? BOOM.RANGE_S2 : BOOM.RANGE_S1)
       : (skinId==='power_upgrade' ? 5 : 3);
@@ -11268,7 +11224,7 @@ function fireAstralthrow(options={}){
         // every time, regardless of skin.  impactX/impactY is already the
         // first blocked tile (enemy, boulder, building, terrain) or the end
         // of the flight path, so the 3x3 always centres on the real landing.
-        const breaks = (target.type==='boom') || skinId==='power_upgrade' || target._throwHits>=2;
+        const breaks = !!target._seerExplosive || skinId==='power_upgrade' || target._throwHits>=2;
         target.tileX=breaks?impactX:lx;target.tileY=breaks?impactY:ly;
         if(breaks)astralthrowBreakAOE(target,skinId);
         else{
@@ -11317,7 +11273,7 @@ function fireAstralthrow(options={}){
 function startCrossBoulderCarry(inputKey){
   if(player.activeActor!=='rizer'||player.ufoFlying||player._astralthrowState)return false;
   const v=_DIR_VEC[player.dir]||{dx:0,dy:1};
-  if(!boulderAt(game.scene,player.x+v.dx,player.y+v.dy))return false;
+  if(!throwableAt(game.scene,player.x+v.dx,player.y+v.dy))return false;
   return fireAstralthrow({boulderOnly:true,crossCarry:true,inputKey});
 }
 // v0.95.214 · Shared hit resolver · single tile · used by both trail damage
@@ -14082,8 +14038,8 @@ addEventListener('keydown', e => {
                     || game.posterViewOpen || _sleepFade || game.scene === 'title';
       if (!blockedB && !player._astralthrowState){
         const vb = _DIR_VEC[player.dir] || {dx:0,dy:1};
-        const tgt = boulderAt(game.scene, player.x + vb.dx, player.y + vb.dy);
-        if (tgt && tgt.type === 'boom'){
+        const tgt = seerChestAt(game.scene, player.x + vb.dx, player.y + vb.dy);
+        if (tgt){
           player._astralthrowInputUntil = performance.now() + 250;
           fireAstralthrow({ boulderOnly: true });
           keys[k] = true; return;
@@ -26427,6 +26383,8 @@ function drawWorldLayer(){
   WORLD_PROPS.forEach(p => {
     if(p.id==='auraxion_ufo'&&p._inFlight)return;
     if (p._hidden) return;                                          // v0.95.496 · pickup props hide themselves after use
+    // v0.95.642 · a Seer chest being carried/thrown is drawn in Rizer's hands
+    if (p._astralthrowHeld || (p._astralthrowVisualUntil||0) > performance.now()) return;
     if (!p.img.complete || !p.img.naturalWidth) return;
     renderables.push({ kind:'prop', prop:p, footY: p.tileY + (p.depthOffset || 0) });
   });
@@ -27442,6 +27400,7 @@ function frame(now){
   if (!(game.zphoneOpen || game.paused)){ try { tickSkellorRespawn(); } catch(_){} }
   if (!(game.zphoneOpen || game.paused)){ try { tickNurseReinLifeStoneProximity(); } catch(_){} }
   drawProjectiles();    // v0.95.210 · Astralstrike projectiles (above world, under menus)
+  try { drawBoomBlasts(); } catch(_){}   // v0.95.642 · explosion sheet
   try { drawBoomDebris(); } catch(_){}   // v0.95.640 · AFTER BLAST debris
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI

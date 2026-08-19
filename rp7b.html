@@ -17011,80 +17011,102 @@ addEventListener('keydown', e => {
   // 1.5) TRAINER BATTLE INPUT · classic command menu
   // ═══════════════════════════════════════════════════════════════
   if (battleState){
-    if (battleState.menu === 'over'){
-      // v0.95.118 · Any confirm exits back to overworld · X-Cross-'a' + Enter added
-      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === 'return' || k === ' ' || k === 'shift' || k === 'b'){
-        battleExit();
+    const B = battleState;
+    const confirmK = (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' ');
+    const cancelK  = (k === 'shift' || k === 'b');
+    // ── v0.95.620 · P1 FACTION DUEL phase machine ──────────────────
+    // msg → deploy → command ⇄ (moves | faction | zycube) → over
+    // MSG phase = enemy-turn lockout · only the message box is interactive.
+    if (B.phase === 'msg'){
+      if (confirmK || cancelK){
+        playSFX('dialog');
+        B.msgQueue.shift();
+        if (!B.msgQueue.length){
+          B.phase = B.afterMsg || 'command';
+          B.afterMsg = null;
+          if (B.phase === 'faction') B.forcedSwap = true;
+        }
       }
       return;
     }
-    if (battleState.menu === 'main'){
-      if (k === 'arrowup' || k === 'arrowdown'){ battleState.selectedMenuIdx = (battleState.selectedMenuIdx + 2) % 4; playSFX('cursor'); }
-      if (k === 'arrowleft' || k === 'arrowright'){ battleState.selectedMenuIdx = (battleState.selectedMenuIdx ^ 1); playSFX('cursor'); }
-      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter'){
-        const opt = battleState.selectedMenuIdx;
-        playSFX('confirm');
-        if (opt === 0){ battleState.menu = 'fight'; battleState.selectedMoveIdx = 0; }
-        else if (opt === 1){ battleState.menu = 'bag';  battleState.bagIdx = 0; }    // v0.95.619
-        else if (opt === 2){ battleState.menu = 'swap'; battleState.swapIdx = 0; battleState.forcedSwap = false; }  // v0.95.619
-        else if (opt === 3){ battleRun(); }
-      }
+    if (B.phase === 'over'){
+      if (confirmK || cancelK) battleExit();
       return;
     }
-    // v0.95.619 · BAG · berry/fruit/seed heal the active Zyrex · uses the turn
-    if (battleState.menu === 'bag'){
-      const bagItems = battleBagItems();
-      if (k === 'shift' || k === 'b'){ battleState.menu = 'main'; playSFX('cancel'); return; }
-      if (!bagItems.length){
-        battleAppendLog('No heal items in the bag.');
-        battleState.menu = 'main'; playSFX('disabled'); return;
-      }
-      if (k === 'arrowup')   { battleState.bagIdx = (battleState.bagIdx - 1 + bagItems.length) % bagItems.length; playSFX('cursor'); }
-      if (k === 'arrowdown') { battleState.bagIdx = (battleState.bagIdx + 1) % bagItems.length; playSFX('cursor'); }
-      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter'){
-        battleUseBagItem(bagItems[battleState.bagIdx % bagItems.length].key);
-      }
-      return;
-    }
-    // v0.95.619 · SWAP · pick any non-KO party Zyrex · forced after a faint
-    if (battleState.menu === 'swap'){
+    // DEPLOY · pick the opening Zyrex · no cancel (duel already accepted)
+    if (B.phase === 'deploy' || (B.phase === 'faction')){
       const roster = battleSwapRoster();
-      if ((k === 'shift' || k === 'b') && !battleState.forcedSwap){
-        battleState.menu = 'main'; playSFX('cancel'); return;
-      }
+      const forced = B.phase === 'deploy' || B.forcedSwap;
+      if (cancelK && !forced){ B.phase = 'command'; playSFX('cancel'); return; }
       if (!roster.length){
-        battleAppendLog('No healthy Zyrex to swap in.');
-        if (!battleState.forcedSwap){ battleState.menu = 'main'; }
-        playSFX('disabled'); return;
+        // No healthy Zyrex at all · duel is lost
+        battleQueueMsg(['Your whole faction is down!', 'You blacked out.']);
+        B.result = 'loss'; B.over = true; B.afterMsg = 'over'; B.phase = 'msg';
+        return;
       }
-      if (k === 'arrowup')   { battleState.swapIdx = (battleState.swapIdx - 1 + roster.length) % roster.length; playSFX('cursor'); }
-      if (k === 'arrowdown') { battleState.swapIdx = (battleState.swapIdx + 1) % roster.length; playSFX('cursor'); }
-      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter'){
-        battleSwapTo(roster[battleState.swapIdx % roster.length]);
+      if (k === 'arrowleft')  { B.factionIdx = (B.factionIdx - 1 + roster.length) % roster.length; playSFX('cursor'); }
+      if (k === 'arrowright') { B.factionIdx = (B.factionIdx + 1) % roster.length; playSFX('cursor'); }
+      if (k === 'arrowup' || k === 'arrowdown'){
+        const step = Math.min(4, roster.length);
+        B.factionIdx = (B.factionIdx + (k === 'arrowdown' ? step : roster.length - step)) % roster.length;
+        playSFX('cursor');
+      }
+      if (confirmK){
+        const pick = roster[B.factionIdx % roster.length];
+        if (B.phase === 'deploy') battleDeploy(pick);
+        else battleSwapTo(pick);
       }
       return;
     }
-    if (battleState.menu === 'fight'){
-      const moves = battleState.player.moves;
-      // 2x2 grid nav matches the main battle menu · up/down swaps row,
-      // left/right swaps col (per user 2026-08-05).
-      if (k === 'arrowup' || k === 'arrowdown'){ battleState.selectedMoveIdx = (battleState.selectedMoveIdx + 2) % 4; playSFX('cursor'); }
-      if (k === 'arrowleft' || k === 'arrowright'){ battleState.selectedMoveIdx = (battleState.selectedMoveIdx ^ 1); playSFX('cursor'); }
-      if (k === 'shift'){ battleState.menu = 'main'; playSFX('cancel'); return; }
-      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter'){
-        const idx = battleState.selectedMoveIdx % moves.length;
+    // COMMAND · 3 buttons · BATTLE | FACTION | ZYCUBE
+    if (B.phase === 'command'){
+      if (k === 'arrowleft')  { B.cmdIdx = (B.cmdIdx + 2) % 3; playSFX('cursor'); }
+      if (k === 'arrowright') { B.cmdIdx = (B.cmdIdx + 1) % 3; playSFX('cursor'); }
+      if (confirmK){
+        playSFX('confirm');
+        if (B.cmdIdx === 0){ B.phase = 'moves'; B.selectedMoveIdx = 0; }
+        else if (B.cmdIdx === 1){ B.phase = 'faction'; B.forcedSwap = false; B.factionIdx = 0; }
+        else { B.phase = 'zycube'; B.bagIdx = 0; }
+      }
+      // B/Shift on command = flee attempt · only outside formal duels
+      if (cancelK && B.canRun){ battleRun(); }
+      return;
+    }
+    // MOVES · A1-A4 grid
+    if (B.phase === 'moves'){
+      const moves = B.player.moves;
+      if (k === 'arrowup' || k === 'arrowdown'){ B.selectedMoveIdx = (B.selectedMoveIdx + 2) % 4; playSFX('cursor'); }
+      if (k === 'arrowleft' || k === 'arrowright'){ B.selectedMoveIdx = (B.selectedMoveIdx ^ 1); playSFX('cursor'); }
+      if (cancelK){ B.phase = 'command'; playSFX('cancel'); return; }
+      if (confirmK){
+        const idx = B.selectedMoveIdx % moves.length;
         const slot = moves[idx];
         if (!slot || slot.pp <= 0){
           playSFX('disabled');
-          battleAppendLog(`${slot ? slot.name : 'Move'} has no PP left!`);
+          battleQueueMsg([`${slot ? slot.name : 'Move'} has no PP left!`]);
+          B.afterMsg = 'moves'; B.phase = 'msg';
           return;
         }
         playSFX('confirm');
         battleExecuteMove(idx);
-        if (!battleState.over) battleState.menu = 'main';
       }
       return;
     }
+    // ZYCUBE · heal items
+    if (B.phase === 'zycube'){
+      const bagItems = battleBagItems();
+      if (cancelK){ B.phase = 'command'; playSFX('cancel'); return; }
+      if (!bagItems.length){
+        battleQueueMsg(['The ZyCube has no heal items.']);
+        B.afterMsg = 'command'; B.phase = 'msg'; playSFX('disabled');
+        return;
+      }
+      if (k === 'arrowup')   { B.bagIdx = (B.bagIdx - 1 + bagItems.length) % bagItems.length; playSFX('cursor'); }
+      if (k === 'arrowdown') { B.bagIdx = (B.bagIdx + 1) % bagItems.length; playSFX('cursor'); }
+      if (confirmK){ battleUseBagItem(bagItems[B.bagIdx % bagItems.length].key); }
+      return;
+    }
+    return;   // unknown phase · swallow input defensively
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -21210,31 +21232,77 @@ function startWildBattle(){
   return true;
 }
 
-// Classic menu combat is retained for trainer encounters (F v F config).
-// v0.95.619 · opts.schoolStudentId carries the academy-student context so the
-// win is only marked when the battle is actually WON (was: optimistic
-// mark-on-start which let players lose and still bank the clear).
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.620 · P1 FACTION DUEL · wireframe-accurate flow (aov-faction-duel-master)
+//   Phases: msg → deploy → command ⇄ (moves | faction | zycube) → over
+//   · No pre-deployed Zyrex · player picks the opener from FACTION
+//   · Deployment beats with dialogue · enemy-turn UI lockout via msg queue
+//   · Visible faint messaging before the next decision
+//   · Enemy FACTION support (opts.enemyTeam = [{speciesId, level}...]) for
+//     multi-Zyrex opponents · Commanders (P4) plug straight in
+// ═══════════════════════════════════════════════════════════════════════════
 function startTrainerBattle(speciesId=null,level=null,opts={}){
-  const active=(player.party||[]).find(z=>z&&z.hp>0);
-  if(!active){
+  const anyAlive=(player.party||[]).some(z=>z&&z.hp>0);
+  if(!anyAlive){
     showToast('◈ Every Zyrex is KO\'d · heal your faction first', 2600);
     try { playSFX('doorLock'); } catch(_){}
     return;
   }
+  // Build enemy faction · single wild by default · array for trainers/commanders
+  const teamDefs = Array.isArray(opts.enemyTeam) && opts.enemyTeam.length
+    ? opts.enemyTeam
+    : [{ speciesId: speciesId, level: level }];
   const pool=wildPoolFor(player.x,player.y);
-  const chosen=speciesId||pool[Math.floor(Math.random()*pool.length)];
-  const chosenLv=level||wildLevelFor(player.x,player.y);
-  const wild=createZyrex(chosen,chosenLv);
+  const enemyTeam = teamDefs.map(d => {
+    const sid = d.speciesId || pool[Math.floor(Math.random()*pool.length)];
+    const lv  = d.level || wildLevelFor(player.x,player.y);
+    return createZyrex(sid, lv);
+  }).filter(Boolean);
+  if (!enemyTeam.length) return;
+  const oppName = opts.opponentName || `Wild ${enemyTeam[0].name}`;
   battleState={
-    player:active,wild,
-    log:[`${wild.name} challenges you! (Lv ${chosenLv})`],
-    menu:'main',over:false,selectedMenuIdx:0,selectedMoveIdx:0,
-    // v0.95.619 · battle context
-    schoolStudentId: opts.schoolStudentId || null,   // set → win marks schoolBeaten
-    result: null,                                     // 'win' | 'loss' | 'ran'
-    bagIdx: 0, swapIdx: 0,                            // sub-menu cursors
+    phase:'msg',
+    msgQueue:[[`The battle has begun!`, `Rizer vs. ${oppName}!`]],
+    afterMsg:'deploy',
+    player:null,
+    wild:enemyTeam[0],
+    enemyTeam, enemyIdx:0,
+    opponentName:oppName,
+    location: opts.location || _battleLocationLabel(),
+    over:false, result:null,
+    cmdIdx:0, selectedMoveIdx:0, factionIdx:0, bagIdx:0,
+    forcedSwap:false,
+    canRun: !opts.schoolStudentId && !opts.formal,   // formal duels = no fleeing
+    schoolStudentId: opts.schoolStudentId || null,
+    _enemyDeployed:false,
   };
   playBGM('battle');
+}
+function _battleLocationLabel(){
+  try {
+    const cfg = interiorConfig(game.scene);
+    if (cfg && cfg.label) return String(cfg.label).replace(/^◈\s*/, '').toUpperCase();
+    const d = worldDistrictAt(player.x, player.y);
+    return d ? d.toUpperCase() : 'ZYRAXIS';
+  } catch(_){ return 'ZYRAXIS'; }
+}
+// Message-group queue · each entry = array of lines shown together · X advances
+function battleQueueMsg(lines){
+  if (!battleState) return;
+  battleState.msgQueue.push(Array.isArray(lines) ? lines : [lines]);
+}
+// v0.95.620 · Deployment beat · player's opener (or any later swap-in) enters
+function battleDeploy(z){
+  const B = battleState; if (!B || !z) return;
+  B.player = z;
+  try { playSFX('zyrexGo'); } catch(_){}
+  battleQueueMsg([`Rizer sent out ${z.name}!`, `Go! ${z.name}!`]);
+  if (!B._enemyDeployed){
+    B._enemyDeployed = true;
+    battleQueueMsg([`${B.opponentName} sent out ${B.wild.name}!`]);
+  }
+  B.afterMsg = 'command';
+  B.phase = 'msg';
 }
 
 function grantWildFighterXp(p,w){
@@ -21397,22 +21465,14 @@ function calcDamage(attacker, defender, moveName){
   return Math.max(1, Math.floor(raw));
 }
 
-function battleAppendLog(msg){
-  battleState.log.push(msg);
-  if (battleState.log.length > 4) battleState.log = battleState.log.slice(-4);
-}
-
-// Execute one full round · attacker moves first, defender counters if alive.
+// v0.95.620 · One full round · sequenced into message groups (msg queue).
+// Damage applies immediately; text sequences with X-advance beats per group.
 function battleExecuteMove(playerMoveIdx){
-  const p = battleState.player, w = battleState.wild;
+  const B = battleState;
+  const p = B.player, w = B.wild;
   const playerSlot = p.moves[playerMoveIdx];
-  if (!playerSlot || playerSlot.pp <= 0){
-    battleAppendLog(`${playerSlot ? playerSlot.name : 'Move'} has no PP left!`);
-    playSFX('disabled');
-    return;
-  }
+  if (!playerSlot || playerSlot.pp <= 0){ playSFX('disabled'); return; }
   playerSlot.pp -= 1;
-  // Random wild move · pick from moves with pp remaining
   const wildUsable = w.moves.filter(m => m.pp > 0);
   const wildSlot   = wildUsable.length
     ? wildUsable[Math.floor(Math.random() * wildUsable.length)]
@@ -21430,16 +21490,25 @@ function battleExecuteMove(playerMoveIdx){
     const mvName = slot ? slot.name : 'Struggle';
     const dmg = calcDamage(atk, def, mvName);
     def.hp = Math.max(0, def.hp - dmg);
-    battleAppendLog(`${atk.name} used ${mvName}!` + (dmg > 0 ? ` (${dmg} dmg)` : ' (no effect)'));
+    battleQueueMsg([
+      `${atk.name} used ${mvName}!`,
+      dmg > 0 ? `${def.name} took ${dmg} damage!` : 'It had no effect...',
+    ]);
   }
-  // Resolve
+  battleResolveRound();
+}
+// v0.95.620 · Shared post-round resolution · faint beats · XP · enemy team
+// advance · win/loss · forced swap.  All outcomes flow through the msg queue.
+function battleResolveRound(){
+  const B = battleState;
+  const p = B.player, w = B.wild;
   if (w.hp <= 0){
-    // Award XP · enemyLv × (8 + tier×8) × 1.0 × 0.80 (wild fight)
+    battleQueueMsg([`${p.name} defeated ${w.name}!`, `${w.name} fainted!`]);
+    // XP + Shardshare + level-ups
     const gained = Math.floor(w.level * (8 + p.tier * 8) * 0.80);
-    p.xp += gained;
-    battleAppendLog(`Wild ${w.name} fainted!  +${gained} XP`);
-    // v0.95.619 · SHARDSHARE COLLAR · once Dad has repaired it, every OTHER
-    // party Zyrex gains 0.5× the active duelist's XP per defeated foe.
+    const beforeLv = p.level;
+    grantZyrexXp(p, gained);
+    battleQueueMsg([`${p.name} gained ${gained} XP!`]);
     if (player.shardshareFixed){
       const share = Math.floor(gained * 0.5);
       if (share > 0){
@@ -21447,54 +21516,55 @@ function battleExecuteMove(playerMoveIdx){
           if (!bz || bz === p) continue;
           grantZyrexXp(bz, share);
         }
-        battleAppendLog(`Shardshare · party +${share} XP each`);
+        battleQueueMsg([`Shardshare Collar glows...`, `Party Zyrex each gained ${share} XP!`]);
       }
     }
-    // Level ups
-    while (p.xp >= xpToNextLevel(p.level)){
-      p.xp -= xpToNextLevel(p.level);
-      p.level += 1;
-      // Recompute stats · scale to new level
-      const sp = SPECIES[p.speciesId];
-      const s = 1 + (p.level - 1) * 0.05;
-      const oldMax = p.maxHp;
-      p.maxHp = Math.floor(sp.baseHP * s);
-      p.hp   += (p.maxHp - oldMax);      // heal by the diff
-      p.atk   = Math.floor(sp.baseATK  * s);
-      p.def   = Math.floor(sp.baseDEF  * s);
-      p.spd   = Math.floor(sp.baseSPD  * s);
-      p.satk  = Math.floor(sp.baseSATK * s);
-      p.sdef  = Math.floor(sp.baseSDEF * s);
-      battleAppendLog(`${p.name} leveled up to Lv ${p.level}!`);
+    if (p.level > beforeLv) battleQueueMsg([`${p.name} grew to Lv ${p.level}!`]);
+    // Enemy FACTION advance · Commander-style multi-Zyrex opponents
+    if (B.enemyIdx + 1 < B.enemyTeam.length){
+      B.enemyIdx += 1;
+      B.wild = B.enemyTeam[B.enemyIdx];
+      battleQueueMsg([`${B.opponentName}`, `Go! A new Zyrex!`, `${B.opponentName} sent out ${B.wild.name}!`]);
+      B.afterMsg = 'command';
+      B.phase = 'msg';
+      return;
     }
-    // v0.95.619 · WIN · resolve school-student context (marked ONLY on win now)
-    battleState.result = 'win';
-    if (battleState.schoolStudentId){
+    // WIN · whole enemy faction down
+    B.result = 'win';
+    if (B.schoolStudentId){
       try {
         player.stats = player.stats || {};
         player.stats.schoolBeaten = player.stats.schoolBeaten || {};
-        player.stats.schoolBeaten[battleState.schoolStudentId] = true;
+        player.stats.schoolBeaten[B.schoolStudentId] = true;
         try { awardRizerXP(60); } catch(_){}
       } catch(_){}
     }
-    battleState.over = true;
-    battleState.menu = 'over';
-  } else if (p.hp <= 0){
-    battleAppendLog(`${p.name} fainted!`);
-    // v0.95.619 · KO = strict 0 · offer SWAP if any other party Zyrex lives
+    battleQueueMsg([`Rizer defeated ${B.opponentName}!`]);
+    B.over = true;
+    B.afterMsg = 'over';
+    B.phase = 'msg';
+    return;
+  }
+  if (p.hp <= 0){
+    battleQueueMsg([`${p.name} was defeated!`, `${p.name} fainted!`]);
     const alive = (player.party || []).filter(z => z && z !== p && z.hp > 0);
     if (alive.length > 0){
-      battleAppendLog('Choose your next Zyrex!');
-      battleState.menu = 'swap';
-      battleState.swapIdx = 0;
-      battleState.forcedSwap = true;   // can't back out · must pick
+      battleQueueMsg(['Choose your next Zyrex!']);
+      B.afterMsg = 'faction';       // forcedSwap set on phase entry
+      B.phase = 'msg';
+      B.factionIdx = 0;
     } else {
-      battleAppendLog('Your whole faction is down!  You blacked out.');
-      battleState.result = 'loss';
-      battleState.over = true;
-      battleState.menu = 'over';
+      battleQueueMsg(['Your whole faction is down!', 'Rizer... You have been defeated.']);
+      B.result = 'loss';
+      B.over = true;
+      B.afterMsg = 'over';
+      B.phase = 'msg';
     }
+    return;
   }
+  // Both standing · back to the command loop
+  B.afterMsg = 'command';
+  B.phase = 'msg';
 }
 // v0.95.619 · Shared Zyrex XP grant + level-up loop (used by Shardshare split)
 function grantZyrexXp(z, amount){
@@ -21531,90 +21601,94 @@ function battleBagItems(){
   return defs.filter(d => (inv[d.key] || 0) > 0)
              .map(d => ({ ...d, count: inv[d.key] || 0 }));
 }
+// v0.95.620 · ZYCUBE use in battle · consumes the turn · enemy free hit
 function battleUseBagItem(key){
+  const B = battleState;
   const items = battleBagItems();
   const def = items.find(d => d.key === key);
-  const p = battleState.player;
+  const p = B.player;
   if (!def || !p){ playSFX('disabled'); return; }
   const mx = p.maxHp || 100;
   if ((p.hp || 0) >= mx){
-    battleAppendLog(`${p.name} is already at full HP!`);
+    battleQueueMsg([`${p.name} is already at full HP!`]);
+    B.afterMsg = 'zycube'; B.phase = 'msg';
     playSFX('disabled'); return;
   }
   player.items[key] -= 1;
   const before = p.hp || 0;
   p.hp = Math.min(mx, before + def.heal);
-  battleAppendLog(`Used ${def.label} · ${p.name} +${p.hp - before} HP`);
   playSFX('chomp');
-  // Using an item consumes the turn · wild gets a free attack (Pokemon logic)
-  battleWildFreeHit();
-  if (!battleState.over) battleState.menu = 'main';
+  battleQueueMsg([`Rizer used ${def.label}!`, `${p.name} recovered ${p.hp - before} HP!`]);
+  battleWildFreeHit();               // queues enemy attack + resolution
 }
-// v0.95.619 · BATTLE SWAP · roster + switch-in
+// v0.95.620 · FACTION roster (non-KO'd, excluding the active one)
 function battleSwapRoster(){
   return (player.party || []).filter(z => z && z !== battleState.player && (z.hp || 0) > 0);
 }
+// v0.95.620 · Switch-in · voluntary costs the turn · forced (post-faint) is free
 function battleSwapTo(z){
+  const B = battleState;
   if (!z){ playSFX('disabled'); return; }
-  const wasForced = !!battleState.forcedSwap;
-  battleState.player = z;
-  battleState.forcedSwap = false;
-  battleAppendLog(`Go, ${z.name}!`);
+  const wasForced = !!B.forcedSwap;
+  const prevName = B.player ? B.player.name : null;
+  B.player = z;
+  B.forcedSwap = false;
   try { playSFX('zyrexGo'); } catch(_){}
-  playSFX('confirm');
-  // Voluntary swap consumes the turn (forced swap after a faint does not)
-  if (!wasForced) battleWildFreeHit();
-  if (!battleState.over) battleState.menu = 'main';
+  battleQueueMsg(prevName
+    ? [`${prevName}, return!`, `Rizer sent out ${z.name}!`, `Go! ${z.name}!`]
+    : [`Rizer sent out ${z.name}!`, `Go! ${z.name}!`]);
+  if (!wasForced){
+    battleWildFreeHit();             // enemy punishes the voluntary switch
+  } else {
+    B.afterMsg = 'command';
+    B.phase = 'msg';
+  }
 }
-// v0.95.619 · Shared "wild takes a free hit" beat · used by bag + voluntary swap
+// v0.95.620 · Enemy free attack (item use · voluntary swap · failed flee)
 function battleWildFreeHit(){
-  const w = battleState.wild, p = battleState.player;
-  if (!w || !p || battleState.over) return;
+  const B = battleState;
+  const w = B.wild, p = B.player;
+  if (!w || !p || B.over) return;
   const usable = w.moves.filter(m => m.pp > 0);
   const slot = usable.length ? usable[Math.floor(Math.random() * usable.length)] : w.moves[0];
   if (slot && slot.pp > 0) slot.pp -= 1;
   const mvName = slot ? slot.name : 'Struggle';
   const dmg = calcDamage(w, p, mvName);
   p.hp = Math.max(0, p.hp - dmg);
-  battleAppendLog(`Wild ${w.name} used ${mvName}! (${dmg} dmg)`);
+  battleQueueMsg([
+    `${w.name} used ${mvName}!`,
+    dmg > 0 ? `${p.name} took ${dmg} damage!` : 'It had no effect...',
+  ]);
   if (p.hp <= 0){
-    battleAppendLog(`${p.name} fainted!`);
+    battleQueueMsg([`${p.name} fainted!`]);
     const alive = battleSwapRoster();
     if (alive.length > 0){
-      battleAppendLog('Choose your next Zyrex!');
-      battleState.menu = 'swap';
-      battleState.swapIdx = 0;
-      battleState.forcedSwap = true;
+      battleQueueMsg(['Choose your next Zyrex!']);
+      B.afterMsg = 'faction';
+      B.factionIdx = 0;
     } else {
-      battleAppendLog('Your whole faction is down!  You blacked out.');
-      battleState.result = 'loss';
-      battleState.over = true;
-      battleState.menu = 'over';
+      battleQueueMsg(['Your whole faction is down!', 'Rizer... You have been defeated.']);
+      B.result = 'loss';
+      B.over = true;
+      B.afterMsg = 'over';
     }
-  }
-}
-function battleRun(){
-  if (Math.random() < 0.5){
-    battleAppendLog('Got away safely.');
-    battleState.over = true;
-    battleState.menu = 'over';
   } else {
-    battleAppendLog(`Couldn't escape!`);
-    // Wild gets a free hit · pick from PP-having moves
-    const usable = battleState.wild.moves.filter(m => m.pp > 0);
-    const slot = usable.length
-      ? usable[Math.floor(Math.random() * usable.length)]
-      : battleState.wild.moves[0];
-    if (slot && slot.pp > 0) slot.pp -= 1;
-    const mvName = slot ? slot.name : 'Struggle';
-    const dmg = calcDamage(battleState.wild, battleState.player, mvName);
-    battleState.player.hp = Math.max(0, battleState.player.hp - dmg);
-    battleAppendLog(`Wild ${battleState.wild.name} used ${mvName}! (${dmg} dmg)`);
-    if (battleState.player.hp <= 0){
-      battleAppendLog(`${battleState.player.name} fainted!  You blacked out.`);
-      battleState.over = true;
-      battleState.menu = 'over';
-    }
+    B.afterMsg = 'command';
+  }
+  B.phase = 'msg';
+}
+// v0.95.620 · Flee attempt · informal encounters only (B.canRun)
+function battleRun(){
+  const B = battleState;
+  if (Math.random() < 0.5){
+    battleQueueMsg(['Got away safely!']);
+    B.result = 'ran';
+    B.over = true;
+    B.afterMsg = 'over';
+    B.phase = 'msg';
+  } else {
+    battleQueueMsg([`Couldn't escape!`]);
+    battleWildFreeHit();
   }
 }
 
@@ -22320,161 +22394,316 @@ function drawWildBattleOverlay(){
 }
 
 // Full-screen turn-based battle UI · owns input while battleState !== null.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.95.620 · P1 FACTION DUEL presentation (aov-faction-duel-master wireframes)
+//   Player HUD top-left · enemy HUD top-right · player sprite bottom-left ·
+//   enemy sprite upper-right · message box bottom-left · 3-command bar ·
+//   bottom-sheet FACTION switch · LOCATION bar · enemy-turn lockout (msg
+//   phase shows NOTHING but battlefield + HUD + message box)
+// ═══════════════════════════════════════════════════════════════════════════
 function drawBattleOverlay(){
   if (!battleState) return;
+  const B = battleState;
   const W = canvas.width, H = canvas.height;
-  const p = battleState.player, w = battleState.wild;
+  const p = B.player, w = B.wild;
 
-  // Background · dark gradient-ish
-  ctx.fillStyle = '#0b0b10';
+  // Backdrop · deep violet gradient (P2 swaps in venue art)
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0a0618'); bg.addColorStop(0.5, '#140a2e'); bg.addColorStop(1, '#08040f');
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
+  // Faint duel-circle on the floor
+  ctx.save();
+  ctx.strokeStyle = 'rgba(160,80,255,0.28)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(W/2, H*0.62, W*0.22, H*0.09, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(160,80,255,0.16)';
+  ctx.beginPath(); ctx.ellipse(W/2, H*0.62, W*0.15, H*0.06, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
 
-  // Wild card · top-left (text stats)
-  drawBattleCard(w, 20, 40, 'WILD', true);
-
-  // Wild BATTLE SPRITE · top-right (per aov-chroma-key-canon · green-keyed)
-  const spriteInfo = BATTLE_SPRITES[w.speciesId];
-  if (spriteInfo && spriteInfo.img && spriteInfo.img.complete && spriteInfo.img.naturalWidth){
-    const [sbx, sby, sbw, sbh] = spriteInfo.bbox;
-    // Anchor: upper-right area · target box 260x210 (aspect-preserved)
-    const targetW = 260;
-    const targetH = Math.round(targetW * (sbh / sbw));
-    const dx = W - targetW - 20;
-    const dy = 20;
-    ctx.drawImage(spriteInfo.img, sbx, sby, sbw, sbh, dx, dy, targetW, targetH);
+  // Sprites · enemy upper-right · player bottom-left (mirrored)
+  if (w){
+    const si = BATTLE_SPRITES[w.speciesId];
+    if (si && si.img && si.img.complete && si.img.naturalWidth){
+      const [sbx, sby, sbw, sbh] = si.bbox;
+      const tw = Math.min(260, W * 0.30);
+      const th = Math.round(tw * (sbh / sbw));
+      ctx.drawImage(si.img, sbx, sby, sbw, sbh, W - tw - 30, Math.round(H*0.16), tw, th);
+    }
+  }
+  if (p){
+    const si = BATTLE_SPRITES[p.speciesId];
+    if (si && si.img && si.img.complete && si.img.naturalWidth){
+      const [sbx, sby, sbw, sbh] = si.bbox;
+      const tw = Math.min(240, W * 0.28);
+      const th = Math.round(tw * (sbh / sbw));
+      const dx = 40, dy = Math.round(H*0.60) - th;
+      ctx.save();                                   // mirror → faces right
+      ctx.translate(dx + tw, dy); ctx.scale(-1, 1);
+      ctx.drawImage(si.img, sbx, sby, sbw, sbh, 0, 0, tw, th);
+      ctx.restore();
+    }
   }
 
-  // Player card · bottom
-  drawBattleCard(p, W - 20 - 220, H - 220, 'YOUR', false);
+  // HUD panels · player top-left (w/ EXP numbers) · enemy top-right
+  if (p) drawDuelHud(p, 16, 14, false);
+  if (w) drawDuelHud(w, W - 16 - 280, 14, true);
 
-  // Battle log · center-top
-  ctx.fillStyle = '#f0eadf';
-  ctx.font = '11px "Courier New", monospace';
+  // LOCATION bar · bottom strip
+  ctx.fillStyle = 'rgba(6,4,14,0.92)';
+  ctx.fillRect(0, H - 26, W, 26);
+  ctx.strokeStyle = 'rgba(160,80,255,0.35)'; ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, H - 25.5, W - 1, 25);
+  ctx.font = 'bold 11px "Courier New", monospace';
   ctx.textAlign = 'left';
-  const logY = H - 380;
-  battleState.log.forEach((line, i) => {
-    ctx.fillText(line, 20, logY + i * 16);
-  });
+  ctx.fillStyle = '#a050ff';
+  ctx.fillText('LOCATION', 14, H - 9);
+  ctx.fillStyle = '#cfc8e8';
+  ctx.fillText(String(B.location || ''), 96, H - 9);
 
-  // Menu · positioned directly under the player card (bottom-right area,
-  // per user 2026-08-05).  Player card at (W-240, H-220) is 220 wide x
-  // 90 tall · bottom = H-130 · menu grid starts at H-124 with 4px gap.
-  const menuX  = W - 240;
-  const menuY  = H - 124;
-  const btnW   = 108, btnH = 32, gap = 4;
-  if (battleState.menu === 'main'){
-    const items = ['FIGHT', 'BAG', 'SWAP', 'RUN'];
-    items.forEach((label, i) => {
-      const col = i % 2, row = Math.floor(i / 2);
-      const x = menuX + col * (btnW + gap);
-      const y = menuY + row * (btnH + gap);
-      const sel = (i === battleState.selectedMenuIdx);
-      ctx.fillStyle = sel ? '#d4af37' : 'rgba(0,0,0,0.7)';
-      ctx.fillRect(x, y, btnW, btnH);
-      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, btnW, btnH);
-      ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
-      ctx.font = 'bold 13px "Courier New", monospace';
-      ctx.fillText(label, x + 12, y + 21);
-    });
-  } else if (battleState.menu === 'fight'){
-    const moves = p.moves;
-    moves.forEach((slot, i) => {
-      const col = i % 2, row = Math.floor(i / 2);
-      const x = menuX + col * (btnW + gap);
-      const y = menuY + row * (btnH + gap);
-      const sel = (i === battleState.selectedMoveIdx);
-      const empty = slot.pp <= 0;
-      const mv = MOVES[slot.name];
-      ctx.fillStyle = sel && !empty ? '#d4af37' : 'rgba(0,0,0,0.7)';
-      ctx.fillRect(x, y, btnW, btnH);
-      ctx.strokeStyle = empty ? '#555' : '#d4af37'; ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, btnW, btnH);
-      const nameColor = sel && !empty ? '#0b0b10' : (empty ? '#666' : '#f0eadf');
-      ctx.fillStyle = nameColor;
-      ctx.font = 'bold 11px "Courier New", monospace';
-      ctx.fillText(slot.name, x + 6, y + 14);
-      ctx.font = '9px "Courier New", monospace';
-      ctx.fillText(`PP ${slot.pp}/${slot.maxPp} · ${mv ? mv.power : 0}`, x + 6, y + 27);
-    });
-    ctx.fillStyle = '#8ff';
-    ctx.font = '11px "Courier New", monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText('○ back', W - 20, H - 8);
+  const baseY = H - 26;   // everything sits above the location bar
+
+  // ── MSG phase · lockout · battlefield + HUD + message box ONLY ──
+  if (B.phase === 'msg'){
+    const group = B.msgQueue[0] || ['...'];
+    drawDuelMsgBox(group, 16, baseY - 96, Math.min(520, W * 0.55), 88, true);
+    return;
+  }
+  // ── OVER · press X ──
+  if (B.phase === 'over'){
+    const label = B.result === 'win' ? 'VICTORY' : B.result === 'ran' ? 'ESCAPED' : 'DEFEAT';
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, baseY - 64, W, 64);
+    ctx.fillStyle = B.result === 'win' ? '#5fdc7a' : B.result === 'ran' ? '#ffd66b' : '#ff5b5b';
+    ctx.font = 'bold 18px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label + '  ·  press × to continue', W / 2, baseY - 26);
     ctx.textAlign = 'left';
-  } else if (battleState.menu === 'bag'){
-    // v0.95.619 · BAG list · heal items with count · vertical list panel
-    const items = battleBagItems();
-    const listX = W - 260, listW = 240;
-    const rowH = 26;
-    const listH = Math.max(1, items.length) * rowH + 34;
-    const listY = H - listH - 8;
-    ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    ctx.fillRect(listX, listY, listW, listH);
-    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
-    ctx.strokeRect(listX, listY, listW, listH);
-    ctx.fillStyle = '#ffd66b';
-    ctx.font = 'bold 12px "Courier New", monospace';
-    ctx.fillText('BAG · heal items', listX + 10, listY + 18);
-    if (!items.length){
-      ctx.fillStyle = '#889';
-      ctx.font = '11px "Courier New", monospace';
-      ctx.fillText('· empty ·', listX + 10, listY + 40);
-    }
-    items.forEach((it, i) => {
-      const sel = (i === (battleState.bagIdx % items.length));
-      const ry = listY + 26 + i * rowH;
-      if (sel){ ctx.fillStyle = '#d4af37'; ctx.fillRect(listX + 4, ry, listW - 8, rowH - 2); }
-      ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
-      ctx.font = 'bold 11px "Courier New", monospace';
-      ctx.fillText(`${it.label}  ×${it.count}  (+${it.heal})`, listX + 12, ry + 17);
-    });
-    ctx.fillStyle = '#8ff';
-    ctx.font = '11px "Courier New", monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText('○ back', W - 20, H - 8);
-    ctx.textAlign = 'left';
-  } else if (battleState.menu === 'swap'){
-    // v0.95.619 · SWAP list · every non-KO party Zyrex
+    return;
+  }
+  // ── DEPLOY / FACTION · bottom-sheet roster over the live battlefield ──
+  if (B.phase === 'deploy' || B.phase === 'faction'){
     const roster = battleSwapRoster();
-    const listX = W - 280, listW = 260;
-    const rowH = 30;
-    const listH = Math.max(1, roster.length) * rowH + 34;
-    const listY = H - listH - 8;
-    ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    ctx.fillRect(listX, listY, listW, listH);
-    ctx.strokeStyle = battleState.forcedSwap ? '#ff5b5b' : '#d4af37'; ctx.lineWidth = 1;
-    ctx.strokeRect(listX, listY, listW, listH);
-    ctx.fillStyle = battleState.forcedSwap ? '#ff9c9c' : '#ffd66b';
-    ctx.font = 'bold 12px "Courier New", monospace';
-    ctx.fillText(battleState.forcedSwap ? 'SWAP · choose next Zyrex!' : 'SWAP · pick a fighter', listX + 10, listY + 18);
-    if (!roster.length){
-      ctx.fillStyle = '#889';
-      ctx.font = '11px "Courier New", monospace';
-      ctx.fillText('· no healthy Zyrex ·', listX + 10, listY + 40);
-    }
-    roster.forEach((z, i) => {
-      const sel = (i === (battleState.swapIdx % roster.length));
-      const ry = listY + 26 + i * rowH;
-      if (sel){ ctx.fillStyle = '#d4af37'; ctx.fillRect(listX + 4, ry, listW - 8, rowH - 2); }
-      ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
-      ctx.font = 'bold 11px "Courier New", monospace';
-      ctx.fillText(`${z.name}  Lv${z.level}  HP ${z.hp}/${z.maxHp}`, listX + 12, ry + 19);
-    });
-    if (!battleState.forcedSwap){
-      ctx.fillStyle = '#8ff';
-      ctx.font = '11px "Courier New", monospace';
+    const title = B.phase === 'deploy' ? 'Choose a Zyrex.'
+                : B.forcedSwap ? 'Choose your next Zyrex!'
+                : 'FACTION — SWITCH ZYREX';
+    const sheetH = 148;
+    const sheetY = baseY - sheetH;
+    ctx.fillStyle = 'rgba(8,6,18,0.94)';
+    ctx.fillRect(0, sheetY, W, sheetH);
+    ctx.strokeStyle = B.forcedSwap ? '#ff5b5b' : '#2fae5c'; ctx.lineWidth = 2;
+    ctx.strokeRect(1, sheetY + 1, W - 2, sheetH - 2);
+    ctx.fillStyle = B.forcedSwap ? '#ff9c9c' : '#5fdc7a';
+    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillText(title, 16, sheetY + 22);
+    if (!B.forcedSwap && B.phase === 'faction'){
+      ctx.fillStyle = '#8ff'; ctx.font = '10px "Courier New", monospace';
       ctx.textAlign = 'right';
-      ctx.fillText('○ back', W - 20, H - 8);
+      ctx.fillText('Ⓑ CANCEL', W - 16, sheetY + 22);
       ctx.textAlign = 'left';
     }
-  } else if (battleState.menu === 'over'){
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, H - 60, W, 60);
-    ctx.fillStyle = '#d4af37';
-    ctx.font = 'bold 16px "Courier New", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('press × to continue', W / 2, H - 28);
+    // Horizontal cards · 5 visible per page window
+    const PER = 5;
+    const page = Math.floor((B.factionIdx % Math.max(1, roster.length)) / PER);
+    const start = page * PER;
+    const cardW = Math.floor((W - 40) / PER) - 8, cardH = 96;
+    roster.slice(start, start + PER).forEach((z, i) => {
+      const gi = start + i;
+      const sel = gi === (B.factionIdx % roster.length);
+      const cx = 20 + i * (cardW + 8), cy = sheetY + 34;
+      ctx.fillStyle = sel ? 'rgba(47,174,92,0.25)' : 'rgba(0,0,0,0.5)';
+      ctx.fillRect(cx, cy, cardW, cardH);
+      ctx.strokeStyle = sel ? '#5fdc7a' : 'rgba(120,120,150,0.4)'; ctx.lineWidth = sel ? 2 : 1;
+      ctx.strokeRect(cx, cy, cardW, cardH);
+      ctx.fillStyle = sel ? '#fff' : '#cfe';
+      ctx.font = 'bold 12px "Courier New", monospace';
+      ctx.fillText(z.name.toUpperCase().slice(0, 12), cx + 8, cy + 18);
+      ctx.fillStyle = '#ffd66b'; ctx.font = '11px "Courier New", monospace';
+      ctx.fillText(`Lv. ${z.level}`, cx + 8, cy + 34);
+      // HP bar
+      const bw2 = cardW - 16;
+      ctx.strokeStyle = '#555'; ctx.strokeRect(cx + 8, cy + 44, bw2, 8);
+      const hf = Math.max(0, Math.min(1, z.hp / z.maxHp));
+      ctx.fillStyle = hf > 0.5 ? '#3fdc5f' : hf > 0.2 ? '#ffd66b' : '#ff5b5b';
+      ctx.fillRect(cx + 9, cy + 45, (bw2 - 2) * hf, 6);
+      ctx.fillStyle = '#cfe'; ctx.font = '9px "Courier New", monospace';
+      ctx.fillText(`HP ${z.hp}/${z.maxHp}`, cx + 8, cy + 64);
+      // Type chip
+      ctx.fillStyle = '#8ff';
+      ctx.fillText(String(z.type || '').toUpperCase(), cx + 8, cy + 80);
+    });
+    if (roster.length > PER){
+      ctx.fillStyle = '#8ff'; ctx.font = '10px "Courier New", monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${page + 1} / ${Math.ceil(roster.length / PER)} ▶`, W - 16, sheetY + sheetH - 10);
+      ctx.textAlign = 'left';
+    }
+    return;
+  }
+  // ── COMMAND · "What will Rizer do?" + 3 buttons ──
+  if (B.phase === 'command' || B.phase === 'moves' || B.phase === 'zycube'){
+    // Prompt box · bottom-left
+    drawDuelMsgBox(['What will Rizer do?'], 16, baseY - 154, Math.min(400, W * 0.38), 60, false);
+    // 3-command bar
+    const CMDS = [
+      { label:'BATTLE',  sub: B.phase === 'moves' ? 'Choose a move.' : 'Use moves.', fill:'#3a0d0d', stroke:'#c0392b', text:'#ffd6c8', icon:'✳' },
+      { label:'FACTION', sub:'Switch Zyrex.', fill:'#0d2e14', stroke:'#2fae5c', text:'#c8ffd6', icon:'👥' },
+      { label:'ZYCUBE',  sub:'Use ZyCube.',   fill:'#1d0d33', stroke:'#8e44ad', text:'#e6d0ff', icon:'◈' },
+    ];
+    const barY = baseY - 84, btnH2 = 72;
+    const btnW2 = Math.floor((W - 48) / 3);
+    CMDS.forEach((c, i) => {
+      const bx = 16 + i * (btnW2 + 8);
+      const sel = (B.phase === 'command' && i === B.cmdIdx)
+               || (B.phase === 'moves'  && i === 0)
+               || (B.phase === 'zycube' && i === 2);
+      ctx.fillStyle = c.fill;
+      ctx.fillRect(bx, barY, btnW2, btnH2);
+      ctx.strokeStyle = sel ? '#fff' : c.stroke; ctx.lineWidth = sel ? 3 : 2;
+      ctx.strokeRect(bx, barY, btnW2, btnH2);
+      ctx.fillStyle = c.text;
+      ctx.font = 'bold 18px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${c.icon}  ${c.label}`, bx + btnW2/2, barY + 32);
+      ctx.font = '11px "Courier New", monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText(c.sub, bx + btnW2/2, barY + 52);
+      ctx.textAlign = 'left';
+    });
+    // MOVES panel · A1-A4 grid above the bar (right side)
+    if (B.phase === 'moves' && p){
+      const mw = Math.min(520, W * 0.52), mh = 128;
+      const mx2 = W - mw - 16, my2 = barY - mh - 8;
+      ctx.fillStyle = 'rgba(8,6,18,0.94)';
+      ctx.fillRect(mx2, my2, mw, mh);
+      ctx.strokeStyle = '#a050ff'; ctx.lineWidth = 1;
+      ctx.strokeRect(mx2, my2, mw, mh);
+      ctx.fillStyle = '#c060ff';
+      ctx.font = 'bold 12px "Courier New", monospace';
+      ctx.fillText(`${p.name.toUpperCase()} MOVES`, mx2 + 10, my2 + 18);
+      const cellW2 = Math.floor((mw - 30) / 2), cellH2 = 44;
+      (p.moves || []).slice(0, 4).forEach((slot, i) => {
+        const col = i % 2, row = Math.floor(i / 2);
+        const cx = mx2 + 10 + col * (cellW2 + 10);
+        const cy = my2 + 26 + row * (cellH2 + 6);
+        const sel = i === B.selectedMoveIdx;
+        const empty = !slot || slot.pp <= 0;
+        const dexMv = slot && (typeof MOVE_DEX !== 'undefined' && MOVE_DEX[slot.name]) || null;
+        const mvType = (dexMv && dexMv.type) || (slot && MOVES[slot.name] && MOVES[slot.name].type) || '—';
+        ctx.fillStyle = sel && !empty ? 'rgba(160,80,255,0.30)' : 'rgba(0,0,0,0.5)';
+        ctx.fillRect(cx, cy, cellW2, cellH2);
+        ctx.strokeStyle = empty ? '#444' : sel ? '#c060ff' : 'rgba(120,120,150,0.4)';
+        ctx.lineWidth = sel ? 2 : 1;
+        ctx.strokeRect(cx, cy, cellW2, cellH2);
+        ctx.fillStyle = empty ? '#666' : '#fff';
+        ctx.font = 'bold 12px "Courier New", monospace';
+        ctx.fillText(`A${i + 1}  ${slot ? slot.name : '—'}`, cx + 8, cy + 17);
+        ctx.font = '10px "Courier New", monospace';
+        ctx.fillStyle = empty ? '#555' : '#8ff';
+        ctx.fillText(String(mvType).toUpperCase(), cx + 8, cy + 34);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = empty ? '#555' : '#cfe';
+        ctx.fillText(`PP ${slot ? slot.pp : 0} / ${slot ? slot.maxPp : 0}`, cx + cellW2 - 8, cy + 34);
+        ctx.textAlign = 'left';
+      });
+    }
+    // ZYCUBE panel · heal-item list above the bar (right side)
+    if (B.phase === 'zycube'){
+      const items = battleBagItems();
+      const rowH = 26;
+      const lh = Math.max(1, items.length) * rowH + 40;
+      const lw = 320, lx = W - lw - 16, ly = barY - lh - 8;
+      ctx.fillStyle = 'rgba(8,6,18,0.94)';
+      ctx.fillRect(lx, ly, lw, lh);
+      ctx.strokeStyle = '#8e44ad'; ctx.lineWidth = 1;
+      ctx.strokeRect(lx, ly, lw, lh);
+      ctx.fillStyle = '#c060ff';
+      ctx.font = 'bold 12px "Courier New", monospace';
+      ctx.fillText('◈ ZYCUBE · recovery', lx + 10, ly + 18);
+      if (!items.length){
+        ctx.fillStyle = '#889'; ctx.font = '11px "Courier New", monospace';
+        ctx.fillText('· no heal items ·', lx + 10, ly + 42);
+      }
+      items.forEach((it, i) => {
+        const sel = i === (B.bagIdx % items.length);
+        const ry = ly + 28 + i * rowH;
+        if (sel){ ctx.fillStyle = 'rgba(160,80,255,0.30)'; ctx.fillRect(lx + 4, ry, lw - 8, rowH - 2); }
+        ctx.fillStyle = sel ? '#fff' : '#cfe';
+        ctx.font = 'bold 11px "Courier New", monospace';
+        ctx.fillText(`${it.label}  ×${it.count}  (+${it.heal})`, lx + 12, ry + 17);
+      });
+      ctx.fillStyle = '#8ff'; ctx.font = '10px "Courier New", monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('Ⓑ back', lx + lw - 8, ly + lh - 8);
+      ctx.textAlign = 'left';
+    }
+    return;
+  }
+}
+// v0.95.620 · Duel HUD panel · 280×64 · portrait-chip edge · HP + EXP bars
+function drawDuelHud(z, x, y, isEnemy){
+  const cw = 280, chh = 64;
+  ctx.fillStyle = 'rgba(8,6,18,0.92)';
+  ctx.fillRect(x, y, cw, chh);
+  ctx.strokeStyle = 'rgba(160,80,255,0.5)'; ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, cw, chh);
+  ctx.font = 'bold 13px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(z.name.toUpperCase(), x + 10, y + 18);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffae42';
+  ctx.fillText(`Lv. ${z.level}`, x + cw - 10, y + 18);
+  ctx.textAlign = 'left';
+  // HP
+  const bx = x + 44, bw = cw - 56;
+  ctx.fillStyle = '#3fdc5f'; ctx.font = 'bold 10px "Courier New", monospace';
+  ctx.fillText('HP', x + 10, y + 34);
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+  ctx.strokeRect(bx, y + 26, bw, 9);
+  const hf = Math.max(0, Math.min(1, z.hp / z.maxHp));
+  ctx.fillStyle = hf > 0.5 ? '#3fdc5f' : hf > 0.2 ? '#ffd66b' : '#ff5b5b';
+  ctx.fillRect(bx + 1, y + 27, (bw - 2) * hf, 7);
+  // EXP
+  ctx.fillStyle = '#4fb3ff';
+  ctx.fillText('EXP', x + 10, y + 50);
+  ctx.strokeStyle = '#444';
+  ctx.strokeRect(bx, y + 42, bw, 7);
+  const xm = xpToNextLevel(z.level);
+  const xf2 = Math.max(0, Math.min(1, (z.xp || 0) / Math.max(1, xm)));
+  ctx.fillStyle = '#3f7bff';
+  ctx.fillRect(bx + 1, y + 43, (bw - 2) * xf2, 5);
+  // Numeric HP readout under the bars
+  ctx.fillStyle = '#cfe'; ctx.font = '9px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${z.hp}/${z.maxHp}`, x + cw - 10, y + 60);
+  ctx.textAlign = 'left';
+}
+// v0.95.620 · Message / prompt box · Rizer name highlighted · ▼ advance chevron
+function drawDuelMsgBox(lines, x, y, w, h, showChevron){
+  ctx.fillStyle = 'rgba(8,6,18,0.94)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(160,80,255,0.5)'; ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  ctx.font = '13px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  (lines || []).slice(0, 3).forEach((line, i) => {
+    const ly = y + 24 + i * 20;
+    // Highlight "Rizer" in ally-blue wherever it appears
+    const parts = String(line).split(/(Rizer)/);
+    let cx = x + 14;
+    for (const part of parts){
+      ctx.fillStyle = part === 'Rizer' ? '#4f8bff' : '#e8e4f8';
+      ctx.fillText(part, cx, ly);
+      cx += ctx.measureText(part).width;
+    }
+  });
+  if (showChevron){
+    const bob = Math.sin(performance.now() / 260) * 2;
+    ctx.fillStyle = '#a050ff';
+    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('▼', x + w - 12, y + h - 10 + bob);
     ctx.textAlign = 'left';
   }
 }

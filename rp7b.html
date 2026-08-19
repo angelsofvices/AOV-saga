@@ -16849,6 +16849,11 @@ function tryInteract(){
       return;
     }
   }
+  // v0.95.639 · WILD ZYREX · walk up, face it, press X.  Bond decides.
+  if (game.scene === 'overworld'){
+    const wz = WILD_ZYREX.find(w => !w._gone && w.tileX === fx && w.tileY === fy);
+    if (wz){ tryRecruitWildZyrex(wz); return; }
+  }
   // Veridan riverbank fishing: actors remain on land and cast into the
   // faced freshwater tile, exactly like facing a water cell in the oasis.
   if(game.scene==='overworld'&&isVeridanRiverTile(fx,fy)){
@@ -26093,6 +26098,73 @@ function drawZyrexOrb(w){
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★ WILD ZYREX RECRUITMENT · v0.95.639 · Creator directive 2026-08-19
+//
+// Walk up to a wild Zyrex, face it, press X.  If your RIZER BOND clears its
+// tier, it joins outright.  No Zysphere minigame, no dice, nothing to reroll.
+//
+// The gate is the one already in the engine: requiredBondForTier(tier) is
+// tier x 333 against a 3330 ceiling, which IS "Tier x 10%" — T3 needs 30%,
+// T6 needs 60%, T10 (Anciuxor) needs the full 100%.
+//
+// This REPLACES the earlier chance-based catching loop.  A Zyrex is now earned
+// by everything you did BEFORE you met it — quests, allies, Warden ladders —
+// rather than by a roll at the moment of contact.  It is the strongest form of
+// [[aov-catching-philosophy]]: nothing here can be farmed or save-scummed.
+//
+// TEMPERAMENT survives, but only as the REFUSAL behaviour when you are under
+// the gate: Skittish bolts, Wary withdraws, Territorial holds its ground,
+// Dominant warns you off.
+// ══════════════════════════════════════════════════════════════════════════
+function tryRecruitWildZyrex(w){
+  const sp = SPECIES[w.speciesId];
+  if (!sp){ showToast('◈ ...it is gone.', 1600); w._gone = true; return; }
+  const need = requiredBondForTier(sp.tier);
+  const have = rizerBondTotal();
+  const pctNeed = Math.round(need / 3330 * 100);
+  const pctHave = Math.round(have / 3330 * 100);
+
+  // ── under the gate · refuse, flavoured by temperament ──
+  if (have < need){
+    const line = {
+      Skittish:    `${sp.name} bolts before you can reach it.`,
+      Wary:        `${sp.name} backs away, watching you the whole time.`,
+      Territorial: `${sp.name} holds its ground and will not yield to you.`,
+      Dominant:    `${sp.name} regards you, unimpressed, and turns away.`,
+    }[w.temperament] || `${sp.name} will not go with you.`;
+    showDialog({ speaker: sp.name.toUpperCase(), lines: [
+      line,
+      `Your bond is not yet worth its trust.  (Rizer bond ${pctHave}% · Tier ${sp.tier} needs ${pctNeed}%)`,
+    ]});
+    try { playSFX('cancel'); } catch(_){}
+    // Skittish and Wary actually LEAVE — you have to find them again.
+    if (w.temperament === 'Skittish' || w.temperament === 'Wary'){
+      w._gone = true;
+      w._fledAt = Date.now();
+    }
+    return;
+  }
+
+  // ── bond clears · it joins ──
+  const z = createZyrex(w.speciesId, w.level || Math.max(1, sp.tier * 5));
+  if (!z){ showToast('◈ Recruitment failed · species missing', 2200); return; }
+  const res = addZyrexToRoster(z);
+  if (res.location === 'none'){ showToast('◈ It cannot join your faction.', 2200); return; }
+  w._gone = true;
+  w._recruitedAt = Date.now();
+  try { playSFX('zyrexGo'); } catch(_){}
+  showDialog({ speaker: sp.name.toUpperCase(), lines: [
+    `${sp.name} steps toward you and lowers its head.`,
+    `Your bond is enough.  (Rizer bond ${pctHave}% · Tier ${sp.tier} needed ${pctNeed}%)`,
+    res.location === 'pc'
+      ? `${sp.name} joined — your faction is full, so it went to the PC.`
+      : `★ ${sp.name} joined your faction!`,
+  ]});
+  try { showToast(`★ ${sp.name} T${sp.tier} joined · Rizer bond ${pctHave}%`, 4000); } catch(_){}
+  try { saveGame(); } catch(_){}
 }
 
 // Spawn helper · habitats will call this; the dev button uses it today.

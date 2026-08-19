@@ -1467,6 +1467,7 @@ const AUDIO = {
     ughGyat:      new Audio('audio/sfx-ugh-gyat.mp3'),       // v0.95.565 · Rizer death VO ("ugh gyat") · fires on defeat right before dreamland fade
     gottaFixIt:   new Audio('audio/sfx-gotta-fix-it.mp3'),   // v0.95.571 · Rizer VO on any weapon break ("gotta fix it") · points player to gem repair
     zyrexGo:      new Audio('audio/sfx-zyrex-go.mp3'),       // v0.95.617 · Rizer "GO!" VO on every Zyrex summon (Triangle from FACTION panel · single-summon path)
+    takeFive:     new Audio('audio/sfx-take-five.mp3'),      // v0.95.618 · Rizer "take five buddy" VO on Zyrex RECALL to zysphere (Triangle on already-summoned faction slot)
     rubypawSwing: new Audio('audio/sfx-rubypaw-swing.mp3'),  // v0.95.573 · Rubypaw sword swing/slash · plays on every S2-square punch swing (hit or miss)
     rubypawKill:  new Audio('audio/sfx-rubypaw-kill.mp3'),   // v0.95.574 · Rubypaw kill · flesh-ripping impact · fires only on Rubypaw-driven KOs
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
@@ -1682,7 +1683,7 @@ const RVOX_PRIORITY = {
   // 50 · contextual
   newDistrict: 50, seeYaLater: 45, laterMom: 48,
   // 40 · catches + reward pickups + fail cues
-  gotcha: 40, gemVox: 40, needJuice: 42, zyrexGo: 45,
+  gotcha: 40, gemVox: 40, needJuice: 42, zyrexGo: 45, takeFive: 45,
   // 30 · combat action beats (most frequent · lowest priority)
   astralthrowVox: 30, kickVox: 25, punchVox: 25, damageTick: 20, damageTick2: 20, damageTick3: 20,
 };
@@ -2356,6 +2357,8 @@ const INVENTORY_META = {
   fairy:            { label: 'Fairy',                   order: 48 },   // v0.95.604 · 20% chance drop when Rizer SHATTERS an astralite stone with his HANDS (punch/kick) · the fairy was "pollinating" the stone at the time
   tower_battery:    { label: 'Tower Battery',           order: 49 },   // v0.95.611 · Scrapjaw tower network · 1 dropped per district-tower Scrap Chest · deliver to Scrapjaw to light up that district's contact-call signal
   ruby_vial:        { label: 'Ruby Vial',               order: 51 },   // v0.95.615 · Silver chest inside Seer HQ 1F · fetch quest item for the future Potion Maker (spawns in front of Malezor Potion Shop) · when returned she opens shop selling ales/potions/elixirs at premium price
+  shardshare_broken:{ label: 'Broken Shardshare',       order: 52 },   // v0.95.619 · Silver chest at (69,358) · "looks like something dad can fix" · bring to Dad
+  shardshare:       { label: 'Shardshare Collar',       order: 53 },   // v0.95.619 · Dad-repaired · while owned, ALL party Zyrex gain 0.5× the active duelist's XP per defeated foe in F v F duels
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
   sapphire_sword:   { label: 'Sapphire Tearsword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 200 hits (connect-only, no miss-break) · repair 100 gems
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
@@ -4137,6 +4140,45 @@ const WORLD_PROPS = [
       },
     }));
   })(),
+  // ── v0.95.619 · SHARDSHARE CHEST · silver chest at (69, 358) ──
+  //   Contains the BROKEN SHARDSHARE ("looks like something dad can fix").
+  //   Bring to Dad in the Research Lab · he repairs it into the Shardshare
+  //   Collar · all party Zyrex then earn 0.5× duel XP splits.
+  (function(){
+    const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/silver-chest.png';
+    const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
+    const CLOSED_BBOX = [145, 164, 948, 893];
+    const OPEN_BBOX   = [290, 240, 673, 741];
+    const chest = {
+      id: 'chest_shardshare',
+      img: _closedImg,
+      src: 'assets/2D%20sprites/decor/silver-chest.png',
+      bbox: CLOSED_BBOX,
+      tileX: 69, tileY: 358,
+      tileW: 1, tileH: 1,
+      footprint: [[0, 0]],
+      door: [0, 0],
+      opened: false, looted: false,
+      _closedImg, _openImg,
+      _closedBbox: CLOSED_BBOX, _openBbox: OPEN_BBOX,
+    };
+    chest.onInteract = function(){
+      if (chest.opened) return;
+      chest.opened = true;
+      chest.img = _openImg;
+      chest.bbox = OPEN_BBOX;
+      if (!chest.looted){
+        chest.looted = true;
+        player.items = player.items || {};
+        player.items.shardshare_broken = (player.items.shardshare_broken || 0) + 1;
+        try { playItemGain('shardshare_broken'); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        try { awardRizerXP(100); } catch(_){}
+        showToast('★ Found: BROKEN SHARDSHARE · looks like something Dad can fix', 4600);
+      }
+    };
+    return chest;
+  })(),
   // ── v0.95.611 · TOWER BATTERY CHESTS · one Scrap Chest at each new tower base ──
   //    Silver chest sprite (matches Malezor's scrap chest).  Drops 1 tower_battery
   //    on first open.  Only visible tag: chest.id === 'tower_battery_chest_<district>'.
@@ -5030,9 +5072,28 @@ const NPCS = [
     blinkTimer: 2000 + Math.random() * 2000,
     onInteract: (n) => {
       playSFX('dad');                             // v0.95.90 · Jerry-B southern narration cue
+      player.items = player.items || {};
+      // v0.95.619 · SHARDSHARE REPAIR · carrying the broken collar? Dad fixes
+      // it on the spot · repaired collar = all party Zyrex share 0.5× duel XP.
+      if ((player.items.shardshare_broken || 0) > 0 && !player.shardshareFixed){
+        player.items.shardshare_broken -= 1;
+        player.items.shardshare = (player.items.shardshare || 0) + 1;
+        player.shardshareFixed = true;
+        try { playItemGain('shardshare'); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        try { awardRizerXP(300); } catch(_){}
+        showToast('★ SHARDSHARE COLLAR repaired · party Zyrex now share duel XP (0.5×)', 5200);
+        showDialog({ speaker: 'DAD', lines: [
+          '*turns the cracked collar over in his hands · whistles low*',
+          'A Shardshare.  Haven\'t seen one since my field years.  The old bond-techs used these to spread combat learning across a whole faction.',
+          '*works quietly at the bench · solders a hairline seam · buffs the crystal core*',
+          'There.  Good as forged.  Clip it on your ZyCube — every Zyrex in your party will learn from watching the one that fights.',
+          '*hands it back*  Half the lesson each, but nobody sits idle.  Smart find, kid.',
+        ]});
+        return;
+      }
       // v0.95.268 · Dad's Starter Bonder Quest · gate for exploration essentials
       // Required: Fae Net (Kaizari) + Zycube (Mom) + 10 berries + 10 seeds + 10 fruits
-      player.items = player.items || {};
       const inv        = player.items;
       const hasFaenet  = (inv.faenet || 0) >= 1;
       const hasZycube  = (inv.zycube || 0) >= 1;
@@ -5768,9 +5829,9 @@ const NPCS = [
           `Lv ${s.level} · winner buys lunch.`,
         ], onDone: () => {
           try {
-            startTrainerBattle(s.species, s.level);
-            player.stats.schoolBeaten[n.id] = true;
-            try { awardRizerXP(60); } catch(_){}
+            // v0.95.619 · win is marked INSIDE battleExecuteMove only on victory ·
+            // losing means healing up and rematching (student stays unbeaten)
+            startTrainerBattle(s.species, s.level, { schoolStudentId: n.id });
           } catch(err){ console.warn('school battle failed', err); }
         }});
       },
@@ -13247,6 +13308,24 @@ function exitInterior(){
   if (priorScene === 'interior_home' || priorScene === 'interior_home_2f'){
     try { playSFX('laterMom'); } catch(_){}
   }
+  // v0.95.619 · ACADEMY GAUNTLET · leaving the school before clearing ALL 16
+  // classmates resets the run.  You can bring heal items in, but you cannot
+  // step outside mid-gauntlet.  Fully-cleared runs keep their flags so the
+  // Elarion Zysphere reward stands.
+  if (priorScene === 'interior_malezor_school'){
+    try {
+      player.stats = player.stats || {};
+      const sb = player.stats.schoolBeaten || {};
+      const cleared = Object.keys(sb).filter(k => k.startsWith('school_student_')).length;
+      if (cleared > 0 && cleared < 16 && !player.academyZyspheresGifted){
+        for (const k of Object.keys(sb)){
+          if (k.startsWith('school_student_')) delete sb[k];
+        }
+        showToast(`◈ Gauntlet abandoned · ${cleared} win${cleared>1?'s':''} reset · clear all 16 in one visit`, 4200);
+        try { playSFX('cancel'); } catch(_){}
+      }
+    } catch(_){}
+  }
   // v0.95.27 · Prefer cfg.overworldDrop if the interior defines one (e.g.,
   // player home always drops to 22,106 facing down, never on the house).
   const priorCfg = interiorConfig(priorScene);
@@ -16946,9 +17025,42 @@ addEventListener('keydown', e => {
         const opt = battleState.selectedMenuIdx;
         playSFX('confirm');
         if (opt === 0){ battleState.menu = 'fight'; battleState.selectedMoveIdx = 0; }
-        else if (opt === 1){ battleAppendLog('Bag not wired yet.'); playSFX('disabled'); }
-        else if (opt === 2){ battleAppendLog('Swap not wired yet.'); playSFX('disabled'); }
+        else if (opt === 1){ battleState.menu = 'bag';  battleState.bagIdx = 0; }    // v0.95.619
+        else if (opt === 2){ battleState.menu = 'swap'; battleState.swapIdx = 0; battleState.forcedSwap = false; }  // v0.95.619
         else if (opt === 3){ battleRun(); }
+      }
+      return;
+    }
+    // v0.95.619 · BAG · berry/fruit/seed heal the active Zyrex · uses the turn
+    if (battleState.menu === 'bag'){
+      const bagItems = battleBagItems();
+      if (k === 'shift' || k === 'b'){ battleState.menu = 'main'; playSFX('cancel'); return; }
+      if (!bagItems.length){
+        battleAppendLog('No heal items in the bag.');
+        battleState.menu = 'main'; playSFX('disabled'); return;
+      }
+      if (k === 'arrowup')   { battleState.bagIdx = (battleState.bagIdx - 1 + bagItems.length) % bagItems.length; playSFX('cursor'); }
+      if (k === 'arrowdown') { battleState.bagIdx = (battleState.bagIdx + 1) % bagItems.length; playSFX('cursor'); }
+      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter'){
+        battleUseBagItem(bagItems[battleState.bagIdx % bagItems.length].key);
+      }
+      return;
+    }
+    // v0.95.619 · SWAP · pick any non-KO party Zyrex · forced after a faint
+    if (battleState.menu === 'swap'){
+      const roster = battleSwapRoster();
+      if ((k === 'shift' || k === 'b') && !battleState.forcedSwap){
+        battleState.menu = 'main'; playSFX('cancel'); return;
+      }
+      if (!roster.length){
+        battleAppendLog('No healthy Zyrex to swap in.');
+        if (!battleState.forcedSwap){ battleState.menu = 'main'; }
+        playSFX('disabled'); return;
+      }
+      if (k === 'arrowup')   { battleState.swapIdx = (battleState.swapIdx - 1 + roster.length) % roster.length; playSFX('cursor'); }
+      if (k === 'arrowdown') { battleState.swapIdx = (battleState.swapIdx + 1) % roster.length; playSFX('cursor'); }
+      if (k === 'z' || k === 'a' || k === 'x' || k === 'enter'){
+        battleSwapTo(roster[battleState.swapIdx % roster.length]);
       }
       return;
     }
@@ -20783,6 +20895,8 @@ function saveGame(){
         // v0.95.611 · Scrapjaw tower network state
         scrapjawTowersRestored:     player.scrapjawTowersRestored || {},
         deathGargoyles:             player.deathGargoyles || [],   // v0.95.614 · death breadcrumb persist
+        shardshareFixed:            !!player.shardshareFixed,      // v0.95.619 · party duel-XP share unlocked
+        dadStarterQuestComplete:    !!player.dadStarterQuestComplete,
         scrapjawCompanion:          !!player.scrapjawCompanion,
         scrapjawMet:                !!player.scrapjawMet,
         towerQuestStarted:          !!player.towerQuestStarted,
@@ -20796,17 +20910,27 @@ function saveGame(){
         districtsVisited:           player.districtsVisited  || {},
         notifications:              (game.notifications || []).slice(-40),
         ufoPark: (()=>{const p=auraxionUfoProp();return p?{x:p.tileX,y:p.tileY}:null;})(),
+        // v0.95.618 · FULL Zyrex snapshot · every combat stat (atk/def/spd/
+        // satk/sdef) now persisted so LEVEL + STATS survive save/reload
+        // exactly.  Ultramax flag + move PP survive too.  Same for PC.
         party: (player.party || []).map(z => z ? {
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
-          maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,
-          bond: z.bond || 0,                                  // v0.95.7 · Rizer Bond
-          moves: z.moves || null,                             // v0.95.10 · taught moves
+          maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier,
+          type: z.type, type2: z.type2, type3: z.type3 || null,
+          atk: z.atk || 0, def: z.def || 0, spd: z.spd || 0,
+          satk: z.satk || 0, sdef: z.sdef || 0,
+          bond: z.bond || 0,
+          moves: z.moves || null,
+          hasUltramax: !!z.hasUltramax,
         } : null),
-        // v0.95.536 · PC Zyrex overflow storage
         pcZyrex: (player.pcZyrex || []).map(z => z ? {
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
-          maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier, type: z.type, type2: z.type2,
+          maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier,
+          type: z.type, type2: z.type2, type3: z.type3 || null,
+          atk: z.atk || 0, def: z.def || 0, spd: z.spd || 0,
+          satk: z.satk || 0, sdef: z.sdef || 0,
           bond: z.bond || 0, moves: z.moves || null,
+          hasUltramax: !!z.hasUltramax,
         } : null),
       },
       collectedFae: _fae.filter(f => f.collected).map(f => f.id),
@@ -21086,15 +21210,30 @@ function startWildBattle(){
   return true;
 }
 
-// Classic menu combat is retained for trainer encounters.
-function startTrainerBattle(speciesId=null,level=null){
+// Classic menu combat is retained for trainer encounters (F v F config).
+// v0.95.619 · opts.schoolStudentId carries the academy-student context so the
+// win is only marked when the battle is actually WON (was: optimistic
+// mark-on-start which let players lose and still bank the clear).
+function startTrainerBattle(speciesId=null,level=null,opts={}){
   const active=(player.party||[]).find(z=>z&&z.hp>0);
-  if(!active)return;
+  if(!active){
+    showToast('◈ Every Zyrex is KO\'d · heal your faction first', 2600);
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
   const pool=wildPoolFor(player.x,player.y);
   const chosen=speciesId||pool[Math.floor(Math.random()*pool.length)];
   const chosenLv=level||wildLevelFor(player.x,player.y);
   const wild=createZyrex(chosen,chosenLv);
-  battleState={player:active,wild,log:[`${wild.name} challenges you! (Lv ${chosenLv})`],menu:'main',over:false,selectedMenuIdx:0,selectedMoveIdx:0};
+  battleState={
+    player:active,wild,
+    log:[`${wild.name} challenges you! (Lv ${chosenLv})`],
+    menu:'main',over:false,selectedMenuIdx:0,selectedMoveIdx:0,
+    // v0.95.619 · battle context
+    schoolStudentId: opts.schoolStudentId || null,   // set → win marks schoolBeaten
+    result: null,                                     // 'win' | 'loss' | 'ran'
+    bagIdx: 0, swapIdx: 0,                            // sub-menu cursors
+  };
   playBGM('battle');
 }
 
@@ -21299,6 +21438,18 @@ function battleExecuteMove(playerMoveIdx){
     const gained = Math.floor(w.level * (8 + p.tier * 8) * 0.80);
     p.xp += gained;
     battleAppendLog(`Wild ${w.name} fainted!  +${gained} XP`);
+    // v0.95.619 · SHARDSHARE COLLAR · once Dad has repaired it, every OTHER
+    // party Zyrex gains 0.5× the active duelist's XP per defeated foe.
+    if (player.shardshareFixed){
+      const share = Math.floor(gained * 0.5);
+      if (share > 0){
+        for (const bz of (player.party || [])){
+          if (!bz || bz === p) continue;
+          grantZyrexXp(bz, share);
+        }
+        battleAppendLog(`Shardshare · party +${share} XP each`);
+      }
+    }
     // Level ups
     while (p.xp >= xpToNextLevel(p.level)){
       p.xp -= xpToNextLevel(p.level);
@@ -21316,15 +21467,132 @@ function battleExecuteMove(playerMoveIdx){
       p.sdef  = Math.floor(sp.baseSDEF * s);
       battleAppendLog(`${p.name} leveled up to Lv ${p.level}!`);
     }
+    // v0.95.619 · WIN · resolve school-student context (marked ONLY on win now)
+    battleState.result = 'win';
+    if (battleState.schoolStudentId){
+      try {
+        player.stats = player.stats || {};
+        player.stats.schoolBeaten = player.stats.schoolBeaten || {};
+        player.stats.schoolBeaten[battleState.schoolStudentId] = true;
+        try { awardRizerXP(60); } catch(_){}
+      } catch(_){}
+    }
     battleState.over = true;
     battleState.menu = 'over';
   } else if (p.hp <= 0){
-    battleAppendLog(`${p.name} fainted!  You blacked out.`);
-    battleState.over = true;
-    battleState.menu = 'over';
+    battleAppendLog(`${p.name} fainted!`);
+    // v0.95.619 · KO = strict 0 · offer SWAP if any other party Zyrex lives
+    const alive = (player.party || []).filter(z => z && z !== p && z.hp > 0);
+    if (alive.length > 0){
+      battleAppendLog('Choose your next Zyrex!');
+      battleState.menu = 'swap';
+      battleState.swapIdx = 0;
+      battleState.forcedSwap = true;   // can't back out · must pick
+    } else {
+      battleAppendLog('Your whole faction is down!  You blacked out.');
+      battleState.result = 'loss';
+      battleState.over = true;
+      battleState.menu = 'over';
+    }
+  }
+}
+// v0.95.619 · Shared Zyrex XP grant + level-up loop (used by Shardshare split)
+function grantZyrexXp(z, amount){
+  if (!z || !amount) return;
+  z.xp = (z.xp || 0) + amount;
+  const sp = SPECIES[z.speciesId];
+  if (!sp) return;
+  while ((z.level || 1) < 100 && z.xp >= xpToNextLevel(z.level || 1)){
+    z.xp -= xpToNextLevel(z.level || 1);
+    z.level = (z.level || 1) + 1;
+    const s = 1 + (z.level - 1) * 0.05;
+    const oldMax = z.maxHp;
+    z.maxHp = Math.floor(sp.baseHP * s);
+    z.hp   += (z.maxHp - oldMax);
+    z.atk   = Math.floor(sp.baseATK  * s);
+    z.def   = Math.floor(sp.baseDEF  * s);
+    z.spd   = Math.floor(sp.baseSPD  * s);
+    z.satk  = Math.floor(sp.baseSATK * s);
+    z.sdef  = Math.floor(sp.baseSDEF * s);
   }
 }
 
+// v0.95.619 · BATTLE BAG · heal-item list + use logic
+function battleBagItems(){
+  const inv = player.items || {};
+  const defs = [
+    { key:'berry',  label:'Berry',  heal:10 },
+    { key:'fruit',  label:'Fruit',  heal:20 },
+    { key:'seed',   label:'Seed',   heal:30 },
+    { key:'ale',    label:'Ale (Zyrex 15)',    heal:15 },
+    { key:'potion', label:'Potion (Zyrex 30)', heal:30 },
+    { key:'verdant_elixir', label:'Mythic Elixir (Zyrex 60)', heal:60 },
+  ];
+  return defs.filter(d => (inv[d.key] || 0) > 0)
+             .map(d => ({ ...d, count: inv[d.key] || 0 }));
+}
+function battleUseBagItem(key){
+  const items = battleBagItems();
+  const def = items.find(d => d.key === key);
+  const p = battleState.player;
+  if (!def || !p){ playSFX('disabled'); return; }
+  const mx = p.maxHp || 100;
+  if ((p.hp || 0) >= mx){
+    battleAppendLog(`${p.name} is already at full HP!`);
+    playSFX('disabled'); return;
+  }
+  player.items[key] -= 1;
+  const before = p.hp || 0;
+  p.hp = Math.min(mx, before + def.heal);
+  battleAppendLog(`Used ${def.label} · ${p.name} +${p.hp - before} HP`);
+  playSFX('chomp');
+  // Using an item consumes the turn · wild gets a free attack (Pokemon logic)
+  battleWildFreeHit();
+  if (!battleState.over) battleState.menu = 'main';
+}
+// v0.95.619 · BATTLE SWAP · roster + switch-in
+function battleSwapRoster(){
+  return (player.party || []).filter(z => z && z !== battleState.player && (z.hp || 0) > 0);
+}
+function battleSwapTo(z){
+  if (!z){ playSFX('disabled'); return; }
+  const wasForced = !!battleState.forcedSwap;
+  battleState.player = z;
+  battleState.forcedSwap = false;
+  battleAppendLog(`Go, ${z.name}!`);
+  try { playSFX('zyrexGo'); } catch(_){}
+  playSFX('confirm');
+  // Voluntary swap consumes the turn (forced swap after a faint does not)
+  if (!wasForced) battleWildFreeHit();
+  if (!battleState.over) battleState.menu = 'main';
+}
+// v0.95.619 · Shared "wild takes a free hit" beat · used by bag + voluntary swap
+function battleWildFreeHit(){
+  const w = battleState.wild, p = battleState.player;
+  if (!w || !p || battleState.over) return;
+  const usable = w.moves.filter(m => m.pp > 0);
+  const slot = usable.length ? usable[Math.floor(Math.random() * usable.length)] : w.moves[0];
+  if (slot && slot.pp > 0) slot.pp -= 1;
+  const mvName = slot ? slot.name : 'Struggle';
+  const dmg = calcDamage(w, p, mvName);
+  p.hp = Math.max(0, p.hp - dmg);
+  battleAppendLog(`Wild ${w.name} used ${mvName}! (${dmg} dmg)`);
+  if (p.hp <= 0){
+    battleAppendLog(`${p.name} fainted!`);
+    const alive = battleSwapRoster();
+    if (alive.length > 0){
+      battleAppendLog('Choose your next Zyrex!');
+      battleState.menu = 'swap';
+      battleState.swapIdx = 0;
+      battleState.forcedSwap = true;
+    } else {
+      battleAppendLog('Your whole faction is down!  You blacked out.');
+      battleState.result = 'loss';
+      battleState.over = true;
+      battleState.menu = 'over';
+    }
+  }
+}
 function battleRun(){
   if (Math.random() < 0.5){
     battleAppendLog('Got away safely.');
@@ -21351,11 +21619,27 @@ function battleRun(){
 }
 
 function battleExit(){
-  const p = battleState && battleState.player;
-  // If we blacked out, restore player-side to 1 HP so we're not stuck-dead.
-  if (p && p.hp <= 0) p.hp = 1;
+  // v0.95.619 · KO stays at 0 HP (strict Pokemon logic · no 1-HP mercy).
+  // KO'd Zyrex are locked out of the overworld until healed (bed · hospital ·
+  // life stone · berries/fruits/seeds from the bag).
+  // Auto-recall any summoned follower whose Zyrex is now KO'd.
+  try { recallKoFollowers(); } catch(_){}
   battleState = null;
   playBGM('home');
+  try { saveGame(); } catch(_){}
+}
+// v0.95.619 · Pull KO'd Zyrex followers off the overworld · they can't walk
+// with Rizer at 0 HP.  Called after battles + on summon attempts.
+function recallKoFollowers(){
+  for (const n of NPCS){
+    if (!n || !n._summoned || !n.id || !n.id.startsWith('_summon_')) continue;
+    const z = (player.party || []).find(zz => zz && zz.speciesId === n._summonSpeciesId);
+    if (z && (z.hp || 0) <= 0){
+      n._summoned = false;
+      n.scene = '__despawn__';
+      showToast(`◈ ${z.name} is KO'd · returned to the Zysphere to recover`, 2600);
+    }
+  }
 }
 
 // -- Settings menu overlay (same style as Zyrex menu) ------------------------
@@ -22118,6 +22402,72 @@ function drawBattleOverlay(){
     ctx.textAlign = 'right';
     ctx.fillText('○ back', W - 20, H - 8);
     ctx.textAlign = 'left';
+  } else if (battleState.menu === 'bag'){
+    // v0.95.619 · BAG list · heal items with count · vertical list panel
+    const items = battleBagItems();
+    const listX = W - 260, listW = 240;
+    const rowH = 26;
+    const listH = Math.max(1, items.length) * rowH + 34;
+    const listY = H - listH - 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(listX, listY, listW, listH);
+    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1;
+    ctx.strokeRect(listX, listY, listW, listH);
+    ctx.fillStyle = '#ffd66b';
+    ctx.font = 'bold 12px "Courier New", monospace';
+    ctx.fillText('BAG · heal items', listX + 10, listY + 18);
+    if (!items.length){
+      ctx.fillStyle = '#889';
+      ctx.font = '11px "Courier New", monospace';
+      ctx.fillText('· empty ·', listX + 10, listY + 40);
+    }
+    items.forEach((it, i) => {
+      const sel = (i === (battleState.bagIdx % items.length));
+      const ry = listY + 26 + i * rowH;
+      if (sel){ ctx.fillStyle = '#d4af37'; ctx.fillRect(listX + 4, ry, listW - 8, rowH - 2); }
+      ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.fillText(`${it.label}  ×${it.count}  (+${it.heal})`, listX + 12, ry + 17);
+    });
+    ctx.fillStyle = '#8ff';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('○ back', W - 20, H - 8);
+    ctx.textAlign = 'left';
+  } else if (battleState.menu === 'swap'){
+    // v0.95.619 · SWAP list · every non-KO party Zyrex
+    const roster = battleSwapRoster();
+    const listX = W - 280, listW = 260;
+    const rowH = 30;
+    const listH = Math.max(1, roster.length) * rowH + 34;
+    const listY = H - listH - 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(listX, listY, listW, listH);
+    ctx.strokeStyle = battleState.forcedSwap ? '#ff5b5b' : '#d4af37'; ctx.lineWidth = 1;
+    ctx.strokeRect(listX, listY, listW, listH);
+    ctx.fillStyle = battleState.forcedSwap ? '#ff9c9c' : '#ffd66b';
+    ctx.font = 'bold 12px "Courier New", monospace';
+    ctx.fillText(battleState.forcedSwap ? 'SWAP · choose next Zyrex!' : 'SWAP · pick a fighter', listX + 10, listY + 18);
+    if (!roster.length){
+      ctx.fillStyle = '#889';
+      ctx.font = '11px "Courier New", monospace';
+      ctx.fillText('· no healthy Zyrex ·', listX + 10, listY + 40);
+    }
+    roster.forEach((z, i) => {
+      const sel = (i === (battleState.swapIdx % roster.length));
+      const ry = listY + 26 + i * rowH;
+      if (sel){ ctx.fillStyle = '#d4af37'; ctx.fillRect(listX + 4, ry, listW - 8, rowH - 2); }
+      ctx.fillStyle = sel ? '#0b0b10' : '#f0eadf';
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.fillText(`${z.name}  Lv${z.level}  HP ${z.hp}/${z.maxHp}`, listX + 12, ry + 19);
+    });
+    if (!battleState.forcedSwap){
+      ctx.fillStyle = '#8ff';
+      ctx.font = '11px "Courier New", monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('○ back', W - 20, H - 8);
+      ctx.textAlign = 'left';
+    }
   } else if (battleState.menu === 'over'){
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, H - 60, W, 60);
@@ -23992,7 +24342,15 @@ function toggleFactionSummon(partyIdx){
     follower._summoned = false;
     follower.scene = '__despawn__';
     playSFX('cancel');
+    // v0.95.618 · Rizer "take five buddy" VO on recall
+    try { playSFX('takeFive'); } catch(_){}
     showToast(`◈ ${z.name} returned to your ZyCube`, 1800);
+    return;
+  }
+  // v0.95.619 · KO gate · a Zyrex at 0 HP cannot be summoned to the overworld
+  if ((z.hp || 0) <= 0){
+    showToast(`◈ ${z.name} is KO'd · heal with berries / bed / hospital first`, 2800);
+    try { playSFX('doorLock'); } catch(_){}
     return;
   }
   // v0.95.535 · MULTI-SUMMON · retirement loop REMOVED · every party Zyrex may

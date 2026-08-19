@@ -3335,21 +3335,20 @@ const WORLD_PROPS = [
         get(){ try { return !!(typeof player !== 'undefined' && player && (player[flag] || prop.detonated)); } catch(_){ return false; } },
         set(v){ try { if (typeof player !== 'undefined' && player) player[flag] = !!v; prop.detonated = !!v; } catch(_){} },
       });
+      // v0.95.644 · Creator directive: a boom chest NEVER detonates on contact.
+      // It is inert until THROWN, and the LANDING is what sets it off.
+      //
+      // Previously (v0.95.510) plain X opened it and blew up in Rizer's face for
+      // 50% max HP.  That made it a punishment you could trip by accident, and
+      // it fought the throw mechanic — you could lose half your health simply by
+      // walking up to the thing you were trying to pick up.
+      //
+      // Now: X = a warning.  L2 + X = lift it.  Release = throw.  It detonates
+      // where it LANDS, and only there.
       prop.onInteract = () => {
         if (prop.detonated || (player && player[flag])) return;
-        prop.detonated = true;
-        if (player) player[flag] = true;
-        // Explosion FX · purple ultimate ring at the chest tile + screen shake
-        try { spawnHitFx(prop.tileX, prop.tileY, 'ultimate'); } catch(_){}
-        try { playSFX('astralkickBoom'); } catch(_){ try { playSFX('astralkick'); } catch(_){} }
-        try { if (window.__rumbleHit) window.__rumbleHit('ultimate'); } catch(_){}
-        const hpMax = player.hpMax || player.maxHp || 100;
-        const dmg   = Math.max(1, Math.round(hpMax * (prop._dmgPct || 0.5)));
-        showToast(`◈ SEER TRAP · chest detonated · -${dmg} HP`, 3200);
-        try { hurtPlayer(dmg, 'Seer explosive chest'); } catch(_){
-          // Fallback if hurtPlayer errors: still subtract HP directly
-          player.hp = Math.max(0, (player.hp || 0) - dmg);
-        }
+        try { playSFX('menuOpen'); } catch(_){}
+        showToast('◈ SEER CHEST · unstable · L2 + X to lift it, release to throw', 3200);
       };
       return prop;
     });
@@ -11039,7 +11038,10 @@ function astralthrowTileInBounds(x,y){
 //   AFTER BLAST  settling debris + embers     (4 frames)
 // ══════════════════════════════════════════════════════════════════════════
 const BOOM = {
-  FUSE_MS:    420,     // PRE-IMPACT · the tell before it goes
+  FUSE_MS:      0,     // v0.95.644 · LANDING IS THE TRIGGER · no pre-delay.
+                       // The sheet's first frames already show the chest with
+                       // its spark burst, so the impact beat is carried by the
+                       // animation rather than by a wait.
   BLAST_MS:   980,     // DETONATE · 15 sheet frames at ~65ms each
   DEBRIS_MS: 1600,     // AFTER BLAST · scorch + embers outlast the sheet
   DMG_CENTER: 3.0,     // x baseAtk on the LANDING tile
@@ -11058,10 +11060,13 @@ const BOOM_DEBRIS = [];   // {tileX,tileY,t0,dur}
 const BOOM_BLASTS = [];   // {tileX,tileY,t0} · explosion FX, prop-agnostic
 
 // Arm a chest: fuse, then blast, then debris.  Safe to call on any boulder.
+// Only ever called from astralthrowBreakAOE, i.e. the moment a THROWN chest
+// lands.  There is no contact, proximity or timer path into this function —
+// a chest sitting in the world, or held in Rizer's hands, is completely inert.
 function detonateBoomChest(b, skinId){
   if (!b || b.gone || b._boomArmed || b._detonatedOnce) return;
   b._boomArmed = performance.now();
-  try { playSFX('doorLock'); } catch(_){}          // fuse hiss placeholder
+  try { playSFX('astralkickBoom'); } catch(_){ try { playSFX('kickHit'); } catch(_){} }
   setTimeout(() => {
     if (b._detonatedOnce) return;
     b._detonatedOnce = true;

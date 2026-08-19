@@ -980,6 +980,8 @@
       <!-- v0.95.352 · Sprite playtest · give every obtainable Zyrex to party (bonded or not) -->
       <div class="row">
         <button id="devSummonAllZyrex">★ SUMMON ALL OBTAINABLE ZYREX (sprite playtest)</button>
+        <button id="devSpawnWildOrbs">◉ SPAWN WILD ZYREX ORBS (placeholder art test)</button>
+        <button id="devClearWildOrbs">◌ CLEAR WILD ORBS</button>
       </div>
       <!-- v0.95.357 · Spawn UFO toggle · teleports Auraxion UFO to Rizer's location · toggle-off returns it to home coords (17,176) -->
       <div class="row">
@@ -25986,6 +25988,124 @@ function drawFHUDZyrexPage(W, H){
 // Feet-Y anchor: props draw with their bottom edge on tileY.  Player is at
 // tile (px, py) with feet on the bottom of the tile.  Renderables with
 // smaller feet-Y draw first (further from camera).
+// ══════════════════════════════════════════════════════════════════════════
+// ★ WILD ZYREX ORBS · v0.95.636 · PLACEHOLDER ART
+// Creator directive 2026-08-19: until real sprites are wired, a wild Zyrex is
+// a floating orb.  PRIMARY type sets the core colour; SECONDARY type becomes
+// an outline glow ring.  Drawn entirely in canvas — zero asset dependency —
+// so the whole habitat + catching loop can be built and playtested now.
+//
+// Replacing these later is a one-line swap in drawZyrexOrb(): if a sprite
+// exists for the species, draw it instead.  Nothing else needs to change.
+// ══════════════════════════════════════════════════════════════════════════
+const TYPE_COLORS = {
+  Aura:             '#7fe6d8',   // pale cyan · the life-field
+  Beast:            '#c9762f',   // burnt orange · fur and muscle
+  Creature:         '#8fbf5a',   // moss green · ordinary fauna
+  Nature:           '#4f9d4a',   // deep leaf
+  Humanoid:         '#e0b48a',   // warm skin tone
+  Tech:             '#5ac8d8',   // circuit teal
+  Unknown:          '#9aa0ad',   // null grey
+  Spirit:           '#b39ddb',   // pale violet
+  Corrupted:        '#6b3fa0',   // deep rot purple
+  Divine:           '#ffe27a',   // holy gold
+  Ultimate:         '#ffffff',   // absolute white
+  Ultramax:         '#ff4fa3',   // peak magenta
+  Draconic:         '#c0392b',   // dragon red
+  Crystal:          '#7fd4ff',   // faceted ice blue
+  Radiant:          '#ffd23f',   // solar yellow
+  Elemental:        '#ff8c42',   // raw element amber
+  Verdant:          '#7fd94f',   // bright growth
+  Chrono:           '#a0e7e5',   // washed time-blue
+  Astra:            '#6c7fdb',   // cosmic indigo
+  Extraterrestrial: '#4ade80',   // xeno green
+};
+function typeColor(t){ return TYPE_COLORS[canonType(t)] || '#9aa0ad'; }
+
+// Live wild Zyrex in the overworld.  Habitats will populate this; for now the
+// dev spawner does.  { speciesId, tileX, tileY, temperament, level, _phase }
+const WILD_ZYREX = [];
+
+function drawZyrexOrb(w){
+  const sp = SPECIES[w.speciesId]; if (!sp) return;
+  const now = performance.now();
+  const cx = (w.tileX + 0.5) * TILE - _cam.x;
+  const groundY = (w.tileY + 0.9) * TILE - _cam.y;
+  // slow bob · phase offset per individual so a group doesn't pulse in unison
+  const bob = Math.sin(now / 620 + (w._phase || 0)) * 5;
+  const cy = groundY - TILE * 0.62 + bob;
+  // TIER reads as SIZE.  Without this the seven single-type T1 Creatures are
+  // seven identical green dots — tier is the only other thing worth seeing at
+  // a glance while the real sprites are missing.  T1 ~0.26 tile -> T8 ~0.40.
+  const R = TILE * (0.24 + Math.min(8, sp.tier || 1) * 0.02);
+
+  const core = typeColor(sp.type);
+  const ring = sp.type2 ? typeColor(sp.type2) : null;
+
+  ctx.save();
+  // ground shadow · shrinks as the orb rises, sells the float
+  const lift = (bob + 5) / 10;
+  ctx.globalAlpha = 0.28 - lift * 0.10;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, groundY, R * (0.82 - lift * 0.12), R * (0.34 - lift * 0.06), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // outer aura wash
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = ring || core;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.55, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // SECONDARY type · outline glow ring
+  if (ring){
+    ctx.strokeStyle = ring;
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.55 + Math.sin(now / 400 + (w._phase || 0)) * 0.18;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.16, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // PRIMARY type · the core body
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  // rim + specular so it reads as a sphere, not a flat dot
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 0.55; ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(cx - R * 0.32, cy - R * 0.34, R * 0.26, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // temperament tell · Territorial/Dominant get an aggressive pulse ring
+  if (w.temperament === 'Territorial' || w.temperament === 'Dominant'){
+    const p = (Math.sin(now / 300 + (w._phase || 0)) + 1) / 2;
+    ctx.strokeStyle = w.temperament === 'Dominant' ? '#ff3b3b' : '#ffa23b';
+    ctx.globalAlpha = 0.20 + p * 0.30; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R * (1.5 + p * 0.5), 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
+// Spawn helper · habitats will call this; the dev button uses it today.
+function spawnWildZyrex(speciesId, tileX, tileY, opts){
+  const sp = SPECIES[speciesId]; if (!sp) return null;
+  const o = opts || {};
+  const w = {
+    speciesId, tileX, tileY,
+    level: o.level || Math.max(1, sp.tier * 5),
+    temperament: o.temperament || (
+      (sp.type === 'Draconic' || sp.type2 === 'Draconic') ? 'Dominant' :
+      (sp.type === 'Beast'    || sp.type2 === 'Beast')    ? 'Territorial' :
+      (sp.tier >= 4)                                       ? 'Territorial' :
+      ['Creature','Nature','Verdant'].includes(sp.type)    ? 'Skittish' : 'Wary'),
+    _phase: Math.random() * Math.PI * 2,
+  };
+  WILD_ZYREX.push(w);
+  return w;
+}
+
 function drawWorldLayer(){
   const renderables = [];
   WORLD_PROPS.forEach(p => {
@@ -26022,6 +26142,11 @@ function drawWorldLayer(){
     if (b.scene !== 'overworld' || b.gone) return;
     renderables.push({ kind:'boulder', boulder:b, footY: b.tileY });
   });
+  // v0.95.636 · wild Zyrex orbs join the depth sort so Rizer can walk behind them
+  for (const w of WILD_ZYREX){
+    if (w._gone) continue;
+    renderables.push({ kind:'wildOrb', wild:w, footY: w.tileY });
+  }
   renderables.sort((a,b) => a.footY - b.footY);
   const _now = performance.now();
   for (const r of renderables){
@@ -26037,12 +26162,14 @@ function drawWorldLayer(){
           drawNPC(n);
         }
       }
+      else if (r.kind === 'wildOrb') drawZyrexOrb(r.wild);
       else if (r.kind === 'boulder') drawBoulder(r.boulder);
       else if (r.kind === 'rizerShell') drawRizerSoulShell();
       else                        drawPlayer();
     } catch(err){
       // v0.95.444 · one bad renderable never freezes the whole world layer
-      const tag = r.kind === 'npc' ? (r.npc && r.npc.id) : r.kind === 'prop' ? (r.prop && r.prop.id) : r.kind;
+      const tag = r.kind === 'npc' ? (r.npc && r.npc.id) : r.kind === 'prop' ? (r.prop && r.prop.id)
+                : r.kind === 'wildOrb' ? ('wild:' + (r.wild && r.wild.speciesId)) : r.kind;
       console.warn('[rp7b] drawWorldLayer skip · ' + tag, err);
     }
   }
@@ -27905,6 +28032,40 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   // instead of SUMMONABLE_SPRITES · previous iteration missed auraxion/gearbyte
   // /voltaryn/omniris (species with no sprite yet · still valid obtainables)
   // Uses each entry's per-species level (Anciuxor 100 · Celestryx 60 · etc)
+  // v0.95.636 · WILD ORB PLACEHOLDER TEST · drops a spread of species around
+  // Rizer so the type colours + secondary glow rings can be judged in-world.
+  const spawnOrbsBtn = document.getElementById('devSpawnWildOrbs');
+  if (spawnOrbsBtn){
+    spawnOrbsBtn.addEventListener('click', () => {
+      try {
+        // pick a spread that shows off single-type, dual-type and each temperament
+        const picks = ['aetherwing','frosane','gravvik','gearbyte','dunestinger',
+                       'cindercur','skybeam','grimhog','vulcanax','buzzolt',
+                       'astronyl','skorrax'].filter(id => SPECIES[id]);
+        const bx = Math.round(player.x), by = Math.round(player.y);
+        let placed = 0;
+        picks.forEach((id, i) => {
+          const ang = (i / picks.length) * Math.PI * 2;
+          const rad = 3 + (i % 3);
+          const tx = bx + Math.round(Math.cos(ang) * rad);
+          const ty = by + Math.round(Math.sin(ang) * rad);
+          if (spawnWildZyrex(id, tx, ty)) placed++;
+        });
+        showToast(`◉ DEV · ${placed} wild Zyrex orbs spawned around Rizer`, 3000);
+      } catch(err){
+        showToast('◈ DEV · orb spawn failed · check console', 2400);
+        console.warn('devSpawnWildOrbs error:', err);
+      }
+    });
+  }
+  const clearOrbsBtn = document.getElementById('devClearWildOrbs');
+  if (clearOrbsBtn){
+    clearOrbsBtn.addEventListener('click', () => {
+      const n = WILD_ZYREX.length;
+      WILD_ZYREX.length = 0;
+      showToast(`◌ DEV · cleared ${n} wild orbs`, 2000);
+    });
+  }
   const summonAllBtn = document.getElementById('devSummonAllZyrex');
   if (summonAllBtn){
     summonAllBtn.addEventListener('click', () => {

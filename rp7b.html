@@ -11392,9 +11392,18 @@ function toggleSleepClockSkip(){
   player.clockOffsetHours = (target - new Date().getHours() + 24) % 24;
   return zyraxisPhase();
 }
-// game.lightMode is now DERIVED from the hour.  The dev cycler still wins when
-// engaged, so light can be forced for screenshots and testing.
+// ★ LIGHT FILTER · DISABLED · Creator directive 2026-08-19
+// The CLOCK stays fully live — zyraxisHour(), phases and nightGateOpen() all
+// run, so night-gated habitats and respawn timers work.  What is switched off
+// is the VISUAL overlay: no night tint, no daylight wash.  The world renders
+// unfiltered at every hour until the art direction is settled.
+//
+// Flip this one flag to true to turn the day/night filter on. Nothing else
+// needs to change.
+const LIGHT_FILTER_ENABLED = false;
+
 function refreshLightModeFromClock(){
+  if (!LIGHT_FILTER_ENABLED) return;              // ← filter off · world stays unlit
   if (game.devLightOverride) return;              // dev cycler holds the wheel
   const p = zyraxisPhase();
   game.lightMode = (p === 'night') ? 'night' : (p === 'day' ? 'off' : 'daylight');
@@ -12564,9 +12573,7 @@ function sleepInBed(){
       try { refreshLightModeFromClock(); } catch(_){}
       try { saveGame(); } catch(_){}
       playSFX('confirm');
-      showToast(phase === 'night'
-        ? `◈ You sleep through the day · it is ${zyraxisClockString()}, night over Zyraxis`
-        : `◈ You sleep through the night · it is ${zyraxisClockString()}, ${phase} over Zyraxis`, 3200);
+      showToast(`◈ You wake · ${zyraxisClockString()} · ${phase} over Zyraxis`, 3200);
     }, 1200);
     setTimeout(() => { _sleepFade = null; }, 2400);
     return;

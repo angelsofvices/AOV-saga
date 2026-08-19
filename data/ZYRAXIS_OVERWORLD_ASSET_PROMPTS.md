@@ -325,3 +325,145 @@ Highest impact first — each row is usable on its own:
 - [ ] Light source is consistently upper-left across the whole sheet
 - [ ] No text, no signature, no drawn grid lines
 - [ ] Silhouette reads at 100% zoom without squinting
+
+---
+
+## 9 · CANYON / CHASM
+
+### 9.1 Canyon walls + floor — 432×192 (9×4)
+
+```
+[STYLE HEADER]
+A 9x4 grid of 48x48 canyon tiles for a top-down RPG. Parallel cliff walls
+running north-south with a darker sunken floor between them. Include: west
+wall face, east wall face, canyon floor in shadow, a shaft of light hitting
+the floor, wall top edges for both sides, an inner corner where the canyon
+bends, a junction opening, and a dead-end wall. Depth is communicated purely
+through darkened floor tones and tall shadowed wall faces.
+```
+
+### 9.2 Chasm / trench — 288×96 (6×2)
+
+```
+[STYLE HEADER]
+A 6x2 grid of 48x48 chasm tiles for a top-down RPG: a jagged crack in the
+ground opening into blackness, with crumbling edges. Include north edge,
+south edge, both end caps, a narrow point where it could be jumped, and a
+wide impassable section. The interior fades to pure black.
+```
+
+---
+
+## 10 · COAST · the Void Sea edge
+
+### 10.1 Coastline set — 432×192 (9×4)
+
+```
+[STYLE HEADER]
+A 9x4 grid of 48x48 coastline tiles for a top-down RPG where land meets a
+vast dark sea. Include: sandy beach with wet tideline, rocky shore with
+scattered boulders, a tall sea-cliff face, cliff top edge, a cove inlet
+curve, a peninsula tip, and shallow turquoise water fading to deep dark
+water. Edges tile seamlessly with grass on one side and open water on the other.
+```
+
+### 10.2 Coastal features — 480×192
+
+```
+[STYLE HEADER]
+Top-down 3/4 perspective coastal objects isolated on flat magenta with clear
+gaps: a wooden fishing dock with pilings, a small moored boat, a sea cave
+mouth in a cliff base, a lighthouse, a ruined coastal watchtower, stacked
+crab pots, a beached driftwood log, and a small rocky offshore island with
+one wind-bent tree.
+```
+
+---
+
+## 11 · ROCK & GEOLOGY
+
+### 11.1 Rock formation set — 480×192 (10×4)
+
+```
+[STYLE HEADER]
+A 10x4 grid of 48x48 rock tiles for a top-down RPG: single boulders in three
+sizes, a boulder cluster, a low rock wall, a standing rock pillar, a natural
+stone arch spanning two tiles, a tall stone spire, rubble scatter, scree
+slope, cracked dry ground, and a mineral outcrop with visible ore seams.
+```
+
+---
+
+## 12 · ZYRAXIS-SPECIFIC · the alien layer
+
+> This is what stops Zyraxis reading as generic fantasy. Weight it heavily.
+
+### 12.1 Astralite + crystal — 480×192 (10×4)
+
+```
+[STYLE HEADER]
+A 10x4 grid of 48x48 alien mineral tiles for a top-down RPG on an alien
+world: a field of upright violet crystal shards, a large astralite deposit
+glowing from within, a small impact crater with a fused glassy floor, a
+fissure venting pale energy, stones floating a few inches above the ground
+casting shadows beneath, a luminous pond glowing from below, ground scarred
+by an old astral discharge, and veins of gem material running through rock.
+Otherworldly but grounded — this is geology, not magic effects.
+```
+
+### 12.2 Zyrex remains + ancient sites — 576×288
+
+```
+[STYLE HEADER]
+Top-down 3/4 perspective landmark objects for an alien RPG world, isolated on
+flat magenta with clear gaps between each: an enormous weathered Zyrex
+skeleton half-buried in earth with a long ribcage and horned skull, a smaller
+fossilised nest containing broken shell fragments, a field of scattered
+fossil bones, an ancient stone shrine with unreadable carvings, a toppled
+monument, and a ring of standing stones. Ancient, weathered, long abandoned.
+```
+
+### 12.3 Environmental storytelling props — 480×192
+
+```
+[STYLE HEADER]
+Top-down 3/4 perspective storytelling props for an RPG overworld, isolated on
+flat magenta with clear gaps: a collapsed bridge with its span fallen into a
+gorge, a burnt-out abandoned camp with a cold fire ring, scorched battlefield
+ground with broken weapons, an old boarded-up mine entrance, an abandoned
+cottage with a caved roof, a rusted cart tipped on its side, and a cracked
+road slab swallowed by weeds. Each should imply an event happened here
+without any text.
+```
+
+---
+
+## 13 · DISTRICT SKIN VARIANTS
+
+> One mechanic, many looks. Regenerate the **bridge** and **cliff** sets per district by swapping only the material clause.
+
+| District | Bridge material | Cliff material |
+|:--|:--|:--|
+| Malezor | rough natural timber, rope lashings | grey granite, heavy moss |
+| Zarvane | sun-bleached planks, sand-scoured | warm sandstone, wind-carved |
+| Andrannor | dark ironwood, lanterns | dusk basalt, violet shadow |
+| Veridan | green-stained stone, water-worn | river-cut limestone, ferns |
+| Netharion | crystal-inlaid stone | violet crystal-veined rock |
+| Vorashil | riveted blue steel | blue-shot slate |
+| Xilnar | pale bone-white stone | pale grey slate, stark |
+| Baelgor | engineered iron and brick | ember-streaked black basalt |
+| Thardin | teal machine-cut alloy, seams | precision-cut teal stone |
+| Korathen | white marble with gold inlay | gold-veined marble |
+
+Add to any prompt: `built from [MATERIAL], in the style of [DISTRICT] architecture`.
+
+---
+
+## 14 · WHAT THE HANDOFF CHANGED
+
+The Geographic Landmark System added families this pack originally lacked. Priorities updated:
+
+- **Canyons and coastlines** were entirely missing — added at §9 and §10
+- **Zyraxis-specific alien geology** is now weighted heavily (§12). Without it the world reads as generic fantasy with a recolour
+- **Environmental storytelling props** (§12.3) are new and cheap — a collapsed bridge or a giant skeleton carries history with zero dialogue
+- **District skin variants** (§13) replace redrawing: one bridge mechanic, ten materials

@@ -21100,6 +21100,13 @@ function addZyrexToRoster(z){
   // Returns { location: 'party'|'pc'|'none' } · callers keep their own party-
   // add toasts · helper owns overflow-to-PC + bond-lockout toasts.
   if (!z) return { location: 'none' };
+  // v0.95.628 · CONTACTS ARE NOT ZYREX · hard gate at the door.  A humanoid
+  // ally can never be Zybonded or enter the Zyrex roster — they are earned by
+  // RIZER-bonding through their quests and live on the CONTACTS page instead.
+  if (isHumanoidAlly(z.speciesId) || canonType(z.type) === 'Humanoid'){
+    console.warn('[roster] blocked humanoid ally from the Zyrex roster:', z.speciesId || z.name);
+    return { location: 'none', reason: 'humanoidAlly' };
+  }
   player.party = player.party || [];
   player.pcZyrex = player.pcZyrex || [];
   // v0.95.537 · BOND TIER GATE · deposits to PC if Rizer bond too low
@@ -21337,7 +21344,7 @@ setInterval(() => {
 
 const DEV_FACTION_ACTORS={
   elzoran:{label:'Elzoran',level:50,buttonId:'devFactionElzoran'},
-  auraxion:{label:'Auraxion',level:60,buttonId:'devFactionAuraxion'},
+  // v0.95.628 · auraxion REMOVED · he is a humanoid ally/contact, not a Zyrex
   gearbyte:{label:'Gearbyte',level:10,buttonId:'devFactionGearbyte'},
   voltaryn:{label:'Voltaryn',level:40,buttonId:'devFactionVoltaryn'},
   omniris:{label:'Omniris',level:60,buttonId:'devFactionOmniris'},
@@ -21835,6 +21842,24 @@ const ULTIMATE_HOLDERS = ['anciuxor'];
 function isValidZyrexTyping(sp){
   return !!sp && canonType(sp.type) !== 'Humanoid';
 }
+
+// ★ CONTACTS ARE NOT ZYREX · Creator directive 2026-08-19
+// You can never obtain or Zybond a humanoid.  You RIZER-bond with them by doing
+// their quests, after which they become contacts → allies → faction members.
+// Two different bonding systems, two different menus:
+//     Zysphere bond  → Zyrex   → FACTION page (creatures you caught)
+//     Rizer bond     → humans  → CONTACTS page (people you earned)
+// Every id here is barred from the Zyrex roster at the door, so a contact can
+// never leak into the Zyrex menu no matter which code path tries to add them.
+// NOTE: 'scrapjaw' is listed deliberately — the Creator's 1st-Gen page also has
+// a Zyrex line "Plainshound → Scrapjaw → ???".  That is a NAME COLLISION with
+// the Malezor Gear Shop contact.  The contact wins; the Zyrex stage-2 needs a
+// different name before that line can be built.
+const HUMANOID_ALLY_IDS = new Set([
+  'auraxion','scrapjaw','mom','dad','yara','zoryn','kelthor','kaizari',
+  'professor_elarian','elarian','nurse_rein','orren','vireta','myara',
+]);
+function isHumanoidAlly(id){ return HUMANOID_ALLY_IDS.has(String(id || '')); }
 
 // Legacy type names still present in older SPECIES rows → locked-canon names.
 // 'Aquatic' and 'Mechanical' are NOT among the 20 canon types.

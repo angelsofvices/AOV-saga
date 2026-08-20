@@ -8164,6 +8164,7 @@ function resurrectScrapjawTowerPack(){
       n.hpMax   = 125;
       n._dying  = false;
       n._deathT0 = 0;
+      delete n._rxpCredited;   // v0.95.649 · a revived Mori is worth RXP again
       n.moving  = false;
       n.animFrame = 0;
       n.idleFrame = 0;
@@ -8183,6 +8184,7 @@ function resurrectScrapjawTowerPack(){
       n.hp      = n.hpMax || 500;
       n._dying  = false;
       n._deathT0 = 0;
+      delete n._rxpCredited;   // v0.95.649 · a revived Mori is worth RXP again
       n.moving  = false;
       n.animFrame = 0;
       n.idleFrame = 0;
@@ -10987,10 +10989,8 @@ function applyAstralkickHit(tx, ty, skinId = player.cosmeticSkin){
       // v0.95.494 · Rizer "astralkick KO" VO plays over the kill flourish · once per KO
       try { playSFX('astralkickKo'); } catch(_){}
       startMoriDeath(hit);
-      // v0.95.317 · A4 astralkick kill · 2× base kill bonus for using ultimate
-      // v0.95.488 · RXP kill formula = level × (tier + 4) · this is the Astralkick 2x branch
-      awardRizerXP(((hit.level || 1) * ((hit.tier || 1) + 4)) * 2);
-      recordMoriKill('astralkick', hit);
+      // v0.95.649 · A4 astralkick kill · routed through creditRizerKill (2.00x)
+      creditRizerKill(hit, 'astralkick');
       if (window.__rumbleHit) window.__rumbleHit('kill');
     }
     anyHit = true;
@@ -11033,7 +11033,8 @@ function fireAstralslam(){
     if(target.hp==null) target.hp=target.hpMax||125;
     target.hp -= playerOutgoingDamage((player.baseAtk||25)*ASTRAL_SLAM.DMG_MULT, s2?'power_upgrade':'normal');
     spawnHitFx(target.tileX,target.tileY,s2?'ultimate':'kick');
-    if(target.hp<=0) startMoriDeath(target);
+    // v0.95.649 · astralslam kills now pay RXP (1.75x · costs positioning)
+    if(target.hp<=0){startMoriDeath(target);creditRizerKill(target,'astralslam');}
   }, ASTRAL_SLAM.IMPACT_MS);
   setTimeout(()=>{ if(player._astralslamTarget===target){ player._astralslamTarget=null; player._astralslamBundle=null; } }, ASTRAL_SLAM.DUR_MS);
   return true;
@@ -11121,7 +11122,8 @@ function detonateBoomChest(b, skinId){
       const dmg = playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId);
       n.hp = (n.hp == null ? n.hpMax || 125 : n.hp) - dmg;
       spawnHitFx(n.tileX, n.tileY, 'ultimate');
-      if (n.hp <= 0) startMoriDeath(n);
+      // v0.95.649 · BOOM kills paid ZERO RXP and never booked the kill
+      if (n.hp <= 0){ startMoriDeath(n); creditRizerKill(n, 'boom'); }
     }
     // Rizer is not immune — stand in your own blast and you wear it.
     {
@@ -11171,7 +11173,8 @@ function astralthrowBreakAOE(b,skinId){
     if(Math.abs(n.tileX-b.tileX)<=1&&Math.abs(n.tileY-b.tileY)<=1){
       n.hp=(n.hp==null?n.hpMax||125:n.hp)-splash;
       spawnHitFx(n.tileX,n.tileY,'kick');
-      if(n.hp<=0)startMoriDeath(n);
+      // v0.95.649 · shatter splash kills now credited
+      if(n.hp<=0){startMoriDeath(n);creditRizerKill(n,'splash');}
     }
   }
   spawnHitFx(b.tileX,b.tileY,skinId==='power_upgrade'?'ultimate':'kick');
@@ -11204,6 +11207,8 @@ function startVoidSwallow(n,x,y){
   n._voidSwallow={t0:performance.now(),dur:VOID_SWALLOW_DUR};
   spawnHitFx(x,y,'ultimate');
   playSFX('astralKill');
+  // v0.95.649 · hurling a Mori into the Void Sea is a KILL · credit it (2.00x)
+  creditRizerKill(n,'void');
 }
 function fireAstralthrow(options={}){
   const boulderOnly=!!options.boulderOnly;
@@ -11303,7 +11308,8 @@ function fireAstralthrow(options={}){
     for(const victim of pathVictims){
       victim.hp=(victim.hp==null?victim.hpMax||125:victim.hp)-direct;
       spawnHitFx(victim.tileX,victim.tileY,skinId==='power_upgrade'?'ultimate':'kick');
-      if(victim.hp<=0)startMoriDeath(victim);
+      // v0.95.649 · enemies flattened along the throw lane now pay RXP
+      if(victim.hp<=0){startMoriDeath(victim);creditRizerKill(victim,'throw');}
     }
     if(kind==='npc'){
       if(enteredVoid){
@@ -11316,7 +11322,8 @@ function fireAstralthrow(options={}){
         // v0.95.648 · thrown ENEMY slams into a boom chest · it goes off, and
         // the enemy is standing right next to it when it does.
         if(collisionBomb)detonateBoomChest(collisionBomb,skinId);
-        if(target.hp<=0) startMoriDeath(target);
+        // v0.95.649 · the thrown enemy's own landing kill now pays RXP
+        if(target.hp<=0){startMoriDeath(target);creditRizerKill(target,'throw');}
       }
     }else{
       target._throwHits=(target._throwHits||0)+1;
@@ -11442,10 +11449,8 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
       try { playSFX('astralstrikeKo'); } catch(_){}
       // v0.95.236 · Play crumble-to-stone death anim before hiding
       startMoriDeath(hit);
-      // v0.95.317 · A3 astralstrike kill · 1.5× base kill bonus for the ranged tech
-      // v0.95.488 · RXP kill formula = level × (tier + 4) · Astralstrike 1.5x branch
-      awardRizerXP(Math.round(((hit.level || 1) * ((hit.tier || 1) + 4)) * 1.5));
-      recordMoriKill('astralstrike', hit);
+      // v0.95.649 · A3 astralstrike kill · routed through creditRizerKill (1.50x)
+      creditRizerKill(hit, 'astralstrike');
       if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
     }
     anyHit = true;
@@ -12060,6 +12065,8 @@ function cloneMoriBase(base, dx, dy){
   clone.homeY   = clone.tileY;
   clone.hp      = clone.hpMax;
   clone._gruntPlayed = false;
+  delete clone._rxpCredited;   // v0.95.649 · Object.assign copies the credit flag
+  delete clone._dying;         //             off a corpse · a fresh clone is live
   clone.scene   = 'overworld';
   clone.animFrame = 0;
   clone.idleFrame = 0;
@@ -12150,6 +12157,73 @@ function awardZyrexXP(z, amount){
 // Legacy alias · kept so old callers don't crash · now awards nothing (Rizer
 // kills no longer feed Zyrex XP · that only happens when the Zyrex kills)
 function awardActiveZyrexXP(){ /* v0.95.486 · noop · use awardZyrexXP(z, amount) */ }
+// ══════════════════════════════════════════════════════════════════════════
+// ★ RIZER KILL XP · v0.95.649 · Creator directive "not getting enough rxp
+// for enemy kills".  Two separate faults, both fixed here.
+//
+// FAULT 1 · THE FORMULA HAD NO FLOOR.
+//   Old: level x (tier + 4).  That is PURELY proportional to enemy level, so
+//   a Level 1 Tier 1 Mori paid exactly 5 RXP — and 82 of Malezor's 185
+//   enemies are Level 1 Tier 1.  Against a 300 XP first level that is 60
+//   kills for Rizer Lv 2, on the single most common enemy in the starting
+//   district.  The reward curve was steepest exactly where the player spends
+//   the tutorial.
+//   New: (12 + level x 4) x tierMult.  The flat 12 gives every kill weight,
+//   the level term still rewards fighting up, and tier still multiplies.
+//     L1  T1  ·   5 ->  16     L10 T2 ·  60 ->  78
+//     L5  T1  ·  25 ->  32     L15 T2 ·  90 -> 108
+//     L25 T1  · 125 -> 112     L25 T5 · 225 -> 336
+//   High-level enemies are deliberately near-flat — this is a floor lift for
+//   trash mobs, not across-the-board inflation.  A full Malezor sweep moves
+//   from ~6,900 (Lv 8) to ~9,000 (Lv 9), so quests still carry progression.
+//
+// FAULT 2 · FIVE KILL PATHS PAID NOTHING AT ALL.
+//   Only melee, astralstrike, astralkick, the sword sweeps and Zyrex kills
+//   ever called awardRizerXP.  Kills by BOOM CHEST, by thrown rock, by
+//   thrown enemy, by boulder-shatter splash, by astralslam and by Void Sea
+//   swallow awarded ZERO RXP and never called recordMoriKill — so they also
+//   skipped the kill counter, the streak VOs and the party Zyrex XP share.
+//   Every path now routes through creditRizerKill().
+const RIZER_KILL_XP = {
+  BASE:      12,     // flat floor · what a kill is worth before scaling
+  PER_LEVEL:  4,     // + per enemy level · still rewards fighting up
+  TIER_STEP:  0.5,   // tier multiplier = 1 + (tier - 1) x this
+};
+// Technique multiplier.  Harder / riskier / more deliberate finishers pay more.
+const RIZER_KILL_MULT = {
+  punch:       1.00,   // A1 · the baseline
+  kick:        1.00,   // A2
+  sword:       1.00,   // Gemlord weapon sweeps
+  splash:      1.25,   // boulder-shatter AOE · incidental
+  astralstrike:1.50,   // A3 · ranged tech
+  astralslam:  1.75,   // grab + slam · costs positioning and a whiff window
+  throw:       1.75,   // thrown rock or thrown enemy · a real technique
+  void:        2.00,   // hurled into the Void Sea · environmental finisher
+  astralkick:  2.00,   // A4 · ultimate
+  boom:        2.50,   // BOOM chest · find it, carry it, aim it, land it
+  zyrex:       1.00,   // the Zyrex killed it · it earns the ZXP, Rizer the RXP
+};
+function rizerKillXP(npc, mode = 'punch'){
+  if (!npc) return 0;
+  const lv   = npc.level || 1;
+  const tier = npc.tier  || 1;
+  const tierMult = 1 + (tier - 1) * RIZER_KILL_XP.TIER_STEP;
+  const mult = RIZER_KILL_MULT[mode] != null ? RIZER_KILL_MULT[mode] : 1;
+  return Math.max(1, Math.round(
+    (RIZER_KILL_XP.BASE + lv * RIZER_KILL_XP.PER_LEVEL) * tierMult * mult));
+}
+// ONE call site for every kill in the game.  Awards the RXP and books the kill
+// so no finisher can silently skip the counter, the streak VOs or the party
+// Zyrex XP share ever again.
+function creditRizerKill(npc, mode = 'punch'){
+  if (!npc || npc._rxpCredited) return 0;   // guard AOE double-credit
+  npc._rxpCredited = true;
+  const xp = rizerKillXP(npc, mode);
+  try { awardRizerXP(xp); } catch(_){}
+  // recordMoriKill only distinguishes 'kick' (heavy) from everything else.
+  try { recordMoriKill(mode === 'astralkick' || mode === 'boom' ? 'kick' : mode, npc); } catch(_){}
+  return xp;
+}
 function recordMoriKill(mode, npc){
   player.stats.moriKills = (player.stats.moriKills || 0) + 1;
   if (mode === 'kick') player.stats.moriKillsHeavy = (player.stats.moriKillsHeavy || 0) + 1;
@@ -14772,11 +14846,8 @@ addEventListener('keydown', e => {
               }
               // v0.95.236 · Play crumble-to-stone death anim before hiding
               startMoriDeath(hit);
-              // v0.95.317 · Rizer XP · Mori kill · scales with enemy tier via awardRizerXP
-              // Sanity check for early Malezor: ~32 XP/kill · 125 kills = Lv 6 tutorial pace
-              // v0.95.488 · RXP kill formula = level × (tier + 4) · base melee kill
-              awardRizerXP((hit.level || 1) * ((hit.tier || 1) + 4));
-              recordMoriKill(mode, hit);                // v0.95.140 · cosmetic combat core
+              // v0.95.649 · base melee kill · creditRizerKill books XP + the kill
+              creditRizerKill(hit, mode);               // v0.95.140 · cosmetic combat core
               if (window.__rumbleHit) window.__rumbleHit('kill');   // v0.95.217 · finisher haptic pulse
             }
           }
@@ -14843,8 +14914,7 @@ addEventListener('keydown', e => {
                 } catch(_){}
                 try { playSFX('rubypawKill'); } catch(_){}
                 startMoriDeath(sh);
-                awardRizerXP((sh.level || 1) * ((sh.tier || 1) + 4));
-                recordMoriKill(mode, sh);
+                creditRizerKill(sh, 'sword');   // v0.95.649 · Gemlord weapon sweep
               }
             }
           }
@@ -14870,8 +14940,7 @@ addEventListener('keydown', e => {
                   if (player.stats.swordKills % 3 === 0){ try { playSFX('swordKillVox'); } catch(_){} }
                 } catch(_){}
                 startMoriDeath(sh);
-                awardRizerXP((sh.level || 1) * ((sh.tier || 1) + 4));
-                recordMoriKill(mode, sh);
+                creditRizerKill(sh, 'sword');   // v0.95.649 · Gemlord weapon sweep
               }
             }
           }
@@ -25999,9 +26068,8 @@ function tickAggressiveZyrex(n){
     if (best.hp <= 0){
       try { playSFX('astralKill'); } catch(_){}
       startMoriDeath(best);
-      // v0.95.488 · RXP kill formula = level × (tier + 4) · Zyrex-tickAggressive kill
-      const xp = (best.level || 1) * ((best.tier || 1) + 4);
-      awardRizerXP(xp);
+      // v0.95.649 · Zyrex-owned kill · Rizer still banks RXP at 1.00x
+      creditRizerKill(best, 'zyrex');
       // LARGE ZXP bonus on the KILLING blow · this Zyrex owns the kill
       if (partyMember){
         const killXp = (best.level || 1) * (10 + (best.tier || 1) * 6);   // Mori L2 T1 = 32

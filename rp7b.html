@@ -20042,6 +20042,21 @@ function renderZycellExpeditions(){
 // Rizer's overworld tile when dialed · original home saved to _phoneHomeX/Y /
 // _phoneHomeScene · re-tap the CALL row (now labeled "SEND HOME") returns them
 function toggleContactCall(npcId, name){
+  // v0.95.652 · ZYREX ARE NOT CALLABLE · Creator confirmation 2026-08-19.
+  // The registry already refuses to enrol them, but this is the actual dial,
+  // and it is reachable from the ZyPhone UI, a stale save and any future code
+  // that hands it an id.  Enforce the rule where the action happens, not only
+  // where the list is built — a filter is a policy, a guard is a guarantee.
+  // Named wild Zyrex bond through the Zysphere gate (v0.95.639) instead; they
+  // are never phone contacts.  See [[aov-zyrex-vs-humanoid-canon]].
+  try {
+    const t = (typeof findNpcById === 'function') ? findNpcById(npcId) : null;
+    if ((t && isZyrexNpc(t)) || isZyrexContactId(npcId)){
+      showToast('◈ Zyrex don\'t carry Zycellites · summon them from your faction instead', 3000);
+      try { playSFX('doorLock'); } catch(_){}
+      return;
+    }
+  } catch(_){}
   // v0.95.611 · Scrapjaw tower network signal gate · calls only work in
   // districts where the local radio tower's battery has been delivered.
   // Malezor auto-live once player.radioTowerFixed (existing scrap-metal flow).
@@ -22425,6 +22440,7 @@ function loadGame(){
     game.newGameUnsaved = false;   // v0.95.609 · loaded from disk · autosave re-enabled
     try { if (typeof restoreDeathGargoyles === 'function') restoreDeathGargoyles(); } catch(_){}   // v0.95.614
     try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
+    try { pruneZyrexContacts(); } catch(_){}         // v0.95.652 · Zyrex are not callable
     return true;
   } catch(e){ console.warn('[rp7b] load failed', e); return false; }
 }
@@ -23079,6 +23095,24 @@ function contactEligible(n){
   return true;
 }
 function contactIdOf(n){ return CONTACT_ID_ALIAS[n.id] || n.id; }
+// v0.95.652 · id-only variant · used by the dial guard, where we may hold an id
+// with no live NPC behind it (stale save, despawned world object).
+function isZyrexContactId(id){
+  if (!id) return false;
+  const base = String(id).toLowerCase().replace(/_(wild|cave_boss|\d+)$/, '');
+  return _speciesNameSet().has(base);
+}
+// Self-heal · strip any Zyrex that a stale save smuggled into the phone book.
+function pruneZyrexContacts(){
+  const m = player.metNpcs;
+  if (!m) return 0;
+  let n = 0;
+  for (const id of Object.keys(m)){
+    if (isZyrexContactId(id)){ delete m[id]; n++; }
+  }
+  if (n) console.log(`[rp7b] pruned ${n} Zyrex from the contact book`);
+  return n;
+}
 function contactLocationOf(n){
   try {
     if (n.scene === 'overworld'){
@@ -23159,7 +23193,7 @@ function allContacts(){
     out.push([id, name, loc]); seen.add(id);
   }
   for (const [id, rec] of Object.entries(player.metNpcs || {})){
-    if (seen.has(id)) continue;
+    if (seen.has(id) || isZyrexContactId(id)) continue;   // v0.95.652
     out.push([id, (rec && rec.name) || id, (rec && rec.loc) || 'Zyraxis']); seen.add(id);
   }
   return out.sort((a, b) => (a[1] || '').localeCompare(b[1] || ''));

@@ -15100,6 +15100,7 @@ addEventListener('keydown', e => {
             // then close on subsequent hits to disguise it as untouched (PvP trap bait).
             if (!chestHit.opened){
               // Opening path · fires loot only if not previously looted
+              try { clearActiveContact(); } catch(_){}   // v0.95.651 · not a conversation
               if (typeof chestHit.onInteract === 'function') chestHit.onInteract();
             } else {
               // Close it back · visual only · no loot re-drop
@@ -15737,6 +15738,7 @@ function tryMove(dt){
   if (game.scene === 'overworld'&&player.activeActor==='rizer'){
     const doorProp = _propDoors.get(`${player.x},${player.y}`);
     if (doorProp && doorProp.autoEnter && typeof doorProp.onInteract === 'function'){
+      try { clearActiveContact(); } catch(_){}   // v0.95.651
       doorProp.onInteract();
       return;
     }
@@ -17309,6 +17311,8 @@ function tryInteract(){
           if (shouldTurn) n.dir = opp[player.dir] || n.dir;
           n.moving = false;
           n._resetDirOnDialogClose = shouldTurn ? 'down' : priorDir;
+          // v0.95.651 · meeting anyone registers them in the ZyPhone book
+          try { registerContact(n); setActiveContact(n); } catch(_){}
           if (n.onInteract) n.onInteract(n);
           return;
         }
@@ -17471,6 +17475,8 @@ function tryInteract(){
       if (shouldTurn) n.dir = opp[player.dir] || n.dir;
       n.moving = false;
       n._resetDirOnDialogClose = shouldTurn ? 'down' : priorDir;
+      // v0.95.651 · meeting anyone registers them in the ZyPhone book
+      try { registerContact(n); setActiveContact(n); } catch(_){}
       if (n.onInteract) n.onInteract(n);
       return;
     }
@@ -17517,6 +17523,7 @@ function tryInteract(){
     // interior (scene changes) we're done · if the scene stayed put AND the
     // dev toggle is on, fall through to the generic template interior
     const beforeScene = game.scene;
+    try { clearActiveContact(); } catch(_){}   // v0.95.651
     doorProp.onInteract();
     if (game.scene === beforeScene && game.devUnlockAllDoors && doorProp.id){
       openDevInteriorFor(doorProp);
@@ -20090,13 +20097,9 @@ function renderZycellContacts(){
   // v0.95.492 · REGISTRATION GATE · every contact only appears in the ZyPhone
   // book after the player has spoken to that NPC.  Reuses each ally's existing
   // first-talk flag (or a *Met flag added when none existed).  No talk = no row.
-  const ALL_CONTACTS = FACTION_CONTACTS;
-  const contacts = ALL_CONTACTS
-    .filter(([id, name, loc, gate]) => {
-      try { return typeof gate === 'function' ? gate() : true; } catch(_){ return false; }
-    })
-    // v0.95.504 · Auto-sort contacts alphabetical by display name
-    .sort((a, b) => (a[1] || '').localeCompare(b[1] || ''));
+  // v0.95.651 · merged book · curated story rows + every humanoid met since.
+  // allContacts() already filters on first-talk and sorts by display name.
+  const contacts = allContacts();
   if (!contacts.length){
     return _zySection('☎ CONTACTS', `<div style="color:#889; text-align:center; padding:14px 8px; line-height:1.7;">· no contacts yet ·<br><span style="font-size:9px; color:#667;">talk to allies to register them in your book</span></div>`);
   }
@@ -23015,26 +23018,188 @@ function isHumanoidAlly(id){ return HUMANOID_ALLY_IDS.has(String(id || '')); }
 // v0.95.629 · SINGLE SOURCE OF TRUTH for humanoid faction members.
 // Both the CONTACTS page and the ALLIES half of the FACTION page read this, so
 // the two lists can never drift apart.  [id, display, where, unlock-gate]
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★ CONTACT REGISTRY · v0.95.651 · Creator directive 2026-08-19
+// "add the potion lady in the contacts list on interact. make sure all initial
+//  interacts with NPCs adds them as contact. quest completion raises bond."
+//
+// WHAT WAS WRONG · contact registration was gated on QUEST FLAGS, not on
+// meeting anyone.  FACTION_CONTACTS listed 11 hand-written rows, each behind a
+// reward flag — Zurelea only appeared after `zureleaShopOpen`, Mom only after
+// `zycubeGifted`, Dad only after `dadStarterQuestGiven`.  Talking to someone
+// did nothing.  And 37 named humanoids exist in the world, so 26 of them could
+// never become contacts at all no matter what the player did.
+//
+// NOW · meeting someone registers them.  Quests raise the BOND instead.  Those
+// are two different axes and they were collapsed into one.
+//
+// ZYREX ARE EXCLUDED.  Omniris, Apexaur, Voltigrax, Zarakai, Snok, Voltaryn,
+// Anciuxor, Rakoron, Elzoran and Gearbyte are all walk-up NPCs, but per
+// [[aov-zyrex-vs-humanoid-canon]] the phone book is HUMANOID allies.  Named
+// wild Zyrex join the faction through the bond gate (v0.95.639), not the
+// contacts list.  Detection is data-driven — if the NPC's name or id matches a
+// SPECIES row, it is a Zyrex — so new Zyrex NPCs are excluded automatically.
+const CONTACT_ID_ALIAS = {
+  school_zoryn:    'zoryn',              // same person, two scenes
+  sub_prof_vireta: 'vireta',
+};
+// These three already hand-roll their own bond bumps inside their dialogue
+// trees.  Auto-bond skips them so a quest turn-in cannot pay twice.
+const MANUAL_BOND_IDS = new Set(['scrapjaw', 'kelthor', 'auraxion']);
+const CONTACT_DISTRICT_LABEL = {
+  malezor:'Malezor', zarvane:'Zarvane', andrannor:'Andrannor', veridan:'Veridan',
+  netharion:'Netharion', vorashil:'Vorashil', xilnar:'Xilnar', baelgor:'Baelgor',
+  thardin:'Thardin', korathen:'Korathen',
+};
+let _SPECIES_NAME_SET = null;
+function _speciesNameSet(){
+  if (_SPECIES_NAME_SET) return _SPECIES_NAME_SET;
+  const s = new Set();
+  try {
+    for (const [k, sp] of Object.entries(SPECIES || {})){
+      s.add(String(k).toLowerCase());
+      if (sp && sp.name) s.add(String(sp.name).toLowerCase());
+    }
+  } catch(_){}
+  return (_SPECIES_NAME_SET = s);
+}
+function isZyrexNpc(n){
+  if (!n) return false;
+  const set  = _speciesNameSet();
+  const name = String(n.name || '').toLowerCase();
+  const base = String(n.id || '').toLowerCase().replace(/_(wild|cave_boss|\d+)$/, '');
+  return set.has(name) || set.has(base);
+}
+function contactEligible(n){
+  if (!n || n.isEnemy || !n.name || typeof n.onInteract !== 'function') return false;
+  if (n._towerGuardOf) return false;
+  if (/^_summon_/.test(n.id || '')) return false;
+  if (isZyrexNpc(n)) return false;
+  return true;
+}
+function contactIdOf(n){ return CONTACT_ID_ALIAS[n.id] || n.id; }
+function contactLocationOf(n){
+  try {
+    if (n.scene === 'overworld'){
+      const d = worldDistrictAt(n.tileX, n.tileY);
+      return CONTACT_DISTRICT_LABEL[d] || 'Zyraxis';
+    }
+    return String(n.scene || '').replace(/^interior_/, '').replace(/_/g, ' ')
+             .replace(/\b\w/g, c => c.toUpperCase());
+  } catch(_){ return 'Zyraxis'; }
+}
+// Called on EVERY first interact, from both NPC dispatch sites.
+function registerContact(n){
+  if (!contactEligible(n)) return false;
+  const id = contactIdOf(n);
+  player.metNpcs = player.metNpcs || {};
+  player.bonds   = player.bonds   || {};
+  if (player.bonds[id] == null) player.bonds[id] = 0;
+  if (player.metNpcs[id]) return false;
+  player.metNpcs[id] = { name: n.name, loc: contactLocationOf(n), at: Date.now() };
+  try { showToast(`☎ ${n.name} added to CONTACTS`, 2600); } catch(_){}
+  try { playSFX('confirm'); } catch(_){}
+  return true;
+}
+// ── QUEST COMPLETION RAISES BOND ─────────────────────────────────────────
+// Rather than hand-editing ~30 scattered turn-in branches (and missing some,
+// and missing every future one), bond rides the RXP grant: while the player is
+// mid-conversation, any award at or above QUEST_BOND_MIN_XP is by definition a
+// quest reward — chest pickups and fae catches pay 5-60 and fall below the
+// line.  Any quest added later gets bond for free.
+const QUEST_BOND_MIN_XP  = 100;
+const QUEST_BOND_WINDOW  = 2000;   // ms after the interact · covers dialog callbacks
+const QUEST_BOND_MAX     = 10;     // per turn-in
+let _activeContact = null, _activeContactAt = 0;
+function clearActiveContact(){ _activeContact = null; }
+function setActiveContact(n){
+  _activeContact   = contactEligible(n) ? { id: contactIdOf(n), name: n.name } : null;
+  _activeContactAt = performance.now();
+}
+function bumpNpcBond(id, amt, name){
+  if (!id || !amt) return 0;
+  player.bonds = player.bonds || {};
+  const before = player.bonds[id] || 0;
+  if (before >= 100) return 0;
+  const after = Math.min(100, before + amt);
+  player.bonds[id] = after;
+  const label = name || id;
+  // Announce the tier crossings that actually gate something.
+  if (before < 50 && after >= 50){
+    try { showToast(`★ ${label} · BONDED (${after}/100)`, 3200); } catch(_){}
+  } else if (before < 100 && after >= 100){
+    try { showToast(`★ ${label} · TRUSTED (100/100) · callable from anywhere`, 3600); } catch(_){}
+  } else {
+    try { showToast(`◈ ${label} bond +${after - before} · ${after}/100`, 2000); } catch(_){}
+  }
+  return after - before;
+}
+// Hooked inside awardRizerXP.
+function questBondFromXp(amount){
+  if (!_activeContact || amount < QUEST_BOND_MIN_XP) return;
+  const live = (typeof dialogState !== 'undefined' && dialogState)
+            || (performance.now() - _activeContactAt) <= QUEST_BOND_WINDOW;
+  if (!live) { _activeContact = null; return; }
+  if (MANUAL_BOND_IDS.has(_activeContact.id)) return;   // they bump their own
+  bumpNpcBond(_activeContact.id,
+              Math.max(1, Math.min(QUEST_BOND_MAX, Math.round(amount / 100))),
+              _activeContact.name);
+}
+// ── the merged book · curated rows first, then everyone else you have met ──
+function contactMet(id){
+  if ((player.metNpcs || {})[id]) return true;
+  const legacy = CONTACT_LEGACY_GATE[id];
+  try { return typeof legacy === 'function' ? !!legacy() : false; } catch(_){ return false; }
+}
+function allContacts(){
+  const out = [], seen = new Set();
+  for (const [id, name, loc] of FACTION_CONTACTS){
+    if (!contactMet(id) || seen.has(id)) continue;
+    out.push([id, name, loc]); seen.add(id);
+  }
+  for (const [id, rec] of Object.entries(player.metNpcs || {})){
+    if (seen.has(id)) continue;
+    out.push([id, (rec && rec.name) || id, (rec && rec.loc) || 'Zyraxis']); seen.add(id);
+  }
+  return out.sort((a, b) => (a[1] || '').localeCompare(b[1] || ''));
+}
+
+// v0.95.651 · CURATED ROWS · hand-written locations for the story allies.
+// The gate is now FIRST TALK (contactMet), not quest completion — see the
+// contact registry above.  Anyone met who isn't listed here is appended
+// automatically by allContacts() with a derived location.
 const FACTION_CONTACTS = [
-  ['mom',               'Mom',           'Home · Malezor',       () => !!player.zycubeGifted],
-  ['dad',               'Dad',           'Research Facility',    () => !!player.dadStarterQuestGiven],
-  ['yara',              'Yara',          'Home · sister',        () => !!player.yaraMet],
-  ['zoryn',             'Zoryn',         'Malezor · best friend',() => !!player.townMapGifted],
-  ['kelthor',           'Kelthor',       'Beastwarden\'s Hall',  () => !!player.kelthorMet],
-  ['scrapjaw',          'Scrapjaw',      'Malezor Gear Shop',    () => !!player.scrapjawMet],
-  ['kaizari',           'Kaizari',       'Training Farm',        () => !!player.faenetGifted],
-  ['professor_elarian', 'Prof Elarion',  'Rizer Academy',        () => !!player.raidCardGifted],
-  ['auraxion',          'Auraxion',      'Wild Arm · UFO pilot', () => !!player.auraxionMissionComplete],
-  // v0.95.495 · Nurse Rein · unlocked by delivering 2 life stones · CALL = 10-min field heal
-  ['nurse_rein',        'Nurse Rein',    'Malezor Hospital',     () => !!player.nurseReinAllied],
-  // v0.95.632 · Zurelea · registers once her shop is open
-  ['zurelea',           'Zurelea',       'Malezor Potion Shop',  () => !!player.zureleaShopOpen],
+  ['mom',               'Mom',           'Home · Malezor'],
+  ['dad',               'Dad',           'Research Facility'],
+  ['yara',              'Yara',          'Home · sister'],
+  ['zoryn',             'Zoryn',         'Malezor · best friend'],
+  ['kelthor',           'Kelthor',       'Beastwarden\'s Hall'],
+  ['scrapjaw',          'Scrapjaw',      'Malezor Gear Shop'],
+  ['kaizari',           'Kaizari',       'Training Farm'],
+  ['professor_elarian', 'Prof Elarion',  'Rizer Academy'],
+  ['auraxion',          'Auraxion',      'Wild Arm · UFO pilot'],
+  ['nurse_rein',        'Nurse Rein',    'Malezor Hospital'],
+  ['zurelea',           'Zurelea',       'Malezor Potion Shop'],
 ];
+// LEGACY FALLBACK · a save made before v0.95.651 has no metNpcs map, so these
+// old reward flags keep already-earned contacts visible after the patch.
+const CONTACT_LEGACY_GATE = {
+  mom:               () => !!player.zycubeGifted,
+  dad:               () => !!player.dadStarterQuestGiven,
+  yara:              () => !!player.yaraMet,
+  zoryn:             () => !!player.townMapGifted,
+  kelthor:           () => !!player.kelthorMet,
+  scrapjaw:          () => !!player.scrapjawMet,
+  kaizari:           () => !!player.faenetGifted,
+  professor_elarian: () => !!player.raidCardGifted,
+  auraxion:          () => !!player.auraxionMissionComplete,
+  nurse_rein:        () => !!player.nurseReinAllied,
+  zurelea:           () => !!player.zureleaShopOpen,
+};
 // Humanoid allies the Rizer has actually bonded with (their quest gate is met).
 function factionAllies(){
-  return FACTION_CONTACTS.filter(([id, name, loc, gate]) => {
-    try { return typeof gate === 'function' ? gate() : true; } catch(_){ return false; }
-  }).map(([id, name, loc]) => ({
+  return allContacts().map(([id, name, loc]) => ({
     id, name, loc,
     bond: Math.min(100, (player.bonds && player.bonds[id]) || 0),
   }));
@@ -28858,6 +29023,7 @@ function awardRizerXP(amount){
     return;
   }
   player.rizerXP = (player.rizerXP || 0) + amount;
+  try { questBondFromXp(amount); } catch(_){}   // v0.95.651 · quest turn-in raises the ally's bond
   // v0.95.541 · Floating +N RXP label on every grant · skin-agnostic feedback
   // so player always sees XP arrive regardless of S1/S2 state.  Threshold ≥5
   // avoids fae-spam · +10 filters kills too.  Skin/actor NEVER gates XP.

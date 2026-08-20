@@ -23132,15 +23132,22 @@ function refreshDevFactionButtons(){
   let count=0;
   for(const [id,cfg] of Object.entries(DEV_FACTION_ACTORS)){
     const on=factionAllyInParty(id);if(on)count++;
-    // Migrate earlier dev grants to their canonical card tier/level without
-    // requiring the player to remove and re-add the ally.
-    if(on){
-      const current=(player.party||[]).find(z=>z&&z.speciesId===id);
-      const canonical=createZyrex(id,cfg.level);
-      if(current&&canonical&&(current.level!==canonical.level||current.tier!==canonical.tier)){
-        Object.assign(current,canonical);
-      }
-    }
+    // ── v0.95.664 · REMOVED · this was wiping Zyrex levels on every load ──
+    // It used to Object.assign(current, createZyrex(id, cfg.level)) whenever a
+    // party member's level differed from the dev panel's grant level.  Since
+    // refreshDevFactionButtons() runs from loadGame(), EVERY obtainable Zyrex
+    // was silently reset to its dev-grant level on every single load:
+    //   Elzebub -> Lv10 · Volcanut/Otterlin/Verdanix -> Lv5 · Apexaur -> Lv30
+    //   Zarakai/Snok -> Lv35 · Voltaryn -> Lv40 · Elzoran -> Lv50
+    //   Omniris/Celestryx -> Lv60 · Gearbyte -> Lv10
+    // A Zyrex you raised to Lv60 came back at Lv5.  Only species OUTSIDE this
+    // dev list kept their levels, which is why the bug looked intermittent.
+    //
+    // cfg.level is the level an ally is GRANTED AT, not a permanent identity,
+    // so nothing should ever re-apply it to a Zyrex already in the roster.
+    // Genuine canon drift (a re-tier or retype) is migrateSavedZyrex()'s job,
+    // and that one correctly rewrites tier/type/stats while leaving level and
+    // XP alone.  This function is a BUTTON refresh — it now only does that.
     const btn=document.getElementById(cfg.buttonId);
     if(btn){btn.textContent=`${on?'remove':'give'}${cfg.label}: ${on?'ON':'OFF'}`;btn.classList.toggle('active',on);}
   }

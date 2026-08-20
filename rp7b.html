@@ -10337,6 +10337,7 @@ function startNewGame(){
   // v0.95.533 · Fixed spawn at (10, 7) per user · overrides INTERIOR_HOME_2F.spawn
   // so the New Game load always drops Rizer in the same room-center pose
   game.scene = 'interior_home_2f';
+  player.rxpUnlocked = false;      // v0.95.660 · RXP starts when you step outside
   player.x = 10; player.y = 7; player.dir = 'down';
   player.moving = false; player.animFrame = 0;
   try { snapCameraToPlayer(); } catch(_){}
@@ -22757,6 +22758,24 @@ function loadGame(){
     refreshDevFactionButtons();
     game.newGameUnsaved = false;   // v0.95.609 · loaded from disk · autosave re-enabled
     try { if (typeof restoreDeathGargoyles === 'function') restoreDeathGargoyles(); } catch(_){}   // v0.95.614
+    // v0.95.660 · Saves written before the RXP gate existed have no flag.  Treat
+    // them as already unlocked — a returning player must never lose earning.
+    // Only a brand-new game starts locked.
+    //
+    // Read the SNAPSHOT, not the merged player.  Object.assign cannot clear a
+    // key the snapshot lacks, so if the live player was already sitting at
+    // rxpUnlocked:false (a New Game started this session, then LOAD from the
+    // ZyPhone) a `player.rxpUnlocked == null` test sees false, not null, and
+    // the returning player stays locked out of earning.
+    player.rxpUnlocked = (s.player.rxpUnlocked == null) ? true : !!s.player.rxpUnlocked;
+    // v0.95.660 · rizerXPMax is DERIVED from the curve.  Boot already re-derives
+    // it, and awardRizerXP keeps it in step on every level-up — but loadGame's
+    // Object.assign restores whatever the SNAPSHOT held and never re-derived it,
+    // so any save whose level was set outside the level-up path (dev panel, a
+    // canon re-tier, an older migration) came back with a stale threshold and
+    // levelled at the wrong number.  The comment beside the boot line already
+    // said "never trust stored value"; load was the one place that did.
+    player.rizerXPMax = rizerXPToNext(player.rizerLvl || 1);
     try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
     try { pruneZyrexContacts(); } catch(_){}         // v0.95.652 · Zyrex are not callable
     return true;
@@ -29365,10 +29384,39 @@ function rizerXPToNext(currentLevel){
   const L = Math.max(1, Math.min(RIZER_LEVEL_CAP - 1, currentLevel));
   return rizerTotalXPFor(L + 1) - rizerTotalXPFor(L);
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★ RXP STARTS IN THE OVERWORLD · v0.95.660 · Creator directive
+// "do not gain rxp until you leave the home. no xp just for getting your RR
+//  stuff or talking to mom. these are giveins. rxp starts in overworld"
+//
+// Picking up your own backpack, phone and skateboard and saying hi to your own
+// mother are not achievements — they are the game handing you your starting
+// kit.  Paying RXP for them inflates the opening and makes the first real
+// kill feel like nothing.
+//
+// ONE-TIME UNLOCK, not a permanent indoor ban.  The moment Rizer first stands
+// in the overworld, RXP is live for good — including back indoors afterwards.
+// A blanket "no RXP inside" rule would silently kill Dad's starter turn-in,
+// all 8 Kelthor Beastwarden steps, Nurse Rein, Prof Elarion and the Academy,
+// every one of which is an interior quest that has to pay.  The directive is
+// about the tutorial givens, not about indoor quests.
+function rizerXpUnlocked(){
+  if (player.rxpUnlocked) return true;
+  if (game.scene === 'overworld'){        // first step outside arms it permanently
+    player.rxpUnlocked = true;
+    return true;
+  }
+  return false;
+}
 // Award Rizer XP · handles level-ups (may cross multiple levels at once)
 // Every 10 levels triggers a milestone toast so 10 celebration beats across 1-100
 function awardRizerXP(amount){
   if (!amount || amount <= 0) return;
+  // v0.95.660 · Pre-overworld grants are swallowed whole — no XP, no floating
+  // +N label, and no quest-bond either (questBondFromXp rides this function).
+  // The only NPCs reachable before stepping outside are Mom and Yara, whose
+  // bonds are force-set to 100 on load anyway, so nothing real is lost.
+  if (!rizerXpUnlocked()) return;
   if ((player.rizerLvl || 1) >= RIZER_LEVEL_CAP){
     player.rizerXP = 0;
     player.rizerXPMax = 1;

@@ -10607,6 +10607,17 @@ function seerChestAt(scene, x, y){
 function throwableAt(scene, x, y){
   return boulderAt(scene, x, y) || seerChestAt(scene, x, y);
 }
+// v0.95.648 · Anything on this tile that will DETONATE if struck.
+// Seer chests are WORLD_PROPS; a boulder tagged type 'boom' would be a
+// BOULDER.  Both route through detonateBoomChest(), which already branches on
+// _seerExplosive, so one lookup covers every impact path (A3 projectile,
+// thrown rock, thrown enemy).
+function explosiveAt(scene, x, y){
+  const chest = seerChestAt(scene, x, y);
+  if (chest) return chest;
+  const b = boulderAt(scene, x, y);
+  return (b && b.type === 'boom' && !b.gone && !b.breaking) ? b : null;
+}
 function boulderAt(scene, x, y){
   for (const b of BOULDERS){
     if (b.scene === scene && !b.gone && !b._astralthrowHeld && b.tileX === x && b.tileY === y) return b;
@@ -11057,8 +11068,13 @@ const BOOM = {
                        // animation rather than by a wait.
   BLAST_MS:   980,     // DETONATE · 15 sheet frames at ~65ms each
   DEBRIS_MS: 1600,     // AFTER BLAST · scorch + embers outlast the sheet
-  DMG_CENTER: 3.0,     // x baseAtk on the LANDING tile
-  DMG_RING:   1.5,     // x baseAtk at radius 1, falling off toward the edge
+  // v0.95.648 · Creator balance directive: "does more damage than s1 astralkick".
+  // S1 astralkick = baseAtk 25 x DMG_MULT 4 x skin 1 = 100 to a SINGLE tile.
+  // The chest must beat that at its centre, so 6.0 -> 150 (1.5x an astralkick)
+  // and the ring lands at 75 / 60 / 45 across radius 1 / 2 / 3.  A centre hit
+  // therefore one-shots a 125 HP Mori outright, which is what a bomb should do.
+  DMG_CENTER: 6.0,     // x baseAtk on the LANDING tile   · 150 at S1 · 300 at S2
+  DMG_RING:   3.0,     // x baseAtk at radius 1, falling off toward the edge
   CHAIN_MS:   180,     // delay before a neighbouring boom chest sympathises
   RADIUS:     3,       // v0.95.646 · blast radius in tiles (Chebyshev)
   get AOE_TILES(){ return this.RADIUS * 2 + 1; },   // 7x7 at radius 3.  The FX
@@ -11240,6 +11256,8 @@ function fireAstralthrow(options={}){
     const throwDir=player.dir;
     const v=_DIR_VEC[throwDir]||{dx:0,dy:1};
     let lx=player.x,ly=player.y,impactX=player.x,impactY=player.y,collisionRock=null,enteredVoid=false;
+    // v0.95.648 · a boom chest struck by ANY thrown object detonates
+    let collisionBomb=null;
     const pathVictims=[];
     // Canon range: S1 travels 3 tiles; S2 travels 5. Every crossed tile is
     // an active damage lane, while solid terrain/boulders stop the projectile.
@@ -11266,6 +11284,15 @@ function fireAstralthrow(options={}){
         impactX=nx;impactY=ny;
         continue;
       }
+      // v0.95.648 · BOOM CHEST IN THE FLIGHT PATH · Creator directive.
+      // Tested BEFORE the boulder and walkability breaks, because a chest tile
+      // is already unwalkable — without this the projectile would just thud to
+      // a stop against it.  The thrown object stops one tile short (lx/ly is
+      // still the last clear tile) and the chest goes up where it stands.
+      {
+        const laneBomb=explosiveAt(game.scene,nx,ny);
+        if(laneBomb&&laneBomb!==target){collisionBomb=laneBomb;impactX=nx;impactY=ny;break;}
+      }
       if(collisionRock){impactX=nx;impactY=ny;break;}
       if(!walkable(nx,ny)){impactX=nx;impactY=ny;break;}
       lx=nx;ly=ny;
@@ -11286,11 +11313,19 @@ function fireAstralthrow(options={}){
         target.hp=(target.hp==null?target.hpMax||125:target.hp)-direct;
         target.dir=({up:'down',down:'up',left:'right',right:'left'})[throwDir]; target.moving=false;
         if(collisionRock)hitBoulder(collisionRock,direct);
+        // v0.95.648 · thrown ENEMY slams into a boom chest · it goes off, and
+        // the enemy is standing right next to it when it does.
+        if(collisionBomb)detonateBoomChest(collisionBomb,skinId);
         if(target.hp<=0) startMoriDeath(target);
       }
     }else{
       target._throwHits=(target._throwHits||0)+1;
       if(collisionRock)hitBoulder(collisionRock,direct);
+      // v0.95.648 · thrown ROCK strikes a boom chest · it detonates.  If the
+      // thrown object was ITSELF a chest, its own landing AOE already chains
+      // this one through the radius sweep, so detonating here is idempotent
+      // (detonateBoomChest guards on _boomArmed).
+      if(collisionBomb)detonateBoomChest(collisionBomb,skinId);
       // v0.95.259 · Boulder tossed into the Void Sea dissolves into the void
       // (matches the NPC void-swallow behavior · no debris left, no coin bounce)
       if(enteredVoid){
@@ -11415,6 +11450,12 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
     }
     anyHit = true;
   }
+  // v0.95.648 · A3 ASTRALSTRIKE SETS OFF A BOOM CHEST · Creator directive.
+  // Checked BEFORE the ordinary boulder branch so a chest detonates instead of
+  // taking 3 chip damage.  Returning anyHit stops the projectile here, so the
+  // shot terminates on the chest and the blast reads as the cause.
+  const bomb = !cfgP ? explosiveAt(game.scene, tx, ty) : null;
+  if (bomb){ detonateBoomChest(bomb, skinId); return true; }
   if (boulder){ hitBoulder(boulder, playerOutgoingDamage(3, skinId)); anyHit = true; }
   if (plant)  { chargePlant(plant, true);          anyHit = true; }
   if (bagHit) { playSFX('punchHit'); recordHitLanded('kick'); anyHit = true; }

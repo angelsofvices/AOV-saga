@@ -10248,7 +10248,7 @@ function startIntroVideo(){
     introState = 'ended';
     introVid.style.display = 'none';
     if (game.scene === 'title'){                    // if user hasn't picked yet, start new game
-      startNewGame();
+      requestNewGame();
     }
   }, { once: true });
   introVid.addEventListener('timeupdate', () => {
@@ -10278,7 +10278,7 @@ const titleBtnsEl = document.getElementById('titleBtns');
     el.addEventListener('mouseleave', () => { el.style.borderWidth = '2px'; });
     el.addEventListener('click', () => {
       playSFX('confirm');
-      if (el.dataset.idx === '0') startNewGame();
+      if (el.dataset.idx === '0') requestNewGame();
       else                        loadSavedGame();
     });
   });
@@ -10324,6 +10324,112 @@ function ensureIntroStarted(){ /* no-op · gesture-driven now */ }
   window.addEventListener('pointerdown', _stage1, { once: true });
 })();
 
+// ══════════════════════════════════════════════════════════════════════════
+// ★ NEW GAME CONFIRM · v0.95.662 · Creator directive "yes make a prompt on it"
+//
+// Since v0.95.661 a New Game claims the save slot the instant it starts, so a
+// misclick on the title is unrecoverable.  Every route to startNewGame() now
+// goes through requestNewGame() instead.
+//
+// Drawn on the CANVAS rather than as a DOM dialog, and driven by the title
+// screen's own key handler, so controller, keyboard and mouse all reach it
+// through the paths that already work on that screen — a DOM-only modal would
+// have been unreachable with a gamepad.
+//
+// If there is nothing to lose (no save on disk) it skips the prompt entirely.
+// Confirming a destructive action that destroys nothing is just friction.
+let newGameConfirm = null;      // { idx } · 0 = cancel (default), 1 = overwrite
+function savedRunSummary(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || !s.player) return null;
+    const p = s.player;
+    const party = Array.isArray(p.party) ? p.party.filter(Boolean).length : 0;
+    const pc    = Array.isArray(p.pcZyrex) ? p.pcZyrex.length : 0;
+    const towers = Object.values(p.scrapjawTowersRestored || {}).filter(Boolean).length;
+    const when = s.ts ? new Date(s.ts) : null;
+    return {
+      lvl: p.rizerLvl || 1,
+      zyrex: party + pc,
+      towers,
+      when: when ? `${when.toLocaleDateString()} ${when.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : 'unknown',
+    };
+  } catch(_){ return null; }
+}
+function requestNewGame(){
+  const run = savedRunSummary();
+  if (!run){ startNewGame(); return; }        // nothing on disk · no need to ask
+  newGameConfirm = { idx: 0 };                // default to CANCEL, never to destroy
+  try { playSFX('doorLock'); } catch(_){}
+}
+function drawNewGameConfirm(){
+  if (!newGameConfirm) return;
+  const run = savedRunSummary();
+  if (!run){ newGameConfirm = null; return; }
+  const W = canvas.width, H = canvas.height;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.86)';
+  ctx.fillRect(0, 0, W, H);
+  const bw = Math.min(560, W - 60), bh = 260;
+  const bx = Math.floor((W - bw) / 2), by = Math.floor((H - bh) / 2);
+  ctx.fillStyle = 'rgba(10,6,14,0.98)';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 3;
+  ctx.strokeRect(bx, by, bw, bh);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff6b6b';
+  ctx.font = 'bold 18px "Courier New", monospace';
+  ctx.fillText('OVERWRITE YOUR SAVED RUN?', W / 2, by + 40);
+  ctx.fillStyle = '#eaf0ff';
+  ctx.font = '13px "Courier New", monospace';
+  ctx.fillText(`Rizer Lv ${run.lvl}  ·  ${run.zyrex} Zyrex  ·  ${run.towers}/10 towers`, W / 2, by + 76);
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.fillText(`last saved ${run.when}`, W / 2, by + 98);
+  ctx.fillStyle = '#ffd66b';
+  ctx.font = '12px "Courier New", monospace';
+  ctx.fillText('Starting a new game ERASES it. This cannot be undone.', W / 2, by + 130);
+  // two options · CANCEL first so the safe choice is the default
+  const opts = ['◄ KEEP MY SAVE', 'ERASE AND START OVER'];
+  for (let i = 0; i < 2; i++){
+    const oy = by + 164 + i * 42, ow = bw - 80, ox = bx + 40;
+    const on = newGameConfirm.idx === i;
+    ctx.fillStyle = on ? (i === 0 ? 'rgba(95,220,122,0.25)' : 'rgba(192,57,43,0.30)') : 'rgba(255,255,255,0.06)';
+    ctx.fillRect(ox, oy, ow, 34);
+    ctx.strokeStyle = on ? (i === 0 ? '#5fdc7a' : '#ff6b6b') : '#556';
+    ctx.lineWidth = on ? 2 : 1;
+    ctx.strokeRect(ox, oy, ow, 34);
+    ctx.fillStyle = on ? '#fff' : '#99a';
+    ctx.font = `bold 13px "Courier New", monospace`;
+    ctx.fillText(opts[i], W / 2, oy + 23);
+  }
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
+// Returns true when it consumed the key.
+function handleNewGameConfirmKey(k){
+  if (!newGameConfirm) return false;
+  if (k === 'arrowup' || k === 'arrowdown'){
+    newGameConfirm.idx = newGameConfirm.idx === 0 ? 1 : 0;
+    try { playSFX('cursor'); } catch(_){}
+    return true;
+  }
+  if (k === 'b' || k === 'escape'){
+    newGameConfirm = null;
+    try { playSFX('cancel'); } catch(_){}
+    return true;
+  }
+  if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
+    const go = newGameConfirm.idx === 1;
+    newGameConfirm = null;
+    if (go){ try { playSFX('confirm'); } catch(_){} startNewGame(); }
+    else   { try { playSFX('cancel');  } catch(_){} }
+    return true;
+  }
+  return true;                 // swallow everything else while the prompt is up
+}
 function startNewGame(){
   // v0.95.609 · Do NOT auto-wipe the saved game.  Instead we mark this session
   // as "unsaved new game" so the 5s autosave skips (only a manual SAVE STATE
@@ -10394,7 +10500,7 @@ function loadSavedGame(){
   }
 }
 function drawTitleScreen(){
-  if (game.scene !== 'title'){ syncTitleBtns(); return; }
+  if (game.scene !== 'title'){ syncTitleBtns(); newGameConfirm = null; return; }
   syncTitleBtns();
   const W = canvas.width, H = canvas.height;
   // v0.93.2 · Black canvas underneath the video (no title-image · no BGM).
@@ -18162,6 +18268,8 @@ addEventListener('keydown', e => {
   // 0.5) TITLE SCREEN · owns input entirely when scene === 'title'
   // ═══════════════════════════════════════════════════════════════
   if (game.scene === 'title'){
+    // v0.95.662 · The overwrite prompt owns input while it is up.
+    if (handleNewGameConfirmKey(k)){ e.preventDefault(); return; }
     // v0.93.5 · Once title buttons are revealed (hold-X reveal OR 33s
     // auto-appear), arrow keys navigate and X/Z/Enter activate · works
     // even while video is still playing.
@@ -18173,7 +18281,7 @@ addEventListener('keydown', e => {
       }
       if (k === 'z' || k === 'a' || k === 'x' || k === 'enter'){
         playSFX('confirm');
-        if (titleSelectedIdx === 0) startNewGame();
+        if (titleSelectedIdx === 0) requestNewGame();
         else                        loadSavedGame();
         return;
       }
@@ -28334,6 +28442,7 @@ function frame(now){
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   if (game.scene === 'title'){
     drawTitleScreen();
+    drawNewGameConfirm();   // v0.95.662 · overwrite prompt paints on top of the title
   } else if (interiorConfig(game.scene)){
     drawInteriorFloor();
     // Depth-sort NPCs in this scene + player + treehouse chest by feet-Y

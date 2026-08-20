@@ -10654,6 +10654,68 @@ const RIZER_ROOM_ITEMS={
   // can leave the house · gates the touchpad ZyCube UI too
   backpack:{name:'Backpack',x:14,y:2,homeX:14,homeY:2,footprint:[[0,0]]},   // v0.95.329 · collision restored · tile becomes walkable AFTER pickup via room-block rebuild
 };
+// ══════════════════════════════════════════════════════════════════════════
+// ★ FURNITURE GROUPS + PER-HOME LAYOUT · v0.95.665 · Creator directive
+// "group computer desk and chair for one move in all player bought homes.
+//  move it to 2,3 in any purchased home. player can move it after. this way
+//  carpets dont get drawn onto the computer chair wheels"
+//
+// The desk, the ZyPhone sitting on it and the chair tucked under it are one
+// piece of furniture as far as the player is concerned.  Moving the desk and
+// leaving the chair behind (or the phone floating in mid-air) was never the
+// intent, so they now move as a unit.
+const ROOM_ITEM_GROUPS = { pcdesk: ['pc', 'zphone', 'chair'] };
+function roomItemGroupOf(id){
+  for (const ids of Object.values(ROOM_ITEM_GROUPS)) if (ids.includes(id)) return ids.slice();
+  return [id];
+}
+// Purchased homes seat the desk unit in the upper-LEFT instead of centre-front.
+// The doormat sits across (6-8, 9) by the door; the stock centre-front desk put
+// the chair's wheels right on top of it, so the mat drew over them.  Up here
+// the two never share a tile.
+//   pc at (2,3) covers (1..4, 3) + (2,2) · phone on the desk's left edge tile
+//   · chair tucked directly below.
+const PURCHASED_HOME_LAYOUT = {
+  pc:     { x: 2, y: 3 },
+  zphone: { x: 1, y: 3 },
+  chair:  { x: 2, y: 4 },
+};
+// Every Rizer Room shares ONE RIZER_ROOM_ITEMS table, so per-home positions are
+// swapped in on entry and captured on exit rather than refactoring all 21 read
+// sites to take a scene argument.
+function isRizerRoomScene(scene){
+  const cfg = interiorConfig(scene);
+  return !!(cfg && cfg.rizerRoom);
+}
+function applyHomeLayout(scene){
+  if (!isRizerRoomScene(scene)) return;
+  player.homeLayouts = player.homeLayouts || {};
+  const saved = player.homeLayouts[scene];
+  const purchased = scene !== 'interior_home_2f';
+  for (const [id, it] of Object.entries(RIZER_ROOM_ITEMS)){
+    const s = saved && saved[id];
+    if (s){ it.x = s.x; it.y = s.y; continue; }
+    const d = purchased && PURCHASED_HOME_LAYOUT[id];
+    if (d){ it.x = d.x; it.y = d.y; continue; }
+    it.x = it.homeX; it.y = it.homeY;
+  }
+  // The original room keeps the chair on the legacy player.chairX/Y fields so
+  // sit-and-ride still round-trips; purchased homes read theirs from the layout.
+  if (scene === 'interior_home_2f'){
+    if (!saved || !saved.chair){ RIZER_ROOM_ITEMS.chair.x = player.chairX; RIZER_ROOM_ITEMS.chair.y = player.chairY; }
+    else { player.chairX = RIZER_ROOM_ITEMS.chair.x; player.chairY = RIZER_ROOM_ITEMS.chair.y; }
+  } else {
+    player.chairX = RIZER_ROOM_ITEMS.chair.x;
+    player.chairY = RIZER_ROOM_ITEMS.chair.y;
+  }
+}
+function storeHomeLayout(scene){
+  if (!isRizerRoomScene(scene)) return;
+  player.homeLayouts = player.homeLayouts || {};
+  const out = {};
+  for (const [id, it] of Object.entries(RIZER_ROOM_ITEMS)) out[id] = { x: it.x, y: it.y };
+  player.homeLayouts[scene] = out;
+}
 let _roomEdit=null;
 const _roomOriginalBlocked=new Set([
   '12,1','13,1','14,1','12,8','13,8','14,8','12,9','13,9','14,9',
@@ -10675,45 +10737,76 @@ function roomTileBlockedByItem(x,y,ignoreId=null){
   }
   return false;
 }
-function roomItemCanOccupy(id,x,y){
+function roomTileBlockedByAnyBut(x,y,ignoreIds){
+  for(const [id,it] of Object.entries(RIZER_ROOM_ITEMS)){
+    if(ignoreIds.includes(id))continue;
+    if((id==='skateboard'&&player.items?.skateboard)||(id==='zphone'&&player.items?.zphone)||(id==='chair'&&player.ridingChair))continue;
+    if(it.footprint.some(([dx,dy])=>it.x+dx===x&&it.y+dy===y))return true;
+  }
+  return false;
+}
+// v0.95.665 · ignoreIds lets a whole GROUP move without colliding with itself,
+// and the room bounds come from the LIVE interior rather than always the
+// original 2F (purchased homes are their own configs).
+function roomItemCanOccupy(id,x,y,ignoreIds){
   const it=RIZER_ROOM_ITEMS[id]; if(!it)return false;
+  const skip=ignoreIds||[id];
+  const cfg=interiorConfig(game.scene)||INTERIOR_HOME_2F;
+  const originalRoom=(game.scene==='interior_home_2f');
   for(const [dx,dy] of it.footprint){
     const tx=x+dx,ty=y+dy;
-    if(tx<0||tx>=INTERIOR_HOME_2F.cols||ty<1||ty>=INTERIOR_HOME_2F.rows)return false;
-    if((tx===0||tx===1)&&ty<=1)return false; // fixed staircase
-    if((tx===6||tx===7)&&ty===1)return false; // fixed centered TV
-    if(roomTileBlockedByItem(tx,ty,id))return false;
+    if(tx<0||tx>=cfg.cols||ty<1||ty>=cfg.rows)return false;
+    if(originalRoom&&(tx===0||tx===1)&&ty<=1)return false; // fixed staircase
+    if(originalRoom&&(tx===6||tx===7)&&ty===1)return false; // fixed centered TV
+    if(roomTileBlockedByAnyBut(tx,ty,skip))return false;
   }
   return true;
 }
 function startRoomEdit(){
-  if(game.scene!=='interior_home_2f'||player.ridingChair)return false;
-  RIZER_ROOM_ITEMS.chair.x=player.chairX;RIZER_ROOM_ITEMS.chair.y=player.chairY;
+  // v0.95.665 · works in ANY Rizer Room, not just the original 2F, so a
+  // purchased home's furniture can be rearranged too ("player can move it after").
+  if(!isRizerRoomScene(game.scene)||player.ridingChair)return false;
+  if(game.scene==='interior_home_2f'){RIZER_ROOM_ITEMS.chair.x=player.chairX;RIZER_ROOM_ITEMS.chair.y=player.chairY;}
   const v=_DIR_VEC[player.dir]||{dx:0,dy:1};
   const hit=roomItemAtTile(player.x+v.dx,player.y+v.dy); if(!hit)return false;
-  _roomEdit={id:hit.id,startX:hit.it.x,startY:hit.it.y};
+  // Grab the whole group so the desk, the phone on it and the chair move as one.
+  const ids=roomItemGroupOf(hit.id);
+  _roomEdit={id:hit.id,ids,starts:ids.map(id=>({id,x:RIZER_ROOM_ITEMS[id].x,y:RIZER_ROOM_ITEMS[id].y}))};
   player.interactStart=performance.now();player.interactUntil=performance.now()+86400000;
   player.moving=false;player.moveCd=0;playSFX('confirm');
   return true;
 }
 function finishRoomEdit(reset=false){
   if(!_roomEdit)return false;
-  const it=RIZER_ROOM_ITEMS[_roomEdit.id];
-  if(reset){it.x=it.homeX;it.y=it.homeY;playSFX('menuClose');}
-  else playSFX('confirm');
-  if(_roomEdit.id==='chair'){player.chairX=it.x;player.chairY=it.y;}
+  const ids=_roomEdit.ids||[_roomEdit.id];
+  if(reset){
+    // Restore where the group STARTED this edit, not the global home position —
+    // cancelling a nudge should not also undo every previous arrangement.
+    for(const st of (_roomEdit.starts||[])){ const it=RIZER_ROOM_ITEMS[st.id]; if(it){ it.x=st.x; it.y=st.y; } }
+    playSFX('menuClose');
+  } else playSFX('confirm');
+  if(ids.includes('chair')){player.chairX=RIZER_ROOM_ITEMS.chair.x;player.chairY=RIZER_ROOM_ITEMS.chair.y;}
   _roomEdit=null;player.interactUntil=0;player.interactStart=0;player.moving=false;
+  try { storeHomeLayout(game.scene); } catch(_){}   // v0.95.665 · persist per home
   return true;
 }
 function moveRoomEdit(dx,dy,dir){
   const edit=_roomEdit;if(!edit)return false;
-  const it=RIZER_ROOM_ITEMS[edit.id],nx=it.x+dx,ny=it.y+dy;
+  const ids=edit.ids||[edit.id];
+  const cfg=interiorConfig(game.scene)||INTERIOR_HOME_2F;
   const px=player.x+dx,py=player.y+dy;
-  if(!roomItemCanOccupy(edit.id,nx,ny)||px<0||px>=INTERIOR_HOME_2F.cols||py<1||py>=INTERIOR_HOME_2F.rows)return false;
-  if((px===6||px===7)&&py===1)return false;
-  if(roomTileBlockedByItem(px,py,edit.id))return false;
-  it.x=nx;it.y=ny;player.x=px;player.y=py;player.dir=dir;player.moving=true;
-  if(edit.id==='chair'){player.chairX=nx;player.chairY=ny;}
+  if(px<0||px>=cfg.cols||py<1||py>=cfg.rows)return false;
+  if(game.scene==='interior_home_2f'&&(px===6||px===7)&&py===1)return false;
+  if(roomTileBlockedByAnyBut(px,py,ids))return false;
+  // Every member must fit at its new spot before ANY of them moves, so a group
+  // can never end up half-moved.
+  for(const id of ids){
+    const it=RIZER_ROOM_ITEMS[id]; if(!it)return false;
+    if(!roomItemCanOccupy(id,it.x+dx,it.y+dy,ids))return false;
+  }
+  for(const id of ids){ const it=RIZER_ROOM_ITEMS[id]; it.x+=dx; it.y+=dy; }
+  player.x=px;player.y=py;player.dir=dir;player.moving=true;
+  if(ids.includes('chair')){player.chairX=RIZER_ROOM_ITEMS.chair.x;player.chairY=RIZER_ROOM_ITEMS.chair.y;}
   return true;
 }
 
@@ -13935,14 +14028,60 @@ function closeExperimentPanel(){
 }
 
 // v0.95 · Home ownership · 10-tile front proximity to any NPC = owned by NPC
+// ══════════════════════════════════════════════════════════════════════════
+// ★ WHO OWNS A HOUSE · v0.95.665 · Creator directive
+// "im getting blocked from purchasing a house if mori or zyrex are in front of
+//  it. only block the homes that have a quest npc idle in front of it. no
+//  temporary blocks based on player coordinate."
+//
+// The old test scanned EVERY overworld NPC within 3 tiles across and TEN tiles
+// south of the door using its LIVE position.  So a wandering Mori, a wild
+// Zyrex orb, a summoned party member, a phone-spawned contact or a tower guard
+// drifting past made a house unbuyable for as long as it stood there, and
+// buyable again once it wandered off.  Ownership flickered.
+//
+// Ownership is a PROPERTY OF THE BUILDING, not of whoever is standing near it,
+// so this now asks two static questions:
+//   · is this NPC one that permanently idles (a quest giver / shopkeeper), or
+//     something that moves — an enemy, a Zyrex, a summon, a spawned contact?
+//   · is its AUTHORED HOME tile at this door, rather than its position right now?
+// Reading homeX/homeY means an idle owner who stepped aside still owns the
+// place, and a wanderer parked on the doorstep never does.
+function _npcIsResident(n){
+  if (!n || n.scene !== 'overworld') return false;
+  if (n.isEnemy) return false;                       // Mori, Daemons, Seer Grunts...
+  if (n._towerGuardOf) return false;                 // tower squads
+  if (n._phoneSpawned) return false;                 // contact called to your side
+  if (n._summoned || /^_summon_/.test(n.id || '')) return false;
+  if (n._extraSpawn) return false;                   // Horde Mode clones
+  if (typeof isZyrexNpc === 'function' && isZyrexNpc(n)) return false;   // wild Zyrex
+  if (!n.name) return false;                         // unnamed filler never owns a home
+  // Must be an IDLER by design.  A wanderer standing here right now is a
+  // passer-by, not a resident.
+  const roams = (n.mode === 'wander' || n.mode === 'drainer' || n.mode === 'daemon'
+              || (n.wanderRadius || 0) > 0);
+  return !roams;
+}
 function homeOwnedByNpc(doorX, doorY){
   for (const n of NPCS){
-    if (n.scene !== 'overworld') continue;
-    const dx = Math.abs(n.tileX - doorX);
-    const dy = n.tileY - doorY;   // + = in front (south), - = behind
-    if (dx <= 3 && dy >= 0 && dy <= 10) return n;    // NPC within 10 front tiles
+    if (!_npcIsResident(n)) continue;
+    // AUTHORED home tile, not the live one · and only right at the door.
+    const hx = (n.homeX != null) ? n.homeX : n.tileX;
+    const hy = (n.homeY != null) ? n.homeY : n.tileY;
+    const dx = Math.abs(hx - doorX);
+    const dy = hy - doorY;                 // + = standing in front (south)
+    if (dx <= 1 && dy >= 0 && dy <= 2) return n;
   }
   return null;
+}
+// ★ Only actual RESIDENCES are ever for sale.  Stores, quest buildings and
+// landmarks have their own onInteract and never reach tryPurchaseHome — this
+// makes that structural fact explicit so a future copy-paste cannot make the
+// Gear Shop or the Academy buyable by accident.
+const UNPURCHASABLE_ID_RE = /(shop|store|hall|academy|school|hospital|lab|clinic|hq|tower|gate|beacon|refinery|oasis|coliseum|arena|club|market|inn|temple|shrine|statue|monument|museum|library|bank|guild|farm|barn|dock|port|station|prison|jail|castle|palace|manor_hall|broadcast|potion|gear|nurse|warden|seer)/i;
+function isPurchasableHomeId(homeId){
+  if (!homeId) return false;
+  return !UNPURCHASABLE_ID_RE.test(String(homeId));
 }
 // v0.95.553 · District-scaled home prices · +500 per district (canon: user 2026-08-18).
 // Malezor 500 · Zarvane 1000 · Andrannor 1500 · Veridan 2000 · Netharion 2500 ·
@@ -13964,6 +14103,12 @@ function homePriceAt(doorX, doorY){
   return DISTRICT_HOME_PRICE[d] || 500;
 }
 function tryPurchaseHome(homeId, doorX, doorY){
+  // v0.95.665 · stores / quest buildings / landmarks are never for sale
+  if (!isPurchasableHomeId(homeId)){
+    showToast('◈ This building is not for sale', 2400);
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
   const owner = homeOwnedByNpc(doorX, doorY);
   if (owner){
     showDialog({ speaker: (owner.name || owner.id).toUpperCase(),
@@ -13999,6 +14144,8 @@ function enterInterior(sceneKey, cfg, toast){
   if (game.scene !== 'overworld') return;
   game.overworldReturn = { x: player.x, y: player.y, dir: player.dir };
   game.scene = sceneKey;
+  // v0.95.665 · load THIS home's furniture arrangement into the shared table
+  try { applyHomeLayout(sceneKey); } catch(_){}
   player.x = cfg.spawn.x;
   player.y = cfg.spawn.y;
   player.dir = cfg.spawn.dir;
@@ -14532,6 +14679,8 @@ function useStairs(s){
 function exitInterior(){
   if (game.scene === 'overworld') return;
   const priorScene = game.scene;
+  // v0.95.665 · capture this home's arrangement before the table is reused
+  try { storeHomeLayout(priorScene); } catch(_){}
   // v0.95.326 · Backpack MUST be grabbed first · gates house exit before Mom
   if ((priorScene === 'interior_home' || priorScene === 'interior_home_2f') && !player.hasBackpack){
     showToast('◈ Grab your Backpack from your room first', 2600);

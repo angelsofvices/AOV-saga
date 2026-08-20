@@ -2795,6 +2795,72 @@ const GEMGRASS_PATCHES = [
   { x:293, y:329, w: 4, h: 3 },
 ];
 
+// ══════════════════════════════════════════════════════════════════════════
+// ★ SCRAPJAW TOWER NETWORK · v0.95.650 · Creator directive 2026-08-19
+// "rizer returns each district cell tower silver chest item to scrapjaw and
+//  the cell service extends to THAT district. wire loop fully for each
+//  district. same as malezor side quest."
+//
+// ONE table drives all five systems: the tower props, the silver battery
+// chests, the guard packs, Scrapjaw's delivery dialogue and the contact-call
+// signal gate.  Before this they were four hand-maintained parallel lists,
+// which is how the district mismatch below got in.
+//
+// THE BUG THIS FIXES · batteries were district-AGNOSTIC.  Loot was a plain
+// player.items.tower_battery counter, and Scrapjaw's delivery walked a fixed
+// district order awarding the first unrestored one.  So a battery carried out
+// of KORATHEN restored ZARVANE's signal.  Batteries are now tagged to the
+// district they were looted in and restore exactly that district.
+//
+// Boss roster follows [[aov-scrapjaw-tower-network-canon]] · levels follow the
+// 5-band ladder in [[aov-rp7-enemy-mapping]].
+const TOWER_NETWORK = [
+  { dist:'malezor',   label:'Malezor',   tower:[ 38, 14], chest:[ 38, 16], boss:'vilerok',    bossName:'Vilerok',           moriLv: 5, bossLv:  8, bossTier:2 },
+  { dist:'zarvane',   label:'Zarvane',   tower:[170,220], chest:[170,222], boss:'satyrbeast', bossName:'Satyrbeast Alpha',  moriLv:14, bossLv: 18, bossTier:3 },
+  { dist:'andrannor', label:'Andrannor', tower:[395,280], chest:[395,282], boss:'daemon',     bossName:'Daemon Sergeant',   moriLv:22, bossLv: 27, bossTier:3 },
+  { dist:'veridan',   label:'Veridan',   tower:[600,210], chest:[600,212], boss:'vilerok',    bossName:'Vilerok Warden',    moriLv:30, bossLv: 36, bossTier:5 },
+  { dist:'netharion', label:'Netharion', tower:[530,390], chest:[530,392], boss:'morlisk',    bossName:'Morlisk',           moriLv:38, bossLv: 45, bossTier:5 },
+  { dist:'vorashil',  label:'Vorashil',  tower:[370,505], chest:[370,507], boss:'skellor',    bossName:'Skellor Cluster',   moriLv:46, bossLv: 54, bossTier:6 },
+  { dist:'xilnar',    label:'Xilnar',    tower:[490,610], chest:[490,612], boss:'seer_grunt', bossName:'Seer Grunt Elite',  moriLv:54, bossLv: 63, bossTier:6 },
+  { dist:'baelgor',   label:'Baelgor',   tower:[650,610], chest:[650,612], boss:'vilerok',    bossName:'Vilerok Elite',     moriLv:62, bossLv: 72, bossTier:7 },
+  { dist:'thardin',   label:'Thardin',   tower:[797,593], chest:[797,595], boss:'morlisk',    bossName:'Morlisk Ascendant', moriLv:70, bossLv: 81, bossTier:7 },   // v0.95.650 · was (810,610) · worldDistrictAt resolved that tile to KORATHEN, so Thardin's tower and chest both stood in the wrong district
+  { dist:'korathen',  label:'Korathen',  tower:[975,610], chest:[975,612], boss:'vilerok',    bossName:'Vilerok Overlord',  moriLv:80, bossLv: 90, bossTier:8 },
+];
+const TOWER_BY_DIST = Object.fromEntries(TOWER_NETWORK.map(t => [t.dist, t]));
+const TOWER_ORDER   = TOWER_NETWORK.map(t => t.dist);
+const TOWER_TOTAL   = TOWER_NETWORK.length;                 // 10
+const TOWER_COMPANION_GATE = 6;                             // 6/10 = Scrapjaw joins
+// Guard ring offsets from the tower door · 6 Mori, tight wander, mirrors the
+// Malezor pack at (38,14) exactly so every district reads the same.
+const TOWER_GUARD_RING = [
+  [-3, 6, 'right'], [ 3, 6, 'left' ], [-4, 2, 'down'  ],
+  [ 4, 2, 'down' ], [-2, 8, 'up'   ], [ 2, 8, 'up'    ],
+];
+// ── shared state helpers · every system reads these, never raw player fields ──
+function towerRestored(dist){
+  player.scrapjawTowersRestored = player.scrapjawTowersRestored || {};
+  // Malezor's signal rides the original scrap-metal quest flag.
+  if (dist === 'malezor' && player.radioTowerFixed) player.scrapjawTowersRestored.malezor = true;
+  return !!player.scrapjawTowersRestored[dist];
+}
+function towersRestoredCount(){
+  if (player.radioTowerFixed){
+    player.scrapjawTowersRestored = player.scrapjawTowersRestored || {};
+    player.scrapjawTowersRestored.malezor = true;
+  }
+  return TOWER_ORDER.filter(d => (player.scrapjawTowersRestored || {})[d]).length;
+}
+function heldTowerBatteries(){
+  const held = player.towerBatteries || {};
+  return TOWER_ORDER.filter(d => held[d] && !towerRestored(d));
+}
+// Bonus clear track · mirrors Malezor's "6 Mori + boss" optional extermination.
+function towerSquadCleared(dist){
+  const k = (player.towerSquadKills || {})[dist] || 0;
+  const b = (player.towerBossKills  || {})[dist];
+  if (dist === 'malezor') return (player.towerMoriKills || 0) >= 6 && !!player.towerBossKilled;
+  return k >= 6 && !!b;
+}
 const WORLD_PROPS = [
   {
     // Malezor ↔ Zarvane district gate · macro landmark at the center of the
@@ -4115,23 +4181,12 @@ const WORLD_PROPS = [
     // District NE positions · slight offsets from each district center toward
     // NE (positive X, negative Y) so towers sit in the upper-right quadrant
     // of the district body.  Chest anchor is (door.x, door.y + 2).
-    const TOWER_SPOTS = [
-      { dist:'zarvane',   x:170, y:220 },  // Zarvane cx=112 cy=278 → NE
-      { dist:'andrannor', x:395, y:280 },  // Andrannor cx=315 cy=325 → NE
-      { dist:'veridan',   x:600, y:210 },  // Veridan cx=520 cy=255 → NE
-      { dist:'netharion', x:530, y:390 },  // Netharion cx=455 cy=435 → NE
-      { dist:'vorashil',  x:370, y:505 },  // Vorashil cx=300 cy=550 → NE
-      { dist:'xilnar',    x:490, y:610 },  // Xilnar cx=420 cy=655 → NE
-      { dist:'baelgor',   x:650, y:610 },  // Baelgor cx=575 cy=655 → NE
-      { dist:'thardin',   x:810, y:610 },  // Thardin cx=730 cy=655 → NE
-      { dist:'korathen',  x:975, y:610 },  // Korathen cx=895 cy=655 → NE
-    ];
-    return TOWER_SPOTS.map(spot => ({
+    return TOWER_NETWORK.filter(t => t.dist !== 'malezor').map(spot => ({
       id: `${spot.dist}_radio_tower`,
       img: brokenImg,
       src: 'assets/2D%20sprites/decor/radio-tower-broken.png',
       bbox: [1, 1, 702, 1479],
-      tileX: spot.x, tileY: spot.y,
+      tileX: spot.tower[0], tileY: spot.tower[1],
       tileW: 5, tileH: 11,
       footprint: (function(){
         const f = [];
@@ -4147,14 +4202,17 @@ const WORLD_PROPS = [
       _towerFixedBbox: [0, 0, 652, 1450],
       _towerDistrict: spot.dist,
       onInteract: function(){
-        player.scrapjawTowersRestored = player.scrapjawTowersRestored || {};
+        // v0.95.650 · three readable states, same beats as the Malezor tower
         const dist = this._towerDistrict;
-        const fixed = !!player.scrapjawTowersRestored[dist];
-        const districtLabel = dist.toUpperCase();
-        if (fixed){
-          showToast(`◈ ${districtLabel} Radio Tower · restored · signal broadcasting`, 2600);
+        const T = TOWER_BY_DIST[dist] || { label: dist.toUpperCase() };
+        if (towerRestored(dist)){
+          showToast(`◈ ${T.label} Radio Tower · RESTORED · signal broadcasting`, 2600);
+        } else if ((player.towerBatteries || {})[dist]){
+          showToast(`◈ ${T.label} Radio Tower · battery in hand · take it to SCRAPJAW in Malezor`, 3600);
         } else {
-          showToast(`◈ ${districtLabel} Radio Tower · smashed antennas · retrieve the battery from the Scrap Chest and bring it to Scrapjaw`, 3600);
+          const cleared = towerSquadCleared(dist);
+          showToast(`◈ ${T.label} Radio Tower · smashed antennas · SILVER CHEST at the base holds the battery` +
+                    (cleared ? ' · plaza clear ✓' : ` · ${T.bossName || 'the boss'} still guarding`), 4200);
         }
       },
     }));
@@ -4206,24 +4264,13 @@ const WORLD_PROPS = [
     const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
     const CLOSED_BBOX = [145, 164, 948, 893];
     const OPEN_BBOX   = [290, 240, 673, 741];
-    const CHESTS = [
-      { dist:'zarvane',   x:170, y:222 },
-      { dist:'andrannor', x:395, y:282 },
-      { dist:'veridan',   x:600, y:212 },
-      { dist:'netharion', x:530, y:392 },
-      { dist:'vorashil',  x:370, y:507 },
-      { dist:'xilnar',    x:490, y:612 },
-      { dist:'baelgor',   x:650, y:612 },
-      { dist:'thardin',   x:810, y:612 },
-      { dist:'korathen',  x:975, y:612 },
-    ];
-    return CHESTS.map(spot => {
+    return TOWER_NETWORK.filter(t => t.dist !== 'malezor').map(spot => {
       const chest = {
         id: `chest_tower_battery_${spot.dist}`,
         img: _closedImg,
         src: 'assets/2D%20sprites/decor/silver-chest.png',
         bbox: CLOSED_BBOX,
-        tileX: spot.x, tileY: spot.y,
+        tileX: spot.chest[0], tileY: spot.chest[1],
         tileW: 1, tileH: 1,
         footprint: [[0, 0]],
         door: [0, 0],
@@ -4241,12 +4288,20 @@ const WORLD_PROPS = [
         chest.bbox = OPEN_BBOX;
         if (!chest.looted){
           chest.looted = true;
+          // v0.95.650 · TAG THE BATTERY TO ITS DISTRICT.  The plain counter is
+          // kept for the inventory row, but towerBatteries is what Scrapjaw
+          // actually reads, so the signal lights up where the battery came from.
+          player.towerBatteries    = player.towerBatteries    || {};
+          player.towerChestsLooted = player.towerChestsLooted || {};
+          player.towerBatteries[spot.dist]    = true;
+          player.towerChestsLooted[spot.dist] = true;   // persists · no re-loot on reload
           player.items = player.items || {};
           player.items.tower_battery = (player.items.tower_battery || 0) + 1;
           try { playItemGain('tower_battery'); } catch(_){}
           try { playSFX('confirm'); } catch(_){}
           try { awardRizerXP(60); } catch(_){}
-          showToast(`★ Tower Battery retrieved (${spot.dist.toUpperCase()}) · bring it to Scrapjaw`, 3800);
+          try { pingNextObjective(); } catch(_){}
+          showToast(`★ ${spot.label.toUpperCase()} TOWER BATTERY retrieved · bring it to Scrapjaw in Malezor`, 4200);
         }
       };
       return chest;
@@ -5581,46 +5636,66 @@ const NPCS = [
       // v0.95.611 · SCRAPJAW TOWER NETWORK · if the player is carrying any
       // tower batteries, process the delivery FIRST · mark the next
       // unrestored district's signal live · 6/10 towers = companion join.
-      if ((player.items.tower_battery || 0) > 0){
-        const DIST_ORDER = ['malezor','zarvane','andrannor','veridan','netharion','vorashil','xilnar','baelgor','thardin','korathen'];
-        player.scrapjawTowersRestored = player.scrapjawTowersRestored || {};
-        if (player.radioTowerFixed) player.scrapjawTowersRestored.malezor = true;
-        let toDeliver = player.items.tower_battery;
-        const delivered = [];
-        for (const d of DIST_ORDER){
-          if (toDeliver <= 0) break;
-          if (player.scrapjawTowersRestored[d]) continue;
-          player.scrapjawTowersRestored[d] = true;
-          delivered.push(d);
-          toDeliver--;
-        }
-        if (delivered.length > 0){
-          player.items.tower_battery -= delivered.length;
-          const restoredCount = Object.values(player.scrapjawTowersRestored).filter(Boolean).length;
-          bumpBond(6 * delivered.length);
-          try { awardRizerXP(400 * delivered.length); } catch(_){}
+      // v0.95.650 · TOWER BATTERY DELIVERY · each battery is tagged with the
+      // district it was looted in, so the signal extends to THAT district.
+      // (Before this, delivery walked a fixed district order and a Korathen
+      //  battery lit up Zarvane.)
+      {
+        const carrying = heldTowerBatteries();
+        if (carrying.length){
+          player.scrapjawTowersRestored = player.scrapjawTowersRestored || {};
+          player.towerBatteries = player.towerBatteries || {};
+          let bonusDistricts = [];
+          for (const d of carrying){
+            player.scrapjawTowersRestored[d] = true;
+            delete player.towerBatteries[d];
+            if (towerSquadCleared(d)) bonusDistricts.push(d);
+          }
+          player.items.tower_battery = Math.max(0, (player.items.tower_battery || 0) - carrying.length);
+          const restoredCount = towersRestoredCount();
+          const names = carrying.map(d => (TOWER_BY_DIST[d] || {}).label || d.toUpperCase());
+          // Base reward per tower · mirrors the Malezor scrap-metal exchange.
+          bumpBond(6 * carrying.length);
+          try { awardRizerXP(400 * carrying.length); } catch(_){}
+          // BONUS · same optional extermination track as Malezor's plaza clear.
+          if (bonusDistricts.length){
+            bumpBond(4 * bonusDistricts.length);
+            try { awardRizerXP(300 * bonusDistricts.length); } catch(_){}
+          }
           try { playSFX('confirm'); } catch(_){}
+          try { pingNextObjective(); } catch(_){}
+          const remaining = TOWER_ORDER.filter(d => !towerRestored(d))
+                                       .map(d => (TOWER_BY_DIST[d] || {}).label || d);
           // 6/10 → officially companionize Scrapjaw
-          if (restoredCount >= 6 && !player.scrapjawCompanion){
+          if (restoredCount >= TOWER_COMPANION_GATE && !player.scrapjawCompanion){
             player.scrapjawCompanion = true;
-            showToast(`★ SCRAPJAW COMPANION UNLOCKED · ${restoredCount}/10 signal restored`, 5200);
+            showToast(`★ SCRAPJAW COMPANION UNLOCKED · ${restoredCount}/${TOWER_TOTAL} signal restored`, 5200);
             showDialog({ speaker: 'SCRAPJAW', lines: [
-              `*hands trembling · grin ear to ear*  Six towers · SIX · you actually did it, rookie.`,
+              `*wires ${names.join(' + ')} in · the tower hums*  That's SIX towers, rookie.  SIX.`,
               '*claps hard on your shoulder*  Grid\'s alive across half of Zyraxis now.  I\'m rollin\' with you from here on out · gear-work wherever you stand.',
-              '*chuffs*  Four towers left · finish the map and we light the whole world.',
+              `*chuffs*  ${remaining.length} left · ${remaining.join(' · ')} · finish the map and we light the whole world.`,
             ]});
             return;
           }
-          if (restoredCount >= 10){
+          if (restoredCount >= TOWER_TOTAL){
+            player.scrapjawFullSignal = true;
             showToast('★ FULL SIGNAL · every Zyraxis tower is live · Scrapjaw at max tier', 6000);
-          } else {
-            showToast(`★ ${delivered.map(d => d.toUpperCase()).join(' + ')} signal restored · ${restoredCount}/10 towers online`, 4200);
+            showDialog({ speaker: 'SCRAPJAW', lines: [
+              `*hands shaking · wires the last battery home*  ${names.join(' + ')}.  That's the whole map.`,
+              '*stares up at the antenna*  Ten towers.  Every district talking to every other district for the first time since the Seers came.',
+              '*turns · voice rough*  My crew spent nine years failing at what you did in one run.  Whatever you need, wherever you stand · you call, I answer.',
+            ]});
+            return;
           }
+          showToast(`★ ${names.join(' + ').toUpperCase()} signal restored · ${restoredCount}/${TOWER_TOTAL} towers online`, 4400);
           showDialog({ speaker: 'SCRAPJAW', lines: [
-            `*wires the battery in · tower hums*  ${delivered.map(d => d.toUpperCase()).join(' + ')} signal · LIVE.`,
-            restoredCount >= 6
-              ? `Contact calls work anywhere in ${delivered[delivered.length-1].toUpperCase()} now, hotshot.  Keep the batteries coming.`
-              : `Contact calls work anywhere in ${delivered[delivered.length-1].toUpperCase()} now.  Signal grid at ${restoredCount}/10 · get me to 6 and I\'ll follow you into the field.`,
+            `*wires the battery in · tower hums*  ${names.join(' + ').toUpperCase()} signal · LIVE.`,
+            bonusDistricts.length
+              ? `*whistles*  And you cleared the plaza too · my crew climbs without getting eaten.  Bonus bond, you earned it.`
+              : `Contact calls work anywhere in ${names[names.length-1].toUpperCase()} now.`,
+            restoredCount >= TOWER_COMPANION_GATE
+              ? `Grid's at ${restoredCount}/${TOWER_TOTAL}.  Still dark: ${remaining.join(' · ')}.  Keep the batteries coming.`
+              : `Signal grid at ${restoredCount}/${TOWER_TOTAL} · get me to ${TOWER_COMPANION_GATE} and I\'ll follow you into the field.  Still dark: ${remaining.join(' · ')}.`,
           ]});
           return;
         }
@@ -5706,13 +5781,22 @@ const NPCS = [
           '*grins*  Bond bump for the effort · a Rizer who honors both halves of a deal is a Rizer worth calling friend.',
         ]});
       } else {
+        // v0.95.650 · IDLE LINE · always points at the next dark district so the
+        // 10-tower loop stays discoverable without a journal entry.
         const bond = (player.bonds && player.bonds.scrapjaw) || 0;
+        const done = towersRestoredCount();
+        const dark = TOWER_ORDER.filter(d => !towerRestored(d))
+                                .map(d => (TOWER_BY_DIST[d] || {}).label || d);
         showDialog({ speaker: 'SCRAPJAW', lines: [
           bond >= 50
             ? '*grins*  Bond\'s high enough · Square me to take me with you.  I\'ll gear you up wherever you stand.'
             : `*sniff*  Bond ${bond}/50 · keep coming back · once we\'re tight I\'ll follow you and upgrade your gear on the road.`,
-          'Bring gems anytime · RIZER tab on your touchpad · five stats waiting.',
-          'And thanks again for the tower · signal\'s clean · Zycellite crew owes you a beer.',
+          dark.length
+            ? `*taps a cracked signal map*  Grid's at ${done}/${TOWER_TOTAL}.  Still dark: ${dark.join(' · ')}.`
+            : `*taps the signal map · every pin lit*  ${TOWER_TOTAL}/${TOWER_TOTAL}.  Whole planet's talking.  You did that.`,
+          dark.length
+            ? `Every one of 'em has a tower with a SILVER CHEST at the base · battery's inside · Mori and a boss sitting on it.  Bring me the battery, I light that district up.`
+            : 'Bring gems anytime · RIZER tab on your touchpad · five stats waiting.',
         ]});
       }
     },
@@ -8133,6 +8217,14 @@ function drawSkellorOverlay(){
     ctx.drawImage(SKELLOR_HURT_IMG, sx, sy, sw, sh, dx, dy, drawW, drawH);
   }
 }
+
+// v0.95.650 · TOWER NETWORK · stand up the 9 district guard packs at boot.
+// Deferred one tick so every enemy definition (Vilerok, Satyrbeast, Daemon,
+// Morlisk, Skellor, Seer Grunt) is in NPCS before we clone from them.
+setTimeout(() => { try {
+  const n = buildTowerGuardPacks();
+  if (n) console.log(`[rp7b] tower network · ${n} guards deployed across 9 districts`);
+} catch(err){ console.warn('[rp7b] tower guard build failed', err); } }, 0);
 
 // v0.95.477 · SCRAPJAW TOWER QUEST · resurrect the 6 tower Mori + the tower-boss
 // Vilerok when the quest starts.  Prevents lockout if the player wandered up
@@ -12224,8 +12316,141 @@ function creditRizerKill(npc, mode = 'punch'){
   try { recordMoriKill(mode === 'astralkick' || mode === 'boom' ? 'kick' : mode, npc); } catch(_){}
   return xp;
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★ TOWER NETWORK · GUARD PACKS + SAVE SYNC · v0.95.650
+//
+// Canon requires 4-6 Mori and one band-scaled miniboss at every tower.  Only
+// Malezor had one; the other nine towers stood completely unguarded, so the
+// "quest" was walk up, open chest, walk away.
+//
+// Rather than hand-author nine new enemy definitions (each species has its own
+// bbox tables, sheet set and AI mode), guards are CLONED from a live in-world
+// instance of the canon species and re-homed at the tower.  One code path, and
+// every species keeps the exact art and AI it already has elsewhere.
+//
+// NOTE · clones deliberately do NOT set _extraSpawn.  That flag marks Horde
+// Mode extras and stripHordeExtras() deletes them wholesale — tagging tower
+// guards with it would delete the entire network the first time the Creator
+// toggled Horde off.
+const TOWER_BOSS_SOURCE = {
+  vilerok:    n => n._vilerok || /vilerok/i.test(n.src || ''),
+  satyrbeast: n => /satyrbeast/i.test(n.src || ''),
+  daemon:     n => n.mode === 'daemon' || /daemon/i.test(n.src || ''),
+  morlisk:    n => /morlisk/i.test(n.src || ''),
+  skellor:    n => n.mode === 'skellor' || /skellor/i.test(n.src || ''),
+  seer_grunt: n => /seer-grunt/i.test(n.src || ''),
+};
+function _cloneEnemyTo(base, id, x, y, opts = {}){
+  const c = Object.assign({}, base);
+  c.id = id;
+  c.tileX = c.homeX = x;
+  c.tileY = c.homeY = y;
+  c.scene = c.homeScene = 'overworld';
+  c.moving = false; c.animFrame = 0; c.idleFrame = 0;
+  c.moveCd = 200 + Math.random() * 400;
+  c.blinkTimer = 9e9;
+  c._gruntPlayed = false;
+  delete c._dying; delete c._deathT0; delete c._rxpCredited;
+  delete c._voidSwallow; delete c._ufoBeamVictim;
+  delete c._extraSpawn;                       // never horde-strippable
+  delete c._towerMori; delete c._towerBoss;   // Malezor's tags stay Malezor's
+  Object.assign(c, opts);
+  if (c.hpMax) c.hp = c.hpMax;
+  return c;
+}
+// Idempotent · safe to call at boot, after load, and after Horde toggles.
+function buildTowerGuardPacks(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  const moriBase = NPCS.find(n => n && n._towerMori)
+                || NPCS.find(n => n && n.isEnemy && /enemies\/mori\.png/i.test(n.src || ''));
+  if (!moriBase) return 0;
+  let made = 0;
+  for (const T of TOWER_NETWORK){
+    if (T.dist === 'malezor') continue;              // Malezor's pack already exists
+    const [tx, ty] = T.tower;
+    // ── 6 Mori, band-scaled ──
+    TOWER_GUARD_RING.forEach(([dx, dy, dir], i) => {
+      const id = `tower_mori_${T.dist}_${i + 1}`;
+      if (NPCS.some(n => n && n.id === id)) return;
+      NPCS.push(_cloneEnemyTo(moriBase, id, tx + dx, ty + dy, {
+        name: 'Mori', dir, wanderRadius: 2, mode: 'wander', isEnemy: true,
+        level: T.moriLv, tier: 1,
+        hpMax: 125 + T.moriLv * 5,
+        _towerGuardOf: T.dist,
+        onInteract: () => { try { playSFX('moriPoke'); } catch(_){}
+          showToast(`◈ MORI · guarding the ${T.label} tower`, 2000); },
+      }));
+      made++;
+    });
+    // ── 1 miniboss, canon species per district ──
+    const bossId = `tower_boss_${T.dist}`;
+    if (!NPCS.some(n => n && n.id === bossId)){
+      const pick = TOWER_BOSS_SOURCE[T.boss];
+      const bossBase = (pick && NPCS.find(n => n && n.isEnemy && pick(n))) || moriBase;
+      NPCS.push(_cloneEnemyTo(bossBase, bossId, tx, ty + 4, {
+        name: T.bossName, dir: 'down', wanderRadius: 3, isEnemy: true,
+        level: T.bossLv, tier: T.bossTier,
+        hpMax: 250 + T.bossLv * 10,
+        _towerGuardOf: T.dist, _towerBossOf: T.dist,
+        onInteract: () => { try { playSFX('moriPoke'); } catch(_){}
+          showToast(`◈ ${T.bossName} · ${T.label} tower boss`, 2400); },
+      }));
+      made++;
+    }
+  }
+  return made;
+}
+// Called from recordMoriKill · books the optional extermination track so the
+// bonus reward works exactly like Malezor's "6 Mori + Vilerok" plaza clear.
+function recordTowerGuardKill(npc){
+  if (!npc) return;
+  const d = npc._towerGuardOf;
+  if (!d) return;
+  const T = TOWER_BY_DIST[d] || { label: d.toUpperCase(), bossName: 'the boss' };
+  if (npc._towerBossOf){
+    player.towerBossKills = player.towerBossKills || {};
+    if (player.towerBossKills[d]) return;
+    player.towerBossKills[d] = true;
+    const k = (player.towerSquadKills || {})[d] || 0;
+    showToast(k >= 6
+      ? `★ ${T.label.toUpperCase()} TOWER · ${T.bossName} slain · plaza CLEAR · bonus waiting with Scrapjaw`
+      : `★ ${T.label.toUpperCase()} TOWER · ${T.bossName} slain · ${6 - k} Mori left`, 3800);
+    try { playSFX('confirm'); } catch(_){}
+    return;
+  }
+  player.towerSquadKills = player.towerSquadKills || {};
+  const n = (player.towerSquadKills[d] || 0) + 1;
+  player.towerSquadKills[d] = n;
+  if (n === 6){
+    showToast((player.towerBossKills || {})[d]
+      ? `★ ${T.label.toUpperCase()} TOWER · plaza CLEAR · bonus waiting with Scrapjaw`
+      : `★ ${T.label.toUpperCase()} TOWER · 6/6 Mori down · ${T.bossName} still standing`, 3600);
+  }
+}
+// Re-apply persisted state to the live world.  Chest opened/looted lives only
+// on the WORLD_PROPS object and is NOT part of the save snapshot, so without
+// this every battery chest re-opened on reload — infinite batteries, and the
+// whole per-district signal gate collapses.
+function syncTowerNetworkFromSave(){
+  const looted = player.towerChestsLooted || {};
+  for (const prop of WORLD_PROPS){
+    const d = prop && prop._towerBatteryDist;
+    if (!d) continue;
+    if (looted[d] || towerRestored(d) || (player.towerBatteries || {})[d]){
+      prop.opened = true;
+      prop.looted = true;
+      if (prop._openImg){ prop.img = prop._openImg; prop.bbox = prop._openBbox; }
+    }
+  }
+  // Rebuild any guard the save predates · idempotent.
+  try { buildTowerGuardPacks(); } catch(_){}
+  // Tower sprites re-derive from towerRestored() every paint · nothing to do.
+}
+
 function recordMoriKill(mode, npc){
   player.stats.moriKills = (player.stats.moriKills || 0) + 1;
+  try { recordTowerGuardKill(npc); } catch(_){}   // v0.95.650 · tower squad track
   if (mode === 'kick') player.stats.moriKillsHeavy = (player.stats.moriKillsHeavy || 0) + 1;
   else                 player.stats.moriKillsLight = (player.stats.moriKillsLight || 0) + 1;
   // v0.95.499/500 · Flawless kill-streak · counter increments on every kill
@@ -22196,6 +22421,7 @@ function loadGame(){
     refreshDevFactionButtons();
     game.newGameUnsaved = false;   // v0.95.609 · loaded from disk · autosave re-enabled
     try { if (typeof restoreDeathGargoyles === 'function') restoreDeathGargoyles(); } catch(_){}   // v0.95.614
+    try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
     return true;
   } catch(e){ console.warn('[rp7b] load failed', e); return false; }
 }
@@ -27392,9 +27618,11 @@ function tickNPC(n, dt){
 }
 
 function drawProp(p){
-  // v0.95.428 · Malezor Radio Tower · dynamic broken→fixed swap
-  if (p && p.id === 'malezor_radio_tower' && p._towerFixedImg){
-    const fixed = !!player.radioTowerFixed;
+  // v0.95.650 · ALL TEN Radio Towers · dynamic broken→fixed swap.
+  // Was Malezor-only, so the other nine stayed visibly smashed forever even
+  // after their signal went live — no payoff for the delivery.
+  if (p && p._towerFixedImg){
+    const fixed = p._towerDistrict ? towerRestored(p._towerDistrict) : !!player.radioTowerFixed;
     p.img  = fixed ? p._towerFixedImg  : p._towerBrokenImg;
     p.bbox = fixed ? p._towerFixedBbox : p._towerBrokenBbox;
   }

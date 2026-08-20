@@ -1701,7 +1701,20 @@ function _stopCorsunIfLive(){
   } catch(_){}
 }
 function playSFX(name){
-  const s = AUDIO.sfx[name]; if (!s) return;
+  const s = AUDIO.sfx[name];
+  if (!s){
+    // v0.95.655 · An unknown key used to be a silent no-op, so five call sites
+    // ('hurt', 'astralkickBoom', 'evolve', 'levelup', 'jump') had been dead for
+    // versions without anyone noticing — and because this returns rather than
+    // throws, the try/catch fallbacks written around them never fired either.
+    // Warn once per key so the next typo surfaces on the first play instead.
+    if (!playSFX._warned) playSFX._warned = new Set();
+    if (!playSFX._warned.has(name)){
+      playSFX._warned.add(name);
+      console.warn(`[rp7b] playSFX('${name}') · no such sound · this call is silent`);
+    }
+    return;
+  }
   // Rizer VOX priority hierarchy · only one voice at a time
   const prio = RVOX_PRIORITY[name];
   if (prio != null){
@@ -2197,7 +2210,7 @@ function startRizerDeath(){
   player.attackUntil = 0;
   player.interactUntil = 0;
   player.faeCatchUntil = 0;
-  playSFX('hurt');
+  playSFX('damageTick');   // v0.95.655 · was 'hurt' · no such key · Rizer death was silent
   // v0.95.565 · Rizer "ugh gyat" death VO fires right when the death anim
   // starts · beats every lesser voice via priority 110.
   try { playSFX('ughGyat'); } catch(_){}
@@ -2357,6 +2370,7 @@ const INVENTORY_META = {
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
   life_stone:       { label: 'Life Stone',              order: 47 },   // v0.95.495 · dropped when a life stone shatters · deliver 2 to Nurse Rein to make her a callable healer contact
   fairy:            { label: 'Fairy',                   order: 48 },   // v0.95.604 · 20% chance drop when Rizer SHATTERS an astralite stone with his HANDS (punch/kick) · the fairy was "pollinating" the stone at the time
+  raidcard:         { label: 'R.A.I.D. Card',            order: 4  },   // v0.95.655 · Prof Elarion's academy card · the canvas bag had a synthetic label but the ZyPhone Zycube panel showed the raw key 'raidcard'
   tower_battery:    { label: 'Tower Battery',           order: 49 },   // v0.95.611 · Scrapjaw tower network · 1 dropped per district-tower Scrap Chest · deliver to Scrapjaw to light up that district's contact-call signal
   ruby_vial:        { label: 'Ruby Vial',               order: 51 },   // v0.95.615 · Silver chest inside Seer HQ 1F · fetch quest item for the future Potion Maker (spawns in front of Malezor Potion Shop) · when returned she opens shop selling ales/potions/elixirs at premium price
   shardshare_broken:{ label: 'Broken Shardshare',       order: 52 },   // v0.95.619 · Silver chest at (69,358) · "looks like something dad can fix" · bring to Dad
@@ -3370,7 +3384,11 @@ const WORLD_PROPS = [
       // Zarvane · shady oasis rim + south wilds
       [ 76, 214], [110, 292],
       // Andrannor · central band
-      [225, 336], [270, 322],
+      // v0.95.655 · (270,322) was buried INSIDE Club 50's building footprint —
+      // all four neighbours were _buildingCovered, so the chest could never be
+      // reached, faced or thrown.  Moved clear of the club, still in the same
+      // enemy cluster (5 hostiles within 8 tiles).
+      [225, 336], [269, 329],
       // Veridan · northern cliffs
       [350, 232],
       // ── v0.95.643 · more Seer chests at DENSE enemy sites + the new camps ──
@@ -3417,7 +3435,7 @@ const WORLD_PROPS = [
         prop.detonated = true;
         if (player) player[flag] = true;
         try { spawnHitFx(prop.tileX, prop.tileY, 'ultimate'); } catch(_){}
-        try { playSFX('astralkickBoom'); } catch(_){ try { playSFX('astralkick'); } catch(_){} }
+        try { playSFX('astralkick'); } catch(_){}   // v0.95.655 · was 'astralkickBoom' · no such key
         try { if (window.__rumbleHit) window.__rumbleHit('ultimate'); } catch(_){}
         // Show the real explosion sheet here too, so opening one and throwing
         // one read as the same event from the same object.
@@ -8218,12 +8236,74 @@ function drawSkellorOverlay(){
   }
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★ NPC PLACEMENT SANITIZER · v0.95.655 · found by the full-game audit
+//
+// A world-wide sweep found 19 overworld NPCs standing on tiles they can never
+// legally occupy:
+//   · 11 spawned INSIDE a prop's collision footprint — they cannot step off
+//     their own tile, and the player cannot walk adjacent to fight or talk to
+//     them.  Four Seer Grunts, two Morlisks, two Vileroks/Mori, a Satyrbeast
+//     and three wandering Mori were simply inert.
+//   · 8 stood OFF THE LAND MASK entirely — floating on Void Sea / water south
+//     of Andrannor.
+//
+// Hand-editing 19 scattered coordinate literals fixes today and nothing else;
+// the same mistake has recurred every time the world grows (two stuck grunts
+// were nudged by hand back in v0.95.646).  This sweeps at boot instead, so a
+// bad coordinate self-corrects and every future placement error is caught the
+// first time the game runs.
+//
+// It moves homeX/homeY too.  Nudging only tileX/tileY would leave the wander
+// AI anchored inside the wall, and it would walk straight back in.
+function sanitizeNpcPlacement(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  const legal = (x, y) =>
+    isWorldLandTile(x, y) && !isWorldBorderTile(x, y) &&
+    !_propBlocked.has(x + ',' + y) && !_buildingCovered.has(x + ',' + y);
+  const moved = [];
+  for (const n of NPCS){
+    if (!n || n.scene !== 'overworld' || typeof n.tileX !== 'number') continue;
+    if (legal(n.tileX, n.tileY)) continue;
+    const why = !isWorldLandTile(n.tileX, n.tileY) ? 'off-land' : 'inside-prop';
+    const home = worldDistrictAt(n.tileX, n.tileY);
+    let best = null;
+    // Ring search outward.  Pass 1 insists on staying in the district the NPC
+    // was authored into so an enemy never changes district band on us.
+    for (let pass = 0; pass < 2 && !best; pass++){
+      for (let r = 1; r <= 20 && !best; r++){
+        for (let dy = -r; dy <= r && !best; dy++){
+          for (let dx = -r; dx <= r; dx++){
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const x = n.tileX + dx, y = n.tileY + dy;
+            if (!legal(x, y)) continue;
+            if (pass === 0 && home && worldDistrictAt(x, y) !== home) continue;
+            best = { x, y }; break;
+          }
+        }
+      }
+    }
+    if (!best) continue;                       // leave it rather than teleport it far
+    moved.push(`${n.id}(${n.tileX},${n.tileY})->(${best.x},${best.y}) ${why}`);
+    n.tileX = n.homeX = best.x;
+    n.tileY = n.homeY = best.y;
+    n.moving = false;
+  }
+  if (moved.length){
+    console.warn(`[rp7b] placement sanitizer relocated ${moved.length} NPC(s):\n  ` + moved.join('\n  '));
+  }
+  return moved.length;
+}
+
 // v0.95.650 · TOWER NETWORK · stand up the 9 district guard packs at boot.
 // Deferred one tick so every enemy definition (Vilerok, Satyrbeast, Daemon,
 // Morlisk, Skellor, Seer Grunt) is in NPCS before we clone from them.
 setTimeout(() => { try {
   const n = buildTowerGuardPacks();
   if (n) console.log(`[rp7b] tower network · ${n} guards deployed across 9 districts`);
+  // v0.95.655 · run AFTER the guards land so they are sanitized too
+  try { sanitizeNpcPlacement(); } catch(err){ console.warn('[rp7b] placement sanitize failed', err); }
 } catch(err){ console.warn('[rp7b] tower guard build failed', err); } }, 0);
 
 // v0.95.477 · SCRAPJAW TOWER QUEST · resurrect the 6 tower Mori + the tower-boss
@@ -11190,7 +11270,7 @@ const BOOM_BLASTS = [];   // {tileX,tileY,t0} · explosion FX, prop-agnostic
 function detonateBoomChest(b, skinId){
   if (!b || b.gone || b._boomArmed || b._detonatedOnce) return;
   b._boomArmed = performance.now();
-  try { playSFX('astralkickBoom'); } catch(_){ try { playSFX('kickHit'); } catch(_){} }
+  try { playSFX('astralkick'); } catch(_){}   // v0.95.655 · was 'astralkickBoom' · no such key · BOOM chests detonated in silence
   setTimeout(() => {
     if (b._detonatedOnce) return;
     b._detonatedOnce = true;
@@ -22914,7 +22994,7 @@ function grantWildFighterXp(p, w){
   const gained = zyrexXpReward(w, p, 'wild');
   for (const ev of grantZyrexXp(p, gained)){
     if (ev.type === 'evolve'){
-      try { playSFX('evolve'); } catch(_){ try { playSFX('levelup'); } catch(_){} }
+      try { playSFX('levelUp'); } catch(_){}   // v0.95.655 · 'evolve' and 'levelup' are both undefined keys · evolutions were silent
       try { showToast(`◈ ${ev.from} evolved into ${ev.to} · Tier ${ev.tier}`, 4200); } catch(_){}
     } else if (ev.type === 'learn'){
       try { showToast(`◈ ${p.name} learned ${ev.move}!`, 2600); } catch(_){}
@@ -22971,7 +23051,7 @@ function wildFighterAttack(attacker,defender,kind){
 }
 function wildFighterJump(f){
   if(!f||!f.grounded||f.blocking||f.crouching||performance.now()<f.attackUntil)return false;
-  f.grounded=false;f.vy=-570;playSFX('jump');return true;
+  f.grounded=false;f.vy=-570;playSFX('jumpLand');return true;   // v0.95.655 · was 'jump' · no such key
 }
 function wildFighterDodge(f,opponent){
   const now=performance.now();
@@ -23566,7 +23646,7 @@ function battleResolveRound(){
       if (ev.type === 'learn'){
         battleQueueMsg([`${p.name} learned ${ev.move}!`]);
       } else if (ev.type === 'evolve'){
-        try { playSFX('evolve'); } catch(_){ try { playSFX('levelup'); } catch(_){} }
+        try { playSFX('levelUp'); } catch(_){}   // v0.95.655 · 'evolve' and 'levelup' are both undefined keys · evolutions were silent
         battleQueueMsg([
           `What? ${ev.from} is evolving!`,
           `Congratulations! ${ev.from} evolved into ${ev.to}!`,

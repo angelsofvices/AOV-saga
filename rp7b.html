@@ -3025,9 +3025,16 @@ function settlementBearingsFor(dist){
 }
 // Candidate house plots for a district, in placement order.  Honours every rule
 // above and refuses to return a plot that would block a door, a plaza or a road.
-function findHomePlots(dist, count, seed){
+// `isFree` lets the caller supply its own tile test.  It defaults to walkable(),
+// which is right at runtime — but walkable() reads game.scene, and `game` is
+// still in its TDZ while WORLD_PROPS is being built.  That trap has now bitten
+// this file three times (walkable in the grass scatter, isVeridanRiverTile in
+// the freshwater prune, and this), so the boot-time caller passes a test built
+// from `reserved` and _propBlocked instead of the function being patched again.
+function findHomePlots(dist, count, seed, isFree){
   const D = (typeof ZYRAXIS_DISTRICT_BY_ID !== 'undefined') ? ZYRAXIS_DISTRICT_BY_ID[dist] : null;
   if (!D || !count) return [];
+  const free = isFree || ((x, y) => walkable(x, y));
   const S = SETTLEMENT_DOCTRINE;
   const rng = _makeWorldRng((seed || 0x50FA) + D.cx * 131 + D.cy);
   const bearingOf = (dx, dy) => {
@@ -3052,9 +3059,13 @@ function findHomePlots(dist, count, seed){
     if (t < S.T_MIN || t > S.T_MAX) return false;
     const q = wheelQuarterAt(dist, bearingOf(x - D.cx, y - D.cy));
     if (!SETTLEMENT_QUARTERS.includes(q)) return false;   // rule 2 · timber and slope only
-    // a house is 4x4-ish; keep its whole plot walkable and unclaimed
-    for (let oy = -3; oy <= 1; oy++) for (let ox = -2; ox <= 2; ox++){
-      if (!walkable(x + ox, y + oy)) return false;
+    // v0.95.675 · match the REAL house footprint.  Every home in the game is
+    // 5x5 with dy -4..0 and dx -2..2 (villager_home, player_home, zarvane_home
+    // all agree), plus one row in front to stand on.  The first draft checked
+    // dy -3..1, which is the right size but shifted a row up, so a plot could
+    // pass with its back wall on a blocked tile.
+    for (let oy = -4; oy <= 1; oy++) for (let ox = -2; ox <= 2; ox++){
+      if (!free(x + ox, y + oy)) return false;
     }
     if (hq  && Math.hypot(x - hq.door[0],  y - hq.door[1])  < S.CLEAR_OF_HQ) return false;
     if (tower && Math.hypot(x - tower.tower[0], y - tower.tower[1]) < S.CLEAR_OF_TOWER) return false;
@@ -5490,6 +5501,18 @@ const DISTRICT_GRASS_ART = {
   vorashil:  { a:[0,0,756,709], b:[0,0,756,709] },
   xilnar:    { a:[0,0,763,700], b:[0,0,763,700] },
 };
+// Houses · three variants per district so a street never repeats a silhouette
+// two doors down.  Only districts listed here get a neighbourhood; the rest wait
+// for their art.  Placement is entirely findHomePlots() — see
+// [[aov-settlement-doctrine]] — so no coordinates are hand-typed.
+const DISTRICT_HOME_ART = {
+  veridan: [
+    { file:'veridan-house-cottage.png',  bbox:[ 14, 49,1225,1117] },  // green tile + round teal windows
+    { file:'veridan-house-stilt.png',    bbox:[ 12, 22,1230,1196] },  // raised verandah on timber piles
+    { file:'veridan-house-leafroof.png', bbox:[ 13, 15,1228,1202] },  // living leaf roof + glass conservatory
+  ],
+};
+const DISTRICT_HOME_COUNT = 9;      // 3 of each variant · Malezor runs 11
 // Grass is the one layer that covers the WHOLE region rather than clustering in
 // one quarter — the Creator asked for it "throughout entire region".  Density
 // still follows the wheel so the place reads correctly: meadow thickest in the
@@ -5534,7 +5557,7 @@ const TREE_KEEP_CLEAR = [
     if (Math.abs(dy) <= Math.abs(dx) * 0.45) return dx < 0 ? 'W' : 'E';
     return (dy < 0 ? 'N' : 'S') + (dx < 0 ? 'W' : 'E');
   };
-  let planted = 0, bushed = 0, grassed = 0;
+  let planted = 0, bushed = 0, grassed = 0, homed = 0;
   const perDistrict = {};
   for (const D of ZYRAXIS_DISTRICTS){
     const art = DISTRICT_TREE_ART[D.id];
@@ -5632,6 +5655,55 @@ const TREE_KEEP_CLEAR = [
       const ang = rng() * Math.PI * 2, rad = 0.32 + rng() * 0.52;
       addBush(D.cx + Math.cos(ang) * D.rx * rad, D.cy + Math.sin(ang) * D.ry * rad);
     }
+    // ── DISTRICT HOMES · placed by the settlement doctrine ──────────────
+    // v0.95.675 · The first district to get houses through findHomePlots()
+    // rather than a hand-typed coordinate list.  Three variants per district,
+    // cycled so no two neighbours are the same building, dropped onto plots the
+    // doctrine already chose: forest+highland arc, t 0.18-0.50, 9+ tiles apart,
+    // never on the road ([[aov-settlement-doctrine]]).
+    //
+    // Runs BEFORE the grass so the meadows fill in around the houses rather
+    // than the houses landing on top of a meadow.
+    const homeArt = DISTRICT_HOME_ART[D.id];
+    if (homeArt && homeArt.length){
+      const imgs = homeArt.map(a => {
+        const im = new Image();
+        im.src = `assets/2D%20sprites/buildings/homes/${a.file}`;
+        return im;
+      });
+      // TDZ-safe tile test · `reserved` already carries _buildingCovered plus
+      // every prop footprint placed so far, which is what a house plot needs.
+      const plots = findHomePlots(D.id, DISTRICT_HOME_COUNT, 0x50FA, (x, y) =>
+        isWorldLandTile(x, y) && !isWorldBorderTile(x, y) && !reserved.has(`${x},${y}`));
+      plots.forEach(([hx, hy], i) => {
+        const v = i % homeArt.length;
+        const a = homeArt[v];
+        WORLD_PROPS.push({
+          id: `${D.id}_home_${i}`,
+          img: imgs[v],
+          src: `assets/2D%20sprites/buildings/homes/${a.file}`,
+          bbox: a.bbox,
+          tileX: hx, tileY: hy,
+          tileW: 5, tileH: 5,
+          footprint: (function(){
+            const f = [];
+            for (let dy = -4; dy <= 0; dy++){
+              for (let dx = -2; dx <= 2; dx++){ f.push([dx, dy]); }
+            }
+            return f;
+          })(),
+          door: [0, 0],
+          _doctrineHome: D.id,
+          _homeVariant: a.file.replace(/\.png$/, ''),
+          onInteract: () => { try { tryPurchaseHome(`${D.id}_${i}`, hx, hy); } catch(_){} },
+        });
+        reserved.add(`${hx},${hy}`);
+        for (let dy = -4; dy <= 0; dy++){
+          for (let dx = -2; dx <= 2; dx++){ reserved.add(`${hx+dx},${hy+dy}`); }
+        }
+        homed++;
+      });
+    }
     // ── WILD GRASS · region-wide ────────────────────────────────────────
     const grassArt = DISTRICT_GRASS_ART[D.id];
     if (grassArt){
@@ -5711,6 +5783,7 @@ const TREE_KEEP_CLEAR = [
     const summary = Object.entries(perDistrict).map(([d, n]) => `${d}:${n}`).join(' ');
     console.log(`[rp7b] district flora · ${planted} trees + ${bushed} bushes + ${grassed} grass · ${summary}`);
   }
+  if (homed) console.log(`[rp7b] district homes · ${homed} placed by the settlement doctrine`);
 })();
 
 // Load prop images (pre-baked · no chroma-key needed)

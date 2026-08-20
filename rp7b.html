@@ -13518,6 +13518,84 @@ function playDreamVideo(alive, opts = {}){
   window.addEventListener('pointerdown',_dreamSkipHandlers.p, true);
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★ FACING-INTERACTABLE · v0.95.659 · Creator directive
+// "when I use my controller and I try to get the bag and the skateboard and
+//  the phone from RR, I jump. when I use return key, I grab it. grab/interact
+//  should prioritize before jump when in the RR and any other interactable
+//  tile asset"
+//
+// WHY THE CONTROLLER DIFFERED FROM ENTER · Cross dispatches 'x', and 'x' runs
+// through the "smart X" branch that decides interact-vs-jump.  That branch
+// enumerated interactables by hand and its interior list only knew about the
+// exit door, NPCs and the Rizer Room bed.  Facing the BACKPACK, SKATEBOARD or
+// ZPHONE it found nothing, jumped, and RETURNED — never reaching the
+// v0.95.472 "Rizer Room interact hardline" further down that exists precisely
+// to force those grabs.  A hardline can't help when an earlier branch already
+// returned.  ENTER is not part of the smart branch, so it fell straight
+// through to the interact path and worked.  Same button, two code paths.
+//
+// The enumeration was always going to fall behind the world — it is why this
+// broke.  So this is now ONE function every path shares, and it asks about
+// real interactables rather than a remembered list.
+function isFacingInteractable(fx, fy){
+  const cfg = interiorConfig(game.scene);
+  if (!cfg){
+    // ── OVERWORLD ──
+    if (_propDoors.has(`${fx},${fy}`)) return true;         // doors, chests, seer chests
+    for (const n of NPCS){
+      if (n.scene === 'overworld' && n.tileX === fx && n.tileY === fy) return true;
+    }
+    if (boulderAt('overworld', fx, fy)) return true;
+    if (plantPropAt(fx, fy)) return true;
+    for (const n of NPCS){
+      if (n.scene !== 'overworld' || !n.interactHitbox) continue;
+      for (const [ddx, ddy] of n.interactHitbox){
+        if (n.tileX + ddx === fx && n.tileY + ddy === fy) return true;
+      }
+    }
+    for (const p of WORLD_PROPS){
+      if (!p || typeof p.onInteract !== 'function') continue;   // generic: ANY interactable prop
+      if (p._hidden) continue;
+      if (p.tileX === fx && p.tileY === fy) return true;
+    }
+    if (_fae && _fae.some(f => !f.collected && f.x === fx && f.y === fy)) return true;
+    if (typeof WILD_ZYREX !== 'undefined'
+        && WILD_ZYREX.some(w => !w._gone && w.tileX === fx && w.tileY === fy)) return true;
+    return false;
+  }
+  // ── INTERIORS ──
+  if (cfg.exit && fx === cfg.exit.x && fy === cfg.exit.y) return true;
+  for (const n of NPCS){
+    if (n.scene === game.scene && n.tileX === fx && n.tileY === fy) return true;
+  }
+  // ★ THE REPORTED BUG · every Rizer Room item (backpack · skateboard ·
+  //   zphone · dummy · pc · science table · chair · bed · tv · basketball).
+  if (cfg.rizerRoom && typeof roomItemAtTile === 'function' && roomItemAtTile(fx, fy)) return true;
+  if (cfg.rizerRoom && fx >= 12 && fx <= 14 && (fy === 8 || fy === 9)) return true;   // bed band
+  // NOT stairs.  They fire from STANDING on cfg.stairs.triggers (see the
+  // movement tick), never from X — so counting them here would only swallow a
+  // legitimate jump next to the staircase and give nothing back.
+  // Named interior fixtures that each own a bespoke interact branch
+  if (game.scene === 'interior_treehouse'){
+    if (fx === TREEHOUSE_CHEST.tileX      && fy === TREEHOUSE_CHEST.tileY) return true;
+    if (fx === TREEHOUSE_GOLD_CHEST.tileX && fy === TREEHOUSE_GOLD_CHEST.tileY) return true;
+  }
+  if (game.scene === 'interior_seer_hq_1f'
+      && fx === SEER_HQ_CHEST_TILE.tileX && fy === SEER_HQ_CHEST_TILE.tileY) return true;
+  if (cfg.researchLab){
+    if (fy === 2 && fx >= 9 && fx <= 11) return true;                       // Dad's workbench
+    const B = DADS_BOOKSHELF_TILES;                                          // v0.95.658 bookshelf
+    if (fy === B.y && fx >= B.x && fx < B.x + B.w) return true;
+  }
+  if (game.scene === 'interior_malezor_school'
+      && fy >= SCHOOL_DESK_TILE.tileY - 1 && fy <= SCHOOL_DESK_TILE.tileY
+      && fx >= SCHOOL_DESK_TILE.tileX - Math.floor(SCHOOL_DESK_TILE_W / 2)
+      && fx <  SCHOOL_DESK_TILE.tileX + Math.ceil(SCHOOL_DESK_TILE_W / 2)) return true;
+  return false;
+}
+
 // v0.95.4 · Sleep fade overlay · black flash triangle during nap
 function drawSleepFade(){
   if (!_sleepFade) return;
@@ -18651,50 +18729,7 @@ addEventListener('keydown', e => {
       if (player.dir === 'down')  fy++;
       if (player.dir === 'left')  fx--;
       if (player.dir === 'right') fx++;
-      let facingInteract = false;
-      if (game.scene === 'overworld'){
-        if (_propDoors.has(`${fx},${fy}`)) facingInteract = true;
-        if (!facingInteract){
-          for (const n of NPCS){
-            if (n.scene === 'overworld' && n.tileX === fx && n.tileY === fy){ facingInteract = true; break; }
-          }
-        }
-        if (!facingInteract && boulderAt('overworld', fx, fy)) facingInteract = true;
-        if (!facingInteract && plantPropAt(fx, fy))            facingInteract = true;
-        if (!facingInteract){
-          for (const n of NPCS){
-            if (n.scene !== 'overworld' || !n.interactHitbox) continue;
-            for (const [ddx, ddy] of n.interactHitbox){
-              if (n.tileX + ddx === fx && n.tileY + ddy === fy){ facingInteract = true; break; }
-            }
-            if (facingInteract) break;
-          }
-        }
-        if (!facingInteract){
-          for (const p of WORLD_PROPS){
-            if (!p || !p.id || !p.id.startsWith('chest_')) continue;
-            if (p.tileX === fx && p.tileY === fy){ facingInteract = true; break; }
-          }
-        }
-        // Fae on the faced tile count as interactable too
-        if (!facingInteract){
-          const faeOnTile = _fae && _fae.find(f => !f.collected && f.x === fx && f.y === fy);
-          if (faeOnTile) facingInteract = true;
-        }
-      } else if (interiorConfig(game.scene)){
-        const cfg = interiorConfig(game.scene);
-        if (cfg && cfg.exit && fx === cfg.exit.x && fy === cfg.exit.y) facingInteract = true;
-        if (!facingInteract){
-          for (const n of NPCS){
-            if (n.scene === game.scene && n.tileX === fx && n.tileY === fy){ facingInteract = true; break; }
-          }
-        }
-        // Bed tile in Rizer Room
-        if (!facingInteract && cfg && cfg.rizerRoom
-            && fx >= 12 && fx <= 14 && (fy === 8 || fy === 9)){
-          facingInteract = true;
-        }
-      }
+      const facingInteract = isFacingInteractable(fx, fy);
       // No interactable → jump immediately (preserves keyboard `x` = jump behavior)
       if (!facingInteract){
         player.jumpStart = jumpTapNow;

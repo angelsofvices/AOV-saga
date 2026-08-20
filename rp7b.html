@@ -9347,6 +9347,50 @@ const DISTRICT_PROP_THEMES=Object.fromEntries([
 // Exit tile = the door position (bottom-center) · spawn is 1 tile INTO
 // the room from the door facing up.  Player must walk back to the exit
 // tile and press X (or stand on it + X) to leave · Circle no longer exits.
+// v0.95.656 · MOVED UP from further down the file.  INTERIOR_HOME and the
+// other house configs now call pickDoormatKey() while their object literals
+// are being evaluated, and DOORMAT_KEYS is a const — declaring it below them
+// put it in the temporal dead zone and the whole script died at boot with
+// "Cannot access 'DOORMAT_KEYS' before initialization".
+// v0.95.610 · Doormat pack · 8 rugs · every purchased Rizer Room deterministically
+// picks one based on a hash of its homeId · original Rizer Room + INTERIOR_HOME
+// keep their existing RUG_IMG (unchanged per user directive).
+const DOORMAT_KEYS = ['welcome','hello','hi','greetings','enjoy','come-in','good-vibes','be-our-guest'];
+const DOORMAT_IMGS = {};
+DOORMAT_KEYS.forEach(k => {
+  const im = new Image();
+  im.src = `assets/2D%20sprites/decor/rugs/${k}.png`;
+  DOORMAT_IMGS[k] = im;
+});
+// v0.95.656 · The rug slot is authored 3x1 because the ORIGINAL welcome-rug
+// art was 3.07:1.  The Creator's 8-mat pack is ~1.37:1 — squarish — so forcing
+// it into a 3x1 box would squash every mat by more than half.  Per
+// [[image-never-stretch-console-fullscreen]] the draw derives its size from
+// the image's own aspect instead: fit inside the slot width, cap the height so
+// a mat stays mat-sized, then centre on the slot and sit it on the door row.
+const DOORMAT_MAX_H_TILES = 1.6;
+// v0.95.656 · HOUSES ONLY.  Official buildings (research lab, training farm,
+// academy, Seer HQ, cave, and the dev unlock-all-doors scenes) get no mat —
+// they are getting their own door system.  interior_home_2f is excluded too:
+// it is the upstairs bedroom, reached by stairs, not a front door.
+const HOUSE_INTERIOR_SCENES = new Set([
+  'interior_home',          // player's family home · 1F front door
+  'interior_crazy_home',    // Crazy's house
+  'interior_treehouse',     // Zoryn's treehouse hideout
+]);
+function isHouseInterior(scene){
+  if (!scene) return false;
+  if (HOUSE_INTERIOR_SCENES.has(scene)) return true;
+  // every purchased Rizer Room / Malezor home is a house
+  return !!(typeof MALEZOR_HOME_INTERIORS !== 'undefined' && MALEZOR_HOME_INTERIORS[scene]);
+}
+function pickDoormatKey(seed){
+  const s = String(seed || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++){ h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; }
+  return DOORMAT_KEYS[Math.abs(h) % DOORMAT_KEYS.length];
+}
+
 const INTERIOR_HOME = {
   cols: 15, rows: 10,                           // v0.59 · was 15x15
   tileImg: new Image(),
@@ -9357,7 +9401,8 @@ const INTERIOR_HOME = {
   // so they aren't standing on the house prop after exit.
   overworldDrop: { x: 22, y: 106, dir: 'down' },
   // Decor rug · 3 tiles wide × 1 tall · on row 9 · player enters onto it.
-  rug: { x: 6, y: 9, w: 3, h: 1 },
+  // v0.95.656 · now draws one of the Creator's 8 doormats (see DOORMAT_KEYS).
+  rug: { x: 6, y: 9, w: 3, h: 1, key: pickDoormatKey('interior_home') },
   wallImg: 'malezor',                           // v0.81 · Malezor upper wall
   // Stairs UP to 2F · v0.60 · upper-LEFT corner · 2 wide x 3 tall visual.
   // v0.64 · pushed up 1 row · top row (visY=-1) sits in the black
@@ -9841,6 +9886,8 @@ const INTERIOR_CRAZY_HOME = {
   tileImg: new Image(),
   spawn: { x: 7, y: 13, dir: 'up' },
   exit:  { x: 7, y: 14 },
+  // v0.95.656 · front-door mat · Crazy's place is a HOUSE, so it gets one
+  rug: { x: 6, y: 14, w: 3, h: 1, key: pickDoormatKey('interior_crazy_home') },
   wallImg: 'malezor',                           // v0.81 · Malezor upper wall
 };
 INTERIOR_CRAZY_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
@@ -9962,6 +10009,8 @@ const INTERIOR_TREEHOUSE = {
   spawn: { x: 15, y: 29, dir: 'up' },
   exit:  { x: 15, y: 29 },
   autoExit: true,
+  // v0.95.656 · treehouse is a dwelling, not an official building · gets a mat
+  rug: { x: 14, y: 29, w: 3, h: 1, key: pickDoormatKey('interior_treehouse') },
   wallImg: 'malezor',
   blocked: [],
   label: '◈ TREEHOUSE HIDEOUT · your Zyrex socialize here · walk out to leave',
@@ -10433,23 +10482,6 @@ function currentNebuladockImg(){
 const RIZER_RUG_IMG = new Image();
 RIZER_RUG_IMG.src = 'assets/2D%20sprites/decor/rizer-rug.png';
 const RIZER_RUG_BBOX = [1, 0, 1188, 801];
-
-// v0.95.610 · Doormat pack · 8 rugs · every purchased Rizer Room deterministically
-// picks one based on a hash of its homeId · original Rizer Room + INTERIOR_HOME
-// keep their existing RUG_IMG (unchanged per user directive).
-const DOORMAT_KEYS = ['welcome','hello','hi','greetings','enjoy','come-in','good-vibes','be-our-guest'];
-const DOORMAT_IMGS = {};
-DOORMAT_KEYS.forEach(k => {
-  const im = new Image();
-  im.src = `assets/2D%20sprites/decor/rugs/${k}.png`;
-  DOORMAT_IMGS[k] = im;
-});
-function pickDoormatKey(seed){
-  const s = String(seed || '');
-  let h = 0;
-  for (let i = 0; i < s.length; i++){ h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; }
-  return DOORMAT_KEYS[Math.abs(h) % DOORMAT_KEYS.length];
-}
 
 // v0.95.63 · Gaming Chair · sit-and-ride (empty chair sprite + 4x4 sit sheet)
 const GAMING_CHAIR_IMG = new Image();
@@ -16532,11 +16564,19 @@ function drawInteriorFloor(){
   const rug = cfg.rug;
   if (rug && rug.key && DOORMAT_IMGS[rug.key]
       && DOORMAT_IMGS[rug.key].complete && DOORMAT_IMGS[rug.key].naturalWidth){
-    const img = DOORMAT_IMGS[rug.key];
-    const dx = rug.x * TILE - _cam.x;
-    const dy = rug.y * TILE - _cam.y;
-    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight,
-                  dx, dy, rug.w * TILE, rug.h * TILE);
+    const img  = DOORMAT_IMGS[rug.key];
+    const natW = img.naturalWidth, natH = img.naturalHeight;
+    const slotW = rug.w * TILE;
+    const maxH  = (rug.hMax || DOORMAT_MAX_H_TILES) * TILE;
+    // v0.95.656 · LETTERBOX, never stretch.  Fit to slot width first, then
+    // shrink if that would make the mat taller than a mat should be.
+    let drawW = slotW, drawH = Math.round(slotW * natH / natW);
+    if (drawH > maxH){ drawH = Math.round(maxH); drawW = Math.round(drawH * natW / natH); }
+    // Centre across the slot, and rest the mat's bottom edge on the door row
+    // so the player walks onto it rather than through it.
+    const dx = Math.round(rug.x * TILE + (slotW - drawW) / 2) - _cam.x;
+    const dy = Math.round((rug.y + rug.h) * TILE - drawH) - _cam.y;
+    ctx.drawImage(img, 0, 0, natW, natH, dx, dy, drawW, drawH);
   } else if (rug && RUG_IMG.complete && RUG_IMG.naturalWidth){
     const [sx, sy, sw, sh] = RUG_BBOX;
     const dx = rug.x * TILE - _cam.x;

@@ -629,6 +629,19 @@
            style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:22; display:none;"></video>
     <!-- v0.95.60 · Skip hint · shown 3s over intro video, then fades · skip stays active -->
     <div id="introSkipHint" style="position:absolute; left:50%; bottom:6%; transform:translateX(-50%); z-index:24; display:none; pointer-events:none; padding:10px 22px; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; font: bold 14px 'Courier New',monospace; letter-spacing:0.12em; text-align:center; opacity:1; transition:opacity 0.8s ease-out;">HOLD X · ENTER · OR TAP TO SKIP</div>
+    <!-- v0.95.663 · NEW GAME overwrite prompt.  MUST be DOM, not canvas: the
+         title screen is an intro <video> (z-index 20) with DOM buttons over it
+         (z-index 25), both painted ABOVE the canvas — a canvas-drawn prompt is
+         invisible behind them, which is exactly what went wrong in v0.95.662. -->
+    <div id="newGameConfirm" style="position:absolute; inset:0; display:none; z-index:130; background:rgba(0,0,0,0.88); font-family:'Courier New',monospace; align-items:center; justify-content:center;">
+      <div style="width:min(560px,92vw); background:rgba(10,6,14,0.98); border:3px solid #c0392b; padding:22px 26px; box-shadow:0 0 40px rgba(192,57,43,0.5);">
+        <div style="color:#ff6b6b; font:bold 18px 'Courier New',monospace; text-align:center; letter-spacing:.06em;">OVERWRITE YOUR SAVED RUN?</div>
+        <div id="ngcSummary" style="color:#eaf0ff; font-size:13px; text-align:center; margin-top:14px; line-height:1.7;"></div>
+        <div style="color:#ffd66b; font-size:12px; text-align:center; margin:14px 0 18px;">Starting a new game ERASES it. This cannot be undone.</div>
+        <button class="ngcOpt" data-idx="0" style="display:block; width:100%; margin-bottom:10px; padding:12px; font:bold 13px 'Courier New',monospace; cursor:pointer; background:rgba(95,220,122,0.25); color:#fff; border:2px solid #5fdc7a;">◄ KEEP MY SAVE</button>
+        <button class="ngcOpt" data-idx="1" style="display:block; width:100%; padding:12px; font:bold 13px 'Courier New',monospace; cursor:pointer; background:rgba(255,255,255,0.06); color:#99a; border:1px solid #556;">ERASE AND START OVER</button>
+      </div>
+    </div>
     <div id="titleBtns" style="position:absolute; inset:0; display:none; z-index:25; pointer-events:none;">
       <div style="position:absolute; left:50%; bottom:14%; transform:translateX(-50%); display:flex; flex-direction:column; gap:14px; pointer-events:auto;">
         <button class="tBtn" data-idx="0" style="width:280px; padding:14px 20px; font: bold 20px 'Courier New',monospace; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; cursor:pointer; letter-spacing:0.08em;">NEW GAME</button>
@@ -10362,68 +10375,73 @@ function requestNewGame(){
   const run = savedRunSummary();
   if (!run){ startNewGame(); return; }        // nothing on disk · no need to ask
   newGameConfirm = { idx: 0 };                // default to CANCEL, never to destroy
+  _ngcShown = null;                           // force the overlay to repaint
+  try { drawNewGameConfirm(); } catch(_){}    // show it NOW, not on the next frame
   try { playSFX('doorLock'); } catch(_){}
 }
+const ngcEl = () => document.getElementById('newGameConfirm');
+let _ngcWired = false, _ngcShown = null;
+// Called every frame from the render loop, but only touches the DOM when the
+// state actually changes — same discipline as the ZyPhone repaint fix.
 function drawNewGameConfirm(){
-  if (!newGameConfirm) return;
-  const run = savedRunSummary();
-  if (!run){ newGameConfirm = null; return; }
-  const W = canvas.width, H = canvas.height;
-  ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.86)';
-  ctx.fillRect(0, 0, W, H);
-  const bw = Math.min(560, W - 60), bh = 260;
-  const bx = Math.floor((W - bw) / 2), by = Math.floor((H - bh) / 2);
-  ctx.fillStyle = 'rgba(10,6,14,0.98)';
-  ctx.fillRect(bx, by, bw, bh);
-  ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 3;
-  ctx.strokeRect(bx, by, bw, bh);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ff6b6b';
-  ctx.font = 'bold 18px "Courier New", monospace';
-  ctx.fillText('OVERWRITE YOUR SAVED RUN?', W / 2, by + 40);
-  ctx.fillStyle = '#eaf0ff';
-  ctx.font = '13px "Courier New", monospace';
-  ctx.fillText(`Rizer Lv ${run.lvl}  ·  ${run.zyrex} Zyrex  ·  ${run.towers}/10 towers`, W / 2, by + 76);
-  ctx.fillStyle = '#8ff';
-  ctx.font = '11px "Courier New", monospace';
-  ctx.fillText(`last saved ${run.when}`, W / 2, by + 98);
-  ctx.fillStyle = '#ffd66b';
-  ctx.font = '12px "Courier New", monospace';
-  ctx.fillText('Starting a new game ERASES it. This cannot be undone.', W / 2, by + 130);
-  // two options · CANCEL first so the safe choice is the default
-  const opts = ['◄ KEEP MY SAVE', 'ERASE AND START OVER'];
-  for (let i = 0; i < 2; i++){
-    const oy = by + 164 + i * 42, ow = bw - 80, ox = bx + 40;
-    const on = newGameConfirm.idx === i;
-    ctx.fillStyle = on ? (i === 0 ? 'rgba(95,220,122,0.25)' : 'rgba(192,57,43,0.30)') : 'rgba(255,255,255,0.06)';
-    ctx.fillRect(ox, oy, ow, 34);
-    ctx.strokeStyle = on ? (i === 0 ? '#5fdc7a' : '#ff6b6b') : '#556';
-    ctx.lineWidth = on ? 2 : 1;
-    ctx.strokeRect(ox, oy, ow, 34);
-    ctx.fillStyle = on ? '#fff' : '#99a';
-    ctx.font = `bold 13px "Courier New", monospace`;
-    ctx.fillText(opts[i], W / 2, oy + 23);
+  const el = ngcEl();
+  if (!el) return;
+  if (!_ngcWired){
+    _ngcWired = true;
+    el.querySelectorAll('.ngcOpt').forEach(b => {
+      b.addEventListener('mouseenter', () => {
+        if (newGameConfirm){ newGameConfirm.idx = Number(b.dataset.idx); _ngcShown = null; }
+      });
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!newGameConfirm) return;
+        newGameConfirm.idx = Number(b.dataset.idx);
+        handleNewGameConfirmKey('enter');
+      });
+    });
   }
-  ctx.restore();
-  ctx.textAlign = 'left';
+  const key = newGameConfirm ? `on:${newGameConfirm.idx}` : 'off';
+  if (key === _ngcShown) return;
+  _ngcShown = key;
+  if (!newGameConfirm){ el.style.display = 'none'; return; }
+  const run = savedRunSummary();
+  if (!run){ newGameConfirm = null; el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const sum = document.getElementById('ngcSummary');
+  if (sum){
+    sum.innerHTML = `Rizer Lv <b style="color:#ffd66b;">${run.lvl}</b> &nbsp;·&nbsp; `
+      + `<b style="color:#ffd66b;">${run.zyrex}</b> Zyrex &nbsp;·&nbsp; `
+      + `<b style="color:#ffd66b;">${run.towers}</b>/10 towers`
+      + `<div style="color:#8ff; font-size:11px; margin-top:6px;">last saved ${run.when}</div>`;
+  }
+  el.querySelectorAll('.ngcOpt').forEach(b => {
+    const on = Number(b.dataset.idx) === newGameConfirm.idx;
+    const safe = b.dataset.idx === '0';
+    b.style.background  = on ? (safe ? 'rgba(95,220,122,0.25)' : 'rgba(192,57,43,0.30)') : 'rgba(255,255,255,0.06)';
+    b.style.border      = on ? `2px solid ${safe ? '#5fdc7a' : '#ff6b6b'}` : '1px solid #556';
+    b.style.color       = on ? '#fff' : '#99a';
+  });
 }
 // Returns true when it consumed the key.
 function handleNewGameConfirmKey(k){
   if (!newGameConfirm) return false;
   if (k === 'arrowup' || k === 'arrowdown'){
     newGameConfirm.idx = newGameConfirm.idx === 0 ? 1 : 0;
+    _ngcShown = null;
+    try { drawNewGameConfirm(); } catch(_){}
     try { playSFX('cursor'); } catch(_){}
     return true;
   }
   if (k === 'b' || k === 'escape'){
     newGameConfirm = null;
+    try { drawNewGameConfirm(); } catch(_){}
     try { playSFX('cancel'); } catch(_){}
     return true;
   }
   if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
     const go = newGameConfirm.idx === 1;
     newGameConfirm = null;
+    try { drawNewGameConfirm(); } catch(_){}   // hide before anything else runs
     if (go){ try { playSFX('confirm'); } catch(_){} startNewGame(); }
     else   { try { playSFX('cancel');  } catch(_){} }
     return true;
@@ -10500,7 +10518,7 @@ function loadSavedGame(){
   }
 }
 function drawTitleScreen(){
-  if (game.scene !== 'title'){ syncTitleBtns(); newGameConfirm = null; return; }
+  if (game.scene !== 'title'){ syncTitleBtns(); if (newGameConfirm){ newGameConfirm = null; try { drawNewGameConfirm(); } catch(_){} } return; }
   syncTitleBtns();
   const W = canvas.width, H = canvas.height;
   // v0.93.2 · Black canvas underneath the video (no title-image · no BGM).

@@ -5475,6 +5475,26 @@ const DISTRICT_TREE_ART = {
   vorashil:  { file:'vorashil-tree.png',  bbox:[ 99, 39,1064,1174] },
   xilnar:    { file:'xilnar-tree.png',    bbox:[ 64, 31,1130,1159] },
 };
+// Wild grass · two variants per district, exactly like Malezor's A/B pair.  The
+// variant is picked by a non-uniform hash of the tile so no two neighbours match
+// and the meadow never visibly tiles.  Every clump is NON-BLOCKING and carries
+// wildZone:true, which is what makes it emit noise underfoot and pull Mori and
+// Daemon patrols into aggro ([[aov-catching-philosophy]] · grass is terrain
+// flavour and noise, never a Pokemon-style catch roll).
+const DISTRICT_GRASS_ART = {
+  veridan:   { a:[0,0,528,656], b:[0,0,529,656] },
+  netharion: { a:[0,0,632,676], b:[0,0,632,676] },
+  baelgor:   { a:[0,0,520,886], b:[0,0,520,886] },
+  thardin:   { a:[0,0,672,662], b:[0,0,671,662] },
+  korathen:  { a:[0,0,570,557], b:[0,0,565,551] },
+  vorashil:  { a:[0,0,756,709], b:[0,0,756,709] },
+  xilnar:    { a:[0,0,763,700], b:[0,0,763,700] },
+};
+// Grass is the one layer that covers the WHOLE region rather than clustering in
+// one quarter — the Creator asked for it "throughout entire region".  Density
+// still follows the wheel so the place reads correctly: meadow thickest in the
+// wetland and forest, thinning over the highland, sparsest along the road.
+const QUARTER_GRASS_PATCHES = { wetland: 26, forest: 22, highland: 15, open: 9 };
 // Matching understory · each bush is the same palette as its district's tree,
 // so a grove reads as one plant community rather than two unrelated props.
 const DISTRICT_BUSH_ART = {
@@ -5514,7 +5534,7 @@ const TREE_KEEP_CLEAR = [
     if (Math.abs(dy) <= Math.abs(dx) * 0.45) return dx < 0 ? 'W' : 'E';
     return (dy < 0 ? 'N' : 'S') + (dx < 0 ? 'W' : 'E');
   };
-  let planted = 0, bushed = 0;
+  let planted = 0, bushed = 0, grassed = 0;
   const perDistrict = {};
   for (const D of ZYRAXIS_DISTRICTS){
     const art = DISTRICT_TREE_ART[D.id];
@@ -5532,6 +5552,8 @@ const TREE_KEEP_CLEAR = [
     const plantable = (x, y, margin) => {
       if (worldDistrictAt(x, y) !== D.id) return false;
       if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+      // FRESHWATER is handled by pruneFloraFromWater() below, not here —
+      // isVeridanRiverTile() reads a const that is still in its TDZ this early.
       for (const [ox, oy] of [[margin,0],[-margin,0],[0,margin],[0,-margin]]){
         if (worldDistrictAt(x+ox, y+oy) !== D.id) return false;
       }
@@ -5610,10 +5632,84 @@ const TREE_KEEP_CLEAR = [
       const ang = rng() * Math.PI * 2, rad = 0.32 + rng() * 0.52;
       addBush(D.cx + Math.cos(ang) * D.rx * rad, D.cy + Math.sin(ang) * D.ry * rad);
     }
+    // ── WILD GRASS · region-wide ────────────────────────────────────────
+    const grassArt = DISTRICT_GRASS_ART[D.id];
+    if (grassArt){
+      const gA = new Image(); gA.src = `assets/2D%20sprites/decor/grass/${D.id}-grass-a.png`;
+      const gB = new Image(); gB.src = `assets/2D%20sprites/decor/grass/${D.id}-grass-b.png`;
+      const grassTiles = new Set();
+      const addGrass = (x, y) => {
+        x = Math.round(x); y = Math.round(y);
+        const key = `${x},${y}`;
+        if (grassTiles.has(key) || reserved.has(key)) return false;
+        if (worldDistrictAt(x, y) !== D.id) return false;
+        if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+        // NB: not walkable() — that reads game.scene, and `game` is still in its
+        // TDZ this early in the file.  `reserved` already carries
+        // _buildingCovered plus every prop footprint, which is the check that
+        // actually matters here: grass is non-blocking, it just must not be
+        // painted over a building.
+        // never carpet a doorstep or a plaza
+        for (const [cx, cy] of civic){ if (Math.hypot(x-cx, y-cy) < 7) return false; }
+        for (const k of keepClear){ if (Math.hypot(x-k.at[0], y-k.at[1]) < 6) return false; }
+        // v0.95.674 · A TRUE CHECKERBOARD.
+        // Malezor's inherited hash was ((13x + 7y + xy) & 1), documented as
+        // "no two adjacent tiles share the same variant".  It does not do that.
+        // Its parity reduces to (x + y + xy) mod 2, which is 0 only when x and y
+        // are BOTH even — so variant A gets a quarter of the tiles, and half of
+        // all orthogonal neighbours match.  Measured on the first grass run:
+        // 34% / 66% split, 2,803 of 5,622 adjacent pairs identical.
+        // (x + y) & 1 is the actual checkerboard: exactly 50/50, and every
+        // orthogonal neighbour is guaranteed to differ.
+        const useA = ((x + y) & 1) === 0;
+        WORLD_PROPS.push({
+          id: `${D.id}_grass_${x}_${y}`,
+          img: useA ? gA : gB,
+          src: `assets/2D%20sprites/decor/grass/${D.id}-grass-${useA ? 'a' : 'b'}.png`,
+          bbox: useA ? grassArt.a : grassArt.b,
+          tileX: x, tileY: y, tileW: 2, tileH: 2,
+          footprint: [],                 // walkable · you wade through it
+          wildZone: true,                // emits noise · draws patrols
+          _districtGrass: D.id,
+        });
+        grassTiles.add(key);
+        grassed++;
+        return true;
+      };
+      for (const quarter of WHEEL_QUARTERS){
+        let patches = QUARTER_GRASS_PATCHES[quarter] || 0;
+        if (wheel.dominant === quarter) patches = Math.round(patches * 1.4);
+        for (let p = 0; p < patches; p++){
+          // meadows reach further out than groves do — grass grows to the coast
+          let c = null;
+          for (let tries = 0; tries < 220 && !c; tries++){
+            const ang = rng() * Math.PI * 2;
+            const rad = 0.22 + rng() * 0.68;
+            const x = Math.round(D.cx + Math.cos(ang) * D.rx * rad);
+            const y = Math.round(D.cy + Math.sin(ang) * D.ry * rad);
+            if (wheelQuarterAt(D.id, bearingOf(x - D.cx, y - D.cy)) !== quarter) continue;
+            if (worldDistrictAt(x, y) === D.id && isWorldLandTile(x, y)
+                && !reserved.has(`${x},${y}`)) c = { x, y };
+          }
+          if (!c) continue;
+          // A meadow is a blob, not a dot · random-walk outward from the centre.
+          // First cut used size*3 steps capped at 90 and produced 19,815 clumps
+          // — roughly 2,800 per district, which is carpet, not meadow.  One step
+          // per unit of size lands nearer 1,100.
+          const size = 10 + Math.floor(rng() * 16);
+          let cx2 = c.x, cy2 = c.y;
+          for (let i = 0; i < size; i++){
+            addGrass(cx2, cy2);
+            cx2 += Math.round((rng() - 0.5) * 3);
+            cy2 += Math.round((rng() - 0.5) * 3);
+          }
+        }
+      }
+    }
   }
-  if (planted || bushed){
+  if (planted || bushed || grassed){
     const summary = Object.entries(perDistrict).map(([d, n]) => `${d}:${n}`).join(' ');
-    console.log(`[rp7b] district flora · ${planted} trees + ${bushed} bushes · ${summary}`);
+    console.log(`[rp7b] district flora · ${planted} trees + ${bushed} bushes + ${grassed} grass · ${summary}`);
   }
 })();
 
@@ -8969,6 +9065,23 @@ function sanitizeNpcPlacement(){
 // Deferred one tick so every enemy definition (Vilerok, Satyrbeast, Daemon,
 // Morlisk, Skellor, Seer Grunt) is in NPCS before we clone from them.
 setTimeout(() => { try {
+  // v0.95.674 · FRESHWATER PRUNE.  isWorldLandTile() returns TRUE for the
+  // Veridan river, because freshwater is terrain rather than Void Sea — you
+  // stop at the bank instead of dying.  The v0.95.672 flora pass therefore grew
+  // 43 trees and 41 bushes straight out of the water, and verify_trees missed
+  // it because it only tested land and border tiles.
+  // This runs here rather than inside the scatter because isVeridanRiverTile()
+  // reads a const that is still in its TDZ while WORLD_PROPS is being built.
+  try {
+    const before = WORLD_PROPS.length;
+    for (let i = WORLD_PROPS.length - 1; i >= 0; i--){
+      const p = WORLD_PROPS[i];
+      if (!p || !(p._districtTree || p._districtBush || p._districtGrass)) continue;
+      if (isVeridanRiverTile(p.tileX, p.tileY)) WORLD_PROPS.splice(i, 1);
+    }
+    const cut = before - WORLD_PROPS.length;
+    if (cut) console.log(`[rp7b] freshwater prune · ${cut} plant(s) pulled out of the Veridan river`);
+  } catch(err){ console.warn('[rp7b] freshwater prune failed', err); }
   const n = buildTowerGuardPacks();
   if (n) console.log(`[rp7b] tower network · ${n} guards deployed across 9 districts`);
   // v0.95.671 · same tick, same reason · the Seer Grunt definition is in NPCS by now
@@ -17168,6 +17281,40 @@ function tryMove(dt){
       } catch(_){}
     }
     player.stepsInGrass = 0;
+    // v0.95.674 · EXPLORATION TRACK · Creator: "enemies can be triggered by
+    // exploring anywhere in a district".  Walking open ground now accumulates
+    // its own counter, so the whole district is live rather than only the
+    // meadows.  Grass keeps its edge on purpose — it takes 3 grass steps at 20%
+    // to roll, against 14 open-ground steps at 9%, so wading through grass is
+    // roughly six times noisier.  That preserves grass as the loud choice
+    // instead of making it decorative.
+    if (player.activeActor === 'rizer' && game.scene === 'overworld'){
+      emitExplorationNoise(nx, ny);
+    }
+  }
+}
+const EXPLORE_STEPS_REQUIRED = 14;
+const EXPLORE_SPAWN_CHANCE   = 0.09;
+const EXPLORE_MAX_ACTIVE     = 3;
+function emitExplorationNoise(px, py){
+  if (game.scene !== 'overworld') return;
+  const dist = worldDistrictAt(px, py);
+  if (!dist) return;                                  // routes and the Void Sea stay quiet
+  player.stepsExploring = (player.stepsExploring || 0) + 1;
+  if (player.stepsExploring < EXPLORE_STEPS_REQUIRED) return;
+  if (Math.random() >= EXPLORE_SPAWN_CHANCE) return;
+  const active = NPCS.filter(n => n && n._exploreSpawn && n.scene === 'overworld' && !n._dying).length;
+  if (active >= EXPLORE_MAX_ACTIVE) return;
+  for (let attempt = 0; attempt < 30; attempt++){
+    const angle = Math.random() * Math.PI * 2;
+    const d = 20 + Math.random() * 8;                 // off-camera, same as grass
+    const tx = Math.round(px + Math.cos(angle) * d);
+    const ty = Math.round(py + Math.sin(angle) * d);
+    if (worldDistrictAt(tx, ty) !== dist) continue;   // keep it in the district you are in
+    if (typeof walkable === 'function' && !walkable(tx, ty)) continue;
+    spawnWildMori(tx, ty, dist, { _exploreSpawn: true });
+    player.stepsExploring = 0;
+    return;
   }
 }
 
@@ -17217,11 +17364,20 @@ function emitGrassNoise(px, py){
 }
 // Spawn a fresh grass-Mori at (x,y) · reuses the Mori sprite + AI · marked
 // with _grassSpawn so we can cap/count them
-function spawnGrassMori(tileX, tileY){
+// v0.95.674 · One spawner for both tracks, and it now scales to the district.
+// The old version hardcoded Lv 2 / 125 HP, which was right for Malezor and
+// meaningless in Korathen, where the band runs Lv 80.  Level and HP come from
+// TOWER_NETWORK's per-district moriLv, the same ladder the tower squads use, so
+// a Mori that wanders out of the Korathen grass is a Korathen-grade Mori.
+// HP stays on the 125 multiple required by [[aov-combat-math]].
+function spawnWildMori(tileX, tileY, dist, opts){
   const template = NPCS.find(n => n && n.id && n.id.startsWith('mori_') && n.src && n.src.includes('mori.png'));
-  if (!template) return;
-  const clone = {
-    id: `mori_grass_${performance.now()|0}_${Math.random().toString(36).slice(2,6)}`,
+  if (!template) return null;
+  const band = (typeof TOWER_BY_DIST !== 'undefined' && TOWER_BY_DIST[dist]) ? TOWER_BY_DIST[dist] : null;
+  const level = band ? band.moriLv : 2;
+  const hpMax = 125 * Math.max(1, Math.round((125 + level * 5) / 125));
+  const clone = Object.assign({
+    id: `mori_wild_${performance.now()|0}_${Math.random().toString(36).slice(2,6)}`,
     name: 'Mori',
     sheet: template.sheet,
     src: template.src,
@@ -17235,11 +17391,17 @@ function spawnGrassMori(tileX, tileY){
     moveCd: 250 + Math.random() * 350,
     blinkTimer: 9e9,
     isEnemy: true,
-    _grassSpawn: true,
-    hp: 125, hpMax: 125, tier: 1, level: 2,
+    hp: hpMax, hpMax, tier: 1, level,
+    _wildDistrict: dist || null,
     onInteract: () => showToast('◈ Mori snarls · "SSSKRRAAH!"', 1600),
-  };
+  }, opts || {});
   NPCS.push(clone);
+  return clone;
+}
+// Kept as a thin wrapper so the grass path reads the same as it always has.
+function spawnGrassMori(tileX, tileY){
+  const dist = (typeof worldDistrictAt === 'function') ? worldDistrictAt(tileX, tileY) : null;
+  return spawnWildMori(tileX, tileY, dist, { _grassSpawn: true });
 }
 
 // -- Renderer ----------------------------------------------------------------

@@ -5305,6 +5305,176 @@ function _makeWorldRng(seed){
 
 // v0.95.362 · District nature scatter RELOCATED below (see line ~4970) after _propBlocked exists · fixes black-screen TDZ error from v0.95.361
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ★ DISTRICT TREE PASS · v0.95.672 · seven districts, seven trees
+// ═══════════════════════════════════════════════════════════════════════════
+// Creator supplied one canopy per district.  Placement is driven entirely by
+// DISTRICT_WHEEL ([[aov-district-wheel-canon]]) so the forests LAND where the
+// wheel says forest is, which is what makes the rotation legible from the
+// ground rather than only on paper:
+//
+//   forest quarter   dense canopy      · this is the district's woodland
+//   wetland quarter  medium            · trees thin out toward the water
+//   highland quarter sparse and hardy  · a treeline, not a forest
+//   open quarter     very sparse       · the road runs here, keep it readable
+//
+// and the district's DOMINANT quarter gets roughly double, so Veridan reads as
+// the forest district and Vorashil as the highland one.
+//
+// Malezor keeps its own hand-tuned scatter from v0.84 and is untouched.
+// Zarvane and Andrannor have no tree asset yet, so they are simply absent from
+// the table rather than being given somebody else's canopy.
+const DISTRICT_TREE_ART = {
+  veridan:   { file:'veridan-tree.png',   bbox:[ 65, 54,1125,1132] },
+  netharion: { file:'netharion-tree.png', bbox:[ 50, 35,1163,1174] },
+  baelgor:   { file:'baelgor-tree.png',   bbox:[ 32, 61,1189,1133] },
+  thardin:   { file:'thardin-tree.png',   bbox:[149, 31, 956,1191] },
+  korathen:  { file:'korathen-tree.png',  bbox:[ 32, 21,1185,1204] },
+  vorashil:  { file:'vorashil-tree.png',  bbox:[ 99, 39,1064,1174] },
+  xilnar:    { file:'xilnar-tree.png',    bbox:[ 64, 31,1130,1159] },
+};
+// Matching understory · each bush is the same palette as its district's tree,
+// so a grove reads as one plant community rather than two unrelated props.
+const DISTRICT_BUSH_ART = {
+  veridan:   { file:'veridan-bush.png',   bbox:[112,175,1034, 879] },
+  netharion: { file:'netharion-bush.png', bbox:[ 36,134,1172, 939] },
+  baelgor:   { file:'baelgor-bush.png',   bbox:[ 98,175,1060, 889] },
+  thardin:   { file:'thardin-bush.png',   bbox:[155,107, 949,1024] },
+  korathen:  { file:'korathen-bush.png',  bbox:[137,193, 986, 876] },
+  vorashil:  { file:'vorashil-bush.png',  bbox:[ 98,128,1059, 967] },
+  xilnar:    { file:'xilnar-bush.png',    bbox:[108,139,1037, 974] },
+};
+// Groves per quarter, before the dominant-quarter doubling.
+const QUARTER_GROVES = { forest: 26, wetland: 15, highland: 9, open: 4 };
+const TREE_KEEP_CLEAR = [
+  // nothing may be planted within this many tiles of these landmarks, or the
+  // player arrives at a plaza full of trunks
+  { pick: d => (TOWER_BY_DIST[d] || {}).tower, r: 9 },
+  { pick: d => (SEER_HQ_BY_DIST[d] || {}).door, r: 9 },
+];
+(function plantDistrictTrees(){
+  if (typeof WHEEL_BY_DIST === 'undefined') return;
+  const reserved = new Set(_buildingCovered);
+  for (const p of WORLD_PROPS){
+    reserved.add(`${p.tileX},${p.tileY}`);
+    for (const [dx, dy] of p.footprint || []) reserved.add(`${p.tileX+dx},${p.tileY+dy}`);
+  }
+  // Town halls and other civic buildings get a wide skirt of their own so the
+  // capital plaza stays a plaza.
+  const civic = [];
+  for (const p of WORLD_PROPS){
+    if (/_town_hall$|_shop$|_school$|_hospital$|academy|coliseum|statue|gate$/.test(p.id || '')){
+      civic.push([p.tileX, p.tileY]);
+    }
+  }
+  const bearingOf = (dx, dy) => {
+    if (Math.abs(dx) <= Math.abs(dy) * 0.45) return dy < 0 ? 'N' : 'S';
+    if (Math.abs(dy) <= Math.abs(dx) * 0.45) return dx < 0 ? 'W' : 'E';
+    return (dy < 0 ? 'N' : 'S') + (dx < 0 ? 'W' : 'E');
+  };
+  let planted = 0, bushed = 0;
+  const perDistrict = {};
+  for (const D of ZYRAXIS_DISTRICTS){
+    const art = DISTRICT_TREE_ART[D.id];
+    const bushArt = DISTRICT_BUSH_ART[D.id];
+    const wheel = WHEEL_BY_DIST[D.id];
+    if (!art || !wheel) continue;
+    const img = new Image();
+    img.src = 'assets/2D%20sprites/decor/trees/' + art.file;
+    const bushImg = new Image();
+    if (bushArt) bushImg.src = 'assets/2D%20sprites/decor/bushes/' + bushArt.file;
+    const rng = _makeWorldRng(0x7EE0000 + D.id.length * 7919 + D.cx * 31 + D.cy);
+    const keepClear = TREE_KEEP_CLEAR.map(k => ({ at: k.pick(D.id), r: k.r })).filter(k => k.at);
+    // A tile is plantable if it is deep inside its own district, on land, and
+    // clear of every building, door and plaza.
+    const plantable = (x, y, margin) => {
+      if (worldDistrictAt(x, y) !== D.id) return false;
+      if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+      for (const [ox, oy] of [[margin,0],[-margin,0],[0,margin],[0,-margin]]){
+        if (worldDistrictAt(x+ox, y+oy) !== D.id) return false;
+      }
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++){
+        if (reserved.has(`${x+ox},${y+oy}`)) return false;
+      }
+      for (const k of keepClear){ if (Math.hypot(x-k.at[0], y-k.at[1]) < k.r) return false; }
+      for (const [cx, cy] of civic){ if (Math.hypot(x-cx, y-cy) < 11) return false; }
+      return true;
+    };
+    const addTree = (x, y) => {
+      x = Math.round(x); y = Math.round(y);
+      if (!plantable(x, y, 4)) return false;
+      WORLD_PROPS.push({
+        id: `${D.id}_tree_${x}_${y}`, img, src: 'assets/2D%20sprites/decor/trees/' + art.file,
+        bbox: art.bbox, tileX: x, tileY: y, tileW: 3, tileH: 3,
+        footprint: [[0, 0]], _districtTree: D.id,
+      });
+      reserved.add(`${x},${y}`);
+      planted++; perDistrict[D.id] = (perDistrict[D.id] || 0) + 1;
+      return true;
+    };
+    // Bushes need less clearance than a full canopy, so they use margin 3 and
+    // fill the gaps a tree could not take.
+    const addBush = (x, y) => {
+      if (!bushArt) return false;
+      x = Math.round(x); y = Math.round(y);
+      if (!plantable(x, y, 3)) return false;
+      WORLD_PROPS.push({
+        id: `${D.id}_bush_${x}_${y}`, img: bushImg,
+        src: 'assets/2D%20sprites/decor/bushes/' + bushArt.file,
+        bbox: bushArt.bbox, tileX: x, tileY: y, tileW: 2, tileH: 2,
+        footprint: [[0, 0]], _districtBush: D.id,
+      });
+      reserved.add(`${x},${y}`);
+      bushed++;
+      return true;
+    };
+    // Grove centres are drawn INSIDE a chosen quarter, so the wheel decides
+    // where the woodland actually grows.
+    const groveIn = (quarter) => {
+      for (let tries = 0; tries < 260; tries++){
+        const ang = rng() * Math.PI * 2;
+        const rad = 0.30 + rng() * 0.55;                 // wild ring, not the core
+        const x = Math.round(D.cx + Math.cos(ang) * D.rx * rad);
+        const y = Math.round(D.cy + Math.sin(ang) * D.ry * rad);
+        if (wheelQuarterAt(D.id, bearingOf(x - D.cx, y - D.cy)) !== quarter) continue;
+        if (plantable(x, y, 8)) return { x, y };
+      }
+      return null;
+    };
+    for (const quarter of WHEEL_QUARTERS){
+      let groves = QUARTER_GROVES[quarter] || 0;
+      if (wheel.dominant === quarter) groves *= 2;
+      for (let g = 0; g < groves; g++){
+        const c = groveIn(quarter);
+        if (!c) continue;
+        // Denser quarters also get fuller groves, so the contrast reads.
+        const n = quarter === 'forest' ? 7 + Math.floor(rng() * 6)
+                : quarter === 'wetland' ? 5 + Math.floor(rng() * 4)
+                : quarter === 'highland' ? 3 + Math.floor(rng() * 3)
+                : 2 + Math.floor(rng() * 2);
+        const spread = quarter === 'open' ? 20 : 13;
+        for (let i = 0; i < n; i++){
+          addTree(c.x + (rng() - 0.5) * spread, c.y + (rng() - 0.5) * spread);
+        }
+        // Understory · roughly 1.5 bushes per tree, on a slightly wider spread
+        // so groves feather out at the edges instead of ending on a hard line.
+        for (let i = 0; i < Math.round(n * 1.5); i++){
+          addBush(c.x + (rng() - 0.5) * (spread + 6), c.y + (rng() - 0.5) * (spread + 6));
+        }
+      }
+    }
+    // Loose singles break up the ground between groves without closing paths.
+    for (let i = 0; i < 150; i++){
+      const ang = rng() * Math.PI * 2, rad = 0.32 + rng() * 0.52;
+      addBush(D.cx + Math.cos(ang) * D.rx * rad, D.cy + Math.sin(ang) * D.ry * rad);
+    }
+  }
+  if (planted || bushed){
+    const summary = Object.entries(perDistrict).map(([d, n]) => `${d}:${n}`).join(' ');
+    console.log(`[rp7b] district flora · ${planted} trees + ${bushed} bushes · ${summary}`);
+  }
+})();
+
 // Load prop images (pre-baked · no chroma-key needed)
 WORLD_PROPS.forEach(p => { p.img.src = p.src; });
 
@@ -28174,9 +28344,27 @@ function spawnWildZyrex(speciesId, tileX, tileY, opts){
   return w;
 }
 
+// v0.95.672 · VIEWPORT CULL · this used to push every single prop in the world
+// into `renderables` and then SORT the lot, sixty times a second.  At 3,886
+// props that was already wasteful; the district tree pass takes the world past
+// 9,000, which would have made the per-frame sort the most expensive thing in
+// the game.  Culling first drops the typical frame to a few dozen entries.
+//
+// Props are drawn UPWARD from tileY (art spans tileY-tileH .. tileY), and the
+// tallest thing in the world is 12 tiles, so a 20-tile margin on every side is
+// comfortably generous — nothing can pop in at the edge.
+const _CULL_MARGIN = 20;
+function _propCullBounds(){
+  const t0x = Math.floor(_cam.x / TILE), t0y = Math.floor(_cam.y / TILE);
+  const w = Math.ceil(canvas.width / TILE), h = Math.ceil(canvas.height / TILE);
+  return { x0: t0x - _CULL_MARGIN, x1: t0x + w + _CULL_MARGIN,
+           y0: t0y - _CULL_MARGIN, y1: t0y + h + _CULL_MARGIN };
+}
 function drawWorldLayer(){
   const renderables = [];
+  const cull = _propCullBounds();
   WORLD_PROPS.forEach(p => {
+    if (p.tileX < cull.x0 || p.tileX > cull.x1 || p.tileY < cull.y0 || p.tileY > cull.y1) return;
     if(p.id==='auraxion_ufo'&&p._inFlight)return;
     if (p._hidden) return;                                          // v0.95.496 · pickup props hide themselves after use
     // v0.95.642 · a Seer chest being carried/thrown is drawn in Rizer's hands

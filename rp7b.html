@@ -2888,7 +2888,121 @@ function towerSquadCleared(dist){
   if (dist === 'malezor') return (player.towerMoriKills || 0) >= 6 && !!player.towerBossKilled;
   return k >= 6 && !!b;
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★ DISTRICT WHEEL · v0.95.671 · Creator directive 2026-08-20
+// ═══════════════════════════════════════════════════════════════════════════
+// "All districts share similar geographic outlines but in a unique way, so the
+//  player doesn't get too familiar with progression but can identify patterns.
+//  Every cardinal direction of a district's tilemap should have significance."
+//
+// THE RULE: every district carries the SAME four terrain quarters — HIGHLAND,
+// FOREST, WETLAND, OPEN — but the wheel ROTATES, anchored to the road:
+//
+//   · the OUTBOUND road always leaves through OPEN flats  (roads follow flat ground)
+//   · HIGHLAND always sits OPPOSITE it                    (the deepest, last corner)
+//   · FOREST and WETLAND fill the two flanks, alternating by district parity
+//
+// Because the Zyraxis serpentine turns — south, then east, then down through
+// the middle, then a long east run — no two neighbours share a bearing.  The
+// player learns the RULE, not the map.  Arriving in Baelgor you know the
+// highland is behind you and the road out is ahead; you do not know which flank
+// holds the forest until you look.
+//
+// Each district also OVER-EXPRESSES one quarter to roughly double size — the
+// one its land is named for ([[aov-zyraxis-ten-districts]]).  Veridan is the
+// forest district, Vorashil the highland district, and so on.  Pattern plus
+// personality: the vocabulary holds, the proportions do not.
+//
+// This table is DATA ONLY at v0.95.671.  It is the anchor the tree pass, the
+// elevation pass and the habitat pass all read from, so that they cannot drift
+// apart.  Seer HQ placement below is its first consumer.
+const WHEEL_QUARTERS = ['highland', 'forest', 'wetland', 'open'];
+const DISTRICT_WHEEL = [
+  // outbound = bearing of the road to the NEXT district · open quarter sits there
+  // dominant = the quarter grown to ~2x, drawn from the district's Land name
+  { dist:'malezor',   land:'Beastlands',    outbound:'S',  dominant:'open',     flank:'FW' },
+  { dist:'zarvane',   land:'Auralands',     outbound:'E',  dominant:'open',     flank:'WF' },
+  { dist:'andrannor', land:'Creaturelands', outbound:'E',  dominant:'forest',   flank:'FW' },
+  { dist:'veridan',   land:'Naturelands',   outbound:'S',  dominant:'forest',   flank:'WF' },
+  { dist:'netharion', land:'Unknownlands',  outbound:'SW', dominant:'highland', flank:'FW' },
+  { dist:'vorashil',  land:'Alienlands',    outbound:'SE', dominant:'highland', flank:'WF' },
+  { dist:'xilnar',    land:'Spiritlands',   outbound:'E',  dominant:'wetland',  flank:'FW' },
+  { dist:'baelgor',   land:'Humanoidlands', outbound:'E',  dominant:'wetland',  flank:'WF' },
+  { dist:'thardin',   land:'Mechlands',     outbound:'E',  dominant:'open',     flank:'FW' },
+  { dist:'korathen',  land:'Ultralands',    outbound:'E',  dominant:'highland', flank:'WF' },
+];
+const WHEEL_BY_DIST = Object.fromEntries(DISTRICT_WHEEL.map(w => [w.dist, w]));
+const _BEARING_DEG = { N:270, NE:315, E:0, SE:45, S:90, SW:135, W:180, NW:225 };
+// Resolve which terrain quarter faces a given bearing in a given district.
+// OPEN is pinned to the outbound road, HIGHLAND to its opposite, and the two
+// flanks take FOREST/WETLAND in the order the district's parity dictates.
+function wheelQuarterAt(dist, bearing){
+  const w = WHEEL_BY_DIST[dist]; if (!w) return null;
+  const out = _BEARING_DEG[w.outbound], at = _BEARING_DEG[bearing];
+  if (out == null || at == null) return null;
+  let d = ((at - out) % 360 + 360) % 360;          // 0 = straight down the road
+  if (d < 45 || d >= 315) return 'open';
+  if (d >= 135 && d < 225) return 'highland';
+  const cw = (d >= 45 && d < 135);                 // clockwise flank of the road
+  return (w.flank === 'FW') === cw ? 'forest' : 'wetland';
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// ★ SEER HQ NETWORK · v0.95.671 · one HQ per district, all ten
+// ═══════════════════════════════════════════════════════════════════════════
+// Per [[aov-overworld-construction-canon]]: the Seer HQ sits at the route mouth
+// toward the next district.  THE SEERS CONTROL THE ROADS — that is why travel
+// is contested, and why the player must engage the HQ to progress.
+//
+// So every HQ lands in the OPEN quarter of its district's wheel, deep in the
+// wild ring (t ≈ 0.55-0.66 of the radius), well clear of the town hall and of
+// the radio tower's boss squad.  One rule; because the serpentine turns, six
+// different bearings across the ten districts.
+//
+// Malezor's HQ (75,172) was hand-placed at v0.95.443 and is NOT moved — the
+// rule was derived to match it, not the other way round.  It is listed here so
+// every downstream system has a single table to read.
+const SEER_HQ_NETWORK = [
+  { dist:'malezor',   label:'Malezor',   door:[ 75,172], bearing:'S',  toward:'Zarvane',       gruntLv: 6, cmdLv:10, cmdTier:2, prebuilt:true },
+  { dist:'zarvane',   label:'Zarvane',   door:[202,297], bearing:'E',  toward:'Andrannor',     gruntLv:15, cmdLv:20, cmdTier:3 },
+  { dist:'andrannor', label:'Andrannor', door:[382,320], bearing:'E',  toward:'Veridan',       gruntLv:23, cmdLv:29, cmdTier:3 },
+  { dist:'veridan',   label:'Veridan',   door:[493,323], bearing:'S',  toward:'Netharion',     gruntLv:31, cmdLv:38, cmdTier:5 },
+  { dist:'netharion', label:'Netharion', door:[397,474], bearing:'SW', toward:'Vorashil',      gruntLv:39, cmdLv:47, cmdTier:5 },
+  { dist:'vorashil',  label:'Vorashil',  door:[352,591], bearing:'SE', toward:'Xilnar',        gruntLv:47, cmdLv:56, cmdTier:6 },
+  { dist:'xilnar',    label:'Xilnar',    door:[491,656], bearing:'E',  toward:'Baelgor',       gruntLv:55, cmdLv:65, cmdTier:6 },
+  { dist:'baelgor',   label:'Baelgor',   door:[651,657], bearing:'E',  toward:'Thardin',       gruntLv:63, cmdLv:74, cmdTier:7 },
+  { dist:'thardin',   label:'Thardin',   door:[804,656], bearing:'E',  toward:'Korathen',      gruntLv:71, cmdLv:83, cmdTier:7 },
+  { dist:'korathen',  label:'Korathen',  door:[981,655], bearing:'E',  toward:'the Bridge of Hope', gruntLv:81, cmdLv:92, cmdTier:8 },
+];
+const SEER_HQ_BY_DIST = Object.fromEntries(SEER_HQ_NETWORK.map(h => [h.dist, h]));
+// The building footprint, shared by all ten · 8 wide x 6 deep, door tile walkable
+const SEER_HQ_FOOTPRINT = (function(){
+  const f = [];
+  for (let dy = -6; dy <= -1; dy++){
+    for (let dx = -4; dx <= 3; dx++){ f.push([dx, dy]); }
+  }
+  return f;
+})();
+const SEER_HQ_BBOX = [165, 97, 1040, 942];          // CC-tight content rect
+// Build the nine props that did not exist before v0.95.671.  Malezor's is
+// authored separately further down and is skipped here.
+function buildSeerHqProps(){
+  const img = new Image();
+  img.src = 'assets/2D%20sprites/buildings/seer-hq.png';
+  return SEER_HQ_NETWORK.filter(H => !H.prebuilt).map(H => ({
+    id: `seer_hq_${H.dist}`,
+    img,
+    src: 'assets/2D%20sprites/buildings/seer-hq.png',
+    bbox: SEER_HQ_BBOX,
+    tileX: H.door[0], tileY: H.door[1],
+    tileW: 8, tileH: 7,
+    footprint: SEER_HQ_FOOTPRINT.map(p => p.slice()),
+    door: [0, 0],
+    _seerHqOf: H.dist,
+    onInteract: () => { try { enterSeerHq(H.dist); } catch(err){ console.warn('seer hq enter failed', err); } },
+  }));
+}
 const WORLD_PROPS = [
+  ...buildSeerHqProps(),
   {
     // Malezor ↔ Zarvane district gate · macro landmark at the center of the
     // canonical route. The cool Malezor tower faces west/grass while the
@@ -4387,9 +4501,11 @@ const WORLD_PROPS = [
         return f;
       })(),
       door: [0, 0],
+      _seerHqOf: 'malezor',                      // v0.95.671 · joins the network
       // v0.95.615 · Seer HQ door · walks Rizer into the 1F stone-floor lair
+      // v0.95.671 · routed through enterSeerHq so all ten doors behave identically
       onInteract: () => {
-        try { enterInterior('interior_seer_hq_1f', INTERIOR_SEER_HQ_1F, '◈ SEER HQ · 1F · 5 Grunts inside · silver chest at the back'); }
+        try { enterSeerHq('malezor'); }
         catch(err){ console.warn('seer hq enter failed', err); }
       },
     };
@@ -8543,6 +8659,9 @@ function sanitizeNpcPlacement(){
 setTimeout(() => { try {
   const n = buildTowerGuardPacks();
   if (n) console.log(`[rp7b] tower network · ${n} guards deployed across 9 districts`);
+  // v0.95.671 · same tick, same reason · the Seer Grunt definition is in NPCS by now
+  const s = buildSeerHqGuardPacks();
+  if (s) console.log(`[rp7b] seer network · ${s} grunts holding 9 district roads`);
   // v0.95.655 · run AFTER the guards land so they are sanitized too
   try { sanitizeNpcPlacement(); } catch(err){ console.warn('[rp7b] placement sanitize failed', err); }
 } catch(err){ console.warn('[rp7b] tower guard build failed', err); } }, 0);
@@ -10222,9 +10341,21 @@ const SEER_HQ_CHEST_OPEN_IMG = new Image();
 SEER_HQ_CHEST_OPEN_IMG.src = 'assets/2D%20sprites/decor/chest-open.png';
 const SEER_HQ_CHEST_CLOSED_BBOX = [145, 164, 948, 893];
 const SEER_HQ_CHEST_OPEN_BBOX   = [290, 240, 673, 741];
+// v0.95.671 · The chest is per-HQ now that there are ten of them.  Malezor's
+// still holds the RUBY VIAL for the Potion Maker fetch ([[aov-potion-maker-canon]]);
+// the other nine hold a district-scaled cash + supply cache, because handing out
+// nine more Ruby Vials would break that quest's one-of-a-kind framing.
+// Malezor's legacy `player.rubyVialChestOpened` flag is honoured so existing
+// saves do not find their looted chest mysteriously closed again.
+function seerHqDistrict(){ return player.seerHqDistrict || 'malezor'; }
+function seerHqChestOpened(dist){
+  dist = dist || seerHqDistrict();
+  if (dist === 'malezor' && player.rubyVialChestOpened) return true;
+  return !!(player.seerHqChests || {})[dist];
+}
 function drawSeerHqChest(){
   if (game.scene !== 'interior_seer_hq_1f') return;
-  const opened = !!player.rubyVialChestOpened;
+  const opened = seerHqChestOpened();
   const img  = opened ? SEER_HQ_CHEST_OPEN_IMG : SEER_HQ_CHEST_CLOSED_IMG;
   const bbox = opened ? SEER_HQ_CHEST_OPEN_BBOX : SEER_HQ_CHEST_CLOSED_BBOX;
   if (!img.complete || !img.naturalWidth) return;
@@ -10240,14 +10371,27 @@ function drawSeerHqChest(){
 }
 function tryOpenSeerHqChest(){
   if (game.scene !== 'interior_seer_hq_1f') return false;
-  if (player.rubyVialChestOpened) return false;
-  player.rubyVialChestOpened = true;
+  const dist = seerHqDistrict();
+  if (seerHqChestOpened(dist)) return false;
+  player.seerHqChests = player.seerHqChests || {};
+  player.seerHqChests[dist] = true;
   player.items = player.items || {};
-  player.items.ruby_vial = (player.items.ruby_vial || 0) + 1;
-  try { playItemGain('ruby_vial'); } catch(_){}
+  if (dist === 'malezor'){
+    player.rubyVialChestOpened = true;                 // legacy flag stays authoritative
+    player.items.ruby_vial = (player.items.ruby_vial || 0) + 1;
+    try { playItemGain('ruby_vial'); } catch(_){}
+    try { playSFX('confirm'); } catch(_){}
+    try { awardRizerXP(200); } catch(_){}
+    showToast('★ Received: RUBY VIAL · bring it to the potion maker outside Malezor Potion Shop', 4600);
+    return true;
+  }
+  const H = SEER_HQ_BY_DIST[dist];
+  const idx = Math.max(0, SEER_HQ_NETWORK.findIndex(h => h.dist === dist));
+  const coins = 250 * (idx + 1);                       // Zarvane 500 -> Korathen 2500
+  player.coins = (player.coins || 0) + coins;
   try { playSFX('confirm'); } catch(_){}
-  try { awardRizerXP(200); } catch(_){}
-  showToast('★ Received: RUBY VIAL · bring it to the potion maker outside Malezor Potion Shop', 4600);
+  try { awardRizerXP(120 + (H ? H.gruntLv : 10) * 4); } catch(_){}
+  showToast(`★ Seer strongbox · ${coins} coins · ${H ? H.label : dist} HQ`, 3600);
   return true;
 }
 // v0.95.615 · SEER HQ 1F interior · 20×15 stone-floor lair
@@ -10266,8 +10410,26 @@ const INTERIOR_SEER_HQ_1F = {
   wallImg: 'malezor',
   blocked: [],
   label: '◈ SEER HQ · 1F',
-  overworldDrop: { x: 75, y: 169, dir: 'down' },   // step out below the HQ door
+  overworldDrop: { x: 75, y: 169, dir: 'down' },   // rewritten per district by enterSeerHq
 };
+// v0.95.671 · TEN Seer HQs now share this one interior.  The drop point and the
+// label are rewritten on the way in, and `player.seerHqDistrict` records which
+// building you are standing inside so the chest, the guards and the eventual
+// Commander fight all resolve to the right district.  One interior, ten doors —
+// far safer than ten near-identical config objects drifting out of sync.
+function enterSeerHq(dist){
+  const H = SEER_HQ_BY_DIST[dist];
+  if (!H) return false;
+  player.seerHqDistrict = dist;
+  INTERIOR_SEER_HQ_1F.overworldDrop = { x: H.door[0], y: H.door[1] + 3, dir: 'down' };
+  INTERIOR_SEER_HQ_1F.label = `◈ ${H.label.toUpperCase()} SEER HQ · 1F`;
+  const looted = (player.seerHqChests || {})[dist];
+  const tail = looted ? 'the chest at the back stands open'
+                      : 'a silver chest sits at the back';
+  enterInterior('interior_seer_hq_1f', INTERIOR_SEER_HQ_1F,
+    `◈ ${H.label.toUpperCase()} SEER HQ · 1F · they hold the road to ${H.toward} · ${tail}`);
+  return true;
+}
 // v0.95.590 · MALEZOR ACADEMY interior · classroom layout · 15×14
 // Sub-Professor at the front lectern, 10 students in 2 rows of 5.  Each
 // student is a mini-trainer battle; sub-prof gates the harder challenge
@@ -13009,6 +13171,47 @@ function buildTowerGuardPacks(){
   }
   return made;
 }
+// ── v0.95.671 · SEER HQ GUARD PACKS ────────────────────────────────────────
+// Malezor's HQ has always been ringed by Seer Grunts.  Now that nine more
+// exist, the ring is generated from SEER_HQ_NETWORK the same way the tower
+// squads are generated from TOWER_NETWORK — idempotent, safe to re-run at boot
+// and after load, and never tagged _extraSpawn so the Horde toggle cannot
+// delete the guards and quietly hand the player a free road.
+// Offsets from the door tile.  Four of the five stand ON the approach apron and
+// one scouts forward — deliberately matching the density of Malezor's
+// hand-authored pack (5 of its 16 apron tiles held).  An earlier draft parked
+// the whole ring just outside the apron, which verified green but meant the
+// player could stroll straight to the door untouched.  The Seers are supposed to
+// CONTEST the road, not decorate it.  Gaps remain, so a fast Rizer can still
+// slip through rather than being forced into five fights.
+const SEER_HQ_GUARD_RING = [
+  [-3, 1, 'right'], [ 3, 1, 'left' ], [-1, 2, 'up'   ],
+  [ 1, 2, 'up'   ], [ 0, 4, 'up'   ],
+];
+function buildSeerHqGuardPacks(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  const gruntBase = NPCS.find(n => n && n.isEnemy && /seer-grunt/i.test(n.src || ''));
+  if (!gruntBase) return 0;
+  let made = 0;
+  for (const H of SEER_HQ_NETWORK){
+    if (H.dist === 'malezor') continue;            // hand-authored pack already stands
+    const [hx, hy] = H.door;
+    SEER_HQ_GUARD_RING.forEach(([dx, dy, dir], i) => {
+      const id = `seerhq_grunt_${H.dist}_${i + 1}`;
+      if (NPCS.some(n => n && n.id === id)) return;
+      NPCS.push(_cloneEnemyTo(gruntBase, id, hx + dx, hy + dy, {
+        name: 'Seer Grunt', dir, wanderRadius: 2, mode: 'wander', isEnemy: true,
+        level: H.gruntLv, tier: 2,
+        hpMax: 125 + H.gruntLv * 5,
+        _seerHqGuardOf: H.dist,
+        onInteract: () => { try { playSFX('moriPoke'); } catch(_){}
+          showToast(`◈ SEER GRUNT · holding the ${H.label} road to ${H.toward}`, 2400); },
+      }));
+      made++;
+    });
+  }
+  return made;
+}
 // Called from recordMoriKill · books the optional extermination track so the
 // bonus reward works exactly like Malezor's "6 Mori + Vilerok" plaza clear.
 function recordTowerGuardKill(npc){
@@ -13053,6 +13256,7 @@ function syncTowerNetworkFromSave(){
   }
   // Rebuild any guard the save predates · idempotent.
   try { buildTowerGuardPacks(); } catch(_){}
+  try { buildSeerHqGuardPacks(); } catch(_){}
   // Tower sprites re-derive from towerRestored() every paint · nothing to do.
 }
 
@@ -14319,6 +14523,7 @@ function _npcIsResident(n){
   if (!n || n.scene !== 'overworld') return false;
   if (n.isEnemy) return false;                       // Mori, Daemons, Seer Grunts...
   if (n._towerGuardOf) return false;                 // tower squads
+  if (n._seerHqGuardOf) return false;                // Seer HQ door rings
   if (n._phoneSpawned) return false;                 // contact called to your side
   if (n._summoned || /^_summon_/.test(n.id || '')) return false;
   if (n._extraSpawn) return false;                   // Horde Mode clones
@@ -24026,7 +24231,7 @@ function isZyrexNpc(n){
 }
 function contactEligible(n){
   if (!n || n.isEnemy || !n.name || typeof n.onInteract !== 'function') return false;
-  if (n._towerGuardOf) return false;
+  if (n._towerGuardOf || n._seerHqGuardOf) return false;
   if (/^_summon_/.test(n.id || '')) return false;
   if (isZyrexNpc(n)) return false;
   return true;

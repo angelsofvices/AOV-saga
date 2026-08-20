@@ -10329,7 +10329,15 @@ function startNewGame(){
   // as "unsaved new game" so the 5s autosave skips (only a manual SAVE STATE
   // from ZyPhone Settings commits · that is when the LOAD slot gets replaced).
   // Player can still hit LOAD GAME from the title before saving to bail out.
-  game.newGameUnsaved = true;
+  // v0.95.661 · A New Game is now the ONE thing that overwrites the save, and
+  // it does so immediately and deterministically rather than "whenever the
+  // 5s timer next fires".  Autosave is no longer suppressed afterwards.
+  game.newGameUnsaved = false;
+  // Wipe progression back to a first-ever-run state FIRST.  The title screen is
+  // reachable mid-session via restartToTitleScreen(), so without this a New Game
+  // started after playing would inherit the old level/items/quest flags and then
+  // write them straight into the slot as a "fresh" run.
+  try { resetPlayerToPristine(); } catch(err){ console.warn('[rp7b] pristine reset failed', err); }
   stopIntroVideo();                                // v0.93.3 · kill intro on new game
   game.showTitleButtons = false;                   // v0.93.6 · hide DOM buttons
   if (titleBtnsEl) titleBtnsEl.style.display = 'none';
@@ -10346,6 +10354,7 @@ function startNewGame(){
   // v0.95.278 · Rizer NO LONGER starts with the world map · he lost it · Zoryn gives him a town map
   // (previously auto-granted worldmap=1 · removed to honor "you earn things" progression canon)
   playBGM('home');
+  try { saveGame(); } catch(_){}                   // v0.95.661 · New Game claims the slot now
   showToast('◈ Welcome to Malezor · you\'re in your room · go find Mom', 2600);
   // v0.95.295 · Roll the rare Elzebub egg spawn near home (10-tile radius)
   try { ensureElzebubEggSpawn(); } catch(_){}
@@ -20733,7 +20742,7 @@ function renderZycellSettings(){
   return `
     ${_zySection('◆ SAVE &amp; LOAD',
       `<div style="display:flex; gap:8px; margin-bottom:8px;">
-        <button onclick="try{game.newGameUnsaved=false;saveGame();showToast('◈ Save state stored · autosave now active',2200);playSFX('confirm');}catch(_){}"
+        <button onclick="try{saveGame();showToast('◈ Save state stored',2200);playSFX('confirm');}catch(_){}"
           style="flex:1; padding:10px; background:rgba(79,179,255,0.25); color:#fff; border:1px solid #4fb3ff; font:bold 12px 'Courier New',monospace; cursor:pointer;">💾 SAVE STATE</button>
         <button onclick="try{const ok=loadGame();showToast(ok?'◈ Save loaded':'◈ No save found',1800);playSFX(ok?'confirm':'cancel');}catch(_){}"
           style="flex:1; padding:10px; background:rgba(212,175,55,0.25); color:#fff; border:1px solid #d4af37; font:bold 12px 'Courier New',monospace; cursor:pointer;">📥 LOAD STATE</button>
@@ -22756,7 +22765,7 @@ function loadGame(){
     player.bonds.dad  = 100;
     player.moving = false; player.animFrame = 0;
     refreshDevFactionButtons();
-    game.newGameUnsaved = false;   // v0.95.609 · loaded from disk · autosave re-enabled
+    game.newGameUnsaved = false;   // v0.95.661 · retained only so any stale flag clears; autosave is never suppressed now
     try { if (typeof restoreDeathGargoyles === 'function') restoreDeathGargoyles(); } catch(_){}   // v0.95.614
     // v0.95.660 · Saves written before the RXP gate existed have no flag.  Treat
     // them as already unlocked — a returning player must never lose earning.
@@ -22823,15 +22832,43 @@ function migrateSavedZyrex(){
   return { evicted, resynced };
 }
 function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
-// Auto-save timer · every 5 seconds while in overworld
-// v0.95.609 · Skip autosave while game.newGameUnsaved is true so a fresh
-// NEW GAME session never auto-overwrites the previous LOAD slot.  Manual
-// SAVE STATE from ZyPhone Settings clears the flag + commits to disk.
+// ══════════════════════════════════════════════════════════════════════════
+// ★ ALL PROGRESS PERSISTS · v0.95.661 · Creator directive
+// "all game progress should save within a save state UNLESS a new game
+//  overwrites the save"
+//
+// v0.95.609 had suppressed autosave for a whole NEW GAME session until the
+// player found SAVE STATE in the ZyPhone — so an entire first playthrough
+// could be lost by closing the tab.  That exception is gone: a New Game now
+// claims the slot the moment it starts (see startNewGame) and autosaves like
+// any other session.  Overwriting on New Game is the ONLY way a save dies.
+//
+// Still skipped, deliberately:
+//   · title screen — nothing to save
+//   · mid-battle   — battleState/wildBattleState are not in the snapshot, so
+//                    saving there would store a player standing in a fight
+//                    that no longer exists on reload.  The tick 5s after the
+//                    battle ends captures every reward anyway.
 setInterval(() => {
   if (game.scene === 'title' || battleState || wildBattleState) return;
-  if (game.newGameUnsaved) return;
   saveGame();
 }, 5000);
+// ★ SAVE ON EXIT · closes the up-to-5-second hole the timer leaves.  Nothing
+// wrote on tab close before this, so quitting right after a boss, a catch or a
+// level-up silently threw it away.  'pagehide' + 'hidden' are the two events
+// that actually fire reliably on mobile Safari and on desktop tab close;
+// localStorage writes are synchronous, so the save completes inside them.
+function saveOnExit(){
+  try {
+    if (game.scene === 'title' || battleState || wildBattleState) return;
+    saveGame();
+  } catch(_){}
+}
+window.addEventListener('pagehide', saveOnExit);
+window.addEventListener('beforeunload', saveOnExit);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveOnExit();
+});
 
 const DEV_FACTION_ACTORS={
   elzoran:{label:'Elzoran',level:50,buttonId:'devFactionElzoran'},
@@ -29466,6 +29503,23 @@ player.hpMax=Math.max(1,player.hpMax||player.maxHp||100);
 player.maxHp=player.hpMax;
 // v0.95.211 · CANON base attack · A1×1 · A2×2 · A3×3 · A4×4
 if (player.baseAtk    == null) player.baseAtk    = 25;
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★ PRISTINE PLAYER · v0.95.661
+// Captured AFTER every boot default above has been applied and BEFORE any save
+// is loaded, so this is exactly what a first-ever run looks like.
+// startNewGame() restores from it.  Enumerating ~80 progression fields by hand
+// to "reset" would miss one every time a field is added — this cannot.
+const _PRISTINE_PLAYER = (() => {
+  try { return JSON.parse(JSON.stringify(player)); }
+  catch(_){ return null; }
+})();
+function resetPlayerToPristine(){
+  if (!_PRISTINE_PLAYER) return false;
+  for (const k of Object.keys(player)) delete player[k];       // mutate in place · `player` is const
+  Object.assign(player, JSON.parse(JSON.stringify(_PRISTINE_PLAYER)));
+  return true;
+}
 
 (function wireRizerHud(){
   const widget = document.getElementById('rizerHud');

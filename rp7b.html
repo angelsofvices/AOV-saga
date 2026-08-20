@@ -9902,7 +9902,8 @@ const INTERIOR_RESEARCH_LAB = {
   wallImg: 'lab',                                  // v0.86.3 · lab upper wall band
   researchLab: true,                                // v0.95.111 · flag for lab decor draw
   blocked: [ [9,2],[10,2],[11,2],                   // v0.95.111 · Dad's desk footprint (3t wide)
-             [19,1] ],                              // v0.95.112 · Dad's coat rack
+             [19,1],                                // v0.95.112 · Dad's coat rack
+             [6,1],[7,1] ],                         // v0.95.658 · Dad's bookshelf · solid, X-interact from row 2
 };
 INTERIOR_RESEARCH_LAB.tileImg.src = 'assets/2D%20sprites/tiles/research-lab-floor.png';
 
@@ -12640,6 +12641,39 @@ DADS_BOOKSHELF_IMG.src = 'assets/2D%20sprites/decor/dads-bookshelf.png';
 // bounds measured after keying, so no transparent margin is drawn.
 // Source arrived as an opaque SCREENSHOT, not a keyed PNG — see the commit.
 const DADS_BOOKSHELF_BBOX = [8, 13, 313, 318];         // bx by bw bh in source
+// v0.95.658 · SOLID FOOTPRINT · one constant drives the sprite, the collision
+// and the interact hitbox, so they can never drift apart.  Was drawn centred
+// on x+0.5, which spanned tiles 5.5-7.5 — half-covering two tiles it could
+// never cleanly block.  Snapped to whole tiles 6-7 on row 1 instead.
+const DADS_BOOKSHELF_TILES = { x: 6, y: 1, w: 2 };     // cols 6-7 · footY row 1
+// Loot the shelf hands over, in order.  EMPTY for now — this is the extension
+// point the Creator asked for: push {key, qty, line} and the interact below
+// dispenses each entry exactly once, tracked in player.bookshelfTaken.
+const DADS_BOOKSHELF_ITEMS = [
+  // { key: 'dads_notebook', qty: 1, line: 'Dad\'s field notebook · years of Zyrex observations' },
+];
+function readDadsBookshelf(){
+  player.bookshelfTaken = player.bookshelfTaken || {};
+  const next = DADS_BOOKSHELF_ITEMS.find(it => it && it.key && !player.bookshelfTaken[it.key]);
+  if (next){
+    player.bookshelfTaken[next.key] = true;
+    player.items = player.items || {};
+    player.items[next.key] = (player.items[next.key] || 0) + (next.qty || 1);
+    try { playItemGain(next.key); } catch(_){}
+    try { playSFX('confirm'); } catch(_){}
+    try { awardRizerXP(50); } catch(_){}
+    const label = (INVENTORY_META[next.key] && INVENTORY_META[next.key].label) || next.key;
+    showToast(`★ ${label}${next.line ? ' · ' + next.line : ''}`, 4000);
+    return true;
+  }
+  // Nothing left (or nothing wired yet) · flavour only.
+  const emptied = DADS_BOOKSHELF_ITEMS.length > 0;
+  showToast(emptied
+    ? '◈ Dad\'s bookshelf · you\'ve taken everything worth taking'
+    : '◈ Dad\'s bookshelf · beastology volumes, specimen jars, a Zyrex skull · all his life\'s work',
+    3200);
+  return false;
+}
 
 // v0.95.185 · Living-room decor · TV tower + couch/rug set (interior_home only)
 const LR_TV_IMG = new Image();
@@ -16374,10 +16408,13 @@ function drawInteriorFloor(){
   // v0.95.148 · Dad's bookshelf at (6, 1) · 2t wide × ~2t tall · NPC-realistic scale
   if (cfg.researchLab && DADS_BOOKSHELF_IMG.complete && DADS_BOOKSHELF_IMG.naturalWidth){
     const [bx, by, bw, bh] = DADS_BOOKSHELF_BBOX;
-    const drawW = 2 * TILE;
-    const drawH = Math.round(drawW * (bh / bw));
-    const dx = Math.floor((6 + 0.5) * TILE - drawW / 2) - _cam.x;
-    const dy = Math.floor((1 + 1)   * TILE - drawH)     - _cam.y;
+    const F = DADS_BOOKSHELF_TILES;
+    const drawW = F.w * TILE;
+    const drawH = Math.round(drawW * (bh / bw));      // aspect-locked · never stretched
+    // v0.95.658 · tile-aligned so the sprite covers EXACTLY the blocked tiles.
+    // It stands a little taller than one tile, so it leans up into the wall band.
+    const dx = F.x * TILE - _cam.x;
+    const dy = Math.floor((F.y + 1) * TILE - drawH) - _cam.y;
     ctx.drawImage(DADS_BOOKSHELF_IMG, bx, by, bw, bh, dx, dy, drawW, drawH);
   }
   // v0.95.185 · Living-room · TV tower at (14, 5) + couch/rug set at (8, 5)
@@ -17483,6 +17520,14 @@ function tryInteract(){
           if (n.onInteract) n.onInteract(n);
           return;
         }
+      }
+      // v0.95.658 · Dad's BOOKSHELF · cols 6-7 row 1 · solid, so the player
+      // faces it from row 2 and presses X.  Loot lives in DADS_BOOKSHELF_ITEMS.
+      if (cfg.researchLab && fy === DADS_BOOKSHELF_TILES.y
+          && fx >= DADS_BOOKSHELF_TILES.x
+          && fx <  DADS_BOOKSHELF_TILES.x + DADS_BOOKSHELF_TILES.w){
+        readDadsBookshelf();
+        return;
       }
       // v0.95.312 · Dad's WORKBENCH · Zyrex Research Lab · cols 9-11 row 2
       // After completing Dad's quest, walking up to the workbench opens the

@@ -19344,6 +19344,60 @@ function paintZycellNav(){
 // All widgets read live from player + game state · re-render on 1s tick.
 // Other panels still render the pass-1 stub · shipped in future passes.
 // ══════════════════════════════════════════════════════════════════════
+// ── v0.95.653 · ZYPHONE SCROLL PRESERVATION ──────────────────────────────
+// Creator: "zyphone scroll being reset when im trying to get to the bottom of
+// a list to select an item."
+//
+// paintZycellNav() runs on a 1-SECOND INTERVAL while the phone is open, and it
+// ends in paintZycellContent(), which did `c.innerHTML = fn()`.  Replacing
+// innerHTML destroys and rebuilds every child, and a rebuilt element has
+// scrollTop 0 — so the list snapped back to the top once a second, forever,
+// no matter how the player scrolled.  Reaching the bottom of a long list was
+// a race against the clock.
+//
+// v0.95.577 already stopped scrollIntoView from firing on refresh; that was a
+// different symptom of the same tick.  The innerHTML swap itself was still
+// resetting the position and is the actual cause.
+//
+// Two-part fix:
+//   1 · If the rendered HTML is byte-identical to what is already on screen —
+//       the normal case while the player is just scrolling a static list — do
+//       not touch the DOM AT ALL.  No rebuild, no scroll reset, and no lost
+//       hover/selection either.
+//   2 · When the HTML genuinely changed, capture scrollTop for the container
+//       AND every inner scroll region first, then restore it after.  Inner
+//       regions (the bag list, faction grid, leaderboard, expeditions) have
+//       their own overflow and were resetting independently of the outer one.
+//
+// Switching PAGES deliberately does not restore — a new panel should open at
+// the top, not inherit the last one's offset.
+function _zyScrollers(root){
+  const out = [];
+  if (!root || !root.querySelectorAll) return out;
+  root.querySelectorAll('div,ul,ol,section,table').forEach(el => {
+    const st = (el.getAttribute && el.getAttribute('style')) || '';
+    if (/overflow(-y)?\s*:\s*(auto|scroll)/i.test(st)) out.push(el);
+  });
+  return out;
+}
+function _zySnapshotScroll(root){
+  const snap = { root: root.scrollTop || 0, inner: [] };
+  _zyScrollers(root).forEach((el, i) => {
+    if (el.scrollTop) snap.inner.push({ i, id: el.id || null, top: el.scrollTop });
+  });
+  return snap;
+}
+function _zyRestoreScroll(root, snap){
+  if (!snap) return;
+  const els = _zyScrollers(root);
+  for (const rec of snap.inner){
+    // Prefer the id (stable across a rebuild); fall back to document order.
+    let el = rec.id ? root.querySelector('[id="' + rec.id + '"]') : null;
+    if (!el) el = els[rec.i];
+    if (el) el.scrollTop = rec.top;   // assignment self-clamps if content shrank
+  }
+  if (snap.root) root.scrollTop = snap.root;
+}
 function paintZycellContent(){
   const c = document.getElementById('zycellContent');
   if (!c) return;
@@ -19361,8 +19415,25 @@ function paintZycellContent(){
     settings:    renderZycellSettings,
   };
   const fn = map[zycellPage] || renderZycellHome;
-  try { c.innerHTML = fn(); }
-  catch(e){ console.warn('paintZycellContent', e); c.innerHTML = `<div style="padding:60px;color:#f88;">Panel error · ${e.message}</div>`; }
+  let html;
+  try { html = fn(); }
+  catch(e){
+    console.warn('paintZycellContent', e);
+    html = `<div style="padding:60px;color:#f88;">Panel error · ${e.message}</div>`;
+  }
+  const samePage = (c._zyPageCache === zycellPage);
+  // 1 · nothing changed → leave the DOM (and the scroll) completely alone
+  if (samePage && c._zyHtmlCache === html){
+    try { if (typeof _zycellPaintFocus === 'function') _zycellPaintFocus(); } catch(_){}
+    return;
+  }
+  // 2 · content changed → rebuild, but carry the scroll offsets across
+  const snap = samePage ? _zySnapshotScroll(c) : null;
+  c.innerHTML = html;
+  c._zyHtmlCache = html;
+  c._zyPageCache = zycellPage;
+  if (snap) _zyRestoreScroll(c, snap);
+  else c.scrollTop = 0;              // fresh panel opens at the top
   // v0.95.479 · Persistent focus highlight · re-apply after every content redraw
   // so the 1-sec refresh interval doesn't wipe the gold outline off the cursor
   try { if (typeof _zycellPaintFocus === 'function') _zycellPaintFocus(); } catch(_){}

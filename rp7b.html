@@ -13145,11 +13145,51 @@ let _sleepFade = null;  // { t0, dur } while active
 //   2. If HP full (Rizer + party) · no-op toast
 //   3. If Rizer HP < max → fade + play DREAM VIDEO (un-skippable) · on end · restore + resume
 //   4. If only party needs healing (Rizer already full) → old quick sleep fade
+// ══════════════════════════════════════════════════════════════════════════
+// ★ REST RESTORE · v0.95.654 · Creator directive "restore blue meter on bed
+// respawn."
+//
+// The BLUE meter is ◆ SPECIAL — player.diamond — the Astral Arts resource that
+// pays for A3 Astralstrike and A4 Astralkick (per [[aov-rhud-meter-functions]]).
+// Every bed path restored HP and the party's Zyrex and then stopped, so a
+// Rizer who died mid-fight woke up at full health with an empty SPECIAL bar
+// and no way to cast until they found gems or shattered an astralite stone.
+// The ϟ ASTRAL ENERGY bar (player.astral · attack speed + defence) had the
+// same hole, so both are restored here — a bed that leaves you slower and
+// weaker than before you slept isn't a rest.
+//
+// One function, called from every rest path, so no future path can miss a bar.
+function restoreRizerOnRest(){
+  // Normalize the historic hpMax/maxHp alias pair before using it.  These
+  // drift apart if anything writes only one of them.
+  player.hpMax = Math.max(1, player.hpMax || player.maxHp || 100);
+  player.maxHp = player.hpMax;
+  const before = { hp: player.hp || 0, astral: player.astral || 0, diamond: player.diamond || 0 };
+  player.hp      = player.hpMax;
+  player.astral  = Math.max(1, player.astralMax  || 100);
+  player.diamond = Math.max(1, player.diamondMax || 100);
+  return before;
+}
+// True when HP is down — this is what earns the deep-sleep dream video.
+function rizerHpNeedsRest(){
+  const hpMax = Math.max(1, player.hpMax || player.maxHp || 100);
+  return (player.hp != null) && (player.hp < hpMax);
+}
+// True when either bar is down.  Kept SEPARATE from the HP check on purpose:
+// a drained SPECIAL bar earns the quick 1.2s nap, not a 7-second dream video.
+function rizerMetersNeedRest(){
+  return (player.astral  || 0) < Math.max(1, player.astralMax  || 100)
+      || (player.diamond || 0) < Math.max(1, player.diamondMax || 100);
+}
 function sleepInBed(){
   if (_sleepFade || _dreamPlaying) return;
   const alive = (player.party || []).filter(z => z);
   const zyrexNeeds = alive.some(z => z.hp < z.maxHp);
-  const rizerNeeds = (player.hp != null) && (player.hp < (player.maxHp || player.hp));
+  // v0.95.654 · was `player.hp < (player.maxHp || player.hp)` — if maxHp was
+  // ever unset that reduces to `hp < hp`, i.e. ALWAYS FALSE, and the bed would
+  // silently refuse to heal.  Routed through the canonical hpMax helper.
+  const rizerNeeds  = rizerHpNeedsRest();
+  const meterNeeds  = rizerMetersNeedRest();
   // v0.95.144 · Dev · "Visit Dreamland" bypass · always play dream video, even at 100 HP
   if (game.devVisitDreamland){
     playDreamVideo(alive);
@@ -13158,7 +13198,7 @@ function sleepInBed(){
   // v0.95.635 · Sleeping now has a SECOND purpose: skipping 12 hours.  It must
   // never refuse just because you are healthy, or a daytime player could never
   // reach night-gated content (Barrow habitats, nocturnal Zyrex).
-  if (!zyrexNeeds && !rizerNeeds){
+  if (!zyrexNeeds && !rizerNeeds && !meterNeeds){
     const phase = toggleSleepClockSkip();
     try { playSFX('yawnBed'); } catch(_){}
     playSFX('menuOpen');
@@ -13186,12 +13226,15 @@ function sleepInBed(){
   _sleepFade = { t0: performance.now(), dur: 2400 };
   setTimeout(() => {
     alive.forEach(z => { z.hp = z.maxHp; });
+    // v0.95.654 · the quick nap now refills ◆ SPECIAL and ϟ ENERGY as well
+    const was = restoreRizerOnRest();
+    const refilled = (was.diamond < (player.diamondMax || 100)) || (was.astral < (player.astralMax || 100));
     // v0.95.635 · every sleep advances 12h, healing or not
     const ph = toggleSleepClockSkip();
     try { refreshLightModeFromClock(); } catch(_){}
     saveGame();
     playSFX('confirm');
-    showToast(`◈ Zyrex party restored · ${zyraxisClockString()} · ${ph} over Zyraxis`, 2800);
+    showToast(`◈ ${refilled ? 'Rested · ◆ SPECIAL + ϟ ENERGY refilled' : 'Zyrex party restored'} · ${zyraxisClockString()} · ${ph} over Zyraxis`, 2800);
   }, 1200);
   setTimeout(() => { _sleepFade = null; }, 2400);
 }
@@ -13266,12 +13309,12 @@ function playDreamVideo(alive, opts = {}){
     }
   };
   if (!vid){
-    if (player.hp != null && player.maxHp) player.hp = player.maxHp;
+    restoreRizerOnRest();   // v0.95.654 · HP + ◆ SPECIAL + ϟ ENERGY
     (alive || []).forEach(z => { z.hp = z.maxHp; });
     wakeInRizerRoom();
     _rizerDeath = null;
     saveGame(); playSFX('confirm');
-    if (!opts.fromDeath) showToast('◈ Fully rested.', 2200);
+    if (!opts.fromDeath) showToast('◈ Fully rested · HP · ◆ SPECIAL · ϟ ENERGY all restored.', 2200);
     return;
   }
   _dreamPlaying = true;
@@ -13293,14 +13336,14 @@ function playDreamVideo(alive, opts = {}){
     _dreamPlaying = false;
     vid.pause();
     vid.style.display = 'none';
-    if (player.hp != null && player.maxHp) player.hp = player.maxHp;
+    restoreRizerOnRest();   // v0.95.654 · HP + ◆ SPECIAL + ϟ ENERGY
     (alive || (player.party || []).filter(z => z)).forEach(z => { z.hp = z.maxHp; });
     wakeInRizerRoom();
     _rizerDeath = null;
     saveGame();
     _sleepFade = null;
     playSFX('confirm');
-    if (!opts.fromDeath) showToast(`◈ Fully rested · Rizer HP restored to 100${reason === 'skip' ? ' (skipped)' : ''}.`, 2600);
+    if (!opts.fromDeath) showToast(`◈ Fully rested · HP · ◆ SPECIAL · ϟ ENERGY all restored${reason === 'skip' ? ' (skipped)' : ''}.`, 2600);
     if (_dreamSkipHandlers){
       window.removeEventListener('keydown',    _dreamSkipHandlers.k, true);
       window.removeEventListener('pointerdown',_dreamSkipHandlers.p, true);

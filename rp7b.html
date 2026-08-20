@@ -2947,6 +2947,148 @@ function wheelQuarterAt(dist, bearing){
   return (w.flank === 'FW') === cw ? 'forest' : 'wetland';
 }
 // ═══════════════════════════════════════════════════════════════════════════
+// ★★ SETTLEMENT DOCTRINE · v0.95.673 · "make the districts feel alive
+//     like Malezor does" — Creator directive 2026-08-20
+// ═══════════════════════════════════════════════════════════════════════════
+// Measured off Malezor rather than invented, because Malezor is the district
+// the Creator says already works.  Zarvane is the counter-example and is just
+// as instructive.
+//
+//   MALEZOR · 12 homes           ZARVANE · 14 homes
+//   8 distinct X, 11 distinct Y  4 distinct X, 10 distinct Y
+//   14% fill of its lattice      35% fill of its lattice
+//
+// Zarvane's homes sit on four columns — x 65, 75, 95, 105 — and the eye reads
+// that instantly as stamped, not settled.  Malezor's never line up.  That single
+// difference is most of why one feels lived-in and the other feels placed.
+//
+// The five rules, each with the Malezor number it came from:
+//
+//  1 · BELT, NOT SPRINKLE.  Homes ring the civic core at t 0.18-0.50 of the
+//      district radius (Malezor mean 0.36).  The civic anchors themselves sit
+//      t 0.28-0.46, so the houses WRAP the shops rather than sitting beyond them.
+//
+//  2 · ONE NEIGHBOURHOOD, NOT A RING.  Malezor's homes occupy a contiguous arc:
+//      7 in its forest quarter, 5 in the highland next door, and ZERO in the
+//      open road quarter.  A town is somewhere people chose; an even ring around
+//      the centre is a spawn pattern.  Settlements therefore take the FOREST
+//      quarter plus whichever flank neighbours it — timber and shelter, and away
+//      from the road the Seers hold.
+//
+//  3 · WALKING DISTANCE.  Every Malezor home is within 22 tiles of a shop, the
+//      school, the hall or the hospital.  Nobody lives out of reach of a door.
+//
+//  4 · ELBOW ROOM.  Nearest-neighbour spacing clusters at 10-12 tiles, with a
+//      few outliers at 20-27 for the farmsteads.  Closer than 9 reads as a
+//      barracks; further than 30 stops being a neighbourhood.
+//
+//  5 · SOMEONE LIVES THERE.  Malezor runs ~0.9 friendly NPCs per home.  Zarvane
+//      runs 0.3, and that is the other half of why it feels empty.  A house with
+//      nobody near it is scenery.
+//
+// Data + helpers only at this version.  Seven districts still have no house art;
+// findHomePlots() is the function the eventual pass will call, so that when the
+// art lands the placement is already decided and already verified.
+const SETTLEMENT_DOCTRINE = {
+  T_MIN: 0.18, T_MAX: 0.50,        // radius band, from Malezor's 0.18-0.51
+  SPACING_MIN: 9, SPACING_IDEAL: 11,
+  CIVIC_REACH: 22,                  // max tiles from a home to any civic door
+  // Malezor's 22 is the distance to the NEAREST OF FIVE anchors — school, hall,
+  // potion shop, gear shop, hospital, spread across t 0.28-0.46.  The seven
+  // flora districts currently have exactly ONE anchor apiece (their town hall,
+  // dead centre), and a 22-tile leash off a single central building intersects
+  // the 0.18-0.50 radius band in a ring barely a tile wide — the first run
+  // found only 3-6 plots per district for that reason.
+  //
+  // So the reach relaxes while a district is still under-built.  This is a
+  // scaffold, not a second standard: the real fix is that shops, a school and a
+  // clinic should land WITH the houses, because a neighbourhood is defined by
+  // what it is walking distance to.  Once a district has three anchors the
+  // strict Malezor number applies again automatically.
+  CIVIC_REACH_SPARSE: 34,
+  SPARSE_ANCHOR_COUNT: 3,
+  NPC_PER_HOME: 0.9,
+  JITTER: 4,                        // breaks the lattice Zarvane fell into
+  CLEAR_OF_HQ: 14, CLEAR_OF_TOWER: 12, CLEAR_OF_HALL: 13,
+};
+// The neighbourhood arc.  Malezor's twelve homes fall 7 in its forest quarter
+// and 5 in the highland beside it, with ZERO in the open road quarter and zero
+// in the wetland — so the rule reads straight off the district that works:
+// people settle in the timber and up the slope, never on the road, not out in
+// the marsh.  Forest and highland are adjacent on the wheel, so this is always
+// one contiguous arc no matter how the wheel has been rotated.
+const SETTLEMENT_QUARTERS = ['forest', 'highland'];
+function settlementBearingsFor(dist){
+  if (!WHEEL_BY_DIST[dist]) return [];
+  return ['N','NE','E','SE','S','SW','W','NW']
+    .filter(b => SETTLEMENT_QUARTERS.includes(wheelQuarterAt(dist, b)));
+}
+// Candidate house plots for a district, in placement order.  Honours every rule
+// above and refuses to return a plot that would block a door, a plaza or a road.
+function findHomePlots(dist, count, seed){
+  const D = (typeof ZYRAXIS_DISTRICT_BY_ID !== 'undefined') ? ZYRAXIS_DISTRICT_BY_ID[dist] : null;
+  if (!D || !count) return [];
+  const S = SETTLEMENT_DOCTRINE;
+  const rng = _makeWorldRng((seed || 0x50FA) + D.cx * 131 + D.cy);
+  const bearingOf = (dx, dy) => {
+    if (Math.abs(dx) <= Math.abs(dy) * 0.45) return dy < 0 ? 'N' : 'S';
+    if (Math.abs(dy) <= Math.abs(dx) * 0.45) return dx < 0 ? 'W' : 'E';
+    return (dy < 0 ? 'N' : 'S') + (dx < 0 ? 'W' : 'E');
+  };
+  // civic anchors this district already has — rule 3 measures against these
+  const civic = WORLD_PROPS.filter(p => p && typeof p.tileX === 'number'
+    && /_town_hall$|shop|school|hospital|academy|inn|clinic|market/.test(p.id || '')
+    && worldDistrictAt(p.tileX, p.tileY) === dist)
+    .map(p => [p.tileX, p.tileY]);
+  const sparse = civic.length < S.SPARSE_ANCHOR_COUNT;
+  const reach = sparse ? S.CIVIC_REACH_SPARSE : S.CIVIC_REACH;
+  const hall = WORLD_PROPS.find(p => p && p.id === `${dist}_town_hall`);
+  const hq = (typeof SEER_HQ_BY_DIST !== 'undefined') ? SEER_HQ_BY_DIST[dist] : null;
+  const tower = (typeof TOWER_BY_DIST !== 'undefined') ? TOWER_BY_DIST[dist] : null;
+  const ok = (x, y, taken) => {
+    if (worldDistrictAt(x, y) !== dist) return false;
+    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+    const t = Math.hypot((x - D.cx) / D.rx, (y - D.cy) / D.ry);
+    if (t < S.T_MIN || t > S.T_MAX) return false;
+    const q = wheelQuarterAt(dist, bearingOf(x - D.cx, y - D.cy));
+    if (!SETTLEMENT_QUARTERS.includes(q)) return false;   // rule 2 · timber and slope only
+    // a house is 4x4-ish; keep its whole plot walkable and unclaimed
+    for (let oy = -3; oy <= 1; oy++) for (let ox = -2; ox <= 2; ox++){
+      if (!walkable(x + ox, y + oy)) return false;
+    }
+    if (hq  && Math.hypot(x - hq.door[0],  y - hq.door[1])  < S.CLEAR_OF_HQ) return false;
+    if (tower && Math.hypot(x - tower.tower[0], y - tower.tower[1]) < S.CLEAR_OF_TOWER) return false;
+    if (hall && Math.hypot(x - hall.tileX, y - hall.tileY) < S.CLEAR_OF_HALL) return false;
+    if (civic.length && !civic.some(([cx, cy]) => Math.hypot(x - cx, y - cy) <= reach)) return false;
+    for (const [px, py] of taken){ if (Math.hypot(x - px, y - py) < S.SPACING_MIN) return false; }
+    return true;
+  };
+  const plots = [];
+  for (let guard = 0; guard < count * 400 && plots.length < count; guard++){
+    let x, y;
+    if (plots.length){
+      // grow the neighbourhood outward from what is already there, at roughly
+      // the ideal spacing plus jitter — this is what stops the lattice forming
+      const [ax, ay] = plots[Math.floor(rng() * plots.length)];
+      const ang = rng() * Math.PI * 2;
+      const r = S.SPACING_IDEAL + rng() * S.JITTER;
+      x = Math.round(ax + Math.cos(ang) * r);
+      y = Math.round(ay + Math.sin(ang) * r);
+    } else {
+      const ang = rng() * Math.PI * 2;
+      const rad = S.T_MIN + rng() * (S.T_MAX - S.T_MIN);
+      x = Math.round(D.cx + Math.cos(ang) * D.rx * rad);
+      y = Math.round(D.cy + Math.sin(ang) * D.ry * rad);
+    }
+    if (ok(x, y, plots)) plots.push([x, y]);
+  }
+  // Callers (and the verifier) need to know the reach was relaxed and why.
+  plots.sparse = sparse;
+  plots.civicAnchors = civic.length;
+  plots.reach = reach;
+  return plots;
+}
+// ═══════════════════════════════════════════════════════════════════════════
 // ★ SEER HQ NETWORK · v0.95.671 · one HQ per district, all ten
 // ═══════════════════════════════════════════════════════════════════════════
 // Per [[aov-overworld-construction-canon]]: the Seer HQ sits at the route mouth

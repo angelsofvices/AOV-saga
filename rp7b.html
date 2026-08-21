@@ -5565,6 +5565,23 @@ const DISTRICT_HOME_ART = {
   ],
 };
 const DISTRICT_HOME_COUNT = 9;      // 3 of each variant · Malezor runs 11
+// v0.95.683 · LEVEL ROOFLINES.
+// Every house was drawn at a fixed tileW 5, so its HEIGHT fell out of whatever
+// aspect the artwork happened to have — 4.29 tiles for Xilnar's squat moondome
+// against 5.56 for Thardin's tall crucible, and all of them shorter than
+// Malezor's villager-home at 5.57.  Standing in a street, that reads as some
+// houses being further away.
+//
+// Houses are judged by their roofline against a 2-tile Rizer, so HEIGHT is the
+// dimension that has to agree.  tileW is now derived per sprite from its own
+// aspect to hit a common drawn height, which levels every roof in the game and
+// lets width vary the way real buildings do.  Wide houses overhang their 5-tile
+// footprint by up to ~0.75 tiles a side, which is just eaves.
+const HOME_TARGET_H = 5.57;         // tiles · measured off Malezor villager-home
+function homeTileW(bbox){
+  const aspect = bbox[2] / bbox[3];
+  return Math.round(HOME_TARGET_H * aspect * 100) / 100;
+}
 // Grass is the one layer that covers the WHOLE region rather than clustering in
 // one quarter — the Creator asked for it "throughout entire region".  Density
 // still follows the wheel so the place reads correctly: meadow thickest in the
@@ -5739,7 +5756,9 @@ const TREE_KEEP_CLEAR = [
           src: `assets/2D%20sprites/buildings/homes/${a.file}`,
           bbox: a.bbox,
           tileX: hx, tileY: hy,
-          tileW: 5, tileH: 5,
+          // width derived from aspect so every roofline lands at HOME_TARGET_H.
+          // The FOOTPRINT stays 5x5 regardless — collision is the plot, not the eaves.
+          tileW: homeTileW(a.bbox), tileH: Math.round(HOME_TARGET_H),
           footprint: (function(){
             const f = [];
             for (let dy = -4; dy <= 0; dy++){

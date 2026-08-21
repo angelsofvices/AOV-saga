@@ -11773,11 +11773,13 @@ const INTERIOR_SEER_HQ_1F = {
       triggers: [[1, 1], [2, 1]],
       target: 'interior_seer_hq_b',
       spawnAt: { x: 7, y: 8, dir: 'up' },
+      art: 'down', visX: 1, visY: -1, visW: 2, visH: 3,
     },
     { // UP to the Commander · locked until this district's key is in hand
       triggers: [[17, 1], [18, 1]],
       target: 'interior_seer_hq_2f',
       spawnAt: { x: 7, y: 10, dir: 'up' },
+      art: 'up', visX: 17, visY: -1, visW: 2, visH: 3,
       locked: () => !hasSeerKey(),
       lockedMsg: () => {
         const H = SEER_HQ_BY_DIST[seerHqDistrict()];
@@ -11796,7 +11798,11 @@ const INTERIOR_SEER_HQ_B = {
   blocked: [],
   label: '◈ SEER HQ · VAULT',
   stairsList: [
-    { triggers: [[7, 9]], target: 'interior_seer_hq_1f', spawnAt: { x: 2, y: 2, dir: 'down' } },
+    // Triggers are 2 wide to match the 2-tile art — a 1-tile trigger under a
+    // 2-tile staircase means half the steps do nothing when you walk on them.
+    { triggers: [[7, 9], [8, 9]], target: 'interior_seer_hq_1f',
+      spawnAt: { x: 2, y: 2, dir: 'down' },
+      art: 'up', visX: 7, visY: 7, visW: 2, visH: 3 },
   ],
 };
 const INTERIOR_SEER_HQ_2F = {
@@ -11809,7 +11815,9 @@ const INTERIOR_SEER_HQ_2F = {
   blocked: [],
   label: '◈ SEER HQ · COMMAND',
   stairsList: [
-    { triggers: [[7, 11]], target: 'interior_seer_hq_1f', spawnAt: { x: 17, y: 2, dir: 'down' } },
+    { triggers: [[7, 11], [8, 11]], target: 'interior_seer_hq_1f',
+      spawnAt: { x: 17, y: 2, dir: 'down' },
+      art: 'down', visX: 7, visY: 9, visW: 2, visH: 3 },
   ],
 };
 // v0.95.671 · TEN Seer HQs now share this one interior.  The drop point and the
@@ -19337,9 +19345,20 @@ function drawInteriorFloor(){
   }
   // Staircase decor · draws the 2x3-tile sprite in the upper corner.
   // 1F-to-2F stairs use the UP art · 2F-to-1F stairs use the DOWN art.
-  const s = cfg.stairs;
-  if (s){
-    const goingUp = s.target && s.target.endsWith('_2f');
+  // v0.95.703 · draws EVERY staircase on the floor, not just cfg.stairs.
+  // The Seer HQ hall has two (down to the vault, up to command) and they live
+  // in cfg.stairsList — so the triggers worked and no art appeared anywhere in
+  // the building. Invisible stairs you fall through are worse than no stairs.
+  const _stairArt = Array.isArray(cfg.stairsList)
+    ? cfg.stairsList
+    : (cfg.stairs ? [cfg.stairs] : []);
+  for (const s of _stairArt){
+    if (!s || s.visX == null) continue;
+    // `art` is explicit where the old target-name heuristic cannot work: in the
+    // Seer HQ the vault stair goes DOWN to a scene that does not end in _2f,
+    // and the vault's own stair goes UP to one that ends in _1f.
+    const goingUp = s.art ? (s.art === 'up')
+                          : !!(s.target && s.target.endsWith('_2f'));
     const img  = goingUp ? STAIRCASE_UP_IMG  : STAIRCASE_DOWN_IMG;
     const bb   = goingUp ? STAIRCASE_UP_BBOX : STAIRCASE_DOWN_BBOX;
     if (img.complete && img.naturalWidth){

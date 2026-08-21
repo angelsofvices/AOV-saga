@@ -737,6 +737,12 @@
           <button class="zyNav" data-zynav="contacts"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">👥  CONTACTS</button>
           <button class="zyNav" data-zynav="leaderboard" style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🏆  LEADERBOARD</button>
           <button class="zyNav" data-zynav="settings"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">⚙  SETTINGS</button>
+          <!-- v0.95.707 · quick summon/stash hint · a hold verb nobody is told
+               about is a hold verb nobody uses.  Live text so it names which
+               way the toggle will go on the next hold. -->
+          <div id="zycellQuickHint" style="margin-top:10px; padding:8px 10px; border:1px dashed rgba(79,179,255,0.35); color:#8ff; font:bold 10px 'Courier New',monospace; letter-spacing:.06em; line-height:1.5; text-align:left;">
+            HOLD △ · SEND FACTION OUT
+          </div>
         </div>
         <!-- CENTER CONTENT · dispatched by zycellPage · pass-1 stub -->
         <div id="zycellContent" style="flex:1; padding:16px 18px; overflow-y:auto; overflow-x:hidden; color:#dfe8ff; pointer-events:auto; user-select:text; -webkit-overflow-scrolling:touch;">
@@ -1325,7 +1331,8 @@ window.addEventListener('keydown', (ev) => {
   const _isOpen = _disp && _disp !== 'none';
   if (_isOpen){
     _pnl.style.display = 'none';
-    if (typeof game === 'object'){ game.zphoneOpen = false; game._zycellFocus = 'nav'; game._zycellItemIdx = 0; }
+    if (typeof game === 'object'){ game.zphoneOpen = false; game._zycellFocus = 'nav'; game._zycellItemIdx = 0;
+      game._zyTriDownAt = 0; game._zyTriFired = false; }   // v0.95.707 · drop any hold in flight
     try { playSFX('menuClose'); } catch(_){}
   } else {
     _pnl.style.display = 'flex';
@@ -18287,6 +18294,10 @@ addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
   keys[k] = false;
   releaseWildBattleKey(k);
+  // v0.95.707 · release the ZyPhone Triangle hold. Without this the timer keeps
+  // its old start stamp and the NEXT tap of Triangle instantly counts as a
+  // completed hold — a quick press would dump the whole faction out.
+  if (k === 'k' || k === 'y'){ game._zyTriDownAt = 0; game._zyTriFired = false; }
   // v0.95.439 · R2 release · exit block stance
   if (k === 'i' && player && player.blocking){
     player.blocking = false;
@@ -22514,6 +22525,20 @@ function paintZycellNav(){
   }
   const cEl = document.getElementById('zycellCredits');
   if (cEl) cEl.textContent = `◆ ${(player.credits || player.rizerXP || 0).toLocaleString()}`;
+  // v0.95.707 · the hint names the direction the NEXT hold will go, read from
+  // the same count quickSummonStashAll uses — so the label can never disagree
+  // with what the button actually does.
+  const qh = document.getElementById('zycellQuickHint');
+  if (qh){
+    try {
+      const partyN = (player.party || []).filter(Boolean).length;
+      const out = summonedZyrexCount();
+      qh.textContent = !partyN ? 'HOLD △ · NO FACTION YET'
+                     : out > 0 ? `HOLD △ · STASH FACTION (${out} OUT)`
+                               : `HOLD △ · SEND FACTION OUT (${partyN})`;
+      qh.style.color = !partyN ? 'rgba(200,220,255,0.4)' : (out > 0 ? '#5fdc7a' : '#8ff');
+    } catch(_){}
+  }
   const clkEl = document.getElementById('zycellClock');
   if (clkEl){
     // v0.95.635 · Zyraxis time (real clock + sleep offset), not raw system time
@@ -24233,6 +24258,20 @@ function handleZycellKey(k){
   // LEFT arrow exits back to nav (from content).  UP/DOWN walks the panel
   // list within the rail.  L1/Q + R1/I are page-cycle shortcuts that skip
   // through the whole panel list regardless of focus.
+  // ★ v0.95.707 · HOLD Triangle on the nav rail · quick summon / stash all.
+  // Browsers auto-repeat keydown while a key is held, so the repeat IS the
+  // hold signal — no keyup bookkeeping needed to detect it. _zyTriFired stops
+  // the repeat from firing the action every frame after the threshold.
+  if (k === 'k' || k === 'y'){
+    const now = performance.now();
+    if (!game._zyTriDownAt) game._zyTriDownAt = now;
+    if (!game._zyTriFired && (now - game._zyTriDownAt) >= ZY_HOLD_MS){
+      game._zyTriFired = true;
+      try { quickSummonStashAll(); } catch(err){ console.warn('quick summon failed', err); }
+      try { paintZycellNav(); } catch(_){}
+    }
+    return true;
+  }
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
   if (k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
@@ -30091,6 +30130,72 @@ function isInActiveCombat(){
   }
   return false;
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ QUICK SUMMON / STASH · v0.95.707
+//
+// HOLD Triangle anywhere on the ZyPhone nav rail to send the WHOLE faction out
+// at once, or call the whole faction back.  Tapping Triangle on a faction slot
+// still toggles that ONE Zyrex — this is the bulk verb, not a replacement.
+//
+// It is a TOGGLE on a single reading: if anybody is out, the hold puts everyone
+// away; if nobody is out, the hold sends everyone. Deciding per-Zyrex would
+// make a hold do half of each and read as a bug.
+const ZY_HOLD_MS = 480;                 // how long Triangle must be held
+function summonedZyrexCount(){
+  const party = (player.party || []).filter(Boolean);
+  let n = 0;
+  for (const z of party){
+    const fid = `_summon_${z.speciesId}`;
+    if (NPCS && NPCS.some(x => x && x.id === fid && x._summoned)) n++;
+  }
+  return n;
+}
+function quickSummonStashAll(){
+  const party = (player.party || []).filter(Boolean);
+  if (!party.length){
+    showToast('◈ No Zyrex in your faction yet', 2200);
+    try { playSFX('doorLock'); } catch(_){}
+    return false;
+  }
+  const out = summonedZyrexCount();
+  const stashing = out > 0;
+  // The combat lock lives in toggleFactionSummon and would fire once PER Zyrex,
+  // burying the player in identical toasts. Check it once, up front.
+  if (stashing && typeof isInActiveCombat === 'function' && isInActiveCombat()){
+    showToast('◈ Active combat · clear the stage before stashing your faction', 2800);
+    try { playSFX('doorLock'); } catch(_){}
+    return false;
+  }
+  for (let i = 0; i < party.length; i++){
+    const z = party[i];
+    const fid = `_summon_${z.speciesId}`;
+    const isOut = NPCS && NPCS.some(x => x && x.id === fid && x._summoned);
+    if (isOut === stashing){                 // only touch the ones that need it
+      try { toggleFactionSummon(i); } catch(err){ console.warn('bulk summon', err); }
+    }
+  }
+  // ★ Count what ACTUALLY moved by re-reading the world, not by counting the
+  // calls we made.  toggleFactionSummon silently refuses any Zyrex with no
+  // entry in SUMMONABLE_SPRITES — it has no overworld sprite to walk around in
+  // — so counting attempts would report "5 sent out" when two of them never
+  // left the phone.  A number in a toast has to be a measurement.
+  const changed = Math.abs(summonedZyrexCount() - out);
+  const noSprite = party.filter(z => !SUMMONABLE_SPRITES[z.speciesId]).length;
+  if (!stashing && noSprite){
+    showToast(`◈ ${noSprite} Zyrex have no overworld form yet and stayed in the ZyCube`, 3000);
+  }
+  if (!changed){
+    showToast(stashing ? '◈ Faction already stowed' : '◈ Faction already out', 2000);
+    return false;
+  }
+  showToast(stashing
+    ? `◈ ZYCUBE · ${changed} Zyrex recalled to the phone`
+    : `★ ZYCUBE · ${changed} Zyrex sent out`, 3000);
+  try { playSFX(stashing ? 'cancel' : 'confirm'); } catch(_){}
+  return true;
+}
+
 function toggleFactionSummon(partyIdx){
   const party = (player.party || []).filter(Boolean);
   const z = party[partyIdx];

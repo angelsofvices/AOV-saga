@@ -17772,9 +17772,16 @@ addEventListener('keydown', e => {
           // the destination tile is blocked · dodge in place if both are.
           const vx = { up:0, down:0, left:-1, right:1 }[player.dir];
           const vy = { up:-1, down:1, left:0,  right:0 }[player.dir];
+          // ★ v0.95.710 · a roll may not COME TO REST on a doorway.
+          // The door rule fires on arrival, so a roll that landed on one would
+          // either yank you into a building mid-dodge or bounce you straight
+          // back out — both read as the roll breaking.  A door is simply not a
+          // landing spot; the roll shortens, or happens in place.
+          const landable = (x, y) =>
+            walkable(x, y) && !(game.scene === 'overworld' && _propDoors.has(`${x},${y}`));
           let dist = 0;
-          if (walkable(player.x + vx*2, player.y + vy*2)) dist = 2;
-          else if (walkable(player.x + vx, player.y + vy)) dist = 1;
+          if (landable(player.x + vx*2, player.y + vy*2)) dist = 2;
+          else if (landable(player.x + vx, player.y + vy)) dist = 1;
           player.dodgeToX = player.x + vx*dist;
           player.dodgeToY = player.y + vy*dist;
           player.x = player.dodgeToX;
@@ -18775,6 +18782,8 @@ function drawDialogOverlay(){
 }
 
 // -- Movement · one tile step per moveCd interval ----------------------------
+// v0.95.710 · last tile the player stepped off, for the door bounce-back.
+let _doorPrevX = null, _doorPrevY = null;
 function tryMove(dt){
   // Freeze player when title screen, any UI overlay, or battle owns input.
   const freezeReasons = [];
@@ -18883,6 +18892,7 @@ function tryMove(dt){
     if(!dx&&!dy){player.moving=false;return;}
     const nx=player.x+dx,ny=player.y+dy;
     const collided=!walkable(nx,ny);
+    _doorPrevX = player.x; _doorPrevY = player.y;   // v0.95.710
     player.dir=dir;player.x=nx;player.y=ny;player.moving=true;
     player.animFrame=(player.animFrame+1)%4;
     if(collided){
@@ -18923,6 +18933,9 @@ function tryMove(dt){
   if (!walkable(nx, ny)){ player.moveCd = 120; player.moving = false; return; }
 
   const wasMoving = player.moving;
+  // v0.95.710 · remember where we stepped FROM, so a refused door can put us
+  // back there rather than guessing a direction to shove the player in.
+  _doorPrevX = player.x; _doorPrevY = player.y;
   player.x = nx; player.y = ny;
   // v0.95.324 · District-border WARP · when Rizer crosses into a new district
   // for the first time, banner-toast the district name and cache a warp entry
@@ -19004,11 +19017,39 @@ function tryMove(dt){
   }
   // v0.95.25 · Auto-enter overworld doors flagged autoEnter (e.g., player's
   // home) · stepping on the door tile fires onInteract without pressing Z.
-  if (game.scene === 'overworld'&&player.activeActor==='rizer'){
+  // ★★ v0.95.710 · YOU CANNOT STAND ON A DOOR.
+  //
+  // Only doors flagged autoEnter used to fire on contact; every other door tile
+  // was simply excluded from the prop footprint, so you could walk onto it,
+  // stop, roll on it, and stand in the doorway indefinitely with nothing
+  // happening.  A door is a threshold, not a floor tile.
+  //
+  // Now EVERY registered door fires when you step on it.  If it opens, you go
+  // in.  If it is locked or shuttered, its own handler says so and you are put
+  // back on the tile you came from, FACING the door — which is the pose that
+  // makes "locked" legible, and leaves you able to press X to hear it again.
+  if (game.scene === 'overworld' && player.activeActor === 'rizer'){
     const doorProp = _propDoors.get(`${player.x},${player.y}`);
-    if (doorProp && doorProp.autoEnter && typeof doorProp.onInteract === 'function'){
+    if (doorProp && typeof doorProp.onInteract === 'function'){
+      const fromX = _doorPrevX, fromY = _doorPrevY;
+      const sceneBefore = game.scene;
       try { clearActiveContact(); } catch(_){}   // v0.95.651
       doorProp.onInteract();
+      // Scene changed → the door opened and we are inside; nothing to undo.
+      if (game.scene !== sceneBefore) return;
+      // Still outside → it refused. Step back off the threshold and face it.
+      // Guard against a null previous tile (first frame, warp, load) by only
+      // stepping back to somewhere we know is walkable.
+      if (fromX != null && fromY != null && (fromX !== player.x || fromY !== player.y)
+          && typeof walkable === 'function' && walkable(fromX, fromY)){
+        const dx = player.x - fromX, dy = player.y - fromY;
+        player.x = fromX; player.y = fromY;
+        player.dir = Math.abs(dx) >= Math.abs(dy)
+          ? (dx > 0 ? 'right' : 'left')
+          : (dy > 0 ? 'down' : 'up');
+        player.moving = false;
+        player.moveCd = 160;
+      }
       return;
     }
   }
@@ -21507,8 +21548,34 @@ addEventListener('keydown', e => {
             // (no consumption).  Requires overworld scene · UFO cannot summon
             // while already being flown.
             try {
-              if (game.scene !== 'overworld'){
+              // ★★ v0.95.710 · THE TRANSPONDER IS A RADIO, SO IT NEEDS A NETWORK.
+              //
+              // Three gates, checked outward-in — clearance, then coverage,
+              // then line of sight:
+              //   1 · Auraxion's Astralcore retrieval must be DONE.  He grants
+              //       both the UFO and the transponder on completion, so
+              //       holding one without the flag means a dev grant or a save
+              //       from before the mission existed.
+              //   2 · THIS district's Scrapjaw tower must be restored.  The
+              //       towers are the planet's comms network ([[aov-broadcast-towers]])
+              //       and the same signal already gates contact calls — a
+              //       transponder that worked in a dead district would be the
+              //       one radio on Zyraxis that needs no relay.
+              //   3 · outdoors, and the UFO not already flying.
+              const _dist = (typeof worldDistrictAt === 'function')
+                ? worldDistrictAt(Math.round(player.x), Math.round(player.y)) : null;
+              const _towerUp = (typeof towerRestored === 'function' && _dist)
+                ? towerRestored(_dist) : true;
+              if (!player.auraxionMissionComplete && !game.devMaxBond){
+                showToast('◈ Transponder · unregistered · finish Auraxion\'s Astralcore retrieval first', 3400);
+                playSFX('doorLock');
+              } else if (game.scene !== 'overworld'){
                 showToast('◈ Transponder · no signal indoors · use outside', 2200);
+                playSFX('doorLock');
+              } else if (!_towerUp && !game.devMaxBond){
+                const _lbl = (typeof TOWER_BY_DIST !== 'undefined' && TOWER_BY_DIST[_dist])
+                  ? TOWER_BY_DIST[_dist].label : String(_dist || '').toUpperCase();
+                showToast(`◈ Transponder · NO CARRIER · ${_lbl}'s tower is still down · fix it for Scrapjaw first`, 4000);
                 playSFX('doorLock');
               } else {
                 const prop = (typeof auraxionUfoProp === 'function') ? auraxionUfoProp() : null;

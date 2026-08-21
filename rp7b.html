@@ -3231,6 +3231,40 @@ function buildSeerHqProps(){
     onInteract: () => { try { enterSeerHq(H.dist); } catch(err){ console.warn('seer hq enter failed', err); } },
   }));
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// ★ GEMLORD CAVE GEOMETRY · v0.95.689 · one rule for all of them
+// ═══════════════════════════════════════════════════════════════════════════
+// Rakoron's cave is the reference: tileW 13, aspect 1.238, so it draws
+// 13.00 x 10.50 tiles.  Every later cave sheet is SQUARER (aspect ~1.07), so
+// copying his tileW 13 drew them 13.00 x 12.1 — a sixth taller than his, which
+// is what the Creator saw.
+//
+// Fix: match his drawn HEIGHT and let width follow from each sheet's own
+// aspect.  Uniform scale-down, nothing squished — the alternative (keep width
+// 13, shorten height) would have distorted every one of them.
+//
+//   ivirium  13.00 x 12.09  ->  11.29 x 10.50
+//   mutaryn  13.00 x 12.11  ->  11.27 x 10.50
+//   emeralix 13.00 x 12.20  ->  11.19 x 10.50
+//   azurel   13.00 x 12.20  ->  11.18 x 10.50
+//   obsidius 13.00 x 12.18  ->  11.21 x 10.50
+//
+// The FOOTPRINT narrows with them, 13 wide to 11.  Collision has to track the
+// art; leaving it at 13 would put an invisible wall a tile past each side.
+const CAVE_TARGET_H  = 10.5;   // tiles · measured off rakoron-cave-full
+const CAVE_HALF_W    = 5;      // 11 wide · Rakoron keeps his own 6
+function caveTileW(bbox){ return Math.round(CAVE_TARGET_H * (bbox[2] / bbox[3]) * 100) / 100; }
+// Solid mass minus the one climbable stair column, exactly Rakoron's shape.
+function caveFootprint(halfW){
+  const f = [];
+  for (let dy = -10; dy <= 0; dy++){
+    for (let dx = -halfW; dx <= halfW; dx++){
+      const stairTile = dy >= -3 && dx === 0;
+      if (!stairTile) f.push([dx, dy]);
+    }
+  }
+  return f;
+}
 const WORLD_PROPS = [
   ...buildSeerHqProps(),
   {
@@ -3272,6 +3306,136 @@ const WORLD_PROPS = [
     })(),
   },
   {
+    // ── OATHANE'S VAULT · Thardin highland · v0.95.689 ───────────────────
+    // Thardin is the Mechlands, so Oathane's door is the only Gemlord door that
+    // isn't really a door — it's a VAULT: black iron, pipework, gear-wheels and
+    // cyan coolant light, with machinery that appears to violate its own
+    // construction.  Pipes that feed nothing, wheels turning against their own
+    // gearing.
+    //
+    // That anomaly is the point.  Thardin is the corporate world that
+    // mass-produced the Zysphere ([[aov-thardun-zysphere-canon]]) — a planet
+    // that manufactures bonding vessels without understanding them.  Its
+    // Gemlord's door being machinery that shouldn't work, and works, is the
+    // district's whole thesis rendered as a facade.
+    //
+    // (663,732), Thardin's SOUTHWEST highland.  71 tiles from the nearest prop,
+    // the most remote of its 173 highland anchors.
+    id: 'oathane_cave',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/oathane-cave-full.png',
+    bbox: [23, 78, 1206, 1132],
+    tileX: 663, tileY: 732,
+    tileW: caveTileW([23, 78, 1206, 1132]), tileH: 11,
+    footprint: caveFootprint(CAVE_HALF_W),
+    door: [0, -4],
+    depthOffset: -6.5,
+    onInteract: () => {
+      try { playSFX('caveGrowl'); } catch(_){}
+      showToast('◈ OATHANE\'S VAULT · the Mechlands Gemlord\'s door · sealed for now', 3000);
+    },
+  },
+  {
+    // ── AMBREVON'S SANCTUM · Baelgor highland · v0.95.689 ────────────────
+    // Baelgor is the Humanoidlands and Ambrevon is its AMBERLORD, so the door
+    // is cut from Baelgor's rust-red cavestone and set with fossil-rich amber —
+    // and it is the only Gemlord door carrying ROYAL HUMANOID RELIEFS, crowned
+    // figures with raised palms flanking the arch.  That is exactly right for
+    // the one district that is Humanoid all the way down
+    // ([[aov-viridian-humanoid-primary-key]]): the other nine Gemlords carve
+    // beasts and glyphs, Baelgor's carves people.
+    //
+    // (502,732), Baelgor's SOUTHWEST highland.  77 tiles from the nearest prop,
+    // the most remote of its 301 highland anchors.
+    id: 'ambrevon_cave',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/ambrevon-cave-full.png',
+    bbox: [23, 68, 1206, 1134],
+    tileX: 502, tileY: 732,
+    tileW: caveTileW([23, 68, 1206, 1134]), tileH: 11,
+    footprint: caveFootprint(CAVE_HALF_W),
+    door: [0, -4],
+    depthOffset: -6.5,
+    onInteract: () => {
+      try { playSFX('caveGrowl'); } catch(_){}
+      showToast('◈ AMBREVON\'S SANCTUM · the Amberlord\'s door · sealed for now', 3000);
+    },
+  },
+  {
+    // ── EURAKEON'S SANCTUM · Netharion highland · v0.95.689 ──────────────
+    // Netharion is the Unknownlands — the CENTRE of Zyraxis and the district
+    // whose whole identity is what nobody has established yet.  Eurakeon is its
+    // AMETHYSTLORD, so the door is amethyst set in near-black stone, and its
+    // reliefs are the only ones on any Gemlord door that don't resolve into a
+    // figure: spirals, concentric rings and astral geometry that bends where it
+    // shouldn't.  Uncertainty rendered as ornament.
+    //
+    // Purple is the SOUL axis and a deliberate late reveal ([[aov-gem-canon]]),
+    // which makes an amethyst door in the unknown middle of the map the right
+    // thing for a player to find long before it means anything to them.
+    //
+    // (448,352), Netharion's NORTH highland.  53 tiles out — the most remote of
+    // only 78 highland anchors, Netharion being hemmed in on every side.
+    id: 'eurakeon_cave',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/eurakeon-cave-full.png',
+    bbox: [23, 68, 1206, 1134],
+    tileX: 448, tileY: 352,
+    tileW: caveTileW([23, 68, 1206, 1134]), tileH: 11,
+    footprint: caveFootprint(CAVE_HALF_W),
+    door: [0, -4],
+    depthOffset: -6.5,
+    onInteract: () => {
+      try { playSFX('caveGrowl'); } catch(_){}
+      showToast('◈ EURAKEON\'S SANCTUM · the Amethystlord\'s door · sealed for now', 3000);
+    },
+  },
+  {
+    // ── AZUREL'S SANCTUM · Vorashil highland · v0.95.689 ─────────────────
+    // Vorashil is the Alienlands and Azurel is its SAPPHIRELORD, so the door is
+    // set in blue ice and sapphire spires — the same stone that crystallised
+    // into the Sapphire Tearsword ([[aov-gemlord-weapon-lore]]).
+    //
+    // (216,550), due WEST — Vorashil's road runs south-east, so highland is the
+    // north-west arc and due west sits inside it.  Only 2 of Vorashil's 20
+    // viable anchors were highland; this is the more remote at 57 tiles.
+    id: 'azurel_cave',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/azurel-cave-full.png',
+    bbox: [22, 63, 1209, 1135],
+    tileX: 216, tileY: 550,
+    tileW: caveTileW([22, 63, 1209, 1135]), tileH: 11,
+    footprint: caveFootprint(CAVE_HALF_W),
+    door: [0, -4],
+    depthOffset: -6.5,
+    onInteract: () => {
+      try { playSFX('caveGrowl'); } catch(_){}
+      showToast('◈ AZUREL\'S SANCTUM · the Sapphirelord\'s door · sealed for now', 3000);
+    },
+  },
+  {
+    // ── OBSIDIUS' SANCTUM · Xilnar highland · v0.95.689 ──────────────────
+    // Xilnar is the Spiritlands and Obsidius is its ONYXLORD, so the door is
+    // black glass lit from within — violet spirit-flame instead of gemlight,
+    // which suits a Gemlord whose types are Unknown-Void / Spirit.
+    //
+    // (344,693), Xilnar's SOUTHWEST highland.  62 tiles from anything, the most
+    // remote of its 26 highland anchors.
+    id: 'obsidius_cave',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/obsidius-cave-full.png',
+    bbox: [23, 68, 1207, 1131],
+    tileX: 344, tileY: 693,
+    tileW: caveTileW([23, 68, 1207, 1131]), tileH: 11,
+    footprint: caveFootprint(CAVE_HALF_W),
+    door: [0, -4],
+    depthOffset: -6.5,
+    onInteract: () => {
+      try { playSFX('caveGrowl'); } catch(_){}
+      showToast('◈ OBSIDIUS\' SANCTUM · the Onyxlord\'s door · sealed for now', 3000);
+    },
+  },
+  {
     // ── MUTARYN'S CAVE · Andrannor highland · v0.95.688 ──────────────────
     // Andrannor is the Creaturelands and Mutaryn is its CITRINELORD, so the
     // sanctum is black stone veined with gold and a citrine boss over the door.
@@ -3287,17 +3451,8 @@ const WORLD_PROPS = [
     src: 'assets/2D%20sprites/buildings/mutaryn-cave-full.png',
     bbox: [22, 70, 1211, 1128],
     tileX: 274, tileY: 403,
-    tileW: 13, tileH: 11,
-    footprint: (function(){
-      const f = [];
-      for (let dy = -10; dy <= 0; dy++){
-        for (let dx = -6; dx <= 6; dx++){
-          const stairTile = dy >= -3 && dx === 0;
-          if (!stairTile) f.push([dx, dy]);
-        }
-      }
-      return f;
-    })(),
+    tileW: caveTileW([22, 70, 1211, 1128]), tileH: 11,
+    footprint: caveFootprint(CAVE_HALF_W),
     door: [0, -4],
     depthOffset: -6.5,
     onInteract: () => {
@@ -3311,27 +3466,22 @@ const WORLD_PROPS = [
     // swallowed by living roots and set with emerald bosses — the only one of
     // the four caves the forest is actively reclaiming.
     //
-    // (437,211), Veridan's NORTHWEST, which the wheel resolves to HIGHLAND for
-    // the same reason as Mutaryn's: Veridan's road runs south, so highland is
-    // the far north-west.  66 tiles from the nearest prop, and verified clear
-    // of the Veridan river — freshwater reads as LAND, which is the trap that
-    // put 84 trees in the water at v0.95.672.
+    // (510,156) · v0.95.689 · moved to the FAR NORTH on Creator's mark of
+    // (510,148).  148 itself won't hold an 11-wide footprint — 79 of its 117
+    // tiles fall off Veridan or off land entirely, and the stair approach
+    // breaks two rows up.  (510,156) is the first fully clear row south of the
+    // mark, 8 tiles down, still due N and still HIGHLAND on the wheel, and it
+    // sits 69 tiles from the nearest prop — more remote than the old NW spot.
+    //
+    // Verified clear of the Veridan river: freshwater reads as LAND, which is
+    // the trap that put 84 trees in the water at v0.95.672.
     id: 'emeralix_cave',
     img: new Image(),
     src: 'assets/2D%20sprites/buildings/emeralix-cave-full.png',
     bbox: [21, 60, 1212, 1137],
-    tileX: 437, tileY: 211,
-    tileW: 13, tileH: 11,
-    footprint: (function(){
-      const f = [];
-      for (let dy = -10; dy <= 0; dy++){
-        for (let dx = -6; dx <= 6; dx++){
-          const stairTile = dy >= -3 && dx === 0;
-          if (!stairTile) f.push([dx, dy]);
-        }
-      }
-      return f;
-    })(),
+    tileX: 510, tileY: 156,
+    tileW: caveTileW([21, 60, 1212, 1137]), tileH: 11,
+    footprint: caveFootprint(CAVE_HALF_W),
     door: [0, -4],
     depthOffset: -6.5,
     onInteract: () => {
@@ -3365,17 +3515,8 @@ const WORLD_PROPS = [
     src: 'assets/2D%20sprites/buildings/ivirium-cave-full.png',
     bbox: [22, 72, 1211, 1126],
     tileX: -25, tileY: 282,
-    tileW: 13, tileH: 11,
-    footprint: (function(){
-      const f = [];
-      for (let dy = -10; dy <= 0; dy++){
-        for (let dx = -6; dx <= 6; dx++){
-          const stairTile = dy >= -3 && dx === 0;   // the climb, exactly as Rakoron's
-          if (!stairTile) f.push([dx, dy]);
-        }
-      }
-      return f;
-    })(),
+    tileW: caveTileW([22, 72, 1211, 1126]), tileH: 11,
+    footprint: caveFootprint(CAVE_HALF_W),
     door: [0, -4],
     depthOffset: -6.5,
     onInteract: () => {
@@ -13929,11 +14070,33 @@ function rizerKillXP(npc, mode = 'punch'){
 // ONE call site for every kill in the game.  Awards the RXP and books the kill
 // so no finisher can silently skip the counter, the streak VOs or the party
 // Zyrex XP share ever again.
+// v0.95.689 · ★ COMBO XP MULTIPLIER · "xp gain x combo divided by 10"
+//
+// The combo is player._hitStreak — hits landed without taking damage, already
+// tracked by bumpCombo() and wiped by resetCombo() the moment you're hit.  So
+// the streak is a real measure of a clean fight, and it's the right thing to
+// pay out on.
+//
+// FLOORED AT 1 ON PURPOSE.  Taken literally, xp × combo / 10 means a 3-hit kill
+// pays 0.3× — the formula would be a PENALTY on almost every normal kill and
+// only start paying at combo 10.  Floored, it's dead neutral below 10 and pure
+// bonus above: combo 20 → 2×, combo 50 → 5×.  Say the word if you want the
+// literal version and I'll drop the Math.max.
+const COMBO_XP_DIVISOR = 10;
+function comboXpMult(){
+  const streak = (player && player._hitStreak) || 0;
+  return Math.max(1, streak / COMBO_XP_DIVISOR);
+}
 function creditRizerKill(npc, mode = 'punch'){
   if (!npc || npc._rxpCredited) return 0;   // guard AOE double-credit
   npc._rxpCredited = true;
-  const xp = rizerKillXP(npc, mode);
+  const base = rizerKillXP(npc, mode);
+  const mult = comboXpMult();
+  const xp = Math.round(base * mult);
   try { awardRizerXP(xp); } catch(_){}
+  if (mult > 1){
+    try { showToast(`✦ ${player._hitStreak} COMBO · R.XP ×${mult.toFixed(1)} · +${xp}`, 1800); } catch(_){}
+  }
   // recordMoriKill only distinguishes 'kick' (heavy) from everything else.
   try { recordMoriKill(mode === 'astralkick' || mode === 'boom' ? 'kick' : mode, npc); } catch(_){}
   return xp;

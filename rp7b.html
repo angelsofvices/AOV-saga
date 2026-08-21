@@ -2990,7 +2990,18 @@ function wheelQuarterAt(dist, bearing){
 // findHomePlots() is the function the eventual pass will call, so that when the
 // art lands the placement is already decided and already verified.
 const SETTLEMENT_DOCTRINE = {
-  T_MIN: 0.18, T_MAX: 0.50,        // radius band, from Malezor's 0.18-0.51
+  // v0.95.679 · T_MIN dropped 0.18 -> 0.09.
+  // Malezor's homes sit t 0.18-0.51 from the district CENTRE, and that was the
+  // number this band was taken from — but Malezor's town hall is at (22,78),
+  // 44 tiles OFF-centre, sitting at t 0.31 right inside its own homes belt.
+  // Its houses are 8-22 tiles from a civic door.
+  // Every new district puts its hall at t 0.00-0.03, dead centre.  Combined
+  // with T_MIN 0.18 that meant the closest a home could physically stand to
+  // the hall was 17-20 tiles, and the viewport is only 20x11 — so no house was
+  // ever on screen from the capital.  The Creator walked Veridan and saw none.
+  // 0.09 lets homes come within ~10 tiles, matching Malezor's felt distance
+  // rather than its raw radius number.  CLEAR_OF_HALL still keeps the plaza.
+  T_MIN: 0.09, T_MAX: 0.50,
   SPACING_MIN: 9, SPACING_IDEAL: 11,
   CIVIC_REACH: 22,                  // max tiles from a home to any civic door
   // Malezor's 22 is the distance to the NEAREST OF FIVE anchors — school, hall,
@@ -3009,7 +3020,10 @@ const SETTLEMENT_DOCTRINE = {
   SPARSE_ANCHOR_COUNT: 3,
   NPC_PER_HOME: 0.9,
   JITTER: 4,                        // breaks the lattice Zarvane fell into
-  CLEAR_OF_HQ: 14, CLEAR_OF_TOWER: 12, CLEAR_OF_HALL: 13,
+  // CLEAR_OF_HALL 13 -> 11 · Malezor's nearest home is 8 tiles from a civic
+  // door, so 13 was stricter than the district it was copied from.  11 still
+  // leaves the plaza clear while letting a rooftop show at the screen edge.
+  CLEAR_OF_HQ: 14, CLEAR_OF_TOWER: 12, CLEAR_OF_HALL: 11,
 };
 // The neighbourhood arc.  Malezor's twelve homes fall 7 in its forest quarter
 // and 5 in the highland beside it, with ZERO in the open road quarter and zero
@@ -3086,8 +3100,16 @@ function findHomePlots(dist, count, seed, isFree){
       x = Math.round(ax + Math.cos(ang) * r);
       y = Math.round(ay + Math.sin(ang) * r);
     } else {
+      // The neighbourhood grows OUTWARD from this first plot, so where the
+      // seed lands decides whether the street starts near the civic core or
+      // out in the wild.  A flat random over the band put Veridan's first
+      // house 22 tiles from its hall — two screens away, which is why the
+      // Creator walked the capital and found nothing.  Squaring the roll
+      // biases the seed to the inner edge, so the street begins at the plaza
+      // and runs outward, the way Malezor's does.
       const ang = rng() * Math.PI * 2;
-      const rad = S.T_MIN + rng() * (S.T_MAX - S.T_MIN);
+      const r0 = rng();
+      const rad = S.T_MIN + r0 * r0 * (S.T_MAX - S.T_MIN);
       x = Math.round(D.cx + Math.cos(ang) * D.rx * rad);
       y = Math.round(D.cy + Math.sin(ang) * D.ry * rad);
     }
@@ -5617,7 +5639,10 @@ const TREE_KEEP_CLEAR = [
       if (!plantable(x, y, 4)) return false;
       WORLD_PROPS.push({
         id: `${D.id}_tree_${x}_${y}`, img, src: 'assets/2D%20sprites/decor/trees/' + art.file,
-        bbox: art.bbox, tileX: x, tileY: y, tileW: 3, tileH: 3,
+        // v0.95.679 · tileW 4, up from 3.  At 3 these matched Malezor's tree
+        // almost exactly (3.0 x 3.02 vs 3.0 x 3.08) — correct, but the Creator
+        // wanted more canopy presence.  4 puts them at 4.0 x 4.0-5.0 tiles.
+        bbox: art.bbox, tileX: x, tileY: y, tileW: 4, tileH: 4,
         footprint: [[0, 0]], _districtTree: D.id,
       });
       reserved.add(`${x},${y}`);
@@ -5764,7 +5789,13 @@ const TREE_KEEP_CLEAR = [
           img: useA ? gA : gB,
           src: `assets/2D%20sprites/decor/grass/${D.id}-grass-${useA ? 'a' : 'b'}.png`,
           bbox: useA ? grassArt.a : grassArt.b,
-          tileX: x, tileY: y, tileW: 2, tileH: 2,
+          // v0.95.679 · tileW 1, matching Malezor / Zarvane / Andrannor.
+          // The first cut drew these at tileW 2, which put them at 2.0 x 1.8-3.4
+          // tiles against the original grass-patch's 1.0 x 1.33 — nearly double
+          // in both directions, so the new districts read as overgrown next to
+          // the old ones.  At tileW 1 they land at 1.0 x 0.94-1.70, which sits
+          // either side of the original and reads as the same plant.
+          tileX: x, tileY: y, tileW: 1, tileH: 1,
           footprint: [],                 // walkable · you wade through it
           wildZone: true,                // emits noise · draws patrols
           _districtGrass: D.id,
@@ -28756,6 +28787,29 @@ function spawnWildZyrex(speciesId, tileX, tileY, opts){
 // tallest thing in the world is 12 tiles, so a 20-tile margin on every side is
 // comfortably generous — nothing can pop in at the edge.
 const _CULL_MARGIN = 20;
+// How many rows forward the canopy overlay sorts, and how much of the sprite
+// counts as canopy.  0.62 keeps the whole trunk in the first pass, so grass at
+// the tree's feet still covers it.
+const TREE_CANOPY_LIFT = 2;
+const TREE_CANOPY_FRACTION = 0.62;
+// Redraws only the top TREE_CANOPY_FRACTION of a tree, using exactly the same
+// anchor maths as drawProp so the two passes line up to the pixel.
+function drawTreeCanopy(p){
+  if (!p.img || !p.img.complete || !p.img.naturalWidth) return;
+  const [bx, by, bw, bh] = p.bbox;
+  const drawW = p.tileW * TILE;
+  const drawH = Math.round(drawW * (bh / bw));
+  const dx = Math.floor((p.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+  const dy = Math.floor((p.tileY + 1 + (p.subY || 0)) * TILE - drawH) - _cam.y;
+  if (dx + drawW < 0 || dx > canvas.width)  return;
+  if (dy + drawH < 0 || dy > canvas.height) return;
+  const srcH  = Math.round(bh * TREE_CANOPY_FRACTION);
+  const destH = Math.round(drawH * TREE_CANOPY_FRACTION);
+  const prev = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(p.img, bx, by, bw, srcH, dx, dy, drawW, destH);
+  ctx.imageSmoothingEnabled = prev;
+}
 function _propCullBounds(){
   const t0x = Math.floor(_cam.x / TILE), t0y = Math.floor(_cam.y / TILE);
   const w = Math.ceil(canvas.width / TILE), h = Math.ceil(canvas.height / TILE);
@@ -28773,6 +28827,17 @@ function drawWorldLayer(){
     if (p._astralthrowHeld || (p._astralthrowVisualUntil||0) > performance.now()) return;
     if (!p.img.complete || !p.img.naturalWidth) return;
     renderables.push({ kind:'prop', prop:p, footY: p.tileY + (p.depthOffset || 0) });
+    // v0.95.679 · TREE CANOPY OVERLAY · fake Z on a top-down map.
+    // A tree is one flat sprite sorted by a single footY, so it is entirely
+    // behind or entirely in front of any given grass clump.  What the eye
+    // wants is different: the CANOPY should sit above the meadow while the
+    // TRUNK BASE is swallowed by the grass around it — that is what sells
+    // depth in a top-down scene.
+    // So the upper band of every tree is drawn a SECOND time, sorted two rows
+    // further forward.  Anything within two rows in front of the trunk now
+    // passes under the canopy, and the trunk itself still gets covered by the
+    // grass at its feet because that part is only drawn in the first pass.
+    if (p._districtTree) renderables.push({ kind:'treeCanopy', prop:p, footY: p.tileY + TREE_CANOPY_LIFT });
   });
   NPCS.forEach(n => {
     if (n.scene !== 'overworld') return;                          // only overworld here
@@ -28812,6 +28877,7 @@ function drawWorldLayer(){
   for (const r of renderables){
     try {
       if (r.kind === 'prop')      drawProp(r.prop);
+      else if (r.kind === 'treeCanopy') drawTreeCanopy(r.prop);
       else if (r.kind === 'npc'){
         // v0.95.404 · Skellor sprite pipeline · overlay REPLACES base render
         // during hurt flash + when slain · avoids the double-sprite issue

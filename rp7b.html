@@ -4519,12 +4519,12 @@ const WORLD_PROPS = [
       })(),
       door: [0, 0],
       // v0.95.283 · Astralite Refinery = Celestryx summon altar
-      // Collect faes (FAE_UNLOCK_COUNT = 200) → interact → summon Celestryx to party
-      // Consumes 100 fae per summon · one-time party join, then re-locks
+      // Collect faes (FAE_UNLOCK_COUNT) → interact → summon Celestryx to party
+      // Consumes FAE_UNLOCK_COUNT fae · one-time party join, then re-locks
       onInteract: () => {
         try {
           const fae = player.faeCollected || 0;
-          const REQ = 100;                                // 100 fae per summon
+          const REQ = FAE_UNLOCK_COUNT;                   // v0.95.708 · one number, declared once
           const alreadyHave = (player.party || []).some(z => z && z.speciesId === 'celestryx');
           if (alreadyHave){
             showToast('◈ You already carry a Celestryx · the altar hums quietly', 2600);
@@ -11427,7 +11427,13 @@ ELZEBUB_EGG_IMG.src = 'assets/2D%20sprites/props/elzebub-egg.png';
 const ELZEBUB_EGG_BBOX = [2, 3, 1249, 1247];
 const FAE_FRAMES = 4;
 const FAE_FRAME_MS = 220;
-const FAE_UNLOCK_COUNT = 200;   // v0.95.141 · 200 fae to summon Celestryx (was 10)
+// ★ v0.95.708 · 60 fae for the Celestryx gift at the Zarvane altar.
+// There used to be TWO numbers: this one (200, which fired the achievement
+// toast) and a hardcoded REQ = 100 at the altar itself. So the game announced
+// "Celestryx UNLOCKED" at 200 while the altar had been willing to hand one
+// over since 100. The altar now reads this constant, so the toast and the gate
+// are the same fact.
+const FAE_UNLOCK_COUNT = 60;
 if (player.faeCollected == null) player.faeCollected = 0;
 
 // 30 scatter positions across all districts · avoid buildings/props
@@ -11706,6 +11712,18 @@ function collectFaeAt(tx, ty){
       f._collectedAt = performance.now();   // v0.95.397 · 5-min off-camera respawn timer
       player.faeCollected += 1;
       try { awardRizerXP(5); } catch(_){}     // v0.95.538 · every fae catch = +5 RXP
+      // ★ v0.95.708 · every fae restores 5% of MAX HP.
+      // Percentage, not a flat number, so a fae is worth the same fraction of
+      // your life at Lv 5 and at Lv 60 — a flat +5 would be a meal early and a
+      // rounding error later.  Clamped, and it says so when you are already
+      // full rather than silently doing nothing.
+      try {
+        const heal = Math.max(1, Math.round((player.hpMax || 100) * 0.05));
+        const before = player.hp || 0;
+        player.hp = Math.min(player.hpMax || 100, before + heal);
+        const got = player.hp - before;
+        if (got > 0) showToast(`✦ Fae · +${got} HP`, 1400);
+      } catch(err){ console.warn('[rp7b] fae heal failed', err); }
       try { playSFX('gotcha'); } catch(_){}   // v0.95.495 · Rizer "gotcha!" VO on every catch
       // v0.95.135 · Mirror fae count into items so it shows in bag
       if (!player.items) player.items = {};

@@ -6419,6 +6419,97 @@ function seerGruntSheet(v, kind){
   return { img: _seerGruntImg[key], bboxes: a.bboxes, foot: a.foot, src: a.src };
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ VERDANT CREEPER · v0.95.704 · a Mori that grew roots
+//
+// Creator spec: hits harder than a Mori, tanks more, and drops 15% of your
+// health when it dies.  That last part makes it the first enemy in the game
+// worth SEEKING OUT rather than avoiding — a Mori is an obstacle, a Creeper is
+// a decision, because the health it gives back is the health it costs you.
+//
+// Habitat is CANOPY.  Per [[aov-verdant-awakening-creature-theory]] every
+// Viridian creature is a biproduct of the Verdant Awakening, so a creeper
+// belongs where the trees are thickest and nowhere else.  Placement is derived
+// from the actual tree props at boot rather than hand-listed, so it follows
+// the flora instead of arguing with it.
+const VERDANT_CREEPER_ART = {
+  idle:   { src: 'assets/2D%20sprites/enemies/verdant-creeper-idle.png',
+           cellW: 313, cellH: 313, cols: 4, rows: 4,
+           bboxes: [
+             [[ 238,  39,138,260],[ 159,  35,135,264],[  98,  38,132,261],[  22,  39,129,260]],
+             [[ 200,  31,174,262],[ 125,  33,188,260],[  62,  32,185,261],[ -12,  33,174,260]],
+             [[ 254,  40,166,261],[ 165,  43,171,255],[  84,  41,182,255],[  35,  40,169,262]],
+             [[ 237,  17,141,262],[ 163,  21,131,260],[  96,  21,130,260],[  22,  20,131,261]],
+           ],
+           foot: [
+             [298,298,298,298],
+             [292,292,292,292],
+             [300,297,295,301],
+             [278,280,280,280]
+           ] },
+  walk:   { src: 'assets/2D%20sprites/enemies/verdant-creeper-walk.png',
+           cellW: 313, cellH: 313, cols: 4, rows: 4,
+           bboxes: [
+             [[ 260,  31,130,252],[ 198,  34,127,254],[ 138,  30,123,253],[  68,  28,119,260]],
+             [[ 214,  21,171,262],[ 134,  26,184,256],[  72,  22,186,260],[  16,  25,172,258]],
+             [[ 253,  30,165,261],[ 181,  33,171,257],[ 111,  32,181,251],[  58,  31,171,261]],
+             [[ 243,  21,140,264],[ 183,  25,131,261],[ 115,  23,130,262],[  49,  25,129,260]],
+           ],
+           foot: [
+             [282,287,282,287],
+             [282,281,281,282],
+             [290,289,282,291],
+             [284,285,284,284]
+           ] },
+  // ★ FIVE frames on 256px cells, not the 4x4/313 every other enemy uses.
+  // drawNPC reads cellW/cellH/cols off the NPC, so a per-bank grid has to
+  // travel WITH the bank or the strike samples the wrong pixels entirely.
+  attack:   { src: 'assets/2D%20sprites/enemies/verdant-creeper-attack.png',
+           cellW: 256, cellH: 256, cols: 5, rows: 4,
+           bboxes: [
+             [[  68,  53,156,186],[  59,  54,171,187],[  44,  54,204,185],[  31,  59,222,181],[  37,  53,156,186]],
+             [[  57,  21,140,190],[  37,  21,158,191],[  18,  23,188,188],[   5,  23,217,189],[  22,  21,140,191]],
+             [[  83,  -8,140,191],[  49,  -3,157,188],[  33,  -1,190,186],[  30,   0,202,187],[  49,  -6,140,190]],
+             [[  59, -35,157,204],[  59, -32,129,200],[   4, -27,212,195],[  25, -25,218,190],[  31, -32,157,203]],
+           ],
+           foot: [
+             [238,240,238,239,238],
+             [210,211,210,211,211],
+             [182,184,184,186,183],
+             [168,167,167,164,170]
+           ] },
+  // ★★ ROW ORDER IS UP / LEFT / RIGHT / DOWN, not the canon DOWN-first.
+  // Row 0 shows the backs of their heads; row 3 shows the skull faces. Caught
+  // by rendering the sheet and looking at it, then confirmed by measurement:
+  // rows 1 and 2 are the WIDEST (a profile throws one arm forward) while 0 and
+  // 3 are narrow (square to camera, arms at the sides). Same layout the Daemon
+  // sheet uses, and the same rowMap fixes it.
+  rowMap: { up: 0, left: 1, right: 2, down: 3 },
+  // Idle standing height drives one scale for all three banks. Mori tops out
+  // at 2.00 tiles; the Creeper reads heavier at 2.20 without crossing into
+  // Grunt Elite territory.
+  standBh: 262, scaleMul: 1.075,
+};
+
+const _creeperImg = {};
+function creeperBank(kind){
+  const a = VERDANT_CREEPER_ART[kind] || VERDANT_CREEPER_ART.idle;
+  if (!_creeperImg[kind]){ const im = new Image(); im.src = a.src; _creeperImg[kind] = im; }
+  return { img: _creeperImg[kind], bboxes: a.bboxes, foot: a.foot, src: a.src,
+           cellW: a.cellW, cellH: a.cellH, cols: a.cols, rows: a.rows };
+}
+// Creator directive: "mostly in malezor veridan".  Malezor has 190 trees but
+// none in an 8-plus cluster — its canopy is thin and wide — so an absolute
+// density threshold gives it ZERO creepers, which is the opposite of the ask.
+// Ranking cells WITHIN each district fixes that: every district contributes its
+// own thickest woods, and the quota decides how many.
+const CREEPER_QUOTA = {
+  malezor: 10, veridan: 10,
+  netharion: 4, vorashil: 4, xilnar: 4, baelgor: 4, thardin: 3, korathen: 3,
+  andrannor: 2, zarvane: 0,          // zarvane is desert oasis · no canopy
+};
+const CREEPER_CELL = 16;             // tile size of a density bucket
+
 const NPCS = [
   // ── SHARKFIN · MOVE TEACHER · Veridan · teaches ASTRALASER ─────────────
   // v0.95.686 · Second Veridan contact, alongside Foongus.  Foongus teaches
@@ -9956,6 +10047,7 @@ setTimeout(() => { try {
   // while the NPCS literal is being built, and reading it there is the exact
   // temporal dead zone that put 84 trees in the Veridan river at v0.95.672.
   try { settleSeerPatrols(); } catch(err){ console.warn('[rp7b] seer patrol settle failed', err); }
+  try { buildVerdantCreepers(); } catch(err){ console.warn('[rp7b] verdant creeper seed failed', err); }
   const n = buildTowerGuardPacks();
   if (n) console.log(`[rp7b] tower network · ${n} guards deployed across 9 districts`);
   // v0.95.671 · same tick, same reason · the Seer Grunt definition is in NPCS by now
@@ -14980,6 +15072,106 @@ function settleSeerPatrols(){
   }
   if (moved) console.log(`[rp7b] seer patrols · ${moved} post(s) nudged off blocked ground`);
   return moved;
+}
+
+
+// ★ v0.95.704 · Build the Creeper population from the REAL tree layout.
+// Runs in the deferred boot tick, beside the flora prune and the patrol
+// settle, because it needs _propBlocked and worldDistrictAt — reading either
+// while WORLD_PROPS is still being built is the temporal dead zone that put 84
+// trees in the Veridan river at v0.95.672.
+function buildVerdantCreepers(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  if (NPCS.some(n => n && n._verdantCreeper)) return 0;      // idempotent
+  // 1 · bucket every tree by district and by CREEPER_CELL square
+  const buckets = {};
+  for (const p of WORLD_PROPS){
+    if (!p || typeof p.tileX !== 'number') continue;
+    if (!(p._districtTree || /tree/i.test(p.id || ''))) continue;
+    const d = worldDistrictAt(p.tileX, p.tileY);
+    if (!d) continue;
+    const k = `${Math.floor(p.tileX / CREEPER_CELL)},${Math.floor(p.tileY / CREEPER_CELL)}`;
+    const b = (buckets[d] = buckets[d] || {});
+    (b[k] = b[k] || { n: 0, sx: 0, sy: 0 });
+    b[k].n++; b[k].sx += p.tileX; b[k].sy += p.tileY;
+  }
+  const free = (x, y) => {
+    try {
+      if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+      if (_propBlocked && _propBlocked.has(`${x},${y}`)) return false;
+      return true;
+    } catch(_){ return false; }
+  };
+  const idle = creeperBank('idle'), walk = creeperBank('walk'), atk = creeperBank('attack');
+  let made = 0;
+  for (const dist of Object.keys(CREEPER_QUOTA)){
+    const want = CREEPER_QUOTA[dist];
+    if (!want) continue;
+    const cells = Object.entries(buckets[dist] || {})
+      .map(([k, v]) => ({ n: v.n, x: Math.round(v.sx / v.n), y: Math.round(v.sy / v.n) }))
+      .sort((a, b) => b.n - a.n);                   // this district's thickest woods first
+    if (!cells.length) continue;
+    let placed = 0;
+    for (let i = 0; i < cells.length && placed < want; i++){
+      const c = cells[i];
+      // step out from the cell's centre of mass to the first standable tile —
+      // the centre itself is usually a tree
+      let spot = null;
+      for (let r = 1; r <= 6 && !spot; r++){
+        for (let dy = -r; dy <= r && !spot; dy++){
+          for (let dx = -r; dx <= r && !spot; dx++){
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const x = c.x + dx, y = c.y + dy;
+            if (!free(x, y)) continue;
+            if (worldDistrictAt(x, y) !== dist) continue;
+            if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === x && n.tileY === y)) continue;
+            spot = [x, y];
+          }
+        }
+      }
+      if (!spot) continue;
+      const lvBand = (typeof TOWER_BY_DIST !== 'undefined' && TOWER_BY_DIST[dist])
+        ? TOWER_BY_DIST[dist].moriLv : 4;
+      NPCS.push({
+        id: `verdant_creeper_${dist}_${placed + 1}`,
+        name: 'Verdant Creeper',
+        sheet: idle.img, bboxes: idle.bboxes, footBaselines: idle.foot, src: idle.src,
+        cellW: idle.cellW, cellH: idle.cellH, cols: idle.cols, rows: idle.rows,
+        walkSheet: walk.img, walkBboxes: walk.bboxes, walkFootBaselines: walk.foot, walkSrc: walk.src,
+        attackSheet: atk.img, attackBboxes: atk.bboxes, attackFootBaselines: atk.foot, attackSrc: atk.src,
+        // ★ the attack bank is 5 cols on 256px cells · carried per bank
+        attackCellW: atk.cellW, attackCellH: atk.cellH, attackCols: atk.cols,
+        cellAnchor: true,
+        rowMap: VERDANT_CREEPER_ART.rowMap,
+        scaleRefBh: VERDANT_CREEPER_ART.standBh,
+        scaleMul:   VERDANT_CREEPER_ART.scaleMul,
+        tileX: spot[0], tileY: spot[1], homeX: spot[0], homeY: spot[1],
+        homeScene: 'overworld', scene: 'overworld',
+        wanderRadius: 5,
+        dir: 'down',
+        mode: 'drainer',
+        moving: false,
+        animFrame: 0, idleFrame: 0, idleCycleMs: 460,
+        moveCd: 300 + Math.random() * 300,
+        blinkTimer: 9e9,
+        isEnemy: true,
+        detectR: 9,
+        _chaseSpeed: 1.1,
+        _leashR: 16,
+        // Mori 125 / Daemon 250 · the Creeper takes the Daemon step on defence
+        // while sitting between them on damage, per aov-combat-math's
+        // "multiples of 125" rule.
+        hpMax: 250, hp: 250,
+        drainAmt: 8,                      // Mori 5 · Daemon 10
+        tier: 2, level: lvBand,
+        _verdantCreeper: true,
+        onInteract: () => showToast('◈ VERDANT CREEPER · the bark opens and something behind it moves', 2600),
+      });
+      placed++; made++;
+    }
+  }
+  if (made) console.log(`[rp7b] verdant creepers · ${made} seeded in the thickest woods`);
+  return made;
 }
 
 function recordMoriKill(mode, npc){
@@ -30468,6 +30660,27 @@ function deathSheetFor(n){
 // Kick off crumble-to-stone (Mori) or melt-to-fire (Daemon) · called from every enemy-kill path
 function startMoriDeath(n){
   if (!n || n._dying) return;
+  // ★ v0.95.704 · VERDANT CREEPER · killing one returns 15% of your max HP.
+  // Sits here rather than in creditRizerKill because startMoriDeath is the one
+  // door EVERY kill route goes through — the same reason the Skellor rule below
+  // lives here. A heal wired per-attack would pay out on sword and not on a
+  // thrown boulder, and nobody would ever work out why.
+  if (n._verdantCreeper && !n._creeperHealed){
+    n._creeperHealed = true;
+    try {
+      const heal = Math.max(1, Math.round((player.hpMax || 100) * 0.15));
+      const before = player.hp;
+      player.hp = Math.min(player.hpMax || 100, (player.hp || 0) + heal);
+      const got = player.hp - before;
+      if (got > 0){
+        showToast(`✦ VERDANT CREEPER · the green goes into you · +${got} HP`, 2600);
+        try { playSFX('confirm'); } catch(_){}
+      } else {
+        showToast('✦ VERDANT CREEPER felled · already at full health', 2000);
+      }
+    } catch(err){ console.warn('[rp7b] creeper heal failed', err); }
+  }
+
   // ★★ v0.95.701 · SKELLOR NEVER DISINTEGRATES.
   //
   // He is the one enemy whose corpse is content: it stays on the ground as a
@@ -30702,9 +30915,17 @@ function drawNPC(n){
                  : useRun  ? (n.runFootBaselines    || n.footBaselines)
                  : useWalk ? (n.walkFootBaselines   || n.footBaselines)
                            :  n.footBaselines;
-  const useCW   = useCompanion ? n.companionCellW : n.cellW;
-  const useCH   = useCompanion ? n.companionCellH : n.cellH;
-  const useCols = useCompanion ? n.companionCols  : n.cols;
+  // ★ v0.95.704 · the GRID travels with the bank.
+  // Every sheet in the game was 4x4 on 313px cells until the Verdant Creeper
+  // arrived with a FIVE-frame attack on 256px cells. cellW/cellH/cols were read
+  // off the NPC, so his strike would have sampled 313px windows out of a 256px
+  // grid — every attack frame showing a slice of two neighbours.
+  const useCW   = useCompanion ? n.companionCellW
+                : (useAtk && n.attackCellW) ? n.attackCellW : n.cellW;
+  const useCH   = useCompanion ? n.companionCellH
+                : (useAtk && n.attackCellH) ? n.attackCellH : n.cellH;
+  const useCols = useCompanion ? n.companionCols
+                : (useAtk && n.attackCols)  ? n.attackCols  : n.cols;
   if (useCompanion){
     // Remap row based on companionRowMap
     if (n.companionRowMap) row = n.companionRowMap[n.dir] ?? row;
@@ -30957,8 +31178,11 @@ function tickNPC(n, dt){
     // ★ v0.95.696 · Seer Grunt strike → play the ATTACK sheet.
     // drawNPC swaps banks while _atkUntil is live, so the swing is visible
     // rather than the character sliding into you in his idle pose.
-    if (n._seerGrunt && n.attackSheet && manh <= 1 && game.scene === 'overworld'){
-      n._atkUntil = performance.now() + 420;
+    // v0.95.704 · generalised from _seerGrunt to ANY npc carrying an attack
+    // bank, so the Verdant Creeper's five-frame swing plays without a second
+    // copy of this line waiting to drift out of sync with the first.
+    if (n.attackSheet && manh <= 1 && game.scene === 'overworld'){
+      n._atkUntil = performance.now() + (n._verdantCreeper ? 520 : 420);
     }
     // Adjacent contact → drain life
     if (manh === 1 && game.scene === 'overworld'){

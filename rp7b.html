@@ -6265,6 +6265,142 @@ WORLD_PROPS.forEach(p => { p.img.src = p.src; });
 // Each NPC has its own sprite sheet, bboxes, position + facing direction,
 // and an onInteract handler.  Blocks its tile · rendered depth-sorted with
 // props + player · face direction determines which sheet cell to sample.
+// Measured tables for both grunt variants · component-ownership extraction,
+// see verify_seergrunt.js.  Module scope so the HQ interior can read them too.
+const GRUNT_A_BBOXES = [
+  [[134, 84,117,209],[101, 87,132,206],[ 62,101,157,206],[ 58, 91,120,202]],
+  [[140, 58,132,169],[107, 58,146,169],[ 17, 58,228,169],[ 69, 58,131,169]],
+  [[110, 22,138,172],[ 94, 22,143,172],[ 69, 22,222,172],[ 40, 21,134,173]],
+  [[136,  7,108,204],[110,  7,101,204],[ 82,  5,103,205],[ 66,  7,112,203]],
+];
+const GRUNT_B_BBOXES = [
+  [[170, 75,111,227],[103, 75,151,227],[ 70, 75,172,227],[ 32, 75,110,227]],
+  [[163, 57,109,216],[ 89, 61,143,211],[  7, 64,203,208],[ 41, 58,109,216]],
+  [[161, 28,107,214],[106, 34,139,205],[ 63, 36,200,204],[ 38, 28,107,213]],
+  [[163,  1,115,217],[ 89,  3,138,219],[ 92,  1, 98,232],[ 35,  1,115,217]],
+];
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ SEER GRUNT ART · ONE TABLE, EVERY GRUNT IN THE GAME · v0.95.699
+//
+// Hoisted out of the SEER_PRESENCE block because the HQ INTERIOR grunts were
+// carrying a SECOND, hand-written bbox table — four identical rows of
+// [71,43,178,279], a placeholder predating every measurement pass in this
+// file.  They drew at the wrong size, off the attack sheet, with no idle and
+// no foot baselines, and nothing anywhere pointed at the discrepancy.  That
+// is what a duplicated table always becomes.  One table now, two callers.
+// ── ART BANKS ──────────────────────────────────────────────────────
+// Three sheets per variant: idle / walk / attack.  Any sheet that has not
+// been delivered yet falls back to the attack sheet, so a missing file
+// degrades to "he uses his attack pose while walking" rather than an
+// invisible enemy.  Delivered sheets are listed with their OWN measured
+// bboxes and foot baselines — a crouched attack pose plants at a
+// different cell-y than a standing idle, so they cannot share tables.
+const SEER_GRUNT_ART = {
+  A: {
+    idle:   { src: 'assets/2D%20sprites/enemies/seer-grunt-a-idle.png',
+              bboxes: [
+                [[144,106,120,212],[116,106,118,212],[ 88,106,123,212],[ 54,106,119,212]],
+                [[158, 73, 95,194],[128, 73, 95,194],[ 98, 73,102,194],[ 63, 73, 95,194]],
+                [[157, 36, 93,195],[126, 35, 95,196],[105, 35,101,196],[ 63, 35, 95,196]],
+                [[142,  0,113,203],[110,  0,114,203],[ 88,  0,119,203],[ 49,  0,114,203]],
+              ],
+              // r0 feet sit at 317 — five pixels PAST the cell bottom, and
+              // r3 starts at y=0.  Both are fine: the neighbouring rows'
+              // art stops well clear (r1 begins at 386 absolute, r2 ends at
+              // 857 against r3's 939), so nothing samples anyone else.
+              foot: [[317,317,317,317],[266,266,266,266],
+                     [230,230,230,230],[202,202,202,202]] },
+    walk:   { src: 'assets/2D%20sprites/enemies/seer-grunt-a-walk.png',
+              bboxes: [
+                [[152,115,100,210],[123,115,100,210],[101,115,103,209],[ 62,115,100,210]],
+                [[154, 77, 97,194],[126, 77, 98,194],[105, 77, 96,194],[ 68, 77, 95,194]],
+                [[151, 38, 98,194],[121, 38, 99,194],[100, 38, 97,194],[ 60, 38, 97,194]],
+                [[149, -2, 99,206],[116, -2,102,206],[ 95, -2,104,206],[ 58, -2,101,206]],
+              ],
+              foot: [[324,324,323,324],[270,270,270,270],
+                     [231,231,231,231],[203,203,203,203]] },
+    run:    { src: 'assets/2D%20sprites/enemies/seer-grunt-a-run.png',
+              bboxes: [
+                [[152,107,106,217],[120,107,110,218],[ 96,107,108,217],[ 52,107,115,213]],
+                [[153, 76,115,194],[119, 76,119,189],[102, 76,114,194],[ 62, 76,110,195]],
+                [[139, 38,113,193],[105, 38,115,192],[ 86, 38,114,193],[ 45, 38,112,191]],
+                [[147,  1,106,202],[113,  1,110,208],[ 92,  1,108,208],[ 50,  1,111,203]],
+              ],
+              // Down-row feet land at 319-324, i.e. past the cell bottom —
+              // her stride carries the trailing boot into row 1's cell
+              // space.  Harmless: row 1's own art does not start until
+              // absolute 389, well clear of 324.
+              foot: [[323,324,323,319],[269,264,269,270],
+                     [230,229,230,228],[202,208,208,203]] },
+    attack: { src: 'assets/2D%20sprites/enemies/seer-grunt-a-attack.png',
+              bboxes: GRUNT_A_BBOXES,
+              foot: [[292,292,306,292],[226,226,226,226],
+                     [193,193,193,193],[210,210,209,209]] },
+    // ★ v0.95.697 · 212 is her IDLE standing height (was 209, the attack
+    // sheet's crouch).  Creator: "scale attack to her idle if needed."
+    // One scale per character, taken from the pose she stands in, so the
+    // attack sheet now draws at whatever height it really is — 2.12 tiles
+    // against her 2.15 standing, which is what a crouch should look like.
+    // The multiplier happens to stay 1.075: 209 and 212 are close enough
+    // that her on-screen size barely moves, but the RULE is now right.
+    standBh: 212, scaleMul: 1.075,
+  },
+  B: {
+    idle:   { src: 'assets/2D%20sprites/enemies/seer-grunt-b-idle.png',
+              bboxes: [
+                [[152, 54,126,255],[111, 55,127,253],[ 69, 54,130,256],[ 33, 54,126,255]],
+                [[164, 40,103,252],[124, 40,104,252],[ 74, 40,120,252],[ 53, 39,103,253]],
+                [[154, 19,101,253],[116, 19,101,253],[ 77, 19,119,253],[ 43, 19,101,253]],
+                [[151, -8,118,256],[114, -8,119,256],[ 70, -9,122,257],[ 41, -8,119,257]],
+              ],
+              foot: [[308,307,309,308],[291,291,291,291],
+                     [271,271,271,271],[247,247,247,248]] },
+    walk:   { src: 'assets/2D%20sprites/enemies/seer-grunt-b-walk.png',
+              bboxes: [
+                [[153, 68,122,241],[112, 68,123,242],[ 70, 68,123,241],[ 33, 68,123,242]],
+                [[157, 41,114,246],[104, 41,131,246],[ 74, 41,119,245],[ 36, 41,120,246]],
+                [[149, 20,115,246],[110, 20,125,246],[ 70, 20,121,246],[ 35, 20,119,246]],
+                [[151, -8,119,248],[115, -8,118,248],[ 69, -8,120,246],[ 40, -8,119,248]],
+              ],
+              foot: [[308,309,308,309],[286,286,285,286],
+                     [265,265,265,265],[239,239,237,239]] },
+    run:    { src: 'assets/2D%20sprites/enemies/seer-grunt-b-run.png',
+              bboxes: [
+                [[129, 40,140,264],[103, 40,136,264],[ 78, 40,136,264],[ 54, 40,132,265]],
+                [[105, 34,181,231],[ 79, 38,176,223],[ 66, 37,177,229],[ 38, 38,170,225]],
+                [[116,  6,166,231],[ 68,  6,176,231],[ 64,  6,172,222],[ 32,  6,168,234]],
+                [[129,-25,129,271],[100,-25,131,266],[ 75,-25,130,271],[ 52,-24,127,270]],
+              ],
+              // Foot lines swing hard on a run cycle — 227 to 239 inside a
+              // single row as the trailing boot leaves the ground.  That is
+              // the animation, not noise, and pinning each frame's own foot
+              // line is what keeps the stride from bouncing off the tile.
+              foot: [[303,303,303,304],[264,260,265,262],
+                     [236,236,227,239],[245,240,245,245]] },
+    attack: { src: 'assets/2D%20sprites/enemies/seer-grunt-b-attack.png',
+              bboxes: GRUNT_B_BBOXES,
+              foot: [[301,301,301,301],[272,271,271,273],
+                     [241,238,239,240],[217,221,232,217]] },
+    // ★ 256 is the IDLE standing height, NOT the attack sheet's 227.
+    // The attack pose is a crouch — 29px shorter — so scaling off it made
+    // him grow the instant he stopped swinging.  Scale must come from the
+    // pose the character actually stands in, and every other sheet then
+    // draws at whatever height it really is.
+    standBh: 256, scaleMul: 1.150,
+  },
+};
+const _seerGruntImg = {};
+function seerGruntSheet(v, kind){
+  // Fallback chain matters.  A missing RUN should fall back to WALK, not to
+  // the attack sheet — a walk cycle played fast still reads as locomotion,
+  // whereas a strike pose sliding across the ground is the exact artefact
+  // this whole pass exists to remove.
+  const a = SEER_GRUNT_ART[v][kind] || (kind === 'run' ? SEER_GRUNT_ART[v].walk : null) || SEER_GRUNT_ART[v].attack;
+  const key = v + kind;
+  if (!_seerGruntImg[key]){ const im = new Image(); im.src = a.src; _seerGruntImg[key] = im; }
+  return { img: _seerGruntImg[key], bboxes: a.bboxes, foot: a.foot, src: a.src };
+}
+
 const NPCS = [
   // ── SHARKFIN · MOVE TEACHER · Veridan · teaches ASTRALASER ─────────────
   // v0.95.686 · Second Veridan contact, alongside Foongus.  Foongus teaches
@@ -7529,47 +7665,99 @@ const NPCS = [
   //   as the outdoor patrol grunts.  Silver chest at back drops the RUBY VIAL
   //   fetch item for the future Potion Maker questline.
   ...(function(){
-    // Reuse the Seer Grunt A sprite (already loaded elsewhere) for all 5
-    const GRUNT_SRC = 'assets/2D%20sprites/enemies/seer-grunt-a-attack.png';
-    const GRUNT_BBOXES = [
-      [[ 71, 43, 178, 279],[ 46, 43, 177, 279],[ 20, 43, 177, 279],[  0, 43, 172, 279]],
-      [[ 71, 43, 178, 279],[ 46, 43, 177, 279],[ 20, 43, 177, 279],[  0, 43, 172, 279]],
-      [[ 71, 43, 178, 279],[ 46, 43, 177, 279],[ 20, 43, 177, 279],[  0, 43, 172, 279]],
-      [[ 71, 43, 178, 279],[ 46, 43, 177, 279],[ 20, 43, 177, 279],[  0, 43, 172, 279]],
+    // ── SEER HQ INTERIOR GARRISON · v0.95.699 ──────────────────────────
+    // Rebuilt on the shared SEER_GRUNT_ART table.  These five used to carry
+    // their own bbox block — four identical rows of [71,43,178,279] that no
+    // measurement pass ever touched — so the interior grunts were a different
+    // size and a different sheet from the eighty outside.  They are the same
+    // soldiers; they now read from the same table and get idle/walk/run/attack
+    // like everyone else.
+    //
+    // Eight of them, spread across the 20x15 hall rather than parked in the
+    // corners, because the middle floor is the thing you have to cross twice:
+    // down to the vault for the key, then up to the Commander.
+    const HALL = [
+      { x:  4, y:  3, dir: 'right', v: 'A' },
+      { x: 15, y:  3, dir: 'left',  v: 'B' },
+      { x:  4, y:  8, dir: 'down',  v: 'B' },
+      { x: 15, y:  8, dir: 'down',  v: 'A' },
+      { x: 10, y:  6, dir: 'down',  v: 'A' },
+      { x:  7, y: 11, dir: 'up',    v: 'B' },
+      { x: 13, y: 11, dir: 'up',    v: 'A' },
+      { x: 10, y:  2, dir: 'down',  v: 'B' },
     ];
-    const GRUNT_SPOTS = [
-      { x:  4, y:  3, dir: 'right' },   // NW corner
-      { x: 15, y:  3, dir: 'left'  },   // NE corner
-      { x:  4, y:  8, dir: 'down'  },   // mid-W
-      { x: 15, y:  8, dir: 'down'  },   // mid-E
-      { x: 10, y:  6, dir: 'down'  },   // center (chest guard)
-    ];
-    const npcs = GRUNT_SPOTS.map((s, i) => ({
-      id: `seer_hq_grunt_${i+1}`,
-      name: 'Seer Grunt',
+    function hqGrunt(s, i){
+      const idle = seerGruntSheet(s.v, 'idle'), walk = seerGruntSheet(s.v, 'walk');
+      const run  = seerGruntSheet(s.v, 'run'),  atk  = seerGruntSheet(s.v, 'attack');
+      const isA = s.v === 'A';
+      return {
+        id: `seer_hq_grunt_${i + 1}`,
+        name: isA ? 'Seer Grunt' : 'Seer Grunt Elite',
+        sheet: idle.img, bboxes: idle.bboxes, footBaselines: idle.foot, src: idle.src,
+        walkSheet: walk.img, walkBboxes: walk.bboxes, walkFootBaselines: walk.foot, walkSrc: walk.src,
+        runSheet: run.img, runBboxes: run.bboxes, runFootBaselines: run.foot, runSrc: run.src,
+        attackSheet: atk.img, attackBboxes: atk.bboxes, attackFootBaselines: atk.foot, attackSrc: atk.src,
+        cellW: 313, cellH: 313, cols: 4, rows: 4,
+        cellAnchor: true,
+        scaleRefBh: SEER_GRUNT_ART[s.v].standBh,
+        scaleMul:   SEER_GRUNT_ART[s.v].scaleMul,
+        tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
+        homeScene: 'interior_seer_hq_1f',
+        scene:     'interior_seer_hq_1f',
+        wanderRadius: 3,
+        dir: s.dir,
+        mode: 'drainer',
+        moving: false,
+        animFrame: 0, idleFrame: 0,
+        idleCycleMs: 420,
+        moveCd: 300 + Math.random() * 300,
+        blinkTimer: 9e9,
+        isEnemy: true,
+        detectR: 8,
+        _chaseSpeed: 1.3,
+        _leashR: 18,                       // indoors · they cannot chase far anyway
+        hpMax: isA ? 175 : 200, hp: isA ? 175 : 200,
+        drainAmt: isA ? 7 : 8,
+        tier: 2, level: 10,
+        _seerGrunt: true,
+        _seerHqGarrison: true,
+        onInteract: (n) => showToast(`◈ ${String(n && n.name || 'SEER GRUNT').toUpperCase()} · "The Seers see all... die, Rizer."`, 2400),
+      };
+    }
+    const npcs = HALL.map(hqGrunt);
+    // ── THE COMMANDER · top floor, far wall · v0.95.699 ────────────────
+    // ONE npc serves all ten districts, exactly like the interior itself: the
+    // sheet and the name are swapped on arrival by refreshSeerCommander().
+    // Ten near-identical NPC objects would drift the way the interior grunts
+    // just did.
+    npcs.push({
+      id: 'seer_commander',
+      name: 'Seer Commander',
       sheet: new Image(),
-      src: GRUNT_SRC,
-      bboxes: GRUNT_BBOXES,
+      // Placeholder until the ten commander sheets land — Grunt B's idle, so
+      // he is visibly a Seer officer rather than an invisible NPC.
+      src: 'assets/2D%20sprites/enemies/seer-grunt-b-idle.png',
+      bboxes: SEER_GRUNT_ART.B.idle.bboxes,
+      footBaselines: SEER_GRUNT_ART.B.idle.foot,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
-      tileX: s.x, tileY: s.y,
-      homeX: s.x, homeY: s.y,
-      homeScene: 'interior_seer_hq_1f',
-      scene:     'interior_seer_hq_1f',
-      wanderRadius: 2,
-      dir: s.dir,
-      mode: 'drainer',
+      cellAnchor: true,
+      scaleRefBh: SEER_GRUNT_ART.B.standBh,
+      scaleMul: 1.45,                      // an officer · reads above the rank and file
+      tileX: 7, tileY: 3, homeX: 7, homeY: 3,
+      homeScene: 'interior_seer_hq_2f',
+      scene:     'interior_seer_hq_2f',
+      wanderRadius: 0,
+      dir: 'down',
+      mode: 'stationary',                  // he waits · he does not chase
       moving: false,
       animFrame: 0, idleFrame: 0,
-      moveCd: 300 + Math.random() * 300,
+      idleCycleMs: 520,
       blinkTimer: 9e9,
-      isEnemy: true,
-      detectR: 8,
-      hpMax: 175, hp: 175,
-      drainAmt: 7,
-      tier: 2, level: 10,
-      _seerGrunt: true,
-      onInteract: () => showToast('◈ Seer Grunt · "The Seers see all... die, Rizer."', 2400),
-    }));
+      isEnemy: false,                      // talks first · see onInteract
+      tier: 4, level: 30,
+      _seerCommander: true,
+      onInteract: () => { try { talkToSeerCommander(); } catch(err){ console.warn(err); } },
+    });
     return npcs;
   })(),
   // ── APEXAUR · wild armored saurian · wanders Zarvane wilds beside Town Hall · v0.95.305 ──
@@ -8703,130 +8891,8 @@ const NPCS = [
   // reason.  Deriving both formations from the HQ door and the district
   // geometry means they follow the world instead of arguing with it.
   ...(function(){
-    const GRUNT_A_BBOXES = [
-      [[134, 84,117,209],[101, 87,132,206],[ 62,101,157,206],[ 58, 91,120,202]],
-      [[140, 58,132,169],[107, 58,146,169],[ 17, 58,228,169],[ 69, 58,131,169]],
-      [[110, 22,138,172],[ 94, 22,143,172],[ 69, 22,222,172],[ 40, 21,134,173]],
-      [[136,  7,108,204],[110,  7,101,204],[ 82,  5,103,205],[ 66,  7,112,203]],
-    ];
-    const GRUNT_B_BBOXES = [
-      [[170, 75,111,227],[103, 75,151,227],[ 70, 75,172,227],[ 32, 75,110,227]],
-      [[163, 57,109,216],[ 89, 61,143,211],[  7, 64,203,208],[ 41, 58,109,216]],
-      [[161, 28,107,214],[106, 34,139,205],[ 63, 36,200,204],[ 38, 28,107,213]],
-      [[163,  1,115,217],[ 89,  3,138,219],[ 92,  1, 98,232],[ 35,  1,115,217]],
-    ];
-    // ── ART BANKS ──────────────────────────────────────────────────────
-    // Three sheets per variant: idle / walk / attack.  Any sheet that has not
-    // been delivered yet falls back to the attack sheet, so a missing file
-    // degrades to "he uses his attack pose while walking" rather than an
-    // invisible enemy.  Delivered sheets are listed with their OWN measured
-    // bboxes and foot baselines — a crouched attack pose plants at a
-    // different cell-y than a standing idle, so they cannot share tables.
-    const ART = {
-      A: {
-        idle:   { src: 'assets/2D%20sprites/enemies/seer-grunt-a-idle.png',
-                  bboxes: [
-                    [[144,106,120,212],[116,106,118,212],[ 88,106,123,212],[ 54,106,119,212]],
-                    [[158, 73, 95,194],[128, 73, 95,194],[ 98, 73,102,194],[ 63, 73, 95,194]],
-                    [[157, 36, 93,195],[126, 35, 95,196],[105, 35,101,196],[ 63, 35, 95,196]],
-                    [[142,  0,113,203],[110,  0,114,203],[ 88,  0,119,203],[ 49,  0,114,203]],
-                  ],
-                  // r0 feet sit at 317 — five pixels PAST the cell bottom, and
-                  // r3 starts at y=0.  Both are fine: the neighbouring rows'
-                  // art stops well clear (r1 begins at 386 absolute, r2 ends at
-                  // 857 against r3's 939), so nothing samples anyone else.
-                  foot: [[317,317,317,317],[266,266,266,266],
-                         [230,230,230,230],[202,202,202,202]] },
-        walk:   { src: 'assets/2D%20sprites/enemies/seer-grunt-a-walk.png',
-                  bboxes: [
-                    [[152,115,100,210],[123,115,100,210],[101,115,103,209],[ 62,115,100,210]],
-                    [[154, 77, 97,194],[126, 77, 98,194],[105, 77, 96,194],[ 68, 77, 95,194]],
-                    [[151, 38, 98,194],[121, 38, 99,194],[100, 38, 97,194],[ 60, 38, 97,194]],
-                    [[149, -2, 99,206],[116, -2,102,206],[ 95, -2,104,206],[ 58, -2,101,206]],
-                  ],
-                  foot: [[324,324,323,324],[270,270,270,270],
-                         [231,231,231,231],[203,203,203,203]] },
-        run:    { src: 'assets/2D%20sprites/enemies/seer-grunt-a-run.png',
-                  bboxes: [
-                    [[152,107,106,217],[120,107,110,218],[ 96,107,108,217],[ 52,107,115,213]],
-                    [[153, 76,115,194],[119, 76,119,189],[102, 76,114,194],[ 62, 76,110,195]],
-                    [[139, 38,113,193],[105, 38,115,192],[ 86, 38,114,193],[ 45, 38,112,191]],
-                    [[147,  1,106,202],[113,  1,110,208],[ 92,  1,108,208],[ 50,  1,111,203]],
-                  ],
-                  // Down-row feet land at 319-324, i.e. past the cell bottom —
-                  // her stride carries the trailing boot into row 1's cell
-                  // space.  Harmless: row 1's own art does not start until
-                  // absolute 389, well clear of 324.
-                  foot: [[323,324,323,319],[269,264,269,270],
-                         [230,229,230,228],[202,208,208,203]] },
-        attack: { src: 'assets/2D%20sprites/enemies/seer-grunt-a-attack.png',
-                  bboxes: GRUNT_A_BBOXES,
-                  foot: [[292,292,306,292],[226,226,226,226],
-                         [193,193,193,193],[210,210,209,209]] },
-        // ★ v0.95.697 · 212 is her IDLE standing height (was 209, the attack
-        // sheet's crouch).  Creator: "scale attack to her idle if needed."
-        // One scale per character, taken from the pose she stands in, so the
-        // attack sheet now draws at whatever height it really is — 2.12 tiles
-        // against her 2.15 standing, which is what a crouch should look like.
-        // The multiplier happens to stay 1.075: 209 and 212 are close enough
-        // that her on-screen size barely moves, but the RULE is now right.
-        standBh: 212, scaleMul: 1.075,
-      },
-      B: {
-        idle:   { src: 'assets/2D%20sprites/enemies/seer-grunt-b-idle.png',
-                  bboxes: [
-                    [[152, 54,126,255],[111, 55,127,253],[ 69, 54,130,256],[ 33, 54,126,255]],
-                    [[164, 40,103,252],[124, 40,104,252],[ 74, 40,120,252],[ 53, 39,103,253]],
-                    [[154, 19,101,253],[116, 19,101,253],[ 77, 19,119,253],[ 43, 19,101,253]],
-                    [[151, -8,118,256],[114, -8,119,256],[ 70, -9,122,257],[ 41, -8,119,257]],
-                  ],
-                  foot: [[308,307,309,308],[291,291,291,291],
-                         [271,271,271,271],[247,247,247,248]] },
-        walk:   { src: 'assets/2D%20sprites/enemies/seer-grunt-b-walk.png',
-                  bboxes: [
-                    [[153, 68,122,241],[112, 68,123,242],[ 70, 68,123,241],[ 33, 68,123,242]],
-                    [[157, 41,114,246],[104, 41,131,246],[ 74, 41,119,245],[ 36, 41,120,246]],
-                    [[149, 20,115,246],[110, 20,125,246],[ 70, 20,121,246],[ 35, 20,119,246]],
-                    [[151, -8,119,248],[115, -8,118,248],[ 69, -8,120,246],[ 40, -8,119,248]],
-                  ],
-                  foot: [[308,309,308,309],[286,286,285,286],
-                         [265,265,265,265],[239,239,237,239]] },
-        run:    { src: 'assets/2D%20sprites/enemies/seer-grunt-b-run.png',
-                  bboxes: [
-                    [[129, 40,140,264],[103, 40,136,264],[ 78, 40,136,264],[ 54, 40,132,265]],
-                    [[105, 34,181,231],[ 79, 38,176,223],[ 66, 37,177,229],[ 38, 38,170,225]],
-                    [[116,  6,166,231],[ 68,  6,176,231],[ 64,  6,172,222],[ 32,  6,168,234]],
-                    [[129,-25,129,271],[100,-25,131,266],[ 75,-25,130,271],[ 52,-24,127,270]],
-                  ],
-                  // Foot lines swing hard on a run cycle — 227 to 239 inside a
-                  // single row as the trailing boot leaves the ground.  That is
-                  // the animation, not noise, and pinning each frame's own foot
-                  // line is what keeps the stride from bouncing off the tile.
-                  foot: [[303,303,303,304],[264,260,265,262],
-                         [236,236,227,239],[245,240,245,245]] },
-        attack: { src: 'assets/2D%20sprites/enemies/seer-grunt-b-attack.png',
-                  bboxes: GRUNT_B_BBOXES,
-                  foot: [[301,301,301,301],[272,271,271,273],
-                         [241,238,239,240],[217,221,232,217]] },
-        // ★ 256 is the IDLE standing height, NOT the attack sheet's 227.
-        // The attack pose is a crouch — 29px shorter — so scaling off it made
-        // him grow the instant he stopped swinging.  Scale must come from the
-        // pose the character actually stands in, and every other sheet then
-        // draws at whatever height it really is.
-        standBh: 256, scaleMul: 1.150,
-      },
-    };
-    const _img = {};
-    function sheetFor(v, kind){
-      // Fallback chain matters.  A missing RUN should fall back to WALK, not to
-      // the attack sheet — a walk cycle played fast still reads as locomotion,
-      // whereas a strike pose sliding across the ground is the exact artefact
-      // this whole pass exists to remove.
-      const a = ART[v][kind] || (kind === 'run' ? ART[v].walk : null) || ART[v].attack;
-      const key = v + kind;
-      if (!_img[key]){ const im = new Image(); im.src = a.src; _img[key] = im; }
-      return { img: _img[key], bboxes: a.bboxes, foot: a.foot, src: a.src };
-    }
+    // GRUNT_A/B_BBOXES hoisted to module scope beside SEER_GRUNT_ART.
+    // ART BANKS + sheetFor moved to module scope · see SEER GRUNT ART above.
 
     // ── FORMATIONS ─────────────────────────────────────────────────────
     // POSTED · four at the door, two flanking either side of the stair, all
@@ -8883,8 +8949,8 @@ const NPCS = [
     }
 
     function mkGrunt(v, id, x, y, dir, lv, extra){
-      const idle = sheetFor(v, 'idle'), walk = sheetFor(v, 'walk');
-      const run  = sheetFor(v, 'run'),  atk  = sheetFor(v, 'attack');
+      const idle = seerGruntSheet(v, 'idle'), walk = seerGruntSheet(v, 'walk');
+      const run  = seerGruntSheet(v, 'run'),  atk  = seerGruntSheet(v, 'attack');
       // Declare src/walkSrc/attackSrc too: the NPCS.forEach loader assigns them
       // onto the Image objects, and an NPC with no src used to end up with
       // sheet.src = undefined.  Belt and braces — the Images already carry the
@@ -8900,8 +8966,8 @@ const NPCS = [
         attackSheet: atk.img, attackBboxes: atk.bboxes, attackFootBaselines: atk.foot, attackSrc: atk.src,
         cellW: 313, cellH: 313, cols: 4, rows: 4,
         cellAnchor: true,
-        scaleRefBh: ART[v].standBh,
-        scaleMul:   ART[v].scaleMul,
+        scaleRefBh: SEER_GRUNT_ART[v].standBh,
+        scaleMul:   SEER_GRUNT_ART[v].scaleMul,
         tileX: x, tileY: y, homeX: x, homeY: y,
         homeScene: 'overworld', scene: 'overworld',
         dir, mode: 'drainer', moving: false,
@@ -10227,7 +10293,7 @@ function walkable(x, y){
     if (game.scene === 'interior_treehouse'
         && x === TREEHOUSE_GOLD_CHEST.tileX && y === TREEHOUSE_GOLD_CHEST.tileY) return false;
     // v0.95.615 · Seer HQ 1F chest tile always blocks · X-interact from adjacent
-    if (game.scene === 'interior_seer_hq_1f'
+    if (game.scene === SEER_HQ_CHEST_SCENE
         && x === SEER_HQ_CHEST_TILE.tileX && y === SEER_HQ_CHEST_TILE.tileY) return false;
     // v0.95.600 · Professor's desk footprint blocks · 4 tiles wide × 2 tall
     //   footY at row 4 · body spans rows 3-4 · cols 13-16 (SCHOOL_DESK_TILE=15, W=4)
@@ -11548,7 +11614,11 @@ INTERIOR_TRAINING_FARM.tileImg.src = 'assets/2D%20sprites/tiles/training-farm-fl
 // · all owned Zyrex NOT in the active party wander here (PC storage substrate)
 // · spawn at bottom-center · autoExit drops Rizer at overworld (20, -19) facing DOWN
 // v0.95.615 · SEER HQ 1F · Ruby Vial silver chest · center-back of the room
-const SEER_HQ_CHEST_TILE = { tileX: 10, tileY: 2 };
+// v0.95.699 · the silver chest moved DOWN to the vault.  It now holds this
+// district's Seer Key, which is the only thing that opens the stair to the
+// Commander — so the basement is a required stop rather than a side room.
+const SEER_HQ_CHEST_TILE = { tileX: 7, tileY: 2 };
+const SEER_HQ_CHEST_SCENE = 'interior_seer_hq_b';
 const SEER_HQ_CHEST_CLOSED_IMG = new Image();
 SEER_HQ_CHEST_CLOSED_IMG.src = 'assets/2D%20sprites/decor/silver-chest.png';
 const SEER_HQ_CHEST_OPEN_IMG = new Image();
@@ -11562,13 +11632,28 @@ const SEER_HQ_CHEST_OPEN_BBOX   = [290, 240, 673, 741];
 // Malezor's legacy `player.rubyVialChestOpened` flag is honoured so existing
 // saves do not find their looted chest mysteriously closed again.
 function seerHqDistrict(){ return player.seerHqDistrict || 'malezor'; }
+// ★ v0.95.699 · SEER KEY · one per district, never a master key.  Ten
+// basements, ten commanders, ten self-contained raids — clearing Malezor must
+// not hand you Korathen's top floor.
+function hasSeerKey(dist){
+  dist = dist || seerHqDistrict();
+  if (game.devMaxBond) return true;                  // dev mode walks through
+  return !!(player.seerKeys || {})[dist];
+}
+function grantSeerKey(dist){
+  dist = dist || seerHqDistrict();
+  player.seerKeys = player.seerKeys || {};
+  if (player.seerKeys[dist]) return false;
+  player.seerKeys[dist] = true;
+  return true;
+}
 function seerHqChestOpened(dist){
   dist = dist || seerHqDistrict();
   if (dist === 'malezor' && player.rubyVialChestOpened) return true;
   return !!(player.seerHqChests || {})[dist];
 }
 function drawSeerHqChest(){
-  if (game.scene !== 'interior_seer_hq_1f') return;
+  if (game.scene !== SEER_HQ_CHEST_SCENE) return;
   const opened = seerHqChestOpened();
   const img  = opened ? SEER_HQ_CHEST_OPEN_IMG : SEER_HQ_CHEST_CLOSED_IMG;
   const bbox = opened ? SEER_HQ_CHEST_OPEN_BBOX : SEER_HQ_CHEST_CLOSED_BBOX;
@@ -11584,7 +11669,7 @@ function drawSeerHqChest(){
   ctx.imageSmoothingEnabled = prev;
 }
 function tryOpenSeerHqChest(){
-  if (game.scene !== 'interior_seer_hq_1f') return false;
+  if (game.scene !== SEER_HQ_CHEST_SCENE) return false;
   const dist = seerHqDistrict();
   if (seerHqChestOpened(dist)) return false;
   player.seerHqChests = player.seerHqChests || {};
@@ -11596,7 +11681,12 @@ function tryOpenSeerHqChest(){
     try { playItemGain('ruby_vial'); } catch(_){}
     try { playSFX('confirm'); } catch(_){}
     try { awardRizerXP(200); } catch(_){}
-    showToast('★ Received: RUBY VIAL · bring it to the potion maker outside Malezor Potion Shop', 4600);
+    // Malezor's chest predates the key and still gives the Ruby Vial for the
+    // Potion Maker fetch.  It has to hand over the key TOO, or Malezor — the
+    // first HQ the player ever enters — is the one district whose top floor
+    // can never be opened.
+    grantSeerKey(dist);
+    showToast('★ Received: RUBY VIAL + MALEZOR SEER KEY · the top floor will open now', 4800);
     return true;
   }
   const H = SEER_HQ_BY_DIST[dist];
@@ -11605,7 +11695,9 @@ function tryOpenSeerHqChest(){
   player.coins = (player.coins || 0) + coins;
   try { playSFX('confirm'); } catch(_){}
   try { awardRizerXP(120 + (H ? H.gruntLv : 10) * 4); } catch(_){}
-  showToast(`★ Seer strongbox · ${coins} coins · ${H ? H.label : dist} HQ`, 3600);
+  // ★ the key is the real prize · coins are the consolation
+  grantSeerKey(dist);
+  showToast(`★ ${H ? H.label.toUpperCase() : dist} SEER KEY · the top floor will open now · +${coins} coins`, 4200);
   return true;
 }
 // v0.95.615 · SEER HQ 1F interior · 20×15 stone-floor lair
@@ -11615,6 +11707,20 @@ function tryOpenSeerHqChest(){
 // facing north into the room.  autoExit drops back to the overworld door.
 const SEER_HQ_FLOOR_IMG = new Image();
 SEER_HQ_FLOOR_IMG.src = 'assets/2D%20sprites/tiles/seer-hq-floor.png';
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ SEER HQ · THREE FLOORS · v0.95.699
+//
+//   BASEMENT  14x10  the vault · silver chest holds THAT DISTRICT'S Seer Key
+//   1F        20x15  the hall  · patrolling grunts · both staircases
+//   2F        14x12  the office· the Commander, at the far wall
+//
+// Size carries the meaning: you go DOWN for one thing and come back up, the
+// middle floor is the wide patrolled hall you have to cross, and the top is a
+// small room with one person in it who has been waiting for you.
+//
+// All ten HQs share these three configs. `player.seerHqDistrict` says which
+// building you are standing in, and the labels/drops are rewritten on entry —
+// ten near-identical config objects would drift out of sync within a month.
 const INTERIOR_SEER_HQ_1F = {
   cols: 20, rows: 15,
   tileImg: SEER_HQ_FLOOR_IMG,
@@ -11625,6 +11731,51 @@ const INTERIOR_SEER_HQ_1F = {
   blocked: [],
   label: '◈ SEER HQ · 1F',
   overworldDrop: { x: 75, y: 169, dir: 'down' },   // rewritten per district by enterSeerHq
+  // Two staircases, opposite corners of the hall, so crossing the patrolled
+  // floor is unavoidable in both directions.
+  stairsList: [
+    { // DOWN to the vault · always open
+      triggers: [[1, 1], [2, 1]],
+      target: 'interior_seer_hq_b',
+      spawnAt: { x: 7, y: 8, dir: 'up' },
+    },
+    { // UP to the Commander · locked until this district's key is in hand
+      triggers: [[17, 1], [18, 1]],
+      target: 'interior_seer_hq_2f',
+      spawnAt: { x: 7, y: 10, dir: 'up' },
+      locked: () => !hasSeerKey(),
+      lockedMsg: () => {
+        const H = SEER_HQ_BY_DIST[seerHqDistrict()];
+        return `◈ SEALED · the stair to the top floor will not open · ${H ? H.label.toUpperCase() : ''} SEER KEY needed`;
+      },
+    },
+  ],
+};
+const INTERIOR_SEER_HQ_B = {
+  cols: 14, rows: 10,
+  tileImg: SEER_HQ_FLOOR_IMG,
+  spawn: { x: 7, y: 8, dir: 'up' },
+  exit:  null,                       // no door to the street — the only way out is up
+  autoExit: false,
+  wallImg: 'malezor',
+  blocked: [],
+  label: '◈ SEER HQ · VAULT',
+  stairsList: [
+    { triggers: [[7, 9]], target: 'interior_seer_hq_1f', spawnAt: { x: 2, y: 2, dir: 'down' } },
+  ],
+};
+const INTERIOR_SEER_HQ_2F = {
+  cols: 14, rows: 12,
+  tileImg: SEER_HQ_FLOOR_IMG,
+  spawn: { x: 7, y: 10, dir: 'up' },
+  exit:  null,
+  autoExit: false,
+  wallImg: 'malezor',
+  blocked: [],
+  label: '◈ SEER HQ · COMMAND',
+  stairsList: [
+    { triggers: [[7, 11]], target: 'interior_seer_hq_1f', spawnAt: { x: 17, y: 2, dir: 'down' } },
+  ],
 };
 // v0.95.671 · TEN Seer HQs now share this one interior.  The drop point and the
 // label are rewritten on the way in, and `player.seerHqDistrict` records which
@@ -11637,12 +11788,94 @@ function enterSeerHq(dist){
   player.seerHqDistrict = dist;
   INTERIOR_SEER_HQ_1F.overworldDrop = { x: H.door[0], y: H.door[1] + 3, dir: 'down' };
   INTERIOR_SEER_HQ_1F.label = `◈ ${H.label.toUpperCase()} SEER HQ · 1F`;
-  const looted = (player.seerHqChests || {})[dist];
-  const tail = looted ? 'the chest at the back stands open'
-                      : 'a silver chest sits at the back';
+  // v0.95.699 · the chest is downstairs now, so the entry line points DOWN
+  // rather than describing a chest the player cannot see from here.
+  const tail = hasSeerKey(dist)
+    ? 'the stair to the top floor is open'
+    : (seerHqChestOpened(dist) ? 'the vault below stands empty' : 'a stair descends to a sealed vault');
   enterInterior('interior_seer_hq_1f', INTERIOR_SEER_HQ_1F,
     `◈ ${H.label.toUpperCase()} SEER HQ · 1F · they hold the road to ${H.toward} · ${tail}`);
   return true;
+}
+// ★ v0.95.699 · Floor labels are rewritten on arrival too, so the vault and
+// the command floor name the district you are actually standing in rather than
+// a generic "SEER HQ".  Called from useStairs via the scene change.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ SEER COMMANDERS · one per district, ten sheets, one NPC · v0.95.699
+//
+// COMMANDER_ART is filled in as the Creator delivers each 4x4 idle sheet.
+// Until a district's sheet lands the Commander wears Grunt B's idle, so he is
+// visibly a Seer officer rather than an invisible tile — a missing asset should
+// degrade to "wrong costume", never to "nothing there".
+const SEER_COMMANDER_ART = {
+  malezor:   null, zarvane:  null, andrannor: null, veridan: null, netharion: null,
+  vorashil:  null, xilnar:   null, baelgor:   null, thardin: null, korathen:  null,
+};
+// Names are canon-facing and district-flavoured; the Creator can rename freely.
+const SEER_COMMANDER_NAME = {
+  malezor:'Commander of the Beastlands',  zarvane:'Commander of the Auralands',
+  andrannor:'Commander of the Creaturelands', veridan:'Commander of the Naturelands',
+  netharion:'Commander of the Unknownlands',  vorashil:'Commander of the Alienlands',
+  xilnar:'Commander of the Spiritlands',      baelgor:'Commander of the Humanoidlands',
+  thardin:'Commander of the Mechlands',       korathen:'Commander of the Ultralands',
+};
+function seerCommanderBeaten(dist){
+  dist = dist || seerHqDistrict();
+  return !!(player.seerCommandersBeaten || {})[dist];
+}
+// Swap the Commander's sheet + name to match the building you walked into.
+function refreshSeerCommander(){
+  const n = (typeof findNpcById === 'function') ? findNpcById('seer_commander') : null;
+  if (!n) return;
+  const dist = seerHqDistrict();
+  const art = SEER_COMMANDER_ART[dist];
+  n.name = SEER_COMMANDER_NAME[dist] || 'Seer Commander';
+  if (art){
+    if (n.src !== art.src){ n.src = art.src; n.sheet = new Image(); n.sheet.src = art.src; }
+    n.bboxes = art.bboxes;
+    n.footBaselines = art.foot;
+    n.scaleRefBh = art.standBh;
+    // Recomputed lazily by drawNPC; clearing it is what makes a swap take.
+    n._downScale = null;
+  }
+}
+function talkToSeerCommander(){
+  const dist = seerHqDistrict();
+  const H = SEER_HQ_BY_DIST[dist];
+  const who = SEER_COMMANDER_NAME[dist] || 'Seer Commander';
+  if (seerCommanderBeaten(dist)){
+    showToast(`◈ ${who} · already broken · this district's cell is finished`, 3200);
+    return;
+  }
+  // Talk, THEN fight. Ten commanders should be ten story beats, not ten health
+  // bars — each one gets a district-specific line before the encounter.
+  const line = (H && H.toward)
+    ? `"You came up the stairs instead of running. Good. Then you already know what we are doing to the road to ${H.toward}."`
+    : '"You came up the stairs instead of running. Good."';
+  showToast(`◈ ${who.toUpperCase()} · ${line}`, 5200);
+  try { playSFX('caveGrowl'); } catch(_){}
+  // ENCOUNTER PENDING · the fight itself is a later pass (see the design brief
+  // in data/SEER_COMMANDERS.md).  Deliberately NOT faked with a toast that
+  // pretends a battle happened.
+}
+function seerHqFloorLabel(scene){
+  const H = SEER_HQ_BY_DIST[seerHqDistrict()];
+  const who = H ? H.label.toUpperCase() : 'SEER';
+  if (scene === 'interior_seer_hq_b'){
+    INTERIOR_SEER_HQ_B.label = `◈ ${who} SEER HQ · VAULT`;
+    return seerHqChestOpened() ? `◈ ${who} VAULT · the strongbox stands open`
+                               : `◈ ${who} VAULT · a silver strongbox waits at the far wall`;
+  }
+  if (scene === 'interior_seer_hq_2f'){
+    INTERIOR_SEER_HQ_2F.label = `◈ ${who} SEER HQ · COMMAND`;
+    try { refreshSeerCommander(); } catch(_){}   // swap to THIS district's officer
+    return `◈ ${who} COMMAND · someone has been expecting you`;
+  }
+  if (scene === 'interior_seer_hq_1f'){
+    INTERIOR_SEER_HQ_1F.label = `◈ ${who} SEER HQ · 1F`;
+    return null;
+  }
+  return null;
 }
 // v0.95.590 · MALEZOR ACADEMY interior · classroom layout · 15×14
 // Sub-Professor at the front lectern, 10 students in 2 rows of 5.  Each
@@ -16425,6 +16658,8 @@ function interiorConfig(scene){
   if (scene === 'interior_treehouse')return INTERIOR_TREEHOUSE;
   if (scene === 'interior_malezor_school') return INTERIOR_MALEZOR_SCHOOL;   // v0.95.590
   if (scene === 'interior_seer_hq_1f')     return INTERIOR_SEER_HQ_1F;       // v0.95.615
+  if (scene === 'interior_seer_hq_b')      return INTERIOR_SEER_HQ_B;        // v0.95.699
+  if (scene === 'interior_seer_hq_2f')     return INTERIOR_SEER_HQ_2F;       // v0.95.699
   // v0.95.311 · Dev · Unlock-All-Doors dynamic scenes · look up by prefix
   if (typeof scene === 'string' && scene.startsWith('interior_dev_')){
     return DEV_INTERIOR_CACHE.get(scene) || null;
@@ -16461,6 +16696,13 @@ function useStairs(s){
     showToast('◈ Dismounted · chair returned to its home spot.', 2000);
   }
   game.scene = s.target;
+  // v0.95.699 · Seer HQ floors relabel themselves per district on arrival
+  if (typeof s.target === 'string' && s.target.startsWith('interior_seer_hq_')){
+    try {
+      const msg = seerHqFloorLabel(s.target);
+      if (msg) showToast(msg, 3200);
+    } catch(_){}
+  }
   const spawn = s.spawnAt || { x: 2, y: 2, dir: 'down' };
   player.x = spawn.x; player.y = spawn.y;
   player.dir = spawn.dir || 'down';
@@ -18117,16 +18359,35 @@ function tryMove(dt){
   // ping-pong up→down→up on consecutive frames.  useStairs sets
   // player.stairsCd = now + 1000.
   const _cfg = interiorConfig(game.scene);
-  if (_cfg && _cfg.stairs && _cfg.stairs.triggers){
+  // v0.95.699 · A floor may now have MORE THAN ONE staircase.  The Seer HQ
+  // middle floor needs both — down to the vault and up to the Commander — and
+  // the old single `stairs` object could only ever describe one.  `stairsList`
+  // is the general form; `stairs` still works and is treated as a list of one,
+  // so every existing interior is untouched.
+  const _stairSets = _cfg
+    ? (Array.isArray(_cfg.stairsList) ? _cfg.stairsList : (_cfg.stairs ? [_cfg.stairs] : []))
+    : [];
+  if (_stairSets.length){
     const now = performance.now();
     const cdActive = player.stairsCd && now < player.stairsCd;
     if (!cdActive){
-      for (const [tx, ty] of _cfg.stairs.triggers){
-        if (player.x === tx && player.y === ty){
-          player.stairsCd = now + 1000;
-          useStairs(_cfg.stairs);
-          playSFX('stairs');                          // v0.95.103 · footstep sequence
-          return;
+      for (const _s of _stairSets){
+        if (!_s || !_s.triggers) continue;
+        for (const [tx, ty] of _s.triggers){
+          if (player.x === tx && player.y === ty){
+            // A locked staircase refuses and says why, rather than silently
+            // doing nothing — a stair that eats your input reads as a bug.
+            if (typeof _s.locked === 'function' && _s.locked()){
+              player.stairsCd = now + 900;
+              try { playSFX('doorLock'); } catch(_){}
+              showToast(_s.lockedMsg ? _s.lockedMsg() : '◈ Locked', 2800);
+              return;
+            }
+            player.stairsCd = now + 1000;
+            useStairs(_s);
+            playSFX('stairs');                        // v0.95.103 · footstep sequence
+            return;
+          }
         }
       }
     }
@@ -24870,6 +25131,15 @@ function saveGame(){
         malezorBroadcastDone:       !!player.malezorBroadcastDone,
         // v0.95.611 · Scrapjaw tower network state
         scrapjawTowersRestored:     player.scrapjawTowersRestored || {},
+        // ★ v0.95.699 · SEER HQ STATE · none of this was being saved.
+        // Pre-existing bug, found while adding the key: every HQ strongbox
+        // refilled on reload and Malezor's Ruby Vial could be farmed forever.
+        // loadGame does Object.assign(player, s.player), so putting them in the
+        // snapshot is the whole fix.
+        seerHqChests:               player.seerHqChests       || {},
+        rubyVialChestOpened:        !!player.rubyVialChestOpened,
+        seerKeys:                   player.seerKeys           || {},
+        seerCommandersBeaten:       player.seerCommandersBeaten || {},
         deathGargoyles:             player.deathGargoyles || [],   // v0.95.614 · death breadcrumb persist
         shardshareFixed:            !!player.shardshareFixed,      // v0.95.619 · party duel-XP share unlocked
         dadStarterQuestComplete:    !!player.dadStarterQuestComplete,

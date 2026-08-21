@@ -3272,6 +3272,74 @@ const WORLD_PROPS = [
     })(),
   },
   {
+    // ── MUTARYN'S CAVE · Andrannor highland · v0.95.688 ──────────────────
+    // Andrannor is the Creaturelands and Mutaryn is its CITRINELORD, so the
+    // sanctum is black stone veined with gold and a citrine boss over the door.
+    //
+    // (274,403), deep in Andrannor's SOUTHWEST — which the district wheel
+    // resolves to its HIGHLAND quarter.  That is where a Gemlord cave belongs
+    // by [[aov-district-wheel-canon]]: highland sits opposite the outbound road
+    // and is the deepest, last-explored corner of every district.  Chosen by
+    // searching all 262 viable anchors, keeping the 50 in highland, and taking
+    // the most remote — 67 tiles from the nearest non-flora prop.
+    id: 'mutaryn_cave',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/mutaryn-cave-full.png',
+    bbox: [22, 70, 1211, 1128],
+    tileX: 274, tileY: 403,
+    tileW: 13, tileH: 11,
+    footprint: (function(){
+      const f = [];
+      for (let dy = -10; dy <= 0; dy++){
+        for (let dx = -6; dx <= 6; dx++){
+          const stairTile = dy >= -3 && dx === 0;
+          if (!stairTile) f.push([dx, dy]);
+        }
+      }
+      return f;
+    })(),
+    door: [0, -4],
+    depthOffset: -6.5,
+    onInteract: () => {
+      try { playSFX('caveGrowl'); } catch(_){}
+      showToast('◈ MUTARYN\'S SANCTUM · the Citrinelord\'s door · sealed for now', 3000);
+    },
+  },
+  {
+    // ── EMERALIX'S CAVE · Veridan highland · v0.95.688 ───────────────────
+    // Veridan is the Naturelands and Emeralix is its EMERALORD, so the door is
+    // swallowed by living roots and set with emerald bosses — the only one of
+    // the four caves the forest is actively reclaiming.
+    //
+    // (437,211), Veridan's NORTHWEST, which the wheel resolves to HIGHLAND for
+    // the same reason as Mutaryn's: Veridan's road runs south, so highland is
+    // the far north-west.  66 tiles from the nearest prop, and verified clear
+    // of the Veridan river — freshwater reads as LAND, which is the trap that
+    // put 84 trees in the water at v0.95.672.
+    id: 'emeralix_cave',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/emeralix-cave-full.png',
+    bbox: [21, 60, 1212, 1137],
+    tileX: 437, tileY: 211,
+    tileW: 13, tileH: 11,
+    footprint: (function(){
+      const f = [];
+      for (let dy = -10; dy <= 0; dy++){
+        for (let dx = -6; dx <= 6; dx++){
+          const stairTile = dy >= -3 && dx === 0;
+          if (!stairTile) f.push([dx, dy]);
+        }
+      }
+      return f;
+    })(),
+    door: [0, -4],
+    depthOffset: -6.5,
+    onInteract: () => {
+      try { playSFX('caveGrowl'); } catch(_){}
+      showToast('◈ EMERALIX\'S SANCTUM · the Emeralord\'s door · sealed for now', 3000);
+    },
+  },
+  {
     // ── IVIRIUM'S CAVE · Zarvane west coast · v0.95.687 ──────────────────
     // Zarvane is the Auralands and Ivirium is its Pearlord (Spirit/Aura), so
     // the sanctum is pale pearl-and-sandstone rather than Rakoron's dark rock:
@@ -6007,8 +6075,9 @@ const NPCS = [
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     uniformScale: true, scaleMul: 1.15,
-    tileX: 546, tileY: 245,
-    homeX: 546, homeY: 245,
+    // v0.95.688 · Creator moved him to (534,277).
+    tileX: 534, tileY: 277,
+    homeX: 534, homeY: 277,
     homeScene: 'overworld', scene: 'overworld',
     dir: 'right',                      // toward the river, 31 tiles east
     mode: 'stationary',
@@ -16553,6 +16622,19 @@ addEventListener('keydown', e => {
     // Square (j) = FOLLOW toggle
     if (k === 'j'){
       const facing = facedNpc();
+      // v0.95.688 · STEP 4 OF THE CONTACT LADDER · Square on a contact you have
+      // CALLED adds them to the faction tab.  Checked before the follow toggle
+      // because a called contact is already following — toggling it off here
+      // would undo the call the player just made, which is the opposite of what
+      // pressing Square on someone walking beside you should mean.
+      if (facing && facing._phoneSpawned && isFriendlyNpc(facing)){
+        if (isFactionContact(facing.id)){
+          showToast(`◈ ${facing.name} is already in your faction · re-dial to send home`, 2800);
+        } else {
+          addContactToFaction(facing);
+        }
+        return;
+      }
       if (facing && isFriendlyNpc(facing)){
         const bond = (player.bonds && player.bonds[facing.id]) || 0;
         // v0.95.339 · Square while ALREADY following the sister-type sends them home
@@ -21959,6 +22041,50 @@ function renderZycellExpeditions(){
 // v0.95.462 · Contact-call spawn · trusted contacts (bond >= 100) teleport to
 // Rizer's overworld tile when dialed · original home saved to _phoneHomeX/Y /
 // _phoneHomeScene · re-tap the CALL row (now labeled "SEND HOME") returns them
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★ ZYREX vs CONTACT · two different ways to gain an ally · v0.95.688
+// ═══════════════════════════════════════════════════════════════════════════
+// Creator directive.  The distinction is the point, so it is written once here
+// and enforced in both code paths:
+//
+//   ZYREX      live inside the ZyPhone — Zysphere -> Zycube -> phone — so a
+//              caught Zyrex goes STRAIGHT to the faction tab, or to the PC if
+//              the phone is full.  They are already with you.  gainZyrex()
+//              does this and needed no change.
+//
+//   CONTACTS   are people.  They live their own lives out in the world and
+//              have to be RUNG UP.  The ladder is:
+//                  1 · bond reaches FULL (100)
+//                  2 · you CALL them from the ZyPhone
+//                  3 · they travel to you and FOLLOW
+//                  4 · Square adds them to the faction tab
+//                  5 · re-dial sends them home, again via the ZyPhone
+//
+// Having to call them is the whole differentiator.  A Zyrex is summoned out of
+// your pocket; a contact has to agree to come, and can be sent home.
+const CONTACT_CALL_BOND = 100;   // full bond before anyone will pick up
+function contactCallBondOk(id){
+  if (game.devMaxBond) return true;
+  return ((player.bonds && player.bonds[id]) || 0) >= CONTACT_CALL_BOND;
+}
+// Step 4 · promote a CALLED, following contact into the faction tab.
+function addContactToFaction(n){
+  if (!n || !n.id) return false;
+  player.factionContacts = player.factionContacts || [];
+  if (player.factionContacts.includes(n.id)){
+    showToast(`◈ ${n.name} is already in your faction`, 2200);
+    return false;
+  }
+  player.factionContacts.push(n.id);
+  n._factionContact = true;
+  showToast(`★ ${n.name} JOINED YOUR FACTION · call them any time from the ZyPhone`, 3800);
+  try { playSFX('confirm'); } catch(_){}
+  try { awardRizerXP(300); } catch(_){}
+  return true;
+}
+function isFactionContact(id){
+  return (player.factionContacts || []).includes(String(id || ''));
+}
 function toggleContactCall(npcId, name){
   // v0.95.652 · ZYREX ARE NOT CALLABLE · Creator confirmation 2026-08-19.
   // The registry already refuses to enrol them, but this is the actual dial,
@@ -21996,6 +22122,16 @@ function toggleContactCall(npcId, name){
     try { playSFX('doorLock'); } catch(_){}
     return;
   }
+  // v0.95.688 · FULL BOND BEFORE ANYONE PICKS UP.  Checked here rather than in
+  // the list builder, for the same reason the Zyrex refusal is: a filter is a
+  // policy, a guard is a guarantee.  Skipped when sending someone home — you
+  // can always end a visit.
+  if (!n._phoneSpawned && !contactCallBondOk(npcId)){
+    const b = (player.bonds && player.bonds[npcId]) || 0;
+    showToast(`◈ ${name} · Bond ${b}/${CONTACT_CALL_BOND} · they will not come until you are close`, 3400);
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
   // Return home path
   if (n._phoneSpawned){
     n.scene = n._phoneHomeScene || 'overworld';
@@ -22003,6 +22139,11 @@ function toggleContactCall(npcId, name){
     n.tileY = (typeof n._phoneHomeY === 'number') ? n._phoneHomeY : n.homeY;
     n.moving = false;
     n._phoneSpawned = false;
+    // v0.95.688 · stop following and restore whatever they were doing before
+    // the call, so sending someone home actually puts them back rather than
+    // leaving a stranded follower standing in their own doorway.
+    n.mode = n._phoneHomeMode || 'stationary';
+    n._phoneHomeMode = null;
     n._phoneHomeX = null; n._phoneHomeY = null; n._phoneHomeScene = null;
     showToast(`◈ ${name} heads home`, 2200);
     try { playSFX('menuClose'); } catch(_){}
@@ -22010,7 +22151,13 @@ function toggleContactCall(npcId, name){
   }
   // Spawn-at-player path · save current home first, then relocate adjacent to Rizer
   n._phoneHomeX = n.tileX; n._phoneHomeY = n.tileY; n._phoneHomeScene = n.scene;
+  n._phoneHomeMode = n.mode;
   n._phoneSpawned = true;
+  // v0.95.688 · A CALLED CONTACT FOLLOWS.  This is the differentiator: a Zyrex
+  // is summoned out of your phone already at your side, a contact travels to
+  // you and then walks with you.  Without this they teleported in and stood
+  // there, which made calling feel like a waypoint rather than company.
+  n.mode = 'follow';
   n.scene = 'overworld';
   // Land on the tile in front of Rizer if walkable, else 1 tile south
   const v = _DIR_VEC[player.dir] || { dx: 0, dy: 1 };

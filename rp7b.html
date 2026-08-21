@@ -8687,32 +8687,22 @@ const NPCS = [
   // Grunt A (leaner) + Grunt B (bulkier) · progressive density outward from home:
   //   Malezor outskirts = 5 · Zarvane = 10 · Andrannor = 15 · Veridan = 18
   // Both use mode: 'drainer' (chase-and-strike AI) with drainAmt override.
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★ SEER PRESENCE · v0.95.696 · one generated system, ten districts
+  //
+  // Replaces the hand-placed SPOTS list (45 grunts scattered by eye) and the
+  // 5-wide SEER_HQ_GUARD_RING.  Creator's spec:
+  //
+  //   4 POSTED    at the HQ door · idle · hold ground, strike when you close
+  //   4 PATROLLING the edge of the settled core · walking · hunt you down
+  //   the rest     inside the HQ, for the interior loop
+  //
+  // Why generated rather than listed: the hand-placed version had to be
+  // re-tuned by hand every time a district gained homes or a road moved, and
+  // it drifted — Malezor's cluster has been relocated twice for exactly that
+  // reason.  Deriving both formations from the HQ door and the district
+  // geometry means they follow the world instead of arguing with it.
   ...(function(){
-    // CC bboxes extracted from the attack sheets · rows D/L/R/U · cols 0-3 (col 2 = strike)
-    // v0.95.524 · Rebaked after cell-boundary strip · col 0 bh capped ≤216 so
-    // in-game scale matches adult NPCs (Mom/Dad/Kelthor use ~216 as default).
-    // Attack frames (cols 1-3) keep their tight measured extents · they don't
-    // drive scale (see drawNPC · only col 0 counts toward maxBh).
-    // v0.95.694 · RE-EXTRACTED by component OWNERSHIP, not per-cell clipping.
-    //
-    // Method: label every connected component in the sheet, assign each one to
-    // whichever cell holds the majority of its pixels, then take the union per
-    // cell.  This is the only approach that gets both halves right at once:
-    //
-    //   · a per-cell clip CROPS any VFX that overruns the cell edge, and picks
-    //     up a neighbour's limbs when the sheet has no gutter
-    //   · a flood-fill seeded at the cell centre EXCLUDES disconnected VFX —
-    //     it dropped a whole detached flame in row 2 of both sheets, which is
-    //     how I first "fixed" boxes that were already correct
-    //
-    // What was actually wrong: ONE cell.  Grunt A r1c2 read [17,1,228,226],
-    // reaching 57px up into row 0 and grabbing the down-pose's boots.  Every
-    // other box here matches what was already shipped, plus two that gained a
-    // few pixels of their own art back (A r0c2, B r0c0, B r2c0).
-    // v0.95.695 · re-measured after the clipped projectiles were erased from
-    // the sheets.  NOTHING now touches a cell boundary in either sheet, which
-    // is the property that matters — a bbox that reaches a cell edge means the
-    // artwork is severed there.
     const GRUNT_A_BBOXES = [
       [[134, 84,117,209],[101, 87,132,206],[ 62,101,157,206],[ 58, 91,120,202]],
       [[140, 58,132,169],[107, 58,146,169],[ 17, 58,228,169],[ 69, 58,131,169]],
@@ -8725,122 +8715,191 @@ const NPCS = [
       [[161, 28,107,214],[106, 34,139,205],[ 63, 36,200,204],[ 38, 28,107,213]],
       [[163,  1,115,217],[ 89,  3,138,219],[ 92,  1, 98,232],[ 35,  1,115,217]],
     ];
-    // Curated seed spawns · outskirts of Malezor hometown (rows 100-150, cols 5-40)
-    // Zarvane wild band gets more · Andrannor/Veridan get most
-    const SPOTS = [
-      // ── MALEZOR WILD ARM (east) · v0.95.598 · moved OUT of the home/school
-      //    perimeter (rows 118-160 cols 8-40 was aggro-triggering Elarion talks).
-      //    Relocated east into the life-stone corridor around (85-115, 155-180).
-      { x: 89, y: 157, v:'A' }, { x:104, y: 162, v:'B' },
-      { x: 98, y: 178, v:'A' }, { x:112, y: 175, v:'A' }, { x: 87, y: 187, v:'B' },
-      // ── ZARVANE · 10 spawns · wild-arm + SE block ──
-      { x: 55, y: 200, v:'A' }, { x: 70, y: 205, v:'B' }, { x: 82, y: 210, v:'A' },
-      { x: 96, y: 215, v:'B' }, { x:110, y: 220, v:'A' },
-      { x: 68, y: 245, v:'B' }, { x: 88, y: 258, v:'A' }, { x:104, y: 268, v:'B' },
-      { x: 78, y: 285, v:'A' }, { x: 96, y: 298, v:'B' },
-      // ── ANDRANNOR · 15 spawns · central band ──
-      { x:180, y: 310, v:'A' }, { x:195, y: 316, v:'B' }, { x:210, y: 322, v:'A' },
-      { x:225, y: 328, v:'B' }, { x:245, y: 320, v:'A' }, { x:260, y: 315, v:'B' },
-      { x:275, y: 325, v:'A' }, { x:195, y: 335, v:'B' }, { x:215, y: 340, v:'A' },
-      { x:235, y: 345, v:'B' }, { x:255, y: 335, v:'A' }, { x:270, y: 340, v:'B' },
-      { x:200, y: 348, v:'B' }, { x:230, y: 352, v:'A' }, { x:265, y: 350, v:'B' },
-      // ── v0.95.443 · SEER HQ FRONT GUARD · 5 grunts ringing door at (75,172) ──
-      // Ready to fight on approach · alternating A/B for a mixed skirmish line
-      { x: 72, y: 173, v:'B' }, { x: 74, y: 173, v:'A' }, { x: 76, y: 173, v:'B' },
-      { x: 78, y: 173, v:'A' }, { x: 75, y: 174, v:'B' },
-      // ── v0.95.445 · 2x SCATTER · +30 more grunts across the L-shape ──
-      // v0.95.471 · Malezor stem picks moved OUT of the mid-line safe corridor
-      // v0.95.598 · Whole Malezor-stem cluster relocated east into the wild-arm
-      //    (cols ~85-115, rows 155-200) to keep the home/school approach clean.
-      { x: 92, y: 168, v:'A' }, { x:108, y: 165, v:'B' }, { x: 96, y: 185, v:'A' },
-      { x:110, y: 188, v:'B' }, { x:100, y: 195, v:'A' },
-      { x: 50, y: 172, v:'B' }, { x: 62, y: 168, v:'A' }, { x: 85, y: 178, v:'B' },
-      { x: 98, y: 172, v:'A' }, { x:108, y: 180, v:'B' }, { x: 65, y: 185, v:'A' },
-      { x: 60, y: 218, v:'A' }, { x: 75, y: 230, v:'B' }, { x: 92, y: 240, v:'A' },
-      { x:110, y: 250, v:'B' }, { x: 68, y: 275, v:'A' }, { x: 88, y: 288, v:'B' },
-      { x:112, y: 302, v:'A' },
-      { x:190, y: 322, v:'B' }, { x:222, y: 336, v:'A' }, { x:250, y: 328, v:'B' },
-      { x:268, y: 322, v:'A' }, { x:288, y: 336, v:'B' }, { x:275, y: 348, v:'A' },
-      { x:320, y: 220, v:'A' }, { x:342, y: 208, v:'B' }, { x:360, y: 222, v:'A' },
-      { x:355, y: 240, v:'B' }, { x:340, y: 232, v:'A' }, { x:370, y: 218, v:'B' },
-    ];
-    // v0.95.488 · District-based level assignment · both A & B are TIER 2 now
-    // (was A=T2, B=T3) · they differ only in HP/detect radius, not xp reward tier
-    const _gruntLvFor = (x, y, isA) => {
-      // Assign level by which district band the spot lives in.  Ladder tracks
-      // the enemy-level canon locked 2026-08-16 in [[aov-rp7-enemy-mapping]].
-      if (y < 200)          return isA ? 10 : 15;   // Malezor
-      if (y < 305)          return isA ? 28 : 32;   // Zarvane
-      if (y < 380)          return isA ? 42 : 45;   // Andrannor
-      return isA ? 54 : 58;                          // Veridan+
+    // ── ART BANKS ──────────────────────────────────────────────────────
+    // Three sheets per variant: idle / walk / attack.  Any sheet that has not
+    // been delivered yet falls back to the attack sheet, so a missing file
+    // degrades to "he uses his attack pose while walking" rather than an
+    // invisible enemy.  Delivered sheets are listed with their OWN measured
+    // bboxes and foot baselines — a crouched attack pose plants at a
+    // different cell-y than a standing idle, so they cannot share tables.
+    const ART = {
+      A: {
+        idle:   { src: 'assets/2D%20sprites/enemies/seer-grunt-a-idle.png',
+                  bboxes: [
+                    [[144,106,120,212],[116,106,118,212],[ 88,106,123,212],[ 54,106,119,212]],
+                    [[158, 73, 95,194],[128, 73, 95,194],[ 98, 73,102,194],[ 63, 73, 95,194]],
+                    [[157, 36, 93,195],[126, 35, 95,196],[105, 35,101,196],[ 63, 35, 95,196]],
+                    [[142,  0,113,203],[110,  0,114,203],[ 88,  0,119,203],[ 49,  0,114,203]],
+                  ],
+                  // r0 feet sit at 317 — five pixels PAST the cell bottom, and
+                  // r3 starts at y=0.  Both are fine: the neighbouring rows'
+                  // art stops well clear (r1 begins at 386 absolute, r2 ends at
+                  // 857 against r3's 939), so nothing samples anyone else.
+                  foot: [[317,317,317,317],[266,266,266,266],
+                         [230,230,230,230],[202,202,202,202]] },
+        walk:   null,                                   // ← pending
+        run:    null,                                   // ← pending
+        attack: { src: 'assets/2D%20sprites/enemies/seer-grunt-a-attack.png',
+                  bboxes: GRUNT_A_BBOXES,
+                  foot: [[292,292,306,292],[226,226,226,226],
+                         [193,193,193,193],[210,210,209,209]] },
+        // ★ v0.95.697 · 212 is her IDLE standing height (was 209, the attack
+        // sheet's crouch).  Creator: "scale attack to her idle if needed."
+        // One scale per character, taken from the pose she stands in, so the
+        // attack sheet now draws at whatever height it really is — 2.12 tiles
+        // against her 2.15 standing, which is what a crouch should look like.
+        // The multiplier happens to stay 1.075: 209 and 212 are close enough
+        // that her on-screen size barely moves, but the RULE is now right.
+        standBh: 212, scaleMul: 1.075,
+      },
+      B: {
+        idle:   { src: 'assets/2D%20sprites/enemies/seer-grunt-b-idle.png',
+                  bboxes: [
+                    [[152, 54,126,255],[111, 55,127,253],[ 69, 54,130,256],[ 33, 54,126,255]],
+                    [[164, 40,103,252],[124, 40,104,252],[ 74, 40,120,252],[ 53, 39,103,253]],
+                    [[154, 19,101,253],[116, 19,101,253],[ 77, 19,119,253],[ 43, 19,101,253]],
+                    [[151, -8,118,256],[114, -8,119,256],[ 70, -9,122,257],[ 41, -8,119,257]],
+                  ],
+                  foot: [[308,307,309,308],[291,291,291,291],
+                         [271,271,271,271],[247,247,247,248]] },
+        walk:   { src: 'assets/2D%20sprites/enemies/seer-grunt-b-walk.png',
+                  bboxes: [
+                    [[153, 68,122,241],[112, 68,123,242],[ 70, 68,123,241],[ 33, 68,123,242]],
+                    [[157, 41,114,246],[104, 41,131,246],[ 74, 41,119,245],[ 36, 41,120,246]],
+                    [[149, 20,115,246],[110, 20,125,246],[ 70, 20,121,246],[ 35, 20,119,246]],
+                    [[151, -8,119,248],[115, -8,118,248],[ 69, -8,120,246],[ 40, -8,119,248]],
+                  ],
+                  foot: [[308,309,308,309],[286,286,285,286],
+                         [265,265,265,265],[239,239,237,239]] },
+        run:    { src: 'assets/2D%20sprites/enemies/seer-grunt-b-run.png',
+                  bboxes: [
+                    [[129, 40,140,264],[103, 40,136,264],[ 78, 40,136,264],[ 54, 40,132,265]],
+                    [[105, 34,181,231],[ 79, 38,176,223],[ 66, 37,177,229],[ 38, 38,170,225]],
+                    [[116,  6,166,231],[ 68,  6,176,231],[ 64,  6,172,222],[ 32,  6,168,234]],
+                    [[129,-25,129,271],[100,-25,131,266],[ 75,-25,130,271],[ 52,-24,127,270]],
+                  ],
+                  // Foot lines swing hard on a run cycle — 227 to 239 inside a
+                  // single row as the trailing boot leaves the ground.  That is
+                  // the animation, not noise, and pinning each frame's own foot
+                  // line is what keeps the stride from bouncing off the tile.
+                  foot: [[303,303,303,304],[264,260,265,262],
+                         [236,236,227,239],[245,240,245,245]] },
+        attack: { src: 'assets/2D%20sprites/enemies/seer-grunt-b-attack.png',
+                  bboxes: GRUNT_B_BBOXES,
+                  foot: [[301,301,301,301],[272,271,271,273],
+                         [241,238,239,240],[217,221,232,217]] },
+        // ★ 256 is the IDLE standing height, NOT the attack sheet's 227.
+        // The attack pose is a crouch — 29px shorter — so scaling off it made
+        // him grow the instant he stopped swinging.  Scale must come from the
+        // pose the character actually stands in, and every other sheet then
+        // draws at whatever height it really is.
+        standBh: 256, scaleMul: 1.150,
+      },
     };
-    return SPOTS.map((s, i) => {
-      const isA = s.v === 'A';
-      return {
-        id: `seer_grunt_${s.v.toLowerCase()}_${i + 1}`,
-        name: isA ? 'Seer Grunt' : 'Seer Grunt Elite',
-        sheet: new Image(),
-        src: isA ? 'assets/2D%20sprites/enemies/seer-grunt-a-attack.png'
-                 : 'assets/2D%20sprites/enemies/seer-grunt-b-attack.png',
-        bboxes: isA ? GRUNT_A_BBOXES : GRUNT_B_BBOXES,
+    const _img = {};
+    function sheetFor(v, kind){
+      // Fallback chain matters.  A missing RUN should fall back to WALK, not to
+      // the attack sheet — a walk cycle played fast still reads as locomotion,
+      // whereas a strike pose sliding across the ground is the exact artefact
+      // this whole pass exists to remove.
+      const a = ART[v][kind] || (kind === 'run' ? ART[v].walk : null) || ART[v].attack;
+      const key = v + kind;
+      if (!_img[key]){ const im = new Image(); im.src = a.src; _img[key] = im; }
+      return { img: _img[key], bboxes: a.bboxes, foot: a.foot, src: a.src };
+    }
+
+    // ── FORMATIONS ─────────────────────────────────────────────────────
+    // POSTED · four at the door, two flanking either side of the stair, all
+    // facing out.  Deliberately clear of the centre column so the player can
+    // still walk in once they are dealt with.
+    const POSTED = [
+      [-3, 2, 'right'], [ 3, 2, 'left'],
+      [-2, 4, 'down' ], [ 2, 4, 'down'],
+    ];
+    // PATROL · four compass posts on a ring just outside the settled core.
+    // SETTLEMENT_DOCTRINE puts homes out to t=0.50 of the district radius, so
+    // 0.62 sits in the gap between the last house and the wild — the line the
+    // player crosses on the way out of town, which is where a hunting party
+    // belongs.
+    const PATROL_T = 0.62;
+    const PATROL_BEARINGS = [[0,-1,'up'], [1,0,'right'], [0,1,'down'], [-1,0,'left']];
+    const PATROL_R = 7;                       // how far each one roams from its post
+
+    function buildSeerPresence(){
+      const out = [];
+      for (const H of (typeof SEER_HQ_NETWORK !== 'undefined' ? SEER_HQ_NETWORK : [])){
+        const D = (typeof ZYRAXIS_DISTRICT_BY_ID !== 'undefined') ? ZYRAXIS_DISTRICT_BY_ID[H.dist] : null;
+        const [hx, hy] = H.door;
+        const lv = H.gruntLv || 10;
+        // ── 4 POSTED · alternating A/B so the line reads as mixed ──
+        POSTED.forEach(([dx, dy, dir], i) => {
+          const v = (i % 2) ? 'A' : 'B';
+          out.push(mkGrunt(v, `seer_posted_${H.dist}_${i+1}`, hx+dx, hy+dy, dir, lv, {
+            _seerPosted: H.dist,
+            wanderRadius: 0,                  // planted · they are guarding a door
+            detectR: 6,                       // short leash of the eye
+            _chaseSpeed: 1.0,
+            _leashR: 6,                       // will not abandon the door
+            name: v === 'A' ? 'Seer Grunt' : 'Seer Grunt Elite',
+          }));
+        });
+        // ── 4 PATROLLING · compass ring at the edge of the settled core ──
+        if (!D) continue;
+        PATROL_BEARINGS.forEach(([ux, uy, dir], i) => {
+          const px = Math.round(D.cx + ux * D.rx * PATROL_T);
+          const py = Math.round(D.cy + uy * D.ry * PATROL_T);
+          const v = (i % 2) ? 'B' : 'A';
+          out.push(mkGrunt(v, `seer_patrol_${H.dist}_${i+1}`, px, py, dir, lv, {
+            _seerPatrol: H.dist,
+            wanderRadius: PATROL_R,
+            detectR: 12,                      // hunters · long sight
+            _chaseSpeed: 1.4,                 // sprint, faster than the player
+            _leashR: 25,                      // chase well past their post
+            name: v === 'A' ? 'Seer Grunt' : 'Seer Grunt Elite',
+          }));
+        });
+      }
+      return out;
+    }
+
+    function mkGrunt(v, id, x, y, dir, lv, extra){
+      const idle = sheetFor(v, 'idle'), walk = sheetFor(v, 'walk');
+      const run  = sheetFor(v, 'run'),  atk  = sheetFor(v, 'attack');
+      // Declare src/walkSrc/attackSrc too: the NPCS.forEach loader assigns them
+      // onto the Image objects, and an NPC with no src used to end up with
+      // sheet.src = undefined.  Belt and braces — the Images already carry the
+      // right src from sheetFor(), and this keeps the loader honest.
+      
+      const isA = v === 'A';
+      return Object.assign({
+        id, name: isA ? 'Seer Grunt' : 'Seer Grunt Elite',
+        // PRIMARY bank is IDLE — what he does most of the time
+        sheet: idle.img, bboxes: idle.bboxes, footBaselines: idle.foot, src: idle.src,
+        walkSheet: walk.img, walkBboxes: walk.bboxes, walkFootBaselines: walk.foot, walkSrc: walk.src,
+        runSheet: run.img, runBboxes: run.bboxes, runFootBaselines: run.foot, runSrc: run.src,
+        attackSheet: atk.img, attackBboxes: atk.bboxes, attackFootBaselines: atk.foot, attackSrc: atk.src,
         cellW: 313, cellH: 313, cols: 4, rows: 4,
-        // ★ v0.95.694 · three fixes for "too small · cell bleed · moves
-        // unnaturally to attack".  Only the middle one was a bbox problem.
-        //
-        // SIZE · the default scale yardstick is the tallest col-0 bbox, which
-        // assumes col 0 is a clean idle.  On these attack sheets it is not:
-        // B's right-facing col 0 carries a raised flame that runs the box to
-        // 284px against a 227px body, so the engine shrank the whole grunt by
-        // a quarter to fit a fire effect.  scaleRefBh pins the yardstick to the
-        // BODY — A's clean 209 down-pose, B's clean 227 — and scaleMul then
-        // sizes them against Mori, who tops out at exactly 2.00 tiles:
-        //
-        //   Mori     2.00 tiles ·  125 HP
-        //   Grunt A  2.15 tiles ·  175 HP
-        //   Grunt B  2.30 tiles ·  200 HP   (the Elite reads bigger)
-        //   Daemon             ·  250 HP
-        //
-        // They now scale with their threat instead of with their pyrotechnics.
-        scaleRefBh: isA ? 209 : 227,
-        scaleMul:   isA ? 1.075 : 1.150,
-        // FEET · measured lowest pixel of the BODY component per frame, in
-        // cell space.  Grunt B r2 has flame hanging 70px BELOW the boots, so
-        // anchoring on the bbox bottom would have floated him ~0.6 tiles while
-        // facing right.  These plant him every frame instead.
-        footBaselines: isA
-          ? [[292,292,306,292],[226,226,226,226],[193,193,193,193],[210,210,209,209]]
-          : [[301,301,301,301],[272,271,271,273],[241,238,239,240],[217,221,232,217]],
-        // MOVEMENT · see drawNPC · frames anchor to the sheet CELL, not to
-        // each frame's own bbox, so the fireball stops shoving the body
-        // sideways every time it fires.
         cellAnchor: true,
-        tileX: s.x, tileY: s.y,
-        homeX: s.x, homeY: s.y,
-        homeScene: 'overworld',
-        scene: 'overworld',
-        wanderRadius: 6,
-        dir: 'down',
-        mode: 'drainer',                    // chase + adjacent strike AI
-        moving: false,
-        animFrame: 0,
-        idleFrame: 0,
+        scaleRefBh: ART[v].standBh,
+        scaleMul:   ART[v].scaleMul,
+        tileX: x, tileY: y, homeX: x, homeY: y,
+        homeScene: 'overworld', scene: 'overworld',
+        dir, mode: 'drainer', moving: false,
+        animFrame: 0, idleFrame: 0,
+        idleCycleMs: 420,                     // idle sheet cycles on its own
         moveCd: 300 + Math.random() * 300,
         blinkTimer: 9e9,
         isEnemy: true,
-        detectR: isA ? 10 : 12,             // Grunt B senses farther
-        hpMax: isA ? 175 : 200,             // between Mori 125 and Daemon 250
-        hp:    isA ? 175 : 200,
-        drainAmt: isA ? 7 : 8,              // between Mori 5 and Daemon 10
-        tier: 2,                             // v0.95.488 · both A & B are T2
-        level: _gruntLvFor(s.x, s.y, isA),   // v0.95.488 · scales with district
+        hpMax: 125 + lv * 5, hp: 125 + lv * 5,
+        drainAmt: isA ? 7 : 8,
+        tier: 2, level: lv,
         _seerGrunt: true,
-        onInteract: (n) => {
-          const nm = isA ? 'SEER GRUNT' : 'SEER GRUNT ELITE';
-          showToast(`◈ ${nm} · "The Seers see all... die, Rizer."`, 2400);
-        },
-      };
-    });
+        onInteract: (n) => showToast(`◈ ${String(n && n.name || 'SEER GRUNT').toUpperCase()} · "The Seers see all... die, Rizer."`, 2400),
+      }, extra || {});
+    }
+    return buildSeerPresence();
   })(),
+
   // ── v0.95.442 · VILEROK · elite Mori BOSS variant · Malezor only · 5 spawns ──
   // Kill all 5 → completes Kelthor's Vilerok Purge quest.  Each Vilerok has
   // 3-4 Mori escorts spawning in a ring around them.  Boss-tier stats · sits
@@ -9293,8 +9352,14 @@ const NPCS = [
   })(),
 ];
 NPCS.forEach(n => {
-  n.sheet.src = n.src;
+  // v0.95.696 · was an unconditional `n.sheet.src = n.src`, which silently set
+  // src to undefined for any NPC that carries a pre-built Image instead of a
+  // src string — wiping the Seer Grunt idle sheet the moment it was wired.
+  // Guarded now: only assign when there is actually something to assign.
+  if (n.src) n.sheet.src = n.src;
   if (n.walkSheet && n.walkSrc) n.walkSheet.src = n.walkSrc;
+  if (n.attackSheet && n.attackSrc) n.attackSheet.src = n.attackSrc;
+  if (n.runSheet && n.runSrc) n.runSheet.src = n.runSrc;
   // v0.95.174 · Companion sheet (fly anim for Auraxion, etc.)
   if (n.companionSheet && n.companionSrc) n.companionSheet.src = n.companionSrc;
 });
@@ -9781,6 +9846,11 @@ setTimeout(() => { try {
     const cut = before - WORLD_PROPS.length;
     if (cut) console.log(`[rp7b] freshwater prune · ${cut} plant(s) pulled out of the Veridan river`);
   } catch(err){ console.warn('[rp7b] freshwater prune failed', err); }
+  // v0.95.696 · nudge any Seer patrol post that landed on a prop.  Lives here,
+  // beside the flora prune, for the same reason: _propBlocked does not exist
+  // while the NPCS literal is being built, and reading it there is the exact
+  // temporal dead zone that put 84 trees in the Veridan river at v0.95.672.
+  try { settleSeerPatrols(); } catch(err){ console.warn('[rp7b] seer patrol settle failed', err); }
   const n = buildTowerGuardPacks();
   if (n) console.log(`[rp7b] tower network · ${n} guards deployed across 9 districts`);
   // v0.95.671 · same tick, same reason · the Seer Grunt definition is in NPCS by now
@@ -14334,7 +14404,13 @@ const SEER_HQ_GUARD_RING = [
   [-3, 1, 'right'], [ 3, 1, 'left' ], [-1, 2, 'up'   ],
   [ 1, 2, 'up'   ], [ 0, 4, 'up'   ],
 ];
-function buildSeerHqGuardPacks(){
+// ★ v0.95.696 · RETIRED.  The 5-wide ring is superseded by the POSTED four in
+// the SEER_PRESENCE block, which ship as real NPCS entries with their own idle
+// sheet, leash and formation rather than being cloned in at boot.  Kept as a
+// no-op because the deferred boot tick still calls it; deleting the call site
+// and the function in one pass is how a boot sequence gets broken quietly.
+function buildSeerHqGuardPacks(){ return 0; }
+function _buildSeerHqGuardPacks_RETIRED(){
   if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
   const gruntBase = NPCS.find(n => n && n.isEnemy && /seer-grunt/i.test(n.src || ''));
   if (!gruntBase) return 0;
@@ -14404,6 +14480,56 @@ function syncTowerNetworkFromSave(){
   try { buildTowerGuardPacks(); } catch(_){}
   try { buildSeerHqGuardPacks(); } catch(_){}
   // Tower sprites re-derive from towerRestored() every paint · nothing to do.
+}
+
+// ★ v0.95.696 · SETTLE THE PATROL POSTS.
+// The four patrol posts are computed from pure district geometry — compass
+// points on a ring at t=0.62 — so nothing stops one landing inside a house or
+// a tree.  Four of the forty did.
+//
+// This CANNOT run inside the NPCS literal: _propBlocked does not exist yet
+// while NPCS is being constructed, and reading it there is the same temporal
+// dead zone that put trees in the Veridan river at v0.95.672.  So it runs in
+// the deferred boot tick instead, where the world is finished.
+//
+// Spiral outward to the nearest tile that is land, in-bounds, prop-free and
+// still inside the right district.  Nudging beats deleting: a district with
+// three patrollers because one post hit a bush is worse than one whose fourth
+// man stands two tiles left.
+function settleSeerPatrols(){
+  if (typeof NPCS === 'undefined') return 0;
+  let moved = 0;
+  const free = (x, y) => {
+    try {
+      if (!isWorldLandTile(x, y)) return false;
+      if (isWorldBorderTile(x, y)) return false;
+      if (_propBlocked && _propBlocked.has(`${x},${y}`)) return false;
+      return true;
+    } catch(_){ return false; }
+  };
+  for (const n of NPCS){
+    if (!n || !n._seerPatrol) continue;
+    if (free(n.tileX, n.tileY)) continue;
+    let found = null;
+    for (let r = 1; r <= 8 && !found; r++){
+      for (let dy = -r; dy <= r && !found; dy++){
+        for (let dx = -r; dx <= r && !found; dx++){
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;   // ring only
+          const x = n.tileX + dx, y = n.tileY + dy;
+          if (!free(x, y)) continue;
+          if (worldDistrictAt(x, y) !== n._seerPatrol) continue;
+          found = [x, y];
+        }
+      }
+    }
+    if (found){
+      n.tileX = n.homeX = found[0];
+      n.tileY = n.homeY = found[1];
+      moved++;
+    }
+  }
+  if (moved) console.log(`[rp7b] seer patrols · ${moved} post(s) nudged off blocked ground`);
+  return moved;
 }
 
 function recordMoriKill(mode, npc){
@@ -29961,8 +30087,34 @@ function drawNPC(n){
   // v0.95.174 · Companion (follow) mode overrides sheet + bboxes with fly anim
   const useCompanion = (n.mode === 'follow' || n.mode === 'actor' || n.mode === 'factionMission') && n.companionSheet && n.companionSheet.complete && n.companionSheet.naturalWidth && n.companionBboxes;
   const useWalk = !useCompanion && n.moving && n.walkSheet && n.walkSheet.complete && n.walkSheet.naturalWidth;
-  const bank    = useCompanion ? n.companionBboxes : (useWalk ? n.walkBboxes : n.bboxes);
-  const img     = useCompanion ? n.companionSheet  : (useWalk ? n.walkSheet  : n.sheet);
+  // ★ v0.95.696 · ATTACK SHEET · third bank in the idle/walk/attack swap.
+  // Highest priority: a grunt mid-swing keeps swinging even while chasing.
+  const _atkLive = (n._atkUntil || 0) > performance.now();
+  const useAtk  = !useCompanion && _atkLive && n.attackSheet
+                  && n.attackSheet.complete && n.attackSheet.naturalWidth && n.attackBboxes;
+  // ★ RUN SHEET · played while moving AND hunting.  The four patrollers walk
+  // their ring and RUN once they have seen you, which is the read the Creator
+  // asked for — you should be able to tell from across the field whether a
+  // Seer has noticed you, before it is close enough to matter.
+  const _hunting = !!(n._chasing || (n._aggroUntil || 0) > performance.now());
+  const useRun  = !useCompanion && !useAtk && n.moving && _hunting && n.runSheet
+                  && n.runSheet.complete && n.runSheet.naturalWidth && n.runBboxes;
+  const bank    = useCompanion ? n.companionBboxes
+                : useAtk       ? n.attackBboxes
+                : useRun       ? n.runBboxes
+                : useWalk      ? n.walkBboxes
+                               : n.bboxes;
+  const img     = useCompanion ? n.companionSheet
+                : useAtk       ? n.attackSheet
+                : useRun       ? n.runSheet
+                : useWalk      ? n.walkSheet
+                               : n.sheet;
+  // Feet live per SHEET — a crouched attack pose plants at a different cell-y
+  // than a standing idle, so one table cannot serve all four.
+  const footBank = useAtk  ? (n.attackFootBaselines || n.footBaselines)
+                 : useRun  ? (n.runFootBaselines    || n.footBaselines)
+                 : useWalk ? (n.walkFootBaselines   || n.footBaselines)
+                           :  n.footBaselines;
   const useCW   = useCompanion ? n.companionCellW : n.cellW;
   const useCH   = useCompanion ? n.companionCellH : n.cellH;
   const useCols = useCompanion ? n.companionCols  : n.cols;
@@ -30036,7 +30188,7 @@ function drawNPC(n){
     // (largest component in the cell, so effects are excluded) in cell space.
     // Placing that line on the tile's bottom edge plants the feet in every
     // frame regardless of what the effects are doing.
-    const fb = n.footBaselines && n.footBaselines[row] && n.footBaselines[row][col];
+    const fb = footBank && footBank[row] && footBank[row][col];
     dy = (fb != null)
       ? Math.floor(n.tileY * TILE + TILE - (fb - by) * rowScale) - _cam.y
       : Math.floor(n.tileY * TILE + TILE - drawH)                - _cam.y;
@@ -30188,7 +30340,11 @@ function tickNPC(n, dt){
     const detectR   = aggroActive
       ? Math.max(n.detectR || 0, isDaemon ? 22 : 16)
       : (n.detectR || (isDaemon ? 14 : 8));
-    const stepCd    = isDaemon ? 130 : 230;
+    // ★ v0.95.696 · _chaseSpeed · a multiplier on how fast they close.
+    // stepCd is milliseconds BETWEEN steps, so speed divides it: 1.4x speed is
+    // a 1.4x shorter cooldown.  Seer patrols run 1.4 (faster than the player's
+    // walk, so fleeing on foot does not work) while the posted four run 1.0.
+    const stepCd    = Math.round((isDaemon ? 130 : 230) / (n._chaseSpeed || 1));
     const idleCd    = isDaemon ? 380 : 620;
     // v0.95.441 · per-NPC drainAmt override (Seer Grunts sit between Mori and Daemon)
     const drainAmt  = (typeof n.drainAmt === 'number') ? n.drainAmt : (isDaemon ? 10 : 5);
@@ -30211,6 +30367,12 @@ function tickNPC(n, dt){
         }
       }
     }
+    // ★ v0.95.696 · Seer Grunt strike → play the ATTACK sheet.
+    // drawNPC swaps banks while _atkUntil is live, so the swing is visible
+    // rather than the character sliding into you in his idle pose.
+    if (n._seerGrunt && n.attackSheet && manh <= 1 && game.scene === 'overworld'){
+      n._atkUntil = performance.now() + 420;
+    }
     // Adjacent contact → drain life
     if (manh === 1 && game.scene === 'overworld'){
       hurtPlayer(drainAmt, n.name || 'Mori');
@@ -30227,6 +30389,34 @@ function tickNPC(n, dt){
                :              620;
       return;
     }
+    // ★ v0.95.696 · LEASH · how far a hunter will follow you from its post.
+    // Without this the posted four abandon the HQ door the first time you walk
+    // past, and the door they exist to guard is undefended for the rest of the
+    // game.  Posted run a 6-tile leash (they hold ground); patrols run 25, far
+    // enough that you have to fight or genuinely outrun them.
+    // Measured from homeX/homeY — the post, not the player — so a grunt who
+    // has been kited walks back instead of drifting across the district.
+    let _leashed = false;
+    if (n._leashR != null){
+      const lx = (n.homeX != null ? n.homeX : n.tileX) - n.tileX;
+      const ly = (n.homeY != null ? n.homeY : n.tileY) - n.tileY;
+      if (Math.abs(lx) + Math.abs(ly) >= n._leashR){
+        _leashed = true;
+        // walk home rather than freeze — a grunt standing still mid-field
+        // reads as a bug, a grunt marching back to his post reads as discipline
+        const dir = Math.abs(lx) >= Math.abs(ly) ? (lx > 0 ? 'right' : 'left')
+                                                 : (ly > 0 ? 'down'  : 'up');
+        const v = _DIR_VEC[dir];
+        stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir);
+        n.moveCd = stepCd;
+        return;
+      }
+    }
+    // ★ v0.95.697 · _chasing drives the RUN sheet.  Set every tick from the
+    // same test that decides whether to close, so what the player sees and what
+    // the AI is doing can never disagree: walking means patrolling, running
+    // means you have been seen.
+    n._chasing = (manh <= detectR);
     // Out of detection range → fall back to wander step
     if (manh > detectR){
       // wander step (bounded by wanderRadius if defined) — same code path as default

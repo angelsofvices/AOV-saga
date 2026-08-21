@@ -3243,16 +3243,45 @@ function buildSeerHqProps(){
 // aspect.  Uniform scale-down, nothing squished — the alternative (keep width
 // 13, shorten height) would have distorted every one of them.
 //
-//   ivirium  13.00 x 12.09  ->  11.29 x 10.50
-//   mutaryn  13.00 x 12.11  ->  11.27 x 10.50
-//   emeralix 13.00 x 12.20  ->  11.19 x 10.50
-//   azurel   13.00 x 12.20  ->  11.18 x 10.50
-//   obsidius 13.00 x 12.18  ->  11.21 x 10.50
+// ★★ v0.95.692 · CORRECTED AGAIN, and this is the number that matters.
 //
-// The FOOTPRINT narrows with them, 13 wide to 11.  Collision has to track the
-// art; leaving it at 13 would put an invisible wall a tile past each side.
-const CAVE_TARGET_H  = 10.5;   // tiles · measured off rakoron-cave-full
-const CAVE_HALF_W    = 5;      // 11 wide · Rakoron keeps his own 6
+// The first fix used Rakoron's DECLARED rect [0,0,1300,1050] as the yardstick
+// and set the target to 10.50.  But that rect is the whole frame INCLUDING
+// transparent padding — 26px of it horizontally and 107px vertically.  His
+// actual stone only fills 1274x943 of it.  So while every cave's BOX matched
+// at 10.50, the tight-bbox sheets were putting real art into all of that box
+// while Rakoron put art into 90% of his, and the nine new caves stood 11.3%
+// TALLER than the one they were supposedly matched to.
+//
+// Measuring a padded declaration against tight ones compares two different
+// things.  I flagged that exact trap in the other direction one commit
+// earlier and then walked into it from this side.  The yardstick has to be
+// VISIBLE PIXELS:
+//
+//   Rakoron declared 13.00 x 10.50   visible 12.74 x 9.43
+//
+// So the target is 9.43, not 10.50, and every tight-bbox cave now draws to a
+// visible height of exactly 9.43 at ~10.1 wide — comfortably inside his
+// 12.74 x 9.43 on both axes, which is what "no bigger than Rakoron's" means.
+//
+//   ivirium  11.29 x 10.50  ->  10.14 x 9.43
+//   mutaryn  11.27 x 10.50  ->  10.12 x 9.43
+//   emeralix 11.19 x 10.50  ->  10.05 x 9.43
+//   azurel   11.18 x 10.50  ->  10.04 x 9.43
+//   obsidius 11.21 x 10.50  ->  10.06 x 9.43
+//   ambrevon 11.17 x 10.50  ->  10.03 x 9.43
+//   eurakeon 11.17 x 10.50  ->  10.03 x 9.43
+//   oathane  11.19 x 10.50  ->  10.05 x 9.43
+//   oatheus  10.90 x 10.50  ->   9.79 x 9.43
+//
+// The FOOTPRINT narrows with them, 13 wide to 9.  Collision has to track the
+// art; leaving it wider puts an invisible wall past each side. Rakoron runs
+// 13 tiles of collision under 12.74 of art (2% over); halfW 4 gives 9 under
+// ~10.1 (11% under), which errs toward art overhanging collision rather than
+// the reverse — a player brushing the painted edge is better than one stopped
+// by nothing.
+const CAVE_TARGET_H  = 9.43;   // tiles · Rakoron's VISIBLE height, not his box
+const CAVE_HALF_W    = 4;      // 9 wide · Rakoron keeps his own 6
 function caveTileW(bbox){ return Math.round(CAVE_TARGET_H * (bbox[2] / bbox[3]) * 100) / 100; }
 // Solid mass minus the one climbable stair column, exactly Rakoron's shape.
 function caveFootprint(halfW){

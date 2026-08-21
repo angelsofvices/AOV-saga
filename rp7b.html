@@ -1644,9 +1644,11 @@ function resumeBGM(){
 // cleanest approach is to react to state, not intercept every setter.
 let _prevGamePaused = false;
 setInterval(() => {
-  const _paused = !!(typeof game === 'object' && game.paused);
+  // v0.95.701 · watches the PHONE as well as pause · a sound already in flight
+  // when the phone opens has to be cut, not just future ones blocked.
+  const _paused = !!(typeof game === 'object' && (game.paused || game.zphoneOpen));
   if (_paused && !_prevGamePaused){
-    _stopAllLiveSfxClones();        // pause menu opened · kill lingering sfx
+    _stopAllLiveSfxClones();        // pause or phone opened · kill lingering sfx
   }
   _prevGamePaused = _paused;
 }, 120);
@@ -1713,7 +1715,23 @@ function _stopCorsunIfLive(){
     }
   } catch(_){}
 }
+// ★★ v0.95.701 · THE PHONE OUTRANKS THE OVERWORLD, EXACTLY LIKE PAUSE.
+//
+// game.paused had an audio gate; game.zphoneOpen never did, so opening the
+// ZyPhone left the whole overworld running underneath it — jump hops, landing
+// thuds, footsteps, ambient growls. The two states mean the same thing to the
+// world ("you are not playing right now") and they should share one predicate.
+function worldFrozen(){
+  return !!(typeof game === 'object' && (game.paused || game.zphoneOpen));
+}
+// The menu's OWN sounds must survive the gate, or the phone goes silent while
+// you navigate it. Everything else is overworld noise and gets dropped.
+const _UI_SFX = new Set([
+  'menuOpen', 'menuClose', 'confirm', 'cursor', 'select', 'blip',
+  'deny', 'error', 'doorLock', 'pageTurn', 'notify',
+]);
 function playSFX(name){
+  if (worldFrozen() && !_UI_SFX.has(name)) return;
   const s = AUDIO.sfx[name];
   if (!s){
     // v0.95.655 · An unknown key used to be a silent no-op, so five call sites
@@ -9715,6 +9733,7 @@ function skellorTakeHit(n, dmg){
     n.moving = false;
     n._hurtFlashUntil = 0;                   // frame stays locked via _skellorFrame
     n.name = 'Skellor (loot bag)';
+    n._lootBag = true;            // v0.95.701 · keeps it out of the phone book
     n.onInteract = () => lootSkellor(n);
     // v0.95.552 · silent · Skellor kill is combat feedback, not a phone message.
     showToast('★ Skellor freed · interact the bag for loot', 2600, { phone: false });
@@ -10514,16 +10533,17 @@ const RIZER = {
     [[109, 24,135,193],[ 53, 26,167,167],[ 57, 49,144,176],[ 39, 90,128,159]],
   ], key: 'astralkick', loaded: false },
   astralthrow: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
-    [
-    [[123, 88,147,192],[113,122,111,158],[ 13,120,196,191],[ 48, 94,110,186]],
-    [[108, 59,132,174],[120, 62, 92,171],[  0, 71,222,165],[ 51, 59,100,174]],
-    [[137, 22,131,169],[116, 18, 92,173],[ 52, 34,221,279],[ 55, 21, 98,170]],
-    [[123,  0,145,163],[114,  0,108,163],[ 57,  0,179,164],[ 47,  0,111,163]]
-  ],
-    [[108,59,132,174],[120,62,193,171],[0,71,222,165],[51,59,100,174]],
-    [[137,22,131,291],[114,18,108,295],[52,34,221,279],[55,21,98,292]],
-    [[123,0,145,163],[114,0,108,163],[57,0,179,164],[47,0,111,163]],
-  ], key: 'astralthrow', loaded: false },
+      // ★ v0.95.701 · row 0 was DOUBLE-NESTED: it held all four rows instead
+      // of four bboxes, so bboxes[0][col] handed drawPlayer an array of
+      // arrays, the [bx,by,bw,bh] destructure produced NaN, and every
+      // DOWN-facing frame drew nothing at all.  The inner rows 1-3 were
+      // duplicates of LEFT/RIGHT/UP below — a whole table pasted inside
+      // its own first row.  Flattened to the real DOWN row.
+      [[123,88,147,192],[113,122,111,158],[13,120,196,191],[48,94,110,186]],
+      [[108,59,132,174],[120,62,193,171],[0,71,222,165],[51,59,100,174]],
+      [[137,22,131,291],[114,18,108,295],[52,34,221,279],[55,21,98,292]],
+      [[123,0,145,163],[114,0,108,163],[57,0,179,164],[47,0,111,163]],
+    ], key: 'astralthrow', loaded: false },
   // v0.95.238 · A4 RED BOOM · red-tinted starburst (channel-swap of astralBoom)
   astralkickBoom: { img: new Image(), bbox: [153, 86, 948, 1084], key: 'astralkickBoom', loaded: false },
   // v0.95.210 · Astralite handblast · the traveling projectile itself · 4 frames per row
@@ -10669,16 +10689,17 @@ const RIZER_POWER_ASTRALKICK = {
 const RIZER_POWER_ASTRALTHROW = {
   img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
   bboxes: [
-    [
-    [[106, 86,169,189],[ 92, 82,160,193],[  0, 91,240,199],[ 39, 84,161,191]],
-    [[ 97, 52,174,180],[105, 41,133,191],[  0, 58,242,174],[ 51, 52,149,180]],
-    [[ 97, 16,175,185],[ 82,  7,135,195],[ 55, 26,251,287],[ 40, 23,147,280]],
-    [[ 94,  0,188,176],[ 92,  0,143,179],[ 31,  0,206,179],[ 47,  0,150,177]]
-  ],
-    [[97,52,174,180],[105,41,208,191],[0,58,242,174],[51,52,149,180]],
-    [[97,16,175,297],[82,7,136,306],[55,26,251,287],[40,23,147,290]],
-    [[94,0,188,176],[91,0,144,179],[31,0,213,179],[47,0,150,177]],
-  ], key: 'astralthrow-power-upgrade', loaded: false,
+      // ★ v0.95.701 · row 0 was DOUBLE-NESTED: it held all four rows instead
+      // of four bboxes, so bboxes[0][col] handed drawPlayer an array of
+      // arrays, the [bx,by,bw,bh] destructure produced NaN, and every
+      // DOWN-facing frame drew nothing at all.  The inner rows 1-3 were
+      // duplicates of LEFT/RIGHT/UP below — a whole table pasted inside
+      // its own first row.  Flattened to the real DOWN row.
+      [[106,86,169,189],[92,82,160,193],[0,91,240,199],[39,84,161,191]],
+      [[97,52,174,180],[105,41,208,191],[0,58,242,174],[51,52,149,180]],
+      [[97,16,175,297],[82,7,136,306],[55,26,251,287],[40,23,147,290]],
+      [[94,0,188,176],[91,0,144,179],[31,0,213,179],[47,0,150,177]],
+    ], key: 'astralthrow-power-upgrade', loaded: false,
 };
 const RIZER_POWER_ASTRAL_PROJ = {
   img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
@@ -11898,8 +11919,71 @@ const SEER_COMMANDER_ART = {
                     [246,246,246,246]
             ],
             standBh: 269 },
-  xilnar: null, baelgor: null, thardin: null, korathen: null,   // ← pending
+  xilnar: { src: 'assets/2D%20sprites/enemies/seer-commander-xilnar.png',
+            bboxes: [
+              [[ 106,  19,204,297],[  76,  20,203,296],[  43,  20,196,296],[   2,  19,205,297]],
+              [[ 131,  10,159,288],[ 103,  11,158,287],[  55,  10,173,288],[  28,  11,159,287]],
+              [[ 112,  -8,161,288],[  82,  -8,158,288],[  41,  -8,178,288],[   9,  -9,161,289]],
+              [[ 109, -25,198,282],[  77, -24,202,281],[  43, -23,198,280],[   5, -26,200,283]],
+            ],
+            foot: [
+                    [315,315,315,315],
+                    [297,297,297,297],
+                    [279,279,279,279],
+                    [256,256,256,256]
+            ],
+            standBh: 297 },
+  // BAELGOR arrived already alpha-keyed on a 1234x1274 canvas, which does not
+  // divide into the 313px grid every other sheet uses (308.5 x 318.5 cells).
+  // Re-gridded by locating all 16 figures with component labelling and
+  // re-compositing them onto a standard 1254x1254 at 1:1 pixels — no resample,
+  // so nothing softened.  12 of 16 needed a nudge to stay inside their own
+  // cell; a re-grid that pushes a figure into a neighbour is the exact bleed
+  // this pipeline exists to prevent.
+  baelgor: { src: 'assets/2D%20sprites/enemies/seer-commander-baelgor.png',
+            bboxes: [
+              [[  38,   1,230,297],[  29,   1,249,297],[  35,   1,237,297],[  43,   1,231,297]],
+              [[  85,   0,164,306],[  86,   0,192,306],[  71,   0,196,306],[  98,   0,163,306]],
+              [[  52,   0,164,307],[  38,   0,184,307],[  46,   0,201,307],[  55,   0,166,307]],
+              [[  34,   0,230,286],[  23,   0,249,287],[  39,   0,242,287],[  42,   0,231,287]],
+            ],
+            foot: [
+                    [297,297,297,297],
+                    [305,305,305,305],
+                    [306,306,306,306],
+                    [285,286,286,286]
+            ],
+            standBh: 307 },
+  thardin: { src: 'assets/2D%20sprites/enemies/seer-commander-thardin.png',
+            bboxes: [
+              [[ 112,  37,149,273],[  83,  37,150,273],[  57,  38,185,272],[  38,  37,149,273]],
+              [[ 132,  30,105,266],[ 103,  30,106,266],[  28,  30,156,266],[  60,  30,105,266]],
+              [[ 127,  15,103,266],[ 100,  15,103,266],[  77,  15,147,266],[  58,  15,103,266]],
+              [[ 110,   1,146,273],[  82,   1,146,273],[  23,   1,180,273],[  37,   1,145,273]],
+            ],
+            foot: [
+                    [309,309,309,309],
+                    [295,295,295,295],
+                    [280,280,280,280],
+                    [273,273,273,273]
+            ],
+            standBh: 273 },
+  korathen: { src: 'assets/2D%20sprites/enemies/seer-commander-korathen.png',
+            bboxes: [
+              [[  59,  27,235,279],[  40,  28,240,278],[  26,  27,235,279],[  10,  28,234,278]],
+              [[ 115,   8,162,278],[  99,   8,177,278],[  62,   8,183,278],[  66,   8,160,278]],
+              [[  72,  -5,159,278],[  40,  -5,173,278],[  42,  -5,177,278],[  27,  -5,157,278]],
+              [[  57, -20,232,292],[  44, -19,239,291],[  32, -19,234,291],[  16, -19,230,291]],
+            ],
+            foot: [
+                    [305,305,305,305],
+                    [285,285,285,285],
+                    [272,272,272,272],
+                    [271,271,271,271]
+            ],
+            standBh: 292 },
 };
+
 
 // Names are canon-facing and district-flavoured; the Creator can rename freely.
 const SEER_COMMANDER_NAME = {
@@ -16611,16 +16695,17 @@ const RIZER_SAPPHIRE_SWORD = {
   // Rizer to canon 2-tile height per drawPlayer's scale formula, matching the
   // punch sheet exactly so no shrink happens during the swap.
   bboxes: [
-    [
-    [[ 98, 94,192,212],[ 65, 76,233,231],[ 80, 76,176,236],[ 59,104,190,202]],
-    [[109,101,196,183],[ 85,108,225,179],[  4,  1,308,288],[  1,108,283,179]],
-    [[ 76, 56,188,204],[ 14, 82,242,181],[ 27,110,285,163],[  1, 79,213,190]],
-    [[134, 65,173,191],[ 78, 14,198,245],[ 88,  3,129,266],[ 74, 64,173,192]]
-  ], // DOWN
-    [[109,101,196,183],[ 85,108,225,179],[  4,  1,308,288],[  1,108,283,179]], // LEFT
-    [[ 76, 56,188,204],[ 14, 82,242,181],[ 27,110,285,163],[  1, 79,213,190]], // RIGHT
-    [[134, 65,173,191],[ 78, 14,198,245],[ 88,  3,129,266],[ 74, 64,173,192]], // UP
-  ],
+      // ★ v0.95.701 · row 0 was DOUBLE-NESTED: it held all four rows instead
+      // of four bboxes, so bboxes[0][col] handed drawPlayer an array of
+      // arrays, the [bx,by,bw,bh] destructure produced NaN, and every
+      // DOWN-facing frame drew nothing at all.  The inner rows 1-3 were
+      // duplicates of LEFT/RIGHT/UP below — a whole table pasted inside
+      // its own first row.  Flattened to the real DOWN row.
+      [[98,94,192,212],[65,76,233,231],[80,76,176,236],[59,104,190,202]],
+      [[109,101,196,183],[85,108,225,179],[4,1,308,288],[1,108,283,179]],
+      [[76,56,188,204],[14,82,242,181],[27,110,285,163],[1,79,213,190]],
+      [[134,65,173,191],[78,14,198,245],[88,3,129,266],[74,64,173,192]],
+    ],
   key: 'sapphire-sword', loaded: false,
 };
 (function _loadSapphireSword(){
@@ -16646,16 +16731,17 @@ const RIZER_RUBYPAW_SWORD = {
   // frames.  Tightened bx/bw + trimmed the deep bh overflow rows so each cell
   // only samples ITS OWN content.
   bboxes: [
-    [
-    [[ 68,129,169,184],[ 17, 71,197,242],[  0,148,313,165],[  0,147,302,166]],
-    [[ 12,101,230,179],[  0, 93,309,193],[ 11, 38,266,254],[  0, 12,302,272]],
-    [[ 43, 14,270,247],[  0, 87,312,169],[  0, 99,278,212],[  0, 93,294,172]],
-    [[ 62, 35,167,189],[ 16, 40,271,187],[  0,  0,313,237],[  0,  0,260,244]]
-  ], // DOWN
-    [[ 11,  0,280,280],[ 15,  0,290,286],[  0,  0,280,292],[ 20,  0,270,284]], // LEFT
-    [[ 43, 11,250,250],[ 15, 86,280,171],[ 15, 98,280,215],[ 20, 93,265,220]], // RIGHT
-    [[ 62, 35,168,190],[ 16, 40,290,187],[ 10,  0,200,238],[ 15,  0,245,244]], // UP
-  ],
+      // ★ v0.95.701 · row 0 was DOUBLE-NESTED: it held all four rows instead
+      // of four bboxes, so bboxes[0][col] handed drawPlayer an array of
+      // arrays, the [bx,by,bw,bh] destructure produced NaN, and every
+      // DOWN-facing frame drew nothing at all.  The inner rows 1-3 were
+      // duplicates of LEFT/RIGHT/UP below — a whole table pasted inside
+      // its own first row.  Flattened to the real DOWN row.
+      [[68,129,169,184],[17,71,197,242],[0,148,313,165],[0,147,302,166]],
+      [[11,0,280,280],[15,0,290,286],[0,0,280,292],[20,0,270,284]],
+      [[43,11,250,250],[15,86,280,171],[15,98,280,215],[20,93,265,220]],
+      [[62,35,168,190],[16,40,290,187],[10,0,200,238],[15,0,245,244]],
+    ],
   key: 'rubypaw-sword', loaded: false,
 };
 (function _loadRubypawSword(){
@@ -21355,6 +21441,8 @@ addEventListener('keydown', e => {
         }
         if (!hasInteract){
           _lastInteract = now;
+          // v0.95.701 · no hopping about behind an open phone
+          if (worldFrozen()) return;
           if (!player.jumpUntil || now >= player.jumpUntil){
             player.jumpStart = now;
             player.jumpUntil = now + 380;
@@ -21457,8 +21545,9 @@ addEventListener('keydown', e => {
           player.interactStart = now;
           player.interactUntil = now + 260;
         }
-      } else if (!player.ridingChair){
+      } else if (!player.ridingChair && !worldFrozen()){
         // No target → jump animation (interact anim never armed)
+        // v0.95.701 · worldFrozen() · the phone suppresses the hop like pause does
         if (!player.jumpUntil || now >= player.jumpUntil){
           player.jumpStart = now;
           player.jumpUntil = now + 380;   // 380ms hop
@@ -25362,6 +25451,7 @@ function loadGame(){
     player.rizerXPMax = rizerXPToNext(player.rizerLvl || 1);
     try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
     try { pruneZyrexContacts(); } catch(_){}         // v0.95.652 · Zyrex are not callable
+    try { pruneLootBagContacts(); } catch(_){}      // v0.95.701 · corpses are not people
     return true;
   } catch(e){ console.warn('[rp7b] load failed', e); return false; }
 }
@@ -26052,6 +26142,14 @@ function isZyrexNpc(n){
 function contactEligible(n){
   if (!n || n.isEnemy || !n.name || typeof n.onInteract !== 'function') return false;
   if (n._towerGuardOf || n._seerHqGuardOf) return false;
+  // ★ v0.95.701 · A SLAIN SKELLOR IS NOT A CONTACT.
+  // Death sets isEnemy=false, gives it a name and an onInteract for looting —
+  // which is byte-for-byte the signature this function uses to recognise a
+  // friendly NPC. So every corpse the player left lying around walked into the
+  // phone book as "Skellor (loot bag)". Anything whose onInteract is a LOOT
+  // action rather than a conversation belongs out of the registry.
+  if (n._skellorDead || n.mode === 'skellor') return false;
+  if (n._lootBag) return false;
   if (/^_summon_/.test(n.id || '')) return false;
   // v0.95.685 · REVERTED an elder-based exclusion added one version earlier.
   // I had briefly treated Foongus as Veridan's elder and blocked him from the
@@ -26080,6 +26178,20 @@ function pruneZyrexContacts(){
     if (isZyrexContactId(id)){ delete m[id]; n++; }
   }
   if (n) console.log(`[rp7b] pruned ${n} Zyrex from the contact book`);
+  return n;
+}
+// ★ v0.95.701 · Self-heal for saves made while slain Skellors were entering
+// the phone book.  contactEligible now refuses them, but a save from before
+// this fix still holds every corpse the player walked past, and the fix alone
+// would never clean those up — the same reason pruneZyrexContacts exists.
+function pruneLootBagContacts(){
+  const m = player.metNpcs;
+  if (!m) return 0;
+  let n = 0;
+  for (const id of Object.keys(m)){
+    if (/^skellor/i.test(id)){ delete m[id]; n++; }
+  }
+  if (n) console.log(`[rp7b] pruned ${n} Skellor loot bag(s) from the contact book`);
   return n;
 }
 function contactLocationOf(n){
@@ -30279,6 +30391,23 @@ function deathSheetFor(n){
 // Kick off crumble-to-stone (Mori) or melt-to-fire (Daemon) · called from every enemy-kill path
 function startMoriDeath(n){
   if (!n || n._dying) return;
+  // ★★ v0.95.701 · SKELLOR NEVER DISINTEGRATES.
+  //
+  // He is the one enemy whose corpse is content: it stays on the ground as a
+  // lootable bag. But startMoriDeath is called from TEN places — sword, kick,
+  // boom chest, splash, throw x2, astralslam, shard x2, UFO beam — and only
+  // ONE of them checked for him. Every other route crumbled him to stone and
+  // the loot vanished with him, which is why he "sometimes" disintegrated:
+  // it depended entirely on what killed him.
+  //
+  // Guarding nine call sites would leave the tenth to be written next month.
+  // The rule belongs here, at the single door every death goes through.
+  if (n.mode === 'skellor'){
+    try {
+      if (!n._skellorDead) skellorTakeHit(n, SKELLOR_MAX_HITS);
+    } catch(err){ console.warn('[rp7b] skellor death route failed', err); }
+    return;                       // never sets _dying · the body stays put
+  }
   n._dying     = true;
   n._deathT0   = performance.now();
   n.moving     = false;

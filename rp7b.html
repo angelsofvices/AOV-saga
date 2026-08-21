@@ -3863,7 +3863,8 @@ const WORLD_PROPS = [
       return f;
     })(),
     door: [0, 0],
-    onInteract: () => { showToast('◈ MALEZOR ZYREX FARM · Closed for now.', 2200); playSFX('doorLock'); },
+    // v0.95.709 · this is the way in now · Kaizari stands two tiles south of it
+    onInteract: () => { try { tryEnterTrainingFarm(); } catch(err){ console.warn(err); } },
   },
   {
     // Malezor Hospital · south-3 band · bottom-center below the shops.
@@ -6518,6 +6519,50 @@ const CREEPER_QUOTA = {
 const CREEPER_CELL = 16;             // tile size of a density bucket
 
 const NPCS = [
+  // ── SPARRING POSTS · interior_training_farm · v0.95.709 ─────────────
+  // Four posts along the top of the barn. X on one sets two of your Zyrex
+  // against each other. They are NPCs rather than blocked tiles because NPCs
+  // already carry scene + onInteract, which is exactly what a thing you press
+  // X on needs — the HQ garrison uses the same shape.
+  ...(function(){
+    const POST_IMG = new Image();
+    POST_IMG.src = 'assets/2D%20sprites/decor/punching-bag.png';
+    return [[4,3],[8,3],[12,3],[16,3]].map(([x,y],i) => ({
+      id: `farm_spar_post_${i+1}`,
+      name: 'Sparring Post',
+      sheet: POST_IMG,
+      src: 'assets/2D%20sprites/decor/punching-bag.png',
+      // The bag is a SINGLE 1254x1254 image, not a 4x4 sheet. Measured content
+      // bbox [352,26,549,1202]; every row/col points at the same rect so the
+      // post looks identical from all four sides, which is what a post does.
+      // (First draft declared [0,0,313,313] by assumption and would have drawn
+      // the top-left corner of a 1254px image — mostly empty space.)
+      bboxes: (function(){
+        const B = [352, 26, 549, 1202];
+        const row = [B, B, B, B];
+        return [row, row, row, row];
+      })(),
+      footBaselines: (function(){
+        const f = [1227, 1227, 1227, 1227];       // bbox bottom · 26+1202-1
+        return [f, f, f, f];
+      })(),
+      cellAnchor: true,
+      cellW: 1254, cellH: 1254, cols: 4, rows: 4,
+      scaleRefBh: 1202, scaleMul: 1.0,            // draws ~2 tiles tall
+      tileX: x, tileY: y, homeX: x, homeY: y,
+      homeScene: 'interior_training_farm',
+      scene:     'interior_training_farm',
+      wanderRadius: 0,
+      dir: 'down',
+      mode: 'stationary',
+      moving: false,
+      animFrame: 0, idleFrame: 0,
+      blinkTimer: 9e9,
+      isEnemy: false,
+      _sparPost: true,
+      onInteract: () => { try { sparZyrex(); } catch(err){ console.warn('spar failed', err); } },
+    }));
+  })(),
   // ── GLACIOBOLT · Xilnar · duel-axe master · v0.95.705 ────────────────
   // Contact-eligible: a teacher you can call once bonded, exactly like Foongus
   // and Sharkfin.  Sheet is canon D/L/R/U — row 0 faces camera, row 3 shows
@@ -7229,14 +7274,18 @@ const NPCS = [
       const fae = player.faeCollected || 0;
       const party = (player.party || []).filter(Boolean).length;
       if (fae >= 10 && party >= 1){
-        // Auto-open the farm on interact once unlocked
+        // v0.95.709 · she UNLOCKS the farm · she does not carry you into it.
+        // The old onDone called enterTrainingFarm() and teleported you inside
+        // straight out of the conversation, which made this the one building
+        // in Zyraxis you never walked through the door of.
+        const cd = farmCooldownLeft();
         showDialog({ speaker: 'KAIZARI', lines: [
           '*tail flicks · unlocks a wooden gate behind her*  You\'ve earned this, hunter.',
           '10 fae in your pocket · a Zyrex at your side · you\'re ready to train.',
-          '*steps aside*  Go in.  Sharpen what you have before the wilds sharpen you first.',
-        ], onDone: () => {
-          try { enterTrainingFarm(); } catch(_){}
-        }});
+          cd > 0
+            ? `*ear twitches*  Not yet though.  The stock is resting — ${farmCooldownText()} more.`
+            : '*steps aside*  The barn is behind me.  Walk in yourself · set two of yours against each other.',
+        ]});
         return;
       }
       // Locked · show progress toward unlock
@@ -16727,6 +16776,93 @@ function enterCaveInterior(){
 }
 function enterCrazyHomeInterior(){  enterInterior('interior_crazy_home',  INTERIOR_CRAZY_HOME,  '◈ CRAZY\'S HOUSE · press X on the door to leave'); }
 function enterResearchLab(){        enterInterior('interior_research_lab', INTERIOR_RESEARCH_LAB, '◈ ZYREX RESEARCH LAB · press X on the door to leave'); }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ ZYREX TRAINING FARM · v0.95.709
+//
+// Creator directives, in order:
+//   · talking to Kaizari must NOT put you inside — she unlocks it, you walk in
+//   · once inside, your Zyrex spar each other for small XP
+//   · one visit every 15 minutes
+//
+// The teleport-on-dialogue was the odd one out in this whole game: every other
+// building in Zyraxis is entered by standing at its door. Kaizari now hands you
+// the key and steps aside, and the barn behaves like a barn.
+const FARM_COOLDOWN_MS = 15 * 60 * 1000;          // 15 minutes
+const FARM_SPAR_XP_MIN = 12;                      // "small xp" · a spar is a
+const FARM_SPAR_XP_MAX = 28;                      // top-up, never a substitute
+                                                  // for fighting things
+function farmUnlocked(){
+  const fae = player.faeCollected || 0;
+  const party = (player.party || []).filter(Boolean).length;
+  return fae >= 10 && party >= 1;
+}
+function farmCooldownLeft(){
+  if (game.devMaxBond) return 0;                  // dev mode walks straight in
+  const last = player.farmLastEntry || 0;
+  if (!last) return 0;
+  return Math.max(0, FARM_COOLDOWN_MS - (Date.now() - last));
+}
+function farmCooldownText(){
+  const ms = farmCooldownLeft();
+  const m = Math.floor(ms / 60000), sec = Math.floor((ms % 60000) / 1000);
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+// The barn door. Gate order matters: unlock first (you have not earned it),
+// then cooldown (you have, but not yet). Reversed, an unqualified player would
+// be told to wait 15 minutes for a room they cannot open at all.
+function tryEnterTrainingFarm(){
+  if (!farmUnlocked()){
+    const fae = player.faeCollected || 0;
+    const party = (player.party || []).filter(Boolean).length;
+    showToast(`◈ ZYREX FARM · barred · ${fae}/10 fae · ${party}/1 Zyrex · ask Kaizari`, 3200);
+    try { playSFX('doorLock'); } catch(_){}
+    return false;
+  }
+  const left = farmCooldownLeft();
+  if (left > 0){
+    showToast(`◈ ZYREX FARM · the stock needs rest · ${farmCooldownText()} until the gate opens`, 3200);
+    try { playSFX('doorLock'); } catch(_){}
+    return false;
+  }
+  player.farmLastEntry = Date.now();
+  player._farmSpars = 0;
+  try { enterTrainingFarm(); } catch(err){ console.warn('[rp7b] farm entry failed', err); return false; }
+  showToast('◈ ZYREX TRAINING FARM · set two of yours against each other on the sparring posts', 4200);
+  return true;
+}
+// ── SPARRING · two of YOUR Zyrex, small XP to both ────────────────────────
+// Training logic for now: no HP loss, no KO, no items. It is a drill, and a
+// drill that could kill your party would just be a worse wild battle.
+function sparZyrex(){
+  if (game.scene !== 'interior_training_farm') return false;
+  const party = (player.party || []).filter(Boolean);
+  if (party.length < 2){
+    showToast('◈ Sparring needs TWO Zyrex · bring a partner and come back', 3000);
+    try { playSFX('doorLock'); } catch(_){}
+    return false;
+  }
+  // Pick the two who have sparred least this visit, so repeated bouts spread
+  // across the party instead of grinding slot 0 against slot 1 forever.
+  const ranked = party.slice().sort((a, b) => ((a._sparCount || 0) - (b._sparCount || 0)));
+  const a = ranked[0], b = ranked[1];
+  a._sparCount = (a._sparCount || 0) + 1;
+  b._sparCount = (b._sparCount || 0) + 1;
+  // Outcome leans on level, but never certain — a Lv 5 landing one on a Lv 40
+  // is the reason anybody trains.
+  const la = a.level || 1, lb = b.level || 1;
+  const pA = la / (la + lb);
+  const aWins = Math.random() < pA;
+  const win = aWins ? a : b, lose = aWins ? b : a;
+  const roll = () => FARM_SPAR_XP_MIN + Math.floor(Math.random() * (FARM_SPAR_XP_MAX - FARM_SPAR_XP_MIN + 1));
+  const xpWin = roll(), xpLose = Math.max(1, Math.round(roll() * 0.6));
+  try { awardZyrexXP(win, xpWin); awardZyrexXP(lose, xpLose); } catch(err){ console.warn('spar xp', err); }
+  player._farmSpars = (player._farmSpars || 0) + 1;
+  try { playSFX('kick'); } catch(_){}
+  showToast(`◈ SPAR · ${win.name} over ${lose.name} · +${xpWin} / +${xpLose} ZXP`, 3000);
+  return true;
+}
+
 function enterTrainingFarm(){       enterInterior('interior_training_farm', INTERIOR_TRAINING_FARM, INTERIOR_TRAINING_FARM.label); }
 function enterTreehouse(){
   enterInterior('interior_treehouse', INTERIOR_TREEHOUSE, INTERIOR_TREEHOUSE.label);
@@ -25755,6 +25891,9 @@ function saveGame(){
         // loadGame does Object.assign(player, s.player), so putting them in the
         // snapshot is the whole fix.
         seerHqChests:               player.seerHqChests       || {},
+        // v0.95.709 · farm gate · a 15-minute cooldown that resets on reload
+        // is not a cooldown, it is a loading screen away from being free.
+        farmLastEntry:              player.farmLastEntry      || 0,
         rubyVialChestOpened:        !!player.rubyVialChestOpened,
         seerKeys:                   player.seerKeys           || {},
         seerCommandersBeaten:       player.seerCommandersBeaten || {},

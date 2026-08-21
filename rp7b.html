@@ -11569,9 +11569,23 @@ function drawFootprints(){
 }
 const LAB_WALL_IMG = new Image();
 LAB_WALL_IMG.src = 'assets/2D%20sprites/tiles/research-lab-wall.png';
+// v0.95.702 · Seer masonry · dark astral brick, gold eye insignia, violet
+// veining.  The band is tiled HORIZONTALLY only (one row-0 strip), so the
+// horizontal wrap is the seam that matters and it measures 4.8 mean channel
+// delta — tighter than the 6.4 between two adjacent columns inside the tile
+// itself, i.e. the join is less visible than the texture's own noise.
+const SEER_WALL_IMG = new Image();
+SEER_WALL_IMG.src = 'assets/2D%20sprites/tiles/seer-hq-wall.png';
+// Source pixels per game tile. The Seer sheet runs ~9 brick courses over
+// 1254px, so one course is ~139px — that becomes one 48px tile and the brick
+// reads at the size it was drawn at. Walls NOT listed here keep the old
+// one-copy-per-tile behaviour, so Malezor and the lab are untouched.
+const WALL_TEXTURE_SCALE = { seer: 139 };
+const _wallPatternCache = {};
 function wallImageFor(key){
   if (key === 'malezor') return MALEZOR_WALL_IMG;
   if (key === 'lab')     return LAB_WALL_IMG;
+  if (key === 'seer')    return SEER_WALL_IMG;
   return null;
 }
 
@@ -11748,7 +11762,7 @@ const INTERIOR_SEER_HQ_1F = {
   spawn: { x: 10, y: 14, dir: 'up' },
   exit:  { x: 10, y: 14 },
   autoExit: true,
-  wallImg: 'malezor',
+  wallImg: 'seer',
   blocked: [],
   label: '◈ SEER HQ · 1F',
   overworldDrop: { x: 75, y: 169, dir: 'down' },   // rewritten per district by enterSeerHq
@@ -11778,7 +11792,7 @@ const INTERIOR_SEER_HQ_B = {
   spawn: { x: 7, y: 8, dir: 'up' },
   exit:  null,                       // no door to the street — the only way out is up
   autoExit: false,
-  wallImg: 'malezor',
+  wallImg: 'seer',
   blocked: [],
   label: '◈ SEER HQ · VAULT',
   stairsList: [
@@ -11791,7 +11805,7 @@ const INTERIOR_SEER_HQ_2F = {
   spawn: { x: 7, y: 10, dir: 'up' },
   exit:  null,
   autoExit: false,
-  wallImg: 'malezor',
+  wallImg: 'seer',
   blocked: [],
   label: '◈ SEER HQ · COMMAND',
   stairsList: [
@@ -19036,10 +19050,54 @@ function drawInteriorFloor(){
   // Upper wall band · continuous wallpaper across row 0 (blocked in walkable()).
   const wallImg = wallImageFor(cfg.wallImg);
   if (wallImg && wallImg.complete && wallImg.naturalWidth){
-    for (let tx = startCol; tx < endCol; tx++){
-      ctx.drawImage(wallImg,
-        0, 0, wallImg.naturalWidth, wallImg.naturalHeight,
-        tx * TILE - _cam.x, 0 * TILE - _cam.y, TILE, TILE);
+    // ★ v0.95.702 · TEXTURE WALLS · draw as a repeating pattern, not one
+    // squashed copy per tile.
+    //
+    // The original loop pushed the WHOLE sheet into a single 48px tile. For
+    // the old Malezor wall that was fine — it is authored as one tile. The
+    // Seer masonry is a seamless 1254px TEXTURE carrying nine courses of
+    // brick and a gold eye insignia; collapsing all of that into 48px turned
+    // it into grey noise and threw away every detail in the art.
+    //
+    // wallTextureScale says how many source pixels make one game tile, so the
+    // brick reads at its intended size and the seam stays where the artist
+    // put it.
+    const texScale = WALL_TEXTURE_SCALE[cfg.wallImg] || 0;
+    if (texScale > 0){
+      const key = cfg.wallImg;
+      let pat = _wallPatternCache[key];
+      if (!pat){
+        const off = document.createElement('canvas');
+        const n = Math.max(1, Math.round(wallImg.naturalWidth / texScale));
+        off.width  = n * TILE;
+        off.height = Math.max(1, Math.round(wallImg.naturalHeight / texScale)) * TILE;
+        const octx = off.getContext('2d');
+        octx.imageSmoothingEnabled = false;
+        octx.drawImage(wallImg, 0, 0, off.width, off.height);
+        pat = ctx.createPattern(off, 'repeat');
+        _wallPatternCache[key] = pat;
+      }
+      if (pat){
+        // Translate by the FULL camera and fill in WORLD coordinates. The
+        // pattern's origin rides the transform, so the masonry is welded to
+        // the world and the joins stay put as you walk.
+        //
+        // An earlier version offset by `-_cam.x % (TILE*8)` — a modulus of 8
+        // tiles against a texture that is 9 tiles wide, so the wall crept
+        // sideways by a tile every screen. Anchoring to the world removes the
+        // need to know the repeat width at all.
+        ctx.save();
+        ctx.translate(-_cam.x, -_cam.y);
+        ctx.fillStyle = pat;
+        ctx.fillRect(startCol * TILE, 0, (endCol - startCol) * TILE, TILE);
+        ctx.restore();
+      }
+    } else {
+      for (let tx = startCol; tx < endCol; tx++){
+        ctx.drawImage(wallImg,
+          0, 0, wallImg.naturalWidth, wallImg.naturalHeight,
+          tx * TILE - _cam.x, 0 * TILE - _cam.y, TILE, TILE);
+      }
     }
   }
   // v0.95.111 · Zyrex Research Lab decor · Dad's work desk at (10, 2)

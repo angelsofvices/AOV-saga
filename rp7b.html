@@ -3122,6 +3122,61 @@ function findHomePlots(dist, count, seed, isFree){
   return plots;
 }
 // ═══════════════════════════════════════════════════════════════════════════
+// ★★ DISTRICT ELDER CHAIN · v0.95.684 · Creator directive 2026-08-20
+// ═══════════════════════════════════════════════════════════════════════════
+// "we will build out the new districts based on their elder questline
+//  (expeditions because they connect each district starting at malezor to
+//   korathen)"
+//
+// So the elders are not ten separate quest-givers.  They are ONE chain, and the
+// chain is the spine the districts get built along.  Each elder's ladder ends by
+// handing the player to the next district's elder, which is already how Kelthor
+// works — his step 8 requires 3 Soulphish and entering Zarvane, and the Zarvane
+// oasis is exactly where Omniris stands.  That handoff was in the code before
+// anyone designed it; this table makes the pattern explicit so the remaining
+// eight are built the same way instead of being invented one at a time.
+//
+// THE ELDERS ARE DELIBERATELY NOT ALL THE SAME KIND OF BEING:
+//   Kelthor   Humanoid           · teaches THE BOND   · trust over domination
+//   Omniris   Humanoid / Aura    · teaches THE SIGHT  · the Third Eye
+//   Foongus   Creature / Nature  · a ZYREX elder      · not callable, by design
+// A district's elder should read as that district's land made articulate.
+//
+// `handoff` is the condition that closes one ladder and opens the next — it is
+// the load-bearing field, because it is what makes ten ladders one expedition.
+const DISTRICT_ELDERS = [
+  { dist:'malezor',   id:'kelthor',  name:'Warden Kelthor', being:'Humanoid',
+    teaches:'The Bond',  seat:'Beastwarden\'s Hall', at:[ 22, 82],
+    steps:8, built:true,  handoff:'3 Soulphish + enter Zarvane' },
+  { dist:'zarvane',   id:'omniris',  name:'Omniris',        being:'Humanoid/Aura',
+    teaches:'The Sight', seat:'Zarvane Oasis',       at:[177,230],
+    steps:8, built:false, handoff:'TBD -> Andrannor' },
+  { dist:'andrannor', id:null,       name:null,             being:null,
+    teaches:null,        seat:null,                  at:null,
+    steps:8, built:false, handoff:'TBD -> Veridan' },
+  // Veridan's ELDER is still unnamed.  Foongus sits in this plaza and was
+  // briefly slotted here by mistake — he is a combat trainer contact, not the
+  // elder, and the two roles should not be collapsed just because he happens to
+  // stand outside the town hall.
+  { dist:'veridan',   id:null, name:null, being:null, teaches:null, seat:null, at:null,
+    steps:8, built:false, handoff:'TBD -> Netharion' },
+  { dist:'netharion', id:null, name:null, being:null, teaches:null, seat:null, at:null,
+    steps:8, built:false, handoff:'TBD -> Vorashil' },
+  { dist:'vorashil',  id:null, name:null, being:null, teaches:null, seat:null, at:null,
+    steps:8, built:false, handoff:'TBD -> Xilnar' },
+  { dist:'xilnar',    id:null, name:null, being:null, teaches:null, seat:null, at:null,
+    steps:8, built:false, handoff:'TBD -> Baelgor' },
+  { dist:'baelgor',   id:null, name:null, being:null, teaches:null, seat:null, at:null,
+    steps:8, built:false, handoff:'TBD -> Thardin' },
+  { dist:'thardin',   id:null, name:null, being:null, teaches:null, seat:null, at:null,
+    steps:8, built:false, handoff:'TBD -> Korathen' },
+  { dist:'korathen',  id:null, name:null, being:null, teaches:null, seat:null, at:null,
+    steps:8, built:false, handoff:'the Bridge of Hope · endgame' },
+];
+const ELDER_BY_DIST = Object.fromEntries(DISTRICT_ELDERS.map(e => [e.dist, e]));
+const ELDER_IDS = new Set(DISTRICT_ELDERS.filter(e => e.id).map(e => e.id));
+function isDistrictElder(id){ return ELDER_IDS.has(String(id || '')); }
+// ═══════════════════════════════════════════════════════════════════════════
 // ★ SEER HQ NETWORK · v0.95.671 · one HQ per district, all ten
 // ═══════════════════════════════════════════════════════════════════════════
 // Per [[aov-overworld-construction-canon]]: the Seer HQ sits at the route mouth
@@ -5874,6 +5929,58 @@ WORLD_PROPS.forEach(p => { p.img.src = p.src; });
 // and an onInteract handler.  Blocks its tile · rendered depth-sorted with
 // props + player · face direction determines which sheet cell to sample.
 const NPCS = [
+  // ── FOONGUS · COMBAT TRAINER · Veridan · Creature/Nature ───────────────
+  // v0.95.685 · A CONTACT, not Veridan's elder.  He teaches combat upgrades.
+  //
+  // He is the first Creature-primary being in the phone book, and that is a
+  // genuine break from [[aov-contact-registry-canon]], which says the contacts
+  // list is HUMANOID allies and Zyrex are never callable.  Creator directive
+  // overrides it for him specifically: a trainer you cannot reach is not a
+  // trainer.  Flagged rather than silently generalised — the Zyrex-exclusion
+  // rule still holds for everyone else, and Foongus should be treated as a
+  // named exception until the Creator says otherwise.
+  //
+  // Placed at (517,257) — one tile west of the hall's centre column so the door
+  // at (520,255) and its whole approach stay walkable.  Faces DOWN, so he is
+  // looking at you as you come up the plaza from the south.
+  {
+    id: 'foongus',
+    name: 'Foongus',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/zyrex/foongus.png',
+    // CC flood-fill bboxes per [[aov-sprite-cc-extractor]] · never cell-clipped,
+    // so the mushroom cap's overhang is kept.  Feet baselines are uniform per
+    // row (down 300 · left 283 · right 267 · up 241), which is what keeps him
+    // from bobbing as he turns.
+    bboxes: [
+      [[ 57, 59,226,241],[ 46, 51,229,249],[ 32, 59,234,241],[ 26, 59,228,241]],
+      [[ 68, 31,192,252],[ 55, 27,191,256],[ 45, 33,193,250],[ 37, 32,193,251]],
+      [[ 76, 15,191,252],[ 67, 15,189,252],[ 56, 15,190,252],[ 47, 15,189,252]],
+      [[ 58,  0,225,241],[ 45,  2,226,239],[ 32,  2,230,239],[ 28,  2,225,239]],
+    ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true, scaleMul: 1.25,   // heavier than a humanoid, lighter than Kaizari's 1.35
+    tileX: 517, tileY: 257,
+    homeX: 517, homeY: 257,
+    homeScene: 'overworld', scene: 'overworld',
+    dir: 'down',
+    mode: 'stationary',
+    moving: false, animFrame: 0, idleFrame: 0,
+    turnToInteract: true,
+    blinkTimer: 2000 + Math.random() * 2000,
+    _combatTrainer: 'veridan',
+    onInteract: (n) => {
+      // v0.95.685 · placeholder until the upgrade ladder is designed.  It
+      // deliberately invents NO quest state — no counters that nothing
+      // increments, which is the rule that keeps Kelthor's ladder honest.
+      try { registerContact(n); setActiveContact(n); } catch(_){}
+      showDialog({ speaker: 'FOONGUS', lines: [
+        'You swing like the wind swings.  Everywhere, and at nothing.',
+        'A fist is a question.  Most Rizers never learn to finish asking it.',
+        'Stay near me a while.  I will show you where your strength leaks out.',
+      ]});
+    },
+  },
   // ── OMNIRIS · Tier VI Pseudoimmortal · Zarvane Oasis ───────────
   // One of the first humanoid masters to open the Third Eye. His cloud
   // hovers on the eastern oasis rim, clear of the Soulphish water cells.
@@ -24883,6 +24990,13 @@ function contactEligible(n){
   if (!n || n.isEnemy || !n.name || typeof n.onInteract !== 'function') return false;
   if (n._towerGuardOf || n._seerHqGuardOf) return false;
   if (/^_summon_/.test(n.id || '')) return false;
+  // v0.95.685 · REVERTED an elder-based exclusion added one version earlier.
+  // I had briefly treated Foongus as Veridan's elder and blocked him from the
+  // phone book for being Creature-primary.  Creator correction: he is NOT the
+  // elder — he is a CONTACT who teaches combat upgrades, so being reachable is
+  // the entire point of him.  The rule was written for a single subject and
+  // that subject turned out to want the opposite, so it goes rather than being
+  // kept around as dead generality.
   if (isZyrexNpc(n)) return false;
   return true;
 }

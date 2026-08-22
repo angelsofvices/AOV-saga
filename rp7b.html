@@ -12498,6 +12498,36 @@ function dreamlandSolid(x, y){
   if (x < 0 || y < 0 || x >= DREAMLAND_SIZE || y >= DREAMLAND_SIZE) return false;
   return dreamlandDensity(x, y) > DREAMLAND_SOLID;
 }
+// ★ v0.95.720 · the Creator's seamless cloud plate.
+//
+// 1254x1254 and genuinely seamless — opposite edges differ by ~4 mean levels
+// against a ~18 baseline for two random interior columns, so it wraps without
+// a visible join.
+//
+// It repeats every 12 GAME TILES, not every 1254 source pixels.  That number
+// is chosen so the repeat lands on an exact tile boundary (12 x 48 = 576px):
+// any non-integer would drift the texture a fraction of a pixel per tile and
+// put a shimmering seam through the middle of the sky.  At 12 tiles a cloud
+// puff comes out about one tile across, which reads correctly beside a
+// two-tile-tall Rizer — the same judgement the Seer wall needed at v0.95.702,
+// where squashing a whole texture into one 48px tile destroyed it.
+const DREAMLAND_TILES_PER_REPEAT = 12;
+const DREAMLAND_TILE_IMG = new Image();
+DREAMLAND_TILE_IMG.src = 'assets/2D%20sprites/tiles/dreamland-cloud.png';
+let _dreamPattern = null;
+function dreamlandPattern(){
+  if (_dreamPattern) return _dreamPattern;
+  const img = DREAMLAND_TILE_IMG;
+  if (!img.complete || !img.naturalWidth) return null;
+  const n = DREAMLAND_TILES_PER_REPEAT * TILE;
+  const off = document.createElement('canvas');
+  off.width = n; off.height = n;
+  const o = off.getContext('2d');
+  o.imageSmoothingEnabled = true;
+  o.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, n, n);
+  _dreamPattern = ctx.createPattern(off, 'repeat');
+  return _dreamPattern;
+}
 const INTERIOR_DREAMLAND = {
   cols: DREAMLAND_SIZE, rows: DREAMLAND_SIZE,
   tileImg: new Image(),                 // never used · cloudFloor draws instead
@@ -19918,43 +19948,111 @@ function drawDistrictWorldBorders(){
 // is no second table to fall out of sync with the collision. Density also
 // drives the tint and the puff size, so the middle of an island reads as thick
 // and its edges as wispy without anything being hand-placed.
+// ★★ v0.95.720 · DREAMLAND TERRAIN · the Creator's cloud plate, masked by the
+// same density field that decides where you can stand.
+//
+// The first pass drew the plate only on SOLID tiles and left the gaps bare.
+// Against a photoreal seamless texture that produced hard 48px squares of flat
+// blue — the holes read as missing tiles, not as sky. Feathering the edge by
+// per-tile alpha would only have moved the squares one step down in contrast.
+//
+// So the cloud layer is masked. A tiny offscreen mask — ONE PIXEL PER TILE —
+// holds the density ramp, and scaling it up with smoothing ON gives exactly
+// the bilinear interpolation the edge needs, for the cost of a 30x20 image.
+// destination-in then punches the sky through it.
+//
+// FEATHER is deliberately narrow. At 0.16 the coastline dissolves and you
+// cannot tell where the floor stops, which matters more here than anywhere
+// else in the game: the edge of a cloud is a thing you fall off.
+const DREAMLAND_FEATHER = 0.06;
+let _dlLayer = null, _dlMask = null;
 function drawDreamlandFloor(cfg){
   const C = cfg.cols, R = cfg.rows;
-  // Sky · vertical gradient, drawn in screen space so it never scrolls.
+  // Sky · vertical gradient in SCREEN space, so it never scrolls.
   const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
   g.addColorStop(0,    '#0b1140');
   g.addColorStop(0.55, '#243a86');
   g.addColorStop(1,    '#4a6bc0');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   const startCol = Math.max(0, Math.floor(_cam.x / TILE) - 1);
-  const endCol   = Math.min(C, Math.ceil((_cam.x + canvas.width)  / TILE) + 1);
+  const endCol   = Math.min(C, Math.ceil((_cam.x + canvas.width)  / TILE) + 2);
   const startRow = Math.max(0, Math.floor(_cam.y / TILE) - 1);
-  const endRow   = Math.min(R, Math.ceil((_cam.y + canvas.height) / TILE) + 1);
+  const endRow   = Math.min(R, Math.ceil((_cam.y + canvas.height) / TILE) + 2);
+  const pat = dreamlandPattern();
+  if (!pat){ drawDreamlandFloorFallback(cfg, startCol, endCol, startRow, endRow); return; }
+
+  const cols = endCol - startCol, rows = endRow - startRow;
+  if (cols <= 0 || rows <= 0) return;
+  if (!_dlLayer) _dlLayer = document.createElement('canvas');
+  if (!_dlMask)  _dlMask  = document.createElement('canvas');
+  const LW = cols * TILE, LH = rows * TILE;
+  if (_dlLayer.width !== LW || _dlLayer.height !== LH){ _dlLayer.width = LW; _dlLayer.height = LH; }
+  if (_dlMask.width !== cols || _dlMask.height !== rows){ _dlMask.width = cols; _dlMask.height = rows; }
+
+  // 1 · the mask · one pixel per tile, alpha = how solid the cloud is there
+  const mctx = _dlMask.getContext('2d');
+  const img = mctx.createImageData(cols, rows);
+  for (let j = 0; j < rows; j++){
+    for (let i = 0; i < cols; i++){
+      const d = dreamlandDensity(startCol + i, startRow + j);
+      const a = Math.max(0, Math.min(1, (d - (DREAMLAND_SOLID - DREAMLAND_FEATHER)) / DREAMLAND_FEATHER));
+      const o = (j * cols + i) * 4;
+      img.data[o] = 255; img.data[o+1] = 255; img.data[o+2] = 255;
+      img.data[o+3] = Math.round(a * 255);
+    }
+  }
+  mctx.putImageData(img, 0, 0);
+
+  // 2 · the cloud layer · pattern anchored in WORLD space so it cannot swim
+  const lctx = _dlLayer.getContext('2d');
+  lctx.setTransform(1, 0, 0, 1, 0, 0);
+  lctx.clearRect(0, 0, LW, LH);
+  lctx.save();
+  lctx.translate(-startCol * TILE, -startRow * TILE);
+  lctx.fillStyle = pat;
+  lctx.fillRect(startCol * TILE, startRow * TILE, LW, LH);
+  lctx.restore();
+
+  // 3 · punch the sky through · the half-tile offset puts each mask pixel's
+  //     CENTRE on its tile's centre, which is what makes the ramp line up
+  //     with the tile the collision test actually reads
+  lctx.globalCompositeOperation = 'destination-in';
+  lctx.imageSmoothingEnabled = true;
+  lctx.drawImage(_dlMask, -TILE / 2, -TILE / 2, LW + TILE, LH + TILE);
+  lctx.globalCompositeOperation = 'source-over';
+
+  ctx.drawImage(_dlLayer, startCol * TILE - _cam.x, startRow * TILE - _cam.y);
+
+  // 4 · underside shadow wherever an island stops · sells thickness
+  ctx.save();
+  ctx.translate(-_cam.x, -_cam.y);
+  ctx.fillStyle = 'rgba(28,38,92,0.34)';
+  for (let ty = startRow; ty < endRow; ty++){
+    for (let tx = startCol; tx < endCol; tx++){
+      if (!dreamlandSolid(tx, ty) || dreamlandSolid(tx, ty + 1)) continue;
+      ctx.fillRect(tx * TILE, ty * TILE + TILE - 6, TILE, 6);
+    }
+  }
+  ctx.restore();
+}
+// Procedural plates · only if the plate PNG has not loaded yet.
+function drawDreamlandFloorFallback(cfg, startCol, endCol, startRow, endRow){
   const t = performance.now() / 1000;
   for (let ty = startRow; ty < endRow; ty++){
     for (let tx = startCol; tx < endCol; tx++){
       const d = dreamlandDensity(tx, ty);
-      if (d <= DREAMLAND_SOLID - 0.10) continue;      // open sky · draw nothing
+      if (d <= DREAMLAND_SOLID - 0.10) continue;
       const px = tx * TILE - _cam.x, py = ty * TILE - _cam.y;
-      // 0 at the wispy fringe → 1 deep inside an island
       const k = Math.max(0, Math.min(1, (d - (DREAMLAND_SOLID - 0.10)) / 0.34));
       const drift = Math.sin(t * 0.55 + (tx * 0.7 + ty * 1.3)) * 1.6 * (1 - k);
       if (d > DREAMLAND_SOLID){
-        // solid cloud · a warm-lit body you can stand on
         ctx.fillStyle = `rgba(228,236,255,${0.42 + k * 0.50})`;
         ctx.fillRect(px, py + drift, TILE, TILE);
-        // top-face highlight so the plate reads as a surface, not a square
         ctx.fillStyle = `rgba(255,255,255,${0.10 + k * 0.16})`;
         ctx.fillRect(px, py + drift, TILE, Math.max(2, Math.round(TILE * 0.22)));
-        // underside shadow · sells thickness at the island's lower edge
-        if (!dreamlandSolid(tx, ty + 1)){
-          ctx.fillStyle = 'rgba(40,52,110,0.30)';
-          ctx.fillRect(px, py + drift + TILE - 5, TILE, 5);
-        }
       } else {
-        // fringe · vapour that is NOT walkable · deliberately softer and
-        // narrower than a full tile so the edge of the world reads as an edge
         ctx.fillStyle = `rgba(190,206,248,${0.10 + k * 0.16})`;
         ctx.beginPath();
         ctx.ellipse(px + TILE / 2, py + TILE / 2 + drift, TILE * 0.42, TILE * 0.30, 0, 0, Math.PI * 2);

@@ -11887,11 +11887,18 @@ function drawBoomBlasts(){
   const now = performance.now();
   for (let i = BOOM_BLASTS.length - 1; i >= 0; i--){
     const e = BOOM_BLASTS[i];
-    const t = (now - e.t0) / BOOM.BLAST_MS;
+    // v0.95.733 · per-entry size/centre/duration. Scanobots detonate in a 2x2,
+    // which is EVEN, so its centre is the corner where four tiles meet rather
+    // than the middle of one — hence cxT/cyT in float tile coords instead of
+    // the tileX+0.5 the odd-sized chest blast can assume. Defaults reproduce
+    // the BOOM chest exactly, so nothing that already worked changes.
+    const t = (now - e.t0) / (e.ms || BOOM.BLAST_MS);
     if (t >= 1){ BOOM_BLASTS.splice(i, 1); continue; }
-    const cx = Math.floor((e.tileX + 0.5) * TILE) - _cam.x;
-    const cy = Math.floor((e.tileY + 0.5) * TILE) - _cam.y;
-    const D  = TILE * BOOM.AOE_TILES;                    // 3 tiles across
+    const cxT = (e.cxT != null) ? e.cxT : (e.tileX + 0.5);
+    const cyT = (e.cyT != null) ? e.cyT : (e.tileY + 0.5);
+    const cx = Math.floor(cxT * TILE) - _cam.x;
+    const cy = Math.floor(cyT * TILE) - _cam.y;
+    const D  = TILE * (e.tiles || BOOM.AOE_TILES);
     if (BOOM_FX.complete && BOOM_FX.naturalWidth){
       const idx = Math.min(BOOM_FX_FRAMES - 1, Math.floor(t * BOOM_FX_FRAMES));
       const sx = (idx % BOOM_FX_COLS) * BOOM_FX_CELL;
@@ -15791,6 +15798,80 @@ function scrapShopBuy(){
   try { playSFX('confirm'); } catch(_){}
   return t;
 }
+// ── ★★ v0.95.733 · SCANOBOTS DETONATE ─────────────────────────────────────
+// Creator: "scanoboat explode like boom chests. aoe is 2x2. best to astralblast
+// them. melee will inflict dmage to you on explosion."
+//
+// ★ The melee penalty is NOT a check on which attack killed it. Nothing here
+// reads the attack mode. The blast simply covers a 2x2 and the Rizer takes it
+// if he is standing in it — so punching one puts you inside your own explosion
+// by definition, and A3 astralstrike from four tiles out does not. Gating on
+// mode === 'punch' would have been a lie the moment a player meleed one and
+// walked away, or astralstruck one from point blank.
+//
+// A 2x2 is EVEN, so it cannot be centred on the drone's tile. The block is
+// anchored to the quadrant facing the Rizer — it always contains the drone,
+// and it always reaches toward you, which is what makes standing next to one
+// dangerous and standing two tiles away safe.
+const SCANOBOT_BLAST = {
+  TILES:    2,      // literal 2x2 per the directive · a quarter of the chest's 7x7
+  DMG:      2.0,    // x baseAtk to anything caught · 50 at S1
+  SELF:     0.5,    // fraction the Rizer wears · 25 at S1, a real bite at low HP
+  FUSE_MS:  260,    // ~1 tile of movement · stepping clear is possible, not easy
+  FX_MS:    620,    // shorter, sharper pop than the chest's 980ms
+};
+// Which 2x2 block. Deterministic: the quadrant containing the drone that also
+// extends toward the Rizer.
+function scanobotBlastBlock(n){
+  const px = (typeof player !== 'undefined' && player.x != null) ? player.x : n.tileX;
+  const py = (typeof player !== 'undefined' && player.y != null) ? player.y : n.tileY;
+  const ax = n.tileX + (px >= n.tileX ? 0 : -1);
+  const ay = n.tileY + (py >= n.tileY ? 0 : -1);
+  return { ax, ay, bx: ax + 1, by: ay + 1 };
+}
+function scanobotInBlast(blk, x, y){
+  return x >= blk.ax && x <= blk.bx && y >= blk.ay && y <= blk.by;
+}
+function detonateScanobot(n){
+  if (!n || n._scanoBoomed) return;
+  n._scanoBoomed = true;
+  const blk = scanobotBlastBlock(n);
+  const scene = n.scene || 'overworld';
+  try { playSFX('astralkick'); } catch(_){}
+  setTimeout(() => {
+    try {
+      BOOM_BLASTS.push({
+        tileX: n.tileX, tileY: n.tileY,
+        cxT: blk.ax + 1, cyT: blk.ay + 1,        // corner of the 2x2, not a tile centre
+        tiles: SCANOBOT_BLAST.TILES, ms: SCANOBOT_BLAST.FX_MS,
+        t0: performance.now(),
+      });
+      const base = (player.baseAtk || 25) * SCANOBOT_BLAST.DMG;
+      // Catches other enemies too — two drones in one block chain naturally,
+      // and a Mori standing beside one wears it.
+      for (const o of NPCS){
+        if (!o || o === n || o.scene !== scene || !o.isEnemy || o._dying) continue;
+        if (!scanobotInBlast(blk, o.tileX, o.tileY)) continue;
+        const dmg = playerOutgoingDamage(base, null);
+        o.hp = (o.hp == null ? o.hpMax || 125 : o.hp) - dmg;
+        try { spawnHitFx(o.tileX, o.tileY, 'ultimate'); } catch(_){}
+        if (o.hp <= 0){ startMoriDeath(o); creditRizerKill(o, 'splash'); }
+      }
+      // ★ The Rizer, if he is standing in it. This IS the melee penalty.
+      if (game.scene === scene && scanobotInBlast(blk, player.x, player.y)){
+        const self = Math.max(1, Math.round(base * SCANOBOT_BLAST.SELF));
+        player.hp = Math.max(0, (player.hp || 0) - self);
+        showToast(`◈ SCANOBOT DETONATED · you were inside the blast · -${self} HP`, 2600);
+        try { spawnHitFx(player.x, player.y, 'ultimate'); } catch(_){}
+      }
+      for (let y = blk.ay; y <= blk.by; y++){
+        for (let x = blk.ax; x <= blk.bx; x++){
+          BOOM_DEBRIS.push({ tileX: x, tileY: y, t0: performance.now(), dur: 900 });
+        }
+      }
+    } catch(err){ console.warn('[rp7b] scanobot detonation failed', err); }
+  }, SCANOBOT_BLAST.FUSE_MS);
+}
 // Drops. Routed from startMoriDeath — the single door every kill goes through
 // — for the same reason the Verdant Creeper heal lives there: a drop wired
 // per-attack pays out on sword and not on a thrown boulder.
@@ -15804,6 +15885,9 @@ function scanobotDrop(n){
     }
     showToast('◈ SCANOBOT DOWN · 1× Scrap Metal · a Blue Gem drops from the housing', 2800);
   } catch(err){ console.warn('[rp7b] scanobot drop failed', err); }
+  // ★ Loot is spawned BEFORE the fuse so the drop is never lost to the blast,
+  // and the detonation is scheduled after so the player still has to get clear.
+  try { detonateScanobot(n); } catch(_){}
 }
 // ── v0.95.671 · SEER HQ GUARD PACKS ────────────────────────────────────────
 // Malezor's HQ has always been ringed by Seer Grunts.  Now that nine more

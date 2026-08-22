@@ -31304,6 +31304,31 @@ Object.values(ZORYN_SHEETS).forEach(s => {
 });
 
 const SUMMONABLE_SPRITES = {
+  // v0.95.739 · SKYBEAM · T4 Beast/Elemental · adolescent dragon.
+  // Creator: "a bit taller than rizer, adolescent dragon."
+  //
+  // ★ scaleRefBh is EXPLICIT because the DOWN row's raw bbox lied. The sheet
+  // arrived with a faint diagonal stroke above the head in two DOWN frames —
+  // a generation artifact, 152px and 73px, entirely disconnected from the
+  // dragon. It ran the col-0 bbox to 303 against a real body of 248, and the
+  // engine's default yardstick (tallest col-0) would have shrunk every walking
+  // frame by a fifth to make room for a stray pencil line. Strays stripped
+  // (all components < 1000px), body measured at 248, and pinned here so a
+  // future re-measure cannot drift.
+  //
+  // At 248 the DOWN rearing pose renders 2 tiles; scaleMul 1.20 puts it at
+  // 2.4 and the walking profile at 2.0 — a head over the Rizer, which is what
+  // "a bit taller" means for something that still has growing to do.
+  skybeam: {
+    src: 'assets/2D%20sprites/zyrex/skybeam.png',
+    bboxes: [
+      [[ 52, 59,214,248],[ 57, 60,223,247],[ 51, 58,222,249],[ 45, 59,230,249]],
+      [[ 32, 65,288,207],[ 25, 65,280,210],[ 21, 65,282,210],[ 12, 65,288,208]],
+      [[  7, 52,281,210],[  1, 51,281,212],[ -7, 51,282,213],[ -8, 51,284,211]],
+      [[ 54, 25,207,235],[ 55, 25,205,236],[ 44, 25,213,237],[ 45, 25,204,235]],
+    ],
+    cellW: 313, cellH: 313, scaleRefBh: 248, scaleMul: 1.20,
+  },
   // v0.95.731 · AETHERWING · T1 Creature · hive-insect · Batch 1 of the
   // 2026-08-22 asset handoff.  Delivered sheet was geometrically CLEAN —
   // 0/16 cells under the 10px margin rule, worst margin 19px.  The only
@@ -32352,23 +32377,42 @@ function tryRecruitWildZyrex(w){
 // and count are all derived, because this list is going to be edited many more
 // times than the code around it.
 //
-// Zones were MEASURED, not chosen by eye: Malezor's 36,473 land tiles were
-// swept in 16x16 blocks scoring free tiles (no prop footprint, no NPC, not a
-// border), and the emptiest block in each compass quarter was taken with a
-// hard requirement of >=45 tiles from town centre (105,108) so "north" means
-// the far north and not the next street over.
+// Zones were MEASURED, not chosen by eye: Malezor swept in 16x16 blocks scoring
+// free tiles (no prop footprint, no NPC, not a border).
+//
+// ★★ v0.95.739 · THE FIRST SWEEP WAS WRONG AND THESE NUMBERS ARE THE FIX.
+// It scanned x>=0, y>=0 and reported Malezor as 36,473 tiles centred on
+// (105,108). The district actually runs x -89..210, y -32..219 — 55,606 tiles,
+// centred (61,94) — so a third of it, the whole west and the far north, was
+// never looked at. The Rizer's own TREEHOUSE sits at (20,-20), outside the
+// region I swept, which is how the error surfaced. The old "W" zone at
+// (56,104) was 11 tiles from the true centre: the emptiest block in town, not
+// the western reach.
+//
+// Zones are now chosen by BEARING (cosine >= 0.55 to the compass point) rather
+// than by which axis happens to dominate, and forced >=60 tiles apart — the
+// second sweep put S and W 30 tiles apart in the same south-west corner, both
+// technically correct by angle and useless as opposite ends of a playtest.
 const MALEZOR_WILD_ZONES = {
-  N: { at: [152,  23], label: 'the far north ridge'   },   // 253/256 free · 97 tiles out
-  E: { at: [199, 103], label: 'the eastern flats'     },   // 242/255 free · 94 tiles out
-  S: { at: [151, 167], label: 'the southern lowlands' },   // 239/247 free · 75 tiles out
-  W: { at: [ 56, 104], label: 'the western reach'     },   // 246/256 free · 49 tiles out
+  N: { at: [  94,  -9], label: 'the northern ridge'    },  // 232/256 free · 108 out · bearing -72
+  E: { at: [ 191,  71], label: 'the eastern flats'     },  // 246/256 free · 132 out · bearing -10
+  S: { at: [ -17, 200], label: 'the southern lowlands' },  // 256/256 free · 132 out · bearing 126
+  W: { at: [ -66, 104], label: 'the western reach'     },  // 230/256 free · 127 out · bearing 175
 };
 const MALEZOR_WILD_ZONE_R = 11;     // scatter radius in tiles
 const MALEZOR_WILD_PER    = 2;      // individuals per species
 // ★ ADD NEW SPECIES HERE AND NOWHERE ELSE.
 const MALEZOR_WILD_ROSTER = [
   'aetherwing', 'frosane', 'verdanix', 'otterlin', 'volcanut',
-  'zarakai', 'voltigrax', 'apexaur', 'snok', 'anciuxor',
+  'zarakai', 'voltigrax', 'apexaur', 'snok', 'skybeam',
+];
+// ★ Pinned individuals · placed at a named spot instead of scattered in a
+// compass zone, because WHERE they stand is the point. ANCIUXOR is Tier 10 —
+// the bond gate wants the full 3330, so he is not a catch, he is a presence:
+// the legendary standing at the Rizer's own treehouse. Kept out of the roster
+// above so the round-robin cannot move him.
+const MALEZOR_WILD_FIXED = [
+  { id: 'anciuxor', at: [22, -19], level: 12, note: 'beside the treehouse' },
 ];
 const _malezorWildPlaced = [];
 function _wildTileNear(cx, cy, r){
@@ -32406,6 +32450,12 @@ function seedMalezorWild(){
       if (w){ w._malezorWild = zk; _malezorWildPlaced.push(w); }
     }
   });
+  // Pinned individuals · exact tile, no scatter.
+  for (const F of MALEZOR_WILD_FIXED){
+    if (!SPECIES[F.id]) continue;
+    const w = spawnWildZyrex(F.id, F.at[0], F.at[1], { level: F.level });
+    if (w){ w._malezorWild = 'FIXED'; w._pinned = F.note; _malezorWildPlaced.push(w); }
+  }
   return _malezorWildPlaced.length;
 }
 // Spawn helper · habitats will call this; the dev button uses it today.

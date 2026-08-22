@@ -9907,6 +9907,65 @@ function applyGroundStoreyCollision(){
 const _propBlocked = new Set();     // "x,y" of solid tiles
 const _propDoors   = new Map();     // "x,y" → prop with onInteract
 const _wildZones   = new Set();     // "x,y" tiles that spawn wild Zyrex
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ HUB RECENTRING · v0.95.727 · Creator: "move zarvane and andrannor hubs
+// to its district center"
+//
+// Measured, not guessed. District centre is the CENTROID of that district's
+// land tiles — the mass centre — rather than the midpoint of its bounding
+// box, because both districts are irregular shapes and a bbox midpoint of an
+// L-shape can land outside the land entirely.
+//
+//   ZARVANE     44,905 land tiles · centroid (114, 288)
+//               town hall was at (113, 247) — x was already dead-on, but the
+//               hall sat 41 tiles NORTH of centre.
+//   ANDRANNOR   38,043 land tiles · centroid (312, 325)
+//               town hall was at (240, 316) — y was close, the hall sat
+//               72 tiles WEST of centre.
+//
+// ★ WHAT MOVES, AND WHY IT IS A LIST AND NOT A RADIUS
+//
+// The first pass selected hub members by proximity — everything within 46
+// tiles of the hall. That swept in cacti, wandering Mori, the district GATE
+// (a fixed seam between two districts), both Seer HQs, and in Andrannor's
+// case the Seer HQ belonging to ZARVANE. Moving any of those would break
+// canon that has nothing to do with hubs: Seer HQs sit on the outbound road
+// by [[aov-seer-hq-network]], gates are seams, and homes are spread by the
+// settlement doctrine on purpose.
+//
+// So membership is an explicit list of CIVIC buildings. The whole cluster
+// translates by one offset, preserving every relative position — a hall that
+// arrives without its fountain is not a hub.
+//
+// Verified before shipping: every destination tile is real land inside the
+// right district, none on a border, and ZERO clashes with props that are not
+// moving.
+const HUB_RECENTRE = {
+  zarvane:   { centre: [114, 288], anchor: 'zarvane_town_hall',
+               ids: ['zarvane_town_hall', 'zarvane_costume_shop', 'zarvane_cosmetic_shop'] },
+  andrannor: { centre: [312, 325], anchor: 'andrannor_town_hall',
+               ids: ['andrannor_town_hall', 'andrannor_fountain'] },
+};
+function applyHubRecentre(){
+  for (const [district, cfg] of Object.entries(HUB_RECENTRE)){
+    const anchor = WORLD_PROPS.find(p => p && p.id === cfg.anchor);
+    if (!anchor) continue;
+    const dx = cfg.centre[0] - anchor.tileX;
+    const dy = cfg.centre[1] - anchor.tileY;
+    if (!dx && !dy) continue;                       // already centred · idempotent
+    let moved = 0;
+    for (const id of cfg.ids){
+      const prop = WORLD_PROPS.find(p => p && p.id === id);
+      if (!prop) continue;
+      prop.tileX += dx; prop.tileY += dy;
+      moved++;
+    }
+    console.info(`[rp7b] hub recentre · ${district} · ${moved} buildings by (${dx}, ${dy}) → centroid ${cfg.centre}`);
+  }
+}
+// Runs BEFORE the ground-storey pass and before _propBlocked is baked, so the
+// moved buildings' collision and doors are registered at their NEW tiles.
+try { applyHubRecentre(); } catch(err){ console.warn('[rp7b] hub recentre failed', err); }
 try { applyGroundStoreyCollision(); } catch(err){ console.warn('[rp7b] ground-storey pass failed', err); }
 WORLD_PROPS.forEach(p => {
   p.footprint.forEach(([dx,dy]) => _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`));

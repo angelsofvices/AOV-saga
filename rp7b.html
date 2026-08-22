@@ -1359,7 +1359,7 @@ window.addEventListener('keydown', (ev) => {
   if (_isOpen){
     _pnl.style.display = 'none';
     if (typeof game === 'object'){ game.zphoneOpen = false; game._zycellFocus = 'nav'; game._zycellItemIdx = 0;
-      game._zyTriDownAt = 0; game._zyTriFired = false; }   // v0.95.707 · drop any hold in flight
+      try { zyTriangleRelease(); } catch(_){} }   // v0.95.743 · drop any hold in flight
     try { playSFX('menuClose'); } catch(_){}
   } else {
     _pnl.style.display = 'flex';
@@ -19714,8 +19714,8 @@ addEventListener('keyup', e => {
   // ★ v0.95.729 · and run the TAP here, before clearing, since "was this a tap
   // or a hold" is only answerable at release.
   if (k === 'k' || k === 'y'){
-    try { zyTriangleTap(); } catch(_){}
-    game._zyTriDownAt = 0; game._zyTriFired = false;
+    try { zyTriangleTap(); } catch(_){}   // decides tap-vs-hold, then:
+    zyTriangleRelease();                  // v0.95.743
   }
   // v0.95.439 · R2 release · exit block stance
   if (k === 'i' && player && player.blocking){
@@ -25847,7 +25847,7 @@ function handleZycellKey(k){
     // fires on keyUP, and only if the hold did not complete. That is what
     // makes one button mean two things without either stealing the other.
     if (k === 'k' || k === 'y'){
-      zyTriangleHoldTick();
+      zyTriangleArm();                 // v0.95.743 · press ARMS · frame() times it
       return true;
     }
     return true;                       // swallow anything else while in content focus
@@ -25861,7 +25861,7 @@ function handleZycellKey(k){
   // Browsers auto-repeat keydown while a key is held, so the repeat IS the
   // hold signal — no keyup bookkeeping needed to detect it. _zyTriFired stops
   // the repeat from firing the action every frame after the threshold.
-  if (k === 'k' || k === 'y'){ zyTriangleHoldTick(); return true; }
+  if (k === 'k' || k === 'y'){ zyTriangleArm(); return true; }   // v0.95.743
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
   if (k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
@@ -32014,7 +32014,32 @@ const ZY_HOLD_MS = 480;                 // how long Triangle must be held
 // FACTION panel — which is the one place a player would ever think to use it.
 // Browsers auto-repeat keydown while a key is held, so the repeat IS the hold
 // signal; _zyTriFired stops the repeat from firing every frame afterwards.
-function zyTriangleHoldTick(){
+// ★★★ v0.95.743 · THE ACTUAL FIX · POLL THE CLOCK, DO NOT TRUST KEY-REPEAT.
+//
+// v0.95.729 made this "work" by leaning on the browser's keydown auto-repeat:
+// hold the key, the repeats arrive, one of them crosses the threshold. That is
+// true for a physical keyboard and FALSE for a gamepad, which is how the
+// Creator plays. The pad bridge is EDGE-TRIGGERED —
+//     if (pressed && !prev[i]) dispatchKey('keydown', key);
+// — so Triangle dispatches exactly ONE keydown per press and nothing more
+// until release. zyTriangleHoldTick therefore ran once, set _zyTriDownAt, tested
+// (now - now) >= 480, got false, and was never called again. The hold could not
+// complete on a controller by construction.
+//
+// Nor can this be fixed by polling `keys['k']` in frame(): handleZycellKey()
+// returns true for Triangle and the keydown handler bails before `keys[k]=true`
+// is ever reached, so while the phone is open that map is empty for this key.
+//
+// So the hold now owns its own held-flag, set on press and cleared on release,
+// and frame() checks the ELAPSED TIME every tick. Same shape as the intro's
+// hold-X detection twenty lines below it, which has always worked on both
+// input devices for exactly this reason.
+function zyTriangleArm(){
+  game._zyTriHeld = true;
+  if (!game._zyTriDownAt) game._zyTriDownAt = performance.now();
+}
+function zyTriangleHoldTick(){       // called once per FRAME while held
+  if (!game._zyTriHeld || !game.zphoneOpen) return;
   const now = performance.now();
   if (!game._zyTriDownAt) game._zyTriDownAt = now;
   if (!game._zyTriFired && (now - game._zyTriDownAt) >= ZY_HOLD_MS){
@@ -32023,6 +32048,14 @@ function zyTriangleHoldTick(){
     try { paintZycellNav(); } catch(_){}
     try { paintZycellContent(); } catch(_){}
   }
+}
+// Closing the phone mid-hold leaves no keyup for the panel to hear, so the
+// flags are cleared here too or the next Triangle press reads as an instant
+// completed hold and dumps the whole faction.
+function zyTriangleRelease(){
+  game._zyTriHeld = false;
+  game._zyTriDownAt = 0;
+  game._zyTriFired = false;
 }
 // The TAP action, fired on RELEASE and only when the hold did not complete.
 // Press cannot do this any more: if it did, the first keydown of a HOLD would
@@ -33795,6 +33828,9 @@ function frame(now){
   // try so a stamina fault can never take the whole render loop down.
   try { tickStamina(dt); } catch(_){}
   try { tickDreamland(); } catch(_){}   // v0.95.719 · the nap clock
+  // ★ v0.95.743 · ZyPhone Triangle hold · timed HERE, per frame, because the
+  // gamepad sends one keydown per press and no repeats. See zyTriangleHoldTick.
+  try { zyTriangleHoldTick(); } catch(_){}
   tryMove(dt);
   if(wildBattleState)tickWildBattle(dt,now);
   tickFootprints(dt);                            // v0.87 · sand-trail decay

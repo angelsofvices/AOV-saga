@@ -2464,7 +2464,14 @@ const GEM_DIAMOND_VALUES = Object.freeze({
   gem_purple: 640,
   gem_black:  1280,
 });
+// ★ v0.95.717 · SPECIAL divides every diamond COST (never a gain), so a
+// maxed Rizer gets five times as many A3/A4 casts out of the same blue bar.
+// Applied here, at the single mutation point, rather than at each cast site —
+// there are two today and there will be more.
 function changePlayerDiamond(delta){
+  if (delta < 0 && typeof rizerSpecialFactor === 'function'){
+    delta = -(Math.abs(delta) / rizerSpecialFactor());
+  }
   const max=player.diamondMax==null?100:player.diamondMax;
   const before=Math.max(0,Math.min(max,player.diamond||0));
   const after=Math.max(0,Math.min(max,before+delta));
@@ -11137,13 +11144,14 @@ function playerDamageMultiplier(skinId = player.cosmeticSkin){
   const skin = PLAYER_SKINS[skinId] || PLAYER_SKINS.normal;
   return skin.damageMult || 1;
 }
-// v0.95.713 · kind='astral' routes A3/A4 through the SPECIAL attribute.
-// Physical melee (A1/A2) and object damage (boulders) deliberately do NOT:
-// SPECIAL is the magical stat and ATK already reaches fists through
-// player.baseAtk, so applying both to melee would double-count the investment.
-function playerOutgoingDamage(baseDamage, skinId = player.cosmeticSkin, kind = 'physical'){
-  const _spec = (kind === 'astral' && typeof rizerSpecialMult === 'function') ? rizerSpecialMult() : 1;
-  return baseDamage * playerDamageMultiplier(skinId) * _spec;
+// ★ v0.95.717 · the kind='astral' SPECIAL damage multiplier is GONE.
+// It was a reasonable placeholder at v0.95.713, but the Creator's number-line
+// page redefines SPECIAL as the BLUE bar's drain rate, not a damage bonus —
+// so the parameter and all seven 'astral' tags are removed rather than left
+// inert.  A dead argument that used to mean something is worse than no
+// argument: the next person to add a call site cannot tell it is a no-op.
+function playerOutgoingDamage(baseDamage, skinId = player.cosmeticSkin){
+  return baseDamage * playerDamageMultiplier(skinId);
 }
 let _cosmeticTransitioning = false;
 function rizerHudAsset(id, expression = false){
@@ -13808,7 +13816,7 @@ function applyAstralkickHit(tx, ty, skinId = player.cosmeticSkin){
   if (hit){
     const maxHp = hit.hpMax || 125;
     if (hit.hp == null) hit.hp = maxHp;
-    hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_KICK.DMG_MULT, skinId, 'astral');
+    hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_KICK.DMG_MULT, skinId);
     playSFX('moriGrunt');
     if (hit.hp <= 0){
       playSFX('astralKill');
@@ -13857,7 +13865,7 @@ function fireAstralslam(){
     if(!target._astralslamHeld) return;
     target._astralslamHeld=false;
     if(target.hp==null) target.hp=target.hpMax||125;
-    target.hp -= playerOutgoingDamage((player.baseAtk||25)*ASTRAL_SLAM.DMG_MULT, s2?'power_upgrade':'normal', 'astral');
+    target.hp -= playerOutgoingDamage((player.baseAtk||25)*ASTRAL_SLAM.DMG_MULT, s2?'power_upgrade':'normal');
     spawnHitFx(target.tileX,target.tileY,s2?'ultimate':'kick');
     // v0.95.649 · astralslam kills now pay RXP (1.75x · costs positioning)
     if(target.hp<=0){startMoriDeath(target);creditRizerKill(target,'astralslam');}
@@ -13945,7 +13953,7 @@ function detonateBoomChest(b, skinId){
       const dx = Math.abs(n.tileX - b.tileX), dy = Math.abs(n.tileY - b.tileY);
       const d = Math.max(dx, dy);
       if (d > BOOM.RADIUS) continue;
-      const dmg = playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId, 'astral');
+      const dmg = playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId);
       n.hp = (n.hp == null ? n.hpMax || 125 : n.hp) - dmg;
       spawnHitFx(n.tileX, n.tileY, 'ultimate');
       // v0.95.649 · BOOM kills paid ZERO RXP and never booked the kill
@@ -13957,7 +13965,7 @@ function detonateBoomChest(b, skinId){
       const d = Math.max(dx, dy);
       if (d <= BOOM.RADIUS){
         const self = Math.max(1, Math.round(
-          playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId, 'astral') * 0.5));
+          playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId) * 0.5));
         player.hp = Math.max(0, (player.hp || 0) - self);
         try { showToast(`◈ Caught in the blast · -${self} HP`, 2200); } catch(_){}
       }
@@ -13993,7 +14001,7 @@ function astralthrowBreakAOE(b,skinId){
   // v0.95.640 · a boom chest does NOT shatter like a rock — it detonates
   if (b._seerExplosive){ detonateBoomChest(b, skinId); return; }
   b.breaking=performance.now();
-  const splash=playerOutgoingDamage((player.baseAtk||25)*0.75,skinId,'astral');
+  const splash=playerOutgoingDamage((player.baseAtk||25)*0.75,skinId);
   for(const n of NPCS){
     if(n.scene!==game.scene||!n.isEnemy||n._dying)continue;
     if(Math.abs(n.tileX-b.tileX)<=1&&Math.abs(n.tileY-b.tileY)<=1){
@@ -14130,7 +14138,7 @@ function fireAstralthrow(options={}){
       impactX=nx;impactY=ny;
     }
     target._astralthrowHeld=false;
-    const direct=playerOutgoingDamage((player.baseAtk||25)*ASTRAL_THROW.DMG_MULT,skinId,'astral');
+    const direct=playerOutgoingDamage((player.baseAtk||25)*ASTRAL_THROW.DMG_MULT,skinId);
     for(const victim of pathVictims){
       victim.hp=(victim.hp==null?victim.hpMax||125:victim.hp)-direct;
       spawnHitFx(victim.tileX,victim.tileY,skinId==='power_upgrade'?'ultimate':'kick');
@@ -14266,7 +14274,7 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
     }
     const maxHp = hit.hpMax || 125;
     if (hit.hp == null) hit.hp = maxHp;
-    hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT, skinId, 'astral');
+    hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT, skinId);
     playSFX('moriGrunt');
     if (hit.hp <= 0){
       // v0.95.215 · Dedicated A3-kill SFX (alien-stomach splat) instead of the generic bone-crack
@@ -14293,7 +14301,7 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
   // v0.95.216 · Blue hit-confirm glow on any A3 impact (mirrors punch/kick FX)
   // A4 will use 'ultimate' mode (purple) when it ships
   if (anyHit && game.devCombatFxOn !== false){
-    spawnHitFx(tx, ty, 'astral');
+    spawnHitFx(tx, ty);
   }
   return anyHit;
 }
@@ -17808,7 +17816,14 @@ addEventListener('keydown', e => {
                      || game.paused || game.zphoneOpen;
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModal2 && !player.ridingChair){
         const now = performance.now();
+        // ★ v0.95.717 · a dodge costs stamina and is refused when the yellow
+        // bar cannot pay for it.  Refused with a sound rather than silently,
+        // because an input that does nothing reads as a dropped button.
+        if (typeof canDodge === 'function' && !canDodge()){
+          try { playSFX('deny'); } catch(_){}
+        } else
         if (!player.dodgeUntil || now >= player.dodgeUntil){
+          try { spendStamina(STAMINA_DODGE_COST); } catch(_){}
           player.dodgeStart  = now;
           player.dodgeUntil  = now + 320;
           player.dodgeDir    = player.dir;
@@ -19072,15 +19087,20 @@ function tryMove(dt){
   // v0.95.569 · Shift removed from sprint · Shift is now L2 (A3/A4 chord modifier)
   // Circle is part of the throw chord, so it must not accidentally turn a
   // held enemy/boulder carry into a sprint. Carrying uses normal walk speed.
-  const running = !carryingThrow && (!!keys['b'] || player.sprintLocked);
+  // ★ v0.95.717 · an empty yellow bar refuses the sprint · you walk until it
+  // has refilled.  canSprint() is the ONLY gate, so the toggle-lock (L3) and
+  // the held button both respect stamina rather than one bypassing it.
+  const running = !carryingThrow && (!!keys['b'] || player.sprintLocked)
+               && (typeof canSprint !== 'function' || canSprint());
   player.running = running;
   // v0.95.100 · Skateboard cuts move-cd nearly in half regardless of sprint.
   // Rakrun uses the same normal on-foot sprint timing as S1.
-  // v0.95.713 · SPEED attribute scales the tile cadence.  rizerSpeedMult() is
-  // exactly 1 at 0 points, so base walk/run/skate pacing is untouched for an
-  // unallocated Rizer; it is asymptotic, so it can never reach 0ms per tile.
-  const _spd = (typeof rizerSpeedMult === 'function') ? rizerSpeedMult() : 1;
-  player.moveCd = Math.max(24, Math.round((player.skating ? (running ? 55 : 95) : (running ? 90 : 170)) * _spd));
+  // ★ v0.95.717 · SPEED no longer scales the tile cadence.  The Creator's
+  // number-line page redefines it as STAMINA — how long the yellow bar lasts,
+  // not how fast the tiles go by — so a maxed Rizer runs at exactly the same
+  // pace as a fresh one, just for five times as long.  Reverted to the flat
+  // pacing this line had before v0.95.713.
+  player.moveCd = player.skating ? (running ? 55 : 95) : (running ? 90 : 170);
 
   // v0.95.63 · Chair-ride · chair follows the player every step.  Also
   // block descending stairs while riding (return chair home on descent).
@@ -22486,8 +22506,8 @@ function drawRizerUpgradesPage(W, H){
     ['hp',      '♥ HEALTH',  '#ff5b5b', `${rizerHpMaxFromAttrs()} max HP`],
     ['atk',     '⚔ ATTACK',  '#ff9c66', `${rizerBaseAtkFromAttrs().toFixed(1)} base attack`],
     ['def',     '⛨ DEFENSE', '#4fb3ff', `−${Math.round((1 - rizerDefMult()) * 100)}% damage taken`],
-    ['speed',   '⚡ SPEED',   '#ffd66b', `+${Math.round((1 / rizerSpeedMult() - 1) * 100)}% movement`],
-    ['special', '✦ SPECIAL', '#c060ff', `×${rizerSpecialMult().toFixed(2)} astral · ${rizerAstralMaxFromAttrs()} ◆`],
+    ['speed',   '⚡ STAMINA', '#ffd66b', `×${rizerStaminaFactor().toFixed(2)} yellow-bar life · ${(100 / (STAMINA_SPRINT_DRAIN / rizerStaminaFactor())).toFixed(1)}s sprint`],
+    ['special', '◆ SPECIAL', '#4fb3ff', `×${rizerSpecialFactor().toFixed(2)} blue-bar life · ${Math.floor(100 / (10 / rizerSpecialFactor()))} A3 casts`],
   ];
   const rowW = 560, rowH = 46, x0 = cx - rowW / 2;
   let y = free > 0 ? 182 : 156;
@@ -22506,11 +22526,11 @@ function drawRizerUpgradesPage(W, H){
     ctx.fillText(String(a[key]), x0 + 172, y + 20);
     ctx.textAlign = 'left';
     // proportional bar · 666 is an even five-way split of the 3330 cap
-    const bw = rowW - 200;
+    const bw = rowW - 200;   // bar measures against RIZER_STAT_MAX_PTS, the real ceiling
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(x0 + 186, y + 9, bw, 7);
     ctx.fillStyle = color;
-    ctx.fillRect(x0 + 186, y + 9, Math.max(0, Math.min(bw, bw * (a[key] / 666))), 7);
+    ctx.fillRect(x0 + 186, y + 9, Math.max(0, Math.min(bw, bw * (a[key] / RIZER_STAT_MAX_PTS))), 7);
     ctx.fillStyle = '#8ff';
     ctx.font = '10px "Courier New", monospace';
     ctx.fillText(effect, x0 + 186, y + 31);
@@ -31896,6 +31916,10 @@ function drawProp(p){
 let last = performance.now();
 function frame(now){
   const dt = now - last; last = now;
+  // ★ v0.95.717 · stamina · drains while sprinting, refills when you stop.
+  // Runs BEFORE tryMove so canSprint() sees this frame's value, and inside a
+  // try so a stamina fault can never take the whole render loop down.
+  try { tickStamina(dt); } catch(_){}
   tryMove(dt);
   if(wildBattleState)tickWildBattle(dt,now);
   tickFootprints(dt);                            // v0.87 · sand-trail decay
@@ -33143,11 +33167,11 @@ const RIZER_ATTR_KEYS      = ['hp','atk','def','speed','special'];
 const RIZER_ATTR_PER_LEVEL = 33.3;   // the page's figure · DISPLAY ONLY · see rizerAttrPool for why the maths uses 333/10
 const RIZER_ATTR_MAX       = 3330;     // pool at level 100 · the page's ceiling
 const RIZER_ATTR_META = {
-  hp:      { label: 'HP',      icon: '❤', color: '#ff6b6b', blurb: '+1 max HP per point' },
+  hp:      { label: 'HP',      icon: '❤', color: '#ff6b6b', blurb: 'max health · 50 → 250' },
   atk:     { label: 'ATK',     icon: '⚔', color: '#ff9c66', blurb: 'raises base attack (all melee + astral)' },
   def:     { label: 'DEF',     icon: '🛡', color: '#4fb3ff', blurb: 'reduces all incoming damage' },
-  speed:   { label: 'SPEED',   icon: '⚡', color: '#ffd66b', blurb: 'faster walk, run and skate' },
-  special: { label: 'SPECIAL', icon: '◆', color: '#c060ff', blurb: 'astral (A3/A4) damage + diamond pool' },
+  speed:   { label: 'STAMINA', icon: '⚡', color: '#ffd66b', blurb: 'yellow bar lasts longer · sprint + dodge' },
+  special: { label: 'SPECIAL', icon: '◆', color: '#4fb3ff', blurb: 'blue bar lasts longer · A3/A4 casts' },
 };
 // Total points a Rizer of this level has EVER been granted.
 //
@@ -33193,19 +33217,116 @@ function rizerAttrSpent(){
 function rizerAttrUnspent(){
   return Math.max(0, rizerAttrPool(player.rizerLvl || 1) - rizerAttrSpent());
 }
-// ── The five effects ──────────────────────────────────────────────────
-function rizerHpMaxFromAttrs(){ return 100 + rizerAttrs().hp; }
-function rizerBaseAtkFromAttrs(){ return 25 + rizerAttrs().atk * 0.03; }
-function rizerDefMult(){
-  const d = rizerAttrs().def;
-  return 1 - d / (d + 1665);
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ THE FIVE CURVES · v0.95.717 · the Creator's min/max number lines
+//
+//              Lv 1        Lv 25      Lv 50      Lv 75      Lv 100
+//   HP         50    →     100        150        200        250      max
+//   ATK        25    →     50         75         100        125      max
+//   DEF        0%    →     18.75%     37.5%      56.25%     75%      max
+//   SPD        1x    →     2x         3x         4x         5x       max
+//   SPC        1x    →     2x         3x         4x         5x       max
+//
+// ★ WHAT "MAX" MEANS · 666 POINTS, NOT 3330
+//
+// The level labels on the page are not the input — AP is.  Reading them as
+// "an even five-way split of the pool at that level" makes every one of the
+// twenty-five checkpoints fall out of a straight line, to the decimal:
+//
+//   Lv 25  → pool 832  → 166.4 per stat → DEF 166.4/666 x 75 = 18.74  (page 18.75)
+//   Lv 50  → pool 1665 → 333.0 per stat → DEF 333.0/666 x 75 = 37.50  (page 37.5)
+//   Lv 75  → pool 2497 → 499.4 per stat → DEF 499.4/666 x 75 = 56.24  (page 56.25)
+//
+// 18.75 / 37.5 / 56.25 are not numbers anyone reaches by guessing.  They are
+// exactly three quarters of 25/50/75 percent, which is what a LINEAR curve
+// over a 666-point range produces — and 5 x 666 = 3330, the level-100 pool.
+// So a player who spreads evenly maxes all five stats at level 100, and a
+// specialist maxes some far earlier and leaves the rest at minimum.
+//
+// That makes 666 a real per-stat CEILING, enforced in rizerSpend: without it
+// a player could sink 3330 into HP, get nothing past 666, and never be told.
+const RIZER_STAT_MAX_PTS = 666;     // 5 stats x 666 = 3330 = the Lv 100 pool
+// Fraction of a stat's ceiling that is currently bought · always 0..1.
+function rizerAttrFrac(key){
+  return Math.min(1, Math.max(0, (rizerAttrs()[key] || 0) / RIZER_STAT_MAX_PTS));
 }
-function rizerSpeedMult(){
-  const s = rizerAttrs().speed;
-  return 1 - 0.4 * (s / (s + 1665));
+// ── The five effects · every one LINEAR from min to max ───────────────
+// ★ HP now starts at 50, not 100 — "change the minimum health at level one to
+// be half which would be fifty".  This is the one place the attribute pass
+// deliberately BREAKS the old "at zero points nothing changes" invariant: an
+// unallocated Rizer is half as durable as before, by instruction.
+const RIZER_HP_MIN = 50, RIZER_HP_MAX = 250;
+function rizerHpMaxFromAttrs(){
+  return Math.round(RIZER_HP_MIN + (RIZER_HP_MAX - RIZER_HP_MIN) * rizerAttrFrac('hp'));
 }
-function rizerSpecialMult(){ return 1 + rizerAttrs().special * 0.0003; }
-function rizerAstralMaxFromAttrs(){ return 100 + Math.floor(rizerAttrs().special * 0.05); }
+const RIZER_ATK_MIN = 25, RIZER_ATK_MAX = 125;
+function rizerBaseAtkFromAttrs(){
+  return RIZER_ATK_MIN + (RIZER_ATK_MAX - RIZER_ATK_MIN) * rizerAttrFrac('atk');
+}
+// DEF is a straight percentage of damage REMOVED · 0% at zero, 75% at 666.
+// Linear is safe here precisely because the ceiling is 75%: a maxed Rizer
+// still takes a quarter of every hit and can still be killed.
+const RIZER_DEF_MAX_REDUCTION = 0.75;
+function rizerDefMult(){ return 1 - RIZER_DEF_MAX_REDUCTION * rizerAttrFrac('def'); }
+// ★★ SPEED IS STAMINA NOW, not movement.
+// "Speed will be stamina, and that'll take effect with the yellow bar.
+//  Basically, when your yellow bar is down, you won't be able to sprint or
+//  dodge... Minimum will be one time deterioration. Max will be it'll take
+//  five times as long for your stamina bar to deteriorate."
+// So the attribute divides the DRAIN RATE: 1x at zero points, 5x longer at
+// 666.  It no longer touches moveCd at all — a maxed Rizer runs at the same
+// speed as a fresh one, just for five times as long.
+function rizerStaminaFactor(){ return 1 + 4 * rizerAttrFrac('speed'); }
+// ★★ SPECIAL is the same shape on the BLUE diamond bar: 1x drain at zero,
+// five times longer at 666.  It is no longer an astral DAMAGE multiplier —
+// that was a placeholder and the page replaces it.
+function rizerSpecialFactor(){ return 1 + 4 * rizerAttrFrac('special'); }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ STAMINA · v0.95.717 · the yellow bar becomes a real resource
+//
+// "when your yellow bar is down, you won't be able to sprint or dodge, and so
+//  your stamina goes back up"
+//
+// player.astral has existed as the yellow ⚡ meter for a long time, but NOTHING
+// drained it — every reference either set it to max or read it for the small
+// attack-speed / defence modifiers. It was a full bar that never moved. This
+// makes it the resource the Creator describes, and SPEED the attribute that
+// decides how long it lasts.
+//
+// Numbers chosen so the floor is a real constraint and the ceiling is a real
+// reward, against the fixed 100-point bar:
+//
+//   SPEED   sprint before empty   dodges before empty
+//      0            5.6 s                  5
+//    333           16.7 s                 15
+//    666           27.8 s                 25
+const STAMINA_SPRINT_DRAIN = 18;    // per second held
+const STAMINA_DODGE_COST   = 20;    // per roll
+const STAMINA_REGEN        = 22;    // per second once the delay has passed
+const STAMINA_REGEN_DELAY  = 600;   // ms of not spending before it refills
+function rizerStamina(){ return Math.max(0, Math.min(player.astralMax || 100, player.astral || 0)); }
+// Every drain divides by the SPEED factor · 1x at 0 points, 5x longer at 666.
+function spendStamina(amount){
+  const cost = amount / rizerStaminaFactor();
+  player.astral = Math.max(0, rizerStamina() - cost);
+  player._staminaSpentAt = performance.now();
+  return player.astral;
+}
+function canSprint(){ return rizerStamina() > 0; }
+function canDodge(){ return rizerStamina() >= STAMINA_DODGE_COST / rizerStaminaFactor(); }
+// Called once per frame from the main tick.
+function tickStamina(dt){
+  if (!dt || dt <= 0 || dt > 500) return;          // ignore tab-restore jumps
+  const max = player.astralMax || 100;
+  const sprinting = !!(player.running && player.moving && game.scene && !game.paused);
+  if (sprinting && rizerStamina() > 0){
+    spendStamina(STAMINA_SPRINT_DRAIN * dt / 1000);
+    return;
+  }
+  if (performance.now() - (player._staminaSpentAt || 0) < STAMINA_REGEN_DELAY) return;
+  if (player.astral < max) player.astral = Math.min(max, rizerStamina() + STAMINA_REGEN * dt / 1000);
+}
 // ★ ONE place recomputes the derived fields, so there is no way for hpMax and
 // attrs.hp to drift apart.  Everything that can change an attribute or a level
 // calls this: spend, level-up, load, new game, boot, dev level-set.
@@ -33219,8 +33340,11 @@ function recomputeRizerStats(opts){
   player.hpMax = newMax;
   player.maxHp = newMax;
   player.baseAtk = rizerBaseAtkFromAttrs();
+  // v0.95.717 · astralMax is a FIXED 100 again.  SPECIAL now governs how fast
+  // the bar drains, not how big it is, so growing the pool here would double-
+  // count the same attribute.
   const wasAstralMax = player.astralMax || 100;
-  player.astralMax = rizerAstralMaxFromAttrs();
+  player.astralMax = 100;
   // Raising the ceiling grants the difference rather than leaving the player at
   // the same absolute HP with a longer empty bar — spending a point in HP
   // should feel like a heal, not like the bar got harder to fill.
@@ -33245,7 +33369,19 @@ function rizerSpend(stat, n){
     try { showToast('◈ No attribute points available · level up to earn more', 2200); } catch(_){}
     return false;
   }
-  const give = Math.min(want, have);
+  // ★★ v0.95.717 · a stat CEILING, not just a pool limit.
+  // Every curve tops out at RIZER_STAT_MAX_PTS (666).  Without this a player
+  // could pour 3330 into HP, receive nothing at all past the 666th point, and
+  // never be told — the bar would sit full while the pool drained.  Refusing
+  // is the honest behaviour, and it also protects the 5 x 666 = 3330 identity
+  // the whole page rests on.
+  const room = RIZER_STAT_MAX_PTS - rizerAttrs()[stat];
+  if (room <= 0){
+    try { playSFX('deny'); } catch(_){}
+    try { showToast(`◈ ${(RIZER_ATTR_META[stat] || {}).label || stat} is already at max (${RIZER_STAT_MAX_PTS})`, 2400); } catch(_){}
+    return false;
+  }
+  const give = Math.min(want, have, room);
   rizerAttrs()[stat] += give;
   recomputeRizerStats();
   try { playSFX('confirm'); } catch(_){}
@@ -33287,12 +33423,12 @@ function buildRizerAttrPanel(where){
     hp:      `${rizerHpMaxFromAttrs()} max HP`,
     atk:     `${rizerBaseAtkFromAttrs().toFixed(1)} base attack`,
     def:     `−${Math.round((1 - rizerDefMult()) * 100)}% damage taken`,
-    speed:   `+${Math.round((1 / rizerSpeedMult() - 1) * 100)}% movement`,
-    special: `×${rizerSpecialMult().toFixed(2)} astral · ${rizerAstralMaxFromAttrs()} ◆`,
+    speed:   `×${rizerStaminaFactor().toFixed(2)} stamina · ${(100 / (STAMINA_SPRINT_DRAIN / rizerStaminaFactor())).toFixed(1)}s sprint · ${Math.floor(100 / (STAMINA_DODGE_COST / rizerStaminaFactor()))} dodges`,
+    special: `×${rizerSpecialFactor().toFixed(2)} diamond · ${Math.floor(100 / (10 / rizerSpecialFactor()))} A3 casts`,
   };
   const rows = RIZER_ATTR_KEYS.map(k => {
     const M    = RIZER_ATTR_META[k];
-    const bar  = Math.min(100, (a[k] / 666) * 100);   // 666 = a heavy single-stat build
+    const bar  = Math.min(100, (a[k] / RIZER_STAT_MAX_PTS) * 100);   // the real per-stat ceiling
     const can  = free > 0;
     const btn  = (n, label) => `<button ${can ? '' : 'disabled'}
         onclick="try{rizerSpend('${k}',${n});}catch(e){console.warn(e);}"
@@ -33309,7 +33445,7 @@ function buildRizerAttrPanel(where){
           </div>
           <div style="color:#8ff; font-size:9px; margin-top:3px; letter-spacing:.04em;">${effect[k]} · ${M.blurb}</div>
         </div>
-        <div style="display:flex; gap:4px;">${btn(1,'+1')}${btn(10,'+10')}${btn(RIZER_ATTR_MAX,'MAX')}</div>
+        <div style="display:flex; gap:4px;">${btn(1,'+1')}${btn(10,'+10')}${btn(RIZER_STAT_MAX_PTS,'MAX')}</div>
       </div>`;
   }).join('');
   // Presets only while the sheet is untouched — see applyRizerArchetype.

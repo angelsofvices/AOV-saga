@@ -1760,9 +1760,24 @@ function worldFrozen(){
 }
 // The menu's OWN sounds must survive the gate, or the phone goes silent while
 // you navigate it. Everything else is overworld noise and gets dropped.
+// ★★ v0.95.729 · this set is "sounds the PLAYER just caused", not "beeps".
+//
+// worldFrozen() exists to silence OVERWORLD ambience and animation while the
+// phone or pause is up (v0.95.701). But it gates playSFX by NAME, and the
+// summon VO was never on the list — so deploying or recalling a Zyrex FROM
+// the phone played its 'confirm' ping (listed) and swallowed 'zyrexGo' and
+// 'takeFive' (not listed). The action worked; it just went silent, which
+// reads as the action not working at all.
+//
+// The rule that keeps this from recurring: if the sound is feedback for a
+// button the player pressed in a menu, it belongs here. Only world ambience
+// and unattended animation should be frozen.
 const _UI_SFX = new Set([
   'menuOpen', 'menuClose', 'confirm', 'cursor', 'select', 'blip',
   'deny', 'error', 'doorLock', 'pageTurn', 'notify',
+  'cancel',                       // recall ping · the pair to 'confirm'
+  'zyrexGo', 'takeFive',          // v0.95.729 · deploy + recall VO
+  'disabled',                     // refusals triggered from a menu
 ]);
 function playSFX(name){
   if (worldFrozen() && !_UI_SFX.has(name)) return;
@@ -19166,7 +19181,13 @@ addEventListener('keyup', e => {
   // v0.95.707 · release the ZyPhone Triangle hold. Without this the timer keeps
   // its old start stamp and the NEXT tap of Triangle instantly counts as a
   // completed hold — a quick press would dump the whole faction out.
-  if (k === 'k' || k === 'y'){ game._zyTriDownAt = 0; game._zyTriFired = false; }
+  // v0.95.707 · release the ZyPhone Triangle hold.
+  // ★ v0.95.729 · and run the TAP here, before clearing, since "was this a tap
+  // or a hold" is only answerable at release.
+  if (k === 'k' || k === 'y'){
+    try { zyTriangleTap(); } catch(_){}
+    game._zyTriDownAt = 0; game._zyTriFired = false;
+  }
   // v0.95.439 · R2 release · exit block stance
   if (k === 'i' && player && player.blocking){
     player.blocking = false;
@@ -25235,25 +25256,20 @@ function handleZycellKey(k){
         return true;
       }
     }
-    // v0.95.446 · Triangle (k) · context-sensitive · data-zysummon = summon
-    // Zyrex to overworld · else data-zyfav / .zyBagFav toggles favorite
-    // v0.95.581 · From Examine sub-page, TRIANGLE summons the examined Zyrex
+    // ★★ v0.95.729 · TRIANGLE IN CONTENT · the hold now works here too.
+    //
+    // The bug: HOLD-to-summon-all lived ONLY in the nav-rail branch below.
+    // On the FACTION panel focus is in CONTENT, and this branch fired a
+    // single-slot toggleFactionSummon on the FIRST keydown and closed the
+    // phone — so the hold could never accumulate and the gesture the Creator
+    // was performing had no code path at all.
+    //
+    // Fixed by splitting press from release. Keydown only ARMS the timer and
+    // watches the browser's auto-repeat for the hold; the single-slot TAP now
+    // fires on keyUP, and only if the hold did not complete. That is what
+    // makes one button mean two things without either stealing the other.
     if (k === 'k' || k === 'y'){
-      if (zycellPage === 'faction' && game._factionExamineIdx != null){
-        try { toggleFactionSummon(game._factionExamineIdx); } catch(err){ console.warn('summon failed', err); }
-        try { closeZphonePanel(); } catch(_){}
-        return true;
-      }
-      const el = items[game._zycellItemIdx];
-      if (!el) return true;
-      const summonIdx = el.getAttribute('data-zysummon');
-      if (summonIdx != null){
-        try { toggleFactionSummon(+summonIdx); } catch(err){ console.warn('summon failed', err); }
-        try { closeZphonePanel(); } catch(_){}
-        return true;
-      }
-      const fav = el.querySelector('.zyBagFav') || el.querySelector('[data-zyfav]');
-      if (fav){ fav.click(); return true; }
+      zyTriangleHoldTick();
       return true;
     }
     return true;                       // swallow anything else while in content focus
@@ -25267,16 +25283,7 @@ function handleZycellKey(k){
   // Browsers auto-repeat keydown while a key is held, so the repeat IS the
   // hold signal — no keyup bookkeeping needed to detect it. _zyTriFired stops
   // the repeat from firing the action every frame after the threshold.
-  if (k === 'k' || k === 'y'){
-    const now = performance.now();
-    if (!game._zyTriDownAt) game._zyTriDownAt = now;
-    if (!game._zyTriFired && (now - game._zyTriDownAt) >= ZY_HOLD_MS){
-      game._zyTriFired = true;
-      try { quickSummonStashAll(); } catch(err){ console.warn('quick summon failed', err); }
-      try { paintZycellNav(); } catch(_){}
-    }
-    return true;
-  }
+  if (k === 'k' || k === 'y'){ zyTriangleHoldTick(); return true; }
   if (k === 'arrowup')    { zycellMoveCursor(-1); return true; }
   if (k === 'arrowdown')  { zycellMoveCursor(+1); return true; }
   if (k === 'q' || k === 'l'){ zycellCyclePage(-1); return true; }
@@ -31219,6 +31226,48 @@ function isInActiveCombat(){
 // away; if nobody is out, the hold sends everyone. Deciding per-Zyrex would
 // make a hold do half of each and read as a bug.
 const ZY_HOLD_MS = 480;                 // how long Triangle must be held
+// ★★ v0.95.729 · ONE Triangle handler for the whole ZyPhone.
+//
+// It used to exist only on the nav rail, so the gesture did nothing on the
+// FACTION panel — which is the one place a player would ever think to use it.
+// Browsers auto-repeat keydown while a key is held, so the repeat IS the hold
+// signal; _zyTriFired stops the repeat from firing every frame afterwards.
+function zyTriangleHoldTick(){
+  const now = performance.now();
+  if (!game._zyTriDownAt) game._zyTriDownAt = now;
+  if (!game._zyTriFired && (now - game._zyTriDownAt) >= ZY_HOLD_MS){
+    game._zyTriFired = true;
+    try { quickSummonStashAll(); } catch(err){ console.warn('quick summon failed', err); }
+    try { paintZycellNav(); } catch(_){}
+    try { paintZycellContent(); } catch(_){}
+  }
+}
+// The TAP action, fired on RELEASE and only when the hold did not complete.
+// Press cannot do this any more: if it did, the first keydown of a HOLD would
+// already have summoned one Zyrex and closed the phone.
+function zyTriangleTap(){
+  if (!game.zphoneOpen) return;
+  if (game._zyTriFired) return;                       // the hold already acted
+  if (game._zycellFocus !== 'content') return;         // nav rail · hold-only
+  try {
+    if (zycellPage === 'faction' && game._factionExamineIdx != null){
+      toggleFactionSummon(game._factionExamineIdx);
+      closeZphonePanel();
+      return;
+    }
+    const items = document.querySelectorAll('#zycellContent [data-zyitem]');
+    const el = items[game._zycellItemIdx];
+    if (!el) return;
+    const summonIdx = el.getAttribute('data-zysummon');
+    if (summonIdx != null){
+      toggleFactionSummon(+summonIdx);
+      closeZphonePanel();
+      return;
+    }
+    const fav = el.querySelector('.zyBagFav') || el.querySelector('[data-zyfav]');
+    if (fav) fav.click();
+  } catch(err){ console.warn('triangle tap failed', err); }
+}
 function summonedZyrexCount(){
   const party = (player.party || []).filter(Boolean);
   let n = 0;

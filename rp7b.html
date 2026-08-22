@@ -17075,11 +17075,22 @@ const _GOLD_CLOSED_BBOX   = [143, 184, 968, 886];   // CC-measured
 // ══════════════════════════════════════════════════════════════════════════
 // ★★ THE TELESCOPE · v0.95.719 · the door into Dreamland
 //
-// Stands against the treehouse's north wall.  Blocks its tile so the player
-// has to face it from an adjacent square to press X — the same contract as
-// the two chests, which is what makes an interactable read as an OBJECT
-// rather than a trigger you can stand inside.
-const TREEHOUSE_TELESCOPE = { tileX: 22, tileY: 5 };
+// Stands in the treehouse's UPPER LEFT, lens angled out to the north-west.
+// Blocks its tile so the player has to face it from an adjacent square to
+// press X — the same contract as the two chests, which is what makes an
+// interactable read as an OBJECT rather than a trigger you can stand inside.
+//
+// Row 0 is the wall band (blocked by cfg.wallImg), so row 3 is as high as a
+// floor object can sit and still be approachable from above.
+const TREEHOUSE_TELESCOPE = { tileX: 4, tileY: 3 };
+// ★ v0.95.721 · art hook.  The moment telescope.png lands in decor/ this
+// picks it up and the primitives stop being used — no other change needed.
+// Until then drawTreehouseTelescope falls back to drawing it, exactly like
+// the Dreamland plate did before the Creator's tile arrived.
+const TELESCOPE_IMG = new Image();
+TELESCOPE_IMG.src = 'assets/2D%20sprites/decor/telescope.png';
+// Rizer is 2 tiles head-to-feet, so the telescope matches him at 2 tiles.
+const TELESCOPE_TILES_TALL = 2;
 // ★ SECONDS = LEVEL.  "level 10 = 10 seconds in dreamland, level 80 = 80
 // seconds."  Taken literally, which has a consequence worth stating plainly:
 // at level 1 you get ONE SECOND.  That is not a bug and it is not padded —
@@ -17235,15 +17246,43 @@ function drawTreehouseTelescope(){
   const cx = (T.tileX + 0.5) * TILE - _cam.x;
   const baseY = (T.tileY + 1) * TILE - _cam.y;
   const now = performance.now();
-  ctx.save();
-  // tripod
-  ctx.strokeStyle = '#6b4a26'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  for (const dx of [-10, 0, 10]){
-    ctx.beginPath(); ctx.moveTo(cx + dx, baseY - 2); ctx.lineTo(cx + dx * 0.25, baseY - 34); ctx.stroke();
+  // ── the Creator's art, once it exists ───────────────────────────────
+  if (TELESCOPE_IMG.complete && TELESCOPE_IMG.naturalWidth){
+    // ★ SCALE FROM HEIGHT, NEVER FROM THE CELL.  drawH is pinned to
+    // TELESCOPE_TILES_TALL and the width follows the source aspect, so
+    // whatever dimensions the PNG arrives at it renders at Rizer's height
+    // and is never squashed.  Feet sit on the tile's bottom edge, same
+    // contract as every other floor object.
+    const drawH = Math.round(TILE * TELESCOPE_TILES_TALL);
+    const drawW = Math.round(drawH * (TELESCOPE_IMG.naturalWidth / TELESCOPE_IMG.naturalHeight));
+    ctx.save();
+    // ★ MIRRORED so the lens faces NORTH-WEST.  Translating to the object's
+    // centre first means the flip pivots on the telescope, not on the world
+    // origin — otherwise it would fly off to negative x.
+    ctx.translate(cx, baseY);
+    ctx.scale(-1, 1);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(TELESCOPE_IMG, -Math.round(drawW / 2), -drawH, drawW, drawH);
+    ctx.restore();
+    return;
   }
-  // tube · angled up toward the window
-  ctx.translate(cx, baseY - 36);
+  // ── placeholder · brass tube on a tripod, drawn from primitives ─────
+  // Mirrored to match the art's intended facing so the placement reads the
+  // same before and after the swap.
+  ctx.save();
+  ctx.translate(cx, baseY);
+  ctx.scale(-1, 1);
+  const S = TELESCOPE_TILES_TALL;          // primitives sized in tile units
+  ctx.strokeStyle = '#6b4a26'; ctx.lineWidth = 3 * S / 2; ctx.lineCap = 'round';
+  for (const dx of [-10, 0, 10]){
+    ctx.beginPath();
+    ctx.moveTo(dx * S / 2, -2);
+    ctx.lineTo(dx * 0.25 * S / 2, -34 * S / 2);
+    ctx.stroke();
+  }
+  ctx.translate(0, -36 * S / 2);
   ctx.rotate(-0.62);
+  ctx.scale(S / 2, S / 2);
   const grad = ctx.createLinearGradient(0, -7, 0, 7);
   grad.addColorStop(0,   '#e0c169');
   grad.addColorStop(0.5, '#a8802f');
@@ -17252,7 +17291,6 @@ function drawTreehouseTelescope(){
   ctx.fillRect(-6, -7, 44, 14);
   ctx.fillStyle = '#4a370f';
   ctx.fillRect(30, -9, 8, 18);                      // objective housing
-  // lens · glints on a slow cycle so the object reads as live, not scenery
   const glint = 0.45 + Math.sin(now / 700) * 0.30;
   ctx.fillStyle = `rgba(150,210,255,${glint.toFixed(3)})`;
   ctx.fillRect(37, -8, 3, 16);

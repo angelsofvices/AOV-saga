@@ -7549,7 +7549,7 @@ const NPCS = [
         try { playSFX('confirm'); } catch(_){}
         showDialog({ speaker: 'SCRAPJAW', lines: [
           '*sniff*  ...you smell like a rookie Rizer.  I like rookies.  Rookies buy stuff.',
-          '*leans in*  Every Rizer worth a damn keeps a RIZER page · skins, cosmetics, stat boosts.  Just unlocked yours on the touchpad · bring me GEMS to run upgrades.',
+          '*leans in*  Every Rizer worth a damn keeps a RIZER page · that\'s where your ATTRIBUTES live.  Just unlocked yours on the touchpad.',
           '*ear twitches*  While you\'re out there · I need a favor.  Our RADIO TOWER out northeast is DOWN · my crew left a chest of SCRAP METAL at the base before the Mori chased them off.',
           'Grab that scrap · bring it back to me · I\'ll build you a PHONE BATTERY on the spot.  Lets you call your contacts from anywhere in Zyraxis.',
           '*grins*  BONUS · if you clear the 6 Mori AND that VILEROK boss patrolling the plaza · my crew can climb the tower and I\'ll bump your bond hard.  Extermination\'s optional · scrap alone gets you the battery.',
@@ -22424,10 +22424,13 @@ function ensureRizerSkinState(){
   if (!player.rizerSkins){
     player.rizerSkins = {};
     RIZER_SKIN_ROSTER.forEach(s => {
-      player.rizerSkins[s.id] = { tiers: { hp:0, atk:0, def:0, spd:0, spc:0 } };
+      // ★ v0.95.716 · the per-skin `tiers` ladder is gone.  Nothing read it for
+      // combat, and leaving dead state that still gets written into every save
+      // is how a retired system comes back.  Outfits are identity only until
+      // Scrapjaw's gear shop exists, and that grants TEMPORARY boosts — a
+      // different shape, which should not inherit this one's fields.
+      player.rizerSkins[s.id] = {};
     });
-    // Default equipped = academy_uniform · +2 tiers each to match mockup preview
-    player.rizerSkins.academy_uniform.tiers = { hp:2, atk:2, def:2, spd:2, spc:2 };
     player.rizerSkinActive = 'academy_uniform';
     player.rizerSkinFav    = 'academy_uniform';
   }
@@ -22435,272 +22438,93 @@ function ensureRizerSkinState(){
   if (player.rizerSkinCursor == null) player.rizerSkinCursor = 0;
 }
 function drawRizerUpgradesPage(W, H){
-  ensureRizerSkinState();
-  // v0.95.401 · Official hero image · use it 1:1 with dynamic overlays
-  // Overlay live coin + gem counts on top of the header numbers · outfit
-  // selection glow renders on top of the highlighted skin tile · the rest
-  // of the UI (stat rows, portrait, control hints) is baked into the PNG
-  if (RIZER_UPGRADES_HERO_IMG.complete && RIZER_UPGRADES_HERO_IMG.naturalWidth){
-    ctx.clearRect(0, 0, W, H);
-    ctx.drawImage(RIZER_UPGRADES_HERO_IMG, 0, 0, W, H);
-    // ── Header · live coin + gem counts ────────────────────────────
-    const coins = (player.items?.coins || 0);
-    const gemVal = (typeof countGems === 'function') ? countGems() : 0;
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 26px "Courier New", monospace';
-    ctx.textAlign = 'right';
-    // Coin position: right of $ icon at ~x=1195/1672 · y=~65/941
-    ctx.fillText(coins.toLocaleString(), Math.round(W * 0.735), Math.round(H * 0.075));
-    // Gem position: right of gem icon at ~x=1590/1672 · y=~65/941
-    ctx.fillText(gemVal.toLocaleString(), Math.round(W * 0.965), Math.round(H * 0.075));
-    ctx.textAlign = 'left';
-    // ── Outfit selection glow · overlays selected skin tile in left grid ──
-    // Grid is 2×4 tiles inside the left panel · roughly x 0.03-0.29 · y 0.145-0.86
-    const gridX0f = 0.030, gridY0f = 0.155, gridWf = 0.260, gridHf = 0.700;
-    const gridX = Math.round(W * gridX0f), gridY = Math.round(H * gridY0f);
-    const gridW = Math.round(W * gridWf), gridH = Math.round(H * gridHf);
-    const cellW = Math.round(gridW / 2);
-    const cellH = Math.round(gridH / 4);
-    const ci = player.rizerSkinCursor || 0;
-    if (ci < 8){
-      const col = ci % 2, row = Math.floor(ci / 2);
-      const rx = gridX + col * cellW + 4;
-      const ry = gridY + row * cellH + 4;
-      const rw = cellW - 8;
-      const rh = cellH - 8;
-      ctx.save();
-      ctx.shadowColor = '#4fb3ff'; ctx.shadowBlur = 22;
-      ctx.strokeStyle = '#4fb3ff'; ctx.lineWidth = 4;
-      ctx.strokeRect(rx, ry, rw, rh);
-      ctx.shadowBlur = 12;
-      ctx.strokeStyle = 'rgba(79,179,255,0.75)'; ctx.lineWidth = 2;
-      ctx.strokeRect(rx + 5, ry + 5, rw - 10, rh - 10);
-      ctx.restore();
-    }
-    return;   // full hero-image mode · skip the fallback scaffold below
-  }
-  // ── Fallback procedural render (hero not loaded) ─────────────────
-  // ── Layout metrics ──────────────────────────────────────────────
-  const M = 20;                             // outer margin
-  const barY = 62;                          // below outer title bar
-  const bottomBarH = 44;
-  const bodyY = barY + 8;
-  const bodyH = H - bodyY - bottomBarH - 12;
-  const leftW  = Math.round(W * 0.24);
-  const rightW = Math.round(W * 0.30);
-  const midX = M + leftW + 14;
-  const midW = W - leftW - rightW - 14*2 - M*2;
-  const rightX = midX + midW + 14;
-  // ── Header · coins + gems (right-aligned) ───────────────────────
+  // ★★ v0.95.716 · REPLACED THE PARALLEL STAT SYSTEM.
+  //
+  // Creator: "remove scrapjaw upgrades and cosmetic upgrades for now. keep the
+  // current attribute system. u will be able to buy gear from scrapjaw to add
+  // temporary cosmetic boosts to player"
+  //
+  // What used to live here was a second, skin-scoped stat ladder — HEALTH /
+  // ATTACK / DEFENSE / SPEED / SPECIAL at "TIER 2/5", reading "+20 HP" and
+  // "+6 ATK" on screen. It was never wired to anything: player.rizerSkins[].tiers
+  // was read by exactly two RENDERERS and by no combat code at all, so those
+  // numbers had never once changed a hit. Two stat systems on the same five
+  // stats, one of them fictional, is the worst possible thing to leave beside a
+  // real one — so this page now shows the AP system and only the AP system.
+  //
+  // The outfit roster and rizerSkinActive stay: gear from Scrapjaw is the plan,
+  // and when it lands it grants TEMPORARY boosts, which is a different shape
+  // from a permanent ladder and should not reuse the retired one.
+  const cx = W / 2;
   ctx.fillStyle = '#ffd66b';
-  ctx.font = 'bold 12px "Courier New", monospace';
-  ctx.textAlign = 'right';
-  const coins = (player.items?.coins || 0);
-  const gemVal = (typeof countGems === 'function') ? countGems() : 0;
-  ctx.fillText(`💰 ${coins.toLocaleString()}    ◆ ${gemVal.toLocaleString()}`, W - M, barY - 8);
-  ctx.textAlign = 'left';
-  // ── LEFT COL · OUTFITS / SKINS scroll list ──────────────────────
-  const panelBg = (x, y, w, h, accent) => {
-    ctx.fillStyle = 'rgba(10,18,42,0.85)';
-    ctx.fillRect(x, y, w, h);
-    ctx.lineWidth = 2; ctx.strokeStyle = accent || '#d4af37';
-    ctx.strokeRect(x, y, w, h);
-  };
-  panelBg(M, bodyY, leftW, bodyH);
-  ctx.fillStyle = '#ffd66b';
-  ctx.font = 'bold 13px "Courier New", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('◆ OUTFITS / SKINS ◆', M + leftW/2, bodyY + 22);
-  ctx.textAlign = 'left';
-  // Grid of skin cards · 2 cols · scrollable region
-  const cardW = Math.floor((leftW - 24) / 2);
-  const cardH = 96;
-  const rows  = Math.ceil(RIZER_SKIN_ROSTER.length / 2);
-  RIZER_SKIN_ROSTER.forEach((s, i) => {
-    const col = i % 2, row = Math.floor(i / 2);
-    const cx = M + 8 + col * (cardW + 4);
-    const cy = bodyY + 34 + row * (cardH + 4);
-    const sel = (i === player.rizerSkinCursor);
-    const isFav = (s.id === player.rizerSkinFav);
-    const isActive = (s.id === player.rizerSkinActive);
-    // Card frame
-    ctx.fillStyle = sel ? 'rgba(30,60,120,0.9)' : 'rgba(0,0,0,0.55)';
-    ctx.fillRect(cx, cy, cardW, cardH);
-    ctx.lineWidth = sel ? 3 : 1.5;
-    ctx.strokeStyle = sel ? '#4fb3ff' : (s.unlocked ? s.accent : '#333');
-    ctx.strokeRect(cx, cy, cardW, cardH);
-    // Portrait placeholder · colored plate
-    ctx.fillStyle = s.unlocked ? 'rgba(20,50,120,0.6)' : 'rgba(30,30,30,0.6)';
-    ctx.fillRect(cx + 6, cy + 6, cardW - 12, cardH - 26);
-    // Icon
-    ctx.fillStyle = s.accent;
-    ctx.font = 'bold 30px "Courier New", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(s.unlocked ? '☆' : '🔒', cx + cardW/2, cy + 52);
-    // Name label
-    ctx.fillStyle = s.unlocked ? '#f0eadf' : '#555';
-    ctx.font = 'bold 9px "Courier New", monospace';
-    ctx.fillText(s.name.length > 22 ? s.name.slice(0, 20) + '..' : s.name, cx + cardW/2, cy + cardH - 6);
-    ctx.textAlign = 'left';
-    // Favorite star · top-right
-    if (isFav){
-      ctx.fillStyle = '#ffd66b';
-      ctx.font = 'bold 14px "Courier New", monospace';
-      ctx.fillText('★', cx + cardW - 16, cy + 16);
-    }
-    // Equipped pip · top-left
-    if (isActive){
-      ctx.fillStyle = '#5fdc7a';
-      ctx.fillRect(cx + 4, cy + 4, 6, 6);
-    }
-  });
-  // ── CENTER COL · large preview ──────────────────────────────────
-  panelBg(midX, bodyY, midW, bodyH, '#d4af37');
-  const active = RIZER_SKIN_ROSTER.find(s => s.id === player.rizerSkinActive) || RIZER_SKIN_ROSTER[0];
-  // Star-field decoration
-  ctx.fillStyle = 'rgba(200,220,255,0.15)';
-  for (let i = 0; i < 30; i++){
-    const sx = midX + 20 + (i * 137) % (midW - 40);
-    const sy = bodyY + 30 + (i * 89)  % (bodyH - 60);
-    ctx.fillRect(sx, sy, 2, 2);
-  }
-  // Cosmic circle at Rizer's feet
-  const cxMid = midX + midW/2;
-  const cyFeet = bodyY + bodyH - 90;
-  ctx.strokeStyle = 'rgba(79,179,255,0.7)';
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.ellipse(cxMid, cyFeet, 110, 30, 0, 0, Math.PI*2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(79,179,255,0.35)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.ellipse(cxMid, cyFeet, 90, 24, 0, 0, Math.PI*2); ctx.stroke();
-  // Rizer character portrait · draw current player skin sheet if loaded, else placeholder
-  ctx.fillStyle = active.accent;
-  ctx.font = 'bold 120px "Courier New", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('◆', cxMid, cyFeet - 30);
-  // Name plate + EQUIPPED banner
-  ctx.fillStyle = '#fff';
   ctx.font = 'bold 20px "Courier New", monospace';
-  ctx.fillText(active.name, cxMid, bodyY + bodyH - 42);
-  ctx.strokeStyle = '#4fb3ff'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(midX + 40, bodyY + bodyH - 32); ctx.lineTo(midX + midW - 40, bodyY + bodyH - 32); ctx.stroke();
-  ctx.fillStyle = '#4fb3ff';
-  ctx.font = 'bold 14px "Courier New", monospace';
-  ctx.fillText('EQUIPPED', cxMid, bodyY + bodyH - 14);
-  ctx.textAlign = 'left';
-  // ── RIGHT COL · STAT BOOSTS ─────────────────────────────────────
-  panelBg(rightX, bodyY, rightW, bodyH);
-  ctx.fillStyle = '#ffd66b';
-  ctx.font = 'bold 13px "Courier New", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('✦ STAT BOOSTS ✦', rightX + rightW/2, bodyY + 22);
-  ctx.textAlign = 'left';
-  const stats = [
-    { key:'hp',  label:'HEALTH',  color:'#ff5b5b', suffix:'HP',  per:10 },
-    { key:'atk', label:'ATTACK',  color:'#ffd66b', suffix:'ATK', per: 3 },
-    { key:'def', label:'DEFENSE', color:'#4fb3ff', suffix:'DEF', per: 3 },
-    { key:'spd', label:'SPEED',   color:'#ffd66b', suffix:'SPD', per: 3 },
-    { key:'spc', label:'SPECIAL', color:'#c060ff', suffix:'SPC', per: 5 },
-  ];
-  const activeTiers = player.rizerSkins[active.id]?.tiers || { hp:0, atk:0, def:0, spd:0, spc:0 };
-  const rowH = Math.floor((bodyH - 46) / stats.length);
-  stats.forEach((s, i) => {
-    const rY = bodyY + 34 + i * rowH;
-    const rX = rightX + 8;
-    const rW = rightW - 16;
-    // Row plate
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(rX, rY, rW, rowH - 6);
-    ctx.strokeStyle = s.color; ctx.lineWidth = 1.5;
-    ctx.strokeRect(rX, rY, rW, rowH - 6);
-    // Icon square
-    ctx.fillStyle = s.color;
-    ctx.fillRect(rX + 6, rY + 8, 22, 22);
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 14px "Courier New", monospace';
-    const ic = s.key === 'hp' ? '♥' : s.key === 'atk' ? '⚔' : s.key === 'def' ? '⛨' : s.key === 'spd' ? '⚡' : '✦';
-    ctx.textAlign = 'center';
-    ctx.fillText(ic, rX + 17, rY + 24);
-    ctx.textAlign = 'left';
-    // Label
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px "Courier New", monospace';
-    ctx.fillText(s.label, rX + 34, rY + 22);
-    // Tier readout
-    const tier = activeTiers[s.key] || 0;
-    ctx.fillStyle = s.color;
-    ctx.font = '10px "Courier New", monospace';
-    ctx.fillText(`TIER ${tier} / 5`, rX + 100, rY + 22);
-    // + stat value
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px "Courier New", monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`+${tier * s.per} ${s.suffix}`, rX + rW - 32, rY + 22);
-    ctx.textAlign = 'left';
-    // Tier diamonds row
-    const dY = rY + 34;
-    const dSize = 12;
-    for (let t = 0; t < 5; t++){
-      const dX = rX + 34 + t * 24;
-      if (t < tier){
-        // Filled diamond
-        ctx.fillStyle = s.color;
-        ctx.beginPath();
-        ctx.moveTo(dX + dSize/2, dY);
-        ctx.lineTo(dX + dSize, dY + dSize/2);
-        ctx.lineTo(dX + dSize/2, dY + dSize);
-        ctx.lineTo(dX, dY + dSize/2);
-        ctx.closePath(); ctx.fill();
-      } else {
-        // Locked slot
-        ctx.strokeStyle = 'rgba(150,150,150,0.6)'; ctx.lineWidth = 1;
-        ctx.strokeRect(dX, dY, dSize, dSize);
-        ctx.fillStyle = 'rgba(200,200,200,0.5)';
-        ctx.font = 'bold 9px "Courier New", monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('🔒', dX + dSize/2, dY + dSize - 1);
-        ctx.textAlign = 'left';
-      }
-    }
-    // + button (right-most)
-    ctx.fillStyle = s.color;
-    ctx.fillRect(rX + rW - 26, dY - 4, 20, 20);
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 14px "Courier New", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('+', rX + rW - 16, dY + 11);
-    ctx.textAlign = 'left';
-  });
-  // Hint strip
+  ctx.fillText('◆ RIZER · ATTRIBUTES', cx, 92);
+
+  const lvl  = player.rizerLvl || 1;
+  const pool = rizerAttrPool(lvl);
+  const spent = rizerAttrSpent();
+  const free = Math.max(0, pool - spent);
+  const life = (typeof rizerLifetimeRXP === 'function') ? rizerLifetimeRXP() : 0;
+
+  ctx.font = '11px "Courier New", monospace';
   ctx.fillStyle = '#8ff';
-  ctx.font = '10px "Courier New", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('✦ Upgrade skins to unlock permanent stat boosts.', rightX + rightW/2, bodyY + bodyH - 8);
-  ctx.textAlign = 'left';
-  // ── BOTTOM CONTROL BAR ──────────────────────────────────────────
-  const barY2 = H - bottomBarH;
-  ctx.fillStyle = 'rgba(10,18,42,0.85)';
-  ctx.fillRect(0, barY2, W, bottomBarH);
-  ctx.strokeStyle = 'rgba(212,175,55,0.7)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0, barY2); ctx.lineTo(W, barY2); ctx.stroke();
-  const controls = [
-    ['Ⓐ', 'EQUIP',    '#5fdc7a'],
-    ['Ⓧ', 'UPGRADE',  '#4fb3ff'],
-    ['Ⓨ', 'PREVIEW',  '#ffd66b'],
-    ['★', 'FAVORITE', '#ffd66b'],
-    ['Ⓑ', 'BACK',     '#ff6a3d'],
+  ctx.fillText(`LEVEL ${lvl} / 100      RXP ${life.toLocaleString()} / 1,000,000      AP ${spent} / ${pool}`, cx, 116);
+
+  if (free > 0){
+    ctx.fillStyle = 'rgba(255,214,107,0.16)';
+    ctx.fillRect(cx - 230, 132, 460, 30);
+    ctx.strokeStyle = '#ffd66b'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(cx - 230, 132, 460, 30);
+    ctx.fillStyle = '#ffd66b';
+    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillText(`★ ${free} ATTRIBUTE POINT${free === 1 ? '' : 'S'} UNSPENT`, cx, 152);
+  }
+
+  const a = rizerAttrs();
+  const rows = [
+    ['hp',      '♥ HEALTH',  '#ff5b5b', `${rizerHpMaxFromAttrs()} max HP`],
+    ['atk',     '⚔ ATTACK',  '#ff9c66', `${rizerBaseAtkFromAttrs().toFixed(1)} base attack`],
+    ['def',     '⛨ DEFENSE', '#4fb3ff', `−${Math.round((1 - rizerDefMult()) * 100)}% damage taken`],
+    ['speed',   '⚡ SPEED',   '#ffd66b', `+${Math.round((1 / rizerSpeedMult() - 1) * 100)}% movement`],
+    ['special', '✦ SPECIAL', '#c060ff', `×${rizerSpecialMult().toFixed(2)} astral · ${rizerAstralMaxFromAttrs()} ◆`],
   ];
-  const slot = W / controls.length;
-  controls.forEach((c, i) => {
-    const cxc = i * slot + slot/2;
-    ctx.fillStyle = c[2]; ctx.font = 'bold 14px "Courier New", monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(c[0], cxc - 40, barY2 + 28);
-    ctx.fillStyle = '#f0eadf';
+  const rowW = 560, rowH = 46, x0 = cx - rowW / 2;
+  let y = free > 0 ? 182 : 156;
+  ctx.textAlign = 'left';
+  for (const [key, label, color, effect] of rows){
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x0, y, rowW, rowH - 6);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    ctx.strokeRect(x0, y, rowW, rowH - 6);
+    ctx.fillStyle = color;
     ctx.font = 'bold 12px "Courier New", monospace';
+    ctx.fillText(label, x0 + 12, y + 18);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 17px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(String(a[key]), x0 + 172, y + 20);
     ctx.textAlign = 'left';
-    ctx.fillText(c[1], cxc - 32, barY2 + 28);
-  });
+    // proportional bar · 666 is an even five-way split of the 3330 cap
+    const bw = rowW - 200;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(x0 + 186, y + 9, bw, 7);
+    ctx.fillStyle = color;
+    ctx.fillRect(x0 + 186, y + 9, Math.max(0, Math.min(bw, bw * (a[key] / 666))), 7);
+    ctx.fillStyle = '#8ff';
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillText(effect, x0 + 186, y + 31);
+    y += rowH;
+  }
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.fillText('Spend points in the ZyPhone RIZER tab, or at the Nebuladock in your room.', cx, y + 22);
+  // Stated as a plan, with no numbers and no button, because it is not built.
+  ctx.fillStyle = '#667';
+  ctx.font = '10px "Courier New", monospace';
+  ctx.fillText('Gear from Scrapjaw — temporary boosts — not yet available.', cx, y + 42);
   ctx.textAlign = 'left';
 }
 
@@ -23098,37 +22922,35 @@ function renderZycellZycube(){
   return _zySection('◈ ZYCUBE · YOUR STORAGE', body);
 }
 
-// ── RIZER · cosmetic loadout + 5 stat rows ──────────────────────────
+// ── RIZER · attribute allocation + equipped outfit ──────────────────
+// ★ v0.95.716 · the "STAT BOOSTS · gems fuel upgrades (Scrapjaw)" block that
+// used to sit under here is gone.  It rendered HEALTH/ATTACK/DEFENSE/SPEED/
+// SPECIAL at "TIER 2/5 · +20 HP · +6 ATK", none of which was ever applied to
+// anything — player.rizerSkins[].tiers had exactly two readers, both of them
+// renderers.  Showing a second set of numbers for the same five stats, beside
+// the AP system that actually works, could only ever mislead.
 function renderZycellRizer(){
   try { ensureRizerSkinState(); } catch(_){}
   const active = (typeof RIZER_SKIN_ROSTER !== 'undefined')
     ? RIZER_SKIN_ROSTER.find(s => s.id === player.rizerSkinActive) : null;
   const skinName = active ? active.name : (player.cosmeticSkin || 'NORMAL').toUpperCase();
-  const tiers = (player.rizerSkins?.[player.rizerSkinActive]?.tiers) || { hp:0, atk:0, def:0, spd:0, spc:0 };
-  const per = { hp:10, atk:3, def:3, spd:3, spc:5 };
-  const bar = (label, tier, suffix, color) => `
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid ${color}; background:rgba(0,0,0,0.4);">
-      <span style="color:${color}; font-weight:bold; font-size:11px;">${label}</span>
-      <span style="color:#fff; font-size:11px;">TIER ${tier}/5</span>
-      <span style="color:#fff; font-weight:bold; font-size:11px;">+${tier * per[label.split(' ')[1].toLowerCase()] || 0} ${suffix}</span>
-    </div>`;
-  const stats = `
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid #ff5b5b; background:rgba(0,0,0,0.4);"><span style="color:#ff5b5b; font-weight:bold; font-size:11px;">❤ HEALTH</span><span style="color:#fff; font-size:11px;">TIER ${tiers.hp}/5</span><span style="color:#fff; font-weight:bold; font-size:11px;">+${tiers.hp*10} HP</span></div>
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid #ffd66b; background:rgba(0,0,0,0.4);"><span style="color:#ffd66b; font-weight:bold; font-size:11px;">⚔ ATTACK</span><span style="color:#fff; font-size:11px;">TIER ${tiers.atk}/5</span><span style="color:#fff; font-weight:bold; font-size:11px;">+${tiers.atk*3} ATK</span></div>
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid #4fb3ff; background:rgba(0,0,0,0.4);"><span style="color:#4fb3ff; font-weight:bold; font-size:11px;">⛨ DEFENSE</span><span style="color:#fff; font-size:11px;">TIER ${tiers.def}/5</span><span style="color:#fff; font-weight:bold; font-size:11px;">+${tiers.def*3} DEF</span></div>
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid #ffd66b; background:rgba(0,0,0,0.4);"><span style="color:#ffd66b; font-weight:bold; font-size:11px;">⚡ SPEED</span><span style="color:#fff; font-size:11px;">TIER ${tiers.spd}/5</span><span style="color:#fff; font-weight:bold; font-size:11px;">+${tiers.spd*3} SPD</span></div>
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid #c060ff; background:rgba(0,0,0,0.4);"><span style="color:#c060ff; font-weight:bold; font-size:11px;">✦ SPECIAL</span><span style="color:#fff; font-size:11px;">TIER ${tiers.spc}/5</span><span style="color:#fff; font-weight:bold; font-size:11px;">+${tiers.spc*5} SPC</span></div>`;
   // v0.95.713 · attribute allocation leads the panel · the section title
   // carries the unspent count so the player sees it without opening anything.
   const _free = rizerAttrUnspent();
   const _attrTitle = _free > 0
     ? `★ ATTRIBUTES · ${_free} POINT${_free === 1 ? '' : 'S'} TO SPEND`
     : '★ ATTRIBUTES';
+  // Stated as a plan — no numbers, no button, no tier ladder — because gear is
+  // not built.  A placeholder that quoted a boost would be the same mistake the
+  // retired panel made.
+  const outfit = `
+    <div style="text-align:center; color:#fff; font-size:16px; font-weight:bold; letter-spacing:.14em; padding:8px;">${skinName}</div>
+    <div style="text-align:center; color:#667; font-size:10px; letter-spacing:.04em; padding-bottom:4px;">
+      Gear from Scrapjaw — temporary boosts — not yet available.
+    </div>`;
   return `
     ${_zySection(_attrTitle, buildRizerAttrPanel('phone'), _free > 0 ? '#ffd66b' : '#4fb3ff')}
-    ${_zySection('☆ EQUIPPED SKIN', `<div style="text-align:center; color:#fff; font-size:16px; font-weight:bold; letter-spacing:.14em; padding:8px;">${skinName}</div>`)}
-    ${_zySection('✦ STAT BOOSTS · gems fuel upgrades (Scrapjaw)', stats)}
-    <div style="text-align:center; color:#8ff; font-size:10px; padding:6px;">Visit Scrapjaw in Malezor to trade gems for stat upgrades.</div>`;
+    ${_zySection('☆ EQUIPPED OUTFIT', outfit)}`;
 }
 
 // ── FACTION · 2×4 party grid · click a slot for details ─────────────

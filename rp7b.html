@@ -2437,7 +2437,12 @@ const INVENTORY_META = {
   fairy:            { label: 'Fairy',                   order: 48 },   // v0.95.604 · 20% chance drop when Rizer SHATTERS an astralite stone with his HANDS (punch/kick) · the fairy was "pollinating" the stone at the time
   raidcard:         { label: 'R.A.I.D. Card',            order: 4  },   // v0.95.655 · Prof Elarion's academy card · the canvas bag had a synthetic label but the ZyPhone Zycube panel showed the raw key 'raidcard'
   tower_battery:    { label: 'Tower Battery',           order: 49 },   // v0.95.611 · Scrapjaw tower network · 1 dropped per district-tower Scrap Chest · deliver to Scrapjaw to light up that district's contact-call signal
-  ruby_vial:        { label: 'Ruby Vial',               order: 51 },   // v0.95.615 · Silver chest inside Seer HQ 1F · fetch quest item for the future Potion Maker (spawns in front of Malezor Potion Shop) · when returned she opens shop selling ales/potions/elixirs at premium price
+  // v0.95.724 · Zurelea REDEEMS this for 300 gems (ZURELEA_VIAL_GEMS) and hands
+  // it to Rizer · that transaction is what opens the Malezor Potion Shop.
+  // The Seer HQ 1F silver chest still drops one as an alternate route for
+  // anyone who raided the HQ before ever speaking to her — bringing it to her
+  // opens the shop too, and costs nothing.
+  ruby_vial:        { label: 'Ruby Vial',               order: 51 },
   shardshare_broken:{ label: 'Broken Shardshare',       order: 52 },   // v0.95.619 · Silver chest at (69,358) · "looks like something dad can fix" · bring to Dad
   shardshare:       { label: 'Shardshare Collar',       order: 53 },   // v0.95.619 · Dad-repaired · while owned, ALL party Zyrex gain 0.5× the active duelist's XP per defeated foe in F v F duels
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
@@ -7184,18 +7189,52 @@ const NPCS = [
         try { pingNextObjective(); } catch(_){}
         return;
       }
+      // ── Stage 1b · v0.95.724 · 300 GEMS BUYS THE VIAL BACK ──
+      // Creator: "zurelea give u the rubyvial when u find her 300 gems at
+      // first. this unlocks potion shop"
+      //
+      // The direction of the fetch is INVERTED from v0.95.632. She no longer
+      // sends you into the Seer HQ for it — she already knows where it is and
+      // what it costs to get it out. Bring her 300 gems and SHE hands YOU the
+      // vial, which is what opens the shop.
+      //
+      // 300 is measured in countGems(), the same weighted total the gem pill
+      // in the HUD shows, so "300" on screen means 300 to her. Anything else
+      // and the player is doing arithmetic the game should be doing.
+      if (player.zureleaQuestGiven && countGems() >= ZURELEA_VIAL_GEMS){
+        const _paid = spendGems(ZURELEA_VIAL_GEMS);
+        player.items.ruby_vial = (player.items.ruby_vial || 0) + 1;
+        player.zureleaShopOpen = true;
+        bump(35);
+        try { playItemGain('ruby_vial'); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        showDialog({ speaker: 'ZURELEA', lines: [
+          `*she counts the gems without looking down*  Three hundred. Exactly three hundred.`,
+          '*a tentacle reaches under the counter and comes up holding it*  The RUBY VIAL. I bought it back off a Seer quartermaster years ago and never had the gems to redeem it.',
+          'Tempered glass. Nothing else holds a volatile brew without cracking halfway through the boil. It\'s yours — and so are my shelves.',
+          'Ales, potions, elixirs. I charge a premium, but I never run dry.',
+        ]});
+        // Report what was ACTUALLY taken · gems are indivisible, so a wallet
+        // with no small stones can overshoot the asking price.
+        showToast(`★ ZURELEA · paid ${_paid} gems · received RUBY VIAL · Potion Shop OPEN`, 4600);
+        try { pingNextObjective(); } catch(_){}
+        return;
+      }
       // ── Stage 1 · the ask ──
       if (!player.zureleaQuestGiven){
         player.zureleaQuestGiven = true;
         bump(10);
         try { pingNextObjective(); } catch(_){}
       }
-      showDialog({ speaker: 'ZURELEA', lines: [
-        'Welcome to the Malezor Potion Shop. I would love to sell you something. I can\'t.',
-        'The Seers cleared me out — took the shelves, took the stock, and took the RUBY VIAL. Without it I can\'t brew a single thing that won\'t eat through its own bottle.',
-        'It\'ll be somewhere in their headquarters. Ground floor, if they were lazy — and they usually are.',
-        'Bring it back and I\'ll open properly. That\'s a promise, not a sales pitch.',
-      ]});
+      {
+        const _have = countGems();
+        showDialog({ speaker: 'ZURELEA', lines: [
+          'Welcome to the Malezor Potion Shop. I would love to sell you something. I can\'t.',
+          'The Seers cleared me out — took the shelves, took the stock, and took the RUBY VIAL. Without it I can\'t brew a single thing that won\'t eat through its own bottle.',
+          `I know exactly where it is. Getting it back costs ${ZURELEA_VIAL_GEMS} GEMS, and I have never once had ${ZURELEA_VIAL_GEMS} gems at the same time.`,
+          `*she looks at your pouch*  You have ${_have}. Bring me ${ZURELEA_VIAL_GEMS} and the vial is yours — and the shelves with it.`,
+        ]});
+      }
     },
   },
   {
@@ -23175,6 +23214,9 @@ function drawRizerUpgradesPage(W, H){
 // v0.95.405 · countGems() · full 8-color spectrum · linear +20 per rarity tier
 // red=20 · blue=40 · green=60 · yellow=80 · white=100 · orange=120 · purple=140 · black=160
 // One gem-value pool that Rizer Upgrades + Scrapjaw's gear-work price against
+// ★ v0.95.724 · what Zurelea charges to redeem the Ruby Vial · counted in
+// countGems(), the same weighted total the HUD's gem pill displays.
+const ZURELEA_VIAL_GEMS = 300;
 const GEM_VALUES = {
   gem_red: 20, gem_blue: 40, gem_green: 60, gem_yellow: 80,
   gem_white: 100, gem_orange: 120, gem_purple: 140, gem_black: 160,
@@ -23186,6 +23228,63 @@ function countGems(){
     total += (it[key] || 0) * GEM_VALUES[key];
   }
   return total;
+}
+// ★★ v0.95.724 · ONE gem-spending path.
+//
+// This existed twice already, hand-inlined in the sword and Rubypaw repair
+// handlers, and BOTH copies were wrong in the same two ways:
+//
+//   1 · they walked spendOrder ['gem_yellow','gem_green','gem_blue','gem_red',...]
+//       under a comment that says "pick cheapest first" — but in GEM_VALUES
+//       yellow is 80 and red is 20, so that order is DESCENDING. It burned
+//       your best gems first and kept the junk.
+//   2 · `const have = player.items[k] || 0;` was captured once and never
+//       decremented, so the while-condition never changed; the loop only
+//       terminated on the inner break. It worked by accident.
+//
+// Cheapest-first genuinely matters here: gems are also the ◆ diamond source
+// (GEM_DIAMOND_VALUES, a different table for a different purpose), so spending
+// a black gem to settle a 20-gem debt throws away 1,280 diamond.
+function gemSpendOrder(){
+  return Object.keys(GEM_VALUES).sort((a, b) => GEM_VALUES[a] - GEM_VALUES[b]);
+}
+// ★ Returns the value ACTUALLY spent, which can exceed the amount asked for.
+// Gems are indivisible and there is no change: settling a 40 debt with nothing
+// smaller than a 160 costs 160. Two phases keep that overshoot as small as the
+// wallet allows —
+//   1 · pay down with the cheapest gems that still fit under the remainder
+//   2 · settle whatever is left with the SMALLEST single gem that covers it
+// Returning the true figure (rather than the requested one) is what lets the
+// caller tell the player what it really cost. A shop that quietly takes 420
+// for a 300 item and says "300" is lying to them.
+// Never partially charges: affordability is checked before anything is taken.
+function spendGems(amount){
+  const need0 = Math.max(0, Math.round(amount || 0));
+  if (!need0) return 0;
+  if (countGems() < need0) return 0;
+  player.items = player.items || {};
+  const order = gemSpendOrder();
+  let need = need0, spent = 0;
+  const take = (k) => {
+    player.items[k] -= 1;
+    spent += GEM_VALUES[k] || 1;
+    need -= GEM_VALUES[k] || 1;
+    if (player.items[k] <= 0) delete player.items[k];     // no 0-count clutter
+  };
+  // 1 · cheapest first, but never overshoot on purpose
+  for (const k of order){
+    const val = GEM_VALUES[k] || 1;
+    while (need >= val && (player.items[k] || 0) > 0) take(k);
+    if (need <= 0) break;
+  }
+  // 2 · the remainder · smallest gem that covers it, else keep paying up
+  while (need > 0){
+    const fit = order.find(k => (player.items[k] || 0) > 0 && (GEM_VALUES[k] || 1) >= need);
+    const any = order.find(k => (player.items[k] || 0) > 0);
+    if (!fit && !any) break;                              // wallet exhausted
+    take(fit || any);
+  }
+  return spent;
 }
 // v0.95.414 · Wallet click now routes into the ZyPhone ZYCUBE tab (one source of truth)
 // falls back to the standalone panel if the phone isn't unlocked yet (no zphone item)
@@ -23902,19 +24001,7 @@ function renderZycellWeapons(){
           showToast(`◈ Not enough gems · need 100 (have ${gc})`, 2400);
           return;
         }
-        // Spend 100 gems worth · pick cheapest first
-        let need = 100;
-        const spendOrder = ['gem_yellow','gem_green','gem_blue','gem_red','gem_white','gem_orange','gem_purple','gem_black'];
-        for (const k of spendOrder){
-          if (need <= 0) break;
-          const val = (typeof GEM_VALUES !== 'undefined' && GEM_VALUES[k]) || 1;
-          const have = player.items[k] || 0;
-          while (have > 0 && need > 0){
-            player.items[k] -= 1;
-            need -= val;
-            if (player.items[k] <= 0) break;
-          }
-        }
+        spendGems(100);   // v0.95.724 · one shared path · genuinely cheapest-first
         player.swordDurability = 200;
         player.swordBroken = false;
         try { playSFX('confirm'); } catch(_){}
@@ -23993,16 +24080,7 @@ function renderZycellWeapons(){
             showToast(`◈ Not enough gems · need 100 (have ${gc})`, 2400);
             return;
           }
-          let need = 100;
-          const order = ['gem_yellow','gem_green','gem_blue','gem_red','gem_white','gem_orange','gem_purple','gem_black'];
-          for (const k of order){
-            if (need <= 0) break;
-            const val = (typeof GEM_VALUES !== 'undefined' && GEM_VALUES[k]) || 1;
-            while ((player.items[k] || 0) > 0 && need > 0){
-              player.items[k] -= 1;
-              need -= val;
-            }
-          }
+          spendGems(100);   // v0.95.724 · the SECOND inline copy · same bug, renamed variable
           player.rubypawDurability = 200;
           player.rubypawBroken = false;
           try { playSFX('confirm'); } catch(_){}

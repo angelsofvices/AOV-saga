@@ -36,16 +36,31 @@ reason they render as orbs. That's a code fix on my side. Don't generate them.
 - **COLUMNS = animation frames 0→3**, a clean loop (frame 3 must read back into frame 0).
 
 ## ★ THE ONE RULE THAT BREAKS SHEETS
-**Leave ≥ 10 px of empty margin on all four sides of every cell.**
+**Never let one frame's art overlap the pixels of another frame.**
 
-Anything touching a cell boundary is severed by the engine and renders as a
-**floating fragment beside the neighbouring frame.** This is not theoretical — it
-is the exact live defect in Batch 2, measured today: 6 of 8 Seer Grunt sheets have
-the UP row touching row 0 of the cell on every single column.
+> **CORRECTED 2026-08-22.** An earlier version of this section said art touching
+> a cell boundary is "severed by the engine". **That is wrong**, and Batch 2 was
+> written on it. The engine does not clip to the cell: it computes
+> `sx = col*cellW + bx`, `sy = row*cellH + by` and reads a `bw × bh` source rect
+> with no clamp. A frame whose box runs past its cell simply samples the
+> neighbouring *band* — which is harmless when that band is empty there, and
+> several shipped sheets have always done it. What actually breaks a sheet is
+> when the overrun lands on **another frame's artwork**, which then renders as a
+> foreign limb attached to your character.
+
+So the practical rule is unchanged in spirit — **keep a comfortable margin,
+aim for ≥ 10 px** — but the reason matters: it is about not colliding with the
+neighbour, not about the boundary itself. Generous margins are simply the
+easiest way to guarantee that.
 
 That includes: antennae, horns, wing tips, hair spikes, tails, cape trails,
 projectiles, and any glow/aura. **The glow counts as art.** If a wing needs more
-room, draw the creature smaller — never let it kiss the edge.
+room, draw the creature smaller.
+
+**Do not paint any part of the character in magenta or near-magenta.** Frosane's
+breath wisps arrived painted in the chroma colour itself (opaque, rgb 224,95,237)
+and had to be recoloured by hand; Aetherwing's translucent wings were a near
+miss for the same reason.
 
 ## Background / chroma
 - Background = **pure magenta `#FF00FF`**, flat, edge to edge, on all 16 cells.
@@ -116,27 +131,30 @@ Type drives the colour of the gem/metal accents:
 
 ---
 
-# BATCH 2 · SEER GRUNT UP-ROW REDRAW (6 SHEETS)
+# ~~BATCH 2 · SEER GRUNT UP-ROW REDRAW~~ · ✅ DELIVERED, AND PARTLY UNNECESSARY
 
-**Measured defect.** In these six sheets the **UP-facing row (row 3)** has art
-touching **row 0 of the cell** on every column. The engine severs it; the clipped
-piece renders as a floating fragment. The two `-attack` sheets are already correct
-(3–6 px of headroom) — **use those as the reference for the fix.**
+**Closed 2026-08-22 at v0.95.735.** All six re-delivered, re-measured, live.
 
-Re-deliver, same paths, same silhouette, same palette, **only re-composed with
-headroom**:
+**My ask was built on a wrong premise** — see the correction in §0. I reported
+the UP row as "touching the cell top, severed by the engine". The engine does not
+sever anything, and a re-run of my own diagnostic against the committed art shows
+the up-row margin was already a consistent **9 px**, not 0. The original 0 came
+from a measurement I did not check hard enough.
 
-- `assets/2D sprites/enemies/seer-grunt-a-idle.png`
-- `assets/2D sprites/enemies/seer-grunt-a-walk.png`
-- `assets/2D sprites/enemies/seer-grunt-a-run.png`
-- `assets/2D sprites/enemies/seer-grunt-b-idle.png`
-- `assets/2D sprites/enemies/seer-grunt-b-walk.png`
-- `assets/2D sprites/enemies/seer-grunt-b-run.png`
+**The redraw still helped, and here is exactly how much:**
 
-**The fix:** the hood peak / raised weapon / projectile in the UP row must sit at
-least **10 px below the top of its cell.** Scale the figure down slightly rather
-than cropping the hood. Do not change the character design, the outfit, the
-palette, or the other three rows.
+| sheet | up-row top | cells overrunning |
+|:--|:--|:--|
+| a-idle / a-walk | 0 → 9 px | 8 → 4 |
+| a-run | 0 → 9 px | 4 → 4 |
+| **b-idle / b-walk / b-run** | 0 → 9 px | **4 → 0** |
+
+Grunt B is now entirely inside its cells. Grunt A's remainder is its DOWN row
+feet reaching ~12 px into the band below, where there is no art — harmless, and
+it shipped that way before. Scale held: A `standBh` 212 unchanged, B re-measured
+256 → **255** (1 px). `scaleMul` untouched at 1.075 / 1.150.
+
+The two `-attack` sheets were never regenerated and did not need to be.
 
 ---
 

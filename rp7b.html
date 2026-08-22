@@ -17338,12 +17338,36 @@ function spawnTreehouseZyrex(){
   let idx = 0;
   owned.forEach(sid => {
     if (inParty.has(sid)) return;                       // active party skips
+    // ★ v0.95.718 · THIRD copy of the same dead end.  A sprite-less Zyrex you
+    // own was simply absent from your own treehouse — no orb, no placeholder,
+    // nothing.  It gets its orb form here too.  Kept as its own literal rather
+    // than routed through makeZyrexFollower because the treehouse residents
+    // use a different id prefix (_th_zyrex_ vs _summon_, which the despawn
+    // sweep and every startsWith('_summon_') check depend on) and a different
+    // mode ('wander', not 'follow').
     const spriteDef = SUMMONABLE_SPRITES[sid];
-    if (!spriteDef) return;                             // no sprite = no spawn
     const spot = spots[idx % spots.length]; idx++;
     const npcId = `_th_zyrex_${sid}`;
     let n = NPCS.find(x => x && x.id === npcId);
-    if (!n){
+    if (!n && !spriteDef){
+      n = {
+        id: npcId,
+        name: (player.zyrexEverOwned[sid] && player.zyrexEverOwned[sid].name) || sid,
+        speciesId: sid,
+        _orbFollower: true,
+        _phase: Math.random() * Math.PI * 2,
+        dir: 'down', mode: 'wander',
+        moving: false, animFrame: 0, idleFrame: 0,
+        wanderRadius: 3,
+        moveCd: 400 + Math.random() * 800,
+        isEnemy: false,
+        turnToInteract: true,
+        onInteract: () => showDialog({ speaker: String(n.name).toUpperCase(), lines: [
+          `*${n.name} drifts over as a pulse of light · its astral form has not settled yet*`,
+        ]}),
+      };
+      NPCS.push(n);
+    } else if (!n){
       n = {
         id: npcId,
         name: (player.zyrexEverOwned[sid] && player.zyrexEverOwned[sid].name) || sid,
@@ -25797,6 +25821,11 @@ function addZyrexToRoster(z){
     try { playSFX('cancel'); } catch(_){}
     return { location: 'pc', reason: 'bondLow' };
   }
+  // ★ v0.95.718 · owning a Zyrex unlocks the page that lists them.  Without
+  // this, bonding your first wild Zyrex put it somewhere the player could not
+  // open — the roster existed, the tab did not.  Set on BOTH the party and the
+  // PC path below, because a bond-gated overflow is still ownership.
+  player.zyrexMenuUnlocked = true;
   const activeCount = player.party.filter(Boolean).length;
   if (activeCount < PARTY_MAX){
     player.party.push(z);
@@ -25891,6 +25920,9 @@ function saveGame(){
         hp: player.hp, hpMax: player.hpMax,
         astral: player.astral, astralMax: player.astralMax,
         rizerLvl: player.rizerLvl, rizerXP: player.rizerXP, rizerXPMax: player.rizerXPMax,
+        // v0.95.718 · the FACTION tab unlock was NEVER saved · bond a wild
+        // Zyrex, reload, and the page that lists it was shut again.
+        zyrexMenuUnlocked: !!player.zyrexMenuUnlocked,
         attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
         faeCollected: player.faeCollected || 0,
         items: player.items || {},
@@ -26256,33 +26288,14 @@ function callFactionSummonAll(on){
       [2,3],[-2,3],[3,2],[-3,2],[2,-3],[-2,-3],[3,-2],[-3,-2],
     ];
     party.forEach((z, i) => {
-      const spriteDef = SUMMONABLE_SPRITES[z.speciesId];
-      if (!spriteDef) return;
+      // ★ v0.95.718 · this path ALSO had `if (!spriteDef) return;` — the same
+      // dead end as toggleFactionSummon, in a second place, silently skipping
+      // every sprite-less Zyrex from a summon-all.  Two hand-written copies of
+      // one construction is how they diverged; there is one builder now.
       const followerId = `_summon_${z.speciesId}`;
       let n = NPCS.find(x => x && x.id === followerId);
       if (!n){
-        n = {
-          id: followerId, name: z.name,
-          sheet: new Image(), src: spriteDef.src,
-          bboxes: spriteDef.bboxes,
-          cellW: spriteDef.cellW, cellH: spriteDef.cellH,
-          cols: 4, rows: 4,
-          uniformScale: true, scaleMul: spriteDef.scaleMul || 1,
-          dir: 'down', mode: 'stationary',
-          moving: false, animFrame: 0, idleFrame: 0,
-          blinkTimer: 1800 + Math.random() * 2000,
-          onInteract: () => showDialog({ speaker: z.name.toUpperCase(), lines: [`*${z.name} at your side*`] }),
-        };
-        n.sheet.src = spriteDef.src;
-        // v0.95.340 · Idle-sit / walk sheet split · when moving, drawNPC's
-        // useWalk branch swaps to walkSheet · when idle, default n.sheet plays
-        if (spriteDef.idleSrc){
-          n.walkSheet = n.sheet;                    // repurpose loaded sheet as walk anim
-          n.walkBboxes = spriteDef.bboxes;
-          n.sheet = new Image();
-          n.sheet.src = spriteDef.idleSrc;
-          n.bboxes = spriteDef.idleBboxes || spriteDef.bboxes;
-        }
+        n = makeZyrexFollower(z, { mode: 'stationary', dir: 'down' });
         NPCS.push(n);
       }
       const [dx, dy] = RING[i % RING.length];
@@ -30400,9 +30413,11 @@ function quickSummonStashAll(){
   // — so counting attempts would report "5 sent out" when two of them never
   // left the phone.  A number in a toast has to be a measurement.
   const changed = Math.abs(summonedZyrexCount() - out);
+  // v0.95.718 · every party member can deploy now — a missing sheet falls back
+  // to the orb form — so this is a NOTE about appearance, not a failure count.
   const noSprite = party.filter(z => !SUMMONABLE_SPRITES[z.speciesId]).length;
   if (!stashing && noSprite){
-    showToast(`◈ ${noSprite} Zyrex have no overworld form yet and stayed in the ZyCube`, 3000);
+    showToast(`◈ ${noSprite} deployed in orb form · their sprites are still pending`, 2800);
   }
   if (!changed){
     showToast(stashing ? '◈ Faction already stowed' : '◈ Faction already out', 2000);
@@ -30415,6 +30430,60 @@ function quickSummonStashAll(){
   return true;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ ONE ZYREX-FOLLOWER BUILDER · v0.95.718
+//
+// toggleFactionSummon (deploy one) and callFactionSummonAll (ring them all up)
+// each built this object by hand, and each carried its own `if (!spriteDef)`
+// bail — so a Zyrex with no sheet was undeployable from BOTH, in two places
+// that had already drifted apart in their details.  One builder now.
+//
+// Species with an overworld sheet get it.  Species without get the ORB they
+// were met as in the wild: drawZyrexOrb is fully procedural (type colour, tier
+// size, bob, aura, shadow), so this invents no art and fakes no sprite — it
+// says "the astral form has not settled yet", which is true.
+function makeZyrexFollower(z, opts){
+  const o = opts || {};
+  const spriteDef = SUMMONABLE_SPRITES[z.speciesId];
+  const followerId = `_summon_${z.speciesId}`;
+  const base = {
+    id: followerId,
+    name: z.name,
+    speciesId: z.speciesId,
+    dir: o.dir || player.dir,
+    mode: o.mode || 'follow',
+    moving: false, animFrame: 0, idleFrame: 0,
+    blinkTimer: 1800 + Math.random() * 2000,
+    _summoned: true, _summonSpeciesId: z.speciesId,
+    onInteract: () => showDialog({ speaker: String(z.name || '').toUpperCase(), lines: [
+      spriteDef ? `*${z.name} looks at you · ready to move*`
+                : `*${z.name} pulses beside you · its astral form has not settled yet*`,
+    ]}),
+  };
+  if (!spriteDef){
+    base._orbFollower = true;
+    base._phase = Math.random() * Math.PI * 2;
+    return base;
+  }
+  base.sheet   = new Image();
+  base.src     = spriteDef.src;
+  base.bboxes  = spriteDef.bboxes;
+  base.cellW   = spriteDef.cellW;
+  base.cellH   = spriteDef.cellH;
+  base.cols    = 4; base.rows = 4;
+  base.uniformScale = true;
+  base.scaleMul = spriteDef.scaleMul || 1;
+  base.sheet.src = spriteDef.src;
+  // Idle-sit / walk sheet split · drawNPC swaps to walkSheet while moving.
+  if (spriteDef.idleSrc){
+    base.walkSheet  = base.sheet;
+    base.walkBboxes = spriteDef.bboxes;
+    base.sheet = new Image();
+    base.sheet.src = spriteDef.idleSrc;
+    base.bboxes = spriteDef.idleBboxes || spriteDef.bboxes;
+  }
+  return base;
+}
 function toggleFactionSummon(partyIdx){
   const party = (player.party || []).filter(Boolean);
   const z = party[partyIdx];
@@ -30447,46 +30516,22 @@ function toggleFactionSummon(partyIdx){
   }
   // v0.95.535 · MULTI-SUMMON · retirement loop REMOVED · every party Zyrex may
   // walk with Rizer simultaneously.  Toggle each one independently from FACTION.
-  // Sprite gate · if we don't have a sheet for this species, toast + bail
-  if (!spriteDef){
-    showToast(`◈ ${z.name} sprite pending · can't summon yet`, 2400);
-    try { playSFX('doorLock'); } catch(_){}
-    return;
-  }
-  // Reuse or create the follower NPC
+  // ★★ v0.95.718 · A MISSING SHEET IS NO LONGER A DEAD END.
+  //
+  // This used to refuse outright: "sprite pending · can't summon yet".  Which
+  // meant that bonding a wild Zyrex in the field — the whole recruitment loop
+  // — produced a faction member that could never be deployed.  Only ELEVEN
+  // species have overworld sheets (verdanix, celestryx, apexaur, volcanut,
+  // otterlin, zarakai, voltigrax, rakoron, anciuxor, snok, elzebub), and NOT
+  // ONE of the twelve wild-spawnable species is among them.  Every wild
+  // recruit hit the refusal, every time.
+  //
+  // The fallback is the ORB the player already met it as in the wild:
+  // drawZyrexOrb is fully procedural — type colour, tier size, bob, aura — so
+  // it needs no art, invents no art, and is visually honest about what the
+  // Zyrex is.  Deploy and return work identically; only the body is pending.
   if (!follower){
-    follower = {
-      id: followerId,
-      name: z.name,
-      sheet: new Image(),
-      src:   spriteDef.src,
-      bboxes: spriteDef.bboxes,
-      cellW: spriteDef.cellW, cellH: spriteDef.cellH,
-      cols: 4, rows: 4,
-      uniformScale: true, scaleMul: spriteDef.scaleMul || 1,
-      dir: player.dir,
-      mode: 'follow',
-      moving: false,
-      animFrame: 0, idleFrame: 0,
-      blinkTimer: 1800 + Math.random() * 2000,
-      _summoned: true, _summonSpeciesId: z.speciesId,
-      onInteract: () => {
-        showDialog({ speaker: z.name.toUpperCase(), lines: [
-          `*${z.name} looks at you · ready to move*`,
-        ]});
-      },
-    };
-    follower.sheet.src = spriteDef.src;
-    // v0.95.346 · Idle-sit / walk sheet split (parity w/ callFactionSummonAll)
-    // Ensures Elzebub + Zarakai + any idleSrc-having Zyrex render IDLE FIRST
-    // when spawned as a follower · walk sheet only fires while n.moving===true
-    if (spriteDef.idleSrc){
-      follower.walkSheet = follower.sheet;
-      follower.walkBboxes = spriteDef.bboxes;
-      follower.sheet = new Image();
-      follower.sheet.src = spriteDef.idleSrc;
-      follower.bboxes = spriteDef.idleBboxes || spriteDef.bboxes;
-    }
+    follower = makeZyrexFollower(z);
     NPCS.push(follower);
   }
   // Position beside Rizer in current scene · v0.95.535 · multi-summon stagger
@@ -30923,7 +30968,13 @@ function drawWorldLayer(){
         // v0.95.404 · Skellor sprite pipeline · overlay REPLACES base render
         // during hurt flash + when slain · avoids the double-sprite issue
         const n = r.npc;
-        if (n && n.mode === 'skellor' && (n._skellorDead || (n._hurtFlashUntil || 0) > _now)){
+        // ★ v0.95.718 · a deployed Zyrex with no sheet draws as the ORB the
+        // player met it as in the wild.  drawZyrexOrb reads speciesId/tileX/
+        // tileY/_phase, which the follower already carries, so it needs no
+        // adapter and no art.
+        if (n && n._orbFollower){
+          drawZyrexOrb(n);
+        } else if (n && n.mode === 'skellor' && (n._skellorDead || (n._hurtFlashUntil || 0) > _now)){
           drawSkellorHurtFrame(n);
         } else {
           drawNPC(n);

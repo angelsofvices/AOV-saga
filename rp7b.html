@@ -7719,6 +7719,27 @@ const NPCS = [
           '*whistles*  Came back to finish the job, huh?  Plaza\'s clean · my crew can breathe.',
           '*grins*  Bond bump for the effort · a Rizer who honors both halves of a deal is a Rizer worth calling friend.',
         ]});
+      } else if (!scanobotsAreRogue() && towersRestoredCount() >= SCANOBOT_ROGUE_TOWERS){
+        // ★★ v0.95.732 · THE SURVEY NET GOES ROGUE.
+        // Scrapjaw is the trigger because he is the one who would notice: he
+        // buys scrap, he reads the signal grid, and three lit towers is when
+        // the grid is clear enough to hear Thardin's carrier drop out.
+        triggerScanobotRogue();
+        showDialog({ speaker: 'SCRAPJAW', lines: [
+          '*sniff sniff*  ...you hear that?  No.  Course you don\'t.  THAT\'S the problem.',
+          '*jabs a claw at the signal map*  Thardin\'s survey net.  Fifty of them little floating eyeballs, one carrier tone, steady as a heartbeat since before you were born.',
+          '*ears flat*  Tone stopped.  Not faded · STOPPED.  Mechlands isn\'t driving them any more.',
+          '*grins, and it is not a nice grin*  Which means every SCANOBOT between here and Korathen just became nobody\'s property.  They\'ll come at you now.  All of them.',
+          '*taps the workbench*  Good news · nobody\'s property means nobody\'s gonna miss the parts.  You crack one open, you bring me the SCRAP METAL.  I got a whole board of trades waiting.',
+        ]});
+      } else if (scanobotsAreRogue() && player.radioTowerFixed && scrapShopBest()){
+        // SCRAP SHOP · redeem the best tier the player can afford
+        const t = scrapShopBuy();
+        showDialog({ speaker: 'SCRAPJAW', lines: [
+          `*weighs the scrap*  ${t.cost} pieces of Thardin's finest.  Still warm.`,
+          `*slides it across the bench*  One ${t.label.toUpperCase()}.  Fair's fair.`,
+          `*sniff*  ${scrapCount()} scrap left on you.  Board's always open · 4 for a Potion · 10 for a Silver Zysphere · 20 for an Ultra.`,
+        ]});
       } else {
         // v0.95.650 · IDLE LINE · always points at the next dark district so the
         // 10-tower loop stays discoverable without a journal entry.
@@ -10479,6 +10500,11 @@ setTimeout(() => { try {
   // v0.95.671 · same tick, same reason · the Seer Grunt definition is in NPCS by now
   const s = buildSeerHqGuardPacks();
   if (s) console.log(`[rp7b] seer network · ${s} grunts holding 9 district roads`);
+  // v0.95.732 · Thardin's survey net · 5 per district · passive until the flip
+  try {
+    const sb = buildScanobotNet();
+    if (sb) console.log(`[rp7b] scanobot net · ${sb} drones across 10 districts · rogue: ${!!player.scanobotsRogue}`);
+  } catch(err){ console.warn('[rp7b] scanobot seed failed', err); }
   // v0.95.655 · run AFTER the guards land so they are sanitized too
   try { sanitizeNpcPlacement(); } catch(err){ console.warn('[rp7b] placement sanitize failed', err); }
 } catch(err){ console.warn('[rp7b] tower guard build failed', err); } }, 0);
@@ -15581,6 +15607,204 @@ function buildTowerGuardPacks(){
   }
   return made;
 }
+// ── ★★ v0.95.732 · SCANOBOTS · Thardin's survey net ────────────────────────
+//
+// Lightweight floating tech. Five to a district, fifty in the world. Mechlands
+// built them to map Zyraxis and they still transmit home — until they don't.
+//
+// ★ THE PASSIVE→ROGUE FLIP IS THE DESIGN, not flavour text on a farmable mob.
+// While Thardin still holds the net a Scanobot is municipal property: it
+// hovers, it scans, it is NOT an enemy and cannot be destroyed. The day the
+// net goes rogue every unit in the world turns hostile at once and the scrap
+// economy opens with it. Shipping them farmable from minute one would have
+// made "eventually go rogue" a line of dialogue instead of an event the
+// player is standing in the middle of when it happens.
+//
+// The lever is isEnemy. Combat targeting, the hit tests and the AI all read
+// it, so flipping that one field is the whole state change — there is no
+// second list of "attackable things" to keep in sync, and a passive Scanobot
+// is unkillable for free rather than by nine guards that each have to be
+// remembered.
+const SCANOBOT_HP           = 125;     // [[aov-combat-math]] · lightweight = one Mori band, flat
+const SCANOBOT_TIER         = 1;       // scanner, not soldier · keeps kill XP modest
+const SCANOBOT_PER_DIST     = 5;
+const SCANOBOT_ROGUE_TOWERS = 3;       // Scrapjaw notices once 3 towers are lit
+const SCANOBOT_GEM          = 'blue';  // [[aov-gem-canon]] · Blue = DEF+SP · Brain
+const SCANOBOT_SRC          = 'assets/2D%20sprites/enemies/scanobot.png';
+const SCANOBOT_BBOXES = [
+  [[ 76, 56,190,249],[ 64, 58,195,247],[ 62, 54,200,247],[ 51, 62,196,243]],
+  [[ 89, 37,145,243],[ 77, 41,145,238],[ 70, 42,144,240],[ 62, 41,144,240]],
+  [[108, 30,144,240],[ 96, 31,143,238],[ 87, 32,143,237],[ 79, 31,143,242]],
+  [[ 73,  7,194,247],[ 65,  9,193,248],[ 50, 10,199,244],[ 49,  9,194,246]],
+];
+// Scatter offsets from each district's tower anchor. Deliberately WIDE and
+// asymmetric — these are survey drones on a grid sweep, not a guard ring, and
+// five tight clumps around the tower would read as another tower squad.
+// ★ Vertical reach is capped at |dy| <= 11 on purpose. Malezor's tower sits at
+// y=14, so the first pass — which reached -15 and -21 — threw two drones off
+// the top of the world. The ring search "rescued" them to y=0, which passes
+// every predicate and still looks wrong: two units pinned to the map's edge.
+// A bounds check that produces a legal-but-stupid answer is worse than one
+// that fails loudly, so the offsets simply stay inside the shallowest district.
+const SCANOBOT_OFFSETS = [
+  [-16, -11], [ 15,  -8], [ 19,  9], [-11,  16], [ 2,  20],
+];
+function scanobotsAreRogue(){ return !!player.scanobotsRogue; }
+// Nearest walkable tile that is still inside the district we meant. Without
+// the district test a drone placed near a border drifts into the neighbour and
+// reports the wrong band — the exact fault that put Thardin's tower in
+// Korathen at v0.95.650.
+//
+// ★ Deliberately NOT walkable(). walkable() opens with
+// interiorConfig(game.scene) and validates against whatever room the player is
+// standing in, so calling it from syncTowerNetworkFromSave — which runs on
+// load, and a save can absolutely have been taken inside a house — would test
+// overworld coordinates against a bedroom grid and silently place the whole
+// net wherever the ring search gave up. This reproduces the OVERWORLD branch
+// of walkable() from the same primitives, minus the NPC-occupancy test, which
+// is handled separately below so a drone does not invalidate its own tile.
+function _scanobotWalkable(x, y){
+  try {
+    // ★ Bounds FIRST. isWorldLandTile does not reject negatives, and Malezor's
+    // tower sits at y=14 with offsets reaching -21, so the first honest run of
+    // this seeder put drones at y=-1 and y=-7 — off the top of the world, in a
+    // district worldDistrictAt still cheerfully reported as 'malezor'.
+    if (!(x >= 0 && y >= 0 && x < MAP_COLS && y < MAP_ROWS)) return false;
+    if (typeof isWorldLandTile === 'function'   && !isWorldLandTile(x, y))   return false;
+    if (typeof isWorldBorderTile === 'function' &&  isWorldBorderTile(x, y)) return false;
+    if (typeof isVeridanRiverTile === 'function'&&  isVeridanRiverTile(x, y))return false;
+    if (typeof _propBlocked !== 'undefined' && _propBlocked.has(`${x},${y}`))return false;
+  } catch(_){ return false; }
+  return true;
+}
+function _scanobotTile(dist, tx, ty){
+  for (let ring = 0; ring <= 20; ring++){
+    for (let dy = -ring; dy <= ring; dy++){
+      for (let dx = -ring; dx <= ring; dx++){
+        if (ring && Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        const x = tx + dx, y = ty + dy;
+        if (!_scanobotWalkable(x, y)) continue;
+        if (typeof worldDistrictAt === 'function' && worldDistrictAt(x, y) !== dist) continue;
+        if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === x && n.tileY === y)) continue;
+        return [x, y];
+      }
+    }
+  }
+  return null;
+}
+// Idempotent · safe at boot, after load, and after a Horde toggle.
+function buildScanobotNet(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  const img = new Image(); img.src = SCANOBOT_SRC;
+  let made = 0;
+  for (const T of TOWER_NETWORK){
+    const [ax, ay] = T.tower;
+    SCANOBOT_OFFSETS.forEach(([dx, dy], i) => {
+      const id = `scanobot_${T.dist}_${i + 1}`;
+      if (NPCS.some(n => n && n.id === id)) return;
+      const spot = _scanobotTile(T.dist, ax + dx, ay + dy);
+      if (!spot) return;                       // never force one into a wall
+      NPCS.push({
+        id, name: 'Scanobot',
+        sheet: img, src: SCANOBOT_SRC, bboxes: SCANOBOT_BBOXES,
+        cellW: 313, cellH: 313, cols: 4, rows: 4,
+        scaleMul: 0.62,
+        tileX: spot[0], tileY: spot[1], homeX: spot[0], homeY: spot[1],
+        scene: 'overworld', homeScene: 'overworld',
+        dir: ['down','left','right','up'][i % 4],
+        mode: 'wander', wanderRadius: 3, moving: false,
+        animFrame: 0, idleFrame: 0, idleCycleMs: 460,
+        moveCd: 400 + Math.random() * 500, blinkTimer: 9e9,
+        hpMax: SCANOBOT_HP, hp: SCANOBOT_HP,
+        tier: SCANOBOT_TIER, level: T.moriLv,
+        isEnemy: false,                        // ← flipped by applyScanobotState
+        _scanobot: T.dist,
+        onInteract: () => scanobotTalk(T),
+      });
+      made++;
+    });
+  }
+  applyScanobotState();
+  return made;
+}
+// One place decides what a Scanobot IS. Called at boot, after load, and on the
+// flip, so a save made before the net went rogue cannot restore forty passive
+// drones into a rogue world.
+function applyScanobotState(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  const rogue = scanobotsAreRogue();
+  let n = 0;
+  for (const b of NPCS){
+    if (!b || !b._scanobot) continue;
+    b.isEnemy = rogue;
+    b.mode    = rogue ? 'drainer' : 'wander';
+    if (rogue && b.drainAmt == null) b.drainAmt = 4;
+    n++;
+  }
+  return n;
+}
+function scanobotTalk(T){
+  try { playSFX(scanobotsAreRogue() ? 'moriPoke' : 'confirm'); } catch(_){}
+  if (scanobotsAreRogue()){
+    showToast('◈ SCANOBOT · the eye has gone red · it is not listening to Thardin any more', 2800);
+  } else {
+    showToast(`◈ SCANOBOT · Thardin survey unit · it scans you, logs you, and drifts on`, 2800);
+  }
+}
+// ★ The event. Fired from Scrapjaw once 3 towers are lit — he is the one who
+// would notice, because he is the one who buys the scrap.
+function triggerScanobotRogue(){
+  if (scanobotsAreRogue()) return false;
+  player.scanobotsRogue = true;
+  const n = applyScanobotState();
+  showToast(`★ THE SURVEY NET HAS GONE ROGUE · all ${n} Scanobots have turned · Thardin has lost control`, 5200);
+  try { playSFX('confirm'); } catch(_){}
+  return true;
+}
+// ── SCRAP SHOP ─────────────────────────────────────────────────────────────
+// The 1 scrap → Phone Battery trade stays exactly as it was; it is a story
+// beat and fires once. This is the sink ABOVE it, so scrap keeps a use after
+// all ten towers are lit and fifty drones are dropping it.
+//
+// Redeem-on-talk, highest affordable tier, one per conversation. The engine
+// has no choice-menu widget — showDialog takes lines and an onDone, nothing
+// else — and inventing one for this would be a bigger change than the feature.
+// The existing scrap→battery trade already works exactly this way: walk up
+// holding the goods and Scrapjaw does the deal.
+const SCRAP_SHOP = [
+  { cost: 20, key: 'zysphere_ultra',  label: 'Ultra Zysphere'  },
+  { cost: 10, key: 'zysphere_silver', label: 'Silver Zysphere' },
+  { cost:  4, key: 'potion',          label: 'Potion'          },
+];
+function scrapCount(){ return (player.items && player.items.scrap_metal) || 0; }
+function scrapShopBest(){
+  const s = scrapCount();
+  return SCRAP_SHOP.find(t => s >= t.cost) || null;   // list is cost-descending
+}
+function scrapShopBuy(){
+  const t = scrapShopBest();
+  if (!t) return null;
+  player.items.scrap_metal -= t.cost;
+  addItems({ [t.key]: 1 });
+  try { bumpBond(1); } catch(_){}
+  showToast(`★ SCRAPJAW · ${t.cost}× Scrap Metal → 1× ${t.label}`, 3600);
+  try { playSFX('confirm'); } catch(_){}
+  return t;
+}
+// Drops. Routed from startMoriDeath — the single door every kill goes through
+// — for the same reason the Verdant Creeper heal lives there: a drop wired
+// per-attack pays out on sword and not on a thrown boulder.
+function scanobotDrop(n){
+  if (!n || !n._scanobot || n._scanobotLooted) return;
+  n._scanobotLooted = true;
+  try {
+    addItems({ scrap_metal: 1 });
+    if (typeof spawnGemDrop === 'function'){
+      spawnGemDrop('overworld', n.tileX, n.tileY, SCANOBOT_GEM);
+    }
+    showToast('◈ SCANOBOT DOWN · 1× Scrap Metal · a Blue Gem drops from the housing', 2800);
+  } catch(err){ console.warn('[rp7b] scanobot drop failed', err); }
+}
 // ── v0.95.671 · SEER HQ GUARD PACKS ────────────────────────────────────────
 // Malezor's HQ has always been ringed by Seer Grunts.  Now that nine more
 // exist, the ring is generated from SEER_HQ_NETWORK the same way the tower
@@ -15673,6 +15897,12 @@ function syncTowerNetworkFromSave(){
   // Rebuild any guard the save predates · idempotent.
   try { buildTowerGuardPacks(); } catch(_){}
   try { buildSeerHqGuardPacks(); } catch(_){}
+  // v0.95.732 · rebuild the net, THEN re-apply hostility from the save. A save
+  // taken after the flip must not restore fifty passive drones into a rogue
+  // world — buildScanobotNet ends by calling applyScanobotState for exactly
+  // this, and the second call covers a save whose drones already existed.
+  try { buildScanobotNet(); } catch(_){}
+  try { applyScanobotState(); } catch(_){}
   // Tower sprites re-derive from towerRestored() every paint · nothing to do.
 }
 
@@ -32150,6 +32380,9 @@ function startMoriDeath(n){
     } catch(err){ console.warn('[rp7b] skellor death route failed', err); }
     return;                       // never sets _dying · the body stays put
   }
+  // v0.95.732 · SCANOBOT LOOT · here for the same reason the Creeper heal is
+  // here: ten kill routes reach this function and only this function.
+  if (n._scanobot){ try { scanobotDrop(n); } catch(_){} }
   n._dying     = true;
   n._deathT0   = performance.now();
   n.moving     = false;

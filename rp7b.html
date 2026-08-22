@@ -10520,6 +10520,11 @@ setTimeout(() => { try {
   // v0.95.671 · same tick, same reason · the Seer Grunt definition is in NPCS by now
   const s = buildSeerHqGuardPacks();
   if (s) console.log(`[rp7b] seer network · ${s} grunts holding 9 district roads`);
+  // v0.95.738 · Malezor wild habitat · playtest region, N/E/S/W
+  try {
+    const mw = seedMalezorWild();
+    if (mw) console.log(`[rp7b] malezor wild · ${mw} Zyrex across 4 compass zones`);
+  } catch(err){ console.warn('[rp7b] malezor wild seed failed', err); }
   // v0.95.732 · Thardin's survey net · 5 per district · passive until the flip
   try {
     const sb = buildScanobotNet();
@@ -16144,6 +16149,7 @@ function syncTowerNetworkFromSave(){
   // this, and the second call covers a save whose drones already existed.
   try { buildScanobotNet(); } catch(_){}
   try { applyScanobotState(); } catch(_){}
+  try { seedMalezorWild(); } catch(_){}
   // Tower sprites re-derive from towerRestored() every paint · nothing to do.
 }
 
@@ -32173,8 +32179,42 @@ function typeColor(t){ return TYPE_COLORS[canonType(t)] || '#9aa0ad'; }
 // dev spawner does.  { speciesId, tileX, tileY, temperament, level, _phase }
 const WILD_ZYREX = [];
 
+// v0.95.738 · sprite cache for wild Zyrex that HAVE art. The orb was always a
+// placeholder — the note above says "replacing these later is a one-line swap
+// in drawZyrexOrb". With the Malezor habitat seeded for playtesting, half the
+// roster has real sheets and standing in a field of coloured dots would not
+// have tested anything.
+const _wildSpriteCache = {};
+function _wildSprite(id){
+  if (_wildSpriteCache[id] !== undefined) return _wildSpriteCache[id];
+  const def = (typeof SUMMONABLE_SPRITES !== 'undefined') ? SUMMONABLE_SPRITES[id] : null;
+  if (!def){ _wildSpriteCache[id] = null; return null; }
+  const img = new Image(); img.src = def.src;
+  _wildSpriteCache[id] = { img, def };
+  return _wildSpriteCache[id];
+}
 function drawZyrexOrb(w){
   const sp = SPECIES[w.speciesId]; if (!sp) return;
+  // ── real sprite where one exists · orb only as the fallback ──
+  if (w.speciesId){
+    const S = _wildSprite(w.speciesId);
+    if (S && S.img.complete && S.img.naturalWidth){
+      const d = S.def, C = d.cellW || 313;
+      const row = 0, col = Math.floor(performance.now() / 460) % 4;   // idle amble
+      const bb = d.bboxes && d.bboxes[row] && d.bboxes[row][col];
+      if (bb){
+        let maxBh = 216;
+        for (const r of d.bboxes){ if (r[0][3] > maxBh) maxBh = r[0][3]; }
+        const scale = (TILE * 2) / maxBh * (d.scaleMul || 1);
+        const dw = Math.max(1, Math.round(bb[2] * scale));
+        const dh = Math.max(1, Math.round(bb[3] * scale));
+        const dx = Math.round((w.tileX + 0.5) * TILE - dw / 2) - _cam.x;
+        const dy = Math.round((w.tileY + 1) * TILE - dh)       - _cam.y;
+        ctx.drawImage(S.img, col * C + bb[0], row * C + bb[1], bb[2], bb[3], dx, dy, dw, dh);
+        return;
+      }
+    }
+  }
   const now = performance.now();
   const cx = (w.tileX + 0.5) * TILE - _cam.x;
   const groundY = (w.tileY + 0.9) * TILE - _cam.y;
@@ -32302,6 +32342,72 @@ function tryRecruitWildZyrex(w){
   try { saveGame(); } catch(_){}
 }
 
+// ── ★★ v0.95.738 · MALEZOR WILD HABITAT ───────────────────────────────────
+// Creator: "place all wild zyrex around malezor most unpopulated regions in the
+// north east south and west" — one region to playtest every type in, dispersed
+// across the ten districts later.
+//
+// ★ THE ROSTER IS THE ONLY THING ANYONE SHOULD EDIT. Adding a Zyrex as its art
+// lands is one string in MALEZOR_WILD_ROSTER. Zone, level, temperament, tile
+// and count are all derived, because this list is going to be edited many more
+// times than the code around it.
+//
+// Zones were MEASURED, not chosen by eye: Malezor's 36,473 land tiles were
+// swept in 16x16 blocks scoring free tiles (no prop footprint, no NPC, not a
+// border), and the emptiest block in each compass quarter was taken with a
+// hard requirement of >=45 tiles from town centre (105,108) so "north" means
+// the far north and not the next street over.
+const MALEZOR_WILD_ZONES = {
+  N: { at: [152,  23], label: 'the far north ridge'   },   // 253/256 free · 97 tiles out
+  E: { at: [199, 103], label: 'the eastern flats'     },   // 242/255 free · 94 tiles out
+  S: { at: [151, 167], label: 'the southern lowlands' },   // 239/247 free · 75 tiles out
+  W: { at: [ 56, 104], label: 'the western reach'     },   // 246/256 free · 49 tiles out
+};
+const MALEZOR_WILD_ZONE_R = 11;     // scatter radius in tiles
+const MALEZOR_WILD_PER    = 2;      // individuals per species
+// ★ ADD NEW SPECIES HERE AND NOWHERE ELSE.
+const MALEZOR_WILD_ROSTER = [
+  'aetherwing', 'frosane', 'verdanix', 'otterlin', 'volcanut',
+  'zarakai', 'voltigrax', 'apexaur', 'snok', 'anciuxor',
+];
+const _malezorWildPlaced = [];
+function _wildTileNear(cx, cy, r){
+  for (let tries = 0; tries < 400; tries++){
+    const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r;
+    const x = Math.round(cx + Math.cos(a) * d), y = Math.round(cy + Math.sin(a) * d);
+    if (typeof worldDistrictAt === 'function' && worldDistrictAt(x, y) !== 'malezor') continue;
+    if (typeof isWorldBorderTile === 'function' && isWorldBorderTile(x, y)) continue;
+    if (typeof _propBlocked !== 'undefined' && _propBlocked.has(`${x},${y}`)) continue;
+    if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === x && n.tileY === y)) continue;
+    if (WILD_ZYREX.some(w => !w._gone && w.tileX === x && w.tileY === y)) continue;
+    return [x, y];
+  }
+  return null;
+}
+// Idempotent · safe at boot and after load.
+function seedMalezorWild(){
+  if (_malezorWildPlaced.length) return _malezorWildPlaced.length;
+  const zones = Object.keys(MALEZOR_WILD_ZONES);
+  MALEZOR_WILD_ROSTER.forEach((id, i) => {
+    const sp = SPECIES[id];
+    if (!sp) return;                              // art not in yet · skip silently
+    // Round-robin the compass so every zone gets a mix of types rather than
+    // all the Creatures in one corner and all the Beasts in another.
+    const zk = zones[i % zones.length];
+    const Z  = MALEZOR_WILD_ZONES[zk];
+    for (let k = 0; k < MALEZOR_WILD_PER; k++){
+      const spot = _wildTileNear(Z.at[0], Z.at[1], MALEZOR_WILD_ZONE_R);
+      if (!spot) continue;
+      // Malezor is the FIRST district — its band is Mori level 5. A wild Zyrex
+      // here is scaled to that, not to its own tier, so a T6 Voltigrax standing
+      // in the starting district is catchable-looking rather than a wall.
+      const lv = Math.max(3, Math.min(12, 3 + (sp.tier || 1) * 2));
+      const w = spawnWildZyrex(id, spot[0], spot[1], { level: lv });
+      if (w){ w._malezorWild = zk; _malezorWildPlaced.push(w); }
+    }
+  });
+  return _malezorWildPlaced.length;
+}
 // Spawn helper · habitats will call this; the dev button uses it today.
 function spawnWildZyrex(speciesId, tileX, tileY, opts){
   const sp = SPECIES[speciesId]; if (!sp) return null;

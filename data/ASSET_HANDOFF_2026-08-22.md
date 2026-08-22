@@ -199,7 +199,27 @@ unreal**: soft edges, no hard ground contact.
 
 ---
 
-# BATCH 5 · SEER-BLACK INTERIOR SET (3 FILES)
+# ~~BATCH 5 · SEER-BLACK INTERIOR SET~~ · ✅ DELIVERED
+
+**Closed 2026-08-22 at v0.95.736.** All three keyed, installed and live at
+`assets/2D sprites/interior/`. Delivered at native pixel-art size (64×96, 64×96,
+32×64) with clean `#FF00FF`, so keying was trivial — only 11/19/3 stray
+magenta-cast pixels needed clearing, which matters at this scale because one bad
+pixel is very visible blown up to two tiles.
+
+The art is selected from `cfg.stairArt: 'seer'` on the three Seer HQ interior
+configs rather than a scene-name test, so the shared stair renderer stays generic
+and every other building keeps the wooden set.
+
+**The locked door found a better job than the brief gave it.** There was no door
+in the Seer HQ — the 2F lock lives on the *staircase*, and a sealed stair looked
+exactly like an open one, with the only evidence a toast fired after you had
+already walked into it. The door now draws as a seal over any stair whose
+`locked()` predicate is true, so the art and the rule are the same fact.
+
+---
+
+## original brief (kept for reference)
 
 The Seer HQ interiors currently use **warm wooden stairs against black masonry** —
 the stairs read as borrowed from a different building. This is the smallest batch

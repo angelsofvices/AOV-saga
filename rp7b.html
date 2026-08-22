@@ -11795,6 +11795,32 @@ const STAIRCASE_UP_BBOX = [271, 100, 712, 1054];
 const STAIRCASE_DOWN_IMG = new Image();
 STAIRCASE_DOWN_IMG.src = 'assets/2D%20sprites/decor/staircase-down.png';
 const STAIRCASE_DOWN_BBOX = [263,  98, 713, 1058];
+// ── v0.95.736 · SEER-BLACK STAIR SET ──────────────────────────────────────
+// The Seer HQ used the same warm WOODEN staircase as every house in Zyraxis,
+// which read as borrowed furniture against black masonry. These are the same
+// stairs in Seer materials: black stone, cold steel, one desaturated violet.
+//
+// ★ Chosen from cfg.stairArt, NOT from a game.scene test. The stair renderer
+// already draws every interior in the game; adding "if the scene name contains
+// seer_hq" would put building-specific knowledge inside a generic function and
+// need editing again for the next themed interior. The interior config already
+// describes the building — the art belongs there too.
+const SEER_STAIR_UP_IMG = new Image();
+SEER_STAIR_UP_IMG.src = 'assets/2D%20sprites/interior/seer-stairs-up.png';
+const SEER_STAIR_UP_BBOX = [6, 6, 48, 82];        // measured content rect of a 64x96 asset
+const SEER_STAIR_DOWN_IMG = new Image();
+SEER_STAIR_DOWN_IMG.src = 'assets/2D%20sprites/interior/seer-stairs-down.png';
+const SEER_STAIR_DOWN_BBOX = [2, 9, 59, 77];
+// The seal itself. Until now the locked 2F stair looked identical to the open
+// one and only differed by a toast when you walked into it — the lock existed
+// in the rules and nowhere on screen.
+const SEER_DOOR_LOCKED_IMG = new Image();
+SEER_DOOR_LOCKED_IMG.src = 'assets/2D%20sprites/interior/seer-door-locked.png';
+const SEER_DOOR_LOCKED_BBOX = [3, 2, 26, 59];
+const STAIR_ART_SETS = {
+  seer: { up:   { img: SEER_STAIR_UP_IMG,   bbox: SEER_STAIR_UP_BBOX   },
+          down: { img: SEER_STAIR_DOWN_IMG, bbox: SEER_STAIR_DOWN_BBOX } },
+};
 
 // Malezor home upper wall · continuous wallpaper band drawn at row 0
 // of every interior that opts in via cfg.wallImg = 'malezor'.  Row 0
@@ -12393,6 +12419,7 @@ SEER_HQ_FLOOR_IMG.src = 'assets/2D%20sprites/tiles/seer-hq-floor.png';
 // building you are standing in, and the labels/drops are rewritten on entry —
 // ten near-identical config objects would drift out of sync within a month.
 const INTERIOR_SEER_HQ_1F = {
+  stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
   cols: 20, rows: 15,
   tileImg: SEER_HQ_FLOOR_IMG,
   spawn: { x: 10, y: 14, dir: 'up' },
@@ -12425,6 +12452,7 @@ const INTERIOR_SEER_HQ_1F = {
   ],
 };
 const INTERIOR_SEER_HQ_B = {
+  stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
   cols: 14, rows: 10,
   tileImg: SEER_HQ_FLOOR_IMG,
   spawn: { x: 7, y: 8, dir: 'up' },
@@ -12442,6 +12470,7 @@ const INTERIOR_SEER_HQ_B = {
   ],
 };
 const INTERIOR_SEER_HQ_2F = {
+  stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
   cols: 14, rows: 12,
   tileImg: SEER_HQ_FLOOR_IMG,
   spawn: { x: 7, y: 10, dir: 'up' },
@@ -21228,13 +21257,31 @@ function drawInteriorFloor(){
     // and the vault's own stair goes UP to one that ends in _1f.
     const goingUp = s.art ? (s.art === 'up')
                           : !!(s.target && s.target.endsWith('_2f'));
-    const img  = goingUp ? STAIRCASE_UP_IMG  : STAIRCASE_DOWN_IMG;
-    const bb   = goingUp ? STAIRCASE_UP_BBOX : STAIRCASE_DOWN_BBOX;
+    // v0.95.736 · per-building stair art, falling back to the shared wooden set
+    const set  = STAIR_ART_SETS[cfg.stairArt];
+    const pick = set && (goingUp ? set.up : set.down);
+    const img  = pick ? pick.img  : (goingUp ? STAIRCASE_UP_IMG  : STAIRCASE_DOWN_IMG);
+    const bb   = pick ? pick.bbox : (goingUp ? STAIRCASE_UP_BBOX : STAIRCASE_DOWN_BBOX);
+    const dx = s.visX * TILE - _cam.x;
+    const dy = s.visY * TILE - _cam.y;
     if (img.complete && img.naturalWidth){
       const [sx, sy, sw, sh] = bb;
-      const dx = s.visX * TILE - _cam.x;
-      const dy = s.visY * TILE - _cam.y;
       ctx.drawImage(img, sx, sy, sw, sh, dx, dy, s.visW * TILE, s.visH * TILE);
+    }
+    // ★ v0.95.736 · THE SEAL. A locked stair used to look exactly like an open
+    // one; the only evidence was a toast fired after you had already walked
+    // into it. Drawn from the stair's OWN locked() predicate, so the art and
+    // the rule can never disagree — the door is on screen for precisely as
+    // long as the door is shut.
+    let shut = false;
+    try { shut = typeof s.locked === 'function' ? !!s.locked() : !!s.locked; } catch(_){}
+    if (shut && SEER_DOOR_LOCKED_IMG.complete && SEER_DOOR_LOCKED_IMG.naturalWidth){
+      const [qx, qy, qw, qh] = SEER_DOOR_LOCKED_BBOX;
+      const dh = s.visH * TILE * 0.62;                 // sits in the stair's upper landing
+      const dw = Math.round(dh * (qw / qh));           // never stretched
+      ctx.drawImage(SEER_DOOR_LOCKED_IMG, qx, qy, qw, qh,
+                    Math.round(dx + (s.visW * TILE - dw) / 2), Math.round(dy),
+                    dw, Math.round(dh));
     }
   }
 }

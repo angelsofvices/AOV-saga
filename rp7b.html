@@ -4596,13 +4596,38 @@ const WORLD_PROPS = [
             return;
           }
           player.faeCollected = Math.max(0, fae - REQ);
-          addZyrexToRoster(z);
+          // ★★ v0.95.725 · THE RITUAL GRANTS A HALF-BONDED CELESTRYX.
+          // Creator: "celestryx not added to my phone after I cash In my faes.
+          //           it should already be 50% bonded after the alter ritual"
+          //
+          // Two separate faults, both real:
+          //
+          //  1 · z.bond was UNDEFINED.  createZyrex has never set it, so every
+          //      Zyrex reads 0/100 in the FACTION panel via `z.bond || 0`.
+          //      The ritual now sets 50 outright — you did not catch this
+          //      creature, you called it, and it came.
+          //
+          //  2 · addZyrexToRoster's tier gate silently diverted it to PC
+          //      STORAGE.  Celestryx is TIER 6, so it wanted Rizer bond
+          //      6 x 333 = 1998; a fresh Rizer has 600.  The altar took the
+          //      fae, announced "has joined your party", and filed it
+          //      somewhere the phone's FACTION tab never looks — that tab
+          //      reads player.party.  bypassBondGate is the fix.
+          z.bond = 50;
+          const res = addZyrexToRoster(z, { bypassBondGate: true });
           try { playSFX('confirm'); } catch(_){}
-          showToast(`★ CELESTRYX summoned · Lv 60 T6 · -${REQ} fae`, 3600);
+          const landed = res && res.location === 'party';
+          showToast(landed
+            ? `★ CELESTRYX joined your faction · Lv 60 T6 · 50% bond · -${REQ} fae`
+            : `★ CELESTRYX summoned · faction FULL, sent to the PC · -${REQ} fae`, 4200);
           showDialog({ speaker: 'CELESTRYX', lines: [
             '*the altar cracks open · light spills across the sand*',
             '*a winged star descends · halo humming · eyes closed in serenity*',
-            '★ Celestryx has joined your party.',
+            // Says where it ACTUALLY went.  The old line claimed the party
+            // unconditionally, which is how this went unnoticed for so long.
+            landed
+              ? '★ Celestryx has joined your faction · already half-bonded to you.'
+              : '★ Your faction is full — Celestryx is waiting at the Nebuladock.',
           ]});
         } catch(err){
           showToast('◈ ASTRALITE REFINERY · summon failed · '+err.message, 2400);
@@ -26476,7 +26501,14 @@ function rizerBondTotal(){
   return Math.min(3330, raw * 2 + xp);
 }
 function requiredBondForTier(tier){ return Math.max(1, (tier || 1)) * 333; }
-function addZyrexToRoster(z){
+// opts.bypassBondGate · for Zyrex EARNED by a specific ritual or quest rather
+// than caught in the field.  The tier gate exists to stop you fielding a T6 on
+// a T1 bond ([[aov-bond-tier-gate]]) — but when the game has just charged you
+// 60 fae for exactly this creature, the fae WERE the gate, and quietly filing
+// the reward in PC storage reads as the reward never arriving.  Party-full
+// still diverts: that is a real limit and it gets said out loud.
+function addZyrexToRoster(z, opts){
+  const _bypass = !!(opts && opts.bypassBondGate);
   // Returns { location: 'party'|'pc'|'none' } · callers keep their own party-
   // add toasts · helper owns overflow-to-PC + bond-lockout toasts.
   if (!z) return { location: 'none' };
@@ -26493,7 +26525,7 @@ function addZyrexToRoster(z){
   const tier = z.tier || 1;
   const need = requiredBondForTier(tier);
   const have = rizerBondTotal();
-  if (have < need){
+  if (!_bypass && have < need){
     player.pcZyrex.push(z);
     showToast(`◈ ${z.name} T${tier} · Rizer bond ${have}/${need} · sent to PC · raise your bond to add to faction`, 4200);
     try { playSFX('cancel'); } catch(_){}

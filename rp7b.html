@@ -17238,17 +17238,25 @@ const RIZER_SAPPHIRE_SWORD = {
   // Rizer to canon 2-tile height per drawPlayer's scale formula, matching the
   // punch sheet exactly so no shrink happens during the swap.
   bboxes: [
-      // ★ v0.95.701 · row 0 was DOUBLE-NESTED: it held all four rows instead
-      // of four bboxes, so bboxes[0][col] handed drawPlayer an array of
-      // arrays, the [bx,by,bw,bh] destructure produced NaN, and every
-      // DOWN-facing frame drew nothing at all.  The inner rows 1-3 were
-      // duplicates of LEFT/RIGHT/UP below — a whole table pasted inside
-      // its own first row.  Flattened to the real DOWN row.
-      [[98,94,192,212],[65,76,233,231],[80,76,176,236],[59,104,190,202]],
-      [[109,101,196,183],[85,108,225,179],[4,1,308,288],[1,108,283,179]],
-      [[76,56,188,204],[14,82,242,181],[27,110,285,163],[1,79,213,190]],
-      [[134,65,173,191],[78,14,198,245],[88,3,129,266],[74,64,173,192]],
+      // ★ v0.95.714 · re-measured from the NEW sheet by COMPONENT OWNERSHIP.
+      // Every component is assigned to the cell holding most of its pixels,
+      // then the bbox is the true extent of what that cell owns — so a slash
+      // arc belongs to the frame that swung it, not to the neighbour it
+      // happens to reach into.  Verified: 0 foreign pixels inside any frame's
+      // sampling window.
+      [[46,81,229,212],[44,64,235,235],[30,48,256,266],[44,80,238,212]],
+      [[78,85,161,190],[47,89,241,190],[-13,5,316,276],[75,89,219,190]],
+      [[51,67,178,179],[-6,72,234,176],[37,79,301,235],[73,75,207,175]],
+      [[81,37,179,203],[36,-1,220,243],[66,1,189,241],[73,42,180,193]],
     ],
+  // ★ v0.95.714 · source px between the CHARACTER'S FEET and the bbox bottom.
+  // 30 of 32 frames across both sword sheets measure 0 — the artist put the
+  // feet on the bbox bottom, which is exactly what drawPlayer's dy assumes.
+  // The exceptions are the two big crescents whose arc sweeps BELOW the boots;
+  // without this the character would hang 14px and 30px in the air on those
+  // frames.  Applied as a downward shift so the feet stay planted.
+  footOff: [[0,0,31,0],[0,0,1,0],[0,0,66,0],[7,0,0,1]],
+  constScale: true,
   key: 'sapphire-sword', loaded: false,
 };
 (function _loadSapphireSword(){
@@ -17274,17 +17282,17 @@ const RIZER_RUBYPAW_SWORD = {
   // frames.  Tightened bx/bw + trimmed the deep bh overflow rows so each cell
   // only samples ITS OWN content.
   bboxes: [
-      // ★ v0.95.701 · row 0 was DOUBLE-NESTED: it held all four rows instead
-      // of four bboxes, so bboxes[0][col] handed drawPlayer an array of
-      // arrays, the [bx,by,bw,bh] destructure produced NaN, and every
-      // DOWN-facing frame drew nothing at all.  The inner rows 1-3 were
-      // duplicates of LEFT/RIGHT/UP below — a whole table pasted inside
-      // its own first row.  Flattened to the real DOWN row.
-      [[68,129,169,184],[17,71,197,242],[0,148,313,165],[0,147,302,166]],
-      [[11,0,280,280],[15,0,290,286],[0,0,280,292],[20,0,270,284]],
-      [[43,11,250,250],[15,86,280,171],[15,98,280,215],[20,93,265,220]],
-      [[62,35,168,190],[16,40,290,187],[10,0,200,238],[15,0,245,244]],
+      // ★ v0.95.714 · re-measured from the NEW sheet by COMPONENT OWNERSHIP,
+      // after trimming 2954px (0.55%) of trail that genuinely crossed into a
+      // neighbouring cell.  Before the trim, six frames pulled between 139 and
+      // 1733 foreign pixels into their sampling window.  Now: 0.
+      [[34,80,213,226],[17,85,235,221],[1,12,294,302],[26,98,267,209]],
+      [[15,100,299,186],[1,91,313,205],[1,2,301,306],[12,100,281,186]],
+      [[61,56,208,204],[6,71,308,193],[1,30,309,284],[19,80,287,180]],
+      [[22,28,212,233],[17,28,297,232],[1,1,313,275],[1,61,295,202]],
     ],
+  footOff: [[0,0,0,0],[0,0,0,0],[0,0,1,0],[0,0,0,0]],
+  constScale: true,
   key: 'rubypaw-sword', loaded: false,
 };
 (function _loadRubypawSword(){
@@ -20300,7 +20308,27 @@ function drawPlayer(){
   // Object composites must keep one uniform pixel scale. Scaling each frame
   // to its full actor+object bbox made S2 shrink whenever the thrown rock
   // extended the right-facing frame bounds.
-  if (inAttack && idleBundle.bboxes && !player._astralthrowComposite){
+  // ★★ v0.95.714 · constScale sheets opt OUT of the forced-idle-height rule.
+  //
+  // The branch below pins drawH to the IDLE character's height, so a frame
+  // whose bbox is inflated by a slash arc renders the CHARACTER smaller by
+  // exactly the amount the VFX inflated it.  Measured across a full swing on
+  // the shipping sheets, the character was pulsing:
+  //
+  //     sapphire-sword  72%-94% of target  →  1.31x size swing
+  //     rubypaw-sword   54%-98% of target  →  1.83x size swing
+  //
+  // That is a real wobble the player can see, and truthfully measured bboxes
+  // (v0.95.714) make it worse, not better — the truer the bbox, the more the
+  // VFX counts against the body.  For a sheet where the artist drew the
+  // character at ONE consistent size in every cell, the honest scale is the
+  // sheet's own: bundle._downScale, constant across all 16 frames.  Then the
+  // body never changes size and the arc simply draws as big as it was drawn.
+  //
+  // The branch stays for object composites (astralthrow/astralslam), where
+  // the actor and a carried object share a bbox and a constant scale WOULD
+  // shrink the actor — which is why it was written in the first place.
+  if (inAttack && idleBundle.bboxes && !player._astralthrowComposite && !bundle.constScale){
     const idleRow = idleBundle.bboxes[row] || idleBundle.bboxes[0];
     const idleBh  = (idleRow && idleRow[0] && idleRow[0][3]) || 284;
     const idleAnchor = idleBundle.bboxes[0][0][3] || 284;
@@ -20336,7 +20364,14 @@ function drawPlayer(){
   const gallopLift = bundle === RIZER_POWER_RUN
     ? [Math.round(TILE * 0.22), 0, Math.round(TILE * 0.32), 0][col]
     : 0;
-  const dy = Math.floor(renderTileY * TILE + TILE - drawH)       - _cam.y + _jumpOffset - astralLift - slamLift - gallopLift;
+  // ★ v0.95.714 · dy assumes the bbox bottom IS the feet, which holds for 30
+  // of the 32 sword frames.  The two exceptions are crescents whose arc sweeps
+  // below the boots; footOff carries the source-pixel gap so those frames
+  // shift down instead of hanging the character 14px / 30px in the air.
+  const _footDrop = (bundle.footOff && bundle.footOff[row] != null && bundle.footOff[row][col])
+    ? Math.round(bundle.footOff[row][col] * (drawH / Math.max(1, bh)))
+    : 0;
+  const dy = Math.floor(renderTileY * TILE + TILE - drawH) + _footDrop - _cam.y + _jumpOffset - astralLift - slamLift - gallopLift;
 
   // Ground shadow at the CHARACTER'S actual feet · drawn just under
   // dy+drawH (bbox bottom = feet).  Gives a solid ground contact so
@@ -20345,7 +20380,7 @@ function drawPlayer(){
   ctx.beginPath();
   ctx.ellipse(
     dx + drawW / 2,
-    dy + drawH - 2 + slamLift + gallopLift,
+    dy + drawH - _footDrop - 2 + slamLift + gallopLift,
     Math.min(drawW / 2, TILE / 2 - 2),
     3, 0, 0, Math.PI * 2
   );

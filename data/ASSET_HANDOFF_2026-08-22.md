@@ -158,7 +158,20 @@ The two `-attack` sheets were never regenerated and did not need to be.
 
 ---
 
-# BATCH 3 · MUTARYN GEMLORD CARD (1 FILE)
+# ~~BATCH 3 · MUTARYN GEMLORD CARD~~ · ✅ DELIVERED
+
+**Closed 2026-08-22 at v0.95.737.** Delivered at **exactly 1060×1484**, the same
+size as azurel / emeralix / eurakeon / obsidius, and gold-citrine against their
+blue and violet — the right colour for a Citrinelord. Registered as
+`MUTARYN · CITRINELORD OF ANDRANNOR`, and Andrannor's cave door now opens the
+card instead of toasting "sealed for now", which it had done since v0.95.182.
+
+**Ten Gemlords, ten cards, ten working doors.** No placeholder left in the
+network.
+
+---
+
+## original brief (kept for reference)
 
 Nine of ten Gemlord cards exist. Mutaryn is the hole, and **Andrannor's cave door
 currently toasts instead of opening a card.** This one file closes a live gap.

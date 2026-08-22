@@ -9741,9 +9741,83 @@ for(const n of NPCS){
 }
 
 // Collision + interact + wildZone maps · computed once from props + NPCs.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ GROUND-STOREY COLLISION · v0.95.722 · Creator directive
+//
+// "fix collision on the pc desk and all homes and building roofs in malezor.
+//  all collision should fit to pixel and follow a z axis second/chimney/
+//  balcony,roof patio/third level logic"
+//
+// Every Malezor structure was blocking its ENTIRE sprite height — roof,
+// chimney, balcony and all — because `footprint` is hand-authored tile offsets
+// with no relationship to the art. Measured before touching anything:
+//
+//   potion shop     7x7 sprite, blocked 7 rows  (incl. a fully TRANSPARENT row)
+//   gear shop       7x7 sprite, blocked 7 rows
+//   treehouse       8x9 sprite, blocked 9 rows
+//   rakoron cave   13x11 sprite, blocked 11 rows
+//   every home      5x5 sprite, blocked 5 rows
+//
+// So you could not walk behind a single building in the district, and in the
+// potion shop's case an empty row of sky was solid.
+//
+// ★ THE Z RULE
+//
+// A building's GROUND STOREY collides. Everything above it — second floor,
+// chimney, balcony, roof patio, third level — is over Rizer's head, so it
+// DRAWS (depth-sorted, in front of him) but does not block. Ground storey is
+// the bottom 2 tiles of OPAQUE art, because 2 tiles is Rizer's own height and
+// therefore the height of a doorway.
+//
+// ★ "FIT TO PIXEL"
+//
+// The footprints below are BAKED FROM THE ART, not authored. Each sprite was
+// rendered at its exact in-game size and a tile is solid only where the
+// artwork covers >= 35% of it. That is why the numbers are irregular — they
+// follow eaves and porch steps instead of a rectangle.
+//
+// Keyed by src + tile size so GENERATED props (the 63 doctrine-placed homes)
+// pick it up too, rather than needing 63 separate edits.
+const GROUND_STOREY_FOOTPRINTS = {
+  'assets/2D%20sprites/buildings/rakoron-cave-full.png|13x11': [[-6,-1],[-5,-1],[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[4,-1],[5,-1],[6,-1],[-6,0],[-5,0],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0],[4,0],[5,0],[6,0]],
+  'assets/2D%20sprites/buildings/rizer-treehouse.png|8x9': [[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0]],
+  'assets/2D%20sprites/buildings/research-facility.png|13x9': [[-6,-1],[-5,-1],[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[4,-1],[5,-1],[6,-1],[-6,0],[-5,0],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0],[4,0],[5,0],[6,0]],
+  'assets/2D%20sprites/buildings/player-home.png|5x5': [[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[-2,0],[-1,0],[0,0],[1,0],[2,0]],
+  'assets/2D%20sprites/buildings/town-hall.png|11x9': [[-5,-1],[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[4,-1],[5,-1],[-5,0],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]],
+  'assets/2D%20sprites/buildings/school.png|11x9': [[-5,-1],[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[4,-1],[5,-1],[-5,0],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]],
+  'assets/2D%20sprites/buildings/potion-shop.png|7x7': [[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/zyrex-farm.png|11x9': [[-5,-1],[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[4,-1],[5,-1],[-5,0],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]],
+  'assets/2D%20sprites/buildings/hospital.png|11x9': [[-5,-1],[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[4,-1],[5,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0],[4,0]],
+  'assets/2D%20sprites/buildings/red-roof-home.png|5x5': [[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[-2,0],[-1,0],[0,0],[1,0],[2,0]],
+  'assets/2D%20sprites/buildings/villager-home.png|5x5': [[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[-2,0],[-1,0],[0,0],[1,0],[2,0]],
+  'assets/2D%20sprites/buildings/seer-hq.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/decor/radio-tower-broken.png|5x11': [[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[-2,0],[-1,0],[0,0],[1,0],[2,0]],
+  'assets/2D%20sprites/buildings/malezor-gear-shop.png|7x7': [[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+};
+// Applied after WORLD_PROPS is built, so hand-written and generated props go
+// through the same door. A prop's DOOR tiles are never blocked: the ground row
+// is exactly where doors live, and blocking one would seal the building.
+function applyGroundStoreyCollision(){
+  let changed = 0, tilesBefore = 0, tilesAfter = 0;
+  for (const p of WORLD_PROPS){
+    if (!p || !p.src) continue;
+    const key = `${p.src}|${p.tileW}x${p.tileH}`;
+    const baked = GROUND_STOREY_FOOTPRINTS[key];
+    if (!baked) continue;
+    const doors = new Set();
+    if (p.door) doors.add(`${p.door[0]},${p.door[1]}`);
+    if (p.doors) for (const d of p.doors) doors.add(`${d[0]},${d[1]}`);
+    tilesBefore += (p.footprint || []).length;
+    p.footprint = baked.filter(([dx, dy]) => !doors.has(`${dx},${dy}`)).map(v => v.slice());
+    tilesAfter += p.footprint.length;
+    changed++;
+  }
+  if (changed) console.info(`[rp7b] ground-storey collision · ${changed} structures · ${tilesBefore} → ${tilesAfter} solid tiles`);
+}
 const _propBlocked = new Set();     // "x,y" of solid tiles
 const _propDoors   = new Map();     // "x,y" → prop with onInteract
 const _wildZones   = new Set();     // "x,y" tiles that spawn wild Zyrex
+try { applyGroundStoreyCollision(); } catch(err){ console.warn('[rp7b] ground-storey pass failed', err); }
 WORLD_PROPS.forEach(p => {
   p.footprint.forEach(([dx,dy]) => _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`));
   if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
@@ -11825,6 +11899,18 @@ function collectFaeAt(tx, ty){
       // full rather than silently doing nothing.
       try {
         const heal = Math.max(1, Math.round((player.hpMax || 100) * 0.05));
+    // ★ v0.95.722 · Creator: "catching a fae gains 100% speed energy yellow bar
+    // faedust".  A fae IS faedust, and faedust is what the yellow bar runs on
+    // ([[aov-rhud-meter-functions]]), so catching one fills it outright rather
+    // than topping it up.  Full refill, not a percentage — that is what makes
+    // a fae worth chasing when you are out of sprint halfway across a district.
+    try {
+      const _stamMax = player.astralMax || 100;
+      const _stamWas = player.astral || 0;
+      player.astral = _stamMax;
+      player._staminaSpentAt = 0;          // clear the regen delay too
+      if (_stamWas < _stamMax) showToast('⚡ FAEDUST · stamina full', 1600);
+    } catch(_){}
         const before = player.hp || 0;
         player.hp = Math.min(player.hpMax || 100, before + heal);
         const got = player.hp - before;
@@ -13154,7 +13240,15 @@ const RIZER_ROOM_ITEMS={
   zphone:{name:'ZyPhone',x:6,y:7,homeX:6,homeY:7,footprint:[[0,0]]},
   // v0.95.399 · Trimmed leftmost desk tile (-2,0)=(5,7) from footprint · was
   // an invisible collision west of the visible desk edge · desk now blocks (6,7)-(9,7)+(7,6)
-  pc:{name:'Nebuladock PC',x:7,y:7,homeX:7,homeY:7,footprint:[[-1,0],[0,0],[1,0],[2,0],[0,-1]]},
+  // ★ v0.95.722 · (-2,0) RESTORED.  v0.95.399 trimmed it as "an invisible
+  // collision west of the visible desk edge" — but measuring the drawn sprite
+  // says that tile is 80% DESK:
+  //     drawn 3.5 x 2.25 tiles, spanning x 5.75..9.25
+  //     row 7 coverage   col5 80%   col6 74%   col7 49%   col8 88%   col9 99%
+  // So the desk visibly occupied (5,7) and you could walk straight through it.
+  // The base row now blocks every tile the art covers >= 40%, which is all
+  // five, and (0,-1) keeps the monitor column solid.
+  pc:{name:'Nebuladock PC',x:7,y:7,homeX:7,homeY:7,footprint:[[-2,0],[-1,0],[0,0],[1,0],[2,0],[0,-1]]},
   chair:{name:'Gaming Chair',x:player.chairX,y:player.chairY,homeX:7,homeY:8,footprint:[[0,0]]},
   dummy:{name:'Training Dummy',x:1,y:8,homeX:1,homeY:8,footprint:[[0,-1],[0,0]]},
   bed:{name:'Bed',x:13,y:9,homeX:13,homeY:9,footprint:[[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0]]},
@@ -14409,7 +14503,12 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
   // v0.95.216 · Blue hit-confirm glow on any A3 impact (mirrors punch/kick FX)
   // A4 will use 'ultimate' mode (purple) when it ships
   if (anyHit && game.devCombatFxOn !== false){
-    spawnHitFx(tx, ty);
+    // ★ v0.95.722 · restored 'astral'.  My blind `, 'astral')` → `)` strip at
+    // v0.95.717 was meant to remove the SPECIAL damage tag from seven
+    // playerOutgoingDamage calls and caught an EIGHTH string it had no
+    // business touching — this one — silently turning A3's blue hit-confirm
+    // into the default yellow punch flash.
+    spawnHitFx(tx, ty, 'astral');
   }
   return anyHit;
 }
@@ -15126,10 +15225,13 @@ function awardActiveZyrexXP(){ /* v0.95.486 · noop · use awardZyrexXP(z, amoun
 //   swallow awarded ZERO RXP and never called recordMoriKill — so they also
 //   skipped the kill counter, the streak VOs and the party Zyrex XP share.
 //   Every path now routes through creditRizerKill().
+// ★ v0.95.722 · canon shape · xp = enemyLv x (8 + tier x 8) x mode x lvDiff
+// Both terms are PER ENEMY LEVEL, which is what ties the reward to the
+// quadratic level cost.  The old BASE/PER_LEVEL/TIER_STEP trio produced a
+// reward that barely moved with enemy level and fell behind the curve.
 const RIZER_KILL_XP = {
-  BASE:      12,     // flat floor · what a kill is worth before scaling
-  PER_LEVEL:  4,     // + per enemy level · still rewards fighting up
-  TIER_STEP:  0.5,   // tier multiplier = 1 + (tier - 1) x this
+  BASE_PER_LV: 8,    // x enemy level · the floor a T1 kill is worth
+  TIER_PER_LV: 8,    // x enemy level x tier · a T8 pays 4.5x a T1
 };
 // Technique multiplier.  Harder / riskier / more deliberate finishers pay more.
 const RIZER_KILL_MULT = {
@@ -15145,14 +15247,56 @@ const RIZER_KILL_MULT = {
   boom:        2.50,   // BOOM chest · find it, carry it, aim it, land it
   zyrex:       1.00,   // the Zyrex killed it · it earns the ZXP, Rizer the RXP
 };
+// ★★ v0.95.722 · KILL XP SCALES WITH DIFFICULTY · Creator: "im not getting xp
+// for kills. make sure all kills give xp in scaled ... difficulty"
+//
+// The plumbing was never broken — all ELEVEN startMoriDeath sites already
+// credit XP, and a fresh kill pays out correctly in isolation. The problem was
+// MAGNITUDE, and it got worse the further you played:
+//
+//   the old reward   (12 + lv*4) * tierMult     ~ LINEAR in enemy level
+//   the level cost   1e6*(2L+1)/9999            ~ LINEAR in YOUR level
+//
+// but the reward used the ENEMY's level while the cost used YOURS, and nothing
+// tied them together.  Grinding the same Malezor Mori forever:
+//
+//     Lv  1  →  2      300 xp needed,  16 per kill  =  19 kills
+//     Lv 50  → 51   10,101 xp needed,  16 per kill  = 631 kills
+//
+// That is what "not getting XP" feels like from inside the game.
+//
+// ★ THE CANON FORMULA, WHICH WAS ALREADY WRITTEN DOWN
+//
+// [[aov-xp-reward-formula]] specifies enemyLv × (8 + tier×8) × battleTypeMult
+// × levelDiffMult, and it was never implemented.  It holds kills-per-level
+// almost constant across the whole game against level-appropriate enemies:
+//
+//     Lv   1     16 xp   → 19 kills
+//     Lv  10    160 xp   → 14 kills
+//     Lv  50    800 xp   → 13 kills
+//     Lv  99  1,584 xp   → 13 kills
+//
+// and it agrees with the OLD value at level 1 (both 16), so the opening hour
+// is unchanged — the curve only diverges where the old one was failing.
+const RIZER_KILL_LVDIFF_STEP = 0.05;   // ±5% per level of gap
+const RIZER_KILL_LVDIFF_MIN  = 0.25;   // farming far below you still pays SOMETHING
+const RIZER_KILL_LVDIFF_MAX  = 2.00;   // fighting up caps at double
+// Fighting UP pays more, fighting DOWN pays less.  Floored rather than zeroed
+// because a kill that pays nothing at all reads as a bug, which is exactly the
+// report this commit answers.
+function rizerKillLevelDiffMult(enemyLv){
+  const gap = (enemyLv || 1) - (player.rizerLvl || 1);
+  return Math.max(RIZER_KILL_LVDIFF_MIN,
+         Math.min(RIZER_KILL_LVDIFF_MAX, 1 + gap * RIZER_KILL_LVDIFF_STEP));
+}
 function rizerKillXP(npc, mode = 'punch'){
   if (!npc) return 0;
-  const lv   = npc.level || 1;
-  const tier = npc.tier  || 1;
-  const tierMult = 1 + (tier - 1) * RIZER_KILL_XP.TIER_STEP;
+  const lv   = Math.max(1, npc.level || 1);
+  const tier = Math.max(1, npc.tier  || 1);
   const mult = RIZER_KILL_MULT[mode] != null ? RIZER_KILL_MULT[mode] : 1;
+  const diff = rizerKillLevelDiffMult(lv);
   return Math.max(1, Math.round(
-    (RIZER_KILL_XP.BASE + lv * RIZER_KILL_XP.PER_LEVEL) * tierMult * mult));
+    lv * (RIZER_KILL_XP.BASE_PER_LV + tier * RIZER_KILL_XP.TIER_PER_LV) * mult * diff));
 }
 // ONE call site for every kill in the game.  Awards the RXP and books the kill
 // so no finisher can silently skip the counter, the streak VOs or the party

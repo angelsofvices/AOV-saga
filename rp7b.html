@@ -851,7 +851,8 @@
       <div style="color:#4fb3ff; font-size:11px; letter-spacing:0.18em; margin-bottom:4px;">◈ NEBULADOCK 9000</div>
       <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:14px;">MASS INVENTORY SYSTEM</div>
       <div id="dockTabs" style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;">
-        <button class="dockTab" data-tab="zyrex"   style="background:rgba(0,0,0,0.55); color:#4fb3ff; border:1px solid #4fb3ff; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">FACTIONS</button>
+        <button class="dockTab" data-tab="rizer"   style="background:rgba(0,0,0,0.55); color:#4fb3ff; border:1px solid #4fb3ff; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">☆ RIZER</button>
+        <button class="dockTab" data-tab="zyrex"   style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">FACTIONS</button>
         <button class="dockTab" data-tab="items"   style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">ITEMS</button>
         <button class="dockTab" data-tab="weapons" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">WEAPONS</button>
         <button class="dockTab" data-tab="recipes" style="background:rgba(0,0,0,0.55); color:#8ff; border:1px solid #366; padding:6px 12px; font:bold 11px 'Courier New',monospace; letter-spacing:0.08em; cursor:pointer;">RECIPES</button>
@@ -2504,7 +2505,12 @@ function rizerAttackTimeScale(){
 }
 function rizerIncomingDamage(base){
   // Healthy/full lightning = normal defense. Empty energy takes 50% more.
-  return Math.max(1,Math.round(base*(1.5-.5*rizerAstralEnergyRatio())));
+  // v0.95.713 · the DEF attribute multiplies in on top.  At 0 points invested
+  // rizerDefMult() is exactly 1, so an unallocated Rizer takes precisely what
+  // he took before this system existed — that invariant is what lets the whole
+  // attribute pass ship without rebalancing every enemy in the game.
+  const _def = (typeof rizerDefMult === 'function') ? rizerDefMult() : 1;
+  return Math.max(1,Math.round(base*(1.5-.5*rizerAstralEnergyRatio())*_def));
 }
 function consumeGemForDiamond(key){
   const value = GEM_DIAMOND_VALUES[key];
@@ -11131,8 +11137,13 @@ function playerDamageMultiplier(skinId = player.cosmeticSkin){
   const skin = PLAYER_SKINS[skinId] || PLAYER_SKINS.normal;
   return skin.damageMult || 1;
 }
-function playerOutgoingDamage(baseDamage, skinId = player.cosmeticSkin){
-  return baseDamage * playerDamageMultiplier(skinId);
+// v0.95.713 · kind='astral' routes A3/A4 through the SPECIAL attribute.
+// Physical melee (A1/A2) and object damage (boulders) deliberately do NOT:
+// SPECIAL is the magical stat and ATK already reaches fists through
+// player.baseAtk, so applying both to melee would double-count the investment.
+function playerOutgoingDamage(baseDamage, skinId = player.cosmeticSkin, kind = 'physical'){
+  const _spec = (kind === 'astral' && typeof rizerSpecialMult === 'function') ? rizerSpecialMult() : 1;
+  return baseDamage * playerDamageMultiplier(skinId) * _spec;
 }
 let _cosmeticTransitioning = false;
 function rizerHudAsset(id, expression = false){
@@ -13797,7 +13808,7 @@ function applyAstralkickHit(tx, ty, skinId = player.cosmeticSkin){
   if (hit){
     const maxHp = hit.hpMax || 125;
     if (hit.hp == null) hit.hp = maxHp;
-    hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_KICK.DMG_MULT, skinId);
+    hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_KICK.DMG_MULT, skinId, 'astral');
     playSFX('moriGrunt');
     if (hit.hp <= 0){
       playSFX('astralKill');
@@ -13846,7 +13857,7 @@ function fireAstralslam(){
     if(!target._astralslamHeld) return;
     target._astralslamHeld=false;
     if(target.hp==null) target.hp=target.hpMax||125;
-    target.hp -= playerOutgoingDamage((player.baseAtk||25)*ASTRAL_SLAM.DMG_MULT, s2?'power_upgrade':'normal');
+    target.hp -= playerOutgoingDamage((player.baseAtk||25)*ASTRAL_SLAM.DMG_MULT, s2?'power_upgrade':'normal', 'astral');
     spawnHitFx(target.tileX,target.tileY,s2?'ultimate':'kick');
     // v0.95.649 · astralslam kills now pay RXP (1.75x · costs positioning)
     if(target.hp<=0){startMoriDeath(target);creditRizerKill(target,'astralslam');}
@@ -13934,7 +13945,7 @@ function detonateBoomChest(b, skinId){
       const dx = Math.abs(n.tileX - b.tileX), dy = Math.abs(n.tileY - b.tileY);
       const d = Math.max(dx, dy);
       if (d > BOOM.RADIUS) continue;
-      const dmg = playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId);
+      const dmg = playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId, 'astral');
       n.hp = (n.hp == null ? n.hpMax || 125 : n.hp) - dmg;
       spawnHitFx(n.tileX, n.tileY, 'ultimate');
       // v0.95.649 · BOOM kills paid ZERO RXP and never booked the kill
@@ -13946,7 +13957,7 @@ function detonateBoomChest(b, skinId){
       const d = Math.max(dx, dy);
       if (d <= BOOM.RADIUS){
         const self = Math.max(1, Math.round(
-          playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId) * 0.5));
+          playerOutgoingDamage((player.baseAtk || 25) * blastMult(d), skinId, 'astral') * 0.5));
         player.hp = Math.max(0, (player.hp || 0) - self);
         try { showToast(`◈ Caught in the blast · -${self} HP`, 2200); } catch(_){}
       }
@@ -13982,7 +13993,7 @@ function astralthrowBreakAOE(b,skinId){
   // v0.95.640 · a boom chest does NOT shatter like a rock — it detonates
   if (b._seerExplosive){ detonateBoomChest(b, skinId); return; }
   b.breaking=performance.now();
-  const splash=playerOutgoingDamage((player.baseAtk||25)*0.75,skinId);
+  const splash=playerOutgoingDamage((player.baseAtk||25)*0.75,skinId,'astral');
   for(const n of NPCS){
     if(n.scene!==game.scene||!n.isEnemy||n._dying)continue;
     if(Math.abs(n.tileX-b.tileX)<=1&&Math.abs(n.tileY-b.tileY)<=1){
@@ -14119,7 +14130,7 @@ function fireAstralthrow(options={}){
       impactX=nx;impactY=ny;
     }
     target._astralthrowHeld=false;
-    const direct=playerOutgoingDamage((player.baseAtk||25)*ASTRAL_THROW.DMG_MULT,skinId);
+    const direct=playerOutgoingDamage((player.baseAtk||25)*ASTRAL_THROW.DMG_MULT,skinId,'astral');
     for(const victim of pathVictims){
       victim.hp=(victim.hp==null?victim.hpMax||125:victim.hp)-direct;
       spawnHitFx(victim.tileX,victim.tileY,skinId==='power_upgrade'?'ultimate':'kick');
@@ -14255,7 +14266,7 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
     }
     const maxHp = hit.hpMax || 125;
     if (hit.hp == null) hit.hp = maxHp;
-    hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT, skinId);
+    hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT, skinId, 'astral');
     playSFX('moriGrunt');
     if (hit.hp <= 0){
       // v0.95.215 · Dedicated A3-kill SFX (alien-stomach splat) instead of the generic bone-crack
@@ -15659,7 +15670,9 @@ function launchNebulaGame(idx){
 // Tabbed browser for Zyrex box, items, weapons, recipes, songs, scrolls.
 // Read-only for now — future work: transfer between party ↔ box, sort filters.
 let _dockTab = 'zyrex';
-const DOCK_TABS = ['zyrex','items','weapons','recipes','songs','scrolls','devices','store'];   // v0.95.165 · Store (Send to PC) tab
+// v0.95.713 · RIZER tab leads · the Nebuladock is where the starting
+// archetype is set before the player ever goes downstairs.
+const DOCK_TABS = ['rizer','zyrex','items','weapons','recipes','songs','scrolls','devices','store'];   // v0.95.165 · Store (Send to PC) tab
 (function wireDockBackdrop(){
   const p = document.getElementById('dockPanel');
   if (!p) return;
@@ -15715,6 +15728,18 @@ function switchDockTab(tab){
   });
   const body = document.getElementById('dockBody');
   if (!body) return;
+  if (tab === 'rizer'){
+    // v0.95.713 · attribute allocation · identical control to the ZyPhone tab
+    const free = rizerAttrUnspent();
+    body.innerHTML =
+      `<div style="color:#4fb3ff; margin-bottom:4px; font-size:11px; letter-spacing:.12em;">◈ RIZER PRIME · ATTRIBUTE ALLOCATION</div>
+       <div style="color:#8ff; font-size:10px; margin-bottom:10px; line-height:1.6;">
+         ${(player.rizerLvl||1) === 1 && free > 0
+           ? 'Spend your starting points before you head downstairs — this is the archetype you leave the room with.'
+           : 'Points earned from levelling. Spendable here or from the ZyPhone RIZER tab.'}
+       </div>` + buildRizerAttrPanel('dock');
+    return;
+  }
   if (tab === 'zyrex'){
     const party = (player.party || []).filter(z => z && DEV_FACTION_ACTORS[z.speciesId]);
     if (party.length === 0){ body.innerHTML = '<i style="color:#886;">No faction allies granted yet.</i>'; return; }
@@ -19043,7 +19068,11 @@ function tryMove(dt){
   player.running = running;
   // v0.95.100 · Skateboard cuts move-cd nearly in half regardless of sprint.
   // Rakrun uses the same normal on-foot sprint timing as S1.
-  player.moveCd = player.skating ? (running ? 55 : 95) : (running ? 90 : 170);
+  // v0.95.713 · SPEED attribute scales the tile cadence.  rizerSpeedMult() is
+  // exactly 1 at 0 points, so base walk/run/skate pacing is untouched for an
+  // unallocated Rizer; it is asymptotic, so it can never reach 0ms per tile.
+  const _spd = (typeof rizerSpeedMult === 'function') ? rizerSpeedMult() : 1;
+  player.moveCd = Math.max(24, Math.round((player.skating ? (running ? 55 : 95) : (running ? 90 : 170)) * _spd));
 
   // v0.95.63 · Chair-ride · chair follows the player every step.  Also
   // block descending stairs while riding (return chair home on descent).
@@ -19128,6 +19157,16 @@ function tryMove(dt){
               try { playSFX('doorLock'); } catch(_){}
               showToast(_s.lockedMsg ? _s.lockedMsg() : '◈ Locked', 2800);
               return;
+            }
+            // ★ v0.95.713 · one-time archetype reminder on the way downstairs.
+            // A NUDGE, not a gate: the Creator said the player *can* set their
+            // archetype at the computer, so refusing to open the stairs would
+            // be inventing a lock that was never asked for.  The points are not
+            // lost either way — they stay spendable from the ZyPhone forever.
+            if (!player._archetypeNudged && (player.rizerLvl || 1) === 1
+                && rizerAttrUnspent() > 0 && isRizerRoomScene(game.scene)){
+              player._archetypeNudged = true;
+              showToast(`◈ ${rizerAttrUnspent()} attribute points unspent · set your archetype at the Nebuladock, or later in the ZyPhone RIZER tab`, 4200);
             }
             player.stairsCd = now + 1000;
             useStairs(_s);
@@ -23036,7 +23075,14 @@ function renderZycellRizer(){
     <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid #4fb3ff; background:rgba(0,0,0,0.4);"><span style="color:#4fb3ff; font-weight:bold; font-size:11px;">⛨ DEFENSE</span><span style="color:#fff; font-size:11px;">TIER ${tiers.def}/5</span><span style="color:#fff; font-weight:bold; font-size:11px;">+${tiers.def*3} DEF</span></div>
     <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid #ffd66b; background:rgba(0,0,0,0.4);"><span style="color:#ffd66b; font-weight:bold; font-size:11px;">⚡ SPEED</span><span style="color:#fff; font-size:11px;">TIER ${tiers.spd}/5</span><span style="color:#fff; font-weight:bold; font-size:11px;">+${tiers.spd*3} SPD</span></div>
     <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; margin-bottom:4px; border:1px solid #c060ff; background:rgba(0,0,0,0.4);"><span style="color:#c060ff; font-weight:bold; font-size:11px;">✦ SPECIAL</span><span style="color:#fff; font-size:11px;">TIER ${tiers.spc}/5</span><span style="color:#fff; font-weight:bold; font-size:11px;">+${tiers.spc*5} SPC</span></div>`;
+  // v0.95.713 · attribute allocation leads the panel · the section title
+  // carries the unspent count so the player sees it without opening anything.
+  const _free = rizerAttrUnspent();
+  const _attrTitle = _free > 0
+    ? `★ ATTRIBUTES · ${_free} POINT${_free === 1 ? '' : 'S'} TO SPEND`
+    : '★ ATTRIBUTES';
   return `
+    ${_zySection(_attrTitle, buildRizerAttrPanel('phone'), _free > 0 ? '#ffd66b' : '#4fb3ff')}
     ${_zySection('☆ EQUIPPED SKIN', `<div style="text-align:center; color:#fff; font-size:16px; font-weight:bold; letter-spacing:.14em; padding:8px;">${skinName}</div>`)}
     ${_zySection('✦ STAT BOOSTS · gems fuel upgrades (Scrapjaw)', stats)}
     <div style="text-align:center; color:#8ff; font-size:10px; padding:6px;">Visit Scrapjaw in Malezor to trade gems for stat upgrades.</div>`;
@@ -25944,6 +25990,7 @@ function saveGame(){
         hp: player.hp, hpMax: player.hpMax,
         astral: player.astral, astralMax: player.astralMax,
         rizerLvl: player.rizerLvl, rizerXP: player.rizerXP, rizerXPMax: player.rizerXPMax,
+        attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
         faeCollected: player.faeCollected || 0,
         items: player.items || {},
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
@@ -26130,6 +26177,16 @@ function loadGame(){
     // levelled at the wrong number.  The comment beside the boot line already
     // said "never trust stored value"; load was the one place that did.
     player.rizerXPMax = rizerXPToNext(player.rizerLvl || 1);
+    // v0.95.713 · same reasoning as rizerXPMax directly above: hpMax, maxHp,
+    // baseAtk and astralMax are DERIVED from attrs and must never be restored
+    // from the snapshot, or a save written before this system (or before a
+    // curve change) comes back with ceilings that disagree with its own
+    // attribute table.  attrs is the stored truth; everything else is a
+    // function of it.
+    player.attrs = (s.player && s.player.attrs && typeof s.player.attrs === 'object')
+                 ? Object.assign({}, s.player.attrs) : {};
+    rizerAttrs();
+    recomputeRizerStats({ quiet: true });
     try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
     try { pruneZyrexContacts(); } catch(_){}         // v0.95.652 · Zyrex are not callable
     try { pruneLootBagContacts(); } catch(_){}      // v0.95.701 · corpses are not people
@@ -33111,6 +33168,291 @@ function rizerXPToNext(currentLevel){
   return rizerTotalXPFor(L + 1) - rizerTotalXPFor(L);
 }
 // ══════════════════════════════════════════════════════════════════════════
+// ★★ RIZER ATTRIBUTE SYSTEM · v0.95.713 · Creator's Leveling page
+//
+//   T    L (min-max)   XP            XP/L = Y
+//   1    1-10          0    - 333    333 / 10 = 33.3
+//   2    11-20         334  - 666
+//   ...
+//   10   91-100        2998 - 3330
+//
+// The page and the directive are ONE system read two ways.  rizerLvl is still
+// driven by combat RXP on the 100·L² curve above — that has not changed.  What
+// levelling now ALSO does is hand you spendable attribute points, 33.3 per
+// level, into a pool that tops out at exactly 3330 at level 100.
+//
+//   pool(L) = min(3330, floor(L × 33.3))
+//     L1  =   33     ← the archetype budget you spend at the Nebuladock
+//     L10 =  333     ← Tier 1 complete · matches the page's row 1 exactly
+//     L100= 3330     ← the cap, hit precisely
+//
+// floor() rather than round() is what makes the cap land on 3330 instead of
+// overshooting, and every value it produces falls inside its own tier band on
+// the page (L11 → 366 ∈ 334-666, L21 → 699 ∈ 667-999, L91 → 3030 ∈ 2998-3330).
+// So tier-from-points and tier-from-level never disagree, which they would
+// have under round().
+//
+// ★ THE THREE RULES THE CREATOR SET, and why each one shapes the maths
+//
+// 1 · ALL FIVE STATS START AT ZERO.  Not "start at 10 and grow" — zero.  Every
+//     point of every stat is one the player chose.  That makes the formulas
+//     below load-bearing in a specific way: at 0 invested, each MUST reproduce
+//     today's balance exactly (100 HP · baseAtk 25 · ×1 damage · 170ms walk),
+//     or a fresh level-1 Rizer would be weaker than the current build and the
+//     whole game would need rebalancing around the change.  Check the 0-column
+//     in the table below — that invariant is what it is asserting.
+//
+// 2 · NO RESPEC.  Points only ever go in.  rizerSpend() has no negative path
+//     at all; there is no "refund" branch to accidentally expose later.
+//
+// 3 · ALLOCATED AT THE COMPUTER BEFORE GOING DOWNSTAIRS.  The 33 points at
+//     level 1 are the baseline archetype, so they are big enough to actually
+//     feel like a build decision (a Brawler leaves the room with 20 in ATK).
+//
+// ★ THE FIVE CURVES
+//
+//   stat      effect                              @0        @333      @3330
+//   HP        hpMax   = 100 + hp                  100       433       3430
+//   ATK       baseAtk = 25 + atk×0.03             25        35.0      124.9
+//   DEF       incoming ×= 1 − def/(def+1665)      ×1        ×0.833    ×0.333
+//   SPEED     moveCd   ×= 1 − 0.4×spd/(spd+1665)  ×1        ×0.933    ×0.733
+//   SPECIAL   A3/A4    ×= 1 + special×0.0003      ×1        ×1.10     ×2.00
+//             astralMax= 100 + special×0.05       100       116       266
+//
+// DEF and SPEED are asymptotic on purpose.  A linear reduction that reaches
+// zero would make a full-DEF Rizer literally invulnerable at the cap and a
+// full-SPEED one move in zero milliseconds; the x/(x+k) form cannot reach its
+// own limit no matter how many points go in, so neither failure state exists
+// even if the cap is raised later.  HP and ATK are linear because their ceiling
+// is a number the designer wants to name: 3430 HP, and baseAtk 125 — which is
+// exactly the value that lets a full-ATK A4 (×4) one-shot a 500 HP Vilerok.
+// That is not a coincidence, it is where the 0.03 came from.
+const RIZER_ATTR_KEYS      = ['hp','atk','def','speed','special'];
+const RIZER_ATTR_PER_LEVEL = 33.3;   // the page's figure · DISPLAY ONLY · see rizerAttrPool for why the maths uses 333/10
+const RIZER_ATTR_MAX       = 3330;     // pool at level 100 · the page's ceiling
+const RIZER_ATTR_META = {
+  hp:      { label: 'HP',      icon: '❤', color: '#ff6b6b', blurb: '+1 max HP per point' },
+  atk:     { label: 'ATK',     icon: '⚔', color: '#ff9c66', blurb: 'raises base attack (all melee + astral)' },
+  def:     { label: 'DEF',     icon: '🛡', color: '#4fb3ff', blurb: 'reduces all incoming damage' },
+  speed:   { label: 'SPEED',   icon: '⚡', color: '#ffd66b', blurb: 'faster walk, run and skate' },
+  special: { label: 'SPECIAL', icon: '◆', color: '#c060ff', blurb: 'astral (A3/A4) damage + diamond pool' },
+};
+// Total points a Rizer of this level has EVER been granted.
+//
+// ★ INTEGER ARITHMETIC ON PURPOSE.  The obvious form — floor(L × 33.3) — is
+// WRONG at exactly the one level that matters most:
+//
+//     100 * 33.3  ===  3329.9999999999995   (IEEE754 · 33.3 has no exact binary
+//     Math.floor(...)  ===  3329             representation, and the error lands
+//                                            just below the integer)
+//
+// So a level-100 Rizer would top out at 3329 and the 3330 on the Creator's page
+// would be a number the game could never actually reach — one point short,
+// permanently, with nothing on screen to explain why.  Scaling by 333/10
+// instead keeps the multiply exact (333 × L is always an integer) and every
+// division that should land on a whole number does:
+//
+//     100 * 333 / 10  ===  3330            exactly
+//      10 * 333 / 10  ===   333            exactly
+//      99 * 333 / 10  ===  3296.7  → 3296  (floors as intended)
+function rizerAttrPool(level){
+  const L = Math.max(1, Math.min(RIZER_LEVEL_CAP, level || 1));
+  return Math.min(RIZER_ATTR_MAX, Math.floor((L * 333) / 10));
+}
+function rizerAttrs(){
+  if (!player.attrs || typeof player.attrs !== 'object') player.attrs = {};
+  for (const k of RIZER_ATTR_KEYS){
+    const v = player.attrs[k];
+    player.attrs[k] = (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : 0;
+  }
+  return player.attrs;
+}
+function rizerAttrSpent(){
+  const a = rizerAttrs();
+  let n = 0; for (const k of RIZER_ATTR_KEYS) n += a[k];
+  return n;
+}
+function rizerAttrUnspent(){
+  return Math.max(0, rizerAttrPool(player.rizerLvl || 1) - rizerAttrSpent());
+}
+// ── The five effects ──────────────────────────────────────────────────
+function rizerHpMaxFromAttrs(){ return 100 + rizerAttrs().hp; }
+function rizerBaseAtkFromAttrs(){ return 25 + rizerAttrs().atk * 0.03; }
+function rizerDefMult(){
+  const d = rizerAttrs().def;
+  return 1 - d / (d + 1665);
+}
+function rizerSpeedMult(){
+  const s = rizerAttrs().speed;
+  return 1 - 0.4 * (s / (s + 1665));
+}
+function rizerSpecialMult(){ return 1 + rizerAttrs().special * 0.0003; }
+function rizerAstralMaxFromAttrs(){ return 100 + Math.floor(rizerAttrs().special * 0.05); }
+// ★ ONE place recomputes the derived fields, so there is no way for hpMax and
+// attrs.hp to drift apart.  Everything that can change an attribute or a level
+// calls this: spend, level-up, load, new game, boot, dev level-set.
+//
+// hpMax AND maxHp are both written because the codebase reads the pair
+// interchangeably (`player.hpMax || player.maxHp || 100` at some sites, the
+// reverse at others).  Setting only one leaves half the game on the old value.
+function recomputeRizerStats(opts){
+  const wasMax = player.hpMax || player.maxHp || 100;
+  const newMax = rizerHpMaxFromAttrs();
+  player.hpMax = newMax;
+  player.maxHp = newMax;
+  player.baseAtk = rizerBaseAtkFromAttrs();
+  const wasAstralMax = player.astralMax || 100;
+  player.astralMax = rizerAstralMaxFromAttrs();
+  // Raising the ceiling grants the difference rather than leaving the player at
+  // the same absolute HP with a longer empty bar — spending a point in HP
+  // should feel like a heal, not like the bar got harder to fill.
+  if (newMax > wasMax) player.hp = Math.min(newMax, (player.hp || 0) + (newMax - wasMax));
+  player.hp = Math.max(0, Math.min(newMax, player.hp == null ? newMax : player.hp));
+  if (player.astralMax > wasAstralMax){
+    player.astral = Math.min(player.astralMax, (player.astral || 0) + (player.astralMax - wasAstralMax));
+  }
+  player.astral = Math.max(0, Math.min(player.astralMax, player.astral == null ? player.astralMax : player.astral));
+  if (!opts || !opts.quiet){
+    try { if (typeof paintZycellContent === 'function' && game.zphoneOpen) paintZycellContent(); } catch(_){}
+    try { if (typeof _dockTab !== 'undefined' && _dockTab === 'rizer' && game.dockPanelOpen) switchDockTab('rizer'); } catch(_){}
+  }
+}
+// ★ Spend · the ONLY mutation path.  No negative n, no refund, no respec.
+function rizerSpend(stat, n){
+  if (!RIZER_ATTR_KEYS.includes(stat)) return false;
+  const want = Math.max(1, Math.floor(n || 1));
+  const have = rizerAttrUnspent();
+  if (have <= 0){
+    try { playSFX('deny'); } catch(_){}
+    try { showToast('◈ No attribute points available · level up to earn more', 2200); } catch(_){}
+    return false;
+  }
+  const give = Math.min(want, have);
+  rizerAttrs()[stat] += give;
+  recomputeRizerStats();
+  try { playSFX('confirm'); } catch(_){}
+  return true;
+}
+// Preset archetypes · each sums to EXACTLY the 33 points a level-1 Rizer has.
+// Offered only while nothing has been spent, because there is no respec and a
+// preset applied over a partial build would silently produce a hybrid the
+// player did not choose.
+const RIZER_ARCHETYPES = {
+  brawler:   { name: 'BRAWLER',   tag: 'hit hardest, guard least',      spend: { atk:20, hp:7,  def:6 } },
+  sentinel:  { name: 'SENTINEL',  tag: 'outlast everything',            spend: { def:15, hp:13, atk:5 } },
+  scout:     { name: 'SCOUT',     tag: 'never get caught',              spend: { speed:20, hp:7, atk:6 } },
+  channeler: { name: 'CHANNELER', tag: 'astral over fists',             spend: { special:20, hp:7, def:6 } },
+  balanced:  { name: 'BALANCED',  tag: 'no weakness, no edge',          spend: { hp:7, atk:7, def:7, speed:6, special:6 } },
+};
+// ══════════════════════════════════════════════════════════════════════════
+// ★ ONE allocator, rendered in TWO places · v0.95.713
+//
+// The Nebuladock in the Rizer Room (where the archetype is set before going
+// downstairs) and the ZyPhone RIZER tab (where every level-up is spent
+// thereafter) show the SAME control, built by the same function.  Two hand-
+// written copies of a spend UI is exactly the shape of bug this codebase has
+// hit repeatedly — FAE_UNLOCK_COUNT vs a hardcoded REQ, SEER_GRUNT_ART vs a
+// stale bbox table — where the two drift and the player sees a number that
+// disagrees with what the game actually does.
+function buildRizerAttrPanel(where){
+  const a       = rizerAttrs();
+  const lvl     = player.rizerLvl || 1;
+  const pool    = rizerAttrPool(lvl);
+  const spent   = rizerAttrSpent();
+  const free    = rizerAttrUnspent();
+  const atPc    = where === 'dock';
+  const fresh   = spent === 0;
+  const poolPct = Math.min(100, (pool / RIZER_ATTR_MAX) * 100);
+  // Live effect readout · every number here is produced by the SAME function
+  // combat calls, so the panel cannot claim an effect the game does not apply.
+  const effect = {
+    hp:      `${rizerHpMaxFromAttrs()} max HP`,
+    atk:     `${rizerBaseAtkFromAttrs().toFixed(1)} base attack`,
+    def:     `−${Math.round((1 - rizerDefMult()) * 100)}% damage taken`,
+    speed:   `+${Math.round((1 / rizerSpeedMult() - 1) * 100)}% movement`,
+    special: `×${rizerSpecialMult().toFixed(2)} astral · ${rizerAstralMaxFromAttrs()} ◆`,
+  };
+  const rows = RIZER_ATTR_KEYS.map(k => {
+    const M    = RIZER_ATTR_META[k];
+    const bar  = Math.min(100, (a[k] / 666) * 100);   // 666 = a heavy single-stat build
+    const can  = free > 0;
+    const btn  = (n, label) => `<button ${can ? '' : 'disabled'}
+        onclick="try{rizerSpend('${k}',${n});}catch(e){console.warn(e);}"
+        style="background:${can ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.25)'}; color:${can ? M.color : '#556'};
+               border:1px solid ${can ? M.color : '#334'}; padding:4px 8px; min-width:38px;
+               font:bold 11px 'Courier New',monospace; cursor:${can ? 'pointer' : 'not-allowed'};">${label}</button>`;
+    return `
+      <div style="display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid rgba(79,179,255,0.15);">
+        <div style="width:96px; color:${M.color}; font:bold 12px 'Courier New',monospace; letter-spacing:.08em;">${M.icon} ${M.label}</div>
+        <div style="width:52px; text-align:right; color:#fff; font:bold 15px 'Courier New',monospace;">${a[k]}</div>
+        <div style="flex:1;">
+          <div style="height:6px; background:rgba(0,0,0,0.55); border:1px solid ${M.color}44;">
+            <div style="height:100%; width:${bar.toFixed(1)}%; background:${M.color};"></div>
+          </div>
+          <div style="color:#8ff; font-size:9px; margin-top:3px; letter-spacing:.04em;">${effect[k]} · ${M.blurb}</div>
+        </div>
+        <div style="display:flex; gap:4px;">${btn(1,'+1')}${btn(10,'+10')}${btn(RIZER_ATTR_MAX,'MAX')}</div>
+      </div>`;
+  }).join('');
+  // Presets only while the sheet is untouched — see applyRizerArchetype.
+  const presets = fresh && free > 0 ? `
+    <div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,214,107,0.3);">
+      <div style="color:#ffd66b; font:bold 10px 'Courier New',monospace; letter-spacing:.14em; margin-bottom:6px;">◆ ARCHETYPE PRESETS · spends all ${free}</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        ${Object.entries(RIZER_ARCHETYPES).map(([id,A]) => `
+          <button onclick="try{applyRizerArchetype('${id}');}catch(e){console.warn(e);}"
+            style="background:rgba(0,0,0,0.5); color:#ffd66b; border:1px solid #ffd66b; padding:6px 10px;
+                   font:bold 10px 'Courier New',monospace; letter-spacing:.06em; cursor:pointer; text-align:left;">
+            ${A.name}<br><span style="color:#8ff; font-weight:normal; font-size:9px;">${A.tag}</span>
+          </button>`).join('')}
+      </div>
+    </div>` : '';
+  const banner = free > 0
+    ? `<div style="background:rgba(255,214,107,0.14); border:1px solid #ffd66b; padding:8px 10px; margin-bottom:10px;
+                   color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.08em;">
+         ★ ${free} POINT${free === 1 ? '' : 'S'} UNSPENT${atPc && lvl === 1 ? ' · this is your starting archetype' : ''}
+       </div>`
+    : `<div style="background:rgba(0,0,0,0.35); border:1px solid rgba(79,179,255,0.3); padding:8px 10px; margin-bottom:10px;
+                   color:#8ff; font:11px 'Courier New',monospace; letter-spacing:.06em;">
+         All ${spent} points allocated · next level grants ${lvl >= RIZER_LEVEL_CAP ? '0 (max level)' : rizerAttrPool(lvl+1) - pool} more
+       </div>`;
+  return `
+    <div style="font-family:'Courier New',monospace;">
+      ${banner}
+      <div style="display:flex; justify-content:space-between; align-items:baseline; font-size:10px; color:#8ff; letter-spacing:.10em; margin-bottom:4px;">
+        <span>LIFETIME POOL · Lv ${lvl}</span><span style="color:#fff;">${spent} / ${pool} spent · cap ${RIZER_ATTR_MAX}</span>
+      </div>
+      <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(79,179,255,0.35); margin-bottom:10px;">
+        <div style="height:100%; width:${poolPct.toFixed(1)}%; background:linear-gradient(90deg,#4fb3ff,#c060ff);"></div>
+      </div>
+      ${rows}
+      ${presets}
+      <div style="margin-top:10px; color:#667; font-size:9px; line-height:1.6; letter-spacing:.04em;">
+        33.3 points per level · 3330 at Lv 100 · <b style="color:#886;">points cannot be reassigned once spent</b>
+      </div>
+    </div>`;
+}
+function applyRizerArchetype(id){
+  const A = RIZER_ARCHETYPES[id];
+  if (!A) return false;
+  if (rizerAttrSpent() > 0){
+    try { playSFX('deny'); } catch(_){}
+    try { showToast('◈ Archetype presets are only available before your first point is spent', 2800); } catch(_){}
+    return false;
+  }
+  const cost = Object.values(A.spend).reduce((s,v) => s+v, 0);
+  if (cost > rizerAttrUnspent()){
+    try { playSFX('deny'); } catch(_){}
+    return false;
+  }
+  const a = rizerAttrs();
+  for (const [k,v] of Object.entries(A.spend)) a[k] += v;
+  recomputeRizerStats();
+  try { playSFX('confirm'); } catch(_){}
+  try { showToast(`★ ARCHETYPE · ${A.name} · ${A.tag}`, 3000); } catch(_){}
+  return true;
+}
+// ══════════════════════════════════════════════════════════════════════════
 // ★ RXP STARTS IN THE OVERWORLD · v0.95.660 · Creator directive
 // "do not gain rxp until you leave the home. no xp just for getting your RR
 //  stuff or talking to mom. these are giveins. rxp starts in overworld"
@@ -33163,10 +33505,16 @@ function awardRizerXP(amount){
     try { playSFX('confirm'); } catch(_){}
     // v0.95.540 · Rizer level-up VO fires on EVERY level 1-100
     try { playSFX('levelUp'); } catch(_){}
+    // v0.95.713 · every level hands over its share of the 33.3/level pool.
+    // The number in the toast is MEASURED from the pool delta, never a literal
+    // 33 — floor(L × 33.3) alternates 33/33/33/34, and a toast that claimed a
+    // flat 33 would be wrong on four levels in every ten.
+    const _gain = rizerAttrPool(player.rizerLvl) - rizerAttrPool(player.rizerLvl - 1);
+    recomputeRizerStats({ quiet: true });
     if (player.rizerLvl % 10 === 0){
-      showToast(`★ RIZER LEVEL ${player.rizerLvl} · milestone`, 2600);
+      showToast(`★ RIZER LEVEL ${player.rizerLvl} · milestone · +${_gain} attribute points`, 3000);
     } else {
-      showToast(`★ RIZER LEVEL UP · Lv ${player.rizerLvl}`, 1800);
+      showToast(`★ RIZER LEVEL UP · Lv ${player.rizerLvl} · +${_gain} attribute points`, 2200);
     }
   }
   if ((player.rizerLvl || 1) >= RIZER_LEVEL_CAP){
@@ -33183,6 +33531,11 @@ if (player.hp        == null) player.hp    = 100;
 if (player.hpMax     == null) player.hpMax = 100;
 if (player.astral    == null) player.astral    = 100;
 if (player.astralMax == null) player.astralMax = 100;
+// v0.95.713 · attribute pool · normalise the table, then derive hpMax /
+// baseAtk / astralMax from it.  Runs BEFORE astralStatus so the derived
+// ceilings exist for anything downstream that reads them at boot.
+rizerAttrs();
+recomputeRizerStats({ quiet: true });
 if (!RIZER_ASTRAL_STATUSES.includes(player.astralStatus)) player.astralStatus = 'healthy';
 // v0.95.210 · Blue Diamond ◆ · fuels A3 Astralstrike (per [[aov-rhud-meter-functions]])
 if (player.diamond    == null) player.diamond    = 100;

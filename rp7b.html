@@ -163,12 +163,38 @@
     /* v0.95.468 · S2 · HP row gets its own left/width/top since S2 art places
        the red bar slightly further left than yellow/blue.  Energy + special
        keep the shared coords that already read nearly-perfect. */
+    /* ★★ v0.95.723 · S2 METER WIDTHS RE-MEASURED · "losing pixels in the s2 rhud"
+       ── the geometry that made this easy to get wrong ────────────────────
+       Every RHUD art file is 1254x1254 (SQUARE) while #rizerHud is a 500x262
+       box, so `background-size: contain` renders the art at 262x262 pinned
+       RIGHT — it occupies only box x 238..500. These overlays are positioned
+       in percentages of the 500px BOX, so a percentage does not mean what it
+       looks like: box 74.5% is art 51.3%, not 74.5%. Every hand-tune has been
+       fighting that conversion.
+       ── what was actually wrong ──────────────────────────────────────────
+       Measured against the pixels, using the ROWS as they were (they align
+       correctly — only the horizontal was off):
+           bar       overlay span (art px)   the fill actually at
+           hp          667.7..1182.2            702..1197
+           energy      643.8..1158.3            702..1197
+           special     643.8..1158.3            702..1220
+       The overlay started ~35-58px LEFT of the fill and ended 15/39/62px
+       SHORT of its right end. So the depletion mask covered gold frame on the
+       left, and the last segment of every bar could never be reached on the
+       right. That is the lost pixels.
+       ── the fix ──────────────────────────────────────────────────────────
+       left  = (702/1254*262 + 238)/500 = 76.93%
+       right = (1197 or 1220 /1254*262 + 238)/500 → widths 20.69% / 21.65%
+       Rows are UNCHANGED. An earlier attempt moved them too, using a colour
+       measurement that had caught the bars' purple outer glow rather than the
+       fillable track; the render showed it was worse and it was reverted.
+       S1 is untouched — it reads correctly and only S2 was reported. */
     #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter{
-      left:74.5%; width:21.5%;
+      left:76.93%; width:20.69%;
     }
-    #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter.hp     { top:31.5%; left:75.5%; width:21.5%; }
+    #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter.hp     { top:31.5%; }
     #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter.energy { top:49.6%; }
-    #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter.special{ top:66.1%; }
+    #rizerHud[data-skin="power_upgrade"] .rizerLiveMeter.special{ top:66.1%; width:21.65%; }
     /* ── v0.95.449 · Zyrex HUD · top-LEFT mirror of Rizer HUD ─────── */
     /* v0.95.457 · 40% smaller (500x281 → 300x169) · flush upper-LEFT
        (aspect preserved · asset native AR 1672/941 = 1.78) */

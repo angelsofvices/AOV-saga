@@ -16685,13 +16685,73 @@ function switchDockTab(tab){
     return;
   }
   if (tab === 'zyrex'){
-    const party = (player.party || []).filter(z => z && DEV_FACTION_ACTORS[z.speciesId]);
-    if (party.length === 0){ body.innerHTML = '<i style="color:#886;">No faction allies granted yet.</i>'; return; }
-    body.innerHTML = '<div style="color:#4fb3ff; margin-bottom:8px;">◈ FACTIONS (' + party.length + ')</div>' +
-      party.map(z => `<div style="padding:4px 0; border-bottom:1px solid #223;">
-        <b>${z.name}</b> <span style="color:#8ff;">Lv ${z.level} · T${z.tier || '?'} · ${z.type||''}${z.type2?'/'+z.type2:''}</span>
-        <span style="float:right; color:#ffd66b;">HP ${z.hp}/${z.maxHp} · Bond ${z.bond||0}/100</span>
-      </div>`).join('');
+    // ── ★★ v0.95.744 · FACTION ⇄ PC · the mass inventory finally moves Zyrex ──
+    //
+    // TWO faults, both here:
+    //
+    // 1 · THE LIST WAS A LIE. It read
+    //       (player.party||[]).filter(z => DEV_FACTION_ACTORS[z.speciesId])
+    //     — so the Nebuladock only ever showed Zyrex that happen to be in the
+    //     DEV MENU roster. Every Zyrex caught in the wild was invisible in the
+    //     mass inventory system, which is the one screen whose entire job is to
+    //     show you everything you own.
+    //
+    // 2 · depositZyrexToPC() and withdrawZyrexFromPC() have existed since
+    //     v0.95.536 and NOTHING HAS EVER CALLED THEM. The storage feature was
+    //     written, tested by nobody, and left with no button. Catching past
+    //     PARTY_MAX pushed Zyrex into the PC automatically and there was no way
+    //     back out, and no way to put one in on purpose.
+    //
+    // Both columns now list real state and click moves a Zyrex through the
+    // existing helpers, so the deposit guard (refuses while it is summoned in
+    // the field) is inherited rather than reimplemented.
+    const party = (player.party || []).filter(Boolean);
+    const pc    = (player.pcZyrex || []).filter(Boolean);
+    const line = (z, idx, dir) => {
+      const sp = SPECIES[z.speciesId] || {};
+      const tier = z.tier || sp.tier || '?';
+      const t1 = z.type || sp.type || '';
+      const t2 = z.type2 || sp.type2 || '';
+      const hp = (z.hp != null && z.maxHp != null) ? `HP ${z.hp}/${z.maxHp}` : '';
+      return `<div class="zyMove" data-idx="${idx}" data-dir="${dir}"
+           style="display:flex; align-items:center; justify-content:space-between; gap:8px;
+                  padding:5px 8px; margin:3px 0; background:rgba(0,0,0,0.35);
+                  border:1px solid #244; cursor:pointer;">
+        <span style="color:#eaf0ff;"><b>${z.name || sp.name || z.speciesId}</b>
+          <span style="color:#8ff; font-size:11px;">Lv ${z.level || 1} · T${tier}${t1?' · '+t1:''}${t2?'/'+t2:''}</span>
+        </span>
+        <span style="color:#ffd66b; font-weight:bold; white-space:nowrap;">${hp} ${dir === 'toPc' ? '→ PC' : '← FACTION'}</span>
+      </div>`;
+    };
+    const partyHTML = party.length === 0
+      ? '<i style="color:#886;">Faction is empty.</i>'
+      : party.map((z,i) => line(z, i, 'toPc')).join('');
+    const pcHTML = pc.length === 0
+      ? '<i style="color:#886;">PC storage is empty.</i>'
+      : pc.map((z,i) => line(z, i, 'toParty')).join('');
+    body.innerHTML = `
+      <div style="color:#4fb3ff; margin-bottom:8px;">◈ FACTION ⇄ PC STORAGE</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div>
+          <div style="color:#ffd66b; font-weight:bold; margin-bottom:4px;">FACTION (${party.length}/${PARTY_MAX})</div>
+          ${partyHTML}
+        </div>
+        <div>
+          <div style="color:#ffd66b; font-weight:bold; margin-bottom:4px;">PC STORAGE (${pc.length})</div>
+          ${pcHTML}
+        </div>
+      </div>
+      <div style="font-size:11px; color:#8ff; margin-top:10px;">Click a Zyrex to move it. A Zyrex summoned in the field must be recalled first.</div>`;
+    body.querySelectorAll('.zyMove').forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.dataset.idx, 10);
+        const ok = el.dataset.dir === 'toPc'
+          ? depositZyrexToPC(idx)
+          : withdrawZyrexFromPC(idx);
+        if (ok){ try { saveGame(); } catch(_){} switchDockTab('zyrex'); }
+      });
+    });
+    return;
   } else if (tab === 'items'){
     // v0.95.504 · Auto-sort alphabetical by display label
     const items = Object.entries(player.items || {})
@@ -26843,7 +26903,7 @@ const SPECIES = {
     baseHP:240, baseATK:218, baseDEF:186, baseSPD:288, baseSATK:260, baseSDEF:140,
     moves:['Wraith Touch','Static Riddle','Enigma Burst','Reality Tear'],
   },
-  // ── ★ v0.95.741 · ZORBIIL · NEW CANON · no codex entry anywhere ──────────
+  // ── ★ v0.95.741 · ZORBIL · NEW CANON · no codex entry anywhere ──────────
   // Searched Master Codex v15.8, v13.17, v11.10, v10.22, the local codex.json,
   // rp7_roster_v7 and rp7_evolution_lines_v8: no Zorbil, and v15.8 carries
   // exactly one Z-name (Zyphaesia). So unlike Mutamech and Phrenetic there was
@@ -26925,8 +26985,13 @@ const SPECIES = {
   },
   // Faction ally · Voltaryn · T4 / Lv40 canonical dev grant.
   voltaryn: {
-    id:'voltaryn', name:'Voltaryn', tier:4, type:'Elemental', type2:'Beast',
-    baseHP:213, baseATK:240, baseDEF:267, baseSPD:186, baseSATK:240, baseSDEF:186,
+    // ★ v0.95.745 · TIER 4 → 5 per the Creator. The stat pool must move with
+    // the tier [[rizing-powers-t333-stat-pool]], so all six are scaled by
+    // 1665/1332 = 1.25 rather than re-rolled — the spread (a tanky bruiser,
+    // DEF highest, SPD lowest) is preserved exactly and the pool lands on 1665.
+    // Bond gate rises with it: 1332 (40%) → 1665 (50%).
+    id:'voltaryn', name:'Voltaryn', tier:5, type:'Elemental', type2:'Beast',
+    baseHP:266, baseATK:300, baseDEF:334, baseSPD:232, baseSATK:300, baseSDEF:233,
     moves:['Static Jab','Zynovolt','Feral Frenzy','Apex Maul'],
   },
   // v0.95.681 · OMNIRIS MOVED OUT · he is Humanoid-PRIMARY now (Creator
@@ -31431,7 +31496,37 @@ Object.values(ZORYN_SHEETS).forEach(s => {
 });
 
 const SUMMONABLE_SPRITES = {
-  // v0.95.741 · ZORBIIL · T1 Extraterrestrial/Creature · "gearbyte sized", so
+  // ── v0.95.745 · VOLTARYN + ELZORAN · art that was on disk all along ──────
+  // Both PNGs have sat in assets/2D sprites/zyrex/ since before this session
+  // and were never registered, which is the ONLY reason they rendered as
+  // coloured orbs. The 2026-08-22 asset handoff flagged them as "a code fix on
+  // my side, don't generate them" — this is that fix, finally done.
+  // Both measured clean: 0/16 frames overlap a neighbour's art, no empty cells.
+  voltaryn: {
+    src: 'assets/2D%20sprites/zyrex/voltaryn.png',
+    bboxes: [
+      [[ 56, 67,230,224],[ 40, 67,231,238],[ 34, 69,229,236],[ 20, 68,233,229]],
+      [[ 64, 30,220,240],[ 28, 30,236,235],[ 17, 30,238,236],[ 18, 31,226,235]],
+      [[ 64,  4,219,239],[ 27,  7,231,232],[ 15,  3,224,238],[  2,  4,228,235]],
+      [[ 56,-16,227,231],[ 35,-14,233,232],[ 25,-14,234,235],[ 18,-15,227,235]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.95,
+  },
+  // ★ Elzoran's UP row reaches 35px ABOVE its cell — the tallest overhang of
+  // any sheet in the build. Verified safe the only way that matters: col-0 x
+  // stays positive (53) so sy = row*cellH + by = 904, and 0/16 frames overlap
+  // a neighbour's ART. It samples empty band, not another frame.
+  elzoran: {
+    src: 'assets/2D%20sprites/zyrex/elzoran.png',
+    bboxes: [
+      [[ 38, 59,272,268],[ 38, 59,273,268],[ 34, 61,252,265],[  8, 59,272,268]],
+      [[ 77, 44,225,249],[ 78, 45,230,248],[ 62, 46,221,247],[ 50, 44,219,249]],
+      [[ 27,  3,210,247],[ 27,  3,210,247],[ 10,  3,209,247],[ -3,  2,212,248]],
+      [[ 53,-35,231,258],[ 49,-35,232,258],[ 29,-35,234,258],[ 23,-35,231,258]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 1.15,   // T5 dragon · stands over the Rizer
+  },
+  // v0.95.741 · ZORBIL · T1 Extraterrestrial/Creature · "gearbyte sized", so
   // scaleMul 0.55 — the same Gearbyte baseline verdanix is annotated with.
   // ★ Row 3 (UP) carries negative bbox x on cols 1 and 3 (-1 and -16): the
   // silhouette reaches left past its own cell. Harmless here and verified so:
@@ -32540,9 +32635,52 @@ function drawZyrexOrb(w){
 // the gate: Skittish bolts, Wary withdraws, Territorial holds its ground,
 // Dominant warns you off.
 // ══════════════════════════════════════════════════════════════════════════
+// ── ★★ v0.95.745 · SPECIES GATES · a bond number is not the only key ───────
+// Creator: "elzoran is a wild zyrex u can bond with if u get your elzebub to
+// level 50."
+//
+// That is a PROOF-OF-RAISING gate, not a bond gate, and it is a better shape
+// than bond for a creature at the top of a starter's own line: Elzoran does not
+// care how many allies you have made, it cares whether you have raised its
+// younger self. Elzebub is the Perfect Epsilon starter [[aov-starter-ladders]]
+// and 50 is a rung on its own ladder (hatch · 10 · 30 · 50 · 80), so the number
+// is not arbitrary either.
+//
+// Kept as a TABLE rather than an if-branch inside the recruit flow, because the
+// next one of these is a matter of time and the flow should not grow a limb per
+// species.
+const SPECIES_RECRUIT_GATES = {
+  elzoran: {
+    test(){
+      const all = [].concat(player.party || [], player.pcZyrex || []);
+      return all.some(z => z && z.speciesId === 'elzebub' && (z.level || 0) >= 50);
+    },
+    // Told plainly. A refusal that does not say what to do is a bug report.
+    why(){
+      const all = [].concat(player.party || [], player.pcZyrex || []);
+      const e = all.filter(z => z && z.speciesId === 'elzebub')
+                   .sort((a,b) => (b.level||0) - (a.level||0))[0];
+      return e
+        ? `Your Elzebub is Lv ${e.level || 1} · raise it to 50 and Elzoran will answer.`
+        : 'It will not bond with a Rizer who has never raised an Elzebub of his own.';
+    },
+  },
+};
 function tryRecruitWildZyrex(w){
   const sp = SPECIES[w.speciesId];
   if (!sp){ showToast('◈ ...it is gone.', 1600); w._gone = true; return; }
+  // ★ Species gate runs BEFORE the bond gate. Elzoran's condition is not "more
+  // bond", so telling the player their bond is short would be a lie that sends
+  // them off to grind the wrong axis entirely.
+  const gate = SPECIES_RECRUIT_GATES[w.speciesId];
+  if (gate && !gate.test()){
+    showDialog({ speaker: sp.name.toUpperCase(), lines: [
+      `${sp.name} regards you, and does not come.`,
+      gate.why(),
+    ]});
+    try { playSFX('cancel'); } catch(_){}
+    return;                       // ★ does NOT flee · it is waiting on you, not refusing you
+  }
   const need = requiredBondForTier(sp.tier);
   const have = rizerBondTotal();
   const pctNeed = Math.round(need / 3330 * 100);
@@ -32628,7 +32766,9 @@ const MALEZOR_WILD_ROSTER = [
   'zarakai', 'voltigrax', 'apexaur', 'snok', 'skybeam',
   'mutamech',   // v0.95.740 · first Tech/Extraterrestrial in the playtest region
   'phrenetic',  // v0.95.740 · first Unknown/Spirit
-  'zorbil',    // v0.95.741 · new canon · no codex entry
+  'zorbil',     // v0.95.741 · new canon · no codex entry
+  'voltaryn',   // v0.95.745 · T5 · bond gate 1665 (50%)
+  'elzoran',    // v0.95.745 · T5 · ALSO needs an Elzebub raised to Lv50
 ];
 // ★ Pinned individuals · placed at a named spot instead of scattered in a
 // compass zone, because WHERE they stand is the point. ANCIUXOR is Tier 10 —

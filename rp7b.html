@@ -12797,10 +12797,19 @@ function dreamlandSolid(x, y){
 const DREAMLAND_TILES_PER_REPEAT = 12;
 const DREAMLAND_TILE_IMG = new Image();
 DREAMLAND_TILE_IMG.src = 'assets/2D%20sprites/tiles/dreamland-cloud.png';
-let _dreamPattern = null;
-function dreamlandPattern(){
-  if (_dreamPattern) return _dreamPattern;
-  const img = DREAMLAND_TILE_IMG;
+// v0.95.734 · DENSE variant · measured at 28% the brightness of the bright
+// tile, and it wraps seamlessly (edge deltas 6.1/7.4 against a typical
+// neighbour delta of 2.7/3.5).
+//
+// ★ It is painted UNDER the bright tile and revealed where the cloud is
+// THINNEST. That is the right way round: cloud reads bright where it is piled
+// deep enough to catch the light, and dark at the thin edges where you are
+// seeing down into it. Putting the dark tile on the plateaus would have made
+// the solid, walkable ground look like the holes.
+const DREAMLAND_TILE_DENSE = new Image();
+DREAMLAND_TILE_DENSE.src = 'assets/2D%20sprites/tiles/dreamland-cloud-dense.png';
+let _dreamPattern = null, _dreamPatternDense = null;
+function _mkDreamPattern(img){
   if (!img.complete || !img.naturalWidth) return null;
   const n = DREAMLAND_TILES_PER_REPEAT * TILE;
   const off = document.createElement('canvas');
@@ -12808,8 +12817,105 @@ function dreamlandPattern(){
   const o = off.getContext('2d');
   o.imageSmoothingEnabled = true;
   o.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, n, n);
-  _dreamPattern = ctx.createPattern(off, 'repeat');
+  return ctx.createPattern(off, 'repeat');
+}
+function dreamlandPattern(){
+  if (_dreamPattern) return _dreamPattern;
+  _dreamPattern = _mkDreamPattern(DREAMLAND_TILE_IMG);
   return _dreamPattern;
+}
+function dreamlandPatternDense(){
+  if (_dreamPatternDense) return _dreamPatternDense;
+  _dreamPatternDense = _mkDreamPattern(DREAMLAND_TILE_DENSE);
+  return _dreamPatternDense;
+}
+// Above this density the BRIGHT tile takes over completely. Below it the dense
+// tile shows through, so the shelf between DREAMLAND_SOLID and this value is
+// the dark rim around every plateau.
+// Measured against the actual density field rather than picked by eye: solid
+// tiles run 0.300-0.819, median 0.410. 0.46 was the first guess and inverted
+// the intent — 65% of the realm came out dark, which makes the dark tile the
+// ground and the bright one the accent. 0.36 gives 72% bright plateau / 28%
+// dark rim, so the darkness is an edge you notice, not the floor you live on.
+const DREAMLAND_BRIGHT = 0.36;
+// ── ★★ v0.95.734 · DREAMLAND DECOR ────────────────────────────────────────
+// Until now Dreamland was 100x100 tiles of procedural cloud and nothing else.
+// These four props give it a horizon.
+//
+// ★ Every other interior object in this game — the treehouse telescope, the
+// school desk, the Seer HQ chest — is a hand-placed constant with its own
+// draw call, collision special-case and depth-sort entry. That pattern does
+// not survive four prop types scattered across ten thousand tiles, so this is
+// a real scatter layer: one table, one placer, one draw.
+//
+// ★★ Placement is DERIVED, never stored. Dreamland's terrain is procedural
+// (dreamlandSolid reads a seeded density field), so a hardcoded coordinate
+// list would silently start floating over holes the moment DREAMLAND_SEED or
+// DREAMLAND_SOLID is touched. The scatter runs off the SAME seed as the
+// terrain and validates every footprint tile against dreamlandSolid, which
+// also means it needs no save state and can never desync from a save.
+const DREAM_DECOR_DIR = 'assets/2D%20sprites/decor/';
+const DREAM_DECOR_ART = [
+  // hTiles = height in tiles. Width is DERIVED from the art's own aspect
+  // ratio so nothing is ever stretched [[image-never-stretch]].
+  { id:'spire',   file:'dream-spire.png',   hTiles: 9, blockW: 2, weight: 1 },
+  { id:'arch',    file:'dream-arch.png',    hTiles: 5, blockW: 3, weight: 1 },
+  { id:'tree',    file:'dream-tree.png',    hTiles: 3, blockW: 1, weight: 3 },
+  // ★ lift · tiles of clear air under the base. The crystal blocks nothing, so
+  // drawing it planted on the ground would make walking THROUGH it read as a
+  // collision bug. Lifted, "you walk under it" is the obvious reading.
+  { id:'crystal', file:'dream-crystal.png', hTiles: 4, blockW: 0, weight: 3, lift: 1.3 },
+];
+const DREAM_DECOR_COUNT   = 78;   // across ~5k solid tiles · sparse on purpose
+const DREAM_DECOR_CLEAR   = 4;    // keep this many tiles clear of the spawn
+const _dreamDecor   = [];
+const _dreamBlocked = new Set();
+for (const D of DREAM_DECOR_ART){ D.img = new Image(); D.img.src = DREAM_DECOR_DIR + D.file; }
+// Same hash family as dreamlandDensity, different mix, so the scatter is
+// stable across sessions without being correlated with the terrain shape.
+function _dreamRand(i){
+  let h = (Math.imul(i, 2654435761) + DREAMLAND_SEED) | 0;
+  h ^= h >>> 15; h = Math.imul(h, 2246822507); h ^= h >>> 13;
+  return (h >>> 0) / 4294967296;
+}
+function buildDreamlandDecor(){
+  if (_dreamDecor.length) return _dreamDecor.length;
+  const pool = [];
+  DREAM_DECOR_ART.forEach(D => { for (let w = 0; w < D.weight; w++) pool.push(D); });
+  const sp = INTERIOR_DREAMLAND.spawn;
+  let tries = 0;
+  while (_dreamDecor.length < DREAM_DECOR_COUNT && tries < DREAM_DECOR_COUNT * 400){
+    const i = tries++;
+    const x = Math.floor(_dreamRand(i * 3 + 1) * DREAMLAND_SIZE);
+    const y = Math.floor(_dreamRand(i * 3 + 2) * DREAMLAND_SIZE);
+    const D = pool[Math.floor(_dreamRand(i * 3 + 3) * pool.length)];
+    // never wake the player inside a spire
+    if (Math.abs(x - sp.x) <= DREAM_DECOR_CLEAR && Math.abs(y - sp.y) <= DREAM_DECOR_CLEAR) continue;
+    // the whole footprint must be standing on solid cloud, not just the anchor
+    const half = Math.floor(Math.max(1, D.blockW) / 2);
+    let ok = true;
+    for (let dx = -half; dx <= half && ok; dx++){
+      if (!dreamlandSolid(x + dx, y)) ok = false;
+      if (_dreamBlocked.has((x + dx) + ',' + y)) ok = false;
+    }
+    if (!ok) continue;
+    if (_dreamDecor.some(o => Math.abs(o.x - x) < 3 && Math.abs(o.y - y) < 3)) continue;
+    _dreamDecor.push({ id: D.id, art: D, x, y });
+    if (D.blockW > 0){
+      for (let dx = -half; dx <= half; dx++) _dreamBlocked.add((x + dx) + ',' + y);
+    }
+  }
+  return _dreamDecor.length;
+}
+function drawDreamDecor(d){
+  const img = d.art.img;
+  if (!img || !img.complete || !img.naturalWidth) return;
+  const drawH = d.art.hTiles * TILE;
+  const drawW = Math.round(drawH * (img.naturalWidth / img.naturalHeight));  // never stretched
+  const dx = Math.round(d.x * TILE + (TILE - drawW) / 2) - _cam.x;
+  const lift = (d.art.lift || 0) * TILE;
+  const dy = Math.round((d.y + 1) * TILE - drawH - lift) - _cam.y;
+  ctx.drawImage(img, dx, dy, drawW, drawH);
 }
 const INTERIOR_DREAMLAND = {
   cols: DREAMLAND_SIZE, rows: DREAMLAND_SIZE,
@@ -12820,7 +12926,9 @@ const INTERIOR_DREAMLAND = {
   cloudFloor: true,
   wallImg: null,                        // no wall band · the sky has no ceiling
   blocked: [],
-  isBlocked: (x, y) => !dreamlandSolid(x, y),
+  // Terrain OR a decor footprint. Spires and arches are objects you walk
+  // around; the crystal floats and blocks nothing.
+  isBlocked: (x, y) => !dreamlandSolid(x, y) || _dreamBlocked.has(x + ',' + y),
   label: '☁ DREAMLAND · the sleep-realm · explore before you wake',
 };
 
@@ -17740,6 +17848,10 @@ function startDreamlandNap(){
     // Remember EXACTLY where to wake · the tile in front of the telescope,
     // not a hardcoded spawn, so a future second telescope needs no new code.
     player._dreamReturn = { scene: 'interior_treehouse', x: player.x, y: player.y, dir: player.dir };
+    // v0.95.734 · scatter the decor before the scene switches, so the first
+    // frame in Dreamland already has its horizon. Idempotent and derived from
+    // the terrain seed, so every nap shows the same realm.
+    try { buildDreamlandDecor(); } catch(err){ console.warn('[rp7b] dream decor failed', err); }
     game.scene = DREAMLAND_SCENE;
     player.x = INTERIOR_DREAMLAND.spawn.x;
     player.y = INTERIOR_DREAMLAND.spawn.y;
@@ -20645,7 +20757,7 @@ function drawDistrictWorldBorders(){
 // cannot tell where the floor stops, which matters more here than anywhere
 // else in the game: the edge of a cloud is a thing you fall off.
 const DREAMLAND_FEATHER = 0.06;
-let _dlLayer = null, _dlMask = null;
+let _dlLayer = null, _dlMask = null, _dlMask2 = null, _dlBright = null;
 function drawDreamlandFloor(cfg){
   const C = cfg.cols, R = cfg.rows;
   // Sky · vertical gradient in SCREEN space, so it never scrolls.
@@ -20672,8 +20784,17 @@ function drawDreamlandFloor(cfg){
   if (_dlMask.width !== cols || _dlMask.height !== rows){ _dlMask.width = cols; _dlMask.height = rows; }
 
   // 1 · the mask · one pixel per tile, alpha = how solid the cloud is there
+  //     v0.95.734 · a SECOND mask rides alongside it: how BRIGHT the cloud is.
+  //     Same one-pixel-per-tile trick, same bilinear upscale, different ramp.
+  const dense = dreamlandPatternDense();
+  if (!_dlMask2)  _dlMask2  = document.createElement('canvas');
+  if (!_dlBright) _dlBright = document.createElement('canvas');
+  if (_dlMask2.width !== cols || _dlMask2.height !== rows){ _dlMask2.width = cols; _dlMask2.height = rows; }
+  if (_dlBright.width !== LW || _dlBright.height !== LH){ _dlBright.width = LW; _dlBright.height = LH; }
   const mctx = _dlMask.getContext('2d');
+  const m2ctx = _dlMask2.getContext('2d');
   const img = mctx.createImageData(cols, rows);
+  const img2 = m2ctx.createImageData(cols, rows);
   for (let j = 0; j < rows; j++){
     for (let i = 0; i < cols; i++){
       const d = dreamlandDensity(startCol + i, startRow + j);
@@ -20681,9 +20802,15 @@ function drawDreamlandFloor(cfg){
       const o = (j * cols + i) * 4;
       img.data[o] = 255; img.data[o+1] = 255; img.data[o+2] = 255;
       img.data[o+3] = Math.round(a * 255);
+      // bright ramp · 0 at the solid threshold, 1 by DREAMLAND_BRIGHT
+      const b = Math.max(0, Math.min(1,
+        (d - DREAMLAND_SOLID) / Math.max(0.001, DREAMLAND_BRIGHT - DREAMLAND_SOLID)));
+      img2.data[o] = 255; img2.data[o+1] = 255; img2.data[o+2] = 255;
+      img2.data[o+3] = Math.round(b * 255);
     }
   }
   mctx.putImageData(img, 0, 0);
+  m2ctx.putImageData(img2, 0, 0);
 
   // 2 · the cloud layer · pattern anchored in WORLD space so it cannot swim
   const lctx = _dlLayer.getContext('2d');
@@ -20691,9 +20818,25 @@ function drawDreamlandFloor(cfg){
   lctx.clearRect(0, 0, LW, LH);
   lctx.save();
   lctx.translate(-startCol * TILE, -startRow * TILE);
-  lctx.fillStyle = pat;
+  // DENSE underneath (thin cloud, seen into), BRIGHT on the plateaus.
+  lctx.fillStyle = dense || pat;
   lctx.fillRect(startCol * TILE, startRow * TILE, LW, LH);
   lctx.restore();
+  if (dense){
+    const bctx = _dlBright.getContext('2d');
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.clearRect(0, 0, LW, LH);
+    bctx.save();
+    bctx.translate(-startCol * TILE, -startRow * TILE);
+    bctx.fillStyle = pat;
+    bctx.fillRect(startCol * TILE, startRow * TILE, LW, LH);
+    bctx.restore();
+    bctx.globalCompositeOperation = 'destination-in';
+    bctx.imageSmoothingEnabled = true;
+    bctx.drawImage(_dlMask2, -TILE / 2, -TILE / 2, LW + TILE, LH + TILE);
+    bctx.globalCompositeOperation = 'source-over';
+    lctx.drawImage(_dlBright, 0, 0);
+  }
 
   // 3 · punch the sky through · the half-tile offset puts each mask pixel's
   //     CENTRE on its tile's centre, which is what makes the ramp line up
@@ -33322,6 +33465,13 @@ function frame(now){
     if (game.scene === 'interior_seer_hq_1f'){
       rends.push({ kind:'seerHqChest', footY: SEER_HQ_CHEST_TILE.tileY });
     }
+    // v0.95.734 · Dreamland decor joins the SAME depth sort, so a 9-tile spire
+    // correctly hides the player when he walks behind its base and does not
+    // when he walks in front. Drawing the whole layer before the player — the
+    // cheap option — would have put him on top of every spire in the realm.
+    if (game.scene === DREAMLAND_SCENE){
+      for (const d of _dreamDecor) rends.push({ kind:'dreamDecor', decor:d, footY: d.y });
+    }
     rends.sort((a,b) => a.footY - b.footY);
     for (const r of rends){
       // v0.95.730 · the interior path had NO orb branch at all, so even once
@@ -33329,6 +33479,7 @@ function frame(now){
       // drawNPC, which needs a sheet. Mirrors drawWorldLayer.
       if (r.kind === 'npc' && r.npc && r.npc._orbFollower) drawZyrexOrb(r.npc);
       else if (r.kind === 'npc') drawNPC(r.npc);
+      else if (r.kind === 'dreamDecor') drawDreamDecor(r.decor);
       else if (r.kind === 'treehouseChest') drawTreehouseChest();
       else if (r.kind === 'schoolDesk') drawSchoolDesk();
       else if (r.kind === 'seerHqChest') drawSeerHqChest();

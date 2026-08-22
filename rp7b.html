@@ -10573,6 +10573,10 @@ function walkable(x, y){
   if (cfg){
     if (!(x >= 0 && y >= 0 && x < cfg.cols && y < cfg.rows)) return false;
     if (cfg.wallImg && y === 0) return false;         // upper wall band blocks row 0
+    // ★ v0.95.719 · O(1) terrain predicate, for maps too big to list.
+    // The loop below is O(blocked) on EVERY step; Dreamland's 100x100 would
+    // have needed thousands of entries scanned per move.
+    if (typeof cfg.isBlocked === 'function' && cfg.isBlocked(x, y)) return false;
     if (cfg.blocked){
       for (const [bx,by] of cfg.blocked){
         // Movable Rizer Room furniture owns live collision below; ignore its
@@ -10588,6 +10592,9 @@ function walkable(x, y){
     // opening) so player has to face it from an adjacent tile to X-interact
     if (game.scene === 'interior_treehouse'
         && x === TREEHOUSE_CHEST.tileX && y === TREEHOUSE_CHEST.tileY) return false;
+    // v0.95.719 · telescope blocks too · face it from an adjacent tile to nap
+    if (game.scene === 'interior_treehouse'
+        && x === TREEHOUSE_TELESCOPE.tileX && y === TREEHOUSE_TELESCOPE.tileY) return false;
     // v0.95.568 · Same for the gold chest (Rubypaw Longsword)
     if (game.scene === 'interior_treehouse'
         && x === TREEHOUSE_GOLD_CHEST.tileX && y === TREEHOUSE_GOLD_CHEST.tileY) return false;
@@ -12431,6 +12438,77 @@ const INTERIOR_TREEHOUSE = {
   blocked: [],
   label: '◈ TREEHOUSE HIDEOUT · your Zyrex socialize here · walk out to leave',
   overworldDrop: { x: 20, y: -19, dir: 'down' },   // drop 1 tile below the trunk
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ DREAMLAND · v0.95.719 · Creator directive
+//
+// "we will access dreamworld by interacting with a telescope in the treehouse.
+//  from there, u will fall asleep napping and wake up in a new level. this
+//  level will allow time based exploration scaled by player level in seconds.
+//  level 10 = 10 seconds in dreamland, level 80 = 80 seconds. make it a
+//  100x100 tile map on a cloudy terrain"
+//
+// Canon note: the realm is DREAMLAND (renamed from Dreamworld at v15.7.2) —
+// the sleep-realm, the Blue-Gem vision plane.  See [[aov-dreamland]].
+//
+// ★ 100 x 100 = 10,000 TILES, AND NOT ONE OF THEM IS A PNG
+//
+// The terrain is generated, not authored.  A hand-listed `blocked` array for a
+// map this size would be thousands of entries that walkable() scans linearly
+// on EVERY move — the existing loop is O(blocked) per step, which is fine for
+// a 30x30 room with twenty entries and pathological at this scale.  So
+// Dreamland exposes `isBlocked(x,y)`, an O(1) function, and walkable() prefers
+// it when present.
+//
+// The cloud field is value noise from a FIXED seed, so the same islands are in
+// the same places every visit.  A dream that reshuffles itself is not a place
+// you can learn, and learning the place is the entire point of timed
+// exploration.
+const DREAMLAND_SCENE = 'interior_dreamland';
+const DREAMLAND_SIZE  = 100;
+const DREAMLAND_SEED  = 0x0D12EA;
+// Deterministic hash → value noise.  No Math.random anywhere in the terrain.
+function _dlHash(x, y){
+  let h = (x * 374761393 + y * 668265263 + DREAMLAND_SEED) | 0;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+function _dlNoise(x, y, scale){
+  const fx = x / scale, fy = y / scale;
+  const x0 = Math.floor(fx), y0 = Math.floor(fy);
+  const tx = fx - x0, ty = fy - y0;
+  // smoothstep so island edges are soft rather than blocky
+  const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+  const a = _dlHash(x0, y0),     b = _dlHash(x0 + 1, y0);
+  const c = _dlHash(x0, y0 + 1), d = _dlHash(x0 + 1, y0 + 1);
+  return (a * (1 - sx) + b * sx) * (1 - sy) + (c * (1 - sx) + d * sx) * sy;
+}
+// Cloud density 0..1 · two octaves, pulled down toward the rim so the map has
+// an edge you can see rather than a hard invisible wall at x=99.
+function dreamlandDensity(x, y){
+  const n = _dlNoise(x, y, 17) * 0.65 + _dlNoise(x, y, 6) * 0.35;
+  const half = DREAMLAND_SIZE / 2;
+  const dx = (x - half + 0.5) / half, dy = (y - half + 0.5) / half;
+  const r = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+  return n - r * r * 0.55;          // falls off toward the rim
+}
+const DREAMLAND_SOLID = 0.30;       // above this the cloud carries weight
+function dreamlandSolid(x, y){
+  if (x < 0 || y < 0 || x >= DREAMLAND_SIZE || y >= DREAMLAND_SIZE) return false;
+  return dreamlandDensity(x, y) > DREAMLAND_SOLID;
+}
+const INTERIOR_DREAMLAND = {
+  cols: DREAMLAND_SIZE, rows: DREAMLAND_SIZE,
+  tileImg: new Image(),                 // never used · cloudFloor draws instead
+  spawn: { x: 50, y: 50, dir: 'down' },
+  exit:  null,                          // you leave by waking, not by walking
+  autoExit: false,
+  cloudFloor: true,
+  wallImg: null,                        // no wall band · the sky has no ceiling
+  blocked: [],
+  isBlocked: (x, y) => !dreamlandSolid(x, y),
+  label: '☁ DREAMLAND · the sleep-realm · explore before you wake',
 };
 
 // v0.95.311 · DEV · Unlock All Doors template interiors
@@ -16461,6 +16539,7 @@ function isFacingInteractable(fx, fy){
   if (game.scene === 'interior_treehouse'){
     if (fx === TREEHOUSE_CHEST.tileX      && fy === TREEHOUSE_CHEST.tileY) return true;
     if (fx === TREEHOUSE_GOLD_CHEST.tileX && fy === TREEHOUSE_GOLD_CHEST.tileY) return true;
+    if (fx === TREEHOUSE_TELESCOPE.tileX  && fy === TREEHOUSE_TELESCOPE.tileY) return true;   // v0.95.719
   }
   if (game.scene === 'interior_seer_hq_1f'
       && fx === SEER_HQ_CHEST_TILE.tileX && fy === SEER_HQ_CHEST_TILE.tileY) return true;
@@ -16963,6 +17042,74 @@ GOLD_CHEST_IMG.src = 'assets/2D%20sprites/decor/gold-chest.png';
 const _SILVER_CLOSED_BBOX = [145, 164, 948, 893];
 const _CHEST_OPEN_BBOX    = [290, 240, 673, 741];
 const _GOLD_CLOSED_BBOX   = [143, 184, 968, 886];   // CC-measured
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ THE TELESCOPE · v0.95.719 · the door into Dreamland
+//
+// Stands against the treehouse's north wall.  Blocks its tile so the player
+// has to face it from an adjacent square to press X — the same contract as
+// the two chests, which is what makes an interactable read as an OBJECT
+// rather than a trigger you can stand inside.
+const TREEHOUSE_TELESCOPE = { tileX: 22, tileY: 5 };
+// ★ SECONDS = LEVEL.  "level 10 = 10 seconds in dreamland, level 80 = 80
+// seconds."  Taken literally, which has a consequence worth stating plainly:
+// at level 1 you get ONE SECOND.  That is not a bug and it is not padded —
+// Dreamland is effectively gated behind levelling, and the gate is the clock
+// itself rather than a lock on the telescope.  If it should have a floor, the
+// floor belongs here and nowhere else.
+function dreamlandSeconds(){
+  return Math.max(1, Math.min(RIZER_LEVEL_CAP, player.rizerLvl || 1));
+}
+let _dreamlandNap = null;      // { t0, dur } · the fade INTO the nap
+function dreamlandTimeLeftMs(){
+  if (game.scene !== DREAMLAND_SCENE || !player._dreamEndsAt) return 0;
+  return Math.max(0, player._dreamEndsAt - performance.now());
+}
+// ── Enter · nap at the telescope, wake on the clouds ──────────────────
+function startDreamlandNap(){
+  if (game.scene !== 'interior_treehouse' || _dreamlandNap) return;
+  const secs = dreamlandSeconds();
+  _dreamlandNap = { t0: performance.now(), dur: 1100 };
+  try { playSFX('menuOpen'); } catch(_){}
+  try { playSFX('yawn'); } catch(_){}
+  showToast(`☁ You rest your eye against the lens...`, 1600);
+  setTimeout(() => {
+    _dreamlandNap = null;
+    // Remember EXACTLY where to wake · the tile in front of the telescope,
+    // not a hardcoded spawn, so a future second telescope needs no new code.
+    player._dreamReturn = { scene: 'interior_treehouse', x: player.x, y: player.y, dir: player.dir };
+    game.scene = DREAMLAND_SCENE;
+    player.x = INTERIOR_DREAMLAND.spawn.x;
+    player.y = INTERIOR_DREAMLAND.spawn.y;
+    player.dir = INTERIOR_DREAMLAND.spawn.dir;
+    player.moving = false; player.animFrame = 0; player.moveCd = 0;
+    player._dreamEndsAt = performance.now() + secs * 1000;
+    try { snapCameraToPlayer(); } catch(_){}
+    try { playSFX('confirm'); } catch(_){}
+    showToast(`☁ DREAMLAND · ${secs} second${secs === 1 ? '' : 's'} · Lv ${player.rizerLvl || 1}`, 2600);
+  }, 1100);
+}
+// ── Leave · the clock runs out, or you wake yourself ──────────────────
+function wakeFromDreamland(reason){
+  if (game.scene !== DREAMLAND_SCENE) return;
+  const back = player._dreamReturn
+            || { scene: 'interior_treehouse', x: TREEHOUSE_TELESCOPE.tileX, y: TREEHOUSE_TELESCOPE.tileY + 1, dir: 'up' };
+  player._dreamEndsAt = 0;
+  player._dreamReturn = null;
+  game.scene = back.scene;
+  player.x = back.x; player.y = back.y; player.dir = back.dir;
+  player.moving = false; player.animFrame = 0; player.moveCd = 0;
+  try { snapCameraToPlayer(); } catch(_){}
+  try { playSFX('menuClose'); } catch(_){}
+  showToast(reason === 'timeout' ? '☁ You wake at the telescope.' : '☁ You pull yourself awake.', 2200);
+}
+// One tick, called from frame().  Deliberately does NOT award anything on
+// expiry: the Creator asked for timed exploration, and inventing a payout
+// would be putting a number on screen that no design has decided yet.
+function tickDreamland(){
+  if (game.scene !== DREAMLAND_SCENE) return;
+  if (!player._dreamEndsAt) return;
+  if (performance.now() >= player._dreamEndsAt) wakeFromDreamland('timeout');
+}
 const TREEHOUSE_CHEST      = { tileX: 16, tileY: 15 };
 const TREEHOUSE_GOLD_CHEST = { tileX: 18, tileY: 15 };  // v0.95.568 · 2 tiles east of silver
 function _drawOneTreehouseChest(chestTile, closedImg, closedBBox, openImg, openBBox, opened){
@@ -17002,8 +17149,90 @@ function drawSchoolDesk(){
   ctx.drawImage(img, bx, by, bw, bh, dx, dy, drawW, drawH);
   ctx.imageSmoothingEnabled = prev;
 }
+// ★ v0.95.719 · TELESCOPE · drawn, not imported.  A brass tube on a tripod,
+// built from primitives so the feature ships complete rather than waiting on
+// a sheet.  Swap in art later by replacing this body — nothing else refers to
+// its appearance.
+// ★ v0.95.719 · the nap fade INTO Dreamland, and the clock once you are there.
+//
+// The countdown is the only HUD Dreamland gets, and it is deliberately large:
+// the whole level is the timer, so burying it in a corner bar would hide the
+// one number the player is actually playing against. It turns amber under a
+// third and red under a fifth, because "how long have I got" has to be
+// answerable at a glance while you are running.
+function drawDreamlandOverlay(){
+  // fade to white while the eye is against the lens
+  if (_dreamlandNap){
+    const t = Math.min(1, (performance.now() - _dreamlandNap.t0) / _dreamlandNap.dur);
+    ctx.fillStyle = `rgba(226,236,255,${(t * 0.95).toFixed(3)})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  if (game.scene !== DREAMLAND_SCENE) return;
+  const ms = dreamlandTimeLeftMs();
+  const total = Math.max(1, dreamlandSeconds() * 1000);
+  const frac = Math.max(0, Math.min(1, ms / total));
+  const secs = ms / 1000;
+  const col = frac < 0.2 ? '#ff6b6b' : frac < 0.34 ? '#ffd66b' : '#cfe4ff';
+  const cx = canvas.width / 2;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(6,10,32,0.55)';
+  ctx.fillRect(cx - 108, 14, 216, 52);
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+  ctx.strokeRect(cx - 108, 14, 216, 52);
+  ctx.fillStyle = '#8ff';
+  ctx.font = '10px "Courier New", monospace';
+  ctx.fillText('☁ DREAMLAND', cx, 30);
+  ctx.fillStyle = col;
+  ctx.font = 'bold 26px "Courier New", monospace';
+  ctx.fillText(secs.toFixed(1) + 's', cx, 56);
+  // drain bar
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(cx - 100, 62, 200, 4);
+  ctx.fillStyle = col;
+  ctx.fillRect(cx - 100, 62, Math.round(200 * frac), 4);
+  ctx.restore();
+  // the last second whites out, so waking never feels like a hard cut
+  if (ms < 900){
+    ctx.fillStyle = `rgba(226,236,255,${(1 - ms / 900).toFixed(3)})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+}
+function drawTreehouseTelescope(){
+  if (game.scene !== 'interior_treehouse') return;
+  const T = TREEHOUSE_TELESCOPE;
+  const cx = (T.tileX + 0.5) * TILE - _cam.x;
+  const baseY = (T.tileY + 1) * TILE - _cam.y;
+  const now = performance.now();
+  ctx.save();
+  // tripod
+  ctx.strokeStyle = '#6b4a26'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (const dx of [-10, 0, 10]){
+    ctx.beginPath(); ctx.moveTo(cx + dx, baseY - 2); ctx.lineTo(cx + dx * 0.25, baseY - 34); ctx.stroke();
+  }
+  // tube · angled up toward the window
+  ctx.translate(cx, baseY - 36);
+  ctx.rotate(-0.62);
+  const grad = ctx.createLinearGradient(0, -7, 0, 7);
+  grad.addColorStop(0,   '#e0c169');
+  grad.addColorStop(0.5, '#a8802f');
+  grad.addColorStop(1,   '#6d4f16');
+  ctx.fillStyle = grad;
+  ctx.fillRect(-6, -7, 44, 14);
+  ctx.fillStyle = '#4a370f';
+  ctx.fillRect(30, -9, 8, 18);                      // objective housing
+  // lens · glints on a slow cycle so the object reads as live, not scenery
+  const glint = 0.45 + Math.sin(now / 700) * 0.30;
+  ctx.fillStyle = `rgba(150,210,255,${glint.toFixed(3)})`;
+  ctx.fillRect(37, -8, 3, 16);
+  ctx.fillStyle = '#2a1f08';
+  ctx.fillRect(-9, -5, 4, 10);                      // eyepiece
+  ctx.restore();
+}
 function drawTreehouseChest(){
   if (game.scene !== 'interior_treehouse') return;
+  try { drawTreehouseTelescope(); } catch(_){}
   _drawOneTreehouseChest(TREEHOUSE_CHEST,      SILVER_CHEST_IMG, _SILVER_CLOSED_BBOX, CHEST_OPEN_IMG, _CHEST_OPEN_BBOX, !!player.treehouseSwordChestOpened);
   _drawOneTreehouseChest(TREEHOUSE_GOLD_CHEST, GOLD_CHEST_IMG,   _GOLD_CLOSED_BBOX,   CHEST_OPEN_IMG, _CHEST_OPEN_BBOX, !!player.treehouseGoldChestOpened);
 }
@@ -17416,6 +17645,7 @@ function interiorConfig(scene){
   if (scene === 'interior_research_lab')return INTERIOR_RESEARCH_LAB;
   if (scene === 'interior_training_farm')return INTERIOR_TRAINING_FARM;
   if (scene === 'interior_treehouse')return INTERIOR_TREEHOUSE;
+  if (scene === DREAMLAND_SCENE)       return INTERIOR_DREAMLAND;   // v0.95.719
   if (scene === 'interior_malezor_school') return INTERIOR_MALEZOR_SCHOOL;   // v0.95.590
   if (scene === 'interior_seer_hq_1f')     return INTERIOR_SEER_HQ_1F;       // v0.95.615
   if (scene === 'interior_seer_hq_b')      return INTERIOR_SEER_HQ_B;        // v0.95.699
@@ -19681,8 +19911,62 @@ function drawDistrictWorldBorders(){
 }
 
 // Interior floor · 1:1 tile drawn same way as grass · dispatches on scene.
+// ★★ v0.95.719 · DREAMLAND TERRAIN · 10,000 tiles, zero art files.
+//
+// Every cloud is drawn from the same deterministic density field that decides
+// where you can WALK, so what you see is exactly what you can stand on — there
+// is no second table to fall out of sync with the collision. Density also
+// drives the tint and the puff size, so the middle of an island reads as thick
+// and its edges as wispy without anything being hand-placed.
+function drawDreamlandFloor(cfg){
+  const C = cfg.cols, R = cfg.rows;
+  // Sky · vertical gradient, drawn in screen space so it never scrolls.
+  const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  g.addColorStop(0,    '#0b1140');
+  g.addColorStop(0.55, '#243a86');
+  g.addColorStop(1,    '#4a6bc0');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const startCol = Math.max(0, Math.floor(_cam.x / TILE) - 1);
+  const endCol   = Math.min(C, Math.ceil((_cam.x + canvas.width)  / TILE) + 1);
+  const startRow = Math.max(0, Math.floor(_cam.y / TILE) - 1);
+  const endRow   = Math.min(R, Math.ceil((_cam.y + canvas.height) / TILE) + 1);
+  const t = performance.now() / 1000;
+  for (let ty = startRow; ty < endRow; ty++){
+    for (let tx = startCol; tx < endCol; tx++){
+      const d = dreamlandDensity(tx, ty);
+      if (d <= DREAMLAND_SOLID - 0.10) continue;      // open sky · draw nothing
+      const px = tx * TILE - _cam.x, py = ty * TILE - _cam.y;
+      // 0 at the wispy fringe → 1 deep inside an island
+      const k = Math.max(0, Math.min(1, (d - (DREAMLAND_SOLID - 0.10)) / 0.34));
+      const drift = Math.sin(t * 0.55 + (tx * 0.7 + ty * 1.3)) * 1.6 * (1 - k);
+      if (d > DREAMLAND_SOLID){
+        // solid cloud · a warm-lit body you can stand on
+        ctx.fillStyle = `rgba(228,236,255,${0.42 + k * 0.50})`;
+        ctx.fillRect(px, py + drift, TILE, TILE);
+        // top-face highlight so the plate reads as a surface, not a square
+        ctx.fillStyle = `rgba(255,255,255,${0.10 + k * 0.16})`;
+        ctx.fillRect(px, py + drift, TILE, Math.max(2, Math.round(TILE * 0.22)));
+        // underside shadow · sells thickness at the island's lower edge
+        if (!dreamlandSolid(tx, ty + 1)){
+          ctx.fillStyle = 'rgba(40,52,110,0.30)';
+          ctx.fillRect(px, py + drift + TILE - 5, TILE, 5);
+        }
+      } else {
+        // fringe · vapour that is NOT walkable · deliberately softer and
+        // narrower than a full tile so the edge of the world reads as an edge
+        ctx.fillStyle = `rgba(190,206,248,${0.10 + k * 0.16})`;
+        ctx.beginPath();
+        ctx.ellipse(px + TILE / 2, py + TILE / 2 + drift, TILE * 0.42, TILE * 0.30, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+}
 function drawInteriorFloor(){
   const cfg = interiorConfig(game.scene) || INTERIOR_HOME;
+  // ★ v0.95.719 · DREAMLAND draws its own sky · no tile sheet at all.
+  if (cfg.cloudFloor){ drawDreamlandFloor(cfg); return; }
   const img = cfg.tileImg;
   const C = cfg.cols, R = cfg.rows;
   const startCol = Math.max(0, Math.floor(_cam.x / TILE));
@@ -20896,6 +21180,16 @@ function tryInteract(){
     const cfg = interiorConfig(game.scene);
     if (cfg){
       // v0.95.516 · Treehouse silver chest · X on the chest tile opens it
+      // ★ v0.95.719 · TELESCOPE · the way into Dreamland
+      if (game.scene === 'interior_treehouse'
+          && fx === TREEHOUSE_TELESCOPE.tileX && fy === TREEHOUSE_TELESCOPE.tileY){
+        const _secs = dreamlandSeconds();
+        showDialog({ speaker: 'TELESCOPE', lines: [
+          '*the lens is not pointed at the sky · it is pointed INTO something*',
+          `*you could rest your eye against it and drift off · about ${_secs} second${_secs === 1 ? '' : 's'} of Dreamland at Lv ${player.rizerLvl || 1}*`,
+        ], onDone: () => { try { startDreamlandNap(); } catch(err){ console.warn('nap failed', err); } } });
+        return;
+      }
       if (game.scene === 'interior_treehouse' && fx === TREEHOUSE_CHEST.tileX && fy === TREEHOUSE_CHEST.tileY){
         if (tryOpenTreehouseChest()) return;
       }
@@ -26120,6 +26414,25 @@ function loadGame(){
                  ? Object.assign({}, s.player.attrs) : {};
     rizerAttrs();
     recomputeRizerStats({ quiet: true });
+    // ★★ v0.95.719 · A DREAM DOES NOT SURVIVE A RELOAD.
+    //
+    // player._dreamEndsAt is a performance.now() stamp and performance.now()
+    // RESETS TO ZERO on every page load, so a save taken inside Dreamland came
+    // back with scene='interior_dreamland' and no clock at all — tickDreamland
+    // returns early on a falsy _dreamEndsAt, which would have left the player
+    // standing on the clouds forever with no exit and no timer.
+    //
+    // Waking them is both the safe answer and the right one: you do not resume
+    // a dream you were pulled out of.
+    if (game.scene === DREAMLAND_SCENE){
+      game.scene = 'interior_treehouse';
+      player.x = TREEHOUSE_TELESCOPE.tileX;
+      player.y = TREEHOUSE_TELESCOPE.tileY + 1;
+      player.dir = 'up';
+      player._dreamEndsAt = 0;
+      player._dreamReturn = null;
+      try { showToast('☁ You woke from the dream when the world reloaded.', 2800); } catch(_){}
+    }
     try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
     try { pruneZyrexContacts(); } catch(_){}         // v0.95.652 · Zyrex are not callable
     try { pruneLootBagContacts(); } catch(_){}      // v0.95.701 · corpses are not people
@@ -31971,6 +32284,7 @@ function frame(now){
   // Runs BEFORE tryMove so canSprint() sees this frame's value, and inside a
   // try so a stamina fault can never take the whole render loop down.
   try { tickStamina(dt); } catch(_){}
+  try { tickDreamland(); } catch(_){}   // v0.95.719 · the nap clock
   tryMove(dt);
   if(wildBattleState)tickWildBattle(dt,now);
   tickFootprints(dt);                            // v0.87 · sand-trail decay
@@ -32143,6 +32457,7 @@ function frame(now){
   drawWildBattleOverlay();// wild Zyrex · one-round real-time side fighter
   drawDialogOverlay();  // shown when dialogState is set (v0.79)
   drawSleepFade();      // v0.95.4 · black-out overlay while napping in bed
+  try { drawDreamlandOverlay(); } catch(_){}   // v0.95.719 · nap fade + countdown
   // v0.95.129 · red vignette when Rizer takes drain damage
   if ((player._hurtFlashUntil || 0) > performance.now()){
     const rem = (player._hurtFlashUntil - performance.now()) / 220;

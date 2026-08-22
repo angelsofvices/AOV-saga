@@ -17435,6 +17435,18 @@ function drawSchoolDesk(){
 // one number the player is actually playing against. It turns amber under a
 // third and red under a fifth, because "how long have I got" has to be
 // answerable at a glance while you are running.
+// ★ v0.95.726 · Creator: "hide dreamland timer"
+//
+// The countdown PANEL is hidden; the clock itself is untouched. tickDreamland
+// still runs, the nap still ends on schedule, and wakeFromDreamland still
+// fires — this only stops drawing the readout.
+//
+// The nap fade-in and the final white-out are KEPT. Neither is a timer: the
+// first is falling asleep and the second is waking up. Removing the white-out
+// too would make the return a hard cut with no warning at all, which is a
+// different (and worse) change than the one asked for. Flip the constant if
+// the number should come back.
+const DREAMLAND_SHOW_TIMER = false;
 function drawDreamlandOverlay(){
   // fade to white while the eye is against the lens
   if (_dreamlandNap){
@@ -17445,30 +17457,32 @@ function drawDreamlandOverlay(){
   }
   if (game.scene !== DREAMLAND_SCENE) return;
   const ms = dreamlandTimeLeftMs();
-  const total = Math.max(1, dreamlandSeconds() * 1000);
-  const frac = Math.max(0, Math.min(1, ms / total));
-  const secs = ms / 1000;
-  const col = frac < 0.2 ? '#ff6b6b' : frac < 0.34 ? '#ffd66b' : '#cfe4ff';
-  const cx = canvas.width / 2;
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(6,10,32,0.55)';
-  ctx.fillRect(cx - 108, 14, 216, 52);
-  ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-  ctx.strokeRect(cx - 108, 14, 216, 52);
-  ctx.fillStyle = '#8ff';
-  ctx.font = '10px "Courier New", monospace';
-  ctx.fillText('☁ DREAMLAND', cx, 30);
-  ctx.fillStyle = col;
-  ctx.font = 'bold 26px "Courier New", monospace';
-  ctx.fillText(secs.toFixed(1) + 's', cx, 56);
-  // drain bar
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(cx - 100, 62, 200, 4);
-  ctx.fillStyle = col;
-  ctx.fillRect(cx - 100, 62, Math.round(200 * frac), 4);
-  ctx.restore();
-  // the last second whites out, so waking never feels like a hard cut
+  if (DREAMLAND_SHOW_TIMER){
+    const total = Math.max(1, dreamlandSeconds() * 1000);
+    const frac = Math.max(0, Math.min(1, ms / total));
+    const secs = ms / 1000;
+    const col = frac < 0.2 ? '#ff6b6b' : frac < 0.34 ? '#ffd66b' : '#cfe4ff';
+    const cx = canvas.width / 2;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(6,10,32,0.55)';
+    ctx.fillRect(cx - 108, 14, 216, 52);
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.strokeRect(cx - 108, 14, 216, 52);
+    ctx.fillStyle = '#8ff';
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillText('☁ DREAMLAND', cx, 30);
+    ctx.fillStyle = col;
+    ctx.font = 'bold 26px "Courier New", monospace';
+    ctx.fillText(secs.toFixed(1) + 's', cx, 56);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(cx - 100, 62, 200, 4);
+    ctx.fillStyle = col;
+    ctx.fillRect(cx - 100, 62, Math.round(200 * frac), 4);
+    ctx.restore();
+  }
+  // The last second whites out, so waking is never a hard cut. This is the
+  // wake transition, not a readout — it stays even with the timer hidden.
   if (ms < 900){
     ctx.fillStyle = `rgba(226,236,255,${(1 - ms / 900).toFixed(3)})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);

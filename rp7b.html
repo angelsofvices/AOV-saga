@@ -31821,7 +31821,23 @@ function drawWorldLayer(){
   });
   NPCS.forEach(n => {
     if (n.scene !== 'overworld') return;                          // only overworld here
-    if (!n.sheet.complete || !n.sheet.naturalWidth) return;
+    // ★★ v0.95.730 · `!n.sheet.complete` THREW on any NPC without a sheet.
+    //
+    // v0.95.718 introduced orb followers — a deployed Zyrex whose species has
+    // no overworld sheet, drawn procedurally by drawZyrexOrb. They carry no
+    // `sheet` property at all, so this line raised a TypeError the instant one
+    // stood in the overworld. Uncaught inside NPCS.forEach it escaped
+    // drawWorldLayer, escaped frame(), and broke the requestAnimationFrame
+    // chain — the whole game stopped rendering.
+    //
+    // The dev "summon all faction" button deploys fourteen at once, three of
+    // them sheet-less, which is why it froze on the first press.
+    //
+    // The guard has to ADMIT sheet-less NPCs rather than skip them: the
+    // _orbFollower branch below is what draws them. Only an NPC that HAS a
+    // sheet can fail a loaded check.
+    if (n.sheet && (!n.sheet.complete || !n.sheet.naturalWidth)) return;
+    if (!n.sheet && !n._orbFollower) return;   // no sheet and no orb · nothing to draw
     // v0.95.285 · Legacy hardcoded verdanix_follower retired · generic _summon_* NPCs now handle followers
     if (n.id === 'verdanix_follower') return;
     // Only the currently-summoned follower renders · toggled by Triangle in Faction panel
@@ -32937,7 +32953,10 @@ function frame(now){
     const rends = [{ kind:'player', footY: player.y }];
     for (const n of NPCS){
       if (n.scene !== game.scene) continue;
-      if (!n.sheet.complete || !n.sheet.naturalWidth) continue;
+      // v0.95.730 · the SAME crash, second copy · an orb follower that walked
+      // into an interior killed the frame here instead of in the overworld.
+      if (n.sheet && (!n.sheet.complete || !n.sheet.naturalWidth)) continue;
+      if (!n.sheet && !n._orbFollower) continue;
       rends.push({ kind:'npc', npc:n, footY: n.tileY });
     }
     // v0.95.516 · Treehouse silver chest
@@ -32954,7 +32973,11 @@ function frame(now){
     }
     rends.sort((a,b) => a.footY - b.footY);
     for (const r of rends){
-      if (r.kind === 'npc') drawNPC(r.npc);
+      // v0.95.730 · the interior path had NO orb branch at all, so even once
+      // the guard lets a sheet-less follower through it would have gone into
+      // drawNPC, which needs a sheet. Mirrors drawWorldLayer.
+      if (r.kind === 'npc' && r.npc && r.npc._orbFollower) drawZyrexOrb(r.npc);
+      else if (r.kind === 'npc') drawNPC(r.npc);
       else if (r.kind === 'treehouseChest') drawTreehouseChest();
       else if (r.kind === 'schoolDesk') drawSchoolDesk();
       else if (r.kind === 'seerHqChest') drawSeerHqChest();

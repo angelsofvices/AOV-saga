@@ -26568,10 +26568,53 @@ const PARTY_MAX = 8;
 // contributes without needing a per-site sweep.  Design lets side quests +
 // Warden ladders + grind ALL feed the same ceiling · Malezor content targets
 // ~333 (T1 gate) · full 10-district run targets 3330 (T10 gate).
+// ★★ v0.95.728 · RIZER BOND GROWS WITH HIS ZYREX
+//
+// Creator: "rizer bond goes up as zyrex level goes up. this allows him to bond
+// with stronger zyrex. bond goes up .5x as zxp"
+//
+// ★ WHY NOT LITERAL ZXP
+//
+// Taken as raw experience points this breaks the system outright. ZXP is
+// CUBIC — floor(0.8 * lv^3) — so the lifetime totals are enormous:
+//
+//     Lv 10        800 ZXP        Lv 60     172,800 ZXP
+//     Lv 30     21,600 ZXP        Lv 100    800,000 ZXP
+//
+// At 0.5 per point, ONE Zyrex reaching Lv 10 is +400 bond and Lv 20 is +3,200
+// — past the 3330 ceiling. Every tier gate in the game, up to and including
+// the T10 Gemlords, would open before your first Zyrex left the starter band.
+// Confirmed with the Creator: the rate is per LEVEL, at 1.5 each.
+//
+// ★ THE SHAPE
+//
+//     bond = (ally bonds x 2) + (1.5 x sum of every owned Zyrex's level)
+//
+// A maxed 8-Zyrex party is worth 1,200 — about a third of the ceiling — so
+// raising your faction is a real route to bonding Gemlords without being the
+// only one. Ally quests still carry the majority.
+//
+// This REPLACES the old (rizerLvl - 1) x 3 term per the Creator's call: bond
+// now comes from your allies and your faction, not from your own level. A
+// Rizer who levelled without raising a single Zyrex loses that contribution,
+// which is the intent — bond is a measure of relationships, not of grinding.
+//
+// PC-stored Zyrex count too. They are still yours, and excluding them would
+// punish using the storage the game gives you.
+const RIZER_BOND_PER_ZYREX_LEVEL = 1.5;
+const RIZER_BOND_CAP = 3330;
+function rizerZyrexBond(){
+  const all = [].concat(player.party || [], player.pcZyrex || []);
+  let sum = 0;
+  for (const z of all){
+    if (!z) continue;
+    sum += Math.max(1, z.level || z.lv || 1);
+  }
+  return sum * RIZER_BOND_PER_ZYREX_LEVEL;
+}
 function rizerBondTotal(){
   const raw = Object.values(player.bonds || {}).reduce((a, b) => a + (b || 0), 0);
-  const xp  = Math.max(0, (player.rizerLvl || 1) - 1) * 3;
-  return Math.min(3330, raw * 2 + xp);
+  return Math.min(RIZER_BOND_CAP, Math.floor(raw * 2 + rizerZyrexBond()));
 }
 function requiredBondForTier(tier){ return Math.max(1, (tier || 1)) * 333; }
 // opts.bypassBondGate · for Zyrex EARNED by a specific ritual or quest rather

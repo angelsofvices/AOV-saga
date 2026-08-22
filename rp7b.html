@@ -19166,15 +19166,23 @@ function tryMove(dt){
               showToast(_s.lockedMsg ? _s.lockedMsg() : '◈ Locked', 2800);
               return;
             }
-            // ★ v0.95.713 · one-time archetype reminder on the way downstairs.
-            // A NUDGE, not a gate: the Creator said the player *can* set their
-            // archetype at the computer, so refusing to open the stairs would
-            // be inventing a lock that was never asked for.  The points are not
-            // lost either way — they stay spendable from the ZyPhone forever.
-            if (!player._archetypeNudged && (player.rizerLvl || 1) === 1
-                && rizerAttrUnspent() > 0 && isRizerRoomScene(game.scene)){
-              player._archetypeNudged = true;
-              showToast(`◈ ${rizerAttrUnspent()} attribute points unspent · set your archetype at the Nebuladock, or later in the ZyPhone RIZER tab`, 4200);
+            // ★★ v0.95.715 · THE ARCHETYPE GATE.
+            //
+            // This was a nudge at v0.95.713 because the directive then read
+            // "player CAN assign their attributes at game start".  It now reads
+            // "they MUST assign 33 points to their build before leaving the
+            // room", so it is a lock.
+            //
+            // Safe to lock because the Nebuladock is in this room, three tiles
+            // away, and the points are always spendable — there is no state
+            // where the player is stuck.  Refusing with a reason beats a stair
+            // that silently eats the input.
+            if ((player.rizerLvl || 1) === 1 && rizerAttrUnspent() > 0
+                && isRizerRoomScene(game.scene)){
+              player.stairsCd = now + 900;
+              try { playSFX('doorLock'); } catch(_){}
+              showToast(`◈ ${rizerAttrUnspent()} ATTRIBUTE POINTS UNSPENT · set your archetype at the Nebuladock before you go downstairs`, 4200);
+              return;
             }
             player.stairsCd = now + 1000;
             useStairs(_s);
@@ -24282,6 +24290,12 @@ function renderZycellHome(){
   const rzXP     = p.rizerXP    || 0;
   const rzXPMax  = p.rizerXPMax || 1;
   const rzXPPct  = Math.min(100, (rzXP / Math.max(1, rzXPMax)) * 100);
+  // v0.95.715 · RXP and AP are two systems · the card shows both, never one
+  // derived from the other.
+  const rzLifetime = (typeof rizerLifetimeRXP === 'function') ? rizerLifetimeRXP() : 0;
+  const rzPool     = (typeof rizerAttrPool === 'function') ? rizerAttrPool(rzLv) : 0;
+  const rzSpent    = (typeof rizerAttrSpent === 'function') ? rizerAttrSpent() : 0;
+  const rzFree     = Math.max(0, rzPool - rzSpent);
   // v0.95.537 · Global Rizer bond replaces the old Kelthor-only display
   const bondTot  = (typeof rizerBondTotal === 'function') ? rizerBondTotal() : 0;
   const bondPct  = Math.min(100, (bondTot / 3330) * 100);
@@ -24300,6 +24314,16 @@ function renderZycellHome(){
           <div><span style="color:#8ff;">XP</span> <b style="color:#fff;">${rzXP.toLocaleString()}</b> / ${rzXPMax.toLocaleString()}</div>
           <div style="height:7px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,214,107,0.35); margin-top:3px;">
             <div style="height:100%; width:${rzXPPct}%; background:linear-gradient(90deg,#ffd66b,#ff9c66);"></div>
+          </div>
+          <div style="margin-top:6px; display:flex; gap:8px;">
+            <div style="flex:1; border:1px solid rgba(79,179,255,0.35); padding:3px 5px;">
+              <div style="color:#8ff; font-size:8px; letter-spacing:.14em;">RXP · LIFETIME</div>
+              <div style="color:#fff; font-weight:bold; font-size:11px;">${rzLifetime.toLocaleString()}<span style="color:#667; font-weight:normal;"> / 1,000,000</span></div>
+            </div>
+            <div style="flex:1; border:1px solid ${rzFree > 0 ? '#ffd66b' : 'rgba(192,96,255,0.45)'}; padding:3px 5px;">
+              <div style="color:${rzFree > 0 ? '#ffd66b' : '#c060ff'}; font-size:8px; letter-spacing:.14em;">AP · ATTRIBUTE</div>
+              <div style="color:#fff; font-weight:bold; font-size:11px;">${rzSpent}<span style="color:#667; font-weight:normal;"> / ${rzPool}</span>${rzFree > 0 ? `<span style="color:#ffd66b;"> · +${rzFree}</span>` : ''}</div>
+            </div>
           </div>
           <div style="margin-top:6px;"><span style="color:#8ff;">BOND</span> <b style="color:#fff;">${bondTot}</b> / 3330 <span style="color:#8ff; font-size:9px;">· can bond T${eligibleTier}${eligibleTier < 10 ? ` · next gate T${nextTier} @ ${nextGate}` : ' · MAX (Gemlord tier)'}</span></div>
           <div style="height:5px; background:rgba(0,0,0,0.55); border:1px solid rgba(95,220,122,0.35); margin-top:3px;">
@@ -33194,9 +33218,40 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
 // totalXP(L) = 100 × L²  ·  clean quadratic · Lv50 = 250K · Lv100 = 1M
 // Design targets: Part 1 (10 districts) → Lv 50 · Part 2 (Novarian Challenge) → Lv 100
 const RIZER_LEVEL_CAP = 100;
+// ★★ v0.95.715 · TWO SEPARATE SYSTEMS THAT WORK TOGETHER
+//
+// The Creator's page draws the line explicitly:
+//
+//     RXP  |  AP
+//          |  33 ap / lvl
+//          |  1,000,000 = lvl 100 rxp
+//
+// RXP is the CURRENCY you earn by playing.  AP is what LEVELLING pays you.
+// They are not the same number and must never be derived from each other:
+// RXP buys levels, levels grant AP, AP buys stats.  Three steps, two
+// currencies, one direction.
+//
+//   RXP  0 at Lv 1        →  1,000,000 at Lv 100
+//   AP   33 at Lv 1       →  3,330     at Lv 100   (33.3 per level)
+//
+// ★ WHY THE CURVE MOVED
+//
+// The old form was 100 × L², which gives 1,000,000 at level 100 and looks
+// correct — but it also gives 100 at level 1, and the player starts at level
+// 1 holding ZERO.  So the RXP a real player actually earns climbing 1 → 100
+// was 100L²(100) − 100L²(1) = 999,900.  One hundred short of the number on
+// the page, forever, for a reason nothing on screen could explain.
+//
+// Shifting by that same L=1 offset and renormalising fixes both ends at once
+// and keeps the quadratic shape the pacing was tuned around — the per-level
+// cost moves by at most 2 RXP anywhere on the curve (L50→51 goes 10,100 →
+// 10,101; L99→100 goes 19,900 → 19,902).
+const RIZER_TOTAL_RXP = 1000000;      // lifetime RXP at Lv 100 · the page's figure
 function rizerTotalXPFor(level){
   const L = Math.max(1, Math.min(RIZER_LEVEL_CAP, level));
-  return 100 * L * L;
+  // (L²−1) is 0 at L=1 and 9999 at L=100, so the two endpoints are exact by
+  // construction rather than by luck.
+  return Math.round(RIZER_TOTAL_RXP * (L * L - 1) / 9999);
 }
 function rizerXPToNext(currentLevel){
   const L = Math.max(1, Math.min(RIZER_LEVEL_CAP - 1, currentLevel));
@@ -33293,6 +33348,12 @@ const RIZER_ATTR_META = {
 function rizerAttrPool(level){
   const L = Math.max(1, Math.min(RIZER_LEVEL_CAP, level || 1));
   return Math.min(RIZER_ATTR_MAX, Math.floor((L * 333) / 10));
+}
+// Lifetime RXP the player has actually earned: everything the levels cost,
+// plus progress into the current one.  Reads 0 at Lv 1 and 1,000,000 at Lv 100
+// — the two numbers on the Creator's page — because rizerTotalXPFor does.
+function rizerLifetimeRXP(){
+  return rizerTotalXPFor(player.rizerLvl || 1) + (player.rizerXP || 0);
 }
 function rizerAttrs(){
   if (!player.attrs || typeof player.attrs !== 'object') player.attrs = {};
@@ -33463,7 +33524,8 @@ function buildRizerAttrPanel(where){
       ${rows}
       ${presets}
       <div style="margin-top:10px; color:#667; font-size:9px; line-height:1.6; letter-spacing:.04em;">
-        33.3 points per level · 3330 at Lv 100 · <b style="color:#886;">points cannot be reassigned once spent</b>
+        <b style="color:#c060ff;">AP</b> 33.3 per level · 3,330 at Lv 100 &nbsp;·&nbsp; <b style="color:#8ff;">RXP</b> buys levels · 1,000,000 at Lv 100<br>
+        <b style="color:#886;">points cannot be reassigned once spent</b>
       </div>
     </div>`;
 }

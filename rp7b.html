@@ -11904,17 +11904,52 @@ AURAXION_UFO_FLIGHT.src = 'assets/2D%20sprites/decor/auraxion-ufo-flight.png';
 // trails right to the cell boundary, where the old blanket 8px inset was
 // slicing them off. The FLIGHT sheet touches its edges 0 times out of 16,
 // which is why the same inset never caused trouble there.
+// ★★ v0.95.806 · THE DASH SHEET IS RECOMPOSED.  Creator: "it is cropping the
+// nose when I go up and down and it is putting the nose on the left right
+// animation on boost as floating pixels. recompose the boost frames."
+//
+// The sheet had been CUT WRONG, not measured wrong: the vertical ships' nose
+// tips overran their cells, so every LEFT frame carried ~1,750px of the
+// down-ship's nose baked into its cell top, and every RIGHT frame carried
+// ~980px of the up-ship's nose at its bottom.  The old row-1/2 bboxes started
+// at y=0 / ran to the cell floor precisely BECAUSE they were measuring those
+// foreign chunks — which is what drew them as floating pixels in flight.
+//
+// Fix in the PNG: each nose rejoined to its own ship, the whole composite
+// shifted into its cell (the flame tips beyond the sheet edge lose their
+// faintest ~40 rows — wisp, not hull), two orphaned trail slivers removed.
+// Row 1/2 heights drop 281/229 → 119: that is the foreign art leaving the box.
+// ★ MEASURED WITH THE DRAW'S OWN ROUNDING.  Python's round() is banker's —
+// round(940.5) = 940 — while the draw uses Math.round — 941.  The first cut of
+// these tables was measured in the Python frame, which put every column-3 box
+// a pixel off and, worse, left the recomposed UP-noses' top row on the wrong
+// side of the row-2/row-3 boundary: the right-facing frames were sampling a
+// 1px sliver of nose.  The sheet is rolled down one row and both tables are
+// re-measured half-up, so the numbers and the draw share one grid.
 const UFO_DASH_BBOXES = [
-  [[ 98, 92,135,220],[ 84, 62,136,250],[ 80,  9,135,303],[ 81, 91,135,221]],
-  [[ 32,  0,254,281],[ 21,  0,276,281],[ 16,  0,295,281],[  0,  0,273,281]],
-  [[ 36, 82,249,229],[  9, 82,302,229],[  0, 82,275,229],[ 35, 82,245,229]],
-  [[ 98,  0,135,230],[ 84,  0,135,260],[ 79,  0,135,311],[ 81,  0,135,230]],
+  [[ 98, 38,135,276],[ 84,  9,136,305],[ 80,  0,135,314],[ 80, 38,135,276]],
+  [[ 32,162,254,119],[ 21,162,276,119],[ 16,162,298,119],[  0,162,272,119]],
+  [[ 36, 82,249,119],[  9, 82,302,119],[  0, 82,275,119],[ 34, 82,245,119]],
+  [[ 98,  0,135,270],[ 84,  0,135,300],[ 79,  0,135,313],[ 80,  0,135,270]],
 ];
+// ★★ v0.95.806 · MELT CROP · measured per ROW, per sheet.  Creator: "the ufo
+// attack animation produces a second ufo ... there should only be one ufo."
+//
+// Both vaporization sheets carry a BAKED-IN hull above the beam, and the live
+// hull draws separately — so any hull pixel that survives the crop is a second
+// UFO on screen.  The old blanket 0.43 was measured against SOME frames; the
+// hull actually reaches 0.482 of the cell on the Mori sheet's third row and
+// 0.44 on the Daemon's, so frames 8-11 showed a hull slice every attack.
+// These are the measured hull-end fractions + a 15px-at-source margin.
+const UFO_MELT_CROP = {
+  mori:   [0.43, 0.43, 0.53, 0.46],
+  daemon: [0.42, 0.42, 0.49, 0.42],
+};
 const UFO_FLIGHT_BBOXES = [
-  [[ 19, 61,277,195],[ 18, 61,277,195],[ 18, 60,277,196],[ 18, 61,276,195]],
-  [[ 12,105,287,122],[ 10,105,287,122],[ 10,106,287,122],[  9,107,287,122]],
-  [[ 18, 98,286,123],[ 15, 98,286,124],[ 16, 98,286,123],[ 15, 98,286,124]],
-  [[ 38, 30,240,221],[ 37, 30,239,221],[ 37, 30,239,221],[ 37, 30,239,221]],
+  [[ 19, 61,277,195],[ 18, 61,277,195],[ 18, 60,277,196],[ 17, 61,276,195]],
+  [[ 12,105,287,122],[ 10,105,287,122],[ 10,106,287,122],[  8,107,287,122]],
+  [[ 18, 98,286,123],[ 15, 98,286,124],[ 16, 98,286,123],[ 14, 98,286,124]],
+  [[ 38, 29,240,221],[ 37, 29,239,221],[ 37, 29,239,221],[ 36, 29,239,221]],
 ];
 // v0.95.712 · UFO traversal cadence · ms between tiles (lower = faster)
 const UFO_CRUISE_MOVE_CD = 85;
@@ -39182,7 +39217,11 @@ function drawAuraxionUfoFlight(){
         const elapsed=Math.max(0,now-melt.t0);
         const mf=Math.min(15,Math.floor((elapsed/melt.dur)*16));
         const mc=mf%4,mr=Math.floor(mf/4),cell=sheet.naturalWidth/4;
-        const cropY=cell*.43,cropH=cell-cropY;
+        // ★ v0.95.806 · crop at the MEASURED hull line for this row, not a
+        // blanket 0.43 · the third row's hull runs deeper and was surviving
+        // the crop as a second UFO on every attack
+        const _meltKey=melt.target?.mode==='daemon'?'daemon':'mori';
+        const cropY=cell*UFO_MELT_CROP[_meltKey][mr],cropH=cell-cropY;
         // Match the original approved full-sheet presentation scale. Although
         // only the victim/lower-beam region is sampled, it must retain the
         // same 5.2-tile cell width or the Mori/Daemon appears miniaturized.

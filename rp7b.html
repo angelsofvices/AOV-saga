@@ -1570,6 +1570,7 @@ const AUDIO = {
     towerSpotted: new Audio('audio/sfx-tower-spotted.mp3'), // ★ v0.95.817 · Rizer VO near a DEAD tower · points at the silver chest quest
     jailbreakOk:   new Audio('audio/sfx-jailbreak-ok.mp3'),   // ★ v0.95.818 · Scanobot voice · 'astralite signature confirmed'
     jailbreakFail: new Audio('audio/sfx-jailbreak-fail.mp3'), // ★ v0.95.818 · Scanobot voice · 'invalid astralite signature'
+    lifeSeedSour:  new Audio('audio/sfx-lifeseed-sour.mp3'),  // ★ v0.95.820 · Rizer VO · sour face on eating a Life Seed
     axeKill:      new Audio('audio/sfx-axe-kill.mp3'),       // ★ v0.95.793 · Emerald Axe finisher · fires only on axe-driven KOs, primary tile OR anywhere in the 3x3
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Tearsword contact SFX · fires only on enemy hit-land
@@ -1780,7 +1781,7 @@ const RVOX_PRIORITY = {
   // 75 · sleep beat (rare but character-defining)
   yawnBed: 75,
   // 70 · consumption / power beats
-  mythicElixir: 70, readyToBlast: 70, ahImOut: 68, gottaFixIt: 72, elixir: 65, potion: 60, aleReeks: 60,
+  mythicElixir: 70, readyToBlast: 70, ahImOut: 68, gottaFixIt: 72, elixir: 65, lifeSeedSour: 62, potion: 60, aleReeks: 60,
   // 60 · streaks
   tooEasy: 55, heatingUp: 55, dodgeStreak: 55,
   // 50 · contextual
@@ -1841,6 +1842,7 @@ const _UI_SFX = new Set([
   // v0.95.729 already covered it — if the sound is feedback for a thing the
   // PLAYER just did, it belongs here.
   'mythicElixir', 'elixir', 'potion', 'aleReeks',
+  'lifeSeedSour',                 // ★ v0.95.820 · eaten from the cube panel too
   'gemVox', 'gotcha',             // pickups can happen with the phone up too
 ]);
 function playSFX(name){
@@ -14409,7 +14411,7 @@ function eatLifeSeed(){
 function spawnLifeSeed(cx, cy, pure){
   if (game.scene !== 'overworld'){
     // interiors hand it straight over · same rule as chest coins
-    if ((player.hp || 0) < (player.hpMax || 100)){ const got = eatLifeSeed(); showToast(`✦ LIFE SEED · +${got} HP`, 2400); }
+    if ((player.hp || 0) < (player.hpMax || 100)){ const got = eatLifeSeed(); try { playSFX('lifeSeedSour'); } catch(_){} showToast(`✦ LIFE SEED · +${got} HP`, 2400); }
     else storeLifeSeed(pure);
     return null;
   }
@@ -14438,7 +14440,9 @@ function spawnLifeSeed(cx, cy, pure){
         // ★ "auto consume" · hurt Rizer eats it where he stands
         take();
         const got = eatLifeSeed();
-        try { playSFX('confirm'); } catch(_){}
+        // ★ v0.95.820 · Creator: "sour rvox when u consume the life seed" —
+        // creeper-tainted OR pure, the seed is SOUR; the face is canon.
+        try { playSFX('lifeSeedSour'); } catch(_){}
         showToast(`✦ LIFE SEED consumed · +${got} HP${pure ? ' · pure Xilnar stock' : ''}`, 2600);
       } else {
         take();
@@ -36038,6 +36042,7 @@ function useZycubeItem(key){
         player.lifeSeedSpoilAt.shift();   // eating one retires its spoil timer
       }
       const got = eatLifeSeed();
+      try { playSFX('lifeSeedSour'); } catch(_){}   // ★ v0.95.820 · sour face VO
       playSFX('confirm');
       showToast(`✦ LIFE SEED consumed · +${got} HP`, 2200);
       return;

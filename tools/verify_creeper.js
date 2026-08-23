@@ -238,5 +238,18 @@ ok(!!smd && /_verdantCreeper/.test(smd),
 console.log('     A heal wired per-attack would pay out on sword and not on a');
 console.log('     thrown boulder, and nobody would work out why.');
 
+
+console.log('\n★ v0.95.820 · THE SEED IS SOUR · Rizer says so');
+{
+  const FS2=require('fs');
+  ok(FS2.existsSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/audio/sfx-lifeseed-sour.mp3'),'the sour VO is on disk');
+  ok(/lifeSeedSour:\s*new Audio\('audio\/sfx-lifeseed-sour\.mp3'\)/.test(src),'registered in AUDIO.sfx');
+  ok(/lifeSeedSour:\s*62/.test(src),'RVOX priority 62 · consumption tier, under elixir over potion');
+  const ui=src.indexOf('const _UI_SFX');
+  ok(/'lifeSeedSour',/.test(src.slice(ui, ui+2600)),'★ in _UI_SFX · the cube-panel eat is audible with the phone up (the v0.95.798 rule)');
+  const hits=(src.match(/playSFX\('lifeSeedSour'\)/g)||[]).length;
+  ok(hits===3, `★ all three eat paths play it (found ${hits}/3)`);
+}
+
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
 process.exit(0);

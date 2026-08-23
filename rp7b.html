@@ -34521,8 +34521,15 @@ function buildDistrictTrails(dist, rng){
     occupied.add(key); bushes++;
   }
   // FOREST the border · the treeline becomes the wall.
-  const treeSrc = TRAIL_TREE_BY_DIST[dist] || 'assets/2D%20sprites/decor/malezor-tree.png';
-  const treeImg = new Image(); treeImg.src = treeSrc;
+  // ★ No silent fallback. A district either has its own tree, or its own hedge,
+  // or it grows nothing — it never borrows a neighbour's forest.
+  const treeSrc  = TRAIL_TREE_BY_DIST[dist] || null;
+  const hedgeSrc = TRAIL_HEDGE_BY_DIST[dist] || null;
+  const forestSrc = treeSrc || hedgeSrc;
+  if (!forestSrc) console.warn(`[rp7b] ${dist} has no border-forest art · skipping its treeline`);
+  const isHedge = !treeSrc && !!hedgeSrc;
+  const treeImg = forestSrc ? new Image() : null;
+  if (treeImg) treeImg.src = forestSrc;
   const nearTrail = (x, y) => {
     for (let r = 0; r <= FOREST_TRAIL_R; r += 2)
       for (let o = -r; o <= r; o += 2)
@@ -34542,9 +34549,11 @@ function buildDistrictTrails(dist, rng){
       const key = x + ',' + y;
       if (occupied.has(key) || _propBlocked.has(key)) continue;
       if (rng() > 0.55) continue;
-      WORLD_PROPS.push({ id:`${dist}_forest_${x}_${y}`, img:treeImg, src:treeSrc,
-        bbox:[72,77,1107,1138], tileX:x, tileY:y, tileW:3, tileH:3,
-        footprint:[[0,0]], _borderForest:dist });
+      if (!forestSrc) continue;
+      WORLD_PROPS.push({ id:`${dist}_forest_${x}_${y}`, img:treeImg, src:forestSrc,
+        bbox: isHedge ? [291,274,965,471] : [72,77,1107,1138],
+        tileX:x, tileY:y, tileW: isHedge ? 2 : 3, tileH: isHedge ? 1 : 3,
+        footprint:[[0,0]], _borderForest:dist, _hedge:isHedge });
       occupied.add(key); trees++;
     }
   }
@@ -34562,8 +34571,27 @@ const TRAIL_BUSH_BBOX = {
   'assets/2D%20sprites/decor/andrannor-bush.png':[291,274,965,471],
   'assets/2D%20sprites/decor/zarvane-bush.png':[291,274,965,471],
 };
+// ★★ v0.95.752 · EVERY DISTRICT USES ITS OWN TREE.
+// The rollout shipped a lazy one-entry map with a silent fallback to
+// malezor-tree.png, and planted 3,343 MALEZOR trees across eight foreign
+// districts. Malezor's tree belongs in Malezor and nowhere else.
+// Zarvane genuinely has no tree art — so it gets a dense hedge of its own bush
+// instead of somebody else's forest, and the code says so rather than
+// borrowing.
 const TRAIL_TREE_BY_DIST = {
+  malezor:  'assets/2D%20sprites/decor/malezor-tree.png',
   andrannor:'assets/2D%20sprites/decor/andrannor-tree.png',
+  veridan:  'assets/2D%20sprites/decor/trees/veridan-tree.png',
+  netharion:'assets/2D%20sprites/decor/trees/netharion-tree.png',
+  vorashil: 'assets/2D%20sprites/decor/trees/vorashil-tree.png',
+  xilnar:   'assets/2D%20sprites/decor/trees/xilnar-tree.png',
+  baelgor:  'assets/2D%20sprites/decor/trees/baelgor-tree.png',
+  thardin:  'assets/2D%20sprites/decor/trees/thardin-tree.png',
+  korathen: 'assets/2D%20sprites/decor/trees/korathen-tree.png',
+  // zarvane · no tree exists · handled below with its own bush
+};
+const TRAIL_HEDGE_BY_DIST = {
+  zarvane: 'assets/2D%20sprites/decor/zarvane-bush.png',
 };
 function buildAllTrails(){
   if (game._trailsDone) return 0;

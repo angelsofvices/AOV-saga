@@ -12115,6 +12115,9 @@ setTimeout(() => { try {
   // ★ v0.95.760 · after the carve, so "at least 6 tiles off the road" is real
   try { scatterWoodChests(); } catch(err){ console.warn('[rp7b] chest scatter failed', err); }
   try { restoreLootedChests(); } catch(err){ console.warn('[rp7b] chest restore failed', err); }
+  // ★ v0.95.762 · after the collision bake and the chests, so nothing lands
+  // inside a building or on top of a chest
+  try { topUpDistrictCollectibles(); } catch(err){ console.warn('[rp7b] collectible top-up failed', err); }
   // v0.95.738 · Malezor wild habitat · playtest region, N/E/S/W
   try {
     const mw = seedMalezorWild();
@@ -13507,9 +13510,12 @@ let _fae = FAE_POSITIONS.filter(([x,y])=>!isWorldBorderTile(x,y)).map(([x, y], i
   });
   console.log('[rp7b] fae seeded · base:', baseCount, '+ extra:', placed.length, '= total:', _fae.length);
 })();
-// v0.95.397 · Respawn collected fae after 5 real-time minutes · only when the
-// fae's tile is currently OFF-CAMERA so the player never sees them pop in
-const FAE_RESPAWN_MS = 5 * 60 * 1000;
+// v0.95.397 · Respawn collected fae · only when the fae's tile is currently
+// OFF-CAMERA so the player never sees them pop in.
+// ★ v0.95.762 · 5 minutes -> 120 seconds. Faedust feeds the stamina meter and
+// the Celestryx craft wants 100 of it; a five-minute regrow made farming it a
+// chore rather than a loop.
+const FAE_RESPAWN_MS = 120 * 1000;
 function tickFae(dt){
   const now = performance.now();
   for (const f of _fae){
@@ -34867,6 +34873,149 @@ const TRAIL_HEDGE_BY_DIST = {};
 // every structure, and at least CHEST_MIN_FROM_ROAD tiles off the carved
 // roadbed, so you find them by exploring the blocks rather than by walking the
 // path you were already on.
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.762 · COLLECTIBLES IN EVERY DISTRICT
+//
+// Fae, life stones and astralite stones existed only in Malezor, Zarvane and a
+// slice of Andrannor. Seven districts had ZERO of all three — no faedust for
+// the stamina meter, no astralite, no life stones for Nurse Rein's quest.
+//
+// This TOPS UP to the target rather than replacing what is there. The existing
+// spots are hand-curated ("quick tutorial find", "north path to Rakoron's
+// Cave") and Malezor is deliberately denser as the starting district, so a
+// district already above target keeps its surplus.
+const COLLECTIBLE_TARGET = { fae: 40, life: 10, astralite: 15 };
+const COLLECT_MIN_APART  = { fae: 6,  life: 20, astralite: 14 };
+function topUpDistrictCollectibles(){
+  if (game._collectiblesToppedUp) return null;
+  game._collectiblesToppedUp = true;
+  const rng = _makeWorldRng(0x0FAE57);
+  const out = { fae:0, life:0, astralite:0 };
+  const free = (x, y) => {
+    if (worldDistrictAt(x, y) == null) return false;
+    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+    if (_propBlocked.has(x+','+y)) return false;
+    if (typeof boulderAt === 'function' && boulderAt('overworld', x, y)) return false;
+    if (typeof _tileHasNpcHalo === 'function' && _tileHasNpcHalo(x, y, 2)) return false;
+    // must be standable-next-to, or the player can never reach it
+    return [[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy]) =>
+      isWorldLandTile(x+dx, y+dy) && !isWorldBorderTile(x+dx, y+dy)
+      && !_propBlocked.has((x+dx)+','+(y+dy)));
+  };
+  for (const w of DISTRICT_WHEEL){
+    const dist = w.dist;
+    const P = _districtPOIs(dist);
+    // what this district already has, so curated spots count toward the target
+    const have = {
+      fae:       _fae.filter(f => worldDistrictAt(f.x, f.y) === dist),
+      life:      BOULDERS.filter(b => b.type === 'life'      && worldDistrictAt(b.tileX, b.tileY) === dist),
+      astralite: BOULDERS.filter(b => b.type === 'astralite' && worldDistrictAt(b.tileX, b.tileY) === dist),
+    };
+    for (const kind of ['fae', 'life', 'astralite']){
+      const want = COLLECTIBLE_TARGET[kind] - have[kind].length;
+      if (want <= 0) continue;                       // already at or over target
+      const gap = COLLECT_MIN_APART[kind];
+      const taken = have[kind].map(o => kind === 'fae' ? [o.x, o.y] : [o.tileX, o.tileY]);
+      let made = 0, guard = 0;
+      while (made < want && guard < 30000){
+        guard++;
+        const x = Math.round(P.hub[0] + (rng() * 2 - 1) * 200);
+        const y = Math.round(P.hub[1] + (rng() * 2 - 1) * 200);
+        if (worldDistrictAt(x, y) !== dist) continue;
+        if (!free(x, y)) continue;
+        if (taken.some(([tx,ty]) => Math.abs(tx-x) + Math.abs(ty-y) < gap)) continue;
+        taken.push([x, y]);
+        if (kind === 'fae'){
+          _fae.push({ id:`fae_${dist}_${made}`, x, y, collected:false, phase: rng() * 6.28 });
+        } else {
+          BOULDERS.push({ tileX:x, tileY:y, hp:BOULDER_MAX_HP, breaking:0, gone:false,
+                          scene:'overworld', type:kind });
+        }
+        made++; out[kind]++;
+      }
+      if (made < want) console.warn(`[rp7b] ${dist} · only ${made}/${want} ${kind} placed`);
+    }
+  }
+  // ★★ UNBURY. 21 hand-placed collectibles ended up inside solid props — not
+  // from this pass, but from mine: the trail flora of v0.95.752 and the lattice
+  // snap of v0.95.753 were laid down on top of fae and stones that had been
+  // sitting there since long before, and v0.95.759 made all of it solid.
+  //
+  // The rule is the one this codebase already runs on: FLORA IS CLEARABLE,
+  // STRUCTURES ARE NOT. A bush that landed on a fae loses; a fae that landed
+  // under the Fanghall moves.
+  let cleared = 0, moved = 0;
+  const propOn = (x, y) => WORLD_PROPS.find(q =>
+    q && (q.footprint || []).some(([dx,dy]) => q.tileX+dx === x && q.tileY+dy === y));
+  const freeNear = (x, y) => {
+    for (let r = 1; r <= 6; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++)
+          if (free(x+dx, y+dy)) return [x+dx, y+dy];
+    return null;
+  };
+  const unbury = (obj, gx, gy, place) => {
+    if (!_propBlocked.has(gx+','+gy)) return;
+    const p = propOn(gx, gy);
+    if (p && (p._trailVerge || p._borderForest)){
+      unregisterPropCollision(p);
+      p._hidden = true;                     // stop drawing it too
+      const k = WORLD_PROPS.indexOf(p);
+      if (k >= 0) WORLD_PROPS.splice(k, 1);
+      cleared++;
+      return;
+    }
+    const spot = freeNear(gx, gy);
+    if (spot){ place(spot[0], spot[1]); moved++; }
+  };
+  for (const f of _fae)      unbury(f, f.x, f.y, (x,y) => { f.x = x; f.y = y; });
+  for (const b of BOULDERS)  unbury(b, b.tileX, b.tileY, (x,y) => { b.tileX = x; b.tileY = y; });
+  // ★ UNSTRAND. Being on a free tile is not the same as being reachable.
+  // fae_28 sat on open ground in Andrannor with a house on three sides and one
+  // of my border trees on the fourth — collectible, if you could get to it.
+  // Same rule: clear an adjacent bush or tree if one is doing the boxing in,
+  // otherwise move the collectible somewhere it can actually be picked up.
+  let freed = 0;
+  const standable = (x, y) => isWorldLandTile(x, y) && !isWorldBorderTile(x, y)
+                              && !_propBlocked.has(x+','+y);
+  const unstrand = (gx, gy, place) => {
+    const N = [[1,0],[-1,0],[0,1],[0,-1]];
+    if (N.some(([dx,dy]) => standable(gx+dx, gy+dy))) return;
+    for (const [dx, dy] of N){
+      const p = propOn(gx+dx, gy+dy);
+      if (p && (p._trailVerge || p._borderForest)){
+        unregisterPropCollision(p);
+        const k = WORLD_PROPS.indexOf(p);
+        if (k >= 0) WORLD_PROPS.splice(k, 1);
+        freed++;
+        return;
+      }
+    }
+    const spot = freeNear(gx, gy);
+    if (spot){ place(spot[0], spot[1]); freed++; }
+  };
+  for (const f of _fae)     unstrand(f.x, f.y, (x,y) => { f.x = x; f.y = y; });
+  for (const b of BOULDERS) unstrand(b.tileX, b.tileY, (x,y) => { b.tileX = x; b.tileY = y; });
+  if (freed) console.log(`[rp7b] unstranded · ${freed} collectible(s) opened up`);
+  // and no two collectibles may share a tile
+  const seenTile = new Set(); let dedup = 0;
+  for (const b of BOULDERS){
+    const k = b.tileX+','+b.tileY;
+    if (!seenTile.has(k)){ seenTile.add(k); continue; }
+    const spot = freeNear(b.tileX, b.tileY);
+    if (spot){ b.tileX = spot[0]; b.tileY = spot[1]; seenTile.add(spot.join(',')); dedup++; }
+  }
+  for (const f of _fae){
+    const k = f.x+','+f.y;
+    if (!seenTile.has(k)){ seenTile.add(k); continue; }
+    const spot = freeNear(f.x, f.y);
+    if (spot){ f.x = spot[0]; f.y = spot[1]; seenTile.add(spot.join(',')); dedup++; }
+  }
+  if (cleared || moved || dedup)
+    console.log(`[rp7b] unburied · ${cleared} flora cleared off collectibles · ${moved} collectibles moved out of structures · ${dedup} unstacked`);
+  console.log(`[rp7b] collectibles topped up · +${out.fae} fae · +${out.life} life stones · +${out.astralite} astralite · targets ${COLLECTIBLE_TARGET.fae}/${COLLECTIBLE_TARGET.life}/${COLLECTIBLE_TARGET.astralite} per district`);
+  return out;
+}
 // ★★ v0.95.761 · 20 PER DISTRICT, WEIGHTED BY REMOTENESS.
 //
 // v0.95.760 sampled a box around the district HUB, which put chests thickest

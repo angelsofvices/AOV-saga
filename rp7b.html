@@ -2677,6 +2677,21 @@ const COSMIC_CHEST_SPOTS = [
   { dist:'vorashil', at:[338, 477], item:'sapphire_sword',
     label:'SAPPHIRE TEARSWORD · Azurel\'s crystallised tear',
     note:'densest canopy in Vorashil · 47 trees within 12 tiles' },
+  // ★ v0.95.775 · Rakoron is MALEZOR's Gemlord and the Rubypaw is his iron and
+  // dragonlion mist, so it belongs in his district — the same rule that put
+  // Azurel's tear in Vorashil.
+  //
+  // (-30,4) is the far NORTHWEST forest: 39 trees within 12 tiles, 99th
+  // percentile for canopy in Malezor, 113 tiles out from the hub.
+  //
+  // ★ NOT the highest-scoring tile. (39,-20) ties at 40 trees and 100th
+  // percentile, but it sits NINETEEN tiles from the treehouse — and the
+  // treehouse is the chest the Rubypaw was just taken out of. Finding it again
+  // next door would make the move look like a shuffle. The northwest stand is
+  // 55 tiles clear of it and reads as somewhere you had to go.
+  { dist:'malezor',  at:[-30,   4], item:'rubypaw_sword',
+    label:'RUBYPAW LONGSWORD · Rakoron\'s iron and dragonlion mist',
+    note:'far NW forest · 39 trees within 12 tiles · 55 tiles clear of the treehouse' },
 ];
 const GOLD_CHEST_TILE_POSITIONS = [
   [ 45, 90], [ 30,150],   // Malezor  (2)
@@ -6084,11 +6099,10 @@ const WORLD_PROPS = [
         chest.looted = true;
         player.items = player.items || {};
         player.items[spot.item] = (player.items[spot.item] || 0) + 1;
-        // the Tearsword arrives sharp · same durability rig as the treehouse copy
-        if (spot.item === 'sapphire_sword'){
-          player.swordDurability = 200;
-          player.swordBroken     = false;
-        }
+        // Gemlord weapons arrive sharp. Each blade tracks its own durability,
+        // so S1's sword and S2's sword never share HP.
+        if (spot.item === 'sapphire_sword'){ player.swordDurability    = 200; player.swordBroken    = false; }
+        if (spot.item === 'rubypaw_sword'){  player.rubypawDurability  = 200; player.rubypawBroken  = false; }
         const piles = spillChestCoins(chest, 'cosmic', 1);
         try { spawnChestGems('overworld', chest.tileX, chest.tileY); } catch(_){}
         try { awardRizerXP(150); } catch(_){}     // cosmic · 6x a wooden chest
@@ -20382,7 +20396,16 @@ function tryOpenTreehouseGoldChest(){
   if (player.treehouseGoldChestOpened) return false;
   player.treehouseGoldChestOpened = true;
   player.items = player.items || {};
-  player.items.rubypaw_sword = (player.items.rubypaw_sword || 0) + 1;
+  // ★★ v0.95.775 · THE RUBYPAW MOVED OUT OF HERE, to a cosmic chest in
+  // Malezor's deep forest — Rakoron's own district. By the ladder a Gemlord
+  // weapon is cosmic tier, not gold.
+  // This chest is GOLD, so it now pays what gold pays: a gemshard. Leaving it
+  // as coins-only would have made the treehouse's rarest chest emptier than a
+  // wooden one.
+  const _shardKey = rollGemshard();
+  addItems({ [_shardKey]: 1 });
+  const _shardName = (typeof INVENTORY_META !== 'undefined' && INVENTORY_META[_shardKey])
+    ? INVENTORY_META[_shardKey].label : _shardKey;
   // ★ v0.95.773 · GOLD TIER · pays from CHEST_COIN_TIERS like every other
   // chest. Indoors it hands the coins over rather than spilling them, because
   // ground pickups do not exist inside a room (see spillChestCoins).
@@ -20391,12 +20414,9 @@ function tryOpenTreehouseGoldChest(){
                     id: 'treehouse_gold' }, 'gold', 1);
   const coins = (player.items.coins || 0) - _before;
   try { spawnChestGems('interior_treehouse', TREEHOUSE_GOLD_CHEST.tileX, TREEHOUSE_GOLD_CHEST.tileY); } catch(_){}
-  // Fresh durability tracked per-weapon so S1 sword + S2 sword don't share HP
-  player.rubypawDurability = 200;
-  player.rubypawBroken     = false;
-  try { playItemGain('rubypaw_sword'); } catch(_){}
+  try { playItemGain(_shardKey); } catch(_){}
   try { playSFX('confirm'); } catch(_){}
-  showToast(`★ RUBYPAW LONGSWORD + ${coins} coins · toggle from ZyPhone → Weapons (S2 only)`, 5000);
+  showToast(`★ GOLD CHEST · ${_shardName} + ${coins} coins`, 5000);
   return true;
 }
 

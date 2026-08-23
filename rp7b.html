@@ -12273,6 +12273,9 @@ setTimeout(() => { try {
   // covers a building's ground storey — so this sweeps up whatever they left
   // standing inside a facade.
   try { evictFromBuildings(); } catch(err){ console.warn('[rp7b] building eviction failed', err); }
+  // ★ v0.95.779 · LAST of all. Every earlier pass can plant something on a
+  // doorstep; this is the one that guarantees you can still get in.
+  try { clearFloraFromDoorways(); } catch(err){ console.warn('[rp7b] doorway clear failed', err); }
   // v0.95.738 · Malezor wild habitat · playtest region, N/E/S/W
   try {
     const mw = seedMalezorWild();
@@ -35806,6 +35809,69 @@ function _buildingFacadeTiles(){
       for (let x = x0; x <= x1; x++) facade.add(x+','+y);
   }
   return facade;
+}
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.779 · KEEP THE DOORWAYS CLEAR.
+//
+// Creator: "cant access celestryx gift site. blocked by bush."
+//
+// It was not one bush. Measured across all 445 interactable door tiles:
+//   · 14 doors had flora standing ON the door tile
+//   · 24 doors had NO walkable approach at all
+// and among those 24 were MALEZOR'S TOWN HALL, THE SCHOOL and FOUR SEER HQs —
+// major buildings that simply could not be entered.
+//
+// The cause is mine. v0.95.752 lines every road with verge bushes, and roads
+// run right up to doors, so a verge lands exactly on the doorstep. The
+// Celestryx altar was blocked by an authored Zarvane Wilds bush sitting on the
+// door tile itself.
+//
+// A door needs TWO clear tiles: the door itself, and somewhere to stand and
+// press X. Flora is clearable — that rule has settled every one of these — so
+// the doorway wins and the bush moves.
+const DOORWAY_APPROACHES = [[0,1],[0,-1],[1,0],[-1,0]];
+function clearFloraFromDoorways(){
+  if (game._doorwaysCleared) return null;
+  game._doorwaysCleared = true;
+  const protect = new Set();
+  for (const key of _propDoors.keys()){
+    protect.add(key);
+    const [dx, dy] = key.split(',').map(Number);
+    for (const [ax, ay] of DOORWAY_APPROACHES) protect.add((dx+ax) + ',' + (dy+ay));
+  }
+  let cleared = 0;
+  for (let i = WORLD_PROPS.length - 1; i >= 0; i--){
+    const p = WORLD_PROPS[i];
+    if (!isFloraProp(p) || p.tileX == null) continue;
+    if (!protect.has(p.tileX + ',' + p.tileY)) continue;
+    unregisterPropCollision(p);
+    WORLD_PROPS.splice(i, 1);
+    cleared++;
+  }
+  // Report what is STILL sealed — a prop with no way in is a quest the player
+  // cannot finish, and that should be loud rather than silent.
+  //
+  // ★ REACHABILITY IS A PROPERTY OF THE PROP, NOT OF EACH DOOR TILE. Counting
+  // per tile flagged the Zarvane oasis, which registers all NINE of its water
+  // tiles as doors so the player can fish from the sand rim facing the water.
+  // The centre tile is ringed by other water and will never have a walkable
+  // neighbour — and does not need one, because the other eight do. A prop is
+  // reachable if ANY of its doors can be faced.
+  const byProp = new Map();
+  for (const [key, prop] of _propDoors){
+    const id = (prop && prop.id) || key;
+    const [dx, dy] = key.split(',').map(Number);
+    const open = DOORWAY_APPROACHES.some(([ax, ay]) => {
+      const x = dx+ax, y = dy+ay;
+      return isWorldLandTile(x, y) && !isWorldBorderTile(x, y) && !_propBlocked.has(x + ',' + y);
+    });
+    byProp.set(id, (byProp.get(id) || false) || open);
+  }
+  const sealedIds = [...byProp.entries()].filter(([, open]) => !open).map(([id]) => id);
+  const sealed = sealedIds.length;
+  console.log(`[rp7b] doorways · ${cleared} plants cleared off doors and their approaches · ${byProp.size} interactable props · ${sealed} unreachable`);
+  if (sealed) console.warn(`[rp7b] ★ ${sealed} interactable prop(s) cannot be reached: ${sealedIds.slice(0,8).join(', ')}`);
+  return { cleared, sealed };
 }
 function evictFromBuildings(){
   if (game._evictedFromBuildings) return null;

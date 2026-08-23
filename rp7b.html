@@ -1491,6 +1491,7 @@ const AUDIO = {
     caveGrowl: new Audio('audio/sfx-cave-growl.mp3'),    // locked Rakoron cave
     doorLock:  new Audio('audio/sfx-door-lock.mp3'),     // locked residential building
     portalLocked: new Audio('audio/sfx-portal-locked.mp3'),  // v0.88.3 · sealed portal
+    portalOpen:   new Audio('audio/sfx-portal-locked.mp3'),  // ★ v0.95.800 · step-through · placeholder reuse until its own clip lands
     whudScroll:   new Audio('audio/sfx-whud-scroll.mp3'),    // v0.89.1 · R1/L1 weapon cycle
     faeCollect:   new Audio('audio/sfx-fae-collect.mp3'),    // v0.91.2 · fairy-dust twinkle
     punchHit:     new Audio('audio/sfx-punch-hit.mp3'),      // v0.95.59 · Square light melee contact
@@ -2489,6 +2490,7 @@ const INVENTORY_META = {
   sapphire_sword:   { label: 'Sapphire Tearsword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 100 hits (connect-only, no miss-break) · repair 100 gems
   emerald_axe:      { label: 'Emerald Axe',                order: 9 },   // ★ v0.95.788 · S1-only · Square = 3x3 AOE centred on Rizer · Veridan cosmic chest
   pearlbow:         { label: 'Pearlbow',                   order: 10 },  // ★ v0.95.792 · S1-only · Square = RANGED shot down the facing line · Zarvane cosmic chest
+  portal_chip:      { label: 'Portal Chip',                order: 54 },  // ★ v0.95.800 · Scanobot salvage · 20 to Dad opens the first two rifts (Malezor <-> Zarvane)
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
   zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
   // ─── v0.95.588 · ULTRASHARDS · one per canon type · consume on Zyrex to overwrite A4 with Ultramax move + add Ultramax type ─────────────
@@ -2615,7 +2617,7 @@ const ITEM_GAIN_SFX_KEYS = new Set([
   'zysphere_basic','zysphere_silver','zysphere_ultra',
   // v0.95.507 · Quest items · every retrievable quest pickup now fires the jingle
   'scrap_metal','astralcore','astralcore_transponder','life_stone',
-  'ale','potion','sapphire_sword','rubypaw_sword','emerald_axe','pearlbow',
+  'ale','potion','sapphire_sword','rubypaw_sword','emerald_axe','pearlbow','portal_chip',
 ]);
 function playItemGain(key){
   if (!key || key === 'coins') return;
@@ -4762,76 +4764,14 @@ const WORLD_PROPS = [
       showToast(`◈ MALEZOR HOSPITAL · Party restored · -${COST} coins`, 2600);
     },
   },
-  // ── CLOSED PORTAL · smart random spawn (never near chests · least dense) ─
-  // Per user 2026-08-05: portal MUST NOT spawn near a chest, and always
-  // picks a low-density corner where the fewest other props exist within
-  // radius.  Random tie-break among the 8 lowest-density valid tiles.
-  ...(function(){
-    const _portalImg = new Image();
-    _portalImg.src = 'assets/2D%20sprites/portal/portal_closed.png';
-    const PORTAL_BBOX = [445, 40, 363, 1196];      // aspect 0.304
-
-    // Build the "prop centers" density table from the shared module tables
-    // + grass patch centers.  Chest positions get a HARD-BAN radius.
-    const chestPositions    = CHEST_TILE_POSITIONS;
-    const CHEST_AVOID       = 10;                  // Manhattan tiles
-    const DENSITY_RADIUS    = 7;                   // Manhattan tiles
-    const propCenters       = [
-      ...CHEST_TILE_POSITIONS,
-      ...BUILDING_TILE_POSITIONS,
-      ...GEMGRASS_PATCHES.map(p => [p.x + Math.floor(p.w/2), p.y + Math.floor(p.h/2)]),
-    ];
-
-    // Score every valid interior tile · lower density = better
-    const candidates = [];
-    for (let y = 2; y < MAP_ROWS - 1; y++){
-      const xMin = Math.max(1,               mapMinXAt(y));
-      const xMax = Math.min(mapWidthAt(y) - 1, mapWidthAt(y) - 1);
-      for (let x = xMin; x < xMax; x++){
-        if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
-        // Skip if too close to ANY chest (hard rule)
-        let banned = false;
-        for (const [cx, cy] of chestPositions){
-          if (Math.abs(x - cx) + Math.abs(y - cy) < CHEST_AVOID){ banned = true; break; }
-        }
-        if (banned) continue;
-        // Count prop centers within DENSITY_RADIUS · lower = quieter
-        let density = 0;
-        for (const [px, py] of propCenters){
-          if (Math.abs(x - px) + Math.abs(y - py) <= DENSITY_RADIUS) density++;
-        }
-        candidates.push({ x, y, density });
-      }
-    }
-    // v0.88.4 · Malezor portal fixed at (3, 3) per user
-    const tx = 3, ty = 3;
-
-    return [{
-      id: 'portal_closed',
-      img: _portalImg,
-      src: 'assets/2D%20sprites/portal/portal_closed.png',
-      bbox: PORTAL_BBOX,
-      tileX: tx, tileY: ty,
-      // Height = 2 tiles (matches player) · aspect preserved → ~0.6 tile wide
-      tileW: 1, tileH: 2,
-      footprint: [[0, 0]],
-      door: [0, 0],
-      _levitate: true,
-      onInteract: () => { showToast('◈ Portal · sealed shut.', 2000); playSFX('portalLocked'); },
-    }, {
-      // ── ZARVANE portal (v0.88.2) · fixed at (174, 243) inside Wilds Branch ──
-      id: 'zarvane_portal_closed',
-      img: _portalImg,
-      src: 'assets/2D%20sprites/portal/portal_closed.png',
-      bbox: PORTAL_BBOX,
-      tileX: 174, tileY: 243,
-      tileW: 1, tileH: 2,
-      footprint: [[0, 0]],
-      door: [0, 0],
-      _levitate: true,
-      onInteract: () => { showToast('◈ Zarvane portal · sealed shut.', 2000); playSFX('portalLocked'); },
-    }];
-  })(),
+  // ★★ v0.95.800 · The two hand-placed sealed portals (Malezor at (3,3),
+  // Zarvane at (174,243)) are gone.  All ten are generated by spawnPortals()
+  // from PORTAL_NETWORK, sited by measured density — see the portal block.
+  //
+  // Worth recording what was here: a scorer swept every tile on the map
+  // ranking them by prop density, and then the result was thrown away by a
+  // hard-coded `const tx = 3, ty = 3;` on the next line.  The measurement had
+  // been dead for a hundred versions.
   // ── CHESTS · all wood · 1-100 random coins · sets base purchase math ──
   // Simplified 2026-08-05 per user: no more tier system, no gems/potions/
   // Zyspheres.  Every chest is wood, drops 1-100 coins.  Coin math is the
@@ -7954,6 +7894,50 @@ const NPCS = [
           '*hands it back*  Half the lesson each, but nobody sits idle.  Smart find, kid.',
         ]});
         return;
+      }
+      // ★★ v0.95.800 · PORTAL NETWORK · hand over Portal Chips.
+      // Creator: "take 20 of them to dad and unlock portal travel around the
+      // first 2 districts. 40 of them ... first 4 districts" and so on to 100.
+      //
+      // Dad takes them in BAND-SIZED lots, not one at a time: the ladder is
+      // written in twenties, so accepting nineteen and saying nothing would
+      // leave the player unable to tell whether it had worked.
+      {
+        const held = player.items.portal_chip || 0;
+        const tier = portalNextTier();
+        if (tier && held > 0){
+          const need = tier.pieces - portalPiecesSpent();
+          if (held >= need){
+            player.items.portal_chip -= need;
+            player.portalPieces = (player.portalPieces || 0) + need;
+            const now = portalDistrictsUnlocked();
+            try { playSFX('confirm'); } catch(_){}
+            try { awardRizerXP(400); } catch(_){}
+            showToast(`★ PORTAL NETWORK · ${now} of ${ZYRAXIS_DISTRICTS.length} districts wired`, 5200);
+            const names = ZYRAXIS_DISTRICTS.slice(0, now).map(d => d.id.toUpperCase()).join(' · ');
+            showDialog({ speaker: 'DAD', lines: [
+              '*spreads the salvage across the bench · picks up a scorched board and turns it to the light*',
+              'Thardin\'s survey drones.  Every one of them is carrying a piece of the same machine, and they never knew it.',
+              '*starts soldering · does not look up*',
+              'The old network ran on boards like these.  Ten gates, one road between them, and nobody had to walk it.',
+              now === 2
+                ? '*sits back*  Two rifts.  MALEZOR and ZARVANE, open both ways.  Step into one, step out of the other.'
+                : `*sits back*  That is ${now} of ten lit.  You can step between these now: ${names}.`,
+              portalNextTier()
+                ? `Bring me ${portalNextTier().pieces - portalPiecesSpent()} more and I will push it further out.`
+                : 'That is the whole network, kid.  The planet just got a lot smaller.',
+            ]});
+            return;
+          }
+          // holding some, but not a full band yet
+          try { playSFX('cursor'); } catch(_){}
+          showDialog({ speaker: 'DAD', lines: [
+            '*glances at the boards in your hands*',
+            `Close.  I need ${need - held} more before I can wire the next pair of gates.`,
+            'Those drones of Thardin\'s are all over the districts.  Keep at it.',
+          ]});
+          return;
+        }
       }
       // v0.95.268 · Dad's Starter Bonder Quest · gate for exploration essentials
       // Required: Fae Net (Kaizari) + Zycube (Mom) + 10 berries + 10 seeds + 10 fruits
@@ -12376,6 +12360,15 @@ setTimeout(() => { try {
     const sb = buildScanobotNet();
     if (sb) console.log(`[rp7b] scanobot net · ${sb} drones across 10 districts · rogue: ${!!player.scanobotsRogue}`);
   } catch(err){ console.warn('[rp7b] scanobot seed failed', err); }
+  // ★★ v0.95.800 · PORTALS LAST.  Siting reads the density of everything that
+  // ended up in the world — props, buildings, NPCs, tower guards, Seer rings,
+  // Scanobots.  Run any earlier and "the most unpopulated area" would be
+  // measured against a world that was not finished being populated.
+  try {
+    const np = spawnPortals();
+    console.log(`[rp7b] portal network · ${np} portals · quietest tiles: `
+      + PORTAL_NETWORK.map(P => `${P.dist}(${P.x},${P.y})`).join(' '));
+  } catch(err){ console.warn('[rp7b] portal siting failed', err); }
   // v0.95.655 · run AFTER the guards land so they are sanitized too
   try { sanitizeNpcPlacement(); } catch(err){ console.warn('[rp7b] placement sanitize failed', err); }
 } catch(err){ console.warn('[rp7b] tower guard build failed', err); } }, 0);
@@ -14001,6 +13994,11 @@ const PICKUP_KINDS = {
   coins: {
     src: 'assets/2D%20sprites/decor/coins-pile.png',
     bbox: [0, 0, 889, 573], tileW: 1.05, item: 'coins', label: 'Coins',
+  },
+  // ★ v0.95.800 · PORTAL CHIP · the drone's own board, walked over to collect
+  chip: {
+    src: 'assets/2D%20sprites/decor/portal-chip.png',
+    bbox: [204, 177, 856, 879], tileW: 0.8, item: 'portal_chip', label: 'Portal Chip',
   },
 };
 for (const k of Object.values(PICKUP_KINDS)){ k.img = new Image(); k.img.src = k.src; }
@@ -16474,6 +16472,254 @@ function spawnHitFx(tx, ty, mode){
   try { bumpCombo(); } catch(_){}
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.800 · THE PORTAL NETWORK
+//
+// Creator: "place a teleportation portal in each district. if you find and
+// destroy scanobots in each district, they will drop digital portal_chip
+// pieces. take 20 of them to dad and unlock portal travel around the first 2
+// districts. 40 of them portal travel the first 4 districts ... enter a portal,
+// exit a portal. put 1 portal in each district. they are always in the most
+// unpopulated area of a district."
+//
+// One portal per district, unlocked in bands as Dad rebuilds the network from
+// Scanobot salvage.  A band unlocks the FIRST N districts in canon order, so
+// the network grows outward from home exactly the way the story does — you can
+// always hop back to Malezor, and the frontier is always the edge of what you
+// have cleared.
+const PORTAL_TIERS = [
+  { pieces:  20, districts:  2 },
+  { pieces:  40, districts:  4 },
+  { pieces:  60, districts:  6 },
+  { pieces:  80, districts:  8 },
+  { pieces: 100, districts: 10 },
+];
+// Pieces already handed over.  Kept separate from the bag count so turning
+// them in is a one-way commitment and the bag can refill toward the next band.
+function portalPiecesSpent(){ return player.portalPieces || 0; }
+// How many districts, in canon order, the network reaches.
+function portalDistrictsUnlocked(){
+  const spent = portalPiecesSpent();
+  let n = 0;
+  for (const t of PORTAL_TIERS) if (spent >= t.pieces) n = t.districts;
+  return n;
+}
+function portalDistrictIndex(id){ return ZYRAXIS_DISTRICTS.findIndex(d => d.id === id); }
+function portalUnlocked(id){
+  const i = portalDistrictIndex(id);
+  return i >= 0 && i < portalDistrictsUnlocked();
+}
+// The next band, and what it still wants.  Null once the network is whole.
+function portalNextTier(){
+  const spent = portalPiecesSpent();
+  return PORTAL_TIERS.find(t => spent < t.pieces) || null;
+}
+
+// ── SITING · the quietest tile in each district ──────────────────────────
+// "they are always in the most unpopulated area of a district."
+//
+// Density is counted over EVERY prop and NPC actually standing in the world,
+// not over the hand-authored position tables — those tables describe a fraction
+// of what ends up placed, and scoring against them would call a tile empty
+// while it sat in the middle of a forest.
+const PORTAL_SITE_RADIUS = 10;    // tiles · what "around here" means
+const PORTAL_MIN_FROM_HUB = 18;   // never right on top of the town
+const PORTAL_NETWORK = [];        // filled by sitePortals()
+function sitePortals(){
+  PORTAL_NETWORK.length = 0;
+  // one pass over the world builds a coarse occupancy grid · O(props), not
+  // O(tiles x props), which at 27,000 props and 800,000 tiles matters
+  const CELL = 8;
+  const grid = new Map();
+  const bump = (x, y, w) => {
+    const k = `${Math.floor(x/CELL)},${Math.floor(y/CELL)}`;
+    grid.set(k, (grid.get(k) || 0) + w);
+  };
+  for (const p of WORLD_PROPS){
+    if (!p || p.tileX == null) continue;
+    // a building or a chest is a landmark; a blade of grass is not
+    const w = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:grass|grassblade|bush)/.test(p.src || '') ? 0.15 : 1;
+    bump(p.tileX, p.tileY, w);
+  }
+  for (const n of NPCS){
+    if (!n || n.tileX == null || n.scene !== 'overworld') continue;
+    bump(n.tileX, n.tileY, 2);            // people are the loudest thing in a place
+  }
+  const near = (x, y) => {
+    let d = 0;
+    const r = Math.ceil(PORTAL_SITE_RADIUS / CELL);
+    const gx = Math.floor(x/CELL), gy = Math.floor(y/CELL);
+    for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++)
+      d += grid.get(`${gx+a},${gy+b}`) || 0;
+    return d;
+  };
+  for (const D of ZYRAXIS_DISTRICTS){
+    let best = null;
+    // step 2 · a tile-exact sweep of every district is 400k samples and the
+    // quietest spot is never a single tile wide
+    for (let y = D.cy - D.ry; y <= D.cy + D.ry; y += 2){
+      for (let x = D.cx - D.rx; x <= D.cx + D.rx; x += 2){
+        if (((x-D.cx)/D.rx)**2 + ((y-D.cy)/D.ry)**2 > 0.85) continue;   // stay off the rim
+        if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+        if (_propBlocked.has(`${x},${y}`)) continue;
+        if (Math.abs(x - D.cx) + Math.abs(y - D.cy) < PORTAL_MIN_FROM_HUB) continue;
+        const d = near(x, y);
+        if (!best || d < best.d) best = { x, y, d };
+      }
+    }
+    if (!best) continue;
+    // ★★ EXACT REFINE.  The sweep above is deliberately coarse — an 8x8
+    // occupancy grid stepped every 2 tiles — because scoring 400,000 tiles
+    // exactly against 27,000 props is not something to do ten times at boot.
+    // But coarse means BLOCKY: two tiles in the same grid cell score
+    // identically, so the winner is only approximately the quietest.
+    //
+    // The suite caught exactly that: 8 of 10 landed on the true minimum and two
+    // sat a hair off it.  So re-measure precisely inside a small window around
+    // the coarse pick, where an exact pass is cheap.
+    const R = 14;
+    const exact = (x, y) => {
+      let d = 0;
+      for (const p of WORLD_PROPS){
+        if (!p || p.tileX == null || p._portal) continue;
+        if (Math.abs(p.tileX - x) + Math.abs(p.tileY - y) > PORTAL_SITE_RADIUS) continue;
+        d += /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:grass|grassblade|bush)/.test(p.src || '') ? 0.15 : 1;
+      }
+      for (const n of NPCS){
+        if (!n || n.tileX == null || n.scene !== 'overworld') continue;
+        if (Math.abs(n.tileX - x) + Math.abs(n.tileY - y) <= PORTAL_SITE_RADIUS) d += 2;
+      }
+      return d;
+    };
+    let fine = { x: best.x, y: best.y, d: exact(best.x, best.y) };
+    for (let y = best.y - R; y <= best.y + R; y++){
+      for (let x = best.x - R; x <= best.x + R; x++){
+        if (((x-D.cx)/D.rx)**2 + ((y-D.cy)/D.ry)**2 > 0.85) continue;
+        if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+        if (_propBlocked.has(`${x},${y}`)) continue;
+        if (_propBlocked.has(`${x},${y+1}`)) continue;   // ★ the exit tile must be clear too
+        if (Math.abs(x - D.cx) + Math.abs(y - D.cy) < PORTAL_MIN_FROM_HUB) continue;
+        const d = exact(x, y);
+        if (d < fine.d) fine = { x, y, d };
+      }
+    }
+    PORTAL_NETWORK.push({ dist: D.id, x: fine.x, y: fine.y, density: fine.d });
+  }
+  return PORTAL_NETWORK.length;
+}
+
+// ── THE PROPS ────────────────────────────────────────────────────────────
+const PORTAL_IMG = { closed: new Image(), open: new Image() };
+PORTAL_IMG.closed.src = 'assets/2D%20sprites/portal/portal_closed.png';
+PORTAL_IMG.open.src   = 'assets/2D%20sprites/portal/portal_open.png';
+const PORTAL_BBOX_CLOSED = [445, 40, 363, 1196];
+const PORTAL_BBOX_OPEN   = [445, 40, 363, 1196];
+function spawnPortals(){
+  // idempotent · safe at boot and after a load
+  for (let i = WORLD_PROPS.length - 1; i >= 0; i--)
+    if (WORLD_PROPS[i] && WORLD_PROPS[i]._portal){
+      unregisterPropCollision(WORLD_PROPS[i]);
+      WORLD_PROPS.splice(i, 1);
+    }
+  if (!PORTAL_NETWORK.length) sitePortals();
+  let n = 0;
+  for (const P of PORTAL_NETWORK){
+    const prop = {
+      id: `portal_${P.dist}`,
+      _portal: P.dist,
+      get img(){ return portalUnlocked(P.dist) ? PORTAL_IMG.open : PORTAL_IMG.closed; },
+      get src(){ return portalUnlocked(P.dist)
+        ? 'assets/2D%20sprites/portal/portal_open.png'
+        : 'assets/2D%20sprites/portal/portal_closed.png'; },
+      get bbox(){ return portalUnlocked(P.dist) ? PORTAL_BBOX_OPEN : PORTAL_BBOX_CLOSED; },
+      tileX: P.x, tileY: P.y,
+      tileW: 1, tileH: 2,
+      footprint: [[0, 0]],
+      door: [0, 0],
+      _levitate: true,
+      onInteract: () => usePortal(P.dist),
+    };
+    WORLD_PROPS.push(prop);
+    registerPropCollision(prop);
+    n++;
+  }
+  return n;
+}
+
+// ── TRAVEL ───────────────────────────────────────────────────────────────
+let portalMenu = null;   // { list:[{dist,label,x,y}], sel, from }
+function usePortal(dist){
+  if (!portalUnlocked(dist)){
+    const t = portalNextTier();
+    const have = (player.items && player.items.portal_chip) || 0;
+    try { playSFX('portalLocked'); } catch(_){}
+    showToast(t
+      ? `◈ Portal · DARK · Dad has wired ${portalDistrictsUnlocked()} of 10 · bring him ${t.pieces - portalPiecesSpent()} more Portal Chips (you carry ${have})`
+      : '◈ Portal · dark. Something else is wrong with this one.', 3600);
+    return;
+  }
+  const here = portalDistrictIndex(dist);
+  const list = PORTAL_NETWORK
+    .map(P => ({ ...P, i: portalDistrictIndex(P.dist) }))
+    .filter(P => P.i < portalDistrictsUnlocked() && P.i !== here)
+    .sort((a, b) => a.i - b.i);
+  if (!list.length){
+    try { playSFX('portalLocked'); } catch(_){}
+    showToast('◈ Portal · humming, but there is nowhere else lit yet.', 2600);
+    return;
+  }
+  portalMenu = { list, sel: 0, from: dist };
+  try { playSFX('menuOpen'); } catch(_){}
+}
+function portalTravel(){
+  if (!portalMenu) return;
+  const dest = portalMenu.list[portalMenu.sel];
+  portalMenu = null;
+  if (!dest) return;
+  // ★ step out ONE TILE SOUTH of the far portal, never onto it — the portal
+  // tile is solid, and landing inside it would wedge the player in scenery.
+  player.x = dest.x;
+  player.y = dest.y + 1;
+  player.dir = 'up';
+  player.moving = false;
+  player.moveCd = 220;
+  try { playSFX('portalOpen'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+  try { notebookVisit(`district:${dest.dist}`); } catch(_){}
+  showToast(`★ PORTAL · stepped through to ${dest.dist.toUpperCase()}`, 2600);
+}
+function drawPortalMenu(){
+  if (!portalMenu) return;
+  const W = canvas.width, H = canvas.height;
+  const rows = portalMenu.list.length;
+  const bw = 340, bh = 74 + rows * 26;
+  const bx = Math.round(W/2 - bw/2), by = Math.round(H/2 - bh/2);
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(6,10,28,0.96)'; ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = '#7ad4ff'; ctx.lineWidth = 2; ctx.strokeRect(bx+0.5, by+0.5, bw-1, bh-1);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#7ad4ff';
+  ctx.font = 'bold 14px "Courier New", monospace';
+  ctx.fillText('◈ PORTAL NETWORK', bx + 16, by + 26);
+  ctx.font = '10px "Courier New", monospace';
+  ctx.fillStyle = '#8ab';
+  ctx.fillText(`${portalDistrictsUnlocked()} of ${ZYRAXIS_DISTRICTS.length} districts wired`, bx + 16, by + 43);
+  ctx.font = 'bold 13px "Courier New", monospace';
+  portalMenu.list.forEach((d, i) => {
+    const y = by + 66 + i * 26;
+    const on = i === portalMenu.sel;
+    if (on){ ctx.fillStyle = 'rgba(122,212,255,0.22)'; ctx.fillRect(bx + 10, y - 15, bw - 20, 22); }
+    ctx.fillStyle = on ? '#ffd66b' : '#dfe8f0';
+    ctx.fillText(`${on ? '▶ ' : '  '}${String(d.i + 1).padStart(2,' ')} · ${d.dist.toUpperCase()}`, bx + 18, y);
+  });
+  ctx.font = '10px "Courier New", monospace';
+  ctx.fillStyle = '#8ab';
+  ctx.textAlign = 'right';
+  ctx.fillText('▲▼ nav · × travel · ○ cancel', bx + bw - 16, by + bh - 12);
+  ctx.restore();
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // ★★ v0.95.794 · PEARLBOW ARROW · a real projectile, not a tracer
 //
@@ -18334,7 +18580,13 @@ function buildTowerGuardPacks(){
 // remembered.
 const SCANOBOT_HP           = 125;     // [[aov-combat-math]] · lightweight = one Mori band, flat
 const SCANOBOT_TIER         = 1;       // scanner, not soldier · keeps kill XP modest
-const SCANOBOT_PER_DIST     = 5;
+// ★★ v0.95.800 · 5 -> 10.  Creator: "by 100 scanobot kills you can portal
+// travel all [10] districts", and the ladder they gave is 20 pieces per two
+// districts — 100 pieces for the full network.  At one piece per kill that
+// needs 100 Scanobots, and there were fifty.  Ten per district makes the
+// arithmetic land exactly: clear every Scanobot in the world and the network
+// completes, with nothing left over and nothing missing.
+const SCANOBOT_PER_DIST     = 10;
 const SCANOBOT_ROGUE_TOWERS = 3;       // Scrapjaw notices once 3 towers are lit
 const SCANOBOT_GEM          = 'blue';  // [[aov-gem-canon]] · Blue = DEF+SP · Brain
 const SCANOBOT_SRC          = 'assets/2D%20sprites/enemies/scanobot.png';
@@ -18579,11 +18831,21 @@ function scanobotDrop(n){
   if (!n || !n._scanobot || n._scanobotLooted) return;
   n._scanobotLooted = true;
   try {
+    // ★ v0.95.800 · the portal_chip is the portal currency.  One per kill, so
+    // the count the player sees IS the kill count — no conversion to explain.
+    // ★ it SPILLS rather than going straight to the bag, like scrap and coins:
+    // the chip is a physical thing that fell out of a machine, and walking over
+    // to pick it up is what makes the kill read as salvage.
     addItems({ scrap_metal: 1 });
+    try { spillPickups('chip', n.tileX, n.tileY, [1], `scano_${n.tileX},${n.tileY}`); }
+    catch(_){ addItems({ portal_chip: 1 }); }
     if (typeof spawnGemDrop === 'function'){
       spawnGemDrop('overworld', n.tileX, n.tileY, SCANOBOT_GEM);
     }
-    showToast('◈ SCANOBOT DOWN · 1× Scrap Metal · a Blue Gem drops from the housing', 2800);
+    const _mb = (player.items && player.items.portal_chip) || 0;
+    const _next = PORTAL_TIERS.find(t => t.pieces > portalPiecesSpent() + _mb);
+    showToast('◈ SCANOBOT DOWN · Scrap Metal · a PORTAL CHIP and a Blue Gem drop from the housing'
+      + (_next ? ` · ${_next.pieces - portalPiecesSpent() - _mb} more chips for the next rift` : ''), 3200);
   } catch(err){ console.warn('[rp7b] scanobot drop failed', err); }
   // ★ Loot is spawned BEFORE the fuse so the drop is never lost to the blast,
   // and the detonation is scheduled after so the player still has to get clear.
@@ -25737,6 +25999,24 @@ addEventListener('keydown', e => {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // ★★ v0.95.800 · 1b) PORTAL DESTINATION MENU · owns keys while open
+  //
+  // Sits ABOVE the settings block so a portal cannot be left hanging open
+  // behind another panel, and returns unconditionally — no key leaks through
+  // to move Rizer while he is standing in a rift choosing where to go.
+  // ═══════════════════════════════════════════════════════════════
+  if (portalMenu){
+    const N = portalMenu.list.length;
+    if (k === 'arrowup'   || k === 'w'){ portalMenu.sel = (portalMenu.sel + N - 1) % N; playSFX('cursor'); }
+    if (k === 'arrowdown' || k === 's'){ portalMenu.sel = (portalMenu.sel + 1) % N;     playSFX('cursor'); }
+    if (k === 'x' || k === 'enter' || k === ' '){ portalTravel(); }
+    if (k === 'escape' || k === 'c' || k === 'backspace'){
+      portalMenu = null; playSFX('menuClose');
+    }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // 2) SETTINGS MENU · owns keys entirely while open
   // ═══════════════════════════════════════════════════════════════
   if (settingsMenuOpen){
@@ -31305,6 +31585,7 @@ function saveGame(){
         seerCommandersBeaten:       player.seerCommandersBeaten || {},
         deathGargoyles:             player.deathGargoyles || [],   // v0.95.614 · death breadcrumb persist
         shardshareFixed:            !!player.shardshareFixed,      // v0.95.619 · party duel-XP share unlocked
+        portalPieces:               player.portalPieces || 0,      // ★ v0.95.800 · pieces handed to Dad · drives the whole network
         dadStarterQuestComplete:    !!player.dadStarterQuestComplete,
         scrapjawCompanion:          !!player.scrapjawCompanion,
         scrapjawMet:                !!player.scrapjawMet,
@@ -39312,6 +39593,7 @@ function frame(now){
   drawNpcInfoOverlay(); // v0.95.174 · companion/bond info panel
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles
+  try { drawPortalMenu(); } catch(_){}   // ★ v0.95.800 · above the world, below nothing
   drawBattleOverlay();  // owns whole screen while battleState is set
   drawWildBattleOverlay();// wild Zyrex · one-round real-time side fighter
   drawDialogOverlay();  // shown when dialogState is set (v0.79)

@@ -16677,7 +16677,11 @@ function drawMinimap(){
   const g = host.getContext('2d');
   const W = host.width, H = host.height;
   g.clearRect(0, 0, W, H);
-  if (game.scene === 'title'){ host.style.opacity = '0'; return; }
+  // ★ v0.95.805 · OVERWORLD ONLY.  In an interior, player.x is a ROOM
+  // coordinate — the Creator's screenshot caught the scope reading "MALEZOR
+  // 10,7 · 6 POI · r198" from inside the bedroom, which is tile (10,7) of the
+  // room measured against world POIs.  Nonsense, politely rendered.
+  if (game.scene !== 'overworld' || player.minimapHidden){ host.style.opacity = '0'; return; }
   host.style.opacity = '1';
   const S = MINIMAP.screen;
   const sx = S.fx * W, sy = S.fy * H, sw = S.fw * W, sh = S.fh * H;
@@ -16704,19 +16708,32 @@ function drawMinimap(){
   const list = minimapVisible(px, py);
   g.font = 'bold 9px "Courier New", monospace';
   g.textAlign = 'center';
+  const _blinkNow = performance.now();
   for (const P of list){
     const x = toX(P.x), y = toY(P.y);
-    const c = MINIMAP_KIND_COLOR[P.kind] || '#7ad4ff';
-    g.fillStyle = P.found ? c : 'rgba(140,160,180,0.85)';
-    g.beginPath(); g.arc(x, y, 3.2, 0, Math.PI*2); g.fill();
+    // ★ v0.95.805 · Creator: "pois come up on the UI like light blue blips.
+    // they blink on proximity ... turn green when discovered."  One colour
+    // language for every static POI — blue you have not been, green you have —
+    // instead of six kind-colours nobody was taught.  Rumors and anomalies
+    // keep their own colours; they are events, not places.
+    const live = P.kind === 'rumor' || P.kind === 'anomaly';
+    const c = live ? (MINIMAP_KIND_COLOR[P.kind] || '#7ad4ff')
+                   : (P.found ? '#4ee07a' : '#7ad4ff');
+    // blink when CLOSE · the blip that is almost underfoot pulses to say "here"
+    const near = P.dist <= 20;
+    const blink = (near || live) ? (0.45 + 0.55 * Math.abs(Math.sin(_blinkNow / 260))) : 1;
+    g.globalAlpha = blink;
+    g.fillStyle = c;
+    g.beginPath(); g.arc(x, y, near ? 4 : 3.2, 0, Math.PI*2); g.fill();
     g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 1; g.stroke();
+    g.globalAlpha = 1;
     // ★ "??? on undiscovered POIs and landmarks. full name shows once discovered."
     // Rumors and anomalies are the exception on purpose: their NAME is the
     // announcement — a pin reading ??? would be indistinguishable from the
-    // thing it is pointing at.
-    const live = P.kind === 'rumor' || P.kind === 'anomaly';
+    // thing it is pointing at.  (`live` is declared at the top of the loop —
+    // the colour rule needs it too.)
     const label = (P.found || live) ? P.name : '???';
-    g.fillStyle = P.found ? '#dfe8f0' : '#8fa3b5';
+    g.fillStyle = P.found ? '#bfffcf' : '#8fa3b5';
     g.fillText(label.slice(0, 22), x, y - 6);
   }
   // Rizer · always dead centre, because the map follows him
@@ -25249,7 +25266,10 @@ const toastEl = document.getElementById('toast') || (function(){
 // ★★ v0.95.802 · MINIMAP HOST · bottom-right, and the toast stack now sits
 // directly ABOVE it at the same width.  Creator: "move all phone message to pop
 // up and hide above the mini map. same dimensions."
-const MINIMAP_W = 'min(42vw, 620px)';
+// ★ v0.95.805 · HALF SIZE.  Creator: "make the mini map half the size. keep
+// same right and bottom gutter. justify to size."  42vw/620 → 21vw/310, same
+// 14px gutters, aspect untouched so the bezel cannot stretch.
+const MINIMAP_W = 'min(21vw, 310px)';
 const minimapEl = (function(){
   const el = document.createElement('canvas');
   el.id = 'minimapCanvas';
@@ -25257,7 +25277,7 @@ const minimapEl = (function(){
   el.width = 699; el.height = 358;
   Object.assign(el.style, {
     position: 'fixed', right: '14px', bottom: '14px',
-    width: MINIMAP_W, minWidth: '380px', height: 'auto',
+    width: MINIMAP_W, minWidth: '190px', height: 'auto',
     zIndex: '11', pointerEvents: 'none',
     imageRendering: 'pixelated',
     filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.55))',
@@ -25266,6 +25286,20 @@ const minimapEl = (function(){
   document.body.appendChild(el);
   return el;
 })();
+// ★★ v0.95.805 · ONE FUNCTION OWNS THE CORNER.  Creator: "add a game settings
+// to hide minimap. this will place phone back at bottom right corner."  The
+// map and the toast stack share the bottom-right, so their layout has to be
+// decided in one place — two elements each doing their own arithmetic about
+// the same corner is how they end up overlapping after the next resize.
+function applyHudLayout(){
+  const mm = document.getElementById('minimapCanvas');
+  const ts = document.getElementById('toastStack');
+  const hidden = !!player.minimapHidden;
+  if (mm) mm.style.display = hidden ? 'none' : '';
+  if (ts) ts.style.bottom = hidden
+    ? '14px'
+    : `calc(14px + ${MINIMAP_W} / ${(1398/716).toFixed(4)} + 10px)`;
+}
 const toastStackEl = (function(){
   const el = document.createElement('div');
   el.id = 'toastStack';
@@ -25275,10 +25309,12 @@ const toastStackEl = (function(){
     // ★ v0.95.802 · sits ON TOP OF the minimap, not beside it.  The height is
     // derived from the map's own aspect ratio rather than hard-coded, so
     // changing the map's width cannot leave the cards overlapping it.
+    // ★ v0.95.805 · applyHudLayout() owns this from now on · this is the boot value
     bottom: `calc(14px + ${MINIMAP_W} / ${(1398/716).toFixed(4)} + 10px)`,
-    // v0.95.552 · bumped up · 33vw/460px → 42vw/620px min 380px so the phone
-    // card reads at a glance without needing to lean in.
-    width: MINIMAP_W, maxWidth: '620px', minWidth: '380px',
+    // ★ v0.95.805 · the CARDS keep their readable width even though the map
+    // shrank — "same dimensions" bound them to the map's SLOT, not its size,
+    // and a 190px phone card would be unreadable.
+    width: '42vw', maxWidth: '620px', minWidth: '380px',
     display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
     gap: '10px',
     pointerEvents: 'none',
@@ -25288,6 +25324,8 @@ const toastStackEl = (function(){
   document.body.appendChild(el);
   return el;
 })();
+// ★ v0.95.805 · both corner elements exist now · let the owner arrange them
+try { applyHudLayout(); } catch(_){}
 // v0.95.544 · toast cards render as the ZyPhone notification UI · cap 3 visible ·
 // 8s auto-dismiss · CORSUN "you have a new message captain rizer" VO cues the
 // player to look bottom-right (audio stimulus).
@@ -30002,7 +30040,16 @@ function renderZycellSettings(){
       </div>
       <div style="color:#8ff; font-size:10px; text-align:center;">${last}</div>`)}
     ${devSection}
-    ${_zySection('⚙  GAME OPTIONS', `<div style="color:#889; text-align:center; padding:8px;">Audio · brightness · dev toggles · wiring pending</div>`)}
+    ${_zySection('⚙  GAME OPTIONS', `
+      <button data-zyitem="opt_minimap" onclick="try{
+        player.minimapHidden=!player.minimapHidden;
+        if(typeof applyHudLayout==='function')applyHudLayout();
+        playSFX('confirm'); paintZycellContent();
+      }catch(_){}"
+        style="width:100%; padding:12px; background:rgba(79,179,255,0.18); color:#cfe; border:1px solid #4fb3ff; font:bold 11px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer; text-align:left;">
+        🗺 MINIMAP · ${player.minimapHidden ? 'HIDDEN · phone cards sit in the corner' : 'SHOWN · phone cards stack above it'}
+      </button>
+      <div style="color:#667; font-size:9px; margin-top:6px; text-align:center;">hiding the scope hands the bottom-right corner back to the phone</div>`)}
     ${renderZycellControls()}`;
 }
 // v0.95.597 · CONTROLLER OPTIONS · every keyboard + controller binding in the
@@ -32223,6 +32270,7 @@ function saveGame(){
         // timestamps, which reset with the page, so a saved one would come
         // back with a deadline from a clock that no longer exists.
         ecology:                    { events: (player.ecology && player.ecology.events) || {} },
+        minimapHidden:              !!player.minimapHidden,          // ★ v0.95.805 · scope on/off · owns the corner
         dadStarterQuestComplete:    !!player.dadStarterQuestComplete,
         scrapjawCompanion:          !!player.scrapjawCompanion,
         scrapjawMet:                !!player.scrapjawMet,
@@ -32352,6 +32400,7 @@ function loadGame(){
     // ★ v0.95.804 · drop any transient ecology state that rode in · see the save-side note
     if (player.ecology){ player.ecology.rumors = []; player.ecology.anomalies = [];
       player.ecology.nextRumorAt = 0; player.ecology.nextAnomAt = 0; }
+    try { if (typeof applyHudLayout === 'function') applyHudLayout(); } catch(_){}   // ★ v0.95.805 · honour the loaded minimap pref
     // v0.95.660 · rizerXPMax is DERIVED from the curve.  Boot already re-derives
     // it, and awardRizerXP keeps it in step on every level-up — but loadGame's
     // Object.assign restores whatever the SNAPSHOT held and never re-derived it,
@@ -40347,8 +40396,66 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   if (!btn || !panel) return;
   // v0.95.252 · Hide the button entirely unless the creator has unlocked dev on this device
   if (!isDevUnlocked()) btn.style.display = 'none';
-  const show = (on) => { panel.style.display = on ? 'block' : 'none'; if(on)refreshDevFactionButtons(); };
-  btn.addEventListener('click', () => show(panel.style.display !== 'block'));
+  // ★★ v0.95.805 · Creator: "wire dev mode to open wherever the screen overlay
+  // button is. you can drag the button to drag dev mode screen."
+  //
+  // The button is the panel's HANDLE.  Drag it anywhere; the panel opens beside
+  // it and follows while you drag.  A press that never moved more than 6px is a
+  // CLICK and toggles — the same threshold every draggable-button UI uses,
+  // because a human finger cannot press without a pixel or two of wobble.
+  const DEV_BTN_POS_KEY = 'rp7b_devbtn_pos_v1';
+  try {
+    const sv = JSON.parse(localStorage.getItem(DEV_BTN_POS_KEY) || 'null');
+    if (sv && isFinite(sv.x) && isFinite(sv.y)){
+      btn.style.left = Math.max(0, Math.min(window.innerWidth - 60, sv.x)) + 'px';
+      btn.style.top  = Math.max(0, Math.min(window.innerHeight - 30, sv.y)) + 'px';
+    }
+  } catch(_){}
+  const placePanel = () => {
+    const r = btn.getBoundingClientRect();
+    // beside the button, clamped so the panel can never leave the screen
+    const pw = Math.min(560, window.innerWidth - 20);
+    let x = r.left, y = r.bottom + 8;
+    if (x + pw > window.innerWidth - 10) x = window.innerWidth - pw - 10;
+    if (y + 300 > window.innerHeight) y = Math.max(10, r.top - 8 - Math.min(420, panel.offsetHeight || 420));
+    panel.style.left = Math.max(10, x) + 'px';
+    panel.style.top = Math.max(10, y) + 'px';
+    panel.style.right = 'auto'; panel.style.bottom = 'auto';
+    panel.style.maxHeight = (window.innerHeight - 40) + 'px';
+    panel.style.overflowY = 'auto';
+  };
+  const show = (on) => {
+    panel.style.display = on ? 'block' : 'none';
+    if (on){ placePanel(); refreshDevFactionButtons(); }
+  };
+  let _drag = null;
+  btn.style.touchAction = 'none';
+  btn.addEventListener('pointerdown', (e) => {
+    const r = btn.getBoundingClientRect();
+    _drag = { sx: e.clientX, sy: e.clientY, bx: r.left, by: r.top, moved: false };
+    try { btn.setPointerCapture(e.pointerId); } catch(_){}
+  });
+  btn.addEventListener('pointermove', (e) => {
+    if (!_drag) return;
+    const dx = e.clientX - _drag.sx, dy = e.clientY - _drag.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 6) _drag.moved = true;
+    if (!_drag.moved) return;
+    const x = Math.max(0, Math.min(window.innerWidth - btn.offsetWidth,  _drag.bx + dx));
+    const y = Math.max(0, Math.min(window.innerHeight - btn.offsetHeight, _drag.by + dy));
+    btn.style.left = x + 'px'; btn.style.top = y + 'px';
+    if (panel.style.display === 'block') placePanel();   // the panel rides along
+  });
+  btn.addEventListener('pointerup', (e) => {
+    if (!_drag) return;
+    const moved = _drag.moved; _drag = null;
+    try { btn.releasePointerCapture(e.pointerId); } catch(_){}
+    if (moved){
+      const r = btn.getBoundingClientRect();
+      try { localStorage.setItem(DEV_BTN_POS_KEY, JSON.stringify({ x: r.left, y: r.top })); } catch(_){}
+    } else {
+      show(panel.style.display !== 'block');   // a press that never travelled is a click
+    }
+  });
 
   // v0.95.259 · Landscape lock · touch-only mobile w/ no gamepad must play portrait
   (function wireRotateLock(){
@@ -40384,7 +40491,11 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   }
 
   // v0.95.204 · Tabbed layout · click header or Q/E to cycle
-  const TABS = ['warp','give','party','factions','world','fx','cosmetics','info'];
+  // ★ v0.95.805 · DERIVED FROM THE DOM.  This list still read
+  // ['warp','give','party','factions','world','fx','cosmetics','info'] —
+  // three of those tabs stopped existing in v0.95.803, so Q/E cycling was
+  // walking ghosts.  A list that mirrors markup belongs in the markup.
+  const TABS = [...panel.querySelectorAll('#devTabBar button')].map(b => b.dataset.devtab);
   const DEV_TAB_KEY = 'rp7b_devpanel_tab_v1';
   let activeTabIdx = 0;
   try { const s = localStorage.getItem(DEV_TAB_KEY); if (s && TABS.indexOf(s) !== -1) activeTabIdx = TABS.indexOf(s); } catch(e){}

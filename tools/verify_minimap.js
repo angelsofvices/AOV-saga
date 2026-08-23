@@ -28,7 +28,7 @@ const FS=require('fs');
 try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
   ';globalThis.__C={MINIMAP,minimapPOIs,minimapVisible,minimapRange,minimapDiscovered,drawMinimap,'+
   'notebookState,notebookVisit,player,game,WORLD_PROPS,TOWER_NETWORK,ZYRAXIS_DISTRICTS,COSMIC_CHEST_SPOTS,'+
-  'notebookEntries,MINIMAP_KIND_COLOR,spawnPortals};')();}
+  'notebookEntries,MINIMAP_KIND_COLOR,spawnPortals,applyHudLayout,renderZycellSettings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
@@ -172,10 +172,14 @@ H('5 · ★★ IT FOLLOWS THE PLAYER');
 H('6 · ★★ PHONE MESSAGES SIT ABOVE IT, SAME WIDTH');
 // Creator: "move all phone message to pop up and hide above the mini map. same dimensions."
 {
-  ok(/const MINIMAP_W = 'min\(42vw, 620px\)'/.test(src),'one width constant');
+  // ★ v0.95.805 · the map halved and the cards did NOT — retargeted, see section 7
+  ok(/const MINIMAP_W = 'min\(21vw, 310px\)'/.test(src),'one width constant (now the half-size value)');
   const t=src.indexOf("el.id = 'toastStack'");
   const tb=src.slice(t, t+900);
-  ok(/width: MINIMAP_W/.test(tb),'★ the toast stack is exactly the minimap\'s width');
+  // ★ v0.95.805 · "same dimensions" bound the cards to the map's SLOT, not its
+  //   size — at half size a card that narrow is unreadable, so the cards keep
+  //   42vw while the ANCHOR (bottom offset) still derives from the map.
+  ok(/width: '42vw'/.test(tb),'★ the cards keep their readable width; the map alone shrank');
   ok(/bottom: `calc\(14px \+ \$\{MINIMAP_W\}/.test(tb),
      '★ and its bottom is derived FROM that width, not a hard-coded pixel guess');
   ok(/1398\/716/.test(tb),'using the frame\'s own aspect ratio to clear the map\'s height');
@@ -186,6 +190,73 @@ H('6 · ★★ PHONE MESSAGES SIT ABOVE IT, SAME WIDTH');
   ok(/pointerEvents: 'none'/.test(mb),'and never eats a click');
   // ★ same z-index band, so neither can be hidden behind the other by accident
   ok(/zIndex: '11'/.test(mb) && /zIndex: '11'/.test(tb),'both on the same layer');
+}
+
+
+H('7 · ★★ HALF SIZE · SAME GUTTER · ONE OWNER FOR THE CORNER');
+// Creator: "make the mini map half the size. keep same right and bottom
+// gutter. justify to size."
+{
+  ok(/const MINIMAP_W = 'min\(21vw, 310px\)'/.test(src),'★ 42vw/620 → 21vw/310 · half');
+  const m=src.indexOf("el.id = 'minimapCanvas'");
+  ok(/right: '14px', bottom: '14px'/.test(src.slice(m,m+700)),'the 14px gutters are untouched');
+  // ★ the phone CARDS kept their width — "same dimensions" bound them to the
+  //   map's slot, not its size, and a 190px card is unreadable
+  const t=src.indexOf("el.id = 'toastStack'");
+  ok(/width: '42vw', maxWidth: '620px'/.test(src.slice(t,t+900)),
+     '★ the phone cards keep their readable width — only their anchor moved');
+  ok(typeof C.applyHudLayout==='function','★ one function owns the corner');
+  const f=String(C.applyHudLayout);
+  ok(/minimapHidden/.test(f)&&/toastStack/.test(f),
+     'and it decides BOTH elements — two owners of one corner is how they overlap');
+}
+
+H('8 · ★★ BLIPS · BLUE UNFOUND · GREEN FOUND · BLINK WHEN NEAR');
+{
+  const d=src.indexOf('function drawMinimap');
+  const body=src.slice(d, d+5200);
+  ok(/P\.found \? '#4ee07a' : '#7ad4ff'/.test(body),
+     "★ every static POI speaks ONE colour language · blue you have not been, green you have");
+  ok(/const near = P\.dist <= 20/.test(body),'proximity is a distance, not a guess');
+  ok(/Math\.abs\(Math\.sin\(_blinkNow \/ 260\)\)/.test(body),'★ and near blips BLINK');
+  ok(/near \? 4 : 3\.2/.test(body),'growing slightly as they pulse');
+  // ★ the interior bug from the Creator's screenshot: the scope read
+  //   "MALEZOR 10,7" from INSIDE the bedroom — room tile (10,7) measured
+  //   against world POIs.  Overworld only now.
+  ok(/game\.scene !== 'overworld' \|\| player\.minimapHidden/.test(body),
+     '★ the scope hides in interiors — room coordinates measured against world POIs is nonsense, politely rendered');
+}
+
+H('9 · ★★ THE HIDE TOGGLE HANDS THE CORNER BACK');
+{
+  C.player.minimapHidden=false;
+  const html=C.renderZycellSettings();
+  ok(/MINIMAP · SHOWN/.test(html),'GAME OPTIONS carries the toggle');
+  ok(/data-zyitem="opt_minimap"/.test(html),'controller-focusable like everything else');
+  ok(!/wiring pending/.test(html),'★ and the GAME OPTIONS stub is finally a real section');
+  C.player.minimapHidden=true;
+  ok(/MINIMAP · HIDDEN/.test(C.renderZycellSettings()),'the label states the current truth');
+  ok(/minimapHidden:\s*!!player\.minimapHidden/.test(src),'and the choice survives a save');
+  C.player.minimapHidden=false;
+}
+
+H('10 · ★★ THE DEV BUTTON IS THE PANEL\'S HANDLE');
+{
+  ok(/pointerdown/.test(src)&&/setPointerCapture/.test(src),'the button captures the pointer');
+  ok(/Math\.abs\(dx\) \+ Math\.abs\(dy\) > 6/.test(src),
+     '★ 6px of travel separates a DRAG from a CLICK — a finger cannot press without wobble');
+  ok(/placePanel\(\);   \/\/ the panel rides along/.test(src),'dragging the button drags the open panel');
+  ok(/rp7b_devbtn_pos_v1/.test(src),'and the position survives a reload');
+  const pp=src.indexOf('const placePanel');
+  ok(/window\.innerWidth - pw - 10/.test(src.slice(pp,pp+700)),
+     '★ the panel clamps to the viewport — a handle dragged to the edge cannot exile the panel off-screen');
+  // ★ the STALE TABS list · three ghosts from before v0.95.803
+  // (match the assignment, not the string — the explanatory comment in the code
+  //  quotes the dead list on purpose, as the record of what was wrong)
+  ok(!/TABS = \['warp'/.test(src),
+     "★ the hand-written TABS list is gone — it still named three tabs deleted in v0.95.803, so Q/E cycled ghosts");
+  ok(/querySelectorAll\('#devTabBar button'\)\]\.map\(b => b\.dataset\.devtab\)/.test(src),
+     'the cycle order is DERIVED from the tab bar itself');
 }
 
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));

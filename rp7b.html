@@ -754,6 +754,7 @@
         <!-- LEFT NAV RAIL -->
         <div id="zycellNav" style="width:180px; border-right:1px solid rgba(79,179,255,0.25); background:rgba(10,18,48,0.6); padding:8px 6px; display:flex; flex-direction:column; gap:6px;">
           <button class="zyNav" data-zynav="home"        style="text-align:left; padding:10px 12px; background:rgba(79,179,255,0.18); color:#8ff; border:1px solid #4fb3ff; font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🏠  HOME</button>
+          <button class="zyNav" data-zynav="notebook"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">📓  NOTEBOOK</button>
           <button class="zyNav" data-zynav="zycube"      style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">◈  ZYCUBE</button>
           <button class="zyNav" data-zynav="rizer"       style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">☆  RIZER</button>
           <button class="zyNav" data-zynav="faction"     style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">◇  FACTION</button>
@@ -5974,6 +5975,7 @@ const WORLD_PROPS = [
       onInteract: () => {
         if (player.radioTowerFixed){
           showToast('◈ Malezor Radio Tower · restored · signal broadcasting', 2400);
+          try { notebookComplete('tower:malezor'); } catch(_){}   // ★ v0.95.778
         } else {
           showToast('◈ Malezor Radio Tower · smashed antennas · scrap in the chest at the base', 2600);
         }
@@ -6017,6 +6019,7 @@ const WORLD_PROPS = [
         const T = TOWER_BY_DIST[dist] || { label: dist.toUpperCase() };
         if (towerRestored(dist)){
           showToast(`◈ ${T.label} Radio Tower · RESTORED · signal broadcasting`, 2600);
+          try { notebookComplete(`tower:${dist}`); } catch(_){}   // ★ v0.95.778
         } else if ((player.towerBatteries || {})[dist]){
           showToast(`◈ ${T.label} Radio Tower · battery in hand · take it to SCRAPJAW in Malezor`, 3600);
         } else {
@@ -6103,6 +6106,7 @@ const WORLD_PROPS = [
         chest.img = _openImg; chest.bbox = OPEN_BBOX;
         if (chest.looted) return;
         chest.looted = true;
+        try { notebookVisit(`cave:${spot.dist}_cosmic`, spot.label.split(' ·')[0]); } catch(_){}
         // ★★ v0.95.776 · THE BLADE DOES NOT GO STRAIGHT INTO THE BAG.
         // Creator: "give it collision on spawn from chest. player must go up to
         // it and press x."
@@ -22392,6 +22396,8 @@ function tryMove(dt){
         player.visitedDistricts = player.visitedDistricts || {};
         const first = !player.visitedDistricts[dist];
         player.visitedDistricts[dist] = true;
+        // ★ v0.95.778 · Dad's Notebook · the district files itself on arrival
+        try { notebookVisit(`district:${dist}`, dist.toUpperCase()); } catch(_){}
         // Cache the border-crossing point as a warp anchor
         player.warpAnchors = player.warpAnchors || {};
         if (!player.warpAnchors[dist]) player.warpAnchors[dist] = { x: nx, y: ny };
@@ -22483,6 +22489,7 @@ function tryMove(dt){
   if (game.scene === 'overworld' && player.activeActor === 'rizer'){
     const doorProp = _propDoors.get(`${player.x},${player.y}`);
     if (doorProp && typeof doorProp.onInteract === 'function'){
+      try { notebookNotePropInteract(doorProp); } catch(_){}   // ★ v0.95.778
       const fromX = _doorPrevX, fromY = _doorPrevY;
       const sceneBefore = game.scene;
       try { clearActiveContact(); } catch(_){}   // v0.95.651
@@ -24649,6 +24656,7 @@ function tryInteract(){
   // pressing X on them is a no-op so nothing feels blocked · they enter automatically when stepped on
   if (doorProp && doorProp.autoEnter) { /* no-op · use walk-through path instead */ }
   else if (doorProp && doorProp.onInteract){
+    try { notebookNotePropInteract(doorProp); } catch(_){}     // ★ v0.95.778
     // v0.95.313 · Fire the prop's REAL onInteract first · if that opens a real
     // interior (scene changes) we're done · if the scene stayed put AND the
     // dev toggle is on, fall through to the generic template interior
@@ -26209,6 +26217,7 @@ function openZycellAt(page){
   if (!(player.items?.zphone > 0)){ return false; }
   try {
     zycellPage = page;
+    if (page !== 'notebook') game._nbSection = null;   // ★ v0.95.778
     if (typeof openZphonePanel === 'function') openZphonePanel();
     return true;
   } catch(_){ return false; }
@@ -26288,7 +26297,9 @@ function closeWalletPanel(){
 // all funnel through paintZycellNav() + handleZycellKey() so behavior is
 // identical across every partition · content panels ship in later passes
 // ══════════════════════════════════════════════════════════════════════
-const ZYCELL_PANELS = ['home','zycube','rizer','faction','weapons','map','expeditions','contacts','leaderboard','settings'];
+// ★ v0.95.778 · 'notebook' sits right after HOME · it is the POI index, the
+// thing a lost player reaches for, so it is not buried at the bottom.
+const ZYCELL_PANELS = ['home','notebook','zycube','rizer','faction','weapons','map','expeditions','contacts','leaderboard','settings'];
 let zycellPage = 'home';
 function paintZycellNav(){
   const p = document.getElementById('zphonePanel');
@@ -26414,12 +26425,286 @@ function _zyRestoreScroll(root, snap){
   }
   if (snap.root) root.scrollTop = snap.root;
 }
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.778 · DAD'S NOTEBOOK · the player's journal and POI index
+//
+// Creator: "make dads notebook its own separate menu in the phone... takes
+// notes on each building, gemlord cave, wild zyrex (pokedex list), district,
+// radio tower, etc that you interact with or visit. keep it as the main POI UI.
+// this will allow players to track each POIs progress and lore."
+//
+// ★ EVERY ENTRY IS DERIVED FROM THE LIVE WORLD, never hand-listed. The districts
+// come from DISTRICT_WHEEL, the towers from TOWER_NETWORK, the caves from the
+// actual cave props, the Zyrex from SPECIES, the landmarks from the props that
+// carry _district30. Add a building tomorrow and it appears in the notebook
+// tonight — a hand-written index would be wrong within a week.
+//
+// ★ PROGRESS REUSES FLAGS THAT ALREADY EXIST wherever possible —
+// visitedDistricts, towerRestored(), the party roster — so nothing is tracked
+// twice and an old save lights up correctly the first time it is opened.
+const NOTEBOOK_SECTIONS = [
+  { key:'districts', icon:'◈', label:'DISTRICTS'      },
+  { key:'caves',     icon:'◆', label:'GEMLORD CAVES'  },
+  { key:'towers',    icon:'📡', label:'RADIO TOWERS'   },
+  { key:'landmarks', icon:'🏛', label:'LANDMARKS'      },
+  { key:'zyrex',     icon:'◇', label:'ZYREX INDEX'    },
+  { key:'scrolls',   icon:'📜', label:'SCROLLS'        },
+];
+function notebookState(){
+  player.notebook = player.notebook || { seen:{}, done:{}, scrolls:{}, notes:{} };
+  const n = player.notebook;
+  n.seen = n.seen || {}; n.done = n.done || {}; n.scrolls = n.scrolls || {}; n.notes = n.notes || {};
+  return n;
+}
+function notebookHas(){ return !!(player.dadNotebookGifted || (player.items && player.items.dads_notebook)); }
+// Mark a POI seen. Safe to call from anywhere, any number of times.
+function notebookVisit(id, label){
+  if (!id) return false;
+  const n = notebookState();
+  if (n.seen[id]) return false;
+  n.seen[id] = Date.now();
+  if (notebookHas() && label){
+    try { showToast(`📓 Dad's Notebook · ${label} recorded`, 2200); } catch(_){}
+  }
+  return true;
+}
+function notebookComplete(id){
+  if (!id) return false;
+  const n = notebookState();
+  n.seen[id] = n.seen[id] || Date.now();
+  if (n.done[id]) return false;
+  n.done[id] = Date.now();
+  return true;
+}
+// ★★ SCROLLS · dev notes in Dad's hand that attach lore to a notebook PAGE.
+// Creator: "we will further build out Dad's Notebook by finding scrolls (dev
+// notes that add lore to each notebook page)". The table is the whole feature —
+// a scroll is an id, the page it belongs to, and the text. Placing one in the
+// world is a separate job; finding one calls notebookFindScroll().
+const NOTEBOOK_SCROLLS = [
+  { id:'scroll_malezor_1', page:'district:malezor', title:"Dad's field note · Malezor",
+    text:"First district I ever surveyed. The beasts here aren't hostile — they're territorial, which is a different thing and a kinder one. Remember that before you raise a hand." },
+  { id:'scroll_rakoron_1', page:'cave:rakoron_cave', title:"Dad's field note · the Rubylord",
+    text:"Rakoron does not grant power. He decides whether you can carry it. There is no trick to that and I would not tell you one if there were." },
+  { id:'scroll_azurel_1', page:'cave:azurel_cave', title:"Dad's field note · the Sapphirelord",
+    text:"Azurel's gift is sight, not force. Everyone expects a weapon. What they get is the ability to see what was already in front of them." },
+  { id:'scroll_towers_1', page:'tower:malezor', title:"Dad's field note · the tower network",
+    text:"Ten towers, one signal. Scrapjaw kept every schematic even after they told him to burn them. He is not sentimental — he is just usually right." },
+];
+const NOTEBOOK_SCROLL_BY_ID = Object.fromEntries(NOTEBOOK_SCROLLS.map(s => [s.id, s]));
+function notebookFindScroll(id){
+  const sc = NOTEBOOK_SCROLL_BY_ID[id];
+  if (!sc) return false;
+  const n = notebookState();
+  if (n.scrolls[id]) return false;
+  n.scrolls[id] = Date.now();
+  try { playSFX('confirm'); } catch(_){}
+  try { showToast(`📜 SCROLL FOUND · ${sc.title} · added to Dad's Notebook`, 4200); } catch(_){}
+  return true;
+}
+function notebookScrollsFor(page){
+  const n = notebookState();
+  return NOTEBOOK_SCROLLS.filter(s => s.page === page && n.scrolls[s.id]);
+}
+// ── ENTRY DERIVATION ────────────────────────────────────────────────────────
+function _nbDistricts(){
+  const n = notebookState();
+  return DISTRICT_WHEEL.map(w => {
+    const id = `district:${w.dist}`;
+    const visited = !!(player.visitedDistricts && player.visitedDistricts[w.dist]) || !!n.seen[id];
+    return { id, name: w.dist.toUpperCase(), sub: w.land || '', found: visited,
+             done: !!n.done[id], page: id };
+  });
+}
+function _nbTowers(){
+  const n = notebookState();
+  return TOWER_NETWORK.map(t => {
+    const id = `tower:${t.dist}`;
+    const fixed = (typeof towerRestored === 'function') ? !!towerRestored(t.dist) : false;
+    return { id, name: `${t.label} Radio Tower`,
+             sub: fixed ? 'signal restored' : `guarded · ${t.bossName}`,
+             found: fixed || !!n.seen[id], done: fixed, page: id };
+  });
+}
+function _nbCaves(){
+  const n = notebookState();
+  return WORLD_PROPS.filter(p => p && /_cave$/.test(p.id || ''))
+    .map(p => {
+      const id = `cave:${p.id}`;
+      const lord = (p.id || '').replace(/_cave$/, '');
+      return { id, name: lord.toUpperCase(), sub: `${worldDistrictAt(p.tileX, p.tileY) || '?'} · Gemlord sanctum`,
+               found: !!n.seen[id], done: !!n.done[id], page: id };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+function _nbLandmarks(){
+  const n = notebookState();
+  return WORLD_PROPS.filter(p => p && p._district30)
+    .map(p => {
+      const id = `landmark:${p.id}`;
+      return { id, name: (p.name || p.id || '').toString().toUpperCase().replace(/_/g, ' '),
+               sub: p._district30, found: !!n.seen[id], done: !!n.done[id], page: id };
+    })
+    .sort((a, b) => (a.sub + a.name).localeCompare(b.sub + b.name));
+}
+function _nbZyrex(){
+  const n = notebookState();
+  const owned = new Set([].concat(player.party || [], player.pcZyrex || [])
+    .filter(Boolean).map(z => z.speciesId));
+  return Object.keys(SPECIES).map(k => {
+    const sp = SPECIES[k];
+    const id = `zyrex:${k}`;
+    const caught = owned.has(k);
+    return { id, name: (sp.name || k).toUpperCase(),
+             sub: `T${sp.tier || '?'} · ${sp.type || '?'}${sp.type2 ? ' / ' + sp.type2 : ''}`,
+             found: caught || !!n.seen[id], done: caught, page: id };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
+function notebookEntries(section){
+  switch (section){
+    case 'districts': return _nbDistricts();
+    case 'towers':    return _nbTowers();
+    case 'caves':     return _nbCaves();
+    case 'landmarks': return _nbLandmarks();
+    case 'zyrex':     return _nbZyrex();
+    default:          return [];
+  }
+}
+function notebookProgress(section){
+  const e = notebookEntries(section);
+  return { found: e.filter(x => x.found).length, done: e.filter(x => x.done).length, total: e.length };
+}
+// ── THE PANEL ───────────────────────────────────────────────────────────────
+// Two levels: the section list, and a section's entries. Every row is a
+// [data-zyitem] so the DualSense auto-enrolment from v0.95.765 picks it up with
+// no extra work.
+function renderZycellNotebook(){
+  if (!notebookHas()){
+    return `<div style="padding:56px 24px; text-align:center; color:#89a; line-height:2;">
+      <div style="font-size:34px; opacity:.5;">📓</div>
+      <div style="color:#cfe; font-weight:bold; letter-spacing:.12em; margin-top:8px;">DAD'S NOTEBOOK</div>
+      <div style="font-size:11px; margin-top:10px;">You do not have it yet.<br>Talk to Dad in the research lab.</div>
+    </div>`;
+  }
+  const n = notebookState();
+  const sec = game._nbSection;
+  // ── level 1 · the sections ──
+  if (!sec){
+    const rows = NOTEBOOK_SECTIONS.map(S => {
+      if (S.key === 'scrolls'){
+        const have = Object.keys(n.scrolls).length, all = NOTEBOOK_SCROLLS.length;
+        return _nbRow(S, `${have} / ${all} found`, have / Math.max(1, all));
+      }
+      const p2 = notebookProgress(S.key);
+      return _nbRow(S, `${p2.found} / ${p2.total} found · ${p2.done} complete`,
+                    p2.found / Math.max(1, p2.total));
+    }).join('');
+    return `<div style="padding:4px 2px;">
+      <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.16em; padding:2px 4px 10px;">
+        📓 DAD'S NOTEBOOK · FIELD INDEX</div>
+      <div style="color:#7a8ba8; font-size:10px; padding:0 4px 12px; line-height:1.7;">
+        Everything you have walked into, opened or bonded with. X to open a section.</div>
+      ${rows}</div>`;
+  }
+  // ── level 2 · a section's entries ──
+  if (sec === 'scrolls') return _nbScrollsPage();
+  const S = NOTEBOOK_SECTIONS.find(x => x.key === sec) || NOTEBOOK_SECTIONS[0];
+  const entries = notebookEntries(sec);
+  const body = entries.map(e => {
+    const scrolls = notebookScrollsFor(e.page);
+    const tint = e.done ? '#7fe08a' : e.found ? '#cfe' : '#55617a';
+    const mark = e.done ? '●' : e.found ? '○' : '·';
+    const lore = scrolls.map(sc => `
+      <div style="margin-top:6px; padding:8px 10px; border-left:2px solid #ffd66b; background:rgba(255,214,107,0.06);
+                  color:#e8dcc0; font-size:10px; line-height:1.75; font-style:italic;">
+        📜 <b style="font-style:normal;">${sc.title}</b><br>${sc.text}</div>`).join('');
+    return `<div data-zyitem="nb_${e.id}" style="padding:9px 11px; margin-bottom:5px; background:rgba(0,0,0,0.32);
+                 border:1px solid rgba(79,179,255,0.18); cursor:pointer;">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
+        <span style="color:${tint}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em;">${mark} ${e.name}</span>
+        <span style="color:#67789a; font-size:9px;">${e.found ? e.sub : '— not yet found —'}</span>
+      </div>${e.found ? lore : ''}</div>`;
+  }).join('') || `<div style="padding:30px; text-align:center; color:#667;">nothing here yet</div>`;
+  const p3 = notebookProgress(sec);
+  return `<div style="padding:4px 2px;">
+    <div data-zyitem="nb_back" style="padding:8px 11px; margin-bottom:9px; background:rgba(79,179,255,0.12);
+         border:1px solid rgba(79,179,255,0.4); color:#8ff; font:bold 11px 'Courier New',monospace;
+         letter-spacing:.10em; cursor:pointer;">◄  BACK TO INDEX</div>
+    <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.14em; padding:2px 4px 8px;">
+      ${S.icon} ${S.label} · ${p3.found}/${p3.total}</div>
+    ${body}</div>`;
+}
+function _nbRow(S, sub, frac){
+  const pct = Math.round(Math.max(0, Math.min(1, frac)) * 100);
+  return `<div data-zyitem="nbsec_${S.key}" style="padding:11px 12px; margin-bottom:6px; background:rgba(0,0,0,0.35);
+               border:1px solid rgba(79,179,255,0.22); cursor:pointer;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline;">
+      <span style="color:#cfe; font:bold 12px 'Courier New',monospace; letter-spacing:.10em;">${S.icon}  ${S.label}</span>
+      <span style="color:#8ff; font-size:10px;">${sub}</span>
+    </div>
+    <div style="margin-top:7px; height:4px; background:rgba(255,255,255,0.07);">
+      <div style="height:100%; width:${pct}%; background:${pct >= 100 ? '#7fe08a' : '#4fb3ff'};"></div>
+    </div></div>`;
+}
+function _nbScrollsPage(){
+  const n = notebookState();
+  const rows = NOTEBOOK_SCROLLS.map(sc => {
+    const got = !!n.scrolls[sc.id];
+    return `<div data-zyitem="nb_${sc.id}" style="padding:10px 12px; margin-bottom:5px; background:rgba(0,0,0,0.32);
+                 border:1px solid ${got ? 'rgba(255,214,107,0.35)' : 'rgba(79,179,255,0.15)'};">
+      <div style="color:${got ? '#ffd66b' : '#55617a'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em;">
+        ${got ? '📜 ' + sc.title : '· undiscovered scroll ·'}</div>
+      ${got ? `<div style="margin-top:6px; color:#e8dcc0; font-size:10px; line-height:1.8; font-style:italic;">${sc.text}</div>
+               <div style="margin-top:5px; color:#67789a; font-size:9px;">filed under · ${sc.page}</div>` : ''}
+    </div>`;
+  }).join('');
+  const have = Object.keys(n.scrolls).length;
+  return `<div style="padding:4px 2px;">
+    <div data-zyitem="nb_back" style="padding:8px 11px; margin-bottom:9px; background:rgba(79,179,255,0.12);
+         border:1px solid rgba(79,179,255,0.4); color:#8ff; font:bold 11px 'Courier New',monospace;
+         letter-spacing:.10em; cursor:pointer;">◄  BACK TO INDEX</div>
+    <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.14em; padding:2px 4px 8px;">
+      📜 SCROLLS · ${have}/${NOTEBOOK_SCROLLS.length}</div>
+    <div style="color:#7a8ba8; font-size:10px; padding:0 4px 10px; line-height:1.7;">
+      Dad's own notes, scattered across Zyraxis. Each one files itself under the page it belongs to.</div>
+    ${rows}</div>`;
+}
+// Section rows and the back button are wired by delegation, so a re-render
+// never leaves a dead handler behind.
+(function wireNotebookClicks(){
+  document.addEventListener('click', (ev) => {
+    const el = ev.target && ev.target.closest && ev.target.closest('[data-zyitem]');
+    if (!el || zycellPage !== 'notebook') return;
+    const k = el.getAttribute('data-zyitem') || '';
+    if (k === 'nb_back'){ game._nbSection = null; try { playSFX('cursor'); } catch(_){} paintZycellContent(); return; }
+    if (k.startsWith('nbsec_')){
+      game._nbSection = k.slice(6);
+      game._zycellItemIdx = 0;
+      try { playSFX('cursor'); } catch(_){}
+      paintZycellContent();
+    }
+  }, true);
+})();
+// ★★ v0.95.778 · ONE HOOK, NOT THIRTY. Every interactable prop goes through
+// the same door dispatch, so the notebook files landmarks, caves and towers
+// from here rather than from thirty separate onInteract bodies that would drift
+// apart the first time somebody added a building.
+function notebookNotePropInteract(prop){
+  if (!prop || !prop.id) return;
+  try {
+    const id = prop.id;
+    if (prop._district30)          notebookVisit(`landmark:${id}`, (prop.name || id).toString().replace(/_/g,' '));
+    else if (/_cave$/.test(id))    notebookVisit(`cave:${id}`, id.replace(/_cave$/,'').toUpperCase());
+    else if (/radio_tower/.test(id)) notebookVisit(`tower:${worldDistrictAt(prop.tileX, prop.tileY)}`, 'Radio Tower');
+  } catch(_){}
+}
 function paintZycellContent(){
   const c = document.getElementById('zycellContent');
   if (!c) return;
   // v0.95.411 · Dispatcher · every panel has a live DOM renderer
   const map = {
     home:        renderZycellHome,
+    notebook:    renderZycellNotebook,
     zycube:      renderZycellZycube,
     rizer:       renderZycellRizer,
     faction:     renderZycellFaction,
@@ -29671,6 +29956,7 @@ function saveGame(){
         lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
         groundPickups: player.groundPickups || [],  // v0.95.773 · scrap + coin piles on the ground
         weaponDrops: player.weaponDrops || [],      // v0.95.776 · Gemlord blades left on the ground
+        notebook: player.notebook || null,          // ★ v0.95.778 · Dad's Notebook · POI index + scrolls
 
         items: player.items || {},
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased

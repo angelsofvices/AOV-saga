@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_notebook · v0.95.778 · Dad's Notebook · the POI index
 try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
-  ';globalThis.__C={notebookHint,notebookStanding,_migrateNotebook,renderZycellZycube,INVENTORY_META,NOTEBOOK_SECTIONS,NOTEBOOK_SCROLLS,notebookState,notebookHas,notebookVisit,notebookComplete,notebookFindScroll,notebookScrollsFor,notebookEntries,notebookProgress,notebookNotePropInteract,renderZycellNotebook,ZYCELL_PANELS,WORLD_PROPS,DISTRICT_WHEEL,TOWER_NETWORK,SPECIES,player,game,zycellPage,worldDistrictAt,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
+  ';globalThis.__C={NPCS,ENEMY_KINDS,enemyKindOf,notebookLogKill,notebookHint,notebookStanding,_migrateNotebook,renderZycellZycube,INVENTORY_META,NOTEBOOK_SECTIONS,NOTEBOOK_SCROLLS,notebookState,notebookHas,notebookVisit,notebookComplete,notebookFindScroll,notebookScrollsFor,notebookEntries,notebookProgress,notebookNotePropInteract,renderZycellNotebook,ZYCELL_PANELS,WORLD_PROPS,DISTRICT_WHEEL,TOWER_NETWORK,SPECIES,player,game,zycellPage,worldDistrictAt,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)fail++;};
@@ -62,7 +62,9 @@ H('2 · ★★ EVERY ENTRY IS DERIVED FROM THE LIVE WORLD');
   const realCaves=C.WORLD_PROPS.filter(p=>p&&/_cave$/.test(p.id||'')).length;
   ok(c.length===realCaves,`caves: ${c.length} = the cave props actually placed`);
   const real30=C.WORLD_PROPS.filter(p=>p&&p._district30).length;
-  ok(l.length===real30,`landmarks: ${l.length} = the props carrying _district30`);
+  // ★ v0.95.813 · LANDMARKS = lore buildings + the ten folded-in Gemlord caves
+  ok(l.length===real30+realCaves,
+     `landmarks: ${l.length} = ${real30} lore buildings + ${realCaves} folded-in caves`);
   ok(z.length===Object.keys(C.SPECIES).length,`zyrex: ${z.length} = the SPECIES table`);
   ok(d.length+t.length+c.length+l.length+z.length>100,'a real index, not a stub');
 }
@@ -104,7 +106,10 @@ H('5 · ★★ ONE HOOK COVERS THIRTY LANDMARKS');
   const cave=C.WORLD_PROPS.find(p=>p&&/_cave$/.test(p.id||''));
   C.notebookNotePropInteract(lm);
   C.notebookNotePropInteract(cave);
-  ok(C.notebookProgress('landmarks').found===1,`interacting with ${lm.id} filed it`);
+  // ★ v0.95.813 · a cave interact ALSO lands in landmarks now (the fold), so
+  //   after touching one building and one cave the landmarks section reads 2
+  ok(C.notebookProgress('landmarks').found===2,
+     `interacting with ${lm.id} + ${cave.id} filed BOTH into landmarks — the fold is live in the counts`);
   ok(C.notebookProgress('caves').found===1,`interacting with ${cave.id} filed it`);
   const src=require('fs').readFileSync('/tmp/all.js','utf8');
   const hooks=(src.match(/notebookNotePropInteract\(/g)||[]).length;
@@ -249,6 +254,78 @@ H('14 · ★ HE NOTICES HOW FAR YOU HAVE GOT');
   const high=C.notebookStanding();
   ok(high.pct>low.pct,`progress moves the needle · ${Math.round(low.pct*100)}% -> ${Math.round(high.pct*100)}%`);
   ok(high.line!==low.line,`and the praise changes with it · "${high.line}"`);
+}
+
+
+H('15 · ★★ THE ENEMY FIELD LOG');
+// Creator: "add an enemies page in the note book so u can track the types of
+// enemies you fight."
+{
+  ok(C.NOTEBOOK_SECTIONS.some(S=>S.key==='enemies'),'ENEMY FIELD LOG is a notebook section');
+  const e=C.notebookEntries('enemies');
+  ok(e.length===C.ENEMY_KINDS.length,`${e.length} enemy TYPES tracked, not individuals`);
+  // ★ types, not instances · there are hundreds of Mori and they are ONE entry
+  const mori=C.NPCS.filter(n=>C.enemyKindOf(n)==='mori').length;
+  ok(mori>100,`${mori} Mori stand in the world`);
+  ok(e.filter(x=>x.name==='MORI').length===1,'and they collapse to a single MORI entry');
+  // every live enemy must classify · an unclassified enemy is invisible to the log
+  const unknown=C.NPCS.filter(n=>n&&n.isEnemy&&!n._dying&&!C.enemyKindOf(n)).length;
+  ok(unknown===0,`every live enemy classifies to a kind (${unknown} unknown)`);
+}
+
+H('16 · ★★ KILLS LOG THEMSELVES FROM ONE HOOK');
+{
+  C.player.notebook=null;
+  const before=C.notebookEntries('enemies').filter(x=>x.found).length;
+  ok(before===0,'nothing encountered on a fresh save');
+  const m=C.NPCS.find(n=>C.enemyKindOf(n)==='mori');
+  C.notebookLogKill(m); C.notebookLogKill(m); C.notebookLogKill(m);
+  const row=C.notebookEntries('enemies').find(x=>x.id==='enemy:mori');
+  ok(row.found,'killing one files its type');
+  ok(/3 defeated/.test(row.sub),`and counts them · "${row.sub.split(' · ')[0]}"`);
+  ok(/abroad/.test(row.sub),'alongside how many are still out there');
+  const other=C.notebookEntries('enemies').find(x=>x.id==='enemy:daemon');
+  ok(!other.found,'a type you have not met stays unknown');
+  // ★ ONE hook · every kill in the game routes through creditRizerKill
+  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const i=src.indexOf('function creditRizerKill');
+  ok(/notebookLogKill\(npc\)/.test(src.slice(i,i+400)),
+     'the log hooks into creditRizerKill — one line, not eight kill sites');
+}
+
+H('17 · ★★ EACH PURCHASED HOME IS ITS OWN ROOM');
+// Creator: "changing a purchased property room leaves your main rr the same
+// decor. each purchased home is unique to itself."
+{
+  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const i=src.indexOf('function applyHomeLayout');
+  const body=src.slice(i,i+1600);
+  // the 2F must NOT read the global chair back out · that was the bleed
+  ok(!/chair\.x = player\.chairX/.test(body),
+     '★ the stock 2F no longer reads its chair from the global player.chairX');
+  ok(/player\.chairX = RIZER_ROOM_ITEMS\.chair\.x/.test(body),
+     'the global is written as a MIRROR of whichever room you are in');
+  ok(/homeX/.test(body),'and the 2F falls back to the chair\'s own home tile like every other item');
+}
+
+
+H('18 · ★★ GEMLORD CAVES FOLDED INTO LANDMARKS');
+// Creator: "remove gemlord caves panel, fold it into landmarks panel."
+{
+  ok(!C.NOTEBOOK_SECTIONS.some(S=>S.key==='caves'),'★ the CAVES section is gone from the nav');
+  const lm=C.notebookEntries('landmarks');
+  const caves=lm.filter(e=>/^cave:/.test(e.id));
+  ok(caves.length===10,`★ all ten Gemlord caves now live in LANDMARKS (${caves.length})`);
+  ok(caves.every(e=>/Gemlord sanctum/.test(e.sub)),'each labelled as a sanctum so they read as what they are');
+  ok(lm.filter(e=>/^landmark:/.test(e.id)).length>=25,'alongside the lore buildings');
+  // ★ the ids did NOT change — every existing seen/done record and scroll
+  //   page-link survives the move
+  const P=C.player; P.notebook=null;
+  C.notebookVisit('cave:rakoron_cave');
+  ok(C.notebookEntries('landmarks').find(e=>e.id==='cave:rakoron_cave').found,
+     '★ an old cave: id still marks its entry found — no migration, no data loss');
+  // the deriver survives for the systems that still read it (minimap · ecology)
+  ok(C.notebookEntries('caves').length===10,'notebookEntries("caves") still answers for the minimap and ecology rank');
 }
 
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));

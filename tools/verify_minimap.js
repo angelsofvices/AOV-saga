@@ -75,8 +75,18 @@ print((min(xs)-FX)/FW,(min(ys)-FY)/FH,(max(xs)-min(xs)+1)/FW,(max(ys)-min(ys)+1)
      `★ the inset re-measures off the PNG to (${got.map(v=>v.toFixed(4)).join(', ')})`);
   ok(/drawImage\(MINIMAP\.frame, 62, 160, 1398, 716/.test(src),
      '★ the bezel is drawn from its own bbox, so the transparent margin is not stretched in');
-  ok(src.indexOf('g.restore()') < src.indexOf('drawImage(MINIMAP.frame'),
-     '★ and it is drawn AFTER the clipped scope — the frame sits over the map, never under it');
+  // ★★ v0.95.813 · THIS ASSERTION IS DELIBERATELY INVERTED.  It used to demand
+  //    the bezel draw AFTER the scope "so the frame sits over the map" — but
+  //    the Creator's frame art carries an OPAQUE navy screen, so drawing it
+  //    last painted over every blip on every frame and the map looked
+  //    permanently empty.  The Creator caught it in play.  Frame FIRST now;
+  //    the blips live on the art's own built-in screen.
+  const dm=src.indexOf('function drawMinimap');
+  const dmB=src.slice(dm, dm+5200);
+  ok(dmB.indexOf('drawImage(MINIMAP.frame') < dmB.indexOf('minimapVisible(px, py)'),
+     '★ the frame draws FIRST and the blips draw onto its built-in screen');
+  ok(!/fillStyle = 'rgba\(5,20,44/.test(dmB),
+     'and the synthetic navy background is gone — the art IS the background');
 }
 
 H('2 · ★★ THE POI LIST IS NOT A SECOND REGISTRY');

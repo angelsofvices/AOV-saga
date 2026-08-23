@@ -131,5 +131,32 @@ H('5 · ★ THE READOUT TELLS YOU WHAT HAPPENED');
   ok(n>=3,`${n} call sites · both buttons plus the initial paint`);
 }
 
+
+H('6 · ★★ L2+TOUCHPAD TOGGLES DEV MODE · PLAIN TOUCHPAD UNTOUCHED');
+// Creator: "l2+touchpad priority over touchpad. toggles dev mode panel hotkey"
+{
+  const i=src.indexOf('const tp = pad.buttons[17]');
+  ok(i>0,'the touchpad has a dedicated chord block');
+  const b=src.slice(i, i+1400);
+  ok(/if \(l2Held\)/.test(b),'★ L2 decides at the PRESS');
+  ok(/window\.toggleDevPanel/.test(b),'the chord calls the shared toggle');
+  ok(/dispatchKey\('keydown', '2'\)/.test(b),'a plain tap still dispatches the RHUD key');
+  // ★ PRIORITY means the phone must NOT also open on the chord press
+  ok(/prev\._tpChord = true/.test(b)&&/if \(!prev\._tpChord\) dispatchKey\('keyup', '2'\)/.test(b),
+     "★ the press mode is remembered, so the chord never leaks a '2' and the release pairs correctly — an unpaired keyup would strand keys['2']");
+  ok(/playSFX\('doorLock'\)/.test(b),'a locked device answers the chord instead of silently ignoring it');
+  // and the generic dispatcher no longer double-handles 17
+  const d=src.indexOf('const _dispatchBtn');
+  ok(/i === 17\) return/.test(src.slice(d,d+400)),
+     '★ button 17 is excluded from the generic dispatch — one owner per button');
+  // one shared toggle for all three entry points
+  ok(/window\.toggleDevPanel = \(\) =>/.test(src),'toggleDevPanel is exposed once');
+  // ★ indexOf found the chord's CALL SITE, not the definition · anchor on the
+  //   assignment
+  const td=src.indexOf('window.toggleDevPanel = ');
+  ok(/if \(!isDevUnlocked\(\)\) return false/.test(src.slice(td, td+400)),
+     'and refuses on a locked device by returning false, so callers can answer');
+}
+
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));
 process.exit(fail?1:0);

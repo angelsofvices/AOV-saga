@@ -16759,10 +16759,18 @@ function drawMinimap(){
   host.style.opacity = '1';
   const S = MINIMAP.screen;
   const sx = S.fx * W, sy = S.fy * H, sw = S.fw * W, sh = S.fh * H;
-  // ── the scope ──────────────────────────────────────────────────────
+  // ★★ v0.95.813 · FRAME FIRST.  The Creator's frame art carries an OPAQUE
+  // navy screen — it IS the map background, grid lines and all.  v0.95.802
+  // drew the bezel LAST "so the frame sits over the map", which meant that
+  // opaque screen painted over every blip on every frame: the map looked
+  // permanently empty.  The right order for THIS art is frame first, then the
+  // blips clipped onto its built-in screen — "use the built in UI".
+  if (MINIMAP.frame.complete && MINIMAP.frame.naturalWidth){
+    g.drawImage(MINIMAP.frame, 62, 160, 1398, 716, 0, 0, W, H);
+  }
+  // ── the scope · drawn ON the art's own navy screen ─────────────────
   g.save();
   g.beginPath(); g.rect(sx, sy, sw, sh); g.clip();
-  g.fillStyle = 'rgba(5,20,44,0.92)'; g.fillRect(sx, sy, sw, sh);
   const px = player.x, py = player.y;
   const R = MINIMAP._range || 120;
   // the screen is wider than it is tall, so X and Y get their own scale or the
@@ -16815,11 +16823,6 @@ function drawMinimap(){
   g.beginPath(); g.arc(sx + sw/2, sy + sh/2, 3.6, 0, Math.PI*2); g.fill();
   g.strokeStyle = '#0b0b10'; g.lineWidth = 1.4; g.stroke();
   g.restore();
-  // ── the bezel, over the top ────────────────────────────────────────
-  if (MINIMAP.frame.complete && MINIMAP.frame.naturalWidth){
-    // the delivered PNG carries transparent margin · draw only the frame bbox
-    g.drawImage(MINIMAP.frame, 62, 160, 1398, 716, 0, 0, W, H);
-  }
   // ── the readout ────────────────────────────────────────────────────
   g.textAlign = 'left';
   g.font = 'bold 9px "Courier New", monospace';
@@ -23350,6 +23353,34 @@ addEventListener('keyup', e => {
       }
       prev[11] = r3Pressed;
 
+      // ★★ v0.95.813 · TOUCHPAD (17) · CHORD: L2 + touchpad = toggle the DEV
+      // MODE panel.  Creator: "l2+touchpad priority over touchpad."
+      //
+      // Same shape as the L2+R3 chord above: the chord is decided AT THE
+      // PRESS, so a plain touchpad tap keeps its RHUD/'2' dispatch and the
+      // chord never leaks a '2' underneath itself — priority means the phone
+      // must NOT open on the same press that opened the dev panel.  The press
+      // mode is remembered so the RELEASE pairs with whatever the press did:
+      // an unpaired keyup('2') would strand keys['2'] and eat the next tap.
+      const tp = pad.buttons[17];
+      const tpPressed = tp && (tp.pressed || tp.value > 0.5);
+      if (tpPressed && !prev[17]){
+        if (l2Held){
+          prev._tpChord = true;
+          if (typeof window.toggleDevPanel === 'function' && window.toggleDevPanel()){
+            /* toggled */
+          } else {
+            try { playSFX('doorLock'); } catch(_){}   // locked device · chord answers, does nothing
+          }
+        } else {
+          prev._tpChord = false;
+          dispatchKey('keydown', '2');
+        }
+      } else if (!tpPressed && prev[17]){
+        if (!prev._tpChord) dispatchKey('keyup', '2');
+      }
+      prev[17] = tpPressed;
+
       // ══════════════════════════════════════════════════════════════════
       // v0.95.647 · MODIFIERS DISPATCH FIRST · chord-ordering fix
       // pad.buttons.forEach walked 0,1,2,... so button 0 (Cross/X) was
@@ -23364,6 +23395,7 @@ addEventListener('keyup', e => {
       // ══════════════════════════════════════════════════════════════════
       const _dispatchBtn = (b, i) => {
         if (i === 10 || i === 11) return;   // stick clicks handled above
+        if (i === 17) return;               // ★ v0.95.813 · touchpad has its own chord block above
         const key = BTN[i]; if (!key) return;
         const pressed = b.pressed || b.value > 0.5;
         if (pressed && !prev[i]) dispatchKey('keydown', key);
@@ -27771,7 +27803,6 @@ function _zyRestoreScroll(root, snap){
 // twice and an old save lights up correctly the first time it is opened.
 const NOTEBOOK_SECTIONS = [
   { key:'districts', icon:'◈', label:'DISTRICTS'      },
-  { key:'caves',     icon:'◆', label:'GEMLORD CAVES'  },
   { key:'towers',    icon:'📡', label:'RADIO TOWERS'   },
   { key:'landmarks', icon:'🏛', label:'LANDMARKS'      },
   { key:'zyrex',     icon:'◇', label:'ZYREX INDEX'    },
@@ -28262,8 +28293,17 @@ function notebookEntries(section){
   switch (section){
     case 'districts': return _nbDistricts();
     case 'towers':    return _nbTowers();
+    // ★ v0.95.813 · 'caves' folded into LANDMARKS per the Creator — the section
+    // is gone from the notebook nav, but the deriver stays (the minimap and the
+    // ecology rank still read it) and old page links still resolve.
     case 'caves':     return _nbCaves();
-    case 'landmarks': return _nbLandmarks();
+    case 'landmarks': return _nbLandmarks().concat(
+      // ★ v0.95.813 · Gemlord caves ARE landmarks now.  Creator: "remove
+      // gemlord caves panel, fold it into landmarks panel."  The cave entries
+      // keep their own ids, so every existing seen/done record and scroll
+      // page-link survives the move untouched.
+      _nbCaves().map(e => ({ ...e, sub: `Gemlord sanctum · ${e.sub}` }))
+    );
     case 'zyrex':     return _nbZyrex();
     case 'enemies':   return _nbEnemies();
     default:          return [];
@@ -40640,6 +40680,15 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   const show = (on) => {
     panel.style.display = on ? 'block' : 'none';
     if (on){ placePanel(); refreshDevFactionButtons(); }
+  };
+  // ★ v0.95.813 · one shared toggle for every entry point — the button click,
+  // the ZyPhone settings tile, and the L2+touchpad chord.  Returns false on a
+  // locked device so the caller can answer instead of silently doing nothing.
+  window.toggleDevPanel = () => {
+    if (!isDevUnlocked()) return false;
+    show(panel.style.display !== 'block');
+    try { playSFX(panel.style.display === 'block' ? 'menuOpen' : 'menuClose'); } catch(_){}
+    return true;
   };
   let _drag = null;
   btn.style.touchAction = 'none';

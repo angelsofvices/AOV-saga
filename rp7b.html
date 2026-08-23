@@ -6496,10 +6496,12 @@ const WORLD_PROPS = [
     const _zwbImg = new Image();
     _zwbImg.src = 'assets/2D%20sprites/decor/zarvane-bush.png';
     const ZWB_BBOX = [16, 209, 1225, 834];           // v0.84 · re-baked with purple berries
-    // Tighter perimeter: step 3 tiles (was 6) · closer together
+    // ★ v0.95.757 · bushes are 2 tiles wide everywhere, so the step drops from
+    // 3 to 2 — at the old spacing a 2-wide bush would leave a 1-tile gap and
+    // the perimeter would read as a dotted line instead of a hedge.
     const POS = [];
-    for (let x = 121; x <= 178; x += 3) POS.push([x, 227]);   // N edge
-    for (let x = 121; x <= 178; x += 3) POS.push([x, 266]);   // S edge
+    for (let x = 121; x <= 178; x += 2) POS.push([x, 227]);   // N edge
+    for (let x = 121; x <= 178; x += 2) POS.push([x, 266]);   // S edge
     for (let y = 229; y <= 265; y += 2) POS.push([179, y]);   // E edge · step 2 (bushes are 2 tall)
     return POS.map(([tx, ty], i) => ({
       id: `zarvane_wilds_bush_${i}`,
@@ -6507,7 +6509,7 @@ const WORLD_PROPS = [
       src: 'assets/2D%20sprites/decor/zarvane-bush.png',
       bbox: ZWB_BBOX,
       tileX: tx, tileY: ty,
-      tileW: 3, tileH: 2,
+      tileW: 2, tileH: 2 * 834 / 1225,     // ★ 2 tiles · height follows the art
       footprint: [[0, 0]],
     }));
   })(),
@@ -6595,7 +6597,7 @@ const WORLD_PROPS = [
       src: 'assets/2D%20sprites/decor/zarvane-bush.png',
       bbox: _zBushBBox,
       tileX: tx, tileY: ty,
-      tileW: 3, tileH: 2,             // matches zarvane wilds bush footprint
+      tileW: 2, tileH: 2 * 834 / 1225,   // ★ 2 tiles · matches every other bush
       footprint: [[0, 0]],
     }));
     return [...malezorBushes, ...zarvaneBushes];
@@ -34700,29 +34702,22 @@ const TRAIL_BUSH_BBOX = {
   'assets/2D%20sprites/decor/bushes/korathen-bush.png':     [137,193, 986,876],
   'assets/2D%20sprites/decor/bushes/thardin-bush.png':      [155,107, 949,1024],
 };
-// ★★ v0.95.756 · WIDTH is what sets a bush's on-screen size.
+// ★★ v0.95.757 · EVERY VERGE BUSH IS 2 TILES WIDE. Creator's call.
 //
-// drawProp computes drawH = drawW * (bh/bw) — it derives height from the bbox
-// and IGNORES tileH completely. So tileH never stretched anything; it only
-// drives collision and plantPropAt (punch/harvest detection). The v0.95.754
-// note claiming Zarvane's bush was squashed 1.36x was wrong about the cause.
+// v0.95.756 widened the nine tall bushes to 3 so they matched Zarvane's
+// authored bushes. Reverted: a verge bush is 2 tiles, full stop. A roadside
+// should read as a roadside, and a uniform width keeps the road's edge legible
+// at a glance rather than making some districts' verges bulkier than others.
 //
-// The real problem: Malezor's bush.png is a WIDE, LOW bush (2.05:1), so at 2
-// tiles wide it reads as a complete roadside bush. Every other district's bush
-// is a tall 1254x1254 cluster (~1.2:1), and at the same 2 tiles it renders as a
-// small squat mound — a fraction of the art's presence. Zarvane's own authored
-// bushes already use 3 tiles wide, which is what the full asset looks like.
-//
-// So width is per-art, and tileH follows the bbox exactly so the collision box
-// matches what is drawn.
-const TRAIL_BUSH_TILEW = {
-  'assets/2D%20sprites/decor/bush.png': 2,     // wide + low · 2 tiles is full size
-};
-const TRAIL_BUSH_TILEW_DEFAULT = 3;            // the tall 1254 clusters · matches
-                                               // Zarvane's authored 3-tile bushes
+// Note for anyone reading the render code: drawProp computes
+// drawH = drawW * (bh/bw), so height follows the art automatically and tileH is
+// ignored for drawing. tileH is still set exactly here because it DOES drive
+// collision and plantPropAt (punch/harvest hit detection) — a bush the player
+// can see should be a bush the player can hit.
+const TRAIL_BUSH_TILEW = 2;
 function _bushCell(src){
   const b = TRAIL_BUSH_BBOX[src];
-  const tw = TRAIL_BUSH_TILEW[src] || TRAIL_BUSH_TILEW_DEFAULT;
+  const tw = TRAIL_BUSH_TILEW;
   if (!b) return { tileW: tw, tileH: 1 };
   return { tileW: tw, tileH: tw * b[3] / b[2] };
 }

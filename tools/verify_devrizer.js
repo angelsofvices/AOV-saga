@@ -158,5 +158,29 @@ H('6 · ★★ L2+TOUCHPAD TOGGLES DEV MODE · PLAIN TOUCHPAD UNTOUCHED');
      'and refuses on a locked device by returning false, so callers can answer');
 }
 
+
+H('7 · ★★ CONTROLLER PRIORITY RIDES THE PANEL, NOT THE DOOR');
+// Creator: "give controller priority to dev menu when dev menu is open from
+// phone or hotkey L2+touchpad. exit to HUDs/overworld on circle"
+{
+  // ★ THE BUG: full D-pad nav existed since v0.95.204, gated on
+  //   game.devPanelKeyboard — which only the ORIGINAL button click set.  The
+  //   chord and drag-handle opened a panel with no controller at all.
+  const i=src.indexOf('const show = (on) =>');
+  const b=src.slice(i, i+900);
+  ok(/game\.devPanelKeyboard = on/.test(b),
+     '★ the shared show() sets the controller flag — every door now grants priority');
+  ok(/window\.toggleDevPanel = \(\) =>[\s\S]{0,200}show\(/.test(src),
+     'and the chord + phone tile both route through it');
+  // Circle exits to the world · the nav block already had it; prove it holds
+  const nav=src.indexOf('if (game.devPanelKeyboard){');
+  const nb=src.slice(nav, nav+4200);
+  ok(/k === 'b' \|\| k === 'shift' \|\| k === 'escape'/.test(nb),
+     "★ Circle (b) closes the panel and hands the HUDs back");
+  ok(/game\.devPanelKeyboard = false/.test(nb),'and releases the priority as it goes');
+  ok(/k === 'z' \|\| k === 'a' \|\| k === 'x'/.test(nb),'Cross activates the focused control');
+  ok(/rowMembers/.test(nb),'and the D-pad walks the button grid by rows');
+}
+
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));
 process.exit(fail?1:0);

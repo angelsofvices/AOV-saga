@@ -226,6 +226,16 @@ console.log('\n★★ 9 · JAILBREAKING SCANOBOTS\n');
   ok(/_scanobotLooted\) return false/.test(svBody),'and the looted flag short-circuits either exit');
   // Dad's warning fires once
   ok(/Portalkeys and survey drones are the same science/.test(src),"★ Dad's portalkey warning is written");
+  // ★ v0.95.818 · the drone announces its own verdict in its own voice
+  const FS2=require('fs');
+  ok(FS2.existsSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/audio/sfx-jailbreak-ok.mp3')
+   &&FS2.existsSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/audio/sfx-jailbreak-fail.mp3'),
+     'both verdict clips shipped');
+  const jt2=src.indexOf('function scanobotTalk');
+  const jb2=src.slice(jt2, jt2+3600);
+  ok(/playSFX\('jailbreakOk'\)/.test(jb2),'★ HEADS speaks "astralite signature confirmed"');
+  ok(/playSFX\('jailbreakFail'\)/.test(jb2),'★ TAILS speaks "invalid astralite signature"');
+  ok(!/playSFX\('moriPoke'\)[\s\S]{0,80}JAILBREAK FAILED/.test(jb2),'and the old generic poke is off the fail path');
   ok(/player\._dadPortalkeyWarned = true/.test(src),'and fires exactly once');
 }
 

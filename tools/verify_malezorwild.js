@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.738 · MALEZOR WILD HABITAT · "place all wild zyrex around malezor most
 // unpopulated regions in the north east south and west"
 try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
- ';globalThis.__C={WILD_ZYREX_ENABLED,spawnWildZyrex,walkable,seedMalezorWild,WILD_ZYREX,MALEZOR_WILD_ZONES,MALEZOR_WILD_ROSTER,MALEZOR_WILD_PER,'+
+ ';globalThis.__C={MALEZOR_WILD_FIXED,WILD_ZYREX_ENABLED,spawnWildZyrex,walkable,seedMalezorWild,WILD_ZYREX,MALEZOR_WILD_ZONES,MALEZOR_WILD_ROSTER,MALEZOR_WILD_PER,'+
  'MALEZOR_WILD_ZONE_R,MALEZOR_WILD_FIXED,SPECIES,SUMMONABLE_SPRITES,worldDistrictAt,isWorldBorderTile,_propBlocked,NPCS,'+
  'tryRecruitWildZyrex,requiredBondForTier,drawZyrexOrb,_wildSprite,player,MOVE_DEX,TYPE_COLORS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
@@ -45,10 +45,18 @@ const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
 // because the SPECIES table is live either way.
 if (!C.WILD_ZYREX_ENABLED){
   console.log('\n0 · ★★ THE OVERWORLD HABITAT IS SWITCHED OFF\n');
-  ok(C.WILD_ZYREX.length === 0,
-     `no wild Zyrex stand in the overworld (${C.WILD_ZYREX.length})`);
-  ok(C.seedMalezorWild() === 0, 'the seeder is a no-op while the flag is false');
-  ok(C.seedMalezorWild() === 0, 'and stays one when called again from the boot tick');
+  // ★ v0.95.818 · the seeder is no longer a TOTAL no-op: Creator-pinned
+  //   individuals (MALEZOR_WILD_FIXED · anciuxor, the calm Voltaryn) spawn
+  //   despite the flag — a named individual at a named tile outranks the
+  //   blanket sprite-import removal.  The ROSTER scatter stays off.
+  const pinned=C.MALEZOR_WILD_FIXED.filter(F=>C.SPECIES[F.id]).length;
+  const seeded=C.seedMalezorWild();
+  ok(seeded===pinned, `the seeder places EXACTLY the ${pinned} hand-pinned individuals, nothing else`);
+  ok(C.WILD_ZYREX.filter(w=>w._malezorWild==='FIXED').length===pinned,'all of them flagged FIXED');
+  ok(C.WILD_ZYREX.filter(w=>w._malezorWild&&w._malezorWild!=='FIXED').length===0,
+     '★ and the bulk roster stays OFF while the flag is false');
+  ok(C.seedMalezorWild() === pinned, 'and a second call is idempotent — same count, no duplicates');
+  ok(C.WILD_ZYREX.filter(w=>w._malezorWild==='FIXED').length===pinned, 'still exactly the pinned set');
 
   console.log('\n0b · ★ NOTHING WAS THROWN AWAY\n');
   // The zone coordinates cost two full district sweeps to find, and the second
@@ -68,9 +76,10 @@ if (!C.WILD_ZYREX_ENABLED){
   console.log('\n0c · ★ THE RE-IMPORT PATH IS OPEN\n');
   // The dev spawner must keep working, or checking a new sheet in place would
   // mean flipping the flag and re-seeding the whole habitat first.
+  const before=C.WILD_ZYREX.length;
   const probe = C.spawnWildZyrex('snok', 40, 100);
   ok(!!probe, 'the dev spawner still places a single Zyrex for sprite checking');
-  ok(C.WILD_ZYREX.length === 1, 'and it is the only one in the world');
+  ok(C.WILD_ZYREX.length === before+1, 'adding exactly one beside the pinned individuals');
   C.WILD_ZYREX.length = 0;
   ok(C.WILD_ZYREX.length === 0, 'cleared again · the suite leaves no residue');
 

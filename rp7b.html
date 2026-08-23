@@ -1568,6 +1568,8 @@ const AUDIO = {
     scrollOpen:   new Audio('audio/sfx-scroll-open.mp3'),   // ★ v0.95.816 · paper unrolling · scroll pickup + every parchment view
     ufoBoost:     new Audio('audio/sfx-ufo-boost.mp3'),     // ★ v0.95.817 · Aetherstride ignition · once per boost activation, no duping
     towerSpotted: new Audio('audio/sfx-tower-spotted.mp3'), // ★ v0.95.817 · Rizer VO near a DEAD tower · points at the silver chest quest
+    jailbreakOk:   new Audio('audio/sfx-jailbreak-ok.mp3'),   // ★ v0.95.818 · Scanobot voice · 'astralite signature confirmed'
+    jailbreakFail: new Audio('audio/sfx-jailbreak-fail.mp3'), // ★ v0.95.818 · Scanobot voice · 'invalid astralite signature'
     axeKill:      new Audio('audio/sfx-axe-kill.mp3'),       // ★ v0.95.793 · Emerald Axe finisher · fires only on axe-driven KOs, primary tile OR anywhere in the 3x3
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Tearsword contact SFX · fires only on enemy hit-land
@@ -7494,6 +7496,15 @@ const CREEPER_QUOTA = {
 };
 const CREEPER_CELL = 16;             // tile size of a density bucket
 
+// ★★ v0.95.818 · DAEMON WALK · measured by COMPONENT OWNERSHIP, half-up cell
+// grid, overflow kept (it is the daemon's own art crossing the seam by ≤5px
+// into the neighbour's transparent margin — never into neighbour art).
+const DAEMON_WALK_BBOXES = [
+  [[154,18,201,240],[31,18,287,249],[91,21,180,242],[33,21,202,246]],
+  [[144,34,204,239],[98,34,203,238],[64,34,183,238],[16,34,205,238]],
+  [[145,39,206,239],[14,41,304,238],[84,41,181,237],[16,41,202,237]],
+  [[131,46,215,248],[21,46,274,249],[61,46,207,249],[25,47,195,248]],
+];
 const NPCS = [
   // ── SPARRING POSTS · interior_training_farm · v0.95.709 ─────────────
   // Four posts along the top of the barn. X on one sets two of your Zyrex
@@ -10930,7 +10941,7 @@ const NPCS = [
   // Stationary blockers · idle sheet only · combat wiring later.
   // isEnemy=true is the marker future battle triggers will look for.
   ...(function(){
-    const MORI_BBOXES = [
+const MORI_BBOXES = [
       [[89,43,178,265],[73,46,169,261],[44,45,170,263],[37,46,167,263]],
       [[71,45,189,254],[49,49,206,250],[17,45,207,251],[27,45,170,254]],
       [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
@@ -11606,15 +11617,17 @@ const NPCS = [
       // v0.95.167 · Daemons use their own sprite sheet (row order UP/LEFT/RIGHT/DOWN)
       src:   s.mode === 'daemon' ? 'assets/2D%20sprites/enemies/daemon.png' : 'assets/2D%20sprites/enemies/mori.png',
       rowMap: s.mode === 'daemon' ? { up:0, left:1, right:2, down:3 } : null,
-      // v0.95.321 · Daemon per-frame bboxes · clamped tight to cell to kill
-      // cross-cell tail/wing bleed on walk animation · rows UP/LEFT/RIGHT/DOWN
-      // measured via CC bbox extractor, then constrained to bx>=0, bx+bw<=313
-      bboxes: s.mode === 'daemon' ? [
-        [[154, 18,159,240],[  0, 18,290,249],[  0, 21,272,242],[ 34, 21,202,246]],
-        [[144, 35,169,239],[  0, 35,285,238],[ 65, 35,183,238],[ 17, 35,205,238]],
-        [[145, 40,168,239],[  0, 40,285,240],[  0, 42,270,237],[ 17, 42,202,237]],
-        [[131, 47,182,248],[  0, 47,285,249],[ 62, 47,207,249],[ 26, 48,195,248]],
-      ] : MORI_BBOXES,
+      // ★★ v0.95.818 · RE-MEASURED BY COMPONENT OWNERSHIP.  Creator: "make
+      // sure daemon is not clipping any cells when walking."  He was — twice
+      // over.  The v0.95.321 table was "constrained to bx>=0, bx+bw<=313",
+      // which (a) CUT the body where it genuinely overflows its cell (the UP
+      // row's lead frame lost 42px of arm) and (b) pinned several frames to
+      // x=0, whose sampling window then reached a few px of the NEIGHBOUR's
+      // art at the seam — the very bleed the clamp was meant to kill.  Canon
+      // rule ([[aov-sprite-cc-extractor]]): a frame owns its overflow; never
+      // cell-clip.  One shared table now; the sprint sheet lands next and
+      // gets its own measurement when it does.
+      bboxes: s.mode === 'daemon' ? DAEMON_WALK_BBOXES : MORI_BBOXES,
       uniformScale: s.mode === 'daemon' ? true : undefined,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       tileX: s.x, tileY: s.y,
@@ -12575,12 +12588,9 @@ function resurrectScrapjawTowerPack(){
     [[101,35,196,246],[62,36,200,244],[55,35,198,245],[36,35,178,245]],
     [[95, 8,160,263],[74, 8,165,263],[61, 8,160,256],[40, 8,160,263]],
   ];
-  const DAEMON_BBOXES_PERIM = [
-    [[154, 18,159,240],[  0, 18,290,249],[  0, 21,272,242],[ 34, 21,202,246]],
-    [[144, 35,169,239],[  0, 35,285,238],[ 65, 35,183,238],[ 17, 35,205,238]],
-    [[145, 40,168,239],[  0, 40,285,240],[  0, 42,270,237],[ 17, 42,202,237]],
-    [[131, 47,182,248],[  0, 47,285,249],[ 62, 47,207,249],[ 26, 48,195,248]],
-  ];
+  // ★ v0.95.818 · the second copy of the stale clamped table · both now read
+  // the one measured constant — two tables for one sheet is how they drift.
+  const DAEMON_BBOXES_PERIM = DAEMON_WALK_BBOXES;
   // v0.95.488 · MALEZOR HOME EPICENTER · Rizer's house sits around (22, 106)
   // in the safe corridor.  Enemy distribution is now RADIAL from home:
   //   ring 0-16 tiles  → hard NO-SPAWN (residential safety zone)
@@ -14243,13 +14253,25 @@ function spillPickups(kind, cx, cy, amounts, tag){
     if (taken.has(key) || !_pickupWalkable(x, y)) continue;
     if (WORLD_PROPS.some(p => p && p._pickup && p.tileX === x && p.tileY === y)) continue;
     taken.add(key);
-    WORLD_PROPS.push({
+    // ★★ v0.95.818 · COLLISION ON EVERYTHING BUT COINS.  Creator: "add
+    // collision to all pick up items besides coins and gems. everything else
+    // u must walk to and interact with."  Coins keep the satisfying run-
+    // through; scrap, chips and any future spill kind stand solid and hand
+    // over on X — the same grammar as weapon drops, bundles and seeds.
+    const _solid = kind !== 'coins';
+    const prop = {
       id: `pk_${kind}_${tag}_${made}`, img: K.img, src: K.src, bbox: K.bbox,
       tileX: x, tileY: y,
       tileW: K.tileW, tileH: K.tileW * K.bbox[3] / K.bbox[2],
-      footprint: [],                       // ★ walkable · you collect it by stepping on it
+      footprint: _solid ? [[0, 0]] : [],
       _pickup: { kind, tag, amount: amounts[made] },
-    });
+    };
+    if (_solid){
+      prop.door = [0, 0];
+      prop.onInteract = () => collectPickupProp(prop);
+      registerPropCollision(prop);
+    }
+    WORLD_PROPS.push(prop);
     made++;
   }
   _rememberPickups();
@@ -14629,11 +14651,28 @@ function restoreWeaponDrops(){
   return n;
 }
 // Walk-over collection · every pickup on this tile, whatever kind.
+// ★ v0.95.818 · X on a solid pickup · pays through the same code walk-over
+// coins use, so the SFX rules (coins always ring, itemGain per kind) and the
+// bag bookkeeping cannot drift between the two grammars.
+function collectPickupProp(prop){
+  if (!prop || !prop._pickup) return;
+  try { unregisterPropCollision(prop); } catch(_){}
+  const i = WORLD_PROPS.indexOf(prop);
+  if (i >= 0) WORLD_PROPS.splice(i, 1);
+  const { kind, amount } = prop._pickup;
+  const K = PICKUP_KINDS[kind];
+  player.items = player.items || {};
+  player.items[K.item] = (player.items[K.item] || 0) + (amount || 1);
+  try { playItemGain(K.item); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+  showToast(`◈ ${K.label} +${amount || 1}`, 1800);
+  _rememberPickups();
+}
 function collectPickupsAt(tx, ty){
   const got = {};
   for (let i = WORLD_PROPS.length - 1; i >= 0; i--){
     const p = WORLD_PROPS[i];
     if (!p || !p._pickup || p.tileX !== tx || p.tileY !== ty) continue;
+    if (p.footprint && p.footprint.length) continue;   // ★ v0.95.818 · solid pickups are X-only
     const { kind, amount } = p._pickup;
     got[kind] = (got[kind] || 0) + (amount || 1);
     WORLD_PROPS.splice(i, 1);
@@ -14677,11 +14716,20 @@ function restoreScrapDrops(){
   let n = 0;
   for (const [x, y, kind, amount, tag] of saved){
     const K = PICKUP_KINDS[kind]; if (!K) continue;
-    WORLD_PROPS.push({
+    // ★ v0.95.818 · the restore rebuilds the SAME grammar the spill made —
+    // a solid chip that reloaded walkable would silently change species
+    const _solid = kind !== 'coins';
+    const prop = {
       id: `pk_${kind}_${tag}_r${n}`, img: K.img, src: K.src, bbox: K.bbox,
       tileX: x, tileY: y, tileW: K.tileW, tileH: K.tileW * K.bbox[3] / K.bbox[2],
-      footprint: [], _pickup: { kind, tag, amount },
-    });
+      footprint: _solid ? [[0, 0]] : [], _pickup: { kind, tag, amount },
+    };
+    if (_solid){
+      prop.door = [0, 0];
+      prop.onInteract = () => collectPickupProp(prop);
+      registerPropCollision(prop);
+    }
+    WORLD_PROPS.push(prop);
     n++;
   }
   return n;
@@ -19407,7 +19455,7 @@ function scanobotTalk(T, bot){
     // built.  scanobotSalvage sets the looted flag, so the kill path still
     // cannot double-pay.
     try { scanobotSalvage(n); } catch(_){}
-    try { playSFX('confirm'); } catch(_){}
+    try { playSFX('jailbreakOk'); } catch(_){}   // ★ v0.95.818 · "astralite signature confirmed"
     // ★ v0.95.816 · the verdict arrives in the SCANOBOT's own text box
     showDialog({ speaker: 'SCANOBOT', lines: [
       '*the access panel gives · the star-eye flickers, dims, goes out*',
@@ -19427,7 +19475,7 @@ function scanobotTalk(T, bot){
     n.mode = 'drainer';
     n._passive = false;
     n.drainAmt = n.drainAmt || 4;
-    try { playSFX('moriPoke'); } catch(_){}
+    try { playSFX('jailbreakFail'); } catch(_){}   // ★ v0.95.818 · "invalid astralite signature"
     showDialog({ speaker: 'SCANOBOT', lines: [
       '*your pick slips · somewhere inside, a relay trips*',
       'JAILBREAK FAILED.  The star-eye snaps RED.  Tamper protocol engaged —',
@@ -38043,6 +38091,13 @@ function drawZyrexOrb(w){
 // species.
 const SPECIES_RECRUIT_GATES = {
   elzoran: {
+    // ★ v0.95.818 · SILENT.  Creator: "you also need to have an elzebub to
+    // make him happy. or he will just ignore you. no vox either."  This
+    // overrides the house rule two lines down ("a refusal that does not say
+    // what to do is a bug report") for HIM alone — being ignored by the old
+    // champion IS the information.  The Lv-50 bar is kept from the prior
+    // Elzebub canon; say the word if owning one at any level should suffice.
+    silent: true,
     test(){
       const all = [].concat(player.party || [], player.pcZyrex || []);
       return all.some(z => z && z.speciesId === 'elzebub' && (z.level || 0) >= 50);
@@ -38066,6 +38121,7 @@ function tryRecruitWildZyrex(w){
   // them off to grind the wrong axis entirely.
   const gate = SPECIES_RECRUIT_GATES[w.speciesId];
   if (gate && !gate.test()){
+    if (gate.silent) return;      // ★ v0.95.818 · Elzoran IGNORES you · no dialog, no vox
     showDialog({ speaker: sp.name.toUpperCase(), lines: [
       `${sp.name} regards you, and does not come.`,
       gate.why(),
@@ -38085,6 +38141,10 @@ function tryRecruitWildZyrex(w){
       Wary:        `${sp.name} backs away, watching you the whole time.`,
       Territorial: `${sp.name} holds its ground and will not yield to you.`,
       Dominant:    `${sp.name} regards you, unimpressed, and turns away.`,
+      // ★ v0.95.818 · CALM · it neither flees nor bristles.  It simply keeps
+      // grazing, and will still be here when your bond is worth its trust —
+      // the gentlest refusal in the game, and the only one that stays put.
+      Calm:        `${sp.name} lifts its head, considers you without alarm, and returns to grazing.`,
     }[w.temperament] || `${sp.name} will not go with you.`;
     showDialog({ speaker: sp.name.toUpperCase(), lines: [
       line,
@@ -38167,8 +38227,29 @@ const MALEZOR_WILD_ROSTER = [
 // the bond gate wants the full 3330, so he is not a catch, he is a presence:
 // the legendary standing at the Rizer's own treehouse. Kept out of the roster
 // above so the round-robin cannot move him.
+// (name kept for history · pinned entries spawn at their exact tile whatever
+// district it resolves to — Voltigrax and Voltaryn both stand on Zarvane land)
 const MALEZOR_WILD_FIXED = [
-  { id: 'anciuxor', at: [22, -19], level: 12, note: 'beside the treehouse' },
+  { id: 'anciuxor', at: [22, -19], note: 'beside the treehouse' },
+  // ★ v0.95.818 · Creator: "add a wild voltigrax at 212, 196. calmly grazing
+  // the cactus."  T6, so the law puts him at Lv 60 and the gate at 60% bond.
+  { id: 'voltigrax', at: [212, 196], note: 'grazing the cactus flats',
+    temperament: 'Calm', graze: 4 },
+  // ★ v0.95.818 · Creator: "add elzoran back at the statue."  (5,28), facing
+  // his fallen comrade's memorial — the spot the retired NPC version held.
+  // Standard bond logic PLUS his species gate: no worthy Elzebub, and he does
+  // not refuse you — he IGNORES you.  No dialog, no vox.  Grief does not
+  // explain itself.
+  { id: 'elzoran', at: [5, 28], note: "at Novarius' statue", temperament: 'Calm' },
+  // ★ v0.95.818 · Creator: "make a wild voltaryn graze around 15, 214. he is
+  // calm natured. will bond with you if you are of the right bond level."
+  // Southern fringe where Malezor thins toward Zarvane (the tile itself
+  // resolves to Zarvane's side of the overlap — pinned spawns don't care) —
+  // T5 working a quiet meadow.  Calm: it never flees a failed approach and
+  // never bristles; the standard tier gate (T5 = 50% Rizer bond) decides when
+  // it comes with you, exactly like every other wild.
+  { id: 'voltaryn', at: [15, 214], note: 'grazing the southern meadow',
+    temperament: 'Calm', graze: 5 },
 ];
 const _malezorWildPlaced = [];
 function _wildTileNear(cx, cy, r){
@@ -38205,10 +38286,15 @@ function _wildTileNear(cx, cy, r){
 // can be dropped in and checked in place without flipping this back on.
 const WILD_ZYREX_ENABLED = false;
 function seedMalezorWild(){
-  if (!WILD_ZYREX_ENABLED) return 0;
   if (_malezorWildPlaced.length) return _malezorWildPlaced.length;
+  // ★ v0.95.818 · THE GATE GUARDS THE ROSTER, NOT THE HAND-PLACED.
+  // WILD_ZYREX_ENABLED is false by the Creator's own order ("remove all
+  // overworld wild zyrex · I need to do a better import of their sprites") —
+  // but a FIXED entry is the Creator placing ONE individual by name and tile,
+  // which is a more specific instruction than the blanket removal.  The bulk
+  // scatter stays off; the pinned individuals stand.
   const zones = Object.keys(MALEZOR_WILD_ZONES);
-  MALEZOR_WILD_ROSTER.forEach((id, i) => {
+  if (WILD_ZYREX_ENABLED) MALEZOR_WILD_ROSTER.forEach((id, i) => {
     const sp = SPECIES[id];
     if (!sp) return;                              // art not in yet · skip silently
     // Round-robin the compass so every zone gets a mix of types rather than
@@ -38226,11 +38312,15 @@ function seedMalezorWild(){
       if (w){ w._malezorWild = zk; _malezorWildPlaced.push(w); }
     }
   });
-  // Pinned individuals · exact tile, no scatter.
+  // Pinned individuals · exact tile, no scatter · NOT gated (see above).
   for (const F of MALEZOR_WILD_FIXED){
     if (!SPECIES[F.id]) continue;
-    const w = spawnWildZyrex(F.id, F.at[0], F.at[1], { level: F.level });
-    if (w){ w._malezorWild = 'FIXED'; w._pinned = F.note; _malezorWildPlaced.push(w); }
+    const w = spawnWildZyrex(F.id, F.at[0], F.at[1], { temperament: F.temperament });
+    if (w){
+      w._malezorWild = 'FIXED'; w._pinned = F.note; _malezorWildPlaced.push(w);
+      // ★ v0.95.818 · graze:N in the table = drift within N tiles of home
+      if (F.graze){ w._graze = true; w._grazeHome = [F.at[0], F.at[1]]; w._grazeR = F.graze; }
+    }
   }
   return _malezorWildPlaced.length;
 }
@@ -39439,7 +39529,12 @@ function spawnWildZyrex(speciesId, tileX, tileY, opts){
   const o = opts || {};
   const w = {
     speciesId, tileX, tileY,
-    level: o.level || Math.max(1, sp.tier * 5),
+    // ★★ v0.95.818 · THE WILD LEVEL LAW.  Creator: "remember all wild zyrex
+    // levels equals its tier times 10. max level of that stat."  Tier x 10 is
+    // the Perfect-Ladder evolution point — a wild is met at the PEAK of its
+    // tier, which is also why the bond gate (tier x 333) reads as matching it.
+    // No caller override: a law with an escape hatch is a suggestion.
+    level: Math.max(1, (sp.tier || 1) * 10),
     temperament: o.temperament || (
       (sp.type === 'Draconic' || sp.type2 === 'Draconic') ? 'Dominant' :
       (sp.type === 'Beast'    || sp.type2 === 'Beast')    ? 'Territorial' :
@@ -39703,8 +39798,30 @@ function drawWorldLayer(){
     renderables.push({ kind:'boulder', boulder:b, footY: b.tileY });
   });
   // v0.95.636 · wild Zyrex orbs join the depth sort so Rizer can walk behind them
+  // ★ v0.95.818 · GRAZING.  A wild flagged _graze drifts one lazy tile every
+  // few seconds inside its home radius — reads as an animal working a meadow,
+  // not a sentry on post.  It never steps onto collision, other actors, or
+  // outside its patch, and it pauses while Rizer is close (it noticed you).
+  const _gNow = performance.now();
   for (const w of WILD_ZYREX){
     if (w._gone) continue;
+    if (w._graze && game.scene === 'overworld' && (!w._grazeNext || _gNow > w._grazeNext)){
+      w._grazeNext = _gNow + 2600 + Math.random() * 3200;
+      const nearRizer = Math.abs(player.x - w.tileX) + Math.abs(player.y - w.tileY) <= 4;
+      if (!nearRizer){
+        const dirs = [[1,0],[-1,0],[0,1],[0,-1]].sort(() => Math.random() - 0.5);
+        for (const [dx, dy] of dirs){
+          const nx = w.tileX + dx, ny = w.tileY + dy;
+          if (Math.abs(nx - w._grazeHome[0]) + Math.abs(ny - w._grazeHome[1]) > w._grazeR) continue;
+          if (_propBlocked.has(`${nx},${ny}`)) continue;
+          if (player.x === nx && player.y === ny) continue;
+          if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === nx && n.tileY === ny)) continue;
+          if (WILD_ZYREX.some(o => o !== w && !o._gone && o.tileX === nx && o.tileY === ny)) continue;
+          w.tileX = nx; w.tileY = ny;
+          break;
+        }
+      }
+    }
     renderables.push({ kind:'wildOrb', wild:w, footY: w.tileY });
   }
   // ★ v0.95.758 · SHADOW PASS. Must be a separate full pass BEFORE the depth
@@ -41133,6 +41250,15 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
   const show = (on) => {
     panel.style.display = on ? 'block' : 'none';
     if (on){ placePanel(); refreshDevFactionButtons(); }
+    // ★★ v0.95.818 · CONTROLLER PRIORITY RIDES THE PANEL, NOT THE DOOR.
+    // Creator: "give controller priority to dev menu when dev menu is open
+    // from phone or hotkey L2+touchpad. exit to HUDs/overworld on circle."
+    // The full D-pad/Cross/Circle nav has existed since v0.95.204 — but it was
+    // gated on game.devPanelKeyboard, which only the ORIGINAL button click
+    // set.  A panel opened by the chord or the drag-handle had no controller
+    // at all.  The flag now tracks the panel's visibility from every door,
+    // so Circle-to-close and the D-pad grid work however you arrived.
+    game.devPanelKeyboard = on;
   };
   // ★ v0.95.813 · one shared toggle for every entry point — the button click,
   // the ZyPhone settings tile, and the L2+touchpad chord.  Returns false on a

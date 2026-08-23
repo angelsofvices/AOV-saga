@@ -104,7 +104,11 @@ H('7 · ★★ SHADOWS DRAW BEFORE ANY PROP');
 // The whole reason this is a separate pass. Inline, a building's shadow would
 // paint over a bush that sorted earlier.
 {
-  const wl=src.slice(src.indexOf('function drawWorldLayer'), src.indexOf('function drawWorldLayer')+6000);
+  // ★ v0.95.818 · the 6000-char window stopped reaching the draw call after
+  //   the graze block landed in the middle of the function — the FIFTH fixed-
+  //   window failure on record.  Slice to the next function boundary instead.
+  const _ws=src.indexOf('function drawWorldLayer');
+  const wl=src.slice(_ws, src.indexOf('\nfunction ', _ws+20));
   const iShadow=wl.indexOf('drawPropShadow');
   const iSort=wl.indexOf('renderables.sort');
   // ★ Search for the actual DRAW CALL, not the kind test — the shadow pass

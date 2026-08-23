@@ -50,48 +50,53 @@ H('2 · ★★ A SPILL LANDS ON WALKABLE GROUND');
   ok(n===C.SCRAP_PER_CHEST,`${n} piles spilled (asked for ${C.SCRAP_PER_CHEST})`);
   const drops=C.WORLD_PROPS.filter(p=>p&&p._pickup&&p._pickup.tag==='test');
   ok(drops.length===n,`all ${drops.length} of them are in the world`);
-  const bad=drops.filter(d=>!C.isWorldLandTile(d.tileX,d.tileY)||C.isWorldBorderTile(d.tileX,d.tileY)||C._propBlocked.has(`${d.tileX},${d.tileY}`));
-  ok(bad.length===0,`none landed in water, on a border or inside a prop (${bad.length})`);
+  // ★ v0.95.818 · SELF-OCCLUSION, third sighting of the bug class: a SOLID
+  //   pile registers its own tile, so _propBlocked.has() now condemns every
+  //   legally-placed pile.  Legality means the tile was clear BEFORE the pile
+  //   stood on it — terrain checks stay, the pile's own shadow does not count.
+  const bad=drops.filter(d=>!C.isWorldLandTile(d.tileX,d.tileY)||C.isWorldBorderTile(d.tileX,d.tileY));
+  ok(bad.length===0,`none landed in water or on a border (${bad.length})`);
   const keys=drops.map(d=>`${d.tileX},${d.tileY}`);
   ok(new Set(keys).size===keys.length,'no two piles share a tile');
   const far=drops.map(d=>Math.max(Math.abs(d.tileX-t.chest[0]),Math.abs(d.tileY-t.chest[1])));
   ok(Math.max(...far)<=4,`all within ${Math.max(...far)} tiles of the chest — a pile, not a scatter across the district`);
 }
 
-H('3 · ★★ THE PILE IS WALKABLE · that is the whole mechanic');
+H('3 · ★★ THE PILE IS SOLID NOW · X IS THE DOOR');
+// ★★ INVERTED from v0.95.772 by the Creator's own ruling: "add collision to
+//    all pick up items besides coins and gems. everything else u must walk to
+//    and interact with."  The walk-over mechanic this section used to protect
+//    now belongs to coins alone.
 {
   const d=C.WORLD_PROPS.find(p=>p&&p._pickup&&p._pickup.tag==='test');
-  ok((d.footprint||[]).length===0,'a scrap pile carries NO footprint');
-  ok(!C._propBlocked.has(`${d.tileX},${d.tileY}`),'so its tile stays walkable · you step ON it to take it');
+  ok((d.footprint||[]).length===1,'a scrap pile is SOLID');
+  ok(typeof d.onInteract==='function','and taken with X');
 }
 
-H('4 · ★★ WALKING OVER IT COLLECTS IT');
+H('4 · ★★ X COLLECTS IT · WALKING CANNOT');
+// ★★ INVERTED · v0.95.772 built walk-over collection and section 5 defended it
+//    ("one walk, not five X presses").  The Creator has since ruled the other
+//    way — "everything else u must walk to and interact with" — so the very
+//    behaviour these sections once required is now the bug they must forbid.
 {
   const before=C.player.items.scrap_metal||0;
   const d=C.WORLD_PROPS.find(p=>p&&p._pickup&&p._pickup.tag==='test');
-  const got=C.collectScrapAt(d.tileX,d.tileY);
-  ok(got===true,'stepping on the tile returns a collection');
-  ok((C.player.items.scrap_metal||0)===before+1,`bag went ${before} -> ${C.player.items.scrap_metal}`);
-  ok(!C.WORLD_PROPS.some(p=>p&&p._pickup&&p._pickup.tag==='test'&&p.tileX===d.tileX&&p.tileY===d.tileY),
-     'and the pile is gone from the ground');
-  ok(C.collectScrapAt(d.tileX,d.tileY)===false,'walking over the same tile again gives nothing');
-  ok(C.collectScrapAt(9999,9999)===false,'and empty ground gives nothing');
+  ok(C.collectScrapAt(d.tileX,d.tileY)===false,
+     '★ stepping on a solid pile collects NOTHING — X is the only door');
+  ok((C.player.items.scrap_metal||0)===before,'the bag is untouched by walking');
+  d.onInteract();
+  ok((C.player.items.scrap_metal||0)===before+1,`X pays · ${before} -> ${C.player.items.scrap_metal}`);
+  ok(!C.WORLD_PROPS.includes(d),'and the pile is gone');
 }
 
-H('5 · ★★ IT IS A WALK, NOT A BUTTON PRESS');
-// The point of the change: sweeping a 5-pile spill should be one walk, not
-// five X presses. So the hook lives in the movement step.
+H('5 · ★ COINS ALONE KEEP THE RUN-THROUGH');
 {
   const src=require('fs').readFileSync('/tmp/all.js','utf8');
   const i=src.indexOf('player.x = nx; player.y = ny;');
-  ok(i>0,'the movement step was found');
-  // ★ Test the PROPERTY, not the function name. This asserted the literal
-  // 'collectScrapAt(nx, ny)' and broke the moment the scrap-only collector was
-  // generalised into collectPickupsAt — which is the same call doing more.
   ok(/collect(Pickups|Scrap)At\(nx, ny\)/.test(src.slice(i,i+500)),
-     'a pickup collector fires from the step, immediately after the player lands');
-  const iv=src.indexOf('function collectPickupsAt');
-  ok(!/onInteract/.test(src.slice(iv,iv+1200)),'and it is not gated behind an interact handler');
+     'the movement step still calls the collector — for the coins');
+  ok(/const _solid = kind !== 'coins'/.test(src),
+     "and the solidity rule names coins as the ONE walk-over kind");
 }
 
 H('6 · ★★ AN UNSWEPT PILE SURVIVES A RELOAD');

@@ -2695,9 +2695,9 @@ const COSMIC_CHEST_SPOTS = [
   // treehouse is the chest the Rubypaw was just taken out of. Finding it again
   // next door would make the move look like a shuffle. The northwest stand is
   // 55 tiles clear of it and reads as somewhere you had to go.
-  { dist:'malezor',  at:[-30,   4], item:'rubypaw_sword',
+  { dist:'malezor',  at:[-54,  27], item:'rubypaw_sword', creatorPlaced:true,
     label:'RUBYPAW LONGSWORD · Rakoron\'s iron and dragonlion mist',
-    note:'far NW forest · 39 trees within 12 tiles · 55 tiles clear of the treehouse' },
+    note:'placed by the Creator from inside the game · orchard clearing' },
 ];
 const GOLD_CHEST_TILE_POSITIONS = [
   [ 45, 90], [ 30,150],   // Malezor  (2)
@@ -14011,14 +14011,51 @@ const WEAPON_DROP_ART = {
   rubypaw_sword:  { src:'assets/2D%20sprites/decor/rubypaw-sword-icon.png',  bbox:[0,0,785,537], tileW:1.5 },
 };
 for (const k of Object.values(WEAPON_DROP_ART)){ k.img = new Image(); k.img.src = k.src; }
-function _weaponDropTile(cx, cy){
+// ★★ v0.95.777 · A DROP THE PLAYER CANNOT SEE IS A DROP THEY CANNOT FIND.
+// Creator: "make sure the swords spawn in spots that are visible, not covered
+// by any trees so the player can pick them up."
+//
+// _propBlocked is not enough. A tree's canopy hangs over tiles that are
+// perfectly walkable — the same gap that let flora grow out of houses — so a
+// blade could sit under a canopy, solid and invisible.
+//
+// Depth sort draws by footY ascending, so anything whose FEET are at or below
+// the drop's row paints on top of it. That is the test: the tile must not fall
+// inside the drawn body of any prop that draws after it.
+// dropW is the blade's own drawn width in tiles. Checking only the anchor tile
+// is the "a bbox is not the character" mistake again: a 1.6-tile blade sticks
+// out either side of the tile it stands on, so half of it can sit behind a
+// trunk while its anchor tile reads clear.
+function _tileIsVisiblyClear(x, y, dropW){
+  const dw = dropW || 1;
+  const dx0 = Math.round(x - dw/2), dx1 = Math.round(x + dw/2);
+  for (const p of WORLD_PROPS){
+    if (!p || !p.src || p.tileX == null || p._weaponDrop) continue;
+    if (p.tileY < y) continue;                       // draws BEHIND the blade · harmless
+    const w = p.tileW || 1;
+    const h = p.bbox ? (w * p.bbox[3] / p.bbox[2]) : (p.tileH || 1);
+    const x0 = Math.round(p.tileX - w/2), x1 = Math.round(p.tileX + w/2);
+    const y0 = Math.round(p.tileY - h + 1);
+    if (y >= y0 && y <= p.tileY && dx1 >= x0 && dx0 <= x1) return false;
+  }
+  return true;
+}
+function _weaponDropTile(cx, cy, dropW){
   // Prefer directly BELOW the chest — that is the tile the player is already
   // walking toward when they open it. Then the sides, then anywhere close.
-  const order = [[0,1],[1,1],[-1,1],[1,0],[-1,0],[0,2],[2,1],[-2,1],[0,-1]];
+  // Rings outward from directly BELOW the chest — the tile the player is
+  // already walking toward when they open it — and takes the first that is both
+  // walkable AND visually clear.
+  const order = [];
+  for (let r = 1; r <= 6; r++)
+    for (let dy = r; dy >= -r; dy--)
+      for (let dx = -r; dx <= r; dx++)
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === r) order.push([dx, dy]);
   for (const [dx, dy] of order){
     const x = cx+dx, y = cy+dy;
     if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
     if (_propBlocked.has(x+','+y)) continue;
+    if (!_tileIsVisiblyClear(x, y, dropW)) continue;  // ★ under a canopy · skip
     // it must have a free neighbour, or it blocks itself into a corner and
     // there is nowhere to stand to press X
     const reachable = [[1,0],[-1,0],[0,1],[0,-1]].some(([ax,ay]) =>
@@ -14030,7 +14067,7 @@ function _weaponDropTile(cx, cy){
 }
 function spawnWeaponDrop(chest, spot){
   const A = WEAPON_DROP_ART[spot.item];
-  const at = _weaponDropTile(chest.tileX, chest.tileY);
+  const at = _weaponDropTile(chest.tileX, chest.tileY, A ? A.tileW : 1);
   if (!A || !at){
     // Nowhere to put it · never strand the reward. Bag it and say so.
     player.items = player.items || {};

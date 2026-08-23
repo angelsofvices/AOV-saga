@@ -35065,6 +35065,20 @@ const TRAIL_HEDGE_BY_DIST = {};
 // building's ground row is inside the house. Anything ON that row is standing
 // in front of it, which is what a garden bush should do — so the base row is
 // explicitly allowed.
+// ★★ v0.95.771 · ONE pattern for "is this a plant", used by every pass.
+// evictFromBuildings carried its own copy that omitted GRASS, and
+// verify_facade carried the SAME narrow copy — so the suite validated exactly
+// the subset the code handled and reported a clean world while 51 grass tufts
+// sat inside buildings. A check written from the code's own assumption cannot
+// catch the code's own blind spot.
+const FLORA_SRC_RE = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:tree|cactus|bush|grass|grassblade)/;
+function isFloraProp(p){ return !!(p && p.src && FLORA_SRC_RE.test(p.src)); }
+// Drawn height in TILES · height follows the bbox, never tileH (drawProp
+// derives it, see v0.95.756).
+function propDrawTilesH(p){
+  const w = p.tileW || 1;
+  return p.bbox ? (w * p.bbox[3] / p.bbox[2]) : (p.tileH || 1);
+}
 function _buildingFacadeTiles(){
   const facade = new Set();
   for (const p of WORLD_PROPS){
@@ -35098,22 +35112,109 @@ function evictFromBuildings(){
     return null;
   };
   let moved = 0, removed = 0, rocks = 0;
-  // FLORA · move it out if there is anywhere to go, otherwise remove it.
-  // Same rule as everywhere else in this file: flora is clearable.
+  // ★★ v0.95.771 · THE HALF RULE.
+  // Creator: "only the top half of the bushes can be on a house. cannot fully
+  // cover them. idea of the bush is planted in front of the house."
+  //
+  // The old test was "is the anchor tile inside the facade", which let the
+  // building's BASE ROW through — and a bush anchored on that row draws its
+  // whole body upward across the wall. Technically outside the facade set,
+  // visibly sitting on the house.
+  //
+  // A plant reads as planted in front when its lower half is clear of the
+  // wall, so its foot must sit at least half its own drawn height BELOW the
+  // building's base line. That is per-plant, not per-building: a 1.3-tile bush
+  // needs 1 row, a 3-tile tree needs 2.
+  //
+  // Violators are pushed STRAIGHT DOWN rather than relocated, because down is
+  // where "in front of the house" is. Only if that fails do they go looking.
+  const buildings = WORLD_PROPS.filter(p => p && p.src && /\/buildings\//.test(p.src) && p.tileX != null);
+  const bSpan = b => { const w = b.tileW || 1; return [Math.round(b.tileX - w/2), Math.round(b.tileX + w/2)]; };
+  const clearRowFor = (f) => {
+    // lowest row this plant may stand on, given every building it overlaps
+    const fw = f.tileW || 1;
+    const fx0 = Math.round(f.tileX - fw/2), fx1 = Math.round(f.tileX + fw/2);
+    const need = Math.max(1, Math.ceil(propDrawTilesH(f) / 2));
+    let row = null;
+    const fh = propDrawTilesH(f);
+    const fTop = f.tileY - fh + 1;
+    for (const b of buildings){
+      const [bx0, bx1] = bSpan(b);
+      if (fx1 < bx0 || fx0 > bx1) continue;                 // no horizontal overlap
+      // ★ v0.95.771b · AND THE TWO DRAWN BODIES MUST ACTUALLY MEET.
+      // The first cut of this tested horizontal overlap only, so a plant ANY
+      // distance north of a building counted as sitting on it — one got shoved
+      // 134 tiles, and the pass deleted 6,754 plants it could not rehome.
+      // Vertical overlap of the two sprite boxes is the missing half of the
+      // test: a tree far up the map shares a column with a house and covers
+      // nothing.
+      // ★ v0.95.771d · round the roof line the SAME way _buildingFacadeTiles
+      // does. It used Math.round on the top row while this used the raw float,
+      // and on a 9.3-tile building the two disagreed about one row — 53 plants
+      // sat in a facade tile that the half rule said was fine.
+      const bh = propDrawTilesH(b);
+      const bTop = Math.round(b.tileY - bh + 1);
+      if (f.tileY < bTop) continue;                         // plant is above the roof
+      if (fTop > b.tileY) continue;                         // plant is below the base
+      if (f.tileY >= b.tileY + need) continue;              // already low enough
+      const want = b.tileY + need;
+      if (row == null || want > row) row = want;
+    }
+    return row;                                             // null = nothing to do
+  };
+  // ★ v0.95.771c · Track where plants stand, so pushing one down does not park
+  // it on top of another. Grass carries no footprint, so _propBlocked cannot
+  // see it and the first cut of this stacked 38 plants.
+  // The ONE legal exception is the designed pair: every gemgrass tile carries a
+  // matching grass_overlay, and the two are meant to occupy the same tile.
+  const floraAt = new Map();
+  const fkey = (x, y) => x + ',' + y;
+  const isPairOf = (a, b) => {
+    const A = a.id || '', B = b.id || '';
+    return (/^gemgrass_/.test(A) && /^grass_overlay_/.test(B))
+        || (/^grass_overlay_/.test(A) && /^gemgrass_/.test(B));
+  };
+  for (const q of WORLD_PROPS){
+    if (!isFloraProp(q) || q.tileX == null) continue;
+    const k = fkey(q.tileX, q.tileY);
+    if (!floraAt.has(k)) floraAt.set(k, []);
+    floraAt.get(k).push(q);
+  }
+  const tileFreeFor = (p, x, y) => {
+    const here = floraAt.get(fkey(x, y));
+    if (!here || !here.length) return true;
+    return here.every(q => q === p || isPairOf(p, q));
+  };
+  const moveFlora = (p, x, y) => {
+    const from = floraAt.get(fkey(p.tileX, p.tileY));
+    if (from){ const i = from.indexOf(p); if (i >= 0) from.splice(i, 1); }
+    p.tileX = x; p.tileY = y;
+    const k = fkey(x, y);
+    if (!floraAt.has(k)) floraAt.set(k, []);
+    floraAt.get(k).push(p);
+  };
   for (let i = WORLD_PROPS.length - 1; i >= 0; i--){
     const p = WORLD_PROPS[i];
-    if (!p || !p.src || !FLORA.test(p.src) || p.tileX == null) continue;
-    if (!facade.has(p.tileX+','+p.tileY)) continue;
-    const spot = nearestFree(p.tileX, p.tileY);
+    if (!isFloraProp(p) || p.tileX == null) continue;
+    const want = clearRowFor(p);
+    if (want == null) continue;
     unregisterPropCollision(p);
-    if (spot){
-      p.tileX = spot[0]; p.tileY = spot[1];
-      registerPropCollision(p);
-      moved++;
-    } else {
-      WORLD_PROPS.splice(i, 1);
-      removed++;
+    let placed = false;
+    for (let y = want; y <= want + 6 && !placed; y++){      // straight down first
+      if (okTile(p.tileX, y) && tileFreeFor(p, p.tileX, y)
+          && clearRowFor({ ...p, tileY: y }) == null){
+        moveFlora(p, p.tileX, y); placed = true;
+      }
     }
+    if (!placed){
+      const spot = nearestFree(p.tileX, p.tileY);
+      if (spot && tileFreeFor(p, spot[0], spot[1])
+          && clearRowFor({ ...p, tileX: spot[0], tileY: spot[1] }) == null){
+        moveFlora(p, spot[0], spot[1]); placed = true;
+      }
+    }
+    if (placed){ registerPropCollision(p); moved++; }
+    else { WORLD_PROPS.splice(i, 1); removed++; }
   }
   // BOULDERS · never removed. A life or astralite stone is a resource the
   // player is sent to find, so it always relocates.

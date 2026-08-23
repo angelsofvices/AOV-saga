@@ -12070,6 +12070,9 @@ setTimeout(() => { try {
   if (s) console.log(`[rp7b] seer network · ${s} grunts holding 9 district roads`);
   // v0.95.749 · trails + border forest · MUST run after the flora scatter, the
   // thirty buildings and the wild habitat, because it carves between them.
+  // v0.95.753 · snap the thirty onto the hex lattice BEFORE carving, so the
+  // roads are drawn between their new homes rather than their old ones.
+  try { snapBuildingsToLattice(); } catch(err){ console.warn('[rp7b] lattice snap failed', err); }
   try { buildAllTrails(); } catch(err){ console.warn('[rp7b] trail carve failed', err); }
   // v0.95.738 · Malezor wild habitat · playtest region, N/E/S/W
   try {
@@ -34362,6 +34365,78 @@ const TRAIL_VERGE_P  = 0.42; // chance of a bush on any given verge tile
 const TRAIL_JITTER   = 3.2;  // how far the path is allowed to wander off true
 const FOREST_BORDER  = 22;   // tiles from the district edge that count as border
 const FOREST_TRAIL_R = 14;   // keep forest this far off any trail
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.753 · THE HEX LATTICE · equidistant sites, diagonal + horizontal roads
+//
+// Creator: "make all districts buildings equidistant so that entire map blocks
+// are used ... we can do diagonal and horizontal roads."
+//
+// ★ A SQUARE GRID IS NOT EQUIDISTANT. Its diagonal neighbours sit 1.414x
+// further out than its orthogonal ones, so "equal spacing" and "square grid"
+// are different things. A TRIANGULAR lattice is the shape where every one of a
+// site's six neighbours is exactly the same distance away — and its three axes
+// are one horizontal and two diagonals, which is precisely the road set asked
+// for. It also tiles the plane with no gaps, which is the "entire map blocks
+// used" half of the request.
+//
+// PITCH 80 was measured, not chosen: at 70 Thardin yields only 2 valid sites
+// and cannot host its three buildings; at 85+ Vorashil drops to 1. 80 gives
+// every district at least 4.
+//
+// ★ THE PHASE IS SEARCHED. Pitch fixes the spacing; the lattice ORIGIN decides
+// where that spacing lands. At an arbitrary origin Thardin got 2 sites. Sweeping
+// the origin over one full cell and keeping the phase that maximises the WORST
+// district gives (68, 8) — 54 sites worldwide, minimum 4. Same pitch, so the
+// world stays uniformly equidistant; the grid just lands where the land is.
+const HEX_PITCH = 80;
+const HEX_ROW   = HEX_PITCH * Math.sqrt(3) / 2;      // 69.3 · true triangular row gap
+const HEX_OX    = 68, HEX_OY = 8;                    // searched phase
+const HEX_JITTER = 4;                                // ★ see below
+// ★ A PERFECT LATTICE READS AS A SPREADSHEET. The grid is doing invisible work
+// — guaranteed spacing, no clustering, no holes — and the moment the player can
+// SEE it, the world stops feeling discovered. Every site is nudged up to 4
+// tiles off its exact point, seeded so it is the same nudge every session, and
+// re-validated after the nudge.
+function _hexSites(dist, rng){
+  const FLORA = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:tree|bush|grass|grassblade)/;
+  const occ = new Set();
+  for (const p of WORLD_PROPS){
+    if (!p || p.tileX == null || p._district30) continue;
+    if (FLORA.test(p.src || '')) continue;           // clearable · a building removes it
+    if (!p.footprint || !p.footprint.length) continue;
+    const w = p.tileW || 1, h = p.tileH || 1;
+    for (let dy = -h-2; dy <= 2; dy++)
+      for (let dx = -Math.ceil(w/2)-2; dx <= Math.ceil(w/2)+2; dx++) occ.add((p.tileX+dx)+','+(p.tileY+dy));
+  }
+  const fits = (x, y) => {
+    for (let dy = -12; dy <= 1; dy++)
+      for (let dx = -7; dx <= 7; dx++){
+        const xx = x+dx, yy = y+dy;
+        if (worldDistrictAt(xx, yy) !== dist || isWorldBorderTile(xx, yy)) return false;
+        if (occ.has(xx+','+yy)) return false;
+      }
+    return true;
+  };
+  const out = [];
+  for (let r = -1; r < Math.ceil(860/HEX_ROW)+1; r++){
+    const y0 = Math.round(-45 + HEX_OY + r * HEX_ROW);
+    const off = (r % 2) ? HEX_PITCH/2 : 0;
+    for (let c = -2; c < Math.ceil(1180/HEX_PITCH)+2; c++){
+      const x0 = Math.round(-115 + HEX_OX + off + c * HEX_PITCH);
+      if (worldDistrictAt(x0, y0) !== dist) continue;
+      if (!fits(x0, y0)) continue;
+      // jitter, then re-validate · an invalid nudge falls back to the true point
+      let jx = x0, jy = y0;
+      for (let t = 0; t < 8; t++){
+        const a = rng() * Math.PI * 2, d = 2 + rng() * (HEX_JITTER - 2);
+        const nx = Math.round(x0 + Math.cos(a)*d), ny = Math.round(y0 + Math.sin(a)*d);
+        if (fits(nx, ny)){ jx = nx; jy = ny; break; }
+      }
+      out.push({ x: jx, y: jy, gx: x0, gy: y0, row: r, col: c });
+    }
+  }
+  return out;
+}
 // ★★ v0.95.750 · GENERALISED · the POI graph is DERIVED, not listed.
 //
 // The Malezor prototype hardcoded twelve routes by name. That does not scale to
@@ -34430,6 +34505,30 @@ function _districtRuns(dist){
   if (P.seer){
     const a = near(P.seer.tileX, P.seer.tileY, anchors);
     if (a) runs.push([...node(a.p), ...node(P.seer)]);
+  }
+  // ★★ v0.95.753 · LATTICE EDGES · this is what "entire map blocks are used"
+  // means. Roads run between ADJACENT SITES, not just between buildings — so
+  // the district gets a block grid on the three hex axes (one horizontal, two
+  // diagonal) rather than three spokes off a hub. Sites with no building on
+  // them are the empty blocks: already road-connected, waiting for the caves,
+  // lakes and mountains that go there later.
+  const sites = (game._hexSites || {})[dist] || [];
+  const LINK = HEX_PITCH * 1.18;                    // a touch over one pitch
+  for (let i = 0; i < sites.length; i++)
+    for (let j = i + 1; j < sites.length; j++){
+      const d = Math.hypot(sites[i].gx - sites[j].gx, sites[i].gy - sites[j].gy);
+      if (d <= LINK) runs.push([sites[i].x, sites[i].y, sites[j].x, sites[j].y]);
+    }
+  // and hook the cave + Seer HQ onto their nearest lattice site, so the grid
+  // reaches the two places that are NOT on it
+  for (const fixed of [P.cave, P.seer]){
+    if (!fixed || !sites.length) continue;
+    let b = null, bd = Infinity;
+    for (const st of sites){
+      const d = Math.hypot(st.x - fixed.tileX, st.y - fixed.tileY);
+      if (d < bd){ bd = d; b = st; }
+    }
+    if (b) runs.push([b.x, b.y, fixed.tileX, fixed.tileY]);
   }
   // WILD · four compass spurs to the district rim, each from the node already
   // furthest that way, so the road leaves town instead of doubling back.
@@ -34561,7 +34660,7 @@ function buildDistrictTrails(dist, rng){
   return { roads:runs.length, cleared, bushes, trees };
 }
 // Per-district flora art, so a Veridan road is lined with Veridan bushes rather
-// than Malezor's. Falls back to the shared bush/tree where a district has none.
+// than Malezor's. Trees have NO fallback — see the treeline block above.
 const TRAIL_BUSH_BY_DIST = {
   andrannor:'assets/2D%20sprites/decor/andrannor-bush.png',
   zarvane:  'assets/2D%20sprites/decor/zarvane-bush.png',
@@ -34593,6 +34692,60 @@ const TRAIL_TREE_BY_DIST = {
 const TRAIL_HEDGE_BY_DIST = {
   zarvane: 'assets/2D%20sprites/decor/zarvane-bush.png',
 };
+// ★★ v0.95.753 · SNAP THE THIRTY ONTO THE LATTICE.
+// The apex rule survives the move: of the sites available, the one nearest the
+// Gemlord cave still takes the district's landmark building, so finding any one
+// of the three still tells you which way the cave lies. The other two take the
+// sites furthest from the apex, which spreads them across the district's blocks
+// instead of bunching them on one side.
+function snapBuildingsToLattice(){
+  if (game._latticeSnapped) return 0;
+  game._latticeSnapped = true;
+  const rng = _makeWorldRng(0x11EAF);
+  let moved = 0;
+  game._hexSites = {};
+  for (const w of DISTRICT_WHEEL){
+    const dist = w.dist;
+    const sites = _hexSites(dist, rng);
+    game._hexSites[dist] = sites;
+    const blds = WORLD_PROPS.filter(p => p && p._district30 === dist);
+    if (sites.length < blds.length || !blds.length) continue;
+    const cave = WORLD_PROPS.find(p => p && /_cave$/.test(p.id||'')
+                 && worldDistrictAt(p.tileX, p.tileY) === dist);
+    const pool = sites.slice();
+    const apexProp = blds.find(b => b._tri === 'apex') || blds[0];
+    // apex -> the site nearest the cave
+    let ai = 0;
+    if (cave){
+      let bd = Infinity;
+      pool.forEach((s, i) => {
+        const d = Math.hypot(s.x - cave.tileX, s.y - cave.tileY);
+        if (d < bd){ bd = d; ai = i; }
+      });
+    }
+    const apexSite = pool.splice(ai, 1)[0];
+    apexProp.tileX = apexSite.x; apexProp.tileY = apexSite.y; moved++;
+    apexProp._latticeGrid = [apexSite.gx, apexSite.gy];
+    // the other two -> furthest from the apex, and from each other
+    const rest = blds.filter(b => b !== apexProp);
+    for (const b of rest){
+      let bi = 0, bd = -1;
+      pool.forEach((s, i) => {
+        const d = Math.min(Math.hypot(s.x - apexSite.x, s.y - apexSite.y),
+                           ...rest.filter(o => o !== b && o._latticeGrid)
+                                  .map(o => Math.hypot(s.x - o.tileX, s.y - o.tileY)));
+        if (d > bd){ bd = d; bi = i; }
+      });
+      const st = pool.splice(bi, 1)[0];
+      if (!st) break;
+      b.tileX = st.x; b.tileY = st.y; b._latticeGrid = [st.gx, st.gy];
+      moved++;
+    }
+  }
+  console.log(`[rp7b] lattice · pitch ${HEX_PITCH} phase ${HEX_OX},${HEX_OY} · ${moved} buildings snapped · sites ` +
+    DISTRICT_WHEEL.map(w => `${w.dist}:${(game._hexSites[w.dist]||[]).length}`).join(' '));
+  return moved;
+}
 function buildAllTrails(){
   if (game._trailsDone) return 0;
   game._trailsDone = true;

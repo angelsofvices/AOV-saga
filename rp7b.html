@@ -12070,7 +12070,7 @@ setTimeout(() => { try {
   if (s) console.log(`[rp7b] seer network · ${s} grunts holding 9 district roads`);
   // v0.95.749 · trails + border forest · MUST run after the flora scatter, the
   // thirty buildings and the wild habitat, because it carves between them.
-  try { buildMalezorTrails(); } catch(err){ console.warn('[rp7b] trail carve failed', err); }
+  try { buildAllTrails(); } catch(err){ console.warn('[rp7b] trail carve failed', err); }
   // v0.95.738 · Malezor wild habitat · playtest region, N/E/S/W
   try {
     const mw = seedMalezorWild();
@@ -34362,30 +34362,96 @@ const TRAIL_VERGE_P  = 0.42; // chance of a bush on any given verge tile
 const TRAIL_JITTER   = 3.2;  // how far the path is allowed to wander off true
 const FOREST_BORDER  = 22;   // tiles from the district edge that count as border
 const FOREST_TRAIL_R = 14;   // keep forest this far off any trail
-// Which POIs are worth a road. Ordered so the spine is carved first and the
-// spurs hang off it.
-const MALEZOR_TRAILS = [
-  ['malezor_research_facility', 'rakoron_cave'],              // the pilgrimage north
-  ['malezor_research_facility', 'malezor_town_hall'],         // ── the spine ──
-  ['malezor_town_hall',         'malezor_school'],
-  ['malezor_school',            'malezor_hospital'],
-  ['malezor_town_hall',         'malezor_the_fanghall'],      // NW · to the Elder
-  ['malezor_hospital',          'malezor_the_bloodscent_lodge'], // SE
-  ['malezor_hospital',          'malezor_the_first_den'],     // SW
-  ['malezor_the_bloodscent_lodge', 'seer_hq'],                // the road they watch
-];
-// ★ And roads OUT to the four wild zones. The first carve reached every
-// building and left the entire eastern half of the district roadless — which
-// is precisely the emptiness the Creator asked to fix, since a road that stops
-// at the last shop gives nobody a reason to keep walking. These are the
-// "explore out of the inner NPC zones" half of the brief: each one ends in tall
-// grass with wild Zyrex standing in it.
-const MALEZOR_WILD_TRAILS = [
-  ['malezor_research_facility',     'N'],   // north ridge
-  ['malezor_the_bloodscent_lodge',  'E'],   // eastern flats · the empty half
-  ['malezor_the_first_den',         'S'],   // southern lowlands
-  ['malezor_the_fanghall',          'W'],   // western reach
-];
+// ★★ v0.95.750 · GENERALISED · the POI graph is DERIVED, not listed.
+//
+// The Malezor prototype hardcoded twelve routes by name. That does not scale to
+// ten districts and, worse, it would rot: every building added later would need
+// a hand-written road. Instead the graph is read off the world — every district
+// now has the same skeleton (a civic core, three district buildings, a Gemlord
+// cave, a Seer HQ, four compass wild zones), so the same solver builds all ten.
+//
+// Routes, per district:
+//   SPINE  · the civic props chained nearest-neighbour from the hub outward
+//   CAVE   · the civic prop closest to the Gemlord cave, out to the cave
+//   SPURS  · each of the three district buildings, from whichever node is nearest
+//   SEER   · the Seer HQ, from its nearest node — the road they are watching
+//   WILD   · four compass spurs from the outermost nodes to the district's rim
+function _districtPOIs(dist){
+  const civic = [], b30 = [];
+  let cave = null, seer = null;
+  for (const p of WORLD_PROPS){
+    if (!p || p.tileX == null) continue;
+    if (worldDistrictAt(p.tileX, p.tileY) !== dist) continue;
+    const id = p.id || '';
+    if (/_cave$/.test(id)) cave = p;
+    else if (p._district30) b30.push(p);
+    else if (/seer_hq/.test(id)) seer = p;
+    else if (/town_hall|school|hospital|facility|farm|potion_shop|gear_shop|inn_|condo_|costume|cosmetic/.test(id)) civic.push(p);
+  }
+  if (!civic.length && cave) civic.push(cave);
+  const hx = Math.round(civic.reduce((a,p)=>a+p.tileX,0)/Math.max(1,civic.length));
+  const hy = Math.round(civic.reduce((a,p)=>a+p.tileY,0)/Math.max(1,civic.length));
+  return { civic, b30, cave, seer, hub:[hx,hy] };
+}
+function _districtRuns(dist){
+  const P = _districtPOIs(dist);
+  const runs = [];
+  const node = p => [p.tileX, p.tileY];
+  const near = (x,y,pool) => pool.reduce((best,p)=>{
+    const d = Math.hypot(p.tileX-x, p.tileY-y);
+    return (!best || d < best.d) ? {p,d} : best;
+  }, null);
+  // SPINE · greedy nearest-neighbour through the civic props, from the hub out.
+  // A star from one hall would cross itself; a chain reads as a street.
+  const left = P.civic.slice();
+  let cur = near(P.hub[0], P.hub[1], left);
+  const chain = [];
+  while (cur){
+    chain.push(cur.p);
+    left.splice(left.indexOf(cur.p), 1);
+    cur = left.length ? near(cur.p.tileX, cur.p.tileY, left) : null;
+  }
+  for (let i = 0; i + 1 < chain.length; i++)
+    runs.push([...node(chain[i]), ...node(chain[i+1])]);
+  const anchors = chain.slice();
+  // CAVE · from whichever civic prop already sits closest to it
+  if (P.cave && chain.length){
+    const a = near(P.cave.tileX, P.cave.tileY, chain);
+    runs.push([...node(a.p), ...node(P.cave)]);
+    anchors.push(P.cave);
+  }
+  // SPURS · each district building hangs off its nearest existing node
+  for (const b of P.b30){
+    const a = near(b.tileX, b.tileY, anchors);
+    if (a) runs.push([...node(a.p), ...node(b)]);
+    anchors.push(b);
+  }
+  // SEER · the road they watch
+  if (P.seer){
+    const a = near(P.seer.tileX, P.seer.tileY, anchors);
+    if (a) runs.push([...node(a.p), ...node(P.seer)]);
+  }
+  // WILD · four compass spurs to the district rim, each from the node already
+  // furthest that way, so the road leaves town instead of doubling back.
+  const R = 78;
+  for (const [dx, dy] of [[0,-1],[1,0],[0,1],[-1,0]]){
+    const tx = P.hub[0] + dx * R, ty = P.hub[1] + dy * R;
+    let best = null;
+    for (const p of anchors){
+      const proj = (p.tileX - P.hub[0]) * dx + (p.tileY - P.hub[1]) * dy;
+      if (!best || proj > best.proj) best = { p, proj };
+    }
+    if (!best) continue;
+    // walk the target back inside the district if it overshot the coast
+    let ex = tx, ey = ty;
+    for (let k = 0; k < 40 && worldDistrictAt(ex, ey) !== dist; k++){
+      ex -= dx * 2; ey -= dy * 2;
+    }
+    if (worldDistrictAt(ex, ey) !== dist) continue;
+    runs.push([...node(best.p), ex, ey]);
+  }
+  return runs;
+}
 function _trailPath(ax, ay, bx, by, rng){
   // A straight line reads as a survey marker, not a footpath. The path is the
   // true line plus a slow sine wander, so it bends the way ground makes people
@@ -34402,22 +34468,10 @@ function _trailPath(ax, ay, bx, by, rng){
   }
   return pts;
 }
-function buildMalezorTrails(){
-  if (game._malezorTrailsDone) return 0;
-  game._malezorTrailsDone = true;
-  const rng = _makeWorldRng(0x7A17);
-  const byId = {};
-  for (const p of WORLD_PROPS) if (p && p.id) byId[p.id] = p;
-  // 1 · walk every trail, recording the roadbed and its verges
+function buildDistrictTrails(dist, rng){
+  const runs = _districtRuns(dist);
+  if (!runs.length) return { roads:0, cleared:0, bushes:0, trees:0 };
   const road = new Set(), verge = new Set();
-  // POI-to-POI roads, then the four spurs out to the wild zones.
-  const runs = MALEZOR_TRAILS.map(([a,b]) => {
-    const A = byId[a], B = byId[b];
-    return (A && B) ? [A.tileX, A.tileY, B.tileX, B.tileY] : null;
-  }).concat(MALEZOR_WILD_TRAILS.map(([a, z]) => {
-    const A = byId[a], Z = MALEZOR_WILD_ZONES[z];
-    return (A && Z) ? [A.tileX, A.tileY, Z.at[0], Z.at[1]] : null;
-  })).filter(Boolean);
   for (const [ax, ay, bx, by] of runs){
     for (const [x, y] of _trailPath(ax, ay, bx, by, rng)){
       for (let oy = -TRAIL_ROAD_R; oy <= TRAIL_ROAD_R; oy++)
@@ -34427,42 +34481,48 @@ function buildMalezorTrails(){
                                      verge.add((x-v)+','+(y+o)); verge.add((x+v)+','+(y+o)); }
     }
   }
-  for (const k of road) verge.delete(k);            // roadbed always wins
-  // 2 · CLEAR the roadbed. Only flora — anything with a real footprint is a
-  //     building and the trail must route around it, not delete it.
+  for (const k of road) verge.delete(k);
+  // CLEAR the roadbed · flora only. A real footprint means a building, and the
+  // road runs up to its door rather than through it.
   let cleared = 0;
   const keep = [];
   for (const p of WORLD_PROPS){
     const isFlora = p && (!p.footprint || p.footprint.length <= 1)
-                 && /decor\/(malezor-tree|bush|grass|grassblade|grass-patch)/.test(p.src || '');
-    if (isFlora && worldDistrictAt(p.tileX, p.tileY) === 'malezor'
+                 // ★ v0.95.751 · the subfolder bug. District flora lives at
+                 // decor/TREES/veridan-tree.png and decor/GRASS/thardin-grass-a.png,
+                 // but this pattern expected it directly under decor/ — so the
+                 // carve skipped it in seven districts and left trees standing in
+                 // the roads. Malezor's tree is un-nested at decor/malezor-tree.png,
+                 // which is exactly why the prototype looked correct and hid it.
+                 && /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:tree|bush|grass|grassblade)/.test(p.src || '');
+    if (isFlora && worldDistrictAt(p.tileX, p.tileY) === dist
         && road.has(p.tileX + ',' + p.tileY)){ cleared++; continue; }
     keep.push(p);
   }
   WORLD_PROPS.length = 0; WORLD_PROPS.push(...keep);
-  // 3 · LINE the verges. This is the part that makes a gap read as a road.
   const occupied = new Set();
   for (const p of WORLD_PROPS){
     if (!p || p.tileX == null) continue;
     occupied.add(p.tileX + ',' + p.tileY);
     for (const [dx, dy] of p.footprint || []) occupied.add((p.tileX+dx)+','+(p.tileY+dy));
   }
-  const bushImg = new Image(); bushImg.src = 'assets/2D%20sprites/decor/bush.png';
+  // LINE the verges · this is what makes a gap read as a road.
+  const bushSrc = TRAIL_BUSH_BY_DIST[dist] || 'assets/2D%20sprites/decor/bush.png';
+  const bushBox = TRAIL_BUSH_BBOX[bushSrc] || [291,274,965,471];
+  const bushImg = new Image(); bushImg.src = bushSrc;
   let bushes = 0;
   for (const key of verge){
     const [x, y] = key.split(',').map(Number);
-    if (worldDistrictAt(x, y) !== 'malezor' || isWorldBorderTile(x, y)) continue;
+    if (worldDistrictAt(x, y) !== dist || isWorldBorderTile(x, y)) continue;
     if (occupied.has(key) || _propBlocked.has(key)) continue;
     if (rng() > TRAIL_VERGE_P) continue;
-    WORLD_PROPS.push({ id:`malezor_verge_${x}_${y}`, img:bushImg,
-      src:'assets/2D%20sprites/decor/bush.png', bbox:[291,274,965,471],
-      tileX:x, tileY:y, tileW:2, tileH:1, footprint:[[0,0]], _trailVerge:true });
+    WORLD_PROPS.push({ id:`${dist}_verge_${x}_${y}`, img:bushImg, src:bushSrc, bbox:bushBox,
+      tileX:x, tileY:y, tileW:2, tileH:1, footprint:[[0,0]], _trailVerge:dist });
     occupied.add(key); bushes++;
   }
-  // 4 · FOREST the borders. Trees thicken where the district ends and no trail
-  //     goes — the treeline becomes the wall, so the player is turned back by
-  //     scenery instead of an invisible edge.
-  const treeImg = new Image(); treeImg.src = 'assets/2D%20sprites/decor/malezor-tree.png';
+  // FOREST the border · the treeline becomes the wall.
+  const treeSrc = TRAIL_TREE_BY_DIST[dist] || 'assets/2D%20sprites/decor/malezor-tree.png';
+  const treeImg = new Image(); treeImg.src = treeSrc;
   const nearTrail = (x, y) => {
     for (let r = 0; r <= FOREST_TRAIL_R; r += 2)
       for (let o = -r; o <= r; o += 2)
@@ -34471,30 +34531,53 @@ function buildMalezorTrails(){
     return false;
   };
   let trees = 0;
-  for (let y = -34; y <= 222; y += 3){
-    for (let x = -92; x <= 214; x += 3){
-      if (worldDistrictAt(x, y) !== 'malezor' || isWorldBorderTile(x, y)) continue;
-      // distance to the edge of the district, cheaply: is open land 22 out?
+  const P = _districtPOIs(dist);
+  for (let y = P.hub[1]-190; y <= P.hub[1]+190; y += 3){
+    for (let x = P.hub[0]-190; x <= P.hub[0]+190; x += 3){
+      if (worldDistrictAt(x, y) !== dist || isWorldBorderTile(x, y)) continue;
       let edge = false;
       for (const [ex, ey] of [[FOREST_BORDER,0],[-FOREST_BORDER,0],[0,FOREST_BORDER],[0,-FOREST_BORDER]])
-        if (worldDistrictAt(x+ex, y+ey) !== 'malezor'){ edge = true; break; }
-      if (!edge) continue;
-      if (nearTrail(x, y)) continue;
+        if (worldDistrictAt(x+ex, y+ey) !== dist){ edge = true; break; }
+      if (!edge || nearTrail(x, y)) continue;
       const key = x + ',' + y;
       if (occupied.has(key) || _propBlocked.has(key)) continue;
       if (rng() > 0.55) continue;
-      WORLD_PROPS.push({ id:`malezor_forest_${x}_${y}`, img:treeImg,
-        src:'assets/2D%20sprites/decor/malezor-tree.png', bbox:[72,77,1107,1138],
-        tileX:x, tileY:y, tileW:3, tileH:3, footprint:[[0,0]], _borderForest:true });
+      WORLD_PROPS.push({ id:`${dist}_forest_${x}_${y}`, img:treeImg, src:treeSrc,
+        bbox:[72,77,1107,1138], tileX:x, tileY:y, tileW:3, tileH:3,
+        footprint:[[0,0]], _borderForest:dist });
       occupied.add(key); trees++;
     }
   }
-  // ★ Publish the carved roadbed. Testing a straight line between two POIs is
-  // testing tiles the road never touches — the path wanders up to 3.2 tiles off
-  // true by design, and the first verifier failed itself that way.
-  game._malezorRoad = road;
-  console.log(`[rp7b] malezor trails · ${runs.length} roads · ${cleared} flora cleared from the roadbed · ${bushes} verge bushes · ${trees} border trees`);
-  return cleared + bushes + trees;
+  (game._trailRoad = game._trailRoad || {})[dist] = road;
+  return { roads:runs.length, cleared, bushes, trees };
+}
+// Per-district flora art, so a Veridan road is lined with Veridan bushes rather
+// than Malezor's. Falls back to the shared bush/tree where a district has none.
+const TRAIL_BUSH_BY_DIST = {
+  andrannor:'assets/2D%20sprites/decor/andrannor-bush.png',
+  zarvane:  'assets/2D%20sprites/decor/zarvane-bush.png',
+};
+const TRAIL_BUSH_BBOX = {
+  'assets/2D%20sprites/decor/bush.png':[291,274,965,471],
+  'assets/2D%20sprites/decor/andrannor-bush.png':[291,274,965,471],
+  'assets/2D%20sprites/decor/zarvane-bush.png':[291,274,965,471],
+};
+const TRAIL_TREE_BY_DIST = {
+  andrannor:'assets/2D%20sprites/decor/andrannor-tree.png',
+};
+function buildAllTrails(){
+  if (game._trailsDone) return 0;
+  game._trailsDone = true;
+  const rng = _makeWorldRng(0x7A17);
+  let R=0,C=0,B=0,T=0;
+  const parts=[];
+  for (const w of DISTRICT_WHEEL){
+    const r = buildDistrictTrails(w.dist, rng);
+    R+=r.roads; C+=r.cleared; B+=r.bushes; T+=r.trees;
+    parts.push(`${w.dist}:${r.roads}`);
+  }
+  console.log(`[rp7b] trails · ${R} roads across 10 districts (${parts.join(' ')}) · ${C} flora cleared · ${B} verge bushes · ${T} border trees`);
+  return R;
 }
 // Spawn helper · habitats will call this; the dev button uses it today.
 function spawnWildZyrex(speciesId, tileX, tileY, opts){

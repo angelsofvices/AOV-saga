@@ -30569,26 +30569,66 @@ function handleZycellKey(k){
     // (returns to the Faction grid) before backing out to the nav rail.
     if (k === 'arrowleft'){
       if (typeof closeZyrexExamine === 'function' && closeZyrexExamine()) return true;
+      // ★ v0.95.809 · inside a grid row, LEFT walks the row first · only from
+      // column 0 does it back out to the nav rail, keeping the old gesture.
+      const _el = items[game._zycellItemIdx];
+      const _r  = _el && _el.getAttribute && _el.getAttribute('data-zyrow');
+      if (_r){
+        const R = items.map((el,i)=>({el,i})).filter(x=>(x.el.getAttribute&&x.el.getAttribute('data-zyrow'))===_r);
+        const c = R.findIndex(x=>x.i===game._zycellItemIdx);
+        if (c > 0){ game._zycellItemIdx=R[c-1].i; _zycellPaintFocus(); _zycellScrollFocusIntoView(); playSFX('cursor'); return true; }
+      }
       zycellExitContent(); return true;
     }
     if (k === 'l' || k === 'q'){ zycellCyclePage(-1); return true; }
     if (k === 'r' || k === 'i'){ zycellCyclePage(+1); return true; }
     if (!items.length){ zycellExitContent(); return true; }
     if (game._zycellItemIdx >= items.length) game._zycellItemIdx = 0;
-    if (k === 'arrowup')  {
-      const next = (game._zycellItemIdx - 1 + items.length) % items.length;
-      game._zycellItemIdx = next; _zycellPaintFocus(); _zycellScrollFocusIntoView(); playSFX('cursor');
-      return true;
-    }
-    if (k === 'arrowdown'){
-      const next = (game._zycellItemIdx + 1) % items.length;
-      game._zycellItemIdx = next; _zycellPaintFocus(); _zycellScrollFocusIntoView(); playSFX('cursor');
+    // ★★ v0.95.809 · GRID ROWS.  Creator: "no wrap in the rizer stat upgrade
+    // menu. right arrow goes right in the column. down goes down a row to the
+    // next stat ... we do not favor wrapping in ANY phone menu besides
+    // returning to the top or bottom of the list if you pass the end or
+    // beginning. no inner cell wrapping."
+    //
+    // Buttons that share a data-zyrow form ONE HORIZONTAL ROW.  Within it,
+    // LEFT/RIGHT move a column and STOP DEAD at the ends — no wrap, no
+    // spilling into the next stat.  UP/DOWN move a whole ROW at a time,
+    // holding your column, and only the LIST as a whole wraps top-to-bottom.
+    // Items without a row behave exactly as before, so every other panel is
+    // untouched.
+    const _curEl  = items[game._zycellItemIdx];
+    const _curRow = _curEl && _curEl.getAttribute && _curEl.getAttribute('data-zyrow');
+    const _rowOf  = el => (el && el.getAttribute && el.getAttribute('data-zyrow')) || null;
+    const _rowItems = key => items.map((el,i)=>({el,i})).filter(x=>_rowOf(x.el)===key);
+    const _stepRow = (dir) => {
+      // collapse the flat list into UNITS · a run of same-row items is one unit
+      const units=[]; let seen=null;
+      items.forEach((el,i)=>{
+        const r=_rowOf(el);
+        if (r && r===seen){ units[units.length-1].idxs.push(i); }
+        else { units.push({ row:r, idxs:[i] }); seen=r; }
+      });
+      const uNow = units.findIndex(u=>u.idxs.includes(game._zycellItemIdx));
+      const col  = _curRow ? _rowItems(_curRow).findIndex(x=>x.i===game._zycellItemIdx) : 0;
+      const uNext = (uNow + dir + units.length) % units.length;   // list-level wrap only
+      const U = units[uNext];
+      game._zycellItemIdx = U.idxs[Math.max(0, Math.min(col, U.idxs.length-1))];
+      _zycellPaintFocus(); _zycellScrollFocusIntoView(); playSFX('cursor');
+    };
+    if (k === 'arrowup')  { _stepRow(-1); return true; }
+    if (k === 'arrowdown'){ _stepRow(+1); return true; }
+    if (k === 'arrowright' && _curRow){
+      // move right WITHIN the row · dead stop at the last column
+      const R=_rowItems(_curRow), c=R.findIndex(x=>x.i===game._zycellItemIdx);
+      if (c < R.length-1){ game._zycellItemIdx=R[c+1].i; _zycellPaintFocus(); _zycellScrollFocusIntoView(); playSFX('cursor'); }
+      else { try { playSFX('doorLock'); } catch(_){} }   // the edge answers, it does not teleport
       return true;
     }
     if (k === 'arrowright' || k === 'a' || k === 'z' || k === 'x' || k === 'enter' || k === ' '){
       // v0.95.576 · RIGHT arrow interacts (mirrors X/A) since RIGHT can't
       // enter a state we're already in.  Keeps arrow behavior meaningful.
-      // v0.95.579 · Faction slot X = examine (rich dialog via the row's click)
+      // ★ v0.95.809 · except inside a grid row, where RIGHT is handled above
+      // as movement — there, activation is X/A/enter alone.
       const el = items[game._zycellItemIdx];
       if (el) el.click();
       return true;
@@ -41852,7 +41892,7 @@ function buildRizerAttrPanel(where){
     // cursor landed on the whole panel and X fired the FIRST +1 it found.
     // Explicit data-zyitem per button (only while it is alive; a disabled
     // button must not eat a cursor stop) makes all fifteen walkable.
-    const btn  = (n, label) => `<button ${can ? `data-zyitem="attr_${k}_${label.replace(/\+/g,'p')}"` : 'disabled'}
+    const btn  = (n, label) => `<button ${can ? `data-zyitem="attr_${k}_${label.replace(/\+/g,'p')}" data-zyrow="attr_${k}"` : 'disabled'}
         onclick="try{rizerSpend('${k}',${n});}catch(e){console.warn(e);}"
         style="background:${can ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.25)'}; color:${can ? M.color : '#556'};
                border:1px solid ${can ? M.color : '#334'}; padding:4px 8px; min-width:38px;
@@ -41876,7 +41916,7 @@ function buildRizerAttrPanel(where){
       <div style="color:#ffd66b; font:bold 10px 'Courier New',monospace; letter-spacing:.14em; margin-bottom:6px;">◆ ARCHETYPE PRESETS · spends all ${free}</div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
         ${Object.entries(RIZER_ARCHETYPES).map(([id,A]) => `
-          <button data-zyitem="preset_${id}" onclick="try{applyRizerArchetype('${id}');}catch(e){console.warn(e);}"
+          <button data-zyitem="preset_${id}" data-zyrow="presets" onclick="try{applyRizerArchetype('${id}');}catch(e){console.warn(e);}"
             style="background:rgba(0,0,0,0.5); color:#ffd66b; border:1px solid #ffd66b; padding:6px 10px;
                    font:bold 10px 'Courier New',monospace; letter-spacing:.06em; cursor:pointer; text-align:left;">
             ${A.name}<br><span style="color:#8ff; font-weight:normal; font-size:9px;">${A.tag}</span>

@@ -108,8 +108,12 @@ H('5 · ★★ CROSS ON A DUALSENSE ACTUALLY PRESSES IT');
 {
   const btn=src.slice(src.indexOf('const BTN = {'), src.indexOf('const BTN = {')+400);
   ok(/0:\s*'x'/.test(btn),"Cross dispatches 'x'");
-  const h=src.slice(src.indexOf('function handleZycellKey'), src.indexOf('function handleZycellKey')+4000);
-  const line=h.match(/if \(k === 'arrowright'[^\n]*\n/);
+  // ★ v0.95.809 · the grid-nav change split arrowright into TWO branches: the
+  //   grid-movement one (checked first) and the activation one.  The original
+  //   regex grabbed the FIRST arrowright line, which is now movement.  Widen
+  //   the window and match the ACTIVATION line specifically.
+  const h=src.slice(src.indexOf('function handleZycellKey'), src.indexOf('function handleZycellKey')+9000);
+  const line=h.match(/if \(k === 'arrowright' \|\| k === 'a'[^\n]*\n/);
   ok(!!line&&/'x'/.test(line[0]),"the content branch accepts 'x' as an activate key");
   ok(/const el = items\[game\._zycellItemIdx\];\s*\n\s*if \(el\) el\.click\(\);/.test(h),
      'and it clicks the focused item rather than doing something bespoke');

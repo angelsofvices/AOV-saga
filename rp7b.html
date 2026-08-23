@@ -2463,6 +2463,7 @@ const INVENTORY_META = {
   shardshare:       { label: 'Shardshare Collar',       order: 53 },   // v0.95.619 · Dad-repaired · while owned, ALL party Zyrex gain 0.5× the active duelist's XP per defeated foe in F v F duels
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
   sapphire_sword:   { label: 'Sapphire Tearsword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 100 hits (connect-only, no miss-break) · repair 100 gems
+  emerald_axe:      { label: 'Emerald Axe',                order: 9 },   // ★ v0.95.788 · S1-only · Square = 3x3 AOE centred on Rizer · Veridan cosmic chest
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
   zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
   // ─── v0.95.588 · ULTRASHARDS · one per canon type · consume on Zyrex to overwrite A4 with Ultramax move + add Ultramax type ─────────────
@@ -2589,7 +2590,7 @@ const ITEM_GAIN_SFX_KEYS = new Set([
   'zysphere_basic','zysphere_silver','zysphere_ultra',
   // v0.95.507 · Quest items · every retrievable quest pickup now fires the jingle
   'scrap_metal','astralcore','astralcore_transponder','life_stone',
-  'ale','potion','sapphire_sword','rubypaw_sword',
+  'ale','potion','sapphire_sword','rubypaw_sword','emerald_axe',
 ]);
 function playItemGain(key){
   if (!key || key === 'coins') return;
@@ -2612,7 +2613,7 @@ const KEY_ITEM_RXP = {
   backpack: 50, zphone: 100, zycube: 100, faenet: 100, worldmap: 200,
   dads_notebook: 150, skateboard: 75, raidcard: 100,
   scrap_metal: 150, astralcore: 300, astralcore_transponder: 200,
-  life_stone: 50, sapphire_sword: 250, rubypaw_sword: 300,
+  life_stone: 50, sapphire_sword: 250, rubypaw_sword: 300, emerald_axe: 350,
   prismshard: 500,
   elzebub_egg: 250, verdant_elixir: 100,
 };
@@ -2696,6 +2697,11 @@ const COSMIC_CHEST_SPOTS = [
   // treehouse is the chest the Rubypaw was just taken out of. Finding it again
   // next door would make the move look like a shuffle. The northwest stand is
   // 55 tiles clear of it and reads as somewhere you had to go.
+  // ★ v0.95.788 · Emeralix is VERIDAN's Gemlord and the axe is emerald, so it
+  // sits in her district — the same rule that placed the other two.
+  { dist:'veridan',  at:[600, 250], item:'emerald_axe',
+    label:'EMERALD AXE · Emeralix\'s heartwood edge',
+    note:'Veridan · measured for canopy at scatter time' },
   { dist:'malezor',  at:[-54,  27], item:'rubypaw_sword', creatorPlaced:true,
     label:'RUBYPAW LONGSWORD · Rakoron\'s iron and dragonlion mist',
     note:'placed by the Creator from inside the game · orchard clearing' },
@@ -14028,6 +14034,7 @@ function spillChestCoins(chest, tier, mult){
 const WEAPON_DROP_ART = {
   sapphire_sword: { src:'assets/2D%20sprites/decor/sapphire-sword-icon.png', bbox:[0,0,772,326], tileW:1.6 },
   rubypaw_sword:  { src:'assets/2D%20sprites/decor/rubypaw-sword-icon.png',  bbox:[0,0,785,537], tileW:1.5 },
+  emerald_axe:    { src:'assets/2D%20sprites/decor/emerald-axe-icon.png',    bbox:[0,0,401,401], tileW:1.4 },
 };
 for (const k of Object.values(WEAPON_DROP_ART)){ k.img = new Image(); k.img.src = k.src; }
 // ★★ v0.95.777 · A DROP THE PLAYER CANNOT SEE IS A DROP THEY CANNOT FIND.
@@ -14137,13 +14144,18 @@ function spawnWeaponDrop(chest, spot){
 // The Tearsword is S1's blade and the Rubypaw is S2's, so the shorter life on
 // the blue one also reads as progression: the weapon you get later lasts twice
 // as long.
-const WEAPON_MAX_DUR = { sapphire_sword: 100, rubypaw_sword: 200 };
+// ★ v0.95.788 · the axe is HEAVY. It clears a 3x3 in one swing, so it buys that
+// reach with the shortest life of the three — 60 swings. Tune here if it reads
+// as too brittle in play; that number is a first guess, not a measurement.
+const WEAPON_MAX_DUR = { sapphire_sword: 100, rubypaw_sword: 200, emerald_axe: 60 };
 const SWORD_MAX  = WEAPON_MAX_DUR.sapphire_sword;   // 100
 const RUBY_MAX   = WEAPON_MAX_DUR.rubypaw_sword;    // 200
+const AXE_MAX    = WEAPON_MAX_DUR.emerald_axe;      // 60
 // Each blade tracks its OWN durability so S1's sword and S2's never share HP.
 function _armWeapon(item){
   if (item === 'sapphire_sword'){ player.swordDurability   = SWORD_MAX; player.swordBroken   = false; }
   if (item === 'rubypaw_sword'){  player.rubypawDurability = RUBY_MAX;  player.rubypawBroken = false; }
+  if (item === 'emerald_axe'){    player.axeDurability     = AXE_MAX;   player.axeBroken     = false; }
 }
 // ★ A blade left lying on the ground has to still be there next session.
 function _rememberWeaponDrops(){
@@ -21315,6 +21327,24 @@ addEventListener('keydown', e => {
         } else {
           const hasSword = (player.items && player.items.sapphire_sword) > 0
                         && !player.swordBroken;
+          const hasAxe   = (player.items && player.items.emerald_axe) > 0
+                        && !player.axeBroken;
+          // ★★ v0.95.788 · S1 HAS TWO WEAPONS NOW, so L1/R1 is a CYCLE rather
+          // than a toggle: fists -> Tearsword -> Emerald Axe -> fists. Only
+          // weapons you own and have not broken appear in the ring.
+          if (hasAxe){
+            const ring = ['fists'].concat(hasSword ? ['sword'] : [], ['axe']);
+            const now  = player.axeEquipped ? 'axe' : (player.swordEquipped ? 'sword' : 'fists');
+            const next = ring[(ring.indexOf(now) + (k === 'l' ? ring.length - 1 : 1)) % ring.length];
+            player.swordEquipped = (next === 'sword');
+            player.axeEquipped   = (next === 'axe');
+            try { updateWeaponHUD(); } catch(_){}
+            try { playSFX('confirm'); } catch(_){}
+            showToast(next === 'axe'    ? '⚔ EMERALD AXE · equipped (Square = 3x3 sweep)'
+                    : next === 'sword'  ? '⚔ SAPPHIRE TEARSWORD · equipped (Square = front + back sweep)'
+                    :                     '◈ Weapon holstered · melee fists', 2200);
+            keys[k] = true; return;
+          }
           if (!hasSword){
             try { playSFX('doorLock'); } catch(_){}
             showToast('◈ No S1 weapon available · find the Sapphire Tearsword', 2200);
@@ -21645,6 +21675,30 @@ addEventListener('keydown', e => {
             if (n.tileX === bx && n.tileY === by){ _azurelSweepHits.push(n); break; }
           }
         }
+        // ★★ v0.95.788 · EMERALD AXE · 3x3 CENTRED ON RIZER.
+        // Creator: "heavy axe swing... aoe damage all tiles nearby. 3x3 rizer in
+        // center of aoe." Unlike the two swords this is not a facing arc — it
+        // does not care which way you are pointed, which is the whole appeal of
+        // a heavy weapon and the reason it wears out three times faster.
+        const _axeSweeper = mode === 'punch'
+          && !!player.axeEquipped && !player.axeBroken
+          && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+        let _axeSweepHits = null;
+        if (_axeSweeper){
+          _axeSweepHits = [];
+          for (let dy = -1; dy <= 1; dy++){
+            for (let dx = -1; dx <= 1; dx++){
+              if (!dx && !dy) continue;                 // Rizer's own tile
+              const tx = player.x + dx, ty = player.y + dy;
+              for (const n of NPCS){
+                if (n.scene !== game.scene) continue;
+                if (!n.isEnemy || n._dying) continue;
+                if (n === hit) continue;                // primary resolves below
+                if (n.tileX === tx && n.tileY === ty){ _axeSweepHits.push(n); break; }
+              }
+            }
+          }
+        }
         let _rubypawSweepTiles = null;
         let _rubypawSweepHits = null;
         if (_rubypawSweeper){
@@ -21707,7 +21761,8 @@ addEventListener('keydown', e => {
         }
         if (hit || isBagTile || boulderHit || plantHit || chestHit || treehouseChestHit
             || (_rubypawSweepHits && _rubypawSweepHits.length > 0)
-            || (_azurelSweepHits  && _azurelSweepHits.length  > 0)){
+            || (_azurelSweepHits  && _azurelSweepHits.length  > 0)
+            || (_axeSweepHits     && _axeSweepHits.length     > 0)){   // ★ v0.95.788
           playSFX(mode === 'kick' ? 'kickHit' : 'punchHit');
           recordHitLanded(mode);                        // v0.95.134 · achievement tracker
           // v0.95.555 · Rizer punch-combo VO ("take this") every 5th landed
@@ -21767,6 +21822,22 @@ addEventListener('keydown', e => {
                 try { playSFX('gottaFixIt'); } catch(_){}
               } else if (player.swordDurability === 20){
                 showToast('⚠ Sapphire Tearsword · 20 swings left', 2400);
+              }
+            } else if (mode === 'punch' && player.axeEquipped && !player.axeBroken
+                       && (player.cosmeticSkin || 'normal') !== 'power_upgrade'){
+              // ★ v0.95.788 · heavy: baseAtk x 2.5, between the Tearsword's S2-punch
+              // equivalence and the Rubypaw's x3 — it buys its damage in REACH.
+              outDmg = (player.baseAtk || 25) * 2.5;
+              try { playSFX('swordSlice'); } catch(_){}
+              player.axeDurability = Math.max(0, (player.axeDurability == null ? AXE_MAX : player.axeDurability) - 1);
+              if (player.axeDurability <= 0){
+                player.axeBroken   = true;
+                player.axeEquipped = false;
+                try { playSFX('cancel'); } catch(_){}
+                showToast('⛔ EMERALD AXE broke · repair with 100 gems (ZyPhone → Weapons)', 3800);
+                try { playSFX('gottaFixIt'); } catch(_){}
+              } else if (player.axeDurability === 10){
+                showToast('⚠ Emerald Axe · 10 swings left', 2400);
               }
             } else if (_rubypawSwing){
               // v0.95.572 · Rubypaw damage = baseAtk × 3 × S2 mult (2) = 150
@@ -21859,6 +21930,28 @@ addEventListener('keydown', e => {
           // v0.95.606 · Rubypaw HEAVY SWEEPING SLASH · apply damage to every
           // enemy in the sweep arc (front-side tiles + direct sides) using the
           // same Rubypaw damage model as the primary target.
+          // ★★ v0.95.788 · EMERALD AXE · every one of the eight tiles around
+          // Rizer takes the same damage as the focus target. Reuses the sweep
+          // rig the two swords already use so kills, XP and death handling all
+          // go through one path rather than three.
+          if (_axeSweeper && _axeSweepHits && _axeSweepHits.length){
+            const axeDmg = (player.baseAtk || 25) * 2.5;
+            for (const sh of _axeSweepHits){
+              if (sh.mode === 'skellor'){ skellorTakeHit(sh, 2); continue; }
+              const sMax = sh.hpMax || 125;
+              if (sh.hp == null) sh.hp = sMax;
+              sh.hp -= axeDmg;
+              try { if (game.devCombatFxOn !== false) spawnHitFx(sh.tileX, sh.tileY, mode); } catch(_){}
+              if (sh.hp > 0 && !sh._gruntPlayed && sh.hp <= sMax * 0.4){ sh._gruntPlayed = true; try { playSFX('moriGrunt'); } catch(_){} }
+              if (sh.hp <= 0){
+                try { playSFX('moriDeath'); } catch(_){}
+                try { creditRizerKill(sh); } catch(_){}
+                sh._dying = true; sh._deathAt = performance.now();
+              }
+            }
+            if (_axeSweepHits.length > 1)
+              showToast(`⚔ EMERALD AXE · ${_axeSweepHits.length + (hit ? 1 : 0)} caught in the swing`, 1600);
+          }
           if (_rubypawSweeper && _rubypawSweepHits && _rubypawSweepHits.length){
             const sweepDmg = (player.baseAtk || 25) * 3 * playerDamageMultiplier('power_upgrade');
             for (const sh of _rubypawSweepHits){
@@ -26502,6 +26595,7 @@ function notebookState(){
 function _migrateWeaponDurability(){
   if (player.swordDurability   != null) player.swordDurability   = Math.min(player.swordDurability,   SWORD_MAX);
   if (player.rubypawDurability != null) player.rubypawDurability = Math.min(player.rubypawDurability, RUBY_MAX);
+  if (player.axeDurability     != null) player.axeDurability     = Math.min(player.axeDurability,     AXE_MAX);
 }
 function _migrateNotebook(){
   const inv = player.items || {};
@@ -26890,11 +26984,46 @@ function scrollEntry(themeKey, dist){
 // and its collision released, and the page arrives in the notebook. What is
 // left behind is an empty patch of ground and one more filled page — which is
 // the whole feeling: you are carrying his career home a sheet at a time.
+// ★★ v0.95.788 · RXP BY HOW MANY PAGES YOU HAVE, not by where you found one.
+//
+// Creator: "fixed rxp number per number of scroll collected. low to high. not a
+// one level full gainer."
+//
+// The old award was 40 + 20 per district-depth, which paid for TRAVEL — a
+// Korathen page was worth five Malezor ones whether it was your first or your
+// hundredth. It also put 23,400 RXP into a full sweep against a ~10,000 main
+// quest line, so exploring outpaid the story three to one.
+//
+// This pays for COLLECTION instead. The reward is a flat rate that steps up in
+// bands of thirty, so the first page is small, the hundred-and-eightieth is
+// worth stopping for, and no single page is ever a level in one go. Full sweep
+// totals 7,650 — meaningful next to the main quest without eclipsing it.
+const SCROLL_RXP_BANDS = [
+  { upTo:  30, rxp:  10 },
+  { upTo:  60, rxp:  20 },
+  { upTo:  90, rxp:  30 },
+  { upTo: 120, rxp:  45 },
+  { upTo: 150, rxp:  60 },
+  { upTo: 180, rxp:  90 },
+];
+// `already` is how many were held BEFORE this one, so the first page pays the
+// first band rather than skipping it.
+function scrollRxpFor(already){
+  const n = (already | 0) + 1;
+  for (const b of SCROLL_RXP_BANDS) if (n <= b.upTo) return b.rxp;
+  return SCROLL_RXP_BANDS[SCROLL_RXP_BANDS.length - 1].rxp;
+}
+function scrollRxpTotal(){
+  let t = 0;
+  for (let i = 0; i < SCROLL_THEMES.length * SCROLL_DISTRICT_ORDER.length; i++) t += scrollRxpFor(i);
+  return t;
+}
 function readScroll(themeKey, dist, prop){
   const e = scrollEntry(themeKey, dist);
   if (!e) return false;
   const n = notebookState();
   if (n.scrolls[e.id]) return false;
+  const have0 = scrollsFound();          // count BEFORE filing this one
   n.scrolls[e.id] = Date.now();
   // lift it off the ground
   if (prop){
@@ -26903,7 +27032,7 @@ function readScroll(themeKey, dist, prop){
     if (i >= 0) WORLD_PROPS.splice(i, 1);
   }
   try { playSFX('confirm'); } catch(_){}
-  try { awardRizerXP(40 + scrollDepthOf(dist) * 20); } catch(_){}   // deeper = worth more
+  try { awardRizerXP(scrollRxpFor(have0)); } catch(_){}
   const have = scrollsFound(), all = SCROLL_THEMES.length * SCROLL_DISTRICT_ORDER.length;
   showDialog({ speaker:`DAD'S NOTE · ${e.title}`, lines:[ e.page,
     `— page ${have} of ${all} recovered · filed in Dad's Notebook —` ]});
@@ -30414,6 +30543,9 @@ function saveGame(){
         rubypawEquipped:   !!player.rubypawEquipped,
         rubypawBroken:     !!player.rubypawBroken,
         rubypawDurability: player.rubypawDurability != null ? player.rubypawDurability : RUBY_MAX,
+        axeDurability:     player.axeDurability     != null ? player.axeDurability     : AXE_MAX,
+        axeBroken:         !!player.axeBroken,
+        axeEquipped:       !!player.axeEquipped,
         // v0.95.607 · CONTACTS & STORY PROGRESS · every gate/reward flag captured so
         // QOL patches (sprites, spawns, animations) don't wipe the player's run
         hasBackpack:                !!player.hasBackpack,
@@ -40192,10 +40324,14 @@ const WHUD_ART = {
   // All three share the same 1254 canvas and the same content bbox, which is
   // what lets the swap be a background change with nothing moving on screen.
   rubypaw:  'assets/2D%20sprites/ui/weapon-hud-rubypaw.png',
+  emerald:  'assets/2D%20sprites/ui/weapon-hud-emerald.png',   // ★ v0.95.788
 };
 function currentWeaponKey(){
   const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';
   if (isS2)  return (player.rubypawEquipped && !player.rubypawBroken) ? 'rubypaw' : 'fists';
+  // ★ v0.95.788 · S1 now has TWO weapons. The axe wins the tie if both are
+  // somehow flagged, because it is the heavier commitment.
+  if (player.axeEquipped && !player.axeBroken) return 'emerald';
   return (player.swordEquipped && !player.swordBroken) ? 'sapphire' : 'fists';
 }
 function updateWeaponHUD(){
@@ -40211,12 +40347,15 @@ function updateWeaponHUD(){
   let dur = 1;
   if (key === 'sapphire') dur = Math.max(0, Math.min(SWORD_MAX, player.swordDurability   ?? SWORD_MAX)) / SWORD_MAX;
   if (key === 'rubypaw')  dur = Math.max(0, Math.min(RUBY_MAX,  player.rubypawDurability ?? RUBY_MAX)) / RUBY_MAX;
+  if (key === 'emerald')  dur = Math.max(0, Math.min(AXE_MAX,   player.axeDurability     ?? AXE_MAX))  / AXE_MAX;
   whud.style.filter = (key === 'fists' || dur > 0.34)
     ? 'none'
     : `saturate(${(0.3 + dur * 2).toFixed(2)})`;
+  const MAXOF = { sapphire: SWORD_MAX, rubypaw: RUBY_MAX, emerald: AXE_MAX };
+  const NAMEOF = { sapphire:'Sapphire Tearsword', rubypaw:'Rubypaw Longsword', emerald:'Emerald Axe' };
   whud.title = key === 'fists'
     ? 'Melee fists · L1/R1 to cycle weapons'
-    : `${key === 'sapphire' ? 'Sapphire Tearsword' : 'Rubypaw Longsword'} equipped · ${Math.round(dur*(key==='sapphire'?SWORD_MAX:RUBY_MAX))}/${key==='sapphire'?SWORD_MAX:RUBY_MAX} · L1/R1 to cycle`;
+    : `${NAMEOF[key]} equipped · ${Math.round(dur*MAXOF[key])}/${MAXOF[key]} · L1/R1 to cycle`;
 }
 function _updateWeaponHUD_disabled_v518(){
   const whud = document.getElementById('weaponHud');

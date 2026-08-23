@@ -14185,7 +14185,7 @@ const S1_WEAPON_RING = [
   { key:'axe',   item:'emerald_axe',    equipFlag:'axeEquipped',     brokenFlag:'axeBroken',
     durFlag:'axeDurability',     max:AXE_MAX,   name:'EMERALD AXE',        blurb:'Square = 3x3 sweep' },
   { key:'bow',   item:'pearlbow',       equipFlag:'bowEquipped',     brokenFlag:'bowBroken',
-    durFlag:'bowDurability',     max:BOW_MAX,   name:'PEARLBOW',           blurb:() => `Square = arrow, ${PEARLBOW_RANGE} tiles, ${PEARLBOW_AOE*2+1}x${PEARLBOW_AOE*2+1} blast` },
+    durFlag:'bowDurability',     max:BOW_MAX,   name:'PEARLBOW',           blurb:() => `Square = arrow, up to ${PEARLBOW_RANGE} tiles, ${PEARLBOW_AOE*2+1}x${PEARLBOW_AOE*2+1} blast on contact` },
 ];
 // Each blade tracks its OWN durability so S1's sword and S2's never share HP.
 function _armWeapon(item){
@@ -16418,17 +16418,44 @@ function spawnHitFx(tx, ty, mode){
 // Creator: "send it 7 tiles from rizer facing direction, explodes on the 7th
 // tile ... 1 tile aoe on explosion. play the full animation."
 //
-// So this is a MORTAR, not a rifle.  The arrow does not stop at the first
-// enemy it passes — it flies its full seven tiles and detonates there, and the
-// blast is what does the damage.  That is the whole character of the weapon:
-// it is the only thing Rizer carries that punishes standing too close, and the
-// only one that rewards reading the ground ahead of you.
+// ★★ v0.95.796 · REVISED.  It detonates ON CONTACT as well as at the end of
+// its flight — Creator: "if a flying arrow hits a head or body tile on enemy it
+// explodes."  So the eight tiles are the FURTHEST it travels, not where it has
+// to land, and an enemy that walks into the path mid-flight sets it off.  It is
+// still an area weapon rather than a single-target one: whatever it touches, it
+// is the BLAST that does the damage, and the blast does not care who tripped it.
 //
 // The 3x3 sheet is ONE 9-frame timeline: 0-4 the arrow in flight with its
 // trail building, 5-6 the burst, 7-8 the pearls falling out of it.  Flight
 // frames advance across the travel; blast frames play out where it landed.
-const PEARLBOW_RANGE     = 7;      // tiles · the detonation tile, not a cap on a trace
+const PEARLBOW_RANGE     = 8;      // ★ v0.95.796 · 7 -> 8 · the FURTHEST it goes, not where it must go
 const PEARLBOW_AOE       = 1;      // tiles around the blast · a 3x3 in practice
+// ★★ v0.95.796 · ENEMIES ARE TWO TILES TALL.
+// Creator: "make the collision on the arrow and explosion by two tiles. that
+// way if a flying arrow hits a head or body tile on enemy it explodes."
+//
+// An NPC's tileX/tileY is the tile its FEET stand on, but the sprite is drawn
+// two tiles high — so an arrow flying at chest height was passing straight
+// through every enemy's head.  This is the height of the hitbox, and both the
+// arrow's contact test and the blast's damage test read it, so a head is as
+// solid as a body either way.
+const ENEMY_BODY_TILES   = 2;
+function enemyOccupiesTile(n, x, y){
+  if (!n || n.tileX !== x) return false;
+  const dy = n.tileY - y;               // 0 = feet/body · 1 = head
+  return dy >= 0 && dy < ENEMY_BODY_TILES;
+}
+// ★★ walkable() counts a standing NPC as a WALL, which is right for feet and
+// wrong for an arrow: the wall-trace would stop one tile SHORT of the enemy and
+// detonate beside him instead of on him.  An arrow is stopped by geometry only,
+// so a tile occupied by an enemy is passable to it — the contact test in
+// stepArrows() is what decides that the flight ends there.
+function arrowPassable(x, y){
+  if (typeof walkable !== 'function') return true;
+  if (walkable(x, y)) return true;
+  return NPCS.some(n => n && n.scene === game.scene && n.isEnemy && !n._dying
+                     && enemyOccupiesTile(n, x, y));
+}
 const PEARLBOW_DMG_MULT  = 3.5;    // ★ > ASTRAL_STRIKE.DMG_MULT (3) per the Creator
 const PEARLBOW_FLY_MS    = 60;     // per tile
 const PEARLBOW_BLAST_MS  = 90;     // per blast frame
@@ -16457,15 +16484,19 @@ const ARROWS = [];   // live projectiles · drawn by drawArrows(), resolved by s
 // Fire one.  Returns the arrow so callers can inspect where it will land.
 function fireArrow(fromX, fromY, dir){
   const dv = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] }[dir] || [0,1];
-  // ★ walk the line ONCE, at fire time, so the landing tile is known before a
-  // single frame is drawn.  An arrow whose destination is recomputed per frame
-  // would drift if an enemy moved into the path mid-flight.
+  // ★ WALLS are walked once, here, because level geometry does not move — this
+  // fixes the FURTHEST the arrow can reach before a frame is drawn.  The arrow
+  // buries itself in a wall rather than passing through it; a bow that shot
+  // through buildings would clear a Seer HQ forecourt from outside the district.
+  //
+  // ★ ENEMIES are NOT resolved here.  They walk around, so contact has to be
+  // tested per frame in stepArrows() against where they are AT THAT MOMENT —
+  // otherwise an enemy stepping into the path would be missed and one standing
+  // in it at fire time would be hit even after moving away.
   let tiles = PEARLBOW_RANGE;
   for (let step = 1; step <= PEARLBOW_RANGE; step++){
     const tx = fromX + dv[0]*step, ty = fromY + dv[1]*step;
-    // The arrow buries itself in a wall rather than passing through it — a bow
-    // that shot through buildings would clear a Seer HQ from outside the district.
-    if (typeof walkable === 'function' && !walkable(tx, ty)){ tiles = step - 1; break; }
+    if (!arrowPassable(tx, ty)){ tiles = step - 1; break; }
   }
   const a = { x: fromX, y: fromY, dv, tiles,
               landX: fromX + dv[0]*tiles, landY: fromY + dv[1]*tiles,
@@ -16482,9 +16513,21 @@ function stepArrows(){
   for (let i = ARROWS.length - 1; i >= 0; i--){
     const a = ARROWS[i];
     const t = now - a.t0;
-    if (!a.blown && t >= a.flyMs){
-      a.blown = true; a.blowAt = now;
-      try { pearlbowDetonate(a.landX, a.landY); } catch(_){}
+    if (!a.blown){
+      // ★ CONTACT · where is the arrow right now, and is anyone standing there?
+      const p    = Math.min(1, t / a.flyMs);
+      const step = Math.min(a.tiles, Math.round(a.tiles * p));
+      const tx   = a.x + a.dv[0]*step, ty = a.y + a.dv[1]*step;
+      const struck = step > 0 && NPCS.some(n =>
+        n && n.scene === game.scene && n.isEnemy && !n._dying && enemyOccupiesTile(n, tx, ty));
+      if (struck || t >= a.flyMs){
+        a.blown = true; a.blowAt = now;
+        // detonate where it actually stopped, which on a contact is short of
+        // the tile it was aimed at
+        a.landX = struck ? tx : a.landX;
+        a.landY = struck ? ty : a.landY;
+        try { pearlbowDetonate(a.landX, a.landY); } catch(_){}
+      }
     }
     if (a.blown && now - a.blowAt >= PEARLBOW_BLAST_FRAMES * PEARLBOW_BLAST_MS)
       ARROWS.splice(i, 1);
@@ -16497,7 +16540,14 @@ function pearlbowDetonate(bx, by){
   let caught = 0;
   for (const n of NPCS){
     if (!n || n.scene !== game.scene || !n.isEnemy || n._dying) continue;
-    if (Math.abs(n.tileX - bx) > PEARLBOW_AOE || Math.abs(n.tileY - by) > PEARLBOW_AOE) continue;
+    // ★ v0.95.796 · the blast is a square of tiles, and an enemy is caught if ANY
+    // tile of its two-tile body falls inside it — a head clipped by the edge of
+    // the fireball burns exactly as much as a foot would.
+    if (Math.abs(n.tileX - bx) > PEARLBOW_AOE) continue;
+    let inBlast = false;
+    for (let h = 0; h < ENEMY_BODY_TILES; h++)
+      if (Math.abs((n.tileY - h) - by) <= PEARLBOW_AOE){ inBlast = true; break; }
+    if (!inBlast) continue;
     caught++;
     if (n.mode === 'skellor'){ try { skellorTakeHit(n, 2); } catch(_){} continue; }
     const maxHp = n.hpMax || 125;
@@ -28344,7 +28394,7 @@ function renderZycellWeapons(){
           <div style="width:52px; height:52px; border:2px solid #ffd9ee; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">🏹</div>
           <div style="flex:1;">
             <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:13px;">PEARLBOW</div>
-            <div style="color:#f0d8e6; font-size:10px; margin-top:2px;">S1 only · square · <b>flies ${PEARLBOW_RANGE} tiles</b> down your facing and <b>detonates</b> · ${PEARLBOW_AOE*2+1}×${PEARLBOW_AOE*2+1} blast · dmg = baseAtk × ${PEARLBOW_DMG_MULT} (harder than Astral Strike) · <b>spends an arrow even on a miss</b> · ${BOW_MAX} arrows · repair 100 gems</div>
+            <div style="color:#f0d8e6; font-size:10px; margin-top:2px;">S1 only · square · <b>flies up to ${PEARLBOW_RANGE} tiles</b> down your facing · <b>detonates on contact</b> or at the end of its flight · ${PEARLBOW_AOE*2+1}×${PEARLBOW_AOE*2+1} blast · dmg = baseAtk × ${PEARLBOW_DMG_MULT} (harder than Astral Strike) · <b>spends an arrow even on a miss</b> · ${BOW_MAX} arrows · repair 100 gems</div>
           </div>
           <div style="color:${bColor}; font-weight:bold; font-size:11px; letter-spacing:.06em;">${bLabel}</div>
         </div>
@@ -28382,7 +28432,7 @@ function renderZycellWeapons(){
           if (player.bowEquipped && !RIZER_PEARLBOW.loaded){
             showToast('⚠ Pearlbow equipped but sheet missing · assets/2D sprites/rizer/pearlbow.png · anim will fall back to punch until the file lands', 5000);
           } else {
-            showToast(player.bowEquipped ? `★ PEARLBOW equipped · square fires ${PEARLBOW_RANGE} tiles and detonates` : '◇ Pearlbow unequipped', 2400);
+            showToast(player.bowEquipped ? `★ PEARLBOW equipped · square fires up to ${PEARLBOW_RANGE} tiles · detonates on contact` : '◇ Pearlbow unequipped', 2400);
           }
           try { updateWeaponHUD(); } catch(_){}
           try { paintZycellContent(); } catch(_){}

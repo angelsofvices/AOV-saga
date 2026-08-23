@@ -34700,16 +34700,31 @@ const TRAIL_BUSH_BBOX = {
   'assets/2D%20sprites/decor/bushes/korathen-bush.png':     [137,193, 986,876],
   'assets/2D%20sprites/decor/bushes/thardin-bush.png':      [155,107, 949,1024],
 };
-// A verge bush occupies 2 tiles of width; its height follows from the art so a
-// square bush draws square. ★ never stretch — letterbox by deriving the cell.
+// ★★ v0.95.756 · WIDTH is what sets a bush's on-screen size.
+//
+// drawProp computes drawH = drawW * (bh/bw) — it derives height from the bbox
+// and IGNORES tileH completely. So tileH never stretched anything; it only
+// drives collision and plantPropAt (punch/harvest detection). The v0.95.754
+// note claiming Zarvane's bush was squashed 1.36x was wrong about the cause.
+//
+// The real problem: Malezor's bush.png is a WIDE, LOW bush (2.05:1), so at 2
+// tiles wide it reads as a complete roadside bush. Every other district's bush
+// is a tall 1254x1254 cluster (~1.2:1), and at the same 2 tiles it renders as a
+// small squat mound — a fraction of the art's presence. Zarvane's own authored
+// bushes already use 3 tiles wide, which is what the full asset looks like.
+//
+// So width is per-art, and tileH follows the bbox exactly so the collision box
+// matches what is drawn.
+const TRAIL_BUSH_TILEW = {
+  'assets/2D%20sprites/decor/bush.png': 2,     // wide + low · 2 tiles is full size
+};
+const TRAIL_BUSH_TILEW_DEFAULT = 3;            // the tall 1254 clusters · matches
+                                               // Zarvane's authored 3-tile bushes
 function _bushCell(src){
   const b = TRAIL_BUSH_BBOX[src];
-  if (!b) return { tileW:2, tileH:1 };
-  // ★ EXACT, not rounded. Rounding tileH to an integer forced Zarvane's bush to
-  // 1.36x and Netharion's to 1.25x. Tile sizes are floats elsewhere in this file
-  // (homes carry tileW 5.56), so the cell can follow the art precisely and the
-  // bush draws at its true aspect.
-  return { tileW:2, tileH: 2 * b[3] / b[2] };
+  const tw = TRAIL_BUSH_TILEW[src] || TRAIL_BUSH_TILEW_DEFAULT;
+  if (!b) return { tileW: tw, tileH: 1 };
+  return { tileW: tw, tileH: tw * b[3] / b[2] };
 }
 // ★★ v0.95.752 · EVERY DISTRICT USES ITS OWN TREE.
 // The rollout shipped a lazy one-entry map with a silent fallback to

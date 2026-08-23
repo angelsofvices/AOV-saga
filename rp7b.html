@@ -16531,6 +16531,182 @@ function spawnHitFx(tx, ty, mode){
 }
 
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.802 · THE MINIMAP
+//
+// Creator: "use this as the constant mini map blip in the game. scan all nearby
+// POIs and buildings so player always knows what to explore ... auto update on
+// location coordinate. tracks all landmarks and buildings. ??? on undiscovered
+// POIs and landmarks. full name shows once discovered. move all phone message
+// to pop up and hide above the mini map. same dimensions. at least 3-6 POIs and
+// landmarks must show on mini map at a given time."
+//
+// ★ THE POI LIST IS NOT NEW DATA.  Dad's Notebook already derives every
+// district, cave, tower and landmark from the world, already knows which have
+// been seen, and already turns that into { id, name, found }.  Re-deriving any
+// of it here would be a second registry that drifts the first time either
+// changed — so the minimap reads the notebook and adds only COORDINATES, which
+// the notebook does not carry.
+const MINIMAP = {
+  frame: new Image(),
+  // measured on the delivered art · the navy screen inside the gold bezel
+  screen: { fx: 0.0858, fy: 0.1522, fw: 0.8326, fh: 0.7444 },
+  aspect: 1398 / 716,
+  minPOI: 3, maxPOI: 6,
+  rangeMin: 40, rangeMax: 400,   // tiles of half-width the scope can zoom across
+  _range: 120,
+  _cache: null, _cacheAt: 0,
+};
+MINIMAP.frame.src = 'assets/2D%20sprites/ui/minimap-frame.png';
+
+// Every POI the map can show, with a world position.  Rebuilt on a slow tick —
+// the world's landmark set does not change between frames, but discovery does,
+// so the NAME is resolved fresh on every draw.
+function minimapPOIs(){
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  if (MINIMAP._cache && now - MINIMAP._cacheAt < 2000) return MINIMAP._cache;
+  const out = [];
+  const push = (id, name, x, y, kind) => {
+    if (x == null || y == null) return;
+    out.push({ id, name, x, y, kind });
+  };
+  try {
+    // the 30 district landmark buildings
+    for (const p of WORLD_PROPS){
+      if (!p || p.tileX == null) continue;
+      if (p._district30)
+        push(`landmark:${p.id}`, String(p.name || p.id || '').toUpperCase().replace(/_/g,' '),
+             p.tileX, p.tileY, 'landmark');
+      else if (/_cave$/.test(p.id || ''))
+        push(`cave:${p.id}`, (p.id || '').replace(/_cave$/,'').toUpperCase(), p.tileX, p.tileY, 'cave');
+      else if (p._portal)
+        push(`portal:${p._portal}`, `${p._portal.toUpperCase()} RIFT`, p.tileX, p.tileY, 'portal');
+      else if (p._seerHq)
+        push(`seerhq:${p._seerHq}`, 'SEER HQ', p.tileX, p.tileY, 'seer');
+    }
+    // radio towers
+    if (typeof TOWER_NETWORK !== 'undefined')
+      for (const t of TOWER_NETWORK)
+        push(`tower:${t.dist}`, `${t.label} RADIO TOWER`, t.tower[0], t.tower[1], 'tower');
+    // cosmic chests · the four relic sites
+    if (typeof COSMIC_CHEST_SPOTS !== 'undefined')
+      for (const c of COSMIC_CHEST_SPOTS)
+        push(`cosmic:${c.item}`, String(c.label || c.item).split('·')[0].trim().toUpperCase(),
+             c.at[0], c.at[1], 'cosmic');
+  } catch(_){}
+  MINIMAP._cache = out; MINIMAP._cacheAt = now;
+  return out;
+}
+// Has the player found it?  One question, one answer, straight out of the
+// notebook — so a POI named on the minimap is a POI the journal also names.
+function minimapDiscovered(id){
+  try {
+    const n = notebookState();
+    return !!(n && (n.seen[id] || n.done[id]));
+  } catch(_){ return false; }
+}
+// ★ AUTO-RANGE.  Creator: "at least 3-6 POIs and landmarks must show on mini map
+// at a given time. based on player position based on world scale to POIs."
+//
+// A fixed zoom cannot do that: Malezor's centre has a dozen buildings inside
+// twenty tiles and the Zarvane flats have nothing for two hundred.  So the
+// scope widens until it has caught at least minPOI, and tightens while it holds
+// more than maxPOI — the map answers "what is near me" rather than "what is
+// inside an arbitrary box".
+function minimapRange(px, py, pois){
+  const d = pois.map(P => Math.max(Math.abs(P.x - px), Math.abs(P.y - py)))
+                .sort((a, b) => a - b);
+  if (!d.length) return MINIMAP.rangeMax;
+  // range that just contains minPOI, and the one that just contains maxPOI
+  const lo = d[Math.min(d.length, MINIMAP.minPOI) - 1] * 1.15 + 8;
+  const hi = d[Math.min(d.length, MINIMAP.maxPOI) - 1] * 1.15 + 8;
+  // prefer the wider of the two while it still fits the cap · showing six is
+  // better than showing three when both are legal
+  const want = Math.min(hi, MINIMAP.rangeMax);
+  return Math.max(MINIMAP.rangeMin, Math.max(lo, want));
+}
+// What the map is showing right now.  Split out so the suite can ask.
+function minimapVisible(px, py){
+  const pois = minimapPOIs();
+  const R = minimapRange(px, py, pois);
+  MINIMAP._range = R;
+  return pois
+    .filter(P => Math.abs(P.x - px) <= R && Math.abs(P.y - py) <= R)
+    .map(P => ({ ...P, found: minimapDiscovered(P.id),
+                 dist: Math.max(Math.abs(P.x - px), Math.abs(P.y - py)) }))
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, MINIMAP.maxPOI);
+}
+const MINIMAP_KIND_COLOR = {
+  landmark:'#7ad4ff', cave:'#c060ff', tower:'#ffd66b',
+  portal:'#4ee07a', seer:'#ff5b5b', cosmic:'#ff9cf0',
+};
+function drawMinimap(){
+  const host = document.getElementById('minimapCanvas');
+  if (!host) return;
+  const g = host.getContext('2d');
+  const W = host.width, H = host.height;
+  g.clearRect(0, 0, W, H);
+  if (game.scene === 'title'){ host.style.opacity = '0'; return; }
+  host.style.opacity = '1';
+  const S = MINIMAP.screen;
+  const sx = S.fx * W, sy = S.fy * H, sw = S.fw * W, sh = S.fh * H;
+  // ── the scope ──────────────────────────────────────────────────────
+  g.save();
+  g.beginPath(); g.rect(sx, sy, sw, sh); g.clip();
+  g.fillStyle = 'rgba(5,20,44,0.92)'; g.fillRect(sx, sy, sw, sh);
+  const px = player.x, py = player.y;
+  const R = MINIMAP._range || 120;
+  // the screen is wider than it is tall, so X and Y get their own scale or the
+  // world would look stretched on the map
+  const kx = sw / (R * 2), ky = sh / (R * 2);
+  const toX = wx => sx + sw/2 + (wx - px) * kx;
+  const toY = wy => sy + sh/2 + (wy - py) * ky;
+  // faint district ring for orientation
+  try {
+    for (const D of ZYRAXIS_DISTRICTS){
+      g.strokeStyle = 'rgba(122,212,255,0.13)'; g.lineWidth = 1;
+      g.beginPath();
+      g.ellipse(toX(D.cx), toY(D.cy), D.rx * kx, D.ry * ky, 0, 0, Math.PI*2);
+      g.stroke();
+    }
+  } catch(_){}
+  const list = minimapVisible(px, py);
+  g.font = 'bold 9px "Courier New", monospace';
+  g.textAlign = 'center';
+  for (const P of list){
+    const x = toX(P.x), y = toY(P.y);
+    const c = MINIMAP_KIND_COLOR[P.kind] || '#7ad4ff';
+    g.fillStyle = P.found ? c : 'rgba(140,160,180,0.85)';
+    g.beginPath(); g.arc(x, y, 3.2, 0, Math.PI*2); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 1; g.stroke();
+    // ★ "??? on undiscovered POIs and landmarks. full name shows once discovered."
+    const label = P.found ? P.name : '???';
+    g.fillStyle = P.found ? '#dfe8f0' : '#8fa3b5';
+    g.fillText(label.slice(0, 22), x, y - 6);
+  }
+  // Rizer · always dead centre, because the map follows him
+  g.fillStyle = '#ffd66b';
+  g.beginPath(); g.arc(sx + sw/2, sy + sh/2, 3.6, 0, Math.PI*2); g.fill();
+  g.strokeStyle = '#0b0b10'; g.lineWidth = 1.4; g.stroke();
+  g.restore();
+  // ── the bezel, over the top ────────────────────────────────────────
+  if (MINIMAP.frame.complete && MINIMAP.frame.naturalWidth){
+    // the delivered PNG carries transparent margin · draw only the frame bbox
+    g.drawImage(MINIMAP.frame, 62, 160, 1398, 716, 0, 0, W, H);
+  }
+  // ── the readout ────────────────────────────────────────────────────
+  g.textAlign = 'left';
+  g.font = 'bold 9px "Courier New", monospace';
+  g.fillStyle = 'rgba(122,212,255,0.9)';
+  const dist = (typeof worldDistrictAt === 'function')
+    ? (worldDistrictAt(Math.round(px), Math.round(py)) || '—') : '—';
+  g.fillText(`${String(dist).toUpperCase()}  ${Math.round(px)},${Math.round(py)}`, sx + 6, sy + 12);
+  g.textAlign = 'right';
+  g.fillText(`${list.length} POI · r${Math.round(R)}`, sx + sw - 6, sy + 12);
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // ★★ v0.95.800 · THE PORTAL NETWORK
 //
@@ -25037,15 +25213,39 @@ const toastEl = document.getElementById('toast') || (function(){
   document.body.appendChild(el);
   return el;
 })();
+// ★★ v0.95.802 · MINIMAP HOST · bottom-right, and the toast stack now sits
+// directly ABOVE it at the same width.  Creator: "move all phone message to pop
+// up and hide above the mini map. same dimensions."
+const MINIMAP_W = 'min(42vw, 620px)';
+const minimapEl = (function(){
+  const el = document.createElement('canvas');
+  el.id = 'minimapCanvas';
+  // backing store matches the art's own aspect so the bezel never stretches
+  el.width = 699; el.height = 358;
+  Object.assign(el.style, {
+    position: 'fixed', right: '14px', bottom: '14px',
+    width: MINIMAP_W, minWidth: '380px', height: 'auto',
+    zIndex: '11', pointerEvents: 'none',
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.55))',
+    transition: 'opacity 200ms ease',
+  });
+  document.body.appendChild(el);
+  return el;
+})();
 const toastStackEl = (function(){
   const el = document.createElement('div');
   el.id = 'toastStack';
   Object.assign(el.style, {
     position: 'fixed',
-    right: '14px', bottom: '14px',
+    right: '14px',
+    // ★ v0.95.802 · sits ON TOP OF the minimap, not beside it.  The height is
+    // derived from the map's own aspect ratio rather than hard-coded, so
+    // changing the map's width cannot leave the cards overlapping it.
+    bottom: `calc(14px + ${MINIMAP_W} / ${(1398/716).toFixed(4)} + 10px)`,
     // v0.95.552 · bumped up · 33vw/460px → 42vw/620px min 380px so the phone
     // card reads at a glance without needing to lean in.
-    width: '42vw', maxWidth: '620px', minWidth: '380px',
+    width: MINIMAP_W, maxWidth: '620px', minWidth: '380px',
     display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
     gap: '10px',
     pointerEvents: 'none',
@@ -39662,6 +39862,7 @@ function frame(now){
   drawZyrexMenu();      // overlay · touchpad ('2') toggles
   drawSettingsMenu();   // overlay · Options ('3') toggles
   try { drawPortalMenu(); } catch(_){}   // ★ v0.95.800 · above the world, below nothing
+  try { drawMinimap(); } catch(_){}      // ★ v0.95.802 · its own canvas · auto-follows the player
   drawBattleOverlay();  // owns whole screen while battleState is set
   drawWildBattleOverlay();// wild Zyrex · one-round real-time side fighter
   drawDialogOverlay();  // shown when dialogState is set (v0.79)

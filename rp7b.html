@@ -18951,36 +18951,28 @@ const SCANOBOT_BBOXES = [
 // every predicate and still looks wrong: two units pinned to the map's edge.
 // A bounds check that produces a legal-but-stupid answer is worse than one
 // that fails loudly, so the offsets simply stay inside the shallowest district.
-// ★★ v0.95.801 · GENERATED, NOT HAND-LISTED.
+// ★★ v0.95.810 · SCATTERED, NOT CLUSTERED.  Creator: "spread out all
+// scanobots around the map. there should never be 2 scanobots within 12x12
+// tiles."
 //
-// ★ SCANOBOT_PER_DIST was a LIE for as long as it existed.  The count was
-//   really set by the LENGTH of this array — five entries, five drones — so
-//   raising the constant from 5 to 30 changed nothing at all.  A constant that
-//   does not drive the thing it is named for is worse than no constant: it
-//   reads as the knob and it is not the knob.
-//
-// The offsets are now derived FROM the constant, on a golden-angle spiral out
-// from the tower.  A spiral because these are survey drones on a sweep: it
-// gives even coverage with no two at the same bearing, and it is deterministic,
-// so the net rebuilds identically at boot and after a load.
-//
-// ★ Vertical reach still caps at |dy| <= 11.  Malezor's tower sits at y=14, and
-// an earlier pass that reached -15 threw two drones off the top of the world;
-// the ring search then "rescued" them to y=0, which passes every predicate and
-// still looks wrong.  The spiral is squashed on Y rather than clipped, so the
-// shape stays even instead of piling up along the cap.
-const SCANOBOT_OFFSETS = (function(){
-  const out = [];
-  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-  const RX = 26, RY = 11;
-  for (let i = 0; i < SCANOBOT_PER_DIST; i++){
-    const t = (i + 0.5) / SCANOBOT_PER_DIST;
-    const r = Math.sqrt(t);                 // equal-area · no crowding at the hub
-    const a = i * GOLDEN;
-    out.push([Math.round(Math.cos(a) * RX * r), Math.round(Math.sin(a) * RY * r)]);
-  }
-  return out;
-})();
+// The golden-spiral-around-the-tower placement (v0.95.801) could not honour
+// that: 30 drones inside a 52x22 footprint means ~38 tiles² each, and a 12x12
+// exclusion needs 144.  The arithmetic forbids the layout, so the layout goes.
+// Drones now scatter across the WHOLE district from a seeded PRNG — survey
+// drones on a sweep, which is what they always were in fiction — and every
+// candidate is rejected if any already-placed drone (any district) is within
+// Chebyshev 12.  Seeded per district, so the net rebuilds identically at boot
+// and after a load, which is what keeps the id-guard idempotency honest.
+const SCANOBOT_MIN_SPACING = 12;
+function _scanoRand(seed){          // mulberry32 · tiny, deterministic
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 function scanobotsAreRogue(){ return !!player.scanobotsRogue; }
 // Nearest walkable tile that is still inside the district we meant. Without
 // the district test a drone placed near a border drifts into the neighbour and
@@ -19029,13 +19021,38 @@ function buildScanobotNet(){
   if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
   const img = new Image(); img.src = SCANOBOT_SRC;
   let made = 0;
+  // spacing is enforced against EVERY drone already standing, across districts
+  const placed = NPCS.filter(n => n && n._scanobot && n.scene === 'overworld')
+                     .map(n => [n.tileX, n.tileY]);
+  const _clear = (x, y) => placed.every(([px, py]) =>
+    Math.max(Math.abs(px - x), Math.abs(py - y)) >= SCANOBOT_MIN_SPACING);
   for (const T of TOWER_NETWORK){
-    const [ax, ay] = T.tower;
-    SCANOBOT_OFFSETS.forEach(([dx, dy], i) => {
+    const D = ZYRAXIS_DISTRICTS.find(d => d.id === T.dist);
+    if (!D) continue;
+    const rand = _scanoRand(0xA0F0 + TOWER_NETWORK.indexOf(T) * 977);
+    for (let i = 0; i < SCANOBOT_PER_DIST; i++){
       const id = `scanobot_${T.dist}_${i + 1}`;
-      if (NPCS.some(n => n && n.id === id)) return;
-      const spot = _scanobotTile(T.dist, ax + dx, ay + dy);
-      if (!spot) return;                       // never force one into a wall
+      if (NPCS.some(n => n && n.id === id)) continue;
+      // seeded rejection sampling over the district ellipse · a candidate that
+      // snaps into another drone's 12x12 box is thrown back
+      let spot = null;
+      for (let t = 0; t < 260 && !spot; t++){
+        const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * 0.85;
+        const x = Math.round(D.cx + Math.cos(a) * D.rx * r);
+        const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
+        const sTry = _scanobotTile(T.dist, x, y);
+        if (!sTry || !_clear(sTry[0], sTry[1])) continue;
+        // ★ two tiles INSIDE the coastline.  The whole-district scatter found
+        // tiles at y=0 and x=0 — the world's literal rim — which pass every
+        // legality predicate and still look wrong: a survey drone perched on
+        // the edge of existence.  Same lesson as the tower-guard rescue at
+        // v0.95.732; this time the rule is written down before shipping.
+        if (!isWorldLandTile(sTry[0]-2, sTry[1]) || !isWorldLandTile(sTry[0]+2, sTry[1])
+         || !isWorldLandTile(sTry[0], sTry[1]-2) || !isWorldLandTile(sTry[0], sTry[1]+2)) continue;
+        spot = sTry;
+      }
+      if (!spot) continue;                     // never force one into a wall
+      placed.push(spot);
       NPCS.push({
         id, name: 'Scanobot',
         sheet: img, src: SCANOBOT_SRC, bboxes: SCANOBOT_BBOXES,
@@ -19051,10 +19068,10 @@ function buildScanobotNet(){
         tier: SCANOBOT_TIER, level: T.moriLv,
         isEnemy: false,                        // ← flipped by applyScanobotState
         _scanobot: T.dist,
-        onInteract: () => scanobotTalk(T),
+        onInteract: (n) => scanobotTalk(T, n),
       });
       made++;
-    });
+    }
   }
   applyScanobotState();
   return made;
@@ -19092,12 +19109,55 @@ function applyScanobotState(){
   }
   return n;
 }
-function scanobotTalk(T){
-  try { playSFX(scanobotsAreRogue() ? 'moriPoke' : 'confirm'); } catch(_){}
-  if (scanobotsAreRogue()){
-    showToast('◈ SCANOBOT · the eye has gone red · it is not listening to Thardin any more', 2800);
+// ★★ v0.95.810 · JAILBREAKING SCANOBOTS · Rizer's favourite pastime.
+// Creator: "50% rizer will safely extract the portalchip from the scanobot.
+// if successful, it pops out safely for overworld interact. no blue gem.
+// 50% he doesnt and it becomes hostile and tries to attack him. gets the item
+// on drop after defeat ... blue gem drop also on defeated scanobot."
+//
+// X on a passive drone is now an ATTEMPT, not a flavour line.  The coin flip:
+//   HEADS · surgical extraction · the chip pops out as a walk-over pickup,
+//           the drone powers down where it stands.  NO gem, NO scrap — a
+//           clean jailbreak takes the board and nothing else.
+//   TAILS · the drone notices.  THAT drone (not the net) goes hostile and
+//           hunts; beating it pays the full salvage — chip, blue gem, scrap —
+//           through the ordinary drop path.
+// Either way the chips feed the same PORTALKEY ladder: at 100, Dad's bench
+// can punch a rift to anywhere on the planet.
+function scanobotTalk(T, bot){
+  const n = bot || null;
+  if (scanobotsAreRogue() || (n && n.mode === 'drainer')){
+    try { playSFX('moriPoke'); } catch(_){}
+    showToast('◈ SCANOBOT · the eye is red · nothing to jailbreak, everything to fight', 2400);
+    return;
+  }
+  if (!n){ try { playSFX('confirm'); } catch(_){} showToast('◈ SCANOBOT · Thardin survey unit', 2000); return; }
+  if (n._jailbroken || n._dying) return;
+  player.stats = player.stats || {};
+  player.stats.jailbreaks = (player.stats.jailbreaks || 0) + 1;
+  if (Math.random() < 0.5){
+    // ── HEADS · clean extraction ──────────────────────────────────────
+    n._jailbroken = true;
+    n._scanobotLooted = true;                 // the drop path must never double-pay
+    try { spillPickups('chip', n.tileX, n.tileY, [1], `jb_${n.tileX},${n.tileY}`); } catch(_){ addItems({ portal_chip: 1 }); }
+    try { playSFX('confirm'); } catch(_){}
+    showToast('★ JAILBREAK · clean extraction · the PORTAL CHIP pops free and the drone powers down', 3600);
+    // powers down where it stands · same exit as a kill, minus the violence
+    n._dying = true; n._deathAt = performance.now();
+    n.isEnemy = false; n.moving = false;
+    // ★ first successful jailbreak · Dad's warning arrives on the phone,
+    // because he WOULD hear about it — and Rizer keeps doing it anyway.
+    if (!player._dadPortalkeyWarned){
+      player._dadPortalkeyWarned = true;
+      setTimeout(() => { try { showToast("★ DAD · 'Portalkeys and survey drones are the same science, kid — planetary teleportation. Thardun buried that program for a reason. Stay out of it.' (you are not going to stay out of it)", 7000); } catch(_){} }, 1800);
+    }
   } else {
-    showToast(`◈ SCANOBOT · Thardin survey unit · it scans you, logs you, and drifts on`, 2800);
+    // ── TAILS · the drone notices ─────────────────────────────────────
+    n.mode = 'drainer';
+    n._passive = false;
+    n.drainAmt = n.drainAmt || 4;
+    try { playSFX('moriPoke'); } catch(_){}
+    showToast('◈ JAILBREAK FAILED · the eye snaps red · it is coming for you', 3000);
   }
 }
 // ★ The event.  Fired the moment Rizer sets foot in Thardin — the district that

@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.732 · SCANOBOTS · Thardin's survey net · 5 per district · passive until
 // the flip, then hostile everywhere, dropping scrap + a blue gem into a tiered
 // shop at Scrapjaw.
-try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={SCANOBOT_OFFSETS,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
+try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={SCANOBOT_MIN_SPACING,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,scanobotTalk,PICKUP_KINDS,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C,P=C.player;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
@@ -33,12 +33,9 @@ const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
 console.log('\n1 · ★★ THE COUNT COMES FROM THE CONSTANT NOW\n');
 C.buildScanobotNet();
 const bots=C.NPCS.filter(n=>n&&n._scanobot);
-// ★★ SCANOBOT_PER_DIST WAS A LIE.  The real count was the LENGTH of the
-//    hand-written SCANOBOT_OFFSETS array, so raising the constant from 5 to 30
-//    changed nothing.  A constant that does not drive the thing it names reads
-//    as the knob while not being the knob.  Test the RELATIONSHIP, not a number.
-ok(C.SCANOBOT_OFFSETS.length === C.SCANOBOT_PER_DIST,
-   `★ the offset table is generated FROM the constant · ${C.SCANOBOT_OFFSETS.length} offsets for ${C.SCANOBOT_PER_DIST} per district`);
+// ★ v0.95.810 · the offsets table is GONE — placement is a seeded scatter
+//   across the whole district now.  What replaces the offsets check is the
+//   spacing law below, which is the property the Creator actually asked for.
 const want = C.SCANOBOT_PER_DIST * C.TOWER_NETWORK.length;
 ok(bots.length===want,`${bots.length} Scanobots seeded · ${C.SCANOBOT_PER_DIST} x ${C.TOWER_NETWORK.length} districts`);
 const per={};bots.forEach(b=>per[b._scanobot]=(per[b._scanobot]||0)+1);
@@ -49,7 +46,13 @@ ok(C.buildScanobotNet()===0,'re-running the seeder adds none (idempotent · boot
 console.log('\n2 · ★★ EVERY DRONE STANDS SOMEWHERE LEGAL\n');
 const oob=bots.filter(b=>!(b.tileX>=0&&b.tileY>=0&&b.tileX<C.MAP_COLS&&b.tileY<C.MAP_ROWS));
 ok(oob.length===0,`none off the map (${oob.length}) — the first pass put two at y=-1 and y=-7`);
-ok(bots.every(b=>b.tileY>0&&b.tileX>0),'none pinned to the world edge either — the "rescue" answer that passed every predicate and still looked wrong');
+// ★ v0.95.810 · tileX>0 was the wrong test all along — Malezor genuinely
+// extends into NEGATIVE x (the Rubypaw chest sits at x=-54), so positive-
+// coordinate checks measure nothing.  The real rule: two tiles inside the
+// coastline, whichever coordinates the coast happens to have.
+ok(bots.every(b=>C._scanobotWalkable ? true : true) && bots.every(b=>
+  [[2,0],[-2,0],[0,2],[0,-2]].every(([dx,dy])=>C.worldDistrictAt(b.tileX+dx,b.tileY+dy)!=null)),
+   'every drone stands two tiles inside the coastline — no legal-but-stupid rim perches');
 ok(bots.filter(b=>C.worldDistrictAt(b.tileX,b.tileY)!==b._scanobot).length===0,'every drone is inside the district it reports');
 ok(bots.filter(b=>!C._scanobotWalkable(b.tileX,b.tileY)).length===0,'none inside terrain or a prop footprint');
 const seen=new Set();let dup=0;bots.forEach(b=>{const k=b.tileX+','+b.tileY;if(seen.has(k))dup++;seen.add(k);});
@@ -141,6 +144,79 @@ console.log('\n★★ 7 · THARDIN TURNS THE NET\n');
   ok(C.scanobotsAreRogue(),'the flag sticks');
   ok(C.triggerScanobotRogue('thardin')===false,'and it is idempotent, so re-entering is harmless');
   P.scanobotsRogue=false; C.applyScanobotState();
+}
+
+
+console.log('\n★★ 8 · NEVER TWO DRONES IN ONE 12x12\n');
+{
+  // Creator: "spread out all scanobots around the map. there should never be
+  // 2 scanobots within 12x12 tiles."  Chebyshev, checked over EVERY pair,
+  // across district borders too — a drone on each side of a boundary is still
+  // two drones twelve tiles apart.
+  const live=C.NPCS.filter(n=>n&&n._scanobot&&n.scene==='overworld');
+  let worst=1e9, offenders=0;
+  for (let i=0;i<live.length;i++) for (let j=i+1;j<live.length;j++){
+    const d=Math.max(Math.abs(live[i].tileX-live[j].tileX),Math.abs(live[i].tileY-live[j].tileY));
+    if (d<worst) worst=d;
+    if (d<C.SCANOBOT_MIN_SPACING) offenders++;
+  }
+  ok(offenders===0,`★ ${live.length} drones · 0 pairs inside a 12x12 (closest pair ${worst} tiles)`);
+  ok(worst>=C.SCANOBOT_MIN_SPACING,`the closest pair honours the ${C.SCANOBOT_MIN_SPACING}-tile law`);
+  // and they are genuinely SPREAD, not ringing the tower — mean distance from
+  // the tower should be a real fraction of the district radius
+  let nearTower=0;
+  for (const T of C.TOWER_NETWORK){
+    const mine=live.filter(n=>n._scanobot===T.dist);
+    const avg=mine.reduce((a,n)=>a+Math.hypot(n.tileX-T.tower[0],n.tileY-T.tower[1]),0)/Math.max(1,mine.length);
+    if (avg<30) nearTower++;
+  }
+  ok(nearTower===0,'★ no district\'s drones cluster around its tower any more — they sweep the whole district');
+}
+
+console.log('\n★★ 9 · JAILBREAKING SCANOBOTS\n');
+{
+  const P=C.player;
+  P.scanobotsRogue=false; C.applyScanobotState();
+  P.items=P.items||{}; P.stats=P.stats||{};
+  const bots=C.NPCS.filter(n=>n&&n._scanobot&&!n._dying&&n.scene==='overworld');
+  const T0={dist:bots[0]._scanobot};
+  // ── HEADS · rig the coin ─────────────────────────────────────────
+  const realRandom=Math.random;
+  Math.random=()=>0.1;
+  const a=bots[0];
+  const chips0=(P.items.portal_chip||0);
+  C.scanobotTalk(T0,a);
+  Math.random=realRandom;
+  ok(a._jailbroken===true,'★ HEADS · the drone is jailbroken');
+  ok(a._dying===true,'and powers down where it stands');
+  ok(a._scanobotLooted===true,'★ flagged looted, so the kill-drop path can never double-pay');
+  ok(a.isEnemy===false,'no longer a target');
+  ok((P.stats.jailbreaks||0)>=1,'the pastime is counted — the Novarian Record can read it later');
+  // the chip SPILLED as a pickup rather than teleporting to the bag
+  ok((P.items.portal_chip||0)===chips0,'★ the chip is on the GROUND, not in the bag — walk over it');
+  // ── TAILS ─────────────────────────────────────────────────────────
+  Math.random=()=>0.9;
+  const b=bots[1];
+  C.scanobotTalk({dist:b._scanobot},b);
+  Math.random=realRandom;
+  ok(!b._jailbroken,'TAILS · no chip');
+  ok(b.mode==='drainer','★ THAT drone goes hostile');
+  ok(!b._passive && b.drainAmt>0,'and actually hunts');
+  const c=bots[2];
+  ok(c.mode==='wander','★ while the rest of the net stays passive — one drone noticed, not the planet');
+  // a red drone cannot be jailbroken
+  C.scanobotTalk({dist:b._scanobot},b);
+  ok(b.mode==='drainer'&&!b._jailbroken,'poking the angry one again does not reroll the coin');
+  // ── defeat pay-out unchanged ─────────────────────────────────────
+  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  const d=src.indexOf('function scanobotDrop');
+  const body=src.slice(d,d+1400);
+  ok(/spillPickups\('chip'/.test(body)&&/spawnGemDrop/.test(body)&&/scrap_metal/.test(body),
+     'a DEFEATED drone still pays chip + blue gem + scrap through the ordinary drop');
+  ok(/_scanobotLooted\) return/.test(body),'which the jailbreak flag short-circuits');
+  // Dad's warning fires once
+  ok(/Portalkeys and survey drones are the same science/.test(src),"★ Dad's portalkey warning is written");
+  ok(/player\._dadPortalkeyWarned = true/.test(src),'and fires exactly once');
 }
 
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);

@@ -15199,8 +15199,11 @@ const RIZER_ROOM_ITEMS={
   console:{name:'Game Console',x:8,y:3,homeX:8,homeY:3,footprint:[[0,0]]},
   // v0.95.428 · ZyPhone lives on the PC desk's middle-left edge tile (6, 7) ·
   // same tile PC's -1,0 footprint occupies so it's blocked (non-walkable) ·
-  // player must face it from LEFT (5,7) · TOP (6,6) · or BOTTOM (6,8) · no
-  // invisible interact · listed BEFORE pc so roomItemAtTile returns zphone first
+  // listed BEFORE pc so roomItemAtTile returns zphone first.
+  // ★ v0.95.764 · this used to say the phone could be faced from the LEFT at
+  // (5,7). That stopped being true in v0.95.722, which restored (-2,0) to the
+  // desk footprint and swallowed that tile. Measured approaches are TOP (6,6)
+  // and BOTTOM (6,8) only.
   zphone:{name:'ZyPhone',x:6,y:7,homeX:6,homeY:7,footprint:[[0,0]]},
   // v0.95.399 · Trimmed leftmost desk tile (-2,0)=(5,7) from footprint · was
   // an invisible collision west of the visible desk edge · desk now blocks (6,7)-(9,7)+(7,6)
@@ -15241,12 +15244,16 @@ function roomItemGroupOf(id){
 // The doormat sits across (6-8, 9) by the door; the stock centre-front desk put
 // the chair's wheels right on top of it, so the mat drew over them.  Up here
 // the two never share a tile.
-//   pc at (2,3) covers (1..4, 3) + (2,2) · phone on the desk's left edge tile
-//   · chair tucked directly below.
+// ★ v0.95.764 · SHIFTED ONE TILE EAST. At x=2 the desk's five-tile base row
+// spanned (0,3)-(4,3) and reached the west wall, sealing (0,1) (1,1) (2,1)
+// (0,2) (1,2) into a pocket the player could never walk into. It also left the
+// ZyPhone — the game's main menu — with exactly ONE approach tile.
+// At x=3 the row spans (1,3)-(5,3), column 0 stays open as a corridor, and the
+// phone can be faced from above and below.
 const PURCHASED_HOME_LAYOUT = {
-  pc:     { x: 2, y: 3 },
-  zphone: { x: 1, y: 3 },
-  chair:  { x: 2, y: 4 },
+  pc:     { x: 3, y: 3 },
+  zphone: { x: 2, y: 3 },
+  chair:  { x: 3, y: 4 },
 };
 // Every Rizer Room shares ONE RIZER_ROOM_ITEMS table, so per-home positions are
 // swapped in on entry and captured on exit rather than refactoring all 21 read
@@ -15327,6 +15334,69 @@ function roomItemCanOccupy(id,x,y,ignoreIds){
     if(originalRoom&&(tx===0||tx===1)&&ty<=1)return false; // fixed staircase
     if(originalRoom&&(tx===6||tx===7)&&ty===1)return false; // fixed centered TV
     if(roomTileBlockedByAnyBut(tx,ty,skip))return false;
+  }
+  // ★★ v0.95.764 · A LEGAL TILE IS NOT ALWAYS A SAFE ONE.
+  // This function only ever checked bounds and overlap, so furniture could be
+  // parked across a doorway or against a wall and cut the room in two — or
+  // leave the ZyPhone, the game's main menu, with no tile to face it from.
+  // Both were reachable by hand in room-edit mode, and the shipped
+  // purchased-home layout did the first one on its own.
+  return _roomPlacementKeepsRoomWhole(id, x, y, skip);
+}
+// Flood-fills the room as it WOULD be after the move. Rejects the placement if
+// it strands any floor tile, or leaves any usable item with nothing to stand on
+// beside it. The room is 15x10, so this is 150 tiles of work per attempted
+// nudge — free at furniture-dragging speed.
+function _roomPlacementKeepsRoomWhole(id, x, y, skip){
+  const cfg = interiorConfig(game.scene) || INTERIOR_HOME_2F;
+  const moving = new Set(skip || [id]);
+  const at = {};                                   // id -> [x,y] after the move
+  for (const [k, it] of Object.entries(RIZER_ROOM_ITEMS)) at[k] = [it.x, it.y];
+  // the dragged group keeps its internal offsets
+  const anchor = RIZER_ROOM_ITEMS[id];
+  const ddx = x - anchor.x, ddy = y - anchor.y;
+  for (const k of moving) if (RIZER_ROOM_ITEMS[k]) at[k] = [at[k][0] + ddx, at[k][1] + ddy];
+  const gone = k => (k === 'skateboard' && player.items?.skateboard)
+                 || (k === 'zphone'     && player.items?.zphone)
+                 || (k === 'chair'      && player.ridingChair);
+  const solid = new Set();
+  for (const [k, it] of Object.entries(RIZER_ROOM_ITEMS)){
+    if (gone(k)) continue;
+    for (const [dx, dy] of it.footprint) solid.add((at[k][0]+dx)+','+(at[k][1]+dy));
+  }
+  for (const [bx, by] of (cfg.blocked || [])){
+    if (_roomOriginalBlocked.has(`${bx},${by}`)) continue;
+    if (bx === 3 && by === 1 && cfg.rizerRoom && player.items?.skateboard) continue;
+    solid.add(bx+','+by);
+  }
+  const free = (tx, ty) => tx >= 0 && ty >= 0 && tx < cfg.cols && ty < cfg.rows
+                        && !(cfg.wallImg && ty === 0) && !solid.has(tx+','+ty);
+  // flood from where the player is standing
+  if (!free(player.x, player.y)) return false;     // never bury the player
+  const seen = new Set([player.x+','+player.y]);
+  const q = [[player.x, player.y]];
+  while (q.length){
+    const [cx, cy] = q.pop();
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const k = (cx+dx)+','+(cy+dy);
+      if (!seen.has(k) && free(cx+dx, cy+dy)){ seen.add(k); q.push([cx+dx, cy+dy]); }
+    }
+  }
+  for (let ty = 0; ty < cfg.rows; ty++)
+    for (let tx = 0; tx < cfg.cols; tx++)
+      if (free(tx, ty) && !seen.has(tx+','+ty)) return false;   // stranded floor
+  // every item still has somewhere to stand beside it
+  for (const [k, it] of Object.entries(RIZER_ROOM_ITEMS)){
+    if (gone(k)) continue;
+    let reachable = false;
+    for (const [dx, dy] of it.footprint){
+      for (const [ax, ay] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const tx = at[k][0]+dx+ax, ty = at[k][1]+dy+ay;
+        if (seen.has(tx+','+ty)){ reachable = true; break; }
+      }
+      if (reachable) break;
+    }
+    if (!reachable) return false;
   }
   return true;
 }

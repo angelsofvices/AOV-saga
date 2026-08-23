@@ -34889,6 +34889,88 @@ function drawTreeCanopy(p){
   ctx.drawImage(p.img, bx, by, bw, srcH, dx, dy, drawW, destH);
   ctx.imageSmoothingEnabled = prev;
 }
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.758 · CAST SHADOWS · buildings and trees
+//
+// Each caster's own alpha channel becomes a black silhouette, squashed toward
+// the horizon and sheared toward the sun. The shape comes free from the art —
+// a tree's shadow carries its canopy, the town hall's carries its roofline and
+// spires — so no new assets are needed.
+//
+// THE SUN IS FIXED. game.lightMode / LIGHT_FILTER_ENABLED are off by Creator
+// directive (2026-08-19) pending art direction, so driving shadows off the
+// clock would quietly reintroduce the time-varying lighting that was switched
+// off. One constant angle worldwide. SHADOW.enabled turns the whole thing off.
+const SHADOW = {
+  enabled: true,
+  angleDeg: 34,      // lean · 0 = straight down-screen · +ve = falls to the right
+  length:   0.55,    // fraction of the sprite's drawn height
+  alpha:    0.34,
+  blurPx:   4,       // baked into the cache ONCE per asset, never per draw
+};
+// 27,763 props draw from only ~150 unique src|bbox pairs, so this cache stays
+// tiny. Keyed on the crop as well as the file: the same PNG cropped two ways
+// (a tower's broken vs fixed bbox) is two different silhouettes.
+const _silCache = new Map();
+function _silhouette(p){
+  const [bx, by, bw, bh] = p.bbox;
+  const key = `${p.src}|${bx},${by},${bw},${bh}`;
+  let sil = _silCache.get(key);
+  if (sil) return sil;
+  const pad = SHADOW.blurPx * 3;                 // room for the blur to fall off
+  const c = document.createElement('canvas');
+  c.width = bw + pad*2; c.height = bh + pad*2;
+  const cx = c.getContext('2d');
+  if (SHADOW.blurPx > 0 && 'filter' in cx) cx.filter = `blur(${SHADOW.blurPx}px)`;
+  cx.drawImage(p.img, bx, by, bw, bh, pad, pad, bw, bh);
+  cx.filter = 'none';
+  cx.globalCompositeOperation = 'source-in';     // keep alpha, replace colour
+  cx.fillStyle = '#000';
+  cx.fillRect(0, 0, c.width, c.height);
+  sil = { canvas: c, pad };
+  _silCache.set(key, sil);
+  return sil;
+}
+// Buildings and trees only. Bushes, grass, chests, NPCs and flat decals stay
+// unshadowed — at 27k props everything-casts turns open ground to mush.
+function _castsShadow(p){
+  if (!p || p._noShadow || !p.bbox || !p.img) return false;
+  const src = p.src || '';
+  if (!src) return false;
+  if (/\/buildings\//.test(src)) return true;
+  const file = src.split('/').pop();
+  return /(tree|cactus)/.test(file);
+}
+function drawPropShadow(p){
+  if (!SHADOW.enabled || !_castsShadow(p)) return;
+  if (!p.img.complete || !p.img.naturalWidth) return;
+  const [bx, by, bw, bh] = p.bbox;
+  const drawW = p.tileW * TILE;
+  const drawH = Math.round(drawW * (bh / bw));
+  // Same anchor drawProp uses, so the shadow starts exactly at the prop's feet.
+  const dx = Math.floor((p.tileX + 0.5) * TILE - drawW / 2) - _cam.x;
+  const baseY = Math.floor((p.tileY + 1 + (p.subY || 0)) * TILE) - _cam.y;
+  const shear = Math.tan(SHADOW.angleDeg * Math.PI / 180);
+  const len   = SHADOW.length;
+  // Cull against the sheared extent, not the sprite box — a long shadow can be
+  // on-screen while its caster is not.
+  const reach = Math.abs(shear) * drawH * len;
+  if (dx + drawW + reach < 0 || dx - reach > canvas.width) return;
+  if (baseY - drawH * len > canvas.height || baseY < 0) return;
+  const sil = _silhouette(p);
+  const sc = drawW / bw;                          // silhouette px -> screen px
+  ctx.save();
+  ctx.globalAlpha = SHADOW.alpha;
+  ctx.translate(dx + drawW / 2, baseY);
+  // maps (x,y) -> (x + shear*y, len*y).  The image occupies y in [-h, 0], so
+  // y = 0 (the feet) is untouched and the top leans furthest. That is what
+  // makes it read as attached to the ground rather than floating.
+  ctx.transform(1, 0, -shear, len, 0, 0);
+  ctx.drawImage(sil.canvas,
+                -drawW / 2 - sil.pad * sc, -drawH - sil.pad * sc,
+                (bw + sil.pad * 2) * sc, (bh + sil.pad * 2) * sc);
+  ctx.restore();
+}
 function _propCullBounds(){
   const t0x = Math.floor(_cam.x / TILE), t0y = Math.floor(_cam.y / TILE);
   const w = Math.ceil(canvas.width / TILE), h = Math.ceil(canvas.height / TILE);
@@ -34966,6 +35048,12 @@ function drawWorldLayer(){
   for (const w of WILD_ZYREX){
     if (w._gone) continue;
     renderables.push({ kind:'wildOrb', wild:w, footY: w.tileY });
+  }
+  // ★ v0.95.758 · SHADOW PASS. Must be a separate full pass BEFORE the depth
+  // sort draws anything: shadows drawn inline would land on top of props that
+  // sorted earlier, so a tree's shadow would paint over the bush beside it.
+  if (SHADOW.enabled){
+    for (const r of renderables) if (r.kind === 'prop') drawPropShadow(r.prop);
   }
   renderables.sort((a,b) => a.footY - b.footY);
   const _now = performance.now();

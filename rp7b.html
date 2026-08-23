@@ -2665,12 +2665,20 @@ const CHEST_TILE_POSITIONS = [
   [13, 43], [32, 50], [ 5, 60], [28, 55],
   [ 5, 82], [44, 83], [25, 88], [44,120],
 ];
-// v0.95.588 · MYTHIC CHEST POSITIONS · 1-2 per district scattered across
+// v0.95.588 · GOLD CHEST POSITIONS (was MYTHIC · retiered v0.95.774) · 1-2 per district scattered across
 // Zyraxis · each drops 100-500 coins + 1 rarity-weighted Ultrashard.
 // Same open/close visual + interact rig as wooden chest, just bigger sprite
 // + richer loot table.  Hand-picked tiles near each district center so they
 // land on walkable terrain across the whole map.
-const MYTHIC_CHEST_TILE_POSITIONS = [
+// ★★ v0.95.774 · COSMIC CHEST SPOTS · hand-placed, one per Gemlord weapon.
+// Deliberately sparse: this is the top rung, so a cosmic chest should be a
+// destination rather than something you trip over.
+const COSMIC_CHEST_SPOTS = [
+  { dist:'vorashil', at:[338, 477], item:'sapphire_sword',
+    label:'SAPPHIRE TEARSWORD · Azurel\'s crystallised tear',
+    note:'densest canopy in Vorashil · 47 trees within 12 tiles' },
+];
+const GOLD_CHEST_TILE_POSITIONS = [
   [ 45, 90], [ 30,150],   // Malezor  (2)
   [ 95,265], [130,300],   // Zarvane  (2)
   [305,320], [340,340],   // Andrannor (2)
@@ -2682,9 +2690,9 @@ const MYTHIC_CHEST_TILE_POSITIONS = [
   [730,655],              // Thardin   (1)
   [895,655],              // Korathen  (1)
 ];
-// v0.95.588 · Ultrashard rarity-weighted drop table for mythic chests
+// v0.95.588 · GEMSHARD rarity-weighted drop table · GOLD chests roll on this (v0.95.774)
 // Common shards drop most often, ultrarare gate late-game builds.
-const MYTHIC_SHARD_TABLE = [
+const GEMSHARD_TABLE = [
   // key                   weight  (higher = more likely)
   { key: 'shard_predator',   w: 12 },   // Beast common
   { key: 'shard_martial',    w: 12 },   // Humanoid common
@@ -2709,15 +2717,18 @@ const MYTHIC_SHARD_TABLE = [
   { key: 'shard_xeno',       w:  2 },
   { key: 'shard_null',       w:  2 },
 ];
-function rollMythicShard(){
-  const total = MYTHIC_SHARD_TABLE.reduce((s, e) => s + e.w, 0);
+// ★ v0.95.774 · the Creator calls these GEMSHARDS. Renamed to match; the old
+// name stays as an alias so no call site silently breaks.
+function rollGemshard(){
+  const total = GEMSHARD_TABLE.reduce((s, e) => s + e.w, 0);
   let r = Math.random() * total;
-  for (const e of MYTHIC_SHARD_TABLE){
+  for (const e of GEMSHARD_TABLE){
     r -= e.w;
     if (r <= 0) return e.key;
   }
-  return MYTHIC_SHARD_TABLE[0].key;
-}
+  return GEMSHARD_TABLE[0].key;
+}const rollMythicShard = rollGemshard;   // deprecated alias
+
 const BUILDING_TILE_POSITIONS = [
   [22,105], [22, 78],                                             // home + town hall
   [10, 50], [35, 60], [10, 80], [10,110], [35,120],               // villager homes
@@ -4815,23 +4826,25 @@ const WORLD_PROPS = [
       return chest;
     });
   })(),
-  // ── v0.95.588 · MYTHIC CHESTS · scatter across all 10 districts ──
+  // ── v0.95.588 · GOLD CHESTS · scatter across all 10 districts ──
+  //    ★ v0.95.774 · these were the MYTHIC chests. Gemshards moved down to the
+  //    gold tier, so these thirteen carry the gold sprite and roll gemshards.
   //   · 100-500 coins + 1 rarity-weighted Ultrashard + coin/gem loot
   //   · same open/close chest.png behavior as wooden chest so it slots into
   //     the existing punch/kick + X-interact + PvP loot-trap pipeline
   //   · larger 1-tile footprint but taller sprite (drawn at 1.15× TILE)
   ...(function(){
-    const CHEST_POSITIONS = MYTHIC_CHEST_TILE_POSITIONS;
-    const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/mythic-chest.png';
+    const CHEST_POSITIONS = GOLD_CHEST_TILE_POSITIONS;
+    const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/gold-chest.png';
     const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
     // CC-measured (72,136)→(1181,1116) · width 1110 · height 981
-    const CLOSED_BBOX = [72, 136, 1110, 981];
+    const CLOSED_BBOX = [143, 184, 968, 886];   // gold-chest content bbox (was mythic's)
     const OPEN_BBOX   = [290, 240, 673, 741];
     return CHEST_POSITIONS.filter(([tx,ty]) => !isWorldBorderTile(tx, ty)).map(([tx, ty], i) => {
       const chest = {
-        id: `chest_mythic_${i}`,
+        id: `chest_gold_${i}`,
         img: _closedImg,
-        src: 'assets/2D%20sprites/decor/mythic-chest.png',
+        src: 'assets/2D%20sprites/decor/gold-chest.png',
         bbox: CLOSED_BBOX,
         tileX: tx, tileY: ty,
         tileW: 1, tileH: 1,
@@ -4839,7 +4852,7 @@ const WORLD_PROPS = [
         door: [0, 0],
         opened: false,
         looted: false,
-        _mythic: true,
+        _goldChest: true,   // ★ v0.95.774 · was _mythic
         _closedImg,
         _openImg,
         _closedBbox: CLOSED_BBOX,
@@ -4852,20 +4865,20 @@ const WORLD_PROPS = [
         chest.bbox = OPEN_BBOX;
         if (!chest.looted){
           chest.looted = true;
-          // ★ v0.95.773 · COSMIC TIER · four piles, the richest ladder rung.
-          // The mythic chest is the cosmic tier: rarest in the game and already
-          // the only one dropping Ultrashards.
-          const piles = spillChestCoins(chest, 'cosmic', 1);
+          // ★ v0.95.774 · GOLD TIER · three piles. Gemshards live here now,
+          // per the ladder: gold = rare items, legendary weapons, expedition
+          // items and gemshards.
+          const piles = spillChestCoins(chest, 'gold', 1);
           spawnChestGems('overworld', chest.tileX, chest.tileY);
-          // Mythic bonus RXP · 4× wooden (25 → 100)
-          try { awardRizerXP(100); } catch(_){}
-          // ★ Ultrashard drop · one rarity-weighted pick from the master table
-          const shardKey = rollMythicShard();
+          // Gold bonus RXP · 3x wooden (25 -> 75)
+          try { awardRizerXP(75); } catch(_){}
+          // ★ GEMSHARD drop · one rarity-weighted pick from the master table
+          const shardKey = rollGemshard();
           const shardMeta = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META[shardKey] : null;
           const shardName = shardMeta ? shardMeta.label : shardKey;
           addItems({ [shardKey]: 1 });
           try { playSFX('confirm'); } catch(_){}
-          showToast(`★ COSMIC CHEST · ${piles} coin piles scatter · ${shardName}`, 4200);
+          showToast(`★ GOLD CHEST · ${piles} coin piles scatter · ${shardName}`, 4200);
         }
       };
       return chest;
@@ -6031,6 +6044,60 @@ const WORLD_PROPS = [
       }
     };
     return chest;
+  })(),
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★ v0.95.774 · COSMIC CHESTS · the top rung.
+  //
+  // Creator: "place the sapphire sword in a new cosmic chest in the most
+  // forest area of vorashil."
+  //
+  // ★ THE PLACEMENT IS CANON, NOT JUST SCENERY. The Sapphire Tearsword is
+  // Azurel's crystallised tear, and Azurel is VORASHIL's Gemlord — S1 is
+  // unlocked there. A Gemlord weapon sitting in that Gemlord's own district is
+  // the ladder working as intended: cosmic = Gemlord weapons.
+  //
+  // (338,477) was MEASURED, not picked by eye: a 6-tile sweep of Vorashil
+  // scored every block by tree count and this one has 47 within 12 tiles, 38
+  // within 10 — the densest canopy in the district, 80 tiles out from the hub.
+  ...(function(){
+    const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/mythic-chest.png';
+    const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
+    const CLOSED_BBOX = [72, 136, 1110, 981];    // the old mythic art · now the COSMIC chest
+    const OPEN_BBOX   = [290, 240, 673, 741];
+    return COSMIC_CHEST_SPOTS.map((spot, i) => {
+      const chest = {
+        id: `chest_cosmic_${spot.dist}`,
+        img: _closedImg, src: 'assets/2D%20sprites/decor/mythic-chest.png',
+        bbox: CLOSED_BBOX,
+        tileX: spot.at[0], tileY: spot.at[1],
+        tileW: 1, tileH: 1,
+        footprint: [[0, 0]], door: [0, 0],
+        opened: false, looted: false,
+        _cosmicChest: spot.dist,
+        _closedImg, _openImg, _closedBbox: CLOSED_BBOX, _openBbox: OPEN_BBOX,
+      };
+      chest.onInteract = () => {
+        if (chest.opened) return;
+        chest.opened = true;
+        chest.img = _openImg; chest.bbox = OPEN_BBOX;
+        if (chest.looted) return;
+        chest.looted = true;
+        player.items = player.items || {};
+        player.items[spot.item] = (player.items[spot.item] || 0) + 1;
+        // the Tearsword arrives sharp · same durability rig as the treehouse copy
+        if (spot.item === 'sapphire_sword'){
+          player.swordDurability = 200;
+          player.swordBroken     = false;
+        }
+        const piles = spillChestCoins(chest, 'cosmic', 1);
+        try { spawnChestGems('overworld', chest.tileX, chest.tileY); } catch(_){}
+        try { awardRizerXP(150); } catch(_){}     // cosmic · 6x a wooden chest
+        try { playItemGain(spot.item); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+        try { markChestLooted(chest.id); } catch(_){}
+        showToast(`★ COSMIC CHEST · ${spot.label} · ${piles} coin piles scatter`, 5200);
+      };
+      return chest;
+    });
   })(),
   // ── v0.95.611 · TOWER BATTERY CHESTS · one Scrap Chest at each new tower base ──
   //    Silver chest sprite (matches Malezor's scrap chest).  Drops 1 tower_battery
@@ -13816,6 +13883,29 @@ for (const k of Object.values(PICKUP_KINDS)){ k.img = new Image(); k.img.src = k
 // tier — it is the rarest in the game and already the one that drops
 // Ultrashards. Each tier's midpoint is roughly 2.5x the one below it, and this
 // table is the only place to tune that.
+// ★★ v0.95.774 · THE FOUR-TIER LOOT LADDER · Creator's ruling.
+//
+//   WOODEN · gems, coins, common items
+//   SILVER · uncommon items, good weapons, QUEST items
+//   GOLD   · rare items, LEGENDARY weapons, expedition items, GEMSHARDS
+//   COSMIC · mythic items, GEMLORD weapons, cosmic relics
+//
+// ★ "MYTHIC" IS RETIRED AS A CHEST NAME. The tier is officially COSMIC. The
+// old mythic chest art stays — it is the rarest-looking chest in the set and
+// now marks the rarest tier.
+//
+// ★ THE THIRTEEN PLACED CHESTS ARE NOW GOLD, NOT COSMIC. Gemshards moved down
+// to gold per the ruling, and gold had exactly ONE chest in the whole game (the
+// treehouse). Leaving the thirteen as cosmic would have made gemshards
+// effectively unobtainable while cosmic stayed common — the opposite of the
+// ladder. So the thirteen become the gold tier and COSMIC becomes hand-placed
+// and deliberate, starting with Azurel's sword in Vorashil.
+const CHEST_LOOT_LADDER = {
+  wood:   { holds: 'gems · coins · common items' },
+  silver: { holds: 'uncommon items · good weapons · quest items' },
+  gold:   { holds: 'rare items · legendary weapons · expedition items · gemshards' },
+  cosmic: { holds: 'mythic items · Gemlord weapons · cosmic relics' },
+};
 const CHEST_COIN_TIERS = {
   wood:   { piles: 1, coins: [  1,  100] },   // x1 - x3 further from town · see makeWoodChest
   silver: { piles: 2, coins: [ 80,  240] },
@@ -13907,8 +13997,15 @@ function collectPickupsAt(tx, ty){
     bits.push(`${K.label} +${got[kind]}`);
     if (kind === 'coins'){ try { popCoinLabel(got[kind]); } catch(_){} }
   }
-  try { playItemGain(PICKUP_KINDS[kinds[0]].item); }
-  catch(_){ try { playSFX(kinds[0] === 'coins' ? 'coins' : 'confirm'); } catch(_){} }
+  // ★ v0.95.774 · COINS ALWAYS RING. playItemGain fires a generic pickup cue,
+  // so on a coin pile the coin sound was only reached if that THREW — which it
+  // does not. Coins get their own sound first, unconditionally.
+  if (got.coins){ try { playSFX('coins'); } catch(_){} }
+  for (const kind of kinds){
+    if (kind === 'coins') continue;
+    try { playItemGain(PICKUP_KINDS[kind].item); }
+    catch(_){ try { playSFX('confirm'); } catch(_){} }
+  }
   showToast('◈ ' + bits.join('  ·  '), 1800);
   _rememberPickups();
   return true;
@@ -20078,19 +20175,20 @@ function tryOpenTreehouseChest(){
   if (player.treehouseSwordChestOpened) return false;
   player.treehouseSwordChestOpened = true;
   player.items = player.items || {};
-  player.items.sapphire_sword = (player.items.sapphire_sword || 0) + 1;
+  // ★★ v0.95.774 · THE SAPPHIRE TEARSWORD MOVED OUT OF HERE.
+  // It is a Gemlord weapon, so by the new ladder it belongs in a COSMIC chest —
+  // and it now sits in Vorashil, Azurel's own district, where S1 is unlocked.
+  // ★ THIS CHANGES EARLY-GAME PROGRESSION: the treehouse was the player's first
+  // weapon and is now coins + gems only. Flagged to the Creator rather than
+  // quietly leaving Malezor swordless.
   // v0.95.517 · Silver chest also drops coins + gems like a wooden chest
   const coins = 25 + Math.floor(Math.random() * 76);   // 25-100 coins
   addItems({ coins });
   try { popCoinLabel(coins); } catch(_){}
   try { playSFX('coins'); } catch(_){}
   try { spawnChestGems('interior_treehouse', TREEHOUSE_CHEST.tileX, TREEHOUSE_CHEST.tileY); } catch(_){}
-  // Fresh durability + not-broken · saved for later toggle in phone
-  player.swordDurability = 200;
-  player.swordBroken     = false;
-  try { playItemGain('sapphire_sword'); } catch(_){}
   try { playSFX('confirm'); } catch(_){}
-  showToast(`★ SAPPHIRE TEARSWORD + ${coins} coins · toggle from ZyPhone → Weapons (S1 only)`, 5000);
+  showToast(`◈ Treehouse chest · +${coins} coins`, 3200);
   return true;
 }
 

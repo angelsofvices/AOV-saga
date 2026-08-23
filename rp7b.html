@@ -7511,6 +7511,24 @@ const DAEMON_WALK_BBOXES = [
   [[145,39,206,239],[14,41,304,238],[84,41,181,237],[16,41,202,237]],
   [[131,46,215,248],[21,46,274,249],[61,46,207,249],[25,47,195,248]],
 ];
+// ★★ v0.95.821 · DAEMON SPRINT · Creator: "daemon sprint animation. scale
+// same size as walking. they sprint when they see you across 8 tiles."
+// The source sheet arrived in DOWN/RIGHT/LEFT/UP row order; the asset was
+// re-banded at keying time to the walk sheet's UP/LEFT/RIGHT/DOWN so the ONE
+// rowMap on the NPC serves both banks — a second rowMap for the run bank
+// would be a divergence waiting to happen.  Measured by component ownership
+// ([[aov-sprite-cc-extractor]]): one clean component per frame, no overflow.
+// Same on-screen size as walking for free: _downScale is per-NPC (computed
+// off the walk bank's col-0) and rowScale is shared across every bank.
+const DAEMON_SPRINT_SRC = 'assets/2D%20sprites/enemies/daemon-sprint.png';
+const DAEMON_SPRINT_IMG = new Image();
+DAEMON_SPRINT_IMG.src = DAEMON_SPRINT_SRC;
+const DAEMON_SPRINT_BBOXES = [
+  [[81,20,164,257],[70,20,176,257],[70,21,164,256],[61,20,169,257]],
+  [[28,46,258,211],[25,49,251,205],[24,49,257,206],[20,49,263,209]],
+  [[28,48,263,208],[38,48,252,208],[27,48,256,211],[20,48,267,213]],
+  [[72,42,184,242],[60,42,177,245],[59,42,173,238],[58,41,159,239]],
+];
 const NPCS = [
   // ── SPARRING POSTS · interior_training_farm · v0.95.709 ─────────────
   // Four posts along the top of the barn. X on one sets two of your Zyrex
@@ -11556,10 +11574,19 @@ const MORI_BBOXES = [
     ];
     return SPOTS.map((s, i) => ({
       id: `mori_zar_${i + 1}`,
-      name: 'Mori',
+      // ★ v0.95.821 · The two Zarvane spots authored as mode:'daemon' ("lone
+      // daemon lurking deep south" + "a second daemon") pre-date the daemon
+      // sheet and were still wearing MORI art — daemon AI in a mori suit.
+      // They now dress like what they are, same ternary as the corridor
+      // factory, and carry the sprint bank with everyone else.
+      name: s.mode === 'daemon' ? 'Daemon' : 'Mori',
       sheet: new Image(),
-      src:   'assets/2D%20sprites/enemies/mori.png',
-      bboxes: MORI_BBOXES,
+      src:   s.mode === 'daemon' ? 'assets/2D%20sprites/enemies/daemon.png' : 'assets/2D%20sprites/enemies/mori.png',
+      rowMap: s.mode === 'daemon' ? { up:0, left:1, right:2, down:3 } : null,
+      bboxes: s.mode === 'daemon' ? DAEMON_WALK_BBOXES : MORI_BBOXES,
+      runSheet:  s.mode === 'daemon' ? DAEMON_SPRINT_IMG    : undefined,
+      runBboxes: s.mode === 'daemon' ? DAEMON_SPRINT_BBOXES : undefined,
+      uniformScale: s.mode === 'daemon' ? true : undefined,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       tileX: s.x, tileY: s.y,
       homeX: s.x, homeY: s.y,
@@ -11634,6 +11661,9 @@ const MORI_BBOXES = [
       // cell-clip.  One shared table now; the sprint sheet lands next and
       // gets its own measurement when it does.
       bboxes: s.mode === 'daemon' ? DAEMON_WALK_BBOXES : MORI_BBOXES,
+      // ★ v0.95.821 · run bank · drawNPC's useRun swaps to it while _chasing
+      runSheet:  s.mode === 'daemon' ? DAEMON_SPRINT_IMG    : undefined,
+      runBboxes: s.mode === 'daemon' ? DAEMON_SPRINT_BBOXES : undefined,
       uniformScale: s.mode === 'daemon' ? true : undefined,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       tileX: s.x, tileY: s.y,
@@ -12675,6 +12705,7 @@ function resurrectScrapjawTowerPack(){
       src: 'assets/2D%20sprites/enemies/daemon.png',
       rowMap: { up:0, left:1, right:2, down:3 },
       bboxes: DAEMON_BBOXES_PERIM,
+      runSheet: DAEMON_SPRINT_IMG, runBboxes: DAEMON_SPRINT_BBOXES,   // ★ v0.95.821
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       uniformScale: true,
       tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
@@ -40571,7 +40602,9 @@ function tickNPC(n, dt){
     const aggroActive = (n._aggroUntil || 0) > performance.now();
     const detectR   = aggroActive
       ? Math.max(n.detectR || 0, isDaemon ? 22 : 16)
-      : (n.detectR || (isDaemon ? 14 : 8));
+      : (n.detectR || 8);   // ★ v0.95.821 · Creator: daemons "sprint when they
+                            // see you across 8 tiles" · sight IS the sprint
+                            // trigger (_chasing), so one number rules both
     // ★ v0.95.696 · _chaseSpeed · a multiplier on how fast they close.
     // stepCd is milliseconds BETWEEN steps, so speed divides it: 1.4x speed is
     // a 1.4x shorter cooldown.  Seer patrols run 1.4 (faster than the player's

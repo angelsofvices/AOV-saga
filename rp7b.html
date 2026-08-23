@@ -34867,9 +34867,35 @@ const TRAIL_HEDGE_BY_DIST = {};
 // every structure, and at least CHEST_MIN_FROM_ROAD tiles off the carved
 // roadbed, so you find them by exploring the blocks rather than by walking the
 // path you were already on.
-const WOOD_CHEST_PER_DISTRICT = 8;
-const CHEST_MIN_FROM_ROAD = 6;
-const CHEST_MIN_APART     = 24;
+// ★★ v0.95.761 · 20 PER DISTRICT, WEIGHTED BY REMOTENESS.
+//
+// v0.95.760 sampled a box around the district HUB, which put chests thickest
+// exactly where the player already is — the opposite of rewarding exploration.
+// This version enumerates the whole district, scores every candidate by how far
+// it is from town, throws away the near half outright, and then picks by
+// remoteness-weighted random. It is still random, and still deterministic
+// across sessions, but a lonely corner of the map is far likelier to hold a
+// chest than the street outside the town hall.
+//
+// "Town" is not just the hub: it is the hub, every civic building AND every
+// home. A district's houses sprawl well past its centre, and a chest tucked
+// between two back gardens is not exploration.
+const WOOD_CHEST_PER_DISTRICT = 20;
+const CHEST_MIN_FROM_ROAD = 4;     // eased from 6 — 20 per district needs room
+const CHEST_MIN_APART     = 18;
+const CHEST_MIN_FROM_TOWN = 40;    // hard floor · nothing in the built-up core
+const CHEST_SAMPLE_STEP   = 3;     // district sweep granularity
+function _townAnchors(dist){
+  const P = _districtPOIs(dist);
+  const a = [P.hub];
+  for (const c of P.civic) a.push([c.tileX, c.tileY]);
+  for (const p of WORLD_PROPS){
+    if (!p || p.tileX == null || !/home|house/.test(p.id || '')) continue;
+    if (worldDistrictAt(p.tileX, p.tileY) !== dist) continue;
+    a.push([p.tileX, p.tileY]);
+  }
+  return a;
+}
 function scatterWoodChests(){
   if (game._woodChestsScattered) return 0;
   game._woodChestsScattered = true;
@@ -34880,44 +34906,76 @@ function scatterWoodChests(){
   for (const w of DISTRICT_WHEEL){
     const dist = w.dist;
     const road = (game._trailRoad || {})[dist] || new Set();
+    const town = _townAnchors(dist);
     const nearRoad = (x, y) => {
       for (let dy = -CHEST_MIN_FROM_ROAD; dy <= CHEST_MIN_FROM_ROAD; dy++)
         for (let dx = -CHEST_MIN_FROM_ROAD; dx <= CHEST_MIN_FROM_ROAD; dx++)
           if (road.has((x+dx)+','+(y+dy))) return true;
       return false;
     };
+    const fromTown = (x, y) => {
+      let m = Infinity;
+      for (const [tx, ty] of town){
+        const d = Math.hypot(tx - x, ty - y);
+        if (d < m) m = d;
+      }
+      return m;
+    };
+    // 1 · enumerate every legal tile in the district
     const P = _districtPOIs(dist);
-    const placed = [];
-    let tries = 0;
-    while (placed.length < WOOD_CHEST_PER_DISTRICT && tries < 4000){
-      tries++;
-      const x = Math.round(P.hub[0] + (rng() * 2 - 1) * 150);
-      const y = Math.round(P.hub[1] + (rng() * 2 - 1) * 150);
-      if (worldDistrictAt(x, y) !== dist) continue;
-      if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
-      if (_propBlocked.has(x+','+y)) continue;
-      if (nearRoad(x, y)) continue;
-      if (placed.some(q => Math.abs(q[0]-x) + Math.abs(q[1]-y) < CHEST_MIN_APART)) continue;
-      // needs a walkable neighbour or the player cannot stand next to it
-      const reachable = [[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy]) =>
-        isWorldLandTile(x+dx, y+dy) && !isWorldBorderTile(x+dx, y+dy)
-        && !_propBlocked.has((x+dx)+','+(y+dy)));
-      if (!reachable) continue;
-      placed.push([x, y]);
+    const cand = [];
+    for (let y = P.hub[1]-260; y <= P.hub[1]+260; y += CHEST_SAMPLE_STEP){
+      for (let x = P.hub[0]-260; x <= P.hub[0]+260; x += CHEST_SAMPLE_STEP){
+        if (worldDistrictAt(x, y) !== dist) continue;
+        if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+        if (_propBlocked.has(x+','+y)) continue;
+        const remote = fromTown(x, y);
+        if (remote < CHEST_MIN_FROM_TOWN) continue;
+        if (nearRoad(x, y)) continue;
+        const standable = [[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy]) =>
+          isWorldLandTile(x+dx, y+dy) && !isWorldBorderTile(x+dx, y+dy)
+          && !_propBlocked.has((x+dx)+','+(y+dy)));
+        if (!standable) continue;
+        cand.push({ x, y, remote });
+      }
     }
-    for (const [x, y] of placed){
-      const chest = makeWoodChest(`chest_${dist}_${made}`, x, y, closed, open);
+    if (!cand.length){ console.warn(`[rp7b] ${dist} · no chest sites found`); continue; }
+    // 2 · ★ v0.95.761b · KEEP THE WHOLE FIELD.
+    // Dropping the near half AND squaring the weight stacked two biases on top
+    // of each other, and every chest ended up in a ring around the district
+    // rim — a halo, not exploration. The CHEST_MIN_FROM_TOWN floor already
+    // clears the built-up core, so everything above it is fair game and the
+    // empty blocks between the roads get their share.
+    cand.sort((a, b) => a.remote - b.remote);
+    const far = cand;
+    const maxR = far[far.length-1].remote;
+    const placed = [];
+    let guard = 0;
+    while (placed.length < WOOD_CHEST_PER_DISTRICT && guard < 20000 && far.length){
+      guard++;
+      // Gentle linear tilt with a floor: even the closest legal tile keeps a
+      // 35% chance, so the mid-distance blocks stay populated while the far
+      // country is still roughly three times likelier per candidate.
+      const i = Math.floor(rng() * far.length);
+      const c = far[i];
+      if (rng() > 0.35 + 0.65 * (c.remote / maxR)) continue;
+      if (placed.some(q => Math.abs(q.x-c.x) + Math.abs(q.y-c.y) < CHEST_MIN_APART)) continue;
+      placed.push(c);
+      far.splice(i, 1);
+    }
+    for (const c of placed){
+      const chest = makeWoodChest(`chest_${dist}_${made}`, c.x, c.y, closed, open, c.remote);
       WORLD_PROPS.push(chest);
-      registerPropCollision(chest);        // ★ created after the bake
+      registerPropCollision(chest);
       made++;
     }
   }
-  console.log(`[rp7b] wooden chests · ${made} scattered across 10 districts (was 8, all in Malezor)`);
+  console.log(`[rp7b] wooden chests · ${made} scattered · ${WOOD_CHEST_PER_DISTRICT}/district · weighted away from town`);
   return made;
 }
 // Same loot rig as the eight hand-placed chests, factored out so both paths
 // stay in step: coins, gems, +25 RXP and one HP consumable, once only.
-function makeWoodChest(id, tx, ty, closedImg, openImg){
+function makeWoodChest(id, tx, ty, closedImg, openImg, remote){
   const CLOSED_BBOX = WOOD_CHEST_BBOX.closed, OPEN_BBOX = WOOD_CHEST_BBOX.open;
   const chest = {
     id, img: closedImg, src: 'assets/2D%20sprites/decor/chest.png',
@@ -34933,17 +34991,24 @@ function makeWoodChest(id, tx, ty, closedImg, openImg){
     chest.img = openImg; chest.bbox = OPEN_BBOX;
     if (!chest.looted){
       chest.looted = true;
-      const coins = 1 + Math.floor(Math.random() * 100);
+      // ★ v0.95.761 · the walk is the reward. A chest 40 tiles out pays the
+      // old 1-100; one on the far frontier pays up to three times that, so
+      // pushing past the last house is worth doing.
+      const far  = Math.max(0, ((remote || 40) - 40) / 120);          // 0 at the
+      const mult = 1 + Math.min(2, far * 2);                          // town edge
+      const coins = Math.round((1 + Math.floor(Math.random() * 100)) * mult);
       addItems({ coins });
       try { playSFX('coins'); popCoinLabel(coins); } catch(_){}
       try { spawnChestGems('overworld', chest.tileX, chest.tileY); } catch(_){}
       try { awardRizerXP(25); } catch(_){}
-      const roll = Math.random();
+      // and the consumable tilts upward with distance too
+      const roll = Math.random() * (1 + far);
       const pick = roll < 1/3 ? 'ale' : roll < 2/3 ? 'potion' : 'verdant_elixir';
       addItems({ [pick]: 1 });
       const nice = pick === 'verdant_elixir' ? 'Mythic Elixir'
                  : pick === 'potion'         ? 'Potion' : 'Ale';
-      showToast(`◈ Chest · +${coins} coins · +1 ${nice}`, 2600);
+      const tag = far > 0.6 ? ' · far from town' : '';
+      showToast(`◈ Chest · +${coins} coins · +1 ${nice}${tag}`, 2600);
       try { markChestLooted(chest.id); } catch(_){}
     }
   };

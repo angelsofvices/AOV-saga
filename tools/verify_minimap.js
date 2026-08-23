@@ -110,8 +110,12 @@ H('3 · ★★ ??? UNTIL FOUND, FULL NAME AFTER');
   ok(!C.minimapDiscovered(lm.id),`${lm.name} starts undiscovered`);
   C.notebookVisit(lm.id, lm.name);
   ok(C.minimapDiscovered(lm.id),'★ and visiting it in the notebook marks it found on the map');
-  ok(/P\.found \? P\.name : '\?\?\?'/.test(src),
-     '★ the draw prints ??? until found and the full name after');
+  // ★ v0.95.804 · rumors and anomalies are exempt on purpose — their name IS
+  //   the announcement, so the rule gained a 'live' carve-out.
+  ok(/\(P\.found \|\| live\) \? P\.name : '\?\?\?'/.test(src),
+     '★ the draw prints ??? until found, full name after — with live pins exempt');
+  ok(/P\.kind === 'rumor' \|\| P\.kind === 'anomaly'/.test(src),
+     '  and the exemption names exactly the two live kinds');
   // a POI the notebook has never heard of is never secretly "found"
   ok(!C.minimapDiscovered('landmark:not_a_real_place'),'an unknown id is not found');
 }

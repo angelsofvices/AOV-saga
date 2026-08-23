@@ -762,7 +762,7 @@
           <button class="zyNav" data-zynav="map"         style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🗺  MAP</button>
           <button class="zyNav" data-zynav="expeditions" style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">📋  EXPEDITIONS</button>
           <button class="zyNav" data-zynav="contacts"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">👥  CONTACTS</button>
-          <button class="zyNav" data-zynav="leaderboard" style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🏆  LEADERBOARD</button>
+          <button class="zyNav" data-zynav="leaderboard" style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">🏆  NOVARIAN RECORD</button>
           <button class="zyNav" data-zynav="settings"    style="text-align:left; padding:10px 12px; background:rgba(0,0,0,0.4); color:#cfe; border:1px solid rgba(79,179,255,0.35); font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">⚙  SETTINGS</button>
           <!-- v0.95.707 · quick summon/stash hint · a hold verb nobody is told
                about is a hold verb nobody uses.  Live text so it names which
@@ -16615,6 +16615,13 @@ function minimapPOIs(){
       for (const c of COSMIC_CHEST_SPOTS)
         push(`cosmic:${c.item}`, String(c.label || c.item).split('·')[0].trim().toUpperCase(),
              c.at[0], c.at[1], 'cosmic');
+    // ★ v0.95.804 · LIVE pins · rumors and anomalies ride the same feed the
+    // static POIs use, so the 3-6 rule, the zoom and the draw all treat them
+    // as first-class.  Spawns and resolves null the cache, so "temporary" and
+    // "cached" never disagree for more than a frame.
+    const e = ecologyState();
+    for (const r of e.rumors)    push(r.id, 'RUMOR', r.x, r.y, 'rumor');
+    for (const a of e.anomalies) push(a.id, a.name, a.x, a.y, 'anomaly');
   } catch(_){}
   MINIMAP._cache = out; MINIMAP._cacheAt = now;
   return out;
@@ -16662,6 +16669,7 @@ function minimapVisible(px, py){
 const MINIMAP_KIND_COLOR = {
   landmark:'#7ad4ff', cave:'#c060ff', tower:'#ffd66b',
   portal:'#4ee07a', seer:'#ff5b5b', cosmic:'#ff9cf0',
+  rumor:'#ffe9a8', anomaly:'#ff9cf0',
 };
 function drawMinimap(){
   const host = document.getElementById('minimapCanvas');
@@ -16703,7 +16711,11 @@ function drawMinimap(){
     g.beginPath(); g.arc(x, y, 3.2, 0, Math.PI*2); g.fill();
     g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 1; g.stroke();
     // ★ "??? on undiscovered POIs and landmarks. full name shows once discovered."
-    const label = P.found ? P.name : '???';
+    // Rumors and anomalies are the exception on purpose: their NAME is the
+    // announcement — a pin reading ??? would be indistinguishable from the
+    // thing it is pointing at.
+    const live = P.kind === 'rumor' || P.kind === 'anomaly';
+    const label = (P.found || live) ? P.name : '???';
     g.fillStyle = P.found ? '#dfe8f0' : '#8fa3b5';
     g.fillText(label.slice(0, 22), x, y - 6);
   }
@@ -27670,14 +27682,299 @@ function notebookScrollsFor(page){
   const n = notebookState();
   return NOTEBOOK_SCROLLS.filter(s => s.page === page && n.scrolls[s.id]);
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.804 · THE LIVING LOOP · ecology rank + field journal + rumors + anomalies
+//
+// Creator: "huge QOL update. dont change game canon ... add more texture to
+// current canon ... make the zyphone feel like a live game tracker and master
+// UI and the viewport gamescreen feel alive from start to finish."  Their
+// chosen prototype: District Ecology + Zyrex Ecology + Rumors + Anomalies as
+// ONE loop — explore → hear a rumor → find an anomaly → improve the journal →
+// raise the district rank → unlock the itch to explore again.
+//
+// ★ THE RULE THAT SHAPES ALL FOUR: no new progression currency.  Every number
+// here is DERIVED from state the game already keeps — the notebook, the tower
+// network, the scroll collection, the portal network, the bond table.  A
+// second currency is a second thing to balance, save, migrate and explain;
+// a derivation is free everywhere those systems already work.
+// ══════════════════════════════════════════════════════════════════════════
+
+function ecologyState(){
+  player.ecology = player.ecology || {};
+  const e = player.ecology;
+  e.events   = e.events   || {};   // dist -> resolved rumors+anomalies · the only NEW fact
+  e.rumors   = e.rumors   || [];
+  e.anomalies= e.anomalies|| [];
+  return e;
+}
+
+// ── DISTRICT ECOLOGY RANK · E → D → C → B → A → S ────────────────────────
+// Feature 2, but with zero new bookkeeping: the rank is a READING of how much
+// of the district's existing content the player has actually touched.
+function districtEcologyScore(dist){
+  const n = notebookState();
+  const parts = {};
+  parts.visited   = (player.visitedDistricts && player.visitedDistricts[dist]) ? 1 : 0;
+  parts.tower     = (typeof towerRestored === 'function' && towerRestored(dist)) ? 3 : 0;
+  parts.portal    = (typeof portalUnlocked === 'function' && portalUnlocked(dist)) ? 2 : 0;
+  // landmarks seen in THIS district (3 lore buildings each)
+  let lm = 0, cave = 0;
+  for (const p of WORLD_PROPS){
+    if (!p) continue;
+    if (p._district30 === dist && n.seen[`landmark:${p.id}`]) lm++;
+    if (/_cave$/.test(p.id || '') && n.seen[`cave:${p.id}`]
+        && typeof worldDistrictAt === 'function'
+        && worldDistrictAt(p.tileX, p.tileY) === dist) cave = 1;
+  }
+  parts.landmarks = lm * 2;
+  parts.cave      = cave * 3;
+  // Dad's lost pages recovered here · 18 themes per district
+  let sc = 0;
+  if (typeof SCROLL_THEMES !== 'undefined')
+    for (const t of SCROLL_THEMES) if (n.scrolls[`scroll:${t.key}:${dist}`]) sc++;
+  parts.scrolls   = Math.round((sc / 18) * 6);
+  // rumors chased down + anomalies witnessed here · the loop feeding itself
+  parts.events    = Math.min(4, (ecologyState().events[dist] || 0));
+  const score = Object.values(parts).reduce((a, b) => a + b, 0);
+  return { score, max: 25, parts };
+}
+const ECOLOGY_RANKS = [
+  { min: 22, rank:'S', color:'#ffd66b' },
+  { min: 17, rank:'A', color:'#4ee07a' },
+  { min: 12, rank:'B', color:'#7ad4ff' },
+  { min:  7, rank:'C', color:'#c0a8ff' },
+  { min:  3, rank:'D', color:'#c9b28a' },
+  { min:  0, rank:'E', color:'#8fa3b5' },
+];
+function districtEcologyRank(dist){
+  const sc = districtEcologyScore(dist).score;
+  return ECOLOGY_RANKS.find(r => sc >= r.min) || ECOLOGY_RANKS[ECOLOGY_RANKS.length - 1];
+}
+
+// ── FIELD JOURNAL · progressive reveal per species ───────────────────────
+// Feature 9.  Four stages, each derived from a fact already tracked:
+//   0 UNKNOWN  · never crossed paths
+//   1 SIGHTED  · in the notebook's seen table
+//   2 BONDED   · in the party or the PC
+//   3 MASTERED · bonded AND the bond meter is full
+// (BATTLED sits between SIGHTED and BONDED in the design; it needs a per-
+// species battle counter the game does not keep yet, so it is deliberately
+// absent rather than faked from a number that means something else.)
+const JOURNAL_STAGES = [
+  { key:'unknown',  label:'???',        color:'#5a6a78' },
+  { key:'sighted',  label:'SIGHTED',    color:'#8fa3b5' },
+  { key:'bonded',   label:'BONDED',     color:'#7ad4ff' },
+  { key:'mastered', label:'★ MASTERED', color:'#ffd66b' },
+];
+function speciesJournalStage(speciesId){
+  const n = notebookState();
+  const owned = [].concat(player.party || [], player.pcZyrex || [])
+    .filter(Boolean).some(z => z.speciesId === speciesId);
+  if (owned && (player.bonds?.[speciesId] || 0) >= 100) return 3;
+  if (owned) return 2;
+  if (n.seen[`zyrex:${speciesId}`]) return 1;
+  return 0;
+}
+function journalCounts(){
+  const c = { unknown:0, sighted:0, bonded:0, mastered:0, total:0 };
+  for (const k of Object.keys(SPECIES)){
+    c[JOURNAL_STAGES[speciesJournalStage(k)].key]++; c.total++;
+  }
+  return c;
+}
+
+// ── RUMORS · feature 12 · leads, not quests ──────────────────────────────
+// ★ A rumor does not CREATE content — it points at content that already
+// exists and has not been found: the nearest few undiscovered POIs from the
+// minimap's own registry.  The rumor system is a surfacing layer over the
+// world that is already there, which is why it costs nothing to keep true.
+const RUMOR_INTERVAL_MS = 150000;   // one lead ~2.5 min · walking pace
+const RUMOR_LIFE_MS     = 600000;   // a lead goes cold in 10 min
+const RUMOR_MAX         = 3;
+const RUMOR_FUZZ        = 7;        // tiles · a rumor marks an AREA, not an X
+const RUMOR_VOICES = [
+  'Overheard at the inn',
+  'A trader mentioned',
+  'Schoolkids were saying',
+  'A farmhand swears',
+  'Scrapjaw\'s radio caught',
+  'Someone at the hall whispered',
+];
+const RUMOR_KIND_TEXT = {
+  landmark:'an old building nobody visits', cave:'a sealed cave that hums',
+  tower:'a tower on the skyline', portal:'a standing stone that glows at night',
+  cosmic:'something buried under the trees', seer:'hooded figures gathering',
+};
+function spawnRumor(){
+  const e = ecologyState();
+  if (e.rumors.length >= RUMOR_MAX) return null;
+  const px = Math.round(player.x), py = Math.round(player.y);
+  const held = new Set(e.rumors.map(r => r.targetId));
+  const cand = minimapPOIs()
+    .filter(P => !minimapDiscovered(P.id) && !held.has(P.id))
+    .map(P => ({ ...P, d: Math.abs(P.x - px) + Math.abs(P.y - py) }))
+    .filter(P => P.d >= 40 && P.d <= 350)     // far enough to be a trip, near enough to take it
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 5);
+  if (!cand.length) return null;
+  const t = cand[Math.floor(Math.random() * cand.length)];
+  const r = {
+    id: `rumor_${Date.now()}`,
+    targetId: t.id, kind: t.kind,
+    // the pin is FUZZED · a rumor is where to look, not where to stand
+    x: t.x + Math.round((Math.random()*2-1) * RUMOR_FUZZ),
+    y: t.y + Math.round((Math.random()*2-1) * RUMOR_FUZZ),
+    text: `${RUMOR_VOICES[Math.floor(Math.random()*RUMOR_VOICES.length)]} ${RUMOR_KIND_TEXT[t.kind] || 'something strange'} that way.`,
+    expires: performance.now() + RUMOR_LIFE_MS,
+  };
+  e.rumors.push(r);
+  MINIMAP._cache = null;
+  try { showToast(`◈ RUMOR · ${r.text}`, 4200); } catch(_){}
+  try { playSFX('cursor'); } catch(_){}
+  return r;
+}
+
+// ── ASTRAL ANOMALIES · feature 8 ─────────────────────────────────────────
+// Temporary, announced, visible on the scope, gone if ignored.  Three kinds to
+// start, each paying out of systems that already exist.
+const ANOMALY_INTERVAL_MS = 240000;   // one every ~4 min
+const ANOMALY_LIFE_MS     = 300000;   // and 5 min to reach it
+const ANOMALY_MAX         = 2;
+const ANOMALY_KINDS = [
+  { key:'deposit', name:'ASTRALITE DEPOSIT', color:'#c060ff',
+    blurb:'raw astralite breaching the soil',
+    resolve(a){ addItems({ gem_purple: 2, gem_blue: 2 }); try{awardRizerXP(120);}catch(_){}
+      showToast('★ ASTRALITE DEPOSIT harvested · gems + 120 RXP', 3600); } },
+  { key:'faesurge', name:'FAE SURGE', color:'#4ee07a',
+    blurb:'faedust thick enough to see',
+    resolve(a){ player.faeCollected = (player.faeCollected || 0) + 15;
+      try{awardRizerXP(100);}catch(_){}
+      showToast('★ FAE SURGE bottled · +15 Fae + 100 RXP', 3600); } },
+  { key:'pulse', name:'MOTHERGEM PULSE', color:'#ffd66b',
+    blurb:'the ground itself keeping a heartbeat',
+    resolve(a){ (player.party || []).forEach(z => { if (z) z.hp = z.hpMax || z.hp; });
+      try{awardRizerXP(150);}catch(_){}
+      showToast('★ MOTHERGEM PULSE · party restored + 150 RXP', 3600); } },
+];
+function spawnAnomaly(){
+  const e = ecologyState();
+  if (e.anomalies.length >= ANOMALY_MAX) return null;
+  const dist = (typeof worldDistrictAt === 'function')
+    ? worldDistrictAt(Math.round(player.x), Math.round(player.y)) : null;
+  const D = ZYRAXIS_DISTRICTS.find(d => d.id === dist);
+  if (!D) return null;
+  // a handful of random throws is enough · anomalies are transient, not sited
+  for (let t = 0; t < 40; t++){
+    const a = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*0.8;
+    const x = Math.round(D.cx + Math.cos(a)*D.rx*r), y = Math.round(D.cy + Math.sin(a)*D.ry*r);
+    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+    if (_propBlocked.has(`${x},${y}`)) continue;
+    if (Math.abs(x - player.x) + Math.abs(y - player.y) < 25) continue;   // not at your feet
+    const K = ANOMALY_KINDS[Math.floor(Math.random()*ANOMALY_KINDS.length)];
+    const an = { id:`anom_${Date.now()}`, kind:K.key, name:K.name, color:K.color,
+                 x, y, dist, expires: performance.now() + ANOMALY_LIFE_MS };
+    e.anomalies.push(an);
+    MINIMAP._cache = null;
+    try { showToast(`★ ASTRAL ANOMALY · ${K.name} in ${String(dist).toUpperCase()} · ${K.blurb} · it will not last`, 5200); } catch(_){}
+    try { playSFX('confirm'); } catch(_){}
+    return an;
+  }
+  return null;
+}
+
+// ── IN-WORLD PRESENCE · the viewport half of "feel alive" ────────────────
+// An anomaly that only exists as a minimap dot is a UI feature.  One you can
+// SEE shimmering across the field is a place.  A slow breathing ring at the
+// tile, in the anomaly's own colour — additive, no sprite needed, and gone the
+// moment it resolves or expires because it draws straight off the live list.
+function drawAnomalies(){
+  if (game.scene !== 'overworld') return;
+  const e = ecologyState();
+  if (!e.anomalies.length) return;
+  const now = performance.now();
+  for (const a of e.anomalies){
+    const cx = a.x * TILE + TILE/2 - _cam.x;
+    const cy = a.y * TILE + TILE/2 - _cam.y;
+    if (cx < -120 || cy < -120 || cx > canvas.width + 120 || cy > canvas.height + 120) continue;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 420);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.20 + 0.18 * pulse;
+    ctx.fillStyle = a.color;
+    ctx.beginPath(); ctx.arc(cx, cy, 26 + pulse * 10, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 0.55 + 0.3 * pulse;
+    ctx.strokeStyle = a.color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 14 + pulse * 22, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px "Courier New", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('✦', cx, cy + 3);
+    ctx.restore();
+  }
+}
+
+// ── THE TICK · one place drives the whole loop ───────────────────────────
+function ecologyTick(){
+  if (game.scene !== 'overworld' || typeof worldFrozen === 'function' && worldFrozen()) return;
+  const e = ecologyState();
+  const now = performance.now();
+  // rumors resolve when their TARGET is discovered — however that happened
+  for (let i = e.rumors.length - 1; i >= 0; i--){
+    const r = e.rumors[i];
+    if (minimapDiscovered(r.targetId)){
+      e.rumors.splice(i, 1);
+      MINIMAP._cache = null;
+      const dist = (typeof worldDistrictAt === 'function') ? worldDistrictAt(r.x, r.y) : null;
+      if (dist) e.events[dist] = (e.events[dist] || 0) + 1;
+      try { awardRizerXP(150); } catch(_){}
+      try { showToast('★ RUMOR CONFIRMED · the lead was good · +150 RXP', 3600); } catch(_){}
+    } else if (now > r.expires){
+      e.rumors.splice(i, 1);
+      MINIMAP._cache = null;
+      try { showToast('◈ A rumor went cold.', 2200); } catch(_){}
+    }
+  }
+  // anomalies resolve on ARRIVAL, expire if ignored
+  for (let i = e.anomalies.length - 1; i >= 0; i--){
+    const a = e.anomalies[i];
+    if (Math.abs(player.x - a.x) <= 2 && Math.abs(player.y - a.y) <= 2){
+      e.anomalies.splice(i, 1);
+      MINIMAP._cache = null;
+      e.events[a.dist] = (e.events[a.dist] || 0) + 1;
+      const K = ANOMALY_KINDS.find(k => k.key === a.kind);
+      try { if (K) K.resolve(a); } catch(_){}
+      try { playSFX('coins'); } catch(_){}
+    } else if (now > a.expires){
+      e.anomalies.splice(i, 1);
+      MINIMAP._cache = null;
+      try { showToast(`◈ The ${a.name.toLowerCase()} faded before anyone reached it.`, 2600); } catch(_){}
+    }
+  }
+  // spawn cadence · timers live on the state so they survive a save
+  if (!e.nextRumorAt || now > e.nextRumorAt){
+    e.nextRumorAt = now + RUMOR_INTERVAL_MS * (0.8 + Math.random()*0.4);
+    if (player.dadStarterQuestGiven) spawnRumor();   // the world starts talking once the story does
+  }
+  if (!e.nextAnomAt || now > e.nextAnomAt){
+    e.nextAnomAt = now + ANOMALY_INTERVAL_MS * (0.8 + Math.random()*0.4);
+    if (player.dadStarterQuestGiven) spawnAnomaly();
+  }
+}
+
 // ── ENTRY DERIVATION ────────────────────────────────────────────────────────
 function _nbDistricts(){
   const n = notebookState();
   return DISTRICT_WHEEL.map(w => {
     const id = `district:${w.dist}`;
     const visited = !!(player.visitedDistricts && player.visitedDistricts[w.dist]) || !!n.seen[id];
-    return { id, name: w.dist.toUpperCase(), sub: w.land || '', found: visited,
-             done: !!n.done[id], page: id };
+    // ★ v0.95.804 · the ecology rank IS the district's sub line once visited —
+    // it answers "is there anything left for me here" at a glance
+    const eco = visited ? districtEcologyRank(w.dist) : null;
+    const sc  = visited ? districtEcologyScore(w.dist) : null;
+    return { id, name: w.dist.toUpperCase(),
+             sub: eco ? `ECOLOGY ${eco.rank} · ${sc.score}/${sc.max} · ${w.land || ''}` : (w.land || ''),
+             found: visited, done: !!n.done[id], page: id };
   });
 }
 function _nbTowers(){
@@ -27782,8 +28079,10 @@ function _nbZyrex(){
     const sp = SPECIES[k];
     const id = `zyrex:${k}`;
     const caught = owned.has(k);
+    // ★ v0.95.804 · FIELD JOURNAL stage rides the sub line · derived, not stored
+    const stage = JOURNAL_STAGES[speciesJournalStage(k)];
     return { id, name: (sp.name || k).toUpperCase(),
-             sub: `T${sp.tier || '?'} · ${sp.type || '?'}${sp.type2 ? ' / ' + sp.type2 : ''}`,
+             sub: `T${sp.tier || '?'} · ${sp.type || '?'}${sp.type2 ? ' / ' + sp.type2 : ''} · ${stage.label}`,
              found: caught || !!n.seen[id], done: caught, page: id };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -29494,8 +29793,25 @@ function renderZycellContacts(){
 // v0.95.520 · LEADERBOARD · every trackable Rizer stat in one panel · seeds
 // the eventual achievement system (each row can become an unlock trigger)
 function renderZycellLeaderboard(){
+  // ★★ v0.95.804 · THE NOVARIAN RECORD.  Feature 15 as a REBRAND, not a new
+  // panel: the leaderboard already was the career screen — every stat on it is
+  // the résumé the Novarian Challenge will one day read.  It gains the ecology
+  // ranks and the journal totals, and the arbitrary-sounding name goes.
   const s  = player.stats || {};
   const p  = player;
+  const _ecoRows = ZYRAXIS_DISTRICTS.map(D => {
+    const visited = !!(player.visitedDistricts && player.visitedDistricts[D.id]);
+    if (!visited) return `<span style="color:#556;">${D.id.slice(0,3).toUpperCase()} —</span>`;
+    const r = districtEcologyRank(D.id);
+    return `<span style="color:${r.color};">${D.id.slice(0,3).toUpperCase()} ${r.rank}</span>`;
+  }).join(' · ');
+  const _jc = journalCounts();
+  const _recordHeader = `
+    <div style="border:1px solid rgba(212,175,55,0.45); background:rgba(30,22,4,0.5); padding:10px; margin-bottom:8px;">
+      <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:11px; margin-bottom:6px;">★ THE NOVARIAN RECORD · your résumé for the Challenge</div>
+      <div style="font-size:10px; color:#cfe; line-height:1.7;">ECOLOGY · ${_ecoRows}</div>
+      <div style="font-size:10px; color:#8ff;">FIELD JOURNAL · ${_jc.mastered}★ mastered · ${_jc.bonded} bonded · ${_jc.sighted} sighted of ${_jc.total} species</div>
+    </div>`;
   // ── derived counters
   const punchSw = s.punchSwings || 0;
   const kickSw  = s.kickSwings  || 0;
@@ -29599,7 +29915,7 @@ function renderZycellLeaderboard(){
       ${rizer}
       ${missions}
     </div>`;
-  return _zySection('🏆 LEADERBOARD · lifetime stats', body);
+  return _zySection('🏆 THE NOVARIAN RECORD · lifetime record', _recordHeader + body);
 }
 
 // ── ANIMATIONS · legacy render kept as a no-op (panel replaced by leaderboard)
@@ -29926,6 +30242,35 @@ function renderZycellHome(){
         <div style="position:absolute; right:8px; bottom:6px; color:#8ff; font-size:9px;">(${Math.round(p.x)}, ${Math.round(p.y)})</div>
       </div>
     </div>`;
+  // ★★ v0.95.804 · LIVE WORLD · the card that makes the phone a tracker.
+  // District ecology rank, the open leads, the live anomalies and the journal
+  // count, all on the home screen — the loop's whole state at one glance,
+  // every line of it derived from systems that already exist.
+  const _eco = ecologyState();
+  const _hereDist = (typeof worldDistrictAt === 'function')
+    ? worldDistrictAt(Math.round(p.x), Math.round(p.y)) : null;
+  const _rank = _hereDist ? districtEcologyRank(_hereDist) : null;
+  const _escore = _hereDist ? districtEcologyScore(_hereDist) : null;
+  const _jc = journalCounts();
+  const _dirTo = (tx, ty) => {
+    const dx = tx - p.x, dy = ty - p.y;
+    const h = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'E' : 'W') : (dy > 0 ? 'S' : 'N');
+    return `${Math.round(Math.hypot(dx, dy))} tiles ${h}`;
+  };
+  const _rumorRows = _eco.rumors.map(r =>
+    `<div style="font-size:10px; color:#ffe9a8; margin-top:3px;">📜 ${r.text} <span style="color:#8ab;">(${_dirTo(r.x, r.y)})</span></div>`).join('');
+  const _anomRows = _eco.anomalies.map(a =>
+    `<div style="font-size:10px; color:${a.color}; margin-top:3px;">✦ ${a.name} · ${a.dist.toUpperCase()} <span style="color:#8ab;">(${_dirTo(a.x, a.y)})</span></div>`).join('');
+  const liveWorld = `
+    <div style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.35); padding:10px;">
+      <div style="color:#ffd66b; font-weight:bold; letter-spacing:.10em; font-size:11px; margin-bottom:6px;">✦ LIVE WORLD</div>
+      ${_rank ? `<div style="font-size:11px; color:#cfe;">${String(_hereDist).toUpperCase()} ECOLOGY
+        <b style="color:${_rank.color}; font-size:14px;">${_rank.rank}</b>
+        <span style="color:#8ab; font-size:10px;">· ${_escore.score}/${_escore.max} surveyed</span></div>` : ''}
+      <div style="font-size:10px; color:#8ff; margin-top:4px;">FIELD JOURNAL · ${_jc.mastered}★ mastered · ${_jc.bonded} bonded · ${_jc.sighted} sighted · ${_jc.unknown} unknown</div>
+      ${_rumorRows || '<div style="font-size:10px; color:#667; margin-top:4px;">· no open rumors · talk to people, they talk back ·</div>'}
+      ${_anomRows}
+    </div>`;
   // v0.95.601 · Notifications moved to the right rail (see paintZycellNav
   // → #zycellMessages) · this slot now hosts a bigger DATE + TIME card.
   const _now = new Date();
@@ -29949,6 +30294,7 @@ function renderZycellHome(){
         <div style="display:flex; gap:10px;">${inventory}${credits}</div>
       </div>
       <div style="display:flex; flex-direction:column; gap:10px;">
+        ${liveWorld}
         ${mission}
         ${map}
         ${dateTime}
@@ -31872,6 +32218,11 @@ function saveGame(){
         deathGargoyles:             player.deathGargoyles || [],   // v0.95.614 · death breadcrumb persist
         shardshareFixed:            !!player.shardshareFixed,      // v0.95.619 · party duel-XP share unlocked
         portalPieces:               player.portalPieces || 0,      // ★ v0.95.800 · pieces handed to Dad · drives the whole network
+        // ★ v0.95.804 · only the EVENT COUNTERS persist.  Rumors and anomalies
+        // are transient by design — and their expiries are performance.now()
+        // timestamps, which reset with the page, so a saved one would come
+        // back with a deadline from a clock that no longer exists.
+        ecology:                    { events: (player.ecology && player.ecology.events) || {} },
         dadStarterQuestComplete:    !!player.dadStarterQuestComplete,
         scrapjawCompanion:          !!player.scrapjawCompanion,
         scrapjawMet:                !!player.scrapjawMet,
@@ -31998,6 +32349,9 @@ function loadGame(){
     // ZyPhone) a `player.rxpUnlocked == null` test sees false, not null, and
     // the returning player stays locked out of earning.
     player.rxpUnlocked = (s.player.rxpUnlocked == null) ? true : !!s.player.rxpUnlocked;
+    // ★ v0.95.804 · drop any transient ecology state that rode in · see the save-side note
+    if (player.ecology){ player.ecology.rumors = []; player.ecology.anomalies = [];
+      player.ecology.nextRumorAt = 0; player.ecology.nextAnomAt = 0; }
     // v0.95.660 · rizerXPMax is DERIVED from the curve.  Boot already re-derives
     // it, and awardRizerXP keeps it in step on every level-up — but loadGame's
     // Object.assign restores whatever the SNAPSHOT held and never re-derived it,
@@ -39864,6 +40218,8 @@ function frame(now){
   }
   drawAoeImpactBursts();// all large AOE bursts · above tall/wild grass
   try { stepArrows(); } catch(_){}   // ★ v0.95.794 · advance + detonate Pearlbow arrows
+  try { ecologyTick(); } catch(_){}  // ★ v0.95.804 · rumors + anomalies · the living loop
+  try { drawAnomalies(); } catch(_){} //   and the in-world shimmer that makes them PLACES
   try { drawArrows(); } catch(_){}   //   drawn UNDER the impact rings so the ring reads on top
   drawHitFx();          // shared impact rings · above world under menus
   drawZyrexAttackFx();  // v0.95.318 · type-themed Zyrex attack VFX (ring fallback)

@@ -2462,7 +2462,7 @@ const INVENTORY_META = {
   shardshare_broken:{ label: 'Broken Shardshare',       order: 52 },   // v0.95.619 · Silver chest at (69,358) · "looks like something dad can fix" · bring to Dad
   shardshare:       { label: 'Shardshare Collar',       order: 53 },   // v0.95.619 · Dad-repaired · while owned, ALL party Zyrex gain 0.5× the active duelist's XP per defeated foe in F v F duels
   astralcore_transponder: { label: 'Astralcore Transponder', order: 6 }, // v0.95.503 · Auraxion gift on mission complete · consume from bag → summons UFO to player tile · reusable
-  sapphire_sword:   { label: 'Sapphire Tearsword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 200 hits (connect-only, no miss-break) · repair 100 gems
+  sapphire_sword:   { label: 'Sapphire Tearsword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 100 hits (connect-only, no miss-break) · repair 100 gems
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
   zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
   // ─── v0.95.588 · ULTRASHARDS · one per canon type · consume on Zyrex to overwrite A4 with Ultramax move + add Ultramax type ─────────────
@@ -14126,10 +14126,24 @@ function spawnWeaponDrop(chest, spot){
   _rememberWeaponDrops();
   return drop;
 }
+// ★★ v0.95.786 · PER-BLADE DURABILITY CEILINGS.
+// Creator: "blue sword should be x/100. red sword is x/200."
+//
+// The number 200 was hardcoded in twelve places — the grant, the shop, the
+// combat decrement, two panel readouts, two repair paths, the save defaults and
+// the HUD tint. Changing one blade meant finding all twelve and getting every
+// one right. It is one table now, and everything reads from it.
+//
+// The Tearsword is S1's blade and the Rubypaw is S2's, so the shorter life on
+// the blue one also reads as progression: the weapon you get later lasts twice
+// as long.
+const WEAPON_MAX_DUR = { sapphire_sword: 100, rubypaw_sword: 200 };
+const SWORD_MAX  = WEAPON_MAX_DUR.sapphire_sword;   // 100
+const RUBY_MAX   = WEAPON_MAX_DUR.rubypaw_sword;    // 200
 // Each blade tracks its OWN durability so S1's sword and S2's never share HP.
 function _armWeapon(item){
-  if (item === 'sapphire_sword'){ player.swordDurability   = 200; player.swordBroken   = false; }
-  if (item === 'rubypaw_sword'){  player.rubypawDurability = 200; player.rubypawBroken = false; }
+  if (item === 'sapphire_sword'){ player.swordDurability   = SWORD_MAX; player.swordBroken   = false; }
+  if (item === 'rubypaw_sword'){  player.rubypawDurability = RUBY_MAX;  player.rubypawBroken = false; }
 }
 // ★ A blade left lying on the ground has to still be there next session.
 function _rememberWeaponDrops(){
@@ -20374,7 +20388,7 @@ function tryOpenTreehouseChest(){
 function _grantSapphireSword(){
   player.items = player.items || {};
   player.items.sapphire_sword = (player.items.sapphire_sword || 0) + 1;
-  player.swordDurability = 200;
+  player.swordDurability = SWORD_MAX;
   player.swordBroken     = false;
   try { playItemGain('sapphire_sword'); } catch(_){}
   try { playSFX('confirm'); } catch(_){}
@@ -20383,7 +20397,7 @@ function _grantSapphireSword(){
 function _grantRubypawSword(){
   player.items = player.items || {};
   player.items.rubypaw_sword = (player.items.rubypaw_sword || 0) + 1;
-  player.rubypawDurability = 200;
+  player.rubypawDurability = RUBY_MAX;
   player.rubypawBroken     = false;
   try { playItemGain('rubypaw_sword'); } catch(_){}
   try { playSFX('confirm'); } catch(_){}
@@ -20415,7 +20429,7 @@ function openZarvaneWeaponShop(){
           <span>⚔  SAPPHIRE TEARSWORD  ·  S1 only</span>
           <span style="color:#ffd66b;">10,000 c</span>
         </div>
-        <div style="color:#cfe; font-size:10px; margin-top:4px; letter-spacing:.04em;">${hasSapphire ? 'ALREADY OWNED · sold in ZyPhone' : (sapAffordable ? '200 hit durability · connect-only · repair 100 gems' : `NEED ${(10000-coins).toLocaleString()} MORE COINS`)}</div>
+        <div style="color:#cfe; font-size:10px; margin-top:4px; letter-spacing:.04em;">${hasSapphire ? 'ALREADY OWNED · sold in ZyPhone' : (sapAffordable ? `${SWORD_MAX} hit durability · connect-only · repair 100 gems` : `NEED ${(10000-coins).toLocaleString()} MORE COINS`)}</div>
       </button>
       <button id="wsBuyRuby" ${rubyAffordable ? '' : 'disabled'}
         style="width:100%; padding:14px; margin-bottom:14px; background:${rubyAffordable ? 'linear-gradient(180deg,rgba(120,20,30,0.7),rgba(30,4,10,0.85))' : 'rgba(30,30,45,0.55)'}; color:${rubyAffordable ? '#ffb0b0' : '#556'}; border:2px solid ${rubyAffordable ? '#ff5b5b' : '#334'}; font:bold 12px 'Courier New',monospace; letter-spacing:.10em; cursor:${rubyAffordable ? 'pointer' : 'not-allowed'}; text-align:left;">
@@ -20423,7 +20437,7 @@ function openZarvaneWeaponShop(){
           <span>⚔  RUBYPAW LONGSWORD  ·  S2 only</span>
           <span style="color:#ffd66b;">20,000 c</span>
         </div>
-        <div style="color:#fed; font-size:10px; margin-top:4px; letter-spacing:.04em;">${hasRubypaw ? 'ALREADY OWNED · sold in ZyPhone' : (rubyAffordable ? '150 dmg (baseAtk × 3 × S2 mult) · 200 hit durability · repair 100 gems' : `NEED ${(20000-coins).toLocaleString()} MORE COINS`)}</div>
+        <div style="color:#fed; font-size:10px; margin-top:4px; letter-spacing:.04em;">${hasRubypaw ? 'ALREADY OWNED · sold in ZyPhone' : (rubyAffordable ? `150 dmg (baseAtk × 3 × S2 mult) · ${RUBY_MAX} hit durability · repair 100 gems` : `NEED ${(20000-coins).toLocaleString()} MORE COINS`)}</div>
       </button>
       <button id="wsClose" style="width:100%; padding:10px; background:rgba(0,0,0,0.5); color:#889; border:1px solid #556; font:bold 11px 'Courier New',monospace; letter-spacing:.10em; cursor:pointer;">← CLOSE  (B / Escape)</button>
     </div>`;
@@ -21744,7 +21758,7 @@ addEventListener('keydown', e => {
               // v0.95.524 · Sword contact SFX · only fires when damage lands on an enemy
               try { playSFX('swordSlice'); } catch(_){}
               // v0.95.572 · Durability only decrements on CONNECT (no miss-breaking)
-              player.swordDurability = Math.max(0, (player.swordDurability == null ? 200 : player.swordDurability) - 1);
+              player.swordDurability = Math.max(0, (player.swordDurability == null ? SWORD_MAX : player.swordDurability) - 1);
               if (player.swordDurability <= 0){
                 player.swordBroken   = true;
                 player.swordEquipped = false;
@@ -21760,8 +21774,8 @@ addEventListener('keydown', e => {
               //   Uses same "S2-multiplied" damage model as Sapphire, just heavier.
               outDmg = (player.baseAtk || 25) * 3 * playerDamageMultiplier('power_upgrade');
               try { playSFX('swordSlice'); } catch(_){}
-              // v0.95.572 · Durability only on connect · 200-hit cap
-              player.rubypawDurability = Math.max(0, (player.rubypawDurability == null ? 200 : player.rubypawDurability) - 1);
+              // v0.95.572 · Durability only on connect · per-blade cap · see WEAPON_MAX_DUR
+              player.rubypawDurability = Math.max(0, (player.rubypawDurability == null ? RUBY_MAX : player.rubypawDurability) - 1);
               if (player.rubypawDurability <= 0){
                 player.rubypawBroken   = true;
                 player.rubypawEquipped = false;
@@ -26482,6 +26496,13 @@ function notebookState(){
 // ★ v0.95.780 · MIGRATION. Saves made before this carry dads_notebook as a bag
 // item. Strip it, but keep what it MEANT — owning the object was the unlock, so
 // anyone holding one has the notebook installed.
+// ★ v0.95.786 · Saves made before the ceiling dropped carry a Tearsword at up
+// to 200/100, which renders as a bar past the end of its own track. Clamp on
+// load rather than letting the panel draw something impossible.
+function _migrateWeaponDurability(){
+  if (player.swordDurability   != null) player.swordDurability   = Math.min(player.swordDurability,   SWORD_MAX);
+  if (player.rubypawDurability != null) player.rubypawDurability = Math.min(player.rubypawDurability, RUBY_MAX);
+}
 function _migrateNotebook(){
   const inv = player.items || {};
   if (inv.dads_notebook){
@@ -27509,7 +27530,7 @@ function renderZycellWeapons(){
   let row = '';   // v0.95.568 · Weapons panel now composed of multiple rows
   // ─── SAPPHIRE TEARSWORD row ───────────────────────────────────────────
   if (hasSword){
-  const dur = Math.max(0, Math.min(200, player.swordDurability == null ? 200 : player.swordDurability));
+  const dur = Math.max(0, Math.min(SWORD_MAX, player.swordDurability == null ? SWORD_MAX : player.swordDurability));
   const broken = !!player.swordBroken || dur <= 0;
   const equipped = !!player.swordEquipped && !broken && isS1;
   const gemCount = (typeof countGems === 'function') ? countGems() : 0;
@@ -27532,7 +27553,7 @@ function renderZycellWeapons(){
       </div>
       <div style="margin-top:10px;">
         <div style="display:flex; justify-content:space-between; font-size:10px; color:#cfe;">
-          <span>DURABILITY</span><span style="color:#fff;">${dur}/200</span>
+          <span>DURABILITY</span><span style="color:#fff;">${dur}/${SWORD_MAX}</span>
         </div>
         <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(79,179,255,0.25); margin-top:3px;">
           <div style="height:100%; width:${durPct}%; background:${barColor};"></div>
@@ -27579,10 +27600,10 @@ function renderZycellWeapons(){
           return;
         }
         spendGems(100);   // v0.95.724 · one shared path · genuinely cheapest-first
-        player.swordDurability = 200;
+        player.swordDurability = SWORD_MAX;
         player.swordBroken = false;
         try { playSFX('confirm'); } catch(_){}
-        showToast('★ Sapphire Tearsword REPAIRED · durability 200/200', 2600);
+        showToast(`★ Sapphire Tearsword REPAIRED · durability ${SWORD_MAX}/${SWORD_MAX}`, 2600);
         try { paintZycellContent(); } catch(_){}
       });
     }
@@ -27590,7 +27611,7 @@ function renderZycellWeapons(){
   }   // v0.95.568 · close `if (hasSword)` block
   // ─── RUBYPAW LONGSWORD row · S2's answer to the Sapphire ─────────
   if (hasRuby){
-    const rDur = Math.max(0, Math.min(200, player.rubypawDurability == null ? 200 : player.rubypawDurability));
+    const rDur = Math.max(0, Math.min(RUBY_MAX, player.rubypawDurability == null ? RUBY_MAX : player.rubypawDurability));
     const rBroken = !!player.rubypawBroken || rDur <= 0;
     const rEquipped = !!player.rubypawEquipped && !rBroken && !isS1;   // S2 only
     const rGems = (typeof countGems === 'function') ? countGems() : 0;
@@ -27613,7 +27634,7 @@ function renderZycellWeapons(){
         </div>
         <div style="margin-top:10px;">
           <div style="display:flex; justify-content:space-between; font-size:10px; color:#fed;">
-            <span>DURABILITY</span><span style="color:#fff;">${rDur}/200</span>
+            <span>DURABILITY</span><span style="color:#fff;">${rDur}/${RUBY_MAX}</span>
           </div>
           <div style="height:8px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,91,91,0.25); margin-top:3px;">
             <div style="height:100%; width:${rPct}%; background:${rBar};"></div>
@@ -27658,10 +27679,10 @@ function renderZycellWeapons(){
             return;
           }
           spendGems(100);   // v0.95.724 · the SECOND inline copy · same bug, renamed variable
-          player.rubypawDurability = 200;
+          player.rubypawDurability = RUBY_MAX;
           player.rubypawBroken = false;
           try { playSFX('confirm'); } catch(_){}
-          showToast('★ Rubypaw Longsword REPAIRED · durability 200/200', 2600);
+          showToast(`★ Rubypaw Longsword REPAIRED · durability ${RUBY_MAX}/${RUBY_MAX}`, 2600);
           try { paintZycellContent(); } catch(_){}
         });
       }
@@ -30389,10 +30410,10 @@ function saveGame(){
         // v0.95.607 · WEAPONS · sword durability + equip state persists across refresh
         swordEquipped:     !!player.swordEquipped,
         swordBroken:       !!player.swordBroken,
-        swordDurability:   player.swordDurability   != null ? player.swordDurability   : 200,
+        swordDurability:   player.swordDurability   != null ? player.swordDurability   : SWORD_MAX,
         rubypawEquipped:   !!player.rubypawEquipped,
         rubypawBroken:     !!player.rubypawBroken,
-        rubypawDurability: player.rubypawDurability != null ? player.rubypawDurability : 200,
+        rubypawDurability: player.rubypawDurability != null ? player.rubypawDurability : RUBY_MAX,
         // v0.95.607 · CONTACTS & STORY PROGRESS · every gate/reward flag captured so
         // QOL patches (sprites, spawns, animations) don't wipe the player's run
         hasBackpack:                !!player.hasBackpack,
@@ -30506,6 +30527,7 @@ function loadGame(){
     Object.assign(player, s.player);
     // ★ v0.95.760 · a loaded save carries lootedChests; the world was rebuilt
     // from scratch, so re-open the chests that list names.
+    try { _migrateWeaponDurability(); } catch(_){}   // ★ v0.95.786
     try { restoreLootedChests(); } catch(_){}
     // ★ v0.95.772 · put the un-swept scrap piles back where they lay
     try { restoreScrapDrops(); } catch(_){}
@@ -40166,21 +40188,21 @@ function updateWeaponHUD(){
   }
   // durability tint · the blade dulls as it wears, so the wheel does too
   let dur = 1;
-  if (key === 'sapphire') dur = Math.max(0, Math.min(200, player.swordDurability   ?? 200)) / 200;
-  if (key === 'rubypaw')  dur = Math.max(0, Math.min(200, player.rubypawDurability ?? 200)) / 200;
+  if (key === 'sapphire') dur = Math.max(0, Math.min(SWORD_MAX, player.swordDurability   ?? SWORD_MAX)) / SWORD_MAX;
+  if (key === 'rubypaw')  dur = Math.max(0, Math.min(RUBY_MAX,  player.rubypawDurability ?? RUBY_MAX)) / RUBY_MAX;
   whud.style.filter = (key === 'fists' || dur > 0.34)
     ? 'none'
     : `saturate(${(0.3 + dur * 2).toFixed(2)})`;
   whud.title = key === 'fists'
     ? 'Melee fists · L1/R1 to cycle weapons'
-    : `${key === 'sapphire' ? 'Sapphire Tearsword' : 'Rubypaw Longsword'} equipped · ${Math.round(dur*200)}/200 · L1/R1 to cycle`;
+    : `${key === 'sapphire' ? 'Sapphire Tearsword' : 'Rubypaw Longsword'} equipped · ${Math.round(dur*(key==='sapphire'?SWORD_MAX:RUBY_MAX))}/${key==='sapphire'?SWORD_MAX:RUBY_MAX} · L1/R1 to cycle`;
 }
 function _updateWeaponHUD_disabled_v518(){
   const whud = document.getElementById('weaponHud');
   if (!whud) return;
   const has  = (player.items && player.items.sapphire_sword) || 0;
   const isS1 = (player.cosmeticSkin || 'normal') !== 'power_upgrade';
-  const dur  = Math.max(0, Math.min(200, player.swordDurability == null ? 200 : player.swordDurability));
+  const dur  = Math.max(0, Math.min(SWORD_MAX, player.swordDurability == null ? SWORD_MAX : player.swordDurability));
   const broken = !!player.swordBroken || dur <= 0;
   const equipped = !!player.swordEquipped && !broken && isS1 && has > 0;
   // Slot 1 · sapphire sword

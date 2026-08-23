@@ -36376,6 +36376,19 @@ function scatterScrolls(){
 // press X. Flora is clearable — that rule has settled every one of these — so
 // the doorway wins and the bush moves.
 const DOORWAY_APPROACHES = [[0,1],[0,-1],[1,0],[-1,0]];
+// ★★ v0.95.787 · AND THE APRON IN FRONT OF A BUILDING, not just the doorstep.
+//
+// v0.95.779 cleared the door tile and its four neighbours, which made every
+// door REACHABLE — and I checked exactly that and moved on. Running the full
+// suite set afterwards showed 33 tiles of Seer HQ forecourt still blocked by my
+// own verge bushes, plus Veridan's hall plaza and Malezor's. Reachable is not
+// the same as approachable: a civic building with a hedge grown across its
+// forecourt looks derelict even when you can squeeze to the door.
+//
+// So a BUILDING gets an apron — its full drawn width, this many rows deep in
+// front of its base — cleared of flora. Doors on non-buildings (chests, caves,
+// props) keep the cheaper four-neighbour rule.
+const BUILDING_APRON_DEPTH = 3;
 function clearFloraFromDoorways(){
   if (game._doorwaysCleared) return null;
   game._doorwaysCleared = true;
@@ -36384,6 +36397,14 @@ function clearFloraFromDoorways(){
     protect.add(key);
     const [dx, dy] = key.split(',').map(Number);
     for (const [ax, ay] of DOORWAY_APPROACHES) protect.add((dx+ax) + ',' + (dy+ay));
+  }
+  // the apron · buildings only
+  for (const p of WORLD_PROPS){
+    if (!p || !p.src || !/\/buildings\//.test(p.src) || p.tileX == null) continue;
+    const w = p.tileW || 1;
+    const x0 = Math.round(p.tileX - w/2), x1 = Math.round(p.tileX + w/2);
+    for (let y = p.tileY; y <= p.tileY + BUILDING_APRON_DEPTH; y++)
+      for (let x = x0; x <= x1; x++) protect.add(x + ',' + y);
   }
   let cleared = 0;
   for (let i = WORLD_PROPS.length - 1; i >= 0; i--){

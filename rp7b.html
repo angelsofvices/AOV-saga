@@ -35560,6 +35560,59 @@ function drawTreeCanopy(p){
   ctx.imageSmoothingEnabled = prev;
 }
 // ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.769 · FLORA SWAY · the world stops being a photograph
+//
+// Measured before writing this: THREE props out of 16,316 animate — two portals
+// and a fountain. Every tree, bush, cactus and grass tuft in Zyraxis is a still
+// image, which is most of why a full map still reads as a diorama.
+//
+// No new art. The sprite is sheared around its own FOOT LINE, so the base stays
+// planted and the canopy travels — the same transform the shadows use. A still
+// PNG becomes a plant moving in wind.
+//
+// Three things make it read as wind rather than as a wobble:
+//   · AMPLITUDE SCALES WITH HEIGHT. shear is constant, so displacement is
+//     k x drawH: a 3-tile tree's canopy travels ~4px while a bush moves ~1px.
+//     Uniform motion would look like the whole world was on one hinge.
+//   · PHASE IS PER-TILE. Neighbours sway out of step, seeded from tile
+//     position, so it stays put across frames and saves.
+//   · GUSTS. A slow global envelope breathes the amplitude between 60% and
+//     100% over ~9 seconds, so the field is never uniformly busy.
+// ★ Shear is PER CLASS, not one global number, and the short things get MORE
+// of it. Scaling a single shear by height alone gave a 3-tile tree 4.4px of
+// canopy travel and a grass tuft 1.0px — invisible, and backwards: a trunk
+// barely moves in wind while thin blades whip. These values land every class in
+// a 3-5px band, which reads at 48px tiles without anything looking rubbery.
+const FLORA_SWAY = {
+  enabled: true,
+  hz:      0.42,    // full cycle a bit under 2.5s
+  gustHz:  0.11,    // slow breathing envelope
+  shear: { tree: 0.030, bush: 0.055, grass: 0.075 },
+};
+function _floraClass(src){
+  if (/grass/.test(src)) return 'grass';
+  if (/bush/.test(src))  return 'bush';
+  return 'tree';                       // trees + cacti · the tall, stiff ones
+}
+const _FLORA_RE = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:tree|cactus|bush|grass|grassblade)/;
+function _swayPhase(p){
+  if (p._swayPhase == null){
+    // Deterministic from tile position · a random() here would re-roll on every
+    // reload and, worse, differ between the prop and its own shadow.
+    const h = Math.sin(p.tileX * 12.9898 + p.tileY * 78.233) * 43758.5453;
+    p._swayPhase = (h - Math.floor(h)) * Math.PI * 2;
+  }
+  return p._swayPhase;
+}
+// Returns the horizontal shear to apply about the prop's foot line, or 0.
+function floraSwayShear(p, now){
+  if (!FLORA_SWAY.enabled || !p || !p.src || !_FLORA_RE.test(p.src)) return 0;
+  const t = now / 1000;
+  const gust = 0.6 + 0.4 * Math.sin(t * FLORA_SWAY.gustHz * Math.PI * 2);
+  const k = FLORA_SWAY.shear[_floraClass(p.src)] || FLORA_SWAY.shear.tree;
+  return k * gust * Math.sin(t * FLORA_SWAY.hz * Math.PI * 2 + _swayPhase(p));
+}
+// ════════════════════════════════════════════════════════════════════════════
 // ★★ v0.95.758 · CAST SHADOWS · buildings and trees
 //
 // Each caster's own alpha channel becomes a black silhouette, squashed toward
@@ -35635,7 +35688,11 @@ function drawPropShadow(p){
   // maps (x,y) -> (x + shear*y, len*y).  The image occupies y in [-h, 0], so
   // y = 0 (the feet) is untouched and the top leans furthest. That is what
   // makes it read as attached to the ground rather than floating.
-  ctx.transform(1, 0, -shear, len, 0, 0);
+  // ★ v0.95.769 · add the tree's own sway to the shadow's lean, using the SAME
+  // per-tile phase, or a swaying tree casts a rigid shadow and the eye catches
+  // it immediately.
+  const swayS = floraSwayShear(p, performance.now());
+  ctx.transform(1, 0, -shear + swayS * len, len, 0, 0);
   ctx.drawImage(sil.canvas,
                 -drawW / 2 - sil.pad * sc, -drawH - sil.pad * sc,
                 (bw + sil.pad * 2) * sc, (bh + sil.pad * 2) * sc);
@@ -36684,6 +36741,23 @@ function drawProp(p){
   if (p._animCells && p._animCells > 1 && p._animCellW){
     const frameIdx = Math.floor(performance.now() / 220) % p._animCells;
     srcX = bx + frameIdx * p._animCellW;
+  }
+  // ★ v0.95.769 · wind. Shear about the foot line so the base stays planted.
+  const sway = floraSwayShear(p, performance.now());
+  if (sway){
+    const footY = dy + drawH;
+    ctx.save();
+    ctx.translate(0, footY);
+    ctx.transform(1, 0, sway, 1, 0, 0);   // (x,y) -> (x + sway*y, y) · y=0 at the feet
+    if (p.mirrorX){
+      ctx.translate(dx + drawW, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(p.img, srcX, by, bw, bh, 0, -drawH, drawW, drawH);
+    } else {
+      ctx.drawImage(p.img, srcX, by, bw, bh, dx, -drawH, drawW, drawH);
+    }
+    ctx.restore();
+    return;
   }
   if (p.mirrorX){
     // Horizontal flip · re-use a left-facing asset as a right-facing one.

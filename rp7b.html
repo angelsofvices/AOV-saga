@@ -1521,6 +1521,7 @@ const AUDIO = {
     rubypawSwing: new Audio('audio/sfx-rubypaw-swing.mp3'),  // v0.95.573 · Rubypaw sword swing/slash · plays on every S2-square punch swing (hit or miss)
     rubypawKill:  new Audio('audio/sfx-rubypaw-kill.mp3'),   // v0.95.574 · Rubypaw kill · flesh-ripping impact · fires only on Rubypaw-driven KOs
     axeSwing:     new Audio('audio/sfx-axe-swing.mp3'),      // ★ v0.95.793 · heavy metal impact · fires on EVERY axe swing, hit or miss (Creator: "even on a miss. this is just impact")
+    arrowFire:    new Audio('audio/sfx-arrow-fire.mp3'),    // ★ v0.95.798 · Pearlbow release · fires on every shot, hit or miss
     axeKill:      new Audio('audio/sfx-axe-kill.mp3'),       // ★ v0.95.793 · Emerald Axe finisher · fires only on axe-driven KOs, primary tile OR anywhere in the 3x3
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Tearsword contact SFX · fires only on enemy hit-land
@@ -1781,6 +1782,18 @@ const _UI_SFX = new Set([
   'cancel',                       // recall ping · the pair to 'confirm'
   'zyrexGo', 'takeFive',          // v0.95.729 · deploy + recall VO
   'disabled',                     // refusals triggered from a menu
+  // ★★ v0.95.798 · CONSUMABLE VOs.  Creator: "prioritize elixir rvox over new
+  // message phonevox."  The elixir VO was not losing a priority contest — it
+  // was never being HEARD.  You drink from the bag panel, worldFrozen() is
+  // true there, and playSFX gates by NAME, so the line was dropped outright
+  // while CORSUN's "you have a new message" (which plays on its own path, not
+  // through playSFX) went ahead uncontested.
+  //
+  // This is the third time that set has been the culprit; the rule stated at
+  // v0.95.729 already covered it — if the sound is feedback for a thing the
+  // PLAYER just did, it belongs here.
+  'mythicElixir', 'elixir', 'potion', 'aleReeks',
+  'gemVox', 'gotcha',             // pickups can happen with the phone up too
 ]);
 function playSFX(name){
   if (worldFrozen() && !_UI_SFX.has(name)) return;
@@ -11772,10 +11785,38 @@ try { applyGroundStoreyCollision(); } catch(err){ console.warn('[rp7b] ground-st
 //
 // These two functions are the only supported way to change a prop's collision
 // after boot. Use them in a pair when moving something.
+// ★★ v0.95.798 · CANOPY HEIGHT · which props an arrow can fly OVER.
+// Creator: "arrows should go over bushes. but not trees."
+//
+// Bushes and grass are knee-high; a loosed arrow clears them.  Trees and cacti
+// are the tall flora of their districts — a cactus is Zarvane's tree, and the
+// Pearlbow's own chest sits in the Zarvane cactus flats, so letting arrows
+// sail over cacti would make the bow unblockable in the district it comes from.
+//
+// ★ Declared HERE rather than beside FLORA_SRC_RE (~25,000 lines further down)
+// because the collision bake runs at boot, long before that const initialises.
+const SHORT_FLORA_RE = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:bush|grass|grassblade|hedge)/;
+const TALL_FLORA_RE  = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:tree|cactus)/;
+function isShortFlora(p){
+  return !!(p && p.src && SHORT_FLORA_RE.test(p.src) && !TALL_FLORA_RE.test(p.src));
+}
+// tile -> count of props blocking it that an arrow can NOT clear.  Maintained
+// by the same two functions that own _propBlocked, so it cannot drift out of
+// step with collision the way a separately-baked table would.
+const _tallBlockers = new Map();
+function _bumpTall(key, d){
+  const n = (_tallBlockers.get(key) || 0) + d;
+  if (n > 0) _tallBlockers.set(key, n); else _tallBlockers.delete(key);
+}
 function registerPropCollision(p){
   if (!p || !p.footprint) return 0;
   let n = 0;
-  for (const [dx, dy] of p.footprint){ _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`); n++; }
+  const _short = isShortFlora(p);
+  for (const [dx, dy] of p.footprint){
+    const key = `${p.tileX+dx},${p.tileY+dy}`;
+    _propBlocked.add(key); n++;
+    if (!_short) _bumpTall(key, +1);
+  }
   if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
   if (p.doors && p.doors.length)
     for (const [dx, dy] of p.doors) _propDoors.set(`${p.tileX+dx},${p.tileY+dy}`, p);
@@ -11785,21 +11826,28 @@ function registerPropCollision(p){
 function unregisterPropCollision(p){
   if (!p || !p.footprint) return 0;
   let n = 0;
-  for (const [dx, dy] of p.footprint){ _propBlocked.delete(`${p.tileX+dx},${p.tileY+dy}`); n++; }
+  const _short = isShortFlora(p);
+  for (const [dx, dy] of p.footprint){
+    const key = `${p.tileX+dx},${p.tileY+dy}`;
+    _propBlocked.delete(key); n++;
+    if (!_short) _bumpTall(key, -1);
+  }
   if (p.door) _propDoors.delete(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`);
   if (p.doors && p.doors.length)
     for (const [dx, dy] of p.doors) _propDoors.delete(`${p.tileX+dx},${p.tileY+dy}`);
   return n;
 }
-WORLD_PROPS.forEach(p => {
-  p.footprint.forEach(([dx,dy]) => _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`));
-  if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
-  // v0.95.156 · multi-tile interact · props with `doors` array register EACH tile
-  if (p.doors && p.doors.length){
-    p.doors.forEach(([dx, dy]) => _propDoors.set(`${p.tileX + dx},${p.tileY + dy}`, p));
-  }
-  if (p.wildZone) _wildZones.add(`${p.tileX},${p.tileY}`);
-});
+// ★★ v0.95.798 · THE BOOT BAKE NOW GOES THROUGH THE CHOKEPOINT.
+//
+// This loop was a hand-inlined copy of registerPropCollision, and the two had
+// already drifted: the canopy-height index the Pearlbow needs was maintained by
+// the function, so 27,000 props baked here carried NO height and every tree in
+// the world read as knee-high grass.  The suite caught it — 3 of 400 sampled
+// trees stopped an arrow.
+//
+// The lesson is the one this file keeps re-learning: a second copy of a rule is
+// a copy that will be forgotten the next time the rule changes.  One call.
+WORLD_PROPS.forEach(p => { if (p && p.footprint) registerPropCollision(p); });
 // NPC tiles are DYNAMIC (they wander) · checked in walkable() + tryInteract()
 // live from NPCS[].tileX/Y · not baked into the static _propBlocked/_propDoors.
 
@@ -11936,8 +11984,7 @@ function clearUfoWorldCollision(prop){
 }
 function restoreUfoWorldCollision(prop){
   if(!prop)return;
-  for(const [dx,dy] of prop.footprint||[])_propBlocked.add(`${prop.tileX+dx},${prop.tileY+dy}`);
-  if(prop.door)_propDoors.set(`${prop.tileX+prop.door[0]},${prop.tileY+prop.door[1]}`,prop);
+  registerPropCollision(prop);   // ★ v0.95.798 · third inlined copy · same chokepoint now
 }
 
 // v0.95.326 · Deferred Mori/Daemon perimeter passes · run AFTER _propBlocked
@@ -16453,8 +16500,21 @@ function enemyOccupiesTile(n, x, y){
 function arrowPassable(x, y){
   if (typeof walkable !== 'function') return true;
   if (walkable(x, y)) return true;
-  return NPCS.some(n => n && n.scene === game.scene && n.isEnemy && !n._dying
-                     && enemyOccupiesTile(n, x, y));
+  // a body in the way does not stop the arrow · the contact test ends the flight
+  if (NPCS.some(n => n && n.scene === game.scene && n.isEnemy && !n._dying
+                  && enemyOccupiesTile(n, x, y))) return true;
+  // ★ v0.95.798 · a tile blocked ONLY by knee-high flora is overflown.  Lift the
+  // bush out of _propBlocked and ask the real walkable(), rather than trying to
+  // re-derive terrain, interiors and doors here — a second copy of that logic
+  // would go stale the first time either one changed.
+  const key = `${x},${y}`;
+  if (_propBlocked.has(key) && !_tallBlockers.get(key)){
+    _propBlocked.delete(key);
+    const clear = walkable(x, y);
+    _propBlocked.add(key);
+    return clear;
+  }
+  return false;
 }
 const PEARLBOW_DMG_MULT  = 3.5;    // ★ > ASTRAL_STRIKE.DMG_MULT (3) per the Creator
 const PEARLBOW_FLY_MS    = 60;     // per tile
@@ -16503,7 +16563,8 @@ function fireArrow(fromX, fromY, dir){
               t0: performance.now(), flyMs: Math.max(1, tiles) * PEARLBOW_FLY_MS,
               blown: false };
   ARROWS.push(a);
-  try { playSFX('swordSlice'); } catch(_){}
+  // ★ v0.95.798 · the release, not a borrowed sword hit
+  try { playSFX('arrowFire'); } catch(_){}
   return a;
 }
 

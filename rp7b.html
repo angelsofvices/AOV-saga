@@ -4792,10 +4792,9 @@ const WORLD_PROPS = [
         // v0.95.221 · Loot drops only ONCE per chest · re-close then re-open yields nothing
         if (!chest.looted){
           chest.looted = true;
-          const coins = 1 + Math.floor(Math.random() * 100);
-          addItems({ coins });
-          playSFX('coins');
-          popCoinLabel(coins);
+          // ★ v0.95.773 · one pile, walked over · same tier table as the
+          // scattered wooden chests so the two paths cannot drift apart.
+          spillChestCoins(chest, 'wood', 1);
           spawnChestGems('overworld', chest.tileX, chest.tileY);
           try { awardRizerXP(25); } catch(_){}   // v0.95.538 · every wooden chest open = +25 RXP
           // v0.95.505 · Every coin chest also drops ONE HP consumable · uniform
@@ -4809,7 +4808,7 @@ const WORLD_PROPS = [
           const nice = pick === 'verdant_elixir' ? 'Mythic Elixir'    // v0.95.530 · renamed from Verdant Elixir
                      : pick === 'potion'         ? 'Potion'
                      :                              'Ale';
-          showToast(`◈ Chest · +${coins} coins · +1 ${nice}`, 2600);
+          showToast(`◈ Chest · coins spill out · +1 ${nice}`, 2600);
           try { markChestLooted(chest.id); } catch(_){}   // v0.95.760 · stays looted
         }
       };
@@ -4853,11 +4852,10 @@ const WORLD_PROPS = [
         chest.bbox = OPEN_BBOX;
         if (!chest.looted){
           chest.looted = true;
-          // Rich coin drop · 100-500
-          const coins = 100 + Math.floor(Math.random() * 401);
-          addItems({ coins });
-          playSFX('coins');
-          popCoinLabel(coins);
+          // ★ v0.95.773 · COSMIC TIER · four piles, the richest ladder rung.
+          // The mythic chest is the cosmic tier: rarest in the game and already
+          // the only one dropping Ultrashards.
+          const piles = spillChestCoins(chest, 'cosmic', 1);
           spawnChestGems('overworld', chest.tileX, chest.tileY);
           // Mythic bonus RXP · 4× wooden (25 → 100)
           try { awardRizerXP(100); } catch(_){}
@@ -4867,7 +4865,7 @@ const WORLD_PROPS = [
           const shardName = shardMeta ? shardMeta.label : shardKey;
           addItems({ [shardKey]: 1 });
           try { playSFX('confirm'); } catch(_){}
-          showToast(`★ MYTHIC CHEST · +${coins} coins · ${shardName}`, 4200);
+          showToast(`★ COSMIC CHEST · ${piles} coin piles scatter · ${shardName}`, 4200);
         }
       };
       return chest;
@@ -6076,7 +6074,8 @@ const WORLD_PROPS = [
           // ★ v0.95.772 · every tower chest also spills scrap. Nine of the ten
           // towers gave none at all before this, so Scrapjaw's whole trade
           // ladder was fed by one Malezor pickup plus Scanobot drops.
-          try { spillScrap(chest.tileX, chest.tileY, SCRAP_PER_CHEST, spot.dist); } catch(_){}   // persists · no re-loot on reload
+          try { spillScrap(chest.tileX, chest.tileY, SCRAP_PER_CHEST, spot.dist); } catch(_){}
+          try { spillChestCoins(chest, 'silver', 1); } catch(_){}   // ★ v0.95.773   // persists · no re-loot on reload
           player.items = player.items || {};
           player.items.tower_battery = (player.items.tower_battery || 0) + 1;
           try { playItemGain('tower_battery'); } catch(_){}
@@ -6128,8 +6127,9 @@ const WORLD_PROPS = [
         // ★ v0.95.772 · spills onto the ground instead of handing over one ·
         // walk over the piles to collect them
         const n = spillScrap(chest.tileX, chest.tileY, SCRAP_PER_CHEST, 'malezor');
+        const c = spillChestCoins(chest, 'silver', 1);      // ★ v0.95.773
         try { pingNextObjective(); } catch(_){}
-        showToast(`★ The chest bursts open · ${n} piles of SCRAP METAL scatter · walk over them`, 3600);
+        showToast(`★ The chest bursts open · ${n} scrap + ${c} coin piles scatter · walk over them`, 3600);
       }
     };
     return chest;
@@ -13797,78 +13797,142 @@ function drawFae(){
 //
 // Drops are real WORLD_PROPS with NO footprint, so they render and depth-sort
 // for free and the player can walk onto their tile — which is the whole point.
-const SCRAP_IMG = new Image();
-SCRAP_IMG.src = 'assets/2D%20sprites/decor/scrap-metal.png';
-const SCRAP_BBOX = [0, 0, 850, 613];        // keyed off magenta by corner flood-fill
-const SCRAP_TILEW = 1.15;                   // a pile sits inside one tile
+// ★★ v0.95.773 · GROUND PICKUPS · one mechanism, two payloads.
+// v0.95.772 built this for scrap. Coins want exactly the same behaviour, so
+// rather than a second near-identical spill/collect pair the kind is data.
+const PICKUP_KINDS = {
+  scrap: {
+    src: 'assets/2D%20sprites/decor/scrap-metal.png',
+    bbox: [0, 0, 850, 613], tileW: 1.15, item: 'scrap_metal', label: 'Scrap Metal',
+  },
+  coins: {
+    src: 'assets/2D%20sprites/decor/coins-pile.png',
+    bbox: [0, 0, 889, 573], tileW: 1.05, item: 'coins', label: 'Coins',
+  },
+};
+for (const k of Object.values(PICKUP_KINDS)){ k.img = new Image(); k.img.src = k.src; }
+// ★ CHEST TIERS. Creator: one pile for wooden, two silver, three gold, four
+// cosmic, with the coin value scaling by rarity. The MYTHIC chest is the cosmic
+// tier — it is the rarest in the game and already the one that drops
+// Ultrashards. Each tier's midpoint is roughly 2.5x the one below it, and this
+// table is the only place to tune that.
+const CHEST_COIN_TIERS = {
+  wood:   { piles: 1, coins: [  1,  100] },   // x1 - x3 further from town · see makeWoodChest
+  silver: { piles: 2, coins: [ 80,  240] },
+  gold:   { piles: 3, coins: [200,  600] },
+  cosmic: { piles: 4, coins: [400, 1200] },
+};
 const SCRAP_PER_CHEST = 5;
-const SCRAP_SPILL_R = 3;                    // tiles · how far the pile scatters
-function _scrapWalkable(x, y){
+const SCRAP_SPILL_R = 3;
+function _pickupWalkable(x, y){
   if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
   if (_propBlocked.has(x + ',' + y)) return false;
   if (typeof boulderAt === 'function' && boulderAt('overworld', x, y)) return false;
   return true;
 }
-// Spawns n piles around (cx,cy). Returns how many actually landed.
-function spillScrap(cx, cy, n, tag){
+// Spawns n piles of `kind` around (cx,cy). amounts[] gives each pile its value.
+function spillPickups(kind, cx, cy, amounts, tag){
+  const K = PICKUP_KINDS[kind]; if (!K) return 0;
   let made = 0;
   const taken = new Set();
-  for (let k = 0; k < n * 40 && made < n; k++){
+  const n = amounts.length;
+  for (let k = 0; k < n * 60 && made < n; k++){
     const a = Math.random() * Math.PI * 2;
     const d = 1 + Math.sqrt(Math.random()) * SCRAP_SPILL_R;
     const x = Math.round(cx + Math.cos(a) * d), y = Math.round(cy + Math.sin(a) * d);
     const key = x + ',' + y;
-    if (taken.has(key) || !_scrapWalkable(x, y)) continue;
-    if (WORLD_PROPS.some(p => p && p._scrapDrop && p.tileX === x && p.tileY === y)) continue;
+    if (taken.has(key) || !_pickupWalkable(x, y)) continue;
+    if (WORLD_PROPS.some(p => p && p._pickup && p.tileX === x && p.tileY === y)) continue;
     taken.add(key);
     WORLD_PROPS.push({
-      id: `scrap_${tag}_${made}`, img: SCRAP_IMG, src: 'assets/2D%20sprites/decor/scrap-metal.png',
-      bbox: SCRAP_BBOX, tileX: x, tileY: y,
-      tileW: SCRAP_TILEW, tileH: SCRAP_TILEW * SCRAP_BBOX[3] / SCRAP_BBOX[2],
+      id: `pk_${kind}_${tag}_${made}`, img: K.img, src: K.src, bbox: K.bbox,
+      tileX: x, tileY: y,
+      tileW: K.tileW, tileH: K.tileW * K.bbox[3] / K.bbox[2],
       footprint: [],                       // ★ walkable · you collect it by stepping on it
-      _scrapDrop: tag,
+      _pickup: { kind, tag, amount: amounts[made] },
     });
     made++;
   }
-  _rememberScrapDrops();
+  _rememberPickups();
   return made;
 }
-// Walk-over collection. Called from the movement step, not from the X handler.
-function collectScrapAt(tx, ty){
-  let got = 0;
+function spillScrap(cx, cy, n, tag){
+  return spillPickups('scrap', cx, cy, new Array(n).fill(1), tag);
+}
+// Rolls a tier's coin value and splits it across that tier's pile count, so
+// four cosmic piles are four real rewards rather than one reward drawn twice.
+function spillChestCoins(chest, tier, mult){
+  const T = CHEST_COIN_TIERS[tier]; if (!T || !chest) return 0;
+  const [lo, hi] = T.coins;
+  const total = Math.round((lo + Math.random() * (hi - lo)) * (mult || 1));
+  // ★ v0.95.773 · INTERIORS PAY DIRECTLY. Ground pickups are overworld
+  // WORLD_PROPS — they neither render nor collide inside a room. The GOLD tier
+  // currently exists only as the treehouse chest, so rather than leave that
+  // rung of the ladder dead, an indoor chest hands its tier's coins straight
+  // over. Same value, no walk. Move the chest outdoors and it spills.
+  if (game.scene !== 'overworld'){
+    addItems({ coins: total });
+    try { popCoinLabel(total); playSFX('coins'); } catch(_){}
+    return 0;
+  }
+  const amounts = [];
+  let left = total;
+  for (let i = 0; i < T.piles; i++){
+    const share = (i === T.piles - 1) ? left
+                : Math.max(1, Math.round(total / T.piles * (0.7 + Math.random() * 0.6)));
+    amounts.push(Math.min(share, left));
+    left -= amounts[i];
+  }
+  // any rounding remainder rides on the last pile rather than vanishing
+  if (left > 0) amounts[amounts.length - 1] += left;
+  return spillPickups('coins', chest.tileX, chest.tileY, amounts, chest.id || tier);
+}
+// Walk-over collection · every pickup on this tile, whatever kind.
+function collectPickupsAt(tx, ty){
+  const got = {};
   for (let i = WORLD_PROPS.length - 1; i >= 0; i--){
     const p = WORLD_PROPS[i];
-    if (!p || !p._scrapDrop || p.tileX !== tx || p.tileY !== ty) continue;
+    if (!p || !p._pickup || p.tileX !== tx || p.tileY !== ty) continue;
+    const { kind, amount } = p._pickup;
+    got[kind] = (got[kind] || 0) + (amount || 1);
     WORLD_PROPS.splice(i, 1);
-    got++;
   }
-  if (!got) return false;
+  const kinds = Object.keys(got);
+  if (!kinds.length) return false;
   player.items = player.items || {};
-  player.items.scrap_metal = (player.items.scrap_metal || 0) + got;
-  try { playItemGain('scrap_metal'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
-  showToast(`◈ Scrap Metal +${got}  ·  ${player.items.scrap_metal} held`, 1800);
-  _rememberScrapDrops();
+  const bits = [];
+  for (const kind of kinds){
+    const K = PICKUP_KINDS[kind];
+    player.items[K.item] = (player.items[K.item] || 0) + got[kind];
+    bits.push(`${K.label} +${got[kind]}`);
+    if (kind === 'coins'){ try { popCoinLabel(got[kind]); } catch(_){} }
+  }
+  try { playItemGain(PICKUP_KINDS[kinds[0]].item); }
+  catch(_){ try { playSFX(kinds[0] === 'coins' ? 'coins' : 'confirm'); } catch(_){} }
+  showToast('◈ ' + bits.join('  ·  '), 1800);
+  _rememberPickups();
   return true;
 }
+function collectScrapAt(tx, ty){ return collectPickupsAt(tx, ty); }
 // ★ Persistence. A pile left on the ground has to still be there next session,
 // or a player who opens a chest and logs out loses the whole spill.
-function _rememberScrapDrops(){
-  player.scrapDrops = WORLD_PROPS
-    .filter(p => p && p._scrapDrop)
-    .map(p => [p.tileX, p.tileY, p._scrapDrop]);
+function _rememberPickups(){
+  player.groundPickups = WORLD_PROPS
+    .filter(p => p && p._pickup)
+    .map(p => [p.tileX, p.tileY, p._pickup.kind, p._pickup.amount, p._pickup.tag]);
 }
 function restoreScrapDrops(){
-  const saved = player.scrapDrops;
+  const saved = player.groundPickups;
   if (!Array.isArray(saved)) return 0;
   for (let i = WORLD_PROPS.length - 1; i >= 0; i--)
-    if (WORLD_PROPS[i] && WORLD_PROPS[i]._scrapDrop) WORLD_PROPS.splice(i, 1);
+    if (WORLD_PROPS[i] && WORLD_PROPS[i]._pickup) WORLD_PROPS.splice(i, 1);
   let n = 0;
-  for (const [x, y, tag] of saved){
+  for (const [x, y, kind, amount, tag] of saved){
+    const K = PICKUP_KINDS[kind]; if (!K) continue;
     WORLD_PROPS.push({
-      id: `scrap_${tag}_r${n}`, img: SCRAP_IMG, src: 'assets/2D%20sprites/decor/scrap-metal.png',
-      bbox: SCRAP_BBOX, tileX: x, tileY: y,
-      tileW: SCRAP_TILEW, tileH: SCRAP_TILEW * SCRAP_BBOX[3] / SCRAP_BBOX[2],
-      footprint: [], _scrapDrop: tag,
+      id: `pk_${kind}_${tag}_r${n}`, img: K.img, src: K.src, bbox: K.bbox,
+      tileX: x, tileY: y, tileW: K.tileW, tileH: K.tileW * K.bbox[3] / K.bbox[2],
+      footprint: [], _pickup: { kind, tag, amount },
     });
     n++;
   }
@@ -20221,11 +20285,13 @@ function tryOpenTreehouseGoldChest(){
   player.treehouseGoldChestOpened = true;
   player.items = player.items || {};
   player.items.rubypaw_sword = (player.items.rubypaw_sword || 0) + 1;
-  // Same loot ceremony as silver chest (coins + gems)
-  const coins = 25 + Math.floor(Math.random() * 76);
-  addItems({ coins });
-  try { popCoinLabel(coins); } catch(_){}
-  try { playSFX('coins'); } catch(_){}
+  // ★ v0.95.773 · GOLD TIER · pays from CHEST_COIN_TIERS like every other
+  // chest. Indoors it hands the coins over rather than spilling them, because
+  // ground pickups do not exist inside a room (see spillChestCoins).
+  const _before = (player.items.coins || 0);
+  spillChestCoins({ tileX: TREEHOUSE_GOLD_CHEST.tileX, tileY: TREEHOUSE_GOLD_CHEST.tileY,
+                    id: 'treehouse_gold' }, 'gold', 1);
+  const coins = (player.items.coins || 0) - _before;
   try { spawnChestGems('interior_treehouse', TREEHOUSE_GOLD_CHEST.tileX, TREEHOUSE_GOLD_CHEST.tileY); } catch(_){}
   // Fresh durability tracked per-weapon so S1 sword + S2 sword don't share HP
   player.rubypawDurability = 200;
@@ -22057,7 +22123,7 @@ function tryMove(dt){
   // ★ v0.95.772 · scrap is collected by WALKING, not by facing and pressing X.
   // Sits here rather than in the interact handler so sweeping up a five-pile
   // spill is one walk instead of five button presses.
-  try { collectScrapAt(nx, ny); } catch(_){}
+  try { collectPickupsAt(nx, ny); } catch(_){}
   // v0.95.324 · District-border WARP · when Rizer crosses into a new district
   // for the first time, banner-toast the district name and cache a warp entry
   // so future fast-travel can hop the player back here.  Warps also mark the
@@ -29347,7 +29413,7 @@ function saveGame(){
         attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
         faeCollected: player.faeCollected || 0,
         lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
-        scrapDrops: player.scrapDrops || [],       // v0.95.772 · piles left on the ground
+        groundPickups: player.groundPickups || [],  // v0.95.773 · scrap + coin piles on the ground
 
         items: player.items || {},
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
@@ -35621,9 +35687,10 @@ function makeWoodChest(id, tx, ty, closedImg, openImg, remote){
       // pushing past the last house is worth doing.
       const far  = Math.max(0, ((remote || 40) - 40) / 120);          // 0 at the
       const mult = 1 + Math.min(2, far * 2);                          // town edge
-      const coins = Math.round((1 + Math.floor(Math.random() * 100)) * mult);
-      addItems({ coins });
-      try { playSFX('coins'); popCoinLabel(coins); } catch(_){}
+      // ★ v0.95.773 · coins SPILL now · walk over the pile to take them. The
+      // remoteness multiplier rides on the roll, so a frontier chest still pays
+      // up to 3x — it just pays it on the ground.
+      const coins = spillChestCoins(chest, 'wood', mult) ? 0 : 0;
       try { spawnChestGems('overworld', chest.tileX, chest.tileY); } catch(_){}
       try { awardRizerXP(25); } catch(_){}
       // and the consumable tilts upward with distance too
@@ -35633,7 +35700,7 @@ function makeWoodChest(id, tx, ty, closedImg, openImg, remote){
       const nice = pick === 'verdant_elixir' ? 'Mythic Elixir'
                  : pick === 'potion'         ? 'Potion' : 'Ale';
       const tag = far > 0.6 ? ' · far from town' : '';
-      showToast(`◈ Chest · +${coins} coins · +1 ${nice}${tag}`, 2600);
+      showToast(`◈ Chest · coins spill out${tag} · +1 ${nice}`, 2600);
       try { markChestLooted(chest.id); } catch(_){}
     }
   };

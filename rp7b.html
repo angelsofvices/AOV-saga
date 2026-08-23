@@ -2658,6 +2658,9 @@ function sortedInventoryEntries(){
 
 // ★ Shared prop-position tables · module-scope so the portal IIFE can
 // pick a spawn tile that's LOW-DENSITY and AWAY from chests (per user).
+// ★ v0.95.760 · the wooden chest's two crops live here so the eight
+// hand-placed chests and the scattered ones share one source of truth.
+const WOOD_CHEST_BBOX = { closed: [362, 329, 676, 467], open: [290, 240, 673, 741] };
 const CHEST_TILE_POSITIONS = [
   [13, 43], [32, 50], [ 5, 60], [28, 55],
   [ 5, 82], [44, 83], [25, 88], [44,120],
@@ -4760,8 +4763,8 @@ const WORLD_PROPS = [
     const CHEST_POSITIONS = CHEST_TILE_POSITIONS;
     const _closedImg = new Image(); _closedImg.src = 'assets/2D%20sprites/decor/chest.png';
     const _openImg   = new Image(); _openImg.src   = 'assets/2D%20sprites/decor/chest-open.png';
-    const CLOSED_BBOX = [362, 329, 676, 467];
-    const OPEN_BBOX   = [290, 240, 673, 741];
+    const CLOSED_BBOX = WOOD_CHEST_BBOX.closed;
+    const OPEN_BBOX   = WOOD_CHEST_BBOX.open;
     return CHEST_POSITIONS.filter(([tx,ty])=>!isWorldBorderTile(tx,ty)).map(([tx, ty], i) => {
       const chest = {
         id: `chest_${i}`,
@@ -4774,6 +4777,7 @@ const WORLD_PROPS = [
         door: [0, 0],
         opened: false,
         looted: false,       // v0.95.221 · loot-drop guard · separate from visual open/close
+        _woodChest: true,    // v0.95.760 · joins the looted-chest save list
         // v0.95.221 · Sprite refs stashed for the close-back path (PvP loot traps)
         _closedImg,
         _openImg,
@@ -4806,6 +4810,7 @@ const WORLD_PROPS = [
                      : pick === 'potion'         ? 'Potion'
                      :                              'Ale';
           showToast(`◈ Chest · +${coins} coins · +1 ${nice}`, 2600);
+          try { markChestLooted(chest.id); } catch(_){}   // v0.95.760 · stays looted
         }
       };
       return chest;
@@ -12107,6 +12112,9 @@ setTimeout(() => { try {
   // roads are drawn between their new homes rather than their old ones.
   try { snapBuildingsToLattice(); } catch(err){ console.warn('[rp7b] lattice snap failed', err); }
   try { buildAllTrails(); } catch(err){ console.warn('[rp7b] trail carve failed', err); }
+  // ★ v0.95.760 · after the carve, so "at least 6 tiles off the road" is real
+  try { scatterWoodChests(); } catch(err){ console.warn('[rp7b] chest scatter failed', err); }
+  try { restoreLootedChests(); } catch(err){ console.warn('[rp7b] chest restore failed', err); }
   // v0.95.738 · Malezor wild habitat · playtest region, N/E/S/W
   try {
     const mw = seedMalezorWild();
@@ -16967,7 +16975,10 @@ const DISTRICT_YIELD = {
 function plantKind(prop){
   if (!prop || !prop.src) return null;
   const s = prop.src.toLowerCase();
-  if (s.includes('tree'))  return 'tree';
+  // ★ v0.95.760 · a cactus yields FRUIT + seeds, like a tree. Zarvane's
+  // treeline is 568 cacti and none of them were harvestable, because plantKind
+  // only ever looked for the literal words "tree" and "bush".
+  if (s.includes('tree') || s.includes('cactus')) return 'tree';
   if (s.includes('bush'))  return 'bush';
   return null;
 }
@@ -16983,8 +16994,15 @@ function plantPropAt(x, y){
       // Trees: visual centred on tileX with tileW wide · feet at tileY
       if (y === p.tileY && x >= p.tileX - Math.floor(tw/2) && x <= p.tileX + Math.floor(tw/2)) return p;
     } else {
-      // Bushes: visual spans tileX..tileX+tw-1 · tileY..tileY+th-1
-      if (y >= p.tileY - (th - 1) && y <= p.tileY && x >= p.tileX && x <= p.tileX + tw - 1) return p;
+      // ★ v0.95.760 · Bushes are CENTRED, not left-anchored. drawProp uses
+      //   dx = (tileX + 0.5)*TILE - drawW/2
+      // so a 2-tile bush spans tileX-0.5 .. tileX+1.5. The old test looked at
+      // tileX..tileX+tw-1, which is offset half a bush to the right — the
+      // player could stand on a bush and fail to harvest it, then harvest an
+      // empty tile beside it.
+      const half = Math.floor(tw / 2);
+      if (y >= p.tileY - Math.ceil(th - 1) && y <= p.tileY
+          && x >= p.tileX - half && x <= p.tileX + half) return p;
     }
   }
   return null;
@@ -29022,6 +29040,31 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   'ridingChair','chairX','chairY','chairDir','chairHome','playingGuitar',
   'ufoDashing','ufoFlying','auraxionPhase','companion',
 ]);
+// ★★ v0.95.760 · LOOTED CHESTS NOW PERSIST.
+// Chest open/loot state was never saved: reload and every chest in the world
+// was shut and full again. At the eight chests the game shipped with that was
+// a curiosity. At eighty it is an infinite coin faucet, so scaling them up
+// forces the fix.
+// Stored as a flat id list — small, and it survives chests being added or
+// moved later, since an id that no longer exists is simply ignored on load.
+function markChestLooted(id){
+  if (!id) return;
+  player.lootedChests = player.lootedChests || [];
+  if (!player.lootedChests.includes(id)) player.lootedChests.push(id);
+}
+function restoreLootedChests(){
+  const ids = new Set(player.lootedChests || []);
+  if (!ids.size) return 0;
+  let n = 0;
+  for (const p of WORLD_PROPS){
+    if (!p || !p._woodChest || !ids.has(p.id)) continue;
+    p.opened = true; p.looted = true;
+    if (p._openImg)  p.img  = p._openImg;
+    if (p._openBbox) p.bbox = p._openBbox;
+    n++;
+  }
+  return n;
+}
 function saveGame(){
   try {
     const snap = {
@@ -29038,6 +29081,8 @@ function saveGame(){
         zyrexMenuUnlocked: !!player.zyrexMenuUnlocked,
         attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
         faeCollected: player.faeCollected || 0,
+        lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
+
         items: player.items || {},
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
         knownRecipes: player.knownRecipes || [],   // v0.95 · discovered experiment recipes
@@ -29168,6 +29213,9 @@ function loadGame(){
     if (!s || !s.player) return false;
     game.scene = s.scene || 'overworld';
     Object.assign(player, s.player);
+    // ★ v0.95.760 · a loaded save carries lootedChests; the world was rebuilt
+    // from scratch, so re-open the chests that list names.
+    try { restoreLootedChests(); } catch(_){}
     if (!Array.isArray(player.pcZyrex)) player.pcZyrex = [];   // v0.95.536 · back-compat default
     try { migrateSavedZyrex(); } catch(err){ console.warn('[rp7b] zyrex migration failed', err); }
     // v0.95.607 · restore notifications feed so ZyPhone right-rail messages persist
@@ -34805,6 +34853,102 @@ function _treeCell(src){
 // Every district now has real treeline art, so nothing falls back to a hedge.
 // Kept as the escape hatch for the next district added without a tree.
 const TRAIL_HEDGE_BY_DIST = {};
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.760 · WOODEN CHESTS ACROSS THE WHOLE WORLD
+//
+// The game shipped with EIGHT wooden chests, all of them inside a 40x80 tile
+// box in Malezor. Nine districts had none at all.
+//
+// These are scattered by seeded RNG so a chest is at the same tile every
+// session — ids must be stable or a save that remembers "chest_57 is looted"
+// would point at a different chest next boot.
+//
+// Placement rewards leaving the road: candidates must be walkable, clear of
+// every structure, and at least CHEST_MIN_FROM_ROAD tiles off the carved
+// roadbed, so you find them by exploring the blocks rather than by walking the
+// path you were already on.
+const WOOD_CHEST_PER_DISTRICT = 8;
+const CHEST_MIN_FROM_ROAD = 6;
+const CHEST_MIN_APART     = 24;
+function scatterWoodChests(){
+  if (game._woodChestsScattered) return 0;
+  game._woodChestsScattered = true;
+  const rng = _makeWorldRng(0xC4E57);
+  const closed = new Image(); closed.src = 'assets/2D%20sprites/decor/chest.png';
+  const open   = new Image(); open.src   = 'assets/2D%20sprites/decor/chest-open.png';
+  let made = 0;
+  for (const w of DISTRICT_WHEEL){
+    const dist = w.dist;
+    const road = (game._trailRoad || {})[dist] || new Set();
+    const nearRoad = (x, y) => {
+      for (let dy = -CHEST_MIN_FROM_ROAD; dy <= CHEST_MIN_FROM_ROAD; dy++)
+        for (let dx = -CHEST_MIN_FROM_ROAD; dx <= CHEST_MIN_FROM_ROAD; dx++)
+          if (road.has((x+dx)+','+(y+dy))) return true;
+      return false;
+    };
+    const P = _districtPOIs(dist);
+    const placed = [];
+    let tries = 0;
+    while (placed.length < WOOD_CHEST_PER_DISTRICT && tries < 4000){
+      tries++;
+      const x = Math.round(P.hub[0] + (rng() * 2 - 1) * 150);
+      const y = Math.round(P.hub[1] + (rng() * 2 - 1) * 150);
+      if (worldDistrictAt(x, y) !== dist) continue;
+      if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+      if (_propBlocked.has(x+','+y)) continue;
+      if (nearRoad(x, y)) continue;
+      if (placed.some(q => Math.abs(q[0]-x) + Math.abs(q[1]-y) < CHEST_MIN_APART)) continue;
+      // needs a walkable neighbour or the player cannot stand next to it
+      const reachable = [[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy]) =>
+        isWorldLandTile(x+dx, y+dy) && !isWorldBorderTile(x+dx, y+dy)
+        && !_propBlocked.has((x+dx)+','+(y+dy)));
+      if (!reachable) continue;
+      placed.push([x, y]);
+    }
+    for (const [x, y] of placed){
+      const chest = makeWoodChest(`chest_${dist}_${made}`, x, y, closed, open);
+      WORLD_PROPS.push(chest);
+      registerPropCollision(chest);        // ★ created after the bake
+      made++;
+    }
+  }
+  console.log(`[rp7b] wooden chests · ${made} scattered across 10 districts (was 8, all in Malezor)`);
+  return made;
+}
+// Same loot rig as the eight hand-placed chests, factored out so both paths
+// stay in step: coins, gems, +25 RXP and one HP consumable, once only.
+function makeWoodChest(id, tx, ty, closedImg, openImg){
+  const CLOSED_BBOX = WOOD_CHEST_BBOX.closed, OPEN_BBOX = WOOD_CHEST_BBOX.open;
+  const chest = {
+    id, img: closedImg, src: 'assets/2D%20sprites/decor/chest.png',
+    bbox: CLOSED_BBOX, tileX: tx, tileY: ty, tileW: 1, tileH: 1,
+    footprint: [[0,0]], door: [0,0], opened: false, looted: false,
+    _woodChest: true,
+    _closedImg: closedImg, _openImg: openImg,
+    _closedBbox: CLOSED_BBOX, _openBbox: OPEN_BBOX,
+  };
+  chest.onInteract = () => {
+    if (chest.opened) return;
+    chest.opened = true;
+    chest.img = openImg; chest.bbox = OPEN_BBOX;
+    if (!chest.looted){
+      chest.looted = true;
+      const coins = 1 + Math.floor(Math.random() * 100);
+      addItems({ coins });
+      try { playSFX('coins'); popCoinLabel(coins); } catch(_){}
+      try { spawnChestGems('overworld', chest.tileX, chest.tileY); } catch(_){}
+      try { awardRizerXP(25); } catch(_){}
+      const roll = Math.random();
+      const pick = roll < 1/3 ? 'ale' : roll < 2/3 ? 'potion' : 'verdant_elixir';
+      addItems({ [pick]: 1 });
+      const nice = pick === 'verdant_elixir' ? 'Mythic Elixir'
+                 : pick === 'potion'         ? 'Potion' : 'Ale';
+      showToast(`◈ Chest · +${coins} coins · +1 ${nice}`, 2600);
+      try { markChestLooted(chest.id); } catch(_){}
+    }
+  };
+  return chest;
+}
 // ★★ v0.95.753 · SNAP THE THIRTY ONTO THE LATTICE.
 // The apex rule survives the move: of the sites available, the one nearest the
 // Gemlord cave still takes the district's landmark building, so finding any one

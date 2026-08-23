@@ -105,7 +105,9 @@ const n4=bots[4];P.items=P.items||{};P.items.scrap_metal=0;
 C.GEM_ENTITIES.length=0;C.BOOM_BLASTS.length=0;
 P.x=n4.tileX+9;P.y=n4.tileY+9;
 C.scanobotDrop(n4);
-ok((P.items.scrap_metal||0)===1,'scrap banked at kill time');
+// ★ v0.95.814 · the scrap SPILLS as a ground pile now, alongside the chip —
+// the bag stays empty until the player walks the wreckage.  Inverted with reason.
+ok((P.items.scrap_metal||0)===0,'scrap lands as a GROUND PILE, not a bag credit');
 ok(C.GEM_ENTITIES.filter(g=>!g.collected).length===1,'gem on the ground at kill time');
 ok(C.BOOM_BLASTS.length===0,'and the blast has not fired yet');
 flush();

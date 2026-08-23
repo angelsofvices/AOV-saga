@@ -897,6 +897,18 @@
     <img id="posterImg" alt="poster" style="max-width:82vw; max-height:88vh; object-fit:contain; image-rendering:pixelated; box-shadow:0 0 32px rgba(212,175,55,0.35);" />
     <div style="position:absolute; bottom:4%; left:50%; transform:translateX(-50%); color:#f0eadf; font:bold 12px 'Courier New',monospace; letter-spacing:0.14em; background:rgba(0,0,0,0.65); padding:6px 14px; border:1px solid #d4af37;">○ / B / ESC · CLOSE</div>
   </div>
+  <!-- ★★ v0.95.816 · SCROLL VIEW · Dad's notes read on their own parchment.
+       Creator: "use this overlay full screen on a dimmed overworld. place the
+       notebook text on the opened scrolls. each of the 18 match the 18
+       overworld ground scrolls."  Same shape as the poster zoom. -->
+  <div id="scrollView" style="position:fixed; inset:0; display:none; z-index:32; background:rgba(0,0,0,0.78); pointer-events:auto; align-items:center; justify-content:center;">
+    <div id="scrollViewStage" style="position:relative; height:min(88vh, 160vw); aspect-ratio:209/418;">
+      <img id="scrollViewImg" alt="scroll" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; image-rendering:pixelated; filter:drop-shadow(0 8px 30px rgba(0,0,0,0.7));" />
+      <div id="scrollViewTitle" style="position:absolute; text-align:center; color:#3a2a12; font:bold 13px 'Courier New',monospace; letter-spacing:0.08em;"></div>
+      <div id="scrollViewText" style="position:absolute; overflow:hidden; color:#2e2410; font:13px Georgia,serif; line-height:1.45; text-align:justify; text-align-last:center; hyphens:auto;"></div>
+    </div>
+    <div style="position:absolute; bottom:3%; left:50%; transform:translateX(-50%); color:#f0eadf; font:bold 12px 'Courier New',monospace; letter-spacing:0.14em; background:rgba(0,0,0,0.65); padding:6px 14px; border:1px solid #d4af37;">○ / B / ESC · CLOSE</div>
+  </div>
   <!-- v0.95.10 · Punching Bag · consume move-scrolls to teach party Zyrex -->
   <div id="bagPanel" style="position:fixed; inset:0; display:none; z-index:30; background:rgba(0,0,0,0.82); pointer-events:auto;">
     <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:560px; max-height:78vh; overflow:auto; background:rgba(10,4,18,0.98); border:2px solid #b8ff5e; padding:20px 22px; font-family:'Courier New',monospace; color:#eaf0ff;">
@@ -1553,6 +1565,7 @@ const AUDIO = {
     rubypawKill:  new Audio('audio/sfx-rubypaw-kill.mp3'),   // v0.95.574 · Rubypaw kill · flesh-ripping impact · fires only on Rubypaw-driven KOs
     axeSwing:     new Audio('audio/sfx-axe-swing.mp3'),      // ★ v0.95.793 · heavy metal impact · fires on EVERY axe swing, hit or miss (Creator: "even on a miss. this is just impact")
     arrowFire:    new Audio('audio/sfx-arrow-fire.mp3'),    // ★ v0.95.798 · Pearlbow release · fires on every shot, hit or miss
+    scrollOpen:   new Audio('audio/sfx-scroll-open.mp3'),   // ★ v0.95.816 · paper unrolling · scroll pickup + every parchment view
     axeKill:      new Audio('audio/sfx-axe-kill.mp3'),       // ★ v0.95.793 · Emerald Axe finisher · fires only on axe-driven KOs, primary tile OR anywhere in the 3x3
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Tearsword contact SFX · fires only on enemy hit-land
@@ -8673,6 +8686,21 @@ const NPCS = [
           '*grins, and it is not a nice grin*  Which means every SCANOBOT between here and Korathen just became nobody\'s property.  They\'ll come at you now.  All of them.',
           '*taps the workbench*  Good news · nobody\'s property means nobody\'s gonna miss the parts.  You crack one open, you bring me the SCRAP METAL.  I got a whole board of trades waiting.',
         ]});
+      } else if ((player.items?.pearlbow || 0) > 0 && (player.items?.coins || 0) >= ARROW_BUNDLE_PRICE
+                 && (player.bowDurability == null ? BOW_MAX : player.bowDurability) <= BOW_MAX - ARROW_BUNDLE_ARROWS){
+        // ★ v0.95.816 · ARROW BUNDLES · 300 coins each, redeem-on-talk like the
+        // scrap shop (the engine has no choice-menu widget · same reasoning as
+        // v0.95.732).  Gated on the quiver actually having room for a full
+        // bundle, so Scrapjaw never sells you arrows he'd have to shave.
+        player.items.coins -= ARROW_BUNDLE_PRICE;
+        const got = addBowArrows(ARROW_BUNDLE_ARROWS);
+        try { playSFX('coins'); } catch(_){}
+        showToast(`🏹 BUNDLE OF ARROWS · -${ARROW_BUNDLE_PRICE} coins · +${got} arrows · ${player.bowDurability}/${BOW_MAX}`, 3200);
+        showDialog({ speaker: 'SCRAPJAW', lines: [
+          '*pulls a fresh bundle off the rack · eleven shafts, fletched in blue*',
+          `Three hundred coins.  Best fletching this side of the Wild March · they fly straighter than they got any right to.`,
+          '*ear twitches*  Quiver full?  Come back when it ain\'t.',
+        ]});
       } else if (scanobotsAreRogue() && player.radioTowerFixed && scrapShopBest()){
         // SCRAP SHOP · redeem the best tier the player can afford
         const t = scrapShopBuy();
@@ -14240,6 +14268,7 @@ function spillChestCoins(chest, tier, mult){
   if (game.scene !== 'overworld'){
     addItems({ coins: total });
     try { popCoinLabel(total); playSFX('coins'); } catch(_){}
+    try { maybeSpillChestArrows(chest, tier); } catch(_){}   // ★ v0.95.816 · pays direct indoors
     return 0;
   }
   const amounts = [];
@@ -14252,7 +14281,84 @@ function spillChestCoins(chest, tier, mult){
   }
   // any rounding remainder rides on the last pile rather than vanishing
   if (left > 0) amounts[amounts.length - 1] += left;
+  // ★ v0.95.816 · the arrow roll rides the same door every chest already pays
+  // through — no per-chest wiring, and cosmic's 0% odds fall out of the table
+  try { maybeSpillChestArrows(chest, tier); } catch(_){}
   return spillPickups('coins', chest.tileX, chest.tileY, amounts, chest.id || tier);
+}
+// ★★ v0.95.816 · ARROW BUNDLES · solid, and taken with X, like weapon drops.
+// Creator: "bundle of arrows chest drop item. 25% chance of coming out of
+// wooden chests. they refill all arrow items by 11 arrows (1 bundle). silver
+// chest 50% at 2 bundles. gold 75% at 3. cosmic no arrows. u can also buy
+// bundles from scrapjaw for 300 coins. walk over and interact for pick up ·
+// add temp item collision."
+const ARROW_BUNDLE_ARROWS = 11;
+const ARROW_BUNDLE_PRICE  = 300;
+// wood 25%x1 · silver 50%x2 · gold 75%x3 · cosmic none — the top chest carries
+// relics, not consumables, per the four-tier loot ladder
+const CHEST_ARROW_ODDS = { wood:{p:0.25,n:1}, silver:{p:0.50,n:2}, gold:{p:0.75,n:3}, cosmic:{p:0,n:0} };
+const ARROW_BUNDLE_IMG = new Image();
+ARROW_BUNDLE_IMG.src = 'assets/2D%20sprites/decor/arrow-bundle.png';
+function addBowArrows(n){
+  if (!(player.items && player.items.pearlbow)) return false;
+  const before = player.bowDurability == null ? BOW_MAX : player.bowDurability;
+  player.bowDurability = Math.min(BOW_MAX, Math.max(0, before) + n);
+  // ★ arrows ARE the bow's durability, so a bundle un-breaks a dry bow —
+  // "broken" never meant snapped, it meant the quiver ran empty
+  if (player.bowDurability > 0) player.bowBroken = false;
+  try { updateWeaponHUD(); } catch(_){}
+  return player.bowDurability - Math.max(0, before);
+}
+function spawnArrowBundle(cx, cy, bundles, tag){
+  if (game.scene !== 'overworld'){
+    // interiors pay directly · same rule as chest coins (v0.95.773)
+    const got = addBowArrows(bundles * ARROW_BUNDLE_ARROWS);
+    if (got !== false) showToast(`🏹 ${bundles} BUNDLE${bundles>1?'S':''} OF ARROWS · +${got} arrows`, 2600);
+    return null;
+  }
+  // nearest clear neighbour · a bundle inside the chest tile would be untakeable
+  let tx = cx, ty = cy + 1;
+  for (const [dx, dy] of [[0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+    if (typeof walkable === 'function' && walkable(cx+dx, cy+dy)){ tx = cx+dx; ty = cy+dy; break; }
+  }
+  const prop = {
+    id: `arrows_${tag || (tx + ',' + ty)}_${Date.now()%1e6}`,
+    _arrowBundle: bundles,
+    img: ARROW_BUNDLE_IMG,
+    src: 'assets/2D%20sprites/decor/arrow-bundle.png',
+    bbox: [144, 261, 1009, 613],
+    tileX: tx, tileY: ty,
+    tileW: 1.2, tileH: 1,
+    footprint: [[0, 0]],           // ★ "add temp item collision" · solid until taken
+    door: [0, 0],                  // and X reaches it from any adjacent tile
+    _levitate: true,
+    onInteract(){
+      const got = addBowArrows(bundles * ARROW_BUNDLE_ARROWS);
+      if (got === false){
+        try { playSFX('doorLock'); } catch(_){}
+        showToast('🏹 A bundle of arrows · you have no bow to feed them to yet', 2400);
+        return;
+      }
+      try { unregisterPropCollision(prop); } catch(_){}
+      const i = WORLD_PROPS.indexOf(prop);
+      if (i >= 0) WORLD_PROPS.splice(i, 1);
+      try { playItemGain('pearlbow'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+      showToast(`🏹 ${bundles} BUNDLE${bundles>1?'S':''} OF ARROWS · +${got} arrows · ${player.bowDurability}/${BOW_MAX}`, 3000);
+    },
+  };
+  WORLD_PROPS.push(prop);
+  registerPropCollision(prop);
+  return prop;
+}
+// The chest hook · one roll per tier, called wherever a chest pays out
+function maybeSpillChestArrows(chest, tier){
+  const O = CHEST_ARROW_ODDS[tier];
+  if (!O || !O.n || Math.random() >= O.p) return 0;
+  // ★ only once the Pearlbow exists · ammo for a weapon you do not own is
+  // noise, and the odds are generous enough that gating loses nothing
+  if (!(player.items && player.items.pearlbow)) return 0;
+  spawnArrowBundle(chest.tileX, chest.tileY, O.n, chest.id || tier);
+  return O.n;
 }
 // ★★ v0.95.776 · WEAPON DROPS · solid, and taken with X.
 //
@@ -19200,7 +19306,12 @@ function scanobotTalk(T, bot){
     // cannot double-pay.
     try { scanobotSalvage(n); } catch(_){}
     try { playSFX('confirm'); } catch(_){}
-    showToast('★ JAILBREAK · clean extraction · the drone powers down over its own salvage', 3600);
+    // ★ v0.95.816 · the verdict arrives in the SCANOBOT's own text box
+    showDialog({ speaker: 'SCANOBOT', lines: [
+      '*the access panel gives · the star-eye flickers, dims, goes out*',
+      'JAILBREAK CLEAN.  The PORTAL CHIP pops free, and the housing spills its scrap and gem as the drone powers down for good.',
+      'Walk over the salvage to collect it.',
+    ]});
     // powers down where it stands · no blast, no crumble — the machine exit
     n._dying = false; n.isEnemy = false; n.moving = false; n.scene = '__dead__';
     // ★ first successful jailbreak · Dad's warning arrives on the phone,
@@ -19215,7 +19326,11 @@ function scanobotTalk(T, bot){
     n._passive = false;
     n.drainAmt = n.drainAmt || 4;
     try { playSFX('moriPoke'); } catch(_){}
-    showToast('◈ JAILBREAK FAILED · the eye snaps red · it is coming for you', 3000);
+    showDialog({ speaker: 'SCANOBOT', lines: [
+      '*your pick slips · somewhere inside, a relay trips*',
+      'JAILBREAK FAILED.  The star-eye snaps RED.  Tamper protocol engaged —',
+      'IT IS COMING FOR YOU.',
+    ]});
   }
 }
 // ★ The event.  Fired the moment Rizer sets foot in Thardin — the district that
@@ -20204,6 +20319,97 @@ const POSTERS = {
   // v0.95.183 · World Map · fires from Items menu (bag)
   'worldmap': { src: 'assets/2D%20sprites/decor/zyraxis-worldmap.png', title: 'ZYRAXIS · THE NINTH WORLD' },
 };
+// ★★ v0.95.816 · SCROLL FRAMES · one parchment per theme, 1-18 in the
+// Creator's numbering, matching the 18 ground-scroll designs.  Sliced from the
+// delivered sheet (yellow index labels stripped as separate components); each
+// frame carries its measured alpha bbox and the INNER PARCHMENT rect — the
+// writable tan area, percentile-measured so straps and feathers do not widen
+// it — which is where the text lives.  Frames vary, so the margins come from
+// the ART, not from a guessed constant.
+const SCROLL_FRAME_META = [
+  { bbox:[23,115,186,303], inner:[58,152,122,220] },
+  { bbox:[0,112,209,306],  inner:[81,136,95,236]  },
+  { bbox:[0,114,209,304],  inner:[68,181,98,194]  },
+  { bbox:[0,121,209,297],  inner:[76,152,104,216] },
+  { bbox:[0,121,209,297],  inner:[73,145,86,242]  },
+  { bbox:[0,127,202,291],  inner:[45,151,108,230] },
+  { bbox:[5,0,204,398],    inner:[52,127,120,224] },
+  { bbox:[0,0,205,390],    inner:[60,139,118,210] },
+  { bbox:[14,0,191,395],   inner:[43,130,118,232] },
+  { bbox:[2,0,207,398],    inner:[39,125,109,238] },
+  { bbox:[0,0,209,402],    inner:[39,172,106,175] },
+  { bbox:[0,0,195,402],    inner:[35,135,134,232] },
+  { bbox:[9,50,188,287],   inner:[41,82,124,212]  },
+  { bbox:[6,45,191,292],   inner:[27,82,143,208]  },
+  { bbox:[11,45,187,297],  inner:[38,68,133,240]  },
+  { bbox:[7,52,195,291],   inner:[53,94,94,205]   },
+  { bbox:[19,49,190,297],  inner:[44,78,117,217]  },
+  { bbox:[0,43,202,305],   inner:[34,64,121,247]  },
+];
+const SCROLL_FRAME_CELL = { w: 209, h: 418 };
+function openScrollView(themeIdx, title, paras){
+  const view  = document.getElementById('scrollView');
+  const img   = document.getElementById('scrollViewImg');
+  const txt   = document.getElementById('scrollViewText');
+  const ttl   = document.getElementById('scrollViewTitle');
+  if (!view || !img || !txt) return;
+  const i = Math.max(0, Math.min(17, themeIdx | 0));
+  const M = SCROLL_FRAME_META[i];
+  img.src = `assets/2D%20sprites/ui/scrolls/frame_${String(i+1).padStart(2,'0')}.png`;
+  // the stage is the CELL; inner rect maps to percentages of it directly
+  const pct = (v, span) => (v / span * 100).toFixed(2) + '%';
+  const pad = 4;   // px of breathing room inside the measured parchment
+  txt.style.left   = pct(M.inner[0] + pad, SCROLL_FRAME_CELL.w);
+  txt.style.top    = pct(M.inner[1] + pad + 16, SCROLL_FRAME_CELL.h);
+  txt.style.width  = pct(M.inner[2] - pad*2, SCROLL_FRAME_CELL.w);
+  txt.style.height = pct(M.inner[3] - pad*2 - 16, SCROLL_FRAME_CELL.h);
+  ttl.style.left   = pct(M.inner[0], SCROLL_FRAME_CELL.w);
+  ttl.style.width  = pct(M.inner[2], SCROLL_FRAME_CELL.w);
+  ttl.style.top    = pct(M.inner[1] - 2, SCROLL_FRAME_CELL.h);
+  ttl.textContent  = title || '';
+  txt.innerHTML = (paras || []).map(t =>
+    `<p style="margin:0 0 0.7em 0;">${String(t).replace(/</g,'&lt;')}</p>`).join('');
+  view.style.display = 'flex';
+  game.posterViewOpen = true;      // rides the poster gate · every modal check already knows it
+  game.scrollViewOpen = true;
+  try { playSFX('scrollOpen'); } catch(_){}
+  // ★ FIT BY MEASUREMENT · start readable and shrink only until the text
+  // stops overflowing the parchment.  "make sure the text fits on each page."
+  requestAnimationFrame(() => {
+    let size = 15;
+    txt.style.fontSize = size + 'px';
+    while (size > 7 && txt.scrollHeight > txt.clientHeight + 2){
+      size -= 0.5;
+      txt.style.fontSize = size + 'px';
+    }
+  });
+}
+// ★ v0.95.816 · the PHONE path.  Creator: "when u open each individual note
+// in the phone they look like this too."  A theme row opens its parchment with
+// every page recovered so far, in district order — one paragraph per page.
+function openScrollTheme(themeKey){
+  const i = SCROLL_THEMES.findIndex(t => t.key === themeKey);
+  if (i < 0) return;
+  const t = SCROLL_THEMES[i];
+  const n = notebookState();
+  const paras = [];
+  SCROLL_DISTRICT_ORDER.forEach((d, di) => {
+    if (n.scrolls[scrollId(themeKey, d)]) paras.push(t.pages[di]);
+  });
+  if (!paras.length){ try { playSFX('doorLock'); } catch(_){} return; }
+  openScrollView(i, `📜 ${t.title}`, paras);
+}
+function closeScrollView(){
+  const view = document.getElementById('scrollView');
+  if (view) view.style.display = 'none';
+  game.posterViewOpen = false;
+  game.scrollViewOpen = false;
+  playSFX('menuClose');
+}
+(function wireScrollBackdrop(){
+  const view = document.getElementById('scrollView');
+  if (view) view.addEventListener('click', () => closeScrollView());
+})();
 function openPosterView(id){
   const info = POSTERS[id];
   if (!info) return;
@@ -23167,12 +23373,13 @@ addEventListener('keydown', e => {
               try { if (game.devCombatFxOn !== false) spawnHitFx(sh.tileX, sh.tileY, mode); } catch(_){}
               if (sh.hp > 0 && !sh._gruntPlayed && sh.hp <= sMax * 0.4){ sh._gruntPlayed = true; try { playSFX('moriGrunt'); } catch(_){} }
               if (sh.hp <= 0){
-                try { playSFX('moriDeath'); } catch(_){}
-                try { creditRizerKill(sh); } catch(_){}
                 // ★ v0.95.814 · through the one door — hand-setting _dying here
                 // gave a scanobot caught in the axe sweep the mori crumble and
                 // NO salvage.  startMoriDeath owns the difference between a
-                // creature's death and a machine's.
+                // creature's death and a machine's.  (comment sits ABOVE the
+                // pair so verify_killxp's credit-near-death window holds.)
+                try { playSFX('moriDeath'); } catch(_){}
+                try { creditRizerKill(sh); } catch(_){}
                 try { startMoriDeath(sh); } catch(_){ sh._dying = true; sh._deathAt = performance.now(); }
               }
             }
@@ -23478,6 +23685,9 @@ addEventListener('keyup', e => {
 // rendered into the label slot.
 // ─────────────────────────────────────────────────────────────
 const DIALOG_FRAMES = {
+  // ★ v0.95.816 · SCANOBOT · jailbreak verdicts speak through their own frame
+  // (name plate baked into the art, so hasName is false)
+  SCANOBOT: { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-scanobot.png', bbox: [9, 185, 1639, 536], hasName: false },
   MOM:     { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-mom.png',     bbox: [15, 227, 1633, 457], hasName: true },
   DAD:     { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-dad.png',     bbox: [16, 229, 1631, 454], hasName: true },
   RIZER:   { img: new Image(), src: 'assets/2D%20sprites/ui/dialog-rizer.png',   bbox: [13, 221, 1636, 464], hasName: true },
@@ -26277,7 +26487,9 @@ addEventListener('keydown', e => {
   }
   // v0.95.92 · Poster full-screen viewer · B/Esc/A closes
   if (game.posterViewOpen){
-    if (k === 'b' || k === 'a' || k === 'escape' || k === 'shift'){ closePosterView(); }
+    if (k === 'b' || k === 'a' || k === 'escape' || k === 'shift'){
+      if (game.scrollViewOpen) closeScrollView(); else closePosterView();
+    }
     return;
   }
   // v0.95.10 · Punching Bag · 1-9 picks scroll or Zyrex · 0 = back
@@ -28681,11 +28893,19 @@ function readScroll(themeKey, dist, prop){
     const i = WORLD_PROPS.indexOf(prop);
     if (i >= 0) WORLD_PROPS.splice(i, 1);
   }
-  try { playSFX('confirm'); } catch(_){}
   try { awardRizerXP(scrollRxpFor(have0)); } catch(_){}
   const have = scrollsFound(), all = SCROLL_THEMES.length * SCROLL_DISTRICT_ORDER.length;
-  showDialog({ speaker:`DAD'S NOTE · ${e.title}`, lines:[ e.page,
-    `— page ${have} of ${all} recovered · filed in Dad's Notebook —` ]});
+  // ★★ v0.95.816 · the note opens ON ITS OWN PARCHMENT, full screen over the
+  // dimmed world, in the frame matching this theme's ground-scroll design —
+  // and the paper SFX plays as it unrolls.
+  const _ti = SCROLL_THEMES.findIndex(t => t.key === themeKey);
+  try {
+    openScrollView(_ti, `DAD'S NOTE · ${e.title}`,
+      [ e.page, `— page ${have} of ${all} recovered · filed in Dad's Notebook —` ]);
+  } catch(_){
+    showDialog({ speaker:`DAD'S NOTE · ${e.title}`, lines:[ e.page,
+      `— page ${have} of ${all} recovered · filed in Dad's Notebook —` ]});
+  }
   return true;
 }
 function scrollsFound(){
@@ -28856,7 +29076,7 @@ function _nbScrollsPage(){
           ${t.pages[i]}</div></div>`;
     }).join('');
     const pct = Math.round(got / SCROLL_DISTRICT_ORDER.length * 100);
-    return `<div data-zyitem="nbscroll_${t.key}" style="margin-bottom:7px; background:rgba(0,0,0,0.32);
+    return `<div data-zyitem="nbscroll_${t.key}" onclick="try{openScrollTheme('${t.key}');}catch(_){}" style="margin-bottom:7px; cursor:pointer; background:rgba(0,0,0,0.32);
                  border:1px solid ${got ? 'rgba(255,214,107,0.28)' : 'rgba(79,179,255,0.15)'};">
       <div style="padding:9px 11px; display:flex; justify-content:space-between; align-items:baseline;">
         <span style="color:${got ? '#ffd66b' : '#55617a'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em;">

@@ -232,5 +232,27 @@ H('7 · ★★ IT SURVIVES A SAVE');
      'Dad takes them in band-sized lots, so a partial hand-over cannot desync the ladder');
 }
 
+
+H('8 · ★★ DAD ONBOARDS BEFORE HE TALKS SHOP');
+// Creator: "dads notebook and first quest should fire first, even before the
+// chip thing."
+{
+  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const i=src.indexOf("playSFX('dad')");
+  const body=src.slice(i, i+12000);
+  const nb=body.indexOf('if (!player.dadStarterQuestGiven){');
+  const sh=body.indexOf('shardshare_broken');
+  const ch=body.indexOf('PORTAL NETWORK');
+  ok(nb>0&&sh>0&&ch>0,'all three branches found in the interact chain');
+  ok(nb<sh,'★ the notebook gift comes before the Shardshare repair');
+  ok(nb<ch,'★ and before the Portal Chip turn-in');
+  // ★ WHY IT MATTERED: since v0.95.801 the chips are farmable from the first
+  //   minute, so a player could reach Dad holding a full band and get a
+  //   business meeting instead of an introduction.
+  const gift=body.slice(nb, nb+400);
+  ok(/dadStarterQuestGiven = true/.test(gift)&&/dadNotebookGifted/.test(gift),
+     'and the first-talk branch is the real gift, not a stub');
+}
+
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));
 process.exit(fail?1:0);

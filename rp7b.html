@@ -7923,6 +7923,49 @@ const NPCS = [
     onInteract: (n) => {
       playSFX('dad');                             // v0.95.90 · Jerry-B southern narration cue
       player.items = player.items || {};
+      // ★★ v0.95.812 · DAD'S FIRST CONVERSATION IS ALWAYS THE NOTEBOOK.
+      // Creator: "dads notebook and first quest should fire first, even before
+      // the chip thing."
+      //
+      // The interact chain had grown by accretion — shardshare (v0.95.619),
+      // then the Portal Chip turn-in (v0.95.800) — each new branch stacked on
+      // TOP, so anything in Rizer's bag outranked the introduction.  And since
+      // v0.95.801 the chips are farmable from the FIRST MINUTE (Scanobots are
+      // smashable at game start), a player could walk up with twenty chips and
+      // Dad would talk shop with a kid he had never onboarded.  The gift now
+      // leads unconditionally: whatever is in the bag, the first talk is the
+      // notebook and the first quest, and everything else waits one visit.
+      // v0.95.380 · First talk · GIFT DAD'S NOTEBOOK · unlocks Quests tab in touchpad
+      // + hands out the 10/10/10/10 gather quest (Fae · Fruits · Berries · Seeds)
+      // Fae Net + Zycube prerequisites moved out · Notebook is the true quest-log unlock
+      if (!player.dadStarterQuestGiven){
+        player.dadStarterQuestGiven = true;
+        player.dadNotebookGifted    = true; try{pingNextObjective()}catch(_){}
+        // ★★ v0.95.780 · INSTALLED, NOT HANDED OVER.
+        // Creator: "it will be installed when dad grants rizer the notebook at
+        // beginning of game. dad installs it as a digital cloud save of his
+        // research in malezor."
+        // So no bag item — it is an app on the ZyPhone with its own panel, and
+        // his Malezor research comes pre-loaded on page one.
+        try { notebookState(); notebookVisit('district:malezor', 'MALEZOR'); } catch(_){}
+        try { notebookFindScroll('scroll_malezor_1'); } catch(_){}   // his own first page
+        try { awardRizerXP(100); } catch(_){}    // v0.95.538 · Dad notebook · rescaled 400 → 100
+        try { playSFX('confirm'); } catch(_){}
+        showToast('★ DAD\'S NOTEBOOK installed · ZyPhone → NOTEBOOK', 3600);
+        showDialog({ speaker: 'DAD', lines: [
+          'Ah, there you are, kid.  Come here — hold your phone out.',
+          '*taps his own device against yours · a decade of Malezor field research copies across*',
+          'There.  My notebook.  Not a copy you carry — a copy that carries itself.',
+          'Every district you walk into, every cave you open, every Zyrex you bond with — it writes itself down.',
+          'The Malezor pages are already full.  That was twenty years of my legs. The rest is yours to fill.',
+          'And if you get turned around out there, open it.  It keeps track of what you have not done yet.',
+          'And here\'s your first entry:  I need 10 Fae, 10 Fruits, 10 Berries, 10 Seeds.',
+          'Fae glow in the fields.  Fruits fall from trees.  Berries from bushes.  Seeds drop on harvest.',
+          'Bring the tribute back and I\'ll set you up with your first Zyrex.',
+        ]});
+        return;
+      }
+
       // v0.95.619 · SHARDSHARE REPAIR · carrying the broken collar? Dad fixes
       // it on the spot · repaired collar = all party Zyrex share 0.5× duel XP.
       if ((player.items.shardshare_broken || 0) > 0 && !player.shardshareFixed){
@@ -7998,36 +8041,6 @@ const NPCS = [
       const REQ = 10;
       const done = nFae >= REQ && nBerries >= REQ && nSeeds >= REQ && nFruits >= REQ;
 
-      // v0.95.380 · First talk · GIFT DAD'S NOTEBOOK · unlocks Quests tab in touchpad
-      // + hands out the 10/10/10/10 gather quest (Fae · Fruits · Berries · Seeds)
-      // Fae Net + Zycube prerequisites moved out · Notebook is the true quest-log unlock
-      if (!player.dadStarterQuestGiven){
-        player.dadStarterQuestGiven = true;
-        player.dadNotebookGifted    = true; try{pingNextObjective()}catch(_){}
-        // ★★ v0.95.780 · INSTALLED, NOT HANDED OVER.
-        // Creator: "it will be installed when dad grants rizer the notebook at
-        // beginning of game. dad installs it as a digital cloud save of his
-        // research in malezor."
-        // So no bag item — it is an app on the ZyPhone with its own panel, and
-        // his Malezor research comes pre-loaded on page one.
-        try { notebookState(); notebookVisit('district:malezor', 'MALEZOR'); } catch(_){}
-        try { notebookFindScroll('scroll_malezor_1'); } catch(_){}   // his own first page
-        try { awardRizerXP(100); } catch(_){}    // v0.95.538 · Dad notebook · rescaled 400 → 100
-        try { playSFX('confirm'); } catch(_){}
-        showToast('★ DAD\'S NOTEBOOK installed · ZyPhone → NOTEBOOK', 3600);
-        showDialog({ speaker: 'DAD', lines: [
-          'Ah, there you are, kid.  Come here — hold your phone out.',
-          '*taps his own device against yours · a decade of Malezor field research copies across*',
-          'There.  My notebook.  Not a copy you carry — a copy that carries itself.',
-          'Every district you walk into, every cave you open, every Zyrex you bond with — it writes itself down.',
-          'The Malezor pages are already full.  That was twenty years of my legs. The rest is yours to fill.',
-          'And if you get turned around out there, open it.  It keeps track of what you have not done yet.',
-          'And here\'s your first entry:  I need 10 Fae, 10 Fruits, 10 Berries, 10 Seeds.',
-          'Fae glow in the fields.  Fruits fall from trees.  Berries from bushes.  Seeds drop on harvest.',
-          'Bring the tribute back and I\'ll set you up with your first Zyrex.',
-        ]});
-        return;
-      }
 
       // Completion · take items + acknowledge · open starter picker · starter follows
       if (done && !player.dadStarterQuestComplete){

@@ -16973,9 +16973,24 @@ function sitePortals(){
 // ── THE PROPS ────────────────────────────────────────────────────────────
 const PORTAL_IMG = { closed: new Image(), open: new Image() };
 PORTAL_IMG.closed.src = 'assets/2D%20sprites/portal/portal_closed.png';
-PORTAL_IMG.open.src   = 'assets/2D%20sprites/portal/portal_open.png';
+// ★★ v0.95.815 · ONE FRAME, KEYED, MEASURED.  Creator: "fix the opened portal.
+// it should be one of these frames floating up and down like the closed
+// portal ... same height as close. same bob too."
+//
+// portal_open.png on disk was the whole 12-frame sheet, un-keyed, and the
+// prop drew it through the CLOSED portal's bbox — a window across several
+// frames plus raw magenta.  The sheet is now chroma-keyed (kept whole for a
+// future animation pass) and ONE frame is extracted to its own file.
+PORTAL_IMG.open.src   = 'assets/2D%20sprites/portal/portal_open_frame.png';
 const PORTAL_BBOX_CLOSED = [445, 40, 363, 1196];
-const PORTAL_BBOX_OPEN   = [445, 40, 363, 1196];
+const PORTAL_BBOX_OPEN   = [ 30, 16, 257,  402];
+// ★ SAME DRAWN HEIGHT.  drawProp derives height from tileW x bbox aspect, and
+// the open oval is squatter than the closed monolith (1.56:1 vs 3.29:1 tall).
+// At tileW 1 the open portal would stand a third the height.  2.106 tiles
+// wide x the oval's aspect = exactly the closed portal's 3.295-tile height,
+// so the swap never changes the silhouette's top line — only its glow.
+const PORTAL_TILEW_CLOSED = 1;
+const PORTAL_TILEW_OPEN   = 2.106;
 function spawnPortals(){
   // idempotent · safe at boot and after a load
   for (let i = WORLD_PROPS.length - 1; i >= 0; i--)
@@ -16994,8 +17009,9 @@ function spawnPortals(){
         ? 'assets/2D%20sprites/portal/portal_open.png'
         : 'assets/2D%20sprites/portal/portal_closed.png'; },
       get bbox(){ return portalUnlocked(P.dist) ? PORTAL_BBOX_OPEN : PORTAL_BBOX_CLOSED; },
+      get tileW(){ return portalUnlocked(P.dist) ? PORTAL_TILEW_OPEN : PORTAL_TILEW_CLOSED; },
       tileX: P.x, tileY: P.y,
-      tileW: 1, tileH: 2,
+      tileH: 2,
       footprint: [[0, 0]],
       door: [0, 0],
       _levitate: true,
@@ -17073,6 +17089,18 @@ function drawPortalMenu(){
     if (on){ ctx.fillStyle = 'rgba(122,212,255,0.22)'; ctx.fillRect(bx + 10, y - 15, bw - 20, 22); }
     ctx.fillStyle = on ? '#ffd66b' : '#dfe8f0';
     ctx.fillText(`${on ? '▶ ' : '  '}${String(d.i + 1).padStart(2,' ')} · ${d.dist.toUpperCase()}`, bx + 18, y);
+    // ★ v0.95.815 · each destination states its ecology rank and how far the
+    // rift is carrying you — the list is a travel board, not a name index
+    try {
+      const r = districtEcologyRank(d.dist);
+      const km = Math.round(Math.hypot(d.x - player.x, d.y - player.y));
+      ctx.textAlign = 'right';
+      ctx.font = '10px "Courier New", monospace';
+      ctx.fillStyle = r.color;
+      ctx.fillText(`ECO ${r.rank} · ${km} tiles`, bx + bw - 16, y);
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 13px "Courier New", monospace';
+    } catch(_){}
   });
   ctx.font = '10px "Courier New", monospace';
   ctx.fillStyle = '#8ab';

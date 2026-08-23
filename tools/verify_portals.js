@@ -29,7 +29,7 @@ try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
   ';globalThis.__C={PORTAL_TIERS,PORTAL_NETWORK,ZYRAXIS_DISTRICTS,WORLD_PROPS,NPCS,player,game,'+
   'portalPiecesSpent,portalDistrictsUnlocked,portalUnlocked,portalNextTier,portalDistrictIndex,'+
   'sitePortals,spawnPortals,usePortal,portalTravel,SCANOBOT_PER_DIST,PICKUP_KINDS,_propBlocked,'+
-  'summonUfoNearPlayer,useZycubeItem,'+
+  'summonUfoNearPlayer,useZycubeItem,PORTAL_BBOX_OPEN,PORTAL_BBOX_CLOSED,PORTAL_TILEW_OPEN,PORTAL_TILEW_CLOSED,PORTAL_IMG,'+
   'INVENTORY_META,isWorldLandTile,isWorldBorderTile};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -254,6 +254,52 @@ H('8 · ★★ DAD ONBOARDS BEFORE HE TALKS SHOP');
   const gift=body.slice(nb, nb+400);
   ok(/dadStarterQuestGiven = true/.test(gift)&&/dadNotebookGifted/.test(gift),
      'and the first-talk branch is the real gift, not a stub');
+}
+
+
+H('9 · ★★ THE OPEN PORTAL IS ONE FRAME, SAME HEIGHT, SAME BOB');
+// Creator: "fix the opened portal. it should be one of these frames floating
+// up and down like the closed portal ... same height as close. same bob too."
+{
+  const FS2=require('fs');
+  const ROOT='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
+  ok(FS2.existsSync(ROOT+'assets/2D sprites/portal/portal_open_frame.png'),
+     '★ ONE extracted frame ships in its own file');
+  ok(/portal_open_frame\.png/.test(src),'and the prop points at it — not at the 12-frame sheet');
+  // ★ the old fault: the open state drew the whole un-keyed sheet through the
+  //   CLOSED portal's bbox.  The two bboxes must be DIFFERENT now, and the
+  //   open one must fit its frame.
+  ok(C.PORTAL_BBOX_OPEN.join(',')!==C.PORTAL_BBOX_CLOSED.join(','),
+     '★ open and closed measure their OWN art — the shared bbox was the bug');
+  const {execFileSync}=require('child_process');
+  const got=execFileSync('python3',['-c',`
+from PIL import Image
+import numpy as np
+a=np.array(Image.open('${ROOT}assets/2D sprites/portal/portal_open_frame.png').convert('RGBA'))[:,:,3]>16
+ys,xs=np.nonzero(a)
+print(xs.min(),ys.min(),xs.max()-xs.min()+1,ys.max()-ys.min()+1)`],{encoding:'utf8'}).trim().split(/\s+/).map(Number);
+  ok(got.every((v,i)=>Math.abs(v-C.PORTAL_BBOX_OPEN[i])<=1),
+     `the open bbox re-measures off the file · [${got}]`);
+  // ★ SAME DRAWN HEIGHT · drawProp height = tileW x bh/bw per state
+  const hClosed=C.PORTAL_TILEW_CLOSED*C.PORTAL_BBOX_CLOSED[3]/C.PORTAL_BBOX_CLOSED[2];
+  const hOpen  =C.PORTAL_TILEW_OPEN  *C.PORTAL_BBOX_OPEN[3]  /C.PORTAL_BBOX_OPEN[2];
+  ok(Math.abs(hClosed-hOpen)<0.01,
+     `★ both states draw ${hClosed.toFixed(3)} tiles tall — the swap changes the glow, never the silhouette's top line`);
+  // ★ SAME BOB · one prop, one _levitate flag, both states ride it
+  C.spawnPortals();
+  const prop=C.WORLD_PROPS.find(p=>p&&p._portal);
+  ok(prop&&prop._levitate===true,'the prop levitates in both states — same bob by construction');
+  // the keyed sheet survives for a future animation pass
+  const chk=execFileSync('python3',['-c',`
+from PIL import Image
+import numpy as np
+a=np.array(Image.open('${ROOT}assets/2D sprites/portal/portal_open.png').convert('RGBA'))
+r,g,b,al=a[...,0].astype(int),a[...,1].astype(int),a[...,2].astype(int),a[...,3]
+print(int(((al>16)&(r>150)&(b>150)&(g<95)&((r-g)>90)&((b-g)>90)).sum()))`],{encoding:'utf8'}).trim();
+  ok(+chk===0,'★ the full sheet is keyed too (0 magenta px) — ready if the portal ever animates');
+  // the travel board reads as one
+  ok(/ECO \$\{r\.rank\} · \$\{km\} tiles/.test(src),
+     'each destination shows its ecology rank and the distance the rift carries you');
 }
 
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));

@@ -25,18 +25,25 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.732 · SCANOBOTS · Thardin's survey net · 5 per district · passive until
 // the flip, then hostile everywhere, dropping scrap + a blue gem into a tiered
 // shop at Scrapjaw.
-try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
+try{new Function(fs.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={SCANOBOT_OFFSETS,SCANOBOT_PER_DIST,SCANOBOT_ROGUE_DISTRICT,NPCS,player,game,buildScanobotNet,applyScanobotState,triggerScanobotRogue,scanobotDrop,scanobotsAreRogue,_scanobotWalkable,scrapShopBest,scrapShopBuy,scrapCount,SCRAP_SHOP,SCANOBOT_HP,SCANOBOT_TIER,SCANOBOT_ROGUE_TOWERS,TOWER_NETWORK,worldDistrictAt,MAP_COLS,MAP_ROWS,GEM_ENTITIES,startMoriDeath,addItems};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C,P=C.player;let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
 
-console.log('\n1 · ★ FIFTY DRONES, FIVE TO A DISTRICT\n');
+console.log('\n1 · ★★ THE COUNT COMES FROM THE CONSTANT NOW\n');
 C.buildScanobotNet();
 const bots=C.NPCS.filter(n=>n&&n._scanobot);
-ok(bots.length===50,`${bots.length} Scanobots seeded`);
+// ★★ SCANOBOT_PER_DIST WAS A LIE.  The real count was the LENGTH of the
+//    hand-written SCANOBOT_OFFSETS array, so raising the constant from 5 to 30
+//    changed nothing.  A constant that does not drive the thing it names reads
+//    as the knob while not being the knob.  Test the RELATIONSHIP, not a number.
+ok(C.SCANOBOT_OFFSETS.length === C.SCANOBOT_PER_DIST,
+   `★ the offset table is generated FROM the constant · ${C.SCANOBOT_OFFSETS.length} offsets for ${C.SCANOBOT_PER_DIST} per district`);
+const want = C.SCANOBOT_PER_DIST * C.TOWER_NETWORK.length;
+ok(bots.length===want,`${bots.length} Scanobots seeded · ${C.SCANOBOT_PER_DIST} x ${C.TOWER_NETWORK.length} districts`);
 const per={};bots.forEach(b=>per[b._scanobot]=(per[b._scanobot]||0)+1);
 ok(Object.keys(per).length===10,`spread over ${Object.keys(per).length} districts`);
-ok(Object.values(per).every(v=>v===5),'exactly 5 in every district · '+JSON.stringify(per));
+ok(Object.values(per).every(v=>v===C.SCANOBOT_PER_DIST),`exactly ${C.SCANOBOT_PER_DIST} in every district · `+JSON.stringify(per));
 ok(C.buildScanobotNet()===0,'re-running the seeder adds none (idempotent · boot AND load both call it)');
 
 console.log('\n2 · ★★ EVERY DRONE STANDS SOMEWHERE LEGAL\n');
@@ -52,17 +59,29 @@ ok(!/[^_]walkable\(/.test(String(C.buildScanobotNet)+String(C._scanobotWalkable)
 
 console.log('\n3 · ★★ PASSIVE UNTIL THE STORY SAYS OTHERWISE\n');
 P.scanobotsRogue=false;C.applyScanobotState();
-ok(bots.filter(b=>b.isEnemy).length===0,'at boot NOT ONE is an enemy — a passive drone is unkillable for free, via the one field combat already reads');
+// ★★ DELIBERATELY INVERTED FROM v0.95.732.  It used to read "at boot NOT ONE
+//    is an enemy", and it passed — but the Creator wants them "smashable at
+//    game start", and isEnemy was doing two jobs: BOTH "hunts you" and "can be
+//    hit at all".  Square went straight through a passive drone.
+ok(bots.every(b=>b.isEnemy),
+   '★ every drone is a valid TARGET from the first frame — smashable at game start');
+ok(bots.every(b=>b.mode==='wander'),
+   '★ but none of them HUNTS · mode, not isEnemy, decides that');
+ok(bots.every(b=>!b.drainAmt),'and a passive drone drains nothing');
+ok(bots.every(b=>b._passive),'each flagged passive so the state is readable, not inferred');
 ok(bots.every(b=>b.hpMax===C.SCANOBOT_HP),`all at ${C.SCANOBOT_HP} HP · lightweight, one Mori band, flat`);
 ok(C.SCANOBOT_TIER===1,'tier 1 keeps kill XP modest — the reward is the loot, not the fight');
 const lv=Object.fromEntries(C.TOWER_NETWORK.map(t=>[t.dist,(bots.find(b=>b._scanobot===t.dist)||{}).level]));
 ok(lv.malezor===5&&lv.korathen===80,'levels ride the district band · Malezor 5 → Korathen 80');
 C.triggerScanobotRogue();
 ok(C.scanobotsAreRogue(),'triggerScanobotRogue sets the flag');
-ok(bots.filter(b=>b.isEnemy).length===50,'and ALL FIFTY turn at once');
+ok(bots.every(b=>b.mode==='drainer'),`and ALL ${bots.length} turn at once`);
+ok(bots.every(b=>b.drainAmt>0),'every one of them drains now');
+ok(bots.every(b=>!b._passive),'and none is still flagged passive');
 ok(C.triggerScanobotRogue()===false,'the event cannot fire twice');
 P.scanobotsRogue=false;C.applyScanobotState();
-ok(bots.filter(b=>b.isEnemy).length===0,'and the state is re-derivable from the flag, so a pre-flip save cannot restore 50 passive drones into a rogue world');
+ok(bots.every(b=>b.mode==='wander'&&!b.drainAmt),
+   'and the state is re-derivable from the one flag, so a pre-flip save cannot restore a passive net into a rogue world');
 P.scanobotsRogue=true;C.applyScanobotState();
 
 console.log('\n4 · ★★ DROPS · SCRAP + A BLUE GEM\n');
@@ -102,5 +121,26 @@ ok(fs.existsSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/assets/2D spr
 ok(fs.existsSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/assets/2D sprites/enemies/_orig/scanobot-delivered.png'),'and the delivered sheet is preserved');
 ok(bots.every(b=>b.bboxes&&b.bboxes.length===4&&b.bboxes.every(r=>r.length===4)),'every drone carries a full 4x4 bbox table');
 ok(bots.every(b=>b.bboxes.flat().every(x=>x[0]>=0&&x[1]>=0&&x[0]+x[2]<=313&&x[1]+x[3]<=313)),'and every bbox stays inside its 313 cell');
+
+
+console.log('\n★★ 7 · THARDIN TURNS THE NET\n');
+{
+  const P=C.player;
+  P.scanobotsRogue=false; C.applyScanobotState();
+  ok(C.SCANOBOT_ROGUE_DISTRICT==='thardin',
+     '★ the trigger district is THARDIN — the corporation that built the drones');
+  const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  ok(/dist === SCANOBOT_ROGUE_DISTRICT/.test(src),'district entry checks it');
+  // ★ fires on ARRIVAL, not FIRST arrival · a save that predates this, or a
+  //   border crossed before the flag existed, still turns the net next time in
+  const i=src.indexOf('dist === SCANOBOT_ROGUE_DISTRICT');
+  const firstBlock=src.indexOf('if (first){', src.indexOf('const first = !player.visitedDistricts'));
+  ok(i>0 && firstBlock>0 && i < firstBlock,
+     '★ and it fires on ARRIVAL, not inside the first-visit-only block');
+  ok(C.triggerScanobotRogue('thardin')===true,'walking in turns them');
+  ok(C.scanobotsAreRogue(),'the flag sticks');
+  ok(C.triggerScanobotRogue('thardin')===false,'and it is idempotent, so re-entering is harmless');
+  P.scanobotsRogue=false; C.applyScanobotState();
+}
 
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);

@@ -12606,6 +12606,64 @@ function ufoCanLand(anchorX,anchorY){
   if(NPCS.some(n=>n.scene==='overworld'&&n.tileX===exitX&&n.tileY===exitY))return false;
   return true;
 }
+// ★★ v0.95.801 · ONE TRANSPONDER, TWO PLACES TO PRESS IT.
+//
+// Creator: "selecting astralcore transponder in the zycube should spawn ufo
+// near me in the closest appropriate tiles."
+//
+// The summon already existed and already did exactly that — it was just buried
+// inline inside the SETTINGS bag page, so the ZyCube's copy of the same item
+// fell through to the "info only" default and printed a quantity.  Pulled out
+// here so both call one function; a third entry point later gets it free.
+function summonUfoNearPlayer(){
+  try {
+    const _dist = (typeof worldDistrictAt === 'function')
+      ? worldDistrictAt(Math.round(player.x), Math.round(player.y)) : null;
+    const _towerUp = (typeof towerRestored === 'function' && _dist) ? towerRestored(_dist) : true;
+    // Three gates, outward-in: clearance, then coverage, then line of sight.
+    if (!player.auraxionMissionComplete && !game.devMaxBond){
+      showToast('◈ Transponder · unregistered · finish Auraxion\'s Astralcore retrieval first', 3400);
+      playSFX('doorLock'); return false;
+    }
+    if (game.scene !== 'overworld'){
+      showToast('◈ Transponder · no signal indoors · use outside', 2200);
+      playSFX('doorLock'); return false;
+    }
+    if (!_towerUp && !game.devMaxBond){
+      const _lbl = (typeof TOWER_BY_DIST !== 'undefined' && TOWER_BY_DIST[_dist])
+        ? TOWER_BY_DIST[_dist].label : String(_dist || '').toUpperCase();
+      showToast(`◈ Transponder · NO CARRIER · ${_lbl}'s tower is still down · fix it for Scrapjaw first`, 4000);
+      playSFX('doorLock'); return false;
+    }
+    const prop = (typeof auraxionUfoProp === 'function') ? auraxionUfoProp() : null;
+    if (!prop){ showToast('◈ Transponder · UFO offline', 2000); playSFX('cancel'); return false; }
+    if (prop._inFlight){ showToast('◈ Transponder · UFO already airborne', 2000); playSFX('cancel'); return false; }
+    // Nearest legal 10x3 landing zone, ring by ring outward from Rizer.
+    const px = Math.round(player.x), py = Math.round(player.y);
+    let anchor = null;
+    outer:
+    for (let r = 1; r <= 32; r++){
+      for (let dy = -r; dy <= r; dy++){
+        for (let dx = -r; dx <= r; dx++){
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const ax = px + dx, ay = py + dy;
+          if (typeof ufoCanLand === 'function' && ufoCanLand(ax, ay)){ anchor = { x: ax, y: ay }; break outer; }
+        }
+      }
+    }
+    if (!anchor){
+      showToast('◈ Transponder · no clear 10×3 landing zone within 32 tiles · move to open ground', 3200);
+      playSFX('cancel'); return false;
+    }
+    try { clearUfoWorldCollision(prop); } catch(_){}
+    prop.tileX = anchor.x; prop.tileY = anchor.y;
+    try { restoreUfoWorldCollision(prop); } catch(_){}
+    try { playSFX('corsunUfo'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+    const d = Math.abs(anchor.x - px) + Math.abs(anchor.y - py);
+    showToast(`◈ TRANSPONDER · UFO summoned to (${anchor.x}, ${anchor.y}) · ${d} tiles away`, 3000);
+    return true;
+  } catch(_){ playSFX('cancel'); return false; }
+}
 function landAuraxionUfo(){
   if(!player.ufoFlying)return false;
   if(_ufoMelt){playSFX('disabled');return true;}
@@ -18586,8 +18644,21 @@ const SCANOBOT_TIER         = 1;       // scanner, not soldier · keeps kill XP 
 // needs 100 Scanobots, and there were fifty.  Ten per district makes the
 // arithmetic land exactly: clear every Scanobot in the world and the network
 // completes, with nothing left over and nothing missing.
-const SCANOBOT_PER_DIST     = 10;
-const SCANOBOT_ROGUE_TOWERS = 3;       // Scrapjaw notices once 3 towers are lit
+// ★★ v0.95.801 · x3.  Creator: "add x3 as many scanobots to the world."
+// 10 -> 30 per district, 300 in the world.  The portal network still costs 100
+// chips, so it no longer takes a clean sweep of every drone on the planet to
+// finish it — you finish it about a third of the way through, and the rest are
+// scrap, gems and a fight.
+const SCANOBOT_PER_DIST     = 30;
+// ★★ v0.95.801 · THE ROGUE TRIGGER IS NOW THARDIN, NOT THE TOWERS.
+// Creator: "make them hostile when player enters thardin."
+//
+// Which is the right beat for it: Thardin is the corporation that BUILT the
+// survey net ([[aov-thardun-zysphere-canon]]), so walking into the company
+// district is what makes the whole net stop logging you and start hunting you.
+// Scrapjaw's three-tower notice was a guess; this is the story.
+const SCANOBOT_ROGUE_DISTRICT = 'thardin';
+const SCANOBOT_ROGUE_TOWERS = 3;       // ★ retained · Scrapjaw's line still reads off it
 const SCANOBOT_GEM          = 'blue';  // [[aov-gem-canon]] · Blue = DEF+SP · Brain
 const SCANOBOT_SRC          = 'assets/2D%20sprites/enemies/scanobot.png';
 const SCANOBOT_BBOXES = [
@@ -18605,9 +18676,36 @@ const SCANOBOT_BBOXES = [
 // every predicate and still looks wrong: two units pinned to the map's edge.
 // A bounds check that produces a legal-but-stupid answer is worse than one
 // that fails loudly, so the offsets simply stay inside the shallowest district.
-const SCANOBOT_OFFSETS = [
-  [-16, -11], [ 15,  -8], [ 19,  9], [-11,  16], [ 2,  20],
-];
+// ★★ v0.95.801 · GENERATED, NOT HAND-LISTED.
+//
+// ★ SCANOBOT_PER_DIST was a LIE for as long as it existed.  The count was
+//   really set by the LENGTH of this array — five entries, five drones — so
+//   raising the constant from 5 to 30 changed nothing at all.  A constant that
+//   does not drive the thing it is named for is worse than no constant: it
+//   reads as the knob and it is not the knob.
+//
+// The offsets are now derived FROM the constant, on a golden-angle spiral out
+// from the tower.  A spiral because these are survey drones on a sweep: it
+// gives even coverage with no two at the same bearing, and it is deterministic,
+// so the net rebuilds identically at boot and after a load.
+//
+// ★ Vertical reach still caps at |dy| <= 11.  Malezor's tower sits at y=14, and
+// an earlier pass that reached -15 threw two drones off the top of the world;
+// the ring search then "rescued" them to y=0, which passes every predicate and
+// still looks wrong.  The spiral is squashed on Y rather than clipped, so the
+// shape stays even instead of piling up along the cap.
+const SCANOBOT_OFFSETS = (function(){
+  const out = [];
+  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  const RX = 26, RY = 11;
+  for (let i = 0; i < SCANOBOT_PER_DIST; i++){
+    const t = (i + 0.5) / SCANOBOT_PER_DIST;
+    const r = Math.sqrt(t);                 // equal-area · no crowding at the hub
+    const a = i * GOLDEN;
+    out.push([Math.round(Math.cos(a) * RX * r), Math.round(Math.sin(a) * RY * r)]);
+  }
+  return out;
+})();
 function scanobotsAreRogue(){ return !!player.scanobotsRogue; }
 // Nearest walkable tile that is still inside the district we meant. Without
 // the district test a drone placed near a border drifts into the neighbour and
@@ -18695,9 +18793,26 @@ function applyScanobotState(){
   let n = 0;
   for (const b of NPCS){
     if (!b || !b._scanobot) continue;
-    b.isEnemy = rogue;
-    b.mode    = rogue ? 'drainer' : 'wander';
-    if (rogue && b.drainAmt == null) b.drainAmt = 4;
+    // ★★ v0.95.801 · SMASHABLE FROM THE START.
+    // Creator: "make them smashable at game start."
+    //
+    // isEnemy was the ROGUE flag AND the can-be-hit flag, so a passive drone
+    // could not be punched at all — Square went straight through it.  Those are
+    // two different questions.  isEnemy now means "a valid target" and is
+    // always true; `mode` alone decides whether it comes after you.
+    //
+    // A passive drone therefore drifts, scans, and can be smashed for its board
+    // the moment the game starts — which is the point: the chips have to be
+    // gettable before Thardin, or the portal network cannot open early.
+    b.isEnemy  = true;
+    b.mode     = rogue ? 'drainer' : 'wander';
+    b._passive = !rogue;
+    // ★ `|| 4`, not `== null ? 4`.  Passive sets drainAmt to 0, and 0 is not
+    // null — so the null-check kept the zero and every drone that had ever been
+    // passive went rogue doing NO damage.  Caught by the suite; it would have
+    // read in play as the whole survey net turning red and then bumping into
+    // you harmlessly.
+    b.drainAmt = rogue ? (b.drainAmt || 4) : 0;
     n++;
   }
   return n;
@@ -18710,13 +18825,16 @@ function scanobotTalk(T){
     showToast(`◈ SCANOBOT · Thardin survey unit · it scans you, logs you, and drifts on`, 2800);
   }
 }
-// ★ The event. Fired from Scrapjaw once 3 towers are lit — he is the one who
-// would notice, because he is the one who buys the scrap.
-function triggerScanobotRogue(){
+// ★ The event.  Fired the moment Rizer sets foot in Thardin — the district that
+// builds the drones.  Also still reachable from Scrapjaw's line, so a player who
+// somehow gets that dialogue first is not left with a net that never turns.
+function triggerScanobotRogue(reason){
   if (scanobotsAreRogue()) return false;
   player.scanobotsRogue = true;
   const n = applyScanobotState();
-  showToast(`★ THE SURVEY NET HAS GONE ROGUE · all ${n} Scanobots have turned · Thardin has lost control`, 5200);
+  showToast(reason === 'thardin'
+    ? `★ THARDIN · every eye in the district just turned red · all ${n} Scanobots are hunting`
+    : `★ THE SURVEY NET HAS GONE ROGUE · all ${n} Scanobots have turned · Thardin has lost control`, 5200);
   try { playSFX('confirm'); } catch(_){}
   return true;
 }
@@ -23229,6 +23347,13 @@ function tryMove(dt){
         player.visitedDistricts[dist] = true;
         // ★ v0.95.778 · Dad's Notebook · the district files itself on arrival
         try { notebookVisit(`district:${dist}`, dist.toUpperCase()); } catch(_){}
+        // ★★ v0.95.801 · THARDIN TURNS THE SURVEY NET.  Fires on ARRIVAL, not
+        // first arrival: if a save predates this, or the player somehow crosses
+        // the border before the flag exists, the net still turns the next time
+        // they walk in.  triggerScanobotRogue is idempotent.
+        if (dist === SCANOBOT_ROGUE_DISTRICT){
+          try { triggerScanobotRogue('thardin'); } catch(_){}
+        }
         // Cache the border-crossing point as a warp anchor
         player.warpAnchors = player.warpAnchors || {};
         if (!player.warpAnchors[dist]) player.warpAnchors[dist] = { x: nx, y: ny };
@@ -26091,74 +26216,9 @@ addEventListener('keydown', e => {
             playSFX('chomp');
             showToast(`◈ Soulphish consumed · +${player.astral - before} Astral`, 2000);
           } else if (key === 'astralcore_transponder' && (player.items?.astralcore_transponder || 0) > 0){
-            // v0.95.503 · ASTRALCORE TRANSPONDER · Auraxion's gift · summons the
-            // UFO to the nearest clear landing zone around the player.  REUSABLE
-            // (no consumption).  Requires overworld scene · UFO cannot summon
-            // while already being flown.
-            try {
-              // ★★ v0.95.710 · THE TRANSPONDER IS A RADIO, SO IT NEEDS A NETWORK.
-              //
-              // Three gates, checked outward-in — clearance, then coverage,
-              // then line of sight:
-              //   1 · Auraxion's Astralcore retrieval must be DONE.  He grants
-              //       both the UFO and the transponder on completion, so
-              //       holding one without the flag means a dev grant or a save
-              //       from before the mission existed.
-              //   2 · THIS district's Scrapjaw tower must be restored.  The
-              //       towers are the planet's comms network ([[aov-broadcast-towers]])
-              //       and the same signal already gates contact calls — a
-              //       transponder that worked in a dead district would be the
-              //       one radio on Zyraxis that needs no relay.
-              //   3 · outdoors, and the UFO not already flying.
-              const _dist = (typeof worldDistrictAt === 'function')
-                ? worldDistrictAt(Math.round(player.x), Math.round(player.y)) : null;
-              const _towerUp = (typeof towerRestored === 'function' && _dist)
-                ? towerRestored(_dist) : true;
-              if (!player.auraxionMissionComplete && !game.devMaxBond){
-                showToast('◈ Transponder · unregistered · finish Auraxion\'s Astralcore retrieval first', 3400);
-                playSFX('doorLock');
-              } else if (game.scene !== 'overworld'){
-                showToast('◈ Transponder · no signal indoors · use outside', 2200);
-                playSFX('doorLock');
-              } else if (!_towerUp && !game.devMaxBond){
-                const _lbl = (typeof TOWER_BY_DIST !== 'undefined' && TOWER_BY_DIST[_dist])
-                  ? TOWER_BY_DIST[_dist].label : String(_dist || '').toUpperCase();
-                showToast(`◈ Transponder · NO CARRIER · ${_lbl}'s tower is still down · fix it for Scrapjaw first`, 4000);
-                playSFX('doorLock');
-              } else {
-                const prop = (typeof auraxionUfoProp === 'function') ? auraxionUfoProp() : null;
-                if (!prop){ showToast('◈ Transponder · UFO offline', 2000); playSFX('cancel'); }
-                else if (prop._inFlight){ showToast('◈ Transponder · UFO already airborne', 2000); playSFX('cancel'); }
-                else {
-                  const px = Math.round(player.x), py = Math.round(player.y);
-                  let anchor = null;
-                  // v0.95.614 · start radius at 1 · UFO drops as close to
-                  // Rizer as any allowed 10×3 landing zone permits
-                  outer:
-                  for (let r = 1; r <= 32; r++){
-                    for (let dy = -r; dy <= r; dy++){
-                      for (let dx = -r; dx <= r; dx++){
-                        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-                        const ax = px + dx, ay = py + dy;
-                        if (typeof ufoCanLand === 'function' && ufoCanLand(ax, ay)){
-                          anchor = { x: ax, y: ay }; break outer;
-                        }
-                      }
-                    }
-                  }
-                  if (!anchor){
-                    showToast('◈ Transponder · no clear 10×3 landing zone within 24 tiles · move to open ground', 3200);
-                    playSFX('cancel');
-                  } else {
-                    try { clearUfoWorldCollision(prop); } catch(_){}
-                    prop.tileX = anchor.x; prop.tileY = anchor.y;
-                    try { restoreUfoWorldCollision(prop); } catch(_){}
-                    try { playSFX('corsunUfo'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
-                    showToast(`◈ TRANSPONDER · UFO summoned to (${anchor.x}, ${anchor.y})`, 3000);
-                  }
-                }
-              }
-            } catch(_){ playSFX('cancel'); }
+            // ★ v0.95.801 · the whole body of this branch moved to
+            // summonUfoNearPlayer() so the ZyCube can call the same thing.
+            summonUfoNearPlayer();
           } else {
             playSFX('cancel');
           }
@@ -34643,6 +34703,14 @@ function useZycubeItem(key){
     return;
   }
   switch (key){
+    // ★★ v0.95.801 · TRANSPONDER · Creator: "selecting astralcore transponder
+    // in the zycube should spawn ufo near me in the closest appropriate tiles."
+    // It used to fall through to the info-only default and just print a count.
+    case 'astralcore_transponder': {
+      if (qty <= 0){ showToast('◈ No Astralcore Transponder', 1600); playSFX('cancel'); return; }
+      summonUfoNearPlayer();
+      return;
+    }
     case 'raidcard': {
       zycubeRAIDViewerOpen = true;
       playSFX('menuOpen');

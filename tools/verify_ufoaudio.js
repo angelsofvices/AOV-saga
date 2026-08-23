@@ -26,7 +26,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_ufoaudio · v0.95.799 · the UFO has its own radio, and it hands the sky back
 const FS=require('fs');
 try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
-  ';globalThis.__C={AUDIO,playBGM,player,game,boardAuraxionUfo,landAuraxionUfo};')();}
+  ';globalThis.__C={AUDIO,playBGM,player,game,boardAuraxionUfo,landAuraxionUfo,summonUfoNearPlayer,useZycubeItem,INVENTORY_META};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
@@ -103,6 +103,41 @@ H('4 · ★★ THE SHORTER WELCOME');
   ok(!!C.AUDIO.sfx.corsunUfo,'still wired as corsunUfo');
   const src=FS.readFileSync('/tmp/all.js','utf8');
   ok(/playSFX\('corsunUfo'\)/.test(src),'and still played on entry');
+}
+
+
+H('5 · ★★ ONE TRANSPONDER, TWO PLACES TO PRESS IT');
+// Creator: "selecting astralcore transponder in the zycube should spawn ufo
+// near me in the closest appropriate tiles."
+{
+  const src=FS.readFileSync('/tmp/all.js','utf8');
+  ok(typeof C.summonUfoNearPlayer==='function','★ the summon is a named function now');
+  // ★★ THE BUG.  The behaviour already existed and already did exactly what was
+  //    asked — it was buried INLINE inside the settings bag page, so the
+  //    ZyCube's copy of the same item fell through to the info-only default and
+  //    printed a quantity.  One item, two menus, one of them wired.
+  const calls=(src.match(/summonUfoNearPlayer\(\)/g)||[]).length;
+  ok(calls>=2,`${calls} call sites — the settings bag AND the ZyCube`);
+  const z=src.indexOf('function useZycubeItem');
+  const zbody=src.slice(z, z+2200);
+  ok(/case 'astralcore_transponder'/.test(zbody),
+     '★ the ZyCube has a real case for it instead of falling through to the info default');
+  ok(/summonUfoNearPlayer\(\)/.test(zbody),'which calls the shared summon');
+  // and the settings page no longer carries its own copy of the search
+  const i=src.indexOf("key === 'astralcore_transponder'");
+  ok(i>0,'the settings branch still exists');
+  ok(!/ufoCanLand\(ax, ay\)/.test(src.slice(i, i+2500)),
+     '★ but no longer carries its own copy of the landing-zone search');
+
+  // ── the search itself ────────────────────────────────────────────
+  const f=String(C.summonUfoNearPlayer);
+  ok(/for \(let r = 1; r <= 32; r\+\+\)/.test(f),
+     '★ rings outward from r=1, so the UFO lands as CLOSE as a legal 10x3 zone allows');
+  ok(/ufoCanLand/.test(f),'and every candidate is checked against the real landing test');
+  ok(/prop\._inFlight/.test(f),'refuses while it is already airborne');
+  ok(/game\.scene !== 'overworld'/.test(f),'and indoors');
+  ok(/towerRestored/.test(f),"and in a district whose tower is still down — it is a radio, it needs the relay");
+  ok(!!C.INVENTORY_META.astralcore_transponder,'the item exists in the bag');
 }
 
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));

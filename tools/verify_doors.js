@@ -115,8 +115,13 @@ console.log('\n4 · ★★ TRANSPONDER · three gates, checked outward-in\n');
 // pushed the landing search out of view and reported it deleted. That is the
 // FOURTH fixed-window failure this session; the window is the bug, not the
 // code, so this one measures its own extent.
+// ★ v0.95.801 · the branch body MOVED.  The Creator asked for the transponder
+//   to work from the ZyCube too, so the gates and the landing search were
+//   pulled out of this menu branch into summonUfoNearPlayer() and both menus
+//   now call it.  Read the function, which is where the rules actually live —
+//   and which is now the only place they live, rather than one of two copies.
 const T=(()=>{
-  const i=src2.indexOf("key === 'astralcore_transponder'");
+  const i=src2.indexOf('function summonUfoNearPlayer');
   if(i<0) return '';
   let j=src2.indexOf('{', i), d=0;
   for(let k=j;k<src2.length;k++){
@@ -125,6 +130,16 @@ const T=(()=>{
   }
   return src2.slice(i, i+8000);
 })();
+// ★ and BOTH menus reach it · a rule with one home is only useful if every
+//   door opens onto it
+{
+  const zc=src2.indexOf('function useZycubeItem');
+  const zbody=src2.slice(zc, zc+2200);
+  ok(/case 'astralcore_transponder'/.test(zbody) && /summonUfoNearPlayer/.test(zbody),
+     '★ the ZyCube reaches the same gates as the settings bag');
+  ok(/summonUfoNearPlayer\(\)/.test(src2.slice(src2.indexOf("key === 'astralcore_transponder'"), src2.indexOf("key === 'astralcore_transponder'")+400)),
+     '  and so does the settings bag');
+}
 ok(T.length>1500, `transponder branch located · ${T.length} chars (brace-matched, not a guess)`);
 ok(/auraxionMissionComplete/.test(T), 'GATE 1 · Auraxion\'s Astralcore retrieval must be done');
 ok(/towerRestored/.test(T), 'GATE 2 · this district\'s Scrapjaw tower must be restored');

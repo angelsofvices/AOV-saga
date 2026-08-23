@@ -29,6 +29,7 @@ try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
   ';globalThis.__C={PORTAL_TIERS,PORTAL_NETWORK,ZYRAXIS_DISTRICTS,WORLD_PROPS,NPCS,player,game,'+
   'portalPiecesSpent,portalDistrictsUnlocked,portalUnlocked,portalNextTier,portalDistrictIndex,'+
   'sitePortals,spawnPortals,usePortal,portalTravel,SCANOBOT_PER_DIST,PICKUP_KINDS,_propBlocked,'+
+  'summonUfoNearPlayer,useZycubeItem,'+
   'INVENTORY_META,isWorldLandTile,isWorldBorderTile};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
@@ -170,12 +171,20 @@ H('5 · ★★ THE MATHS ACTUALLY CLOSES');
 {
   // ★ Creator: "by 100 scanobot kills you can portal travel all [10] districts."
   //   At one chip per kill that needs 100 Scanobots.  There were fifty.
+  // ★ v0.95.801 · the Creator tripled the drone count after this was written.
+  //   The network still costs 100 chips, so the tight "clear everything and it
+  //   completes exactly" relationship is gone on purpose — you finish the
+  //   network about a third of the way through and the rest are scrap and gems.
+  //   What still has to hold is that the network is REACHABLE.
   const total = C.SCANOBOT_PER_DIST * C.ZYRAXIS_DISTRICTS.length;
-  ok(C.SCANOBOT_PER_DIST===10,`${C.SCANOBOT_PER_DIST} Scanobots per district`);
-  ok(total===100,`★ ${total} in the world · exactly the 100 chips the full network costs`);
   const last=C.PORTAL_TIERS[C.PORTAL_TIERS.length-1];
-  ok(total===last.pieces,
-     '★ clear every drone and the network completes — nothing left over, nothing missing');
+  ok(total >= last.pieces,
+     `★ ${total} drones in the world against a ${last.pieces}-chip network · it can actually be finished`);
+  ok(total <= last.pieces * 4,
+     `  and not so many that the chips are meaningless (${(total/last.pieces).toFixed(1)}x)`);
+  // ★ and every district can contribute · a band you cannot fund is a dead end
+  ok(C.SCANOBOT_PER_DIST * 2 >= C.PORTAL_TIERS[0].pieces,
+     `★ two districts alone yield ${C.SCANOBOT_PER_DIST*2} chips — enough for the first band without leaving home`);
   // one chip per kill, so the number in the bag IS the kill count
   const d=src.indexOf('function scanobotDrop');
   const body=src.slice(d,d+1400);

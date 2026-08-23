@@ -12118,6 +12118,10 @@ setTimeout(() => { try {
   // ★ v0.95.762 · after the collision bake and the chests, so nothing lands
   // inside a building or on top of a chest
   try { topUpDistrictCollectibles(); } catch(err){ console.warn('[rp7b] collectible top-up failed', err); }
+  // ★ v0.95.763 · LAST. Every earlier pass tests _propBlocked, which only
+  // covers a building's ground storey — so this sweeps up whatever they left
+  // standing inside a facade.
+  try { evictFromBuildings(); } catch(err){ console.warn('[rp7b] building eviction failed', err); }
   // v0.95.738 · Malezor wild habitat · playtest region, N/E/S/W
   try {
     const mw = seedMalezorWild();
@@ -34873,6 +34877,99 @@ const TRAIL_HEDGE_BY_DIST = {};
 // every structure, and at least CHEST_MIN_FROM_ROAD tiles off the carved
 // roadbed, so you find them by exploring the blocks rather than by walking the
 // path you were already on.
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.763 · NOTHING STANDS INSIDE A BUILDING
+//
+// applyGroundStoreyCollision deliberately reduces a building's collision to its
+// GROUND STOREY only — 1441 footprint tiles become 509 — so the player can walk
+// behind an upper floor. That is right for movement and wrong for placement:
+// every scatter pass in this file tests _propBlocked, so all of them happily
+// dropped trees, bushes and boulders on tiles that are walkable but sit inside
+// the drawn facade. 373 flora and 8 boulders ended up growing out of houses.
+//
+// A building's VISUAL box is what matters here: tileW wide, centred on tileX,
+// rising drawH tiles above tileY. Anything whose base sits strictly ABOVE the
+// building's ground row is inside the house. Anything ON that row is standing
+// in front of it, which is what a garden bush should do — so the base row is
+// explicitly allowed.
+function _buildingFacadeTiles(){
+  const facade = new Set();
+  for (const p of WORLD_PROPS){
+    if (!p || !p.src || !/\/buildings\//.test(p.src) || p.tileX == null) continue;
+    const w = p.tileW || 1;
+    const h = p.bbox ? (w * p.bbox[3] / p.bbox[2]) : (p.tileH || 1);
+    const x0 = Math.round(p.tileX - w/2), x1 = Math.round(p.tileX + w/2);
+    const y0 = Math.round(p.tileY - h + 1);
+    for (let y = y0; y < p.tileY; y++)            // < , not <= · base row is fine
+      for (let x = x0; x <= x1; x++) facade.add(x+','+y);
+  }
+  return facade;
+}
+function evictFromBuildings(){
+  if (game._evictedFromBuildings) return null;
+  game._evictedFromBuildings = true;
+  const facade = _buildingFacadeTiles();
+  const FLORA = /decor\/(?:[a-z]+\/)?[a-z0-9-]*(?:tree|cactus|bush)/;
+  const okTile = (x, y) => {
+    if (facade.has(x+','+y)) return false;
+    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+    if (_propBlocked.has(x+','+y)) return false;
+    if (typeof boulderAt === 'function' && boulderAt('overworld', x, y)) return false;
+    return true;
+  };
+  const nearestFree = (x, y, r=10) => {
+    for (let d = 1; d <= r; d++)
+      for (let dy = -d; dy <= d; dy++)
+        for (let dx = -d; dx <= d; dx++)
+          if (Math.max(Math.abs(dx), Math.abs(dy)) === d && okTile(x+dx, y+dy)) return [x+dx, y+dy];
+    return null;
+  };
+  let moved = 0, removed = 0, rocks = 0;
+  // FLORA · move it out if there is anywhere to go, otherwise remove it.
+  // Same rule as everywhere else in this file: flora is clearable.
+  for (let i = WORLD_PROPS.length - 1; i >= 0; i--){
+    const p = WORLD_PROPS[i];
+    if (!p || !p.src || !FLORA.test(p.src) || p.tileX == null) continue;
+    if (!facade.has(p.tileX+','+p.tileY)) continue;
+    const spot = nearestFree(p.tileX, p.tileY);
+    unregisterPropCollision(p);
+    if (spot){
+      p.tileX = spot[0]; p.tileY = spot[1];
+      registerPropCollision(p);
+      moved++;
+    } else {
+      WORLD_PROPS.splice(i, 1);
+      removed++;
+    }
+  }
+  // BOULDERS · never removed. A life or astralite stone is a resource the
+  // player is sent to find, so it always relocates.
+  for (const b of BOULDERS){
+    if (!facade.has(b.tileX+','+b.tileY)) continue;
+    const spot = nearestFree(b.tileX, b.tileY, 16);
+    if (spot){ b.tileX = spot[0]; b.tileY = spot[1]; rocks++; }
+  }
+  // CHESTS AND FAE · same bug, same fix. A chest drawn inside a wall cannot be
+  // opened and a fae inside one cannot be caught, so neither is ever removed —
+  // they relocate or stay put and get reported.
+  let chests = 0, faes = 0;
+  for (const p of WORLD_PROPS){
+    if (!p || !p._woodChest || !facade.has(p.tileX+','+p.tileY)) continue;
+    const spot = nearestFree(p.tileX, p.tileY, 16);
+    if (!spot) continue;
+    unregisterPropCollision(p);
+    p.tileX = spot[0]; p.tileY = spot[1];
+    registerPropCollision(p);
+    chests++;
+  }
+  for (const f of _fae){
+    if (!facade.has(f.x+','+f.y)) continue;
+    const spot = nearestFree(f.x, f.y, 16);
+    if (spot){ f.x = spot[0]; f.y = spot[1]; faes++; }
+  }
+  console.log(`[rp7b] building eviction · ${moved} flora moved out · ${removed} removed (nowhere to go) · ${rocks} boulders · ${chests} chests · ${faes} fae relocated`);
+  return { moved, removed, rocks, chests, faes };
+}
 // ════════════════════════════════════════════════════════════════════════════
 // ★★ v0.95.762 · COLLECTIBLES IN EVERY DISTRICT
 //

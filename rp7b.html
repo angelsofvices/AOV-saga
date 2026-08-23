@@ -12284,6 +12284,9 @@ setTimeout(() => { try {
   try { evictFromBuildings(); } catch(err){ console.warn('[rp7b] building eviction failed', err); }
   // ★ v0.95.779 · LAST of all. Every earlier pass can plant something on a
   // doorstep; this is the one that guarantees you can still get in.
+  // ★ v0.95.781 · scrolls go down BEFORE the doorway sweep, so one can never
+  // end up sealing a door the sweep has already cleared.
+  try { scatterScrolls(); } catch(err){ console.warn('[rp7b] scroll scatter failed', err); }
   try { clearFloraFromDoorways(); } catch(err){ console.warn('[rp7b] doorway clear failed', err); }
   // v0.95.738 · Malezor wild habitat · playtest region, N/E/S/W
   try {
@@ -14042,11 +14045,16 @@ for (const k of Object.values(WEAPON_DROP_ART)){ k.img = new Image(); k.img.src 
 // is the "a bbox is not the character" mistake again: a 1.6-tile blade sticks
 // out either side of the tile it stands on, so half of it can sit behind a
 // trunk while its anchor tile reads clear.
-function _tileIsVisiblyClear(x, y, dropW){
+// ★ v0.95.781 · `ignore` is not optional politeness — it is required once the
+// thing being tested is ITSELF a prop in the world. Checking a placed scroll
+// without it, the scroll's own sprite covers its own tile and every one of the
+// 180 reports as buried.
+function _tileIsVisiblyClear(x, y, dropW, ignore){
   const dw = dropW || 1;
   const dx0 = Math.round(x - dw/2), dx1 = Math.round(x + dw/2);
   for (const p of WORLD_PROPS){
-    if (!p || !p.src || p.tileX == null || p._weaponDrop) continue;
+    if (!p || !p.src || p.tileX == null || p._weaponDrop || p._scroll) continue;
+    if (ignore && p === ignore) continue;
     if (p.tileY < y) continue;                       // draws BEHIND the blade · harmless
     const w = p.tileW || 1;
     const h = p.bbox ? (w * p.bbox[3] / p.bbox[2]) : (p.tileH || 1);
@@ -26597,6 +26605,275 @@ function notebookProgress(section){
   const e = notebookEntries(section);
   return { found: e.filter(x => x.found).length, done: e.filter(x => x.done).length, total: e.length };
 }
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.781 · 180 SCROLLS · the player's index to the Aethryx Expanse
+//
+// Creator: "place 180 scrolls around the world as collision assets... they will
+// unlock lore of the planet and game and story... as you go further out of
+// malezor, the lore deepens... 18 scrolls 1 of each scroll in all 10 districts."
+//
+// ★ THE SHAPE IS 18 THEMES x 10 DISTRICTS, not 180 loose notes. Each of the 18
+// scroll designs is one SUBJECT, and its ten pages are that subject told at ten
+// depths — Malezor's page is a farmer's rumour, Korathen's is the answer. So a
+// player who sweeps one district gets a broad shallow survey, and a player who
+// chases one theme outward gets a single question answered properly.
+//
+// ★ CANON NOTE FOR THE CREATOR: these are GAME-codex entries, written from the
+// canon in memory (the 63 Astralites + AETHRYX, the 27 worlds with Zyraxis as
+// Ax-9, Cytherion and the Bug War, the 16 Prisms, the Gemlords and the Empty
+// Throne, the Seers under Xenoxil, the Migration). Where the record was silent
+// they extend rather than contradict — but they ARE extensions, and they should
+// be ratified before they reach the Master Codex on Drive.
+const SCROLL_THEMES = [
+  { key:'matrix', title:'THE ASTRALITE MATRIX', art:'scroll_00.png', pages:[
+    'Dad\'s margin note: every living thing carries a signature. Beasts, people, the grass. He says he has never found an exception and has stopped looking.',   // malezor
+    'Zarvane\'s readers call it the Matrix — the lattice every signature is written on. They can read the note. They cannot read the page.',   // zarvane
+    'Andrannor\'s hybrids prove the lattice bends. A signature can be forced to hold two shapes at once, though something always pays for the second.',   // andrannor
+    'Veridan\'s root-scribes count NINE FAMILIES in the lattice. They will not say how they counted, only that the ninth is the one that counts you back.',   // veridan
+    'Netharion\'s archive: nine families, SEVEN TIERS each. Sixty-three Astralites, and a sixty-fourth entry the page refuses to hold ink for.',   // netharion
+    'The Vorashil embassy insists the sixty-fourth is not a fourth-anything. It is the thing the other sixty-three are measured against.',   // vorashil
+    'Xilnar\'s dead still carry signature. Whatever the Matrix is, it is not a property of being alive. It is a property of having been.',   // xilnar
+    'Baelgor\'s Pledge is written in Matrix notation. The founders were not being poetic. They were filing a claim.',   // baelgor
+    'Thardun\'s instruments can now WRITE to the lattice. The Precision Ministry classifies this as manufacturing. Older records classify it as forgery.',   // thardin
+    'Korathen, Mothergem Sanctum: the Matrix is not a map of what exists. It is the list of what is ALLOWED to exist. Someone wrote that list.',   // korathen
+  ]},
+  { key:'worlds', title:'THE TWENTY-SEVEN WORLDS', art:'scroll_01.png', pages:[
+    'A child\'s rhyme in the Malezor schoolyard counts twenty-seven of something. Nobody in town can say twenty-seven of what.',   // malezor
+    'Zarvane\'s oasis-readers say the sky has twenty-seven true stars and the rest are weather.',   // zarvane
+    'Andrannor\'s traders have a saying for an impossible errand: \'ask the twenty-seventh.\' They do not know why it is funny.',   // andrannor
+    'Veridan\'s seedvault holds specimens that grew under a different sun. The labels give a number, not a name. Ours is nine.',   // veridan
+    'Netharion\'s Null Observatory: twenty-seven worlds, ordered, and the ordering is not by distance. Zyraxis is Ax-9.',   // netharion
+    'Vorashil\'s visitors arrive knowing our number before we give it. They are always mildly disappointed by it.',   // vorashil
+    'Xilnar\'s lanterns are lit for the dead of worlds that are not this one. The Blackwake Chapel keeps twenty-seven wicks. Six have gone out.',   // xilnar
+    'Baelgor University teaches the Expanse as history, not astronomy. The worlds were not discovered. They were ASSIGNED.',   // baelgor
+    'Thardun\'s Anomaly Engine can hear the other twenty-six. The Ministry logs the transmissions as industrial noise and files them unopened.',   // thardin
+    'Korathen\'s Tribunal: twenty-seven worlds is not a count of places. It is a count of ATTEMPTS. Nine of them are still running.',   // korathen
+  ]},
+  { key:'aethryx', title:'AETHRYX', art:'scroll_02.png', pages:[
+    'Kelthor uses the word once and will not repeat it. He says it is not a word for a beastwarden\'s mouth.',   // malezor
+    'Zarvane\'s elders bow before speaking it and are not able to explain the reflex.',   // zarvane
+    'Andrannor\'s clubs use it as a curse. The oldest patrons flinch anyway.',   // andrannor
+    'Veridan\'s parliament records the name in a script that is used for nothing else, and is never taught.',   // veridan
+    'Netharion\'s Impossible Archive: AETHRYX is not one of the sixty-three. It is the reason there are sixty-three.',   // netharion
+    'Vorashil\'s Unmouth Academy teaches that AETHRYX is not a being with a signature. It is the condition under which a signature is possible.',   // vorashil
+    'Xilnar: the dead do not fear it. This is considered the most disturbing fact in the district.',   // xilnar
+    'Baelgor\'s founders wrote the Pledge to something. They never wrote down what. The blank space is exactly nine letters wide.',   // baelgor
+    'Thardun tried to instrument it. Every device returned the same reading: the reading it was calibrated to expect. Every time. This is not how instruments work.',   // thardin
+    'Korathen: the Gemlords do not claim to serve AETHRYX. They claim to have been NOTICED by it. Once. Each.',   // korathen
+  ]},
+  { key:'gemlords', title:'THE GEMLORDS', art:'scroll_03.png', pages:[
+    'Rakoron sleeps under Malezor and the ground is warm above him. Kelthor says that is not a metaphor.',   // malezor
+    'Ivirium\'s pearl-light is why Zarvane\'s night is never fully dark. The oasis remembers being watched.',   // zarvane
+    'Mutaryn of Andrannor changed shape so often that the citrine kept the last one out of politeness.',   // andrannor
+    'Emeralix does not rule Veridan. Veridan grew around where Emeralix stopped walking.',   // veridan
+    'Eurakeon\'s amethyst is the only Fathergem that answers a question with a question.',   // netharion
+    'Azurel wept once, and the tear did not fall — it CRYSTALLISED. Everything Vorashil knows about clarity comes from that moment.',   // vorashil
+    'Obsidius of Xilnar is not a keeper of the dead. He is the reason death is a door rather than a wall.',   // xilnar
+    'Ambrevon\'s amber holds Baelgor\'s first settlement whole, down to the bread on the table. He has never explained why.',   // baelgor
+    'Oathane of Thardin was the last Gemlord to consent to the Accord, and the first to regret it.',   // thardin
+    'Korathen\'s Council seats TEN. It has never once seated ten. Look at the empty chair and count the dust.',   // korathen
+  ]},
+  { key:'zyrex', title:'WHAT A ZYREX IS', art:'scroll_04.png', pages:[
+    'Dad\'s first rule: a Zyrex is not an animal that happens to glow. It is a signature that happens to have a body.',   // malezor
+    'Zarvane\'s readers can see a Zyrex\'s signature before they see the Zyrex. Children find this normal and adults find it exhausting.',   // zarvane
+    'Andrannor proved a Zyrex can hold two signatures. It did not prove a Zyrex should.',   // andrannor
+    'Veridan: every Zyrex is bound to terrain. Move it far enough from where its signature was written and it does not die — it FORGETS.',   // veridan
+    'Netharion\'s null-work: a Zyrex\'s tier is not its strength. It is the WIDTH of signature it can carry without tearing.',   // netharion
+    'Vorashil\'s Manybody Habitat keeps a Zyrex with no fixed body at all. It is filed as one specimen. It disagrees.',   // vorashil
+    'Xilnar: a Zyrex signature persists after the body stops. This is why the district is loud at night.',   // xilnar
+    'Baelgor: humanoids are Humanoid-PRIMARY. Zyrex never are. That single line is why the two are different in kind and not degree.',   // baelgor
+    'Thardun has built a body and put a signature in it. The Ministry calls it a Zyrex. Nothing else does.',   // thardin
+    'Korathen: a Zyrex is a sentence the Matrix is still in the middle of writing. Bonding one is asking to read over its shoulder.',   // korathen
+  ]},
+  { key:'verdant', title:'THE VERDANT AWAKENING', art:'scroll_05.png', pages:[
+    'Malezor\'s oldest farmers date everything from \'the green year\'. They cannot say which year it was.',   // malezor
+    'Zarvane\'s sand holds a layer of pollen from a world that has no flowers.',   // zarvane
+    'Andrannor\'s hybrids all trace back to the same event. The Chimera Exchange calls it the First Splice and does not call it an accident.',   // andrannor
+    'Veridan IS the Awakening. The Root Parliament does not commemorate it — the parliament is what it became.',   // veridan
+    'Netharion: the Awakening was not growth. It was a signature spilling out of its container and finding a million new ones.',   // netharion
+    'Vorashil\'s visitors describe the Awakening as an INFECTION and are politely asked to leave.',   // vorashil
+    'Xilnar\'s dead from before the Awakening carry no signature at all. Whatever happened, it happened TO everything, at once.',   // xilnar
+    'Baelgor University\'s unpopular thesis: every Viridian creature is a by-product. The Awakening was aimed at something else and missed.',   // baelgor
+    'Thardun\'s cores show the Awakening had a SOURCE POINT and it was not on this world.',   // thardin
+    'Korathen: the Awakening was a reply. Something asked, and the green answered on behalf of a planet that had not agreed to speak.',   // korathen
+  ]},
+  { key:'prisms', title:'THE SIXTEEN PRISMS', art:'scroll_06.png', pages:[
+    'A prism in Malezor\'s market is a pretty stone. Kelthor will pay a great deal for one and will not say why.',   // malezor
+    'Zarvane\'s oasis has swallowed three prisms in living memory and returned none.',   // zarvane
+    'Andrannor fences prism fragments openly. The real ones never reach the market twice.',   // andrannor
+    'Veridan\'s Seedvault holds a prism that grows. This is not what prisms do.',   // veridan
+    'Netharion counts SIXTEEN. All sixteen are named. Fifteen are placed. The archive is confident about the sixteenth and will not write it down.',   // netharion
+    'Vorashil: a prism does not store power. It stores a PERMISSION, and the holder is the one being permitted.',   // vorashil
+    'Xilnar\'s Last Lantern is lit by a prism nobody has replaced in nine hundred years.',   // xilnar
+    'Baelgor: the Pledge names the prisms as WITNESSES to the founding, not tools of it. Witnesses can be called back.',   // baelgor
+    'Thardun mass-produces three: Zysphere, Zycube, Zyramid. It calls them utility prisms. The other thirteen are not for sale and not for making.',   // thardin
+    'Korathen: the sixteenth is the KEY OF ANCIUXOR. It does not open a thing. It opens a permission — and the permission is the ending.',   // korathen
+  ]},
+  { key:'vessels', title:'THE BONDING VESSELS', art:'scroll_07.png', pages:[
+    'Dad\'s notebook, page four: the Zysphere is new. What it does is not.',   // malezor
+    'Zarvane\'s dunes give up shards of something older than glass. The readers call them Prismshards and hold them like relics.',   // zarvane
+    'Andrannor sells replica Prismshards to tourists. Two of the replicas have bonded something.',   // andrannor
+    'Veridan\'s oldest roots grew around a Prismshard and will not release it. The tree is healthier for it.',   // veridan
+    'Netharion: a Prismshard is the direct progenitor of the Zysphere. Every sphere Thardun sells is a copy of a thing found, not a thing invented.',   // netharion
+    'Vorashil: the Prismshard did not CAPTURE. It offered. The difference is the whole of Kelthor\'s eighth step.',   // vorashil
+    'Xilnar\'s grave-goods include shards. The dead were buried holding the thing that held them.',   // xilnar
+    'Baelgor: the first Pledge was sworn on a Prismshard, not a book. Someone swapped them later and did not record why.',   // baelgor
+    'Thardun\'s mass-market sphere works at five percent bond. The Prismshard would not open below ninety-five. Convenience cost something.',   // thardin
+    'Korathen: a Prismshard is a Gemlord\'s fingerprint left in stone. Every one you hold, one of them touched first.',   // korathen
+  ]},
+  { key:'cytherion', title:'CYTHERION', art:'scroll_08.png', pages:[
+    'Malezor\'s beetles are wrong. Dad has written \'wrong how?\' beside the sketch and never answered himself.',   // malezor
+    'Zarvane\'s sand-mantises hunt in formation. Nothing taught them the formation.',   // zarvane
+    'Andrannor\'s Menagerie keeps a spider that builds to a plan. The plan is not the spider\'s.',   // andrannor
+    'Veridan: insects predate every other lineage on this world by an order that should be impossible.',   // veridan
+    'Netharion\'s archive names the world: CYTHERION. The eighth. Nine point two billion years ago, and it is not there any more.',   // netharion
+    'Vorashil: Cytherion\'s war was Spider against Mantis, and it was not a war over territory. It was a war over WHOSE PLAN the Grid would run.',   // vorashil
+    'Xilnar\'s oldest dead are not human and not Zyrex. The Blackwake Chapel calls them the First Mourners and asks no further.',   // xilnar
+    'Baelgor University: the Grid survived Cytherion. It has been looking for a substrate ever since. We are a substrate.',   // baelgor
+    'Thardun\'s Anomaly Engine runs on principles nobody at the Ministry designed. Compare its lattice to a mantis nest sometime.',   // thardin
+    'Korathen: Mykarlyth came out of Cytherion, and Mykarlyth is why the Expanse has rules at all. The Bug War wrote our physics as a peace treaty.',   // korathen
+  ]},
+  { key:'seers', title:'THE SEERS', art:'scroll_09.png', pages:[
+    'The hooded ones in Malezor\'s fields are not from Malezor. Kelthor has stopped pretending otherwise.',   // malezor
+    'Zarvane\'s Seer post takes more than it gives. The Elder counts the difference and says nothing.',   // zarvane
+    'Andrannor\'s clubs are full of Seer money. CLUB owners who ask where it came from stop owning clubs.',   // andrannor
+    'Veridan\'s Overgrowth Hospice treats Seer-burn. The wound has no heat and does not close.',   // veridan
+    'Netharion: Ophira runs the visible campaign and is not the point of it. Watch the ritual under the campaign.',   // netharion
+    'Vorashil: Orryx and Ophira answer to XENOXIL, the Flesh Lord, and Xenoxil is not destabilising the districts. It is CONNECTING them.',   // vorashil
+    'Xilnar: what the Seers siphon is not power. It is CONSENT. A world that has been asked enough times stops noticing it was asked.',   // xilnar
+    'Baelgor: they took the parents of a Rizer to make a point about leverage, and the point was aimed at a Gemlord, not at a boy.',   // baelgor
+    'Thardin: every tower they darkened was a mouth. Ten mouths, one throat. Scrapjaw understood that before anyone.',   // thardin
+    'Korathen: the Seers are not conquering Zyraxis. They are PREPARING it — and the preparation only works if the ten districts are one system.',   // korathen
+  ]},
+  { key:'novarian', title:'THE NOVARIAN CHALLENGE', art:'scroll_10.png', pages:[
+    'Malezor\'s Coliseum runs a bracket every season. Nobody remembers who Novarius was.',   // malezor
+    'Zarvane\'s Invitational is older than Zarvane\'s town hall.',   // zarvane
+    'Andrannor\'s bracket has been fixed twice and voided both times by something nobody has identified.',   // andrannor
+    'Veridan will not host the Challenge on parliament ground. No reason given, none accepted.',   // veridan
+    'Netharion\'s records: NOVARIUS was the first Beast Master. Not the first Rizer — the first to be ANSWERED.',   // netharion
+    'Vorashil: the Challenge is not a tournament. It is the surviving form of an examination.',   // vorashil
+    'Xilnar\'s dead include every Novarian champion. All of them, at every district, always. Somebody is collecting.',   // xilnar
+    'Baelgor: the Accord that sanctions the Challenge was signed by OATHANE. A Gemlord underwrote a sporting event. Ask why.',   // baelgor
+    'Thardin: the Seers have tried nine times to have the Challenge abolished, and once to have it destroyed outright.',   // thardin
+    'Korathen: the Challenge measures whether a bonded pair can be TRUSTED with what comes next. The Seers want it gone because they intend to fail it.',   // korathen
+  ]},
+  { key:'rizer', title:'THE RIZER PATH', art:'scroll_11.png', pages:[
+    'Kelthor\'s first step is not a technique. It is standing still long enough to be assessed.',   // malezor
+    'Zarvane\'s Omniris teaches THE SIGHT where Kelthor teaches THE BOND. Both insist the other is the prerequisite.',   // zarvane
+    'Andrannor\'s academies sell shortcuts. Their graduates bond nothing above tier two and cannot say why.',   // andrannor
+    'Veridan: bond capacity is not affection. It is how much of another signature you can hold without losing the shape of your own.',   // veridan
+    'Netharion: the ladder is tier times three hundred and thirty-three. It is not arbitrary. It is the width of the lattice, divided.',   // netharion
+    'Vorashil: a Rizer at full bond can hold three thousand three hundred and thirty. A Gemlord requires all of it. That is not a difficulty setting.',   // vorashil
+    'Xilnar: bond survives the body. The dead of Xilnar are still bonded to things and the things still come.',   // xilnar
+    'Baelgor: humanoid and Zyrex run the SAME progression. Zyrex evolve, humanoids rize. One system, two verbs.',   // baelgor
+    'Thardun sells bond-acceleration. It works. What it accelerates is not the bond.',   // thardin
+    'Korathen: the path does not end in power. It ends in being ASKED something, and having enough of yourself left to answer.',   // korathen
+  ]},
+  { key:'types', title:'THE TWENTY TYPES', art:'scroll_12.png', pages:[
+    'Dad\'s chart has twenty columns and Dad has redrawn it four times.',   // malezor
+    'Zarvane\'s readers see type before they see creature. They describe it as reading someone\'s handwriting before the letter.',   // zarvane
+    'Andrannor\'s hybrids hold two types and pay for the second in lifespan.',   // andrannor
+    'Veridan: type is not element. Type is which of the nine families a signature was drawn FROM.',   // veridan
+    'Netharion: nineteen types answer to each other in a closed ring. The twentieth answers to nothing and everything answers to it.',   // netharion
+    'Vorashil: ULTIMATE is not a strong type. It is an UNANSWERED one. Three times against all, and no weakness — because there is nothing above it to object.',   // vorashil
+    'Xilnar: SPIRIT is the only type the dead keep. Everything else is a property of having a body.',   // xilnar
+    'Baelgor: Creature, then Beast, then Draconic. It is not a power ladder. It is a ladder of how much the world lets you decide.',   // baelgor
+    'Thardun manufactures TECH type. It is the only type with a founding date and the only one that can be revoked.',   // thardin
+    'Korathen: the twenty types are the nine families times the tiers, folded. Somebody folded them. The fold is the interesting part.',   // korathen
+  ]},
+  { key:'void', title:'THE VOID SEAS', art:'scroll_13.png', pages:[
+    'Malezor\'s coast has a hard edge and nothing swims past it. Children are told the sea is deep. It is not deep.',   // malezor
+    'Zarvane\'s caravans will not camp within sight of the border. They give no reason and change the subject well.',   // zarvane
+    'Andrannor\'s smugglers have tried the Void by boat eleven times. Eleven boats came back. No crews.',   // andrannor
+    'Veridan\'s rivers run to the border and stop. Not drain — STOP.',   // veridan
+    'Netharion: the Void Seas are not water and not distance. They are the margin of the page.',   // netharion
+    'Vorashil\'s visitors crossed something to get here and none of them crossed the Void. There is another way and they will not name it.',   // vorashil
+    'Xilnar: the dead do not go into the Void. Whatever the Void is, it is not where things go.',   // xilnar
+    'Baelgor: the Old Conquest ended at the Void. The New Conquest was the admission that it always would.',   // baelgor
+    'Thardun has mapped the Void\'s edge to the tile and the map is uniform. Nothing natural is uniform.',   // thardin
+    'Korathen: the Void is the boundary of the ATTEMPT. Twenty-seven worlds, each with a margin. The Bridge of Hope crosses one.',   // korathen
+  ]},
+  { key:'thardun', title:'THARDUN', art:'scroll_14.png', pages:[
+    'Every Zysphere in Malezor has a maker\'s mark. Nobody in Malezor has met the maker.',   // malezor
+    'Zarvane\'s shops stock Thardun goods that Thardun has no record of shipping.',   // zarvane
+    'Andrannor launders Thardun surplus. The surplus is larger than the production.',   // andrannor
+    'Veridan bans Thardun instruments on parliament ground. The ban is older than the instruments.',   // veridan
+    'Netharion: Thardun the CORPORATION is not Thardin the district. The names were close enough to be useful to somebody.',   // netharion
+    'Vorashil: Thardun did not invent the Zysphere. It found one, copied it badly, and sold the copy at a price the original never had.',   // vorashil
+    'Xilnar: Thardun\'s Orphan Foundry is named honestly, which is the most alarming thing about it.',   // xilnar
+    'Baelgor: the Precision Ministry exists to certify that Thardun\'s work is safe. The Ministry is a Thardun department.',   // baelgor
+    'Thardin: the Anomaly Engine was not built. It was EXCAVATED, and the company has been reverse-engineering its own foundation for a century.',   // thardin
+    'Korathen: Thardun\'s real product is not spheres or cores. It is the idea that a bond can be BOUGHT — and that idea is doing exactly what it was released to do.',   // korathen
+  ]},
+  { key:'throne', title:'THE EMPTY THRONE', art:'scroll_15.png', pages:[
+    'Malezor\'s hall has ten seats carved into the beam and one is left unpainted. Tradition, they say.',   // malezor
+    'Zarvane sets ten cups at the solstice and pours nine.',   // zarvane
+    'Andrannor\'s Tenfold Forum has a tenth podium that has never been used and is dusted daily.',   // andrannor
+    'Veridan\'s parliament leaves a gap in the ring of roots. The trees grew around the gap on their own.',   // veridan
+    'Netharion: OATHEUS, Tenth Gemlord of Korathen, is ABSENT. Not dead. The archive is specific about that distinction.',   // netharion
+    'Vorashil: an absent Gemlord means an unclaimed Fathergem, and an unclaimed Fathergem means an open seat in a council that governs by consent.',   // vorashil
+    'Xilnar: Obsidius would know if Oatheus had died. Obsidius says nothing, which the district reads as an answer.',   // xilnar
+    'Baelgor: the Pledge requires ten signatories. It has nine. Every law built on it is provisional and everyone has agreed not to mention it.',   // baelgor
+    'Thardin: Oathane consented to the Accord LAST and regretted it FIRST. He is the only one who might know where the tenth went.',   // thardin
+    'Korathen: the Empty Throne is not a vacancy. It is a QUESTION left open on purpose, and answering it is what ends this.',   // korathen
+  ]},
+  { key:'migration', title:'THE MIGRATION', art:'scroll_16.png', pages:[
+    'Malezor\'s oldest families cannot trace back past a certain generation. The records simply begin.',   // malezor
+    'Zarvane\'s language has words for landscapes Zarvane does not have.',   // zarvane
+    'Andrannor is a port town with no port and has been since it was founded.',   // andrannor
+    'Veridan\'s crops include three species with no wild ancestor on this world.',   // veridan
+    'Netharion: the refugee wave was MIXED. Not one people fleeing — several, together, which is rarer and harder.',   // netharion
+    'Vorashil is called the Alienlands because it is where they landed, not where they came from.',   // vorashil
+    'Xilnar buries by origin-world and has run out of categories twice.',   // xilnar
+    'Baelgor\'s Hall of First Settlement dates the arrival. Two hundred million years in transit, and the hall does not explain how anything survived it.',   // baelgor
+    'Thardin: the ships are still out there. The Anomaly Engine hears them and the Ministry files it as noise.',   // thardin
+    'Korathen: they did not flee Cytherion. They were SENT, and the sending is still in progress. We are the middle of somebody\'s plan.',   // korathen
+  ]},
+  { key:'dream', title:'DREAMLAND', art:'scroll_17.png', pages:[
+    'Sleep in Malezor and you dream of somewhere with no ground. Everyone does. Nobody compares notes.',   // malezor
+    'Zarvane\'s readers dream in the Blue and wake able to see one thing they could not see before.',   // zarvane
+    'Andrannor sells dream-suppressants. Sales are strongest among people who have been to Vorashil.',   // andrannor
+    'Veridan\'s Hospice treats patients who did not come back from a nap.',   // veridan
+    'Netharion: Dreamland is not imagination. It is a PLANE, and it is the Blue Gem\'s plane, and the Blue Gem is the one nobody wanted.',   // netharion
+    'Vorashil: a Rizer in Dreamland meets themselves. That is not a warning. It is the mechanism.',   // vorashil
+    'Xilnar: the dead are IN Dreamland, which is why Xilnar sleeps in shifts and never alone.',   // xilnar
+    'Baelgor: the Ultimate Amplified Form requires pure balance of Blue and Purple. Brain and Soul, held level. Dreamland is where that is tested.',   // baelgor
+    'Thardun cannot instrument Dreamland and has stopped publishing the attempts.',   // thardin
+    'Korathen: everyone who has ever bonded is in Dreamland right now, asleep or not. The Gemlords have been holding that door shut with their bodies.',   // korathen
+  ]},
+];
+const SCROLLS_PER_DISTRICT = SCROLL_THEMES.length;      // 18
+const SCROLL_DISTRICT_ORDER = DISTRICT_WHEEL.map(w => w.dist);
+function scrollId(themeKey, dist){ return `scroll:${themeKey}:${dist}`; }
+function scrollDepthOf(dist){ return Math.max(0, SCROLL_DISTRICT_ORDER.indexOf(dist)); }
+function scrollEntry(themeKey, dist){
+  const t = SCROLL_THEMES.find(x => x.key === themeKey);
+  if (!t) return null;
+  return { theme:t, dist, id:scrollId(themeKey, dist),
+           title:t.title, page:t.pages[scrollDepthOf(dist)] };
+}
+// Reading one files it in Dad's Notebook under its theme.
+function readScroll(themeKey, dist){
+  const e = scrollEntry(themeKey, dist);
+  if (!e) return false;
+  const n = notebookState();
+  if (n.scrolls[e.id]) return false;
+  n.scrolls[e.id] = Date.now();
+  try { playSFX('confirm'); } catch(_){}
+  try { awardRizerXP(40 + scrollDepthOf(dist) * 20); } catch(_){}   // deeper = worth more
+  const have = scrollsFound(), all = SCROLL_THEMES.length * SCROLL_DISTRICT_ORDER.length;
+  showDialog({ speaker:`SCROLL · ${e.title}`, lines:[ e.page,
+    `— filed in Dad's Notebook · ${have} of ${all} recovered —` ]});
+  return true;
+}
+function scrollsFound(){
+  const n = notebookState();
+  return Object.keys(n.scrolls).filter(k => k.startsWith('scroll:')).length;
+}
+function scrollsFoundInTheme(themeKey){
+  const n = notebookState();
+  return SCROLL_DISTRICT_ORDER.filter(d => n.scrolls[scrollId(themeKey, d)]).length;
+}
 // ★★ v0.95.780 · DAD READS OVER YOUR SHOULDER.
 // Creator: "dad is proud of rizer for field work... rewards player for
 // exploration and lore understanding the world. can give hints to what to do
@@ -26672,8 +26949,9 @@ function renderZycellNotebook(){
   if (!sec){
     const rows = NOTEBOOK_SECTIONS.map(S => {
       if (S.key === 'scrolls'){
-        const have = Object.keys(n.scrolls).length, all = NOTEBOOK_SCROLLS.length;
-        return _nbRow(S, `${have} / ${all} found`, have / Math.max(1, all));
+        const have = scrollsFound();
+        const all  = SCROLL_THEMES.length * SCROLL_DISTRICT_ORDER.length;
+        return _nbRow(S, `${have} / ${all} recovered`, have / Math.max(1, all));
       }
       const p2 = notebookProgress(S.key);
       return _nbRow(S, `${p2.found} / ${p2.total} found · ${p2.done} complete`,
@@ -26736,26 +27014,48 @@ function _nbRow(S, sub, frac){
 }
 function _nbScrollsPage(){
   const n = notebookState();
-  const rows = NOTEBOOK_SCROLLS.map(sc => {
-    const got = !!n.scrolls[sc.id];
-    return `<div data-zyitem="nb_${sc.id}" style="padding:10px 12px; margin-bottom:5px; background:rgba(0,0,0,0.32);
-                 border:1px solid ${got ? 'rgba(255,214,107,0.35)' : 'rgba(79,179,255,0.15)'};">
-      <div style="color:${got ? '#ffd66b' : '#55617a'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em;">
-        ${got ? '📜 ' + sc.title : '· undiscovered scroll ·'}</div>
-      ${got ? `<div style="margin-top:6px; color:#e8dcc0; font-size:10px; line-height:1.8; font-style:italic;">${sc.text}</div>
-               <div style="margin-top:5px; color:#67789a; font-size:9px;">filed under · ${sc.page}</div>` : ''}
-    </div>`;
+  // ★★ v0.95.781 · ONE BLOCK PER THEME, ten depths inside it.
+  // Listing 180 flat entries would be a wall. The interesting unit is the
+  // SUBJECT — a player chasing "what is AETHRYX" wants its ten pages together,
+  // shallow to deep, with the gaps visible so they know how far out to go.
+  const blocks = SCROLL_THEMES.map(t => {
+    const got = scrollsFoundInTheme(t.key);
+    const pages = SCROLL_DISTRICT_ORDER.map((d, i) => {
+      const id = scrollId(t.key, d);
+      if (!n.scrolls[id]){
+        return `<div style="padding:5px 9px; color:#3f4a5e; font-size:9px; letter-spacing:.06em;">
+          ${String(i+1).padStart(2,'0')} · ${d.toUpperCase()} · — not recovered —</div>`;
+      }
+      return `<div style="padding:6px 9px; margin:3px 0; background:rgba(255,214,107,0.05);
+                   border-left:2px solid rgba(255,214,107,0.55);">
+        <div style="color:#ffd66b; font:bold 9px 'Courier New',monospace; letter-spacing:.10em;">
+          ${String(i+1).padStart(2,'0')} · ${d.toUpperCase()}</div>
+        <div style="color:#e8dcc0; font-size:10px; line-height:1.75; font-style:italic; margin-top:3px;">
+          ${t.pages[i]}</div></div>`;
+    }).join('');
+    const pct = Math.round(got / SCROLL_DISTRICT_ORDER.length * 100);
+    return `<div data-zyitem="nbscroll_${t.key}" style="margin-bottom:7px; background:rgba(0,0,0,0.32);
+                 border:1px solid ${got ? 'rgba(255,214,107,0.28)' : 'rgba(79,179,255,0.15)'};">
+      <div style="padding:9px 11px; display:flex; justify-content:space-between; align-items:baseline;">
+        <span style="color:${got ? '#ffd66b' : '#55617a'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em;">
+          📜 ${t.title}</span>
+        <span style="color:#67789a; font-size:9px;">${got} / ${SCROLL_DISTRICT_ORDER.length}</span>
+      </div>
+      <div style="height:3px; background:rgba(255,255,255,0.06); margin:0 11px;">
+        <div style="height:100%; width:${pct}%; background:${pct>=100?'#7fe08a':'#ffd66b'};"></div></div>
+      <div style="padding:6px 8px 9px;">${pages}</div></div>`;
   }).join('');
-  const have = Object.keys(n.scrolls).length;
+  const have = scrollsFound(), all = SCROLL_THEMES.length * SCROLL_DISTRICT_ORDER.length;
   return `<div style="padding:4px 2px;">
     <div data-zyitem="nb_back" style="padding:8px 11px; margin-bottom:9px; background:rgba(79,179,255,0.12);
          border:1px solid rgba(79,179,255,0.4); color:#8ff; font:bold 11px 'Courier New',monospace;
          letter-spacing:.10em; cursor:pointer;">◄  BACK TO INDEX</div>
-    <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.14em; padding:2px 4px 8px;">
-      📜 SCROLLS · ${have}/${NOTEBOOK_SCROLLS.length}</div>
+    <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.14em; padding:2px 4px 6px;">
+      📜 SCROLLS · ${have} / ${all}</div>
     <div style="color:#7a8ba8; font-size:10px; padding:0 4px 10px; line-height:1.7;">
-      Dad's own notes, scattered across Zyraxis. Each one files itself under the page it belongs to.</div>
-    ${rows}</div>`;
+      Eighteen subjects, each written ten times over — once per district. The further from
+      Malezor a page was found, the further it goes.</div>
+    ${blocks}</div>`;
 }
 // Section rows and the back button are wired by delegation, so a re-render
 // never leaves a dead handler behind.
@@ -35899,6 +36199,114 @@ function _buildingFacadeTiles(){
       for (let x = x0; x <= x1; x++) facade.add(x+','+y);
   }
   return facade;
+}
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.781 · SCATTER THE 180 SCROLLS
+//
+// Creator: "scattered evenly. naturally in unsuspecting places."
+//
+// Even means EVEN: each district is divided into 18 angular wedges around its
+// hub and each theme takes one, so a district's scrolls ring it rather than
+// clumping in whichever corner the RNG liked. Unsuspecting means OFF the road —
+// a scroll on the path is a pickup, a scroll behind the treeline is a find.
+//
+// They are SOLID and read with X, like the Gemlord blades: a lore page is worth
+// stopping for. And they use the same visibility test, because a scroll under a
+// canopy is a scroll nobody ever reads.
+const SCROLL_BBOXES = {
+  'scroll_00.png': [0,0,210,326],
+  'scroll_01.png': [0,0,392,346],
+  'scroll_02.png': [0,0,266,311],
+  'scroll_03.png': [0,0,340,328],
+  'scroll_04.png': [0,0,313,341],
+  'scroll_05.png': [0,0,345,339],
+  'scroll_06.png': [0,0,336,350],
+  'scroll_07.png': [0,0,301,355],
+  'scroll_08.png': [0,0,375,354],
+  'scroll_09.png': [0,0,338,408],
+  'scroll_10.png': [0,0,338,414],
+  'scroll_11.png': [0,0,347,414],
+  'scroll_12.png': [0,0,343,318],
+  'scroll_13.png': [0,0,309,350],
+  'scroll_14.png': [0,0,394,297],
+  'scroll_15.png': [0,0,360,374],
+  'scroll_16.png': [0,0,409,339],
+  'scroll_17.png': [0,0,383,373],
+};
+const SCROLL_ART_BBOX = {};   // per-file cache of the loaded Image
+const SCROLL_TILEW = 1.0;
+const SCROLL_MIN_FROM_ROAD = 3;
+const SCROLL_MIN_APART = 10;
+function _scrollArt(file){
+  if (!SCROLL_ART_BBOX[file]){
+    const img = new Image();
+    img.src = `assets/2D%20sprites/decor/scrolls/${file}`;
+    SCROLL_ART_BBOX[file] = { img, bbox: SCROLL_BBOXES[file] || [0,0,340,340] };
+  }
+  return SCROLL_ART_BBOX[file];
+}
+function scatterScrolls(){
+  if (game._scrollsScattered) return 0;
+  game._scrollsScattered = true;
+  const rng = _makeWorldRng(0x5C0011);
+  let made = 0;
+  for (const dist of SCROLL_DISTRICT_ORDER){
+    const road = (game._trailRoad || {})[dist] || new Set();
+    const P = _districtPOIs(dist);
+    const nearRoad = (x, y) => {
+      for (let dy = -SCROLL_MIN_FROM_ROAD; dy <= SCROLL_MIN_FROM_ROAD; dy++)
+        for (let dx = -SCROLL_MIN_FROM_ROAD; dx <= SCROLL_MIN_FROM_ROAD; dx++)
+          if (road.has((x+dx)+','+(y+dy))) return true;
+      return false;
+    };
+    const placed = [];
+    SCROLL_THEMES.forEach((theme, ti) => {
+      // one angular wedge per theme · this is what makes the ring even
+      const a0 = (ti / SCROLL_THEMES.length) * Math.PI * 2;
+      const A = _scrollArt(theme.art);
+      let done = false;
+      for (let tries = 0; tries < 900 && !done; tries++){
+        const a = a0 + (rng() - 0.5) * (Math.PI * 2 / SCROLL_THEMES.length) * 0.9;
+        const d = 34 + Math.sqrt(rng()) * 120;
+        const x = Math.round(P.hub[0] + Math.cos(a) * d);
+        const y = Math.round(P.hub[1] + Math.sin(a) * d);
+        if (worldDistrictAt(x, y) !== dist) continue;
+        if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+        if (_propBlocked.has(x+','+y)) continue;
+        if (nearRoad(x, y)) continue;
+        if (!_tileIsVisiblyClear(x, y, SCROLL_TILEW)) continue;
+        if (placed.some(q => Math.abs(q[0]-x) + Math.abs(q[1]-y) < SCROLL_MIN_APART)) continue;
+        // must be standable-next-to or it cannot be read
+        const reach = [[1,0],[-1,0],[0,1],[0,-1]].some(([ax,ay]) =>
+          isWorldLandTile(x+ax, y+ay) && !isWorldBorderTile(x+ax, y+ay)
+          && !_propBlocked.has((x+ax)+','+(y+ay)));
+        if (!reach) continue;
+        const h = SCROLL_TILEW * A.bbox[3] / A.bbox[2];
+        const prop = {
+          id: `scrollprop_${theme.key}_${dist}`,
+          img: A.img, src: `assets/2D%20sprites/decor/scrolls/${theme.art}`,
+          bbox: A.bbox, tileX: x, tileY: y, tileW: SCROLL_TILEW, tileH: h,
+          footprint: [[0,0]],      // ★ solid · you stop and read it
+          door: [0,0],             // ★ X reaches it
+          _scroll: { theme: theme.key, dist },
+        };
+        prop.onInteract = () => {
+          const fresh = readScroll(theme.key, dist);
+          if (!fresh){
+            const e = scrollEntry(theme.key, dist);
+            showDialog({ speaker:`SCROLL · ${e.title}`, lines:[ e.page, '— already filed —' ]});
+          }
+        };
+        WORLD_PROPS.push(prop);
+        registerPropCollision(prop);
+        placed.push([x, y]);
+        made++; done = true;
+      }
+      if (!done) console.warn(`[rp7b] scroll ${theme.key}/${dist} found no spot`);
+    });
+  }
+  console.log(`[rp7b] scrolls · ${made} placed · ${SCROLLS_PER_DISTRICT} per district x ${SCROLL_DISTRICT_ORDER.length}`);
+  return made;
 }
 // ════════════════════════════════════════════════════════════════════════════
 // ★★ v0.95.779 · KEEP THE DOORWAYS CLEAR.

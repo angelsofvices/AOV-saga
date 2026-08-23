@@ -54,7 +54,7 @@ global.performance = { now: () => 0 };
 global.alert = noop; global.confirm = () => true; global.prompt = () => null;
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 
-const EXPORT = ';globalThis.__C={NPCS,WORLD_PROPS,worldDistrictAt,isWorldLandTile,isWorldBorderTile,_propBlocked,game,player,buildVerdantCreepers,VERDANT_CREEPER_ART,CREEPER_QUOTA,startMoriDeath,creeperBank};';
+const EXPORT = ';globalThis.__C={spawnLifeSeed,tickLifeSeeds,WORLD_PROPS,NPCS,WORLD_PROPS,worldDistrictAt,isWorldLandTile,isWorldBorderTile,_propBlocked,game,player,buildVerdantCreepers,VERDANT_CREEPER_ART,CREEPER_QUOTA,startMoriDeath,creeperBank};';
 try {
   new Function(src + EXPORT)();
 } catch(e){ console.log('boot error:', e.message.slice(0,200)); }
@@ -183,12 +183,34 @@ console.log(`     Daemon  250 HP · drain 10`);
 ok(c0.hpMax>125, `tankier than a Mori (${c0.hpMax} vs 125)`);
 ok(c0.drainAmt>5, `hits harder than a Mori (${c0.drainAmt} vs 5)`);
 ok(c0.hpMax%125===0, `HP is a multiple of 125 per aov-combat-math (${c0.hpMax})`);
-// the heal, exercised through the REAL death path
+// ★★ v0.95.817 · THE HEAL IS GONE BY THE CREATOR'S OWN RULING: "creepers no
+// longer grant hp on kills."  A felled creeper drops the LIFE SEED it once ate
+// (the Verdant Creeper origin), taken with X — hurt Rizer eats it for 25%,
+// healthy Rizer stores it and it spoils in 2 minutes.  Exercised through the
+// SAME real death path the heal used to ride.
 C.player.hpMax=200; C.player.hp=100;
 const victim=cr[0];
+C.game.scene='overworld';
+const propsBefore=C.WORLD_PROPS.length;
 C.startMoriDeath(victim);
 console.log(`     hp 100/200 · killed one · now ${C.player.hp}`);
-ok(C.player.hp===130, `killing one returns exactly 15% of max HP (100 -> ${C.player.hp}, expected 130)`);
+ok(C.player.hp===100, `★ killing one heals NOTHING now (100 -> ${C.player.hp}) — the seed does the healing, not the kill`);
+const seed=C.WORLD_PROPS.find(p=>p&&p._lifeSeed);
+ok(!!seed,'★ and a LIFE SEED stands where it fell, solid, waiting for X');
+if (seed){
+  seed.onInteract();
+  ok(C.player.hp===150,`eating it pays 25% of max (100 -> ${C.player.hp})`);
+  ok(!C.WORLD_PROPS.includes(seed),'and the seed leaves the world');
+  // at full HP the seed STORES, and tainted stock spoils
+  C.player.hp=200;
+  const s2=C.spawnLifeSeed(victim.tileX, victim.tileY, false);
+  s2.onInteract();
+  ok((C.player.items?.life_seed||0)===1,'at full HP it stores instead');
+  ok(C.player.lifeSeedSpoilAt.length===1,'with a spoil timer running');
+  C.player.lifeSeedSpoilAt[0]=performance.now()-1;
+  C.tickLifeSeeds();
+  ok((C.player.items?.life_seed||0)===0,'★ and a tainted seed ROTS when its two minutes run out');
+}
 ok(/_verdantCreeper && !n\._creeperHealed/.test(src2), 'the heal is guarded against double-payout');
 // it must not overheal
 C.player.hp=C.player.hpMax;

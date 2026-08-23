@@ -172,11 +172,16 @@ ok(C.UFO_BOOST_MOVE_CD < C.UFO_CRUISE_MOVE_CD, 'boost has a SHORTER cooldown, i.
 const mult=C.UFO_CRUISE_MOVE_CD / C.UFO_BOOST_MOVE_CD;
 console.log(`     that is ${mult.toFixed(2)}x cruise speed`);
 ok(mult>=1.5 && mult<=2.5, `the multiplier reads as a sprint, not a teleport (${mult.toFixed(2)}x)`);
-ok(/player\.moveCd = \(keys && keys\['b'\]\) \? UFO_BOOST_MOVE_CD : UFO_CRUISE_MOVE_CD/.test(src2),
-   'and the movement tick reads the SAME key the sheet swap reads');
+// ★ v0.95.817 · the shared truth is player.ufoDashing (the 7-second BURN),
+//   not the raw button — a Circle held past 7s cruises, and BOTH the sheet
+//   swap and the speed read the same burn, which is the property this check
+//   was always protecting.
+ok(/player\.moveCd = player\.ufoDashing \? UFO_BOOST_MOVE_CD : UFO_CRUISE_MOVE_CD/.test(src2),
+   'and the movement tick reads the SAME burn the sheet swap reads');
 console.log('     so the visual and the speed can never disagree about whether');
 console.log('     you are boosting');
-ok(/const dashing = !!\(keys && keys\['b'\]\)/.test(src2), '   (the sheet swap still keys off b)');
+// ★ v0.95.817 · the swap keys off the burn now; the burn keys off b at its edge
+ok(/const dashing = _burnLive/.test(src2), '   (the sheet swap keys off the burn, the burn off Circle)');
 
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
 process.exit(0);

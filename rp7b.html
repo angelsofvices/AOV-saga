@@ -1566,6 +1566,8 @@ const AUDIO = {
     axeSwing:     new Audio('audio/sfx-axe-swing.mp3'),      // ★ v0.95.793 · heavy metal impact · fires on EVERY axe swing, hit or miss (Creator: "even on a miss. this is just impact")
     arrowFire:    new Audio('audio/sfx-arrow-fire.mp3'),    // ★ v0.95.798 · Pearlbow release · fires on every shot, hit or miss
     scrollOpen:   new Audio('audio/sfx-scroll-open.mp3'),   // ★ v0.95.816 · paper unrolling · scroll pickup + every parchment view
+    ufoBoost:     new Audio('audio/sfx-ufo-boost.mp3'),     // ★ v0.95.817 · Aetherstride ignition · once per boost activation, no duping
+    towerSpotted: new Audio('audio/sfx-tower-spotted.mp3'), // ★ v0.95.817 · Rizer VO near a DEAD tower · points at the silver chest quest
     axeKill:      new Audio('audio/sfx-axe-kill.mp3'),       // ★ v0.95.793 · Emerald Axe finisher · fires only on axe-driven KOs, primary tile OR anywhere in the 3x3
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Tearsword contact SFX · fires only on enemy hit-land
@@ -1780,7 +1782,7 @@ const RVOX_PRIORITY = {
   // 60 · streaks
   tooEasy: 55, heatingUp: 55, dodgeStreak: 55,
   // 50 · contextual
-  newDistrict: 50, seeYaLater: 45, laterMom: 48,
+  newDistrict: 50, seeYaLater: 45, laterMom: 48, towerSpotted: 52,
   // 40 · catches + reward pickups + fail cues
   gotcha: 40, gemVox: 40, needJuice: 42, zyrexGo: 45, takeFive: 45,
   // 30 · combat action beats (most frequent · lowest priority)
@@ -2539,6 +2541,8 @@ const INVENTORY_META = {
   emerald_axe:      { label: 'Emerald Axe',                order: 9 },   // ★ v0.95.788 · S1-only · Square = 3x3 AOE centred on Rizer · Veridan cosmic chest
   pearlbow:         { label: 'Pearlbow',                   order: 10 },  // ★ v0.95.792 · S1-only · Square = RANGED shot down the facing line · Zarvane cosmic chest
   portal_chip:      { label: 'Portal Chip',                order: 54 },  // ★ v0.95.800 · Scanobot salvage · 20 to Dad opens the first two rifts (Malezor <-> Zarvane)
+  life_seed:        { label: 'Life Seed (spoiling)',       order: 55 },  // ★ v0.95.817 · creeper-exposed · 25% HP · spoils 2 min after storing
+  life_seed_pure:   { label: 'Pure Life Seed',             order: 56 },  // ★ v0.95.817 · Spirit Tree of Xilnar stock · 25% HP · never spoils
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
   zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
   // ─── v0.95.588 · ULTRASHARDS · one per canon type · consume on Zyrex to overwrite A4 with Ultramax move + add Ultramax type ─────────────
@@ -14360,6 +14364,95 @@ function maybeSpillChestArrows(chest, tier){
   spawnArrowBundle(chest.tileX, chest.tileY, O.n, chest.id || tier);
   return O.n;
 }
+// ★★ v0.95.817 · LIFE SEEDS · the Verdant Creeper origin made mechanical.
+// Interact (X) to take: below max HP it is eaten on the spot for 25%; at max
+// it is STORED — and a creeper-tainted seed spoils 120s later.  Pure seeds
+// (5% on any tree search · Spirit Tree of Xilnar stock) never spoil.
+const LIFE_SEED_HEAL_PCT = 0.25;
+const LIFE_SEED_SPOIL_MS = 120000;   // "2 in game mins" · the clock runs real-time
+const LIFE_SEED_PURE_ODDS = 0.05;
+const LIFE_SEED_IMG = new Image();
+LIFE_SEED_IMG.src = 'assets/2D%20sprites/decor/life-seed.png';
+function eatLifeSeed(){
+  const max = player.hpMax || 100;
+  const heal = Math.max(1, Math.round(max * LIFE_SEED_HEAL_PCT));
+  const before = player.hp || 0;
+  player.hp = Math.min(max, before + heal);
+  return player.hp - before;
+}
+function spawnLifeSeed(cx, cy, pure){
+  if (game.scene !== 'overworld'){
+    // interiors hand it straight over · same rule as chest coins
+    if ((player.hp || 0) < (player.hpMax || 100)){ const got = eatLifeSeed(); showToast(`✦ LIFE SEED · +${got} HP`, 2400); }
+    else storeLifeSeed(pure);
+    return null;
+  }
+  let tx = cx, ty = cy;
+  for (const [dx, dy] of [[0,0],[0,1],[1,0],[-1,0],[0,-1]]){
+    if (typeof walkable === 'function' && walkable(cx+dx, cy+dy)){ tx = cx+dx; ty = cy+dy; break; }
+  }
+  const prop = {
+    id: `lifeseed_${tx},${ty}_${Date.now()%1e6}`,
+    _lifeSeed: true, _pure: !!pure,
+    img: LIFE_SEED_IMG,
+    src: 'assets/2D%20sprites/decor/life-seed.png',
+    bbox: [279, 266, 674, 655],
+    tileX: tx, tileY: ty,
+    tileW: 0.9, tileH: 1,
+    footprint: [[0, 0]],
+    door: [0, 0],
+    _levitate: true,
+    onInteract(){
+      const take = () => {
+        try { unregisterPropCollision(prop); } catch(_){}
+        const i = WORLD_PROPS.indexOf(prop);
+        if (i >= 0) WORLD_PROPS.splice(i, 1);
+      };
+      if ((player.hp || 0) < (player.hpMax || 100)){
+        // ★ "auto consume" · hurt Rizer eats it where he stands
+        take();
+        const got = eatLifeSeed();
+        try { playSFX('confirm'); } catch(_){}
+        showToast(`✦ LIFE SEED consumed · +${got} HP${pure ? ' · pure Xilnar stock' : ''}`, 2600);
+      } else {
+        take();
+        storeLifeSeed(pure);
+      }
+    },
+  };
+  WORLD_PROPS.push(prop);
+  registerPropCollision(prop);
+  return prop;
+}
+function storeLifeSeed(pure){
+  player.items = player.items || {};
+  if (pure){
+    player.items.life_seed_pure = (player.items.life_seed_pure || 0) + 1;
+    try { playItemGain('life_seed_pure'); } catch(_){}
+    showToast('✦ PURE LIFE SEED stored · Spirit Tree stock · it will keep', 2800);
+    return;
+  }
+  player.items.life_seed = (player.items.life_seed || 0) + 1;
+  // spoil timers ride a queue · one entry per tainted seed, oldest first
+  player.lifeSeedSpoilAt = player.lifeSeedSpoilAt || [];
+  player.lifeSeedSpoilAt.push(performance.now() + LIFE_SEED_SPOIL_MS);
+  try { playItemGain('life_seed'); } catch(_){}
+  showToast('✦ LIFE SEED stored · creeper-tainted · it will SPOIL in 2 minutes', 3200);
+}
+// ticked beside the ecology loop · spoiled seeds rot out of the bag
+function tickLifeSeeds(){
+  const q = player.lifeSeedSpoilAt;
+  if (!q || !q.length) return;
+  const now = performance.now();
+  while (q.length && now > q[0]){
+    q.shift();
+    if ((player.items?.life_seed || 0) > 0){
+      player.items.life_seed -= 1;
+      showToast('✦ A tainted Life Seed SPOILED in your pack · creeper exposure', 2600);
+      try { playSFX('cancel'); } catch(_){}
+    }
+  }
+}
 // ★★ v0.95.776 · WEAPON DROPS · solid, and taken with X.
 //
 // Deliberately NOT part of the walk-over pickup system above. Coins and scrap
@@ -18682,9 +18775,18 @@ function harvestPlant(p){
   // Fruits give more seeds per unit than berries (heavier plant)
   const seedGain = kind === 'tree' ? yieldN * 3 : yieldN * 2;
   addItems({ seed: seedGain });
+  // ★★ v0.95.817 · PURE LIFE SEEDS · canon: they grow on the Spirit Tree of
+  // Xilnar and cross-pollinate every tree species on Zyraxis — which is why
+  // ANY tree can carry one, and why the Mori comb the woods.  5% per search,
+  // never spoils: this stock was never in a creeper's gut.
+  let pureSeed = false;
+  if (kind === 'tree' && Math.random() < LIFE_SEED_PURE_ODDS){
+    pureSeed = true;
+    storeLifeSeed(true);
+  }
   p._charge = 0;
   p._nextHarvest = now + 60000;                    // 60s regrow
-  return { yield: yieldN, kind: itemKey, seeds: seedGain, district: dist, charged: charge > 0 };
+  return { yield: yieldN, kind: itemKey, seeds: seedGain, district: dist, charged: charge > 0, pureSeed };
 }
 
 // v0.95.134 · Hit-landed tracker (dev backend) · unlocks cosmetics
@@ -20327,26 +20429,33 @@ const POSTERS = {
 // it — which is where the text lives.  Frames vary, so the margins come from
 // the ART, not from a guessed constant.
 const SCROLL_FRAME_META = [
-  { bbox:[23,115,186,303], inner:[58,152,122,220] },
-  { bbox:[0,112,209,306],  inner:[81,136,95,236]  },
-  { bbox:[0,114,209,304],  inner:[68,181,98,194]  },
-  { bbox:[0,121,209,297],  inner:[76,152,104,216] },
-  { bbox:[0,121,209,297],  inner:[73,145,86,242]  },
-  { bbox:[0,127,202,291],  inner:[45,151,108,230] },
-  { bbox:[5,0,204,398],    inner:[52,127,120,224] },
-  { bbox:[0,0,205,390],    inner:[60,139,118,210] },
-  { bbox:[14,0,191,395],   inner:[43,130,118,232] },
-  { bbox:[2,0,207,398],    inner:[39,125,109,238] },
-  { bbox:[0,0,209,402],    inner:[39,172,106,175] },
-  { bbox:[0,0,195,402],    inner:[35,135,134,232] },
-  { bbox:[9,50,188,287],   inner:[41,82,124,212]  },
-  { bbox:[6,45,191,292],   inner:[27,82,143,208]  },
-  { bbox:[11,45,187,297],  inner:[38,68,133,240]  },
-  { bbox:[7,52,195,291],   inner:[53,94,94,205]   },
-  { bbox:[19,49,190,297],  inner:[44,78,117,217]  },
-  { bbox:[0,43,202,305],   inner:[34,64,121,247]  },
+  // ★★ v0.95.817 · SLICED BY COMPONENT OWNERSHIP, NOT BY GRID.  Creator: "each
+  // parchment must get its own chromakey and slice from the mastersheet
+  // because they are all different sized scrolls."  Measured: 9 of the 18
+  // physically cross the 6x3 grid lines, so the uniform cell slice was CUTTING
+  // them — a scroll's right edge shipping inside its neighbour's file.  Each
+  // frame is now its own connected component (tassels and gems re-attached to
+  // their nearest scroll), cropped to its true bounds, with the writable tan
+  // area percentile-measured per frame.  w/h are the FILE's own dimensions.
+  { w:214, h:307, inner:[35,37,123,220] },
+  { w:195, h:309, inner:[51,24,94,237]  },
+  { w:211, h:308, inner:[48,68,97,193]  },
+  { w:195, h:306, inner:[46,28,104,217] },
+  { w:183, h:317, inner:[38,24,86,242]  },
+  { w:183, h:302, inner:[26,24,108,230] },
+  { w:218, h:301, inner:[47,30,122,225] },
+  { w:174, h:280, inner:[32,29,117,210] },
+  { w:173, h:290, inner:[29,25,118,232] },
+  { w:188, h:294, inner:[37,21,109,238] },
+  { w:221, h:295, inner:[49,65,106,175] },
+  { w:187, h:290, inner:[27,23,134,232] },
+  { w:188, h:287, inner:[32,32,124,212] },
+  { w:191, h:292, inner:[21,37,143,208] },
+  { w:187, h:297, inner:[27,23,133,240] },
+  { w:195, h:291, inner:[46,42,94,205]  },
+  { w:168, h:297, inner:[25,29,117,217] },
+  { w:210, h:305, inner:[42,21,120,247] },
 ];
-const SCROLL_FRAME_CELL = { w: 209, h: 418 };
 function openScrollView(themeIdx, title, paras){
   const view  = document.getElementById('scrollView');
   const img   = document.getElementById('scrollViewImg');
@@ -20356,16 +20465,19 @@ function openScrollView(themeIdx, title, paras){
   const i = Math.max(0, Math.min(17, themeIdx | 0));
   const M = SCROLL_FRAME_META[i];
   img.src = `assets/2D%20sprites/ui/scrolls/frame_${String(i+1).padStart(2,'0')}.png`;
-  // the stage is the CELL; inner rect maps to percentages of it directly
+  // ★ v0.95.817 · every frame file has its OWN dimensions now — the stage
+  // takes the frame's aspect, and the inner rect maps as fractions of the FILE
+  const stage = document.getElementById('scrollViewStage');
+  if (stage) stage.style.aspectRatio = `${M.w}/${M.h}`;
   const pct = (v, span) => (v / span * 100).toFixed(2) + '%';
   const pad = 4;   // px of breathing room inside the measured parchment
-  txt.style.left   = pct(M.inner[0] + pad, SCROLL_FRAME_CELL.w);
-  txt.style.top    = pct(M.inner[1] + pad + 16, SCROLL_FRAME_CELL.h);
-  txt.style.width  = pct(M.inner[2] - pad*2, SCROLL_FRAME_CELL.w);
-  txt.style.height = pct(M.inner[3] - pad*2 - 16, SCROLL_FRAME_CELL.h);
-  ttl.style.left   = pct(M.inner[0], SCROLL_FRAME_CELL.w);
-  ttl.style.width  = pct(M.inner[2], SCROLL_FRAME_CELL.w);
-  ttl.style.top    = pct(M.inner[1] - 2, SCROLL_FRAME_CELL.h);
+  txt.style.left   = pct(M.inner[0] + pad, M.w);
+  txt.style.top    = pct(M.inner[1] + pad + 14, M.h);
+  txt.style.width  = pct(M.inner[2] - pad*2, M.w);
+  txt.style.height = pct(M.inner[3] - pad*2 - 14, M.h);
+  ttl.style.left   = pct(M.inner[0], M.w);
+  ttl.style.width  = pct(M.inner[2], M.w);
+  ttl.style.top    = pct(M.inner[1] - 2, M.h);
   ttl.textContent  = title || '';
   txt.innerHTML = (paras || []).map(t =>
     `<p style="margin:0 0 0.7em 0;">${String(t).replace(/</g,'&lt;')}</p>`).join('');
@@ -23911,7 +24023,9 @@ function tryMove(dt){
     // it LOOKED like acceleration and wasn't. moveCd is milliseconds between
     // tiles, so a smaller number is faster: 85 -> 48 is 1.77x, which sits just
     // above Rizer's own sprint so the UFO stays the fastest way to travel.
-    player.moveCd = (keys && keys['b']) ? UFO_BOOST_MOVE_CD : UFO_CRUISE_MOVE_CD;
+    // ★ v0.95.817 · speed follows the BURN, not the raw button — a held Circle
+    // past the 7s mark cruises, exactly matching what the sheet swap shows
+    player.moveCd = player.ufoDashing ? UFO_BOOST_MOVE_CD : UFO_CRUISE_MOVE_CD;
     return;
   }
 
@@ -28369,6 +28483,28 @@ function drawAnomalies(){
     ctx.font = 'bold 9px "Courier New", monospace'; ctx.textAlign = 'center';
     ctx.fillText('✦', cx, cy + 3);
     ctx.restore();
+  }
+}
+
+// ★★ v0.95.817 · A DEAD TOWER GETS A LINE.  Creator: "play this — 'a new cell
+// tower! I better get the signal back up for Scrap' — when we come in
+// proximity to a cell tower.  audio stimulus for the player to get the silver
+// chest and return it to scrapjaw."  Fires once per tower per session, only
+// while that tower is still DOWN, through the RVOX hierarchy so it yields to
+// crisis callouts.
+const TOWER_SPOTTED_RADIUS = 18;
+function tickTowerProximityVO(){
+  if (game.scene !== 'overworld' || typeof worldFrozen === 'function' && worldFrozen()) return;
+  if (typeof TOWER_NETWORK === 'undefined') return;
+  player._towerSpotted = player._towerSpotted || {};
+  for (const T of TOWER_NETWORK){
+    if (player._towerSpotted[T.dist]) continue;
+    if (typeof towerRestored === 'function' && towerRestored(T.dist)) continue;
+    if (Math.abs(player.x - T.tower[0]) + Math.abs(player.y - T.tower[1]) > TOWER_SPOTTED_RADIUS) continue;
+    player._towerSpotted[T.dist] = true;
+    try { playSFX('towerSpotted'); } catch(_){}
+    showToast(`◈ ${T.label.toUpperCase()} RADIO TOWER · dead air · the SILVER CHEST at its base holds the scrap Scrapjaw needs`, 4600);
+    break;   // one line per frame is plenty
   }
 }
 
@@ -32885,6 +33021,13 @@ function loadGame(){
     // ★ v0.95.804 · drop any transient ecology state that rode in · see the save-side note
     if (player.ecology){ player.ecology.rumors = []; player.ecology.anomalies = [];
       player.ecology.nextRumorAt = 0; player.ecology.nextAnomAt = 0; }
+    // ★ v0.95.817 · tainted Life Seeds do not survive a reload — their spoil
+    // stamps come from performance.now(), a clock that died with the page, and
+    // canonically a creeper-tainted seed left overnight is compost anyway.
+    if ((player.items?.life_seed || 0) > 0){
+      player.items.life_seed = 0;
+      player.lifeSeedSpoilAt = [];
+    }
     try { if (typeof applyHudLayout === 'function') applyHudLayout(); } catch(_){}   // ★ v0.95.805 · honour the loaded minimap pref
     // v0.95.660 · rizerXPMax is DERIVED from the curve.  Boot already re-derives
     // it, and awardRizerXP keeps it in step on every level-up — but loadGame's
@@ -35828,6 +35971,23 @@ function useZycubeItem(key){
     case 'raidcard': {
       zycubeRAIDViewerOpen = true;
       playSFX('menuOpen');
+      return;
+    }
+    // ★ v0.95.817 · stored Life Seeds eat from the cube · 25% max HP each
+    case 'life_seed':
+    case 'life_seed_pure': {
+      if (qty <= 0){ showToast(`◈ No ${labelOf(key)} left`, 1600); playSFX('cancel'); return; }
+      const model = rizerStatModel();
+      if ((player.hp || 0) >= (model.hp.max || 100)){
+        showToast('◈ HP already full · save the seed', 1800); playSFX('cancel'); return;
+      }
+      player.items[key] = qty - 1;
+      if (key === 'life_seed' && player.lifeSeedSpoilAt && player.lifeSeedSpoilAt.length){
+        player.lifeSeedSpoilAt.shift();   // eating one retires its spoil timer
+      }
+      const got = eatLifeSeed();
+      playSFX('confirm');
+      showToast(`✦ LIFE SEED consumed · +${got} HP`, 2200);
       return;
     }
     // v0.95.505 · Rizer HP consumables · ale/potion/elixir = 10/20/30 % max HP
@@ -39614,7 +39774,30 @@ function drawAuraxionUfoFlight(){
   // v0.95.319 · While the player holds Circle (b) during flight, swap in the
   // Aetherstride dash sheet · same 4x4 D/L/R/U layout · faster frame cadence
   // + tighter bob to communicate the acceleration
-  const dashing = !!(keys && keys['b']) && AURAXION_UFO_DASH.complete && AURAXION_UFO_DASH.naturalWidth;
+  // ★★ v0.95.817 · THE BOOST IS A 7-SECOND BURN.  Creator: "only 8 second
+  // boost lasts 7 seconds. no cooldown, just have to reset the animation by
+  // holding circle again. play the sound everytime boost activates. no duping."
+  //
+  // Holding Circle ARMS a burn: the ignition SFX fires once at the press edge
+  // (one shared Audio node rewound, so a re-press can never stack two copies),
+  // the dash sheet and the speed ride for 7s, then the burn expires even with
+  // the button still down.  Release and press again for a fresh burn — no
+  // cooldown, the reset IS the release.
+  const _bHeld = !!(keys && keys['b']);
+  if (_bHeld && !player._ufoBoostHeld){
+    player._ufoBoostT0 = now;
+    try {
+      const sBoost = AUDIO.sfx.ufoBoost;
+      if (sBoost){ sBoost.currentTime = 0; sBoost.play().catch(()=>{}); }
+    } catch(_){}
+  }
+  player._ufoBoostHeld = _bHeld;
+  const _burnLive = _bHeld && (now - (player._ufoBoostT0 || 0)) <= 7000;
+  if (!_burnLive && _bHeld){
+    // burn expired under a held button · stop the tail so audio matches speed
+    try { const sBoost = AUDIO.sfx.ufoBoost; if (sBoost && !sBoost.paused) sBoost.pause(); } catch(_){}
+  }
+  const dashing = _burnLive && AURAXION_UFO_DASH.complete && AURAXION_UFO_DASH.naturalWidth;
   player.ufoDashing = dashing;
   const img = dashing ? AURAXION_UFO_DASH : AURAXION_UFO_FLIGHT;
   if(!img.complete||!img.naturalWidth)return;
@@ -39772,20 +39955,16 @@ function startMoriDeath(n){
   // door EVERY kill route goes through — the same reason the Skellor rule below
   // lives here. A heal wired per-attack would pay out on sword and not on a
   // thrown boulder, and nobody would ever work out why.
+  // ★★ v0.95.817 · CREEPERS NO LONGER HEAL ON KILL — THEY DROP THE SEED.
+  // Creator canon, the Verdant Creeper origin: LIFE SEEDS grow on the Spirit
+  // Tree of Xilnar and cross-pollinate every tree species on Zyraxis.  The
+  // Mori search the trees for them; a Mori that finds a ripe one and eats it
+  // BECOMES a Verdant Creeper.  So a felled creeper gives its stolen seed
+  // back — but creeper exposure taints it, and a tainted seed SPOILS two
+  // minutes after you pocket it instead of eating it.
   if (n._verdantCreeper && !n._creeperHealed){
     n._creeperHealed = true;
-    try {
-      const heal = Math.max(1, Math.round((player.hpMax || 100) * 0.15));
-      const before = player.hp;
-      player.hp = Math.min(player.hpMax || 100, (player.hp || 0) + heal);
-      const got = player.hp - before;
-      if (got > 0){
-        showToast(`✦ VERDANT CREEPER · the green goes into you · +${got} HP`, 2600);
-        try { playSFX('confirm'); } catch(_){}
-      } else {
-        showToast('✦ VERDANT CREEPER felled · already at full health', 2000);
-      }
-    } catch(err){ console.warn('[rp7b] creeper heal failed', err); }
+    try { spawnLifeSeed(n.tileX, n.tileY, false); } catch(err){ console.warn('[rp7b] life seed drop failed', err); }
   }
 
   // ★★ v0.95.701 · SKELLOR NEVER DISINTEGRATES.
@@ -40793,6 +40972,8 @@ function frame(now){
   drawAoeImpactBursts();// all large AOE bursts · above tall/wild grass
   try { stepArrows(); } catch(_){}   // ★ v0.95.794 · advance + detonate Pearlbow arrows
   try { ecologyTick(); } catch(_){}  // ★ v0.95.804 · rumors + anomalies · the living loop
+  try { tickLifeSeeds(); } catch(_){}//   and the spoil clock on tainted Life Seeds
+  try { tickTowerProximityVO(); } catch(_){} // ★ v0.95.817 · Rizer notices a dead tower
   try { drawAnomalies(); } catch(_){} //   and the in-world shimmer that makes them PLACES
   try { drawArrows(); } catch(_){}   //   drawn UNDER the impact rings so the ring reads on top
   drawHitFx();          // shared impact rings · above world under menus

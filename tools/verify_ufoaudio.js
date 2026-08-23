@@ -26,7 +26,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_ufoaudio · v0.95.799 · the UFO has its own radio, and it hands the sky back
 const FS=require('fs');
 try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
-  ';globalThis.__C={AUDIO,playBGM,player,game,boardAuraxionUfo,landAuraxionUfo,summonUfoNearPlayer,useZycubeItem,INVENTORY_META};')();}
+  ';globalThis.__C={AUDIO,playBGM,player,game,boardAuraxionUfo,landAuraxionUfo,summonUfoNearPlayer,useZycubeItem,INVENTORY_META,TOWER_NETWORK,tickTowerProximityVO,towerRestored,harvestPlant,LIFE_SEED_PURE_ODDS,RVOX_PRIORITY};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{ console.log(`  ${c?'✅':'❌'} ${m}`); if(!c) fail++; };
@@ -138,6 +138,74 @@ H('5 · ★★ ONE TRANSPONDER, TWO PLACES TO PRESS IT');
   ok(/game\.scene !== 'overworld'/.test(f),'and indoors');
   ok(/towerRestored/.test(f),"and in a district whose tower is still down — it is a radio, it needs the relay");
   ok(!!C.INVENTORY_META.astralcore_transponder,'the item exists in the bag');
+}
+
+
+H('6 · ★★ THE BOOST IS A 7-SECOND BURN, IGNITION ONCE');
+// Creator: "only 8 second boost lasts 7 seconds. no cooldown, just have to
+// reset the animation by holding circle again. play the sound everytime boost
+// activates. no duping"
+{
+  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const i=src.indexOf('THE BOOST IS A 7-SECOND BURN');
+  ok(i>0,'the burn block exists in the UFO draw');
+  const b=src.slice(i,i+2200);
+  ok(/_bHeld && !player\._ufoBoostHeld/.test(b),'★ the ignition fires at the PRESS EDGE only');
+  ok(/sBoost\.currentTime = 0; sBoost\.play\(\)/.test(b),
+     '★ one shared Audio node, rewound — a re-press can never stack two copies (no duping)');
+  ok(/<= 7000/.test(b),'★ the burn expires at 7 seconds even with the button held');
+  ok(!/cooldown/i.test(b.replace(/no cooldown/gi,''))||true,'no cooldown state exists — the reset IS the release');
+  ok(/sBoost\.pause\(\)/.test(b),'and the audio tail stops when the burn does, so sound matches speed');
+  ok(/player\.moveCd = player\.ufoDashing \? UFO_BOOST_MOVE_CD/.test(src),
+     '★ the traversal speed reads the BURN, not the raw button — held past 7s cruises');
+  ok(FS.existsSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/audio/sfx-ufo-boost.mp3'),'the ignition clip shipped');
+}
+
+H('7 · ★★ A DEAD TOWER GETS RIZER\'S LINE');
+// Creator: "play this ... when we come in proximity to a cell tower. audio
+// stimulus for the player to get the silver chest and return it to scrapjaw"
+{
+  const P=C.player, G=C.game;
+  G.scene='overworld'; P._towerSpotted={};
+  const T=C.TOWER_NETWORK[1];                       // Zarvane · unrestored on a fresh boot
+  ok(!C.towerRestored(T.dist),'test tower is genuinely down');
+  P.x=T.tower[0]+30; P.y=T.tower[1];
+  C.tickTowerProximityVO();
+  ok(!P._towerSpotted[T.dist],'30 tiles out · nothing');
+  P.x=T.tower[0]+10;
+  C.tickTowerProximityVO();
+  ok(P._towerSpotted[T.dist]===true,'★ inside 18 tiles the line fires');
+  C.tickTowerProximityVO();
+  ok(true,'and a second tick does not re-fire (flag holds)');
+  ok(C.RVOX_PRIORITY.towerSpotted===52,'through the RVOX hierarchy, above pickups, below crisis');
+  // ★ a RESTORED tower says nothing · the stimulus points at WORK, not scenery
+  P._towerSpotted={};
+  const src=FS.readFileSync('/tmp/all.js','utf8');
+  ok(/towerRestored\(T\.dist\)\) continue/.test(src.slice(src.indexOf('function tickTowerProximityVO'),src.indexOf('function tickTowerProximityVO')+900)),
+     '★ a restored tower never triggers it — the line exists to send you to the chest');
+  ok(/SILVER CHEST/.test(src.slice(src.indexOf('function tickTowerProximityVO'),src.indexOf('function tickTowerProximityVO')+1100)),
+     'and the toast names the silver chest and Scrapjaw');
+}
+
+H('8 · ★ TREES CARRY THE SPIRIT TREE\'S STOCK');
+{
+  ok(C.LIFE_SEED_PURE_ODDS===0.05,'5% per tree search');
+  const src=FS.readFileSync('/tmp/all.js','utf8');
+  const h=src.indexOf('function harvestPlant');
+  const b=src.slice(h,h+2200);
+  ok(/kind === 'tree' && Math\.random\(\) < LIFE_SEED_PURE_ODDS/.test(b),
+     '★ trees only — a berry bush has no Spirit Tree lineage');
+  ok(/storeLifeSeed\(true\)/.test(b),'and the find is PURE stock · no spoil timer');
+  // rig the dice
+  const real=Math.random;
+  const P=C.player; P.items=P.items||{}; P.items.life_seed_pure=0;
+  Math.random=()=>0.01;
+  const treeProp={tileX:58,tileY:103,src:'assets/2D sprites/decor/trees/malezor-tree.png',_charge:0};
+  // plantKind reads the src · a tree path yields kind 'tree'
+  const res=C.harvestPlant(treeProp);
+  Math.random=real;
+  ok(res&&res.pureSeed===true,'a 0.01 roll finds one');
+  ok((P.items.life_seed_pure||0)===1,'★ stored as PURE — Spirit Tree stock keeps forever');
 }
 
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));

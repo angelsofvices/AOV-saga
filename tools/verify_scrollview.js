@@ -26,7 +26,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_scrollview · v0.95.816 · parchment overlay + scanobot text box + paper sfx
 const FS=require('fs');
 try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
-  ';globalThis.__C={player,game,SCROLL_FRAME_META,SCROLL_FRAME_CELL,SCROLL_THEMES,SCROLL_DISTRICT_ORDER,'+
+  ';globalThis.__C={player,game,SCROLL_FRAME_META,SCROLL_THEMES,SCROLL_DISTRICT_ORDER,'+
   'openScrollView,closeScrollView,openScrollTheme,notebookState,scrollId,readScroll,DIALOG_FRAMES,scanobotTalk,NPCS,'+
   'buildScanobotNet,applyScanobotState,AUDIO,WORLD_PROPS,_propBlocked,spawnArrowBundle,addBowArrows,maybeSpillChestArrows,CHEST_ARROW_ODDS,ARROW_BUNDLE_ARROWS,ARROW_BUNDLE_PRICE,BOW_MAX,walkable,dialogState:()=>dialogState};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
@@ -75,14 +75,24 @@ for y0,x0 in zip(*np.nonzero(A)):
     if ((rr>190)&(gg>150)&(bb<120)).mean()>0.5: found+=1
 print(found)`],{encoding:'utf8'}).trim();
   ok(labels===0,`★ zero label-sized yellow components survive — the digits are gone, the parchment is not`);
-  // ★ every inner rect sits INSIDE its bbox · the writable area cannot leak
-  //   off the parchment
+  // ★ v0.95.817 · frames are cropped to their TRUE bounds now (9 of 18 crossed
+  //   the 6x3 grid, so the uniform slice was cutting them — the Creator caught
+  //   it).  Each file IS its scroll; the inner rect must sit inside the file,
+  //   and the file dims must match the meta.
   for (const [i,M] of C.SCROLL_FRAME_META.entries()){
-    const [bx,by,bw,bh]=M.bbox,[ix,iy,iw,ih]=M.inner;
-    if (!(ix>=bx&&iy>=by&&ix+iw<=bx+bw&&iy+ih<=by+bh))
-      ok(false,`frame ${i+1} inner rect leaks off its parchment`);
+    const [ix,iy,iw,ih]=M.inner;
+    if (!(ix>=0&&iy>=0&&ix+iw<=M.w&&iy+ih<=M.h))
+      ok(false,`frame ${i+1} inner rect leaks off its file`);
   }
-  ok(true,'★ every inner writing rect sits inside its own parchment — margins come from the ART');
+  ok(true,'★ every inner writing rect sits inside its own file — margins come from the ART');
+  const dims=execFileSync('python3',['-c',`
+from PIL import Image
+for i in range(1,19):
+    im=Image.open('${ROOT}assets/2D sprites/ui/scrolls/frame_%02d.png'%i)
+    print(im.size[0], im.size[1])`],{encoding:'utf8'}).trim().split('\n').map(l=>l.split(/\s+/).map(Number));
+  let dOff=0;
+  C.SCROLL_FRAME_META.forEach((M,i)=>{ if (dims[i][0]!==M.w||dims[i][1]!==M.h) dOff++; });
+  ok(dOff===0,`★ all 18 files re-measure to their declared w/h (${dOff} off) — sliced by component, not by grid`);
 }
 
 H('2 · ★★ THE OVERLAY IS BUILT LIKE THE POSTER ZOOM');

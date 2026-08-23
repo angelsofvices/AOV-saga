@@ -2674,9 +2674,15 @@ const CHEST_TILE_POSITIONS = [
 // Deliberately sparse: this is the top rung, so a cosmic chest should be a
 // destination rather than something you trip over.
 const COSMIC_CHEST_SPOTS = [
-  { dist:'vorashil', at:[338, 477], item:'sapphire_sword',
+  // ★ v0.95.776 · CREATOR-PLACED. Standing here in-game, the Creator said "place
+  // azurels sword chest here" at tile (283,465). My measured pick was (338,477)
+  // — 43 trees within 12 tiles against 7 here — but a density score is not what
+  // a place looks like from inside it, and they were looking at the screen.
+  // creatorPlaced skips the canopy-percentile assertion for exactly this spot
+  // rather than the check being weakened for everyone.
+  { dist:'vorashil', at:[283, 465], item:'sapphire_sword', creatorPlaced:true,
     label:'SAPPHIRE TEARSWORD · Azurel\'s crystallised tear',
-    note:'densest canopy in Vorashil · 47 trees within 12 tiles' },
+    note:'placed by the Creator from inside the game · treeline edge' },
   // ★ v0.95.775 · Rakoron is MALEZOR's Gemlord and the Rubypaw is his iron and
   // dragonlion mist, so it belongs in his district — the same rule that put
   // Azurel's tear in Vorashil.
@@ -6097,12 +6103,15 @@ const WORLD_PROPS = [
         chest.img = _openImg; chest.bbox = OPEN_BBOX;
         if (chest.looted) return;
         chest.looted = true;
-        player.items = player.items || {};
-        player.items[spot.item] = (player.items[spot.item] || 0) + 1;
-        // Gemlord weapons arrive sharp. Each blade tracks its own durability,
-        // so S1's sword and S2's sword never share HP.
-        if (spot.item === 'sapphire_sword'){ player.swordDurability    = 200; player.swordBroken    = false; }
-        if (spot.item === 'rubypaw_sword'){  player.rubypawDurability  = 200; player.rubypawBroken  = false; }
+        // ★★ v0.95.776 · THE BLADE DOES NOT GO STRAIGHT INTO THE BAG.
+        // Creator: "give it collision on spawn from chest. player must go up to
+        // it and press x."
+        //
+        // So a Gemlord weapon is NOT a walk-over pickup like coins and scrap.
+        // It spawns as a SOLID prop beside the chest — you cannot walk through
+        // it, you have to stand next to it and press X. A weapon this rare
+        // should cost a deliberate act, not be swept up in passing.
+        spawnWeaponDrop(chest, spot);
         const piles = spillChestCoins(chest, 'cosmic', 1);
         try { spawnChestGems('overworld', chest.tileX, chest.tileY); } catch(_){}
         try { awardRizerXP(150); } catch(_){}     // cosmic · 6x a wooden chest
@@ -13990,6 +13999,98 @@ function spillChestCoins(chest, tier, mult){
   // any rounding remainder rides on the last pile rather than vanishing
   if (left > 0) amounts[amounts.length - 1] += left;
   return spillPickups('coins', chest.tileX, chest.tileY, amounts, chest.id || tier);
+}
+// ★★ v0.95.776 · WEAPON DROPS · solid, and taken with X.
+//
+// Deliberately NOT part of the walk-over pickup system above. Coins and scrap
+// are swept up by moving; a Gemlord weapon is picked up on purpose. The prop
+// carries a real footprint, so it blocks — the player has to stop, face it and
+// press X, which is also what stops them running past the thing they came for.
+const WEAPON_DROP_ART = {
+  sapphire_sword: { src:'assets/2D%20sprites/decor/sapphire-sword-icon.png', bbox:[0,0,772,326], tileW:1.6 },
+  rubypaw_sword:  { src:'assets/2D%20sprites/decor/rubypaw-sword-icon.png',  bbox:[0,0,785,537], tileW:1.5 },
+};
+for (const k of Object.values(WEAPON_DROP_ART)){ k.img = new Image(); k.img.src = k.src; }
+function _weaponDropTile(cx, cy){
+  // Prefer directly BELOW the chest — that is the tile the player is already
+  // walking toward when they open it. Then the sides, then anywhere close.
+  const order = [[0,1],[1,1],[-1,1],[1,0],[-1,0],[0,2],[2,1],[-2,1],[0,-1]];
+  for (const [dx, dy] of order){
+    const x = cx+dx, y = cy+dy;
+    if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+    if (_propBlocked.has(x+','+y)) continue;
+    // it must have a free neighbour, or it blocks itself into a corner and
+    // there is nowhere to stand to press X
+    const reachable = [[1,0],[-1,0],[0,1],[0,-1]].some(([ax,ay]) =>
+      isWorldLandTile(x+ax, y+ay) && !isWorldBorderTile(x+ax, y+ay)
+      && !_propBlocked.has((x+ax)+','+(y+ay)));
+    if (reachable) return [x, y];
+  }
+  return null;
+}
+function spawnWeaponDrop(chest, spot){
+  const A = WEAPON_DROP_ART[spot.item];
+  const at = _weaponDropTile(chest.tileX, chest.tileY);
+  if (!A || !at){
+    // Nowhere to put it · never strand the reward. Bag it and say so.
+    player.items = player.items || {};
+    player.items[spot.item] = (player.items[spot.item] || 0) + 1;
+    _armWeapon(spot.item);
+    showToast(`★ ${spot.label}`, 5200);
+    return null;
+  }
+  const drop = {
+    id: `weapon_drop_${spot.item}`,
+    img: A.img, src: A.src, bbox: A.bbox,
+    tileX: at[0], tileY: at[1],
+    tileW: A.tileW, tileH: A.tileW * A.bbox[3] / A.bbox[2],
+    footprint: [[0,0]],          // ★ SOLID · you cannot walk through it
+    door: [0,0],                 // ★ and X works when you face it
+    _weaponDrop: spot.item,
+    _levitate: true,             // a small bob so it reads as loot, not scenery
+  };
+  drop.onInteract = () => {
+    player.items = player.items || {};
+    player.items[spot.item] = (player.items[spot.item] || 0) + 1;
+    _armWeapon(spot.item);
+    unregisterPropCollision(drop);
+    const i = WORLD_PROPS.indexOf(drop);
+    if (i >= 0) WORLD_PROPS.splice(i, 1);
+    _rememberWeaponDrops();
+    try { playItemGain(spot.item); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+    showToast(`★ ${spot.label} · toggle from ZyPhone → Weapons`, 5200);
+  };
+  WORLD_PROPS.push(drop);
+  registerPropCollision(drop);
+  _rememberWeaponDrops();
+  return drop;
+}
+// Each blade tracks its OWN durability so S1's sword and S2's never share HP.
+function _armWeapon(item){
+  if (item === 'sapphire_sword'){ player.swordDurability   = 200; player.swordBroken   = false; }
+  if (item === 'rubypaw_sword'){  player.rubypawDurability = 200; player.rubypawBroken = false; }
+}
+// ★ A blade left lying on the ground has to still be there next session.
+function _rememberWeaponDrops(){
+  player.weaponDrops = WORLD_PROPS
+    .filter(p => p && p._weaponDrop)
+    .map(p => [p.tileX, p.tileY, p._weaponDrop]);
+}
+function restoreWeaponDrops(){
+  const saved = player.weaponDrops;
+  if (!Array.isArray(saved) || !saved.length) return 0;
+  for (let i = WORLD_PROPS.length - 1; i >= 0; i--)
+    if (WORLD_PROPS[i] && WORLD_PROPS[i]._weaponDrop) WORLD_PROPS.splice(i, 1);
+  let n = 0;
+  for (const [x, y, item] of saved){
+    const spot = COSMIC_CHEST_SPOTS.find(s => s.item === item);
+    if (!spot) continue;
+    const fake = { tileX: x, tileY: y - 1 };      // spawn resolves to (x,y)
+    const d = spawnWeaponDrop(fake, spot);
+    if (d){ d.tileX = x; d.tileY = y; registerPropCollision(d); n++; }
+  }
+  _rememberWeaponDrops();
+  return n;
 }
 // Walk-over collection · every pickup on this tile, whatever kind.
 function collectPickupsAt(tx, ty){
@@ -29532,6 +29633,7 @@ function saveGame(){
         faeCollected: player.faeCollected || 0,
         lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
         groundPickups: player.groundPickups || [],  // v0.95.773 · scrap + coin piles on the ground
+        weaponDrops: player.weaponDrops || [],      // v0.95.776 · Gemlord blades left on the ground
 
         items: player.items || {},
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
@@ -29668,6 +29770,7 @@ function loadGame(){
     try { restoreLootedChests(); } catch(_){}
     // ★ v0.95.772 · put the un-swept scrap piles back where they lay
     try { restoreScrapDrops(); } catch(_){}
+    try { restoreWeaponDrops(); } catch(_){}   // ★ v0.95.776
     if (!Array.isArray(player.pcZyrex)) player.pcZyrex = [];   // v0.95.536 · back-compat default
     try { migrateSavedZyrex(); } catch(err){ console.warn('[rp7b] zyrex migration failed', err); }
     // v0.95.607 · restore notifications feed so ZyPhone right-rail messages persist

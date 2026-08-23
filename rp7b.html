@@ -2201,6 +2201,20 @@ function companionize(n){
 }
 // v0.95.385 · Escort/return NPCs actually WALK back to their coord
 // instead of teleporting · sets mode='walkHome' + target + timer
+// ★★ v0.95.808 · WHERE EACH INTERIOR'S FRONT DOOR STANDS IN THE OVERWORLD.
+// Creator: "when u successfully escort yara to elarian, she should walk to
+// front door of the home not teleport back."
+//
+// walkHome's scene-mismatch branch used to teleport INSTANTLY — so an NPC
+// whose home is indoors never walked a single tile: Yara popped from the
+// school straight into the kitchen.  With a door on record she walks the
+// overworld to her own doorstep, steps through, and only THEN changes scene —
+// which is the moment she is out of sight anyway.
+// (22,106) is one south of the player_home door tile at (22,105) — the door
+// tile itself is solid, the doorstep is the walkable approach.
+const INTERIOR_FRONT_DOORS = {
+  interior_home: { x: 22, y: 106 },
+};
 function walkNpcHome(n, x, y, scene){
   if (!n) return false;
   n._walkHomeTarget = { x, y, scene: scene || n._nativeScene || n.homeScene || 'overworld' };
@@ -39929,12 +39943,34 @@ function tickNPC(n, dt){
   if (n.mode === 'walkHome'){
     const tgt = n._walkHomeTarget;
     if (!tgt){ n.mode = 'stationary'; n.moving = false; return; }
-    // Scene mismatch means we're in a different room · silently teleport (interior traversal not modeled)
+    // ★ v0.95.808 · Scene mismatch: if we are OUTSIDE and the home interior
+    // has a known front door, the walk is a two-leg trip — overworld to the
+    // doorstep on foot, then through the door.  The scene swap happens only
+    // when she is standing ON the doorstep, which is the moment a player
+    // watching her sees her go inside rather than blink out of existence.
+    // Interiors without a door on record keep the old instant swap: interior-
+    // to-interior traversal is not modeled, and inventing it here would be a
+    // pathfinding project wearing a bugfix's clothes.
     if (tgt.scene && n.scene !== tgt.scene){
-      n.scene = tgt.scene; n.tileX = tgt.x; n.tileY = tgt.y;
-      n.homeX = tgt.x; n.homeY = tgt.y; n.homeScene = tgt.scene;
-      n.mode = 'stationary'; n.moving = false; n._walkHomeTarget = null;
-      return;
+      const door = (n.scene === 'overworld') ? INTERIOR_FRONT_DOORS[tgt.scene] : null;
+      if (door){
+        if (n.tileX === door.x && n.tileY === door.y){
+          // on the doorstep · step through
+          n.scene = tgt.scene; n.tileX = tgt.x; n.tileY = tgt.y;
+          n.homeX = tgt.x; n.homeY = tgt.y; n.homeScene = tgt.scene;
+          n.mode = 'stationary'; n.moving = false; n._walkHomeTarget = null;
+          return;
+        }
+        // not there yet · fall through to the stepping code, aimed at the door
+        n._walkHomeAim = door;
+      } else {
+        n.scene = tgt.scene; n.tileX = tgt.x; n.tileY = tgt.y;
+        n.homeX = tgt.x; n.homeY = tgt.y; n.homeScene = tgt.scene;
+        n.mode = 'stationary'; n.moving = false; n._walkHomeTarget = null;
+        return;
+      }
+    } else {
+      n._walkHomeAim = null;
     }
     // Arrived
     if (n.tileX === tgt.x && n.tileY === tgt.y){
@@ -39943,15 +39979,20 @@ function tickNPC(n, dt){
       n._walkHomeTarget = null;
       return;
     }
-    // Bail-out timer · after 10s of trying, give up and snap (avoid infinite pathing)
-    if (n._walkHomeStart && (performance.now() - n._walkHomeStart) > 10000){
-      n.tileX = tgt.x; n.tileY = tgt.y;
+    // Bail-out timer · after 20s of trying, give up and snap (avoid infinite
+    // pathing).  ★ v0.95.808 · doubled from 10s: the doorstep leg is a real
+    // journey now — the school to the house is a couple dozen tiles — and the
+    // old timer would have "fixed" the new walk by teleporting mid-street.
+    if (n._walkHomeStart && (performance.now() - n._walkHomeStart) > 20000){
+      n.scene = tgt.scene || n.scene; n.tileX = tgt.x; n.tileY = tgt.y;
       n.mode = 'stationary'; n.moving = false;
-      n._walkHomeTarget = null;
+      n._walkHomeTarget = null; n._walkHomeAim = null;
       return;
     }
-    // Step one tile toward target · prefer axis w/ bigger delta · try alt if blocked
-    const dx0 = tgt.x - n.tileX, dy0 = tgt.y - n.tileY;
+    // Step one tile toward the AIM · the doorstep when one is pending, the
+    // final tile otherwise · prefer axis w/ bigger delta · try alt if blocked
+    const _aim = n._walkHomeAim || tgt;
+    const dx0 = _aim.x - n.tileX, dy0 = _aim.y - n.tileY;
     let dir;
     if (Math.abs(dx0) >= Math.abs(dy0)) dir = dx0 > 0 ? 'right' : 'left';
     else                                dir = dy0 > 0 ? 'down'  : 'up';

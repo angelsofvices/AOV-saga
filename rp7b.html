@@ -11573,6 +11573,37 @@ function applyHubRecentre(){
 // moved buildings' collision and doors are registered at their NEW tiles.
 try { applyHubRecentre(); } catch(err){ console.warn('[rp7b] hub recentre failed', err); }
 try { applyGroundStoreyCollision(); } catch(err){ console.warn('[rp7b] ground-storey pass failed', err); }
+// ★★ v0.95.759 · COLLISION IS BAKED ONCE — so anything added or moved AFTER
+// this point must register itself. It did not, and two whole systems fell
+// through the gap:
+//
+//   · 13,215 trail bushes, trees and cacti are pushed in a deferred tick, long
+//     after the bake. Every one declared a footprint and blocked nothing —
+//     the player walked straight through the forests and the roadside hedges.
+//   · snapBuildingsToLattice moves 30 lore buildings after the bake too, so
+//     their collision stayed at the tiles they used to occupy.
+//
+// These two functions are the only supported way to change a prop's collision
+// after boot. Use them in a pair when moving something.
+function registerPropCollision(p){
+  if (!p || !p.footprint) return 0;
+  let n = 0;
+  for (const [dx, dy] of p.footprint){ _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`); n++; }
+  if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
+  if (p.doors && p.doors.length)
+    for (const [dx, dy] of p.doors) _propDoors.set(`${p.tileX+dx},${p.tileY+dy}`, p);
+  if (p.wildZone) _wildZones.add(`${p.tileX},${p.tileY}`);
+  return n;
+}
+function unregisterPropCollision(p){
+  if (!p || !p.footprint) return 0;
+  let n = 0;
+  for (const [dx, dy] of p.footprint){ _propBlocked.delete(`${p.tileX+dx},${p.tileY+dy}`); n++; }
+  if (p.door) _propDoors.delete(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`);
+  if (p.doors && p.doors.length)
+    for (const [dx, dy] of p.doors) _propDoors.delete(`${p.tileX+dx},${p.tileY+dy}`);
+  return n;
+}
 WORLD_PROPS.forEach(p => {
   p.footprint.forEach(([dx,dy]) => _propBlocked.add(`${p.tileX+dx},${p.tileY+dy}`));
   if (p.door) _propDoors.set(`${p.tileX + p.door[0]},${p.tileY + p.door[1]}`, p);
@@ -34621,8 +34652,10 @@ function buildDistrictTrails(dist, rng){
     if (occupied.has(key) || _propBlocked.has(key)) continue;
     if (rng() > TRAIL_VERGE_P) continue;
     if (!bushSrc || !bushBox) continue;
-    WORLD_PROPS.push({ id:`${dist}_verge_${x}_${y}`, img:bushImg, src:bushSrc, bbox:bushBox,
-      tileX:x, tileY:y, ..._bushCell(bushSrc), footprint:[[0,0]], _trailVerge:dist });
+    const _vb = { id:`${dist}_verge_${x}_${y}`, img:bushImg, src:bushSrc, bbox:bushBox,
+      tileX:x, tileY:y, ..._bushCell(bushSrc), footprint:[[0,0]], _trailVerge:dist };
+    WORLD_PROPS.push(_vb);
+    registerPropCollision(_vb);        // ★ built after the bake · must self-register
     occupied.add(key); bushes++;
   }
   // FOREST the border · the treeline becomes the wall.
@@ -34658,12 +34691,14 @@ function buildDistrictTrails(dist, rng){
       // from a roadside. Zarvane needs a real tree — flagged as an art gap.
       if (rng() > (isHedge ? 0.85 : 0.55)) continue;
       if (!forestSrc) continue;
-      WORLD_PROPS.push({ id:`${dist}_forest_${x}_${y}`, img:treeImg, src:forestSrc,
+      const _bf = { id:`${dist}_forest_${x}_${y}`, img:treeImg, src:forestSrc,
         bbox: isHedge ? TRAIL_BUSH_BBOX[forestSrc] : TRAIL_TREE_BBOX[forestSrc],
         tileX:x, tileY:y,
         ...(isHedge ? { tileW:3, tileH:3 * TRAIL_BUSH_BBOX[forestSrc][3] / TRAIL_BUSH_BBOX[forestSrc][2] }
                     : _treeCell(forestSrc)),
-        footprint:[[0,0]], _borderForest:dist, _hedge:isHedge });
+        footprint:[[0,0]], _borderForest:dist, _hedge:isHedge };
+      WORLD_PROPS.push(_bf);
+      registerPropCollision(_bf);      // ★ a treeline the player can walk through
       occupied.add(key); trees++;
     }
   }
@@ -34802,7 +34837,12 @@ function snapBuildingsToLattice(){
       });
     }
     const apexSite = pool.splice(ai, 1)[0];
+    // ★ v0.95.759 · lift the old collision BEFORE moving, lay it down after —
+    // otherwise the building blocks the tiles it used to stand on and none of
+    // the ones it now does.
+    unregisterPropCollision(apexProp);
     apexProp.tileX = apexSite.x; apexProp.tileY = apexSite.y; moved++;
+    registerPropCollision(apexProp);
     apexProp._latticeGrid = [apexSite.gx, apexSite.gy];
     // the other two -> furthest from the apex, and from each other
     const rest = blds.filter(b => b !== apexProp);
@@ -34816,7 +34856,9 @@ function snapBuildingsToLattice(){
       });
       const st = pool.splice(bi, 1)[0];
       if (!st) break;
+      unregisterPropCollision(b);
       b.tileX = st.x; b.tileY = st.y; b._latticeGrid = [st.gx, st.gy];
+      registerPropCollision(b);
       moved++;
     }
   }

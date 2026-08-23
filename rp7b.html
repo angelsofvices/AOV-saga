@@ -1520,6 +1520,8 @@ const AUDIO = {
     takeFive:     new Audio('audio/sfx-take-five.mp3'),      // v0.95.618 · Rizer "take five buddy" VO on Zyrex RECALL to zysphere (Triangle on already-summoned faction slot)
     rubypawSwing: new Audio('audio/sfx-rubypaw-swing.mp3'),  // v0.95.573 · Rubypaw sword swing/slash · plays on every S2-square punch swing (hit or miss)
     rubypawKill:  new Audio('audio/sfx-rubypaw-kill.mp3'),   // v0.95.574 · Rubypaw kill · flesh-ripping impact · fires only on Rubypaw-driven KOs
+    axeSwing:     new Audio('audio/sfx-axe-swing.mp3'),      // ★ v0.95.793 · heavy metal impact · fires on EVERY axe swing, hit or miss (Creator: "even on a miss. this is just impact")
+    axeKill:      new Audio('audio/sfx-axe-kill.mp3'),       // ★ v0.95.793 · Emerald Axe finisher · fires only on axe-driven KOs, primary tile OR anywhere in the 3x3
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Tearsword contact SFX · fires only on enemy hit-land
     newDistrict:  new Audio('audio/sfx-new-district.mp3'),   // v0.95.527 · Rizer VO on FIRST entry into a new district ("hmm I never seen this before")
@@ -17931,12 +17933,29 @@ function comboXpMult(){
   const streak = (player && player._hitStreak) || 0;
   return Math.max(1, streak / COMBO_XP_DIVISOR);
 }
+// ★ v0.95.793 · finisher sound per weapon in hand.  `fists` and `sapphire`
+// deliberately absent: bare hands and the Tearsword keep the clean default
+// moriDeath crack, and the Tearsword already has its own every-3rd-kill VO.
+const WEAPON_KILL_SFX = { emerald: 'axeKill', rubypaw: 'rubypawKill' };
 function creditRizerKill(npc, mode = 'punch'){
   if (!npc || npc._rxpCredited) return 0;   // guard AOE double-credit
   npc._rxpCredited = true;
   // ★ v0.95.790 · every kill in the game already funnels through here, so the
   // enemy log hooks in at one line instead of at eight kill sites.
   try { notebookLogKill(npc); } catch(_){}
+  // ★★ v0.95.793 · WEAPON FINISHER SFX · also hooked here rather than at the
+  // kill sites.  There are FOUR of those for the axe alone (primary tile plus
+  // three sweep loops), and the Rubypaw's finisher was already hand-pasted at
+  // two of them — one more weapon and someone would have missed a branch.
+  // Which weapon is in hand is a fact about the player, not about the tile the
+  // enemy happened to die on, so ask the player.
+  // ★ GATED ON THE SQUARE STRIKE. Holding the axe does not make it the thing
+  // that killed: kills also arrive here tagged 'kick', 'boom', 'throw',
+  // 'zyrex', 'splash', 'void', 'astralslam', 'astralkick' and 'astralstrike'.
+  // Without this, a summoned Zyrex finishing a Mori would play the axe.
+  if (mode === 'punch' || mode === 'sword'){
+    try { const _wk = WEAPON_KILL_SFX[currentWeaponKey()]; if (_wk) playSFX(_wk); } catch(_){}
+  }
   const base = rizerKillXP(npc, mode);
   const mult = comboXpMult();
   const xp = Math.round(base * mult);
@@ -21856,6 +21875,11 @@ addEventListener('keydown', e => {
           && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
         let _axeSweepHits = null;
         if (_axeSweeper){
+          // ★ v0.95.793 · Creator: "play this sound when the axe swings even on
+          // a miss. this is just impact."  So it lives HERE, at the swing, and
+          // not down in the `if (hit)` block where every other weapon sound
+          // sits — a heavy axe that whiffs should still land on something.
+          try { playSFX('axeSwing'); } catch(_){}
           _axeSweepHits = [];
           for (let dy = -1; dy <= 1; dy++){
             for (let dx = -1; dx <= 1; dx++){
@@ -22051,11 +22075,9 @@ addEventListener('keydown', e => {
                   try { playSFX('swordKillVox'); } catch(_){}
                 }
               }
-              // v0.95.574 · Rubypaw flesh-rip · fires on EVERY Rubypaw kill
-              // (Sapphire keeps the cleaner default moriDeath crack)
-              if (_rubypawSwing){
-                try { playSFX('rubypawKill'); } catch(_){}
-              }
+              // ★ v0.95.793 · the Rubypaw flesh-rip used to be pasted here and
+              // once more in the sweep loop.  Both now come from the single
+              // WEAPON_KILL_SFX hook inside creditRizerKill.
               // v0.95.236 · Play crumble-to-stone death anim before hiding
               startMoriDeath(hit);
               // v0.95.649 · base melee kill · creditRizerKill books XP + the kill
@@ -22147,7 +22169,6 @@ addEventListener('keydown', e => {
                   player.stats.swordKills = (player.stats.swordKills || 0) + 1;
                   if (player.stats.swordKills % 3 === 0){ try { playSFX('swordKillVox'); } catch(_){} }
                 } catch(_){}
-                try { playSFX('rubypawKill'); } catch(_){}
                 startMoriDeath(sh);
                 creditRizerKill(sh, 'sword');   // v0.95.649 · Gemlord weapon sweep
               }

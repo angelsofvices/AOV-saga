@@ -34606,17 +34606,21 @@ function buildDistrictTrails(dist, rng){
     for (const [dx, dy] of p.footprint || []) occupied.add((p.tileX+dx)+','+(p.tileY+dy));
   }
   // LINE the verges · this is what makes a gap read as a road.
-  const bushSrc = TRAIL_BUSH_BY_DIST[dist] || 'assets/2D%20sprites/decor/bush.png';
-  const bushBox = TRAIL_BUSH_BBOX[bushSrc] || [291,274,965,471];
-  const bushImg = new Image(); bushImg.src = bushSrc;
+  // ★ No fallback. Malezor's bush is Malezor's; every district has its own.
+  const bushSrc = TRAIL_BUSH_BY_DIST[dist] || null;
+  if (!bushSrc) console.warn(`[rp7b] ${dist} has no verge bush art · skipping its verges`);
+  const bushBox = bushSrc ? TRAIL_BUSH_BBOX[bushSrc] : null;   // no borrowed crop
+  const bushImg = bushSrc ? new Image() : null;
+  if (bushImg) bushImg.src = bushSrc;
   let bushes = 0;
   for (const key of verge){
     const [x, y] = key.split(',').map(Number);
     if (worldDistrictAt(x, y) !== dist || isWorldBorderTile(x, y)) continue;
     if (occupied.has(key) || _propBlocked.has(key)) continue;
     if (rng() > TRAIL_VERGE_P) continue;
+    if (!bushSrc || !bushBox) continue;
     WORLD_PROPS.push({ id:`${dist}_verge_${x}_${y}`, img:bushImg, src:bushSrc, bbox:bushBox,
-      tileX:x, tileY:y, tileW:2, tileH:1, footprint:[[0,0]], _trailVerge:dist });
+      tileX:x, tileY:y, ..._bushCell(bushSrc), footprint:[[0,0]], _trailVerge:dist });
     occupied.add(key); bushes++;
   }
   // FOREST the border · the treeline becomes the wall.
@@ -34647,11 +34651,14 @@ function buildDistrictTrails(dist, rng){
       if (!edge || nearTrail(x, y)) continue;
       const key = x + ',' + y;
       if (occupied.has(key) || _propBlocked.has(key)) continue;
-      if (rng() > 0.55) continue;
+      // ★ A hedge border is built from the same bush that lines the verges, so
+      // it must be denser and larger or the player cannot tell the map edge
+      // from a roadside. Zarvane needs a real tree — flagged as an art gap.
+      if (rng() > (isHedge ? 0.85 : 0.55)) continue;
       if (!forestSrc) continue;
       WORLD_PROPS.push({ id:`${dist}_forest_${x}_${y}`, img:treeImg, src:forestSrc,
-        bbox: isHedge ? [291,274,965,471] : [72,77,1107,1138],
-        tileX:x, tileY:y, tileW: isHedge ? 2 : 3, tileH: isHedge ? 1 : 3,
+        bbox: isHedge ? (TRAIL_BUSH_BBOX[forestSrc] || [16,209,1225,834]) : [72,77,1107,1138],
+        tileX:x, tileY:y, tileW: isHedge ? 3 : 3, tileH: isHedge ? 2 : 3,
         footprint:[[0,0]], _borderForest:dist, _hedge:isHedge });
       occupied.add(key); trees++;
     }
@@ -34662,14 +34669,46 @@ function buildDistrictTrails(dist, rng){
 // Per-district flora art, so a Veridan road is lined with Veridan bushes rather
 // than Malezor's. Trees have NO fallback — see the treeline block above.
 const TRAIL_BUSH_BY_DIST = {
+  malezor:  'assets/2D%20sprites/decor/bush.png',          // the original — Malezor's
   andrannor:'assets/2D%20sprites/decor/andrannor-bush.png',
   zarvane:  'assets/2D%20sprites/decor/zarvane-bush.png',
+  veridan:  'assets/2D%20sprites/decor/bushes/veridan-bush.png',
+  netharion:'assets/2D%20sprites/decor/bushes/netharion-bush.png',
+  vorashil: 'assets/2D%20sprites/decor/bushes/vorashil-bush.png',
+  xilnar:   'assets/2D%20sprites/decor/bushes/xilnar-bush.png',
+  baelgor:  'assets/2D%20sprites/decor/bushes/baelgor-bush.png',
+  thardin:  'assets/2D%20sprites/decor/bushes/thardin-bush.png',
+  korathen: 'assets/2D%20sprites/decor/bushes/korathen-bush.png',
 };
+// ★★ v0.95.754 · MEASURED, not copied.
+// Andrannor and Zarvane were both carrying bush.png's crop [291,274,965,471].
+// That is a 1536x1024 sheet; theirs are 1254x1254, so the engine was sampling
+// the wrong region of a different image and then squashing a near-square bush
+// into a 2:1 cell. Every entry below is the actual alpha bbox of its own file,
+// and tileW/tileH now follow the art's real aspect ratio so nothing stretches.
 const TRAIL_BUSH_BBOX = {
-  'assets/2D%20sprites/decor/bush.png':[291,274,965,471],
-  'assets/2D%20sprites/decor/andrannor-bush.png':[291,274,965,471],
-  'assets/2D%20sprites/decor/zarvane-bush.png':[291,274,965,471],
+  'assets/2D%20sprites/decor/bush.png':                     [291,274, 965,471],
+  'assets/2D%20sprites/decor/andrannor-bush.png':           [ 51,318,1151,671],
+  'assets/2D%20sprites/decor/zarvane-bush.png':             [ 16,209,1225,834],
+  'assets/2D%20sprites/decor/bushes/veridan-bush.png':      [112,175,1034,879],
+  'assets/2D%20sprites/decor/bushes/netharion-bush.png':    [ 36,134,1172,939],
+  'assets/2D%20sprites/decor/bushes/vorashil-bush.png':     [ 98,128,1059,967],
+  'assets/2D%20sprites/decor/bushes/xilnar-bush.png':       [108,139,1037,974],
+  'assets/2D%20sprites/decor/bushes/baelgor-bush.png':      [ 98,175,1060,889],
+  'assets/2D%20sprites/decor/bushes/korathen-bush.png':     [137,193, 986,876],
+  'assets/2D%20sprites/decor/bushes/thardin-bush.png':      [155,107, 949,1024],
 };
+// A verge bush occupies 2 tiles of width; its height follows from the art so a
+// square bush draws square. ★ never stretch — letterbox by deriving the cell.
+function _bushCell(src){
+  const b = TRAIL_BUSH_BBOX[src];
+  if (!b) return { tileW:2, tileH:1 };
+  // ★ EXACT, not rounded. Rounding tileH to an integer forced Zarvane's bush to
+  // 1.36x and Netharion's to 1.25x. Tile sizes are floats elsewhere in this file
+  // (homes carry tileW 5.56), so the cell can follow the art precisely and the
+  // bush draws at its true aspect.
+  return { tileW:2, tileH: 2 * b[3] / b[2] };
+}
 // ★★ v0.95.752 · EVERY DISTRICT USES ITS OWN TREE.
 // The rollout shipped a lazy one-entry map with a silent fallback to
 // malezor-tree.png, and planted 3,343 MALEZOR trees across eight foreign

@@ -6072,7 +6072,11 @@ const WORLD_PROPS = [
           player.towerBatteries    = player.towerBatteries    || {};
           player.towerChestsLooted = player.towerChestsLooted || {};
           player.towerBatteries[spot.dist]    = true;
-          player.towerChestsLooted[spot.dist] = true;   // persists · no re-loot on reload
+          player.towerChestsLooted[spot.dist] = true;
+          // ★ v0.95.772 · every tower chest also spills scrap. Nine of the ten
+          // towers gave none at all before this, so Scrapjaw's whole trade
+          // ladder was fed by one Malezor pickup plus Scanobot drops.
+          try { spillScrap(chest.tileX, chest.tileY, SCRAP_PER_CHEST, spot.dist); } catch(_){}   // persists · no re-loot on reload
           player.items = player.items || {};
           player.items.tower_battery = (player.items.tower_battery || 0) + 1;
           try { playItemGain('tower_battery'); } catch(_){}
@@ -6121,11 +6125,11 @@ const WORLD_PROPS = [
       chest.bbox = OPEN_BBOX;
       if (!chest.looted){
         chest.looted = true;
-        player.items = player.items || {};
-        player.items.scrap_metal = (player.items.scrap_metal || 0) + 1;
-        try { playItemGain('scrap_metal'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+        // ★ v0.95.772 · spills onto the ground instead of handing over one ·
+        // walk over the piles to collect them
+        const n = spillScrap(chest.tileX, chest.tileY, SCRAP_PER_CHEST, 'malezor');
         try { pingNextObjective(); } catch(_){}
-        showToast('★ SCRAP METAL retrieved · bring it to Scrapjaw at the Gear Shop', 3600);
+        showToast(`★ The chest bursts open · ${n} piles of SCRAP METAL scatter · walk over them`, 3600);
       }
     };
     return chest;
@@ -13775,6 +13779,100 @@ function drawFae(){
     // 1-tile sprite · anchored to tile center · floats above tile mid-height
     ctx.drawImage(FAE_IMG, frame * fw, 0, fw, fh, dx, dy - 12 + bob, TILE, TILE);
   }
+}
+// ════════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.772 · SCRAP METAL SPILLS FROM THE TOWER CHESTS
+//
+// Creator: "scrap metal will now come out of the silver chest by each radio
+// tower. player walks over it to pick it up."
+//
+// Was: one chest in Malezor handed over exactly 1 scrap on interact, and the
+// other nine towers gave none at all — so Scrapjaw's whole trade ladder was
+// fed by a single pickup plus Scanobot drops.
+//
+// Now every one of the ten tower chests coughs a pile of scrap onto the ground
+// around it, and the player sweeps it up by walking over it. No X press: the
+// piles ARE the reward, and having to face and interact with five of them in a
+// row would turn a payoff into paperwork.
+//
+// Drops are real WORLD_PROPS with NO footprint, so they render and depth-sort
+// for free and the player can walk onto their tile — which is the whole point.
+const SCRAP_IMG = new Image();
+SCRAP_IMG.src = 'assets/2D%20sprites/decor/scrap-metal.png';
+const SCRAP_BBOX = [0, 0, 850, 613];        // keyed off magenta by corner flood-fill
+const SCRAP_TILEW = 1.15;                   // a pile sits inside one tile
+const SCRAP_PER_CHEST = 5;
+const SCRAP_SPILL_R = 3;                    // tiles · how far the pile scatters
+function _scrapWalkable(x, y){
+  if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+  if (_propBlocked.has(x + ',' + y)) return false;
+  if (typeof boulderAt === 'function' && boulderAt('overworld', x, y)) return false;
+  return true;
+}
+// Spawns n piles around (cx,cy). Returns how many actually landed.
+function spillScrap(cx, cy, n, tag){
+  let made = 0;
+  const taken = new Set();
+  for (let k = 0; k < n * 40 && made < n; k++){
+    const a = Math.random() * Math.PI * 2;
+    const d = 1 + Math.sqrt(Math.random()) * SCRAP_SPILL_R;
+    const x = Math.round(cx + Math.cos(a) * d), y = Math.round(cy + Math.sin(a) * d);
+    const key = x + ',' + y;
+    if (taken.has(key) || !_scrapWalkable(x, y)) continue;
+    if (WORLD_PROPS.some(p => p && p._scrapDrop && p.tileX === x && p.tileY === y)) continue;
+    taken.add(key);
+    WORLD_PROPS.push({
+      id: `scrap_${tag}_${made}`, img: SCRAP_IMG, src: 'assets/2D%20sprites/decor/scrap-metal.png',
+      bbox: SCRAP_BBOX, tileX: x, tileY: y,
+      tileW: SCRAP_TILEW, tileH: SCRAP_TILEW * SCRAP_BBOX[3] / SCRAP_BBOX[2],
+      footprint: [],                       // ★ walkable · you collect it by stepping on it
+      _scrapDrop: tag,
+    });
+    made++;
+  }
+  _rememberScrapDrops();
+  return made;
+}
+// Walk-over collection. Called from the movement step, not from the X handler.
+function collectScrapAt(tx, ty){
+  let got = 0;
+  for (let i = WORLD_PROPS.length - 1; i >= 0; i--){
+    const p = WORLD_PROPS[i];
+    if (!p || !p._scrapDrop || p.tileX !== tx || p.tileY !== ty) continue;
+    WORLD_PROPS.splice(i, 1);
+    got++;
+  }
+  if (!got) return false;
+  player.items = player.items || {};
+  player.items.scrap_metal = (player.items.scrap_metal || 0) + got;
+  try { playItemGain('scrap_metal'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+  showToast(`◈ Scrap Metal +${got}  ·  ${player.items.scrap_metal} held`, 1800);
+  _rememberScrapDrops();
+  return true;
+}
+// ★ Persistence. A pile left on the ground has to still be there next session,
+// or a player who opens a chest and logs out loses the whole spill.
+function _rememberScrapDrops(){
+  player.scrapDrops = WORLD_PROPS
+    .filter(p => p && p._scrapDrop)
+    .map(p => [p.tileX, p.tileY, p._scrapDrop]);
+}
+function restoreScrapDrops(){
+  const saved = player.scrapDrops;
+  if (!Array.isArray(saved)) return 0;
+  for (let i = WORLD_PROPS.length - 1; i >= 0; i--)
+    if (WORLD_PROPS[i] && WORLD_PROPS[i]._scrapDrop) WORLD_PROPS.splice(i, 1);
+  let n = 0;
+  for (const [x, y, tag] of saved){
+    WORLD_PROPS.push({
+      id: `scrap_${tag}_r${n}`, img: SCRAP_IMG, src: 'assets/2D%20sprites/decor/scrap-metal.png',
+      bbox: SCRAP_BBOX, tileX: x, tileY: y,
+      tileW: SCRAP_TILEW, tileH: SCRAP_TILEW * SCRAP_BBOX[3] / SCRAP_BBOX[2],
+      footprint: [], _scrapDrop: tag,
+    });
+    n++;
+  }
+  return n;
 }
 function collectFaeAt(tx, ty){
   // S1 requires Kaizari's Fae Net. S2's amplified Astralite Matrix attracts
@@ -21956,6 +22054,10 @@ function tryMove(dt){
   // back there rather than guessing a direction to shove the player in.
   _doorPrevX = player.x; _doorPrevY = player.y;
   player.x = nx; player.y = ny;
+  // ★ v0.95.772 · scrap is collected by WALKING, not by facing and pressing X.
+  // Sits here rather than in the interact handler so sweeping up a five-pile
+  // spill is one walk instead of five button presses.
+  try { collectScrapAt(nx, ny); } catch(_){}
   // v0.95.324 · District-border WARP · when Rizer crosses into a new district
   // for the first time, banner-toast the district name and cache a warp entry
   // so future fast-travel can hop the player back here.  Warps also mark the
@@ -29245,6 +29347,7 @@ function saveGame(){
         attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
         faeCollected: player.faeCollected || 0,
         lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
+        scrapDrops: player.scrapDrops || [],       // v0.95.772 · piles left on the ground
 
         items: player.items || {},
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
@@ -29379,6 +29482,8 @@ function loadGame(){
     // ★ v0.95.760 · a loaded save carries lootedChests; the world was rebuilt
     // from scratch, so re-open the chests that list names.
     try { restoreLootedChests(); } catch(_){}
+    // ★ v0.95.772 · put the un-swept scrap piles back where they lay
+    try { restoreScrapDrops(); } catch(_){}
     if (!Array.isArray(player.pcZyrex)) player.pcZyrex = [];   // v0.95.536 · back-compat default
     try { migrateSavedZyrex(); } catch(err){ console.warn('[rp7b] zyrex migration failed', err); }
     // v0.95.607 · restore notifications feed so ZyPhone right-rail messages persist

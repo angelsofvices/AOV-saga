@@ -7929,15 +7929,24 @@ const NPCS = [
       if (!player.dadStarterQuestGiven){
         player.dadStarterQuestGiven = true;
         player.dadNotebookGifted    = true; try{pingNextObjective()}catch(_){}
-        inv.dads_notebook           = (inv.dads_notebook || 0) + 1; try{playItemGain('dads_notebook')}catch(_){}
+        // ★★ v0.95.780 · INSTALLED, NOT HANDED OVER.
+        // Creator: "it will be installed when dad grants rizer the notebook at
+        // beginning of game. dad installs it as a digital cloud save of his
+        // research in malezor."
+        // So no bag item — it is an app on the ZyPhone with its own panel, and
+        // his Malezor research comes pre-loaded on page one.
+        try { notebookState(); notebookVisit('district:malezor', 'MALEZOR'); } catch(_){}
+        try { notebookFindScroll('scroll_malezor_1'); } catch(_){}   // his own first page
         try { awardRizerXP(100); } catch(_){}    // v0.95.538 · Dad notebook · rescaled 400 → 100
         try { playSFX('confirm'); } catch(_){}
-        showToast('★ DAD\'S NOTEBOOK · in your bag · Quests tab unlocked (touchpad)', 3600);
+        showToast('★ DAD\'S NOTEBOOK installed · ZyPhone → NOTEBOOK', 3600);
         showDialog({ speaker: 'DAD', lines: [
-          'Ah, there you are, kid.  Come here — got something for you.',
-          '*hands you a leather-bound notebook · his own handwriting fills the first few pages*',
-          'This is my field notebook.  Every quest you take, every expedition you pull off — it goes in here.',
-          'Open your touchpad to see the QUESTS tab now.  Everything worth remembering lives there.',
+          'Ah, there you are, kid.  Come here — hold your phone out.',
+          '*taps his own device against yours · a decade of Malezor field research copies across*',
+          'There.  My notebook.  Not a copy you carry — a copy that carries itself.',
+          'Every district you walk into, every cave you open, every Zyrex you bond with — it writes itself down.',
+          'The Malezor pages are already full.  That was twenty years of my legs. The rest is yours to fill.',
+          'And if you get turned around out there, open it.  It keeps track of what you have not done yet.',
           'And here\'s your first entry:  I need 10 Fae, 10 Fruits, 10 Berries, 10 Seeds.',
           'Fae glow in the fields.  Fruits fall from trees.  Berries from bushes.  Seeds drop on harvest.',
           'Bring the tribute back and I\'ll set you up with your first Zyrex.',
@@ -26454,10 +26463,21 @@ const NOTEBOOK_SECTIONS = [
   { key:'scrolls',   icon:'📜', label:'SCROLLS'        },
 ];
 function notebookState(){
+  try { _migrateNotebook(); } catch(_){}
   player.notebook = player.notebook || { seen:{}, done:{}, scrolls:{}, notes:{} };
   const n = player.notebook;
   n.seen = n.seen || {}; n.done = n.done || {}; n.scrolls = n.scrolls || {}; n.notes = n.notes || {};
   return n;
+}
+// ★ v0.95.780 · MIGRATION. Saves made before this carry dads_notebook as a bag
+// item. Strip it, but keep what it MEANT — owning the object was the unlock, so
+// anyone holding one has the notebook installed.
+function _migrateNotebook(){
+  const inv = player.items || {};
+  if (inv.dads_notebook){
+    player.dadNotebookGifted = true;
+    delete inv.dads_notebook;
+  }
 }
 function notebookHas(){ return !!(player.dadNotebookGifted || (player.items && player.items.dads_notebook)); }
 // Mark a POI seen. Safe to call from anywhere, any number of times.
@@ -26577,6 +26597,63 @@ function notebookProgress(section){
   const e = notebookEntries(section);
   return { found: e.filter(x => x.found).length, done: e.filter(x => x.done).length, total: e.length };
 }
+// ★★ v0.95.780 · DAD READS OVER YOUR SHOULDER.
+// Creator: "dad is proud of rizer for field work... rewards player for
+// exploration and lore understanding the world. can give hints to what to do
+// next."
+//
+// The hint is DERIVED from the same index the notebook already keeps, so it can
+// never point at something that does not exist or has already been done. It
+// looks for the nearest unfinished thing, in the order a player would care:
+// the district they are standing in, then the world.
+function notebookHint(){
+  const here = (typeof worldDistrictAt === 'function')
+    ? worldDistrictAt(player.x, player.y) : null;
+  const unseen = k => notebookEntries(k).filter(e => !e.found);
+  const undone = k => notebookEntries(k).filter(e => e.found && !e.done);
+  // 1 · a tower in this district still guarded
+  if (here){
+    const t = notebookEntries('towers').find(e => e.id === `tower:${here}` && !e.done);
+    if (t) return { icon:'📡', text:`The ${here.toUpperCase()} radio tower is still dark. ${t.sub}.` };
+  }
+  // 2 · a cave you have not opened in this district
+  if (here){
+    const c = unseen('caves').find(e => (e.sub || '').startsWith(here));
+    if (c) return { icon:'◆', text:`There is a Gemlord sanctum in ${here.toUpperCase()} you have not found. Look for the door in the rock.` };
+  }
+  // 3 · landmarks in this district you have walked past
+  if (here){
+    const l = unseen('landmarks').filter(e => e.sub === here);
+    if (l.length) return { icon:'🏛', text:`${l.length} building${l.length>1?'s':''} in ${here.toUpperCase()} you have not stepped into yet. Try the doors.` };
+  }
+  // 4 · a district you have never entered
+  const d = unseen('districts');
+  if (d.length) return { icon:'◈', text:`${d.length} district${d.length>1?'s':''} still unwalked. The roads out of town go somewhere.` };
+  // 5 · towers anywhere
+  const t2 = notebookEntries('towers').filter(e => !e.done);
+  if (t2.length) return { icon:'📡', text:`${t2.length} radio tower${t2.length>1?'s':''} still dark across Zyraxis. Scrapjaw wants them all.` };
+  // 6 · the dex
+  const z = notebookEntries('zyrex').filter(e => !e.done);
+  if (z.length) return { icon:'◇', text:`${z.length} Zyrex still unbonded. Every one of them is somebody's neighbour out there.` };
+  return { icon:'★', text:'You have walked all of it, kid. I am not sure what to tell you. Proud of you.' };
+}
+// ★ Dad's line about how far you have got. Exploration is the thing he values,
+// so the praise tracks the index rather than combat level.
+function notebookStanding(){
+  let found = 0, total = 0;
+  for (const S of NOTEBOOK_SECTIONS){
+    if (S.key === 'scrolls') continue;
+    const p = notebookProgress(S.key);
+    found += p.found; total += p.total;
+  }
+  const pct = total ? found / total : 0;
+  const line = pct >= 0.95 ? 'You have seen more of Zyraxis than I ever did.'
+             : pct >= 0.70 ? 'You are further out than I got at your age. Keep going.'
+             : pct >= 0.40 ? 'Good field work. You are covering real ground now.'
+             : pct >= 0.15 ? 'You have made a start. Keep your eyes up out there.'
+             :               'Barely a page filled. Go and get your boots dirty.';
+  return { found, total, pct, line };
+}
 // ── THE PANEL ───────────────────────────────────────────────────────────────
 // Two levels: the section list, and a section's entries. Every row is a
 // [data-zyitem] so the DualSense auto-enrolment from v0.95.765 picks it up with
@@ -26602,11 +26679,19 @@ function renderZycellNotebook(){
       return _nbRow(S, `${p2.found} / ${p2.total} found · ${p2.done} complete`,
                     p2.found / Math.max(1, p2.total));
     }).join('');
+    const hint = notebookHint(), st = notebookStanding();
+    const pct = Math.round(st.pct * 100);
     return `<div style="padding:4px 2px;">
-      <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.16em; padding:2px 4px 10px;">
+      <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.16em; padding:2px 4px 6px;">
         📓 DAD'S NOTEBOOK · FIELD INDEX</div>
-      <div style="color:#7a8ba8; font-size:10px; padding:0 4px 12px; line-height:1.7;">
-        Everything you have walked into, opened or bonded with. X to open a section.</div>
+      <div style="color:#67789a; font-size:9px; padding:0 4px 10px;">
+        installed by Dad · a cloud copy of twenty years in Malezor · ${st.found}/${st.total} logged (${pct}%)</div>
+      <div style="margin:0 2px 8px; padding:9px 11px; background:rgba(255,214,107,0.07);
+                  border-left:2px solid #ffd66b;">
+        <div style="color:#ffd66b; font:bold 10px 'Courier New',monospace; letter-spacing:.10em;">DAD ·</div>
+        <div style="color:#e8dcc0; font-size:10px; line-height:1.75; font-style:italic; margin-top:3px;">${st.line}</div>
+        <div style="color:#cfe; font-size:10px; line-height:1.7; margin-top:7px;">${hint.icon}  ${hint.text}</div>
+      </div>
       ${rows}</div>`;
   }
   // ── level 2 · a section's entries ──
@@ -26771,7 +26856,12 @@ function renderZycellZycube(){
   const meta = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META : {};
   const rows = Object.entries(items)
     // v0.95.478 · worldmap hidden from ZyCube · lives ONLY in the MAP panel unlocked by Zoryn
-    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap')
+    // ★ v0.95.780 · dads_notebook is NOT a carried object. Dad installs it on
+    // the ZyPhone as a cloud copy of his Malezor research, so it lives in its
+    // own NOTEBOOK panel and has no business sitting in the bag next to ale and
+    // berries. Filtered here AND stripped from old saves in _migrateNotebook.
+    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap'
+                     && k !== 'dads_notebook')
     // v0.95.504 · Auto-sort ALPHABETICAL by display label (was: static `.order` field)
     .sort((a, b) => {
       const la = (meta[a[0]] && meta[a[0]].label) || a[0];

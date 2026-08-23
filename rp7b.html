@@ -2781,9 +2781,13 @@ const COSMIC_CHEST_SPOTS = [
   // 55 tiles clear of it and reads as somewhere you had to go.
   // ★ v0.95.788 · Emeralix is VERIDAN's Gemlord and the axe is emerald, so it
   // sits in her district — the same rule that placed the other two.
-  { dist:'veridan',  at:[600, 250], item:'emerald_axe',
+  // ★ v0.95.819 · CREATOR-PLACED at (627,251) — "move the emerald axe chest
+  // here".  Same rule as Azurel's tear and the Zarvane pearlbow: a density
+  // score is not what a place looks like from inside it.  Was my measured
+  // (600,250).
+  { dist:'veridan',  at:[627, 251], item:'emerald_axe', creatorPlaced:true,
     label:'EMERALD AXE · Emeralix\'s heartwood edge',
-    note:'Veridan · measured for canopy at scatter time' },
+    note:'placed by the Creator from inside the game · v0.95.819' },
   // ★ v0.95.792 · Zarvane, 9 tiles off the oasis at (173,234).  Scored across
   // every unblocked, unoccluded tile in the district: 62 tiles from the nearest
   // building and 70 from the nearest other chest, so it reads as somewhere you
@@ -43219,8 +43223,39 @@ function updateRizerHUD(){
 // authored by real coordinates the player can read off screen.
 const _hudEl = document.getElementById('hud');
 let _hudLast = '';
+let _hudFlashUntil = 0;   // ★ v0.95.819 · while flashing COPIED, updateHUD stays out
+// ★ v0.95.819 · Click the tile HUD to copy "x, y" to the clipboard — the
+// Creator reads a spot in the running game and pastes the coordinate patch
+// straight into chat.  The draggable helper already swallows the click that
+// ends a drag, so anything arriving here is a TRUE tap.  Clipboard API first
+// (https/localhost); execCommand fallback for file:// playtests.
+if (_hudEl){
+  _hudEl.title = 'click to copy tile coordinate';
+  _hudEl.style.cursor = 'copy';
+  _hudEl.addEventListener('click', () => {
+    const txt = player.x + ', ' + player.y;
+    const legacyCopy = t => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove(); return ok;
+      } catch(_){ return false; }
+    };
+    const done = ok => {
+      _hudEl.textContent = ok ? ('COPIED ' + txt) : 'COPY FAILED';
+      _hudFlashUntil = performance.now() + 900;
+      _hudLast = '';                                  // force repaint after the flash
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(() => done(true), () => done(legacyCopy(txt)));
+    } else done(legacyCopy(txt));
+  });
+}
 function updateHUD(){
   if (!_hudEl) return;
+  if (performance.now() < _hudFlashUntil) return;     // ★ v0.95.819 · let COPIED read
   const sceneLabel =
       game.scene === 'title'               ? 'title'
     : game.scene === 'overworld'           ? 'overworld'

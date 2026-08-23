@@ -27401,9 +27401,39 @@ function zycellMoveCursor(dir){
 // game._zycellFocus === 'nav' | 'content' · X/Right enters content · B/Left exits back
 // Content items are auto-collected from the middle pane's [data-zyitem] children so
 // every panel that opts in gets keyboard nav for free.
+// ★★ v0.95.765 · EVERY BUTTON IN THE PHONE IS CONTROLLER-REACHABLE.
+//
+// The nav machinery was already complete — Cross dispatches 'x', the content
+// branch clicks items[cursor] — but a control only joined the list if someone
+// remembered to hand-write data-zyitem on it. Across thirteen page renderers
+// there were 15 of those and most panels had none, so the Rizer attribute
+// buttons (+1 / +10 / +MAX) could be seen on a DualSense and never pressed.
+// Applying an upgrade needed a mouse.
+//
+// Tagging them by hand would fix today and rot tomorrow: the next panel someone
+// writes starts unreachable again. So enrolment is automatic and lives at the
+// single point that reads the list.
+function _zycellAutoEnrol(c){
+  // Anything a mouse could click counts: real buttons, inline onclick handlers,
+  // explicit role=button, and the .zy-click marker for divs wired up with
+  // addEventListener.
+  const CLICKABLE = 'button, [onclick], [role="button"], .zy-click';
+  c.querySelectorAll(CLICKABLE).forEach(el => {
+    if (el.hasAttribute('data-zyitem')) return;
+    // A disabled control must not eat a cursor stop — the attribute buttons go
+    // disabled the moment the point pool empties, and landing on a dead button
+    // reads as the phone being broken.
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') return;
+    // Don't enrol a control that sits INSIDE something already enrolled, or the
+    // cursor stops twice on one row (once for the row, once for its button).
+    if (el.parentElement && el.parentElement.closest('[data-zyitem]')) return;
+    el.setAttribute('data-zyitem', 'auto');
+  });
+}
 function _zycellContentItems(){
   const c = document.getElementById('zycellContent');
   if (!c) return [];
+  try { _zycellAutoEnrol(c); } catch(_){}
   return Array.from(c.querySelectorAll('[data-zyitem]')).filter(el => el.offsetParent !== null);
 }
 function _zycellPaintFocus(){

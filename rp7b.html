@@ -30468,7 +30468,15 @@ function _zycellContentItems(){
   const c = document.getElementById('zycellContent');
   if (!c) return [];
   try { _zycellAutoEnrol(c); } catch(_){}
-  return Array.from(c.querySelectorAll('[data-zyitem]')).filter(el => el.offsetParent !== null);
+  // ★★ v0.95.807 · A CONTAINER THAT HOLDS FOCUS TARGETS IS NOT ONE ITSELF.
+  // _zySection enrolls its wrapper so bare panels stay walkable — but when a
+  // section's CHILDREN carry their own data-zyitem (the attribute buttons, the
+  // weapon rows), the wrapper stop is pure noise: the cursor lands on "the
+  // whole middle panel" and X fires whichever button happens to be first.
+  // The wrapper keeps its attribute (so auto-enrol still skips its children's
+  // neighbours correctly) — it just stops being a stop.
+  return Array.from(c.querySelectorAll('[data-zyitem]')).filter(el =>
+    el.offsetParent !== null && !el.querySelector('[data-zyitem]'));
 }
 function _zycellPaintFocus(){
   // v0.95.577 · Paint-only pass · NEVER calls scrollIntoView.  The 1s auto-
@@ -41797,7 +41805,13 @@ function buildRizerAttrPanel(where){
     const M    = RIZER_ATTR_META[k];
     const bar  = Math.min(100, (a[k] / RIZER_STAT_MAX_PTS) * 100);   // the real per-stat ceiling
     const can  = free > 0;
-    const btn  = (n, label) => `<button ${can ? '' : 'disabled'}
+    // ★★ v0.95.807 · EVERY BUTTON IS ITS OWN FOCUS STOP.  Creator: "allow me
+    // to edit all stat buttons in this panel. dont just highlight the full
+    // middle panel."  The section wrapper used to be the only target — the
+    // cursor landed on the whole panel and X fired the FIRST +1 it found.
+    // Explicit data-zyitem per button (only while it is alive; a disabled
+    // button must not eat a cursor stop) makes all fifteen walkable.
+    const btn  = (n, label) => `<button ${can ? `data-zyitem="attr_${k}_${label.replace(/\+/g,'p')}"` : 'disabled'}
         onclick="try{rizerSpend('${k}',${n});}catch(e){console.warn(e);}"
         style="background:${can ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.25)'}; color:${can ? M.color : '#556'};
                border:1px solid ${can ? M.color : '#334'}; padding:4px 8px; min-width:38px;
@@ -41821,7 +41835,7 @@ function buildRizerAttrPanel(where){
       <div style="color:#ffd66b; font:bold 10px 'Courier New',monospace; letter-spacing:.14em; margin-bottom:6px;">◆ ARCHETYPE PRESETS · spends all ${free}</div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
         ${Object.entries(RIZER_ARCHETYPES).map(([id,A]) => `
-          <button onclick="try{applyRizerArchetype('${id}');}catch(e){console.warn(e);}"
+          <button data-zyitem="preset_${id}" onclick="try{applyRizerArchetype('${id}');}catch(e){console.warn(e);}"
             style="background:rgba(0,0,0,0.5); color:#ffd66b; border:1px solid #ffd66b; padding:6px 10px;
                    font:bold 10px 'Courier New',monospace; letter-spacing:.06em; cursor:pointer; text-align:left;">
             ${A.name}<br><span style="color:#8ff; font-weight:normal; font-size:9px;">${A.tag}</span>

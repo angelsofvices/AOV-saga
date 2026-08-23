@@ -19166,13 +19166,15 @@ function scanobotTalk(T, bot){
   if (Math.random() < 0.5){
     // ── HEADS · clean extraction ──────────────────────────────────────
     n._jailbroken = true;
-    n._scanobotLooted = true;                 // the drop path must never double-pay
-    try { spillPickups('chip', n.tileX, n.tileY, [1], `jb_${n.tileX},${n.tileY}`); } catch(_){ addItems({ portal_chip: 1 }); }
+    // ★ v0.95.814 · "on power down they produce the same thing" — the FULL
+    // salvage (scrap pile + chip + blue gem), not the chip alone as first
+    // built.  scanobotSalvage sets the looted flag, so the kill path still
+    // cannot double-pay.
+    try { scanobotSalvage(n); } catch(_){}
     try { playSFX('confirm'); } catch(_){}
-    showToast('★ JAILBREAK · clean extraction · the PORTAL CHIP pops free and the drone powers down', 3600);
-    // powers down where it stands · same exit as a kill, minus the violence
-    n._dying = true; n._deathAt = performance.now();
-    n.isEnemy = false; n.moving = false;
+    showToast('★ JAILBREAK · clean extraction · the drone powers down over its own salvage', 3600);
+    // powers down where it stands · no blast, no crumble — the machine exit
+    n._dying = false; n.isEnemy = false; n.moving = false; n.scene = '__dead__';
     // ★ first successful jailbreak · Dad's warning arrives on the phone,
     // because he WOULD hear about it — and Rizer keeps doing it anyway.
     if (!player._dadPortalkeyWarned){
@@ -19308,16 +19310,21 @@ function detonateScanobot(n){
 // Drops. Routed from startMoriDeath — the single door every kill goes through
 // — for the same reason the Verdant Creeper heal lives there: a drop wired
 // per-attack pays out on sword and not on a thrown boulder.
-function scanobotDrop(n){
-  if (!n || !n._scanobot || n._scanobotLooted) return;
+// ★★ v0.95.814 · ONE SALVAGE, TWO EXITS.  Creator: "they turn to one pile of
+// scrap metal, one portalchip, and one blue gem on explosion. on power down
+// they produce the same thing."
+//
+// Both deaths leave the identical three piles on the ground — scrap, chip,
+// gem, all walk-over pickups (the scrap used to teleport into the bag while
+// the chip spilled; a machine's wreckage should all land the same way).  The
+// only difference between the exits is the NOISE: a kill detonates, a clean
+// jailbreak just powers down.
+function scanobotSalvage(n){
+  if (!n || !n._scanobot || n._scanobotLooted) return false;
   n._scanobotLooted = true;
   try {
-    // ★ v0.95.800 · the portal_chip is the portal currency.  One per kill, so
-    // the count the player sees IS the kill count — no conversion to explain.
-    // ★ it SPILLS rather than going straight to the bag, like scrap and coins:
-    // the chip is a physical thing that fell out of a machine, and walking over
-    // to pick it up is what makes the kill read as salvage.
-    addItems({ scrap_metal: 1 });
+    try { spillPickups('scrap', n.tileX, n.tileY, [1], `scanos_${n.tileX},${n.tileY}`); }
+    catch(_){ addItems({ scrap_metal: 1 }); }
     try { spillPickups('chip', n.tileX, n.tileY, [1], `scano_${n.tileX},${n.tileY}`); }
     catch(_){ addItems({ portal_chip: 1 }); }
     if (typeof spawnGemDrop === 'function'){
@@ -19325,9 +19332,13 @@ function scanobotDrop(n){
     }
     const _mb = (player.items && player.items.portal_chip) || 0;
     const _next = PORTAL_TIERS.find(t => t.pieces > portalPiecesSpent() + _mb);
-    showToast('◈ SCANOBOT DOWN · Scrap Metal · a PORTAL CHIP and a Blue Gem drop from the housing'
+    showToast('◈ SCANOBOT SALVAGE · scrap pile · PORTAL CHIP · blue gem — walk over them'
       + (_next ? ` · ${_next.pieces - portalPiecesSpent() - _mb} more chips for the next rift` : ''), 3200);
-  } catch(err){ console.warn('[rp7b] scanobot drop failed', err); }
+  } catch(err){ console.warn('[rp7b] scanobot salvage failed', err); }
+  return true;
+}
+function scanobotDrop(n){
+  if (!scanobotSalvage(n)) return;
   // ★ Loot is spawned BEFORE the fuse so the drop is never lost to the blast,
   // and the detonation is scheduled after so the player still has to get clear.
   try { detonateScanobot(n); } catch(_){}
@@ -23130,7 +23141,11 @@ addEventListener('keydown', e => {
               if (sh.hp <= 0){
                 try { playSFX('moriDeath'); } catch(_){}
                 try { creditRizerKill(sh); } catch(_){}
-                sh._dying = true; sh._deathAt = performance.now();
+                // ★ v0.95.814 · through the one door — hand-setting _dying here
+                // gave a scanobot caught in the axe sweep the mori crumble and
+                // NO salvage.  startMoriDeath owns the difference between a
+                // creature's death and a machine's.
+                try { startMoriDeath(sh); } catch(_){ sh._dying = true; sh._deathAt = performance.now(); }
               }
             }
             if (_axeSweepHits.length > 1)
@@ -39544,10 +39559,19 @@ function startMoriDeath(n){
   }
   // v0.95.732 · SCANOBOT LOOT · here for the same reason the Creeper heal is
   // here: ten kill routes reach this function and only this function.
-  if (n._scanobot){ try { scanobotDrop(n); } catch(_){} }
-  n._dying     = true;
-  n._deathT0   = performance.now();
-  n.moving     = false;
+  // ★ v0.95.814 · AND NO MORI CRUMBLE FOR A MACHINE.  Creator: "do not put the
+  // mori death fx on the scanobot. just the explosion."  A drone does not
+  // crumble to stone — the detonation IS the death visual, so the hull leaves
+  // the world on the spot and the blast plus the three salvage piles are what
+  // the player sees.  The RXP floor below still runs; only the anim is skipped.
+  if (n._scanobot){
+    try { scanobotDrop(n); } catch(_){}
+    n._dying = false; n.moving = false; n.scene = '__dead__';
+  } else {
+    n._dying     = true;
+    n._deathT0   = performance.now();
+    n.moving     = false;
+  }
   // v0.95.522 · UNIVERSAL RXP FLOOR · every enemy death awards base kill XP
   // if nothing has already awarded it (attack-specific multipliers like
   // astralstrike 1.5x / astralkick 2x still fire at their sites; those set

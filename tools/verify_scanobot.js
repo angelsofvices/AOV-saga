@@ -92,13 +92,18 @@ P.items=P.items||{};P.items.scrap_metal=0;
 C.GEM_ENTITIES.length=0;
 const victim=bots[0];
 C.scanobotDrop(victim);
-ok((P.items.scrap_metal||0)===1,'a kill yields 1× Scrap Metal');
+// ★ v0.95.814 · the scrap SPILLS as a ground pile now, like the chip — a
+//   machine's wreckage all lands the same way.  The bag stays empty until the
+//   player walks over it, which is exactly the point.
+ok((P.items.scrap_metal||0)===0,'a kill leaves the scrap ON THE GROUND, not in the bag');
 const gems=C.GEM_ENTITIES.filter(g=>!g.collected);
 ok(gems.length===1,'and spawns exactly one gem');
 ok(gems[0]&&gems[0].color==='blue',`and it is BLUE (${gems[0]&&gems[0].color}) · [[aov-gem-canon]] Blue = DEF+SP`);
 ok(gems[0].x===victim.tileX&&gems[0].y===victim.tileY,'dropped where the drone died');
+const gemsBefore=C.GEM_ENTITIES.filter(g=>!g.collected).length;
 C.scanobotDrop(victim);
-ok((P.items.scrap_metal||0)===1,'★ the same corpse cannot be looted twice');
+ok(C.GEM_ENTITIES.filter(g=>!g.collected).length===gemsBefore,
+   '★ the same corpse cannot be looted twice — a second call spawns nothing');
 const sd=String(C.startMoriDeath);
 ok(/_scanobot/.test(sd)&&/scanobotDrop/.test(sd),
    '★★ the drop hangs off startMoriDeath — the ONE door all ten kill routes pass through, same reason the Creeper heal lives there');
@@ -188,7 +193,8 @@ console.log('\n★★ 9 · JAILBREAKING SCANOBOTS\n');
   C.scanobotTalk(T0,a);
   Math.random=realRandom;
   ok(a._jailbroken===true,'★ HEADS · the drone is jailbroken');
-  ok(a._dying===true,'and powers down where it stands');
+  ok(a.scene==='__dead__' && a._dying===false,
+     "★ and powers down on the SPOT — scene __dead__, no mori crumble, per 'do not put the mori death fx on the scanobot'");
   ok(a._scanobotLooted===true,'★ flagged looted, so the kill-drop path can never double-pay');
   ok(a.isEnemy===false,'no longer a target');
   ok((P.stats.jailbreaks||0)>=1,'the pastime is counted — the Novarian Record can read it later');
@@ -211,9 +217,13 @@ console.log('\n★★ 9 · JAILBREAKING SCANOBOTS\n');
   const src=require('fs').readFileSync('/tmp/all.js','utf8');
   const d=src.indexOf('function scanobotDrop');
   const body=src.slice(d,d+1400);
-  ok(/spillPickups\('chip'/.test(body)&&/spawnGemDrop/.test(body)&&/scrap_metal/.test(body),
-     'a DEFEATED drone still pays chip + blue gem + scrap through the ordinary drop');
-  ok(/_scanobotLooted\) return/.test(body),'which the jailbreak flag short-circuits');
+  // ★ v0.95.814 · the loot lives in scanobotSalvage now, shared by BOTH exits
+  const sv=src.indexOf('function scanobotSalvage');
+  const svBody=src.slice(sv, sv+1600);
+  ok(/spillPickups\('scrap'/.test(svBody)&&/spillPickups\('chip'/.test(svBody)&&/spawnGemDrop/.test(svBody),
+     '★ ONE salvage function pays scrap pile + chip + blue gem — both exits share it');
+  ok(/scanobotSalvage\(n\)/.test(body),'the kill path calls it and then detonates');
+  ok(/_scanobotLooted\) return false/.test(svBody),'and the looted flag short-circuits either exit');
   // Dad's warning fires once
   ok(/Portalkeys and survey drones are the same science/.test(src),"★ Dad's portalkey warning is written");
   ok(/player\._dadPortalkeyWarned = true/.test(src),'and fires exactly once');

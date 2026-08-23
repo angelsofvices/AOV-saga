@@ -186,8 +186,10 @@ H('5 · ★★ THE MATHS ACTUALLY CLOSES');
   ok(C.SCANOBOT_PER_DIST * 2 >= C.PORTAL_TIERS[0].pieces,
      `★ two districts alone yield ${C.SCANOBOT_PER_DIST*2} chips — enough for the first band without leaving home`);
   // one chip per kill, so the number in the bag IS the kill count
-  const d=src.indexOf('function scanobotDrop');
-  const body=src.slice(d,d+1400);
+  // ★ v0.95.814 · the spill moved into scanobotSalvage, shared by kill AND
+  //   jailbreak — same property, one function further down
+  const d=src.indexOf('function scanobotSalvage');
+  const body=src.slice(d,d+1600);
   ok(/spillPickups\('chip'/.test(body),'the chip spills on the ground like scrap and coins');
   ok(/\[1\]/.test(body),'one per kill · the count in the bag IS the kill count');
   ok(!!C.PICKUP_KINDS.chip,'registered as a walk-over pickup');

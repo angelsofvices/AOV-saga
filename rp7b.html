@@ -21292,6 +21292,7 @@ addEventListener('keydown', e => {
             showToast('◈ No S2 weapon available · find the Rubypaw Longsword', 2200);
           } else {
             player.rubypawEquipped = !player.rubypawEquipped;
+            try { updateWeaponHUD(); } catch(_){}     // ★ v0.95.784
             try { playSFX('confirm'); } catch(_){}
             showToast(player.rubypawEquipped
               ? '⚔ RUBYPAW LONGSWORD · equipped (Square = 5-tile sweep)'
@@ -21305,6 +21306,7 @@ addEventListener('keydown', e => {
             showToast('◈ No S1 weapon available · find the Sapphire Tearsword', 2200);
           } else {
             player.swordEquipped = !player.swordEquipped;
+            try { updateWeaponHUD(); } catch(_){}     // ★ v0.95.784
             try { playSFX('confirm'); } catch(_){}
             showToast(player.swordEquipped
               ? '⚔ SAPPHIRE TEARSWORD · equipped (Square = front + back sweep)'
@@ -36255,7 +36257,10 @@ const SCROLL_BBOXES = {
   'scroll_17.png': [0,0,383,373],
 };
 const SCROLL_ART_BBOX = {};   // per-file cache of the loaded Image
-const SCROLL_TILEW = 1.0;
+// ★ v0.95.784 · Creator: "make the scrolls .5x the size. they should be the
+// size of paper. smaller than gearbyte." A sheet of paper on the ground is not
+// a tile-sized object — at 1.0 they read as standing signage.
+const SCROLL_TILEW = 0.5;
 const SCROLL_MIN_FROM_ROAD = 3;
 const SCROLL_MIN_APART = 10;
 function _scrollArt(file){
@@ -40124,11 +40129,52 @@ function drawHpFlash(){
   }
 }
 
-// v0.95.517 · WEAPON WHEEL wiring · REMOVED for now (user request).  Weapon
-// equip/unequip lives in ZyPhone → Weapons only until per-weapon WHUD
-// headshot art is ready.  Function kept as a no-op stub so any stray call
-// sites (dev toggles etc.) don't error.
-function updateWeaponHUD(){ /* intentionally empty · v0.95.518 */ }
+// ★★ v0.95.784 · WEAPON WHEEL BACK ON · the art it was waiting for has landed.
+//
+// v0.95.517 disabled this "until per-weapon WHUD headshot art is ready". The
+// Creator has now supplied the Sapphire wheel, so the HUD shows WHICH weapon is
+// in hand rather than making the player remember.
+//
+// ★ The two wheels are pixel-aligned — same 1254 canvas, same content bbox
+// (111,112,1030x993) — so swapping the background image moves nothing on
+// screen. Only the centre slot changes. That is why this is a background swap
+// and not a second element.
+//
+// L1/R1 already cycle the weapon (see the 'l'/'r' handler); this is the part
+// that lets you SEE the cycle happen.
+const WHUD_ART = {
+  fists:    'assets/2D%20sprites/ui/weapon-hud.png',
+  sapphire: 'assets/2D%20sprites/ui/weapon-hud-sapphire.png',
+  // ★ Rubypaw has no wheel art yet. It falls back to the base wheel rather than
+  // borrowing the Sapphire's — showing a blue blade while holding a red one
+  // would be worse than showing neither.
+  rubypaw:  'assets/2D%20sprites/ui/weapon-hud.png',
+};
+function currentWeaponKey(){
+  const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';
+  if (isS2)  return (player.rubypawEquipped && !player.rubypawBroken) ? 'rubypaw' : 'fists';
+  return (player.swordEquipped && !player.swordBroken) ? 'sapphire' : 'fists';
+}
+function updateWeaponHUD(){
+  const whud = document.getElementById('weaponHud');
+  if (!whud) return;
+  const key = currentWeaponKey();
+  const art = WHUD_ART[key] || WHUD_ART.fists;
+  if (whud._whudKey !== key){
+    whud.style.backgroundImage = `url('${art}')`;
+    whud._whudKey = key;
+  }
+  // durability tint · the blade dulls as it wears, so the wheel does too
+  let dur = 1;
+  if (key === 'sapphire') dur = Math.max(0, Math.min(200, player.swordDurability   ?? 200)) / 200;
+  if (key === 'rubypaw')  dur = Math.max(0, Math.min(200, player.rubypawDurability ?? 200)) / 200;
+  whud.style.filter = (key === 'fists' || dur > 0.34)
+    ? 'none'
+    : `saturate(${(0.3 + dur * 2).toFixed(2)})`;
+  whud.title = key === 'fists'
+    ? 'Melee fists · L1/R1 to cycle weapons'
+    : `${key === 'sapphire' ? 'Sapphire Tearsword' : 'Rubypaw Longsword'} equipped · ${Math.round(dur*200)}/200 · L1/R1 to cycle`;
+}
 function _updateWeaponHUD_disabled_v518(){
   const whud = document.getElementById('weaponHud');
   if (!whud) return;
@@ -40265,7 +40311,11 @@ function updateRizerHUD(){
   // overworld/interior owns the screen so player can see stats + upgrades at all
   // times.  The damaged-only mode caused it to disappear entirely when full.
   if (widget) widget.style.display = show ? 'block' : 'none';
-  if (whud)   whud.style.display   = show ? 'block' : 'none';
+  if (whud){
+    whud.style.display = show ? 'block' : 'none';
+    // ★ v0.95.784 · keep the wheel showing the weapon actually in hand
+    if (show) { try { updateWeaponHUD(); } catch(_){} }
+  }
   // v0.95.82 · Coin counter · same visibility as RHUD, live-updated
   const coinEl = document.getElementById('coinHud');
   if (coinEl){

@@ -10941,15 +10941,23 @@ const NPCS = [
     companionSrc: 'assets/2D%20sprites/zyrex/elzoran-fly.png',
     companionSheet: new Image(),
     companionCellW: 313, companionCellH: 313, companionCols: 4, companionRows: 4,
+    // ★ v0.95.831 · NEW FLIGHT SHEET (Creator: "elzoran flying animation.
+    // scale him to his idle size. this is how he accompanies you").  Arrived
+    // in canon DOWN/LEFT/RIGHT/UP order — the old UP-first rowMap retires and
+    // the default DIR_ROW serves.  Neon-green keyed with the strict
+    // differential so the WING GREENS survive (they sit below the neon
+    // thresholds); measured by component ownership, all 16 in-cell.
     companionBboxes: [
-      [[19,54,275,205],[23,57,267,199],[18,55,277,203],[24,56,265,201]],
-      [[33,62,247,188],[39,60,235,192],[41,63,231,187],[40,63,233,187]],
-      [[34,63,244,187],[41,59,231,195],[6,61,301,190],[47,57,219,198]],
-      [[22,57,269,198],[20,58,272,197],[6,62,301,189],[33,59,247,194]],
+      [[40,65,229,244],[23,80,269,229],[27,81,258,228],[19,84,273,225]],
+      [[28,81,264,181],[19,98,273,163],[22,114,265,144],[17,101,269,160]],
+      [[26,93,250,162],[12,89,255,167],[21,105,260,151],[15,93,255,163]],
+      [[52,42,208,229],[21,50,266,222],[31,57,258,215],[17,57,274,215]],
     ],
     companionFrameMs: 175,
-    companionScaleMul: 1.30, // RP4 flight art matches Elzoran's larger idle presence
-    companionRowMap: { up: 0, left: 1, right: 2, down: 3 },
+    // ★ idle-size lock: idle DOWN bh 268 vs fly DOWN bh 244 → 268/244 ≈ 1.10.
+    // Both render the body at ~110px — measured, not eyeballed.
+    companionScaleMul: 1.10,
+    companionRowMap: null,   // sheet is in canon order · no map needed
     uniformScale: true,                       // single scale across all dirs (no jitter)
     scaleMul: 1.25,                           // v0.95.139 · slight dial-down · fits new taller bboxes
     // v0.95.139 · wings span 3 tiles horizontally · block passage
@@ -37348,6 +37356,21 @@ const SUMMONABLE_SPRITES = {
       [[ 53,-35,231,258],[ 49,-35,232,258],[ 29,-35,234,258],[ 23,-35,231,258]],
     ],
     cellW: 313, cellH: 313, scaleMul: 1.15,   // T5 dragon · stands over the Rizer
+    // ★ v0.95.831 · flyAll · a recruited Elzoran ACCOMPANIES on the wing:
+    // the follower uses this one fly bank for idle AND walk (he never sets
+    // foot down beside you).  The WILD at the statue keeps the idle sheet
+    // above — perched in prayer is his resting truth, flight is his
+    // travelling one.  Body size matches idle for free: _downScale scales
+    // the col-0 DOWN frame to the same 2-tile x 1.15 target either way.
+    flyAll: {
+      src: 'assets/2D%20sprites/zyrex/elzoran-fly.png',
+      bboxes: [
+        [[40,65,229,244],[23,80,269,229],[27,81,258,228],[19,84,273,225]],
+        [[28,81,264,181],[19,98,273,163],[22,114,265,144],[17,101,269,160]],
+        [[26,93,250,162],[12,89,255,167],[21,105,260,151],[15,93,255,163]],
+        [[52,42,208,229],[21,50,266,222],[31,57,258,215],[17,57,274,215]],
+      ],
+    },
   },
   // v0.95.741 · ZORBIL · T1 Extraterrestrial/Creature · "gearbyte sized", so
   // scaleMul 0.55 — the same Gearbyte baseline verdanix is annotated with.
@@ -38163,6 +38186,17 @@ function makeZyrexFollower(z, opts){
   base.uniformScale = true;
   base.scaleMul = spriteDef.scaleMul || 1;
   base.sheet.src = spriteDef.src;
+  // ★ v0.95.831 · FLYERS ACCOMPANY ON THE WING.  flyAll = one fly bank for
+  // idle AND walk — a summoned Elzoran hovers beside you standing still and
+  // flies when you move, never once setting foot on the road.
+  if (spriteDef.flyAll){
+    base.src = spriteDef.flyAll.src;
+    base.sheet.src = spriteDef.flyAll.src;
+    base.bboxes = spriteDef.flyAll.bboxes;
+    base.walkSheet = base.sheet;
+    base.walkBboxes = spriteDef.flyAll.bboxes;
+    return base;
+  }
   // Idle-sit / walk sheet split · drawNPC swaps to walkSheet while moving.
   if (spriteDef.idleSrc){
     base.walkSheet  = base.sheet;

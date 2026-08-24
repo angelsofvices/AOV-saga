@@ -70,6 +70,11 @@
       max-width:  100vw;
       max-height: 100vh;
     }
+    /* ★ v0.95.824 · FULL CINEMA during Sapphire Voltstorm · every HUD off */
+    body.voltstorm-cine #hud, body.voltstorm-cine #padStatus,
+    body.voltstorm-cine #rizerHud, body.voltstorm-cine #weaponHud,
+    body.voltstorm-cine #minimapCanvas, body.voltstorm-cine #devBtn,
+    body.voltstorm-cine #devPanel { display:none !important; }
     #hud{
       position:fixed; top:12px; left:12px;
       background: rgba(0,0,0,0.55);
@@ -654,8 +659,12 @@
     <video id="dreamVid" src="video/dream.mp4" playsinline webkit-playsinline preload="auto"
            style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:22; display:none;"></video>
     <!-- ★★ v0.95.822 · SAPPHIRE VOLTSTORM · the first A5 · un-skippable cutscene · letterboxed per canon -->
+    <!-- ★ v0.95.824 · z-index 10000 + body.voltstorm-cine: Creator: "the rhuds
+         and other hud goes off. play full movie picture and sound."  The video
+         rides above every fixed overlay AND the class hides them outright, so
+         nothing pokes into the letterbox bands either. -->
     <video id="voltstormVid" src="video/sapphire-voltstorm.mp4" playsinline webkit-playsinline preload="auto"
-           style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:23; display:none;"></video>
+           style="position:fixed; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:10000; display:none;"></video>
     <!-- v0.95.60 · Skip hint · shown 3s over intro video, then fades · skip stays active -->
     <div id="introSkipHint" style="position:absolute; left:50%; bottom:6%; transform:translateX(-50%); z-index:24; display:none; pointer-events:none; padding:10px 22px; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; font: bold 14px 'Courier New',monospace; letter-spacing:0.12em; text-align:center; opacity:1; transition:opacity 0.8s ease-out;">HOLD X · ENTER · OR TAP TO SKIP</div>
     <!-- v0.95.663 · NEW GAME overwrite prompt.  MUST be DOM, not canvas: the
@@ -1849,6 +1858,10 @@ const _UI_SFX = new Set([
   'gemVox', 'gotcha',             // pickups can happen with the phone up too
 ]);
 function playSFX(name){
+  // ★ v0.95.824 · SAPPHIRE VOLTSTORM plays FULL movie sound · nothing talks
+  // over it, not even UI feedback.  Gate first: worldFrozen()'s UI whitelist
+  // must not punch through the cinema.
+  if (typeof _voltstormPlaying !== 'undefined' && _voltstormPlaying) return;
   if (worldFrozen() && !_UI_SFX.has(name)) return;
   const s = AUDIO.sfx[name];
   if (!s){
@@ -11751,6 +11764,83 @@ const MORI_BBOXES = [
       onInteract: (n) => { playSFX('moriPoke'); showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
+  // ── ★ v0.95.824 · STELDEN · the Iron Warden of the Zarvane courtyard ──
+  // Creator: "place stelden patrolling the courtyard of a zarvane landmark.
+  // he makes sure it is safe. he will bond with you after you complete your
+  // kelthor missions. he will then be added to your contacts. protects
+  // malezor from seers."
+  //
+  // He walks the ZARVANE TOWN HALL forecourt.  ★ The hall's AUTHORED tile is
+  // (113,247) but hub recentring (v0.95.727) moves it by (1,41) at boot to
+  // (114,288) — the post below is measured against where the hall actually
+  // STANDS, not where its literal says it does.  (First draft was posted to
+  // the old forecourt: a sentry guarding an empty patch of desert.)  A Malezor man posted one district out:
+  // the Seers move on Malezor THROUGH Zarvane, so its courtyard is where a
+  // protector of Malezor stands.  Sheet arrived magenta-keyed in canon
+  // DOWN/LEFT/RIGHT/UP order — no re-band, no rowMap.
+  //
+  // ★ CONTACT IS EARNED, NOT MET.  _contactLocked keeps him out of the phone
+  // book until Kelthor's 8-step ladder is done (the gate lives in
+  // contactEligible — one chokepoint).  First talk after the ladder:
+  // registered + BONDED (50/100) in the same breath.
+  {
+    id: 'stelden',
+    name: 'Stelden',
+    sheet: new Image(),
+    src:   'assets/2D%20sprites/npcs/stelden.png',
+    bboxes: [
+      [[ 62, 61,194,258],[ 32, 61,207,258],[ 35, 60,202,259],[  1, 64,197,255]],
+      [[ 62, 51,186,247],[ 26, 51,202,247],[ 30, 51,191,247],[  4, 50,184,248]],
+      [[116, 23,190,247],[ 91, 23,191,247],[ 90, 23,189,247],[ 58, 23,186,247]],
+      [[113, -7,197,252],[ 99, -8,198,252],[ 90, -7,194,252],[ 61, -7,195,251]],
+    ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true,
+    turnToInteract: true,
+    tileX: 114, tileY: 291,           // town-hall forecourt · 3 south of the LIVE door (114,288)
+    homeX: 114, homeY: 291,
+    homeScene: 'overworld',
+    scene: 'overworld',
+    wanderRadius: 4,                  // his patrol · the courtyard, nothing beyond
+    dir: 'down',
+    mode: 'wander',
+    moving: false,
+    animFrame: 0,
+    idleFrame: 0,
+    moveCd: 900 + Math.random() * 600,   // a sentry's pace, not a shopper's
+    blinkTimer: 9e9,
+    _contactLocked: () => !(player.kelthorStep && player.kelthorStep.s8),
+    onInteract: (n) => {
+      playSFX('confirm');
+      const laddered = !!(player.kelthorStep && player.kelthorStep.s8);
+      if (!laddered){
+        showDialog({ speaker: 'STELDEN', lines: [
+          '*the visor turns · twin embers study you*',
+          'This courtyard stays safe because someone stands in it.  Move along, cadet.',
+          'You wear Malezor\'s dust.  Then you know Warden Kelthor.  Climb his ladder — every step of it.',
+          'Come back when the Beastwarden has nothing left to teach you.',
+        ]});
+        return;
+      }
+      if (!player.steldenBonded){
+        player.steldenBonded = true;
+        try { bumpNpcBond('stelden', 50, 'Stelden'); } catch(_){}
+        showDialog({ speaker: 'STELDEN', lines: [
+          '*he plants the greatsword and kneels the visor toward you*',
+          'Kelthor\'s whole ladder.  Few finish it.  Fewer understand why it exists.',
+          'The Seers do not march on Malezor by the front road — they come THROUGH Zarvane.  This courtyard is Malezor\'s first wall, and I am its stone.',
+          'From today you are not a cadet to me.  Call, and the wall walks with you.',
+        ]});
+        try { saveGame(); } catch(_){}
+        return;
+      }
+      showDialog({ speaker: 'STELDEN', lines: [
+        '*a slow patrol turn · the embers sweep the plaza*',
+        'Quiet today.  Quiet is what winning looks like, Rizer.',
+        'Malezor sleeps because Zarvane watches.',
+      ]});
+    },
+  },
 ];
 // ★★ v0.95.767 · THE FIFTY TOWNSFOLK ARE SWITCHED OFF.
 //
@@ -21140,7 +21230,14 @@ function fireSapphireVoltstorm(){
   const vid = document.getElementById('voltstormVid');
   if (!vid){ _voltstormKO(); return true; }   // headless / video missing · the KO still lands
   _voltstormPlaying = true;
-  try { playSFX('menuOpen'); } catch(_){}
+  // ★ v0.95.824 · FULL CINEMA.  Creator: "all other sfx go off and the rhuds
+  // and other hud goes off."  BGM hard-stops, the live Rizer VO and CORSUN
+  // cut, playSFX is gated on _voltstormPlaying, and body.voltstorm-cine hides
+  // every fixed overlay.  Only the movie's own track plays.
+  try { Object.values(AUDIO.bgm).forEach(a => { a.pause(); a.currentTime = 0; }); _currentBGM = null; } catch(_){}
+  try { if (_rvoxLive){ _rvoxLive.node.pause(); _rvoxLive = null; } } catch(_){}
+  try { _stopCorsunIfLive(); } catch(_){}
+  try { document.body.classList.add('voltstorm-cine'); } catch(_){}
   vid.style.display = 'block';
   vid.currentTime = 0;
   vid.muted = false;
@@ -21153,6 +21250,8 @@ function fireSapphireVoltstorm(){
     vid.pause();
     vid.style.display = 'none';
     vid.removeEventListener('ended', finish);
+    try { document.body.classList.remove('voltstorm-cine'); } catch(_){}
+    try { playBGM(game.scene === 'overworld' ? 'town' : 'home'); } catch(_){}   // 'town' IS the overworld track
     _voltstormKO();
   };
   vid.addEventListener('ended', finish);
@@ -29699,27 +29798,16 @@ function renderZycellZycube(){
 // renderers.  Showing a second set of numbers for the same five stats, beside
 // the AP system that actually works, could only ever mislead.
 function renderZycellRizer(){
-  try { ensureRizerSkinState(); } catch(_){}
-  const active = (typeof RIZER_SKIN_ROSTER !== 'undefined')
-    ? RIZER_SKIN_ROSTER.find(s => s.id === player.rizerSkinActive) : null;
-  const skinName = active ? active.name : (player.cosmeticSkin || 'NORMAL').toUpperCase();
-  // v0.95.713 · attribute allocation leads the panel · the section title
-  // carries the unspent count so the player sees it without opening anything.
+  // ★ v0.95.824 · Creator: "remove the outfit panel from rizer panel. just
+  // fully make it upgrade UI."  The EQUIPPED OUTFIT card (skin name + a
+  // gear-not-built placeholder) is gone — RIZER is now the attribute upgrade
+  // panel and nothing else.
   const _free = rizerAttrUnspent();
   const _attrTitle = _free > 0
     ? `★ ATTRIBUTES · ${_free} POINT${_free === 1 ? '' : 'S'} TO SPEND`
     : '★ ATTRIBUTES';
-  // Stated as a plan — no numbers, no button, no tier ladder — because gear is
-  // not built.  A placeholder that quoted a boost would be the same mistake the
-  // retired panel made.
-  const outfit = `
-    <div style="text-align:center; color:#fff; font-size:16px; font-weight:bold; letter-spacing:.14em; padding:8px;">${skinName}</div>
-    <div style="text-align:center; color:#667; font-size:10px; letter-spacing:.04em; padding-bottom:4px;">
-      Gear from Scrapjaw — temporary boosts — not yet available.
-    </div>`;
   return `
-    ${_zySection(_attrTitle, buildRizerAttrPanel('phone'), _free > 0 ? '#ffd66b' : '#4fb3ff')}
-    ${_zySection('☆ EQUIPPED OUTFIT', outfit)}`;
+    ${_zySection(_attrTitle, buildRizerAttrPanel('phone'), _free > 0 ? '#ffd66b' : '#4fb3ff')}`;
 }
 
 // ── FACTION · 2×4 party grid · click a slot for details ─────────────
@@ -33116,6 +33204,7 @@ function saveGame(){
 
         items: player.items || {},
         voltstormUnlocked: !!player.voltstormUnlocked,   // ★ v0.95.822 · A5 attunement is forever
+        steldenBonded: !!player.steldenBonded,           // ★ v0.95.824 · the Iron Warden's oath, once
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
         knownRecipes: player.knownRecipes || [],   // v0.95 · discovered experiment recipes
         mainQuestStep: player.mainQuestStep || 0,  // v0.95.1 · main quest tracker index
@@ -34034,6 +34123,11 @@ function isZyrexNpc(n){
 function contactEligible(n){
   if (!n || n.isEnemy || !n.name || typeof n.onInteract !== 'function') return false;
   if (n._towerGuardOf || n._seerHqGuardOf) return false;
+  // ★ v0.95.824 · QUEST-LOCKED CONTACTS.  Stelden registers only after
+  // Kelthor's ladder is complete — the gate lives HERE, in the one function
+  // every registration path already consults, so a locked ally can never leak
+  // into the phone book through a path that forgot to check.
+  if (typeof n._contactLocked === 'function' ? n._contactLocked() : !!n._contactLocked) return false;
   // ★ v0.95.701 · A SLAIN SKELLOR IS NOT A CONTACT.
   // Death sets isEnemy=false, gives it a name and an onInteract for looting —
   // which is byte-for-byte the signature this function uses to recognise a

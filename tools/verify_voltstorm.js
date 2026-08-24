@@ -120,5 +120,22 @@ H('6 · ★★ THE CHORD · three keys outrank two · never steals from the unar
   ok(/if \(armed\) return;/.test(chord),'★ swallows ONLY once attuned+S1 — before that, Astralslam/Astralstrike behave exactly as before');
 }
 
+
+H('7 · ★★ v0.95.824 · FULL CINEMA · the movie owns the screen AND the speakers');
+{
+  ok(/if \(typeof _voltstormPlaying !== 'undefined' && _voltstormPlaying\) return;/.test(src),
+     '★ playSFX gates on the movie FIRST — even the UI whitelist cannot talk over it');
+  const fire=src.slice(src.indexOf('function fireSapphireVoltstorm'),src.indexOf('function _voltstormKO'));
+  ok(/AUDIO\.bgm.+pause/.test(fire)&&/_currentBGM = null/.test(fire),'BGM hard-stops on the way in');
+  ok(/_rvoxLive/.test(fire)&&/_stopCorsunIfLive/.test(fire),'live Rizer VO + CORSUN cut');
+  ok(/voltstorm-cine/.test(fire),'★ body.voltstorm-cine hides every HUD');
+  ok(/classList\.remove\('voltstorm-cine'\)/.test(fire)&&/playBGM\(game\.scene === 'overworld' \? 'town' : 'home'\)/.test(fire),
+     'and the way out restores the HUDs + the right BGM');
+  const html=require('fs').readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(/body\.voltstorm-cine #hud[\s\S]{0,300}#minimapCanvas/.test(html),'the CSS rule covers hud/pad/rizer/weapon/minimap/dev');
+  ok(/id="voltstormVid"[^>]*z-index:10000/.test(html),'★ the video rides ABOVE every fixed overlay (z 10000)');
+  ok(/vid\.muted = false/.test(fire),'full movie SOUND · unmuted first try');
+}
+
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
 process.exit(0);

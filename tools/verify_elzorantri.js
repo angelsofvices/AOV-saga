@@ -79,5 +79,31 @@ H('3 · ★★ TRIANGLE IS THE ZYSPHERE TOGGLE · final fix');
   ok(fol._summoned===false&&fol.scene==='__despawn__','and the same call stores it · the toggle IS a toggle');
 }
 
+
+H('4 · ★ v0.95.826 · THE ZYSPHERE ANSWERS MID-FIGHT · both directions');
+{
+  ok(!/Active combat · clear the stage before sending Zyrex home/.test(src),'★ the recall combat lock is gone');
+  ok(!/Active combat · clear the stage before stashing your faction/.test(src),'★ the stash-all combat lock is gone');
+  ok((src.match(/isInActiveCombat\(\)/g)||[]).length<=1,'no other summon path still consults the lock');
+  // behavioral: recall works with an enemy standing adjacent
+  C.player.party=[{speciesId:'snok',level:10,hp:9,name:'Snok'}];
+  C.game.scene='overworld'; C.player.x=700; C.player.y=700;
+  C.NPCS.push({id:'__foe_lock',isEnemy:true,scene:'overworld',mode:'wander',tileX:701,tileY:700,hp:10,sheet:{}});
+  C.toggleFactionSummon(0);
+  const fol=C.NPCS.find(n=>n&&n.id==='_summon_snok');
+  C.toggleFactionSummon(0);
+  ok(fol&&fol._summoned===false,'★ recall lands with an enemy ONE TILE away');
+}
+
+H('5 · ★ v0.95.826 · THE BALL FLOATS · held block pose bobs, shadow stays');
+{
+  ok(/held >= 180\) _blockBob = Math\.round\(2 \+ Math\.sin\(_now \/ 320\) \* 2\.5\)/.test(src),
+     '★ shield-up frame hovers · 2px lift · ±2.5px sine · ~2s period');
+  ok(/let _blockBob = 0;/.test(src),'the bob is zero everywhere else (walk/idle/attack untouched)');
+  ok(/- gallopLift - _blockBob;/.test(src),'★ the sprite dy takes the lift');
+  ok(/gallopLift \+ _blockBob,/.test(src),'★ the ground shadow is COMPENSATED — it does not bob, which is what sells the float');
+  ok(/col = 2;\s+\/\/ shield up/.test(src),'the held pose is still the shield-up freeze frame · ramp + spark untouched');
+}
+
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
 process.exit(0);

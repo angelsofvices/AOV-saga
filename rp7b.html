@@ -25913,6 +25913,7 @@ function drawPlayer(){
   // v0.91.3 · attack anim uses its own frame clock (linear over duration)
   // v0.95.69 · jump anim has its own clock too · 4 frames across 380ms arc
   let col;
+  let _blockBob = 0;   // ★ v0.95.826 · aura-shield hover · set only while the shield is up
   if (deathBundle){
     const elapsed = Math.max(0, now - _rizerDeath.t0);
     col = Math.min(bundle.cols - 1, Math.floor(elapsed / (_rizerDeath.dur / bundle.cols)));
@@ -25949,6 +25950,15 @@ function drawPlayer(){
     } else {
       col = 2;                                  // shield up · held until R2 release
     }
+    // ★ v0.95.826 · THE BALL FLOATS.  Creator: "give the blocking animation
+    // a bobbing effect in the forcefield ball... make rizer gracefully bob
+    // in the aura shield block pose."  Once the shield is UP (past the
+    // ramp-in), the held frame rises off the ground and breathes on a slow
+    // sine — 2px lift, ±2.5px swing, ~2-second period.  The ramp frames
+    // stay planted so the lift READS as the forcefield taking his weight.
+    // The bob rides the SPRITE only; the ground shadow is compensated below,
+    // because a shadow that bobs with the body would unsell the float.
+    if (held >= 180) _blockBob = Math.round(2 + Math.sin(_now / 320) * 2.5);
   } else if (inAttack){
     // v0.95.210/238 · astralstrike cast = 500 · astralkick cast = 620
     const dur = (player.attackMode==='punch'||player.attackMode==='kick')
@@ -26074,7 +26084,7 @@ function drawPlayer(){
   const _footDrop = (bundle.footOff && bundle.footOff[row] != null && bundle.footOff[row][col])
     ? Math.round(bundle.footOff[row][col] * (drawH / Math.max(1, bh)))
     : 0;
-  const dy = Math.floor(renderTileY * TILE + TILE - drawH) + _footDrop - _cam.y + _jumpOffset - astralLift - slamLift - gallopLift;
+  const dy = Math.floor(renderTileY * TILE + TILE - drawH) + _footDrop - _cam.y + _jumpOffset - astralLift - slamLift - gallopLift - _blockBob;   // ★ v0.95.826 · block hover
 
   // Ground shadow at the CHARACTER'S actual feet · drawn just under
   // dy+drawH (bbox bottom = feet).  Gives a solid ground contact so
@@ -26083,7 +26093,7 @@ function drawPlayer(){
   ctx.beginPath();
   ctx.ellipse(
     dx + drawW / 2,
-    dy + drawH - _footDrop - 2 + slamLift + gallopLift,
+    dy + drawH - _footDrop - 2 + slamLift + gallopLift + _blockBob,   // ★ v0.95.826 · the shadow does NOT bob · it sells the float
     Math.min(drawW / 2, TILE / 2 - 2),
     3, 0, 0, Math.PI * 2
   );
@@ -38018,13 +38028,9 @@ function quickSummonStashAll(){
   }
   const out = summonedZyrexCount();
   const stashing = out > 0;
-  // The combat lock lives in toggleFactionSummon and would fire once PER Zyrex,
-  // burying the player in identical toasts. Check it once, up front.
-  if (stashing && typeof isInActiveCombat === 'function' && isInActiveCombat()){
-    showToast('◈ Active combat · clear the stage before stashing your faction', 2800);
-    try { playSFX('doorLock'); } catch(_){}
-    return false;
-  }
+  // ★ v0.95.826 · combat lock removed here too (Creator: "no more active
+  // combat block") — the per-Zyrex copy in toggleFactionSummon is gone, so
+  // this up-front check had nothing left to de-duplicate anyway.
   for (let i = 0; i < party.length; i++){
     const z = party[i];
     const fid = `_summon_${z.speciesId}`;
@@ -38120,12 +38126,10 @@ function toggleFactionSummon(partyIdx){
   let follower = NPCS.find(n => n && n.id === followerId);
   // Case 1: this Zyrex is already summoned somewhere · retire it
   if (follower && follower._summoned){
-    // v0.95.440 · Combat lock · can't send home while enemies are nearby
-    if (isInActiveCombat()){
-      showToast('◈ Active combat · clear the stage before sending Zyrex home', 2600);
-      try { playSFX('doorLock'); } catch(_){}
-      return;
-    }
+    // ★ v0.95.826 · the v0.95.440 combat lock is GONE.  Creator: "no more
+    // active combat block for summoning zyrex in battle."  The Zysphere
+    // answers mid-fight, both directions — pulling a hurt Zyrex out of danger
+    // is exactly when the player needs it most.
     follower._summoned = false;
     follower.scene = '__despawn__';
     playSFX('cancel');

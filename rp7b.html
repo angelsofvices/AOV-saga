@@ -23437,6 +23437,18 @@ addEventListener('keydown', e => {
     // interact/toast interference · Triangle only tries soul-swap on friendly NPCs
     if (k === 'k'){
       const facing = facedNpc();
+      // ★★ v0.95.825 · TRIANGLE IS THE ZYSPHERE TOGGLE · Creator: "can send
+      // zyrex back to zysphere when I press triangle on it... final fix."
+      // Facing one of YOUR summoned Zyrex, Triangle STORES it — checked
+      // BEFORE the soul-swap branch, because a summoned follower is friendly
+      // and used to fall into the Bond-100 soul-swap toast instead of going
+      // home.  Recall routes through toggleFactionSummon — the one door that
+      // already owns the combat lock, the take-five VO and the toast.
+      if (facing && facing._summoned && facing._summonSpeciesId){
+        const _party = (player.party || []).filter(Boolean);
+        const _pi = _party.findIndex(z => z && z.speciesId === facing._summonSpeciesId);
+        if (_pi >= 0){ try { toggleFactionSummon(_pi); } catch(_){} return; }
+      }
       if (facing && !facing.isEnemy && isFriendlyNpc(facing)){
         if (facing.noSoulSwap){
           try { playSFX('doorLock'); } catch(_){}
@@ -23484,6 +23496,13 @@ addEventListener('keydown', e => {
                     || game.expPanelOpen || game.tvPanelOpen
                     || game.guitarPanelOpen || game.nebulaPanelOpen
                     || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
+      // ★ v0.95.825 · HOLD Triangle in the overworld = all out / all in.
+      // Arm the SAME clock-polled hold the phone uses (v0.95.743 · gamepads
+      // are edge-triggered, key-repeat cannot be trusted) — the frame tick
+      // completes it at ZY_HOLD_MS whether the phone is open or not.
+      if (k === 'k' && game.scene === 'overworld' && !dialogState && !battleState && !anyModal){
+        try { zyTriangleArm(); } catch(_){}
+      }
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModal){
         // v0.95.321 · Punching bag hold-to-drag · while facing the dummy bag,
         // Square keydown starts a hold timer · release <350ms = punch (normal)
@@ -37930,14 +37949,21 @@ function zyTriangleArm(){
   if (!game._zyTriDownAt) game._zyTriDownAt = performance.now();
 }
 function zyTriangleHoldTick(){       // called once per FRAME while held
-  if (!game._zyTriHeld || !game.zphoneOpen) return;
+  // ★ v0.95.825 · the hold now ALSO completes in the open overworld — Creator:
+  // "holding toggles all out or in. final fix."  Same clock, same threshold,
+  // same one-shot flag; only the venue check widened.
+  const _venue = game.zphoneOpen
+    || (game.scene === 'overworld' && !dialogState && !battleState && !worldFrozen());
+  if (!game._zyTriHeld || !_venue) return;
   const now = performance.now();
   if (!game._zyTriDownAt) game._zyTriDownAt = now;
   if (!game._zyTriFired && (now - game._zyTriDownAt) >= ZY_HOLD_MS){
     game._zyTriFired = true;
     try { quickSummonStashAll(); } catch(err){ console.warn('quick summon failed', err); }
-    try { paintZycellNav(); } catch(_){}
-    try { paintZycellContent(); } catch(_){}
+    if (game.zphoneOpen){
+      try { paintZycellNav(); } catch(_){}
+      try { paintZycellContent(); } catch(_){}
+    }
   }
 }
 // Closing the phone mid-hold leaves no keyup for the panel to hear, so the
@@ -38448,24 +38474,24 @@ function drawZyrexOrb(w){
 const SPECIES_RECRUIT_GATES = {
   elzoran: {
     // ★ v0.95.818 · SILENT.  Creator: "you also need to have an elzebub to
-    // make him happy. or he will just ignore you. no vox either."  This
-    // overrides the house rule two lines down ("a refusal that does not say
-    // what to do is a bug report") for HIM alone — being ignored by the old
-    // champion IS the information.  The Lv-50 bar is kept from the prior
-    // Elzebub canon; say the word if owning one at any level should suffice.
+    // make him happy. or he will just ignore you. no vox either."  Being
+    // ignored by the old champion IS the information.
+    //
+    // ★★ v0.95.825 · THE LV-50 BAR WAS UNSATISFIABLE.  Creator: "cannot talk
+    // to elzoran to recruit him."  Root cause: Elzebub EVOLVES INTO ELZIMIR
+    // AT LV 30 — so "an Elzebub at Lv 50" is a Zyrex that cannot exist in
+    // normal play, and the gate was silence forever.  The condition the
+    // canon meant was "has raised Elzebub's line": owning ELZEBUB or ELZIMIR
+    // at ANY level satisfies him — he recognises his own kin, not a number.
     silent: true,
     test(){
       const all = [].concat(player.party || [], player.pcZyrex || []);
-      return all.some(z => z && z.speciesId === 'elzebub' && (z.level || 0) >= 50);
+      return all.some(z => z && (z.speciesId === 'elzebub' || z.speciesId === 'elzimir'));
     },
     // Told plainly. A refusal that does not say what to do is a bug report.
+    // (Unreachable while silent:true — kept for the day the silence lifts.)
     why(){
-      const all = [].concat(player.party || [], player.pcZyrex || []);
-      const e = all.filter(z => z && z.speciesId === 'elzebub')
-                   .sort((a,b) => (b.level||0) - (a.level||0))[0];
-      return e
-        ? `Your Elzebub is Lv ${e.level || 1} · raise it to 50 and Elzoran will answer.`
-        : 'It will not bond with a Rizer who has never raised an Elzebub of his own.';
+      return 'It will not bond with a Rizer who has never raised an Elzebub of his own.';
     },
   },
 };

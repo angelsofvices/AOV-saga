@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_weapondrop · v0.95.776 · Gemlord blades drop solid, taken with X
 try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
-  ';globalThis.__C={COSMIC_CHEST_SPOTS,SWORD_MAX,RUBY_MAX,_tileIsVisiblyClear,_weaponDropTile,COSMIC_CHEST_SPOTS,WEAPON_DROP_ART,spawnWeaponDrop,restoreWeaponDrops,_rememberWeaponDrops,_weaponDropTile,WORLD_PROPS,_propBlocked,worldDistrictAt,isWorldLandTile,isWorldBorderTile,player,game,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
+  ';globalThis.__C={S1_WEAPON_RING,COSMIC_CHEST_SPOTS,SWORD_MAX,RUBY_MAX,_tileIsVisiblyClear,_weaponDropTile,COSMIC_CHEST_SPOTS,WEAPON_DROP_ART,spawnWeaponDrop,restoreWeaponDrops,_rememberWeaponDrops,_weaponDropTile,WORLD_PROPS,_propBlocked,worldDistrictAt,isWorldLandTile,isWorldBorderTile,player,game,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)fail++;};
@@ -87,7 +87,7 @@ H('4 · ★★ X TAKES IT, AND IT LEAVES NO GHOST WALL');
 
 H('5 · ★★ THE RUBYPAW WORKS THE SAME WAY');
 {
-  const chest=C.WORLD_PROPS.find(p=>p&&p._cosmicChest==='malezor');
+  const chest=C.WORLD_PROPS.find(p=>p&&p.id==='chest_cosmic_rubypaw_sword');   // ★ v0.95.822 · item-keyed · Malezor has two cosmic chests now
   ok(!!chest,'the Malezor cosmic chest exists');
   chest.onInteract();
   ok((C.player.items.rubypaw_sword||0)===0,'the Rubypaw does not go straight into the bag either');
@@ -154,7 +154,7 @@ H('9 · ★★ THE BLADE LANDS SOMEWHERE THE PLAYER CAN SEE IT');
   for(let i=C.WORLD_PROPS.length-1;i>=0;i--) if(C.WORLD_PROPS[i]&&C.WORLD_PROPS[i]._weaponDrop) C.WORLD_PROPS.splice(i,1);
   let checked=0, rescued=0;
   for(const spot of C.COSMIC_CHEST_SPOTS){
-    const chest=C.WORLD_PROPS.find(p=>p&&p._cosmicChest===spot.dist);
+    const chest=C.WORLD_PROPS.find(p=>p&&p.id===`chest_cosmic_${spot.item}`);   // ★ v0.95.822 · item-keyed · Malezor holds two now
     if(!chest) continue;
     chest.opened=false; chest.looted=false;
     chest.onInteract();
@@ -193,15 +193,26 @@ H('10 · ★★ S1 EQUIPS AZUREL\'S BLADE · S2 EQUIPS RAKORON\'S');
 // sword." Already enforced — asserted so a refactor cannot quietly cross them.
 {
   const src=require('fs').readFileSync('/tmp/all.js','utf8');
-  const i=src.indexOf("const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade'");
-  ok(i>0,'the equip toggle branches on S1 vs S2 form');
+  // ★ v0.95.822 · anchored to the EQUIP TOGGLE, not to the first `const isS2`
+  // in the file — voltstormGate now opens with the identical line thousands of
+  // lines earlier, and first-match scraped the wrong function (sixth sighting
+  // of the fixed-window bug · the fix is a landmark inside the right block).
+  const eqAt=src.indexOf('No S2 weapon available');
+  const i=src.lastIndexOf("const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade'", eqAt);
+  ok(i>0&&eqAt>0,'the equip toggle branches on S1 vs S2 form');
   const blk=src.slice(i,i+1400);
   const s2=blk.slice(0,blk.indexOf('} else {'));
   const s1=blk.slice(blk.indexOf('} else {'));
   ok(/rubypaw_sword/.test(s2)&&!/sapphire_sword/.test(s2),
      'in S2 only the RUBYPAW can be equipped');
-  ok(/sapphire_sword/.test(s1)&&!/rubypaw_sword/.test(s1),
-     'in S1 only the TEARSWORD can be equipped');
+  // ★ v0.95.792 · S1's branch no longer NAMES its weapons — it reads
+  //   S1_WEAPON_RING.  Scraping the branch text for 'sapphire_sword' was
+  //   testing the old implementation, not the rule.  Test the rule: the S1 ring
+  //   holds S1 weapons and none of S2's.
+  ok(/S1_WEAPON_RING/.test(s1)&&!/rubypaw_sword/.test(s1),
+     'in S1 the cycle reads the S1 ring and never reaches for the Rubypaw');
+  ok(C.S1_WEAPON_RING.every(W=>W.item!=='rubypaw_sword'),
+     `and the ring itself holds only S1 gear · ${C.S1_WEAPON_RING.map(W=>W.item).join(', ')}`);
   // ★ v0.95.788 · S1 now CYCLES fists -> Tearsword -> Emerald Axe, so the
   // "No S1 weapon" line only shows when the player owns neither.
   ok(/No S2 weapon available/.test(s2),'S2 names the blade it wants when empty-handed');
@@ -210,8 +221,13 @@ H('10 · ★★ S1 EQUIPS AZUREL\'S BLADE · S2 EQUIPS RAKORON\'S');
   // in the fallback path further down rather than in this slice.
   ok(/No S1 weapon available/.test(src)||/EMERALD AXE/.test(src),
      'S1 either names its blade when empty-handed or offers the axe cycle');
-  ok(/rubypawBroken/.test(s2)&&/swordBroken/.test(s1),
-     'each checks its OWN broken flag, so one snapping does not disarm the other');
+  ok(/rubypawBroken/.test(s2),'S2 checks the Rubypaw\'s OWN broken flag');
+  // every S1 weapon has its own broken + durability flag, so one snapping
+  // cannot disarm the others
+  const bf=C.S1_WEAPON_RING.map(W=>W.brokenFlag), df=C.S1_WEAPON_RING.map(W=>W.durFlag);
+  ok(new Set(bf).size===bf.length && new Set(df).size===df.length,
+     `each S1 weapon tracks its own break and wear · ${bf.join(', ')}`);
+  ok(/brokenFlag/.test(s1),'and the cycle consults that per-weapon flag rather than a shared one');
 }
 
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));

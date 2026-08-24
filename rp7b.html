@@ -653,6 +653,9 @@
     <!-- v0.95.143 · Dream video · plays on bed sleep · un-skippable · full HP restore on end -->
     <video id="dreamVid" src="video/dream.mp4" playsinline webkit-playsinline preload="auto"
            style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:22; display:none;"></video>
+    <!-- ★★ v0.95.822 · SAPPHIRE VOLTSTORM · the first A5 · un-skippable cutscene · letterboxed per canon -->
+    <video id="voltstormVid" src="video/sapphire-voltstorm.mp4" playsinline webkit-playsinline preload="auto"
+           style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:23; display:none;"></video>
     <!-- v0.95.60 · Skip hint · shown 3s over intro video, then fades · skip stays active -->
     <div id="introSkipHint" style="position:absolute; left:50%; bottom:6%; transform:translateX(-50%); z-index:24; display:none; pointer-events:none; padding:10px 22px; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; font: bold 14px 'Courier New',monospace; letter-spacing:0.12em; text-align:center; opacity:1; transition:opacity 0.8s ease-out;">HOLD X · ENTER · OR TAP TO SKIP</div>
     <!-- v0.95.663 · NEW GAME overwrite prompt.  MUST be DOM, not canvas: the
@@ -2547,6 +2550,7 @@ const INVENTORY_META = {
   portal_chip:      { label: 'Portal Chip',                order: 54 },  // ★ v0.95.800 · Scanobot salvage · 20 to Dad opens the first two rifts (Malezor <-> Zarvane)
   life_seed:        { label: 'Life Seed (spoiling)',       order: 55 },  // ★ v0.95.817 · creeper-exposed · 25% HP · spoils 2 min after storing
   life_seed_pure:   { label: 'Pure Life Seed',             order: 56 },  // ★ v0.95.817 · Spirit Tree of Xilnar stock · 25% HP · never spoils
+  voltshard:        { label: 'Voltshard',                  order: 57 },  // ★★ v0.95.822 · Malezor cosmic chest · CONSUME from ZyCube to attune SAPPHIRE VOLTSTORM (first A5)
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
   zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
   // ─── v0.95.588 · ULTRASHARDS · one per canon type · consume on Zyrex to overwrite A4 with Ultramax move + add Ultramax type ─────────────
@@ -2802,6 +2806,14 @@ const COSMIC_CHEST_SPOTS = [
   { dist:'zarvane',  at:[93, 401], item:'pearlbow', creatorPlaced:true,
     label:'PEARLBOW · strung in the Zarvane cactus flats',
     note:'placed by the Creator from inside the game · cactus flats' },
+  // ★★ v0.95.822 · VOLTSHARD · Creator: "player must consume a voltshard from
+  // a cosmic chest in malezor".  Placed at (41,16) INSIDE the broken-tower
+  // plaza — two tiles from the tower and inside the boss squad's guard ring,
+  // so the first A5 is earned through Malezor's hardest fight, and a dead
+  // electric tower marking an electric relic reads as geography doing lore.
+  { dist:'malezor',  at:[41, 16], item:'voltshard',
+    label:'VOLTSHARD · a storm frozen mid-strike',
+    note:'Malezor tower plaza · guarded by the tower boss squad' },
   { dist:'malezor',  at:[-54,  27], item:'rubypaw_sword', creatorPlaced:true,
     label:'RUBYPAW LONGSWORD · Rakoron\'s iron and dragonlion mist',
     note:'placed by the Creator from inside the game · orchard clearing' },
@@ -6146,7 +6158,10 @@ const WORLD_PROPS = [
     const OPEN_BBOX   = [290, 240, 673, 741];
     return COSMIC_CHEST_SPOTS.map((spot, i) => {
       const chest = {
-        id: `chest_cosmic_${spot.dist}`,
+        // ★ v0.95.822 · keyed by ITEM not district — Malezor now holds two
+        // cosmic chests (Rubypaw + Voltshard) and dist-keyed ids collided.
+        // Ids were never persisted before this version, so no save breaks.
+        id: `chest_cosmic_${spot.item}`,
         img: _closedImg, src: 'assets/2D%20sprites/decor/mythic-chest.png',
         bbox: CLOSED_BBOX,
         tileX: spot.at[0], tileY: spot.at[1],
@@ -6162,6 +6177,8 @@ const WORLD_PROPS = [
         chest.img = _openImg; chest.bbox = OPEN_BBOX;
         if (chest.looted) return;
         chest.looted = true;
+        // ★ v0.95.822 · cosmic loot now persists · closes the reopen-on-reload gap
+        try { markChestLooted(chest.id); } catch(_){}
         try { notebookVisit(`cave:${spot.dist}_cosmic`, spot.label.split(' ·')[0]); } catch(_){}
         // ★★ v0.95.776 · THE BLADE DOES NOT GO STRAIGHT INTO THE BAG.
         // Creator: "give it collision on spawn from chest. player must go up to
@@ -14527,6 +14544,9 @@ const WEAPON_DROP_ART = {
   // measured on their own alpha, so neither borrows the other's crop.
   emerald_axe:    { src:'assets/2D%20sprites/decor/emerald-axe-icon.png',    bbox:[218,170,818,898], tileW:1.3 },
   pearlbow:       { src:'assets/2D%20sprites/decor/pearlbow-icon.png',       bbox:[309,260,683,704], tileW:1.3 },
+  // ★ v0.95.822 · PLACEHOLDER · yellow gem stands in until the Creator renders
+  // real Voltshard art (asset gen = prompt only · never generate unasked)
+  voltshard:      { src:'assets/2D%20sprites/decor/gem-yellow.png',          bbox:[0,0,256,314],     tileW:0.8 },
 };
 for (const k of Object.values(WEAPON_DROP_ART)){ k.img = new Image(); k.img.src = k.src; }
 // ★★ v0.95.777 · A DROP THE PLAYER CANNOT SEE IS A DROP THEY CANNOT FIND.
@@ -14595,7 +14615,7 @@ function spawnWeaponDrop(chest, spot){
     // Nowhere to put it · never strand the reward. Bag it and say so.
     player.items = player.items || {};
     player.items[spot.item] = (player.items[spot.item] || 0) + 1;
-    _armWeapon(spot.item);
+    _armWeapon(spot.item);   // no-op for relics · only real weapons match inside
     showToast(`★ ${spot.label}`, 5200);
     return null;
   }
@@ -14618,7 +14638,10 @@ function spawnWeaponDrop(chest, spot){
     if (i >= 0) WORLD_PROPS.splice(i, 1);
     _rememberWeaponDrops();
     try { playItemGain(spot.item); } catch(_){ try { playSFX('confirm'); } catch(_){} }
-    showToast(`★ ${spot.label} · toggle from ZyPhone → Weapons`, 5200);
+    // ★ v0.95.822 · a relic is not a weapon · point at the right panel
+    showToast(WEAPON_MAX_DUR[spot.item]
+      ? `★ ${spot.label} · toggle from ZyPhone → Weapons`
+      : `★ ${spot.label} · CONSUME it from the ZyCube to attune`, 5200);
   };
   WORLD_PROPS.push(drop);
   registerPropCollision(drop);
@@ -21002,6 +21025,110 @@ function findNearestOwnedHomeSpawn(fromX, fromY){
   }
   return best;
 }
+// ═══════════════════════════════════════════════════════════════════════
+// ★★ v0.95.822 · SAPPHIRE VOLTSTORM · THE FIRST A5.
+//
+// Creator: "player must consume a voltshard from a cosmic chest in malezor
+// and then he can do sapphire voltstorm full screen ko on all non bosses.
+// trigger the attack when 1 tile away from an enemy by pressing L2+R2+square.
+// must have full special meter and have consumed the voltshard. this will be
+// our first ultimate move learned by rizer. the first A5 move. 2 min cool
+// down on use."
+//
+// FIVE GATES, checked in the order the player can fix them:
+//   S1 skin → attuned → adjacent enemy → full ◆ SPECIAL → cooldown.
+// Every refusal SAYS which gate failed ("a refusal that does not say what to
+// do is a bug report") — except none fire at all before attunement is even
+// possible, so an S2 player mashing the chord pre-Malezor hears nothing.
+//
+// THE KO: every non-boss enemy ON SCREEN dies through startMoriDeath — the
+// one door every death already goes through, so Skellor drops his bag, the
+// creeper drops its seed and a rogue Scanobot explodes into salvage exactly
+// as if Rizer had done it by hand.  Bosses (tower squad captains, the Seer
+// Commander) stand through the storm: an A5 clears the field, it does not
+// skip the fights the game is built around.
+//
+// A5 for S2 = ULTIMATE RAKORON via the CHAOS SHARD (found later) · same
+// chord, full meter · pending the Creator's video.
+const VOLTSTORM_CD_MS = 120000;          // 2 minutes · Creator's number
+let _voltstormPlaying = false;
+function voltstormAdjacentEnemy(){
+  for (const n of NPCS){
+    if (!n || !n.isEnemy || n._dying || n.scene !== game.scene) continue;
+    if ((n.hp != null && n.hp <= 0) || n.scene === '__dead__') continue;
+    if (Math.abs(n.tileX - player.x) <= 1 && Math.abs(n.tileY - player.y) <= 1) return n;
+  }
+  return null;
+}
+function voltstormGate(){
+  const isS2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';
+  if (isS2)                        return { ok:false, why:null };  // silent · S2's A5 is Rakoron's, not yet forged
+  if (!player.voltstormUnlocked)   return { ok:false, why:null };  // silent · you cannot miss what you never met
+  if (game.scene !== 'overworld')  return { ok:false, why:'◈ The storm needs open sky' };
+  if (!voltstormAdjacentEnemy())   return { ok:false, why:'◈ VOLTSTORM needs an enemy within reach · 1 tile' };
+  const max = player.diamondMax || 100;
+  if ((player.diamond || 0) < max) return { ok:false, why:`◈ VOLTSTORM needs a FULL ◆ SPECIAL meter · ${Math.floor(player.diamond||0)}/${max}` };
+  const cdLeft = (player._voltstormCdUntil || 0) - performance.now();
+  if (cdLeft > 0)                  return { ok:false, why:`◈ The storm is still gathering · ${Math.ceil(cdLeft/1000)}s` };
+  return { ok:true };
+}
+function fireSapphireVoltstorm(){
+  if (_voltstormPlaying) return false;
+  const g = voltstormGate();
+  if (!g.ok){
+    if (g.why){ showToast(g.why, 2600); try { playSFX('deny'); } catch(_){} }
+    return false;
+  }
+  // Pay first · the meter empties the moment the storm is called, and the
+  // cooldown starts NOW so the clock is honest about when you pressed it.
+  player.diamond = 0;
+  player._voltstormCdUntil = performance.now() + VOLTSTORM_CD_MS;
+  const vid = document.getElementById('voltstormVid');
+  if (!vid){ _voltstormKO(); return true; }   // headless / video missing · the KO still lands
+  _voltstormPlaying = true;
+  try { playSFX('menuOpen'); } catch(_){}
+  vid.style.display = 'block';
+  vid.currentTime = 0;
+  vid.muted = false;
+  vid.controls = false;
+  vid.setAttribute('disablepictureinpicture', '');
+  vid.play().catch(() => { vid.muted = true; vid.play().catch(()=>{}); });
+  const finish = () => {
+    if (!_voltstormPlaying) return;            // guard against double-fire
+    _voltstormPlaying = false;
+    vid.pause();
+    vid.style.display = 'none';
+    vid.removeEventListener('ended', finish);
+    _voltstormKO();
+  };
+  vid.addEventListener('ended', finish);
+  // belt + braces · if 'ended' never fires (codec stall), release after
+  // duration + 2s so the game can never be trapped behind a frozen frame
+  setTimeout(finish, 19000);
+  return true;
+}
+function _voltstormKO(){
+  // Everyone the CAMERA can see — "full screen ko" is literal.  One tile of
+  // margin so an enemy half-poked into frame still counts as seen.
+  const L = _cam.x - TILE, R = _cam.x + 960 + TILE;
+  const T = _cam.y - TILE, B = _cam.y + 528 + TILE;
+  let downed = 0;
+  for (const n of NPCS){
+    if (!n || !n.isEnemy || n._dying || n.scene !== 'overworld') continue;
+    if ((n.hp != null && n.hp <= 0) || n.scene === '__dead__') continue;
+    if (n._towerBossOf || n.id === 'seer_commander') continue;   // bosses stand
+    const px = n.tileX * TILE, py = n.tileY * TILE;
+    if (px < L || px > R || py < T || py > B) continue;
+    n.hp = 0;
+    try { startMoriDeath(n); } catch(_){}
+    try { creditRizerKill(n, 'voltstorm'); } catch(_){}
+    downed++;
+  }
+  try { playSFX('astralKill'); } catch(_){}
+  showToast(downed
+    ? `⚡ SAPPHIRE VOLTSTORM · ${downed} struck down · bosses still stand`
+    : '⚡ SAPPHIRE VOLTSTORM · the field was already empty', 4200);
+}
 function playDreamVideo(alive, opts = {}){
   const vid = document.getElementById('dreamVid');
   const wakeInRizerRoom = () => {
@@ -23050,6 +23177,30 @@ addEventListener('keydown', e => {
       }
       return;
     }
+    // ★★ v0.95.822 · A5 · SAPPHIRE VOLTSTORM · L2+R2+Square.
+    // MUST sit above the Astralslam (R2+Square) and Astralstrike (L2+Square)
+    // chords: three keys held is a MORE specific instruction than two, and a
+    // player who deliberately gripped both triggers meant the ultimate — a
+    // gate failure toasts the reason and swallows, it never falls through to
+    // a different attack they did not ask for.
+    if ((k === 'j' && keys['shift'] && keys['i']) ||
+        (k === 'i' && keys['shift'] && keys['j']) ||
+        (k === 'shift' && keys['i'] && keys['j'])){
+      const blockedV = settingsMenuOpen || zyrexMenuOpen || dialogState || battleState
+                    || game.expPanelOpen || game.tvPanelOpen || game.guitarPanelOpen
+                    || game.nebulaPanelOpen || game.bagPanelOpen || game.dockPanelOpen
+                    || game.posterViewOpen || _sleepFade || game.scene === 'title';
+      if (!blockedV){
+        const armed = !!player.voltstormUnlocked
+                   && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+        fireSapphireVoltstorm();
+        keys[k] = true;
+        // Only swallow once the move EXISTS for this player — before
+        // attunement (or in S2) the three-key grip stays meaningless and the
+        // two-key chords keep working exactly as they always have.
+        if (armed) return;
+      }
+    }
     // v0.95.394 · Astralslam · R2 + Square chord (was: Cross + Square)
     // R2 = 'i' · Square = 'j' · lands slam on faced enemy tile
     if ((k === 'j' && keys['i']) || (k === 'i' && keys['j'])){
@@ -24035,6 +24186,7 @@ function tryMove(dt){
   if (game.ultrashardPickerOpen)    freezeReasons.push('ultrashardPicker'); // v0.95.589
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
+  if (_voltstormPlaying)            freezeReasons.push('voltstormVideo'); // ★ v0.95.822 · A5 cutscene
   // v0.95.303 · Dev panel takes exclusive input · no player movement/action while it's open
   if (typeof isDevPanelOpen === 'function' && isDevPanelOpen()) freezeReasons.push('devPanel');
   // v0.95.410 · ZyPhone panel takes exclusive input · phone IS the game menu
@@ -32879,7 +33031,7 @@ function restoreLootedChests(){
   if (!ids.size) return 0;
   let n = 0;
   for (const p of WORLD_PROPS){
-    if (!p || !p._woodChest || !ids.has(p.id)) continue;
+    if (!p || !(p._woodChest || p._cosmicChest) || !ids.has(p.id)) continue;   // ★ v0.95.822 · + cosmic
     p.opened = true; p.looted = true;
     if (p._openImg)  p.img  = p._openImg;
     if (p._openBbox) p.bbox = p._openBbox;
@@ -32909,6 +33061,7 @@ function saveGame(){
         notebook: player.notebook || null,          // ★ v0.95.778 · Dad's Notebook · POI index + scrolls
 
         items: player.items || {},
+        voltstormUnlocked: !!player.voltstormUnlocked,   // ★ v0.95.822 · A5 attunement is forever
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
         knownRecipes: player.knownRecipes || [],   // v0.95 · discovered experiment recipes
         mainQuestStep: player.mainQuestStep || 0,  // v0.95.1 · main quest tracker index
@@ -36058,6 +36211,21 @@ function useZycubeItem(key){
     case 'raidcard': {
       zycubeRAIDViewerOpen = true;
       playSFX('menuOpen');
+      return;
+    }
+    // ★★ v0.95.822 · VOLTSHARD · consuming it attunes SAPPHIRE VOLTSTORM
+    // permanently.  A second shard has nothing left to teach — refused, not
+    // wasted.
+    case 'voltshard': {
+      if (qty <= 0){ showToast(`◈ No ${labelOf(key)} left`, 1600); playSFX('cancel'); return; }
+      if (player.voltstormUnlocked){
+        showToast('◈ Already attuned · the storm remembers you', 2200); playSFX('cancel'); return;
+      }
+      player.items[key] = qty - 1;
+      player.voltstormUnlocked = true;
+      try { playSFX('confirm'); } catch(_){}
+      showToast('⚡ SAPPHIRE VOLTSTORM ATTUNED · L2+R2+Square beside an enemy · full ◆ SPECIAL · S1', 5200);
+      try { saveGame(); } catch(_){}
       return;
     }
     // ★ v0.95.817 · stored Life Seeds eat from the cube · 25% max HP each

@@ -65,10 +65,15 @@ H('3 · ★★ EACH GEMLORD WEAPON SITS IN ITS OWN GEMLORD\'S DEEP FOREST');
   const spots=C.COSMIC_CHEST_SPOTS;
   ok(spots.length>=2,`${spots.length} cosmic chest spots declared`);
   const want={ vorashil:'sapphire_sword', malezor:'rubypaw_sword' };
+  // ★ v0.95.822 · looked up by ITEM, not district — Malezor now holds TWO
+  // cosmic chests (Rubypaw in the forest + the Voltshard at the tower plaza),
+  // so "the malezor chest" stopped being one thing.  The forest-density bar
+  // below is a rule about GEMLORD WEAPON chests only; the Voltshard's bar is
+  // the boss squad guarding it, asserted in its own section.
   for(const [dist,item] of Object.entries(want)){
-    const spot=spots.find(s=>s.dist===dist);
-    ok(!!spot&&spot.item===item,`${dist} holds ${item}`);
-    const chest=C.WORLD_PROPS.find(p=>p&&p._cosmicChest===dist);
+    const spot=spots.find(s=>s.item===item);
+    ok(!!spot&&spot.dist===dist,`${dist} holds ${item}`);
+    const chest=C.WORLD_PROPS.find(p=>p&&p.id===`chest_cosmic_${item}`);
     ok(!!chest,`  its chest prop exists in the world`);
     if(!chest) continue;
     ok(C.worldDistrictAt(chest.tileX,chest.tileY)===dist,
@@ -171,5 +176,20 @@ H('7 · ★ THE SWORD ICON IS ON DISK');
   ok(fs.existsSync(f)&&fs.statSync(f).size>5000,`sapphire-sword-icon.png (${(fs.statSync(f).size/1024|0)}KB)`);
 }
 
+
+H('4 · ★★ THE VOLTSHARD CHEST · guarded, not hidden');
+// The Gemlord weapons hide in deep forest; the first A5 relic instead sits in
+// the open at the Malezor tower plaza, INSIDE the boss squad's ring — its
+// price is the fight, not the search.
+{
+  const spot=C.COSMIC_CHEST_SPOTS.find(s=>s.item==='voltshard');
+  ok(!!spot&&spot.dist==='malezor',`the Voltshard is Malezor's`);
+  const chest=C.WORLD_PROPS.find(p=>p&&p.id==='chest_cosmic_voltshard');
+  ok(!!chest,'its chest prop exists in the world');
+  if(chest){
+    ok(C.worldDistrictAt(chest.tileX,chest.tileY)==='malezor',`standing in malezor at (${chest.tileX},${chest.tileY})`);
+    ok(Math.abs(chest.tileX-38)<=5&&Math.abs(chest.tileY-14)<=5,'★ within the tower plaza (tower at 38,14)');
+  }
+}
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));
 process.exit(fail?1:0);

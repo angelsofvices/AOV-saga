@@ -44,12 +44,22 @@ console.log(`     tileH          ${String(IV.tileH).padEnd(9)} ${RK.tileH}`);
 console.log(`     footprint      ${String(IV.footprint.length).padEnd(9)} ${RK.footprint.length}`);
 console.log(`     door           ${String(JSON.stringify(IV.door)).padEnd(9)} ${JSON.stringify(RK.door)}`);
 console.log(`     depthOffset    ${String(IV.depthOffset).padEnd(9)} ${RK.depthOffset}`);
-ok(IV.tileW===RK.tileW&&IV.tileH===RK.tileH,'same tile dimensions');
-ok(IV.footprint.length===RK.footprint.length,'same number of solid tiles');
+// ★ v0.95.832 · INVERTED.  "Rakoron geometry, exactly" was the v0.95.689
+// design and the Creator RETIRED it at v0.95.692/693: the nine later sheets
+// are squarer, so they draw at 90% of Rakoron's visible height (CAVE_TARGET_H
+// 8.49) with a 9-wide footprint (CAVE_HALF_W 4) against his 13.  "He stays
+// the biggest door in the game."  What must still match exactly: the door
+// offset, the depthOffset, and the STAIR-COLUMN footprint RULE — solid mass
+// minus one climbable column, which v0.95.832 re-affirmed for all ten
+// ("only the stair case tiles should be walkable up to the cave door").
+ok(IV.tileW<RK.tileW&&IV.tileH===RK.tileH,'ivirium draws NARROWER than Rakoron by design (90% rule)');
+ok(IV.footprint.length<RK.footprint.length,'…so it holds fewer solid tiles than his 13-wide mass');
 ok(JSON.stringify(IV.door)===JSON.stringify(RK.door),'same door offset');
 ok(IV.depthOffset===RK.depthOffset,'same depthOffset');
 const shape=a=>a.footprint.map(([x,y])=>`${x},${y}`).sort().join('|');
-ok(shape(IV)===shape(RK),'the footprint SHAPE is identical tile-for-tile');
+const ruleShape=(halfW)=>{const f=[];for(let dy=-10;dy<=0;dy++)for(let dx=-halfW;dx<=halfW;dx++){if(!(dy>=-3&&dx===0))f.push(`${dx},${dy}`);}return f.sort().join('|');};
+ok(shape(IV)===ruleShape(4),'★ the footprint IS the cave rule: solid mass minus the one stair column (halfW 4)');
+ok(shape(RK)===ruleShape(6),'★ and Rakoron holds the same RULE at his own width (halfW 6) — the v0.95.832 collision fix');
 
 console.log('\n3 · ★★ THE STAIR WORKS · one walkable column, like Rakoron\n');
 let climb=[];
@@ -72,7 +82,8 @@ const dw=IV.tileW*TILE, dh=dw*IV.bbox[3]/IV.bbox[2];
 const rw=RK.tileW*TILE, rh=rw*RK.bbox[3]/RK.bbox[2];
 console.log(`     ivirium  aspect ${(IV.bbox[2]/IV.bbox[3]).toFixed(3)}  drawn ${(dw/TILE).toFixed(2)} x ${(dh/TILE).toFixed(2)} tiles`);
 console.log(`     rakoron  aspect ${(RK.bbox[2]/RK.bbox[3]).toFixed(3)}  drawn ${(rw/TILE).toFixed(2)} x ${(rh/TILE).toFixed(2)} tiles`);
-ok(Math.abs(dw-rw)<1,'same drawn WIDTH as Rakoron — the dimension the footprint is built from');
+// ★ v0.95.832 · inverted with the 90% ruling · same-width was the retired design
+ok(dw<rw&&dw>rw*0.6,'drawn NARROWER than Rakoron (90% height on a squarer sheet) — by design, not drift');
 console.log('     (taller face is the art, not a scale error — the sheet is squarer)');
 
 console.log('\n5 · NOTHING ELSE IS THERE\n');

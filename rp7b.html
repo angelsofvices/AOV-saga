@@ -7546,6 +7546,41 @@ const DAEMON_SPRINT_BBOXES = [
   [[28,48,263,208],[38,48,252,208],[27,48,256,211],[20,48,267,213]],
   [[72,42,184,242],[60,42,177,245],[59,42,173,238],[58,41,159,239]],
 ];
+// ★★ v0.95.823 · DAEMON ATTACK · Creator: "daemon attack animation. they
+// attack after sprint. chromakey and scale daemon run attack and walk to the
+// same bounds."  Source arrived DOWN/LEFT/RIGHT/UP; re-banded (rows 0<->3
+// swapped) to the shared UP/LEFT/RIGHT/DOWN rowMap at keying time — same
+// contract as the sprint sheet, no runRowMap, no attackRowMap, ever.
+//
+// ★ THE SLASH IS NOT THE BODY.  The claw-arc VFX inflates the union bbox by
+// up to 100px (col 2's arc reaches x=-49, PAST the cell seam — overflow is
+// owned, never clipped).  So the daemon runs cellAnchor + per-bank
+// footBaselines ([[aov-sprite-vfx-anchoring]]): frames pin to the sheet cell
+// and plant on the BODY component's lowest pixel, so the body stands still
+// while the arc sweeps around it — the same fix that stopped the Seer Grunt's
+// attack lurch at v0.95.694.  Scale needs nothing: _downScale comes from the
+// walk bank's col-0 and every bank shares it, which IS "same bounds".
+const DAEMON_ATTACK_SRC = 'assets/2D%20sprites/enemies/daemon-attack.png';
+const DAEMON_ATTACK_IMG = new Image();
+DAEMON_ATTACK_IMG.src = DAEMON_ATTACK_SRC;
+const DAEMON_ATTACK_BBOXES = [
+  [[77,16,163,248],[23,14,245,250],[-49,20,294,243],[18,20,199,243]],
+  [[94,64,168,230],[48,65,172,228],[-13,65,267,229],[25,62,227,232]],
+  [[60,48,169,232],[27,46,284,234],[-10,45,256,235],[38,47,228,233]],
+  [[74,58,182,251],[43,56,193,254],[14,60,270,249],[35,60,224,249]],
+];
+const DAEMON_ATTACK_FEET = [
+  [263,263,262,262],[293,292,293,293],[279,279,279,279],[308,309,308,308],
+];
+// body-sole baselines for the other two banks · cellAnchor plants on these
+const DAEMON_WALK_FEET   = [
+  [257,266,262,266],[273,272,272,272],[278,279,278,278],[294,295,295,295],
+];
+const DAEMON_SPRINT_FEET = [
+  [276,276,276,276],[256,253,254,257],[255,255,258,260],[283,286,279,279],
+];
+const DAEMON_ATTACK_CYCLE_MS = 110;   // 4 cols x 110ms fills the 420ms strike window
+const DAEMON_PROWL_R = 16;            // ★ hunting band · walk-stalk toward prey 9-16 tiles out
 const NPCS = [
   // ── SPARRING POSTS · interior_training_farm · v0.95.709 ─────────────
   // Four posts along the top of the barn. X on one sets two of your Zyrex
@@ -11603,6 +11638,13 @@ const MORI_BBOXES = [
       bboxes: s.mode === 'daemon' ? DAEMON_WALK_BBOXES : MORI_BBOXES,
       runSheet:  s.mode === 'daemon' ? DAEMON_SPRINT_IMG    : undefined,
       runBboxes: s.mode === 'daemon' ? DAEMON_SPRINT_BBOXES : undefined,
+      attackSheet:  s.mode === 'daemon' ? DAEMON_ATTACK_IMG    : undefined,   // ★ v0.95.823
+      attackBboxes: s.mode === 'daemon' ? DAEMON_ATTACK_BBOXES : undefined,
+      attackFootBaselines: s.mode === 'daemon' ? DAEMON_ATTACK_FEET : undefined,
+      footBaselines:       s.mode === 'daemon' ? DAEMON_WALK_FEET   : undefined,
+      runFootBaselines:    s.mode === 'daemon' ? DAEMON_SPRINT_FEET : undefined,
+      cellAnchor:          s.mode === 'daemon' ? true : undefined,
+      attackCycleMs:       s.mode === 'daemon' ? DAEMON_ATTACK_CYCLE_MS : undefined,
       uniformScale: s.mode === 'daemon' ? true : undefined,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       tileX: s.x, tileY: s.y,
@@ -11681,6 +11723,14 @@ const MORI_BBOXES = [
       // ★ v0.95.821 · run bank · drawNPC's useRun swaps to it while _chasing
       runSheet:  s.mode === 'daemon' ? DAEMON_SPRINT_IMG    : undefined,
       runBboxes: s.mode === 'daemon' ? DAEMON_SPRINT_BBOXES : undefined,
+      // ★ v0.95.823 · attack bank + feet-anchored cellAnchor · slash ≠ body
+      attackSheet:  s.mode === 'daemon' ? DAEMON_ATTACK_IMG    : undefined,
+      attackBboxes: s.mode === 'daemon' ? DAEMON_ATTACK_BBOXES : undefined,
+      attackFootBaselines: s.mode === 'daemon' ? DAEMON_ATTACK_FEET : undefined,
+      footBaselines:       s.mode === 'daemon' ? DAEMON_WALK_FEET   : undefined,
+      runFootBaselines:    s.mode === 'daemon' ? DAEMON_SPRINT_FEET : undefined,
+      cellAnchor:          s.mode === 'daemon' ? true : undefined,
+      attackCycleMs:       s.mode === 'daemon' ? DAEMON_ATTACK_CYCLE_MS : undefined,
       uniformScale: s.mode === 'daemon' ? true : undefined,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       tileX: s.x, tileY: s.y,
@@ -12723,6 +12773,10 @@ function resurrectScrapjawTowerPack(){
       rowMap: { up:0, left:1, right:2, down:3 },
       bboxes: DAEMON_BBOXES_PERIM,
       runSheet: DAEMON_SPRINT_IMG, runBboxes: DAEMON_SPRINT_BBOXES,   // ★ v0.95.821
+      attackSheet: DAEMON_ATTACK_IMG, attackBboxes: DAEMON_ATTACK_BBOXES,   // ★ v0.95.823
+      attackFootBaselines: DAEMON_ATTACK_FEET,
+      footBaselines: DAEMON_WALK_FEET, runFootBaselines: DAEMON_SPRINT_FEET,
+      cellAnchor: true, attackCycleMs: DAEMON_ATTACK_CYCLE_MS,
       cellW: 313, cellH: 313, cols: 4, rows: 4,
       uniformScale: true,
       tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
@@ -40568,6 +40622,12 @@ function drawNPC(n){
     }
   }
   const col     = _attackCol >= 0            ? _attackCol
+                // ★ v0.95.823 · attackCycleMs · OPT-IN column walk for the
+                // generic attack bank.  Without it a non-moving striker holds
+                // idleFrame — the daemon would freeze on col 0 and the slash
+                // (col 2) would never show.  Opt-in so Seer Grunt + creeper
+                // strikes keep their exact shipped timing.
+                : (useAtk && n.attackCycleMs) ? Math.floor(performance.now() / n.attackCycleMs) % useCols
                 : useCompanion            ? Math.floor(performance.now() / (n.companionFrameMs || 200)) % useCols
                 : useWalk                 ? (n.animFrame % n.cols)
                 : n.moving                ? (n.animFrame % n.cols)
@@ -40853,6 +40913,26 @@ function tickNPC(n, dt){
     // the AI is doing can never disagree: walking means patrolling, running
     // means you have been seen.
     n._chasing = (manh <= detectR);
+    // ★★ v0.95.823 · THE PROWL · Creator: "make sure the walk cycle is
+    // logic. hunting. preying."  A daemon that flips from aimless wander to
+    // full sprint the frame you cross one line reads as a switch, not a
+    // predator.  So 9-16 tiles out it STALKS: a slow, deliberate walk toward
+    // you on the WALK sheet (_chasing stays false — the run bank means "it
+    // has committed"), one step every 340ms with a small pause beat.  Cross
+    // 8 and it sprints; reach 1 and the claws come out.  The ladder:
+    //   >16 wander · 9-16 prowl · <=8 sprint · 1 strike.
+    if (isDaemon && manh > detectR && manh <= DAEMON_PROWL_R){
+      let pdir;
+      if (Math.abs(dxp) >= Math.abs(dyp)) pdir = dxp > 0 ? 'right' : 'left';
+      else                                pdir = dyp > 0 ? 'down'  : 'up';
+      const pv = _DIR_VEC[pdir];
+      if (stepNPCTo(n, n.tileX + pv.dx, n.tileY + pv.dy, pdir)){
+        n.moveCd = 340 + Math.random() * 160;   // stalking gait · unhurried, inevitable
+      } else {
+        n.dir = pdir; n.moving = false; n.moveCd = 520;   // blocked · stand and stare
+      }
+      return;
+    }
     // Out of detection range → fall back to wander step
     if (manh > detectR){
       // wander step (bounded by wanderRadius if defined) — same code path as default

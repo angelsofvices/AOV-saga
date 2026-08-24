@@ -56,7 +56,9 @@ H('3 · ★★ ROW ORDER MATCHES THE WALK rowMap · one map serves both banks');
   // The asset was re-banded to UP/LEFT/RIGHT/DOWN at keying time.  If a
   // runRowMap ever appears, someone has broken this contract — the fix is to
   // re-band the asset, not to fork the map.
-  ok(!/runRowMap/.test(src),'★ no runRowMap anywhere — the shared rowMap is the contract');
+  // ★ v0.95.823 · match CODE, not the attack-bank comment that now QUOTES the
+  // contract ("no runRowMap, no attackRowMap, ever")
+  ok(!/[.\[]\s*runRowMap|runRowMap\s*:/.test(src),'★ no runRowMap anywhere — the shared rowMap is the contract');
   ok(/rowMap:\s*s\.mode === 'daemon' \? \{ up:0, left:1, right:2, down:3 \}/.test(src)
    ||/rowMap: s\.mode === 'daemon' \? \{ up:0, left:1, right:2, down:3 \}/.test(src),
      'corridor daemons still carry the UP/LEFT/RIGHT/DOWN map');

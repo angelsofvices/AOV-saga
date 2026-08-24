@@ -19,6 +19,7 @@ catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
 const H=t=>console.log('\n'+t);
+const FS=require('fs');
 const ROOT='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
 
 H('1 · ★ THE CUTSCENE SHIPS');
@@ -36,7 +37,8 @@ H('2 · ★★ THE VOLTSHARD · chest → bag → ZyCube attunement');
   ok(spot && spot.dist==='malezor' && spot.at[0]===41 && spot.at[1]===16,'★ Malezor tower plaza (41,16) · inside the boss guard ring');
   const ids=C.WORLD_PROPS.filter(p=>p&&p._cosmicChest).map(p=>p.id);
   ok(new Set(ids).size===ids.length && ids.length===C.COSMIC_CHEST_SPOTS.length,`★ ${ids.length} cosmic chests · every id unique (item-keyed, two now share Malezor)`);
-  ok(C.WEAPON_DROP_ART.voltshard && /gem-yellow/.test(C.WEAPON_DROP_ART.voltshard.src),'drop art wired (yellow gem placeholder until the real render)');
+  ok(C.WEAPON_DROP_ART.voltshard && /decor\/voltshard\.png/.test(C.WEAPON_DROP_ART.voltshard.src),'★ v0.95.830 · the REAL Voltshard render is wired (placeholder retired)');
+  ok(FS.existsSync(ROOT+'assets/2D sprites/decor/voltshard.png')&&FS.statSync(ROOT+'assets/2D sprites/decor/voltshard.png').size>50000,'…and on disk, keyed');
   ok(C.INVENTORY_META.voltshard && C.INVENTORY_META.voltshard.label==='Voltshard','named in the bag');
   // _armWeapon must not arm a relic
   const snap=JSON.stringify([C.player.swordBroken,C.player.axeBroken,C.player.bowBroken,C.player.rubypawBroken]);

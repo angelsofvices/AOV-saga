@@ -38699,8 +38699,11 @@ const MALEZOR_WILD_FIXED = [
   // pinned spawns don't care about district, same as Voltaryn).  Level 50 by
   // the tier x 10 law · Calm never flees · the standard T5 bond bar (50%)
   // decides when he comes with you.
+  // ★ v0.95.829 · graze 5 → 7 · "more walking distance between stopping to
+  // eat" — a wider patch so his 2-4 tile walk legs are not clipped short by
+  // the fence they roam inside.
   { id: 'apexaur', at: [71, 231], note: 'grazing the Zarvane flats',
-    temperament: 'Calm', graze: 5 },
+    temperament: 'Calm', graze: 7 },
 ];
 const _malezorWildPlaced = [];
 function _wildTileNear(cx, cy, r){
@@ -40249,27 +40252,71 @@ function drawWorldLayer(){
     renderables.push({ kind:'boulder', boulder:b, footY: b.tileY });
   });
   // v0.95.636 · wild Zyrex orbs join the depth sort so Rizer can walk behind them
-  // ★ v0.95.818 · GRAZING.  A wild flagged _graze drifts one lazy tile every
-  // few seconds inside its home radius — reads as an animal working a meadow,
-  // not a sentry on post.  It never steps onto collision, other actors, or
-  // outside its patch, and it pauses while Rizer is close (it noticed you).
+  // ★ v0.95.818 · GRAZING.  A wild flagged _graze works its meadow inside a
+  // home radius, never stepping onto collision, other actors, or outside its
+  // patch, and pausing while Rizer is close (it noticed you).
+  //
+  // ★★ v0.95.829 · WALK-THEN-EAT.  Creator: "give him more walking distance
+  // between stopping to eat bushes."  The old drift was one hop every few
+  // seconds — a twitch, not a graze.  Now it is a rhythm with two legs:
+  //   EAT   · stand at a bush 4-8 seconds, head down;
+  //   WALK  · pick a spot 2-4 tiles away and actually WALK there, one step
+  //           every ~400ms, then drop the head again.
+  // Distance between meals is the walk leg; the pause between meals is the
+  // eat leg.  Every step keeps the v0.95.818 legality checks, and both legs
+  // freeze while Rizer is within 4 tiles.
   const _gNow = performance.now();
+  const _grazeStepOk = (w, nx, ny) => {
+    if (Math.abs(nx - w._grazeHome[0]) + Math.abs(ny - w._grazeHome[1]) > w._grazeR) return false;
+    if (_propBlocked.has(`${nx},${ny}`)) return false;
+    if (player.x === nx && player.y === ny) return false;
+    if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === nx && n.tileY === ny)) return false;
+    if (WILD_ZYREX.some(o => o !== w && !o._gone && o.tileX === nx && o.tileY === ny)) return false;
+    return true;
+  };
   for (const w of WILD_ZYREX){
     if (w._gone) continue;
-    if (w._graze && game.scene === 'overworld' && (!w._grazeNext || _gNow > w._grazeNext)){
-      w._grazeNext = _gNow + 2600 + Math.random() * 3200;
+    if (w._graze && game.scene === 'overworld'){
       const nearRizer = Math.abs(player.x - w.tileX) + Math.abs(player.y - w.tileY) <= 4;
-      if (!nearRizer){
-        const dirs = [[1,0],[-1,0],[0,1],[0,-1]].sort(() => Math.random() - 0.5);
-        for (const [dx, dy] of dirs){
-          const nx = w.tileX + dx, ny = w.tileY + dy;
-          if (Math.abs(nx - w._grazeHome[0]) + Math.abs(ny - w._grazeHome[1]) > w._grazeR) continue;
-          if (_propBlocked.has(`${nx},${ny}`)) continue;
-          if (player.x === nx && player.y === ny) continue;
-          if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === nx && n.tileY === ny)) continue;
-          if (WILD_ZYREX.some(o => o !== w && !o._gone && o.tileX === nx && o.tileY === ny)) continue;
-          w.tileX = nx; w.tileY = ny;
-          break;
+      if (w._grazeTarget){
+        // WALK leg · one step toward the next bite every ~400ms
+        if (!nearRizer && _gNow > (w._grazeStepNext || 0)){
+          w._grazeStepNext = _gNow + 340 + Math.random() * 140;
+          const tdx = w._grazeTarget[0] - w.tileX, tdy = w._grazeTarget[1] - w.tileY;
+          if (tdx === 0 && tdy === 0){
+            w._grazeTarget = null;                                   // arrived · head down
+            w._grazeNext = _gNow + 4000 + Math.random() * 4000;      // EAT · 4-8s
+          } else {
+            // prefer the longer axis · fall to the other if blocked
+            const first  = Math.abs(tdx) >= Math.abs(tdy) ? [Math.sign(tdx), 0] : [0, Math.sign(tdy)];
+            const second = Math.abs(tdx) >= Math.abs(tdy) ? [0, Math.sign(tdy)] : [Math.sign(tdx), 0];
+            let stepped = false;
+            for (const [dx, dy] of [first, second]){
+              if (!dx && !dy) continue;
+              const nx = w.tileX + dx, ny = w.tileY + dy;
+              if (_grazeStepOk(w, nx, ny)){ w.tileX = nx; w.tileY = ny; stepped = true; break; }
+            }
+            if (!stepped){                                           // hemmed in · eat here
+              w._grazeTarget = null;
+              w._grazeNext = _gNow + 4000 + Math.random() * 4000;
+            }
+          }
+        }
+      } else if (!w._grazeNext || _gNow > w._grazeNext){
+        // done eating · pick the next bush 2-4 tiles out and start walking
+        w._grazeNext = _gNow + 1200;                                 // retry beat if no spot found
+        if (!nearRizer){
+          for (let tries = 0; tries < 8; tries++){
+            const a = Math.random() * Math.PI * 2;
+            const d = 2 + Math.random() * 2;                         // 2-4 tiles per leg
+            const tx = Math.round(w.tileX + Math.cos(a) * d);
+            const ty = Math.round(w.tileY + Math.sin(a) * d);
+            if (Math.abs(tx - w._grazeHome[0]) + Math.abs(ty - w._grazeHome[1]) > w._grazeR) continue;
+            if (Math.abs(tx - w.tileX) + Math.abs(ty - w.tileY) < 2) continue;   // a real walk, not a shuffle
+            w._grazeTarget = [tx, ty];
+            w._grazeStepNext = 0;
+            break;
+          }
         }
       }
     }

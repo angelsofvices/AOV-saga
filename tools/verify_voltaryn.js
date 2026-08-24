@@ -56,9 +56,14 @@ H('2 · ★★ HE GRAZES · A MEADOW ANIMAL, NOT A SENTRY');
   ok(v._grazeHome[0]===15&&v._grazeHome[1]===214&&v._grazeR===5,'within 5 tiles of home');
   // drive the drift · park the player far away and run the graze beats
   C.game.scene='overworld'; C.player.x=100; C.player.y=100;
-  const g=src.slice(src.indexOf('★ v0.95.818 · GRAZING'), src.indexOf('★ v0.95.818 · GRAZING')+1700);
-  ok(/Math\.abs\(nx - w\._grazeHome\[0\]\) \+ Math\.abs\(ny - w\._grazeHome\[1\]\) > w\._grazeR\) continue/.test(g),
+  // ★ v0.95.829 · the fence moved into _grazeStepOk when the drift became
+  // walk-then-eat — every STEP consults it, and the target picker checks the
+  // fence again before a leg even starts.  Window widened to cover both.
+  const g=src.slice(src.indexOf('★ v0.95.818 · GRAZING'), src.indexOf('★ v0.95.818 · GRAZING')+4200);
+  ok(/_grazeStepOk = \(w, nx, ny\)[\s\S]{0,200}Math\.abs\(nx - w\._grazeHome\[0\]\) \+ Math\.abs\(ny - w\._grazeHome\[1\]\) > w\._grazeR\) return false/.test(g),
      '★ every step is checked against the home radius — he can never wander off his meadow');
+  ok(/Math\.abs\(tx - w\._grazeHome\[0\]\) \+ Math\.abs\(ty - w\._grazeHome\[1\]\) > w\._grazeR\) continue/.test(g),
+     '…and the walk TARGET is fenced too, before a leg even starts');
   ok(/_propBlocked\.has/.test(g)&&/player\.x === nx/.test(g),'never onto collision or the player');
   ok(/nearRizer/.test(g)&&/<= 4/.test(g),'★ and he PAUSES when Rizer is within 4 tiles — he noticed you');
 }
@@ -162,5 +167,18 @@ H('6 · ★★ ELZORAN AT THE STATUE · SILENCE IS THE GATE');
   P.devBondFloor=0; P.party=[];
 }
 
+
+console.log('\n★ v0.95.829 · WALK-THEN-EAT · distance between meals');
+{
+  ok(/WALK-THEN-EAT/.test(src),'the graze rhythm exists');
+  const g=src.slice(src.indexOf('WALK-THEN-EAT'),src.indexOf('WALK-THEN-EAT')+3600);
+  ok(/w\._grazeTarget/.test(g)&&/2 \+ Math\.random\(\) \* 2/.test(g),'★ each leg WALKS 2-4 tiles to the next bush');
+  ok(/340 \+ Math\.random\(\) \* 140/.test(g),'walking cadence ~400ms/step · reads as walking, not teleport-hops');
+  ok(/4000 \+ Math\.random\(\) \* 4000/.test(g),'★ then EATS 4-8s with its head down');
+  ok(/< 2\) continue;/.test(g),'a leg under 2 tiles is rejected — a real walk, not a shuffle');
+  ok(/nearRizer/.test(g),'both legs still freeze while Rizer is within 4 tiles');
+  ok(/_grazeStepOk/.test(g),'every step keeps the full legality checks (collision/actors/patch fence)');
+  ok(/graze: 7/.test(src),'★ Apexaur\'s patch widened 5 → 7 so the legs are not clipped by the fence');
+}
 console.log('\n'+(fail?`❌ ${fail} CHECK(S) FAILED`:'✅ ALL CHECKS PASS'));
 process.exit(fail?1:0);

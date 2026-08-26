@@ -980,6 +980,11 @@
     <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:480px; max-height:70vh; overflow:auto; background:rgba(10,14,22,0.98); border:2px solid #d4af37; padding:20px; font-family:'Courier New',monospace; color:#f0eadf;">
       <div style="color:#ffd66b; font-size:18px; font-weight:bold; letter-spacing:0.12em; margin-bottom:6px;">◈ EXPERIMENT TABLE</div>
       <div style="color:#8ff; font-size:11px; letter-spacing:0.06em; margin-bottom:14px;">Craft consumables · temporary + permanent stat boosts</div>
+      <div style="display:flex; gap:7px; margin-bottom:9px;">
+        <button id="expTabRecipes" style="flex:1; padding:8px; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:pointer;">RECIPES</button>
+        <button id="expTabMatrix" style="flex:1; padding:8px; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:pointer;">◇ ASTRALITE MATRIX</button>
+      </div>
+      <button id="expMatrixReference" style="width:100%; margin:0 0 14px; padding:6px 10px; background:rgba(126,72,210,.12); color:#d8b6ff; border:1px solid #7e48d2; font:bold 10px 'Courier New',monospace; letter-spacing:.08em; cursor:pointer;">OPEN DAD'S MATRIX REFERENCE PAGE</button>
       <div id="expRecipeList" style="font-size:13px; line-height:1.6;"></div>
       <div style="margin-top:16px; text-align:right; font-size:11px; color:#8ff;">press ○ / B to close</div>
     </div>
@@ -2599,6 +2604,51 @@ const INVENTORY_META = {
   gem_purple:       { label: 'Purple Gem',         order: 106 },
   gem_black:        { label: 'Black Gem',          order: 107 },
 };
+
+// Dad's Astralite Matrix · 9 families × 7 energy expressions.
+// These are real bag items: Astralite stones in the overworld yield them and
+// the Experiment Table consumes them. Keys are coordinate-stable so saves do
+// not depend on display names changing later.
+const ASTRALITE_FAMILIES = Object.freeze([
+  {id:1,name:'CREATION',role:'SPARK',color:'#ffd66b',items:[['Ax-1','Aethryx Prime'],['Gn','Genesis Core'],['Cr','Creatrix'],['Em','Embryonix'],['St','Stellarion'],['Ph','Primordial Hollow'],['Ex','Ex Nihilo Shard']]},
+  {id:2,name:'PAST',role:'RECORD',color:'#bc83ff',items:[['Ax-2','Mnemosyne Aethra'],['Rc','Recallite'],['Ec','Echo Crystal'],['Tr','Time Residue'],['Il','Illuminor'],['Pz','Phasedust'],['Om','Omnicrecord']]},
+  {id:3,name:'DESTRUCTION',role:'RELEASE',color:'#ff6848',items:[['Ax-3','Pyroclast Aethra'],['Ig','Ignis Core'],['Dn','Detonite'],['Ru','Ruin Shard'],['Af','Abyssal Flare'],['Rs','Riftstone'],['Oh','Oblivion Heart']]},
+  {id:4,name:'MIND',role:'THINK',color:'#65e3ff',items:[['Ax-4','Cognara'],['Mg','Mindglass'],['Nl','Neuralite'],['Pc','Psycore'],['Tb','Thought Bind'],['Iv','Idea Veil'],['Ao','Auramind Core']]},
+  {id:5,name:'PRESENT',role:'BALANCE',color:'#68ef91',items:[['Ax-5','Viridion Prime'],['Eq','Equilibris'],['Cf','Coreflux'],['Vb','Vitae Balance'],['Tc','True Balance Crystal'],['Wr','Worldroot'],['Pv','Primordial Verdant']]},
+  {id:6,name:'PRESERVATION',role:'ENDURE',color:'#ffc85c',items:[['Ax-6','Fortaris'],['Sh','Stoneheart'],['An','Anchorite'],['Bc','Bastion Core'],['Vs','Vital Shell'],['Pr','Protectionite'],['Ic','Imperisis Core']]},
+  {id:7,name:'BODY',role:'FORM',color:'#ff79ae',items:[['Ax-7','Corporex'],['Fs','Fleshstone'],['Dc','Density Core'],['Gv','Gravite'],['Dx','Durexion'],['Hd','Hardetite'],['Px','Phoenix Shell']]},
+  {id:8,name:'FUTURE',role:'BUILD',color:'#72bfff',items:[['Ax-8','Synthara'],['Me','Mechite'],['Gr','Gridstone'],['Dc','Datacore'],['Ps','Protostar Core'],['Nc','Nexus Chip'],['Sx','Synapse Prime']]},
+  {id:9,name:'SPIRIT',role:'TRANSCEND',color:'#d796ff',items:[['Ax-9','Astryx Soul'],['Sp','Spirit Gem'],['Ec','Ethereal Core'],['Sf','Soulfract'],['Tc','Transcendent'],['LS','Luminal Soul'],['Ah','Astral Heart']]},
+].map(f=>Object.freeze({...f,items:Object.freeze(f.items.map((v,i)=>Object.freeze({key:`astralite_${f.id}_${i+1}`,symbol:v[0],name:v[1],energy:i+1,family:f.id})))})));
+const ASTRALITE_COMPOUNDS = Object.freeze({
+  '1+2':{key:'compound_potential',name:'Potential Compound',label:'POTENTIAL'},
+  '3+6':{key:'compound_transformation',name:'Transformation Compound',label:'TRANSFORMATION'},
+  '4+7':{key:'compound_will',name:'Will Compound',label:'WILL'},
+  '5+9':{key:'compound_ascension',name:'Ascension Compound',label:'ASCENSION'},
+  '5+8':{key:'compound_innovation',name:'Innovation Compound',label:'INNOVATION'},
+});
+for(const family of ASTRALITE_FAMILIES){
+  for(const item of family.items){
+    INVENTORY_META[item.key]={label:`${item.symbol} · ${item.name}`,order:300+family.id*10+item.energy};
+  }
+}
+for(const recipe of Object.values(ASTRALITE_COMPOUNDS)){
+  INVENTORY_META[recipe.key]={label:recipe.name,order:400};
+}
+function astraliteItemByKey(key){
+  for(const family of ASTRALITE_FAMILIES){
+    const item=family.items.find(x=>x.key===key);
+    if(item)return {...item,familyName:family.name,color:family.color,role:family.role};
+  }
+  return null;
+}
+function resolveAstraliteCompound(a,b){
+  if(!a||!b)return null;
+  const ai=astraliteItemByKey(a),bi=astraliteItemByKey(b);
+  if(!ai||!bi)return null;
+  const pair=[ai.family,bi.family].sort((x,y)=>x-y).join('+');
+  return ASTRALITE_COMPOUNDS[pair]||null;
+}
 
 // Diamond Gem scale · every step doubles from the 10-point yellow baseline.
 // A gem never overfills the 100-point Diamond meter; surplus simply caps out.
@@ -8109,7 +8159,11 @@ const NPCS = [
       // Dad takes them in BAND-SIZED lots, not one at a time: the ladder is
       // written in twenties, so accepting nineteen and saying nothing would
       // leave the player unable to tell whether it had worked.
-      {
+      // Dad's portal work is a later progression phase.  The complete first
+      // bond loop (gather tribute -> turn it in -> choose a starter) always
+      // owns his dialogue until it is finished, even if Rizer already found
+      // Portal Chips while exploring or fighting Scanobots.
+      if (player.dadStarterQuestComplete && player.starterChosen){
         const held = player.items.portal_chip || 0;
         const tier = portalNextTier();
         if (tier && held > 0){
@@ -10737,17 +10791,11 @@ const NPCS = [
         // v0.95.481 · KELTHOR'S 8-STEP LADDER · fully Malezor-completable · step 8
         // branches into Zarvane.  Every step verifies against real game systems ·
         // no dead-end counters that were never wired.
-        //   1 First Meeting · Lv 1 · talk
-        //   2 Feed the Ward · Lv 3 · 5 berries + 5 seeds (Malezor wild)
-        //   3 First Bond    · Lv 5 · own a Zyrex (Dad starter)
-        //   4 Home Rank     · Lv 8 · backpack + skateboard + phone all in bag
-        //   5 Signal Restored · Lv 12 · Scrapjaw Radio Tower quest complete
-        //   6 Vilerok Purge · Lv 18 · all 5 Malezor Vileroks defeated
-        //   7 Rakoron Path  · Lv 25 · met Rakoron in the NW cave
-        //   8 Cross to Zarvane · Lv 30 · enter Zarvane · PRISMSHARD + Master Bonder
+        // Every step unlocks through discovery, plot, or demonstrated field
+        // progress. Rizer Level never gates a quest; levels grant 33.3 AP each
+        // so players can build for the increasingly hard encounters they find.
         player.kelthorStep = player.kelthorStep || {};
         const KS = player.kelthorStep;
-        const RL = player.rizerLvl || 1;
         const bumpBond = (n) => { player.bonds = player.bonds || {}; player.bonds.kelthor = Math.min(100, (player.bonds.kelthor||0) + n); };
         const owns = (k) => (player.items && (player.items[k]||0) > 0);
         // ── Step 1 · First Meeting ──
@@ -10761,13 +10809,12 @@ const NPCS = [
             "Ah.  The young Rizer at last.  I've watched a hundred cycles of your kind climb this hall.",
             "Malezor is your foundation.  Every district you conquer builds on what I teach you here.",
             "Eight steps.  One ladder.  Reach the top and I place a Prismshard in your palm.",
-            "Come back when Lv 3 · bring 5 berries + 5 seeds from Malezor's wild grass · Feed the Ward.",
+            "Bring 5 berries + 5 seeds from Malezor's wild grass · Feed the Ward.",
           ]});
           return;
         }
-        // ── Step 2 · Feed the Ward · Lv 3 · 5 berries + 5 seeds (Malezor wild) ──
+        // ── Step 2 · Feed the Ward · 5 berries + 5 seeds (Malezor wild) ──
         if (!KS.s2){
-          if (RL < 3){ showDialog({ speaker: 'KELTHOR', lines: [`Grow first · Lv 3 needed (you are Lv ${RL}).`]}); return; }
           const b = player.items?.berry || 0, s = player.items?.seed || 0;
           if (b < 5 || s < 5){
             showDialog({ speaker: 'KELTHOR', lines: [`Not yet · need 5 berries (${b}/5) and 5 seeds (${s}/5).  Harvest from Malezor's wild grass.`]});
@@ -10780,13 +10827,12 @@ const NPCS = [
           showDialog({ speaker: 'KELTHOR', lines: [
             "*takes the berries and seeds · the old wards stir hungrily in the sanctum*",
             "A Rizer who feeds his kin is a Rizer worth training.",
-            "Step 3 waits at Lv 5 · return to Dad's science desk and take your first Zyrex.",
+            "Step 3 waits at Dad's science desk · take your first Zyrex, then return.",
           ]});
           return;
         }
-        // ── Step 3 · First Bond · Lv 5 · own a Zyrex ──
+        // ── Step 3 · First Bond · own a Zyrex ──
         if (!KS.s3){
-          if (RL < 5){ showDialog({ speaker: 'KELTHOR', lines: [`Lv 5 first · you are Lv ${RL}.`]}); return; }
           const anyZ = (player.party || []).some(z => z);
           if (!anyZ){
             showDialog({ speaker: 'KELTHOR', lines: [`Return to Dad's science desk · pick your starter Zyrex · then come back.`]});
@@ -10799,13 +10845,12 @@ const NPCS = [
             "*bows his head to your Zyrex · they mirror it in return*",
             "A Rizer without a Zyrex is a Rizer without a name.  Now you have both.",
             "Bond Regeneration is yours · your party's bond ticks up passively when you rest.",
-            "Step 4 at Lv 8 · come back with your Backpack, Skateboard, and ZyPhone all in your bag.",
+            "Step 4 · come back with your Backpack, Skateboard, and ZyPhone all in your bag.",
           ]});
           return;
         }
-        // ── Step 4 · Home Rank · Lv 8 · backpack + skateboard + phone ──
+        // ── Step 4 · Home Rank · backpack + skateboard + phone ──
         if (!KS.s4){
-          if (RL < 8){ showDialog({ speaker: 'KELTHOR', lines: [`Lv 8 first · you are Lv ${RL}.`]}); return; }
           const missing = [];
           if (!player.hasBackpack)      missing.push('Backpack');
           if (!owns('skateboard'))      missing.push('Skateboard');
@@ -10819,13 +10864,12 @@ const NPCS = [
           showToast('★ Step 4 · Home Rank · +2000 RXP · +1 Bond', 3000);
           showDialog({ speaker: 'KELTHOR', lines: [
             "Backpack.  Board.  Phone.  A Rizer prepared is a Rizer respected.",
-            "Step 5 at Lv 12 · Scrapjaw has a radio tower rotting up north.  Restore his signal.",
+            "Step 5 · Scrapjaw has a radio tower rotting up north.  Restore his signal.",
           ]});
           return;
         }
-        // ── Step 5 · Signal Restored · Lv 12 · Scrapjaw tower done ──
+        // ── Step 5 · Signal Restored · Scrapjaw tower done ──
         if (!KS.s5){
-          if (RL < 12){ showDialog({ speaker: 'KELTHOR', lines: [`Lv 12 first · you are Lv ${RL}.`]}); return; }
           if (!player.radioTowerFixed){
             // v0.95.490 · Radio Tower quest = scrap-metal fetch (main) · Kelthor waits on Scrapjaw's signal restoration
             showDialog({ speaker: 'KELTHOR', lines: [`Scrapjaw's Radio Tower still down · fetch the SCRAP METAL from the chest at the tower base · bring it to him for the Phone Battery.`]});
@@ -10836,13 +10880,12 @@ const NPCS = [
           showToast('★ Step 5 · Signal Restored · +3500 RXP · +1 Bond', 3200);
           showDialog({ speaker: 'KELTHOR', lines: [
             "The tower hums again · every Warden across the district can hear it.",
-            "Step 6 at Lv 18 · Malezor has five Vileroks I need cleared.  Hunt them all down.",
+            "Step 6 · Malezor has five Vileroks I need cleared.  Hunt them all down.",
           ]});
           return;
         }
-        // ── Step 6 · Vilerok Purge · Lv 18 · 5 Malezor Vileroks (existing counter) ──
+        // ── Step 6 · Vilerok Purge · 5 Malezor Vileroks (existing counter) ──
         if (!KS.s6){
-          if (RL < 18){ showDialog({ speaker: 'KELTHOR', lines: [`Lv 18 first · you are Lv ${RL}.`]}); return; }
           const vk = player.vilerokKills || 0;
           if (vk < 5){
             showDialog({ speaker: 'KELTHOR', lines: [`Vilerok Purge · ${vk}/5 down.  NW corridor, NE tower, central stem, SE outskirts, SW wild arm.`]});
@@ -10854,17 +10897,16 @@ const NPCS = [
           showDialog({ speaker: 'KELTHOR', lines: [
             "All five Vileroks gone.  Malezor breathes easier tonight.",
             "Your Astralstrike is refined · A3 damage +40% permanent.",
-            "Step 7 at Lv 25 · climb the NW path to Rakoron's Cave.  Find the entrance · that is the whole step.",
+            "Step 7 · climb the NW path to Rakoron's Cave.  Find the entrance · that is the whole step.",
           ]});
           return;
         }
-        // ── Step 7 · Rakoron Path · Lv 25 · FIND the cave entrance ──
+        // ── Step 7 · Rakoron Path · FIND the cave entrance ──
         // v0.95.532 · Reworked · used to require meeting Rakoron himself which
         // triggered a Gemlord bond too early.  Now the step completes on cave
         // DISCOVERY (rakoronCaveFound proximity flag) · the trail also puts
         // Elzoran + Zoryn in the player's path.
         if (!KS.s7){
-          if (RL < 25){ showDialog({ speaker: 'KELTHOR', lines: [`Lv 25 first · you are Lv ${RL}.`]}); return; }
           if (!player.rakoronCaveFound){
             showDialog({ speaker: 'KELTHOR', lines: [`Climb NW · the cave sits at the top of the district.  Find its entrance · Elzoran + Zoryn keep watch on the path.  You are NOT ready to face Rakoron himself yet · Gemlord bonds unlock at Korathen.`]});
             return;
@@ -10876,13 +10918,12 @@ const NPCS = [
             "You climbed to Rakoron's threshold.  Few Rizers your age even find the path.",
             "Elzoran + Zoryn on the way — remember their faces.  You'll cross them again.",
             "Prismsynch move slot opens on your active Zyrex · one Prism-locked strike per battle.",
-            "Step 8 at Lv 30 · cross south into Zarvane and fish me 3 Soulphish from the Oasis.  Consider it your bridge to the next Warden.",
+            "Step 8 · cross south into Zarvane and fish me 3 Soulphish from the Oasis.  Consider it your bridge to the next Warden.",
           ]});
           return;
         }
-        // ── Step 8 · Zarvane Bridge · Lv 30 · 3 Soulphish from Zarvane Oasis ──
+        // ── Step 8 · Zarvane Bridge · 3 Soulphish from Zarvane Oasis ──
         if (!KS.s8){
-          if (RL < 30){ showDialog({ speaker: 'KELTHOR', lines: [`Lv 30 first · you are Lv ${RL}.`]}); return; }
           const sp = player.items?.soulphish || 0;
           if (sp < 3){
             showDialog({ speaker: 'KELTHOR', lines: [
@@ -11063,15 +11104,13 @@ const MORI_BBOXES = [
       { x: 88, y: 175, dir: 'down',  r: 6 },
       { x: 98, y: 180, dir: 'right', r: 6 },
       { x:112, y: 178, dir: 'left',  r: 6 },
-      // ── v0.95.643 · MALEZOR DENSITY PASS 2 · 12 camps, 42 spawns ──
+      // ── MALEZOR OUTER DENSITY · 7 camps, 26 spawns ──
       // Placed by scoring every clear tile on VEGETATION density, distance from
       // existing spawns, and town proximity.  Anchored in heavy tree/grass, kept
-      // out of the town core but allowed to ENCROACH on its edge — the mainland
-      // should feel like the Mori are coming soon.  Fills the rows 120-139 band
-      // which previously held ZERO enemies, and thickens rows 60-119.
-      { x: 17, y:122, dir:'up', r: 6 },
-      { x: 13, y:123, dir:'down', r: 6 },
-      { x: 15, y:124, dir:'up', r: 6 },
+      // out of the town core.  The former inner camps at rows 82, 92, 98,
+      // 120, and 122 were removed for the traversal/interaction tutorial:
+      // home → Kelthor → school stays readable before combat is taught.
+      // Outer Malezor and the eastern wild arm retain their full threat bands.
       { x: 21, y:182, dir:'up', r: 7 },
       { x: 17, y:183, dir:'down', r: 7 },
       { x: 19, y:184, dir:'up', r: 7 },
@@ -11083,13 +11122,6 @@ const MORI_BBOXES = [
       { x: 35, y:152, dir:'up', r: 6 },
       { x: 36, y:148, dir:'down', r: 6 },
       { x: 34, y:149, dir:'up', r: 6 },
-      { x:  7, y: 98, dir:'left', r: 7 },
-      { x:  3, y: 99, dir:'right', r: 7 },
-      { x:  6, y: 96, dir:'right', r: 7 },
-      { x: 43, y:120, dir:'up', r: 8 },
-      { x: 39, y:121, dir:'down', r: 8 },
-      { x: 41, y:122, dir:'up', r: 8 },
-      { x: 40, y:119, dir:'up', r: 8 },
       { x: 17, y: 68, dir:'left', r: 6 },
       { x: 13, y: 69, dir:'right', r: 6 },
       { x: 15, y: 70, dir:'left', r: 6 },
@@ -11097,16 +11129,10 @@ const MORI_BBOXES = [
       { x: 37, y: 77, dir:'right', r: 7 },
       { x: 39, y: 78, dir:'left', r: 7 },
       { x: 38, y: 75, dir:'left', r: 7 },
-      { x: 25, y: 82, dir:'up', r: 8 },
-      { x: 21, y: 83, dir:'down', r: 8 },
-      { x: 23, y: 84, dir:'up', r: 8 },
       { x: 11, y:166, dir:'left', r: 6 },
       { x:  7, y:167, dir:'right', r: 6 },
       { x:  9, y:168, dir:'left', r: 6 },
       { x: 10, y:164, dir:'right', r: 6 },
-      { x: 41, y: 92, dir:'left', r: 7 },
-      { x: 37, y: 93, dir:'right', r: 7 },
-      { x: 39, y: 94, dir:'left', r: 7 },
       { x: 15, y:  8, dir:'up', r: 8 },
       { x: 11, y:  9, dir:'down', r: 8 },
       { x: 13, y: 10, dir:'up', r: 8 },
@@ -12805,10 +12831,10 @@ function resurrectScrapjawTowerPack(){
   const DAEMON_BBOXES_PERIM = DAEMON_WALK_BBOXES;
   // v0.95.488 · MALEZOR HOME EPICENTER · Rizer's house sits around (22, 106)
   // in the safe corridor.  Enemy distribution is now RADIAL from home:
-  //   ring 0-16 tiles  → hard NO-SPAWN (residential safety zone)
-  //   ring 16-32       → sparse (rare · first tastes of combat)
-  //   ring 32-56       → normal (main threat band)
-  //   ring 56+         → dense (Wild March + tower routes)
+  //   ring 0-22 tiles  → hard NO-SPAWN (residential/tutorial sanctuary)
+  //   ring 22-40       → sparse (rare · first tastes of combat)
+  //   ring 40-64       → normal (main threat band)
+  //   ring 64+         → dense (Wild March + tower routes)
   // The old safe-corridor rectangle is superseded by this radial ring · the
   // "step off center = combat" rule from user 2026-08-16.  Other districts
   // keep the flat perimeter model (they don't have a player home).
@@ -12819,9 +12845,9 @@ function resurrectScrapjawTowerPack(){
   function _malezorDensityFor(x, y){
     // Return 0..1 · 0 = no spawn allowed · 1 = full density
     const d = _distFromHome(x, y);
-    if (d < 16) return 0;              // safe zone around home
-    if (d < 32) return 0.25;           // sparse ring
-    if (d < 56) return 0.65;           // normal
+    if (d < 22) return 0;              // safe traversal + NPC tutorial around home
+    if (d < 40) return 0.20;           // sparse introduction ring
+    if (d < 64) return 0.60;           // normal
     return 1.0;                        // dense outer
   }
   function pickPerimeterSpots(district, target, seed, minSpacing){
@@ -14038,7 +14064,7 @@ const INTERIOR_HOME_2F = {
     [10,1],                 // v0.95.9 · guitar (1 tile wide, col 10)
     [8,3],                  // v0.95.26 · Nebulaport 3000 · block just controller row (8,2 walkable to pass between TV/guitar/console)
     [1,7],[1,8],            // v0.95.61 · Punching Bag base + torso only · (1,6) walkable stop-tile like Nebuladock
-    [5,7],[6,7],[7,7],[8,7],[9,7],        // v0.95.116 · Nebuladock full desk row blocked (5-9) · no chair-riding onto sides
+    [6,7],[7,7],[8,7],[9,7],              // Nebuladock physical desk row · (5,7) remains the phone's left approach
     [7,6],                                //          · monitor center only
     [3,1],                                // v0.95.97 · Skateboard leaning on wall
     [11,9],                               // v0.95.97 · Basketball beside bed
@@ -16435,25 +16461,15 @@ const RIZER_ROOM_ITEMS={
   skateboard:{name:'Skateboard',x:3,y:1,homeX:3,homeY:1,footprint:[[0,0]]},
   guitar:{name:'Guitar',x:10,y:1,homeX:10,homeY:1,footprint:[[0,0]]},
   console:{name:'Game Console',x:8,y:3,homeX:8,homeY:3,footprint:[[0,0]]},
-  // v0.95.428 · ZyPhone lives on the PC desk's middle-left edge tile (6, 7) ·
-  // same tile PC's -1,0 footprint occupies so it's blocked (non-walkable) ·
-  // listed BEFORE pc so roomItemAtTile returns zphone first.
-  // ★ v0.95.764 · this used to say the phone could be faced from the LEFT at
-  // (5,7). That stopped being true in v0.95.722, which restored (-2,0) to the
-  // desk footprint and swallowed that tile. Measured approaches are TOP (6,6)
-  // and BOTTOM (6,8) only.
+  // ZyPhone lives on the PC desk's middle-left edge tile (6,7).  Its tile is
+  // solid, but its three intended approach tiles remain walkable: LEFT (5,7),
+  // TOP (6,6), and BOTTOM (6,8).  Listed before pc so interaction resolves to
+  // the phone rather than opening the Nebuladock panel.
   zphone:{name:'ZyPhone',x:6,y:7,homeX:6,homeY:7,footprint:[[0,0]]},
-  // v0.95.399 · Trimmed leftmost desk tile (-2,0)=(5,7) from footprint · was
-  // an invisible collision west of the visible desk edge · desk now blocks (6,7)-(9,7)+(7,6)
-  // ★ v0.95.722 · (-2,0) RESTORED.  v0.95.399 trimmed it as "an invisible
-  // collision west of the visible desk edge" — but measuring the drawn sprite
-  // says that tile is 80% DESK:
-  //     drawn 3.5 x 2.25 tiles, spanning x 5.75..9.25
-  //     row 7 coverage   col5 80%   col6 74%   col7 49%   col8 88%   col9 99%
-  // So the desk visibly occupied (5,7) and you could walk straight through it.
-  // The base row now blocks every tile the art covers >= 40%, which is all
-  // five, and (0,-1) keeps the monitor column solid.
-  pc:{name:'Nebuladock PC',x:7,y:7,homeX:7,homeY:7,footprint:[[-2,0],[-1,0],[0,0],[1,0],[2,0],[0,-1]]},
+  // Collision follows the usable furniture body, not the sprite's transparent
+  // visual overhang.  The physical desk blocks (6,7)-(9,7); the monitor blocks
+  // (7,6).  The far-left overhang at (5,7) is intentionally traversal space.
+  pc:{name:'Nebuladock PC',x:7,y:7,homeX:7,homeY:7,footprint:[[-1,0],[0,0],[1,0],[2,0],[0,-1]]},
   chair:{name:'Gaming Chair',x:player.chairX,y:player.chairY,homeX:7,homeY:8,footprint:[[0,0]]},
   dummy:{name:'Training Dummy',x:1,y:8,homeX:1,homeY:8,footprint:[[0,-1],[0,0]]},
   bed:{name:'Bed',x:13,y:9,homeX:13,homeY:9,footprint:[[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0]]},
@@ -16482,12 +16498,12 @@ function roomItemGroupOf(id){
 // The doormat sits across (6-8, 9) by the door; the stock centre-front desk put
 // the chair's wheels right on top of it, so the mat drew over them.  Up here
 // the two never share a tile.
-// ★ v0.95.764 · SHIFTED ONE TILE EAST. At x=2 the desk's five-tile base row
-// spanned (0,3)-(4,3) and reached the west wall, sealing (0,1) (1,1) (2,1)
+// ★ v0.95.764 · SHIFTED ONE TILE EAST. At x=2 the desk base row
+// reached the west wall, sealing (0,1) (1,1) (2,1)
 // (0,2) (1,2) into a pocket the player could never walk into. It also left the
 // ZyPhone — the game's main menu — with exactly ONE approach tile.
-// At x=3 the row spans (1,3)-(5,3), column 0 stays open as a corridor, and the
-// phone can be faced from above and below.
+// At x=3 the physical row spans (2,3)-(5,3), column 1 is the phone's left
+// approach, and the phone can also be faced from above and below.
 const PURCHASED_HOME_LAYOUT = {
   pc:     { x: 3, y: 3 },
   zphone: { x: 2, y: 3 },
@@ -16539,7 +16555,7 @@ function storeHomeLayout(scene){
 let _roomEdit=null;
 const _roomOriginalBlocked=new Set([
   '12,1','13,1','14,1','12,8','13,8','14,8','12,9','13,9','14,9',
-  '10,1','8,3','1,7','1,8','5,7','6,7','7,7','8,7','9,7','7,6','3,1','11,9'
+  '10,1','8,3','1,7','1,8','6,7','7,7','8,7','9,7','7,6','3,1','11,9'
 ]);
 function roomItemAtTile(x,y){
   for(const [id,it] of Object.entries(RIZER_ROOM_ITEMS)){
@@ -17043,6 +17059,23 @@ function drawGems(){
   }
 }
 
+// Recover one physical Matrix material whenever an Astralite stone breaks.
+// The stone coordinate fixes its family, so revisiting an area teaches players
+// where a family occurs; energy expression remains rarity-weighted.
+function recoverAstraliteMaterial(b){
+  if(!b||b.type!=='astralite'||b._matrixMaterialRecovered)return null;
+  b._matrixMaterialRecovered=true;
+  const x=Math.round(b.tileX||0),y=Math.round(b.tileY||0);
+  const family=ASTRALITE_FAMILIES[Math.abs((x*31+y*17))%ASTRALITE_FAMILIES.length];
+  const roll=Math.random(),cuts=[.40,.61,.76,.87,.94,.98,1];
+  const energy=cuts.findIndex(c=>roll<c)+1;
+  const item=family.items[energy-1];
+  addItems({[item.key]:1});
+  try{playSFX('itemGain');}catch(_){}
+  showToast(`◇ MATRIX MATERIAL · ${item.symbol} ${item.name} · ${family.name}`,2800);
+  return item;
+}
+
 function hitBoulder(b, dmg){
   if (!b || b.gone) return;
   b.hp = Math.max(0, b.hp - dmg);
@@ -17060,6 +17093,7 @@ function hitBoulder(b, dmg){
       const gained = player.diamond - before;
       showToast(`◈ Astralite shatter · +${gained} Special Energy`, 2200);
       try { playSFX('confirm'); } catch(_){}
+      recoverAstraliteMaterial(b);
     }
     // v0.95.431 · Life stone shatter · restore Rizer HP to 100%
     // v0.95.502 · Wild shatter also drops 1x life_stone item to bag ·
@@ -18200,6 +18234,7 @@ function astralthrowBreakAOE(b,skinId){
     const gained = player.diamond - before;
     showToast(`◈ Astralite thrown-shatter · +${gained} Special Energy`, 2200);
     try { playSFX('confirm'); } catch(_){}
+    recoverAstraliteMaterial(b);
   }
   // v0.95.431 · Life stone thrown-shatter · restore Rizer HP to 100%
   if (b.type === 'life'){
@@ -21593,12 +21628,96 @@ function closeTvPanel(){
   const p = document.getElementById('expPanel');
   if (!p) return;
   p.addEventListener('click', e => { if (e.target === p) closeExperimentPanel(); });
+  document.getElementById('expMatrixReference')?.addEventListener('click', openAstraliteMatrixNotebook);
+  document.getElementById('expTabRecipes')?.addEventListener('click',()=>setExperimentTab('recipes'));
+  document.getElementById('expTabMatrix')?.addEventListener('click',()=>setExperimentTab('matrix'));
 })();
-function openExperimentPanel(){
+function openAstraliteMatrixNotebook(){
+  if(!notebookHas()){
+    playSFX('cancel');
+    showToast("◈ Dad's Notebook is required for the Astralite Matrix.",2200);
+    return false;
+  }
+  closeExperimentPanel();
+  game._nbSection='matrix';
+  if(openZycellAt('notebook')){
+    playSFX('confirm');
+    return true;
+  }
+  showToast('◈ Open Dad\'s Notebook from the ZyPhone to study the Matrix.',2400);
+  return false;
+}
+function setExperimentTab(tab){
+  if(tab==='matrix'&&!notebookHas()){
+    playSFX('cancel');
+    showToast("◇ Dad's Notebook is required to calibrate the Astralite Matrix.",2200);
+    return;
+  }
+  game.expPanelTab=tab==='matrix'?'matrix':'recipes';
+  openExperimentPanel(true);
+}
+function styleExperimentTabs(){
+  const matrix=game.expPanelTab==='matrix';
+  const paint=(el,on)=>{if(!el)return;el.style.background=on?'#d4af37':'#171b28';el.style.color=on?'#090b10':'#9fb4c8';el.style.border=`1px solid ${on?'#ffd66b':'#455'}`;};
+  paint(document.getElementById('expTabRecipes'),!matrix);
+  paint(document.getElementById('expTabMatrix'),matrix);
+}
+function chooseAstraliteMaterial(key){
+  const item=astraliteItemByKey(key),count=player.items?.[key]||0;
+  if(!item||!count)return;
+  const mix=game._astraliteMix||(game._astraliteMix={a:null,b:null});
+  const used=(mix.a===key?1:0)+(mix.b===key?1:0);
+  if(used>=count){playSFX('cancel');showToast('◇ No additional piece of that Astralite is available.',1500);return;}
+  if(!mix.a)mix.a=key;
+  else if(!mix.b)mix.b=key;
+  else {mix.a=key;mix.b=null;}
+  renderAstraliteMixer(document.getElementById('expRecipeList'));
+}
+function craftAstraliteCompound(){
+  const mix=game._astraliteMix||{};
+  const recipe=resolveAstraliteCompound(mix.a,mix.b);
+  if(!recipe){playSFX('cancel');showToast('◇ Those families do not form a locked interaction.',1800);return;}
+  const need={};for(const key of [mix.a,mix.b])need[key]=(need[key]||0)+1;
+  if(Object.entries(need).some(([k,n])=>(player.items?.[k]||0)<n)){playSFX('cancel');showToast('◇ Astralite inventory changed. Reselect the materials.',1800);return;}
+  for(const [k,n] of Object.entries(need))player.items[k]-=n;
+  addItems({[recipe.key]:1});
+  game._astraliteMix={a:null,b:null};
+  playSFX('confirm');
+  showToast(`◇ MATRIX LOCKED · ${recipe.label} · added to bag`,2500);
+  try{saveGame();}catch(_){}
+  renderAstraliteMixer(document.getElementById('expRecipeList'));
+}
+function renderAstraliteMixer(list){
+  if(!list)return;
+  const mix=game._astraliteMix||(game._astraliteMix={a:null,b:null});
+  const describe=key=>{const x=astraliteItemByKey(key);return x?`${x.symbol} · ${x.name}`:'EMPTY';};
+  const recipe=resolveAstraliteCompound(mix.a,mix.b);
+  const owned=ASTRALITE_FAMILIES.map(f=>({...f,owned:f.items.filter(x=>(player.items?.[x.key]||0)>0)})).filter(f=>f.owned.length);
+  list.innerHTML=`
+    <div style="border:1px solid #7e48d2;background:linear-gradient(135deg,rgba(31,16,54,.9),rgba(6,20,34,.95));padding:11px;margin-bottom:10px;">
+      <div style="color:#e8cbff;font-weight:bold;letter-spacing:.12em;">DAD'S NATIVE MATRIX WORKBENCH</div>
+      <div style="font-size:10px;color:#93b8c8;margin-top:3px;">Select two recovered Astralites. Only locked family interactions stabilize.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px;">
+        <div style="border:1px solid #59677d;padding:8px;color:${mix.a?'#fff':'#607080'};"><b>SLOT A</b><br>${describe(mix.a)}</div>
+        <div style="border:1px solid #59677d;padding:8px;color:${mix.b?'#fff':'#607080'};"><b>SLOT B</b><br>${describe(mix.b)}</div>
+      </div>
+      <div style="margin-top:8px;padding:8px;border:1px solid ${recipe?'#d4af37':'#553c60'};color:${recipe?'#ffd66b':'#a88da8'};">${recipe?`OUTPUT · ${recipe.name}`:(mix.a&&mix.b?'UNSTABLE · NO LOCKED INTERACTION':'OUTPUT · WAITING FOR TWO MATERIALS')}</div>
+      <div style="display:flex;gap:7px;margin-top:8px;"><button id="astraliteMixReset" style="flex:1;padding:7px;background:#252936;color:#b8c8d8;border:1px solid #566;cursor:pointer;">RESET</button><button id="astraliteMixCraft" ${recipe?'':'disabled'} style="flex:2;padding:7px;background:${recipe?'#d4af37':'#333'};color:${recipe?'#080a0f':'#666'};border:1px solid ${recipe?'#ffd66b':'#555'};font-weight:bold;cursor:${recipe?'pointer':'not-allowed'};">CRAFT COMPOUND</button></div>
+    </div>
+    ${owned.length?owned.map(f=>`<div style="margin:6px 0;border-left:3px solid ${f.color};padding-left:7px;"><div style="color:${f.color};font-size:11px;font-weight:bold;letter-spacing:.1em;">${f.id} · ${f.name} · ${f.role}</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${f.owned.map(x=>`<button data-astralite="${x.key}" style="padding:5px 7px;background:#151b26;color:${f.color};border:1px solid ${f.color};font:10px 'Courier New';cursor:pointer;">${x.symbol} ${x.name} ×${player.items[x.key]}</button>`).join('')}</div></div>`).join(''):'<div style="color:#84909c;padding:12px;border:1px dashed #455;">No recovered Astralites yet. Shatter Astralite stones in the overworld, then return to this table.</div>'}
+    <div style="margin-top:12px;border-top:1px solid #384454;padding-top:8px;color:#8fa9b8;font-size:10px;line-height:1.7;">LOCKS · 1+2 POTENTIAL · 3+6 TRANSFORMATION · 4+7 WILL · 5+9 ASCENSION · 8+5 INNOVATION</div>`;
+  list.querySelectorAll('[data-astralite]').forEach(b=>b.addEventListener('click',()=>chooseAstraliteMaterial(b.dataset.astralite)));
+  document.getElementById('astraliteMixReset')?.addEventListener('click',()=>{game._astraliteMix={a:null,b:null};renderAstraliteMixer(list);});
+  document.getElementById('astraliteMixCraft')?.addEventListener('click',craftAstraliteCompound);
+}
+function openExperimentPanel(silent=false){
   const p = document.getElementById('expPanel');
   const list = document.getElementById('expRecipeList');
   if (!p || !list) return;
-  if (player.knownRecipes.length === 0){
+  styleExperimentTabs();
+  if(game.expPanelTab==='matrix'){
+    renderAstraliteMixer(list);
+  } else if (player.knownRecipes.length === 0){
     list.innerHTML = '<div style="color:#888; font-style:italic;">No recipes yet.</div>' +
                      '<div style="color:#aaa; margin-top:6px;">Explore Malezor, Zarvane, and beyond to discover recipe scrolls.</div>' +
                      '<div style="color:#8fffb0; margin-top:14px; font-size:11px;">Consumables you craft here will grant temporary AND permanent Rizer + Zyrex stat boosts.</div>';
@@ -21656,7 +21775,7 @@ function openExperimentPanel(){
   }
   p.style.display = 'block';
   game.expPanelOpen = true;
-  playSFX('menuOpen');
+  if(!silent)playSFX('menuOpen');
 }
 function closeExperimentPanel(){
   const p = document.getElementById('expPanel');
@@ -28627,6 +28746,7 @@ function _zyRestoreScroll(root, snap){
 // visitedDistricts, towerRestored(), the party roster — so nothing is tracked
 // twice and an old save lights up correctly the first time it is opened.
 const NOTEBOOK_SECTIONS = [
+  { key:'matrix',    icon:'◇', label:'ASTRALITE MATRIX' },
   { key:'districts', icon:'◈', label:'DISTRICTS'      },
   { key:'towers',    icon:'📡', label:'RADIO TOWERS'   },
   { key:'landmarks', icon:'🏛', label:'LANDMARKS'      },
@@ -29582,6 +29702,9 @@ function renderZycellNotebook(){
   // ── level 1 · the sections ──
   if (!sec){
     const rows = NOTEBOOK_SECTIONS.map(S => {
+      if (S.key === 'matrix'){
+        return _nbRow(S, '9 families · compound-crafting reference', 1);
+      }
       if (S.key === 'scrolls'){
         const have = scrollsFound();
         const all  = SCROLL_THEMES.length * SCROLL_DISTRICT_ORDER.length;
@@ -29607,6 +29730,7 @@ function renderZycellNotebook(){
       ${rows}</div>`;
   }
   // ── level 2 · a section's entries ──
+  if (sec === 'matrix') return _nbAstraliteMatrixPage();
   if (sec === 'scrolls') return _nbScrollsPage();
   const S = NOTEBOOK_SECTIONS.find(x => x.key === sec) || NOTEBOOK_SECTIONS[0];
   const entries = notebookEntries(sec);
@@ -29633,6 +29757,26 @@ function renderZycellNotebook(){
     <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.14em; padding:2px 4px 8px;">
       ${S.icon} ${S.label} · ${p3.found}/${p3.total}</div>
     ${body}</div>`;
+}
+function _nbAstraliteMatrixPage(){
+  return `<div style="padding:4px 2px;">
+    <div data-zyitem="nb_back" style="padding:8px 11px; margin-bottom:9px; background:rgba(79,179,255,0.12);
+         border:1px solid rgba(79,179,255,0.4); color:#8ff; font:bold 11px 'Courier New',monospace;
+         letter-spacing:.10em; cursor:pointer;">◄  BACK TO INDEX</div>
+    <div style="color:#ffd66b; font:bold 12px 'Courier New',monospace; letter-spacing:.14em; padding:2px 4px 5px;">
+      ◇ THE ASTRALITE MATRIX</div>
+    <div style="color:#7a8ba8; font-size:10px; padding:0 4px 10px; line-height:1.7;">
+      Dad's compound reference · 9 element families · 7 energy expressions per family.<br>
+      Study family, tier, and locked interactions here before crafting at the Experiment Table in Rizer's Room.</div>
+    <div style="padding:5px; background:#04060d; border:1px solid rgba(126,72,210,.55); box-shadow:0 0 18px rgba(126,72,210,.16);">
+      <img src="assets/2D%20sprites/ui/pages/dads-notebook-astralite-matrix.png"
+           alt="Dad's Astralite Matrix compound reference"
+           style="display:block; width:100%; height:auto; image-rendering:auto;" />
+    </div>
+    <div style="margin-top:9px; padding:8px 10px; border-left:2px solid #7e48d2; background:rgba(126,72,210,.08);
+                color:#d8c8ed; font-size:10px; line-height:1.65;">
+      EXPERIMENT TABLE LINK · This page is the canonical reference for Astralite compound recipes added to Rizer's science-project table.</div>
+  </div>`;
 }
 function _nbRow(S, sub, frac){
   const pct = Math.round(Math.max(0, Math.min(1, frac)) * 100);
@@ -36751,6 +36895,7 @@ function buildQuestLog(){
       status: st ? 'complete' : (dad ? 'active' : 'available'),
       steps: [
         { done: dad || st, label: 'Meet Dad at the Research Facility' },
+        { done: (player.faeCollected||0) >= 10 || st, label: `10 Fae (${Math.min(10, player.faeCollected||0)}/10)` },
         { done: (player.items?.berry||0) >= 10 || st, label: `10 Berries (${Math.min(10, player.items?.berry||0)}/10)` },
         { done: (player.items?.fruit||0) >= 10 || st, label: `10 Fruits (${Math.min(10, player.items?.fruit||0)}/10)` },
         { done: (player.items?.seed||0)  >= 10 || st, label: `10 Seeds (${Math.min(10, player.items?.seed||0)}/10)` },
@@ -36779,16 +36924,16 @@ function buildQuestLog(){
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // v0.95.372 · KELTHOR'S 8-STEP BOND LADDER · Rizer's Lv 1-100 spine
-  // Every step gates on the previous + a Rizer-level threshold + a specific
-  // task that also rewards RXP.  Step 8 = Prismshard + Master Bonder title.
+  // v0.95.372 · KELTHOR'S 8-STEP BOND LADDER · discovery/plot spine
+  // Every step follows the previous plus a specific in-world task that also
+  // rewards RXP. Rizer Level never gates quest access. Step 8 = Prismshard +
+  // Master Bonder title.
   // This IS the game's meta-progression loop.  Each unlock is documented in
   // aov-malezor-foundation + aov-bonded-astralite-combat + aov-prismshards.
   // ══════════════════════════════════════════════════════════════════════
   // v0.95.489 · Kelthor ladder now trigger-gates on Kelthor's first meeting (kh)
   // instead of the Elzebub-hatch (eg) · quest only appears once the Warden speaks.
   if (kh){
-    const RL   = player.rizerLvl || 1;
     const bond = player.bonds?.kelthor || 0;
     const KS = player.kelthorStep = player.kelthorStep || {};
     // Precomputed step-complete booleans · flags OR live-counter fallbacks
@@ -36796,30 +36941,29 @@ function buildQuestLog(){
     const anyZ = (player.party || []).some(z => z);
     const hasKit = !!player.hasBackpack && (player.items?.skateboard||0) > 0 && (player.items?.zphone||0) > 0;
     const s1 = kh;                                                                       // Meet Kelthor
-    const s2 = !!KS.s2 || ((player.items?.berry||0) >= 5 && (player.items?.seed||0) >= 5 && s1 && RL >= 3);
-    const s3 = !!KS.s3 || (anyZ && s2 && RL >= 5);
-    const s4 = !!KS.s4 || (hasKit && s3 && RL >= 8);
-    const s5 = !!KS.s5 || (!!player.radioTowerFixed && s4 && RL >= 12);
-    const s6 = !!KS.s6 || ((player.vilerokKills||0) >= 5 && s5 && RL >= 18);
-    const s7 = !!KS.s7 || (!!player.rakoronCaveFound && s6 && RL >= 25);   // v0.95.532 · was rakoronMet
-    const s8 = !!KS.s8 || ((player.items?.soulphish||0) >= 3 && !!player.zarvaneEntered && s7 && RL >= 30);
+    const s2 = !!KS.s2 || ((player.items?.berry||0) >= 5 && (player.items?.seed||0) >= 5 && s1);
+    const s3 = !!KS.s3 || (anyZ && s2);
+    const s4 = !!KS.s4 || (hasKit && s3);
+    const s5 = !!KS.s5 || (!!player.radioTowerFixed && s4);
+    const s6 = !!KS.s6 || ((player.vilerokKills||0) >= 5 && s5);
+    const s7 = !!KS.s7 || (!!player.rakoronCaveFound && s6);   // v0.95.532 · was rakoronMet
+    const s8 = !!KS.s8 || ((player.items?.soulphish||0) >= 3 && !!player.zarvaneEntered && s7);
     const allDone = s1 && s2 && s3 && s4 && s5 && s6 && s7 && s8;
     const anyProg = s1;
     const stat = allDone ? 'complete' : (anyProg ? 'active' : 'available');
-    const lvGate = (need) => (RL >= need) ? '' : ` · Rizer Lv ${need}`;
     expeditions.push({
       title: 'Malezor · Kelthor\'s 8-Step Ladder',
       giver: 'Warden Kelthor · Beastwarden\'s Hall',
       status: stat,
       steps: [
         { done: s1, label: `Step 1 · First Meeting${s1?' · ✓':''}` },
-        { done: s2, label: `Step 2 · Feed the Ward · 5 berries + 5 seeds (${Math.min(5,player.items?.berry||0)}/5 · ${Math.min(5,player.items?.seed||0)}/5)${lvGate(3)}` },
-        { done: s3, label: `Step 3 · First Bond · own a Zyrex${lvGate(5)}` },
-        { done: s4, label: `Step 4 · Home Rank · Backpack + Skateboard + ZyPhone${lvGate(8)}` },
-        { done: s5, label: `Step 5 · Signal Restored · deliver Scrapjaw's SCRAP METAL${lvGate(12)}` },
-        { done: s6, label: `Step 6 · Vilerok Purge · defeat all 5 (${Math.min(5,player.vilerokKills||0)}/5)${lvGate(18)}` },
-        { done: s7, label: `Step 7 · Rakoron Path · FIND the NW cave entrance${lvGate(25)}` },
-        { done: s8, label: `Step 8 · Zarvane Bridge · 3 Soulphish from Zarvane Oasis (${Math.min(3,player.items?.soulphish||0)}/3)${lvGate(30)}` },
+        { done: s2, label: `Step 2 · Feed the Ward · 5 berries + 5 seeds (${Math.min(5,player.items?.berry||0)}/5 · ${Math.min(5,player.items?.seed||0)}/5)` },
+        { done: s3, label: `Step 3 · First Bond · own a Zyrex` },
+        { done: s4, label: `Step 4 · Home Rank · Backpack + Skateboard + ZyPhone` },
+        { done: s5, label: `Step 5 · Signal Restored · deliver Scrapjaw's SCRAP METAL` },
+        { done: s6, label: `Step 6 · Vilerok Purge · defeat all 5 (${Math.min(5,player.vilerokKills||0)}/5)` },
+        { done: s7, label: `Step 7 · Rakoron Path · FIND the NW cave entrance` },
+        { done: s8, label: `Step 8 · Zarvane Bridge · 3 Soulphish from Zarvane Oasis (${Math.min(3,player.items?.soulphish||0)}/3)` },
       ],
       reward: s8 ? '✓ Prismshard + Master Bonder title' :
               s7 ? '→ Prismshard + points you to Zarvane Warden (Step 8)' :
@@ -39156,6 +39300,12 @@ function buildDistrictTrails(dist, rng){
     const [x, y] = key.split(',').map(Number);
     if (worldDistrictAt(x, y) !== dist || isWorldBorderTile(x, y)) continue;
     if (occupied.has(key) || _propBlocked.has(key)) continue;
+    // ★ v0.95.835 · NEVER BURY AN NPC'S POST.  The verge roll is plain
+    // Math.random, so ANY upstream change to the RNG call sequence reshuffles
+    // every bush — and one landed square on Sharkfin's Creator-pinned tile
+    // (534,277), which the settle pass then "fixed" by nudging HIM.  A named
+    // NPC's tile outranks scenery, deterministically, whatever the dice say.
+    if (NPCS.some(q => q && q.scene === 'overworld' && q.tileX === x && q.tileY === y)) continue;
     if (rng() > TRAIL_VERGE_P) continue;
     if (!bushSrc || !bushBox) continue;
     const _vb = { id:`${dist}_verge_${x}_${y}`, img:bushImg, src:bushSrc, bbox:bushBox,
@@ -41703,17 +41853,17 @@ function frame(now){
       else if (r.kind === 'seerHqChest') drawSeerHqChest();
       else                  drawPlayer();
     }
-    // v0.95.55 · Nebuladock 9000 · monitor overlay · Z-order fix.
-    // The monitor visually sits above the desk in the sprite, so it needs
-    // to render AFTER the player when the player stands behind it (at
-    // stop-tile 7,5).  We re-blit the TOP HALF of the sprite over the
-    // player pixels · desk portion already drew behind in the floor pass.
+    // Nebuladock monitor foreground pass · imaginary 2D Z axis.  The base
+    // desk is painted with the room floor, but the monitor is re-blitted after
+    // Rizer only while his feet are behind the desk.  Left/front approaches
+    // therefore stay visually in front of the furniture base.
     const cfgOL = interiorConfig(game.scene);
     if (cfgOL && cfgOL.rizerRoom){
       // v0.95.381 · swap between phone/phoneless desk for the monitor-overlay pass too
       const nd = currentNebuladockImg();
-      if (nd.img.complete && nd.img.naturalWidth){
-        const pcPos=RIZER_ROOM_ITEMS.pc;
+      const pcPos=RIZER_ROOM_ITEMS.pc;
+      const playerBehindDesk = player.y < pcPos.y;
+      if (playerBehindDesk && nd.img.complete && nd.img.naturalWidth){
         const [sx, sy, sw, sh] = nd.bbox;
         const drawW = Math.round(3.5 * TILE);
         const drawH = Math.round(drawW * (sh / sw));

@@ -67,7 +67,9 @@ ok(/follower\._summoned = false;[\s\S]{0,80}follower\.scene = '__despawn__'/.tes
    '  return clears _summoned and despawns it from the scene');
 ok(/follower\._summoned = true;[\s\S]{0,300}follower\.scene = game\.scene;/.test(T),
    '  deploy sets _summoned and places it in the current scene');
-ok(/isInActiveCombat\(\)/.test(T), 'returning mid-combat is refused (no despawning out of a fight)');
+// ★ v0.95.826 · INVERTED · Creator: "no more active combat block for
+// summoning zyrex in battle" — the mid-combat refusal is deliberately GONE.
+ok(!/isInActiveCombat\(\)/.test(T), 'the mid-combat refusal stays REMOVED (v0.95.826 · both directions work in a fight)');
 ok(/\(z\.hp \|\| 0\) <= 0/.test(T), 'a KO\'d Zyrex cannot be deployed');
 
 console.log('\n4 · ★★ THE BUG · NO WILD SPECIES HAD AN OVERWORLD SHEET\n');
@@ -151,6 +153,11 @@ const env = {
   rizerBondTotal: () => 99999,                   // bond clears the gate
   awardRizerXP: () => {},
   Image: function(){ return { set src(v){}, get src(){ return ''; } }; },
+  // ★ v0.95.835 · the follower pipeline grew formation + yard-home helpers
+  // (v0.95.827/833) · stubbed here — the sandbox tests roster logic, not geometry
+  _claimFormationSlot: () => 0,
+  _formationTile: (n) => [3, 3],
+  zyrexHomeTile: () => [20, -14],
 };
 const run = new Function(...Object.keys(env), `
   ${grab('makeZyrexFollower')}
@@ -171,7 +178,9 @@ ok(!!follower, 'deploying created the follower NPC');
 ok(follower && follower._orbFollower === true, '  as an ORB follower, since it has no sheet');
 ok(follower && follower._summoned === true, '  marked deployed');
 ok(follower && follower.scene === 'overworld', '  placed in the current scene');
-ok(follower && follower.tileY === player.y + 1, `  beside Rizer (tile ${follower && follower.tileX},${follower && follower.tileY})`);
+// ★ v0.95.827 · spawn moved from the column-under-Rizer stack to the claimed
+// FORMATION STATION (stubbed to (3,3) in this sandbox)
+ok(follower && follower.tileX === 3 && follower.tileY === 3, `  on its formation station (tile ${follower && follower.tileX},${follower && follower.tileY})`);
 ok(!toasts.some(t => /can't summon|pending · can/.test(t)),
    `  and NOT refused · toast was "${toasts[toasts.length-1]}"`);
 

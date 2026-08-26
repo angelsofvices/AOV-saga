@@ -134,8 +134,10 @@ C.quickSummonStashAll();                        // all out
 const r4=C.quickSummonStashAll();               // all in
 const r5=C.quickSummonStashAll();               // all out again
 ok(typeof r4==='boolean' && typeof r5==='boolean','repeated holds stay well-defined');
-ok(/isInActiveCombat/.test(src2.slice(src2.indexOf('function quickSummonStashAll'), src2.indexOf('function toggleFactionSummon'))),
-   'the combat lock is checked ONCE up front, not once per Zyrex');
+// ★ v0.95.826 · INVERTED WITH THE RULING.  Creator: "no more active combat
+// block for summoning zyrex in battle."  Both copies of the lock are gone —
+// the assertion now guards their ABSENCE.
+ok(!/Active combat · clear the stage/.test(src), 'the combat locks stay REMOVED (Creator: no combat block, v0.95.826)');
 console.log('     toggleFactionSummon refuses individually during combat, so a bulk');
 console.log('     stash of eight would have produced eight identical toasts.');
 

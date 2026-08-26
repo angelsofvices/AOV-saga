@@ -72,19 +72,22 @@ ok(NB.total===0, `0 of 128 frames sample neighbouring art (${NB.total} found)`);
 console.log(`     (${overflow} frames DO run past their cell boundary — allowed, and`);
 console.log(`      the sheets shipped that way before this delivery too)\n`);
 
-console.log('\n3 · ★★ WHAT THE REDELIVERY ACTUALLY FIXED\n');
-const D=JSON.parse(FS.readFileSync('/tmp/w/delta.json','utf8'));
-for (const n of ['a-idle','a-walk','a-run','b-idle','b-walk','b-run']){
-  const d=D[n];
-  console.log(`     ${n.padEnd(9)} up-row top ${String(d.oldUp).padStart(2)} -> ${String(d.newUp).padStart(2)}   cell overflows ${d.oldOver} -> ${d.newOver}`);
-}
+console.log('\n3 · (redelivery delta section retired · it compared against the');
+console.log('     PRE-redelivery sheets, which no longer exist to measure —');
+console.log('     the historical fact lives in the v0.95.696 commit message.');
+console.log('     Fixtures now regenerate from the shipped art: tools/regen_grunt_fixtures.py)');
 console.log('');
-ok(['a-idle','a-walk','a-run','b-idle','b-walk','b-run'].every(n=>D[n].newUp>=9),
-   'every UP row now starts >= 9px below its cell top (was 0 on all six)');
-ok(['b-idle','b-walk','b-run'].every(n=>D[n].newOver===0),
-   '★ Grunt B is now fully inside its cells — 4 overflows each -> 0');
-ok(['a-idle','a-walk','a-run'].every(n=>D[n].newOver<=D[n].oldOver),
-   'Grunt A improved too (8 -> 4 on idle/walk), and its remainder is the DOWN row feet, which sample empty band');
+// ★ recomputed from the CURRENT fixtures (G) — the redelivery's outcomes,
+// asserted as standing properties of the shipped art rather than deltas
+// against sheets that no longer exist.
+const _upRow=(n)=>G[n].bboxes[3];   // UP row in the recorded tables
+ok(['a-idle','a-walk','a-run','b-idle','b-walk','b-run'].every(n=>_upRow(n).every(f=>f[1]>=9||f[3]<=1)),
+   'every UP row starts >= 9px below its cell top (the redelivery outcome, held)');
+const _overflows=(n)=>{let o=0;for(const row of G[n].bboxes)for(const [bx,by,bw,bh] of row){if(bx<0||by<0||bx+bw>313||by+bh>313)o++;}return o;};
+ok(['b-idle','b-walk','b-run'].every(n=>_overflows(n)===0),
+   '★ Grunt B is fully inside its cells (0 overflows)');
+ok(['a-idle','a-walk','a-run'].every(n=>_overflows(n)<=8),
+   'Grunt A within its known bound · remainder is the DOWN-row feet, which sample empty band');
 
 console.log('\n4 · ★ SCALE HELD\n');
 ok(C.SEER_GRUNT_ART.A.standBh===212,'Grunt A standBh unchanged at 212');

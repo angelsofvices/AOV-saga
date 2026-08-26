@@ -55,10 +55,12 @@ P.party=[]; P.pcZyrex=[];
 ok(g.test()===false,'no Elzebub at all -> gate CLOSED');
 console.log('     refusal reads: "'+g.why()+'"');
 P.party=[C.createZyrex('elzebub',49)];
-ok(g.test()===false,'Elzebub at Lv49 -> still closed');
-console.log('     refusal reads: "'+g.why()+'"');
-P.party=[C.createZyrex('elzebub',50)];
-ok(g.test()===true,'★ Elzebub at Lv50 -> gate OPEN');
+// ★ v0.95.825 · INVERTED WITH THE RULING.  The Lv-50 bar was a Zyrex that
+// cannot exist (Elzebub evolves to Elzimir at 30) — Creator: "cannot talk to
+// elzoran to recruit him."  His kin at ANY level satisfies him now.
+ok(g.test()===true,'★ Elzebub at ANY level (49) -> gate OPEN · the kin rule');
+P.party=[C.createZyrex('elzimir',31)];
+ok(g.test()===true,'★ and the evolved ELZIMIR counts — he recognises his line, not a number');
 P.party=[]; P.pcZyrex=[C.createZyrex('elzebub',60)];
 ok(g.test()===true,'and an Elzebub in PC STORAGE counts too — storing it is not a punishment');
 

@@ -33,11 +33,14 @@ H('1 · ★ HOME IS THE TREEHOUSE YARD');
   ok(pair,'★ the yard inherits the formation spacing law · no two homes closer than 2');
 }
 
-H('2 · ★★ L2+SQUARE ON A COMPANION = THE LONG GOODBYE');
+H('2 · ★★ L2+TOUCHPAD ON A COMPANION = THE LONG GOODBYE');
 {
-  const at=src.indexOf('L2+Square ON A FACED COMPANION = SEND HOME');
-  ok(at>0,'the chord branch exists');
-  ok(at<src.indexOf('fireAstralstrike()',at)&&src.slice(at,at+900).includes('sendZyrexWalkingHome'),'★ checked BEFORE the A3 handblast — aiming at your own Zyrex never blasts it');
+  // ★ v0.95.834 · Creator correction: the chord is L2+TOUCHPAD, not L2+Square
+  const at=src.indexOf('L2+TOUCHPAD ON A FACED COMPANION = SEND HOME');
+  ok(at>0,'the chord branch exists on the L2+touchpad chord');
+  ok(src.slice(at,at+1100).includes('sendZyrexWalkingHome')&&src.slice(at,at+1100).includes('toggleDevPanel'),'★ faced companion outranks the dev panel · empty-handed the dev hotkey is untouched');
+  const sq=src.indexOf("L2 square is astralblast");
+  ok(sq>0&&!/sendZyrexWalkingHome/.test(src.slice(src.indexOf("if (k === 'j' && keys['shift'])"),src.indexOf("if (k === 'j' && keys['shift'])")+1400)),'★ L2+Square is purely Astralstrike again');
   // behavioral · summon, send home, watch the state
   C.player.party=[{speciesId:'snok',level:10,hp:9,name:'Snok'}];
   C.game.scene='overworld'; C.player.x=200; C.player.y=200;
@@ -57,7 +60,7 @@ H('2 · ★★ L2+SQUARE ON A COMPANION = THE LONG GOODBYE');
 
 H('3 · ★ THE TWO VERBS STAY DISTINCT');
 {
-  ok(/Triangle = Zysphere \(instant, both ways\) · L2\+Square = the long\s*\n?\s*\/\/ goodbye/.test(src)||/L2\+Square = the long/.test(src),'the doctrine is written at the chord');
+  ok(/the chord is\s*\n?\s*\/\/\s*the long goodbye/.test(src)||/the long goodbye/.test(src),'the doctrine is written at the chord');
   ok(/_walkHomeBailMs \|\| 20000/.test(src),'the bail-out override is per-NPC · Yara\'s errands keep their 20s');
 }
 

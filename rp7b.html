@@ -17062,6 +17062,66 @@ function drawGems(){
 // Recover one physical Matrix material whenever an Astralite stone breaks.
 // The stone coordinate fixes its family, so revisiting an area teaches players
 // where a family occurs; energy expression remains rarity-weighted.
+// ★★ v0.95.836 · THE GEM POPS OUT OF THE STONE.  Creator: "assets for all
+// of the astralite gems that are supposed to pop out of the broken astralite
+// stones... wire them like life seeds."  recoverAstraliteMaterial used to
+// pay straight into the bag; now the rolled material lands beside the
+// rubble as a SOLID world prop — walk to it, press X, and it hands over
+// through the same grammar every pickup uses.  Interiors keep the direct
+// hand-over (chest-coin precedent), and the roll itself is untouched:
+// family from the stone's tile, energy from the rarity ladder.
+//
+// ART · 7 tier sheets (energy 1-7), each a 3x3 of the NINE FAMILIES in
+// canon order (row-major, family 1 top-left → 9 bottom-right) — the grid
+// matches ASTRALITE_FAMILIES by construction, so cells[family-1] on
+// sheet[energy] IS the rolled item.  Magenta-keyed + de-haloed; per-cell
+// bboxes measured on their own alpha.
+const ASTRALITE_GEM_SHEETS = {
+  1: { src: 'assets/2D%20sprites/items/astralites/astralites-tier-1-core.png', cells: [[13,8,403,403], [468,9,324,399], [900,6,311,412], [29,419,369,417], [443,418,370,418], [880,418,345,418], [34,836,346,402], [443,836,370,384], [887,836,342,402]] },
+  2: { src: 'assets/2D%20sprites/items/astralites/astralites-tier-2-major-i.png', cells: [[44,10,347,395], [465,10,331,395], [877,14,338,388], [43,421,350,415], [459,423,336,413], [866,429,350,407], [40,836,348,376], [444,836,366,378], [870,836,340,379]] },
+  3: { src: 'assets/2D%20sprites/items/astralites/astralites-tier-3-major-ii.png', cells: [[47,16,338,390], [450,18,347,389], [861,27,347,380], [41,428,347,408], [448,428,351,408], [851,431,363,386], [40,836,349,374], [458,836,332,366], [865,843,339,371]] },
+  4: { src: 'assets/2D%20sprites/items/astralites/astralites-tier-4-major-iii.png', cells: [[49,36,337,369], [467,32,311,373], [868,30,316,369], [41,435,355,363], [453,428,341,408], [848,431,347,377], [46,843,342,347], [465,836,323,366], [850,840,343,368]] },
+  5: { src: 'assets/2D%20sprites/items/astralites/astralites-tier-5-minor-i.png', cells: [[79,50,291,351], [489,38,270,366], [879,56,310,348], [76,460,298,322], [481,444,288,392], [876,442,310,394], [67,841,311,347], [475,836,305,363], [895,836,274,361]] },
+  6: { src: 'assets/2D%20sprites/items/astralites/astralites-tier-6-minor-ii.png', cells: [[77,49,316,356], [489,45,279,362], [881,66,303,328], [78,454,313,339], [477,450,298,337], [874,462,294,374], [72,842,308,327], [467,847,318,331], [871,836,301,359]] },
+  7: { src: 'assets/2D%20sprites/items/astralites/astralites-tier-7-mythic.png', cells: [[77,53,316,349], [463,52,327,353], [866,68,319,333], [71,452,328,341], [468,460,319,332], [856,452,321,344], [76,843,321,333], [466,843,324,335], [859,844,319,331]] },
+};
+for (const t of Object.values(ASTRALITE_GEM_SHEETS)){ t.img = new Image(); t.img.src = t.src; }
+function spawnAstraliteGem(cx, cy, item){
+  if (game.scene !== 'overworld'){
+    // interiors hand it straight over · same rule as chest coins + life seeds
+    addItems({ [item.key]: 1 });
+    try { playSFX('itemGain'); } catch(_){}
+    showToast(`◇ MATRIX MATERIAL · ${item.symbol} ${item.name} · ${item.familyName || ''}`, 2800);
+    return null;
+  }
+  let tx = cx, ty = cy;
+  for (const [dx, dy] of [[0,0],[0,1],[1,0],[-1,0],[0,-1]]){
+    if (typeof walkable === 'function' && walkable(cx+dx, cy+dy)){ tx = cx+dx; ty = cy+dy; break; }
+  }
+  const sheet = ASTRALITE_GEM_SHEETS[item.energy] || ASTRALITE_GEM_SHEETS[1];
+  const bbox  = sheet.cells[(item.family || 1) - 1];
+  const prop = {
+    id: `astralite_gem_${tx},${ty}_${Date.now()%1e6}`,
+    _astraliteGem: item.key,
+    img: sheet.img, src: sheet.src, bbox: bbox,
+    tileX: tx, tileY: ty,
+    tileW: 0.95, tileH: 0.95 * bbox[3] / bbox[2],
+    footprint: [[0, 0]],          // ★ SOLID · the pickup-collision law (v0.95.821)
+    door: [0, 0],                 // ★ X collects when faced
+    _levitate: true,
+    onInteract(){
+      try { unregisterPropCollision(prop); } catch(_){}
+      const i = WORLD_PROPS.indexOf(prop);
+      if (i >= 0) WORLD_PROPS.splice(i, 1);
+      addItems({ [item.key]: 1 });
+      try { playSFX('itemGain'); } catch(_){}
+      showToast(`◇ MATRIX MATERIAL · ${item.symbol} ${item.name} · ${item.familyName || ''}`, 2800);
+    },
+  };
+  WORLD_PROPS.push(prop);
+  registerPropCollision(prop);
+  return prop;
+}
 function recoverAstraliteMaterial(b){
   if(!b||b.type!=='astralite'||b._matrixMaterialRecovered)return null;
   b._matrixMaterialRecovered=true;
@@ -17069,10 +17129,10 @@ function recoverAstraliteMaterial(b){
   const family=ASTRALITE_FAMILIES[Math.abs((x*31+y*17))%ASTRALITE_FAMILIES.length];
   const roll=Math.random(),cuts=[.40,.61,.76,.87,.94,.98,1];
   const energy=cuts.findIndex(c=>roll<c)+1;
-  const item=family.items[energy-1];
-  addItems({[item.key]:1});
-  try{playSFX('itemGain');}catch(_){}
-  showToast(`◇ MATRIX MATERIAL · ${item.symbol} ${item.name} · ${family.name}`,2800);
+  const item={...family.items[energy-1],familyName:family.name};
+  // ★ v0.95.836 · the gem POPS OUT beside the rubble · X to collect
+  try { spawnAstraliteGem(Math.round(b.tileX||0), Math.round(b.tileY||0), item); }
+  catch(err){ console.warn('[rp7b] gem spawn failed · direct to bag', err); addItems({[item.key]:1}); }
   return item;
 }
 

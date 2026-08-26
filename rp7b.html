@@ -23496,6 +23496,17 @@ addEventListener('keydown', e => {
                     || game.guitarPanelOpen || game.nebulaPanelOpen
                     || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModalCast){
+        // ★★ v0.95.833 · L2+Square ON A FACED COMPANION = SEND HOME.
+        // Creator: "L2 + square interact on a companion faction member sends
+        // a companion home. they walk there."  Checked before the handblast:
+        // aiming an interact chord at your own Zyrex and getting an A3 to the
+        // face instead would be the exact soul-swap bug wearing a new key.
+        // Triangle = Zysphere (instant, both ways) · L2+Square = the long
+        // goodbye — he WALKS to the treehouse yard and waits there.
+        const _facedZ = facedNpc();
+        if (_facedZ && _facedZ._summoned && _facedZ._summonSpeciesId){
+          if (sendZyrexWalkingHome(_facedZ)) return;
+        }
         fireAstralstrike();
         return;   // swallow · do NOT also punch
       }
@@ -38165,14 +38176,54 @@ function _formationTile(n){
   }
   return [tx, ty];
 }
+// ★★ v0.95.833 · THE TREEHOUSE YARD IS HOME.  Creator: "L2 + Square
+// interact on a companion faction member sends a companion home.  They walk
+// there.  Default all home position for owned zyrex to near the player
+// treehouse."  The yard south of the treehouse (20,-20) is open ground;
+// every owned Zyrex gets a home tile there — anchor + its formation offset,
+// so the yard inherits the same >=2 spacing law the field formation has.
+const ZYREX_HOME_ANCHOR = { x: 20, y: -14 };
+function zyrexHomeTile(partyIdx){
+  const F = SUMMON_FORMATION[(partyIdx || 0) % SUMMON_FORMATION.length];
+  let hx = ZYREX_HOME_ANCHOR.x + F[0], hy = ZYREX_HOME_ANCHOR.y + F[1];
+  if (typeof _propBlocked !== 'undefined' && _propBlocked.has(`${hx},${hy}`)){
+    for (let r = 1; r <= 3; r++){
+      for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++){
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        if (!_propBlocked.has(`${hx+dx},${hy+dy}`)) return [hx+dx, hy+dy];
+      }
+    }
+  }
+  return [hx, hy];
+}
+function sendZyrexWalkingHome(follower){
+  if (!follower || !follower._summoned || !follower._summonSpeciesId) return false;
+  const party = (player.party || []).filter(Boolean);
+  const pi = Math.max(0, party.findIndex(z => z && z.speciesId === follower._summonSpeciesId));
+  const [hx, hy] = zyrexHomeTile(pi);
+  follower._summoned = false;          // leaves the field formation · Triangle re-summons
+  follower._formSlot = null;
+  follower.homeX = hx; follower.homeY = hy;
+  // the yard can be a whole district away — give the journey room before the
+  // bail-out snap (the 20s default was written for across-town errands)
+  follower._walkHomeBailMs = 180000;
+  walkNpcHome(follower, hx, hy, 'overworld');
+  try { playSFX('takeFive'); } catch(_){}
+  showToast(`◈ ${follower.name} heads home to the treehouse yard`, 2400);
+  return true;
+}
 function makeZyrexFollower(z, opts){
   const o = opts || {};
   const spriteDef = SUMMONABLE_SPRITES[z.speciesId];
   const followerId = `_summon_${z.speciesId}`;
+  const _homeIdx = Math.max(0, (player.party || []).filter(Boolean).findIndex(q => q && q.speciesId === z.speciesId));
+  const _home = zyrexHomeTile(_homeIdx);
   const base = {
     id: followerId,
     name: z.name,
     speciesId: z.speciesId,
+    // ★ v0.95.833 · every owned Zyrex's home defaults to the treehouse yard
+    homeX: _home[0], homeY: _home[1], homeScene: 'overworld',
     dir: o.dir || player.dir,
     mode: o.mode || 'follow',
     moving: false, animFrame: 0, idleFrame: 0,
@@ -38272,6 +38323,8 @@ function toggleFactionSummon(partyIdx){
   // under Rizer (the old player.y+1+count stack put every summon on the same
   // file, one tile apart — both spacing rules broken at birth).
   follower._summoned = true;
+  follower.mode = 'follow';            // ★ v0.95.833 · he may be 'stationary' in the yard or mid-walkHome
+  follower._walkHomeTarget = null;
   follower.moving = false;   // v0.95.346 · force idle pose on (re)summon
   follower.scene = game.scene;
   follower._formSlot = _claimFormationSlot();
@@ -41289,7 +41342,7 @@ function tickNPC(n, dt){
     // pathing).  ★ v0.95.808 · doubled from 10s: the doorstep leg is a real
     // journey now — the school to the house is a couple dozen tiles — and the
     // old timer would have "fixed" the new walk by teleporting mid-street.
-    if (n._walkHomeStart && (performance.now() - n._walkHomeStart) > 20000){
+    if (n._walkHomeStart && (performance.now() - n._walkHomeStart) > (n._walkHomeBailMs || 20000)){   // ★ v0.95.833 · yard journeys get 3 min
       n.scene = tgt.scene || n.scene; n.tileX = tgt.x; n.tileY = tgt.y;
       n.mode = 'stationary'; n.moving = false;
       n._walkHomeTarget = null; n._walkHomeAim = null;

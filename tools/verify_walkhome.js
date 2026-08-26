@@ -93,8 +93,8 @@ H('3 · ★★ WALK IT · SCHOOL TO DOORSTEP TO KITCHEN');
 
 H('4 · ★ THE BAIL-OUT SURVIVED, DOUBLED');
 {
-  ok(/> 20000/.test(src.slice(src.indexOf("if (n.mode === 'walkHome')"), src.indexOf("if (n.mode === 'walkHome')")+3600)),
-     '★ 10s → 20s · the doorstep leg is a real journey, and the old timer would have "fixed" the walk by teleporting mid-street');
+  ok(/\(n\._walkHomeBailMs \|\| 20000\)/.test(src),
+   '★ 20s DEFAULT bail · v0.95.833 made it per-NPC (Zyrex yard journeys get 3 min) — the errand default is unchanged');
   const y2={ id:'t2', name:'x', scene:'overworld', tileX:500, tileY:500, dir:'down', mode:'stationary', moveCd:0 };
   C.walkNpcHome(y2, 9, 3, 'interior_home');
   y2._walkHomeStart=performance.now()-21000;

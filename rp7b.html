@@ -20227,18 +20227,21 @@ function recordMoriKill(mode, npc){
   // gets a SMALL scaled share (present-in-overworld share).  Party members not
   // summoned get nothing UNLESS player.shareshardActive is true (Shareshard item
   // ships later · gives passive share to every party member regardless of summon).
-  if (npc){
-    const shareXp = (npc.level || 1) * (1 + (npc.tier || 1) * 1);   // Mori L2 T1 = 4
+  // ★★ v0.95.837 · NO FREE RIDES.  Creator: "all zyrex level up individually
+  // by attacks. when the shard share is in the bag, all zyrex in the party
+  // level up together... .5x for all zyrex out in the overworld."  The old
+  // unconditional trickle to summoned Zyrex on RIZER kills is gone — without
+  // the repaired collar a Zyrex levels only by its own claws.  With it, a
+  // Rizer kill pays every OUT party Zyrex half the Zyrex-kill rate (Rizer IS
+  // "the one that got the kill" at 1x — his RXP, banked in creditRizerKill).
+  if (npc && (player.items && player.items.shardshare || 0) > 0){
+    const shareXp = Math.floor(((npc.level || 1) * (10 + (npc.tier || 1) * 6)) * 0.5);
     const summonedIds = new Set(
       (NPCS || []).filter(n => n && n._summoned && n.id && n.id.startsWith('_summon_'))
                   .map(n => n._summonSpeciesId)
     );
     (player.party || []).forEach(z => {
-      if (!z) return;
-      const isOut = summonedIds.has(z.speciesId);
-      if (isOut || player.shareshardActive){
-        awardZyrexXP(z, shareXp);
-      }
+      if (z && summonedIds.has(z.speciesId)) awardZyrexXP(z, shareXp);
     });
   }
   // v0.95.470 · Scrapjaw's Radio Tower quest · 6 tagged Mori + 1 tagged Vilerok boss
@@ -23588,15 +23591,17 @@ addEventListener('keydown', e => {
         return;
       }
     }
-    // Square (j) = FOLLOW toggle
+    // Square (j) = FOLLOW toggle (ALLIES + CONTACTS ONLY)
+    // ★★ v0.95.837 · SQUARE IS BLIND TO SUMMONED ZYREX.  Creator: "square no
+    // longer makes a zyrex follow you... sometimes in combat im pressing
+    // square to fight and a zyrex stands in front of me and triggers text
+    // boxes... and this disrupts the combat."  A party Zyrex follows BECAUSE
+    // it is deployed — there is nothing for Square to toggle, so every faced-
+    // NPC branch below excludes _summoned and the press falls through to the
+    // punch, exactly as if the Zyrex were not there.
     if (k === 'j'){
       const facing = facedNpc();
-      // v0.95.688 · STEP 4 OF THE CONTACT LADDER · Square on a contact you have
-      // CALLED adds them to the faction tab.  Checked before the follow toggle
-      // because a called contact is already following — toggling it off here
-      // would undo the call the player just made, which is the opposite of what
-      // pressing Square on someone walking beside you should mean.
-      if (facing && facing._phoneSpawned && isFriendlyNpc(facing)){
+      if (facing && facing._phoneSpawned && !facing._summoned && isFriendlyNpc(facing)){
         if (isFactionContact(facing.id)){
           showToast(`◈ ${facing.name} is already in your faction · re-dial to send home`, 2800);
         } else {
@@ -23604,7 +23609,7 @@ addEventListener('keydown', e => {
         }
         return;
       }
-      if (facing && isFriendlyNpc(facing)){
+      if (facing && !facing._summoned && isFriendlyNpc(facing)){
         const bond = (player.bonds && player.bonds[facing.id]) || 0;
         // v0.95.339 · Square while ALREADY following the sister-type sends them home
         if (player.companion === facing.id && facing.noSoulSwap){
@@ -23637,19 +23642,13 @@ addEventListener('keydown', e => {
     // interact/toast interference · Triangle only tries soul-swap on friendly NPCs
     if (k === 'k'){
       const facing = facedNpc();
-      // ★★ v0.95.825 · TRIANGLE IS THE ZYSPHERE TOGGLE · Creator: "can send
-      // zyrex back to zysphere when I press triangle on it... final fix."
-      // Facing one of YOUR summoned Zyrex, Triangle STORES it — checked
-      // BEFORE the soul-swap branch, because a summoned follower is friendly
-      // and used to fall into the Bond-100 soul-swap toast instead of going
-      // home.  Recall routes through toggleFactionSummon — the one door that
-      // already owns the combat lock, the take-five VO and the toast.
-      if (facing && facing._summoned && facing._summonSpeciesId){
-        const _party = (player.party || []).filter(Boolean);
-        const _pi = _party.findIndex(z => z && z.speciesId === facing._summonSpeciesId);
-        if (_pi >= 0){ try { toggleFactionSummon(_pi); } catch(_){} return; }
-      }
-      if (facing && !facing.isEnemy && isFriendlyNpc(facing)){
+      // ★★ v0.95.837 · the v0.95.825 overworld tap-recall is REVOKED.
+      // Creator: "the only way to send a zyrex back is going in the phone and
+      // pressing triangle for one or holding triangle to send all back/out."
+      // Triangle in the field is combat again — a Zyrex standing in front of
+      // you can no longer eat the kick or spray toasts mid-fight.  Summons
+      // are excluded from the soul-swap branch below for the same reason.
+      if (facing && !facing._summoned && !facing.isEnemy && isFriendlyNpc(facing)){
         if (facing.noSoulSwap){
           try { playSFX('doorLock'); } catch(_){}
           showToast(`◈ ${facing.name} · humanoid ally · no soul-swap`, 2200);
@@ -23699,13 +23698,8 @@ addEventListener('keydown', e => {
                     || game.expPanelOpen || game.tvPanelOpen
                     || game.guitarPanelOpen || game.nebulaPanelOpen
                     || game.bagPanelOpen || game.dockPanelOpen || game.posterViewOpen || _sleepFade;
-      // ★ v0.95.825 · HOLD Triangle in the overworld = all out / all in.
-      // Arm the SAME clock-polled hold the phone uses (v0.95.743 · gamepads
-      // are edge-triggered, key-repeat cannot be trusted) — the frame tick
-      // completes it at ZY_HOLD_MS whether the phone is open or not.
-      if (k === 'k' && game.scene === 'overworld' && !dialogState && !battleState && !anyModal){
-        try { zyTriangleArm(); } catch(_){}
-      }
+      // ★ v0.95.837 · the v0.95.825 overworld hold-arm is gone with the tap —
+      // hold-Triangle-for-all lives in the PHONE, where it always worked.
       if (game.scene !== 'title' && !dialogState && !battleState && !anyModal){
         // v0.95.321 · Punching bag hold-to-drag · while facing the dummy bag,
         // Square keydown starts a hold timer · release <350ms = punch (normal)
@@ -38036,6 +38030,17 @@ function tickAggressiveZyrex(n){
       if (partyMember){
         const killXp = (best.level || 1) * (10 + (best.tier || 1) * 6);   // Mori L2 T1 = 32
         awardZyrexXP(partyMember, killXp);
+        // ★★ v0.95.837 · SHARDSHARE · Creator: "1x for the one that got the
+        // kill, .5x for all zyrex out in the overworld."  Only with the
+        // REPAIRED collar in the bag — without it every Zyrex levels by its
+        // own attacks alone.
+        if ((player.items && player.items.shardshare || 0) > 0){
+          const _outIds = new Set((NPCS || []).filter(q => q && q._summoned && q._summonSpeciesId).map(q => q._summonSpeciesId));
+          for (const z of (player.party || [])){
+            if (!z || z === partyMember) continue;
+            if (_outIds.has(z.speciesId)) awardZyrexXP(z, Math.floor(killXp * 0.5));
+          }
+        }
       }
     }
     n._nextAttackAt = performance.now() + 700;
@@ -38209,12 +38214,10 @@ function zyTriangleArm(){
   if (!game._zyTriDownAt) game._zyTriDownAt = performance.now();
 }
 function zyTriangleHoldTick(){       // called once per FRAME while held
-  // ★ v0.95.825 · the hold now ALSO completes in the open overworld — Creator:
-  // "holding toggles all out or in. final fix."  Same clock, same threshold,
-  // same one-shot flag; only the venue check widened.
-  const _venue = game.zphoneOpen
-    || (game.scene === 'overworld' && !dialogState && !battleState && !worldFrozen());
-  if (!game._zyTriHeld || !_venue) return;
+  // ★ v0.95.837 · venue narrowed BACK to the phone (the v0.95.825 overworld
+  // widening is revoked with the tap-recall — Creator: "going in the phone
+  // and... holding triangle to send all back/out").
+  if (!game._zyTriHeld || !game.zphoneOpen) return;
   const now = performance.now();
   if (!game._zyTriDownAt) game._zyTriDownAt = now;
   if (!game._zyTriFired && (now - game._zyTriDownAt) >= ZY_HOLD_MS){
@@ -38408,7 +38411,17 @@ function sendZyrexWalkingHome(follower){
   const party = (player.party || []).filter(Boolean);
   const pi = Math.max(0, party.findIndex(z => z && z.speciesId === follower._summonSpeciesId));
   const [hx, hy] = zyrexHomeTile(pi);
-  follower._summoned = false;          // leaves the field formation · Triangle re-summons
+  // ★★ v0.95.837 · THE LONG GOODBYE RELEASES.  Creator: "L2 and touchpad
+  // sends a current facing zyrex to the treehouse and IT IS NO LONGER IN
+  // YOUR PARTY."  The roster entry moves party → PC storage (never deleted —
+  // a released Zyrex is stored, not lost) while its body walks to the yard.
+  const _idx = (player.party || []).findIndex(z => z && z.speciesId === follower._summonSpeciesId);
+  if (_idx >= 0){
+    const _z = player.party.splice(_idx, 1)[0];
+    player.pcZyrex = player.pcZyrex || [];
+    player.pcZyrex.push(_z);
+  }
+  follower._summoned = false;          // leaves the field formation
   follower._formSlot = null;
   follower.homeX = hx; follower.homeY = hy;
   // the yard can be a whole district away — give the journey room before the
@@ -38416,7 +38429,8 @@ function sendZyrexWalkingHome(follower){
   follower._walkHomeBailMs = 180000;
   walkNpcHome(follower, hx, hy, 'overworld');
   try { playSFX('takeFive'); } catch(_){}
-  showToast(`◈ ${follower.name} heads home to the treehouse yard`, 2400);
+  showToast(`◈ ${follower.name} released to the treehouse yard · out of the party (in your PC)`, 3200);
+  try { saveGame(); } catch(_){}
   return true;
 }
 function makeZyrexFollower(z, opts){

@@ -55,54 +55,30 @@ H('2 · ★★ RARE TIER-5 WILD · the level law holds');
   ok(!!w._recruitedAt,'★ END TO END: kin at any level + bond over the bar → Elzoran joins');
 }
 
-H('3 · ★★ TRIANGLE IS THE ZYSPHERE TOGGLE · final fix');
+H('3 · ★★ v0.95.837 · THE FIELD IS FOR FIGHTING · Zysphere lives in the phone');
 {
-  const kAt=src.indexOf("TRIANGLE IS THE ZYSPHERE TOGGLE");
-  ok(kAt>0,'the recall branch exists');
-  const blk=src.slice(kAt,kAt+1400);
-  ok(/facing\._summoned && facing\._summonSpeciesId/.test(blk),'tap on YOUR summoned Zyrex recognises it');
-  ok(/toggleFactionSummon\(_pi\)/.test(blk),'★ recall routes through toggleFactionSummon — combat lock + take-five VO + toast for free');
-  ok(kAt < src.indexOf('isFriendlyNpc(facing)', kAt),'★ checked BEFORE the soul-swap branch that used to eat the press');
-  // the hold · overworld venue
-  ok(/zyTriangleArm\(\); \} catch/.test(src)&&/k === 'k' && game\.scene === 'overworld'/.test(src),'★ overworld keydown ARMS the clock-polled hold (gamepads are edge-triggered)');
-  const tick=src.slice(src.indexOf('function zyTriangleHoldTick'),src.indexOf('function zyTriangleHoldTick')+1200);
-  ok(/game\.zphoneOpen\s*\|\|\s*\(game\.scene === 'overworld'/.test(tick),'★ the hold tick completes with the phone CLOSED too');
-  ok(/quickSummonStashAll/.test(tick),'hold = all out / all in · one existing chokepoint');
-  ok(/if \(game\.zphoneOpen\)\{[\s\S]{0,120}paintZycellNav/.test(tick),'phone repaints only when the phone is up');
-  // behavioral: recall a summoned follower through the same door
+  // ★ INVERTED · the v0.95.825 overworld tap-recall + hold-arm are REVOKED.
+  // Creator: "the only way to send a zyrex back is going in the phone and
+  // pressing triangle for one or holding triangle to send all back/out...
+  // a zyrex stands in front of me and triggers text boxes... this disrupts
+  // the combat."
+  ok(src.indexOf("TRIANGLE IS THE ZYSPHERE TOGGLE · Creator")<0,'the overworld tap-recall branch is GONE');
+  ok(/the v0\.95\.825 overworld tap-recall is REVOKED/.test(src),'…deliberately, with the ruling quoted');
+  ok(/facing && !facing\._summoned && !facing\.isEnemy && isFriendlyNpc\(facing\)/.test(src),'★ Triangle soul-swap is blind to summons · faced Zyrex = plain kick');
+  const tick=src.slice(src.indexOf('function zyTriangleHoldTick'),src.indexOf('function zyTriangleHoldTick')+900);
+  ok(/!game\._zyTriHeld \|\| !game\.zphoneOpen/.test(tick),'★ the hold completes ONLY with the phone open');
+  ok(!/game\.scene === 'overworld'[^\n]*zyTriangleArm/.test(src),'the overworld hold-arm is gone');
+  // Square is blind too
+  ok(/facing\._phoneSpawned && !facing\._summoned/.test(src)&&/facing && !facing\._summoned && isFriendlyNpc/.test(src),
+     '★ SQUARE is blind to summons — no follow toggle, no bond toast, the punch just fires');
+  // phone paths still work
   C.player.party=[{speciesId:'snok',level:10,hp:9,name:'Snok'}];
   C.game.scene='overworld';
-  C.toggleFactionSummon(0);                       // out
-  const fol=C.NPCS.find(n=>n&&n.id==='_summon_snok');
-  ok(!!fol&&fol._summoned===true,'deploy works (orb fallback if no sheet)');
-  C.toggleFactionSummon(0);                       // back in
-  ok(fol._summoned===false&&fol.scene==='__despawn__','and the same call stores it · the toggle IS a toggle');
-}
-
-
-H('4 · ★ v0.95.826 · THE ZYSPHERE ANSWERS MID-FIGHT · both directions');
-{
-  ok(!/Active combat · clear the stage before sending Zyrex home/.test(src),'★ the recall combat lock is gone');
-  ok(!/Active combat · clear the stage before stashing your faction/.test(src),'★ the stash-all combat lock is gone');
-  ok((src.match(/isInActiveCombat\(\)/g)||[]).length<=1,'no other summon path still consults the lock');
-  // behavioral: recall works with an enemy standing adjacent
-  C.player.party=[{speciesId:'snok',level:10,hp:9,name:'Snok'}];
-  C.game.scene='overworld'; C.player.x=700; C.player.y=700;
-  C.NPCS.push({id:'__foe_lock',isEnemy:true,scene:'overworld',mode:'wander',tileX:701,tileY:700,hp:10,sheet:{}});
   C.toggleFactionSummon(0);
   const fol=C.NPCS.find(n=>n&&n.id==='_summon_snok');
+  ok(fol&&fol._summoned===true,'phone Triangle (toggleFactionSummon) still deploys');
   C.toggleFactionSummon(0);
-  ok(fol&&fol._summoned===false,'★ recall lands with an enemy ONE TILE away');
-}
-
-H('5 · ★ v0.95.826 · THE BALL FLOATS · held block pose bobs, shadow stays');
-{
-  ok(/held >= 180\) _blockBob = Math\.round\(2 \+ Math\.sin\(_now \/ 320\) \* 2\.5\)/.test(src),
-     '★ shield-up frame hovers · 2px lift · ±2.5px sine · ~2s period');
-  ok(/let _blockBob = 0;/.test(src),'the bob is zero everywhere else (walk/idle/attack untouched)');
-  ok(/- gallopLift - _blockBob;/.test(src),'★ the sprite dy takes the lift');
-  ok(/gallopLift \+ _blockBob,/.test(src),'★ the ground shadow is COMPENSATED — it does not bob, which is what sells the float');
-  ok(/col = 2;\s+\/\/ shield up/.test(src),'the held pose is still the shield-up freeze frame · ramp + spark untouched');
+  ok(fol._summoned===false,'…and still recalls · the one door stands');
 }
 
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');

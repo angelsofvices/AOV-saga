@@ -53,9 +53,13 @@ H('2 · ★★ L2+TOUCHPAD ON A COMPANION = THE LONG GOODBYE');
   ok(fol._summoned===false&&fol._formSlot===null,'he leaves the field formation');
   ok(fol.mode==='walkHome'&&fol._walkHomeTarget&&fol._walkHomeTarget.x===fol.homeX,'★ he WALKS — walkHome mode aimed at his yard tile');
   ok(fol._walkHomeBailMs===180000,'the journey gets 3 minutes before the bail-out snap (default 20s is for errands)');
-  // resummon from mid-walk works
+  // ★ v0.95.837 · the goodbye RELEASES: party → PC storage
+  ok(!(C.player.party||[]).some(z=>z&&z.speciesId==='snok'),'★ he is OUT OF THE PARTY the moment he walks');
+  ok((C.player.pcZyrex||[]).some(z=>z&&z.speciesId==='snok'),'…and safe in PC storage — released, never deleted');
+  // bringing him back = re-add to party, then the phone summons as usual
+  C.player.party.push(C.player.pcZyrex.pop());
   C.toggleFactionSummon(0);
-  ok(fol._summoned===true&&fol.mode==='follow'&&!fol._walkHomeTarget,'★ Triangle re-summons him even mid-walk · mode restored to follow');
+  ok(fol._summoned===true&&fol.mode==='follow'&&!fol._walkHomeTarget,'★ re-partied + phone Triangle re-summons him even mid-walk');
 }
 
 H('3 · ★ THE TWO VERBS STAY DISTINCT');

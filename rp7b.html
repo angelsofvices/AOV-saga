@@ -32719,6 +32719,7 @@ const SPECIES = {
   },
   otterlin: {
     id:'otterlin', name:'Otterlin', tier:1, type:'Elemental', type2:null,
+    habitat:'aquatic',   // ★ v0.95.839 · first classified aquatic · Elemental-primary + aquatic body plan · the starter tile's 'Aquatic' label is the CLASS, not a type
     baseHP:50, baseATK:57, baseDEF:50, baseSPD:60, baseSATK:63, baseSDEF:53,   // sum 333
     evolveTo:'tidepup', evolveLv:30,
     moves:['Ripple Slap','Tidebreak','Hydro Wave','Deluge Cannon'],
@@ -34246,28 +34247,37 @@ function wildBattleExit(){
 // STRONG against exactly 3 others and WEAK to exactly 3 others, and no pair
 // counters each other mutually (if A beats B, B never beats A).  60 edges.
 // ═══════════════════════════════════════════════════════════════════════
-// ★★ v0.95.838 · THE 2026-08-26 TYPE-SYSTEM HANDOFF (locked canon).
-// 20 STANDARD types + ULTIMATE as the EXCLUSIVE 21st (Anciuxor + Ultharis
-// only — never obtainable, never among the standard twenty).  The missing
-// 20th standard slot is AQUATIC, named by the Creator ("I forgot the aquatic
-// type — add that as the 20th type, in the Mass class").  Families: HUMANOID
-// is the sole HAEMEN type; the other 19 standard types are AETHREN.
-// The array keeps its historic name — 21 entries, list + Ultimate rule.
+// ★★ v0.95.839 · THE 2026-08-26 TYPE-SYSTEM HANDOFF, REFINED SAME DAY.
+// The Creator first seated AQUATIC as the 20th standard type (v0.95.838),
+// then ruled the deeper doctrine: "Aquatic is an environmental/body-plan
+// CLASSIFICATION for organisms adapted to aquatic existence, rather than
+// necessarily a Primary Type... you don't need a conventional Water Type at
+// all."  So AQUATIC LEAVES THE TYPE LAYER — a shark-like Zyrex is
+// Beast-primary + aquatic CLASS, a living ocean is Elemental-primary +
+// aquatic class, sentient kelp is Verdant-primary + aquatic class.  The
+// registry returns to 19 named standard types + ULTIMATE (the exclusive
+// 21st · Anciuxor + Ultharis only); the open 20th standard slot remains a
+// flagged Creator decision (§42.19), never to be invented here.
+// LOCKED same ruling: ELEMENTAL is ONTOLOGICAL (life whose body IS a raw
+// substance/force — living flame, sentient water, mobile magma, storm,
+// plasma) · VERDANT is botanical/growth biology (photosynthesis, vines,
+// spores, bodies that GROW rather than heal) · NATURE is ecosystem-
+// synchronized life.  Three forest Aethren, three different types.
 const TYPE_LIST_20 = ['Aura','Beast','Creature','Nature','Humanoid','Tech',
   'Unknown','Spirit','Corrupted','Divine','Ultimate','Ultramax','Draconic',
-  'Crystal','Radiant','Elemental','Verdant','Chrono','Astra','Extraterrestrial',
-  'Aquatic'];
+  'Crystal','Radiant','Elemental','Verdant','Chrono','Astra','Extraterrestrial'];
+// ★ v0.95.839 · THE CLASSIFICATION LAYER (below types).  Species may carry
+// habitat:'aquatic' — a body-plan fact, orthogonal to their Types.  This is
+// the schema hook the bonding/habitat systems will read; it never enters
+// zyrexTypes(), the chart, or move learning.
+function isAquatic(z){
+  const sp = z && (SPECIES[z.speciesId] || z);
+  return !!(sp && sp.habitat === 'aquatic');
+}
 
 // ULTIMATE sits OUTSIDE this graph — see ULTIMATE RULE below.  The remaining
 // 19 types form the regular structure: 57 edges, in-deg = out-deg = 3.
-// ★ v0.95.838 · AQUATIC enters with an EMPTY edge set — fully neutral, ×1
-// both ways.  Deliberate, not lazy: the handoff (§39) rules that type
-// matchups are NOT canon until the Creator defines the types themselves, so
-// Aquatic gets no invented strengths.  The 19-node 3-regular digraph below
-// is the SHIPPED gameplay chart and stands as-is (game codex = inventions
-// allowed) until the canonical chart arrives.
 const TYPE_STRONG_VS = {
-  Aquatic:          [],   // ★ v0.95.838 · provisional neutral · awaits the canonical chart
   Aura:            ['Spirit','Humanoid','Unknown'],
   Beast:           ['Nature','Creature','Verdant'],
   Creature:        ['Verdant','Crystal','Extraterrestrial'],
@@ -34580,9 +34590,12 @@ function factionAllies(){
 }
 
 // Legacy type names still present in older SPECIES rows → locked-canon names.
-// ★ v0.95.838 · AQUATIC left this table — it IS the 20th standard type now
-// (Mass class · 2026-08-26 handoff).  'Converted' stays aliased: the canon
-// name is CORRUPTED, never Converted.
+// ★ v0.95.839 · AQUATIC is deliberately NOT aliased to Elemental any more:
+// "water creature does not automatically equal Water Type."  A legacy
+// 'Aquatic' in a codex column is a CLASSIFICATION hint (habitat:'aquatic'),
+// not a type — zyrexTypes() drops unknown strings safely, and typing such a
+// species is a per-species judgement call.  'Converted' stays aliased: the
+// canon name is CORRUPTED, never Converted.
 const TYPE_ALIAS = { Mechanical:'Tech', Astral:'Astra',
                      Void:'Corrupted', Converted:'Corrupted', Normal:'Creature' };
 function canonType(t){ if (!t) return null; return TYPE_ALIAS[t] || t; }
@@ -38715,7 +38728,6 @@ function drawFHUDZyrexPage(W, H){
 // exists for the species, draw it instead.  Nothing else needs to change.
 // ══════════════════════════════════════════════════════════════════════════
 const TYPE_COLORS = {
-  Aquatic:          '#38b6ff',   // ★ v0.95.838 · open-water blue · the 20th standard type
   Aura:             '#7fe6d8',   // pale cyan · the life-field
   Beast:            '#c9762f',   // burnt orange · fur and muscle
   Creature:         '#8fbf5a',   // moss green · ordinary fauna

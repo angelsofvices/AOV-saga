@@ -221,6 +221,21 @@ This is your rebalancing sheet: tier spread, T×333 pool check, and LIVE status 
 | **Orivora** | T9 | Demigod | Nature/Beast | GREATROOT | 300/300/300/300/297 | 1497 | 2997 | ⚠ |  |
 | **Anciuxor** | T10 | God | Ultimate | ABSOLUTE | 999/999/999/999/999 | 4995 | 3330 | ⚠ | ✅ |
 
+## ★ TIER CURVE LAW (Creator, 2026-08-26)
+**"Most Zyrex land T1-T3 — early-game team building. T4-T5 is mid-game. T6+ is endgame."**
+
+| band | role | current | share | suggested target* | delta |
+|---|---|---|---|---|---|
+| T1-T3 | early team building | 114 | 54% | ~135-140 (T1 fattened toward the 54-T1 foundation canon) | **+21-26** |
+| T4-T5 | mid-game | 71 | 34% | ~45-50 | **-21-26** |
+| T6+ | endgame | 27 | 13% | ~25-30 (T6 hollow at 5 · T9 heavy at 6) | reshape |
+
+*Suggested only — the deltas say WHERE to look, you say WHO moves. Biggest levers:
+1. **T1 is the foundation and it is thin** (19 vs the 54-T1 canon) — the natural fix is demoting simple T2/T3 creatures down, since every T2+ must ultimately evolve from a T1.
+2. **T5 is the fattest tier in the game (39)** — prime demotion pool into T3-T4.
+3. **T9 (6) outnumbers T8 (3)** — inverted; endgame should taper, not bulge.
+Every retier re-pools automatically to Tier×333 on ingest — mark the tier, ignore the stats.
+
 ## Notes for the rebalance pass
 - ⚠ rows: stat pool doesn't equal Tier×333 — either retier or restat (your call per entry).
 - Chains: per the variable-length law, mark evolutions with `a - b - c (ladder)` only where they exist; solos are finished citizens.

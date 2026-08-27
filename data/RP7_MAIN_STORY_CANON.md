@@ -146,10 +146,10 @@ change needed; both numbers stand.
 Draft says *Allelands*; `DISTRICT_WHEEL` says **Alienlands**, and that string is live
 across a 16,269-prop world. Treated as a typo in the draft. Say so if it was deliberate.
 
-### 6.2 "Thardun" vs "Thardin" · **build wins**
-The draft spells district IX *Thardun*. The build uses **`thardin`**, and existing canon
-has **Thardun** as the *corporation* (`aov-thardun-zysphere-canon` — "Thardun corp of
-Thardin"). Kept distinct: **Thardin** the district, **Thardun** the company.
+### 6.2 "Thardun" vs "Thardin" · RESOLVED 2026-08-26 · ONE SPELLING
+**Creator ruling 2026-08-26: THARDIN, one spelling for both** — the corporation wears
+the district's own name (that shared name is now the intrigue, not a near-miss
+spelling). "Thardun" is retired everywhere; all in-game references renamed v0.95.843.
 
 ### 6.3 ★★ Oathane is called MISSING · **NEEDS YOUR RULING**
 The draft lists Thardin's Gemlord as *"Oathane, the Anomaly — missing"* and builds the

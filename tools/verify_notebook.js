@@ -24,7 +24,7 @@ global.performance = { now: () => Date.now() };
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_notebook · v0.95.778 · Dad's Notebook · the POI index
 try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
-  ';globalThis.__C={NPCS,ENEMY_KINDS,enemyKindOf,notebookLogKill,notebookHint,notebookStanding,_migrateNotebook,renderZycellZycube,INVENTORY_META,NOTEBOOK_SECTIONS,NOTEBOOK_SCROLLS,notebookState,notebookHas,notebookVisit,notebookComplete,notebookFindScroll,notebookScrollsFor,notebookEntries,notebookProgress,notebookNotePropInteract,renderZycellNotebook,ZYCELL_PANELS,WORLD_PROPS,DISTRICT_WHEEL,TOWER_NETWORK,SPECIES,player,game,zycellPage,worldDistrictAt,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
+  ';globalThis.__C={ATHRENOLOGY_INDEX,NPCS,ENEMY_KINDS,enemyKindOf,notebookLogKill,notebookHint,notebookStanding,_migrateNotebook,renderZycellZycube,INVENTORY_META,NOTEBOOK_SECTIONS,NOTEBOOK_SCROLLS,notebookState,notebookHas,notebookVisit,notebookComplete,notebookFindScroll,notebookScrollsFor,notebookEntries,notebookProgress,notebookNotePropInteract,renderZycellNotebook,ZYCELL_PANELS,WORLD_PROPS,DISTRICT_WHEEL,TOWER_NETWORK,SPECIES,player,game,zycellPage,worldDistrictAt,snapBuildingsToLattice,buildAllTrails,scatterWoodChests,topUpDistrictCollectibles,evictFromBuildings};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let fail=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)fail++;};
@@ -65,7 +65,11 @@ H('2 · ★★ EVERY ENTRY IS DERIVED FROM THE LIVE WORLD');
   // ★ v0.95.813 · LANDMARKS = lore buildings + the ten folded-in Gemlord caves
   ok(l.length===real30+realCaves,
      `landmarks: ${l.length} = ${real30} lore buildings + ${realCaves} folded-in caves`);
-  ok(z.length===Object.keys(C.SPECIES).length,`zyrex: ${z.length} = the SPECIES table`);
+  // ★ v0.95.857 · the section is ATHRENOLOGY now: full ROSTER V1 (203
+  // catalogued + 7 theorized + 1 lore header), not just implemented SPECIES
+  ok(z.length===C.ATHRENOLOGY_INDEX.length+1,`zyrex: ${z.length} = roster v1 (${C.ATHRENOLOGY_INDEX.length}) + the Athrenology header`);
+  ok(z.filter(r=>/THEORIZED/.test(r.name)).length===7,'the seven T9-10 entries are THEORIZED · names hidden');
+  ok(!z.some(r=>/abominalys|anciuxor|alphaea/i.test(r.name)),'no god name leaks before Part 2\'s end');
   ok(d.length+t.length+c.length+l.length+z.length>100,'a real index, not a stub');
 }
 
@@ -235,8 +239,12 @@ H('13 · ★★ DAD POINTS AT WHAT IS LEFT');
   const seen=C.notebookState();
   for(const k of ['caves','landmarks']) for(const e of C.notebookEntries(k)){ seen.seen[e.id]=1; seen.done[e.id]=1; }
   const h3=C.notebookHint();
-  ok(/Proud of you|walked all of it/i.test(h3.text),
-     `with nothing left it says so rather than inventing a task · "${h3.text.slice(0,44)}..."`);
+  // ★ v0.95.857 · INVERTED · Dad's Athrenology index (roster v1 · 203
+  // catalogued) is BIGGER than the implemented game, so even a completionist
+  // of every shipped species still has frontier left — and the hint should
+  // say so honestly rather than congratulating early.
+  ok(/of Dad's index still unrecorded/.test(h3.text),
+     `the hint points at Dad's index frontier · "${h3.text.slice(0,52)}..."`);
 }
 
 H('14 · ★ HE NOTICES HOW FAR YOU HAVE GOT');

@@ -88,7 +88,7 @@ T = [
  "Zarvane's dunes give up shards of something older than glass. The readers call them Prismshards and handle them like relics. They are right to.",
  "Andrannor sells replica Prismshards to tourists. Two of the replicas have bonded something. The stall owner has stopped selling them and will not say more.",
  "Veridan. An old root grew around a Prismshard and will not release it. The tree is measurably healthier for it. I have twelve years of measurements.",
- "Netharion. Confirmed in writing at last: the Prismshard is the direct progenitor of the Zysphere. Every sphere Thardun sells is a copy of a thing FOUND, not invented.",
+ "Netharion. Confirmed in writing at last: the Gemlord blades are relic-forged — cut from PRISMSHARDS, the highest-powered stones this universe has ever produced. Thardin sells spheres. Nobody sells THAT.",
  "Vorashil. The Prismshard did not capture. It OFFERED. That difference is the whole of Kelthor's eighth step and I did not understand it until I stood here.",
  "Xilnar. They bury their dead holding shards. The dead were buried holding the thing that held them. I had to step outside after that one.",
  "Baelgor. The first Pledge was sworn on a Prismshard, not a book. Someone swapped them later. No record of who, and the swap is not in the minutes.",
@@ -118,8 +118,8 @@ T2 = [
  "Vorashil. Orryx and Ophira answer to XENOXIL, the Flesh Lord. And Xenoxil is not destabilising the districts — it is CONNECTING them. That is far worse.",
  "Xilnar. What they siphon is not power. It is CONSENT. Ask a world enough times and it stops noticing it was asked. I have started counting how often I say yes.",
  "Baelgor. They will take people to make a point about leverage, and the point will not be aimed at the people. Remember that if it is ever aimed at us.",
- "Thardin. Every tower they darkened was a mouth. Ten mouths, one throat. Scrapjaw worked that out before any of us and nobody listened to him either.",
- "Korathen. They are not conquering Zyraxis. They are PREPARING it — and the preparation only works if the ten districts become one system. Do not help them make it one."]),
+ "Thardin. They did not break in — they were INVITED. A couple of the enforcement agents who watch the districts through the drones now watch FOR the hooded ones. Every Scanobot is two sets of eyes and only one of them is official. Scrapjaw worked that out before any of us and nobody listened to him either.",
+ "Korathen. They are not conquering Zyraxis. They are PREPARING it. The oversight seat watches everything through Thardin's grid — and the grid answers to them now. The door to Korathen was never forced. It logged itself open."]),
 
 ("THE NOVARIAN CHALLENGE","novarian",[
  "Our Coliseum runs a bracket every season and not one person in the stands can tell me who Novarius was. I asked forty.",
@@ -171,15 +171,15 @@ T2 = [
 
 ("THARDUN","thardun",[
  "Every Zysphere in Malezor carries a maker's mark and not one person in this town has met the maker. I have written to them nine times.",
- "Zarvane stocks Thardun goods that Thardun has no record of shipping. Showed the manifest to a rep. He asked to keep it.",
- "Andrannor launders Thardun surplus. The surplus is larger than the production. I ran the numbers twice because I assumed I was wrong.",
- "Veridan bans Thardun instruments on parliament ground and the ban is OLDER than the instruments. Somebody knew what was coming.",
- "Netharion. Thardun the CORPORATION is not Thardin the district. The names were close enough to be useful to somebody, and still are.",
- "Vorashil. Thardun did not invent the Zysphere. It found one, copied it badly, and sold the copy at a price the original never had.",
+ "Zarvane stocks Thardin goods that Thardin has no record of shipping. Showed the manifest to a rep. He asked to keep it.",
+ "Andrannor launders Thardin surplus. The surplus is larger than the production. I ran the numbers twice because I assumed I was wrong.",
+ "Veridan bans Thardin instruments on parliament ground and the ban is OLDER than the instruments. Somebody knew what was coming.",
+ "Netharion. Thardin the CORPORATION wears the district's own name and the district has never seen a coin for it. Ask which came first and watch the room go quiet.",
+ "Vorashil. Thardin's Zysphere patents are airtight. What the filings never say is what the first prototype was pointed AT when they tested it.",
  "Xilnar. The Orphan Foundry is named honestly. That is the single most alarming thing I have learned in this district.",
- "Baelgor. The Precision Ministry exists to certify Thardun's work is safe. The Ministry is a Thardun DEPARTMENT. It is on their org chart, page nine.",
+ "Baelgor. The Precision Ministry exists to certify Thardin's work is safe. The Ministry is a Thardin DEPARTMENT. It is on their org chart, page nine.",
  "Thardin. The Anomaly Engine was not built. It was EXCAVATED. They have been reverse-engineering their own foundation for a century and calling it R&D.",
- "Korathen. Thardun's real product is not spheres. It is the idea that a bond can be BOUGHT. That idea is doing exactly what it was released to do."]),
+ "Korathen. Thardin's real product is not spheres. It is the idea that a bond can be BOUGHT. That idea is doing exactly what it was released to do."]),
 
 ("THE EMPTY THRONE","throne",[
  "Our hall has ten seats carved into the beam and one is left unpainted. 'Tradition,' they say. Nobody can tell me the tradition.",

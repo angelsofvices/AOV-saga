@@ -80,7 +80,9 @@ H('2 · ★★ THE FIELD JOURNAL IS DERIVED TOO');
   P.bonds[sp]=100;
   ok(C.speciesJournalStage(sp)===3,'★ bond full · MASTERED');
   const jc=C.journalCounts();
-  ok(jc.total===Object.keys(C.SPECIES).length,`counts cover all ${jc.total} species`);
+  // ★ v0.95.857 · journalCounts reads the ATHRENOLOGY INDEX (roster v1) now:
+  // 203 catalogued + 7 theorized, not the implemented-SPECIES table
+  ok(jc.total===203&&jc.theorized===7,`counts cover the full Athrenology index (${jc.total} catalogued + ${jc.theorized} theorized)`);
   ok(jc.mastered===1&&jc.unknown===jc.total-1,'and they add up');
   // ★ BATTLED is deliberately absent, not faked
   ok(C.JOURNAL_STAGES.length===4 && !C.JOURNAL_STAGES.some(s=>s.key==='battled'),

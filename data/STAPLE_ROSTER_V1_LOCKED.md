@@ -1,195 +1,184 @@
-# ★★ OFFICIAL MAIN BETA ROSTER · 1ST GENERATION · V1 LOCKED
-**Locked by the Creator, 2026-08-27.  210 Zyrex.  All further changes are ROSTER V2.**
-
-Curve: T1: 53 · T2: 45 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7: 8 · T8: 3 · T9: 6 · T10: 1
-
-Laws in force: tier curve (most T1-T3 · T4-T5 mid · T6+ endgame) · pool = Tier×333 on ingest ·
-level = tier×10 for wilds · variable-length chains (incomplete lines are citizens) ·
-T9 = the Six Dracolords · T8 = Immortal planet creators · types validate against the 20+1 registry.
-
+# RP7 OFFICIAL MAIN BETA ZYREX ROSTER · v1
+**Status: LOCKED · 2026-08-27**
+**Cosmology locked: TIER 9 = the SIX DRACOLORDS exactly — the survivors of the First Ancient War
+after the Aenor eruptions, when AE28 left the Aethryx Expanse. TIER 8 = the IMMORTAL creator class:
+planet creators hold it innately, while completing a Perfect Epsilon ladder confers creator-class
+standing (Omegoran).**
+Official v1 curve: T1: 53 · T2: 45 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7: 8 · T8: 3 · T9: 6 · T10: 1 · total 210 · moves 87
 ## TIER 1 · FOUNDATION · early team building · 53
-
-- **Abyssiq** · Aura/Aquatic
-- **Aetherwing** · Beast/Aura 🔒 live
+- **Abyssiq** · Aura/Aquatic ⬇ T2→T1
+- **Aetherwing** · Beast/Aura 🔒
 - **Aurarat** · Beast/Unknown
 - **Barkchitter** · Beast/Nature
-- **Blazonon** · Beast/Spirit
-- **Bogarion** · Beast/Nature
-- **Bonemaw** · Beast/Unknown
-- **Chameleor** · Beast/Nature
-- **Chronocrow** · Spirit
+- **Blazonon** · Beast/Spirit ⬇ T2→T1
+- **Bogarion** · Beast/Nature ⬇ T2→T1
+- **Bonemaw** · Beast/Unknown ⬇ T2→T1
+- **Chameleor** · Beast/Nature ⬇ T2→T1
+- **Chronocrow** · Spirit ⬇ T2→T1
 - **Cinderant** · Beast/Spirit
-- **Drakaryze** · Beast/Nature
-- **Dredgill** · Beast
+- **Drakaryze** · Beast/Nature ⬇ T4→T1
+- **Dredgill** · Beast ⬇ T2→T1
 - **Dunechitter** · Beast/Aura
 - **Dunestinger** · Beast/Nature
-- **Emberuk** · Nature/Beast
+- **Emberuk** · Nature/Beast ⬇ T3→T1
 - **Flarepaw** · Aura/Beast
 - **Flarewisp** · Aura/Beast
-- **Florlyan** · Nature/Aura
+- **Florlyan** · Nature/Aura ⬇ T3→T1
 - **Frostwisp** · Nature/Beast
-- **Gearbyte** · Tech/Humanoid 🔒 live
-- **Glaciobolt** · Beast/Nature
-- **Glaciogre** · Beast/Nature
-- **Gravelor** · Humanoid/Nature
-- **Graveskull** · Spirit/Beast
-- **Ignycel** · Aura/Nature
-- **Lunahorn** · Beast/Aura
-- **Luxquid** · Beast/Aura
-- **Marisyth** · Beast/Nature
-- **Noxiclaw** · Beast/Spirit
-- **Otterlin** · Beast/Nature 🔒 live
+- **Gearbyte** · Tech/Humanoid 🔒
+- **Glaciobolt** · Beast/Nature ⬇ T4→T1
+- **Glaciogre** · Beast/Nature ⬇ T2→T1
+- **Gravelor** · Humanoid/Nature ⬇ T3→T1
+- **Graveskull** · Spirit/Beast ⬇ T4→T1
+- **Ignycel** · Aura/Nature ⬇ T3→T1
+- **Lunahorn** · Beast/Aura ⬇ T3→T1
+- **Luxquid** · Beast/Aura ⬇ T3→T1
+- **Marisyth** · Beast/Nature ⬇ T3→T1
+- **Noxiclaw** · Beast/Spirit ⬇ T2→T1
+- **Otterlin** · Beast/Nature 🔒
 - **Pebblequil** · Crystal/Beast
-- **Petragryff** · Crystal/Spirit
+- **Petragryff** · Crystal/Spirit ⬇ T4→T1
 - **Plainshound** · Beast/Nature
-- **Pyranhya** · Beast/Spirit
-- **Reefwing** · Aquatic/Beast
-- **Riftipple** · Beast/Unknown
-- **Rustbyte** · Tech/Humanoid
-- **Saburrow** · Nature/Beast
+- **Pyranhya** · Beast/Spirit ⬇ T3→T1
+- **Reefwing** · Aquatic/Beast ⬇ T3→T1
+- **Riftipple** · Beast/Unknown ⬇ T2→T1
+- **Rustbyte** · Tech/Humanoid ⬇ T2→T1
+- **Saburrow** · Nature/Beast ⬇ T2→T1
 - **Sandskitter** · Beast/Nature
-- **Shadowmink** · Beast/Unknown
-- **Silkora** · Beast/Nature
-- **Sparkbud** · Nature/Aura
+- **Shadowmink** · Beast/Unknown ⬇ T3→T1
+- **Silkora** · Beast/Nature ⬇ T2→T1
+- **Sparkbud** · Nature/Aura ⬇ T2→T1
 - **Sunhoop** · Beast/Aura
-- **Terralith** · Beast/Crystal
+- **Terralith** · Beast/Crystal ⬇ T2→T1
 - **Torchpuff** · Beast/Spirit
-- **Veilfang** · Beast/Unknown
-- **Verdanix** · Beast/Nature 🔒 live
-- **Veridrax** · Beast/Crystal
-- **Vipercrow** · Beast/Unknown
-- **Volcanut** · Beast/Aura 🔒 live
+- **Veilfang** · Beast/Unknown ⬇ T2→T1
+- **Verdanix** · Beast/Nature 🔒
+- **Veridrax** · Beast/Crystal ⬇ T2→T1
+- **Vipercrow** · Beast/Unknown ⬇ T2→T1
+- **Volcanut** · Beast/Aura 🔒
 - **Volitimite** · Nature/Beast
-- **Voltibex** · Beast/Aura
+- **Voltibex** · Beast/Aura ⬇ T2→T1
 - **Vulkarmor** · Beast/Spirit
-
 ## TIER 2 · EARLY · 45
-
-- **Animarion** · Beast/Aura
-- **Astravyx** · Aura/Aquatic
-- **Auramantle** · Beast/Tech
+- **Animarion** · Beast/Aura ⬇ T3→T2
+- **Astravyx** · Aura/Aquatic ⬇ T3→T2
+- **Auramantle** · Beast/Tech ⬇ T3→T2
 - **Aurokine** · Beast/Aura
-- **Bastonshell** · Beast/Nature
-- **Boreursa** · Beast/Aura
+- **Bastonshell** · Beast/Nature ⬇ T3→T2
+- **Boreursa** · Beast/Aura ⬇ T4→T2
 - **Canyon Vultureking** · Beast/Aura
 - **Duskgrave** · Beast/Nature
 - **Dustmane Crane** · Beast/Nature
 - **Emberskin Cobra** · Nature/Beast
 - **Ferrophix** · Beast/Nature
-- **Glaucivor** · Beast/Nature
-- **Gloomthane** · Aquatic/Beast
-- **Gravemourn** · Spirit/Nature
-- **Iguanax** · Beast/Nature
-- **Irondrake** · Draconic/Beast
-- **Levanium** · Unknown/Beast
-- **Luminacor** · Aura/Beast
+- **Glaucivor** · Beast/Nature ⬇ T3→T2
+- **Gloomthane** · Aquatic/Beast ⬇ T5→T2
+- **Gravemourn** · Spirit/Nature 🚫 Creator-held
+- **Iguanax** · Beast/Nature ⬇ T3→T2
+- **Irondrake** · Draconic/Beast ⬇ T3→T2
+- **Levanium** · Unknown/Beast 🚫 Creator-held
+- **Luminacor** · Aura/Beast ⬇ T3→T2
 - **Mantisaris** · Beast/Nature
-- **Meadowhorn** · Beast/Nature
-- **Mudlarion** · Beast/Unknown
-- **Neuromoo** · Tech/Aura
-- **Nimbovis** · Beast/Aura
-- **Ossyrix** · Beast/Unknown
-- **Pelagion** · Aquatic/Beast
+- **Meadowhorn** · Beast/Nature ⬇ T3→T2
+- **Mudlarion** · Beast/Unknown ⬇ T3→T2
+- **Neuromoo** · Tech/Aura 🚫 Creator-held
+- **Nimbovis** · Beast/Aura ⬇ T3→T2
+- **Ossyrix** · Beast/Unknown ⬇ T4→T2
+- **Pelagion** · Aquatic/Beast ⬇ T5→T2
 - **Pyrocarapax** · Beast/Spirit
-- **Rhinoxis** · Beast 🔒 live
-- **Ryterrhax** · Beast/Aura
+- **Rhinoxis** · Beast 🔒
+- **Ryterrhax** · Beast/Aura ⬇ T3→T2
 - **Salaris** · Beast/Nature
-- **Sanaraine** · Beast/Aura
+- **Sanaraine** · Beast/Aura ⬇ T3→T2
 - **Shadowelk** · Beast/Unknown
-- **Sigilmor** · Aura/Unknown
-- **Stavros Beastcall** · Beast
-- **Stormcliff Ram** · Nature/Beast
+- **Sigilmor** · Aura/Unknown ⬇ T3→T2
+- **Stavros Beastcall** · Beast ⬇ T4→T2
+- **Stormcliff Ram** · Nature/Beast ⬇ T3→T2
 - **Stormtide Seagull** · Aquatic/Beast
-- **Sylvarion** · Nature/Beast
+- **Sylvarion** · Nature/Beast ⬇ T5→T2
 - **Terraphil** · Beast/Nature
-- **Terrathra** · Beast/Nature
+- **Terrathra** · Beast/Nature ⬇ T5→T2
 - **Tuskrend** · Beast/Nature
-- **Umbracat** · Beast/Unknown
-- **Vampella** · Beast/Spirit
-- **Vengrizz** · Spirit/Beast
+- **Umbracat** · Beast/Unknown ⬇ T3→T2
+- **Vampella** · Beast/Spirit 🚫 Creator-held
+- **Vengrizz** · Spirit/Beast ⬇ T4→T2
 - **Verdyharen** · Beast/Nature
-- **Volcarith** · Beast/Aquatic
+- **Volcarith** · Beast/Aquatic ⬇ T3→T2
 - **Voltmantis** · Beast/Aura
-
 ## TIER 3 · EARLY-CORE · 40
-
-- **Amaelyth** · Beast/Aura
-- **Arcemur** · Beast
-- **Auralux** · Beast/Aura
-- **Buzzolt** · Beast/Aura 🔒 live
-- **Canythra** · Beast/Nature
-- **Celsius** · Aura/Unknown
+- **Amaelyth** · Beast/Aura ⬇ T4→T3
+- **Arcemur** · Beast ⬇ T4→T3
+- **Auralux** · Beast/Aura ⬇ T4→T3
+- **Buzzolt** · Beast/Aura 🔒
+- **Canythra** · Beast/Nature ⬇ T4→T3
+- **Celsius** · Aura/Unknown ⬇ T5→T3
 - **Cinderbeetle** · Beast/Spirit
-- **Cindercur** · Beast/Spirit 🔒 live
-- **Crustmaw** · Aquatic/Beast
-- **Crycarys** · Beast/Aura
-- **Devormor** · Beast/Unknown
-- **Drakaryx** · Beast/Humanoid
-- **Festivae** · Beast/Aura
-- **Gemorid** · Crystal/Aura
+- **Cindercur** · Beast/Spirit 🔒
+- **Crustmaw** · Aquatic/Beast 🚫 Creator-held · _RENAMED from Rustmaw + RETYPED Aquatic/Beast (Creator 2026-08-26)_
+- **Crycarys** · Beast/Aura ⬇ T4→T3
+- **Devormor** · Beast/Unknown ⬇ T5→T3
+- **Drakaryx** · Beast/Humanoid 🚫 Creator-held
+- **Festivae** · Beast/Aura 🚫 Creator-held
+- **Gemorid** · Crystal/Aura ⬇ T4→T3
 - **Glacierwing Falcon** · Nature/Beast
-- **Gravigon** · Beast/Aura
-- **Grimhog** · Beast 🔒 live
-- **Hopbeam** · Aura/Spirit
+- **Gravigon** · Beast/Aura ⬇ T4→T3
+- **Grimhog** · Beast 🔒
+- **Hopbeam** · Aura/Spirit 🚫 Creator-held
 - **Lyncora** · Beast/Aura
 - **Manticorpus** · Beast/Nature
-- **Mutamech** · Aura/Aquatic 🔒 live
-- **Myrradon** · Beast/Spirit
-- **Nimbusor** · Aura/Spirit
-- **Noctron** · Spirit/Unknown
-- **Nyctopus** · Beast/Unknown
-- **Phantuar** · Spirit/Unknown
-- **Primaria** · Humanoid/Aura
-- **Pyrsect** · Beast
-- **Rocaris** · Beast/Aura
-- **Royalden** · Beast/Aura
+- **Mutamech** · Aura/Aquatic 🔒
+- **Myrradon** · Beast/Spirit ⬇ T5→T3
+- **Nimbusor** · Aura/Spirit 🚫 Creator-held
+- **Noctron** · Spirit/Unknown 🚫 Creator-held
+- **Nyctopus** · Beast/Unknown 🚫 Creator-held
+- **Phantuar** · Spirit/Unknown ⬇ T5→T3
+- **Primaria** · Humanoid/Aura ⬇ T5→T3
+- **Pyrsect** · Beast ⬇ T5→T3
+- **Rocaris** · Beast/Aura ⬇ T4→T3
+- **Royalden** · Beast/Aura ⬇ T4→T3
 - **Sagamorne** · Beast/Nature
-- **Sharkfin** · Aquatic/Humanoid
-- **Smogrin** · Aura/Spirit
-- **Talenko** · Beast/Aura
-- **Tick & Tune** · Beast/Aura
+- **Sharkfin** · Aquatic/Humanoid 🚫 Creator-held
+- **Smogrin** · Aura/Spirit 🚫 Creator-held
+- **Talenko** · Beast/Aura ⬇ T5→T3
+- **Tick & Tune** · Beast/Aura 🚫 Creator-held
 - **Titan Owl** · Beast/Aura
-- **Titanova** · Tech/Beast
+- **Titanova** · Tech/Beast 🚫 Creator-held
 - **Vaelorion** · Humanoid/Nature
-- **Voiden** · Spirit/Unknown
-- **Vulcanax** · Crystal/Beast 🔒 live
-
+- **Voiden** · Spirit/Unknown ⬇ T5→T3
+- **Vulcanax** · Crystal/Beast 🔒
 ## TIER 4 · MID · 25
-
 - **Abyssarach** · Aquatic/Beast
 - **Ancient Peacock** · Beast/Aura
 - **Astralape** · Spirit/Beast
 - **Crownfeather Gryphon** · Beast/Aura
 - **Embercrest** · Nature/Aura
 - **Embermoth** · Nature/Beast
-- **Frostphen** · Nature/Spirit 🔒 live
+- **Frostphen** · Nature/Spirit 🔒
 - **Glacial Widow** · Beast/Unknown
-- **Grevotor** · Nature/Crystal
+- **Grevotor** · Nature/Crystal 🚫 Creator-held
 - **Grizzigor** · Beast/Nature
-- **Inferleon** · Beast/Aura
-- **Lecarion** · Beast
-- **Phrenetic** · Unknown/Spirit 🔒 live
-- **Prismarill** · Crystal/Spirit
-- **Psyrexis** · Spirit/Unknown
-- **Pyrothrax** · Beast/Spirit
-- **Robotryx** · Tech/Beast
-- **Skorleax** · Beast
-- **Skybeam** · Beast/Tech 🔒 live
-- **Snok** · Nature 🔒 live
-- **Solcryst** · Aura/Unknown
+- **Inferleon** · Beast/Aura ⬇ T5→T4
+- **Lecarion** · Beast 🚫 Creator-held
+- **Phrenetic** · Unknown/Spirit 🔒
+- **Prismarill** · Crystal/Spirit ⬇ T5→T4
+- **Psyrexis** · Spirit/Unknown ⬇ T5→T4
+- **Pyrothrax** · Beast/Spirit ⬇ T5→T4
+- **Robotryx** · Tech/Beast 🚫 Creator-held
+- **Skorleax** · Beast ⬇ T5→T4
+- **Skybeam** · Beast/Tech 🔒
+- **Snok** · Nature 🔒
+- **Solcryst** · Aura/Unknown ⬇ T5→T4
 - **Solvarion** · Beast/Aura
-- **Sphyxenor** · Beast/Spirit
-- **Thaloryx** · Aquatic/Beast
-- **Tonitrex** · Beast/Nature
-
+- **Sphyxenor** · Beast/Spirit ⬇ T5→T4
+- **Thaloryx** · Aquatic/Beast ⬇ T5→T4
+- **Tonitrex** · Beast/Nature 🚫 Creator-held
 ## TIER 5 · MID-APEX · 20
-
-- **Apexaur** · Beast 🔒 live
+- **Apexaur** · Beast 🔒
 - **Aurareris** · Beast/Aura
 - **Avianex** · Beast/Aura
 - **Celestyx** · Aura/Spirit
-- **Cindercrown** · Beast/Spirit 🔒 live
-- **Elzoran** · Draconic/Nature 🔒 live
+- **Cindercrown** · Beast/Spirit 🔒
+- **Elzoran** · Draconic/Nature 🔒
 - **Gryphycore** · Nature/Beast
 - **Obsidian Behemoth** · Crystal/Beast
 - **Onyaxius** · Beast/Spirit
@@ -202,52 +191,40 @@ T9 = the Six Dracolords · T8 = Immortal planet creators · types validate again
 - **Titantusk** · Beast/Nature
 - **Tundracia** · Beast/Aura
 - **Verdellum** · Beast/Nature
-- **Volcaxor** · Beast/Nature 🔒 live
+- **Volcaxor** · Beast/Nature 🔒
 - **Voltaryx** · Nature/Beast
-
 ## TIER 6 · ENDGAME GATE · 9
-
-- **Aegiri** · Aura/Nature
-- **Celestryx** · Spirit/Aura 🔒 live
-- **Cindereth** · Nature/Unknown
-- **Dracaryze** · Beast/Aura 🔒 live
+- **Aegiri** · Aura/Nature ⬇ T7→T6
+- **Celestryx** · Spirit/Aura 🔒
+- **Cindereth** · Nature/Unknown ⬇ T7→T6
+- **Dracaryze** · Beast/Aura 🔒
 - **Skyrathon** · Beast/Aura
-- **Sylvans** · Nature/Spirit
-- **Voltigrax** · Nature/Beast 🔒 live
+- **Sylvans** · Nature/Spirit ⬇ T7→T6
+- **Voltigrax** · Nature/Beast 🔒
 - **Voltyran** · Beast/Nature
 - **Vorakhan** · Beast/Unknown
-
 ## TIER 7 · ENDGAME · 8
-
 - **Abyssylyx** · Aura/Divine
 - **Diviniara** · Aura/Divine
-- **Draghoul** · Crystal/Draconic/Corrupted
+- **Draghoul** · Crystal/Draconic/Corrupted 🔒
 - **Leonoror** · Aura/Divine
 - **Luminari** · Aura/Spirit
 - **Nightstang** · Spirit/Beast
 - **Pheonaris** · Beast/Aura
 - **Royalesus** · Aura/Divine
-
-## TIER 8 · IMMORTAL · CREATORS OF THEIR HOME PLANETS · 3
-
-- **Lumelys** · Aura/Divine 🌍
-- **Omegoran** · Draconic/Nature/Corrupted 🔒 live
-- **Orivora** · Nature/Beast 🌍
-
+## TIER 8 · IMMORTAL · CREATOR CLASS · 3
+- **Lumelys** · Aura/Divine 🌍 IMMORTAL · planet creator
+- **Omegoran** · Draconic/Nature/Corrupted 🔒 · PERFECT EPSILON CREATOR-CLASS
+- **Orivora** · Nature/Beast 🌍 IMMORTAL · planet creator
 ## TIER 9 · DEMIGOD · THE SIX DRACOLORDS · 6
-
-- **Abominalys** · Divine/Beast 🐲
-- **Abyssion** · Divine/Unknown/Draconic 🐲
-- **Aetherion** · Divine/Aura 🐲
-- **Aethravax** · Divine/Aura/Draconic 🐲
-- **Alphaea** · Divine/Aura/Spirit 🐲
-- **Azyrath** · Divine/Unknown/Spirit 🐲
-
+- **Abominalys** · Divine/Beast 🐲 DRACOLORD
+- **Abyssion** · Divine/Unknown/Draconic 🐲 DRACOLORD
+- **Aetherion** · Divine/Aura 🐲 DRACOLORD
+- **Aethravax** · Divine/Aura/Draconic 🐲 DRACOLORD
+- **Alphaea** · Divine/Aura/Spirit 🐲 DRACOLORD
+- **Azyrath** · Divine/Unknown/Spirit 🐲 DRACOLORD
 ## TIER 10 · THE SUMMIT · 1
-
-- **Anciuxor** · Ultimate 🔒 live
-
-## V2 AGENDA (locked out of V1 · first items on the next revision)
-- Omegoran-at-T8 vs planet-creator law · Gemlord roster membership (10 set aside) ·
-  Stavros Beastcall confirmation · evolution chains declaration · Astrum cohort naming ·
-  per-species retypes as the type definitions finalize.
+- **Anciuxor** · Ultimate 🔒 · mastery of all 20 Standard Types
+## VERSION LOCK
+This is the official RP7 main-beta Zyrex roster, v1. Draghoul is locked at Tier 7. All subsequent roster additions, removals, renames, retypes, or tier changes belong to v2 or later.
+Canonical spelling: **Astral**, never "Astra." **Ultimate** is the exclusive mastery of all 20 Standard Types. Aquatic is the 20th Standard Type; Ultimate is the exclusive 21st Type.

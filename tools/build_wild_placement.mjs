@@ -33,8 +33,22 @@ let _s=0xA0F5EED1; const rng=()=>{ _s^=_s<<13; _s^=_s>>>17; _s^=_s<<5; _s>>>=0; 
 const DISTS=C.DISTRICT_WHEEL.map(w=>w.dist);
 const LAND_TYPE={malezor:'Beast',zarvane:'Aura',andrannor:'Creature',veridan:'Nature',netharion:'Unknown',
  vorashil:'Extraterrestrial',xilnar:'Spirit',baelgor:'Humanoid',thardin:'Tech',korathen:'Ultramax'};
-const TIER_BAND={malezor:[1,2],zarvane:[2,3],andrannor:[2,3],veridan:[3,4],netharion:[4,5],
- vorashil:[4,5],xilnar:[5,6],baelgor:[5,6],thardin:[6,7],korathen:[6,8]};
+// ★ v0.95.859 · NATURAL SCALING · Creator: "I want rizer to naturally scale
+// with zyrex per district, with zyrex being a little stronger to push comp."
+// District i spans Rizer levels ~(i-1)x10..(i)x10; the district's MAIN wild
+// tier is T(i) — level i x 10, the level Rizer LEAVES with — so the local
+// wilds sit a step ahead of him the whole time he is there.  Easy habitats
+// run one tier under, hard habitats hold the full band.  Capped at T7.
+// Rizer grows ~5-10 levels per district (Creator) → exit level ≈ 5 + 7.5·i.
+// Wild tier tracks that curve one step AHEAD (level = tier×10):
+//   d1 exit ~12 → T1 wilds (Lv10 while he's 5-12)   d6 exit ~50 → T5
+//   d2 exit ~20 → T1-2                              d7 exit ~57 → T5-6
+//   d3 exit ~27 → T2-3                              d8 exit ~65 → T6
+//   d4 exit ~35 → T3-4                              d9 exit ~72 → T6-7
+//   d5 exit ~42 → T4                                d10 exit ~80 → T7 (cap ·
+//   T8+ never spawns wild — end-of-game specials)
+const TIER_BAND={malezor:[1,1],zarvane:[1,2],andrannor:[2,3],veridan:[3,4],netharion:[4,4],
+ vorashil:[4,5],xilnar:[5,5],baelgor:[5,6],thardin:[6,6],korathen:[6,7]};
 // anchors
 const anchors={};
 for(const T of C.TOWER_NETWORK){ anchors[T.dist]={tower:T.tower.slice()}; }
@@ -80,10 +94,23 @@ function findTile(d,hab){
 }
 
 // species pool
-const EXCLUDE=new Set(['rakoron','anciuxor','elzebub','elzimir','elzoran','omegoran',
- 'volcanut','volcarok','volcaxor','verdanix','shinobix','shogunnox','otterlin','tidepup','lupinor',
- 'voltaryn','voltigrax','apexaur']);
-const pool=Object.values(C.SPECIES).filter(s=>s&&s.tier&&!EXCLUDE.has(s.id));
+// ★ v0.95.859 · the pool is the LOCKED ROSTER V1 (Creator handoff · 210) —
+// minus: starters + their lines (Dad's gifts), the Elzebub line (story),
+// already-pinned wilds, and EVERYTHING T8+ ("save high level zyrex for end
+// of game": T8 immortals are planet gods or evolution-only; T9-10 have no
+// encounters until Part 2's end · Athrenology canon).
+const ROSTER=JSON.parse(fs.readFileSync(new URL('../data/staple_roster_v1.json',import.meta.url))).species;
+const EXCLUDE_NAMES=new Set(['Anciuxor','Elzoran','Omegoran','Otterlin','Verdanix','Volcanut',
+ 'Volcaxor','Voltaryn','Voltigrax','Apexaur','Orivora','Lumelys','Draghoul',
+ 'Abominalys','Abyssion','Aetherion','Aethravax','Alphaea','Azyrath']);
+const _liveByName={};
+for(const k of Object.keys(C.SPECIES)) _liveByName[(C.SPECIES[k].name||'').toLowerCase()]=k;
+const pool=ROSTER.filter(r=>r.tier<=7&&!EXCLUDE_NAMES.has(r.name)).map(r=>({
+  id:_liveByName[r.name.toLowerCase()]||('v1_'+r.name.toLowerCase().replace(/[^a-z0-9]+/g,'_')),
+  name:r.name,tier:r.tier,
+  type:r.types.split('/')[0]||null,type2:r.types.split('/')[1]||null,type3:r.types.split('/')[2]||null,
+  live:!!_liveByName[r.name.toLowerCase()],
+}));
 const usage={};
 const NEIGH={}; DISTS.forEach((d,i)=>{NEIGH[d]=[DISTS[i-1],DISTS[i+1]].filter(Boolean);});
 function pickSpecies(d,lo,hi){
@@ -137,7 +164,7 @@ for(const d of DISTS){
       types:[sp.type,sp.type2,sp.type3].filter(Boolean).join('/'),
       level:sp.tier*10,bondPct:Math.round(C.requiredBondForTier(sp.tier)/3330*100),
       temperament:temp,tile,note:note+(drift?' · ⚠ tier off-band (recast when new species land)':''),
-      status:C.SUMMONABLE_SPRITES[sp.id]?'LIVE':'NEEDS ART'});
+      status:(sp.live&&C.SUMMONABLE_SPRITES[sp.id])?'LIVE':'NEEDS ART'});
   }
 }
 for(const [id,x,y,d] of EXISTING){
@@ -164,7 +191,7 @@ for(const d of DISTS){
   }
   md+='\n';
 }
-md+=`## CODEX ASSET PRODUCTION LIST\n\nPer the Creator: **idle + walking sheets per species** so wilds can stand, graze, be bonded, and companionize.\n**Sheet spec (canon):** 1254×1254 · 4×4 grid · 313px cells · rows DOWN/LEFT/RIGHT/UP · neon-green or magenta key · one character per cell, overflow allowed (component-ownership slicing handles it).\n\n**NEEDS ART — idle + walk (${needArt.length} species):**\n${needArt.map(id=>`- ${C.SPECIES[id].name} (\`${id}\`) · T${C.SPECIES[id].tier} · ${[C.SPECIES[id].type,C.SPECIES[id].type2].filter(Boolean).join('/')}`).join('\n')}\n\n**ALREADY LIVE (${live.length} species):** ${live.join(', ')}
+md+=`## CODEX ASSET PRODUCTION LIST\n\nPer the Creator: **idle + walking sheets per species** so wilds can stand, graze, be bonded, and companionize.\n**Sheet spec (canon):** 1254×1254 · 4×4 grid · 313px cells · rows DOWN/LEFT/RIGHT/UP · neon-green or magenta key · one character per cell, overflow allowed (component-ownership slicing handles it).\n\n**NEEDS ART — idle + walk (${needArt.length} species):**\n${needArt.map(id=>{const p=pool.find(x=>x.id===id)||{name:id,tier:'?'};return `- ${p.name} (\`${id}\`) · T${p.tier} · ${[p.type,p.type2].filter(Boolean).join('/')}`;}).join('\n')}\n\n**ALREADY LIVE (${live.length} species):** ${live.join(', ')}
 
 **🆕 OPEN COMMISSIONS — the pool has no species for these slots (${opens.length}):**
 Design NEW Zyrex in codex for each (this is the wild-roster half of the 83-solos backlog):

@@ -128,6 +128,7 @@ function _score(d,cand,lo,hi){
     let sc=rng()*0.5;
     const types=[s.type,s.type2,s.type3].filter(Boolean);
     if(types.includes(LAND_TYPE[d])) sc+=3;
+    if(s.live&&C.SUMMONABLE_SPRITES[s.id]) sc+=4;   // ★ v0.95.860 · art-first: ship what exists
     for(const n of NEIGH[d]) if(types.includes(LAND_TYPE[n])) sc+=1.2;
     if(s.tier>=lo&&s.tier<=hi) sc+=1.5;         // in-band preferred
     sc-=(usage[s.id]||0)*0.8;

@@ -45,8 +45,10 @@ H('1 · ★★ HE STANDS IN THE MEADOW DESPITE THE MASTER GATE');
   ok(v.temperament==='Calm','★ Calm natured');
   // ★ v0.95.818 · THE LEVEL LAW · wild level = tier x 10, no exceptions
   ok(v.level===50,'Lv 50 · T5 x 10, per the wild level law');
-  const rosterWilds=C.WILD_ZYREX.filter(w=>w._malezorWild&&w._malezorWild!=='FIXED');
-  ok(rosterWilds.length===0,'★ while the bulk scatter stays OFF — only the hand-placed stand');
+  // ★ v0.95.860 · the WAVE1 art shipment stands beside the pins now — only
+  // the RANDOM bulk scatter remains off
+  const rosterWilds=C.WILD_ZYREX.filter(w=>w._malezorWild&&!['FIXED','WAVE1'].includes(w._malezorWild));
+  ok(rosterWilds.length===0,'★ while the bulk scatter stays OFF — only curated tiles stand');
 }
 
 H('2 · ★★ HE GRAZES · A MEADOW ANIMAL, NOT A SENTRY');

@@ -25,7 +25,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // v0.95.738 · MALEZOR WILD HABITAT · "place all wild zyrex around malezor most
 // unpopulated regions in the north east south and west"
 try{new Function(require('fs').readFileSync('/tmp/all.js','utf8')+
- ';globalThis.__C={MALEZOR_WILD_FIXED,WILD_ZYREX_ENABLED,spawnWildZyrex,walkable,seedMalezorWild,WILD_ZYREX,MALEZOR_WILD_ZONES,MALEZOR_WILD_ROSTER,MALEZOR_WILD_PER,'+
+ ';globalThis.__C={WILD_PLACEMENT_LIVE,MALEZOR_WILD_FIXED,WILD_ZYREX_ENABLED,spawnWildZyrex,walkable,seedMalezorWild,WILD_ZYREX,MALEZOR_WILD_ZONES,MALEZOR_WILD_ROSTER,MALEZOR_WILD_PER,'+
  'MALEZOR_WILD_ZONE_R,MALEZOR_WILD_FIXED,SPECIES,SUMMONABLE_SPRITES,worldDistrictAt,isWorldBorderTile,_propBlocked,NPCS,'+
  'tryRecruitWildZyrex,requiredBondForTier,drawZyrexOrb,_wildSprite,player,MOVE_DEX,TYPE_COLORS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
@@ -49,14 +49,20 @@ if (!C.WILD_ZYREX_ENABLED){
   //   individuals (MALEZOR_WILD_FIXED · anciuxor, the calm Voltaryn) spawn
   //   despite the flag — a named individual at a named tile outranks the
   //   blanket sprite-import removal.  The ROSTER scatter stays off.
+  // ★ v0.95.860 · INVERTED WITH THE RULING · Creator: "ship all other rp7
+  // sprites that have art."  The seeder now places the hand-pins PLUS the
+  // WILD_PLACEMENT_LIVE wave (every roster-v1 species with sheets, at its
+  // placement-table tile).  The BULK random scatter stays off — placement
+  // is still curated tiles, never dice.
   const pinned=C.MALEZOR_WILD_FIXED.filter(F=>C.SPECIES[F.id]).length;
+  const wave=C.WILD_PLACEMENT_LIVE.filter(F=>C.SPECIES[F.id]).length;
   const seeded=C.seedMalezorWild();
-  ok(seeded===pinned, `the seeder places EXACTLY the ${pinned} hand-pinned individuals, nothing else`);
-  ok(C.WILD_ZYREX.filter(w=>w._malezorWild==='FIXED').length===pinned,'all of them flagged FIXED');
-  ok(C.WILD_ZYREX.filter(w=>w._malezorWild&&w._malezorWild!=='FIXED').length===0,
-     '★ and the bulk roster stays OFF while the flag is false');
-  ok(C.seedMalezorWild() === pinned, 'and a second call is idempotent — same count, no duplicates');
-  ok(C.WILD_ZYREX.filter(w=>w._malezorWild==='FIXED').length===pinned, 'still exactly the pinned set');
+  ok(seeded===pinned+wave, `the seeder places the ${pinned} pins + the ${wave} wave-1 slots, nothing else`);
+  ok(C.WILD_ZYREX.filter(w=>w._malezorWild==='FIXED').length===pinned,'pins flagged FIXED');
+  ok(C.WILD_ZYREX.filter(w=>w._malezorWild==='WAVE1').length===wave,'★ the art wave flagged WAVE1');
+  ok(C.WILD_ZYREX.filter(w=>w._malezorWild&&!['FIXED','WAVE1'].includes(w._malezorWild)).length===0,
+     '★ the bulk RANDOM scatter stays OFF — every wild stands on a curated tile');
+  ok(C.seedMalezorWild() === pinned+wave, 'and a second call is idempotent — same count, no duplicates');
 
   console.log('\n0b · ★ NOTHING WAS THROWN AWAY\n');
   // The zone coordinates cost two full district sweeps to find, and the second

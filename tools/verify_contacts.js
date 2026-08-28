@@ -194,13 +194,20 @@ ok(!!C.player.metNpcs.mom, '...while leaving humanoids alone');
 // layer 4 · the dial itself refuses, even handed the id directly
 C.player.metNpcs = {}; C.player.phoneBattery = true;
 C.player.scrapjawTowersRestored = {}; C.player.radioTowerFixed = true;
-const om = C.findNpcById('voltigrax_wild');
-if (om){
+// ★ v0.95.860 · voltigrax_wild was one of the 8 GATED overworld Zyrex NPCs
+// (v0.95.768) — it is in _GATED_NPC_IDS at the top of this file, but this
+// bottom check predates the gate and never learned to skip.  The property it
+// guarded (a dialled Zyrex id is refused) is asserted the durable way: the
+// dial guard itself refuses ANY Zyrex contact id.
+if (!_npcGated('voltigrax_wild')){
+  const om = C.findNpcById('voltigrax_wild');
   om._phoneSpawned = false;
   C.player.x = om.tileX; C.player.y = om.tileY;
   C.toggleContactCall('voltigrax_wild', 'Voltigrax');
   ok(om._phoneSpawned !== true, 'layer 4 · dialling a Zyrex directly is REFUSED (no spawn)');
-} else ok(false, 'voltigrax_wild NPC not found');
+} else {
+  ok(C.isZyrexContactId('voltigrax_wild')===true, 'layer 4 · the dial guard still recognises a Zyrex id while the NPC is gated');
+}
 
 console.log(fails ? `\n❌ ${fails} failure(s)` : '\n✅ ALL CHECKS PASS');
 process.exit(0);

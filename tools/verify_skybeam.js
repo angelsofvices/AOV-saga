@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,WILD_PLACEMENT_LIVE,seedMalezorWild,WILD_ZYREX,requiredBondForTier,spawnWildZyrex,worldDistrictAt,walkable,player,game};')();}
+try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,WILD_PLACEMENT_LIVE,seedMalezorWild,WILD_ZYREX,requiredBondForTier,spawnWildZyrex,worldDistrictAt,walkable,player,game,makeZyrexFollower,NPCS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -82,6 +82,39 @@ H('4 · ★★★ THE SHEET WAS REPLACED, SO THE BOXES WERE RE-MEASURED');
   ok(SH.scaleRefBh===259,'★★ scaleRefBh follows the NEW down-row body (259, was 248)');
   const drawn=SH.bboxes[0][0][3]/SH.scaleRefBh*2*SH.scaleMul;
   ok(Math.abs(drawn-2.4)<0.01,'★★★ so the drawn size is unchanged at '+drawn.toFixed(2)+' tiles · a head over the Rizer, exactly as before');
+}
+
+H('5 · ★★★ COMPANIONIZED, IT FLIES');
+{
+  ok(!!SH.flyAll,'★ a flyAll bank is registered');
+  ok(fs.existsSync(ROOT+decodeURIComponent(SH.flyAll.src)),'★ the fly sheet is on disk');
+  ok(SH.flyAll.src!==SH.src,'★ it is a DIFFERENT sheet from the grounded idle');
+  ok(SH.flyAll.bboxes.length===4&&SH.flyAll.bboxes.every(r=>r.length===4),'4×4 · row = direction');
+  const seen=new Set(SH.flyAll.bboxes.flat().map(b=>JSON.stringify(b)));
+  ok(seen.size===16,'★★ all 16 fly frames distinct · no neighbour bleed');
+  let owned=true;
+  SH.flyAll.bboxes.forEach((row,r)=>row.forEach(b=>{
+    const cy=b[1]+b[3]/2;
+    if (cy < r*313-40 || cy > (r+1)*313+40) owned=false;
+  }));
+  ok(owned,'★★ every body centred in its OWN row band');
+  // the actual follower
+  const z={speciesId:'skybeam',name:'Skybeam',level:40,hp:100,maxHp:100,tier:4,uid:'s1'};
+  const n=C.makeZyrexFollower(z,{mode:'follow',dir:'down'});
+  ok(n.src===SH.flyAll.src,'★★★ a companionized Skybeam draws the FLY sheet');
+  ok(n.walkBboxes===SH.flyAll.bboxes&&n.bboxes===SH.flyAll.bboxes,
+     '★★★ ONE bank for idle AND walk · it hovers standing still and flies when you move, never a claw on the road');
+  ok(!n._orbFollower,'★ and it is real art, not an orb');
+}
+
+H('6 · ★★ THE WILD ONE STILL LANDS');
+{
+  const src3=fs.readFileSync(ROOT+'rp7b.html','utf8');
+  ok(/THE WILD ONE STILL LANDS/.test(src3),'★ the distinction is written down');
+  ok(/flyAll/.test(src3.slice(src3.indexOf('function makeZyrexFollower'), src3.indexOf('function makeZyrexFollower')+2000)),
+     '★★ the fly bank is reached ONLY through makeZyrexFollower · the wilds in Veridan keep the grounded sheet');
+  // measured: the wild draw path reads SUMMONABLE_SPRITES.bboxes, not flyAll
+  ok(SH.bboxes!==SH.flyAll.bboxes,'★★★ two distinct banks · it is on the ground until it is YOURS, which makes taking it the moment it leaves the ground');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

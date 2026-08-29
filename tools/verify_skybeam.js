@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,WILD_PLACEMENT_LIVE,seedMalezorWild,WILD_ZYREX,requiredBondForTier,spawnWildZyrex,worldDistrictAt,walkable,player,game,makeZyrexFollower,NPCS};')();}
+try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,WILD_PLACEMENT_LIVE,WORLD_PROPS,seedMalezorWild,WILD_ZYREX,requiredBondForTier,spawnWildZyrex,worldDistrictAt,walkable,player,game,makeZyrexFollower,NPCS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -35,9 +35,13 @@ H('1 · ★★ TIER AND BOND READ FROM THE LOCKED ROSTER');
   ok(C.requiredBondForTier(SP.tier)===4*333,'★★ bond gate = 4 × 333 = '+C.requiredBondForTier(SP.tier));
   const pool=SP.baseHP+SP.baseATK+SP.baseDEF+SP.baseSPD+SP.baseSATK+SP.baseSDEF;
   ok(pool===4*333,'★ stat pool = tier × 333 = '+pool);
-  // ★ a real discrepancy, surfaced not silently reconciled
-  ok(String(R.types).toLowerCase()!==((SP.type+'/'+SP.type2).toLowerCase()),
-     '★★★ FLAG · roster V1 types are "'+R.types+'" but the game has "'+SP.type+'/'+SP.type2+'" — NOT retyped without a ruling');
+  // ★★★ v0.95.897 · INVERTED.  This asserted a MISMATCH, deliberately, to keep
+  // the conflict visible until the Creator ruled.  He ruled: Draconic/Tech —
+  // neither of the two prior readings.  The check now guards the agreement.
+  ok(String(R.types)==='Draconic/Tech','★★ ROSTER V1 amended to Draconic/Tech');
+  ok(SP.type==='Draconic'&&SP.type2==='Tech','★★★ and the game agrees · the two-source conflict is CLOSED');
+  ok(SP.type!=='Beast','★ Beast is gone · the art was a winged dragon all along');
+  ok(SP.type2!=='Elemental','★★ and it leaves the Elemental family, whose five Ultrashards it never belonged with');
 }
 
 H('2 · ★★ IT IS CATCHABLE, AND THE WILD LAWS APPLY');
@@ -48,23 +52,36 @@ H('2 · ★★ IT IS CATCHABLE, AND THE WILD LAWS APPLY');
   ok(!w._noEncounter,'★ and it is CAUGHT, not answered · the spin encounter applies');
 }
 
-H('3 · ★ IT IS ALREADY PLACED IN VERIDAN');
+H('3 · ★★ TWO IN ZARVANE, TWO IN VERIDAN');
 {
   const pins=C.WILD_PLACEMENT_LIVE.filter(P=>P.id==='skybeam');
-  ok(pins.length===2,'★ two pinned Skybeam in the placement table');
-  ok(pins.every(P=>P.dist==='veridan'),'★★ both in VERIDAN · its own district band');
+  ok(pins.length===4,'★★ four pinned Skybeam · '+pins.length);
+  ok(pins.filter(P=>P.dist==='zarvane').length===2,'★★★ TWO in Zarvane, as ruled');
+  ok(pins.filter(P=>P.dist==='veridan').length===2,'★★★ and TWO in Veridan');
   C.seedMalezorWild();
   const live=C.WILD_ZYREX.filter(w=>w.speciesId==='skybeam'&&w._malezorWild==='WAVE1');
-  ok(live.length===2,'★★ and both actually stand in the world ('+live.length+')');
-  ok(live.every(w=>C.worldDistrictAt(w.tileX,w.tileY)==='veridan'),'★ measured · each is really in Veridan');
-  ok(live.every(w=>w.level===40),'★ both at Lv 40');
+  ok(live.length===4,'★★ and all four actually stand in the world ('+live.length+')');
+  const byDist={};
+  for(const w of live){ const d=C.worldDistrictAt(w.tileX,w.tileY); byDist[d]=(byDist[d]||0)+1; }
+  ok(byDist.zarvane===2&&byDist.veridan===2,'★★★ measured, not declared · '+JSON.stringify(byDist));
+  // the two Zarvane tiles were derived, so prove they are actually clear
+  const zar=live.filter(w=>C.worldDistrictAt(w.tileX,w.tileY)==='zarvane');
+  let nearest=1e9;
+  for(const w of zar) for(const p of C.WORLD_PROPS){
+    if(p.tileX==null||(p.tileW||1)<3) continue;
+    const dd=Math.max(Math.abs(p.tileX-w.tileX),Math.abs(p.tileY-w.tileY));
+    if(dd<nearest) nearest=dd;
+  }
+  ok(nearest>=12,'★★ the derived Zarvane tiles are '+nearest+' tiles clear of any building');
+  ok(Math.abs(zar[0].tileY-zar[1].tileY)>100,'★ and one is north, one south · '+Math.abs(zar[0].tileY-zar[1].tileY)+' tiles apart');
+  ok(live.every(w=>w.level===40),'★ all four at Lv 40');
   // ★ v0.95.895 · SELF-OCCLUSION.  This asked walkable() about the creature's
   // OWN tile, which was true until every Zyrex got a body — and now returns
   // false for exactly the right reason.  "Reachable" never meant "you can
   // stand inside it"; it means you can get NEXT to it.  Measure the neighbours.
   const reachable=w=>C.walkable(w.tileX+1,w.tileY)||C.walkable(w.tileX-1,w.tileY)
                    ||C.walkable(w.tileX,w.tileY+1)||C.walkable(w.tileX,w.tileY-1);
-  ok(live.every(reachable),'★ both reachable');
+  ok(live.every(reachable),'★ all reachable');
 }
 
 H('4 · ★★★ THE SHEET WAS REPLACED, SO THE BOXES WERE RE-MEASURED');

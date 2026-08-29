@@ -204,17 +204,24 @@ H('14 · THE CENSUS STAYS HONEST');
   ok(K.every(g=>g.parent===null&&g.family===null),'★★ and not one of the 32 had a parent or family invented for it');
 }
 
-H('15 · ★★★ PRISMSHARD XVI IS ALIVE · MEALUX');
+H('15 · ★★★ MEALUX · THE LIVING TRACE OF THE KEY');
 {
   const M=C.MEALUX_CANON, K=C.prismshard(16);
   ok(!!M,'MEALUX_CANON is recorded');
   ok(M.tier===8,'★ Tier 8, per the Creator');
   ok(M.homeworld==='Kyrathos','★ native on Kyrathos');
   ok(/Eternal Library/i.test(M.role),'★ guardians of the Eternal Library');
-  ok(M.isPrismshard===16,'★★★ the SPECIES is Prismshard XVI · the highest relic in existence is not an object');
-  ok(K.species==='mealux'&&K.embodied===true,'★★ and XVI points back at it · the link is two-way');
-  ok(/Kyrathos/.test(K.planet)&&/tail/i.test(K.planet),
-     "★★ its placement keeps BOTH readings · Kyrathos and Anciuxor's tail · the thing on the Creator's tail is a Mealux");
+  ok(/remnant traces of the Key/i.test(M.origin),'★★★ ORIGIN · they come from remnant traces of the Key of Anciuxor');
+  ok(M.tracesOf===16,'★ traced back to Prismshard XVI · its progenitor');
+  // ★★ INVERTED at v0.95.880.  The .879 suite asserted the SPECIES IS XVI.
+  // Creator: "they come from remnant traces of the key of anciuxor" — descent,
+  // not identity.  The old assertion is the wrong claim, so it flips rather
+  // than being deleted.
+  ok(M.isPrismshard===false,'★★★ INVERTED · a Mealux is NOT Prismshard XVI · the .879 identity reading is retired');
+  ok(K.livingTrace==='mealux','★★ XVI records what its remnants BECAME, not what it is');
+  ok(K.species===undefined&&K.embodied===undefined,'★ and the old species/embodied fields are gone, not just falsified');
+  ok(K.planet==="Anciuxor's tail",'★★ the Key is one relic, still on the tail · V3.17.52 stands untouched');
+  ok(M.relicClass==='DERIVATIVE','★ classed DERIVATIVE · the LIVING branch of §3 descent');
 }
 
 H('16 · ★★ WHAT WAS NOT DECIDED FOR HIM');
@@ -225,19 +232,24 @@ H('16 · ★★ WHAT WAS NOT DECIDED FOR HIM');
   ok(M.chain===null,'★ evolution chain left NULL · the codex SOLO was a T3 reading');
   ok(C.PRISMSHARD_FAMILY[16]===null,"★★★ the Key's family is STILL unassigned · a lore hint is not a Creator ruling");
   ok(M.inRosterV1===false,'★★ flagged as absent from the LOCKED roster V1 · this is a v2 ingest, not a lock break');
+  ok(C.gemshardCensus().total===81,'★ and the 81 is untouched · a living derivative is not a Gemshard');
 }
 
-H('17 · THE CONFLICT IS RECORDED, NOT PAPERED OVER');
+H('17 · THE CONFLICTS AND THE WITHDRAWAL ARE ON THE RECORD');
 {
   const doc=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/data/PRISMSHARD_GEMSHARD_CANON.md','utf8');
   ok(/CONFLICT · the codex already has a Mealux/.test(doc),'★★ the codex T3 entry is surfaced, not silently overwritten');
-  ok(/T3 → T8/.test(doc),'★ the retype is named as a retype · five tiers, the largest in the project');
-  ok(/triage row is resolved/i.test(doc),"★ and the old maybe-humanoid triage flag is closed by this ruling");
-  ok(/Did the Mealux make Kyrathos/.test(doc),'★★★ the T8 = planet-creator tension is raised · a whole SPECIES at T8 is unprecedented');
-  ok(/AE28/.test(doc),'★ the Kyrathos / AE28 possibility is offered as speculation');
-  ok(/second door/i.test(doc),'★★ the Ultimate Prismsynch consequence is flagged · bonding a Mealux may open it');
+  ok(/T3 → T8/.test(doc),'★ the retype is named as a retype · the largest tier jump in the project');
+  ok(/triage row is closed/i.test(doc),'★ the old maybe-humanoid triage flag is closed by this ruling');
+  ok(/Withdrawn/.test(doc),'★★★ the Ultimate-Prismsynch "second door" I raised is WITHDRAWN · it was a consequence of the identity reading and dies with it');
+  ok(/One Key\. Many Mealux\./.test(doc),'★★ "one Key or many" is CLOSED by this ruling');
+  ok(/did they make it, or did they only arrive to guard/i.test(doc),
+     '★★ the T8 planet-creator tension is re-put · the new origin makes "guardian, not creator" available for the first time');
+  ok(/Two irregularities from the same relic/.test(doc),
+     '★★★ the Key sheds a sixth Gemshard AND shed a species · whether that is ONE irregularity is left as the §5 revelation');
   const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
-  ok(/codex still records T3/.test(src2),'the conflict is noted in the code as well as the doc');
+  ok(/codex still records Mealux at T3/.test(src2),'the conflict is noted in the code as well as the doc');
+  ok(!/the SPECIES is Prismshard XVI/.test(src2),'★★ and no trace of the retired identity claim is left in the code');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

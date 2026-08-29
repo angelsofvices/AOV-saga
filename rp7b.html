@@ -2568,7 +2568,8 @@ const INVENTORY_META = {
   portal_chip:      { label: 'Portal Chip',                order: 54 },  // ★ v0.95.800 · Scanobot salvage · 20 to Dad opens the first two rifts (Malezor <-> Zarvane)
   life_seed:        { label: 'Life Seed (spoiling)',       order: 55 },  // ★ v0.95.817 · creeper-exposed · 25% HP · spoils 2 min after storing
   life_seed_pure:   { label: 'Pure Life Seed',             order: 56 },  // ★ v0.95.817 · Spirit Tree of Xilnar stock · 25% HP · never spoils
-  voltshard:        { label: 'Voltshard',                  order: 57 },  // ★★ v0.95.822 · Malezor cosmic chest · CONSUME from ZyCube to attune SAPPHIRE VOLTSTORM (first A5)
+  voltshard:        { label: 'Voltshard',                  order: 57 },
+  evolution_catalyst:{ label:'Evolution Catalyst',        order: 58 },   // ★ v0.95.865 · TRANSFORMATION Core synthesis · one free evolution  // ★★ v0.95.822 · Malezor cosmic chest · CONSUME from ZyCube to attune SAPPHIRE VOLTSTORM (first A5)
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
   zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
   // ─── v0.95.588 · ULTRASHARDS · one per canon type · consume on Zyrex to overwrite A4 with Ultramax move + add Ultramax type ─────────────
@@ -2641,6 +2642,39 @@ function astraliteItemByKey(key){
     if(item)return {...item,familyName:family.name,color:family.color,role:family.role};
   }
   return null;
+}
+// ★★ v0.95.865 · THE COMPOUNDS DO SOMETHING.  Creator: "we eventually have
+// to make the astralite matrix compound astralites actually combine to make
+// something in the science lab table."  Stage one (v0.95.835) fused two
+// family Astralites into a Core; the Core then sat inert in the bag.  Stage
+// two SYNTHESIZES that Core at Dad's table into a permanent gain, and each
+// effect is read straight off the family pair that made it:
+//   CREATION + PAST      → POTENTIAL   · what could be, remembered → +33 AP
+//                          (a third of a level's worth of raw growth)
+//   DESTRUCTION + PRESERV→ TRANSFORMATION · unmake to remake → a free Zyrex
+//                          evolution catalyst (next evolve ignores its level)
+//   MIND + BODY          → WILL        · the two halves of effort → +10 ◆ SPECIAL cap
+//   PRESENT + SPIRIT     → ASCENSION   · the living soul lifted → +20 max HP
+//   PRESENT + FUTURE     → INNOVATION  · now building later → +10 ϟ STAMINA cap
+// Permanent, stacking, and saved.  A Core is consumed on synthesis.
+const ASTRALITE_COMPOUND_EFFECTS = {
+  compound_potential:      { label:'POTENTIAL',      blurb:'+33 attribute points',   apply(){ player.compoundAP = (player.compoundAP || 0) + 33; } },
+  compound_transformation: { label:'TRANSFORMATION', blurb:'evolution catalyst ×1',  apply(){ player.items.evolution_catalyst = (player.items.evolution_catalyst || 0) + 1; } },
+  compound_will:           { label:'WILL',           blurb:'+10 ◆ SPECIAL capacity', apply(){ player.diamondMax = (player.diamondMax || 100) + 10; } },
+  compound_ascension:      { label:'ASCENSION',      blurb:'+20 max HP',             apply(){ player.hpBonus = (player.hpBonus || 0) + 20; player.hpMax = (player.hpMax || 100) + 20; player.hp = Math.min(player.hpMax, (player.hp || 0) + 20); } },
+  compound_innovation:     { label:'INNOVATION',     blurb:'+10 ϟ STAMINA capacity', apply(){ player.staminaBonus = (player.staminaBonus || 0) + 10; } },
+};
+function synthesizeCompound(key){
+  const eff = ASTRALITE_COMPOUND_EFFECTS[key];
+  if (!eff) return false;
+  if ((player.items?.[key] || 0) <= 0){ try{playSFX('cancel');}catch(_){} showToast('◇ You have none of that Core.',1600); return false; }
+  player.items[key] -= 1;
+  try { eff.apply(); } catch(err){ console.warn('[rp7b] synthesis failed', err); }
+  try { playSFX('confirm'); } catch(_){}
+  showToast(`◇ ${eff.label} SYNTHESIZED · ${eff.blurb} · permanent`, 3200);
+  try { saveGame(); } catch(_){}
+  try { renderAstraliteMixer(document.getElementById('expRecipeList')); } catch(_){}
+  return true;
 }
 function resolveAstraliteCompound(a,b){
   if(!a||!b)return null;
@@ -12339,8 +12373,20 @@ function tickUfoMelt(now){
   const target=melt.target;
   if(target){
     target._ufoBeamVictim=false;
-    target.hp=0;target.scene='__dead__';target.moving=false;
-    recordMoriKill('ufo', target);
+    // ★★ v0.95.864 · THE BEAM PAYS.  Creator: "im still not getting any rxp
+    // for kills in ufo."  This was the ONE kill route in the game that killed
+    // by hand — hp=0, scene='__dead__', recordMoriKill() — instead of walking
+    // through the two doors every other kill uses.  So a beamed Mori paid no
+    // RXP, logged nothing in the enemy notebook, dropped no Skellor bag, no
+    // creeper Life Seed, no Scanobot salvage, and never counted toward a
+    // tower-guard squad or the combo streak.  The eleventh kill site, found
+    // eleven versions after the chokepoint doctrine was written: startMoriDeath
+    // owns the death, creditRizerKill owns the reward, and the UFO is not an
+    // exception to either.
+    target.hp = 0;
+    try { startMoriDeath(target); } catch(err){ console.warn('[rp7b] ufo melt death', err); }
+    try { creditRizerKill(target, 'ufo'); } catch(err){ console.warn('[rp7b] ufo melt credit', err); }
+    target.moving=false;
     playSFX(target.mode==='daemon'?'astralKill':'moriDeath');
   }
   _ufoMelt=null;
@@ -21770,8 +21816,21 @@ function renderAstraliteMixer(list){
       <div style="display:flex;gap:7px;margin-top:8px;"><button id="astraliteMixReset" style="flex:1;padding:7px;background:#252936;color:#b8c8d8;border:1px solid #566;cursor:pointer;">RESET</button><button id="astraliteMixCraft" ${recipe?'':'disabled'} style="flex:2;padding:7px;background:${recipe?'#d4af37':'#333'};color:${recipe?'#080a0f':'#666'};border:1px solid ${recipe?'#ffd66b':'#555'};font-weight:bold;cursor:${recipe?'pointer':'not-allowed'};">CRAFT COMPOUND</button></div>
     </div>
     ${owned.length?owned.map(f=>`<div style="margin:6px 0;border-left:3px solid ${f.color};padding-left:7px;"><div style="color:${f.color};font-size:11px;font-weight:bold;letter-spacing:.1em;">${f.id} · ${f.name} · ${f.role}</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${f.owned.map(x=>`<button data-astralite="${x.key}" style="padding:5px 7px;background:#151b26;color:${f.color};border:1px solid ${f.color};font:10px 'Courier New';cursor:pointer;">${x.symbol} ${x.name} ×${player.items[x.key]}</button>`).join('')}</div></div>`).join(''):'<div style="color:#84909c;padding:12px;border:1px dashed #455;">No recovered Astralites yet. Shatter Astralite stones in the overworld, then return to this table.</div>'}
+    ${(function(){
+      // ★ v0.95.865 · SYNTHESIS BAY · the second stage · Cores become permanent gains
+      const held=Object.keys(ASTRALITE_COMPOUND_EFFECTS).filter(k=>(player.items?.[k]||0)>0);
+      if(!held.length) return '<div style="margin-top:12px;border-top:1px solid #384454;padding-top:9px;color:#7d8a99;font-size:10px;">SYNTHESIS BAY · craft a Core above, then synthesize it here for a permanent gain.</div>';
+      return `<div style="margin-top:12px;border-top:1px solid #384454;padding-top:9px;">
+        <div style="color:#e8cbff;font-weight:bold;letter-spacing:.1em;font-size:11px;">SYNTHESIS BAY · CORES BECOME PERMANENT</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:7px;">
+        ${held.map(k=>{const e=ASTRALITE_COMPOUND_EFFECTS[k];return `<div style="display:flex;align-items:center;gap:8px;border:1px solid #6b5a86;padding:7px;">
+          <div style="flex:1;color:#ffd66b;font-size:11px;"><b>${e.label} CORE</b> ×${player.items[k]}<br><span style="color:#9fc0d0;font-size:10px;">${e.blurb} · permanent</span></div>
+          <button data-synth="${k}" style="padding:6px 10px;background:#d4af37;color:#080a0f;border:1px solid #ffd66b;font-weight:bold;cursor:pointer;">SYNTHESIZE</button></div>`;}).join('')}
+        </div></div>`;
+    })()}
     <div style="margin-top:12px;border-top:1px solid #384454;padding-top:8px;color:#8fa9b8;font-size:10px;line-height:1.7;">LOCKS · 1+2 POTENTIAL · 3+6 TRANSFORMATION · 4+7 WILL · 5+9 ASCENSION · 8+5 INNOVATION</div>`;
   list.querySelectorAll('[data-astralite]').forEach(b=>b.addEventListener('click',()=>chooseAstraliteMaterial(b.dataset.astralite)));
+  list.querySelectorAll('[data-synth]').forEach(b=>b.addEventListener('click',()=>synthesizeCompound(b.dataset.synth)));
   document.getElementById('astraliteMixReset')?.addEventListener('click',()=>{game._astraliteMix={a:null,b:null};renderAstraliteMixer(list);});
   document.getElementById('astraliteMixCraft')?.addEventListener('click',craftAstraliteCompound);
 }
@@ -33827,6 +33886,9 @@ function saveGame(){
         attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
         bondLedger: player.bondLedger || { zyrex:0, rizer:0 },   // ★ v0.95.862 · the two bond paths
         _zyUidNext: player._zyUidNext || 0,                     // ★ v0.95.863 · uid sequence
+        compoundAP: player.compoundAP || 0,                     // ★ v0.95.865 · synthesized POTENTIAL
+        hpBonus: player.hpBonus || 0,
+        staminaBonus: player.staminaBonus || 0,
         faeCollected: player.faeCollected || 0,
         lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
         groundPickups: player.groundPickups || [],  // v0.95.773 · scrap + coin piles on the ground
@@ -43740,7 +43802,8 @@ function rizerAttrSpent(){
   return n;
 }
 function rizerAttrUnspent(){
-  return Math.max(0, rizerAttrPool(player.rizerLvl || 1) - rizerAttrSpent());
+  // ★ v0.95.865 · POTENTIAL Cores add real, permanent pool on top of levels
+  return Math.max(0, rizerAttrPool(player.rizerLvl || 1) + (player.compoundAP || 0) - rizerAttrSpent());
 }
 // ══════════════════════════════════════════════════════════════════════════
 // ★★ THE FIVE CURVES · v0.95.717 · the Creator's min/max number lines

@@ -54,7 +54,7 @@ global.performance = { now: () => 0 };
 global.alert = noop; global.confirm = () => true; global.prompt = () => null;
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 
-const EXPORT = ';globalThis.__C={UFO_DASH_BBOXES,UFO_FLIGHT_BBOXES,UFO_CRUISE_MOVE_CD,UFO_BOOST_MOVE_CD};';
+const EXPORT = ';globalThis.__C={NPCS,player,game,startMoriDeath,creditRizerKill,UFO_DASH_BBOXES,UFO_FLIGHT_BBOXES,UFO_CRUISE_MOVE_CD,UFO_BOOST_MOVE_CD};';
 try {
   new Function(src + EXPORT)();
 } catch(e){ console.log('boot error:', e.message.slice(0,200)); }
@@ -182,6 +182,24 @@ console.log('     so the visual and the speed can never disagree about whether')
 console.log('     you are boosting');
 // ★ v0.95.817 · the swap keys off the burn now; the burn keys off b at its edge
 ok(/const dashing = _burnLive/.test(src2), '   (the sheet swap keys off the burn, the burn off Circle)');
+
+
+console.log('\n★★ v0.95.864 · THE BEAM PAYS · the eleventh kill site');
+{
+  const t=src.slice(src.indexOf('function tickUfoMelt'),src.indexOf('function tickUfoMelt')+1600);
+  ok(/startMoriDeath\(target\)/.test(t),'★ the melt routes through startMoriDeath — drops/bags/salvage all fire');
+  ok(/creditRizerKill\(target, 'ufo'\)/.test(t),'★ …and through creditRizerKill — RXP, the enemy log, the combo streak');
+  ok(!/target\.scene='__dead__'/.test(t),'the hand-kill (scene=__dead__) is gone from the live path');
+  ok(!/^\s*recordMoriKill\('ufo', target\);/m.test(t),'and the direct recordMoriKill bypass is gone (credit calls it now)');
+  // behavioral · the mode itself pays
+  C.game.scene='overworld';   // awardRizerXP is scene-gated
+  const foe={id:'__ufo_pay',isEnemy:true,scene:'overworld',mode:'wander',name:'Mori',tileX:60,tileY:60,hp:0,hpMax:125,level:5,tier:1,sheet:{},dir:'down'};
+  C.NPCS.push(foe);
+  const before=C.player.rizerXP||0;
+  C.startMoriDeath(foe); const paid=C.creditRizerKill(foe,'ufo');
+  ok(paid>0&&(C.player.rizerXP||0)>before,`★ a beamed kill banks RXP (+${paid})`);
+  ok(foe._rxpCredited===true,'and cannot be double-credited');
+}
 
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
 process.exit(0);

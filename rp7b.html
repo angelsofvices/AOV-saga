@@ -40917,11 +40917,21 @@ function drawZyrexOrb(w){
       // ★★ v0.95.888 · TRAVERSAL BANK · a levitator that is MOVING draws its
       // run sheet.  Same rows, same cadence, same bob — only the art changes,
       // because for this species "running" is hovering somewhere.
+      // ★★★ v0.95.900 · THE TRAVERSAL LAW.  Creator: "all zyrex must have
+      // walking/flying/floating/running (at least one traversal sheet).  if
+      // they dont, just failsafe back to idle."
+      //
+      // Three conventions had accumulated for "a second sheet":
+      //     runSrc   · src = IDLE, runSrc = traversal   (mealux float, apexaur walk)
+      //     idleSrc  · src = TRAVERSAL, idleSrc = idle  (voltigrax, rakoron, …)
+      //     flyAll   · ONE sheet for both               (elzoran, skybeam)
+      // This is the single place that resolves them, in that order, and it
+      // ALWAYS ends on a sheet: if nothing traversal-shaped is registered — or
+      // the art has not decoded yet — it falls through to the idle bank rather
+      // than drawing nothing.  Missing art is a missing ANIMATION here, never a
+      // missing creature, which is exactly the failsafe the Creator asked for.
       const _runImg = (w.moving && d.runBboxes) ? _wildRunSprite(w.speciesId) : null;
       const _useRun = !!(_runImg && _runImg.complete && _runImg.naturalWidth);
-      // ★★ v0.95.899 · the idleSrc convention, finally honoured out here: a
-      // species whose `src` IS the walk sheet must swap to idleSrc when it is
-      // standing, which is the mirror image of the runSrc swap above.
       const _idleImg = (!w.moving && d.idleBboxes) ? _wildIdleSprite(w.speciesId) : null;
       const _useIdle = !!(_idleImg && _idleImg.complete && _idleImg.naturalWidth);
       const _boxes = _useRun ? d.runBboxes : (_useIdle ? d.idleBboxes : d.bboxes);
@@ -43746,6 +43756,24 @@ function drawWorldLayer(){
   // eat leg.  Every step keeps the v0.95.818 legality checks, and both legs
   // freeze while Rizer is within 4 tiles.
   const _gNow = performance.now();
+  // ★★★ v0.95.900 · A STEP IS A MOVEMENT, NOT A TELEPORT.  Creator: "allow
+  // voltigrax to walk.  all wild zyrex must be able to have natural behaviors
+  // to allow them to feel alive during overworld encounters."
+  //
+  // The graze legs moved w.tileX/tileY and nothing else — no `moving`, no
+  // `dir`.  So a grazing Voltigrax slid between tiles facing permanently south
+  // and its walk sheet (which draws only while `moving`) could never play.  One
+  // helper now owns "take a step": it moves the tile, aims the body, and marks
+  // the creature as MOVING for the ~400ms the leg lasts, which is exactly what
+  // the traversal bank keys off.
+  const _wildStepTo = (w, nx, ny, dur) => {
+    const dx = nx - w.tileX, dy = ny - w.tileY;
+    w.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left')
+                                         : (dy > 0 ? 'down'  : 'up');
+    w.tileX = nx; w.tileY = ny;
+    w.moving = true;
+    w._moveUntil = _gNow + (dur || 380);      // it stops LOOKING like it moves when the leg ends
+  };
   const _grazeStepOk = (w, nx, ny) => {
     if (Math.abs(nx - w._grazeHome[0]) + Math.abs(ny - w._grazeHome[1]) > w._grazeR) return false;
     if (_propBlocked.has(`${nx},${ny}`)) return false;
@@ -43794,6 +43822,46 @@ function drawWorldLayer(){
       renderables.push({ kind:'wildOrb', wild:w, footY: w.tileY });
       continue;
     }
+    // ★ the motion flag expires on its own · nothing has to remember to clear
+    // it, so a creature that stops stepping stops animating
+    if (w.moving && _gNow > (w._moveUntil || 0)) w.moving = false;
+    // ★★★ v0.95.900 · EVERY WILD GETS A LIFE.  Creator: "all wild zyrex must be
+    // able to have natural behaviors."  Grazers already had one; everything
+    // else stood perfectly still forever.  A slow home-patch wander is the
+    // baseline: a few tiles, long pauses, and it freezes when Rizer is close —
+    // the same "it noticed you" beat the graze uses.
+    //
+    // ★ TWO DELIBERATE EXEMPTIONS.  A wild that is KEEPING A VIGIL
+    // (_noEncounter — Elzoran at the statue) must not wander off the thing it
+    // is watching; that stillness IS its characterisation.  And a wild the
+    // Creator pinned to an exact tile for a reason keeps a tighter leash than
+    // one scattered by a generator.
+    // ★ v0.95.900 · A GRAZER THAT CANNOT GRAZE STILL LIVES.  Voltaryn stood
+    // motionless through a 100-second soak: its meadow search kept failing, and
+    // because the wander excluded grazers it had no second behaviour to fall
+    // back on.  Three failed searches and it wanders like anything else — the
+    // law is "every wild has A behaviour", not "every wild has ITS behaviour".
+    const _grazeStuck = w._graze && (w._grazeFails || 0) >= 3;
+    if ((!w._graze || _grazeStuck) && !w._noEncounter && game.scene === 'overworld'){
+      if (!w._wanderHome) w._wanderHome = [w.tileX, w.tileY];
+      const wR = w._wanderR || (w._malezorWild === 'MEALUX' || w._pinned ? 2 : 3);
+      const nearRizer = Math.abs(player.x - w.tileX) + Math.abs(player.y - w.tileY) <= 4;
+      if (!nearRizer && _gNow > (w._wanderNext || 0)){
+        w._wanderNext = _gNow + 2600 + Math.random() * 4200;    // long pauses · not a pacing animal
+        const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+        const [dx, dy] = dirs[(Math.random() * 4) | 0];
+        const nx = w.tileX + dx, ny = w.tileY + dy;
+        if (Math.abs(nx - w._wanderHome[0]) + Math.abs(ny - w._wanderHome[1]) <= wR
+            && !_propBlocked.has(`${nx},${ny}`)
+            && !(player.x === nx && player.y === ny)
+            && !NPCS.some(n => n && n.scene === 'overworld' && n.tileX === nx && n.tileY === ny)
+            && !WILD_ZYREX.some(o => o !== w && !o._gone && o.tileX === nx && o.tileY === ny)
+            && (typeof isWorldLandTile !== 'function' || isWorldLandTile(nx, ny))
+            && (typeof isWorldBorderTile !== 'function' || !isWorldBorderTile(nx, ny))){
+          _wildStepTo(w, nx, ny, 420);
+        }
+      }
+    }
     if (w._graze && game.scene === 'overworld'){
       const nearRizer = Math.abs(player.x - w.tileX) + Math.abs(player.y - w.tileY) <= 4;
       if (w._grazeTarget){
@@ -43812,7 +43880,7 @@ function drawWorldLayer(){
             for (const [dx, dy] of [first, second]){
               if (!dx && !dy) continue;
               const nx = w.tileX + dx, ny = w.tileY + dy;
-              if (_grazeStepOk(w, nx, ny)){ w.tileX = nx; w.tileY = ny; stepped = true; break; }
+              if (_grazeStepOk(w, nx, ny)){ _wildStepTo(w, nx, ny); stepped = true; break; }
             }
             if (!stepped){                                           // hemmed in · eat here
               w._grazeTarget = null;
@@ -43833,8 +43901,10 @@ function drawWorldLayer(){
             if (Math.abs(tx - w.tileX) + Math.abs(ty - w.tileY) < 2) continue;   // a real walk, not a shuffle
             w._grazeTarget = [tx, ty];
             w._grazeStepNext = 0;
+            w._grazeFails = 0;                 // found a bush · the meadow works
             break;
           }
+          if (!w._grazeTarget) w._grazeFails = (w._grazeFails || 0) + 1;
         }
       }
     }

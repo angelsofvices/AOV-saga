@@ -31,8 +31,14 @@ H('1 · ★★ COMMON MEANS COMMON · the Emerald bug-type density');
   ok(C.MALEZOR_COMMON_FLOCKS.length>=7,C.MALEZOR_COMMON_FLOCKS.length+' flocks across Malezor');
   ok(FL.length===want,'★ every one of the '+want+' flock slots found a tile ('+FL.length+') — no silent shortfall');
   ok(AW.length>=18,'★★ '+AW.length+' Aetherwing stand in Malezor · you trip over them, you do not hunt them');
-  ok(AW.length>C.WILD_ZYREX.filter(w=>w.speciesId!=='aetherwing').length,
-     '★ Aetherwing outnumbers every other wild in the district COMBINED — that is what "most common" has to mean');
+  // ★ MEASURE MALEZOR.  This said "in the district" and counted the WHOLE MAP,
+  // which held while Malezor was most of the placed wilds and broke the moment
+  // ten Keys of Mealux landed one per district at v0.95.882.  The claim was
+  // always about Malezor; now the measurement is too.
+  const inMalezor=w=>C.worldDistrictAt(w.tileX,w.tileY)==='malezor';
+  const others=C.WILD_ZYREX.filter(w=>w.speciesId!=='aetherwing'&&inMalezor(w)).length;
+  ok(AW.length>others,
+     '★ Aetherwing ('+AW.length+') outnumbers every other wild IN MALEZOR combined ('+others+') — that is what "most common" has to mean');
 }
 
 H('2 · WHERE THEY STAND · the early corridor, not a corner');
@@ -86,8 +92,18 @@ H('4 · ★ THE PINNED INDIVIDUALS STILL WIN THEIR TILES');
   }
   ok(kept===pins.length,'★★ all '+pins.length+' hand-placed Zyrex keep their exact tile'+(moved.length?' · lost: '+moved.join(', '):''));
   const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
-  const iFlock=src2.indexOf('MALEZOR_COMMON_FLOCKS){'), iPin=src2.indexOf('for (const F of MALEZOR_WILD_FIXED)');
-  ok(iFlock>0&&iPin>iFlock,'★ flocks are seeded BEFORE the pins in source order · a scatter can never claim a promised tile');
+  // ★★ SEARCH INSIDE seedMalezorWild, NOT THE WHOLE FILE.  indexOf found the
+  // FIRST 'for (const F of MALEZOR_WILD_FIXED)' in the file — which since
+  // v0.95.882 is inside MEALUX_FORBIDDEN_TILES, thousands of lines above the
+  // seeder — and read the order backwards.  Eighth sighting of a first-match /
+  // fixed-window string search in this project.  Scope the haystack to the
+  // function whose behaviour is being asserted.
+  const body=src2.slice(src2.indexOf('function seedMalezorWild()'));
+  const iFlock=body.indexOf('for (const F of MALEZOR_COMMON_FLOCKS)');
+  const iPin=body.indexOf('for (const F of MALEZOR_WILD_FIXED)');
+  ok(iFlock>0&&iPin>iFlock,'★ flocks are seeded BEFORE the pins in seedMalezorWild · a scatter can never claim a promised tile');
+  const iMealux=body.indexOf('for (const d of ZYRAXIS_DISTRICTS)');
+  ok(iMealux>0&&iMealux<iFlock,'★★ and the ten Keys are placed BEFORE the flocks · their tiles must not depend on a random scatter');
 }
 
 H('5 · THEY OBEY EVERY STANDING LAW');

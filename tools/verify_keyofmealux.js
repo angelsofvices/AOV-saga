@@ -236,5 +236,32 @@ H('14 · ★ GRANTED BEFORE THE BOND GATE CAN DIVERT IT');
      '★★★ but the CAVES STILL OPENED · the Creator said CATCHING grants it, and a Key diverted to storage was still caught');
 }
 
+H('18 · ★★★ TRAVERSAL · it does not run, it HOVERS somewhere');
+{
+  const SH=C.SUMMONABLE_SPRITES.key_of_mealux;
+  const ROOT3='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
+  ok(!!SH.runSrc,'★ a traversal sheet is registered');
+  ok(fs.existsSync(ROOT3+decodeURIComponent(SH.runSrc)),'★ and it is on disk');
+  ok(SH.runSrc!==SH.src,'★ it is a DIFFERENT sheet from the idle');
+  ok(SH.runBboxes.length===4&&SH.runBboxes.every(r=>r.length===4),'★ 4×4 · row = direction, col = frame');
+  const seen=new Set(SH.runBboxes.flat().map(b=>JSON.stringify(b)));
+  ok(seen.size===16,'★★ all 16 traversal frames distinct · no cell inherited a neighbour');
+  let owned=true;
+  SH.runBboxes.forEach((row,r)=>row.forEach(b=>{
+    const cy=b[1]+b[3]/2;
+    if (cy < r*313-40 || cy > (r+1)*313+40) owned=false;
+  }));
+  ok(owned,'★★ every traversal body sits in its OWN row band · ownership, not proximity');
+  ok(SH.levitate===true&&SH.runBobSame===true,
+     '★★★ the BOB CARRIES THROUGH the run · Creator: "hover and bob like idle"');
+  const src2=fs.readFileSync(ROOT3+'rp7b.html','utf8');
+  ok(/IT DOES NOT RUN/.test(src2),'★★ and the reason is written down: it has no legs, so traversal is a moving hover');
+  ok(/const _runImg = \(w\.moving && d\.runBboxes\)/.test(src2),'★ the bank is chosen by MOTION');
+  ok(/the scale reference stays the IDLE sheet/.test(src2),
+     '★★★ the scale reference stays the idle sheet · otherwise it would change size the instant it started moving');
+  ok(/_runImg && _runImg\.complete && _runImg\.naturalWidth/.test(src2),
+     '★ and it falls back to idle until the run art has actually loaded · never a blank frame');
+}
+
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));
 process.exit(f?1:0);

@@ -39267,6 +39267,23 @@ const SUMMONABLE_SPRITES = {
     // the two read as the same KIND of thing on screen — which they are: a
     // hole in the world that is politely holding still.
     levitate: true, bobAmp: 4, bobMs: 500,
+    // ★★★ v0.95.888 · TRAVERSAL · Creator: "mealux directional traversal
+    // animation (run) hover and bob like idle."
+    //
+    // ★ IT DOES NOT RUN.  It has no legs to run on, and the Creator said HOVER
+    // — so the traversal sheet is a moving hover and the bob carries straight
+    // through it at the same ±4px/500ms.  Every other species swaps an idle
+    // bank for a walk bank and lands its feet; this one changes only what it
+    // does with the light while the same sine keeps it off the ground.
+    // A key does not take steps.
+    runSrc: 'assets/2D%20sprites/zyrex/key-of-mealux-run.png',
+    runBboxes: [
+      [[83,48,155,237],[385,48,156,241],[693,44,156,240],[993,45,156,241]],
+      [[89,358,158,233],[369,358,165,233],[677,357,159,233],[986,357,158,233]],
+      [[101,664,161,232],[381,664,164,232],[689,664,162,232],[996,664,163,232]],
+      [[89,951,139,250],[381,951,139,250],[693,951,139,250],[994,951,138,250]],
+    ],
+    runBobSame: true,   // ★ the hover never resets or changes speed when it moves
   },
   // ── v0.95.745 · VOLTARYN + ELZORAN · art that was on disk all along ──────
   // Both PNGs have sat in assets/2D sprites/zyrex/ since before this session
@@ -40556,6 +40573,16 @@ const WILD_ZYREX = [];
 // in drawZyrexOrb". With the Malezor habitat seeded for playtesting, half the
 // roster has real sheets and standing in a field of coloured dots would not
 // have tested anything.
+// ★ v0.95.888 · run sheets load lazily, same shape as the idle cache
+const _wildRunCache = {};
+function _wildRunSprite(id){
+  if (_wildRunCache[id] !== undefined) return _wildRunCache[id];
+  const def = SUMMONABLE_SPRITES[id];
+  if (!def || !def.runSrc){ _wildRunCache[id] = null; return null; }
+  const img = new Image(); img.src = def.runSrc;
+  _wildRunCache[id] = img;
+  return img;
+}
 const _wildSpriteCache = {};
 function _wildSprite(id){
   if (_wildSpriteCache[id] !== undefined) return _wildSpriteCache[id];
@@ -40581,8 +40608,16 @@ function drawZyrexOrb(w){
       const row = (d.rowMap && d.rowMap[w.dir] != null) ? d.rowMap[w.dir]
                 : (w.dir && _dirRow[w.dir] != null)     ? _dirRow[w.dir] : 0;
       const col = Math.floor(performance.now() / 460) % 4;   // idle amble
-      const bb = d.bboxes && d.bboxes[row] && d.bboxes[row][col];
+      // ★★ v0.95.888 · TRAVERSAL BANK · a levitator that is MOVING draws its
+      // run sheet.  Same rows, same cadence, same bob — only the art changes,
+      // because for this species "running" is hovering somewhere.
+      const _runImg = (w.moving && d.runBboxes) ? _wildRunSprite(w.speciesId) : null;
+      const _useRun = !!(_runImg && _runImg.complete && _runImg.naturalWidth);
+      const _boxes = _useRun ? d.runBboxes : d.bboxes;
+      const bb = _boxes && _boxes[row] && _boxes[row][col];
       if (bb){
+        // ★ the scale reference stays the IDLE sheet even while the run sheet
+        // draws, so it cannot change size the instant it starts moving
         let maxBh = 216;
         for (const r of d.bboxes){ if (r[0][3] > maxBh) maxBh = r[0][3]; }
         const scale = (TILE * 2) / maxBh * (d.scaleMul || 1);
@@ -40597,7 +40632,8 @@ function drawZyrexOrb(w){
           ? Math.round(Math.sin(performance.now() / (d.bobMs || 500) + (w._bobPhase || 0)) * (d.bobAmp || 4))
           : 0;
         const dy = Math.round((w.tileY + 1) * TILE - dh)       - _cam.y + bob;
-        ctx.drawImage(S.img, col * C + bb[0], row * C + bb[1], bb[2], bb[3], dx, dy, dw, dh);
+        ctx.drawImage(_useRun ? _runImg : S.img,
+                      col * C + bb[0], row * C + bb[1], bb[2], bb[3], dx, dy, dw, dh);
         return;
       }
     }

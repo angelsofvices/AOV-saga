@@ -62,6 +62,8 @@ H('3 · THE FRAME CLOCK IS THE ENCOUNTER');
   // ★ v0.95.872 · an imprint now COSTS A ZYSPHERE · stock the bag or the
   // encounter rightly refuses to open ("u cant perform a bond event without a
   // zysphere.  each attempt cost 1x.")
+  C.player.starterChosen='volcanut'; C.player.starterBondGranted=true;   // ★ v0.95.887
+  C.player.bondLedger={zyrex:0,rizer:1665,_migrated:true};
   C.player.items=C.player.items||{}; C.player.items.zysphere=9;
   C.startWildBondEncounter(w,C.SPECIES.apexaur);
   const B=C.WILD_BOND.active, t0=B.t0;

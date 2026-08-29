@@ -51,6 +51,10 @@ H('3 · ★★ THE ENCOUNTER REPLACES THE INSTANT CATCH');
   // ★★ v0.95.872 · THE SPHERE IS THE TICKET.  Creator: "u cant perform a bond
   // event without a zysphere.  each attempt cost 1x."  Asserted here, at the
   // door of the encounter, because this suite owns the encounter.
+  // ★ v0.95.887 · the loop now demands a starter and bond >= tier x 333 before
+  // an encounter may open at all · see the note in verify_catchjoins
+  C.player.starterChosen='volcanut'; C.player.starterBondGranted=true;
+  C.player.bondLedger={zyrex:0,rizer:1665,_migrated:true};
   C.player.items=C.player.items||{}; C.player.items.zysphere=0;
   ok(C.startWildBondEncounter(w,C.SPECIES.apexaur)===false&&!C.game.wildBondOpen,
      '★★ an empty bag cannot open an imprint · no sphere, nothing to imprint INTO');

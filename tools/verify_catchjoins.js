@@ -22,9 +22,19 @@ const H=t=>console.log('\n'+t);
 global.showToast=noop; global.showDialog=noop; global.playSFX=noop; global.saveGame=noop;
 global.pingNextObjective=noop; global.playItemGain=noop;
 C.game.scene='overworld';
+// ★★ v0.95.887 · THE LOOP CHANGED IN FRONT OF THIS SUITE.  An encounter now
+// requires (a) a starter — "you have to get your starter before any wild" — and
+// (b) bond >= tier x 333, because the tier gate moved to the ATTEMPT.  These
+// fixtures predate both, so they set the preconditions the new loop demands.
+// Not a workaround: a harness that opens an encounter with no starter is
+// testing a state the game can no longer be in.
 const fresh=()=>{const p=C.player; p.party=[]; p.pcZyrex=[]; p.sanctuary=[]; p.bonds={};
   p.bondLedger={zyrex:0,rizer:0,_migrated:true}; p.rizerLvl=1; p.starterChosen=null;
+  p.starterBondGranted=false; p.dadStarterQuestComplete=true;
   p.items=p.items||{}; p.items.zysphere=9; return p;};
+// a Rizer who has done Dad's mission · starter in hand, bond 333, T1 open
+const afterDad=()=>{const p=fresh(); p.starterChosen='volcanut'; p.starterBondGranted=true;
+  p.bondLedger={zyrex:0,rizer:333,_migrated:true}; p.items.zysphere=9; return p;};
 
 H('1 · ★★★ THE REGRESSION · two rules that were each correct alone');
 {
@@ -37,7 +47,7 @@ H('1 · ★★★ THE REGRESSION · two rules that were each correct alone');
 
 H('2 · ★★★ THE REPORTED BUG · buy a sphere, catch an Aetherwing');
 {
-  const p=fresh();
+  const p=afterDad();
   const w=C.spawnWildZyrex('aetherwing',60,60,{temperament:'Calm'});
   C.startWildBondEncounter(w,C.SPECIES.aetherwing);
   C._wildBondResolve(true);
@@ -102,7 +112,7 @@ H('6 · ★★ THE GATE STILL BITES WHERE NOTHING WAS EARNED');
 
 H('7 · PARTY-FULL IS A REAL LIMIT AND SURVIVES');
 {
-  const p=fresh();
+  const p=afterDad();
   const cap=C.PARTY_MAX||8;
   for(let i=0;i<cap;i++) p.party.push({speciesId:'aetherwing',name:'A'+i,level:10,hp:10,maxHp:10,tier:1,uid:'u'+i});
   const w=C.spawnWildZyrex('aetherwing',61,61,{temperament:'Calm'});

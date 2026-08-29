@@ -116,6 +116,9 @@ H('7 · ★★ NO SPHERE, NO IMPRINT · EACH ATTEMPT COSTS 1');
   const p=C.player; const sp=C.SPECIES.otterlin||Object.values(C.SPECIES)[0];
   const w={x:5,y:5,speciesId:sp.id||'x'};
   C.WILD_BOND.active=null; C.game.wildBondOpen=false;
+  // ★ v0.95.887 · starter + tier bond are preconditions of an attempt now
+  p.starterChosen='volcanut'; p.starterBondGranted=true;
+  p.bondLedger={zyrex:0,rizer:1665,_migrated:true};
   p.items.zysphere=0;
   const refused=C.startWildBondEncounter(w,sp);
   ok(refused===false,'★★ with ZERO spheres the encounter REFUSES to open');

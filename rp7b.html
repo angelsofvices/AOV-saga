@@ -26005,6 +26005,14 @@ function currentCharScale(){
 }
 
 function drawPlayer(){
+  // ★★ v0.95.870 · THE CAPTURE SHEETS TAKE OVER.  While a wild bond encounter
+  // is live, Rizer is not idling/walking — he is holding an open Zysphere and
+  // fighting it.  The dedicated bank draws him instead (its own facing-picked
+  // sheet, its own 16-frame clock), and if the art is missing for any reason
+  // we fall straight through to the ordinary sprite rather than showing
+  // nothing.
+  try { if (typeof WILD_BOND !== 'undefined' && WILD_BOND.active && drawCaptureSprite()) return; }
+  catch(err){ console.warn('[rp7b] capture sprite', err); }
   if(player.activeActor&&player.activeActor!=='rizer'){
     drawFactionPlayerActor();
     return;
@@ -39442,6 +39450,180 @@ const SPECIES_RECRUIT_GATES = {
   },
 };
 
+// ★★★ v0.95.870 · THE CAPTURE SHEETS · Rizer performs the imprint.
+//
+// Eight sheets: SUCCESS and FAIL, one per facing.  Unlike every other Rizer
+// bank these are NOT row=direction — each sheet is a whole 16-frame animation
+// for ONE facing, so the frame index walks row-major (row = i>>2, col = i&3)
+// and the SHEET is chosen by player.dir.
+//
+// ★ The art drifts upward row by row (the generator drew each row a little
+// higher in its cell: feet 305 → 286 → 267 → 242 on the down sheet).  That is
+// exactly what footBaselines are for — every frame plants on its own measured
+// BODY sole, so the drift never reaches the screen.  The body is picked as the
+// TALLEST component in the cell, not the largest: a capture beam is wide and
+// bright and would otherwise be mistaken for Rizer.
+const CAPTURE_ART = {
+  success_down: {
+    src: 'assets/2D%20sprites/rizer/capture-success-down.png',
+    bboxes: [
+      [[103,48,152,258],[79,48,155,258],[71,52,151,254],[48,52,151,254]],
+      [[48,32,256,255],[24,32,259,255],[17,32,254,255],[-4,32,266,255]],
+      [[45,13,255,255],[30,13,252,255],[51,13,174,255],[33,14,182,254]],
+      [[100,-13,153,256],[79,-14,153,257],[71,-14,153,257],[50,-14,152,257]],
+    ],
+    feet: [
+      [305,305,305,305],
+      [286,286,286,286],
+      [267,267,267,267],
+      [242,242,242,242],
+    ],
+  },
+  success_left: {
+    src: 'assets/2D%20sprites/rizer/capture-success-left.png',
+    bboxes: [
+      [[105,75,163,223],[72,75,160,223],[45,75,159,223],[15,75,170,223]],
+      [[45,61,242,221],[10,61,306,221],[-15,61,338,221],[-31,61,253,221]],
+      [[44,35,259,218],[13,33,260,220],[-14,35,257,218],[11,33,192,220]],
+      [[89,-19,193,220],[84,-20,170,221],[52,-19,168,220],[32,-20,170,221]],
+    ],
+    feet: [
+      [297,297,297,297],
+      [281,281,281,281],
+      [252,252,252,252],
+      [200,200,200,200],
+    ],
+  },
+  success_right: {
+    src: 'assets/2D%20sprites/rizer/capture-success-right.png',
+    bboxes: [
+      [[104,66,141,216],[77,67,141,215],[62,67,145,215],[43,67,143,215]],
+      [[9,57,229,216],[11,58,223,215],[1,57,244,216],[-9,57,239,216]],
+      [[12,45,241,216],[9,45,235,216],[4,54,212,207],[5,64,230,197]],
+      [[74,37,184,213],[75,37,150,213],[64,37,141,213],[46,37,143,213]],
+    ],
+    feet: [
+      [281,281,281,281],
+      [272,272,272,272],
+      [260,260,260,260],
+      [249,249,249,249],
+    ],
+  },
+  success_up: {
+    src: 'assets/2D%20sprites/rizer/capture-success-up.png',
+    bboxes: [
+      [[136,89,109,206],[101,89,130,206],[79,89,129,206],[54,89,128,206]],
+      [[32,59,223,205],[17,57,275,207],[4,57,319,208],[-12,57,262,207]],
+      [[31,43,266,190],[18,43,252,190],[7,42,319,191],[-10,43,254,190]],
+      [[97,-11,149,207],[53,-13,183,209],[67,-13,147,209],[52,-13,143,209]],
+    ],
+    feet: [
+      [294,294,294,294],
+      [263,263,264,263],
+      [232,232,232,232],
+      [195,195,195,195],
+    ],
+  },
+  fail_down: {
+    src: 'assets/2D%20sprites/rizer/capture-fail-down.png',
+    bboxes: [
+      [[146,72,110,205],[105,76,110,201],[84,73,110,204],[46,76,215,201]],
+      [[122,54,200,204],[-13,54,337,204],[49,55,271,204],[0,60,279,199]],
+      [[71,36,241,189],[30,37,265,259],[7,33,265,192],[-17,33,274,192]],
+      [[123,-24,193,208],[2,-20,296,204],[53,-27,215,211],[47,-30,114,214]],
+    ],
+    feet: [
+      [276,276,276,276],
+      [257,257,258,258],
+      [224,224,224,224],
+      [183,183,183,183],
+    ],
+  },
+  fail_left: {
+    src: 'assets/2D%20sprites/rizer/capture-fail-left.png',
+    bboxes: [
+      [[123,82,144,198],[78,82,168,198],[38,82,187,198],[35,82,178,198]],
+      [[16,69,261,196],[21,69,244,196],[-13,69,336,196],[-38,69,268,196]],
+      [[17,46,290,195],[14,50,293,191],[-6,46,316,195],[2,53,234,188]],
+      [[28,30,254,193],[57,30,189,193],[10,30,207,193],[68,28,138,195]],
+    ],
+    feet: [
+      [279,279,279,279],
+      [264,264,264,264],
+      [240,240,240,240],
+      [222,222,222,222],
+    ],
+  },
+  fail_right: {
+    src: 'assets/2D%20sprites/rizer/capture-fail-right.png',
+    bboxes: [
+      [[118,74,169,200],[79,74,162,200],[52,74,166,200],[15,74,241,200]],
+      [[95,60,227,201],[62,60,222,201],[16,61,239,200],[-20,55,279,206]],
+      [[53,30,277,214],[-12,49,315,195],[18,46,178,198],[-20,49,270,195]],
+      [[103,16,145,204],[68,7,118,213],[43,7,114,213],[27,7,138,214]],
+    ],
+    feet: [
+      [273,273,273,273],
+      [260,260,260,260],
+      [243,243,243,243],
+      [219,219,219,220],
+    ],
+  },
+  fail_up: {
+    src: 'assets/2D%20sprites/rizer/capture-fail-up.png',
+    bboxes: [
+      [[137,103,118,172],[102,103,119,172],[68,101,119,174],[37,103,157,172]],
+      [[121,59,179,173],[82,55,196,177],[40,57,214,175],[6,51,216,181]],
+      [[89,2,211,203],[43,24,219,181],[9,6,226,200],[-24,-9,262,215]],
+      [[121,-7,161,172],[77,-4,177,169],[33,-6,135,171],[18,-7,118,172]],
+    ],
+    feet: [
+      [274,274,274,274],
+      [231,231,231,231],
+      [204,204,205,205],
+      [164,164,164,164],
+    ],
+  },
+};
+for (const k of Object.keys(CAPTURE_ART)){
+  const a = CAPTURE_ART[k];
+  a.img = new Image(); a.img.src = a.src;
+}
+// 16 frames · which one is on screen is a pure function of the encounter
+function captureFrameIndex(B, now){
+  if (!B) return 0;
+  if (B.result){
+    const t = Math.max(0, Math.min(1, (now - B.resultAt) / 1150));
+    return B.result === 'bond'
+      ? 11 + Math.min(4, Math.floor(t * 5))      // SNAP → LOCK
+      : 8  + Math.min(7, Math.floor(t * 8));     // BREAK → SPILL → LOSS
+  }
+  const age = now - B.t0;
+  if (age < 420) return Math.min(3, Math.floor(age / 105));   // RAISE → OPEN
+  const done = (B.idx + B.progress) / Math.max(1, B.seq.length);
+  return 4 + Math.min(6, Math.floor(done * 7));               // PULL → STRUGGLE
+}
+function drawCaptureSprite(){
+  const B = WILD_BOND.active; if (!B) return false;
+  const dir = player.dir || 'down';
+  const A = CAPTURE_ART[(B.result === 'break' ? 'fail_' : 'success_') + dir]
+         || CAPTURE_ART[(B.result === 'break' ? 'fail_' : 'success_') + 'down'];
+  if (!A || !A.img.complete || !A.img.naturalWidth) return false;
+  const i = captureFrameIndex(B, performance.now());
+  const row = i >> 2, col = i & 3;
+  const bb = A.bboxes[row][col], foot = A.feet[row][col];
+  // one shared scale across ALL eight sheets · taken from the down sheet's
+  // first frame, so no facing is bigger than another
+  const ref = CAPTURE_ART.success_down.bboxes[0][0][3] || 250;
+  const scale = (TILE * 2.15) / ref;
+  const dw = Math.max(1, Math.round(bb[2] * scale));
+  const dh = Math.max(1, Math.round(bb[3] * scale));
+  const dx = Math.floor(player.x * TILE + TILE / 2 - dw / 2) - _cam.x;
+  // plant on the BODY sole, not the bbox bottom · the beam hangs past his feet
+  const dy = Math.floor(player.y * TILE + TILE - (foot - bb[1]) * scale) - _cam.y;
+  ctx.drawImage(A.img, col * 313 + bb[0], row * 313 + bb[1], bb[2], bb[3], dx, dy, dw, dh);
+  return true;
+}
 // ══════════════════════════════════════════════════════════════════════════
 // ★★★ v0.95.866 · THE WILD BOND ENCOUNTER · the Zysphere made playable
 //

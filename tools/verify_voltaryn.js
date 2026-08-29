@@ -150,7 +150,7 @@ H('6 · ★★ ELZORAN AT THE STATUE · SILENCE IS THE GATE');
 {
   const e=C.WILD_ZYREX.find(w=>w.speciesId==='elzoran');
   ok(!!e,'★ Elzoran stands at the statue again');
-  ok(e.tileX===5&&e.tileY===28,'at (5,28), facing his fallen comrade');
+  ok(e.tileX===8&&e.tileY===31&&e.dir==='up','at (8,31) in the statue forecourt, FACING his fallen comrade (v0.95.869)');
   ok(e.level===50,'Lv 50 · T5 x 10');
   const P=C.player;
   // no Elzebub · he IGNORES you · nothing happens at all

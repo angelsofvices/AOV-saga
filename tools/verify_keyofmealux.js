@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,KEY_OF_MEALUX,MEALUX_CANON,PRISMSHARD_REGISTRY,prismshard,relicClass,RELIC_CLASS,INVENTORY_META,spawnWildZyrex,WILD_ZYREX,seedMalezorWild,ZYRAXIS_DISTRICTS,_mealuxTileFor,MEALUX_FORBIDDEN_TILES,worldDistrictAt,isWorldBorderTile,walkable,WORLD_PROPS,NPCS,requiredBondForTier,makeZyrexFollower,player,game};')();}
+try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,KEY_OF_MEALUX,MEALUX_CANON,PRISMSHARD_REGISTRY,prismshard,relicClass,RELIC_CLASS,INVENTORY_META,spawnWildZyrex,WILD_ZYREX,seedMalezorWild,ZYRAXIS_DISTRICTS,_mealuxTileFor,MEALUX_DISTRICTS,MEALUX_FORBIDDEN_TILES,worldDistrictAt,isWorldBorderTile,walkable,WORLD_PROPS,NPCS,requiredBondForTier,makeZyrexFollower,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -108,7 +108,7 @@ H('7 · ★★ THE KEY LINE IS RECORDED · one Anciuxor, few Mealux');
   ok(C.MEALUX_CANON.isPrismshard===false,'★★ the species is still not the relic · descent, not identity');
 }
 
-H('8 · ★★★ TEN ON THE MAP · one per district');
+H('8 · ★★★ FIVE ON THE MAP · every other district, Zarvane to Korathen');
 {
   C.seedMalezorWild();
   // ★ the SEEDED ten only.  §6 spawns a Key by hand at (60,60) to prove the
@@ -116,15 +116,25 @@ H('8 · ★★★ TEN ON THE MAP · one per district');
   // ten on the map, and counting it made this read 11 with a NaN remoteness.
   // Measure the population you mean.
   const M=C.WILD_ZYREX.filter(w=>w.speciesId==='key_of_mealux'&&w._malezorWild==='MEALUX');
-  ok(M.length===10,'★★★ '+M.length+' Keys of Mealux on the map · one per district, as ruled');
-  ok(new Set(M.map(w=>w._mealuxDistrict)).size===10,'★★ ten DISTINCT districts · none doubled up, none skipped');
+  // ★★ v0.95.883 · INVERTED from ten.  Creator: "lets do 5 spawn, theyre in
+  // every other districts starting at zarvane ending at korathen."
+  ok(M.length===5,'★★★ '+M.length+' Keys of Mealux on the map · every other district, as ruled');
+  ok(new Set(M.map(w=>w._mealuxDistrict)).size===5,'★★ five DISTINCT districts · none doubled up');
+  const D=C.MEALUX_DISTRICTS().map(d=>d.id);
+  ok(D.join()==='zarvane,veridan,vorashil,baelgor,korathen',
+     '★★★ the stride lands exactly: '+D.join(' · '));
+  ok(D[0]==='zarvane','★★ STARTS at Zarvane, as ruled');
+  ok(D[D.length-1]==='korathen','★★ and ENDS at Korathen · both endpoints are the check that the rule IS the rule');
+  const all=C.ZYRAXIS_DISTRICTS.map(d=>d.id);
+  ok(D.every((id,i)=>all.indexOf(id)===1+i*2),'★ every other district · stride 2 from index 1, derived not typed');
+  ok(!D.includes('malezor'),'★★ and MALEZOR gets none · the rarest creature in the game is not in the tutorial town');
   ok(M.every(w=>C.worldDistrictAt(w.tileX,w.tileY)===w._mealuxDistrict),
      '★★ and every one actually STANDS in the district it was assigned · the label is not a promise, it is measured');
   ok(M.every(w=>C.walkable(w.tileX,w.tileY)),'★ all reachable · an unreachable secret is not a secret');
   ok(M.every(w=>!C.isWorldBorderTile(w.tileX,w.tileY)),'★ none on a border tile');
   ok(M.every(w=>w.level===80),'★ all Lv 80 · tier × 10, no exception for the rarest thing in the game');
   const tiles=new Set(M.map(w=>w.tileX+','+w.tileY));
-  ok(tiles.size===10,'no two share a tile');
+  ok(tiles.size===M.length,'no two share a tile ('+tiles.size+' tiles for '+M.length+' Keys)');
 }
 
 H('9 · ★★ HIDDEN MEANS REMOTE, AND IT IS MEASURED');
@@ -146,10 +156,13 @@ H('9 · ★★ HIDDEN MEANS REMOTE, AND IT IS MEASURED');
 
 H('10 · ★★★ THE SAME TILE EVERY TIME · a secret that moves is a bug');
 {
-  const D=C.ZYRAXIS_DISTRICTS;
+  // ★ compare over the STRIDE districts, not all ten · v0.95.883 cut the
+  // population to five and this was still walking the full list, so the
+  // computed side carried five extra tiles the live side never had.
+  const D=C.MEALUX_DISTRICTS();
   const a=D.map(d=>{const s=C._mealuxTileFor(d);return s?s.at.join(','):null;});
   const b=D.map(d=>{const s=C._mealuxTileFor(d);return s?s.at.join(','):null;});
-  ok(JSON.stringify(a)===JSON.stringify(b),'★★★ the search is DETERMINISTIC · re-running it returns the identical ten tiles');
+  ok(JSON.stringify(a)===JSON.stringify(b),'★★★ the search is DETERMINISTIC · re-running it returns the identical '+D.length+' tiles');
   const live=D.map(d=>{const w=C.WILD_ZYREX.find(x=>x._malezorWild==='MEALUX'&&x._mealuxDistrict===d.id);return w?w.tileX+','+w.tileY:null;});
   ok(JSON.stringify(a)===JSON.stringify(live),'★★ and the live spawns match that answer exactly');
   const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');

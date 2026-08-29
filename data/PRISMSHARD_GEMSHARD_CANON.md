@@ -353,7 +353,35 @@ Prismshards are progenitors — they *"split, fracture, shed, or otherwise produ
 2. **The triage row is closed.** Mealux is confirmed **Zyrex**.
 3. **Absent from the locked ROSTER V1**, so no lock breaks — but adding it is a **v2 ingest**.
 
+### ★★★ 16f · THE KEY LINE · one Key of Anciuxor, a few Keys of Mealux
+
+> **Creator, 2026-08-29:** *"one key of anciuxor. few keys of mealux (rare immortal from kyrathos) found in hidden parts of game."*
+
+```
+THE KEY OF ANCIUXOR   ·  one  ·  Prismshard XVI  ·  on Anciuxor's tail  ·  never obtainable
+      ↓  remnant traces became…
+MEALUX                ·  a rare IMMORTAL species  ·  Kyrathos  ·  Eternal Library
+      ↓  which left…
+KEYS OF MEALUX        ·  a FEW  ·  hidden in the world  ·  findable
+```
+
+**★★ This is what makes the Key reachable without making it obtainable.** Standing canon says the Key cannot be won on the Rizer Path — it is the one Prism a player can never hold. A lesser key, descended from the species descended from the Key, **keeps that wall exactly where it is** and still lets a player find something *of* it in a cave nobody told them about. Two removes from the Highest One is close enough to matter and far enough to be legal.
+
+**★ "Rare immortal from Kyrathos"** also settles half of the T8 question: **IMMORTAL is the T8 class name in canon**, so this affirms the class — without claiming the Mealux *made* Kyrathos. "A T8 Immortal that arrived to guard rather than to create" is now the reading canon actually supports. Recorded as `immortalClass: true`; the creator-of-its-world question stays open.
+
+**★ Count and places are deliberately empty.** "Few" is a quantity you have not fixed, and this project's hidden things are placed by hand at tiles you name — the game never reveals *where*. So the class exists and the item is registered, but `count: null` and `found: []`. Inventing three coordinates would be inventing canon.
+
 ### ★★ What is still open
+
+
+
+1. **T8 = the IMMORTAL class, and every T8 being creates its home planet.** Mealux is T8 and native to Kyrathos — **did they make it, or did they only arrive to guard what was already there?** The new origin makes the second reading available for the first time: a being condensed from relic-residue need not be a creator. Still the Creator's call, and still the second T8 tension after Omegoran.
+2. **Kyrathos appears nowhere else in the data** — not among the Matrix's 27. A 28th world, and possibly **AE28**, the body that left the Expanse? *Speculation.*
+3. **★ It still points at a family.** Guardians of an *Eternal Library* read as **F2 PAST** (Ax-2 *Mnemosyne* Aethra; the Silent Prism is already kept by "Memorykeepers") or **F6 PRESERVATION** — both open slots. Offered, not written: `PRISMSHARD_FAMILY[16]` stays null.
+4. **Does Gemshard 81 relate?** The Key alone sheds a sixth Gemshard, and the Key alone shed a species. **Two irregularities from the same relic.** Whether they are the same irregularity is exactly the revelation §5 reserves. Untouched.
+5. **How many Mealux, and are the traces spent?** A finite residue implies a finite species — which would be one reason they are "one of the rarest."
+
+
 
 1. **T8 = the IMMORTAL class, and every T8 being creates its home planet.** Mealux is T8 and native to Kyrathos — **did they make it, or did they only arrive to guard what was already there?** The new origin makes the second reading available for the first time: a being condensed from relic-residue need not be a creator. Still the Creator's call, and still the second T8 tension after Omegoran.
 2. **Kyrathos appears nowhere else in the data** — not among the Matrix's 27. A 28th world, and possibly **AE28**, the body that left the Expanse? *Speculation.*

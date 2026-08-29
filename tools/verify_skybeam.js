@@ -140,5 +140,35 @@ H('6 · ★★ THE WILD ONE STILL LANDS');
   ok(SH.bboxes!==SH.flyAll.bboxes,'★★★ two distinct banks · it is on the ground until it is YOURS, which makes taking it the moment it leaves the ground');
 }
 
+H('7 · ★★★ APEXAUR · the walk sheet, and the key that was NOT run');
+{
+  const src2=fs.readFileSync(ROOT+'rp7b.html','utf8');   // scoped to this block
+  const A=C.SUMMONABLE_SPRITES.apexaur;
+  ok(!!A.runBboxes&&!!A.runSrc,'★ Apexaur has a walk bank');
+  ok(fs.existsSync(ROOT+decodeURIComponent(A.runSrc)),'★ the walk sheet is on disk');
+  ok(A.runSrc!==A.src,'★ distinct from the idle sheet');
+  const seen=new Set(A.runBboxes.flat().map(b=>JSON.stringify(b)));
+  ok(seen.size===16,'★★ all 16 walk frames distinct');
+  // ★★★ the point of this whole asset: a black key would have eaten the armour
+  const buf=fs.readFileSync(ROOT+decodeURIComponent(A.runSrc));
+  ok(buf.readUInt32BE(16)===1254&&buf.readUInt32BE(20)===1254,'1254×1254');
+  ok(/NOT KEYED, AND THAT WAS THE WHOLE JOB/.test(src2),
+     '★★★ the sheet arrived on black and was NOT keyed · 6,131 opaque near-black pixels are the creature\'s own armour, and a black key would have destroyed them');
+  ok(/the safest key is the one you don't run/.test(src2),'★★ measured before acting · look before you key');
+  C.seedMalezorWild();
+  const ap=C.WILD_ZYREX.filter(w=>w.speciesId==='apexaur');
+  ok(ap.length===2,'★★ two Apexaur on the map');
+  const ds=ap.map(w=>C.worldDistrictAt(w.tileX,w.tileY)).sort();
+  ok(ds.join()==='baelgor,zarvane','★★★ ZARVANE and BAELGOR, as ruled · '+ds.join(' + '));
+  ok(ap.every(w=>w._graze&&w._grazeR===7),'★★ both GRAZE · which is the whole reason the walk sheet exists');
+  ok(ap.every(w=>w.level===50),'★ both Lv 50 · tier 5 × 10');
+  // the honesty check: the derived tile is genuinely clear
+  const b=ap.find(w=>C.worldDistrictAt(w.tileX,w.tileY)==='baelgor');
+  let nb=1e9;
+  for(const p of C.WORLD_PROPS){ if(p.tileX==null||(p.tileW||1)<3) continue;
+    const d=Math.max(Math.abs(p.tileX-b.tileX),Math.abs(p.tileY-b.tileY)); if(d<nb) nb=d; }
+  ok(nb>=14,'★★★ the Baelgor tile is '+nb+' tiles clear · the FIRST pick was 2, eyeballed while the comment claimed it was derived');
+}
+
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));
 process.exit(f?1:0);

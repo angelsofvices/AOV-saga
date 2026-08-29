@@ -2571,6 +2571,20 @@ const INVENTORY_META = {
   voltshard:        { label: 'Voltshard',                  order: 57 },
   evolution_catalyst:{ label:'Evolution Catalyst',        order: 58 },   // ★ v0.95.865 · TRANSFORMATION Core synthesis · one free evolution  // ★★ v0.95.822 · Malezor cosmic chest · CONSUME from ZyCube to attune SAPPHIRE VOLTSTORM (first A5)
   rubypaw_sword:    { label: 'Rubypaw Longsword',       order: 8 },   // v0.95.572 · Gold chest inside treehouse (same scene) · S2-only · square-only · baseAtk × 3 × S2 mult = 150 dmg (> S2 kick 100) · durability 200 hits (connect-only) · repair 100 gems
+  // ★★ v0.95.872 · THE ZYREX HALF OF THE CONSUMABLE LADDER.  Creator: "fresh
+  // water, berry juice, and fruit bars ... these will be adjacent to rizer
+  // potion items (ale, potion, elixir)."  Three rungs facing three rungs:
+  //     ale     10% RIZER   ↔  fresh water   25% ZYREX
+  //     potion  20% RIZER   ↔  berry juice   50% ZYREX
+  //     elixir  30% RIZER   ↔  fruit bar    100% ZYREX
+  // ★ PERCENTAGES, not the flat 15/30/60 the old Rizer potions give a Zyrex.
+  // A flat 30 HP is a full heal for a T1 and a rounding error for a T7, so a
+  // flat ladder would have quietly expired the moment the party outgrew
+  // Malezor.  Percent scales with tier forever.  Orders 32.5/33/33.5 sit them
+  // literally adjacent to ale (32) in the bag, exactly as ordered.
+  fresh_water:      { label: 'Fresh Water',            order: 32.5 },  // Zyrex 25% HP
+  berry_juice:      { label: 'Berry Juice',            order: 33   },  // Zyrex 50% HP
+  fruit_bar:        { label: 'Fruit Bar',              order: 33.5 },  // Zyrex 100% HP
   zysphere:         { label: 'Zysphere',                order: 9 },   // v0.95.591 · overworld capture device · used to bond wild Zyrex when Rizer's bond level >= (target.tier × 10) · outcomes: accept · hostile · flee
   // ─── v0.95.588 · ULTRASHARDS · one per canon type · consume on Zyrex to overwrite A4 with Ultramax move + add Ultramax type ─────────────
   shard_predator:   { label: 'Predator Shard',     order:  50 },   // Beast
@@ -4979,6 +4993,38 @@ const WORLD_PROPS = [
     })(),
     door: [0, 0],
     onInteract: () => { showToast('◈ MALEZOR POTION SHOP · Closed for now.', 2200); playSFX('doorLock'); },
+  },
+  {
+    // ★★ v0.95.872 · THE ZYSPHERE SHOP · Creator: "put the zysphere item shop
+    // at -20, 120.  same size as the rizer potion shop."
+    //
+    // Malezor's west shelf, six tiles of shopfront under a teal roof.  The
+    // POTION SHOP sells what keeps RIZER standing; this sells what keeps the
+    // BOND alive — spheres to imprint with, and the Zyrex-side half of the
+    // consumable ladder.  Two shops, two bodies, one town.
+    //
+    // ★ tileW 7 matches the potion shop as ordered.  tileH is 6, NOT 7: the
+    // art is 1087x854 (aspect 1.273) and drawProp derives its height from the
+    // BBOX, so seven tiles wide paints ~5.5 tall.  A 7-tall footprint would
+    // have blocked a tile and a half of empty air above the roof — the same
+    // "collide with the pixels, not the bounding box" rule the Gemlord cave
+    // staircases were rebuilt on.  Never stretch to fill a footprint; fit the
+    // footprint to the art.
+    id: 'malezor_zysphere_shop',
+    img: new Image(),
+    src: 'assets/2D%20sprites/buildings/zysphere-shop.png',
+    bbox: [0, 0, 1087, 854],         // measured after keying · the whole file
+    tileX: -20, tileY: 120,
+    tileW: 7, tileH: 6,
+    footprint: (function(){
+      const f = [];
+      for (let dy = -5; dy <= 0; dy++){
+        for (let dx = -3; dx <= 3; dx++){ f.push([dx, dy]); }
+      }
+      return f;
+    })(),
+    door: [0, 0],
+    onInteract: () => { try { openZysphereShop(); } catch(err){ console.warn('zysphere shop failed', err); } },
   },
   {
     // Malezor Zyrex Farm · south-2 band · RIGHT of center under school.
@@ -22797,6 +22843,123 @@ function openZureleaPotionShop(){
   window.addEventListener('keydown', kh, true);
   overlay._kh = kh;
 }
+// ★★ v0.95.872 · ONE DOOR for every Zyrex heal item.  Percentages, so the
+// ladder still means something at T7.  Feeds the MOST WOUNDED living party
+// member — never the leader by default, because the leader is usually the one
+// that did not need it.  Returns false (and says why) rather than silently
+// eating an item.
+const ZYREX_CONSUMABLE_PCT = { fresh_water: 0.25, berry_juice: 0.50, fruit_bar: 1.00 };
+function feedZyrexConsumable(key){
+  const pct = ZYREX_CONSUMABLE_PCT[key];
+  if (!pct) return false;
+  const label = (INVENTORY_META[key] && INVENTORY_META[key].label) || key;
+  const alive = (player.party || []).filter(z => z && (z.hp || 0) > 0);
+  if (!alive.length){
+    showToast('◈ No Zyrex to feed', 1800); try { playSFX('cancel'); } catch(_){} return false;
+  }
+  let target = null, worst = 1;
+  for (const z of alive){
+    const mx = z.maxHp || z.hpMax || 0; if (!mx) continue;
+    const frac = (z.hp || 0) / mx;
+    if (frac < worst){ worst = frac; target = z; }
+  }
+  if (!target || worst >= 1){
+    showToast('◈ Your Zyrex are at full HP', 1800); try { playSFX('cancel'); } catch(_){} return false;
+  }
+  const mx = target.maxHp || target.hpMax;
+  const before = target.hp || 0;
+  target.hp = Math.min(mx, before + Math.max(1, Math.round(mx * pct)));
+  try { playSFX('chomp'); } catch(_){}
+  showToast(`★ ${label} · ${target.name || 'Zyrex'} +${target.hp - before} HP`, 2000);
+  try { saveGame(); } catch(_){}
+  return true;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.872 · THE ZYSPHERE SHOP · Malezor (-20, 120)
+// Creator: "rizer will be able to buy zyspheres here.  as well as zyrex potions
+// and other stuff later."  The NPC comes later; the counter opens now.
+// ══════════════════════════════════════════════════════════════════════════
+const ZYSPHERE_SHOP_STOCK = [
+  { key:'zysphere',    label:'Zysphere',    price:150, note:'★ ONE PER BOND ATTEMPT · win or lose' },
+  { key:'fresh_water', label:'Fresh Water', price: 60, note:'Zyrex · restores 25% HP' },
+  { key:'berry_juice', label:'Berry Juice', price:140, note:'Zyrex · restores 50% HP' },
+  { key:'fruit_bar',   label:'Fruit Bar',   price:320, note:'Zyrex · restores ALL HP' },
+];
+function openZysphereShop(){
+  if (game.zysphereShopOpen) return;
+  game.zysphereShopOpen = true;
+  const overlay = document.createElement('div');
+  overlay.id = 'zysphereShopOverlay';
+  Object.assign(overlay.style, {
+    position:'fixed', inset:'0', zIndex:'9999',
+    background:'radial-gradient(circle at center, rgba(6,34,40,0.86), rgba(0,0,0,0.94))',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontFamily:"'Courier New', monospace",
+  });
+  const draw = () => {
+    const coins = (player.items && player.items.coins) || 0;
+    const spheres = (player.items && player.items.zysphere) || 0;
+    overlay.innerHTML = `
+      <div style="background:linear-gradient(180deg,rgba(10,52,60,0.96),rgba(3,14,18,0.98)); border:2px solid #4fd6c8; padding:22px 26px; width:540px; max-width:92vw; box-shadow:0 0 40px rgba(79,214,200,0.32);">
+        <div style="text-align:center; color:#9ff0e6; font-weight:bold; letter-spacing:.16em; font-size:14px;">◎  ZYSPHERE SHOP  ◎</div>
+        <div style="text-align:center; color:#79b8b0; font-size:10px; margin:4px 0 12px;">Malezor · spheres and Zyrex supplies</div>
+        <div style="text-align:center; color:#8ff; font-size:11px; margin-bottom:14px;">Coins · <b style="color:#fff;">${coins.toLocaleString()}</b> &nbsp;·&nbsp; Zyspheres · <b style="color:${spheres ? '#ffd66b' : '#ff8080'};">${spheres}</b></div>
+        ${ZYSPHERE_SHOP_STOCK.map((it, i) => {
+          const can = coins >= it.price;
+          const have = (player.items && player.items[it.key]) || 0;
+          return `<button data-buy="${it.key}" ${can ? '' : 'disabled'}
+            style="width:100%; padding:11px 14px; margin-bottom:8px; background:${can ? 'linear-gradient(180deg,rgba(16,80,90,0.8),rgba(4,20,26,0.9))' : 'rgba(24,32,34,0.55)'}; color:${can ? '#9ff0e6' : '#55676a'}; border:2px solid ${can ? '#4fd6c8' : '#33484c'}; font:bold 11px 'Courier New',monospace; letter-spacing:.08em; cursor:${can ? 'pointer' : 'not-allowed'}; text-align:left; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <span>${'JKLUIO'[i] || '·'} · ${it.label.toUpperCase()}<br><span style="font-weight:normal; font-size:9px; color:${can ? '#79b8b0' : '#44585c'};">${it.note} · held ${have}</span></span>
+            <span style="color:${can ? '#ffd66b' : '#55676a'}; font-size:12px;">${it.price}</span>
+          </button>`;
+        }).join('')}
+        <div style="text-align:center; color:#7a8a8c; font-size:10px; margin-top:6px; letter-spacing:.08em;">B / ESC · leave</div>
+      </div>`;
+    overlay.querySelectorAll('[data-buy]').forEach(b => {
+      b.addEventListener('click', () => buy(b.dataset.buy));
+    });
+  };
+  const buy = (key) => {
+    const it = ZYSPHERE_SHOP_STOCK.find(s => s.key === key);
+    if (!it) return;
+    const coins = (player.items && player.items.coins) || 0;
+    if (coins < it.price){ try { playSFX('disabled'); } catch(_){} return; }
+    player.items.coins = coins - it.price;
+    player.items[key] = (player.items[key] || 0) + 1;
+    try { playSFX('coins'); } catch(_){}
+    try { playItemGain(key); } catch(_){}
+    showToast(`◎ Bought ${it.label} · -${it.price} coins`, 1800);
+    try { saveGame(); } catch(_){}
+    draw();
+  };
+  draw();
+  document.body.appendChild(overlay);
+  try { playSFX('menuOpen'); } catch(_){}
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeZysphereShop(); });
+  const kh = (e) => {
+    const k = (e.key || '').toLowerCase();
+    if (k === 'b' || k === 'escape' || k === 'a' || k === '3'){
+      e.preventDefault(); e.stopImmediatePropagation(); closeZysphereShop(); return;
+    }
+    const idx = 'jkluio'.indexOf(k);
+    if (idx >= 0 && ZYSPHERE_SHOP_STOCK[idx]){
+      e.preventDefault(); e.stopImmediatePropagation(); buy(ZYSPHERE_SHOP_STOCK[idx].key);
+    }
+  };
+  window.addEventListener('keydown', kh, true);
+  overlay._kh = kh;
+}
+function closeZysphereShop(){
+  const el = document.getElementById('zysphereShopOverlay');
+  if (el){
+    if (el._kh) window.removeEventListener('keydown', el._kh, true);
+    el.remove();
+  }
+  game.zysphereShopOpen = false;
+  try { playSFX('menuClose'); } catch(_){}
+}
+
 function closeZureleaPotionShop(){
   const el = document.getElementById('potionShopOverlay');
   if (el){
@@ -24793,6 +24956,7 @@ function tryMove(dt){
   if (game.posterViewOpen)          freezeReasons.push('posterView');
   if (game.weaponShopOpen)          freezeReasons.push('weaponShop');   // v0.95.583
   if (game.potionShopOpen)          freezeReasons.push('potionShop');   // v0.95.632
+  if (game.zysphereShopOpen)        freezeReasons.push('zysphereShop'); // ★ v0.95.872
   if (game.ultrashardPickerOpen)    freezeReasons.push('ultrashardPicker'); // v0.95.589
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
@@ -27864,7 +28028,8 @@ addEventListener('keydown', e => {
             playSFX('confirm');
             showToast(player.skating ? '◈ Skateboard · ON · faster movement' : '◈ Skateboard · OFF', 1600);
           } else if (key === 'verdant_elixir' || key === 'potion' || key === 'ale' ||
-                     key === 'berry' || key === 'fruit' || key === 'seed'){
+                     key === 'berry' || key === 'fruit' || key === 'seed' ||
+                     key === 'fresh_water' || key === 'berry_juice' || key === 'fruit_bar'){
             // v0.95.505 · Legacy settings-menu consume routes into the single
             // canonical useZycubeItem() so ale/potion/elixir and berry/fruit/seed
             // stay in sync with the phone consume path.
@@ -35614,6 +35779,10 @@ function battleBagItems(){
     { key:'ale',    label:'Ale (Zyrex 15)',    heal:15 },
     { key:'potion', label:'Potion (Zyrex 30)', heal:30 },
     { key:'verdant_elixir', label:'Mythic Elixir (Zyrex 60)', heal:60 },
+    // ★ v0.95.872 · the Zyrex ladder · pct of the ACTIVE duelist's max HP
+    { key:'fresh_water', label:'Fresh Water (25%)', pct:0.25 },
+    { key:'berry_juice', label:'Berry Juice (50%)', pct:0.50 },
+    { key:'fruit_bar',   label:'Fruit Bar (FULL)',  pct:1.00 },
   ];
   return defs.filter(d => (inv[d.key] || 0) > 0)
              .map(d => ({ ...d, count: inv[d.key] || 0 }));
@@ -35633,7 +35802,8 @@ function battleUseBagItem(key){
   }
   player.items[key] -= 1;
   const before = p.hp || 0;
-  p.hp = Math.min(mx, before + def.heal);
+  // ★ v0.95.872 · pct items scale with the duelist · flat items keep their number
+  p.hp = Math.min(mx, before + (def.pct ? Math.max(1, Math.round(mx * def.pct)) : def.heal));
   playSFX('chomp');
   battleQueueMsg([`Rizer used ${def.label}!`, `${p.name} recovered ${p.hp - before} HP!`]);
   battleWildFreeHit();               // queues enemy attack + resolution
@@ -37295,6 +37465,18 @@ function useZycubeItem(key){
       try { playSFX('lifeSeedSour'); } catch(_){}   // ★ v0.95.820 · sour face VO
       playSFX('confirm');
       showToast(`✦ LIFE SEED consumed · +${got} HP`, 2200);
+      return;
+    }
+    // ★★ v0.95.872 · THE ZYREX CONSUMABLES · fresh water / berry juice / fruit
+    // bar.  Rizer's three heal HIM; these three heal the party, and they all
+    // land through one helper so the bag, the battle bag and the phone can
+    // never disagree about what a Fruit Bar does.
+    case 'fresh_water':
+    case 'berry_juice':
+    case 'fruit_bar': {
+      if (qty <= 0){ showToast('◈ None left', 1600); playSFX('cancel'); return; }
+      if (!feedZyrexConsumable(key)) return;   // owns its own refusal + SFX
+      player.items[key] = qty - 1;
       return;
     }
     // v0.95.505 · Rizer HP consumables · ale/potion/elixir = 10/20/30 % max HP
@@ -39782,6 +39964,25 @@ function wildBondDifficulty(sp){
            label: ratio >= 1.5 ? 'FAVOURED' : ratio >= 0.95 ? 'MATCHED' : ratio >= 0.6 ? 'STRAINED' : 'OVERMATCHED' };
 }
 function startWildBondEncounter(w, sp){
+  // ★★ v0.95.872 · NO SPHERE, NO IMPRINT.  Creator: "u cant perform a bond
+  // event without a zysphere.  each attempt cost 1x."
+  //
+  // The charge lives HERE, in the one function that opens an encounter, and it
+  // is taken on the ATTEMPT — not on the win.  That is the whole point: a
+  // broken bond costs you the sphere it was imprinting into, which is what
+  // finally gives the QTE stakes.  Spinning the wrong way is now expensive.
+  //
+  // Deliberately NOT charged on the `_noEncounter` path (Elzoran).  He is not
+  // quarry and there is no attempt to pay for — he walks over on his own feet
+  // once the kin gate opens.  Charging a story bond would let a player with an
+  // empty bag lock himself out of a scripted companion.
+  const _held = (player.items && player.items.zysphere) || 0;
+  if (_held <= 0){
+    showToast('◎ NO ZYSPHERE · you have nothing to imprint into · buy one in Malezor', 3200);
+    try { playSFX('cancel'); } catch(_){}
+    return false;            // the wild does NOT flee · it simply stays wild
+  }
+  player.items.zysphere = _held - 1;
   const d = wildBondDifficulty(sp);
   // ★ the sequence · T1 is a single spin either way; higher tiers alternate
   // in RANDOM order so the direction must be READ, never memorised
@@ -39795,8 +39996,11 @@ function startWildBondEncounter(w, sp){
     t0: performance.now(), endsAt: performance.now() + d.ms,
     lastAngle: null, shake: 0, flash: 0, result: null, resultAt: 0,
   };
+  WILD_BOND.active.spheresLeft = (player.items && player.items.zysphere) || 0;
   game.wildBondOpen = true;
   try { playSFX('menuOpen'); } catch(_){}
+  try { saveGame(); } catch(_){}   // the sphere is spent the moment it opens
+  return true;
 }
 // stick angle → accumulated rotation.  Gamepad right stick is axes 2/3; the
 // keyboard fallback reads the arrow ring (Up→Right→Down→Left = clockwise).
@@ -39991,6 +40195,15 @@ function drawWildBondOverlay(){
       ctx.lineTo(x0 + i*gap, y0 + 4); ctx.lineTo(x0 + i*gap - 4, y0);
       ctx.closePath(); ctx.fill();
     }
+  }
+
+  // ── ★ v0.95.872 · the spheres left in the bag · this one is already spent,
+  //    so the number he reads is what a SECOND try would cost him ──
+  if (B.spheresLeft != null){
+    ctx.textAlign = 'center';
+    ctx.font = "bold 9px 'Courier New', monospace";
+    ctx.fillStyle = B.spheresLeft > 0 ? 'rgba(159,240,230,0.78)' : 'rgba(255,128,128,0.9)';
+    ctx.fillText(`\u25ce ${B.spheresLeft} left`, cx, cy + R + (B.seq.length > 1 ? 27 : 18));
   }
 
   // ── the name-plate · one second, then gone ──

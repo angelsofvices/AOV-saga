@@ -2657,21 +2657,114 @@ function astraliteItemByKey(key){
 //   PRESENT + SPIRIT     → ASCENSION   · the living soul lifted → +20 max HP
 //   PRESENT + FUTURE     → INNOVATION  · now building later → +10 ϟ STAMINA cap
 // Permanent, stacking, and saved.  A Core is consumed on synthesis.
+// ★★★ v0.95.871 · THE COMPOUNDS ARE TIERED STAT BOOSTS.  Creator: "the
+// astralite matrix compounds should be tiered stat boosts in the 5 stats.
+// some boost two stats... the rarity and class of the astralite should
+// represent the rarity and class of the stat boost.  once the complex
+// astralite product is crafted and consumed, rizer gains the stat boost as
+// well as any rxp associated with the gained stat.  this is so that stats
+// always reflect 1,000,000 rxp (level 100) = 3330 attribute points."
+//
+// ★ WHICH STATS · read off the FAMILY PAIR, never invented:
+//   CREATION(SPARK) + PAST(RECORD)          → POTENTIAL      · SPECIAL alone —
+//        raw becoming, remembered: the purest growth stat, so it lands whole
+//   DESTRUCTION(RELEASE) + PRESERVATION(ENDURE) → TRANSFORMATION · ATK + DEF —
+//        unmake and remake: the war pair
+//   MIND(THINK) + BODY(FORM)                → WILL           · ATK + SPECIAL —
+//        [[aov-gem-canon]]: Body is Red/ATK, Mind is Blue/SP.  Effort is both
+//   PRESENT(BALANCE) + SPIRIT(TRANSCEND)    → ASCENSION      · HP + SPECIAL —
+//        the living soul lifted: Purple/Soul over a living body
+//   PRESENT(BALANCE) + FUTURE(BUILD)        → INNOVATION     · SPEED + DEF —
+//        now, building later: reflex and the structure that survives it
+//
+// ★ RARITY IS THE TIER, AND THE TIER IS THE WEAKEST LINK.  A compound's tier
+// is min(energy A, energy B) — you cannot forge a mythic Core by pairing one
+// mythic Astralite with a common one; a chain is as strong as its weakest
+// resonance.  Energy 1-7 maps straight onto the Matrix's own rarity ladder
+// (the 40/21/15/11/7/4/2% recovery cuts), so a Tier-7 Core is genuinely rare.
+//
+// ★★ AND THE LEDGER STAYS TRUE.  The Creator's identity is a RATIO —
+// 1,000,000 RXP ≡ 3,330 points — so a Core must extend BOTH SIDES of it by
+// the same measure.  Synthesis therefore does three things at once:
+//   1. spends the points straight into the stat(s)   (attrs[k] += n)
+//   2. adds the same n to the POOL as matrixAP       (so it is a GAIN, never
+//      a raid on the free points he earned by levelling — the v1 of this
+//      code silently ate his unspent AP)
+//   3. awards n × 300.3 RXP                          (so lifetime RXP moves
+//      with it — the half v0.95.865 forgot entirely)
+// Unspent is untouched, and RXP ÷ AP stays 300.3 at every moment: at Lv 100
+// with no Cores that is exactly 1,000,000 ÷ 3,330, and with Cores it is
+// (1,000,000 + n·300.3) ÷ (3,330 + n).  The Matrix is the one thing in the
+// game that can carry a Rizer PAST the natural ceiling, which is precisely
+// what a complex Astralite compound should be worth.
+// ★ lazy · RIZER_TOTAL_RXP and RIZER_ATTR_MAX are declared far below this
+// block, so an eager const here is the classic TDZ trap (caught by the boot
+// check, same family as the Athrenology name-map and DAEMON_WALK_BBOXES).
+function rxpPerAttrPoint(){ return RIZER_TOTAL_RXP / RIZER_ATTR_MAX; }   // ≈ 300.3
 const ASTRALITE_COMPOUND_EFFECTS = {
-  compound_potential:      { label:'POTENTIAL',      blurb:'+33 attribute points',   apply(){ player.compoundAP = (player.compoundAP || 0) + 33; } },
-  compound_transformation: { label:'TRANSFORMATION', blurb:'evolution catalyst ×1',  apply(){ player.items.evolution_catalyst = (player.items.evolution_catalyst || 0) + 1; } },
-  compound_will:           { label:'WILL',           blurb:'+10 ◆ SPECIAL capacity', apply(){ player.diamondMax = (player.diamondMax || 100) + 10; } },
-  compound_ascension:      { label:'ASCENSION',      blurb:'+20 max HP',             apply(){ player.hpBonus = (player.hpBonus || 0) + 20; player.hpMax = (player.hpMax || 100) + 20; player.hp = Math.min(player.hpMax, (player.hp || 0) + 20); } },
-  compound_innovation:     { label:'INNOVATION',     blurb:'+10 ϟ STAMINA capacity', apply(){ player.staminaBonus = (player.staminaBonus || 0) + 10; } },
+  compound_potential:      { label:'POTENTIAL',      pair:'CREATION + PAST',
+                             stats:[['special',1]],            blurb:'SPECIAL' },
+  compound_transformation: { label:'TRANSFORMATION', pair:'DESTRUCTION + PRESERVATION',
+                             stats:[['atk',0.5],['def',0.5]],  blurb:'ATK + DEF' },
+  compound_will:           { label:'WILL',           pair:'MIND + BODY',
+                             stats:[['atk',0.5],['special',0.5]], blurb:'ATK + SPECIAL' },
+  compound_ascension:      { label:'ASCENSION',      pair:'PRESENT + SPIRIT',
+                             stats:[['hp',0.5],['special',0.5]],  blurb:'HP + SPECIAL' },
+  compound_innovation:     { label:'INNOVATION',     pair:'PRESENT + FUTURE',
+                             stats:[['speed',0.5],['def',0.5]],   blurb:'SPEED + DEF' },
 };
+const COMPOUND_TIER_NAMES = ['','CORE','MAJOR I','MAJOR II','MAJOR III','MINOR I','MINOR II','MYTHIC'];
+// total points a Core of this tier is worth · T1 5 → T7 35
+function compoundPointsForTier(t){ return Math.max(1, Math.min(7, t | 0)) * 5; }
+function compoundKey(base, tier){ return `${base}_t${Math.max(1, Math.min(7, tier | 0))}`; }
+function parseCompoundKey(key){
+  const m = /^(compound_[a-z]+)_t([1-7])$/.exec(String(key || ''));
+  return m ? { base: m[1], tier: +m[2], eff: ASTRALITE_COMPOUND_EFFECTS[m[1]] || null } : null;
+}
+// how a Core's points actually land · primary takes the rounding
+function compoundStatGains(base, tier){
+  const eff = ASTRALITE_COMPOUND_EFFECTS[base]; if (!eff) return [];
+  const total = compoundPointsForTier(tier);
+  const out = [];
+  let used = 0;
+  eff.stats.forEach(([k, share], idx) => {
+    const n = (idx === eff.stats.length - 1) ? total - used : Math.floor(total * share);
+    used += n; out.push([k, n]);
+  });
+  return out;
+}
+// register every tiered Core in the bag · 5 compounds x 7 tiers
+for (const base of Object.keys(ASTRALITE_COMPOUND_EFFECTS)){
+  const eff = ASTRALITE_COMPOUND_EFFECTS[base];
+  for (let t = 1; t <= 7; t++){
+    INVENTORY_META[compoundKey(base, t)] = {
+      label: `${eff.label} Core · ${COMPOUND_TIER_NAMES[t]}`,
+      order: 400 + t,
+    };
+  }
+}
 function synthesizeCompound(key){
-  const eff = ASTRALITE_COMPOUND_EFFECTS[key];
-  if (!eff) return false;
+  const P = parseCompoundKey(key);
+  if (!P || !P.eff) return false;
   if ((player.items?.[key] || 0) <= 0){ try{playSFX('cancel');}catch(_){} showToast('◇ You have none of that Core.',1600); return false; }
   player.items[key] -= 1;
-  try { eff.apply(); } catch(err){ console.warn('[rp7b] synthesis failed', err); }
+  const gains = compoundStatGains(P.base, P.tier);
+  const attrs = rizerAttrs();
+  let points = 0;
+  for (const [k, n] of gains){ attrs[k] = (attrs[k] || 0) + n; points += n; }
+  // the pool grows with the spend · a Core is a gain, not a withdrawal
+  player.matrixAP = (player.matrixAP || 0) + points;
+  // ★ and the RXP those points represent · stats keep reflecting RXP
+  // ★ the RXP is recorded on the LEDGER, not poured into the level curve.
+  // Feeding awardRizerXP would level him from the Core AND grant pool from
+  // matrixAP — the same 35 points twice, and the pad's own kill multipliers
+  // would distort the exchange rate on top.  Recording it keeps lifetime RXP
+  // honest (stats reflect RXP) while levels stay something you EARN.
+  const rxp = Math.round(points * rxpPerAttrPoint());
+  player.matrixRXP = (player.matrixRXP || 0) + rxp;
   try { playSFX('confirm'); } catch(_){}
-  showToast(`◇ ${eff.label} SYNTHESIZED · ${eff.blurb} · permanent`, 3200);
+  const words = gains.map(([k, n]) => `+${n} ${k.toUpperCase()}`).join(' · ');
+  showToast(`◇ ${P.eff.label} ${COMPOUND_TIER_NAMES[P.tier]} SYNTHESIZED · ${words} · +${rxp.toLocaleString()} RXP · permanent`, 4200);
   try { saveGame(); } catch(_){}
   try { renderAstraliteMixer(document.getElementById('expRecipeList')); } catch(_){}
   return true;
@@ -21850,10 +21943,15 @@ function craftAstraliteCompound(){
   const need={};for(const key of [mix.a,mix.b])need[key]=(need[key]||0)+1;
   if(Object.entries(need).some(([k,n])=>(player.items?.[k]||0)<n)){playSFX('cancel');showToast('◇ Astralite inventory changed. Reselect the materials.',1800);return;}
   for(const [k,n] of Object.entries(need))player.items[k]-=n;
-  addItems({[recipe.key]:1});
+  // ★ v0.95.871 · the Core's TIER is the weakest link of the two Astralites
+  const _ia=astraliteItemByKey(mix.a), _ib=astraliteItemByKey(mix.b);
+  const _tier=Math.max(1,Math.min(7,Math.min(_ia?_ia.energy:1,_ib?_ib.energy:1)));
+  const _key=compoundKey(recipe.key,_tier);
+  addItems({[_key]:1});
   game._astraliteMix={a:null,b:null};
   playSFX('confirm');
-  showToast(`◇ MATRIX LOCKED · ${recipe.label} · added to bag`,2500);
+  const _g=compoundStatGains(recipe.key,_tier).map(([k,n])=>`+${n} ${k.toUpperCase()}`).join(' · ');
+  showToast(`◇ MATRIX LOCKED · ${recipe.label} ${COMPOUND_TIER_NAMES[_tier]} · ${_g} when synthesized`,3400);
   try{saveGame();}catch(_){}
   renderAstraliteMixer(document.getElementById('expRecipeList'));
 }
@@ -21871,19 +21969,31 @@ function renderAstraliteMixer(list){
         <div style="border:1px solid #59677d;padding:8px;color:${mix.a?'#fff':'#607080'};"><b>SLOT A</b><br>${describe(mix.a)}</div>
         <div style="border:1px solid #59677d;padding:8px;color:${mix.b?'#fff':'#607080'};"><b>SLOT B</b><br>${describe(mix.b)}</div>
       </div>
-      <div style="margin-top:8px;padding:8px;border:1px solid ${recipe?'#d4af37':'#553c60'};color:${recipe?'#ffd66b':'#a88da8'};">${recipe?`OUTPUT · ${recipe.name}`:(mix.a&&mix.b?'UNSTABLE · NO LOCKED INTERACTION':'OUTPUT · WAITING FOR TWO MATERIALS')}</div>
+      <div style="margin-top:8px;padding:8px;border:1px solid ${recipe?'#d4af37':'#553c60'};color:${recipe?'#ffd66b':'#a88da8'};">${(function(){
+        if(!recipe) return mix.a&&mix.b?'UNSTABLE · NO LOCKED INTERACTION':'OUTPUT · WAITING FOR TWO MATERIALS';
+        // ★ v0.95.871 · show the tier the pair will actually yield, and what it pays
+        const ia=astraliteItemByKey(mix.a), ib=astraliteItemByKey(mix.b);
+        const t=Math.max(1,Math.min(7,Math.min(ia?ia.energy:1,ib?ib.energy:1)));
+        const g=compoundStatGains(recipe.key,t).map(([k,n])=>`+${n} ${k.toUpperCase()}`).join(' · ');
+        const e=ASTRALITE_COMPOUND_EFFECTS[recipe.key];
+        return `OUTPUT · ${recipe.name} · <b>${COMPOUND_TIER_NAMES[t]}</b><br><span style="font-size:10px;color:#9fc0d0;">${e?e.pair:''} → ${g} · +${Math.round(compoundPointsForTier(t)*rxpPerAttrPoint()).toLocaleString()} RXP</span>`;
+      })()}</div>
       <div style="display:flex;gap:7px;margin-top:8px;"><button id="astraliteMixReset" style="flex:1;padding:7px;background:#252936;color:#b8c8d8;border:1px solid #566;cursor:pointer;">RESET</button><button id="astraliteMixCraft" ${recipe?'':'disabled'} style="flex:2;padding:7px;background:${recipe?'#d4af37':'#333'};color:${recipe?'#080a0f':'#666'};border:1px solid ${recipe?'#ffd66b':'#555'};font-weight:bold;cursor:${recipe?'pointer':'not-allowed'};">CRAFT COMPOUND</button></div>
     </div>
     ${owned.length?owned.map(f=>`<div style="margin:6px 0;border-left:3px solid ${f.color};padding-left:7px;"><div style="color:${f.color};font-size:11px;font-weight:bold;letter-spacing:.1em;">${f.id} · ${f.name} · ${f.role}</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${f.owned.map(x=>`<button data-astralite="${x.key}" style="padding:5px 7px;background:#151b26;color:${f.color};border:1px solid ${f.color};font:10px 'Courier New';cursor:pointer;">${x.symbol} ${x.name} ×${player.items[x.key]}</button>`).join('')}</div></div>`).join(''):'<div style="color:#84909c;padding:12px;border:1px dashed #455;">No recovered Astralites yet. Shatter Astralite stones in the overworld, then return to this table.</div>'}
     ${(function(){
       // ★ v0.95.865 · SYNTHESIS BAY · the second stage · Cores become permanent gains
-      const held=Object.keys(ASTRALITE_COMPOUND_EFFECTS).filter(k=>(player.items?.[k]||0)>0);
+      const held=Object.keys(player.items||{}).filter(k=>parseCompoundKey(k)&&(player.items[k]||0)>0)
+        .sort((a,b)=>parseCompoundKey(b).tier-parseCompoundKey(a).tier);
       if(!held.length) return '<div style="margin-top:12px;border-top:1px solid #384454;padding-top:9px;color:#7d8a99;font-size:10px;">SYNTHESIS BAY · craft a Core above, then synthesize it here for a permanent gain.</div>';
       return `<div style="margin-top:12px;border-top:1px solid #384454;padding-top:9px;">
         <div style="color:#e8cbff;font-weight:bold;letter-spacing:.1em;font-size:11px;">SYNTHESIS BAY · CORES BECOME PERMANENT</div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:7px;">
-        ${held.map(k=>{const e=ASTRALITE_COMPOUND_EFFECTS[k];return `<div style="display:flex;align-items:center;gap:8px;border:1px solid #6b5a86;padding:7px;">
-          <div style="flex:1;color:#ffd66b;font-size:11px;"><b>${e.label} CORE</b> ×${player.items[k]}<br><span style="color:#9fc0d0;font-size:10px;">${e.blurb} · permanent</span></div>
+        ${held.map(k=>{const P=parseCompoundKey(k),e=P.eff;
+          const g=compoundStatGains(P.base,P.tier).map(([s2,n])=>`+${n} ${s2.toUpperCase()}`).join(' · ');
+          const rx=Math.round(compoundPointsForTier(P.tier)*rxpPerAttrPoint());
+          return `<div style="display:flex;align-items:center;gap:8px;border:1px solid #6b5a86;padding:7px;">
+          <div style="flex:1;color:#ffd66b;font-size:11px;"><b>${e.label} · ${COMPOUND_TIER_NAMES[P.tier]}</b> ×${player.items[k]}<br><span style="color:#9fc0d0;font-size:10px;">${g} · +${rx.toLocaleString()} RXP · permanent</span></div>
           <button data-synth="${k}" style="padding:6px 10px;background:#d4af37;color:#080a0f;border:1px solid #ffd66b;font-weight:bold;cursor:pointer;">SYNTHESIZE</button></div>`;}).join('')}
         </div></div>`;
     })()}
@@ -33954,9 +34064,8 @@ function saveGame(){
         attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
         bondLedger: player.bondLedger || { zyrex:0, rizer:0 },   // ★ v0.95.862 · the two bond paths
         _zyUidNext: player._zyUidNext || 0,                     // ★ v0.95.863 · uid sequence
-        compoundAP: player.compoundAP || 0,                     // ★ v0.95.865 · synthesized POTENTIAL
-        hpBonus: player.hpBonus || 0,
-        staminaBonus: player.staminaBonus || 0,
+        matrixAP: player.matrixAP || 0,     // ★ v0.95.871 · pool granted by synthesized Cores
+        matrixRXP: player.matrixRXP || 0,   //   and the RXP paid alongside it
         faeCollected: player.faeCollected || 0,
         lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
         groundPickups: player.groundPickups || [],  // v0.95.773 · scrap + coin piles on the ground
@@ -44417,7 +44526,9 @@ function rizerAttrPool(level){
 // plus progress into the current one.  Reads 0 at Lv 1 and 1,000,000 at Lv 100
 // — the two numbers on the Creator's page — because rizerTotalXPFor does.
 function rizerLifetimeRXP(){
-  return rizerTotalXPFor(player.rizerLvl || 1) + (player.rizerXP || 0);
+  // ★ v0.95.871 · + the RXP that synthesized Cores are worth, so the Creator's
+  // ratio holds with them in play: (1,000,000 + n·300.3) ÷ (3,330 + n).
+  return rizerTotalXPFor(player.rizerLvl || 1) + (player.rizerXP || 0) + (player.matrixRXP || 0);
 }
 function rizerAttrs(){
   if (!player.attrs || typeof player.attrs !== 'object') player.attrs = {};
@@ -44433,8 +44544,10 @@ function rizerAttrSpent(){
   return n;
 }
 function rizerAttrUnspent(){
-  // ★ v0.95.865 · POTENTIAL Cores add real, permanent pool on top of levels
-  return Math.max(0, rizerAttrPool(player.rizerLvl || 1) + (player.compoundAP || 0) - rizerAttrSpent());
+  // ★ v0.95.871 · pool = what levelling earned + what the Matrix granted.
+  // Both sides of the identity move together (see the Core block above), so
+  // synthesising never touches the free points he earned by levelling.
+  return Math.max(0, rizerAttrPool(player.rizerLvl || 1) + (player.matrixAP || 0) - rizerAttrSpent());
 }
 // ══════════════════════════════════════════════════════════════════════════
 // ★★ THE FIVE CURVES · v0.95.717 · the Creator's min/max number lines

@@ -909,6 +909,22 @@
     <img id="posterImg" alt="poster" style="max-width:82vw; max-height:88vh; object-fit:contain; image-rendering:pixelated; box-shadow:0 0 32px rgba(212,175,55,0.35);" />
     <div style="position:absolute; bottom:4%; left:50%; transform:translateX(-50%); color:#f0eadf; font:bold 12px 'Courier New',monospace; letter-spacing:0.14em; background:rgba(0,0,0,0.65); padding:6px 14px; border:1px solid #d4af37;">○ / B / ESC · CLOSE</div>
   </div>
+  <!-- ★★★ v0.95.891 · R.A.I.D. CARD · Creator: "this image should open when
+       Rizer clicks the RAID after elarian grant.  it shows his ID card.  exit
+       on circle button.  same logic as gemlord portraits.  it is the in game
+       updated info of rizer progress."
+       Same shape as #posterView (dimmed backdrop, contain-fit art, Circle/B/ESC)
+       — but the card is a TEMPLATE with blank fields, so a percentage-positioned
+       text layer rides on top, filled from live state every time it opens.
+       Percentages, not pixels: the art is contain-fitted to the viewport, so
+       only proportional coordinates survive a resize. -->
+  <div id="raidCardView" style="position:fixed; inset:0; display:none; z-index:31; background:rgba(0,0,0,0.88); pointer-events:auto; align-items:center; justify-content:center;">
+    <div id="raidCardWrap" style="position:relative; display:inline-block;">
+      <img id="raidCardImg" src="assets/2D%20sprites/ui/raid-card.png" alt="R.A.I.D." style="display:block; max-width:88vw; max-height:90vh; object-fit:contain; image-rendering:pixelated; box-shadow:0 0 34px rgba(80,150,255,0.35);" />
+      <div id="raidCardFields" style="position:absolute; inset:0; pointer-events:none; font-family:'Courier New',monospace; color:#eaf4ff; letter-spacing:0.06em;"></div>
+    </div>
+    <div style="position:absolute; bottom:3%; left:50%; transform:translateX(-50%); color:#cfe4ff; font:bold 12px 'Courier New',monospace; letter-spacing:0.14em; background:rgba(0,0,0,0.65); padding:6px 14px; border:1px solid #3f7fd0;">○ / B / ESC · CLOSE</div>
+  </div>
   <!-- ★★ v0.95.816 · SCROLL VIEW · Dad's notes read on their own parchment.
        Creator: "use this overlay full screen on a dimmed overworld. place the
        notebook text on the opened scrolls. each of the 18 match the 18
@@ -11419,6 +11435,39 @@ const NPCS = [
       blinkTimer: 2000 + Math.random() * 2000,   // blink loop uses frame 2 (eyes closed)
       onInteract: (n) => {
         playSFX('kelthor');
+        // ★★★ v0.95.891 · THE PRACTICUM IS FOR ENROLLED STUDENTS.  Creator:
+        // "if you go to kelthor before elarian, he points you to get your ID
+        // from school before youre eligble to enroll in your practicum for
+        // beastmastery path."
+        //
+        // ★ This sits ABOVE the whole 8-step ladder deliberately.  A player who
+        // wanders to Kelthor first should not be able to start step 1 and then
+        // be told about paperwork halfway up — the Warden simply cannot enrol
+        // someone the Academy has not registered.  He turns you around at the
+        // door and names where to go.
+        if (!player.raidCardGifted){
+          showDialog({ speaker: 'KELTHOR', lines: [
+            '*looks you over once · not unkindly*  Beastmaster path, is it.  Your father\'s road.',
+            'I take students, not visitors.  The Academy registers a Rizer before I can enrol one.',
+            '*nods toward the school*  Get your R.A.I.D. from Professor Elarion.  Bring it back, and we begin.',
+          ]});
+          return;
+        }
+        // ★ v0.95.891 · the enrolment itself · the first time he sees the card
+        if (!player.kelthorEnrolled){
+          player.kelthorEnrolled = true;
+          try { bumpRizerBond('rizerQuest'); } catch(_){}
+          try { playSFX('confirm'); } catch(_){}
+          try { pingNextObjective(); } catch(_){}
+          showToast('★ ENROLLED · Beastmaster Practicum · Master Kelthor', 3600);
+          showDialog({ speaker: 'KELTHOR', lines: [
+            '*takes the card, reads it properly, hands it back*  Officially eligible.  Good.',
+            '*a rare, short laugh*  Your father stood where you are standing, and he was worse at it.',
+            'First thing a beastmaster learns is that the animal eats before he does.',
+            'Bring me SEEDS for my ward · ten will do.  Then we will talk about one of your own.',
+          ]});
+          return;
+        }
         // v0.95.481 · KELTHOR'S 8-STEP LADDER · fully Malezor-completable · step 8
         // branches into Zarvane.  Every step verifies against real game systems ·
         // no dead-end counters that were never wired.
@@ -21609,6 +21658,78 @@ function openPosterView(id){
   game.posterViewOpen = true;
   playSFX('menuOpen');
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.891 · THE R.A.I.D. CARD · Rizer's ID, drawn from live state.
+// It is not a picture of a card, it is HIS card: every field is read at open
+// time, so the same art shows a Year-5 cadet with nothing and, later, a Rizer
+// with a faction and a bond.
+const RAID_FIELD_X = 53.23;      // % · where the value column begins on the art
+const RAID_ROWS = {              // % from the top of the card, measured on the art
+  name: 15.41, cls: 20.40, faction: 25.61, rank: 30.82, lv: 36.03,
+  bond: 41.13, tier: 46.33, slots: 51.54, mentors: 56.75, credits: 61.96,
+};
+function raidCardTier(){
+  // the tier his bond actually unlocks · the same 333-per-tier ladder the
+  // encounter gate reads, so the card can never disagree with the world
+  const b = rizerBondTotal();
+  for (let t = 10; t >= 1; t--) if (b >= requiredBondForTier(t)) return t;
+  return 0;
+}
+function raidCardNumber(){
+  // a stable serial · derived from the save's own identity so it never re-rolls
+  const seed = String(player.rizerName || 'RIZER') + '|' + (player.starterChosen || '') + '|' + (player.raidCardGifted ? 1 : 0);
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++){ h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return String((h >>> 0) % 10000).padStart(4, '0');
+}
+function openRaidCard(){
+  if (!player.raidCardGifted){ showToast('◈ You have no R.A.I.D. Card yet', 2000); try{playSFX('cancel')}catch(_){} return false; }
+  const view = document.getElementById('raidCardView');
+  const box  = document.getElementById('raidCardFields');
+  if (!view || !box) return false;
+  const party = (player.party || []).filter(Boolean);
+  const tier  = raidCardTier();
+  const V = (top, text, colour) =>
+    `<div style="position:absolute; left:${RAID_FIELD_X}%; top:${top}%; transform:translateY(-50%); font-size:1.35vh; font-weight:bold; color:${colour || '#eaf4ff'}; white-space:nowrap;">${text}</div>`;
+  const rows = [
+    V(RAID_ROWS.name,    String(player.rizerName || 'RIZER').toUpperCase()),
+    V(RAID_ROWS.cls,     'YEAR 5 · BOND PRACTICUM'),
+    V(RAID_ROWS.faction, party.length ? `${party.length} BONDED` : '— PENDING —', party.length ? '#8fe3a0' : '#9fb4cc'),
+    V(RAID_ROWS.rank,    (player.starterChosen ? 'RIZER' : 'CADET') + ' · MALEZOR'),
+    V(RAID_ROWS.lv,      `[ ${String(player.rizerLvl || 1).padStart(2,'0')} ]`),
+    V(RAID_ROWS.bond,    `[ ${Math.floor(rizerBondTotal())} / ${RIZER_BOND_CAP} ]`),
+    V(RAID_ROWS.tier,    tier ? `[ T${tier} ]` : '[ — ]', tier ? '#ffd66b' : '#9fb4cc'),
+    V(RAID_ROWS.slots,   `[ ${party.length} / ${(typeof PARTY_MAX !== 'undefined' ? PARTY_MAX : 8)} ]`),
+    V(RAID_ROWS.mentors, 'PROF. ELARION · MASTER KELTHOR'),
+    V(RAID_ROWS.credits, `[ ${String((player.items && player.items.coins) || 0).padStart(4,'0')} ]`),
+    `<div style="position:absolute; left:88.52%; top:7.97%; transform:translateY(-50%); font-size:1.6vh; font-weight:bold; color:#ffd66b; letter-spacing:0.18em;">${raidCardNumber()}</div>`,
+  ];
+  // ★ ACADEMY PROGRESS · the five gems light as the intro chain completes, so
+  // the card doubles as the tutorial's own progress bar
+  const steps = [
+    !!player.raidCardGifted,
+    !!player.kelthorEnrolled,
+    !!player.kelthorSeedsFed,
+    !!player.starterChosen,
+    !!(player.kelthorStep && player.kelthorStep.s8),
+  ];
+  const GX = [43.84, 54.96, 66.09, 77.21, 88.34];
+  steps.forEach((done, i) => {
+    if (!done) return;
+    rows.push(`<div style="position:absolute; left:${GX[i]}%; top:77.05%; transform:translate(-50%,-50%); width:2.4vh; height:2.4vh; border-radius:50%; background:radial-gradient(circle, rgba(160,230,255,0.95), rgba(60,150,255,0.25) 70%, transparent 72%);"></div>`);
+  });
+  box.innerHTML = rows.join('');
+  view.style.display = 'flex';
+  game.raidCardOpen = true;
+  try { playSFX('menuOpen'); } catch(_){}
+  return true;
+}
+function closeRaidCard(){
+  const view = document.getElementById('raidCardView');
+  if (view) view.style.display = 'none';
+  game.raidCardOpen = false;
+  try { playSFX('menuClose'); } catch(_){}
+}
 function closePosterView(){
   const view = document.getElementById('posterView');
   if (view) view.style.display = 'none';
@@ -25559,6 +25680,7 @@ function tryMove(dt){
   if (game.bagPanelOpen)            freezeReasons.push('bagPanel');
   if (game.dockPanelOpen)           freezeReasons.push('dockPanel');
   if (game.posterViewOpen)          freezeReasons.push('posterView');
+  if (game.raidCardOpen)            freezeReasons.push('raidCard');     // ★ v0.95.891
   if (game.weaponShopOpen)          freezeReasons.push('weaponShop');   // v0.95.583
   if (game.potionShopOpen)          freezeReasons.push('potionShop');   // v0.95.632
   if (game.zysphereShopOpen)        freezeReasons.push('zysphereShop'); // ★ v0.95.872
@@ -28241,7 +28363,10 @@ addEventListener('keydown', e => {
   // v0.95.92 · Poster full-screen viewer · B/Esc/A closes
   if (game.posterViewOpen){
     if (k === 'b' || k === 'a' || k === 'escape' || k === 'shift'){
-      if (game.scrollViewOpen) closeScrollView(); else closePosterView();
+      // ★ v0.95.891 · the R.A.I.D. card joins the same Circle close chain
+      if (game.raidCardOpen)        closeRaidCard();
+      else if (game.scrollViewOpen) closeScrollView();
+      else                          closePosterView();
     }
     return;
   }
@@ -38305,6 +38430,10 @@ function useZycubeItem(key){
       return;
     }
     case 'raidcard': {
+      // ★★★ v0.95.891 · the card opens Rizer's actual ID art with his live
+      // numbers on it, the way a Gemlord portrait opens.  The old text-only
+      // zycubeRAIDViewer is the fallback if the art fails to mount.
+      try { if (openRaidCard()) return; } catch(err){ console.warn('raid card', err); }
       zycubeRAIDViewerOpen = true;
       playSFX('menuOpen');
       return;
@@ -39418,13 +39547,21 @@ const SUMMONABLE_SPRITES = {
   // "a bit taller" means for something that still has growing to do.
   skybeam: {
     src: 'assets/2D%20sprites/zyrex/skybeam.png',
+    // ★★ v0.95.892 · RE-MEASURED against the Creator's new idle sheet.  The
+    // art at this path was REPLACED, so the old boxes (measured on the
+    // previous render) described a body that is no longer there — leaving them
+    // would have sliced the new dragon at the old dragon's outline.  Whenever
+    // a sheet is replaced, the boxes are not "still fine", they are stale by
+    // definition.  All 16 re-measured by component ownership, all distinct.
     bboxes: [
-      [[ 52, 59,214,248],[ 57, 60,223,247],[ 51, 58,222,249],[ 45, 59,230,249]],
-      [[ 32, 65,288,207],[ 25, 65,280,210],[ 21, 65,282,210],[ 12, 65,288,208]],
-      [[  7, 52,281,210],[  1, 51,281,212],[ -7, 51,282,213],[ -8, 51,284,211]],
-      [[ 54, 25,207,235],[ 55, 25,205,236],[ 44, 25,213,237],[ 45, 25,204,235]],
+      [[11,45,290,259],[319,84,293,218],[631,98,286,204],[935,88,290,214]],
+      [[26,363,270,222],[343,391,263,195],[646,394,264,193],[951,386,263,198]],
+      [[17,653,268,213],[331,676,261,194],[634,679,261,192],[938,670,261,200]],
+      [[11,921,286,264],[333,958,268,225],[640,964,260,220],[934,945,290,239]],
     ],
-    cellW: 313, cellH: 313, scaleRefBh: 248, scaleMul: 1.20,
+    // ★ scaleRefBh follows the new DOWN-row body (259 was 248), so the drawn
+    // size is unchanged at 2.4 tiles — a head over the Rizer, as before.
+    cellW: 313, cellH: 313, scaleRefBh: 259, scaleMul: 1.20,
   },
   // v0.95.731 · AETHERWING · T1 Creature · hive-insect · Batch 1 of the
   // 2026-08-22 asset handoff.  Delivered sheet was geometrically CLEAN —

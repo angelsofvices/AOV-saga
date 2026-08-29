@@ -119,5 +119,24 @@ H('6 · THE EVENT IS ON THE LEDGER, NOT A MAGIC NUMBER');
   ok(C.bondLedger().zyrex<1,'★★ and the zyrex half is still all to earn ('+C.bondLedger().zyrex+' from the auto-summon walking with you)');
 }
 
+H('7 · ★ THE R.A.I.D. CARD PAYS BOND');
+{
+  const E=C.BOND_EVENTS.rizerRaidcard;
+  ok(!!E,'★ rizerRaidcard is a registered, labelled event');
+  ok(E.path==='rizer','★ on the RIZER path · a credential, not a Zyrex action');
+  ok(E.pts===20,'★★ worth 20 · the same as bonding an ally, which is what Elarion handing it over IS');
+  ok(E.pts<C.BOND_EVENTS.rizerStarter.pts,
+     '★★★ and it is NOT another cliff · the starter placed the first rung because nothing was bondable at 0; this is a step along the climb to 666');
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  // ★ anchor on the ASSIGNMENT, which happens once, not on the guard `if
+  // (!player.raidCardGifted){`, which appears twice — indexOf found the school
+  // door's check hundreds of lines earlier and measured the wrong window.
+  // Tenth sighting of a first-match anchor in this project.
+  const blk=src2.slice(src2.indexOf('player.raidCardGifted = true;'));
+  ok(/bumpRizerBond\('rizerRaidcard'\)/.test(blk.slice(0,600)),'★ granted at the card hand-over');
+  ok(/player\.items\.raidcard = \(player\.items\.raidcard \|\| 0\) \+ 1/.test(blk.slice(0,900)),
+     '★★ in the same one-shot block as the card itself · the card and the bond are one event that cannot repeat');
+}
+
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));
 process.exit(f?1:0);

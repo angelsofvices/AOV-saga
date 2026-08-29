@@ -15,7 +15,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>CLK};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={seedMalezorWild,WILD_ZYREX,SUMMONABLE_SPRITES,drawWorldLayer,_wildRunSprite,_wildIdleSprite,player,game};')();}
+try{new Function(src+';globalThis.__C={seedMalezorWild,WILD_ZYREX,SUMMONABLE_SPRITES,drawWorldLayer,_wildRunSprite,_wildIdleSprite,wildHomewardMs,beginWildHomeward,SPECIES,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -106,6 +106,52 @@ H('5 · ★★★ THE TRAVERSAL LAW · always ends on a sheet');
   ok(withTrav.length>=10,'★ '+withTrav.length+' species declare a traversal sheet');
   ok(Object.keys(S).every(k=>!!S[k].bboxes||!!(S[k].flyAll&&S[k].flyAll.bboxes)),
      '★★ and EVERY registered species still has a bank to fall back to · the failsafe can never find nothing');
+}
+
+H('6 · ★★★ IT ALWAYS REMEMBERS HOME');
+{
+  ok(C.WILD_ZYREX.every(w=>Array.isArray(w._homeTile)),
+     '★★★ EVERY wild records the tile it was placed on · grazer, wanderer and vigil alike');
+  ok(/IT ALWAYS REMEMBERS HOME/.test(src2),'the rule is written at spawn');
+  ok(/HOME DOES NOT MOVE/.test(src2),
+     '★★★ and the teleport no longer RE-HOMES it · that line dragged a species out of its habitat one failed catch at a time');
+  ok(!/if \(w\._grazeHome\) w\._grazeHome = \[w\.tileX, w\.tileY\];/.test(src2),
+     '★★ the re-home line is gone, not merely commented');
+  ok(/const ZYREX_HABITAT_R = 5/.test(src2),'★ the patch is ±5 · a ten-tile patch of ground');
+  ok(/Math\.abs\(nx - home\[0\]\) <= R && Math\.abs\(ny - home\[1\]\) <= R/.test(src2),
+     '★★★ measured as a SQUARE · the old test was |dx|+|dy| <= R, a DIAMOND, so a "radius 5" grazer reached 5 tiles on an axis but 2 diagonally');
+}
+
+H('7 · ★★★ THE LONG WALK HOME · rarity is the clock');
+{
+  ok(Math.round(C.wildHomewardMs(1)/60000)===10,'★★ T1 walks home in 10 minutes');
+  ok(Math.round(C.wildHomewardMs(10)/60000)===30,'★★ T10 takes 30 · "longer for more rare zyrex"');
+  let rising=true;
+  for(let t=2;t<=10;t++) if(C.wildHomewardMs(t)<=C.wildHomewardMs(t-1)) rising=false;
+  ok(rising,'★ strictly increasing with tier · the rarity axis the whole project already uses');
+  ok(/IT WALKS\./.test(src2),'★★★ it WALKS · not a timer that teleports it back');
+  ok(/a player who chased it can follow it/.test(src2),
+     '★★ which is the point · you can track it down on the road, or come back later to a repopulated habitat');
+  // walk one home and watch it arrive
+  const w=C.WILD_ZYREX.find(x=>x.speciesId==='aetherwing');
+  const home=w._homeTile.slice();
+  w.tileX=home[0]+14; w.tileY=home[1]+9;
+  const total=C.beginWildHomeward(w);
+  ok(total>0&&w._goHomeStepMs>0,'★ the journey is armed and paced');
+  ok(w._goHomeStepMs*23 <= total*1.15,'★★ the PACE is derived from the real distance · the trip fills the window whether it bolted 3 tiles or 20');
+  let arrived=false;
+  for(let i=0;i<3000;i++){ CLK+=1000; try{C.drawWorldLayer();}catch(_){}
+    if(w.tileX===home[0]&&w.tileY===home[1]) arrived=true; }
+  ok(arrived,'★★★ it reached home under its own steps');
+  ok(JSON.stringify(w._homeTile)===JSON.stringify(home),'★★ and the memory is untouched by the journey');
+}
+
+H('8 · ★ PRE-SANITY BASE FOR THE 200+ ROSTER');
+{
+  ok(/beginWildHomeward/.test(src2)&&/wildHomewardMs/.test(src2),
+     '★★ the clock lives in ONE named function · when the full roster lands, per-species behaviour overrides one call, not a scattered rule');
+  ok(/_inHabitat/.test(src2),'★ and the habitat test is one predicate every behaviour shares');
+  ok(/each failure earns its own journey/.test(src2),'★ a second failed catch re-arms the walk rather than stacking');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

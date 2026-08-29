@@ -41619,10 +41619,18 @@ function _wildBondResolve(won){
     const a = Math.random() * Math.PI * 2;
     const nx = Math.round(w.tileX + Math.cos(a) * r), ny = Math.round(w.tileY + Math.sin(a) * r);
     if (typeof walkable === 'function' && walkable(nx, ny)){ w.tileX = nx; w.tileY = ny; }
-    if (w._grazeHome) w._grazeHome = [w.tileX, w.tileY];
-    showToast(`◈ THE BOND BREAKS · ${sp.name} phases out · it is still nearby`, 3400);
+    // ★★★ v0.95.901 · HOME DOES NOT MOVE.  This line used to re-home the
+    // creature wherever it landed — so every failed catch quietly dragged the
+    // species out of the habitat it was placed in, one teleport at a time, and
+    // a meadow grazer could end up living on a mountain.  Creator: "it will
+    // always remember where home habitat is."  The displacement is temporary;
+    // the habitat is not.
+    w._teleportedAt = Date.now();
+    w._goHomeArmed = false;                    // a fresh failure re-arms the walk
+    showToast(`◈ THE BOND BREAKS · ${sp.name} phases out · it will find its way back`, 3400);
   } else if (outcome === 'flee'){
     w._fleeUntil = Date.now() + 8000;
+    w._goHomeArmed = false;                    // each failure earns its own journey
     showToast(`◈ THE BOND BREAKS · ${sp.name} bolts · run it down`, 3200);
   } else {
     showToast(`◈ The imprint slips · ${sp.name} shakes it off and stays`, 3000);
@@ -43467,12 +43475,40 @@ function buildAllTrails(){
   return R;
 }
 // Spawn helper · habitats will call this; the dev button uses it today.
+// ★★ v0.95.901 · ONE PLACE COMPUTES THE JOURNEY.  10 minutes at T1 → 30 at
+// T10, linear, and the per-step pace is derived from the ACTUAL distance home
+// so the trip lands inside that window whether it bolted three tiles or twenty.
+const WILD_HOME_MIN_MS = 10 * 60 * 1000;   // T1
+const WILD_HOME_MAX_MS = 30 * 60 * 1000;   // T10
+function wildHomewardMs(tier){
+  const t = Math.max(1, Math.min(10, tier || 1));
+  return WILD_HOME_MIN_MS + (t - 1) / 9 * (WILD_HOME_MAX_MS - WILD_HOME_MIN_MS);
+}
+function beginWildHomeward(w){
+  const home = w._homeTile;
+  if (!home) return 0;
+  const dist = Math.abs(home[0] - w.tileX) + Math.abs(home[1] - w.tileY);
+  if (!dist){ w._goHomeAt = 0; return 0; }
+  const sp = (typeof SPECIES === 'object' && SPECIES[w.speciesId]) || {};
+  const total = wildHomewardMs(sp.tier || w.tier || 1);
+  w._goHomeAt = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  w._goHomeStepMs = Math.max(600, total / dist);   // pace the walk to fill the window
+  w._goHomeNext = 0;
+  return total;
+}
 function spawnWildZyrex(speciesId, tileX, tileY, opts){
   const sp = SPECIES[speciesId]; if (!sp) return null;
   const o = opts || {};
   const w = {
     speciesId, tileX, tileY,
     _bobPhase: Math.random() * Math.PI * 2,   // ★ v0.95.881 · levitators bob out of step with each other
+    // ★★★ v0.95.901 · IT ALWAYS REMEMBERS HOME.  Creator: "a grazer can walk
+    // its 10x10 patch but it will always remember where home habitat is."
+    // Every wild — grazer, wanderer, vigil-keeper — records the tile it was
+    // placed on.  Its patch is measured from HERE, and it is the tile a
+    // frightened one walks back to, so no amount of grazing, fleeing or being
+    // chased can slowly erode a species out of the habitat it was designed for.
+    _homeTile: [tileX, tileY],
     // ★★ v0.95.818 · THE WILD LEVEL LAW.  Creator: "remember all wild zyrex
     // levels equals its tier times 10. max level of that stat."  Tier x 10 is
     // the Perfect-Ladder evolution point — a wild is met at the PEAK of its
@@ -43774,8 +43810,18 @@ function drawWorldLayer(){
     w.moving = true;
     w._moveUntil = _gNow + (dur || 380);      // it stops LOOKING like it moves when the leg ends
   };
+  // ★★ v0.95.901 · THE PATCH IS A SQUARE MEASURED FROM HOME.  The old test was
+  // |dx| + |dy| <= R — a DIAMOND, which is why a "radius 5" grazer could only
+  // reach 5 tiles along an axis but 2 diagonally.  Creator: "a grazer can walk
+  // its 10x10 patch".  A patch is a patch of ground, so it is a square.
+  const ZYREX_HABITAT_R = 5;                    // ±5 · a ten-tile patch of meadow
+  const _inHabitat = (w, nx, ny) => {
+    const home = w._grazeHome || w._homeTile || [w.tileX, w.tileY];
+    const R = w._grazeR || ZYREX_HABITAT_R;
+    return Math.abs(nx - home[0]) <= R && Math.abs(ny - home[1]) <= R;
+  };
   const _grazeStepOk = (w, nx, ny) => {
-    if (Math.abs(nx - w._grazeHome[0]) + Math.abs(ny - w._grazeHome[1]) > w._grazeR) return false;
+    if (!_inHabitat(w, nx, ny)) return false;
     if (_propBlocked.has(`${nx},${ny}`)) return false;
     if (player.x === nx && player.y === ny) return false;
     if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === nx && n.tileY === ny)) return false;
@@ -43803,6 +43849,15 @@ function drawWorldLayer(){
       renderables.push({ kind:'wildOrb', wild:w, footY: w.tileY });
       continue;                                            // fleeing beats grazing
     }
+    // ★ v0.95.901 · the bolt is over · now the long walk back begins.  Armed
+    // ONCE, here, when the flee expires, so the panic and the journey are two
+    // distinct beats rather than one blurred state.
+    if (w._fleeUntil && Date.now() >= w._fleeUntil && !w._goHomeArmed){
+      w._goHomeArmed = true;
+      beginWildHomeward(w);
+    }
+    // ★ a TELEPORTED wild is displaced too · it walks back like any other
+    if (w._teleportedAt && !w._goHomeArmed){ w._goHomeArmed = true; beginWildHomeward(w); }
     if (w._hostileUntil && Date.now() < w._hostileUntil && game.scene === 'overworld'){
       // it closes on you · slower than a flee, and it does not leave its patch
       if (_gNow > (w._hostileStepAt || 0)){
@@ -43825,6 +43880,40 @@ function drawWorldLayer(){
     // ★ the motion flag expires on its own · nothing has to remember to clear
     // it, so a creature that stops stepping stops animating
     if (w.moving && _gNow > (w._moveUntil || 0)) w.moving = false;
+    // ══════════════════════════════════════════════════════════════════════
+    // ★★★ v0.95.901 · THE LONG WALK HOME.  Creator: "if you try and catch a
+    // zyrex but fail and it flees, it will walk/traverse home in 10-30 minutes
+    // (longer for more rare zyrex)."
+    //
+    // ★ IT WALKS.  Not a timer that teleports it back — the creature actually
+    // paces the distance, one tile at a time, at a speed chosen so the trip
+    // takes the right span.  That means a player who chased it can follow it,
+    // find it on the road, and try again; and a player who wanders off simply
+    // finds the habitat repopulated later, the way a real range works.
+    //
+    // ★★ RARITY IS THE CLOCK.  T1 takes ten minutes, T10 takes thirty, linear
+    // between: a common creature forgives you quickly, a legendary one makes
+    // you wait. Tier is the rarity axis this project already uses everywhere
+    // else (level, bond gate, stat pool), so it is the honest one to reuse.
+    if (w._goHomeAt && game.scene === 'overworld' && !w._gone){
+      const home = w._homeTile || [w.tileX, w.tileY];
+      const dx = home[0] - w.tileX, dy = home[1] - w.tileY;
+      if (dx === 0 && dy === 0){
+        w._goHomeAt = 0; w._goHomeStepMs = 0;               // arrived · resume its habits
+      } else if (_gNow > (w._goHomeNext || 0)){
+        w._goHomeNext = _gNow + (w._goHomeStepMs || 4000);
+        const first  = Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
+        const second = Math.abs(dx) >= Math.abs(dy) ? [0, Math.sign(dy)] : [Math.sign(dx), 0];
+        for (const [sx, sy] of [first, second]){
+          if (!sx && !sy) continue;
+          const nx = w.tileX + sx, ny = w.tileY + sy;
+          if (typeof walkable === 'function' && walkable(nx, ny) && !_propBlocked.has(`${nx},${ny}`)){
+            _wildStepTo(w, nx, ny, 600);                    // a trudge, not a bolt
+            break;
+          }
+        }
+      }
+    }
     // ★★★ v0.95.900 · EVERY WILD GETS A LIFE.  Creator: "all wild zyrex must be
     // able to have natural behaviors."  Grazers already had one; everything
     // else stood perfectly still forever.  A slow home-patch wander is the
@@ -43843,7 +43932,9 @@ function drawWorldLayer(){
     // law is "every wild has A behaviour", not "every wild has ITS behaviour".
     const _grazeStuck = w._graze && (w._grazeFails || 0) >= 3;
     if ((!w._graze || _grazeStuck) && !w._noEncounter && game.scene === 'overworld'){
-      if (!w._wanderHome) w._wanderHome = [w.tileX, w.tileY];
+      // ★ v0.95.901 · the wander leans on the SAME home memory · one habitat
+      // anchor per creature, not one per behaviour
+      if (!w._wanderHome) w._wanderHome = (w._homeTile || [w.tileX, w.tileY]).slice();
       const wR = w._wanderR || (w._malezorWild === 'MEALUX' || w._pinned ? 2 : 3);
       const nearRizer = Math.abs(player.x - w.tileX) + Math.abs(player.y - w.tileY) <= 4;
       if (!nearRizer && _gNow > (w._wanderNext || 0)){
@@ -43897,7 +43988,7 @@ function drawWorldLayer(){
             const d = 2 + Math.random() * 2;                         // 2-4 tiles per leg
             const tx = Math.round(w.tileX + Math.cos(a) * d);
             const ty = Math.round(w.tileY + Math.sin(a) * d);
-            if (Math.abs(tx - w._grazeHome[0]) + Math.abs(ty - w._grazeHome[1]) > w._grazeR) continue;
+            if (!_inHabitat(w, tx, ty)) continue;
             if (Math.abs(tx - w.tileX) + Math.abs(ty - w.tileY) < 2) continue;   // a real walk, not a shuffle
             w._grazeTarget = [tx, ty];
             w._grazeStepNext = 0;

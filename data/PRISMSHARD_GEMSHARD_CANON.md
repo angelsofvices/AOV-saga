@@ -312,6 +312,44 @@ This settles the §9 tension the merge flagged. Canon said the Gemlord blades we
 
 **Census after this ruling: 81 total · 32 recorded (22 Ultrashards + 10 Gemlord weapons) · 49 unrecorded · 0 placed.**
 
+## 16e · ★★★ PRISMSHARD XVI IS ALIVE · MEALUX
+
+> **Creator, 2026-08-29:** *"the key of anciuxor prism is an entire zyrex species called mealux. one of the rarest zyrex. tier 8. native on kyrathos as guardians of the eternal library."*
+
+**The highest relic in existence is not an object. It is a species.**
+
+That is why the Key could never be *found* the way the other fifteen are found, and it retro-explains the V3.17.52 placement — canon already said the Key was **attached to Anciuxor's tail**. The thing on the Creator's tail is a **Mealux**, and He is never separated from it.
+
+| | |
+|---|---|
+| **Species** | Mealux |
+| **Tier** | **8** |
+| **Rarity** | one of the rarest Zyrex |
+| **Homeworld** | **Kyrathos** |
+| **Role** | guardians of the **Eternal Library** |
+| **Relic identity** | **IS Prismshard XVI · the Key of Anciuxor** |
+
+### ★ CONFLICT · the codex already has a Mealux, and it says T3
+
+`rp7_roster_v7.json` idx 275 records **Mealux · class Champion · type Aura · Tier III · SOLO chain**, and `CODEX_TRIAGE_ZYREX_VS_HUMANOID.md` line 432 flagged it as a possible **humanoid** ("class Mage", Aura/Unknown).
+
+Two things follow:
+
+1. **The Creator's ruling wins** — this is a **retype from T3 → T8**, not a new species. That is a five-tier jump, the largest in the project.
+2. **The triage row is resolved.** Mealux was a *maybe-humanoid*; it is now confirmed **Zyrex**.
+3. **It is NOT in the locked ROSTER V1** (absent from the 210), so nothing about the lock breaks — but adding it is a **v2 ingest**, per the standing rule that all roster changes after 2026-08-27 are v2.
+
+### ★★ Open questions this raises — none of them answered here
+
+1. **T8 = the IMMORTAL class, and every T8 being is a creator of its home planet** ([[aov-dracolords-immortals]]). Mealux is T8 and native to Kyrathos. **Did the Mealux make Kyrathos?** And a whole *species* at T8 is unprecedented — Lumelys, Orivora and Omegoran are individuals. This is the **second** T8 tension after Omegoran.
+2. **Kyrathos appears nowhere else in the data.** The Astralite Matrix has 27 planets and Kyrathos is not among them. Is it a 28th world — and is it **AE28**, the body that "left the Aethryx Expanse" in the First Ancient War canon? *Tantalising, and pure speculation.*
+3. **One Key, or many?** The registry holds exactly one Prismshard XVI. If Mealux is a species with many living members, is **each one** a Key, or is the **species collectively** the Key? This decides whether "16 Prismshards" counts objects or kinds.
+4. **The Ultimate Prismsynch has a second door now.** Its third lock is "the correct Prism in hand", auto-satisfied by bonding Anciuxor. If the Key is a species, **bonding a Mealux should satisfy it too** — a route to the highest move in the game that does not run through the Creator Himself. Large gameplay consequence.
+5. **★ It points at a family.** The four open family slots are F2 PAST · F6 PRESERVATION · F7 BODY · F8 FUTURE. Guardians of an **Eternal Library** read as **F2 PAST** (Ax-2 *Mnemosyne* Aethra — memory itself; the Silent Prism is already kept by "Memorykeepers") or **F6 PRESERVATION** (a library is a thing preserved). Offered as a reading. **Not written into the code.**
+6. **Does Gemshard 81 relate?** The Key alone yields six. A *living* Prismshard is exactly the kind of irregularity that could explain a sixth derivative — which is why §5 says not to define it casually. Untouched.
+
+---
+
 ## 17 · WHAT SHIPPED IN CODE (v0.95.876 · extended v0.95.877)
 
 `PRISMSHARD_REGISTRY` — sixteen entries carrying numeral, name, ascension tier, realm affinity, home planet and `gemshardCount`. Names/tiers/placements come from the **existing** V3.17.50 / V3.17.51 lock; nothing was invented.

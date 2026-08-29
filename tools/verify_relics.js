@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={PRISMSHARD_REGISTRY,GEMSHARD_SLOTS,GEMSHARD_TOTAL,GEMSHARD_81,KEY_OF_ANCIUXOR_N,prismshardGemshardCount,prismshard,gemshardsOfPrismshard,parentPrismshardOf,gemshardsOfFamily,keyOfAnciuxorGemshards,relicClass,knownGemshards,gemshardCensus,gemshardByKey,gemshardsOfUltramaxType,ASTRALITE_FAMILY_PRISM_QUOTA,PRISMSHARD_FAMILY,prismshardsOfFamily,familyQuotaGaps,prismshardsWithoutFamily,gemshardsOwedToFamily,GEMLORD_WEAPONS,gemlordWeapon,ASTRALITE_FAMILIES,RELIC_CLASS,RELIC_CLASS_MAP,SHARD_META,INVENTORY_META,player,game};')();}
+try{new Function(src+';globalThis.__C={PRISMSHARD_REGISTRY,GEMSHARD_SLOTS,GEMSHARD_TOTAL,GEMSHARD_81,KEY_OF_ANCIUXOR_N,prismshardGemshardCount,prismshard,gemshardsOfPrismshard,parentPrismshardOf,gemshardsOfFamily,keyOfAnciuxorGemshards,relicClass,knownGemshards,gemshardCensus,gemshardByKey,gemshardsOfUltramaxType,ASTRALITE_FAMILY_PRISM_QUOTA,PRISMSHARD_FAMILY,prismshardsOfFamily,familyQuotaGaps,prismshardsWithoutFamily,gemshardsOwedToFamily,GEMLORD_WEAPONS,gemlordWeapon,MEALUX_CANON,ASTRALITE_FAMILIES,RELIC_CLASS,RELIC_CLASS_MAP,SHARD_META,INVENTORY_META,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -202,6 +202,42 @@ H('14 · THE CENSUS STAYS HONEST');
   const K=C.knownGemshards();
   ok(K.filter(g=>g.weapon).length===4,'four carry a named weapon');
   ok(K.every(g=>g.parent===null&&g.family===null),'★★ and not one of the 32 had a parent or family invented for it');
+}
+
+H('15 · ★★★ PRISMSHARD XVI IS ALIVE · MEALUX');
+{
+  const M=C.MEALUX_CANON, K=C.prismshard(16);
+  ok(!!M,'MEALUX_CANON is recorded');
+  ok(M.tier===8,'★ Tier 8, per the Creator');
+  ok(M.homeworld==='Kyrathos','★ native on Kyrathos');
+  ok(/Eternal Library/i.test(M.role),'★ guardians of the Eternal Library');
+  ok(M.isPrismshard===16,'★★★ the SPECIES is Prismshard XVI · the highest relic in existence is not an object');
+  ok(K.species==='mealux'&&K.embodied===true,'★★ and XVI points back at it · the link is two-way');
+  ok(/Kyrathos/.test(K.planet)&&/tail/i.test(K.planet),
+     "★★ its placement keeps BOTH readings · Kyrathos and Anciuxor's tail · the thing on the Creator's tail is a Mealux");
+}
+
+H('16 · ★★ WHAT WAS NOT DECIDED FOR HIM');
+{
+  const M=C.MEALUX_CANON;
+  ok(M.types===null,'★ types left NULL · the codex says Aura, but a T8 may carry three and he has not retyped it');
+  ok(M.family===null,'★★ family left NULL · an Eternal Library READS as F2 PAST or F6 PRESERVATION, and reading is not ruling');
+  ok(M.chain===null,'★ evolution chain left NULL · the codex SOLO was a T3 reading');
+  ok(C.PRISMSHARD_FAMILY[16]===null,"★★★ the Key's family is STILL unassigned · a lore hint is not a Creator ruling");
+  ok(M.inRosterV1===false,'★★ flagged as absent from the LOCKED roster V1 · this is a v2 ingest, not a lock break');
+}
+
+H('17 · THE CONFLICT IS RECORDED, NOT PAPERED OVER');
+{
+  const doc=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/data/PRISMSHARD_GEMSHARD_CANON.md','utf8');
+  ok(/CONFLICT · the codex already has a Mealux/.test(doc),'★★ the codex T3 entry is surfaced, not silently overwritten');
+  ok(/T3 → T8/.test(doc),'★ the retype is named as a retype · five tiers, the largest in the project');
+  ok(/triage row is resolved/i.test(doc),"★ and the old maybe-humanoid triage flag is closed by this ruling");
+  ok(/Did the Mealux make Kyrathos/.test(doc),'★★★ the T8 = planet-creator tension is raised · a whole SPECIES at T8 is unprecedented');
+  ok(/AE28/.test(doc),'★ the Kyrathos / AE28 possibility is offered as speculation');
+  ok(/second door/i.test(doc),'★★ the Ultimate Prismsynch consequence is flagged · bonding a Mealux may open it');
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(/codex still records T3/.test(src2),'the conflict is noted in the code as well as the doc');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

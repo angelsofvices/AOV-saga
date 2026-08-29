@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,WILD_PLACEMENT_LIVE,WORLD_PROPS,seedMalezorWild,WILD_ZYREX,requiredBondForTier,spawnWildZyrex,worldDistrictAt,walkable,player,game,makeZyrexFollower,NPCS};')();}
+try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,WILD_PLACEMENT_LIVE,WORLD_PROPS,_wildIdleSprite,MALEZOR_WILD_FIXED,seedMalezorWild,WILD_ZYREX,requiredBondForTier,spawnWildZyrex,worldDistrictAt,walkable,player,game,makeZyrexFollower,NPCS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -168,6 +168,34 @@ H('7 · ★★★ APEXAUR · the walk sheet, and the key that was NOT run');
   for(const p of C.WORLD_PROPS){ if(p.tileX==null||(p.tileW||1)<3) continue;
     const d=Math.max(Math.abs(p.tileX-b.tileX),Math.abs(p.tileY-b.tileY)); if(d<nb) nb=d; }
   ok(nb>=14,'★★★ the Baelgor tile is '+nb+' tiles clear · the FIRST pick was 2, eyeballed while the comment claimed it was derived');
+}
+
+H('8 · ★★★ SIX WILDS WERE FROZEN MID-STRIDE');
+{
+  const src3=fs.readFileSync(ROOT+'rp7b.html','utf8');
+  const idleSpecies=Object.keys(C.SUMMONABLE_SPRITES).filter(k=>C.SUMMONABLE_SPRITES[k].idleSrc);
+  ok(idleSpecies.length===6,'★★ six species declare idleSrc · '+idleSpecies.join(', '));
+  ok(idleSpecies.every(k=>C._wildIdleSprite(k)),'★★★ the wild path can now load every one of their IDLE sheets');
+  ok(/THE OTHER CONVENTION/.test(src3),'the two conventions are documented together');
+  ok(/src = WALK, idleSrc = idle/.test(src3),
+     '★★★ src IS the walk sheet for these · so the wild drew a WALK frame as its standing pose, forever');
+  ok(/_useIdle \? _idleImg : S\.img/.test(src3),'★★ the draw call now picks the idle sheet when standing');
+  ok(/for \(const r of _boxes\)/.test(src3),
+     '★★ and the scale normalises by whichever bank is drawn · v0.95.890\'s lesson, applied to the third bank too');
+  ok(C._wildIdleSprite('aetherwing')===null,'★ species without idleSrc are unaffected · one convention does not leak into the other');
+}
+
+H('9 · ★ VOLTIGRAX WAS ALREADY IN THE OVERWORLD');
+{
+  const pin=C.MALEZOR_WILD_FIXED.find(F=>F.id==='voltigrax');
+  ok(!!pin,'★ a Creator pin from v0.95.818 · not a new placement');
+  ok(pin.at[0]===212&&pin.at[1]===196,'★★ at (212,196) · "calmly grazing the cactus"');
+  C.seedMalezorWild();
+  const v=C.WILD_ZYREX.find(w=>w.speciesId==='voltigrax');
+  ok(!!v&&C.worldDistrictAt(v.tileX,v.tileY)==='zarvane','★ standing in Zarvane');
+  ok(v.level===60,'★ Lv 60 · tier 6 × 10');
+  ok(v._graze&&v._grazeR===4,'★★ and GRAZING · which is exactly why drawing its walk sheet as its idle showed');
+  ok(!!C.SUMMONABLE_SPRITES.voltigrax.idleSrc,'★★★ it was one of the six · the fix is what "put voltigrax in the overworld" actually needed');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

@@ -40869,6 +40869,26 @@ function _wildRunSprite(id){
   _wildRunCache[id] = img;
   return img;
 }
+// ★★★ v0.95.899 · THE OTHER CONVENTION.  Two ways to declare two sheets grew
+// up in this file:
+//     runSrc   · src = IDLE, runSrc = walk    (key_of_mealux, apexaur)
+//     idleSrc  · src = WALK, idleSrc = idle   (voltigrax, zarakai, rakoron,
+//                                              anciuxor, snok, elzebub)
+// makeZyrexFollower understood BOTH.  The wild draw path understood only the
+// first, so every species using the second has been drawing its WALK sheet as
+// its standing pose — six wilds frozen mid-stride forever, including a grazing
+// Voltigrax that never once stood still and Anciuxor outside the treehouse.
+// Nobody reported it because a walk frame of a stationary creature still looks
+// like a creature; it just never rests.
+const _wildIdleCache = {};
+function _wildIdleSprite(id){
+  if (_wildIdleCache[id] !== undefined) return _wildIdleCache[id];
+  const def = SUMMONABLE_SPRITES[id];
+  if (!def || !def.idleSrc){ _wildIdleCache[id] = null; return null; }
+  const img = new Image(); img.src = def.idleSrc;
+  _wildIdleCache[id] = img;
+  return img;
+}
 const _wildSpriteCache = {};
 function _wildSprite(id){
   if (_wildSpriteCache[id] !== undefined) return _wildSpriteCache[id];
@@ -40899,7 +40919,12 @@ function drawZyrexOrb(w){
       // because for this species "running" is hovering somewhere.
       const _runImg = (w.moving && d.runBboxes) ? _wildRunSprite(w.speciesId) : null;
       const _useRun = !!(_runImg && _runImg.complete && _runImg.naturalWidth);
-      const _boxes = _useRun ? d.runBboxes : d.bboxes;
+      // ★★ v0.95.899 · the idleSrc convention, finally honoured out here: a
+      // species whose `src` IS the walk sheet must swap to idleSrc when it is
+      // standing, which is the mirror image of the runSrc swap above.
+      const _idleImg = (!w.moving && d.idleBboxes) ? _wildIdleSprite(w.speciesId) : null;
+      const _useIdle = !!(_idleImg && _idleImg.complete && _idleImg.naturalWidth);
+      const _boxes = _useRun ? d.runBboxes : (_useIdle ? d.idleBboxes : d.bboxes);
       const bb = _boxes && _boxes[row] && _boxes[row][col];
       if (bb){
         // ★★★ v0.95.890 · SCALE THE FLOAT TO IDLE SIZE.  Creator: "scale
@@ -40914,8 +40939,10 @@ function drawZyrexOrb(w){
         // what actually holds the apparent size constant: both banks fill the
         // same two tiles, so the creature never changes size, only what it is
         // doing.  Preserve the SIZE, not the divisor.
+        // ★ v0.95.890 · each bank normalises by ITS OWN tallest body, so the
+        // creature never changes size when it starts or stops moving
         let maxBh = 216;
-        for (const r of (_useRun ? d.runBboxes : d.bboxes)){ if (r[0][3] > maxBh) maxBh = r[0][3]; }
+        for (const r of _boxes){ if (r[0][3] > maxBh) maxBh = r[0][3]; }
         const scale = (TILE * 2) / maxBh * (d.scaleMul || 1);
         const dw = Math.max(1, Math.round(bb[2] * scale));
         const dh = Math.max(1, Math.round(bb[3] * scale));
@@ -40928,7 +40955,7 @@ function drawZyrexOrb(w){
           ? Math.round(Math.sin(performance.now() / (d.bobMs || 500) + (w._bobPhase || 0)) * (d.bobAmp || 4))
           : 0;
         const dy = Math.round((w.tileY + 1) * TILE - dh)       - _cam.y + bob;
-        ctx.drawImage(_useRun ? _runImg : S.img,
+        ctx.drawImage(_useRun ? _runImg : (_useIdle ? _idleImg : S.img),
                       col * C + bb[0], row * C + bb[1], bb[2], bb[3], dx, dy, dw, dh);
         return;
       }

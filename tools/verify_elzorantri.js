@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={zyrexUid,zyrexFollowerId,SPECIES_RECRUIT_GATES,SPECIES,seedMalezorWild,player,game,tryRecruitWildZyrex,rizerBondTotal,requiredBondForTier,zyTriangleArm,zyTriangleRelease,quickSummonStashAll,toggleFactionSummon,NPCS,_wild:()=>{try{return _malezorWildPlaced}catch(e){return []}}};')();}
+try{new Function(src+';globalThis.__C={_mw:()=>_malezorWildPlaced,seedMalezorWild,WORLD_PROPS,_propBlocked,zyrexUid,zyrexFollowerId,SPECIES_RECRUIT_GATES,SPECIES,seedMalezorWild,player,game,tryRecruitWildZyrex,rizerBondTotal,requiredBondForTier,zyTriangleArm,zyTriangleRelease,quickSummonStashAll,toggleFactionSummon,NPCS,_wild:()=>{try{return _malezorWildPlaced}catch(e){return []}}};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -41,7 +41,7 @@ H('2 · ★★ RARE TIER-5 WILD · the level law holds');
   C.seedMalezorWild();
   const w=C._wild().find(x=>x&&x.speciesId==='elzoran');
   ok(!!w,'the wild stands at the statue');
-  ok(w&&w.tileX===5&&w.tileY===28,'…at (5,28)');
+  ok(w.tileX===8&&w.tileY===31,'…at (8,31) · the statue forecourt (moved off the grass at v0.95.869)');
   ok(w&&w.level===50,'★ level 50 · tier x 10 · the law, no override');
   ok(w&&w.temperament==='Calm','Calm · he does not flee a failed approach');
   ok(C.requiredBondForTier(5)===1665,'T5 bond bar = 50% of 3330');
@@ -80,6 +80,26 @@ H('3 · ★★ v0.95.837 · THE FIELD IS FOR FIGHTING · Zysphere lives in the p
   ok(fol&&fol._summoned===true,'phone Triangle (toggleFactionSummon) still deploys');
   C.toggleFactionSummon(0);
   ok(fol._summoned===false,'…and still recalls · the one door stands');
+}
+
+
+H('★ v0.95.869 · THE VIGIL · he faces the statue, and he is answered, not caught');
+{
+  C.seedMalezorWild&&C.seedMalezorWild();
+  const w=(C._mw?C._mw():[]).find(x=>x&&x.speciesId==='elzoran')||null;
+  const st=C.WORLD_PROPS.find(p=>p&&p.id==='novarius_statue');
+  ok(!!w,'Elzoran stands in the world');
+  if(w&&st){
+    ok(w.tileX===st.tileX&&w.tileY===st.tileY+2,`he is in the statue's forecourt · (${w.tileX},${w.tileY}) two south of (${st.tileX},${st.tileY})`);
+    ok(w.dir==='up','★ and he FACES it — dir up, the old champion keeping vigil');
+    ok(!C._propBlocked.has(`${w.tileX},${w.tileY}`),'his ground is clear · no bush under him');
+    ok(w._noEncounter===true,'★ flagged NO WILD ENCOUNTER — he is spoken to, not spun for');
+  }
+  ok(/_dirRow = \{ down:0, left:1, right:2, up:3 \}/.test(src),'wild draw honours a facing now (it drew row 0 forever)');
+  ok(/if \(!w\._noEncounter\)\{\s*\n\s*startWildBondEncounter/.test(src),'the QTE is skipped for flagged wilds');
+  ok(/I knelt here the day the First Beast Master fell/.test(src),'★ his joining dialog is written');
+  ok(/Elzoran does not turn from the statue/.test(src),'…and his under-bonded refusal');
+  ok(/requiredBondForTier\(sp\.tier\)/.test(src),'the bar is still the tier bond gate · T5 = 50%, same as before');
 }
 
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');

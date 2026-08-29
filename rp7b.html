@@ -39301,7 +39301,15 @@ function drawZyrexOrb(w){
     const S = _wildSprite(w.speciesId);
     if (S && S.img.complete && S.img.naturalWidth){
       const d = S.def, C = d.cellW || 313;
-      const row = 0, col = Math.floor(performance.now() / 460) % 4;   // idle amble
+      // ★ v0.95.869 · A WILD CAN FACE SOMETHING.  Every wild drew row 0
+      // (DOWN) forever, which is fine for a grazer and wrong for a creature
+      // keeping vigil — Elzoran has knelt at Novarius' statue since v0.95.818
+      // with his back to it.  w.dir now picks the row (canon DOWN/LEFT/RIGHT/
+      // UP unless the sheet declares its own rowMap).
+      const _dirRow = { down:0, left:1, right:2, up:3 };
+      const row = (d.rowMap && d.rowMap[w.dir] != null) ? d.rowMap[w.dir]
+                : (w.dir && _dirRow[w.dir] != null)     ? _dirRow[w.dir] : 0;
+      const col = Math.floor(performance.now() / 460) % 4;   // idle amble
       const bb = d.bboxes && d.bboxes[row] && d.bboxes[row][col];
       if (bb){
         let maxBh = 216;
@@ -39743,8 +39751,16 @@ function tryRecruitWildZyrex(w){
   // bond refusal below is superseded: an under-bonded Rizer may still TRY —
   // the ratio just makes the imprint brutal.  Temperament now colours the
   // FAILURE (hostile / flee / teleport), not the refusal.
-  startWildBondEncounter(w, sp);
-  return;
+  // ★★ v0.95.869 · SOME WILDS ARE NOT CAUGHT, THEY ARE ANSWERED.  Creator:
+  // "no wild encounter.  he bonds at bond level 50 with an elzebub, same as
+  // before."  Elzoran is the old champion at the statue, not quarry — a spin
+  // minigame would make a trophy of a mourner.  Flagged wilds keep the
+  // v0.95.818 conversation: the silent kin gate, then the tier bond bar, and
+  // he comes on his own feet.
+  if (!w._noEncounter){
+    startWildBondEncounter(w, sp);
+    return;
+  }
   /* eslint-disable no-unreachable */
   const need = requiredBondForTier(sp.tier);
   const have = rizerBondTotal();
@@ -39761,7 +39777,9 @@ function tryRecruitWildZyrex(w){
       // ★ v0.95.818 · CALM · it neither flees nor bristles.  It simply keeps
       // grazing, and will still be here when your bond is worth its trust —
       // the gentlest refusal in the game, and the only one that stays put.
-      Calm:        `${sp.name} lifts its head, considers you without alarm, and returns to grazing.`,
+      Calm:        (w._noEncounter && w.speciesId === 'elzoran')
+                     ? 'Elzoran does not turn from the statue.  Whatever you are, you are not yet enough of it.'
+                     : `${sp.name} lifts its head, considers you without alarm, and returns to grazing.`,
     }[w.temperament] || `${sp.name} will not go with you.`;
     showDialog({ speaker: sp.name.toUpperCase(), lines: [
       line,
@@ -39777,6 +39795,30 @@ function tryRecruitWildZyrex(w){
   }
 
   // ── bond clears · it joins ──
+  // ★ v0.95.869 · ELZORAN SPEAKS.  He has knelt here since Novarius fell;
+  // the Elzebub in your party is the proof he waits for, and the bond is the
+  // permission.  His dialog runs INSTEAD of the generic join line.
+  if (w._noEncounter && w.speciesId === 'elzoran'){
+    const _z = createZyrex(w.speciesId, w.level || 50);
+    if (!_z){ showToast('◈ Recruitment failed · species missing', 2200); return; }
+    const _res = addZyrexToRoster(_z);
+    if (_res.location === 'none'){ showToast('◈ It cannot join your faction.', 2200); return; }
+    w._gone = true; w._recruitedAt = Date.now();
+    try { bumpRizerBond('zyrexBond'); } catch(_){}
+    try { playSFX('elzoran'); } catch(_){}
+    showDialog({ speaker: 'ELZORAN', lines: [
+      '*the old drake lifts his head from the statue at last · the stone eyes of NOVARIUS look past you both*',
+      'I knelt here the day the First Beast Master fell.  I have counted every season since, and not one Rizer came who carried my blood.',
+      'You carry it.  Small, and young, and breathing — an Elzebub of your own.  The line did not end.',
+      'Then I have knelt long enough.  Take me to the ones who are taking them, Rizer.  I have a debt older than you are.',
+      _res.location === 'pc'
+        ? '★ ELZORAN joined — your faction is full, so he went to the PC.'
+        : '★ ELZORAN joined your faction!',
+    ]});
+    try { showToast(`★ ELZORAN T${sp.tier} rises · Rizer bond ${pctHave}%`, 4200); } catch(_){}
+    try { saveGame(); } catch(_){}
+    return;
+  }
   const z = createZyrex(w.speciesId, w.level || Math.max(1, sp.tier * 5));
   if (!z){ showToast('◈ Recruitment failed · species missing', 2200); return; }
   const res = addZyrexToRoster(z);
@@ -39859,7 +39901,14 @@ const MALEZOR_WILD_FIXED = [
   // Standard bond logic PLUS his species gate: no worthy Elzebub, and he does
   // not refuse you — he IGNORES you.  No dialog, no vox.  Grief does not
   // explain itself.
-  { id: 'elzoran', at: [5, 28], note: "at Novarius' statue", temperament: 'Calm' },
+  // ★ v0.95.869 · Creator: "he shouldnt be standing on a bush.  he should be
+  // facing the statue of novarius."  (8,31) is the statue's forecourt — two
+  // tiles south of its base at (8,29), clear ground, with the monument's four
+  // tiles of art rising directly in front of him.  dir 'up' turns him to it:
+  // the old champion keeping vigil, exactly as the v0.85 NPC did before he
+  // became a wild.
+  { id: 'elzoran', at: [8, 31], note: "kneeling before Novarius' statue",
+    temperament: 'Calm', facing: 'up', noEncounter: true },
   // ★ v0.95.818 · Creator: "make a wild voltaryn graze around 15, 214. he is
   // calm natured. will bond with you if you are of the right bond level."
   // Southern fringe where Malezor thins toward Zarvane (the tile itself
@@ -39979,6 +40028,8 @@ function seedMalezorWild(){
       w._malezorWild = 'FIXED'; w._pinned = F.note; _malezorWildPlaced.push(w);
       // ★ v0.95.818 · graze:N in the table = drift within N tiles of home
       if (F.graze){ w._graze = true; w._grazeHome = [F.at[0], F.at[1]]; w._grazeR = F.graze; }
+      if (F.facing) w.dir = F.facing;            // ★ v0.95.869 · vigil, not a stance
+      if (F.noEncounter) w._noEncounter = true;  // ★ v0.95.869 · he is spoken to, not caught
     }
   }
   return _malezorWildPlaced.length;

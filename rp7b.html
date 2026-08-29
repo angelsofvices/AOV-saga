@@ -1604,6 +1604,7 @@ const AUDIO = {
     jailbreakOk:   new Audio('audio/sfx-jailbreak-ok.mp3'),   // ★ v0.95.818 · Scanobot voice · 'astralite signature confirmed'
     jailbreakFail: new Audio('audio/sfx-jailbreak-fail.mp3'), // ★ v0.95.818 · Scanobot voice · 'invalid astralite signature'
     lifeSeedSour:  new Audio('audio/sfx-lifeseed-sour.mp3'),  // ★ v0.95.820 · Rizer VO · sour face on eating a Life Seed
+    needZysphere: new Audio('audio/sfx-need-a-zysphere.mp3'), // ★★ v0.95.894 · Rizer VO · "hmph · gonna need a zysphere to bond with this one" · 15s cooldown
     axeKill:      new Audio('audio/sfx-axe-kill.mp3'),       // ★ v0.95.793 · Emerald Axe finisher · fires only on axe-driven KOs, primary tile OR anywhere in the 3x3
     tooEasy:      new Audio('audio/sfx-too-easy.mp3'),       // v0.95.499 · Rizer VO on 3-kill streak without taking a hit
     swordSlice:   new Audio('audio/sfx-sword-slice.mp3'),    // v0.95.524 · Sapphire Tearsword contact SFX · fires only on enemy hit-land
@@ -1815,6 +1816,7 @@ const RVOX_PRIORITY = {
   yawnBed: 75,
   // 70 · consumption / power beats
   mythicElixir: 70, readyToBlast: 70, ahImOut: 68, gottaFixIt: 72, elixir: 65, lifeSeedSour: 62, potion: 60, aleReeks: 60,
+  needZysphere: 66,   // ★ v0.95.894 · a refusal should be heard over the walking loop
   // 60 · streaks
   tooEasy: 55, heatingUp: 55, dodgeStreak: 55,
   // 50 · contextual
@@ -41321,6 +41323,17 @@ function startWildBondEncounter(w, sp){
   if (_held <= 0){
     showToast('◎ NO ZYSPHERE · you have nothing to imprint into · buy one in Malezor', 3200);
     try { playSFX('cancel'); } catch(_){}
+    // ★★ v0.95.894 · Rizer says it himself · "hmph · gonna need a zysphere to
+    // bond with this one".  ON A 15-SECOND COOLDOWN, by the Creator's spec:
+    // an empty-handed player walks a field of wilds bumping X at each one, and
+    // a line that fires every time stops being a character and becomes a
+    // buzzer.  The toast still shows every attempt — the refusal is never
+    // silent, only the VOICE rests.
+    const _now = performance.now();
+    if (!player._noSphereVoxAt || _now - player._noSphereVoxAt > 15000){
+      player._noSphereVoxAt = _now;
+      try { playSFX('needZysphere'); } catch(_){}
+    }
     return false;            // the wild does NOT flee · it simply stays wild
   }
   player.items.zysphere = _held - 1;

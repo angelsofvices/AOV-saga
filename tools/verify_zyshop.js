@@ -143,5 +143,22 @@ H('8 · THE CHARGE LIVES IN ONE PLACE');
   ok(/game\.zysphereShopOpen\)\s*freezeReasons\.push/.test(src2),'the shop freezes the world like every other shop');
 }
 
+H('9 · ★★ THE REFUSAL HAS A VOICE, AND IT RESTS');
+{
+  const ROOT2='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
+  const src3=fs.readFileSync(ROOT2+'rp7b.html','utf8');
+  ok(fs.existsSync(ROOT2+'audio/sfx-need-a-zysphere.mp3'),'★ the RVOX is on disk');
+  ok(/needZysphere: new Audio\('audio\/sfx-need-a-zysphere\.mp3'\)/.test(src3),'★ registered in the SFX bank');
+  ok(/needZysphere: 66/.test(src3),'★ and mixed loud enough to hear over the walking loop');
+  ok(/_now - player\._noSphereVoxAt > 15000/.test(src3),
+     '★★★ 15-SECOND COOLDOWN, as specified · an empty-handed player bumping X across a field of wilds would turn a character into a buzzer');
+  // the toast must NOT be on the cooldown · the refusal is never silent
+  const blk=src3.slice(src3.indexOf('const _held = (player.items && player.items.zysphere)'));
+  const toastAt=blk.indexOf('NO ZYSPHERE'), gateAt=blk.indexOf('_noSphereVoxAt');
+  ok(toastAt>0&&toastAt<gateAt,
+     '★★ the TOAST fires before the cooldown check · every attempt is answered, only the VOICE rests');
+  ok(/playSFX\('cancel'\)/.test(blk.slice(0,400)),'★ and the cancel cue is uncooled too');
+}
+
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));
 process.exit(f?1:0);

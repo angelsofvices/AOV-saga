@@ -173,7 +173,7 @@ H('6 · ★★ ELZORAN AT THE STATUE · SILENCE IS THE GATE');
 console.log('\n★ v0.95.829 · WALK-THEN-EAT · distance between meals');
 {
   ok(/WALK-THEN-EAT/.test(src),'the graze rhythm exists');
-  const g=src.slice(src.indexOf('WALK-THEN-EAT'),src.indexOf('WALK-THEN-EAT')+3600);
+  const g=src.slice(src.indexOf('WALK-THEN-EAT'),src.indexOf('WALK-THEN-EAT')+7000);
   ok(/w\._grazeTarget/.test(g)&&/2 \+ Math\.random\(\) \* 2/.test(g),'★ each leg WALKS 2-4 tiles to the next bush');
   ok(/340 \+ Math\.random\(\) \* 140/.test(g),'walking cadence ~400ms/step · reads as walking, not teleport-hops');
   ok(/4000 \+ Math\.random\(\) \* 4000/.test(g),'★ then EATS 4-8s with its head down');

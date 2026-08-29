@@ -8634,7 +8634,9 @@ const NPCS = [
         try { awardRizerXP(500); } catch(_){}    // v0.95.538 · rescaled 3000 → 500 (target Malezor main = ~10k XP for Lv 10)
         const z = (typeof createZyrex === 'function') ? createZyrex('elzebub', 10) : null;
         if (z){
-          addZyrexToRoster(z);
+          // ★ v0.95.886 · Mom nursed the egg for you · a gift handed over in a
+          // cutscene must not land in storage because your ledger is young
+          addZyrexToRoster(z, { bypassBondGate: true });
           showToast('★ ELZEBUB Lv 10 T1 joined your party!', 3200);
           try { playSFX('confirm'); } catch(_){}
         }
@@ -33194,7 +33196,12 @@ function pickStarter(id){
     showToast('◈ ERROR · starter not found', 2000);
     return;
   }
-  addZyrexToRoster(z);
+  // ★★★ v0.95.886 · THE STARTER CANNOT BE GATED.  Found while fixing the catch
+  // bug and strictly worse than it: a fresh Rizer has 0 bond, a T1 wants 333,
+  // so the FIRST ZYREX OF THE GAME was being filed into PC storage — a new
+  // player choosing their partner and being handed nothing.  There is no bond
+  // to have earned yet; choosing IS the gate.
+  addZyrexToRoster(z, { bypassBondGate: true });
   player.starterChosen = id; try{pingNextObjective()}catch(_){}
   // v0.95.285 · Auto-summon the chosen starter via the generic follower system
   // (works for any species with a SUMMONABLE_SPRITES entry · verdanix / volcanut / celestryx / apexaur)
@@ -41123,7 +41130,23 @@ function _wildBondResolve(won){
   if (won){
     const z = createZyrex(w.speciesId, w.level || Math.max(1, (sp.tier || 1) * 10));
     if (!z){ showToast('◈ Imprint failed · species missing', 2200); return; }
-    const res = addZyrexToRoster(z);
+    // ★★★ v0.95.886 · THE ENCOUNTER IS THE GATE.  Creator: "when I go buy
+    // zyspheres and catch aetherwing, they do not go to my faction."
+    //
+    // Two rules collided.  v0.95.862 started the bond LEDGER at 0 by the
+    // Creator's own order; the tier gate still asks for tier x 333, which is
+    // 333 even for a T1.  Under the OLD derived formula a fresh save opened at
+    // 600 and a T1 sailed through — so the gate was silently correct until the
+    // day bond started at zero, and from then on EVERY catch went to the PC.
+    //
+    // The bypass is not a workaround, it is the standing doctrine applied:
+    // the gate exists to stop you FIELDING something you did not earn, and
+    // v0.95.866 already ruled that the encounter replaced the bond refusal
+    // ("an under-bonded Rizer may still TRY — the ratio just makes the imprint
+    // brutal").  He spent a Zysphere, he out-spun a difficulty computed from
+    // that exact tier:bond ratio, and he WON.  Charging him bond again is
+    // charging twice for one thing.
+    const res = addZyrexToRoster(z, { bypassBondGate: true });
     if (res.location === 'none'){ showToast('◈ It cannot join your faction.', 2200); return; }
     w._gone = true; w._recruitedAt = Date.now();
     try { bumpRizerBond('zyrexBond'); } catch(_){}
@@ -41358,7 +41381,9 @@ function tryRecruitWildZyrex(w){
   if (w._noEncounter && w.speciesId === 'elzoran'){
     const _z = createZyrex(w.speciesId, w.level || 50);
     if (!_z){ showToast('◈ Recruitment failed · species missing', 2200); return; }
-    const _res = addZyrexToRoster(_z);
+    // ★ v0.95.886 · same doctrine · his kin gate (an Elzebub) and his own bond
+    // bar are checked ABOVE, so the roster must not check a third time
+    const _res = addZyrexToRoster(_z, { bypassBondGate: true });
     if (_res.location === 'none'){ showToast('◈ It cannot join your faction.', 2200); return; }
     w._gone = true; w._recruitedAt = Date.now();
     try { bumpRizerBond('zyrexBond'); } catch(_){}

@@ -23477,6 +23477,18 @@ const ZYSPHERE_SHOP_STOCK = [
   { key:'fruit_bar',   label:'Fruit Bar',   price:320, note:'Zyrex · restores ALL HP' },
 ];
 function openZysphereShop(){
+  // ★★★ v0.95.887 · Creator: "you cannot even buy zysphere until you get
+  // starter."  The counter is shut to a Rizer with no Zyrex — Dad's two are
+  // the first spheres anyone holds, and this shop is the refill, never the
+  // source.
+  if (!player.starterChosen){
+    showDialog({ speaker: 'ZYSPHERE SHOP', lines: [
+      '*the shutter stays down*  Spheres are for Rizers with something to put in them.',
+      'Go and see your father.  Come back when you have a partner.',
+    ]});
+    try { playSFX('doorLock'); } catch(_){}
+    return;
+  }
   if (game.zysphereShopOpen) return;
   game.zysphereShopOpen = true;
   const overlay = document.createElement('div');
@@ -33203,6 +33215,22 @@ function pickStarter(id){
   // to have earned yet; choosing IS the gate.
   addZyrexToRoster(z, { bypassBondGate: true });
   player.starterChosen = id; try{pingNextObjective()}catch(_){}
+  // ★★★ v0.95.887 · THE FIRST RUNG.  Taking your starter puts the ledger at
+  // 333 = T1, which is what makes every T1 in the world attemptable.  Granted
+  // ONCE and guarded by its own flag: re-entering the picker must not re-pay
+  // the largest single bond event in the game.
+  if (!player.starterBondGranted){
+    player.starterBondGranted = true;
+    try { bumpRizerBond('rizerStarter'); } catch(_){}
+    // ★ and Dad's two spheres · Creator: "dad gives u 2 free zysphere with
+    // starter."  These are the FIRST spheres in the game — the Academy's
+    // sixteen come much later — so the first bond attempt is always possible
+    // without a shop, and the shop is what refills you afterwards.
+    player.items = player.items || {};
+    player.items.zysphere = (player.items.zysphere || 0) + 2;
+    try { playItemGain('zysphere'); } catch(_){}
+    showToast('★★ BOND 333 · TIER 1 UNLOCKED · Dad hands you 2 Zyspheres', 4600);
+  }
   // v0.95.285 · Auto-summon the chosen starter via the generic follower system
   // (works for any species with a SUMMONABLE_SPRITES entry · verdanix / volcanut / celestryx / apexaur)
   try {
@@ -34657,6 +34685,17 @@ const BOND_EVENTS = {
   rizerDistrict:  { path:'rizer', pts:15,  label:'★ a district walked'             },
   rizerAlly:      { path:'rizer', pts:20,  label:'★ an ally bonded'                },
   rizerGemlord:   { path:'rizer', pts:30,  label:'★★ a Gemlord\'s respect'         },
+  // ★★★ v0.95.887 · THE FIRST ZYREX.  Creator: "doing dads first mission to get
+  // your starter zyrex puts you at bond level 333 which is tier 1, allowing you
+  // to attempt to bond all tier 1."
+  //
+  // 333 in one event, against a rizer path where a quest is 6 and a Gemlord's
+  // respect is 30.  That is not a balance slip — it is the POINT.  Bond starts
+  // at 0 and nothing in the world is bondable at 0, so the ladder needs a first
+  // rung placed by hand.  Dad's mission IS that rung: it converts a Rizer with
+  // no standing into a Rizer who may attempt T1, in one deliberate step, and
+  // every later tier is earned the slow way.
+  rizerStarter:   { path:'rizer', pts:333, label:'★★★ your first Zyrex · Dad\'s mission' },
 };
 const BOND_PATH_CAP = RIZER_BOND_CAP / 2;   // 1665 each · neither path alone maxes you
 function bondLedger(){
@@ -41024,6 +41063,32 @@ function wildBondDifficulty(sp){
            label: ratio >= 1.5 ? 'FAVOURED' : ratio >= 0.95 ? 'MATCHED' : ratio >= 0.6 ? 'STRAINED' : 'OVERMATCHED' };
 }
 function startWildBondEncounter(w, sp){
+  // ★★★ v0.95.887 · THE STARTER COMES FIRST.  Creator: "let it be known you
+  // have to get your starter before any wild."  Nothing in the world may be
+  // bonded before Dad's mission is done — the first Zyrex is given, not taken.
+  if (!player.starterChosen){
+    showToast('◈ You have no Zyrex of your own yet · see your DAD first', 3400);
+    try { playSFX('cancel'); } catch(_){}
+    return false;
+  }
+  // ★★★ v0.95.887 · THE TIER GATE MOVED TO THE ATTEMPT.  Creator: "bond level
+  // 333 which is tier 1, ALLOWING YOU TO ATTEMPT to bond all tier 1.  at 666,
+  // you can attempt bond tier 2."
+  //
+  // ★ This SUPERSEDES the v0.95.866 ruling that an under-bonded Rizer "may
+  // still TRY, the ratio just makes the imprint brutal".  The gate is no
+  // longer about whether a won Zyrex may join — v0.95.886 settled that it may,
+  // always — it is about whether you may RAISE THE SPHERE AT ALL.  That is a
+  // better place for it: refusing before the minigame costs the player nothing
+  // and teaches the ladder, where refusing after it took a sphere, a spin and
+  // a win, and taught nothing.
+  const _need = requiredBondForTier(sp && sp.tier || 1);
+  const _have = rizerBondTotal();
+  if (_have < _need){
+    showToast(`◈ T${sp.tier} needs BOND ${_need} · you have ${Math.floor(_have)} · raise your bond first`, 3800);
+    try { playSFX('cancel'); } catch(_){}
+    return false;            // the wild does NOT flee · it is simply beyond you
+  }
   // ★★ v0.95.872 · NO SPHERE, NO IMPRINT.  Creator: "u cant perform a bond
   // event without a zysphere.  each attempt cost 1x."
   //

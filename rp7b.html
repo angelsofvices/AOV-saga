@@ -17993,6 +17993,65 @@ function rumbleHit(mode){
 }
 // Expose rumble so non-hitFx paths (kill · hurt · boulder crumble) can trigger it too
 window.__rumbleHit = rumbleHit;
+// ★★ v0.95.868 · THE IMPRINT RUMBLE · Creator: "haptic feedback for the
+// event.  a light build up for the final big catch or loss.  no big loss
+// haptic though."
+//
+// A capture is not a hit, so it cannot use the one-shot ladder above: it is a
+// STRUGGLE that tightens.  rumbleBond() plays short overlapping dual-rumble
+// pulses on a throttle, and the caller passes 0..1 — so the pad hums faintly
+// as the imprint starts and climbs to a hard tremor at the last event.
+//
+// ★ THE ASYMMETRY IS DELIBERATE.  Winning pays a real finisher jolt.  LOSING
+// DOES NOT: the build simply stops, with one soft dud tick to say the sphere
+// went dead in your hands.  Punishing a failure with a bigger rumble than the
+// success would teach the pad to celebrate losing.
+let _bondRumbleAt = 0;
+function rumbleBond(level, now){
+  now = now || performance.now();
+  if (now < _bondRumbleAt) return;
+  _bondRumbleAt = now + 110;                       // overlap-free cadence
+  try {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let pad = null;
+    for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
+    if (!pad || !pad.vibrationActuator || !pad.vibrationActuator.playEffect) return;
+    const t = Math.max(0, Math.min(1, level));
+    pad.vibrationActuator.playEffect('dual-rumble', {
+      duration: 140,
+      strongMagnitude: 0.10 + t * 0.55,            // the pull · felt in the palms
+      weakMagnitude:   0.06 + t * 0.30,            // the shimmer of the imprint
+    }).catch(() => {});
+  } catch(_){}
+}
+function rumbleBondEvent(){                        // one imprint locked in
+  try { rumbleHit('kick'); } catch(_){}
+  _bondRumbleAt = performance.now() + 140;
+}
+function rumbleBondWin(){                          // ★ the big catch
+  try {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let pad = null;
+    for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
+    if (pad && pad.vibrationActuator && pad.vibrationActuator.playEffect){
+      pad.vibrationActuator.playEffect('dual-rumble',
+        { duration: 420, strongMagnitude: 1.00, weakMagnitude: 0.80 }).catch(() => {});
+    }
+  } catch(_){}
+  _bondRumbleAt = performance.now() + 500;
+}
+function rumbleBondLoss(){                         // ★ deliberately small
+  try {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let pad = null;
+    for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
+    if (pad && pad.vibrationActuator && pad.vibrationActuator.playEffect){
+      pad.vibrationActuator.playEffect('dual-rumble',
+        { duration: 90, strongMagnitude: 0.18, weakMagnitude: 0.10 }).catch(() => {});
+    }
+  } catch(_){}
+  _bondRumbleAt = performance.now() + 600;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.95.210 · A3 ASTRALSTRIKE · Rizer palm-blast handblast projectile
@@ -39481,9 +39540,16 @@ function tickWildBond(now){
     B.lastAngle = a;
   } else B.lastAngle = null;
   B.progress = Math.min(1, B.turned / B.need);
+  // ★ v0.95.868 · the pad tightens with the imprint · event index carries the
+  // floor so a ten-event T10 ends near maximum tremor
+  try {
+    const base = B.seq.length > 1 ? (B.idx / B.seq.length) : 0;
+    rumbleBond(base + (B.progress / B.seq.length), now);
+  } catch(_){}
   if (B.progress >= 1){
     B.idx++; B.flash = 1;
     try { playSFX('confirm'); } catch(_){}
+    try { rumbleBondEvent(); } catch(_){}
     if (B.idx >= B.seq.length){ _wildBondResolve(true); return; }
     // next event · fresh clock, fresh direction
     B.turned = 0; B.progress = 0; B.lastAngle = null;
@@ -39497,6 +39563,7 @@ function _wildBondResolve(won){
   B.result = won ? 'bond' : 'break';
   B.resultAt = performance.now();
   const { wild: w, sp } = B;
+  try { won ? rumbleBondWin() : rumbleBondLoss(); } catch(_){}   // ★ v0.95.868 · asymmetric by design
   if (won){
     const z = createZyrex(w.speciesId, w.level || Math.max(1, (sp.tier || 1) * 10));
     if (!z){ showToast('◈ Imprint failed · species missing', 2200); return; }
@@ -39545,71 +39612,117 @@ function drawWildBondOverlay(){
   const B = WILD_BOND.active; if (!B) return;
   const now = performance.now();
   const W = canvas.width, H = canvas.height;
+  // ★★ v0.95.868 · DIEGETIC UI · Creator: "it shouldnt be a full screen
+  // overlay anymore since we have an animation now."  The capture sheets do
+  // the acting; this layer only has to say WHICH WAY and HOW LONG.  So the
+  // scrim is gone, the ring left the screen centre and now orbits the
+  // Zysphere IN RIZER'S HANDS, and every readout is small, near him, and
+  // fades once it has taught its beat.
   ctx.save();
-  ctx.fillStyle = 'rgba(4,8,16,0.72)'; ctx.fillRect(0, 0, W, H);
-  const cx = W / 2, cy = H / 2 + 10;
-  const shake = B.shake > 0 ? (B.shake *= 0.88, (Math.random() - 0.5) * 14 * B.shake) : 0;
-  // ── the Zysphere · open, drinking the Zyrex in (reverse energy blast) ──
-  const pull = B.result === 'bond' ? 1 : B.progress;
-  const orbR = 26 + pull * 8;
-  const grad = ctx.createRadialGradient(cx + shake, cy, 2, cx + shake, cy, orbR * 2.2);
-  grad.addColorStop(0, `rgba(160,235,255,${0.85})`);
-  grad.addColorStop(0.5, `rgba(60,150,255,${0.35 + pull * 0.3})`);
-  grad.addColorStop(1, 'rgba(10,20,50,0)');
-  ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cx + shake, cy, orbR * 2.2, 0, Math.PI * 2); ctx.fill();
-  // the beam: the Zyrex streaming INTO the sphere
-  const sp = B.sp;
-  const srcY = cy - 118;
-  for (let i = 0; i < 9; i++){
-    const t = ((now / 420) + i / 9) % 1;
-    const y = srcY + (cy - srcY) * t;
-    const wob = Math.sin((now / 160) + i) * (16 * (1 - t));
-    ctx.fillStyle = `rgba(${140 + i * 8},${210 - i * 6},255,${0.5 * (1 - t) + 0.15})`;
-    ctx.beginPath(); ctx.arc(cx + wob + shake, y, 3 + 5 * (1 - t), 0, Math.PI * 2); ctx.fill();
-  }
-  // the Zyrex silhouette above, dissolving as progress climbs
-  ctx.globalAlpha = Math.max(0.15, 1 - pull * 0.85);
-  ctx.fillStyle = (typeof TYPE_COLORS === 'object' && TYPE_COLORS[canonType(sp.type)]) || '#9fd8ff';
-  ctx.beginPath(); ctx.ellipse(cx + shake, srcY, 30, 22, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
-  // ── the spin ring ──
+  // a breath of edge vignette · focus without hiding the animation
+  const vg = ctx.createRadialGradient(W/2, H/2, H*0.34, W/2, H/2, H*0.78);
+  vg.addColorStop(0, 'rgba(2,6,14,0)');
+  vg.addColorStop(1, `rgba(2,6,14,${B.result ? 0.42 : 0.30})`);
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+
+  // ── anchor: the sphere sits at Rizer's hands, not at screen centre ──
+  const shake = B.shake > 0 ? (B.shake *= 0.88, (Math.random() - 0.5) * 10 * B.shake) : 0;
+  const cx = Math.floor(player.x * TILE + TILE / 2) - _cam.x + shake;
+  const cy = Math.floor(player.y * TILE + TILE / 2) - _cam.y - 34;   // hand height
   const want = B.seq[B.idx] || 1;
-  const R = 62;
-  ctx.lineWidth = 7;
-  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-  ctx.beginPath(); ctx.arc(cx + shake, cy, R, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = want > 0 ? '#ffd66b' : '#7ad4ff';
-  ctx.beginPath();
-  ctx.arc(cx + shake, cy, R, -Math.PI / 2, -Math.PI / 2 + want * B.progress * Math.PI * 2, want < 0);
-  ctx.stroke();
-  // arrow head showing the demanded direction
-  const ang = -Math.PI / 2 + want * (B.progress * Math.PI * 2);
-  ctx.fillStyle = want > 0 ? '#ffd66b' : '#7ad4ff';
-  ctx.beginPath();
-  ctx.arc(cx + shake + Math.cos(ang) * R, cy + Math.sin(ang) * R, 7, 0, Math.PI * 2); ctx.fill();
-  // ── the words ──
-  ctx.textAlign = 'center';
-  ctx.font = "bold 15px 'Courier New', monospace";
-  ctx.fillStyle = '#e8f4ff';
-  ctx.fillText(`${(sp.name || '').toUpperCase()}  ·  T${sp.tier}  ·  ${B.diff.label}`, cx, cy - R - 34);
-  ctx.font = "bold 20px 'Courier New', monospace";
-  ctx.fillStyle = want > 0 ? '#ffd66b' : '#7ad4ff';
-  ctx.fillText(want > 0 ? '↻  SPIN CLOCKWISE' : '↺  SPIN COUNTER-CLOCKWISE', cx, cy + R + 40);
-  ctx.font = "11px 'Courier New', monospace";
-  ctx.fillStyle = '#9fb4c8';
-  ctx.fillText(`IMPRINT ${B.idx + (B.result === 'bond' ? 0 : 1)} / ${B.seq.length}   ·   right stick or arrow keys`, cx, cy + R + 62);
-  // time bar
+  const dirCol = want > 0 ? '#ffd66b' : '#7ad4ff';
+  const R = 34;                                    // small · it is his sphere, not a HUD
+
+  // ── the containment ring · its TRACK is also the clock ──
   const left = Math.max(0, (B.endsAt - now) / B.diff.ms);
-  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(cx - 110, cy + R + 76, 220, 6);
-  ctx.fillStyle = left > 0.35 ? '#5fdc7a' : '#ff6b6b';
-  ctx.fillRect(cx - 110, cy + R + 76, 220 * left, 6);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(210,235,255,0.14)';
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = left > 0.35 ? 'rgba(150,220,255,0.30)' : 'rgba(255,120,120,0.45)';
+  ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI/2, -Math.PI/2 + left * Math.PI * 2); ctx.stroke();
+  // progress arc · fills the way you must spin
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = dirCol;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, -Math.PI/2, -Math.PI/2 + want * B.progress * Math.PI * 2, want < 0);
+  ctx.stroke();
+
+  // ── THE INSTRUCTION IS MOTION · a comet chases the ring the way you spin ──
+  const spin = (now / 520) * want;
+  for (let i = 0; i < 5; i++){
+    const a = spin - want * i * 0.16;
+    const px = cx + Math.cos(a) * R, py = cy + Math.sin(a) * R;
+    ctx.globalAlpha = 0.85 - i * 0.16;
+    ctx.fillStyle = dirCol;
+    ctx.beginPath(); ctx.arc(px, py, 4.5 - i * 0.6, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // the head of the comet carries the arrow, so direction reads even in a still
+  const ha = spin;
+  ctx.save();
+  ctx.translate(cx + Math.cos(ha) * R, cy + Math.sin(ha) * R);
+  ctx.rotate(ha + (want > 0 ? Math.PI/2 : -Math.PI/2));
+  ctx.fillStyle = dirCol;
+  ctx.beginPath(); ctx.moveTo(0,-6); ctx.lineTo(5,4); ctx.lineTo(-5,4); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // ── the glyph · large for the first ~700ms of each event, then it shrinks
+  //    away · teaches the beat, then stops shouting ──
+  const age = now - (B.endsAt - B.diff.ms);
+  const teach = Math.max(0, 1 - age / 700);
+  if (teach > 0.02){
+    ctx.globalAlpha = teach;
+    ctx.textAlign = 'center';
+    ctx.font = `bold ${Math.round(20 + teach * 16)}px 'Courier New', monospace`;
+    ctx.fillStyle = dirCol;
+    ctx.fillText(want > 0 ? '↻' : '↺', cx, cy - R - 14);
+    ctx.font = "bold 10px 'Courier New', monospace";
+    ctx.fillText(want > 0 ? 'SPIN CW' : 'SPIN CCW', cx, cy - R - 2);
+    ctx.globalAlpha = 1;
+  }
+
+  // ── event pips · how many imprints, how many left · read at a glance ──
+  if (B.seq.length > 1){
+    const n = B.seq.length, gap = 9, x0 = cx - ((n - 1) * gap) / 2, y0 = cy + R + 14;
+    for (let i = 0; i < n; i++){
+      const done = i < B.idx;
+      ctx.fillStyle = done ? '#5fdc7a' : (i === B.idx ? dirCol : 'rgba(220,240,255,0.22)');
+      ctx.beginPath();
+      ctx.moveTo(x0 + i*gap, y0 - 4); ctx.lineTo(x0 + i*gap + 4, y0);
+      ctx.lineTo(x0 + i*gap, y0 + 4); ctx.lineTo(x0 + i*gap - 4, y0);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  // ── the name-plate · one second, then gone ──
+  const intro = Math.max(0, 1 - (now - B.t0) / 1100);
+  if (intro > 0.02){
+    ctx.globalAlpha = intro; ctx.textAlign = 'center';
+    ctx.font = "bold 12px 'Courier New', monospace";
+    ctx.fillStyle = '#e8f4ff';
+    ctx.fillText(`${(B.sp.name || '').toUpperCase()} · T${B.sp.tier} · ${B.diff.label}`, cx, cy - R - 30);
+    ctx.globalAlpha = 1;
+  }
+
+  // ── the flash of a locked imprint · a ring pushing outward from the sphere ──
+  if (B.flash > 0){
+    B.flash *= 0.86;
+    ctx.globalAlpha = B.flash;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, R + (1 - B.flash) * 26, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // ── resolution · a short word by his hands, not a banner across the screen ──
   if (B.result){
-    ctx.font = "bold 26px 'Courier New', monospace";
-    ctx.fillStyle = B.result === 'bond' ? '#ffd66b' : '#ff6b6b';
-    ctx.fillText(B.result === 'bond' ? '★ IMPRINT COMPLETE' : '✖ THE BOND BREAKS', cx, cy + 6);
+    ctx.textAlign = 'center';
+    ctx.font = "bold 15px 'Courier New', monospace";
+    ctx.fillStyle = B.result === 'bond' ? '#ffd66b' : '#ff8080';
+    ctx.fillText(B.result === 'bond' ? '★ IMPRINTED' : '✖ BOND BROKEN', cx, cy - R - 16);
   }
   ctx.restore();
 }
+
 function tryRecruitWildZyrex(w){
   const sp = SPECIES[w.speciesId];
   if (!sp){ showToast('◈ ...it is gone.', 1600); w._gone = true; return; }

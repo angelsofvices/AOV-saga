@@ -1624,6 +1624,7 @@ const AUDIO = {
     elixir:       new Audio('audio/sfx-elixir.mp3'),         // v0.95.529 · Rizer generic "wow delicious" · unused after Mythic rename
     mythicElixir: new Audio('audio/sfx-mythic-elixir.mp3'),  // v0.95.530 · Rizer VO on Mythic Elixir consume ("okay who made this and where can i buy 5 more")
     seeYaLater:   new Audio('audio/sfx-see-ya-later.mp3'),   // v0.95.539 · Rizer VO on NPC dialogue close ("see ya later")
+    imOnIt:       new Audio('audio/sfx-im-on-it.mp3'),       // ★★ v0.95.896 · Rizer VO · REPLACES see-ya when that talk handed him a task
     levelUp:      new Audio('audio/sfx-level-up.mp3'),       // v0.95.540 · Rizer VO on every Rizer level-up (Lv 1-100)
     kickVox:      new Audio('audio/sfx-kick-vox.mp3'),       // v0.95.540 · Rizer VO fires every 5th kick swing
     punchVox:     new Audio('audio/sfx-punch-vox.mp3'),      // v0.95.555 · Rizer VO on landed punch combo ("take this") · every 5th landed punch · pairs with kickVox rhythm to form combo banter
@@ -1830,7 +1831,7 @@ const RVOX_PRIORITY = {
   // 60 · streaks
   tooEasy: 55, heatingUp: 55, dodgeStreak: 55,
   // 50 · contextual
-  newDistrict: 50, seeYaLater: 45, laterMom: 48, towerSpotted: 52,
+  newDistrict: 50, seeYaLater: 45, laterMom: 48, towerSpotted: 52, imOnIt: 52,   // ★ v0.95.896 · a shade over see-ya · accepting a job should land
   // 40 · catches + reward pickups + fail cues
   gotcha: 40, gemVox: 40, needJuice: 42, zyrexGo: 45, takeFive: 45,
   // 30 · combat action beats (most frequent · lowest priority)
@@ -25597,6 +25598,27 @@ function showDialog(opts){
   };
   playSFX('dialog');
 }
+// ★★ v0.95.896 · WHICH LINE ENDS A CONVERSATION.  Creator: "'im on it' rvox
+// replace 'see ya' when npc gives a quest/expedition assignment.  overwrite
+// only on newtaskadded."
+//
+// A NAMED DECISION rather than a branch buried in the dialog closer: the choice
+// is a rule about the game ("did that talk hand him a job?"), so it deserves a
+// name, one home, and a test that can ask it directly.
+//
+// ★ 20-second window, because pingNextObjective fires during the NPC's
+// onInteract and the player still has to read the lines.  ★★ CONSUMED on use,
+// so one assignment colours exactly one goodbye and never leaks into the next
+// unrelated conversation.
+function dialogCloseVox(){
+  const t = game._newTaskAt || 0;
+  const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  if (t && now - t < 20000){
+    game._newTaskAt = 0;              // one task, one "I'm on it"
+    return 'imOnIt';
+  }
+  return 'seeYaLater';
+}
 function advanceDialog(){
   if (!dialogState) return;
   if (dialogState.idx + 1 < dialogState.lines.length){
@@ -25609,7 +25631,7 @@ function advanceDialog(){
     // v0.95.539 · Rizer "see ya later" VO fires when player exits the FINAL
     // dialog line (post-dialogue press).  Exclusive-play whitelist ensures
     // rapid interacts don't stack the VO.
-    try { playSFX('seeYaLater'); } catch(_){}
+    try { playSFX(dialogCloseVox()); } catch(_){}
     // v0.95.552 · Flush any phone toasts that arrived while the dialog was open
     // so the notification cards pop after the box closes (never overlaying).
     // Small delay lets the "see ya later" VO breathe before CORSUN speaks.
@@ -29736,6 +29758,16 @@ function pingNextObjective(){
   const hint = nextObjectiveHint();
   if (hint && hint !== _lastObjectiveHint){
     _lastObjectiveHint = hint;
+    // ★★ v0.95.896 · A NEW TASK JUST LANDED.  Creator: "'im on it' rvox
+    // replace 'see ya' when npc gives a quest/expedition assignment.  overwrite
+    // only on newtaskadded."
+    //
+    // ★ This is the ONE place in the game where the objective actually
+    // CHANGES, so it is the only honest definition of "a new task was added".
+    // Tagging the NPC dialogues by hand would have meant deciding, quest by
+    // quest, which lines count as an assignment — and being wrong about it
+    // forever after. The hint changing IS the assignment.
+    game._newTaskAt = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     showToast(`◈ Next · ${hint}`, 3400);
   }
 }
@@ -34485,6 +34517,16 @@ const SPECIES = {
     moves:['Claw Rake','Throat Crush','Firewall','Nova Collapse'],
   },
   // C · dunestinger stage 2 · the dragon-bound rise
+  // ★★ v0.95.896 · SMOGRIN · Creator: "add smogrin as a wild zyrex."
+  // TIER 3 and types Aura/Spirit read straight from ROSTER V1 — not guessed.
+  // Pool = 3 × 333 = 999 by the standing law.  Weighted to SPECIAL and SPEED:
+  // an Aura/Spirit creature is a thing that gets away from you and hits from
+  // somewhere you were not looking.
+  smogrin: {
+    id:'smogrin', name:'Smogrin', tier:3, type:'Aura', type2:'Spirit',
+    baseHP:150, baseATK:135, baseDEF:140, baseSPD:200, baseSATK:220, baseSDEF:154,   // sum 999
+    moves:['Aura Jab','Spirit Lash','Hex Pulse','Nether Wail'],
+  },
   skybeam: {
     id:'skybeam', name:'Skybeam', tier:4, type:'Beast', type2:'Elemental',
     baseHP:200, baseATK:332, baseDEF:213, baseSPD:280, baseSATK:160, baseSDEF:147,   // sum 1332
@@ -39578,6 +39620,20 @@ const SUMMONABLE_SPRITES = {
   // At 248 the DOWN rearing pose renders 2 tiles; scaleMul 1.20 puts it at
   // 2.4 and the walking profile at 2.0 — a head over the Rizer, which is what
   // "a bit taller" means for something that still has growing to do.
+  // ★★ v0.95.896 · SMOGRIN · Creator: "gearbyte size (.55 to smogrin: rizer
+  // per zyrex idle:rizeridle)".  scaleMul 0.55 is the standing GEARBYTE
+  // BASELINE the small Zyrex already share, so Smogrin reads at the same
+  // shoulder height as its size class rather than at a number invented for it.
+  smogrin: {
+    src: 'assets/2D%20sprites/zyrex/smogrin.png',
+    bboxes: [
+      [[67,24,201,293],[373,24,201,293],[678,24,202,293],[984,24,201,293]],
+      [[73,336,198,287],[379,336,199,287],[686,336,198,287],[993,336,197,287]],
+      [[63,638,197,284],[369,638,197,284],[675,638,198,284],[981,638,198,284]],
+      [[68,940,202,293],[373,940,202,293],[679,940,201,293],[984,940,202,293]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.55,   // Gearbyte baseline
+  },
   skybeam: {
     src: 'assets/2D%20sprites/zyrex/skybeam.png',
     // ★★ v0.95.892 · RE-MEASURED against the Creator's new idle sheet.  The
@@ -41860,6 +41916,11 @@ const WILD_PLACEMENT_LIVE = [
   // are derived from the district's own geometry rather than eyeballed —
   // roughly two thirds out along each pole, which keeps them inside the land
   // and well clear of the rim.  Tiles verified walkable and in-district.
+  // ★ v0.95.896 · SMOGRIN takes a T3 slot the placement master already
+  // reserved — Andrannor forest — rather than a tile picked by eye.  The
+  // master dimensioned that slot for a tier-3 wild, so the district band, the
+  // level curve and the neighbouring spawns all still add up.
+  { id: 'smogrin', at: [281, 321], dist: 'andrannor', habitat: 'forest', temperament: 'Skittish' },
   { id: 'celestryx', at: [895, 578], dist: 'korathen', habitat: 'highland',   temperament: 'Territorial' },
   { id: 'celestryx', at: [895, 732], dist: 'korathen', habitat: 'wild_fringe', temperament: 'Territorial' },
 ];

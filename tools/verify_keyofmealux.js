@@ -268,7 +268,12 @@ H('18 · ★★★ TRAVERSAL · it does not run, it HOVERS somewhere');
   // run boxes by the idle max drew the hovering Key a fifth SMALLER the moment
   // it moved — the exact shrink the rule claimed to prevent.  Preserve the
   // SIZE, not the divisor.
-  ok(/_useRun \? d\.runBboxes : d\.bboxes/.test(src2),
+  // ★ v0.95.899 · this pinned the literal `_useRun ? d.runBboxes : d.bboxes`.
+  // A THIRD bank (idleSrc) arrived and the expression became `_boxes`, so the
+  // check failed while the property it cares about held perfectly.  Assert the
+  // PROPERTY — the scale loop reads whichever bank is being drawn — not the
+  // shape the expression happened to have on the day it was written.
+  ok(/for \(const r of _boxes\)\{ if \(r\[0\]\[3\] > maxBh\)/.test(src2),
      '★★★ each bank normalises by ITS OWN tallest body · the float draws at idle size');
   ok(/Preserve the SIZE, not the divisor/.test(src2),'★★ and the reason is recorded as a correction, not a tweak');
   // measure it

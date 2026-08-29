@@ -48,9 +48,17 @@ H('3 · ★★ THE ENCOUNTER REPLACES THE INSTANT CATCH');
   ok(/startWildBondEncounter\(w, sp\);\s*\n\s*return;/.test(src),'★ tryRecruitWildZyrex opens the ENCOUNTER, never the old instant check');
   const w={speciesId:'apexaur',tileX:10,tileY:10,level:50,temperament:'Calm'};
   bond(1665);
+  // ★★ v0.95.872 · THE SPHERE IS THE TICKET.  Creator: "u cant perform a bond
+  // event without a zysphere.  each attempt cost 1x."  Asserted here, at the
+  // door of the encounter, because this suite owns the encounter.
+  C.player.items=C.player.items||{}; C.player.items.zysphere=0;
+  ok(C.startWildBondEncounter(w,C.SPECIES.apexaur)===false&&!C.game.wildBondOpen,
+     '★★ an empty bag cannot open an imprint · no sphere, nothing to imprint INTO');
+  C.player.items.zysphere=9;
   C.startWildBondEncounter(w,C.SPECIES.apexaur);
   const B=C.WILD_BOND.active;
   ok(!!B&&C.game.wildBondOpen===true,'the encounter opens and flags the world');
+  ok(C.player.items.zysphere===8,'★★ the sphere is spent ON THE ATTEMPT · 9 → 8 before a single spin is read');
   ok(/game\.wildBondOpen\)\s+freezeReasons\.push\('wildBond'\)/.test(src),'★ the world FREEZES during the imprint');
   ok(B.seq.every(v=>v===1||v===-1),'every event is a direction (±1)');
   ok(B.seq.length>1?new Set(B.seq).size<=2:true,'random order, two directions only');

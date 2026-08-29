@@ -59,6 +59,10 @@ H('3 · THE FRAME CLOCK IS THE ENCOUNTER');
 {
   const w={speciesId:'apexaur',tileX:10,tileY:10,level:50,temperament:'Calm'};
   C.player.bondLedger={zyrex:900,rizer:800};
+  // ★ v0.95.872 · an imprint now COSTS A ZYSPHERE · stock the bag or the
+  // encounter rightly refuses to open ("u cant perform a bond event without a
+  // zysphere.  each attempt cost 1x.")
+  C.player.items=C.player.items||{}; C.player.items.zysphere=9;
   C.startWildBondEncounter(w,C.SPECIES.apexaur);
   const B=C.WILD_BOND.active, t0=B.t0;
   ok(C.captureFrameIndex(B,t0)===0,'the imprint opens on frame 0 · RAISE');

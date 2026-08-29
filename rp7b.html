@@ -40453,6 +40453,40 @@ const WILD_PLACEMENT_LIVE = [
   { id: 'celestryx', at: [254, 545], dist: 'vorashil', habitat: 'highland', temperament: 'Territorial' },
   { id: 'celestryx', at: [223, 546], dist: 'vorashil', habitat: 'cave_mouth', temperament: 'Territorial' },
 ];
+// ★★ v0.95.873 · THE COMMON SPECIES · Creator: "put more aetherwing in malezor
+// for me to catch.  they are some of the most common type.  like pokemon
+// emerald early bug types."
+//
+// The reference is exact and it is about DENSITY, not about one more pin.  A
+// Wurmple is not a landmark you walk to — it is the thing you keep tripping
+// over on Route 101 until you have three of them, and that is what teaches a
+// new player the catching verb before the game ever asks them to use it.  Two
+// hand-placed Aetherwing could not do that job no matter where they stood.
+//
+// So Aetherwing is placed as FLOCKS, not individuals: a table of centres with a
+// count and a radius, scattered through _wildTileNear (which already refuses
+// props, NPCs, borders, occupied tiles and anything outside Malezor).  The
+// centres trace the EARLY CORRIDOR — home (22,105) → school (25,126) → the
+// shop row → town hall (22,78) → gear shop (16,56) → the radio tower road —
+// because density only teaches if it is where the player already walks.
+//
+// ★ Mostly SKITTISH.  A common early catch should scatter when you blunder at
+// it; that is the lesson (approach, don't charge), and it is cheap to retry
+// when there are eighteen of them.  Two Calm grazing flocks sit in the meadows
+// as the forgiving option for a first attempt.
+//
+// Level stays tier × 10 = 10 by the standing law — no special early-game
+// discount.  A T1 at Lv10 is exactly the right first bond for a Rizer leaving
+// the Academy, which is why Aetherwing was the right species to make common.
+const MALEZOR_COMMON_FLOCKS = [
+  { id:'aetherwing', at:[ 46,  44], r:5, count:3, temperament:'Skittish', note:'hub fringe · north of the gear shop' },
+  { id:'aetherwing', at:[ 44, 100], r:5, count:3, temperament:'Calm', graze:4, note:'the home meadow' },
+  { id:'aetherwing', at:[ 31, 116], r:5, count:3, temperament:'Skittish', note:'the school walk' },
+  { id:'aetherwing', at:[ -4, 130], r:6, count:3, temperament:'Skittish', note:'the shop row verge' },
+  { id:'aetherwing', at:[ 13,  70], r:6, count:3, temperament:'Calm', graze:4, note:'below the town hall' },
+  { id:'aetherwing', at:[ 44,  22], r:6, count:2, temperament:'Skittish', note:'the radio tower road' },
+  { id:'aetherwing', at:[ 20, 152], r:6, count:3, temperament:'Skittish', note:'the southern fields' },
+];
 const _malezorWildPlaced = [];
 function _wildTileNear(cx, cy, r){
   for (let tries = 0; tries < 400; tries++){
@@ -40522,6 +40556,22 @@ function seedMalezorWild(){
     if (w){
       w._malezorWild = 'WAVE1'; w._pinned = `${F.dist} · ${F.habitat}`; _malezorWildPlaced.push(w);
       if (F.graze){ w._graze = true; w._grazeHome = [F.at[0], F.at[1]]; w._grazeR = F.graze; }
+    }
+  }
+  // ★★ v0.95.873 · THE COMMON FLOCKS.  Scattered, not pinned — see the table.
+  // Placed BEFORE the named individuals so a flock member can never take a
+  // tile a pinned Zyrex was promised: _wildTileNear refuses occupied tiles, so
+  // whoever runs first wins, and the ones the Creator placed by hand must win.
+  // (The same ordering bug that buried Sharkfin under a verge bush at .869.)
+  for (const F of MALEZOR_COMMON_FLOCKS){
+    if (!SPECIES[F.id]) continue;
+    for (let k = 0; k < F.count; k++){
+      const spot = _wildTileNear(F.at[0], F.at[1], F.r);
+      if (!spot) continue;                       // no room left in the patch · skip, never stack
+      const w = spawnWildZyrex(F.id, spot[0], spot[1], { temperament: F.temperament });
+      if (!w) continue;
+      w._malezorWild = 'FLOCK'; w._flock = F.note; _malezorWildPlaced.push(w);
+      if (F.graze){ w._graze = true; w._grazeHome = [spot[0], spot[1]]; w._grazeR = F.graze; }
     }
   }
   // Pinned individuals · exact tile, no scatter · NOT gated (see above).

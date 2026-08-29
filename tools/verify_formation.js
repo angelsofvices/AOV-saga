@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={zyrexUid,zyrexFollowerId,SUMMON_FORMATION,_claimFormationSlot,_formationTile,toggleFactionSummon,quickSummonStashAll,NPCS,player,game,walkable};')();}
+try{new Function(src+';globalThis.__C={zyrexUid,zyrexFollowerId,SUMMON_FORMATION,_claimFormationSlot,_formationTile,_formationRotate,_formationBasis,_inFrontOfRizer,toggleFactionSummon,quickSummonStashAll,NPCS,player,game,walkable};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -24,12 +24,64 @@ const cheb=(a,b)=>Math.max(Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]));
 H('1 · ★★ THE SPACING LAW IS GEOMETRY');
 {
   const F=C.SUMMON_FORMATION;
-  ok(F.length===48,'48 stations · rings r=2/4/6 (8+16+24) · matches the old call-faction cap');
+  // ★★ v0.95.874 · INVERTED.  This asserted 48 stations on rings 2/4/6, which
+  // was the 360-degree halo.  Creator: "dont make your zyrex run in front of
+  // you, they get in the way going up towards upper viewport borders."  The
+  // table is now rear-only local space, so a half-plane holds fewer stations
+  // per ring and rings run 2..10 to keep the old call-faction cap available.
+  ok(F.length>=48,F.length+' stations · rear-only rings r=2..10 (5+9+13+17+21) · still clears the 48 cap');
   let pair=true;
   for(let i=0;i<F.length;i++)for(let j=i+1;j<F.length;j++) if(cheb(F[i],F[j])<2) pair=false;
   ok(pair,'★ every pair of stations is >=2 tiles apart — the rule cannot be violated by a slot that exists');
   ok(F.every(o=>cheb(o,[0,0])>=2),'★ every station is >=2 from Rizer (spec asked >=1 · exceeded)');
   ok(F.every(o=>o[0]%2===0&&o[1]%2===0),'…because every offset is even · spacing survives any subset');
+}
+
+H('1b · ★★★ NOTHING STANDS IN FRONT OF HIM');
+{
+  const F=C.SUMMON_FORMATION;
+  ok(F.every(o=>o[1]>=0),'★★ every station is ly >= 0 · there is no slot in front of Rizer for a Zyrex to occupy');
+  ok(F.some(o=>o[1]===0&&Math.abs(o[0])>=2),'★ flanking stations still exist · beside him is fine, ahead is not');
+  // rotation is an isometry · the spacing law survives every facing
+  for(const dir of ['up','down','left','right']){
+    const W=F.map(o=>C._formationRotate(o[0],o[1],dir));
+    let pair=true, near=true, even=true;
+    for(let i=0;i<W.length;i++){
+      if(cheb(W[i],[0,0])<2) near=false;
+      if(W[i][0]%2!==0||W[i][1]%2!==0) even=false;
+      for(let j=i+1;j<W.length;j++) if(cheb(W[i],W[j])<2) pair=false;
+    }
+    ok(pair&&near&&even,'★ facing '+dir.toUpperCase()+': still >=2 apart, >=2 from Rizer, all even — rotation is an ISOMETRY');
+  }
+  // the one the Creator actually felt: walking north, nobody above him
+  const above=F.map(o=>C._formationRotate(o[0],o[1],'up')).filter(o=>o[1]<0);
+  ok(above.length===0,'★★★ WALKING NORTH: zero stations between Rizer and the top of the viewport');
+  const below=F.map(o=>C._formationRotate(o[0],o[1],'down')).filter(o=>o[1]>0);
+  ok(below.length===0,'★ and walking south, zero stations below him · the fix is not up-only');
+}
+
+H('1c · THE BASIS IS TRAVEL, NOT GAZE');
+{
+  const p=C.player;
+  p.x=50; p.y=50; C._formationBasis();          // prime
+  p.y=49; ok(C._formationBasis()==='up','walking north sets the basis to UP');
+  p.x=51; ok(C._formationBasis()==='right','walking east sets it to RIGHT');
+  const held=C._formationBasis();
+  ok(C._formationBasis()===held,'★★ standing still HOLDS the basis · turning to look around never scrambles the team');
+  ok(C._inFrontOfRizer(p.x+1,p.y)===true&&C._inFrontOfRizer(p.x-1,p.y)===false,
+     '★ the forward-arc guard reads the travel basis · ahead is blocked, behind is free');
+  ok(C._inFrontOfRizer(p.x+9,p.y)===false,'★ the arc is 3 tiles deep, not infinite · a follower is never permanently walled out');
+}
+
+H('1d · THE LEASH · rear stations made reversing expensive, so recovery is owned');
+{
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(/_offStationSince/.test(src2),'★ a stranded follower is tracked, not forgotten');
+  ok(/_far > 14/.test(src2),'★ the leash is 14 tiles — beyond the viewport, so no re-form is ever WATCHED');
+  ok(/_offStationSince > 5000/.test(src2),'★ and 5 seconds of honest walking first · it is a bail-out, not a teleport-follow');
+  ok(/if \(walkable\(_ft\[0\], _ft\[1\]\)\)/.test(src2),'★ it never re-forms onto an unwalkable tile');
+  ok(/_formFacing == null\) _formFacing = player\.dir/.test(src2),
+     '★★ the first call of a session seeds from his FACING · a team summoned before he takes a step still forms up behind him');
 }
 
 H('2 · ★★ SUMMONS SPAWN ON STATION · never in the old stack');

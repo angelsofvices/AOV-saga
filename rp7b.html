@@ -34657,7 +34657,10 @@ function callFactionSummonAll(on){
         n = makeZyrexFollower(z, { mode: 'stationary', dir: 'down' });
         NPCS.push(n);
       }
-      const [dx, dy] = RING[i % RING.length];
+      // ★ v0.95.874 · rotated by the travel basis like every other station,
+      // so a dev call-faction never plants the team in front of him either
+      const [dx, dy] = _formationRotate(RING[i % RING.length][0],
+                                        RING[i % RING.length][1], _formationBasis());
       n._summoned = true;
       n.scene = game.scene;
       n.tileX = player.x + dx;
@@ -39175,13 +39178,38 @@ function quickSummonStashAll(){
 // Overlap in MOTION is impossible separately: stepNPCTo refuses occupied
 // tiles (walkable counts NPCs), so two Zyrex can never share a tile even
 // while walking between stations.
+// ★★★ v0.95.874 · THE FORMATION IS BEHIND HIM NOW.  Creator: "dont make your
+// zyrex run in front of you, they get in the way going up towards upper
+// viewport borders."
+//
+// The v0.95.827 rings were a full 360° halo, so a quarter of the team always
+// stood on the side Rizer was walking TOWARD.  Walking north that quarter sits
+// between him and the top of the screen — which is the one direction where the
+// camera gives him the least warning, because the viewport shows far less
+// world above the player than below him.  Zyrex were literally standing in the
+// approach he needed to read.
+//
+// So the table is now LOCAL and REAR-ONLY, and it is rotated into the world by
+// the direction he last WALKED:
+//     lx = tiles to his right   ·   ly = tiles BEHIND him (never negative)
+// ly >= 0 is the whole fix: there is no station in front of Rizer, so no Zyrex
+// can occupy the ground he is moving into, in any facing.
+//
+// Everything the .827 spacing law rested on survives, because rotation by a
+// right angle is an ISOMETRY on the integer lattice: offsets stay even, so any
+// two stations are still Chebyshev >=2 apart, and every station is still >=2
+// from Rizer.  The rule still cannot be violated by a slot that exists.
+//
+// Rings run 2..10 rather than 2..6: a half-plane holds fewer stations per ring
+// (5 · 9 · 13 · 17 · 21), so five rings are needed to keep 48+ available and
+// preserve the old call-faction cap.
 const SUMMON_FORMATION = (function(){
   const out = [];
-  for (const r of [2, 4, 6]){
+  for (const r of [2, 4, 6, 8, 10]){
     const ring = [];
-    for (let x = -r; x <= r; x += 2)
-      for (let y = -r; y <= r; y += 2)
-        if (Math.max(Math.abs(x), Math.abs(y)) === r) ring.push([x, y]);
+    for (let lx = -r; lx <= r; lx += 2)
+      for (let ly = 0; ly <= r; ly += 2)          // ★ ly >= 0 · never in front
+        if (Math.max(Math.abs(lx), Math.abs(ly)) === r) ring.push([lx, ly]);
     // fill each ring by angle so early summons flank Rizer evenly rather
     // than queueing along one row
     ring.sort((a, b) => Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0]));
@@ -39189,6 +39217,50 @@ const SUMMON_FORMATION = (function(){
   }
   return out;
 })();
+// ★ The basis is the direction he last WALKED, not the direction he is FACING.
+// Turning on the spot to look around must not make the whole team scramble to
+// re-form; only travelling does.  Derived from his own tile deltas, so nothing
+// else in the movement code needs to know this exists.
+let _formFacing = null, _formLastX = null, _formLastY = null;
+function _formationBasis(){
+  // ★ first call of a session has no travel history · seed from where he is
+  // LOOKING, so a team summoned before he takes a step still forms up behind
+  // him rather than in the default-south fan
+  if (_formFacing == null) _formFacing = player.dir || 'down';
+  if (_formLastX != null && (player.x !== _formLastX || player.y !== _formLastY)){
+    const dx = player.x - _formLastX, dy = player.y - _formLastY;
+    if (Math.abs(dx) > Math.abs(dy))      _formFacing = dx > 0 ? 'right' : 'left';
+    else if (Math.abs(dy) > 0)            _formFacing = dy > 0 ? 'down'  : 'up';
+  }
+  _formLastX = player.x; _formLastY = player.y;
+  return _formFacing;
+}
+// local (right, behind) → world (dx, dy), by the travel basis
+function _formationRotate(lx, ly, facing){
+  switch (facing){
+    case 'up':    return [ lx,  ly];    // forward is -y · behind is +y
+    case 'down':  return [-lx, -ly];
+    case 'left':  return [ ly, -lx];    // forward is -x · behind is +x
+    case 'right': return [-ly,  lx];
+    default:      return [ lx,  ly];
+  }
+}
+// ★ v0.95.874 · is this tile in the ground Rizer is walking INTO?  Used to
+// keep a follower from cutting across his nose while it re-forms after a turn:
+// the stations are all behind him, but the WALK to a station could still clip
+// the forward arc for a step or two.  Three tiles deep is the whole span the
+// viewport gives him ahead when he is moving north, which is the case the
+// Creator called out.
+function _inFrontOfRizer(x, y, facing){
+  const dx = x - player.x, dy = y - player.y;
+  switch (facing || _formFacing){
+    case 'up':    return dy < 0 && dy >= -3 && Math.abs(dx) <= 1;
+    case 'down':  return dy > 0 && dy <=  3 && Math.abs(dx) <= 1;
+    case 'left':  return dx < 0 && dx >= -3 && Math.abs(dy) <= 1;
+    case 'right': return dx > 0 && dx <=  3 && Math.abs(dy) <= 1;
+    default:      return false;
+  }
+}
 // smallest station not held by another summon in this scene
 function _claimFormationSlot(){
   const used = new Set();
@@ -39202,7 +39274,8 @@ function _claimFormationSlot(){
 // landing on a tree/wall does not strand its owner pacing forever
 function _formationTile(n){
   const F = SUMMON_FORMATION[(n._formSlot || 0) % SUMMON_FORMATION.length];
-  let tx = player.x + F[0], ty = player.y + F[1];
+  const R = _formationRotate(F[0], F[1], _formationBasis());
+  let tx = player.x + R[0], ty = player.y + R[1];
   if (typeof walkable === 'function' && !walkable(tx, ty)
       && !(n.tileX === tx && n.tileY === ty)){
     for (let r = 1; r <= 3; r++){
@@ -39224,6 +39297,10 @@ function _formationTile(n){
 // so the yard inherits the same >=2 spacing law the field formation has.
 const ZYREX_HOME_ANCHOR = { x: 20, y: -14 };
 function zyrexHomeTile(partyIdx){
+  // ★ v0.95.874 · the yard reads the LOCAL table straight, with no rotation —
+  // there is no facing to rotate by when nobody is walking.  It becomes a fan
+  // spreading south of the anchor instead of a ring around it, and inherits
+  // the same even-offset >=2 spacing either way.
   const F = SUMMON_FORMATION[(partyIdx || 0) % SUMMON_FORMATION.length];
   let hx = ZYREX_HOME_ANCHOR.x + F[0], hy = ZYREX_HOME_ANCHOR.y + F[1];
   if (typeof _propBlocked !== 'undefined' && _propBlocked.has(`${hx},${hy}`)){
@@ -43140,6 +43217,22 @@ function tickNPC(n, dt){
     if (n._summoned && n._formSlot != null){
       const _ft = _formationTile(n);
       const fdx = _ft[0] - n.tileX, fdy = _ft[1] - n.tileY;
+      // ★ v0.95.874 · THE LEASH.  The follow AI steps on axis preference with
+      // no pathfinding, so a wall between a Zyrex and its station can strand
+      // it — and rear-only stations made that more likely, because REVERSING
+      // direction now asks the whole team to cross to Rizer's other side.
+      // Same bail-out shape the walk-home journey already uses: try honestly
+      // for a while, then re-form.  14 tiles is beyond the viewport, so the
+      // player never watches one blink; he just finds his team still with him.
+      const _far = Math.max(Math.abs(n.tileX - player.x), Math.abs(n.tileY - player.y));
+      if (_far > 14){
+        if (!n._offStationSince) n._offStationSince = performance.now();
+        else if (performance.now() - n._offStationSince > 5000){
+          if (walkable(_ft[0], _ft[1])){ n.tileX = _ft[0]; n.tileY = _ft[1]; }
+          n._offStationSince = 0; n.moving = false; n.moveCd = 200;
+          return;
+        }
+      } else if (n._offStationSince) n._offStationSince = 0;
       if (fdx === 0 && fdy === 0){
         // on station · face Rizer and wait for his command
         const pdx = player.x - n.tileX, pdy = player.y - n.tileY;
@@ -43154,6 +43247,17 @@ function tickNPC(n, dt){
       let fdir;
       if (Math.abs(fdx) >= Math.abs(fdy)) fdir = fdx > 0 ? 'right' : 'left';
       else                                fdir = fdy > 0 ? 'down'  : 'up';
+      // ★ v0.95.874 · if the natural step would cut across the ground Rizer is
+      // walking into, take the OTHER axis first.  Preference only — never a
+      // refusal, so a follower boxed in on three sides can still get home.
+      if (fdx !== 0 && fdy !== 0){
+        const _fv0 = _DIR_VEC[fdir];
+        if (_fv0 && _inFrontOfRizer(n.tileX + _fv0.dx, n.tileY + _fv0.dy)){
+          fdir = (fdir === 'left' || fdir === 'right')
+            ? (fdy > 0 ? 'down' : 'up')
+            : (fdx > 0 ? 'right' : 'left');
+        }
+      }
       const fv = _DIR_VEC[fdir];
       if (stepNPCTo(n, n.tileX + fv.dx, n.tileY + fv.dy, fdir)){
         n.moveCd = player.running ? 90 : 170;

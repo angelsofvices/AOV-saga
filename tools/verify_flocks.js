@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={MALEZOR_COMMON_FLOCKS,MALEZOR_WILD_FIXED,WILD_PLACEMENT_LIVE,seedMalezorWild,WILD_ZYREX,SPECIES,worldDistrictAt,isWorldBorderTile,walkable,_propBlocked,NPCS,requiredBondForTier,player,game};')();}
+try{new Function(src+';globalThis.__C={MALEZOR_COMMON_FLOCKS,MALEZOR_WILD_FIXED,WILD_PLACEMENT_LIVE,seedMalezorWild,WILD_ZYREX,SPECIES,worldDistrictAt,isWorldLandTile,isWorldBorderTile,walkable,_propBlocked,NPCS,requiredBondForTier,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -40,12 +40,16 @@ H('2 · WHERE THEY STAND · the early corridor, not a corner');
   const xs=FL.map(w=>w.tileX), ys=FL.map(w=>w.tileY);
   ok(Math.max(...ys)-Math.min(...ys)>100,'★ they span '+(Math.max(...ys)-Math.min(...ys))+' tiles north-to-south · the radio tower road down to the southern fields');
   ok(Math.max(...xs)-Math.min(...xs)>40,'and '+(Math.max(...xs)-Math.min(...xs))+' tiles east-to-west · past the shop row');
-  // the corridor landmarks the flocks were aimed at
-  const near=(x,y,r)=>FL.some(w=>Math.hypot(w.tileX-x,w.tileY-y)<=r);
-  ok(near(22,105,12),'★ a flock within reach of the player\'s own home (22,105)');
-  ok(near(25,126,14),'★ one on the school walk (25,126)');
-  ok(near(22,78,14),'★ one below the town hall (22,78)');
-  ok(near(-20,120,20),'★ one on the shop row, by the new Zysphere counter');
+  // ★ the corridor landmarks are checked against the TABLE, not against one
+  // random draw.  _wildTileNear samples a disc, so any assertion made on the
+  // sampled tiles is only true for the boot that produced them — a suite that
+  // passes four times out of five is not protecting anything.  The centres are
+  // the design; the scatter is the sampling.
+  const nearC=(x,y,r)=>C.MALEZOR_COMMON_FLOCKS.some(F=>Math.hypot(F.at[0]-x,F.at[1]-y)<=r+F.r);
+  ok(nearC(22,105,12),'★ a flock centred within reach of the player\'s own home (22,105)');
+  ok(nearC(25,126,14),'★ one on the school walk (25,126)');
+  ok(nearC(22,78,14),'★ one below the town hall (22,78)');
+  ok(nearC(-20,120,20),'★ one on the shop row, by the new Zysphere counter');
 }
 
 H('3 · SCATTERED CLEANLY · _wildTileNear did its job');
@@ -57,14 +61,18 @@ H('3 · SCATTERED CLEANLY · _wildTileNear did its job');
     const k=w.tileX+','+w.tileY;
     if(seen.has(k)) stack++; seen.add(k);
     if(C._propBlocked.has(k)) prop++;
-    if(!C.walkable(w.tileX,w.tileY)) unwalk++;
+    // ★ TERRAIN ONLY.  walkable() counts NPCs and wilds, so asking it about a
+    // wild's OWN tile asks "is anything standing here" — and something is: the
+    // wild itself.  Sixth sighting of that self-occlusion trap; measure the
+    // ground, never the occupancy.
+    if(!C.isWorldLandTile(w.tileX,w.tileY)||C.isWorldBorderTile(w.tileX,w.tileY)) unwalk++;
     if(npc.has(k)) onNpc++;
     if(w._malezorWild==='FLOCK'&&C.worldDistrictAt(w.tileX,w.tileY)!=='malezor') off++;
   }
   ok(!off,'★ every flock member is inside MALEZOR · none drifted into the Void or the next district');
   ok(!stack,'★★ no two wilds share a tile');
   ok(!prop,'none spawned inside a building');
-  ok(!unwalk,'★ every one stands on a walkable tile — an unreachable wild is not a catch');
+  ok(!unwalk,'★ every one stands on real, non-border ground — an unreachable wild is not a catch');
   ok(!onNpc,'none spawned on top of an NPC');
 }
 

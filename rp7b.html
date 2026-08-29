@@ -40626,10 +40626,20 @@ function drawZyrexOrb(w){
       const _boxes = _useRun ? d.runBboxes : d.bboxes;
       const bb = _boxes && _boxes[row] && _boxes[row][col];
       if (bb){
-        // ★ the scale reference stays the IDLE sheet even while the run sheet
-        // draws, so it cannot change size the instant it starts moving
+        // ★★★ v0.95.890 · SCALE THE FLOAT TO IDLE SIZE.  Creator: "scale
+        // floating traversal to idle size and bop."
+        //
+        // v0.95.888 kept the reference on the IDLE sheet while drawing the run
+        // sheet, reasoning that one reference means one size.  That was exactly
+        // backwards: the float art's body is ~240px against the idle's ~300px,
+        // so dividing run boxes by the idle max drew the hovering Key about a
+        // FIFTH SMALLER the instant it moved — the very shrink the rule was
+        // meant to prevent.  Normalising each bank by ITS OWN tallest body is
+        // what actually holds the apparent size constant: both banks fill the
+        // same two tiles, so the creature never changes size, only what it is
+        // doing.  Preserve the SIZE, not the divisor.
         let maxBh = 216;
-        for (const r of d.bboxes){ if (r[0][3] > maxBh) maxBh = r[0][3]; }
+        for (const r of (_useRun ? d.runBboxes : d.bboxes)){ if (r[0][3] > maxBh) maxBh = r[0][3]; }
         const scale = (TILE * 2) / maxBh * (d.scaleMul || 1);
         const dw = Math.max(1, Math.round(bb[2] * scale));
         const dh = Math.max(1, Math.round(bb[3] * scale));

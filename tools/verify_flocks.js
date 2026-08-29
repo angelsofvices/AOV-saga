@@ -102,8 +102,11 @@ H('4 · ★ THE PINNED INDIVIDUALS STILL WIN THEIR TILES');
   const iFlock=body.indexOf('for (const F of MALEZOR_COMMON_FLOCKS)');
   const iPin=body.indexOf('for (const F of MALEZOR_WILD_FIXED)');
   ok(iFlock>0&&iPin>iFlock,'★ flocks are seeded BEFORE the pins in seedMalezorWild · a scatter can never claim a promised tile');
-  const iMealux=body.indexOf('for (const d of ZYRAXIS_DISTRICTS)');
-  ok(iMealux>0&&iMealux<iFlock,'★★ and the ten Keys are placed BEFORE the flocks · their tiles must not depend on a random scatter');
+  // ★ anchored on MEALUX_DISTRICTS(), the function that names the population —
+  // the loop stopped saying ZYRAXIS_DISTRICTS at v0.95.883 when the five
+  // replaced the ten.  Anchor on the thing whose NAME is the subject.
+  const iMealux=body.indexOf('for (const d of MEALUX_DISTRICTS())');
+  ok(iMealux>0&&iMealux<iFlock,'★★ and the Keys of Mealux are placed BEFORE the flocks · their tiles must not depend on a random scatter');
 }
 
 H('5 · THEY OBEY EVERY STANDING LAW');

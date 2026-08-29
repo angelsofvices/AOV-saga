@@ -9,7 +9,7 @@ Object.assign(globalThis,{setInterval:()=>0,setTimeout:()=>0,clearInterval:noop,
  Image:function(){return{addEventListener:noop,complete:false,naturalWidth:0,src:''}},
  requestAnimationFrame:()=>0,cancelAnimationFrame:noop,matchMedia:()=>({matches:false,addEventListener:noop,addListener:noop}),
  performance:{now:()=>Date.now()},getComputedStyle:()=>({getPropertyValue:()=>''})});
-try{new Function(src+';globalThis.__C={CAPTURE_ART,captureFrameIndex,drawCaptureSprite,WILD_BOND,startWildBondEncounter,SPECIES,player,game,TILE};')();}
+try{new Function(src+';globalThis.__C={CAPTURE_ART,CAPTURE_ART_S2,captureArtBank,captureFrameIndex,drawCaptureSprite,WILD_BOND,startWildBondEncounter,SPECIES,player,game,TILE};')();}
 catch(e){console.log('BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  OK  ':'  XX  ')+m); if(!c)f++;};
@@ -82,10 +82,59 @@ H('4 · IT REPLACES THE ORDINARY SPRITE, SAFELY');
 {
   ok(/WILD_BOND\.active && drawCaptureSprite\(\)\) return/.test(src),'drawPlayer hands over while an encounter is live');
   ok(/catch\(err\)\{ console\.warn\('\[rp7b\] capture sprite'/.test(src),'…and falls through to the normal sprite if the art is missing');
-  ok(/const ref = CAPTURE_ART\.success_down\.bboxes\[0\]\[0\]\[3\]/.test(src),'ONE shared scale across all eight sheets · no facing is bigger');
+  // ★ v0.95.885 · INVERTED.  This pinned the literal `CAPTURE_ART.success_down`
+  // to prove one shared scale.  The S2 sheets arrived and the reference had to
+  // come from the bank being DRAWN, or the transformed Rizer would be sized by
+  // the untransformed body.  The property was never "this exact identifier" —
+  // it was "one reference for every facing in the bank" — so assert that.
+  ok(/const ref = BANK\.success_down\.bboxes\[0\]\[0\]\[3\]/.test(src),
+     'ONE shared scale across all eight sheets of whichever bank is drawn · no facing is bigger, and S2 is not sized by S1');
   ok(/foot - bb\[1\]\) \* scale/.test(src),'planted on the measured body sole, not the bbox bottom');
   ok(/row = i >> 2, col = i & 3/.test(src),'frame index walks the sheet row-major · these are not row=direction banks');
 }
 
+
+H('★★★ v0.95.885 · THE S2 CAPTURE SHEETS');
+{
+  const S2=C.CAPTURE_ART_S2, S1=C.CAPTURE_ART;
+  const ROOT2='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
+  ok(!!S2,'CAPTURE_ART_S2 exists');
+  ok(Object.keys(S2).length===8,'eight S2 banks · success + fail, one per facing');
+  ok(Object.keys(S2).sort().join()===Object.keys(S1).sort().join(),
+     'the S2 bank has EXACTLY the same keys as S1 · the form cannot have a facing the other lacks');
+  ok(Object.values(S2).every(b=>fs.existsSync(ROOT2+decodeURIComponent(b.src))),'all eight PNGs on disk');
+  ok(Object.values(S2).every(b=>/-s2-/.test(b.src)),'every src is an s2 file · no S1 sheet snuck into the S2 bank');
+  ok(Object.values(S2).every(b=>b.bboxes.length===4&&b.bboxes.every(r=>r.length===4)),'4x4 · 16 frames each');
+  ok(Object.values(S2).every(b=>b.feet.length===4&&b.feet.every(r=>r.length===4)),'and a foot baseline per frame');
+  let dupes=0;
+  for(const b of Object.values(S2)){
+    const seen=new Set(b.bboxes.flat().map(x=>JSON.stringify(x)));
+    if(seen.size!==16) dupes++;
+  }
+  ok(dupes===0,'no sheet has two frames measuring identical · the neighbour-bleed trap is clear on all eight');
+  let footInside=true, footAboveBottom=false;
+  for(const b of Object.values(S2)){
+    b.feet.forEach((row,r)=>row.forEach((ft,c)=>{
+      const bb=b.bboxes[r][c];
+      if(ft<bb[1]||ft>bb[1]+bb[3]+2) footInside=false;
+      if(ft<bb[1]+bb[3]) footAboveBottom=true;
+    }));
+  }
+  ok(footInside,'every foot baseline lies inside its own bbox');
+  ok(footAboveBottom,'and somewhere the bbox extends BELOW the sole · proof the rays are drawn but not stood on');
+}
+
+H('ONE SELECTOR, AND IT PICKS THE RIGHT BODY');
+{
+  C.player.cosmeticSkin=null;
+  ok(C.captureArtBank()===C.CAPTURE_ART,'default Rizer draws the S1 sheets');
+  C.player.cosmeticSkin='power_upgrade';
+  ok(C.captureArtBank()===C.CAPTURE_ART_S2,'S2 (power_upgrade) draws the S2 sheets · same flag the HUD and shield cap read');
+  C.player.cosmeticSkin=null;
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(/const ref = BANK\.success_down/.test(src2),
+     'the SCALE reference comes from the bank being drawn · reading it from CAPTURE_ART while drawing S2 would have sized the transformed Rizer by the untransformed body');
+  ok(!/const A = CAPTURE_ART\[/.test(src2),'and no direct CAPTURE_ART lookup survives in the draw · one path, two banks');
+}
 console.log(f?('\n'+f+' failure(s)'):'\nALL CHECKS PASS');
 process.exit(0);

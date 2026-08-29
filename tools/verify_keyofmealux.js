@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,KEY_OF_MEALUX,MEALUX_CANON,PRISMSHARD_REGISTRY,prismshard,relicClass,RELIC_CLASS,INVENTORY_META,spawnWildZyrex,WILD_ZYREX,seedMalezorWild,ZYRAXIS_DISTRICTS,_mealuxTileFor,MEALUX_DISTRICTS,MEALUX_FORBIDDEN_TILES,worldDistrictAt,isWorldBorderTile,walkable,WORLD_PROPS,NPCS,requiredBondForTier,makeZyrexFollower,player,game};')();}
+try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,KEY_OF_MEALUX,MEALUX_CANON,PRISMSHARD_REGISTRY,prismshard,relicClass,RELIC_CLASS,INVENTORY_META,spawnWildZyrex,WILD_ZYREX,gemlordCavesOpen,tryEnterGemlordCave,GEMLORD_CAVE_INTERIORS,addZyrexToRoster,WORLD_PROPS,rizerBondTotal,seedMalezorWild,ZYRAXIS_DISTRICTS,_mealuxTileFor,MEALUX_DISTRICTS,MEALUX_FORBIDDEN_TILES,worldDistrictAt,isWorldBorderTile,walkable,WORLD_PROPS,NPCS,requiredBondForTier,makeZyrexFollower,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -173,6 +173,67 @@ H('10 · ★★★ THE SAME TILE EVERY TIME · a secret that moves is a bug');
   const idem=C.WILD_ZYREX.filter(w=>w._malezorWild==='MEALUX').length;
   C.seedMalezorWild(); C.seedMalezorWild();
   ok(C.WILD_ZYREX.filter(w=>w._malezorWild==='MEALUX').length===idem,'★ re-seeding does not duplicate them');
+}
+
+H('11 · ★★★ THE KEY OPENS THE GEMLORD DOORS');
+{
+  const p=C.player;
+  p.party=[]; p.pcZyrex=[]; p.sanctuary=[]; p.gemlordCavesOpen=false;
+  ok(C.gemlordCavesOpen()===false,'★ with no Key, every Gemlord door is shut');
+  const before=C.game.scene;
+  C.game.scene='overworld';
+  ok(C.tryEnterGemlordCave('rakoron_cave','Rakoron')===false,'★★ and the door REFUSES · it does not know you');
+  ok(C.game.scene==='overworld','★ nothing moved · a refusal leaves you outside, not half-inside');
+}
+
+H('12 · ★★ ONE CATCH, ALL TEN DOORS');
+{
+  const p=C.player;
+  p.party=[]; p.pcZyrex=[]; p.sanctuary=[]; p.gemlordCavesOpen=false;
+  p.bondLedger={zyrex:1665,rizer:1665,_migrated:true};        // enough for a T8
+  const z={speciesId:'key_of_mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k1'};
+  C.addZyrexToRoster(z);
+  ok(p.gemlordCavesOpen===true,'★★★ catching ONE grants access · the flag is set at the roster door');
+  const doors=C.WORLD_PROPS.filter(x=>/_cave$/.test(x.id||'')&&typeof x.onSquare==='function');
+  ok(doors.length===10,'★★ all TEN Gemlord doors carry the gate ('+doors.length+') · not one hand-written entry among them');
+  C.game.scene='overworld';
+  ok(C.tryEnterGemlordCave('rakoron_cave','Rakoron')===true,'★★ Rakoron\'s cave opens');
+  ok(C.game.scene==='interior_cave','★ and you are actually inside');
+  C.game.scene='overworld';
+  ok(C.tryEnterGemlordCave('azurel_cave','Azurel')===false,'★ a door with no carved sanctum yet does not teleport you');
+  ok(C.game.scene==='overworld','…and leaves you standing outside it');
+  ok(Object.keys(C.GEMLORD_CAVE_INTERIORS).length===1,'★★ one interior exists today · the other nine share the SAME gate and open the day they are carved');
+}
+
+H('13 · ★★★ ACCESS SURVIVES GIVING THE KEY AWAY');
+{
+  const p=C.player;
+  p.party=[]; p.pcZyrex=[]; p.sanctuary=[]; p.gemlordCavesOpen=false;
+  p.bondLedger={zyrex:1665,rizer:1665,_migrated:true};
+  const z={speciesId:'key_of_mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k2'};
+  C.addZyrexToRoster(z);
+  const idx=(p.party||[]).findIndex(q=>q&&q.speciesId==='key_of_mealux');
+  if (idx>=0 && typeof donateZyrexToSanctuary==='function') donateZyrexToSanctuary(idx);
+  else { p.party=[]; p.sanctuary=[{speciesId:'key_of_mealux',name:'Key of Mealux',level:80,tier:8}]; }
+  ok(!(p.party||[]).some(q=>q&&q.speciesId==='key_of_mealux'),'the Key is out of the party');
+  ok(C.gemlordCavesOpen()===true,
+     '★★★ and the doors STILL know you · access is granted on the CATCH, not derived from what you currently hold');
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(/player\.gemlordCavesOpen = true/.test(src2),'it is a flag, banked at the moment of catching');
+  ok(/without the doors forgetting him/.test(src2),
+     '★★ and the reason is written down · deriving it from the party would have punished the one act the sanctuary exists to reward');
+}
+
+H('14 · ★ GRANTED BEFORE THE BOND GATE CAN DIVERT IT');
+{
+  const p=C.player;
+  p.party=[]; p.pcZyrex=[]; p.sanctuary=[]; p.gemlordCavesOpen=false;
+  p.bondLedger={zyrex:0,rizer:0,_migrated:true};              // far below a T8 gate
+  const z={speciesId:'key_of_mealux',name:'Key of Mealux',level:80,hp:400,maxHp:400,tier:8,uid:'k3'};
+  const res=C.addZyrexToRoster(z);
+  ok(res.location==='pc','★ a low-bond Rizer has the Key bounced to the PC, as the tier gate demands');
+  ok(p.gemlordCavesOpen===true,
+     '★★★ but the CAVES STILL OPENED · the Creator said CATCHING grants it, and a Key diverted to storage was still caught');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

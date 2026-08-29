@@ -41335,6 +41335,85 @@ const MALEZOR_COMMON_FLOCKS = [
   { id:'aetherwing', at:[ 44,  22], r:6, count:2, temperament:'Skittish', note:'the radio tower road' },
   { id:'aetherwing', at:[ 20, 152], r:6, count:3, temperament:'Skittish', note:'the southern fields' },
 ];
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.882 · THE TEN KEYS · Creator: "one mealux spawns in each district.
+// 10 on the map."
+//
+// That is a RULE, not ten coordinates — so this generates them, and the whole
+// design problem is that a hidden thing must be BOTH hidden and STABLE.
+//
+// ★★ DETERMINISTIC BY DISTRICT.  A random tile would move every boot and every
+// LOAD: a player who found one, saved, and came back would find bare grass, and
+// the rarest creature in the game would read as a bug.  So the search is driven
+// by a seeded PRNG keyed off the district id — the same district always yields
+// the same tile, on every machine, forever, without a coordinate being written
+// down anywhere ([[aov-no-easter-egg-spoilers]] · the game must never be able
+// to reveal WHERE, and a table I could print is a table someone could read).
+//
+// ★ HIDDEN MEANS REMOTE, MEASURED.  Candidates are scored by distance from the
+// nearest building, NPC and other wild, and the most remote survivor wins.  A
+// Key of Mealux should be found by someone who walked somewhere nobody needed
+// to go — not parked behind the potion shop.
+function _mealuxRng(seedStr){
+  // xmur3 + mulberry32 · small, stable, and identical across engines
+  let h = 1779033703 ^ seedStr.length;
+  for (let i = 0; i < seedStr.length; i++){
+    h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  let a = (h ^= h >>> 16) >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+// the hand-placed wilds, as a tile set · static tables only, so this is the
+// same answer on every boot
+let _mealuxForbidCache = null;
+function MEALUX_FORBIDDEN_TILES(){
+  if (_mealuxForbidCache) return _mealuxForbidCache;
+  const s = new Set();
+  try { for (const F of MALEZOR_WILD_FIXED)    s.add(`${F.at[0]},${F.at[1]}`); } catch(_){}
+  try { for (const F of WILD_PLACEMENT_LIVE)   s.add(`${F.at[0]},${F.at[1]}`); } catch(_){}
+  _mealuxForbidCache = s;
+  return s;
+}
+function _mealuxTileFor(d){
+  const rnd = _mealuxRng('mealux:' + d.id);
+  let best = null, bestScore = -1;
+  for (let i = 0; i < 900; i++){
+    // sample the district's own ellipse · stay off the rim so it is inside, not on a border
+    const a = rnd() * Math.PI * 2, r = 0.35 + rnd() * 0.55;
+    const x = Math.round(d.cx + Math.cos(a) * d.rx * r);
+    const y = Math.round(d.cy + Math.sin(a) * d.ry * r);
+    if (typeof worldDistrictAt === 'function' && worldDistrictAt(x, y) !== d.id) continue;
+    if (typeof isWorldBorderTile === 'function' && isWorldBorderTile(x, y)) continue;
+    if (typeof _propBlocked !== 'undefined' && _propBlocked.has(`${x},${y}`)) continue;
+    if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === x && n.tileY === y)) continue;
+    // ★★ READS ONLY STATIC STATE.  The first draft also skipped tiles held by
+    // live WILD_ZYREX — which quietly destroyed the determinism it was built
+    // for: the Aetherwing flocks scatter with Math.random(), so a flock landing
+    // near a candidate would push the Key somewhere else THAT BOOT ONLY.  A
+    // hidden thing that moves between sessions reads as a bug, not a secret.
+    // So the search consults the PINNED TABLES (static) and never the live
+    // array, and it runs BEFORE anything random is placed.
+    if (MEALUX_FORBIDDEN_TILES().has(`${x},${y}`)) continue;
+    // score = how far from the nearest thing anybody built or placed
+    let near = 1e9;
+    for (const p of WORLD_PROPS){
+      if (p.tileX == null || (p.tileW || 1) < 3) continue;      // only real buildings
+      const dd = Math.max(Math.abs(p.tileX - x), Math.abs(p.tileY - y));
+      if (dd < near) near = dd;
+      if (near < 12) break;                                     // already too close · abandon early
+    }
+    if (near < 12) continue;                                    // ★ never within 12 tiles of a building
+    if (near > bestScore){ bestScore = near; best = [x, y]; }
+    if (bestScore > 60) break;                                  // remote enough · stop searching
+  }
+  return best ? { at: best, remoteness: bestScore } : null;
+}
 const _malezorWildPlaced = [];
 function _wildTileNear(cx, cy, r){
   for (let tries = 0; tries < 400; tries++){
@@ -41377,6 +41456,23 @@ function seedMalezorWild(){
   // but a FIXED entry is the Creator placing ONE individual by name and tile,
   // which is a more specific instruction than the blanket removal.  The bulk
   // scatter stays off; the pinned individuals stand.
+  // ★★★ v0.95.882 · THE TEN KEYS OF MEALUX · one per district, ten on the map.
+  // ★ PLACED FIRST, deliberately.  The instinct is to place the rarest thing
+  // last so it can dodge everything else — but the flocks scatter randomly, so
+  // a search that ran after them would give a different answer every session
+  // and the Key would MOVE between saves.  Running first makes its tile a
+  // function of the static world alone; everything placed afterwards already
+  // refuses occupied tiles, so nothing can land on top of it either way.
+  for (const d of ZYRAXIS_DISTRICTS){
+    if (!SPECIES.key_of_mealux) break;
+    const spot = _mealuxTileFor(d);
+    if (!spot) continue;                       // no legal remote tile here · skip, never force
+    const w = spawnWildZyrex('key_of_mealux', spot.at[0], spot.at[1], { temperament: 'Calm' });
+    if (w){
+      w._malezorWild = 'MEALUX'; w._mealuxDistrict = d.id; w._remoteness = spot.remoteness;
+      _malezorWildPlaced.push(w);
+    }
+  }
   const zones = Object.keys(MALEZOR_WILD_ZONES);
   if (WILD_ZYREX_ENABLED) MALEZOR_WILD_ROSTER.forEach((id, i) => {
     const sp = SPECIES[id];

@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,KEY_OF_MEALUX,MEALUX_CANON,PRISMSHARD_REGISTRY,prismshard,relicClass,RELIC_CLASS,INVENTORY_META,spawnWildZyrex,WILD_ZYREX,requiredBondForTier,makeZyrexFollower,player,game};')();}
+try{new Function(src+';globalThis.__C={SPECIES,SUMMONABLE_SPRITES,KEY_OF_MEALUX,MEALUX_CANON,PRISMSHARD_REGISTRY,prismshard,relicClass,RELIC_CLASS,INVENTORY_META,spawnWildZyrex,WILD_ZYREX,seedMalezorWild,ZYRAXIS_DISTRICTS,_mealuxTileFor,MEALUX_FORBIDDEN_TILES,worldDistrictAt,isWorldBorderTile,walkable,WORLD_PROPS,NPCS,requiredBondForTier,makeZyrexFollower,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -106,6 +106,60 @@ H('7 · ★★ THE KEY LINE IS RECORDED · one Anciuxor, few Mealux');
   ok(K.opens===null,'★ what a lesser key OPENS is left open · the Key of Anciuxor opens the Four Realms; this one is unstated');
   ok(C.prismshard(16).livingTrace==='mealux','★ and XVI still records only what its remnants BECAME');
   ok(C.MEALUX_CANON.isPrismshard===false,'★★ the species is still not the relic · descent, not identity');
+}
+
+H('8 · ★★★ TEN ON THE MAP · one per district');
+{
+  C.seedMalezorWild();
+  // ★ the SEEDED ten only.  §6 spawns a Key by hand at (60,60) to prove the
+  // wild laws apply to it; that individual is a test fixture, not one of the
+  // ten on the map, and counting it made this read 11 with a NaN remoteness.
+  // Measure the population you mean.
+  const M=C.WILD_ZYREX.filter(w=>w.speciesId==='key_of_mealux'&&w._malezorWild==='MEALUX');
+  ok(M.length===10,'★★★ '+M.length+' Keys of Mealux on the map · one per district, as ruled');
+  ok(new Set(M.map(w=>w._mealuxDistrict)).size===10,'★★ ten DISTINCT districts · none doubled up, none skipped');
+  ok(M.every(w=>C.worldDistrictAt(w.tileX,w.tileY)===w._mealuxDistrict),
+     '★★ and every one actually STANDS in the district it was assigned · the label is not a promise, it is measured');
+  ok(M.every(w=>C.walkable(w.tileX,w.tileY)),'★ all reachable · an unreachable secret is not a secret');
+  ok(M.every(w=>!C.isWorldBorderTile(w.tileX,w.tileY)),'★ none on a border tile');
+  ok(M.every(w=>w.level===80),'★ all Lv 80 · tier × 10, no exception for the rarest thing in the game');
+  const tiles=new Set(M.map(w=>w.tileX+','+w.tileY));
+  ok(tiles.size===10,'no two share a tile');
+}
+
+H('9 · ★★ HIDDEN MEANS REMOTE, AND IT IS MEASURED');
+{
+  const M=C.WILD_ZYREX.filter(w=>w.speciesId==='key_of_mealux'&&w._malezorWild==='MEALUX');
+  ok(M.every(w=>w._remoteness>=12),'★★ every Key is at least 12 tiles from the nearest building · min was '+Math.min(...M.map(w=>w._remoteness)));
+  // independently recompute distance-to-building rather than trusting the stored score
+  let worst=1e9;
+  for(const w of M){
+    for(const p of C.WORLD_PROPS){
+      if(p.tileX==null||(p.tileW||1)<3) continue;
+      const d=Math.max(Math.abs(p.tileX-w.tileX),Math.abs(p.tileY-w.tileY));
+      if(d<worst) worst=d;
+    }
+  }
+  ok(worst>=12,'★★★ re-measured from scratch: nearest Key-to-building distance is '+worst+' tiles · not parked behind the potion shop');
+  ok(M.every(w=>!C.NPCS.some(n=>n&&n.scene==='overworld'&&n.tileX===w.tileX&&n.tileY===w.tileY)),'none shares an NPC tile');
+}
+
+H('10 · ★★★ THE SAME TILE EVERY TIME · a secret that moves is a bug');
+{
+  const D=C.ZYRAXIS_DISTRICTS;
+  const a=D.map(d=>{const s=C._mealuxTileFor(d);return s?s.at.join(','):null;});
+  const b=D.map(d=>{const s=C._mealuxTileFor(d);return s?s.at.join(','):null;});
+  ok(JSON.stringify(a)===JSON.stringify(b),'★★★ the search is DETERMINISTIC · re-running it returns the identical ten tiles');
+  const live=D.map(d=>{const w=C.WILD_ZYREX.find(x=>x._malezorWild==='MEALUX'&&x._mealuxDistrict===d.id);return w?w.tileX+','+w.tileY:null;});
+  ok(JSON.stringify(a)===JSON.stringify(live),'★★ and the live spawns match that answer exactly');
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(!/WILD_ZYREX\.some[\s\S]{0,80}continue;\s*\n\s*\/\/ score = how far/.test(src2),
+     '★★★ the search no longer reads the LIVE wild array · it did, and the random Aetherwing flocks were silently moving the Keys between sessions');
+  ok(/MEALUX_FORBIDDEN_TILES/.test(src2),'★ it consults the STATIC pin tables instead');
+  ok(/PLACED FIRST, deliberately/.test(src2),'★★ and it runs BEFORE anything random is placed · the instinct to place the rarest thing LAST is what broke it');
+  const idem=C.WILD_ZYREX.filter(w=>w._malezorWild==='MEALUX').length;
+  C.seedMalezorWild(); C.seedMalezorWild();
+  ok(C.WILD_ZYREX.filter(w=>w._malezorWild==='MEALUX').length===idem,'★ re-seeding does not duplicate them');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

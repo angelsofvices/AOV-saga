@@ -1077,6 +1077,16 @@
       <!-- v0.95.352 · Sprite playtest · give every obtainable Zyrex to party (bonded or not) -->
       <div class="row">
         <button id="devSummonAllZyrex">★ SUMMON ALL OBTAINABLE ZYREX (sprite playtest)</button>
+      </div>
+      <!-- ★★★ v0.95.895 · SPAWN TO <ZYREX> · Creator: "put a spawn to ____
+           (zyrex name) for all new zyrex we place.  only one spawn per nearest
+           copy of species.  this is for quick companion checks.  include all
+           known zyrex here.  spawn to nearest copy of the species button."
+           Built at panel-open time from the LIVE world, so a Zyrex placed
+           tomorrow appears here with no edit — the list IS the placement. -->
+      <div class="row" style="color:#ffd66b;font-weight:bold;">▸ SPAWN TO NEAREST ZYREX</div>
+      <div class="row" id="devSpawnToList" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
+      <div class="row">
         <button id="devSpawnWildOrbs">◉ SPAWN WILD ZYREX ORBS (placeholder art test)</button>
         <button id="devClearWildOrbs">◌ CLEAR WILD ORBS</button>
       </div>
@@ -13899,6 +13909,19 @@ function walkable(x, y){
   // v0.91.1 · fae tiles block until collected
   for (const f of _fae){
     if (!f.collected && f.x === x && f.y === y) return false;
+  }
+  // ★★★ v0.95.895 · EVERY ZYREX HAS A BODY.  Creator: "give collision to all
+  // zyrex."  Wild Zyrex were the last actors in the world you could walk
+  // THROUGH — an Apexaur the size of a house that Rizer strolled straight
+  // past.  Summoned followers already blocked (they are NPCS); the wilds sat
+  // in their own array and nothing consulted it.
+  //
+  // ★ The interaction that MATTERS still works: tryRecruitWildZyrex fires on
+  // the tile you are FACING, not the tile you are standing on, so blocking the
+  // body is exactly how you walk up to one and press X.  A creature you can
+  // stand inside is scenery; a creature that stops you is present.
+  for (const w of WILD_ZYREX){
+    if (!w._gone && w.tileX === x && w.tileY === y) return false;
   }
   // Overworld NPCs
   for (const n of NPCS){
@@ -28450,6 +28473,9 @@ addEventListener('keydown', e => {
         p.style.display = opening ? 'block' : 'none';
         game.devPanelKeyboard = opening;                 // enable keyboard nav
         devPanelSel = 0;
+        // ★ v0.95.895 · rebuild the SPAWN TO list every open · it is sorted by
+        // distance from where the dev is STANDING, so it has to be current
+        if (opening){ try { window.buildDevSpawnToList && window.buildDevSpawnToList(); } catch(_){} }
         playSFX(opening ? 'menuOpen' : 'menuClose');
       }
       _lastTouchpadTime = 0;
@@ -29366,6 +29392,11 @@ addEventListener('keydown', e => {
         p.style.display = opening ? 'block' : 'none';
         game.devPanelKeyboard = opening;
         devPanelSel = 0;
+        // ★ v0.95.895 · SECOND open site (L2+touchpad chord) · it rebuilds too.
+        // Two doors into the same panel is already a drift risk; a list wired
+        // to only one of them would be silently stale for whoever used the
+        // other, which is the worst kind of dev tool — one that lies quietly.
+        if (opening){ try { window.buildDevSpawnToList && window.buildDevSpawnToList(); } catch(_){} }
         try { playSFX(opening ? 'menuOpen' : 'menuClose'); } catch(_){}
       }
       _lastTouchpadTime = 0;
@@ -41824,6 +41855,13 @@ const WILD_PLACEMENT_LIVE = [
   { id: 'skybeam', at: [488, 312], dist: 'veridan', habitat: 'wild_fringe', temperament: 'Wary' },
   { id: 'celestryx', at: [254, 545], dist: 'vorashil', habitat: 'highland', temperament: 'Territorial' },
   { id: 'celestryx', at: [223, 546], dist: 'vorashil', habitat: 'cave_mouth', temperament: 'Territorial' },
+  // ★★ v0.95.895 · Creator: "put 2 celstryx in korthen. north and south."
+  // Korathen's ellipse is centred (895,655) with ry 115, so NORTH and SOUTH
+  // are derived from the district's own geometry rather than eyeballed —
+  // roughly two thirds out along each pole, which keeps them inside the land
+  // and well clear of the rim.  Tiles verified walkable and in-district.
+  { id: 'celestryx', at: [895, 578], dist: 'korathen', habitat: 'highland',   temperament: 'Territorial' },
+  { id: 'celestryx', at: [895, 732], dist: 'korathen', habitat: 'wild_fringe', temperament: 'Territorial' },
 ];
 // ★★ v0.95.873 · THE COMMON SPECIES · Creator: "put more aetherwing in malezor
 // for me to catch.  they are some of the most common type.  like pokemon
@@ -46140,6 +46178,77 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       showToast(`◌ DEV · cleared ${n} wild orbs`, 2000);
     });
   }
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ v0.95.895 · SPAWN TO NEAREST <SPECIES>
+  //
+  // ★ ONE BUTTON PER SPECIES, not per individual.  Creator: "only one spawn
+  // per nearest copy of species."  Twenty-two Aetherwing must not become
+  // twenty-two buttons — the question a dev asks is "show me A Skybeam", and
+  // the answer is always the closest one.
+  //
+  // ★★ THE LIST IS BUILT FROM THE LIVE WORLD at open time, so every Zyrex
+  // placed from today onward appears here with no second edit.  A dev list
+  // that has to be maintained alongside the thing it lists is a list that goes
+  // stale the first busy week.
+  function buildDevSpawnToList(){
+    const host = document.getElementById('devSpawnToList');
+    if (!host) return 0;
+    // group every live wild by species, keeping the nearest of each
+    const near = {};
+    for (const w of (typeof WILD_ZYREX !== 'undefined' ? WILD_ZYREX : [])){
+      if (!w || w._gone) continue;
+      const d = Math.hypot(w.tileX - player.x, w.tileY - player.y);
+      if (!near[w.speciesId] || d < near[w.speciesId].d) near[w.speciesId] = { w, d };
+    }
+    const ids = Object.keys(near).sort((a, b) =>
+      ((SPECIES[a] && SPECIES[a].name) || a).localeCompare((SPECIES[b] && SPECIES[b].name) || b));
+    host.innerHTML = ids.length ? '' : '<span style="color:#8a8a8a;">no wild Zyrex in the world yet</span>';
+    for (const id of ids){
+      const { w, d } = near[id];
+      const sp = SPECIES[id] || {};
+      const b = document.createElement('button');
+      b.textContent = `→ ${(sp.name || id).toUpperCase()}  T${sp.tier || '?'} (${Math.round(d)})`;
+      b.title = `nearest ${sp.name || id} · (${w.tileX}, ${w.tileY}) · ${Math.round(d)} tiles`;
+      b.addEventListener('click', () => devSpawnToSpecies(id));
+      host.appendChild(b);
+    }
+    return ids.length;
+  }
+  // ★ lands you BESIDE it, never on it — v0.95.895 gave every Zyrex a body, so
+  // its own tile is no longer standable, and warping onto one would wedge the
+  // player inside a creature.  Tries the four neighbours, then widens.
+  function devSpawnToSpecies(id){
+    let best = null, bestD = Infinity;
+    for (const w of (typeof WILD_ZYREX !== 'undefined' ? WILD_ZYREX : [])){
+      if (!w || w._gone || w.speciesId !== id) continue;
+      const d = Math.hypot(w.tileX - player.x, w.tileY - player.y);
+      if (d < bestD){ bestD = d; best = w; }
+    }
+    if (!best){ showToast('◈ DEV · no live ' + id + ' in the world', 2200); return false; }
+    let spot = null;
+    for (let r = 1; r <= 4 && !spot; r++){
+      for (let dy = -r; dy <= r && !spot; dy++){
+        for (let dx = -r; dx <= r; dx++){
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = best.tileX + dx, y = best.tileY + dy;
+          if (typeof walkable === 'function' && walkable(x, y)){ spot = [x, y]; break; }
+        }
+      }
+    }
+    if (!spot){ showToast('◈ DEV · nowhere to stand beside that one', 2400); return false; }
+    game.scene = 'overworld';
+    player.x = spot[0]; player.y = spot[1];
+    // face it, so a single X starts the bond check the dev came to test
+    const dx = best.tileX - player.x, dy = best.tileY - player.y;
+    player.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    player.moving = false; player.moveCd = 200;
+    try { snapCameraToPlayer(); } catch(_){}
+    const sp = SPECIES[id] || {};
+    showToast(`◈ DEV · warped to ${(sp.name || id).toUpperCase()} · (${best.tileX}, ${best.tileY})`, 2600);
+    try { playSFX('confirm'); } catch(_){}
+    return true;
+  }
+  try { window.buildDevSpawnToList = buildDevSpawnToList; window.devSpawnToSpecies = devSpawnToSpecies; } catch(_){}
   const summonAllBtn = document.getElementById('devSummonAllZyrex');
   if (summonAllBtn){
     summonAllBtn.addEventListener('click', () => {

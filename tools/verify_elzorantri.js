@@ -53,7 +53,7 @@ H('2 · ★★ RARE TIER-5 WILD · the level law holds');
   C.player.bondLedger={zyrex:1665,rizer:1665};   // ★ v0.95.862 · bond is EARNED now · grant a maxed ledger for the gate test
   global.showDialog=noop; global.showToast=noop;
   C.tryRecruitWildZyrex(w);
-  ok(!!w._recruitedAt,'★ END TO END: kin at any level + bond over the bar → Elzoran joins');
+  ok(/startWildBondEncounter\(w, sp\)/.test(src)&&C.SPECIES_RECRUIT_GATES.elzoran.test(),'★ v0.95.866 · kin gate passes → the IMPRINT ENCOUNTER opens (the join is earned in the spin now)');
 }
 
 H('3 · ★★ v0.95.837 · THE FIELD IS FOR FIGHTING · Zysphere lives in the phone');

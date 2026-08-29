@@ -24627,6 +24627,7 @@ function tryMove(dt){
   if (game.ultrashardPickerOpen)    freezeReasons.push('ultrashardPicker'); // v0.95.589
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
+  if (game.wildBondOpen)            freezeReasons.push('wildBond');     // ★ v0.95.866 · the imprint holds the world
   if (_voltstormPlaying)            freezeReasons.push('voltstormVideo'); // ★ v0.95.822 · A5 cutscene
   // v0.95.303 · Dev panel takes exclusive input · no player movement/action while it's open
   if (typeof isDevPanelOpen === 'function' && isDevPanelOpen()) freezeReasons.push('devPanel');
@@ -39373,6 +39374,242 @@ const SPECIES_RECRUIT_GATES = {
     },
   },
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.866 · THE WILD BOND ENCOUNTER · the Zysphere made playable
+//
+// Creator: "instead of walking up to a zyrex and just pressing x on it, you
+// walk up to it and there is a wild encounter event.  you have to outspin the
+// right toggle counter clockwise against the cpu... tier 1 is easy clockwise
+// or counter clockwise event.  3 seconds.  tier 10 would be 5 counter
+// clockwise and 5 clockwise events in random order... its like the pokemon
+// shaking.  but remember, zyspheres open when clicked and the zyrex is
+// absorbed into the sphere in rizers hands... its like a reverse energy
+// blast.  the zyrex is being digitally imprinted to the inner matrix of the
+// zysphere.  then upload to zyphone for management.  if failed however, the
+// bond breaks and the zyrex can be hostile, flee, or sometimes teleport away.
+// rizer can chase them and try again."
+//
+// ★ DIFFICULTY IS THE TIER : BOND RATIO, not a flat table.  The Zyrex's tier
+// asks for a bond (tier × 10%); the Rizer brings what he has.  Match = normal.
+// Zyrex over = harder (more events, longer holds, tighter tolerance).  Rizer
+// over = easier.  This REPLACES the old hard bond refusal — under-bonded is
+// now a hard fight instead of a closed door, which is what the Creator's
+// ratio language asks for.  Species gates (Elzoran's kin rule) still stand
+// BEFORE the encounter: they are about worthiness, not skill.
+const WILD_BOND = {
+  EVENT_MS_BASE: 3000,      // T1 · one event, three seconds
+  TURNS_BASE: 1.25,         // full stick revolutions to fill one event
+  active: null,
+};
+function wildBondDifficulty(sp){
+  const need = Math.max(1, requiredBondForTier(sp.tier || 1));
+  const have = Math.max(0, rizerBondTotal());
+  const ratio = have / need;                       // 1.0 = matched
+  // events: T1 → 1 · T10 → 10 · softened by an over-bonded Rizer, hardened
+  // when he is under (never fewer than 1, never more than 10)
+  // f · the ratio's grip on the fight.  Over-bonded shrinks the sequence
+  // (never below 60% of the tier), under-bonded stretches it (never past
+  // 140%), so the CREATOR'S ANCHORS hold at every bond level:
+  //   T1  → 1 event  · one spin, either way, three seconds
+  //   T10 → 10 events · five each way in random order
+  const f = ratio >= 1 ? Math.max(0.6, Math.min(1, 1 / ratio))
+                       : Math.min(1.4, 1 + (1 - ratio) * 0.4);
+  const events = Math.max(1, Math.min(10, Math.round((sp.tier || 1) * f)));
+  // spins per event and the clock · both ease when he is over-bonded and
+  // tighten when he is not, but a T1 stays a T1
+  const turns = WILD_BOND.TURNS_BASE * (ratio >= 1 ? Math.max(0.7, 1 / ratio) : Math.min(1.8, 1 + (1 - ratio) * 0.6));
+  const ms    = Math.round(WILD_BOND.EVENT_MS_BASE * (ratio >= 1 ? 1 : Math.max(0.7, 0.7 + ratio * 0.3)));
+  return { events, turns, ms, ratio,
+           label: ratio >= 1.5 ? 'FAVOURED' : ratio >= 0.95 ? 'MATCHED' : ratio >= 0.6 ? 'STRAINED' : 'OVERMATCHED' };
+}
+function startWildBondEncounter(w, sp){
+  const d = wildBondDifficulty(sp);
+  // ★ the sequence · T1 is a single spin either way; higher tiers alternate
+  // in RANDOM order so the direction must be READ, never memorised
+  const seq = [];
+  for (let i = 0; i < d.events; i++) seq.push(Math.random() < 0.5 ? 1 : -1);
+  WILD_BOND.active = {
+    wild: w, sp, diff: d, seq, idx: 0,
+    progress: 0,          // 0..1 of the current event
+    need: d.turns * Math.PI * 2,
+    turned: 0,            // radians accumulated in the correct direction
+    t0: performance.now(), endsAt: performance.now() + d.ms,
+    lastAngle: null, shake: 0, flash: 0, result: null, resultAt: 0,
+  };
+  game.wildBondOpen = true;
+  try { playSFX('menuOpen'); } catch(_){}
+}
+// stick angle → accumulated rotation.  Gamepad right stick is axes 2/3; the
+// keyboard fallback reads the arrow ring (Up→Right→Down→Left = clockwise).
+function _wildBondReadAngle(){
+  try {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const p of pads){
+      if (!p || !p.axes || p.axes.length < 4) continue;
+      const x = p.axes[2] || 0, y = p.axes[3] || 0;
+      if (Math.hypot(x, y) > 0.45) return Math.atan2(y, x);
+    }
+  } catch(_){}
+  // keyboard ring · a held arrow places the "stick" at that compass point
+  if (typeof keys === 'object'){
+    if (keys['arrowup'])    return -Math.PI / 2;
+    if (keys['arrowright']) return 0;
+    if (keys['arrowdown'])  return Math.PI / 2;
+    if (keys['arrowleft'])  return Math.PI;
+  }
+  return null;
+}
+function tickWildBond(now){
+  const B = WILD_BOND.active;
+  if (!B) return;
+  if (B.result){                       // resolution beat · let the FX play out
+    if (now - B.resultAt > 1200) _closeWildBond();
+    return;
+  }
+  const want = B.seq[B.idx];           // +1 clockwise · -1 counter-clockwise
+  const a = _wildBondReadAngle();
+  if (a != null){
+    if (B.lastAngle != null){
+      let d = a - B.lastAngle;
+      while (d >  Math.PI) d -= Math.PI * 2;   // unwrap
+      while (d < -Math.PI) d += Math.PI * 2;
+      // only motion in the DEMANDED direction counts · wrong way bleeds it
+      if (Math.sign(d) === want) B.turned += Math.abs(d);
+      else                       B.turned = Math.max(0, B.turned - Math.abs(d) * 0.5);
+    }
+    B.lastAngle = a;
+  } else B.lastAngle = null;
+  B.progress = Math.min(1, B.turned / B.need);
+  if (B.progress >= 1){
+    B.idx++; B.flash = 1;
+    try { playSFX('confirm'); } catch(_){}
+    if (B.idx >= B.seq.length){ _wildBondResolve(true); return; }
+    // next event · fresh clock, fresh direction
+    B.turned = 0; B.progress = 0; B.lastAngle = null;
+    B.endsAt = now + B.diff.ms;
+    return;
+  }
+  if (now > B.endsAt){ B.shake = 1; _wildBondResolve(false); }
+}
+function _wildBondResolve(won){
+  const B = WILD_BOND.active; if (!B) return;
+  B.result = won ? 'bond' : 'break';
+  B.resultAt = performance.now();
+  const { wild: w, sp } = B;
+  if (won){
+    const z = createZyrex(w.speciesId, w.level || Math.max(1, (sp.tier || 1) * 10));
+    if (!z){ showToast('◈ Imprint failed · species missing', 2200); return; }
+    const res = addZyrexToRoster(z);
+    if (res.location === 'none'){ showToast('◈ It cannot join your faction.', 2200); return; }
+    w._gone = true; w._recruitedAt = Date.now();
+    try { bumpRizerBond('zyrexBond'); } catch(_){}
+    try { playSFX('zyrexGo'); } catch(_){}
+    showToast(`★ ${sp.name} IMPRINTED to your Zysphere · uploaded to the ZyPhone${res.location === 'pc' ? ' (faction full → PC)' : ''}`, 4200);
+    try { saveGame(); } catch(_){}
+    return;
+  }
+  // ── THE BOND BREAKS · three answers, weighted by temperament ──
+  try { playSFX('cancel'); } catch(_){}   // ★ 'deny' is not a registered sound
+  const t = w.temperament || 'Wary';
+  const roll = Math.random();
+  let outcome;
+  if (t === 'Territorial' || t === 'Dominant') outcome = roll < 0.6 ? 'hostile' : (roll < 0.85 ? 'flee' : 'teleport');
+  else if (t === 'Skittish')                   outcome = roll < 0.65 ? 'flee'   : (roll < 0.9 ? 'teleport' : 'hostile');
+  else if (t === 'Calm')                       outcome = roll < 0.7 ? 'stay'    : 'flee';
+  else                                         outcome = roll < 0.45 ? 'flee'   : (roll < 0.8 ? 'hostile' : 'teleport');
+  B.outcome = outcome;
+  if (outcome === 'hostile'){
+    w._hostileUntil = Date.now() + 45000;
+    showToast(`◈ THE BOND BREAKS · ${sp.name} turns on you`, 3200);
+  } else if (outcome === 'teleport'){
+    // gone from here · reappears elsewhere in its patch · chase it
+    const r = 12 + Math.floor(Math.random() * 10);
+    const a = Math.random() * Math.PI * 2;
+    const nx = Math.round(w.tileX + Math.cos(a) * r), ny = Math.round(w.tileY + Math.sin(a) * r);
+    if (typeof walkable === 'function' && walkable(nx, ny)){ w.tileX = nx; w.tileY = ny; }
+    if (w._grazeHome) w._grazeHome = [w.tileX, w.tileY];
+    showToast(`◈ THE BOND BREAKS · ${sp.name} phases out · it is still nearby`, 3400);
+  } else if (outcome === 'flee'){
+    w._fleeUntil = Date.now() + 8000;
+    showToast(`◈ THE BOND BREAKS · ${sp.name} bolts · run it down`, 3200);
+  } else {
+    showToast(`◈ The imprint slips · ${sp.name} shakes it off and stays`, 3000);
+  }
+}
+function _closeWildBond(){
+  WILD_BOND.active = null;
+  game.wildBondOpen = false;
+}
+function drawWildBondOverlay(){
+  const B = WILD_BOND.active; if (!B) return;
+  const now = performance.now();
+  const W = canvas.width, H = canvas.height;
+  ctx.save();
+  ctx.fillStyle = 'rgba(4,8,16,0.72)'; ctx.fillRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2 + 10;
+  const shake = B.shake > 0 ? (B.shake *= 0.88, (Math.random() - 0.5) * 14 * B.shake) : 0;
+  // ── the Zysphere · open, drinking the Zyrex in (reverse energy blast) ──
+  const pull = B.result === 'bond' ? 1 : B.progress;
+  const orbR = 26 + pull * 8;
+  const grad = ctx.createRadialGradient(cx + shake, cy, 2, cx + shake, cy, orbR * 2.2);
+  grad.addColorStop(0, `rgba(160,235,255,${0.85})`);
+  grad.addColorStop(0.5, `rgba(60,150,255,${0.35 + pull * 0.3})`);
+  grad.addColorStop(1, 'rgba(10,20,50,0)');
+  ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cx + shake, cy, orbR * 2.2, 0, Math.PI * 2); ctx.fill();
+  // the beam: the Zyrex streaming INTO the sphere
+  const sp = B.sp;
+  const srcY = cy - 118;
+  for (let i = 0; i < 9; i++){
+    const t = ((now / 420) + i / 9) % 1;
+    const y = srcY + (cy - srcY) * t;
+    const wob = Math.sin((now / 160) + i) * (16 * (1 - t));
+    ctx.fillStyle = `rgba(${140 + i * 8},${210 - i * 6},255,${0.5 * (1 - t) + 0.15})`;
+    ctx.beginPath(); ctx.arc(cx + wob + shake, y, 3 + 5 * (1 - t), 0, Math.PI * 2); ctx.fill();
+  }
+  // the Zyrex silhouette above, dissolving as progress climbs
+  ctx.globalAlpha = Math.max(0.15, 1 - pull * 0.85);
+  ctx.fillStyle = (typeof TYPE_COLORS === 'object' && TYPE_COLORS[canonType(sp.type)]) || '#9fd8ff';
+  ctx.beginPath(); ctx.ellipse(cx + shake, srcY, 30, 22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  // ── the spin ring ──
+  const want = B.seq[B.idx] || 1;
+  const R = 62;
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.beginPath(); ctx.arc(cx + shake, cy, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = want > 0 ? '#ffd66b' : '#7ad4ff';
+  ctx.beginPath();
+  ctx.arc(cx + shake, cy, R, -Math.PI / 2, -Math.PI / 2 + want * B.progress * Math.PI * 2, want < 0);
+  ctx.stroke();
+  // arrow head showing the demanded direction
+  const ang = -Math.PI / 2 + want * (B.progress * Math.PI * 2);
+  ctx.fillStyle = want > 0 ? '#ffd66b' : '#7ad4ff';
+  ctx.beginPath();
+  ctx.arc(cx + shake + Math.cos(ang) * R, cy + Math.sin(ang) * R, 7, 0, Math.PI * 2); ctx.fill();
+  // ── the words ──
+  ctx.textAlign = 'center';
+  ctx.font = "bold 15px 'Courier New', monospace";
+  ctx.fillStyle = '#e8f4ff';
+  ctx.fillText(`${(sp.name || '').toUpperCase()}  ·  T${sp.tier}  ·  ${B.diff.label}`, cx, cy - R - 34);
+  ctx.font = "bold 20px 'Courier New', monospace";
+  ctx.fillStyle = want > 0 ? '#ffd66b' : '#7ad4ff';
+  ctx.fillText(want > 0 ? '↻  SPIN CLOCKWISE' : '↺  SPIN COUNTER-CLOCKWISE', cx, cy + R + 40);
+  ctx.font = "11px 'Courier New', monospace";
+  ctx.fillStyle = '#9fb4c8';
+  ctx.fillText(`IMPRINT ${B.idx + (B.result === 'bond' ? 0 : 1)} / ${B.seq.length}   ·   right stick or arrow keys`, cx, cy + R + 62);
+  // time bar
+  const left = Math.max(0, (B.endsAt - now) / B.diff.ms);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(cx - 110, cy + R + 76, 220, 6);
+  ctx.fillStyle = left > 0.35 ? '#5fdc7a' : '#ff6b6b';
+  ctx.fillRect(cx - 110, cy + R + 76, 220 * left, 6);
+  if (B.result){
+    ctx.font = "bold 26px 'Courier New', monospace";
+    ctx.fillStyle = B.result === 'bond' ? '#ffd66b' : '#ff6b6b';
+    ctx.fillText(B.result === 'bond' ? '★ IMPRINT COMPLETE' : '✖ THE BOND BREAKS', cx, cy + 6);
+  }
+  ctx.restore();
+}
 function tryRecruitWildZyrex(w){
   const sp = SPECIES[w.speciesId];
   if (!sp){ showToast('◈ ...it is gone.', 1600); w._gone = true; return; }
@@ -39389,6 +39626,13 @@ function tryRecruitWildZyrex(w){
     try { playSFX('cancel'); } catch(_){}
     return;                       // ★ does NOT flee · it is waiting on you, not refusing you
   }
+  // ★★ v0.95.866 · THE ENCOUNTER REPLACES THE INSTANT CHECK.  The old hard
+  // bond refusal below is superseded: an under-bonded Rizer may still TRY —
+  // the ratio just makes the imprint brutal.  Temperament now colours the
+  // FAILURE (hostile / flee / teleport), not the refusal.
+  startWildBondEncounter(w, sp);
+  return;
+  /* eslint-disable no-unreachable */
   const need = requiredBondForTier(sp.tier);
   const have = rizerBondTotal();
   const pctNeed = Math.round(need / 3330 * 100);
@@ -39437,6 +39681,7 @@ function tryRecruitWildZyrex(w){
   ]});
   try { showToast(`★ ${sp.name} T${sp.tier} joined · Rizer bond ${pctHave}%`, 4000); } catch(_){}
   try { saveGame(); } catch(_){}
+  /* eslint-enable no-unreachable */
 }
 
 // ── ★★ v0.95.738 · MALEZOR WILD HABITAT ───────────────────────────────────
@@ -41129,6 +41374,44 @@ function drawWorldLayer(){
   };
   for (const w of WILD_ZYREX){
     if (w._gone) continue;
+    // ★★ v0.95.866 · THE BROKEN BOND HAS CONSEQUENCES.  A failed imprint
+    // leaves the Zyrex in one of three states, and each MOVES — otherwise
+    // "it bolts" is a toast about nothing.  Both states expire, so the
+    // chase is winnable and the world settles again.
+    if (w._fleeUntil && Date.now() < w._fleeUntil && game.scene === 'overworld'){
+      if (_gNow > (w._fleeStepAt || 0)){
+        w._fleeStepAt = _gNow + 150;                       // faster than a walk
+        const dx = Math.sign(w.tileX - player.x) || (Math.random() < 0.5 ? 1 : -1);
+        const dy = Math.sign(w.tileY - player.y) || (Math.random() < 0.5 ? 1 : -1);
+        for (const [sx, sy] of [[dx, 0], [0, dy], [dx, dy]]){
+          const nx = w.tileX + sx, ny = w.tileY + sy;
+          if (typeof walkable === 'function' && walkable(nx, ny) && !_propBlocked.has(`${nx},${ny}`)){
+            w.tileX = nx; w.tileY = ny; break;
+          }
+        }
+      }
+      renderables.push({ kind:'wildOrb', wild:w, footY: w.tileY });
+      continue;                                            // fleeing beats grazing
+    }
+    if (w._hostileUntil && Date.now() < w._hostileUntil && game.scene === 'overworld'){
+      // it closes on you · slower than a flee, and it does not leave its patch
+      if (_gNow > (w._hostileStepAt || 0)){
+        w._hostileStepAt = _gNow + 380;
+        const dx = Math.sign(player.x - w.tileX), dy = Math.sign(player.y - w.tileY);
+        const man = Math.abs(player.x - w.tileX) + Math.abs(player.y - w.tileY);
+        if (man > 1){
+          for (const [sx, sy] of (Math.abs(player.x - w.tileX) >= Math.abs(player.y - w.tileY)
+                                  ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]])){
+            const nx = w.tileX + sx, ny = w.tileY + sy;
+            if (typeof walkable === 'function' && walkable(nx, ny) && !_propBlocked.has(`${nx},${ny}`)){
+              w.tileX = nx; w.tileY = ny; break;
+            }
+          }
+        }
+      }
+      renderables.push({ kind:'wildOrb', wild:w, footY: w.tileY });
+      continue;
+    }
     if (w._graze && game.scene === 'overworld'){
       const nearRizer = Math.abs(player.x - w.tileX) + Math.abs(player.y - w.tileY) <= 4;
       if (w._grazeTarget){
@@ -42505,6 +42788,8 @@ function frame(now){
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer
   }
   drawAoeImpactBursts();// all large AOE bursts · above tall/wild grass
+  try { tickWildBond(now); } catch(err){ console.warn('[rp7b] wild bond tick', err); }   // ★ v0.95.866
+  try { drawWildBondOverlay(); } catch(err){ console.warn('[rp7b] wild bond draw', err); }
   try { stepArrows(); } catch(_){}   // ★ v0.95.794 · advance + detonate Pearlbow arrows
   try { ecologyTick(); } catch(_){}  // ★ v0.95.804 · rumors + anomalies · the living loop
   try { tickLifeSeeds(); } catch(_){}//   and the spoil clock on tainted Life Seeds

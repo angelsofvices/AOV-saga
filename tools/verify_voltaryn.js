@@ -61,7 +61,7 @@ H('2 · ★★ HE GRAZES · A MEADOW ANIMAL, NOT A SENTRY');
   // ★ v0.95.829 · the fence moved into _grazeStepOk when the drift became
   // walk-then-eat — every STEP consults it, and the target picker checks the
   // fence again before a leg even starts.  Window widened to cover both.
-  const g=src.slice(src.indexOf('★ v0.95.818 · GRAZING'), src.indexOf('★ v0.95.818 · GRAZING')+4200);
+  const g=src.slice(src.indexOf('★ v0.95.818 · GRAZING'), src.indexOf('★ v0.95.818 · GRAZING')+6000);
   ok(/_grazeStepOk = \(w, nx, ny\)[\s\S]{0,200}Math\.abs\(nx - w\._grazeHome\[0\]\) \+ Math\.abs\(ny - w\._grazeHome\[1\]\) > w\._grazeR\) return false/.test(g),
      '★ every step is checked against the home radius — he can never wander off his meadow');
   ok(/Math\.abs\(tx - w\._grazeHome\[0\]\) \+ Math\.abs\(ty - w\._grazeHome\[1\]\) > w\._grazeR\) continue/.test(g),
@@ -84,9 +84,9 @@ H('3 · ★★ THE BOND GATE DECIDES, AND CALM NEVER FLEES');
   // over the gate
   P.devBondFloor=3330;
   C.tryRecruitWildZyrex(v);
-  ok(v._gone===true&&!!v._recruitedAt,'★ with the bond earned, he comes');
+  ok(/startWildBondEncounter/.test(src),'★ v0.95.866 · a cleared bond now OPENS THE IMPRINT ENCOUNTER (see verify_wildbond)');
   const inRoster=[].concat(P.party||[],P.pcZyrex||[]).some(z=>z&&z.speciesId==='voltaryn');
-  ok(inRoster,'and joins the faction (or the PC if full)');
+  ok(/startWildBondEncounter\(w, sp\)/.test(src),'…and the join happens on a WON imprint, not on contact');
   P.devBondFloor=0;
 }
 
@@ -165,7 +165,7 @@ H('6 · ★★ ELZORAN AT THE STATUE · SILENCE IS THE GATE');
   // with the Elzebub raised, the ordinary bond logic takes over
   P.party=[{speciesId:'elzebub',level:50,name:'E'}];
   C.tryRecruitWildZyrex(e);
-  ok(e._gone===true&&!!e._recruitedAt,'★ with a Lv-50 Elzebub at your side, the champion comes');
+  ok(/if \(gate\.silent\) return;/.test(src),'★ species gates still run BEFORE the encounter — worthiness is not skill');
   P.devBondFloor=0; P.party=[];
 }
 

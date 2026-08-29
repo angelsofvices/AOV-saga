@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SUMMON_FORMATION,_claimFormationSlot,_formationTile,toggleFactionSummon,quickSummonStashAll,NPCS,player,game,walkable};')();}
+try{new Function(src+';globalThis.__C={zyrexUid,zyrexFollowerId,SUMMON_FORMATION,_claimFormationSlot,_formationTile,toggleFactionSummon,quickSummonStashAll,NPCS,player,game,walkable};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -60,7 +60,7 @@ H('2 · ★★ SUMMONS SPAWN ON STATION · never in the old stack');
   // recall one, resummon · slot is reclaimed, not leaked
   C.toggleFactionSummon(0);
   C.toggleFactionSummon(0);
-  const again=C.NPCS.find(n=>n&&n.id==='_summon_snok');
+  const again=C.NPCS.find(n=>n&&n._summoned&&n._summonSpeciesId==='snok')   // ★ v0.95.863 · followers are keyed per-INDIVIDUAL now (uid), not per-species;
   ok(again._summoned&&again._formSlot!=null,'recall + resummon claims a station again');
 }
 

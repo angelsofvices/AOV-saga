@@ -19249,7 +19249,7 @@ function activeZyrexRef(){
   if (!party.length) return null;
   // Prefer whoever is currently OUT in the overworld
   for (const z of party){
-    const fid = `_summon_${z.speciesId}`;
+    const fid = zyrexFollowerId(z);   // ★ v0.95.863 · per-INSTANCE
     if (NPCS && NPCS.some(n => n && n.id === fid && n._summoned)) return z;
   }
   return party[0];   // fallback · always first slot when nothing is summoned
@@ -20240,10 +20240,10 @@ function recordMoriKill(mode, npc){
     const shareXp = Math.floor(((npc.level || 1) * (10 + (npc.tier || 1) * 6)) * 0.5);
     const summonedIds = new Set(
       (NPCS || []).filter(n => n && n._summoned && n.id && n.id.startsWith('_summon_'))
-                  .map(n => n._summonSpeciesId)
+                  .map(n => n._summonUid || n._summonSpeciesId)   // ★ v0.95.863
     );
     (player.party || []).forEach(z => {
-      if (z && summonedIds.has(z.speciesId)) awardZyrexXP(z, shareXp);
+      if (z && (summonedIds.has(z.uid) || summonedIds.has(z.speciesId))) awardZyrexXP(z, shareXp);
     });
   }
   // v0.95.470 · Scrapjaw's Radio Tower quest · 6 tagged Mori + 1 tagged Vilerok boss
@@ -30351,7 +30351,7 @@ function renderZycellFaction(){
   for (let i = 0; i < total; i++){
     const z = party[i];
     const filled = !!z;
-    const summonedId = z ? `_summon_${z.speciesId}` : null;
+    const summonedId = z ? zyrexFollowerId(z) : null;   // ★ v0.95.863
     const isOut = z && (typeof NPCS !== 'undefined')
       && NPCS.some(n => n && n.id === summonedId && n._summoned);
     const summonBadge = isOut
@@ -30456,7 +30456,7 @@ function renderZycellFactionExamine(idx){
   const typing = `${z.type || sp?.type || '—'}${(z.type2 || sp?.type2) ? ' / ' + (z.type2 || sp?.type2) : ''}${(z.type3 || sp?.type3) ? ' / ' + (z.type3 || sp?.type3) : ''}`;
   const lore   = sp?.lore || sp?.pokedex || sp?.description || 'No lore recorded for this Zyrex yet.';
   // Live-summon badge
-  const summonedId = `_summon_${z.speciesId}`;
+  const summonedId = zyrexFollowerId(z);   // ★ v0.95.863
   const isOut = (typeof NPCS !== 'undefined') && NPCS.some(n => n && n.id === summonedId && n._summoned);
   // Header row · portrait placeholder + name + tier/level pill
   const header = `
@@ -33826,6 +33826,7 @@ function saveGame(){
         zyrexMenuUnlocked: !!player.zyrexMenuUnlocked,
         attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
         bondLedger: player.bondLedger || { zyrex:0, rizer:0 },   // ★ v0.95.862 · the two bond paths
+        _zyUidNext: player._zyUidNext || 0,                     // ★ v0.95.863 · uid sequence
         faeCollected: player.faeCollected || 0,
         lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
         groundPickups: player.groundPickups || [],  // v0.95.773 · scrap + coin piles on the ground
@@ -33923,6 +33924,7 @@ function saveGame(){
         // satk/sdef) now persisted so LEVEL + STATS survive save/reload
         // exactly.  Ultramax flag + move PP survive too.  Same for PC.
         party: (player.party || []).map(z => z ? {
+          uid: zyrexUid(z),   // ★ v0.95.863 · identity survives the save
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
           maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier,
           type: z.type, type2: z.type2, type3: z.type3 || null,
@@ -33933,6 +33935,7 @@ function saveGame(){
           hasUltramax: !!z.hasUltramax,
         } : null),
         pcZyrex: (player.pcZyrex || []).map(z => z ? {
+          uid: zyrexUid(z),   // ★ v0.95.863 · identity survives the save
           speciesId: z.speciesId, name: z.name, level: z.level, hp: z.hp,
           maxHp: z.maxHp, xp: z.xp || 0, tier: z.tier,
           type: z.type, type2: z.type2, type3: z.type3 || null,
@@ -34244,7 +34247,7 @@ function callFactionSummonAll(on){
       // dead end as toggleFactionSummon, in a second place, silently skipping
       // every sprite-less Zyrex from a summon-all.  Two hand-written copies of
       // one construction is how they diverged; there is one builder now.
-      const followerId = `_summon_${z.speciesId}`;
+      const followerId = zyrexFollowerId(z);   // ★ v0.95.863 · per-INSTANCE, not per-species
       let n = NPCS.find(x => x && x.id === followerId);
       if (!n){
         n = makeZyrexFollower(z, { mode: 'stationary', dir: 'down' });
@@ -35489,7 +35492,7 @@ function battleExit(){
 function recallKoFollowers(){
   for (const n of NPCS){
     if (!n || !n._summoned || !n.id || !n.id.startsWith('_summon_')) continue;
-    const z = (player.party || []).find(zz => zz && zz.speciesId === n._summonSpeciesId);
+    const z = (n._summonUid && findPartyByUid(n._summonUid)) || (player.party || []).find(zz => zz && zz.speciesId === n._summonSpeciesId);   // ★ v0.95.863
     if (z && (z.hp || 0) <= 0){
       n._summoned = false;
       n.scene = '__despawn__';
@@ -38409,7 +38412,8 @@ function tickAggressiveZyrex(n){
   const manh = Math.abs(dx) + Math.abs(dy);
   if (manh <= 1){
     // Adjacent · strike
-    const partyMember = (player.party || []).find(z => z && z.speciesId === n._summonSpeciesId);
+    // ★ v0.95.863 · THIS individual earns its own XP · uid first, species as the legacy fallback
+    const partyMember = (n._summonUid && findPartyByUid(n._summonUid)) || (player.party || []).find(z => z && z.speciesId === n._summonSpeciesId);
     const dmg = computeZyrexDamage(partyMember);
     if (best.hp == null) best.hp = best.hpMax || 125;
     best.hp -= dmg;
@@ -38440,10 +38444,10 @@ function tickAggressiveZyrex(n){
         // REPAIRED collar in the bag — without it every Zyrex levels by its
         // own attacks alone.
         if ((player.items && player.items.shardshare || 0) > 0){
-          const _outIds = new Set((NPCS || []).filter(q => q && q._summoned && q._summonSpeciesId).map(q => q._summonSpeciesId));
+          const _outIds = new Set((NPCS || []).filter(q => q && q._summoned).map(q => q._summonUid || q._summonSpeciesId));   // ★ v0.95.863 · per-individual
           for (const z of (player.party || [])){
             if (!z || z === partyMember) continue;
-            if (_outIds.has(z.speciesId)) awardZyrexXP(z, Math.floor(killXp * 0.5));
+            if (_outIds.has(z.uid) || _outIds.has(z.speciesId)) awardZyrexXP(z, Math.floor(killXp * 0.5));
           }
         }
       }
@@ -38677,7 +38681,7 @@ function summonedZyrexCount(){
   const party = (player.party || []).filter(Boolean);
   let n = 0;
   for (const z of party){
-    const fid = `_summon_${z.speciesId}`;
+    const fid = zyrexFollowerId(z);   // ★ v0.95.863 · per-INSTANCE
     if (NPCS && NPCS.some(x => x && x.id === fid && x._summoned)) n++;
   }
   return n;
@@ -38696,7 +38700,7 @@ function quickSummonStashAll(){
   // this up-front check had nothing left to de-duplicate anyway.
   for (let i = 0; i < party.length; i++){
     const z = party[i];
-    const fid = `_summon_${z.speciesId}`;
+    const fid = zyrexFollowerId(z);   // ★ v0.95.863 · per-INSTANCE
     const isOut = NPCS && NPCS.some(x => x && x.id === fid && x._summoned);
     if (isOut === stashing){                 // only touch the ones that need it
       try { toggleFactionSummon(i); } catch(err){ console.warn('bulk summon', err); }
@@ -38838,10 +38842,32 @@ function sendZyrexWalkingHome(follower){
   try { saveGame(); } catch(_){}
   return true;
 }
+// ★★ v0.95.863 · EVERY PARTY ZYREX IS A UNIQUE INDIVIDUAL.  Creator: "if I
+// select two zyrex by the same name out in the field then they should both
+// be out. all zyrex party members are unique entries."
+//
+// Followers were keyed `_summon_<speciesId>`, so a second Aetherwing shared
+// the FIRST one's follower NPC: deploying it toggled the twin, and only one
+// body could ever stand in the world.  Identity now lives on the ROSTER
+// ENTRY, not on its species — zyrexUid() stamps a stable id the first time
+// anything asks, so old saves gain identity on load without a migration
+// pass, and every follower/lookup keys off THAT.
+function zyrexUid(z){
+  if (!z) return null;
+  if (!z.uid){
+    // species prefix keeps it readable in a save file or a debug print
+    z.uid = `${z.speciesId || 'zyrex'}#${(player._zyUidNext = (player._zyUidNext || 0) + 1)}`;
+  }
+  return z.uid;
+}
+function zyrexFollowerId(z){ return `_summon_${zyrexUid(z)}`; }
+function findPartyByUid(uid){
+  return [].concat(player.party || [], player.pcZyrex || []).find(z => z && z.uid === uid) || null;
+}
 function makeZyrexFollower(z, opts){
   const o = opts || {};
   const spriteDef = SUMMONABLE_SPRITES[z.speciesId];
-  const followerId = `_summon_${z.speciesId}`;
+  const followerId = zyrexFollowerId(z);   // ★ v0.95.863 · per-INSTANCE, not per-species
   const _homeIdx = Math.max(0, (player.party || []).filter(Boolean).findIndex(q => q && q.speciesId === z.speciesId));
   const _home = zyrexHomeTile(_homeIdx);
   const base = {
@@ -38854,7 +38880,7 @@ function makeZyrexFollower(z, opts){
     mode: o.mode || 'follow',
     moving: false, animFrame: 0, idleFrame: 0,
     blinkTimer: 1800 + Math.random() * 2000,
-    _summoned: true, _summonSpeciesId: z.speciesId,
+    _summoned: true, _summonSpeciesId: z.speciesId, _summonUid: zyrexUid(z),   // ★ v0.95.863
     onInteract: () => showDialog({ speaker: String(z.name || '').toUpperCase(), lines: [
       spriteDef ? `*${z.name} looks at you · ready to move*`
                 : `*${z.name} pulses beside you · its astral form has not settled yet*`,
@@ -38900,8 +38926,8 @@ function toggleFactionSummon(partyIdx){
   const z = party[partyIdx];
   if (!z){ return; }
   const spriteDef = SUMMONABLE_SPRITES[z.speciesId];
-  // Find existing dynamic follower NPC (if any) for this species
-  const followerId = `_summon_${z.speciesId}`;
+  // Find existing dynamic follower NPC (if any) for THIS INDIVIDUAL (v0.95.863)
+  const followerId = zyrexFollowerId(z);   // ★ v0.95.863 · per-INSTANCE, not per-species
   let follower = NPCS.find(n => n && n.id === followerId);
   // Case 1: this Zyrex is already summoned somewhere · retire it
   if (follower && follower._summoned){
@@ -39039,7 +39065,7 @@ function drawFHUDZyrexPage(W, H){
         ctx.textAlign = 'left';
       }
     }
-    const followerId = `_summon_${z.speciesId}`;
+    const followerId = zyrexFollowerId(z);   // ★ v0.95.863 · per-INSTANCE, not per-species
     const isOut = NPCS.some(n => n && n.id === followerId && n._summoned);
     if (isOut){
       ctx.fillStyle = 'rgba(95,220,122,0.9)';

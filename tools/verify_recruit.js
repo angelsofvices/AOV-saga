@@ -158,6 +158,10 @@ const env = {
   _claimFormationSlot: () => 0,
   _formationTile: (n) => [3, 3],
   zyrexHomeTile: () => [20, -14],
+  // ★ v0.95.863 · per-individual follower identity
+  zyrexUid: (z) => (z.uid || (z.uid = `${z.speciesId}#1`)),
+  zyrexFollowerId: (z) => `_summon_${z.uid || (z.uid = `${z.speciesId}#1`)}`,
+  findPartyByUid: (uid) => (player.party || []).find(z => z && z.uid === uid) || null,
 };
 const run = new Function(...Object.keys(env), `
   ${grab('makeZyrexFollower')}
@@ -173,7 +177,7 @@ ok(player.party.length === 1 && player.party[0] === z, 'player.party holds exact
 ok(player.zyrexMenuUnlocked === true, 'and the FACTION tab is unlocked');
 
 run.toggleFactionSummon(0);
-const follower = NPCS.find(n => n.id === '_summon_aetherwing');
+const follower = NPCS.find(n => n._summonSpeciesId === 'aetherwing');
 ok(!!follower, 'deploying created the follower NPC');
 ok(follower && follower._orbFollower === true, '  as an ORB follower, since it has no sheet');
 ok(follower && follower._summoned === true, '  marked deployed');

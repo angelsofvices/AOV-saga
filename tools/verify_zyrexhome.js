@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={ZYREX_HOME_ANCHOR,zyrexHomeTile,sendZyrexWalkingHome,toggleFactionSummon,NPCS,player,game,_propBlocked,SUMMON_FORMATION,WORLD_PROPS};')();}
+try{new Function(src+';globalThis.__C={zyrexUid,zyrexFollowerId,ZYREX_HOME_ANCHOR,zyrexHomeTile,sendZyrexWalkingHome,toggleFactionSummon,NPCS,player,game,_propBlocked,SUMMON_FORMATION,WORLD_PROPS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -45,7 +45,7 @@ H('2 · ★★ L2+TOUCHPAD ON A COMPANION = THE LONG GOODBYE');
   C.player.party=[{speciesId:'snok',level:10,hp:9,name:'Snok'}];
   C.game.scene='overworld'; C.player.x=200; C.player.y=200;
   C.toggleFactionSummon(0);
-  const fol=C.NPCS.find(n=>n&&n.id==='_summon_snok');
+  const fol=C.NPCS.find(n=>n&&n._summoned&&n._summonSpeciesId==='snok')   // ★ v0.95.863 · followers are keyed per-INDIVIDUAL now (uid), not per-species;
   ok(fol&&fol._summoned===true,'deployed to the field');
   ok(fol.homeX!==undefined&&Math.abs(fol.homeX-20)<=8&&Math.abs(fol.homeY-(-14))<=8,'★ his default home is the yard, set at creation');
   const sent=C.sendZyrexWalkingHome(fol);

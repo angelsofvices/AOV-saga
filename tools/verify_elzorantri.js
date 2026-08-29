@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={SPECIES_RECRUIT_GATES,SPECIES,seedMalezorWild,player,game,tryRecruitWildZyrex,rizerBondTotal,requiredBondForTier,zyTriangleArm,zyTriangleRelease,quickSummonStashAll,toggleFactionSummon,NPCS,_wild:()=>{try{return _malezorWildPlaced}catch(e){return []}}};')();}
+try{new Function(src+';globalThis.__C={zyrexUid,zyrexFollowerId,SPECIES_RECRUIT_GATES,SPECIES,seedMalezorWild,player,game,tryRecruitWildZyrex,rizerBondTotal,requiredBondForTier,zyTriangleArm,zyTriangleRelease,quickSummonStashAll,toggleFactionSummon,NPCS,_wild:()=>{try{return _malezorWildPlaced}catch(e){return []}}};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -76,7 +76,7 @@ H('3 · ★★ v0.95.837 · THE FIELD IS FOR FIGHTING · Zysphere lives in the p
   C.player.party=[{speciesId:'snok',level:10,hp:9,name:'Snok'}];
   C.game.scene='overworld';
   C.toggleFactionSummon(0);
-  const fol=C.NPCS.find(n=>n&&n.id==='_summon_snok');
+  const fol=C.NPCS.find(n=>n&&n._summoned&&n._summonSpeciesId==='snok')   // ★ v0.95.863 · followers are keyed per-INDIVIDUAL now (uid), not per-species;
   ok(fol&&fol._summoned===true,'phone Triangle (toggleFactionSummon) still deploys');
   C.toggleFactionSummon(0);
   ok(fol._summoned===false,'…and still recalls · the one door stands');

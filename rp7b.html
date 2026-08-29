@@ -8681,14 +8681,31 @@ const NPCS = [
         // The old onDone called enterTrainingFarm() and teleported you inside
         // straight out of the conversation, which made this the one building
         // in Zyraxis you never walked through the door of.
+        // ★★★ v0.95.875 · THE SANCTUARY OFFER.  Once the barn is open she is
+        // also its keeper: bring her a rescued Zyrex and she takes it in for
+        // good.  Offered as a CHOICE inside her dialog rather than as a second
+        // NPC, because the farm already is hers and the gift should be made to
+        // a face, not to a menu.
         const cd = farmCooldownLeft();
+        const S = sanctuaryList();
+        const kinds = new Set(S.map(z => z.speciesId)).size;
         showDialog({ speaker: 'KAIZARI', lines: [
           '*tail flicks · unlocks a wooden gate behind her*  You\'ve earned this, hunter.',
-          '10 fae in your pocket · a Zyrex at your side · you\'re ready to train.',
+          S.length
+            ? `*glances back at the pasture*  ${S.length} in my care · ${kinds} kinds.  They eat well.`
+            : '*ear twitches*  And if you catch one you cannot use · bring it here.  Better safe than boxed.',
           cd > 0
-            ? `*ear twitches*  Not yet though.  The stock is resting — ${farmCooldownText()} more.`
+            ? `*ear twitches*  Training\'s resting though — ${farmCooldownText()} more.`
             : '*steps aside*  The barn is behind me.  Walk in yourself · set two of yours against each other.',
-        ]});
+        ], onDone: () => {
+          // ★ showDialog has no choice list — onDone is the whole API.  So the
+          // counter simply OPENS when she finishes speaking, and its own
+          // B / ESC is "not today".  No Zyrex leaves without two more
+          // deliberate presses inside it, so nothing can be given by accident.
+          if ((player.party || []).filter(Boolean).length){
+            try { openSanctuaryPanel(); } catch(_){}
+          }
+        }});
         return;
       }
       // Locked · show progress toward unlock
@@ -22254,17 +22271,31 @@ function enterInterior(sceneKey, cfg, toast){
   // npc marked _summoned=true gets its scene swapped + repositioned near the
   // player.  v0.95.608 · Place them IN FRONT of Rizer (facing direction) so
   // they don't get stranded in the black void behind the entry tile.
+  // ★ v0.95.874 · REAR FIRST.  The v0.95.608 rule put them in front because
+  // the entry tile's rear is usually the doorway or the void — true, but it
+  // means every doorway in Zyraxis spat the team out in front of Rizer, which
+  // is the exact thing the Creator asked to stop.  Now: try the station (rear,
+  // rotated by travel) and only fall forward when the rear tile is not real
+  // floor.  Nobody is ever stranded, and nobody blocks the room he walked in
+  // to look at.
   const _dv = { up:{dx:0,dy:-1}, down:{dx:0,dy:1}, left:{dx:-1,dy:0}, right:{dx:1,dy:0} };
   const _step = _dv[player.dir] || _dv.up;
   let followerOffset = 1;
   for (const n of NPCS){
     if (n && n._summoned && n.id && n.id.startsWith('_summon_')){
       n.scene  = sceneKey;
-      n.tileX  = player.x + _step.dx * followerOffset;
-      n.tileY  = player.y + _step.dy * followerOffset;
+      let placed = false;
+      try {
+        const st = _formationTile(n);
+        if (walkable(st[0], st[1])){ n.tileX = st[0]; n.tileY = st[1]; placed = true; }
+      } catch(_){}
+      if (!placed){
+        n.tileX = player.x + _step.dx * followerOffset;
+        n.tileY = player.y + _step.dy * followerOffset;
+        followerOffset++;
+      }
       n.moving = false;
       n.moveCd = 200;
-      followerOffset++;
     }
   }
   // v0.95 · Rizer Room · always show scene label as toast on entry
@@ -22370,7 +22401,71 @@ function sparZyrex(){
   return true;
 }
 
-function enterTrainingFarm(){       enterInterior('interior_training_farm', INTERIOR_TRAINING_FARM, INTERIOR_TRAINING_FARM.label); }
+// ★★★ v0.95.875 · THE RESIDENTS.  Creator: "they will be stored inside the
+// farm for you to visit."  A stored Zyrex you cannot LOOK at is a list entry,
+// which is the stale-PC problem wearing a different hat — so the barn is
+// repopulated from player.sanctuary every time Rizer walks in, and they wander.
+//
+// Capped at SANCTUARY_VISIBLE: a full roster is 210 residents and the barn is
+// 20x20, so past the cap the rest are "in the far pasture".  Most recent first,
+// because the one you just gave up is the one you came to see.
+const SANCTUARY_VISIBLE = 20;
+function _clearSanctuaryResidents(){
+  for (let i = NPCS.length - 1; i >= 0; i--){
+    if (NPCS[i] && NPCS[i]._sanctuaryResident) NPCS.splice(i, 1);
+  }
+}
+function populateSanctuaryResidents(){
+  _clearSanctuaryResidents();
+  const S = sanctuaryList();
+  if (!S.length) return 0;
+  const show = S.slice(-SANCTUARY_VISIBLE).reverse();
+  const cfg = INTERIOR_TRAINING_FARM;
+  const taken = new Set([`${cfg.spawn.x},${cfg.spawn.y}`, `${cfg.exit.x},${cfg.exit.y}`]);
+  for (const [bx, by] of (cfg.blocked || [])) taken.add(`${bx},${by}`);
+  let placed = 0;
+  for (const rec of show){
+    let spot = null;
+    for (let tries = 0; tries < 200 && !spot; tries++){
+      const x = 1 + Math.floor(Math.random() * (cfg.cols - 2));
+      const y = 1 + Math.floor(Math.random() * (cfg.rows - 4));   // keep the door lane clear
+      if (taken.has(`${x},${y}`)) continue;
+      spot = [x, y];
+    }
+    if (!spot) continue;
+    taken.add(`${spot[0]},${spot[1]}`);
+    const n = makeZyrexFollower(rec, { mode: 'wander', dir: 'down' });
+    // ★ a resident is NOT a summon.  Clearing these flags is what keeps it out
+    // of the party plumbing, the formation, the recall-all and the deposit
+    // refusal — it lives here now, it does not belong to the field team.
+    n.id = `_sanct_${rec.uid || rec.speciesId}_${placed}`;
+    n._summoned = false; n._summonUid = null;
+    n._sanctuaryResident = true;
+    n.scene = 'interior_training_farm';
+    n.tileX = spot[0]; n.tileY = spot[1];
+    n.homeX = spot[0]; n.homeY = spot[1]; n.homeScene = 'interior_training_farm';
+    n._leashR = 3;                        // they mill about their own patch
+    n.onInteract = () => showDialog({ speaker: String(rec.name || '').toUpperCase(), lines: [
+      `*${rec.name} lifts its head · it knows you*`,
+      `Lv ${rec.level || 1} · T${rec.tier || 1} · safe here, because you brought it here.`,
+    ]});
+    NPCS.push(n);
+    placed++;
+  }
+  return placed;
+}
+function enterTrainingFarm(){
+  enterInterior('interior_training_farm', INTERIOR_TRAINING_FARM, INTERIOR_TRAINING_FARM.label);
+  try {
+    const n = populateSanctuaryResidents();
+    const S = sanctuaryList();
+    if (S.length){
+      showToast(S.length > n
+        ? `❦ SANCTUARY · ${n} in the barn · ${S.length - n} more out in the far pasture`
+        : `❦ SANCTUARY · ${n} in your care`, 3000);
+    }
+  } catch(err){ console.warn('sanctuary residents failed', err); }
+}
 function enterTreehouse(){
   enterInterior('interior_treehouse', INTERIOR_TREEHOUSE, INTERIOR_TREEHOUSE.label);
   try { spawnTreehouseZyrex(); } catch(err){ console.warn('treehouse spawn', err); }
@@ -24957,6 +25052,7 @@ function tryMove(dt){
   if (game.weaponShopOpen)          freezeReasons.push('weaponShop');   // v0.95.583
   if (game.potionShopOpen)          freezeReasons.push('potionShop');   // v0.95.632
   if (game.zysphereShopOpen)        freezeReasons.push('zysphereShop'); // ★ v0.95.872
+  if (game.sanctuaryOpen)           freezeReasons.push('sanctuary');    // ★ v0.95.875
   if (game.ultrashardPickerOpen)    freezeReasons.push('ultrashardPicker'); // v0.95.589
   if (_sleepFade)                   freezeReasons.push('sleepFade');
   if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
@@ -29605,7 +29701,11 @@ const JOURNAL_STAGES = [
 ];
 function speciesJournalStage(speciesId){
   const n = notebookState();
-  const owned = [].concat(player.party || [], player.pcZyrex || [])
+  // ★★ v0.95.875 · THE SANCTUARY COUNTS AS OWNED.  Donating is the whole
+  // point of catching a species you will never field, so if the index forgot
+  // a resident the moment you gave it up, the feature would delete its own
+  // reward — the Athrenology page would go blank on the act that filled it.
+  const owned = [].concat(player.party || [], player.pcZyrex || [], player.sanctuary || [])
     .filter(Boolean).some(z => z.speciesId === speciesId);
   if (owned && (player.bonds?.[speciesId] || 0) >= 100) return 3;
   if (owned) return 2;
@@ -34017,6 +34117,13 @@ const BOND_EVENTS = {
   zyrexEvolve:    { path:'zyrex', pts:15,  label:'★ an evolution witnessed'        },
   zyrexBond:      { path:'zyrex', pts:25,  label:'★ a wild Zyrex chose you'        },
   zyrexMastered:  { path:'zyrex', pts:40,  label:'★★ a Zyrex mastered (100 bond)'  },
+  // ★★★ v0.95.875 · THE SANCTUARY.  pts is 1 and the TIER is passed as the
+  // multiplier, so saving a T7 is worth seven times saving a T1 — the ledger
+  // measures what the rescue cost you, not how many times you did it.
+  // Calibrated against ROSTER V1: the tiers of all 210 species sum to 661,
+  // which is 40% of the 1665 Zyrex path.  A complete sanctuary is a real
+  // route to a maxed bond and cannot be the ONLY one.
+  zyrexSanctuary: { path:'zyrex', pts:1,   label:'★★ a Zyrex given sanctuary'    },
   // ── RIZER PATH · the athrenologist's half ──────────────────────────────
   rizerFind:      { path:'rizer', pts:1,   label:'a discovery recorded'            },
   rizerScroll:    { path:'rizer', pts:2,   label:"a page of Dad's book read"       },
@@ -34141,6 +34248,167 @@ function withdrawZyrexFromPC(pcIdx){
   showToast(`★ ${z.name} withdrawn from PC · joined party`, 2400);
   try { playSFX('confirm'); } catch(_){}
   return true;
+}
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.875 · THE SANCTUARY · Kaizari's farm
+//
+// Creator: "rizer can bring rescued zyrex to kaizari and she will give you bond
+// points for saving a zyrex.  they will be stored inside the farm for you to
+// visit.  they are no longer in your party.  its like pokemon daycare.  you
+// cannot get it back though.  you donated it to the farm for it to be safe.  so
+// the farm is like a sanctuary.  allows player to catch all zyrex and gain bond
+// points and also have fun while exploring... this prevents a stale pc storage.
+// pokemon would have this problem for me sometimes, id catch something and not
+// use it anymore and it would have no utility anymore."
+//
+// The diagnosis is the design.  A PC box is a place where a caught creature
+// STOPS meaning anything, so catching stops meaning anything the moment your
+// six are picked.  The sanctuary answers it by making the ACT OF SAVING the
+// reward: you give the Zyrex up permanently, and what you keep is bond — the
+// single currency every tier gate in the game reads.
+//
+// ★ FIRST OF A SPECIES IS WHAT PAYS.  A donation is worth its TIER in bond
+// points, but only the first of that species; every later one of the same kind
+// pays a quarter.  Without that, the twenty-two Aetherwing standing in Malezor
+// would be a bond farm you could grind in ten minutes, and "catch them all"
+// would collapse into "catch one thing, repeatedly".  Variety is the goal, so
+// variety is what the ledger pays for.
+//
+// ★★ IT IS PERMANENT AND THERE IS NO WITHDRAW FUNCTION.  Not a disabled
+// button, not a gated one — the code to take a Zyrex back out does not exist,
+// which is the only way a promise like this survives future edits.
+const SANCTUARY_DUPLICATE_RATE = 0.25;
+function sanctuaryList(){ return (player.sanctuary = player.sanctuary || []); }
+function sanctuaryHasSpecies(id){ return sanctuaryList().some(z => z && z.speciesId === id); }
+function sanctuaryBondValue(z){
+  if (!z) return 0;
+  const sp = SPECIES[z.speciesId] || {};
+  const tier = Math.max(1, sp.tier || z.tier || 1);
+  return sanctuaryHasSpecies(z.speciesId) ? tier * SANCTUARY_DUPLICATE_RATE : tier;
+}
+// THE ONE DOOR IN.  Removes from the party, banks the bond, and records the
+// resident.  Returns the bond gained, or -1 if it refused.
+function donateZyrexToSanctuary(partyIdx){
+  player.party = player.party || [];
+  const z = player.party[partyIdx];
+  if (!z) return -1;
+  // A Zyrex standing in the field cannot be signed over from a menu — recall
+  // it first, exactly as the PC deposit demands.
+  try {
+    const outIds = new Set((NPCS || [])
+      .filter(n => n && n._summoned && n.id && n.id.startsWith('_summon_'))
+      .map(n => n._summonUid || n._summonSpeciesId));
+    if (outIds.has(zyrexUid(z)) || outIds.has(z.speciesId)){
+      showToast(`◈ ${z.name} is out in the field · recall it first`, 2600);
+      try { playSFX('cancel'); } catch(_){}
+      return -1;
+    }
+  } catch(_){}
+  const gained = sanctuaryBondValue(z);
+  const dupe = sanctuaryHasSpecies(z.speciesId);
+  player.party.splice(partyIdx, 1);
+  sanctuaryList().push({
+    speciesId: z.speciesId, name: z.name, level: z.level || 1,
+    tier: (SPECIES[z.speciesId] || {}).tier || z.tier || 1,
+    hp: z.maxHp || z.hp || 1, maxHp: z.maxHp || z.hp || 1,
+    donatedAt: Date.now(), uid: zyrexUid(z),
+  });
+  try { bumpRizerBond('zyrexSanctuary', gained); } catch(_){}
+  try { playSFX('confirm'); } catch(_){}
+  showToast(`★ ${z.name} is safe at the sanctuary · +${gained} BOND${dupe ? ' (already recorded · quarter value)' : ' · first of its kind'}`, 3600);
+  try { saveGame(); } catch(_){}
+  return gained;
+}
+// The counter itself.  Two confirmations, because this cannot be undone and a
+// misread button press would cost a Zyrex forever.
+function openSanctuaryPanel(){
+  if (game.sanctuaryOpen) return;
+  game.sanctuaryOpen = true;
+  let pending = -1;                              // index awaiting confirmation
+  const overlay = document.createElement('div');
+  overlay.id = 'sanctuaryOverlay';
+  Object.assign(overlay.style, {
+    position:'fixed', inset:'0', zIndex:'9999',
+    background:'radial-gradient(circle at center, rgba(28,34,10,0.88), rgba(0,0,0,0.94))',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontFamily:"'Courier New', monospace",
+  });
+  const draw = () => {
+    const party = (player.party || []).filter(Boolean);
+    const S = sanctuaryList();
+    const kinds = new Set(S.map(z => z.speciesId)).size;
+    overlay.innerHTML = `
+      <div style="background:linear-gradient(180deg,rgba(46,54,18,0.96),rgba(10,14,4,0.98)); border:2px solid #9ad34f; padding:22px 26px; width:560px; max-width:92vw; box-shadow:0 0 40px rgba(154,211,79,0.3);">
+        <div style="text-align:center; color:#cbe89a; font-weight:bold; letter-spacing:.16em; font-size:14px;">❦  THE SANCTUARY  ❦</div>
+        <div style="text-align:center; color:#9ab074; font-size:10px; margin:4px 0 10px;">Kaizari's farm · ${S.length} in her care · ${kinds} kinds recorded</div>
+        <div style="text-align:center; color:#ffb0b0; font-size:10px; margin-bottom:12px; letter-spacing:.06em;">★ A GIFT IS FOREVER · you cannot take one back</div>
+        ${pending >= 0 ? (() => {
+          const z = party[pending];
+          if (!z) return '';
+          const val = sanctuaryBondValue(z);
+          const dupe = sanctuaryHasSpecies(z.speciesId);
+          return `<div style="border:2px solid #ffd66b; padding:14px; margin-bottom:10px; color:#ffd66b; font-size:11px; text-align:center;">
+            Give <b>${(z.name || '').toUpperCase()}</b> (Lv ${z.level || 1}) to the sanctuary?<br>
+            <span style="color:#cbe89a; font-size:10px;">+${val} BOND · ${dupe ? 'her kind is already recorded · quarter value' : '★ first of its kind · full value'}</span><br>
+            <span style="color:#ff9090; font-size:10px;">You will never battle with ${(z.name || 'it')} again.</span><br><br>
+            <button data-yes="1" style="padding:8px 18px; background:rgba(90,140,40,0.8); color:#eaffd0; border:2px solid #9ad34f; font:bold 11px 'Courier New',monospace; cursor:pointer;">YES · GIVE</button>
+            <button data-no="1" style="padding:8px 18px; margin-left:10px; background:rgba(40,40,40,0.8); color:#ccc; border:2px solid #666; font:bold 11px 'Courier New',monospace; cursor:pointer;">KEEP</button>
+          </div>`;
+        })() : party.length ? party.map((z, i) => {
+          const val = sanctuaryBondValue(z);
+          const dupe = sanctuaryHasSpecies(z.speciesId);
+          return `<button data-give="${i}"
+            style="width:100%; padding:10px 14px; margin-bottom:7px; background:linear-gradient(180deg,rgba(58,74,24,0.8),rgba(12,18,4,0.9)); color:#cbe89a; border:2px solid #6f9a34; font:bold 11px 'Courier New',monospace; letter-spacing:.06em; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <span>${'JKLUIO'[i] || '·'} · ${(z.name || '').toUpperCase()} · Lv ${z.level || 1}<br><span style="font-weight:normal; font-size:9px; color:#9ab074;">T${(SPECIES[z.speciesId] || {}).tier || 1}${dupe ? ' · already recorded' : ' · ★ first of its kind'}</span></span>
+            <span style="color:#ffd66b; font-size:12px;">+${val}</span>
+          </button>`;
+        }).join('') : `<div style="text-align:center; color:#8a9a70; font-size:11px; padding:14px;">You carry no Zyrex to give.</div>`}
+        <div style="text-align:center; color:#7d8a68; font-size:10px; margin-top:6px; letter-spacing:.08em;">B / ESC · leave</div>`
+        + `</div>`;
+    overlay.querySelectorAll('[data-give]').forEach(b => {
+      b.addEventListener('click', () => { pending = +b.dataset.give; draw(); });
+    });
+    const yes = overlay.querySelector('[data-yes]'), no = overlay.querySelector('[data-no]');
+    if (yes) yes.addEventListener('click', () => { commit(); });
+    if (no)  no.addEventListener('click', () => { pending = -1; try { playSFX('cancel'); } catch(_){} draw(); });
+  };
+  const commit = () => {
+    if (pending < 0) return;
+    const gained = donateZyrexToSanctuary(pending);
+    pending = -1;
+    if (gained >= 0) draw(); else closeSanctuaryPanel();
+  };
+  draw();
+  document.body.appendChild(overlay);
+  try { playSFX('menuOpen'); } catch(_){}
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSanctuaryPanel(); });
+  const kh = (e) => {
+    const k = (e.key || '').toLowerCase();
+    if (k === 'b' || k === 'escape' || k === 'a' || k === '3'){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (pending >= 0){ pending = -1; draw(); return; }   // back out of the confirm first
+      closeSanctuaryPanel(); return;
+    }
+    if (pending >= 0){
+      if (k === 'z' || k === 'enter'){ e.preventDefault(); e.stopImmediatePropagation(); commit(); }
+      return;
+    }
+    const idx = 'jkluio'.indexOf(k);
+    if (idx >= 0 && (player.party || [])[idx]){
+      e.preventDefault(); e.stopImmediatePropagation(); pending = idx; draw();
+    }
+  };
+  window.addEventListener('keydown', kh, true);
+  overlay._kh = kh;
+}
+function closeSanctuaryPanel(){
+  const el = document.getElementById('sanctuaryOverlay');
+  if (el){
+    if (el._kh) window.removeEventListener('keydown', el._kh, true);
+    el.remove();
+  }
+  game.sanctuaryOpen = false;
+  try { playSFX('menuClose'); } catch(_){}
 }
 function depositZyrexToPC(partyIdx){
   player.party = player.party || [];
@@ -34348,6 +34616,17 @@ function saveGame(){
           bond: z.bond || 0, moves: z.moves || null,
           hasUltramax: !!z.hasUltramax,
         } : null),
+        // ★★ v0.95.875 · THE SANCTUARY.  Written EXPLICITLY rather than left to
+        // the catch-all backfill: these records are irreversible, so if the
+        // backfill ever changes shape a resident must not be the thing that
+        // quietly stops being saved.  A donation the save forgot would be a
+        // Zyrex destroyed, not stored.
+        sanctuary: (player.sanctuary || []).map(z => z ? {
+          uid: z.uid || null,
+          speciesId: z.speciesId, name: z.name, level: z.level || 1,
+          tier: z.tier || 1, hp: z.hp || 1, maxHp: z.maxHp || 1,
+          donatedAt: z.donatedAt || 0,
+        } : null).filter(Boolean),
       },
       collectedFae: _fae.filter(f => f.collected).map(f => f.id),
       devUnlockDoors: !!game.devUnlockDoors,
@@ -34392,6 +34671,12 @@ function loadGame(){
     try { restoreScrapDrops(); } catch(_){}
     try { restoreWeaponDrops(); } catch(_){}   // ★ v0.95.776
     if (!Array.isArray(player.pcZyrex)) player.pcZyrex = [];   // v0.95.536 · back-compat default
+    // ★★ v0.95.875 · sanctuary residents get the default but are DELIBERATELY
+    // not run through migrateSavedZyrex below.  That pass EVICTS any Zyrex
+    // whose species left canon — correct for a fighting roster, catastrophic
+    // here, where eviction would silently destroy a gift the player was
+    // promised was permanent.  They are records, not combatants.
+    if (!Array.isArray(player.sanctuary)) player.sanctuary = [];
     try { migrateSavedZyrex(); } catch(err){ console.warn('[rp7b] zyrex migration failed', err); }
     // v0.95.607 · restore notifications feed so ZyPhone right-rail messages persist
     game.notifications = Array.isArray(s.player.notifications) ? s.player.notifications.slice() : (game.notifications || []);

@@ -58,7 +58,13 @@ H('3 · ★ IT IS ALREADY PLACED IN VERIDAN');
   ok(live.length===2,'★★ and both actually stand in the world ('+live.length+')');
   ok(live.every(w=>C.worldDistrictAt(w.tileX,w.tileY)==='veridan'),'★ measured · each is really in Veridan');
   ok(live.every(w=>w.level===40),'★ both at Lv 40');
-  ok(live.every(w=>C.walkable(w.tileX,w.tileY)),'★ both reachable');
+  // ★ v0.95.895 · SELF-OCCLUSION.  This asked walkable() about the creature's
+  // OWN tile, which was true until every Zyrex got a body — and now returns
+  // false for exactly the right reason.  "Reachable" never meant "you can
+  // stand inside it"; it means you can get NEXT to it.  Measure the neighbours.
+  const reachable=w=>C.walkable(w.tileX+1,w.tileY)||C.walkable(w.tileX-1,w.tileY)
+                   ||C.walkable(w.tileX,w.tileY+1)||C.walkable(w.tileX,w.tileY-1);
+  ok(live.every(reachable),'★ both reachable');
 }
 
 H('4 · ★★★ THE SHEET WAS REPLACED, SO THE BOXES WERE RE-MEASURED');

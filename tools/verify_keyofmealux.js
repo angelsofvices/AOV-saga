@@ -130,7 +130,13 @@ H('8 · ★★★ FIVE ON THE MAP · every other district, Zarvane to Korathen')
   ok(!D.includes('malezor'),'★★ and MALEZOR gets none · the rarest creature in the game is not in the tutorial town');
   ok(M.every(w=>C.worldDistrictAt(w.tileX,w.tileY)===w._mealuxDistrict),
      '★★ and every one actually STANDS in the district it was assigned · the label is not a promise, it is measured');
-  ok(M.every(w=>C.walkable(w.tileX,w.tileY)),'★ all reachable · an unreachable secret is not a secret');
+  // ★ v0.95.895 · SELF-OCCLUSION.  This asked walkable() about the creature's
+  // OWN tile, which was true until every Zyrex got a body — and now returns
+  // false for exactly the right reason.  "Reachable" never meant "you can
+  // stand inside it"; it means you can get NEXT to it.  Measure the neighbours.
+  const reachable=w=>C.walkable(w.tileX+1,w.tileY)||C.walkable(w.tileX-1,w.tileY)
+                   ||C.walkable(w.tileX,w.tileY+1)||C.walkable(w.tileX,w.tileY-1);
+  ok(M.every(reachable),'★ all reachable · an unreachable secret is not a secret');
   ok(M.every(w=>!C.isWorldBorderTile(w.tileX,w.tileY)),'★ none on a border tile');
   ok(M.every(w=>w.level===80),'★ all Lv 80 · tier × 10, no exception for the rarest thing in the game');
   const tiles=new Set(M.map(w=>w.tileX+','+w.tileY));

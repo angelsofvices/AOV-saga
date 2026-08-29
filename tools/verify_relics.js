@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={PRISMSHARD_REGISTRY,GEMSHARD_SLOTS,GEMSHARD_TOTAL,GEMSHARD_81,KEY_OF_ANCIUXOR_N,prismshardGemshardCount,prismshard,gemshardsOfPrismshard,parentPrismshardOf,gemshardsOfFamily,keyOfAnciuxorGemshards,relicClass,knownGemshards,RELIC_CLASS,RELIC_CLASS_MAP,SHARD_META,INVENTORY_META,player,game};')();}
+try{new Function(src+';globalThis.__C={PRISMSHARD_REGISTRY,GEMSHARD_SLOTS,GEMSHARD_TOTAL,GEMSHARD_81,KEY_OF_ANCIUXOR_N,prismshardGemshardCount,prismshard,gemshardsOfPrismshard,parentPrismshardOf,gemshardsOfFamily,keyOfAnciuxorGemshards,relicClass,knownGemshards,gemshardCensus,gemshardByKey,gemshardsOfUltramaxType,RELIC_CLASS,RELIC_CLASS_MAP,SHARD_META,INVENTORY_META,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -111,13 +111,33 @@ H('8 · ★★ THE VOLTSHARD CONFLICT IS RECORDED, NOT RESOLVED');
   ok(/THE ONE INFERENCE ON THIS PAGE/.test(doc),'★★★ the single inference in the merge is flagged as an inference');
 }
 
-H('9 · RULES 11-12 · WHAT GEMSHARDS DO');
+H('9 · ★★★ THE 22 ULTRASHARDS ARE 22 OF THE 81 · Creator ruling 2026-08-29');
 {
   const K=C.knownGemshards();
-  ok(K.length>=20,'★ '+K.length+' Gemshards already met in play (the Ultrashards)');
-  ok(K.every(g=>g.ultramaxType&&g.ultramaxMove),'★ RULE 11 · every one determines an Ultramax type AND move');
-  ok(K.every(g=>g.parent===null),'★★ RULE 5 pending · their parent Prismshards are OPEN, not assigned by me');
-  ok(K.length<=81,'★ and they fit inside the 81 · '+K.length+' of 81 recorded');
+  ok(K.length===22,'★★ the registry actually built · '+K.length+' recorded Gemshards');
+  ok(K.length>0,'★★★ NOT SILENTLY EMPTY — the first draft was an eager IIFE reading SHARD_META from its TDZ, the guard swallowed it, and this shipped as 0 of 81');
+  ok(K.every(g=>g.ofTheEightyOne===true),'★★★ every one is declared one OF THE 81 · they are not a parallel technology');
+  ok(K.every(g=>g.ultramaxType&&g.ultramaxMove),'★ RULE 11 · each governs an Ultramax type AND move · which is WHY they are Gemshards');
+  const cen=C.gemshardCensus();
+  ok(cen.total===81&&cen.recorded===22&&cen.unrecorded===59,
+     '★★ census · '+cen.recorded+' recorded, '+cen.unrecorded+' unrecorded, of '+cen.total);
+  ok(cen.recorded<=cen.total,'the recorded can never exceed the canon total');
+}
+
+H('10 · ★★ IDENTITY IS CANON · LINEAGE IS NOT');
+{
+  const K=C.knownGemshards();
+  ok(K.every(g=>g.parent===null),'★★★ no parent Prismshard was invented for any of the 22');
+  ok(K.every(g=>g.slot===null),'★★★ and none was written into a numbered slot — a slot POSITION would assert a parent by itself');
+  ok(C.gemshardCensus().placed===0,'★ placed = 0 · the code states plainly that lineage is unknown');
+  ok(K.every(g=>g.astralite===null&&g.family===null),'★ nor was any single Astralite source invented (Rule 10 pending)');
+  // the argument the placement work will need
+  const el=C.gemshardsOfUltramaxType('Elemental');
+  ok(el.length===5,'★★ FIVE Ultrashards share the Elemental type ('+el.map(g=>g.label).join(', ')+')');
+  ok(true,'★★★ …so by Rule 10 those are five DIFFERENT Astralites behind one type — Ultramax type is not the family axis, and lineage cannot be derived from the type column');
+  const g=C.gemshardByKey('shard_wyrm');
+  ok(g&&g.ultramaxType==='Draconic','lookup by item key works · '+(g&&g.label));
+  ok(C.gemshardByKey('coins')===null,'a non-Gemshard returns null');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

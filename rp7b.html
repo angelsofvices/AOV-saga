@@ -2862,17 +2862,77 @@ function relicClass(itemKey){
   if (/^compound_/.test(itemKey || '')) return RELIC_CLASS.MATERIAL;   // Matrix Cores are refined material
   return null;                                                        // not a relic · say so, don't guess
 }
-// Known Gemshards we have actually met, with the parent left OPEN.
-function knownGemshards(){
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.877 · THE ULTRASHARDS ARE GEMSHARDS · Creator: "merge the 22
+// ultrashards into the 81 gemshards.  they all descend from prismshards."
+//
+// The open question from v0.95.876 is CLOSED.  The 22 Ultrashards are not a
+// parallel reproduced technology — they are 22 OF THE 81, and like every
+// Gemshard they descend from a Prismshard.  That is why they can hand a Zyrex
+// an Ultramax type and move at all: Rule 11 was describing them the whole
+// time.  81 total · 22 recorded · 59 unrecorded.
+//
+// ★★ WHAT IS STILL OPEN, AND WHY IT IS MODELLED SEPARATELY.  Three different
+// facts live here and only two of them are canon:
+//    1. STRUCTURE  — 81 exist, 15x5 + 6.                        (canon)
+//    2. IDENTITY   — 22 of them are these Ultrashards.          (canon, today)
+//    3. LINEAGE    — WHICH Prismshard each one descends from.   (NOT canon)
+// If an identity were written into a numbered slot, the slot's position would
+// silently assert a parent — putting the Predator Shard at #7 would declare it
+// a child of Prismshard II, which the Creator has never said.  So identities
+// carry `parent: null, slot: null`: they are inside the 81 and they descend
+// from a Prismshard, and which branch is a question, not a guess.
+// ★★ LAZY, NOT EAGER.  The first draft of this was an IIFE — which runs HERE,
+// ~30k lines above the SHARD_META const it reads, so every key was in its
+// temporal dead zone, the try/catch swallowed the ReferenceError, and the
+// registry shipped SILENTLY EMPTY: census said 0 of 81 recorded and every
+// check that mattered would have passed on an empty array.  Caught by running
+// it instead of reading it.  Second eager-IIFE TDZ trap in this file (the
+// Athrenology name map was the first), so: build on FIRST CALL, then cache.
+let _GEMSHARD_REGISTRY = null;
+function GEMSHARD_REGISTRY_(){
+  if (_GEMSHARD_REGISTRY) return _GEMSHARD_REGISTRY;
   const out = [];
   try {
     for (const k of Object.keys(SHARD_META || {})){
-      out.push({ key:k, label:SHARD_META[k].label, ultramaxType:SHARD_META[k].type,
-                 ultramaxMove:SHARD_META[k].move, parent:null, slotId:null });
+      out.push({
+        key: k, label: SHARD_META[k].label,
+        ultramaxType: SHARD_META[k].type,     // Rule 11 · it GOVERNS the typing
+        ultramaxMove: SHARD_META[k].move,     // Rule 11 · and the move
+        ofTheEightyOne: true,                 // ★ Creator ruling · one of the 81
+        parent: null,                         // ★ descends from A Prismshard · which is open
+        slot: null,                           // ★ unplaced on the lineage tree, deliberately
+        astralite: null, family: null, weapon: null,
+        status: 'recorded',
+      });
     }
-  } catch(_){}   // same TDZ guard as relicClass()
+  } catch(_){ return out; }   // still un-evaluated · do NOT cache a half answer
+  if (!out.length) return out;
+  _GEMSHARD_REGISTRY = out;
   return out;
 }
+function knownGemshards(){ return GEMSHARD_REGISTRY_(); }
+// ★ the honest headline number · how much of the 81 is actually known
+function gemshardCensus(){
+  const R = GEMSHARD_REGISTRY_();
+  const recorded = R.filter(g => g.ofTheEightyOne).length;
+  return {
+    total: GEMSHARD_TOTAL,                    // 81 · computed from the lineage law
+    recorded,                                 // 22 · the Ultrashards
+    unrecorded: GEMSHARD_TOTAL - recorded,    // 59 · the Creator's to name
+    placed: R.filter(g => g.parent != null).length,   // 0 · lineage open
+  };
+}
+// a recorded Gemshard by its item key, or null
+function gemshardByKey(k){ return GEMSHARD_REGISTRY_().find(g => g.key === k) || null; }
+// ★ Rule 10 · one Gemshard, one Astralite, one family.  The Ultramax TYPE a
+// Gemshard grants is the visible face of its single Astralite source, so the
+// type is recorded and the Astralite behind it is left null until the Creator
+// maps type -> Astralite family.  Five Ultrashards share the Elemental type
+// (ember/tide/volt/cryo/squall) — five DIFFERENT Astralites presenting through
+// one type, which is exactly what §6 predicts and a good argument that type is
+// not the same axis as family.
+function gemshardsOfUltramaxType(t){ return GEMSHARD_REGISTRY_().filter(g => g.ultramaxType === t); }
 const COMPOUND_TIER_NAMES = ['','CORE','MAJOR I','MAJOR II','MAJOR III','MINOR I','MINOR II','MYTHIC'];
 // total points a Core of this tier is worth · T1 5 → T7 35
 function compoundPointsForTier(t){ return Math.max(1, Math.min(7, t | 0)) * 5; }

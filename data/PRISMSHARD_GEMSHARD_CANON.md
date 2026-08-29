@@ -178,13 +178,87 @@ The difference must be visible in lore, gameplay, visual design, abilities and h
 
 ---
 
-## 17 · WHAT SHIPPED IN CODE (v0.95.876)
+## 16b · ★ THE 22 ULTRASHARDS ARE 22 OF THE 81 — Creator ruling, 2026-08-29
+
+> *"merge the 22 ultrashards into the 81 gemshards. they all descend from prismshards."*
+
+The Ultrashards are **not** a parallel reproduced technology. They are Gemshards
+— 22 of the 81 — and like every Gemshard they descend from a Prismshard. This is
+why they can hand a Zyrex an Ultramax type and move at all: **Rule 11 was
+describing them the whole time.**
+
+**Census: 81 total · 22 recorded · 59 unrecorded.**
+
+| | Ultrashard | Ultramax type | Ultramax move |
+|---|---|---|---|
+| 1 | Predator Shard | Beast | Max Predator Roar |
+| 2 | Martial Shard | Humanoid | Max Martial Ascension |
+| 3 | Hive Shard | Creature | Max Hivestorm |
+| 4 | Terra Shard | Nature | Max Terraquake |
+| 5 | Verdant Shard | Verdant | Max Worldroot |
+| 6 | Ember Shard | Elemental | Max Novabloom |
+| 7 | Tide Shard | Elemental | Max Hydrocore |
+| 8 | Volt Shard | Elemental | Max Voltvortex |
+| 9 | Cryo Shard | Elemental | Max Cryoveil |
+| 10 | Squall Shard | Elemental | Max Squallcrown |
+| 11 | Prism Shard | Crystal | Max Prismshatter |
+| 12 | Wraith Shard | Spirit | Max Nether Wail |
+| 13 | Halo Shard | Divine | Max Halocore |
+| 14 | Corona Shard | Radiant | Max Coronacore |
+| 15 | Wyrm Shard | Draconic | Max Wyrmking Descent |
+| 16 | Blackspiral Shard | Corrupted | Max Blackspiral |
+| 17 | Stellar Shard | Astral | Max Stellar Convergence |
+| 18 | Chronal Shard | Chrono | Max Chronal Rupture |
+| 19 | Auracide Shard | Aura | Max Auracide |
+| 20 | Reactor Shard | Tech | Max Meltdown Reactor |
+| 21 | Xeno Shard | Extraterrestrial | Max Xenocataclysm |
+| 22 | Null Shard | Unknown | Max Reality Tear |
+
+### ★★ Three facts, and only two are canon
+
+| | fact | status |
+|---|---|---|
+| 1 | **STRUCTURE** — 81 exist, 15×5 + 6 | canon |
+| 2 | **IDENTITY** — 22 of them are these Ultrashards | **canon as of this ruling** |
+| 3 | **LINEAGE** — *which* Prismshard each descends from | **open** |
+
+Identities therefore carry `parent: null, slot: null`. Writing an identity into a
+numbered slot would make the slot's *position* assert a parent — putting the
+Predator Shard at #7 declares it a child of Prismshard II, which has never been
+said. They are inside the 81 and they descend from a Prismshard; which branch is
+a question, not a guess.
+
+### ★ A note the placement work will need
+
+**Five Ultrashards share the Elemental type** (Ember · Tide · Volt · Cryo ·
+Squall). By Rule 10 each Gemshard is one Astralite, so those are **five different
+Astralites presenting through one type** — which means **Ultramax type is not the
+same axis as Astralite family**, and lineage cannot be derived from type alone.
+That is consistent with §6, and it is the reason the code refuses to infer
+parents from the type column.
+
+When the Creator does assign lineage, the natural method is
+Astralite → family/Axis → the Prismshard anchored to that family
+(the Founder's Prism is F1 Creation, the Blood Prism F7 Body, and so on) — but
+that requires the type → Astralite map, which is still listed OPEN in the type
+canon (§42).
+
+## 17 · WHAT SHIPPED IN CODE (v0.95.876 · extended v0.95.877)
 
 `PRISMSHARD_REGISTRY` — sixteen entries carrying numeral, name, ascension tier, realm affinity, home planet and `gemshardCount`. Names/tiers/placements come from the **existing** V3.17.50 / V3.17.51 lock; nothing was invented.
 
 `GEMSHARD_SLOTS` — 81 slots **derived by code**, never typed as a list. Each carries `id`, `parent`, and `name / astralite / family / ultramaxType / ultramaxMove / weapon = null`, because those are the Creator's to fill.
 
 `relicClass(itemKey)` — the one place the game answers "is this a Prismshard, a Gemshard, a derivative relic, or ordinary Astralite material" (Rule 14, enforced rather than described).
+
+`GEMSHARD_REGISTRY_()` — the 22 recorded Gemshards, built **lazily**. The first
+draft was an eager IIFE reading `SHARD_META` 30k lines before that const exists;
+the TDZ error was swallowed by its own guard and the registry shipped **silently
+empty** — census read 0 of 81 and every check would have passed on an empty
+array. Caught by *running* it rather than reading it.
+
+`gemshardCensus()` → `{ total: 81, recorded: 22, unrecorded: 59, placed: 0 }`.
+`placed` is the honest count of how many have a known parent Prismshard: zero.
 
 Queries: `gemshardIdsOf(n)` · `parentPrismshardOf(gid)` · `gemshardsOfFamily(f)` · `keyOfAnciuxorGemshards()` · `GEMSHARD_81`.
 
@@ -194,6 +268,6 @@ Boot-time validation asserts 15×5+6 = 81 = `GEMSHARD_SLOTS.length`. **The total
 
 1. **★ The identification in §0** — are the 16 Prismshards the 16 Astralite Prisms? The code assumes yes.
 2. **The VOLTSHARD.** Shipped at v0.95.822 as a *Prismshard* powering the Sapphire Voltstorm A5, on the Creator's own instruction (*"these will be prismshard moves… the first prismshard we will find is the voltshard in malezor"*). But by §6 a single-energy relic named for one force is a **Gemshard**, and the standing Gemshard ruling already lists it as one. Two canon statements, one item. **Not retyped without a ruling** — the code marks it `CLASS_DISPUTED` and names both readings.
-3. **The 22 Ultrashards** (`SHARD_META`) determine Ultramax typing and moves, which is Rule 11 exactly — so they are Gemshards in all but name. Are they 22 of the 81, or a separate reproduced technology (§3 "replicative")? They are registered as `gemshardClass: true, parent: null` pending the answer.
+3. ~~The 22 Ultrashards — 22 of the 81, or a reproduced technology?~~ **ANSWERED 2026-08-29 · see §16b.** They are 22 of the 81. What remains open is their **lineage**: which Prismshard each of the 22 descends from.
 4. **Gemshard numbering** — sequential by lineage (I → 1-5, II → 6-10 … XVI → 76-81) is assumed from §12's "76–81". Confirm.
 5. **The Gemlord blades** — canon says they are cut from Prismshards ("relic-forged"). Under §9 a mythic weapon is normally built *around a Gemshard*. Are the Gemlord weapons the exception that proves Prismshards can also be forged, or should they be re-read as Gemshard-powered?

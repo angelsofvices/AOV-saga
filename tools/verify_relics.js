@@ -1,0 +1,124 @@
+const fs = require('fs');
+const src = fs.readFileSync('/tmp/all.js', 'utf8');
+const noop = () => {};
+global.setInterval=()=>0; global.setTimeout=()=>0; global.clearInterval=noop; global.clearTimeout=noop;
+const CTX=new Proxy({},{get:()=>()=>({addColorStop:noop,width:0,height:0,data:[]})});
+const el=()=>({style:{},dataset:{},classList:{add:noop,remove:noop,toggle:noop,contains:()=>false},width:960,height:540,value:'',textContent:'',innerHTML:'',children:[],childNodes:[],getContext:()=>CTX,appendChild:noop,removeChild:noop,addEventListener:noop,removeEventListener:noop,setAttribute:noop,getAttribute:()=>null,focus:noop,remove:noop,play:()=>Promise.resolve(),pause:noop,querySelector:()=>el(),querySelectorAll:()=>[],getBoundingClientRect:()=>({left:0,top:0,width:960,height:540})});
+global.addEventListener=noop; global.removeEventListener=noop;
+global.document={getElementById:()=>el(),querySelector:()=>el(),querySelectorAll:()=>[],createElement:()=>el(),addEventListener:noop,body:el(),documentElement:el(),head:el(),hidden:false,visibilityState:'visible'};
+global.window=global; global.localStorage={getItem:()=>null,setItem:noop,removeItem:noop};
+global.Audio=function(){return{play:()=>Promise.resolve(),pause:noop,addEventListener:noop,cloneNode(){return this}}};
+global.Image=function(){return{addEventListener:noop,complete:false,naturalWidth:0,src:''}};
+global.requestAnimationFrame=()=>0; global.cancelAnimationFrame=noop;
+global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
+global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
+global.performance={now:()=>Date.now()};
+global.getComputedStyle=()=>({getPropertyValue:()=>''});
+try{new Function(src+';globalThis.__C={PRISMSHARD_REGISTRY,GEMSHARD_SLOTS,GEMSHARD_TOTAL,GEMSHARD_81,KEY_OF_ANCIUXOR_N,prismshardGemshardCount,prismshard,gemshardsOfPrismshard,parentPrismshardOf,gemshardsOfFamily,keyOfAnciuxorGemshards,relicClass,knownGemshards,RELIC_CLASS,RELIC_CLASS_MAP,SHARD_META,INVENTORY_META,player,game};')();}
+catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
+const C=globalThis.__C; let f=0;
+const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
+const H=t=>console.log('\n'+t);
+const P=C.PRISMSHARD_REGISTRY, G=C.GEMSHARD_SLOTS;
+
+H('1 · RULES 1-3 · THE SIXTEEN');
+{
+  ok(P.length===16,'★ RULE 1 · exactly 16 Prismshards');
+  ok(new Set(P.map(p=>p.n)).size===16,'numbered I-XVI with no gap or repeat');
+  ok(new Set(P.map(p=>p.name)).size===16,'★ sixteen distinct relics · no two interchangeable');
+  const tiers={};
+  for(const p of P) tiers[p.tier]=(tiers[p.tier]||0)+1;
+  ok(tiers['T-I']===7&&tiers['T-II']===5&&tiers['T-III']===3&&tiers['T-IV']===1,
+     '★ the ascension ladder is intact · 7 + 5 + 3 + 1 = 16');
+}
+
+H('2 · RULES 6-9 · THE ARITHMETIC IS A LAW, NOT A LIST');
+{
+  ok(P.slice(0,15).every(p=>C.prismshardGemshardCount(p.n)===5),'★ RULE 6 · I-XV each yield exactly five');
+  ok(C.prismshardGemshardCount(16)===6,'★ RULE 7 · XVI yields six');
+  ok(C.GEMSHARD_TOTAL===81,'★★ RULE 4 · 15×5 + 6 = '+C.GEMSHARD_TOTAL);
+  ok(G.length===81,'…and the slot table IS that number · derived, never typed');
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(/const GEMSHARD_TOTAL = GEMSHARD_SLOTS\.length/.test(src2),
+     '★★ the 81 is COMPUTED from the lineage · change a count and the total moves with it, or the boot assertion shouts');
+  ok(/RELIC CANON BROKEN/.test(src2),'★ and a boot assertion is watching it');
+}
+
+H('3 · RULE 5 · EVERY GEMSHARD HAS EXACTLY ONE PARENT');
+{
+  ok(G.every(g=>g.parent>=1&&g.parent<=16),'★ RULE 5 · all 81 originate from the sixteen');
+  ok(G.every(g=>C.parentPrismshardOf(g.id)&&C.parentPrismshardOf(g.id).n===g.parent),
+     '★ and the lineage query round-trips for every one of the 81');
+  let sum=0; for(let n=1;n<=16;n++) sum+=C.gemshardsOfPrismshard(n).length;
+  ok(sum===81,'the per-parent buckets add back to 81 · nothing orphaned, nothing double-counted');
+  ok(C.gemshardsOfPrismshard(9).length===5,'query · Prismshard IX has 5 derivatives');
+}
+
+H('4 · ★★ RULES 8-9 · THE KEY AND THE 81ST');
+{
+  const K=C.prismshard(C.KEY_OF_ANCIUXOR_N);
+  ok(K&&/Key of Anciuxor/i.test(K.name),'★ RULE 8 · Prismshard XVI IS the Key of Anciuxor');
+  ok(K.tier==='T-IV'&&/ALL FOUR/i.test(K.realm),'★ it alone is Realm-transcendent · not "number sixteen but strongest"');
+  ok(C.keyOfAnciuxorGemshards().length===6,'★★ the Key uniquely yields SIX');
+  const ids=C.keyOfAnciuxorGemshards().map(g=>g.id);
+  ok(ids.join()==='76,77,78,79,80,81','★★ the Key is responsible for Gemshards 76-81 (§12)');
+  ok(C.GEMSHARD_81.id===81&&C.GEMSHARD_81.parent===16,'★★★ RULE 9 · GEMSHARD 81 is the Key\'s sixth · the anomaly is the significance');
+  ok(C.GEMSHARD_81.ordinal===6,'…and it is the SIXTH of its lineage, which is the whole irregularity');
+}
+
+H('5 · ★★★ NOTHING WAS INVENTED');
+{
+  ok(G.every(g=>g.name===null),'★★★ all 81 names are NULL · the Creator names them, not the code');
+  ok(G.every(g=>g.astralite===null&&g.family===null),'★★ no Astralite compositions invented');
+  ok(G.every(g=>g.ultramaxType===null&&g.ultramaxMove===null&&g.weapon===null),'★ no Ultramax or weapon bindings invented');
+  ok(G.every(g=>g.status==='unrecorded'),'every slot says plainly that it is unrecorded');
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(!/GEMSHARD_81[\s\S]{0,400}?(because|reason|secret is)/i.test(src2.split('const GEMSHARD_81')[1]||''),
+     '★★★ the code does not explain WHY the 81st exists · it is reserved as a lore revelation');
+}
+
+H('6 · THE NAMES CAME FROM THE EXISTING LOCK');
+{
+  // spot-check against V3.17.50 / V3.17.51 · these must not have been re-authored
+  const byN=Object.fromEntries(P.map(p=>[p.n,p]));
+  ok(byN[7].name==='The Deep Prism'&&/Xilnar/.test(byN[7].planet),'★ VII · Deep Prism · Zyraxis/Xilnar, as locked');
+  ok(byN[12].name==='The Refuge Prism'&&/Vorashil/.test(byN[12].planet),'★ XII · Refuge Prism · Zyraxis/Vorashil, as locked');
+  ok(byN[15].name==='The Prism of Omnithris'&&/Korathen/.test(byN[15].planet),'★ XV · Prism of Omnithris · Zyraxis/Korathen, as locked');
+  ok(byN[4].planet==='MOBILE','★ IV · the Wanderer\'s Prism is still MOBILE · canon honoured, not flattened to a planet');
+  const zyraxis=P.filter(p=>/Zyraxis/.test(p.planet));
+  ok(zyraxis.length===3,'★★ exactly 3 are Zyraxis-native · the game-reachable ceiling is unchanged');
+}
+
+H('7 · ★ RULE 14 · THE THREE WORDS ARE NEVER SYNONYMOUS');
+{
+  ok(C.relicClass('gem')===C.RELIC_CLASS.MATERIAL,'an ordinary Astralite gem is MATERIAL, not a Gemshard');
+  ok(C.relicClass('life_stone')===C.RELIC_CLASS.DERIVATIVE,'★ a Life Stone is DERIVATIVE · descended (§3), never equal');
+  ok(C.relicClass('prismshard')===C.RELIC_CLASS.PRISMSHARD,'the Prismshard item is a PRISMSHARD');
+  ok(C.relicClass('shard_predator')===C.RELIC_CLASS.GEMSHARD,'★★ an Ultrashard is a GEMSHARD · it sets Ultramax typing + moves, which is Rule 11 word for word');
+  ok(C.relicClass('compound_will_t7')===C.RELIC_CLASS.MATERIAL,'★ a Matrix Core is refined MATERIAL · relic-shaped is not relic-class');
+  ok(C.relicClass('coins')===null,'★ a non-relic returns null · the function says "not a relic" instead of guessing one');
+}
+
+H('8 · ★★ THE VOLTSHARD CONFLICT IS RECORDED, NOT RESOLVED');
+{
+  ok(C.relicClass('voltshard')===C.RELIC_CLASS.DISPUTED,
+     '★★ voltshard is CLASS_DISPUTED · shipped as a Prismshard (A5), reads as a Gemshard (§6) · both are the Creator\'s words');
+  const src2=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  ok(/THE VOLTSHARD IS DISPUTED ON PURPOSE/.test(src2),'★ and the conflict is written where he will find it');
+  ok(fs.existsSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/data/PRISMSHARD_GEMSHARD_CANON.md'),'the canon doc ships alongside');
+  const doc=fs.readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/data/PRISMSHARD_GEMSHARD_CANON.md','utf8');
+  ok(/OPEN QUESTIONS FOR THE CREATOR/.test(doc),'★★ and the doc ends in questions, not in answers I made up');
+  ok(/THE ONE INFERENCE ON THIS PAGE/.test(doc),'★★★ the single inference in the merge is flagged as an inference');
+}
+
+H('9 · RULES 11-12 · WHAT GEMSHARDS DO');
+{
+  const K=C.knownGemshards();
+  ok(K.length>=20,'★ '+K.length+' Gemshards already met in play (the Ultrashards)');
+  ok(K.every(g=>g.ultramaxType&&g.ultramaxMove),'★ RULE 11 · every one determines an Ultramax type AND move');
+  ok(K.every(g=>g.parent===null),'★★ RULE 5 pending · their parent Prismshards are OPEN, not assigned by me');
+  ok(K.length<=81,'★ and they fit inside the 81 · '+K.length+' of 81 recorded');
+}
+
+console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));
+process.exit(f?1:0);

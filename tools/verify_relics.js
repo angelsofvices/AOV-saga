@@ -14,7 +14,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={PRISMSHARD_REGISTRY,GEMSHARD_SLOTS,GEMSHARD_TOTAL,GEMSHARD_81,KEY_OF_ANCIUXOR_N,prismshardGemshardCount,prismshard,gemshardsOfPrismshard,parentPrismshardOf,gemshardsOfFamily,keyOfAnciuxorGemshards,relicClass,knownGemshards,gemshardCensus,gemshardByKey,gemshardsOfUltramaxType,RELIC_CLASS,RELIC_CLASS_MAP,SHARD_META,INVENTORY_META,player,game};')();}
+try{new Function(src+';globalThis.__C={PRISMSHARD_REGISTRY,GEMSHARD_SLOTS,GEMSHARD_TOTAL,GEMSHARD_81,KEY_OF_ANCIUXOR_N,prismshardGemshardCount,prismshard,gemshardsOfPrismshard,parentPrismshardOf,gemshardsOfFamily,keyOfAnciuxorGemshards,relicClass,knownGemshards,gemshardCensus,gemshardByKey,gemshardsOfUltramaxType,ASTRALITE_FAMILY_PRISM_QUOTA,PRISMSHARD_FAMILY,prismshardsOfFamily,familyQuotaGaps,prismshardsWithoutFamily,gemshardsOwedToFamily,GEMLORD_WEAPONS,gemlordWeapon,ASTRALITE_FAMILIES,RELIC_CLASS,RELIC_CLASS_MAP,SHARD_META,INVENTORY_META,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -114,20 +114,26 @@ H('8 · ★★ THE VOLTSHARD CONFLICT IS RECORDED, NOT RESOLVED');
 H('9 · ★★★ THE 22 ULTRASHARDS ARE 22 OF THE 81 · Creator ruling 2026-08-29');
 {
   const K=C.knownGemshards();
-  ok(K.length===22,'★★ the registry actually built · '+K.length+' recorded Gemshards');
-  ok(K.length>0,'★★★ NOT SILENTLY EMPTY — the first draft was an eager IIFE reading SHARD_META from its TDZ, the guard swallowed it, and this shipped as 0 of 81');
-  ok(K.every(g=>g.ofTheEightyOne===true),'★★★ every one is declared one OF THE 81 · they are not a parallel technology');
-  ok(K.every(g=>g.ultramaxType&&g.ultramaxMove),'★ RULE 11 · each governs an Ultramax type AND move · which is WHY they are Gemshards');
+  // ★ v0.95.878 · SCOPED TO THE ULTRASHARDS.  These four checks were written
+  // when the registry held nothing else; the Gemlord weapons joined it at
+  // .878 and carry no Ultramax move, so an all-entries assertion would now be
+  // asking the wrong population.  Measure the Ultrashards, not "everything
+  // that happens to be in the array today".
+  const U=K.filter(g=>g.ultramaxMove);
+  ok(U.length===22,'★★ the registry actually built · '+U.length+' Ultrashards recorded');
+  ok(U.length>0,'★★★ NOT SILENTLY EMPTY — the first draft was an eager IIFE reading SHARD_META from its TDZ, the guard swallowed it, and this shipped as 0 of 81');
+  ok(U.every(g=>g.ofTheEightyOne===true),'★★★ every one is declared one OF THE 81 · they are not a parallel technology');
+  ok(U.every(g=>g.ultramaxType&&g.ultramaxMove),'★ RULE 11 · each governs an Ultramax type AND move · which is WHY they are Gemshards');
   const cen=C.gemshardCensus();
-  ok(cen.total===81&&cen.recorded===22&&cen.unrecorded===59,
-     '★★ census · '+cen.recorded+' recorded, '+cen.unrecorded+' unrecorded, of '+cen.total);
+  ok(cen.total===81&&cen.recorded===32&&cen.unrecorded===49,
+     '★★ census · '+cen.recorded+' recorded (22 Ultrashards + 10 Gemlord weapons), '+cen.unrecorded+' unrecorded, of '+cen.total);
   ok(cen.recorded<=cen.total,'the recorded can never exceed the canon total');
 }
 
 H('10 · ★★ IDENTITY IS CANON · LINEAGE IS NOT');
 {
   const K=C.knownGemshards();
-  ok(K.every(g=>g.parent===null),'★★★ no parent Prismshard was invented for any of the 22');
+  ok(K.every(g=>g.parent===null),'★★★ no parent Prismshard was invented for any of the '+K.length);
   ok(K.every(g=>g.slot===null),'★★★ and none was written into a numbered slot — a slot POSITION would assert a parent by itself');
   ok(C.gemshardCensus().placed===0,'★ placed = 0 · the code states plainly that lineage is unknown');
   ok(K.every(g=>g.astralite===null&&g.family===null),'★ nor was any single Astralite source invented (Rule 10 pending)');
@@ -138,6 +144,64 @@ H('10 · ★★ IDENTITY IS CANON · LINEAGE IS NOT');
   const g=C.gemshardByKey('shard_wyrm');
   ok(g&&g.ultramaxType==='Draconic','lookup by item key works · '+(g&&g.label));
   ok(C.gemshardByKey('coins')===null,'a non-Gemshard returns null');
+}
+
+H('11 · ★★★ THE FAMILY QUOTA · 1 + 2·7 + 1 · DOES IT CHECK OUT?');
+{
+  const Q=C.ASTRALITE_FAMILY_PRISM_QUOTA;
+  ok(Object.keys(Q).length===9,'nine Astralite families');
+  ok(Q[1]===1&&Q[9]===1,'★ Ax-1 CREATION and Ax-9 SPIRIT take ONE each, as ruled');
+  ok([2,3,4,5,6,7,8].every(f=>Q[f]===2),'★ the other seven take TWO each');
+  const sum=Object.values(Q).reduce((a,b)=>a+b,0);
+  ok(sum===16,'★★★ 1 + (2×7) + 1 = '+sum+' · IT CHECKS OUT · exactly the sixteen Prismshards');
+  ok(sum===C.PRISMSHARD_REGISTRY.length,'…and it equals the registry, not just the number 16');
+  // the second axis · the one that makes it a structure rather than a coincidence
+  let owed=0; for(let f=1;f<=9;f++) owed+=C.gemshardsOwedToFamily(f);
+  ok(owed===80,'★★ 16 Prismshards × 5 = '+owed+' Gemshards owed to families');
+  ok(owed+1===81,'★★★ + the Key\'s irregular SIXTH = 81 · the quota and the 81 are the SAME arithmetic from two directions');
+}
+
+H('12 · ★★ IT FITS THE EXISTING LOCK WITHOUT RE-AUTHORING ANYTHING');
+{
+  const assigned=Object.values(C.PRISMSHARD_FAMILY).filter(v=>v!=null).length;
+  ok(assigned===12,'★ twelve Prismshards already carried a family anchor from V3.17.50');
+  const gaps=C.familyQuotaGaps(), homeless=C.prismshardsWithoutFamily();
+  ok(gaps.reduce((a,g)=>a+g.open,0)===4,'★ the quota leaves exactly FOUR open family slots');
+  ok(homeless.length===4,'★ and exactly FOUR Prismshards have no family');
+  ok(gaps.map(g=>g.family).join()==='2,6,7,8','★★ the open slots are F2 PAST · F6 PRESERVATION · F7 BODY · F8 FUTURE');
+  ok(homeless.map(p=>p.numeral).join()==='XIII,XIV,XV,XVI','★★ the homeless are XIII · XIV · XV · XVI (the realm echoes and the Key)');
+  ok(gaps.length===homeless.length,'★★★ four gaps, four candidates — the ruling fit canon that already existed');
+  ok(C.prismshardsOfFamily(3).length===2,'query · F3 DESTRUCTION is full (Devourer\'s + Reaver\'s)');
+  ok(C.PRISMSHARD_FAMILY[16]===null,'★★ the Key\'s family is still NULL · the quota IMPLIES it has one, which is a claim the Creator has not made');
+}
+
+H('13 · ★★★ THE GEMLORD WEAPONS ARE GEMSHARDS');
+{
+  const W=C.GEMLORD_WEAPONS;
+  ok(W.length===10,'★ ten Gemlords, ten weapon slots');
+  ok(new Set(W.map(w=>w.gemlord)).size===10,'one per throne, no duplicates');
+  ok(W.filter(w=>w.inGame).length===4,'★★ four are already in the game');
+  const sap=C.gemlordWeapon('sapphire_sword'), rub=C.gemlordWeapon('rubypaw_sword');
+  ok(sap.gemlord==='azurel'&&rub.gemlord==='rakoron','★ Sapphire Tearsword → AZUREL · Rubypaw Longsword → RAKORON (canon)');
+  const em=C.gemlordWeapon('emerald_axe'), pb=C.gemlordWeapon('pearlbow');
+  ok(em.gemlord==='emeralix'&&em.district==='Veridan','★ Emerald Axe → EMERALIX the Emeralord OF VERIDAN · the chest was in Veridan');
+  ok(pb.gemlord==='ivirium'&&pb.district==='Zarvane','★ Pearlbow → IVIRIUM the Pearlord OF ZARVANE · the chest was in Zarvane');
+  ok(em.inferred===true&&pb.inferred===true,'★★★ and BOTH are flagged INFERRED · three matching signals is not the Creator saying so');
+  ok(sap.inferred===false&&rub.inferred===false,'…while the two he did state are not');
+  ok(W.filter(w=>!w.weapon).length===6,'six thrones still have no named weapon');
+  ok(W.some(w=>w.gemlord==='oatheus'),'★ Oatheus keeps his slot · the Empty Throne is absent, not deleted');
+}
+
+H('14 · THE CENSUS STAYS HONEST');
+{
+  const c=C.gemshardCensus();
+  ok(c.recorded===32,'★★ 22 Ultrashards + 10 Gemlord weapons = '+c.recorded+' of the 81 recorded');
+  ok(c.unrecorded===49,'★ '+c.unrecorded+' still unrecorded');
+  ok(c.recorded+c.unrecorded===81,'the books balance');
+  ok(c.placed===0,'★★★ placed is STILL 0 · knowing what a Gemshard IS is not knowing which Prismshard bore it');
+  const K=C.knownGemshards();
+  ok(K.filter(g=>g.weapon).length===4,'four carry a named weapon');
+  ok(K.every(g=>g.parent===null&&g.family===null),'★★ and not one of the 32 had a parent or family invented for it');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

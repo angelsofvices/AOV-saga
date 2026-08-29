@@ -243,6 +243,75 @@ Astralite → family/Axis → the Prismshard anchored to that family
 that requires the type → Astralite map, which is still listed OPEN in the type
 canon (§42).
 
+## 16c · ★★★ THE FAMILY QUOTA — Creator ruling, 2026-08-29
+
+> *"the gemlord weapons are gemshards that come from the prismshard families. each astralite family (9) gets 2 prismshards besides ax1 and a9, they get 1 each so 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 1. does that check out?"*
+
+**It checks out on both axes — and the second one is what makes it a structure rather than a coincidence.**
+
+```
+AXIS 1 · PRISMSHARDS      1 + (2 × 7) + 1              = 16   ✓
+AXIS 2 · GEMSHARDS        16 × 5 = 80, + the Key's 6th = 81   ✓
+```
+
+The family quota and the 81 are **the same arithmetic seen from two directions**. A distribution that summed to 16 but not to 81 would have been a happy accident; this one closes both books.
+
+### ★★ And it fits the existing lock without re-authoring anything
+
+Twelve Prismshards already carry a family anchor from V3.17.50. Their tally against the quota leaves **exactly four open slots** — and there are **exactly four Prismshards with no family**:
+
+| F | family | quota | assigned | gap | who holds it |
+|---|---|---:|---:|---:|---|
+| 1 | CREATION | 1 | 1 | — | I Founder's *(Ax-1)* |
+| 2 | **PAST** | 2 | 1 | **1** | III Silent *(Ax-2)* |
+| 3 | DESTRUCTION | 2 | 2 | — | V Devourer's *(Ax-3)* · X Reaver's *(Ob)* |
+| 4 | MIND | 2 | 2 | — | VI Oracle's *(Ax-4)* · XI Emissary's *(Ao)* |
+| 5 | PRESENT | 2 | 2 | — | IV Wanderer's *(Ax-5)* · XII Refuge *(Pv)* |
+| 6 | **PRESERVATION** | 2 | 1 | **1** | IX Sentinel's *(In)* |
+| 7 | **BODY** | 2 | 1 | **1** | II Blood *(Ax-7)* |
+| 8 | **FUTURE** | 2 | 1 | **1** | VIII Voyager's *(Syx)* |
+| 9 | SPIRIT | 1 | 1 | — | VII Deep *(Ax-9)* |
+
+**Four gaps: F2 PAST · F6 PRESERVATION · F7 BODY · F8 FUTURE.**
+**Four candidates: XIII Immortalands · XIV Anciara · XV Omnithris · XVI the Key.**
+
+Assigning those four closes the lineage problem the merge left open.
+
+### ★ One thing the quota implies — flagged, not assumed
+
+For the count to reach 16, **the Key of Anciuxor must belong to a family.** Prior design intuition had it *"transcending the 63, carrying all 9 families as trace echoes with Ax as primary substrate"* — compatible if that **primary substrate is its family**, but the Creator has not said it outright. All four remain `family: null` in code until he places them. Whichever family takes the Key ends up owed **eleven** Gemshards instead of ten.
+
+### Gemshards owed per family (derived, moves when the last four are placed)
+
+`F1 → 5 · F9 → 5 · the other seven → 10 each · +1 wherever the Key lands = 81`
+
+---
+
+## 16d · ★★★ THE GEMLORD WEAPONS ARE GEMSHARDS
+
+This settles the §9 tension the merge flagged. Canon said the Gemlord blades were *"relic-forged · cut from PRISMSHARDS"*, while §9 says a mythic weapon is built **around** a Gemshard. Both were true at different depths: **the weapon IS a Gemshard, and the Gemshard came from a Prismshard** — so "cut from Prismshards" was right about the lineage and loose about the class.
+
+**Ten Gemlords · ten weapons · ten of the 81.**
+
+| Gemlord | title | district | weapon | in game |
+|---|---|---|---|---|
+| Azurel | Sapphirelord | Vorashil | **Sapphire Tearsword** | ✔ |
+| Rakoron | Gemlord | Malezor | **Rubypaw Longsword** | ✔ |
+| Emeralix | Emeralord | Veridan | **Emerald Axe** ★inferred | ✔ |
+| Ivirium | Pearlord | Zarvane | **Pearlbow** ★inferred | ✔ |
+| Eurakeon | Amethystlord | Netharion | — | |
+| Obsidius | Onyxlord | Xilnar | — | |
+| Ambrevon | Amberlord | Baelgor | — | |
+| Mutaryn | Citrinelord | Andrannor | — | |
+| Oathane | Gemlord | Thardin | — | |
+| Oatheus | **The Empty Throne** | Korathen | — | |
+
+★ **The two inferences.** The Emerald Axe came from a **Veridan** cosmic chest and Emeralix is the Emeralord **of Veridan**; the Pearlbow came from a **Zarvane** chest and Ivirium is the Pearlord **of Zarvane**. Gem name, chest district and Gemlord title agree three ways — but three matching signals is not the Creator saying so, and both are marked `inferred: true`.
+
+★ **Oatheus keeps his slot.** He is absent, so whether his weapon is lost *with* him, waiting *for* him, or the reason he left is a story question, not a data one.
+
+**Census after this ruling: 81 total · 32 recorded (22 Ultrashards + 10 Gemlord weapons) · 49 unrecorded · 0 placed.**
+
 ## 17 · WHAT SHIPPED IN CODE (v0.95.876 · extended v0.95.877)
 
 `PRISMSHARD_REGISTRY` — sixteen entries carrying numeral, name, ascension tier, realm affinity, home planet and `gemshardCount`. Names/tiers/placements come from the **existing** V3.17.50 / V3.17.51 lock; nothing was invented.
@@ -270,4 +339,11 @@ Boot-time validation asserts 15×5+6 = 81 = `GEMSHARD_SLOTS.length`. **The total
 2. **The VOLTSHARD.** Shipped at v0.95.822 as a *Prismshard* powering the Sapphire Voltstorm A5, on the Creator's own instruction (*"these will be prismshard moves… the first prismshard we will find is the voltshard in malezor"*). But by §6 a single-energy relic named for one force is a **Gemshard**, and the standing Gemshard ruling already lists it as one. Two canon statements, one item. **Not retyped without a ruling** — the code marks it `CLASS_DISPUTED` and names both readings.
 3. ~~The 22 Ultrashards — 22 of the 81, or a reproduced technology?~~ **ANSWERED 2026-08-29 · see §16b.** They are 22 of the 81. What remains open is their **lineage**: which Prismshard each of the 22 descends from.
 4. **Gemshard numbering** — sequential by lineage (I → 1-5, II → 6-10 … XVI → 76-81) is assumed from §12's "76–81". Confirm.
-5. **The Gemlord blades** — canon says they are cut from Prismshards ("relic-forged"). Under §9 a mythic weapon is normally built *around a Gemshard*. Are the Gemlord weapons the exception that proves Prismshards can also be forged, or should they be re-read as Gemshard-powered?
+5. ~~The Gemlord blades — cut from Prismshards, or built around Gemshards?~~ **ANSWERED 2026-08-29 · see §16d.** They *are* Gemshards, descended from the Prismshard families.
+
+**New, from the same ruling:**
+
+6. **Which family takes each of the last four Prismshards?** F2 PAST · F6 PRESERVATION · F7 BODY · F8 FUTURE are open; XIII, XIV, XV and XVI are homeless. Any assignment closes the quota.
+7. **Does the Key of Anciuxor have a family?** The arithmetic requires it (§16c). Its family ends up owed eleven Gemshards.
+8. **The Emerald Axe and Pearlbow attributions** — inferred from three agreeing signals, not stated. Confirm or correct.
+9. **Which family does each Gemlord weapon belong to?** Ten weapons, nine families — so at least one family holds two Gemlord weapons, or one weapon belongs to a family with none.

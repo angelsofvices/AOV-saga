@@ -2788,6 +2788,74 @@ const PRISMSHARD_REGISTRY = [
   { n: 16, numeral:'XVI',  name:'The Key of Anciuxor',        tier:'T-IV',  realm:'ALL FOUR', planet:"Anciuxor's tail" },
 ];
 const KEY_OF_ANCIUXOR_N = 16;
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.878 · THE FAMILY QUOTA · Creator: "each astralite family (9) gets
+// 2 prismshards besides ax1 and a9, they get 1 each so 1+2+2+2+2+2+2+2+1.
+// does that check out?"
+//
+// IT CHECKS OUT ON BOTH AXES, AND IT CLOSES THE LINEAGE PROBLEM.
+//   1 + (2 x 7) + 1                = 16 Prismshards   ✓
+//   16 x 5 = 80, + the Key's 6th   = 81 Gemshards     ✓
+// The second line is the one that matters: the family quota and the 81 are
+// the SAME arithmetic seen from two directions.  A distribution that summed
+// to 16 but not to 81 would have been a coincidence; this is a structure.
+//
+// ★★ AND IT FITS THE EXISTING LOCK EXACTLY.  Twelve Prismshards already carry
+// a family anchor from V3.17.50.  Their tally leaves exactly FOUR open slots —
+// F2 PAST, F6 PRESERVATION, F7 BODY, F8 FUTURE — and there are exactly FOUR
+// Prismshards with no family: XIII Immortalands, XIV Anciara, XV Omnithris,
+// XVI the Key.  Four gaps, four candidates.  Nothing had to be re-authored to
+// make the Creator's quota fit; it simply already fit.
+//
+// ★ ONE THING THE QUOTA IMPLIES — flagged, not assumed.  For the count to
+// reach 16, the KEY MUST BELONG TO A FAMILY.  Prior design intuition had it
+// "transcending the 63, carrying all 9 as trace echoes with Ax as primary
+// substrate" — compatible if that primary substrate IS its family, but it is
+// a claim the Creator has not made outright, so `family` stays null on all
+// four unassigned until he says which goes where.
+const ASTRALITE_FAMILY_PRISM_QUOTA = Object.freeze({
+  1: 1,  // CREATION      · Ax-1 · the first family takes one
+  2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2,
+  9: 1,  // SPIRIT        · Ax-9 · and the last takes one
+});
+// family anchors from the V3.17.50 lock · null = the Creator has not said
+const PRISMSHARD_FAMILY = Object.freeze({
+  1: 1,   // I    Founder's   · Ax-1 Aethryx Prime      · F1 CREATION
+  2: 7,   // II   Blood       · Ax-7 Corporex           · F7 BODY
+  3: 2,   // III  Silent      · Ax-2 Mnemosyne Aethra   · F2 PAST
+  4: 5,   // IV   Wanderer's  · Ax-5 Viridion Prime     · F5 PRESENT
+  5: 3,   // V    Devourer's  · Ax-3 Pyroclast Aethra   · F3 DESTRUCTION
+  6: 4,   // VI   Oracle's    · Ax-4 Cognara            · F4 MIND
+  7: 9,   // VII  Deep        · Ax-9 Astryx Soul        · F9 SPIRIT
+  8: 8,   // VIII Voyager's   · Syx Synapse Prime       · F8 FUTURE
+  9: 6,   // IX   Sentinel's  · In Imperish Core        · F6 PRESERVATION
+  10: 3,  // X    Reaver's    · Ob Oblivion Heart       · F3 DESTRUCTION
+  11: 4,  // XI   Emissary's  · Ao Auramind Core        · F4 MIND
+  12: 5,  // XII  Refuge      · Pv Primordial Verdance  · F5 PRESENT
+  13: null, 14: null, 15: null, 16: null,   // ★ the four · see the gaps below
+});
+function prismshardsOfFamily(f){
+  return PRISMSHARD_REGISTRY.filter(P => PRISMSHARD_FAMILY[P.n] === f);
+}
+// ★ which family slots are still open, and which Prismshards are still homeless
+function familyQuotaGaps(){
+  const out = [];
+  for (let f = 1; f <= 9; f++){
+    const gap = ASTRALITE_FAMILY_PRISM_QUOTA[f] - prismshardsOfFamily(f).length;
+    if (gap > 0) out.push({ family: f, open: gap });
+  }
+  return out;
+}
+function prismshardsWithoutFamily(){
+  return PRISMSHARD_REGISTRY.filter(P => PRISMSHARD_FAMILY[P.n] == null);
+}
+// Gemshards a family is owed · quota x 5, plus the Key's irregular sixth if
+// the Key ends up living there.  Derived, so it moves when the Creator places
+// the last four.
+function gemshardsOwedToFamily(f){
+  const base = (ASTRALITE_FAMILY_PRISM_QUOTA[f] || 0) * 5;
+  return base + (PRISMSHARD_FAMILY[KEY_OF_ANCIUXOR_N] === f ? 1 : 0);
+}
 // ★ THE LAW · I-XV yield five, XVI yields six.  Written as a FUNCTION of the
 // numeral so the 81 can never be typed by hand and drift from the rule.
 function prismshardGemshardCount(n){ return n === KEY_OF_ANCIUXOR_N ? 6 : 5; }
@@ -2817,6 +2885,19 @@ if (GEMSHARD_TOTAL !== 81 || GEMSHARD_81.parent !== KEY_OF_ANCIUXOR_N){
   console.error('[rp7b] RELIC CANON BROKEN · expected 15x5+6=81 Gemshards with 81 under the Key · got',
                 GEMSHARD_TOTAL, 'and parent', GEMSHARD_81 && GEMSHARD_81.parent);
 }
+// ★★ v0.95.878 · the family quota must agree with the lineage law, from BOTH
+// directions.  If a future edit changes one and not the other, this shouts.
+(function(){
+  const q = Object.values(ASTRALITE_FAMILY_PRISM_QUOTA).reduce((a, b) => a + b, 0);
+  const g = Object.keys(ASTRALITE_FAMILY_PRISM_QUOTA).reduce((a, f) => a + gemshardsOwedToFamily(+f), 0);
+  if (q !== PRISMSHARD_REGISTRY.length){
+    console.error('[rp7b] FAMILY QUOTA BROKEN · quota sums to', q, 'but there are', PRISMSHARD_REGISTRY.length, 'Prismshards');
+  }
+  // g is 80 until the Key is placed in a family · 81 once it is
+  if (g !== GEMSHARD_TOTAL && g !== GEMSHARD_TOTAL - 1){
+    console.error('[rp7b] FAMILY QUOTA BROKEN · families are owed', g, 'Gemshards but canon has', GEMSHARD_TOTAL);
+  }
+})();
 // ── the queries the canon doc §13 asks for ────────────────────────────────
 function prismshard(n){ return PRISMSHARD_REGISTRY.find(P => P.n === n) || null; }
 function gemshardsOfPrismshard(n){ return GEMSHARD_SLOTS.filter(g => g.parent === n); }
@@ -2908,9 +2989,59 @@ function GEMSHARD_REGISTRY_(){
     }
   } catch(_){ return out; }   // still un-evaluated · do NOT cache a half answer
   if (!out.length) return out;
+  // ★ v0.95.878 · the ten Gemlord weapons are Gemshards too · same 81, same
+  // open lineage.  Counted here so gemshardCensus() never flatters itself by
+  // reporting only the Ultrashards.
+  for (const W of GEMLORD_WEAPONS){
+    out.push({
+      key: W.key, label: W.weapon || `${W.title} of ${W.district} · weapon unnamed`,
+      ultramaxType: null, ultramaxMove: null,
+      ofTheEightyOne: true, parent: null, slot: null,
+      astralite: null, family: null,
+      weapon: W.weapon, gemlord: W.gemlord,
+      status: W.weapon ? 'recorded' : 'unnamed',
+    });
+  }
   _GEMSHARD_REGISTRY = out;
   return out;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.878 · THE GEMLORD WEAPONS ARE GEMSHARDS · Creator: "the gemlord
+// weapons are gemshards that come from the prismshard families."
+//
+// This settles the §9 tension the merge flagged.  Canon said the Gemlord
+// blades were "relic-forged · cut from PRISMSHARDS", while §9 says a mythic
+// weapon is normally built AROUND a Gemshard.  The answer is that both were
+// true at different depths: the weapon IS a Gemshard, and the Gemshard came
+// from a Prismshard — so "cut from Prismshards" was right about the lineage
+// and imprecise about the class.  Ten Gemlords, ten weapons, ten of the 81.
+//
+// ★ FOUR ARE ALREADY IN THE GAME, and their provenance lines up on its own:
+//   Sapphire Tearsword  · treehouse   · AZUREL   the Sapphirelord of Vorashil
+//   Rubypaw Longsword   · treehouse   · RAKORON  the Gemlord of Malezor
+//   Emerald Axe         · VERIDAN     · EMERALIX the Emeralord of VERIDAN
+//   Pearlbow            · ZARVANE     · IVIRIUM  the Pearlord of ZARVANE
+// The first two were already canon.  The last two are an INFERENCE — gem name,
+// district of the chest and the Gemlord's own title all agree, which is three
+// independent matches, but the Creator has not said it outright.  Marked
+// `inferred: true` rather than quietly asserted.
+const GEMLORD_WEAPONS = [
+  { key:'sapphire_sword', weapon:'Sapphire Tearsword', gemlord:'azurel',   title:'Sapphirelord', district:'Vorashil',  inGame:true,  inferred:false },
+  { key:'rubypaw_sword',  weapon:'Rubypaw Longsword',  gemlord:'rakoron',  title:'Gemlord',      district:'Malezor',   inGame:true,  inferred:false },
+  { key:'emerald_axe',    weapon:'Emerald Axe',        gemlord:'emeralix', title:'Emeralord',    district:'Veridan',   inGame:true,  inferred:true  },
+  { key:'pearlbow',       weapon:'Pearlbow',           gemlord:'ivirium',  title:'Pearlord',     district:'Zarvane',   inGame:true,  inferred:true  },
+  // ─ six thrones still without a named weapon · the Creator's to name ─
+  { key:null, weapon:null, gemlord:'eurakeon', title:'Amethystlord', district:'Netharion',  inGame:false, inferred:false },
+  { key:null, weapon:null, gemlord:'obsidius', title:'Onyxlord',     district:'Xilnar',     inGame:false, inferred:false },
+  { key:null, weapon:null, gemlord:'ambrevon', title:'Amberlord',    district:'Baelgor',    inGame:false, inferred:false },
+  { key:null, weapon:null, gemlord:'mutaryn',  title:'Citrinelord',  district:'Andrannor',  inGame:false, inferred:false },
+  { key:null, weapon:null, gemlord:'oathane',  title:'Gemlord',      district:'Thardin',    inGame:false, inferred:false },
+  // ★ OATHEUS · the Empty Throne.  He is ABSENT ([[aov-oatheus-missing]]), so
+  // whether his Gemshard-weapon is lost WITH him, waiting for him, or the
+  // reason he left is a story question, not a data one.  The slot is held.
+  { key:null, weapon:null, gemlord:'oatheus',  title:'The Empty Throne', district:'Korathen', inGame:false, inferred:false },
+];
+function gemlordWeapon(key){ return GEMLORD_WEAPONS.find(w => w.key === key) || null; }
 function knownGemshards(){ return GEMSHARD_REGISTRY_(); }
 // ★ the honest headline number · how much of the 81 is actually known
 function gemshardCensus(){

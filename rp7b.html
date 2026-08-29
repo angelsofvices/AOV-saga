@@ -8699,6 +8699,7 @@ const NPCS = [
           let bonusDistricts = [];
           for (const d of carrying){
             player.scrapjawTowersRestored[d] = true;
+            try { bumpRizerBond('rizerTower'); } catch(_){}   // ★ v0.95.862 · a district reconnected
             delete player.towerBatteries[d];
             if (towerSquadCleared(d)) bonusDistricts.push(d);
           }
@@ -19281,6 +19282,7 @@ function awardZyrexXP(z, amount){
   }
   if ((z.level || 1) >= ZYREX_LEVEL_CAP){ z.level = ZYREX_LEVEL_CAP; z.xp = 0; }
   if (leveled){
+    try { bumpRizerBond('zyrexLevel'); } catch(_){}   // ★ v0.95.862 · they grow, you grow
     try { playSFX('confirm'); } catch(_){}
     showToast(`★ ${z.name} LEVEL UP · Lv ${z.level}`, 2000);
   }
@@ -24723,6 +24725,7 @@ function tryMove(dt){
         player.visitedDistricts = player.visitedDistricts || {};
         const first = !player.visitedDistricts[dist];
         player.visitedDistricts[dist] = true;
+        if (first){ try { bumpRizerBond('rizerDistrict'); } catch(_){} }   // ★ v0.95.862 · HIGH
         // ★ v0.95.778 · Dad's Notebook · the district files itself on arrival
         try { notebookVisit(`district:${dist}`, dist.toUpperCase()); } catch(_){}
         // ★★ v0.95.801 · THARDIN TURNS THE SURVEY NET.  Fires on ARRIVAL, not
@@ -28841,6 +28844,9 @@ function notebookVisit(id, label){
   const n = notebookState();
   if (n.seen[id]) return false;
   n.seen[id] = Date.now();
+  // ★ v0.95.862 · RIZER PATH · a first sighting IS the athrenologist's work.
+  // One chokepoint: every POI, cave, scroll and species sighting arrives here.
+  try { bumpRizerBond(String(id).startsWith('scroll') ? 'rizerScroll' : 'rizerFind'); } catch(_){}
   if (notebookHas() && label){
     try { showToast(`📓 Dad's Notebook · ${label} recorded`, 2200); } catch(_){}
   }
@@ -33570,9 +33576,90 @@ function rizerZyrexBond(){
   }
   return sum * RIZER_BOND_PER_ZYREX_LEVEL;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.862 · THE BOND LEDGER · Creator: "start rizer bond at 0. rizer
+// gets small bond points per zyrex action and moderate to high bond points
+// per bigger actions. label them to game canon. make bond level = 3330
+// around when rxp = 1,000,000 or rizer level = 100. the two should grow
+// together but separate. zyrex path and rizer path."
+//
+// Bond stops being a DERIVED SUM and becomes an EARNED LEDGER.  The old
+// formula started every save at 600 (Mom + Dad + Yara at 100 each, doubled)
+// and moved only when a roster changed; now every bond point is a thing the
+// player DID, banked the moment they do it.
+//
+// ★ TWO PATHS, ONE TOTAL.  They grow together but are counted apart, so the
+// phone can show which half of the Rizer you have actually been:
+//   ZYREX PATH  — what you do WITH Zyrex (the beastmaster's half)
+//   RIZER PATH  — what you do as a person in the world (the athrenologist's)
+// Each path caps at half the total (1665) so neither alone reaches 3330:
+// a maxed bond requires BOTH lives lived.  That is the Rizer bond canon
+// ([[aov-rizer-bond-formula]]) stated as a rule instead of an equation.
+//
+// ★ CALIBRATION · bond 3330 lands near RXP 1,000,000 / Rizer Lv 100.  A full
+// run banks roughly:
+//   ZYREX  ~1,700 raw — ~600 kills(1) + ~350 hits(0.2) + ~120 levels(2)
+//                       + ~25 evolutions(15) + ~40 bondings(25) + care(0.5s)
+//   RIZER  ~1,700 raw — ~90 quests(6) + ~40 allies(20) + 10 districts(15)
+//                       + 10 towers(10) + 10 Gemlord respects(30) + finds(1s)
+// Both overshoot their 1665 halves slightly, which is deliberate: the last
+// stretch of either path should feel reachable without demanding literally
+// every action in the game.
+const BOND_EVENTS = {
+  // ── ZYREX PATH · the beastmaster's half ────────────────────────────────
+  zyrexStrike:    { path:'zyrex', pts:0.2, label:'a blow struck together'          },
+  zyrexKill:      { path:'zyrex', pts:1,   label:'a foe felled by your Zyrex'      },
+  zyrexLevel:     { path:'zyrex', pts:2,   label:'a Zyrex grew stronger'           },
+  zyrexHeal:      { path:'zyrex', pts:0.5, label:'a Zyrex tended'                  },
+  zyrexDeploy:    { path:'zyrex', pts:0.5, label:'walked the world together'       },
+  zyrexEvolve:    { path:'zyrex', pts:15,  label:'★ an evolution witnessed'        },
+  zyrexBond:      { path:'zyrex', pts:25,  label:'★ a wild Zyrex chose you'        },
+  zyrexMastered:  { path:'zyrex', pts:40,  label:'★★ a Zyrex mastered (100 bond)'  },
+  // ── RIZER PATH · the athrenologist's half ──────────────────────────────
+  rizerFind:      { path:'rizer', pts:1,   label:'a discovery recorded'            },
+  rizerScroll:    { path:'rizer', pts:2,   label:"a page of Dad's book read"       },
+  rizerQuest:     { path:'rizer', pts:6,   label:'a task seen through'             },
+  rizerTower:     { path:'rizer', pts:10,  label:'★ a district reconnected'        },
+  rizerDistrict:  { path:'rizer', pts:15,  label:'★ a district walked'             },
+  rizerAlly:      { path:'rizer', pts:20,  label:'★ an ally bonded'                },
+  rizerGemlord:   { path:'rizer', pts:30,  label:'★★ a Gemlord\'s respect'         },
+};
+const BOND_PATH_CAP = RIZER_BOND_CAP / 2;   // 1665 each · neither path alone maxes you
+function bondLedger(){
+  if (!player.bondLedger) player.bondLedger = { zyrex:0, rizer:0 };
+  return player.bondLedger;
+}
+function bumpRizerBond(eventKey, mult){
+  const E = BOND_EVENTS[eventKey];
+  if (!E) return 0;
+  const L = bondLedger();
+  const before = Math.min(BOND_PATH_CAP, L[E.path] || 0);
+  const after  = Math.min(BOND_PATH_CAP, before + E.pts * (mult || 1));
+  L[E.path] = after;
+  const gained = after - before;
+  // Milestone toast only on the round hundreds — bond should feel like a tide,
+  // not a slot machine.
+  if (gained > 0 && Math.floor(after / 100) > Math.floor(before / 100)){
+    try { showToast(`◈ RIZER BOND · ${Math.floor(rizerBondTotal())}/${RIZER_BOND_CAP} · ${E.label}`, 2600); } catch(_){}
+  }
+  return gained;
+}
 function rizerBondTotal(){
-  const raw = Object.values(player.bonds || {}).reduce((a, b) => a + (b || 0), 0);
-  const real = Math.min(RIZER_BOND_CAP, Math.floor(raw * 2 + rizerZyrexBond()));
+  // ★ v0.95.862 · the LEDGER is the bond now.  Legacy saves (no ledger) get
+  // ONE migration from the old derived formula so nobody wakes up at zero;
+  // new games start at 0 exactly as the Creator asked.
+  const L = bondLedger();
+  if (player.bondLedger._migrated !== true && (player.rizerLvl || 1) > 1){
+    const legacyRaw = Object.values(player.bonds || {}).reduce((a, b) => a + (b || 0), 0);
+    const legacy = Math.floor(legacyRaw * 2 + rizerZyrexBond());
+    if (legacy > 0){ L.rizer = Math.min(BOND_PATH_CAP, legacy * 0.5); L.zyrex = Math.min(BOND_PATH_CAP, legacy * 0.5); }
+  }
+  player.bondLedger._migrated = true;
+  // ★ each path is re-clamped HERE too, not just at bump time — a save edit,
+  // a dev grant or a future writer cannot let one path alone reach 3330.
+  const zp = Math.min(BOND_PATH_CAP, Math.max(0, L.zyrex || 0));
+  const rp = Math.min(BOND_PATH_CAP, Math.max(0, L.rizer || 0));
+  const real = Math.min(RIZER_BOND_CAP, Math.floor(zp + rp));
   // ★ v0.95.803 · dev floor · GRANT MAX BOND sets it so every downstream tier
   // gate sees the cap.  A floor rather than an override, so the real total
   // still wins if it somehow exceeds it — and so clearing the flag restores
@@ -33738,6 +33825,7 @@ function saveGame(){
         // Zyrex, reload, and the page that lists it was shut again.
         zyrexMenuUnlocked: !!player.zyrexMenuUnlocked,
         attrs: Object.assign({}, rizerAttrs()),   // v0.95.713 · allocated attribute points
+        bondLedger: player.bondLedger || { zyrex:0, rizer:0 },   // ★ v0.95.862 · the two bond paths
         faeCollected: player.faeCollected || 0,
         lootedChests: player.lootedChests || [],   // v0.95.760 · chests stay looted
         groundPickups: player.groundPickups || [],  // v0.95.773 · scrap + coin piles on the ground
@@ -34793,6 +34881,7 @@ function bumpNpcBond(id, amt, name){
   if (before < 50 && after >= 50){
     try { showToast(`★ ${label} · BONDED (${after}/100)`, 3200); } catch(_){}
   } else if (before < 100 && after >= 100){
+    try { bumpRizerBond(isZyrexContactId(id) ? 'zyrexMastered' : 'rizerGemlord'); } catch(_){}   // ★ v0.95.862 · the top of a relationship
     try { showToast(`★ ${label} · TRUSTED (100/100) · callable from anywhere`, 3600); } catch(_){}
   } else {
     try { showToast(`◈ ${label} bond +${after - before} · ${after}/100`, 2000); } catch(_){}
@@ -34809,6 +34898,7 @@ function questBondFromXp(amount){
   bumpNpcBond(_activeContact.id,
               Math.max(1, Math.min(QUEST_BOND_MAX, Math.round(amount / 100))),
               _activeContact.name);
+  try { bumpRizerBond('rizerQuest'); } catch(_){}   // ★ v0.95.862 · MODERATE · a task seen through
 }
 // ── the merged book · curated rows first, then everyone else you have met ──
 function contactMet(id){
@@ -35161,6 +35251,7 @@ function applyLevelStats(z, keepHpRatio){
   if (ratio != null)      z.hp = Math.max(1, Math.round(z.maxHp * ratio));
   else if (oldMax)        z.hp = Math.min(z.maxHp, (z.hp || 0) + (z.maxHp - oldMax));
   else                    z.hp = z.maxHp;
+      try { bumpRizerBond('zyrexHeal'); } catch(_){}   // ★ v0.95.862 · SMALL · tending them
 }
 
 // v0.95.626 · MOVE UNLOCK SCHEDULE · [[aov-move-unlock-schedule]]
@@ -35208,6 +35299,7 @@ function tryEvolveZyrex(z){
     const to = SPECIES[sp.evolveTo];
     if (!to) break;
     const from = z.name;
+    try { bumpRizerBond('zyrexEvolve'); } catch(_){}   // ★ v0.95.862 · HIGH · an evolution witnessed
     z.speciesId = sp.evolveTo;
     z.name  = to.name;
     z.tier  = to.tier;
@@ -38331,6 +38423,7 @@ function tickAggressiveZyrex(n){
     if (partyMember){
       const hitXp = (best.level || 1) * (2 + (best.tier || 1) * 2);   // Mori L2 T1 = 8
       awardZyrexXP(partyMember, hitXp);
+      try { bumpRizerBond('zyrexStrike'); } catch(_){}   // ★ v0.95.862 · SMALL · fighting side by side
     }
     if (best.hp <= 0){
       try { playSFX('astralKill'); } catch(_){}
@@ -38341,6 +38434,7 @@ function tickAggressiveZyrex(n){
       if (partyMember){
         const killXp = (best.level || 1) * (10 + (best.tier || 1) * 6);   // Mori L2 T1 = 32
         awardZyrexXP(partyMember, killXp);
+        try { bumpRizerBond('zyrexKill'); } catch(_){}   // ★ v0.95.862 · SMALL-MOD · your Zyrex won it
         // ★★ v0.95.837 · SHARDSHARE · Creator: "1x for the one that got the
         // kill, .5x for all zyrex out in the overworld."  Only with the
         // REPAIRED collar in the bag — without it every Zyrex levels by its
@@ -38854,6 +38948,7 @@ function toggleFactionSummon(partyIdx){
   // ★ v0.95.827 · spawn AT the claimed formation station, not in a column
   // under Rizer (the old player.y+1+count stack put every summon on the same
   // file, one tile apart — both spacing rules broken at birth).
+  try { bumpRizerBond('zyrexDeploy'); } catch(_){}   // ★ v0.95.862 · SMALL · walking the world together
   follower._summoned = true;
   follower.mode = 'follow';            // ★ v0.95.833 · he may be 'stationary' in the yard or mid-walkHome
   follower._walkHomeTarget = null;
@@ -39243,6 +39338,7 @@ function tryRecruitWildZyrex(w){
   if (res.location === 'none'){ showToast('◈ It cannot join your faction.', 2200); return; }
   w._gone = true;
   w._recruitedAt = Date.now();
+  try { bumpRizerBond('zyrexBond'); } catch(_){}   // ★ v0.95.862 · HIGH · a wild chose you
   try { playSFX('zyrexGo'); } catch(_){}
   showDialog({ speaker: sp.name.toUpperCase(), lines: [
     `${sp.name} steps toward you and lowers its head.`,

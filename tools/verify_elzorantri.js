@@ -50,6 +50,7 @@ H('2 · ★★ RARE TIER-5 WILD · the level law holds');
                   {speciesId:'voltaryn',level:100,hp:9},{speciesId:'otterlin',level:100,hp:9},{speciesId:'celestryx',level:100,hp:9},
                   {speciesId:'volcanut',level:100,hp:9},{speciesId:'verdanix',level:100,hp:9}];
   C.player.pcZyrex=[];
+  C.player.bondLedger={zyrex:1665,rizer:1665};   // ★ v0.95.862 · bond is EARNED now · grant a maxed ledger for the gate test
   global.showDialog=noop; global.showToast=noop;
   C.tryRecruitWildZyrex(w);
   ok(!!w._recruitedAt,'★ END TO END: kin at any level + bond over the bar → Elzoran joins');

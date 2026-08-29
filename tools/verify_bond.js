@@ -97,10 +97,14 @@ console.log('     your faction, not your own grinding.\n');
 
 console.log('4 · ★★ A FRESH SAVE IS UNCHANGED\n');
 P.rizerLvl = 1; P.bonds = freshBonds(); P.party = []; P.pcZyrex = [];
+// ★★ v0.95.862 · INVERTED WITH THE RULING.  Creator: "start rizer bond at 0."
+// Bond is an EARNED LEDGER now, not a sum of pre-set family bonds — a new
+// Rizer is worth nothing to a wild Zyrex until he has DONE something.
+P.bondLedger = null;
 const fresh = C.rizerBondTotal();
-ok(fresh === 600, `a new Rizer still reads ${fresh} — family bonds (100 x 3) x 2, exactly as before`);
+ok(fresh === 0, `★ a new Rizer starts at ${fresh} — the family 100s no longer pre-pay 600`);
 let tier = 0; for (let k = 1; k <= 10; k++) if (fresh >= C.requiredBondForTier(k)) tier = k;
-ok(tier === 1, `and can still bond up to T${tier} out of the gate`);
+ok(tier === 0, `★ and bonds NOTHING out of the gate (T${tier}) — even a T1 must be earned`);
 ok(fresh < C.requiredBondForTier(6),
    'while a T6 Celestryx is still out of reach without the fae ritual — that gate is intact');
 
@@ -117,6 +121,7 @@ console.log('     full party of weak Zyrex rather than store them.\n');
 
 console.log('6 · ★ THE CAP HOLDS\n');
 P.bonds = { a: 3000, b: 3000 }; setParty(8, 100);
+P.bondLedger = { zyrex: 999999, rizer: 999999 };   // ★ v0.95.862 · absurd LEDGER now
 ok(C.rizerBondTotal() === C.RIZER_BOND_CAP, `an absurd wallet still clamps to ${C.rizerBondTotal()}`);
 ok(Number.isInteger(C.rizerBondTotal()), 'and the total is a whole number — 1.5/level cannot leak a fraction into the UI');
 P.bonds = {}; P.party = [{ level: 7 }]; P.pcZyrex = [];

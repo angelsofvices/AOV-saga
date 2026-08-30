@@ -23,7 +23,13 @@ H('1 · ★★ THE CREATOR\'S ANCHORS HOLD AT EVERY BOND LEVEL');
   bond(333);                       // matched to a T1
   const d1=C.wildBondDifficulty(T(1));
   ok(d1.events===1,`T1 matched · ONE event (${d1.events})`);
-  ok(d1.ms===3000,`…and THREE SECONDS (${d1.ms}ms)`);
+  // ★★★ v0.95.904 · INVERTED.  This pinned the v0.95.866 anchor of THREE
+  // SECONDS.  Creator: "the catch event is too easy, give rotations less time
+  // to complete before bond succeeds."  The anchor is superseded on his word;
+  // the check now guards the tighter clock so it cannot drift back.
+  ok(d1.ms===1800,`…and 1.8 SECONDS (${d1.ms}ms) · was 3000, cut on the Creator's ruling`);
+  ok(d1.turns/(d1.ms/1000) > 0.6,
+     `★★ the spin it demands is now ${(d1.turns/(d1.ms/1000)).toFixed(2)} rev/sec · it was 0.42, a leisurely stir`);
   bond(3330);                      // matched to a T10
   const d10=C.wildBondDifficulty(T(10));
   ok(d10.events===10,`★ T10 matched · TEN events — five each way (${d10.events})`);

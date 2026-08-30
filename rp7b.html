@@ -2126,7 +2126,7 @@ function startFactionSoulSwitch(n){
   player.x=n.tileX;player.y=n.tileY;player.dir=n.dir||'down';
   player.activeActor=n.id;player.moving=false;player.animFrame=0;player.moveCd=180;
   player.auraxionPhase=false;player._auraxionPhasePulse=null;
-  player.attackMode=null;player.attackUntil=0;player.interactUntil=0;
+  player.attackMode=null;player.attackUntil=0;player.attackAnimUntil=0;player.interactUntil=0;
   const actorMeta=n.id==='elzoran'
     ? {sfx:'elzoran',slot:3}
     : n.id==='auraxion'
@@ -2418,6 +2418,7 @@ function startRizerDeath(){
   player.dodgeUntil = 0;
   player.attackMode = null;
   player.attackUntil = 0;
+  player.attackAnimUntil = 0;   // ★ v0.95.914
   player.interactUntil = 0;
   player.faeCatchUntil = 0;
   playSFX('damageTick');   // v0.95.655 · was 'hurt' · no such key · Rizer death was silent
@@ -25013,11 +25014,21 @@ addEventListener('keydown', e => {
         if (game._bagDragging){ game._bagDragging = false; }
         const mode = (k === 'j') ? 'punch' : 'kick';
         if(performance.now()<(player.attackUntil||0))return;
+        // ★★★ v0.95.914 · TWO CLOCKS, NOT ONE.
+        //   attackDuration / attackAnimUntil = what you SEE · full length, all
+        //     four frames, only the yellow BAR slows it (rizerAttackTimeScale)
+        //   attackUntil                      = when you may swing AGAIN ·
+        //     shortened by the STAMINA attribute (rizerMeleeRecovery)
+        // The gap between them is the cancel window: press again inside it and
+        // the next swing starts over the tail of this one.  Do nothing and the
+        // animation finishes in full, exactly as it always has.
         const dur  = Math.round(((mode === 'kick') ? 400 : 300)*rizerAttackTimeScale());
+        const lock = Math.max(MELEE_LOCK_FLOOR_MS, Math.round(dur * rizerMeleeRecovery()));
         player.attackMode  = mode;
         player.attackStart = performance.now();
         player.attackDuration = dur;
-        player.attackUntil = player.attackStart + dur;
+        player.attackAnimUntil = player.attackStart + dur;
+        player.attackUntil = player.attackStart + lock;
         // v0.95.491 · Light melee SPECIAL charge · punch = +5% · kick = +10% (of diamondMax)
         // Was flat +1 per swing · new canon rewards the light kick as the higher-charge poke
         {
@@ -27259,8 +27270,15 @@ function drawPlayer(){
   const now = performance.now();
   const deathCandidate = _rizerDeath ? rizerBundleForSkin('death', _rizerDeath.skin) : null;
   const deathBundle = deathCandidate && deathCandidate.loaded ? deathCandidate : null;
-  const inAttack = player.attackMode && now < (player.attackUntil || 0);
-  if (!inAttack && player.attackMode){ player.attackMode = null; }
+  // ★★★ v0.95.914 · the DRAW follows the ANIMATION clock, not the input lock.
+  // attackAnimUntil is set by melee only; every other move leaves it null and
+  // falls back to attackUntil, where the two are still the same number.  This
+  // is the line that lets the swing finish after the lock has already released
+  // -- without it, shortening the lock would simply truncate the animation,
+  // which is the thing the Creator asked NOT to happen.
+  const _animEnd = player.attackAnimUntil || player.attackUntil || 0;
+  const inAttack = player.attackMode && now < _animEnd;
+  if (!inAttack && player.attackMode){ player.attackMode = null; player.attackAnimUntil = 0; }
   const idleBundle = activeRizerBundle('idle');
   const walkBundle = activeRizerBundle('walk');
   const runBundle  = activeRizerBundle('run');
@@ -27517,7 +27535,13 @@ function drawPlayer(){
     if(player.attackMode==='astralthrow'&&player._astralthrowState?.carrying){
       col=1; // stable pickup/carry pose until the throw chord is released
     }else{
-      const elapsed = dur - (player.attackUntil - now);
+      // ★★ v0.95.914 · melee measures elapsed from attackSTART, because its
+      // lock no longer ends where its animation does.  The astral casts never
+      // set attackStart, so they keep deriving it from attackUntil exactly as
+      // before -- one branch, no behaviour change for anything but melee.
+      const elapsed = player.attackAnimUntil
+        ? (now - player.attackStart)
+        : (dur - (player.attackUntil - now));
       col = Math.min(bundle.cols - 1, Math.max(0, Math.floor(elapsed / (dur / bundle.cols))));
     }
   } else {
@@ -29641,7 +29665,7 @@ addEventListener('keydown', e => {
       // actions so no attack/dodge/jump SFX can bleed through the overlay
       if (typeof keys === 'object' && keys){ for (const kk of Object.keys(keys)) keys[kk] = false; }
       player.moving = false;
-      player.attackUntil = 0; player.jumpUntil = 0; player.dodgeUntil = 0;
+      player.attackUntil = 0; player.attackAnimUntil = 0; player.jumpUntil = 0; player.dodgeUntil = 0;
       player.interactUntil = 0; player.faeCatchUntil = 0; player._doubleJump = false;
       if (player.blocking){ player.blocking = false; player._blockStunUntil = 0; }
       if (player._astralthrowState){
@@ -29760,7 +29784,7 @@ function drawRizerUpgradesPage(W, H){
     ['hp',      '♥ HEALTH',  '#ff5b5b', `${rizerHpMaxFromAttrs()} max HP`],
     ['atk',     '⚔ ATTACK',  '#ff9c66', `${rizerBaseAtkFromAttrs().toFixed(1)} base attack`],
     ['def',     '⛨ DEFENSE', '#4fb3ff', `−${Math.round((1 - rizerDefMult()) * 100)}% damage taken`],
-    ['speed',   '⚡ STAMINA', '#ffd66b', `×${rizerStaminaFactor().toFixed(2)} yellow-bar life · ${(100 / (STAMINA_SPRINT_DRAIN / rizerStaminaFactor())).toFixed(1)}s sprint`],
+    ['speed',   '⚡ STAMINA', '#ffd66b', `×${rizerStaminaFactor().toFixed(2)} yellow-bar life · ${(100 / (STAMINA_SPRINT_DRAIN / rizerStaminaFactor())).toFixed(1)}s sprint · combo ×${(1/rizerMeleeRecovery()).toFixed(2)}`],
     ['special', '◆ SPECIAL', '#4fb3ff', `×${rizerSpecialFactor().toFixed(2)} blue-bar life · ${Math.floor(100 / (10 / rizerSpecialFactor()))} A3 casts`],
   ];
   const rowW = 560, rowH = 46, x0 = cx - rowW / 2;
@@ -35398,7 +35422,7 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   // position/animation are written explicitly above with their own handling
   'x','y','px','py','dir','facing','moving','animFrame','idleFrame','frame','trail',
   // attack / block / dodge / jump / interact timers
-  'attackMode','attackStart','attackUntil','attackDuration',
+  'attackMode','attackStart','attackUntil','attackAnimUntil','attackDuration',
   'blocking','blockStart','blockHitsAbsorbed',
   'dodgeDir','dodgeStart','dodgeUntil','dodgeFromX','dodgeFromY','dodgeToX','dodgeToY',
   'jumpSheet','jumpStart','jumpUntil','interactStart','interactUntil',
@@ -45881,6 +45905,7 @@ function frame(now){
     // Cancel in-flight actions so they don't resume mid-swing when the menu closes
     player.moving = false;
     if (player.attackUntil)   player.attackUntil = 0;
+    if (player.attackAnimUntil) player.attackAnimUntil = 0;   // ★ v0.95.914 · the anim clock clears with the lock
     if (player.jumpUntil)     player.jumpUntil = 0;
     if (player.dodgeUntil)    player.dodgeUntil = 0;
     if (player.interactUntil) player.interactUntil = 0;
@@ -47341,7 +47366,7 @@ const RIZER_ATTR_META = {
   hp:      { label: 'HP',      icon: '❤', color: '#ff6b6b', blurb: 'max health · 50 → 250' },
   atk:     { label: 'ATK',     icon: '⚔', color: '#ff9c66', blurb: 'raises base attack (all melee + astral)' },
   def:     { label: 'DEF',     icon: '🛡', color: '#4fb3ff', blurb: 'reduces all incoming damage' },
-  speed:   { label: 'STAMINA', icon: '⚡', color: '#ffd66b', blurb: 'yellow bar lasts longer · sprint + dodge' },
+  speed:   { label: 'STAMINA', icon: '⚡', color: '#ffd66b', blurb: 'yellow bar lasts longer · sprint + dodge · faster melee combos' },
   special: { label: 'SPECIAL', icon: '◆', color: '#4fb3ff', blurb: 'blue bar lasts longer · A3/A4 casts' },
 };
 // Total points a Rizer of this level has EVER been granted.
@@ -47453,6 +47478,33 @@ function rizerDefMult(){ return 1 - RIZER_DEF_MAX_REDUCTION * rizerAttrFrac('def
 // 666.  It no longer touches moveCd at all — a maxed Rizer runs at the same
 // speed as a fresh one, just for five times as long.
 function rizerStaminaFactor(){ return 1 + 4 * rizerAttrFrac('speed'); }
+// ★★★ v0.95.914 · MELEE RECOVERY · the combo half of STAMINA.
+// Creator: "is there a way that we can make punches and kick combos land
+// faster with higher speed stat but still playing full animation?"
+//
+// THE OBSTACLE WAS ONE NUMBER DOING TWO JOBS.  `attackDuration` was both how
+// long the animation ran AND how long input was locked, so nothing could touch
+// the combo rate without compressing the swing.  Splitting them costs no art:
+// the animation keeps its full length and the LOCK alone gets shorter, so the
+// next punch begins while the previous one's tail is still on screen.  That is
+// a cancel, which is what a combo IS in every game that has one.
+//
+// It is free here because MELEE DAMAGE LANDS ON THE KEYPRESS -- the hitbox is
+// tested in the keydown handler, not on a strike frame -- so the entire
+// animation is already recovery.  Shortening the lock cannot change when
+// anything connects, only how soon you may swing again.
+//
+// 1.00 at zero points, so an unallocated Rizer swings at exactly the cadence he
+// always has (the invariant the whole attribute pass is built on), down to 0.55
+// at 3330: punch 300 -> 165ms, kick 400 -> 220ms, about 1.8x the combo rate.
+// The BAR still slows you when it empties, via rizerAttackTimeScale() on the
+// animation itself -- so a fit Rizer with a full yellow bar is fastest and a
+// drained one is slowest, which is what the attribute already means.
+const MELEE_RECOVERY_MIN = 0.55;
+const MELEE_LOCK_FLOOR_MS = 120;   // absolute floor · no machine-gunning, ever
+function rizerMeleeRecovery(){
+  return 1 - (1 - MELEE_RECOVERY_MIN) * rizerAttrFrac('speed');
+}
 // ★★ SPECIAL is the same shape on the BLUE diamond bar: 1x drain at zero,
 // five times longer at 666.  It is no longer an astral DAMAGE multiplier —
 // that was a placeholder and the page replaces it.
@@ -47599,7 +47651,7 @@ function buildRizerAttrPanel(where){
     hp:      `${rizerHpMaxFromAttrs()} max HP`,
     atk:     `${rizerBaseAtkFromAttrs().toFixed(1)} base attack`,
     def:     `−${Math.round((1 - rizerDefMult()) * 100)}% damage taken`,
-    speed:   `×${rizerStaminaFactor().toFixed(2)} stamina · ${(100 / (STAMINA_SPRINT_DRAIN / rizerStaminaFactor())).toFixed(1)}s sprint · ${Math.floor(100 / (STAMINA_DODGE_COST / rizerStaminaFactor()))} dodges`,
+    speed:   `×${rizerStaminaFactor().toFixed(2)} stamina · ${(100 / (STAMINA_SPRINT_DRAIN / rizerStaminaFactor())).toFixed(1)}s sprint · ${Math.floor(100 / (STAMINA_DODGE_COST / rizerStaminaFactor()))} dodges · combo ×${(1/rizerMeleeRecovery()).toFixed(2)}`,
     special: `×${rizerSpecialFactor().toFixed(2)} diamond · ${Math.floor(100 / (10 / rizerSpecialFactor()))} A3 casts`,
   };
   const rows = RIZER_ATTR_KEYS.map(k => {

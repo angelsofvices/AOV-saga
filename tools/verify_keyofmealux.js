@@ -262,7 +262,11 @@ H('18 · ★★★ TRAVERSAL · it does not run, it HOVERS somewhere');
      '★★★ the BOB CARRIES THROUGH the run · Creator: "hover and bob like idle"');
   const src2=fs.readFileSync(ROOT3+'rp7b.html','utf8');
   ok(/IT DOES NOT RUN/.test(src2),'★★ and the reason is written down: it has no legs, so traversal is a moving hover');
-  ok(/const _runImg = \(w\.moving && d\.runBboxes\)/.test(src2),'★ the bank is chosen by MOTION');
+  // ★ match the CONDITION, not the whole expression.  v0.95.903 put a flee
+  // check in front of it (`!_useFlee && w.moving && ...`) and this failed while
+  // the rule — motion picks the traversal bank — held exactly.  Third literal-pin
+  // break in this file; assert the smallest thing that IS the rule.
+  ok(/w\.moving && d\.runBboxes/.test(src2),'★ the bank is chosen by MOTION');
   // ★★★ v0.95.890 · INVERTED.  The .888 rule ("keep the idle divisor") was
   // backwards: the float body is ~240px against the idle's ~300px, so dividing
   // run boxes by the idle max drew the hovering Key a fifth SMALLER the moment

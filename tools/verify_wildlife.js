@@ -15,7 +15,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>CLK};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={seedMalezorWild,WILD_ZYREX,SUMMONABLE_SPRITES,drawWorldLayer,_wildRunSprite,_wildIdleSprite,wildHomewardMs,beginWildHomeward,SPECIES,wildBodyFootprint,wildBodyCovers,walkable,TILE,SUMMONABLE_SPRITES,player,game};')();}
+try{new Function(src+';globalThis.__C={seedMalezorWild,WILD_ZYREX,SUMMONABLE_SPRITES,drawWorldLayer,_wildRunSprite,_wildIdleSprite,wildHomewardMs,beginWildHomeward,SPECIES,wildBodyFootprint,wildBodyCovers,walkable,TILE,SUMMONABLE_SPRITES,_wildFleeSprite,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -199,6 +199,39 @@ H('10 · ★★ BLOCKING THE BODY MUST NOT BLOCK THE GAME');
     if(!a._gone&&!b._gone&&C.wildBodyCovers(a,b.tileX,b.tileY)) ov++;
   }
   ok(ov===0,'★★★ after a soak, ZERO bodies overlap · the wander and graze are body-aware too, so two giants cannot stand inside each other');
+}
+
+H('11 · ★★★ A THIRD GAIT · the flee sheet');
+{
+  const d=C.SUMMONABLE_SPRITES.voltigrax;
+  ok(!!d.idleBboxes&&!!d.bboxes&&!!d.fleeBboxes,'★★ Voltigrax now has THREE banks · idle, traversal, flee');
+  ok(fs.existsSync(ROOT+decodeURIComponent(d.fleeSrc)),'★ the run sheet is on disk');
+  const seen=new Set(d.fleeBboxes.flat().map(b=>JSON.stringify(b)));
+  ok(seen.size===16,'★★ all 16 flee frames distinct');
+  ok(!!C._wildFleeSprite('voltigrax'),'the flee loader resolves it');
+  ok(C._wildFleeSprite('aetherwing')===null,'★ and a species without one returns null · no convention leaks');
+  ok(/idleSrc   · standing in its habitat/.test(src2)&&/fleeSrc   · bolting from a broken bond/.test(src2),
+     '★★★ the ladder is named by BEHAVIOUR, not gait · runSrc was already taken and means a WALK on Apexaur');
+  ok(/FLEE outranks traversal outranks idle/.test(src2),
+     '★★ resolved most-specific first, each rung the fallback for the one above');
+}
+
+H('12 · ★★★ THE BOLT IS A STEP');
+{
+  ok(/the bolt is a STEP/.test(src2),'the omission is recorded');
+  ok(/the same omission the graze had at v0\.95\.900/.test(src2),
+     '★★★ the flee branch assigned tileX/tileY raw · never flagged moving, never faced its escape, and could not have drawn a run sheet even once it had one');
+  const v=C.WILD_ZYREX.find(w=>w.speciesId==='voltigrax');
+  const from=[v.tileX,v.tileY];
+  C.player.x=v.tileX+1; C.player.y=v.tileY;
+  v._fleeUntil=Date.now()+8000;
+  let flagged=0; const dirs=new Set();
+  for(let i=0;i<40;i++){ CLK+=200; try{C.drawWorldLayer();}catch(_){}
+    if(v.moving) flagged++; dirs.add(v.dir); }
+  ok(flagged>0,'★★★ a fleeing Zyrex is FLAGGED MOVING ('+flagged+' frames) · so its run sheet can actually play');
+  ok(dirs.size>0&&[...dirs].every(d=>['up','down','left','right'].includes(d)),'★★ and it FACES its escape · '+[...dirs].join(', '));
+  ok(v.tileX!==from[0]||v.tileY!==from[1],'★ it actually bolted away from Rizer');
+  C.player.x=9999; C.player.y=9999; v._fleeUntil=0;
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

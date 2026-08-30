@@ -39826,6 +39826,25 @@ const SUMMONABLE_SPRITES = {
       [[82,  0,166,251],[61,  0,189,250],[47,  0,187,246],[24,  0,178,250]],
     ],
     cellW: 313, cellH: 313, scaleMul: 1.35,
+    // ★★★ v0.95.903 · A THIRD GAIT.  Creator: "voltigrax run sheet."
+    //
+    // The vocabulary needed a name that says WHEN it plays, not what the legs
+    // are doing — `runSrc` was already taken by "the traversal sheet" and means
+    // a WALK on Apexaur.  So this is fleeSrc: the sheet for a creature running
+    // for its life.  The ladder now reads as three behaviours, not three gaits:
+    //     idleSrc   · standing in its habitat
+    //     src       · the graze/wander leg
+    //     fleeSrc   · bolting from a broken bond
+    // A sprint that only ever plays during a flee cannot be mistaken for an
+    // idle by a future editor, which is exactly how the walk sheet ended up
+    // drawing as Voltigrax's standing pose for versions.
+    fleeSrc: 'assets/2D%20sprites/zyrex/voltigrax-run.png',
+    fleeBboxes: [
+      [[42,26,221,303],[383,55,177,265],[661,23,264,282],[992,39,222,290]],
+      [[26,376,298,212],[344,379,276,206],[637,374,308,203],[972,388,268,214]],
+      [[11,660,278,205],[329,673,262,198],[621,650,303,196],[950,666,249,206]],
+      [[60,914,187,275],[372,923,180,278],[657,910,194,283],[1002,925,153,277]],
+    ],
     idleSrc: 'assets/2D%20sprites/zyrex/voltigrax.png',
     idleBboxes: [
       [[42, 50,207,263],[48, 50,216,263],[36, 36,217,277],[19, 50,205,263]],
@@ -40932,6 +40951,16 @@ function _wildRunSprite(id){
 // Voltigrax that never once stood still and Anciuxor outside the treehouse.
 // Nobody reported it because a walk frame of a stationary creature still looks
 // like a creature; it just never rests.
+// ★ v0.95.903 · flee sheets load lazily too · same shape as the other two
+const _wildFleeCache = {};
+function _wildFleeSprite(id){
+  if (_wildFleeCache[id] !== undefined) return _wildFleeCache[id];
+  const def = SUMMONABLE_SPRITES[id];
+  if (!def || !def.fleeSrc){ _wildFleeCache[id] = null; return null; }
+  const img = new Image(); img.src = def.fleeSrc;
+  _wildFleeCache[id] = img;
+  return img;
+}
 const _wildIdleCache = {};
 function _wildIdleSprite(id){
   if (_wildIdleCache[id] !== undefined) return _wildIdleCache[id];
@@ -40982,11 +41011,20 @@ function drawZyrexOrb(w){
       // the art has not decoded yet — it falls through to the idle bank rather
       // than drawing nothing.  Missing art is a missing ANIMATION here, never a
       // missing creature, which is exactly the failsafe the Creator asked for.
-      const _runImg = (w.moving && d.runBboxes) ? _wildRunSprite(w.speciesId) : null;
+      // ★★ v0.95.903 · FLEE outranks traversal outranks idle.  A creature
+      // running for its life is doing the most specific thing it can do, so it
+      // is checked first; each rung below is the fallback for the one above,
+      // and the ladder still ends on the idle bank that always exists.
+      const _fleeing = !!(w._fleeUntil && Date.now() < w._fleeUntil);
+      const _fleeImg = (_fleeing && d.fleeBboxes) ? _wildFleeSprite(w.speciesId) : null;
+      const _useFlee = !!(_fleeImg && _fleeImg.complete && _fleeImg.naturalWidth);
+      const _runImg = (!_useFlee && w.moving && d.runBboxes) ? _wildRunSprite(w.speciesId) : null;
       const _useRun = !!(_runImg && _runImg.complete && _runImg.naturalWidth);
-      const _idleImg = (!w.moving && d.idleBboxes) ? _wildIdleSprite(w.speciesId) : null;
+      const _idleImg = (!_useFlee && !w.moving && d.idleBboxes) ? _wildIdleSprite(w.speciesId) : null;
       const _useIdle = !!(_idleImg && _idleImg.complete && _idleImg.naturalWidth);
-      const _boxes = _useRun ? d.runBboxes : (_useIdle ? d.idleBboxes : d.bboxes);
+      const _boxes = _useFlee ? d.fleeBboxes
+                   : _useRun  ? d.runBboxes
+                   : _useIdle ? d.idleBboxes : d.bboxes;
       const bb = _boxes && _boxes[row] && _boxes[row][col];
       if (bb){
         // ★★★ v0.95.890 · SCALE THE FLOAT TO IDLE SIZE.  Creator: "scale
@@ -41017,7 +41055,7 @@ function drawZyrexOrb(w){
           ? Math.round(Math.sin(performance.now() / (d.bobMs || 500) + (w._bobPhase || 0)) * (d.bobAmp || 4))
           : 0;
         const dy = Math.round((w.tileY + 1) * TILE - dh)       - _cam.y + bob;
-        ctx.drawImage(_useRun ? _runImg : (_useIdle ? _idleImg : S.img),
+        ctx.drawImage(_useFlee ? _fleeImg : _useRun ? _runImg : (_useIdle ? _idleImg : S.img),
                       col * C + bb[0], row * C + bb[1], bb[2], bb[3], dx, dy, dw, dh);
         return;
       }
@@ -43895,7 +43933,12 @@ function drawWorldLayer(){
         for (const [sx, sy] of [[dx, 0], [0, dy], [dx, dy]]){
           const nx = w.tileX + sx, ny = w.tileY + sy;
           if (typeof walkable === 'function' && walkable(nx, ny) && !_propBlocked.has(`${nx},${ny}`)){
-            w.tileX = nx; w.tileY = ny; break;
+            // ★ v0.95.903 · the bolt is a STEP.  It used to assign tileX/tileY
+            // raw — the same omission the graze had at v0.95.900 — so a fleeing
+            // Zyrex was never flagged `moving` and never faced its escape.  It
+            // could not have drawn a run sheet even once it had one.
+            _wildStepTo(w, nx, ny, 200);
+            break;
           }
         }
       }

@@ -2491,8 +2491,40 @@ function _checkRizerLowHpWarn(){
     }
   }
 }
+// ★★★ v0.95.913 · ONE LIST OF "A MOVIE IS PLAYING".  Creator: "play the video,
+// all overworld motion stop. moris have been attacking during the cutscene and
+// I resume the game in rizer room cause I died during the voltshard attack."
+//
+// Every un-skippable cutscene in the game belongs on this list, and the list
+// has to be ONE list, because the bug is what happens when it is not.  The
+// dream video was guarded in hurtPlayer (v0.95.143) and the world freeze in
+// tryMove learned about the Voltstorm at v0.95.822 -- but the FRAME LOOP's
+// freeze only ever knew about the phone and the pause menu.  So the player
+// stopped and the world did not: Moris kept swinging through a 17-second
+// letterboxed cutscene at point-blank range, which is where the A5 is fired
+// from by definition, and the storm's own victims could kill you mid-movie.
+// Dying behind the video then respawned Rizer in his room while the film ran
+// on top of it.
+//
+// The Voltstorm is the only cutscene that plays in the middle of a live fight,
+// so it is the only one where this could ever show -- the dream plays in bed
+// and the TV movie in the living room.  Nobody wrote a rule wrong; a rule was
+// written three times and one copy never heard about the third case.
+// Returns the NAME of the running cutscene (truthy) or null, so the one list
+// can serve both the boolean gates and tryMove's freeze-reason log.
+function cinematicPlaying(){
+  try {
+    if (typeof _voltstormPlaying !== 'undefined' && _voltstormPlaying) return 'voltstormVideo';
+    if (typeof _dreamPlaying     !== 'undefined' && _dreamPlaying)     return 'dreamVideo';
+    if (typeof _tvMoviePlaying   !== 'undefined' && _tvMoviePlaying)   return 'tvMovie';
+  } catch(_){}   // these are `let`s further down the file · TDZ before they run
+  return null;
+}
 function hurtPlayer(amt, srcName){
-  if (_rizerDeath || _dreamPlaying) return;
+  // ★ v0.95.913 · you cannot be hurt behind a movie you cannot skip.  The
+  // world freeze below already stops the attacks; this is the second lock, so
+  // a hit already in flight when the chord lands cannot kill you off-screen.
+  if (_rizerDeath || cinematicPlaying()) return;
   // The piloted UFO occupies the absolute aerial layer. Ground enemies have
   // no attack path to its hull and cannot damage Rizer through the cockpit.
   if (player.ufoFlying) return;
@@ -25859,9 +25891,12 @@ function tryMove(dt){
   if (game.sanctuaryOpen)           freezeReasons.push('sanctuary');    // ★ v0.95.875
   if (game.ultrashardPickerOpen)    freezeReasons.push('ultrashardPicker'); // v0.95.589
   if (_sleepFade)                   freezeReasons.push('sleepFade');
-  if (_dreamPlaying)                freezeReasons.push('dreamVideo');   // v0.95.143 · un-skippable dream video
   if (game.wildBondOpen)            freezeReasons.push('wildBond');     // ★ v0.95.866 · the imprint holds the world
-  if (_voltstormPlaying)            freezeReasons.push('voltstormVideo'); // ★ v0.95.822 · A5 cutscene
+  // ★★★ v0.95.913 · every un-skippable cutscene, from the ONE list · a fourth
+  // movie is covered here and in the world freeze the day it is added, which
+  // is the whole point: the Voltstorm bug was three copies of one rule and a
+  // fourth place that never heard about the third case.
+  { const _cine = cinematicPlaying(); if (_cine) freezeReasons.push(_cine); }
   // v0.95.303 · Dev panel takes exclusive input · no player movement/action while it's open
   if (typeof isDevPanelOpen === 'function' && isDevPanelOpen()) freezeReasons.push('devPanel');
   // v0.95.410 · ZyPhone panel takes exclusive input · phone IS the game menu
@@ -25872,7 +25907,6 @@ function tryMove(dt){
   if (_rizerDeath)                  freezeReasons.push('rizerDeath');
   if (player._doubleJump)           freezeReasons.push('doubleJump');
   if (game.npcInfoOverlay)          freezeReasons.push('npcInfoOverlay');// v0.95.174 · companion overlay
-  if (_tvMoviePlaying)              freezeReasons.push('tvMovie');       // v0.95.178 · TV movie player
   const devPanelEl = document.getElementById('devPanel');
   if (devPanelEl && devPanelEl.style.display === 'block') freezeReasons.push('devPanel');
   if (freezeReasons.length){
@@ -45830,7 +45864,14 @@ function frame(now){
   }
   // v0.95.422 · FULL FREEZE gate · ZyPhone open OR game.paused = every world
   // tick halts (NPCs, projectiles, animation) · only rendering + BGM continue
-  const _paused = game.zphoneOpen || game.paused;
+  // ★★★ v0.95.913 · A CUTSCENE FREEZES THE WORLD, not just the player.
+  // Creator: "play the video, all overworld motion stop."  tryMove has frozen
+  // the PLAYER during the Voltstorm since v0.95.822 -- but this gate, the one
+  // that owns tickNPC and tickProjectiles, only ever knew about the phone and
+  // the pause menu.  Freezing the player alone is worse than freezing nothing:
+  // it holds him still, at point-blank range, for seventeen seconds, unable to
+  // move or block, while everything around him keeps swinging.
+  const _paused = game.zphoneOpen || game.paused || cinematicPlaying();
   // v0.95.456 · Hard freeze · zero out every player-input key + attack/dodge/jump
   // timers so nothing carries through the menu.  Real-game pause behavior.
   if (_paused){

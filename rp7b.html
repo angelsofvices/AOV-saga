@@ -23023,22 +23023,19 @@ function enterInterior(sceneKey, cfg, toast){
   // rotated by travel) and only fall forward when the rear tile is not real
   // floor.  Nobody is ever stranded, and nobody blocks the room he walked in
   // to look at.
-  const _dv = { up:{dx:0,dy:-1}, down:{dx:0,dy:1}, left:{dx:-1,dy:0}, right:{dx:1,dy:0} };
-  const _step = _dv[player.dir] || _dv.up;
-  let followerOffset = 1;
+  // ★★★ v0.95.915 · the forward fallback is gone.  v0.95.874 tried the rear
+  // station first and only fell FORWARD when it was blocked — which is exactly
+  // the doorway case, where the rear tile is the door he just came through.
+  // _rearRecallTile widens backward instead, so the fallback can no longer be
+  // the one tile Rizer is about to walk into.
+  try { _resetFormationBasis(); } catch(_){}
   for (const n of NPCS){
     if (n && n._summoned && n.id && n.id.startsWith('_summon_')){
       n.scene  = sceneKey;
-      let placed = false;
       try {
-        const st = _formationTile(n);
-        if (walkable(st[0], st[1])){ n.tileX = st[0]; n.tileY = st[1]; placed = true; }
+        const t = _rearRecallTile(n);
+        n.tileX = t[0]; n.tileY = t[1];
       } catch(_){}
-      if (!placed){
-        n.tileX = player.x + _step.dx * followerOffset;
-        n.tileY = player.y + _step.dy * followerOffset;
-        followerOffset++;
-      }
       n.moving = false;
       n.moveCd = 200;
     }
@@ -24293,15 +24290,18 @@ function exitInterior(){
   // Any NPC that was 'follow' in the interior we just left · transfer to
   // overworld right behind the player · they walk out with us.
   // v0.95.535 · Multi-summon fan-out · every follower gets its own tile
-  let followerOffset = 1;
+  // ★★★ v0.95.915 · they walk out BEHIND him, not into the road.  This stacked
+  // the party straight south of the door regardless of which way Rizer stepped
+  // out, so leaving any north-facing door put the whole team in his path.
+  try { _resetFormationBasis(); } catch(_){}
   for (const n of NPCS){
     if (n.scene === priorScene && (n.mode === 'follow' || (n._summoned && n.id && n.id.startsWith('_summon_')))){
       n.scene  = 'overworld';
-      n.tileX  = r.x;
-      n.tileY  = r.y + followerOffset;
+      const t = _rearRecallTile(n);
+      n.tileX  = t[0];
+      n.tileY  = t[1];
       n.moving = false;
       n.moveCd = 200;
-      followerOffset++;
     }
   }
 }
@@ -40156,18 +40156,19 @@ function setDuelMode(on){
   // (fan out around him) so they don't get stranded mid-battle or lost across
   // the map after chasing enemies.  Same fan pattern as interior entry.
   if (wasOn && !on){
-    const _dv = { up:{dx:0,dy:-1}, down:{dx:0,dy:1}, left:{dx:-1,dy:0}, right:{dx:1,dy:0} };
-    const _step = _dv[player.dir] || _dv.down;
-    let followerOffset = 1;
+    // ★★★ v0.95.915 · RECALL LANDS BEHIND HIM.  This is the "summon an active
+    // following zyrex to you" case, and it used to drop the whole team in a
+    // column directly IN FRONT — so ending a duel mid-run walked Rizer
+    // straight into his own party.  Rear stations, rear fallback.
     for (const n of NPCS){
       if (!n || !n._summoned || !n.id || !n.id.startsWith('_summon_')) continue;
       n.scene  = game.scene;
-      n.tileX  = player.x + _step.dx * followerOffset;
-      n.tileY  = player.y + _step.dy * followerOffset;
+      const t = _rearRecallTile(n);
+      n.tileX  = t[0];
+      n.tileY  = t[1];
       n.moving = false;
       n.moveCd = 200;
       n._aggroUntil = 0;
-      followerOffset++;
     }
   }
 }
@@ -40754,8 +40755,14 @@ const SUMMON_FORMATION = (function(){
       for (let ly = 0; ly <= r; ly += 2)          // ★ ly >= 0 · never in front
         if (Math.max(Math.abs(lx), Math.abs(ly)) === r) ring.push([lx, ly]);
     // fill each ring by angle so early summons flank Rizer evenly rather
-    // than queueing along one row
-    ring.sort((a, b) => Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0]));
+    // than queueing along one row.
+    // ★ v0.95.915 · but BEHIND outranks BESIDE.  ly === 0 is level with Rizer,
+    // which passes "never in front" and still is not what the Creator asked
+    // for ("spawns them behind you") -- and a station level with him is one
+    // turn away from being in his path.  Strictly-behind stations are handed
+    // out first; the flankers are still there when the ring fills up.
+    ring.sort((a, b) => ((a[1] === 0) - (b[1] === 0))
+                     || (Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0])));
     out.push(...ring);
   }
   return out;
@@ -40817,7 +40824,8 @@ function _claimFormationSlot(){
 // landing on a tree/wall does not strand its owner pacing forever
 function _formationTile(n){
   const F = SUMMON_FORMATION[(n._formSlot || 0) % SUMMON_FORMATION.length];
-  const R = _formationRotate(F[0], F[1], _formationBasis());
+  const facing = _formationBasis();
+  const R = _formationRotate(F[0], F[1], facing);
   let tx = player.x + R[0], ty = player.y + R[1];
   if (typeof walkable === 'function' && !walkable(tx, ty)
       && !(n.tileX === tx && n.tileY === ty)){
@@ -40826,11 +40834,57 @@ function _formationTile(n){
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const cx = tx + dx, cy = ty + dy;
         if (Math.abs(cx - player.x) <= 1 && Math.abs(cy - player.y) <= 1) continue;   // never crowd Rizer
+        // ★ v0.95.915 · and never NUDGE into his path.  The stations are all
+        // behind him, but this search widened in every direction, so a station
+        // blocked by a tree could resolve to the tile he was walking into.
+        if (_inFrontOfRizer(cx, cy, facing)) continue;
         if (walkable(cx, cy)) return [cx, cy];
       }
     }
   }
   return [tx, ty];
+}
+// ★★★ v0.95.915 · SUMMON BEHIND, ALWAYS.  Creator: "summoning an active
+// following zyrex to you spawns them behind you so that u can summon them
+// while running and they dont stop u."
+//
+// walkable() returns FALSE on a tile an NPC stands on — "summoned followers
+// already blocked (they are NPCS)" — so a follower dropped in front of Rizer
+// is a wall.  Summon while running and you stop dead against your own Zyrex.
+//
+// Three places placed them there, all predating the rear-only formation law:
+//   setDuelMode(off)  · recall · player + dir*offset = directly in front
+//   exitInterior()    · r.y + offset · straight south of the door whatever
+//                       way Rizer is facing
+//   enterInterior()   · the forward FALLBACK when the rear station is blocked
+// Every one now comes through here, and the fallback widens BACKWARD instead
+// of forward: a summon can be crowded, it can be slow to catch up, it can even
+// end up somewhere odd behind you — but it can never be in your way.
+function _rearRecallTile(n){
+  if (n._formSlot == null) n._formSlot = _claimFormationSlot();
+  const t = _formationTile(n);
+  if (typeof walkable !== 'function' || walkable(t[0], t[1])) return t;
+  const facing = _formationBasis();
+  for (let back = 1; back <= 6; back++){
+    for (let side = 0; side <= 3; side++){
+      for (const s of (side ? [side, -side] : [0])){
+        const R = _formationRotate(s, back, facing);
+        const cx = player.x + R[0], cy = player.y + R[1];
+        if (cx === player.x && cy === player.y) continue;
+        if (_inFrontOfRizer(cx, cy, facing)) continue;
+        if (walkable(cx, cy)) return [cx, cy];
+      }
+    }
+  }
+  return t;   // nothing clear behind · take the station and let it walk out
+}
+// A scene change is not travel.  Without this the basis still holds whichever
+// way Rizer last WALKED in the room he just left, so the team forms up behind
+// a direction he is no longer pointing — most visibly on a doorway, which is
+// the one moment the whole party gets repositioned at once.
+function _resetFormationBasis(){
+  _formFacing = player.dir || 'down';
+  _formLastX = player.x; _formLastY = player.y;
 }
 // ★★ v0.95.833 · THE TREEHOUSE YARD IS HOME.  Creator: "L2 + Square
 // interact on a companion faction member sends a companion home.  They walk
@@ -41058,7 +41112,13 @@ function toggleFactionSummon(partyIdx){
   follower.moving = false;   // v0.95.346 · force idle pose on (re)summon
   follower.scene = game.scene;
   follower._formSlot = _claimFormationSlot();
-  const _spawnAt = _formationTile(follower);
+  // ★★★ v0.95.915 · SUMMON WHILE RUNNING.  Creator: "so that u can summon them
+  // while running and they dont stop u."  _rearRecallTile guarantees the tile
+  // is behind him and outside the arc he is walking into, and falls BACKWARD
+  // when it is blocked -- so calling a Zyrex out mid-sprint never puts a body
+  // in the next tile.  (walkable() treats a follower as solid, so before this
+  // the answer to "what happens if it lands in front" was: you stop.)
+  const _spawnAt = _rearRecallTile(follower);
   follower.tileX = _spawnAt[0];
   follower.tileY = _spawnAt[1];
   follower.dir   = player.dir;

@@ -69,5 +69,36 @@ H('4 · ★★★ THE SHEET ITSELF');
      '★★ and the clipped-frame audit clears it · unlike the jump sheets it replaces nothing of');
 }
 
+
+H('5 · ★★★ RIGHT IS THE MIRROR OF LEFT');
+{
+  const W=C.BBOX_FALLBACK.walk, L=W[1], R=W[2];
+  for (let i=0;i<4;i++){
+    ok(R[i][0] === 313-(L[i][0]+L[i][2]) && R[i][1]===L[i][1] && R[i][2]===L[i][2] && R[i][3]===L[i][3],
+       `★★ col ${i} · bx ${R[i][0]} = 313-(${L[i][0]}+${L[i][2]}) · same by, bw, bh`);
+  }
+  ok(L.every((b,i)=>b[3]===R[i][3]),
+     '★★★ he is the SAME HEIGHT facing right as facing left · the drawn art had him 3% shorter, so he shrank every time he turned around');
+  ok(L[0][1]+L[0][3] === R[0][1]+R[0][3],'★★ and plants on the same floor · '+(R[0][1]+R[0][3]));
+  ok(/RIGHT IS THE MIRROR OF LEFT/.test(src2),'the Creator’s call is recorded');
+  ok(/the PLAYER draw path has no mirror branch at all/.test(src2),
+     '★★ and WHY it was baked into the sheet instead of flagged in code');
+  ok(/which is checked before the flip, not assumed/.test(src2),
+     '★★★ the flip is only lossless if LEFT clears both walls · checked, not assumed');
+}
+
+H('6 · ★★★ THE TRAP · row 3 keeps its hair');
+{
+  const up=C.BBOX_FALLBACK.walk[3];
+  ok(up.every(b=>b[1]<=-23),
+     '★★★ UP still overflows by '+up.map(b=>b[1]).join('/')+' · the first mirror DELETED these spikes');
+  ok(/4,298 pixels that live in\n  \/\/ row 2's rectangle but belong to row 3/.test(src2) || /belong to row 3/.test(src2),
+     '★★★ 4,298 pixels sit in row 2’s rectangle and belong to row 3 · a cell-for-cell overwrite eats them');
+  ok(/written back to whichever row owns their\n  \/\/ connected component/.test(src2) || /connected component/.test(src2),
+     '★★ the mirror uses COMPONENT OWNERSHIP · the same law the bbox extractor uses');
+  ok(fs.existsSync(ROOT+'assets/2D sprites/rizer/_orig/walk-delivered-2026-08-30.png'),
+     '★ and the delivered sheet is kept, so the flip is reversible');
+}
+
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));
 process.exit(f?1:0);

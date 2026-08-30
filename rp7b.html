@@ -43672,6 +43672,75 @@ function wildHomewardMs(tier){
   const t = Math.max(1, Math.min(10, tier || 1));
   return WILD_HOME_MIN_MS + (t - 1) / 9 * (WILD_HOME_MAX_MS - WILD_HOME_MIN_MS);
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.906 · ZORYN · PLAYER TWO.  Creator: "zoryn will serve as a second
+// player npc.  his bond is at 50 so he can follow you and fight alongside you.
+// however, sometimes zoryn will collect chests before you on expeditions if you
+// dont loot fast.  make him a smart npc... he is like player 2.  your
+// bestfriend/soon rival."  Full arc: data/ZORYN_ARC_CANON.md
+//
+// ★★ THE CHEST RACE IS THE RIVALRY, REHEARSED.  It is tempting to read this as
+// a loot-pressure mechanic; it is a CHARACTER mechanic.  Part 2 turns on Zoryn
+// believing the prize should have been his — and a betrayal out of nowhere is a
+// twist, where a hundred small losses to the same friend is a RELATIONSHIP.
+// Every chest he beats you to has been quietly arguing his case since Malezor.
+//
+// ★ HE ONLY RACES WHAT YOU IGNORE.  He marks a chest, waits out a grace window
+// while you have every chance to take it, and only then walks over.  A
+// companion who snatches loot the instant it appears is a thief; one who takes
+// what you left is making a point.
+const ZORYN_BOND_TO_FOLLOW = 50;     // ★ Creator · "his bond is at 50"
+const ZORYN_CHEST_RADIUS   = 12;     // tiles · he notices what is near the pair of you
+const ZORYN_CHEST_GRACE_MS = 9000;   // your head start · long enough to be YOUR fault
+const ZORYN_CHEST_STEP_MS  = 260;    // he walks · he does not teleport to it
+function zorynBond(){ return (player.bonds && player.bonds.zoryn) || 0; }
+function zorynIsCompanion(){ return zorynBond() >= ZORYN_BOND_TO_FOLLOW; }
+function zorynNpc(){ return NPCS.find(n => n && n.id === 'zoryn') || null; }
+// the nearest chest neither of you has opened
+function _zorynChestNear(n){
+  let best = null, bestD = ZORYN_CHEST_RADIUS + 1;
+  for (const p of WORLD_PROPS){
+    if (!p || !(p._woodChest || p._cosmicChest) || p.opened) continue;
+    if (p.tileX == null) continue;
+    const d = Math.abs(p.tileX - n.tileX) + Math.abs(p.tileY - n.tileY);
+    if (d < bestD){ bestD = d; best = p; }
+  }
+  return best;
+}
+function tickZorynCompanion(now){
+  if (game.scene !== 'overworld') return;
+  const n = zorynNpc();
+  if (!n || n.scene !== 'overworld' || !zorynIsCompanion()) return;
+  const chest = _zorynChestNear(n);
+  if (!chest){ n._zoRaceId = null; n._zoRaceAt = 0; return; }
+  // ★ a NEW chest starts a fresh grace window · the clock is per chest, so
+  // wandering past three of them does not bank credit against the fourth
+  if (n._zoRaceId !== chest.id){ n._zoRaceId = chest.id; n._zoRaceAt = now; return; }
+  if (now - n._zoRaceAt < ZORYN_CHEST_GRACE_MS) return;      // your head start
+  // ★ he WALKS · one tile at a time, so you can still beat him to it by moving
+  if (now < (n._zoStepAt || 0)) return;
+  n._zoStepAt = now + ZORYN_CHEST_STEP_MS;
+  const dx = chest.tileX - n.tileX, dy = chest.tileY - n.tileY;
+  if (Math.abs(dx) + Math.abs(dy) <= 1){
+    // ★ he takes it, and he is CHARMING about it · this is a friend, still
+    try { chest.onInteract && chest.onInteract(); } catch(_){}
+    player.zorynChestsTaken = (player.zorynChestsTaken || 0) + 1;
+    const lines = ['◈ Zoryn got there first · "Slow today?"',
+                   '◈ Zoryn cracks it open · "You were THINKING about it."',
+                   '◈ Zoryn pockets the lot · "Keep up and it is yours."'];
+    try { showToast(lines[(Math.random() * lines.length) | 0], 2600); } catch(_){}
+    n._zoRaceId = null; n._zoRaceAt = 0;
+    return;
+  }
+  const first  = Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
+  const second = Math.abs(dx) >= Math.abs(dy) ? [0, Math.sign(dy)] : [Math.sign(dx), 0];
+  for (const [sx, sy] of [first, second]){
+    if (!sx && !sy) continue;
+    if (typeof stepNPCTo === 'function'
+        && stepNPCTo(n, n.tileX + sx, n.tileY + sy,
+                     Math.abs(sx) ? (sx > 0 ? 'right' : 'left') : (sy > 0 ? 'down' : 'up'))) break;
+  }
+}
 function beginWildHomeward(w){
   const home = w._homeTile;
   if (!home) return 0;
@@ -45563,6 +45632,7 @@ function frame(now){
   }
   drawAoeImpactBursts();// all large AOE bursts · above tall/wild grass
   try { tickWildBond(now); } catch(err){ console.warn('[rp7b] wild bond tick', err); }   // ★ v0.95.866
+  try { tickZorynCompanion(now); } catch(err){ console.warn('[rp7b] zoryn tick', err); }  // ★ v0.95.906
   try { drawWildBondOverlay(); } catch(err){ console.warn('[rp7b] wild bond draw', err); }
   try { stepArrows(); } catch(_){}   // ★ v0.95.794 · advance + detonate Pearlbow arrows
   try { ecologyTick(); } catch(_){}  // ★ v0.95.804 · rumors + anomalies · the living loop

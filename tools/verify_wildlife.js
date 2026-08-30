@@ -15,7 +15,7 @@ global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
 global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>CLK};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
-try{new Function(src+';globalThis.__C={seedMalezorWild,WILD_ZYREX,SUMMONABLE_SPRITES,drawWorldLayer,_wildRunSprite,_wildIdleSprite,wildHomewardMs,beginWildHomeward,SPECIES,player,game};')();}
+try{new Function(src+';globalThis.__C={seedMalezorWild,WILD_ZYREX,SUMMONABLE_SPRITES,drawWorldLayer,_wildRunSprite,_wildIdleSprite,wildHomewardMs,beginWildHomeward,SPECIES,wildBodyFootprint,wildBodyCovers,walkable,TILE,SUMMONABLE_SPRITES,player,game};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -152,6 +152,53 @@ H('8 · ★ PRE-SANITY BASE FOR THE 200+ ROSTER');
      '★★ the clock lives in ONE named function · when the full roster lands, per-species behaviour overrides one call, not a scattered rule');
   ok(/_inHabitat/.test(src2),'★ and the habitat test is one predicate every behaviour shares');
   ok(/each failure earns its own journey/.test(src2),'★ a second failed catch re-arms the walk rather than stacking');
+}
+
+H('9 · ★★★ A ZYREX BLOCKS ITS BODY, NOT A TILE');
+{
+  const seen=new Set(), sizes={};
+  for(const w of C.WILD_ZYREX){ if(seen.has(w.speciesId))continue; seen.add(w.speciesId);
+    const B=C.wildBodyFootprint(w.speciesId); sizes[w.speciesId]=(B.left+B.right+1)*(B.depth+1); }
+  ok(sizes.anciuxor>=9,'★★★ ANCIUXOR blocks '+sizes.anciuxor+' tiles · he is drawn nearly five tiles wide and used to block ONE');
+  ok(sizes.apexaur>=6,'★★ APEXAUR blocks '+sizes.apexaur+' · a beast the size of a house');
+  ok(sizes.smogrin===1&&sizes.aetherwing===1,'★ and the small ones still block exactly 1 · size is measured, not assumed');
+  ok(sizes.anciuxor>sizes.voltigrax&&sizes.voltigrax>sizes.aetherwing,'★★ footprints order by actual drawn size');
+  // ★ the even-span trap
+  ok(sizes.celestryx===2&&sizes.snok===2&&sizes.elzoran===2,
+     '★★★ 2-tile-wide creatures block 2 · a symmetric halfW floored every even span back to ONE, hiding this exact bug inside its own fix');
+  ok(/AN EVEN SPAN CANNOT BE CENTRED ON ONE COLUMN/.test(src2),'and the trap is recorded');
+  ok(/DERIVED FROM THE ART, not typed per species/.test(src2),
+     '★★ derived from the widest measured frame at the species own scale · a re-measured sheet moves its collision with it');
+}
+
+H('10 · ★★ BLOCKING THE BODY MUST NOT BLOCK THE GAME');
+{
+  const big=C.WILD_ZYREX.find(w=>w.speciesId==='apexaur');
+  ok(!C.walkable(big.tileX,big.tileY),'★ you cannot stand on it');
+  ok(!C.walkable(big.tileX-1,big.tileY),'★★ nor inside its flank · that was walkable a version ago');
+  // ★ MEASURE APPROACHABILITY, not two hand-picked tiles.  The first version
+  // checked "in front" and "+3 across" — and a wandering Apexaur can reach a
+  // spot where both happen to be blocked by terrain, so a correct world failed
+  // the check.  The property is that SOME tile touching the body is standable.
+  const approachable=(w)=>{
+    const B=C.wildBodyFootprint(w.speciesId);
+    for(let x=w.tileX-B.left-1;x<=w.tileX+B.right+1;x++)
+      for(let y=w.tileY-B.depth-1;y<=w.tileY+1;y++)
+        if(!C.wildBodyCovers(w,x,y) && C.walkable(x,y)) return true;
+    return false;
+  };
+  ok(C.WILD_ZYREX.filter(w=>!w._gone).every(approachable),
+     '★★★ EVERY wild still has a tile you can stand on beside it · you interact with the faced tile, so a body you can reach is a body you can bond with');
+  ok(/Over-blocking would\s*\n\/\/ wall off paths/.test(src2)||/wall off paths/.test(src2),
+     '★★ depth is deliberately conservative · side-view sprites in a top-down world');
+  // no two bodies may occupy each other after a long soak
+  for(let i=0;i<600;i++){ CLK+=250; try{C.drawWorldLayer();}catch(_){} }
+  let ov=0;
+  for(let i=0;i<C.WILD_ZYREX.length;i++)for(let j=i+1;j<C.WILD_ZYREX.length;j++){
+    const a=C.WILD_ZYREX[i],b=C.WILD_ZYREX[j];
+    if(!a._gone&&!b._gone&&C.wildBodyCovers(a,b.tileX,b.tileY)) ov++;
+  }
+  ok(ov===0,'★★★ after a soak, ZERO bodies overlap · the wander and graze are body-aware too, so two giants cannot stand inside each other');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

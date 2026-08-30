@@ -13922,7 +13922,7 @@ function walkable(x, y){
   // body is exactly how you walk up to one and press X.  A creature you can
   // stand inside is scenery; a creature that stops you is present.
   for (const w of WILD_ZYREX){
-    if (!w._gone && w.tileX === x && w.tileY === y) return false;
+    if (!w._gone && wildBodyCovers(w, x, y)) return false;   // ★ v0.95.902 · the whole body
   }
   // Overworld NPCs
   for (const n of NPCS){
@@ -40859,6 +40859,58 @@ const WILD_ZYREX = [];
 // in drawZyrexOrb". With the Malezor habitat seeded for playtesting, half the
 // roster has real sheets and standing in a field of coloured dots would not
 // have tested anything.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.902 · A ZYREX BLOCKS ITS BODY, NOT A TILE.  Creator: "make sure all
+// wild zyex has collision on their body."
+//
+// v0.95.895 gave every wild collision — on ONE tile.  That is right for a
+// Smogrin and absurd for Anciuxor, who is drawn nearly FIVE TILES WIDE and whom
+// Rizer could still walk around the edges of, clipping through most of the
+// creature.  The body you can see is the body you should bump into.
+//
+// ★ DERIVED FROM THE ART, not typed per species.  Width comes from the widest
+// measured frame at the species' own draw scale — the same numbers drawZyrexOrb
+// uses — so a re-scaled or re-measured sheet moves the collision with it and
+// nobody has to remember to update a table.  (Skybeam's boxes were re-measured
+// twice this week; a hand-written footprint would already be stale.)
+//
+// ★★ DEPTH IS CONSERVATIVE ON PURPOSE.  These are side-view sprites in a
+// top-down world: the drawn HEIGHT is mostly the creature standing up, not
+// ground it covers.  Only the genuinely huge (4+ tiles wide) get 2 tiles of
+// depth; everything else occupies one row at its feet.  Over-blocking would
+// wall off paths and make a meadow impassable, which is a worse lie than
+// under-blocking.
+const _wildBodyCache = {};
+function wildBodyFootprint(speciesId){
+  if (_wildBodyCache[speciesId]) return _wildBodyCache[speciesId];
+  const d = SUMMONABLE_SPRITES[speciesId];
+  let left = 0, right = 0, depth = 0;              // 0,0,0 · a single tile
+  if (d && d.bboxes){
+    let maxBh = 216;
+    for (const r of d.bboxes) if (r[0][3] > maxBh) maxBh = r[0][3];
+    const scale = (TILE * 2) / maxBh * (d.scaleMul || 1);
+    let wmax = 0;
+    for (const r of d.bboxes) for (const b of r) if (b[2] > wmax) wmax = b[2];
+    const tilesW = Math.max(1, Math.round(wmax * scale / TILE));
+    // ★★ AN EVEN SPAN CANNOT BE CENTRED ON ONE COLUMN.  A symmetric halfW
+    // silently floored every 2-wide creature back to a SINGLE tile — Celestryx,
+    // Snok, Elzoran, Mutamech, Phrenetic and Voltaryn all measured ~2 tiles and
+    // all blocked 1, which is the exact bug this change exists to fix, hiding
+    // inside the fix.  An asymmetric span is exact at every width:
+    //   1 → 0,0    2 → 0,1    3 → 1,1    4 → 1,2    5 → 2,2
+    left  = Math.floor((tilesW - 1) / 2);
+    right = (tilesW - 1) - left;
+    depth = tilesW >= 4 ? 1 : 0;                   // only the giants are 2 rows deep
+  }
+  return (_wildBodyCache[speciesId] = { left, right, depth });
+}
+// does (x,y) lie inside this wild's body?  feet sit ON the anchor row, so the
+// body extends BACKWARD (north) from it, never in front of where it stands.
+function wildBodyCovers(w, x, y){
+  const B = wildBodyFootprint(w.speciesId);
+  return x >= w.tileX - B.left && x <= w.tileX + B.right
+      && y <= w.tileY && y >= w.tileY - B.depth;
+}
 // ★ v0.95.888 · run sheets load lazily, same shape as the idle cache
 const _wildRunCache = {};
 function _wildRunSprite(id){
@@ -43825,7 +43877,8 @@ function drawWorldLayer(){
     if (_propBlocked.has(`${nx},${ny}`)) return false;
     if (player.x === nx && player.y === ny) return false;
     if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === nx && n.tileY === ny)) return false;
-    if (WILD_ZYREX.some(o => o !== w && !o._gone && o.tileX === nx && o.tileY === ny)) return false;
+    // ★ v0.95.902 · body-aware · two big creatures cannot stand inside each other
+    if (WILD_ZYREX.some(o => o !== w && !o._gone && wildBodyCovers(o, nx, ny))) return false;
     return true;
   };
   for (const w of WILD_ZYREX){
@@ -43946,7 +43999,7 @@ function drawWorldLayer(){
             && !_propBlocked.has(`${nx},${ny}`)
             && !(player.x === nx && player.y === ny)
             && !NPCS.some(n => n && n.scene === 'overworld' && n.tileX === nx && n.tileY === ny)
-            && !WILD_ZYREX.some(o => o !== w && !o._gone && o.tileX === nx && o.tileY === ny)
+            && !WILD_ZYREX.some(o => o !== w && !o._gone && wildBodyCovers(o, nx, ny))
             && (typeof isWorldLandTile !== 'function' || isWorldLandTile(nx, ny))
             && (typeof isWorldBorderTile !== 'function' || !isWorldBorderTile(nx, ny))){
           _wildStepTo(w, nx, ny, 420);

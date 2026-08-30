@@ -17,36 +17,43 @@ const H=t=>console.log('\n'+t);
 global.showToast=noop; global.showDialog=noop;
 const bond=(n)=>{C.player.bondLedger={zyrex:n/2,rizer:n/2};};
 
-H('1 · ★★ THE CREATOR\'S ANCHORS HOLD AT EVERY BOND LEVEL');
+H('1 · ★★★ THE CYCLE · gates of rotations of spins');
 {
   const T=(t)=>({tier:t,name:`T${t}`,type:'Beast'});
   bond(333);                       // matched to a T1
   const d1=C.wildBondDifficulty(T(1));
-  ok(d1.events===1,`T1 matched · ONE event (${d1.events})`);
-  // ★★★ v0.95.904 · INVERTED.  This pinned the v0.95.866 anchor of THREE
-  // SECONDS.  Creator: "the catch event is too easy, give rotations less time
-  // to complete before bond succeeds."  The anchor is superseded on his word;
-  // the check now guards the tighter clock so it cannot drift back.
-  ok(d1.ms===1800,`…and 1.8 SECONDS (${d1.ms}ms) · was 3000, cut on the Creator's ruling`);
-  ok(d1.turns/(d1.ms/1000) > 0.6,
-     `★★ the spin it demands is now ${(d1.turns/(d1.ms/1000)).toFixed(2)} rev/sec · it was 0.42, a leisurely stir`);
+  // ★★★ v0.95.905 · REPLACED.  The old anchors (events / turns / 1.8s) are gone:
+  // Creator: "tier 1 is one gate but you have to complete 3 random rotations
+  // before completing the event.  2.5 seconds per rotation. so tier 1 would
+  // take 7.5 seconds on a success... one rotation should not be one cycle
+  // because thats a low effort task."
+  ok(d1.gates===1,`★ T1 · ONE gate (${d1.gates})`);
+  ok(d1.rotations===3,`★★★ THREE rotations to fill it (${d1.rotations}) · one rotation would be a wrist flick`);
+  ok(d1.spins===2,`★★ TWO revolutions per rotation (${d1.spins}) · six spins fill the cycle, as specified`);
+  ok(d1.ms===2500,`★ 2.5 SECONDS per rotation (${d1.ms}ms)`);
+  ok(d1.runSeconds===7.5,`★★★ so a clean T1 imprint takes ${d1.runSeconds} SECONDS · the Creator's number, exactly`);
+  ok(d1.spins/(d1.ms/1000) === 0.8,`★★ it demands ${(d1.spins/(d1.ms/1000)).toFixed(2)} rev/sec · it was 0.42 two versions ago`);
   bond(3330);                      // matched to a T10
   const d10=C.wildBondDifficulty(T(10));
-  ok(d10.events===10,`★ T10 matched · TEN events — five each way (${d10.events})`);
+  ok(d10.gates===10,`★ T10 · TEN gates (${d10.gates})`);
+  ok(d10.gates*d10.rotations===30,`★★ thirty rotations in all · ${d10.runSeconds}s of continuous spinning for the rarest catch in the game`);
   bond(0);
-  ok(C.wildBondDifficulty(T(1)).events===1,'★ a T1 stays ONE event even at zero bond — the first catch is never a wall');
-  ok(C.wildBondDifficulty(T(10)).events<=10,'and a T10 never exceeds ten');
+  ok(C.wildBondDifficulty(T(1)).gates===1,'★ a T1 stays ONE gate even at zero bond — the first catch is never a wall');
+  ok(C.wildBondDifficulty(T(10)).gates<=10,'and a T10 never exceeds ten');
 }
 
-H('2 · ★★ DIFFICULTY IS THE TIER : BOND RATIO');
+H('2 · ★★ BOND LEVEL IS WHAT BUYS THE EFFORT');
 {
   const t5={tier:5,name:'T5',type:'Beast'};
-  bond(200);   const low=C.wildBondDifficulty(t5);
-  bond(3200);  const high=C.wildBondDifficulty(t5);
-  ok(high.events<low.events,`★ over-bonded fights fewer events (${high.events} vs ${low.events})`);
-  ok(high.ms>=low.ms,'…with a longer clock on each');
-  ok(high.turns<=low.turns,'…and fewer spins to fill one');
-  ok(low.label==='OVERMATCHED'&&high.label==='FAVOURED',`the read-out names it · ${low.label} → ${high.label}`);
+  bond(1665);  const at1=C.wildBondDifficulty(t5);      // matched
+  bond(3330);  const at2=C.wildBondDifficulty(t5);      // double
+  ok(at2.rotations<=at1.rotations,`★ a strongly-bonded Rizer needs fewer rotations (${at2.rotations} vs ${at1.rotations})`);
+  ok(at2.spins<at1.spins,`★★ and fewer revolutions in each (${at2.spins} vs ${at1.spins}) · "using his own bond level. this must matter"`);
+  ok(at2.runSeconds<at1.runSeconds,`★★★ so the whole imprint is shorter · ${at2.runSeconds}s vs ${at1.runSeconds}s`);
+  ok(at2.ms===at1.ms,'★ but the CLOCK never loosens · bond buys fewer turns, never a longer window');
+  ok(at1.rotations>=2&&at2.rotations>=2,'★★ never below TWO rotations · no bond level turns a gate into a flick');
+  ok(at2.spins>=1,'★★ nor below one full revolution');
+  ok(at1.label!==at2.label,`the read-out names it · ${at1.label} → ${at2.label}`);
 }
 
 H('3 · ★★ THE ENCOUNTER REPLACES THE INSTANT CATCH');
@@ -70,9 +77,14 @@ H('3 · ★★ THE ENCOUNTER REPLACES THE INSTANT CATCH');
   ok(!!B&&C.game.wildBondOpen===true,'the encounter opens and flags the world');
   ok(C.player.items.zysphere===8,'★★ the sphere is spent ON THE ATTEMPT · 9 → 8 before a single spin is read');
   ok(/game\.wildBondOpen\)\s+freezeReasons\.push\('wildBond'\)/.test(src),'★ the world FREEZES during the imprint');
-  ok(B.seq.every(v=>v===1||v===-1),'every event is a direction (±1)');
-  ok(B.seq.length>1?new Set(B.seq).size<=2:true,'random order, two directions only');
-  ok(/axes\[2\]/.test(src)&&/arrowup/.test(src),'★ right stick AND an arrow-key fallback both drive the spin');
+  // ★★★ v0.95.905 · a step is now a HAND and a WAY ROUND, not a bare sign
+  ok(B.seq.every(v=>v&&(v.stick==='L'||v.stick==='R')&&(v.dir===1||v.dir===-1)),
+     '★★★ every rotation names a STICK and a DIRECTION · "the user has to read the screen"');
+  let rep=0; for(let i=1;i<B.seq.length;i++) if(B.seq[i].stick===B.seq[i-1].stick&&B.seq[i].dir===B.seq[i-1].dir) rep++;
+  ok(rep===0,'★★ never the same hand AND way twice running · a repeat reads as a dropped input and teaches nothing');
+  ok(/axes\[RIGHT \? 2 : 0\]/.test(src),'★★★ LEFT stick is axes 0/1, RIGHT is 2/3 · the standard pad mapping');
+  ok(/keys\['w'\]/.test(src)&&/arrowup/.test(src),
+     '★★ and BOTH hands work on a keyboard too · WASD is the left ring, arrows the right · a pad-only minigame locks out half the playtesters');
   ok(/Math\.sign\(d\) === want/.test(src),'only motion in the DEMANDED direction counts');
   ok(/B\.turned - Math\.abs\(d\) \* 0\.5/.test(src),'…and spinning the wrong way bleeds progress');
 }
@@ -103,14 +115,25 @@ H('4 · ★★ WIN IMPRINTS · LOSS BREAKS THE BOND');
 
 H('5 · DIEGETIC UI · the sphere in his hands, not a screen');
 {
-  const d=src.slice(src.indexOf('function drawWildBondOverlay'),src.indexOf('function drawWildBondOverlay')+5200);
+  // ★★ v0.95.905 · SLICE TO THE END OF THE FUNCTION, not to a magic 5200
+  // characters.  The overlay grew when the cycle meter and the hand tag went
+  // in, and the name-plate — which lives near the bottom — fell off the end of
+  // the window, failing a check about code that was still there and still
+  // correct.  Eleventh fixed-window sighting in this project, and this one is
+  // mine.  Take the whole body: from the signature to the next top-level
+  // `function` declaration.
+  const _s=src.indexOf('function drawWildBondOverlay');
+  const _e=src.indexOf('\nfunction ', _s + 10);
+  const d=src.slice(_s, _e > 0 ? _e : _s + 20000);
   ok(!/rgba\(4,8,16,0\.72\)/.test(d),'the full-screen scrim is GONE');
   ok(/createRadialGradient\(W\/2, H\/2/.test(d),'replaced by a breath of edge vignette');
   ok(/player\.x \* TILE/.test(d) && /_cam\.x/.test(d),'the ring is anchored to RIZER in world space');
   ok(/const R = 34/.test(d),'small ring · reads as his sphere, not a HUD');
   ok(/spin - want \* i \* 0\.16/.test(d),'the instruction is MOTION · a comet travels the way you must spin');
   ok(/teach = Math\.max\(0, 1 - age \/ 700\)/.test(d),'the glyph teaches ~700ms then fades');
-  ok(/event pips/.test(d),'imprint count reads as pips, not a fraction');
+  // ★ v0.95.905 · the pips became THE CYCLE METER · one pip per rotation,
+  // clustered by gate, so the shape of the task reads before the first spin
+  ok(/THE CYCLE METER/.test(d),'the cycle reads as pips, one per rotation, clustered by gate');
   ok(/left \* Math\.PI \* 2/.test(d),'the clock IS the ring track · no separate bar');
   ok(/intro = Math\.max\(0, 1 - \(now - B\.t0\) \/ 1100\)/.test(d),'name-plate shows a second then gets out of the way');
 }

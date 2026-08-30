@@ -41495,48 +41495,69 @@ function drawCaptureSprite(){
 // now a hard fight instead of a closed door, which is what the Creator's
 // ratio language asks for.  Species gates (Elzoran's kin rule) still stand
 // BEFORE the encounter: they are about worthiness, not skill.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.905 · THE IMPRINT IS A CYCLE OF ROTATIONS.  Creator: "tier 1 is one
+// gate but you have to complete 3 random rotations before completing the event.
+// 2.5 seconds per rotation... maybe 6 successful spins fills the cycle meter of
+// the catch... one rotation should not be one cycle because thats a low effort
+// task.  the user must simulate rizer bonding zyrex matrix to zysphere matrix
+// using his own bond level."
+//
+// THE SHAPE, three levels deep:
+//   GATE      · one per tier · T1 has one, T10 has ten
+//   ROTATION  · 3 per gate · each names a STICK and a DIRECTION, read live
+//   SPIN      · 2 full revolutions to fill one rotation → SIX spins per gate
+// T1 success = 3 rotations x 2.5s = 7.5 SECONDS, exactly as specified.
+//
+// ★ WHY THREE LEVELS AND NOT A LONGER SINGLE SPIN.  One rotation per gate is a
+// wrist flick — a low-effort task, in the Creator's words.  Three rotations
+// that each re-roll WHICH STICK and WHICH WAY cannot be muscle-memorised: the
+// player has to READ the screen mid-imprint and re-aim their hands twice more
+// after committing.  That is the difference between a QTE and a minigame.
+//
+// ★★ AND IT IS THE FICTION, LITERALLY.  He asked for the player to "simulate
+// rizer bonding zyrex matrix to zysphere matrix using his own bond level".  The
+// two sticks ARE the two matrices — one hand on the creature, one on the sphere
+// — and the bond level is what decides how many turns each hand must give.
 const WILD_BOND = {
-  // ★★★ v0.95.904 · THE CLOCK TIGHTENS.  Creator: "the catch event is too easy,
-  // give rotations less time to complete before bond succeeds."
-  //
-  // 3000ms was the v0.95.866 anchor ("T1 matched = 1 event / 3 seconds") and it
-  // asked for 1.25 revolutions in three seconds — 0.42 rev/sec, which is a
-  // leisurely stir, not a fight for an imprint.  1800ms asks the same 1.25
-  // revolutions in 1.8s: 0.69 rev/sec, a 65% faster spin.
-  //
-  // ★ THE TIME MOVED, NOT THE TURNS.  He asked for less TIME, and that is the
-  // lever that changes how the minigame FEELS — more revolutions would have
-  // made it longer and duller, where a shorter clock makes the same motion
-  // urgent.  The clock is per EVENT and resets on each one, so a ten-event T10
-  // is ten separate 1.8s sprints rather than one long haul.
-  //
-  // ★★ THIS SUPERSEDES THE .866 THREE-SECOND ANCHOR, deliberately and on the
-  // Creator's word.  The suite assertion that pinned 3000ms is inverted with
-  // this ruling quoted rather than deleted.
-  EVENT_MS_BASE: 1800,      // T1 · one event, 1.8 seconds
-  TURNS_BASE: 1.25,         // full stick revolutions to fill one event
+  ROTATIONS_PER_GATE: 3,    // ★ Creator · three random rotations fill one gate
+  ROT_MS: 2500,             // ★ Creator · 2.5 seconds per rotation
+  SPINS_PER_ROT: 2,         // ★ Creator · "6 successful spins fills the cycle" ÷ 3
   active: null,
 };
 function wildBondDifficulty(sp){
-  const need = Math.max(1, requiredBondForTier(sp.tier || 1));
-  const have = Math.max(0, rizerBondTotal());
-  const ratio = have / need;                       // 1.0 = matched
-  // events: T1 → 1 · T10 → 10 · softened by an over-bonded Rizer, hardened
-  // when he is under (never fewer than 1, never more than 10)
-  // f · the ratio's grip on the fight.  Over-bonded shrinks the sequence
-  // (never below 60% of the tier), under-bonded stretches it (never past
-  // 140%), so the CREATOR'S ANCHORS hold at every bond level:
-  //   T1  → 1 event  · one spin, either way, three seconds
-  //   T10 → 10 events · five each way in random order
-  const f = ratio >= 1 ? Math.max(0.6, Math.min(1, 1 / ratio))
-                       : Math.min(1.4, 1 + (1 - ratio) * 0.4);
-  const events = Math.max(1, Math.min(10, Math.round((sp.tier || 1) * f)));
-  // spins per event and the clock · both ease when he is over-bonded and
-  // tighten when he is not, but a T1 stays a T1
-  const turns = WILD_BOND.TURNS_BASE * (ratio >= 1 ? Math.max(0.7, 1 / ratio) : Math.min(1.8, 1 + (1 - ratio) * 0.6));
-  const ms    = Math.round(WILD_BOND.EVENT_MS_BASE * (ratio >= 1 ? 1 : Math.max(0.7, 0.7 + ratio * 0.3)));
-  return { events, turns, ms, ratio,
-           label: ratio >= 1.5 ? 'FAVOURED' : ratio >= 0.95 ? 'MATCHED' : ratio >= 0.6 ? 'STRAINED' : 'OVERMATCHED' };
+  const need  = Math.max(1, requiredBondForTier(sp.tier || 1));
+  const have  = Math.max(0, rizerBondTotal());
+  const ratio = have / need;                       // 1.0 = matched · the gate guarantees >= 1
+  const tier  = Math.max(1, Math.min(10, sp.tier || 1));
+  // ★ GATES · one per tier, the Creator's original ladder, unchanged.
+  const gates = tier;
+  // ★ ROTATIONS · three per gate at a matched bond.  An over-bonded Rizer earns
+  // ONE fewer (never below 2 — a gate is never a single flick), because the
+  // whole point is that his bond level does the work his hands would have to.
+  const rotations = Math.max(2, WILD_BOND.ROTATIONS_PER_GATE - (ratio >= 2 ? 1 : 0));
+  // ★★ SPINS · two revolutions per rotation, and this is where bond MATTERS
+  // most: a Rizer at double the required bond spins 1.5 instead of 2, one at
+  // triple spins 1.25.  It never drops below one full revolution, so no amount
+  // of bond turns the imprint into a nudge.
+  const spins = ratio >= 3 ? 1.25 : ratio >= 2 ? 1.5 : WILD_BOND.SPINS_PER_ROT;
+  // ★ TIME · 2.5s per rotation flat.  The clock is the URGENCY and the Creator
+  // set it; bond buys fewer turns, never a longer window.
+  const ms = WILD_BOND.ROT_MS;
+  return { gates, rotations, spins, ms, ratio,
+           // total seconds a clean run takes · surfaced so the cost of a tier
+           // is a number anyone can read rather than a feel
+           runSeconds: gates * rotations * (ms / 1000),
+           label: ratio >= 3 ? 'ATTUNED' : ratio >= 2 ? 'FAVOURED' : ratio >= 1.2 ? 'STEADY' : 'MATCHED' };
+}
+// ★★ each rotation re-rolls BOTH hands.  Never the same stick and direction
+// twice running — a repeat reads as a dropped input and teaches nothing.
+function _rollWildRotation(prev){
+  for (let i = 0; i < 8; i++){
+    const r = { stick: Math.random() < 0.5 ? 'L' : 'R', dir: Math.random() < 0.5 ? 1 : -1 };
+    if (!prev || r.stick !== prev.stick || r.dir !== prev.dir) return r;
+  }
+  return { stick: prev && prev.stick === 'L' ? 'R' : 'L', dir: prev ? -prev.dir : 1 };
 }
 function startWildBondEncounter(w, sp){
   // ★★★ v0.95.887 · THE STARTER COMES FIRST.  Creator: "let it be known you
@@ -41596,14 +41617,22 @@ function startWildBondEncounter(w, sp){
   }
   player.items.zysphere = _held - 1;
   const d = wildBondDifficulty(sp);
-  // ★ the sequence · T1 is a single spin either way; higher tiers alternate
-  // in RANDOM order so the direction must be READ, never memorised
+  // ★★ v0.95.905 · the sequence is now a flat list of ROTATIONS across all
+  // gates, each carrying its own stick and direction.  Flat, not nested,
+  // because the meter the player watches fills continuously — the gate
+  // boundary is a milestone in that meter, not a separate screen.
   const seq = [];
-  for (let i = 0; i < d.events; i++) seq.push(Math.random() < 0.5 ? 1 : -1);
+  let prev = null;
+  for (let g = 0; g < d.gates; g++){
+    for (let r = 0; r < d.rotations; r++){
+      prev = _rollWildRotation(prev);
+      seq.push({ stick: prev.stick, dir: prev.dir, gate: g });
+    }
+  }
   WILD_BOND.active = {
     wild: w, sp, diff: d, seq, idx: 0,
-    progress: 0,          // 0..1 of the current event
-    need: d.turns * Math.PI * 2,
+    progress: 0,          // 0..1 of the current ROTATION
+    need: d.spins * Math.PI * 2,     // ★ two full revolutions per rotation
     turned: 0,            // radians accumulated in the correct direction
     t0: performance.now(), endsAt: performance.now() + d.ms,
     lastAngle: null, shake: 0, flash: 0, result: null, resultAt: 0,
@@ -41616,21 +41645,39 @@ function startWildBondEncounter(w, sp){
 }
 // stick angle → accumulated rotation.  Gamepad right stick is axes 2/3; the
 // keyboard fallback reads the arrow ring (Up→Right→Down→Left = clockwise).
-function _wildBondReadAngle(){
+// ★★★ v0.95.905 · THE ROTATION NAMES A HAND.  Creator: "maybe we can even make
+// it specify right or left analog in the event... the user has to read the
+// screen and successfully bond."
+//
+// LEFT stick is axes 0/1, RIGHT is axes 2/3 — the standard mapping, so it works
+// on a DualSense without configuration.  Reading the WRONG stick returns
+// nothing, which is the whole point: spinning the hand it did not ask for earns
+// no progress and burns the clock.
+//
+// ★ The keyboard keeps both hands too: WASD is the left ring, arrows the right.
+// A minigame that only works on a pad would lock out half the playtesters.
+function _wildBondReadAngle(stick){
+  const RIGHT = stick !== 'L';
   try {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     for (const p of pads){
       if (!p || !p.axes || p.axes.length < 4) continue;
-      const x = p.axes[2] || 0, y = p.axes[3] || 0;
+      const x = p.axes[RIGHT ? 2 : 0] || 0, y = p.axes[RIGHT ? 3 : 1] || 0;
       if (Math.hypot(x, y) > 0.45) return Math.atan2(y, x);
     }
   } catch(_){}
-  // keyboard ring · a held arrow places the "stick" at that compass point
   if (typeof keys === 'object'){
-    if (keys['arrowup'])    return -Math.PI / 2;
-    if (keys['arrowright']) return 0;
-    if (keys['arrowdown'])  return Math.PI / 2;
-    if (keys['arrowleft'])  return Math.PI;
+    if (RIGHT){
+      if (keys['arrowup'])    return -Math.PI / 2;
+      if (keys['arrowright']) return 0;
+      if (keys['arrowdown'])  return Math.PI / 2;
+      if (keys['arrowleft'])  return Math.PI;
+    } else {
+      if (keys['w']) return -Math.PI / 2;
+      if (keys['d']) return 0;
+      if (keys['s']) return Math.PI / 2;
+      if (keys['a']) return Math.PI;
+    }
   }
   return null;
 }
@@ -41641,8 +41688,9 @@ function tickWildBond(now){
     if (now - B.resultAt > 1200) _closeWildBond();
     return;
   }
-  const want = B.seq[B.idx];           // +1 clockwise · -1 counter-clockwise
-  const a = _wildBondReadAngle();
+  const step = B.seq[B.idx] || { stick:'R', dir:1 };
+  const want = step.dir;               // +1 clockwise · -1 counter-clockwise
+  const a = _wildBondReadAngle(step.stick);   // ★ only the DEMANDED hand counts
   if (a != null){
     if (B.lastAngle != null){
       let d = a - B.lastAngle;
@@ -41662,11 +41710,16 @@ function tickWildBond(now){
     rumbleBond(base + (B.progress / B.seq.length), now);
   } catch(_){}
   if (B.progress >= 1){
-    B.idx++; B.flash = 1;
+    // ★ v0.95.905 · a ROTATION cleared.  The gate completes only when its last
+    // rotation does, so the flash and the pad kick escalate at a gate boundary
+    // and merely tick between rotations — the player can feel the difference
+    // between "one more turn" and "that gate is sealed".
+    const doneGate = !B.seq[B.idx + 1] || B.seq[B.idx + 1].gate !== step.gate;
+    B.idx++; B.flash = doneGate ? 1 : 0.55;
     try { playSFX('confirm'); } catch(_){}
-    try { rumbleBondEvent(); } catch(_){}
+    if (doneGate){ try { rumbleBondEvent(); } catch(_){} }
     if (B.idx >= B.seq.length){ _wildBondResolve(true); return; }
-    // next event · fresh clock, fresh direction
+    // next rotation · fresh clock, fresh hand, fresh direction
     B.turned = 0; B.progress = 0; B.lastAngle = null;
     B.endsAt = now + B.diff.ms;
     return;
@@ -41768,8 +41821,12 @@ function drawWildBondOverlay(){
   const shake = B.shake > 0 ? (B.shake *= 0.88, (Math.random() - 0.5) * 10 * B.shake) : 0;
   const cx = Math.floor(player.x * TILE + TILE / 2) - _cam.x + shake;
   const cy = Math.floor(player.y * TILE + TILE / 2) - _cam.y - 34;   // hand height
-  const want = B.seq[B.idx] || 1;
-  const dirCol = want > 0 ? '#ffd66b' : '#7ad4ff';
+  // ★★ v0.95.905 · the step names a HAND as well as a way round.  Colour is
+  // the STICK (amber = left hand, cyan = right) and the arrow is the
+  // DIRECTION, so the two things the player must read never share a channel.
+  const step = B.seq[B.idx] || { stick:'R', dir:1 };
+  const want = step.dir;
+  const dirCol = step.stick === 'L' ? '#ffb43a' : '#6fd4ff';
   const R = 34;                                    // small · it is his sphere, not a HUD
 
   // ── the containment ring · its TRACK is also the clock ──
@@ -41816,20 +41873,43 @@ function drawWildBondOverlay(){
     ctx.fillStyle = dirCol;
     ctx.fillText(want > 0 ? '↻' : '↺', cx, cy - R - 14);
     ctx.font = "bold 10px 'Courier New', monospace";
-    ctx.fillText(want > 0 ? 'SPIN CW' : 'SPIN CCW', cx, cy - R - 2);
+    // ★★★ NAME THE HAND.  Creator: "the user has to read the screen and
+    // successfully bond."  Stick first, direction second — you pick up the
+    // controller hand before you pick a way round.
+    ctx.fillText(`${step.stick === 'L' ? 'LEFT' : 'RIGHT'} STICK · ${want > 0 ? 'CW ↻' : 'CCW ↺'}`,
+                 cx, cy - R - 2);
     ctx.globalAlpha = 1;
   }
+  // ★ the hand stays legible AFTER the teach fades · a small tag under the ring,
+  // because forgetting which stick mid-rotation is the one mistake that feels
+  // unfair rather than difficult
+  ctx.textAlign = 'center';
+  ctx.font = "bold 9px 'Courier New', monospace";
+  ctx.fillStyle = dirCol;
+  ctx.fillText(step.stick === 'L' ? '◄ LEFT' : 'RIGHT ►', cx, cy + R + 12);
 
-  // ── event pips · how many imprints, how many left · read at a glance ──
+  // ── ★★ v0.95.905 · THE CYCLE METER.  Creator: "6 successful spins fills the
+  //    cycle meter of the catch."  One pip per ROTATION, grouped into gates
+  //    with a wider gap between groups, so the player reads two things at a
+  //    glance: how much of this gate is left, and how many gates remain.  A
+  //    T10 shows thirty pips in ten clusters — the shape of the task, before
+  //    the first spin. ──
   if (B.seq.length > 1){
-    const n = B.seq.length, gap = 9, x0 = cx - ((n - 1) * gap) / 2, y0 = cy + R + 14;
+    const n = B.seq.length, gap = 7, gGap = 5;
+    let total = 0, lastGate = -1;
+    for (const st of B.seq){ if (st.gate !== lastGate){ total += gGap; lastGate = st.gate; } total += gap; }
+    let x = cx - total / 2, y0 = cy + R + 24;
+    lastGate = -1;
     for (let i = 0; i < n; i++){
+      if (B.seq[i].gate !== lastGate){ x += gGap; lastGate = B.seq[i].gate; }
       const done = i < B.idx;
-      ctx.fillStyle = done ? '#5fdc7a' : (i === B.idx ? dirCol : 'rgba(220,240,255,0.22)');
+      ctx.fillStyle = done ? '#5fdc7a'
+                    : i === B.idx ? dirCol : 'rgba(220,240,255,0.20)';
       ctx.beginPath();
-      ctx.moveTo(x0 + i*gap, y0 - 4); ctx.lineTo(x0 + i*gap + 4, y0);
-      ctx.lineTo(x0 + i*gap, y0 + 4); ctx.lineTo(x0 + i*gap - 4, y0);
+      ctx.moveTo(x, y0 - 3.5); ctx.lineTo(x + 3.5, y0);
+      ctx.lineTo(x, y0 + 3.5); ctx.lineTo(x - 3.5, y0);
       ctx.closePath(); ctx.fill();
+      x += gap;
     }
   }
 
@@ -41839,7 +41919,8 @@ function drawWildBondOverlay(){
     ctx.textAlign = 'center';
     ctx.font = "bold 9px 'Courier New', monospace";
     ctx.fillStyle = B.spheresLeft > 0 ? 'rgba(159,240,230,0.78)' : 'rgba(255,128,128,0.9)';
-    ctx.fillText(`\u25ce ${B.spheresLeft} left`, cx, cy + R + (B.seq.length > 1 ? 27 : 18));
+    // ★ v0.95.905 · below the cycle meter now, which is itself below the hand tag
+    ctx.fillText(`\u25ce ${B.spheresLeft} left`, cx, cy + R + (B.seq.length > 1 ? 36 : 24));
   }
 
   // ── the name-plate · one second, then gone ──

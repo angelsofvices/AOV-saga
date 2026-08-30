@@ -100,5 +100,39 @@ H('6 · ★★★ THE TRAP · row 3 keeps its hair');
      '★ and the delivered sheet is kept, so the flip is reversible');
 }
 
+
+H('7 · ★★★ THE RUN SHEET · same treatment');
+{
+  const R=C.BBOX_FALLBACK.run;
+  ok(fs.existsSync(ROOT+'assets/2D sprites/rizer/run.png'),'★ installed');
+  ok(R.length===4 && R.every(r=>r.length===4),'4x4');
+  const L=R[1], Rt=R[2];
+  for (let i=0;i<4;i++){
+    ok(Rt[i][0] === 313-(L[i][0]+L[i][2]) && Rt[i][1]===L[i][1] && Rt[i][2]===L[i][2] && Rt[i][3]===L[i][3],
+       `★★ RIGHT col ${i} is the exact mirror of LEFT`);
+  }
+  ok(R[3].every(b=>b[1]>0),
+     '★★ this sheet does NOT overflow · row 3 by '+R[3].map(b=>b[1]).join('/')+' where the old one needed -30');
+  // the floor is uneven ON PURPOSE -- assert we NOTICED, not that it is flat
+  const floors=R[0].map(b=>b[1]+b[3]);
+  const spread=Math.max(...floors)-Math.min(...floors);
+  ok(spread>0,'★★★ DOWN floors '+floors.join(',')+' · spread '+spread+'px · frames 1 and 3 are the AIRBORNE beats');
+  ok(/THE FLOOR IS NOT FLAT, AND THAT IS THE RUN CYCLE, NOT A DEFECT/.test(src2),
+     '★★★ recorded as the run cycle, not silently "fixed" flat');
+  ok(/he squashes\n  \/\/ rather than bounds/.test(src2)||/rather than bounds/.test(src2),
+     '★★★ and what the shipped anchor spends that lift on · planting boots instead of a bound');
+  ok(/his decision and not a measurement/.test(src2),
+     '★★ left on the shipped anchor until the Creator calls it');
+}
+
+H('8 · ★★ THE MIRROR TOOL');
+{
+  const t=fs.existsSync(ROOT+'tools/mirror_left_to_right.py') && fs.readFileSync(ROOT+'tools/mirror_left_to_right.py','utf8');
+  ok(!!t,'★ tools/mirror_left_to_right.py exists · the second sheet made it a tool');
+  ok(/THE TRAP THIS TOOL EXISTS TO AVOID/.test(t),'★★★ it carries the trap that bit on the walk sheet');
+  ok(/REFUSED/.test(t),'★★ and REFUSES to flip when a LEFT frame touches a side wall');
+  ok(/components_by_row/.test(t),'★★ component ownership · the same law the bbox extractor uses');
+}
+
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));
 process.exit(f?1:0);

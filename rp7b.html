@@ -7122,11 +7122,26 @@ const WORLD_PROPS = [
       chest.bbox = OPEN_BBOX;
       if (!chest.looted){
         chest.looted = true;
-        player.items = player.items || {};
-        player.items.astralcore = (player.items.astralcore || 0) + 1;
-        try { playItemGain('astralcore'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+        // ★★★ v0.95.908 · THE CORE COMES OUT OF THE CHEST.  Creator: "here is
+        // the astral core asset that comes out of the chest during auraxions
+        // ufo quest. same rig as weapons and astralites."
+        //
+        // It used to pay straight into the bag, so the single most important
+        // object in Auraxion's questline was a line of toast text.  Now it
+        // LANDS beside the chest as a solid, levitating world prop and is
+        // claimed with X — the same grammar the Astralite gems got at
+        // v0.95.836 and the Gemlord weapons use.  Every quest object in the
+        // game is now picked UP rather than granted, which is also the item
+        // canon: items come from chests, NPCs and world finds, never from a
+        // counter quietly incrementing.
+        if (!spawnAstralcoreDrop(chest.tileX, chest.tileY)){
+          // interiors and blocked ground keep the direct hand-over
+          player.items = player.items || {};
+          player.items.astralcore = (player.items.astralcore || 0) + 1;
+          try { playItemGain('astralcore'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+          showToast('★ ASTRALCORE retrieved · bring it to Auraxion in the wild arm', 3800);
+        }
         try { pingNextObjective(); } catch(_){}
-        showToast('★ ASTRALCORE retrieved · bring it to Auraxion in the wild arm', 3800);
       }
     };
     return chest;
@@ -17834,6 +17849,59 @@ function spawnAstraliteGem(cx, cy, item){
       addItems({ [item.key]: 1 });
       try { playSFX('itemGain'); } catch(_){}
       showToast(`◇ MATRIX MATERIAL · ${item.symbol} ${item.name} · ${item.familyName || ''}`, 2800);
+    },
+  };
+  WORLD_PROPS.push(prop);
+  registerPropCollision(prop);
+  return prop;
+}
+// ★★★ v0.95.908 · THE ASTRALCORE · Auraxion's UFO fetch, as a real object.
+//
+// Creator: "same rig as weapons and astralites" — so it is built from the same
+// parts spawnAstraliteGem uses and nothing else: one measured bbox, a SOLID
+// footprint (the pickup-collision law, v0.95.821), a `door` so X claims it when
+// faced, and `_levitate` for the hover.  Copying the rig rather than inventing
+// one is the point: a player who has picked up a Matrix gem already knows how
+// to pick this up, and the next quest object costs one more call.
+//
+// Art is ONE object, not a sheet, so the bbox is the whole silhouette measured
+// on its own alpha.  Its chroma needed the enclosed-pocket pass: the lower
+// sparkle arcs SEAL two pools of studio magenta that a border flood can never
+// reach, which is the ring case in the chroma canon.
+const ASTRALCORE_ART = {
+  src: 'assets/2D%20sprites/items/astralcore.png',
+  bbox: [357, 190, 566, 878],       // measured · 1254x1254 sheet, single object
+  img: (() => { const i = new Image(); i.src = 'assets/2D%20sprites/items/astralcore.png'; return i; })(),
+};
+function spawnAstralcoreDrop(cx, cy){
+  if (game.scene !== 'overworld') return null;
+  let tx = null, ty = null;
+  for (const [dx, dy] of [[0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+    if (typeof walkable === 'function' && walkable(cx+dx, cy+dy)){ tx = cx+dx; ty = cy+dy; break; }
+  }
+  if (tx == null) return null;      // nowhere to put it · caller hands it over
+  const bbox = ASTRALCORE_ART.bbox;
+  const prop = {
+    id: `astralcore_drop_${tx},${ty}`,
+    _astralcoreDrop: true,
+    img: ASTRALCORE_ART.img, src: ASTRALCORE_ART.src, bbox,
+    tileX: tx, tileY: ty,
+    // taller than a Matrix gem on purpose · this is the object the whole
+    // questline is about, and it should read as such from across the clearing
+    tileW: 1.10, tileH: 1.10 * bbox[3] / bbox[2],
+    footprint: [[0, 0]],            // ★ SOLID
+    door: [0, 0],                   // ★ X collects when faced
+    _levitate: true,
+    onInteract(){
+      try { unregisterPropCollision(prop); } catch(_){}
+      const i = WORLD_PROPS.indexOf(prop);
+      if (i >= 0) WORLD_PROPS.splice(i, 1);
+      player.items = player.items || {};
+      player.items.astralcore = (player.items.astralcore || 0) + 1;
+      try { playItemGain('astralcore'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+      try { pingNextObjective(); } catch(_){}
+      showToast('★ ASTRALCORE retrieved · bring it to Auraxion in the wild arm', 3800);
+      try { saveGame(); } catch(_){}
     },
   };
   WORLD_PROPS.push(prop);
@@ -39696,6 +39764,22 @@ const SUMMONABLE_SPRITES = {
       [[ 66, 75,202,178],[ 52, 77,209,179],[ 57, 81,210,175],[ 62, 81,207,175]],
       [[ 41, 28,224,209],[ 46, 33,214,209],[ 53, 31,204,206],[ 56, 32,203,209]],
     ],
+    // ★★ v0.95.908 · TRAVERSAL · Creator: "here is aetherwings flying traversal
+    // animation."  `runSrc` convention (src = IDLE, runSrc = traversal), same as
+    // the Mealux float and the Apexaur walk.  For an insect that already hovers
+    // standing still, "traversal" is the wings sweeping BACK and the body
+    // tilting into the direction of travel — the four rows read as flight, not
+    // as a walk cycle, which is why it wants its own bank rather than a reuse
+    // of the idle amble.  Chroma: the wings are translucent, so the same
+    // reach-through key the idle and A1 sheets got; 16/16 cells clean, no
+    // overflow, no component ever crossing a cell wall.
+    runSrc: 'assets/2D%20sprites/zyrex/aetherwing-fly.png',
+    runBboxes: [
+      [[ 87, 77,157,197],[ 54,106,199,173],[ 35,117,238,162],[ 45,106,202,171]],
+      [[ 48, 90,205,172],[ 25,102,211,159],[ 27,108,212,157],[ 18, 97,209,167]],
+      [[ 75, 68,201,167],[ 63, 81,213,157],[ 59, 81,205,156],[ 47, 72,203,165]],
+      [[ 46, 36,234,185],[ 42, 51,218,173],[ 36, 55,232,174],[ 32, 49,212,178]],
+    ],
     cellW: 313, cellH: 313, scaleMul: 0.55,   // Gearbyte baseline
   },
   // v0.95.731 · FROSANE · T1 Elemental · frost cygnet · Batch 1.
@@ -40771,6 +40855,31 @@ function makeZyrexFollower(z, opts){
     base.sheet = new Image();
     base.sheet.src = spriteDef.idleSrc;
     base.bboxes = spriteDef.idleBboxes || spriteDef.bboxes;
+  }
+  // ★★★ v0.95.908 · THE OTHER HALF OF THE TRAVERSAL LAW.
+  //
+  // v0.95.900 resolved the three two-sheet conventions "in one place" — but
+  // that place was the WILD draw path only.  This builder understood `idleSrc`
+  // and `flyAll` and has never understood `runSrc`, so every species using that
+  // convention has been walking beside you in its STANDING pose since the day
+  // it was added: the Key of Mealux glides home without its float, the Apexaur
+  // crosses Zarvane without taking a step.  Same bug class as the six frozen
+  // wilds at v0.95.899, on the half of the game nobody re-checked.
+  //
+  // `runSrc` means src = IDLE, second sheet = TRAVERSAL, which is exactly the
+  // NPC walk bank — so it maps straight across with no new draw code.
+  if (spriteDef.runSrc && spriteDef.runBboxes && !base.walkSheet){
+    base.walkSheet = new Image();
+    base.walkSheet.src = spriteDef.runSrc;
+    base.walkBboxes = spriteDef.runBboxes;
+    // ★★ and it carries its own yardstick.  The wild path re-derives maxBh from
+    // whichever bank it is drawing (v0.95.890); an NPC computes _downScale ONCE
+    // off the idle bank, so without this a traversal sheet drawn through it
+    // changes the creature's size the moment it moves — the exact shrink that
+    // rule exists to prevent.  Preserve the SIZE, not the divisor.
+    let _wr = 216;
+    for (const r of spriteDef.runBboxes){ if (r[0] && r[0][3] > _wr) _wr = r[0][3]; }
+    base.walkRefBh = _wr;
   }
   return base;
 }
@@ -44989,9 +45098,13 @@ function drawNPC(n){
   // float at v0.95.890.  Dividing by the attack bank's own col-0 BODY height
   // makes the creature exactly as big mid-swing as it is standing still, which
   // is the only reading of "same creature" that survives a frame swap.
-  const _atkAdj = (useAtk && n.attackRefBh && n._idleRefBh)
-    ? (n._idleRefBh / n.attackRefBh) : 1;
-  const rowScale = _baseScale * _atkAdj * (useCompanion ? (n.companionScaleMul || 1) : 1);
+  // ★ v0.95.908 · the same correction serves the TRAVERSAL bank, for the same
+  // reason: any bank drawn through a scale measured on a different sheet needs
+  // its own body height or the creature resizes when it changes what it is doing.
+  const _bankAdj = (useAtk  && n.attackRefBh && n._idleRefBh) ? (n._idleRefBh / n.attackRefBh)
+                 : (useWalk && n.walkRefBh   && n._idleRefBh) ? (n._idleRefBh / n.walkRefBh)
+                 : 1;
+  const rowScale = _baseScale * _bankAdj * (useCompanion ? (n.companionScaleMul || 1) : 1);
   const drawH = Math.max(1, Math.round(bh * rowScale));
   const drawW = Math.max(1, Math.round(bw * rowScale));
   let dx, dy;

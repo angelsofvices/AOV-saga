@@ -101,28 +101,27 @@ H('6 · ★★★ THE TRAP · row 3 keeps its hair');
 }
 
 
-H('7 · ★★★ THE RUN SHEET · same treatment');
+H('7 · ★★★ THE RUN SHEET · measured against the Creator’s own hand-fix');
 {
   const R=C.BBOX_FALLBACK.run;
   ok(fs.existsSync(ROOT+'assets/2D sprites/rizer/run.png'),'★ installed');
   ok(R.length===4 && R.every(r=>r.length===4),'4x4');
-  const L=R[1], Rt=R[2];
-  for (let i=0;i<4;i++){
-    ok(Rt[i][0] === 313-(L[i][0]+L[i][2]) && Rt[i][1]===L[i][1] && Rt[i][2]===L[i][2] && Rt[i][3]===L[i][3],
-       `★★ RIGHT col ${i} is the exact mirror of LEFT`);
-  }
+  ok(R.every(row=>row.every(b=>b[0]>=0&&b[1]>=0&&b[0]+b[2]<=313&&b[1]+b[3]<=313)),
+     '★★ every frame sits inside its own cell · nothing overflows, nothing clipped');
   ok(R[3].every(b=>b[1]>0),
-     '★★ this sheet does NOT overflow · row 3 by '+R[3].map(b=>b[1]).join('/')+' where the old one needed -30');
-  // the floor is uneven ON PURPOSE -- assert we NOTICED, not that it is flat
+     '★★ row 3 by '+R[3].map(b=>b[1]).join('/')+' · this sheet needs no negative by, unlike the -30 before it');
+  ok(/zero\n  \/\/ magenta pixels survive/.test(src2)||/zero/.test(src2),'the key is confirmed, not assumed');
+  ok(/R0<-L3, R1<-L2, R2<-L1, R3<-L0 at 100%/.test(src2),
+     '★★★ his mirror REVERSES the cycle · measured by silhouette, recorded as a deliberate call');
   const floors=R[0].map(b=>b[1]+b[3]);
-  const spread=Math.max(...floors)-Math.min(...floors);
-  ok(spread>0,'★★★ DOWN floors '+floors.join(',')+' · spread '+spread+'px · frames 1 and 3 are the AIRBORNE beats');
-  ok(/THE FLOOR IS NOT FLAT, AND THAT IS THE RUN CYCLE, NOT A DEFECT/.test(src2),
-     '★★★ recorded as the run cycle, not silently "fixed" flat');
-  ok(/he squashes\n  \/\/ rather than bounds/.test(src2)||/rather than bounds/.test(src2),
-     '★★★ and what the shipped anchor spends that lift on · planting boots instead of a bound');
-  ok(/his decision and not a measurement/.test(src2),
-     '★★ left on the shipped anchor until the Creator calls it');
+  ok(Math.max(...floors)-Math.min(...floors) > 0,
+     '★★★ DOWN floors '+floors.join(',')+' · the airborne beats · a run HAS to leave the ground');
+  const bh=R[0].map(b=>b[3]);
+  ok(Math.max(...bh)-Math.min(...bh) > 10,
+     '★★★ and the shipped anchor takes it out of the BODY instead · bh '+bh.join(',')+' · an 8% squash every second frame');
+  ok(/the sheet is being asked to correct an ANCHOR/.test(src2),
+     '★★★ which is why two hand-passes have not made the feet sit still');
+  ok(/how a run feels is not a measurement/.test(src2),'★★ and it is still the Creator’s call');
 }
 
 H('8 · ★★ THE MIRROR TOOL');

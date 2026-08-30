@@ -40052,10 +40052,18 @@ function tickAggressiveZyrex(n){
     if (best.hp == null) best.hp = best.hpMax || 125;
     best.hp -= dmg;
     const type = (partyMember && (partyMember.type || partyMember.type2)) || 'Beast';
+    // The ring stays: it is the IMPACT, and it belongs on the target — Rizer's
+    // melee marks its victim the same way.  What left is the second body.
     emitZyrexAttackFx(best.tileX, best.tileY, type, partyMember && partyMember.speciesId);
-    // v0.95.320 · Also fire the per-species attack animation when available
-    if (partyMember && !emitZyrexAttackSprite(partyMember.speciesId, best.tileX, best.tileY)){ /* fallback = ring */ }
+    // ★★★ v0.95.907 · FACE THE TARGET FIRST, then swing.  The facing has to be
+    // set BEFORE the window opens or the attack plays the row the creature was
+    // standing in — this line used to sit after the animation call, which was
+    // harmless while the art was a decal and is not harmless now.
     n.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    // ★★★ THE SWING, on its own body.  Falls through to the ring alone when a
+    // species has no attack art yet — a missing sheet is a missing ANIMATION,
+    // never a missing attack (the damage above has already landed).
+    strikeZyrexAnim(n, partyMember && partyMember.speciesId);
     try { playSFX('astralstrike'); } catch(_){}
     // v0.95.487 · MEDIUM ZXP per HIT landed by the Zyrex · scales w/ enemy tier + level
     if (partyMember){
@@ -40100,66 +40108,192 @@ function tickAggressiveZyrex(n){
   }
 }
 
-// v0.95.320 · Per-Zyrex attack animation sheets · 4 horizontal frames each
-// wind-up → charge → strike → recovery · CK-baked from ChatGPT prompt spec
-// v0.95.452 · CRITICAL FIX · files on disk are named attack_<species>.png · the
-// previous no-prefix paths were 404ing so this whole per-species pipeline never
-// fired.  All paths now point at the real filenames + zarakai moved into the
-// same attacks/ subfolder for consistency.
-const ZYREX_ATTACK_SHEETS = {
-  volcanut:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_volcanut.png' },
-  celestryx: { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_celestryx.png' },
-  rustbyte:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_rustbyte.png' },
-  apexaur:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_apexaur.png' },
-  auraxion:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_auraxion.png' },
-  otterlin:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_otterlin.png' },
-  elzoran:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_elzoran.png' },
-  voltaryn:  { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_voltaryn.png' },
-  elzebub:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_elzebub.png' },
-  // Zarakai · 4x4 directional sheet (D/L/R/U rows) · engine flag rows:4 makes
-  // drawZyrexAttackAnims sample row 0 (front slash) at the correct cell height
-  zarakai:   { img: new Image(), src: 'assets/2D%20sprites/zyrex/attacks/attack_zarakai.png', rows: 4 },
+// ★★★ v0.95.907 · A ZYREX FIGHTS WITH ITS BODY.  Creator: "zyrex were casting
+// images of their attacks and not rigged to the animations. lets fix that.
+// zyrex should fight how rizer fights."
+//
+// WHAT WAS WRONG.  v0.95.320 drew the attack sheet as a free-floating sprite
+// AT THE ENEMY'S TILE, six tiles from the creature that threw it, while the
+// creature itself stood in its idle pose.  Two bodies on screen, neither of
+// them fighting: the Zyrex never moved and a picture of a Zyrex appeared on
+// top of the Mori.  That is not an animation, it is a decal — exactly what the
+// Creator saw.
+//
+// WHAT RIZER DOES, which is the standard being matched: `player.attackMode` +
+// `player.attackUntil` swap HIS OWN sprite bank for the duration, his facing
+// picks the row, the columns walk across the window, and a separate small hit
+// effect lands on the target.  One body, one animation, one impact mark.
+//
+// THE ENGINE ALREADY HAD THIS.  The NPC draw path grew an idle/walk/run/ATTACK
+// bank swap at v0.95.696 for the Seer Grunts, with cellAnchor + footBaselines
+// solving the exact lurch these VFX-heavy sheets cause (v0.95.694).  Zyrex were
+// simply never wired into it.  So this is not a new renderer — it is ten
+// creatures finally being given the one every other fighter in the game uses.
+//
+// ★ TWO SHEET SHAPES, one table:
+//     dirRows  · 4x4, row = facing            (aetherwing, zarakai)
+//     1-row    · 4 frames, drawn facing RIGHT (the nine 2026 strips) —
+//                mirrored when the creature faces left; up/down keep the
+//                authored profile, because a wrong-facing swing on its own
+//                body still beats a decal on someone else's tile.
+// ★ `foot` is the BODY's floor line in cell space.  For the strips it is
+//   COLUMN 0's line held across all four frames on purpose: the body does not
+//   move through these poses, the blast does, and measuring per column would
+//   let a fireball that hangs below the paws lift the creature off the ground.
+// ★ `refBh` is the col-0 BODY height, and the ONLY thing that keeps the size
+//   honest.  These strips are ~790px tall against a 313px idle cell, so reusing
+//   the idle scale would draw a Volcanut three times its own size the instant
+//   it attacked.  The draw path divides by refBh so the creature is exactly as
+//   big mid-swing as it is standing still.
+const ZYREX_ATTACK_BANKS = {
+  // ★★ v0.95.907 · AETHERWING · A1 LIGHT HORN STRIKE.  Creator: "attack
+  // animation for aethering. regular light horn attack a1."  4x4 directional,
+  // canon D/L/R/U rows, col 2 = the lunge (body flattened, horn thrust out).
+  // Chroma: its wings are translucent over magenta, so the key is a border
+  // flood on a RELAXED "magenta-influenced" test that reaches THROUGH the
+  // wings and stops at the opaque body — the purple eyes are enclosed by that
+  // body and are never reached — then the reached band is un-premultiplied
+  // against the measured background (246,7,247) rather than cut.  Same
+  // treatment the idle sheet got at v0.95.731, for the same reason.
+  // atkType A1 = LIGHT, per the four-attack canon (A1 Light · A2 Heavy ·
+  // A3 Astral · A4 Ultimate).  The adjacent melee every summoned Zyrex throws
+  // in tickAggressiveZyrex IS A1 — so this sheet is the first Zyrex A1 in the
+  // game authored as one, rather than a strike sheet pressed into service.
+  aetherwing: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_aetherwing.png',
+    atkType: 'A1', move: 'Horn Strike',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 420, refBh: 199,
+    bboxes: [
+      [[ 63, 96,193,189],[ 48,130,224,171],[ 30,174,242,131],[ 62,101,168,193]],
+      [[ 33,101,218,175],[ 16, 94,222,180],[ -4,146,281,128],[ 18, 88,218,186]],
+      [[ 70, 64,226,189],[ 61, 71,224,175],[ 29,126,279,122],[ 52, 66,221,188]],
+      [[ 60, 41,199,199],[ 63, 49,202,199],[ 23,107,248,128],[ 66, 46,180,201]],
+    ],
+    foot: [
+      [285,301,305,294],
+      [276,274,274,274],
+      [253,246,248,254],
+      [240,248,235,247],
+    ],
+  },
+  // ── the nine 1-row strips · wind-up → charge → blast → recovery ──────────
+  // Every bbox is the measured BODY-OWNING component (largest in the cell), so
+  // owned overflow is kept and never clipped.  ELZORAN is the one exception:
+  // his blast touches the cell edge and MERGES with the neighbouring frame's
+  // into a single 1215px component across a 543px cell.  That is not overflow,
+  // it is two frames touching, so those two columns are clamped to the cell.
+  apexaur:   { cols:4, cellW:444, cellH:884, refBh:278, foot:608, durMs:520,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_apexaur.png',
+    bboxes:[[[9,330,359,278],[8,403,314,201],[-111,292,563,325],[43,398,351,213]]] },
+  auraxion:  { cols:4, cellW:539, cellH:729, refBh:479, foot:596, durMs:520,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_auraxion.png',
+    bboxes:[[[20,117,404,479],[-82,127,454,464],[-138,88,857,510],[193,119,337,477]]] },
+  celestryx: { cols:4, cellW:495, cellH:793, refBh:233, foot:537, durMs:520,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_celestryx.png',
+    bboxes:[[[48,304,293,233],[-60,305,456,234],[-76,130,634,573],[91,287,379,254]]] },
+  // ★★ pendingArt · SEE THE CREATOR NOTE BELOW.  Measured, kept, NOT attached.
+  elzebub:   { cols:4, cellW:539, cellH:728, refBh:335, foot:564, durMs:520, pendingArt:true,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_elzebub.png',
+    bboxes:[[[18,229,457,335],[-29,199,418,366],[-148,104,801,537],[119,164,405,400]]] },
+  elzoran:   { cols:4, cellW:543, cellH:724, refBh:464, foot:596, durMs:520, merged:2,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_elzoran.png',
+    bboxes:[[[19,132,425,464],[0,124,543,472],[0,124,543,472],[93,127,404,469]]] },
+  otterlin:  { cols:4, cellW:443, cellH:886, refBh:272, foot:612, durMs:520,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_otterlin.png',
+    bboxes:[[[40,340,260,272],[-60,343,354,261],[-97,294,609,329],[70,360,272,248]]] },
+  rustbyte:  { cols:4, cellW:530, cellH:741, refBh:378, foot:579, durMs:520,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_rustbyte.png',
+    bboxes:[[[17,201,373,378],[-65,215,487,364],[-122,123,784,462],[194,204,280,375]]] },
+  volcanut:  { cols:4, cellW:497, cellH:789, refBh:242, foot:523, durMs:520,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_volcanut.png',
+    bboxes:[[[15,281,343,242],[-62,281,410,243],[-90,219,615,350],[68,288,346,237]]] },
+  // ★★ pendingArt · SEE THE CREATOR NOTE BELOW.  Measured, kept, NOT attached.
+  voltaryn:  { cols:4, cellW:490, cellH:801, refBh:380, foot:581, durMs:520, pendingArt:true,
+    src:'assets/2D%20sprites/zyrex/attacks/attack_voltaryn.png',
+    bboxes:[[[13,201,343,380],[-90,202,412,380],[-160,125,773,550],[138,199,332,383]]] },
+  // Zarakai · the other 4x4 · 313 cells like every character sheet in the game.
+  // Measured for the first time here: v0.95.450 only ever set `rows:4` so the
+  // decal sampled the right cell HEIGHT, and never learned where he was in it.
+  zarakai: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_zarakai.png',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 420, refBh: 235,
+    bboxes: [
+      [[ 78, 68,193,235],[-10, 73,257,231],[ 58, 81,214,274],[ 37, 76,195,247]],
+      [[ 80, 58,168,233],[ -2, 67,214,225],[ 17, 80,284,232],[ 51, 73,172,242]],
+      [[ 87, 31,167,228],[ 62, 41,206,224],[ 40, 49,278,230],[ 70, 43,167,243]],
+      [[ 77, 20,176,224],[ 46, 23,216,214],[ 33,-20,245,269],[ 55, 31,191,211]],
+    ],
+    foot: [
+      [303,304,355,323],
+      [291,292,312,315],
+      [259,265,279,286],
+      [244,237,249,242],
+    ],
+  },
 };
-Object.values(ZYREX_ATTACK_SHEETS).forEach(a => a.img.src = a.src);
-// Rustbyte = Gearbyte alias for the SPECIES id lookup (post-rename compat)
-if (ZYREX_ATTACK_SHEETS.rustbyte) ZYREX_ATTACK_SHEETS.gearbyte = ZYREX_ATTACK_SHEETS.rustbyte;
-// Load-error logger · surfaces any surviving 404s in the console instead of
-// silently returning false from emitZyrexAttackSprite forever
-Object.entries(ZYREX_ATTACK_SHEETS).forEach(([id, a]) => {
-  a.img.addEventListener('error', () => console.warn('[rp7b] zyrex attack sheet 404 · ' + id + ' · ' + a.src));
+// ★★★ FOR THE CREATOR · TWO SHEETS DRAW A DIFFERENT CREATURE THAN THEIR IDLE.
+// Rigging the art to the body is what exposed this: while the sheet was a decal
+// thrown onto the enemy, nobody could tell it was the wrong animal.  Now the
+// swing replaces the creature, so a mismatch is a species change mid-attack.
+//
+//   ELZEBUB  · idle = the blue-and-gold HATCHLING (Mom's egg, the Perfect
+//              Epsilon starter).  attack_elzebub.png = a full-grown PURPLE
+//              dragon wreathed in violet flame.  Reads as a later stage of the
+//              line, not as Elzebub.
+//   VOLTARYN · idle = the dark armoured gold-trimmed body.  attack_voltaryn.png
+//              = an orange fire-fox dragon.  Not the same animal at all.
+//
+// Both are MEASURED and kept above, and both are held behind `pendingArt` so
+// they do not ship until you rule.  Three ways this could go, and it is your
+// call, not a guess I should make in code: the sheets belong to the EVOLVED
+// forms and want re-filing; the overworld idles are the ones that are wrong; or
+// they are simply mis-named and want new art.  Everything else lines up — I
+// checked all ten against their idles and the other eight are the same creature.
+if (ZYREX_ATTACK_BANKS.rustbyte) ZYREX_ATTACK_BANKS.gearbyte = ZYREX_ATTACK_BANKS.rustbyte;   // post-rename alias
+// A 1-row strip declares ONE foot line; the draw path indexes [row][col], so
+// expand it here rather than making every reader handle two shapes.
+Object.values(ZYREX_ATTACK_BANKS).forEach(b => {
+  if (typeof b.foot === 'number'){
+    b.foot = [new Array(b.cols || 4).fill(b.foot)];
+  }
 });
-// Attach a sprite-based attack animation instead of the ring-only VFX
-const _zyrexAttackAnims = [];
-function emitZyrexAttackSprite(speciesId, x, y){
-  const sheet = ZYREX_ATTACK_SHEETS[speciesId];
-  if (!sheet || !sheet.img.complete || !sheet.img.naturalWidth) return false;
-  _zyrexAttackAnims.push({ speciesId, x, y, t0: performance.now(), dur: 520 });
+// Hand a follower its attack bank.  Everything the NPC draw path already knows
+// how to read (v0.95.696 Seer Grunt swap + v0.95.694 cellAnchor) — this just
+// fills the fields in, which is all "rigging" ever needed to mean here.
+function attachZyrexAttackBank(base, speciesId){
+  const bank = ZYREX_ATTACK_BANKS[speciesId];
+  if (!base || !bank || !bank.bboxes || bank.pendingArt) return false;
+  base.attackSheet = new Image();
+  base.attackSheet.src = bank.src;
+  base.attackSheet.addEventListener('error', () =>
+    console.warn('[rp7b] zyrex attack sheet 404 · ' + speciesId + ' · ' + bank.src));
+  base.attackBboxes        = bank.bboxes;
+  base.attackFootBaselines = bank.foot;
+  base.attackCellW = bank.cellW; base.attackCellH = bank.cellH;
+  base.attackCols  = bank.cols || 4;
+  base.attackRows  = bank.bboxes.length;         // 4 = directional · 1 = profile strip
+  base.attackRefBh = bank.refBh || null;
+  // A 1-row strip is authored facing RIGHT, so LEFT is the mirror of it.
+  base.attackFacesRight = base.attackRows === 1;
+  // cellAnchor pins each frame to the SHEET CELL instead of re-centring on its
+  // own bbox.  Without it the blast frame — up to 857px wide against a 404px
+  // body — drags the creature sideways and snaps it back, the "moves
+  // unnaturally to attack" bug the Seer Grunts had at v0.95.694.
+  base.cellAnchor = true;
   return true;
 }
-function drawZyrexAttackAnims(){
+// ★ THE STRIKE.  Called on the follower NPC itself — this is the whole fix.
+// It opens an attack WINDOW on the creature; the draw path does the rest, the
+// same way `player.attackUntil` is all Rizer's melee sets.
+function strikeZyrexAnim(n, speciesId){
+  if (!n) return false;
+  const bank = ZYREX_ATTACK_BANKS[speciesId || n._summonSpeciesId];
+  if (!bank || bank.pendingArt) return false;
+  if (!n.attackSheet || !n.attackSheet.complete || !n.attackSheet.naturalWidth) return false;
   const now = performance.now();
-  for (let i = _zyrexAttackAnims.length - 1; i >= 0; i--){
-    const a = _zyrexAttackAnims[i];
-    const t = (now - a.t0) / a.dur;
-    if (t >= 1){ _zyrexAttackAnims.splice(i, 1); continue; }
-    const sheet = ZYREX_ATTACK_SHEETS[a.speciesId];
-    if (!sheet || !sheet.img.complete || !sheet.img.naturalWidth) continue;
-    const frames = 4;
-    // v0.95.450 · 4x4 sheets (sheet.rows = 4) sample row 0 (front slash) at the
-    // proper single-cell height · legacy 1-row strips fall back to full height
-    const rows  = sheet.rows || 1;
-    const fw    = sheet.img.naturalWidth / frames;
-    const fh    = sheet.img.naturalHeight / rows;
-    const frame = Math.min(frames - 1, Math.floor(t * frames));
-    const dw = Math.round(TILE * 2.2);
-    const dh = Math.round(dw * (fh / fw));
-    const dx = Math.round(a.x * TILE + TILE / 2 - dw / 2 - _cam.x);
-    const dy = Math.round(a.y * TILE + TILE - dh - _cam.y + 4);
-    ctx.save();
-    ctx.globalAlpha = 1 - Math.max(0, t - 0.85) * 6;   // fade last 15%
-    ctx.drawImage(sheet.img, frame * fw, 0, fw, fh, dx, dy, dw, dh);
-    ctx.restore();
-  }
+  n._atkStart = now;
+  n._atkUntil = now + (bank.durMs || 520);
+  return true;
 }
 // v0.95.321 · Fire a light-punch on the training dummy · used when Square
 // was tapped (short press) while facing the bag · replays the SFX + hit fx
@@ -40615,6 +40749,10 @@ function makeZyrexFollower(z, opts){
     base._bobAmp = spriteDef.bobAmp || 4;
     base._bobMs  = spriteDef.bobMs  || 500;
   }
+  // ★★★ v0.95.907 · THE ATTACK BANK · wired BEFORE the flyAll early-return,
+  // because Elzoran is both a flyer and one of the nine species with a strike
+  // sheet, and returning first would have silently left him swinging nothing.
+  attachZyrexAttackBank(base, z.speciesId);
   // ★ v0.95.831 · FLYERS ACCOMPANY ON THE WING.  flyAll = one fly bank for
   // idle AND walk — a summoned Elzoran hovers beside you standing still and
   // flies when you move, never once setting foot on the road.
@@ -44711,6 +44849,10 @@ function drawNPC(n){
       }
     }
     n._downScale = (TILE * 2) / maxBh * (n.scaleMul || 1);
+    // ★★ v0.95.907 · remember WHAT the scale was measured against.  An attack
+    // bank drawn on a different pixel grid needs this number to stay the same
+    // size as the body it replaces; see the rowScale adjustment below.
+    n._idleRefBh = maxBh;
   }
   // v0.95.571 · Per-row scale mode · used by NPCs whose sheet packs cross-row
   // content bleed (e.g. Kaizari: DOWN boots bleed into LEFT cell, LEFT into
@@ -44785,6 +44927,14 @@ function drawNPC(n){
     // Remap row based on companionRowMap
     if (n.companionRowMap) row = n.companionRowMap[n.dir] ?? row;
   }
+  // ★★ v0.95.907 · A PROFILE ATTACK STRIP HAS ONE ROW.  The nine Zyrex strike
+  // sheets are a single right-facing profile, so the facing cannot choose a
+  // row — it chooses whether to MIRROR.  Up and down keep the authored profile
+  // rather than inventing art that does not exist.
+  if (useAtk && n.attackRows === 1){
+    row = 0;
+    if (n.attackFacesRight && n.dir === 'left') mirror = true;
+  }
   // v0.95.456 · Attack anim cycle · when Vilerok/Morlisk/Satyrbeast is playing
   // a light/heavy strike, walk the 4 cols across the strike duration so the
   // slash actually READS instead of freezing on col 0
@@ -44798,6 +44948,17 @@ function drawNPC(n){
       const dur = 340; const start = n._lightUntil - dur;
       _attackCol = Math.min(3, Math.max(0, Math.floor(((_now2 - start) / dur) * 4)));
     }
+  }
+  // ★★★ v0.95.907 · THE COLUMNS WALK THE STRIKE WINDOW, exactly like Rizer's.
+  // attackCycleMs (below) runs off a FREE clock, so which frame you saw when a
+  // blow landed was luck — a creature could strike on its recovery frame.  When
+  // _atkStart is set the four columns are spread across _atkStart.._atkUntil,
+  // so every swing reads wind-up → charge → blast → recovery, every time, and
+  // the frame the damage lands on is the same frame every time.  Opt-in, so the
+  // Seer Grunt and Verdant Creeper keep their shipped timing untouched.
+  if (_attackCol < 0 && useAtk && n._atkStart && n._atkUntil > n._atkStart){
+    const _p = (performance.now() - n._atkStart) / (n._atkUntil - n._atkStart);
+    _attackCol = Math.min(useCols - 1, Math.max(0, Math.floor(_p * useCols)));
   }
   const col     = _attackCol >= 0            ? _attackCol
                 // ★ v0.95.823 · attackCycleMs · OPT-IN column walk for the
@@ -44820,7 +44981,17 @@ function drawNPC(n){
   const _baseScale = (n.perRowScale && n._rowScales && n._rowScales[row] != null)
     ? n._rowScales[row]
     : n._downScale;
-  const rowScale = _baseScale * (useCompanion ? (n.companionScaleMul || 1) : 1);
+  // ★★★ v0.95.907 · PRESERVE THE SIZE, NOT THE DIVISOR.  _downScale was
+  // measured against the IDLE sheet's body height.  The nine Zyrex strike
+  // strips live on ~790px cells against a 313px idle cell, so reusing that
+  // scale would draw a Volcanut roughly three times its own size the instant it
+  // attacked — the same mistake, in the other direction, as the Key of Mealux
+  // float at v0.95.890.  Dividing by the attack bank's own col-0 BODY height
+  // makes the creature exactly as big mid-swing as it is standing still, which
+  // is the only reading of "same creature" that survives a frame swap.
+  const _atkAdj = (useAtk && n.attackRefBh && n._idleRefBh)
+    ? (n._idleRefBh / n.attackRefBh) : 1;
+  const rowScale = _baseScale * _atkAdj * (useCompanion ? (n.companionScaleMul || 1) : 1);
   const drawH = Math.max(1, Math.round(bh * rowScale));
   const drawW = Math.max(1, Math.round(bw * rowScale));
   let dx, dy;
@@ -45641,8 +45812,10 @@ function frame(now){
   try { drawAnomalies(); } catch(_){} //   and the in-world shimmer that makes them PLACES
   try { drawArrows(); } catch(_){}   //   drawn UNDER the impact rings so the ring reads on top
   drawHitFx();          // shared impact rings · above world under menus
-  drawZyrexAttackFx();  // v0.95.318 · type-themed Zyrex attack VFX (ring fallback)
-  drawZyrexAttackAnims();// v0.95.320 · per-species attack sprite sheets
+  drawZyrexAttackFx();  // v0.95.318 · type-themed impact ring, on the TARGET
+  // ★ v0.95.907 · drawZyrexAttackAnims() removed.  The per-species sheet is no
+  // longer a free-floating decal drawn here after everything else — it is a
+  // sprite bank on the creature, drawn by the NPC pass with the rest of its body.
   // v0.95.521 · HP flash overlay · low-HP constant red pulse, mid-HP yellow triple, full-heal green single
   try { tickHpFlash(); drawHpFlash(); } catch(_){}
   // v0.95.422 · Same global-freeze gate on ambient ticks

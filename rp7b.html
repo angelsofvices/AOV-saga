@@ -2717,6 +2717,7 @@ function hurtPlayer(amt, srcName){
   player._hurtSpriteUntil = now + 380;                   // v0.95.170 · hurt.png sprite override
   player._invulnUntil     = now + 700;                   // brief i-frames
   player._lastHurtAt      = now;                         // ★ v0.95.916 · Yara's mend reads this
+  try { resetPunchCombo(); } catch(_){}                  // ★ v0.95.920 · taking a hit breaks the chain
   if (window.__rumbleHit) window.__rumbleHit('hurt');    // v0.95.217 · haptic jolt on damage taken
   // v0.95.181 · Damage toast removed · anim + HP deduct only · HUD bar shows the loss
   if (player.hp === 0){
@@ -14300,11 +14301,21 @@ const RIZER = {
   idle: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, key: 'idle', loaded: false },
   walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk', loaded: false },
   run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run',  loaded: false },
-  punch:{ img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
-    [[145,100,100,176],[108,100,100,175],[83,99,103,176],[50,98,101,178]],
-    [[138, 66, 90,158],[82, 65,111,159],[50, 65,122,159],[47, 65, 92,159]],
-    [[146, 24, 87,289],[116, 24,112,289],[93, 24,118,289],[63, 25, 86,288]],
-    [[142,-17,102,161],[110,-17,106,161],[88,-27,103,171],[53,-18,101,162]],
+  // ★★★ v0.95.920 · THE COMBO SHEET.  Four COLUMNS = four different strikes,
+  // not four frames of one: jab / cross / elbow / backfist.  comboSheet tells
+  // the draw to HOLD the step's column instead of walking all four, which is
+  // the whole difference between a chain and a flurry.
+  //
+  // The widths are the spec, measured back off the art: 101 / 181 / 102 / 213
+  // on the DOWN row.  The elbow is the NARROW one and also the tallest (186 vs
+  // 180) because it folds vertically -- so the four read apart in silhouette at
+  // two tiles, which is the only scale that matters.  Floors are flat in DOWN
+  // and LEFT (spread 0), 5px and 1px in RIGHT and UP.
+  punch:{ img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, comboSheet: true, bboxes: [
+    [[111, 68,101,180],[101, 74,181,174],[ 86, 62,102,186],[ 28, 68,213,180]],
+    [[ 77, 49,136,175],[ 38, 49,214,175],[ 81, 33,125,191],[  6, 49,230,175]],
+    [[108, 41,101,171],[ 44, 41,209,171],[ 92, 24,116,188],[ 36, 42,220,175]],
+    [[106, 13,116,179],[ 95, 13,124,179],[ 89,-11, 97,203],[ 49, 10,182,181]],
   ], key: 'punch', loaded: false },
   kick: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
     [[154,107,100,196],[112,107, 99,196],[69,108,101,199],[49,107,100,196]],
@@ -25275,6 +25286,8 @@ addEventListener('keydown', e => {
         // animation finishes in full, exactly as it always has.
         const dur  = Math.round(((mode === 'kick') ? 400 : 300)*rizerAttackTimeScale());
         const lock = Math.max(MELEE_LOCK_FLOOR_MS, Math.round(dur * rizerMeleeRecovery()));
+        // ★ v0.95.920 · a punch advances the chain · a kick is not part of it
+        if (mode === 'punch') advancePunchCombo(performance.now());
         player.attackMode  = mode;
         player.attackStart = performance.now();
         player.attackDuration = dur;
@@ -25515,7 +25528,8 @@ addEventListener('keydown', e => {
             // v0.95.211 · CANON damage · A1 punch = baseAtk × 1 · A2 kick = baseAtk × 2
             // v0.95.516 · SAPPHIRE TEARSWORD swap · S1 punch with sword equipped =
             // same damage as S2 punch (baseAtk × 1 × S2 multiplier)
-            const dmgMult = (mode === 'kick') ? 2 : 1;
+            // ★ v0.95.920 · the punch chain escalates · kick is untouched
+            const dmgMult = (mode === 'kick') ? 2 : punchComboMult();
             const _swordSwing = mode === 'punch' && player.swordEquipped && !player.swordBroken
                              && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
             // v0.95.568 · Rubypaw swing gate · S2 punch with rubypaw equipped
@@ -27819,7 +27833,14 @@ function drawPlayer(){
               : player.attackMode === 'astralslam'   ? ASTRAL_SLAM.DUR_MS
               : player.attackMode === 'astralthrow'  ? ASTRAL_THROW.DUR_MS
               : 300;
-    if(player.attackMode==='astralthrow'&&player._astralthrowState?.carrying){
+    if (bundle.comboSheet && player.attackMode === 'punch'){
+      // ★★★ v0.95.920 · HOLD the blow, do not walk the row.  Each column is a
+      // whole strike, so advancing through them inside one press would throw
+      // the entire combo every time you tapped Square.  Weapon sheets do NOT
+      // carry comboSheet -- a sword swing is still four frames of one arc, and
+      // it keeps walking them exactly as before.
+      col = punchComboStep();
+    } else if(player.attackMode==='astralthrow'&&player._astralthrowState?.carrying){
       col=1; // stable pickup/carry pose until the throw chord is released
     }else{
       // ★★ v0.95.914 · melee measures elapsed from attackSTART, because its
@@ -35721,6 +35742,7 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   '_lastHurtAt','_invulnUntil','_hurtFlashUntil','_hurtShakeUntil','_hurtSpriteUntil',
   '_blockStunUntil','_blockHitFlashUntil',   // ★ v0.95.918 · _voltstormCdUntil retired · the A5 counts KILLS now
   '_bufMelee','_bufMeleeAt',   // ★ v0.95.917 · a buffered press must not survive a reload
+  '_punchStep','_punchStepAt', // ★ v0.95.920 · mid-chain is not a save state
   'dodgeDir','dodgeStart','dodgeUntil','dodgeFromX','dodgeFromY','dodgeToX','dodgeToY',
   'jumpSheet','jumpStart','jumpUntil','interactStart','interactUntil',
   'faeCatchStart','faeCatchUntil',
@@ -47885,6 +47907,39 @@ const MELEE_LOCK_FLOOR_MS = 120;   // absolute floor · no machine-gunning, ever
 // ★★ v0.95.917 · QOL · see tryMove (turn) and the melee keydown (buffer).
 const TURN_IN_PLACE_MS = 110;   // tap-to-face grace · only from a standstill
 const INPUT_BUFFER_MS  = 150;   // a press this close to the lock clearing still counts
+// ★★★ v0.95.920 · THE S1 PUNCH IS A CHAIN, NOT A JAB.
+// Creator: "new s1 punch combo: Tight lead jab / Rotated rear cross with cape
+// snap / Folded rising elbow / Spinning backfist with full cape follow-through."
+//
+// ★ ONE BLOW PER PRESS, not four inside one swing.  The sheet's four columns
+// are four different STRIKES rather than four frames of one, so playing them
+// end-to-end would spend all four on a single button press -- and at max
+// STAMINA the lock is 165ms against a 300ms animation, so a player who mashes
+// cancels around frame 2 and would never see the elbow or the backfist at all.
+// Advancing one step per press means every press is a different blow, all four
+// get seen, and the cancel window from v0.95.914 finally means something:
+// pressing INSIDE it is what continues the chain.
+//
+// ★★ THE CHAIN RESETS ON A LAPSE OR A HIT TAKEN.  Same rule the hit-streak
+// counter already uses, and it is what makes the finisher an achievement
+// rather than a rotation -- you have to stay on the offensive to reach it.
+const PUNCH_COMBO_STEPS     = 4;
+const PUNCH_COMBO_WINDOW_MS = 900;    // press again inside this or you start over
+// ★ The finisher is worth reaching.  A full chain averages x1.125, so four
+// landed blows are ~12% ahead of four jabs -- a reward for staying in, not a
+// rebalance.  One table, so the numbers are yours to move.
+const PUNCH_COMBO_DMG  = [0.85, 1.00, 1.15, 1.50];
+const PUNCH_COMBO_NAME = ['lead jab', 'rear cross', 'rising elbow', 'spinning backfist'];
+function punchComboStep(){ return player._punchStep || 0; }
+function punchComboMult(){ return PUNCH_COMBO_DMG[punchComboStep()] || 1; }
+function resetPunchCombo(){ player._punchStep = 0; player._punchStepAt = 0; }
+function advancePunchCombo(now){
+  const last = player._punchStepAt || 0;
+  if (!last || (now - last) > PUNCH_COMBO_WINDOW_MS) player._punchStep = 0;
+  else player._punchStep = ((player._punchStep || 0) + 1) % PUNCH_COMBO_STEPS;
+  player._punchStepAt = now;
+  return player._punchStep;
+}
 function rizerMeleeRecovery(){
   return 1 - (1 - MELEE_RECOVERY_MIN) * rizerAttrFrac('speed');
 }

@@ -105,5 +105,29 @@ H('5 · ★ NOTHING LEAKS INTO THE SAVE');
     ok(C.TRANSIENT_PLAYER_KEYS.has(k),'★ '+k+' is transient · a buffered press must not survive a reload');
 }
 
+
+H('6 · ★★★ THE A5 COOLDOWN IS 20 KILLS');
+{
+  ok(/no more timed cool down for A5/.test(src2),'the Creator’s words are at the code');
+  ok(/A clock recharges you for standing still, which is backwards/.test(src2),
+     '★★★ and WHY it is better · the old rule meant the best way to have it ready was to stop fighting');
+  ok(/ITS OWN VICTIMS DO NOT COUNT/.test(src2),'★★★ the storm cannot recharge itself');
+  ok(/attunement hands it over CHARGED/.test(src2),
+     '★★ the questline reward is usable on arrival · twenty kills first would be a toll, not a cooldown');
+  ok(/body\.voltstorm-cine #a5Charge/.test(src2),
+     '★★★ and the new badge is on the FULL-CINEMA hide list · the one overlay that would have sat on the A5’s own cutscene');
+  ok(/paintA5Charge/.test(src2),'★★ the charge is READABLE · a 2-minute timer you could only discover by being refused is now a count you can see');
+  ok(/pins itself under the Rizer HUD by measuring it/.test(src2),'★ no art · it measures the HUD rather than assuming a position');
+}
+
+H('7 · ★★ A FLED ZYREX SAYS WHERE IT WENT');
+{
+  ok(/SAY THAT IT LEFT/.test(src2),'the long walk home announces itself');
+  ok(/reads as a despawn\n  \/\/ rather than as an animal going home/.test(src2)||/rather than as an animal going home/.test(src2),
+     '★★★ without it the system was invisible · the creature simply was not there any more');
+  ok(/_homewardTold/.test(src2),'★★ told once per creature, not once per failed attempt');
+  ok(/names the WINDOW/.test(src2),'★ and names the minutes · "come back later" becomes actionable');
+}
+
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));
 process.exit(f?1:0);

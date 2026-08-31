@@ -107,8 +107,16 @@ H('6 · ★★★ THE SAVE TRAP');
 {
   ok(C.TRANSIENT_PLAYER_KEYS.has('_lastHurtAt'),
      '★★★ _lastHurtAt is NOT saved · performance.now() restarts near zero on load, so a saved stamp is in the FUTURE and the mend would never fire again');
-  for (const k of ['_invulnUntil','_hurtFlashUntil','_blockStunUntil','_voltstormCdUntil'])
+  for (const k of ['_invulnUntil','_hurtFlashUntil','_blockStunUntil'])
     ok(C.TRANSIENT_PLAYER_KEYS.has(k),'★ '+k+' too · the same bug asleep');
+  // ★ v0.95.918 INVERTED: _voltstormCdUntil was on this list one version ago.
+  // The A5 stopped being a TIMER ("no more timed cool down for A5, make it a
+  // 20 kill cooldown"), so there is no stamp left to keep out of the save --
+  // and a kill COUNT is progression, which the save should keep.
+  ok(!C.TRANSIENT_PLAYER_KEYS.has('_voltstormCdUntil'),
+     '★★ _voltstormCdUntil is gone entirely · the A5 counts kills now, and a count belongs IN the save');
+  ok(C.player._voltstormKills === undefined || typeof C.player._voltstormKills === 'number',
+     '★ and _voltstormKills is a plain number · persisted as progression, not a clock');
   ok(/performance\.now\(\) restarts near ZERO on a reload/.test(src2),'and the reason is written down');
 }
 

@@ -74,6 +74,9 @@
     body.voltstorm-cine #hud, body.voltstorm-cine #padStatus,
     body.voltstorm-cine #rizerHud, body.voltstorm-cine #weaponHud,
     body.voltstorm-cine #minimapCanvas, body.voltstorm-cine #devBtn,
+    /* ★ v0.95.918 · the A5 charge badge belongs on this list too · it is the
+       one overlay that would otherwise sit on top of the A5's own cutscene */
+    body.voltstorm-cine #a5Charge,
     body.voltstorm-cine #devPanel { display:none !important; }
     #hud{
       position:fixed; top:12px; left:12px;
@@ -693,6 +696,16 @@
     <div class="rizerLiveMeter energy" data-rizer-meter="energy" aria-label="Astral Energy"></div>
     <div class="rizerLiveMeter special" data-rizer-meter="special" aria-label="Special"></div>
   </div>
+  <!-- ★★ v0.95.918 · A5 CHARGE READOUT · pure DOM, no art.  A two-minute
+       cooldown you could only discover by pressing the chord and being refused
+       is now a kill count you can read, which is the half of the change that
+       makes the other half playable. -->
+  <div id="a5Charge" style="
+       position:fixed; z-index:118; pointer-events:none; display:none;
+       font-family:'Courier New',monospace; font-size:11px; font-weight:bold;
+       letter-spacing:.14em; padding:3px 8px; border:1px solid #4fb3ff;
+       background:rgba(0,0,0,0.55); color:#83ddff;
+       text-shadow:0 1px 4px rgba(0,0,0,0.9);">⚡ 0/20</div>
   <!-- v0.95.449 · Active Zyrex HUD · top-LEFT mirror · 8-segment HP + XP bars -->
   <div id="zyrexHud" title="Active Zyrex · touchpad → Faction to swap">
     <div class="zLvl"    data-zyrex-lvl>Lv 1</div>
@@ -20497,6 +20510,7 @@ function creditRizerKill(npc, mode = 'punch'){
   }
   // recordMoriKill only distinguishes 'kick' (heavy) from everything else.
   try { recordMoriKill(mode === 'astralkick' || mode === 'boom' ? 'kick' : mode, npc); } catch(_){}
+  try { bumpVoltstormCharge(mode); } catch(_){}   // ★ v0.95.918 · the A5 charges on kills
   return xp;
 }
 
@@ -22442,8 +22456,64 @@ function findNearestOwnedHomeSpawn(fromX, fromY){
 //
 // A5 for S2 = ULTIMATE RAKORON via the CHAOS SHARD (found later) · same
 // chord, full meter · pending the Creator's video.
-const VOLTSTORM_CD_MS = 120000;          // 2 minutes · Creator's number
+// ★★★ v0.95.918 · THE COOLDOWN IS 20 KILLS, NOT 2 MINUTES.
+// Creator: "no more timed cool down for A5, make it a 20 kill cooldown."
+//
+// A clock recharges you for standing still, which is backwards for a move
+// whose whole purpose is clearing a field: the old rule meant the best way to
+// have the storm ready was to stop fighting for two minutes.  A kill price
+// means the storm is EARNED by the fighting it interrupts, and it paces itself
+// -- a heavy engagement recharges it, a quiet walk across the map does not.
+//
+// ★★ ITS OWN VICTIMS DO NOT COUNT.  The storm kills every non-boss on screen,
+// so counting those would recharge it roughly instantly and turn a once-a-fight
+// finisher into a spammable field-wipe.  creditRizerKill tags the source, so
+// the exclusion is one condition at the one place every kill in the game passes
+// through -- kills by your ZYREX still count, because that is your faction
+// fighting, and it is the storm that is barred, not your team.
+const VOLTSTORM_KILL_COST = 20;          // Creator's number
 let _voltstormPlaying = false;
+function voltstormCharge(){ return Math.min(VOLTSTORM_KILL_COST, player._voltstormKills || 0); }
+function voltstormReady(){ return voltstormCharge() >= VOLTSTORM_KILL_COST; }
+// Every kill lands here (see creditRizerKill).  Capped, so a long fight cannot
+// bank a second storm -- the charge is a gate, not a currency.
+// ★★ v0.95.918 · SHOW THE CHARGE.  Only once the storm is attuned and only on
+// S1 -- an S2 player has no A5 yet, and a meter for a move you have never heard
+// of is noise.  It pins itself under the Rizer HUD by measuring it, so it needs
+// no art and cannot drift if the HUD is re-skinned.
+function paintA5Charge(hudVisible){
+  const el = document.getElementById('a5Charge');
+  if (!el) return;
+  const eligible = hudVisible && !!player.voltstormUnlocked
+                && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+  if (!eligible){ el.style.display = 'none'; return; }
+  const hud = document.getElementById('rizerHud');
+  if (hud){
+    const r = hud.getBoundingClientRect();
+    if (r.width){ el.style.left = Math.round(r.left) + 'px'; el.style.top = Math.round(r.bottom + 4) + 'px'; }
+  }
+  el.style.display = 'block';
+  const c = voltstormCharge();
+  if (voltstormReady()){
+    el.textContent   = '⚡ VOLTSTORM READY';
+    el.style.color   = '#ffd66b';
+    el.style.borderColor = '#ffd66b';
+  } else {
+    el.textContent   = `⚡ ${c}/${VOLTSTORM_KILL_COST}`;
+    el.style.color   = '#83ddff';
+    el.style.borderColor = '#4fb3ff';
+  }
+}
+function bumpVoltstormCharge(mode){
+  if (mode === 'voltstorm') return;                  // ★ never recharge on its own KO
+  if (!player.voltstormUnlocked) return;
+  if ((player._voltstormKills || 0) >= VOLTSTORM_KILL_COST) return;
+  player._voltstormKills = (player._voltstormKills || 0) + 1;
+  if (player._voltstormKills === VOLTSTORM_KILL_COST){
+    try { showToast('⚡ SAPPHIRE VOLTSTORM · charged · L2+R2+Square beside an enemy', 3200); } catch(_){}
+    try { playSFX('confirm'); } catch(_){}
+  }
+}
 function voltstormAdjacentEnemy(){
   for (const n of NPCS){
     if (!n || !n.isEnemy || n._dying || n.scene !== game.scene) continue;
@@ -22460,8 +22530,12 @@ function voltstormGate(){
   if (!voltstormAdjacentEnemy())   return { ok:false, why:'◈ VOLTSTORM needs an enemy within reach · 1 tile' };
   const max = player.diamondMax || 100;
   if ((player.diamond || 0) < max) return { ok:false, why:`◈ VOLTSTORM needs a FULL ◆ SPECIAL meter · ${Math.floor(player.diamond||0)}/${max}` };
-  const cdLeft = (player._voltstormCdUntil || 0) - performance.now();
-  if (cdLeft > 0)                  return { ok:false, why:`◈ The storm is still gathering · ${Math.ceil(cdLeft/1000)}s` };
+  // ★ v0.95.918 · the refusal names the KILLS left, not the seconds -- and it
+  // is a number the player can act on, which a countdown never was.
+  if (!voltstormReady()){
+    const left = VOLTSTORM_KILL_COST - voltstormCharge();
+    return { ok:false, why:`◈ The storm is still gathering · ${left} more kill${left===1?'':'s'}` };
+  }
   return { ok:true };
 }
 function fireSapphireVoltstorm(){
@@ -22474,7 +22548,7 @@ function fireSapphireVoltstorm(){
   // Pay first · the meter empties the moment the storm is called, and the
   // cooldown starts NOW so the clock is honest about when you pressed it.
   player.diamond = 0;
-  player._voltstormCdUntil = performance.now() + VOLTSTORM_CD_MS;
+  player._voltstormKills = 0;      // ★ v0.95.918 · the charge is SPENT, 20 more to earn it back
   const vid = document.getElementById('voltstormVid');
   if (!vid){ _voltstormKO(); return true; }   // headless / video missing · the KO still lands
   _voltstormPlaying = true;
@@ -35586,7 +35660,7 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   // is permanently five seconds from his last wound.  The rest are the same
   // bug asleep -- restored i-frames and a stuck red flash.
   '_lastHurtAt','_invulnUntil','_hurtFlashUntil','_hurtShakeUntil','_hurtSpriteUntil',
-  '_blockStunUntil','_blockHitFlashUntil','_voltstormCdUntil',
+  '_blockStunUntil','_blockHitFlashUntil',   // ★ v0.95.918 · _voltstormCdUntil retired · the A5 counts KILLS now
   '_bufMelee','_bufMeleeAt',   // ★ v0.95.917 · a buffered press must not survive a reload
   'dodgeDir','dodgeStart','dodgeUntil','dodgeFromX','dodgeFromY','dodgeToX','dodgeToY',
   'jumpSheet','jumpStart','jumpUntil','interactStart','interactUntil',
@@ -38877,6 +38951,10 @@ function useZycubeItem(key){
       }
       player.items[key] = qty - 1;
       player.voltstormUnlocked = true;
+      // ★ v0.95.918 · attunement hands it over CHARGED.  Making the player go
+      // and find twenty kills before the reward for a whole questline can be
+      // used once would be a toll, not a cooldown.
+      player._voltstormKills = VOLTSTORM_KILL_COST;
       try { playSFX('confirm'); } catch(_){}
       showToast('⚡ SAPPHIRE VOLTSTORM ATTUNED · L2+R2+Square beside an enemy · full ◆ SPECIAL · S1', 5200);
       try { saveGame(); } catch(_){}
@@ -44337,6 +44415,23 @@ function beginWildHomeward(w){
   w._goHomeAt = (typeof performance !== 'undefined') ? performance.now() : Date.now();
   w._goHomeStepMs = Math.max(600, total / dist);   // pace the walk to fill the window
   w._goHomeNext = 0;
+  // ★★ v0.95.918 · SAY THAT IT LEFT.  The long walk home has been running
+  // since v0.95.901 and the player had no way to know it existed: a Zyrex you
+  // failed to bond simply was not there any more, which reads as a despawn
+  // rather than as an animal going home.  One line turns an invisible system
+  // into a rule you can learn, and it names the WINDOW so "come back later"
+  // becomes actionable instead of superstition.
+  //
+  // Told once per creature (_homewardTold), not once per failed attempt --
+  // each new failure re-arms the walk, and three toasts for one Aetherwing
+  // would teach nothing the first did not.
+  if (!w._homewardTold){
+    w._homewardTold = true;
+    try {
+      const nm = (sp.name || w.speciesId || 'It');
+      showToast(`◈ ${nm} broke away · it is walking back to its habitat · ~${Math.round(total/60000)} min`, 3600);
+    } catch(_){}
+  }
   return total;
 }
 function spawnWildZyrex(speciesId, tileX, tileY, opts){
@@ -48484,6 +48579,7 @@ function updateRizerHUD(){
   paintRizerMeterElement(widget?.querySelector('[data-rizer-meter="hp"]'),model.hp);
   paintRizerMeterElement(widget?.querySelector('[data-rizer-meter="energy"]'),model.energy);
   paintRizerMeterElement(widget?.querySelector('[data-rizer-meter="special"]'),model.special);
+  try { paintA5Charge(show); } catch(_){}   // ★ v0.95.918
   if (!show && panel) panel.style.display = 'none';   // auto-close panel when hiding
   if (!panel || panel.style.display !== 'block') return;
   if (_rzLvlEl) _rzLvlEl.textContent = player.rizerLvl;

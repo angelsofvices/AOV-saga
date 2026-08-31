@@ -15,7 +15,7 @@ global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
 let CLK=10000; global.performance={now:()=>CLK};
-try{new Function(src+';globalThis.__C={cinematicPlaying,hurtPlayer,fireSapphireVoltstorm,voltstormGate,voltstormAdjacentEnemy,_voltstormKO,VOLTSTORM_CD_MS,NPCS,player,game,setVoltstorm:(v)=>{_voltstormPlaying=v},getVoltstorm:()=>_voltstormPlaying};')();}
+try{new Function(src+';globalThis.__timerGone=(typeof VOLTSTORM_CD_MS==="undefined");globalThis.__C={VOLTSTORM_KILL_COST,voltstormCharge,voltstormReady,bumpVoltstormCharge,cinematicPlaying,hurtPlayer,fireSapphireVoltstorm,voltstormGate,voltstormAdjacentEnemy,_voltstormKO,NPCS,player,game,setVoltstorm:(v)=>{_voltstormPlaying=v},getVoltstorm:()=>_voltstormPlaying};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -79,10 +79,11 @@ H('3 · ★★ ONE LIST, NOT FOUR COPIES');
 H('4 · ★★ THE MOVE ITSELF STILL WORKS');
 {
   ok(fs.existsSync(ROOT+'video/sapphire-voltstorm.mp4'),'★ the film is on disk');
-  ok(C.VOLTSTORM_CD_MS===120000,'★ 2 minute cooldown · the Creator’s number');
+  ok(C.VOLTSTORM_KILL_COST===20,'★★ the cooldown is 20 KILLS now · Creator: "no more timed cool down for A5, make it a 20 kill cooldown"');
+  ok(globalThis.__timerGone === true,'★★★ and the 2-minute timer is GONE, not left inert beside it');
   const p=C.player;
   p.cosmeticSkin='normal'; p.voltstormUnlocked=true; C.game.scene='overworld';
-  p.diamond=0; p.diamondMax=100; p._voltstormCdUntil=0;
+  p.diamond=0; p.diamondMax=100; p._voltstormKills=C.VOLTSTORM_KILL_COST;
   // stand an enemy next to him
   const e=C.NPCS.find(n=>n&&n.isEnemy&&!n._dying);
   ok(!!e,'an enemy exists to test against');
@@ -93,16 +94,26 @@ H('4 · ★★ THE MOVE ITSELF STILL WORKS');
   p.diamond=100;
   g=C.voltstormGate();
   ok(g.ok===true,'★★★ full meter + adjacent enemy + attuned + S1 · the gate OPENS');
-  p._voltstormCdUntil=CLK+60000;
+  p._voltstormKills=5;
   g=C.voltstormGate();
-  ok(!g.ok && /still gathering/.test(g.why||''),'★★ and the cooldown refuses with the seconds left · "'+g.why+'"');
-  p._voltstormCdUntil=0;
+  ok(!g.ok && /15 more kills/.test(g.why||''),'★★★ the refusal names the KILLS left, a number you can act on · "'+g.why+'"');
+  p._voltstormKills=C.VOLTSTORM_KILL_COST;
   // headless: no <video>, so fire() takes the straight-to-KO path
   const before=(e.hp);
   const fired=C.fireSapphireVoltstorm();
   ok(fired===true,'★★★ it FIRES');
   ok(p.diamond===0,'★ the meter is paid immediately');
-  ok((p._voltstormCdUntil||0)>CLK,'★ and the cooldown starts on the press, not the film');
+  ok((p._voltstormKills||0)===0,'★★ and the CHARGE is spent on the press · 20 more to earn it back');
+  // ★★★ the storm must not recharge itself
+  p._voltstormKills=0;
+  for (let i=0;i<25;i++) C.bumpVoltstormCharge('voltstorm');
+  ok((p._voltstormKills||0)===0,'★★★ its OWN victims do not count · 25 voltstorm kills bank ZERO, or it would be a spammable field-wipe');
+  for (let i=0;i<5;i++) C.bumpVoltstormCharge('punch');
+  ok(C.voltstormCharge()===5,'★ punches count');
+  C.bumpVoltstormCharge('zyrex');
+  ok(C.voltstormCharge()===6,'★★ and so do your ZYREX’s kills · that is your faction fighting');
+  for (let i=0;i<40;i++) C.bumpVoltstormCharge('punch');
+  ok(C.voltstormCharge()===C.VOLTSTORM_KILL_COST,'★★ the charge CAPS · a long fight cannot bank a second storm');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

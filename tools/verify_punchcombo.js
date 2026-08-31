@@ -15,7 +15,7 @@ global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
 let CLK=200000; global.performance={now:()=>CLK};
-try{new Function(src+';globalThis.__C={advancePunchCombo,punchComboStep,punchComboMult,resetPunchCombo,PUNCH_COMBO_STEPS,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_DMG,PUNCH_COMBO_NAME,RIZER,TRANSIENT_PLAYER_KEYS,player,hurtPlayer};')();}
+try{new Function(src+';globalThis.__C={RIZER_POWER_PUNCH,punchIsUnarmed,advancePunchCombo,punchComboStep,punchComboMult,resetPunchCombo,PUNCH_COMBO_STEPS,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_DMG,PUNCH_COMBO_NAME,RIZER,TRANSIENT_PLAYER_KEYS,player,hurtPlayer};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -93,6 +93,55 @@ H('6 · ★ MID-CHAIN IS NOT A SAVE STATE');
 {
   for (const k of ['_punchStep','_punchStepAt'])
     ok(C.TRANSIENT_PLAYER_KEYS.has(k),'★ '+k+' is transient · _punchStepAt is a performance.now() stamp, and those poison a reload');
+}
+
+
+H('7 · ★★★ S2 CARRIES THE SAME FOUR BEATS');
+{
+  const b=C.RIZER_POWER_PUNCH;
+  ok(fs.existsSync(ROOT+'assets/2D sprites/rizer/punch-power-upgrade.png'),'★ the S2 sheet is on disk');
+  ok(fs.readFileSync(ROOT+'assets/2D sprites/rizer/punch-power-upgrade.png').subarray(0,8)
+       .equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a])),'★ real PNG');
+  ok(b.comboSheet===true,'★★ Rakoron chains too');
+  const w=b.bboxes[0].map(x=>x[2]);
+  ok(new Set(w).size===4,'★★★ four distinct widths · '+w.join('/'));
+  ok(w[3]===Math.max(...w),'★★ backfist widest');
+  let elbowTallest=0;
+  b.bboxes.forEach(r=>{ const h=r.map(x=>x[3]); if (h[2]===Math.max(...h)) elbowTallest++; });
+  ok(elbowTallest===4,'★★★ the elbow is the TALLEST pose in ALL FOUR rows · the rise is drawn in, every direction');
+  b.bboxes.forEach((r,ri)=>{
+    const fl=r.map(x=>x[1]+x[3]); const sp=Math.max(...fl)-Math.min(...fl);
+    ok(sp<=1,'★ row '+ri+' floor spread '+sp+'px · his boots hold through the chain');
+  });
+  const ov=[];
+  b.bboxes.forEach((r,ri)=>r.forEach((c,ci)=>{ if(c[0]<0||c[1]<0) ov.push(ri+','+ci); }));
+  ok(ov.length===3,'★★ 3 owned overflows ('+ov.join(' ')+') · cape off the side, gauntlet off the top · kept, not clipped');
+}
+
+H('8 · ★★★ constScale · THE MISS FROM v0.95.920');
+{
+  ok(C.RIZER.punch.constScale===true,'★★★ S1 punch opts OUT of the forced idle height');
+  ok(C.RIZER_POWER_PUNCH.constScale===true,'★★★ and so does S2');
+  ok(/MISSED AT v0\.95\.920 AND IT MATTERED/.test(src2),'the miss is owned at the code');
+  ok(/flattens a measured 13\.4% height difference/.test(src2),
+     '★★★ measured, not asserted · and the frame it flattens hardest is the ELBOW, whose whole identity is that it rises');
+}
+
+H('9 · ★★ THE CHAIN IS UNARMED');
+{
+  const P3=C.player;
+  P3.cosmeticSkin='normal';
+  P3.swordEquipped=false; P3.axeEquipped=false; P3.bowEquipped=false; P3.rubypawEquipped=false;
+  ok(C.punchIsUnarmed()===true,'bare fists');
+  C.resetPunchCombo(); CLK+=10; C.advancePunchCombo(CLK); CLK+=10; C.advancePunchCombo(CLK);
+  CLK+=10; C.advancePunchCombo(CLK); CLK+=10; C.advancePunchCombo(CLK);
+  ok(C.punchComboMult()===1.5,'★ unarmed finisher is ×1.5');
+  P3.swordEquipped=true; P3.swordBroken=false;
+  ok(C.punchIsUnarmed()===false,'★★ Sapphire Tearsword in hand');
+  ok(C.punchComboMult()===1,'★★★ and the chain multiplier drops to ×1 · the sword ran through the SAME dmgMult and was being combo-scaled invisibly');
+  P3.swordEquipped=false;
+  ok(C.punchComboMult()===1.5,'★ and returns when you sheathe it');
+  ok(/there was nothing on screen to earn it/.test(src2),'the reason is recorded · no sheet shows a chain with a blade in hand');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

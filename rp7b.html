@@ -14311,7 +14311,14 @@ const RIZER = {
   // 180) because it folds vertically -- so the four read apart in silhouette at
   // two tiles, which is the only scale that matters.  Floors are flat in DOWN
   // and LEFT (spread 0), 5px and 1px in RIGHT and UP.
-  punch:{ img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, comboSheet: true, bboxes: [
+  // ★★★ v0.95.921 · constScale · MISSED AT v0.95.920 AND IT MATTERED.  The draw
+  // pins every in-attack frame to the IDLE row's height unless a bundle opts
+  // out, which flattens a measured 13.4% height difference the artist drew IN
+  // -- and the frame it flattens hardest is the ELBOW, whose entire identity is
+  // that it rises.  On the side rows it shrank the backfist's width too (150
+  // drawn against 164 true).  A combo sheet is exactly what that opt-out was
+  // written for: one character at one size, four different poses.
+  punch:{ img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, comboSheet: true, constScale: true, bboxes: [
     [[111, 68,101,180],[101, 74,181,174],[ 86, 62,102,186],[ 28, 68,213,180]],
     [[ 77, 49,136,175],[ 38, 49,214,175],[ 81, 33,125,191],[  6, 49,230,175]],
     [[108, 41,101,171],[ 44, 41,209,171],[ 92, 24,116,188],[ 36, 42,220,175]],
@@ -14492,13 +14499,23 @@ const RIZER_POWER_DODGE = {
   ],
   key: 'dodge-power-upgrade', loaded: false,
 };
+// ★★★ v0.95.921 · S2 PUNCH COMBO · Creator: "s2 new punch animations".
+// The same four beats as S1 in Rakoron's frame -- jab / cross / elbow /
+// backfist -- and the silhouettes carry the same read: DOWN widths
+// 187/201/180/229, elbow NARROWEST and TALLEST in every single row (231, 211,
+// 211, 249), backfist widest.  Floors within 1px in three rows and exactly 0
+// in UP, so his boots hold through the chain.
+//
+// Owned overflow, not clipped: the backfist's cape leaves the cell on LEFT and
+// RIGHT (bx -18, -7) and the raised gauntlet leaves the top on UP (by -22).
 const RIZER_POWER_PUNCH = {
   img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+  comboSheet: true, constScale: true,
   bboxes: [
-    [[125,103,146,187],[69,130,171,163],[47,107,169,184],[32,103,145,187]],
-    [[136,55,137,174],[87,78,162,157],[27,66,196,164],[46,54,142,175]],
-    [[110,15,138,172],[91,40,160,154],[52,23,208,166],[27,17,135,170]],
-    [[120,-25,151,184],[100,2,164,157],[56,-63,160,222],[35,-23,143,182]],
+    [[101, 78,187,227],[ 61, 79,201,225],[ 46, 73,180,231],[ 17, 81,229,223]],
+    [[ 67, 66,227,205],[ 25, 74,259,197],[ 64, 61,167,211],[-18, 75,265,196]],
+    [[102, 45,192,199],[ 48, 45,254,199],[ 54, 33,159,211],[ -7, 43,269,200]],
+    [[106,  7,184,220],[ 37, 13,217,214],[ 38,-22,182,249],[ 28, 11,244,216]],
   ],
   key: 'punch-power-upgrade', loaded: false,
 };
@@ -25287,7 +25304,7 @@ addEventListener('keydown', e => {
         const dur  = Math.round(((mode === 'kick') ? 400 : 300)*rizerAttackTimeScale());
         const lock = Math.max(MELEE_LOCK_FLOOR_MS, Math.round(dur * rizerMeleeRecovery()));
         // ★ v0.95.920 · a punch advances the chain · a kick is not part of it
-        if (mode === 'punch') advancePunchCombo(performance.now());
+        if (mode === 'punch' && punchIsUnarmed()) advancePunchCombo(performance.now());
         player.attackMode  = mode;
         player.attackStart = performance.now();
         player.attackDuration = dur;
@@ -47930,8 +47947,23 @@ const PUNCH_COMBO_WINDOW_MS = 900;    // press again inside this or you start ov
 // rebalance.  One table, so the numbers are yours to move.
 const PUNCH_COMBO_DMG  = [0.85, 1.00, 1.15, 1.50];
 const PUNCH_COMBO_NAME = ['lead jab', 'rear cross', 'rising elbow', 'spinning backfist'];
+// ★★★ v0.95.921 · THE CHAIN IS UNARMED.  The Sapphire Tearsword's damage runs
+// through the SAME dmgMult the chain multiplies, so an armed Rizer was quietly
+// getting combo-scaled sword hits while looking at a sword swing -- the chain
+// has no sheet with a blade in hand, so there was nothing on screen to earn it.
+// The axe and Rubypaw override outDmg outright and were never affected; the
+// sword was, and that asymmetry is the tell that this belongs on the unarmed
+// fist alone.  Weapons keep the flat numbers they were tuned with.
+function punchIsUnarmed(){
+  const s2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';
+  if ( s2 && player.rubypawEquipped && !player.rubypawBroken) return false;
+  if (!s2 && player.swordEquipped   && !player.swordBroken)   return false;
+  if (!s2 && player.axeEquipped     && !player.axeBroken)     return false;
+  if (!s2 && player.bowEquipped     && !player.bowBroken)     return false;
+  return true;
+}
 function punchComboStep(){ return player._punchStep || 0; }
-function punchComboMult(){ return PUNCH_COMBO_DMG[punchComboStep()] || 1; }
+function punchComboMult(){ return punchIsUnarmed() ? (PUNCH_COMBO_DMG[punchComboStep()] || 1) : 1; }
 function resetPunchCombo(){ player._punchStep = 0; player._punchStepAt = 0; }
 function advancePunchCombo(now){
   const last = player._punchStepAt || 0;

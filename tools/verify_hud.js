@@ -27,7 +27,7 @@ function mk(id){ const base=el(); base.id=id; base.style={display:'none'}; base.
 global.document={getElementById:(id)=>EL[id]||mk(id),querySelector:()=>mk('q'),querySelectorAll:()=>[],
   createElement:()=>mk('c'),addEventListener:noop,body:mk('body'),documentElement:mk('de'),head:mk('h'),
   hidden:false,visibilityState:'visible'};
-try{new Function(src+';globalThis.__C={paintCompanionStrip,paintPunchChain,zorynIsCompanion,zorynIsDown,zorynHp,ZORYN_HP_MAX,ZORYN_REVIVE_ITEM,advancePunchCombo,resetPunchCombo,punchComboStep,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_STEPS,PUNCH_COMBO_NAME,rizerInCombat,player,game,NPCS};')();}
+try{new Function(src+';globalThis.__C={paintCompanionStrip,zorynIsCompanion,zorynIsDown,zorynHp,ZORYN_HP_MAX,ZORYN_REVIVE_ITEM,advancePunchCombo,resetPunchCombo,punchComboStep,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_STEPS,PUNCH_COMBO_NAME,rizerInCombat,player,game,NPCS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -87,54 +87,48 @@ H('3 · ★★ YARA SHOWS ONLY WHILE SHE IS ACTUALLY MENDING');
   calm();
 }
 
-H('4 · ★★★ THE PUNCH CHAIN IS VISIBLE');
+// ★★★ v0.95.926 INVERTED.  Sections 4-6 asserted the punch-chain overlay for
+// exactly two versions.  Creator: "I dont need players to see punch combo
+// overlay thing."  The checks are kept and turned around rather than deleted,
+// so the file records that the overlay existed, why it went, and that its
+// removal is now the thing under test.
+H('4 · ★★★ THE PUNCH-CHAIN OVERLAY IS GONE');
 {
-  ok(/Added the\n       chain at v0\.95\.920 with no way to see/.test(src2)||/with no way to see/.test(src2),
-     '★★★ also debt I created · a chain you cannot read is a chain you cannot use on purpose');
+  ok(!/id="punchChain"/.test(src2),'★★★ the element is removed, not just hidden');
+  ok(!/paintPunchChain/.test(src2),'★★ and the painter with it · nothing left running each frame');
+  ok(!/voltstorm-cine #punchChain/.test(src2),'★ and it is off the cutscene hide list · nothing to hide');
+  ok(/THE PUNCH-CHAIN OVERLAY IS GONE/.test(src2),'the removal is recorded where it lived');
+  ok(/the punch chain is FELT/.test(src2),
+     '★★★ and WHY · four distinct silhouettes and four impacts already tell you which blow you are on');
+  ok(/Reading a HUD is not what a combo is\n\/\/ for/.test(src2)||/not what a combo is/.test(src2),
+     '★★★ a meter naming what your own fists are doing is the game explaining what the animation already said');
+}
+
+H('5 · ★★ THE CHAIN ITSELF IS UNTOUCHED');
+{
+  ok(/jab\/cross\/elbow\/backfist still advance per/.test(src2),'the mechanic survives the overlay');
   P.swordEquipped=false; P.axeEquipped=false; P.bowEquipped=false; P.rubypawEquipped=false;
   P.cosmeticSkin='normal';
   C.resetPunchCombo();
-  C.paintPunchChain();
-  ok(PC.style.display==='none','★ no chain running, no indicator');
   CLK+=10; C.advancePunchCombo(CLK);
-  C.paintPunchChain();
-  ok(PC.style.display==='block','★★ throw one and it appears');
-  ok(/LEAD JAB/.test(PC.innerHTML),'★★★ and NAMES the blow you just threw · '+C.PUNCH_COMBO_NAME[0]);
-  const pips=(PC.innerHTML.match(/rotate\(45deg\)/g)||[]).length;
-  ok(pips===C.PUNCH_COMBO_STEPS,'★★ '+pips+' pips · you can see how far the chain goes');
-  CLK+=100; C.advancePunchCombo(CLK); C.paintPunchChain();
-  ok(/REAR CROSS/.test(PC.innerHTML),'★★ and it tracks · now the cross');
+  ok(C.punchComboStep()===0,'★ press one · the jab');
+  CLK+=100; C.advancePunchCombo(CLK);
+  ok(C.punchComboStep()===1,'★★ press two · the cross · the chain still advances with nothing on screen');
+  CLK+=C.PUNCH_COMBO_WINDOW_MS+50; C.advancePunchCombo(CLK);
+  ok(C.punchComboStep()===0,'★★ and still resets on a lapse');
 }
 
-H('5 · ★★★ THE WINDOW DRAINS WHERE YOU CAN SEE IT');
+H('6 · ★ THE COMPANION STRIP STAYS');
 {
-  CLK+=10; C.resetPunchCombo(); C.advancePunchCombo(CLK);
-  C.paintPunchChain();
-  const wide=(PC.innerHTML.match(/width:(\d+)%/)||[])[1];
-  CLK+=Math.floor(C.PUNCH_COMBO_WINDOW_MS*0.7);
-  C.paintPunchChain();
-  const thin=(PC.innerHTML.match(/width:(\d+)%/)||[])[1];
-  ok(Number(thin)<Number(wide),'★★★ the window bar DRAINS ('+wide+'% → '+thin+'%) · you can watch the combo about to lapse');
-  CLK+=C.PUNCH_COMBO_WINDOW_MS;
-  C.paintPunchChain();
-  ok(PC.style.display==='none','★★ and it vanishes when the chain does');
+  ok(/id="companionStrip"/.test(src2),
+     '★★ only the punch overlay went · Zoryn’s HP is a DECISION (revive, or fall back), which is what a readout is for');
 }
 
-H('6 · ★★ ARMED, THERE IS NO CHAIN TO SHOW');
-{
-  CLK+=10; C.resetPunchCombo(); C.advancePunchCombo(CLK);
-  P.swordEquipped=true; P.swordBroken=false;
-  C.paintPunchChain();
-  ok(PC.style.display==='none',
-     '★★★ sword in hand · the indicator is gone, matching v0.95.921 where the chain itself stops applying');
-  P.swordEquipped=false;
-}
-
-H('7 · ★ NEITHER SITS ON THE A5 CUTSCENE');
+H('7 · ★ THE STRIP DOES NOT SIT ON THE A5 CUTSCENE');
 {
   ok(/body\.voltstorm-cine #companionStrip/.test(src2),'★★ the companion strip is on the full-cinema hide list');
-  ok(/body\.voltstorm-cine #punchChain/.test(src2),'★★ and so is the chain · every HUD off means every HUD');
-  ok(/pure DOM, no art/.test(src2),'★ both are DOM · no new assets');
+  ok(!/#punchChain/.test(src2),'★ the chain needs no entry · it no longer exists (v0.95.926)');
+  ok(/pure DOM, no art/.test(src2),'★ the strip is DOM · no new assets');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

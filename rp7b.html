@@ -77,7 +77,6 @@
     /* ★ v0.95.918 · the A5 charge badge belongs on this list too · it is the
        one overlay that would otherwise sit on top of the A5's own cutscene */
     body.voltstorm-cine #a5Charge, body.voltstorm-cine #companionStrip,
-    body.voltstorm-cine #punchChain,
     body.voltstorm-cine #devPanel { display:none !important; }
     #hud{
       position:fixed; top:12px; left:12px;
@@ -715,13 +714,6 @@
        position:fixed; z-index:118; pointer-events:none; display:none;
        font-family:'Courier New',monospace; font-size:10px; font-weight:bold;
        letter-spacing:.12em; text-shadow:0 1px 4px rgba(0,0,0,0.9);"></div>
-  <!-- ★★ v0.95.924 · PUNCH CHAIN · four pips + the closing window.  Added the
-       chain at v0.95.920 with no way to see which blow was next or how long
-       you had to keep it. -->
-  <div id="punchChain" style="
-       position:fixed; left:50%; transform:translateX(-50%); top:30%;
-       z-index:119; pointer-events:none; display:none; text-align:center;
-       font-family:'Courier New',monospace;"></div>
   <!-- v0.95.449 · Active Zyrex HUD · top-LEFT mirror · 8-segment HP + XP bars -->
   <div id="zyrexHud" title="Active Zyrex · touchpad → Faction to swap">
     <div class="zLvl"    data-zyrex-lvl>Lv 1</div>
@@ -22696,31 +22688,22 @@ function paintCompanionStrip(hudVisible){
   el.innerHTML = rows.join('');
   el.style.display = 'block';
 }
-// ★★ THE CHAIN, VISIBLE.  Four pips: filled = thrown, hollow = to come, and a
-// window bar that drains so you can SEE the combo about to lapse.  Only while a
-// chain is live, so it is absent the 99% of the time you are not punching.
-function paintPunchChain(){
-  const el = document.getElementById('punchChain');
-  if (!el) return;
-  const last = player._punchStepAt || 0;
-  const left = PUNCH_COMBO_WINDOW_MS - (performance.now() - last);
-  if (!last || left <= 0 || !punchIsUnarmed()){ el.style.display = 'none'; return; }
-  const step = punchComboStep();
-  let pips = '';
-  for (let i = 0; i < PUNCH_COMBO_STEPS; i++){
-    const done = i <= step;
-    const c = i === step ? '#ffd66b' : done ? '#ff9c66' : '#4a5570';
-    pips += `<span style="display:inline-block;width:${i===step?11:8}px;height:${i===step?11:8}px;`
-          + `margin:0 3px;background:${done?c:'transparent'};border:1px solid ${c};`
-          + `transform:rotate(45deg);"></span>`;
-  }
-  el.innerHTML = pips
-    + `<div style="width:${PUNCH_COMBO_STEPS*20}px;height:2px;margin:5px auto 0;background:rgba(0,0,0,0.5);">`
-    + `<div style="height:100%;width:${Math.max(0,(left/PUNCH_COMBO_WINDOW_MS)*100).toFixed(0)}%;background:#ffd66b;"></div></div>`
-    + `<div style="font-size:9px;color:#ffd66b;letter-spacing:.2em;margin-top:3px;">`
-    + `${(PUNCH_COMBO_NAME[step]||'').toUpperCase()}</div>`;
-  el.style.display = 'block';
-}
+// ★★★ v0.95.926 · THE PUNCH-CHAIN OVERLAY IS GONE.  Creator: "I dont need the
+// DOM thing for when I throw punches. I dont need players to see punch combo
+// overlay thing."
+//
+// It was mine, not his -- I added it at v0.95.924 on the reasoning that a
+// system the player cannot see is one they cannot plan around.  That holds for
+// Zoryn's HP, where the information is a DECISION (revive him, or fall back).
+// It does not hold here: the punch chain is FELT.  Four distinct silhouettes
+// and four different impacts already tell you which blow you are on, and a
+// meter that names what your own fists are doing is the game explaining a
+// thing the animation had already said.  Reading a HUD is not what a combo is
+// for.
+//
+// ★ THE CHAIN ITSELF IS UNTOUCHED -- jab/cross/elbow/backfist still advance per
+// press, still reset on a lapse or a hit taken, still escalate 0.85→1.5.  Only
+// the overlay is removed.
 function bumpVoltstormCharge(mode){
   if (mode === 'voltstorm') return;                  // ★ never recharge on its own KO
   if (!player.voltstormUnlocked) return;
@@ -49122,7 +49105,6 @@ function updateRizerHUD(){
   paintRizerMeterElement(widget?.querySelector('[data-rizer-meter="special"]'),model.special);
   try { paintA5Charge(show); } catch(_){}   // ★ v0.95.918
   try { paintCompanionStrip(show); } catch(_){}   // ★ v0.95.924
-  try { paintPunchChain(); } catch(_){}           // ★ v0.95.924
   if (!show && panel) panel.style.display = 'none';   // auto-close panel when hiding
   if (!panel || panel.style.display !== 'block') return;
   if (_rzLvlEl) _rzLvlEl.textContent = player.rizerLvl;

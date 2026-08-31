@@ -10678,6 +10678,16 @@ const NPCS = [
     blinkTimer: 9e9,
     turnToInteract: false,
     onInteract: (n) => {
+      // ★★★ v0.95.923 · A DOWNED ZORYN ANSWERS NOTHING ELSE.  Facing him and
+      // pressing X is the revive, and it must sit at the very top of his
+      // interact: a man face-down in the road does not hand you a map or
+      // deliver a line about your practicum.  If you have no Mythic Elixir the
+      // refusal names the item, so kneeling over him always tells you what you
+      // need rather than doing nothing.
+      if (typeof zorynIsDown === 'function' && zorynIsDown()){
+        try { reviveZoryn(); } catch(_){}
+        return;
+      }
       // v0.95.278 · Zoryn gives the Town Map after Rizer loses his · scolds him
       // "be more responsible if you want to be a legendary rizer"
       // v0.95.550 · Zoryn VO fires on every interact ("what'd you forget your map again?")
@@ -35760,6 +35770,7 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   '_blockStunUntil','_blockHitFlashUntil',   // ★ v0.95.918 · _voltstormCdUntil retired · the A5 counts KILLS now
   '_bufMelee','_bufMeleeAt',   // ★ v0.95.917 · a buffered press must not survive a reload
   '_punchStep','_punchStepAt', // ★ v0.95.920 · mid-chain is not a save state
+  '_zoRestAcc',                // ★ v0.95.923 · zorynHp/zorynDown DO persist · this counter does not
   'dodgeDir','dodgeStart','dodgeUntil','dodgeFromX','dodgeFromY','dodgeToX','dodgeToY',
   'jumpSheet','jumpStart','jumpUntil','interactStart','interactUntil',
   'faeCatchStart','faeCatchUntil',
@@ -44531,6 +44542,120 @@ function attachZorynCombatBank(n, kind){
   n.cellAnchor   = true;
   return !!(b.img.complete && b.img.naturalWidth);
 }
+// ══════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.923 · ZORYN CAN BE HURT, AND KILLED.
+// Creator: "zoryn can also be hurt and killed. player can revive him by giving
+// him a mythic elixir."
+//
+// ★★ NOTHING IN THIS GAME HAD EVER DAMAGED AN NPC.  Every hostile in RP7 calls
+// hurtPlayer and only hurtPlayer -- Rizer was the only thing on the field with
+// a health bar.  So this is not "give Zoryn HP", it is the first time an ally
+// is a target at all, and it is why the retaliation lives HERE, beside his
+// combat, rather than being threaded through every enemy AI in the file: one
+// ally is a special case, and a special case belongs in one place until there
+// is a second one.
+//
+// ★★★ WHAT HIS DEATH IS FOR.  A companion who cannot fall is scenery with a
+// sword.  Part 2 asks you to fight this person; the game should first let you
+// LOSE him, in the small way, dozens of times -- so that when he goes down for
+// real there is a muscle memory of kneeling over him with an elixir
+// ([[aov-zoryn-player-two]]).  That is also why only the MYTHIC ELIXIR revives
+// him and not a potion: the cure has to cost something you would rather keep.
+//
+// ★ He catches his breath out of combat but a KO does NOT heal itself.  Losing
+// him has to be a state you have to act on, or it is just a pause.
+const ZORYN_HP_MAX        = 120;
+const ZORYN_ENEMY_DMG     = 9;      // per enemy blow · ~13 hits to drop him
+const ZORYN_ENEMY_HIT_MS  = 1100;   // each enemy's own cadence on him
+const ZORYN_REST_HEAL_MS  = 2500;   // +1 while nothing is hunting you
+const ZORYN_REVIVE_ITEM   = 'verdant_elixir';   // storage key · label "Mythic Elixir"
+function zorynHp(){
+  if (player.zorynHp == null) player.zorynHp = ZORYN_HP_MAX;
+  return player.zorynHp;
+}
+function zorynIsDown(){ return !!player.zorynDown; }
+// Swapping his sheet outright is how he lies down: the NPC draw already reads
+// n.sheet/n.bboxes, so a bank swap needs no new plumbing -- and clearing the
+// cached _downScale is what stops the death pose being drawn at the idle's
+// scale, which is the same trap the traversal banks had at v0.95.908.
+function _zorynUseBank(n, kind){
+  const S = ZORYN_SHEETS[kind];
+  if (!n || !S) return;
+  n._zoBodyBanks = n._zoBodyBanks || {};
+  if (!n._zoBodyBanks[kind]){
+    const img = new Image(); img.src = S.src;
+    n._zoBodyBanks[kind] = img;
+  }
+  n.sheet   = n._zoBodyBanks[kind];
+  n.src     = S.src;
+  n.bboxes  = S.bboxes;
+  n.cellW   = S.cellW; n.cellH = S.cellH;
+  n._downScale = null; n._idleRefBh = null; n._rowScales = null;   // re-measure
+}
+function hurtZoryn(amt){
+  const n = zorynNpc();
+  if (!n || zorynIsDown() || !zorynIsCompanion()) return;
+  player.zorynHp = Math.max(0, zorynHp() - Math.max(1, amt | 0));
+  n._zoHurtUntil = performance.now() + 340;
+  if (player.zorynHp > 0){ try { playSFX('damageTick'); } catch(_){} return; }
+  // ── he goes down ──
+  player.zorynDown = true;
+  n._zoFighting = false;
+  n._zoRaceId = null;
+  n._atkUntil = 0; n._atkStart = 0;
+  n.moving = false;
+  _zorynUseBank(n, 'death');
+  try { playSFX('astralKill'); } catch(_){}
+  try { showToast('✖ ZORYN IS DOWN · a MYTHIC ELIXIR will bring him back · stand over him and press X', 5200); } catch(_){}
+  try { saveGame(); } catch(_){}
+}
+function reviveZoryn(){
+  const n = zorynNpc();
+  if (!n || !zorynIsDown()) return false;
+  const have = (player.items && player.items[ZORYN_REVIVE_ITEM]) || 0;
+  if (have <= 0){
+    // ★ the refusal names the item · a refusal that does not say what to do is
+    // a bug report (the rule the A5 gate is written to)
+    try { showToast('◈ Zoryn needs a MYTHIC ELIXIR · you have none', 2800); } catch(_){}
+    try { playSFX('cancel'); } catch(_){}
+    return false;
+  }
+  player.items[ZORYN_REVIVE_ITEM] = have - 1;
+  player.zorynDown = false;
+  player.zorynHp = ZORYN_HP_MAX;
+  player.zorynRevives = (player.zorynRevives || 0) + 1;
+  n._zoStrikeAt = 0; n._zoHurtUntil = 0;
+  _zorynUseBank(n, 'idle');
+  try { playSFX('mythicElixir'); } catch(_){}
+  try { showToast('✚ Zoryn is back up · "…okay. We are even."', 3600); } catch(_){}
+  try { saveGame(); } catch(_){}
+  return true;
+}
+// Enemies adjacent to him hit back, on their own clock.  He is not invincible
+// and he is not a damage sponge either: ~13 blows drop him, which is long
+// enough to be a fight and short enough that ignoring it costs you.
+function _zorynTakeReturnFire(n, now){
+  if (zorynIsDown()) return;
+  for (const e of NPCS){
+    if (!e || !e.isEnemy || e._dying || e.scene !== game.scene) continue;
+    if ((e.hp != null && e.hp <= 0) || e.scene === '__dead__') continue;
+    if (Math.abs(e.tileX - n.tileX) + Math.abs(e.tileY - n.tileY) > 1) continue;
+    if (now < (e._zoHitAt || 0)) continue;
+    e._zoHitAt = now + ZORYN_ENEMY_HIT_MS;
+    hurtZoryn(ZORYN_ENEMY_DMG);
+    if (zorynIsDown()) return;
+  }
+}
+function tickZorynRest(dt){
+  if (!zorynIsCompanion() || zorynIsDown()) return;
+  if (zorynHp() >= ZORYN_HP_MAX) { player._zoRestAcc = 0; return; }
+  if (typeof rizerInCombat === 'function' && rizerInCombat()){ player._zoRestAcc = 0; return; }
+  player._zoRestAcc = (player._zoRestAcc || 0) + dt;
+  while (player._zoRestAcc >= ZORYN_REST_HEAL_MS){
+    player._zoRestAcc -= ZORYN_REST_HEAL_MS;
+    player.zorynHp = Math.min(ZORYN_HP_MAX, zorynHp() + 1);
+  }
+}
 function zorynEnemyNearRizer(){
   let best = null, bestD = Infinity;
   for (const e of NPCS){
@@ -44545,6 +44670,9 @@ function zorynEnemyNearRizer(){
 // Returns TRUE when he is engaged, so the chest race stands down.
 function tickZorynFight(n, now){
   if (!n || !zorynIsCompanion() || n.scene !== game.scene) return false;
+  if (zorynIsDown()) return true;   // ★ v0.95.923 · down is down · and it also
+                                    // stands the chest race down, since a body
+                                    // on the ground is not racing you anywhere
   const target = zorynEnemyNearRizer();
   if (!target){ n._zoFighting = false; return false; }
   n._zoFighting = true;
@@ -44555,6 +44683,8 @@ function tickZorynFight(n, now){
   const dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left')
                                            : (dy > 0 ? 'down'  : 'up');
   if (Math.abs(dx) + Math.abs(dy) <= 1){
+    _zorynTakeReturnFire(n, now);                  // ★ v0.95.923 · they hit back
+    if (zorynIsDown()) return true;
     n.dir = dir;                                   // ★ face it BEFORE the swing
     n.moving = false;
     // he alternates fists and feet, on his OWN body -- the v0.95.907 rule, not
@@ -46409,6 +46539,7 @@ function frame(now){
   try { tickStamina(dt); } catch(_){}
   try { tickDreamland(); } catch(_){}   // v0.95.719 · the nap clock
   try { tickYaraRegen(dt); } catch(_){}  // ★ v0.95.916 · Yara's green-gem mend · +1 HP/s out of combat
+  try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
   try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted
   // ★ v0.95.743 · ZyPhone Triangle hold · timed HERE, per frame, because the
   // gamepad sends one keydown per press and no repeats. See zyTriangleHoldTick.

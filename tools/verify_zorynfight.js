@@ -16,7 +16,7 @@ global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
 global.Image=function(){return{addEventListener:noop,complete:true,naturalWidth:1254,naturalHeight:1254,src:''}};
 let CLK=300000; global.performance={now:()=>CLK};
-try{new Function(src+';globalThis.__C={tickZorynFight,tickZorynCompanion,zorynEnemyNearRizer,attachZorynCombatBank,zorynNpc,zorynIsCompanion,ZORYN_SHEETS,ZORYN_FIGHT_RANGE,ZORYN_LEASH,ZORYN_STRIKE_MS,ZORYN_HIT_DMG,NPCS,player,game,WORLD_PROPS};')();}
+try{new Function(src+';globalThis.__C={hurtZoryn,reviveZoryn,zorynHp,zorynIsDown,tickZorynRest,_zorynTakeReturnFire,ZORYN_HP_MAX,ZORYN_ENEMY_DMG,ZORYN_REVIVE_ITEM,ZORYN_REST_HEAL_MS,INVENTORY_META,TRANSIENT_PLAYER_KEYS,findNpcById,tickZorynFight,tickZorynCompanion,zorynEnemyNearRizer,attachZorynCombatBank,zorynNpc,zorynIsCompanion,ZORYN_SHEETS,ZORYN_FIGHT_RANGE,ZORYN_LEASH,ZORYN_STRIKE_MS,ZORYN_HIT_DMG,NPCS,player,game,WORLD_PROPS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -124,6 +124,81 @@ H('7 · ★★★ THE FRAGMENTED-SHEET TRAP');
   ok(/anchored\n\/\/ him by the WAIST/.test(src2)||/anchored/.test(src2),
      '★★★ I measured foot baselines that way before checking · they would have floated him half a body off the ground');
   ok(z.attackFootBaselines===null,'★★ so there is no foot table · the union bbox bottom is his boots');
+}
+
+
+H('8 · ★★★ HE CAN BE HURT');
+{
+  ok(/NOTHING IN THIS GAME HAD EVER DAMAGED AN NPC/.test(src2),
+     '★★★ every hostile in RP7 called hurtPlayer and only hurtPlayer · Rizer was the only thing on the field with a health bar');
+  P.zorynDown=false; P.zorynHp=C.ZORYN_HP_MAX;
+  ok(C.zorynHp()===C.ZORYN_HP_MAX,'starts at '+C.ZORYN_HP_MAX);
+  C.hurtZoryn(C.ZORYN_ENEMY_DMG);
+  ok(C.zorynHp()===C.ZORYN_HP_MAX-C.ZORYN_ENEMY_DMG,'★ a blow lands · '+C.zorynHp());
+  ok(!C.zorynIsDown(),'★ and he is still up');
+  const blows=Math.ceil(C.ZORYN_HP_MAX/C.ZORYN_ENEMY_DMG);
+  ok(blows>=10 && blows<=16,'★★ '+blows+' blows to drop him · long enough to be a fight, short enough that ignoring it costs you');
+}
+
+H('9 · ★★★ AND KILLED');
+{
+  P.zorynHp=C.ZORYN_ENEMY_DMG; P.zorynDown=false;
+  const zz=C.zorynNpc(); zz._zoFighting=true; zz._zoRaceId='x';
+  C.hurtZoryn(C.ZORYN_ENEMY_DMG);
+  ok(C.zorynIsDown()===true,'★★★ he goes DOWN at 0');
+  ok(zz._zoFighting===false && zz._zoRaceId===null,'★★ and stops fighting and stops racing you for chests');
+  ok(zz.bboxes===C.ZORYN_SHEETS.death.bboxes,'★★★ his body swaps to the DEATH bank · the sheet was already in the repo');
+  ok(zz._downScale===null,'★★ and the cached scale is cleared so the death pose re-measures · same trap the traversal banks had');
+  CLK+=10;
+  ok(C.tickZorynFight(zz,CLK)===true,'★ a downed Zoryn is "engaged" so the chest race stands down too');
+  const hp0=C.zorynHp();
+  C.tickZorynRest(999999);
+  ok(C.zorynHp()===hp0 && C.zorynIsDown(),'★★★ a KO does NOT heal itself · losing him is a state you have to ACT on');
+}
+
+H('10 · ★★★ THE MYTHIC ELIXIR BRINGS HIM BACK');
+{
+  ok(C.INVENTORY_META[C.ZORYN_REVIVE_ITEM].label==='Mythic Elixir',
+     '★★ the revive item is the Mythic Elixir ('+C.ZORYN_REVIVE_ITEM+' · storage key kept for save compat)');
+  P.items=P.items||{}; P.items[C.ZORYN_REVIVE_ITEM]=0;
+  ok(C.reviveZoryn()===false,'★ with none, the revive refuses');
+  ok(C.zorynIsDown(),'★ and he stays down');
+  ok(/the refusal names the item/.test(src2),'★★ but it NAMES the item · kneeling over him always tells you what you need');
+  P.items[C.ZORYN_REVIVE_ITEM]=2;
+  ok(C.reviveZoryn()===true,'★★★ with one in the bag, he gets up');
+  ok(P.items[C.ZORYN_REVIVE_ITEM]===1,'★★ and it COSTS one · the cure has to cost something you would rather keep');
+  ok(!C.zorynIsDown() && C.zorynHp()===C.ZORYN_HP_MAX,'★★ back up at full');
+  const zz=C.zorynNpc();
+  ok(zz.bboxes===C.ZORYN_SHEETS.idle.bboxes,'★★ and his body is back to the idle bank');
+  ok((P.zorynRevives||0)===1,'★ revives are counted, like his chests and his kills');
+}
+
+H('11 · ★★ THE REVIVE IS THE ONLY THING HE ANSWERS');
+{
+  const src3=src2.slice(src2.indexOf("id: 'zoryn',"));
+  const io=src3.indexOf('onInteract');
+  const seg=src3.slice(io, io+2500);
+  const iDown=seg.indexOf('zorynIsDown'), iMap=seg.indexOf('townMapGifted');
+  ok(iDown>=0 && iMap>iDown,
+     '★★★ the down-check sits ABOVE the map gift (chars '+iDown+' vs '+iMap+') · a man face-down in the road does not hand you a map');
+  ok(/does not hand you a map/.test(src2),'and it says so');
+}
+
+H('12 · ★★ HE CATCHES HIS BREATH, BUT ONLY WHILE UP');
+{
+  P.zorynDown=false; P.zorynHp=C.ZORYN_HP_MAX-5; P._zoRestAcc=0;
+  for (const e of C.NPCS){ if(e){ e._chasing=false; e._aggroUntil=0; } }
+  P._lastHurtAt=-999999;
+  C.tickZorynRest(C.ZORYN_REST_HEAL_MS*3+10);
+  ok(C.zorynHp()>C.ZORYN_HP_MAX-5,'★★ out of combat he recovers · '+C.zorynHp()+'/'+C.ZORYN_HP_MAX);
+  ok(C.zorynHp()<=C.ZORYN_HP_MAX,'★ never past full');
+}
+
+H('13 · ★ WHAT PERSISTS');
+{
+  ok(!C.TRANSIENT_PLAYER_KEYS.has('zorynHp'),'★★ zorynHp PERSISTS · his condition is progression');
+  ok(!C.TRANSIENT_PLAYER_KEYS.has('zorynDown'),'★★ and so does being down · you cannot reload him back to his feet');
+  ok(C.TRANSIENT_PLAYER_KEYS.has('_zoRestAcc'),'★ but the rest accumulator does not');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

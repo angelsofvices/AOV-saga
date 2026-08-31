@@ -32,6 +32,23 @@ And he stops looting the moment a fight starts. The chest-snatching is
 needling, not greed, and a friend does not go through a box while you are being
 hit.
 
+### ★★★ He can fall (shipped v0.95.923)
+
+**120 HP, ~14 blows to drop him.** Enemies adjacent to him hit back on their own
+clock — this is the first time anything in RP7 has damaged an ally, because
+every hostile in the game called `hurtPlayer` and only `hurtPlayer`. Out of
+combat he catches his breath, but **a KO does not heal itself**: only a
+**MYTHIC ELIXIR** gets him up, spent by facing his body and pressing X.
+
+**Why he needs to be losable.** A companion who cannot fall is scenery with a
+sword. Part 2 asks you to fight this person — so the game should first let you
+lose him in the small way, dozens of times, until kneeling over him with an
+elixir is muscle memory. That is also why the cure is the Mythic Elixir and not
+a potion: it has to cost something you would rather keep.
+
+A downed Zoryn answers nothing else — the revive sits above every other branch
+of his interact, because a man face-down in the road does not hand you a map.
+
 ### ★ The chest race (shipped v0.95.906)
 
 > *"sometimes zoryn will collect chests before you on expeditions if you dont
@@ -96,6 +113,7 @@ learned the game together.
 | Bond-50 companion threshold | **shipped** |
 | Chest race on expeditions | **shipped** |
 | Fights alongside you | **shipped v0.95.922** — guards Rizer, alternates fists and feet, leashed, kills counted |
+| Can be hurt and killed | **shipped v0.95.923** — 120 HP, Mythic Elixir revives |
 | The Gemlord turn | **written only** |
 | Pit of No Return / Abominalys contact | **written only** |
 | The boss fight | **written only** |

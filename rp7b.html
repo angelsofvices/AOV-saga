@@ -2138,7 +2138,50 @@ let _factionMission=null;
 function factionAllyInParty(id){
   return (player.party||[]).some(z=>z&&z.speciesId===id);
 }
+// ══════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.925 · SOUL-SWAP IS PARKED, NOT DELETED.
+// Creator: "lets get rid of the soulswap function for now. store it in memory
+// later. soulswap may go live once trading cards are out so people can scan
+// the cards and unlock the playable npc."
+//
+// ★★ SO IT IS GATED, NOT REMOVED.  Deleting ~200 lines of working machinery
+// for a feature with a named return condition would mean rebuilding it from
+// scratch the week the cards ship.  One flag turns it off completely today and
+// back on then, and everything below stays measured, wired and true.
+//
+// ★★★ WHAT IT BECOMES: playing as an ally will not be bought with bond at all
+// -- it will be UNLOCKED BY SCANNING A PHYSICAL CARD.  That moves the whole
+// feature from "a thing a grinder reaches at bond 100" to "a thing an owner
+// reaches", which is the same law the Zysphere bridge already runs on: IRL
+// card ownership IS in-game ownership.  The bond-100 gate below is therefore
+// dead weight rather than a design to preserve, and it should be replaced by
+// the scan, not restored alongside it.
+//
+// ★ ONE THING THIS ALSO FIXES TODAY.  Triangle IS THE KICK.  The soul-swap
+// branch intercepted it in front of every friendly NPC in the game -- exactly
+// the complaint that got the tap-recall revoked at v0.95.837 ("a Zyrex standing
+// in front of you can no longer eat the kick"). Friendly humans were still
+// eating it. With the swap parked, Triangle in front of an ally is a kick.
+const SOULSWAP_ENABLED = false;
+// ★★★ AND THE SAVE TRAP.  player.activeActor is NOT in the transient key list,
+// so it PERSISTS -- a save made mid-swap carries activeActor:'elzoran'.  Park
+// the feature without this and that save loads as an ally with the swap-back
+// disabled: permanently playing someone else, no way home, unfixable from
+// inside the game.  Called on load; returns silently for everyone else.
+function _soulswapSafetyRestore(){
+  if (SOULSWAP_ENABLED) return false;
+  if (!player || !player.activeActor || player.activeActor === 'rizer') return false;
+  try { endFactionSoulSwitch(); } catch(_){}
+  if (player.activeActor !== 'rizer'){
+    // the swap record did not survive the reload · put him back by hand
+    player.activeActor = 'rizer';
+    player.moving = false; player.animFrame = 0;
+  }
+  try { showToast('◈ Soul-swap is offline · returned to Rizer', 3200); } catch(_){}
+  return true;
+}
 function startFactionSoulSwitch(n){
+  if (!SOULSWAP_ENABLED) return false;   // ★ v0.95.925 · parked · Triangle falls through to the kick
   // v0.95.338 · Yara (sister) can never be soul-swapped · she is not a Zyrex
   if (n && n.noSoulSwap){ playSFX('doorLock'); showToast('◈ Cannot soul-swap with a humanoid ally.', 2000); return true; }
 
@@ -25320,7 +25363,10 @@ addEventListener('keydown', e => {
       // Triangle in the field is combat again — a Zyrex standing in front of
       // you can no longer eat the kick or spray toasts mid-fight.  Summons
       // are excluded from the soul-swap branch below for the same reason.
-      if (facing && !facing._summoned && !facing.isEnemy && isFriendlyNpc(facing)){
+      // ★ v0.95.925 · the whole branch is behind the flag.  Gating only the
+      // CALL would leave the refusal toasts firing and still swallow the kick,
+      // which is the worst of both: a feature that is off but still in your way.
+      if (SOULSWAP_ENABLED && facing && !facing._summoned && !facing.isEnemy && isFriendlyNpc(facing)){
         if (facing.noSoulSwap){
           try { playSFX('doorLock'); } catch(_){}
           showToast(`◈ ${facing.name} · humanoid ally · no soul-swap`, 2200);
@@ -36190,6 +36236,7 @@ function loadGame(){
     try { syncTowerNetworkFromSave(); } catch(_){}   // v0.95.650 · chests + tower sprites
     try { pruneZyrexContacts(); } catch(_){}         // v0.95.652 · Zyrex are not callable
     try { pruneLootBagContacts(); } catch(_){}      // v0.95.701 · corpses are not people
+    try { _soulswapSafetyRestore(); } catch(_){}    // ★ v0.95.925 · a save made mid-swap must not strand you as an ally
     return true;
   } catch(e){ console.warn('[rp7b] load failed', e); return false; }
 }

@@ -2571,6 +2571,40 @@ function tickYaraRegen(dt){
     }
   }
 }
+// ★★★ v0.95.917 · release the buffered swing the moment the lock lifts.
+//
+// It REPLAYS the press rather than calling the swing directly, because the
+// melee keydown does far more than start an animation -- hitbox, sword sweeps,
+// axe AoE, bow launch, durability, SFX, XP -- and half a swing is worse than a
+// dropped one.  Replaying is the only version where a buffered hit and a live
+// hit are the same code by construction.
+//
+// ★★ THE ONE HAZARD, HANDLED: keys['j'] / keys['k'] are read as CHORD
+// modifiers elsewhere (L2+Square, I+K, Shift+I+J).  A synthetic keydown sets
+// them true and no keyup ever follows, which would leave a chord half-held and
+// misfire something later.  The physical state is snapshotted and restored
+// around the dispatch, so the replay cannot leave a key stuck.
+function flushMeleeBuffer(){
+  const mode = player._bufMelee;
+  if (!mode) return;
+  const now = performance.now();
+  if (now - (player._bufMeleeAt || 0) > INPUT_BUFFER_MS){ player._bufMelee = null; return; }
+  if (now < (player.attackUntil || 0)) return;         // still locked · keep waiting
+  // Never replay into a state that would have refused the press when it was
+  // made -- a swing must not fall out of a menu the player opened meanwhile.
+  if (game.paused || game.zphoneOpen || cinematicPlaying()
+      || (typeof dialogState !== 'undefined' && dialogState)
+      || (typeof battleState !== 'undefined' && battleState)
+      || (typeof wildBattleState !== 'undefined' && wildBattleState)
+      || game.scene === 'title' || _rizerDeath){
+    player._bufMelee = null; return;
+  }
+  player._bufMelee = null;
+  const kk = (mode === 'kick') ? 'k' : 'j';
+  const had = !!keys[kk];
+  try { window.dispatchEvent(new KeyboardEvent('keydown', { key: kk })); } catch(_){}
+  keys[kk] = had;
+}
 // Returns the NAME of the running cutscene (truthy) or null, so the one list
 // can serve both the boolean gates and tryMove's freeze-reason log.
 function cinematicPlaying(){
@@ -14190,8 +14224,12 @@ const BBOX_FALLBACK = {
   // measured from the row's lowest frame, the planted beat) turns the same
   // 12px into a bound at no size cost, and is one flag on this bundle.
   // Still the Creator's call -- how a run feels is not a measurement.
+  // ★★★ v0.95.917 · re-measured after the sheet turned out to be a PSD (see the
+  // note at loadAsset).  Only DOWN cols 1 and 3 moved -- by 50->47, bh 179->182
+  // -- three pixels of hair the flattened export had lost and the layered file
+  // still had.  Everything else is byte-identical, floors included.
   run: [
-    [[ 85, 47,139,194],[ 98, 50,135,179],[ 72, 50,140,191],[ 80, 50,135,179]],
+    [[ 85, 47,139,194],[ 98, 47,135,182],[ 72, 50,140,191],[ 80, 47,135,182]],
     [[101, 35,135,188],[ 87, 40,144,184],[ 84, 37,135,188],[ 98, 38,135,175]],
     [[ 97, 55,135,175],[111, 54,135,188],[ 99, 57,144,184],[ 94, 52,135,188]],
     [[ 94, 26,128,189],[ 90, 28,124,175],[ 85, 25,127,190],[ 84, 27,123,176]],
@@ -25096,7 +25134,19 @@ addEventListener('keydown', e => {
         // on the bag · move-bag mechanic can come back later on a cleaner input
         if (game._bagDragging){ game._bagDragging = false; }
         const mode = (k === 'j') ? 'punch' : 'kick';
-        if(performance.now()<(player.attackUntil||0))return;
+        // ★★★ v0.95.917 · INPUT BUFFER.  A press this close to the lock
+        // clearing used to be thrown away, so the natural rhythm -- press again
+        // just before the swing finishes -- dropped inputs and read as the game
+        // ignoring you.  v0.95.914 made this worse by inviting the early press:
+        // a cancel window is a request to hit the button before you are able to.
+        // Remembered here, fired by flushMeleeBuffer() the instant the lock
+        // lifts.  A stale press is discarded, never queued.
+        if(performance.now()<(player.attackUntil||0)){
+          player._bufMelee = mode;
+          player._bufMeleeAt = performance.now();
+          return;
+        }
+        player._bufMelee = null;
         // ★★★ v0.95.914 · TWO CLOCKS, NOT ONE.
         //   attackDuration / attackAnimUntil = what you SEE · full length, all
         //     four frames, only the yellow BAR slows it (rizerAttackTimeScale)
@@ -26120,6 +26170,27 @@ function tryMove(dt){
   else if (keys['arrowright'] || keys['d']) { dx =  1; dir = 'right'; }
 
   if (!dx && !dy){ player.moving = false; return; }
+
+  // ★★★ v0.95.917 · TURN IN PLACE.  Tapping a direction you are not already
+  // facing turns you and does NOT step.  Before this every tap committed a
+  // tile, so you could not look at a chest, an NPC or an enemy without first
+  // walking into the square in front of it -- which matters more every version,
+  // because props, followers and now wild Zyrex are all solid.
+  //
+  // ★ ONLY FROM A STANDSTILL.  If he is already moving, a direction change
+  // turns AND steps exactly as it always has: a runner rounding a corner must
+  // not pause for a tenth of a second, and this is the whole reason the naive
+  // version of this feature feels sluggish.  Cornering at speed is untouched.
+  //
+  // The grace is short enough to be invisible when you meant to walk (you are
+  // still holding the key, so the next tick steps) and long enough to be
+  // reliable when you meant to look.
+  if (dir !== player.dir && !player.moving && game.turnInPlace !== false){
+    player.dir = dir;
+    player.animFrame = 0;
+    player.moveCd = TURN_IN_PLACE_MS;
+    return;
+  }
 
   const nx = player.x + dx, ny = player.y + dy;
   player.dir = dir;
@@ -35516,6 +35587,7 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   // bug asleep -- restored i-frames and a stuck red flash.
   '_lastHurtAt','_invulnUntil','_hurtFlashUntil','_hurtShakeUntil','_hurtSpriteUntil',
   '_blockStunUntil','_blockHitFlashUntil','_voltstormCdUntil',
+  '_bufMelee','_bufMeleeAt',   // ★ v0.95.917 · a buffered press must not survive a reload
   'dodgeDir','dodgeStart','dodgeUntil','dodgeFromX','dodgeFromY','dodgeToX','dodgeToY',
   'jumpSheet','jumpStart','jumpUntil','interactStart','interactUntil',
   'faeCatchStart','faeCatchUntil',
@@ -46019,6 +46091,7 @@ function frame(now){
   try { tickStamina(dt); } catch(_){}
   try { tickDreamland(); } catch(_){}   // v0.95.719 · the nap clock
   try { tickYaraRegen(dt); } catch(_){}  // ★ v0.95.916 · Yara's green-gem mend · +1 HP/s out of combat
+  try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted
   // ★ v0.95.743 · ZyPhone Triangle hold · timed HERE, per frame, because the
   // gamepad sends one keydown per press and no repeats. See zyTriangleHoldTick.
   try { zyTriangleHoldTick(); } catch(_){}
@@ -47655,6 +47728,9 @@ function rizerStaminaFactor(){ return 1 + 4 * rizerAttrFrac('speed'); }
 // drained one is slowest, which is what the attribute already means.
 const MELEE_RECOVERY_MIN = 0.55;
 const MELEE_LOCK_FLOOR_MS = 120;   // absolute floor · no machine-gunning, ever
+// ★★ v0.95.917 · QOL · see tryMove (turn) and the melee keydown (buffer).
+const TURN_IN_PLACE_MS = 110;   // tap-to-face grace · only from a standstill
+const INPUT_BUFFER_MS  = 150;   // a press this close to the lock clearing still counts
 function rizerMeleeRecovery(){
   return 1 - (1 - MELEE_RECOVERY_MIN) * rizerAttrFrac('speed');
 }

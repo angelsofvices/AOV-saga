@@ -2511,6 +2511,66 @@ function _checkRizerLowHpWarn(){
 // so it is the only one where this could ever show -- the dream plays in bed
 // and the TV movie in the living room.  Nobody wrote a rule wrong; a rule was
 // written three times and one copy never heard about the third case.
+// ★★★ v0.95.916 · YARA'S MEND · the green gem, years early.
+// Creator: "when she is with you, your HP goes up 1 point every second of
+// noncombat. it is because she has healing power due to her bond with the
+// green gem later in series."
+//
+// This is the FIRST auto-regen in RP7 and it deliberately breaks a standing
+// rule -- player.hp has carried the comment "no auto-regen · sleep/potion/
+// hospital" since v0.95.134.  The exception is the point: healing is not a
+// property Rizer has, it is a property YARA has, and it walks in and out of
+// the game with her.  The moment she goes home it is gone.
+//
+// ★ IT IS ALSO A PIECE OF FORESHADOWING YOU CAN FEEL.  The green gem bond is
+// a later-series reveal; here it is just "my sister is with me and I stop
+// bleeding".  A player who never reads a codex entry will still have learned
+// that Yara mends things, so the reveal lands on something they already knew.
+//
+// NON-COMBAT is defined the strict way -- any of these restarts the clock:
+//   a battle is running · anything hostile is chasing or aggroed in this scene
+//   · Rizer took a hit inside the last 5 seconds.
+// The delay is what makes it a REST rather than a regeneration: you cannot
+// tank a hit and immediately start refilling in front of the thing that hit
+// you, and the accumulator RESETS rather than pausing, so a fight interrupted
+// every four seconds never heals at all.
+const YARA_REGEN_MS      = 1000;   // +1 HP per second · the Creator's number
+const YARA_REGEN_CALM_MS = 5000;   // quiet required before the first tick
+function yaraIsWithYou(){ return player.companion === 'yara'; }
+function rizerInCombat(){
+  const now = performance.now();
+  if (typeof battleState !== 'undefined' && battleState) return true;
+  if (typeof wildBattleState !== 'undefined' && wildBattleState) return true;
+  if ((player._lastHurtAt || 0) + YARA_REGEN_CALM_MS > now) return true;
+  for (const n of NPCS){
+    if (!n || !n.isEnemy || n._dying) continue;
+    if (n.scene !== game.scene) continue;
+    if ((n.hp != null && n.hp <= 0) || n.scene === '__dead__') continue;
+    if (n._chasing || (n._aggroUntil || 0) > now) return true;
+  }
+  return false;
+}
+let _yaraRegenAcc = 0;
+function tickYaraRegen(dt){
+  if (!yaraIsWithYou() || game.scene === 'title'){ _yaraRegenAcc = 0; return; }
+  if (game.paused || game.zphoneOpen || cinematicPlaying()) return;   // hold, don't reset
+  if (rizerInCombat()){ _yaraRegenAcc = 0; return; }
+  const max = player.hpMax || player.maxHp || 100;
+  if ((player.hp || 0) >= max){ _yaraRegenAcc = 0; return; }
+  _yaraRegenAcc += dt;
+  while (_yaraRegenAcc >= YARA_REGEN_MS){
+    _yaraRegenAcc -= YARA_REGEN_MS;
+    player.hp = Math.min(max, (player.hp || 0) + 1);
+    player._yaraHealedTotal = (player._yaraHealedTotal || 0) + 1;
+    // Told ONCE, the first time it ever happens, then never again -- a toast
+    // every second would be a nuisance and the HP bar already shows the climb.
+    if (!player.yaraMendSeen){
+      player.yaraMendSeen = true;
+      try { showToast('✚ Yara hums under her breath · your wounds are closing', 3600); } catch(_){}
+      try { playSFX('heal'); } catch(_){}
+    }
+  }
+}
 // Returns the NAME of the running cutscene (truthy) or null, so the one list
 // can serve both the boolean gates and tryMove's freeze-reason log.
 function cinematicPlaying(){
@@ -2565,6 +2625,7 @@ function hurtPlayer(amt, srcName){
   player._hurtShakeUntil  = now + 320;                   // v0.95.167 · screen-shake window
   player._hurtSpriteUntil = now + 380;                   // v0.95.170 · hurt.png sprite override
   player._invulnUntil     = now + 700;                   // brief i-frames
+  player._lastHurtAt      = now;                         // ★ v0.95.916 · Yara's mend reads this
   if (window.__rumbleHit) window.__rumbleHit('hurt');    // v0.95.217 · haptic jolt on damage taken
   // v0.95.181 · Damage toast removed · anim + HP deduct only · HUD bar shows the loss
   if (player.hp === 0){
@@ -10437,6 +10498,28 @@ const NPCS = [
       [[124, 22,171,256],[ 92, 22,169,256],[ 61, 22,169,256],[ 28, 22,169,256]],
       [[107,  3,168,310],[ 75,  3,169,310],[ 44,  3,169,310],[ 13,  3,169,310]],
       [[103,  0,191,238],[ 69,  0,192,238],[ 36,  0,192,238],[  4,  0,192,238]],
+    ],
+    // ★★★ v0.95.916 · THE JOG.  Creator: "here is yara jogging animation sheet."
+    // She has followed Rizer since v0.95.304 in her STANDING pose -- no walk
+    // bank existed, so the escort to Professor Elarion was a girl gliding
+    // across Malezor without moving her legs.
+    //
+    // ★ The RIGHT row of this sheet faces LEFT, exactly like her idle sheet did
+    // (v0.95.327).  `mirrorRightAsLeft` above is applied before the bank is
+    // chosen, so it covers the jog too and the drawn row 2 simply goes unused.
+    // Checked, not assumed: both rows render her facing left.
+    // ★★ walkRefBh is the v0.95.908 size guard.  _downScale is measured on the
+    // IDLE bank (tallest col-0 = 310); the jog's is 267, so without this she
+    // would shrink to 86% the instant she started moving and pop back when she
+    // stopped.  Preserve the SIZE, not the divisor.
+    walkSheet: (() => { const i = new Image(); i.src = 'assets/2D%20sprites/npcs/yara-jog.png'; return i; })(),
+    walkSrc: 'assets/2D%20sprites/npcs/yara-jog.png',
+    walkRefBh: 267,
+    walkBboxes: [
+      [[115, 36,192,267],[ 78, 36,195,263],[ 51, 36,200,267],[ 11, 36,191,267]],
+      [[130, 26,189,261],[ 87, 26,193,261],[ 62, 26,191,261],[ 27, 25,187,262]],
+      [[ 94, 12,182,260],[ 53, 13,184,259],[ 27, 13,185,259],[ -6, 12,182,260]],
+      [[110,-13,178,267],[ 72,-13,175,260],[ 35,-13,188,267],[  5,-13,181,267]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     uniformScale: true,
@@ -35424,6 +35507,15 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   // attack / block / dodge / jump / interact timers
   'attackMode','attackStart','attackUntil','attackAnimUntil','attackDuration',
   'blocking','blockStart','blockHitsAbsorbed',
+  // ★★ v0.95.916 · HURT-CLOCK TIMERS.  These are performance.now() stamps, and
+  // performance.now() restarts near ZERO on a reload -- so a saved value is a
+  // timestamp far in the FUTURE, and every "is this window still open?" test
+  // reads true forever.  _lastHurtAt is the one that matters today: leave it
+  // in the save and Yara's mend never fires again after a load, because Rizer
+  // is permanently five seconds from his last wound.  The rest are the same
+  // bug asleep -- restored i-frames and a stuck red flash.
+  '_lastHurtAt','_invulnUntil','_hurtFlashUntil','_hurtShakeUntil','_hurtSpriteUntil',
+  '_blockStunUntil','_blockHitFlashUntil','_voltstormCdUntil',
   'dodgeDir','dodgeStart','dodgeUntil','dodgeFromX','dodgeFromY','dodgeToX','dodgeToY',
   'jumpSheet','jumpStart','jumpUntil','interactStart','interactUntil',
   'faeCatchStart','faeCatchUntil',
@@ -45926,6 +46018,7 @@ function frame(now){
   // try so a stamina fault can never take the whole render loop down.
   try { tickStamina(dt); } catch(_){}
   try { tickDreamland(); } catch(_){}   // v0.95.719 · the nap clock
+  try { tickYaraRegen(dt); } catch(_){}  // ★ v0.95.916 · Yara's green-gem mend · +1 HP/s out of combat
   // ★ v0.95.743 · ZyPhone Triangle hold · timed HERE, per frame, because the
   // gamepad sends one keydown per press and no repeats. See zyTriangleHoldTick.
   try { zyTriangleHoldTick(); } catch(_){}

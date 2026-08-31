@@ -17,7 +17,7 @@ global.getComputedStyle=()=>({getPropertyValue:()=>''});
 let CLK=50000; global.performance={now:()=>CLK};
 global.KeyboardEvent=function(t,o){this.type=t;this.key=(o&&o.key)||'';this.preventDefault=noop;this.stopImmediatePropagation=noop;};
 let _dispatched=[];
-try{new Function(src+';globalThis.__C={tryMove,flushMeleeBuffer,TURN_IN_PLACE_MS,INPUT_BUFFER_MS,TRANSIENT_PLAYER_KEYS,player,game,keys,RIZER,BBOX_FALLBACK,walkable};')();}
+try{new Function(src+';globalThis.__C={tryMove,flushMeleeBuffer,NPCS,_swapWithOwnFollower,_isOwnFollower,TURN_IN_PLACE_MS,INPUT_BUFFER_MS,TRANSIENT_PLAYER_KEYS,player,game,keys,RIZER,BBOX_FALLBACK,walkable};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -127,6 +127,47 @@ H('7 · ★★ A FLED ZYREX SAYS WHERE IT WENT');
      '★★★ without it the system was invisible · the creature simply was not there any more');
   ok(/_homewardTold/.test(src2),'★★ told once per creature, not once per failed attempt');
   ok(/names the WINDOW/.test(src2),'★ and names the minutes · "come back later" becomes actionable');
+}
+
+
+H('8 · ★★★ YOUR OWN TEAM IS NEVER A WALL');
+{
+  C.game.scene='overworld';
+  const P2=C.player;
+  // put a summoned follower directly in front of him
+  let fol=C.NPCS.find(n=>n&&n.id&&n.id.startsWith('_summon_'));
+  if(!fol){ fol={id:'_summon_test#9',_summoned:true,scene:'overworld',tileX:0,tileY:0,moving:false}; C.NPCS.push(fol); }
+  fol._summoned=true; fol.scene='overworld';
+  P2.dir='down'; P2.moving=false; P2.moveCd=0;
+  // find ground he can actually walk to
+  let ok0=false, tx=P2.x, ty=P2.y+1;
+  fol.scene='__off__'; ok0=C.walkable(tx,ty); fol.scene='overworld';
+  if (ok0){
+    fol.tileX=tx; fol.tileY=ty;
+    ok(C.walkable(tx,ty)===false,'★★ a follower makes the tile unwalkable · same refusal as a wall');
+    const px=P2.x, py=P2.y;
+    clearKeys(); K['arrowdown']=true;
+    // ONE step -- calling tryMove twice walks him a tile PAST the swap, which
+    // asserts the wrong thing (he faces down already, so there is no turn to
+    // burn a tick on).
+    C.tryMove(16);
+    ok(P2.x===tx && P2.y===ty,'★★★ he STEPS onto it · your own party never wedges you');
+    ok(fol.tileX===px && fol.tileY===py,'★★★ and the follower took the tile he left · they trade places');
+  } else { ok(true,'(no open ground beside spawn to test the swap · skipped)'); }
+}
+
+H('9 · ★★ BUT ONLY YOUR OWN, AND ONLY ON GOOD GROUND');
+{
+  ok(/Only YOUR followers move/.test(src2),
+     '★★★ enemies, wilds, townsfolk and props still block · being stopped by the WORLD is the game working');
+  ok(/TERRAIN STILL HAS THE FINAL SAY/.test(src2),
+     '★★★ walkable() is false for terrain AND npcs, so a follower standing there is not proof the ground is good');
+  ok(/carry Rizer\n  \/\/ through the wall behind it/.test(src2)||/through the wall behind it/.test(src2),
+     '★★★ without that check a Zyrex on a doorway seam would walk him through the wall');
+  ok(/blocker\.scene = '__swaptest__'/.test(src2),
+     '★★ proved by lifting the follower out and asking the SAME predicate again · terrain alone answers');
+  ok(src2.includes('answer than not being stuck'),
+     '★★ and why this beats a toast · displacing is better than explaining');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

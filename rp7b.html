@@ -2584,6 +2584,50 @@ function tickYaraRegen(dt){
     }
   }
 }
+// ★★★ v0.95.919 · a follower standing where you want to walk trades places
+// with you.  Returns true once the tile is clear, having already put the
+// follower on the tile Rizer is leaving -- so the caller simply steps.
+//
+// ★ WHO COUNTS AS YOURS: summoned Zyrex, and the escorted companion (Yara).
+// Nothing else.  An enemy blocking a corridor is a fight; a townsperson
+// blocking a doorway is a place you have to walk around; only your own team is
+// something you brought with you and can reasonably push past.
+function _isOwnFollower(n){
+  if (!n) return false;
+  if (n._summoned && n.id && n.id.startsWith('_summon_')) return true;
+  return !!(player.companion && n.id === player.companion);
+}
+function _swapWithOwnFollower(nx, ny){
+  let blocker = null, others = 0;
+  for (const n of NPCS){
+    if (!n || n.scene !== game.scene) continue;
+    if (n.tileX !== nx || n.tileY !== ny) continue;
+    if (_isOwnFollower(n)) blocker = n; else others++;
+  }
+  // If anything that is NOT ours also occupies the tile, the tile is genuinely
+  // blocked and a swap would smuggle Rizer into it.
+  if (!blocker || others) return false;
+  // ★★★ TERRAIN STILL HAS THE FINAL SAY.  walkable() is false for terrain AND
+  // for NPCs, so "a follower is standing here" is NOT proof the ground is good
+  // -- without this check a Zyrex parked on a doorway seam would carry Rizer
+  // through the wall behind it.  Lift the follower out of the scene, ask the
+  // same predicate again, and put it back: the answer is then terrain alone.
+  const _sc = blocker.scene;
+  blocker.scene = '__swaptest__';
+  let groundOK = false;
+  try { groundOK = walkable(nx, ny); } catch(_){}
+  blocker.scene = _sc;
+  if (!groundOK) return false;
+  // and nothing else may already be standing where the follower is going
+  for (const n of NPCS){
+    if (n && n !== blocker && n.scene === game.scene
+        && n.tileX === player.x && n.tileY === player.y) return false;
+  }
+  blocker.tileX = player.x; blocker.tileY = player.y;
+  blocker.moving = false;
+  blocker.moveCd = 200;
+  return true;
+}
 // ★★★ v0.95.917 · release the buffered swing the moment the lock lifts.
 //
 // It REPLAYS the press rather than calling the swing directly, because the
@@ -26268,7 +26312,22 @@ function tryMove(dt){
 
   const nx = player.x + dx, ny = player.y + dy;
   player.dir = dir;
-  if (!walkable(nx, ny)){ player.moveCd = 120; player.moving = false; return; }
+  // ★★★ v0.95.919 · WALK THROUGH YOUR OWN TEAM · they swap places with you.
+  //
+  // walkable() returns false on any NPC tile, and your own followers are NPCS
+  // ("summoned followers already blocked"), so a Zyrex standing in a doorway is
+  // indistinguishable from a wall -- same refusal, same silence, no way to tell
+  // a creature from stone.  In a corridor you could be wedged by your own party
+  // with nothing to press.
+  //
+  // Displacing is better than any amount of feedback here: your own team should
+  // never be an obstacle, and a message explaining why you are stuck is a worse
+  // answer than not being stuck.  Only YOUR followers move -- enemies, wilds,
+  // townsfolk and props all still block, because those are the world, and being
+  // stopped by the world is the game working.
+  if (!walkable(nx, ny) && _swapWithOwnFollower(nx, ny)){
+    // the tile is ours now · fall through and take the step
+  } else if (!walkable(nx, ny)){ player.moveCd = 120; player.moving = false; return; }
 
   const wasMoving = player.moving;
   // v0.95.710 · remember where we stepped FROM, so a refused door can put us

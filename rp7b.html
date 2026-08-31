@@ -44469,10 +44469,135 @@ function _zorynChestNear(n){
   }
   return best;
 }
+// ══════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.922 · ZORYN FIGHTS · Player Two stops watching.
+//
+// He has followed you since v0.95.906 and held formation and taken your
+// chests, and done nothing when a Mori swung at you.  His combat art has been
+// in the repo the whole time -- punch, kick, hurt, death, all measured -- so
+// this was never blocked on anything but the AI.
+//
+// ★★ HE GUARDS YOU, HE DOES NOT HUNT.  Target selection measures range from
+// RIZER, not from Zoryn.  That one decision is the whole difference between a
+// companion and a liability: a partner who picks his own fights walks off
+// across the map dragging aggro home, and every game that has shipped one has
+// shipped that bug.  He engages what threatens YOU, and he is leashed, so he
+// cannot be baited away from your flank.
+//
+// ★★ HE IS HELP, NOT A REPLACEMENT.  620ms between blows against your 165-300,
+// and a flat hit that will not out-damage you at any level.  If he cleared
+// rooms you would stop playing; the point of Player Two is that the fight is
+// still yours and someone is standing in it with you.
+//
+// ★ COMBAT OUTRANKS THE CHEST RACE.  He does not stop mid-fight to loot, which
+// is both correct AI and the right character note -- the chest-snatching is
+// needling, not greed, and he drops it the moment you are actually in trouble.
+const ZORYN_FIGHT_RANGE = 5;      // measured from RIZER · what threatens you
+const ZORYN_LEASH       = 8;      // never further from you than this
+const ZORYN_STRIKE_MS   = 620;    // between his blows · deliberately slower than yours
+const ZORYN_STEP_MS     = 190;
+const ZORYN_HIT_DMG     = 18;
+// ★★★ HIS SHEETS ARE FRAGMENTED, so the bboxes above are per-cell UNIONS, not
+// connected components -- one punch cell holds 192 separate opaque islands
+// because his legs are not joined to his torso in the alpha.  A
+// component-ownership pass (the rule every OTHER sheet in this game is measured
+// by) returns his torso alone: h=180 against a true figure of 246.  I measured
+// foot baselines that way before checking, and wiring them would have anchored
+// him by the WAIST and floated him half a body off the ground.  So: no foot
+// table here, and the bbox bottom does the planting, which for a union box is
+// his lowest pixel and therefore his boots.
+function attachZorynCombatBank(n, kind){
+  const S = ZORYN_SHEETS[kind];
+  if (!n || !S) return false;
+  n._zoBanks = n._zoBanks || {};
+  if (!n._zoBanks[kind]){
+    const img = new Image();
+    img.src = S.src;
+    // refBh = the tallest col-0 UNION · keeps him the same size mid-swing as
+    // standing still (the v0.95.907 rule), which matters more here than usual
+    // because his strike sheets run ~250 against a 221 idle.
+    let ref = 0;
+    for (const r of S.bboxes){ if (r[0] && r[0][3] > ref) ref = r[0][3]; }
+    n._zoBanks[kind] = { img, bboxes: S.bboxes, refBh: ref };
+  }
+  const b = n._zoBanks[kind];
+  n.attackSheet  = b.img;
+  n.attackBboxes = b.bboxes;
+  n.attackRefBh  = b.refBh;
+  n.attackCellW  = S.cellW; n.attackCellH = S.cellH;
+  n.attackCols   = 4;
+  n.attackRows   = 4;
+  n.attackFootBaselines = null;      // see above · union boxes plant themselves
+  n.cellAnchor   = true;
+  return !!(b.img.complete && b.img.naturalWidth);
+}
+function zorynEnemyNearRizer(){
+  let best = null, bestD = Infinity;
+  for (const e of NPCS){
+    if (!e || !e.isEnemy || e._dying) continue;
+    if (e.scene !== game.scene) continue;
+    if ((e.hp != null && e.hp <= 0) || e.scene === '__dead__') continue;
+    const d = Math.abs(e.tileX - player.x) + Math.abs(e.tileY - player.y);
+    if (d <= ZORYN_FIGHT_RANGE && d < bestD){ best = e; bestD = d; }
+  }
+  return best;
+}
+// Returns TRUE when he is engaged, so the chest race stands down.
+function tickZorynFight(n, now){
+  if (!n || !zorynIsCompanion() || n.scene !== game.scene) return false;
+  const target = zorynEnemyNearRizer();
+  if (!target){ n._zoFighting = false; return false; }
+  n._zoFighting = true;
+  // ★ the leash is measured to RIZER · he defends your ground, not the map
+  if (Math.abs(n.tileX - player.x) + Math.abs(n.tileY - player.y) > ZORYN_LEASH) return true;
+  if (now < (n._zoStrikeAt || 0)) return true;
+  const dx = target.tileX - n.tileX, dy = target.tileY - n.tileY;
+  const dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left')
+                                           : (dy > 0 ? 'down'  : 'up');
+  if (Math.abs(dx) + Math.abs(dy) <= 1){
+    n.dir = dir;                                   // ★ face it BEFORE the swing
+    n.moving = false;
+    // he alternates fists and feet, on his OWN body -- the v0.95.907 rule, not
+    // a decal thrown at the enemy's tile
+    const kind = (n._zoBlow = ((n._zoBlow || 0) + 1) % 2) ? 'punch' : 'kick';
+    if (attachZorynCombatBank(n, kind)){
+      n._atkStart = now;
+      n._atkUntil = now + 380;
+    }
+    n._zoStrikeAt = now + ZORYN_STRIKE_MS;
+    if (target.hp == null) target.hp = target.hpMax || 125;
+    target.hp -= ZORYN_HIT_DMG;
+    try { playSFX(kind === 'kick' ? 'kick' : 'punchHit'); } catch(_){}
+    if (target.hp <= 0){
+      try { startMoriDeath(target); } catch(_){}
+      // ★ his kills pay YOU · same as your Zyrex, because this is your faction
+      // fighting.  They also charge the Voltstorm, for the same reason.
+      try { creditRizerKill(target, 'zoryn'); } catch(_){}
+      // ★★ and they are COUNTED, beside the chests · the rivalry keeps its own
+      // books long before Part 2 gives it a name ([[aov-zoryn-player-two]])
+      player.zorynKills = (player.zorynKills || 0) + 1;
+    }
+    return true;
+  }
+  // close the distance
+  if (now < (n._zoStepAt || 0)) return true;
+  n._zoStepAt = now + ZORYN_STEP_MS;
+  const first  = Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
+  const second = Math.abs(dx) >= Math.abs(dy) ? [0, Math.sign(dy)] : [Math.sign(dx), 0];
+  for (const [sx, sy] of [first, second]){
+    if (!sx && !sy) continue;
+    if (typeof stepNPCTo === 'function'
+        && stepNPCTo(n, n.tileX + sx, n.tileY + sy,
+                     Math.abs(sx) ? (sx > 0 ? 'right' : 'left') : (sy > 0 ? 'down' : 'up'))) break;
+  }
+  return true;
+}
 function tickZorynCompanion(now){
   if (game.scene !== 'overworld') return;
   const n = zorynNpc();
   if (!n || n.scene !== 'overworld' || !zorynIsCompanion()) return;
+  // ★★ v0.95.922 · a friend does not loot while you are being hit
+  if (tickZorynFight(n, now)){ n._zoRaceId = null; n._zoRaceAt = 0; return; }
   const chest = _zorynChestNear(n);
   if (!chest){ n._zoRaceId = null; n._zoRaceAt = 0; return; }
   // ★ a NEW chest starts a fresh grace window · the clock is per chest, so

@@ -18,6 +18,20 @@ alongside you. He is not an escort and not a summon: he is a second Rizer with
 his own judgement, and the design brief is *smart NPC* — a character we keep
 expanding, not a stat block that trails you.
 
+### ★★ He fights (shipped v0.95.922)
+
+He engages what threatens **Rizer** — range measured from you, not from him —
+so he defends your ground instead of picking fights across the map, and a leash
+keeps him off your flank. He alternates punch and kick on his own body at
+620ms a blow against your 165-300: help, not a replacement, because if he
+cleared rooms you would stop playing. His kills pay you exactly as a Zyrex's do
+and are counted in `player.zorynKills`, beside `zorynChestsTaken` — **the
+rivalry keeps its own books long before Part 2 gives it a name.**
+
+And he stops looting the moment a fight starts. The chest-snatching is
+needling, not greed, and a friend does not go through a box while you are being
+hit.
+
 ### ★ The chest race (shipped v0.95.906)
 
 > *"sometimes zoryn will collect chests before you on expeditions if you dont
@@ -81,7 +95,7 @@ learned the game together.
 |---|---|
 | Bond-50 companion threshold | **shipped** |
 | Chest race on expeditions | **shipped** |
-| Fights alongside you | partially — he follows and holds formation; combat AI is the next pass |
+| Fights alongside you | **shipped v0.95.922** — guards Rizer, alternates fists and feet, leashed, kills counted |
 | The Gemlord turn | **written only** |
 | Pit of No Return / Abominalys contact | **written only** |
 | The boss fight | **written only** |

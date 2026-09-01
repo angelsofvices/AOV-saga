@@ -15,7 +15,7 @@ global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
 global.performance={now:()=>Date.now()};
 global.getComputedStyle=()=>({getPropertyValue:()=>''});
 let CLK=200000; global.performance={now:()=>CLK};
-try{new Function(src+';globalThis.__C={RIZER_POWER_PUNCH,punchIsUnarmed,advancePunchCombo,punchComboStep,punchComboMult,resetPunchCombo,PUNCH_COMBO_STEPS,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_DMG,PUNCH_COMBO_NAME,RIZER,TRANSIENT_PLAYER_KEYS,player,hurtPlayer};')();}
+try{new Function(src+';globalThis.__C={kickComboStep,kickComboMult,resetKickCombo,advanceKickCombo,KICK_COMBO_DMG,KICK_COMBO_NAME,RIZER_POWER_PUNCH,punchIsUnarmed,advancePunchCombo,punchComboStep,punchComboMult,resetPunchCombo,PUNCH_COMBO_STEPS,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_DMG,PUNCH_COMBO_NAME,RIZER,TRANSIENT_PLAYER_KEYS,player,hurtPlayer};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -78,15 +78,22 @@ H('4 · ★★ THE FINISHER IS WORTH REACHING');
   ok(C.punchComboMult()===D[0],'★ the multiplier follows the step');
   CLK+=10; C.advancePunchCombo(CLK); CLK+=10; C.advancePunchCombo(CLK); CLK+=10; C.advancePunchCombo(CLK); CLK+=10; C.advancePunchCombo(CLK);
   ok(C.punchComboMult()===D[3],'★★ and on the finisher it is ×'+D[3]);
-  ok(/\(mode === 'kick'\) \? 2 : punchComboMult\(\)/.test(src2),'★★ the kick is untouched · it was never part of the chain');
+  // ★ v0.95.931 INVERTED: this asserted the kick sat OUTSIDE the chain, true
+  // for exactly two versions.  Creator: "here is new kick animation sheet.
+  // manual master. wire the combo."  The kick now has its own chain, and the
+  // punch multiplier must still not leak into it.
+  ok(/\(mode === 'kick'\) \? 2 \* kickComboMult\(\) : punchComboMult\(\)/.test(src2),
+     '★★★ the kick runs its OWN multiplier now, not the punch’s · the two never cross');
 }
 
 H('5 · ★★★ WEAPONS STILL SWING NORMALLY');
 {
   ok(/Weapon sheets do NOT\n      \/\/ carry comboSheet/.test(src2)||/carry comboSheet/.test(src2),
      '★★★ a sword swing is four frames of ONE arc · it keeps walking them');
-  for (const k of ['kick','idle','walk','run'])
+  // ★ v0.95.931 INVERTED: `kick` was on this list until it became a chain too.
+  for (const k of ['idle','walk','run'])
     ok(!C.RIZER[k].comboSheet,'★ '+k+' is not a combo sheet');
+  ok(C.RIZER.kick.comboSheet===true,'★★ but the KICK is one now · v0.95.931');
 }
 
 H('6 · ★ MID-CHAIN IS NOT A SAVE STATE');
@@ -142,6 +149,53 @@ H('9 · ★★ THE CHAIN IS UNARMED');
   P3.swordEquipped=false;
   ok(C.punchComboMult()===1.5,'★ and returns when you sheathe it');
   ok(/there was nothing on screen to earn it/.test(src2),'the reason is recorded · no sheet shows a chain with a blade in hand');
+}
+
+
+H('10 · ★★★ THE KICK CHAIN');
+{
+  const b=C.RIZER.kick;
+  ok(b.comboSheet===true,'★★ the kick sheet is a combo sheet · the draw HOLDS a column');
+  ok(b.constScale===true,'★★ and opts out of the forced idle height · the rising knee is meant to be taller');
+  ok(C.KICK_COMBO_NAME.length===4,'★ four beats: '+C.KICK_COMBO_NAME.join(' → '));
+  // RIGHT must match LEFT exactly · he mirrored it himself, I only fixed the order
+  const L=b.bboxes[1], R=b.bboxes[2];
+  ok(L.every((x,i)=>x[2]===R[i][2] && x[3]===R[i][3]),
+     '★★★ RIGHT and LEFT are the same four poses in the same ORDER · w '+L.map(x=>x[2]).join('/'));
+  ok(b.bboxes[3].every(x=>x[1]<0),
+     '★★★ UP keeps its negative by ('+b.bboxes[3].map(x=>x[1]).join('/')+') · the raised boot leaves the cell and is OWNED');
+  ok(/186 pixels inside row 2/.test(src2),
+     '★★★ and the trap is recorded · a plain rectangle swap moved the UP row’s boots with it');
+}
+
+H('11 · ★★ IT ADVANCES, RESETS, AND ESCALATES');
+{
+  C.resetKickCombo();
+  ok(C.kickComboStep()===0,'starts on the low snap');
+  CLK+=10; C.advanceKickCombo(CLK); ok(C.kickComboStep()===0,'★ press one');
+  CLK+=100; C.advanceKickCombo(CLK); ok(C.kickComboStep()===1,'★★ press two · '+C.KICK_COMBO_NAME[1]);
+  CLK+=100; C.advanceKickCombo(CLK); ok(C.kickComboStep()===2,'★★ press three · '+C.KICK_COMBO_NAME[2]);
+  CLK+=100; C.advanceKickCombo(CLK); ok(C.kickComboStep()===3,'★★★ press four · '+C.KICK_COMBO_NAME[3]);
+  ok(C.kickComboMult()===1.5,'★★ finisher ×1.5, on top of the kick’s own ×2');
+  CLK+=C.PUNCH_COMBO_WINDOW_MS+50; C.advanceKickCombo(CLK);
+  ok(C.kickComboStep()===0,'★ and a lapse starts it over');
+  ok(/2 \* kickComboMult\(\)/.test(src2),'★★★ the chain rides ON TOP of the ×2 · a kick is still the heavy attack');
+}
+
+H('12 · ★★ THE TWO CHAINS ARE INDEPENDENT');
+{
+  C.resetPunchCombo(); C.resetKickCombo();
+  CLK+=10; C.advancePunchCombo(CLK); CLK+=10; C.advancePunchCombo(CLK);
+  ok(C.punchComboStep()===1 && C.kickComboStep()===0,
+     '★★ punching does not advance the kick chain');
+  CLK+=10; C.advanceKickCombo(CLK);
+  ok(C.punchComboStep()===1,'★★ and kicking does not advance the punch chain');
+  ok(/Creator.s call to make rather than mine to assume/.test(src2),
+     '★★★ shared-vs-independent is flagged as HIS call · a shared counter is more interesting and much harder to balance');
+  ok(/no weapon in the game swaps the kick sheet/.test(src2),
+     '★★ and the kick needs no armed\/unarmed split · every weapon branch is gated on mode === punch');
+  ok(C.TRANSIENT_PLAYER_KEYS.has('_kickStep') && C.TRANSIENT_PLAYER_KEYS.has('_kickStepAt'),
+     '★ mid-chain is not a save state');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

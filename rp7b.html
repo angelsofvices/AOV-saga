@@ -2769,6 +2769,7 @@ function hurtPlayer(amt, srcName){
   player._invulnUntil     = now + 700;                   // brief i-frames
   player._lastHurtAt      = now;                         // ★ v0.95.916 · Yara's mend reads this
   try { resetPunchCombo(); } catch(_){}                  // ★ v0.95.920 · taking a hit breaks the chain
+  try { resetKickCombo(); } catch(_){}                   // ★ v0.95.931 · both chains
   if (window.__rumbleHit) window.__rumbleHit('hurt');    // v0.95.217 · haptic jolt on damage taken
   // v0.95.181 · Damage toast removed · anim + HP deduct only · HUD bar shows the loss
   if (player.hp === 0){
@@ -14385,11 +14386,26 @@ const RIZER = {
     [[108, 41,101,171],[ 44, 41,209,171],[ 92, 24,116,188],[ 36, 42,220,175]],
     [[106, 13,116,179],[ 95, 13,124,179],[ 89,-11, 97,203],[ 49, 10,182,181]],
   ], key: 'punch', loaded: false },
-  kick: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: [
-    [[154,107,100,196],[112,107, 99,196],[69,108,101,199],[49,107,100,196]],
-    [[155, 77, 91,176],[115, 78, 94,175],[30, 78,150,175],[51, 77, 90,176]],
-    [[157, 38, 89,275],[114, 37, 94,276],[79, 38,145,275],[53, 38, 89,275]],
-    [[150,  0,100,172],[112,  0, 97,172],[82,  0, 99,172],[47,  0, 99,172]],
+  // ★★★ v0.95.931 · THE KICK COMBO · Creator's own hand-built master sheet.
+  // Four kicks per row, same chain shape as the punch.  Two things measured off
+  // it that are worth keeping:
+  //   · RIGHT is an EXACT 100% mirror of LEFT -- he fixed the facing himself --
+  //     but its beats 2 and 3 arrived transposed, so facing right would have
+  //     played the chain in a different order than facing left.  Swapped, by
+  //     COMPONENT OWNERSHIP: 186 pixels inside row 2's rectangle belong to the
+  //     UP row's overflow boots, and a plain rectangle swap scrambled them (it
+  //     did, on the first attempt -- UP lost its negative by).
+  //   · UP keeps by = -5/-6 because the raised boot leaves the cell top.  Owned
+  //     overflow, the same as every other sheet in this file.
+  // Side views carry the silhouette read (186/255/141/152); front and back are
+  // necessarily narrower and differ by pose height instead, which is inherent
+  // to kicking at the camera rather than a defect.
+  kick: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
+          comboSheet: true, constScale: true, bboxes: [
+    [[103, 84,141,224],[ 95, 88,141,224],[ 85, 80,137,228],[ 74, 74,133,234]],
+    [[ 72, 78,186,214],[ 18, 75,255,217],[ 77, 69,141,223],[ 58, 69,152,223]],
+    [[ 76, 41,186,214],[ 42, 40,255,217],[ 97, 34,141,223],[ 76, 38,152,223]],
+    [[115, -6,133,212],[123, -6,132,210],[ 85, -5,160,207],[ 45, -6,132,212]],
   ], key: 'kick', loaded: false },
   // v0.95.70 · Jump sheets · rows 1<->2 SWAPPED IN-FILE so LEFT/RIGHT face
   // correctly.  Bank rows below match new file order (down/left/right/up).
@@ -25468,6 +25484,7 @@ addEventListener('keydown', e => {
         const lock = Math.max(MELEE_LOCK_FLOOR_MS, Math.round(dur * rizerMeleeRecovery()));
         // ★ v0.95.920 · a punch advances the chain · a kick is not part of it
         if (mode === 'punch' && punchIsUnarmed()) advancePunchCombo(performance.now());
+        if (mode === 'kick') advanceKickCombo(performance.now());   // ★ v0.95.931
         player.attackMode  = mode;
         player.attackStart = performance.now();
         player.attackDuration = dur;
@@ -25709,7 +25726,7 @@ addEventListener('keydown', e => {
             // v0.95.516 · SAPPHIRE TEARSWORD swap · S1 punch with sword equipped =
             // same damage as S2 punch (baseAtk × 1 × S2 multiplier)
             // ★ v0.95.920 · the punch chain escalates · kick is untouched
-            const dmgMult = (mode === 'kick') ? 2 : punchComboMult();
+            const dmgMult = (mode === 'kick') ? 2 * kickComboMult() : punchComboMult();
             const _swordSwing = mode === 'punch' && player.swordEquipped && !player.swordBroken
                              && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
             // v0.95.568 · Rubypaw swing gate · S2 punch with rubypaw equipped
@@ -28013,7 +28030,9 @@ function drawPlayer(){
               : player.attackMode === 'astralslam'   ? ASTRAL_SLAM.DUR_MS
               : player.attackMode === 'astralthrow'  ? ASTRAL_THROW.DUR_MS
               : 300;
-    if (bundle.comboSheet && player.attackMode === 'punch'){
+    if (bundle.comboSheet && player.attackMode === 'kick'){
+      col = kickComboStep();
+    } else if (bundle.comboSheet && player.attackMode === 'punch'){
       // ★★★ v0.95.920 · HOLD the blow, do not walk the row.  Each column is a
       // whole strike, so advancing through them inside one press would throw
       // the entire combo every time you tapped Square.  Weapon sheets do NOT
@@ -35923,6 +35942,7 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   '_blockStunUntil','_blockHitFlashUntil',   // ★ v0.95.918 · _voltstormCdUntil retired · the A5 counts KILLS now
   '_bufMelee','_bufMeleeAt',   // ★ v0.95.917 · a buffered press must not survive a reload
   '_punchStep','_punchStepAt', // ★ v0.95.920 · mid-chain is not a save state
+  '_kickStep','_kickStepAt',   // ★ v0.95.931
   '_zoRestAcc',                // ★ v0.95.923 · zorynHp/zorynDown DO persist · this counter does not
   'dodgeDir','dodgeStart','dodgeUntil','dodgeFromX','dodgeFromY','dodgeToX','dodgeToY',
   'jumpSheet','jumpStart','jumpUntil','interactStart','interactUntil',
@@ -48364,6 +48384,25 @@ const PUNCH_COMBO_NAME = ['lead jab', 'rear cross', 'rising elbow', 'spinning ba
 // The axe and Rubypaw override outDmg outright and were never affected; the
 // sword was, and that asymmetry is the tell that this belongs on the unarmed
 // fist alone.  Weapons keep the flat numbers they were tuned with.
+// ★★★ v0.95.931 · THE KICK CHAIN.  Same shape as the punch, and SIMPLER:
+// no weapon in the game swaps the kick sheet (every weapon branch is gated on
+// `mode === 'punch'`), so a kick is always unarmed and needs no armed/unarmed
+// split.  Kept on its OWN step counter rather than shared with the punch --
+// a shared counter would mean jab → roundhouse → elbow → heel as one flowing
+// combo, which is more interesting and much harder to balance, and is the
+// Creator's call to make rather than mine to assume.
+const KICK_COMBO_DMG  = [0.85, 1.00, 1.15, 1.50];   // ON TOP of the kick's own x2
+const KICK_COMBO_NAME = ['low snap', 'mid roundhouse', 'rising knee', 'spinning heel'];
+function kickComboStep(){ return player._kickStep || 0; }
+function kickComboMult(){ return KICK_COMBO_DMG[kickComboStep()] || 1; }
+function resetKickCombo(){ player._kickStep = 0; player._kickStepAt = 0; }
+function advanceKickCombo(now){
+  const last = player._kickStepAt || 0;
+  if (!last || (now - last) > PUNCH_COMBO_WINDOW_MS) player._kickStep = 0;
+  else player._kickStep = ((player._kickStep || 0) + 1) % PUNCH_COMBO_STEPS;
+  player._kickStepAt = now;
+  return player._kickStep;
+}
 function punchIsUnarmed(){
   const s2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';
   if ( s2 && player.rubypawEquipped && !player.rubypawBroken) return false;

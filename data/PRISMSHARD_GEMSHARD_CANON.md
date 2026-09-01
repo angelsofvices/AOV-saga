@@ -100,37 +100,86 @@ has to write down or police. The hierarchy defends itself.
 | Astralite → **Gem** | §15: *"Astralite Gem — concentrated crystalline manifestation of Astralite energy"* |
 | Gem → **Gemshard** | §6: *"GEMSHARD = PURITY / SPECIALIZATION"* · Rule 10: one Astralite at extreme concentration. A Gemshard is a gem taken to purity |
 | Gemshard → **Prismshard** | §1's binding · §2: *"A Gemshard specializes. A Prismshard harmonizes"* |
-| Source → **Prismshard** | **new** — see below |
+| Source → **Prismshard** | **RULED 2026-09-01** · physical Source = the Aethryx Expanse · Source Prime = the Highest One |
 
-### ★★★ SOURCE · what needs a ruling
+### ★★★ SOURCE · RULED, 2026-09-01
 
-"Source" is a **new term** in this canon, and two things need settling before it
-is written into anything.
+> **Creator:** *"physical source is The Aethryx Expanse and source prime is the highest one"*
 
-**1 · Is Source a new name for something already named?** Candidates:
+**Source is two tiers, and they were both already named in this cosmology.**
 
-- **AETHRYX** — *"not one of the sixty-three. It is the REASON there are
-  sixty-three"* · *"the condition under which a signature is possible at all."*
-- **The Highest One / Anciuxor** — §12: *"Anciuxor is the manifestation of the
-  Highest One."*
-- **A fourth thing**, above or behind both.
+```
+        SOURCE PRIME   ·  THE HIGHEST ONE
+             ↓ manifests as
+          ANCIUXOR     ·  §12, already canon · "associated with the Gate
+             ↓            between the cosmic realms"
+     PHYSICAL SOURCE   ·  THE AETHRYX EXPANSE
+             ↓ makes
+        PRISMSHARD  →  GEMSHARD  →  GEM  →  ASTRALITE
+```
 
-**2 · ★ It sits beside an origin story this document already tells.** §16e says
-the Prisms *"condensed out of residue — traces of Immortal crossings pooling over
-eons until they became stable relics."*
+**PHYSICAL SOURCE — the Aethryx Expanse.** Prismshards come from the Expanse
+itself. Not from a being inside it, and not from a place within it: from the
+medium.
 
-> **[INFER, offered not asserted] The two are compatible if the residue story is
-> HOW and Source is WHAT the residue is residue OF.** Immortals crossing leave
-> traces; what they are traces *of* is Source. Then nothing is overwritten — the
-> condensation mechanism stays exactly as written and gains an origin behind it.
+**SOURCE PRIME — the Highest One.** What the Expanse is downstream of. §12
+already supplies the link between them without needing a word changed:
+*"Anciuxor is the manifestation of the Highest One."*
 
-★★ **If Source is Aethryx, it also settles an open question in the colour
-canon.** `GEM_COLOR_PSYCHOLOGY_CANON.md` §10.1 flags that a white gem —
-*"a trace of Aethryx"* — would be the first relic material descending from **no**
-Prismshard, an exception to Rule 13. Under this ladder that stops being an
-anomaly: **white gems and Prismshards would come from the same place, at
-different scales.** Rule 13 keeps one honest exception with a reason behind it
-rather than a hole.
+### ★★ 1 · This RECONCILES §16e rather than replacing it
+
+§16e says the Prisms *"condensed out of residue — traces of Immortal crossings
+pooling over eons until they became stable relics."*
+
+> **The Expanse is the medium the residue pooled IN.** "The Prisms came from the
+> Expanse" and "the Prisms condensed out of residue" are the same sentence at two
+> zoom levels — WHERE and HOW. The condensation mechanism stands exactly as
+> written and now has a place it happened.
+
+Nothing is overwritten. That was the thing worth checking before locking this.
+
+### ★★ 2 · It closes the colour canon's white-gem question, with a name
+
+`GEM_COLOR_PSYCHOLOGY_CANON.md` §10.1 flagged that a white gem — *"a trace of
+Aethryx"* — would be the first relic material descending from **no** Prismshard,
+an exception to Rule 13 with no reason behind it.
+
+> **Now it has one. White gems and Prismshards are SIBLINGS: both come directly
+> from physical Source.** Rule 13's descent still governs everything below the
+> Prismshards; white simply enters one rung higher, from the same place they did.
+
+### ★ 3 · The Key of Anciuxor · a shape becomes available — and §5 STAYS SHUT
+
+§12 already reads: Highest One → **Anciuxor** → *"the Gate between the cosmic
+realms"* → and Prismshard XVI is the **Key** to it. With Source Prime named,
+that chain is no longer three unrelated nouns: **the Key of Anciuxor is the key
+to Source Prime's gate**, which is why §12 insists its importance is
+*cosmological* rather than a power rating.
+
+★★★ **This does NOT answer §5.** §5 reserves *why* the Key alone produces a
+sixth Gemshard, and lists among its explicitly **not-canon** possibilities *"the
+Higher/Highest structure of existence."* **This ruling NAMES that structure. It
+does not select it.** Naming a candidate and choosing it are different acts, and
+§5's revelation is the Creator's to spend. Recorded here only so that when he
+does spend it, the shape is already standing.
+
+### ★ 4 · The one thing still open
+
+**[ASK] Is AETHRYX the Expanse, or the condition the Expanse embodies?** The
+scrolls say AETHRYX *"is not a being with a signature — it is the condition under
+which a signature is possible at all,"* and *"not one of the sixty-three; it is
+the REASON there are sixty-three."* The Expanse carries its name.
+
+Two readings, both coherent:
+- **(a) Same thing.** AETHRYX *is* the Expanse — the condition, seen as the place
+  it makes possible. Then "physical Source" and "AETHRYX" are one entry.
+- **(b) Condition and container.** AETHRYX is the property; the Expanse is the
+  extent it holds over. Then physical Source is the Expanse *because* Aethryx
+  conditions it.
+
+It changes nothing mechanical either way, which is why it can wait — but it
+decides whether a scroll should say "Aethryx made this" or "this happened in
+Aethryx."
 
 ---
 

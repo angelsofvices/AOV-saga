@@ -22,7 +22,10 @@ Zurelea's Ruby Vial costs "300 gems" and a sword repair "100 gems" — meaning *
 
 > **This is the single largest obstacle in the handoff, and it is not mentioned in it.** The badge system's whole thesis is that colour means something. The moment badges spend colour-specific gems, `spendGems()` becomes a system that eats the material the badges need — a player who repairs a sword can silently lose the purple gem they were saving, because purple is worth 140 and the algorithm is looking for change.
 
-Resolution is required before anything else. Options in §13.
+Resolution is required before anything else — and §13 now recommends the
+strongest one: **retire the price entirely.** The gem economy turns out to be two
+mechanics totalling about ten drops, so the collision is cheap to remove at the
+root rather than worked around.
 
 ### 0b · Astralites already buy permanent stats **[BUILD]**
 
@@ -409,19 +412,99 @@ A player who cannot hit tight windows takes the HOLD side of every badge and get
 
 ---
 
-## 13 · ECONOMY **[BUILD] + [ASK]**
+## 13 · ECONOMY · ★★★ RETIRE THE PRICE, KEEP THE LADDER **[NEW]**
 
-No rebalancing proposed. But §0a must be resolved first:
+**Creator, 2026-09-01:** *"should we no longer associate gem color to an economic value?"*
 
-**[ASK] Three ways out, in my order of preference:**
+**Recommendation: yes.** I had ranked "split the pool" first; measuring the actual
+economy changed my own advice, and leaving the old ranking here would be worse
+than replacing it.
 
-1. **★ Split the pool.** `countGems()`/`spendGems()` keep serving *shops* (they are a wallet). Badges spend from a **separate, colour-explicit path** that never routes through `spendGems`. Cheapest, no economy change, and it makes "gems are money" and "gems are material" two honest states of the same object.
-2. **Reserve.** A gem marked as badge material is excluded from `spendGems`. More UI, more player bookkeeping.
-3. **Re-price by colour meaning** rather than rarity (`GEM_COLOR_PSYCHOLOGY_CANON.md` §9b showed a re-order is *free* — expected drop value stays 39.37 either way). Cleanest long-term, needs a save migration.
+### The gem economy is two mechanics **[BUILD]**
 
-★ **Crafting (§10) changes the arithmetic anyway.** Once Astralites can become gems, the drop weights stop being the only supply and white/purple/black stop being lottery items. **Any costing done before the crafting ruling would be costing the wrong economy.**
+`spendGems()` is called from exactly two places in the whole game:
 
----
+| sink | cost | in average drops | frequency |
+|---|---:|---:|---|
+| Zurelea's Ruby Vial | 300 | 7.6 | **once**, one quest |
+| Gemlord weapon repair | 100 | 2.5 | 4 call sites, **one** mechanic |
+
+**About ten drops' worth of gem spend exists in the entire game.** Coins price
+everything else — homes 500–5000, the potion shop, ale, Scrapjaw.
+
+### And the ladder is carrying almost no weight
+
+Expected value per chest drop is 39.37. Where it comes from:
+
+| gem | share of all gem income |
+|---|---:|
+| red | 25.5% |
+| blue | 25.5% |
+| green | 19.1% |
+| yellow | 12.7% |
+| white | 8.0% |
+| orange | 4.8% |
+| purple | 2.8% |
+| **black** | **1.6%** |
+
+**Red and blue alone are 51% of it. The rarest gem in the game is
+economically invisible** — you could delete black's price and nobody would
+notice. The price ladder is doing real work for exactly the three commonest
+colours, to buy two things.
+
+### ★★ The canon reason, which is the stronger one
+
+> *"To have a colour is to have a leaning."*
+
+**A denomination is the opposite of a leaning.** Money is by definition the thing
+with no identity — it is fungible, interchangeable, and worth exactly what it is
+worth to anyone. That is precisely what a gem is not. Making gems currency was
+backwards from the start, and `spendGems()` eating badge material (§0a) is not an
+implementation collision — it is the design telling us so.
+
+### What goes, what stays
+
+| | |
+|---|---|
+| **RETIRE** | `GEM_VALUES` as a price · `countGems()` as a wallet total · `spendGems()`'s cheapest-first pay-down |
+| **KEEP** | the **rarity ladder** — black really is rarer than red, that is true information and badge costs will want tiers |
+| **KEEP** | coins, unchanged. They were always the currency |
+
+### Re-denominate the two sinks — and both get *better* **[NEW]**
+
+★ Neither should become "the same thing, in coins." Both are more interesting
+priced in colour:
+
+- **Gemlord weapon repair → the weapon's own colour.** The Sapphire Tearsword is
+  repaired with **blue** gems, the Rubypaw with **red**, the Emerald Axe with
+  **green**, the Pearlbow with **white**. The weapons are Gemshards **[CANON]**;
+  mending one with the principle it expresses is the system teaching itself, and
+  it costs one table.
+- **Zurelea's Ruby Vial → green.** She is the potion maker and the vial opens the
+  potion shop; green is growth and restoration. "Bring me green" reads as a
+  request from a person. "Bring me 300 points of gem" does not.
+
+### The one real cost, stated plainly
+
+**Gems currently give a treasure hit on pickup because they are worth a lot.**
+Strip the price before badges exist and, for the length of the first district,
+they are shiny objects that do nothing.
+
+Mitigations, in order of preference: unlock the **Red badge in Malezor** so the
+gap is a few minutes **[INFER, matches the Malezor foundation rule — CANON]**;
+and let **crafting (§10) accept gems as input immediately**, so they have a use
+before any badge is earned.
+
+### Save implications **[BUILD]**
+
+`player.items.gem_*` counts are unchanged — this retires an *interpretation*, not
+a field. Existing saves keep every gem they hold. Only `countGems`/`spendGems`
+and the HUD pill's readout change.
+
+**[ASK]** The gem HUD pill currently shows the weighted total (7,800 in a recent
+screenshot). With the price gone it should show a **count**, or the three
+highest-tier colours held, or nothing at all until a badge is equipped. My
+preference is a plain count — it stops implying a bank balance.
 
 ## 14 · MINIMUM VIABLE VERSION **[NEW]**
 
@@ -446,7 +529,7 @@ No rebalancing proposed. But §0a must be resolved first:
 
 | # | risk | severity |
 |---|---|---|
-| 1 | **`spendGems` eats badge material** (§0a) | ★★★ blocking |
+| 1 | **`spendGems` eats badge material** (§0a) | ★★★ blocking — §13 resolves it by retiring the price |
 | 2 | **Badges duplicating AP/compounds** if any grants a stat | ★★★ fatal to the thesis |
 | 3 | Mandatory Boundary slot gated behind a 0.39% drop (§0c) | ★★ |
 | 4 | A fourth progress bar the player must watch | ★★ — mitigated by §3 (mastery = the combat meter) |

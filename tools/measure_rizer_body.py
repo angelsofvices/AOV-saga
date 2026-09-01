@@ -1,64 +1,63 @@
-"""Measure Rizer's TRUE body height per direction, for the bodyBh tables.
+"""Measure Rizer's head-to-feet ink per direction, for the bodyBh tables.
 
-Creator, 2026-09-01: *"rizer is shorter in idle up left and right. idle down is
-correct height. can we fix the others to match?"*
+Creator, 2026-09-01: *"rizer is shorter in idle up left and right"*, then after
+seeing the first attempt: *"the afters are all way too big... his idle before
+size is perfect."*
 
-★ THE DISTINCTION THIS TOOL EXISTS TO MAKE.  A declared bbox is what gets
-CROPPED; the true body is what the player SEES.  They are not the same number,
-and on the idle sheet's UP row they differ by 33px — the box reserves 30px above
-his head for hair the source does not contain.  Dividing by the box therefore
-shrank exactly the rows whose box was most overstated.
+★★★ MEASURE ACROSS THE DECLARED BOX, NOT INSIDE THE CELL.
+The first version of this tool clipped to the 313px cell and got UP wrong on two
+sheets.  The UP box carries a NEGATIVE `by` -- idle -30, walk -23 -- because the
+artist drew his hair past the top of the cell and the box reaches up into the
+row above to recover it.  Clipping threw that hair away: idle-UP measured 144
+against a real 166, and a scale built on 144 drew him 15% too tall.
 
-Body height = the largest connected component in the cell, so a stray keyed
-speck or a neighbouring cell's overflow cannot inflate it.  Column 0 is the row
-reference, matching the engine's own convention — which keeps the run bounce
-(RUN varies 12-15px within a row on purpose; IDLE and WALK vary 0-2).
+So the window is the DECLARED BOX in absolute sheet coordinates, clamped only to
+the image itself.  Within that window every opaque pixel is his -- the box was
+authored to contain exactly one character.
 
-    python3 tools/measure_rizer_body.py [sheet.png ...]
+★ Why not connected components any more.  Ownership is the right tool when a
+cell holds a character plus a neighbour's overflow; it is the WRONG tool here,
+because his hair can legitimately be a separate island from his body (it is, in
+several UP frames), and "largest component" would then measure the body alone.
+The declared box already solves the neighbour problem by being hand-drawn around
+one character, so the simpler measurement is also the safer one.
+
+    python3 tools/measure_rizer_body.py [sheet ...]
 """
-import os, sys
+import os, re, sys
 import numpy as np
 from PIL import Image
-from collections import deque
 
 CELL = 313
 DIRS = ['DOWN', 'LEFT', 'RIGHT', 'UP']
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT = [os.path.join(ROOT, 'assets/2D sprites/rizer', f)
-           for f in ('idle.png', 'walk.png', 'run.png')]
+SHEETS = sys.argv[1:] or ['idle', 'walk', 'run']
+
+src = open(os.path.join(ROOT, 'rp7b.html'), encoding='utf-8').read()
+i = src.index('const BBOX_FALLBACK'); blk = src[i:src.index('\n};', i)]
 
 
-def own_component(op, r, c):
-    y0, x0 = r * CELL, c * CELL
-    sub = op[y0:y0 + CELL, x0:x0 + CELL]
-    if not sub.any():
-        return None
-    lab = np.zeros(sub.shape, np.int32); best = None; n = 0
-    for sy in range(CELL):
-        for sx in np.where(sub[sy] & (lab[sy] == 0))[0]:
-            n += 1; lab[sy, sx] = n; dq = deque([(sy, sx)]); ys = []
-            while dq:
-                y, x = dq.popleft(); ys.append(y)
-                for dy in (-1, 0, 1):
-                    for dx in (-1, 0, 1):
-                        ny, nx = y + dy, x + dx
-                        if 0 <= ny < CELL and 0 <= nx < CELL and sub[ny, nx] and not lab[ny, nx]:
-                            lab[ny, nx] = n; dq.append((ny, nx))
-            if best is None or len(ys) > best[0]:
-                best = (len(ys), min(ys), max(ys))
-    return best
+def declared(name):
+    m = re.search(name + r':\s*\[(.*?)\n  \]', blk, re.S)
+    return [[[int(v) for v in c.split(',')] for c in re.findall(r'\[([^\]]*)\]', r)]
+            for r in re.findall(r'\[((?:\s*\[[^\]]*\],?)+)\s*\]', m.group(1))]
 
 
-for path in (sys.argv[1:] or DEFAULT):
-    a = np.array(Image.open(path).convert('RGBA'))
+for name in SHEETS:
+    D = declared(name)
+    a = np.array(Image.open(os.path.join(ROOT, 'assets/2D sprites/rizer', name + '.png'))
+                 .convert('RGBA'))
     op = a[..., 3] > 20
-    print(f'\n  {os.path.basename(path)}')
-    table = []
+    H, W = op.shape
+    table, notes = [], []
+    print(f'\n  {name}.png')
     for r in range(4):
-        hs = []
-        for c in range(4):
-            b = own_component(op, r, c)
-            hs.append(b[2] - b[1] + 1 if b else 0)
-        table.append(hs[0])
-        print(f'    {DIRS[r]:6s} col-0 {hs[0]:3d}   row {hs}   spread {max(hs)-min(hs)}')
+        bx, by, bw, bh = D[r][0]
+        y0, y1 = max(0, r * CELL + by), min(H, r * CELL + by + bh)
+        x0, x1 = max(0, bx), min(W, bx + bw)
+        ys, _ = np.where(op[y0:y1, x0:x1])
+        body = int(ys.max() - ys.min() + 1) if len(ys) else 0
+        table.append(body)
+        over = ' ← box reaches OUTSIDE the cell' if by < 0 or by + bh > CELL else ''
+        print(f'    {DIRS[r]:6s} box by={by:<5d} bh={bh:<4d}  head-to-feet {body:3d}{over}')
     print(f'    bodyBh: {table}')

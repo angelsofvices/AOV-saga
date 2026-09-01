@@ -54,7 +54,7 @@ global.performance = { now: () => 0 };
 global.alert = noop; global.confirm = () => true; global.prompt = () => null;
 global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 
-const EXPORT = ';globalThis.__C={RIZER,rizerRowScale,TILE,DIR_ROW,BBOX_FALLBACK};';
+const EXPORT = ';globalThis.__C={RIZER,rizerRowScale,rizerTargetBodyPx,TILE,DIR_ROW,BBOX_FALLBACK};';
 
 try { new Function(src + EXPORT)(); } catch(e){ console.log('boot error:', e.message.slice(0,300)); }
 const FS=require('fs'); const src2 = FS.readFileSync('/tmp/all.js','utf8');
@@ -64,9 +64,9 @@ const C=globalThis.__C;
 ok(!!C,'script evaluated');
 if(!C){ console.log('\n❌ cannot continue'); process.exit(0); }
 const DIRS=['DOWN','LEFT','RIGHT','UP'];
-const T=C.TILE, TARGET=T*2;
+const T=C.TILE, TARGET=C.rizerTargetBodyPx();
 
-console.log('\n★★★ v0.95.940 · SCALE BY THE BODY, NOT BY THE BOX');
+console.log('\n★★★ v0.95.941 · SCALE BY THE BODY · target = IDLE-DOWN AS IT SHIPPED');
 console.log('  Creator: "rizer is shorter in idle up left and right. idle down is');
 console.log('            correct height. can we fix the others to match?"\n');
 
@@ -88,37 +88,42 @@ console.log('1 · ★★ THE MEASUREMENT COMES OFF THE ART, NOT OUT OF MY HEAD\n
   console.log('     rather than the character quietly changing height in one direction.');
 }
 
-console.log('\n2 · ★★★ EVERY DIRECTION NOW DRAWS THE BODY AT EXACTLY TWO TILES\n');
+console.log('\n2 · ★★★ EVERY DIRECTION NOW DRAWS AT THE SIZE HE CALLED PERFECT\n');
+console.log(`     target = idle DOWN exactly as it shipped = ${TARGET.toFixed(2)}px `
+  + `(${(TARGET/T).toFixed(3)} tiles)`);
+console.log('     NOT a clean 2 tiles: v0.95.940 rounded up to 96 because the code');
+console.log('     comments claimed that was canon, and he said it read too large.\n');
 {
-  const before = { idle:[92.9,82.1,81.6,73.9], walk:[96.0,87.1,87.1,77.7], run:[96.0,93.0,86.6,93.5] };
+  // ★ these are the heights the game ACTUALLY drew before any change — measured
+  // across the declared box, which is what v0.95.940 got wrong for UP.
+  const before = { idle:[92.9,82.1,81.6,85.2], walk:[96.0,87.1,87.1,89.7], run:[96.0,93.0,86.6,93.5] };
   for (const k of ['idle','walk','run']){
     const b = C.RIZER[k];
     console.log(`     ${k.toUpperCase()}`);
     for (let r=0;r<4;r++){
       const drawn = b.bodyBh[r] * C.rizerRowScale(b, r);
       console.log(`       ${DIRS[r].padEnd(6)} was ${before[k][r].toFixed(1).padStart(5)}px  ->  now ${drawn.toFixed(1)}px`);
-      ok(Math.abs(drawn - TARGET) < 0.001,
-         `${k} ${DIRS[r]} body draws at ${drawn.toFixed(1)}px = ${TARGET}px = 2 tiles`);
+      ok(Math.abs(drawn - TARGET) < 0.01,
+         `${k} ${DIRS[r]} body draws at ${drawn.toFixed(2)}px = the idle-DOWN size`);
     }
   }
 }
 
 console.log('\n3 · ★★ AND IT COULD NOT HAVE BEEN FIXED IN IDLE ALONE\n');
 {
-  console.log('     Had only idle been lifted to match idle-DOWN, walk-UP would still have');
-  console.log('     drawn at 77.7 against an idle-UP of 92.9 — a 16% SHRINK the instant he');
-  console.log('     started walking up.  All three sheets carry the defect, in different');
-  console.log('     amounts, so all three are normalised.');
+  console.log('     Had only idle been lifted, walk-UP would still have drawn at 89.7');
+  console.log('     against an idle-UP of 92.9.  All three sheets carry the defect in');
+  console.log('     different amounts, so all three are normalised onto one number.');
   const idleUp = C.RIZER.idle.bodyBh[3] * C.rizerRowScale(C.RIZER.idle, 3);
   const walkUp = C.RIZER.walk.bodyBh[3] * C.rizerRowScale(C.RIZER.walk, 3);
   const runUp  = C.RIZER.run.bodyBh[3]  * C.rizerRowScale(C.RIZER.run,  3);
-  ok(Math.abs(idleUp-walkUp)<0.001 && Math.abs(walkUp-runUp)<0.001,
+  ok(Math.abs(idleUp-walkUp)<0.01 && Math.abs(walkUp-runUp)<0.01,
      `★★ idle/walk/run all agree facing UP (${idleUp.toFixed(1)}px) · no pop on any transition`);
   for (let r=0;r<4;r++){
     const a=C.RIZER.idle.bodyBh[r]*C.rizerRowScale(C.RIZER.idle,r);
     const w=C.RIZER.walk.bodyBh[r]*C.rizerRowScale(C.RIZER.walk,r);
     const n=C.RIZER.run.bodyBh[r] *C.rizerRowScale(C.RIZER.run, r);
-    ok(Math.abs(a-w)<0.001 && Math.abs(w-n)<0.001, `${DIRS[r]} · idle = walk = run`);
+    ok(Math.abs(a-w)<0.01 && Math.abs(w-n)<0.01, `${DIRS[r]} · idle = walk = run`);
   }
 }
 

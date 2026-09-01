@@ -26514,7 +26514,21 @@ function tryMove(dt){
   // The grace is short enough to be invisible when you meant to walk (you are
   // still holding the key, so the next tick steps) and long enough to be
   // reliable when you meant to look.
-  if (dir !== player.dir && !player.moving && game.turnInPlace !== false){
+  // ★★★ v0.95.932 · A TURN MUST NOT BREAK A STRIDE.  Creator: "if im running
+  // and I turn, I dont want it to break my stride. dont make me walk."
+  //
+  // `!player.moving` was the wrong guard and it was MY bug.  moving goes false
+  // the instant no direction is held -- and rolling a stick from one direction
+  // to another passes through centre, so there is a frame or two mid-run where
+  // nothing is pressed.  The turn-grace fired in that gap, dropped him to a
+  // standstill and cost him the sprint: exactly the sluggishness the
+  // standstill-only rule was written to prevent, arriving through the back door.
+  //
+  // The honest test is not "is he moving THIS FRAME" but "has he been still
+  // long enough to have meant it".  A deliberate turn follows a pause; a
+  // running turn never does.
+  const _sinceStep = performance.now() - (player._lastStepAt || 0);
+  if (dir !== player.dir && _sinceStep > TURN_FROM_REST_MS && game.turnInPlace !== false){
     player.dir = dir;
     player.animFrame = 0;
     player.moveCd = TURN_IN_PLACE_MS;
@@ -26610,6 +26624,7 @@ function tryMove(dt){
   // v0.95.93 · Walking cancels any guitar song + upcoming play animation
   if (_currentSongAudio) stopCurrentSong();
   player.moving = true;
+  player._lastStepAt = performance.now();   // ★ v0.95.932 · the turn guard reads this
   // Fix frame-skip · on transition from idle to moving, start walk cycle
   // at frame 0 (not frame 1) so the sheet reads 0→1→2→3→0 cleanly.
   player.animFrame = wasMoving ? (player.animFrame + 1) % 4 : 0;
@@ -35941,6 +35956,7 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   '_lastHurtAt','_invulnUntil','_hurtFlashUntil','_hurtShakeUntil','_hurtSpriteUntil',
   '_blockStunUntil','_blockHitFlashUntil',   // ★ v0.95.918 · _voltstormCdUntil retired · the A5 counts KILLS now
   '_bufMelee','_bufMeleeAt',   // ★ v0.95.917 · a buffered press must not survive a reload
+  '_lastStepAt',               // ★ v0.95.932 · a performance.now() stamp
   '_punchStep','_punchStepAt', // ★ v0.95.920 · mid-chain is not a save state
   '_kickStep','_kickStepAt',   // ★ v0.95.931
   '_zoRestAcc',                // ★ v0.95.923 · zorynHp/zorynDown DO persist · this counter does not
@@ -48353,6 +48369,10 @@ const MELEE_RECOVERY_MIN = 0.55;
 const MELEE_LOCK_FLOOR_MS = 120;   // absolute floor · no machine-gunning, ever
 // ★★ v0.95.917 · QOL · see tryMove (turn) and the melee keydown (buffer).
 const TURN_IN_PLACE_MS = 110;   // tap-to-face grace · only from a standstill
+// ★★ v0.95.932 · how long he must have been STOPPED before a direction change
+// counts as "looking" rather than "cornering".  Comfortably longer than the gap
+// a stick makes crossing centre, comfortably shorter than a deliberate pause.
+const TURN_FROM_REST_MS = 260;
 const INPUT_BUFFER_MS  = 150;   // a press this close to the lock clearing still counts
 // ★★★ v0.95.920 · THE S1 PUNCH IS A CHAIN, NOT A JAB.
 // Creator: "new s1 punch combo: Tight lead jab / Rotated rear cross with cape

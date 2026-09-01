@@ -17,7 +17,7 @@ global.getComputedStyle=()=>({getPropertyValue:()=>''});
 let CLK=50000; global.performance={now:()=>CLK};
 global.KeyboardEvent=function(t,o){this.type=t;this.key=(o&&o.key)||'';this.preventDefault=noop;this.stopImmediatePropagation=noop;};
 let _dispatched=[];
-try{new Function(src+';globalThis.__C={tryMove,flushMeleeBuffer,NPCS,_swapWithOwnFollower,_isOwnFollower,TURN_IN_PLACE_MS,INPUT_BUFFER_MS,TRANSIENT_PLAYER_KEYS,player,game,keys,RIZER,BBOX_FALLBACK,walkable};')();}
+try{new Function(src+';globalThis.__C={TURN_FROM_REST_MS,tryMove,flushMeleeBuffer,NPCS,_swapWithOwnFollower,_isOwnFollower,TURN_IN_PLACE_MS,INPUT_BUFFER_MS,TRANSIENT_PLAYER_KEYS,player,game,keys,RIZER,BBOX_FALLBACK,walkable};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -46,32 +46,41 @@ H('1 · ★★★ THE RUN SHEET WAS A PSD');
      '★★ re-measured off the layered file · DOWN col1 gained 3px of hair the flat export had lost');
 }
 
-H('2 · ★★★ TURN IN PLACE');
+H('2 · ★★★ TURN IN PLACE · from REST only');
 {
-  ok(C.TURN_IN_PLACE_MS>0 && C.TURN_IN_PLACE_MS<200,'grace is '+C.TURN_IN_PLACE_MS+'ms · short enough to be invisible when you meant to walk');
+  ok(C.TURN_IN_PLACE_MS>0 && C.TURN_IN_PLACE_MS<200,'grace is '+C.TURN_IN_PLACE_MS+'ms');
+  ok(C.TURN_FROM_REST_MS>200,'★★ and he must have been still '+C.TURN_FROM_REST_MS+'ms first');
   C.game.scene='overworld'; P.moveCd=0; P.moving=false; P.dir='down';
+  P._lastStepAt = CLK - 5000;              // long since stopped
   const x0=P.x, y0=P.y;
   clearKeys(); K['arrowup']=true;
   C.tryMove(16);
-  ok(P.dir==='up','★★★ tapping a direction you are not facing TURNS you');
+  ok(P.dir==='up','★★★ tapping a new direction from rest TURNS him');
   ok(P.x===x0 && P.y===y0,'★★★ and does NOT step · you can face a chest without walking into it');
-  ok(P.moveCd>0,'★ a short grace follows · keep holding and the next tick walks');
-  // holding through the grace steps normally
-  P.moveCd=0;
-  C.tryMove(16);
-  ok(P.y===y0-1 || P.x!==x0 || P.moving,'★★ held past the grace · he steps');
+  P.moveCd=0; C.tryMove(16);
+  ok(P.x!==x0 || P.y!==y0 || P.moving,'★★ held past the grace · he steps');
 }
 
-H('3 · ★★ CORNERING AT SPEED IS UNTOUCHED');
+H('3 · ★★★ A TURN MUST NOT BREAK A STRIDE');
 {
-  P.moveCd=0; P.dir='down'; P.moving=true;      // already running
+  ok(/A TURN MUST NOT BREAK A STRIDE/.test(src2),'the Creator’s words are at the code');
+  ok(/was the wrong guard and it was MY bug/.test(src2),
+     '★★★ !player.moving was the wrong test · moving goes false the instant no direction is held');
+  ok(/passes through centre/.test(src2),
+     '★★★ and a stick rolling between directions crosses centre · the grace fired in that gap');
+  // reproduce it: mid-run, stick momentarily centred, then a new direction
+  P.dir='down'; P.moveCd=0; P.moving=false;    // ← the one-frame gap
+  P._lastStepAt = CLK - 40;                    // but he stepped 40ms ago
   const x0=P.x, y0=P.y;
   clearKeys(); K['arrowright']=true;
   C.tryMove(16);
-  ok(P.dir==='right','★ a moving Rizer still turns');
-  ok(P.x!==x0 || P.y!==y0,'★★★ and STEPS in the same frame · a runner rounding a corner never pauses');
-  ok(/ONLY FROM A STANDSTILL/.test(src2),
-     '★★ which is the whole reason the naive version of this feature feels sluggish');
+  ok(P.dir==='right','★ he turns');
+  ok(P.x!==x0 || P.y!==y0,
+     '★★★ and KEEPS GOING in the same tick · the sprint survives the corner');
+  ok(!/dir !== player\.dir && !player\.moving/.test(src2),
+     '★★ the old frame-local guard is gone entirely');
+  ok(/has he been still\n  \/\/ long enough to have meant it/.test(src2)||/long enough to have meant it/.test(src2),
+     '★★★ the honest test is not "is he moving this frame" but "has he been still long enough to have MEANT it"');
 }
 
 H('4 · ★★★ INPUT BUFFER');

@@ -908,7 +908,7 @@ earlier count in this document went wrong:
 | ↳ **AETHRYX** | **1** | 1 | 0 | ★ *not* one of the 63 — the substrate they are made of (§0b) |
 | **GEM** | ★ **10 TYPES** | 10 | 8 | **8 colours + WORLD + SPACE** (§B) · ★ §0h: a regular gem sustains **1 Astralite**; WORLD and SPACE hold **4 colours each** |
 | **GEMSHARD** | **81** | **10** | 4 | §4 · `15 × 5 + 6` · recorded = the Gemlord weapons |
-| **ULTRASHARD** | **22** | 22 | 22 | ★ a **given** number, not a derived one — §B2 |
+| **ULTRASHARD** | **22** ★ *or 24* | 22 | 22 | ★ a **given** number, not a derived one — §B2 · ★★★ **§0i: WORLD and SPACE are Ultrashards, so this row OVERLAPS the gem row by 2.** Total unresolved |
 | **PRISMSHARD** | **16** | 16 *(1 name + 15 epithets, §0c)* | 16 | closed at the Aenor Eruption (§0d) |
 
 ### ★★★ B · TWO CORRECTIONS · both of these were MY arithmetic, not your canon
@@ -1256,12 +1256,104 @@ the two halves of the whole. ★ It also gives the Empty Throne a second meaning
 **Korathen holds the half of the spectrum that is about transcending the world,
 and its Gemlord is missing.**
 
-★ **[ASK] · what does a composite gem DO?** Ruled: what they *contain*. Not ruled:
-whether holding four colours means a WORLD gem can pay for any of the four, counts
-as all four for a badge, or is a single indivisible thing that is neither. The
-badge doc's §2 vector rule would read WORLD as `(1,1,1)` — every primary — which is
-the same slot behaviour it derives for **white**. Worth knowing before either is
-designed.
+~~★ **[ASK] · what does a composite gem DO?**~~ ★★★ **ANSWERED, same day — §0i.**
+**Creator: *"a composite gem is synonym for an ultrashard."*** So a WORLD or SPACE
+gem is **consumed by a being to learn a move** (§0d), which in the build means
+overwriting A4 with an Ultramax move and granting an Ultramax type **[BUILD]**.
+★ The badge-doc question underneath it is still live: the §2 vector rule would
+read WORLD as `(1,1,1)`, the same slot behaviour it derives for **white**.
+
+---
+
+## 0i · ★★★ A COMPOSITE GEM *IS* AN ULTRASHARD — Creator ruling, 2026-09-01
+
+> **Creator:** *"a composite gem is synonym for an ultrashard"*
+
+**Five words, and they restructure the ladder.** An Ultrashard is not a rung above
+the gem. **It is what a gem is called when it holds more than one.**
+
+> **WORLD and SPACE ARE ULTRASHARDS.** They hold four colours each; a composite
+> gem is an Ultrashard; therefore they are. **Two of the ten gem types are
+> Ultrashards.**
+
+### ★★★ 1 · THE WHOLE SYSTEM IS TWO OPERATIONS ON A GEM
+
+This is the statement the last six sections have been circling, and the ruling
+hands it over whole:
+
+```
+                          ┌─ CONCENTRATE ──→  GEMSHARD    →  craft ONE ITEM
+        ASTRALITE → GEM ──┤   (more of ONE)      · crafted · §0d
+                          └─ COMBINE ──────→  ULTRASHARD  →  consume, LEARN A MOVE
+                              (more than one)     · natural · = a COMPOSITE GEM
+```
+
+> **DEPTH makes a Gemshard. BREADTH makes an Ultrashard.**
+> Both start from gems. Neither is above the other. They are the two things that
+> can be *done* to one.
+
+★★★ **And it explains, without any new lore, why §0d rules that Gemshards are
+CRAFTED and Ultrashards are NATURAL.** Concentrating one thing is something a
+person can *do on purpose* — it is a workbench operation. **Combining across
+colours is not a deeper version of that; it is a different act, and the canon
+gives it to nature.** The crafted/natural line was never arbitrary: it is the line
+between depth and breadth.
+
+★★ **It also resolves an apparent circularity in §0d.** *"An Ultrashard is a
+naturally formed **gemshard** of 2 different gems"* — an Ultrashard is made *of
+gems* and is now itself *a gem*. Both hold. **An Ultrashard is a gem made of
+gems**, the way a compound is a substance made of substances. Nothing bites its
+own tail.
+
+### ★★★ 2 · IT ANSWERS THE QUESTION §0h HAD TO LEAVE OPEN
+
+§0h asked: *"what does a composite gem DO?"* — ruled what WORLD and SPACE
+*contain*, not what they are *for*.
+
+> **Answered: a composite gem is an Ultrashard, and §0d says what an Ultrashard
+> does. A BEING CONSUMES IT TO LEARN A MOVE.**
+
+★★ **So the WORLD gem and the SPACE gem are consumed for moves**, and by the
+build's shipped Ultrashard behaviour that means overwriting A4 with an Ultramax
+move and granting an Ultramax type **[BUILD]**.
+
+★ **[INFER], and it is a good place for it.** These are the two largest colour
+objects in the game — four hues each, and together the complete spectrum. They
+belong to **districts 9 and 10**, the last two. Whatever those two moves are, the
+structure has already placed them at the end of the campaign and made them the
+reward for completing the colour language. ★ It also gives Korathen a third
+resonance: the Empty Throne's district holds the SPACE gem, and its Gemlord is
+gone.
+
+### ★★ 3 · WHAT THIS BREAKS, AND I AM NOT PATCHING IT WITH A NUMBER
+
+★★★ **Last time I filled a gap like this with arithmetic and you caught it.** Three
+things are now genuinely unresolved and every one of them needs your word, not my
+inference:
+
+1. ★★★ **"2 different gems" vs FOUR.** §0d defines an Ultrashard as a composite of
+   **two**. WORLD and SPACE hold **four**. Either the definition widens to *"two or
+   more"* — the simplest fix, and it makes the 22 the two-colour case rather than
+   the only case — or WORLD and SPACE are a **larger grade of composite** that
+   wants its own word. **Not chosen.**
+2. ★★★ **The count.** §0g says 22 Ultrashards. If WORLD and SPACE are Ultrashards,
+   is the total **24**, or are they inside the 22, or is 22 only the count of the
+   *typed* ones? **I am not picking.** What I can say is that §0g§B2 already found
+   22 to be an inherited number that no longer matches its own type list — so this
+   is a second reason to re-derive it rather than defend it.
+3. ★★ **The census now OVERLAPS.** §0g lists *gems: 10* and *Ultrashards: 22* as
+   separate rows. **Two of those ten are two of those Ultrashards.** The rows
+   double-count until (1) and (2) are settled. Marked in §0g rather than silently
+   re-added.
+
+### ★ 4 · WHAT IT DOES NOT TOUCH
+
+★ Worth stating, because a ruling this structural invites over-reading. **The
+Prismshards are unaffected.** A Prismshard is not a composite *gem* — it is the
+original shard of the Aenor Eruption (§0d), several concentrated **families** in
+equilibrium, uncraftable and unmakeable. **Composite gem = Ultrashard is a
+statement about the gem rung, not a general law that anything composite is an
+Ultrashard.** 16, closed, untouched.
 
 ---
 
@@ -1419,7 +1511,8 @@ Every Gemshard references exactly one parent Prismshard and (eventually) exactly
 - **The Aenor Eruption** — ~15 Bya · the saga's Big Bang · the one event that forged the substrate, the 1,000+ original Dracolords, **and the 16 Prismshards**.
 - **Parent Prismshard** — the Prismshard a Gemshard originates from.
 - **Ultramax** — power/transformation system whose typing and moves are determined by **ULTRASHARDS** (§0c · was "by Gemshards" until 2026-09-01).
-- **Ultrashard** — ★ §0d: *a **naturally formed** Gemshard **of two different gems**, which a being **consumes** to learn a new move*. 22 recorded. Its own class, and the reason is countable: a Gemshard is **one** gem concentrated by a person, an Ultrashard is **two** fused by nature. Relates to Ultimate/Ultramax moves and nothing else. **Not one of the 81.**
+- **Composite gem** — ★★★ §0i: **a synonym for ULTRASHARD.** A gem holding more than one colour. WORLD and SPACE are the two known four-colour composites.
+- **Ultrashard** — ★ §0d: *a **naturally formed** Gemshard **of two different gems**, which a being **consumes** to learn a new move*. ★★★ §0i: **≡ a composite gem** — what a gem is called when it holds more than one. 22 recorded *(count under review: WORLD and SPACE are composites too)*. Its own class, and the reason is countable: a Gemshard is **one** gem concentrated by a person, an Ultrashard is **two** fused by nature. Relates to Ultimate/Ultramax moves and nothing else. **Not one of the 81.**
 - **Ancient Mythic Weapon** — legendary weapon whose abilities may be powered by a Gemshard.
 - **Key of Anciuxor** — Prismshard XVI, the only one producing six Gemshards.
 

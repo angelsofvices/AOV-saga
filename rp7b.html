@@ -22688,11 +22688,36 @@ function paintA5Charge(hudVisible){
 // by watching him fall over, and Yara's healing announced itself exactly once
 // and then never again.  A system the player cannot see is a system they
 // cannot plan around.
+const ZORYN_HUD_SHOW = 14;   // tiles · he is with you
+const ZORYN_HUD_HIDE = 18;   // tiles · he is not, and the bar goes
+function zorynIsHere(){
+  const n = zorynNpc();
+  if (!n || n.scene !== game.scene) { player._zoHudOn = false; return false; }
+  const d = Math.abs(n.tileX - player.x) + Math.abs(n.tileY - player.y);
+  if (player._zoHudOn) player._zoHudOn = d <= ZORYN_HUD_HIDE;
+  else                 player._zoHudOn = d <= ZORYN_HUD_SHOW;
+  return !!player._zoHudOn;
+}
 function paintCompanionStrip(hudVisible){
   const el = document.getElementById('companionStrip');
   if (!el) return;
   const rows = [];
-  if (typeof zorynIsCompanion === 'function' && zorynIsCompanion()){
+  // ★★★ v0.95.933 · ONLY WHILE HE IS ACTUALLY WITH YOU.  Creator: "do not show
+  // zoryn health bar when he is not immediately following me. it should go
+  // away."
+  //
+  // zorynIsCompanion() is a BOND check -- it means "recruited", not "here", and
+  // it stays true across the whole map and every interior.  So the bar was
+  // reporting the health of someone standing in another district.  A readout
+  // for a thing you cannot see or act on is the same noise as a meter for a
+  // move you have never heard of.
+  //
+  // ★ HYSTERESIS on purpose: it appears within SHOW range and only leaves past
+  // HIDE range, so walking the boundary does not strobe it. The DOWN line
+  // follows the same rule -- a body you have walked away from is not something
+  // you are deciding about, and the toast already told you it happened; come
+  // back and it is there again.
+  if (typeof zorynIsCompanion === 'function' && zorynIsCompanion() && zorynIsHere()){
     if (zorynIsDown()){
       // ★ the DOWN line carries the ANSWER, not just the problem -- it names
       // the item and how many you have, so the fix is never a guess
@@ -22717,7 +22742,10 @@ function paintCompanionStrip(hudVisible){
     rows.push('<div style="color:#8fe36b;border:1px solid #8fe36b66;background:rgba(0,0,0,0.55);'
             + 'padding:3px 8px;margin-top:3px;">✚ YARA MENDING</div>');
   }
-  if (!hudVisible || !rows.length){ el.style.display = 'none'; return; }
+  // ★ v0.95.933 · CLEAR it, do not just hide it.  Leaving the old markup in
+  // place means whatever was true last time is one display flip away from being
+  // shown again -- a stale HP bar for a companion who is no longer there.
+  if (!hudVisible || !rows.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
   // ★ v0.95.929 · the strip anchors to the A5 badge ONLY while that badge is
   // still parked under the HUD.  Once it is READY it rides on Rizer, and a
   // companion strip that followed it would end up stuck to his feet mid-fight.
@@ -35957,6 +35985,7 @@ const TRANSIENT_PLAYER_KEYS = new Set([
   '_blockStunUntil','_blockHitFlashUntil',   // ★ v0.95.918 · _voltstormCdUntil retired · the A5 counts KILLS now
   '_bufMelee','_bufMeleeAt',   // ★ v0.95.917 · a buffered press must not survive a reload
   '_lastStepAt',               // ★ v0.95.932 · a performance.now() stamp
+  '_zoHudOn',                  // ★ v0.95.933 · hysteresis latch, not progression
   '_punchStep','_punchStepAt', // ★ v0.95.920 · mid-chain is not a save state
   '_kickStep','_kickStepAt',   // ★ v0.95.931
   '_zoRestAcc',                // ★ v0.95.923 · zorynHp/zorynDown DO persist · this counter does not

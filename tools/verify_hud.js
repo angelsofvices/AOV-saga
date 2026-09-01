@@ -31,7 +31,7 @@ EL.game.getBoundingClientRect=()=>({left:100,top:50,right:1060,bottom:578,width:
 global.document={getElementById:(id)=>EL[id]||mk(id),querySelector:()=>mk('q'),querySelectorAll:()=>[],
   createElement:()=>mk('c'),addEventListener:noop,body:mk('body'),documentElement:mk('de'),head:mk('h'),
   hidden:false,visibilityState:'visible'};
-try{new Function(src+';globalThis.__C={paintA5Charge,voltstormReady,voltstormCharge,VOLTSTORM_KILL_COST,TILE,_cam,paintCompanionStrip,zorynIsCompanion,zorynIsDown,zorynHp,ZORYN_HP_MAX,ZORYN_REVIVE_ITEM,advancePunchCombo,resetPunchCombo,punchComboStep,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_STEPS,PUNCH_COMBO_NAME,rizerInCombat,player,game,NPCS};')();}
+try{new Function(src+';globalThis.__C={zorynIsHere,zorynNpc,ZORYN_HUD_SHOW,ZORYN_HUD_HIDE,paintA5Charge,voltstormReady,voltstormCharge,VOLTSTORM_KILL_COST,TILE,_cam,paintCompanionStrip,zorynIsCompanion,zorynIsDown,zorynHp,ZORYN_HP_MAX,ZORYN_REVIVE_ITEM,advancePunchCombo,resetPunchCombo,punchComboStep,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_STEPS,PUNCH_COMBO_NAME,rizerInCombat,player,game,NPCS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -50,6 +50,8 @@ H('1 · ★★★ ZORYN’S CONDITION IS VISIBLE AT ALL');
   C.paintCompanionStrip(true);
   ok(S.style.display==='none','★ no companion, no strip · absent when it has nothing to say');
   P.bonds.zoryn=50; P.zorynDown=false; P.zorynHp=C.ZORYN_HP_MAX;
+  // ★ v0.95.933 · he must actually BE here now, not merely recruited
+  const _z=C.zorynNpc(); _z.scene=C.game.scene; _z.tileX=P.x+2; _z.tileY=P.y; P._zoHudOn=false;
   C.paintCompanionStrip(true);
   ok(S.style.display==='block' && /ZORYN/.test(S.innerHTML),'★★ with him along, his bar shows');
   ok(/120\/120/.test(S.innerHTML),'★ and reads '+C.ZORYN_HP_MAX+'/'+C.ZORYN_HP_MAX);
@@ -62,6 +64,7 @@ H('1 · ★★★ ZORYN’S CONDITION IS VISIBLE AT ALL');
 H('2 · ★★★ THE DOWN LINE CARRIES THE ANSWER');
 {
   P.zorynDown=true; P.items=P.items||{}; P.items[C.ZORYN_REVIVE_ITEM]=0;
+  { const _z=C.zorynNpc(); _z.scene=C.game.scene; _z.tileX=P.x+2; _z.tileY=P.y; P._zoHudOn=false; }
   C.paintCompanionStrip(true);
   ok(/ZORYN DOWN/.test(S.innerHTML),'★★ it says he is down');
   ok(/MYTHIC ELIXIR ×0/.test(S.innerHTML),'★★★ and NAMES the cure and your count · the fix is never a guess');
@@ -179,6 +182,57 @@ H('9 · ★★ THE STRIP DOES NOT CHASE IT');
   ok(S.style.left==='10px',
      '★★★ pinned to the HUD, not to the badge · otherwise it would end up stuck to his feet mid-fight');
   ok(/would end up stuck to his feet/.test(src2),'and the reason is recorded');
+}
+
+
+H('10 · ★★★ THE BAR GOES WHEN HE DOES');
+{
+  const z=C.zorynNpc();
+  P.bonds=P.bonds||{}; P.bonds.zoryn=50; P.zorynDown=false; P.zorynHp=C.ZORYN_HP_MAX;
+  C.game.scene='overworld'; z.scene='overworld';
+  P.companion=null; P.hp=P.hpMax;               // keep Yara out of the strip
+  z.tileX=P.x+2; z.tileY=P.y; P._zoHudOn=false;
+  C.paintCompanionStrip(true);
+  ok(/ZORYN/.test(S.innerHTML),'★★ beside you · the bar shows');
+  // walk away
+  z.tileX=P.x+40;
+  C.paintCompanionStrip(true);
+  ok(!/ZORYN/.test(S.innerHTML),'★★★ across the map · it GOES · bond 50 means "recruited", not "here"');
+  ok(S.style.display==='none','★ and the strip closes entirely when it has nothing to say');
+  // another scene
+  z.tileX=P.x+1; z.scene='interior_home'; P._zoHudOn=false;
+  C.paintCompanionStrip(true);
+  ok(!/ZORYN/.test(S.innerHTML),'★★ same tile numbers, different scene · still gone');
+  z.scene='overworld';
+}
+
+H('11 · ★★ IT DOES NOT STROBE ON THE BOUNDARY');
+{
+  const z=C.zorynNpc();
+  ok(C.ZORYN_HUD_HIDE>C.ZORYN_HUD_SHOW,'★★ show at '+C.ZORYN_HUD_SHOW+', hide at '+C.ZORYN_HUD_HIDE+' · hysteresis');
+  P._zoHudOn=false;
+  z.tileX=P.x+16; z.tileY=P.y;                  // between the two thresholds
+  ok(C.zorynIsHere()===false,'★ approaching from outside · 16 tiles is not yet close enough');
+  z.tileX=P.x+10; ok(C.zorynIsHere()===true,'★ inside SHOW · on');
+  z.tileX=P.x+16; ok(C.zorynIsHere()===true,'★★★ drifting back out to 16 · STAYS on · walking the line does not blink it');
+  z.tileX=P.x+20; ok(C.zorynIsHere()===false,'★★ past HIDE · off');
+  ok(/HYSTERESIS on purpose/.test(src2),'the reason is recorded');
+}
+
+H('12 · ★★ THE DOWN LINE FOLLOWS THE SAME RULE');
+{
+  const z=C.zorynNpc();
+  P.zorynDown=true; P.items=P.items||{}; P.items[C.ZORYN_REVIVE_ITEM]=1;
+  z.tileX=P.x+2; P._zoHudOn=false;
+  C.paintCompanionStrip(true);
+  ok(/ZORYN DOWN/.test(S.innerHTML),'★★ standing over his body · the revive prompt is there');
+  z.tileX=P.x+40; P._zoHudOn=false;
+  C.paintCompanionStrip(true);
+  ok(!/ZORYN DOWN/.test(S.innerHTML),
+     '★★★ walked away · it goes too · a body you have left is not a decision you are making');
+  ok(/the toast already told you it happened/.test(src2),
+     '★★ and you were told once when he fell · come back and the prompt returns');
+  P.zorynDown=false;
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

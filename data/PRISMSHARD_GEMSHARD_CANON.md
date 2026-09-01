@@ -78,7 +78,13 @@ may have learned to reproduce properties a Prismshard first demonstrated."*
 Both arrows are true. Neither is metaphor. Hydrogen came from the beginning of
 things *and* a star is made of hydrogen.
 
-### ★★ The 81 is now a recipe as well as a census
+### ★★ The 81 is now a recipe as well as a census · ★★★ HALF-RETIRED, see §0d§5
+
+> **★★★ The "recipe" half is RETIRED by §0d** (same day, later ruling): a
+> Prismshard is *"an original naturally shard from the aenor eruption"* — it is
+> **not assemblable**, by anyone, ever. The **composition** half below stands
+> untouched: five bind into one is what a Prismshard *is made of*. Read the word
+> "recipe" here as an error preserved so the correction is visible.
 
 ```
 descent      each Prismshard PRODUCES 5 Gemshards      15 × 5 + 6 = 81
@@ -92,6 +98,10 @@ wrong. This one does not have that problem.
 ★ **A self-enforcing ceiling falls out of it:** a Prismshard cannot be assembled
 without holding **five of the 81 Gemshards** — which is not a restriction anyone
 has to write down or police. The hierarchy defends itself.
+
+> ★★★ **§0d makes this far stronger than it was written.** The ceiling is not
+> "five Gemshards are hard to gather." It is **an event that ended fifteen billion
+> years ago**. Nobody assembles a Prismshard at any price.
 
 ### Each step, checked against standing canon
 
@@ -213,6 +223,14 @@ charted.
 
 **Four classes. Never collapse two of them.**
 
+> ★★★ **REFINED THE SAME DAY BY §0d**, which supplies the Creator's own
+> definitions. Two cells below are superseded there: an Ultrashard's separateness
+> is now **compositional** (two gems, natural) rather than merely functional, and
+> *"the Gemlord weapons **are** these"* is under review against *"a gemshard is a
+> highly concentrated gem that a person can use to **craft a single item**."*
+> The four-class split itself is unchanged. **Read §0d as the definition and this
+> as the argument that led to it.**
+
 | class | count | what it is | what it does |
 |---|---|---|---|
 | **PRISMSHARD** | **16** · fixed | several concentrated Astralites in equilibrium | cosmological · the progenitors |
@@ -323,6 +341,197 @@ the code computes rather than types it **[BUILD]**.
 **Until ruled, (a) is assumed** — it breaks nothing, and §5's reserved revelation
 about **Gemshard 81** needs the 81 to still be a fixed set in order to be *about*
 anything.
+
+---
+
+## 0d · ★★★ THE FIVE DEFINITIONS — Creator ruling, 2026-09-01
+
+> **Creator:** *"a prismshard is an original naturally shard from the aenor
+> eruption that can be used to power many mythic relics. an ultrashard is a
+> naturally formed gemshard of 2 different gems that a being can consume to learn
+> a new move. a gemshard is a highly concentrated gem that a person can use to
+> craft a single item. a gem is a fully compounded single astralite. an astralite
+> is a single piece of matter in its most basic form."*
+
+**These are the definitions. Everything above and below is commentary on them.**
+
+| rung | what it IS | origin | count | what it DOES |
+|---|---|---|---|---|
+| **PRISMSHARD** | an **original** natural shard of the **Aenor Eruption** | ★ **the eruption · nothing else, ever** | **16** · closed | **powers MANY mythic relics** |
+| **ULTRASHARD** | a **naturally formed Gemshard of TWO different gems** | ★ **natural only · never crafted** | 22 recorded | **a being CONSUMES it → learns a move** |
+| **GEMSHARD** | a **highly concentrated gem** | crafted by a person | many | **crafts a SINGLE item** |
+| **GEM** | a **fully compounded SINGLE Astralite** | compounding | one kind per Astralite | material |
+| **ASTRALITE** | **a single piece of matter in its most basic form** | the Expanse | 63 | material |
+
+### ★★★ 1 · THE LADDER IS A LADDER OF HOW MANY TIMES A THING CAN BE SPENT
+
+The five sentences share a shape the earlier drafts of this document never found,
+because it is carried by the *verbs*, not by the composition:
+
+```
+  ASTRALITE   ·  GEM        →  not spent · they are what things are made OF
+  GEMSHARD               →  spent ONCE · yields ONE ITEM        (a crafter spends it)
+  ULTRASHARD             →  spent ONCE · yields ONE MOVE        (a BEING consumes it)
+  PRISMSHARD             →  ★ NEVER spent · powers MANY relics · forever
+```
+
+★★ **That is the whole hierarchy in one axis, and it is self-explaining.** A
+Prismshard is not superior because the lore says so — it is superior because it
+is the only rung that **does not run out**. Rule 4's *"a Prismshard is not a
+bigger Gemshard"* now has a mechanical statement: a Gemshard is a resource, a
+Prismshard is a **source**.
+
+★ **And it draws the crafted/natural line in the same stroke.** The two rungs a
+person *makes* are Gem and Gemshard. The two rungs **nature makes** are Ultrashard
+and Prismshard. Craft ends at the Gemshard. Nothing above it is manufacturable.
+
+### ★★★ 2 · AENOR IS NOT A NEW WORD — IT IS THE OLDEST ONE **[CANON, EXISTING]**
+
+`timeline.html` has carried this since the timeline shipped:
+
+> **The Aenor Eruption · ~15 Bya · the saga's Big Bang.** *"Aenor erupts — the
+> cosmic substrate of the Aethryx Expanse is forged."* The same event births
+> **1,000+ original Dracolords**; across the first billion years all but **six**
+> fall. `aethryx.html`: *"all turning around **Aenor**, the central star and
+> **source of all Aethryx**."* `timeline.html`: *"**Anciuxor encircles · Aenor at
+> centre**."*
+
+★★★ **So the Source lock of this morning (§0b) did not need amending — it needed
+its EVENT.** Yesterday: Source Prime = the Highest One; physical Source = Aethryx
+the substance, the Expanse the place. Missing was *when*. **The Aenor Eruption is
+the moment the physical Source acted**, and Aenor is the star at the centre that
+all Aethryx pours from.
+
+```
+  SOURCE PRIME · THE HIGHEST ONE
+       ↓ manifests as
+    ANCIUXOR  ·  ENCIRCLES the Expanse           ← the rim, not the beyond
+  ─────────────────────────────────────
+    AENOR  ·  the central star · source of all Aethryx
+       ↓ THE AENOR ERUPTION · ~15 Bya · ONE EVENT
+    ├──  the substrate of the Aethryx Expanse
+    ├──  1,000+ original Dracolords   → 6 survive
+    └──  ★ THE 16 PRISMSHARDS
+```
+
+★★★ **The Prismshards and the Dracolords are siblings of one eruption.** Both
+*original*. Both *natural*. Both impossible to make again. Both **mostly lost** —
+1,000+ down to six, and sixteen Prismshards of which the saga can account for
+barely any. **That is why a Prismshard cannot be crafted and a Gemshard can**: the
+same reason nobody can breed a new original Dracolord. The window closed 15
+billion years ago.
+
+★ **Correction to my own reading of yesterday.** I wrote that Anciuxor is
+*"outside the Expanse past the Gate."* The timeline says he **encircles** it — and
+that he mated once with Alphaea and fathered Azyrath, which is not something a
+thing wholly outside can do. **Anciuxor is the RIM.** The Key of Anciuxor being
+the only *named* Prismshard still holds and still means what §0c said it means;
+the boundary is a circumference, not a wall.
+
+### ★★★ 3 · "TWO DIFFERENT GEMS" IS THE BEST LINE IN THE FIVE
+
+An Ultrashard is *a naturally formed Gemshard of two different gems*. A Gemshard
+is *a highly concentrated gem* — **one**. So the classes are separated by a
+countable fact rather than by a decree:
+
+> **A Gemshard is ONE gem, concentrated by a person.
+> An Ultrashard is TWO different gems, fused by nature.**
+
+★★ **This is a better §0c than §0c.** This morning I separated the classes by
+*function* — Ultrashards do moves, Gemshards do items — which is true but is a
+rule someone has to remember. **Composition needs no remembering.** And it
+reconciles the two rulings that looked opposed: §16b (2026-08-29) called an
+Ultrashard *a Gemshard*; §0c (this morning) called it *its own class*. Both were
+right. **An Ultrashard is what a Gemshard is when nature makes it out of two gems
+instead of a person making it out of one** — formally a Gemshard by kind, a
+separate class by origin and by what it is for.
+
+★★★ **And it explains the twenty-two.** The build has `shard_predator … shard_null`
+— **one per canon type**, 22 of them **[BUILD]**. Under this ruling the *pair
+decides the type*: a Volt Shard is the natural fusion of a specific two gems, and
+the Ultramax typing it hands a Zyrex is what those two gems are, together. Rule
+11's *"determines Ultramax typing and moves"* stops being an assertion and becomes
+an arithmetic.
+
+★ **[ASK] · what does "gem" count as, for the pairing?** This is the one number
+the ruling leaves open, and it matters:
+
+- **(a) the 8 gem colours.** `C(8,2) = 28` distinct pairs; 22 have formed
+  naturally, 6 have not. ★ A near-fit, and a *tempting* one — six unformed pairs
+  is exactly the sort of gap a story lives in. But it is 28 ≠ 22, so it is a
+  coincidence until you say otherwise.
+- **(b) one gem per Astralite · 63 kinds.** `C(63,2) = 1,953` possible; 22
+  occurred. Rarity by nature. ★ This is what *"a gem is a fully compounded single
+  Astralite"* says literally, and the 8 colours are then **leanings** across the
+  63 — which is already the colour canon's own position (*"a hue IS a leaning"*).
+- **Assumed (b) until ruled**, because it is the literal reading of your sentence
+  and because it does not require 28 to secretly be 22.
+
+★ **Consequence either way [ASK]:** if the pair decides the type, then **naming
+the two gems in each of the 22 Ultrashards is now an authorable list** — and a
+Blackspiral Shard's pair would say something about Corruption that nothing else
+in the canon currently says. Not started. Flagged as available.
+
+### ★★ 4 · "CRAFT A SINGLE ITEM" REFINES THE GEMLORD WEAPONS
+
+★ **Conflict, surfaced not resolved.** This morning you said *"the gemlord weapons
+**are** gemshards"* and §0c and §16d were written that way. Today's definition
+says a Gemshard is *what a person uses to craft a single item*. Those are two
+different objects:
+
+| reading | the Sapphire Tearsword is… | fits |
+|---|---|---|
+| **(a) the weapon IS the Gemshard** | the relic itself, weapon-shaped | this morning's words |
+| **(b) the weapon is the ITEM CRAFTED FROM a Gemshard** | ★ crafted by Azurel from a sapphire Gemshard, which was spent doing it | **today's definition**, and *"craft a single item"* is unambiguous |
+
+★★ **(b) is recommended, and it is stronger lore.** It makes each Gemlord weapon
+**unrepeatable** — the Gemshard that made it is gone — which is why there are ten
+weapons and not a Gemlord armoury. It also explains the *single* in *"a single
+item"*: that word is doing work, and under (a) it does none. **Not applied.** §16d
+and §0c still say "are". They are marked, awaiting your word.
+
+★ **Under (b) the census sentence changes shape too**: the ten Gemlord weapons
+would not *be* ten of the 81 — they would be the **evidence** that ten of the 81
+were spent. `gemshardCensus()`'s "recorded" count means something different in
+each reading **[BUILD]**.
+
+### ★★ 5 · WHAT THESE DEFINITIONS RETIRE
+
+★★★ **§0b's *"the 81 is a recipe as well as a census"* is now HALF true, and the
+false half must go.** §0b read `15 × 5 + 6 = 81` as working in both directions:
+each Prismshard **produces** five (descent) and **is made of** five (composition,
+therefore assemblable). **Today closes the second door.** A Prismshard is
+*original* and comes *from the Aenor Eruption*; the eruption is over. So:
+
+- **Composition · KEPT.** A Prismshard is still made of Gemshard-grade material
+  in equilibrium. §1's ladder is untouched.
+- **Recipe · RETIRED.** Nobody can gather five Gemshards and produce a Prismshard.
+  The five are what it is *made of*, not what it can be *made from*.
+
+★ And the "self-enforcing ceiling" I claimed in §0b gets **stronger, not weaker**:
+I said the hierarchy defends itself because a Prismshard needs five of the 81.
+It defends itself far better than that. **It needs an event that ended fifteen
+billion years ago.**
+
+★ **§1's opening line needs a word.** It reads *"Multiple Astralite Sources →
+Highly Concentrated Astralite Gems → …"* — but a **gem** is now *a single
+Astralite, fully compounded*. The multiplicity enters at the **Prismshard**, where
+several concentrated Astralites are bound; it does not enter at the gem.
+**Flagged, not edited** — §1 is a quoted canon block and this is your line to
+change, not mine.
+
+### ★ 6 · CODE IMPACT · stated, not acted on **[BUILD]**
+
+The follow-up already flagged in §0c grows a second item. Neither touched — this
+is a canon pass:
+
+1. `GEMSHARD_REGISTRY_()` stamps `ofTheEightyOne: true` on all 22 Ultrashards and
+   `gemshardCensus()` counts them. Wrong under §0c.
+2. ★ **New:** `SHARD_META`'s Ultrashard block and the ZyCube category blurb
+   (*'one per type · overwrite A4'*) are still **correct** — but nothing in the
+   data records an Ultrashard's **two gems**, which is now its defining property.
+   A `gems: [a, b]` field is the natural home, and it should stay `null` until the
+   pairing question in §3 above is ruled.
 
 ---
 
@@ -468,13 +677,18 @@ Every Gemshard references exactly one parent Prismshard and (eventually) exactly
 
 ## 15 · TERMINOLOGY
 
-- **Astralite** — fundamental elemental/existential energy within the Astralite Matrix.
-- **Astralite Gem** — concentrated crystalline manifestation of Astralite energy.
-- **Gemshard** — supreme singular-energy relic descended from a Prismshard, centred on one highly potent Astralite.
-- **Prismshard** — supreme composite relic of multiple concentrated Astralites in balance.
+> ★★★ **§0d carries the Creator's own five definitions and outranks the wording
+> here.** This list is kept for the terms §0d does not define.
+
+- **Astralite** — ★ §0d: *a single piece of matter in its most basic form*. Fundamental elemental/existential energy within the Astralite Matrix.
+- **Astralite Gem** / **gem** — ★ §0d: *a fully compounded **single** Astralite*. (Note: **one**, not several — see §0d§5 on §1's opening line.)
+- **Gemshard** — ★ §0d: *a highly concentrated gem that a person can use to **craft a single item***. Centred on one Astralite; descended from a Prismshard.
+- **Prismshard** — ★ §0d: *an **original** natural shard of the **Aenor Eruption**, which can **power many mythic relics***. Composite of multiple concentrated Astralites in balance. **Not craftable, at any price.**
+- **Aenor** — the central star · *"source of all Aethryx"* · the still axis the Expanse turns around **[CANON · `aethryx.html`, `timeline.html`]**.
+- **The Aenor Eruption** — ~15 Bya · the saga's Big Bang · the one event that forged the substrate, the 1,000+ original Dracolords, **and the 16 Prismshards**.
 - **Parent Prismshard** — the Prismshard a Gemshard originates from.
 - **Ultramax** — power/transformation system whose typing and moves are determined by **ULTRASHARDS** (§0c · was "by Gemshards" until 2026-09-01).
-- **Ultrashard** — ★ **its own relic class**, 22 recorded. Relates to Ultimate/Ultramax moves and nothing else. **Not a Gemshard and not one of the 81.**
+- **Ultrashard** — ★ §0d: *a **naturally formed** Gemshard **of two different gems**, which a being **consumes** to learn a new move*. 22 recorded. Its own class, and the reason is countable: a Gemshard is **one** gem concentrated by a person, an Ultrashard is **two** fused by nature. Relates to Ultimate/Ultramax moves and nothing else. **Not one of the 81.**
 - **Ancient Mythic Weapon** — legendary weapon whose abilities may be powered by a Gemshard.
 - **Key of Anciuxor** — Prismshard XVI, the only one producing six Gemshards.
 
@@ -633,6 +847,12 @@ This settles the §9 tension the merge flagged. Canon said the Gemlord blades we
 
 ~~**Census after this ruling: 81 total · 32 recorded (22 Ultrashards + 10 Gemlord weapons) · 49 unrecorded · 0 placed.**~~
 **★ RESTATED 2026-09-01 (§0c): 81 total · 10 recorded (the Gemlord weapons) · 71 unrecorded · 0 placed.** The 22 Ultrashards left the count when they became their own class.
+
+> ★★ **UNDER REVIEW — §0d§4.** *"A gemshard is a highly concentrated gem that a
+> person can use to **craft a single item**"* reads the Gemlord weapons as the
+> **items crafted from** ten Gemshards, not as the Gemshards themselves. If ruled
+> that way, "10 recorded" becomes *"ten of the 81 were spent, and here is the
+> evidence"* — a different sentence with the same number. **Not changed here.**
 
 ## 16e · ★★★ MEALUX · THE LIVING TRACE OF THE KEY
 

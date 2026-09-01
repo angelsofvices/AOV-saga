@@ -16101,6 +16101,11 @@ function tickLifeSeeds(){
 // are swept up by moving; a Gemlord weapon is picked up on purpose. The prop
 // carries a real footprint, so it blocks — the player has to stop, face it and
 // press X, which is also what stops them running past the thing they came for.
+// ★★ v0.95.938 · ONE NUMBER, TWO READERS.  The Voltshard's world size is also
+// the yardstick the ordinary gems are measured against (drawGems, "half a
+// shard"), so it is a named constant rather than a 1.4 typed in two places that
+// would silently disagree the first time either moved.
+const VOLTSHARD_TILE_W = 1.4;
 const WEAPON_DROP_ART = {
   sapphire_sword: { src:'assets/2D%20sprites/decor/sapphire-sword-icon.png', bbox:[0,0,772,326], tileW:1.6 },
   rubypaw_sword:  { src:'assets/2D%20sprites/decor/rubypaw-sword-icon.png',  bbox:[0,0,785,537], tileW:1.5 },
@@ -16112,7 +16117,7 @@ const WEAPON_DROP_ART = {
   // placeholder.  Blue/gold split crystal on a cracked stone ring, magenta-keyed
   // + de-haloed, measured on its own alpha.  tileW 1.4 · a relic reads bigger
   // than a gem.
-  voltshard:      { src:'assets/2D%20sprites/decor/voltshard.png',           bbox:[143,255,998,870], tileW:1.4 },
+  voltshard:      { src:'assets/2D%20sprites/decor/voltshard.png',           bbox:[143,255,998,870], tileW:VOLTSHARD_TILE_W },
 };
 for (const k of Object.values(WEAPON_DROP_ART)){ k.img = new Image(); k.img.src = k.src; }
 // ★★ v0.95.777 · A DROP THE PLAYER CANNOT SEE IS A DROP THEY CANNOT FIND.
@@ -18503,22 +18508,39 @@ function drawGems(){
     if (g.collected || g.scene !== game.scene) continue;
     const img = GEM_IMG[g.color];
     if (!img || !img.complete || !img.naturalWidth) continue;
-    const drawSize = Math.round(TILE * 0.40);         // 0.40× tile · sits on floor
+    // ★★ v0.95.938 · HALF A SHARD.  Creator: "make them a .5 the size of than
+    // prismshards/gemshards."  The game's shard-class world object is the
+    // VOLTSHARD at tileW 1.4, under a comment that already says "a relic reads
+    // bigger than a gem" — it just never named the ratio.  Now it is named:
+    // 0.5 x 1.4 = 0.70.  (The four Gemlord weapons, which canon §16d says ARE
+    // Gemshards, sit at 1.3-1.6 and average 1.42 — the same answer from the
+    // other direction, which is why 0.70 is a measurement and not a taste.)
+    const GEM_TO_SHARD = 0.5;
+    const drawW = Math.round(TILE * VOLTSHARD_TILE_W * GEM_TO_SHARD);
+    // ★★★ AND STOP SQUASHING THEM.  This drew every gem into a SQUARE
+    // drawSize x drawSize, but no gem sprite has ever been square — the eight
+    // run 0.665 to 0.815 wide-to-tall, so each has been horizontally crushed by
+    // up to a third since v0.95.171.  Same law as the console letterbox
+    // ([[image-never-stretch-console-fullscreen]]): the art's own aspect
+    // decides the second dimension, never the slot.
+    const _ar = img.naturalHeight / Math.max(1, img.naturalWidth);
+    const drawH = Math.round(drawW * _ar);
+    const drawSize = drawW;                            // glow ellipse reads off the width
     const bob = Math.sin(now / 500 + g.phase) * 2;
-    const dx = Math.floor(g.x * TILE + (TILE - drawSize) / 2) - _cam.x;
-    const dy = Math.floor(g.y * TILE + TILE - drawSize - 4) - _cam.y + bob;
+    const dx = Math.floor(g.x * TILE + (TILE - drawW) / 2) - _cam.x;
+    const dy = Math.floor(g.y * TILE + TILE - drawH - 4) - _cam.y + bob;
     // Sleek shine pulse · slow alpha wave
     const pulse = 0.75 + 0.25 * (0.5 + 0.5 * Math.sin(now / 320 + g.phase));
     ctx.save();
     ctx.globalAlpha = pulse;
-    ctx.drawImage(img, dx, dy, drawSize, drawSize);
+    ctx.drawImage(img, dx, dy, drawW, drawH);
     // subtle glow underneath
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = 0.18 * pulse;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.ellipse(dx + drawSize/2, dy + drawSize - 1,
-                drawSize * 0.45, 2.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(dx + drawW/2, dy + drawH - 1,
+                drawW * 0.45, 2.4, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }

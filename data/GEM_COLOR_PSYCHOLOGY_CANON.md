@@ -6,6 +6,8 @@
 > *"Yellow can represent adaption as well. Orange can represent evolution. White can be the reflection of all. and black can be the absorbtion of all. also remember none of the colors are inherently good or bad. it is a yin yang effect. corruption can takeover anything"*
 >
 > *"white is a trace of aethryx and represents balance between astralites. the 'no color' achromacy of white represents the hue no leaning towards any one particular hue"* — **see §3a, which is the deepest section in this document.**
+>
+> *"it is called the aethryx expanse because aethryx (the prime energy source) makes up the entire world"* — **★★★ which makes §3a literal: Aethryx is the light, the 63 Astralites are what happens when it leans, and a white gem is a trace of it that never did.**
 
 Proposal document. **Nothing here is written into code.** §9 lists what a ruling would change and what it would cost.
 
@@ -375,15 +377,19 @@ Fixing 3.6° and 9.6° means re-picking hues and touching every surface that pai
 **Still open:**
 
 1. ~~**Does the white gem descend from a PRISMSHARD, or straight from AETHRYX?**~~
-   **★★★ ANSWERED 2026-09-01.** The Source ruling
-   (`PRISMSHARD_GEMSHARD_CANON.md` §0b) sets **physical Source = the Aethryx
-   Expanse**, and Prismshards come from it. So a white gem — *"a trace of
-   Aethryx"* — and a Prismshard are **siblings, both direct from physical
-   Source.** Rule 13's descent still governs everything below the Prismshards;
-   white simply enters one rung higher, from the same place they did. It stopped
-   being an unexplained exception the moment Source got a name.
-   *(One sub-question remains: whether AETHRYX is the Expanse itself or the
-   condition the Expanse embodies — §0b ★4. It changes no mechanic.)* Rule 13 of the relic canon makes Prismshards the progenitors of every lesser relic system. A trace of Aethryx *directly* would be the first relic material that does not descend from one. That may be exactly right — Aethryx is already the one thing outside the 63, so a material outside the descendants is consistent rather than contradictory — but it is a numbered rule taking an exception, and that is a ruling, not an inference. *(§3a)*
+   **★★★ DISSOLVED 2026-09-01 — it was the wrong question.** The Creator ruled:
+   *"it is called the aethryx expanse because aethryx (the prime energy source)
+   makes up the entire world."* **Aethryx is the MATERIAL everything is made of**,
+   so a white gem does not *descend* from anything — **it is a remnant of the
+   SUBSTRATE**, caught before it leaned. Rule 13's descent is untouched because
+   white was never in the descent. See `PRISMSHARD_GEMSHARD_CANON.md` §0b ★2.
+
+   ★★ And it makes §3a literal rather than figurative: **Aethryx is the light,
+   the 63 Astralites are what happens when it leans, and white is a trace of it
+   that never did.** The scrolls' *"AETHRYX is not one of the sixty-three, it is
+   the REASON there are sixty-three"* is now a statement about composition — the
+   sixty-three are all made of it.
+
 2. **★★ Does GEMSHARD = hue and PRISMSHARD = white follow?** *"A Gemshard specializes. A Prismshard harmonizes"* is **lean** and **balance** in the relic canon's own words, written before this ruling. If it holds, the 81 and the 16 inherit the colour language for free, the whiteness of a relic becomes a *measure* (how many Astralites it holds in balance), and **the Key of Anciuxor — nine families carried as trace echoes — is the whitest object below Aethryx.** Strongly suggested by two documents that were not written together; still yours to confirm.
 3. **★ Does BLACK belong to the Void Sea, or to Oatheus?** Both are in canon and they are different stories — one is a place that absorbs, the other is a chair that took someone. Under the absorption ruling **they may be the same story**, which would be a large piece of lore falling into place. Not assumed.
 4. **★★ Can corruption take WHITE?** §3a sharpens this: if white is *balance*, a corrupted white is **balance itself made to lean** — the state that has no preference, given one. §5 says nothing in the cosmology forbids it. That is either a major late-game reveal or a line you do not want crossed; either way it is yours, not mine.

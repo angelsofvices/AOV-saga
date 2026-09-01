@@ -105,83 +105,107 @@ has to write down or police. The hierarchy defends itself.
 ### ★★★ SOURCE · RULED, 2026-09-01
 
 > **Creator:** *"physical source is The Aethryx Expanse and source prime is the highest one"*
-
-**Source is two tiers, and they were both already named in this cosmology.**
+> *"the The Aethryx Expanse is the expanse itself. it is the physical universe of the saga. same way the milky way is ours."*
+> *"it is called the aethryx expanse because aethryx (the prime energy source) makes up the entire world"*
 
 ```
-        SOURCE PRIME   ·  THE HIGHEST ONE
+        SOURCE PRIME  ·  THE HIGHEST ONE            outside
              ↓ manifests as
-          ANCIUXOR     ·  §12, already canon · "associated with the Gate
-             ↓            between the cosmic realms"
-     PHYSICAL SOURCE   ·  THE AETHRYX EXPANSE
-             ↓ makes
-        PRISMSHARD  →  GEMSHARD  →  GEM  →  ASTRALITE
+          ANCIUXOR    ·  §12 · "the Gate between the cosmic realms"
+        ═══════════════ the boundary ═══════════════
+        PHYSICAL SOURCE                              inside
+             as SUBSTANCE  ·  AETHRYX — the prime energy source
+             as PLACE      ·  THE AETHRYX EXPANSE — the universe made of it
+             ↓ differentiates · leans
+          63 ASTRALITES
+             ↓ concentrates
+          GEM  →  GEMSHARD  →  PRISMSHARD
 ```
 
-**PHYSICAL SOURCE — the Aethryx Expanse.** Prismshards come from the Expanse
-itself. Not from a being inside it, and not from a place within it: from the
-medium.
+### ★★★ 1 · Aethryx is the MATERIAL. The Expanse is the EXTENT of it.
 
-**SOURCE PRIME — the Highest One.** What the Expanse is downstream of. §12
-already supplies the link between them without needing a word changed:
-*"Anciuxor is the manifestation of the Highest One."*
+Not two tiers — **one thing, two aspects.** The Expanse is *"the physical
+universe of the saga, same way the milky way is ours"*: a place, with worlds in
+it, that you can be inside. It carries the name because **Aethryx makes up the
+entire world.** Ocean and water. Galaxy and the matter in it.
 
-### ★★ 1 · This RECONCILES §16e rather than replacing it
+★★★ **And this explains the scrolls' hardest line without interpretation.**
 
-§16e says the Prisms *"condensed out of residue — traces of Immortal crossings
-pooling over eons until they became stable relics."*
+> *"AETHRYX is not one of the sixty-three. It is the REASON there are
+> sixty-three."*
+> *"Not a being with a signature. The condition under which a signature is
+> possible at all."*
 
-> **The Expanse is the medium the residue pooled IN.** "The Prisms came from the
-> Expanse" and "the Prisms condensed out of residue" are the same sentence at two
-> zoom levels — WHERE and HOW. The condensation mechanism stands exactly as
-> written and now has a place it happened.
+**Because the sixty-three are all MADE of it.** Aethryx is the undifferentiated
+energy; **an Astralite is what Aethryx becomes when it leans.** That is not a
+metaphor and it needed no reconciling — the scrolls have been saying it since
+they were written, and this ruling supplies the noun.
 
-Nothing is overwritten. That was the thing worth checking before locking this.
+### ★★★ 2 · It collapses the colour canon's white-gem exception entirely
 
-### ★★ 2 · It closes the colour canon's white-gem question, with a name
+`GEM_COLOR_PSYCHOLOGY_CANON.md` §3a: *"to have a colour is to have a leaning."*
+Put beside this ruling:
 
-`GEM_COLOR_PSYCHOLOGY_CANON.md` §10.1 flagged that a white gem — *"a trace of
-Aethryx"* — would be the first relic material descending from **no** Prismshard,
-an exception to Rule 13 with no reason behind it.
+> **Aethryx is the light. The Astralites are what happens when it leans.
+> A WHITE GEM is a trace of it that never did.**
 
-> **Now it has one. White gems and Prismshards are SIBLINGS: both come directly
-> from physical Source.** Rule 13's descent still governs everything below the
-> Prismshards; white simply enters one rung higher, from the same place they did.
+★★ **So white does not need a Rule 13 exception at all** — not as a descendant,
+and not even as a "sibling" of the Prismshards, which is how this section read
+an hour ago. **A white gem is a remnant of the SUBSTRATE.** It is not below the
+Prismshards in the ladder or beside them; it is what they and everything else are
+made of, caught before it committed to a hue. Rule 13's descent is untouched
+because white was never in the descent.
 
-### ★ 3 · The Key of Anciuxor · a shape becomes available — and §5 STAYS SHUT
+### ★★ 3 · The whole relic ladder is ONE SUBSTANCE at different concentrations
 
-§12 already reads: Highest One → **Anciuxor** → *"the Gate between the cosmic
-realms"* → and Prismshard XVI is the **Key** to it. With Source Prime named,
-that chain is no longer three unrelated nouns: **the Key of Anciuxor is the key
-to Source Prime's gate**, which is why §12 insists its importance is
-*cosmological* rather than a power rating.
+```
+AETHRYX      undifferentiated
+ASTRALITE    leaned              · 63 · one direction each
+GEM          concentrated        · leaning to one colour
+GEMSHARD     purified            · one Astralite at relic strength
+PRISMSHARD   bound in balance    · several, held at equilibrium
+```
 
-★★★ **This does NOT answer §5.** §5 reserves *why* the Key alone produces a
-sixth Gemshard, and lists among its explicitly **not-canon** possibilities *"the
-Higher/Highest structure of existence."* **This ruling NAMES that structure. It
-does not select it.** Naming a candidate and choosing it are different acts, and
-§5's revelation is the Creator's to spend. Recorded here only so that when he
-does spend it, the shape is already standing.
+Every rung is the same energy, further along. §2's *"a Gemshard specializes, a
+Prismshard harmonizes"* is a statement about **how much Aethryx has been made to
+lean, and whether the leanings were then balanced against each other.**
 
-### ★ 4 · The one thing still open
+★ And §16e's origin story becomes literal rather than poetic: the Prisms
+*"condensed out of residue"* — **residue of Aethryx, pooling in the Expanse
+that is made of it.** Condensation of a substance in the medium of that same
+substance. Nothing in §16e needs rewording.
 
-**[ASK] Is AETHRYX the Expanse, or the condition the Expanse embodies?** The
-scrolls say AETHRYX *"is not a being with a signature — it is the condition under
-which a signature is possible at all,"* and *"not one of the sixty-three; it is
-the REASON there are sixty-three."* The Expanse carries its name.
+### ★ 4 · One consequence for the map, and one correction
 
-Two readings, both coherent:
-- **(a) Same thing.** AETHRYX *is* the Expanse — the condition, seen as the place
-  it makes possible. Then "physical Source" and "AETHRYX" are one entry.
-- **(b) Condition and container.** AETHRYX is the property; the Expanse is the
-  extent it holds over. Then physical Source is the Expanse *because* Aethryx
-  conditions it.
+**The Expanse is galaxy-scale.** The Astralite Matrix's **27 worlds are the
+Astralite-anchored ones, not the total contents of the universe** — the same way
+we name a handful of bodies in a galaxy of hundreds of billions.
 
-It changes nothing mechanical either way, which is why it can wait — but it
-decides whether a scroll should say "Aethryx made this" or "this happened in
-Aethryx."
+★ **That closes §16e's open question 2**, which worried that Kyrathos *"appears
+nowhere else in the data — not among the Matrix's 27."* It does not have to be.
+An uncharted world in a galaxy is not an anomaly.
+
+★★ **And the speculation attached to it is wrong on existing canon anyway:**
+§16e wonders whether Kyrathos might be **AE28**. **AE-28 is already Ovauron** —
+the codex has *"Ovauron, 'The Wandering Hunger' — designation AE-28… a sentient
+'drift planet,' a null world that carries no reality weight, adrift outside the
+cosmic order."* The designation is taken. Kyrathos is simply a world nobody
+charted.
+
+### ★ 5 · What is still open
+
+- **[ASK]** Does **Ax-1 "Aethryx Prime"** — the first item of family 1 CREATION in
+  `ASTRALITE_FAMILIES` **[BUILD]** — name the prime energy itself, or an Astralite
+  named *after* it? If the former, one of the 63 is the substrate wearing a
+  family badge, which would be a deliberate and interesting exception; if the
+  latter it is homage and nothing else. The code currently treats it as an
+  ordinary family-1 stone.
+- **[ASK]** Is anything of Source Prime *inside* the Expanse, or is the Gate of
+  Anciuxor a hard boundary? §12's Gate implies a hard one, which is the cleaner
+  reading and the one that keeps the Key exceptional.
 
 ---
+
 
 ## 1 · THE 16 PRISMSHARDS
 

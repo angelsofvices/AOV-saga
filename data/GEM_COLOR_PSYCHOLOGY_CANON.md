@@ -167,12 +167,21 @@ The relic canon defines a Prismshard as *"a complex binding of multiple highly c
 **Specialise is lean. Harmonise is balance.** The two systems are the same distinction in two vocabularies:
 
 ```
-ONE Astralite, concentrated   →  GEMSHARD    →  a HUE     ·  leans
-SEVERAL in equilibrium        →  PRISMSHARD  →  toward WHITE ·  leans less
-ALL of them, perfectly        →  AETHRYX     →  WHITE     ·  does not lean
+ONE FAMILY, complete          →  GEMSHARD    →  HAS a hue    ·  leans
+SEVERAL families, balanced    →  PRISMSHARD  →  toward WHITE ·  leans less
+ALL of them, perfectly        →  AETHRYX     →  WHITE        ·  does not lean
                                     ↓ traces
                               THE WHITE GEM
 ```
+
+> ★★★ **CORRECTED IN PLACE, 2026-09-01.** The first row read *"one Astralite,
+> concentrated."* Under `PRISMSHARD_GEMSHARD_CANON.md` §0e a Gemshard is **seven**
+> Astralites — one complete **family**. One word, and the rule gets stronger:
+> **TO LEAN IS TO BE OF ONE FAMILY.** ★★ Which is also why §0f's orthogonality
+> holds rather than merely being convenient: **family purity decides WHETHER a
+> thing leans; it does not decide WHICH WAY.** Nine families never had to map onto
+> eight hues, because the family was only ever saying *"this object is
+> single-family, so it has a hue"* — never *which*.
 
 **It is a spectrum, not a switch: the more Astralites a relic holds in balance, the whiter it is.** Which lands somewhere useful — the Key of Anciuxor, described in the existing canon as *"transcending the 63, carrying all 9 families as trace echoes with Ax as primary substrate"*, is by this reading **the whitest object below Aethryx itself.** Nine families in balance. That was written before this ruling and agrees with it.
 
@@ -291,7 +300,16 @@ Body colour of each sprite (`assets/2D sprites/decor/gem-*.png`), sampled across
 
 The six chromatic gems walk the wheel in order, and the two achromatics are the only ones under 0.2 saturation — **the art already separates them into exactly the three orders**, without anyone having written this down. One small note: black's residual hue reads 102° (a faint green cast) at that saturation. Below the threshold where anyone would call it green; worth knowing if the sprite is ever regenerated.
 
-### 7b · The nine Astralite family colours collide ✗
+### 7b · The nine Astralite family colours collide ✗ · ★★★ RESOLVED 2026-09-01
+
+> **Creator: *"colour is orthogonal to family."*** (`PRISMSHARD_GEMSHARD_CANON.md`
+> §0f.) ★★ **The measurement below stands; its status changes completely.** A
+> family colour carries **no meaning** — family says what a thing is *made of*,
+> colour says which way it *leans*, and neither derives from the other. So these
+> nine hexes are a **UI palette**, not a claim. The collisions are still real and
+> still worth fixing, but the fix is now a **legibility** problem with an obvious
+> answer (**nine hues at 40°**) rather than a canon problem needing nine correct
+> answers. See §9c.
 
 Nine families need nine legible colours. Measured from `ASTRALITE_FAMILIES`:
 
@@ -364,9 +382,16 @@ proposed  red 20 · blue 40 · yellow 60 · green 80 · orange 100 · purple 120
 
 ★ **The one real cost:** a save in flight revalues. A player holding ten green gems sees them go 60 → 80 each; white goes 100 → 140. Three gems (red, blue, black) keep their exact value; five move. Cheap, but not zero — needs a migration decision, not just a constant edit.
 
-### 9c · Not free: the nine family colours
+### 9c · ~~Not free: the nine family colours~~ · ★★★ CHEAP NOW — 2026-09-01
 
-Fixing 3.6° and 9.6° means re-picking hues and touching every surface that paints an Astralite. Worth doing, but it is an art pass with a real footprint, and the choice of *which* nine hues is the Creator's.
+Fixing 3.6° and 9.6° means re-picking hues and touching every surface that paints an Astralite. Worth doing, but it is an art pass with a real footprint, and ~~the choice of *which* nine hues is the Creator's~~.
+
+> ★★★ **The expensive half was never the art — it was the CHOOSING**, because
+> each of the nine had to be *right* for its family. **Creator, 2026-09-01:
+> *"colour is orthogonal to family"*** removes that requirement outright. A family
+> swatch means nothing, so the criterion is legibility alone: **nine hues at 40°
+> spacing**, mechanically derivable, no ruling needed. The footprint is unchanged;
+> the decision is gone. `PRISMSHARD_GEMSHARD_CANON.md` §0f§5.
 
 ---
 

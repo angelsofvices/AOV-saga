@@ -727,6 +727,144 @@ Nothing touched. Adding to the standing list in §0d§6:
 
 ---
 
+## 0f · ★★★ COLOUR IS ORTHOGONAL TO FAMILY — Creator ruling, 2026-09-01
+
+> **Creator:** *"colour is orthogonal to family"*
+
+**Ruled. §0e§5's conflict is closed, and it closes by dissolving rather than by
+anyone conceding.** Nine families and eight colours were never supposed to line
+up, because they are not answering the same question.
+
+### ★★★ 1 · THREE AXES, INDEPENDENT
+
+| axis | count | answers | organises |
+|---|---:|---|---|
+| **FAMILY** | **9** | *what is it made of?* | the Astralite Matrix · Prismshard lineage · **the cosmos** |
+| **COLOUR** | **8** | *which way does it lean?* | the districts · the Gemlords · the stones · **Zyraxis** |
+| **CONCENTRATION** | **1–7** | *how much of it?* | the gem itself |
+
+★★ **The counts differ for a reason, and the reason is the best argument for the
+ruling.** Nine is a **cosmological** number — it is how the universe is built, and
+it is the same nine whether you are on Zyraxis or Kyrathos. Eight is a
+**terrestrial** one — it is how *this planet* is divided, Gemlord by Gemlord.
+**A number that describes the Matrix and a number that describes ten districts
+were never going to match, and it would have been suspicious if they had.**
+
+### ★★★ 2 · THE CANON HAS BEEN ASSERTING THIS ALREADY, IN THREE PLACES
+
+Not a new rule — a rule three shipped systems were already obeying.
+
+1. ★★★ **Corruption is an overlay** (`GEM_COLOR_PSYCHOLOGY_CANON.md` §5). Corruption
+   **changes what a thing leans toward without changing what it is made of.**
+   That is an orthogonality proof written a fortnight early: if colour could be
+   seized independently of material, colour was never a property of material.
+2. ★★ **The eight district stones are a perfect bijection with the eight
+   colours** (`GEM_BADGE_SYSTEM_BRAINSTORM.md` §17) — ruby/red, pearl/white,
+   citrine/yellow, emerald/green, amethyst/purple, sapphire/blue, onyx/black,
+   amber/orange, and **seven of eight Gemlord titles literally contain the stone**.
+   The colour axis already had its own complete 8-fold structure, anchored in
+   **geography**, owing nothing to the families.
+3. ★ **`PRISMSHARD_REGISTRY` carries `family` and no colour at all** **[BUILD]**.
+   The relic data has only ever modelled one of the two axes.
+
+### ★★★ 3 · WHAT SURVIVES, AND IT SURVIVES BETTER · the §3a synthesis
+
+The colour canon's §3a says a **Gemshard leans (a hue)** and a **Prismshard
+harmonises (toward white)** — *"the more Astralites a relic holds in balance, the
+whiter it is."* Under §0e a Gemshard is **seven** Astralites, so that line looks
+threatened. It is not. **One word changes and the rule gets stronger:**
+
+> **To lean is to be of ONE FAMILY.**
+>
+> ```
+> ONE family, complete        →  GEMSHARD    →  HAS a hue        · leans
+> SEVERAL families, balanced  →  PRISMSHARD  →  toward achromatic · leans less
+> ALL of them                 →  AETHRYX     →  WHITE            · does not lean
+> ```
+
+★★★ **And this is exactly what makes orthogonality coherent rather than merely
+convenient.** Family purity decides **WHETHER** a thing leans. It does **not**
+decide **WHICH WAY**. Nine into eight never had to go, because the family was
+never selecting the hue — it was only ever saying *"this object is single-family,
+therefore it has one."*
+
+★★ **§3a's ladder is corrected in place**: not *"one Astralite, concentrated"* but
+*"one **family**, complete."* Everything downstream of it — the whiteness spectrum,
+white as the structural opposite of corruption, the Key of Anciuxor as the whitest
+object below Aethryx (nine families in balance) — is untouched and now rests on
+§0e's arithmetic instead of on an assumption.
+
+★ **[INFER] It also predicts the Prismshards are achromatic**, and the name has
+been saying so: **a prism is the one object that holds every colour without being
+any of them.** A Prismshard is an *equilibrium* by definition, so it cannot lean.
+It is not white as a hue — **it is what white light passes through to become the
+eight.** Offered as an observation, not written as law.
+
+### ★★★ 4 · SO WHAT *DOES* SELECT A GEM'S HUE? **[ASK]**
+
+Orthogonality names what colour **isn't** determined by. Something still has to
+determine it, and this is now the open question the ruling creates:
+
+- ★★★ **(a) WHERE IT FORMED. Recommended.** Family = what it is made of
+  *(cosmology)*. **Colour = where it came from *(geography)*.** Perfectly
+  independent, and **already built** — §17's eight stones are eight *districts*,
+  each with a Gemlord who is titled after it. Under this reading the Creator's
+  district gem hunt stops being a fetch quest and becomes **the colour axis made
+  playable**: you learn what red means by going to the place that is red.
+  ★★ It also explains the two districts with no hue — **Thardin (WORLD)** and
+  **Korathen (SPACE)** are outside the eight because they are not *places* in the
+  way the other eight are; they are the world and its extent. The gap is the
+  design, exactly as §17a said.
+- **(b) Disposition — what the gem DOES.** True to the colour canon's
+  psychology, but it makes colour a consequence of use rather than of origin, and
+  nothing in the build records use.
+- **(c) Nothing — colour is free.** `9 × 8 × 7 = 504` gem states. Rejected: it
+  makes colour arbitrary, which is the one thing the colour canon rules out.
+
+### ★★ 5 · IT MAKES A FLAGGED ART PROBLEM CHEAP **[BUILD]**
+
+`GEM_COLOR_PSYCHOLOGY_CANON.md` §7b measured the nine `ASTRALITE_FAMILIES`
+swatches and found three collisions — **CREATION↔PRESERVATION 3.6°,
+PAST↔SPIRIT 9.6°, MIND↔FUTURE 16.3°**, with saturation pinned at 1.00 on eight of
+nine, so hue is the only separator. §9c called fixing it *"not free"* because
+choosing nine hues was a **canon** decision: each had to be *right* for its family.
+
+★★★ **Under this ruling it stops being a canon decision.** A family colour carries
+no meaning — it is a **UI swatch**. So the criterion collapses to pure legibility,
+and legibility has an answer: **nine hues at 40° spacing**, which is exactly the
+gap §7b measured against. **Not proposed as a change here**, but §9c's blocker is
+gone and the pass is now art, not lore.
+
+★ **[BUILD] flag:** `ASTRALITE_FAMILIES[].color` now reads as a canon claim it is
+not making. A comment or a rename to `uiColor` would prevent the next reader
+making the mistake this ruling just corrected. Not changed.
+
+### ★★ 6 · AND IT GIVES THE BADGE DOC'S §0a A REAL ANSWER
+
+`GEM_BADGE_SYSTEM_BRAINSTORM.md` §0a is *"the single largest obstacle"*:
+`spendGems()` treats colour as a **denomination** (`red 20 … black 160`) and pays
+cheapest-first, so buying a sword repair can silently eat the purple gem a player
+was saving. §13 recommended **retiring the gem price entirely.**
+
+★★★ **There is now a better answer than deletion, and it falls out of the three
+axes:**
+
+> **CONCENTRATION is the denomination. COLOUR is the meaning. FAMILY is the
+> provenance.** A shop prices in concentration and must never look at colour.
+
+★ **Stated honestly, this reframes §0a rather than dissolving it.** A gem spent at
+a shop is still gone, colour and all. What changes is that the loss becomes
+**legible** — *"I am spending three points of a purple gem"* is a decision a player
+can make, where today's cheapest-first sweep is an invisible one. ★ A cheap
+mitigation falls out too **[NEW]**: sort by concentration and, among equals,
+**prefer the colour the player holds most of**. One comparator, no new UI, and
+rarity stops being punished for being valuable.
+
+**Not implemented. §13's retire-the-price recommendation stands until you choose
+between them.**
+
+---
+
 ## 1 · THE 16 PRISMSHARDS
 
 Exactly sixteen. The highest known relic class in the Aethryx Expanse.

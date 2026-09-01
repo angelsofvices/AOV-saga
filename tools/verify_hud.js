@@ -23,11 +23,15 @@ const EL={};
 function mk(id){ const base=el(); base.id=id; base.style={display:'none'}; base.innerHTML='';
   base.getBoundingClientRect=()=>({left:10,top:10,right:200,bottom:120,width:190,height:110});
   return EL[id]=base; }
-['companionStrip','punchChain','a5Charge','rizerHud'].forEach(mk);
+['companionStrip','a5Charge','rizerHud','game'].forEach(mk);
+// the canvas has an INTRINSIC size (960x528) and a CSS size · the badge maps
+// world → canvas → screen through that ratio, so the stub must carry both
+EL.game.width=960; EL.game.height=528;
+EL.game.getBoundingClientRect=()=>({left:100,top:50,right:1060,bottom:578,width:960,height:528});
 global.document={getElementById:(id)=>EL[id]||mk(id),querySelector:()=>mk('q'),querySelectorAll:()=>[],
   createElement:()=>mk('c'),addEventListener:noop,body:mk('body'),documentElement:mk('de'),head:mk('h'),
   hidden:false,visibilityState:'visible'};
-try{new Function(src+';globalThis.__C={paintCompanionStrip,zorynIsCompanion,zorynIsDown,zorynHp,ZORYN_HP_MAX,ZORYN_REVIVE_ITEM,advancePunchCombo,resetPunchCombo,punchComboStep,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_STEPS,PUNCH_COMBO_NAME,rizerInCombat,player,game,NPCS};')();}
+try{new Function(src+';globalThis.__C={paintA5Charge,voltstormReady,voltstormCharge,VOLTSTORM_KILL_COST,TILE,_cam,paintCompanionStrip,zorynIsCompanion,zorynIsDown,zorynHp,ZORYN_HP_MAX,ZORYN_REVIVE_ITEM,advancePunchCombo,resetPunchCombo,punchComboStep,PUNCH_COMBO_WINDOW_MS,PUNCH_COMBO_STEPS,PUNCH_COMBO_NAME,rizerInCombat,player,game,NPCS};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -129,6 +133,52 @@ H('7 · ★ THE STRIP DOES NOT SIT ON THE A5 CUTSCENE');
   ok(/body\.voltstorm-cine #companionStrip/.test(src2),'★★ the companion strip is on the full-cinema hide list');
   ok(!/#punchChain/.test(src2),'★ the chain needs no entry · it no longer exists (v0.95.926)');
   ok(/pure DOM, no art/.test(src2),'★ the strip is DOM · no new assets');
+}
+
+
+H('8 · ★★★ VOLTSTORM READY RIDES ON RIZER');
+{
+  const A=EL.a5Charge;
+  P.voltstormUnlocked=true; P.cosmeticSkin='normal';
+  // ── charging: parked under the HUD ──
+  P._voltstormKills=5;
+  C.paintA5Charge(true);
+  ok(!C.voltstormReady(),'charging · 5/'+C.VOLTSTORM_KILL_COST);
+  ok(/⚡ 5\//.test(A.textContent),'★ it shows the count');
+  const parkedLeft=A.style.left, parkedTop=A.style.top;
+  ok(parkedLeft==='10px','★★ and stays PARKED under the HUD · ambient info belongs with the ambient info');
+  ok(A.style.transform==='none','★ no centring while parked');
+  // ── ready: rides on the character ──
+  P._voltstormKills=C.VOLTSTORM_KILL_COST;
+  P.x=20; P.y=30; C._cam.x=0; C._cam.y=0;
+  C.paintA5Charge(true);
+  ok(C.voltstormReady(),'charged');
+  ok(/VOLTSTORM READY/.test(A.textContent),'★ it says READY');
+  ok(A.style.left!==parkedLeft || A.style.top!==parkedTop,
+     '★★★ and it MOVED off the HUD · a prompt that a button is live belongs where your eyes are');
+  ok(A.style.transform==='translateX(-50%)','★★ centred on him, not left-aligned');
+  // the maths: world tile → canvas px → screen px through the CSS scale
+  const expX=100+((20*C.TILE+C.TILE/2)-0)*(960/960);
+  const expY=50 +((30*C.TILE+C.TILE)-0)*(528/528)+6;
+  ok(A.style.left===Math.round(expX)+'px','★★ x lands under his tile centre ('+A.style.left+')');
+  ok(A.style.top===Math.round(expY)+'px','★★ y lands just below his feet ('+A.style.top+')');
+  // and it tracks him
+  P.x=40;
+  C.paintA5Charge(true);
+  ok(A.style.left===Math.round(100+((40*C.TILE+C.TILE/2))*(960/960))+'px','★★★ it FOLLOWS him as he walks');
+  ok(/two jobs, two homes/.test(src2),'the split is recorded · READY is a moment, 14\/20 is ambient');
+}
+
+H('9 · ★★ THE STRIP DOES NOT CHASE IT');
+{
+  P._voltstormKills=C.VOLTSTORM_KILL_COST;   // badge is out on the character
+  P.bonds=P.bonds||{}; P.bonds.zoryn=50; P.zorynDown=false; P.zorynHp=C.ZORYN_HP_MAX;
+  C.paintA5Charge(true);
+  C.paintCompanionStrip(true);
+  ok(S.style.display==='block','the strip still shows');
+  ok(S.style.left==='10px',
+     '★★★ pinned to the HUD, not to the badge · otherwise it would end up stuck to his feet mid-fight');
+  ok(/would end up stuck to his feet/.test(src2),'and the reason is recorded');
 }
 
 console.log('\n'+(f?('❌ '+f+' FAILED'):'✅ ALL PASS'));

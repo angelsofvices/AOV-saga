@@ -22620,14 +22620,43 @@ function paintA5Charge(hudVisible){
   const eligible = hudVisible && !!player.voltstormUnlocked
                 && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
   if (!eligible){ el.style.display = 'none'; return; }
-  const hud = document.getElementById('rizerHud');
-  if (hud){
-    const r = hud.getBoundingClientRect();
-    if (r.width){ el.style.left = Math.round(r.left) + 'px'; el.style.top = Math.round(r.bottom + 4) + 'px'; }
+  const ready = voltstormReady();
+  // ★★★ v0.95.929 · READY RIDES ON RIZER.  Creator: "move the voltstorm ready
+  // dom right under my cursor."  A prompt telling you a button is live belongs
+  // where your eyes already are, which in this game is the character -- the
+  // top-right corner is the last place you look mid-fight, and the A5 is fired
+  // one tile from something trying to kill you.
+  //
+  // ★★ THE CHARGING COUNTER STAYS PARKED, and that is deliberate: "14/20" is
+  // AMBIENT (how far off am I), "READY" is a MOMENT (press it now).  Ambient
+  // information belongs with the other ambient information; pinning a slowly
+  // ticking number to his head would follow him around the whole game being
+  // ignored.  Same element, two jobs, two homes.
+  if (ready){
+    const cv = document.getElementById('game');
+    const r  = cv && cv.getBoundingClientRect();
+    if (r && r.width){
+      // world tile → canvas px → screen px, through the CSS scale (the canvas
+      // is 960x528 internally and stretched to fit the viewport)
+      const sx = r.width  / (cv.width  || 960);
+      const sy = r.height / (cv.height || 528);
+      const wx = (player.x * TILE + TILE / 2) - _cam.x;
+      const wy = (player.y * TILE + TILE)     - _cam.y;
+      el.style.left = Math.round(r.left + wx * sx) + 'px';
+      el.style.top  = Math.round(r.top  + wy * sy + 6) + 'px';
+      el.style.transform = 'translateX(-50%)';
+    }
+  } else {
+    const hud = document.getElementById('rizerHud');
+    el.style.transform = 'none';
+    if (hud){
+      const r = hud.getBoundingClientRect();
+      if (r.width){ el.style.left = Math.round(r.left) + 'px'; el.style.top = Math.round(r.bottom + 4) + 'px'; }
+    }
   }
   el.style.display = 'block';
   const c = voltstormCharge();
-  if (voltstormReady()){
+  if (ready){
     el.textContent   = '⚡ VOLTSTORM READY';
     el.style.color   = '#ffd66b';
     el.style.borderColor = '#ffd66b';
@@ -22673,10 +22702,13 @@ function paintCompanionStrip(hudVisible){
             + 'padding:3px 8px;margin-top:3px;">✚ YARA MENDING</div>');
   }
   if (!hudVisible || !rows.length){ el.style.display = 'none'; return; }
+  // ★ v0.95.929 · the strip anchors to the A5 badge ONLY while that badge is
+  // still parked under the HUD.  Once it is READY it rides on Rizer, and a
+  // companion strip that followed it would end up stuck to his feet mid-fight.
   const anchor = document.getElementById('a5Charge');
   const hud    = document.getElementById('rizerHud');
   let top = null, left = null;
-  if (anchor && anchor.style.display !== 'none'){
+  if (anchor && anchor.style.display !== 'none' && !voltstormReady()){
     const r = anchor.getBoundingClientRect();
     if (r.width){ left = r.left; top = r.bottom + 3; }
   }

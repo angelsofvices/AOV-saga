@@ -4,6 +4,8 @@
 
 **Creator rulings, same day — incorporated below:**
 > *"Yellow can represent adaption as well. Orange can represent evolution. White can be the reflection of all. and black can be the absorbtion of all. also remember none of the colors are inherently good or bad. it is a yin yang effect. corruption can takeover anything"*
+>
+> *"white is a trace of aethryx and represents balance between astralites. the 'no color' achromacy of white represents the hue no leaning towards any one particular hue"* — **see §3a, which is the deepest section in this document.**
 
 Proposal document. **Nothing here is written into code.** §9 lists what a ruling would change and what it would cost.
 
@@ -37,6 +39,8 @@ Two separate things, and they do different jobs.
 
 ★ The source frames those two as *all light* and *no light*, and the Creator's ruling improves on it: **white REFLECTS all, black ABSORBS all.** That is the same page's own physics — *"objects tend to absorb or reflect these wavelengths"* — and it makes both of them things a body **does** rather than states it is in. See §3.
 
+★★ **And the same sentence yields the fact §3a is built on: a hue exists because a surface REJECTS some wavelengths and returns others. To have a colour is to have a preference.** Achromacy is therefore not the lack of colour — it is the lack of *bias*.
+
 This is a hierarchy of *origin*, not of taste. It is also — and this is the point — **the same three-tier shape the Expanse already uses everywhere**: Astralite → Gemshard → Prismshard, singular → composite, one energy → several in equilibrium.
 
 ### 1b · Psychology — what each colour does to a person before they think about it
@@ -51,7 +55,7 @@ From the source, condensed to what a relic system can use:
 | **Green** | *nature, growth, harmony, freshness, fertility* · *"slows human metabolism and produces a calming effect"* · **connection** · return to primal roots | **restoration and growth** |
 | **Orange** | red's energy + yellow's happiness · *rejuvenation, communication, positivism* · enhances extraversion, lets people drop inhibitions | **EVOLUTION — a form changing under pressure** |
 | **Purple** | *"combines the stability of blue and the energy of red"* · royalty, nobility, power, luxury · wisdom, dignity, independence, **mystery and magic** | **synthesis — the third register** |
-| **White** | light, goodness, purity, wholeness, *"the color of perfection"* · new beginnings · the blank canvas from which anything may start | **REFLECTION — returns everything, keeps nothing** |
+| **White** | light, goodness, purity, wholeness, *"the color of perfection"* · new beginnings · the blank canvas from which anything may start | **REFLECTION — returns everything, keeps nothing · leans nowhere** |
 | **Black** | power, elegance, formality, **death, evil, mystery** · *"a mysterious color associated with fear and the unknown (black holes)"* · authority · **grief** | **ABSORPTION — takes everything in and keeps it** |
 
 ★★ **The source contradicts itself and does not notice.** Yellow *"indicates honor and loyalty"* and then, one sentence later, *"was connected with cowardice."* Black is *"elegant, prestigious, authoritative"* and *"usually has a negative connotation."* These are not errors — **they are the yin-yang law showing through a document that had no name for it.** §4 gives it one, and the third column above is deliberately written as the neutral principle rather than the flattering half.
@@ -126,10 +130,64 @@ This is not a metaphor — it is how colour physically works, and the source say
 
 | | ruling | in the Expanse |
 |---|---|---|
-| **WHITE** | **reflection of all** — receives everything, keeps nothing, gives it all back | **AETHRYX.** The Impossible Archive: *"AETHRYX is not one of the sixty-three. It is the REASON there are sixty-three."* Vorashil: *"not a being with a signature… the condition under which a signature is possible at all."* **A thing that reflects everything has no colour of its own — which is exactly a condition rather than a participant.** |
+| **WHITE** | **reflection of all** — receives everything, keeps nothing, gives it all back | a **TRACE OF AETHRYX**, and what it carries is **BALANCE BETWEEN ASTRALITES** *(Creator ruling — see §3a)* |
 | **BLACK** | **absorption of all** — receives everything and keeps it | **THE VOID SEA**, which the whole world floats in — and which the game *already* models as absorption rather than absence: the Void-Sea execution has enemies **sink, compress and be swallowed** (`_voidSwallow`), not vanish. **The Empty Throne** is the same idea with a name on it: Oatheus is not a dark Gemlord, he is one the tenth chair has taken in. |
 
 > ★★ **This is why they are the rarest, and it is not a drop-rate decision.** Every other gem is something the Expanse *made*. White and black are the two things the Expanse *does* — give back, and take in. You do not find those often, because they are not products.
+
+---
+
+### 3a · ★★★ TO HAVE A COLOUR IS TO HAVE A LEANING
+
+> **Creator, 2026-09-01:** *"white is a trace of aethryx and represents balance between astralites. the 'no color' achromacy of white represents the hue no leaning towards any one particular hue."*
+
+**This is the deepest line in the whole colour language, and it is physically literal.**
+
+A surface has a hue because it **rejects** some wavelengths and returns others. Green is green because it gives back the green and keeps the rest. **A hue is a preference — a bias, stated in light.** Turn that on the cosmology and it says something the Expanse has been implying for a long time without a sentence for it:
+
+> **The 63 Astralites each LEAN. Aethryx does not.**
+> That is why it is *"not one of the sixty-three"* but *"the REASON there are sixty-three"* — and why it has *"no signature"* while being *"the condition under which a signature is possible at all."*
+> **A thing with no leaning has no signature. It is not one of the colours; it is the light they are all made of.**
+
+#### White is not the absence of colour. It is the absence of PREFERENCE.
+
+| | |
+|---|---|
+| a chromatic gem | one Astralite dominant · a leaning · **a bias** |
+| **white** | every Astralite in balance · **no leaning · no bias** |
+
+**And the achromacy is the tell.** Measured, the white gem sits at saturation 0.14 (§7a) — not "grey" but *unleaning*. Saturation IS the measure of how far a colour leans toward its hue. **A saturation of zero is not the lack of a colour; it is a perfect balance of all of them.** The art has been carrying the ruling since before the ruling.
+
+#### ★★ This puts white on the PRISMSHARD state
+
+The relic canon defines a Prismshard as *"a complex binding of multiple highly concentrated Astralite energies held at a precise state of **BALANCE**"* and adds: *"**A Gemshard specializes. A Prismshard harmonizes.**"*
+
+**Specialise is lean. Harmonise is balance.** The two systems are the same distinction in two vocabularies:
+
+```
+ONE Astralite, concentrated   →  GEMSHARD    →  a HUE     ·  leans
+SEVERAL in equilibrium        →  PRISMSHARD  →  toward WHITE ·  leans less
+ALL of them, perfectly        →  AETHRYX     →  WHITE     ·  does not lean
+                                    ↓ traces
+                              THE WHITE GEM
+```
+
+**It is a spectrum, not a switch: the more Astralites a relic holds in balance, the whiter it is.** Which lands somewhere useful — the Key of Anciuxor, described in the existing canon as *"transcending the 63, carrying all 9 families as trace echoes with Ax as primary substrate"*, is by this reading **the whitest object below Aethryx itself.** Nine families in balance. That was written before this ruling and agrees with it.
+
+#### ★★★ And it makes white the exact opposite of corruption
+
+Not the moral opposite — the **structural** one. Both are states rather than colours, and they are the two ways a thing can stop being simply its hue:
+
+> **WHITE is what happens when nothing dominates.**
+> **CORRUPTION is what happens when something dominates that should not.**
+
+Balance and takeover. Neither is a place on the wheel; both can happen to anything. That is why §4 (no colour is good or bad) and §5 (corruption is an overlay) had to be written before this section could mean anything — **white is not the good state, it is the level one.** A corrupted white is therefore not a paradox but the sharpest possible one: balance itself, made to lean.
+
+#### ★ The one thing this does NOT settle
+
+**Rule 13 of the relic canon says Prismshards are the progenitors of every lesser relic system.** If a white gem is a trace of **AETHRYX directly**, it is the first relic material in the game that does **not** descend from a Prismshard.
+
+That may be exactly right — Aethryx is already the one thing outside the set of 63, so a material outside the set of descendants is consistent rather than contradictory. But it is a real exception to a numbered rule and it is the Creator's to make, not mine to assume. **Flagged, unresolved.** *(§10.1)*
 
 ### The whole language on one page
 
@@ -275,7 +333,7 @@ Not a plan — things already in the build that this document only names:
 | evolution at level thresholds · Evolution Catalyst · Ultramax · Amplified Mode | **ORANGE** | **evolution** |
 | Life Seeds · Mythic Elixir · Verdant type · farming · the Sanctuary · bond | GREEN | growth |
 | Astralite bonds · Prisms · Bond Moves · Prismsynch | PURPLE | spirit |
-| AETHRYX · the 180 scrolls' unanswerable subject | WHITE | reflection |
+| AETHRYX · the 180 scrolls' unanswerable subject · **Prismshard equilibrium** | WHITE | reflection · **balance · no leaning** |
 | the Void Sea · `_voidSwallow` (enemies are **swallowed**, not deleted) · the Empty Throne | BLACK | absorption |
 
 Eight rows. Six of them were built before this document existed.
@@ -312,17 +370,19 @@ Fixing 3.6° and 9.6° means re-picking hues and touching every surface that pai
 
 ## 10 · OPEN CALLS FOR THE CREATOR
 
-**Closed by the 2026-09-01 ruling:** the third primary is ADAPTATION · orange is EVOLUTION · white REFLECTS · black ABSORBS · no colour is inherently good or bad · corruption is an overlay. Those questions are answered and the document above is built on the answers.
+**Closed by the 2026-09-01 rulings:** the third primary is ADAPTATION · orange is EVOLUTION · white REFLECTS and black ABSORBS · no colour is inherently good or bad · corruption is an overlay · **a white gem is a TRACE of Aethryx carrying BALANCE BETWEEN ASTRALITES, and achromacy means no leaning toward any one hue.** The document above is built on the answers.
 
 **Still open:**
 
-1. **★★ Does a WHITE GEM mean AETHRYX, or a TRACE of it?** The reflection ruling makes the fit tighter, not looser — *"not one of the sixty-three, it is the REASON there are sixty-three"* is a description of a perfect reflector. But AETHRYX is the largest thing in the cosmology and a lootable pickup may be exactly the wrong vessel. **The Mealux ruling already solved this shape once:** the Key stayed unobtainable and its *remnant traces* became findable. A white gem as a trace keeps the wall where it is.
-2. **★ Does BLACK belong to the Void Sea, or to Oatheus?** Both are in canon and they are different stories — one is a place that absorbs, the other is a chair that took someone. Under the absorption ruling **they may be the same story**, which would be a large piece of lore falling into place. Not assumed.
-3. **★★ Can corruption take WHITE?** §5 says nothing forbids it, and a reflector made to return a lie is the most frightening object this cosmology could contain. That is either a major late-game reveal or a line you do not want crossed — either way it is yours, not mine.
-4. **Where does the yin face live in the mechanics?** The law is written; the game currently expresses only the yang half of most colours. Do corrupted/shadow expressions become status effects, an alternate type set, a district condition — or purely a lore and dialogue register?
-5. **Re-order the ladder (§9b)?** Free in economy, costs a save migration.
-6. **Re-space the nine family colours (§9c)?** Three pairs are currently not tellable apart.
-7. **Does this language extend to the Gemshards?** §16 of the relic canon already reads as primary-vs-secondary in your own words. If Gemshard = singular = primary and Prismshard = composite = secondary, the 81 and the 16 inherit a colour language for free — and the **Key of Anciuxor lands on white** by the same logic that put AETHRYX there.
+1. **★★ Does the white gem descend from a PRISMSHARD, or straight from AETHRYX?** Rule 13 of the relic canon makes Prismshards the progenitors of every lesser relic system. A trace of Aethryx *directly* would be the first relic material that does not descend from one. That may be exactly right — Aethryx is already the one thing outside the 63, so a material outside the descendants is consistent rather than contradictory — but it is a numbered rule taking an exception, and that is a ruling, not an inference. *(§3a)*
+2. **★★ Does GEMSHARD = hue and PRISMSHARD = white follow?** *"A Gemshard specializes. A Prismshard harmonizes"* is **lean** and **balance** in the relic canon's own words, written before this ruling. If it holds, the 81 and the 16 inherit the colour language for free, the whiteness of a relic becomes a *measure* (how many Astralites it holds in balance), and **the Key of Anciuxor — nine families carried as trace echoes — is the whitest object below Aethryx.** Strongly suggested by two documents that were not written together; still yours to confirm.
+3. **★ Does BLACK belong to the Void Sea, or to Oatheus?** Both are in canon and they are different stories — one is a place that absorbs, the other is a chair that took someone. Under the absorption ruling **they may be the same story**, which would be a large piece of lore falling into place. Not assumed.
+4. **★★ Can corruption take WHITE?** §3a sharpens this: if white is *balance*, a corrupted white is **balance itself made to lean** — the state that has no preference, given one. §5 says nothing in the cosmology forbids it. That is either a major late-game reveal or a line you do not want crossed; either way it is yours, not mine.
+5. **Where does the yin face live in the mechanics?** The law is written; the game currently expresses only the yang half of most colours. Do corrupted/shadow expressions become status effects, an alternate type set, a district condition — or purely a lore and dialogue register?
+6. **Re-order the ladder (§9b)?** Free in economy, costs a save migration.
+7. **Re-space the nine family colours (§9c)?** Three pairs are currently not tellable apart.
+
+*(A previous item asking whether the language extends to the Gemshards has been folded into #2 — the balance ruling answers the weaker half of it, and what is left is exactly the lean/balance confirmation.)*
 
 ---
 
@@ -330,7 +390,7 @@ Fixing 3.6° and 9.6° means re-picking hues and touching every surface that pai
 
 - Does not touch `GEM_VALUES`, `GEM_WEIGHTS`, `GEM_COLORS`, `ASTRALITE_FAMILIES` or any sprite. Nothing above is in the build.
 - Does not redefine RED, BLUE or PURPLE. Those are locked at Codex v15.7 and this only supplies the reason they were right.
-- Does not assign Gemshard or Prismshard colours. §10.6 is a question.
+- Does not assign Gemshard or Prismshard colours. §10.2 is a question, not a ruling.
 - Does not claim colour psychology is settled science. The source says so itself: *"since every human being has different emotions attached to different colors, the universal significance of colors may or may not work."* What makes it usable here is not that it is true of every person — it is that it is **shared enough to be read without a tutorial**, which is the whole job of a colour language in a game.
 
 **Source:** [Color Psychology — Effects & Meaning](https://www.colorpsychology.org/) · [Primary, Secondary, and Tertiary Colors](https://www.colorpsychology.org/primary-secondary-tertiary-colors/)

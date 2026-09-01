@@ -353,6 +353,16 @@ The handoff asks (Q15). This is where badges can justify being *equipped* outsid
 
 > **Gems bias. Gemshards specialize. Prismshards harmonize. Aethryx does not lean.**
 
+★★★ **UPDATED 2026-09-01 — the composition ladder is now LOCKED**
+(`PRISMSHARD_GEMSHARD_CANON.md` §0b):
+**Astralite → Gem → Gemshard → Prismshard ← SOURCE.**
+
+That changes this section's ceiling from a rule I proposed into one the hierarchy
+enforces by itself: a badge may fuel on **gems**, because gems are the rung above
+Astralites. It may never reach **Gemshards**, because a Gemshard is what a gem
+becomes at purity — and a Prismshard cannot be assembled without five of the 81.
+**The ladder polices the badge system without the badge system needing a rule.**
+
 | tier | may do | must never do |
 |---|---|---|
 | **ordinary gem** | tilt existing energy · fuel a badge | grant a move · grant a type |

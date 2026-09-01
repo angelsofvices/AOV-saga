@@ -374,7 +374,12 @@ Fixing 3.6° and 9.6° means re-picking hues and touching every surface that pai
 
 **Still open:**
 
-1. **★★ Does the white gem descend from a PRISMSHARD, or straight from AETHRYX?** Rule 13 of the relic canon makes Prismshards the progenitors of every lesser relic system. A trace of Aethryx *directly* would be the first relic material that does not descend from one. That may be exactly right — Aethryx is already the one thing outside the 63, so a material outside the descendants is consistent rather than contradictory — but it is a numbered rule taking an exception, and that is a ruling, not an inference. *(§3a)*
+1. **★★ Does the white gem descend from a PRISMSHARD, or straight from AETHRYX?**
+   *(★ 2026-09-01: the TWO ARROWS lock — `PRISMSHARD_GEMSHARD_CANON.md` §0b —
+   puts **SOURCE** above the Prismshards. If Source is Aethryx, this question
+   answers itself: white gems and Prismshards come from the same place at
+   different scales, and Rule 13 keeps one exception with a reason rather than a
+   hole. Still needs the Source ruling.)* Rule 13 of the relic canon makes Prismshards the progenitors of every lesser relic system. A trace of Aethryx *directly* would be the first relic material that does not descend from one. That may be exactly right — Aethryx is already the one thing outside the 63, so a material outside the descendants is consistent rather than contradictory — but it is a numbered rule taking an exception, and that is a ruling, not an inference. *(§3a)*
 2. **★★ Does GEMSHARD = hue and PRISMSHARD = white follow?** *"A Gemshard specializes. A Prismshard harmonizes"* is **lean** and **balance** in the relic canon's own words, written before this ruling. If it holds, the 81 and the 16 inherit the colour language for free, the whiteness of a relic becomes a *measure* (how many Astralites it holds in balance), and **the Key of Anciuxor — nine families carried as trace echoes — is the whitest object below Aethryx.** Strongly suggested by two documents that were not written together; still yours to confirm.
 3. **★ Does BLACK belong to the Void Sea, or to Oatheus?** Both are in canon and they are different stories — one is a place that absorbs, the other is a chair that took someone. Under the absorption ruling **they may be the same story**, which would be a large piece of lore falling into place. Not assumed.
 4. **★★ Can corruption take WHITE?** §3a sharpens this: if white is *balance*, a corrupted white is **balance itself made to lean** — the state that has no preference, given one. §5 says nothing in the cosmology forbids it. That is either a major late-game reveal or a line you do not want crossed; either way it is yours, not mine.

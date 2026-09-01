@@ -22,6 +22,118 @@ Everything else below is the Creator's document, preserved.
 
 ---
 
+## 0b · ★★★ THE TWO ARROWS — Creator ruling, 2026-09-01
+
+> **Creator:** *"lets lock in that astralites make up gems, gems make up gem shards, gemshards make up prismshards, prismshards come from source"*
+
+**LOCKED.** And it reads at first as a direct contradiction of Rules 3, 5 and 13
+below — which say Prismshards are progenitors and everything *descends from*
+them. It is not a contradiction. **It is the second of two arrows, and the first
+one is already drawn in §1 of this document.**
+
+### The ladder, locked
+
+```
+            SOURCE
+              ↓  ── makes ──
+         PRISMSHARD          16 · equilibrium of several
+              ↑  ── made of ──
+          GEMSHARD           81 · one Astralite, purified
+              ↑  ── made of ──
+             GEM             concentrated Astralite, leaning to one colour
+              ↑  ── made of ──
+         ASTRALITE           63 · the fundamental energies
+```
+
+### ★★ Why this does not break the descent rules
+
+Two different relationships were being described by the same word, and naming
+them apart resolves it:
+
+| | | direction | stated in |
+|---|---|---|---|
+| **ORIGIN** | where a thing historically came from | Prismshard **→** downward | §3 · Rules 3, 5, 13 |
+| **COMPOSITION** | what a thing is physically made of | Astralite **→** upward | **§1, already** |
+
+§1 of this document has said the upward ladder from the beginning:
+
+> *Multiple Astralite Sources → Highly Concentrated Astralite Gems → Complex
+> Binding → Energetic Equilibrium → Scaled Power → **PRISMSHARD***
+
+**That is the Creator's ruling, minus one step.** The ruling inserts GEMSHARD
+between the gems and the binding — which §1 needed anyway, because §1's "highly
+concentrated Astralite energies" and Rule 10's *"a Gemshard expresses one
+extremely potent Astralite"* are describing the same object under two names.
+
+★★★ **And §3 already reserved the space, in one word.** It says the relationship
+between a Prismshard and a lesser relic may be *"physical, energetic,
+technological, alchemical, historical, or **REPLICATIVE** — ancient civilizations
+may have learned to reproduce properties a Prismshard first demonstrated."*
+
+> **The Prismshards came first and everything descends from them. Later, someone
+> worked out how to climb back up.** The crafting ladder is the REPLICATION of a
+> descent that originally ran the other way — which is exactly the case §3 wrote
+> a word for and never used.
+
+Both arrows are true. Neither is metaphor. Hydrogen came from the beginning of
+things *and* a star is made of hydrogen.
+
+### ★★ The 81 is now a recipe as well as a census
+
+```
+descent      each Prismshard PRODUCES 5 Gemshards      15 × 5 + 6 = 81
+composition  each Prismshard IS MADE OF its 5          5 (or 6) bind into 1
+```
+
+**The same arithmetic, read in both directions, and it closes both times.** A
+number that only worked one way would have been the tell that one arrow was
+wrong. This one does not have that problem.
+
+★ **A self-enforcing ceiling falls out of it:** a Prismshard cannot be assembled
+without holding **five of the 81 Gemshards** — which is not a restriction anyone
+has to write down or police. The hierarchy defends itself.
+
+### Each step, checked against standing canon
+
+| step | already supported by |
+|---|---|
+| Astralite → **Gem** | §15: *"Astralite Gem — concentrated crystalline manifestation of Astralite energy"* |
+| Gem → **Gemshard** | §6: *"GEMSHARD = PURITY / SPECIALIZATION"* · Rule 10: one Astralite at extreme concentration. A Gemshard is a gem taken to purity |
+| Gemshard → **Prismshard** | §1's binding · §2: *"A Gemshard specializes. A Prismshard harmonizes"* |
+| Source → **Prismshard** | **new** — see below |
+
+### ★★★ SOURCE · what needs a ruling
+
+"Source" is a **new term** in this canon, and two things need settling before it
+is written into anything.
+
+**1 · Is Source a new name for something already named?** Candidates:
+
+- **AETHRYX** — *"not one of the sixty-three. It is the REASON there are
+  sixty-three"* · *"the condition under which a signature is possible at all."*
+- **The Highest One / Anciuxor** — §12: *"Anciuxor is the manifestation of the
+  Highest One."*
+- **A fourth thing**, above or behind both.
+
+**2 · ★ It sits beside an origin story this document already tells.** §16e says
+the Prisms *"condensed out of residue — traces of Immortal crossings pooling over
+eons until they became stable relics."*
+
+> **[INFER, offered not asserted] The two are compatible if the residue story is
+> HOW and Source is WHAT the residue is residue OF.** Immortals crossing leave
+> traces; what they are traces *of* is Source. Then nothing is overwritten — the
+> condensation mechanism stays exactly as written and gains an origin behind it.
+
+★★ **If Source is Aethryx, it also settles an open question in the colour
+canon.** `GEM_COLOR_PSYCHOLOGY_CANON.md` §10.1 flags that a white gem —
+*"a trace of Aethryx"* — would be the first relic material descending from **no**
+Prismshard, an exception to Rule 13. Under this ladder that stops being an
+anomaly: **white gems and Prismshards would come from the same place, at
+different scales.** Rule 13 keeps one honest exception with a reason behind it
+rather than a hole.
+
+---
+
 ## 1 · THE 16 PRISMSHARDS
 
 Exactly sixteen. The highest known relic class in the Aethryx Expanse.
@@ -56,6 +168,9 @@ Sixteen different successful **equations** of Astralite power — not sixteen di
 ## 3 · PROGENITOR RELICS
 
 Prismshards are progenitors. Gemshards, Life Stones, Astralite Stones and other minor relics ultimately descend from Prismshard phenomena.
+
+> ★★ **This is the ORIGIN arrow. The COMPOSITION arrow runs upward — see §0b.**
+> The word **replicative**, three lines below, is what lets both be true.
 
 This does **not** mean every lesser relic is a visible broken chunk of one. The relationship may be physical, energetic, technological, alchemical, historical, or **replicative** — ancient civilizations may have learned to reproduce properties a Prismshard first demonstrated. Many modern relic technologies could trace back to Prismshard principles while the people using them no longer know it.
 
@@ -145,9 +260,9 @@ Every Gemshard references exactly one parent Prismshard and (eventually) exactly
 
 1. Exactly **16** Prismshards.
 2. Prismshards are the **highest known relic class**.
-3. Prismshards = multiple highly concentrated Astralite energies bound into **equilibrium**.
+3. Prismshards = multiple highly concentrated Astralite energies bound into **equilibrium**. *(★ and by the 2026-09-01 ruling those energies are its **Gemshards** — see §0b)*
 4. **81** known Gemshards.
-5. All 81 **originate from** the 16 Prismshards.
+5. All 81 **originate from** the 16 Prismshards. *(★ ORIGIN, not composition. The composition arrow runs the other way — §0b)*
 6. Prismshards **I–XV** each generate exactly **five**.
 7. Prismshard **XVI** generates **six**.
 8. Prismshard XVI **is the Key of Anciuxor**.
@@ -155,7 +270,7 @@ Every Gemshard references exactly one parent Prismshard and (eventually) exactly
 10. A Gemshard expresses **one** extremely potent Astralite of one family.
 11. Gemshards commonly determine **Ultramax typing and moves**.
 12. Gemshards are associated with and can power **Ancient Mythic Weapons**.
-13. Prismshards are **progenitors** of lesser relic systems (Gemshards, Life Stones, Astralite Stones, others).
+13. Prismshards are **progenitors** of lesser relic systems (Gemshards, Life Stones, Astralite Stones, others). *(★ ORIGIN. See §0b for why this coexists with the upward crafting ladder, and §0b's Source note for its one possible exception)*
 14. Ordinary Astralite gems, Gemshards and Prismshards are **never synonymous**.
 
 ## 15 · TERMINOLOGY

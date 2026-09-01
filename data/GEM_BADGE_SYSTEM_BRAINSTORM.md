@@ -366,8 +366,17 @@ becomes at purity — and a Prismshard cannot be assembled without five of the 8
 | tier | may do | must never do |
 |---|---|---|
 | **ordinary gem** | tilt existing energy · fuel a badge | grant a move · grant a type |
-| **Gemshard** | grant Ultramax type + move **[CANON]** | be craftable |
+| **Gemshard** | be a mythic weapon (all ten Gemlord arms) · **IS craftable** | grant an Ultramax move |
+| **Ultrashard** | **grant Ultramax typing + moves — ONLY that** | be fuelled or reached by a badge |
 | **Prismshard** | equilibrium phenomena, A5 **[CANON]** | be reachable by badge progression |
+
+★★★ **REVISED 2026-09-01 · `PRISMSHARD_GEMSHARD_CANON.md` §0c.** Two rows above
+changed and the table would have been wrong within a day of being written:
+**Ultrashards are now their OWN class** (Ultimate moves only, reversing §16b),
+and **Gemshards ARE craftable** — which is the opposite of what I wrote here.
+The badge ceiling is unaffected: a badge still fuels on **gems** and still may
+never grant a move. But the reason has moved — a move is now **Ultrashard**
+territory, not Gemshard territory.
 
 **The badge system's ceiling: a badge may change how an existing action behaves. It may never add an action.** New moves are Gemshard territory (Rule 11), and that line is what keeps the 81 meaningful.
 

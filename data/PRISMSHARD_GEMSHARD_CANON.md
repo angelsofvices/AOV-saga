@@ -207,6 +207,125 @@ charted.
 ---
 
 
+## 0c · ★★★ THE FOUR CLASSES, KEPT DISTINCT — Creator ruling, 2026-09-01
+
+> **Creator:** *"we have 16 prismshards. only named one (key of anciuxor). the gemlord weapons are gemshards. lets always keep this distinct. we will also have to classify ultrashards as a different type of thing that ONLY relates to ultimate moves. gemshards are many in number because the come from prismshards material and can be crafted"*
+
+**Four classes. Never collapse two of them.**
+
+| class | count | what it is | what it does |
+|---|---|---|---|
+| **PRISMSHARD** | **16** · fixed | several concentrated Astralites in equilibrium | cosmological · the progenitors |
+| **GEMSHARD** | **many** · craftable from Prismshard material | one Astralite, purified | **the Gemlord weapons are these** |
+| **ULTRASHARD** | 22 recorded | ★ **its own class** | **ONLY** Ultimate / Ultramax moves |
+| **gem** | many | concentrated Astralite, leaning to one colour | the material rung below |
+
+### ★★★ 1 · ULTRASHARDS ARE NO LONGER GEMSHARDS · §16b IS REVERSED
+
+**§16b below is a Creator ruling of 2026-08-29** — *"merge the 22 ultrashards
+into the 81 gemshards. they all descend from prismshards."* **This ruling
+reverses it.** §16b is kept in place, not deleted, so the reasoning stays
+readable; read it as history.
+
+> **An Ultrashard is its own class and relates to ONE thing: Ultimate moves.**
+> Not a Gemshard, not one of the 81, not on the Gemshard lineage tree.
+
+**Census consequence — measured against the shipping code [BUILD]:**
+
+```
+                        BEFORE (§16b)        AFTER (this ruling)
+  of the 81, recorded   32                   10
+      22 Ultrashards    counted              ★ NOT counted — different class
+      10 Gemlord arms   counted              counted
+  of the 81, unrecorded 49                   71
+```
+
+★★ **[ASK] What happens to Rule 11?** It currently reads *"Gemshards commonly
+determine Ultramax typing and moves"* — and that rule is the entire reason §16b
+merged them. If Ultramax is Ultrashard territory alone, Rule 11 is either
+**retired** or **narrowed** to something like *"a Gemshard may inform an Ultramax
+expression; an ULTRASHARD determines it."* It cannot stand unchanged, because as
+written it is the sentence that pulls the two classes back together.
+
+★ **Code impact, stated not acted on [BUILD]:** `GEMSHARD_REGISTRY_()` stamps
+`ofTheEightyOne: true` onto all 22 Ultrashards, and `gemshardCensus()` reports
+them as recorded. Both become wrong under this ruling. **Not changed here** —
+this is a canon pass, and that edit deserves its own version and its own suite.
+
+### ★★ 2 · THE GEMLORD WEAPONS ARE GEMSHARDS · reinforced
+
+Already §16d. Restated because the Creator asked for the line to be held:
+
+> **A Gemlord weapon IS a Gemshard.** Not a weapon *containing* one, not a weapon
+> *made from* one. §9's *"weapon = vessel / interface / amplifier"* describes the
+> **housing** the Gemshard was given — not a second object.
+
+Ten Gemlords, ten weapons, ten Gemshards. Four exist in game **[BUILD]**; six are
+unforged.
+
+### ★★★ 3 · ONLY ONE PRISMSHARD IS NAMED
+
+★ **This conflicts with a standing lock, and the conflict is flagged rather than
+resolved by me.** `PRISMSHARD_REGISTRY` **[BUILD]** carries sixteen names from the
+V3.17.50 / V3.17.51 lock — *The Founder's, The Blood, The Silent, The Wanderer's,
+The Devourer's, The Oracle's, The Deep, The Voyager's, The Sentinel's, The
+Reaver's, The Emissary's, The Refuge, of the Immortalands, of Anciara, of
+Omnithris*, and the Key.
+
+**[INFER] The reading that keeps both true: those fifteen are EPITHETS, not
+names.** What a prism is *called* by whoever keeps it — a role (Founder's,
+Sentinel's, Reaver's), a quality (Blood, Silent, Deep), a place (the
+Immortalands, Anciara, Omnithris). **Only XVI has a NAME**, and a name is a
+different kind of thing from a description.
+
+★★★ **And under the Source lock (§0b) that becomes structural rather than
+arbitrary.** Anciuxor is *"the manifestation of the Highest One"* (§12) — it sits
+**outside** the Aethryx Expanse, past the Gate.
+
+> **Every other prism is named from INSIDE the Expanse — for a person, a quality,
+> or a place within it. The Key alone is named for something BEYOND THE
+> BOUNDARY.** That is why it is the only one with a name rather than an epithet,
+> and it is the same reason §12 insists its importance is cosmological.
+
+**[ASK] Three ways to land it:**
+1. **Demote** — the fifteen stay as `epithet`; `name` is null for all but XVI.
+   Obeys the ruling, costs one field, throws nothing away. **Recommended.**
+2. **Retire** — drop the fifteen; Prismshards are known by numeral until named.
+   Cleanest, and it discards the V3.17.50 lock.
+3. **Keep as-is** — read "only named one" as "only one is named *after
+   something*." Weakest reading of the sentence.
+
+### ★★ 4 · GEMSHARDS ARE MANY, AND CRAFTABLE
+
+★ **This is the ORIGIN arrow, and it does not fight §0b.** §0b locked that
+Gemshards **make up** Prismshards (composition, upward). This says Gemshards
+**come from** Prismshard material (origin, downward). **Both apply to the same
+pair — which is exactly what the two-arrow frame is for**, and the fact that the
+Gemshard↔Prismshard rung is where they meet is a confirmation the frame holds
+rather than a problem for it.
+
+★ It also matches §3 verbatim: Prismshards *"split, fracture, shed, or otherwise
+produce derivative relic material."* **Shed** is the word — a Prismshard supplies
+material without being consumed, which is what lets Gemshards be many.
+
+★★ **[ASK] Is 81 now the number of KINDS, or has the count opened?** The
+arithmetic `15 × 5 + 6 = 81` is locked as *"structural, not decorative"* (§4) and
+the code computes rather than types it **[BUILD]**.
+
+- **(a) 81 kinds, many copies.** *"Many in number"* means copies of the 81
+  identities; crafting produces another *of* a known Gemshard. The arithmetic
+  survives untouched. **Recommended** — the only reading where §4, §13 and the
+  boot-time validation all still hold.
+- **(b) The count is open.** 81 was the original set and crafting adds beyond it.
+  This retires the 15×5+6 law and everything built on it, including §0b's *"the
+  81 is a recipe as well as a census."*
+
+**Until ruled, (a) is assumed** — it breaks nothing, and §5's reserved revelation
+about **Gemshard 81** needs the 81 to still be a fixed set in order to be *about*
+anything.
+
+---
+
 ## 1 · THE 16 PRISMSHARDS
 
 Exactly sixteen. The highest known relic class in the Aethryx Expanse.
@@ -284,7 +403,7 @@ Every Gemshard is traceable to: its parent Prismshard → its singular Astralite
 
 Database fields (contents deferred): `Gemshard ID · Name · Parent Prismshard · Astralite · Family/Axis · Energy Expression · Ultramax Type · Ultramax Move(s) · Mythic Weapon Association · Known Users · Location/History · Status`.
 
-## 8 · GEMSHARDS AND ULTRAMAX
+## 8 · ~~GEMSHARDS AND ULTRAMAX~~ · ★ SEE §0c — this is ULTRASHARD territory now
 
 Gemshards commonly determine **Ultramax typing** and **Ultramax moves**: bonding with one grants access to an extraordinarily specialized power state — elemental/Astralite identity, transformation properties, visual effects, special abilities, ultimate techniques, finishers, affinity.
 
@@ -305,7 +424,8 @@ Not every Gemshard sits in a weapon. They may be independent, lost, sealed, carr
 | tier | class | count | nature |
 |---|---|---|---|
 | 1 | **PRISMSHARDS** | 16 | composite · multiple concentrated Astralites in perfected equilibrium · produce derivative relic systems |
-| 2 | **GEMSHARDS** | 81 | singular · one extremely potent Astralite from one family · Ultramax + mythic weapons |
+| 2 | **GEMSHARDS** | 81 kinds · **many copies, craftable** | singular · one extremely potent Astralite from one family · **mythic weapons, incl. all ten Gemlord arms** |
+| 2b | **ULTRASHARDS** | 22 recorded | ★ **a separate class (§0c)** · not one of the 81 · **Ultimate/Ultramax moves ONLY** |
 | — | **derivative relics** | — | Life Stones, Astralite Stones, other specialized/minor relics · genealogies differ |
 | — | **base Astralite material** | — | gems, crystals, compounds · **not** Gemshards |
 
@@ -341,7 +461,7 @@ Every Gemshard references exactly one parent Prismshard and (eventually) exactly
 8. Prismshard XVI **is the Key of Anciuxor**.
 9. The Key's sixth derivative creates **Gemshard 81**.
 10. A Gemshard expresses **one** extremely potent Astralite of one family.
-11. Gemshards commonly determine **Ultramax typing and moves**.
+11. ~~Gemshards commonly determine **Ultramax typing and moves**.~~ ★★★ **NARROWED 2026-09-01 (§0c).** An **ULTRASHARD** determines Ultramax typing and moves — that is now its own class and its only job. A Gemshard may *inform* an Ultramax expression; it does not determine one. **This rule as originally written is what merged the two classes in §16b, so it could not survive the reversal unchanged.**
 12. Gemshards are associated with and can power **Ancient Mythic Weapons**.
 13. Prismshards are **progenitors** of lesser relic systems (Gemshards, Life Stones, Astralite Stones, others). *(★ ORIGIN. See §0b for why this coexists with the upward crafting ladder, and §0b's Source note for its one possible exception)*
 14. Ordinary Astralite gems, Gemshards and Prismshards are **never synonymous**.
@@ -353,7 +473,8 @@ Every Gemshard references exactly one parent Prismshard and (eventually) exactly
 - **Gemshard** — supreme singular-energy relic descended from a Prismshard, centred on one highly potent Astralite.
 - **Prismshard** — supreme composite relic of multiple concentrated Astralites in balance.
 - **Parent Prismshard** — the Prismshard a Gemshard originates from.
-- **Ultramax** — power/transformation system whose typing and moves can be determined by Gemshards.
+- **Ultramax** — power/transformation system whose typing and moves are determined by **ULTRASHARDS** (§0c · was "by Gemshards" until 2026-09-01).
+- **Ultrashard** — ★ **its own relic class**, 22 recorded. Relates to Ultimate/Ultramax moves and nothing else. **Not a Gemshard and not one of the 81.**
 - **Ancient Mythic Weapon** — legendary weapon whose abilities may be powered by a Gemshard.
 - **Key of Anciuxor** — Prismshard XVI, the only one producing six Gemshards.
 
@@ -366,7 +487,19 @@ The difference must be visible in lore, gameplay, visual design, abilities and h
 
 ---
 
-## 16b · ★ THE 22 ULTRASHARDS ARE 22 OF THE 81 — Creator ruling, 2026-08-29
+## 16b · ~~THE 22 ULTRASHARDS ARE 22 OF THE 81~~ · ★★★ REVERSED 2026-09-01
+
+> **★★★ SUPERSEDED BY §0c.** The Creator has since ruled Ultrashards are **their
+> own class, relating ONLY to Ultimate moves** — not Gemshards, not part of the
+> 81, not on the lineage tree. **Kept intact as history**, because the reasoning
+> that merged them is worth being able to read. Everything below about lineage,
+> the five Elemental Ultrashards and the type↔family axis stays true **of
+> Ultrashards** — just not *of Gemshards*.
+>
+> Its census figures are stale. Current: **81 total · 10 recorded (the Gemlord
+> weapons) · 71 unrecorded.**
+
+### The original 2026-08-29 ruling, preserved
 
 > *"merge the 22 ultrashards into the 81 gemshards. they all descend from prismshards."*
 
@@ -498,7 +631,8 @@ This settles the §9 tension the merge flagged. Canon said the Gemlord blades we
 
 ★ **Oatheus keeps his slot.** He is absent, so whether his weapon is lost *with* him, waiting *for* him, or the reason he left is a story question, not a data one.
 
-**Census after this ruling: 81 total · 32 recorded (22 Ultrashards + 10 Gemlord weapons) · 49 unrecorded · 0 placed.**
+~~**Census after this ruling: 81 total · 32 recorded (22 Ultrashards + 10 Gemlord weapons) · 49 unrecorded · 0 placed.**~~
+**★ RESTATED 2026-09-01 (§0c): 81 total · 10 recorded (the Gemlord weapons) · 71 unrecorded · 0 placed.** The 22 Ultrashards left the count when they became their own class.
 
 ## 16e · ★★★ MEALUX · THE LIVING TRACE OF THE KEY
 
@@ -602,7 +736,7 @@ Boot-time validation asserts 15×5+6 = 81 = `GEMSHARD_SLOTS.length`. **The total
 
 1. **★ The identification in §0** — are the 16 Prismshards the 16 Astralite Prisms? The code assumes yes.
 2. **The VOLTSHARD.** Shipped at v0.95.822 as a *Prismshard* powering the Sapphire Voltstorm A5, on the Creator's own instruction (*"these will be prismshard moves… the first prismshard we will find is the voltshard in malezor"*). But by §6 a single-energy relic named for one force is a **Gemshard**, and the standing Gemshard ruling already lists it as one. Two canon statements, one item. **Not retyped without a ruling** — the code marks it `CLASS_DISPUTED` and names both readings.
-3. ~~The 22 Ultrashards — 22 of the 81, or a reproduced technology?~~ **ANSWERED 2026-08-29 · see §16b.** They are 22 of the 81. What remains open is their **lineage**: which Prismshard each of the 22 descends from.
+3. ~~The 22 Ultrashards — 22 of the 81, or a reproduced technology?~~ ~~**ANSWERED 2026-08-29 · see §16b.**~~ **★★★ RE-ANSWERED 2026-09-01 · see §0c.** They are **NEITHER** — an Ultrashard is its **own class**, relating only to Ultimate moves. Their Prismshard lineage question dissolves with the merge that raised it.
 4. **Gemshard numbering** — sequential by lineage (I → 1-5, II → 6-10 … XVI → 76-81) is assumed from §12's "76–81". Confirm.
 5. ~~The Gemlord blades — cut from Prismshards, or built around Gemshards?~~ **ANSWERED 2026-08-29 · see §16d.** They *are* Gemshards, descended from the Prismshard families.
 

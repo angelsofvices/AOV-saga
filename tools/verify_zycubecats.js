@@ -189,5 +189,50 @@ console.log('\n6 · BOTH SURFACES READ THE SAME TABLE\n');
      + 'inside whichever drawer you last used');
 }
 
+console.log('\n7 · ★★★ v0.95.936 · THE NAVIGATION FIX\n');
+console.log('  Creator: "I cant go back in the pages. also cant use my controller');
+console.log('            for nav. also cant click into categories."\n');
+{
+  const HTML = require('fs').readFileSync('/sessions/great-cool-heisenberg/mnt/AOV-saga-new/rp7b.html','utf8');
+  // ★ ALL THREE SYMPTOMS WERE ONE MISTAKE: a new convention beside a working one.
+  ok(/data-zyitem="zycat_\$\{c\.id\}"/.test(src2),
+     '★ category rows carry data-zyitem — the DualSense auto-enrolment walks THAT');
+  console.log('       attribute, so a row without it does not exist to the controller at all.');
+  ok(/onclick="try\{zycubeOpenCategory\('\$\{c\.id\}'\);\}catch\(_\)\{\}"/.test(src2),
+     '★ and an inline onclick, the way every other working panel does it');
+  ok(/data-zyitem="zybag_back"/.test(src2) && /zycubeCloseCategory\(\);\}catch/.test(src2),
+     'the back row is reachable by controller AND clickable too');
+  ok(!/list\.addEventListener\('click', \(ev\) => \{[\s\S]{0,120}closest\('\.zyCatRow'\)/.test(src2),
+     'the setTimeout-attached delegated listener is GONE · not left beside the fix');
+  // one door in, one door out
+  ok(/function zycubeOpenCategory/.test(src2) && /function zycubeCloseCategory/.test(src2),
+     '★ one function to enter a category and one to leave it');
+  const opens = (src2.match(/zycubeOpenCategory\(/g) || []).length;
+  const closes = (src2.match(/zycubeCloseCategory\(/g) || []).length;
+  ok(opens >= 3 && closes >= 4,
+     `every surface calls them (${opens} open / ${closes} close call sites) rather than`
+     + ' writing the level change out longhand');
+  ok(!/zycubeCatOpen = cats\[/.test(src2),
+     'no surface still sets zycubeCatOpen by hand');
+  // ★ the cursor reset · this is what made it FEEL like the controller was dead
+  ok(/game\._zycellItemIdx = 0;/.test(src2.slice(src2.indexOf('function zycubeOpenCategory'),
+                                                src2.indexOf('function zycubeCloseCategory'))),
+     '★ opening a category resets the phone focus cursor · it indexes into a list');
+  console.log('       that just changed length, and a stale index selects nothing.');
+  // ★ going back
+  ok(/if \(zycellPage === 'zycube' && zycubeCatOpen && zycubeCloseCategory\(\)\) return true;/.test(src2),
+     '★ Circle/Escape pops ONE level instead of shutting the whole phone');
+  const bIdx = src2.indexOf("if (k === 'b' || k === 'escape'){");
+  const leftIdx = src2.indexOf("if (k === 'arrowleft'){");
+  ok(bIdx > 0 && leftIdx > 0, 'both the Circle and LEFT handlers were located');
+  ok((src2.match(/zycellPage === 'zycube' && zycubeCatOpen/g) || []).length === 2,
+     'and LEFT does the same, symmetric with the Zyrex Examine sub-page');
+  // the section wrapper must not steal the first stop
+  ok(/!el\.querySelector\('\[data-zyitem\]'\)/.test(src2),
+     '★ _zycellContentItems already drops a wrapper whose children are focusable —');
+  console.log('       giving the rows data-zyitem is what makes that filter fire, so the');
+  console.log('       cursor lands on a CATEGORY rather than on "the whole middle panel".');
+}
+
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
 process.exit(0);

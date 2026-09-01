@@ -120,12 +120,25 @@ console.log('\n3 · ★★ THE PIN · a placed overlay stops being repositioned\
   // paintA5Charge writes left/top EVERY FRAME, in both branches.  Without the
   // pin a drag would snap back inside 16ms.
   const fn = fnBody('paintA5Charge');
-  ok(/const _pinned = \(typeof hudPinned === 'function'\) && hudPinned\(el\);/.test(fn),
-     '★ paintA5Charge asks whether the badge was placed by hand');
-  ok(/if \(_pinned\)\{[\s\S]{0,200}\} else if \(ready\)\{/.test(fn),
-     'and skips BOTH auto-position branches when it was — not just the READY one');
+  // ★★★ v0.95.936 · Creator: "I dont want the voltstorm blue or yellow dom under
+  // rizer. move it to under the other doms In the top left and make me able to
+  // drag and drop it like other."
+  //
+  // v0.95.935 taught the function to RESPECT a pin.  That was half a fix: the
+  // other branch was still writing left/top every frame, so the badge only held
+  // still once you had dragged it, and it still tracked Rizer until you did.
+  // The whole positioning block is gone now.
+  ok(!/el\.style\.left\s*=/.test(fn) && !/el\.style\.top\s*=/.test(fn),
+     '★★ paintA5Charge no longer positions the badge AT ALL · not "respects a pin",');
+  console.log('       gone.  A per-frame writer that merely defers to a flag is still a');
+  console.log('       writer, and it is what made the badge follow Rizer until you moved it.');
+  ok(!/player\.x \* TILE/.test(fn),
+     '★ and the world-tile → screen-pixel maths that chased him is deleted with it');
   ok(/el\.textContent\s*=\s*'⚡ VOLTSTORM READY'/.test(fn),
-     '★ but still decides what it SAYS · pinning the place must not freeze the text');
+     '★ it still decides what the badge SAYS · only WHERE moved out of its hands');
+  ok(/top:186px; left:14px;/.test(HTML),
+     'the default spot is the TOP-LEFT stack, under the Zyrex HUD frame (top 8 + h 169)');
+  ok(/id: 'a5Charge'/.test(src2), 'and it is registered movable, so the default is only a default');
   const strip = fnBody('paintCompanionStrip');
   ok(/_stripPinned/.test(strip) && /if \(top != null && !_stripPinned\)/.test(strip),
      'the companion strip follows the same rule');

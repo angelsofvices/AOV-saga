@@ -139,49 +139,71 @@ H('7 · ★ THE STRIP DOES NOT SIT ON THE A5 CUTSCENE');
 }
 
 
-H('8 · ★★★ VOLTSTORM READY RIDES ON RIZER');
+H('8 · ★★★ REVOKED · THE BADGE NO LONGER RIDES ON RIZER');
 {
+  // ★★★ v0.95.936 · THIS SECTION IS INVERTED, NOT DELETED.
+  //
+  // v0.95.929 shipped on the Creator's own words -- "move the voltstorm ready
+  // dom right under my cursor" -- and eight checks below used to prove the
+  // badge tracked him tile by tile.  Two days later, seeing it in play:
+  //
+  //   "I dont want the voltstorm blue or yellow dom under rizer. move it to
+  //    under the other doms In the top left and make me able to drag and drop
+  //    it like other."
+  //
+  // The reasoning that produced the old behaviour was not wrong about attention
+  // -- a live-button prompt does belong where your eyes are.  It was wrong
+  // about cost: the badge landed ON the character you are trying to read, and
+  // it MOVED, and a HUD element that will not hold still is one you never learn
+  // the position of.  Attention is not the only thing a HUD spends.
+  //
+  // The checks are kept, flipped, with the ruling quoted, so the next person to
+  // have the good idea of pinning it to him finds out here that it was tried.
   const A=EL.a5Charge;
   P.voltstormUnlocked=true; P.cosmeticSkin='normal';
-  // ── charging: parked under the HUD ──
   P._voltstormKills=5;
+  A.style.left=''; A.style.top=''; A.style.transform='';
   C.paintA5Charge(true);
   ok(!C.voltstormReady(),'charging · 5/'+C.VOLTSTORM_KILL_COST);
-  ok(/⚡ 5\//.test(A.textContent),'★ it shows the count');
-  const parkedLeft=A.style.left, parkedTop=A.style.top;
-  ok(parkedLeft==='10px','★★ and stays PARKED under the HUD · ambient info belongs with the ambient info');
-  ok(A.style.transform==='none','★ no centring while parked');
-  // ── ready: rides on the character ──
+  ok(/⚡ 5\//.test(A.textContent),'★ it still shows the count');
+  ok(A.style.left==='' && A.style.top==='',
+     '★★ paintA5Charge wrote NO position · the CSS default (top-left stack) stands');
+  // ── ready · and it must NOT move ──
   P._voltstormKills=C.VOLTSTORM_KILL_COST;
   P.x=20; P.y=30; C._cam.x=0; C._cam.y=0;
   C.paintA5Charge(true);
   ok(C.voltstormReady(),'charged');
-  ok(/VOLTSTORM READY/.test(A.textContent),'★ it says READY');
-  ok(A.style.left!==parkedLeft || A.style.top!==parkedTop,
-     '★★★ and it MOVED off the HUD · a prompt that a button is live belongs where your eyes are');
-  ok(A.style.transform==='translateX(-50%)','★★ centred on him, not left-aligned');
-  // the maths: world tile → canvas px → screen px through the CSS scale
-  const expX=100+((20*C.TILE+C.TILE/2)-0)*(960/960);
-  const expY=50 +((30*C.TILE+C.TILE)-0)*(528/528)+6;
-  ok(A.style.left===Math.round(expX)+'px','★★ x lands under his tile centre ('+A.style.left+')');
-  ok(A.style.top===Math.round(expY)+'px','★★ y lands just below his feet ('+A.style.top+')');
-  // and it tracks him
-  P.x=40;
+  ok(/VOLTSTORM READY/.test(A.textContent),'★ it says READY · the TEXT is still its job');
+  ok(A.style.left==='' && A.style.top==='',
+     '★★★ and it did NOT move · this is the assertion that used to say the opposite');
+  // walking must not drag it either
+  P.x=40; P.y=44;
   C.paintA5Charge(true);
-  ok(A.style.left===Math.round(100+((40*C.TILE+C.TILE/2))*(960/960))+'px','★★★ it FOLLOWS him as he walks');
-  ok(/two jobs, two homes/.test(src2),'the split is recorded · READY is a moment, 14\/20 is ambient');
+  ok(A.style.left==='' && A.style.top==='',
+     '★★★ it does not follow him · the tile→screen maths is deleted, not disabled');
+  ok(!/two jobs, two homes/.test(src2),
+     'the old "two jobs, two homes" split is gone from the source · one home now');
+  ok(/does not follow Rizer any more|DOES NOT FOLLOW RIZER/i.test(src2),
+     'and the revocation is recorded where the code is, not only here');
 }
 
-H('9 · ★★ THE STRIP DOES NOT CHASE IT');
+H('9 · ★★ THE STRIP FOLLOWS THE BADGE AGAIN');
 {
-  P._voltstormKills=C.VOLTSTORM_KILL_COST;   // badge is out on the character
+  // ★ v0.95.936 · the companion strip used to REFUSE to anchor to the badge
+  // while VOLTSTORM was ready, because the badge was out on the character and
+  // the strip would have ended up stuck to his feet.  The badge no longer goes
+  // anywhere, so that guard protected against a behaviour the game does not
+  // have -- the kind of rule that survives three refactors and then confuses
+  // somebody.  Removed with the thing it was guarding.
+  P._voltstormKills=C.VOLTSTORM_KILL_COST;
   P.bonds=P.bonds||{}; P.bonds.zoryn=50; P.zorynDown=false; P.zorynHp=C.ZORYN_HP_MAX;
   C.paintA5Charge(true);
   C.paintCompanionStrip(true);
   ok(S.style.display==='block','the strip still shows');
-  ok(S.style.left==='10px',
-     '★★★ pinned to the HUD, not to the badge · otherwise it would end up stuck to his feet mid-fight');
-  ok(/would end up stuck to his feet/.test(src2),'and the reason is recorded');
+  ok(!/&& !voltstormReady\(\)/.test(src2),
+     '★★ the "only while the badge is parked" guard is gone · both are parked now');
+  ok(/the badge does not ride on Rizer any more/.test(src2),
+     'and the removal says why, so it is not read later as an oversight');
 }
 
 

@@ -701,7 +701,11 @@
        is now a kill count you can read, which is the half of the change that
        makes the other half playable. -->
   <div id="a5Charge" style="
-       position:fixed; z-index:118; pointer-events:none; display:none;
+       /* ★ v0.95.936 · parked in the TOP-LEFT stack, under the Zyrex HUD frame
+          (top 8 + height 169).  A default only — F9 HUD LAYOUT moves it and
+          remembers where, and the paint loop no longer has an opinion. */
+       position:fixed; top:186px; left:14px;
+       z-index:118; pointer-events:none; display:none;
        font-family:'Courier New',monospace; font-size:11px; font-weight:bold;
        letter-spacing:.14em; padding:3px 8px; border:1px solid #4fb3ff;
        background:rgba(0,0,0,0.55); color:#83ddff;
@@ -22900,8 +22904,10 @@ function voltstormReady(){ return voltstormCharge() >= VOLTSTORM_KILL_COST; }
 // bank a second storm -- the charge is a gate, not a currency.
 // ★★ v0.95.918 · SHOW THE CHARGE.  Only once the storm is attuned and only on
 // S1 -- an S2 player has no A5 yet, and a meter for a move you have never heard
-// of is noise.  It pins itself under the Rizer HUD by measuring it, so it needs
-// no art and cannot drift if the HUD is re-skinned.
+// of is noise.
+// ★ v0.95.936 · it no longer MEASURES the Rizer HUD to park itself either; it
+// has a CSS home in the top-left stack and a drag handle (F9), which is both
+// simpler and the thing the Creator actually asked for.
 function paintA5Charge(hudVisible){
   const el = document.getElementById('a5Charge');
   if (!el) return;
@@ -22909,47 +22915,25 @@ function paintA5Charge(hudVisible){
                 && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
   if (!eligible){ el.style.display = 'none'; return; }
   const ready = voltstormReady();
-  // ★★★ v0.95.929 · READY RIDES ON RIZER.  Creator: "move the voltstorm ready
-  // dom right under my cursor."  A prompt telling you a button is live belongs
-  // where your eyes already are, which in this game is the character -- the
-  // top-right corner is the last place you look mid-fight, and the A5 is fired
-  // one tile from something trying to kill you.
+  // ★★★ v0.95.936 · THE BADGE DOES NOT FOLLOW RIZER ANY MORE.
+  // Creator: "I dont want the voltstorm blue or yellow dom under rizer. move it
+  // to under the other doms In the top left and make me able to drag and drop
+  // it like other."
   //
-  // ★★ THE CHARGING COUNTER STAYS PARKED, and that is deliberate: "14/20" is
-  // AMBIENT (how far off am I), "READY" is a MOMENT (press it now).  Ambient
-  // information belongs with the other ambient information; pinning a slowly
-  // ticking number to his head would follow him around the whole game being
-  // ignored.  Same element, two jobs, two homes.
-  // ★★ v0.95.935 · A PLACED BADGE STAYS PLACED.  Creator: "make the voltstorm
-  // ready dom movable ... most doms should be movable for dev preferences."
-  // Both branches below write left/top every frame, so a drag would snap back
-  // within 16ms.  Once he has put it somewhere, this function stops having an
-  // opinion about where it lives and only decides what it SAYS.
-  const _pinned = (typeof hudPinned === 'function') && hudPinned(el);
-  if (_pinned){
-    /* position is the player's · fall through to the text/colour below */
-  } else if (ready){
-    const cv = document.getElementById('game');
-    const r  = cv && cv.getBoundingClientRect();
-    if (r && r.width){
-      // world tile → canvas px → screen px, through the CSS scale (the canvas
-      // is 960x528 internally and stretched to fit the viewport)
-      const sx = r.width  / (cv.width  || 960);
-      const sy = r.height / (cv.height || 528);
-      const wx = (player.x * TILE + TILE / 2) - _cam.x;
-      const wy = (player.y * TILE + TILE)     - _cam.y;
-      el.style.left = Math.round(r.left + wx * sx) + 'px';
-      el.style.top  = Math.round(r.top  + wy * sy + 6) + 'px';
-      el.style.transform = 'translateX(-50%)';
-    }
-  } else {
-    const hud = document.getElementById('rizerHud');
-    el.style.transform = 'none';
-    if (hud){
-      const r = hud.getBoundingClientRect();
-      if (r.width){ el.style.left = Math.round(r.left) + 'px'; el.style.top = Math.round(r.bottom + 4) + 'px'; }
-    }
-  }
+  // v0.95.929 pinned READY to his head on the reasoning that a prompt saying a
+  // button is live belongs where your eyes already are.  In practice it put a
+  // label ON the character you are trying to look at, and it moved — a HUD
+  // element that will not hold still is one you cannot learn the position of.
+  //
+  // ★ So this function no longer positions ANYTHING.  The badge is a plain
+  // movable overlay like TILE and PAD: a default spot in the top-left stack,
+  // and after that its position belongs entirely to whoever dragged it (F9 /
+  // HUD LAYOUT, v0.95.935).  Deleting the per-frame writes is what makes the
+  // drag stick — it is not enough to respect a pin when the alternative branch
+  // is still fighting for the same two properties every 16ms.
+  //
+  // What it STILL decides is what the badge SAYS: the charge count while you
+  // are working toward it, VOLTSTORM READY when the chord will fire.
   el.style.display = 'block';
   const c = voltstormCharge();
   if (ready){
@@ -23029,10 +23013,15 @@ function paintCompanionStrip(hudVisible){
   // ★ v0.95.929 · the strip anchors to the A5 badge ONLY while that badge is
   // still parked under the HUD.  Once it is READY it rides on Rizer, and a
   // companion strip that followed it would end up stuck to his feet mid-fight.
+  // ★★ v0.95.936 · the badge does not ride on Rizer any more, so the
+  // !voltstormReady() half of that condition is dead and the strip can simply
+  // follow it.  Leaving the check in would have been a rule guarding against a
+  // behaviour the game no longer has — the kind that survives three refactors
+  // and then confuses somebody.
   const anchor = document.getElementById('a5Charge');
   const hud    = document.getElementById('rizerHud');
   let top = null, left = null;
-  if (anchor && anchor.style.display !== 'none' && !voltstormReady()){
+  if (anchor && anchor.style.display !== 'none'){
     const r = anchor.getBoundingClientRect();
     if (r.width){ left = r.left; top = r.bottom + 3; }
   }
@@ -30056,17 +30045,14 @@ addEventListener('keydown', e => {
           if (k === 'arrowup'  ){ zycubeCatCursor = (zycubeCatCursor + cats.length - 1) % cats.length; playSFX('cursor'); return; }
           if (k === 'arrowdown'){ zycubeCatCursor = (zycubeCatCursor + 1) % cats.length; playSFX('cursor'); return; }
           if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' ' || k === 'arrowright'){
-            zycubeCatOpen = cats[Math.min(zycubeCatCursor, cats.length - 1)].id;
-            itemsCursor = 0;
-            playSFX('menuOpen');
+            // ★ v0.95.936 · the SAME function the phone's rows call
+            zycubeOpenCategory(cats[Math.min(zycubeCatCursor, cats.length - 1)].id);
             return;
           }
         }
         // nothing else to do at this level — fall through so ○ still closes
       } else if (k === 'b' || k === 'shift' || k === 'escape' || k === 'arrowleft'){
-        zycubeCatOpen = null;
-        itemsCursor = 0;
-        playSFX('menuClose');
+        zycubeCloseCategory();
         return;
       }
       // v0.95.403 · Gear subtab retired · ← → left free for future BAG-only category swap
@@ -32509,7 +32495,18 @@ function renderZycellZycube(){
   // BAG uses, so the two views of one cube cannot disagree about where you are.
   if (!zycubeCatOpen){
     const cats = (typeof zycubeCategoryRows === 'function') ? zycubeCategoryRows() : [];
-    const catRows = cats.map(c => `<div class="zyCatRow" data-zycat="${c.id}"
+    // ★★★ v0.95.936 · data-zyitem + inline onclick, which is how EVERY other
+    // working panel in this phone does it.
+    //
+    // The v0.95.935 build used a delegated listener attached in a setTimeout and
+    // a `data-zycat` attribute of my own invention.  Both were wrong, and the
+    // Creator hit all three symptoms at once: the controller could not reach the
+    // rows (the DualSense auto-enrolment walks `[data-zyitem]`, so rows without
+    // it simply do not exist to it), clicking did nothing, and there was no way
+    // back out.  A new convention beside a working one is a convention that only
+    // works where I remembered to wire it.
+    const catRows = cats.map(c => `<div class="zyCatRow" data-zycat="${c.id}" data-zyitem="zycat_${c.id}"
+        onclick="try{zycubeOpenCategory('${c.id}');}catch(_){}"
         style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid rgba(79,179,255,0.15); cursor:pointer; transition:background 120ms;"
         onmouseover="this.style.background='rgba(79,179,255,0.18)'"
         onmouseout="this.style.background='transparent'">
@@ -32523,22 +32520,8 @@ function renderZycellZycube(){
     </div>`).join('');
     const catBody = cats.length
       ? `<div id="zyBagCats" style="max-height:420px; overflow:auto; pointer-events:auto;">${catRows}</div>
-         <div style="text-align:center; color:#8ff; font-size:10px; padding:6px; letter-spacing:.06em;">Click a category to open it</div>`
+         <div style="text-align:center; color:#8ff; font-size:10px; padding:6px; letter-spacing:.06em;">▲▼ or click a category · × to open</div>`
       : `<div style="color:#889; text-align:center; padding:20px;">· bag is empty ·</div>`;
-    setTimeout(() => {
-      const list = document.getElementById('zyBagCats');
-      if (!list || list._zyBound) return;
-      list._zyBound = true;
-      list.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const row = ev.target.closest('.zyCatRow');
-        if (!row) return;
-        zycubeCatOpen = row.dataset.zycat;
-        itemsCursor = 0;
-        try { playSFX('menuOpen'); } catch(_){}
-        try { paintZycellContent(); } catch(_){}
-      });
-    }, 0);
     return _zySection('◈ ZYCUBE · YOUR STORAGE', catBody);
   }
   const _cat = ZYCUBE_CAT_BY_ID[zycubeCatOpen] || { label: 'ITEMS', color: '#8ff' };
@@ -32574,7 +32557,8 @@ function renderZycellZycube(){
     }).join('');
   // ★ v0.95.935 · the way back out.  Its own row, above the list, so it is
   // reachable without scrolling a hundred Astralites first.
-  const backRow = `<div id="zyBagBack"
+  const backRow = `<div id="zyBagBack" data-zyitem="zybag_back"
+      onclick="try{zycubeCloseCategory();}catch(_){}"
       style="display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid rgba(79,179,255,0.25); cursor:pointer; background:rgba(79,179,255,0.10);"
       onmouseover="this.style.background='rgba(79,179,255,0.22)'"
       onmouseout="this.style.background='rgba(79,179,255,0.10)'">
@@ -32589,16 +32573,6 @@ function renderZycellZycube(){
     : `${backRow}<div style="color:#889; text-align:center; padding:20px;">· nothing in ${_cat.label} right now ·</div>`;
   // Delay row-handler wiring until DOM lands · run after paintZycellContent injects the HTML
   setTimeout(() => {
-    const back = document.getElementById('zyBagBack');
-    if (back && !back._zyBound){
-      back._zyBound = true;
-      back.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        zycubeCatOpen = null; itemsCursor = 0;
-        try { playSFX('menuClose'); } catch(_){}
-        try { paintZycellContent(); } catch(_){}
-      });
-    }
     const list = document.getElementById('zyBagList');
     if (!list || list._zyBound) return;
     list._zyBound = true;
@@ -34302,6 +34276,12 @@ function handleZycellKey(k){
   if (k === 'b' || k === 'escape'){
     // v0.95.581 · Zyrex Examine sub-page · B/Escape pops it first before exiting content
     if (typeof closeZyrexExamine === 'function' && closeZyrexExamine()) return true;
+    // ★★ v0.95.936 · Creator: "I cant go back in the pages."  The ZyCube grew a
+    // level and Circle did not learn about it, so backing out of a category shut
+    // the whole phone.  It pops ONE level, exactly like the Zyrex Examine page
+    // above — and it sits above the content/nav checks for the same reason that
+    // one does: the innermost thing open is the thing Circle should close.
+    if (zycellPage === 'zycube' && zycubeCatOpen && zycubeCloseCategory()) return true;
     if (game._zycellFocus === 'content'){ zycellExitContent(); return true; }
     closeZphonePanel(); game._zycellFocus = 'nav'; return true;
   }
@@ -34314,6 +34294,9 @@ function handleZycellKey(k){
     // (returns to the Faction grid) before backing out to the nav rail.
     if (k === 'arrowleft'){
       if (typeof closeZyrexExamine === 'function' && closeZyrexExamine()) return true;
+      // ★ v0.95.936 · LEFT pops a ZyCube category before it backs out to the nav
+      // rail · symmetric with Circle above and with the Examine sub-page
+      if (zycellPage === 'zycube' && zycubeCatOpen && zycubeCloseCategory()) return true;
       // ★ v0.95.809 · inside a grid row, LEFT walks the row first · only from
       // column 0 does it back out to the nav rail, keeping the old gesture.
       const _el = items[game._zycellItemIdx];
@@ -39925,6 +39908,33 @@ function zycubeCategoryRows(){
   return ZYCUBE_CATEGORIES
     .filter(c => byCat[c.id] && byCat[c.id].kinds > 0)
     .map(c => ({ ...c, kinds: byCat[c.id].kinds, total: byCat[c.id].total }));
+}
+// ★★★ v0.95.936 · ONE DOOR IN AND ONE DOOR OUT, callable from anywhere.
+// The phone's rows reach these through inline onclick, the phone's Circle
+// handler calls the second one, and the canvas BAG's controller branch calls
+// both.  Three surfaces, one pair of functions — the v0.95.935 build had the
+// level change written out longhand in four places and one of them was wrong.
+function zycubeOpenCategory(id){
+  if (!id) return false;
+  zycubeCatOpen  = id;
+  itemsCursor    = 0;
+  // ★ the phone's focus cursor indexes into a list that just changed length.
+  // Leaving it where it was is how you end up "selecting" nothing and
+  // concluding the controller is dead.
+  try { if (typeof game === 'object' && game) game._zycellItemIdx = 0; } catch(_){}
+  try { playSFX('menuOpen'); } catch(_){}
+  try { paintZycellContent(); } catch(_){}
+  return true;
+}
+function zycubeCloseCategory(){
+  if (!zycubeCatOpen) return false;
+  zycubeCatOpen   = null;
+  itemsCursor     = 0;
+  zycubeCatCursor = 0;
+  try { if (typeof game === 'object' && game) game._zycellItemIdx = 0; } catch(_){}
+  try { playSFX('menuClose'); } catch(_){}
+  try { paintZycellContent(); } catch(_){}
+  return true;
 }
 // ★ the item list the cursor is actually walking.  With no category open this
 // is still the full bag, so every existing caller (battle heal list, favourite

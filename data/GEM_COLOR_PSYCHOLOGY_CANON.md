@@ -2,7 +2,10 @@
 **Creator directive, 2026-09-01:** *"learn about color theory and apply the common psychology of colors to the principles of the gem and their colors in The Aethryx Expanse."*
 **Source:** colorpsychology.org — the index page, and *What are Primary, Secondary, and Tertiary Colors?*
 
-Proposal document. **Nothing here is written into code.** §7 lists what a ruling would change and what it would cost.
+**Creator rulings, same day — incorporated below:**
+> *"Yellow can represent adaption as well. Orange can represent evolution. White can be the reflection of all. and black can be the absorbtion of all. also remember none of the colors are inherently good or bad. it is a yin yang effect. corruption can takeover anything"*
+
+Proposal document. **Nothing here is written into code.** §9 lists what a ruling would change and what it would cost.
 
 ---
 
@@ -30,7 +33,9 @@ Two separate things, and they do different jobs.
 
 > **Primary** — red, yellow, blue. Cannot be made from any other colours.
 > **Secondary** — green (blue+yellow), orange (yellow+red), purple (blue+red). Each is exactly two primaries in equal part.
-> **Black and white** — *"special colors that cannot be made through traditional means."* Black is the **absence** of light; white is **all** of it.
+> **Black and white** — *"special colors that cannot be made through traditional means."*
+
+★ The source frames those two as *all light* and *no light*, and the Creator's ruling improves on it: **white REFLECTS all, black ABSORBS all.** That is the same page's own physics — *"objects tend to absorb or reflect these wavelengths"* — and it makes both of them things a body **does** rather than states it is in. See §3.
 
 This is a hierarchy of *origin*, not of taste. It is also — and this is the point — **the same three-tier shape the Expanse already uses everywhere**: Astralite → Gemshard → Prismshard, singular → composite, one energy → several in equilibrium.
 
@@ -41,15 +46,15 @@ From the source, condensed to what a relic system can use:
 | colour | the site's own words | the useful core |
 |---|---|---|
 | **Red** | *energy, war, danger, strength, power, determination, passion* · *"enhances human metabolism, increases respiration rate, and raises blood pressure"* · attracts attention more than any other colour | **the body, accelerated** |
-| **Yellow** | *joy, happiness, intellect, energy* · *"stimulates mental activity and generates muscle energy"* · the brightest colour; the lightbulb; linked to left-brain rational thinking · *"indicates honor and loyalty"* · **when overused, disturbing** | **alertness and will — and it frays** |
+| **Yellow** | *joy, happiness, intellect, energy* · *"stimulates mental activity and generates muscle energy"* · the brightest colour; the lightbulb · *"indicates honor and loyalty"* — **and, two sentences later, cowardice** · **when overused, disturbing** | **ADAPTATION — responsiveness, and it frays** |
 | **Blue** | *"a calm serenity over intensity"* · inner reflection · *"lower heart rates and even slower metabolisms"* · idealistic, spiritual, sincere; seeks meaning | **the body, quieted — the mind at work** |
 | **Green** | *nature, growth, harmony, freshness, fertility* · *"slows human metabolism and produces a calming effect"* · **connection** · return to primal roots | **restoration and growth** |
-| **Orange** | red's energy + yellow's happiness · *rejuvenation, communication, positivism* · enhances extraversion, lets people drop inhibitions | **endurance — energy that lasts** |
+| **Orange** | red's energy + yellow's happiness · *rejuvenation, communication, positivism* · enhances extraversion, lets people drop inhibitions | **EVOLUTION — a form changing under pressure** |
 | **Purple** | *"combines the stability of blue and the energy of red"* · royalty, nobility, power, luxury · wisdom, dignity, independence, **mystery and magic** | **synthesis — the third register** |
-| **White** | light, goodness, purity, wholeness, *"the color of perfection"* · new beginnings · the blank canvas from which anything may start | **origin — the condition, not a thing** |
-| **Black** | power, elegance, formality, **death, evil, mystery** · *"a mysterious color associated with fear and the unknown (black holes)"* · usually negative · authority · **grief** | **absence — and what fills it** |
+| **White** | light, goodness, purity, wholeness, *"the color of perfection"* · new beginnings · the blank canvas from which anything may start | **REFLECTION — returns everything, keeps nothing** |
+| **Black** | power, elegance, formality, **death, evil, mystery** · *"a mysterious color associated with fear and the unknown (black holes)"* · authority · **grief** | **ABSORPTION — takes everything in and keeps it** |
 
-★ Note the two colours that carry a **warning** in the source and nowhere in this game: yellow *disturbs* when overused, and black is *"usually negative."* Both are used below.
+★★ **The source contradicts itself and does not notice.** Yellow *"indicates honor and loyalty"* and then, one sentence later, *"was connected with cowardice."* Black is *"elegant, prestigious, authoritative"* and *"usually has a negative connotation."* These are not errors — **they are the yin-yang law showing through a document that had no name for it.** §4 gives it one, and the third column above is deliberately written as the neutral principle rather than the flattering half.
 
 ---
 
@@ -64,64 +69,130 @@ That is not a metaphor borrowed from colour theory. **It is the definition of a 
 So the rule already exists and has already been applied once. It has simply never been run on the other two secondaries:
 
 ```
-RED   + BLUE   = PURPLE     BODY + MIND = SPIRIT        ← already canon
-RED   + YELLOW = ORANGE     BODY + ???  = ???           ← unwritten
-YELLOW + BLUE  = GREEN      ???  + MIND = ???           ← unwritten
+RED    + BLUE  = PURPLE     BODY       + MIND = SPIRIT       ← already canon
+RED    + YELLOW = ORANGE    BODY       + ???  = ???          ← was unwritten
+YELLOW + BLUE  = GREEN      ???        + MIND = ???          ← was unwritten
 ```
 
-Filling those two blanks needs exactly one new decision: **what is the third primary?** Everything else is arithmetic.
+Filling those two blanks needed exactly one decision: **what is the third primary?** The Creator answered it — **ADAPTATION** — and the rest is arithmetic:
+
+```
+RED    + YELLOW = ORANGE    BODY       + ADAPTATION = EVOLUTION
+YELLOW + BLUE   = GREEN     ADAPTATION + MIND       = GROWTH
+```
 
 ---
 
 ## 3 · ★★★ THE THREE ORDERS
 
-### The third primary: YELLOW = WILL
+### The third primary: YELLOW = ADAPTATION
 
-Red is the body. Blue is the mind. The psychology of yellow is *alertness, mental activity, muscle energy, honour and loyalty* — and, uniquely, **it frays when overused**. That is not a stat. That is **nerve**: the thing that spends, that you run out of, that makes a body and a mind actually *act*.
+Red is the body. Blue is the mind. **The Creator's ruling: yellow is ADAPTATION.**
 
-The game has been calling it something else for a year. ⚡ **stamina**, restored by FAEDUST ([[aov-rhud-meter-functions]]). Yellow already has a meter; it has never had a name.
+The psychology backs it exactly — yellow is *alertness, mental activity, muscle energy*, the brightest and most immediately noticed colour, the one that makes something **respond**. And, uniquely among the eight, the source says **it frays when overused**. Adaptation is the only one of the three that has a running cost, which is why it is the one with a meter: ⚡ **stamina**, restored by FAEDUST ([[aov-rhud-meter-functions]]). Yellow has had a meter for a year and never had a name.
 
-> **RED = BODY · BLUE = MIND · YELLOW = WILL**
-> Three primaries. Irreducible. What a living thing is made of.
+> **RED = BODY · YELLOW = ADAPTATION · BLUE = MIND**
+> Form, responsiveness, cognition. Irreducible. What a living thing is made of.
+
+★ **WILL / NERVE is the felt form of adaptation, not a rival for the slot.** What a player experiences as *will* — pushing through, spending yourself — is adaptation happening in real time and costing something. Keep it as the second-person word; keep ADAPTATION as the principle.
 
 ### The secondaries follow with no further invention
 
 | mix | = | principle | already in the game as |
 |---|---|---|---|
-| RED + YELLOW | **ORANGE** | **ENDURANCE** — body driven by will. Momentum, persistence, the second wind. *(source: "rejuvenation… positivism… letting go of inhibitions")* | sprint, the stamina economy, streak/combo persistence |
-| YELLOW + BLUE | **GREEN** | **GROWTH** — will guided by mind. Restoration, healing, cultivation, the long game. *(source: "growth, harmony, fertility… slows metabolism… produces a calming effect")* | Life Seeds · Mythic Elixir · the Verdant type · farming · **the Sanctuary** |
-| RED + BLUE | **PURPLE** | **SPIRIT** — body and mind reconciled. ***Existing canon, unchanged.*** | Astralite bonds · Prisms · Bond Moves |
+| RED + YELLOW | **ORANGE** | **EVOLUTION** *(Creator ruling)* — body reshaped by adaptation. Change under pressure. *(source: "rejuvenation… enhances extraversion, allowing people to let go of their inhibitions")* | evolution at level thresholds · the Evolution Catalyst · Ultramax · Amplified Mode |
+| YELLOW + BLUE | **GROWTH** *(green)* | adaptation guided by mind. Change under **care** — cultivation, restoration, the long game. *(source: "growth, harmony, fertility… slows metabolism… produces a calming effect")* | Life Seeds · Mythic Elixir · the Verdant type · farming · **the Sanctuary** · bond |
+| RED + BLUE | **PURPLE** | **SPIRIT** — body and mind reconciled. ***Existing canon, unchanged.*** | Astralite bonds · Prisms · Bond Moves · Prismsynch |
 
-Green as healing is not a choice made to fit; it is the single best-attested association in the whole of colour psychology, and the game has independently been using it that way in the Verdant type, the elixirs and the Spirit Tree since long before this document.
+★★ **ORANGE = EVOLUTION puts the colour language directly on the game's core verb**, and the biology *is* the colour maths: evolution is literally what happens when a body is adapted. Red plus yellow. Nothing had to be bent.
+
+★★ **And it hands us the pair the game already runs on.** Orange and green are both change, and they differ by **who is driving**:
+
+> **ORANGE is change that happens to you. GREEN is change you choose.**
+> Evolution is pressured — earned in combat, at thresholds, by force.
+> Growth is cultivated — bond, feeding, the Sanctuary, the farm.
+
+RP7 already separates those two economies completely. Nobody planned it as a colour statement; it is one.
+
+★ **The structural oddity worth keeping.** Purple is **the only secondary with no yellow in it** — the only synthesis that does not pass through adaptation. Body and mind reconciled *without changing*. That is a very good reason for it to be the late-game reveal, and for SPIRIT to read as the thing you arrive at rather than the thing you become.
 
 ### And the two that cannot be mixed at all
 
-These are the ones the theory marks as **special**, and the Expanse already has cosmology waiting for both.
+**Creator ruling: white is the REFLECTION of all; black is the ABSORPTION of all.**
 
-| | | principle |
+This is not a metaphor — it is how colour physically works, and the source says so in the same breath: *"Objects tend to absorb or reflect these wavelengths, so when we see a yellow lemon, it is the yellow wavelength that is being reflected while all others are being absorbed."* A white thing returns every wavelength. A black thing keeps every one.
+
+★ **This is a better pair than "all light / no light" because both are ACTIVE.** Presence and absence are states; reflection and absorption are things a body *does*. And it takes the moral charge off — **returning is not virtue and keeping is not sin.**
+
+| | ruling | in the Expanse |
 |---|---|---|
-| **WHITE** | *all light at once* · purity, wholeness, perfection, the blank canvas, a successful beginning | **AETHRYX.** The Impossible Archive is already blunt about it: *"AETHRYX is not one of the sixty-three. It is the REASON there are sixty-three."* Vorashil says it better — *"not a being with a signature… the condition under which a signature is possible at all."* **That is white: not a colour among colours, but the presence of all of them, which is why you cannot mix it.** |
-| **BLACK** | *the absence of light* · power, mystery, authority, the unknown, black holes, grief · *usually a negative connotation* | **THE VOID.** The Void Sea the whole world floats in. The Corrupted type. The Blackspiral. **The Empty Throne** — Oatheus is not a dark Gemlord, he is an *absent* one, and the tenth chair is black because there is nothing in it. |
+| **WHITE** | **reflection of all** — receives everything, keeps nothing, gives it all back | **AETHRYX.** The Impossible Archive: *"AETHRYX is not one of the sixty-three. It is the REASON there are sixty-three."* Vorashil: *"not a being with a signature… the condition under which a signature is possible at all."* **A thing that reflects everything has no colour of its own — which is exactly a condition rather than a participant.** |
+| **BLACK** | **absorption of all** — receives everything and keeps it | **THE VOID SEA**, which the whole world floats in — and which the game *already* models as absorption rather than absence: the Void-Sea execution has enemies **sink, compress and be swallowed** (`_voidSwallow`), not vanish. **The Empty Throne** is the same idea with a name on it: Oatheus is not a dark Gemlord, he is one the tenth chair has taken in. |
 
-> ★★ **This is why they are the rarest, and it is not a drop-rate decision.** Every other gem is something the Expanse *made*. White and black are the two conditions the Expanse was made **inside** — everything, and nothing. You do not find those often, because they are not products.
+> ★★ **This is why they are the rarest, and it is not a drop-rate decision.** Every other gem is something the Expanse *made*. White and black are the two things the Expanse *does* — give back, and take in. You do not find those often, because they are not products.
 
 ### The whole language on one page
 
 ```
-                    ┌─ WHITE ─ everything at once ─ AETHRYX ─ the condition
+                    ┌─ WHITE ─ reflects all ─ gives everything back ─ AETHRYX
    ACHROMATIC ──────┤
-                    └─ BLACK ─ nothing at all ────── THE VOID ─ the absence
-                                                            
-   SECONDARY ── ORANGE ─ endurance ── GREEN ─ growth ── PURPLE ─ spirit
+                    └─ BLACK ─ absorbs all ─ keeps everything ─ THE VOID SEA
+
+   SECONDARY ── ORANGE ─ evolution ── GREEN ─ growth ── PURPLE ─ spirit
                    │                     │                  │
-   PRIMARY ──── RED ─ body ───── YELLOW ─ will ───── BLUE ─ mind
+   PRIMARY ──── RED ─ body ──── YELLOW ─ adaptation ──── BLUE ─ mind
 ```
 
-Read it upward and it is the Expanse's own relic hierarchy: singular → composite → the two things that are neither.
+Read it upward and it is the Expanse's own relic hierarchy: singular → composite → the two that are neither.
 
 ---
 
-## 4 · IT ALSO MATCHES THE RELIC SYSTEM ALREADY WRITTEN
+## 4 · ★★★ THE LAW OF TWO FACES
+
+> **Creator, 2026-09-01:** *"none of the colors are inherently good or bad. it is a yin yang effect."*
+
+**This is the law that governs everything above, and it is written first because without it §3 reads as a morality chart.** Every principle in the Expanse has an expression that serves and an expression that harms. They are **not** two different things — they are the same principle at different pressures. A colour never *becomes* its shadow; the shadow was always the same force, unbalanced.
+
+| order | colour | principle | **YANG** — the face that serves | **YIN** — the face that harms |
+|---|---|---|---|---|
+| primary | **RED** | body | strength · protection · passion · the will to act | rage · violence · burnout *(source: "war, danger… raises blood pressure")* |
+| primary | **YELLOW** | adaptation | learning · agility · alertness · *"honor and loyalty"* | instability · flight · **cowardice** — *the source says both, in one breath: "Yellow indicates honor and loyalty. Later the meaning of yellow was connected with cowardice."* And: *"when overused, yellow may have a disturbing effect"* |
+| primary | **BLUE** | mind | wisdom · clarity · calm · sincerity | coldness · detachment · paralysis · melancholy |
+| secondary | **ORANGE** | evolution | ascension · breakthrough · becoming more | runaway change · mutation · a form that will not stop rewriting itself |
+| secondary | **GREEN** | growth | healing · abundance · harmony | overgrowth · rot · smothering — **the Verdant Awakening and the Crepts are exactly this**: growth that did not know when to stop |
+| secondary | **PURPLE** | spirit | transcendence · bond · nobility | domination · possession · *"mystery and magic"* turned to control · royalty as tyranny |
+| achromatic | **WHITE** | reflection | revelation · purity · protection · giving everything back | **refusal** — a thing that reflects all keeps nothing and gives nothing *of its own*; perfect blankness, erasure, the answer that returns your question |
+| achromatic | **BLACK** | absorption | depth · memory · gestation · potential · **the seed is kept in the dark** | consumption · oblivion · the hunger that never fills |
+
+★ **Yellow is the proof this law is not something I imposed.** The source hands us honour *and* cowardice for the same colour, in consecutive sentences, without noticing the contradiction. It isn't a contradiction. It is one principle — responsiveness — read from two sides.
+
+★★ **And white's shadow is the one worth writing carefully.** The instinct is to give white no dark face. But under the reflection ruling it has the cleanest one in the set: **a surface that returns everything absorbs nothing, learns nothing, and cannot be changed.** Perfect reflection is perfect refusal. That is far more useful to the Expanse than "white = good."
+
+---
+
+## 5 · ★★★ CORRUPTION IS NOT A COLOUR
+
+> **Creator, same ruling:** *"corruption can takeover anything"*
+
+Corruption is **not** black, not the shadow column above, and not a place on the wheel. It is an **overlay** — something that seizes a thing that was already something else. **And the game has been modelling it exactly that way for a long time without the colour language noticing.**
+
+| the evidence, from the build | what it proves |
+|---|---|
+| `mori` — *"corrupted mortal · the Seers' commonest work"* | a Mori **was a person**. Corruption is applied, not innate. |
+| `daemon` — *"twice a Mori's durability · a deeper corruption"* | corruption has **degrees**, so it is a quantity over a subject, not an identity |
+| **Draghoul** `Crystal/Draconic/Corrupted` · **Omegoran** `Draconic/Nature/Corrupted` | Corrupted arrives as a **third type beside the originals**. It does not replace what a thing was — it is added on top of it. |
+| `Sanctified Ray` · Divine · `effect: 'vs Corrupted'` | the counter to corruption already exists and it is **light against a state**, not one colour against another |
+
+> **A corrupted RED is not black. It is a corrupted red.**
+> Corruption keeps the colour and takes the wheel.
+
+★★ **The consequence, and it is the useful one:** corruption is *more* disturbing on the bright colours, not less. A corrupted white — a thing that reflects everything and has been made to reflect a lie — should be the worst thing in the Expanse, and nothing in the cosmology currently forbids it. Same for a corrupted green, which is arguably the Verdant Awakening already.
+
+This also cleans up a conflation the first draft of this document made: it put **black ≈ the Void ≈ the Corrupted type** in one box. Three different things. Black is **absorption**, a neutral principle. The Void Sea is a **place** that absorbs. Corrupted is a **state** that can take any colour, including white.
+
+---
+
+## 6 · IT ALSO MATCHES THE RELIC SYSTEM ALREADY WRITTEN
 
 `PRISMSHARD_GEMSHARD_CANON.md` §16, unprompted:
 
@@ -139,11 +210,11 @@ That is **primary and secondary**, in the Creator's own words, about a different
 
 ---
 
-## 5 · THE MEASUREMENTS
+## 7 · THE MEASUREMENTS
 
 Claims about colour should be measured, not eyeballed. Both of these were.
 
-### 5a · The gem art already agrees ✓
+### 7a · The gem art already agrees ✓
 
 Body colour of each sprite (`assets/2D sprites/decor/gem-*.png`), sampled across the mid-luminance band so rim highlight and outline do not skew it:
 
@@ -160,7 +231,7 @@ Body colour of each sprite (`assets/2D sprites/decor/gem-*.png`), sampled across
 
 The six chromatic gems walk the wheel in order, and the two achromatics are the only ones under 0.2 saturation — **the art already separates them into exactly the three orders**, without anyone having written this down. One small note: black's residual hue reads 102° (a faint green cast) at that saturation. Below the threshold where anyone would call it green; worth knowing if the sprite is ever regenerated.
 
-### 5b · The nine Astralite family colours collide ✗
+### 7b · The nine Astralite family colours collide ✗
 
 Nine families need nine legible colours. Measured from `ASTRALITE_FAMILIES`:
 
@@ -192,7 +263,7 @@ The psychology mostly holds up individually — DESTRUCTION red (*war, danger*),
 
 ---
 
-## 6 · WHERE THE LANGUAGE ALREADY SHOWS UP
+## 8 · WHERE THE LANGUAGE ALREADY SHOWS UP
 
 Not a plan — things already in the build that this document only names:
 
@@ -200,24 +271,26 @@ Not a plan — things already in the build that this document only names:
 |---|---|---|
 | ❤ HP · A1/A2 physical attacks · ATK | RED | body |
 | ◆ Diamond meter fuelling A3/A4 · DEF/SP | BLUE | mind |
-| ⚡ stamina, spent by sprint, restored by FAEDUST | **YELLOW** | **will** |
-| sprint economy · combo/streak persistence | ORANGE | endurance |
-| Life Seeds · Mythic Elixir · Verdant type · farming · the Sanctuary | GREEN | growth |
+| ⚡ stamina, spent by sprint, restored by FAEDUST — the meter that **frays** | **YELLOW** | **adaptation** |
+| evolution at level thresholds · Evolution Catalyst · Ultramax · Amplified Mode | **ORANGE** | **evolution** |
+| Life Seeds · Mythic Elixir · Verdant type · farming · the Sanctuary · bond | GREEN | growth |
 | Astralite bonds · Prisms · Bond Moves · Prismsynch | PURPLE | spirit |
-| AETHRYX · the 180 scrolls' unanswerable subject | WHITE | the condition |
-| Void Sea · Corrupted type · Blackspiral · the Empty Throne | BLACK | the absence |
+| AETHRYX · the 180 scrolls' unanswerable subject | WHITE | reflection |
+| the Void Sea · `_voidSwallow` (enemies are **swallowed**, not deleted) · the Empty Throne | BLACK | absorption |
 
 Eight rows. Six of them were built before this document existed.
 
+★★ **The Corrupted type is deliberately NOT in this table.** It was in the first draft, filed under black. §5 is why: corruption is an overlay on any colour, so it has no row of its own — it is a column that could be drawn beside every row.
+
 ---
 
-## 7 · WHAT A RULING WOULD CHANGE — and the price
+## 9 · WHAT A RULING WOULD CHANGE — and the price
 
-### 7a · Free: the five undefined gems get meanings
+### 9a · Free: the five undefined gems get meanings
 
 No code, no economy, no art. Green/yellow/white/orange/black stop being prices and become words. Costs a dialogue pass and a codex entry.
 
-### 7b · ★ Nearly free: re-order the value ladder to match the three orders
+### 9b · ★ Nearly free: re-order the value ladder to match the three orders
 
 Current and proposed:
 
@@ -231,28 +304,33 @@ proposed  red 20 · blue 40 · yellow 60 · green 80 · orange 100 · purple 120
 
 ★ **The one real cost:** a save in flight revalues. A player holding ten green gems sees them go 60 → 80 each; white goes 100 → 140. Three gems (red, blue, black) keep their exact value; five move. Cheap, but not zero — needs a migration decision, not just a constant edit.
 
-### 7c · Not free: the nine family colours
+### 9c · Not free: the nine family colours
 
 Fixing 3.6° and 9.6° means re-picking hues and touching every surface that paints an Astralite. Worth doing, but it is an art pass with a real footprint, and the choice of *which* nine hues is the Creator's.
 
 ---
 
-## 8 · OPEN CALLS FOR THE CREATOR
+## 10 · OPEN CALLS FOR THE CREATOR
 
-1. **★★ Is YELLOW = WILL?** Everything in §3 hangs off this one word. Red=body and blue=mind are locked; the third primary is the only genuinely new claim in this document. *(Alternatives that also fit the psychology: NERVE · VITALITY · FOCUS.)*
-2. **★ Does WHITE = AETHRYX?** The fit is uncomfortably good — *"not one of the sixty-three, it is the REASON there are sixty-three"* is a description of white light. But AETHRYX is the largest thing in the cosmology and attaching it to a lootable gem may be exactly wrong. **A white gem may need to be understood as a trace of the condition, not the condition** — the same move the Mealux ruling already made for the Key.
-3. **Does BLACK belong to the Void, or to Oatheus?** Both readings are in canon and they are not the same story. The Void is a place; the Empty Throne is an absence with a name.
-4. **Re-order the ladder (§7b)?** Free in economy, costs a save migration.
-5. **Re-space the nine family colours (§7c)?** Three pairs are currently not tellable apart.
-6. **Does this language extend to the Gemshards?** §16 of the relic canon already reads as primary-vs-secondary in the Creator's own words. If Gemshard = primary and Prismshard = secondary, the 81 and the 16 inherit a colour language for free — and the **Key of Anciuxor lands on white** by the same logic that put AETHRYX there.
+**Closed by the 2026-09-01 ruling:** the third primary is ADAPTATION · orange is EVOLUTION · white REFLECTS · black ABSORBS · no colour is inherently good or bad · corruption is an overlay. Those questions are answered and the document above is built on the answers.
+
+**Still open:**
+
+1. **★★ Does a WHITE GEM mean AETHRYX, or a TRACE of it?** The reflection ruling makes the fit tighter, not looser — *"not one of the sixty-three, it is the REASON there are sixty-three"* is a description of a perfect reflector. But AETHRYX is the largest thing in the cosmology and a lootable pickup may be exactly the wrong vessel. **The Mealux ruling already solved this shape once:** the Key stayed unobtainable and its *remnant traces* became findable. A white gem as a trace keeps the wall where it is.
+2. **★ Does BLACK belong to the Void Sea, or to Oatheus?** Both are in canon and they are different stories — one is a place that absorbs, the other is a chair that took someone. Under the absorption ruling **they may be the same story**, which would be a large piece of lore falling into place. Not assumed.
+3. **★★ Can corruption take WHITE?** §5 says nothing forbids it, and a reflector made to return a lie is the most frightening object this cosmology could contain. That is either a major late-game reveal or a line you do not want crossed — either way it is yours, not mine.
+4. **Where does the yin face live in the mechanics?** The law is written; the game currently expresses only the yang half of most colours. Do corrupted/shadow expressions become status effects, an alternate type set, a district condition — or purely a lore and dialogue register?
+5. **Re-order the ladder (§9b)?** Free in economy, costs a save migration.
+6. **Re-space the nine family colours (§9c)?** Three pairs are currently not tellable apart.
+7. **Does this language extend to the Gemshards?** §16 of the relic canon already reads as primary-vs-secondary in your own words. If Gemshard = singular = primary and Prismshard = composite = secondary, the 81 and the 16 inherit a colour language for free — and the **Key of Anciuxor lands on white** by the same logic that put AETHRYX there.
 
 ---
 
-## 9 · WHAT THIS DOCUMENT DOES NOT DO
+## 11 · WHAT THIS DOCUMENT DOES NOT DO
 
 - Does not touch `GEM_VALUES`, `GEM_WEIGHTS`, `GEM_COLORS`, `ASTRALITE_FAMILIES` or any sprite. Nothing above is in the build.
 - Does not redefine RED, BLUE or PURPLE. Those are locked at Codex v15.7 and this only supplies the reason they were right.
-- Does not assign Gemshard or Prismshard colours. §8.6 is a question.
+- Does not assign Gemshard or Prismshard colours. §10.6 is a question.
 - Does not claim colour psychology is settled science. The source says so itself: *"since every human being has different emotions attached to different colors, the universal significance of colors may or may not work."* What makes it usable here is not that it is true of every person — it is that it is **shared enough to be read without a tutorial**, which is the whole job of a colour language in a game.
 
 **Source:** [Color Psychology — Effects & Meaning](https://www.colorpsychology.org/) · [Primary, Secondary, and Tertiary Colors](https://www.colorpsychology.org/primary-secondary-tertiary-colors/)

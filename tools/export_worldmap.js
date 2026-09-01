@@ -103,13 +103,22 @@ const distIdx = d => {
   return i;
 };
 const CH = i => String.fromCharCode(97 + i);               // a, b, c, ...
+// ★★ THE WORLD DOES NOT START AT (0,0).  WORLD_MIN_COL is -100 and
+// WORLD_MIN_ROW is -45, and Malezor really does extend into that margin: 298
+// props and 36 NPCs stand at negative tile coordinates.  A first pass that
+// scanned 0..MAP_COLS produced a picture with a scatter of trees and Mori
+// floating on the Void Sea, because the land under them had never been asked
+// about.  The grid is stored origin-relative; prop and NPC coordinates stay
+// ABSOLUTE and the renderer subtracts the origin, so nothing has to be
+// re-based twice.
+const X0 = W.WORLD_MIN_COL, Y0 = W.WORLD_MIN_ROW;
 const rows = [];
 const river = [];
 const border = [];
 const blends = [];
-for (let y = 0; y < W.MAP_ROWS; y++){
+for (let y = Y0; y < W.MAP_ROWS; y++){
   let line = '';
-  for (let x = 0; x < W.MAP_COLS; x++){
+  for (let x = X0; x < W.MAP_COLS; x++){
     let land = false;
     try { land = !!W.isWorldLandTile(x, y); } catch(_){}
     if (!land) { line += '.'; continue; }
@@ -187,7 +196,9 @@ const boulders = (W.BOULDERS || [])
 const out = {
   meta: {
     mapCols: W.MAP_COLS, mapRows: W.MAP_ROWS,
-    minCol: W.WORLD_MIN_COL, minRow: W.WORLD_MIN_ROW,
+    minCol: X0, minRow: Y0,
+    originX: X0, originY: Y0,
+    cols: W.MAP_COLS - X0, rows: W.MAP_ROWS - Y0,
     tile: W.TILE, districts: DISTRICTS,
     player: { x: W.player && W.player.x, y: W.player && W.player.y },
   },
@@ -196,7 +207,8 @@ const out = {
 const dest = process.argv[2] || '/tmp/worldmap.json';
 fs.writeFileSync(dest, JSON.stringify(out));
 const land = rows.reduce((s, r) => s + (r.length - (r.split('.').length - 1)), 0);
-console.log(`  grid       ${W.MAP_COLS} x ${W.MAP_ROWS} tiles · ${land.toLocaleString()} land`);
+console.log(`  grid       ${W.MAP_COLS - X0} x ${W.MAP_ROWS - Y0} tiles`
+  + ` · origin (${X0}, ${Y0}) · ${land.toLocaleString()} land`);
 console.log(`  districts  ${DISTRICTS.length} · ${DISTRICTS.join(', ')}`);
 console.log(`  props      ${props.length}`);
 console.log(`  npcs       ${npcs.length} overworld`);

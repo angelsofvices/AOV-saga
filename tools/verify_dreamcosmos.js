@@ -1,0 +1,199 @@
+// Headless smoke test for rp7b.html — evaluates the whole script against a
+// stubbed browser surface, then calls the combat/roster functions directly.
+const fs = require('fs');
+const src = fs.readFileSync('/tmp/all.js', 'utf8');
+
+const noop = () => {};
+global.setInterval=()=>0; global.setTimeout=(f,t)=>0; global.clearInterval=noop; global.clearTimeout=noop;
+function makeCtx() {
+  const c = {};
+  const methods = ['save','restore','beginPath','closePath','moveTo','lineTo','arc','arcTo','rect',
+    'fill','stroke','fillRect','strokeRect','clearRect','fillText','strokeText','drawImage','translate',
+    'rotate','scale','setTransform','resetTransform','clip','createLinearGradient','createRadialGradient',
+    'createPattern','putImageData','getImageData','measureText','ellipse','quadraticCurveTo','bezierCurveTo',
+    'setLineDash','transform'];
+  for (const m of methods) c[m] = () => ({ addColorStop: noop, data: [], width: 0, height: 0 });
+  c.measureText = () => ({ width: 10 });
+  c.canvas = { width: 960, height: 540 };
+  return c;
+}
+const CTX = makeCtx();
+function makeEl() {
+  const el = {
+    style: {}, dataset: {}, classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
+    width: 960, height: 540, value: '', textContent: '', innerHTML: '', checked: false,
+    children: [], childNodes: [], clientWidth: 960, clientHeight: 540,
+    getContext: () => CTX, appendChild: noop, removeChild: noop, insertBefore: noop,
+    addEventListener: noop, removeEventListener: noop, setAttribute: noop, getAttribute: () => null,
+    removeAttribute: noop, focus: noop, blur: noop, click: noop, remove: noop, closest: () => null,
+    querySelector: () => makeEl(), querySelectorAll: () => [],
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 960, height: 540, right: 960, bottom: 540 }),
+    scrollIntoView: noop, scrollTo: noop, scrollTop: 0,
+  };
+  return el;
+}
+global.addEventListener = noop; global.removeEventListener = noop;
+global.document = {
+  getElementById: () => makeEl(), querySelector: () => makeEl(), querySelectorAll: () => [],
+  createElement: () => makeEl(), createTextNode: () => ({}), addEventListener: noop,
+  removeEventListener: noop, body: makeEl(), documentElement: makeEl(), head: makeEl(),
+  hidden: false, visibilityState: 'visible', activeElement: null, fullscreenElement: null,
+};
+global.window = global;
+global.localStorage = { _d: {}, getItem(k){ return this._d[k] ?? null; }, setItem(k,v){ this._d[k]=String(v); },
+  removeItem(k){ delete this._d[k]; }, clear(){ this._d = {}; } };
+global.Audio = function(){ return { play: () => Promise.resolve(), pause: noop, load: noop,
+  addEventListener: noop, removeEventListener: noop, cloneNode(){ return this; },
+  volume: 1, currentTime: 0, duration: 0, paused: true }; };
+global.Image = function(){ return { addEventListener: noop, removeEventListener: noop,
+  complete: false, naturalWidth: 0, naturalHeight: 0, width: 0, height: 0, src: '' }; };
+global.requestAnimationFrame = () => 0; global.cancelAnimationFrame = noop;
+global.matchMedia = () => ({ matches: false, addEventListener: noop, removeEventListener: noop, addListener: noop });
+global.navigator = { userAgent: 'node', getGamepads: () => [], maxTouchPoints: 0, vibrate: noop };
+global.performance = { now: () => 0 };
+global.alert = noop; global.confirm = () => true; global.prompt = () => null;
+global.getComputedStyle = () => ({ getPropertyValue: () => '' });
+
+const EXPORT = ';globalThis.__C={DREAM_COSMOS_IMG,DREAM_COSMOS_FRAMES,DREAM_COSMOS_MS,DREAM_COSMOS_HOLD,DREAM_COSMOS_PARALLAX,DREAM_COSMOS_TILES_PER_REPEAT,dreamCosmosPatterns,drawDreamCosmos,DREAMLAND_TILES_PER_REPEAT,TILE,drawDreamlandFloor};';
+
+try { new Function(src + EXPORT)(); } catch(e){ console.log('boot error:', e.message.slice(0,300)); }
+const FS = require('fs');
+const src2 = FS.readFileSync('/tmp/all.js','utf8');
+const ROOT = '/sessions/great-cool-heisenberg/mnt/AOV-saga-new/';
+let f=0; const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
+const C=globalThis.__C;
+ok(!!C,'script evaluated');
+if(!C){ console.log('\n❌ cannot continue'); process.exit(0); }
+
+console.log('\n★★★ v0.95.937 · THE DREAMLAND SKY IS A STAR FIELD');
+console.log('  Creator: "the dark dreamworld cosmic background as a seamless four-frame');
+console.log('            animation atlas for under the dreamword cloud region."\n');
+
+console.log('1 · THE ASSET IS ON DISK AND IS WHAT HE SAID IT IS\n');
+{
+  const p = ROOT + 'assets/2D sprites/tiles/dreamland-cosmos-2x2.png';
+  ok(FS.existsSync(p), 'assets/2D sprites/tiles/dreamland-cosmos-2x2.png exists');
+  // read the IHDR straight out of the PNG — no image library needed for w/h
+  const b = FS.readFileSync(p);
+  ok(b.slice(1,4).toString() === 'PNG', 'and it is a real PNG, not a PSD wearing the extension');
+  const W = b.readUInt32BE(16), H = b.readUInt32BE(20);
+  console.log(`     ${W} x ${H} · four ${W/2} x ${H/2} frames`);
+  ok(W === 1254 && H === 1254, '1254 x 1254 as delivered');
+  ok(W % 2 === 0 && H % 2 === 0, 'and it halves cleanly into a 2x2 atlas');
+  ok(/dreamland-cosmos-2x2\.png/.test(src2), 'and the engine points at that exact file');
+}
+
+console.log('\n2 · ★★ A 2x2 ATLAS ON A 4x4 GAME\n');
+{
+  ok(C.DREAM_COSMOS_FRAMES === 4, 'four frames');
+  ok(/const c = f & 1, r = f >> 1;/.test(src2),
+     '★ sliced ROW-MAJOR · f=0 TL, 1 TR, 2 BL, 3 BR — the order he authored them in');
+  ok(/img\.naturalWidth \/ 2/.test(src2) && /img\.naturalHeight \/ 2/.test(src2),
+     '★★ cell size comes from the IMAGE, halved · not from the 313px constant every');
+  console.log('       other sheet in this game uses.  The grid travels with the asset —');
+  console.log('       the lesson the Verdant Creeper\'s 256px attack sheet taught at');
+  console.log('       v0.95.704, applied here without having to break anything first.');
+}
+
+console.log('\n3 · ★★ THE REPEAT IS AN INTEGER NUMBER OF TILES\n');
+{
+  const n = C.DREAM_COSMOS_TILES_PER_REPEAT;
+  ok(Number.isInteger(n), `${n} tiles per repeat · an integer`);
+  console.log('     A non-integer repeat drifts the texture a fraction of a pixel per tile');
+  console.log('     and puts a shimmering seam through the middle of the sky — the same');
+  console.log('     rule the cloud plate above it already follows.');
+  ok(n > C.DREAMLAND_TILES_PER_REPEAT,
+     `★ and it is LARGER than the cloud's ${C.DREAMLAND_TILES_PER_REPEAT} (${n}) · this layer is`);
+  console.log('       DISTANT, so stars want to read small and a bigger repeat is what');
+  console.log('       hides the fact that it repeats.');
+  ok(n * C.TILE === 960, `one repeat is ${n * C.TILE}px · exactly one canvas width`);
+}
+
+console.log('\n4 · ★★★ HOLD, THEN BLEND\n');
+{
+  ok(C.DREAM_COSMOS_HOLD > 0.5 && C.DREAM_COSMOS_HOLD < 1,
+     `each frame holds at full for ${Math.round(C.DREAM_COSMOS_HOLD*100)}% of its slot`);
+  console.log('     A hard 4-frame cut reads as a FLICKER.  But cross-fading the whole slot');
+  console.log('     MUTES the twinkles — a star lit in one frame and dark in the next spends');
+  console.log('     its life at half brightness, which is the opposite of a twinkle.  Holding');
+  console.log('     then blending keeps the sparkle and smooths the drift.');
+  ok(/frac <= DREAM_COSMOS_HOLD\s*\n?\s*\? 0/.test(src2),
+     '★ blend is exactly ZERO during the hold · not a small number');
+  ok(/\(frac - DREAM_COSMOS_HOLD\) \/ \(1 - DREAM_COSMOS_HOLD\)/.test(src2),
+     'and ramps 0→1 across the remainder, so it arrives exactly on the next frame');
+  const loop = C.DREAM_COSMOS_MS * C.DREAM_COSMOS_FRAMES;
+  console.log(`     ${C.DREAM_COSMOS_MS}ms a frame · ${loop}ms loop`);
+  ok(loop >= 800 && loop <= 3000, `loop length is ${loop}ms · a shimmer, not a strobe`);
+}
+
+console.log('\n5 · ★★ PARALLAX · not screen-locked, not world-locked\n');
+{
+  ok(C.DREAM_COSMOS_PARALLAX > 0 && C.DREAM_COSMOS_PARALLAX < 0.3,
+     `the sky moves at ${C.DREAM_COSMOS_PARALLAX} of the camera`);
+  console.log('     The old sky was a gradient in SCREEN space "so it never scrolls" — right');
+  console.log('     for a flat wash, wrong for a star field.  Locked to the screen it reads as');
+  console.log('     wallpaper stuck to the camera; locked to the world it reads as a floor you');
+  console.log('     are looking down at.  A twelfth of the camera is what makes it far away.');
+  ok(!/DREAM_COSMOS_DRIFT/.test(src2),
+     '★ and NO second time-based drift · the nebula motion is baked into the four');
+  console.log('       frames, and a drift on top of it would fight the art.');
+  ok(/% n\) \+ n\) % n/.test(src2),
+     '★ the offset is wrapped into one repeat · a raw camera product grows until it');
+  console.log('       loses float precision on a long session.');
+}
+
+console.log('\n6 · ★★ IT SITS UNDER THE CLOUD, AND FAILS SOFT\n');
+{
+  const fn = (() => {
+    const i = src2.indexOf('function drawDreamlandFloor');
+    let d=0,st=false; for(let j=i;j<src2.length;j++){const ch=src2[j];
+      if(ch==='{'){d++;st=true;} else if(ch==='}'){d--;if(st&&d===0)return src2.slice(i,j+1);} }
+    return '';
+  })();
+  const gi = fn.indexOf('createLinearGradient');
+  const ci = fn.indexOf('drawDreamCosmos');
+  const li = fn.indexOf('_dlLayer, startCol');
+  ok(gi >= 0 && ci > gi, '★ the gradient is painted FIRST and the cosmos over it');
+  console.log('       That gradient is now a FALLBACK: an asset that fails to load leaves a');
+  console.log('       sky rather than a black hole, for the price of one fillRect a frame.');
+  ok(li > ci, '★★ and the CLOUD layer is drawn after both · the star field is behind it');
+  ok(/try \{ drawDreamCosmos\(\); \} catch/.test(src2),
+     'the call is guarded · a sky that throws must not take the frame down with it');
+  ok(/if \(!pats \|\| !pats\.length\) return false;/.test(src2),
+     'and it reports honestly when it did not paint, rather than pretending it did');
+}
+
+console.log('\n7 · DARK ENOUGH TO BE A BACKGROUND\n');
+{
+  // measured off the delivered file · the Creator said "dark enough to remain
+  // behind the cloud layer", and that is a claim worth checking rather than
+  // taking on trust: a bright sky would fight the cloud plate it sits under.
+  const stats = JSON.parse(FS.readFileSync('/tmp/cosmos_stats.json','utf8'));
+  for (const s of stats.frames) console.log(`     frame ${s.name}  mean RGB ${s.mean.join(', ')}  p99 ${s.p99}`);
+  ok(stats.frames.every(s => s.mean[0] < 40 && s.mean[1] < 40 && s.mean[2] < 60),
+     '★ every frame is genuinely dark · it cannot compete with the cloud above it');
+  ok(stats.frames.every(s => s.max > 200),
+     'while still carrying near-white star cores · dark ≠ flat');
+  console.log(`     wrap seam · left|right edge delta ${stats.seamX}, top|bottom ${stats.seamY}`);
+  ok(stats.seamX < 12 && stats.seamY < 12,
+     '★★ and the frames TILE · the edges match, so the 20-tile repeat has no visible seam');
+}
+
+console.log('\n8 · ★ AND THE SEAM I THOUGHT I SAW IS NOT THERE\n');
+{
+  // Looking at the first in-game preview I was sure there was a vertical seam
+  // at the repeat boundary.  Measured across the pure-sky band of the rendered
+  // frame, the boundary column's horizontal gradient is 2.38 — BELOW the 99th
+  // percentile of 3.41, and well under the 5.07 maximum, which is a star.
+  // The strongest edges in that sky are the art, not the tiling.
+  const seam = JSON.parse(FS.readFileSync('/tmp/cosmos_seam.json','utf8'));
+  console.log(`     boundary column |d/dx| ${seam.at}  ·  p50 ${seam.p50}  p99 ${seam.p99}  max ${seam.max}`);
+  ok(seam.at < seam.p99,
+     '★ the repeat boundary is quieter than the 99th-percentile column · nothing to fix');
+  console.log('       Worth recording: I was about to soften the tile edges to "fix" this,');
+  console.log('       which would have blurred the stars nearest the boundary to cure a');
+  console.log('       defect that measurement says is not there.');
+}
+
+console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
+process.exit(0);

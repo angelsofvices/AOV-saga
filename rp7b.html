@@ -17106,6 +17106,96 @@ DREAMLAND_TILE_IMG.src = 'assets/2D%20sprites/tiles/dreamland-cloud.png';
 // the solid, walkable ground look like the holes.
 const DREAMLAND_TILE_DENSE = new Image();
 DREAMLAND_TILE_DENSE.src = 'assets/2D%20sprites/tiles/dreamland-cloud-dense.png';
+// ★★★ v0.95.937 · THE DREAMLAND SKY IS A STAR FIELD NOW.
+// Creator, 2026-09-01: "the dark dreamworld cosmic background as a seamless
+// four-frame animation atlas for under the dreamword cloud region · 1254x1254 ·
+// four 627x627 repeating frames · top-left → top-right → bottom-left →
+// bottom-right · animated star twinkles and subtle nebula drift · dark enough
+// to remain behind the cloud layer."
+//
+// ★ A 2x2 ATLAS, NOT THE 4x4 EVERYTHING ELSE USES.  Every animated sheet in
+// this game so far has been 4x4 on 313px cells (the ocean, the void sea, every
+// sprite bank).  This one is 2x2 on 627px cells because it is a BACKGROUND: it
+// needs area per frame, not poses per direction.  The grid travels with the
+// asset — the same lesson the Verdant Creeper's 256px attack sheet taught at
+// v0.95.704, learned once and applied without having to break anything first.
+//
+// ★★ 20 TILES PER REPEAT, AND IT HAS TO BE AN INTEGER.  Same rule as the cloud
+// plate above: a non-integer repeat drifts the texture a fraction of a pixel
+// per tile and puts a shimmering seam through the middle of the sky.  20 rather
+// than the cloud's 12 because this is DISTANT — stars want to read small, and a
+// larger repeat is what hides the fact that it repeats at all.
+const DREAM_COSMOS_TILES_PER_REPEAT = 20;
+const DREAM_COSMOS_IMG = new Image();
+DREAM_COSMOS_IMG.src = 'assets/2D%20sprites/tiles/dreamland-cosmos-2x2.png';
+const DREAM_COSMOS_FRAMES = 4;
+const DREAM_COSMOS_MS     = 300;    // per frame · 1.2s loop
+// ★ HOLD, THEN BLEND.  A hard 4-frame cut at 300ms reads as a flicker, but
+// cross-fading the WHOLE slot mutes the twinkles — a star lit in one frame and
+// dark in the next spends its life at half brightness, which is the opposite of
+// a twinkle.  So each frame is held at full for the first 65% of its slot and
+// blended into the next over the last 35%: the sparkle keeps its punch and the
+// nebula drift stays smooth.
+const DREAM_COSMOS_HOLD   = 0.65;
+// ★ PARALLAX, not screen-locked and not world-locked.  The old sky was a
+// gradient painted in screen space "so it never scrolls", which is right for a
+// flat wash and wrong for a star field: locked to the screen it reads as
+// wallpaper stuck to the camera, locked to the world it reads as a floor you
+// are looking down at.  A twelfth of the camera is what makes it read as far
+// away.  The nebula's own drift is baked into the four frames, so nothing else
+// moves it — adding a second time-based drift here would fight the art.
+const DREAM_COSMOS_PARALLAX = 0.12;
+let _dreamCosmosPats = null;
+function dreamCosmosPatterns(){
+  if (_dreamCosmosPats) return _dreamCosmosPats;
+  const img = DREAM_COSMOS_IMG;
+  if (!img.complete || !img.naturalWidth) return null;
+  const cw = img.naturalWidth / 2, ch = img.naturalHeight / 2;
+  const n = DREAM_COSMOS_TILES_PER_REPEAT * TILE;
+  const out = [];
+  for (let f = 0; f < DREAM_COSMOS_FRAMES; f++){
+    // ★ row-major · TL, TR, BL, BR · the order the Creator authored them in
+    const c = f & 1, r = f >> 1;
+    const off = document.createElement('canvas');
+    off.width = n; off.height = n;
+    const o = off.getContext('2d');
+    o.imageSmoothingEnabled = true;
+    o.drawImage(img, c * cw, r * ch, cw, ch, 0, 0, n, n);
+    out.push(ctx.createPattern(off, 'repeat'));
+  }
+  _dreamCosmosPats = out;
+  return out;
+}
+// Returns true if it painted · false means the caller's gradient is the sky.
+function drawDreamCosmos(){
+  const pats = dreamCosmosPatterns();
+  if (!pats || !pats.length) return false;
+  const n = DREAM_COSMOS_TILES_PER_REPEAT * TILE;
+  const t = performance.now() / DREAM_COSMOS_MS;
+  const i = Math.floor(t) % DREAM_COSMOS_FRAMES;
+  const j = (i + 1) % DREAM_COSMOS_FRAMES;
+  const frac = t - Math.floor(t);
+  const blend = frac <= DREAM_COSMOS_HOLD
+    ? 0
+    : (frac - DREAM_COSMOS_HOLD) / (1 - DREAM_COSMOS_HOLD);
+  // ★ the modulo keeps the offset inside one repeat, so the pattern origin
+  // never walks off to a number big enough to lose float precision on a long
+  // session — the same trap the ocean drift avoids.
+  const ox = -(((_cam.x * DREAM_COSMOS_PARALLAX) % n) + n) % n;
+  const oy = -(((_cam.y * DREAM_COSMOS_PARALLAX) % n) + n) % n;
+  const paint = (pat, alpha) => {
+    if (alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(ox, oy);
+    ctx.fillStyle = pat;
+    ctx.fillRect(-ox, -oy, canvas.width, canvas.height);
+    ctx.restore();
+  };
+  paint(pats[i], 1);
+  paint(pats[j], blend);
+  return true;
+}
 let _dreamPattern = null, _dreamPatternDense = null;
 function _mkDreamPattern(img){
   if (!img.complete || !img.naturalWidth) return null;
@@ -27542,12 +27632,18 @@ let _dlLayer = null, _dlMask = null, _dlMask2 = null, _dlBright = null;
 function drawDreamlandFloor(cfg){
   const C = cfg.cols, R = cfg.rows;
   // Sky · vertical gradient in SCREEN space, so it never scrolls.
+  // ★ v0.95.937 · this is now the FALLBACK, painted first so that a cosmos
+  // asset that fails to load leaves a sky rather than a black hole.  It costs
+  // one fillRect a frame and it is the difference between a missing file being
+  // a visual downgrade and being a broken build.
   const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
   g.addColorStop(0,    '#0b1140');
   g.addColorStop(0.55, '#243a86');
   g.addColorStop(1,    '#4a6bc0');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // ★★★ and the real sky over the top of it · the Creator's four-frame star field
+  try { drawDreamCosmos(); } catch(err){ console.warn('[rp7b] dream cosmos', err); }
 
   const startCol = Math.max(0, Math.floor(_cam.x / TILE) - 1);
   const endCol   = Math.min(C, Math.ceil((_cam.x + canvas.width)  / TILE) + 2);

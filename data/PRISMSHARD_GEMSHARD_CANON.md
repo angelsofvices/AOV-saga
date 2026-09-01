@@ -1357,6 +1357,123 @@ Ultrashard.** 16, closed, untouched.
 
 ---
 
+## 0j · ★★★ THE FIVE GRADES — Creator ruling, 2026-09-01
+
+> **Creator:** *"types of gems in canon: core - astralite · compound - gem ·
+> complex - gemshard · composite - ultrashard · **cosmologic** - prismshard"* ·
+> *"lmk if i missed anything"*
+
+| grade | class |
+|---|---|
+| **CORE** | Astralite |
+| **COMPOUND** | Gem |
+| **COMPLEX** | Gemshard |
+| **COMPOSITE** | Ultrashard |
+| **COSMOLOGIC** | Prismshard |
+
+### ★★★ 1 · THREE OF THE FIVE ARE THE CANON'S OWN WORDS
+
+This is not a mnemonic laid over the system. It is the system's existing
+vocabulary, collected:
+
+| grade | already in canon as |
+|---|---|
+| **COMPOUND** | ★★★ §0d, **the Creator's own definition**: *"a gem is a **fully compounded** single astralite"* |
+| **COMPLEX** | ★★★ §1, three times: *"a **complex** binding"* · *"→ **Complex** Binding →"* · *"the defining property is **complex** Astralite balance"* |
+| **COSMOLOGIC** | ★★ §12, of the Key: *"its importance is **cosmological**"* |
+| **COMPOSITE** | ★★ §0i, the Creator's word this morning: *"a **composite** gem"* |
+| **CORE** | ★ carried by eight Astralite item names already — Genesis Core, Psycore, Bastion Core, Coreflux, Ethereal Core, Auramind Core, Imperisis Core, Protostar Core **[BUILD]** |
+
+★ **Four of the five were spoken before they were assigned.** That is the
+difference between a naming scheme and a label set.
+
+### ★★★ 2 · TWO OF THEM ARE ALREADY TAKEN — AND BOTH POINT *UPWARD*
+
+**This is the thing that was missed, and it is one pattern, not two accidents.**
+
+| grade | assigned to | ★ but the word currently means |
+|---|---|---|
+| **COMPOUND** | gem | ★★★ `ASTRALITE_COMPOUNDS` **[BUILD]** — `compound_potential`, `compound_will` … **five crafted items, each joining TWO FAMILIES.** Joining families is *breadth*, which §0i names **COMPOSITE** |
+| **COMPLEX** | gemshard | ★★★ §1 uses it for the **PRISMSHARD** — *"a **complex** binding of multiple highly concentrated Astralite energies"* — which the scheme names **COSMOLOGIC** |
+
+> **Each word is currently in use ONE OR TWO RUNGS ABOVE where the scheme puts
+> it.** Adopting the grades as-is means every existing use of *compound* and
+> *complex* now reads as a grade claim about the wrong rung.
+
+★★ **The `compound` collision is the sharper of the two, because it is in code and
+in the player's inventory** — `compound_*` keys, a ZyCube category literally
+labelled COMPOUNDS, and `zycubeCategoryOf()` returning `'compound'` **[BUILD]**.
+A player holding a "Will Compound" and a "compound-grade gem" would be holding two
+unrelated things under one word.
+
+★ **Three ways out, none chosen:**
+- **(a) Rename the build's compounds.** They are cross-family joins, so under §0i
+  they are **composite-class** already — *"Will Composite."* Truest to the system,
+  and it is a code + UI pass.
+- **(b) Pick a different grade word for the gem.** Keeps the build untouched.
+- **(c) Accept the overload** and let context carry it. Cheapest, and it is the one
+  that will confuse someone in six months.
+
+★ For **complex**, the fix is smaller: §1's *"complex binding"* is prose, not a
+key, and could be reworded to *"cosmologic binding"* — which is arguably better
+anyway, since §1 is describing the Aenor-born object.
+
+### ★★★ 3 · IT READS AS A LADDER, BUT RUNGS 3 AND 4 ARE PEERS
+
+§0i ruled this morning that **complex and composite are not sequential** — they are
+the two operations that can be performed on a gem:
+
+```
+              COSMOLOGIC          ← uncraftable · the Aenor Eruption
+                   ↑
+   COMPLEX  ‖  COMPOSITE          ← ★ PEERS, not steps · depth ‖ breadth
+       ↑         ↑
+              COMPOUND
+                   ↑
+                 CORE
+```
+
+★★ **A Gemshard is not below an Ultrashard.** §0c ruled an Ultrashard is *not one
+of the 81*; §0i ruled that concentrating gives you one and combining gives you the
+other. **The list is right; only its verticality is misleading.** Written down as
+five ascending grades it will be read as a power ladder, and someone will
+eventually ask why a composite beats a complex. **It doesn't. It differs.**
+
+### ★★ 4 · WORLD AND SPACE NOW SIT IN TWO PLACES AT ONCE — correctly
+
+★ Not a contradiction, but it must be said out loud or it will read as one:
+
+> **The ten gem TYPES span two GRADES.**
+> **Eight are COMPOUND. WORLD and SPACE are COMPOSITE.**
+
+*Type* answers *which gem is it* (colour · §0g§B1). *Grade* answers *what rung is
+it on*. They are different axes, and the Creator's own two rulings put WORLD and
+SPACE on the type list **and** in the Ultrashard class. Both hold.
+
+### ★★ 5 · WHAT HAS NO GRADE · the honest answer to *"did I miss anything"*
+
+**Two things, and one of them matters.**
+
+1. ★ **AETHRYX.** The one thing *below* CORE — the substrate every Astralite is
+   made of, *"not one of the sixty-three · the REASON there are sixty-three"*
+   (§0b). It may be deliberately outside the scheme, since it is a **substance**
+   rather than an object and the grades are grades of objects. **Flagged, not
+   named** — inventing a sixth C-word is your call, not mine.
+2. ★★★ **THE FATHER GEM AND THE TEN MOTHER GEMS.** Still the largest gap, now
+   sharper: `timeline.html` calls the Father Gem core *"the highest-density
+   cosmic-substrate jewel — the source from which all 10 Mother Gems descend"*,
+   and **the grades have no rung for it.** A jewel that produces ten jewels is
+   plainly gem-like and plainly not any of these five. **It is either a sixth
+   grade, or it is one of these five under another name, or it belongs to the
+   separate cosmology §0g§E2 flagged.** Unanswered since the census, and the
+   naming scheme is the first thing that makes its absence conspicuous.
+
+★ **Not missing, correctly:** utility prisms (Zysphere · Zycube · Zyramid) are
+manufactured *replicas* of prismshard function (§0g§E1), not a grade. Corruption
+is an **overlay** on any grade, not a rung. Gemlord weapons are **complex**.
+
+---
+
 ## 1 · THE 16 PRISMSHARDS
 
 Exactly sixteen. The highest known relic class in the Aethryx Expanse.
@@ -1501,6 +1618,10 @@ Every Gemshard references exactly one parent Prismshard and (eventually) exactly
 
 > ★★★ **§0d carries the Creator's own five definitions and outranks the wording
 > here.** This list is kept for the terms §0d does not define.
+>
+> ★★★ **THE FIVE GRADES (§0j):** **CORE** Astralite · **COMPOUND** Gem ·
+> **COMPLEX** Gemshard · **COMPOSITE** Ultrashard · **COSMOLOGIC** Prismshard.
+> ★ Complex and Composite are **peers**, not steps (§0i).
 
 - **Astralite** — ★ §0d: *a single piece of matter in its most basic form*. Fundamental elemental/existential energy within the Astralite Matrix.
 - **Astralite Gem** / **gem** — ★ §0e: **one Astralite FAMILY, at a concentration of 1–7.** *"Fully compounded single"* means single-**family**, not single-Astralite. 9 families × 7 depths = 63 grades.

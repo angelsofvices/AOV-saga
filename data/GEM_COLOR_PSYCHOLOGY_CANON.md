@@ -341,6 +341,31 @@ The psychology mostly holds up individually — DESTRUCTION red (*war, danger*),
 
 ---
 
+## 7c · ★★★ THE SPECTRUM SPLITS 4/4 — Creator ruling, 2026-09-01
+
+> *"the world gem can have red blue yellow and green and the space gem has white orange purple and black"*
+
+**The two composite gems cut the eight along this document's own seams, not across them.**
+
+| | red | yellow | blue | green | orange | purple | white | black |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| order | prim | prim | prim | sec | sec | sec | achro | achro |
+| **WORLD** | ● | ● | ● | ● | | | | |
+| **SPACE** | | | | | ● | ● | ● | ● |
+
+> **WORLD = all three PRIMARIES + GREEN** — *body · adaptation · mind · growth.*
+> **SPACE = the other two SECONDARIES + BOTH ACHROMATICS** — *evolution · spirit · reflects all · absorbs all.*
+>
+> **WORLD is what it is to be alive in a place. SPACE is what it is to transcend one.**
+
+★★★ **Green versus orange is the load-bearing pair, and §3 already decided it.** Green is *change under **care*** — cultivation, the long game, the Sanctuary. Orange is *change under **pressure***, the cosmic verb. **Growth is terrestrial; evolution is not.** Green had to land on WORLD and orange on SPACE, and nothing was bent.
+
+★★ **Structurally the same answer:** WORLD holds the **foundations** — the three colours nothing is mixed from, plus the one synthesis that stays alive. SPACE holds the **syntheses and the totals** — the two secondaries that leave the body behind, plus the two that are not places on the wheel at all.
+
+★ `4 + 4 = 8`, none shared, none left out. And they are districts **9 and 10** — so the colour language is not just taught across the campaign, it is **completed** by finishing it. `PRISMSHARD_GEMSHARD_CANON.md` §0h.
+
+---
+
 ## 8 · WHERE THE LANGUAGE ALREADY SHOWS UP
 
 Not a plan — things already in the build that this document only names:

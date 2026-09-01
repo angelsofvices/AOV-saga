@@ -575,6 +575,19 @@ is a canon pass:
 > one astralite family. it can be one or 7. that determines its concentration
 > maybe?"*
 
+> ★★★ **REVISED SAME DAY BY §0h.** Creator: *"a regular gem can only sustain **one
+> basic astralite** now."* **The 1–7 ladder does not live at the gem rung.** §0d's
+> plain sentence — *"a fully compounded **single** astralite"* — meant one
+> Astralite, and my reading of *single* as modifying **family** was an
+> over-correction of a sentence that was already clear.
+>
+> ★★ **What survives, and it is most of this section:** the nine families of seven,
+> the shipped `energy: 1–7` index, family purity, and **7/7 = a complete family**.
+> §0h recommends relocating the ladder **up one rung** so that a **GEMSHARD**
+> sustains seven where a gem sustains one — which is what *"a highly concentrated
+> gem"* has been asking for since §0d. **Read every "gem" below as "Gemshard"
+> pending that ruling.**
+
 **Two rulings and one proposal.** Ruling 1 closes §0d§4. Ruling 2 is new law about
 what a gem *is*. The proposal is answered below: **yes — and the build has been
 carrying the field for it the whole time.**
@@ -893,7 +906,7 @@ earlier count in this document went wrong:
 |---|---:|---:|---:|---|
 | **ASTRALITE** | **63** | 63 | 63 | 9 families × 7 · `ASTRALITE_FAMILIES` **[BUILD]** |
 | ↳ **AETHRYX** | **1** | 1 | 0 | ★ *not* one of the 63 — the substrate they are made of (§0b) |
-| **GEM** | ★ **10 TYPES** | 10 | 8 | **Creator: 8 colours + WORLD + SPACE.** Family and concentration are *attributes*, not types — §B |
+| **GEM** | ★ **10 TYPES** | 10 | 8 | **8 colours + WORLD + SPACE** (§B) · ★ §0h: a regular gem sustains **1 Astralite**; WORLD and SPACE hold **4 colours each** |
 | **GEMSHARD** | **81** | **10** | 4 | §4 · `15 × 5 + 6` · recorded = the Gemlord weapons |
 | **ULTRASHARD** | **22** | 22 | 22 | ★ a **given** number, not a derived one — §B2 |
 | **PRISMSHARD** | **16** | 16 *(1 name + 15 epithets, §0c)* | 16 | closed at the Aenor Eruption (§0d) |
@@ -939,13 +952,12 @@ count of gems — it is a count of what gems are made of.**
 **amber** — are the two that come from *life*, a mollusc and a tree. Zarvane and
 Baelgor are the two districts whose stone was **grown, not crystallised.**
 
-★ **[ASK] · what are WORLD and SPACE?** They are gem types with **no hue**, and
-under §0f's recommended reading (*colour = where it formed*) they are exactly the
-two districts that have no hue. But §0e says a gem is **one family** — and if
-WORLD and SPACE lean toward no single family, they are not gems by that
-definition. Either they are a **special pair outside the eight** (which is how
-you have always described them) or the gem definition needs a clause for them.
-**Not decided here.**
+~~★ **[ASK] · what are WORLD and SPACE?**~~ ★★★ **ANSWERED, same day — §0h.**
+They are the **two composite gems**: WORLD holds *red · blue · yellow · green*,
+SPACE holds *white · orange · purple · black*. **They have no hue because they
+hold four**, and under §0f *to lean is to be of one thing*. The blank cells in
+§17's district-stone table were never a gap — they are these two gems correctly
+refusing a hue. `4 + 4 = 8`: **together they are the complete spectrum.**
 
 #### ★★★ B2 · The "36 possible" was a model of mine. 22 is a given.
 
@@ -1107,6 +1119,149 @@ census above depends entirely on which.
 >
 > ★ **9 families and 1–7 concentration are ATTRIBUTES a gem carries, not a count
 > of gems.** The 63 counts Astralites; it never counted gems.
+
+---
+
+## 0h · ★★★ ONE ASTRALITE PER GEM · AND THE TWO COMPOSITES — Creator ruling, 2026-09-01
+
+> **Creator:** *"a regular gem can only sustain one basic astralite now, the world
+> gem can have red blue yellow and green and the space gem has white orange purple
+> and black"*
+
+> **Creator, clarifying immediately after:** *"the 10 gem types and the colored
+> gems are synonymous"*
+
+★★★ **So there is ONE set, not a set plus two oddities.** The ten gem types **are**
+the coloured gems. WORLD and SPACE are not a separate class sitting beside the
+eight — **they are colour gems**, members of the same set, distinguished only by
+holding **four** colours where the other eight hold one.
+
+★ **[BUILD] consequence, stated not acted on:** the build ships **eight** `gem_*`
+inventory keys. Under this ruling the set is **ten** — `gem_world` and `gem_space`
+are missing, and they are not exotic additions but the two members the drop table
+never had. That is a version and a suite of its own.
+
+**Three things ruled.** One of them revises §0e; two of them close questions §0g
+had to leave open.
+
+| | |
+|---|---|
+| **a regular gem** | ★ **sustains ONE basic Astralite** |
+| **the WORLD gem** | **red · blue · yellow · green** |
+| **the SPACE gem** | **white · orange · purple · black** |
+
+### ★★★ 1 · §0e's GEM-LEVEL CONCENTRATION IS REVISED — and §0d was right the first time
+
+§0d said, plainly: *"a gem is a fully compounded **single** astralite."* ★★ **I
+second-guessed a clear sentence.** In §0e I read *single* as modifying **family**
+and built a 1–7 concentration ladder on top of it. **The plain reading was the
+right one.** A gem is one Astralite. Marked in §0e, not deleted.
+
+★ **[ASK] · where does 1–7 go now?** §0e's machinery was not wasted — the `energy`
+field is real, the nine families of seven are real, and *"highly concentrated
+gem"* still needs a number. **Recommended: the ladder moves UP one rung.**
+
+```
+  GEM        sustains 1 Astralite          ← ruled today
+  GEMSHARD   sustains up to 7 of ONE family  ← §0e's ladder, relocated  [ASK]
+```
+
+★★ That makes §0d's *"a **highly concentrated** gem"* literal rather than
+atmospheric — **a Gemshard is a gem that holds seven where a gem holds one** — and
+it keeps everything §0e derived (family purity, 7/7 = a complete family, the
+shipped `energy` index) without any of it resting on the rung you just corrected.
+**Not assumed. Flagged.**
+
+### ★★★ 2 · THE 4/4 SPLIT IS THE COLOUR CANON'S OWN SEAM
+
+The eight hues divide into the three orders — and the two composite gems cut
+along them, not across them:
+
+| | red | yellow | blue | green | orange | purple | white | black |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| order | prim | prim | prim | sec | sec | sec | achro | achro |
+| **WORLD** | ● | ● | ● | ● | | | | |
+| **SPACE** | | | | | ● | ● | ● | ● |
+
+> **WORLD = all three PRIMARIES + GREEN.
+> SPACE = the other two SECONDARIES + BOTH ACHROMATICS.**
+
+★★★ **And in the colour canon's own words the split reads itself:**
+
+| | WORLD | SPACE |
+|---|---|---|
+| red | **body** | |
+| yellow | **adaptation** | |
+| blue | **mind** | |
+| green | **growth** — *change under **care**, cultivation, the long game* | |
+| orange | | **evolution** — *change under **pressure*** |
+| purple | | **spirit** |
+| white | | **reflects all** |
+| black | | **absorbs all** |
+
+> **WORLD is what it is to be alive in a place: a body, adapting, thinking,
+> growing.**
+> **SPACE is what it is to transcend one: evolution, spirit, and the two totals.**
+
+★★★ **Green versus orange is the load-bearing pair, and the canon already decided
+it.** §3 defines green as *change under **care*** — cultivation, farming, the
+Sanctuary, the long game — and orange as *change under **pressure***, the cosmic
+verb, evolution at level thresholds. **Growth is terrestrial. Evolution is not.**
+Green had to go to WORLD and orange had to go to SPACE, and nothing was bent to
+make it so.
+
+★★ **The structural reading, same answer:** WORLD holds the **foundations** — the
+three colours nothing else is mixed from, plus the one synthesis that stays alive.
+SPACE holds the **syntheses and the totals** — the two secondaries that leave the
+body behind, plus reflection and absorption, which are not places on the wheel at
+all.
+
+### ★★★ 3 · IT CLOSES §0g's OPEN QUESTION WITHOUT ANYONE DECIDING ANYTHING
+
+§0g§B1 asked: *"WORLD and SPACE are gem types with no hue — but §0e says a gem is
+one family. Are they gems at all?"*
+
+**Answered, and the answer was already sitting in §17's table.** Under §0f's
+synthesis — **to lean is to be of one thing** — a gem holding **four** colours
+**does not lean.**
+
+> ★★★ **Thardin and Korathen have no stone-colour because their gems hold FOUR.**
+> The blank cells in the district-stone table were never a gap in the canon. They
+> are these two gems, having **no single hue to be named by**.
+
+★ **Not "outside the colour system" — the opposite.** Per the Creator's
+clarification, WORLD and SPACE **are** colour gems. They have no *name* on the
+wheel because they occupy four places on it at once, which is a fact about the
+naming, not about their membership.
+
+★★ **And it puts a rung in the whiteness spectrum** (`GEM_COLOR_PSYCHOLOGY_CANON.md`
+§3a: *"the more a relic holds in balance, the whiter it is"*):
+
+```
+  1 Astralite       →  GEM               ·  leans hardest
+  4 colours         →  WORLD / SPACE     ·  ★ leans partly — the new rung
+  several families  →  PRISMSHARD        ·  achromatic
+  all of them       →  AETHRYX           ·  white
+```
+
+### ★★★ 4 · WORLD + SPACE = THE COMPLETE SPECTRUM · and that is a progression
+
+`4 + 4 = 8`, with **no colour in both and none left out**. The two composite gems
+are exact complements.
+
+★★ **They belong to districts 9 and 10 — Thardin and Korathen, the last two.** So
+the colour language is not merely *taught* across the campaign, it is **completed**
+by finishing it: eight districts each hand you one hue, and the final two hand you
+the two halves of the whole. ★ It also gives the Empty Throne a second meaning —
+**Korathen holds the half of the spectrum that is about transcending the world,
+and its Gemlord is missing.**
+
+★ **[ASK] · what does a composite gem DO?** Ruled: what they *contain*. Not ruled:
+whether holding four colours means a WORLD gem can pay for any of the four, counts
+as all four for a badge, or is a single indivisible thing that is neither. The
+badge doc's §2 vector rule would read WORLD as `(1,1,1)` — every primary — which is
+the same slot behaviour it derives for **white**. Worth knowing before either is
+designed.
 
 ---
 

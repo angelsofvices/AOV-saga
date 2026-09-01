@@ -129,7 +129,14 @@ Neither needed a special case written. The rule produced them.
 
 ## 3 · UNLOCK AND UPGRADE PROGRESSION **[NEW]**
 
-### Unlock: one badge per district, in the ladder's own order **[INFER]**
+### Unlock: one badge per district **[INFER — SUPERSEDED, see §17b]**
+
+> ★ **The table below is WITHDRAWN.** The Creator's district-gemstone mapping
+> (§17) supplies the real order, and it comes from the Gemlord titles rather
+> than from me: **RED · WHITE · YELLOW · GREEN · PURPLE · BLUE · BLACK · ORANGE.**
+> It is better than mine — the achromatics land at districts 2 and 7 instead of
+> at the end, which dissolves the §0c rarity problem entirely. Kept here only
+> so the reasoning that produced the wrong answer is visible.
 
 The drop weights already rank the colours by scarcity, and the ten districts already run a difficulty ladder (`TOWER_BY_DIST` bands, home prices 500→5000). Marry them:
 
@@ -562,6 +569,133 @@ preference is a plain count — it stops implying a bank balance.
 8. Does badge mastery feed the **Bond Ledger**, or stay separate? It has 15 canon events already and a 3330 cap.
 9. Should Amplified Mode / Ultramax / Prismsynch **read** the equipped badges, or ignore them? (Orange's *Ultramax Conduit* capstone in the handoff would cross into Gemshard territory as written.)
 10. Do badges belong to **Rizer only**, or can a Zyrex carry one? Purple implies shared; the roster does not.
+
+---
+
+## 17 · ★★★ THE DISTRICT GEMSTONES · and the hunt **[NEW]**
+
+**Creator, 2026-09-01:** *"can we make it that the district gem matches their gemlord. the last two districts are the WORLD (9) and SPACE (10) gems, outside of the main 8. ruby, pearl, citrine, emerald, amethyst, sapphire, onyx, and amber. we can potentially go on a hunt for the gems in each district and return them to the elder of that district... I want gems to definitely feel more valuable though. they are no longer going to come from wooden chests soon"*
+
+### 17a · ★★★ It is already canon. He is recognising it, not inventing it.
+
+Checked his eight names against the Gemlord titles in `PRISMSHARD_GEMSHARD_CANON.md` §16d and the district order in the first-visit RXP ladder **[BUILD]**:
+
+| # | district | Gemlord | title | stone | colour | the title *is* the stone |
+|---:|---|---|---|---|---|---|
+| 1 | Malezor | Rakoron | Gemlord | **RUBY** | RED | — *(see below)* |
+| 2 | Zarvane | Ivirium | **Pearl**ord | **PEARL** | WHITE | ✔ |
+| 3 | Andrannor | Mutaryn | **Citrine**lord | **CITRINE** | YELLOW | ✔ |
+| 4 | Veridan | Emeralix | **Emeral**ord | **EMERALD** | GREEN | ✔ |
+| 5 | Netharion | Eurakeon | **Amethyst**lord | **AMETHYST** | PURPLE | ✔ |
+| 6 | Vorashil | Azurel | **Sapphire**lord | **SAPPHIRE** | BLUE | ✔ |
+| 7 | Xilnar | Obsidius | **Onyx**lord | **ONYX** | BLACK | ✔ |
+| 8 | Baelgor | Ambrevon | **Amber**lord | **AMBER** | ORANGE | ✔ |
+| 9 | Thardin | Oathane | Gemlord | **WORLD** | — | n/a |
+| 10 | Korathen | Oatheus | The Empty Throne | **SPACE** | — | n/a |
+
+**Seven of eight Gemlord titles literally contain the stone he named.** The only exception is Malezor — Rakoron is titled plainly "Gemlord" — and his weapon is the **Rubypaw** Longsword, so ruby is confirmed by the weapon instead of the title.
+
+★★ **And the eight stones are a perfect bijection with the eight colours. No colour unmapped, no stone left over.** This mapping has been sitting in the Gemlord titles since V3.17; nothing had to be bent to find it.
+
+★ **Why Thardin and Korathen have no stone-colour is now also explained.** Oathane and Oatheus are the only two Gemlords whose titles carry no gemstone — and they are exactly the two districts the Creator places outside the eight. The gap in the canon *is* the design.
+
+### 17b · ★★ This reorders my §3 badge unlock, and the canon order is better
+
+I proposed Red → Yellow → Green → Blue → Purple → Orange → White. **The Gemlord order is:**
+
+```
+1 RED    2 WHITE   3 YELLOW  4 GREEN   5 PURPLE  6 BLUE   7 BLACK   8 ORANGE
+  prim     achro     prim      sec       sec       prim     achro     sec
+```
+
+**Withdraw my §3 ordering.** The canon order is better for three reasons:
+
+1. **The achromatics are not endgame.** White is *second*. Balance is taught early, not earned late — and it kills the §0c problem outright: White and Black stop being 3.1% and 0.39% lottery items and become **district rewards**.
+2. **It interleaves the three kinds.** You meet a primary, an achromatic, a primary, a secondary… rather than my tidy primary-block. Better pacing, and it teaches that the three orders are peers rather than tiers.
+3. **Omniris already teaches THE SIGHT in Zarvane** **[BUILD]** — and Zarvane's stone is the Pearl, White, *reflection*. **The elder who teaches perception hands you the badge of seeing without leaning.** That was written months before this conversation.
+
+★ **[ASK]** Kelthor teaches THE BOND in Malezor, whose stone is Ruby/RED/Body. Bond reads more Purple or Green. Defensible — *"trust over domination"* is commitment, and commitment is Red's territory — but it is the one elder/stone pairing that does not fall out cleanly, and I would rather flag it than argue it into place.
+
+### 17c · ★★★ The hunt is the missing handoff — the framework already exists **[BUILD]**
+
+`DISTRICT_ELDERS` (v0.95.684, Creator directive) is already the districts' spine:
+
+> *"we will build out the new districts based on their elder questline (expeditions because they connect each district starting at malezor to korathen)"*
+> …and of `handoff`: *"it is the load-bearing field, because it is what makes ten ladders one expedition."*
+
+**Nine of the ten handoffs are literally `'TBD -> <next district>'`, and eight elders are unnamed with `built:false`.**
+
+> **★★★ "Find this district's stone and bring it to its elder" is a handoff that works identically ten times.** It gives every elder a reason to exist that was not invented per-district, it makes the badge unlock *be* the expedition rather than a parallel system, and it fills a field the code has been carrying empty for eleven versions.
+
+Each elder already `teaches` something. **What the elder teaches should be what the badge does.** Kelthor/The Bond, Omniris/The Sight — the field is there and two of ten are filled.
+
+### 17d · ★★ Two tiers of gem, or the system starves
+
+**This is the load-bearing distinction and it must be decided before anything is built.**
+
+| | **THE STONE** | **ordinary gems** |
+|---|---|---|
+| count | **one** per district. There is one Ruby. | many |
+| role | **unlocks** the badge · returned to the elder | **fuel** the badge's stages |
+| source | the district hunt | crafting (§10) + district-local finds |
+| named | *The Ruby of Malezor* | "a red gem" |
+
+★ **If badges consume the named stone, the system dies at Stage I** — eight badges × three stages needs repeated material, and there is exactly one Ruby. The stone is a **key**; ordinary gems are **currency-that-is-not-currency** (§13).
+
+★★ **[ASK] Is the named stone a GEMSHARD?** Canon §16d says the Gemlord *weapons* are Gemshards, and §9 says *"Gemshard = concentrated power source · Weapon = vessel / interface / amplifier."* Two readings:
+
+- **(a) The stone IS the weapon's Gemshard.** Hunting the Ruby is how the Rubypaw Longsword comes to exist — which would explain why only four of ten Gemlord weapons are in the game: **the other six have not been found.** Enormously tidy, and it makes the hunt the origin story of the ten weapons.
+- **(b) The stone is its own lesser relic**, and the weapons are separate Gemshards. Safer, keeps the 81 census untouched.
+
+I lean (a) and will not assume it. It changes the Gemshard census and that is a Creator ruling.
+
+### 17e · Making gems feel valuable — and what removing chest drops actually costs
+
+`spawnChestGems` is called from **five** places (three overworld chest tiers, two treehouse chests) plus a 15% loot roll **[BUILD]**. Removing gems from wooden chests is cheap to do and it is the right call — but it leaves a hole:
+
+> **★ The wooden chest currently gives coins + one gem. Take the gem away and the commonest chest in the game becomes a coin pickup.** Eight hand-placed wooden chests plus the scattered ones would all become less interesting on the same day.
+
+**[NEW] What should fill it** — in preference order:
+1. **Scrap, seeds, Life Seeds, portal chips** — the pickup spill system already exists (`spillPickups`) and is under-used.
+2. **Astralite stones**, which feeds the crafting loop (§10) and therefore *still* leads to gems — one step removed. A chest that gives you the *material for* a gem is more interesting than one that gives a gem.
+3. Nothing. Coins alone is honest for a wooden chest if the gold and cosmic tiers carry the good loot.
+
+**And four levers make gems feel valuable, which compound:**
+
+| lever | effect |
+|---|---|
+| no longer in wooden chests | scarcity by supply |
+| the named stone is unique and personally delivered | **scarcity by singularity** — the strongest kind |
+| retire the price (§13) | they stop being money, so their worth is what they *do* |
+| **★ colour is district-local** | a red gem is mostly found in **Malezor** |
+
+★★ **That last one is the one I would push hardest.** If red gems come from Malezor, blue from Vorashil, black from Xilnar, then **the map becomes the economy** — wanting a build means going somewhere, and the ten districts stop being difficulty bands and become *supplies*. It also gives late-game players a reason to return to district 1, which nothing currently does.
+
+### 17f · WORLD and SPACE **[ASK]**
+
+They sit outside the colour language, which is structurally correct — the eight colours are complete (3 primary + 3 secondary + 2 achromatic) and a ninth colour would break the vector rule in §2.
+
+**[INFER] What they might be, offered not asserted:**
+
+```
+the EIGHT    each a leaning
+WORLD  (9)   every leaning, HERE      · the planet entire · Thardin
+SPACE  (10)  beyond leaning, beyond here · the Expanse · Korathen · the Empty Throne
+```
+
+That ladders into the relic hierarchy already written — leanings → composite → *"the condition under which a signature is possible at all"* — without either stone becoming a ninth badge.
+
+★ **They should not be badges.** Eight badges is already 24 stage-gates; ten would be 30 and the last two would have no colour principle to express. Better as **keys**: WORLD opens something about Zyraxis, SPACE opens the endgame the Empty Throne already gates **[CANON]**.
+
+### 17g · Risks
+
+| # | risk |
+|---|---|
+| 1 | **The stone being consumed by badge upgrades** — kills the system at Stage I (§17d) |
+| 2 | Ten hunts is ten quests of content. **The elder chain is eight steps each** — the hunt should be *one step* of the eight, not a whole ladder |
+| 3 | If gems are district-local, a player who dislikes a district is locked out of a build. Mitigate: crafting (§10) is the universal fallback |
+| 4 | The wooden-chest hole (§17e) |
+| 5 | **[ASK]** does the stone→Gemshard reading (§17d) change the 81 census? |
 
 ---
 

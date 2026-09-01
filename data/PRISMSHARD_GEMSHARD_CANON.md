@@ -456,6 +456,13 @@ an arithmetic.
 ★ **[ASK] · what does "gem" count as, for the pairing?** This is the one number
 the ruling leaves open, and it matters:
 
+> ★★★ **PARTLY RETRACTED — see §0g§B2.** The *"22 formed, 14 have not"* framing
+> below is **mine, not canon**. 22 is a number the build was given in v0.95.588;
+> `C(9,2) = 36` is the size of a space I inferred. The two-gem definition stands;
+> **the claim that 36 Ultrashards are possible does not.** Read (c) as *"each
+> Ultrashard is a family pair"* and ignore every sentence that treats 36 as a
+> target or 14 as an absence.
+
 > ★★★ **NARROWED BY §0e, same day.** A gem is now **one Astralite FAMILY at a
 > concentration of 1–7**, and an Ultrashard is a *naturally formed **Gemshard*** of
 > two — so both gems are **7/7**, and the pairing space is **families**, not
@@ -886,25 +893,101 @@ earlier count in this document went wrong:
 |---|---:|---:|---:|---|
 | **ASTRALITE** | **63** | 63 | 63 | 9 families × 7 · `ASTRALITE_FAMILIES` **[BUILD]** |
 | ↳ **AETHRYX** | **1** | 1 | 0 | ★ *not* one of the 63 — the substrate they are made of (§0b) |
-| **GEM** | ★ **63 kinds** / **504 varieties** | 8 | 8 | §0e: 9 families × 7 concentrations · × 8 colours if colour is counted (§0f) |
+| **GEM** | ★ **10 TYPES** | 10 | 8 | **Creator: 8 colours + WORLD + SPACE.** Family and concentration are *attributes*, not types — §B |
 | **GEMSHARD** | **81** | **10** | 4 | §4 · `15 × 5 + 6` · recorded = the Gemlord weapons |
-| **ULTRASHARD** | **22** | 22 | 22 | one per canon type · **of 36 possible** family pairs (§0d§3c) |
+| **ULTRASHARD** | **22** | 22 | 22 | ★ a **given** number, not a derived one — §B2 |
 | **PRISMSHARD** | **16** | 16 *(1 name + 15 epithets, §0c)* | 16 | closed at the Aenor Eruption (§0d) |
 
-★★ **Every one of those is either locked canon or forced arithmetic. The only
-soft cell is the gem row**, and §B explains why.
+### ★★★ B · TWO CORRECTIONS · both of these were MY arithmetic, not your canon
 
-### ★★★ B · THE GEM ROW IS THE ONE REAL QUESTION **[ASK]**
+> **Creator, 2026-09-01:** *"explain how there is 504 varieties of gems? I thought
+> there is only 10 types of gem. the colors, plus world and space gems. … and why
+> is there 22 of 36 possible ultrashards?"*
 
-§0e gives a gem an identity of **(family, concentration)** → `9 × 7 = 63`.
-§0f makes **colour** an independent axis of 8. So:
+**He is right on both. The first draft of this census asserted two numbers the
+canon never produced, and presented them in a table as though it had.**
 
-> **63 KINDS · 504 VARIETIES.**
-> A *kind* is what a gem is made of and how much. A *variety* adds where it came
-> from. `63 × 8 = 504`.
+#### ★★★ B1 · There are TEN gem types. The 504 is retracted.
 
-★★★ **And this is exactly how real gemstones work, which is the strongest possible
-endorsement of the orthogonality ruling — your own eight stones prove it.**
+I built it as `9 families × 7 concentrations × 8 colours = 504` and called the
+result *"varieties."* **Nothing ruled that gems are identified by family.** The
+Creator's model is, and has always been, that **a gem's TYPE is its COLOUR** —
+eight hues plus **WORLD** and **SPACE**. Ten.
+
+> **TYPE = colour (10). FAMILY (9) and CONCENTRATION (1–7) are ATTRIBUTES OF a
+> gem, not identities of one.**
+>
+> A red gem may be CREATION at 3 or DESTRUCTION at 7. **Both are red gems.**
+
+★★★ **And my own mineralogy argument proves his point, not mine — I made it and
+then built a table that contradicted it.**
+
+| stone | real material | |
+|---|---|---|
+| **ruby** · **sapphire** | ★ **both corundum** | the same mineral, differing only in colour |
+| **amethyst** · **citrine** · **onyx** | ★★ **all three quartz** | *three* of the eight are one substance |
+| emerald | beryl | |
+| pearl · amber | ★ organic — mollusc and tree resin | not minerals at all |
+
+**Ruby and sapphire are two gem TYPES and one material.** That is the whole
+ruling: **gem types follow COLOUR, material sits underneath and is orthogonal to
+it** (§0f). Five of the Creator's eight stones are two materials, which is
+precisely why the type count can never be the material count. **63 was never a
+count of gems — it is a count of what gems are made of.**
+
+★ **[INFER], offered lightly:** the two that are not minerals — **pearl** and
+**amber** — are the two that come from *life*, a mollusc and a tree. Zarvane and
+Baelgor are the two districts whose stone was **grown, not crystallised.**
+
+★ **[ASK] · what are WORLD and SPACE?** They are gem types with **no hue**, and
+under §0f's recommended reading (*colour = where it formed*) they are exactly the
+two districts that have no hue. But §0e says a gem is **one family** — and if
+WORLD and SPACE lean toward no single family, they are not gems by that
+definition. Either they are a **special pair outside the eight** (which is how
+you have always described them) or the gem definition needs a clause for them.
+**Not decided here.**
+
+#### ★★★ B2 · The "36 possible" was a model of mine. 22 is a given.
+
+**22 is a number from the build, not from a rule.** `SHARD_META` shipped in
+v0.95.588 with 22 entries. I proposed in §0d§3 that an Ultrashard is two
+Astralite families, computed `C(9,2) = 36`, found 22, and wrote *"22 formed, 14
+never did."* ★★ **That is a rationalisation, not a derivation** — I narrated a
+gap into a story rather than flagging that my model and the build disagreed.
+**Retracted. There is no canon claim that 36 Ultrashards are possible.**
+
+★★ **The two-gem definition survives; only my count doesn't.** *"A naturally
+formed gemshard of 2 different gems"* says what an Ultrashard **is**. It never
+said every pair exists. So: **22 exist · each is two families · which 22 pairs is
+unwritten.** 36 is merely the size of the space, not a target.
+
+★★★ **And measuring the 22 turned up something worth more than the number.** The
+code comment says *"one per canon type"* — it is not, and has not been for a while:
+
+| | |
+|---|---|
+| distinct types covered | **18**, not 22 |
+| ★ **Elemental** | **split five ways** — ember · tide · volt · cryo · squall |
+| ★ **AQUATIC** | **has no Ultrashard at all** |
+| ★ `type:'Astral'` | fine now, but the *comments* still say `// Astra` — renamed v0.95.856 |
+| `TYPE_LIST_20` | actually **21** entries, two of which (Ultimate, Ultramax) are outputs, not inputs |
+
+**22 = 17 single-type shards + 5 Elemental subtypes**, authored before the
+2026-08-26 twenty-type lock and never re-derived against it.
+
+★ **So the real question is not "why 22 of 36" — it is what indexes an
+Ultrashard at all [ASK]:**
+
+- **(a) TYPE.** Then the count should be re-derived against the type master, and
+  **Aquatic is missing.** Elemental having five is defensible (there are five
+  elements) — but it should be a stated rule, not an accident.
+- **(b) FAMILY PAIR.** Then the ceiling is 36 and there are pairs to author.
+- **(c) NEITHER — 22 is simply the roster.** Fine, but then §0d§3's arithmetic
+  claim comes out and the pairing stays purely descriptive.
+
+**Recommend (a)**, because the build, the ZyCube blurb and Rule 11 all already
+treat type as the organising fact. **Not changed** — it is a build edit and it
+needs your ruling first.
 
 | your stone | real material | |
 |---|---|---|
@@ -953,8 +1036,8 @@ cosmological, 8 is terrestrial"* has a third member: **10 is civic.**
 | thing | count | notes |
 |---|---:|---|
 | **Astralite families** | **9** | three triads — ACT · TIME · SELF (§0e§4) |
-| **Astralite Compounds** | **5** of **36** | `1+2 · 3+6 · 4+7 · 5+9 · 5+8` **[BUILD]** · family *pairs*, same space as the Ultrashards |
-| **Ultrashard pairs never formed** | **14** | `36 − 22` · ★ a listable, authorable absence |
+| **Astralite Compounds** | **5** of **36** | `1+2 · 3+6 · 4+7 · 5+9 · 5+8` **[BUILD]** · family *pairs* · 36 = `C(9,2)`, the size of the pair space |
+| ~~Ultrashard pairs never formed~~ | ~~14~~ | ★★★ **RETRACTED — §B2.** My arithmetic, not canon. 22 is a given |
 | **Utility Prisms** | **3** | Zysphere · Zycube · Zyramid — see §E |
 | **Gemshards per family** | 5 / 10 / 5 | §16c: F1 CREATION → 5 · seven families → 10 · F9 SPIRIT → 5 · **+1 wherever the Key lands** = 81 |
 
@@ -1017,9 +1100,13 @@ census above depends entirely on which.
 
 ### ★ F · ONE-LINE ANSWER
 
-> **63 Astralites · 63 gem kinds (504 with colour) · 81 Gemshards · 22 Ultrashards ·
-> 16 Prismshards.** Plus, off the ladder: **8 colours · 10 district stones ·
-> 10 Gemlord weapons · 3 utility prisms · 1 Father Gem → 10 Mother Gems.**
+> **63 Astralites · 10 gem types · 81 Gemshards · 22 Ultrashards · 16 Prismshards.**
+> Plus, off the ladder: **8 colours *(the 10 gem types minus WORLD and SPACE)* ·
+> 10 district stones · 10 Gemlord weapons · 3 utility prisms ·
+> 1 Father Gem → 10 Mother Gems.**
+>
+> ★ **9 families and 1–7 concentration are ATTRIBUTES a gem carries, not a count
+> of gems.** The 63 counts Astralites; it never counted gems.
 
 ---
 

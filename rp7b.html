@@ -16334,6 +16334,44 @@ function collectPickupsAt(tx, ty){
   return true;
 }
 function collectScrapAt(tx, ty){ return collectPickupsAt(tx, ty); }
+// ★★★ v0.95.939 · A ROLL SWEEPS WHAT IT ROLLS THROUGH.
+// Creator: "if I dodge roll into coins or gems, I should auto collect them."
+//
+// ★ WHY IT DID NOT ALREADY.  Walking collects because `tryMove` calls
+// collectPickupsAt and collectGemAt the moment it commits a step.  The dodge
+// does not go through tryMove at all — it assigns `player.x = player.dodgeToX`
+// directly — so a roll collected NOTHING.  Not the tile it crossed, and not
+// even the tile it LANDED ON.
+//
+// ★★ AND THE MIDDLE TILE IS THE WHOLE POINT.  A dodge leaps TWO tiles when it
+// can, so the tile in between is never occupied for a single frame.  No
+// step-based pickup could ever have fired there no matter how the landing was
+// handled — the roll passes over it the way a thrown object passes over ground.
+// So this sweeps the PATH, not the destination.
+//
+// ★ It calls the two collectors that already exist rather than reaching into
+// WORLD_PROPS and GEM_ENTITIES itself.  A second pickup path is a second place
+// for the coin sound, the toast, the save-side `_rememberPickups` and the
+// gem VO to fall out of step.
+//
+// Deliberately NOT a magnet: he said roll INTO them, so contact along the path
+// collects and a coin one tile to the side does not. That is a different
+// feature (a vacuum radius) and it was not asked for.
+function sweepRollPickups(fromX, fromY, toX, toY){
+  const dx = Math.sign(toX - fromX), dy = Math.sign(toY - fromY);
+  const n  = Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY));
+  let got = 0;
+  // i = 0 includes the ORIGIN tile.  Costs nothing when it is already empty,
+  // and it means a dodge that could not move at all (both landing tiles
+  // blocked) still sweeps the ground under Rizer's feet — where a chest spill
+  // can legitimately have dropped a coin after he stopped walking.
+  for (let i = 0; i <= n; i++){
+    const x = fromX + dx * i, y = fromY + dy * i;
+    try { if (collectPickupsAt(x, y)) got++; } catch(_){}
+    try { if (collectGemAt(game.scene, x, y)) got++; } catch(_){}
+  }
+  return got;
+}
 // ★ Persistence. A pile left on the ground has to still be there next session,
 // or a player who opens a chest and logs out loses the whole spill.
 function _rememberPickups(){
@@ -25253,7 +25291,7 @@ function tryStartDoubleJump(now = performance.now(), allowBlockedGroundStart = f
     player._doubleJump = null;
     player.jumpUntil = 0;
     player.jumpSheet = null;
-    if (game.scene === 'overworld') collectGemAt('overworld', player.x, player.y);
+    collectGemAt(game.scene, player.x, player.y);   // ★ v0.95.939 · same un-gating
     playSFX('jumpLand');
     // v0.95.323 · On land · snap moveCd to 0 for BOTH skate and run/walk so
     // the next tick rolls immediately if a direction is held · preserves the
@@ -25509,6 +25547,11 @@ addEventListener('keydown', e => {
           player.dodgeToY = player.y + vy*dist;
           player.x = player.dodgeToX;
           player.y = player.dodgeToY;
+          // ★★★ v0.95.939 · sweep every tile the roll crossed.  This assignment
+          // is the reason a dodge collected nothing: it moves Rizer without
+          // going through tryMove, where both walk-over collectors live.
+          try { sweepRollPickups(player.dodgeFromX, player.dodgeFromY,
+                                 player.dodgeToX,  player.dodgeToY); } catch(_){}
           player.moveCd = 220;                 // brief post-dodge cooldown
           // v0.95.85/87 · Barrel-Roll trigger.  If this is the 3rd dodge
           // within a 1.6s window, play barrel-roll sfx INSTEAD of the swish.
@@ -27018,7 +27061,17 @@ function tryMove(dt){
     } catch(_){}
   }
   // v0.95.171 · Auto-collect gems when stepping onto their tile
-  if (game.scene === 'overworld') collectGemAt('overworld', nx, ny);
+  // ★★ v0.95.939 · WAS GATED TO 'overworld', AND TWO CHESTS PAID FOR IT.
+  // spawnChestGems is called with 'interior_treehouse' for both the treehouse
+  // wooden chest and its gold chest — so those gems spawned, drew, bobbed, and
+  // could never be picked up, because the only collector refused to run
+  // indoors.  Found while wiring the dodge sweep, which had to ask the same
+  // question ("which scene am I collecting in?") and got a different answer.
+  //
+  // The gate was never needed: a gem entity carries its OWN scene and
+  // collectGemAt already filters on it, so passing game.scene cannot reach
+  // across scenes — it just stops refusing the ones that are legitimately here.
+  collectGemAt(game.scene, nx, ny);
   // v0.95.532 · Rakoron Cave discovery · fires FIRST time player gets within
   // 6 tiles of the cave entrance at (22, 5) · flips player.rakoronCaveFound.
   // Kelthor Step 7 uses this flag (was rakoronMet · that required actually

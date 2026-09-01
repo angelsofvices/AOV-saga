@@ -126,7 +126,15 @@ H('6 · ★★★ THE A5 COOLDOWN IS 20 KILLS');
   ok(/body\.voltstorm-cine #a5Charge/.test(src2),
      '★★★ and the new badge is on the FULL-CINEMA hide list · the one overlay that would have sat on the A5’s own cutscene');
   ok(/paintA5Charge/.test(src2),'★★ the charge is READABLE · a 2-minute timer you could only discover by being refused is now a count you can see');
-  ok(/pins itself under the Rizer HUD by measuring it/.test(src2),'★ no art · it measures the HUD rather than assuming a position');
+  // ★ v0.95.936 · INVERTED.  The badge used to measure the Rizer HUD each frame
+  // to park itself under it.  The Creator asked for it in the top-left stack and
+  // draggable ("make me able to drag and drop it like other"), so it has a CSS
+  // home and a drag handle instead — which is simpler AND is why it now holds
+  // still.  Measuring a neighbour is a fine way to avoid hard-coding a position;
+  // it is a bad way to own one the player is allowed to change.
+  ok(!/pins itself under the Rizer HUD by measuring it/.test(src2),
+     '★ no longer measures the HUD · it has a CSS home and a drag handle (F9)');
+  ok(/no art/.test(src2), '★ and still no art · it was always pure DOM');
 }
 
 H('7 · ★★ A FLED ZYREX SAYS WHERE IT WENT');

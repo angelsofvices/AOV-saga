@@ -251,5 +251,79 @@ console.log('\n★ v0.95.820 · THE SEED IS SOUR · Rizer says so');
   ok(hits===3, `★ all three eat paths play it (found ${hits}/3)`);
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+console.log('\n★★★ v0.95.935 · THE SHRINK · and it was never the chase');
+// Creator: "fix the shrinking of verdant creeper when it chases you."
+//
+// `_atkUntil` is armed on ADJACENCY, so the bank swap and the end of the
+// chase are the same instant.  What he watched deflate was the ATTACK bank
+// being drawn through a scale measured on the IDLE bank -- 204px of body on
+// a 256px grid pushed through a divisor built from 262px on a 313px grid.
+{
+  const art = C.VERDANT_CREEPER_ART;
+  const colBh = (bank) => bank.bboxes.map(r => r[0][3]);
+  const idleMax = Math.max(...colBh(art.idle));
+  const atkMax  = Math.max(...colBh(art.attack));
+  console.log(`     idle   col-0 body heights ${colBh(art.idle).join(', ')}  -> max ${idleMax}`);
+  console.log(`     attack col-0 body heights ${colBh(art.attack).join(', ')}  -> max ${atkMax}`);
+  ok(idleMax === art.standBh,
+     `standBh ${art.standBh} IS the measured idle yardstick, not a guess`);
+  ok(art.attackStandBh === atkMax,
+     `★ attackStandBh ${art.attackStandBh} IS the measured attack yardstick (${atkMax})`);
+  const uncorrected = atkMax / idleMax;
+  ok(uncorrected < 0.85,
+     `★ the defect was real and large: uncorrected the strike drew at ${(uncorrected*100).toFixed(0)}% of standing`);
+  console.log(`     the closest frame (row 0, bh ${art.attack.bboxes[0][0][3]}) fell to `
+    + `${(art.attack.bboxes[0][0][3]/idleMax*100).toFixed(0)}%.`);
+
+  const cr = C.NPCS.filter(n => n && n._verdantCreeper);
+  ok(cr.length > 0, `population exists to check (${cr.length})`);
+  ok(cr.every(n => n.attackRefBh === art.attackStandBh),
+     '★ EVERY spawned Crept carries attackRefBh — one seeder, so none can be missed');
+  ok(cr.every(n => n.scaleRefBh === art.standBh),
+     'and still carries the idle scaleRefBh it always had');
+
+  // reproduce drawNPC's own arithmetic rather than trusting the field is read
+  const n0 = cr[0];
+  const TILEQ = 48;
+  const downScale = (TILEQ * 2) / n0.scaleRefBh * (n0.scaleMul || 1);
+  const idleRefBh = n0.scaleRefBh;
+  const bankAdj   = idleRefBh / n0.attackRefBh;
+  const rowDown   = art.rowMap.down;
+  const idleDrawH = art.idle.bboxes[rowDown][0][3] * downScale;
+  const atkDrawH  = art.attack.bboxes[rowDown][0][3] * downScale * bankAdj;
+  const drift = Math.abs(atkDrawH - idleDrawH) / idleDrawH;
+  console.log(`     DOWN facing · standing ${idleDrawH.toFixed(1)}px · striking ${atkDrawH.toFixed(1)}px`);
+  ok(drift < 0.01,
+     `★ facing you, the Crept is the SAME SIZE striking as standing (drift ${(drift*100).toFixed(2)}%)`);
+  const before = art.attack.bboxes[rowDown][0][3] * downScale;
+  ok(before < idleDrawH * 0.85,
+     `and without the guard it would have drawn ${before.toFixed(1)}px — a fifth shorter, mid-lunge`);
+
+  // the correction must not be applied where it does not belong
+  ok(/_bankAdj\s*=\s*\(useAtk\s+&&\s+n\.attackRefBh/.test(src2),
+     'the guard lives in drawNPC\'s single _bankAdj chokepoint, not a creeper special case');
+  ok(/attackRefBh:\s*VERDANT_CREEPER_ART\.attackStandBh/.test(src2),
+     'and the NPC reads the number off the art table — one place to re-measure if the sheet is re-rolled');
+}
+
+console.log('\n★ v0.95.935 · THE RENAME · Verdant Creeper -> CREPT');
+// Creator: "rename them Crepts."
+{
+  const cr = C.NPCS.filter(n => n && n._verdantCreeper);
+  ok(cr.length > 0 && cr.every(n => n.name === 'Crept'),
+     '★ every spawned one is named Crept — this is the string the damage feed prints');
+  ok(cr.every(n => /^verdant_creeper_/.test(n.id)),
+     '★ the IDs did NOT change — kill tracking and saves key off them, so a rename '
+     + 'there would resurrect every Crept already put down');
+  const facing = src2.match(/showToast\('[^']*(?:CREEPER|creeper)[^']*'/g) || [];
+  ok(facing.length === 0,
+     'no toast still says "creeper"' + (facing.length ? ' — found ' + facing.join(' | ') : ''));
+  ok(/showToast\('◈ CREPT ·/.test(src2), 'the inspect line reads CREPT');
+  ok(/Crept-tainted/.test(src2) && /Crept exposure/.test(src2),
+     'and both Life Seed toasts follow the name');
+}
+
+
 console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
 process.exit(0);

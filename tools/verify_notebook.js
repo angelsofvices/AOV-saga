@@ -194,8 +194,17 @@ H('11 · ★★ IT IS AN INSTALLED APP, NOT A BAG ITEM');
 // now. it will be installed when dad grants rizer the notebook."
 {
   const src=require('fs').readFileSync('/tmp/all.js','utf8');
+  // ★ v0.95.935 · was src.slice(i, i+900) — a fixed character window.  The
+  // ZyCube grew a category level and the filter it was looking for moved past
+  // 900 characters, so the check failed while the code was correct.  A window
+  // that measures distance-from-the-top is a test that rots on its own; match
+  // the FUNCTION instead.
   const i=src.indexOf('function renderZycellZycube');
-  ok(/k !== 'dads_notebook'/.test(src.slice(i,i+900)),
+  let _d=0,_st=false,_end=src.length;
+  for(let j=i;j<src.length;j++){const c=src[j];
+    if(c==='{'){_d++;_st=true;} else if(c==='}'){_d--;if(_st&&_d===0){_end=j+1;break;}}}
+  const zybody = src.slice(i,_end);
+  ok(/k !== 'dads_notebook'/.test(zybody),
      'ZyCube filters dads_notebook out of the bag list');
   // Dad must not hand over an object any more
   const gi=src.indexOf('dadStarterQuestGiven = true');

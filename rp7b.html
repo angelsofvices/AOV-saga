@@ -1255,6 +1255,13 @@
         <button id="devHitStats">Hit Stats</button>
         <button id="devFaeCounter">Fae Counter</button>
       </div>
+      <!-- ★★ v0.95.935 · Creator: "make the voltstorm ready dom movable like
+           tiles and dev mode. most doms should be movable for dev preferences
+           during gameplay." -->
+      <div class="row">
+        <button id="devHudLayout" style="background:#132;color:#8ff;border:1px solid #4fb3ff;">◈ Move HUD (F9): OFF</button>
+        <button id="devHudLayoutReset">Reset HUD Layout</button>
+      </div>
     </div>
 
     <!-- ★ v0.95.803 · COSMETICS and INFO tabs retired.  The skin buttons live
@@ -1425,6 +1432,17 @@ function worldDistrictAt(x,y){
   return null;
 }
 
+// ★★ v0.95.935 · F9 · HUD LAYOUT MODE.  Its own listener rather than a branch
+// in the main key router, because layout mode has to work while a menu is up —
+// the whole point is placing overlays against the screen you actually play on.
+// F9 is unbound everywhere else in the game (checked, not assumed).
+window.addEventListener('keydown', (ev) => {
+  if (!ev || ev.repeat) return;
+  if ((ev.key || '') !== 'F9') return;
+  ev.preventDefault();
+  try { setHudLayoutMode(!hudLayoutMode); } catch(err){ console.warn('[rp7b] hud layout', err); }
+}, true);
+
 // v0.95.439 · ULTRA-EARLY TOUCHPAD HARDLINE · window capture · fires before EVERY
 // other keydown listener on the page.  This is the outermost trap for '2' — the
 // zphone opens/closes even if some downstream handler crashes or gates the event.
@@ -1488,6 +1506,19 @@ function makeOverlayDraggable(el, storageKey){
     dragging = true; moved = false;
     sx = e.clientX; sy = e.clientY;
     const r = el.getBoundingClientRect();
+    // ★★ v0.95.935 · DROP THE TRANSFORM BEFORE MEASURING.  Two of the movable
+    // overlays are centred with translateX(-50%) (the A5 badge on Rizer, the
+    // COMBO counter on the screen).  getBoundingClientRect reports where the
+    // element LOOKS, which already includes that shift — so writing that number
+    // back into `left` while the transform is still applied moves it half its
+    // own width sideways on the very next frame.  Bake the visual position into
+    // left/top, then clear the transform, and what you see is what you grabbed.
+    if (el.style.transform && el.style.transform !== 'none'){
+      el.style.left = Math.round(r.left) + 'px';
+      el.style.top  = Math.round(r.top)  + 'px';
+      el.style.right = 'auto'; el.style.bottom = 'auto';
+      el.style.transform = 'none';
+    }
     ox = r.left; oy = r.top;
     try { el.setPointerCapture(e.pointerId); } catch(_){}
     e.preventDefault();
@@ -1509,11 +1540,150 @@ function makeOverlayDraggable(el, storageKey){
     if (moved){
       const r = el.getBoundingClientRect();
       try { localStorage.setItem(storageKey, JSON.stringify({ left: r.left, top: r.top })); } catch(_){}
+      // ★★ v0.95.935 · once you have placed it, it is YOURS.  Some of these
+      // overlays are re-positioned every frame by the paint loop; the pin is
+      // what tells that loop to stop arguing with you.
+      el._rp7Pinned = true;
       e.preventDefault();
       e.stopPropagation();
     }
   });
   el.addEventListener('click', e => { if (moved){ e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.935 · HUD LAYOUT MODE · Creator: "make the voltstorm ready dom
+// movable like tiles and dev mode. most doms should be movable for dev
+// preferences during gameplay."
+//
+// WHY IT IS A MODE AND NOT JUST pointer-events:auto ON EVERYTHING
+// The tile readout and the DEV button have been draggable since v0.95.451 and
+// nothing broke, because both are already click targets sitting in a corner.
+// The HUD chips are not: the COMBO counter is 64px of type across the middle
+// of the screen and the A5 badge rides on Rizer's head during a fight. Give
+// those permanent pointer-events and every drag-to-place you gain costs a
+// punch you meant to throw at whatever is standing under them.
+//
+// So the overlays stay click-through during play, and F9 (or the DEV button)
+// lifts them all at once: outlines on, labels on, pointer-events on, drag them
+// where you want, F9 again and the screen goes back to being a game. The saved
+// positions persist in localStorage — a DEV PREFERENCE, not a save-file value,
+// because it describes this screen rather than this playthrough.
+// ═══════════════════════════════════════════════════════════════════════════
+const HUD_MOVABLE = [
+  // ★ the first two carry their ORIGINAL v0.95.451 storage keys.  Re-keying
+  // them would have silently thrown away positions the Creator has already
+  // set — a rename is not a migration.
+  { id: 'hud',            label: 'TILE',      key: 'rp7b_hud_pos_v1'       },
+  { id: 'padStatus',      label: 'PAD',       key: 'rp7b_padstatus_pos_v1' },
+  { id: 'rizerHud',       label: 'RIZER'     },
+  { id: 'zyrexHud',       label: 'ZYREX'     },
+  { id: 'a5Charge',       label: 'VOLTSTORM' },   // ★ the one he asked for
+  { id: 'companionStrip', label: 'COMPANION' },
+  { id: 'hudRightStack',  label: 'WALLET'    },
+  { id: 'weaponHud',      label: 'WEAPON'    },
+  { id: 'comboCounter',   label: 'COMBO'     },
+];
+const HUD_LEGACY_KEY = Object.fromEntries(HUD_MOVABLE.filter(s => s.key).map(s => [s.id, s.key]));
+const HUD_POS_KEY = id => HUD_LEGACY_KEY[id] || `rp7b_hudpos_${id}_v1`;
+let hudLayoutMode = false;
+// ★ has the player placed this one by hand?  The per-frame positioners ask
+// this before they move anything, so a pinned overlay stays where it was put.
+function hudPinned(el){
+  if (!el) return false;
+  if (el._rp7Pinned) return true;
+  try {
+    const id = el.id;
+    if (!id) return false;
+    const saved = JSON.parse(localStorage.getItem(HUD_POS_KEY(id)) || 'null');
+    if (saved && typeof saved.left === 'number'){ el._rp7Pinned = true; return true; }
+  } catch(_){}
+  return false;
+}
+function initHudMovables(){
+  for (const spec of HUD_MOVABLE){
+    const el = document.getElementById(spec.id);
+    if (!el || el._rp7HudReg) continue;
+    el._rp7HudReg = spec;
+    // remember what the element looked like BEFORE we touched it, so leaving
+    // layout mode restores the author's styling rather than a guess at it
+    el._rp7PE0 = el.style.pointerEvents || '';
+    el._rp7OL0 = el.style.outline || '';
+    try { makeOverlayDraggable(el, HUD_POS_KEY(spec.id)); } catch(_){}
+    hudPinned(el);   // seeds _rp7Pinned from storage on boot
+  }
+}
+function setHudLayoutMode(on){
+  hudLayoutMode = !!on;
+  initHudMovables();
+  for (const spec of HUD_MOVABLE){
+    const el = document.getElementById(spec.id);
+    if (!el) continue;
+    if (hudLayoutMode){
+      el.style.pointerEvents = 'auto';
+      el.style.outline = '1px dashed rgba(255,214,107,0.85)';
+      el.style.cursor = 'move';
+      if (!el._rp7Tag){
+        const tag = document.createElement('div');
+        tag.className = '_rp7HudTag';
+        tag.textContent = spec.label;
+        tag.style.cssText = 'position:absolute; left:0; top:-13px; z-index:2;'
+          + "font:bold 8px 'Courier New',monospace; letter-spacing:.14em;"
+          + 'color:#ffd66b; background:rgba(0,0,0,0.75); padding:1px 4px;'
+          + 'pointer-events:none; white-space:nowrap;';
+        // an absolutely-positioned tag needs a positioned parent; every entry
+        // here is position:fixed already, but say so rather than assume it
+        if (!el.style.position) el.style.position = 'fixed';
+        el.appendChild(tag);
+        el._rp7Tag = tag;
+      }
+      el._rp7Tag.style.display = 'block';
+      // a hidden overlay cannot be dragged, so layout mode reveals them all —
+      // otherwise VOLTSTORM is only movable during the four seconds it is up
+      if (el.style.display === 'none'){ el._rp7WasHidden = true; el.style.display = 'block'; }
+      // ★ the COMBO counter hides with opacity, not display, so revealing it
+      // takes a second lever.  Two ways to be invisible, two ways to be shown.
+      if (el.style.opacity !== '' && parseFloat(el.style.opacity) < 0.5){
+        el._rp7Op0 = el.style.opacity; el.style.opacity = '1';
+      }
+    } else {
+      el.style.pointerEvents = el._rp7PE0 || '';
+      el.style.outline = el._rp7OL0 || '';
+      el.style.cursor = '';
+      if (el._rp7Tag) el._rp7Tag.style.display = 'none';
+      if (el._rp7WasHidden){ el._rp7WasHidden = false; el.style.display = 'none'; }
+      if (el._rp7Op0 != null){ el.style.opacity = el._rp7Op0; el._rp7Op0 = null; }
+    }
+  }
+  try { showToast(hudLayoutMode
+    ? '◈ HUD LAYOUT · drag any panel · F9 to finish'
+    : '◈ HUD layout saved', 2200); } catch(_){}
+  try { const b = document.getElementById('devHudLayout');
+        if (b) b.textContent = `◈ Move HUD (F9): ${hudLayoutMode ? 'ON' : 'OFF'}`; } catch(_){}
+}
+// ★ the gamepad IIFE bails out entirely when navigator.getGamepads is missing,
+// so registering the movables ONLY in there would mean no saved HUD positions
+// on any browser without a pad API.  Belt and braces: this fires on DOM ready
+// too, and initHudMovables is idempotent (_rp7HudReg guards every element).
+if (typeof document !== 'undefined'){
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', () => { try { initHudMovables(); } catch(_){} });
+  } else {
+    setTimeout(() => { try { initHudMovables(); } catch(_){} }, 0);
+  }
+}
+function resetHudLayout(){
+  for (const spec of HUD_MOVABLE){
+    try { localStorage.removeItem(HUD_POS_KEY(spec.id)); } catch(_){}
+    const el = document.getElementById(spec.id);
+    if (!el) continue;
+    el._rp7Pinned = false;
+    // ★ clear the INLINE overrides so the stylesheet's own corner anchoring
+    // takes back over.  Setting left/top to 0 would "reset" every panel into
+    // the same corner, which is not what reset means.
+    el.style.left = ''; el.style.top = ''; el.style.right = ''; el.style.bottom = '';
+  }
+  try { showToast('◈ HUD layout reset to defaults', 2200); } catch(_){}
 }
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -2291,6 +2461,7 @@ function emergencyReturnToRizer(){
   // the hold so the player lands back in the overworld cleanly
   try { if (typeof zyrexMenuOpen !== 'undefined') zyrexMenuOpen = false; } catch(_){}
   try { if (typeof zycubeRAIDViewerOpen !== 'undefined') zycubeRAIDViewerOpen = false; } catch(_){}
+  try { if (typeof zycubeCatOpen !== 'undefined') zycubeCatOpen = null; } catch(_){}
   try { if (typeof factionHoldMode !== 'undefined') factionHoldMode = false; } catch(_){}
   try { if (typeof hudOverlayOpen !== 'undefined') hudOverlayOpen = false; } catch(_){}
   try { playSFX('confirm'); } catch(_){}
@@ -2920,6 +3091,80 @@ for(const family of ASTRALITE_FAMILIES){
 }
 for(const recipe of Object.values(ASTRALITE_COMPOUNDS)){
   INVENTORY_META[recipe.key]={label:recipe.name,order:400};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.935 · ZYCUBE CATEGORIES · Creator: "in the zycube center console,
+// group items by type. clicking into them loads item list for category."
+//
+// WHY THE BAG NEEDED THIS
+// The ZyCube was one alphabetical list. That was fine at Malezor with eleven
+// things in it; by the time the 21 Ultrashards, the 63 Astralites, the five
+// Compounds and eight coloured Gems are all in there it is a HUNDRED-AND-FIFTY
+// row scroll, alphabetised, so a Potion sits between Pearlbow and Prismshard.
+// Alphabetical order is the enemy of finding something you can drink.
+//
+// ONE TABLE, TWO SURFACES
+// The ZyCube is drawn twice — the ZyPhone panel (DOM, mouse) and the touchpad
+// BAG (canvas, controller). Categorising them separately would guarantee they
+// disagree within a month, so the mapping lives HERE and both read it.
+//
+// ★ PREFIX RULES COME LAST.  A shard_* rule that ran first would eat
+// `shard_predator` AND anything else ever named shard-something; explicit keys
+// win, prefixes are the fallback, MISC is the confession.
+// ═══════════════════════════════════════════════════════════════════════════
+const ZYCUBE_CATEGORIES = Object.freeze([
+  { id:'key',     label:'KEY ITEMS',    color:'#4fb3ff', blurb:'gifts, tools and quest pieces' },
+  { id:'weapon',  label:'WEAPONS',      color:'#ff6848', blurb:'Gemlord arms · Square to swing' },
+  { id:'heal',    label:'CONSUMABLES',  color:'#68ef91', blurb:'Rizer and Zyrex restoratives' },
+  { id:'sphere',  label:'ZYSPHERES',    color:'#bc83ff', blurb:'bond devices' },
+  { id:'shard',   label:'ULTRASHARDS',  color:'#ffd66b', blurb:'one per type · overwrite A4' },
+  { id:'relic',   label:'RELICS',       color:'#ff79ae', blurb:'Prismshards, Gemshards and singulars' },
+  { id:'astral',  label:'ASTRALITES',   color:'#65e3ff', blurb:'Dad’s matrix · 9 families × 7' },
+  // ★ COMPOUNDS ARE NOT ASTRALITES.  Filing them together put 103 of a full
+  // bag's 180 rows behind one door — more than half the cube in the drawer
+  // that grouping was supposed to rescue.  The game already separates them
+  // (ASTRALITE_FAMILIES vs ASTRALITE_COMPOUNDS · raw stone vs crafted output),
+  // so the bag does too, and the biggest drawer drops from 57% to 35%.
+  { id:'compound',label:'COMPOUNDS',     color:'#d796ff', blurb:'crafted at Dad’s table · 5 recipes × tiers' },
+  { id:'harvest', label:'HARVEST',      color:'#a8e063', blurb:'foraged from the world' },
+  { id:'mat',     label:'MATERIALS',    color:'#c8a06b', blurb:'salvage and delivery pieces' },
+  { id:'gem',     label:'GEMS & COIN',  color:'#ffe98a', blurb:'currency and ◆ recharge' },
+  { id:'misc',    label:'UNSORTED',     color:'#aab4c8', blurb:'not yet categorised' },
+]);
+const ZYCUBE_CAT_BY_ID = Object.freeze(Object.fromEntries(ZYCUBE_CATEGORIES.map(c => [c.id, c])));
+const ZYCUBE_CAT_OF = Object.freeze({
+  backpack:'key', zycube:'key', zphone:'key', faenet:'key', gearbag:'key', worldmap:'key',
+  townmap:'key', raidcard:'key', skateboard:'key', elzebub_egg:'key', dads_notebook:'key',
+  astralcore_transponder:'key', shardshare:'key', shardshare_broken:'key', ruby_vial:'key',
+
+  sapphire_sword:'weapon', rubypaw_sword:'weapon', emerald_axe:'weapon', pearlbow:'weapon',
+
+  potion:'heal', ale:'heal', verdant_elixir:'heal', fresh_water:'heal', berry_juice:'heal',
+  fruit_bar:'heal', soulphish:'heal', life_seed:'heal', life_seed_pure:'heal', astralcore:'heal',
+
+  zysphere:'sphere', zysphere_basic:'sphere', zysphere_void:'sphere',
+  zysphere_silver:'sphere', zysphere_ultra:'sphere',
+
+  prismshard:'relic', voltshard:'relic', key_of_mealux:'relic',
+  evolution_catalyst:'relic', rare_item:'relic',
+
+  berry:'harvest', fruit:'harvest', seed:'harvest', fae:'harvest', fairy:'harvest',
+
+  scrap_metal:'mat', life_stone:'mat', tower_battery:'mat', portal_chip:'mat',
+
+  coins:'gem', gem:'gem', moon_gem:'gem',
+  gem_red:'gem', gem_blue:'gem', gem_green:'gem', gem_yellow:'gem',
+  gem_white:'gem', gem_orange:'gem', gem_purple:'gem', gem_black:'gem',
+});
+function zycubeCategoryOf(key){
+  if (!key) return 'misc';
+  const explicit = ZYCUBE_CAT_OF[key];
+  if (explicit) return explicit;
+  if (key.startsWith('shard_'))     return 'shard';       // the 21 Ultrashards
+  if (key.startsWith('astralite_')) return 'astral';      // the 63 matrix stones
+  if (key.startsWith('compound_'))  return 'compound';    // and their crafted outputs
+  return 'misc';
 }
 function astraliteItemByKey(key){
   for(const family of ASTRALITE_FAMILIES){
@@ -8448,9 +8693,29 @@ const VERDANT_CREEPER_ART = {
   // sheet uses, and the same rowMap fixes it.
   rowMap: { up: 0, left: 1, right: 2, down: 3 },
   // Idle standing height drives one scale for all three banks. Mori tops out
-  // at 2.00 tiles; the Creeper reads heavier at 2.20 without crossing into
+  // at 2.00 tiles; the Crept reads heavier at 2.20 without crossing into
   // Grunt Elite territory.
   standBh: 262, scaleMul: 1.075,
+  // ★★★ v0.95.935 · attackStandBh · THE SHRINK, and why it took this long.
+  //
+  // Creator: *"fix the shrinking of verdant creeper when it chases you."*
+  //
+  // It was never the chase. `_atkUntil` is armed the moment the Crept is
+  // ADJACENT, so the bank swap and the end of the chase are the same instant,
+  // and what you actually see is the creature deflating as it arrives.
+  //
+  // `_downScale` is measured ONCE, off the idle bank's tallest col-0 body
+  // (262px on a 313px grid). The attack sheet is a DIFFERENT ZOOM — 256px
+  // cells — so its tallest col-0 body is 204px. Drawn through the idle's
+  // scale with no correction, the Crept renders at 204/262 = 78% the instant
+  // it swings, and the closest frame (row 0, bh 186) at 71%.
+  //
+  // Same defect class as the Zyrex strike strips at v0.95.907 and the
+  // traversal banks at v0.95.908, and the same cure: give the bank its own
+  // body height so `_bankAdj` can PRESERVE THE SIZE rather than the divisor.
+  // Measured, not guessed — max col-0 across the four rows, which is exactly
+  // the yardstick `_downScale` itself uses on the idle.
+  attackStandBh: 204,
 };
 
 const _creeperImg = {};
@@ -15810,7 +16075,7 @@ function storeLifeSeed(pure){
   player.lifeSeedSpoilAt = player.lifeSeedSpoilAt || [];
   player.lifeSeedSpoilAt.push(performance.now() + LIFE_SEED_SPOIL_MS);
   try { playItemGain('life_seed'); } catch(_){}
-  showToast('✦ LIFE SEED stored · creeper-tainted · it will SPOIL in 2 minutes', 3200);
+  showToast('✦ LIFE SEED stored · Crept-tainted · it will SPOIL in 2 minutes', 3200);
 }
 // ticked beside the ecology loop · spoiled seeds rot out of the bag
 function tickLifeSeeds(){
@@ -15821,7 +16086,7 @@ function tickLifeSeeds(){
     q.shift();
     if ((player.items?.life_seed || 0) > 0){
       player.items.life_seed -= 1;
-      showToast('✦ A tainted Life Seed SPOILED in your pack · creeper exposure', 2600);
+      showToast('✦ A tainted Life Seed SPOILED in your pack · Crept exposure', 2600);
       try { playSFX('cancel'); } catch(_){}
     }
   }
@@ -21389,8 +21654,11 @@ function buildVerdantCreepers(){
       const lvBand = (typeof TOWER_BY_DIST !== 'undefined' && TOWER_BY_DIST[dist])
         ? TOWER_BY_DIST[dist].moriLv : 4;
       NPCS.push({
+        // ★ the ID stays `verdant_creeper_*` on purpose.  Kill/defeat tracking
+        // and saves key off it, so renaming the id would resurrect every Crept
+        // the player has already put down.  The NAME is what the player reads.
         id: `verdant_creeper_${dist}_${placed + 1}`,
-        name: 'Verdant Creeper',
+        name: 'Crept',
         sheet: idle.img, bboxes: idle.bboxes, footBaselines: idle.foot, src: idle.src,
         cellW: idle.cellW, cellH: idle.cellH, cols: idle.cols, rows: idle.rows,
         walkSheet: walk.img, walkBboxes: walk.bboxes, walkFootBaselines: walk.foot, walkSrc: walk.src,
@@ -21401,6 +21669,10 @@ function buildVerdantCreepers(){
         rowMap: VERDANT_CREEPER_ART.rowMap,
         scaleRefBh: VERDANT_CREEPER_ART.standBh,
         scaleMul:   VERDANT_CREEPER_ART.scaleMul,
+        // ★★★ v0.95.935 · hold the Crept's SIZE across the bank swap.  Without
+        // this the 256px-grid attack sheet is drawn through a scale measured on
+        // the 313px idle and the creature shrinks to 78% as it reaches you.
+        attackRefBh: VERDANT_CREEPER_ART.attackStandBh,
         tileX: spot[0], tileY: spot[1], homeX: spot[0], homeY: spot[1],
         homeScene: 'overworld', scene: 'overworld',
         wanderRadius: 5,
@@ -21421,7 +21693,7 @@ function buildVerdantCreepers(){
         drainAmt: 8,                      // Mori 5 · Daemon 10
         tier: 2, level: lvBand,
         _verdantCreeper: true,
-        onInteract: () => showToast('◈ VERDANT CREEPER · the bark opens and something behind it moves', 2600),
+        onInteract: () => showToast('◈ CREPT · the bark opens and something behind it moves', 2600),
       });
       placed++; made++;
     }
@@ -22648,7 +22920,15 @@ function paintA5Charge(hudVisible){
   // information belongs with the other ambient information; pinning a slowly
   // ticking number to his head would follow him around the whole game being
   // ignored.  Same element, two jobs, two homes.
-  if (ready){
+  // ★★ v0.95.935 · A PLACED BADGE STAYS PLACED.  Creator: "make the voltstorm
+  // ready dom movable ... most doms should be movable for dev preferences."
+  // Both branches below write left/top every frame, so a drag would snap back
+  // within 16ms.  Once he has put it somewhere, this function stops having an
+  // opinion about where it lives and only decides what it SAYS.
+  const _pinned = (typeof hudPinned === 'function') && hudPinned(el);
+  if (_pinned){
+    /* position is the player's · fall through to the text/colour below */
+  } else if (ready){
     const cv = document.getElementById('game');
     const r  = cv && cv.getBoundingClientRect();
     if (r && r.width){
@@ -22760,7 +23040,10 @@ function paintCompanionStrip(hudVisible){
     const r = hud.getBoundingClientRect();
     if (r.width){ left = r.left; top = r.bottom + 4; }
   }
-  if (top != null){ el.style.left = Math.round(left) + 'px'; el.style.top = Math.round(top) + 'px'; }
+  // ★ v0.95.935 · same pin rule as the A5 badge — a strip the player has placed
+  // by hand must not be dragged back under the HUD on the next frame.
+  const _stripPinned = (typeof hudPinned === 'function') && hudPinned(el);
+  if (top != null && !_stripPinned){ el.style.left = Math.round(left) + 'px'; el.style.top = Math.round(top) + 'px'; }
   el.innerHTML = rows.join('');
   el.style.display = 'block';
 }
@@ -26042,6 +26325,10 @@ addEventListener('keyup', e => {
   try { makeOverlayDraggable(status, 'rp7b_padstatus_pos_v1'); } catch(_){}
   const hudEl = document.getElementById('hud');
   if (hudEl){ try { makeOverlayDraggable(hudEl, 'rp7b_hud_pos_v1'); } catch(_){} }
+  // ★★ v0.95.935 · and now every OTHER overlay too.  Registering here means the
+  // saved positions are applied on boot, before the first frame paints, so a
+  // placed HUD never flashes at its default corner on reload.
+  try { initHudMovables(); } catch(err){ console.warn('[rp7b] hud movables', err); }
 
   // Standard gamepad button index → key mapping
   const BTN = {
@@ -29759,9 +30046,32 @@ addEventListener('keydown', e => {
         }
         return;
       }
+      // ★★ v0.95.935 · CATEGORY LEVEL.  Sits in FRONT of the item nav, so the
+      // same ▲▼/× the player already knows walks categories first and items
+      // second.  ○ backs out one level instead of slamming the whole bag shut —
+      // a menu you can only leave by closing it is a menu you stop opening.
+      if (!zycubeCatOpen){
+        const cats = zycubeCategoryRows();
+        if (cats.length){
+          if (k === 'arrowup'  ){ zycubeCatCursor = (zycubeCatCursor + cats.length - 1) % cats.length; playSFX('cursor'); return; }
+          if (k === 'arrowdown'){ zycubeCatCursor = (zycubeCatCursor + 1) % cats.length; playSFX('cursor'); return; }
+          if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' ' || k === 'arrowright'){
+            zycubeCatOpen = cats[Math.min(zycubeCatCursor, cats.length - 1)].id;
+            itemsCursor = 0;
+            playSFX('menuOpen');
+            return;
+          }
+        }
+        // nothing else to do at this level — fall through so ○ still closes
+      } else if (k === 'b' || k === 'shift' || k === 'escape' || k === 'arrowleft'){
+        zycubeCatOpen = null;
+        itemsCursor = 0;
+        playSFX('menuClose');
+        return;
+      }
       // v0.95.403 · Gear subtab retired · ← → left free for future BAG-only category swap
       // ▲▼ nav within active sub-list (wraps at ends per v0.95.322 spec · reset to top after end)
-      if (zycubeSubTab === 'items'){
+      if (zycubeSubTab === 'items' && zycubeCatOpen){
         const entries = zycubeItemEntries();
         if (entries.length){
           if (k === 'arrowup'  ){ itemsCursor = (itemsCursor + entries.length - 1) % entries.length; playSFX('cursor'); return; }
@@ -29835,6 +30145,9 @@ addEventListener('keydown', e => {
     if (k === '2' || k === 'shift' || k === 'b' || k === 'escape'){
       zyrexMenuOpen = false;
       zycubeRAIDViewerOpen = false;
+      // ★ v0.95.935 · closing the BAG drops you back to the category level, so
+      // re-opening it never dumps you inside whichever drawer you last used.
+      zycubeCatOpen = null; zycubeCatCursor = 0; itemsCursor = 0;
       factionHoldMode = false;
       playSFX('menuClose');
     }
@@ -32191,7 +32504,47 @@ function renderZycellZycube(){
   // v0.95.418 · Interactive item rows · click row = use · click ★ = toggle favorite
   const items = player.items || {};
   const meta = (typeof INVENTORY_META !== 'undefined') ? INVENTORY_META : {};
+  // ★★★ v0.95.935 · CATEGORY LEVEL · Creator: "group items by type. clicking
+  // into them loads item list for category."  Same `zycubeCatOpen` the canvas
+  // BAG uses, so the two views of one cube cannot disagree about where you are.
+  if (!zycubeCatOpen){
+    const cats = (typeof zycubeCategoryRows === 'function') ? zycubeCategoryRows() : [];
+    const catRows = cats.map(c => `<div class="zyCatRow" data-zycat="${c.id}"
+        style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid rgba(79,179,255,0.15); cursor:pointer; transition:background 120ms;"
+        onmouseover="this.style.background='rgba(79,179,255,0.18)'"
+        onmouseout="this.style.background='transparent'">
+      <span style="width:4px; align-self:stretch; background:${c.color}; border-radius:2px;"></span>
+      <span style="flex:1;">
+        <span style="display:block; color:${c.color}; font-weight:bold; font-size:12px; letter-spacing:.08em;">${c.label}</span>
+        <span style="display:block; color:rgba(200,220,255,0.5); font-size:10px;">${c.blurb}</span>
+      </span>
+      <span style="color:#aab4c8; font-size:11px; white-space:nowrap;">${c.kinds} kind${c.kinds===1?'':'s'} · ×${c.total}</span>
+      <span style="color:rgba(200,220,255,0.45); font-weight:bold; font-size:15px;">›</span>
+    </div>`).join('');
+    const catBody = cats.length
+      ? `<div id="zyBagCats" style="max-height:420px; overflow:auto; pointer-events:auto;">${catRows}</div>
+         <div style="text-align:center; color:#8ff; font-size:10px; padding:6px; letter-spacing:.06em;">Click a category to open it</div>`
+      : `<div style="color:#889; text-align:center; padding:20px;">· bag is empty ·</div>`;
+    setTimeout(() => {
+      const list = document.getElementById('zyBagCats');
+      if (!list || list._zyBound) return;
+      list._zyBound = true;
+      list.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const row = ev.target.closest('.zyCatRow');
+        if (!row) return;
+        zycubeCatOpen = row.dataset.zycat;
+        itemsCursor = 0;
+        try { playSFX('menuOpen'); } catch(_){}
+        try { paintZycellContent(); } catch(_){}
+      });
+    }, 0);
+    return _zySection('◈ ZYCUBE · YOUR STORAGE', catBody);
+  }
+  const _cat = ZYCUBE_CAT_BY_ID[zycubeCatOpen] || { label: 'ITEMS', color: '#8ff' };
   const rows = Object.entries(items)
+    // ★ v0.95.935 · only this drawer
+    .filter(([k]) => zycubeCategoryOf(k) === zycubeCatOpen)
     // v0.95.478 · worldmap hidden from ZyCube · lives ONLY in the MAP panel unlocked by Zoryn
     // ★ v0.95.780 · dads_notebook is NOT a carried object. Dad installs it on
     // the ZyPhone as a cloud copy of his Malezor research, so it lives in its
@@ -32219,12 +32572,33 @@ function renderZycellZycube(){
         <span style="color:#fff; font-weight:bold;">×${n}</span>
       </div>`;
     }).join('');
+  // ★ v0.95.935 · the way back out.  Its own row, above the list, so it is
+  // reachable without scrolling a hundred Astralites first.
+  const backRow = `<div id="zyBagBack"
+      style="display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid rgba(79,179,255,0.25); cursor:pointer; background:rgba(79,179,255,0.10);"
+      onmouseover="this.style.background='rgba(79,179,255,0.22)'"
+      onmouseout="this.style.background='rgba(79,179,255,0.10)'">
+    <span style="color:#8ff; font-weight:bold; font-size:14px;">‹</span>
+    <span style="color:#8ff; font-size:11px; letter-spacing:.08em;">ALL CATEGORIES</span>
+    <span style="flex:1;"></span>
+    <span style="color:${_cat.color}; font-weight:bold; font-size:11px; letter-spacing:.08em;">${_cat.label}</span>
+  </div>`;
   const body = rows.length
-    ? `<div id="zyBagList" style="max-height:420px; overflow:auto; pointer-events:auto;">${rows}</div>
+    ? `${backRow}<div id="zyBagList" style="max-height:390px; overflow:auto; pointer-events:auto;">${rows}</div>
        <div style="text-align:center; color:#8ff; font-size:10px; padding:6px; letter-spacing:.06em;">Click ROW · use item · Click ★ · toggle CREATE favorite</div>`
-    : `<div style="color:#889; text-align:center; padding:20px;">· bag is empty ·</div>`;
+    : `${backRow}<div style="color:#889; text-align:center; padding:20px;">· nothing in ${_cat.label} right now ·</div>`;
   // Delay row-handler wiring until DOM lands · run after paintZycellContent injects the HTML
   setTimeout(() => {
+    const back = document.getElementById('zyBagBack');
+    if (back && !back._zyBound){
+      back._zyBound = true;
+      back.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        zycubeCatOpen = null; itemsCursor = 0;
+        try { playSFX('menuClose'); } catch(_){}
+        try { paintZycellContent(); } catch(_){}
+      });
+    }
     const list = document.getElementById('zyBagList');
     if (!list || list._zyBound) return;
     list._zyBound = true;
@@ -32253,7 +32627,7 @@ function renderZycellZycube(){
       }
     });
   }, 0);
-  return _zySection('◈ ZYCUBE · YOUR STORAGE', body);
+  return _zySection(`◈ ZYCUBE · ${_cat.label}`, body);
 }
 
 // ── RIZER · attribute allocation + equipped outfit ──────────────────
@@ -39234,7 +39608,64 @@ function drawZycubePanel(W, H){
     ctx.textAlign = 'left';
     return;
   }
+  // ★★ v0.95.935 · two levels · categories, then the items inside one
+  if (!zycubeCatOpen){ drawZycubeCategoryList(W, H); return; }
   drawZycubeItemsList(W, H);
+}
+
+// ★★ v0.95.935 · CATEGORY LEVEL · the canvas BAG's first screen
+function drawZycubeCategoryList(W, H){
+  const cats = zycubeCategoryRows();
+  if (zycubeCatCursor >= cats.length) zycubeCatCursor = Math.max(0, cats.length - 1);
+  if (zycubeCatCursor < 0) zycubeCatCursor = 0;
+  const startY = 96, rowH = 34;
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  if (!cats.length){
+    ctx.fillStyle = '#aab4c8';
+    ctx.font = '13px "Courier New", monospace';
+    ctx.fillText('· Your ZyCube is empty · earn things from Malezor NPCs ·', 32, startY + 30);
+    ctx.fillStyle = '#8ff';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('Touchpad / ○ · close', W - 24, H - 16);
+    ctx.textAlign = 'left';
+    return;
+  }
+  const totalKinds = cats.reduce((s, c) => s + c.kinds, 0);
+  ctx.fillText(`${cats.length} categor${cats.length === 1 ? 'y' : 'ies'} · ${totalKinds} entries stored`, 32, startY - 4);
+  const availH = H - 30 - (startY + 10);
+  const maxVisible = Math.max(1, Math.floor(availH / rowH));
+  const scrollTop = Math.max(0, Math.min(cats.length - maxVisible,
+    zycubeCatCursor - Math.floor(maxVisible / 2)));
+  cats.slice(scrollTop, scrollTop + maxVisible).forEach((c, vi) => {
+    const i = scrollTop + vi;
+    const y = startY + 10 + vi * rowH;
+    const selected = (i === zycubeCatCursor);
+    ctx.fillStyle = selected ? 'rgba(212,175,55,0.22)' : 'rgba(20,26,44,0.55)';
+    ctx.fillRect(24, y, W - 48, rowH - 5);
+    ctx.fillStyle = c.color;
+    ctx.fillRect(24, y, 4, rowH - 5);
+    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillStyle = selected ? '#ffd66b' : '#fff';
+    ctx.fillText(`${selected ? '▶ ' : '  '}${c.label}`, 36, y + 14);
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(200,220,255,0.55)';
+    ctx.fillText(c.blurb, 52, y + 26);
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 11px "Courier New", monospace';
+    ctx.fillStyle = selected ? '#ffd66b' : '#aab4c8';
+    ctx.fillText(`${c.kinds} kind${c.kinds === 1 ? '' : 's'}  ×${c.total}`, W - 50, y + 14);
+    ctx.fillStyle = selected ? '#ffd66b' : 'rgba(200,220,255,0.35)';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillText('›', W - 34, y + 15);
+    ctx.textAlign = 'left';
+  });
+  ctx.fillStyle = '#8ff';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('▲▼ nav · × open category · Touchpad / ○ · close', W - 24, H - 16);
+  ctx.textAlign = 'left';
 }
 
 // v0.95.290 · Item interactions from the ZyCube Items list
@@ -39451,7 +39882,12 @@ function useZycubeItem(key){
   }
 }
 
-function zycubeItemEntries(){
+// ★★ v0.95.935 · which category the bag is currently INSIDE.  null = the
+// category list itself.  Shared by the canvas BAG and the ZyPhone panel so
+// backing out of one does not leave the other three levels deep.
+let zycubeCatOpen  = null;
+let zycubeCatCursor = 0;
+function zycubeAllEntries(){
   // v0.95.281 · Items list · RAID card gets a synthetic first entry
   // so it's discoverable as a viewable item · other items follow via sortedInventoryEntries
   const entries = [];
@@ -39473,6 +39909,31 @@ function zycubeItemEntries(){
   });
   return entries;
 }
+// ★ v0.95.935 · the CATEGORY level.  Only categories that actually hold
+// something are listed — an empty GEMS row on turn one teaches the player that
+// most of this menu is furniture, which is the opposite of what grouping is
+// for.  Counts are computed here so both surfaces print the same numbers.
+function zycubeCategoryRows(){
+  const all = zycubeAllEntries();
+  const byCat = {};
+  for (const e of all){
+    const c = zycubeCategoryOf(e.key);
+    (byCat[c] = byCat[c] || { kinds: 0, total: 0 });
+    byCat[c].kinds += 1;
+    byCat[c].total += Math.max(1, e.qty || 1);
+  }
+  return ZYCUBE_CATEGORIES
+    .filter(c => byCat[c.id] && byCat[c.id].kinds > 0)
+    .map(c => ({ ...c, kinds: byCat[c.id].kinds, total: byCat[c.id].total }));
+}
+// ★ the item list the cursor is actually walking.  With no category open this
+// is still the full bag, so every existing caller (battle heal list, favourite
+// assignment, the ▲▼ handler) keeps working unchanged.
+function zycubeItemEntries(){
+  const all = zycubeAllEntries();
+  if (!zycubeCatOpen) return all;
+  return all.filter(e => zycubeCategoryOf(e.key) === zycubeCatOpen);
+}
 function drawZycubeItemsList(W, H){
   const entries = zycubeItemEntries();
   if (itemsCursor >= entries.length) itemsCursor = Math.max(0, entries.length - 1);
@@ -39487,11 +39948,22 @@ function drawZycubeItemsList(W, H){
     itemsCursor - Math.floor(maxVisible / 2)));
   ctx.font = 'bold 12px "Courier New", monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.fillText(`${entries.length} entrie${entries.length === 1 ? '' : 's'} · ${itemsCursor+1}/${entries.length}`, 32, startY - 4);
+  // ★ v0.95.935 · say which drawer you are standing in, and how to get out.
+  const _cat = zycubeCatOpen ? ZYCUBE_CAT_BY_ID[zycubeCatOpen] : null;
+  if (_cat){
+    ctx.fillStyle = _cat.color;
+    ctx.fillText(`◀ ${_cat.label}`, 32, startY - 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText(`· ${entries.length} entrie${entries.length === 1 ? '' : 's'} · ${Math.min(itemsCursor+1, entries.length)}/${entries.length}`,
+                 32 + ctx.measureText(`◀ ${_cat.label}`).width + 8, startY - 4);
+  } else {
+    ctx.fillText(`${entries.length} entrie${entries.length === 1 ? '' : 's'} · ${itemsCursor+1}/${entries.length}`, 32, startY - 4);
+  }
   if (entries.length === 0){
     ctx.fillStyle = '#aab4c8';
     ctx.font = '13px "Courier New", monospace';
-    ctx.fillText('· Your ZyCube is empty · earn things from Malezor NPCs ·', 32, startY + 30);
+    ctx.fillText(_cat ? `· nothing in ${_cat.label} right now · ○ back ·`
+                      : '· Your ZyCube is empty · earn things from Malezor NPCs ·', 32, startY + 30);
     ctx.fillStyle = '#8ff';
     ctx.font = '11px "Courier New", monospace';
     ctx.textAlign = 'right';
@@ -39542,7 +40014,7 @@ function drawZycubeItemsList(W, H){
   ctx.fillStyle = '#8ff';
   ctx.font = '11px "Courier New", monospace';
   ctx.textAlign = 'right';
-  ctx.fillText('▲▼ nav · × view/use · ◀▶ swap ITEMS↔GEAR · Touchpad / ○ · close', W - 24, H - 16);
+  ctx.fillText('▲▼ nav · × view/use · △ favourite · ○ back to categories', W - 24, H - 16);
   ctx.textAlign = 'left';
 }
 
@@ -47929,6 +48401,15 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       const unlocks = Object.keys(player.unlocks || {}).filter(k => player.unlocks[k]).join(', ') || 'none';
       showToast(`◈ Punches: ${s.punches||0} · Kicks: ${s.kicks||0} · Mori kills: ${s.moriKills||0} (L${s.moriKillsLight||0}/H${s.moriKillsHeavy||0}) · Unlocks: ${unlocks}`, 4200);
     });
+  }
+  // ★★ v0.95.935 · HUD LAYOUT · drag the overlays where you want them
+  const hudLayoutBtn = document.getElementById('devHudLayout');
+  if (hudLayoutBtn){
+    hudLayoutBtn.addEventListener('click', () => setHudLayoutMode(!hudLayoutMode));
+  }
+  const hudResetBtn = document.getElementById('devHudLayoutReset');
+  if (hudResetBtn){
+    hudResetBtn.addEventListener('click', () => resetHudLayout());
   }
   // v0.95.104 · Camera mode toggle · LOCKED (default) ↔ GBA (dead-zone + lerp)
   const camBtn = document.getElementById('devCameraMode');

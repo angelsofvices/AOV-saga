@@ -14629,9 +14629,19 @@ const BBOX_FALLBACK = {
 // When new sheets arrive, fill in cellW/cellH from image_dims/4 and
 // wire bundle.img.src to the file path.
 const RIZER = {
-  idle: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, key: 'idle', loaded: false },
-  walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, key: 'walk', loaded: false },
-  run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  key: 'run',  loaded: false },
+  // ★ v0.95.940 · bodyBh · the MEASURED true body height per row (DOWN, LEFT,
+  // RIGHT, UP), taken as the largest connected component in each row's first
+  // cell.  The scale divides by THIS instead of the declared bbox, so the
+  // character stands two tiles tall in every direction.  The declared bboxes
+  // are untouched — they still decide which pixels are cropped, so nothing
+  // can be cut off by this.  Re-measure with tools/measure_rizer_body.py.
+  idle: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.idle, bodyBh: [181, 160, 159, 144], key: 'idle', loaded: false },
+  walk: { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.walk, bodyBh: [184, 167, 167, 149], key: 'walk', loaded: false },
+  // ★ v0.95.940 · bodyBh · measured true body per row.  RUN varies 12-15px
+  // WITHIN each row and that is the bounce — he leaves the ground.  Column 0
+  // is the row reference (the engine's own convention), so the bounce is kept
+  // and only the direction-to-direction mismatch is removed.
+  run:  { img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4, bboxes: BBOX_FALLBACK.run,  bodyBh: [194, 188, 175, 189], key: 'run',  loaded: false },
   // ★★★ v0.95.920 · THE COMBO SHEET.  Four COLUMNS = four different strikes,
   // not four frames of one: jab / cross / elbow / backfist.  comboSheet tells
   // the draw to HOLD the step's column instead of walking all four, which is
@@ -28211,6 +28221,22 @@ function currentCharScale(){
   return (2 * TILE) / maxH;
 }
 
+// ★★★ v0.95.940 · ONE ANSWER TO "HOW BIG IS HE FACING THIS WAY".
+// Both the locomotion draw and the in-attack height pin need this number, and
+// they used to compute it separately off the declared bboxes — so correcting
+// one without the other would have made every attack disagree with the idle it
+// is supposed to match. One function, two callers.
+function rizerRowScale(bundle, row){
+  if (!bundle) return (TILE * 2) / 284;
+  // ★ measured true body first · this is the whole fix
+  if (bundle.bodyBh && bundle.bodyBh[row]) return (TILE * 2) / bundle.bodyBh[row];
+  // sheets without a measured table keep exactly the behaviour they shipped
+  // with — an unmeasured sheet is not silently rescaled to a guess
+  if (bundle._downScale != null) return bundle._downScale;
+  const dbh = bundle.bboxes && bundle.bboxes[0] && bundle.bboxes[0][0]
+            ? bundle.bboxes[0][0][3] : 284;
+  return (TILE * 2) / dbh;
+}
 function drawPlayer(){
   // ★★ v0.95.870 · THE CAPTURE SHEETS TAKE OVER.  While a wild bond encounter
   // is live, Rizer is not idling/walking — he is holding an open Zysphere and
@@ -28579,7 +28605,37 @@ function drawPlayer(){
               ? bundle.bboxes[0][0][3] : 284;
     bundle._downScale = (TILE * 2) / dbh;
   }
-  const SCALE = bundle._downScale;
+  // ★★★ v0.95.940 · SCALE BY THE BODY, NOT BY THE BOX.
+  // Creator: "rizer is shorter in idle up left and right. idle down is correct
+  // height. can we fix the others to match?"
+  //
+  // He was right, and by more than he could have known.  Measured drawn body
+  // height, DOWN / LEFT / RIGHT / UP:
+  //     idle  92.9  82.1  81.6  73.9     <- UP was 20% short
+  //     walk  96.0  87.1  87.1  77.7
+  //     run   96.0  93.0  86.6  93.5
+  //
+  // ★ THE COMMENT ABOVE PROMISED THE OPPOSITE.  "Every character body pixel
+  // renders the SAME size across every direction" only holds if each row's
+  // DECLARED bbox equals its true body -- the reasoning was that a taller box
+  // means more cape or hair, so dividing by the box keeps the body constant.
+  // The art does not work that way: the side and up cells are drawn SHORTER,
+  // and UP's box is 177 against a 144px body (30px of empty space above his
+  // head, reserved for hair that is not in the source -- the same absence
+  // found in idle-jump.png at v0.95.935).  Dividing by the box therefore
+  // shrank exactly the rows the box overstated.
+  //
+  // ★★ AND IT COULD NOT BE FIXED IN IDLE ALONE.  walk-UP draws at 77.7; had
+  // idle-UP been lifted to match idle-DOWN and nothing else, Rizer would have
+  // SHRUNK 16% the instant he started walking up.  All three locomotion sheets
+  // carry the same defect in different amounts, so all three are normalised.
+  //
+  // bodyBh is the measured TRUE body height per row (largest connected
+  // component in the row's first cell), so the scale makes the CHARACTER two
+  // tiles tall in every direction on every sheet -- which is what the canon
+  // said all along.  The declared bboxes are untouched: they still decide
+  // which pixels are cropped, so nothing can be cut off by this.
+  const SCALE = rizerRowScale(bundle, row);
   let drawH       = Math.max(1, Math.round(bh * SCALE));
   let drawW       = Math.max(1, Math.round(bw * SCALE));
   // v0.91.6 · in-attack: use IDLE's per-row drawH so the character stays
@@ -28611,8 +28667,11 @@ function drawPlayer(){
   if (inAttack && idleBundle.bboxes && !player._astralthrowComposite && !bundle.constScale){
     const idleRow = idleBundle.bboxes[row] || idleBundle.bboxes[0];
     const idleBh  = (idleRow && idleRow[0] && idleRow[0][3]) || 284;
-    const idleAnchor = idleBundle.bboxes[0][0][3] || 284;
-    const idleScale  = (TILE * 2) / idleAnchor;
+    // ★ v0.95.940 · through the SAME helper as the locomotion draw.  This used
+    // to divide by idle's row-0 declared bbox on its own, so the moment idle
+    // started scaling by true body height an attack would have been pinned to
+    // the height idle no longer draws at.
+    const idleScale  = rizerRowScale(idleBundle, row);
     const targetH = Math.round(idleBh * idleScale);
     const attackScale = targetH / bh;
     drawH = targetH;

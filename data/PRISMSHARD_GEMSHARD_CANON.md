@@ -865,6 +865,164 @@ between them.**
 
 ---
 
+## 0g · ★★★ THE CENSUS — how many of each gem-like thing exists
+
+> **Creator, 2026-09-01:** *"ok so now I need to know how many of each gem-like
+> thing exists"*
+
+★★ **First, the distinction that makes the rest of this readable.** Almost every
+row below has **three** different numbers and conflating them is where every
+earlier count in this document went wrong:
+
+| | question |
+|---|---|
+| **EXISTS** | how many are there *in the fiction* |
+| **RECORDED** | how many the canon has actually **named** |
+| **IN GAME** | how many are **playable objects** today **[BUILD]** |
+
+### ★★★ A · THE MATTER LADDER
+
+| class | EXISTS | RECORDED | IN GAME | basis |
+|---|---:|---:|---:|---|
+| **ASTRALITE** | **63** | 63 | 63 | 9 families × 7 · `ASTRALITE_FAMILIES` **[BUILD]** |
+| ↳ **AETHRYX** | **1** | 1 | 0 | ★ *not* one of the 63 — the substrate they are made of (§0b) |
+| **GEM** | ★ **63 kinds** / **504 varieties** | 8 | 8 | §0e: 9 families × 7 concentrations · × 8 colours if colour is counted (§0f) |
+| **GEMSHARD** | **81** | **10** | 4 | §4 · `15 × 5 + 6` · recorded = the Gemlord weapons |
+| **ULTRASHARD** | **22** | 22 | 22 | one per canon type · **of 36 possible** family pairs (§0d§3c) |
+| **PRISMSHARD** | **16** | 16 *(1 name + 15 epithets, §0c)* | 16 | closed at the Aenor Eruption (§0d) |
+
+★★ **Every one of those is either locked canon or forced arithmetic. The only
+soft cell is the gem row**, and §B explains why.
+
+### ★★★ B · THE GEM ROW IS THE ONE REAL QUESTION **[ASK]**
+
+§0e gives a gem an identity of **(family, concentration)** → `9 × 7 = 63`.
+§0f makes **colour** an independent axis of 8. So:
+
+> **63 KINDS · 504 VARIETIES.**
+> A *kind* is what a gem is made of and how much. A *variety* adds where it came
+> from. `63 × 8 = 504`.
+
+★★★ **And this is exactly how real gemstones work, which is the strongest possible
+endorsement of the orthogonality ruling — your own eight stones prove it.**
+
+| your stone | real material | |
+|---|---|---|
+| **ruby** · **sapphire** | ★ **both corundum** | the same mineral, differing only in colour |
+| **amethyst** · **citrine** · **onyx** | ★★ **all three quartz** | *three* of your eight are one substance |
+| emerald | beryl | |
+| pearl · amber | ★ organic — mollusc and tree resin | not minerals at all |
+
+**Five of your eight stones are two materials.** Ruby and sapphire are one rock;
+amethyst, citrine and onyx are another. That is orthogonality in the actual
+world — **material and colour are independent, and gemstone names track the
+colour** — and you picked a list that demonstrates it before the ruling existed.
+
+★ **[INFER], offered lightly:** the two that are not minerals — **pearl** and
+**amber** — are the two that come from *life*, a mollusc and a tree. Zarvane and
+Baelgor are the two districts whose stone was **grown, not crystallised.** That
+may be worth something for those districts, or it may be nothing.
+
+★ **Which number you want depends on one call:** does colour change what a gem
+*does*? The badge system says yes, emphatically. So **504 is the space of
+meaningfully different gems and 63 is the space of materials**, and I would quote
+**63 kinds** when talking about matter and **504** when talking about what a player
+can distinguish. The build currently models **neither** — the 8 `gem_*` keys record
+colour and nothing else **[BUILD]**.
+
+### ★★ C · THE COLOUR AXIS · everything here is 8 or 10
+
+| thing | count | notes |
+|---|---:|---|
+| **gem colours** | **8** | red · blue · green · yellow · white · orange · purple · black |
+| ↳ primaries | 3 | red *body* · yellow *adaptation* · blue *mind* |
+| ↳ secondaries | 3 | orange *evolution* · green *growth* · purple *spirit* |
+| ↳ achromatics | 2 | white *reflects* · black *absorbs* |
+| **district stones** | **10** | ★ 8 hued + **WORLD** (Thardin) + **SPACE** (Korathen) |
+| **districts / Gemlords** | **10** | bijection with the stones |
+| **Gemlord weapons** | **10** slots | ★ **4 named** — Sapphire Tearsword, Rubypaw Longsword, Emerald Axe, Pearlbow *(latter two `inferred:true`)* · **6 open** **[BUILD]** |
+| **Mother Gems** | **10** | descend from **1 Father Gem** (Origon's core) — see §E |
+
+★★★ **Ten is the Zyraxis number the way 9 is the Matrix number and 8 is the colour
+number.** Ten districts, ten Gemlords, ten weapons, ten Mother Gems, ten recorded
+Gemshards. One structure counted five ways — which is why §0f's *"9 is
+cosmological, 8 is terrestrial"* has a third member: **10 is civic.**
+
+### ★★ D · DERIVED AND ADJACENT OBJECTS
+
+| thing | count | notes |
+|---|---:|---|
+| **Astralite families** | **9** | three triads — ACT · TIME · SELF (§0e§4) |
+| **Astralite Compounds** | **5** of **36** | `1+2 · 3+6 · 4+7 · 5+9 · 5+8` **[BUILD]** · family *pairs*, same space as the Ultrashards |
+| **Ultrashard pairs never formed** | **14** | `36 − 22` · ★ a listable, authorable absence |
+| **Utility Prisms** | **3** | Zysphere · Zycube · Zyramid — see §E |
+| **Gemshards per family** | 5 / 10 / 5 | §16c: F1 CREATION → 5 · seven families → 10 · F9 SPIRIT → 5 · **+1 wherever the Key lands** = 81 |
+
+★ **The Compounds and the Ultrashards occupy the same 36-cell space** — both are
+*two families joined*. Five of the thirty-six already have names, from the
+workbench side. That is not a coincidence to resolve; it is a table half-filled
+from the other end.
+
+### ★★★ E · TWO THINGS THE CENSUS TURNED UP THAT NEED YOUR RULING
+
+#### E1 · The utility prisms · **[ASK]**
+
+A scroll in the build says, of Thardin:
+
+> *"Thardin mass-produces three — Zysphere, Zycube, Zyramid — and calls them
+> utility prisms. **The other thirteen** are not for sale and, I am told, not for
+> making."* **[BUILD]**
+
+**3 + 13 = 16.** The speaker counts the utility prisms **inside the sixteen** —
+which §0d forbids outright, since a Prismshard is *original*, from the Aenor
+Eruption, and cannot be made.
+
+★★★ **The build already contains the resolution, two scrolls later:**
+
+> *"the Zysphere is **new**. What it **DOES** is not."* **[BUILD]**
+
+**They are replications, not Prismshards.** §3's reserved word is **REPLICATIVE** —
+*"ancient civilizations may have learned to reproduce properties a Prismshard first
+demonstrated."* Thardin manufactures **devices that reproduce three Prismshards'
+functions**, which is exactly what that clause was held open for, and exactly what
+*"utility"* implies: a tool, not a relic.
+
+★ Note the speaker hedges — *"I am told"* — so the canon has already marked his
+arithmetic as second-hand. **Recommended: Prismshards 16, closed. Utility Prisms 3,
+manufactured, NOT among them.** Which opens a good question: **which three
+Prismshards do Zysphere, Zycube and Zyramid replicate?** Bond, storage, and powers
+are three specific functions and three specific prisms could own them.
+
+#### E2 · The Father Gem line is a SECOND gem cosmology **[ASK]**
+
+`timeline.html`: Origon's **Father Gem core** is *"the source from which all **10
+Mother Gems** descend."* `rp8.html`: a cosmic stone *"carrying the frequencies of
+ten primal wills. It breaks on Zyraxis. **Ten Gemlords rise from its shards.**"*
+
+★★ **Nothing in this document connects that line to the Astralite → gem → Gemshard
+→ Prismshard ladder.** They are two separate genealogies of gem-like objects that
+have never been introduced to each other:
+
+```
+  AENOR ERUPTION  →  astralite → gem → gemshard → prismshard     (this document)
+  FATHER GEM      →  10 Mother Gems → the ten Gemlords            (timeline · rp8)
+```
+
+★ **This is the largest structural gap the census found, and I am not going to
+close it by guessing.** Three readings, all consistent with what is written:
+**(a)** the Father Gem is itself a Prismshard, or the eruption's residue ·
+**(b)** an independent lineage, deliberately parallel · **(c)** the same
+substance named twice by two traditions. Whether the Mother Gems belong in the
+census above depends entirely on which.
+
+### ★ F · ONE-LINE ANSWER
+
+> **63 Astralites · 63 gem kinds (504 with colour) · 81 Gemshards · 22 Ultrashards ·
+> 16 Prismshards.** Plus, off the ladder: **8 colours · 10 district stones ·
+> 10 Gemlord weapons · 3 utility prisms · 1 Father Gem → 10 Mother Gems.**
+
+---
+
 ## 1 · THE 16 PRISMSHARDS
 
 Exactly sixteen. The highest known relic class in the Aethryx Expanse.

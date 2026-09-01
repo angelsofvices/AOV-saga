@@ -359,8 +359,8 @@ anything.
 |---|---|---|---|---|
 | **PRISMSHARD** | an **original** natural shard of the **Aenor Eruption** | ★ **the eruption · nothing else, ever** | **16** · closed | **powers MANY mythic relics** |
 | **ULTRASHARD** | a **naturally formed Gemshard of TWO different gems** | ★ **natural only · never crafted** | 22 recorded | **a being CONSUMES it → learns a move** |
-| **GEMSHARD** | a **highly concentrated gem** | crafted by a person | many | **crafts a SINGLE item** |
-| **GEM** | a **fully compounded SINGLE Astralite** | compounding | one kind per Astralite | material |
+| **GEMSHARD** | a **highly concentrated gem** · ★ §0e: **a gem at 7/7 — a COMPLETE family** | crafted by a person | many | **crafts a SINGLE item** · ★ *one gem, one weapon* |
+| **GEM** | ★ §0e: **ONE Astralite family, at concentration 1–7** *(this is what "fully compounded single" meant — `single` modifies FAMILY)* | compounding | 9 families × 7 depths = **63** | material |
 | **ASTRALITE** | **a single piece of matter in its most basic form** | the Expanse | 63 | material |
 
 ### ★★★ 1 · THE LADDER IS A LADDER OF HOW MANY TIMES A THING CAN BE SPENT
@@ -456,6 +456,25 @@ an arithmetic.
 ★ **[ASK] · what does "gem" count as, for the pairing?** This is the one number
 the ruling leaves open, and it matters:
 
+> ★★★ **NARROWED BY §0e, same day.** A gem is now **one Astralite FAMILY at a
+> concentration of 1–7**, and an Ultrashard is a *naturally formed **Gemshard*** of
+> two — so both gems are **7/7**, and the pairing space is **families**, not
+> colours and not individual Astralites. **`C(9,2) = 36` family pairs; 22 have
+> formed naturally, 14 have not.** Both options below are superseded; (c) is the
+> new recommendation and it is a far better fit than either.
+>
+> - ★ **(c) TWO COMPLETE FAMILIES · 36 possible, 22 formed. Recommended.** An
+>   Ultrashard is two whole Astralite families fused — MIND+BODY, PAST+FUTURE,
+>   CREATION+DESTRUCTION. **That is a sentence about what a move MEANS**, which
+>   neither (a) nor (b) could give you. And the fourteen that never formed become a
+>   deliberate, listable absence rather than arithmetic slack.
+> - ★★ **It also puts the Ultrashards next to `ASTRALITE_COMPOUNDS`** **[BUILD]**,
+>   which pairs families exactly this way — `'4+7'` MIND+BODY, `'3+6'`
+>   DESTRUCTION+PRESERVATION, five recipes shipped. **The game already fuses two
+>   families and already names the result.** An Ultrashard would be what that
+>   process looks like when *nature* does it at 7/7 instead of a player doing it at
+>   the workbench. Five of the thirty-six are, in effect, already written.
+
 - **(a) the 8 gem colours.** `C(8,2) = 28` distinct pairs; 22 have formed
   naturally, 6 have not. ★ A near-fit, and a *tempting* one — six unformed pairs
   is exactly the sort of gap a story lives in. But it is 28 ≠ 22, so it is a
@@ -464,15 +483,22 @@ the ruling leaves open, and it matters:
   occurred. Rarity by nature. ★ This is what *"a gem is a fully compounded single
   Astralite"* says literally, and the 8 colours are then **leanings** across the
   63 — which is already the colour canon's own position (*"a hue IS a leaning"*).
-- **Assumed (b) until ruled**, because it is the literal reading of your sentence
-  and because it does not require 28 to secretly be 22.
+- ~~**Assumed (b) until ruled**~~ — ★ superseded by (c) above.
 
 ★ **Consequence either way [ASK]:** if the pair decides the type, then **naming
 the two gems in each of the 22 Ultrashards is now an authorable list** — and a
 Blackspiral Shard's pair would say something about Corruption that nothing else
 in the canon currently says. Not started. Flagged as available.
 
-### ★★ 4 · "CRAFT A SINGLE ITEM" REFINES THE GEMLORD WEAPONS
+### ★★ 4 · "CRAFT A SINGLE ITEM" REFINES THE GEMLORD WEAPONS · ★★★ RULED — see §0e
+
+> **★★★ ANSWERED, same day. Creator:** *"a gemshard is one gem. **like one
+> weapon.**"* → **reading (a). The weapon IS the Gemshard.** My recommendation of
+> (b) below is **declined**, and it was the weaker call: I treated *single* as
+> though it distinguished the crafter's act from the object, when what it marks is
+> the **one-to-one** — one gem, one Gemshard, one weapon, all the way down.
+> §16d and §0c were right to say *"are"* and are now confirmed rather than
+> pending. Kept below so the argument I lost stays readable.
 
 ★ **Conflict, surfaced not resolved.** This morning you said *"the gemlord weapons
 **are** gemshards"* and §0c and §16d were written that way. Today's definition
@@ -513,12 +539,13 @@ I said the hierarchy defends itself because a Prismshard needs five of the 81.
 It defends itself far better than that. **It needs an event that ended fifteen
 billion years ago.**
 
-★ **§1's opening line needs a word.** It reads *"Multiple Astralite Sources →
-Highly Concentrated Astralite Gems → …"* — but a **gem** is now *a single
-Astralite, fully compounded*. The multiplicity enters at the **Prismshard**, where
-several concentrated Astralites are bound; it does not enter at the gem.
-**Flagged, not edited** — §1 is a quoted canon block and this is your line to
-change, not mine.
+~~★ **§1's opening line needs a word.**~~ ★★★ **FLAG WITHDRAWN — §0e.** I raised
+this because I read *"a fully compounded **single** astralite"* as *one*
+Astralite, which made §1's *"Multiple Astralite Sources → Highly Concentrated
+Astralite Gems"* look wrong. **`Single` modifies FAMILY.** A gem *is* multiple
+Astralites — up to seven — they just all come from one family. **§1 was correct
+and needs no word.** The error was mine and it was a parsing error, not a canon
+conflict; kept here because a withdrawn flag is worth more than a deleted one.
 
 ### ★ 6 · CODE IMPACT · stated, not acted on **[BUILD]**
 
@@ -532,6 +559,171 @@ is a canon pass:
    data records an Ultrashard's **two gems**, which is now its defining property.
    A `gems: [a, b]` field is the natural home, and it should stay `null` until the
    pairing question in §3 above is ruled.
+
+---
+
+## 0e · ★★★ FAMILY PURITY + CONCENTRATION — Creator ruling, 2026-09-01
+
+> **Creator:** *"a gemshard is one gem. like one weapon. and a gem is only made of
+> one astralite family. it can be one or 7. that determines its concentration
+> maybe?"*
+
+**Two rulings and one proposal.** Ruling 1 closes §0d§4. Ruling 2 is new law about
+what a gem *is*. The proposal is answered below: **yes — and the build has been
+carrying the field for it the whole time.**
+
+### ★★★ 1 · THE FIELD ALREADY EXISTS · `energy: i+1` **[BUILD]**
+
+`ASTRALITE_FAMILIES` — shipped, frozen, unchanged for many versions:
+
+```js
+{id:1, name:'CREATION', role:'SPARK', items:[
+   ['Ax-1','Aethryx Prime'], ['Gn','Genesis Core'], ['Cr','Creatrix'],
+   ['Em','Embryonix'],       ['St','Stellarion'],   ['Ph','Primordial Hollow'],
+   ['Ex','Ex Nihilo Shard'] ]}
+   ...
+.map(f => ... items.map((v,i) => ({ ..., energy: i+1, family: f.id })))
+```
+
+★★ **Nine families of exactly seven, and every Astralite already carries
+`energy` 1–7 within its family.** The Creator's *"it can be one or 7"* is not a
+new axis that needs building — it is a number the data has been holding since the
+Matrix went in, waiting for something to mean.
+
+`9 × 7 = 63`, which is the Astralite count. So under this ruling **the gem space is
+exactly the size of the Astralite space** — 63 gem grades, 9 families × 7 depths.
+Not numerology: it is forced, the same 9 and 7 read on the other axis.
+
+### ★★★ 2 · CONCENTRATION · yes, and make it CUMULATIVE
+
+*"That determines its concentration maybe?"* — **yes.** But *"one or 7"* has two
+readings and they are not the same system:
+
+| | reading | a CREATION gem at 3 is… |
+|---|---|---|
+| **(A) COUNT** | the gem holds N Astralites of its family | *some* three of the seven |
+| **(B) RANK** | the gem holds one Astralite, and its `energy` is the grade | just Creatrix, alone |
+| ★ **(C) CUMULATIVE** | the gem holds energies **1 … N** | Aethryx Prime **+** Genesis Core **+** Creatrix |
+
+★★ **(C) recommended, and it is the only one that costs nothing to adopt.** It is
+(A) and (B) at once — *"holds N"* and *"reaches grade N"* become one statement —
+so the existing `energy` field indexes it with no new data. And it says something
+the other two don't:
+
+> **You cannot hold the top of a family without the whole family beneath it.**
+> No Ex Nihilo Shard without Aethryx Prime under it.
+
+That is a foundation rule, it is free, and it is the same shape as every other
+ladder in this game.
+
+★★★ **And it finally gives "highly concentrated" a NUMBER.** §0d defines a
+Gemshard as *"a highly concentrated gem"* — which was a vibe, not a threshold.
+Under (C):
+
+> **A GEMSHARD IS A GEM AT 7/7 — a COMPLETE Astralite family.**
+
+★★ **It also retroactively explains yesterday's sentence, which I mis-parsed.**
+§0d quotes *"a gem is a fully compounded **single** astralite"* and I read *single*
+as **one**. Today's ruling says *single* modified **family**. And *"fully
+compounded"* was never vague — it means **7/7**. The Creator's two sentences agree
+with each other; my reading of the first was the error. §0d§5's flag that §1's
+*"Multiple Astralite Sources"* contradicts the gem definition is therefore
+**withdrawn** — §1 was right all along. A gem *is* multiple Astralites. They just
+all have to come from one family.
+
+### ★★ 3 · WHY 7/7 DOESN'T COLLAPSE THE 81 — §16c ALREADY ANSWERED IT
+
+★ **The obvious objection, stated before it is asked.** If a Gemshard is a
+complete family, there are **nine** possible Gemshards. Canon says **81**.
+
+**§16c already carries the second axis.** The family quota distributes Gemshards
+*per family* — `F1 → 5 · F9 → 5 · the other seven → 10 each · +1 for the Key = 81`
+— and `GEMSHARD_REGISTRY_()` already models `family` and `parent` as **separate
+fields** **[BUILD]**. So:
+
+> **FAMILY says what a Gemshard is made of. PARENT PRISMSHARD says which one it is.**
+> 7/7 is necessary, not sufficient. Ten Gemshards can share CREATION and differ by
+> which Prismshard shed them.
+
+★★ Two axes, both already in the data model, and neither invented today. The 81
+survives untouched — and `parent: null` on every registry entry stops being an
+awkward gap and becomes **the field that distinguishes them.**
+
+### ★★★ 4 · THE NINE FAMILIES ARE THREE TRIADS **[INFER]**
+
+Set out by what they are rather than by id, the nine fall into a shape nothing in
+the canon has named:
+
+| triad | families | asks |
+|---|---|---|
+| **ACT** | CREATION · DESTRUCTION · PRESERVATION | *what is done* |
+| **TIME** | PAST · PRESENT · FUTURE | *when* |
+| **SELF** | MIND · BODY · SPIRIT | *to whom* |
+
+★★ **And §16c's Prismshard quota lands its two singletons on the endpoints.**
+CREATION gets 1, SPIRIT gets 1, the seven between get 2 each. Their anchors are
+**Ax-1 "Aethryx Prime"** and **Ax-9 "Astryx Soul"** — the prime substance at one
+end and the soul at the other, with everything that happens in between.
+The quota was never arbitrary; it is an alpha and an omega with a body between them.
+
+### ★★★ 5 · CONFLICT · NINE FAMILIES, EIGHT GEM COLOURS **[ASK]**
+
+★ **This is the real problem the ruling creates, and I am not going to force it.**
+`ASTRALITE_FAMILIES` gives every family a colour **[BUILD]**, and they do not line
+up with the eight gems:
+
+| family | code colour | nearest gem |
+|---|---|---|
+| DESTRUCTION | `#ff6848` | red |
+| FUTURE | `#72bfff` | blue |
+| PRESENT | `#68ef91` | green |
+| CREATION | `#ffd66b` | yellow |
+| PRESERVATION | `#ffc85c` | orange |
+| PAST | `#bc83ff` | purple |
+| SPIRIT | `#d796ff` | ★ purple **again** |
+| **MIND** | `#65e3ff` cyan | ★ **no gem** |
+| **BODY** | `#ff79ae` pink | ★ **no gem** |
+| — | — | ★ **white and black have no family** |
+
+**Nine into eight does not go**, two families have no gem, two share one, and the
+achromatics have no family at all.
+
+- ★★ **(a) COLOUR IS ORTHOGONAL TO FAMILY. Recommended.** Family = *what a gem is
+  made of*. Colour = *which way it leans*. `GEM_COLOR_PSYCHOLOGY_CANON.md` §3a
+  already rules that **"a hue IS a leaning"**, and white is *"the trace of Aethryx
+  — balance, no lean"*, which under §0d is **the substrate before it commits to a
+  family at all.** Nothing has to be rebuilt; the two systems were answering
+  different questions.
+- **(b) Rebuild the gem colours to nine.** Honest, and expensive: it touches
+  `GEM_VALUES`, the drop table, the badge proposal and the art.
+
+★★★ **A real convergence, in favour of (a).** The colour canon's meanings are
+*body · adaptation · mind · evolution · growth · spirit*. Three of those six —
+**BODY, MIND, SPIRIT** — are **family names**, and they are exactly the colour
+system's spine: **red = body, blue = mind, purple = spirit, and purple is red +
+blue.** The other three colour meanings (adaptation, evolution, growth) name **no**
+family, and the other six families (creation, destruction, preservation, past,
+present, future) name **no** colour. Two vocabularies that overlap on precisely
+the SELF triad and nowhere else. That is what orthogonal-but-touching looks like,
+and it is not what a coincidence looks like.
+
+★ **One tension it surfaces, flagged only.** The colour canon says **red + blue =
+purple = SPIRIT**. `ASTRALITE_COMPOUNDS` says **`'4+7'` = MIND + BODY = WILL**
+**[BUILD]**. Same two ingredients, two different outputs. Not necessarily wrong —
+a compound is a crafted stat item, a secondary colour is a meaning — but they are
+close enough that you may want them to agree.
+
+### ★ 6 · CODE IMPACT · stated, not acted on **[BUILD]**
+
+Nothing touched. Adding to the standing list in §0d§6:
+
+3. A gem has no `family` or `concentration` field; `GEM_VALUES` is eight colour
+   constants `20…160`. Under this ruling a gem's identity is **(family,
+   concentration)** and its value is a function of concentration `1…7` — very
+   nearly a drop-in for the existing `20 × n`, and it would give §13's *"retire the
+   gem price"* problem a principled answer instead of a deletion.
+4. `GEMSHARD_REGISTRY_()`'s `family: null` and `parent: null` are now doing real
+   work per §3 above, and should be filled rather than removed.
 
 ---
 
@@ -681,8 +873,9 @@ Every Gemshard references exactly one parent Prismshard and (eventually) exactly
 > here.** This list is kept for the terms §0d does not define.
 
 - **Astralite** — ★ §0d: *a single piece of matter in its most basic form*. Fundamental elemental/existential energy within the Astralite Matrix.
-- **Astralite Gem** / **gem** — ★ §0d: *a fully compounded **single** Astralite*. (Note: **one**, not several — see §0d§5 on §1's opening line.)
-- **Gemshard** — ★ §0d: *a highly concentrated gem that a person can use to **craft a single item***. Centred on one Astralite; descended from a Prismshard.
+- **Astralite Gem** / **gem** — ★ §0e: **one Astralite FAMILY, at a concentration of 1–7.** *"Fully compounded single"* means single-**family**, not single-Astralite. 9 families × 7 depths = 63 grades.
+- **Concentration** — ★ §0e: a gem's depth, **1–7**, cumulative (a gem at N holds energies 1…N). Indexed by the shipped `energy` field on every Astralite **[BUILD]**.
+- **Gemshard** — ★ §0d: *a highly concentrated gem that a person can use to **craft a single item***. ★ §0e: **a gem at 7/7 — a complete Astralite family.** Which of a family's Gemshards it is, is set by its **parent Prismshard** (§16c). One gem, one Gemshard, one weapon.
 - **Prismshard** — ★ §0d: *an **original** natural shard of the **Aenor Eruption**, which can **power many mythic relics***. Composite of multiple concentrated Astralites in balance. **Not craftable, at any price.**
 - **Aenor** — the central star · *"source of all Aethryx"* · the still axis the Expanse turns around **[CANON · `aethryx.html`, `timeline.html`]**.
 - **The Aenor Eruption** — ~15 Bya · the saga's Big Bang · the one event that forged the substrate, the 1,000+ original Dracolords, **and the 16 Prismshards**.

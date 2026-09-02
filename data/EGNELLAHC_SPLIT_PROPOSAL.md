@@ -314,3 +314,130 @@ show *"Locked."*
 
 ★ **Open:** whether the Key of Anciuxor travels with him to the easter egg, or is
 obtained some other way now that §9 has taken it out of the mainline. **Not decided.**
+
+---
+
+## ★★★ 11 · THE PART 1 / PART 2 LINE — Creator ruling, 2026-09-01
+
+> **Creator:** *"rizer s2, the novarian challenge, the cosmic dracolords, and anciuxor should be part 2 storylines"*
+
+### ★★★ 11a · All four are the same kind of thing, and naming it draws the line
+
+S2 is a **power**. The Challenge is a **trial**. The Dracolords are **gods**. Anciuxor
+is **the highest**. Four different objects — and every one of them is **an escalation
+of scale beyond a planet.**
+
+> **PART 1 IS POLITICAL. PART 2 IS COSMOLOGICAL.**
+>
+> Part 1 is one world, its ten districts, its councils and pledges and a Seer cult
+> trying to seize a seat — and it ends in **a refusal to rule.**
+> Part 2 is the first humanoid, the six Guardians, a nine-year trial of worth, and
+> the god at the centre of the Expanse.
+>
+> ★ **The Bridge of Hope is not a map feature. It is the line between the political
+> and the cosmic.**
+
+| | PART 1 · RP7 · the ten districts | PART 2 |
+|---|---|---|
+| power | ★ **S1 only** — perception, clarity | ★ **S2** — disciplined fury |
+| antagonist | Xenoxil · Orryx · Ophira | **Zoryn** · the Pit |
+| authority | ten Gemlords, one absent | ★ **the Cosmic Dracolords** |
+| the ninth and tenth | ★ a **silence** and an **absence**, unexplained | ★ **EGNELLAHC** — the two, joined |
+| scale | a planet | ★ **Anciuxor** · the Expanse |
+| structure | 10 districts, 7 missions each | ★ **the Novarian Challenge** · 9-year bracket · Faction of 9 |
+| ends with | **the Throne remains empty** | *(open)* |
+
+### ★★★ 11b · S2 leaving Part 1 makes the ENDING better — this is the real prize
+
+The finale currently *"uses **S1** for control and perception, **S2** for disciplined
+fury."* Take S2 away and **Xenoxil is beaten with S1 alone** — the power the canon
+defines as *"controlled Aura circulation, **explicitly not fuelled by anger**."*
+
+★★★ **And the ending is a refusal.** *"Rizer refuses to replace one absolute ruler
+with another."*
+
+> **A refusal is not won with fury. It is won with clarity.**
+>
+> If Rizer beats Xenoxil with rage and then chooses restraint, **those are two
+> different people in one scene.** If he wins with S1 — the power that is *defined*
+> as not-anger — **the power he uses and the choice he makes are the same act.**
+
+★★ **The ruling doesn't cost the finale a weapon. It removes the one that was
+arguing against it.**
+
+### ★★★ 11c · And it gives THE RUBY RAGE its real content
+
+Today the Malezor Interlude is *"S1 surges out of control → Rakoron grants S2."*
+Under the ruling **Rakoron grants nothing. He defers.**
+
+★★★ **Which the build already established at district I: *"Rakoron defers the
+bond."*** So he defers **twice** — once when Rizer is unproven, and again **at the
+moment of greatest need, days after the boy's parents were taken and his mentor
+killed.**
+
+> **The Ruby Rage stops being a power-up and becomes a god refusing to arm a
+> grieving child.** *Not yet. Not like this.*
+
+★★★ **And that is not cruelty — it is the definition.** S2 is **disciplined fury.**
+**You cannot have disciplined fury while you are actually furious.** The scene that
+looked like a reward was always the scene where he isn't ready, and the ruling is
+what lets it say so.
+
+★★ **[INFER] It also tells you what the Challenge is for.** Shipped scroll, Korathen:
+*"It measures whether a bonded pair can be **TRUSTED with what comes next.**"*
+★★★ **S2 is what comes next. The Novarian Challenge is the S2 trial.** Offered, not
+written.
+
+### ★★ 11d · The build's own level curve already agreed
+
+```js
+rp7b.html:48949
+// Design targets: Part 1 (10 districts) → Lv 50 · Part 2 (Novarian Challenge) → Lv 100
+```
+
+★★ **The build has said "Part 2 IS the Novarian Challenge" since v0.95.317.** The
+ruling changes nothing in the code's plan — **it changes the story document**, which
+had the Challenge running as a *parallel* Path A.
+
+★ **Checked and NOT a conflict:** district bands run to 92–100 while Part 1 targets
+Rizer Lv 50. Those are **two different level systems** — bands are **Zyrex** levels
+(`tier × 12.5`), the curve is the **Rizer** level (`100 × L²`, RXP-bought). Looks like
+a contradiction; isn't.
+
+★ **And S2 costs nothing to move: it is unwired.** No `s2Unlocked`, no ruby-rage flag;
+S1/S2 exist only as comments on the two treehouse weapons.
+
+### ★★★ 11e · WHAT THIS RETIRES — the dual-path structure
+
+★★★ **Archived canon has Path A (Rizer / Novarian) and Path B (Zyrex / Seers) running
+IN PARALLEL across districts I–X, converging at the endgame.** If the Challenge is
+Part 2, **Path A is not parallel to anything. It is the sequel.**
+
+> **The dual-path model collapses into a sequence.** *Not two roads through one
+> game — one road through two.*
+
+★ **[FLAG] And it exposes a circular gate.** `rp8.html:14063–14074` locks the Bridge
+of Hope on **both** `xenoxilDefeated` **and** `novarianGrandChampion`. If the Bridge
+leads *into* Part 2 and the Challenge *is* Part 2, **you need a Part 2 achievement to
+enter Part 2.**
+
+★★ **Recommended reading, which keeps the gate exactly as written: the Bridge is not
+Part 2's entrance — it is Part 2's MIDPOINT.**
+
+```
+  PART 1  ·  ten districts  ·  S1  ·  ends: the Throne remains empty
+      ↓
+  PART 2a ·  THE NOVARIAN CHALLENGE  ·  9-year bracket  ·  earns S2
+      ↓        (xenoxilDefeated ✔ + novarianGrandChampion ✔)
+  THE BRIDGE OF HOPE  ·  the farewell  ·  Mom · Dad · Myara
+      ↓
+  PART 2b ·  the southern lands  ·  the Pit of No Return  ·  ZORYN
+```
+
+★★★ **The gate is already correct under this reading, and it puts the farewell in the
+right place** — you say goodbye **after** winning the Challenge and **before** the
+Pit, which is the only point in the story where a farewell means anything.
+
+★ **Open:** whether Egnellahc sits in 2a or 2b. ★ *The Challenge was sanctioned by
+his two halves (§4) — so meeting him after winning it, having just been measured by
+the document he underwrote, is the strongest available placement.* Not chosen.

@@ -165,7 +165,36 @@ The draft's Andrannor nightclub is **CLUB VX**. The build has a prop `club_50`, 
 canon has **Club 50** run by ally **Vladimir Valenov**, dealing cheap faedust to the
 inner city. Same venue renamed, or two clubs?
 
-### 6.5 ★ Elders vs Wardens give the main missions · **NEEDS YOUR RULING**
+### 6.5 ★★★ Elders vs Wardens · **RULED 2026-09-01 · ELDER = MAIN · WARDEN = MASTERY**
+
+> **Creator, 2026-09-01:** **Elder = main chain · Warden = mastery track.**
+> The proposed reconciliation below is **adopted as written.**
+
+**Every district gets two named authorities:**
+
+| office | gives | teaches | example |
+|---|---|---|---|
+| **ELDER** | ★ the **main-mission chain** · civic authority | the district's discipline | **Omniris**, Zarvane · THE SIGHT |
+| **WARDEN** | the **mastery track** alongside it · bond mentor | THE BOND | **Kelthor**, Malezor |
+
+★★★ **CONSEQUENCE — it is NINE Elders to name, not eight.** `DISTRICT_ELDERS`
+**[BUILD]** currently reads `malezor → 'Warden Kelthor'`. Under this ruling **Kelthor
+is a Warden and vacates that row**, so Malezor needs an Elder too. Only **Omniris**
+(Zarvane) is correctly seated today.
+
+| district | ELDER | WARDEN |
+|---|---|---|
+| Malezor | ★ **needed** | ✔ Kelthor |
+| Zarvane | ✔ **Omniris** | ★ needed |
+| Andrannor … Korathen (8) | ★ **needed** | ★ needed |
+
+★ **[BUILD] follow-up, not done here:** `DISTRICT_ELDERS` needs Kelthor moved to a
+`DISTRICT_WARDENS` table (or an `office:` field), and eight `handoff:'TBD -> …'`
+placeholder strings confirmed non-rendering. Its own version and suite.
+
+---
+
+### 6.5-original · the reasoning that produced the ruling
 The draft: *"District Elders give the main missions."*
 Existing canon (`aov-quest-source-canon`): *"Warden-class = MAIN missions · citizen
 allies = SIDE quests · one Warden per district."*
@@ -178,6 +207,57 @@ word changed: the **Elder** is the district's civic authority and gives the *mai
 chain*; the **Warden** is the bond mentor and gives the *mastery track* that runs
 alongside it. That keeps Kelthor and Omniris both intact and gives every district two
 named authorities instead of one overloaded one. Not applied yet.
+
+### 6.7 ★★★ THE TURN · **RULED 2026-09-01 · THE INVASION OF MALEZOR · KELTHOR DIES**
+
+> **Creator, 2026-09-01.** Of the two incompatible versions of the story's central
+> turn, **B is canon.**
+
+| | |
+|---|---|
+| ~~**A**~~ | ~~parents taken in **Vorashil (VI)**, off-screen, as Seer retaliation~~ — **RETIRED** |
+| ★ **B** | **THE INVASION OF MALEZOR.** The parents are taken **on-screen, in Malezor**, and **KELTHOR DIES covering the evacuation.** (`KELTHOR_ARC_DRAFT.md`, mission VIII) |
+
+★★★ **Why this is the stronger story, stated so the rewrite keeps the reason:** the
+kidnapping happens **where the player lives**, in the district they were taught to
+survive, and it **costs them the man who taught them**. Malezor stops being the
+tutorial and becomes the wound. It also gives *The Ruby Rage* its real fuel — the S1
+surge is grief, and **Rakoron's answer to grief is the discipline that becomes S2.**
+
+### ★★ CONSEQUENCES — three, and the third is a real loss
+
+1. ★★★ **KELTHOR MUST LEAVE THE BRIDGE OF HOPE FAREWELL.** The archived farewell is
+   **Mom · Dad · Kelthor · Myara**. He is dead by then. **New roster: Mom · Dad ·
+   Myara + one.** ★ The empty fourth place is worth *using* rather than filling —
+   a farewell with a gap in it is the same shape as the Empty Throne, and the game
+   is already about a missing tenth.
+2. ★★ **Vorashil's mission 7 needs a new turn.** It currently carries the off-screen
+   kidnapping. Vorashil still owns **S1 + the first Orryx defeat**, which is enough
+   for a district — but the beat that pushed the player out of it is gone.
+   ★ **[INFER] Suggestion, not written:** Vorashil is where the player *learns* the
+   invasion already happened. S1 is perception; the first thing clear sight shows
+   him is what he missed.
+3. ★ **Act ordering shifts.** The build's own act model — *"Act II begins in the
+   Auralands · Malezor stays untouched during Act I"* and a **"Baelgor siege wave"**
+   (`rp7b.html:~25164`) — is now closer to canon than the doc spine was, since it
+   already expects Malezor to be hit later. **Worth reconciling rather than
+   discarding.**
+
+### 6.8 ★★★ THE PROTAGONIST · **RULED 2026-09-01 · NAMED "RIZER"**
+
+> **Creator, 2026-09-01: named "Rizer."** §6-adjacent conflict closed — the archived
+> *"custom name, chosen gender, silent-protagonist"* line is **retired**.
+
+★★ **NPCs address him by name.** The **Player–Rizer bond axis** (`rizerBondTotal()`
+**[BUILD]**) stays meaningful, because there is someone on the other end of it.
+★ The existing Dad and Kelthor trees already write this way — *"Smart find, kid"*,
+*"You crossed a border for me"* — so **the shipped voice does not need rewriting to
+match the ruling; it needs the rest of the game brought up to it.**
+
+★ **Style rule this sets for the pass:** characters speak **to** Rizer, not **at** a
+cursor. Where a line could be addressed to anyone, it is a toast, not dialogue.
+
+---
 
 ### 6.6 Recruitment states are ahead of the build · **informational**
 *Discovered*, *Connected* and *Trusted/Veteran* have no implementation. The build goes

@@ -23,7 +23,36 @@ Labels: **[CANON]** locked · **[BUILD]** ships today · **[DRAFT]** designed, u
 
 ★★ **Process rule, non-negotiable:** that block is **generated**. Source of truth is `data/scroll_lore_source.py`, synced by `tools/sync_scrolls.py`. **Hand-edits to the HTML between the BEGIN/END markers are destroyed on next sync.**
 
-### 0b · ★★★ The blocker: eight of ten districts have nobody to talk to
+### ★★★ 0a-bis · THE THREE RULINGS · 2026-09-01 — the pass is unblocked
+
+> Asked and answered the same day this document was built. **These override every
+> "unresolved" note below; the notes are kept so the reasoning stays readable.**
+
+| # | ruling |
+|---|---|
+| **1** | ★ **ELDER = main-mission chain. WARDEN = mastery track.** Two named authorities per district |
+| **2** | ★★ **THE INVASION OF MALEZOR.** The parents are taken **on-screen in Malezor** and **KELTHOR DIES** covering the evacuation |
+| **3** | ★ **The protagonist is named "RIZER."** NPCs address him by name |
+
+★★★ **Ruling 1 costs one more name than expected: NINE Elders, not eight.** Kelthor
+holds Malezor's elder row today and is a **Warden** under the ruling, so he vacates
+it. **Only Omniris is correctly seated.**
+
+★★★ **Ruling 2 costs Kelthor the Bridge of Hope.** The farewell was **Mom · Dad ·
+Kelthor · Myara**; he is dead by then. ★ *The empty fourth place is worth using
+rather than filling — a farewell with a gap in it is the same shape as the Empty
+Throne.* And **Vorashil's mission 7 needs a new turn**, since it carried the
+off-screen kidnapping.
+
+★★ **Ruling 3 needs no rewrite of what ships.** Dad and Kelthor already speak to a
+person — *"Smart find, kid"*, *"You crossed a border for me."* **The shipped voice
+already obeys the ruling; the rest of the game has to be brought up to it.**
+★ *Style rule it sets: characters speak **to** Rizer, not **at** a cursor. A line
+that could be addressed to anyone is a toast, not dialogue.*
+
+*Written into `RP7_MAIN_STORY_CANON.md` §6.5, §6.7, §6.8.*
+
+### 0b · ★★★ The blocker: eight of ten districts have nobody to talk to · ★ RULED, see 0a-bis
 
 `DISTRICT_ELDERS` (`rp7b.html:4526–4554`) **[BUILD]** — **two of ten rows are filled.** Malezor → Warden Kelthor. Zarvane → Omniris. **Andrannor, Veridan, Netharion, Vorashil, Xilnar, Baelgor, Thardin and Korathen have `id:null, name:null, teaches:null`.**
 

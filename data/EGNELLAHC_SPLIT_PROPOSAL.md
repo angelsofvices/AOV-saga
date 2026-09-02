@@ -165,7 +165,7 @@ The foreshadowing is dense enough already. My recommendation is to **add almost 
 1. ★★★ **NOTHING BRIDGES NEXYROS → ZYRAXIS.** `timeline.html:1837` says Zyraxis *"later receives Egnellahc's sundered mind"*, but his dated arc ends at Nexyros with the Transplacement. **How he crossed, and whether he arrived already sundered or split after arriving, is unwritten.** ★ `aethryx.html:1970` may be the door: *"leaving only the spiral scar of his cosmic working. Walk it carefully. **Doors that big do not always stay shut.**"*
 2. ★★ **Two different events share the word "Transplacement."** `codex.json:12574` — **Mykarlyth** transplaced Egnellahc *to* Nexyros. `timeline.html:1903` — Egnellahc's own ritual transplaced everyone *out of* it. Both cannot keep the name.
 3. ★★ **Birthplace conflict.** Born on **Myraclese** (`timeline.html:1855`) vs *"the first humanoid **on Zyraxis**"* (`HANDOFF_MASTER_CODEX_SYNC:121`) vs Nexyros as *"The Humanoid Prime World."*
-4. ★★★ **ANCIUXOR ALREADY CLAIMS THE THRONE.** `rp7b.html:11526` — ***"I am Anciuxor. I am the answer to the Empty Throne of Oatheus."*** **If Egnellahc is the answer, what is Anciuxor?** Two candidates for one slot. ★ *A reading that saves both: Anciuxor is the answer to the throne as a **cosmological** object; Egnellahc is the answer to it as a **political** one. But that is a reconciliation, not a ruling.*
+4. ~~★★★ **ANCIUXOR ALREADY CLAIMS THE THRONE.**~~ ★★★ **RULED 2026-09-01 — see §9. Anciuxor is OFF the mainline entirely.**
 5. ★ **`codex.json` types the halves as a different kind of being from their source** — Oathane and Oatheus are `role: zyrex`, class Beastmaster; Egnellahc is `role: zyraxian`, class Cleric. If they are him, that needs a decision.
 6. ★ **`battlegrounds.html:1520` has Egnellahc at Tier V, Ultramaxborn/Humanoidborn** against Tier VII Humanoid-Noid/Spirit everywhere else.
 7. ★ **No date exists for the split** — only *"later"* than ~9 Bya and *"long before"* the late Malezor era.
@@ -177,3 +177,64 @@ The foreshadowing is dense enough already. My recommendation is to **add almost 
 > **Egnellahc — first humanoid, son of a father who ruled by force — rejected that father, founded a world, and destroyed it with his own ritual. He came to Zyraxis and was offered a throne. Rather than be an absolute ruler a second time, he divided himself: OATHANE to administer, OATHEUS to decide, so no one being would hold the whole. Then Oatheus stepped away entirely and left the tenth seat empty, and Oathane — who alone knows why — has been silent about it ever since. He signed Novarius's Accord because a mortal had just made his argument for him. The Seers want the Accord destroyed because it is the surviving record of a god refusing to rule. And the Empty Throne rejects every claimant because it was left open for the one person who would refuse to sit in it.**
 
 ★★★ **Which is the ending the game already has.** Rizer does not solve the mystery of the Empty Throne. **He becomes the second person to agree with it.**
+
+---
+
+## ★★★ 9 · ANCIUXOR COMES OFF THE MAINLINE — Creator ruling, 2026-09-01
+
+> **Creator:** *"anciuxor IS NOT tied to any district events or landmarks. he is too above tier. we will have anciuxor appear in maybe dreamland beats idk. not mainline story. too rich of canon to try and fit him here."*
+
+**Ruled. §7.4 is closed: Egnellahc is the answer to the Empty Throne; Anciuxor is not in the question.**
+
+### ★★★ 9a · This is not a tier objection. It fixes a contradiction that was already in the build.
+
+Anciuxor is currently the **entire Korathen capstone** — three wired placements, not a cameo:
+
+| # | where | what ships today |
+|---|---|---|
+| 1 | `rp7b.html:6911–6922` | ★★★ **Enthroned at Korathen's exact centre (895, 650).** `anciuxor_wild`, *"THE GOD, the Ultimate Tier X Zyrex — sits enthroned, and He does not move."* At `scaleMul 2.0` he renders **four tiles tall**, and **the Town Hall was pulled back to y 644 to put him in its forecourt** |
+| 2 | `:11522–11536` | *"You have climbed the ten districts. You have earned My attention."* · ***"I am Anciuxor. I am the answer to the Empty Throne of Oatheus."*** · *"Take the Key."* → **joins the party at Lv 100** |
+| 3 | `:35797` | *"Endgame Zyrex · answer to the Empty Throne of Oatheus · 9-type absorption"* |
+
+> ★★★ **THE THRONE CANNOT REMAIN EMPTY IF A GOD IS SITTING IN THE CAPITAL'S FORECOURT.**
+>
+> The ending is *"The Throne Remains Empty."* The architecture says the opposite: walking north up Korathen's spine you pass the mythic chest, **then a god on a seat**, and only then the Hall. **The player is taught that the throne is occupied — ten districts of Dad's scrolls insisting it is not, and then it is.**
+
+★★ **The building comment even claims the staging is *"the right reading for the endgame capital and the Empty Throne."* It is the inverse of it.** The ruling removes a contradiction; it does not create a hole.
+
+★★ **And it repairs the Key.** §12 says the Key *"does not open a thing. It opens a PERMISSION. And the permission is the ending."* Today a god **hands it over as a prize for climbing ten districts** — so the permission is *granted*, not earned. ★ Under the Empty Throne ending, **the Key must not be a gift.** How it is obtained instead is now an open question — and a better one.
+
+### ★★★ 9b · What sits at Korathen's centre instead · **RECOMMENDED: nothing**
+
+**Nothing.** The capital's forecourt becomes **the Empty Throne itself.**
+
+Walk north up Korathen's spine, past the mythic chest — and arrive at **an empty seat**. ★★★ **That is the game's ending, stated architecturally, before it is stated in words.** The comment already says *"Korathen breaks the pattern"* — **let it break the pattern by having nothing there**, which is a far stranger thing to find at the centre of the last capital than a god.
+
+★ It also finally rhymes the two doors: Oatheus's cave is already *"the grandest door in Zyraxis, opening onto nothing"* and was deliberately denied the *"sealed for now"* toast. **The capital should agree with its own Gemlord's door.**
+
+### ★★ 9c · Where Anciuxor goes — Dreamland, and the venue is already argued for
+
+The Creator: *"maybe dreamland beats."* ★★ **The scrolls already support it, and Dreamland is the one place in the game that is explicitly not a district:**
+
+> *"Everyone who has ever bonded is in Dreamland right now, asleep or not."* · *"A Rizer in Dreamland meets THEMSELVES."*
+
+★★★ **And Dreamland holds both figures without collision, because they are different KINDS of encounter:**
+
+| | | |
+|---|---|---|
+| **EGNELLAHC** | a **person**, met | political · a ruler who refused to rule · Part 2 |
+| **ANCIUXOR** | a **scale**, glimpsed | cosmological · not tied to any district or landmark |
+
+★ That is the same distinction §7.4 offered as a reconciliation — and the ruling has effectively confirmed it by **separating them instead of ranking them.** One is in the story. The other is what the story is happening inside.
+
+★★ **The register already exists for Anciuxor-material appearing without Anciuxor: MEALUX**, T8, *"the living trace of the Key,"* Kyrathos-native, guardians of the Eternal Library (§16e). **Traces, not appearances** — which is exactly *"too rich of canon to try and fit him here."*
+
+### ★ 9d · BUILD IMPACT · stated, not acted on
+
+1. ★★★ Remove `anciuxor_wild` from **(895, 650)**; restore Korathen Town Hall to the standard 3-tile-north offset. **Re-comment the block — its current justification becomes false.**
+2. ★★ Retire the `:11522–11536` dialogue and the **Lv 100 party grant**. ★ *This deletes the Part 1 capstone reward — the replacement is a real design question, not a deletion.*
+3. ★ Re-comment `:35797`; Anciuxor is no longer *"the answer to the Empty Throne."*
+4. ★ **Audit two roster placements found earlier and never explained:** `GAME_ROSTER.md` lists Anciuxor as a **Korathen species**, and `WILD_PLACEMENT_MASTER.md` pins him as a T10 spawn **in Malezor at (22,−19)** — a Tier X cosmic being in the tutorial district. **That one reads as a test pin that shipped.**
+5. ★ **Open:** if the Key is no longer a gift, how is it obtained?
+
+★ Each of these is a version with a suite. **None touched.**

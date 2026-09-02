@@ -234,7 +234,83 @@ The Creator: *"maybe dreamland beats."* ★★ **The scrolls already support it,
 1. ★★★ Remove `anciuxor_wild` from **(895, 650)**; restore Korathen Town Hall to the standard 3-tile-north offset. **Re-comment the block — its current justification becomes false.**
 2. ★★ Retire the `:11522–11536` dialogue and the **Lv 100 party grant**. ★ *This deletes the Part 1 capstone reward — the replacement is a real design question, not a deletion.*
 3. ★ Re-comment `:35797`; Anciuxor is no longer *"the answer to the Empty Throne."*
-4. ★ **Audit two roster placements found earlier and never explained:** `GAME_ROSTER.md` lists Anciuxor as a **Korathen species**, and `WILD_PLACEMENT_MASTER.md` pins him as a T10 spawn **in Malezor at (22,−19)** — a Tier X cosmic being in the tutorial district. **That one reads as a test pin that shipped.**
+4. ★ `GAME_ROSTER.md` lists Anciuxor as a **Korathen species** — audit.
 5. ★ **Open:** if the Key is no longer a gift, how is it obtained?
 
 ★ Each of these is a version with a suite. **None touched.**
+
+### ★★★ 9e · CORRECTION · the Malezor pin was never a mistake. I was.
+
+**I wrote, one turn ago, that `WILD_PLACEMENT_MASTER.md`'s Anciuxor pin at
+Malezor (22,−19) *"reads as a test pin that shipped."* That was wrong, and the
+build says so in plain words:**
+
+```js
+rp7b.html:43889
+{ id: 'anciuxor', at: [22, -19], note: 'beside the treehouse' },
+```
+
+★★★ **`RIZER'S TREEHOUSE` sits at tile (20, −20); its door auto-exits to (20, −19)
+(`:5064–5085`, `:16625`). Anciuxor stands TWO TILES EAST OF THE TREEHOUSE DOOR.**
+The placement is deliberate, commented, and years old.
+
+★★ **I read the placement table and never opened the build**, which is the exact
+failure I have been flagging in other people's data all week. **The row said
+"Malezor"; the code said why.**
+
+★ **The rule this earns, stated so it is not re-learned:**
+
+> **On STORY, the draft wins — it has been right three times now.
+> On PLACEMENT, the BUILD wins — it holds reasons the docs do not carry.**
+
+---
+
+## ★★★ 10 · TWO RULINGS THAT CLOSE THE HOLE — Creator, 2026-09-01
+
+> *"oatheus should be korathen storyline. anciuxor will be tied to the treehouse easter egg later."*
+
+### ★★★ 10a · OATHEUS IS THE KORATHEN STORYLINE — and that fills the capstone hole §9 opened
+
+§9 removed Anciuxor and left Part 1 without an ending reward. **This is the
+replacement, and it is the better one: Korathen's story is its missing Gemlord.**
+
+★★ **The draft already wrote it this way.** Korathen's nine missions turn on *"the
+Seers intend to occupy the authority abandoned with Oatheus's disappearance"*, the
+**Tribunal of Ten**, the **Council at the Mothergem**, and **The Empty Throne**,
+*"which violently rejects unworthy claimants."* **Nothing needs inventing. The
+Anciuxor capstone was sitting on top of a finished arc.**
+
+★★★ **And it gives the split proposal its Part 1 shape without naming Egnellahc once:**
+
+| | district | half | what the player experiences |
+|---|---|---|---|
+| **IX** | **Thardin** | **OATHANE — the SYSTEM** | ★ present, and **will not speak.** A vault of machinery that shouldn't work and does |
+| **X** | **Korathen** | **OATHEUS — the LAW** | ★ absent, and **the seat rejects everyone.** The grandest door in Zyraxis, opening onto nothing |
+
+> ★★★ **Part 1 tells both halves and never says the word.** The player finishes the
+> game having met a silence and an absence, and never learns they are one person.
+> **Part 2 is Egnellahc — and the reveal is not new information, it is the same
+> information, joined.**
+
+★ **[BUILD]** Korathen's forecourt goes empty per §9b; the **Empty Throne interior**
+becomes the endgame set-piece the door comment already promises (*"the real Empty
+Throne interior is an endgame pass, not this one"*).
+
+### ★★★ 10b · ANCIUXOR → THE TREEHOUSE EASTER EGG · already placed
+
+**He is already there.** `:43889`, *"beside the treehouse."* ★★ The Creator is not
+planning this placement — **he is recalling one the build has held all along.**
+
+★★★ **And the treehouse was already the right home for him.** It holds the
+**Sapphire Tearsword** (silver chest) and the **Rubypaw Longsword** (gold chest) —
+**S1 and S2, the two Gemlord weapons the whole power arc runs on** (`:3011`, `:3019`,
+`:3620–3621`). It is Rizer's own hideout, it is off the road, and it is where the
+game already hides the things it does not explain. **A Tier X god standing beside it
+is not out of place; it is the same joke told bigger.**
+
+★ **[CANON] Display rule, carried:** `aov-no-easter-egg-spoilers` — **never reveal
+WHERE or WHAT.** This document records the link; the game must not. Locked entries
+show *"Locked."*
+
+★ **Open:** whether the Key of Anciuxor travels with him to the easter egg, or is
+obtained some other way now that §9 has taken it out of the mainline. **Not decided.**

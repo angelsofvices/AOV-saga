@@ -1695,6 +1695,63 @@ hotzones explain where energy *is*, not how a Prismshard could be made.
 
 ---
 
+## 0m · ★★★ LOCK · 2026-09-01
+
+> **Creator:** *"lock everything"* — plus two confirmations closing §0l:
+> *"the gemlord sanctums **start on the overworld and go underground once you
+> enter the cave gemstone entrance**"* · *"thardin makes UPs and holds world gem.
+> ur correct."*
+
+**§0b through §0l are LOCKED.** Later sections of this document predate them; where
+they disagree, **the §0 series wins**, and each conflict is marked in place.
+
+### THE LOCKED SET
+
+| § | ruling |
+|---|---|
+| **0b** | The two arrows · the ladder · **SOURCE** = the Aethryx Expanse / the Highest One |
+| **0c** | Four classes kept distinct · Ultrashards their own class *(reverses §16b)* |
+| **0d** | **The five definitions** · Prismshards from the **Aenor Eruption**, uncraftable |
+| **0e** | Family purity · *(gem-rung concentration revised by §0h)* |
+| **0f** | **Colour ⊥ family** · to lean is to be of one thing |
+| **0g** | **The census** · 63 · 10 · 81 · 22 · 16 |
+| **0h** | One Astralite per gem · **WORLD** and **SPACE** hold four colours each |
+| **0i** | **A composite gem IS an Ultrashard** · depth ‖ breadth |
+| **0j** | **The five grades** · CORE · COMPOUND · COMPLEX · COMPOSITE · COSMOLOGIC |
+| **0k** | **Aethryx** = the basic form of pure matter *(matter that has not yet leaned)* |
+| **0l** | Matter **carries** the eruption's charge · **planet cores are hotzones** |
+
+### ★★ THE TWO CONFIRMATIONS
+
+1. ★ **Gemlord sanctums — corrected.** §0l§4 inferred *"the Gemlords live
+   underground."* **Refined by the Creator: the sanctum BEGINS on the overworld and
+   descends once you enter the cave gemstone entrance.** ★★ Which is better than my
+   version — **the descent is a threshold the player crosses**, not a location they
+   find. A door on the surface, a sanctum below it, and the gemstone is what opens
+   it. The proximity-to-charge reading holds; the staging is the Creator's.
+2. ✔ **Thardin — confirmed.** Makes the utility prisms, holds the **WORLD** gem.
+   §0g§E1 and §0l§4 stand as written.
+
+### ★ WHAT REMAINS OPEN — carried, not closed
+
+| # | question | § |
+|---|---|---|
+| 1 | Does the **1–7 concentration ladder** move up to the Gemshard rung? *(recommended)* | 0h |
+| 2 | **"2 different gems" vs FOUR** — widen to *two or more*, or a larger grade? | 0i |
+| 3 | **The Ultrashard count** — 22, 24, or only the typed ones? What indexes one? | 0i · 0g§B2 |
+| 4 | **COMPOUND** collides with `ASTRALITE_COMPOUNDS`; **COMPLEX** with §1's prose | 0j |
+| 5 | Sweep *energy → matter* in `aethryx.html` and §15? | 0k · 0l |
+| 6 | Does a **planet core** take a grade, or is it too large to be an object? | 0l |
+| 7 | The **fifteen Prismshard epithets** — demote, retire, or keep? | 0c |
+| 8 | Is **81** kinds-with-copies, or has the count opened? | 0c |
+
+★ **[BUILD] backlog, none acted on:** `ofTheEightyOne` on 22 Ultrashards ·
+`gemshardCensus()` · `gem_world` and `gem_space` missing from eight `gem_*` keys ·
+no `gems:[a,b]` on an Ultrashard · `ASTRALITE_FAMILIES[].color` reads as a canon
+claim it is not making.
+
+---
+
 ## 1 · THE 16 PRISMSHARDS
 
 Exactly sixteen. The highest known relic class in the Aethryx Expanse.

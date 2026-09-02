@@ -1088,7 +1088,14 @@ manufactured, NOT among them.** Which opens a good question: **which three
 Prismshards do Zysphere, Zycube and Zyramid replicate?** Bond, storage, and powers
 are three specific functions and three specific prisms could own them.
 
-#### E2 · The Father Gem line is a SECOND gem cosmology **[ASK]**
+#### E2 · ~~The Father Gem line is a SECOND gem cosmology~~ · ★★★ CLOSED — §0l
+
+> ★★★ **ANSWERED THE SAME DAY.** Creator: *"many of the planets cores are natural
+> sources of primordial astral energy due to planets being formed around
+> prehistoric aenor eruption hotzones."* **A planet's core IS the hotzone it formed
+> around, and Origon formed around the densest — so its core is the Father Gem.**
+> The two genealogies below were never separate: **one is the other at planetary
+> scale.** Kept as written so the gap, and its closing, both stay visible.
 
 `timeline.html`: Origon's **Father Gem core** is *"the source from which all **10
 Mother Gems** descend."* `rp8.html`: a cosmic stone *"carrying the frequencies of
@@ -1460,14 +1467,14 @@ SPACE on the type list **and** in the Ultrashard class. Both hold.
    UNASSEMBLED.** CORE is the first grade because a core is the first *thing*.
    **The grades begin where matter starts leaning**, so the scheme is complete at
    five.
-2. ★★★ **THE FATHER GEM AND THE TEN MOTHER GEMS.** Still the largest gap, now
-   sharper: `timeline.html` calls the Father Gem core *"the highest-density
-   cosmic-substrate jewel — the source from which all 10 Mother Gems descend"*,
-   and **the grades have no rung for it.** A jewel that produces ten jewels is
-   plainly gem-like and plainly not any of these five. **It is either a sixth
-   grade, or it is one of these five under another name, or it belongs to the
-   separate cosmology §0g§E2 flagged.** Unanswered since the census, and the
-   naming scheme is the first thing that makes its absence conspicuous.
+2. ~~★★★ **THE FATHER GEM AND THE TEN MOTHER GEMS.**~~ ★★★ **ANSWERED, same day —
+   §0l.** Creator: *"many of the planets cores are natural sources of primordial
+   astral energy due to planets being formed around prehistoric aenor eruption
+   hotzones."* **The Father Gem is a PLANET CORE** — Origon formed around the
+   densest hotzone, so its core is the densest jewel. **It was never a second
+   cosmology; it is this one at planetary scale.** ★ Whether a planet core takes
+   a *grade* is still open — it may be too large to be an object in the sense the
+   grades mean.
 
 ★ **Not missing, correctly:** utility prisms (Zysphere · Zycube · Zyramid) are
 manufactured *replicas* of prismshard function (§0g§E1), not a grade. Corruption
@@ -1569,6 +1576,122 @@ restatement:
 
 ★ The colour canon's most-flagged exception turns out to be the definition read
 back out. Nothing to reconcile.
+
+---
+
+## 0l · ★★★ THE CHARGE AND THE HOTZONES — Creator ruling, 2026-09-01
+
+> **Creator:** *"aethryx matter carries natural energy from the aenor eruption.
+> also, many of the planets cores are natural sources of primordial astral energy
+> due to planets being formed around prehistoric aenor eruption hotzones"*
+
+**Two rulings. The first settles §0k's open question better than my proposal did.
+The second closes the largest gap the census found.**
+
+### ★★★ 1 · MATTER *CARRIES* ENERGY — and that beats the split I recommended
+
+§0k flagged that defining Aethryx as *matter* collides with the standing
+*"prime energy source"*, and I proposed a semantic fix: **matter is what it IS,
+energy is what it DOES.** ★★ **This is better, because it is not semantic at all.**
+
+> **Aethryx is matter. The energy is a CHARGE it carries. The charge came from the
+> Aenor Eruption.**
+
+Not two words for one thing — **two things, in a stated relationship.** The
+substance and its charge are separable claims, which means the canon can say where
+the charge came from, and now does.
+
+★★ **It makes a shipped field literal.** Every Astralite carries `energy: 1–7`
+**[BUILD]** — a name I have been treating as an index. **It is a measurement.** An
+Astralite's energy is *how much Aenor charge that piece holds*, and the field has
+been saying so since the Matrix went in.
+
+★★★ **And it has a consequence worth stating plainly, because everything downstream
+inherits it:**
+
+> **The energy in the saga is FINITE and ANCIENT. All of it came from one event,
+> fifteen billion years ago. Nothing makes more.**
+
+Every gem, Gemshard, Ultrashard, Prismshard, every Ultramax move and every
+Amplified Mode is drawing on the same battery. ★ That is a very strong spine for a
+setting, and it retro-explains §0d's hardest rule without appeal: **a Prismshard
+cannot be crafted because the charge that made it is not available any more.** The
+scarcity was never a rule; it is a physics.
+
+### ★★★ 2 · THE FATHER GEM IS A PLANET CORE · §0g§E2 IS CLOSED
+
+§0g flagged *"the Father Gem line is a SECOND gem cosmology"* — a genealogy of
+gem-like objects with no connection to the Astralite ladder — and called it the
+largest structural gap in the census. **It was never a second cosmology. It is
+this one, seen at planetary scale.**
+
+`timeline.html`, already shipped, describes Origon:
+
+> *"The **first planet to crystallise from the Aenor substrate**. … The **Father Gem
+> core** is the highest-density cosmic-substrate jewel — the source from which all
+> 10 Mother Gems descend."* · *"the Father Gem core's ambient cosmic-substrate
+> density is so extreme that no being below Tier VI Pseudoimmortal can natively
+> form or survive here."*
+
+★★★ **Planets formed around hotzones. A planet's core is the hotzone it formed
+around. Origon formed around the densest one, so its core is the Father Gem.**
+
+```
+  AENOR ERUPTION
+       ↓ leaves
+  HOTZONES  ·  regions of concentrated charge
+       ↓ planets crystallise around them
+  PLANET CORES  ·  natural sources of primordial astral energy
+       ↓ densest of all · Origon, the first planet
+  THE FATHER GEM  →  the 10 Mother Gems
+```
+
+★★ **Two loose ends tie off at once.** Origon's *"no being below Tier VI can
+survive here"* stops being a curiosity and becomes a **dosage** statement — the
+charge density is lethal below a tier. And the Mother Gems descending from the
+Father Gem is the same **shed-not-spent** relationship §3 already describes for
+Prismshards.
+
+★ **One word to be careful with, flagged before it causes trouble: *source*.** A
+core is a source the way a **spring** is a source — a place where an ancient charge
+reaches the surface — **not a generator.** Nothing in this ruling makes new energy,
+and §1 above is why. Worth fixing in the wording now rather than un-writing
+someone's "the core replenishes" later.
+
+### ★★★ 3 · IT GIVES §0f's "COLOUR = GEOGRAPHY" A MECHANISM
+
+§0f ruled colour orthogonal to family and left open *what selects a hue*. I
+recommended **where it formed** — and had no reason, only a fit.
+
+> ★★★ **Now there is a reason. If a planet's crust formed around a hotzone, then
+> different regions of that crust carry different concentrations and characters of
+> charge. A gem's colour is the signature of the ground it came out of.**
+
+**The eight district stones become eight readings of the same hotzone**, and the
+Creator's district gem hunt stops being a fetch quest twice over: it is the colour
+axis made playable *and* a survey of the planet's own formation. ★ Recommendation
+(a) in §0f§4 was the right one and now it is the supported one.
+
+### ★★ 4 · THREE THINGS IT SUGGESTS · **[INFER]**, offered not written
+
+1. ★★ **The Gemlord caves.** Ten Gemlord sanctums are **underground** **[BUILD]** —
+   which is *toward the core*. **The Gemlords live nearest the charge.** Their
+   weapons being Gemshards and their districts owning stones reads as proximity,
+   not privilege.
+2. ★★ **Thardin.** The tech district mass-produces the three utility prisms
+   (§0g§E1), holds the **WORLD** gem, and owns the gatelock and Scanobot
+   technology. **A district that industrialises its planet's own core charge** is a
+   coherent picture and nothing had to be invented to get it.
+3. ★ **"Primordial astral energy"** — *astral* is the root of **Astralite** and of
+   the **ASTRAL** type. The naming chain `Aethryx → astral charge → Astralite`
+   already runs the right way.
+
+### ★ 5 · WHAT IT DOES NOT CHANGE
+
+★ The five grades (§0j) are untouched: a charge is not a rung. §0k's definition
+stands, and *"matter that has not yet leaned"* is now joined by a second true
+sentence — **matter that carries the eruption's charge.** ★ And the 16 remain 16:
+hotzones explain where energy *is*, not how a Prismshard could be made.
 
 ---
 

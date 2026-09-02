@@ -1454,11 +1454,12 @@ SPACE on the type list **and** in the Ultrashard class. Both hold.
 
 **Two things, and one of them matters.**
 
-1. ★ **AETHRYX.** The one thing *below* CORE — the substrate every Astralite is
-   made of, *"not one of the sixty-three · the REASON there are sixty-three"*
-   (§0b). It may be deliberately outside the scheme, since it is a **substance**
-   rather than an object and the grades are grades of objects. **Flagged, not
-   named** — inventing a sixth C-word is your call, not mine.
+1. ~~★ **AETHRYX.**~~ ★★★ **ANSWERED, same day — §0k.** Proposed definition:
+   ***"the basic form of pure matter."*** **No sixth grade is owed, and the
+   definition is why: a grade is a way of being ASSEMBLED, and Aethryx is
+   UNASSEMBLED.** CORE is the first grade because a core is the first *thing*.
+   **The grades begin where matter starts leaning**, so the scheme is complete at
+   five.
 2. ★★★ **THE FATHER GEM AND THE TEN MOTHER GEMS.** Still the largest gap, now
    sharper: `timeline.html` calls the Father Gem core *"the highest-density
    cosmic-substrate jewel — the source from which all 10 Mother Gems descend"*,
@@ -1471,6 +1472,103 @@ SPACE on the type list **and** in the Ultrashard class. Both hold.
 ★ **Not missing, correctly:** utility prisms (Zysphere · Zycube · Zyramid) are
 manufactured *replicas* of prismshard function (§0g§E1), not a grade. Corruption
 is an **overlay** on any grade, not a rung. Gemlord weapons are **complex**.
+
+---
+
+## 0k · ★★★ AETHRYX · "THE BASIC FORM OF PURE MATTER" — proposed 2026-09-01
+
+> **Creator:** *"should aethryx just be defined as the basic form of pure
+> matter?"*
+
+**Yes. Recommended, with one word added — and it closes the set rather than
+extending it.**
+
+### ★★★ 1 · THE DISTINCTION FROM *ASTRALITE* IS COUNT, AND IT IS EXACTLY RIGHT
+
+Set beside §0d's own sentence, the two look almost identical — and the difference
+is the whole cosmology:
+
+| | definition | |
+|---|---|---|
+| **ASTRALITE** | *"**a single piece** of matter in its most basic form"* | ★ **countable** · 63 of them |
+| **AETHRYX** | *"the basic form of **pure** matter"* | ★ **uncountable** · the stuff itself |
+
+> **A grain versus sand. An ingot versus gold.**
+
+★★ **One word carries it — *a single piece* — and that is a feature, not a
+fragility.** The two are meant to be nearly the same sentence, because §0b already
+rules they are the same substance: *"an Astralite is what Aethryx becomes when it
+**leans**."* A definition that made them sound like different materials would be
+the wrong one.
+
+★ It also puts the proposal in the same register as the other five (§0d), which
+are all plain *"X is a Y"* statements in matter-language. **Six definitions, one
+voice.**
+
+### ★★★ 2 · PIN "PURE", OR IT WILL DRIFT
+
+**The one change I would make.** *Pure* has two readings and only one is meant:
+
+- ✗ **pure as in fine** — high-grade, refined, better. Wrong, and it is the reading
+  a new reader takes first.
+- ✓ **pure as in unalloyed** — **not yet leaning.** Which is exactly §0b's
+  mechanism.
+
+> ★★ **Recommended wording:** ***"Aethryx is the basic form of pure matter — matter
+> that has not yet leaned."***
+
+Five extra words, and they make the definition self-explaining: **an Astralite is
+what a piece of it becomes when it does lean.** The two definitions then generate
+each other, and neither has to reference a third document.
+
+### ★★★ 3 · IT EXPLAINS WHY AETHRYX HAS NO GRADE — the §0j gap was not a gap
+
+§0j flagged that the five grades (CORE · COMPOUND · COMPLEX · COMPOSITE ·
+COSMOLOGIC) have no rung for Aethryx, and I left open whether a sixth C-word was
+owed.
+
+> ★★★ **This definition answers it: no, and here is why. A grade is a way of being
+> ASSEMBLED. Aethryx is UNASSEMBLED.**
+
+**CORE is the first grade because a core is the first *thing*.** Aethryx is not a
+thing on the ladder; it is what the ladder is made of. So its absence from §0j
+stops being an oversight and becomes a rule — **the grades begin where matter
+starts leaning** — and the scheme is complete at five.
+
+★ Same logic already worked once: §0b dissolved the white-gem exception by making
+white *a remnant of the substrate* rather than a descendant. **This is the same
+move applied to the grade list**, which is a good sign the frame is load-bearing
+rather than convenient.
+
+### ★★ 4 · ONE FLAG · it changes ENERGY to MATTER **[ASK]**
+
+Standing canon says **"AETHRYX — the prime energy source"** `aethryx.html` and
+*"aethryx (the prime energy source) makes up the entire world"* (Creator, §0b).
+**The proposal says matter.**
+
+★ **This is a fix, not a break** — §0d already calls Astralites *matter*, and they
+are made of Aethryx, so the canon has been calling one substance *energy* and its
+products *matter* for a while. But adopting it means picking a word, and *energy*
+is embedded: §15's *"fundamental elemental/existential energy"*, and the shipped
+`energy: 1–7` field on every Astralite **[BUILD]**.
+
+> ★★ **Recommended, and it costs nothing: MATTER is what it IS. ENERGY is what it
+> DOES.**
+
+Both words keep a job, `energy: 1–7` stays correct as a measure of *what an
+Astralite carries*, and only the noun-of-identity changes. **Not swept** — that is
+a prose pass across `aethryx.html` and §15, and it should follow your word.
+
+### ★ 5 · AND IT SHARPENS WHITE
+
+`GEM_COLOR_PSYCHOLOGY_CANON.md`: a **white gem is a trace of Aethryx**, balance, no
+lean. Under this definition that stops being a special case and becomes a
+restatement:
+
+> **A white gem is a piece of matter that never leaned.**
+
+★ The colour canon's most-flagged exception turns out to be the definition read
+back out. Nothing to reconcile.
 
 ---
 

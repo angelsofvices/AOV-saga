@@ -266,6 +266,168 @@ move Novarius made when he *"tamed Rakoron through TRUST, not force."*
 > *trusted* with what comes next. **The answer is not a trophy. It is what Rizer does
 > to the person who would have taken it.**
 
+### ★★★ 7g · TIGHTENED BY THE CREATOR, 2026-09-01 — S2 timing, the climax, the corruption
+
+> **Creator:** *"he cant have s2 until endgame battle against xenoxil. he uses his s2 form to fight zoryns s2 form in part 2. maybe zoryn vs. rizer as the final novarian challenge end game battle climax. zoryn, xenoxil, orryx, ophira, and the seers. maybe zoryn rebuilds the seers under him and tries to take over lower zyraxis. this time, rizer has more help against the rebuilt seers under zoryn who now has his powerup as well. (perfect corruption: white gem affinity + corruptshard consumption?)"*
+
+#### ★★★ 1 · S2 · corrected. It arrives AT the Xenoxil battle.
+
+★ **My §7e was wrong** — I had the finale won with S1 alone and the boss fight as S1
+vs S2. **S2 is unlocked at the Part 1 endgame**, in the fight against Xenoxil, at the
+last possible moment. Part 2 is about **having** it.
+
+★★ **The deferral survives, and gets better.** Rakoron does not refuse forever — **he
+defers to the last possible moment**, which means **he has to show up at Korathen and
+say *now*.** A god who twice said *not yet*, arriving to keep the promise, is a payoff
+the original never had.
+
+★★★ **And the boss fight becomes SYMMETRICAL, which is stronger than my asymmetry:**
+
+> **S2 versus S2. The same power, two ways of getting it.**
+>
+> **Rizer was given it after being refused, and accepting the refusal.
+> Zoryn took it, because he couldn't.**
+>
+> ★★ **The fight cannot be decided by power, because the power is identical.** It is
+> decided by the only thing that differs — **how each of them answered a no.**
+
+#### ★★★ 2 · THE CLIMAX · the Challenge final IS the humiliation that makes the nemesis
+
+**Rizer vs Zoryn as the Novarian Challenge final** completes §7b's seed exactly.
+
+> ★★★★ **He spends Part 1 invisible. He enters the one arena built to be seen in. He
+> becomes impossible to overlook — AND IS SEEN LOSING.**
+>
+> **That is immeasurably worse than being ignored, and it is what turns a rival into
+> an arch nemesis.** Not a private comparison in a Gemlord's cave. **A public verdict,
+> in front of the planet, delivered by the friend who was already the one they
+> watched.**
+
+★★ **It also makes the Rizemaster proposal land** (§7c): the Challenge crowns Rizer,
+so **the title Zoryn spent two parts trying to deserve is placed on the man who beat
+him for it, in the same minute.**
+
+#### ★★★ 3 · WHAT HE DOES NEXT · he rebuilds the thing that also lost
+
+**Zoryn rebuilds the Seers under himself and moves on Lower Zyraxis.**
+
+★★★ **And that is the sharpest possible choice, because the Seers are the other party
+in this story who could not accept a verdict.** Xenoxil, Orryx and Ophira spent Part 1
+trying to occupy an authority that was never offered to them. **Zoryn inherits their
+argument because it was always his argument.** He is not recruiting an army; **he is
+joining the only people on Zyraxis who already agreed with him.**
+
+★ Orryx was written as *"the Reluctant Believer,"* Ophira as *"the Prophetess."* ★★
+**A defeated Reluctant Believer following a man who has just proved the judges were
+wrong is not a stretch — it is a promotion.**
+
+#### ★★★ 4 · "RIZER HAS MORE HELP" · and the help is what the Empty Throne EARNED
+
+★★★ **This is the ending paying out.** In Part 1 the **Gemlord Pact** forbade the
+Gemlords from destroying mortal Seers, so they **empowered a mortal-led faction
+instead** — Rizer fought nearly alone, on loan.
+
+Then he **refused the throne and gave authority back to the districts.**
+
+> ★★★★ **So in Part 2 the districts give it back — voluntarily.** Ten restored
+> authorities, a Faction of 9 earned in the bracket, and a planet that watched him
+> decline to rule it.
+>
+> **The help is not a difficulty adjustment. It is the interest on a refusal.**
+
+★ **And it inverts Part 1 cleanly:** Rizer began as an outsider in Malezor who had not
+proven he could survive the Beastlands. **He ends Part 2 as the man the whole planet
+volunteers for — having never once asked.**
+
+#### ★★★★ 5 · PERFECT CORRUPTION · the colour canon RESERVED this exact question
+
+**The Creator has answered his own open call.** `GEM_COLOR_PSYCHOLOGY_CANON.md` §10,
+question 4, written weeks ago and never resolved:
+
+> *"★★ **Can corruption take WHITE?** §3a sharpens this: if white is *balance*, a
+> corrupted white is **balance itself made to lean** — the state that has no
+> preference, given one. §5 says nothing in the cosmology forbids it. **That is either
+> a major late-game reveal or a line you do not want crossed; either way it is yours,
+> not mine.**"*
+
+★★★★ **It is the major late-game reveal.** And §5 of the same document already
+pre-specified what it would be worth:
+
+> *"A corrupted white — **a thing that reflects everything and has been made to reflect
+> a lie** — **should be the worst thing in the Expanse**, and nothing in the cosmology
+> currently forbids it."*
+
+**That sentence was written before Zoryn had a power-up. It is his power-up.**
+
+##### ★★★ Why WHITE is the one that takes him — and it is character, not colour
+
+`GEM_COLOR_PSYCHOLOGY_CANON.md` §3a: **"White is not the absence of colour. It is the absence of PREFERENCE."**
+
+> ★★★★ **Zoryn is nothing but preference.** A man defined entirely by wanting one
+> thing, fused to the one gem that wants nothing.
+>
+> **White takes him because white has no lean of its own to resist his.** Every other
+> colour would have argued. **Balance is the only thing with no opinion about being
+> given one.**
+
+★★ And it makes his form legible on sight: **white reflects all.** A corrupted white
+**reflects a lie** — so Zoryn in his final form **shows every onlooker whatever they
+already believe.** For a man whose wound was *not being seen*, a power that makes
+everyone see themselves is the cruellest possible answer to it.
+
+##### ★★★ The mechanism is already shipped
+
+**`shard_blackspiral` · "Blackspiral Shard" · type Corrupted · Ultramax move "Max Blackspiral"** — **[BUILD]** `rp7b.html:3051`, `:35313`, drop weight 6 at `:3990`.
+
+★★ **It is an ULTRASHARD, and §0d says an Ultrashard is *consumed by a being to learn
+a move*.** So *"corruptshard consumption"* is not a new system — **it is the shipped
+Ultrashard verb, used by a person instead of a Zyrex.** ★ Which is itself the horror:
+**Ultrashards are for Zyrex. He ate one.**
+
+##### ★★★★ And the game has been carrying the counter-example since hour one
+
+```js
+rp7b.html:35326
+omegoran: { move:'Ultra Voidcore', acceptedShards:['shard_wyrm','shard_blackspiral'] },
+```
+
+★★★★ **OMEGORAN — the corrupted end of ELZORAN, which is RIZER'S OWN STARTER LINE —
+is already coded to accept the Blackspiral Shard.**
+
+> **Elzebub → Elzimir → Elzoran → *Omegoran when corrupted*.**
+>
+> ★★★ **The player has been carrying the alternative version of Zoryn since the first
+> hour of the game, and feeding it.** Zoryn's fall is not a new mechanic introduced
+> for a boss. **It is the branch the player's own starter has always had, taken by
+> somebody else.**
+
+★★★ **And the cosmology already contains the precedent, at the largest possible
+scale.** A purple **Father-Gem fragment** fell to Draevos and corrupted **Elzoran into
+Omegoran**; Omegoran was purged; **the escaping shadow fled to Origon, coalesced as
+EURAKEON — and took a seat as a GEMLORD.**
+
+> ★★★★ **Corruption by gem, followed by ascension to district authority, is not a
+> thing Zoryn invents. It is a thing that has already happened once in this cosmology
+> and is currently sitting in Netharion.**
+>
+> **Zoryn is attempting, as a mortal, what a cosmic shadow already achieved.** ★★ And
+> it gives Eurakeon a reason to be in Part 2 that nothing else could have supplied:
+> **he is the only Gemlord who took this road and arrived.**
+
+##### ★ Open, and worth your ruling
+
+1. ★★ **Where does the white gem come from?** White is *"a trace of Aethryx"* — the
+   substrate. ★ **The Pit** is the one place with no authority in it, and §0l makes
+   planet cores hotzones of raw charge. **A trace of unleaned matter at the bottom of
+   the Pit** is consistent and unwritten. **Not asserted.**
+2. ★ **Is "perfect corruption" a NAME or a GRADE?** If corruption is an overlay (§5),
+   *perfect* corruption would be the overlay on the only surface that takes it
+   completely. **That reads as a one-off, not a tier** — recommended, but yours.
+3. ★ **Does Zoryn keep it, or does it keep him?** §7e proposed that Rizer can save him
+   only by declining to finish him. ★★ **Balance made to lean can, in principle, be
+   let go of. A man who has become the thing that reflects everyone might be reachable
+   by exactly one person — the one he was measuring himself against.**
+
 ### ★ 7f · ANSWERS TO THE REMAINING OPEN QUESTIONS
 
 - **(1) Does the chest race have a floor?** ★★ **Quest-critical: exempt. Cosmic:

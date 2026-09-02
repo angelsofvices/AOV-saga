@@ -347,7 +347,28 @@ of scale beyond a planet.**
 | structure | 10 districts, 7 missions each | ★ **the Novarian Challenge** · 9-year bracket · Faction of 9 |
 | ends with | **the Throne remains empty** | *(open)* |
 
-### ★★★ 11b · S2 leaving Part 1 makes the ENDING better — this is the real prize
+### ~~★★★ 11b · S2 leaving Part 1 makes the ENDING better~~ · ★★★ WRONG — CORRECTED BY THE CREATOR, SAME DAY
+
+> **Creator:** *"he cant have s2 until endgame battle against xenoxil. he uses his s2
+> form to fight zoryns s2 form in part 2."*
+>
+> ★★★ **I over-read the ruling. "S2 is a Part 2 storyline" does not mean S2 is absent
+> from Part 1 — it means the S2 STORY (its mastery, its cost, what it is for) belongs
+> to Part 2.** **S2 is unlocked AT the endgame battle against Xenoxil**, at the last
+> possible moment, and Part 2 is about *having* it.
+>
+> ★★ **What survives, and it is the load-bearing half: RAKORON STILL DEFERS at the
+> Ruby Rage.** He does not refuse forever — **he defers to the last possible moment.**
+> §11c stands as written; only its conclusion changes.
+>
+> ★★★ **And the correction earns something the original did not: Rakoron has to SHOW
+> UP AT THE FINALE.** A deferral is a promise, and the promise has to be kept on
+> screen. **The god who twice said *not yet* arrives at Korathen and says *now*** —
+> which is a far better payoff than a power the player simply had.
+>
+> **The reasoning below is kept as history. Read its conclusion as retracted.**
+
+### ★★★ 11b · ~~S2 leaving Part 1 makes the ENDING better~~ — the argument I got wrong
 
 The finale currently *"uses **S1** for control and perception, **S2** for disciplined
 fury."* Take S2 away and **Xenoxil is beaten with S1 alone** — the power the canon

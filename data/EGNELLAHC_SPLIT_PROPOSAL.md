@@ -1,0 +1,179 @@
+# THE EGNELLAHC SPLIT — hiding the Ninth and Tenth Gemlords
+**PROPOSAL, 2026-09-01. Not canon until the Creator rules.**
+
+> **Creator:** *"should we not make the ninth and tenth gemlord hidden? … maybe we can rewrite their lore. tying them more closely to their origin story of egnellahc. he can be a part 2 NPC character with subtle part 1 foreshadowing. let me know. want it to fit."*
+
+**Answer: yes — and it needs far less writing than expected, because it is not a rewrite. It is a REVEAL, and the foreshadowing is already shipped.**
+
+---
+
+## ★★★ 1 · THE HEADLINE
+
+> **Two missing Gemlords is not two mysteries. It is ONE MISSING PERSON, and the game has been counting him wrong on purpose.**
+
+That is what *"split himself"* has to mean if it means anything. The moment both IX and X are hidden, the question stops being *"where did they go"* and becomes ***"there was only ever one."***
+
+★★ **It also settles `RP7_MAIN_STORY_CANON.md` §6.3 in favour of the draft.** The draft has always called Oathane *"the Anomaly — missing"* and built Thardin's arc around finding him; only the build treats him as present. **The draft was right.**
+
+---
+
+## ★★★ 2 · THE FORESHADOWING IS ALREADY IN THE GAME
+
+`SCROLL_THEMES`, theme `throne` — **ten pages, one per district, already shipped** (`rp7b.html:32303–32313`, source `data/scroll_lore_source.py`). Read in order it is a complete mystery arc that nobody wrote a reveal for:
+
+| district | Dad's page |
+|---|---|
+| Malezor | *"Our hall has ten seats carved into the beam and one is left unpainted. 'Tradition,' they say. Nobody can tell me the tradition."* |
+| Zarvane | *"Zarvane sets ten cups at solstice and pours nine."* |
+| Andrannor | *"A tenth podium never once used and dusted daily. The cleaner has done it forty years."* |
+| Veridan | *"Veridan's parliament leaves a gap in the root-ring. **Nobody cut that gap. The trees grew around it on their own.**"* |
+| Netharion | *"**OATHEUS, Tenth Gemlord of Korathen, is ABSENT. Not dead.** The archive is very specific about that distinction and repeats it twice."* |
+| Vorashil | *"An absent Gemlord means an unclaimed Fathergem, and an unclaimed Fathergem means an open seat in a council that governs by CONSENT. Do the arithmetic."* |
+| Xilnar | *"Obsidius would know if Oatheus had died. Obsidius says nothing."* |
+| **Baelgor** | ★★★ *"**The Pledge requires ten signatories and has nine.** Every law built on it is provisional. Everyone has agreed not to mention this."* |
+| **Thardin** | ★★★ *"Oathane consented LAST and regretted it FIRST. **He may be the only one alive who knows where the tenth went.** He gave me nineteen silent minutes."* |
+| Korathen | ★★★ *"The Empty Throne is not a vacancy. It is a **QUESTION left open on purpose** — and answering it is what ends this. **I do not know who it was left open for.**"* |
+
+### ★★★ 2a · The Thardin page becomes a different sentence and NOTHING is rewritten
+
+> *"He may be the only one alive who knows where the tenth went. He gave me nineteen silent minutes."*
+
+**If Oathane and Oatheus are one being, Dad is exactly right and does not know why.** Oathane knows where the tenth went **because Oathane is the tenth.** And the nineteen silent minutes stop being a reticent immortal and become ★★ **a man who cannot answer without confessing.**
+
+**That line already ships.** The reveal doesn't need it changed — it needs the player to reach it again.
+
+### ★★★ 2b · The nine-letter clue is already planted, and it fits only one name
+
+`rp7b.html:32155`, theme `aethryx`, Baelgor page — **shipped:**
+
+> *"The Pledge was sworn TO something and the founders never wrote what. **The blank space is exactly nine letters wide. I measured it twice.**"*
+
+And `:32151`, Veridan: *"Parliament records the name in a script used for nothing else and taught to no one. **I copied nine characters. I have never found the tenth.**"*
+
+| name | letters |
+|---|---:|
+| OATHEUS · OATHANE · AETHRYX | 7 |
+| ANCIUXOR · NOVARIUS | 8 |
+| ★★★ **EGNELLAHC** | **9** |
+| MYKARLYTH | 9 |
+
+**Of every name in the cosmology, the nine-letter blank fits EGNELLAHC.** *(Mykarlyth also fits — which is not a problem but a gift: he is Egnellahc's father and the pattern Egnellahc rejected. A player who guesses wrong guesses the right family.)*
+
+★★ **Whether that was deliberate or not, it is true now**, and it is the single best existing hook. **Recommendation: change nothing about those two pages.** They are already the puzzle.
+
+### ★ 2c · Three more that already point at it
+
+- ★★★ `:32169` gemlords·Korathen — *"**The Council seats TEN. I have watched it convene four times. It has never once seated ten.** Look at the empty chair and count the dust on it."*
+- ★★★ `:32337` dream·Korathen — *"The Gemlords have been holding that door shut with their bodies. **All ten of them. Nine.**"* — Dad correcting himself mid-sentence.
+- ★★★ `:32333` dream·Vorashil — *"**A Rizer in Dreamland meets THEMSELVES.** That is not a warning, it is the mechanism. I met mine. **We did not get on.**"*
+
+★★ **That last one is the thematic rhyme for a being split in two — and it hands you the venue.** Dreamland is where a self meets its other self. **It is where Egnellahc should be met.**
+
+### ★★★ 2d · The MECHANISM of the split is already taught, in another vocabulary
+
+The player learns splicing across three districts before ever hearing of Egnellahc:
+
+- `:32126` matrix·Andrannor — *"Watched a splicer force **one signature to hold two shapes**. It worked. **Something paid for the second shape and it was not the splicer.**"*
+- `:32174` zyrex·Andrannor — *"Andrannor proved a Zyrex CAN hold two signatures. It did not prove one should."*
+- `:32270` types·Andrannor — *"Hybrids hold two types and pay for the second in lifespan."*
+
+> ★★★ **The game has spent a whole district explaining what it costs to be one thing in two shapes. The reveal needs no new rules — the player was taught them in Act II and did not know what for.**
+
+---
+
+## ★★★ 3 · WHY HE SPLIT — the one thing no file says, and the answer the canon already implies
+
+**Searched the whole repo: no text gives a reason.** That is the gap this proposal exists to fill, and the existing chronology fills it almost by itself.
+
+```
+  born on MYRACLESE, son of MYKARLYTH — a father who ruled by FORCE
+        and enforced devotion through the Third Thamonian Legion
+                          ↓ rejects him · challenges him · is SPARED
+  founds NEXYROS · becomes ELDER PRIME · a ruler in his own right
+                          ↓ THE TRANSPLACEMENT — his own ritual
+        SHATTERS HIS OWN WORLD and scatters his congregation
+                          ↓ arrives on ZYRAXIS
+                    ★ and is offered a throne
+```
+
+> ★★★ **A man who fled a father who ruled absolutely, became an absolute ruler, and destroyed his own world doing it — is offered the whole of Zyraxis.**
+>
+> **He refuses to be one absolute ruler again. So he divides himself, so that no single being will hold the whole.**
+
+★★ **Oathane = the SYSTEM. Oatheus = the LAW.** *(Already canon: `rp8.html:2680-2681` — "Balance/System" and "Divinity/Law"; `codex.json:13573/13618` — "pure calculation and enforced equilibrium" vs "will, creation, and divine authority.")* **He kept administration and authority in separate hands because both had been in his once.**
+
+### ★★★ 3a · AND THAT IS THE GAME'S ENDING, ALREADY WRITTEN
+
+> *"**The Throne Remains Empty** — Rizer refuses to replace one absolute ruler with another and restores authority to the districts."* — `rp7_main_story_progression_draft.md:273`
+
+★★★ **Rizer's ending is Egnellahc's decision, made a second time, by a mortal who never knew it had been made before.** The Empty Throne is not a mystery to be solved. **It is an argument that was already won, and everyone forgot.**
+
+★★★ **Which finally explains the throne's one shipped behaviour** — *"violently rejects unworthy claimants."* **It rejects everyone who tries, because trying is the disqualification.** The seat was built for whoever would refuse it.
+
+> ★ Dad: *"a QUESTION left open on purpose — and answering it is what ends this. I do not know who it was left open for."*
+> **It was left open for whoever would leave it open.**
+
+---
+
+## ★★★ 4 · WHY OATHANE SIGNED THE NOVARIAN ACCORD
+
+Already shipped, `:32251`, Baelgor: *"**The Accord sanctioning the Challenge was signed by OATHANE.** A Gemlord underwrote a sporting event. **I have never got a straight answer as to why.**"*
+
+The archive has the reason and it is perfect: *"Sanctioned by OATHANE (post-split) — **because Oathane sees himself in Novarius: both are first-humanoids of their era, both refuse Mykarlyth's pattern.**"*
+
+> ★★★ **Novarius tamed Rakoron through TRUST, NOT FORCE. That is precisely what Egnellahc did to his father's pattern.** A mortal, unknowingly, made Egnellahc's argument again — with a Zyrex instead of a Titan. **Of course he signed it. He was countersigning his own life.**
+
+★ **And it makes the Seers' target exact.** *"THE SEERS SEEK TO DESTROY THIS OATH."* They are not attacking a tournament. **They are attacking the one surviving document in which a divided god argued against absolute rule** — which is the same thing they intend to restore.
+
+### ★ CONFLICT to resolve — you said Oatheus, the files say Oathane
+
+You wrote: *"he even allowed the creation of the Novarian Challenge **as Oatheus**."* Both the shipped scroll and the archive say **OATHANE** signed.
+
+★★ **Proposed reconciliation, offered not assumed:** under this proposal **they are one being, so both are true and the distinction is the point.** **Oatheus (LAW) permitted it. Oathane (SYSTEM) signed it.** An Accord needs authority to allow it and administration to enforce it — **and Egnellahc had deliberately put those in two different hands, so the Challenge required both halves to agree with itself.** ★ That is also a quiet demonstration that the split is real and costly: *he had to negotiate with himself to permit a footrace.*
+
+---
+
+## ★★ 5 · WHAT CHANGES IN THE BUILD — less than you would think
+
+| thing | today | under the proposal |
+|---|---|---|
+| **Oathane's card** `:22457` | `OATHANE · GEMLORD OF THARDIN` | ★ hidden until revealed |
+| **Oathane's vault** `:4774-4806` | placed, working, gorgeous | ★★★ **keep every word.** Its own comment says the door is *"machinery that appears to violate its own construction · pipes that feed nothing, wheels turning against their own gearing … machinery that shouldn't work, and works."* **That is already a description of a being running on half of itself.** No change needed — only meaning added |
+| **The Anomaly Engine** `:5754` | *"built around Oathane's last known energy signature · sealed for now"* | ★ already implies missing. Keep |
+| **Oatheus's door** `:4737-4772` | *"a promise the game cannot keep"* · deliberately denied the "sealed for now" toast because *"Theirs are sealed BY a Gemlord. This one has no one to seal it"* | ★★★ **That comment becomes wrong in the best possible way. It IS sealed by a Gemlord — the same one who sealed Thardin's.** Worth keeping the toast difference and re-commenting it |
+| **Egnellahc** | codex entry only, T-VII, *"Humanoid Prime"* | ★ **Part 2 NPC.** Dreamland is the venue (§2c) |
+| **§6.3** | *"NEEDS YOUR RULING"* | ★ resolved for the draft |
+
+★ **Almost nothing needs deleting.** The build was already written as if this were true.
+
+---
+
+## ★★ 6 · WHAT PART 1 STILL NEEDS — three lines, not a chapter
+
+The foreshadowing is dense enough already. My recommendation is to **add almost nothing** and instead let one existing thread land:
+
+1. ★★ **Thardin's Anomaly Engine should half-work.** The draft already says its result *"does not fully resolve the Gemlord's fate"* and *"discovers that the disappearance is connected to Oatheus and Korathen."* **Give it one reading that makes no sense: the Engine locates Oathane's signature — in Korathen.** Nobody explains it. Dad's note would.
+2. ★ **One Dreamland line.** The player who sleeps in Thardin meets someone who is not themselves and is also not one person. No name. No explanation.
+3. ★ **Obsidius's silence should be asked about once.** He is the only walking Gemlord and the only one who joins the player. *"Obsidius would know if Oatheus had died. Obsidius says nothing."* ★★ **He is not protecting a secret about a death. He is protecting a colleague's decision** — and refusing once, on screen, is stronger than a hundred hints.
+
+★ **Everything else already exists.** Adding more clues would make the reveal cheaper, not clearer.
+
+---
+
+## ★★★ 7 · GAPS AND CONTRADICTIONS — flagged, not papered over
+
+1. ★★★ **NOTHING BRIDGES NEXYROS → ZYRAXIS.** `timeline.html:1837` says Zyraxis *"later receives Egnellahc's sundered mind"*, but his dated arc ends at Nexyros with the Transplacement. **How he crossed, and whether he arrived already sundered or split after arriving, is unwritten.** ★ `aethryx.html:1970` may be the door: *"leaving only the spiral scar of his cosmic working. Walk it carefully. **Doors that big do not always stay shut.**"*
+2. ★★ **Two different events share the word "Transplacement."** `codex.json:12574` — **Mykarlyth** transplaced Egnellahc *to* Nexyros. `timeline.html:1903` — Egnellahc's own ritual transplaced everyone *out of* it. Both cannot keep the name.
+3. ★★ **Birthplace conflict.** Born on **Myraclese** (`timeline.html:1855`) vs *"the first humanoid **on Zyraxis**"* (`HANDOFF_MASTER_CODEX_SYNC:121`) vs Nexyros as *"The Humanoid Prime World."*
+4. ★★★ **ANCIUXOR ALREADY CLAIMS THE THRONE.** `rp7b.html:11526` — ***"I am Anciuxor. I am the answer to the Empty Throne of Oatheus."*** **If Egnellahc is the answer, what is Anciuxor?** Two candidates for one slot. ★ *A reading that saves both: Anciuxor is the answer to the throne as a **cosmological** object; Egnellahc is the answer to it as a **political** one. But that is a reconciliation, not a ruling.*
+5. ★ **`codex.json` types the halves as a different kind of being from their source** — Oathane and Oatheus are `role: zyrex`, class Beastmaster; Egnellahc is `role: zyraxian`, class Cleric. If they are him, that needs a decision.
+6. ★ **`battlegrounds.html:1520` has Egnellahc at Tier V, Ultramaxborn/Humanoidborn** against Tier VII Humanoid-Noid/Spirit everywhere else.
+7. ★ **No date exists for the split** — only *"later"* than ~9 Bya and *"long before"* the late Malezor era.
+
+---
+
+## ★ 8 · THE ONE-PARAGRAPH VERSION
+
+> **Egnellahc — first humanoid, son of a father who ruled by force — rejected that father, founded a world, and destroyed it with his own ritual. He came to Zyraxis and was offered a throne. Rather than be an absolute ruler a second time, he divided himself: OATHANE to administer, OATHEUS to decide, so no one being would hold the whole. Then Oatheus stepped away entirely and left the tenth seat empty, and Oathane — who alone knows why — has been silent about it ever since. He signed Novarius's Accord because a mortal had just made his argument for him. The Seers want the Accord destroyed because it is the surviving record of a god refusing to rule. And the Empty Throne rejects every claimant because it was left open for the one person who would refuse to sit in it.**
+
+★★★ **Which is the ending the game already has.** Rizer does not solve the mystery of the Empty Throne. **He becomes the second person to agree with it.**

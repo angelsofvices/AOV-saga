@@ -123,25 +123,64 @@ learned the game together.
 
 > **Creator:** *"how should we tie zoryn into part 1 and 2. bestfriend rival turns obsessive arch nemesis"*
 
-### ★★★ 7a · THE FORK, IN ONE SENTENCE
+### ★★★★ 7a · THE FORK · CONTROL versus BOND — Creator, 2026-09-01
 
-The Ruby Rage ruling gave Rakoron a new job: **he refuses Rizer.** *Not yet. Not like this.*
+> **Creator:** *"I dont want zoryn arc to be unseen. he is popular. he is the highest ranked student before rizer comes and seems to be less serious but just as powerful. naruto/sasuke theme friendship. **zoryn wants to control gemlords, rizer wants to bond. this is why rakoron accepts him.** zoryn has to find s2 power other ways than bonding which is why he accepts the invitation of the seers after part one"*
 
-> ★★★ **Both boys get told no. Rizer accepts it. Zoryn doesn't.**
+★ **This replaces my "being unseen" seed entirely** — see 7b-withdrawn. **Zoryn is not
+overlooked. He is the one everyone is watching**, and that is the point.
+
+> ★★★★ **ZORYN WANTS TO CONTROL GEMLORDS. RIZER WANTS TO BOND WITH THEM.**
+> **Rakoron chooses Rizer for what Rizer WANTS — not for what he can do.**
+
+★★★★ **And that is why it cannot be fixed, which is the whole engine of the
+obsession.** If Zoryn had lost on **skill**, he could train. He lost on **desire** —
+and *you cannot train yourself into wanting something else.* **He is beaten by a
+criterion he cannot practise.**
+
+★★★★ **RAKORON IS NOT PLAYING FAVOURITES. HE IS APPLYING THE OLDEST RULE ON THE
+PLANET.** *"Novarius tamed Rakoron through **TRUST, NOT FORCE**"* — the founding act of
+the entire civilisation, and the Accord that came out of it. **Rakoron has made this
+exact judgement once before, and the whole world is built on the answer.**
+
+> ★★★ **Zoryn does not lose to Rizer. He loses to the Accord.** There is no appeal,
+> because the verdict is older than the districts.
+
+★★ **The build already encodes it as a rule, not a mood:** Gemlords come by
+**RESPECT**; the Gemlord Trial is gated behind **Bond > 80%** **[BUILD]**.
+**Zoryn is trying to brute-force a system that is explicitly consent-gated.**
+
+### ★★★★ 7a-2 · WHY THE OBSESSION IS AN ARGUMENT, NOT A GRUDGE
+
+He was **the highest-ranked student.** Popular, gifted, apparently unserious and **just
+as powerful.** Then an outsider arrived from another district — no Zyrex, unproven in
+the Beastlands — and passed him. **Not by working harder. By wanting something
+different.**
+
+> ★★★★ **So the obsession is: *if I cannot win by being better, I will win by being
+> RIGHT.***
 >
-> **That is the entire difference between the protagonist and the final boss**, and
-> it is the same difference as the ending — **Rizer is the one who does not take what
-> is offered.** Zoryn is the one who cannot stop reaching for it.
+> **Every act of his fall is a demonstration.** Taking Lower Zyraxis is not conquest —
+> **it is a thesis defended with an army.** He is trying to prove that control is a
+> valid road, against a judgement older than Zyraxis.
 
-★★★ **Which sharpens §2's fracture into something crueller and better.** It is not
-*"you were chosen and I wasn't."* It is:
+★★★ **That is a far more dangerous character than a jealous friend**, and it keeps him
+sympathetic to the end: **he is not wrong that he is strong. He is wrong about what
+strength is for.**
 
-> ***"We were both refused. And then you weren't."***
+### ★★ 7a-3 · THE FRIENDSHIP IS REAL, AND RIZER NEVER ENDS IT
 
-★★ **So it must be RAKORON** *(answering open question 4)*. Not because he is the
-home-district Gemlord — because **he is the one who deferred them both.** The same
-god, the same word, twice, and then a change of mind about one of them. Any other
-Gemlord makes it a coincidence. Rakoron makes it a verdict.
+The **Naruto/Sasuke register** the Creator names has one non-negotiable rule:
+★★★ **the protagonist never stops counting him as a friend.** Not at the turn, not at
+the Challenge final, not in the Pit.
+
+★★ **And the opening earns it: the most popular student in Malezor befriends the
+outsider nobody rated.** He did not have to. **That is why the fall costs something —
+Rizer's debt runs the other way.**
+
+★ **It also settles open question 5 before it is asked** (§7e): a resolution where
+Rizer refuses to finish him is not a mercy toggle. **It is the only ending consistent
+with a friendship the protagonist never withdrew.**
 
 ### ★★★ 7b · PART 1 · four movements, and the SAME shipped mechanic means something different in each
 
@@ -150,27 +189,41 @@ allowed to change register.
 
 | | act | the chest race is… | Zoryn is… |
 |---|---|---|---|
-| **1 · THE GAME** | I–II · Malezor, Zarvane | needling between friends. He gloats, lightly | **your best friend** |
-| **2 · THE SCOREBOARD** | III–V | ★ `zorynChestsTaken` climbing where you can see it. **Nobody mentions it** | **your rival**, un-named |
-| **3 · THE INVASION** | ★★ IV · Malezor | he stops taking anything | **the other boy who was there** |
-| **4 · THE COMPARISON** | V · after Korathen | he congratulates you, and then **stops appearing** | **gone** |
+| **1 · THE STANDARD** | I–II · Malezor, Zarvane | ★ **the top student showing off to a friend who is catching up.** He gloats, lightly | ★★ **the best in Malezor — and he befriended the outsider anyway** |
+| **2 · THE CLOSING GAP** | III–IV | ★★ `zorynChestsTaken` climbing fast, then **slowing** as you improve | **your equal**, and neither of you says so |
+| **3 · THE DIVERGENCE** | ★★ III–V | he takes them by **force of hand**; you were going to open it with a friend | ★★★ **the one who COMMANDS where you BOND** |
+| **4 · THE VERDICT** | V · after Korathen | it stops | **gone** |
 
-#### ★★★ Movement 3 · the seed of obsession is not envy. It is being unseen.
+#### ~~★★★ Movement 3 · the seed of obsession is being unseen~~ · ★ WITHDRAWN 2026-09-01
 
-**Kelthor dies in the Invasion of Malezor. Zoryn's home too. Zoryn was there.**
-
-★★★ **And Zoryn did not save him either.** Both boys failed the same man on the same
-day. But the district grieves *with* Rizer, the Warden's death attaches to Rizer's
-story, and **nobody writes a line about the other boy who was standing there.**
-
-> ★★★ **The wound is not "you were chosen." It is "you were SEEN."**
+> ★ **Wrong seed. Creator: *"I dont want zoryn arc to be unseen. he is popular."***
+> I had the Invasion of Malezor making him the un-eulogised second boy. **He is not
+> overlooked at any point — he is the one everyone is watching, and RIZER is the
+> outsider.** The real fork is §7a: **control versus bond.** Withdrawn rather than
+> deleted, so the wrong turn stays visible.
 >
-> Envy makes a rival. **Being invisible makes an obsessive** — because the only
-> possible remedy is to become impossible to overlook.
+> ★★ **One fragment survives, and it is better under the corrected fork: Zoryn was at
+> the Invasion too, and did not save Kelthor either.** That is not a slight — **it is
+> the first time being the best was not enough, and he has no framework for it.**
+> *He does not lack attention. He lacks an explanation.*
 
-★★ **That is why he fixates on a TITLE rather than on Rizer** (§2: *"a title he is
-trying to deserve rather than a person who wronged him"*). **A person can forgive
-you. A title has to certify you.** He does not want revenge. He wants a receipt.
+#### ★★★★ Movement 3 · THE DIVERGENCE · and both methods must WORK
+
+The game has to show his way **succeeding**. ★★★ **If control ever looks weaker,
+Rakoron's verdict becomes a power ranking and the whole arc collapses into sour
+grapes.**
+
+> **Zoryn commands. Rizer bonds. Both win fights.
+> Only one of them is ever bonded BACK.**
+
+★★ **That is the only asymmetry the player should notice — and it should look like
+nothing**, a texture difference between two friends, right up until Rakoron names it
+and it turns out to have been the entire examination.
+
+★ **[BUILD] it is already visible for free:** Zoryn *"engages what threatens Rizer"*
+and *"alternates punch and kick **on his own body**"* — **he fights with his fists
+while you fight with a bond.** The contrast is shipped; it just needs to be *said*
+once.
 
 #### ★★ Movement 4 · the turn should be an ABSENCE, not a confrontation
 
@@ -307,9 +360,33 @@ the original never had.
 so **the title Zoryn spent two parts trying to deserve is placed on the man who beat
 him for it, in the same minute.**
 
-#### ★★★ 3 · WHAT HE DOES NEXT · he rebuilds the thing that also lost
+#### ★★★★ 2b · THE SEER INVITATION · why he says yes, and it is not weakness
 
-**Zoryn rebuilds the Seers under himself and moves on Lower Zyraxis.**
+> **Creator:** *"zoryn has to find s2 power **other ways than bonding** which is why he **accepts the invitation** of the seers after part one"*
+
+★★★★ **This is the cleanest villain logic the story has.** S2 comes **through the
+bond** — Rakoron bonds Rizer, Rizer gets S2. **Zoryn cannot take that road, because
+the road is the thing he was refused for wanting to skip.**
+
+> **He needs power without bonding.
+> The Seers are the only institution on Zyraxis built entirely on taking it.**
+
+★★★ **Siphoning, sacrifice, corruption, the harvest that elevates Orryx and Ophira —
+every Seer method is the ANTI-BOND.** The game's core mechanic is bonding; **the
+antagonists are a religion of the alternative.** Zoryn does not fall in with
+criminals. **He finds the only other school of thought.**
+
+★★ **And note the verb: he is INVITED.** They come to him. ★★★ *Of course they do* —
+after Part 1 the Seers are a decapitated organisation that has just lost the argument
+in public, and here is the second-best Rizer alive, freshly told his entire method is
+invalid. **They are not recruiting a thug. They are recruiting a thesis.**
+
+★ **So he is not corrupted into it.** ★★★ **He makes a reasonable decision from inside
+a wrong premise** — which is the only kind of villain the player can be made to grieve.
+
+#### ★★★ 3 · WHAT HE DOES NEXT · he takes over the thing that also lost
+
+**Zoryn rises through the Seers and moves on Lower Zyraxis.**
 
 ★★★ **And that is the sharpest possible choice, because the Seers are the other party
 in this story who could not accept a verdict.** Xenoxil, Orryx and Ophira spent Part 1
@@ -359,16 +436,29 @@ pre-specified what it would be worth:
 
 **That sentence was written before Zoryn had a power-up. It is his power-up.**
 
-##### ★★★ Why WHITE is the one that takes him — and it is character, not colour
+##### ★★★★ Why WHITE is the one that takes him — it is his PHILOSOPHY, taken to its end
 
 `GEM_COLOR_PSYCHOLOGY_CANON.md` §3a: **"White is not the absence of colour. It is the absence of PREFERENCE."**
 
-> ★★★★ **Zoryn is nothing but preference.** A man defined entirely by wanting one
-> thing, fused to the one gem that wants nothing.
+★★★★ **Zoryn wants to CONTROL (§7a). White is the only thing in the Expanse with no
+will of its own to resist him.**
+
+> **He finally found something he could dominate completely — because it cannot say
+> no.**
 >
-> **White takes him because white has no lean of its own to resist his.** Every other
-> colour would have argued. **Balance is the only thing with no opinion about being
-> given one.**
+> ★★★★ **And that is the exact inverse of a bond. A bond requires two wills. He took
+> the one substance that has none.** He got precisely what he always wanted, and **it
+> is the loneliest thing in the Expanse.**
+
+★★★ **His power-up is not a corruption of his character. It is his character, granted
+in full** — which is why it should read as a horror rather than a betrayal. **The boy
+who wanted to command a god settled for commanding the only thing that could not
+refuse.**
+
+★★ And it makes his form legible on sight: **white REFLECTS all**, so a corrupted white
+**reflects a lie** — Zoryn shows every onlooker whatever they already believe. ★ For a
+man who was the most watched student in Malezor, **a power that turns every gaze back
+on the person looking is the last stage of never being met.**
 
 ★★ And it makes his form legible on sight: **white reflects all.** A corrupted white
 **reflects a lie** — so Zoryn in his final form **shows every onlooker whatever they

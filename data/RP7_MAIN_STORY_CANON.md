@@ -1155,10 +1155,22 @@ book."* **An Anciaric oath does not need a book.**
    Eïrforn is **one of the four Nexyrosillian Kings founded by EGNELLAHC.** ★★★ *The
    first language's last speaker is Egnellahc's son.* **The language ladder ties
    straight into the split proposal.**
-2. ★ **Naming flag, raised once and not pressed: "Newspeak" carries a strong Orwell
-   association.** It reads fine as the plain compound, and it is your call — **but it is
-   the only one of the three that will make a reader think of something outside the
-   saga.** *Anciaric and Olden are yours; Newspeak is borrowed-sounding.*
+2. ~~★ **Naming flag: "Newspeak" carries a strong Orwell association.**~~ ★★★★
+   **DELIBERATE — Creator, 2026-09-01: *"newspeak is an ode to orwell. its ok."*
+   Flag retired; do not re-raise.**
+
+   ★★★★★ **And the ode earns something, because Orwell's Newspeak is a language built to
+   SHRINK thought — to make dissent unthinkable by deleting the words for it.** Placed at
+   the bottom of this ladder, that reads:
+
+   > ★★★★★ **The common tongue is the diminished one. Everyone speaks the language that
+   > can do the least. Magic left speech as speech spread.**
+
+   ★★★ **Which lands on two characters for free.** The **Seers** reach for Anciaric
+   because *Newspeak cannot do what they want* — their crime needs a vocabulary the
+   world gave up. And **Dad writes in Newspeak and can only COPY the nine characters**
+   (§6.5j§5): ★★★★ *the scholar's tragedy is that his language cannot hold what he
+   found.*
 
 #### ★ 7 · OPEN
 

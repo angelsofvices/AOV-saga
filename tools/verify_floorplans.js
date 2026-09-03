@@ -42,8 +42,8 @@ else ok(`${faces} south-facing FACE tiles (drawn 3 tall)`);
 // the parser + draw pass must be present
 for (const [re,l] of [[/function floorPlan\(cfg\)/,'floorPlan parser'],
                       [/_P\.blocked\.has\(x \+ ',' \+ y\)/,'collision reads the plan'],
-                      [/const h = w\.face \? 3 : 1;/,'faces draw 3 tiles tall'],
-                      [/WALL_TEXTURE_SCALE = \{ seer: 160 \}/,'texScale 160']])
+                      [/TILE, TILE \* 4\);/,'faces draw the whole asset 4 tiles tall'],
+                      [/Math\.round\(SH \/ 4\)/,'caps draw the top course only']])
   re.test(html)?ok(l):bad(l);
 
 console.log(fail?`\n${fail} FAILURE(S)`:'\nall floor-plan checks passed');

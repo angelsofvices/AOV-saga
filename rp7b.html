@@ -11275,14 +11275,14 @@ const NPCS = [
     // he stands his post.  Half hold and half pace, so the hall has movement
     // without eight bodies drifting at once.
     const HALL = [
-      { x:  4, y:  3, dir: 'right', v: 'A', patrol: [0, 1, 3] },
-      { x: 15, y:  3, dir: 'left',  v: 'B' },
-      { x:  4, y:  8, dir: 'down',  v: 'B' },
-      { x: 15, y:  8, dir: 'down',  v: 'A', patrol: [0, 1, 3] },
-      { x: 10, y:  6, dir: 'down',  v: 'A', patrol: [1, 0, 4] },
-      { x:  7, y: 11, dir: 'up',    v: 'B' },
-      { x: 13, y: 11, dir: 'up',    v: 'A', patrol: [-1, 0, 4] },
-      { x: 10, y:  2, dir: 'down',  v: 'B' },
+      { x:  4, y:  5, dir: 'down',  v: 'A', patrol: [1, 0, 3] },   // NW room
+      { x: 17, y:  5, dir: 'down',  v: 'B' },                      // N room
+      { x: 29, y:  5, dir: 'down',  v: 'A' },                      // NE room
+      { x:  5, y: 12, dir: 'right', v: 'B', patrol: [1, 0, 5] },   // spine W
+      { x: 28, y: 12, dir: 'left',  v: 'A', patrol: [-1, 0, 5] },  // spine E
+      { x:  5, y: 19, dir: 'up',    v: 'B' },                      // SW room
+      { x: 19, y: 19, dir: 'up',    v: 'A', patrol: [1, 0, 4] },   // S room
+      { x: 31, y: 19, dir: 'up',    v: 'B' },                      // SE room
     ];
     function hqGrunt(s, i){
       const idle = seerGruntSheet(s.v, 'idle'), walk = seerGruntSheet(s.v, 'walk');
@@ -14465,6 +14465,10 @@ function walkable(x, y){
     // The loop below is O(blocked) on EVERY step; Dreamland's 100x100 would
     // have needed thousands of entries scanned per move.
     if (typeof cfg.isBlocked === 'function' && cfg.isBlocked(x, y)) return false;
+    // ★ v0.95.944 · plan walls.  A Set lookup, so a 35x25 plan costs the same
+    // as a 5x5 one — cfg.blocked's array scan is O(n) on every single step.
+    const _P = floorPlan(cfg);
+    if (_P && _P.blocked.has(x + ',' + y)) return false;
     if (cfg.blocked){
       for (const [bx,by] of cfg.blocked){
         // Movable Rizer Room furniture owns live collision below; ignore its
@@ -16612,7 +16616,11 @@ SEER_WALL_IMG.src = 'assets/2D%20sprites/tiles/seer-hq-wall.png';
 // 1254px, so one course is ~139px — that becomes one 48px tile and the brick
 // reads at the size it was drawn at. Walls NOT listed here keep the old
 // one-copy-per-tile behaviour, so Malezor and the lab are untouched.
-const WALL_TEXTURE_SCALE = { seer: 139 };
+// ★ v0.95.944 · 160 for the redelivered Seer masonry.  Measured: the gem
+// courses repeat every ~236 source px, and at 160px/tile that lands a gem
+// band roughly every 5 tiles of wall -- frequent enough to read as ornament,
+// sparse enough not to become wallpaper.  139 was tuned to the old strip.
+const WALL_TEXTURE_SCALE = { seer: 160 };
 const _wallPatternCache = {};
 function wallImageFor(key){
   if (key === 'malezor') return MALEZOR_WALL_IMG;
@@ -16790,11 +16798,43 @@ SEER_HQ_FLOOR_IMG.src = 'assets/2D%20sprites/tiles/seer-hq-floor.png';
 // ten near-identical config objects would drift out of sync within a month.
 const INTERIOR_SEER_HQ_1F = {
   stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
-  cols: 20, rows: 15,
+  // ★★★ v0.95.944 · THE FIRST FLOOR PLAN.  35x25 per the Creator's ruling, so
+  // the base does not fit on one screen (~34% visible at a time) and the
+  // camera has to be walked.  Read it as a map: '#' wall, '.' floor, 'D'
+  // door, and wall HEIGHT is derived — a wall with floor under it draws a
+  // 3-tile face, everything else draws a 1-tile cap.
+  plan: [
+    '###################################',
+    '###################################',
+    '###################################',
+    '#.........###..........###........#',
+    '#.........###..........###........#',
+    '#.........#D#..........#D#........#',
+    '#.........###..........###........#',
+    '#.........###..........###........#',
+    '#.........###..........###........#',
+    '#####D###########D###########D#####',
+    '###################################',
+    '#.................................#',
+    '#.................................#',
+    '#.................................#',
+    '#.................................#',
+    '###################################',
+    '#####D#############D###########D###',
+    '#..........###............###.....#',
+    '#..........###............###.....#',
+    '#..........#D#............#D#.....#',
+    '#..........###............###.....#',
+    '#..........###............###.....#',
+    '###################################',
+    '###################################',
+    '###################################',
+  ],
+  cols: 35, rows: 25,
   tileImg: SEER_HQ_FLOOR_IMG,
-  spawn: { x: 10, y: 14, dir: 'up' },
-  exit:  { x: 10, y: 14 },
-  autoExit: true,
+  spawn: { x: 17, y: 13, dir: 'up' },     // ★ spine corridor, under the north door
+  exit:  { x: 17, y: 13 },
+  autoExit: false,                        // ★ the door is a door now, not a trapdoor
   wallImg: 'seer',
   blocked: [],
   label: '◈ SEER HQ · 1F',
@@ -16803,16 +16843,16 @@ const INTERIOR_SEER_HQ_1F = {
   // floor is unavoidable in both directions.
   stairsList: [
     { // DOWN to the vault · always open
-      triggers: [[1, 1], [2, 1]],
+      triggers: [[1, 11], [2, 11]],
       target: 'interior_seer_hq_b',
       spawnAt: { x: 7, y: 8, dir: 'up' },
-      art: 'down', visX: 1, visY: -1, visW: 2, visH: 3,
+      art: 'down', visX: 1, visY: 9, visW: 2, visH: 3,
     },
     { // UP to the Commander · locked until this district's key is in hand
-      triggers: [[17, 1], [18, 1]],
+      triggers: [[32, 11], [33, 11]],
       target: 'interior_seer_hq_2f',
       spawnAt: { x: 7, y: 10, dir: 'up' },
-      art: 'up', visX: 17, visY: -1, visW: 2, visH: 3,
+      art: 'up', visX: 32, visY: 9, visW: 2, visH: 3,
       locked: () => !hasSeerKey(),
       lockedMsg: () => {
         const H = SEER_HQ_BY_DIST[seerHqDistrict()];
@@ -27912,6 +27952,56 @@ function drawDreamlandFloorFallback(cfg, startCol, endCol, startRow, endRow){
     }
   }
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.944 · INTERIOR FLOOR PLANS · walls you can see
+//
+// Creator: "I want buildings to have walls and doors so we have horizontal
+// travel interiors" · "all walls take up 3 tiles so they look taller than
+// rizer" · "place the walls in first."
+//
+// Until now an interior was an open rectangle: cfg.blocked existed and DREW
+// NOTHING, and cfg.wallImg painted one decorative band across row 0.  A floor
+// with rooms in it was not expressible.
+//
+// A plan is an array of equal-length strings, one character per tile -- the
+// same shape the overworld already stores its land mask in, so it diffs and
+// reads like a map instead of like data:
+//     '#' wall   '.' floor   'D' door (solid until opened)   'S' stair
+//     'C' chest  'G' grunt spawn
+//
+// ★ WALL HEIGHT IS DERIVED, NOT AUTHORED.  Emerald draws a wall tall only
+// where you can see its FACE -- the band across the top of a room is 3 tiles,
+// the side edges are a thin strip, and the bottom wall is barely there.  So:
+//     if the tile BELOW is floor -> draw a 3-TILE FACE (Rizer is 2)
+//     otherwise                  -> draw a 1-tile CAP
+// One rule, no author input, and the whole look falls out of a flat plan.
+const _planCache = new WeakMap();
+function floorPlan(cfg){
+  if (!cfg || !cfg.plan) return null;
+  let P = _planCache.get(cfg);
+  if (P) return P;
+  const rows = cfg.plan, R = rows.length, C = rows[0].length;
+  const blocked = new Set(), walls = [], doors = [], chests = [], grunts = [];
+  const at = (x, y) => (x < 0 || y < 0 || x >= C || y >= R) ? '#' : rows[y][x];
+  const solid = ch => ch === '#' || ch === 'D';
+  for (let y = 0; y < R; y++){
+    for (let x = 0; x < C; x++){
+      const ch = at(x, y);
+      if (solid(ch)){
+        blocked.add(x + ',' + y);
+        // ★ face if the tile under it is walkable — that is the surface you see
+        walls.push({ x, y, face: !solid(at(x, y + 1)) });
+        if (ch === 'D') doors.push({ x, y });
+      }
+      else if (ch === 'C') chests.push({ x, y });
+      else if (ch === 'G') grunts.push({ x, y });
+    }
+  }
+  P = { rows: R, cols: C, blocked, walls, doors, chests, grunts };
+  _planCache.set(cfg, P);
+  return P;
+}
+
 function drawInteriorFloor(){
   const cfg = interiorConfig(game.scene) || INTERIOR_HOME;
   // ★ v0.95.719 · DREAMLAND draws its own sky · no tile sheet at all.
@@ -27934,8 +28024,48 @@ function drawInteriorFloor(){
     ctx.fillStyle = '#7a4a1e';
     ctx.fillRect(-_cam.x, -_cam.y, C * TILE, R * TILE);
   }
+  // ★★★ v0.95.944 · PLAN WALLS · drawn before the row-0 band so a plan floor
+  // simply never reaches the legacy path (its top row is '#' and produces the
+  // same band, without the special case).
+  //
+  // Every wall tile is filled with the SAME world-anchored pattern the band
+  // uses, so overlapping rects are invisible — a 3-tile face may extend up
+  // through two more wall tiles and the masonry still lines up, because the
+  // pattern's origin rides the camera transform rather than each rect.
+  const _plan = floorPlan(cfg);
+  if (_plan){
+    const wImg = wallImageFor(cfg.wallImg);
+    const texS = WALL_TEXTURE_SCALE[cfg.wallImg] || 0;
+    if (wImg && wImg.complete && wImg.naturalWidth && texS > 0){
+      const key = cfg.wallImg;
+      let pat = _wallPatternCache[key];
+      if (!pat){
+        const off = document.createElement('canvas');
+        off.width  = Math.max(1, Math.round(wImg.naturalWidth  / texS)) * TILE;
+        off.height = Math.max(1, Math.round(wImg.naturalHeight / texS)) * TILE;
+        const octx = off.getContext('2d');
+        octx.imageSmoothingEnabled = false;
+        octx.drawImage(wImg, 0, 0, off.width, off.height);
+        pat = ctx.createPattern(off, 'repeat');
+        _wallPatternCache[key] = pat;
+      }
+      if (pat){
+        ctx.save();
+        ctx.translate(-_cam.x, -_cam.y);
+        ctx.fillStyle = pat;
+        // ★ FACES ARE 3 TILES.  Rizer draws at 2, so the wall stands half again
+        // his height — which is the whole point of the ruling.  A cap is 1.
+        for (const w of _plan.walls){
+          if (w.x < startCol - 1 || w.x > endCol || w.y < startRow - 3 || w.y > endRow) continue;
+          const h = w.face ? 3 : 1;
+          ctx.fillRect(w.x * TILE, (w.y - (h - 1)) * TILE, TILE, h * TILE);
+        }
+        ctx.restore();
+      }
+    }
+  }
   // Upper wall band · continuous wallpaper across row 0 (blocked in walkable()).
-  const wallImg = wallImageFor(cfg.wallImg);
+  const wallImg = _plan ? null : wallImageFor(cfg.wallImg);
   if (wallImg && wallImg.complete && wallImg.naturalWidth){
     // ★ v0.95.702 · TEXTURE WALLS · draw as a repeating pattern, not one
     // squashed copy per tile.

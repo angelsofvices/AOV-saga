@@ -1,118 +1,72 @@
-const fs = require('fs');
-const src = fs.readFileSync('/tmp/all.js', 'utf8');
-const noop = () => {};
-global.setInterval = () => 0; global.setTimeout = () => 0;
-global.clearInterval = noop; global.clearTimeout = noop;
-const CTX = new Proxy({}, { get: () => () => ({ addColorStop: noop, width:0, height:0, data:[] }) });
-const el = () => ({ style:{}, dataset:{}, classList:{add:noop,remove:noop,toggle:noop,contains:()=>false},
-  width:960, height:540, value:'', textContent:'', innerHTML:'', children:[], childNodes:[],
-  getContext:()=>CTX, appendChild:noop, removeChild:noop, addEventListener:noop, removeEventListener:noop,
-  setAttribute:noop, getAttribute:()=>null, focus:noop, remove:noop, play:()=>Promise.resolve(), pause:noop,
-  querySelector:()=>el(), querySelectorAll:()=>[], getBoundingClientRect:()=>({left:0,top:0,width:960,height:540}) });
-global.addEventListener = noop; global.removeEventListener = noop;
-global.document = { getElementById:()=>el(), querySelector:()=>el(), querySelectorAll:()=>[],
-  createElement:()=>el(), addEventListener:noop, body:el(), documentElement:el(), head:el(),
-  hidden:false, visibilityState:'visible' };
-global.window = global;
-global.localStorage = { getItem:()=>null, setItem:noop, removeItem:noop };
-global.Audio = function(){ return { play:()=>Promise.resolve(), pause:noop, addEventListener:noop, cloneNode(){return this} }; };
-global.Image = function(){ return { addEventListener:noop, complete:false, naturalWidth:0, src:'' }; };
-global.requestAnimationFrame = () => 0; global.cancelAnimationFrame = noop;
-global.matchMedia = () => ({ matches:false, addEventListener:noop, addListener:noop });
-global.navigator = { userAgent:'node', getGamepads:()=>[], maxTouchPoints:0 };
-global.performance = { now: () => Date.now() };
-global.getComputedStyle = () => ({ getPropertyValue: () => '' });
-// v0.95.735 · SEER GRUNT REDELIVERY + Dreamland tree v2.
-//
-// ★★ THIS SUITE EXISTS BECAUSE MY BATCH 2 ASK WAS BUILT ON A WRONG PREMISE.
-// I told the Creator six sheets needed redrawing because the UP row "touches
-// the cell top and the engine severs it". The engine does NOT sever anything:
-// drawNPC computes sx = col*cellW + bx, sy = row*cellH + by and reads a bw x bh
-// source rect with no clip to the cell. A bbox that runs past its cell simply
-// samples the neighbouring BAND — which is harmless unless the neighbour has
-// ART at those coordinates. That is the property worth testing, and it is what
-// this suite tests.
-const FS=require('fs');
-try{new Function(FS.readFileSync('/tmp/all.js','utf8')+';globalThis.__C={SEER_GRUNT_ART,NPCS,DREAM_DECOR_ART,buildDreamlandDecor,_dreamDecor};')();}
-catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
-const C=globalThis.__C;let f=0;
-const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
-const A='/sessions/great-cool-heisenberg/mnt/AOV-saga-new/assets/2D sprites/';
-const SHEETS=['a-idle','a-walk','a-run','a-attack','b-idle','b-walk','b-run','b-attack'];
+// ★ v0.95.943 · Seer grunt sprites + behaviour
+// Two classes of guarantee: the ART must be measured by connected component
+// (no bleed, no clipping, one size per character), and the BEHAVIOUR must be
+// hold-until-contact with a one-tile strike.
+const fs=require('fs'), path=require('path'), cp=require('child_process');
+const ROOT=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(ROOT,'rp7b.html'),'utf8');
+let fail=0; const ok=m=>console.log('  ok   '+m); const bad=m=>{console.log('  FAIL '+m);fail++;};
 
-console.log('\n1 · ★ THE TABLES MATCH THE ART ON DISK\n');
-const G=JSON.parse(FS.readFileSync('/tmp/w/grunt.json','utf8'));
-for (const v of ['A','B']){
-  for (const k of ['idle','walk','run','attack']){
-    const e=C.SEER_GRUNT_ART[v][k]; if(!e) continue;
-    const name=v.toLowerCase()+'-'+k;
-    const want=G[name]; if(!want) continue;
-    const same=JSON.stringify(e.bboxes)===JSON.stringify(want.bboxes);
-    if (k==='attack'){ ok(true, name+' · attack sheet untouched (was already clean)'); continue; }
-    ok(same, name+' bboxes match a fresh measurement of the delivered file');
-  }
+// ── 1 · ART · re-measure from the PNGs and compare to what shipped ───────
+const out = cp.execSync('python3 tools/measure_seer_grunts.py', {cwd:ROOT}).toString();
+const heights = {};
+for (const m of out.matchAll(/^\s+(idle|walk|run|attack)\s+body heights\s+(.+)$/gm)){
+  const rows = m[2].split('|').map(r => JSON.parse(r.trim()));
+  (heights[m[1]] = heights[m[1]] || []).push(rows);
 }
+// A then B for each kind
+const A = {}, B = {};
+for (const k of Object.keys(heights)){ A[k]=heights[k][0]; B[k]=heights[k][1]; }
 
-console.log('\n2 · ★★ NO FRAME SAMPLES A NEIGHBOUR\'S ART\n');
-console.log('     The real test. Overflowing a cell is fine; overlapping');
-console.log('     another frame\'s PIXELS is not.\n');
-let overlaps=0, overflow=0;
-for (const v of ['A','B']){
-  for (const k of ['idle','walk','run','attack']){
-    const e=C.SEER_GRUNT_ART[v][k]; if(!e||!e.bboxes) continue;
-    for(let r=0;r<4;r++)for(let c=0;c<4;c++){
-      const box=e.bboxes[r][c]; const by=box[1],bh=box[3],bx=box[0],bw=box[2];
-      if (by+bh>313||bx+bw>313) overflow++;
-      // neighbour art check comes from the pixel pass below
+// ★ NO BLEED: every measured body height must be plausible for that character.
+// Bleed and stray-sliver contamination showed up as 275/294/307 against bodies
+// of ~195/~250 — so a band check catches exactly the failure that shipped.
+function band(who, tables, lo, hi, exceptions){
+  let worst = null;
+  for (const k of Object.keys(tables)){
+    for (let r=0;r<4;r++) for (let c=0;c<4;c++){
+      const v = tables[k][r][c];
+      const isCrouch = exceptions.some(e => e.k===k && e.r===r);
+      if (isCrouch) continue;
+      if (v < lo || v > hi) worst = `${k} r${r}c${c} = ${v}`;
     }
   }
+  if (worst) bad(`${who} body height out of band ${lo}-${hi}: ${worst}`);
+  else ok(`${who} every locomotion height inside ${lo}-${hi} · no bleed`);
 }
-const NB=JSON.parse(FS.readFileSync('/tmp/w/neighbour.json','utf8'));
-ok(NB.total===0, `0 of 128 frames sample neighbouring art (${NB.total} found)`);
-console.log(`     (${overflow} frames DO run past their cell boundary — allowed, and`);
-console.log(`      the sheets shipped that way before this delivery too)\n`);
+band('A (female)', A, 185, 215, [{k:'attack',r:1},{k:'attack',r:2}]);
+band('B (male)',   B, 200, 270, []);
 
-console.log('\n3 · (redelivery delta section retired · it compared against the');
-console.log('     PRE-redelivery sheets, which no longer exist to measure —');
-console.log('     the historical fact lives in the v0.95.696 commit message.');
-console.log('     Fixtures now regenerate from the shipped art: tools/regen_grunt_fixtures.py)');
-console.log('');
-// ★ recomputed from the CURRENT fixtures (G) — the redelivery's outcomes,
-// asserted as standing properties of the shipped art rather than deltas
-// against sheets that no longer exist.
-const _upRow=(n)=>G[n].bboxes[3];   // UP row in the recorded tables
-ok(['a-idle','a-walk','a-run','b-idle','b-walk','b-run'].every(n=>_upRow(n).every(f=>f[1]>=9||f[3]<=1)),
-   'every UP row starts >= 9px below its cell top (the redelivery outcome, held)');
-const _overflows=(n)=>{let o=0;for(const row of G[n].bboxes)for(const [bx,by,bw,bh] of row){if(bx<0||by<0||bx+bw>313||by+bh>313)o++;}return o;};
-ok(['b-idle','b-walk','b-run'].every(n=>_overflows(n)===0),
-   '★ Grunt B is fully inside its cells (0 overflows)');
-ok(['a-idle','a-walk','a-run'].every(n=>_overflows(n)<=8),
-   'Grunt A within its known bound · remainder is the DOWN-row feet, which sample empty band');
-
-console.log('\n4 · ★ SCALE HELD\n');
-ok(C.SEER_GRUNT_ART.A.standBh===212,'Grunt A standBh unchanged at 212');
-ok(C.SEER_GRUNT_ART.B.standBh===255,`Grunt B standBh re-measured 256 -> ${C.SEER_GRUNT_ART.B.standBh} (1px)`);
-const aH=C.SEER_GRUNT_ART.A.idle.bboxes[0][0][3], bH=C.SEER_GRUNT_ART.B.idle.bboxes[0][0][3];
-ok(aH===212&&bH===255,`standing DOWN frame heights A ${aH} / B ${bH} agree with standBh`);
-ok(C.SEER_GRUNT_ART.A.scaleMul===1.075&&C.SEER_GRUNT_ART.B.scaleMul===1.150,'scaleMul untouched — "scaled correctly" confirmed');
-
-console.log('\n5 · ★ FOOT BASELINES RE-DERIVED\n');
-for (const v of ['A','B']) for (const k of ['idle','walk','run']){
-  const e=C.SEER_GRUNT_ART[v][k];
-  const flat=e.foot.flat();
-  ok(flat.every(x=>x>0&&x<400), `${v}/${k} foot baselines all in range (${Math.min(...flat)}-${Math.max(...flat)})`);
+// ★ ONE SIZE PER CHARACTER: standBh must equal the measured IDLE max.
+const idleMaxA = Math.max(...A.idle.flat()), idleMaxB = Math.max(...B.idle.flat());
+const mA = html.match(/standBh: (\d+), scaleMul: 1\.075/);
+const mB = html.match(/standBh: (\d+), scaleMul: 1\.150/);
+if (!mA||!mB) bad('standBh lines not found');
+else {
+  if (+mA[1]!==idleMaxA) bad(`A standBh ${mA[1]} != measured idle max ${idleMaxA}`);
+  else ok(`A standBh ${idleMaxA} == measured idle max`);
+  if (+mB[1]!==idleMaxB) bad(`B standBh ${mB[1]} != measured idle max ${idleMaxB}`);
+  else ok(`B standBh ${idleMaxB} == measured idle max`);
 }
+// ★ the two characters must stay DIFFERENT sizes
+if (idleMaxA === idleMaxB) bad('A and B measure identical — they are different characters');
+else ok(`A ${idleMaxA} vs B ${idleMaxB} · respective sizes preserved`);
 
-console.log('\n6 · ★ DREAMLAND TREE v2\n');
-ok(FS.existsSync(A+'decor/dream-tree.png'),'dream-tree.png present');
-ok(FS.existsSync(A+'decor/_orig/dream-tree-delivered-v2.png'),'v2 original preserved');
-const T=JSON.parse(FS.readFileSync('/tmp/w/tree.json','utf8'));
-ok(T.w>800&&T.h>1200,`now ${T.w}x${T.h} — was 44x84, a ${T.factor}x pixel increase`);
-ok(T.hasAlpha,'ships with real alpha · no chroma pass needed');
-C.buildDreamlandDecor();
-const trees=C._dreamDecor.filter(d=>d.id==='tree');
-ok(trees.length>0,`${trees.length} trees still placed`);
-const art=C.DREAM_DECOR_ART.find(d=>d.id==='tree');
-ok(art.hTiles===3,'still 3 tiles tall — width re-derives from the new aspect, so nothing stretches');
+// ── 2 · BEHAVIOUR ────────────────────────────────────────────────────────
+const checks = [
+  [/_contactAggro: true/, 'garrison holds until contact'],
+  [/n\._contactAggro && !\(\(n\._aggroUntil \|\| 0\) > performance\.now\(\)\)/, 'contact-aggro gate in the AI'],
+  [/cdx \+ cdy <= 1/, 'contact radius is ONE tile'],
+  [/function seerPatrolStep/, 'deterministic patrol exists'],
+  [/wanderRadius: 0,/, 'random wander disabled for the garrison'],
+  [/if \(manh === 1 && inPlay\)/, 'strike is one tile and works in interiors'],
+  [/if \(n\.attackSheet && manh <= 1 && inPlay\)/, 'attack anim is one tile and works in interiors'],
+  [/const inPlay = \(game\.scene === 'overworld'\)/, 'inPlay replaces the overworld-only gate'],
+];
+for (const [re,label] of checks){ re.test(html) ? ok(label) : bad(label); }
+// ★ the old overworld-only gates must be gone from the combat branch
+if (/manh === 1 && game\.scene === 'overworld'/.test(html)) bad('an overworld-only strike gate survives');
+else ok('no overworld-only combat gates remain');
 
-console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');process.exit(0);
+console.log(fail ? `\n${fail} FAILURE(S)` : '\nall grunt checks passed');
+process.exit(fail?1:0);

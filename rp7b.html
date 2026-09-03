@@ -8512,144 +8512,142 @@ WORLD_PROPS.forEach(p => { p.img.src = p.src; });
 // props + player · face direction determines which sheet cell to sample.
 // Measured tables for both grunt variants · component-ownership extraction,
 // see verify_seergrunt.js.  Module scope so the HQ interior can read them too.
+// ★★★ v0.95.943 · RE-MEASURED BY CONNECTED COMPONENT.
+// Creator: "make sure no cell bleed on any grunt animation.  female and male
+// must keep respective size on all animations.  no bleed, no clipping."
+//
+// Every number below was taken from the raw ALPHA BBOX of each 313.5px cell,
+// which silently swallowed two different artefacts:
+//   1 · A DETACHED SLIVER on the cell floor of the UP row -- ~20px wide, a clean
+//       gap above it -- on A-walk and all three B locomotion sheets.  It read
+//       B-idle's up-facing height as 294 when the body is 253, and pinned
+//       foot=312, so the up-facing grunt was SCALED AND ANCHORED OFF DEBRIS.
+//       That is the whole "different size on different animations" bug.
+//   2 · Specks and cross-seam bleed elsewhere (A-walk r1 carried 247px of the
+//       cell above).
+//
+// ★ But largest-component-only would have been just as wrong: B-attack r0c2
+// holds a 2103px BLADE swung clear of the body, and dropping it amputates his
+// weapon mid-swing.  So the rule is compositional, not greedy --
+//   KEEP a detached component that overlaps the body's vertical span (held or
+//   swung objects) · DROP anything flush to a cell edge (bleed) or under 2% of
+//   the body (specks) · and take the FOOT BASELINE from the body alone, never
+//   from a weapon hanging low.
+// [[aov-sprite-cc-extractor]] · [[aov-sprite-vfx-anchoring]]
 const GRUNT_A_BBOXES = [
-  [[134, 84,117,209],[101, 87,132,206],[ 62,101,157,206],[ 58, 91,120,202]],
-  [[140, 58,132,169],[107, 58,146,169],[ 17, 58,228,169],[ 69, 58,131,169]],
-  [[110, 22,138,172],[ 94, 22,143,172],[ 69, 22,222,172],[ 40, 21,134,173]],
-  [[136,  7,108,204],[110,  7,101,204],[ 82,  5,103,205],[ 66,  7,112,203]],
+  [[134, 84,117,209],[101, 87,132,206],[ 61,101,157,206],[ 57, 91,120,202]],
+  [[140, 58,132,169],[107, 58,146,169],[ 21, 58,223,169],[ 68, 58,131,169]],
+  [[110, 21,138,172],[ 94, 21,143,172],[ 68, 21,218,172],[ 39, 20,134,173]],
+  [[136,  6,108,204],[110,  6,101,204],[ 81,  4,103,205],[ 65,  6,112,203]],
 ];
 const GRUNT_B_BBOXES = [
-  [[170, 75,111,227],[103, 75,151,227],[ 70, 75,172,227],[ 32, 75,110,227]],
-  [[163, 57,109,216],[ 89, 61,143,211],[  7, 64,203,208],[ 41, 58,109,216]],
-  [[161, 28,107,214],[106, 34,139,205],[ 63, 36,200,204],[ 38, 28,107,213]],
-  [[163,  1,115,217],[ 89,  3,138,219],[ 92,  1, 98,232],[ 35,  1,115,217]],
+  [[170, 75,111,227],[103, 75,151,227],[ 69, 75,172,227],[ 31, 75,110,227]],
+  [[163, 57,109,216],[ 89, 61,143,211],[  6, 64,203,208],[ 40, 58,109,216]],
+  [[161, 27,107,214],[106, 33,139,205],[ 62, 35,200,204],[ 37, 27,107,213]],
+  [[163,  0,115,217],[ 89,  2,138,219],[ 91,  0, 98,232],[ 34,  0,115,217]],
 ];
-// ══════════════════════════════════════════════════════════════════════════
-// ★★ SEER GRUNT ART · ONE TABLE, EVERY GRUNT IN THE GAME · v0.95.699
-//
-// Hoisted out of the SEER_PRESENCE block because the HQ INTERIOR grunts were
-// carrying a SECOND, hand-written bbox table — four identical rows of
-// [71,43,178,279], a placeholder predating every measurement pass in this
-// file.  They drew at the wrong size, off the attack sheet, with no idle and
-// no foot baselines, and nothing anywhere pointed at the discrepancy.  That
-// is what a duplicated table always becomes.  One table now, two callers.
-// ── ART BANKS ──────────────────────────────────────────────────────
-// Three sheets per variant: idle / walk / attack.  Any sheet that has not
-// been delivered yet falls back to the attack sheet, so a missing file
-// degrades to "he uses his attack pose while walking" rather than an
-// invisible enemy.  Delivered sheets are listed with their OWN measured
-// bboxes and foot baselines — a crouched attack pose plants at a
-// different cell-y than a standing idle, so they cannot share tables.
 const SEER_GRUNT_ART = {
-  A: {
+  A: {   // female
     idle:   { src: 'assets/2D%20sprites/enemies/seer-grunt-a-idle.png',
               bboxes: [
-                [[144,106,120,212],[116,106,118,212],[ 87,106,123,212],[ 53,106,119,212]],
+                [[144,106,120,207],[116,106,118,207],[ 87,106,123,207],[ 53,106,119,207]],
                 [[158, 73, 95,194],[128, 73, 95,194],[ 97, 73,102,194],[ 62, 73, 95,194]],
                 [[157, 35, 93,195],[126, 34, 95,196],[104, 34,101,196],[ 62, 34, 95,196]],
                 [[142,  9,113,203],[110,  9,114,203],[ 87,  9,119,203],[ 48,  9,114,203]],
               ],
-              // v0.95.735 · RE-MEASURED from the redelivered sheet.
               foot: [
-                     [318,318,318,318],
+                     [313,313,313,313],
                      [267,267,267,267],
                      [230,230,230,230],
                      [212,212,212,212],
                     ] },
     walk:   { src: 'assets/2D%20sprites/enemies/seer-grunt-a-walk.png',
               bboxes: [
-                [[152,115,100,210],[123,115,100,210],[100,115,103,209],[ 61,115,100,210]],
+                [[152,115,100,198],[123,115,100,198],[100,115,103,198],[ 61,115,100,198]],
                 [[154, 77, 97,194],[126, 77, 98,194],[104, 77, 96,194],[ 67, 77, 95,194]],
-                [[151, 37, 98,275],[121, 37, 99,275],[ 99, 37, 97,275],[ 59, 37, 97,275]],
+                [[151, 37, 98,194],[121, 37, 99,194],[ 99, 37, 97,194],[ 59, 37, 97,194]],
                 [[149,  9, 99,204],[116,  9,102,204],[ 94,  9,104,204],[ 57,  9,101,204]],
               ],
-              // v0.95.735 · RE-MEASURED from the redelivered sheet.
               foot: [
-                     [325,325,324,325],
+                     [313,313,313,313],
                      [271,271,271,271],
-                     [312,312,312,312],
+                     [231,231,231,231],
                      [213,213,213,213],
                     ] },
     run:    { src: 'assets/2D%20sprites/enemies/seer-grunt-a-run.png',
               bboxes: [
-                [[152,107,106,217],[120,107,110,218],[ 95,107,108,217],[ 51,107,115,213]],
+                [[152,107,106,206],[120,107,110,206],[ 95,107,108,206],[ 51,107,115,206]],
                 [[153, 76,115,194],[119, 76,119,189],[101, 76,114,194],[ 61, 76,110,195]],
                 [[139, 37,113,193],[105, 37,115,192],[ 85, 37,114,193],[ 44, 37,112,191]],
                 [[147,  9,106,202],[113,  9,110,208],[ 91,  9,108,208],[ 49,  9,111,203]],
               ],
-              // v0.95.735 · RE-MEASURED from the redelivered sheet.
               foot: [
-                     [324,325,324,320],
+                     [313,313,313,313],
                      [270,265,270,271],
                      [230,229,230,228],
                      [211,217,217,212],
                     ] },
     attack: { src: 'assets/2D%20sprites/enemies/seer-grunt-a-attack.png',
               bboxes: GRUNT_A_BBOXES,
-              foot: [[292,292,306,292],[226,226,226,226],
-                     [193,193,193,193],[210,210,209,209]] },
-    // ★ v0.95.697 · 212 is her IDLE standing height (was 209, the attack
-    // sheet's crouch).  Creator: "scale attack to her idle if needed."
-    // One scale per character, taken from the pose she stands in, so the
-    // attack sheet now draws at whatever height it really is — 2.12 tiles
-    // against her 2.15 standing, which is what a crouch should look like.
-    // The multiplier happens to stay 1.075: 209 and 212 are close enough
-    // that her on-screen size barely moves, but the RULE is now right.
-    standBh: 212, scaleMul: 1.075,
+              foot: [
+                     [293,293,307,293],
+                     [227,227,227,227],
+                     [193,193,193,193],
+                     [210,210,209,209],
+                    ] },
+    // ★ ONE SCALE PER CHARACTER, from the pose they STAND in.
+    standBh: 207, scaleMul: 1.075,
   },
-  B: {
+  B: {   // male
     idle:   { src: 'assets/2D%20sprites/enemies/seer-grunt-b-idle.png',
               bboxes: [
                 [[152, 54,126,255],[111, 55,127,253],[ 68, 54,130,256],[ 32, 54,126,255]],
                 [[164, 40,103,252],[124, 40,104,252],[ 73, 40,120,252],[ 52, 39,103,253]],
-                [[154, 18,101,294],[116, 18,101,294],[ 76, 18,119,294],[ 42, 18,101,294]],
+                [[154, 18,101,253],[116, 18,101,253],[ 76, 18,119,253],[ 42, 18,101,253]],
                 [[151,  9,118,248],[114,  9,119,248],[ 69,  9,122,248],[ 40,  9,119,249]],
               ],
-              // v0.95.735 · RE-MEASURED from the redelivered sheet.
               foot: [
                      [309,308,310,309],
                      [292,292,292,292],
-                     [312,312,312,312],
+                     [271,271,271,271],
                      [257,257,257,258],
                     ] },
     walk:   { src: 'assets/2D%20sprites/enemies/seer-grunt-b-walk.png',
               bboxes: [
                 [[153, 68,122,241],[112, 68,123,242],[ 69, 68,123,241],[ 32, 68,123,242]],
                 [[157, 41,114,246],[104, 41,131,246],[ 73, 41,119,245],[ 35, 41,120,246]],
-                [[149, 19,115,293],[110, 19,125,293],[ 69, 19,121,293],[ 34, 19,119,293]],
+                [[149, 19,115,246],[110, 19,125,246],[ 69, 19,121,246],[ 34, 19,119,246]],
                 [[151,  9,119,240],[115,  9,118,240],[ 68,  9,120,238],[ 39,  9,119,240]],
               ],
-              // v0.95.735 · RE-MEASURED from the redelivered sheet.
               foot: [
                      [309,310,309,310],
                      [287,287,286,287],
-                     [312,312,312,312],
+                     [265,265,265,265],
                      [249,249,247,249],
                     ] },
     run:    { src: 'assets/2D%20sprites/enemies/seer-grunt-b-run.png',
               bboxes: [
                 [[129, 40,140,264],[103, 40,136,264],[ 77, 40,136,264],[ 53, 40,132,265]],
                 [[105, 34,181,231],[ 79, 38,176,223],[ 65, 37,177,229],[ 37, 38,170,225]],
-                [[116,  5,166,307],[ 68,  5,176,307],[ 63,  5,172,307],[ 31,  5,168,307]],
+                [[116,  5,166,231],[ 68,  5,176,231],[ 63,  5,172,222],[ 31,  5,168,234]],
                 [[129,  9,129,246],[100,  9,131,241],[ 74,  9,130,246],[ 51,  9,127,246]],
               ],
-              // v0.95.735 · RE-MEASURED from the redelivered sheet.
               foot: [
                      [304,304,304,305],
                      [265,261,266,263],
-                     [312,312,312,312],
+                     [236,236,227,239],
                      [255,250,255,255],
                     ] },
     attack: { src: 'assets/2D%20sprites/enemies/seer-grunt-b-attack.png',
               bboxes: GRUNT_B_BBOXES,
-              foot: [[301,301,301,301],[272,271,271,273],
-                     [241,238,239,240],[217,221,232,217]] },
-    // ★ 256 is the IDLE standing height, NOT the attack sheet's 227.
-    // The attack pose is a crouch — 29px shorter — so scaling off it made
-    // him grow the instant he stopped swinging.  Scale must come from the
-    // pose the character actually stands in, and every other sheet then
-    // draws at whatever height it really is.
-    standBh: 255, scaleMul: 1.150,   // v0.95.735 · re-measured (was 256)
+              foot: [
+                     [302,302,302,302],
+                     [273,272,272,274],
+                     [241,238,239,240],
+                     [217,221,232,217],
+                    ] },
+    // ★ ONE SCALE PER CHARACTER, from the pose they STAND in.
+    standBh: 256, scaleMul: 1.150,
   },
 };
 const _seerGruntImg = {};
@@ -11272,14 +11270,18 @@ const NPCS = [
     // Eight of them, spread across the 20x15 hall rather than parked in the
     // corners, because the middle floor is the thing you have to cross twice:
     // down to the vault for the key, then up to the Commander.
+    // ★ v0.95.943 · each grunt is now a HOLDER or a PACER, never a wanderer.
+    // `patrol: [dx, dy, len]` walks a fixed line out and back; no patrol means
+    // he stands his post.  Half hold and half pace, so the hall has movement
+    // without eight bodies drifting at once.
     const HALL = [
-      { x:  4, y:  3, dir: 'right', v: 'A' },
+      { x:  4, y:  3, dir: 'right', v: 'A', patrol: [0, 1, 3] },
       { x: 15, y:  3, dir: 'left',  v: 'B' },
       { x:  4, y:  8, dir: 'down',  v: 'B' },
-      { x: 15, y:  8, dir: 'down',  v: 'A' },
-      { x: 10, y:  6, dir: 'down',  v: 'A' },
+      { x: 15, y:  8, dir: 'down',  v: 'A', patrol: [0, 1, 3] },
+      { x: 10, y:  6, dir: 'down',  v: 'A', patrol: [1, 0, 4] },
       { x:  7, y: 11, dir: 'up',    v: 'B' },
-      { x: 13, y: 11, dir: 'up',    v: 'A' },
+      { x: 13, y: 11, dir: 'up',    v: 'A', patrol: [-1, 0, 4] },
       { x: 10, y:  2, dir: 'down',  v: 'B' },
     ];
     function hqGrunt(s, i){
@@ -11300,7 +11302,13 @@ const NPCS = [
         tileX: s.x, tileY: s.y, homeX: s.x, homeY: s.y,
         homeScene: 'interior_seer_hq_1f',
         scene:     'interior_seer_hq_1f',
-        wanderRadius: 3,
+        // ★ v0.95.943 · wanderRadius 0 · his passive movement is seerPatrolStep,
+        // which is deterministic.  Leaving this at 3 would let the generic
+        // roamer fire on the same NPC and re-introduce the random drift.
+        wanderRadius: 0,
+        _patrol: s.patrol || null,
+        _postDir: s.dir,
+        _contactAggro: true,              // ★ holds until Rizer is ONE TILE away
         dir: s.dir,
         mode: 'drainer',
         moving: false,
@@ -11309,7 +11317,9 @@ const NPCS = [
         moveCd: 300 + Math.random() * 300,
         blinkTimer: 9e9,
         isEnemy: true,
-        detectR: 8,
+        // ★ detectR still governs the CHASE once contact has been made; it is
+        // no longer what starts the fight.
+        detectR: 12,
         _chaseSpeed: 1.3,
         _leashR: 18,                       // indoors · they cannot chase far anyway
         hpMax: isA ? 175 : 200, hp: isA ? 175 : 200,
@@ -47130,11 +47140,79 @@ function tickNPC(n, dt){
     factionMissionStep(n);
     return;
   }
+// ★★★ v0.95.943 · SEER PATROL · what a grunt does before he has seen you.
+// Creator: "they should walk or be idle ... no random movement."
+//
+// The old passive state was `wanderRadius: 3` shared with village NPCs, which
+// picks a RANDOM direction every cooldown -- eight guards inside one hall each
+// jittering on their own dice, which reads as drunk rather than posted.
+//
+// This is deterministic instead: a grunt either HOLDS (idle, facing his posted
+// direction) or PACES a fixed line, out and back, forever.  Same seed, same
+// path, every visit.  `patrol` is [dx, dy, length]; absent, he stands.
+function seerPatrolStep(n){
+  n.moving = false;
+  if (!n._patrol){                       // a holder · idle, facing his post
+    n.dir = n._postDir || n.dir;
+    n.moveCd = 500;
+    return;
+  }
+  const [pdx, pdy, len] = n._patrol;
+  n._patStep = (n._patStep == null) ? 0 : n._patStep;
+  n._patFwd  = (n._patFwd  == null) ? 1 : n._patFwd;
+  const homeX = (n.homeX != null ? n.homeX : n.tileX);
+  const homeY = (n.homeY != null ? n.homeY : n.tileY);
+  if (n._patStep >= len){ n._patFwd = -1; }
+  if (n._patStep <= 0)  { n._patFwd =  1; }
+  const next = n._patStep + n._patFwd;
+  const nx = homeX + pdx * next, ny = homeY + pdy * next;
+  const dir = pdx ? (n._patFwd > 0 ? (pdx > 0 ? 'right' : 'left')
+                                   : (pdx > 0 ? 'left'  : 'right'))
+                  : (n._patFwd > 0 ? (pdy > 0 ? 'down'  : 'up')
+                                   : (pdy > 0 ? 'up'    : 'down'));
+  // ★ stepNPCTo already refuses unwalkable tiles and the player's tile; the
+  // only thing it does not know about is ANOTHER GRUNT, and two patrols
+  // sharing a tile is the "clipping" this pass exists to remove.
+  const occupied = NPCS.some(o => o && o !== n && o.scene === n.scene
+                                  && o.tileX === nx && o.tileY === ny);
+  if (!occupied && stepNPCTo(n, nx, ny, dir)){
+    n._patStep = next;
+    n.moving = true;
+  } else {
+    n._patFwd = -n._patFwd;              // blocked · turn round, never jitter
+    n.dir = dir;
+  }
+  n.moveCd = 620;                        // a WALK cadence, not a run
+}
+
   // v0.95.129 · Mori AI · drainer / daemon
   //   drainer · slow shamble toward player when within detectR · adjacent = drain HP
   //   daemon  · fast chase within detectR, ignores wanderRadius fence · higher drain
   if (n.mode === 'drainer' || n.mode === 'daemon' || (n.isEnemy && (n._aggroUntil||0) > performance.now())){
     const isDaemon  = n.mode === 'daemon';
+    // ★★★ v0.95.943 · IN PLAY = the scene this NPC actually stands in.
+    // Every combat branch below used to read `game.scene === 'overworld'`,
+    // which meant the eight-grunt HQ garrison could not strike, could not play
+    // its attack sheet, and could not hurt anybody -- they were furniture that
+    // followed you around.  A garrison that cannot fight is the whole reason
+    // the interiors felt empty.
+    const inPlay = (game.scene === 'overworld') || (n.scene && n.scene === game.scene);
+    // ★★★ v0.95.943 · CONTACT AGGRO.  Creator: "they should walk or be idle
+    // until they make contact with you then run up to you and fight you."
+    // Sight was the trigger before (detectR 8, so they broke formation from
+    // half a room away and converged in a mob).  Now a contact grunt holds his
+    // post until you are ADJACENT, and only then does he become a hunter --
+    // and he stays one, so backing off does not reset the fight.
+    if (n._contactAggro && !((n._aggroUntil || 0) > performance.now())){
+      const cdx = Math.abs(player.x - n.tileX), cdy = Math.abs(player.y - n.tileY);
+      if (inPlay && cdx + cdy <= 1){
+        n._aggroUntil = performance.now() + 3600e3;   // engaged for good
+        n._alertedAt  = performance.now();
+      } else {
+        seerPatrolStep(n);                            // idle / walk his post
+        return;
+      }
+    }
     // v0.95.310 · Grass noise aggro · while aggro is active, effective detect
     // radius jumps so distant Mori/Daemon still investigate the noise source
     const aggroActive = (n._aggroUntil || 0) > performance.now();
@@ -47155,7 +47233,7 @@ function tickNPC(n, dt){
     const manh = Math.abs(dxp) + Math.abs(dyp);
     // v0.95.442/447 · Multi-sheet enemy attack anim · Vilerok + Morlisk + Satyrbeast
     // fire light/heavy strike frames on adjacent hit · vilerokPickSheet reads these timers
-    if (n._vSheets && manh === 1 && game.scene === 'overworld'){
+    if (n._vSheets && manh === 1 && inPlay){
       const heavy = Math.random() < 0.35;
       if (heavy){ n._heavyUntil = performance.now() + 520; }
       else      { n._lightUntil = performance.now() + 340; }
@@ -47176,11 +47254,11 @@ function tickNPC(n, dt){
     // v0.95.704 · generalised from _seerGrunt to ANY npc carrying an attack
     // bank, so the Verdant Creeper's five-frame swing plays without a second
     // copy of this line waiting to drift out of sync with the first.
-    if (n.attackSheet && manh <= 1 && game.scene === 'overworld'){
+    if (n.attackSheet && manh <= 1 && inPlay){          // ★ manh<=1 · one tile, never further
       n._atkUntil = performance.now() + (n._verdantCreeper ? 520 : 420);
     }
     // Adjacent contact → drain life
-    if (manh === 1 && game.scene === 'overworld'){
+    if (manh === 1 && inPlay){                          // ★ strike range is ONE TILE
       hurtPlayer(drainAmt, n.name || 'Mori');
       // face player after strike
       n.dir = Math.abs(dxp) >= Math.abs(dyp)

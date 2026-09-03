@@ -168,6 +168,108 @@ different.**
 sympathetic to the end: **he is not wrong that he is strong. He is wrong about what
 strength is for.**
 
+### ★★★★ 7a-0 · THE REAL WOUND · he is not envious. He is BEWILDERED. — Creator, 2026-09-01
+
+> **Creator:** *"make it known that zoryn does not envy rizer. **he looks at rizer as a kid even though they are the same age.** zoryn just cant believe he went his whole life following the rizer path to a T but **never developed the essential compassion of bonding.** he studies, trained, learned, but **never let his guard down** to bond with a gemlord. yes, he can bond lower tiers but his rizer bond never reaches gemlord level. … this is why zoryn obsessed over finding higher power. **he never understood letting himself be vulnerable.** … we never want to hate zoryn. we want to feel bad for him. **a symbol of failed dreams when even hard work is prevalent.**"*
+
+**Yes, it works — and it fixes the one weakness §7a still had.**
+
+#### ★★★★ 1 · It demotes "control" from a CAUSE to a SYMPTOM
+
+★★ §7a had Zoryn *wanting* control, which is a choice, and a choice makes a villain.
+**This makes it a consequence.**
+
+> **He did not want to control Gemlords. He wanted to BOND with them — exactly like
+> Rizer — and he could not.**
+> **Control is what he settled for.**
+
+★★★★ **That is the difference between a man who chose wrong and a man who could not
+choose at all**, and it is the difference between a villain and a tragedy. ★ §7a is not
+retired — *"Zoryn wants to control Gemlords"* stays true. **It is now the symptom, and
+§7a-0 is the disease.**
+
+#### ★★★★ 2 · "He looks at Rizer as a kid" is the whole character in one gesture
+
+★★★ They are the same age. **The "kid" reading is not an observation — it is a
+defence.** It is the only way to survive watching a peer do effortlessly the thing you
+spent your entire life failing at: **decide he doesn't understand what he's doing.**
+
+★★★★ **And he is RIGHT. Rizer doesn't understand it. That is exactly why it works.**
+
+> **The thing Zoryn calls childishness IS the qualification.**
+>
+> Openness, unguardedness, not-bracing — those read as **immaturity** to a man who
+> built himself out of discipline. ★★★ **He is not blind to what Rizer has. He can see
+> it perfectly. He cannot VALUE it — because valuing it means everything he built was
+> beside the point.**
+
+★★ **Writable tell for the dialogue pass:** *the condescension escalates as he loses.*
+**"Kid" should get MORE frequent, not less** — through the Challenge final, into the
+Pit. **The word is the sound of a man holding a door shut.**
+
+#### ★★★★ 3 · THE GAME ALREADY RENDERS HIS TRAGEDY AS UI
+
+The Gemlord bond ceiling is **shipped, gated, and displayed** **[BUILD]** `rp7b.html:11592–11601`:
+
+```js
+const gemlordUnlocked = _bondNow >= _need || !!player.korathenWardenComplete;
+… `(Gemlord recruits unlock at Rizer Bond ${_need} · you have ${_bondNow})`
+```
+
+★★★★ **The player is shown a requirement and their shortfall, as a number.
+Zoryn's entire life is that toast.**
+
+> ★★★★ **He can be MAX LEVEL and still short.** Every stat filled, every scroll found,
+> every tower cleared — **and the bond bar stops.** *You can read his failure off a
+> stat sheet.*
+
+★★★ **And the BOND LEDGER already encodes why** **[BUILD]**: two paths — a **RIZER
+path** (find · scroll · quest · tower · district · ally) and a **ZYREX path** (strike ·
+kill · level · evolve · **wild-bond** · **mastered**) — and **each caps at 1665 of
+3330, so neither alone can reach the ceiling.**
+
+> ★★★★ **Zoryn is a man at 1665.** He completed one entire half of the ledger with
+> perfect discipline, **and the other half is the half you cannot study for.** A
+> balance rule written months ago turns out to be a character.
+
+★ **[ASK] one clarification worth making explicit:** the Creator says *"level 80+"*;
+canon says **Bond > 80% gates the Gemlord Trial**. ★★ **Recommend it be the BOND, not
+the level** — because a level is grind and **a bond is a relationship**, and only one
+of those can be maxed by a man who never opened.
+
+#### ★★★ 4 · "Never let his guard down" is literally the game's verb
+
+**The Zysphere bond is a *click-OPEN* cosmic bind. The wild bond encounter is an
+imprint that fails to *hostile or flee*.** **[BUILD]**
+
+> ★★★ **Bonding is opening. A man who never opens cannot use the central verb of his
+> own profession** — and can still be superb at every other part of it.
+
+★ **Which is why he CAN bond lower tiers** *(Creator, explicitly)* and it matters: **he
+is not incapable of affection. He is incapable of surrender.** A small creature does
+not require him to be undefended. **A Gemlord does.**
+
+#### ★★★★ 5 · THE RISK, NAMED — and the two rules that keep him sympathetic
+
+★★ **A story where hard work is not enough can read as cruel or nihilistic.** Two
+things prevent it, and both are non-negotiable in the writing:
+
+1. ★★★ **NEVER say his work was worthless. Say it was insufficient for ONE DOOR.** He
+   is one of the strongest people alive — canon: *"just as powerful."* **He failed at
+   one thing, and it happened to be the thing he built his life around.**
+2. ★★★★ **HIS GRIEVANCE MUST BE LEGITIMATE, and the game must not weasel out of it.**
+
+> ★★★★ **Rizer did not earn the bond either. He simply had it.**
+>
+> **That is not fair, and the story should never pretend it is.** ★★★ The answer to
+> Zoryn is **not** *"you were wrong."* It is: ***"you were right — and it still does
+> not entitle you to take a planet."***
+
+★★★ **That is what makes him a symbol of failed dreams rather than a cautionary
+tale.** Every player who has ground a number and not received the outcome already
+knows what he knows. **He is the voice of everyone who did everything right.** The
+story does not refute him. **It survives him.**
+
 ### ★★ 7a-3 · THE FRIENDSHIP IS REAL, AND RIZER NEVER ENDS IT
 
 The **Naruto/Sasuke register** the Creator names has one non-negotiable rule:

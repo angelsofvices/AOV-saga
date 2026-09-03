@@ -299,6 +299,112 @@ human authority**, one district before Thardin and the end.
 - ★★ **One hard test for the set:** if an Elder could be redrawn as a human in costume
   without losing anything, **it is a Master wearing the wrong word.**
 
+---
+
+### ★★★★★ 6.5c · THE SEER COUP · they overthrew the native Elders
+
+> **Creator, 2026-09-01:** *"the seers overthrew the native elders in their respective districts once they formed their coupe. this is how they hold the middle districts and spread corruption up and down."*
+
+#### ★★★★★ 1 · It is the reason for the shape I had just called pacing
+
+An hour ago I proposed the Master/Elder assignment and defended the **four Elders in a
+row across IV–VII** as *"the middle of the campaign going strange."*
+
+> ★★★★★ **It is not pacing. It is the occupation.**
+>
+> **Veridan · Netharion · Vorashil · Xilnar — the four consecutive Elder districts —
+> are the four the Seers HOLD.** The lump is a front line.
+
+★★ **I had the shape and the wrong reason for it.** The assignment stands unchanged;
+**it now has a cause instead of an aesthetic.**
+
+#### ★★★★★ 2 · Overthrowing an ELDER is the Seer thesis at civic scale
+
+★★★★ **An Elder is AETHREN — the being that speaks for the land.** The Seers are the
+religion of **taking power without bonding** — the anti-bond.
+
+> **They did not negotiate with the land. They deposed it and sat in its chair.**
+
+★★★ **That is the same act as their magic, performed on a government.** Siphoning,
+sacrifice, corruption, the harvest — and now this. **Every Seer method is the refusal
+to ask.**
+
+★ **And it sharpens why they left the Masters alone** *(flagged, not assumed)*: a Master
+is a **person**, and people can be pressured, infiltrated, collaborated with — which is
+exactly what Baelgor's arc already is, *"the Pledge rewritten by collaborators."*
+**An Elder cannot be collaborated with, because it is not of your kind. It can only be
+removed.**
+
+#### ★★★★★ 3 · IT SOLVES THE EXPEDITION-GIVER PROBLEM — and improves it
+
+★ **The obvious circularity:** if the Elder gives the district's expedition and the
+Elder has been overthrown, **who talks?**
+
+> ★★★★★ **The Elder does — from hiding.**
+>
+> **In a Master district the officer sits in a hall.
+> In an occupied Elder district, the officer is a FUGITIVE, and you have to find them
+> before they can send you anywhere.**
+
+★★★★ **So the player reads the map's politics off where the quest-giver is standing.**
+Formal, seated, civic — or underground, displaced, and speaking carefully. **No
+exposition required.**
+
+★★ It also gives four districts their expedition spine for free: **reach the Elder ·
+learn what was taken · put them back.**
+
+#### ★★★★★ 4 · OMNIRIS IS THE CONTROL CASE — and that is why he is district II
+
+**Zarvane's Elder is not deposed.** Omniris is seated at his oasis, running his eight
+trials, teaching THE SIGHT.
+
+> ★★★★★ **The player meets a FREE Elder first — so that they know what an Elder is
+> supposed to be — and then walks into four districts where the Elder is gone.**
+>
+> **Omniris exists so the player can recognise what has been taken.**
+
+★ The gradient is now: **II free · IV–VII occupied · X the Empty Throne.** Three states
+of authority, in order.
+
+#### ★★★★ 5 · THE COMMANDERS ARE WEARING THEIR PREDECESSORS
+
+`SEER_COMMANDERS.md` already carries the design rule, written before this ruling:
+
+> *"the district is CORRUPTION, not costume — **the Seer parts are WORN, the district parts are ATTACHED.**"*
+
+★★★★★ **Now it means something specific and horrible: the district parts are attached
+because they came off the Elder.** A Commander sitting in a deposed being's seat,
+wearing pieces of it. **The rule did not need changing — it needed a reason, and it now
+has one.**
+
+★ **[FLAG] ten Commanders, four occupied districts.** So the Seers have a **presence**
+everywhere and **control** only in the middle. ★★ That reads correctly — *infiltration
+across the map, occupation at the centre* — and it is what makes Baelgor's collaborators
+and Thardin's Precision Ministry different problems from Xilnar's.
+
+#### ★★★★ 6 · AND IT MAKES THE INVASION OF MALEZOR STRUCTURAL, NOT AN ESCALATION
+
+*"Spread corruption **up and down**"* — from the centre, outward, toward both ends.
+
+> ★★★★ **Malezor is the far end of "down." The Invasion is the front line arriving.**
+
+★★★ **Which retires the last arbitrary thing about the story's central turn.** The
+parents are not taken because the plot needed a loss — **they are taken because the
+player spent four districts pushing the Seers, and the Seers pushed back along the axis
+they were always moving on.** ★ And it gives the player a map they can read the threat
+off: *the middle is theirs, and it is getting wider.*
+
+#### ★ 7 · OPEN
+
+1. ★★ **When was the coup?** It is now a datable founding event with consequences on
+   the map. Unwritten.
+2. ★★ **Are the four deposed Elders alive?** *"Overthrown"* allows hiding, imprisonment
+   or death. ★ **Recommend at least one of each** — a district where you free them, one
+   where you are too late, and one where what you find is not what was deposed.
+3. ★ **Does Korathen's Elder predate the coup?** Its humanoid seat was already empty
+   (§6.5b), so Korathen may be the one district the Seers could not take **because
+   there was nothing to depose** — or the one they most want, for the same reason.
+
 ★★ **A naming rule falls out for free either way.** Kelthor is the **BEAST**master of
 the **BEAST**lands. **The Master's title is the district's land-type**, so all ten are
 derivable: Auramaster · Creaturemaster · Naturemaster · Spiritmaster · Techmaster and

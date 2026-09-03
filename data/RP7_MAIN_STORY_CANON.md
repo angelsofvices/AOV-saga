@@ -165,7 +165,80 @@ The draft's Andrannor nightclub is **CLUB VX**. The build has a prop `club_50`, 
 canon has **Club 50** run by ally **Vladimir Valenov**, dealing cheap faedust to the
 inner city. Same venue renamed, or two clubs?
 
-### 6.5 ★★★ Elders vs Wardens · **RULED 2026-09-01 · ELDER = MAIN · WARDEN = MASTERY**
+### 6.5b ★★★★ SUPERSEDED SAME DAY · **MASTERS = HAEMEN · ELDERS = AETHREN**
+
+> **Creator, 2026-09-01:** *"masters are haemen. elders are aethren. **kelthor is the main beastmaster of malezor.** both classes give you expedition missions (10 in total). npcs still give quests."*
+
+★★★★ **This is a bigger ruling than it looks, because HAEMEN and AETHREN are already
+locked type-classes** **[BUILD]** `rp7b.html:37478`:
+
+> *"**HUMANOID is the sole HAEMEN type; the other standard types are AETHREN**; Aquatic sits in the MASS class."*
+
+| office | class | means |
+|---|---|---|
+| **MASTER** | **HAEMEN** | ★ **HUMANOID.** A person |
+| **ELDER** | **AETHREN** | ★★★ **one of the other nineteen types. NOT humanoid** |
+
+> ★★★★ **A district's Elder is not a human being. It is a being OF THE DISTRICT'S OWN
+> KIND.** The Auralands are counselled by something Aura. The Spiritlands by something
+> Spirit. **The Master speaks for the people; the Elder speaks for the land.**
+
+★★ **"Warden" is retired.** Kelthor is **the main Beastmaster of Malezor** — a
+**MASTER** — and the build's *"Elder Beastmaster KELTHOR"* (`:32050`) was conflating
+the two offices. ★ **Dad is a Beastmaster under him**, which finally gives Dad a rank.
+
+★★★ **AND IT RESOLVES OMNIRIS.** `OMNIRIS_ZARVANE_ELDER_DRAFT.md` asked to confirm a
+**Humanoid-primary flip**, which has already shipped — while his sprite still lives at
+`assets/2D sprites/zyrex/omniris.png`. **Under this ruling an Elder is AETHREN, i.e.
+NOT humanoid. The flip was the error and the file path was right.** ★ Flagged for
+reversal, not changed here.
+
+#### ★★★★ "EXPEDITION" = MAIN QUEST · the build already said so
+
+`rp7b.html:32375` carries an older Creator quote verbatim:
+
+> *"**main quests are expeditions tied to each village elder/master**… you need to
+> complete each main mission in order for story to progress. **side missions can unlock
+> at any time if u talk to the right npc.**"*
+
+**So the taxonomy is now fully determined:**
+
+| | given by | gates story? |
+|---|---|---|
+| ★ **EXPEDITION** = the **MAIN** quest | **Masters + Elders** · **10 total** | ★ **yes, in order** |
+| **QUEST** = the **SIDE** mission | **NPCs** | no · anytime |
+
+★★★★ **AND IT SIMPLIFIES THE MISSION SPINE.** §3 says *"seven missions per district ×
+ten = 70."* **"Ten in total" says the container is the district, not the beat.**
+★★ **Recommended reading: TEN EXPEDITIONS, one per district, each with several steps —
+and the seven-beat shape (§3) is the shape of the STEPS INSIDE ONE.** That reconciles
+both numbers and matches *"complete each main mission in order."*
+
+#### ★ WHAT IT COSTS · the count went UP
+
+★ Yesterday's §6.5 said *"nine Elders to name."* Under Haemen/Aethren there are **two
+offices per district**:
+
+| | seated today | needed |
+|---|---|---|
+| **MASTERS** (Haemen · humanoid) | **Kelthor** · Malezor | **9** |
+| **ELDERS** (Aethren · non-humanoid) | **Omniris** · Zarvane | **9** |
+
+★★★ **[ASK] — the one thing I need before naming anybody: does every district have
+BOTH?** *(18 figures, 10 expeditions between them)* — or **one or the other per
+district** *(10 figures, 10 expeditions)*? ★ The second is cheaper and cleaner; the
+first is what *"both classes give you expedition missions"* most naturally implies.
+**Not assumed.**
+
+★★ **A naming rule falls out for free either way.** Kelthor is the **BEAST**master of
+the **BEAST**lands. **The Master's title is the district's land-type**, so all ten are
+derivable: Auramaster · Creaturemaster · Naturemaster · Spiritmaster · Techmaster and
+so on. ★ **The Elders, being Aethren, are named as beings rather than offices** —
+which is exactly what Omniris is.
+
+---
+
+### ~~6.5 · Elders vs Wardens · ELDER = MAIN · WARDEN = MASTERY~~ · ★ SUPERSEDED by 6.5b
 
 > **Creator, 2026-09-01:** **Elder = main chain · Warden = mastery track.**
 > The proposed reconciliation below is **adopted as written.**

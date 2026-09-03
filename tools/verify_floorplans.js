@@ -6,6 +6,7 @@ const fs=require('fs'), path=require('path');
 const html=fs.readFileSync(path.join(path.resolve(__dirname,'..'),'rp7b.html'),'utf8');
 let fail=0; const ok=m=>console.log('  ok   '+m); const bad=m=>{console.log('  FAIL '+m);fail++;};
 
+const SCENES=['INTERIOR_SEER_HQ_1F','INTERIOR_SEER_HQ_R2'];
 const m=html.match(/const INTERIOR_SEER_HQ_1F = \{[\s\S]*?plan: \[([\s\S]*?)\],/);
 if(!m){ bad('1F plan not found'); process.exit(1); }
 const plan=[...m[1].matchAll(/'([^']+)'/g)].map(x=>x[1]);
@@ -45,6 +46,39 @@ for (const [re,l] of [[/function floorPlan\(cfg\)/,'floorPlan parser'],
                       [/TILE, TILE \* 4\);/,'faces draw the whole asset 4 tiles tall'],
                       [/Math\.round\(SH \/ 4\)/,'caps draw the top course only']])
   re.test(html)?ok(l):bad(l);
+
+
+// ★ every plan scene: rectangular, has a door, and its wall faces never cover floor
+for (const name of SCENES){
+  const mm = html.match(new RegExp('const '+name+' = \\{[\\s\\S]*?plan: \\[([\\s\\S]*?)\\],'));
+  if (!mm){ bad(name+' plan missing'); continue; }
+  const pl=[...mm[1].matchAll(/'([^']*)'/g)].map(x=>x[1]);
+  const c=pl[0].length, r=pl.length;
+  if (pl.some(q=>q.length!==c)) { bad(name+' ragged'); continue; }
+  const A=(x,y)=>(x<0||y<0||x>=c||y>=r)?' ':pl[y][x];
+  const fl=ch=>'.SCG'.includes(ch);
+  let over=0, faces=0, doors=0;
+  for(let y=0;y<r;y++)for(let x=0;x<c;x++){
+    const ch=A(x,y);
+    if(ch==='D') doors++;
+    if(fl(ch)||ch===' ') continue;
+    if(fl(A(x,y+1))){ faces++; for(let d=1;d<4;d++) if(fl(A(x,y-d))) over++; }
+  }
+  if(!doors) bad(name+' has no door');
+  else if(over) bad(`${name}: ${over} wall-face tiles cover FLOOR (a 4-tile face reaches 3 rows up)`);
+  else ok(`${name} ${c}x${r} · ${faces} faces · ${doors} door(s) · no face covers floor`);
+}
+// ★ the room graph must close: every doorTarget resolves to a real scene
+const dt=[...html.matchAll(/target: '(interior_seer_hq_[a-z0-9]+)'/g)].map(x=>x[1]);
+const known=new Set(['interior_seer_hq_1f','interior_seer_hq_r2','interior_seer_hq_b','interior_seer_hq_2f']);
+const orphan=dt.filter(t=>!known.has(t));
+orphan.length ? bad('door/stair targets an unknown scene: '+orphan.join(', '))
+              : ok(`room graph closes · ${dt.length} transitions, all resolve`);
+[[/if \(scene === 'interior_seer_hq_r2'\)     return INTERIOR_SEER_HQ_R2/,'R2 registered in interiorConfig'],
+ [/function planDoorAt/,'door-transition lookup'],
+ [/const _door = planDoorAt\(cfg, fx, fy\)/,'X on a door transitions'],
+ [/for \(const v of _plan\.voids\)/,'void tiles drawn black']]
+ .forEach(([re,l])=>re.test(html)?ok(l):bad(l));
 
 console.log(fail?`\n${fail} FAILURE(S)`:'\nall floor-plan checks passed');
 process.exit(fail?1:0);

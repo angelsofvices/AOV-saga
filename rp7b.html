@@ -11274,15 +11274,23 @@ const NPCS = [
     // `patrol: [dx, dy, len]` walks a fixed line out and back; no patrol means
     // he stands his post.  Half hold and half pace, so the hall has movement
     // without eight bodies drifting at once.
+    // ★ v0.95.946 · 1F is one hall with one door, so it holds a light guard --
+    // two posted either side of the door.  The six IDLE Seers the Creator asked
+    // for live in R2, the landing, which is the room the door opens onto.
     const HALL = [
-      { x:  4, y:  7, dir: 'down', v: 'A', patrol: [1, 0, 4] },
-      { x: 17, y:  7, dir: 'down', v: 'B' },
-      { x: 29, y:  7, dir: 'down', v: 'A' },
-      { x: 31, y:  9, dir: 'left', v: 'B', patrol: [-1, 0, 5] },
-      { x:  5, y: 19, dir: 'up', v: 'B' },
-      { x: 29, y: 19, dir: 'up', v: 'A', patrol: [-1, 0, 4] },
-      { x:  3, y: 21, dir: 'right', v: 'A' },
-      { x: 17, y: 21, dir: 'up', v: 'B', patrol: [1, 0, 5] },
+      { x: 14, y:  9, dir: 'right', v: 'A' },
+      { x: 20, y:  9, dir: 'left',  v: 'B' },
+      { x: 11, y: 15, dir: 'down',  v: 'A', patrol: [1, 0, 4] },
+      { x: 23, y: 15, dir: 'down',  v: 'B', patrol: [-1, 0, 4] },
+    ];
+    // ★ THE LANDING · idle until contact, per v0.95.943
+    const LANDING = [
+      { x: 12, y: 10, dir: 'down',  v: 'A' },
+      { x: 17, y: 10, dir: 'down',  v: 'B' },
+      { x: 22, y: 10, dir: 'down',  v: 'A' },
+      { x: 12, y: 15, dir: 'right', v: 'B', patrol: [1, 0, 3] },
+      { x: 22, y: 15, dir: 'left',  v: 'A', patrol: [-1, 0, 3] },
+      { x: 17, y: 17, dir: 'down',  v: 'B' },
     ];
     function hqGrunt(s, i){
       const idle = seerGruntSheet(s.v, 'idle'), walk = seerGruntSheet(s.v, 'walk');
@@ -11330,7 +11338,13 @@ const NPCS = [
         onInteract: (n) => showToast(`◈ ${String(n && n.name || 'SEER GRUNT').toUpperCase()} · "The Seers see all... die, Rizer."`, 2400),
       };
     }
-    const npcs = HALL.map(hqGrunt);
+    const npcs = HALL.map((h, i) => hqGrunt(h, i));
+    LANDING.forEach((h, i) => {
+      const n = hqGrunt(h, HALL.length + i);
+      n.id = `seer_r2_grunt_${i + 1}`;
+      n.homeScene = n.scene = 'interior_seer_hq_r2';
+      npcs.push(n);
+    });
     // ── THE COMMANDER · top floor, far wall · v0.95.699 ────────────────
     // ONE npc serves all ten districts, exactly like the interior itself: the
     // sheet and the name are swapped on arrival by refreshSeerCommander().
@@ -16804,31 +16818,31 @@ const INTERIOR_SEER_HQ_1F = {
   // door, and wall HEIGHT is derived — a wall with floor under it draws a
   // 3-tile face, everything else draws a 1-tile cap.
   plan: [
-    '###################################',
-    '###################################',
-    '###################################',
-    '###################################',
-    '#..........#...........#..........#',
-    '#..........#...........#..........#',
-    '#..........#...........#..........#',
-    '#..........D...........D..........#',
-    '#..........#...........#..........#',
-    '#..........#...........#..........#',
-    '#..........#...........#..........#',
-    '#..........#...........#..........#',
-    '#####D###########D###########D#####',
-    '###################################',
-    '###################################',
-    '#####D###########D###########D#####',
-    '#.........#.............#.........#',
-    '#.........#.............#.........#',
-    '#.........#.............#.........#',
-    '#.........D.............D.........#',
-    '#.........#.............#.........#',
-    '#.........#.............#.........#',
-    '#.........#.............#.........#',
-    '#.........#.............#.........#',
-    '###################################',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '     #########################     ',
+    '     #########################     ',
+    '     #########################     ',
+    '     ############D############     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #.......................#     ',
+    '     #########################     ',
+    '                                   ',
+    '                                   ',
   ],
   cols: 35, rows: 25,
   tileImg: SEER_HQ_FLOOR_IMG,
@@ -16841,24 +16855,67 @@ const INTERIOR_SEER_HQ_1F = {
   overworldDrop: { x: 75, y: 169, dir: 'down' },   // rewritten per district by enterSeerHq
   // Two staircases, opposite corners of the hall, so crossing the patrolled
   // floor is unavoidable in both directions.
+  // ★ v0.95.946 · no stairs on 1F.  The hall has ONE door, top centre, and
+  // it is a scene transition — the staircases live in the room beyond it.
+  stairsList: [],
+  doorTargets: {
+    '17,7': { target: 'interior_seer_hq_r2', spawnAt: { x: 17, y: 20, dir: 'up' } },
+  },
+};
+// ★★★ v0.95.946 · ROOM 2 · THE LANDING.  Idle Seers, and the only stairs in the
+// building: DOWN to the vault for this district's key, UP to the Commander.
+const INTERIOR_SEER_HQ_R2 = {
+  stairArt: 'seer',
+  plan: [
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '        ###################        ',
+    '        ###################        ',
+    '        ###################        ',
+    '        #########D#########        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        #.................#        ',
+    '        ###################        ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+  ],
+  cols: 35, rows: 25,
+  tileImg: SEER_HQ_FLOOR_IMG,
+  spawn: { x: 17, y: 20, dir: 'up' },
+  exit:  null,
+  autoExit: false,
+  wallImg: 'seer',
+  blocked: [],
+  label: '◈ SEER HQ · THE LANDING',
+  doorTargets: {
+    '17,7': { target: 'interior_seer_hq_1f', spawnAt: { x: 17, y: 9, dir: 'down' } },
+  },
   stairsList: [
-    { // DOWN to the vault · always open
-      triggers: [[1, 5], [2, 5]],
-      target: 'interior_seer_hq_b',
+    { triggers: [[12, 19], [13, 19]], target: 'interior_seer_hq_b',
       spawnAt: { x: 7, y: 8, dir: 'up' },
-      art: 'down', visX: 1, visY: 3, visW: 2, visH: 3,
-    },
-    { // UP to the Commander · locked until this district's key is in hand
-      triggers: [[32, 5], [33, 5]],
-      target: 'interior_seer_hq_2f',
+      art: 'down', visX: 12, visY: 17, visW: 2, visH: 3 },
+    { triggers: [[21, 19], [22, 19]], target: 'interior_seer_hq_2f',
       spawnAt: { x: 7, y: 10, dir: 'up' },
-      art: 'up', visX: 32, visY: 3, visW: 2, visH: 3,
+      art: 'up', visX: 21, visY: 17, visW: 2, visH: 3,
       locked: () => !hasSeerKey(),
       lockedMsg: () => {
         const H = SEER_HQ_BY_DIST[seerHqDistrict()];
-        return `◈ SEALED · the stair to the top floor will not open · ${H ? H.label.toUpperCase() : ''} SEER KEY needed`;
-      },
-    },
+        return `◈ SEALED · the stair up will not open · ${H ? H.label.toUpperCase() : ''} SEER KEY needed`;
+      } },
   ],
 };
 const INTERIOR_SEER_HQ_B = {
@@ -17143,8 +17200,12 @@ function seerHqFloorLabel(scene){
     try { refreshSeerCommander(); } catch(_){}   // swap to THIS district's officer
     return `◈ ${who} COMMAND · someone has been expecting you`;
   }
+  if (scene === 'interior_seer_hq_r2'){
+    INTERIOR_SEER_HQ_R2.label = `◈ ${who} SEER HQ · THE LANDING`;
+    return `◈ ${who} LANDING · stairs both ways · they have not noticed you yet`;
+  }
   if (scene === 'interior_seer_hq_1f'){
-    INTERIOR_SEER_HQ_1F.label = `◈ ${who} SEER HQ · 1F`;
+    INTERIOR_SEER_HQ_1F.label = `◈ ${who} SEER HQ · ENTRANCE HALL`;
     return null;
   }
   return null;
@@ -25189,6 +25250,7 @@ function interiorConfig(scene){
   if (scene === DREAMLAND_SCENE)       return INTERIOR_DREAMLAND;   // v0.95.719
   if (scene === 'interior_malezor_school') return INTERIOR_MALEZOR_SCHOOL;   // v0.95.590
   if (scene === 'interior_seer_hq_1f')     return INTERIOR_SEER_HQ_1F;       // v0.95.615
+  if (scene === 'interior_seer_hq_r2')     return INTERIOR_SEER_HQ_R2;      // ★ v0.95.946 the landing
   if (scene === 'interior_seer_hq_b')      return INTERIOR_SEER_HQ_B;        // v0.95.699
   if (scene === 'interior_seer_hq_2f')     return INTERIOR_SEER_HQ_2F;       // v0.95.699
   // v0.95.311 · Dev · Unlock-All-Doors dynamic scenes · look up by prefix
@@ -27981,27 +28043,32 @@ function floorPlan(cfg){
   let P = _planCache.get(cfg);
   if (P) return P;
   const rows = cfg.plan, R = rows.length, C = rows[0].length;
-  const blocked = new Set(), walls = [], doors = [], chests = [], grunts = [];
-  const at = (x, y) => (x < 0 || y < 0 || x >= C || y >= R) ? '#' : rows[y][x];
-  const solid = ch => ch === '#' || ch === 'D';
+  const blocked = new Set(), walls = [], doors = [], voids = [];
+  const at = (x, y) => (x < 0 || y < 0 || x >= C || y >= R) ? ' ' : rows[y][x];
+  const isFloor = ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G';
   for (let y = 0; y < R; y++){
     for (let x = 0; x < C; x++){
       const ch = at(x, y);
-      if (solid(ch)){
-        blocked.add(x + ',' + y);
-        // ★ face if the tile under it is walkable — that is the surface you see
-        walls.push({ x, y, face: !solid(at(x, y + 1)) });
-        if (ch === 'D') doors.push({ x, y });
-      }
-      else if (ch === 'C') chests.push({ x, y });
-      else if (ch === 'G') grunts.push({ x, y });
+      if (isFloor(ch)) continue;
+      blocked.add(x + ',' + y);
+      if (ch === ' ') { voids.push({ x, y }); continue; }   // ★ black, not wall
+      // ★ a wall FACE is a wall tile with floor beneath it — the surface you see
+      walls.push({ x, y, face: isFloor(at(x, y + 1)) });
+      if (ch === 'D') doors.push({ x, y });
     }
   }
-  P = { rows: R, cols: C, blocked, walls, doors, chests, grunts };
+  P = { rows: R, cols: C, blocked, walls, doors, voids };
   _planCache.set(cfg, P);
   return P;
 }
-
+// ★★★ v0.95.946 · a door is a SCENE TRANSITION, not a passage.
+// Creator: "Interacting with a door should place you in a new room (level)."
+// The door tile itself stays solid, so the player stands on the floor below and
+// presses X.  cfg.doorTargets maps 'x,y' -> { target, spawnAt, locked, lockedMsg }.
+function planDoorAt(cfg, x, y){
+  const T = cfg && cfg.doorTargets;
+  return T ? (T[x + ',' + y] || null) : null;
+}
 function drawInteriorFloor(){
   const cfg = interiorConfig(game.scene) || INTERIOR_HOME;
   // ★ v0.95.719 · DREAMLAND draws its own sky · no tile sheet at all.
@@ -28024,21 +28091,23 @@ function drawInteriorFloor(){
     ctx.fillStyle = '#7a4a1e';
     ctx.fillRect(-_cam.x, -_cam.y, C * TILE, R * TILE);
   }
-  // ★★★ v0.95.945 · PLAN WALLS · THE ASSET IS THE WALL.
-  // Creator: "the wall asset should fully show, each wall needs to be 4 tiles
-  // high and 1 tile wide, repeated."
+  // ★★★ v0.95.946 · VOID IS BLACK · WALLS FRAME ROOMS.
+  // Creator: "I want the non walkable tiles to just be black.  walls contain
+  // floors and hold doors for entry to next level.  do not use walls to fill
+  // non walkable tiles."
   //
-  // v0.95.944 filled wall tiles with a repeating canvas PATTERN, sampling a
-  // 3-tile window of the strip.  That showed a slice of the art and hid the
-  // rest -- the gem courses landed wherever the world grid happened to cut
-  // them.  Wrong instinct: the strip is not a texture to sample, it is a WALL
-  // SEGMENT to place.  So it is drawn whole, once per face, 1 tile wide by 4
-  // tall, and repeated along the run.  Every gem course lands where the artist
-  // put it, in every segment, identically.
-  //
-  // ★ 4 tiles is TWICE Rizer's height (he draws at TILE*2).
+  // v0.95.945 painted the wall asset over EVERY blocked tile, so a floor was a
+  // slab of masonry with rooms carved out of it -- which is not how any of the
+  // reference interiors work.  A room is a floor with a wall AROUND it, and
+  // beyond that wall there is nothing.  So the plan now has three states, and
+  // the space between rooms is drawn as pure black rather than as more wall.
   const _plan = floorPlan(cfg);
   if (_plan){
+    ctx.fillStyle = '#000';
+    for (const v of _plan.voids){
+      if (v.x < startCol - 1 || v.x > endCol || v.y < startRow - 1 || v.y > endRow) continue;
+      ctx.fillRect(v.x * TILE - _cam.x, v.y * TILE - _cam.y, TILE, TILE);
+    }
     const wImg = wallImageFor(cfg.wallImg);
     if (wImg && wImg.complete && wImg.naturalWidth){
       const SW = wImg.naturalWidth, SH = wImg.naturalHeight;
@@ -28046,12 +28115,9 @@ function drawInteriorFloor(){
         if (w.x < startCol - 1 || w.x > endCol || w.y < startRow - 4 || w.y > endRow) continue;
         const dx = w.x * TILE - _cam.x;
         if (w.face){
-          // the whole segment, bottom-anchored on its own tile
           ctx.drawImage(wImg, 0, 0, SW, SH,
                         dx, (w.y - 3) * TILE - _cam.y, TILE, TILE * 4);
         } else {
-          // ★ a wall with wall beneath it shows only its top course -- the top
-          // quarter of the segment, so caps and faces are cut from one asset.
           ctx.drawImage(wImg, 0, 0, SW, Math.round(SH / 4),
                         dx, w.y * TILE - _cam.y, TILE, TILE);
         }
@@ -29439,6 +29505,23 @@ function tryInteract(){
   {
     const cfg = interiorConfig(game.scene);
     if (cfg){
+      // ★★★ v0.95.946 · X on a DOOR walks you into the next room.
+      // Checked before anything else in the interior branch: a door is the one
+      // thing in a Seer HQ that is always worth pressing X on, and it is solid,
+      // so nothing else can be standing on that tile to compete.
+      const _door = planDoorAt(cfg, fx, fy);
+      if (_door){
+        if (typeof _door.locked === 'function' && _door.locked()){
+          showToast(typeof _door.lockedMsg === 'function' ? _door.lockedMsg() : '◈ LOCKED', 2600);
+          return;
+        }
+        const _nextCfg = interiorConfig(_door.target);
+        if (_nextCfg){
+          enterInterior(_door.target, _nextCfg, _door.spawnAt || _nextCfg.spawn);
+          try { playSFX('confirm'); } catch(_){}
+        }
+        return;
+      }
       // v0.95.516 · Treehouse silver chest · X on the chest tile opens it
       // ★ v0.95.719 · TELESCOPE · the way into Dreamland
       if (game.scene === 'interior_treehouse'

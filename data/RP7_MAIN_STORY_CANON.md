@@ -555,6 +555,143 @@ avenge the fallen."*** ★★ Note the tense — **"the fallen" already exist.**
 is not *a threat is coming*; it is **an occupation is already in its second generation,
 and one corner of the map is still loose.**
 
+---
+
+### ★★★★★ 6.5e · OPHARION IS IN THE CODEX — and so is a contradiction
+
+> **Creator:** *"check the codex. opharion should already be in there, thats her father. their memory should be in the codex"*
+
+**He is there.** `data/codex.json` → `opharion`, art `assets/rp6/characters/v2_opharion.png`.
+
+| | Opharion | Ophira | Orryx | Xenoxil |
+|---|---|---|---|---|
+| **tier** | ★ **V** | ★ **VI** | VI | VII |
+| **class** | **Warrior** | Beastmaster | Ranger | Beastmaster |
+| **types** | ★ **Beast / Aura** | ★ **Spirit / Void** | **Humanoid** / Spirit | ★ **Spirit / Aura** |
+| **archetype** | WYRMKING | PHANTASM | MORTALARK | SPIRITHOLD |
+| **state** | ★★ *"**OPEN CANON** · v2 skeleton — **flavor pending**"* · 333×5 = 1665 | written | written | written |
+
+★★ **Opharion is a skeleton with a name, a tier, a face and no story** — which is the
+best possible condition for him. **Nothing has to be un-written.**
+
+#### ★★★★★ 1 · THE CONTRADICTION · the codex says XENOXIL founded the Seers
+
+`codex.json` → `xenoxil`, shipped:
+
+> *"★ Xenoxil · **FOUNDER OF THE SEERS** · Triumvir of the High Seers"*
+
+**Today's ruling says the opposite** — the order existed as *"a respectable pact led by
+Ophira's father,"* and Xenoxil was **linked up with** only once they reached district
+VII.
+
+★★★★★ **There is a resolution, and it answers the question I asked an hour ago:**
+
+> ★★★★★ **Both are true, because the NAME CHANGED WHEN HE ARRIVED.**
+>
+> **Opharion led the PACT. Xenoxil founded THE SEERS — because "the Seers" is what the
+> pact BECAME after him.**
+
+★★★★ **So "the pact needs its old name" is already answered by the shape of the
+problem: the old name is whatever it was before Xenoxil, and *"the Seers" is the name
+of the corruption, not of the organisation.*** ★★★ A player who has spent forty hours
+saying *"the Seers"* discovering it is the *后* name — a thing the founder never called
+himself — is a reveal worth more than a retcon.
+
+★ **[ASK] Confirm and the codex line stands untouched.** Decline and one shipped string
+needs changing.
+
+#### ★★★★★ 2 · THE TYPES ALREADY TELL THE STORY, AND NOBODY WROTE THEM TO
+
+★★★★★ **Father and daughter share NOT ONE TYPE.**
+
+> **OPHARION — Beast / Aura.**
+> **OPHIRA — Spirit / VOID.**
+
+★★★★★ **She is typed as the exact opposite of the man she inherited from — and her
+second type is the type of ABSENCE.** *A daughter who lost her father and came back
+typed for the hole he left.* **That is grief written into the type chart, and it was
+sitting in the data before today's ruling existed.**
+
+★★★★★ **And then look at Xenoxil: SPIRIT / AURA.**
+
+> **SPIRIT is hers. AURA is his.**
+> **Xenoxil carries one type from the father and one from the daughter. He is typed as
+> the JOIN.**
+
+★★★ **The thing that joined them is literally composed of them.** ★ Not designed —
+**found.** Which is the strongest possible argument that today's ruling is the correct
+reading of material that already existed.
+
+★★ **It also confirms two of the three district assignments by type:**
+**Ophira (Spirit/*Unknown-Void*) → NETHARION, the Unknownlands** ✔ ·
+**Xenoxil (*Spirit*/Aura) → XILNAR, the Spiritlands** ✔.
+★ **Orryx (Humanoid/Spirit) → Vorashil, the Alienlands** is the one that does not sing —
+**flagged**, though the mission chain assigns it and *"the Reluctant Believer"* being the
+only **Humanoid** of the three is its own kind of correct.
+
+#### ★★★★★ 3 · THE DAUGHTER EXCEEDED THE FATHER — and that is the tragedy
+
+**Opharion is Tier V. Ophira is Tier VI.**
+
+★★★★★ **She went further than he did.** I had assumed she inherited his ceiling; the
+data says she broke it.
+
+> **She surpassed her father — and the thing she did to surpass him was corrupt what he
+> built.**
+>
+> ★★★ **Her power is the measure of the damage.** Every tier above him is a thing she
+> gave up to get there.
+
+★★ **And Orryx is VI too, while Xenoxil is VII** — so the man they met is a full tier
+above both of them. *He did not join a partnership. He acquired one.*
+
+#### ★★★★ 4 · OPHARION READS AS HUMANOID — which makes him a MASTER
+
+`CODEX_TRIAGE_ZYREX_VS_HUMANOID.md:452` — *"Opharion | Warrior | V | Beast/Aura |
+class **Warrior**; **lore reads humanoid (19 tells)**; Beast-primary coined name."*
+
+★★★★ **Nineteen tells.** Under §6.5b, **HUMANOID = HAEMEN = the MASTER class.**
+
+> ★★★★ **Opharion was very likely a MASTER — a humanoid officer of the same kind as
+> Kelthor**, leading a lawful order.
+
+★★★ **Which sharpens everything.** A Master leads a respectable pact. He dies. **His
+daughter — who is not Haemen, who is Spirit/Void — inherits an office she is not of the
+class for**, and the order becomes something that deposes Elders. ★★ *The corruption
+starts with a succession that should not have happened.*
+
+★ **[ASK] His Beast/Aura typing is called "coined" by the triage** — i.e. invented to
+fit a Beast-primary slot. **If he is Haemen, that typing is due a correction, and
+Beast/Aura may belong to his ORDER rather than to him.** ★★ *Beast and Aura are the
+types of districts **I and II** — Malezor and Zarvane, the two districts still holding.*
+
+#### ★★★ 5 · "PRECIPITATED FROM OBSIDIUS × OATHANE'S STANDSTILL"
+
+Xenoxil's codex entry: *"Precipitated from **Obsidius × Oathane's** standstill · **not
+born · not made**."*
+
+★★★★ **Obsidius is the Gemlord of XILNAR — the district Xenoxil holds. And OATHANE is
+half of Egnellahc** (`EGNELLAHC_SPLIT_PROPOSAL.md`). **Xenoxil came out of a deadlock
+between the Onyxlord and the ninth Gemlord, in the district he now occupies.**
+
+★★ **[CONFLICT]** The story canon calls Xenoxil an **off-world Fleshlord**; the codex
+has him **precipitating on Zyraxis** from two of its own Gemlords. **Both cannot stand.**
+★ *"Not born, not made"* is compatible with either, but the location is not.
+
+★★★ **[INFER] worth your ruling:** if the codex is right, **Xenoxil is a by-product of
+the Egnellahc split's aftermath** — which would make the Seer crisis and the Empty
+Throne the same wound, and would explain why *"Obsidius says nothing"* about Oatheus.
+**He was there when the thing came out.**
+
+#### ★ 6 · DATA DEFECTS FOUND WHILE READING · **[BUILD]**, none fixed
+
+1. ★ **Opharion's own entry disagrees with itself** — `archetype: WYRMKING`, flavour
+   text says **"Brainlock."**
+2. ★★ **Ophira and Orryx are Tier VI with 1332-point pools** — that is **4 × 333**, the
+   Tier IV pool. Tier VI is **1998**. Against `T×333`, both are two tiers light.
+3. ★ **`realms.html` has Opharion at `tier:'?'`, all stats 0, `unlocked:false`** while
+   `codex.json` has him at Tier V with a full pool.
+
 #### ★ 7 · OPEN
 
 1. ★★ **When was the coup?** It is now a datable founding event with consequences on

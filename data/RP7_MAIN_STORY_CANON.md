@@ -794,6 +794,76 @@ along.** Today's three are the first three of a backlog.
 Humanoid primary; Zyrex never do* — rather than character by character, or the roster
 will drift again.
 
+---
+
+### ★★★★★ 6.5g · XENOXIL IS TYPED AS THE OCCUPATION ITSELF
+
+> **Creator:** *"Xenoxil is unknown spirit extraterrestrial. orryx would have to be extraterrestrial as well to match the land right?"*
+
+**XENOXIL · Unknown / Spirit / Extraterrestrial.** ★★★★★ **Those are not three types.
+They are three districts.**
+
+| his type | is the land-type of | district |
+|---|---|:-:|
+| **Unknown** | the **Unknownlands** | **V · NETHARION** — *Ophira's* |
+| **Extraterrestrial** | the **Alienlands** | **VI · VORASHIL** — *Orryx's* |
+| **Spirit** | the **Spiritlands** | **VII · XILNAR** — *his own* |
+
+> ★★★★★ **He is not typed for a district. He is typed for THE ENTIRE OCCUPIED CORE.**
+
+★★★★★ **His typing IS the annexation.** §6.5d: Ophira took V, then VI, and *"once they
+got to 7, they linked up with Xenoxil"* — **and Xenoxil is composed of exactly those
+three.** He is not the Seer of Xilnar. **He is what the three districts became when they
+were joined**, and he wears the join as a type line.
+
+★★ **It also confirms the core/periphery split from the data side.** The occupied three
+have a name and it is *Xenoxil*.
+
+#### ★★★★★ THE ANSWER · no — and I would argue against matching him
+
+**The pattern you are testing is real:** Ophira **Unknown** → Netharion ✔ · Xenoxil
+**Spirit** → Xilnar ✔ · **Orryx Spirit → Vorashil ✘.** *He is the one who does not fit
+his ground.*
+
+★★★★★ **But look at what he fits instead.**
+
+> **ORRYX is Humanoid / SPIRIT. XENOXIL carries SPIRIT.**
+>
+> ★★★★★ **Orryx shares his second type with XENOXIL — not with his district.**
+
+★★★★★ **That is characterisation, not an error:**
+
+| | typed after |
+|---|---|
+| **OPHIRA** | ★ **her father** *(Humanoid/Unknown, identical to Opharion)* |
+| **XENOXIL** | ★ **the conquest** *(all three occupied districts)* |
+| **ORRYX** | ★★★★ **XENOXIL** |
+
+> ★★★★★ **"The Reluctant Believer" is the one who took his identity from the thing he
+> doubts.**
+
+★★★★ **And it explains his doubt mechanically.** He is **the only one of the three whose
+second type came from outside himself.** Ophira's is inherited. Xenoxil's is earned by
+conquest. **Orryx's is borrowed** — and a man wearing someone else's type is exactly the
+man who is not sure.
+
+★★★ **One more, and it is almost too neat:** his district is **the ALIENLANDS**, and he
+is the one who **does not belong there**. *The stranger governing the strange country.*
+
+#### ★ The three options, with their costs
+
+| | Orryx becomes | gains | ★ costs |
+|---|---|---|---|
+| **(a) leave him** ★ **recommended** | Humanoid / **Spirit** | ★★★★ the Xenoxil link, the doubt, the stranger-in-the-Alienlands | the tidy pattern |
+| **(b) match the land** | Humanoid / **Extraterrestrial** | a clean three-for-three | ★★★ **severs the only line tying him to Xenoxil** — and he becomes the least characterised of the three |
+| **(c) tri-type him** | Humanoid / Spirit / Extraterrestrial | both | ★★ see below |
+
+★★ **[FLAG] (c) may be barred.** **Xenoxil is Tier VII and tri-typed. Omegoran is Tier
+VII and tri-typed** *(`aov-elzoran-line-retype`)*. **Two for two suggests tri-typing is a
+Tier VII privilege — and Orryx is Tier VI.** ★ If that pattern is a rule, (c) is not
+available, and the tri-type is *itself* part of what makes Xenoxil not one of them.
+**Worth ruling before it is used a third time.**
+
 #### ★ 7 · OPEN
 
 1. ★★ **When was the coup?** It is now a datable founding event with consequences on

@@ -173,7 +173,57 @@ corridor, four doorways and one locked door — and it reads without a legend.**
 
 ---
 
-## ★★★★ 3 · DOORS · three kinds, one mechanism
+## ★★★★★ 3-bis · DOORS · RULED 2026-09-03 · solid, coloured, interact-to-enter
+
+> **Creator:** *"I want the tile floor to stay same color, I want **different color doors on the tile wall** and I want to have to **interact with door to unlock and enter it. no holes in the wall doors.**"*
+
+★ **This supersedes §3 below, which had doors as walkable gaps.**
+
+### ★★★★★ (a) A DOOR IS A WALL TILE, NOT AN ABSENCE
+
+> **The wall run is CONTINUOUS. A door is a wall tile whose face carries door art, and
+> it is SOLID — before opening and after.**
+
+★★★★★ **You never walk through it.** Interact → it opens → **you are placed on the far
+side.** The wall is never breached, which is *"no holes"* satisfied literally rather than
+cosmetically.
+
+### ★★★★★ (b) ★ AND THAT QUIETLY FIXES THE ROW BUDGET I FLAGGED
+
+§2-bis(e) worried that 3-tile walls eat 10 of 25 rows, leaving ~5 per room band, because
+rooms had to be joined by walkable corridors.
+
+> ★★★★★ **If a door is a TRANSITION, rooms do not need corridors at all. They abut.**
+> **The 3-row wall cost stops mattering — and 35×25 is comfortable again.**
+
+★★ It also means a 3-tile-thick wall costs nothing to traverse. **You never cross the
+thickness, so the wall can be as tall as it likes.** *The two rulings turn out to need
+each other.*
+
+### ★★★★ (c) COLOUR = LOCK CLASS · the player reads the floor from the doorway
+
+★★★ **Colour should say what it takes to open it**, not what is behind it — a player
+scanning a dark hall wants to know *"can I open that yet."*
+
+| plan | colour | opens with |
+|:--:|---|---|
+| `d` | **steel** | interact · nothing needed |
+| `k` | **amber** | ★ this district's **SEER KEY** |
+| `c` | **red** | the Commander's floor |
+| `e` | ★ **teal** | the **Elder's cell** — only in Netharion, Vorashil, Xilnar |
+
+★★★★★ **And the mock proves an unexpected thing: the coloured doors ARE the
+readability.** They are the brightest objects in the room, and you navigate by them the
+way you navigate a Metroid map. ★★ **So §2-bis(c)'s contrast finding is DOWNGRADED from
+a blocker to an improvement** — the wall being darker than the floor is still worth
+fixing, but **the interiors are legible without it.** *I called it the blocker; the
+doors were.*
+
+★ **The floor tile is untouched, as ruled.**
+
+---
+
+## ★★★★ 3 · ~~DOORS · three kinds, one mechanism~~ · ★ SUPERSEDED by 3-bis
 
 ★★ **A door is a floor tile that happens to be inside a wall run.** It needs no
 transition, no load, no scene change — ***that is what makes it horizontal travel.***

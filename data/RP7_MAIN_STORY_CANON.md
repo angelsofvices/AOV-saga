@@ -1046,6 +1046,120 @@ currently ship at 1332, a Tier IV pool — now two separate corrections.)*
 ladder, or a property of the **Spirit** type? **It is doing real mechanical work now and
 has no home.**
 
+---
+
+### ★★★★★ 6.5j · THE LANGUAGE LADDER · Anciaric › Olden › Newspeak
+
+> **Creator:** *"ancient magic is basically just anciaric spell casting, the strongest in the saga. **anciaric** (powerful ancient spells and curses) > **olden** (old language and magic) > **newspeak** (common language)"*
+
+★★★★★ **All three are already in shipped files.** This is not a new system — **it is a
+ladder placed over three things that were already there and never ranked.**
+
+| | shipped as | where |
+|---|---|---|
+| ★★★ **ANCIARIC** | *"**The original tongue (Anciaric) is spoken here**"* — **Realm III · ANCIARA · "Anciuxor and the Immortal Council"** | `saga.html:1618` |
+| ★★ **OLDEN** | *"**the original tongue of creation** · words not spoken but **INVOKED**"* · *"the first language"* | `codex.html:1957`, `:1974` |
+| ★ **NEWSPEAK** | the register everything in RP7 is already written in | `rp7b.html` |
+
+#### ★★★★★ 1 · ANCIARIC IS ANCIUXOR'S TONGUE — the root was always there
+
+**ANCIARIC · ANCIARA · ANCIUXOR.**
+
+> ★★★★★ **The strongest magic in the saga is named after the being who encircles the
+> Expanse — and it is spoken in his realm.**
+
+★★★ Which is *why* it outranks everything: **it is not from here.** Anciuxor is the rim
+(§0h); Aenor is the centre. **Anciaric is the speech of the boundary.**
+
+#### ★★★★★ 2 · THE "TWO ORIGINALS" CONFLICT — and the modifier already resolves it
+
+★ Both are called *"the original tongue."* **The word that settles it was already in the
+sentence:**
+
+> **ANCIARIC — *"the original tongue."*
+> OLDEN — *"the original tongue **OF CREATION**."***
+>
+> ★★★★★ **Anciaric predates creation. Olden is creation's own first speech.** *Two
+> "originals," original to different things.*
+
+★★ **So the ladder is not a power ranking bolted on. It is a chronology:** the tongue of
+what stood outside · the tongue of what was made · the tongue of what lives here now.
+
+★ **[INFER] and the shipped wording gives them different mechanics:** Olden is *"not
+spoken but **invoked**"*; Anciaric is *"**spoken** here."* **The older language is the
+one you can say out loud — the younger one has to be performed.** *A nice inversion, if
+you want it.*
+
+#### ★★★★ 3 · IT ANSWERS §6.5i's OPEN QUESTION
+
+*"Is 'ancient magic' a third power source, or a property of Spirit?"* — ★★★★ **Neither.
+It is ANCIARIC SPELLCASTING**, and the Seers use **the strongest register in the saga.**
+
+★★★★★ **Which raises the better question: how does a mortal cult have Anciaric?**
+
+> ★★★★★ **[INFER] Because Opharion's order preserved it. A respectable pact that kept
+> the oldest language — and his daughter used its scholarship to keep HIM.**
+
+★★★★★ **And that is the strongest support yet for the Pact inference (§6.5d§4).** The
+Gemlords would absolutely make an agreement with **the keepers of the tongue that
+predates creation.** *You do not sign a non-intervention pact with a militia. You sign
+one with a library.*
+
+★★★ **It also re-reads the Anciaric Curse.** `timeline.html:1752` — *"the **ANCIARIC
+CURSE** splits the Astrums into the three magical races"* **(Wizards · Witches ·
+Dwarves)**. **Every magic-using race in the saga exists because of one Anciaric working.**
+★★ **The Seers are using the register that made wizards.**
+
+#### ★★★★★ 4 · THE REGISTER LADDER IS A TOOL FOR THE ENTIRE DIALOGUE PASS
+
+★★★★★ **This is the most practically valuable thing in the ruling.** The pass has ~178
+characters to write and no rule for how any of them sound. **Now there is one.**
+
+| speaks | who | ★ note |
+|---|---|---|
+| **NEWSPEAK** | Rizer · Zoryn · Masters · NPCs · Dad's scrolls · every toast | ★★ **the shipped voice is already correct** |
+| **OLDEN** | ★★★ **Elders** *(Aethren — older than the current order)* · Gemlords · the Pledge · ritual | rare, formal, invoked |
+| ★ **ANCIARIC** | **the Seers, when working** · the Curse · Anciuxor | ★★★★ **a dozen times in the whole game, at most** |
+
+★★★★★ **And it gives the player a tell they can learn:**
+
+> **When a Seer stops speaking Newspeak, something is about to happen.**
+>
+> ★★★ **Language as a threat indicator** — which costs nothing to write and does more
+> than a health bar.
+
+★★ **For Ophira specifically:** she keeps her father by Anciaric. ★★★ **[ASK] does it
+ever leak — does she slip into it, or into *him*, mid-sentence?** *That is the cheapest
+horror available and it is entirely in dialogue.*
+
+#### ★★★★★ 5 · THE NINE-CHARACTER SCRIPT IS ANCIARIC
+
+Dad's shipped scrolls, twice:
+
+> *"Parliament records the name in **a script used for nothing else and taught to no
+> one**. **I copied nine characters.** I have never found the tenth."*
+> *"The Pledge was sworn TO something and the founders never wrote what. **The blank
+> space is exactly nine letters wide.**"*
+
+★★★★★ **A script used for nothing else, taught to no one, is Anciaric — which is why
+nobody can read it and why Dad could only COPY it.** ★★ And the nine-letter answer
+(`EGNELLAHC_SPLIT_PROPOSAL.md` §2b) **would be written in the tongue of the rim** — which
+is exactly the right register for a name nobody is supposed to say.
+
+★ **[FREE] and it explains the Pledge's other oddity:** *"sworn on a Prismshard, not a
+book."* **An Anciaric oath does not need a book.**
+
+#### ★ 6 · TWO NOTES
+
+1. ★★ **Eïrforn is the *"final bearer of OLDEN"*** **[BUILD]** `codex.html:1957` — and
+   Eïrforn is **one of the four Nexyrosillian Kings founded by EGNELLAHC.** ★★★ *The
+   first language's last speaker is Egnellahc's son.* **The language ladder ties
+   straight into the split proposal.**
+2. ★ **Naming flag, raised once and not pressed: "Newspeak" carries a strong Orwell
+   association.** It reads fine as the plain compound, and it is your call — **but it is
+   the only one of the three that will make a reader think of something outside the
+   saga.** *Anciaric and Olden are yours; Newspeak is borrowed-sounding.*
+
 #### ★ 7 · OPEN
 
 1. ★★ **When was the coup?** It is now a datable founding event with consequences on

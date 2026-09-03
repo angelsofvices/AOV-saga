@@ -74,6 +74,77 @@ because it still ends up as the `blocked` array `walkable()` already reads.
 
 ---
 
+## ★★★★★ 2-bis · THE EMERALD RULES · 2026-09-03
+
+> **Creator:** *"look how pokemon emerald does doors and walls and depth interiors. also I think I wanna make all walls take up **3 tiles** so they look taller than rizer."*
+
+### ★★★★★ (a) 3 tiles — and Rizer is 2, so the ratio is 1.5×
+
+**Confirmed against the build:** `rizerTargetBodyPx()` draws Rizer at `TILE*2`. **A
+3-tile wall stands half again his height** — which is the whole point, and it is what
+makes an interior feel enclosed rather than fenced.
+
+### ★★★★★ (b) ONLY SOUTH-FACING WALLS ARE TALL — this is the rule Emerald actually uses
+
+★★★ Reading the reference sheet: **a wall is drawn tall only where you can see its
+FACE.** The band across the top of every Emerald room is 2–3 tiles; the left and right
+edges are a thin strip; **the bottom wall is barely there at all.** You are looking at
+the room from the south, so only north walls show a face.
+
+> ★★★★★ **The autotile rule, and it needs no author input:**
+> **if the tile BELOW is floor → draw the 3-tile FACE. Otherwise → draw the 1-tile CAP.**
+
+★★ That one line produces the whole Emerald look from a flat plan, and it means the
+author never marks which walls are tall.
+
+### ★★★★★ (c) ★ THE FINDING THAT MATTERS MOST · our wall is DARKER than our floor
+
+**Measured, both shipped tiles:**
+
+| | mean luminance |
+|---|---:|
+| `seer-hq-wall.png` | **21.7** |
+| `seer-hq-floor.png` | **27.7** |
+| **contrast** | ★ **5.9 — and the floor is the LIGHTER one** |
+| *Emerald reference* | ★★ *wall ≈198 · floor ≈150 — the wall is **~48 LIGHTER*** |
+
+> ★★★★★ **Emerald's interiors read because the WALL IS LIGHTER THAN THE FLOOR. Ours is
+> darker, by a margin too small to see either way.**
+
+★★★★ **This is why the 3-tile mock reads as holes in a void rather than rooms.** The
+A/B *(`outputs/seer_wall_contrast_ab.png`, identical plan, only the wall's luminance
+changed)* is the proof: **the geometry was already right and invisible.**
+
+★★★ **So the blocker on interiors is an ASSET, not code.** The Seer wall texture needs
+to sit **clearly above the floor in luminance** — Emerald's ~48 gap is a good target.
+★ *Doing it in code with a brightness multiply is what the mock does, and it would work,
+but a lit wall is the artist's call, not a shader's.*
+
+### ★★ (d) DOORS ARE SET INTO THE WALL BAND
+
+★ Emerald draws the door **within** the wall face — a dark recess with a frame — and the
+**walkable tile is the one BELOW it.** ★★ So a door needs no special geometry: it is a
+wall tile whose face art is the door, plus a floor tile under it. **The `D` in the plan
+marks the threshold; the recess draws in the face above it.**
+
+### ★★★ (e) THE ONE COST · 3-tile walls eat rows
+
+★★★ **A wall you can see the face of must be authored 3 rows deep**, or the two tiles it
+covers will look solid and walk as floor. On a **35×25** floor:
+
+| | rows |
+|---|---:|
+| north wall | 3 |
+| two interior dividers | 6 |
+| south wall | 1 |
+| ★ **left for actual floor** | **15** — about **5 rows per room band** |
+
+★★ **That is playable but tight.** ★ **[ASK] worth deciding now: keep 35×25 and accept
+three shallow bands, or go 35×30 and get 7 rows a band?** *The plans are text either
+way — this is a one-line change today and a re-authoring later.*
+
+---
+
 ## ★★★★★ 2 · HOW A WALL DRAWS · like a tiny prop, not like a tile
 
 ★★★★★ **This is the actual answer to "how should we show rooms."**

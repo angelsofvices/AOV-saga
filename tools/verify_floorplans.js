@@ -7,6 +7,8 @@ const html=fs.readFileSync(path.join(path.resolve(__dirname,'..'),'rp7b.html'),'
 let fail=0; const ok=m=>console.log('  ok   '+m); const bad=m=>{console.log('  FAIL '+m);fail++;};
 
 const SCENES=['INTERIOR_SEER_HQ_1F','INTERIOR_SEER_HQ_R2'];
+// ★ read the wall height from the build so this suite can never disagree with it
+const WH = (html.match(/const WALL_TILES_H = (\d+);/)||[])[1]|0;
 const m=html.match(/const INTERIOR_SEER_HQ_1F = \{[\s\S]*?plan: \[([\s\S]*?)\],/);
 if(!m){ bad('1F plan not found'); process.exit(1); }
 const plan=[...m[1].matchAll(/'([^']+)'/g)].map(x=>x[1]);
@@ -43,8 +45,8 @@ else ok(`${faces} south-facing FACE tiles (drawn 3 tall)`);
 // the parser + draw pass must be present
 for (const [re,l] of [[/function floorPlan\(cfg\)/,'floorPlan parser'],
                       [/_P\.blocked\.has\(x \+ ',' \+ y\)/,'collision reads the plan'],
-                      [/TILE, TILE \* 4\);/,'faces draw the whole asset 4 tiles tall'],
-                      [/Math\.round\(SH \/ 4\)/,'caps draw the top course only']])
+                      [/TILE \* WALL_TILES_H\)/,'faces draw the whole asset WALL_TILES_H tall'],
+                      [/Math\.round\(SH \/ WALL_TILES_H\)/,'caps derive from WALL_TILES_H']])
   re.test(html)?ok(l):bad(l);
 
 
@@ -62,10 +64,10 @@ for (const name of SCENES){
     const ch=A(x,y);
     if(ch==='D') doors++;
     if(fl(ch)||ch===' ') continue;
-    if(fl(A(x,y+1))){ faces++; for(let d=1;d<4;d++) if(fl(A(x,y-d))) over++; }
+    if(fl(A(x,y+1))){ faces++; for(let d=1;d<WH;d++) if(fl(A(x,y-d))) over++; }
   }
   if(!doors) bad(name+' has no door');
-  else if(over) bad(`${name}: ${over} wall-face tiles cover FLOOR (a 4-tile face reaches 3 rows up)`);
+  else if(over) bad(`${name}: ${over} wall-face tiles cover FLOOR (a ${WH}-tile face reaches ${WH-1} rows up)`);
   else ok(`${name} ${c}x${r} · ${faces} faces · ${doors} door(s) · no face covers floor`);
 }
 // ★ the room graph must close: every doorTarget resolves to a real scene

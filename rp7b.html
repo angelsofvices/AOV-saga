@@ -16630,6 +16630,14 @@ SEER_WALL_IMG.src = 'assets/2D%20sprites/tiles/seer-hq-wall.png';
 // 1254px, so one course is ~139px — that becomes one 48px tile and the brick
 // reads at the size it was drawn at. Walls NOT listed here keep the old
 // one-copy-per-tile behaviour, so Malezor and the lab are untouched.
+// ★★★ v0.95.947 · WALL HEIGHT, in tiles, in ONE place.
+// Creator: "can we just cut the seer hq wall height by 25%?"  4 -> 3.
+// The whole asset still draws (it compresses 25% vertically rather than being
+// cropped, so every gem course still shows, which was the earlier ruling).
+// Rizer draws at TILE*2, so a face still stands HALF AGAIN his height.
+// ★ Caps derive from this too — SH / WALL_TILES_H — so the top course a cap
+// shows can never drift out of scale with the face beside it.
+const WALL_TILES_H = 3;
 // ★ v0.95.944 · 160 for the redelivered Seer masonry.  Measured: the gem
 // courses repeat every ~236 source px, and at 160px/tile that lands a gem
 // band roughly every 5 tiles of wall -- frequent enough to read as ornament,
@@ -28112,13 +28120,17 @@ function drawInteriorFloor(){
     if (wImg && wImg.complete && wImg.naturalWidth){
       const SW = wImg.naturalWidth, SH = wImg.naturalHeight;
       for (const w of _plan.walls){
-        if (w.x < startCol - 1 || w.x > endCol || w.y < startRow - 4 || w.y > endRow) continue;
+        if (w.x < startCol - 1 || w.x > endCol || w.y < startRow - WALL_TILES_H || w.y > endRow) continue;
         const dx = w.x * TILE - _cam.x;
         if (w.face){
+          // ★ the WHOLE segment, bottom-anchored on its own tile
           ctx.drawImage(wImg, 0, 0, SW, SH,
-                        dx, (w.y - 3) * TILE - _cam.y, TILE, TILE * 4);
+                        dx, (w.y - (WALL_TILES_H - 1)) * TILE - _cam.y, TILE, TILE * WALL_TILES_H);
         } else {
-          ctx.drawImage(wImg, 0, 0, SW, Math.round(SH / 4),
+          // ★ a wall with wall beneath it shows only its TOP COURSE — one tile's
+          // worth of the segment, so caps and faces are always cut from one
+          // asset at one scale.  Derived from WALL_TILES_H, never hardcoded.
+          ctx.drawImage(wImg, 0, 0, SW, Math.round(SH / WALL_TILES_H),
                         dx, w.y * TILE - _cam.y, TILE, TILE);
         }
       }

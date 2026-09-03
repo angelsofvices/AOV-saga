@@ -305,18 +305,30 @@ human authority**, one district before Thardin and the end.
 
 > **Creator, 2026-09-01:** *"the seers overthrew the native elders in their respective districts once they formed their coupe. this is how they hold the middle districts and spread corruption up and down."*
 
-#### ★★★★★ 1 · It is the reason for the shape I had just called pacing
+#### ★★★★★ 1 · THREE districts — and the mission chains already named who holds each
 
-An hour ago I proposed the Master/Elder assignment and defended the **four Elders in a
-row across IV–VII** as *"the middle of the campaign going strange."*
+> **Creator, correcting:** *"the seers only hold 5 6 and 7."*
 
-> ★★★★★ **It is not pacing. It is the occupation.**
->
-> **Veridan · Netharion · Vorashil · Xilnar — the four consecutive Elder districts —
-> are the four the Seers HOLD.** The lump is a front line.
+**NETHARION · VORASHIL · XILNAR.** Not four — **three**, and dead centre of the ten.
 
-★★ **I had the shape and the wrong reason for it.** The assignment stands unchanged;
-**it now has a cause instead of an aesthetic.**
+★★★★★ **Three occupied districts. Three named Seers. And the assignment was already
+written, months ago, into the district arcs:**
+
+| # | district | the arc says | ★ therefore |
+|:-:|---|---|---|
+| **V** | **Netharion** | *"**first Ophira defeat**"* | ★★ **OPHIRA holds Netharion** |
+| **VI** | **Vorashil** | *"**first Orryx defeat**"* | ★★ **ORRYX holds Vorashil** |
+| **VII** | **Xilnar** | *"souls vanishing · **Xenoxil's Six**"* | ★★ **XENOXIL holds Xilnar** |
+
+★★★★★ **The coup ruling and the mission chains were written independently and they line
+up exactly. Nothing had to be bent.**
+
+★★★★ **And it answers where the castles go.** *"The three seers still need their castles
+designed"* — **each Seer's castle stands in the district they took: V, VI, VII.** The
+three castles and the three occupied districts are one commission.
+
+★★ **I had the shape and the wrong reason AND the wrong width.** The assignment stands;
+**Veridan comes back out of the occupation.**
 
 #### ★★★★★ 2 · Overthrowing an ELDER is the Seer thesis at civic scale
 
@@ -394,13 +406,47 @@ player spent four districts pushing the Seers, and the Seers pushed back along t
 they were always moving on.** ★ And it gives the player a map they can read the threat
 off: *the middle is theirs, and it is getting wider.*
 
+#### ★★★★★ 6b · THE MAP IS NOW A POLITICAL DIAGRAM
+
+```
+  I    MALEZOR     MASTER   ← INVADED, Act IV · the far end of "down"
+  II   ZARVANE     ELDER    free · ★ the control case (Omniris seated)
+  III  ANDRANNOR   MASTER   free
+  IV   VERIDAN     ELDER    free · ★★★ THE FRONTIER — the last free Elder
+ ─────────────────────── the border ───────────────────────
+  V    NETHARION   ELDER    ★ OCCUPIED · OPHIRA
+  VI   VORASHIL    ELDER    ★ OCCUPIED · ORRYX
+  VII  XILNAR      ELDER    ★ OCCUPIED · XENOXIL
+ ─────────────────────── the border ───────────────────────
+  VIII BAELGOR     MASTER   free · ★★ collaborators
+  IX   THARDIN     MASTER   free
+  X    KORATHEN    ELDER    ★ the Empty Throne
+```
+
+★★★★ **VERIDAN IS THE FRONTIER, and its arc already reads that way.** *"Ecosystems
+failing · a cure turns predatory · **proof the planet is being PREPARED**."*
+**The land is sick because the border is next door.** ★★ **Veridan is the free district
+that can see the occupied one** — which is why the evidence surfaces there and nowhere
+earlier.
+
+★★★★ **AND IT EXPLAINS BAELGOR'S COLLABORATORS.** Baelgor sits directly above the
+occupation and is a **MASTER** district. ★★★ **Going DOWN the Seers meet Elders and
+depose them. Going UP they meet Masters — people — and persuade them instead.**
+*"The Pledge of Baelgor rewritten by collaborators"* is not a different kind of story;
+**it is the same expansion using the only method that works on humans.**
+
+★ Which finally makes *"spread corruption up and down"* two distinct campaigns rather
+than one word: **conquest downward, conversion upward.**
+
 #### ★ 7 · OPEN
 
 1. ★★ **When was the coup?** It is now a datable founding event with consequences on
    the map. Unwritten.
-2. ★★ **Are the four deposed Elders alive?** *"Overthrown"* allows hiding, imprisonment
-   or death. ★ **Recommend at least one of each** — a district where you free them, one
-   where you are too late, and one where what you find is not what was deposed.
+2. ★★★ **Are the three deposed Elders alive?** *"Overthrown"* allows hiding,
+   imprisonment or death — ★★★★ **and with exactly three districts, the set can be
+   one of each: a district where you FREE them, one where you are TOO LATE, and one
+   where what you find is NOT WHAT WAS DEPOSED.** Three Seers, three districts, three
+   fates. **Recommended.**
 3. ★ **Does Korathen's Elder predate the coup?** Its humanoid seat was already empty
    (§6.5b), so Korathen may be the one district the Seers could not take **because
    there was nothing to depose** — or the one they most want, for the same reason.

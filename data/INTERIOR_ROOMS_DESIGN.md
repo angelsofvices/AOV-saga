@@ -137,20 +137,32 @@ and go underground) somewhere to descend *into*.
 
 ---
 
-## ★★★★★ 5 · THE ONE REAL QUESTION · does the floor fit on the screen?
+## ★★★★★ 5 · ~~THE ONE REAL QUESTION~~ · **RULED 2026-09-03 · 35×25, option (b)**
 
-**A 20×15 floor at TILE=48 is 960×720 — about one screen.** So the player sees the whole
-plan the moment they walk in.
+> **Creator:** *"**35x25 mapping** so we cant see full base on entry."*
+
+★ **(b) it is, and I was wrong to recommend (a).** I argued the whole floor being visible
+was fine because Team Rocket bases are visible too. ★★★ **This is better, and the reason
+is the loot:** §2 of the HQ design makes the rooms full of the district's stolen property,
+**and a room full of things you cannot see yet is worth walking into.** *Visible-plan
+kills the one thing the design is built on.*
 
 | | |
 |---|---|
-| ★ **(a) accept it** | **Recommended.** Team Rocket bases are fully visible too. The tension is *"which of these ten crates has something,"* not *"where is the wall."* **Costs nothing** |
-| **(b) floors bigger than the screen, camera scrolls** | ★★ Feels far more like a *base* — and `isBlocked(x,y)` exists precisely because **Dreamland is 100×100**, so big interiors are already supported. Costs a camera pass |
-| **(c) reveal rooms as entered** | atmospheric, and **the most work** for the least return here |
+| **floor** | **35 × 25** = 1680 × 1200 px at `TILE=48` |
+| **view** | ~960 × 720 |
+| **visible at once** | ★ **~34% of the floor** |
 
-★★ **[ASK] and it is worth answering before floors get authored**, because (b) changes
-every plan's dimensions. ★ *My read: ship (a) now, and if the late-district raids feel
-small, (b) is a camera change and not a re-authoring — the plans stay valid either way.*
+★★★★★ **And it costs nothing, because interiors ALREADY SCROLL.** `drawInteriorFloor`
+culls to `startCol/endCol` from `_cam.x/_cam.y` and draws at `tx*TILE - _cam.x`
+**[BUILD]**. ★★ There is no camera pass to write — **I flagged it as a cost and it was
+already paid.**
+
+★★★★ **35×25 is also what makes the text format load-bearing.** 875 tiles cannot be
+hand-placed; **25 lines of 35 characters can.** Thirty floors ≈ **750 lines**.
+
+★ **Sequencing, stated because it would be the obvious mistake:** do not widen `cols/rows`
+before the plans exist. **A 35×25 empty box is the current empty box with more walking.**
 
 ---
 

@@ -102,25 +102,39 @@ entry.*
 
 ---
 
-## ★★★★ 4 · SCALING · three floor TYPES, a variable middle
+## ★★★★★ 4 · SCALING · **RULED 2026-09-03 · THREE FLOORS, 35×25 EACH**
 
-★ **Do not author 30–50 unique floors.** Keep the shipped three types and **stack the
-middle one:**
+> **Creator:** *"lets make **3 main floors** in every seers HQ. **35x25 mapping** so we cant see full base on entry."*
 
-| districts | floors | shape |
-|---|:-:|---|
-| **I–III** Malezor · Zarvane · Andrannor | **3** | 1F → hold → command |
-| **IV–VII** Veridan · Netharion · Vorashil · Xilnar | **4** | 1F → hold ×2 → command |
-| **VIII–X** Baelgor · Thardin · Korathen | **5** | 1F → hold ×3 → command |
+★ **My 3/4/5-by-district proposal is withdrawn.** ★★★ **Three floors everywhere, and the
+size comes from AREA instead of floor count** — which is the better call, because a
+fourth staircase is not more building, it is more stairs.
 
-★★★ **"Fight through each floor" becomes literally true, and the late raids are real
-dungeons** — while the authored surface stays *one entry floor, one hold template, one
-command floor.* ★★ The difficulty ladder already scales (`gruntLv`, `cmdLv`, `cmdTier`);
-**this makes SIZE scale with it**, which is what makes Korathen feel like an endgame
-building rather than Malezor with bigger numbers.
+| | |
+|---|---|
+| **floors** | **3**, every district · 1F → hold → command |
+| **each floor** | ★ **35 × 25** tiles |
+| at `TILE=48` | **1680 × 1200 px** against a ~960×720 view |
+| **the player sees** | ★★ **~34% of a floor at a time** |
 
-★ **The Seer Key sits on the LAST hold floor**, guarded — so the key hunt lengthens with
-the building.
+★★★★★ **That is the requirement met exactly: you cannot see the base on entry.** ★★ And
+`drawInteriorFloor` **already culls and offsets by `_cam`** **[BUILD]** — interiors scroll
+today. **35×25 needs no camera work.** *(`isBlocked(x,y)` exists because Dreamland is
+100×100; 875 tiles is nothing.)*
+
+★★★★ **And it makes the text format essential rather than merely nice.** 875 tiles per
+floor is impossible to hand-place, but a plan is **25 lines of 35 characters** — so
+**thirty floors is ~750 lines**, authorable in a sitting. *The format and the dimensions
+were chosen for each other.*
+
+★ **The Seer Key sits on the hold floor**, guarded — one floor of searching between the
+door and the stair up.
+
+### ★★ Sequencing · do NOT resize before the plans exist
+
+★★★ **Changing `cols/rows` to 35×25 today would produce three EMPTY BOXES THREE TIMES
+BIGGER** — the same nothing, with more walking. **The dimension change lands with the
+floor plans, in the same version, or not at all.**
 
 ---
 

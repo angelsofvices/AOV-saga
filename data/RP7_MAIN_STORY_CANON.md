@@ -224,11 +224,80 @@ offices per district**:
 | **MASTERS** (Haemen · humanoid) | **Kelthor** · Malezor | **9** |
 | **ELDERS** (Aethren · non-humanoid) | **Omniris** · Zarvane | **9** |
 
-★★★ **[ASK] — the one thing I need before naming anybody: does every district have
-BOTH?** *(18 figures, 10 expeditions between them)* — or **one or the other per
-district** *(10 figures, 10 expeditions)*? ★ The second is cheaper and cleaner; the
-first is what *"both classes give you expedition missions"* most naturally implies.
-**Not assumed.**
+~~★★★ **[ASK] does every district have BOTH?**~~ ★★★★ **RULED 2026-09-01: EITHER, NOT
+BOTH.**
+
+> **Creator:** *"every district has either an elder or a master. kinda wanna name them
+> later so they are logical and not just cookie cutted in."*
+
+★★★★ **Ten districts, ten officers, ten expeditions — and the commission drops from
+eighteen figures to EIGHT**, since Kelthor and Omniris are already seated.
+
+★ **Names deliberately deferred.** What follows is **the assignment and the rules**, not
+a cast list — so that naming later is *constrained* rather than free-form, which is
+exactly the way to avoid cookie-cutter.
+
+#### ★★★★ THE ASSIGNMENT RULE · a Master where humanoids hold the ground; an Elder where they do not
+
+**It is nearly forced by the type-classes themselves.** A Master is **HAEMEN
+(humanoid)**; an Elder is **AETHREN**, a being of the district's own type. So:
+
+> ★★★★ **The districts with MASTERS are the ones people RUN.
+> The districts with ELDERS are the ones people are GUESTS in.**
+
+| # | district · land | officer | why |
+|:-:|---|---|---|
+| I | **Malezor** · Beastlands | ★ **MASTER** | ✔ **Kelthor**, given. Home, settled, the tutorial ground |
+| II | **Zarvane** · Auralands | ★ **ELDER** | ✔ **Omniris**, given — and he is **Aura**, the land's own type |
+| III | **Andrannor** · Creaturelands | **MASTER** | inner city, Club 50, the Chimera Exchange — **the most human district on the map**, and its sins are human |
+| IV | **Veridan** · Naturelands | **ELDER** | the Root Parliament, and *"the trees grew that gap on their own"* — **the land already governs here** |
+| V | **Netharion** · Unknownlands | **ELDER** | the Impossible Archive. **Nobody runs Netharion** |
+| VI | **Vorashil** · Alienlands | **ELDER** | not ours |
+| VII | **Xilnar** · Spiritlands | **ELDER** | souls vanishing; Obsidius walks here. **The dead have seniority** |
+| VIII | **Baelgor** · Humanoidlands | ★★★ **MASTER · FORCED** | **Humanoid *is* the Haemen type.** An Aethren Elder of the Humanoidlands is a contradiction in terms |
+| IX | **Thardin** · Mechlands | **MASTER** | the Precision Ministry, THARDUN, the utility prisms. **A district that manufactures is a district people run** |
+| X | **Korathen** · Ultralands | ★★★ **ELDER** | see below |
+
+**Masters 4 · Elders 6.**
+
+#### ★★★★ Korathen takes an ELDER, and it is the best part
+
+★★★★ **Because Korathen's humanoid chair is the EMPTY THRONE — and it is empty.**
+
+> **The one district whose authority is missing gets a non-human officer by default.**
+> The land still speaks. **The people's seat is vacant, and the whole endgame is about
+> that vacancy.**
+
+★ The structure states the plot before a line of dialogue does.
+
+#### ★★★ The 4/6 split is lumpy on purpose — and the lump IS the campaign
+
+Read the sequence: **Master · Elder · Master · Elder · Elder · Elder · Elder · Master · Master · Elder.**
+
+★★★★ **Four Elders in a row across IV–VII** — Naturelands, Unknownlands, Alienlands,
+Spiritlands. **Four consecutive districts where humanoids are guests.** That is the
+middle of the campaign going strange, and it happens *structurally* rather than by
+description.
+
+★★★★ **And then Baelgor (VIII) is a MASTER — the homecoming.** His parents' hometown,
+the Pledge, the University. **The return to humanity is announced by the return of a
+human authority**, one district before Thardin and the end.
+
+★ A tidy alternation would have destroyed that. **The unevenness is the shape.**
+
+#### ★★ RULES FOR THE NAMING PASS, WHENEVER YOU DO IT
+
+- **MASTERS** — title = **the district's land-type**. Kelthor is the **Beast**master of
+  the **Beast**lands, so Andrannor takes a **Creature**master, Baelgor a
+  **Humanoid**master, Thardin a **Tech**master *(or Mech—, your call)*. ★ The **title**
+  is derivable; **the person is not.**
+- **ELDERS** — ★★★ **named as BEINGS, not offices**, which is exactly what *Omniris*
+  is. Each must be **of its district's own type**: Veridan **Nature/Verdant** ·
+  Netharion **Unknown** · Vorashil **Extraterrestrial** · Xilnar **Spirit** · Korathen
+  ★ **[ASK]** — *Ultimate is the never-obtainable 21st, so Korathen's Elder is probably
+  **Astral** or **Divine**. Worth deciding before it is designed.*
+- ★★ **One hard test for the set:** if an Elder could be redrawn as a human in costume
+  without losing anything, **it is a Master wearing the wrong word.**
 
 ★★ **A naming rule falls out for free either way.** Kelthor is the **BEAST**master of
 the **BEAST**lands. **The Master's title is the district's land-type**, so all ten are

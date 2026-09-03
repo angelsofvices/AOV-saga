@@ -12,10 +12,21 @@
 
 Per §6.5b: **MASTERS are HAEMEN (humanoid). ELDERS are AETHREN (not humanoid).**
 
-| | need | notes |
+> ★★★★ **HALVED 2026-09-01. Creator: *"every district has either an elder or a master."***
+> **Ten officers, not twenty — and Kelthor and Omniris are two of them. EIGHT new figures.**
+> Assignment ruled in `RP7_MAIN_STORY_CANON.md` §6.5b; **names deliberately deferred.**
+
+| | need | which districts |
 |---|---:|---|
-| **MASTERS** · humanoid | **9** | Kelthor exists. ★ Title = the district's land-type — **Aura**master, **Creature**master, **Spirit**master… so each design is *a person dressed as their district's discipline* |
-| **ELDERS** · Aethren | **9** | Omniris exists. ★★★ **These are not people.** Each is a being of its district's own type — the Auralands counselled by something Aura, the Spiritlands by something Spirit |
+| **MASTERS** · humanoid | **3** | Andrannor · **Baelgor** *(forced — Humanoid is the Haemen type)* · Thardin. ★ *Kelthor holds Malezor.* Title = the land-type, so **Creature**master, **Humanoid**master, **Tech**master |
+| **ELDERS** · Aethren | **5** | Veridan · Netharion · Vorashil · Xilnar · **Korathen**. ★ *Omniris holds Zarvane.* ★★★ **Not people** — each is a being **of its district's own type** |
+
+★★★ **The rule behind the split, so the designs share a logic:** *a **Master** where
+humanoids hold the ground; an **Elder** where they are guests.* ★ Korathen takes an
+Elder **because its humanoid chair is the Empty Throne, and it is empty.**
+
+★ **[ASK] before Korathen's Elder is drawn:** Ultimate is the never-obtainable 21st
+type, so its Elder is probably **Astral** or **Divine**. Worth deciding first.
 
 ★★★★ **The Elders are the more interesting commission and the bigger risk.** *"The Master
 speaks for the people; the Elder speaks for the land."* ★ If they read as costumed

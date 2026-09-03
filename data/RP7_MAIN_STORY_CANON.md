@@ -949,6 +949,103 @@ designed for the other. **They fit because both were derived from the same story
    *Recommend Xenoxil-only until a second case earns it — a mechanic with one user is a
    character trait, which is exactly what it is being used as here.*
 
+---
+
+### ★★★★★ 6.5i · THE CARRIED DEAD · Orryx → VII, Ophira stays VI
+
+> **Creator:** *"make orryx tier 7 and ophira tier 6. they have enhanced power due to ancient magic (**ophira has her fathers old dead spirit, orryx has spirits from the void sea of fallen seamen**)"*
+
+| | tier | carries |
+|---|:-:|---|
+| **XENOXIL** | **VIII** | *(§6.5h · precipitated, not carried)* |
+| **ORRYX** | ★ **VII** | ★★★ **the drowned of the VOID SEA — many** |
+| **OPHIRA** | **VI** | ★★★★ **her father's dead spirit — one** |
+
+#### ★★★★★ 1 · IT EXPLAINS THE IDENTICAL TYPING
+
+§6.5f made father and daughter **both Humanoid / Unknown**, and I called it *"she became
+him, precisely, and it still was not the same thing."*
+
+> ★★★★★ **It is literally true. She is not typed LIKE her father — she is typed AS him,
+> because he is IN her.**
+
+★★★★ **The typing was never imitation. It is carriage.** ★★★ And it turns *"took over in
+grief"* into something far worse than a motive: **grief that refused to complete. She
+has the one thing that makes moving on impossible — the dead man, still present.**
+
+★★★ **[INFER] and it explains why her second type is UNKNOWN rather than Spirit.** She
+does not carry a *spirit-typed power*. **She carries an unknown — a man who is no longer
+knowable.**
+
+#### ★★★★★ 2 · ORRYX'S SPIRIT TYPE IS HIS OWN — my §6.5g reading is retracted
+
+★ I argued his **Spirit** came from Xenoxil — *"the Reluctant Believer took his identity
+from the thing he doubts."* **The Creator has now given the type a source, and it is his
+own: the Void Sea.** ★★ **Elegant reading, wrong owner. Retracted.**
+
+★★★★★ **And what replaces it is better, because it is a contrast rather than a link:**
+
+> **OPHIRA carries ONE dead man — chosen, loved, held onto.**
+> **ORRYX carries MANY — strangers who drowned.**
+>
+> ★★★★ **Hers is GRIEF. His is WEIGHT.**
+
+★★★★★ **Which finally explains "the Reluctant Believer" from the inside.** A man
+carrying a crowd of the dead is a man who has heard a great many opinions.
+
+> ★★★★★ **His doubt is not a character note. It is other voices. He is not alone in
+> there.**
+
+#### ★★★★★ 3 · THE HIERARCHY INVERTS — and the founder's daughter is the weakest
+
+**XENOXIL VIII › ORRYX VII › OPHIRA VI.**
+
+> ★★★★★ **She started this — and she is now outranked by the man she recruited and by
+> the thing she let in.**
+
+★★★ §6.5e's reading survives and gets crueller: **she exceeded her father (V → VI) and
+was still outgrown by her own subordinates.** *Her grief bought her one tier, and
+everyone else went further on it.*
+
+#### ★★★★★ 4 · AND HER LIMIT IS HER LOVE
+
+★★★★ **If carried dead are power, the arithmetic is legible: Orryx has a sea; Ophira has
+one man; Orryx is a tier higher.**
+
+> ★★★★★ **She could be stronger. She will not take more — because more would dilute
+> him.**
+>
+> **She is capped by the one thing she is not willing to share.**
+
+★★★ **That is the whole character in a stat line**, and it makes her sympathetic and
+doomed in the same gesture. ★ **[ASK] does she ever take more?** *If she does, she loses
+him — which is the only threat the story can make that she would actually feel.*
+
+#### ★★★★★ 5 · "THE DEAD CANNOT SAY NO" — this is the Seer thesis, perfected
+
+§7g of the Zoryn canon: **the Seers are the religion of taking power without bonding —
+the anti-bond.** A bond requires **two wills**.
+
+> ★★★★★ **A corpse has none. The dead are the ultimate non-consenting partner.**
+
+★★★★★ **So the two lieutenants are not merely powered by ancient magic — they ARE the
+thesis, embodied.** Ophira did not bond with her father. **She kept him.**
+
+★★★★★ **And it locks the rhyme with Zoryn.** §7g: *"he found something he could dominate
+completely, because it cannot say no"* — the white gem, which has no will.
+
+> ★★★★★ **The Seers found that first, and it was people.**
+> **Same crime, different material.** Zoryn's fall is not a new idea in the story. **It
+> is him arriving, decades late, at the Seers' founding insight.**
+
+#### ★ 6 · BUILD · **[BUILD]**, none touched
+
+★ Pools by `T × 333`: **Xenoxil 2664 · Orryx 2331 · Ophira 1998.** *(Both lieutenants
+currently ship at 1332, a Tier IV pool — now two separate corrections.)*
+★ **[ASK] is "ancient magic" a third power source** alongside the bond and the Astralite
+ladder, or a property of the **Spirit** type? **It is doing real mechanical work now and
+has no home.**
+
 #### ★ 7 · OPEN
 
 1. ★★ **When was the coup?** It is now a datable founding event with consequences on

@@ -315,7 +315,89 @@ Ten names, ten cards, ten working cave doors — **and two characters.**
 
 ---
 
+## ★★★★ 17-bis · THE THREE HOLES · refreshed 2026-09-01, after the day's rulings
+
+**Ranked by what they BLOCK, not by size.** Everything below §17 predates the rulings.
+
+### ★★★★ HOLE 1 · NINE ELDERS DO NOT EXIST — and it blocks everything else
+
+`DISTRICT_ELDERS` has **two of ten rows filled**, and the Elder/Warden ruling vacates
+one of those two: **Kelthor is a Warden now, so Malezor's Elder seat is empty too.**
+**Only Omniris is correctly seated.**
+
+> ★★★★ **63 of 70 missions, eight districts of dialogue, and the whole tightening pass
+> are all waiting on nine names.**
+
+★★★ **And it is cheaper than it looks, because an Elder is DERIVABLE, not invented.**
+Every district already supplies the inputs: a **land-type** (Beastlands, Auralands,
+Creaturelands…), a **Gemlord**, a **seat**, and a **discipline** — the shipped
+`teaches:` field. Kelthor teaches **THE BOND**; Omniris teaches **THE SIGHT**.
+
+★★ **So naming the nine also writes nine of the seventy missions** — the *method
+lesson* beat (§6.2) **is** the Elder's discipline. One structured pass with a rule,
+not nine blank pages.
+
+★ **[BUILD]** also needs Kelthor moved to a `DISTRICT_WARDENS` table or an `office:`
+field, and the eight `handoff:'TBD -> …'` strings confirmed non-rendering.
+
+### ★★★★ HOLE 2 · THE THREE SEERS HAVE NO SCENES — and TODAY made it load-bearing
+
+**Xenoxil, Orryx and Ophira have zero dialogue.** They exist as text *inside Dad's
+scrolls* and one combat constant. The ten Commanders share **one** interpolated line.
+
+★★★★ **This was "the villains are thin" this morning. It is now a structural
+dependency**, because Zoryn's Part 2 turns on **accepting their invitation**:
+
+> **If the player never met the Seers as people with a THESIS, Zoryn joining them is
+> a costume change instead of an argument.**
+
+★★★ The Seers are *the religion of taking power without bonding* — **the anti-bond,
+the only other school of thought on Zyraxis.** That has to be **audible in Part 1**,
+in their own mouths, or the sequel's premise has nothing to stand on. ★ Orryx is
+already written as *"the Reluctant Believer"* with doubt beats — **the most useful
+Seer to write first**, because he is the one whose argument Zoryn will finish.
+
+### ★★★★ HOLE 3 · THE INVASION OF MALEZOR IS A BULLET POINT
+
+The story's **central turn** — parents taken on-screen, **Kelthor dies**, Zoryn's
+first failure, the fuel for the Ruby Rage — exists as a line in a draft marked
+***"DESIGN ONLY. Nothing wired."***
+
+> ★★★★ **Every ruling made today leans on a scene that does not exist.**
+
+★★★ It is also the **highest-value single scene in the game**: it kills the character
+with the largest dialogue tree in the build (Kelthor, 18 blocks), it retroactively
+converts Malezor from tutorial to wound, and it is where **Zoryn is the best and it
+is not enough for the first time.** ★ Three arcs collect there. **Nothing else in the
+story does that much work in one place.**
+
+### ★ HONOURABLE MENTIONS — real, but not blocking
+
+| | |
+|---|---|
+| ★★ **Rakoron's finale appearance** | *We created this obligation today.* A deferral is a promise; he must arrive at Korathen and say **now**. Unwritten |
+| ★★ **Vorashil's mission 7** | lost its turn when the kidnapping moved. Suggested: *S1 is perception, and the first thing clear sight shows him is what he missed* |
+| ★★ **The Key of Anciuxor has no acquisition** | §9 removed the gift and nothing replaced it |
+| ★★ **The Korathen capstone reward** | removing Anciuxor's Lv 100 grant left Part 1 without an ending prize |
+| ★ **Eight Gemlords have no philosophy** · six weapons unnamed | Azurel and Rakoron are the only two written |
+| ★ **The ten Mother Gems are named nowhere** | the Father Gem resolved into a planet core (§0l); its ten children did not |
+| ★ **Nothing bridges Nexyros → Zyraxis** | how Egnellahc arrived, and whether already sundered |
+
+### ★★ ONE THING WORTH SAYING PLAINLY
+
+**The story is far ahead of the game.** 63 of 70 missions, 30 lore buildings, the ten
+Commander fights and the Empty Throne interior are **all unbuilt**. ★ That is not a
+criticism — **the canon is in excellent shape and the writing has a voice** — but the
+next bottleneck is construction, not invention.
+
+★ **And four defects are shipping to players right now** and cost minutes to fix: raw
+tile coordinates in an objective hint, two raw error strings, a `DEV` toast, and
+eleven duplicate *"Closed for now"* toasts. **Cheap, and embarrassing to leave.**
+
+---
+
 ## ★★★ 17 · THE RECOMMENDED ORDER OF WORK
+*(★ superseded by 17-bis above — kept for the reasoning)*
 
 **Rulings first — three sentences unblock most of the pass:**
 

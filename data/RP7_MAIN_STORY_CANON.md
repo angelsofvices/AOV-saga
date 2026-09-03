@@ -864,6 +864,91 @@ Tier VII privilege — and Orryx is Tier VI.** ★ If that pattern is a rule, (c
 available, and the tri-type is *itself* part of what makes Xenoxil not one of them.
 **Worth ruling before it is used a third time.**
 
+---
+
+### ★★★★★ 6.5h · XENOXIL → TIER VIII
+
+> **Creator:** *"move xenoxil to tier 8 so we can tri type him. it works"*
+
+#### ★★★ 1 · CORRECTION FIRST · my tri-type constraint did not exist
+
+★ I flagged option (c) as *"may be barred — Xenoxil T7 tri-typed, Omegoran T7 tri-typed,
+two for two."* **I checked. Both halves were wrong:**
+
+| I claimed | ★ the data says |
+|---|---|
+| tri-typing is an established T7 privilege | ★★★ **`type3` does not exist in the codex schema. There are ZERO tri-typed entries** |
+| Omegoran is T7 tri-typed | ★★ **Omegoran is `Aura / Corrupted` — DUAL** |
+
+★★ **I built a rule out of a memory line the shipped data does not support**, and then
+used it to constrain a decision. **Nothing bars tri-typing. There was no pattern —
+there were no tri-types.**
+
+> ★★★ **So this is not "raise the tier to earn the privilege." It is a NEW MECHANIC,
+> and Xenoxil is its first case.**
+
+#### ★★★★★ 2 · T8 is justified far better by his own codex than by the tri-type
+
+His shipped entry: *"**Precipitated from Obsidius × Oathane's standstill** · not born ·
+not made."*
+
+★★★★★ **Obsidius is a Gemlord — Tier VIII. Oathane is a Gemlord — Tier VIII.**
+
+> ★★★★★ **A thing precipitated from a standstill between two Tier VIII beings being
+> Tier VIII itself is not a convenience. It is the only tier that makes sense.**
+
+★★ **The tri-type is the reason you reached for it; the codex is the reason it holds.**
+
+#### ★★★★★ 3 · TIER VIII IS THE GEMLORD TIER — and that changes the endgame's shape
+
+**All ten Gemlords are T8 Immortal. So is Oathane. So is Oatheus.**
+
+> ★★★★★ **Xenoxil stops being a strong mortal cult leader and becomes a PEER OF THE
+> GODS.**
+
+★★★★ **Which finally explains how a Seer campaign could credibly threaten ten Tier VIII
+beings.** At T7 Pseudoimmortal he was below every Gemlord on the board — **the numbers
+did not support the plot.** At T8 they do.
+
+★★★★★ **And it puts a blade in the Pact.** The Gemlord Pact forbids destroying
+***mortal*** Seers.
+
+> ★★★★★ **A Tier VIII Immortal is not mortal.**
+>
+> **So either the Gemlords could always have moved on Xenoxil and did not — or they
+> can, and that is the endgame's held card.** ★★ Ophira, Orryx and every grunt stay
+> covered; **the one who is not one of them is the one not protected.**
+
+★★★ **It also completes the §6.5f reading.** The retype made the three leaders **Haemen
+— mortal, people, Pact-covered.** The tier move makes Xenoxil **Immortal, not covered.**
+*Two separate rulings, the same line, drawn twice.*
+
+#### ★★★★★ 4 · AND IT INTERLOCKS WITH THE RAKORON PAYOFF
+
+★ The obvious worry: **can a Lv 50 mortal fight a Tier VIII Immortal at the end of Part
+1?** ★★★★★ **Yes — because of a ruling made earlier today.**
+
+> **Rakoron defers S2 to the last possible moment, so he has to arrive at Korathen and
+> say *now*.**
+>
+> ★★★★★ **A Tier VIII arrives, and grants the power that lets a mortal fight a Tier
+> VIII.**
+
+★★★ **The deferral payoff and the tier escalation are the same beat.** Neither was
+designed for the other. **They fit because both were derived from the same story.**
+
+#### ★★ 5 · BUILD COST · **[BUILD]**, none touched
+
+1. ★★★ **`type3` is a new schema field.** Everything that reads typing must handle three:
+   the **19-type effectiveness digraph**, display, Ultramax typing, the type chart.
+   **This is the real cost of the ruling, and it is a build cost, not a canon one.**
+2. ★ **Pool:** `T × 333` puts Xenoxil at **2664**.
+3. ★ **Still outstanding from §6.5f:** Ophira and Orryx are Tier VI carrying **1332**
+   (a Tier IV pool) and should be **1998**.
+4. ★ **[ASK]** is tri-typing **Xenoxil-only**, or is `type3` now available generally? ★★
+   *Recommend Xenoxil-only until a second case earns it — a mechanic with one user is a
+   character trait, which is exactly what it is being used as here.*
+
 #### ★ 7 · OPEN
 
 1. ★★ **When was the coup?** It is now a datable founding event with consequences on

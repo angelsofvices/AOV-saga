@@ -1119,7 +1119,7 @@ characters to write and no rule for how any of them sound. **Now there is one.**
 |---|---|---|
 | **NEWSPEAK** | Rizer · Zoryn · Masters · NPCs · Dad's scrolls · every toast | ★★ **the shipped voice is already correct** |
 | **OLDEN** | ★★★ **Elders** *(Aethren — older than the current order)* · Gemlords · the Pledge · ritual | rare, formal, invoked |
-| ★ **ANCIARIC** | **the Seers, when working** · the Curse · Anciuxor | ★★★★ **a dozen times in the whole game, at most** |
+| ★ **ANCIARIC** | ★★★ **XENOXIL ONLY, and only partially** *(§6.5k — corrects "the Seers")* · the Curse · Anciuxor | ★★★★ **a dozen times in the whole game, at most** |
 
 ★★★★★ **And it gives the player a tell they can learn:**
 
@@ -1171,6 +1171,102 @@ book."* **An Anciaric oath does not need a book.**
    world gave up. And **Dad writes in Newspeak and can only COPY the nine characters**
    (§6.5j§5): ★★★★ *the scholar's tragedy is that his language cannot hold what he
    found.*
+
+---
+
+### ★★★★★ 6.5k · FLUENCY IS THE TIER
+
+> **Creator:** *"**only xenoxil** gains **partial** fluency in anciaric. **rizer stops him at endgame** though. **orryx and ophira have partial fluency in olden. that is how they gained their longer life.**"*
+
+★ **Corrects §6.5j§4**, which assigned Anciaric to *"the Seers"* as a group. **It is one
+man, partially.**
+
+| | tier | reads | ★ what it bought |
+|---|:-:|---|---|
+| **XENOXIL** | **VIII** | ★★★ **ANCIARIC · partial** | *(the endgame — §4 below)* |
+| **ORRYX** | **VII** | **Olden · partial** | ★ **longer life** |
+| **OPHIRA** | **VI** | **Olden · partial** | ★ **longer life** |
+| everyone else | — | Newspeak | a normal one |
+
+#### ★★★★★ 1 · THE LANGUAGE LADDER *IS* THE TIER LADDER
+
+> ★★★★★ **Anciaric › Olden › Newspeak maps exactly onto VIII › VII·VI › mortal.**
+> **The Seer hierarchy is a hierarchy of what they can READ.**
+
+★★★★★ **And it finally explains §6.5i's inversion — why the founder's daughter ended up
+weakest.** She is on the lower rung of the *language* ladder, and **she let in the only
+being who could read the higher one.**
+
+> ★★★★ **That is what "linking up with Xenoxil" actually bought her: access to a tongue
+> she could not read herself.** *She did not recruit a general. She hired a translator,
+> and he kept the book.*
+
+#### ★★★★★ 2 · THE SEERS' WHOLE PLAN IS A LANGUAGE-ACQUISITION PROBLEM
+
+Canon has their plan as *"ascend Orryx and Ophira toward **pseudo-immortality**"* on
+harvested life-energy. ★★★★ **Now we know they already have longer life — from Olden.
+So the ascension is not about getting more time. It is about getting the OTHER KIND.**
+
+> ★★★★★ **Olden bought them centuries. Only ANCIARIC buys forever.
+> And only Xenoxil can read it, partially.**
+
+★★★★★ **That is the cleanest possible statement of why they need him and why they are
+stuck.** The Seers are not a war machine with a mystical hobby. **They are three people
+trying to finish learning a language, and killing to buy time to do it.**
+
+#### ★★★★★ 3 · NOBODY IS FLUENT IN OLDEN EITHER — and that is why it is "partial"
+
+★★★★ `codex.html`: **Eïrforn is the *"final bearer of OLDEN."*** ★★★ **Final. The last
+true speaker is gone** — and he was **one of Egnellahc's four Nexyrosillian Kings**
+(§6.5j§6).
+
+> ★★★★★ **Orryx and Ophira hold partial fluency in a language whose last fluent speaker
+> is dead and who cannot teach them. They are working from fragments — and got
+> centuries out of scraps.**
+
+★★★★★ **Which makes Opharion's order exact.** The pact did not *speak* Olden. **It
+PRESERVED it.** A library of a dead tongue — precisely the kind of institution the
+Gemlords would sign with (§6.5j§3).
+
+★★★★★ **And it gives Ophira her sentence:**
+
+> ★★★★★ **She learned her father's dead language and used it to keep her father.**
+>
+> **Twice dead — the tongue and the man — and she is holding both.**
+
+★★★★ **It also perfects the §6.5i contrast.** She and Orryx have **the same language,
+the same partial fluency.** The difference is not skill.
+
+> ★★★★★ **Same fluency, different appetite. She spent it on one person. He spent it on
+> a sea of strangers.**
+>
+> ★★★ **He is a tier higher not because he is better at it — but because he is less
+> discriminating about the dead.**
+
+#### ★★★★★ 4 · "RIZER STOPS HIM AT ENDGAME" — what is actually being stopped
+
+★★★★ **Not a villain. An ACQUISITION.**
+
+★★★★★ **[INFER] and it names the ritual.** Canon: *"Xenoxil attempts to merge
+transformation, bonding, spirit energy, technology and district authority into ONE
+takeover ritual."*
+
+> ★★★★★ **The ritual IS the fluency. He is partial; the ritual would make him
+> complete.**
+
+★★★ **Which makes the stakes precise instead of apocalyptic-generic.** Anciaric is the
+tongue of **ANCIARA — Anciuxor's realm, the rim** (§6.5j§1). ★★★★ **A being who could
+speak the boundary's language fluently could address the boundary.**
+
+★ **[ASK] and it touches the Key.** §12: the Key of Anciuxor *"does not open a thing. It
+opens a **PERMISSION**. And the permission is the ending."* ★★★ **Full Anciaric may be a
+second road to that same permission — one that does not need the Key.** *If so, Rizer is
+not stopping a conquest. He is stopping a door from being asked to open.* **Not
+asserted.**
+
+★ **[ASK] where did Xenoxil GET partial Anciaric?** *"Gains"* is acquisition, not birth.
+★★ He *"precipitated from Obsidius × Oathane's standstill"* — two Tier VIII beings — **so
+proximity to that register at his own origin is the obvious answer, and it is unwritten.**
 
 #### ★ 7 · OPEN
 

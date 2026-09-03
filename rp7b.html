@@ -4591,16 +4591,46 @@ const SEER_HQ_FOOTPRINT = (function(){
   }
   return f;
 })();
-const SEER_HQ_BBOX = [165, 97, 1040, 942];          // CC-tight content rect
+// ★★★ v0.95.942 · TEN DISTRICT-FLAVOURED HQs · Creator: "each has the district
+// name on the file. replace them in the overworld. 1:1 scale"
+//
+// ★ THE BBOX IS A UNION, NOT A CROP OF ONE IMAGE.  The ten deliveries arrive on
+// the same 1373x1145 canvas as the old generic seer-hq.png -- which is what
+// makes "1:1" possible at all -- but their CONTENT sits in ten different rects,
+// spanning x 88..1285 and y 28..1092.  Veridan's is 157px wider than Malezor's.
+//
+// Three options, and only one is right:
+//   · keep the old [165,97,1040,942]  -> crops nine of them wrong, clipping art
+//   · a per-district bbox             -> ten different ASPECTS, so drawProp
+//                                        renders ten different-sized buildings
+//   · ★ the UNION of all ten          -> one crop, one aspect, identical
+//                                        footprint, nothing stretched
+//
+// The union runs 1197x1064 (aspect 1.1250 against the old 1.1040 -- a 2% change
+// nobody will see).  Each district's art then fills 88-100% of that window,
+// which is not error but FLAVOUR: Veridan's sprawls, Thardin's is squat, and
+// they still stand on the same 8x7 tiles with the same door.
+const SEER_HQ_BBOX = [88, 28, 1197, 1064];          // ★ union content rect of all ten
+// ★ One Image per district, keyed once at import (tools/import_seer_hqs.py,
+// canon magenta border flood-fill).  Cached so the nine props and Malezor's
+// hand-authored block below share the same decoded bitmap per district.
+const SEER_HQ_SRC = d => `assets/2D%20sprites/buildings/seer-hq-${d}.png`;
+const _seerHqImgs = {};
+function seerHqImg(dist){
+  if (!_seerHqImgs[dist]){
+    const im = new Image();
+    im.src = SEER_HQ_SRC(dist);
+    _seerHqImgs[dist] = im;
+  }
+  return _seerHqImgs[dist];
+}
 // Build the nine props that did not exist before v0.95.671.  Malezor's is
 // authored separately further down and is skipped here.
 function buildSeerHqProps(){
-  const img = new Image();
-  img.src = 'assets/2D%20sprites/buildings/seer-hq.png';
   return SEER_HQ_NETWORK.filter(H => !H.prebuilt).map(H => ({
     id: `seer_hq_${H.dist}`,
-    img,
-    src: 'assets/2D%20sprites/buildings/seer-hq.png',
+    img: seerHqImg(H.dist),
+    src: SEER_HQ_SRC(H.dist),
     bbox: SEER_HQ_BBOX,
     tileX: H.door[0], tileY: H.door[1],
     tileW: 8, tileH: 7,
@@ -7174,13 +7204,17 @@ const WORLD_PROPS = [
   // Enemy stronghold · 8x7 building · 5 Seer Grunt guards ring the entrance
   // ready to fight on approach.  Interior tour + boss fight ship in later pass.
   (function(){
-    const img = new Image();
-    img.src = 'assets/2D%20sprites/buildings/seer-hq.png';
+    // ★ v0.95.942 · Malezor's HQ now uses its own district art, through the
+    // same cache and the same UNION bbox as the other nine, so the ten stay
+    // pixel-identical in footprint.  Was a hardcoded [165,97,1040,942] crop of
+    // the generic building; that rect belonged to art this district no longer
+    // uses, and leaving it would have clipped the new one.
+    const img = seerHqImg('malezor');
     return {
       id: 'seer_hq',
       img,
-      src: 'assets/2D%20sprites/buildings/seer-hq.png',
-      bbox: [165, 97, 1040, 942],                // CC-tight content rect
+      src: SEER_HQ_SRC('malezor'),
+      bbox: SEER_HQ_BBOX,                        // ★ union of all ten
       tileX: 75, tileY: 172,
       tileW: 8, tileH: 7,
       footprint: (function(){
@@ -13267,7 +13301,20 @@ const GROUND_STOREY_FOOTPRINTS = {
   'assets/2D%20sprites/buildings/hospital.png|11x9': [[-5,-1],[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[4,-1],[5,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0],[4,0]],
   'assets/2D%20sprites/buildings/red-roof-home.png|5x5': [[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[-2,0],[-1,0],[0,0],[1,0],[2,0]],
   'assets/2D%20sprites/buildings/villager-home.png|5x5': [[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[-2,0],[-1,0],[0,0],[1,0],[2,0]],
-  'assets/2D%20sprites/buildings/seer-hq.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  // ★★ v0.95.942 · ten keys, one per district.  This table is keyed by SRC,
+  // so splitting the generic seer-hq.png into ten district files silently
+  // orphaned every HQ's ground-storey entry until these were added -- the
+  // buildings would have lost their walk-behind row with nothing throwing.
+  'assets/2D%20sprites/buildings/seer-hq-malezor.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-zarvane.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-andrannor.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-veridan.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-netharion.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-vorashil.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-xilnar.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-baelgor.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-thardin.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
+  'assets/2D%20sprites/buildings/seer-hq-korathen.png|8x7': [[-4,-1],[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-4,0],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
   'assets/2D%20sprites/decor/radio-tower-broken.png|5x11': [[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[-2,0],[-1,0],[0,0],[1,0],[2,0]],
   'assets/2D%20sprites/buildings/malezor-gear-shop.png|7x7': [[-3,-1],[-2,-1],[-1,-1],[0,-1],[1,-1],[2,-1],[3,-1],[-3,0],[-2,0],[-1,0],[0,0],[1,0],[2,0],[3,0]],
 };

@@ -692,6 +692,108 @@ Throne the same wound, and would explain why *"Obsidius says nothing"* about Oat
 3. ★ **`realms.html` has Opharion at `tier:'?'`, all stats 0, `unlocked:false`** while
    `codex.json` has him at Tier V with a full pool.
 
+---
+
+### ★★★★★ 6.5f · THE SEER RETYPE · all three leaders are HAEMEN
+
+> **Creator, 2026-09-01:** *"ophira is now humanoid unknown. orryx is humanoid spirit. opharion is humanoid unknown. remember all **haemen** must carry humanoid primary. **they are not zyrex.**"*
+
+| | was | ★ **now** |
+|---|---|---|
+| **OPHARION** | Beast / Aura | ★ **Humanoid / Unknown** |
+| **OPHIRA** | Spirit / Void | ★ **Humanoid / Unknown** |
+| **ORRYX** | Humanoid / Spirit | **unchanged** ✔ |
+| **XENOXIL** | Spirit / Aura | ★★★ **NOT RETYPED** |
+
+★ **The rule restores §6.5b as written:** **HAEMEN carry Humanoid primary** — *"HUMANOID
+is the sole HAEMEN type; the other standard types are AETHREN"* **[BUILD]**. **Haemen are
+people. They are not Zyrex.**
+
+#### ★★★★ 1 · It makes the Gemlord Pact's wording bite
+
+**All three Seer leaders are now Haemen — mortal, human, not creatures.**
+
+★★★★ **Which is exactly the clause the endgame turns on:** the Gemlord Pact forbids the
+Gemlords from destroying ***mortal*** **Seers**, so they empower a mortal-led faction
+instead. ★★ **That sentence only works if the Seers are mortals.** Before this retype,
+two of the three were Spirit- and Beast-primary. **Now the loophole and the roster
+agree.**
+
+#### ★★★★ 2 · OPHARION AS HAEMEN CONFIRMS HE WAS A MASTER
+
+§6.5e inferred it from the triage's *"lore reads humanoid (19 tells)."* ★★★★ **Ruled.
+Haemen is the Master class (§6.5b), so the pact's founder was a MASTER — an officer of
+the same kind as Kelthor.**
+
+> ★★★ **A Master led a lawful order. He died. It became something that deposes
+> Elders.**
+
+#### ★★★★★ 3 · FATHER AND DAUGHTER ARE NOW TYPED IDENTICALLY — and it is far better
+
+★ **My §6.5e reading is retracted.** I made much of *"father and daughter share not one
+type"* — Beast/Aura against Spirit/Void. **Both were retyped. That reading is gone, and
+what replaces it is stronger:**
+
+> ★★★★★ **OPHARION · Humanoid / Unknown.
+> OPHIRA · Humanoid / Unknown.**
+>
+> **She is typed EXACTLY as her father. She did not become his opposite — she became
+> him, precisely, and it still was not the same thing.**
+
+★★★★ **And the shared second type is UNKNOWN** — the type of the un-knowable. *A father
+and a daughter who are both, in the end, an open question.* ★★ **What she does not know
+is why being exactly what he was did not make her what he was.**
+
+★★★ **[INFER] and it may place her.** **Netharion is the UNKNOWNLANDS — and it is the
+first district she took.** *She began with the one that matched her.* Whether that is
+her home or merely her affinity is unwritten, and worth deciding.
+
+#### ★★★★★ 4 · XENOXIL WAS NOT RETYPED — and the ruling draws its own line
+
+★★★★★ **Three leaders became Humanoid-primary. The fourth did not.** Xenoxil remains
+**Spirit / Aura**, `role: zyrex`, *"not born · not made."*
+
+> **The retype itself separates the pact from the thing that took it over.**
+> **Opharion, Ophira and Orryx are people. Xenoxil is not one of them, and now the
+> data says so without a line of prose.**
+
+★ It also sits well with §6.5d: he was **linked up with**, not born into. ★★ And with
+the Pact — **if the Gemlords are barred only from destroying *mortal* Seers, Xenoxil may
+be the one Seer they were always permitted to touch.** *Flagged. That is either a plot
+hole or the endgame's best card.*
+
+#### ★★ 5 · OMNIRIS · the flip, flagged again and NOT re-asserted
+
+★ **I have now called this twice and been unsure both times, so here is the reasoning
+instead of a verdict.** `DISTRICT_ELDERS` **[BUILD]** already encodes the distinction in
+its `being:` field:
+
+```js
+kelthor · being:'Humanoid'        ← MASTER
+omniris · being:'Humanoid/Aura'   ← ELDER
+```
+
+★★★ **If Haemen means Humanoid-primary, then `Humanoid/Aura` is HAEMEN — which would
+make Omniris a Master, not an Elder.** For him to be Aethren the order would have to
+reverse: **`Aura/Humanoid`.**
+
+> ★★ **The question is whether primary-type ORDER is what sorts the two offices.** If
+> it is, Omniris needs flipping back. If Elders may be Humanoid-primary too, then the
+> offices are sorted by something else and **§6.5b needs its criterion restated.**
+>
+> ★ **Yours. I am not calling it a third time.**
+
+#### ★★★ 6 · SCOPE · this is not a three-entry fix **[BUILD]**
+
+`CODEX_TRIAGE_ZYREX_VS_HUMANOID.md` flags ***"lore reads humanoid"*** on **178 entries**
+— including **Aetherion (9 tells)**, **Azyrath (20 tells)**, **Lumelys**, **Drakkur**,
+**Helix**. ★★★ **The triage was built to catch exactly this and it has been right all
+along.** Today's three are the first three of a backlog.
+
+★ **Not started.** But it should be run as **one pass against the rule** — *Haemen carry
+Humanoid primary; Zyrex never do* — rather than character by character, or the roster
+will drift again.
+
 #### ★ 7 · OPEN
 
 1. ★★ **When was the coup?** It is now a datable founding event with consequences on

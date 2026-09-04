@@ -2189,3 +2189,61 @@ Boot-time validation asserts 15×5+6 = 81 = `GEMSHARD_SLOTS.length`. **The total
 7. **Does the Key of Anciuxor have a family?** The arithmetic requires it (§16c). Its family ends up owed eleven Gemshards.
 8. **The Emerald Axe and Pearlbow attributions** — inferred from three agreeing signals, not stated. Confirm or correct.
 9. **Which family does each Gemlord weapon belong to?** Ten weapons, nine families — so at least one family holds two Gemlord weapons, or one weapon belongs to a family with none.
+
+---
+
+## ★★★ §16f · THERE IS NO "KEY OF MEALUX" · retraction, 2026-09-04
+
+> **Creator:** *"the key of mealux should just be called a **Mealux**. the key is
+> just its **body type**."*
+> **Creator:** *"it is no longer a relic. it is a **species**. the relic is the
+> **key of anciuxor** that proginates mealux."*
+
+★ **§16e's third rung is deleted.** It read:
+
+```
+THE KEY OF ANCIUXOR  →  MEALUX  →  KEYS OF MEALUX   ← this one was mine
+```
+
+The chain has **one relic in it**, not two:
+
+```
+KEY OF ANCIUXOR   Prismshard XVI · one · never obtainable
+      ↓ remnant traces
+MEALUX            a SPECIES · T8 Immortal · Kyrathos · Eternal Library
+                  ★ shaped like a key — a SILHOUETTE, not a category
+```
+
+### ★★ How the error was made, since the shape of it matters
+
+I read the creature's **appearance as its class**. Once "Key of Mealux" was the
+species name, four separate records grew to agree with it — a frozen relic
+object, an item row, a `RELIC_CLASS.DERIVATIVE` ruling, and the species itself,
+each one confirming the other three.
+
+★★★ **And the data was already dissenting.** The relic object I wrote carried
+`from: 'mealux'` — *"the species that left them"* — pointing at a species id that
+**did not exist**, because I had named the creature after the relic instead. That
+dangling pointer sat in the build for 78 versions.
+
+> **A dangling reference in canon data is canon telling you the model is wrong.**
+> It took the Creator saying so for me to read it that way.
+
+### What this does NOT change
+
+- §3 descent is untouched. Mealux remain the **living branch** of Prismshard
+  descent — the mineral branch (Gemshards, Life Stones, Astralite Stones) is
+  unaffected, and Mealux are still the only living one known.
+- The Key of Anciuxor is still **one relic**, still Prismshard XVI, still on
+  Anciuxor's tail, still never obtainable. §16e's *descent, not identity* ruling
+  was right and stands.
+- **Gemshard 81** stays open. The Key shedding a sixth Gemshard *and* a species
+  is still the reserved irregularity.
+
+### Ships as
+
+`SPECIES.mealux` · `assets/2D sprites/zyrex/mealux.png` · the `KEY_OF_MEALUX`
+object, its `ITEM_META` row, its `RELIC_TYPE` tag and its `RELIC_CLASS` entry all
+removed · old saves carried by `SPECIES_ID_MIGRATIONS` · `tools/verify_mealux.js`
+asserts all four records are gone rather than just the object, because leaving
+any one of them keeps a relic named after a creature alive in the data.

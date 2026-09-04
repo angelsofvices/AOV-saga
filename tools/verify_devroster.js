@@ -52,11 +52,13 @@ t('the curated table was read completely', () => {
 t('the eight missing species were really missing before', () => {
   const gap = Object.keys(SUMMONABLE_SPRITES).filter(id => SPECIES[id] && !curated[id]).sort();
   ok(gap.length >= 8, `expected the reported gap, found ${gap.length}`);
-  ['aetherwing','frosane','key_of_mealux','mutamech','phrenetic','skybeam','smogrin','zorbil']
+  // ★ `key_of_mealux` was renamed to `mealux` at v0.95.959 · the historical
+  // gap is the same eight species, under the id each one has NOW
+  ['aetherwing','frosane','mealux','mutamech','phrenetic','skybeam','smogrin','zorbil']
     .forEach(id => ok(gap.includes(id), `${id} was already curated · the diff is wrong`));
 });
 t('every one of them is a species you can meet in the world', () => {
-  ['aetherwing','frosane','key_of_mealux','mutamech','phrenetic','skybeam','smogrin','zorbil']
+  ['aetherwing','frosane','mealux','mutamech','phrenetic','skybeam','smogrin','zorbil']
     .forEach(id => ok(wild.has(id), `${id} is not actually placed as a wild`));
 });
 

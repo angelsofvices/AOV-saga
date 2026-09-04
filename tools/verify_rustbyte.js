@@ -46,7 +46,9 @@ t('no gearbyte id survives in live code (comments may cite the history)', () => 
     const line = code.slice(code.lastIndexOf('\n', i), code.indexOf('\n', i));
     // ★ the migration function is allowed to name the old id -- rewriting it
     // is its entire job.  Everything else must be the stage-2 species.
-    ok(/tier:2|gearbyte: \{|evolveTo|=== 'gearbyte'|factionState\.gearbyte|zyredex\.gearbyte|speciesId === 'gearbyte'|\.id === 'gearbyte'/.test(line),
+    // ★ the migration TABLE is allowed to name the old id -- rewriting it is
+    // its entire job -- and so is the stage-2 species entry.
+    ok(/tier:2|gearbyte: \{|evolveTo|'gearbyte', 'rustbyte'/.test(line),
        'a live gearbyte id survives outside the stage-2 entry: ' + line.trim().slice(0, 90));
   });
 });
@@ -77,12 +79,33 @@ t('rustbyte T1 evolves into gearbyte T2', () => {
   ok(rt === 333, `T1 pool must be 333, got ${rt}`);
 });
 t('a save written as gearbyte still finds him', () => {
-  ok(/function migrateGearbyteToRustbyte/.test(H), 'no migration · the ally vanishes from old saves');
+  // ★ RUN the migrator rather than grep for its name.  v0.95.959 folded it
+  // into a table and renamed the entry point, and a string test broke while
+  // the behaviour was fine -- which is the wrong way round for a suite whose
+  // job is to protect old saves.
+  const src = H.slice(H.indexOf('const SPECIES_ID_MIGRATIONS'), H.indexOf('function migrateSpeciesIds'))
+            + '\nreturn { migrateSpeciesId, SPECIES_ID_MIGRATIONS };';
+  const save = {
+    party: [{ speciesId: 'gearbyte', level: 22, xp: 900 }],
+    pcZyrex: [{ speciesId: 'gearbyte' }],
+    faction: ['auraxion', 'gearbyte'],
+    factionState: { gearbyte: { met: true } },
+    bonds: { gearbyte: 47 },
+  };
+  const api = new Function('player', 'console', src)(save, { warn(){} });
+  ok(api.SPECIES_ID_MIGRATIONS.some(([f, t]) => f === 'gearbyte' && t === 'rustbyte'),
+     'the gearbyte rename is not in the migration table');
+  const n = api.migrateSpeciesId('gearbyte', 'rustbyte');
+  ok(n >= 5, `only ${n} references migrated`);
+  ok(save.party[0].speciesId === 'rustbyte', 'the party member was left pointing at the stage 2');
+  ok(save.party[0].level === 22 && save.party[0].xp === 900, 'the migration wiped his level');
+  ok(save.pcZyrex[0].speciesId === 'rustbyte', 'a PC-stored one was missed');
+  ok(save.faction.includes('rustbyte') && !save.faction.includes('gearbyte'), 'the faction list was missed');
+  ok(save.factionState.rustbyte && !save.factionState.gearbyte, 'factionState was missed');
+  ok(save.bonds.rustbyte === 47 && !save.bonds.gearbyte, 'bond progress was lost in the rename');
+  // and it must run on load
   const load = H.indexOf('function loadGame');
-  const call = H.indexOf('migrateGearbyteToRustbyte()', load);
-  ok(call > load, 'the migration is never called from loadGame');
-  // it must run BEFORE the other post-load sweeps, which read species ids
-  ok(call < H.indexOf('pruneFiledScrolls()', load), 'the migration runs too late');
+  ok(H.indexOf('migrateSpeciesIds()', load) > load, 'never called from loadGame');
 });
 t('the wild placements followed the rename', () => {
   const h = fs.readFileSync('data/rp7_habitats_v1.json', 'utf8');

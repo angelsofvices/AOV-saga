@@ -74,19 +74,44 @@ print(f'2 EMPTY CELL   · {"✗ " + str(empty) + " empty" if empty else "ok · a
 issues += empty
 
 print('3 DEAD FRAME   ·', end=' ')
-dead = []
+# ★★★ RELATIVE, NOT ABSOLUTE.  The first version flagged any frame pair whose
+# churn fell under a flat 6% of the sprite's pixels, and that threshold is a
+# property of the SUBJECT, not of the animation:
+#   · a lithe dragon swinging its wings churns 20-30% and passes easily
+#   · Sharkfin is 70% static torso, backpack and gun, so a full leg swing is
+#     ~3% of his pixels -- a correct walk cycle scored 10 "dead frames"
+#   · Mutamech, a hovering suit, scored 12
+# Both sheets were fine.  A check that fails on correct art trains the reader
+# to ignore it, which is worse than not having it.
+#
+# ★ The defect this is actually looking for is a STALL: two frames that repeat
+# in a cycle whose other frames move.  That is a comparison WITHIN the sheet.
+# So a pair is dead when it churns far less than the sheet's own median pair --
+# and a sheet that barely moves anywhere is reported once, as a note, instead
+# of sixteen times as a failure.
+churns = []
 for r in range(ROWS):
     for c in range(COLS):
-        n = (c+1) % COLS
-        a, b = bb[r][c], bb[r][n]
+        n_ = (c+1) % COLS
+        a, b = bb[r][c], bb[r][n_]
         if not a or not b: continue
         pa = A[r*CELL+a[1]:r*CELL+a[1]+a[3], c*CELL+a[0]:c*CELL+a[0]+a[2]]
-        pb = A[r*CELL+b[1]:r*CELL+b[1]+b[3], n*CELL+b[0]:n*CELL+b[0]+b[2]]
+        pb = A[r*CELL+b[1]:r*CELL+b[1]+b[3], n_*CELL+b[0]:n_*CELL+b[0]+b[2]]
         h, w = min(pa.shape[0],pb.shape[0]), min(pa.shape[1],pb.shape[1])
-        churn = 1 - (pa[:h,:w] == pb[:h,:w]).mean()
-        if churn < 0.06: dead.append((r, c, n, churn))
-print(('✗ ' + ', '.join(f'row{r} f{c}->f{n} churn {ch:.3f}' for r,c,n,ch in dead)) if dead
-      else 'ok · every frame differs from the next')
+        churns.append((r, c, n_, 1 - (pa[:h,:w] == pb[:h,:w]).mean()))
+med = float(np.median([c[3] for c in churns])) if churns else 0.0
+DEAD_FRAC = 0.35          # a pair moving under a third of the sheet's median
+FLOOR     = 0.004         # ...and genuinely near-identical in absolute terms
+dead = [x for x in churns if x[3] < med * DEAD_FRAC and x[3] < 0.02]
+subtle = med < FLOOR
+if dead:
+    print('✗ ' + ', '.join(f'row{r} f{c}->f{n_} churn {ch:.3f} vs sheet median {med:.3f}'
+                           for r,c,n_,ch in dead))
+elif subtle:
+    print(f'ok · but the WHOLE sheet barely moves (median churn {med:.3f}) ·'
+          ' fine for a hoverer, check it is intended for a walker')
+else:
+    print(f'ok · every frame differs (sheet median churn {med:.3f})')
 issues += len(dead)
 
 print('4 GROUND JITTER·', end=' ')

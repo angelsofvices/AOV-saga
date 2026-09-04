@@ -1210,6 +1210,8 @@
         <button id="devFactionVoltigrax">giveVoltigrax: OFF</button>
         <button id="devFactionRakoron">giveRakoron: OFF</button>
       </div>
+      <!-- ★ v0.95.957 · every species with overworld art lands here automatically -->
+      <div class="row" id="devFactionAuto"></div>
       <div class="row">
         <button id="devFactionAll">giveAllFaction: OFF</button>
         <button id="devCallFaction" style="background:#132;color:#ffd66b;border:1px solid #d4af37;">★ CALL FACTION · summon party to Rizer</button>
@@ -37985,6 +37987,51 @@ const DEV_FACTION_ACTORS={
   voltigrax:{label:'Voltigrax',level:50,buttonId:'devFactionVoltigrax'},// v0.95.356 · Zarvane armored lion T6
   rakoron:{label:'Rakoron',level:80,buttonId:'devFactionRakoron'},   // v0.95.368 · Malezor Gemlord T8
 };
+// ★★★ v0.95.957 · THE PANEL DERIVES FROM THE ROSTER NOW.
+// Creator: "make sure all wild zyrex appear in the dev mode settings for
+// adding zyrex to faction so we can playtest all current roster."
+//
+// ★ EIGHT WERE MISSING, and every one of them is a species you can already
+// walk up to in the world: aetherwing, frosane, key_of_mealux, mutamech,
+// phrenetic, skybeam, smogrin, zorbil.  They were placed as wilds and given
+// overworld art in the ordinary course of work, and the dev table -- a
+// hand-written list with a hand-written button beside each line -- was simply
+// never extended.  Two lists that must agree, maintained separately, is the
+// same shape as every other drift in this file.
+//
+// ★★ SO IT IS NOT FIXED BY ADDING EIGHT LINES.  Adding eight lines fixes today
+// and guarantees a ninth is missing next week.  The table is instead COMPLETED
+// from the roster: any species that exists in SPECIES *and* has a bank in
+// SUMMONABLE_SPRITES is grantable, because those two conditions are exactly
+// what "you can put it in the party and actually see it" means.
+//
+// ★ Hand-authored entries WIN.  The curated grant levels are deliberate
+// (Rakoron at 80, Anciuxor at 100, the starters at 5) and nothing derived
+// overwrites them -- the sync only fills gaps.  A derived level is tier x 10,
+// which is where the curated ones already sit for the tiers that matter:
+// Rakoron T8 = 80, Anciuxor T10 = 100.
+function _devFactionLabel(id, sp){
+  if (sp && sp.name) return sp.name;
+  return id.replace(/(^|_)([a-z])/g, (m, a, b) => (a ? ' ' : '') + b.toUpperCase());
+}
+function syncDevFactionRoster(){
+  if (typeof SPECIES === 'undefined' || typeof SUMMONABLE_SPRITES === 'undefined') return 0;
+  let added = 0;
+  for (const id of Object.keys(SUMMONABLE_SPRITES)){
+    if (DEV_FACTION_ACTORS[id]) continue;          // ★ curated entry wins
+    const sp = SPECIES[id];
+    if (!sp) continue;                             // art with no species is a prop
+    DEV_FACTION_ACTORS[id] = {
+      label: _devFactionLabel(id, sp),
+      level: Math.max(5, (sp.tier || 1) * 10),
+      buttonId: 'devFaction_' + id,
+      _derived: true,
+    };
+    added++;
+  }
+  if (added) console.info(`[rp7b] v0.95.957 · dev faction panel completed from the roster · +${added} species`);
+  return added;
+}
 function setDevFactionActor(id,enabled,opts={}){
   const silent=!!opts.silent, deferRefresh=!!opts.deferRefresh;
   const cfg=DEV_FACTION_ACTORS[id];if(!cfg)return false;
@@ -38075,7 +38122,36 @@ function callFactionSummonAll(on){
   }
 }
 
+// ★★ v0.95.957 · a derived entry needs a button to press.  The curated ones
+// have hand-written markup in the panel; anything the sync adds is mounted
+// here, sorted by TIER so the list reads as a power ladder rather than as
+// whatever order the sprite banks happen to be declared in.
+// ★ The handler is attached at creation, not in the one-time wiring pass at
+// boot -- that pass ran once, over the table as it was then, and could never
+// see a button that did not exist yet.
+function _devFactionMountButtons(){
+  const host = document.getElementById('devFactionAuto');
+  if (!host) return 0;
+  const pending = Object.entries(DEV_FACTION_ACTORS)
+    .filter(([, c]) => c._derived && !document.getElementById(c.buttonId))
+    .sort((a, b) => ((SPECIES[a[0]]?.tier || 0) - (SPECIES[b[0]]?.tier || 0))
+                 || a[1].label.localeCompare(b[1].label));
+  pending.forEach(([id, cfg]) => {
+    const b = document.createElement('button');
+    b.id = cfg.buttonId;
+    b.textContent = `give${cfg.label}: OFF`;
+    b.title = `T${SPECIES[id]?.tier || '?'} · granted at Lv${cfg.level}`;
+    b.addEventListener('click', () => setDevFactionActor(id, !factionAllyInParty(id)));
+    host.appendChild(b);
+  });
+  return pending.length;
+}
 function refreshDevFactionButtons(){
+  // ★ v0.95.957 · sync FIRST, so a species that gained art since the last
+  // refresh is grantable the moment the panel is looked at.  Idempotent: it
+  // only ever fills gaps, so running it on every refresh costs a key scan.
+  try { syncDevFactionRoster(); } catch(_){}
+  try { _devFactionMountButtons(); } catch(_){}
   let count=0;
   for(const [id,cfg] of Object.entries(DEV_FACTION_ACTORS)){
     const on=factionAllyInParty(id);if(on)count++;

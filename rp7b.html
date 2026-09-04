@@ -14564,11 +14564,59 @@ function walkable(x, y){
 // Soul-switched Auraxion is airborne already. R2 adds a true phase state:
 // blocked terrain is crossed instead of stopping him, while retaining the
 // normal movement path whenever he is not actively phasing through a tile.
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.949 · COMPANION ABILITIES · Rizer borrows from whoever walks with him
+//
+// Creator: "if auraxion accompanies rizer then rizer can use R2 forcefield to
+// phase through collision like auraxion can.  all npcs will have some type of
+// special ability rizer can use in the overworld."
+//
+// ★ Almost none of this is new.  R2 (key 'i') has ALWAYS been contextual --
+// activeActor 'rizer' blocks, activeActor 'auraxion' phases -- and the phase
+// machinery is complete.  What gated it was SOUL-SWITCH, which is parked
+// ([[aov-soulswap-parked]]), so the ability has been unreachable rather than
+// unbuilt.  This adds a second route to it: COMPANIONSHIP.
+//
+// The table is the point.  One entry per ally, so "all npcs will have some type
+// of special ability" is a data change from here on rather than a code change.
+const R2_HOLD_MS = 180;                 // ★ tap under this = companion power
+const COMPANION_ABILITY_RANGE = 6;      // tiles · walk off and you lose the loan
+const COMPANION_ABILITIES = {
+  auraxion: {
+    label: 'HOLOGRAPHIC PHASE',
+    hint:  'cross blocked terrain',
+    // a toggle, not a pulse — press once to enter phase, again to leave
+    fire: () => toggleAuraxionPhaseFlight(),
+  },
+  // ★ ONE ENTRY PER ALLY.  Deliberately left empty rather than guessed at:
+  // Scrapjaw, Zoryn, Kelthor, Elzoran, Nurse Rein and the rest each need their
+  // ability named by the Creator before it is worth a line of code.
+};
+// Who is actually walking with Rizer right now?  Deliberately source-agnostic:
+// phone-spawned contacts, bonded companions and summons all end up as an NPC in
+// the player's scene, so proximity answers the question without this needing to
+// know which system put them there.
+function activeCompanionAbility(){
+  if (!NPCS || player.activeActor !== 'rizer') return null;
+  let best = null, bestD = Infinity;
+  for (const n of NPCS){
+    if (!n || !n.id) continue;
+    const ab = COMPANION_ABILITIES[n.id];
+    if (!ab) continue;
+    if ((n.scene || 'overworld') !== game.scene) continue;
+    const d = Math.abs((n.tileX || 0) - player.x) + Math.abs((n.tileY || 0) - player.y);
+    if (d <= COMPANION_ABILITY_RANGE && d < bestD){ best = { id: n.id, npc: n, ...ab }; bestD = d; }
+  }
+  return best;
+}
 function auraxionPhaseFlightActive(){
-  return player.activeActor==='auraxion' && game.scene==='overworld' && !!player.auraxionPhase;
+  // ★ either BE Auraxion, or have him with you
+  const lent = player.activeActor === 'rizer' && (activeCompanionAbility() || {}).id === 'auraxion';
+  return (player.activeActor==='auraxion' || lent) && game.scene==='overworld' && !!player.auraxionPhase;
 }
 function toggleAuraxionPhaseFlight(){
-  if(player.activeActor!=='auraxion'||game.scene!=='overworld')return false;
+  const lent = player.activeActor === 'rizer' && (activeCompanionAbility() || {}).id === 'auraxion';
+  if((player.activeActor!=='auraxion' && !lent)||game.scene!=='overworld')return false;
   player.auraxionPhase=!player.auraxionPhase;
   player._auraxionPhasePulse={
     until:performance.now()+520,
@@ -14576,9 +14624,15 @@ function toggleAuraxionPhaseFlight(){
     toggle:true,
   };
   playSFX(player.auraxionPhase?'confirm':'menuClose');
+  // ★ v0.95.949 · name the LENDER when the power is borrowed.  Rizer phasing
+  // should never read as Rizer's own trick — the ally is why it works, and the
+  // toast is the only place the game says so.
+  const _borrowed = player.activeActor === 'rizer';
   showToast(player.auraxionPhase
-    ? '◈ AURAXION · HOLOGRAPHIC PHASE FLIGHT · ON'
-    : '◈ AURAXION · HOLOGRAPHIC PHASE FLIGHT · OFF',1800);
+    ? (_borrowed ? '◈ AURAXION lends the field · PHASE ON · cross what blocks you'
+                 : '◈ AURAXION · HOLOGRAPHIC PHASE FLIGHT · ON')
+    : (_borrowed ? '◈ the field folds away · PHASE OFF'
+                 : '◈ AURAXION · HOLOGRAPHIC PHASE FLIGHT · OFF'),1800);
   return true;
 }
 
@@ -25584,6 +25638,36 @@ addEventListener('keydown', e => {
       && !_blockDevOpen
       && !dialogState && !battleState && !wildBattleState && !game.zphoneOpen && !game.paused
       && !(player.attackUntil && performance.now() < player.attackUntil)){
+    // ★★★ v0.95.949 · R2 IS SHARED NOW · tap = companion power, hold = block.
+    //
+    // R2 already meant BLOCK for Rizer, and the Creator wants it to also fire a
+    // companion's ability.  Giving the ability the button outright would take
+    // block away from him for as long as an ally is nearby, which is the wrong
+    // trade in a fight.
+    //
+    // ★ The shipped comment at RIZER_S1_BLOCK already says "R2 HOLD enters block
+    // stance" — but the code engaged it on keydown, so the hold was never real.
+    // Making it real is what creates room for a tap.
+    //
+    // And the cost is paid only by players who actually have a power to spend:
+    // with no companion ability available, block still engages INSTANTLY.
+    const _ab = (typeof activeCompanionAbility === 'function') ? activeCompanionAbility() : null;
+    if (_ab){
+      player._r2HoldStart = performance.now();
+      player._r2Ability   = _ab;
+    } else {
+      player.blocking = true;
+      player.blockStart = performance.now();
+      player.blockHitsAbsorbed = 0;
+      player._blockHitFlashUntil = 0;
+      try { playSFX('confirm'); } catch(_){}
+    }
+  }
+  // ★ v0.95.949 · R2 held past the threshold promotes into a block, so a
+  // companion power never costs Rizer his guard — it only delays it.
+  if (k === 'i' && keys[k] && player._r2HoldStart && !player.blocking
+      && performance.now() - player._r2HoldStart >= R2_HOLD_MS){
+    player._r2HoldStart = 0; player._r2Ability = null;
     player.blocking = true;
     player.blockStart = performance.now();
     player.blockHitsAbsorbed = 0;
@@ -26598,6 +26682,17 @@ addEventListener('keyup', e => {
     player.blocking = false;
     player.blockStart = 0;
     player._blockHitFlashUntil = 0;
+  }
+  // ★★★ v0.95.949 · R2 released BEFORE the hold threshold · fire the companion's
+  // ability.  Read from the press, not from the release, so walking out of an
+  // ally's range mid-tap cannot swap which power you get halfway through.
+  if (k === 'i' && player && player._r2HoldStart){
+    const held = performance.now() - player._r2HoldStart;
+    const ab   = player._r2Ability;
+    player._r2HoldStart = 0; player._r2Ability = null;
+    if (held < R2_HOLD_MS && ab && typeof ab.fire === 'function'){
+      try { ab.fire(); } catch(err){ console.warn('companion ability failed', err); }
+    }
   }
   // v0.95.353 · Cancel touchpad-hold if released before 5s
   if (k === '2' && game._touchpadHoldTimer){
@@ -31054,6 +31149,7 @@ addEventListener('keydown', e => {
       player.attackUntil = 0; player.attackAnimUntil = 0; player.jumpUntil = 0; player.dodgeUntil = 0;
       player.interactUntil = 0; player.faeCatchUntil = 0; player._doubleJump = false;
       if (player.blocking){ player.blocking = false; player._blockStunUntil = 0; }
+    player._r2HoldStart = 0; player._r2Ability = null;
       if (player._astralthrowState){
         try { clearTimeout(player._astralthrowState.releaseTimer); } catch(_){}
         try { clearTimeout(player._astralthrowState.holdTimer); } catch(_){}
@@ -47969,6 +48065,7 @@ function frame(now){
       try { clearTimeout(player._astralthrowState.holdTimer); } catch(_){}
     }
     if (player.blocking){ player.blocking = false; player._blockStunUntil = 0; }
+    player._r2HoldStart = 0; player._r2Ability = null;
   }
   // NPC ticks · wander or follow · only NPCs in the current scene
   // v0.95.306 · Settings menu pauses overworld gameplay · NPC wander / astral proj / etc. all freeze

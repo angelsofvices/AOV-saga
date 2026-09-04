@@ -33006,6 +33006,36 @@ function paintZycellContent(){
 // Each returns HTML that lives inside the phone's center content area
 // Every panel reads live from player/game state so re-paint stays accurate
 // ══════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.948 · SECTION CLICK-FORWARD, NARROWED.
+//
+// The bug (Creator): "when I use the phone to call contacts, it calls the
+// contact and also albert orren."  Exactly right, and the reason was one
+// character short of his guess -- not focus auto-select, but BUBBLING.
+//
+// The wrapper's old handler was:
+//     const b = this.querySelector('button,[data-zyclick]'); if (b) b.click();
+// Clicking a contact row fired that contact, the click then bubbled up to the
+// section, and the section clicked the FIRST button inside it.  On the contacts
+// panel that is whoever sorts first alphabetically -- Albert Orren -- so every
+// call was two calls, and the second one was always him.
+//
+// The forward exists so a section holding ONE control is clickable anywhere on
+// its chrome.  It was never meant to arbitrate between many.  So:
+//   1 · if the click landed on something that handles itself, do nothing
+//   2 · if the section holds more than one control, do nothing -- "the first
+//       one" is not a defensible choice when there are eleven
+function _zySectionClick(el, ev){
+  try {
+    const SEL = 'button,[data-zyclick],[data-call],[data-zycat],[data-item]';
+    // 1 · the click already had an owner
+    if (ev && ev.target && ev.target !== el
+        && ev.target.closest && ev.target.closest(SEL)) return;
+    // 2 · ambiguous sections do not guess
+    const controls = el.querySelectorAll(SEL);
+    if (controls.length !== 1) return;
+    controls[0].click();
+  } catch(_){}
+}
 function _zySection(title, body, headerColor){
   // v0.95.578 · Every section wrapper becomes a focusable target so ANY
   // panel is walkable with UP/DOWN + click-activatable with X.  If a section
@@ -33015,7 +33045,7 @@ function _zySection(title, body, headerColor){
   // inside (if any).
   const key = String(title || 'section').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
   return `
-    <div data-zyitem="sec_${key}" onclick="try{const b=this.querySelector('button,[data-zyclick]');if(b)b.click();}catch(_){}"
+    <div data-zyitem="sec_${key}" onclick="_zySectionClick(this, event)"
          style="border:1px solid rgba(79,179,255,0.35); background:rgba(0,0,0,0.4); padding:12px 14px; margin-bottom:10px; cursor:pointer;">
       <div style="color:${headerColor || '#ffd66b'}; font-weight:bold; letter-spacing:.12em; font-size:11px; margin-bottom:8px;">${title}</div>
       ${body}

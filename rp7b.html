@@ -2547,6 +2547,10 @@ function uncompanionize(n, silent){
   }
   if (!silent){ playSFX('menuClose'); showToast(`◈ ${n.name} heading home...`, 2200); }
 }
+// ★ v0.95.950 · declared HERE, above walkable(), because walkable() now reads
+// it -- a `let` further down the file would be in its temporal dead zone on
+// the first movement tick and throw on every step.
+let _skellorLootedIds = new Set();
 // Friendly NPC = not Mori, not Daemon, not player-hostile
 function isFriendlyNpc(n){
   if (!n) return false;
@@ -2944,6 +2948,7 @@ function hurtPlayer(amt, srcName){
   player._invulnUntil     = now + 700;                   // brief i-frames
   player._lastHurtAt      = now;                         // ★ v0.95.916 · Yara's mend reads this
   try { resetPunchCombo(); } catch(_){}                  // ★ v0.95.920 · taking a hit breaks the chain
+  try { resetSwordCombo(); } catch(_){}                  // ★ v0.95.950 · and the blade's
   try { resetKickCombo(); } catch(_){}                   // ★ v0.95.931 · both chains
   if (window.__rumbleHit) window.__rumbleHit('hurt');    // v0.95.217 · haptic jolt on damage taken
   // v0.95.181 · Damage toast removed · anim + HP deduct only · HUD bar shows the loss
@@ -7546,6 +7551,8 @@ const WORLD_PROPS = [
     // v0.95.614 · Static gargoyles removed · they now spawn at Rizer death
     // sites (1/4 chance) as breadcrumbs.  Tombstones + crosses remain as
     // static Seer territorial decor.
+    // ★ v0.95.950 · SUPERSEDED · the tombstones and crosses left too.  See the
+    // empty SPOTS below; nothing here is placed at world build any more.
     // v0.95.617 · Expose all 4 death-breadcrumb sprite specs globally
     //   (2 gargoyles + tombstone + cross) · spawnDeathGargoyle uniformly picks
     //   one at 25% each · always spawns exactly one at every death tile.
@@ -7558,21 +7565,25 @@ const WORLD_PROPS = [
         { key:'seer_cross',      src:'assets/2D%20sprites/decor/seer-cross.png',            bbox:[ 89,155,274,290] },
       ];
     }
-    const SPOTS = [
-      // Malezor wild arm · SW/SE clusters
-      [ 8, 168, 'seer_rip'      ],
-      [ 6, 188, 'seer_cross'    ],
-      [45, 190, 'seer_rip'      ],
-      [30, 195, 'seer_cross'    ],
-      // Zarvane · scattered wilds
-      [ 96, 232, 'seer_rip'      ],
-      [ 78, 255, 'seer_cross'    ],
-      [ 68, 288, 'seer_rip'      ],
-      // Andrannor · central band
-      [188, 324, 'seer_cross'    ],
-      [258, 328, 'seer_rip'      ],
-      [200, 354, 'seer_cross'    ],
-    ];
+    // ★★★ v0.95.950 · THE STATIC MARKERS ARE GONE.
+    // Creator: "tombstone and gargoyle count should default to 0.  only drop a
+    // tombstone or gargoyle when rizer dies.  also the tombstones were way too
+    // big and some spawned before death."
+    //
+    // ★ Both halves of that were ONE list.  These ten were placed at WORLD
+    // BUILD, so a brand-new save opened with ten memorials standing in the
+    // wilds before Rizer had died once -- which is what "spawned before death"
+    // was seeing.  And they were authored at tileW/tileH 2 against the death
+    // breadcrumbs' 0.75, so the two systems drew the same four sprites at
+    // nearly THREE TIMES the size of each other.  There was no size to fix:
+    // the oversized ones were the static set, and the static set should not
+    // exist.
+    //
+    // ★★ Deleting the placements, not the SPRITES table above it, is the whole
+    // patch -- spawnDeathGargoyle reads _SEER_DEATH_SPECS and still needs the
+    // four images loaded.  A death still leaves exactly one marker at 0.75
+    // tiles, and now that is the only way one can appear.
+    const SPOTS = [];
     return SPOTS
       .filter(([tx, ty]) => !isWorldBorderTile(tx, ty))
       .map(([tx, ty, key], i) => {
@@ -13819,7 +13830,6 @@ function skellorTakeHit(n, dmg){
 }
 
 // Loot bag · random coins 10-50 + 10% chance colored gem · body persists after
-let _skellorLootedIds = new Set();
 function lootSkellor(n){
   if (!n) return;
   if (_skellorLootedIds.has(n.id)){ showToast('◈ Empty bag · already looted', 1600); return; }
@@ -14555,7 +14565,21 @@ function walkable(x, y){
   }
   // Overworld NPCs
   for (const n of NPCS){
-    if (n.scene === 'overworld' && !n._astralslamHeld && !n._astralthrowHeld && n.tileX === x && n.tileY === y) return false;
+    if (n.scene !== 'overworld' || n._astralslamHeld || n._astralthrowHeld) continue;
+    if (n.tileX !== x || n.tileY !== y) continue;
+    // ★★★ v0.95.950 · A LOOTED SKELLOR IS SCENERY, NOT A WALL.
+    // Creator: "once a skellor body is looted, they lose collision.  this
+    // prevents being trapped in by a horde of skellor on resuming a afk
+    // session."
+    //
+    // A Skellor corpse is a PERMANENT breadcrumb -- it never despawns -- and it
+    // kept full NPC collision forever.  One stalker spawns every five real
+    // minutes, so an idle session quietly builds a ring of immovable bodies,
+    // and the player wakes up walled in by their own kills.  Once the bag is
+    // empty the body has nothing left to offer; it should be walked over.
+    if (n._skellorDead && typeof _skellorLootedIds !== 'undefined'
+        && _skellorLootedIds.has(n.id)) continue;
+    return false;
   }
   return true;
 }
@@ -22714,6 +22738,8 @@ const SCROLL_FRAME_META = [
   { w:168, h:297, inner:[25,29,117,217] },
   { w:210, h:305, inner:[42,21,120,247] },
 ];
+// ★ v0.95.950 · one switch · true = plain page, false = the parchment frames
+const SCROLL_NATIVE_PAGE = true;
 function openScrollView(themeIdx, title, paras){
   const view  = document.getElementById('scrollView');
   const img   = document.getElementById('scrollViewImg');
@@ -22722,6 +22748,48 @@ function openScrollView(themeIdx, title, paras){
   if (!view || !img || !txt) return;
   const i = Math.max(0, Math.min(17, themeIdx | 0));
   const M = SCROLL_FRAME_META[i];
+  // ★★★ v0.95.950 · NATIVE PAGE, NOT THE PARCHMENT ART.
+  // Creator: "just give a native overlay for the page interaction.  dont use
+  // the asset of the actual scroll yet.  the text isnt placed correctly."
+  //
+  // The frame art is beautiful and the text sat wrong on it: every frame has
+  // its own dimensions and its own measured inner rect, and the copy was being
+  // fitted into that rect by shrinking the font until it stopped overflowing --
+  // so long pages ended up tiny and short ones swam.  Rather than keep tuning
+  // eighteen rectangles, the page renders as plain styled type on a dark card
+  // until the frames are re-authored.  ★ SCROLL_FRAME_META is untouched, so
+  // flipping SCROLL_NATIVE_PAGE back to false restores the art path whole.
+  if (SCROLL_NATIVE_PAGE){
+    img.style.display = 'none';
+    const stageN = document.getElementById('scrollViewStage');
+    if (stageN){
+      stageN.style.aspectRatio = '3 / 4';
+      stageN.style.background  = 'linear-gradient(180deg, rgba(18,16,26,0.97), rgba(8,7,12,0.97))';
+      stageN.style.border      = '2px solid rgba(255,214,107,0.55)';
+      stageN.style.boxShadow   = '0 0 40px rgba(0,0,0,0.8)';
+    }
+    // full-bleed text, generous margins, no measured rect to fight
+    txt.style.left = '8%'; txt.style.width = '84%';
+    txt.style.top  = '17%'; txt.style.height = '74%';
+    txt.style.fontSize = '';                 // ★ let the fit pass below own it
+    ttl.style.left = '8%'; ttl.style.width = '84%'; ttl.style.top = '7%';
+    ttl.style.textAlign = 'center';
+    ttl.textContent = title || '';
+    txt.innerHTML = (paras || []).map(t =>
+      `<p style="margin:0 0 0.8em 0;">${String(t).replace(/</g,'&lt;')}</p>`).join('');
+    view.style.display = 'flex';
+    game.posterViewOpen = true; game.scrollViewOpen = true;
+    try { playSFX('scrollOpen'); } catch(_){}
+    requestAnimationFrame(() => {
+      let size = 17;
+      txt.style.fontSize = size + 'px';
+      while (size > 9 && txt.scrollHeight > txt.clientHeight + 2){
+        size--; txt.style.fontSize = size + 'px';
+      }
+    });
+    return;
+  }
+  img.style.display = '';
   img.src = `assets/2D%20sprites/ui/scrolls/frame_${String(i+1).padStart(2,'0')}.png`;
   // ★ v0.95.817 · every frame file has its OWN dimensions now — the stage
   // takes the frame's aspect, and the inner rect maps as fractions of the FILE
@@ -25056,40 +25124,68 @@ function tryOpenTreehouseGoldChest(){
 // so boot awaits it consistently with the other Rizer sheets.
 const RIZER_SAPPHIRE_SWORD = {
   img: new Image(), cellW: 313, cellH: 313, cols: 4, rows: 4,
-  // v0.95.522 · Per-cell CHARACTER bboxes (labels stripped from PNG) · locks
-  // Rizer to canon 2-tile height per drawPlayer's scale formula, matching the
-  // punch sheet exactly so no shrink happens during the swap.
+  // ★★★ v0.95.950 · THE SAPPHIRE TEARSWORD IS A COMBO NOW.
+  // Creator: "wire them in place of old stale sapphire attack.  all attacks
+  // will becoming combo chains like punch and kick are."
+  //
+  // The old sheet was four frames of ONE arc -- the draw walked all four
+  // inside a single press, so every swing looked identical and the fourth
+  // frame was just the follow-through of the first.  The new sheet is four
+  // SEPARATE strikes per row, the same grammar as the punch and kick masters:
+  //     0  drawn slash    blade low, close to the body
+  //     1  lunging thrust the reach beat -- the longest silhouette
+  //     2  rising cut     blade overhead · the TALL one · leaves the cell
+  //     3  tearing arc    the finisher, and the only frame carrying the VFX
+  // ★ comboSheet HOLDS the step's column instead of walking the row, which is
+  // the whole difference between a chain and a flurry.
+  //
+  // ★★ They read apart in silhouette at two tiles, which is the only scale
+  // that matters: DOWN widths 232 / 254 / 139 / 261 -- the rising cut is the
+  // NARROW one and also the tallest (193 against 175), because it folds
+  // vertically.  Exactly the shape the punch sheet's elbow has, and for the
+  // same reason.
+  //
+  // ★★★ MEASURED BY COMPONENT OWNERSHIP (tools/measure_sapphire_combo.py), so
+  // the blade and the slash arc belong to the frame that swung them and are
+  // never clipped at the cell edge.  Two frames own overflow on purpose:
+  // RIGHT's finisher starts at bx -28 (the cape sweeps back past the cell) and
+  // UP's rising cut at by -28 (the raised blade leaves the cell top).  Cutting
+  // either to the cell would sever a sword mid-swing.
   bboxes: [
-      // ★ v0.95.714 · re-measured from the NEW sheet by COMPONENT OWNERSHIP.
-      // Every component is assigned to the cell holding most of its pixels,
-      // then the bbox is the true extent of what that cell owns — so a slash
-      // arc belongs to the frame that swung it, not to the neighbour it
-      // happens to reach into.  Verified: 0 foreign pixels inside any frame's
-      // sampling window.
-      [[46,81,229,212],[44,64,235,235],[30,48,256,266],[44,80,238,212]],
-      [[78,85,161,190],[47,89,241,190],[-13,5,316,276],[75,89,219,190]],
-      [[51,67,178,179],[-6,72,234,176],[37,79,301,235],[73,75,207,175]],
-      [[81,37,179,203],[36,-1,220,243],[66,1,189,241],[73,42,180,193]],
-    ],
-  // ★ v0.95.714 · source px between the CHARACTER'S FEET and the bbox bottom.
-  // 30 of 32 frames across both sword sheets measure 0 — the artist put the
-  // feet on the bbox bottom, which is exactly what drawPlayer's dy assumes.
-  // The exceptions are the two big crescents whose arc sweeps BELOW the boots;
-  // without this the character would hang 14px and 30px in the air on those
-  // frames.  Applied as a downward shift so the feet stay planted.
-  footOff: [[0,0,31,0],[0,0,1,0],[0,0,66,0],[7,0,0,1]],
+    [[  42,  95, 232, 175],[  75,  95, 254, 175],[  88,  77, 139, 193],[   6,  92, 261, 178]],
+    [[  48,  63, 215, 178],[   5,  63, 267, 176],[  48,  47, 201, 192],[  13,  63, 269, 176]],
+    [[  89,  33, 191, 177],[  63,  33, 267, 175],[  47,  18, 211, 191],[ -28,  33, 254, 175]],
+    [[  79,   4, 222, 183],[  83,   4, 238, 183],[  65, -28, 155, 215],[  13,   4, 270, 183]],
+  ],
+  // ★ No footOff.  All sixteen frames measure ZERO source pixels between the
+  // boots and the bbox floor -- the artist planted the feet on the box bottom
+  // in every cell, including the finisher, whose arc sweeps out rather than
+  // down.  The old sheet needed 31 and 66px corrections on two crescents; this
+  // one needs none, so the field is omitted rather than shipped as zeros.
+  //
+  // ★★ bodyBh · true body height per row, taken from column 0 (the engine's
+  // own row-reference convention).  Column 2's component measures taller only
+  // because the raised blade is connected to the hand -- scaling by that would
+  // shrink Rizer on the exact frame he stands tallest, which is the v0.95.940
+  // mistake in miniature.  The row reference avoids it.
+  bodyBh: [175, 178, 177, 183],
+  comboSheet: true,
+  // ★ The sword keeps its OWN step counter.  Sharing the fist's would mean
+  // sheathing a weapon mid-chain resumes the punch on beat three, holding a
+  // pose the fists never threw.  Same call the kick made at v0.95.931.
+  comboStep: () => (typeof swordComboStep === 'function' ? swordComboStep() : 0),
   constScale: true,
   key: 'sapphire-sword', loaded: false,
 };
 (function _loadSapphireSword(){
-  const url = 'assets/2D%20sprites/rizer/sapphire-sword.png';
+  const url = 'assets/2D%20sprites/rizer/sapphire-sword-combo.png';
   RIZER_SAPPHIRE_SWORD.img.onload  = () => {
     RIZER_SAPPHIRE_SWORD.loaded = true;
-    console.info('[rp7b] sapphire-sword sheet loaded · animation ready');
+    console.info('[rp7b] sapphire-sword COMBO sheet loaded · 4-strike chain ready');
   };
   RIZER_SAPPHIRE_SWORD.img.onerror = () => {
     RIZER_SAPPHIRE_SWORD.loaded = false;
-    console.error('[rp7b] sapphire-sword sheet missing at ' + url + ' · equip toggle will fall back to punch animation until the file is added');
+    console.error('[rp7b] sapphire-sword combo sheet missing at ' + url + ' · equip toggle will fall back to punch animation until the file is added');
   };
   RIZER_SAPPHIRE_SWORD.img.src = url;
 })();
@@ -26209,6 +26305,10 @@ addEventListener('keydown', e => {
         const lock = Math.max(MELEE_LOCK_FLOOR_MS, Math.round(dur * rizerMeleeRecovery()));
         // ★ v0.95.920 · a punch advances the chain · a kick is not part of it
         if (mode === 'punch' && punchIsUnarmed()) advancePunchCombo(performance.now());
+        // ★ v0.95.950 · the Tearsword chain · mutually exclusive with the fist
+        // chain by construction, since punchIsUnarmed() is false whenever a
+        // blade is drawn.  Neither can advance the other.
+        if (mode === 'punch' && swordChainActive()) advanceSwordCombo(performance.now());
         if (mode === 'kick') advanceKickCombo(performance.now());   // ★ v0.95.931
         player.attackMode  = mode;
         player.attackStart = performance.now();
@@ -26459,7 +26559,11 @@ addEventListener('keydown', e => {
                              && (player.cosmeticSkin || 'normal') === 'power_upgrade';
             let outDmg = playerOutgoingDamage((player.baseAtk || 25) * dmgMult);
             if (_swordSwing){
-              outDmg = (player.baseAtk || 25) * dmgMult * playerDamageMultiplier('power_upgrade');
+              // ★ v0.95.950 · dmgMult is 1 here by definition (punchComboMult
+              // returns flat while armed), so the sword's escalation comes from
+              // its own table rather than borrowing the fist's.
+              outDmg = (player.baseAtk || 25) * dmgMult * swordComboMult()
+                     * playerDamageMultiplier('power_upgrade');
               // v0.95.524 · Sword contact SFX · only fires when damage lands on an enemy
               try { playSFX('swordSlice'); } catch(_){}
               // v0.95.572 · Durability only decrements on CONNECT (no miss-breaking)
@@ -28931,7 +29035,13 @@ function drawPlayer(){
               : player.attackMode === 'astralslam'   ? ASTRAL_SLAM.DUR_MS
               : player.attackMode === 'astralthrow'  ? ASTRAL_THROW.DUR_MS
               : 300;
-    if (bundle.comboSheet && player.attackMode === 'kick'){
+    if (bundle.comboSheet && typeof bundle.comboStep === 'function'){
+      // ★ v0.95.950 · a combo bundle may name its OWN counter.  The two
+      // original chains are keyed off attackMode below because there is one
+      // sheet each; a WEAPON shares attackMode 'punch' with the fists, so it
+      // has to say which chain it is animating rather than be inferred.
+      col = Math.max(0, Math.min(bundle.cols - 1, bundle.comboStep() | 0));
+    } else if (bundle.comboSheet && player.attackMode === 'kick'){
       col = kickComboStep();
     } else if (bundle.comboSheet && player.attackMode === 'punch'){
       // ★★★ v0.95.920 · HOLD the blow, do not walk the row.  Each column is a
@@ -37217,6 +37327,41 @@ function saveGame(){
   } catch(e){ console.warn('[rp7b] save failed', e); return false; }
 }
 function hasSave(){ try { return !!localStorage.getItem(SAVE_KEY); } catch(e){ return false; } }
+// ★★★ v0.95.950 · Creator: "make sure dads notebook pages do not respawn on
+// load game.  once they are added to book they are no longer in overworld."
+// Lifts every scroll prop whose page is already filed.  Uses the SAME id the
+// notebook keys on, so the two can never disagree about what has been found.
+function pruneFiledScrolls(){
+  if (typeof WORLD_PROPS === 'undefined') return 0;
+  let filed;
+  try { filed = notebookState().scrolls || {}; } catch(_){ return 0; }
+  let n = 0;
+  for (let i = WORLD_PROPS.length - 1; i >= 0; i--){
+    const p = WORLD_PROPS[i];
+    if (!p || !p._scroll) continue;
+    if (!filed[scrollId(p._scroll.theme, p._scroll.dist)]) continue;
+    try { unregisterPropCollision(p); } catch(_){}
+    WORLD_PROPS.splice(i, 1); n++;
+  }
+  if (n) console.log(`[rp7b] pruned ${n} already-filed scroll(s) from the world`);
+  return n;
+}
+// ★★★ v0.95.950 · Creator: "continue to reset all skellor breadcrumbs on load
+// game."  A Skellor corpse is a permanent world object with a loot flag held in
+// a MODULE-level Set, which does not survive a reload -- so a restored corpse
+// would offer its bag a second time.  Clearing the corpses outright is both the
+// simpler and the honest fix: the stalker respawns on its own timer anyway.
+function resetSkellorBreadcrumbs(){
+  if (typeof NPCS === 'undefined') return 0;
+  let n = 0;
+  for (let i = NPCS.length - 1; i >= 0; i--){
+    const x = NPCS[i];
+    if (x && (x._skellorDead || x._lootBag)){ NPCS.splice(i, 1); n++; }
+  }
+  try { _skellorLootedIds = new Set(); } catch(_){}
+  if (n) console.log(`[rp7b] cleared ${n} Skellor breadcrumb(s) on load`);
+  return n;
+}
 function loadGame(){
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -37275,6 +37420,16 @@ function loadGame(){
     refreshDevFactionButtons();
     game.newGameUnsaved = false;   // v0.95.661 · retained only so any stale flag clears; autosave is never suppressed now
     try { if (typeof restoreDeathGargoyles === 'function') restoreDeathGargoyles(); } catch(_){}   // v0.95.614
+    // ★★★ v0.95.950 · POST-LOAD WORLD RECONCILE.
+    // The world -- scroll props, Skellor breadcrumbs, all of it -- is built at
+    // page init, BEFORE any save exists to consult.  scatterScrolls() already
+    // refuses to place a note the notebook holds (v0.95.783), but at build time
+    // the notebook is empty, so every page the player had ever filed was lying
+    // in the grass again the moment they loaded.  The guard was right; it just
+    // ran too early.  Nothing can fix that at build time -- it has to be swept
+    // here, once the save is actually in hand.
+    try { if (typeof pruneFiledScrolls === 'function') pruneFiledScrolls(); } catch(_){}
+    try { if (typeof resetSkellorBreadcrumbs === 'function') resetSkellorBreadcrumbs(); } catch(_){}
     // v0.95.660 · Saves written before the RXP gate existed have no flag.  Treat
     // them as already unlocked — a returning player must never lose earning.
     // Only a brand-new game starts locked.
@@ -49716,6 +49871,42 @@ function advanceKickCombo(now){
   else player._kickStep = ((player._kickStep || 0) + 1) % PUNCH_COMBO_STEPS;
   player._kickStepAt = now;
   return player._kickStep;
+}
+// ★★★ v0.95.950 · THE SAPPHIRE TEARSWORD CHAIN.
+// Creator: "all attacks will becoming combo chains like punch and kick are."
+//
+// Same escalation curve as the fist and the boot, deliberately: a chain that
+// paid differently per weapon would make the finisher worth reaching on some
+// and not others, and the point of the shape is that it is a HABIT.  One
+// table, so the numbers are yours to move.
+//
+// ★★ NOTE THE OPENER IS 0.85.  The sword used to swing flat at 1.00, so beat
+// one is 15% lighter than it was today and beat four is 50% heavier -- a full
+// chain averages 1.125, about 12% ahead of four identical swings.  That is a
+// reward for staying on the offensive, not a buff; a player who trades one
+// blow and backs off is now slightly worse than before, which is the whole
+// intent of a chain.
+const SWORD_COMBO_DMG  = [0.85, 1.00, 1.15, 1.50];
+const SWORD_COMBO_NAME = ['drawn slash', 'lunging thrust', 'rising cut', 'tearing arc'];
+// ★ ARMED, S1, AND THE BLADE INTACT -- the exact condition the draw uses to
+// swap the sheet in, so the animation and the damage can never disagree about
+// which chain is running.
+function swordChainActive(){
+  return !!player.swordEquipped && !player.swordBroken
+      && !player.axeEquipped && !player.bowEquipped
+      && (player.cosmeticSkin || 'normal') !== 'power_upgrade';
+}
+function swordComboStep(){ return player._swordStep || 0; }
+function swordComboMult(){
+  return swordChainActive() ? (SWORD_COMBO_DMG[swordComboStep()] || 1) : 1;
+}
+function resetSwordCombo(){ player._swordStep = 0; player._swordStepAt = 0; }
+function advanceSwordCombo(now){
+  const last = player._swordStepAt || 0;
+  if (!last || (now - last) > PUNCH_COMBO_WINDOW_MS) player._swordStep = 0;
+  else player._swordStep = ((player._swordStep || 0) + 1) % PUNCH_COMBO_STEPS;
+  player._swordStepAt = now;
+  return player._swordStep;
 }
 function punchIsUnarmed(){
   const s2 = (player.cosmeticSkin || 'normal') === 'power_upgrade';

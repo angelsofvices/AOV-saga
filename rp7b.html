@@ -41994,21 +41994,83 @@ const SUMMONABLE_SPRITES = {
   },
   skybeam: {
     src: 'assets/2D%20sprites/zyrex/skybeam.png',
-    // ★★ v0.95.892 · RE-MEASURED against the Creator's new idle sheet.  The
-    // art at this path was REPLACED, so the old boxes (measured on the
-    // previous render) described a body that is no longer there — leaving them
-    // would have sliced the new dragon at the old dragon's outline.  Whenever
-    // a sheet is replaced, the boxes are not "still fine", they are stale by
-    // definition.  All 16 re-measured by component ownership, all distinct.
+    // ★★★ v0.95.954 · NEW IDLE + A GRAZING BANK.  Creator: "skybeam idle and
+    // grazing sheets.  make sure there is no frame issues."
+    //
+    // ★ TWO SHEETS ARRIVED AND ONE OF THEM WAS ALREADY HERE.  The second
+    // measured a 0.97 silhouette IoU against the shipping skybeam.png -- the
+    // v0.95.892 idle, returning as the GRAZE bank -- while the first was
+    // genuinely new art at 0.54.  Worth stating because "which sheet is which"
+    // is not answerable by looking at two dragons; it is answerable by
+    // measuring one of them against what is already on disk.  Ruled with the
+    // Creator: the new art is the idle, the old idle becomes the graze.
+    //
+    // ★★ FRAME AUDIT (tools/audit_sheet_frames.py · six checks).  Both sheets
+    // key to exactly 16 components for 16 cells -- no bleed, no empty frame,
+    // nothing fused -- and RIGHT is a true mirror of LEFT on both (flipped
+    // 0.92/0.94 against as-is 0.64/0.62), so no row is a copy of its
+    // neighbour.  The IDLE is clean: flat ground line in all four rows, no
+    // size outlier, and its only near-identical pair is f3 -> f0, which is the
+    // WRAP of a symmetric flap (out · mid · tucked · out) and reads as an ease
+    // at the extreme rather than a stall.
     bboxes: [
-      [[  11,  45, 290, 259],[   6,  84, 293, 218],[   5,  98, 286, 204],[  -4,  88, 290, 214]],
-      [[  26,  50, 270, 222],[  30,  78, 263, 195],[  20,  81, 264, 193],[  12,  73, 263, 198]],
-      [[  17,  27, 268, 213],[  18,  50, 261, 194],[   8,  53, 261, 192],[  -1,  44, 261, 200]],
-      [[  11, -18, 286, 264],[  20,  19, 268, 225],[  14,  25, 260, 220],[  -5,   6, 290, 239]],
+      [[  32,  59, 276, 215],[  29,  76, 269, 198],[  36,  83, 252, 191],[   7,  59, 276, 215]],
+      [[  45,  27, 254, 232],[  37,  46, 261, 213],[  36,  54, 258, 205],[  22,  21, 258, 238]],
+      [[  40,  13, 260, 232],[  23,  24, 263, 221],[  12,  29, 264, 216],[   7,  13, 262, 232]],
+      [[  29,  -4, 279, 237],[  24,   4, 266, 228],[  32,   7, 236, 226],[   4,  -4, 279, 237]],
     ],
-    // ★ scaleRefBh follows the new DOWN-row body (259 was 248), so the drawn
-    // size is unchanged at 2.4 tiles — a head over the Rizer, as before.
-    cellW: 313, cellH: 313, scaleRefBh: 259, scaleMul: 1.20,
+    // ★ scaleRefBh follows the NEW idle's DOWN row (215, was 259).  A replaced
+    // sheet never keeps its old reference: the draw divides by this to hold the
+    // creature at 2.4 tiles, so a stale number silently resizes the whole
+    // species.  215 x (96/215) x 1.20 = the same 2.4 tiles it drew at before.
+    cellW: 313, cellH: 313, scaleRefBh: 215, scaleMul: 1.20,
+    // ★★★ v0.95.954 · THE GRAZE.  src = IDLE, runSrc = the moving bank -- the
+    // same convention apexaur and key_of_mealux use, resolved in one place by
+    // the traversal ladder (flee > traversal > idle).
+    //
+    // ★★ THIS SHEET HAS THREE KNOWN FRAME ISSUES AND THEY ARE THE ART'S, NOT
+    // THE WIRING'S.  Recorded so nobody re-diagnoses them as a bug later, and
+    // left alone at the Creator's call:
+    //     · row 1 f1->f2 and row 2 f1->f2 churn 0.05 / 0.02 -- near-identical
+    //       frames MID-cycle, so the side-facing amble stalls for a beat
+    //     · row 2 ground line varies 4px (241/244/245/244) -- the draw plants
+    //       each frame's bbox bottom, so that is a 4px bob while walking
+    //     · row 0 f0 measures 260 against a row median of 219 (+19%), and
+    //       row 1 f0 is +12%
+    // ★★★ AND THE LAST ONE HAD A CONSEQUENCE I FIRST GOT BACKWARDS.  I wrote
+    // that the taller frames would make a grazing Skybeam read LOWER than an
+    // idle one -- "the correct instinct for grazing, arrived at by accident".
+    // Then I measured the drawn heights instead of reasoning about them:
+    //     col-0 drawn px   idle 105 113 113 115
+    //                     graze 113  97  93 115
+    //     on start-moving  +8% DOWN · -14% LEFT · -18% RIGHT · 0% UP
+    // He does not crouch.  He GROWS facing down and SHRINKS facing sideways,
+    // because one divisor per bank cannot reconcile two sheets that spread
+    // their height differently across the facings (idle range 22px, graze 50).
+    // ★ A creature that grows one way and shrinks another is a wobble, not a
+    // posture; a real graze crouch would lower him in every direction.
+    //
+    // ★★ Fixed with rowRefBh -- one reference per row, so each facing is
+    // normalised on its own, exactly the way Rizer has been since v0.95.940.
+    //
+    // ★★★ EACH BANK DIVIDES BY ITS OWN MEASURED ROW, NOT BY THE OTHER'S.
+    // My first attempt handed the graze bank the IDLE's row heights, reasoning
+    // that giving them a shared divisor is what would make them agree.  It is
+    // not: normalising is what makes them agree, and a reference is only a
+    // reference for the body it was measured from.  Measured, that mistake put
+    // him +21% facing DOWN with a 33px spread across facings -- worse than the
+    // wobble it was meant to fix.  With each bank on its own rows both draw a
+    // flat 115px in all four directions, so turning and starting to move are
+    // both invisible.  ★ Reasoned twice, wrong twice; measured once, right.
+    rowRefBh:    [215, 232, 232, 237],   // this sheet's own col-0 bodies
+    runRowRefBh: [260, 222, 214, 264],   // the graze sheet's own
+    runSrc: 'assets/2D%20sprites/zyrex/skybeam-graze.png',
+    runBboxes: [
+      [[  10,  45, 291, 260],[   6,  84, 293, 219],[   4,  98, 288, 205],[  -5,  87, 291, 216]],
+      [[  25,  50, 272, 222],[  29,  78, 265, 195],[  20,  81, 264, 193],[  12,  73, 264, 198]],
+      [[  17,  27, 268, 214],[  18,  50, 261, 194],[   8,  53, 262, 192],[  -1,  43, 261, 201]],
+      [[  10, -18, 287, 264],[  20,  18, 268, 227],[  14,  24, 260, 221],[  -5,   6, 290, 239]],
+    ],
     // ★★★ v0.95.893 · IT ACCOMPANIES ON THE WING.  Creator: "skybeam flying
     // while companionized sheet."
     //
@@ -42025,20 +42087,21 @@ const SUMMONABLE_SPRITES = {
     // a line of dialogue.
     flyAll: {
       src: 'assets/2D%20sprites/zyrex/skybeam-fly.png',
+      // ★★★ v0.95.954 · THESE WERE ABSOLUTE AND THE COMPANION WAS INVISIBLE.
+      // The v0.95.953 sweep fixed six tables and missed this one because the
+      // audit only walked the four TOP-LEVEL field names -- a nested bboxes
+      // one level down was never looked at.  12 of 16 frames resolved entirely
+      // off the sheet, so a companionized Skybeam vanished on three quarters
+      // of its flight cycle.  Re-measured cell-relative; the audit now walks
+      // every bboxes in a species block, wherever it sits.
       bboxes: [
-        [[9,37,292,241],[324,80,283,204],[628,93,289,200],[937,80,282,204]],
-        [[26,358,267,214],[343,391,263,193],[647,403,262,192],[951,387,253,195]],
-        [[14,648,271,208],[332,679,260,193],[635,683,259,192],[937,670,261,202]],
-        [[8,919,291,259],[330,955,271,223],[638,961,263,225],[932,940,294,244]],
+        [[   9,  37, 292, 241],[  11,  80, 283, 204],[   2,  93, 289, 200],[  -2,  80, 282, 204]],
+        [[  26,  45, 267, 214],[  30,  78, 263, 193],[  21,  90, 262, 192],[  12,  74, 253, 195]],
+        [[  14,  22, 271, 208],[  19,  53, 260, 193],[   9,  57, 259, 192],[  -2,  44, 261, 202]],
+        [[   8, -20, 291, 259],[  17,  16, 271, 223],[  12,  22, 263, 225],[  -7,   1, 294, 244]],
       ],
     },
   },
-  // v0.95.731 · AETHERWING · T1 Creature · hive-insect · Batch 1 of the
-  // 2026-08-22 asset handoff.  Delivered sheet was geometrically CLEAN —
-  // 0/16 cells under the 10px margin rule, worst margin 19px.  The only
-  // processing was the chroma pass: its wings are translucent, so a hard key
-  // shredded them; they are recovered by un-premultiplying the fringe band
-  // against the measured background magenta instead of cutting it.
   aetherwing: {
     src: 'assets/2D%20sprites/zyrex/aetherwing.png',
     bboxes: [
@@ -43658,6 +43721,28 @@ function drawZyrexOrb(w){
       const _boxes = _useFlee ? d.fleeBboxes
                    : _useRun  ? d.runBboxes
                    : _useIdle ? d.idleBboxes : d.bboxes;
+      // ★★★ v0.95.954 · AN OPTIONAL PER-ROW REFERENCE.
+      //
+      // The v0.95.890 rule -- each bank normalises by ITS OWN tallest body --
+      // holds the creature's size across banks only while both sheets spread
+      // their height evenly across the four facings.  Skybeam's two do not:
+      //     idle  col-0 heights 215 232 232 237   (range 22)
+      //     graze col-0 heights 260 222 214 264   (range 50)
+      // One divisor per bank cannot reconcile that, and measured end to end it
+      // put the dragon +8% facing DOWN, -14% LEFT, -18% RIGHT and +0% UP the
+      // instant he started moving.  ★ A creature that grows one way and
+      // shrinks another is not posture, it is a wobble -- a genuine graze
+      // crouch would lower him in EVERY facing.
+      //
+      // ★★ So a bank may declare rowRefBh, one reference per row, and it is
+      // then normalised the way Rizer has been since v0.95.940: per direction,
+      // against the measured body rather than the box.  Same fix, same
+      // reasoning, applied to a Zyrex for the first time.  Sheets that declare
+      // nothing keep the single-divisor behaviour EXACTLY -- this cannot move
+      // any species that has not opted in.
+      const _refs = _useFlee ? d.fleeRowRefBh
+                  : _useRun  ? d.runRowRefBh
+                  : _useIdle ? d.idleRowRefBh : d.rowRefBh;
       const bb = _boxes && _boxes[row] && _boxes[row][col];
       if (bb){
         // ★★★ v0.95.890 · SCALE THE FLOAT TO IDLE SIZE.  Creator: "scale
@@ -43676,7 +43761,9 @@ function drawZyrexOrb(w){
         // creature never changes size when it starts or stops moving
         let maxBh = 216;
         for (const r of _boxes){ if (r[0][3] > maxBh) maxBh = r[0][3]; }
-        const scale = (TILE * 2) / maxBh * (d.scaleMul || 1);
+        // ★ v0.95.954 · a declared per-row reference wins for THIS row only
+        const _rowRef = (_refs && _refs[row]) ? _refs[row] : maxBh;
+        const scale = (TILE * 2) / _rowRef * (d.scaleMul || 1);
         const dw = Math.max(1, Math.round(bb[2] * scale));
         const dh = Math.max(1, Math.round(bb[3] * scale));
         const dx = Math.round((w.tileX + 0.5) * TILE - dw / 2) - _cam.x;

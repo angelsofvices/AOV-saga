@@ -19,9 +19,22 @@ for (let i = 0; i < names.length; i++){
   const blk = B.slice(names[i].index, i + 1 < names.length ? names[i+1].index : B.length);
   const cellW = Number((blk.match(/cellW:\s*(\d+)/) || [])[1] || 313);
   const cellH = Number((blk.match(/cellH:\s*(\d+)/) || [])[1] || cellW);
-  for (const field of ['bboxes', 'runBboxes', 'idleBboxes', 'fleeBboxes']){
-    const at = blk.indexOf(field + ':');
-    if (at < 0) continue;
+  // ★★★ NESTED TABLES COUNT.  The first version scanned only the four
+  // top-level field names and missed skybeam.flyAll.bboxes entirely -- which
+  // was absolute, and which is the bank a COMPANIONIZED Skybeam flies on.  An
+  // audit that reports "0 wrong" while a broken table sits one nesting level
+  // down is worse than no audit, because it buys confidence it has not earned.
+  // So every `bboxes:` in the species block is checked, wherever it lives, and
+  // each is reported with the path it was found at.
+  const fields = [];
+  for (const m of blk.matchAll(/(\w+)?Bboxes:|\bbboxes:/g)) fields.push(m.index);
+  for (const at of fields){
+    const label = blk.slice(blk.lastIndexOf('\n', at), at + 20).trim().split(':')[0].trim();
+    // name it by the nearest enclosing sub-object, so flyAll.bboxes is not
+    // confused with the species' own bboxes
+    const before = blk.slice(0, at);
+    const sub = [...before.matchAll(/\n    (\w+): \{/g)].pop();
+    const field = (sub ? sub[1] + '.' : '') + label;
     // ★ take the FOUR row-lines after the field, each `[[a,b,c,d],[..],[..],[..]]`.
     // (An earlier version tried to slice to the table's closing bracket and
     // stopped at the first `]]`, which is the end of ROW ZERO -- it read 4

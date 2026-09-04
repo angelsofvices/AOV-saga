@@ -4,8 +4,8 @@
 after the Aenor eruptions, when AE28 left the Aethryx Expanse. TIER 8 = the IMMORTAL creator class:
 planet creators hold it innately, while completing a Perfect Epsilon ladder confers creator-class
 standing (Omegoran).**
-Official v1 curve: T1: 53 · T2: 45 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7: 8 · T8: 3 · T9: 6 · T10: 1 · total 210 · moves 87
-## TIER 1 · FOUNDATION · early team building · 53
+Official v1 curve: T1: 52 · T2: 46 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7: 8 · T8: 3 · T9: 6 · T10: 1 · total 210 · moves 87
+## TIER 1 · FOUNDATION · early team building · 52
 - **Abyssiq** · Aura/Aquatic ⬇ T2→T1
 - **Aetherwing** · Beast/Aura 🔒
 - **Aurarat** · Beast/Unknown
@@ -25,7 +25,6 @@ Official v1 curve: T1: 53 · T2: 45 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7
 - **Flarewisp** · Aura/Beast
 - **Florlyan** · Nature/Aura ⬇ T3→T1
 - **Frostwisp** · Nature/Beast
-- **Gearbyte** · Tech/Humanoid 🔒
 - **Glaciobolt** · Beast/Nature ⬇ T4→T1
 - **Glaciogre** · Beast/Nature ⬇ T2→T1
 - **Gravelor** · Humanoid/Nature ⬇ T3→T1
@@ -42,7 +41,7 @@ Official v1 curve: T1: 53 · T2: 45 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7
 - **Pyranhya** · Beast/Spirit ⬇ T3→T1
 - **Reefwing** · Aquatic/Beast ⬇ T3→T1
 - **Riftipple** · Beast/Unknown ⬇ T2→T1
-- **Rustbyte** · Tech/Humanoid ⬇ T2→T1
+- **Rustbyte** · Tech/Humanoid ⬇ T2→T1 · ★ evolves → **Gearbyte** (T2) at Lv20
 - **Saburrow** · Nature/Beast ⬇ T2→T1
 - **Sandskitter** · Beast/Nature
 - **Shadowmink** · Beast/Unknown ⬇ T3→T1
@@ -59,7 +58,7 @@ Official v1 curve: T1: 53 · T2: 45 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7
 - **Volitimite** · Nature/Beast
 - **Voltibex** · Beast/Aura ⬇ T2→T1
 - **Vulkarmor** · Beast/Spirit
-## TIER 2 · EARLY · 45
+## TIER 2 · EARLY · 46
 - **Animarion** · Beast/Aura ⬇ T3→T2
 - **Astravyx** · Aura/Aquatic ⬇ T3→T2
 - **Auramantle** · Beast/Tech ⬇ T3→T2
@@ -71,6 +70,7 @@ Official v1 curve: T1: 53 · T2: 45 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7
 - **Dustmane Crane** · Beast/Nature
 - **Emberskin Cobra** · Nature/Beast
 - **Ferrophix** · Beast/Nature
+- **Gearbyte** · Tech/Humanoid ★ v0.95.951 · Rustbyte's stage 2 · ⬆ T1→T2
 - **Glaucivor** · Beast/Nature ⬇ T3→T2
 - **Gloomthane** · Aquatic/Beast ⬇ T5→T2
 - **Gravemourn** · Spirit/Nature 🚫 Creator-held
@@ -228,3 +228,48 @@ Official v1 curve: T1: 53 · T2: 45 · T3: 40 · T4: 25 · T5: 20 · T6: 9 · T7
 ## VERSION LOCK
 This is the official RP7 main-beta Zyrex roster, v1. Draghoul is locked at Tier 7. All subsequent roster additions, removals, renames, retypes, or tier changes belong to v2 or later.
 Canonical spelling: **Astral**, never "Astra." **Ultimate** is the exclusive mastery of all 20 Standard Types. Aquatic is the 20th Standard Type; Ultimate is the exclusive 21st Type.
+
+
+---
+
+## ★★★ v0.95.951 · RUSTBYTE → GEARBYTE · the first declared chain in this roster
+
+**Creator, 2026-09-04:** *"rustbyte is the tiny sized robot that stands next to
+auraxion and can join ur faction.  I mistakingly began calling rustbyte gearbyte.
+gearbyte is his stage 2."*
+
+★ **The correction was already latent in the data, in three places at once.**
+
+| | Rustbyte | Gearbyte |
+|---|---|---|
+| master-codex stat line | 160 / **120** / 146 / **107** / **133** | 178 / **195** / 142 / **80** / 71 |
+| its own flavour | *"a voice three sizes too big for its frame"* | *"the unhurried certainty of machinery"* |
+| the art on disk | `rustbyte.png` — **the file the game was loading all along** | none |
+
+★★ Small-quick-clever into heavy-slow-strong is a stage 1 and a stage 2, and the
+two entries had read that way since import.  **The strongest tell is the third
+row:** the mistaken name never reached the filesystem, so every code path was
+pointing at `rustbyte.png` under a `gearbyte` id.  A rename that the assets never
+followed is a rename that did not happen.
+
+★ **Ruled:** Gearbyte moves **T1 → T2**, so the chain gains a tier as an
+evolution should — T1 52 · T2 46, total still 210.  His SPC 71 splits SATK 39 /
+SDEF 32; **note what that preserves.** Rustbyte is the SPECIAL one (133 of a 333
+pool) and Gearbyte is emphatically not (71 of 666). *Evolving trades his
+cleverness for his arm* — which is what both flavour texts were already saying.
+
+### ★★ Open · carried to the v2 agenda
+
+1. ★★ **TYPE CONFLICT.** The live game types both **Tech/ASTRAL**; this roster and
+   the master codex both say **Tech/HUMANOID**.  Not resolved here — per-species
+   type reconciliation against the roster is already a standing v2 item, and a
+   rename is the wrong moment to decide it.
+2. ★ **Gearbyte has no art.**  The 2026-08-22 handoff listed a `gearbyte.png` but
+   its description — *"small machined drone-construct… hovers slightly"* — is
+   **Rustbyte**.  Stage 2 needs its own sheet: heavier, hydraulic, same copper
+   and starlight-blue palette.
+3. ★ **Moves are inherited from stage 1 for now.**  The codex names (Hydraulic
+   Press, Extendo Throw) are flavour rather than MOVE_DEX keys and want mapping
+   by intent, which belongs with the move pass.
+4. **Lv20 is the evolve level**, matching the Alpha-ladder convention
+   [[aov-evolution-ladders]]. Trivial to move.

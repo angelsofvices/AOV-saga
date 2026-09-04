@@ -8,6 +8,21 @@ const t = (name, fn) => { try { fn(); console.log('  ok   ' + name); pass++; }
                           catch (e) { console.log('  FAIL ' + name + ' · ' + e.message); fail++; } };
 const ok = (c, m) => { if (!c) throw new Error(m); };
 
+// ★ the bboxes ARRAY only.  footOff and bodyBh are also brackets of four
+// numbers sitting right after it, and slicing to the wrong terminator silently
+// folds them into the bbox list -- which is exactly what happened when footOff
+// was added between them: 20 "bboxes", smallest height 0.  So the slice ends
+// at whichever field comes first, not at a field I happen to remember.
+function swordBboxes(H){
+  const b = H.slice(H.indexOf('const RIZER_SAPPHIRE_SWORD'), H.indexOf('_loadSapphireSword'));
+  const from = b.indexOf('bboxes: [');
+  const ends = ['footOff:', 'bodyBh:', 'comboSheet:', 'constScale:']
+                 .map(k => b.indexOf(k, from)).filter(i => i > from);
+  const arr = b.slice(from, ends.length ? Math.min(...ends) : b.length);
+  return [...arr.matchAll(/\[\s*(-?\d+),\s*(-?\d+),\s*(\d+),\s*(\d+)\]/g)]
+           .map(m => m.slice(1).map(Number));
+}
+
 console.log('\n1 · tombstones / gargoyles start at zero');
 t('no static Seer marker list is seeded at world build', () => {
   // ★ there are SIX `const SPOTS` in the file (chests, vileroks, morlisks,
@@ -95,18 +110,34 @@ t('the chain reaches the damage, and the sword is no longer flat', () => {
   const dmg = H.slice(H.indexOf('if (_swordSwing){'), H.indexOf('if (_swordSwing){') + 700);
   ok(/swordComboMult\(\)/.test(dmg), 'the sword branch still pays a flat multiplier');
 });
+t('bodyBh is not read off a blade-inflated frame', () => {
+  // ★ the trap this sheet set: Rizer holds the sword, so the blade is part of
+  // his largest connected component, and DOWN col 0 (blade pointing down past
+  // the boots) measures 229px against a ~175px character.  Scaling by that
+  // draws him a quarter short facing down.
+  const b = H.slice(H.indexOf('const RIZER_SAPPHIRE_SWORD'), H.indexOf('_loadSapphireSword'));
+  const m = b.match(/bodyBh:\s*\[([^\]]+)\]/);
+  ok(m, 'no bodyBh declared · the draw falls back to bboxes[0][0][3]');
+  const v = m[1].split(',').map(Number);
+  ok(v.length === 4, 'bodyBh must be one value per row');
+  const smallest = Math.min(...swordBboxes(H).map(x => x[3]));
+  v.forEach((h, r) => ok(h <= smallest * 1.05,
+    `bodyBh[${r}] = ${h} but the smallest body on the sheet is ${smallest} · that is a blade, not a head`));
+});
 t('a hit taken breaks the blade chain too', () => {
   ok(/resetSwordCombo\(\)/.test(H), 'the sword chain survives damage · the finisher is free');
 });
 t('bboxes keep the owned overflow (a clipped blade is a severed blade)', () => {
   const b = H.slice(H.indexOf('const RIZER_SAPPHIRE_SWORD'), H.indexOf('_loadSapphireSword'));
   const rows = b.match(/\[\[[\s\S]*?\]\],?\n/g);
-  ok(/-28/.test(b), 'the two negative origins were clamped to the cell · the blade is cut');
-  // ★ read the bboxes ARRAY only · bodyBh is also four numbers in brackets
-  const arr  = b.slice(b.indexOf('bboxes: ['), b.indexOf('],', b.indexOf('bodyBh')) );
-  const body = arr.slice(0, arr.indexOf('bodyBh') < 0 ? arr.length : arr.indexOf('bodyBh'));
-  const nums = [...body.matchAll(/\[\s*(-?\d+),\s*(-?\d+),\s*(\d+),\s*(\d+)\]/g)].map(m => m.slice(1).map(Number));
+  // ★ assert the PROPERTY, not the literal.  The first sheet overflowed at
+  // -28 in two frames; the second overflows across the whole UP row at other
+  // values.  What must hold across any sheet is that overflow is DECLARED
+  // rather than clamped to 0 -- a clamped origin is a severed blade.
+  const nums = swordBboxes(H);
   ok(nums.length === 16, `expected 16 bboxes, found ${nums.length}`);
+  ok(nums.some(([x, y]) => x < 0 || y < 0),
+     'not one frame declares overflow · the blade has been clamped to its cell');
   for (const [x, y, w, h] of nums) ok(w > 100 && h > 100, `degenerate bbox ${[x,y,w,h]}`);
 });
 

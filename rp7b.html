@@ -48029,6 +48029,96 @@ function drawNPC(n){
 // of home.  Follow: trails player 2 steps behind via player.trail buffer.
 // Interact toggles mode (see NPC.onInteract).
 const _DIR_VEC = { up:{dx:0,dy:-1}, down:{dx:0,dy:1}, left:{dx:-1,dy:0}, right:{dx:1,dy:0} };
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.956 · FOLLOWERS NAVIGATE.  Creator: "make sure if a companion
+// (humanoid or zyrex) is following u and gets stuck by bush rock or any of
+// collision, they know how to walk around it.  not only do they just follow
+// rizer but they know how to navigate terrain as well."
+//
+// ★ WHAT WAS THERE: greedy two-axis stepping.  Try the axis with the bigger
+// delta; if that is blocked try the other one; if both are blocked, stand
+// still.  In open ground it is perfect and free, which is why it lasted -- and
+// it cannot go AROUND anything, because "around" requires a step that
+// increases the distance, and every branch above only ever decreases it.
+//
+// ★★ AND ONE CASE WAS WORSE THAN MERELY GREEDY.  The alternate direction was
+// computed as `dy0 > 0 ? 'down' : 'up'` -- so when dy0 is EXACTLY ZERO, which
+// is the common case of a follower lined up dead level with its target, the
+// fallback was hardcoded to 'up'.  A rock to the west with anything solid to
+// the north froze the companion permanently: it retried west, retried north,
+// and never once considered south.  That is the bug the Creator walked into.
+//
+// ★★★ THE FIX IS A REAL PATH, BUT ONLY WHEN ONE IS NEEDED.  Greedy still runs
+// first and still handles open terrain for free; BFS is the fallback that used
+// to be "give up".  So the cost lands on exactly the frames that were broken.
+const NPC_PATH_MAX_NODES = 700;    // ~26x26 of open ground · a whole screen
+const NPC_PATH_PAD       = 9;      // how far a detour may bulge past the pair
+const NPC_PATH_COOLDOWN  = 320;    // ms · a boxed-in NPC must not search every tick
+const _NPC_PATH_DIRS = [['up',0,-1],['down',0,1],['left',-1,0],['right',1,0]];
+// ★ Rizer's own tile is solid to an NPC (stepNPCTo refuses it), so the search
+// must agree -- otherwise BFS happily routes a follower straight through him,
+// hands back that first step, and the step fails.  A path whose first move is
+// impossible is worse than no path: it looks like the AI decided to stand there.
+function _npcPathBlocked(x, y){
+  if (typeof walkable === 'function' && !walkable(x, y)) return true;
+  if (typeof player !== 'undefined' && player.x === x && player.y === y) return true;
+  return false;
+}
+// Returns the direction of the FIRST step of a route to (tx,ty), or null when
+// no route exists inside the budget.
+function npcPathDir(n, tx, ty){
+  if (!n) return null;
+  const sx = n.tileX, sy = n.tileY;
+  if (sx === tx && sy === ty) return null;
+  // ★ the search box is the start/target rectangle PADDED, so a detour has
+  // somewhere to bulge into.  Unbounded BFS on a 700x600 overworld would be a
+  // frame-killer; a box this size is a screenful and finds any detour a player
+  // would consider reasonable.
+  const x0 = Math.min(sx, tx) - NPC_PATH_PAD, x1 = Math.max(sx, tx) + NPC_PATH_PAD;
+  const y0 = Math.min(sy, ty) - NPC_PATH_PAD, y1 = Math.max(sy, ty) + NPC_PATH_PAD;
+  const seen = new Set([sx + ',' + sy]);
+  // queue holds [x, y, firstDirName] -- only the FIRST step is ever needed, so
+  // no parent pointers and no path reconstruction
+  let q = [[sx, sy, null]], nodes = 0;
+  while (q.length){
+    const next = [];
+    for (const [cx, cy, first] of q){
+      for (const [dname, dx, dy] of _NPC_PATH_DIRS){
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < x0 || nx > x1 || ny < y0 || ny > y1) continue;
+        const key = nx + ',' + ny;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (++nodes > NPC_PATH_MAX_NODES) return null;
+        const f = first || dname;
+        if (nx === tx && ny === ty) return f;
+        if (_npcPathBlocked(nx, ny)) continue;
+        next.push([nx, ny, f]);
+      }
+    }
+    q = next;
+  }
+  return null;
+}
+// ★★ THE FALLBACK, IN ONE PLACE.  Every follow/return site had its own copy of
+// "primary axis, else other axis, else freeze"; each now ends here instead of
+// at the freeze.  Throttled per NPC, because a companion genuinely walled in
+// would otherwise run a full search every single tick forever -- and the one
+// thing worse than a stuck follower is a stuck follower costing frames.
+function npcNavigateAround(n, tx, ty){
+  if (!n) return false;
+  const now = performance.now();
+  if (n._navCd && now < n._navCd) return false;
+  const dir = npcPathDir(n, tx, ty);
+  if (!dir){
+    n._navCd = now + NPC_PATH_COOLDOWN;
+    return false;
+  }
+  const v = _DIR_VEC[dir];
+  if (v && stepNPCTo(n, n.tileX + v.dx, n.tileY + v.dy, dir)) return true;
+  n._navCd = now + NPC_PATH_COOLDOWN;
+  return false;
+}
 function stepNPCTo(n, nx, ny, newDir){
   if (!walkable(nx, ny)) return false;
   // Also block moving onto player tile
@@ -48429,6 +48519,13 @@ function seerPatrolStep(n){
       const av = _DIR_VEC[altDir];
       if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, altDir)){
         n.moveCd = 200;
+      } else if (npcNavigateAround(n, _aim.x, _aim.y)){
+        // ★ v0.95.956 · the journey home routes around terrain too.  This
+        // matters more since v0.95.955: holding Circle sends EVERY contact
+        // walking home at once, and eight of them grinding into the same rock
+        // until the 20s bail-out teleported them would have looked like the
+        // recall was broken rather than the pathing.
+        n.moveCd = 200;
       } else {
         // Stuck · nudge to a random open dir to unstick
         n.dir = altDir || dir;
@@ -48503,6 +48600,9 @@ function seerPatrolStep(n){
         const fav = _DIR_VEC[faltDir];
         if (fav && faltDir !== fdir && stepNPCTo(n, n.tileX + fav.dx, n.tileY + fav.dy, faltDir)){
           n.moveCd = 170;
+        } else if (npcNavigateAround(n, _ft[0], _ft[1])){
+          // ★ v0.95.956 · both axes blocked · route around it to the station
+          n.moveCd = player.running ? 90 : 170;
         } else {
           n.moving = false; n.moveCd = 220;
         }
@@ -48549,6 +48649,11 @@ function seerPatrolStep(n){
       const av = _DIR_VEC[altDir];
       if (av && stepNPCTo(n, n.tileX + av.dx, n.tileY + av.dy, altDir)){
         n.moveCd = 170;
+      } else if (npcNavigateAround(n, target.x, target.y)){
+        // ★★ v0.95.956 · THE ONE THE CREATOR HIT.  A bush or rock on the axis
+        // he is on, with anything solid on the fallback axis, used to end the
+        // follow right here.  Now the companion goes around it.
+        n.moveCd = player.running ? 90 : 170;
       } else {
         n.moving = false; n.moveCd = 200;
       }

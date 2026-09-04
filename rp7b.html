@@ -7354,11 +7354,26 @@ const WORLD_PROPS = [
       if (!chest.looted){
         chest.looted = true;
         player.items = player.items || {};
-        player.items.shardshare_broken = (player.items.shardshare_broken || 0) + 1;
-        try { playItemGain('shardshare_broken'); } catch(_){}
         try { playSFX('confirm'); } catch(_){}
-        try { awardRizerXP(100); } catch(_){}
-        showToast('★ Found: BROKEN SHARDSHARE · looks like something Dad can fix', 4600);
+        // ★★★ v0.95.952 · IT POPS OUT · Creator asked for a collision pickup.
+        // The collar lands on a walkable neighbour tile as a solid prop and
+        // waits to be collected, so the object the whole Dad questline turns
+        // on is actually SEEN before it is owned.
+        player._shardshareDropped = true;
+        let popped = null;
+        try { popped = spawnShardshareBroken(chest.tileX, chest.tileY); } catch(_){}
+        if (popped){
+          showToast('★ The chest holds a BROKEN SHARDSHARE · pick it up', 3600);
+        } else {
+          // ★ nowhere walkable to put it -- a chest wedged against terrain must
+          // never eat the only Shardshare in the game, so it goes straight to
+          // the bag exactly as it did before.
+          player.items.shardshare_broken = (player.items.shardshare_broken || 0) + 1;
+          player._shardshareDropTaken = true;
+          try { playItemGain('shardshare_broken'); } catch(_){}
+          try { awardRizerXP(100); } catch(_){}
+          showToast('★ Found: BROKEN SHARDSHARE · looks like something Dad can fix', 4600);
+        }
       }
     };
     return chest;
@@ -18978,6 +18993,80 @@ function spawnAstralcoreDrop(cx, cy){
   WORLD_PROPS.push(prop);
   registerPropCollision(prop);
   return prop;
+}
+// ★★★ v0.95.952 · THE BROKEN SHARDSHARE, AS AN OBJECT IN THE WORLD.
+// Creator: "broken shardshard collision pick up asset for chest."
+//
+// ★ It used to go straight into the bag from chest.onInteract -- one toast and
+// it was yours, and the thing the whole Dad questline turns on was never seen.
+// Now the chest POPS IT OUT, the way the astralite gems pop from a shattered
+// boulder (v0.95.836) and the Astralcore drops from the UFO chest.  Solid
+// footprint, X to collect: you have to walk to it and pick it up.
+//
+// ★★ THE BBOX IS THE FULL CANVAS AND THAT IS CORRECT, not a missed crop --
+// the art arrived pre-keyed and trimmed to its own content at 928x739, so the
+// measured extent IS the file.  Recorded because every other bbox in this file
+// is an inset and a reader would reasonably suspect this one.
+//
+// ★ It sits LOW and does not levitate.  The Astralcore floats because it is a
+// cosmic object; this is a piece of broken equipment lying where it was
+// dropped, and it should read as debris until Dad makes it a relic again.
+const SHARDSHARE_BROKEN_ART = {
+  src: 'assets/2D%20sprites/items/shardshare-broken.png',
+  bbox: [0, 1, 928, 738],           // measured · already trimmed, aspect 1.257
+  img: (() => { const i = new Image(); i.src = 'assets/2D%20sprites/items/shardshare-broken.png'; return i; })(),
+};
+function spawnShardshareBroken(cx, cy){
+  if (game.scene !== 'overworld') return null;
+  let tx = null, ty = null;
+  // ★ same neighbour search the Astralcore uses · never inside the chest tile
+  for (const [dx, dy] of [[0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+    if (typeof walkable === 'function' && walkable(cx+dx, cy+dy)){ tx = cx+dx; ty = cy+dy; break; }
+  }
+  if (tx == null) return null;      // ★ walled in · the caller hands it over directly
+  const bbox = SHARDSHARE_BROKEN_ART.bbox;
+  const prop = {
+    id: 'shardshare_broken_drop',
+    _shardshareDrop: true,
+    img: SHARDSHARE_BROKEN_ART.img, src: SHARDSHARE_BROKEN_ART.src, bbox,
+    tileX: tx, tileY: ty,
+    // ★ 0.85 of a tile wide · a collar is smaller than the Astralcore and
+    // smaller than Rizer, and height follows the measured aspect so it is
+    // never stretched [[image-never-stretch-console-fullscreen]]
+    tileW: 0.85, tileH: 0.85 * bbox[3] / bbox[2],
+    footprint: [[0, 0]],            // ★ SOLID · this is the collision the ask names
+    door: [0, 0],                   // ★ X collects when faced
+    onInteract(){
+      try { unregisterPropCollision(prop); } catch(_){}
+      const i = WORLD_PROPS.indexOf(prop);
+      if (i >= 0) WORLD_PROPS.splice(i, 1);
+      player.items = player.items || {};
+      player.items.shardshare_broken = (player.items.shardshare_broken || 0) + 1;
+      player._shardshareDropTaken = true;
+      try { playItemGain('shardshare_broken'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
+      try { awardRizerXP(100); } catch(_){}
+      try { pingNextObjective(); } catch(_){}
+      showToast('★ Found: BROKEN SHARDSHARE · looks like something Dad can fix', 4600);
+      try { saveGame(); } catch(_){}
+    },
+  };
+  WORLD_PROPS.push(prop);
+  registerPropCollision(prop);
+  return prop;
+}
+// ★★ RESTORE ON LOAD.  A drop that was popped but not collected has to come
+// back, or the questline dead-ends at an empty chest -- the same failure the
+// scroll pages had at v0.95.950, and worse here because there is exactly one
+// Shardshare in the game.  The two flags are deliberately separate: the chest
+// remembers it was OPENED, the player remembers the collar was TAKEN.
+function restoreShardshareDrop(){
+  if (typeof WORLD_PROPS === 'undefined') return false;
+  if (!player._shardshareDropped) return false;      // chest never opened
+  if (player._shardshareDropTaken) return false;     // already in the bag
+  if ((player.items && player.items.shardshare_broken) > 0) return false;
+  if (player.shardshareFixed) return false;          // Dad already repaired it
+  if (WORLD_PROPS.some(p => p && p._shardshareDrop)) return false;
+  return !!spawnShardshareBroken(69, 358);
 }
 function recoverAstraliteMaterial(b){
   if(!b||b.type!=='astralite'||b._matrixMaterialRecovered)return null;
@@ -33284,6 +33373,46 @@ function paintZycellContent(){
 //   1 · if the click landed on something that handles itself, do nothing
 //   2 · if the section holds more than one control, do nothing -- "the first
 //       one" is not a defensible choice when there are eleven
+// ★★★ v0.95.952 · THE HOME SCREEN IS A WIDGET GRID.
+// Creator: "make each panel in the home zyphone menu take you to the
+// corresponding panel.  its like having widgets on ur home screen."
+//
+// ★ Exactly the phone metaphor, and the home screen was already 90% of the way
+// there -- eight cards, each a live summary of a section that already exists.
+// They just were not doors.  Tapping the ACTIVE ZYREX card should land on
+// Faction the way tapping a weather widget opens Weather.
+//
+// ★★ THE WRAPPER GOES AROUND THE CARDS, NOT INSIDE THEM.  Every card is a
+// hand-styled template string and adding an onclick to eight of them would
+// mean eight edits and eight chances to break a layout.  One wrapper at the
+// composition point costs one edit and cannot alter what a card renders --
+// display:contents would collapse the flex children, so the shell carries the
+// card's own sizing instead and the grid is untouched.
+function _zyWidgetClick(el, ev){
+  if (ev) ev.stopPropagation();
+  const target = el && el.dataset ? el.dataset.zywidget : null;
+  if (!target || !ZYCELL_PANELS.includes(target)) return;
+  zycellPage = target;
+  if (target !== 'notebook') game._nbSection = null;
+  // ★ land on the NAV rail, not mid-list: the same state openZycellAt leaves
+  // behind, so a widget tap and a rail click are indistinguishable afterwards
+  // and the controller does not wake up focused on nothing.
+  game._zycellFocus = 'nav';
+  game._zycellItemIdx = 0;
+  try { playSFX('cursor'); } catch(_){}
+  try { paintZycellNav(); } catch(_){}
+}
+// ★ `flex` keeps a card that was sized by its parent's flex row (INVENTORY and
+// CREDITS sit side by side) from collapsing inside the shell.
+function _zyWidget(page, html, flex){
+  const known = ZYCELL_PANELS.includes(page);
+  if (!known) return html;                    // ★ unknown target · render inert
+  return `<div data-zywidget="${page}" onclick="_zyWidgetClick(this, event)"
+     title="open ${page.toUpperCase()}"
+     style="cursor:pointer; ${flex ? 'flex:1; display:flex; flex-direction:column;' : ''}"
+     onmouseover="this.style.filter='brightness(1.18)'"
+     onmouseout="this.style.filter=''">${html}</div>`;
+}
 function _zySectionClick(el, ev){
   try {
     const SEL = 'button,[data-zyclick],[data-call],[data-zycat],[data-item]';
@@ -34927,18 +35056,29 @@ function renderZycellHome(){
       <div style="color:#8ff; font-size:11px; margin-top:6px; letter-spacing:.14em;">${_dateStr}</div>
       <div style="color:#c060ff; font-size:10px; margin-top:8px; letter-spacing:.08em;">Cycle · Day</div>
     </div>`;
+  // ★★★ v0.95.952 · every card is now a door to its own panel.
+  // The mapping is the obvious one in every case but two, and those two are
+  // worth stating: CREDITS opens ZYCUBE because credits are counted items and
+  // the Zycube is where items live; LIVE WORLD opens NOTEBOOK because the
+  // rumors, anomalies and field-journal counts it summarises are all pages of
+  // the notebook.  ★ DATE/TIME is deliberately NOT a widget -- it has no panel
+  // behind it, and a card that highlights on hover and then does nothing is
+  // worse than one that never invited the tap.
   return `
     <div style="display:grid; grid-template-columns: 1fr 1.3fr; gap:10px;">
       <div style="display:flex; flex-direction:column; gap:10px;">
-        ${rizerLevelCard}
-        ${activeCard}
-        ${status}
-        <div style="display:flex; gap:10px;">${inventory}${credits}</div>
+        ${_zyWidget('rizer',       rizerLevelCard)}
+        ${_zyWidget('faction',     activeCard)}
+        ${_zyWidget('rizer',       status)}
+        <div style="display:flex; gap:10px;">
+          ${_zyWidget('zycube',    inventory, true)}
+          ${_zyWidget('zycube',    credits,   true)}
+        </div>
       </div>
       <div style="display:flex; flex-direction:column; gap:10px;">
-        ${liveWorld}
-        ${mission}
-        ${map}
+        ${_zyWidget('notebook',    liveWorld)}
+        ${_zyWidget('expeditions', mission)}
+        ${_zyWidget('map',         map)}
         ${dateTime}
       </div>
     </div>`;
@@ -37334,6 +37474,8 @@ function saveGame(){
         seerCommandersBeaten:       player.seerCommandersBeaten || {},
         deathGargoyles:             player.deathGargoyles || [],   // v0.95.614 · death breadcrumb persist
         shardshareFixed:            !!player.shardshareFixed,      // v0.95.619 · party duel-XP share unlocked
+        _shardshareDropped:         !!player._shardshareDropped,  // ★ v0.95.952 · chest opened
+        _shardshareDropTaken:       !!player._shardshareDropTaken,// ★ v0.95.952 · collar collected
         portalPieces:               player.portalPieces || 0,      // ★ v0.95.800 · pieces handed to Dad · drives the whole network
         // ★ v0.95.804 · only the EVENT COUNTERS persist.  Rumors and anomalies
         // are transient by design — and their expiries are performance.now()
@@ -37560,6 +37702,7 @@ function loadGame(){
     // resolve to the wrong creature entirely.
     try { if (typeof migrateGearbyteToRustbyte === 'function') migrateGearbyteToRustbyte(); } catch(_){}
     try { if (typeof pruneFiledScrolls === 'function') pruneFiledScrolls(); } catch(_){}
+    try { if (typeof restoreShardshareDrop === 'function') restoreShardshareDrop(); } catch(_){}
     try { if (typeof resetSkellorBreadcrumbs === 'function') resetSkellorBreadcrumbs(); } catch(_){}
     // v0.95.660 · Saves written before the RXP gate existed have no flag.  Treat
     // them as already unlocked — a returning player must never lose earning.

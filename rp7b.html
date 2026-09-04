@@ -2532,6 +2532,62 @@ function walkNpcHome(n, x, y, scene){
   n.dir = n.dir || 'down';
   return true;
 }
+// ★★★ v0.95.955 · DIAL EVERY CONTACT HOME AT ONCE.
+// Creator: "if I click into the contact panel and hold circle, I dial all
+// current contacts back home at once.  they walk to home coordinate."
+//
+// ★ THE POINT IS THAT THEY WALK.  The single send-home has always TELEPORTED
+// -- it assigns tileX/tileY and the contact is simply gone -- and this one
+// deliberately does not, because a mass recall is the moment you would actually
+// watch: eight people you called turning around and setting off at once is a
+// thing to see, and eight people blinking out is a bug report.  walkNpcHome
+// already exists for exactly this (escorts, returning Zyrex), so the mass path
+// gets the better behaviour and the single tap keeps the instant one.
+//
+// ★★ It is a HOLD and not a tap for the obvious reason: Circle is Back in
+// every other panel, and one accidental press should not end every call you
+// have running.  The cost is that Circle's back action on the contacts page
+// waits for the release -- paid on one page only, and only to protect the
+// thing that cannot be undone.
+const CONTACT_RECALL_HOLD_MS = 500;
+function recalledContacts(){
+  if (typeof NPCS === 'undefined') return [];
+  return NPCS.filter(n => n && n._phoneSpawned);
+}
+function recallAllContactsHome(){
+  const out = recalledContacts();
+  if (!out.length) return 0;
+  let walked = 0, snapped = 0;
+  out.forEach(n => {
+    const hx = (typeof n._phoneHomeX === 'number') ? n._phoneHomeX : n.homeX;
+    const hy = (typeof n._phoneHomeY === 'number') ? n._phoneHomeY : n.homeY;
+    const hs = n._phoneHomeScene || n.homeScene || 'overworld';
+    // ★ hand the restore to walkHome's arrival, not to this moment -- they are
+    // still following until they get there, and flipping mode now would strand
+    // them mid-journey in whatever they used to be doing.
+    n._walkHomeMode = n._phoneHomeMode || 'stationary';
+    n._phoneSpawned = false;
+    n._phoneHomeX = null; n._phoneHomeY = null;
+    n._phoneHomeScene = null; n._phoneHomeMode = null;
+    if (hx != null && hy != null && typeof walkNpcHome === 'function'
+        && walkNpcHome(n, hx, hy, hs)){
+      walked++;
+    } else {
+      // ★ no coordinate on record · nothing to walk toward, so stop following
+      // rather than leave a contact trailing Rizer with no way to dismiss them
+      n.mode = n._walkHomeMode || 'stationary';
+      n._walkHomeMode = null; n.moving = false;
+      snapped++;
+    }
+  });
+  const total = walked + snapped;
+  try { playSFX('menuClose'); } catch(_){}
+  showToast(total === 1
+    ? `\u25c4 ${out[0].name || 'Your contact'} heads home`
+    : `\u25c4 ${total} contacts head home\u2009\u00b7\u2009they walk it`, 2600);
+  try { saveGame(); } catch(_){}
+  return total;
+}
 function uncompanionize(n, silent){
   if (!n) return;
   if (player.companion === n.id) player.companion = null;
@@ -34474,6 +34530,26 @@ function renderZycellContacts(){
       <div style="text-align:right;">${status}<div style="color:#cfe; font-size:10px;">Bond ${bond}/100</div></div>
     </div>`;
   }).join('');
+  // ★★★ v0.95.955 · THE MASS RECALL, AND ITS AFFORDANCE.
+  // A hold-only gesture nobody is told about is a secret, not a feature -- and
+  // a controller hint alone would leave mouse and touch with no way in at all.
+  // So the same action gets a button AND the hold is named next to it.
+  // ★ Both appear only while somebody is actually out: an empty recall is not
+  // an action, and a button that does nothing teaches the player to ignore it.
+  const _out = (typeof recalledContacts === 'function') ? recalledContacts().length : 0;
+  const recallBar = (canCall && _out) ? `
+    <div style="display:flex; align-items:center; gap:8px; margin:6px 0 8px; padding:7px 9px;
+                border:1px solid rgba(255,214,107,0.55); background:rgba(60,40,10,0.35);">
+      <button data-recallall="1" style="padding:5px 10px; background:rgba(255,214,107,0.22); color:#ffd66b;
+              border:1px solid #ffd66b; font:bold 10px 'Courier New',monospace; cursor:pointer; letter-spacing:.08em;"
+              onclick="if (typeof recallAllContactsHome === 'function'){ recallAllContactsHome(); paintZycellNav(); } event.stopPropagation();">
+        ◄ SEND ALL HOME · ${_out}
+      </button>
+      <div style="flex:1; color:#8ff; font-size:10px; line-height:1.5;">
+        ${_out} ${_out === 1 ? 'contact is' : 'contacts are'} with you
+        <span style="color:#667;">· hold ◯ to dial them all home · they walk it</span>
+      </div>
+    </div>` : '';
   const footer = canCall
     ? `<div style="text-align:center; color:#5fdc7a; font-size:10px; padding:6px;">✦ Phone Battery installed · TRUSTED contacts (bond 100) teleport to you on dial</div>`
     : `<div style="text-align:center; color:#ffd66b; font-size:10px; padding:6px;">◈ Calls locked · finish Scrapjaw's Radio Tower quest to get the Phone Battery</div>`;
@@ -34549,7 +34625,7 @@ function renderZycellContacts(){
       });
     }, 0);
   }
-  return _zySection('👥 CONTACTS · call/bond hub', rows) + footer;
+  return _zySection('👥 CONTACTS · call/bond hub', recallBar + rows) + footer;
 }
 
 // v0.95.520 · LEADERBOARD · every trackable Rizer stat in one panel · seeds
@@ -35239,6 +35315,30 @@ function handleZycellKey(k){
   if (!_domOpen){ game.zphoneOpen = false; return false; }
   game.zphoneOpen = true;
   if (!game._zycellFocus) game._zycellFocus = 'nav';
+  // ★★★ v0.95.955 · HOLD CIRCLE ON CONTACTS = DIAL EVERYONE HOME.
+  // Circle is Back everywhere else in this phone, so the two gestures are told
+  // apart by TIME rather than given separate buttons: the recall arms on
+  // press and fires while still held, and the back action moves to the
+  // RELEASE -- but only on this page, so no other panel pays the latency.
+  // ★ Guarded against key-repeat: a held key re-enters this handler many times
+  // a second, and re-arming on each would restart the timer forever and the
+  // hold would never complete.
+  if ((k === 'b' || k === 'escape') && zycellPage === 'contacts'
+      && game._zycellFocus !== 'content'){
+    if (!game._zyRecallArmed){
+      game._zyRecallArmed = true;
+      game._zyRecallFired = false;
+      game._zyRecallTimer = setTimeout(() => {
+        if (!game._zyRecallArmed) return;
+        game._zyRecallFired = true;
+        const n = (typeof recallAllContactsHome === 'function') ? recallAllContactsHome() : 0;
+        if (!n){ try { playSFX('doorLock'); } catch(_){}
+                 showToast('\u25c8 Nobody is out \u00b7 nobody to call home', 2000); }
+        try { paintZycellNav(); } catch(_){}
+      }, CONTACT_RECALL_HOLD_MS);
+    }
+    return true;
+  }
   // Circle/Escape/Touchpad close · but if focused on content, first Circle pops back to nav
   if (k === 'b' || k === 'escape'){
     // v0.95.581 · Zyrex Examine sub-page · B/Escape pops it first before exiting content
@@ -35577,6 +35677,21 @@ window.addEventListener('keyup', (e) => {
   }
   if (!game.zphoneOpen) return;
   if (k === '2') return;   // touchpad keyup passes so hold-5s timer clears
+  // ★ v0.95.955 · Circle released on the contacts page.  If the hold already
+  // fired, swallow it -- otherwise this was a tap and it means Back, which is
+  // the action keydown deliberately did not take.
+  if ((k === 'b' || k === 'escape') && game._zyRecallArmed){
+    clearTimeout(game._zyRecallTimer);
+    game._zyRecallArmed = false;
+    const fired = game._zyRecallFired;
+    game._zyRecallFired = false;
+    if (!fired){
+      if (game._zycellFocus === 'content'){ zycellExitContent(); }
+      else { closeZphonePanel(); game._zycellFocus = 'nav'; }
+    }
+    keys[k] = false; e.preventDefault(); e.stopImmediatePropagation();
+    return;
+  }
   keys[k] = false;
   e.preventDefault();
   e.stopImmediatePropagation();
@@ -48276,7 +48391,15 @@ function seerPatrolStep(n){
     }
     // Arrived
     if (n.tileX === tgt.x && n.tileY === tgt.y){
-      n.mode = 'stationary'; n.moving = false; n.dir = 'down';
+      // ★ v0.95.955 · resume what they were doing before they were called.
+      // walkHome used to land everyone on 'stationary', which is right for an
+      // escorted ally and wrong for a called contact: the phone's single
+      // send-home already restored _phoneHomeMode, so a wanderer who WALKED
+      // back would have stopped wandering while one who teleported did not.
+      // Same trip, two outcomes, decided by which button you pressed.
+      n.mode = n._walkHomeMode || 'stationary';
+      n._walkHomeMode = null;
+      n.moving = false; n.dir = 'down';
       n.homeX = tgt.x; n.homeY = tgt.y;
       n._walkHomeTarget = null;
       return;

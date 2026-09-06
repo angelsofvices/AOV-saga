@@ -42534,15 +42534,57 @@ const SUMMONABLE_SPRITES = {
     // the follower uses this one fly bank for idle AND walk (he never sets
     // foot down beside you).  The WILD at the statue keeps the idle sheet
     // above — perched in prayer is his resting truth, flight is his
-    // travelling one.  Body size matches idle for free: _downScale scales
-    // the col-0 DOWN frame to the same 2-tile x 1.15 target either way.
+    // travelling one.
+    //
+    // ★★★ v0.95.968 · NEW SHEET, AND THE OLD COMMENT WAS WRONG.
+    // Creator: "new elzoran flying animations. make sure he stays the same
+    // size as his idle. dont shrink."
+    //
+    // The line here used to claim "Body size matches idle for free: _downScale
+    // scales the col-0 DOWN frame to the same 2-tile target either way."  It
+    // does not, and the gap is not small.  _downScale divides by the TALLEST
+    // col-0 bbox IN THIS BANK, and a dragon in level flight is a flatter shape
+    // than one rearing up — so the fly sheet's own yardstick is shorter and
+    // every source pixel got scaled down to compensate.  Measured, old bank
+    // against idle:
+    //       DOWN  110px vs 110   ·   +0%
+    //       LEFT   82px vs 103   ·  -20%
+    //       RIGHT  73px vs 102   ·  -28%
+    //       UP    104px vs 106   ·   -2%
+    // He was flying at three quarters of his own size in profile.
+    //
+    // ★★★ AND HEIGHT WAS ONLY HALF OF IT.  Height is the wrong invariant for a
+    // creature that changes POSE — a dragon rearing up is tall and narrow, the
+    // same dragon in level flight is low and long — so the honest measure is
+    // how WIDE the animal reads.  Measured against idle, col-0 widths:
+    //       OLD fly, own yardstick:  DOWN -8%  LEFT +29%  RIGHT +31%  UP -1%
+    //       NEW fly, idle yardstick: DOWN -3%  LEFT  +1%  RIGHT  +9%  UP +3%
+    // ★ The old bank was not merely shrinking him.  It was squashing him: a
+    // THIRD wider and a quarter shorter in profile, which is a different animal
+    // rather than a smaller one.
+    //
+    // ★★ THE FIX IS ONE SCALE FOR BOTH BANKS, not one drawn height.  "Same
+    // size" for a creature that changes shape means the same PIXEL SCALE — a
+    // flying dragon SHOULD read lower than a rearing one, it should just not
+    // read smaller or wider.  scaleRefBh 268 is the idle sheet's own col-0 max,
+    // so both banks divide by the same number and a source pixel is a source
+    // pixel.  The source widths prove the two sheets were drawn at one scale to
+    // begin with — idle [272,225,210,231] against fly [265,228,229,237] — so
+    // one divisor is not an approximation, it is the artist's own intent.
+    //
+    // ★ Sheet audits clean: 16 components for 16 cells, flat ground line in
+    // every row, RIGHT a true mirror of LEFT (0.96 flipped vs 0.58 as-is).  The
+    // only flag is col 0 of three rows measuring 13-14% over its row median,
+    // which is the WINGS FULLY SPREAD on the first frame of the flap — and is
+    // exactly why the bank must not use its own col-0 as a yardstick.
     flyAll: {
       src: 'assets/2D%20sprites/zyrex/elzoran-fly.png',
+      scaleRefBh: 268,          // ★ the IDLE sheet's col-0 max · same pixel scale
       bboxes: [
-        [[40,65,229,244],[23,80,269,229],[27,81,258,228],[19,84,273,225]],
-        [[28,81,264,181],[19,98,273,163],[22,114,265,144],[17,101,269,160]],
-        [[26,93,250,162],[12,89,255,167],[21,105,260,151],[15,93,255,163]],
-        [[52,42,208,229],[21,50,266,222],[31,57,258,215],[17,57,274,215]],
+        [[  26,  71, 265, 245],[  33, 102, 246, 214],[  -3, 102, 323, 214],[  38, 102, 236, 214]],
+        [[  50,  54, 228, 183],[  38,  76, 241, 162],[  28,  78, 264, 162],[  42,  78, 244, 162]],
+        [[  42,  23, 229, 185],[  21,  46, 243, 163],[  13,  47, 265, 162],[  24,  46, 240, 164]],
+        [[  42, -16, 237, 224],[  33, -16, 248, 221],[  -7, -16, 329, 224],[  42, -16, 232, 223]],
       ],
     },
   },
@@ -43932,6 +43974,14 @@ function makeZyrexFollower(z, opts){
   base.cols    = 4; base.rows = 4;
   base.uniformScale = true;
   base.scaleMul = spriteDef.scaleMul || 1;
+  // ★★★ v0.95.968 · A BANK MAY DECLARE ITS OWN YARDSTICK.
+  // drawNPC derives _downScale from the TALLEST col-0 bbox unless scaleRefBh
+  // says otherwise.  That is right for one sheet and wrong the moment a
+  // follower swaps banks: a fly sheet and an idle sheet are different SHAPES,
+  // so their col-0 heights differ, so dividing each by its own makes the same
+  // creature draw at two different sizes.  Passing the reference through lets
+  // a second bank be measured against the FIRST.
+  if (spriteDef.scaleRefBh) base.scaleRefBh = spriteDef.scaleRefBh;
   base.sheet.src = spriteDef.src;
   // ★ v0.95.881 · carry the bob through from the sprite bank · a levitating
   // species floats whether it is wild, summoned or standing in a barn
@@ -43969,6 +44019,8 @@ function makeZyrexFollower(z, opts){
     base.bboxes = spriteDef.flyAll.bboxes;
     base.walkSheet = base.sheet;
     base.walkBboxes = spriteDef.flyAll.bboxes;
+    // ★ v0.95.968 · the fly bank's own reference wins, and it is the IDLE's
+    if (spriteDef.flyAll.scaleRefBh) base.scaleRefBh = spriteDef.flyAll.scaleRefBh;
     return base;
   }
   // Idle-sit / walk sheet split · drawNPC swaps to walkSheet while moving.

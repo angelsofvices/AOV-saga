@@ -303,11 +303,27 @@
     /* v0.95.485 · Negative margin pulls gem panel UP into the coin panel's
        transparent lower padding so the two panels visually kiss */
     #gemHud{  background-image: url('assets/2D%20sprites/ui/gem-panel.png'); margin-top: -28px; }
+    /* ★★★ v0.95.961 · THE NUMBER SITS IN THE PLATE, MEASURED FROM THE ART.
+       Creator: "make coin and gem counter text smaller to fit inside the panel."
+
+       ★ It was not only too big, it was in the wrong place.  The old rule was
+       `width:100%; text-align:center; padding-left:78px`, which centres the
+       digits between x=78 and x=220 -- but the panel's gold frame ENDS AT 185.
+       So the text was centred 18px right of the plate and free to run past the
+       frame entirely, which is what "102,573" was doing.  Shrinking the font
+       alone would have left it off-centre; the box had to move too.
+
+       ★★ Both PNGs are 1752x898 and render at 218.5x112 under background-size
+       contain.  Measured off the art: gold frame 35->185, inner navy plate
+       ~42->177, and the icon occupies ~59->85.  So the digits own 88->174. */
     #coinHud .coinNum, #gemHud .gemNum{
-      display:block; width:100%; height:100%;
-      font: bold 26px 'Courier New', monospace;
-      letter-spacing:.10em;
-      text-align: center; padding: 40px 0 0 78px;
+      position:absolute;
+      left: 88px; width: 86px;
+      top: 38px;  height: 35px; line-height: 35px;
+      font: bold 18px 'Courier New', monospace;
+      letter-spacing:.06em;
+      text-align: center;
+      white-space: nowrap;
       box-sizing: border-box;
     }
     #coinHud .coinNum{ color:#ffd66b; text-shadow: 0 0 6px rgba(255,214,107,0.7), 0 1px 2px #000; }
@@ -325,10 +341,12 @@
         transform-origin: top right;
         gap: 0;
       }
-      /* Tighter number sizing inside the shrunk panels · avoid clipped digits */
+      /* ★ v0.95.961 · portrait keeps the SAME measured box.  The panel is
+         scaled by transform, not resized, so the plate is still at 88->174 in
+         the element's own coordinates -- the old override re-padded it back
+         off-centre and re-inflated the font, undoing the fix on mobile only. */
       #coinHud .coinNum, #gemHud .gemNum{
-        font-size: 34px;
-        padding: 42px 0 0 80px;
+        font-size: 18px;
       }
     }
     /* v0.95.387 · Wallet panel · opens on coin-HUD click · full currency breakdown */
@@ -51527,14 +51545,35 @@ function updateRizerHUD(){
     // ★ v0.95.784 · keep the wheel showing the weapon actually in hand
     if (show) { try { updateWeaponHUD(); } catch(_){} }
   }
+  // ★★★ v0.95.961 · FIT THE DIGITS TO THE PLATE.
+  // 18px Courier bold at .06em is ~11.9px a character, so the 86px plate holds
+  // SEVEN -- which covers 9,999,999 in coins and every gem total in the game.
+  // Past that it shrinks rather than overflows, because a counter that grows
+  // out of its frame is worse than one that gets a little smaller.
+  //
+  // ★ Only re-fits when the STRING CHANGES.  This runs inside the per-frame HUD
+  // paint, and reading scrollWidth forces layout -- doing that 60 times a second
+  // for a number that changes once a minute is how a HUD costs frames.
+  const _fitCounter = (el, text) => {
+    if (!el || el._fitFor === text){ if (el && el.textContent !== text) el.textContent = text; return; }
+    el._fitFor = text;
+    el.textContent = text;
+    el.style.fontSize = '';                     // back to the stylesheet's 18px
+    const base = parseFloat(getComputedStyle(el).fontSize) || 18;
+    let size = base;
+    // scrollWidth > clientWidth means the digits are wider than the plate
+    while (size > 9 && el.scrollWidth > el.clientWidth){
+      size -= 1;
+      el.style.fontSize = size + 'px';
+    }
+  };
   // v0.95.82 · Coin counter · same visibility as RHUD, live-updated
   const coinEl = document.getElementById('coinHud');
   if (coinEl){
     coinEl.style.display = show ? 'block' : 'none';
     const coins = (player.items && player.items.coins) || 0;
     // v0.95.387 · Populate the coin number in the LEFT box · gold coin sits on the right (CSS-flipped)
-    const numEl = coinEl.querySelector('.coinNum');
-    if (numEl) numEl.textContent = coins.toLocaleString();
+    _fitCounter(coinEl.querySelector('.coinNum'), coins.toLocaleString());
   }
   // v0.95.388 · Gem HUD · same layout as coin panel · shows countGems() total
   // countGems weights red=1, blue=2, purple=3 (rarity ascending) so upgrades
@@ -51543,8 +51582,7 @@ function updateRizerHUD(){
   if (gemEl){
     gemEl.style.display = show ? 'block' : 'none';
     const val = (typeof countGems === 'function') ? countGems() : 0;
-    const numEl = gemEl.querySelector('.gemNum');
-    if (numEl) numEl.textContent = val.toLocaleString();
+    _fitCounter(gemEl.querySelector('.gemNum'), val.toLocaleString());
   }
   const model=rizerStatModel();
   paintRizerMeterElement(widget?.querySelector('[data-rizer-meter="hp"]'),model.hp);

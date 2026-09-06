@@ -15783,12 +15783,29 @@ const STAIRCASE_DOWN_BBOX = [263,  98, 713, 1058];
 // seer_hq" would put building-specific knowledge inside a generic function and
 // need editing again for the next themed interior. The interior config already
 // describes the building — the art belongs there too.
+// ★★★ v0.95.964 · NEW SEER STAIRCASES.  Creator: "down and upstairs for
+// seers hq."  Same two slots, 1024x1536 instead of 64x96 — sixteen times the
+// linear resolution, which matters because these draw at 3x4 tiles (144x192px)
+// and the old 64x96 art was being UPSCALED to get there.
+//
+// ★ WHICH IS WHICH WAS MEASURED, NOT ASSUMED.  In a top-down interior the two
+// differ by what is at the FAR end: an up-stair shows the lit landing you climb
+// to, a down-stair shows the dark opening you descend into.  Sampled the middle
+// third of each (ignoring the pillars), far end against near end:
+//       DOWN   far-end luma 12.0  ·  near 54.3   — it goes into the dark
+//       UP     far-end luma 48.0  ·  near 48.7   — a lit floor is up there
+// Which also matches the order they were sent in.
+//
+// ★★ Both bboxes are re-measured.  A replaced asset NEVER keeps its old rect:
+// these are the same staircases at a different scale, so the old [6,6,48,82]
+// would have sampled a 48x82 pixel crop out of the top-left corner of a
+// 1024x1536 image — a few pixels of the left pillar, stretched across 3 tiles.
 const SEER_STAIR_UP_IMG = new Image();
 SEER_STAIR_UP_IMG.src = 'assets/2D%20sprites/interior/seer-stairs-up.png';
-const SEER_STAIR_UP_BBOX = [6, 6, 48, 82];        // measured content rect of a 64x96 asset
+const SEER_STAIR_UP_BBOX = [136, 129, 752, 1237];    // measured · aspect 0.608
 const SEER_STAIR_DOWN_IMG = new Image();
 SEER_STAIR_DOWN_IMG.src = 'assets/2D%20sprites/interior/seer-stairs-down.png';
-const SEER_STAIR_DOWN_BBOX = [2, 9, 59, 77];
+const SEER_STAIR_DOWN_BBOX = [119, 107, 785, 1276];  // measured · aspect 0.615
 // The seal itself. Until now the locked 2F stair looked identical to the open
 // one and only differed by a toast when you walked into it — the lock existed
 // in the rules and nowhere on screen.
@@ -28982,7 +28999,24 @@ function drawInteriorFloor(){
     const dy = s.visY * TILE - _cam.y;
     if (img.complete && img.naturalWidth){
       const [sx, sy, sw, sh] = bb;
-      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, s.visW * TILE, s.visH * TILE);
+      // ★★★ v0.95.964 · NEVER STRETCHED [[image-never-stretch-console-fullscreen]].
+      // visW/visH is the FOOTPRINT the staircase occupies on the grid, not the
+      // shape of the art.  Drawing straight into it squashed every stair in the
+      // game to 2:3 whatever it was drawn at — the old 64x96 seer set is 0.766
+      // wide-for-tall and was being narrowed 13%; the new 1024x1536 set is
+      // 0.615 and would have been widened 8%, in the opposite direction.
+      //
+      // ★ So the art is FITTED inside the footprint at its own aspect, centred
+      // across it and bottom-anchored, because a staircase stands on its base
+      // tile the way a character stands on its feet.  Any slack is at the top,
+      // where a stair well is dark anyway.
+      const boxW = s.visW * TILE, boxH = s.visH * TILE;
+      const scale = Math.min(boxW / sw, boxH / sh);
+      const dw = Math.max(1, Math.round(sw * scale));
+      const dh = Math.max(1, Math.round(sh * scale));
+      ctx.drawImage(img, sx, sy, sw, sh,
+                    Math.round(dx + (boxW - dw) / 2), Math.round(dy + (boxH - dh)),
+                    dw, dh);
     }
     // ★ v0.95.736 · THE SEAL. A locked stair used to look exactly like an open
     // one; the only evidence was a toast fired after you had already walked

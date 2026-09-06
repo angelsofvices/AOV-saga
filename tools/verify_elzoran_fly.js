@@ -20,26 +20,48 @@ const rows = (from) => {
   return out;
 };
 const IDLE = rows(blk.indexOf('bboxes: ['));
-const FLY  = rows(blk.indexOf('bboxes: [', blk.indexOf('flyAll')));
+const FLY  = rows(blk.indexOf('runBboxes: ['));
 const TILE = 48, MUL = 1.15;
-const refBh = Number(/scaleRefBh: (\d+)/.exec(blk.slice(blk.indexOf('flyAll')))[1]);
+const refBh = Number(/runRefBh: (\d+)/.exec(blk)[1]);
+const live  = blk.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 
-console.log('\n1 · the fly bank is pinned to the idle');
-t('flyAll declares a scaleRefBh', () => {
-  ok(refBh, 'no scaleRefBh · the bank falls back to its own col-0 max and he shrinks');
+console.log('\n1 · he stands when idle, flies only while moving');
+t('the bank is runSrc, not flyAll', () => {
+  // Creator: "elzon should stand when idle. only fly with running."
+  // flyAll = ONE sheet for idle AND walk.  runSrc = src is the IDLE, second
+  // sheet is the traversal — perched when still, airborne only while crossing.
+  ok(!/^\s*flyAll:/m.test(live), 'still flyAll · he would fly standing still');
+  ok(/^\s*runSrc:/m.test(live), 'no runSrc · nothing plays while he moves');
+  ok(/^\s*runBboxes:/m.test(live), 'no runBboxes');
+});
+t('the idle bank is still the perched sheet', () => {
+  ok(/src: 'assets\/2D%20sprites\/zyrex\/elzoran\.png'/.test(live), 'the idle src changed');
+  ok(/runSrc: 'assets\/2D%20sprites\/zyrex\/elzoran-fly\.png'/.test(live), 'the run src is not the fly sheet');
+});
+t('the run bank declares a reference', () => {
+  ok(refBh, 'no runRefBh · the bank falls back to its own col-0 max and he changes size');
 });
 t('and it is the IDLE sheet\'s own reference', () => {
   const idleMax = Math.max(...IDLE.map(r => r[0][3]));
   ok(refBh === idleMax, `scaleRefBh ${refBh} but the idle bank divides by ${idleMax}`);
 });
-t('the follower actually passes it through', () => {
-  const f = H.slice(H.indexOf('if (spriteDef.flyAll){'), H.indexOf('if (spriteDef.flyAll){') + 700);
-  ok(/spriteDef\.flyAll\.scaleRefBh/.test(f), 'the bank declares a reference the builder ignores');
-  ok(/base\.scaleRefBh = spriteDef\.flyAll\.scaleRefBh/.test(f), 'never assigned to the follower');
+t('the FOLLOWER path honours it', () => {
+  const at = H.indexOf('if (spriteDef.runSrc && spriteDef.runBboxes');
+  ok(at > 0, 'the follower does not understand runSrc at all');
+  const f = H.slice(at, H.indexOf('return base;', at));
+  ok(/spriteDef\.runRefBh \|\| 216/.test(f), 'a declared reference is ignored');
+  ok(/if \(!spriteDef\.runRefBh\)/.test(f), 'the derivation still overwrites it');
 });
-t('drawNPC honours scaleRefBh over the col-0 max', () => {
-  const d = H.slice(H.indexOf('let maxBh = n.scaleRefBh || 216;'), H.indexOf('let maxBh = n.scaleRefBh || 216;') + 400);
-  ok(/if \(n\.bboxes && !n\.scaleRefBh\)/.test(d), 'the col-0 scan overwrites a declared reference');
+t('the WILD path honours it', () => {
+  // the wild draw re-derives per row, so it needs the per-row form
+  ok(/runRowRefBh/.test(live), 'no per-row reference · the wild Elzoran resizes when he wanders');
+  ok(/const _refs = _useFlee/.test(H), 'the wild draw has no reference lookup at all');
+  ok(/_useRun\s*\? d\.runRowRefBh/.test(H), 'the wild draw ignores runRowRefBh');
+});
+t('both references are the SAME number', () => {
+  const rr = JSON.parse(/runRowRefBh: (\[[^\]]+\])/.exec(live)[1]);
+  rr.forEach((v, i) => ok(v === refBh,
+    `runRowRefBh[${i}] = ${v} but runRefBh = ${refBh} · the two paths would disagree`));
 });
 
 console.log('\n2 · he is the same animal, measured');
@@ -61,9 +83,19 @@ t('the two sheets were drawn at one pixel scale', () => {
   ok(Math.abs(ratio - 1) < 0.10, `source widths differ by ${((ratio-1)*100).toFixed(0)}% on average`);
 });
 t('the old squashed geometry is gone', () => {
-  // the previous bank drew him a THIRD wider and a quarter shorter in profile
   ok(!/\[\[40,65,229,244\]/.test(blk), 'the v0.95.831 fly bboxes are still here');
   ok(fs.existsSync('assets/2D sprites/zyrex/_orig/elzoran-fly-v831.png'), 'the old sheet was not archived');
+});
+t('the DERIVED reference would still be wrong · this is why it is declared', () => {
+  // guards the reasoning, not just the value: if someone deletes runRefBh the
+  // derivation takes over, and the derivation is what ballooned him
+  const flyMax = Math.max(...FLY.map(r => r[0][3]));
+  const idleMax = Math.max(...IDLE.map(r => r[0][3]));
+  ok(flyMax !== idleMax,
+     'the two banks now share a max, so the declaration is untested — re-check it');
+  const derivedDrift = Math.abs((idleMax / flyMax) - 1);
+  ok(derivedDrift > 0.05,
+     `deriving would only drift ${(derivedDrift*100).toFixed(0)}% · the pin may no longer be needed`);
 });
 
 console.log(`\n${fail ? '✗' : '★'} ${pass} passed · ${fail} failed\n`);

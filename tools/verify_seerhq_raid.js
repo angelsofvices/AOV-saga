@@ -97,7 +97,57 @@ t('the R2 chest has its own flag, not the vault\'s', () => {
   ok(!/seerHqChests/.test(f), 'the R2 chest writes the vault flag · opening one would open both');
 });
 
-console.log('\n4 · the commander is in the room');
+console.log('\n4 · stairs flush in the upper corners');
+t('every staircase is hard against a side wall, base on the top floor row', () => {
+  // Creator: "stairs always in upper left and right."  Rizer's house has set
+  // this since v0.60 — visX 0, visY -1: flush to the wall with the top row
+  // hanging above the room, base tiles as the trigger.
+  //
+  // ★ Bounds come from '.' ONLY, never from the walkable test.  With the wall
+  // layer off '#' is walkable, so measuring the room that way makes the masonry
+  // ring count as floor and every stair reads one tile short of flush — which
+  // is exactly how my first pass at this check failed on correct geometry.
+  ['INTERIOR_SEER_HQ_R2','INTERIOR_SEER_HQ_B','INTERIOR_SEER_HQ_2F'].forEach(n => {
+    const c = cfg(n);
+    const pts = [];
+    c.plan.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === '.') pts.push([x, y]); }));
+    const L = Math.min(...pts.map(p => p[0])), R = Math.max(...pts.map(p => p[0]));
+    const T = Math.min(...pts.map(p => p[1]));
+    const stairs = [...c.src.matchAll(/art: '(up|down)', visX: (\d+), visY: (-?\d+), visW: (\d+), visH: (\d+)/g)];
+    ok(stairs.length, `${n} has no staircase`);
+    stairs.forEach(m => {
+      const [a, vx, vy, vw, vh] = [m[1], +m[2], +m[3], +m[4], +m[5]];
+      const base = vy + vh - 1;
+      ok(vx === L || vx + vw - 1 === R,
+         `${n} ${a} at x${vx}-${vx+vw-1} is not flush to either wall (room ${L}-${R})`);
+      ok(base === T, `${n} ${a} base row ${base} is not the top floor row ${T}`);
+      ok(vy < T, `${n} ${a} does not hang above the room · visY ${vy} vs top ${T}`);
+    });
+  });
+});
+t('every trigger, landing and spawn is a walkable tile', () => {
+  const scene = { INTERIOR_SEER_HQ_1F:'interior_seer_hq_1f', INTERIOR_SEER_HQ_R2:'interior_seer_hq_r2',
+                  INTERIOR_SEER_HQ_B:'interior_seer_hq_b',   INTERIOR_SEER_HQ_2F:'interior_seer_hq_2f' };
+  const plans = {}; Object.keys(scene).forEach(n => plans[scene[n]] = cfg(n).plan);
+  Object.keys(scene).forEach(n => {
+    const c = cfg(n);
+    const re = /triggers: \[\[(\d+), ?(\d+)\], ?\[(\d+), ?(\d+)\]\], target: '([a-z_0-9]+)',\s*spawnAt: \{ x: (\d+), y: (\d+)/g;
+    let m;
+    while ((m = re.exec(c.src))){
+      [[+m[1], +m[2]], [+m[3], +m[4]]].forEach(([x, y]) => {
+        const ch = (c.plan[y] || '')[x];
+        ok(isFloor(ch), `${n} trigger (${x},${y}) is '${ch === ' ' ? 'VOID' : ch}'`);
+      });
+      const tp = plans[m[5]];
+      if (tp){
+        const ch = (tp[+m[7]] || '')[+m[6]];
+        ok(isFloor(ch), `${n} -> ${m[5]} lands on '${ch === ' ' ? 'VOID' : ch}' at (${m[6]},${m[7]})`);
+      }
+    }
+  });
+});
+
+console.log('\n5 · the commander is in the room');
 t('he stands inside the new attic plan', () => {
   const at = H.indexOf("homeScene: 'interior_seer_hq_2f'");
   const src = H.slice(at - 400, at);

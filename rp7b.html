@@ -1172,7 +1172,7 @@
       <div class="row">
         <button data-give="coins,500">+500 Coins</button>
         <button data-give="potion,5">+5 Potions</button>
-        <button data-give="zysphere_basic,10">+10 Zyspheres</button>
+        <button data-give="zysphere,10">+10 Zyspheres</button>
       </div>
       <div class="row">
         <button id="devGive50Seeds">+50 Seeds</button>
@@ -3047,7 +3047,12 @@ const INVENTORY_META = {
   gem:              { label: 'Gems',              order: 10 },
   moon_gem:         { label: 'Moon Gems',         order: 20 },
   potion:           { label: 'Potions',           order: 30 },
-  zysphere_basic:   { label: 'Basic Zysphere',    order: 40 },
+  // ★★ v0.95.972 · 'zysphere_basic' IS GONE.  It was never a tier — it was a
+  // DUPLICATE of `zysphere` below, and a duplicate that nothing could spend.
+  // The bond attempt reads `player.items.zysphere` and only that, so every
+  // grant of `zysphere_basic` (the dev button, GIVE ALL, and Dad's starter
+  // quest) was handing the player spheres they could not throw.  See the
+  // migration in `migrateZysphereBasic()`.
   zysphere_void:    { label: 'Void Zysphere',     order: 41 },
   zysphere_silver:  { label: 'Silver Zysphere',   order: 42 },
   zysphere_ultra:   { label: 'Ultra Zysphere',    order: 43 },
@@ -3227,7 +3232,7 @@ const ZYCUBE_CAT_OF = Object.freeze({
   potion:'heal', ale:'heal', verdant_elixir:'heal', fresh_water:'heal', berry_juice:'heal',
   fruit_bar:'heal', soulphish:'heal', life_seed:'heal', life_seed_pure:'heal', astralcore:'heal',
 
-  zysphere:'sphere', zysphere_basic:'sphere', zysphere_void:'sphere',
+  zysphere:'sphere', zysphere_void:'sphere',
   zysphere_silver:'sphere', zysphere_ultra:'sphere',
 
   prismshard:'relic', voltshard:'relic',
@@ -3905,7 +3910,7 @@ const ITEM_GAIN_SFX_KEYS = new Set([
   // v0.95.405 · Full 8-color gem spectrum
   'gem_red','gem_blue','gem_green','gem_yellow','gem_white','gem_orange','gem_purple','gem_black',
   'raidcard','dads_notebook','prismshard','elzebub_egg','verdant_elixir',
-  'zysphere_basic','zysphere_silver','zysphere_ultra',
+  'zysphere','zysphere_silver','zysphere_ultra',
   // v0.95.507 · Quest items · every retrievable quest pickup now fires the jingle
   'scrap_metal','astralcore','astralcore_transponder','life_stone',
   'ale','potion','sapphire_sword','rubypaw_sword','emerald_axe','pearlbow','portal_chip',
@@ -9384,10 +9389,45 @@ const NPCS = [
           '*tucks two potions inside*  And take these — heal a scrape before it becomes a scar.',
           'Your father is at the Research Facility · take it to him.',
         ]});
-      } else {
+      }
+      // ★★★ v0.95.972 · MOM HANDS OVER DAD'S NOTEBOOK · after the school walk.
+      //
+      // Creator: *"rizer should receive dads notebook from mom after rizer
+      // brings sister to school. she tells rizer to bring it to dad but he
+      // tells u to keep it and begin ur own journey."*
+      //
+      // ★ The notebook stops being a GIFT and becomes an ERRAND THAT FAILS.
+      // Before this, Dad handed his life's work to his son the first time they
+      // spoke, which is the single most significant object in the opening hour
+      // arriving on a first hello.  Now Rizer is a courier: he is carrying it to
+      // its owner, and its owner won't take it back.  The player learns what the
+      // notebook is worth by trying to give it away.
+      //
+      // ★ Gated on raidCardGifted — the school walk — so the beat lands where
+      // the Creator put it and not before.  It is an `else if` on the Zycube
+      // branch so that Mom's two gifts can never collide in one talk.
+      else if (player.raidCardGifted && !player.momNotebookGiven){
+        player.momNotebookGiven = true; try{pingNextObjective()}catch(_){}
+        player.items.dads_notebook = (player.items.dads_notebook || 0) + 1;
+        try { playItemGain('dads_notebook'); } catch(_){}
+        try { awardRizerXP(100); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        showToast('★ Received: DAD\'S NOTEBOOK · take it to the Research Facility', 3600);
+        showDialog({ speaker: 'MOM', lines: [
+          '*already at the door with it in her hands*  Yara get in alright?',
+          'Good.  Then do one more thing for me before the day gets away from you.',
+          '*a worn leather notebook · the spine has been re-sewn twice*  Your father left this on the kitchen table. Again.',
+          'Twenty years of his legs are in that book and he still forgets it next to the bread.',
+          'He is at the Research Facility.  Take it to him — he will be looking for it by lunch.',
+          '*presses it into your hands · holds on a second longer than she needs to*',
+        ]});
+      }
+      else {
         showDialog({ speaker: 'MOM', lines: [
           'Stay safe out there, honey.',
-          'Your father is at the Research Facility · he had something to give you today.',
+          (player.momNotebookGiven && !player.dadNotebookGifted)
+            ? 'Your father is at the Research Facility · get that notebook to him before he tears the lab apart looking for it.'
+            : 'Your father is at the Research Facility · he had something to give you today.',
         ]});
       }
     },
@@ -9435,6 +9475,19 @@ const NPCS = [
       // + hands out the 10/10/10/10 gather quest (Fae · Fruits · Berries · Seeds)
       // Fae Net + Zycube prerequisites moved out · Notebook is the true quest-log unlock
       if (!player.dadStarterQuestGiven){
+        // ★★★ v0.95.972 · HE CANNOT GIVE IT TO YOU UNTIL YOU TRY TO GIVE IT BACK.
+        // The scene below is now the SECOND half of an errand Mom started, so it
+        // waits on the notebook actually being in Rizer's hands.  Talking to Dad
+        // early gets a holding line instead of the gift — the alternative was a
+        // father accepting a book from a son who is not carrying one.
+        if (!player.momNotebookGiven){
+          showDialog({ speaker: 'DAD', lines: [
+            '*does not look up from the scope*  Busy morning, kid.',
+            'Yara get to Elarion alright?  Good.  That card is worth more than it looks.',
+            'Go see your mother before you do anything else.  She has been holding something for me all morning and I know that face.',
+          ]});
+          return;
+        }
         player.dadStarterQuestGiven = true;
         player.dadNotebookGifted    = true; try{pingNextObjective()}catch(_){}
         // ★★ v0.95.780 · INSTALLED, NOT HANDED OVER.
@@ -9447,17 +9500,21 @@ const NPCS = [
         try { notebookFindScroll('scroll_malezor_1'); } catch(_){}   // his own first page
         try { awardRizerXP(100); } catch(_){}    // v0.95.538 · Dad notebook · rescaled 400 → 100
         try { playSFX('confirm'); } catch(_){}
-        showToast('★ DAD\'S NOTEBOOK installed · ZyPhone → NOTEBOOK', 3600);
+        showToast('★ DAD\'S NOTEBOOK is yours · ZyPhone → NOTEBOOK', 3600);
         showDialog({ speaker: 'DAD', lines: [
-          'Ah, there you are, kid.  Come here — hold your phone out.',
-          '*taps his own device against yours · a decade of Malezor field research copies across*',
-          'There.  My notebook.  Not a copy you carry — a copy that carries itself.',
-          'Every district you walk into, every cave you open, every Zyrex you bond with — it writes itself down.',
+          '*you hold out the notebook · he looks at it, then at you · and does not take it*',
+          'Your mother sent you all this way to hand me a book I left behind on purpose.',
+          '*finally · a short laugh*  She knew.  She always knows.  That is why she sent you and not the mail.',
+          'Keep it.',
+          '*you start to argue*  I said keep it.  I have walked every field in that book twice.  It is finished. I am not.',
+          'Come here — hold your phone out.  *taps his device against yours · a decade of Malezor research copies across*',
+          'There.  Now you have both halves.  The paper is mine.  The one on your phone is yours, and it writes itself.',
+          'Every district you walk into, every cave you open, every Zyrex you bond with — it goes in.',
           'The Malezor pages are already full.  That was twenty years of my legs. The rest is yours to fill.',
           'And if you get turned around out there, open it.  It keeps track of what you have not done yet.',
-          'And here\'s your first entry:  I need 10 Fae, 10 Fruits, 10 Berries, 10 Seeds.',
+          'Now — first entry of your own.  I need 10 Fae, 10 Fruits, 10 Berries, 10 Seeds.',
           'Fae glow in the fields.  Fruits fall from trees.  Berries from bushes.  Seeds drop on harvest.',
-          'Bring the tribute back and I\'ll set you up with your first Zyrex.',
+          'Bring the tribute back and I\'ll set you up with your first Zyrex.  Then go start your own book, kid.',
         ]});
         return;
       }
@@ -9552,14 +9609,14 @@ const NPCS = [
         inv.fae   = player.faeCollected;
         inv.coins           = (inv.coins || 0) + 300;
         inv.verdant_elixir  = (inv.verdant_elixir || 0) + 1;
-        inv.zysphere_basic  = (inv.zysphere_basic || 0) + 5;
+        inv.zysphere        = (inv.zysphere || 0) + 5;   // v0.95.972 · was zysphere_basic · unthrowable
         showToast('★ QUEST COMPLETE · +300 coins · +1 Elixir · +5 Zyspheres', 2800);
         try { playSFX('confirm'); } catch(_){}
         try { awardRizerXP(800); } catch(_){}    // v0.95.538 · Dad starter-quest turn-in · rescaled 8000 → 800
         showDialog({ speaker: 'DAD', lines: [
           'Every last piece.  You listen better than I did at your age.',
           '*takes the tribute · nods once*',
-          'Coins.  Elixir.  Five basic Zyspheres.  Enough to get you off my porch.',
+          'Coins.  Elixir.  Five Zyspheres.  Enough to get you off my porch.',
           'Now — over to my workbench.  Three eggs are ready: Volcanut · Verdanix · Otterlin.',
           '*points to the workbench*  Pick the one that calls to you.  Your first Zyrex will walk with you when we\'re done.',
         ]});
@@ -32127,7 +32184,9 @@ function nextObjectiveHint(){
   if (!(player.items?.zphone > 0))  return 'Grab the ZyPhone from your PC desk';
   if (!player.zycubeGifted)         return 'Talk to Mom · she has the ZyCube for you';
   if (!player.raidCardGifted)       return 'Walk your sister Yara to Prof Elarion for the R.A.I.D. Card';
-  if (!player.dadNotebookGifted)    return 'Talk to Dad · pick up his Notebook + first quest';
+  // ★ v0.95.972 · the errand is its own step now · Mom → Dad
+  if (!player.momNotebookGiven)     return 'Head home · Mom is holding something of your father\'s';
+  if (!player.dadNotebookGifted)    return 'Take Dad\'s Notebook to him at the Research Facility';
   if (!player.starterChosen){
     const inv = player.items || {};
     const REQ = 10;
@@ -32207,7 +32266,7 @@ function openWalletPanelStandalone(){
     ['♦ Orange Gems (×120)',String(items.gem_orange || 0)],
     ['♦ Purple Gems (×140)',String(items.gem_purple || 0)],
     ['♦ Black Gems (×160)', String(items.gem_black  || 0)],
-    ['◈ Basic Zyspheres',  String(items.zysphere_basic || 0)],
+    ['◈ Zyspheres',        String(items.zysphere || 0)],
     ['◈ Silver Zyspheres', String(items.zysphere_silver || 0)],
     ['◈ Ultra Zyspheres',  String(items.zysphere_ultra || 0)],
     ['✦ Prismshards',      String(items.prismshard || 0)],
@@ -32428,12 +32487,30 @@ function _migrateWeaponDurability(){
   if (player.axeDurability     != null) player.axeDurability     = Math.min(player.axeDurability,     AXE_MAX);
   if (player.bowDurability     != null) player.bowDurability     = Math.min(player.bowDurability,     BOW_MAX);
 }
+// ★★★ v0.95.972 · THIS MIGRATION NOW HAS A COURIER TO AVOID EATING.
+//
+// It was written when `dads_notebook` in the bag could only mean one thing:
+// a save from before the install existed.  Since Mom's handoff there is a
+// SECOND, legitimate reason to be carrying it — Rizer is walking it across town
+// to its owner and has not reached him yet.
+//
+// Left alone, this function would have flipped `dadNotebookGifted` on load and
+// **silently deleted the entire Dad scene** for anyone who saved mid-errand:
+// they would reload holding nothing, with the app already installed, and Dad
+// would skip to the gather quest as though the refusal had happened offscreen.
+// That is the exact shape of the filed-scroll bug at v0.95.950 — a load-time
+// sweep that was correct about old saves and had never been told about a new
+// state.
+//
+// ★ And the notebook is no longer stripped.  Dad's line is *"keep it"*, so the
+// paper stays in the bag as a keepsake, next to the phone copy that is the
+// actual mechanic.  Both halves, exactly as he says.
 function _migrateNotebook(){
   const inv = player.items || {};
-  if (inv.dads_notebook){
-    player.dadNotebookGifted = true;
-    delete inv.dads_notebook;
-  }
+  if (!inv.dads_notebook) return;
+  // mid-errand: Mom has handed it over, Dad has not refused it yet. Hands off.
+  if (player.momNotebookGiven && !player.dadNotebookGifted) return;
+  player.dadNotebookGifted = true;
 }
 function notebookHas(){ return !!(player.dadNotebookGifted || (player.items && player.items.dads_notebook)); }
 // Mark a POI seen. Safe to call from anywhere, any number of times.
@@ -33966,12 +34043,16 @@ function renderZycellZycube(){
     // ★ v0.95.935 · only this drawer
     .filter(([k]) => zycubeCategoryOf(k) === zycubeCatOpen)
     // v0.95.478 · worldmap hidden from ZyCube · lives ONLY in the MAP panel unlocked by Zoryn
-    // ★ v0.95.780 · dads_notebook is NOT a carried object. Dad installs it on
-    // the ZyPhone as a cloud copy of his Malezor research, so it lives in its
-    // own NOTEBOOK panel and has no business sitting in the bag next to ale and
-    // berries. Filtered here AND stripped from old saves in _migrateNotebook.
-    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap'
-                     && k !== 'dads_notebook')
+    // ★ v0.95.780 · dads_notebook was NOT a carried object — Dad installed it on
+    // the ZyPhone as a cloud copy of his Malezor research, so it lived in its own
+    // NOTEBOOK panel and had no business sitting in the bag next to ale.
+    // ★★ v0.95.972 · UNFILTERED.  It is a carried object again, because there are
+    // now TWO of them: the paper one Mom hands over (an errand, then a keepsake —
+    // Dad refuses it and tells Rizer to keep it) and the digital one on the phone
+    // (the mechanic).  Hiding the paper copy would hide the errand mid-flight, so
+    // the bag shows it.  The phone panel is still the only thing that DOES
+    // anything; clicking the book just tells you where to take it.
+    .filter(([k, n]) => n > 0 && k !== 'townmap' && k !== 'gearbag' && k !== 'worldmap')
     // v0.95.504 · Auto-sort ALPHABETICAL by display label (was: static `.order` field)
     .sort((a, b) => {
       const la = (meta[a[0]] && meta[a[0]].label) || a[0];
@@ -37981,6 +38062,16 @@ function saveGame(){
         // QOL patches (sprites, spawns, animations) don't wipe the player's run
         hasBackpack:                !!player.hasBackpack,
         raidCardGifted:             !!player.raidCardGifted,
+        momNotebookGiven:           !!player.momNotebookGiven,   // ★ v0.95.972 · the courier errand
+        dadNotebookGifted:          !!player.dadNotebookGifted,
+        // ★★ v0.95.972 · PRE-EXISTING BUG, found while wiring the errand:
+        // `dadStarterQuestGiven` has NEVER been in this snapshot, and it is the
+        // flag that closes Dad's opening scene.  Reload after meeting him and the
+        // game believed it had not happened — he re-installed the notebook and
+        // re-issued the gather quest, and `CONTACT_GATES.dad` (which reads this
+        // flag) dropped him back out of the phone book.  Same family as the Seer
+        // HQ chests at v0.95.699: state the player earned, living only in RAM.
+        dadStarterQuestGiven:       !!player.dadStarterQuestGiven,
         zureleaQuestGiven:          !!player.zureleaQuestGiven,   // v0.95.632
         zureleaShopOpen:            !!player.zureleaShopOpen,
         zycubeGifted:               !!player.zycubeGifted,
@@ -38198,6 +38289,37 @@ function replaceMealuxKeys(){
   console.info(`[rp7b] v0.95.959 · Mealux · ${n} placed for this playthrough`);
   return n;
 }
+// ★★ v0.95.972 · ZYSPHERE_BASIC → ZYSPHERE.
+//
+// The Creator: *"basic zysphere in the dev menu should just be zysphere."*
+// It reads as a naming note and it is not — chasing the name found a live bug.
+//
+// There were TWO inventory keys for one object: `zysphere` (the shop sells it
+// at 150, ITEM_LABELS calls it 'Zysphere', order 9) and `zysphere_basic`
+// ('Basic Zysphere', order 40, sitting in the tier block above Void/Silver/
+// Ultra as though it were the bottom rung of a ladder).
+//
+// ★ It was not a rung.  It was a second name for the same thing, and the wrong
+// one — `attemptWildBond()` reads `player.items.zysphere` and ONLY that.  So
+// every source that granted `zysphere_basic` handed the player spheres they
+// could not throw: the dev GRANTS button, GIVE ALL, and — the one that actually
+// mattered — **Dad's starter quest**, whose five spheres are the first the
+// player ever owns and are meant to catch their first wild Zyrex.
+//
+// The tell was the label table itself: an item whose name needs an adjective to
+// distinguish it from an item with the same name is not a variant, it is a
+// duplicate. The count is folded rather than dropped, because a save that spent
+// real effort on a quest should not be paid in a currency that has been deleted.
+function migrateZysphereBasic(){
+  const inv = (player && player.items) || null;
+  if (!inv) return 0;
+  const stranded = inv.zysphere_basic || 0;
+  if (!stranded) { if ('zysphere_basic' in inv) delete inv.zysphere_basic; return 0; }
+  inv.zysphere = (inv.zysphere || 0) + stranded;
+  delete inv.zysphere_basic;
+  console.info(`[rp7b] v0.95.972 · migrated ${stranded} stranded zysphere_basic → zysphere`);
+  return stranded;
+}
 function pruneFiledScrolls(){
   if (typeof WORLD_PROPS === 'undefined') return 0;
   let filed;
@@ -38299,6 +38421,8 @@ function loadGame(){
     // everything below reads species ids, and a stale `gearbyte` would
     // resolve to the wrong creature entirely.
     try { if (typeof migrateSpeciesIds === 'function') migrateSpeciesIds(); } catch(_){}
+    // ★ v0.95.972 · fold any stranded zysphere_basic back into zysphere.
+    try { if (typeof migrateZysphereBasic === 'function') migrateZysphereBasic(); } catch(_){}
     // ★★★ v0.95.959 · THE SAME ORDERING TRAP THE SCROLLS HAD (v0.95.950).
     // The world is built at page init, BEFORE loadGame runs, so the Keys are
     // placed against a freshly rolled seed and then the save hands back a
@@ -41604,6 +41728,18 @@ function useZycubeItem(key){
       return;
     }
     case 'dads_notebook': {
+      // ★ v0.95.972 · mid-errand, the paper book is not an app yet.  Clicking it
+      // should say what it is and where it goes, not open a panel Rizer has not
+      // been given.  The item is its own quest marker.
+      if (!player.dadNotebookGifted){
+        try { playSFX('cancel'); } catch(_){}
+        showDialog({ speaker: 'RIZER', lines: [
+          '*a worn leather notebook · the spine re-sewn twice · every page in Dad\'s handwriting*',
+          'Twenty years of Malezor in here.  He is going to want this back.',
+          '· Research Facility ·',
+        ]});
+        return;
+      }
       // v0.95.414 · Notebook click routes into the ZyPhone EXPEDITIONS tab
       // Falls back to the standalone hero placeholder if the phone isn't unlocked
       if (openZycellAt('expeditions')) return;
@@ -42634,12 +42770,24 @@ const SUMMONABLE_SPRITES = {
   phrenetic: {
     src: 'assets/2D%20sprites/zyrex/phrenetic.png',
     bboxes: [
-      [[ 40, 23,233,266],[ 35, 22,242,268],[ 32, 16,247,281],[ 33, 21,247,270]],
-      [[ 30, 40,252,233],[ 27, 41,259,231],[ 26, 40,259,233],[ 26, 43,260,226]],
-      [[ 30, 40,252,231],[ 30, 39,252,232],[ 31, 39,248,232],[ 29, 41,254,228]],
-      [[ 45, 18,223,277],[ 48, 20,216,273],[ 46, 20,218,272],[ 48, 21,216,271]],
+      // v0.95.972 · re-measured against the redrawn sheet (silhouette IoU vs the
+      // old art 0.534 — a genuine redraw, not a touch-up).
+      [[ 36, 36,244,278],[ 36, 31,244,283],[ 36, 35,243,279],[ 34, 37,244,278]],
+      [[ 52, 23,219,282],[ 45, 22,225,282],[ 46, 22,224,282],[ 41, 23,230,282]],
+      [[ 48, 18,218,281],[ 45, 18,224,281],[ 45, 18,221,281],[ 42, 18,226,281]],
+      [[ 34, 18,242,273],[ 33,  9,242,277],[ 32, 16,241,271],[ 31, 18,243,273]],
     ],
     cellW: 313, cellH: 313, scaleMul: 1.10,   // a Legend · presence over the Rizer
+    // ★ NO scaleRefBh pin here, unlike Elzoran and Skybeam — and the reason is
+    // worth writing down, because the numbers look alarming until you read them
+    // the right way round.  The yardstick (tallest col-0 body) barely moves,
+    // 277 → 282, so the down row is drawn within 3% of its old size.  What DOES
+    // change is the side rows: 233/231 → 282/281, +19% taller and -15% narrower.
+    // That is not the new sheet growing him.  It is the OLD sheet having drawn
+    // him SQUASHED in profile — 233 tall against a 266-tall front view of the
+    // same creature — and the redraw obeying frame rule 2 (constant size in all
+    // sixteen cells).  Pinning to the old bank would re-impose the defect the
+    // new art was drawn to remove, so the pin is deliberately absent.
   },
   // v0.95.740 · MUTAMECH · T3 Extraterrestrial/Tech · the blue pilot in the
   // coral-grown suit. First Tech in the Malezor playtest region.
@@ -50290,7 +50438,7 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
         coins: 99999,
         gem: 50, moon_gem: 20,
         potion: 20, ale: 20, verdant_elixir: 5,
-        zysphere_basic: 30, zysphere_void: 10, zysphere_silver: 10, zysphere_ultra: 5,
+        zysphere: 30, zysphere_void: 10, zysphere_silver: 10, zysphere_ultra: 5,
         rare_item: 5, prismshard: 3,
         faenet: 1, zycube: 1, townmap: 1, worldmap: 1, gearbag: 1, zphone: 1,
         skateboard: 1,
@@ -50308,6 +50456,11 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
       player.raidCardGifted      = true;
       player.townMapGifted       = true;
       player.dadStarterQuestGiven= true;
+      // ★ v0.95.972 · GIVE ALL must clear the whole notebook errand, not half of
+      // it — setting dadStarterQuestGiven alone would leave momNotebookGiven
+      // false and the objective hint permanently pointing back at Mom.
+      player.momNotebookGiven    = true;
+      player.dadNotebookGifted   = true;
       // Fae counter · maxes Celestryx recipe + amplification
       player.faeCollected = Math.max(player.faeCollected || 0, 500);
       player.unlocks.celestryx    = true;
@@ -50370,6 +50523,8 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
     dadDoneBtn.addEventListener('click', () => {
       player.dadStarterQuestGiven = true;
       player.dadStarterQuestComplete = true;
+      player.momNotebookGiven = true;          // ★ v0.95.972 · same half-state trap
+      player.dadNotebookGifted = true;
       showToast('★ DEV · Dad Mission complete · workbench ready for starter pick', 2600);
       playSFX('confirm');
     });

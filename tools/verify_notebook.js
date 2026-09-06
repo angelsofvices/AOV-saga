@@ -204,8 +204,16 @@ H('11 · ★★ IT IS AN INSTALLED APP, NOT A BAG ITEM');
   for(let j=i;j<src.length;j++){const c=src[j];
     if(c==='{'){_d++;_st=true;} else if(c==='}'){_d--;if(_st&&_d===0){_end=j+1;break;}}}
   const zybody = src.slice(i,_end);
-  ok(/k !== 'dads_notebook'/.test(zybody),
-     'ZyCube filters dads_notebook out of the bag list');
+  // ★★ v0.95.972 · THIS ASSERTION IS INVERTED ON PURPOSE.
+  // It encoded the v0.95.780 ruling ("the notebook is not a carried object"),
+  // which was true while there was only ONE notebook.  There are now two: the
+  // PAPER book Mom hands over as an errand — and which Dad refuses, telling
+  // Rizer to keep it — and the DIGITAL copy on the ZyPhone, which is the
+  // mechanic.  Hiding the paper one would hide the errand mid-flight, so the
+  // bag shows it.  v0.95.780's point survives intact: the bag item still does
+  // nothing, and the panel is still the only place the notebook works.
+  ok(!/k !== 'dads_notebook'/.test(zybody),
+     '★ the ZyCube SHOWS dads_notebook · the paper book is carried again (v0.95.972)');
   // Dad must not hand over an object any more
   const gi=src.indexOf('dadStarterQuestGiven = true');
   const gift=src.slice(gi,gi+1200);
@@ -216,12 +224,15 @@ H('11 · ★★ IT IS AN INSTALLED APP, NOT A BAG ITEM');
 }
 
 H('12 · ★★ AN OLD SAVE CARRYING THE OBJECT STILL WORKS');
-// Owning the object WAS the unlock. Strip the item, keep what it meant.
+// Owning the object WAS the unlock. Keep what it meant.
 {
   C.player.items={dads_notebook:1, ale:3};
   C.player.dadNotebookGifted=false;
+  C.player.momNotebookGiven=false;         // a genuine pre-780 save, not an errand
   C.notebookState();                       // migration runs here
-  ok(!C.player.items.dads_notebook,'the bag item is stripped on load');
+  // ★ v0.95.972 · no longer stripped.  Dad's line is "keep it", so the paper
+  // book stays in the bag as a keepsake beside the phone copy.
+  ok(C.player.items.dads_notebook===1,'★ the bag item SURVIVES the load sweep · he said keep it');
   ok(C.player.dadNotebookGifted===true,'and the notebook counts as installed');
   ok(C.player.items.ale===3,'nothing else in the bag is touched');
   ok(C.notebookHas()===true,'the panel opens for that save');

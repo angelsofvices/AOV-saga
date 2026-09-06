@@ -28516,6 +28516,26 @@ function drawDreamlandFloorFallback(cfg, startCol, endCol, startRow, endRow){
 //     otherwise                  -> draw a 1-tile CAP
 // One rule, no author input, and the whole look falls out of a flat plan.
 const _planCache = new WeakMap();
+// ★★★ v0.95.963 · WALLS AND DOORS OFF · TILE MAP ONLY.
+// Creator: "remove the seers HQ walls and doors in general. only include the
+// tile map for now."
+//
+// ★ NOTHING IS DELETED.  The plans, the door targets, the wall art and the
+// draw passes all stay exactly where they are — this is ONE flag, and flipping
+// it back restores the whole layer with no re-authoring.  The walls were wrong
+// and the right response to wrong is to switch it off, not to throw away the
+// grammar that took four versions to build.
+//
+// ★★ '#' and 'D' become FLOOR when this is false: walkable, and tiled with the
+// same seer floor as everything else.  The VOID ring is untouched, so the room
+// still has an edge — 1F becomes a clean 25x19 floor bounded by black instead
+// of an unbounded plane the player can walk off.
+//
+// ★ THE TRANSITION STILL WORKS AND IS NOW INVISIBLE.  doorTargets fires off the
+// FACED tile, so the 1F -> R2 route survives at (17,7) with nothing drawn on
+// it.  That is a real cost of tile-map-only and it is deliberate rather than
+// overlooked: the alternative was leaving the building a dead end.
+const SEER_HQ_WALLS_ON = false;
 function floorPlan(cfg){
   if (!cfg || !cfg.plan) return null;
   let P = _planCache.get(cfg);
@@ -28523,7 +28543,10 @@ function floorPlan(cfg){
   const rows = cfg.plan, R = rows.length, C = rows[0].length;
   const blocked = new Set(), walls = [], doors = [], voids = [];
   const at = (x, y) => (x < 0 || y < 0 || x >= C || y >= R) ? ' ' : rows[y][x];
-  const isFloor = ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G';
+  // ★ v0.95.963 · with the wall layer off, masonry and doors ARE floor
+  const isFloor = SEER_HQ_WALLS_ON
+    ? (ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G')
+    : (ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G' || ch === '#' || ch === 'D');
   for (let y = 0; y < R; y++){
     for (let x = 0; x < C; x++){
       const ch = at(x, y);
@@ -28589,7 +28612,7 @@ function drawInteriorFloor(){
       if (v.x < startCol - 1 || v.x > endCol || v.y < startRow - 1 || v.y > endRow) continue;
       ctx.fillRect(v.x * TILE - _cam.x, v.y * TILE - _cam.y, TILE, TILE);
     }
-    const wImg = wallImageFor(cfg.wallImg);
+    const wImg = SEER_HQ_WALLS_ON ? wallImageFor(cfg.wallImg) : null;
     if (wImg && wImg.complete && wImg.naturalWidth){
       const SW = wImg.naturalWidth, SH = wImg.naturalHeight;
       for (const w of _plan.walls){

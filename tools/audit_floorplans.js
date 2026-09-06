@@ -7,6 +7,11 @@ const H = fs.readFileSync('rp7b.html', 'utf8');
 
 const CFGS = ['INTERIOR_SEER_HQ_1F','INTERIOR_SEER_HQ_R2','INTERIOR_SEER_HQ_B','INTERIOR_SEER_HQ_2F'];
 const WALL_TILES_H = Number(/const WALL_TILES_H = (\d+);/.exec(H)[1]);
+// ★ v0.95.963 · the wall/door layer can be switched off.  When it is, '#' and
+// 'D' ARE floor, so the wall-geometry and door checks do not apply — asserting
+// them anyway would fail on a build that is behaving exactly as asked.
+const WALLS_ON = /const SEER_HQ_WALLS_ON = true/.test(H);
+console.log(`SEER_HQ_WALLS_ON = ${WALLS_ON}${WALLS_ON ? '' : '  · tile map only, wall + door checks skipped'}`);
 let bad = 0;
 
 function parse(name){
@@ -28,7 +33,8 @@ function parse(name){
            stairs: [...src.matchAll(/\{\s*x:\s*(\d+),\s*y:\s*(\d+)[^}]*?(?:to|target)/g)]
                      .map(m => ({ x:+m[1], y:+m[2] })) };
 }
-const isFloor = ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G';
+const isFloor = ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G'
+                   || (!WALLS_ON && (ch === '#' || ch === 'D'));
 const walkable = (P, x, y) => {
   if (y < 0 || y >= P.plan.length) return false;
   const row = P.plan[y];
@@ -79,7 +85,7 @@ for (const name of CFGS){
       console.log(`  ✗ ${totalFloor - seen.size} floor tile(s) UNREACHABLE from spawn`); bad++;
     }
     // a door is solid — you must be able to STAND next to it
-    for (const key of Object.keys(P.doorTargets)){
+    for (const key of (WALLS_ON ? Object.keys(P.doorTargets) : [])){
       const [dx, dy] = key.split(',').map(Number);
       const adj = [[0,1],[0,-1],[1,0],[-1,0]].some(([ax,ay]) => seen.has(`${dx+ax},${dy+ay}`));
       const ch = (P.plan[dy] || '')[dx];
@@ -92,6 +98,7 @@ for (const name of CFGS){
   // a wall draws a WALL_TILES_H-tall face when floor is beneath it, else a cap.
   // So the plan needs WALL_TILES_H rows of wall above any floor, or the face
   // is drawn over tiles the author did not reserve for it.
+  if (!WALLS_ON){ continue; }          // ★ no wall layer · nothing to check
   let faces = 0, shortStacks = [];
   for (let y = 0; y < R; y++){
     for (let x = 0; x < C; x++){

@@ -33,8 +33,10 @@ function parse(name){
            stairs: [...src.matchAll(/\{\s*x:\s*(\d+),\s*y:\s*(\d+)[^}]*?(?:to|target)/g)]
                      .map(m => ({ x:+m[1], y:+m[2] })) };
 }
+// ★ v0.95.965 · with the layer off '#' is floor but 'D' is STILL SOLID —
+// a door you can walk through is a gap, not a door.
 const isFloor = ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G'
-                   || (!WALLS_ON && (ch === '#' || ch === 'D'));
+                   || (!WALLS_ON && ch === '#');
 const walkable = (P, x, y) => {
   if (y < 0 || y >= P.plan.length) return false;
   const row = P.plan[y];

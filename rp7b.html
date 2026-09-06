@@ -28560,10 +28560,15 @@ function floorPlan(cfg){
   const rows = cfg.plan, R = rows.length, C = rows[0].length;
   const blocked = new Set(), walls = [], doors = [], voids = [];
   const at = (x, y) => (x < 0 || y < 0 || x >= C || y >= R) ? ' ' : rows[y][x];
-  // ★ v0.95.963 · with the wall layer off, masonry and doors ARE floor
+  // ★★★ v0.95.965 · MASONRY GOES, THE DOOR STAYS.
+  // v0.95.963 turned '#' AND 'D' into floor together, which let the player walk
+  // straight through the 1F -> R2 doorway instead of using it.  A door that you
+  // can walk through is not a door, it is a gap — and the Creator's original
+  // rule (v0.95.946) is that the door tile stays SOLID and X on it moves you to
+  // the next room.  So with the wall layer off, '#' is floor and 'D' is not.
   const isFloor = SEER_HQ_WALLS_ON
     ? (ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G')
-    : (ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G' || ch === '#' || ch === 'D');
+    : (ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G' || ch === '#');
   for (let y = 0; y < R; y++){
     for (let x = 0; x < C; x++){
       const ch = at(x, y);
@@ -28660,29 +28665,43 @@ function drawInteriorFloor(){
                         dx, w.y * TILE - _cam.y, TILE, TILE);
         }
       }
-      // ★★★ v0.95.962 · THE DOOR PASS.  Runs after every wall so a door is
-      // never overpainted by the neighbour drawn after it — a 3-tall face is
-      // anchored WALL_TILES_H-1 tiles above its own row, so the tile to the
-      // right of a door reaches back across it.
-      if (_plan.doors.length && SEER_DOOR_LOCKED_IMG.complete && SEER_DOOR_LOCKED_IMG.naturalWidth){
-        const [qx, qy, qw, qh] = SEER_DOOR_LOCKED_BBOX;
-        for (const d of _plan.doors){
-          if (d.x < startCol - 1 || d.x > endCol || d.y < startRow - 2 || d.y > endRow) continue;
-          // ★ the wall behind it first, so the door is set INTO masonry rather
-          // than floating on the floor colour
-          if (wImg && wImg.complete && wImg.naturalWidth){
-            ctx.drawImage(wImg, 0, 0, SW, SH,
-                          d.x * TILE - _cam.x, (d.y - (WALL_TILES_H - 1)) * TILE - _cam.y,
-                          TILE, TILE * WALL_TILES_H);
-          }
-          // two tiles tall, standing on the door tile's own line · never
-          // stretched, so the frame keeps the proportions it was drawn at
-          const DH = TILE * 2;
-          const DW = Math.round(DH * (qw / qh));
-          ctx.drawImage(SEER_DOOR_LOCKED_IMG, qx, qy, qw, qh,
-                        Math.round(d.x * TILE + (TILE - DW) / 2) - _cam.x,
-                        (d.y + 1) * TILE - DH - _cam.y, DW, DH);
+    }
+    // ★★★ v0.95.965 · THE DOOR PASS · OUTSIDE THE WALL GUARD.
+    // Creator: "shouldnt R2 use a door?"  Yes — and it did not, because I
+    // nested this inside `if (wImg …)` at v0.95.962 and then set wImg to null
+    // at v0.95.963 to turn the walls off.  Switching off the masonry took the
+    // DOOR with it, which is how the 1F -> R2 transition became an unmarked
+    // floor tile the player had to already know about.
+    //
+    // ★ A door is a PROP, not part of the wall layer — the staircases are
+    // drawn standalone for exactly the same reason.  It belongs on the tile
+    // whether or not there is masonry around it, so it now draws from
+    // _plan.doors directly and only paints a wall segment behind itself when
+    // the wall layer is actually on.
+    //
+    // ★★ Still last.  With walls on, a 3-tall face is anchored WALL_TILES_H-1
+    // tiles above its own row, so the tile to the RIGHT of a door reaches back
+    // across it — drawn any earlier and the door is painted out by its own
+    // neighbour.
+    if (_plan.doors.length && SEER_DOOR_LOCKED_IMG.complete && SEER_DOOR_LOCKED_IMG.naturalWidth){
+      const [qx, qy, qw, qh] = SEER_DOOR_LOCKED_BBOX;
+      const _wi = SEER_HQ_WALLS_ON ? wallImageFor(cfg.wallImg) : null;
+      for (const d of _plan.doors){
+        if (d.x < startCol - 1 || d.x > endCol || d.y < startRow - 2 || d.y > endRow) continue;
+        // the wall behind it, so the door is set INTO masonry rather than
+        // floating — skipped entirely when there is no masonry to set it into
+        if (_wi && _wi.complete && _wi.naturalWidth){
+          ctx.drawImage(_wi, 0, 0, _wi.naturalWidth, _wi.naturalHeight,
+                        d.x * TILE - _cam.x, (d.y - (WALL_TILES_H - 1)) * TILE - _cam.y,
+                        TILE, TILE * WALL_TILES_H);
         }
+        // two tiles tall, standing on the door tile's own line · width from the
+        // measured content box so the frame is never stretched
+        const DH = TILE * 2;
+        const DW = Math.round(DH * (qw / qh));
+        ctx.drawImage(SEER_DOOR_LOCKED_IMG, qx, qy, qw, qh,
+                      Math.round(d.x * TILE + (TILE - DW) / 2) - _cam.x,
+                      (d.y + 1) * TILE - DH - _cam.y, DW, DH);
       }
     }
   }

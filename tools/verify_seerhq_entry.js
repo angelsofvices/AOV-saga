@@ -17,8 +17,9 @@ const cfg = (name) => {
 };
 // ★ v0.95.963 · with the wall layer off, '#' and 'D' are walkable floor
 const WALLS_ON = /const SEER_HQ_WALLS_ON = true/.test(H);
+// ★ v0.95.965 · 'D' stays solid in both modes
 const isFloor = ch => ch === '.' || ch === 'S' || ch === 'C' || ch === 'G'
-                   || (!WALLS_ON && (ch === '#' || ch === 'D'));
+                   || (!WALLS_ON && ch === '#');
 
 console.log('\n1 · you arrive INSIDE the building');
 t('every planned interior spawns on a floor tile', () => {
@@ -82,15 +83,33 @@ t('the layer is one switch, and nothing was deleted to turn it off', () => {
   ok(/SEER_DOOR_LOCKED_IMG/.test(H), 'the door art binding was deleted');
   ok(/_plan\.doors\.length/.test(H), 'the door draw pass was deleted');
 });
-t('with the layer off, masonry is walkable and the void still bounds the room', () => {
+t('with the layer off, masonry is walkable but the DOOR is not', () => {
   if (WALLS_ON) return;
   const f = H.slice(H.indexOf('function floorPlan'), H.indexOf('function planDoorAt'));
-  ok(/ch === '#' \|\| ch === 'D'/.test(f), "'#' and 'D' are not treated as floor");
+  ok(/\|\| ch === '#'\)/.test(f), "'#' is not treated as floor");
+  ok(!/ch === '#' \|\| ch === 'D'/.test(f),
+     "'D' is walkable · the player strolls through the doorway instead of using it");
   ok(/if \(ch === ' '\)/.test(f), 'void stopped blocking · the player could walk off the map');
   const d = H.slice(H.indexOf('function drawInteriorFloor'), H.indexOf('function drawInteriorFloor') + 5000);
   ok(/SEER_HQ_WALLS_ON \? wallImageFor/.test(d), 'the wall art still draws with the layer off');
 });
-if (!WALLS_ON) console.log('  --   door-pass tests skipped (layer off)');
+t('the door DRAWS whether or not there are walls around it', () => {
+  // ★ the regression this fixes: the door pass was nested inside the wall-image
+  // guard, so switching the masonry off at v0.95.963 took the door with it and
+  // the 1F -> R2 transition became an unmarked floor tile.
+  const d = H.slice(H.indexOf('function drawInteriorFloor'), H.indexOf('function drawInteriorFloor') + 7000);
+  const guard = d.indexOf('const wImg = SEER_HQ_WALLS_ON');
+  const wallLoopEnd = d.indexOf('_plan.doors.length');
+  ok(wallLoopEnd > 0, 'the door pass is gone');
+  // it must NOT sit inside `if (wImg && ...)`
+  const between = d.slice(guard, wallLoopEnd);
+  const opens = (between.match(/\{/g) || []).length;
+  const closes = (between.match(/\}/g) || []).length;
+  ok(closes >= opens, 'the door pass is still nested inside the wall-image guard');
+  ok(/SEER_HQ_WALLS_ON \? wallImageFor\(cfg\.wallImg\) : null;\n      for \(const d of _plan\.doors\)/.test(d)
+     || /const _wi = SEER_HQ_WALLS_ON/.test(d),
+     'the door pass has no independent wall lookup');
+});
 (WALLS_ON ? t : (()=>{}))('floorPlan carries the tile character through', () => {
   const f = H.slice(H.indexOf('function floorPlan'), H.indexOf('function planDoorAt'));
   ok(/walls\.push\(\{ x, y, ch,/.test(f),

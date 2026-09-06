@@ -17073,8 +17073,25 @@ const INTERIOR_SEER_HQ_1F = {
   ],
   cols: 35, rows: 25,
   tileImg: SEER_HQ_FLOOR_IMG,
-  spawn: { x: 17, y: 23, dir: 'up' },     // ★ spine corridor, under the north door
-  exit:  { x: 17, y: 23 },
+  // ★★★ v0.95.962 · THE STUCK-ON-ENTRY BUG.  Creator: "I get stuck when
+  // entering the HQ."
+  //
+  // The spawn was (17,23), and row 23 of this plan is BLANK — void, which
+  // walkable() treats as solid and the draw fills black.  You arrived OUTSIDE
+  // the building, one tile south of the south wall at row 22, with a wall
+  // between you and every floor tile in the level.  Nothing to walk to,
+  // nothing to interact with, no way back in.
+  //
+  // ★ The comment above it said "spine corridor, under the north door", which
+  // described the 20x15 box this plan replaced at v0.95.944.  The plan grew to
+  // 35x25 and the spawn stayed where it was — the coordinate did not move, the
+  // room moved out from under it.
+  //
+  // 21 is the bottom floor row (8..21 are floor, 22 is the south wall), so you
+  // now arrive INSIDE, at the back of the hall, facing up the length of it
+  // toward the door.  Which is the shot the room was built for.
+  spawn: { x: 17, y: 21, dir: 'up' },
+  exit:  { x: 17, y: 21 },
   autoExit: false,                        // ★ the door is a door now, not a trapdoor
   wallImg: 'seer',
   blocked: [],
@@ -28514,8 +28531,11 @@ function floorPlan(cfg){
       blocked.add(x + ',' + y);
       if (ch === ' ') { voids.push({ x, y }); continue; }   // ★ black, not wall
       // ★ a wall FACE is a wall tile with floor beneath it — the surface you see
-      walls.push({ x, y, face: isFloor(at(x, y + 1)) });
-      if (ch === 'D') doors.push({ x, y });
+      // ★ v0.95.962 · carry the CHARACTER.  The draw needs to tell a door tile
+      // from a masonry tile, and re-reading cfg.plan inside the render loop
+      // would defeat the point of caching the plan at all.
+      walls.push({ x, y, ch, face: isFloor(at(x, y + 1)) });
+      if (ch === 'D') doors.push({ x, y, face: isFloor(at(x, y + 1)) });
     }
   }
   P = { rows: R, cols: C, blocked, walls, doors, voids };
@@ -28575,6 +28595,19 @@ function drawInteriorFloor(){
       for (const w of _plan.walls){
         if (w.x < startCol - 1 || w.x > endCol || w.y < startRow - WALL_TILES_H || w.y > endRow) continue;
         const dx = w.x * TILE - _cam.x;
+        // ★★★ v0.95.962 · A DOOR IS DRAWN AS A DOOR.
+        // Creator, back at v0.95.945: "I want different color doors on the tile
+        // wall and I want to have to interact with door to unlock and enter it."
+        // The INTERACTION shipped (planDoorAt + doorTargets) and the VISUAL
+        // never did: floorPlan() collects _plan.doors and nothing has ever read
+        // that array, so a 'D' rendered as one more masonry tile.  The player
+        // was expected to walk the length of a 29-tile wall pressing X.
+        //
+        // ★ Drawn AFTER the wall face beneath it, so the door sits ON the wall
+        // rather than replacing it — the frame's own art is 32x64 with a
+        // measured content box, and it is scaled to two tiles standing on the
+        // door tile's own floor line.
+        if (w.ch === 'D') continue;      // handled in the door pass below
         if (w.face){
           // ★ the WHOLE segment, bottom-anchored on its own tile
           ctx.drawImage(wImg, 0, 0, SW, SH,
@@ -28585,6 +28618,30 @@ function drawInteriorFloor(){
           // asset at one scale.  Derived from WALL_TILES_H, never hardcoded.
           ctx.drawImage(wImg, 0, 0, SW, Math.round(SH / WALL_TILES_H),
                         dx, w.y * TILE - _cam.y, TILE, TILE);
+        }
+      }
+      // ★★★ v0.95.962 · THE DOOR PASS.  Runs after every wall so a door is
+      // never overpainted by the neighbour drawn after it — a 3-tall face is
+      // anchored WALL_TILES_H-1 tiles above its own row, so the tile to the
+      // right of a door reaches back across it.
+      if (_plan.doors.length && SEER_DOOR_LOCKED_IMG.complete && SEER_DOOR_LOCKED_IMG.naturalWidth){
+        const [qx, qy, qw, qh] = SEER_DOOR_LOCKED_BBOX;
+        for (const d of _plan.doors){
+          if (d.x < startCol - 1 || d.x > endCol || d.y < startRow - 2 || d.y > endRow) continue;
+          // ★ the wall behind it first, so the door is set INTO masonry rather
+          // than floating on the floor colour
+          if (wImg && wImg.complete && wImg.naturalWidth){
+            ctx.drawImage(wImg, 0, 0, SW, SH,
+                          d.x * TILE - _cam.x, (d.y - (WALL_TILES_H - 1)) * TILE - _cam.y,
+                          TILE, TILE * WALL_TILES_H);
+          }
+          // two tiles tall, standing on the door tile's own line · never
+          // stretched, so the frame keeps the proportions it was drawn at
+          const DH = TILE * 2;
+          const DW = Math.round(DH * (qw / qh));
+          ctx.drawImage(SEER_DOOR_LOCKED_IMG, qx, qy, qw, qh,
+                        Math.round(d.x * TILE + (TILE - DW) / 2) - _cam.x,
+                        (d.y + 1) * TILE - DH - _cam.y, DW, DH);
         }
       }
     }

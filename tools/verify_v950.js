@@ -58,8 +58,16 @@ t('a post-load sweep exists AND runs after loadGame reads the notebook', () => {
 });
 t('the page overlay is native, not the parchment frame', () => {
   ok(/const SCROLL_NATIVE_PAGE = true;/.test(H), 'SCROLL_NATIVE_PAGE not on');
-  const fn = H.slice(H.indexOf('function openScrollView'),
-                     H.indexOf('function openScrollView') + 4000);
+  // ★★★ SLICE TO A STRUCTURAL BOUNDARY, NEVER A BYTE COUNT.
+  // This took 4000 characters from the function start, and v0.95.969 added a
+  // ~30-line comment inside the native branch — which pushed BOTH markers past
+  // the window, so the test failed on prose length while the code was correct.
+  // Third time this session: verify_seerstairs took 900 chars and landed inside
+  // the comment explaining the fix, and verify_hudcounters took the FIRST of
+  // several media blocks.  A window measured in bytes is a window that expires
+  // the next time someone explains themselves.
+  const _at = H.indexOf('function openScrollView');
+  const fn  = H.slice(_at, H.indexOf('\nfunction ', _at + 10));
   const nativeBlock = fn.slice(fn.indexOf('if (SCROLL_NATIVE_PAGE)'));
   const srcAt = nativeBlock.indexOf('frame_${');
   const retAt = nativeBlock.indexOf('return;');

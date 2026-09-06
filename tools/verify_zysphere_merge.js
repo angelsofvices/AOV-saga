@@ -50,11 +50,13 @@ const CODE = HTML
   .replace(/^\s*\/\/[^\n]*$/gm, '')
   .replace(/\/\/[^\n]*$/gm, '');
 
-// ...and cut out migrateZysphereBasic itself, which must name the old key —
-// it is the one function whose whole job is to know about it.
-const migAt = CODE.indexOf('function migrateZysphereBasic()');
-const LIVE = migAt < 0 ? CODE
-  : CODE.slice(0, migAt) + CODE.slice(CODE.indexOf('\n}', migAt) + 2);
+// ...and cut out the migration itself, which must name the old keys — it is the
+// one place whose whole job is to know about them.  The cut starts at the
+// LEGACY_KEYS const, not the function: the names live in the table, and slicing
+// from `function` would leave them behind and fail on the fix's own bookkeeping.
+const migAt = CODE.indexOf('const ZYSPHERE_LEGACY_KEYS');
+const migEnd = CODE.indexOf('\n}', CODE.indexOf('function migrateZyspheres')) + 2;
+const LIVE = migAt < 0 ? CODE : CODE.slice(0, migAt) + CODE.slice(migEnd);
 const stray = [...LIVE.matchAll(/zysphere_basic/g)].length;
 t(stray === 0,
   `no live code references zysphere_basic outside the migration (${stray} found)`);
@@ -80,47 +82,98 @@ t(!/Basic Zyspheres/.test(CODE),  "the wallet panel no longer says 'Basic Zysphe
 t(/\['◈ Zyspheres',\s*String\(items\.zysphere\s*\|\|\s*0\)\]/.test(CODE),
   'the wallet counts the spendable key');
 
-/* ── 4 · the tier ladder is intact, minus the phantom bottom rung ───────── */
-for (const k of ['zysphere_void', 'zysphere_silver', 'zysphere_ultra']){
-  t(CODE.includes(k), `${k} still exists — this patch removed a duplicate, not a tier`);
+/* ── 4 · v0.95.973 · THERE IS ONLY ONE KIND ─────────────────────────────
+ * Creator: "there is only one type of zysphere now. no extra version."
+ * v0.95.972 removed a duplicate; this removes the ladder itself.
+ */
+{
+  const migAt2 = CODE.indexOf('const ZYSPHERE_LEGACY_KEYS');
+  const LIVE2 = migAt2 < 0 ? CODE
+    : CODE.slice(0, migAt2) + CODE.slice(CODE.indexOf('\n}', CODE.indexOf('function migrateZyspheres')) + 2);
+  for (const k of ['zysphere_void', 'zysphere_silver', 'zysphere_ultra']){
+    t(!LIVE2.includes(k), `${k} is gone from live code — one kind, no versions`);
+  }
+  for (const lbl of ['Void Zysphere', 'Silver Zysphere', 'Ultra Zysphere']){
+    t(!CODE.includes(lbl), `no '${lbl}' label survives`);
+  }
 }
 const catAt = CODE.indexOf("zysphere:'sphere'");
 const cat = CODE.slice(catAt, catAt + 160);
-t(/zysphere:'sphere'/.test(cat) && !/zysphere_basic/.test(cat),
-  'the ZyCube category map lists the real key and not the ghost');
-t(/'zysphere','zysphere_silver','zysphere_ultra'/.test(CODE),
+t(/zysphere:'sphere'/.test(cat) && !/zysphere_(basic|void|silver|ultra)/.test(cat),
+  'the ZyCube category map lists exactly one sphere');
+t(/'zysphere',\n/.test(CODE) || /'zysphere',/.test(CODE),
   'the item-gain jingle fires for the sphere the player actually receives');
+
+/* ── 4b · the Scrapjaw board still climbs ───────────────────────────────
+ * Two of its three rungs WERE tiers.  Collapsing them 1:1 would make 10 scrap
+ * and 50 scrap buy the identical thing — every piece past the tenth worthless,
+ * which is the exact problem this sink exists to solve.  So the ladder has to
+ * still go somewhere, in count rather than rarity.
+ */
+{
+  const sAt = CODE.indexOf('const SCRAP_SHOP');
+  const shop = CODE.slice(sAt, CODE.indexOf('];', sAt));
+  const rungs = [...shop.matchAll(/cost:\s*(\d+),\s*key:\s*'(\w+)',\s*qty:\s*(\d+)/g)]
+    .map(m => ({ cost: +m[1], key: m[2], qty: +m[3] }));
+  t(rungs.length === 3, `the board still has three rungs (got ${rungs.length})`);
+  t(rungs.every(r => r.key === 'zysphere' || r.key === 'potion'),
+    'every rung pays out an item that still exists');
+  const spheres = rungs.filter(r => r.key === 'zysphere');
+  t(spheres.length === 2, 'two of them are spheres, as before');
+  t(spheres[0].cost > spheres[1].cost && spheres[0].qty > spheres[1].qty,
+    '★ the dearer sphere rung pays MORE spheres — the ladder climbs in count');
+  // cost-descending is load-bearing: scrapShopBest() takes the first affordable
+  const costs = rungs.map(r => r.cost);
+  t(costs.every((c, i) => i === 0 || costs[i-1] > c),
+    'the list is still cost-descending · scrapShopBest() takes the first match');
+  t(/addItems\(\{\s*\[t\.key\]:\s*\(t\.qty\s*\|\|\s*1\)\s*\}\)/.test(CODE),
+    'and the buy actually honours qty rather than always granting 1');
+}
 
 /* ── 5 · the migration gives stranded spheres back ──────────────────────── */
 {
-  const mAt = HTML.indexOf('function migrateZysphereBasic()');
-  t(mAt > 0, 'migrateZysphereBasic() exists');
-  const src = HTML.slice(mAt, HTML.indexOf('\n}', mAt) + 2);
+  const kAt = HTML.indexOf('const ZYSPHERE_LEGACY_KEYS');
+  const mAt = HTML.indexOf('function migrateZyspheres()');
+  t(mAt > 0, 'migrateZyspheres() exists');
+  const src = HTML.slice(kAt, HTML.indexOf('\n}', mAt) + 2);
   const box = { console };
   vm.createContext(box);
   vm.runInContext(src, box);
 
   box.player = { items: { zysphere_basic: 7, zysphere: 2 } };
-  const moved = vm.runInContext('migrateZysphereBasic()', box);
+  const moved = vm.runInContext('migrateZyspheres()', box);
   t(moved === 7, 'a save holding 7 stranded spheres reports 7 migrated');
   t(box.player.items.zysphere === 9,
     '★ they are FOLDED IN, not dropped (2 + 7 = 9) — a quest reward is not deleted');
   t(!('zysphere_basic' in box.player.items), '  · and the ghost key is gone');
 
+  // ★ v0.95.973 · all four legacy keys, one fold, 1:1
+  box.player = { items: { zysphere: 1, zysphere_basic: 2, zysphere_void: 3,
+                          zysphere_silver: 4, zysphere_ultra: 5, ale: 9 } };
+  const moved2 = vm.runInContext('migrateZyspheres()', box);
+  t(moved2 === 14, `every legacy tier folds too (2+3+4+5 = 14, got ${moved2})`);
+  t(box.player.items.zysphere === 15,
+    '★ 1:1 · the player keeps all 15 spheres, and loses only a distinction that never did anything');
+  t(['zysphere_basic','zysphere_void','zysphere_silver','zysphere_ultra']
+      .every(k => !(k in box.player.items)), '  · all four ghost keys swept');
+  t(box.player.items.ale === 9, '  · nothing else in the bag is touched');
+
   box.player = { items: { zysphere: 3 } };
-  vm.runInContext('migrateZysphereBasic()', box);
+  vm.runInContext('migrateZyspheres()', box);
   t(box.player.items.zysphere === 3, 'a clean save is untouched');
 
-  box.player = { items: { zysphere_basic: 0 } };
-  vm.runInContext('migrateZysphereBasic()', box);
-  t(!('zysphere_basic' in box.player.items), 'a zero-count ghost key is still swept');
+  box.player = { items: { zysphere_ultra: 0 } };
+  vm.runInContext('migrateZyspheres()', box);
+  t(!('zysphere_ultra' in box.player.items), 'a zero-count ghost key is still swept');
+  t(box.player.items.zysphere === undefined,
+    '  · and sweeping an empty key does not conjure a zysphere entry');
 
   box.player = {};
-  t(vm.runInContext('migrateZysphereBasic()', box) === 0, 'no inventory · no crash');
+  t(vm.runInContext('migrateZyspheres()', box) === 0, 'no inventory · no crash');
 }
 
 /* ── 6 · it is wired into the load path ─────────────────────────────────── */
-t(/migrateZysphereBasic === 'function'\) migrateZysphereBasic\(\)/.test(HTML),
+t(/migrateZyspheres === 'function'\) migrateZyspheres\(\)/.test(HTML),
   'the migration runs on load, next to the species-id migration');
 
 console.log(`\n★ ${pass} passed · ${fail} failed\n`);

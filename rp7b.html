@@ -3053,9 +3053,10 @@ const INVENTORY_META = {
   // grant of `zysphere_basic` (the dev button, GIVE ALL, and Dad's starter
   // quest) was handing the player spheres they could not throw.  See the
   // migration in `migrateZysphereBasic()`.
-  zysphere_void:    { label: 'Void Zysphere',     order: 41 },
-  zysphere_silver:  { label: 'Silver Zysphere',   order: 42 },
-  zysphere_ultra:   { label: 'Ultra Zysphere',    order: 43 },
+  // ★★★ v0.95.973 · AND THE TIERS ARE GONE TOO.
+  // Creator: *"there is only one type of zysphere now. no extra version."*
+  // Void, Silver and Ultra are deleted.  The single `zysphere` below is the
+  // whole ladder.  Folded into it by `migrateZyspheres()`.
   rare_item:        { label: 'Rare Item',         order: 50 },
   // ★ v0.95.876 · RULE 14 · the three words are never synonymous, so the bag
   // says which class a relic is.  A Prismshard is a COMPOSITE equilibrium of
@@ -3232,8 +3233,7 @@ const ZYCUBE_CAT_OF = Object.freeze({
   potion:'heal', ale:'heal', verdant_elixir:'heal', fresh_water:'heal', berry_juice:'heal',
   fruit_bar:'heal', soulphish:'heal', life_seed:'heal', life_seed_pure:'heal', astralcore:'heal',
 
-  zysphere:'sphere', zysphere_void:'sphere',
-  zysphere_silver:'sphere', zysphere_ultra:'sphere',
+  zysphere:'sphere',   // ★ v0.95.973 · the only one there is
 
   prismshard:'relic', voltshard:'relic',
   evolution_catalyst:'relic', rare_item:'relic',
@@ -3910,7 +3910,7 @@ const ITEM_GAIN_SFX_KEYS = new Set([
   // v0.95.405 · Full 8-color gem spectrum
   'gem_red','gem_blue','gem_green','gem_yellow','gem_white','gem_orange','gem_purple','gem_black',
   'raidcard','dads_notebook','prismshard','elzebub_egg','verdant_elixir',
-  'zysphere','zysphere_silver','zysphere_ultra',
+  'zysphere',
   // v0.95.507 · Quest items · every retrievable quest pickup now fires the jingle
   'scrap_metal','astralcore','astralcore_transponder','life_stone',
   'ale','potion','sapphire_sword','rubypaw_sword','emerald_axe','pearlbow','portal_chip',
@@ -10271,8 +10271,8 @@ const NPCS = [
         const t = scrapShopBuy();
         showDialog({ speaker: 'SCRAPJAW', lines: [
           `*weighs the scrap*  ${t.cost} pieces of Thardin's finest.  Still warm.`,
-          `*slides it across the bench*  One ${t.label.toUpperCase()}.  Fair's fair.`,
-          `*sniff*  ${scrapCount()} scrap left on you.  Board's always open · 4 for a Potion · 10 for a Silver Zysphere · 20 for an Ultra.`,
+          `*slides it across the bench*  ${t.label.toUpperCase()}.  Fair's fair.`,
+          `*sniff*  ${scrapCount()} scrap left on you.  Board's always open · 4 for a Potion · 10 for a Zysphere · 20 for three.`,
         ]});
       } else {
         // v0.95.650 · IDLE LINE · always points at the next dark district so the
@@ -22240,10 +22240,17 @@ function triggerScanobotRogue(reason){
 // else — and inventing one for this would be a bigger change than the feature.
 // The existing scrap→battery trade already works exactly this way: walk up
 // holding the goods and Scrapjaw does the deal.
+// ★★ v0.95.973 · THE BOARD KEEPS ITS SHAPE BY TRADING TIER FOR QUANTITY.
+// Two of its three rungs were Zysphere tiers, and there is only one Zysphere
+// now.  Collapsing them 1:1 would have left the top of the ladder flat —
+// 10 scrap and 50 scrap would buy the identical thing, so every piece of scrap
+// past the tenth would be worthless, which is the exact problem this sink was
+// built to solve.  So the rungs stay three and the ladder climbs in COUNT
+// instead of in rarity.  No new item was invented to keep it standing.
 const SCRAP_SHOP = [
-  { cost: 20, key: 'zysphere_ultra',  label: 'Ultra Zysphere'  },
-  { cost: 10, key: 'zysphere_silver', label: 'Silver Zysphere' },
-  { cost:  4, key: 'potion',          label: 'Potion'          },
+  { cost: 20, key: 'zysphere', qty: 3, label: '3× Zysphere' },
+  { cost: 10, key: 'zysphere', qty: 1, label: 'Zysphere'    },
+  { cost:  4, key: 'potion',   qty: 1, label: 'Potion'      },
 ];
 function scrapCount(){ return (player.items && player.items.scrap_metal) || 0; }
 function scrapShopBest(){
@@ -22254,9 +22261,9 @@ function scrapShopBuy(){
   const t = scrapShopBest();
   if (!t) return null;
   player.items.scrap_metal -= t.cost;
-  addItems({ [t.key]: 1 });
+  addItems({ [t.key]: (t.qty || 1) });
   try { bumpBond(1); } catch(_){}
-  showToast(`★ SCRAPJAW · ${t.cost}× Scrap Metal → 1× ${t.label}`, 3600);
+  showToast(`★ SCRAPJAW · ${t.cost}× Scrap Metal → ${t.label}`, 3600);
   try { playSFX('confirm'); } catch(_){}
   return t;
 }
@@ -32267,8 +32274,6 @@ function openWalletPanelStandalone(){
     ['♦ Purple Gems (×140)',String(items.gem_purple || 0)],
     ['♦ Black Gems (×160)', String(items.gem_black  || 0)],
     ['◈ Zyspheres',        String(items.zysphere || 0)],
-    ['◈ Silver Zyspheres', String(items.zysphere_silver || 0)],
-    ['◈ Ultra Zyspheres',  String(items.zysphere_ultra || 0)],
     ['✦ Prismshards',      String(items.prismshard || 0)],
     ['♥ Potions',          String(items.potion || 0)],
     ['♠ Verdant Elixirs',  String(items.verdant_elixir || 0)],
@@ -38310,15 +38315,36 @@ function replaceMealuxKeys(){
 // distinguish it from an item with the same name is not a variant, it is a
 // duplicate. The count is folded rather than dropped, because a save that spent
 // real effort on a quest should not be paid in a currency that has been deleted.
-function migrateZysphereBasic(){
+// ★★★ v0.95.973 · AND THE TIERS FOLLOWED IT.
+// Creator: *"there is only one type of zysphere now. no extra version."*
+//
+// Void, Silver and Ultra join `zysphere_basic` in this function.  Everything
+// above about the duplicate applies to them with one difference worth stating:
+// the tiers were REAL entries with real labels and a real place on the Scrapjaw
+// board — they were simply never spendable either, because the throw has always
+// read one key.  So all four collapse for the same underlying reason.
+//
+// ★ THE FOLD IS 1:1, DELIBERATELY.  A Silver ought to be worth more than a
+// plain one, so a multiplier is tempting.  But no rate was ever established —
+// nothing ever spent a Silver, so nothing ever priced one — and any number I
+// picked would be fiction dressed as a migration.  1:1 keeps every sphere the
+// player owns and invents nothing.  They lose a distinction that never did
+// anything, and lose no count.
+const ZYSPHERE_LEGACY_KEYS = ['zysphere_basic', 'zysphere_void', 'zysphere_silver', 'zysphere_ultra'];
+function migrateZyspheres(){
   const inv = (player && player.items) || null;
   if (!inv) return 0;
-  const stranded = inv.zysphere_basic || 0;
-  if (!stranded) { if ('zysphere_basic' in inv) delete inv.zysphere_basic; return 0; }
-  inv.zysphere = (inv.zysphere || 0) + stranded;
-  delete inv.zysphere_basic;
-  console.info(`[rp7b] v0.95.972 · migrated ${stranded} stranded zysphere_basic → zysphere`);
-  return stranded;
+  let moved = 0;
+  for (const k of ZYSPHERE_LEGACY_KEYS){
+    if (!(k in inv)) continue;
+    moved += inv[k] || 0;
+    delete inv[k];
+  }
+  if (moved) {
+    inv.zysphere = (inv.zysphere || 0) + moved;
+    console.info(`[rp7b] v0.95.973 · folded ${moved} legacy Zysphere(s) into the single kind`);
+  }
+  return moved;
 }
 function pruneFiledScrolls(){
   if (typeof WORLD_PROPS === 'undefined') return 0;
@@ -38422,7 +38448,7 @@ function loadGame(){
     // resolve to the wrong creature entirely.
     try { if (typeof migrateSpeciesIds === 'function') migrateSpeciesIds(); } catch(_){}
     // ★ v0.95.972 · fold any stranded zysphere_basic back into zysphere.
-    try { if (typeof migrateZysphereBasic === 'function') migrateZysphereBasic(); } catch(_){}
+    try { if (typeof migrateZyspheres === 'function') migrateZyspheres(); } catch(_){}
     // ★★★ v0.95.959 · THE SAME ORDERING TRAP THE SCROLLS HAD (v0.95.950).
     // The world is built at page init, BEFORE loadGame runs, so the Keys are
     // placed against a freshly rolled seed and then the save hands back a
@@ -50438,7 +50464,7 @@ window.__lockDev = lockDev;   // creator can re-lock from console if needed
         coins: 99999,
         gem: 50, moon_gem: 20,
         potion: 20, ale: 20, verdant_elixir: 5,
-        zysphere: 30, zysphere_void: 10, zysphere_silver: 10, zysphere_ultra: 5,
+        zysphere: 30,   // ★ v0.95.973 · one kind, so one line
         rare_item: 5, prismshard: 3,
         faenet: 1, zycube: 1, townmap: 1, worldmap: 1, gearbag: 1, zphone: 1,
         skateboard: 1,

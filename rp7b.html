@@ -11499,7 +11499,9 @@ const NPCS = [
       cellAnchor: true,
       scaleRefBh: SEER_GRUNT_ART.B.standBh,
       scaleMul: 1.45,                      // an officer · reads above the rank and file
-      tileX: 7, tileY: 3, homeX: 7, homeY: 3,
+      // ★ v0.95.966 · the attic is 35x25 now, not a 14x12 box · he stands at
+      // the top of the long narrow room, facing the stair you come up
+      tileX: 17, tileY: 6, homeX: 17, homeY: 6,
       homeScene: 'interior_seer_hq_2f',
       scene:     'interior_seer_hq_2f',
       wanderRadius: 0,
@@ -14655,9 +14657,8 @@ function walkable(x, y){
     // v0.95.568 · Same for the gold chest (Rubypaw Longsword)
     if (game.scene === 'interior_treehouse'
         && x === TREEHOUSE_GOLD_CHEST.tileX && y === TREEHOUSE_GOLD_CHEST.tileY) return false;
-    // v0.95.615 · Seer HQ 1F chest tile always blocks · X-interact from adjacent
-    if (game.scene === SEER_HQ_CHEST_SCENE
-        && x === SEER_HQ_CHEST_TILE.tileX && y === SEER_HQ_CHEST_TILE.tileY) return false;
+    // ★ v0.95.966 · either Seer chest blocks · X-interact from an adjacent tile
+    if (seerChestAt(x, y)) return false;
     // v0.95.600 · Professor's desk footprint blocks · 4 tiles wide × 2 tall
     //   footY at row 4 · body spans rows 3-4 · cols 13-16 (SCHOOL_DESK_TILE=15, W=4)
     if (game.scene === 'interior_malezor_school'
@@ -15812,6 +15813,21 @@ const SEER_STAIR_DOWN_BBOX = [119, 107, 785, 1276];  // measured · aspect 0.615
 const SEER_DOOR_LOCKED_IMG = new Image();
 SEER_DOOR_LOCKED_IMG.src = 'assets/2D%20sprites/interior/seer-door-locked.png';
 const SEER_DOOR_LOCKED_BBOX = [3, 2, 26, 59];
+// ★★★ v0.95.966 · THE GRAND DOOR · the room-to-room portal.
+// Creator: "can we use this as a door asset for R2? place it top center of R1.
+// in between down and up staircase."
+//
+// ★ TWO DOOR ASSETS, TWO JOBS, AND THEY SHOULD NOT BE THE SAME ONE.
+//   SEER_DOOR_LOCKED  32x64  · the SEAL on a locked staircase.  Small, drawn
+//                              over the stair's upper landing, present only
+//                              while the stair is shut.
+//   SEER_DOOR_GRAND  1086x1448 · the DOOR between rooms.  A double door with
+//                              the Seer eye above it, three tiles tall.
+// The seal is a padlock on something else; this is a thing you walk through.
+// Using one art for both made a 29-tile wall's only exit look like a keyhole.
+const SEER_DOOR_GRAND_IMG = new Image();
+SEER_DOOR_GRAND_IMG.src = 'assets/2D%20sprites/interior/seer-door-grand.png';
+const SEER_DOOR_GRAND_BBOX = [53, 85, 980, 1292];   // measured · aspect 0.759
 const STAIR_ART_SETS = {
   seer: { up:   { img: SEER_STAIR_UP_IMG,   bbox: SEER_STAIR_UP_BBOX   },
           down: { img: SEER_STAIR_DOWN_IMG, bbox: SEER_STAIR_DOWN_BBOX } },
@@ -16950,7 +16966,38 @@ INTERIOR_TRAINING_FARM.tileImg.src = 'assets/2D%20sprites/tiles/training-farm-fl
 // v0.95.699 · the silver chest moved DOWN to the vault.  It now holds this
 // district's Seer Key, which is the only thing that opens the stair to the
 // Commander — so the basement is a required stop rather than a side room.
-const SEER_HQ_CHEST_TILE = { tileX: 7, tileY: 2 };
+// ★★★ v0.95.966 · TWO CHESTS, ONE PER KEY.  Creator: "in room 2 you find the
+// basement key. in the basement you find the attic key."
+//
+// ★ ONE TABLE, not two copies of the chest code.  Every chest is a scene, a
+// tile, an `opened` flag and a payout — the second one differing from the
+// first only in those four things is the definition of a row, and a hand
+// -written second copy is how the two start to drift.
+const SEER_HQ_CHESTS = [
+  { id: 'r2',  scene: 'interior_seer_hq_r2', tileX: 17, tileY: 10, key: 'basement' },
+  { id: 'b',   scene: 'interior_seer_hq_b',  tileX: 17, tileY:  7, key: 'attic'    },
+];
+// ★★★ ONE LOOKUP FOR ALL FOUR SITES.  A chest lives in FOUR places — the
+// collision test, the "is there anything to press X on" test, the X handler
+// and the depth sort — and every one of them had its own hand-written scene
+// and tile comparison.
+//
+// ★★★ WHICH IS HOW THE CHEST BECAME UNOPENABLE.  v0.95.699 moved it from 1F
+// down to the vault and updated SEER_HQ_CHEST_SCENE, but THREE of those four
+// sites still tested `game.scene === 'interior_seer_hq_1f'` — so the X handler
+// never fired in the basement, and the Seer Key has been unobtainable ever
+// since.  tryOpenSeerHqChest guarded itself correctly and was simply never
+// called.  Four copies of one fact, updated in one place.
+function seerChestAt(x, y){
+  return SEER_HQ_CHESTS.find(c => c.scene === game.scene && c.tileX === x && c.tileY === y) || null;
+}
+function seerChestHere(){
+  return SEER_HQ_CHESTS.find(c => c.scene === game.scene) || null;
+}
+// ★ the legacy names still point at the BASEMENT chest, because that is the one
+// every existing save has a flag for.  seerHqChestOpened/`seerHqChests[dist]`
+// keep meaning exactly what they meant.
+const SEER_HQ_CHEST_TILE = { tileX: 17, tileY: 7 };
 const SEER_HQ_CHEST_SCENE = 'interior_seer_hq_b';
 const SEER_HQ_CHEST_CLOSED_IMG = new Image();
 SEER_HQ_CHEST_CLOSED_IMG.src = 'assets/2D%20sprites/decor/silver-chest.png';
@@ -16973,11 +17020,63 @@ function hasSeerKey(dist){
   if (game.devMaxBond) return true;                  // dev mode walks through
   return !!(player.seerKeys || {})[dist];
 }
+// ★★★ v0.95.966 · TWO KEYS, NOT ONE.  Creator: "in room 2 you find the
+// basement key. in the basement you find the attic key. this will be the
+// standard formula for now."
+//
+//     R2  ->  BASEMENT KEY  ->  opens the stair DOWN
+//     BASEMENT -> ATTIC KEY ->  opens the stair UP
+//     ATTIC = the Commander
+//
+// ★ THE EXISTING KEY IS THE ATTIC KEY.  `player.seerKeys[dist]` has always
+// meant "the top floor is open", which is exactly what the attic key means —
+// so its name, its storage and every save that carries it are untouched, and
+// the new basement key gets its own map beside it.  Renaming the old one to
+// match the new vocabulary would have been tidier and would have broken every
+// save in existence for a word.
+//
+// ★★ AND A SAVE THAT ALREADY HOLDS THE ATTIC KEY IMPLIES THE BASEMENT KEY.
+// You could only ever have reached the old chest by going down, so anyone
+// holding the top-floor key has demonstrably been through the basement.  Read
+// as a fallback rather than migrated, so nothing is rewritten on load.
+function hasSeerBasementKey(dist){
+  dist = dist || seerHqDistrict();
+  if (game.devMaxBond) return true;
+  if ((player.seerBasementKeys || {})[dist]) return true;
+  return !!(player.seerKeys || {})[dist];      // ★ had the attic key -> been down
+}
+function grantSeerBasementKey(dist){
+  dist = dist || seerHqDistrict();
+  player.seerBasementKeys = player.seerBasementKeys || {};
+  if (player.seerBasementKeys[dist]) return false;
+  player.seerBasementKeys[dist] = true;
+  return true;
+}
 function grantSeerKey(dist){
   dist = dist || seerHqDistrict();
   player.seerKeys = player.seerKeys || {};
   if (player.seerKeys[dist]) return false;
   player.seerKeys[dist] = true;
+  return true;
+}
+// ★ the R2 chest tracks itself · never folded into seerHqChests, which is the
+// basement chest's flag and is read by three other places that mean the vault.
+function seerR2ChestOpened(dist){
+  dist = dist || seerHqDistrict();
+  return !!(player.seerR2Chests || {})[dist];
+}
+function tryOpenSeerR2Chest(){
+  if (game.scene !== 'interior_seer_hq_r2') return false;
+  const dist = seerHqDistrict();
+  if (seerR2ChestOpened(dist)) return false;
+  player.seerR2Chests = player.seerR2Chests || {};
+  player.seerR2Chests[dist] = true;
+  const H = SEER_HQ_BY_DIST[dist];
+  grantSeerBasementKey(dist);
+  try { playSFX('confirm'); } catch(_){}
+  try { awardRizerXP(80 + (H ? H.gruntLv : 10) * 2); } catch(_){}
+  showToast(`★ ${H ? H.label.toUpperCase() : dist} BASEMENT KEY · the stair down will open now`, 4200);
+  try { saveGame(); } catch(_){}
   return true;
 }
 function seerHqChestOpened(dist){
@@ -16986,16 +17085,19 @@ function seerHqChestOpened(dist){
   return !!(player.seerHqChests || {})[dist];
 }
 function drawSeerHqChest(){
-  if (game.scene !== SEER_HQ_CHEST_SCENE) return;
-  const opened = seerHqChestOpened();
+  // ★ v0.95.966 · both chests draw through here · same art, same measured
+  // bboxes, different scene / tile / flag
+  const C = SEER_HQ_CHESTS.find(c => c.scene === game.scene);
+  if (!C) return;
+  const opened = (C.key === 'basement') ? seerR2ChestOpened() : seerHqChestOpened();
   const img  = opened ? SEER_HQ_CHEST_OPEN_IMG : SEER_HQ_CHEST_CLOSED_IMG;
   const bbox = opened ? SEER_HQ_CHEST_OPEN_BBOX : SEER_HQ_CHEST_CLOSED_BBOX;
   if (!img.complete || !img.naturalWidth) return;
   const [bx, by, bw, bh] = bbox;
   const drawW = TILE;
   const drawH = Math.round(drawW * (bh / bw));
-  const dx = Math.floor(SEER_HQ_CHEST_TILE.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
-  const dy = Math.floor((SEER_HQ_CHEST_TILE.tileY + 1) * TILE - drawH)      - _cam.y;
+  const dx = Math.floor(C.tileX * TILE + (TILE - drawW) / 2) - _cam.x;
+  const dy = Math.floor((C.tileY + 1) * TILE - drawH)         - _cam.y;
   const prev = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(img, bx, by, bw, bh, dx, dy, drawW, drawH);
@@ -17019,7 +17121,7 @@ function tryOpenSeerHqChest(){
     // first HQ the player ever enters — is the one district whose top floor
     // can never be opened.
     grantSeerKey(dist);
-    showToast('★ Received: RUBY VIAL + MALEZOR SEER KEY · the top floor will open now', 4800);
+    showToast('★ Received: RUBY VIAL + MALEZOR ATTIC KEY · the stair up will open now', 4800);
     return true;
   }
   const H = SEER_HQ_BY_DIST[dist];
@@ -17030,7 +17132,7 @@ function tryOpenSeerHqChest(){
   try { awardRizerXP(120 + (H ? H.gruntLv : 10) * 4); } catch(_){}
   // ★ the key is the real prize · coins are the consolation
   grantSeerKey(dist);
-  showToast(`★ ${H ? H.label.toUpperCase() : dist} SEER KEY · the top floor will open now · +${coins} coins`, 4200);
+  showToast(`★ ${H ? H.label.toUpperCase() : dist} ATTIC KEY · the stair up will open now · +${coins} coins`, 4200);
   return true;
 }
 // v0.95.615 · SEER HQ 1F interior · 20×15 stone-floor lair
@@ -17166,53 +17268,128 @@ const INTERIOR_SEER_HQ_R2 = {
     '17,7': { target: 'interior_seer_hq_1f', spawnAt: { x: 17, y: 9, dir: 'down' } },
   },
   stairsList: [
+    // ★ v0.95.966 · the way DOWN is sealed until R2 gives up its key
     { triggers: [[12, 19], [13, 19]], target: 'interior_seer_hq_b',
-      spawnAt: { x: 7, y: 8, dir: 'up' },
-      art: 'down', visX: 12, visY: 17, visW: 2, visH: 3 },
+      spawnAt: { x: 17, y: 16, dir: 'up' },
+      art: 'down', visX: 12, visY: 17, visW: 2, visH: 3,
+      locked: () => !hasSeerBasementKey(),
+      lockedMsg: () => '◈ SEALED · the stair down will not open · search this room for the BASEMENT KEY' },
     { triggers: [[21, 19], [22, 19]], target: 'interior_seer_hq_2f',
-      spawnAt: { x: 7, y: 10, dir: 'up' },
+      spawnAt: { x: 17, y: 19, dir: 'up' },
       art: 'up', visX: 21, visY: 17, visW: 2, visH: 3,
       locked: () => !hasSeerKey(),
       lockedMsg: () => {
         const H = SEER_HQ_BY_DIST[seerHqDistrict()];
-        return `◈ SEALED · the stair up will not open · ${H ? H.label.toUpperCase() : ''} SEER KEY needed`;
+        return `◈ SEALED · the stair up will not open · the ATTIC KEY is below, in the ${H ? H.label.toUpperCase() : ''} basement`;
       } },
   ],
 };
+// ★★★ v0.95.966 · THE BASEMENT · 35x25, low and WIDE like a cellar.
+// Creator: "build the floor maps" · "we will nest more rooms under this
+// outline for each seers hq."
+//
+// ★ THIS IS THE OUTLINE, NOT THE FINISHED LEVEL.  One clean chamber, same wall
+// grammar as 1F and R2: three solid rows above any face, one-tile side and
+// bottom walls, a void margin all round.  Partitions and cells get nested into
+// it later and will have to obey the same 3-row rule — a face with fewer than
+// WALL_TILES_H rows above it draws up over floor.
+//
+// ★★ It was 14x10 before, an open box a third the size of the floor above it.
+// A basement that is smaller than the room you reached it from reads as a
+// cupboard; this one is the widest room in the building.
 const INTERIOR_SEER_HQ_B = {
   stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
-  cols: 14, rows: 10,
+  plan: [
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '     ###########################   ',
+    '     ###########################   ',
+    '     ###########################   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     #.........................#   ',
+    '     ###########################   ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+  ],
+  cols: 35, rows: 25,
   tileImg: SEER_HQ_FLOOR_IMG,
-  spawn: { x: 7, y: 8, dir: 'up' },
+  spawn: { x: 17, y: 16, dir: 'up' },
   exit:  null,                       // no door to the street — the only way out is up
   autoExit: false,
   wallImg: 'seer',
   blocked: [],
-  label: '◈ SEER HQ · VAULT',
+  label: '◈ SEER HQ · BASEMENT',
   stairsList: [
     // Triggers are 2 wide to match the 2-tile art — a 1-tile trigger under a
     // 2-tile staircase means half the steps do nothing when you walk on them.
-    { triggers: [[7, 9], [8, 9]], target: 'interior_seer_hq_1f',
-      spawnAt: { x: 2, y: 2, dir: 'down' },
-      art: 'up', visX: 7, visY: 7, visW: 2, visH: 3 },
+    { triggers: [[12, 16], [13, 16]], target: 'interior_seer_hq_r2',
+      spawnAt: { x: 12, y: 18, dir: 'down' },
+      art: 'up', visX: 12, visY: 14, visW: 2, visH: 3 },
   ],
 };
+// ★★★ v0.95.966 · THE ATTIC · 35x25, tall and NARROW, under a roof.
+// The Commander's room.  Deliberately the opposite shape to the basement so
+// the two do not read as the same box with different lighting — you come up
+// out of the widest room in the building into the tightest one.
 const INTERIOR_SEER_HQ_2F = {
   stairArt: 'seer',              // v0.95.736 · black stone + steel, not house wood
-  cols: 14, rows: 12,
+  plan: [
+    '                                   ',
+    '                                   ',
+    '          ###############          ',
+    '          ###############          ',
+    '          ###############          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          #.............#          ',
+    '          ###############          ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+    '                                   ',
+  ],
+  cols: 35, rows: 25,
   tileImg: SEER_HQ_FLOOR_IMG,
-  spawn: { x: 7, y: 10, dir: 'up' },
+  spawn: { x: 17, y: 19, dir: 'up' },
   exit:  null,
   autoExit: false,
   wallImg: 'seer',
   blocked: [],
-  label: '◈ SEER HQ · COMMAND',
+  label: '◈ SEER HQ · ATTIC',
   stairsList: [
-    { triggers: [[7, 11], [8, 11]], target: 'interior_seer_hq_1f',
-      spawnAt: { x: 17, y: 2, dir: 'down' },
-      art: 'down', visX: 7, visY: 9, visW: 2, visH: 3 },
+    { triggers: [[13, 19], [14, 19]], target: 'interior_seer_hq_r2',
+      spawnAt: { x: 21, y: 18, dir: 'down' },
+      art: 'down', visX: 13, visY: 17, visW: 2, visH: 3 },
   ],
 };
+
 // v0.95.671 · TEN Seer HQs now share this one interior.  The drop point and the
 // label are rewritten on the way in, and `player.seerHqDistrict` records which
 // building you are standing inside so the chest, the guards and the eventual
@@ -24002,8 +24179,7 @@ function isFacingInteractable(fx, fy){
     if (fx === TREEHOUSE_GOLD_CHEST.tileX && fy === TREEHOUSE_GOLD_CHEST.tileY) return true;
     if (fx === TREEHOUSE_TELESCOPE.tileX  && fy === TREEHOUSE_TELESCOPE.tileY) return true;   // v0.95.719
   }
-  if (game.scene === 'interior_seer_hq_1f'
-      && fx === SEER_HQ_CHEST_TILE.tileX && fy === SEER_HQ_CHEST_TILE.tileY) return true;
+  if (seerChestAt(fx, fy)) return true;                       // ★ v0.95.966
   if (cfg.researchLab){
     if (fy === 2 && fx >= 9 && fx <= 11) return true;                       // Dad's workbench
     const B = DADS_BOOKSHELF_TILES;                                          // v0.95.658 bookshelf
@@ -28683,11 +28859,11 @@ function drawInteriorFloor(){
     // tiles above its own row, so the tile to the RIGHT of a door reaches back
     // across it — drawn any earlier and the door is painted out by its own
     // neighbour.
-    if (_plan.doors.length && SEER_DOOR_LOCKED_IMG.complete && SEER_DOOR_LOCKED_IMG.naturalWidth){
-      const [qx, qy, qw, qh] = SEER_DOOR_LOCKED_BBOX;
+    if (_plan.doors.length && SEER_DOOR_GRAND_IMG.complete && SEER_DOOR_GRAND_IMG.naturalWidth){
+      const [qx, qy, qw, qh] = SEER_DOOR_GRAND_BBOX;
       const _wi = SEER_HQ_WALLS_ON ? wallImageFor(cfg.wallImg) : null;
       for (const d of _plan.doors){
-        if (d.x < startCol - 1 || d.x > endCol || d.y < startRow - 2 || d.y > endRow) continue;
+        if (d.x < startCol - 1 || d.x > endCol || d.y < startRow - 3 || d.y > endRow) continue;
         // the wall behind it, so the door is set INTO masonry rather than
         // floating — skipped entirely when there is no masonry to set it into
         if (_wi && _wi.complete && _wi.naturalWidth){
@@ -28695,11 +28871,13 @@ function drawInteriorFloor(){
                         d.x * TILE - _cam.x, (d.y - (WALL_TILES_H - 1)) * TILE - _cam.y,
                         TILE, TILE * WALL_TILES_H);
         }
-        // two tiles tall, standing on the door tile's own line · width from the
-        // measured content box so the frame is never stretched
-        const DH = TILE * 2;
+        // ★ THREE tiles tall, standing on the door tile's own line.  Two was
+        // right for the little seal; this is a double door with a lintel and an
+        // eye above it, and at two tiles the eye is four pixels of mush.
+        // Width from the measured content box, so it is never stretched.
+        const DH = TILE * 3;
         const DW = Math.round(DH * (qw / qh));
-        ctx.drawImage(SEER_DOOR_LOCKED_IMG, qx, qy, qw, qh,
+        ctx.drawImage(SEER_DOOR_GRAND_IMG, qx, qy, qw, qh,
                       Math.round(d.x * TILE + (TILE - DW) / 2) - _cam.x,
                       (d.y + 1) * TILE - DH - _cam.y, DW, DH);
       }
@@ -30144,10 +30322,13 @@ function tryInteract(){
       if (game.scene === 'interior_treehouse' && fx === TREEHOUSE_GOLD_CHEST.tileX && fy === TREEHOUSE_GOLD_CHEST.tileY){
         if (tryOpenTreehouseGoldChest()) return;
       }
-      // v0.95.615 · Seer HQ 1F silver chest · Ruby Vial fetch item
-      if (game.scene === 'interior_seer_hq_1f'
-          && fx === SEER_HQ_CHEST_TILE.tileX && fy === SEER_HQ_CHEST_TILE.tileY){
-        if (tryOpenSeerHqChest()) return;
+      // ★ v0.95.966 · either Seer chest · R2 gives the basement key, the
+      // basement gives the attic key
+      {
+        const _sc = seerChestAt(fx, fy);
+        if (_sc){
+          if (_sc.key === 'basement' ? tryOpenSeerR2Chest() : tryOpenSeerHqChest()) return;
+        }
       }
       // NPC interact takes priority
       for (const n of NPCS){
@@ -37775,6 +37956,8 @@ function saveGame(){
         farmLastEntry:              player.farmLastEntry      || 0,
         rubyVialChestOpened:        !!player.rubyVialChestOpened,
         seerKeys:                   player.seerKeys           || {},
+        seerBasementKeys:           player.seerBasementKeys   || {},   // ★ v0.95.966
+        seerR2Chests:               player.seerR2Chests       || {},   // ★ v0.95.966
         seerCommandersBeaten:       player.seerCommandersBeaten || {},
         deathGargoyles:             player.deathGargoyles || [],   // v0.95.614 · death breadcrumb persist
         mealuxSeed:                 player.mealuxSeed || null,     // ★ v0.95.959 · this playthrough's Key layout
@@ -49289,9 +49472,10 @@ function frame(now){
     if (game.scene === 'interior_malezor_school'){
       rends.push({ kind:'schoolDesk', footY: SCHOOL_DESK_TILE.tileY });
     }
-    // v0.95.615 · Seer HQ 1F chest · center-back silver chest with Ruby Vial
-    if (game.scene === 'interior_seer_hq_1f'){
-      rends.push({ kind:'seerHqChest', footY: SEER_HQ_CHEST_TILE.tileY });
+    // ★ v0.95.966 · whichever Seer chest this floor has
+    {
+      const _sc = seerChestHere();
+      if (_sc) rends.push({ kind:'seerHqChest', footY: _sc.tileY });
     }
     // v0.95.734 · Dreamland decor joins the SAME depth sort, so a 9-tile spire
     // correctly hides the player when he walks behind its base and does not

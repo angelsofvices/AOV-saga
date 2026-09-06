@@ -27514,9 +27514,8 @@ addEventListener('keyup', e => {
       const l2Held = l2 && (l2.pressed || l2.value > 0.35);
       if (r3Pressed && !prev[11]){
         if (l2Held){
-          if (typeof setAggressiveMode === 'function' && typeof isAggressiveMode === 'function'){
-            setAggressiveMode(!isAggressiveMode());
-          }
+          // ★ v0.95.974 · was a DUEL MODE toggle · now a straight recall
+          if (typeof recallSummonedZyrex === 'function') recallSummonedZyrex();
         } else {
           togglePlayerSkin();
         }
@@ -31930,7 +31929,7 @@ addEventListener('keydown', e => {
     const _now = performance.now();
     if (_now - _lastOptionsTapTime < 400){
       _lastOptionsTapTime = 0;
-      setAggressiveMode(!isAggressiveMode());
+      recallSummonedZyrex();   // ★ v0.95.974 · was the DUEL MODE toggle
       return;
     }
     _lastOptionsTapTime = _now;
@@ -35410,7 +35409,7 @@ function renderZycellControls(){
       ['Close any panel · exit menu', 'B  /  Escape',               'Circle'],
     ]},
     { title: '▸ FACTION / ZYREX', color: '#8ff', rows: [
-      ['Toggle DUEL MODE (Zyrex fight)', 'Shift + R3',              'L2 + R3 (chord)'],
+      ['Recall Zyrex to your side',    'Shift + R3',                'L2 + R3 (chord)'],
       ['S1 ↔ S2 skin swap',           'R3 (Right Stick click)',     'R3 (Right Stick click)'],
     ]},
   ];
@@ -43300,22 +43299,112 @@ const SUMMONABLE_SPRITES = {
 // (T1 Lv5 = 40 dmg · 3 hits kill · T6 Lv60 = 300 dmg · 1-shots Daemon)
 // ─────────────────────────────────────────────────────────────
 let _lastOptionsTapTime = 0;
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.974 · ONE DAMAGE LAW · THE ATTACK STAT IS THE DAMAGE.
+//
+// Creator: *"MAKE SURE that their attack stat matches their damage output.
+// make the math logical. every zyrex should have tier based stats. attack stat
+// is directly related to how strong their default move is."*
+//
+// ★ What was here before: `(tier * 30) + (level * 2)`.  It never read the
+// attack stat AT ALL.  Every species of the same tier and level hit for exactly
+// the same number, so Apexaur (baseATK 382) and Lupinor (baseATK 250) — both
+// T5, both met at Lv50 — each dealt 250.  A stat the whole roster is balanced
+// around, the T×333 pool spends points on, and the codex prints, did nothing.
+//
+// ★★ THE LAW, in one line:
+//
+//        damage  =  ATK  ×  (move power ÷ 40)  ÷  6
+//
+// Read left to right that is exactly the Creator's sentence.  The ATK stat IS
+// the output; the creature's DEFAULT MOVE (its A1, the one it leads with)
+// scales it against the 40-power baseline every A1 in MOVE_DEX is written
+// around; and 6 is the single tuning knob.
+//
+// ★ TIER COMES FOR FREE, and that is the reason this is the right shape.
+// Nothing here mentions tier — it does not have to.  ATK is ~18% of a species'
+// pool at every tier (measured across all 54: T1 17.2% · T3 17.8% · T5 20.0% ·
+// T8 15.8%), and the pool is tier × 333, so ATK ≈ tier × 60 by construction.
+// A formula that reads ATK is already tier-scaled. The old one had to bolt tier
+// on by hand precisely BECAUSE it was ignoring the stat that carries it.
+//
+// ★ LEVEL ALSO COMES FOR FREE.  `createZyrex` and `awardZyrexXP` both store
+// `atk = baseATK × (1 + (level-1) × 0.05)`, so the live stat already carries
+// the level. Adding a level term here would count it twice — the old formula's
+// `+ level*2` was a second, contradictory level curve running alongside the one
+// in the stat block.
+//
+// ★ WHY 6.  Chosen by fitting the whole 54-species roster at Lv 5/20/50/80
+// against the retired curve (RMSE 98.8, best of 4-8) so mid-tier encounter
+// pacing survives a change this deep: T3 Lv30 avg 72 vs the old flat 150 in
+// hits-to-kill terms lands the same, T5 Lv50 183 vs 250, T8 Lv80 360 vs 400.
+// What changes is the SPREAD, which is the entire point — at T5 Lv50 the eight
+// species now deal 144 → 209 instead of all dealing 250.
+//
+// ★ HONEST CONSEQUENCE, not hidden: T1 companions hit softer than they did
+// (avg 14 at Lv10, was 50). That is the tier system finally applying to them.
+// A T1's pool genuinely is one fifth of a T5's, and the old formula was
+// flattering it. Rizer's own sword is the early game's damage; the starter is
+// help, not the main gun.
+// ═══════════════════════════════════════════════════════════════════════════
+const STRIKE_BASE_PW = 40;   // every A1 in MOVE_DEX is written around 35-45
+const STRIKE_DIV     = 6;    // the one knob · raise to soften, lower to sharpen
+
+// The attack stat, resolved. Prefers the live stat (which carries the level);
+// falls back to the species base scaled the same way, so a creature built by a
+// path that never went through createZyrex still answers with a real number
+// instead of a zero.
+function zyrexAttackStat(z){
+  if (!z) return 0;
+  if (z.atk > 0) return z.atk;
+  const sp = (typeof SPECIES !== 'undefined') && SPECIES[z.speciesId];
+  if (!sp || !sp.baseATK) return 0;
+  return Math.floor(sp.baseATK * (1 + (Math.max(1, z.level || 1) - 1) * 0.05));
+}
+
+// The move it LEADS with. Its own learned A1 if it has one (PP and the
+// MOVE_UNLOCK_LV gate mean a young creature may know only this), else the
+// species' first listed move.
+function zyrexDefaultMove(z){
+  if (!z) return null;
+  if (Array.isArray(z.moves) && z.moves.length){
+    const first = z.moves.find(m => m && (m.name || typeof m === 'string'));
+    if (first) return moveData(first.name || first);
+  }
+  const sp = (typeof SPECIES !== 'undefined') && SPECIES[z.speciesId];
+  if (sp && Array.isArray(sp.moves) && sp.moves[0]) return moveData(sp.moves[0]);
+  return null;
+}
+function zyrexDefaultMovePower(z){
+  const mv = zyrexDefaultMove(z);
+  return (mv && mv.power > 0) ? mv.power : STRIKE_BASE_PW;
+}
+
 function computeZyrexDamage(z){
-  if (!z) return 20;
-  return Math.max(10, (z.tier || 1) * 30 + (z.level || 1) * 2);
+  if (!z) return 1;
+  const atk = zyrexAttackStat(z);
+  if (!atk) return 1;
+  return Math.max(1, Math.round(atk * (zyrexDefaultMovePower(z) / STRIKE_BASE_PW) / STRIKE_DIV));
 }
 // v0.95.612 · DUEL MODE (renamed from Aggressive Mode)
-function isAggressiveMode(){ return !!game.zyrexAggressive; }
-function isDuelMode(){ return !!game.zyrexAggressive; }   // alias · new canon name
+// ★★★ v0.95.974 · DUEL MODE IS GONE · a summoned Zyrex always fights.
+// Creator: *"no more toggle for hostile."*  Both readers now answer TRUE
+// unconditionally — kept as functions rather than deleted because a handful of
+// panels and the save snapshot ask, and a missing function is a crash where a
+// constant is a fact.
+function isAggressiveMode(){ return true; }
+function isDuelMode(){ return true; }
+// ★ The chord keeps its useful half.  Toggling OFF did two things: it stopped
+// the fighting (now permanent) and it RECALLED the scattered team to Rizer's
+// side, which is genuinely useful after a running battle and has no other
+// binding.  So the chord is now RECALL, and only recall.
 function setAggressiveMode(on){ return setDuelMode(on); } // legacy alias
+function recallSummonedZyrex(){ return setDuelMode(false); }
 function setDuelMode(on){
-  const wasOn = !!game.zyrexAggressive;
-  game.zyrexAggressive = !!on;
-  showToast(on
-    ? '★ DUEL MODE ON · your Zyrex fights with you'
-    : '◈ DUEL MODE OFF · Zyrex return to your side',
-    2400);
-  try { playSFX(on ? 'confirm' : 'menuClose'); } catch(_){}
+  game.zyrexAggressive = true;            // vestigial · always on, never read as a gate
+  const wasOn = !on;                      // "off" is the recall request
+  showToast('◈ ZYREX RECALLED · they re-form at your side', 2400);
+  try { playSFX('menuClose'); } catch(_){}
   // v0.95.612 · On toggle-OFF, snap every summoned Zyrex back to Rizer's tile
   // (fan out around him) so they don't get stranded mid-battle or lost across
   // the map after chasing enemies.  Same fan pattern as interior entry.
@@ -47737,6 +47826,33 @@ function spawnWildZyrex(speciesId, tileX, tileY, opts){
       ['Creature','Nature','Verdant'].includes(sp.type)    ? 'Skittish' : 'Wary'),
     _phase: Math.random() * Math.PI * 2,
   };
+  // ═════════════════════════════════════════════════════════════════════════
+  // ★★★ v0.95.974 · EVERY WILD IS BATTLE-READY, because every wild now HAS
+  // STATS.  Creator: *"make all zyrex be ready to battle now."*
+  //
+  // ★ Until this line a wild Zyrex was `{speciesId, tileX, tileY, level,
+  // temperament}` and nothing else — no hp, no atk, no def, no moves.  It could
+  // graze, flee and walk home, and it could not fight, because there was
+  // nothing to fight WITH.  A hostile one closed on Rizer and then just stood
+  // there: the whole `_hostileUntil` branch moved the creature one tile at a
+  // time and never called a damage function, because no damage function could
+  // have read anything off it.
+  //
+  // ★★ Built by createZyrex, deliberately — the SAME constructor the player's
+  // party goes through, at the wild level law's own level (tier × 10).  A wild
+  // and a caught one are then the same kind of object with the same stat math,
+  // which is what makes "ready to battle" true rather than asserted: the bond
+  // that captures it does not have to build it a body, and every formula that
+  // reads a Zyrex works on it unchanged.
+  const built = (typeof createZyrex === 'function') ? createZyrex(speciesId, w.level) : null;
+  if (built){
+    w.name = built.name;   w.tier = built.tier;
+    w.type = built.type;   w.type2 = built.type2;
+    w.hp   = built.hp;     w.maxHp = built.maxHp;
+    w.atk  = built.atk;    w.def  = built.def;   w.spd  = built.spd;
+    w.satk = built.satk;   w.sdef = built.sdef;
+    w.moves = built.moves;
+  }
   WILD_ZYREX.push(w);
   return w;
 }
@@ -48092,6 +48208,23 @@ function drawWorldLayer(){
             if (typeof walkable === 'function' && walkable(nx, ny) && !_propBlocked.has(`${nx},${ny}`)){
               w.tileX = nx; w.tileY = ny; break;
             }
+          }
+        } else {
+          // ★★★ v0.95.974 · AND NOW IT ACTUALLY HITS YOU.
+          // This branch has always walked a hostile wild onto Rizer's doorstep
+          // and then done nothing, because a wild had no stat block to swing
+          // with. It has one now, so the same law the companions use applies
+          // here — the creature's own ATK and its own default move — and a
+          // Territorial T5 hurts in a way a Skittish T1 does not.
+          if (_gNow > (w._strikeAt || 0)){
+            w._strikeAt = _gNow + 900;                 // slower than a companion tap
+            const dmg = computeZyrexDamage(w);
+            try { hurtPlayer(dmg, w.name || 'wild Zyrex'); } catch(_){}
+            try { emitZyrexAttackFx(player.x, player.y, w.type || 'Beast', w.speciesId); } catch(_){}
+            w.dir = Math.abs(player.x - w.tileX) >= Math.abs(player.y - w.tileY)
+                  ? (player.x > w.tileX ? 'right' : 'left')
+                  : (player.y > w.tileY ? 'down' : 'up');
+            try { strikeZyrexAnim(w, w.speciesId); } catch(_){}
           }
         }
       }
@@ -49398,7 +49531,17 @@ function seerPatrolStep(n){
   }
   if (n.mode === 'follow'){
     // v0.95.318 · Aggressive Zyrex combat AI · summoned Zyrex fight enemies
-    if (isAggressiveMode() && n.id && n.id.startsWith('_summon_') && n._summoned){
+    // ★★★ v0.95.974 · NO TOGGLE.  Creator: *"make all zyrex be ready to battle
+    // now. no more toggle for hostile."*  This used to read
+    // `if (isAggressiveMode() && ...)` — DUEL MODE, formerly AGGRESSIVE MODE,
+    // bound to Shift+R3 / L2+R3.  A summoned Zyrex standing next to a Mori
+    // would watch it hit you unless the player had found and flipped a chord
+    // they were never told about.  A creature you summoned to fight beside you
+    // is already the player saying "fight" — asking again was the bug.
+    // The `enemy.isEnemy` filter inside tickAggressiveZyrex is what keeps this
+    // safe: they close on flagged enemies only, never on villagers, so
+    // always-on costs nothing in a peaceful town.
+    if (n.id && n.id.startsWith('_summon_') && n._summoned){
       tickAggressiveZyrex(n);
       return;
     }

@@ -6345,7 +6345,8 @@ const WORLD_PROPS = [
       return f;
     })(),
     door:  [0, 0],
-    onInteract: () => { showToast('◈ MALEZOR TOWN HALL · Closed for now.', 2200); playSFX('doorLock'); },
+    // ★ v0.96.9 · open · the property registry lives at its counter
+    onInteract: () => { enterCivic('town-hall', 'malezor'); },
   },
   {
     // Malezor School · south-band placement (rows 80-88, cols 20-30) ·
@@ -6398,7 +6399,8 @@ const WORLD_PROPS = [
       return f;
     })(),
     door: [0, 0],
-    onInteract: () => { showToast('◈ MALEZOR POTION SHOP · Closed for now.', 2200); playSFX('doorLock'); },
+    // ★ v0.96.9 · open · the premium counter still gates on the Ruby Vial errand
+    onInteract: () => { enterCivic('potion-shop', 'malezor'); },
   },
   {
     // ★★ v0.95.872 · THE ZYSPHERE SHOP · Creator: "put the zysphere item shop
@@ -6430,7 +6432,10 @@ const WORLD_PROPS = [
       return f;
     })(),
     door: [0, 0],
-    onInteract: () => { try { openZysphereShop(); } catch(err){ console.warn('zysphere shop failed', err); } },
+    // ★ v0.96.9 · the door opens the SHOP FLOOR · the counter inside still calls
+    // openZysphereShop(), so the panel and its whole economy are untouched — the
+    // building just stopped being a vending machine you press from the street.
+    onInteract: () => { enterCivic('zysphere-shop', 'malezor'); },
   },
   {
     // Malezor Zyrex Farm · south-2 band · RIGHT of center under school.
@@ -6472,7 +6477,10 @@ const WORLD_PROPS = [
       return f;
     })(),
     door: [0, 0],
-    onInteract: () => {
+    // ★ v0.96.9 · the door now OPENS. The 50-coin full heal moved inside to the
+    // counter, where a hospital's service belongs — see civicService('nurse').
+    onInteract: () => { enterCivic('nurse', 'malezor'); },
+    _retiredDoorHeal: () => {
       const COST = 50;
       const coins = player.items.coins || 0;
       const alive = (player.party || []).filter(z => z);
@@ -16598,6 +16606,169 @@ function pickDoormatKey(seed){
   let h = 0;
   for (let i = 0; i < s.length; i++){ h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; }
   return DOORMAT_KEYS[Math.abs(h) % DOORMAT_KEYS.length];
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.9 · CIVIC INTERIORS · the district building vocabulary
+//
+//   Creator: "author interiors for the buildings we have floor maps and rugs
+//   for. no landmarks yet. just the base malezor buildings. we will replicate
+//   for the other districts too. these are our district by district building
+//   for basic needs. remember the floor tile and rug set up the most. this will
+//   help people remember the pattern"
+//
+// ★★★ THE FLOOR AND THE RUG ARE THE WAYFINDING LANGUAGE. That is the whole
+//   instruction: a player who has been in Malezor's infirmary should know
+//   Korathen's the moment the door closes behind them — same speckled floor,
+//   same heart-and-phial rug — before a single word of dialogue. So the decor
+//   is keyed to the BUILDING KIND, never to the district. Ten infirmaries,
+//   one look.
+//
+// ★ These are therefore NOT five hand-authored rooms. They are one factory and
+//   five data rows, because the same five rooms have to exist ten times over.
+//   Authoring Malezor's by hand would have meant authoring forty-five more, and
+//   the fiftieth would not have matched the first.
+const CIVIC_ROOMS = {
+  'nurse': {
+    label: 'INFIRMARY', decor: 'nurse', cols: 15, rows: 11,
+    // beds down the west wall, counter across the north
+    blocked: [[1,2],[1,3],[1,5],[1,6],[1,8],[1,9],
+              [5,2],[6,2],[7,2],[8,2],[9,2],
+              [13,2],[13,3]],
+    rug: { x: 5, y: 6, w: 5, h: 3 },
+  },
+  'zysphere-shop': {
+    label: 'ZYSPHERE SHOP', decor: 'zysphere-shop', cols: 15, rows: 11,
+    blocked: [[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],[10,3],
+              [1,1],[2,1],[12,1],[13,1],[13,8],[13,9]],
+    rug: { x: 5, y: 6, w: 5, h: 3 },
+  },
+  'potion-shop': {
+    label: 'POTION SHOP', decor: 'potion-shop', cols: 15, rows: 11,
+    blocked: [[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],[10,3],
+              [1,2],[1,3],[1,4],[13,2],[13,3],[13,4]],
+    rug: { x: 5, y: 6, w: 5, h: 3 },
+  },
+  'town-hall': {
+    label: 'TOWN HALL', decor: 'town-hall', cols: 19, rows: 13,
+    // a civic bench aisle and a clerk's dais at the head of the room
+    blocked: [[8,2],[9,2],[10,2],
+              [3,5],[4,5],[5,5],[13,5],[14,5],[15,5],
+              [3,7],[4,7],[5,7],[13,7],[14,7],[15,7],
+              [1,1],[17,1]],
+    rug: { x: 7, y: 8, w: 5, h: 3 },
+  },
+  'cottage-lodge': {
+    label: 'LODGE', decor: 'cottage-lodge', cols: 15, rows: 11,
+    blocked: [[1,1],[2,1],[12,1],[13,1],
+              [1,8],[1,9],[13,8],[13,9],[7,2],[8,2]],
+    rug: { x: 5, y: 6, w: 5, h: 3 },
+  },
+};
+const CIVIC_CACHE = {};
+function civicSceneId(kind, dist){ return `interior_civic_${kind}_${dist}`; }
+// ★ Built lazily and cached · fifty rooms eagerly constructed at boot would be
+//   fifty Image objects and fifty blocked-tile tables for the one room the
+//   player is standing in.
+function makeCivicInterior(kind, dist){
+  const R = CIVIC_ROOMS[kind];
+  if (!R) return null;
+  const id = civicSceneId(kind, dist);
+  if (CIVIC_CACHE[id]) return CIVIC_CACHE[id];
+  const cfg = {
+    cols: R.cols, rows: R.rows,
+    tileImg: new Image(),
+    spawn: { x: (R.cols >> 1), y: R.rows - 1, dir: 'up' },
+    exit:  { x: (R.cols >> 1), y: R.rows - 1 },
+    autoExit: true,                       // walk out the way you came in
+    wallImg: 'malezor',
+    blocked: R.blocked.map(t => t.slice()),
+    label: `${R.label} · ${String(dist).toUpperCase()}`,
+    civic: kind, civicDistrict: dist,
+  };
+  // ★★ THE PATTERN. One call, so a room cannot end up with the right floor and
+  //    the wrong rug — the pairing is what the player is being taught.
+  applyBuildingDecor(cfg, R.decor, R.rug);
+  CIVIC_CACHE[id] = cfg;
+  return cfg;
+}
+function enterCivic(kind, dist, toast){
+  const cfg = makeCivicInterior(kind, dist);
+  if (!cfg) return false;
+  enterInterior(civicSceneId(kind, dist), cfg,
+                toast || `◈ ${cfg.label} · press X on the door to leave`);
+  return true;
+}
+// Which civic rooms a district actually has · the roster is the same everywhere
+// by design, so this is the vocabulary, not a per-district list.
+const CIVIC_KINDS = Object.keys(CIVIC_ROOMS);
+// ★★ EVERY ROOM DOES SOMETHING. A civic interior you can walk into and not use
+//    is worse than a locked door: the locked door at least told you the truth.
+//    The service lives at the COUNTER (the blocked furniture row), so entering
+//    is exploration and the counter is the transaction.
+const CIVIC_HEAL_COST = 50;
+function civicService(kind, dist){
+  const D = String(dist).toUpperCase();
+  switch (kind){
+    case 'nurse': {
+      // ★ the same service the hospital DOOR used to perform · moved inside,
+      //   where a hospital's service belongs, rather than duplicated
+      const coins = (player.items && player.items.coins) || 0;
+      const alive = (player.party || []).filter(z => z);
+      if (!alive.length){ showToast('◈ Infirmary · no Zyrex to heal.', 2000); return true; }
+      if (!alive.some(z => z.hp < z.maxHp)){
+        showToast('◈ Infirmary · your party is already at full health.', 2200); return true;
+      }
+      if (coins < CIVIC_HEAL_COST){
+        showToast(`◈ Infirmary · full heal costs ${CIVIC_HEAL_COST}c · you have ${coins}c.`, 2400);
+        try { playSFX('disabled'); } catch(_){}
+        return true;
+      }
+      player.items.coins = coins - CIVIC_HEAL_COST;
+      alive.forEach(z => { z.hp = z.maxHp; });
+      try { playSFX('confirm'); } catch(_){}
+      try { playSFX('heal'); } catch(_){}
+      showToast(`◈ ${D} INFIRMARY · party restored · -${CIVIC_HEAL_COST} coins`, 2600);
+      return true;
+    }
+    case 'zysphere-shop':
+      if (typeof openZysphereShop === 'function'){ openZysphereShop(); return true; }
+      break;
+    case 'potion-shop':
+      if (typeof openPotionShop === 'function'){ openPotionShop(); return true; }
+      showToast('◈ POTION SHOP · the Ruby Vial errand opens the premium counter', 2800);
+      try { playSFX('doorLock'); } catch(_){}
+      return true;
+    case 'town-hall': {
+      // ★★ THE HALL IS THE PROPERTY REGISTRY. It is the one building whose job
+      //    was never defined, and the estate system needed somewhere to be READ
+      //    rather than only toasted at the moment of purchase.
+      const owned = homesOwnedIn(dist), forSale = homesForSaleIn(dist);
+      const T = estateTier(dist);
+      const lines = [
+        `${D} PROPERTY REGISTRY · ${owned} of ${forSale} deeds held.`,
+        T ? `Your standing: ${T.label} · ${T.perk}` : 'You hold no property in this district.',
+      ];
+      const nextT = DISTRICT_ESTATE_TIERS.find(x => x.at > owned);
+      if (nextT) lines.push(`Next: ${nextT.label} at ${nextT.at} homes · ${nextT.perk}`);
+      const disc = districtShopDiscount(dist);
+      if (disc) lines.push(`Registered discount: ${Math.round(disc * 100)}% at this district's counters.`);
+      showDialog({ speaker: `${D} TOWN HALL`, lines });
+      return true;
+    }
+    case 'cottage-lodge':
+      showToast(`◈ ${D} LODGE · a bed for travellers · rest to restore`, 2600);
+      try { if (typeof sleepInBed === 'function') sleepInBed(); } catch(_){}
+      return true;
+  }
+  showToast(`◈ ${D} · nobody is at the counter`, 2000);
+  try { playSFX('doorLock'); } catch(_){}
+  return true;
+}
+// True when the faced tile is this room's counter (any blocked furniture tile).
+function civicCounterAt(cfg, fx, fy){
+  if (!cfg || !cfg.civic || !Array.isArray(cfg.blocked)) return false;
+  return cfg.blocked.some(([bx, by]) => bx === fx && by === fy);
 }
 
 const INTERIOR_HOME = {
@@ -28233,6 +28404,13 @@ function interiorConfig(scene){
   if (typeof scene === 'string' && scene.startsWith('interior_dev_')){
     return DEV_INTERIOR_CACHE.get(scene) || null;
   }
+  // ★ v0.96.9 · civic rooms · interior_civic_<kind>_<district>
+  if (typeof scene === 'string' && scene.startsWith('interior_civic_')){
+    if (CIVIC_CACHE[scene]) return CIVIC_CACHE[scene];
+    const m = /^interior_civic_(.+)_([a-z]+)$/.exec(scene);
+    if (m) return makeCivicInterior(m[1], m[2]);
+    return null;
+  }
   if (scene === 'interior_cave')        return INTERIOR_CAVE;
   if (scene === 'interior_crazy_home')  return INTERIOR_CRAZY_HOME;
   if (MALEZOR_HOME_INTERIORS[scene])    return MALEZOR_HOME_INTERIORS[scene];
@@ -32897,6 +33075,14 @@ function tryInteract(){
       }
       // v0.95.79 · Rizer Room · FACED TILE must be the actual collision
       // tile for every interactable (no reaching over empty tiles).
+      // ★ v0.96.9 · civic counters · checked before the Rizer Room branch so a
+      // shop counter cannot be mistaken for bedroom furniture.
+      if (cfg.civic && civicCounterAt(cfg, fx, fy)){
+        try { civicService(cfg.civic, cfg.civicDistrict); } catch(err){
+          console.warn('[rp7b] civic service failed', err);
+        }
+        return;
+      }
       if (cfg.rizerRoom){
         const facedRoomItem=roomItemAtTile(fx,fy);
         const nearTable = facedRoomItem?.id==='science';
@@ -34790,7 +34976,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.8' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.9' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

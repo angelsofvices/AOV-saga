@@ -4831,6 +4831,79 @@ const SEER_HQ_NETWORK = [
   { dist:'korathen',  label:'Korathen',  door:[981,655], bearing:'E',  toward:'the Bridge of Hope', gruntLv:81, cmdLv:92, cmdTier:8 },
 ];
 const SEER_HQ_BY_DIST = Object.fromEntries(SEER_HQ_NETWORK.map(h => [h.dist, h]));
+
+// ★★★ v0.95.994 · THE SOFT GATE · Creator: "each district should lead into the
+// next" → then, asked hard-or-soft: "soft gate works."
+//
+// ★★ THE MACHINERY WAS ALREADY HERE AND WIRED TO NOTHING. Every one of the ten
+// Seer HQs above sits at the route mouth TOWARD the next district, with a
+// commander who already scales Lv 10 → 92, and `seerCommanderBeaten()` existed
+// and was read in exactly ONE place: the commander's own dialogue. The comment
+// on SEER_HQ_NETWORK even claimed this was "why the player must engage the HQ
+// to progress." It gated nothing. A Lv5 player could walk to Korathen.
+//
+// ★★★ SOFT MEANS THE ROAD STAYS WALKABLE. `walkable()` is untouched. You can
+// wander into any district, fight there, bond there, die there. What waits on
+// the commander behind you is the district's PORTAL and its ELDER'S LADDER —
+// the two things that make a district *yours* rather than somewhere you went.
+// ★ A wall would turn an open world into a corridor. This keeps the sandbox
+// and makes the intended path the rewarding one, which is the difference
+// between being stopped and being pointed.
+//
+// ★ It also gives the ten commanders a job. They were ten health bars with
+// district-specific dialogue and no consequence; now each one is the reason
+// the next district opens, which is what the story always said they were.
+const DISTRICT_ORDER = SEER_HQ_NETWORK.map(h => h.dist);
+// The district whose commander holds THIS district's road shut · null for the
+// first, which is nobody's reward.
+function districtGateKeeper(dist){
+  const i = DISTRICT_ORDER.indexOf(dist);
+  return i > 0 ? DISTRICT_ORDER[i - 1] : null;
+}
+// ★★★ WHAT COUNTS AS BREAKING A DISTRICT'S HOLD — and this is the part that
+// nearly shipped broken. My first version keyed the gate on
+// seerCommanderBeaten() alone. That flag is READ and SAVED and **NEVER SET**:
+// talkToSeerCommander() ends at a comment reading "ENCOUNTER PENDING · the
+// fight itself is a later pass · deliberately NOT faked with a toast that
+// pretends a battle happened." Correct decision by whoever wrote it — and it
+// means a gate keyed only to that flag would have locked NINE DISTRICTS
+// PERMANENTLY, with no way for any player to ever open one.
+//
+// ★★ Caught by asking the question the five dead flags in this file should
+// have taught me to ask first: not "is the flag read?" but "is it ever
+// WRITTEN?" Three of them (lostBoyReunited, malezorBroadcastDone,
+// kelthorSeedsFed) are still dead for exactly this reason.
+//
+// ★ So the gate accepts EITHER proof that the district's cell is broken:
+//   · seerCommandersBeaten[d] — the CANONICAL key, live the day the encounter
+//     ships, and nothing here needs changing when it does
+//   · towerBossKills[d]       — the SHIPPING key: the radio-tower boss squad,
+//     a real fight that exists and resolves today via recordTowerGuardKill()
+// Both mean the same sentence in the fiction — you took something back from
+// them in this district — so accepting either is not a loophole, it is the
+// gate having two doors while one of them is still being built.
+function districtCleared(dist){
+  if (!dist) return false;
+  if (seerCommanderBeaten(dist)) return true;
+  return !!(player.towerBossKills || {})[dist];
+}
+function districtRoadOpen(dist){
+  const prev = districtGateKeeper(dist);
+  if (!prev) return true;                       // Malezor is always open
+  return districtCleared(prev);
+}
+// ★ the sentence the player should read, or null when nothing is shut
+function districtGateReason(dist){
+  if (districtRoadOpen(dist)) return null;
+  const prev = districtGateKeeper(dist);
+  const H = SEER_HQ_BY_DIST[prev];
+  const where = (H && H.label) || prev;
+  const T = (typeof TOWER_BY_DIST !== 'undefined' && TOWER_BY_DIST[prev]) || null;
+  // ★ name the door the player can actually walk through TODAY. Pointing them
+  // at a commander who cannot yet be fought would be a worse bug than the lock.
+  const boss = (T && T.bossName) || 'their tower boss';
+  return `The Seers still hold the road here \u00b7 break ${boss} at the ${where} tower`;
+}
 // The building footprint, shared by all ten · 8 wide x 6 deep, door tile walkable
 const SEER_HQ_FOOTPRINT = (function(){
   const f = [];
@@ -9505,6 +9578,16 @@ const NPCS = [
 
       // ── s1 · THE WATCHER ON THE RIM ──────────────────────────────────────
       if (!OS.s1){
+        // ★★ v0.95.994 · THE SOFT GATE, at the only place it should bite: an
+        // elder does not begin teaching a Rizer who has left a Seer cell
+        // standing behind him. You may already be here — the road is walkable —
+        // and he will still talk to you. He just will not start.
+        if (typeof districtRoadOpen === 'function' && !districtRoadOpen('zarvane')){
+          return say('*does not turn*',
+            'You crossed a border you did not open. That is not the same as arriving.',
+            'There is a cell of them in Malezor still holding a tower that is not theirs.',
+            'Break it, and the road behind you becomes a road. Then I will begin.');
+        }
         if (gate(15)) return;
         OS.s1 = true; bump(1);
         try { registerContact('omniris'); } catch(_){}
@@ -20420,7 +20503,13 @@ function portalDistrictsUnlocked(){
 function portalDistrictIndex(id){ return ZYRAXIS_DISTRICTS.findIndex(d => d.id === id); }
 function portalUnlocked(id){
   const i = portalDistrictIndex(id);
-  return i >= 0 && i < portalDistrictsUnlocked();
+  if (!(i >= 0 && i < portalDistrictsUnlocked())) return false;
+  // ★★ v0.95.994 · AND the road has to be open. Portal chips are Dad's half of
+  // the bargain; the commander is yours. Both, or the gate stays dark.
+  // ★ Deliberately ANDed rather than replacing the chip tier: fast travel was
+  // already earned content and this does not take that away, it adds the
+  // reason the district is yours to travel TO.
+  return (typeof districtRoadOpen !== 'function') || districtRoadOpen(id);
 }
 // The next band, and what it still wants.  Null once the network is whole.
 function portalNextTier(){
@@ -28912,6 +29001,14 @@ function tryMove(dt){
           player.zarvaneEntered = true;
           try { pingNextObjective(); } catch(_){}
         }
+        // ★★ v0.95.994 · first time in a district whose road is still shut,
+        // the game SAYS SO. A soft gate the player cannot see is not a soft
+        // gate, it is a bug report waiting to be filed — they would find the
+        // portal dark and the elder cold and have no idea why.
+        try {
+          const _r = (typeof districtGateReason === 'function') ? districtGateReason(_d) : null;
+          if (_r) showToast('\u25c8 ' + _r, 5200);
+        } catch(_){}
       }
     }
   }
@@ -33442,7 +33539,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.993' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.994' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -39626,6 +39723,18 @@ function saveGame(){
         seerBasementKeys:           player.seerBasementKeys   || {},   // ★ v0.95.966
         seerR2Chests:               player.seerR2Chests       || {},   // ★ v0.95.966
         seerCommandersBeaten:       player.seerCommandersBeaten || {},
+        // ★★★ v0.95.994 · towerBossKills IS A GATE KEY NOW and it was never
+        // saved. Before the soft gate it only drove a Scrapjaw bonus toast, so
+        // losing it on reload cost a line of dialogue; now it decides whether
+        // the next district's portal and elder are reachable, and a player who
+        // reloaded would find the road shut again with the boss already dead
+        // and no way to re-kill him.
+        // ★ Caught by verify_softgate.js asking "do the gate keys survive a
+        // reload?" — the same question that found seerCommandersBeaten has no
+        // setter. Promoting a flag to load-bearing means re-checking every
+        // assumption that was safe when it was decoration.
+        towerBossKills:             player.towerBossKills  || {},
+        towerSquadKills:            player.towerSquadKills || {},
         deathGargoyles:             player.deathGargoyles || [],   // v0.95.614 · death breadcrumb persist
         mealuxSeed:                 player.mealuxSeed || null,     // ★ v0.95.959 · this playthrough's Key layout
         mealuxTaken:                player.mealuxTaken || [],      // ★ v0.95.959 · districts whose Key is bonded

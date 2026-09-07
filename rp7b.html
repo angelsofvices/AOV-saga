@@ -6346,8 +6346,10 @@ const WORLD_PROPS = [
     })(),
     door:  [0, 0],
     // ★ v0.96.9 · open · the property registry lives at its counter
-    _civicEnter: { kind: 'town-hall', dist: 'malezor' },   // ★ v0.96.10 · SQUARE enters
-    onInteract: () => { civicQuickInteract('town-hall', 'malezor'); },   // X = from the street
+    _civicEnter: { kind: 'town-hall', dist: 'malezor' },
+    _pressOnlyDoor: true,                                  // ★ v0.96.11 · never fires on a footstep
+    onSquare:   () => { enterCivic('town-hall', 'malezor'); },        // SQUARE · go in
+    onInteract: () => { civicQuickInteract('town-hall', 'malezor'); },// X · use it from the door
 
   },
   {
@@ -6402,8 +6404,10 @@ const WORLD_PROPS = [
     })(),
     door: [0, 0],
     // ★ v0.96.9 · open · the premium counter still gates on the Ruby Vial errand
-    _civicEnter: { kind: 'potion-shop', dist: 'malezor' },   // ★ v0.96.10 · SQUARE enters
-    onInteract: () => { civicQuickInteract('potion-shop', 'malezor'); },   // X = from the street
+    _civicEnter: { kind: 'potion-shop', dist: 'malezor' },
+    _pressOnlyDoor: true,                                  // ★ v0.96.11 · never fires on a footstep
+    onSquare:   () => { enterCivic('potion-shop', 'malezor'); },        // SQUARE · go in
+    onInteract: () => { civicQuickInteract('potion-shop', 'malezor'); },// X · use it from the door
 
   },
   {
@@ -6439,8 +6443,10 @@ const WORLD_PROPS = [
     // ★ v0.96.9 · the door opens the SHOP FLOOR · the counter inside still calls
     // openZysphereShop(), so the panel and its whole economy are untouched — the
     // building just stopped being a vending machine you press from the street.
-    _civicEnter: { kind: 'zysphere-shop', dist: 'malezor' },   // ★ v0.96.10 · SQUARE enters
-    onInteract: () => { civicQuickInteract('zysphere-shop', 'malezor'); },   // X = from the street
+    _civicEnter: { kind: 'zysphere-shop', dist: 'malezor' },
+    _pressOnlyDoor: true,                                  // ★ v0.96.11 · never fires on a footstep
+    onSquare:   () => { enterCivic('zysphere-shop', 'malezor'); },        // SQUARE · go in
+    onInteract: () => { civicQuickInteract('zysphere-shop', 'malezor'); },// X · use it from the door
 
   },
   {
@@ -6485,8 +6491,10 @@ const WORLD_PROPS = [
     door: [0, 0],
     // ★ v0.96.9 · the door now OPENS. The 50-coin full heal moved inside to the
     // counter, where a hospital's service belongs — see civicService('nurse').
-    _civicEnter: { kind: 'nurse', dist: 'malezor' },   // ★ v0.96.10 · SQUARE enters
-    onInteract: () => { civicQuickInteract('nurse', 'malezor'); },   // X = from the street
+    _civicEnter: { kind: 'nurse', dist: 'malezor' },
+    _pressOnlyDoor: true,                                  // ★ v0.96.11 · never fires on a footstep
+    onSquare:   () => { enterCivic('nurse', 'malezor'); },        // SQUARE · go in
+    onInteract: () => { civicQuickInteract('nurse', 'malezor'); },// X · use it from the door
 
     _retiredDoorHeal: () => {
       const COST = 50;
@@ -16726,21 +16734,27 @@ const CIVIC_KINDS = Object.keys(CIVIC_ROOMS);
 //   being interact-or-attack. Facing an enterable door, Square opens it; one
 //   tile away from any door, Square still punches. The check is on the FACED
 //   TILE, never on proximity, so it can never eat a swing in a fight.
+// ★★★ v0.96.11 · ONE TILE AUTHORITY.
+//
+//   Creator: "must interact with the building door tile in order to 'use it or
+//   enter it' x/square"
+//
+// ★ _propDoors is the map the whole game already uses for this, and it is keyed
+//   on the DOOR TILE — `p.tileX + p.door[0]`, not the building's footprint. My
+//   v0.96.10 version scanned WORLD_PROPS for a prop whose ORIGIN matched the
+//   faced tile, which happens to be the same tile for these four buildings and
+//   would silently be the wrong one for any prop whose door is offset from its
+//   anchor. Reading the real map means X and Square cannot disagree about where
+//   a building is, and a re-sited door moves both verbs at once.
 function facedCivicDoor(){
   if (game.scene !== 'overworld') return null;
-  // ★ the same four lines facedNpc() uses · there is no facedTile() helper in
-  //   this file, and inventing one was caught by grepping the name before it
-  //   shipped as a silently-null door check.
   let fx = player.x, fy = player.y;
   if (player.dir === 'up')    fy--;
   else if (player.dir === 'down')  fy++;
   else if (player.dir === 'left')  fx--;
   else if (player.dir === 'right') fx++;
-  for (const p of WORLD_PROPS){
-    if (!p || !p._civicEnter) continue;
-    if (p.tileX === fx && p.tileY === fy) return p;
-  }
-  return null;
+  const p = _propDoors.get(`${fx},${fy}`);
+  return (p && p._civicEnter) ? p : null;
 }
 function enterFacedCivicDoor(){
   const p = facedCivicDoor();
@@ -29360,15 +29374,12 @@ addEventListener('keydown', e => {
         // stuck true from another chord.  Punch is now the sole Square action
         // on the bag · move-bag mechanic can come back later on a cleaner input
         if (game._bagDragging){ game._bagDragging = false; }
-        // ★★★ v0.96.10 · SQUARE OPENS A DOOR YOU ARE FACING.
-        // Checked before the swing is armed so entering never costs a punch of
-        // stamina or leaves an attack lock behind. Square only · Triangle stays
-        // a pure kick.
-        if (k === 'j'){
-          try { if (enterFacedCivicDoor()) return; } catch(err){
-            console.warn('[rp7b] civic door failed', err);
-          }
-        }
+        // ★ v0.96.11 · the v0.96.10 Square override that lived here is GONE.
+        // The game already had `onSquare` (v0.95.366, "lets a prop define
+        // distinct X vs Square behavior") dispatched off _propDoors — the same
+        // DOOR-TILE map X uses. A second mechanism doing the same job with a
+        // different tile rule was exactly how X and Square ended up disagreeing
+        // about where a building is.
         const mode = (k === 'j') ? 'punch' : 'kick';
         // ★★★ v0.95.917 · INPUT BUFFER.  A press this close to the lock
         // clearing used to be thrown away, so the natural rhythm -- press again
@@ -30827,6 +30838,37 @@ function tryMove(dt){
   // makes "locked" legible, and leaves you able to press X to hear it again.
   if (game.scene === 'overworld' && player.activeActor === 'rizer'){
     const doorProp = _propDoors.get(`${player.x},${player.y}`);
+    // ★★★ v0.96.11 · A FOOTSTEP IS NOT A PURCHASE.
+    //
+    //   Creator: "must interact with the building door tile in order to 'use it
+    //   or enter it' x/square"
+    //
+    // Since v0.95.710 EVERY registered door fires onInteract the moment you
+    // step on its tile. That was safe while onInteract only ever opened a door
+    // — but v0.96.10 made X the QUICK SERVICE, so walking across the infirmary
+    // threshold would have silently charged 50 coins and healed a party that
+    // did not need it, with no prompt and no way to decline.
+    //
+    // ★ Press-only doors bounce you back FACING the door instead, which is the
+    //   pose that makes both verbs available and is exactly what the Creator is
+    //   asking for: you must press something at the door tile.
+    if (doorProp && doorProp._pressOnlyDoor){
+      const fromX = _doorPrevX, fromY = _doorPrevY;
+      if (fromX != null && fromY != null && (fromX !== player.x || fromY !== player.y)
+          && typeof walkable === 'function' && walkable(fromX, fromY)){
+        const dx = player.x - fromX, dy = player.y - fromY;
+        player.x = fromX; player.y = fromY;
+        player.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left')
+                                                  : (dy > 0 ? 'down' : 'up');
+        player.moving = false;
+        player.moveCd = 160;
+      }
+      if ((doorProp._doorHintAt || 0) < performance.now()){
+        doorProp._doorHintAt = performance.now() + 6000;   // ★ not once per step
+        try { showToast('◈ SQUARE to enter · X to use from the door', 2600); } catch(_){}
+      }
+      return;
+    }
     if (doorProp && typeof doorProp.onInteract === 'function'){
       try { notebookNotePropInteract(doorProp); } catch(_){}   // ★ v0.95.778
       const fromX = _doorPrevX, fromY = _doorPrevY;
@@ -35136,7 +35178,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.10' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.11' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

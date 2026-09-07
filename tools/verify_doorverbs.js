@@ -128,16 +128,46 @@ const C = globalThis.__C;
     `★ all four Malezor doors carry BOTH verbs (${doors} enter, ${quick} quick)`);
 }
 
-/* ── 3 · ★★ SQUARE ONLY OVERRIDES AT A DOOR ─────────────────────────────── */
+/* ── 3 · ★★★ ONE TILE AUTHORITY · BOTH VERBS, THE SAME DOOR TILE ────────── */
 {
-  const i = H.indexOf("if (k === 'j'){\n          try { if (enterFacedCivicDoor()) return; }");
-  t(i > 0, '★ the override lives in the Square branch');
-  const before = H.slice(Math.max(0, i - 1200), i);
-  t(/const mode = \(k === 'j'\) \? 'punch' : 'kick';/.test(H.slice(i, i + 600)),
-    '★★ and it runs BEFORE the swing is armed · entering must not cost a punch of '
-    + 'stamina or leave an attack lock behind');
-  t(!/if \(k === 'j' \|\| k === 'k'\)\{\s*try \{ if \(enterFacedCivicDoor/.test(H),
-    '★ Triangle is untouched · it stays a pure kick');
+  //   Creator: "must interact with the building door tile in order to 'use it
+  //   or enter it' x/square"
+  t(/const p = _propDoors\.get\(`\$\{fx\},\$\{fy\}`\);/.test(H),
+    '★★★ the door test reads _propDoors — the map keyed on the DOOR TILE '
+    + '(`p.tileX + p.door[0]`), which is the same map X already used. v0.96.10 '
+    + 'scanned WORLD_PROPS for a prop whose ORIGIN matched the faced tile: the '
+    + 'same tile for these four buildings, and silently the wrong one for any '
+    + 'prop whose door is offset from its anchor');
+  t(!/if \(k === 'j'\)\{\s*\n\s*try \{ if \(enterFacedCivicDoor\(\)\) return; \}/.test(H),
+    '★★ and the bespoke Square override in the melee branch is GONE · the game '
+    + 'already had onSquare (v0.95.366) dispatched off the same map. Two '
+    + 'mechanisms with different tile rules is how X and Square end up '
+    + 'disagreeing about where a building is');
+  const sq = (H.match(/onSquare:   \(\) => \{ enterCivic\(/g) || []).length;
+  t(sq === 4, `★ all four doors define onSquare (${sq}) · the game's own convention`);
+  // both verbs resolve through the same registry entry
+  const hosp = C.WORLD_PROPS.find(p => p && p.id === 'malezor_hospital');
+  t(typeof hosp.onSquare === 'function' && typeof hosp.onInteract === 'function',
+    '★★ the SAME prop carries both verbs · so a re-sited door moves them together');
+}
+
+/* ── 3b · ★★★ A FOOTSTEP IS NOT A PURCHASE ─────────────────────────────── */
+{
+  t(/_pressOnlyDoor: true/.test(H) && (H.match(/_pressOnlyDoor: true/g) || []).length === 4,
+    '★ all four civic doors are press-only');
+  const i = H.indexOf('if (doorProp && doorProp._pressOnlyDoor){');
+  const j = H.indexOf("if (doorProp && typeof doorProp.onInteract === 'function'){",
+                      H.indexOf('const doorProp = _propDoors.get(`${player.x},${player.y}`)'));
+  t(i > 0 && i < j,
+    '★★★ the press-only bounce is checked BEFORE the walk-on auto-fire · since '
+    + 'v0.95.710 every registered door fires onInteract the moment you step on '
+    + 'its tile. That was harmless while onInteract only opened doors — but '
+    + 'v0.96.10 made X the QUICK SERVICE, so walking across the infirmary '
+    + 'threshold would have silently charged 50 coins and healed a party that '
+    + 'did not need it, with no prompt and no way to decline');
+  t(/doorProp\._doorHintAt/.test(H),
+    '★ and the "SQUARE to enter" nudge is throttled · a hint that fires on every '
+    + 'footstep against a wall is noise, not teaching');
 }
 
 /* ── 4 · ★★★ THE PAD NAVIGATES EVERY DOM PANEL ──────────────────────────── */

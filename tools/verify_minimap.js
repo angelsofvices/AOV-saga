@@ -229,7 +229,17 @@ H('8 · ★★ BLIPS · BLUE UNFOUND · GREEN FOUND · BLINK WHEN NEAR');
      "★ every static POI speaks ONE colour language · blue you have not been, green you have");
   ok(/const near = P\.dist <= 20/.test(body),'proximity is a distance, not a guess');
   ok(/Math\.abs\(Math\.sin\(_blinkNow \/ 260\)\)/.test(body),'★ and near blips BLINK');
-  ok(/near \? 4 : 3\.2/.test(body),'growing slightly as they pulse');
+  // ★ v0.95.985 · the literals moved (3.2/4 → 5/6.5) when the Creator asked for
+  // bigger blips. The PROPERTY this was protecting is that a near blip is
+  // drawn LARGER than a far one — so assert that, not the two numbers, and the
+  // check survives the next resize too.
+  {
+    const m = body.match(/near \? ([\d.]+) : ([\d.]+)/);
+    ok(!!m && parseFloat(m[1]) > parseFloat(m[2]),
+       `growing slightly as they pulse · near ${m?m[1]:'?'} > far ${m?m[2]:'?'}`);
+    ok(!!m && parseFloat(m[2]) >= 5,
+       `★ and both are big enough to see · far blip ${m?m[2]:'?'}px`);
+  }
   // ★ the interior bug from the Creator's screenshot: the scope read
   //   "MALEZOR 10,7" from INSIDE the bedroom — room tile (10,7) measured
   //   against world POIs.  Overworld only now.

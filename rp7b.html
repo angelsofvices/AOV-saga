@@ -335,27 +335,44 @@
        geometric one. Centring the box was never going to centre the number.
        top 38 -> 41 puts the DIGITS on 55.7 instead of the band.
 
-       ★★ THE HORIZONTAL POSITION WAS ALREADY RIGHT; the ALIGNMENT was not.
-       left:88 sits 3px clear of the icon's right edge at ~85 — but with
-       text-align:center the digits floated in the middle of the 88..186 box,
-       so "1" hung in open plate while "102,573" reached the frame. The number
-       appeared to move as it changed. text-align:LEFT pins it against the
-       symbol at every value and lets it grow rightward only, which is also the
-       direction _fitCounter shrinks from.
+       ★★ v0.95.985 · RIGHT SIDE, CENTRED IN IT.  Creator: *"make the coin and
+       gem count sit on the right side of the panel. centered. do not let it
+       spill out."*  This supersedes the left-align I shipped an hour ago —
+       left-aligned it hugged the icon, which reads as the number belonging to
+       the symbol; right-side-centred it reads as its own field.
 
-       ★ I re-measured the icon twice while writing this and got 72.7 both
-       times — a bad probe that was catching the plate's own left edge and then
-       the gold frame, not the coin. The 85 above comes from the v0.95.961 pass
-       and is what the suite encodes; when a fresh measurement disagrees with a
-       recorded one, the fresh one has to earn it, and this one could not. */
+       ★ The box is the whole right-hand REGION of the plate — everything from
+       just past the icon to just inside the frame: 92 → 182 (90px). Centred
+       within that, so the digits sit balanced in their own field at every
+       value rather than hugging the symbol.
+       ★★ MY FIRST CUT WAS 118 → 182 (64px) and verify_hudcounters rejected it:
+       at 64px a seven-digit total like 102,573 had to shrink at the base size,
+       and 12,345,678 fell to the 9px floor — unreadable. "Right side" is a
+       POSITION, and I had read it as "right half", which is a WIDTH. The
+       counter has to hold the numbers this game actually produces; the suite
+       knows what those are and I did not.
+
+       ★★ AND IT CANNOT SPILL, because two things hold it: the box ends at 182
+       and `overflow:hidden` clips anything that somehow exceeds it, while
+       _fitCounter shrinks the font until scrollWidth fits clientWidth. The
+       clip is the belt to the fitter's braces — a font floor of 9px means a
+       long enough number could in principle still overrun, and at that point I
+       would rather it were cut than painted over the frame.
+
+       ★ I re-measured the icon twice while writing the previous pass and got
+       72.7 both times — a bad probe catching the plate's own left edge and then
+       the gold frame, not the coin. The 85 comes from v0.95.961 and is what the
+       suite encodes; when a fresh measurement disagrees with a recorded one,
+       the fresh one has to earn it, and that one could not. */
     #coinHud .coinNum, #gemHud .gemNum{
       position:absolute;
-      left: 88px; width: 96px;
+      left: 92px; width: 90px;
       top: 41px;  height: 35px; line-height: 35px;
       font: bold 18px 'Courier New', monospace;
       letter-spacing:.06em;
-      text-align: left;
+      text-align: center;
       white-space: nowrap;
+      overflow: hidden;            /* ★ v0.95.985 · never spills the plate */
       box-sizing: border-box;
     }
     #coinHud .coinNum{ color:#ffd66b; text-shadow: 0 0 6px rgba(255,214,107,0.7), 0 1px 2px #000; }
@@ -12101,12 +12118,15 @@ const NPCS = [
     id: 'snok_wild',
     name: 'Snok',
     sheet: new Image(),
-    src:   'assets/2D%20sprites/zyrex/snok-sit.png',
+    // ★ v0.95.985 · was snok-sit.png, which no longer exists. A SECOND copy of
+    // the same table for the same creature — the Apexaur lesson at v0.95.982,
+    // and the reason both had to be edited here too.
+    src:   'assets/2D%20sprites/zyrex/snok.png',
     bboxes: [
-      [[16, 35,281,278],[15, 35,287,278],[21, 31,277,282],[18, 35,279,278]],
-      [[49,  0,215,307],[47,  0,220,308],[48,  0,218,307],[48,  0,217,308]],
-      [[34, 12,208,286],[29, 12,228,286],[31, 19,225,279],[35, 13,208,285]],
-      [[15, 11,280,286],[12, 11,284,286],[13, 10,284,287],[16, 11,279,286]],
+      [[  29,  25, 288, 273],[  25,  36, 284, 267],[  17,  33, 284, 273],[  10,  37, 282, 269]],
+      [[  42,  16, 269, 261],[  36,  24, 257, 253],[   6,  28, 268, 249],[ -11,  32, 260, 248]],
+      [[  37,  -2, 279, 256],[  32,   2, 253, 255],[  23,   3, 250, 256],[  -2,   2, 261, 259]],
+      [[  29, -33, 270, 273],[  22, -38, 258, 284],[  11, -25, 256, 271],[  -5, -28, 265, 274]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     uniformScale: true, scaleMul: 1.3,   // v0.95.349 · bigger than Rizer · vine-beast towers over him
@@ -19972,7 +19992,13 @@ function drawMinimap(){
     }
   } catch(_){}
   const list = minimapVisible(px, py);
-  g.font = 'bold 9px "Courier New", monospace';
+  // ★★ v0.95.985 · BIGGER BLIPS AND LABELS.  Creator: *"the dots on the minimap
+  // POI and labels have to be larger so we can see them in minimap beter."*
+  // ★ 9px Courier on a panel this small was legible only if you already knew
+  // what it said. 11px, and the dots go 3.2/4 → 5/6.5 — the near-blip is now
+  // visibly bigger than the far one instead of a half-pixel different, so the
+  // "this one is almost underfoot" signal reads without the blink.
+  g.font = 'bold 11px "Courier New", monospace';
   g.textAlign = 'center';
   const _blinkNow = performance.now();
   for (const P of list){
@@ -19990,8 +20016,10 @@ function drawMinimap(){
     const blink = (near || live) ? (0.45 + 0.55 * Math.abs(Math.sin(_blinkNow / 260))) : 1;
     g.globalAlpha = blink;
     g.fillStyle = c;
-    g.beginPath(); g.arc(x, y, near ? 4 : 3.2, 0, Math.PI*2); g.fill();
-    g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 1; g.stroke();
+    g.beginPath(); g.arc(x, y, near ? 6.5 : 5, 0, Math.PI*2); g.fill();
+    // ★ a heavier outline too · a bigger dot on a busy map needs a bigger edge
+    // to stay a dot rather than a smudge
+    g.strokeStyle = 'rgba(0,0,0,0.75)'; g.lineWidth = 1.6; g.stroke();
     g.globalAlpha = 1;
     // ★ "??? on undiscovered POIs and landmarks. full name shows once discovered."
     // Rumors and anomalies are the exception on purpose: their NAME is the
@@ -20000,12 +20028,14 @@ function drawMinimap(){
     // the colour rule needs it too.)
     const label = (P.found || live) ? P.name : '???';
     g.fillStyle = P.found ? '#bfffcf' : '#8fa3b5';
-    g.fillText(label.slice(0, 22), x, y - 6);
+    // ★ pushed further off the blip · at 6.5px radius the old 6px offset put
+    // the text ON the dot
+    g.fillText(label.slice(0, 22), x, y - 10);
   }
   // Rizer · always dead centre, because the map follows him
   g.fillStyle = '#ffd66b';
-  g.beginPath(); g.arc(sx + sw/2, sy + sh/2, 3.6, 0, Math.PI*2); g.fill();
-  g.strokeStyle = '#0b0b10'; g.lineWidth = 1.4; g.stroke();
+  g.beginPath(); g.arc(sx + sw/2, sy + sh/2, 5.5, 0, Math.PI*2); g.fill();   // ★ v0.95.985 · Rizer grows with them
+  g.strokeStyle = '#0b0b10'; g.lineWidth = 1.8; g.stroke();
   g.restore();
   // ── the readout ────────────────────────────────────────────────────
   g.textAlign = 'left';
@@ -22215,6 +22245,99 @@ const TOWER_BOSS_SOURCE = {
   skellor:    n => n.mode === 'skellor' || /skellor/i.test(n.src || ''),
   seer_grunt: n => /seer-grunt/i.test(n.src || ''),
 };
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.985 · THE ENEMY BASE-STAT TABLE.
+//
+// Creator: *"we should just give each type of enemy base stats (tier I) and
+// multiply the stats on a fixed enemy progression variable so that all enemies
+// scale the same but the baseline enemy type offset determines the max stat
+// proclivity. this can help us in the long run when we add higher tiered
+// enemies and more same tier different archetype enemies."*
+//
+// ★ ARCHETYPE SETS THE SHAPE, TIER SETS THE MAGNITUDE.  One T1 row per enemy
+// kind, one multiplier, and `stat = base × tier`. Adding a T7 Mori or a second
+// T3 archetype then costs one row instead of a rebalance.
+//
+// ★★ THE ROWS ARE DERIVED FROM WHAT IS ALREADY TUNED, not invented over the
+// top of it. Dividing each enemy's shipped HP and drain by its own tier gave a
+// consistent set of T1 bases, and multiplying them back reproduces the hand-set
+// numbers almost exactly:
+//        Mori T1        125 hp / 5 drain   → 125 / 5     ✓ exact
+//        Seer Grunt T2  175-200 / 7-8      → 190 / 8     ✓
+//        Crept T2       250 / 8            → 250 / 8     ✓ exact
+//        Satyrbeast T3  230 / 9            → 231 / 9     ✓
+//        Morlisk T4     350 / 12           → 352 / 12    ✓
+//        Vilerok T5     500 / 15           → 500 / 15    ✓ exact
+// So this can ship WITHOUT rebalancing a single encounter — it explains the
+// existing numbers rather than replacing them, which is the only way a table
+// like this earns its place in a game already being played.
+//
+// ★★★ AND IT ADDS DEF, WHICH NO ENEMY HAS EVER HAD.  That absence is what
+// blocks the ranged-combat spec ([[aov-ranged-zyrex-combat-spec]]): "damage
+// scaled by enemy tier defensive buff" has nothing to read. DEF shares are set
+// on the same 17.8%-of-pool measurement the Zyrex roster runs on, so enemy and
+// Zyrex defence sit on one scale instead of two.
+//
+// ★ Note the proclivities are REAL, not cosmetic: a Vilerok as a T1 would be a
+// 100hp wall with 3 drain, while a Mori T1 is 125hp with 5. The wall is only
+// terrifying because it EXISTS at T5. That is the Creator's "baseline offset
+// determines max stat proclivity" doing its job.
+const ENEMY_BASE_STATS = {
+  //                HP   ATK  DEF  SPD    · the shape of the thing at tier 1
+  skellor:    { hp:  40, atk: 3, def: 20, spd: 60 },   // fragile · swarms · dies to a look
+  mori:       { hp: 125, atk: 5, def: 45, spd: 40 },   // ★ THE BASELINE GRUNT · every other row reads against this
+  daemon:     { hp: 125, atk: 5, def: 40, spd: 70 },   // a faster Mori that hits the same
+  seer_grunt: { hp:  95, atk: 4, def: 55, spd: 55 },   // armoured and disciplined · trades HP for DEF
+  crept:      { hp: 125, atk: 4, def: 50, spd: 45 },   // rooted · tanky · slow to commit
+  satyrbeast: { hp:  77, atk: 3, def: 40, spd: 85 },   // pack hunter · the fastest thing on the ladder
+  morlisk:    { hp:  88, atk: 3, def: 60, spd: 50 },   // flier · plated
+  vilerok:    { hp: 100, atk: 3, def: 70, spd: 35 },   // the wall · least ATK per tier, most DEF
+  _default:   { hp: 125, atk: 5, def: 45, spd: 40 },   // = mori · an untagged enemy is a grunt
+};
+// ★ ONE KNOB, and it is deliberately linear. The Zyrex pool law is tier × 333
+// — also linear — so a T5 enemy and a T5 Zyrex grow at the same rate and the
+// two ladders can be compared at a glance. A curve here would make every
+// cross-comparison require arithmetic.
+const ENEMY_TIER_SCALE = 1.0;   // multiplier applied per tier · stat = base × tier × this
+// ★ Resolve an archetype from whatever the spawn actually carries. Enemies are
+// identified by sprite path and mode rather than by a type field, because that
+// is the information that has always been there — inventing a new required
+// field would mean touching all 18 spawn definitions to change nothing.
+function enemyArchetype(n){
+  if (!n) return '_default';
+  if (n._archetype) return n._archetype;
+  const src = String(n.src || '').toLowerCase();
+  const nm  = String(n.name || '').toLowerCase();
+  if (n._satyrbeast || /satyrbeast/.test(src + nm)) return 'satyrbeast';
+  if (n._seerGrunt  || /seer-grunt/.test(src) || /seer grunt/.test(nm)) return 'seer_grunt';
+  if (/vilerok/.test(src + nm))  return 'vilerok';
+  if (/morlisk/.test(src + nm))  return 'morlisk';
+  if (/skellor/.test(src + nm) || n.mode === 'skellor') return 'skellor';
+  if (/crept|verdant/.test(src + nm)) return 'crept';
+  if (/daemon/.test(src + nm) || n.mode === 'daemon')   return 'daemon';
+  if (/mori/.test(src + nm))     return 'mori';
+  return '_default';
+}
+// ★★ TIER, WITH THE FALLBACK MADE EXPLICIT.  Four of eighteen spawn definitions
+// declare no tier at all and have been silently reading as T1 wherever tier is
+// consulted. That is now stated in one place instead of implied in several.
+function enemyTier(n){ return Math.max(1, (n && n.tier) || 1); }
+function enemyStats(n){
+  const base = ENEMY_BASE_STATS[enemyArchetype(n)] || ENEMY_BASE_STATS._default;
+  const t = enemyTier(n) * ENEMY_TIER_SCALE;
+  return {
+    hp:  Math.round(base.hp  * t),
+    atk: Math.round(base.atk * t),
+    def: Math.round(base.def * t),
+    spd: Math.round(base.spd * t),
+  };
+}
+// ★ THE DEF READER the ranged spec needs. Prefers an explicit per-spawn value
+// if one is ever hand-set, so the table is a DEFAULT and never a ceiling.
+function enemyDef(n){
+  if (n && typeof n.def === 'number') return Math.max(1, n.def);
+  return Math.max(1, enemyStats(n).def);
+}
 function _cloneEnemyTo(base, id, x, y, opts = {}){
   const c = Object.assign({}, base);
   c.id = id;
@@ -24873,7 +24996,11 @@ function drawLevelUpBanner(){
   const W = canvas.width, H = canvas.height;
   // ★ never stretch · fit to a share of the width and keep the native ratio
   // ([[image-never-stretch-console-fullscreen]])
-  const w = Math.min(W * 0.62, img.naturalWidth);
+  // ★ v0.95.985 · 0.62 → 0.44 of the viewport width.  Creator: *"make the level
+  // up overlay a little smaller in the game viewport."*  At 62% it was a
+  // banner across two thirds of the screen for three seconds, which is a lot of
+  // world to cover to say one thing.
+  const w = Math.min(W * 0.44, img.naturalWidth);
   const h = w * (img.naturalHeight / img.naturalWidth);
   const x = Math.round((W - w) / 2);
   // ★ a small drop-in on the first 180ms · it arrives rather than blinking on
@@ -30685,7 +30812,15 @@ try { applyHudLayout(); } catch(_){}
 // v0.95.544 · toast cards render as the ZyPhone notification UI · cap 3 visible ·
 // 8s auto-dismiss · CORSUN "you have a new message captain rizer" VO cues the
 // player to look bottom-right (audio stimulus).
-const TOAST_STACK_MAX = 2;   // v0.95.547 · max 2 notification cards on screen at once
+// ★★ v0.95.985 · ONE CARD AT A TIME.  Creator: *"only one rizer phone msgs pop
+// up at a time."*  Was 2, and a stack of two is a stack — the second card
+// arrives while you are reading the first and you finish neither.
+// ★ THEY QUEUE, THEY DO NOT DROP. The old cap evicted the OLDEST card the
+// moment a third arrived, so a burst showed you the end of the conversation and
+// silently ate the start. Now a card that arrives while one is up waits its
+// turn in `_pendingPhoneToasts` — the same queue that already holds cards back
+// during NPC dialog, so there is one waiting-room rather than two.
+const TOAST_STACK_MAX = 1;
 const ZPHONE_NOTIF_IMG_SRC = 'assets/2D sprites/ui/zyphone-notification.png';
 // Preload so the first toast doesn't flash without the frame.
 (function preloadNotifImg(){ try { const im = new Image(); im.src = ZPHONE_NOTIF_IMG_SRC; } catch(_){} })();
@@ -30775,8 +30910,13 @@ function _appendPlainToast(msg, dur){
 // v0.95.552 · Phone toasts wait for NPC dialog to close · never overlay a
 // conversation.  Deferred cards flush in order when the dialog box exits.
 const _pendingPhoneToasts = [];
+// ★ v0.95.985 · is a card on screen right now?
+function _phoneToastShowing(){
+  try { return !!(toastStackEl && toastStackEl.children.length); } catch(_){ return false; }
+}
 function _flushPendingPhoneToasts(){
   if (dialogState) return;                // still in a dialog · try again on next close
+  if (_phoneToastShowing()) return;       // ★ v0.95.985 · one at a time · wait for the current card
   while (_pendingPhoneToasts.length){
     const { msg, ms, opts } = _pendingPhoneToasts.shift();
     // Re-enter via showToast so all downstream logic (card build + CORSUN cue) runs.
@@ -30789,7 +30929,8 @@ function showToast(msg, ms, opts){
   // v0.95.552 · queue phone-worthy toasts while an NPC is talking · never overlay
   // the dialog box.  Plain text toasts still surface immediately (they don't
   // steal focus).  Notifications feed still logs the message so nothing is lost.
-  if (_phone && dialogState){
+  // ★★ v0.95.985 · queue behind a dialog OR behind a card that is still up.
+  if (_phone && (dialogState || _phoneToastShowing())){
     _pendingPhoneToasts.push({ msg, ms, opts });
     try {
       // Log into the notifications feed now so the ZyPhone Home shows the message
@@ -30875,7 +31016,13 @@ function showToast(msg, ms, opts){
     setTimeout(() => {
       card.style.opacity = '0';
       card.style.transform = 'translateY(-6px)';
-      setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); }, 320);
+      setTimeout(() => {
+        if (card.parentNode) card.parentNode.removeChild(card);
+        // ★ v0.95.985 · the card is gone · let the next one in. Drained HERE
+        // rather than on a timer, so the queue moves at the speed the player
+        // actually reads rather than at a fixed cadence that could overlap.
+        try { _flushPendingPhoneToasts(); } catch(_){}
+      }, 320);
     }, dur);
     // v0.95.548 · CORSUN cue only fires with the phone card · ★ toasts only.
     _fireCorsunCue();
@@ -33271,6 +33418,8 @@ const ATHRENOLOGY_INDEX = [
   // ★ v0.95.979 · XYTABYTE · also brand new, so also absent. Filed at T7, which
   // was an EMPTY TIER until now (the live game had no T7 and still has no T9).
   {n:'Xytabyte',t:7,ty:'Tech/Creature'},
+  {n:'Irisol',t:4,ty:'Spirit/Creature'},   // ★ v0.95.985
+  {n:'Sigilmore',t:4,ty:'Corrupted/Crystal'},   // ★ v0.95.985
   {n:'Barkchitter',t:1,ty:'Beast/Nature'},
   {n:'Blazonon',t:1,ty:'Beast/Spirit'},
   {n:'Bogarion',t:1,ty:'Beast/Nature'},
@@ -37528,6 +37677,24 @@ const SPECIES = {
   // Elzebub is starter-only ([[aov-catching-philosophy]]).
   vengrizz:   { id:'vengrizz',   name:'Vengrizz',   tier:2, type:'Spirit',       type2:'Beast',
     baseHP:120, baseATK:150, baseDEF:95, baseSPD:140, baseSATK:86, baseSDEF:75,   // sum 666
+    moves:['Wraith Touch','Spirit Orb','Soul Rend','Nether Judgment'] },
+  // ★★ v0.95.985 · IRISOL · Creator: "new tier 4 zyrex. spirit, creature."
+  // ★ A floating spike-shell with one enormous eye. The 1332 goes into the
+  // armour and the mind, not the legs: DEF 300 and SATK 322 against SPD 130.
+  // It is the first T4 that is a WALL WITH A STARE rather than a fighter.
+  // ★★ v0.95.985 · SIGILMORE · Creator: "add sigilmore to the wild zyrex pool.
+  // add populations in veridan xilnar and andrannor."
+  // ★ TIER 4 IS DERIVED FROM WHERE IT LIVES, not chosen. Those three districts
+  // band at Lv23-29 (Andrannor), 31-38 (Veridan) and 55-65 (Xilnar); the wild
+  // level law is tier x 10, so T4 spawns at Lv40 — the honest middle of a range
+  // that wide. T3 would be beneath Xilnar entirely, T6 would eat Andrannor.
+  // ★ A stone-tablet head over a body that is mostly claws: ATK 340 is the
+  // highest of any T4 (Skybeam held it at 332), bought out of SATK and SDEF.
+  sigilmore:  { id:'sigilmore',  name:'Sigilmore',  tier:4, type:'Corrupted',    type2:'Crystal',
+    baseHP:220, baseATK:340, baseDEF:260, baseSPD:200, baseSATK:172, baseSDEF:140,   // sum 1332
+    moves:['Bane Bite','Shardhurl','Facet Barrage','Prism Slam'] },
+  irisol:     { id:'irisol',     name:'Irisol',     tier:4, type:'Spirit',       type2:'Creature',
+    baseHP:240, baseATK:180, baseDEF:300, baseSPD:130, baseSATK:322, baseSDEF:160,   // sum 1332
     moves:['Wraith Touch','Spirit Orb','Soul Rend','Nether Judgment'] },
   aetherwing: { id:'aetherwing', name:'Aetherwing', tier:1, type:'Creature',      type2:null,
     baseHP:43, baseATK:47, baseDEF:40, baseSPD:80, baseSATK:73, baseSDEF:50,
@@ -43942,7 +44109,48 @@ const SUMMONABLE_SPRITES = {
       [[ 16, 42,290,208],[ 13, 43,279,205],[-11, 43,285,209],[ -8, 47,271,204]],
       [[ 66, -9,217,277],[ 52, -2,193,270],[ 45,  3,196,273],[ 23,  2,192,271]],
     ],
-    cellW: 313, cellH: 313, scaleMul: 1.10,   // T5 apex · bigger than the Rizer
+    // ★★ v0.95.985 · 1.10 → 1.40 · APEXAUR SIZE.  Creator: *"volcaxor should be
+    // apexaur size. its one of our apex sized zyrex."*
+    // ★ APEX IS A SIZE CLASS, not a tier. Apexaur is T5 at 1.40 and Volcaxor is
+    // T5 at 1.10, so they shared a tier and read as different weights of animal
+    // — which made "apex beast of baelgor" a label rather than something you
+    // could see. Matching the multiplier puts them both at 134px drawn.
+    cellW: 313, cellH: 313, scaleMul: 1.40,   // ★ apex class · shoulder to shoulder with Apexaur
+  },
+  // ★★ v0.95.985 · IRISOL · idle float, 4x4.
+  // ★ THE AUDIT'S EIGHT FLAGS ARE THE ANIMATION.  Frame 1 of EVERY row measures
+  // 14-20% shorter than its neighbours and the ground line moves with it —
+  // which sounds like a broken sheet until you notice it is the SAME frame in
+  // all four rows. That is a bounce: the shell compresses, then rises. A defect
+  // does not keep time.
+  // ★★ AND THAT IS WHY IT DOES NOT GET `levitate: true`. The Mutamech lesson at
+  // v0.95.958 says a floater should be drawn FLAT and hover on the engine's
+  // sine — but this art already carries its bob, and adding the sine on top
+  // would beat against it. One bounce, in the frames, where the artist put it.
+  // ★★ v0.95.985 · SIGILMORE · running gait, 4x4.
+  // ★ The audit's two size flags are frame 1 of the LEFT and RIGHT rows, 15-22%
+  // shorter than their neighbours — that is the CROUCH in the stride, the low
+  // point of a four-legged run. Same shape as Irisol's bounce and Vengrizz's:
+  // a defect does not land on the same frame in the rows that share a gait.
+  sigilmore: {
+    src: 'assets/2D%20sprites/zyrex/sigilmore.png',
+    bboxes: [
+      [[ 48, 57,238,246],[ 17, 78,276,225],[ 23, 57,244,246],[ 13, 76,269,227]],
+      [[ 21, 66,286,221],[ 20,114,288,173],[  9, 66,276,221],[ -6, 74,298,213]],
+      [[ 20, 57,287,217],[ 10, 87,274,182],[  3, 56,285,215],[  3, 69,281,206]],
+      [[ 42,  2,243,258],[ 18, 35,248,224],[ 28, 14,246,253],[ 11, 14,269,245]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 1.05,   // T4 · taller than the Rizer, all limbs
+  },
+  irisol: {
+    src: 'assets/2D%20sprites/zyrex/irisol.png',
+    bboxes: [
+      [[ 21, 66,289,282],[ 25, 97,282,228],[  8, 51,289,300],[  9, 74,286,274]],
+      [[ 40, 83,258,243],[ 28,103,266,210],[ 11, 61,270,264],[ 22, 83,256,244]],
+      [[ 40, 48,251,243],[ 21, 72,260,208],[ 17, 31,268,260],[ 16, 45,257,246]],
+      [[ 34, 11,266,257],[ 21, 24,256,205],[ 11,  2,281,266],[ 15, 11,267,257]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.95,   // T4 · about a tile and a half
   },
   aetherwing: {
     src: 'assets/2D%20sprites/zyrex/aetherwing.png',
@@ -44200,20 +44408,24 @@ const SUMMONABLE_SPRITES = {
   // v0.95.348 · Snok · Veridan obtainable · vine-beast w/ triple pod-crown · walk (crouched stalk) + idle-sit
   snok: {
     src: 'assets/2D%20sprites/zyrex/snok.png',
+    // ★★ v0.95.985 · NEW WALKING SHEET · Creator: *"new snok walking sheet.
+    // delete his old ones."*  Both predecessors archived to _orig/ and
+    // snok-sit.png removed from the tree.
+    // ★ THE `idleSrc` GOES WITH IT.  Snok's sit sheet WAS the idle, so deleting
+    // the file while leaving `idleSrc` aimed at it would have left a lookup
+    // pointing at nothing — and a missing sheet draws nothing rather than
+    // throwing, which is exactly how Volcaxor's bank hid for three versions.
+    // One sheet now, named honestly; the draw falls back to `src` by design.
+    // ★ Audit: 16/16 components, no bleed, no dead frames, RIGHT mirrors LEFT
+    // (0.84). One flag reported not smoothed: ground lines drift 6-8px on rows
+    // 0/2/3 — a crouched stalking gait rocks, so it reads as the walk.
     bboxes: [
-      [[16, 35,281,278],[15, 35,287,278],[21, 31,277,282],[18, 35,279,278]],
-      [[36,  0,240,305],[34,  0,241,304],[18,  0,228,312],[38,  0,205,312]],
-      [[24, 20,231,266],[36, 20,237,260],[51, 22,223,266],[61, 25,193,262]],
-      [[16,  0,279,285],[21,  4,275,278],[17,  4,276,281],[17,  3,275,284]],
+      [[  29,  25, 288, 273],[  25,  36, 284, 267],[  17,  33, 284, 273],[  10,  37, 282, 269]],
+      [[  42,  16, 269, 261],[  36,  24, 257, 253],[   6,  28, 268, 249],[ -11,  32, 260, 248]],
+      [[  37,  -2, 279, 256],[  32,   2, 253, 255],[  23,   3, 250, 256],[  -2,   2, 261, 259]],
+      [[  29, -33, 270, 273],[  22, -38, 258, 284],[  11, -25, 256, 271],[  -5, -28, 265, 274]],
     ],
     cellW: 313, cellH: 313, scaleMul: 1.3,   // v0.95.349 · bigger than Rizer
-    idleSrc: 'assets/2D%20sprites/zyrex/snok-sit.png',
-    idleBboxes: [
-      [[16, 35,281,278],[15, 35,287,278],[21, 31,277,282],[18, 35,279,278]],
-      [[49,  0,215,307],[47,  0,220,308],[48,  0,218,307],[48,  0,217,308]],
-      [[34, 12,208,286],[29, 12,228,286],[31, 19,225,279],[35, 13,208,285]],
-      [[15, 11,280,286],[12, 11,284,286],[13, 10,284,287],[16, 11,279,286]],
-    ],
   },
   // v0.95.331 · Elzebub walking sprite · 4x4 D/L/R/U · chubby blue-dragon starter · from Mom's hatched egg
   // v0.95.340 · Idle-sit sheet added · swaps in when the follower isn't moving · smooth transition to walk
@@ -44656,6 +44868,44 @@ const ZYREX_ATTACK_BANKS = {
   // A3 Astral · A4 Ultimate).  The adjacent melee every summoned Zyrex throws
   // in tickAggressiveZyrex IS A1 — so this sheet is the first Zyrex A1 in the
   // game authored as one, rather than a strike sheet pressed into service.
+  // ★★★ v0.95.985 · VOLTIGRAX · A1 LIGHTNING CLAW.  Creator: "voltigrax attack
+  // animation (lightning claw)."  4x4 directional, canon D/L/R/U, col 2 = the
+  // slash — the claw itself is a bolt thrown clear of the body.
+  //
+  // ★★ MEASURED CELL-SCOPED, and that is the whole story of this sheet.  The
+  // standard CC pass returned FIFTEEN substantial components for sixteen cells
+  // and one box 604px wide: on the LEFT and RIGHT rows the lightning arcs
+  // BRIDGE the cell border and fuse two frames into a single connected blob,
+  // so ownership-by-majority handed both cells to one and left its neighbour
+  // reading empty.
+  // ★ The fix is to split OWNERSHIP at the cell line while never touching the
+  // art — every pixel still draws, it is just attributed to the cell it stands
+  // in. That is the one case NEVER-CELL-CLIP does not cover, because the rule
+  // is about not cutting pixels and this cuts nothing.
+  // ★ Several boxes therefore run edge to edge (x 0..313). For a VFX overlay
+  // that is correct rather than alarming — the bolt is meant to fill the frame.
+  //
+  // ★★ refBh 300 · THE ATTACK SHEET'S OWN tallest col-0, and I had this exactly
+  // backwards on the first pass.  I set 276 — the IDLE height — reasoning by
+  // analogy with the Elzoran traversal pin, and verify_zyattack caught it: he
+  // drew 8.7% off his standing height.
+  // ★ The draw already does the normalising, `_idleRefBh / n.attackRefBh`, so
+  // refBh is not the size you WANT, it is the number that describes THIS SHEET
+  // — the ratio is what carries him back to standing size. Aetherwing's 199 is
+  // its own attack max too; I read the field as a target when it is a
+  // measurement. A divisor named for its purpose rather than its source is easy
+  // to get wrong in exactly this direction.
+  voltigrax: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_voltigrax.png',
+    atkType: 'A1', move: 'Static Jab',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 460, refBh: 300,
+    bboxes: [
+      [[ 44, 41,214,272],[ 19, 46,226,257],[ 52, 36,202,277],[ 46, 46,203,267]],
+      [[ 15,  0,283,300],[ 24,100,289,187],[  0,  0,313,294],[  0,  0,302,305]],
+      [[ 13, 66,270,202],[ 10, 61,303,193],[  0, 75,313,238],[  0, 62,266,207]],
+      [[ 67, 19,169,263],[ 54, 21,186,266],[ 71,  0,159,290],[ 61, 25,174,264]],
+    ],
+  },
   aetherwing: {
     src: 'assets/2D%20sprites/zyrex/attacks/attack_aetherwing.png',
     atkType: 'A1', move: 'Horn Strike',
@@ -47035,6 +47285,73 @@ const WILD_PLACEMENT_LIVE = [
   { id: 'frosane', at: [486, 618], dist: 'xilnar',   habitat: 'wild',       temperament: 'Wary' },
   { id: 'frosane', at: [398, 729], dist: 'xilnar',   habitat: 'hub_fringe', temperament: 'Calm' },
   { id: 'frosane', at: [405, 630], dist: 'xilnar',   habitat: 'meadow',     temperament: 'Calm', graze: 4 },
+  // ★★ v0.95.985 · VOLTIGRAX · VORASHIL.  Creator: "add voltigrax and frosane
+  // populations to vorashil."  Frosane already has its four there from
+  // v0.95.982, so this adds the missing half.
+  // ★ T6, and Vorashil's band is Lv47-56 against a wild level law of tier x 10
+  // = Lv60 — so unlike Volcaxor in Baelgor this one arrives ABOVE its district
+  // rather than under it. Vorashil is the Alienlands highland; a storm-lion
+  // that outclasses the local Seers reads as the reason people avoid the
+  // uplands, so the mismatch works in this direction.
+  // ★ Dominant · a T6 apex does not warn you off, and its A1 is a thrown bolt.
+  { id: 'voltigrax', at: [338, 562], dist: 'vorashil', habitat: 'wild',       temperament: 'Dominant' },
+  { id: 'voltigrax', at: [255, 567], dist: 'vorashil', habitat: 'wild',       temperament: 'Dominant' },
+  { id: 'voltigrax', at: [324, 502], dist: 'vorashil', habitat: 'hub_fringe', temperament: 'Territorial' },
+  { id: 'voltigrax', at: [234, 517], dist: 'vorashil', habitat: 'meadow',     temperament: 'Territorial', graze: 4 },
+  // ★★ v0.95.985 · PHRENETIC · NETHARION + VORASHIL + XILNAR only.  Creator:
+  // "add phrenetic populations in netharion vorashil and xilnar only" — Veridan
+  // keeps the two it already had, and nothing else gains any.
+  { id: 'phrenetic', at: [488, 435], dist: 'netharion', habitat: 'hub_fringe', temperament: 'Skittish' },
+  { id: 'phrenetic', at: [424, 461], dist: 'netharion', habitat: 'meadow',     temperament: 'Calm', graze: 4 },
+  { id: 'phrenetic', at: [459, 389], dist: 'netharion', habitat: 'wild',       temperament: 'Wary' },
+  { id: 'phrenetic', at: [492, 479], dist: 'netharion', habitat: 'wild',       temperament: 'Wary' },
+  { id: 'phrenetic', at: [382, 533], dist: 'vorashil',  habitat: 'hub_fringe', temperament: 'Skittish' },
+  { id: 'phrenetic', at: [242, 553], dist: 'vorashil',  habitat: 'meadow',     temperament: 'Calm', graze: 4 },
+  { id: 'phrenetic', at: [298, 618], dist: 'vorashil',  habitat: 'wild',       temperament: 'Wary' },
+  { id: 'phrenetic', at: [245, 493], dist: 'vorashil',  habitat: 'wild',       temperament: 'Wary' },
+  { id: 'phrenetic', at: [460, 667], dist: 'xilnar',    habitat: 'hub_fringe', temperament: 'Skittish' },
+  { id: 'phrenetic', at: [351, 622], dist: 'xilnar',    habitat: 'meadow',     temperament: 'Calm', graze: 4 },
+  { id: 'phrenetic', at: [401, 679], dist: 'xilnar',    habitat: 'wild',       temperament: 'Wary' },
+  { id: 'phrenetic', at: [414, 619], dist: 'xilnar',    habitat: 'wild',       temperament: 'Wary' },
+  // ★★ v0.95.985 · SNOK · VERIDAN + NETHARION.  Creator: "add populations in
+  // veridan and netharion."  T4 vine-beast · Territorial, because a thing that
+  // roots itself does not run.
+  { id: 'snok', at: [556, 255], dist: 'veridan',   habitat: 'wild',       temperament: 'Territorial' },
+  { id: 'snok', at: [486, 284], dist: 'veridan',   habitat: 'meadow',     temperament: 'Calm', graze: 4 },
+  { id: 'snok', at: [525, 204], dist: 'veridan',   habitat: 'hub_fringe', temperament: 'Territorial' },
+  { id: 'snok', at: [445, 243], dist: 'veridan',   habitat: 'wild',       temperament: 'Territorial' },
+  { id: 'snok', at: [440, 408], dist: 'netharion', habitat: 'wild',       temperament: 'Territorial' },
+  { id: 'snok', at: [480, 385], dist: 'netharion', habitat: 'meadow',     temperament: 'Calm', graze: 4 },
+  { id: 'snok', at: [477, 495], dist: 'netharion', habitat: 'wild',       temperament: 'Territorial' },
+  { id: 'snok', at: [541, 417], dist: 'netharion', habitat: 'hub_fringe', temperament: 'Territorial' },
+  // ★★ v0.95.985 · IRISOL · NETHARION + ANDRANNOR + XILNAR.
+  // ★ Wary throughout · a floating eye that watches is the whole character, and
+  // at SPD 130 it is quick enough for keeping its distance to mean something.
+  { id: 'irisol', at: [386, 424], dist: 'netharion', habitat: 'wild',       temperament: 'Wary' },
+  { id: 'irisol', at: [433, 512], dist: 'netharion', habitat: 'meadow',     temperament: 'Wary', graze: 4 },
+  { id: 'irisol', at: [453, 507], dist: 'netharion', habitat: 'hub_fringe', temperament: 'Skittish' },
+  { id: 'irisol', at: [356, 325], dist: 'andrannor', habitat: 'wild',       temperament: 'Wary' },
+  { id: 'irisol', at: [277, 352], dist: 'andrannor', habitat: 'meadow',     temperament: 'Wary', graze: 4 },
+  { id: 'irisol', at: [320, 276], dist: 'andrannor', habitat: 'hub_fringe', temperament: 'Skittish' },
+  { id: 'irisol', at: [360, 371], dist: 'andrannor', habitat: 'wild',       temperament: 'Wary' },
+  { id: 'irisol', at: [442, 712], dist: 'xilnar',    habitat: 'wild',       temperament: 'Wary' },
+  { id: 'irisol', at: [360, 658], dist: 'xilnar',    habitat: 'meadow',     temperament: 'Wary', graze: 4 },
+  { id: 'irisol', at: [469, 612], dist: 'xilnar',    habitat: 'hub_fringe', temperament: 'Skittish' },
+  // ★★ v0.95.985 · SIGILMORE · VERIDAN + XILNAR + ANDRANNOR.
+  // ★ Dominant/Territorial only · a thing with claws that long has no timid
+  // register, and giving it a Skittish pin would misrepresent the silhouette.
+  { id: 'sigilmore', at: [560, 303], dist: 'veridan',   habitat: 'wild',       temperament: 'Dominant' },
+  { id: 'sigilmore', at: [592, 212], dist: 'veridan',   habitat: 'wild',       temperament: 'Territorial' },
+  { id: 'sigilmore', at: [496, 340], dist: 'veridan',   habitat: 'hub_fringe', temperament: 'Territorial' },
+  { id: 'sigilmore', at: [563, 269], dist: 'veridan',   habitat: 'meadow',     temperament: 'Territorial', graze: 4 },
+  { id: 'sigilmore', at: [460, 683], dist: 'xilnar',    habitat: 'wild',       temperament: 'Dominant' },
+  { id: 'sigilmore', at: [453, 658], dist: 'xilnar',    habitat: 'wild',       temperament: 'Territorial' },
+  { id: 'sigilmore', at: [451, 700], dist: 'xilnar',    habitat: 'hub_fringe', temperament: 'Territorial' },
+  { id: 'sigilmore', at: [353, 638], dist: 'xilnar',    habitat: 'meadow',     temperament: 'Territorial', graze: 4 },
+  { id: 'sigilmore', at: [231, 314], dist: 'andrannor', habitat: 'wild',       temperament: 'Dominant' },
+  { id: 'sigilmore', at: [396, 284], dist: 'andrannor', habitat: 'wild',       temperament: 'Territorial' },
+  { id: 'sigilmore', at: [288, 406], dist: 'andrannor', habitat: 'hub_fringe', temperament: 'Territorial' },
+  { id: 'sigilmore', at: [296, 297], dist: 'andrannor', habitat: 'meadow',     temperament: 'Territorial', graze: 4 },
   { id: 'mutamech', at: [66, 306], dist: 'zarvane', habitat: 'highland', temperament: 'Territorial' },
   { id: 'mutamech', at: [-15, 273], dist: 'zarvane', habitat: 'cave_mouth', temperament: 'Territorial' },
   { id: 'snok', at: [311, 341], dist: 'andrannor', habitat: 'highland', temperament: 'Territorial' },

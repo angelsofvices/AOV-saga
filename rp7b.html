@@ -750,6 +750,23 @@
         <button class="ngcOpt" data-idx="1" style="display:block; width:100%; padding:12px; font:bold 13px 'Courier New',monospace; cursor:pointer; background:rgba(255,255,255,0.06); color:#99a; border:1px solid #556;">ERASE AND START OVER</button>
       </div>
     </div>
+    <!-- ★★★ v0.96.2 · HOME PURCHASE CONFIRM · Creator: "confirm house purchase
+         overlay on new properties."  Buying was INSTANT: walk up, press X, and
+         if you could afford it the coins were simply gone. A home is the most
+         expensive thing in the game (500 in Malezor to 5,000 in Korathen) and
+         it was the only purchase with no way back.
+         ★ Modelled on the new-game confirm below, including its most important
+         habit: CANCEL is index 0, so the default answer to an irreversible
+         question is always no. -->
+    <div id="homeBuyConfirm" style="position:absolute; inset:0; display:none; z-index:130; background:rgba(0,0,0,0.88); font-family:'Courier New',monospace; align-items:center; justify-content:center;">
+      <div style="width:min(560px,92vw); background:rgba(10,6,14,0.98); border:3px solid #ffd66b; padding:22px 26px; box-shadow:0 0 40px rgba(255,214,107,0.35);">
+        <div style="color:#ffd66b; font:bold 18px 'Courier New',monospace; text-align:center; letter-spacing:.06em;">PURCHASE THIS PROPERTY?</div>
+        <div id="hbcSummary" style="color:#eaf0ff; font-size:13px; text-align:center; margin-top:14px; line-height:1.8;"></div>
+        <div id="hbcNote" style="color:#8ff; font-size:11px; text-align:center; margin:12px 0 18px;">A purchased home becomes a RIZER ROOM · sleep, store, and set your spawn.</div>
+        <button class="hbcOpt" data-idx="0" style="display:block; width:100%; margin-bottom:10px; padding:12px; font:bold 13px 'Courier New',monospace; cursor:pointer; background:rgba(40,40,55,0.9); color:#eaf0ff; border:2px solid #667;">KEEP MY COINS</button>
+        <button class="hbcOpt" data-idx="1" style="display:block; width:100%; padding:12px; font:bold 13px 'Courier New',monospace; cursor:pointer; background:rgba(60,45,10,0.9); color:#ffd66b; border:2px solid #ffd66b;">BUY IT</button>
+      </div>
+    </div>
     <div id="titleBtns" style="position:absolute; inset:0; display:none; z-index:25; pointer-events:none;">
       <div style="position:absolute; left:50%; bottom:14%; transform:translateX(-50%); display:flex; flex-direction:column; gap:14px; pointer-events:auto;">
         <button class="tBtn" data-idx="0" style="width:280px; padding:14px 20px; font: bold 20px 'Courier New',monospace; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; cursor:pointer; letter-spacing:0.08em;">NEW GAME</button>
@@ -1971,10 +1988,10 @@ setInterval(() => {
     if (Math.max(dx, dy) > 10) continue;
     const nm = (n.name || '').toLowerCase();
     if (moriReady && nm === 'mori'){
-      playSFX('moriNearby');
+      playSFX('moriNearby', n);
       _moriNearbyCd = now + 15000;
     } else if (skellorReady && n.mode === 'skellor' && !n._skellorDead){
-      playSFX('skellor');
+      playSFX('skellor', n);
       _skellorNearbyCd = now + 12000;
     }
   }
@@ -2172,7 +2189,62 @@ const _UI_SFX = new Set([
   'lifeSeedSour',                 // ★ v0.95.820 · eaten from the cube panel too
   'gemVox', 'gotcha',             // pickups can happen with the phone up too
 ]);
-function playSFX(name){
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.2 · PROXIMITY VOLUME ON ENEMY VOX/SFX
+//
+//   Creator: "add proximity volume to all enemies vox/sfx"
+//
+// Every enemy sound in the game played at FULL VOLUME regardless of where the
+// enemy was. A Mori dying forty tiles away — off the edge of the viewport, in
+// a fight you are not in — was exactly as loud as the one chewing on you. With
+// the district anchors and tower squads populating the map that is a constant
+// wash of groans from creatures you cannot see, and it actively hurts combat:
+// the grunt at 40% HP is a TELL, and a tell you hear all the time tells you
+// nothing.
+//
+// ★ Volume only, not stereo. HTMLAudioElement has no panner; getting left/right
+//   means routing the whole SFX bank through WebAudio, which is a real change to
+//   a subsystem that currently works. Distance is the part the Creator asked for
+//   and the part that carries the information.
+const SFX_NEAR_TILES = 3;    // inside this, full volume · "on top of you"
+const SFX_FAR_TILES  = 26;   // beyond this, silent · ~1.5 viewport widths
+const SFX_MIN_GAIN   = 0.03; // below this we do not play at all
+// 1 at the player's feet, 0 at the far edge, curved so the drop is steep close
+// in and gentle far out — linear falloff makes everything mid-range sound
+// equally present, which is the problem being fixed.
+function sfxProximityGain(x, y){
+  if (x == null || y == null) return 1;
+  const d = Math.hypot(x - player.x, y - player.y);
+  if (d <= SFX_NEAR_TILES) return 1;
+  if (d >= SFX_FAR_TILES)  return 0;
+  const t = (d - SFX_NEAR_TILES) / (SFX_FAR_TILES - SFX_NEAR_TILES);
+  return (1 - t) * (1 - t);
+}
+// Enemy sounds. ★ Named explicitly rather than pattern-matched: 'skellor' does
+// not start with 'mori', and a rule like /mori|enemy/ would have missed it and
+// silently left one enemy at full volume forever.
+const ENEMY_VOX = new Set(['moriPoke', 'moriGrunt', 'moriDeath', 'moriNearby', 'skellor']);
+// Accepts an NPC ({tileX,tileY}), a plain point ({x,y}), or nothing.
+function _sfxGainFor(name, at){
+  if (!at) {
+    // ★ An enemy sound with no emitter is a MISSED CALL SITE, not a design
+    //   choice. Warn once per key — the same habit this function already uses
+    //   for unknown sound names, and for the same reason: a silent fallback to
+    //   full volume would let a converted feature quietly stay unconverted.
+    if (ENEMY_VOX.has(name)){
+      if (!_sfxGainFor._warned) _sfxGainFor._warned = new Set();
+      if (!_sfxGainFor._warned.has(name)){
+        _sfxGainFor._warned.add(name);
+        console.warn(`[rp7b] playSFX('${name}') · enemy vox with no position · playing at full volume`);
+      }
+    }
+    return 1;
+  }
+  const x = (at.tileX != null) ? at.tileX : at.x;
+  const y = (at.tileY != null) ? at.tileY : at.y;
+  return sfxProximityGain(x, y);
+}
+function playSFX(name, at){
   // ★ v0.95.824 · SAPPHIRE VOLTSTORM plays FULL movie sound · nothing talks
   // over it, not even UI feedback.  Gate first: worldFrozen()'s UI whitelist
   // must not punch through the cinema.
@@ -2192,6 +2264,13 @@ function playSFX(name){
     }
     return;
   }
+  // ★ v0.96.2 · distance gain, resolved once and applied to whichever branch
+  // takes the sound. A gain of zero returns BEFORE cloning: not playing is
+  // cheaper than playing silently, and with the district anchors keeping ~200
+  // enemies alive that difference is real.
+  const _gain = _sfxGainFor(name, at);
+  if (_gain < SFX_MIN_GAIN && ENEMY_VOX.has(name)) return;
+  const _vol = s.volume * _gain;
   // Rizer VOX priority hierarchy · only one voice at a time
   const prio = RVOX_PRIORITY[name];
   if (prio != null){
@@ -2204,7 +2283,7 @@ function playSFX(name){
     }
     _stopCorsunIfLive();                            // v0.95.549 · Rizer VOX outranks phone AI
     const node = s.cloneNode();
-    node.volume = s.volume;
+    node.volume = _vol;
     _rvoxLive = { node, priority: prio, name };
     _liveSfxClones.add(node);                       // v0.95.567 · track for pause/blur suspend
     node.play().catch(() => { _liveSfxClones.delete(node); });
@@ -2220,7 +2299,7 @@ function playSFX(name){
     if (prev){ try { prev.pause(); prev.currentTime = 0; _liveSfxClones.delete(prev); } catch(_){} }
     _stopCorsunIfLive();                            // v0.95.549 · NPC voice outranks phone AI
     const node = s.cloneNode();
-    node.volume = s.volume;
+    node.volume = _vol;
     _sfxExclusiveLive.set(name, node);
     _liveSfxClones.add(node);                       // v0.95.567 · track for pause/blur suspend
     node.play().catch(() => { _liveSfxClones.delete(node); });
@@ -2232,7 +2311,7 @@ function playSFX(name){
   }
   // Combat SFX + generic effects · clone-and-play so overlaps don't cut
   const clone = s.cloneNode();
-  clone.volume = s.volume;
+  clone.volume = _vol;
   _liveSfxClones.add(clone);                        // v0.95.567 · track long clips (Skellor groan, Mori nearby) for pause/blur suspend
   clone.play().catch(() => { _liveSfxClones.delete(clone); });
   clone.addEventListener('ended', () => { _liveSfxClones.delete(clone); });
@@ -13365,7 +13444,7 @@ const MORI_BBOXES = [
       moveCd: 250 + Math.random() * 350,     // v0.84.10 · faster stride
       blinkTimer: 9e9,                  // Mori doesn't blink (skeletal)
       isEnemy: true,                    // future combat trigger uses this
-      onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
+      onInteract: (n) => { playSFX('moriPoke', n); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
   // ── v0.95.470 · RADIO TOWER GUARD · 6 Mori + the NE Vilerok (tagged elsewhere)
@@ -13408,7 +13487,7 @@ const MORI_BBOXES = [
       blinkTimer: 9e9,
       isEnemy: true,
       _towerMori: true,                    // Scrapjaw tower-quest tag
-      onInteract: (n) => { playSFX('moriPoke'); showToast('◈ MORI · guarding the broken tower', 2000); },
+      onInteract: (n) => { playSFX('moriPoke', n); showToast('◈ MORI · guarding the broken tower', 2000); },
     }));
   })(),
   // ── v0.95.441 · SEER GRUNT · new humanoid enemy · between Mori and Daemon ──
@@ -13830,7 +13909,7 @@ const MORI_BBOXES = [
           blinkTimer: 9e9,
           isEnemy: true,
           _vilerokEscort: bi + 1,
-          onInteract: (n) => { playSFX('moriPoke'); showToast('◈ Mori · Vilerok escort', 1800); },
+          onInteract: (n) => { playSFX('moriPoke', n); showToast('◈ Mori · Vilerok escort', 1800); },
         });
       });
     });
@@ -13916,7 +13995,7 @@ const MORI_BBOXES = [
       isEnemy: true,
       // v0.95.211 · CANON HP · Mori 125 · Daemon 250 (2× Mori) · drainer 175 (mid)
       hpMax: s.mode === 'daemon' ? 250 : (s.mode === 'drainer' ? 175 : 125),
-      onInteract: (n) => { playSFX('moriPoke'); showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
+      onInteract: (n) => { playSFX('moriPoke', n); showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
   // ── Mori · ANDRANNOR NW wild branch · v0.95.129 · daemon-heavy ──
@@ -14002,7 +14081,7 @@ const MORI_BBOXES = [
       isEnemy: true,
       // v0.95.211 · CANON HP · Mori 125 · Daemon 250 (2× Mori) · Andrannor variants
       hpMax: s.mode === 'daemon' ? 250 : 125,
-      onInteract: (n) => { playSFX('moriPoke'); showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
+      onInteract: (n) => { playSFX('moriPoke', n); showToast(n.mode === 'daemon' ? '◈ DAEMON hisses... "VHRRRAAKK!"' : '◈ MORI snarls... "SSSKRRAAH!"', 2000); },   // v0.95.160 · zombie-tank grunt
     }));
   })(),
   // ── ★ v0.95.824 · STELDEN · the Iron Warden of the Zarvane courtyard ──
@@ -14654,7 +14733,7 @@ function _makeSkellor(sx, sy, idNum){
     _skellorHits: 0,
     _skellorFrame: -1,     // when >=0, render hurt sheet cell instead of walk
     _hurtFlashUntil: 0,
-    onInteract: () => { playSFX('moriPoke'); showToast('◈ SKELLOR shuffles closer, groaning...', 2200); },
+    onInteract: (n) => { playSFX('moriPoke', n); showToast('◈ SKELLOR shuffles closer, groaning...', 2200); },
   };
   n.sheet.src = n.src;
   return n;
@@ -14695,8 +14774,8 @@ function skellorTakeHit(n, dmg){
   n._hurtFlashUntil = now + 550;             // ~half-second react
   n.hp = SKELLOR_MAX_HITS - n._skellorHits;
   // v0.95.405 · Skellor groan on each hit · pleads for its end to misery
-  try { playSFX('skellor'); } catch(_){}
-  playSFX('moriPoke');
+  try { playSFX('skellor', n); } catch(_){}
+  playSFX('moriPoke', n);
   if (n._skellorHits >= SKELLOR_MAX_HITS){
     // v0.95.406 · Final slain state · lock the LAST frame of the hurt sheet
     // (SKELLOR_HURT_FRAMES[8] = {r:4,c:7} = body-face-down-with-bag) as a
@@ -15135,7 +15214,7 @@ function resurrectScrapjawTowerPack(){
       moveCd: 250 + Math.random() * 350,
       blinkTimer: 9e9, isEnemy: true,
       hp: 125, hpMax: 125, tier: 1, level: lv,
-      onInteract: () => { playSFX('moriPoke'); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
+      onInteract: (n) => { playSFX('moriPoke', n); showToast('◈ MORI snarls... "SSSKRRAAH!"', 2000); },
     }));
   };
   const _pushDaemon = (district, count, seed, spacing, level) => {
@@ -15161,7 +15240,7 @@ function resurrectScrapjawTowerPack(){
       moveCd: 200 + Math.random() * 300,
       blinkTimer: 9e9, isEnemy: true,
       hp: 250, hpMax: 250, tier: 3, level: lv,
-      onInteract: () => { playSFX('moriPoke'); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
+      onInteract: (n) => { playSFX('moriPoke', n); showToast('◈ DAEMON hisses... a low guttural moan', 2000); },
     }));
   };
   // v0.95.488 · Malezor is HOME · the radial density filter above thins spawns
@@ -19145,6 +19224,90 @@ const ngcEl = () => document.getElementById('newGameConfirm');
 let _ngcWired = false, _ngcShown = null;
 // Called every frame from the render loop, but only touches the DOM when the
 // state actually changes — same discipline as the ZyPhone repaint fix.
+// ★★★ v0.96.2 · THE HOME PURCHASE CONFIRM.
+let homeBuyConfirm = null;   // { idx, homeId, price, doorX, doorY } · 0 = cancel
+let _hbcWired = false, _hbcShown = null;
+const hbcEl = () => document.getElementById('homeBuyConfirm');
+function drawHomeBuyConfirm(){
+  const el = hbcEl();
+  if (!el) return;
+  if (!_hbcWired){
+    _hbcWired = true;
+    el.querySelectorAll('.hbcOpt').forEach(b => {
+      b.addEventListener('mouseenter', () => {
+        if (homeBuyConfirm){ homeBuyConfirm.idx = Number(b.dataset.idx); _hbcShown = null; }
+      });
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!homeBuyConfirm) return;
+        homeBuyConfirm.idx = Number(b.dataset.idx);
+        handleHomeBuyConfirmKey('enter');
+      });
+    });
+  }
+  const key = homeBuyConfirm ? `on:${homeBuyConfirm.idx}` : 'off';
+  if (key === _hbcShown) return;                     // ★ paint only on change
+  _hbcShown = key;
+  el.style.display = homeBuyConfirm ? 'flex' : 'none';
+  if (!homeBuyConfirm) return;
+  const C = homeBuyConfirm;
+  const coins = (player.items && player.items.coins) || 0;
+  const sum = document.getElementById('hbcSummary');
+  if (sum) sum.innerHTML =
+      `<b style="color:#ffd66b;">${String(C.homeId).replace(/_/g,' ').toUpperCase()}</b><br>`
+    + `${String(C.dist || '').toUpperCase()} \u00b7 door (${C.doorX}, ${C.doorY})<br>`
+    + `<span style="color:#ffd66b;">PRICE ${C.price.toLocaleString()}</span> `
+    + `&nbsp;\u00b7&nbsp; you have ${coins.toLocaleString()} `
+    + `&nbsp;\u00b7&nbsp; after: <b>${(coins - C.price).toLocaleString()}</b>`;
+  el.querySelectorAll('.hbcOpt').forEach(b => {
+    const on = Number(b.dataset.idx) === C.idx;
+    b.style.outline = on ? '3px solid #ffd66b' : 'none';
+    b.style.outlineOffset = '2px';
+    b.style.filter = on ? 'brightness(1.25)' : 'none';
+  });
+}
+// Returns true when it consumed the key.
+function handleHomeBuyConfirmKey(k){
+  if (!homeBuyConfirm) return false;
+  if (k === 'arrowup' || k === 'arrowdown'){
+    homeBuyConfirm.idx = homeBuyConfirm.idx === 0 ? 1 : 0;
+    _hbcShown = null;
+    try { drawHomeBuyConfirm(); } catch(_){}
+    try { playSFX('cursor'); } catch(_){}
+    return true;
+  }
+  if (k === 'b' || k === 'escape'){
+    homeBuyConfirm = null;
+    try { drawHomeBuyConfirm(); } catch(_){}
+    try { playSFX('cancel'); } catch(_){}
+    return true;
+  }
+  if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
+    const C = homeBuyConfirm;
+    const go = C.idx === 1;
+    homeBuyConfirm = null;
+    try { drawHomeBuyConfirm(); } catch(_){}
+    if (!go){ try { playSFX('cancel'); } catch(_){} return true; }
+    // ★ RE-CHECK THE PRICE AND THE PURSE at the moment of purchase, not at the
+    // moment the prompt opened. A player can spend coins from the ZyPhone while
+    // this dialog is up, and a confirm that trusts a stale number is how you
+    // sell somebody a house they can no longer afford.
+    const coins = (player.items && player.items.coins) || 0;
+    if (player.ownedHomes.includes(C.homeId)){ return true; }
+    if (coins < C.price){
+      showToast(`\u25c8 Not enough coins any more \u00b7 ${C.price} needed, you have ${coins}`, 3000);
+      try { playSFX('doorLock'); } catch(_){}
+      return true;
+    }
+    player.items.coins = coins - C.price;
+    player.ownedHomes.push(C.homeId);
+    showToast(`\u2605 Property purchased \u00b7 new RIZER ROOM unlocked  (-${C.price} coins)`, 3600);
+    try { playSFX('confirm'); } catch(_){}
+    try { invalidateHomePins(); } catch(_){}   // ★ the star appears now
+    return true;
+  }
+  return true;                 // swallow everything else while the prompt is up
+}
 function drawNewGameConfirm(){
   const el = ngcEl();
   if (!el) return;
@@ -20459,7 +20622,53 @@ const MINIMAP_KIND_COLOR = {
   landmark:'#7ad4ff', cave:'#c060ff', tower:'#ffd66b',
   portal:'#4ee07a', seer:'#ff5b5b', cosmic:'#ff9cf0',
   rumor:'#ffe9a8', anomaly:'#ff9cf0',
+  home:'#c77dff',
 };
+// ★★ v0.96.2 · OWNED PROPERTY PINS.  Creator: "owned properties show up on
+// minimap as purple star blip."
+//
+// ★ These are deliberately NOT pushed through minimapPOIs(). That feed is
+// governed by the 3-6 rule and sliced to maxPOI, so a home added there would
+// COMPETE with landmarks for six slots and vanish the moment you stood
+// somewhere busy — exactly where you most want to see your own front door.
+// A pin you paid 5,000 coins for should not be evicted by a radio tower.
+// They also skip the notebook's found/unfound colour language: you cannot
+// undiscover a house you bought.
+let _mmHomePins = null, _mmHomePinsN = -1;
+function ownedHomePins(){
+  const owned = (player && player.ownedHomes) || [];
+  if (_mmHomePins && _mmHomePinsN === owned.length) return _mmHomePins;
+  const out = [];
+  // ★ ONE pass over WORLD_PROPS for ALL owned homes, not one pass each.
+  // _homeIdDoorTile() scans 27k props per call; with ten deeds that is 270k
+  // iterations, and the cache below would still have paid it once per purchase.
+  const want = new Set(owned);
+  if (want.size && Array.isArray(WORLD_PROPS)){
+    for (const pr of WORLD_PROPS){
+      if (!pr || pr.tileX == null || !want.has(pr.id)) continue;
+      out.push({ id: `home:${pr.id}`, name: 'RIZER ROOM', x: pr.tileX, y: pr.tileY, kind: 'home' });
+      want.delete(pr.id);
+      if (!want.size) break;
+    }
+  }
+  // Malezor's starting Rizer Room is a home you own without a deed.
+  out.push({ id: 'home:malezor_rr', name: 'RIZER ROOM', x: 22, y: 106, kind: 'home' });
+  _mmHomePins = out; _mmHomePinsN = owned.length;
+  return out;
+}
+function invalidateHomePins(){ _mmHomePins = null; _mmHomePinsN = -1; }
+// A five-pointed star, point-up, centred on (x,y).
+function _mmStar(g, x, y, r){
+  const inner = r * 0.42;
+  g.beginPath();
+  for (let i = 0; i < 10; i++){
+    const rad = (i % 2 === 0) ? r : inner;
+    const ang = -Math.PI / 2 + i * Math.PI / 5;
+    const px2 = x + Math.cos(ang) * rad, py2 = y + Math.sin(ang) * rad;
+    if (i === 0) g.moveTo(px2, py2); else g.lineTo(px2, py2);
+  }
+  g.closePath();
+}
 function drawMinimap(){
   const host = document.getElementById('minimapCanvas');
   if (!host) return;
@@ -20543,6 +20752,22 @@ function drawMinimap(){
     // the text ON the dot
     g.fillText(label.slice(0, 22), x, y - 10);
   }
+  // ★★ v0.96.2 · OWNED PROPERTY · purple stars, drawn LAST so they sit on top
+  // of any POI they share a tile with. A home is usually inside a settlement,
+  // so overlapping a landmark blip is the normal case, not the edge case.
+  try {
+    for (const HP of ownedHomePins()){
+      if (Math.abs(HP.x - px) > R || Math.abs(HP.y - py) > R) continue;
+      const x = toX(HP.x), y = toY(HP.y);
+      const nearH = Math.max(Math.abs(HP.x - px), Math.abs(HP.y - py)) <= 20;
+      g.fillStyle = MINIMAP_KIND_COLOR.home;
+      _mmStar(g, x, y, nearH ? 8 : 6.5);
+      g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.8)'; g.lineWidth = 1.4; g.stroke();
+      g.fillStyle = '#e8c9ff';
+      g.fillText(HP.name, x, y - 12);
+    }
+  } catch(_){}
   // Rizer · always dead centre, because the map follows him
   g.fillStyle = '#ffd66b';
   g.beginPath(); g.arc(sx + sw/2, sy + sh/2, 5.5, 0, Math.PI*2); g.fill();   // ★ v0.95.985 · Rizer grows with them
@@ -21067,9 +21292,9 @@ function pearlbowDetonate(bx, by){
     if (n.hp == null) n.hp = maxHp;
     n.hp -= dmg;
     try { if (game.devCombatFxOn !== false) spawnHitFx(n.tileX, n.tileY, 'astral'); } catch(_){}
-    if (n.hp > 0 && !n._gruntPlayed && n.hp <= maxHp * 0.4){ n._gruntPlayed = true; try { playSFX('moriGrunt'); } catch(_){} }
+    if (n.hp > 0 && !n._gruntPlayed && n.hp <= maxHp * 0.4){ n._gruntPlayed = true; try { playSFX('moriGrunt', n); } catch(_){} }
     if (n.hp <= 0){
-      try { playSFX('moriDeath'); } catch(_){}
+      try { playSFX('moriDeath', n); } catch(_){}
       try { startMoriDeath(n); } catch(_){ n._dying = true; n._deathAt = performance.now(); }
       // ★ 'sword' so the kill counts as a Square strike · see WEAPON_KILL_SFX
       try { creditRizerKill(n, 'sword'); } catch(_){}
@@ -21382,7 +21607,7 @@ function applyAstralkickHit(tx, ty, skinId = player.cosmeticSkin){
     const maxHp = hit.hpMax || 125;
     if (hit.hp == null) hit.hp = maxHp;
     hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_KICK.DMG_MULT, skinId);
-    playSFX('moriGrunt');
+    playSFX('moriGrunt', hit);
     if (hit.hp <= 0){
       playSFX('astralKill');
       // v0.95.494 · Rizer "astralkick KO" VO plays over the kill flourish · once per KO
@@ -21841,7 +22066,7 @@ function applyAstralHit(tx, ty, skinId = player.cosmeticSkin){
     const maxHp = hit.hpMax || 125;
     if (hit.hp == null) hit.hp = maxHp;
     hit.hp -= playerOutgoingDamage((player.baseAtk || 25) * ASTRAL_STRIKE.DMG_MULT, skinId);
-    playSFX('moriGrunt');
+    playSFX('moriGrunt', hit);
     if (hit.hp <= 0){
       // v0.95.215 · Dedicated A3-kill SFX (alien-stomach splat) instead of the generic bone-crack
       playSFX('astralKill');
@@ -22892,7 +23117,7 @@ function buildTowerGuardPacks(){
         level: T.moriLv, tier: 1,
         hpMax: 125 + T.moriLv * 5,
         _towerGuardOf: T.dist,
-        onInteract: () => { try { playSFX('moriPoke'); } catch(_){}
+        onInteract: (n) => { try { playSFX('moriPoke', n); } catch(_){}
           showToast(`◈ MORI · guarding the ${T.label} tower`, 2000); },
       }));
       made++;
@@ -22907,7 +23132,7 @@ function buildTowerGuardPacks(){
         level: T.bossLv, tier: T.bossTier,
         hpMax: 250 + T.bossLv * 10,
         _towerGuardOf: T.dist, _towerBossOf: T.dist,
-        onInteract: () => { try { playSFX('moriPoke'); } catch(_){}
+        onInteract: (n) => { try { playSFX('moriPoke', n); } catch(_){}
           showToast(`◈ ${T.bossName} · ${T.label} tower boss`, 2400); },
       }));
       made++;
@@ -23285,7 +23510,7 @@ function applyScanobotState(){
 function scanobotTalk(T, bot){
   const n = bot || null;
   if (scanobotsAreRogue() || (n && n.mode === 'drainer')){
-    try { playSFX('moriPoke'); } catch(_){}
+    try { playSFX('moriPoke', n || player); } catch(_){}
     showToast('◈ SCANOBOT · the eye is red · nothing to jailbreak, everything to fight', 2400);
     return;
   }
@@ -23528,7 +23753,7 @@ function _buildSeerHqGuardPacks_RETIRED(){
         level: H.gruntLv, tier: 2,
         hpMax: 125 + H.gruntLv * 5,
         _seerHqGuardOf: H.dist,
-        onInteract: () => { try { playSFX('moriPoke'); } catch(_){}
+        onInteract: (n) => { try { playSFX('moriPoke', n); } catch(_){}
           showToast(`◈ SEER GRUNT · holding the ${H.label} road to ${H.toward}`, 2400); },
       }));
       made++;
@@ -25918,7 +26143,12 @@ function homeOwnedByNpc(doorX, doorY){
 // landmarks have their own onInteract and never reach tryPurchaseHome — this
 // makes that structural fact explicit so a future copy-paste cannot make the
 // Gear Shop or the Academy buyable by accident.
-const UNPURCHASABLE_ID_RE = /(shop|store|hall|academy|school|hospital|lab|clinic|hq|tower|gate|beacon|refinery|oasis|coliseum|arena|club|market|inn|temple|shrine|statue|monument|museum|library|bank|guild|farm|barn|dock|port|station|prison|jail|castle|palace|manor_hall|broadcast|potion|gear|nurse|warden|seer)/i;
+// ★ v0.96.2 · CAVE AND SANCTUM ADDED. The verify suite asked this guard for the
+// first purchasable prop in the world and it answered `oatheus_cave` — the Tenth
+// Gemlord's sanctum, offered as a 5,000-coin starter home. No door currently
+// routes a cave into tryPurchaseHome(), so nothing was buyable in play; but this
+// list exists precisely to survive the copy-paste that would, and it did not.
+const UNPURCHASABLE_ID_RE = /(shop|store|hall|academy|school|hospital|lab|clinic|hq|tower|gate|beacon|refinery|oasis|coliseum|arena|club|market|inn|temple|shrine|statue|monument|museum|library|bank|guild|farm|barn|dock|port|station|prison|jail|castle|palace|manor_hall|broadcast|potion|gear|nurse|warden|seer|cave|den|lair|sanctum|vault|mine|portal|rift|oatheus|gemlord)/i;   // ★ v0.96.2 · see note below
 function isPurchasableHomeId(homeId){
   if (!homeId) return false;
   return !UNPURCHASABLE_ID_RE.test(String(homeId));
@@ -25973,11 +26203,12 @@ function tryPurchaseHome(homeId, doorX, doorY){
     playSFX('doorLock');
     return;
   }
-  // Purchase!
-  player.items.coins = coins - price;
-  player.ownedHomes.push(homeId);
-  showToast(`★ Home purchased · new RIZER ROOM unlocked!  (-${price} coins)`, 3400);
-  playSFX('confirm');
+  // ★★★ v0.96.2 · ASK FIRST. This used to debit the coins on the spot.
+  homeBuyConfirm = { idx: 0, homeId, price, doorX, doorY,
+    dist: (typeof districtAt === 'function') ? districtAt(doorX, doorY) : '' };
+  _hbcShown = null;
+  try { drawHomeBuyConfirm(); } catch(_){}
+  try { playSFX('menuOpen'); } catch(_){}
 }
 
 function enterInterior(sceneKey, cfg, toast){
@@ -28461,10 +28692,10 @@ addEventListener('keydown', e => {
             // v0.95.120 · Mori pained grunt when crossing 40% HP threshold
             if (hit.hp > 0 && !hit._gruntPlayed && hit.hp <= maxHp * 0.4){
               hit._gruntPlayed = true;
-              playSFX('moriGrunt');
+              playSFX('moriGrunt', hit);
             }
             if (hit.hp <= 0){
-              playSFX('moriDeath');                     // v0.95.120 · bone-crack on kill
+              playSFX('moriDeath', hit);                     // v0.95.120 · bone-crack on kill
               // v0.95.543 · Rizer sword-kill VO every 3rd sword-driven kill
               // v0.95.568 · Rubypaw kills also count · both weapons share the counter
               if (_swordSwing || _rubypawSwing){
@@ -28540,14 +28771,14 @@ addEventListener('keydown', e => {
               if (sh.hp == null) sh.hp = sMax;
               sh.hp -= axeDmg;
               try { if (game.devCombatFxOn !== false) spawnHitFx(sh.tileX, sh.tileY, mode); } catch(_){}
-              if (sh.hp > 0 && !sh._gruntPlayed && sh.hp <= sMax * 0.4){ sh._gruntPlayed = true; try { playSFX('moriGrunt'); } catch(_){} }
+              if (sh.hp > 0 && !sh._gruntPlayed && sh.hp <= sMax * 0.4){ sh._gruntPlayed = true; try { playSFX('moriGrunt', sh); } catch(_){} }
               if (sh.hp <= 0){
                 // ★ v0.95.814 · through the one door — hand-setting _dying here
                 // gave a scanobot caught in the axe sweep the mori crumble and
                 // NO salvage.  startMoriDeath owns the difference between a
                 // creature's death and a machine's.  (comment sits ABOVE the
                 // pair so verify_killxp's credit-near-death window holds.)
-                try { playSFX('moriDeath'); } catch(_){}
+                try { playSFX('moriDeath', sh); } catch(_){}
                 try { creditRizerKill(sh); } catch(_){}
                 try { startMoriDeath(sh); } catch(_){ sh._dying = true; sh._deathAt = performance.now(); }
               }
@@ -28564,10 +28795,10 @@ addEventListener('keydown', e => {
               sh.hp -= sweepDmg;
               if (game.devCombatFxOn !== false) spawnHitFx(sh.tileX, sh.tileY, mode);
               if (sh.hp > 0 && !sh._gruntPlayed && sh.hp <= sMax * 0.4){
-                sh._gruntPlayed = true; playSFX('moriGrunt');
+                sh._gruntPlayed = true; playSFX('moriGrunt', sh);
               }
               if (sh.hp <= 0){
-                playSFX('moriDeath');
+                playSFX('moriDeath', sh);
                 try {
                   player.stats = player.stats || {};
                   player.stats.swordKills = (player.stats.swordKills || 0) + 1;
@@ -28590,10 +28821,10 @@ addEventListener('keydown', e => {
               sh.hp -= azurelDmg;
               if (game.devCombatFxOn !== false) spawnHitFx(sh.tileX, sh.tileY, mode);
               if (sh.hp > 0 && !sh._gruntPlayed && sh.hp <= sMax * 0.4){
-                sh._gruntPlayed = true; playSFX('moriGrunt');
+                sh._gruntPlayed = true; playSFX('moriGrunt', sh);
               }
               if (sh.hp <= 0){
-                playSFX('moriDeath');
+                playSFX('moriDeath', sh);
                 try {
                   player.stats = player.stats || {};
                   player.stats.swordKills = (player.stats.swordKills || 0) + 1;
@@ -32328,6 +32559,7 @@ addEventListener('keydown', e => {
   if (game.scene === 'title'){
     // v0.95.662 · The overwrite prompt owns input while it is up.
     if (handleNewGameConfirmKey(k)){ e.preventDefault(); return; }
+    if (handleHomeBuyConfirmKey(k)){ e.preventDefault(); return; }   // ★ v0.96.2
     // v0.93.5 · Once title buttons are revealed (hold-X reveal OR 33s
     // auto-appear), arrow keys navigate and X/Z/Enter activate · works
     // even while video is still playing.
@@ -33634,7 +33866,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.1' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.2' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

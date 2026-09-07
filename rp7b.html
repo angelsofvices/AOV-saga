@@ -767,6 +767,15 @@
         <button class="hbcOpt" data-idx="1" style="display:block; width:100%; padding:12px; font:bold 13px 'Courier New',monospace; cursor:pointer; background:rgba(60,45,10,0.9); color:#ffd66b; border:2px solid #ffd66b;">BUY IT</button>
       </div>
     </div>
+    <!-- ★★ v0.96.5 · THE HOME PC · one terminal per property -->
+    <div id="hqPanel" style="position:absolute; inset:0; display:none; z-index:131; background:rgba(0,0,0,0.9); font-family:'Courier New',monospace; align-items:center; justify-content:center;">
+      <div style="width:min(660px,94vw); max-height:86vh; overflow:auto; background:rgba(6,10,18,0.99); border:3px solid #7ad4ff; padding:20px 24px; box-shadow:0 0 44px rgba(122,212,255,0.32);">
+        <div id="hqTitle" style="color:#7ad4ff; font:bold 17px 'Courier New',monospace; text-align:center; letter-spacing:.06em;"></div>
+        <div id="hqChain" style="color:#8fa3b5; font-size:11px; text-align:center; margin:10px 0 14px;"></div>
+        <div id="hqList"></div>
+        <div style="color:#667; font-size:10px; text-align:center; margin-top:16px;">D-PAD / ARROWS move · X assign or dismiss · B close</div>
+      </div>
+    </div>
     <div id="titleBtns" style="position:absolute; inset:0; display:none; z-index:25; pointer-events:none;">
       <div style="position:absolute; left:50%; bottom:14%; transform:translateX(-50%); display:flex; flex-direction:column; gap:14px; pointer-events:auto;">
         <button class="tBtn" data-idx="0" style="width:280px; padding:14px 20px; font: bold 20px 'Courier New',monospace; background:rgba(0,0,0,0.72); color:#f0eadf; border:2px solid #d4af37; cursor:pointer; letter-spacing:0.08em;">NEW GAME</button>
@@ -9487,6 +9496,13 @@ const NPCS = [
       [[  83,   6, 150, 288],[  73,   6, 151, 289],[  63,   6, 151, 288],[  58,   6, 151, 288]],
       [[  79,  -1, 156, 282],[  73,  -1, 156, 282],[  60,  -1, 168, 282],[  54,  -1, 156, 282]],
     ],
+    // ★★★ v0.96.6 · cellW/cellH/cols/rows WERE MISSING. Without cols, drawNPC's
+    // frame index is `n.animFrame % undefined` = NaN, so `bank[row][NaN]` is
+    // undefined and the destructure throws — EVERY FRAME, for both parents,
+    // caught by drawWorldLayer's per-renderable guard and logged forever.
+    // They have been invisible since v0.96.0 and the console said so.
+    cellW: 313, cellH: 313, cols: 4, rows: 4,
+    uniformScale: true, turnToInteract: true,
     scaleRefBh: 295, scaleMul: 1.0,
     tileX: 29, tileY: 74, homeX: 29, homeY: 74,
     homeScene: 'overworld', scene: 'overworld',
@@ -9510,6 +9526,8 @@ const NPCS = [
       [[  87,  18, 142, 266],[  86,  18, 141, 267],[  80,  18, 141, 267],[  72,  18, 140, 267]],
       [[  90,   1, 143, 272],[  88,   2, 142, 271],[  84,   3, 141, 270],[  73,   2, 140, 271]],
     ],
+    cellW: 313, cellH: 313, cols: 4, rows: 4,   // ★ v0.96.6 · see Corvan above
+    uniformScale: true, turnToInteract: true,
     scaleRefBh: 273, scaleMul: 1.0,
     tileX: 30, tileY: 74, homeX: 30, homeY: 74,
     homeScene: 'overworld', scene: 'overworld',
@@ -19324,6 +19342,7 @@ function handleHomeBuyConfirmKey(k){
     }
     player.items.coins = coins - C.price;
     player.ownedHomes.push(C.homeId);
+    try { creditHomePurchase(C.homeId, C.doorX, C.doorY); } catch(_){}   // ★ v0.96.5
     showToast(`\u2605 Property purchased \u00b7 new RIZER ROOM unlocked  (-${C.price} coins)`, 3600);
     try { playSFX('confirm'); } catch(_){}
     try { invalidateHomePins(); } catch(_){}   // ★ the star appears now
@@ -22960,6 +22979,7 @@ function creditRizerKill(npc, mode = 'punch'){
   // ★ v0.95.790 · every kill in the game already funnels through here, so the
   // enemy log hooks in at one line instead of at eight kill sites.
   try { notebookLogKill(npc); } catch(_){}
+  try { guardBondFromKill(npc); } catch(_){}   // ★ v0.96.5 · shared time under load
   // ★★ v0.95.793 · WEAPON FINISHER SFX · also hooked here rather than at the
   // kill sites.  There are FOUR of those for the axe alone (primary tile plus
   // three sweep loops), and the Rubypaw's finisher was already hand-pasted at
@@ -26206,6 +26226,587 @@ function isPurchasableHomeId(homeId){
   if (!homeId) return false;
   return purchasableHomeIds().has(String(homeId));
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.5 · THE ESTATE SYSTEM
+//
+//   Creator: "rizer should gain rxp for buying properties scale by how many he
+//   owns in per district. he will gain district unlocks the more houses he
+//   buys."
+//
+// ★ Property was a 5,000-coin door key and nothing else. It now COMPOUNDS:
+//   every home in a district is worth more than the last, and holdings unlock
+//   things INSIDE that district rather than opening the road to the next one.
+//   The soft gate stays the only progression spine, so nobody buys past the
+//   commander fight the story was written around.
+function homesOwnedIn(dist){
+  const owned = (player.ownedHomes || []);
+  if (!owned.length) return 0;
+  let n = 0;
+  for (const id of owned){
+    const t = _homeIdDoorTile(id);
+    if (t && (typeof districtAt === 'function' ? districtAt(t.x, t.y) : null) === dist) n++;
+  }
+  return n;
+}
+function homesForSaleIn(dist){
+  let n = 0;
+  for (const id of purchasableHomeIds()){
+    const t = _homeIdDoorTile(id);
+    if (t && (typeof districtAt === 'function' ? districtAt(t.x, t.y) : null) === dist) n++;
+  }
+  return n;
+}
+// ★ RXP SCALES WITH HOLDINGS, not with price. The Nth home in a district pays
+//   N steps, so consolidating in one district beats one house everywhere —
+//   which is what "scale by how many he owns per district" asks for, and it
+//   gives a reason to FINISH a district instead of grazing across ten.
+// ★ The district's own rank rides at HALF weight. Full weight made a Korathen
+//   ninth home worth 10,800 R.XP, more than the entire Malezor arc.
+const HOME_RXP_STEP = 120;
+function homePurchaseRxp(dist, nOwnedAfter){
+  const idx = (typeof DISTRICT_ORDER !== 'undefined') ? DISTRICT_ORDER.indexOf(dist) + 1 : 1;
+  const rank = 1 + (Math.max(1, idx) - 1) * 0.5;
+  return Math.round(HOME_RXP_STEP * Math.max(1, nOwnedAfter) * rank);
+}
+const DISTRICT_ESTATE_TIERS = [
+  { at: 1, key: 'resident', label: 'RESIDENT',
+    perk: 'this district becomes your respawn' },
+  { at: 2, key: 'landlord', label: 'LANDLORD',
+    perk: 'house a contact here · 2 perimeter guard posts' },
+  { at: 3, key: 'magnate',  label: 'MAGNATE',
+    perk: '+2 guard posts · 10% off this district’s shops' },
+  { at: 5, key: 'holding',  label: 'DISTRICT HOLDING',
+    perk: '+2 guard posts · 20% off · the district answers to you' },
+];
+function estateTierIndex(dist){
+  const n = homesOwnedIn(dist);
+  let i = -1;
+  for (let k = 0; k < DISTRICT_ESTATE_TIERS.length; k++)
+    if (n >= DISTRICT_ESTATE_TIERS[k].at) i = k;
+  return i;
+}
+function estateTier(dist){ const i = estateTierIndex(dist); return i < 0 ? null : DISTRICT_ESTATE_TIERS[i]; }
+function estateHas(dist, key){
+  const want = DISTRICT_ESTATE_TIERS.findIndex(x => x.key === key);
+  return want >= 0 && estateTierIndex(dist) >= want;
+}
+function guardPostsAllowed(dist){
+  const i = estateTierIndex(dist);
+  return i >= 1 ? i * 2 : 0;          // landlord 2 · magnate 4 · holding 6
+}
+function districtShopDiscount(dist){
+  if (estateHas(dist, 'holding')) return 0.20;
+  if (estateHas(dist, 'magnate')) return 0.10;
+  return 0;
+}
+function creditHomePurchase(homeId, doorX, doorY){
+  const dist = (typeof districtAt === 'function') ? districtAt(doorX, doorY) : null;
+  if (!dist) return 0;
+  const n = homesOwnedIn(dist);
+  const rxp = homePurchaseRxp(dist, n);
+  try { awardRizerXP(rxp); } catch(_){}
+  // ★ A deed is a discovery recorded, not a battle won · the small rizer-path
+  //   event, so an estate cannot out-earn the ally ladder.
+  try { bumpRizerBond('rizerFind'); } catch(_){}
+  player.estateTier = player.estateTier || {};
+  const T = estateTier(dist);
+  const D = String(dist).toUpperCase();
+  try { showToast(`★ ${D} · property ${n}/${homesForSaleIn(dist)} · +${rxp} R.XP`, 3200); } catch(_){}
+  if (T && player.estateTier[dist] !== T.key){
+    player.estateTier[dist] = T.key;
+    try { playSFX('levelUp'); } catch(_){}
+    try { showToast(`★★ ${D} · ${T.label} · ${T.perk}`, 5200); } catch(_){}
+    try { bumpRizerBond('rizerDistrict'); } catch(_){}
+  }
+  try { invalidateHomePins(); } catch(_){}
+  return rxp;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.5 · MOBILE RIZER HQ · a house is who you put in it
+//
+//   Creator: "npcs will take their native home position function with them when
+//   you assign them to a new house. this gives you access to that function in
+//   the new district you're in. the higher an npc bond with rizer, the more
+//   mobile Rizer HQ perks they can grant him." / "make it so that your bond
+//   level grows with a particular contact when u buy them a new house to
+//   defend."
+//
+// ★★ EVERY SERVICE ALLY IN THE GAME LIVES IN MALEZOR — the nurse, the
+//    sanctuary, the scrapper, the professor, the trial. That is the whole point
+//    of this system: walking into Korathen means walking eight districts away
+//    from every service you have. Rehousing a contact EXPORTS their function,
+//    and the price is a house plus the relationship to ask.
+//
+// ★ Keys are REAL NPC ids, checked against NPCS by the suite. An invented id
+//   here would be a service that silently never appears — the exact failure
+//   mode that has cost this file seven identifiers already.
+const HQ_FUNCTIONS = {
+  nurse_rein:        { service:'infirmary', label:'INFIRMARY',
+                       tiers:[[0,'full heal at the door'],[50,'revive a fallen Zyrex'],[100,'party healed on entry']] },
+  kaizari:           { service:'sanctuary', label:'SANCTUARY OUTPOST',
+                       tiers:[[0,'donate Zyrex without returning to Malezor'],[50,'sanctuary bond +1 tier'],[100,'Kaizari hunts with you']] },
+  scrapjaw:          { service:'workshop',  label:'WORKSHOP',
+                       tiers:[[0,'weapon repair'],[50,'scrap traded at full rate'],[100,'free repairs']] },
+  professor_elarian: { service:'academy',   label:'ACADEMY ANNEX',
+                       tiers:[[0,'R.XP study · +5% from kills in this district'],[50,'move relearn'],[100,'+10% R.XP in this district']] },
+  albert_orren:      { service:'trial',     label:'TRAINING YARD',
+                       tiers:[[0,'dodge trial'],[50,'stamina rig'],[100,'sprint costs less']] },
+  auraxion:          { service:'astral',    label:'ASTRAL FORGE',
+                       tiers:[[0,'astralcore recharge'],[50,'Special energy regenerates at home'],[100,'astral cost reduced']] },
+  zurelea:           { service:'zysphere',  label:'ZYSPHERE STALL',
+                       tiers:[[0,'buy Zyspheres here'],[50,'one free sphere a day'],[100,'spheres 25% off']] },
+  omniris:           { service:'sight',     label:'OASIS SHRINE',
+                       tiers:[[0,'meditate at the door'],[50,'the Sight marks nearby rumors'],[100,'anomalies named on the map']] },
+  kelthor:           { service:'warden',    label:'WARDEN’S DESK',
+                       tiers:[[0,'expedition briefings here'],[50,'district elder named on arrival'],[100,'expedition rewards +1 tier']] },
+};
+function hqAllyBond(allyId){ return (player.bonds && player.bonds[allyId]) || 0; }
+// What a resident actually grants, given the bond you have with them.
+function hqPerksFor(allyId){
+  const F = HQ_FUNCTIONS[allyId];
+  if (!F) return [];
+  const b = hqAllyBond(allyId);
+  return F.tiers.filter(([need]) => b >= need).map(([, text]) => text);
+}
+function homeResident(homeId){ return (player.homeResidents || {})[homeId] || null; }
+function residentHomeOf(allyId){
+  const R = player.homeResidents || {};
+  for (const hid of Object.keys(R)) if (R[hid] === allyId) return hid;
+  return null;
+}
+// Every service live in a district, and what each one currently grants.
+function hqServicesIn(dist){
+  const out = [];
+  const R = player.homeResidents || {};
+  for (const hid of Object.keys(R)){
+    const t = _homeIdDoorTile(hid);
+    if (!t) continue;
+    if ((typeof districtAt === 'function' ? districtAt(t.x, t.y) : null) !== dist) continue;
+    const allyId = R[hid];
+    const F = HQ_FUNCTIONS[allyId];
+    if (!F) continue;
+    out.push({ homeId: hid, allyId, service: F.service, label: F.label,
+               bond: hqAllyBond(allyId), perks: hqPerksFor(allyId), at: [t.x, t.y] });
+  }
+  return out;
+}
+function hqHasService(dist, service){ return hqServicesIn(dist).some(S => S.service === service); }
+// ★★ THE BOND IS THE POINT. Giving a contact a house is the largest single
+//    thing you can do for them, so it pays the ally-grade event — and it pays
+//    THAT CONTACT, not a generic pool. A second house for the same ally pays
+//    nothing: the gift is being housed, not being moved.
+const HQ_HOUSING_BOND = 20;
+function assignResidentToHome(homeId, allyId){
+  if (!player.ownedHomes || !player.ownedHomes.includes(homeId)) return { ok:false, why:'you do not own that property' };
+  if (!HQ_FUNCTIONS[allyId]) return { ok:false, why:'that contact has no function to bring' };
+  const t = _homeIdDoorTile(homeId);
+  if (!t) return { ok:false, why:'that property has no door' };
+  const dist = (typeof districtAt === 'function') ? districtAt(t.x, t.y) : null;
+  if (!estateHas(dist, 'landlord'))
+    return { ok:false, why:`${String(dist).toUpperCase()} needs 2 owned homes before a contact will move in` };
+  player.homeResidents = player.homeResidents || {};
+  if (player.homeResidents[homeId] === allyId) return { ok:false, why:'they already live here' };
+  // one home each · moving them vacates the last one
+  const prev = residentHomeOf(allyId);
+  if (prev) delete player.homeResidents[prev];
+  player.homeResidents[homeId] = allyId;
+  // ★ RELOCATE THE ACTUAL NPC · the function travels because the person does.
+  const n = (typeof NPCS !== 'undefined') && NPCS.find(x => x && x.id === allyId);
+  if (n){
+    n._hqHome = homeId;
+    n._nativeAt = n._nativeAt || [n.tileX, n.tileY];   // remember where they came from
+    n.tileX = t.x; n.tileY = t.y + 1;                  // on the doorstep, not in the wall
+    n.homeX = n.tileX; n.homeY = n.tileY;
+    n.scene = 'overworld'; n.homeScene = 'overworld';
+    n.mode = n.mode === 'follow' ? n.mode : 'wander';
+    n.wanderRadius = 3;
+  }
+  const first = !prev;
+  if (first){
+    player.bonds = player.bonds || {};
+    player.bonds[allyId] = (player.bonds[allyId] || 0) + HQ_HOUSING_BOND;
+    try { bumpRizerBond('rizerAlly'); } catch(_){}
+  }
+  const F = HQ_FUNCTIONS[allyId];
+  try { playSFX('confirm'); } catch(_){}
+  try {
+    showToast(first
+      ? `★★ ${(n && n.name ? n.name : allyId).toUpperCase()} moves in · ${F.label} now open in ${String(dist).toUpperCase()} · bond +${HQ_HOUSING_BOND}`
+      : `★ ${(n && n.name ? n.name : allyId).toUpperCase()} relocates · ${F.label} now in ${String(dist).toUpperCase()}`, 5000);
+  } catch(_){}
+  try { invalidateHomePins(); } catch(_){}
+  return { ok:true, dist, service:F.service, perks:hqPerksFor(allyId), bonded:first };
+}
+// ══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.5 · THE HOME PC
+//
+//   Creator: "you can assign faction members to the HQ by going inside it and
+//   using the PC. each PC will exist independently for that home."
+//
+// ★ Independent by construction rather than by discipline: the panel is a VIEW
+//   over player.homeGuards[homeId] and player.homeResidents[homeId]. There is
+//   no per-PC state to keep in sync, so two homes cannot drift apart.
+// Which property am I standing in? Purchased homes get the scene id
+// `interior_rizer_room_<homeId>` (see tryPurchaseHome), and Malezor's starting
+// room is the one that predates the scheme.
+function hqHomeIdForScene(scene){
+  const m = /^interior_rizer_room_(.+)$/.exec(String(scene || ''));
+  if (m) return m[1];
+  return null;
+}
+let hqPanel = null;   // { homeId, idx, rows }
+let _hqShown = null;
+const hqEl = () => document.getElementById('hqPanel');
+function hqCandidates(homeId){
+  const rows = [];
+  const gate = hqChainStatus(homeId);
+  const posted = homeGuards(homeId);
+  const resident = homeResident(homeId);
+  if (typeof NPCS === 'undefined') return rows;
+  for (const n of NPCS){
+    if (!n || !n.id || n.isEnemy) continue;
+    if (!isFriendlyNpc(n)) continue;
+    const bond = (player.bonds && player.bonds[n.id]) || 0;
+    const canHouse = !!HQ_FUNCTIONS[n.id];
+    // ★ Only people you actually know. An unmet NPC in this list would be a
+    //   roster browser, not a contact book.
+    if (bond <= 0 && !posted.includes(n.id) && resident !== n.id) continue;
+    rows.push({ id:n.id, name:n.name || n.id, bond, canHouse,
+                isGuard: posted.includes(n.id), isResident: resident === n.id });
+  }
+  rows.sort((a, b) => b.bond - a.bond);
+  return rows;
+}
+function openHqPanel(homeId){
+  if (game.zphoneOpen || game.paused) return false;
+  hqPanel = { homeId, idx: 0, rows: hqCandidates(homeId) };
+  _hqShown = null;
+  drawHqPanel();
+  try { playSFX('menuOpen'); } catch(_){}
+  return true;
+}
+function drawHqPanel(){
+  const el = hqEl();
+  if (!el) return;
+  const key = hqPanel ? `${hqPanel.homeId}:${hqPanel.idx}:${hqPanel.rows.length}:${(player.homeGuards&&player.homeGuards[hqPanel.homeId]||[]).join()}` : 'off';
+  if (key === _hqShown) return;
+  _hqShown = key;
+  el.style.display = hqPanel ? 'flex' : 'none';
+  if (!hqPanel) return;
+  const H = hqPanel;
+  const gate = hqChainStatus(H.homeId);
+  const t = _homeIdDoorTile(H.homeId);
+  const dist = t && typeof districtAt === 'function' ? districtAt(t.x, t.y) : '';
+  const posts = guardPostTiles(H.homeId);
+  const filled = homeGuards(H.homeId).length;
+  const ttl = document.getElementById('hqTitle');
+  if (ttl) ttl.textContent = `${String(H.homeId).replace(/_/g,' ').toUpperCase()} · HQ TERMINAL`;
+  const ch = document.getElementById('hqChain');
+  if (ch) ch.innerHTML = gate.ok
+    ? `${String(dist).toUpperCase()} · <span style="color:#4ee07a;">TOWER UP</span> · <span style="color:#4ee07a;">DEED HELD</span> · posts ${filled}/${posts.length}`
+    : `<span style="color:#ff8b6b;">STEP ${gate.step}/4 · ${gate.why}</span>`;
+  const list = document.getElementById('hqList');
+  if (!list) return;
+  if (!H.rows.length){
+    list.innerHTML = '<div style="color:#8fa3b5;font-size:12px;text-align:center;padding:18px;">No contacts yet · meet people and their names appear here</div>';
+    return;
+  }
+  list.innerHTML = H.rows.map((r, i) => {
+    const on = i === H.idx;
+    const tag = r.isResident ? '<span style="color:#ffd66b;">RESIDENT</span>'
+              : r.isGuard    ? '<span style="color:#4ee07a;">ON POST</span>'
+              : r.canHouse   ? '<span style="color:#7ad4ff;">brings ' + HQ_FUNCTIONS[r.id].label + '</span>'
+              : '<span style="color:#667;">guard</span>';
+    const perks = (r.isResident ? hqPerksFor(r.id) : []).map(p => '· ' + p).join('<br>');
+    return `<div style="padding:9px 12px;margin-bottom:5px;border:2px solid ${on ? '#7ad4ff' : '#334'};background:${on ? 'rgba(30,60,90,0.6)' : 'rgba(16,20,30,0.6)'};">`
+      + `<span style="color:#eaf0ff;font:bold 13px 'Courier New',monospace;">${r.name.toUpperCase()}</span>`
+      + `<span style="color:#8fa3b5;font-size:11px;"> · bond ${Math.floor(r.bond)}/100 · </span>${tag}`
+      + (perks ? `<div style="color:#9fd;font-size:10px;margin-top:5px;line-height:1.6;">${perks}</div>` : '')
+      + `</div>`;
+  }).join('');
+}
+// Returns true when it consumed the key.
+function handleHqPanelKey(k){
+  if (!hqPanel) return false;
+  if (!hqEl()){                       // ★ same hostage rule as the buy confirm
+    console.warn('[rp7b] #hqPanel markup is missing · closing rather than blocking input');
+    hqPanel = null;
+    return false;
+  }
+  const H = hqPanel;
+  if (k === 'arrowup' || k === 'w'){
+    if (H.rows.length) H.idx = (H.idx - 1 + H.rows.length) % H.rows.length;
+    drawHqPanel(); try { playSFX('cursor'); } catch(_){} return true;
+  }
+  if (k === 'arrowdown' || k === 's'){
+    if (H.rows.length) H.idx = (H.idx + 1) % H.rows.length;
+    drawHqPanel(); try { playSFX('cursor'); } catch(_){} return true;
+  }
+  if (k === 'b' || k === 'escape'){
+    hqPanel = null; drawHqPanel(); try { playSFX('menuClose'); } catch(_){} return true;
+  }
+  if (k === 'z' || k === 'a' || k === 'x' || k === 'enter' || k === ' '){
+    const r = H.rows[H.idx];
+    if (!r){ try { playSFX('cancel'); } catch(_){} return true; }
+    let res;
+    if (r.isGuard || r.isResident){
+      if (r.isGuard) dismissGuard(H.homeId, r.id);
+      if (r.isResident){
+        delete player.homeResidents[H.homeId];
+        try { showToast(`◈ ${r.name.toUpperCase()} moves out`, 2600); } catch(_){}
+      }
+      res = { ok:true };
+    } else if (r.canHouse && !homeResident(H.homeId)){
+      res = assignResidentToHome(H.homeId, r.id);
+    } else {
+      res = assignGuardToHome(H.homeId, r.id);
+    }
+    if (!res.ok){ try { showToast('◈ ' + res.why, 3000); playSFX('deny'); } catch(_){} }
+    H.rows = hqCandidates(H.homeId);
+    if (H.idx >= H.rows.length) H.idx = Math.max(0, H.rows.length - 1);
+    _hqShown = null; drawHqPanel();
+    return true;
+  }
+  return true;                        // swallow the rest while it is up
+}
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.5 · SCRAPJAW LOOTS FOR YOU
+//
+//   Creator: "when scrapjaw is with you, if will loot skellor for you when u
+//   kill them. he will go grab coins and gems for u when u open chest or kill
+//   scanobots. he will basically loot everything for you once u kill it or open
+//   it. must be following you and must walk over to the loot item"
+//
+// ★ THE WALK IS THE FEATURE. A companion that teleports loot into your bag is a
+//   toggle; one that jogs over, stoops, and comes back is a character. So he
+//   gets a TARGET, not a vacuum radius — and he reaches it using the same
+//   formation/pathing stack that walks a summon back to its station.
+// ★ He is leashed to RIZER, not to the loot. Without that he would follow a
+//   coin trail across a district and be three screens away in the next fight.
+const SCRAP_LOOT_RANGE   = 18;   // tiles from RIZER · his working area
+const SCRAP_LOOT_REACH   = 1;    // he must actually be standing on it
+const SCRAP_LOOT_RETRY_MS = 700;
+function scrapjawEscorting(){
+  if (typeof NPCS === 'undefined') return null;
+  const n = NPCS.find(x => x && x.id === 'scrapjaw');
+  if (!n || n.scene !== game.scene) return null;
+  return (n.mode === 'follow' || n._summoned) ? n : null;
+}
+// Everything loose on the ground that Rizer could have picked up himself.
+// ★ Solid pickups are deliberately excluded, exactly as collectPickupsAt does:
+//   those are X-to-open, and a companion should not open what you must.
+function _looseLootNear(px, py, range){
+  const out = [];
+  try {
+    for (const p of WORLD_PROPS){
+      if (!p || !p._pickup || p.tileX == null) continue;
+      if (p.footprint && p.footprint.length) continue;
+      if (Math.hypot(p.tileX - px, p.tileY - py) > range) continue;
+      out.push([p.tileX, p.tileY]);
+    }
+  } catch(_){}
+  try {
+    for (const g of GEM_ENTITIES){
+      if (!g || g.collected || g.scene !== game.scene) continue;
+      if (Math.hypot(g.x - px, g.y - py) > range) continue;
+      out.push([g.x, g.y]);
+    }
+  } catch(_){}
+  return out;
+}
+let _scrapLootAt = 0;
+function tickScrapjawLoot(){
+  const n = scrapjawEscorting();
+  if (!n){ return; }
+  const now = performance.now();
+  // Arrived? Then it is his to hand over.
+  if (n._lootTarget){
+    const [tx, ty] = n._lootTarget;
+    if (Math.max(Math.abs(n.tileX - tx), Math.abs(n.tileY - ty)) <= SCRAP_LOOT_REACH){
+      let got = false;
+      try { got = collectPickupsAt(tx, ty) || got; } catch(_){}
+      try { got = collectGemAt(game.scene, tx, ty) || got; } catch(_){}
+      if (got){
+        n._lootHauled = (n._lootHauled || 0) + 1;
+        // ★ bond for the errand · same shared-work idea as the guards, and the
+        //   same cooldown, so a coin field is not a bond farm
+        if ((n._hqBondCd || 0) <= now){
+          n._hqBondCd = now + GUARD_BOND_CD_MS;
+          _hqBond(n, GUARD_BOND_PER_KILL, 'hauled the loot back');
+        }
+      }
+      n._lootTarget = null;
+      _scrapLootAt = now + 250;
+      return;
+    }
+    // target vanished (Rizer walked over it first, or it timed out)
+    if (now > (n._lootUntil || 0)) n._lootTarget = null;
+    else return;                                   // still jogging · leave him to it
+  }
+  if (now < _scrapLootAt) return;
+  _scrapLootAt = now + SCRAP_LOOT_RETRY_MS;
+  const loot = _looseLootNear(player.x, player.y, SCRAP_LOOT_RANGE);
+  if (!loot.length) return;
+  let best = null, bestD = Infinity;
+  for (const [x, y] of loot){
+    const d = Math.hypot(n.tileX - x, n.tileY - y);
+    if (d < bestD){ bestD = d; best = [x, y]; }
+  }
+  if (!best) return;
+  n._lootTarget = best;
+  n._lootUntil  = now + 8000;      // ★ give up rather than jog forever at a wall
+}
+// ★★★ v0.96.5 · HQ GUARD STATIONS · the three-step chain
+//
+//   Creator: "first the cell tower must be up in that town. then you must
+//   purchase home. then you can summon npcs allies to guard that home. their
+//   bond with you goes up over time if you spend time fighting in the area with
+//   them or if they are following you around during ur expedition."
+//
+// ★ The chain is ordered on purpose and each rung already existed: the tower is
+//   Scrapjaw's battery quest, the home is the deed, the guard is the contact.
+//   Nothing here invents a new progression track — it wires three the game
+//   already had into one sentence.
+const GUARD_RING = [           // clockwise from north · read as a perimeter
+  [0,-3],[3,-3],[3,0],[3,3],[0,3],[-3,3],[-3,0],[-3,-3],
+];
+function guardPostTiles(homeId){
+  const t = _homeIdDoorTile(homeId);
+  if (!t) return [];
+  const dist = (typeof districtAt === 'function') ? districtAt(t.x, t.y) : null;
+  const max = guardPostsAllowed(dist);
+  const out = [];
+  for (const [dx, dy] of GUARD_RING){
+    if (out.length >= max) break;
+    const x = t.x + dx, y = t.y + dy;
+    // ★ a post you cannot stand on is not a post · fall through the ring rather
+    //   than stationing somebody inside a wall
+    if (typeof walkable === 'function' && !walkable(x, y)) continue;
+    out.push([x, y]);
+  }
+  return out;
+}
+// The gate, as one answer, so every caller and the UI agree.
+function hqChainStatus(homeId){
+  const t = _homeIdDoorTile(homeId);
+  if (!t) return { ok:false, step:0, why:'no such property' };
+  const dist = (typeof districtAt === 'function') ? districtAt(t.x, t.y) : null;
+  if (typeof towerRestored === 'function' && !towerRestored(dist))
+    return { ok:false, step:1, dist, why:`the ${String(dist).toUpperCase()} tower is still down · no signal, no station` };
+  if (!(player.ownedHomes || []).includes(homeId))
+    return { ok:false, step:2, dist, why:'you do not own this property' };
+  const posts = guardPostTiles(homeId).length;
+  if (!posts)
+    return { ok:false, step:3, dist, why:`${String(dist).toUpperCase()} needs 2 owned homes to open guard posts` };
+  return { ok:true, step:4, dist, posts };
+}
+function homeGuards(homeId){
+  player.homeGuards = player.homeGuards || {};
+  player.homeGuards[homeId] = player.homeGuards[homeId] || [];
+  return player.homeGuards[homeId];
+}
+function guardHomeOf(who){
+  const G = player.homeGuards || {};
+  for (const hid of Object.keys(G)) if ((G[hid] || []).includes(who)) return hid;
+  return null;
+}
+// Station an ally NPC (by id) at the next free post of an owned home.
+function assignGuardToHome(homeId, allyId){
+  const gate = hqChainStatus(homeId);
+  if (!gate.ok) return { ok:false, why:gate.why };
+  const list = homeGuards(homeId);
+  const posts = guardPostTiles(homeId);
+  if (list.includes(allyId)) return { ok:false, why:'already posted here' };
+  if (list.length >= posts.length) return { ok:false, why:`all ${posts.length} posts are filled` };
+  const n = (typeof NPCS !== 'undefined') && NPCS.find(x => x && x.id === allyId);
+  if (!n) return { ok:false, why:'that contact is not in the world' };
+  if (n.isEnemy) return { ok:false, why:'that is not an ally' };
+  // ★ vacate any previous post · one body, one station
+  const prev = guardHomeOf(allyId);
+  if (prev) player.homeGuards[prev] = homeGuards(prev).filter(x => x !== allyId);
+  list.push(allyId);
+  const post = posts[list.length - 1];
+  n._nativeAt = n._nativeAt || [n.tileX, n.tileY];
+  n._guardHome = homeId;
+  n._guardPost = post;
+  n.scene = 'overworld'; n.homeScene = 'overworld';
+  n.tileX = post[0]; n.tileY = post[1];
+  n.homeX = post[0]; n.homeY = post[1];
+  n.mode = 'wander'; n.wanderRadius = 2;
+  try { playSFX('confirm'); } catch(_){}
+  try { showToast(`★ ${(n.name || allyId).toUpperCase()} takes the ${['N','NE','E','SE','S','SW','W','NW'][list.length-1] || ''} post · ${list.length}/${posts.length}`, 3600); } catch(_){}
+  return { ok:true, post, filled:list.length, of:posts.length };
+}
+function dismissGuard(homeId, allyId){
+  const list = homeGuards(homeId);
+  if (!list.includes(allyId)) return false;
+  player.homeGuards[homeId] = list.filter(x => x !== allyId);
+  const n = (typeof NPCS !== 'undefined') && NPCS.find(x => x && x.id === allyId);
+  if (n){
+    n._guardHome = null; n._guardPost = null;
+    // ★ SEND THEM HOME, not to (0,0). _nativeAt was recorded the first time
+    //   they were ever moved, precisely so a dismissal is reversible.
+    if (n._nativeAt){ n.tileX = n._nativeAt[0]; n.tileY = n._nativeAt[1];
+                      n.homeX = n.tileX; n.homeY = n.tileY; }
+  }
+  try { showToast(`◈ ${(n && n.name ? n.name : allyId).toUpperCase()} stands down`, 2600); } catch(_){}
+  return true;
+}
+// ── ★★ BOND EARNED IN THE FIELD ──────────────────────────────────────────
+//   "their bond with you goes up over time if you spend time fighting in the
+//   area with them or if they are following you around during ur expedition."
+//
+// ★ Both halves are the same idea — shared time under load — so they share one
+//   accrual and one cooldown. A guard who watched the fight and a companion who
+//   walked the road are both owed, and neither should be farmable by standing
+//   still next to them.
+const GUARD_BOND_RADIUS   = 14;      // tiles · "in the area"
+const GUARD_BOND_PER_KILL = 0.5;
+const GUARD_BOND_CD_MS    = 4000;
+const ESCORT_BOND_MS      = 45000;   // a companion earns steadily on the road
+function _hqBond(n, amount, why){
+  if (!n || !n.id || amount <= 0) return 0;
+  player.bonds = player.bonds || {};
+  const before = player.bonds[n.id] || 0;
+  const after = Math.min(100, before + amount);
+  player.bonds[n.id] = after;
+  const gained = after - before;
+  if (gained > 0 && Math.floor(after / 25) > Math.floor(before / 25)){
+    try { showToast(`◈ ${(n.name || n.id).toUpperCase()} · bond ${Math.floor(after)}/100 · ${why}`, 3000); } catch(_){}
+  }
+  return gained;
+}
+// Called from creditRizerKill · every kill in the game already goes through it.
+function guardBondFromKill(victim){
+  if (!victim || typeof NPCS === 'undefined') return;
+  const now = performance.now();
+  for (const n of NPCS){
+    if (!n || n.scene !== game.scene) continue;
+    const posted = !!n._guardHome;
+    const escort = n.mode === 'follow' || n._summoned;
+    if (!posted && !escort) continue;
+    if (Math.hypot(n.tileX - victim.tileX, n.tileY - victim.tileY) > GUARD_BOND_RADIUS) continue;
+    if ((n._hqBondCd || 0) > now) continue;
+    n._hqBondCd = now + GUARD_BOND_CD_MS;
+    _hqBond(n, GUARD_BOND_PER_KILL, posted ? 'held the perimeter' : 'fought beside you');
+  }
+}
+// Companions earn on the road, not only in a fight.
+let _escortBondAt = 0;
+function tickEscortBond(){
+  const now = performance.now();
+  if (now < _escortBondAt) return;
+  _escortBondAt = now + ESCORT_BOND_MS;
+  if (typeof NPCS === 'undefined' || game.scene !== 'overworld') return;
+  for (const n of NPCS){
+    if (!n || n.scene !== 'overworld') continue;
+    if (!(n.mode === 'follow' || n._summoned)) continue;
+    if (Math.hypot(n.tileX - player.x, n.tileY - player.y) > 8) continue;   // actually WITH you
+    _hqBond(n, 1, 'walked the expedition with you');
+  }
+}
 // ★★★ AND THE DEED NOW NAMES A BUILDING THAT EXISTS.
 //
 // Three families passed tryPurchaseHome() an id no prop carried:
@@ -29380,6 +29981,7 @@ function forceUnstick(){
   const drop = (label, fn) => { try { if (fn()) cleared.push(label); } catch(_){} };
   drop('dialog',        () => { if (typeof dialogState !== 'undefined' && dialogState){ dialogState = null; return true; } });
   drop('homeBuyConfirm',() => { if (typeof homeBuyConfirm !== 'undefined' && homeBuyConfirm){ homeBuyConfirm = null; try { drawHomeBuyConfirm(); } catch(_){} return true; } });
+  drop('hqPanel',       () => { if (typeof hqPanel !== 'undefined' && hqPanel){ hqPanel = null; try { drawHqPanel(); } catch(_){} return true; } });
   drop('newGameConfirm',() => { if (typeof newGameConfirm !== 'undefined' && newGameConfirm){ newGameConfirm = null; return true; } });
   drop('settingsMenu',  () => { if (typeof settingsMenuOpen !== 'undefined' && settingsMenuOpen){ settingsMenuOpen = false; return true; } });
   drop('zyrexMenu',     () => { if (typeof zyrexMenuOpen !== 'undefined' && zyrexMenuOpen){ zyrexMenuOpen = false; return true; } });
@@ -29416,6 +30018,8 @@ function tryMove(dt){
   if (dialogState)                  freezeReasons.push('dialog');
   if (typeof homeBuyConfirm !== 'undefined' && homeBuyConfirm)
                                     freezeReasons.push('homeBuyConfirm');  // ★ v0.96.4
+  if (typeof hqPanel !== 'undefined' && hqPanel)
+                                    freezeReasons.push('hqPanel');         // ★ v0.96.5
   if (game.expPanelOpen)            freezeReasons.push('expPanel');
   if (game.tvPanelOpen)             freezeReasons.push('tvPanel');
   if (game.guitarPanelOpen)         freezeReasons.push('guitarPanel');
@@ -32288,7 +32892,16 @@ function tryInteract(){
         if (nearBag){ openPunchingBagPanel(); return; }
         // v0.95.79 · Nebuladock PC · desk row (6-8, 7) + monitor (7, 6) only
         const nearDock = facedRoomItem?.id==='pc';
-        if (nearDock){ openDockPanel(); return; }
+        if (nearDock){
+          // ★★ v0.96.5 · IN AN OWNED HOME, THE PC IS THAT HOME'S HQ TERMINAL.
+          // Creator: "you can assign faction members to the HQ by going inside
+          // it and using the PC. each PC will exist independently for that
+          // home." The scene id already carries which house you are standing
+          // in, so the terminal cannot open the wrong roster.
+          const _hqId = hqHomeIdForScene(game.scene);
+          if (_hqId && openHqPanel(_hqId)) return;
+          openDockPanel(); return;
+        }
         // v0.95.92 · Poster on wall · faced tile lookup in POSTERS registry
         const posterId = `${fx},${fy}`;
         if (POSTERS[posterId]){ openPosterView(posterId); return; }
@@ -32465,6 +33078,9 @@ addEventListener('keydown', e => {
 
   if (homeBuyConfirm){
     if (handleHomeBuyConfirmKey(k)){ e.preventDefault(); return; }
+  }
+  if (hqPanel){
+    if (handleHqPanelKey(k)){ e.preventDefault(); return; }   // ★ v0.96.5
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -34063,7 +34679,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.5' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.6' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -40727,6 +41343,12 @@ function saveGame(){
         voltstormUnlocked: !!player.voltstormUnlocked,   // ★ v0.95.822 · A5 attunement is forever
         steldenBonded: !!player.steldenBonded,           // ★ v0.95.824 · the Iron Warden's oath, once
         ownedHomes: player.ownedHomes || [],       // v0.95 · Rizer Rooms purchased
+        // ★ v0.96.5 · THE ESTATE. Without these three the whole feature is a
+        // session toy: the deeds survived a reload but the tier you reached,
+        // the contact you housed and the perimeter you staffed did not.
+        estateTier:    Object.assign({}, player.estateTier    || {}),
+        homeResidents: Object.assign({}, player.homeResidents || {}),
+        homeGuards:    JSON.parse(JSON.stringify(player.homeGuards || {})),
         knownRecipes: player.knownRecipes || [],   // v0.95 · discovered experiment recipes
         mainQuestStep: player.mainQuestStep || 0,  // v0.95.1 · main quest tracker index
         songsKnown: player.songsKnown || ['starter_chord'],   // v0.95.7
@@ -47718,6 +48340,13 @@ function _claimFormationSlot(){
 // station tile for a follower · nudged to the nearest clear tile so a slot
 // landing on a tree/wall does not strand its owner pacing forever
 function _formationTile(n){
+  // ★★ v0.96.5 · A POSTED GUARD HAS A FIXED STATION. Returning it here means
+  // the whole existing follow/avoid/walk stack drives the guard for free —
+  // it walks there, routes round walls, and comes back after a chase, using
+  // the same code that keeps a summon behind Rizer. No second movement mode.
+  if (n && n._guardPost && n._guardHome) return [n._guardPost[0], n._guardPost[1]];
+  // ★ v0.96.5 · Scrapjaw's errand outranks his follow slot while it lasts.
+  if (n && n._lootTarget) return [n._lootTarget[0], n._lootTarget[1]];
   // ★★★ v0.95.998 · "it may wander off." An over-ranked Zyrex periodically
   // decides its station is a suggestion. Rather than inventing a second
   // movement mode, it simply gets given a DIFFERENT station for a few seconds
@@ -53896,7 +54525,9 @@ function _frameBody(now){
   try { tickMeditation(dt); } catch(_){}
   try { tickFieldStudy(); } catch(_){}   // ★ v0.95.998 · bond by observation
   try { tickHomecoming(); } catch(_){}   // ★ v0.95.998 · bond by travel
-  try { tickDistrictAnchors(); } catch(_){}  // ★ v0.96.0 · the ground grows its anchor back
+  try { tickDistrictAnchors(); } catch(_){}
+  try { tickEscortBond(); } catch(_){}      // ★ v0.96.5
+  try { tickScrapjawLoot(); } catch(_){}   // ★ v0.96.5  // ★ v0.96.0 · the ground grows its anchor back
   try { tickOmnirisStillness(); } catch(_){}  // ★ v0.95.990 · Omniris Trial 3  // ★ v0.95.990 · Omniris' meditation · +1 HP/s while guard is held undisturbed
   try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
   try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted

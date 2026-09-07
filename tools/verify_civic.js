@@ -204,9 +204,14 @@ const KINDS = ['nurse', 'zysphere-shop', 'potion-shop', 'town-hall', 'cottage-lo
                   malezor_potion_shop: 'potion-shop', malezor_zysphere_shop: 'zysphere-shop' };
   for (const [propId, kind] of Object.entries(DOORS)){
     const p = C.WORLD_PROPS.find(x => x && x.id === propId);
+    // ★ v0.96.10 · the door now carries TWO verbs: _civicEnter (Square) and a
+    //   quick-interact onInteract (X). This suite asserted enterCivic() was
+    //   inside onInteract, which was true for exactly one version.
+    t(!!p && p._civicEnter && p._civicEnter.kind === kind && p._civicEnter.dist === 'malezor',
+      `★ ${propId} · SQUARE enters the ${kind} interior`);
     t(!!p && typeof p.onInteract === 'function'
-      && new RegExp(`enterCivic\\('${kind}'`).test(p.onInteract.toString()),
-      `★ ${propId} opens the ${kind} interior`);
+      && new RegExp(`civicQuickInteract\\('${kind}'`).test(p.onInteract.toString()),
+      `  · and X runs its counter service from the street`);
   }
   // ★★ and they really enter · driven, not read
   C.game.scene = 'overworld'; C.player.x = 22; C.player.y = 157;
@@ -230,7 +235,7 @@ const KINDS = ['nurse', 'zysphere-shop', 'potion-shop', 'town-hall', 'cottage-lo
 /* ── 7 · ★ what is NOT wired, said out loud ─────────────────────────────── */
 {
   const wired = Object.keys(C.CIVIC_ROOMS).filter(k =>
-    new RegExp(`enterCivic\\('${k}'`).test(H));
+    new RegExp(`_civicEnter: \\{ kind: '${k}'`).test(H));
   const parked = Object.keys(C.CIVIC_ROOMS).filter(k => !wired.includes(k));
   t(wired.length === 4 && parked.length === 1 && parked[0] === 'cottage-lodge',
     `★ 4 of 5 rooms have a Malezor door (${wired.join(', ')}); cottage-lodge is parked · `

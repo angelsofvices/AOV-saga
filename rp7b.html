@@ -6346,7 +6346,9 @@ const WORLD_PROPS = [
     })(),
     door:  [0, 0],
     // ★ v0.96.9 · open · the property registry lives at its counter
-    onInteract: () => { enterCivic('town-hall', 'malezor'); },
+    _civicEnter: { kind: 'town-hall', dist: 'malezor' },   // ★ v0.96.10 · SQUARE enters
+    onInteract: () => { civicQuickInteract('town-hall', 'malezor'); },   // X = from the street
+
   },
   {
     // Malezor School · south-band placement (rows 80-88, cols 20-30) ·
@@ -6400,7 +6402,9 @@ const WORLD_PROPS = [
     })(),
     door: [0, 0],
     // ★ v0.96.9 · open · the premium counter still gates on the Ruby Vial errand
-    onInteract: () => { enterCivic('potion-shop', 'malezor'); },
+    _civicEnter: { kind: 'potion-shop', dist: 'malezor' },   // ★ v0.96.10 · SQUARE enters
+    onInteract: () => { civicQuickInteract('potion-shop', 'malezor'); },   // X = from the street
+
   },
   {
     // ★★ v0.95.872 · THE ZYSPHERE SHOP · Creator: "put the zysphere item shop
@@ -6435,7 +6439,9 @@ const WORLD_PROPS = [
     // ★ v0.96.9 · the door opens the SHOP FLOOR · the counter inside still calls
     // openZysphereShop(), so the panel and its whole economy are untouched — the
     // building just stopped being a vending machine you press from the street.
-    onInteract: () => { enterCivic('zysphere-shop', 'malezor'); },
+    _civicEnter: { kind: 'zysphere-shop', dist: 'malezor' },   // ★ v0.96.10 · SQUARE enters
+    onInteract: () => { civicQuickInteract('zysphere-shop', 'malezor'); },   // X = from the street
+
   },
   {
     // Malezor Zyrex Farm · south-2 band · RIGHT of center under school.
@@ -6479,7 +6485,9 @@ const WORLD_PROPS = [
     door: [0, 0],
     // ★ v0.96.9 · the door now OPENS. The 50-coin full heal moved inside to the
     // counter, where a hospital's service belongs — see civicService('nurse').
-    onInteract: () => { enterCivic('nurse', 'malezor'); },
+    _civicEnter: { kind: 'nurse', dist: 'malezor' },   // ★ v0.96.10 · SQUARE enters
+    onInteract: () => { civicQuickInteract('nurse', 'malezor'); },   // X = from the street
+
     _retiredDoorHeal: () => {
       const COST = 50;
       const coins = player.items.coins || 0;
@@ -16702,6 +16710,50 @@ function enterCivic(kind, dist, toast){
 // Which civic rooms a district actually has · the roster is the same everywhere
 // by design, so this is the vocabulary, not a per-district list.
 const CIVIC_KINDS = Object.keys(CIVIC_ROOMS);
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.10 · TWO VERBS AT A DOOR
+//
+//   Creator: "you must press square to enter an unlocked building. you can
+//   quick interact with it by pressing x."
+//
+// ★ SQUARE = GO IN. X = DO THE THING FROM THE STREET. That split is worth more
+//   than it looks: it gives the buildings back the counter service they had
+//   before v0.96.9 moved it inside, WITHOUT making you walk through a room to
+//   buy one potion — and it makes entering a deliberate act rather than
+//   something that happens because you pressed the universal button near a wall.
+//
+// ★ Square is the A1 punch, so this is a CONTEXTUAL override, exactly like X
+//   being interact-or-attack. Facing an enterable door, Square opens it; one
+//   tile away from any door, Square still punches. The check is on the FACED
+//   TILE, never on proximity, so it can never eat a swing in a fight.
+function facedCivicDoor(){
+  if (game.scene !== 'overworld') return null;
+  // ★ the same four lines facedNpc() uses · there is no facedTile() helper in
+  //   this file, and inventing one was caught by grepping the name before it
+  //   shipped as a silently-null door check.
+  let fx = player.x, fy = player.y;
+  if (player.dir === 'up')    fy--;
+  else if (player.dir === 'down')  fy++;
+  else if (player.dir === 'left')  fx--;
+  else if (player.dir === 'right') fx++;
+  for (const p of WORLD_PROPS){
+    if (!p || !p._civicEnter) continue;
+    if (p.tileX === fx && p.tileY === fy) return p;
+  }
+  return null;
+}
+function enterFacedCivicDoor(){
+  const p = facedCivicDoor();
+  if (!p) return false;
+  const E = p._civicEnter;
+  return enterCivic(E.kind, E.dist);
+}
+// X at the door · the SAME service the counter runs, from the pavement.
+// One implementation, so the street and the counter can never disagree.
+function civicQuickInteract(kind, dist){
+  try { return civicService(kind, dist); }
+  catch(err){ console.warn('[rp7b] civic quick-interact failed', err); return false; }
+}
 // ★★ EVERY ROOM DOES SOMETHING. A civic interior you can walk into and not use
 //    is worse than a locked door: the locked door at least told you the truth.
 //    The service lives at the COUNTER (the blocked furniture row), so entering
@@ -29308,6 +29360,15 @@ addEventListener('keydown', e => {
         // stuck true from another chord.  Punch is now the sole Square action
         // on the bag · move-bag mechanic can come back later on a cleaner input
         if (game._bagDragging){ game._bagDragging = false; }
+        // ★★★ v0.96.10 · SQUARE OPENS A DOOR YOU ARE FACING.
+        // Checked before the swing is armed so entering never costs a punch of
+        // stamina or leaves an attack lock behind. Square only · Triangle stays
+        // a pure kick.
+        if (k === 'j'){
+          try { if (enterFacedCivicDoor()) return; } catch(err){
+            console.warn('[rp7b] civic door failed', err);
+          }
+        }
         const mode = (k === 'j') ? 'punch' : 'kick';
         // ★★★ v0.95.917 · INPUT BUFFER.  A press this close to the lock
         // clearing used to be thrown away, so the natural rhythm -- press again
@@ -30233,6 +30294,102 @@ function drawDialogOverlay(){
 
 // -- Movement · one tile step per moveCd interval ----------------------------
 // v0.95.710 · last tile the player stepped off, for the door bounce-back.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.10 · ONE PAD NAVIGATOR FOR EVERY DOM PANEL
+//
+//   Creator: "allow dualsense controller navigation in all building and other
+//   native UI pop ups."
+//
+// ★★ The ZyPhone got a full D-pad router months ago. Every OTHER panel in the
+//    game — the science bench, the bag, the wallet, the three shop counters,
+//    the Sanctuary, the poster, the R.A.I.D. card — is plain DOM that has only
+//    ever answered a MOUSE. On a DualSense they open and then do nothing, which
+//    is worse than not opening.
+//
+// ★★★ ONE ROUTER, NOT FOURTEEN NAVIGATORS. Writing per-panel cursor code
+//    fourteen times guarantees the fourteenth behaves differently from the
+//    first, and every panel added later starts mouse-only again. This walks
+//    whatever focusable elements the open panel actually contains, so a panel
+//    that grows a button is navigable to it for free.
+const UI_PANEL_IDS = [
+  'expPanel', 'bagPanel', 'walletPanel', 'dockPanel', 'nebulaPanel',
+  'tvPanel', 'guitarPanel', 'posterView', 'raidCardView', 'rizerPanel',
+  'scrollView', 'starterPickerPanel', 'ultrashardPicker',
+  'zysphereShopOverlay', 'potionShopOverlay', 'weaponShopOverlay',
+];
+function _uiVisible(el){
+  if (!el) return false;
+  const d = el.style && el.style.display;
+  if (d === 'none') return false;
+  try {
+    const c = getComputedStyle(el);
+    if (c && (c.display === 'none' || c.visibility === 'hidden')) return false;
+  } catch(_){}
+  return true;
+}
+// The topmost open panel · later ids in the list are checked too, but the FIRST
+// visible one wins so a stack resolves deterministically.
+function openUiPanel(){
+  for (const id of UI_PANEL_IDS){
+    const el = document.getElementById(id);
+    if (_uiVisible(el)) return el;
+  }
+  return null;
+}
+function _uiItems(el){
+  let list = [];
+  try {
+    list = Array.from(el.querySelectorAll('button, a[href], [data-uinav], [tabindex]:not([tabindex="-1"])'));
+  } catch(_){ return []; }
+  // ★ visible ONLY. A hidden tab's buttons are still in the DOM, and cursoring
+  //   onto one is a dead press the player cannot see or explain.
+  return list.filter(b => {
+    if (b.disabled) return false;
+    if (b.offsetParent === null && b.style && b.style.display === 'none') return false;
+    return true;
+  });
+}
+let _uiNavIdx = 0;
+function _uiPaint(items, idx){
+  items.forEach((b, i) => {
+    const on = i === idx;
+    try {
+      b.style.outline = on ? '3px solid #7ad4ff' : '';
+      b.style.outlineOffset = on ? '2px' : '';
+      b.style.filter = on ? 'brightness(1.3)' : '';
+      if (on && typeof b.scrollIntoView === 'function')
+        b.scrollIntoView({ block: 'nearest' });
+    } catch(_){}
+  });
+}
+// Returns true when it consumed the key.
+function handleUiPanelKey(k){
+  const el = openUiPanel();
+  if (!el) { _uiNavIdx = 0; return false; }
+  const items = _uiItems(el);
+  if (!items.length) return false;          // ★ never swallow in an empty panel
+  if (_uiNavIdx >= items.length) _uiNavIdx = 0;
+  if (k === 'arrowdown' || k === 'arrowright'){
+    _uiNavIdx = (_uiNavIdx + 1) % items.length;
+    _uiPaint(items, _uiNavIdx); try { playSFX('cursor'); } catch(_){}
+    return true;
+  }
+  if (k === 'arrowup' || k === 'arrowleft'){
+    _uiNavIdx = (_uiNavIdx - 1 + items.length) % items.length;
+    _uiPaint(items, _uiNavIdx); try { playSFX('cursor'); } catch(_){}
+    return true;
+  }
+  if (k === 'x' || k === 'z' || k === 'enter' || k === ' '){
+    const b = items[_uiNavIdx];
+    if (b){ try { b.click(); } catch(_){} try { playSFX('confirm'); } catch(_){} }
+    // ★ re-paint against the NEW contents · a click can rebuild the list
+    setTimeout(() => { const e2 = openUiPanel(); if (e2) _uiPaint(_uiItems(e2), _uiNavIdx); }, 0);
+    return true;
+  }
+  return false;   // ★ B/Circle and everything else fall through to the panel's
+                  //   own close handler · this router navigates, it does not
+                  //   take ownership of a panel's lifecycle
+}
 // ★★ v0.96.4 · the stuck watchdog · see the note inside tryMove()
 const STUCK_WARN_MS = 2500;
 const UNSTICK_HOLD_MS = 5000;   // ★ v0.96.8 · L2 + touchpad, held
@@ -33379,6 +33536,9 @@ addEventListener('keydown', e => {
   if (hqPanel){
     if (handleHqPanelKey(k)){ e.preventDefault(); return; }   // ★ v0.96.5
   }
+  // ★★ v0.96.10 · D-pad through any open DOM panel · returns false when no
+  // panel is open or the key is not a navigation key, so nothing else changes.
+  if (!game.zphoneOpen && handleUiPanelKey(k)){ e.preventDefault(); return; }
 
   // ═══════════════════════════════════════════════════════════════
   // v0.95.438 · HARDLINE · TOUCHPAD ALWAYS TOGGLES ZYPHONE
@@ -34976,7 +35136,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.9' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.10' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

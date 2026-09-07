@@ -36473,7 +36473,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.25' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.26' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -54491,12 +54491,30 @@ const SIL_MAX_PX = 400_000;        // hard ceiling · a silhouette is a shadow
 //    cost, and the blur is what hides the difference. The blit upscales it back,
 //    which the GPU does for free.
 const SIL_RES = 0.5;
+const SIL_FRAME_BUDGET_MS = 6;     // ms of silhouette building allowed per frame
 function _silhouette(p){
   const [bx, by, bw, bh] = p.bbox;
   const drawW = Math.max(1, Math.round((p.tileW || 1) * TILE));
   const key = `${p.src}|${bx},${by},${bw},${bh}|${drawW}`;
   let sil = _silCache.get(key);
   if (sil) return sil;
+  // ★★★ v0.96.26 · A BUILD BUDGET, AND THIS ONE IS NOT A THEORY.
+  //
+  //   Creator: "freeze after scrapjaw tlk and level up" — still on v0.96.25,
+  //   so shrinking these canvases 29x was not sufficient on its own.
+  //
+  // ★★★ Whatever ONE build costs, the failure mode is a BURST: run into a part
+  //   of the map you have not seen and five or ten uncached prop types enter
+  //   view in the SAME FRAME, each wanting an allocate + blur + composite. One
+  //   is a stutter. Ten is a locked tab. So the frame gets a budget, and builds
+  //   that do not fit are simply deferred to the next frame.
+  //
+  // ★ A prop draws WITHOUT its shadow for a frame or two while the queue drains.
+  //   That is genuinely invisible at 120 fps — a soft dark shape fading in one
+  //   sixtieth of a second late. A two-second hang is not invisible. This is the
+  //   right trade and it holds no matter which of my theories about the cost was
+  //   correct.
+  if (_silhouette._frameMs > SIL_FRAME_BUDGET_MS) return null;
   let sc = (drawW / bw) * SIL_RES;                // source px -> silhouette px
   // ★ pad and blur live in SILHOUETTE space, so the falloff is identical once
   //   the blit scales it back up
@@ -54510,6 +54528,7 @@ function _silhouette(p){
     W = Math.max(1, Math.round(bw * sc) + pad*2);
     H = Math.max(1, Math.round(bh * sc) + pad*2);
   }
+  const _t0 = performance.now();
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const cx = c.getContext('2d');
@@ -54522,6 +54541,16 @@ function _silhouette(p){
   cx.fillRect(0, 0, W, H);
   sil = { canvas: c, pad: pad / SIL_RES, scaled: true };   // pad reported in SCREEN px
   _silCache.set(key, sil);
+  // ★★ v0.96.26 · every build is timed and the total per frame is accumulated,
+  //   because ONE of these is a stutter and FIVE IN A FRAME is a freeze — the
+  //   per-call number would look innocent while the frame died.
+  const _ms = performance.now() - _t0;
+  _silhouette._built = (_silhouette._built || 0) + 1;
+  _silhouette._frameMs = (_silhouette._frameMs || 0) + _ms;
+  if (_ms > 60){
+    console.warn(`[rp7b] shadow silhouette for ${(p.src||'?').split('/').pop()} took `
+      + `${Math.round(_ms)} ms (${c.width}x${c.height})`);
+  }
   return sil;
 }
 // Buildings and trees only. Bushes, grass, chests, NPCs and flat decals stay
@@ -54551,6 +54580,7 @@ function drawPropShadow(p){
   if (dx + drawW + reach < 0 || dx - reach > canvas.width) return;
   if (baseY - drawH * len > canvas.height || baseY < 0) return;
   const sil = _silhouette(p);
+  if (!sil) return;                 // ★ v0.96.26 · deferred · it will build next frame
   ctx.save();
   ctx.globalAlpha = SHADOW.alpha;
   ctx.translate(dx + drawW / 2, baseY);
@@ -56595,7 +56625,16 @@ function frame(now){
 // ★★★ v0.96.18 · _step lives at MODULE scope now. v0.96.17 declared it halfway
 // down _frameBody, so it could only ever guard the DRAW TAIL — and the head of
 // the frame, which is where the game actually thinks, stayed bare.
+// ★★★ v0.96.26 · _step now TIMES as well as guards.
+//   Creator: "freeze after scrapjaw tlk and level up" — on v0.96.25, so the
+//   shadow-cache fix was not the whole story, and "page unresponsive" says the
+//   main thread is blocking for SECONDS inside something synchronous.
+//   I have guessed eleven times. This stops guessing: whatever blocks gets
+//   NAMED, with its duration, in the console, in a toast, and in the crumb that
+//   survives a reload.
+const SLOW_STEP_MS = 250;
 function _step(name, fn){
+  const _t0 = performance.now();
   try { fn(); }
   catch(err){
     frame._badStep = frame._badStep || new Set();
@@ -56617,6 +56656,21 @@ function _step(name, fn){
         }));
       } catch(_){}
       try { showToast(`⚠ ${name} failed · recovered · see console`, 8000); } catch(_){}
+    }
+  }
+  finally {
+    const _ms = performance.now() - _t0;
+    if (_ms > SLOW_STEP_MS){
+      _step._slow = _step._slow || {};
+      const prev = _step._slow[name] || 0;
+      if (_ms > prev){
+        _step._slow[name] = _ms;
+        console.error(`[rp7b] ★★★ SLOW STEP · "${name}" blocked the main thread for `
+          + `${Math.round(_ms)} ms · scene ${game.scene} (${player.x},${player.y})`);
+        try { showToast(`⚠ ${name} blocked ${Math.round(_ms)}ms`, 9000); } catch(_){}
+        try { game._slowStep = { name, ms: Math.round(_ms), at: Date.now() }; } catch(_){}
+        try { _writeCrumb(true); } catch(_){}
+      }
     }
   }
 }
@@ -56741,25 +56795,23 @@ function _frameBody(now){
   // ★ v0.95.717 · stamina · drains while sprinting, refills when you stop.
   // Runs BEFORE tryMove so canSprint() sees this frame's value, and inside a
   // try so a stamina fault can never take the whole render loop down.
-  try { tickStamina(dt); } catch(_){}
-  try { tickDreamland(); } catch(_){}   // v0.95.719 · the nap clock
-  try { tickYaraRegen(dt); } catch(_){}  // ★ v0.95.916 · Yara's green-gem mend · +1 HP/s out of combat
-  try { tickMeditation(dt); } catch(_){}
-  try { tickFieldStudy(); } catch(_){}   // ★ v0.95.998 · bond by observation
-  try { tickHomecoming(); } catch(_){}   // ★ v0.95.998 · bond by travel
-  try { tickDistrictAnchors(); } catch(_){}
-  try { tickEscortBond(); } catch(_){}      // ★ v0.96.5
-  try { tickScrapjawLoot(); } catch(_){}   // ★ v0.96.5
-  try { tickFieldStation(); } catch(_){}     // ★ v0.96.12 · the unfold
-  try { tickFieldStationRaid(); } catch(_){} // ★ v0.96.12 · enemies wreck it
-  try { tickNootRaygun(); } catch(_){}       // ★ v0.96.14 · Noot covers you
-  // ★ v0.96.22 · tickBrokenRaygun retired · one frame + _levitate, per the Creator  // ★ v0.96.0 · the ground grows its anchor back
-  try { tickOmnirisStillness(); } catch(_){}  // ★ v0.95.990 · Omniris Trial 3  // ★ v0.95.990 · Omniris' meditation · +1 HP/s while guard is held undisturbed
-  try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
-  try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted
-  // ★ v0.95.743 · ZyPhone Triangle hold · timed HERE, per frame, because the
-  // gamepad sends one keydown per press and no repeats. See zyTriangleHoldTick.
-  try { zyTriangleHoldTick(); } catch(_){}
+  _step('tickStamina', () => tickStamina(dt));
+  _step('tickDreamland', () => tickDreamland());
+  _step('tickYaraRegen', () => tickYaraRegen(dt));
+  _step('tickMeditation', () => tickMeditation(dt));
+  _step('tickFieldStudy', () => tickFieldStudy());
+  _step('tickHomecoming', () => tickHomecoming());
+  _step('tickDistrictAnchors', () => tickDistrictAnchors());
+  _step('tickEscortBond', () => tickEscortBond());
+  _step('tickScrapjawLoot', () => tickScrapjawLoot());
+  _step('tickFieldStation', () => tickFieldStation());
+  _step('tickFieldStationRaid', () => tickFieldStationRaid());
+  _step('tickNootRaygun', () => tickNootRaygun());
+  _step('tickOmnirisStillness', () => tickOmnirisStillness());
+  _step('tickZorynRest', () => tickZorynRest(dt));
+  _step('flushMeleeBuffer', () => flushMeleeBuffer());
+  _step('zyTriangleHoldTick', () => zyTriangleHoldTick());
+
   // ★★★ v0.96.18 · THE FRAME HEAD IS GUARDED TOO.
   //
   //   Creator: "I talked to scrapjaw and then did a roll then I f'd again"
@@ -56976,13 +57028,25 @@ function _frameBody(now){
       ctx.drawImage(PUNCHING_BAG_IMG, bsx, bsy, bsw, bCutSh, bDx, bDy, bDrawW, bCutDh);
     }
   } else {
-    drawOceanUnderlayer();
-    drawGrass();
-    drawVeridanFreshwaterRiver();
-    drawDistrictWorldBorders();
-    drawFootprints();   // v0.87 · sand-trail overlay (Zarvane rows only)
-    drawWorldLayer();   // props + player, depth-sorted by feet-Y
-    drawFae();          // v0.91 · fae collectibles float above ground
+    // ★★★ v0.96.26 · THE WORLD DRAW IS TIMED TOO. drawWorldLayer is where the
+    //   shadow silhouettes get built — the thing that allocates and blurs an
+    //   offscreen canvas the first time a prop type comes into view — so it is
+    //   the single most likely place for a multi-second synchronous block, and
+    //   it was the only major call in the frame with no instrumentation at all.
+    _step('drawOceanUnderlayer', drawOceanUnderlayer);
+    _step('drawGrass', drawGrass);
+    _step('drawVeridanFreshwaterRiver', drawVeridanFreshwaterRiver);
+    _step('drawDistrictWorldBorders', drawDistrictWorldBorders);
+    _step('drawFootprints', drawFootprints);   // v0.87 · sand-trail overlay (Zarvane rows only)
+    _silhouette._frameMs = 0; _silhouette._builtThisFrame = _silhouette._built || 0;   // ★ budget resets per frame
+    _step('drawWorldLayer', drawWorldLayer);   // props + player, depth-sorted by feet-Y
+    if (_silhouette._frameMs > 120){
+      const n = (_silhouette._built || 0) - _silhouette._builtThisFrame;
+      console.error(`[rp7b] ★★★ ${n} shadow silhouettes built in ONE frame · `
+        + `${Math.round(_silhouette._frameMs)} ms of blurred canvas · this is the freeze`);
+      try { showToast(`⚠ ${n} shadows built · ${Math.round(_silhouette._frameMs)}ms`, 9000); } catch(_){}
+    }
+    _step('drawFae', drawFae);          // v0.91 · fae collectibles float above ground
     drawElzebubEgg();   // v0.95.295 · rare 10-radius Elzebub egg spawn near home
     drawGems();         // v0.95.171 · chest-drop gem entities · shine pulse
     // v0.95.122 · boulders now depth-sorted inside drawWorldLayer

@@ -117,5 +117,28 @@ t(/const SIL_RES = 0\.5;/.test(code) && /blur\(\$\{SHADOW\.blurPx \* SIL_RES\}px
   '★★★ half resolution, WITH THE BLUR RADIUS SCALED TO MATCH · scaling the '
   + 'canvas without scaling the blur would have doubled every shadow\'s softness');
 
+/* ── the per-frame BUILD BUDGET · the burst is the failure mode ────── */
+t(/const SIL_FRAME_BUDGET_MS = 6;/.test(code)
+  && /if \(_silhouette\._frameMs > SIL_FRAME_BUDGET_MS\) return null;/.test(code),
+  '★★★ a frame may only spend 6 ms building silhouettes · ONE build is a '
+  + 'stutter, TEN IN A FRAME is a locked tab, and running into unseen map is '
+  + 'exactly what produces ten at once');
+t(/if \(!sil\) return;.*deferred/.test(code),
+  '★★ and the draw TOLERATES a deferred silhouette · a prop without its shadow '
+  + 'for one frame is invisible at 120 fps; a two-second hang is not');
+t(/_silhouette\._frameMs = 0;/.test(code),
+  '★ the budget resets every frame · a one-shot budget would permanently lose '
+  + 'the shadows it deferred');
+
+/* ── and the frame NAMES whatever blocks it ────────────────────────── */
+t(/const SLOW_STEP_MS = 250;/.test(code) && /SLOW STEP · "\$\{name\}" blocked the main thread/.test(code),
+  '★★★ any frame step over 250 ms names itself in the console, a toast AND the '
+  + 'crumb that survives a reload · eleven guesses is enough');
+t(/_step\('drawWorldLayer', drawWorldLayer\)/.test(code),
+  '★★ drawWorldLayer is instrumented · it builds the silhouettes and was the '
+  + 'only major call in the frame with no timing at all');
+const steps=(code.match(/_step\('/g)||[]).length;
+t(steps>=30, `★ ${steps} named, timed frame steps`);
+
 console.log(`\n  ${pass} passed · ${fail} failed\n`);
 process.exit(fail?1:0);

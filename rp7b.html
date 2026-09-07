@@ -29357,6 +29357,53 @@ function drawDialogOverlay(){
 
 // -- Movement · one tile step per moveCd interval ----------------------------
 // v0.95.710 · last tile the player stepped off, for the door bounce-back.
+// ★★ v0.96.4 · the stuck watchdog · see the note inside tryMove()
+const STUCK_WARN_MS = 2500;
+function _movementRequested(){
+  try {
+    return !!(keys['w'] || keys['a'] || keys['s'] || keys['d']
+           || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']);
+  } catch(_){ return false; }
+}
+// ★★★ F10 · FORCE UNSTICK. Every modal in this game is a boolean on `game`
+// plus a handful of module-level states, and any one of them left set is an
+// unrecoverable freeze with no way out but a reload — which costs the player
+// everything since the last save. This clears the whole set and NAMES what it
+// cleared, so a stuck player recovers AND the cause gets reported.
+//
+// ★ Deliberately does NOT touch battleState/wildBattleState/cutscenes: those
+//   are legitimate exclusive states with their own exits, and punching out of a
+//   battle would leave the reward path half-run. If the freeze is one of those,
+//   the banner still names it.
+function forceUnstick(){
+  const cleared = [];
+  const drop = (label, fn) => { try { if (fn()) cleared.push(label); } catch(_){} };
+  drop('dialog',        () => { if (typeof dialogState !== 'undefined' && dialogState){ dialogState = null; return true; } });
+  drop('homeBuyConfirm',() => { if (typeof homeBuyConfirm !== 'undefined' && homeBuyConfirm){ homeBuyConfirm = null; try { drawHomeBuyConfirm(); } catch(_){} return true; } });
+  drop('newGameConfirm',() => { if (typeof newGameConfirm !== 'undefined' && newGameConfirm){ newGameConfirm = null; return true; } });
+  drop('settingsMenu',  () => { if (typeof settingsMenuOpen !== 'undefined' && settingsMenuOpen){ settingsMenuOpen = false; return true; } });
+  drop('zyrexMenu',     () => { if (typeof zyrexMenuOpen !== 'undefined' && zyrexMenuOpen){ zyrexMenuOpen = false; return true; } });
+  for (const f of ['expPanelOpen','tvPanelOpen','guitarPanelOpen','nebulaPanelOpen','bagPanelOpen',
+                   'dockPanelOpen','posterViewOpen','raidCardOpen','weaponShopOpen','potionShopOpen',
+                   'zysphereShopOpen','sanctuaryOpen','ultrashardPickerOpen','wildBondOpen',
+                   'zphoneOpen','walletPanelOpen','dadsNotebookOpen','npcInfoOverlay','paused'])
+    drop(f, () => { if (game[f]){ game[f] = false; return true; } });
+  drop('devPanel', () => {
+    const el = document.getElementById('devPanel');
+    if (el && el.style.display === 'block'){ el.style.display = 'none'; game.devPanelKeyboard = false; return true; }
+  });
+  const ph = document.getElementById('zphonePanel');
+  if (ph && ph.style.display && ph.style.display !== 'none'){ ph.style.display = 'none'; }
+  tryMove._lastReason = ''; tryMove._stuckSince = null; tryMove._stuckTold = 0;
+  game._stuckBanner = null;
+  const msg = cleared.length ? `\u2726 UNSTUCK \u00b7 cleared: ${cleared.join(', ')}`
+                             : '\u2726 nothing was holding input \u00b7 if it is still stuck the loop itself is hung';
+  console.warn('[rp7b] forceUnstick ·', cleared);
+  try { showToast(msg, 4200); } catch(_){}
+  try { playSFX(cleared.length ? 'confirm' : 'cancel'); } catch(_){}
+  return cleared;
+}
+try { window.forceUnstick = forceUnstick; } catch(_){}
 let _doorPrevX = null, _doorPrevY = null;
 function tryMove(dt){
   // Freeze player when title screen, any UI overlay, or battle owns input.
@@ -29367,6 +29414,8 @@ function tryMove(dt){
   if (battleState)                  freezeReasons.push('battle');
   if (wildBattleState)              freezeReasons.push('wildBattle');
   if (dialogState)                  freezeReasons.push('dialog');
+  if (typeof homeBuyConfirm !== 'undefined' && homeBuyConfirm)
+                                    freezeReasons.push('homeBuyConfirm');  // ★ v0.96.4
   if (game.expPanelOpen)            freezeReasons.push('expPanel');
   if (game.tvPanelOpen)             freezeReasons.push('tvPanel');
   if (game.guitarPanelOpen)         freezeReasons.push('guitarPanel');
@@ -29400,14 +29449,43 @@ function tryMove(dt){
   const devPanelEl = document.getElementById('devPanel');
   if (devPanelEl && devPanelEl.style.display === 'block') freezeReasons.push('devPanel');
   if (freezeReasons.length){
-    if (!tryMove._lastReason || tryMove._lastReason !== freezeReasons.join(',')){
+    const _why = freezeReasons.join(',');
+    if (tryMove._lastReason !== _why){
       console.warn('[rp7b] player frozen · reasons:', freezeReasons);
-      tryMove._lastReason = freezeReasons.join(',');
+      tryMove._lastReason = _why;
+    }
+    // ★★★ v0.96.4 · THE STUCK WATCHDOG.
+    //
+    // This list has always been complete and it has always been RIGHT — it just
+    // said so to a console. Three separate freezes this session were reported as
+    // screenshots of a still world, and every one of them had its cause sitting
+    // in `freezeReasons` at that exact moment, unread. A game that knows why it
+    // is frozen and does not say so out loud is choosing to be debugged by
+    // guesswork.
+    //
+    // ★ It only fires when the player is ACTIVELY TRYING TO MOVE and stays
+    //   blocked. A dialogue you are reading blocks movement too, and shouting
+    //   about that would be noise — the signal is "I am pressing a direction and
+    //   nothing is happening", which is exactly what a freeze feels like.
+    if (_movementRequested()){
+      const _now = performance.now();
+      if (tryMove._stuckSince == null || tryMove._stuckWhy !== _why){
+        tryMove._stuckSince = _now; tryMove._stuckWhy = _why; tryMove._stuckTold = 0;
+      } else if (_now - tryMove._stuckSince > STUCK_WARN_MS
+                 && (!tryMove._stuckTold || _now - tryMove._stuckTold > 10000)){
+        tryMove._stuckTold = _now;                 // ★ repeat · one toast is easy to miss
+        game._stuckBanner = { why: _why, at: _now };
+        try { showToast(`\u26a0 Movement blocked by: ${_why} \u00b7 press F10 to force-unstick`, 6000); } catch(_){}
+      }
+    } else {
+      tryMove._stuckSince = null; tryMove._stuckTold = 0;
     }
     player.moving = false;
     return;
   }
   tryMove._lastReason = '';
+  tryMove._stuckSince = null; tryMove._stuckTold = 0;
+  game._stuckBanner = null;
   // v0.95.481 · District-visit tracker · every scene overworld frame flips
   // player.districtsVisited[district] · Kelthor's step 8 reads this to gate
   // 'Cross into Zarvane' completion
@@ -32380,6 +32458,11 @@ addEventListener('keydown', e => {
   //   it runs. verify_homebuy now drives the real keydown listener from the
   //   overworld instead.
   // ═══════════════════════════════════════════════════════════════
+  // ★★★ v0.96.4 · F10 · FORCE UNSTICK · FIRST, ALWAYS.
+  // Sits above every other branch on purpose: the whole point of an escape
+  // hatch is that it still works when something below has taken input hostage.
+  if (k === 'f10'){ e.preventDefault(); try { forceUnstick(); } catch(_){} return; }
+
   if (homeBuyConfirm){
     if (handleHomeBuyConfirmKey(k)){ e.preventDefault(); return; }
   }
@@ -33980,7 +34063,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.3' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.4' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -53743,7 +53826,50 @@ function drawProp(p){
 
 // -- Loop --------------------------------------------------------------------
 let last = performance.now();
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.4 · THE FRAME LOOP CANNOT DIE
+//
+//   Creator: "game freeze here. I talked to auraxion and walked away. I see a
+//   pattern. freezing after npc dialogue and walking"
+//
+// `requestAnimationFrame(frame)` was the LAST STATEMENT of the frame body, with
+// no try/finally around it. So a throw ANYWHERE in the ~280 lines above it —
+// one undefined field on one NPC, one bad sprite bank, one null in a draw pass —
+// did not just skip that frame. It never re-requested the next one. The loop
+// stopped forever, the canvas kept showing the last painted frame, and input
+// went nowhere.
+//
+// ★ THAT IS WHAT "FROZEN" HAS LOOKED LIKE IN EVERY SCREENSHOT THIS SESSION: a
+//   complete, correctly-rendered world doing absolutely nothing. It reads as a
+//   hang, but the game was not hung — it was dead, and had been since the first
+//   exception.
+//
+// ★ The loop is now the one thing that always survives. rAF re-requests in a
+//   `finally`, so a frame can fail and the NEXT frame still runs; a bug that
+//   used to end the session now costs one dropped frame and NAMES ITSELF on
+//   screen. Errors are deduplicated by message, because a fault that throws
+//   once throws sixty times a second and would bury its own first occurrence.
 function frame(now){
+  try { _frameBody(now); }
+  catch(err){
+    const msg = (err && (err.stack || err.message)) ? String(err.stack || err.message) : String(err);
+    const key = msg.split('\n')[0];
+    frame._seen = frame._seen || new Map();
+    const hits = (frame._seen.get(key) || 0) + 1;
+    frame._seen.set(key, hits);
+    if (hits === 1){
+      console.error('[rp7b] ★ FRAME THREW · the loop survived · ' + msg);
+      // Say it out loud ONCE. A frame fault the player never hears about is a
+      // bug that only ever arrives as a screenshot of a still world.
+      try { showToast('\u26a0 Frame error (recovered) \u00b7 ' + key.slice(0, 90), 8000); } catch(_){}
+    } else if (hits === 60 || hits === 600){
+      console.error(`[rp7b] ★ FRAME THREW ${hits}\u00d7 · ` + key);
+    }
+    game._lastFrameError = { key, hits, at: Date.now() };
+  }
+  finally { requestAnimationFrame(frame); }
+}
+function _frameBody(now){
   const dt = now - last; last = now;
   // ★ v0.95.717 · stamina · drains while sprinting, refills when you stop.
   // Runs BEFORE tryMove so canSprint() sees this frame's value, and inside a
@@ -54028,7 +54154,7 @@ function frame(now){
   updateHUD();          // live tile coordinates in top-left
   updateRizerHUD();     // Rizer HUD bars + panel refresh (top-right)
   try { updateZyrexHUD(); } catch(_){}   // v0.95.449 · Active Zyrex HUD · top-left mirror
-  requestAnimationFrame(frame);
+  // ★ v0.96.4 · the rAF re-request lives in frame()'s `finally` now · see above
 }
 
 // ─────────────────────────────────────────────────────────────

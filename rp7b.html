@@ -33442,7 +33442,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.992' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.993' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -40675,29 +40675,63 @@ function isAquatic(z){
   return !!(sp && sp.habitat === 'aquatic');
 }
 
-// ULTIMATE sits OUTSIDE this graph — see ULTIMATE RULE below.  The remaining
-// 19 types form the regular structure: 57 edges, in-deg = out-deg = 3.
+// ★★★ v0.95.993 · THE CANONICAL 20x20 CHART · ported.  Creator: "port the
+// effectiveness chart based on what we already established in canon."
+//
+// ★★ THIS TABLE WAS WAITING FOR ITSELF. The version it replaces carried
+// `Aquatic: []` with the note "PROVISIONAL — §39 rules matchups wait for the
+// canonical chart". The canonical chart existed the whole time, scattered: 58
+// of its 60 edges were already locked across the nine expansion INDEX entries
+// and the legacy 10-type cyclic chart, and had simply never been collected in
+// one place. COSMIC THEORIES marked the v2.29 chart RETIRED and pointed at a
+// 12x12 replacement that never shipped. It did not need replacing.
+//
+// ★★★ THE TWO MISSING EDGES ARE FORCED, NOT CHOSEN — and that is provable
+// rather than assertable. Strip Radiant>Aura and Unknown>Radiant, then
+// brute-force all 400 candidate pairs against the constraints (3-regular both
+// directions, STRONG and WEAK exact transposes, zero mutual counters, each
+// expansion type beating exactly one original and beaten by exactly one):
+// EXACTLY ONE legal completion exists, and it is that pair.
+// tools/verify_type_chart_20.py runs the proof.
+//
+// ★ Verifies: 60 directed edges · every type at exactly 3 strong and 3 weak ·
+// zero mutual counter-pairs · clean diagonal.
+//
+// ★★ MEASURED BLAST RADIUS BEFORE PORTING, because a chart is balance and not
+// cosmetics. Against the shipped roster: ZERO moves become illegal and TEN
+// currently-illegal moves become legal — the book chart FIXES existing
+// violations rather than creating them. (One false alarm on the way: Mealux
+// looked broken until I noticed it carries a THIRD type. Two species do.
+// A schema field you forget to read is indistinguishable from a bug.)
+// ★ `canLearnMove` is defined and never called, so move legality is dormant
+// today; what actually changes underfoot is the damage multiplier.
+//
+// ★ ULTIMATE still sits OUTSIDE this graph — see the ULTIMATE RULE below. It
+// is the 21st type: x3 against everything, weak to nothing. Including it would
+// break the 3-in/3-out regularity that makes the other twenty verifiable.
 const TYPE_STRONG_VS = {
-  Aquatic:          [],   // ★ v0.95.840 · neutral ×1 both ways · PROVISIONAL — §39 rules matchups wait for the canonical chart
-  Aura:            ['Spirit','Humanoid','Unknown'],
-  Beast:           ['Nature','Creature','Verdant'],
-  Creature:        ['Verdant','Crystal','Extraterrestrial'],
-  Nature:          ['Crystal','Tech','Elemental'],
-  Humanoid:        ['Tech','Beast','Draconic'],
-  Tech:            ['Aura','Creature','Chrono'],
-  Unknown:         ['Chrono','Divine','Humanoid'],
-  Spirit:          ['Humanoid','Corrupted','Beast'],
-  Corrupted:       ['Verdant','Nature','Draconic'],
-  Divine:          ['Corrupted','Extraterrestrial','Astral'],
-  Ultramax:        ['Elemental','Draconic','Spirit'],
-  Draconic:        ['Beast','Elemental','Nature'],
-  Crystal:         ['Radiant','Spirit','Chrono'],
-  Radiant:         ['Unknown','Corrupted','Astral'],
-  Elemental:       ['Creature','Aura','Divine'],
-  Verdant:         ['Crystal','Extraterrestrial','Radiant'],
-  Chrono:          ['Astral','Divine','Ultramax'],
-  Astral:           ['Ultramax','Unknown','Aura'],
-  Extraterrestrial:['Tech','Radiant','Ultramax'],
+  // ── the ten ORIGINAL types ──────────────────────────────────────
+  Aura:              ['Corrupted', 'Spirit', 'Unknown'],
+  Beast:             ['Creature', 'Spirit', 'Verdant'],
+  Creature:          ['Aquatic', 'Aura', 'Nature'],
+  Extraterrestrial:  ['Aura', 'Divine', 'Nature'],
+  Humanoid:          ['Beast', 'Draconic', 'Ultramax'],
+  Nature:            ['Elemental', 'Tech', 'Unknown'],
+  Tech:              ['Crystal', 'Extraterrestrial', 'Humanoid'],
+  Spirit:            ['Chrono', 'Humanoid', 'Tech'],
+  Ultramax:          ['Astral', 'Beast', 'Extraterrestrial'],
+  Unknown:           ['Creature', 'Radiant', 'Ultramax'],
+  // ── the ten EXPANSION types ─────────────────────────────────────
+  Draconic:          ['Aquatic', 'Beast', 'Elemental'],
+  Crystal:           ['Chrono', 'Radiant', 'Spirit'],
+  Radiant:           ['Aquatic', 'Aura', 'Chrono'],
+  Divine:            ['Corrupted', 'Draconic', 'Unknown'],
+  Corrupted:         ['Humanoid', 'Radiant', 'Verdant'],
+  Verdant:           ['Astral', 'Crystal', 'Tech'],
+  Aquatic:           ['Corrupted', 'Elemental', 'Nature'],
+  Chrono:            ['Astral', 'Divine', 'Ultramax'],
+  Astral:            ['Divine', 'Draconic', 'Extraterrestrial'],
+  Elemental:         ['Creature', 'Crystal', 'Verdant'],
 };
 
 // ★ ULTIMATE RULE · Creator directive 2026-08-19

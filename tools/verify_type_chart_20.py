@@ -140,5 +140,25 @@ chk(len(sols)==1, f'★★★ UNIQUENESS · exactly one legal completion of the 
 if len(sols)==1:
     print(f'         Radiant > {sols[0][0]} · Unknown > {sols[0][1]}')
 
+# ── ★★★ THE DRIFT LOCK · the SHIPPED table must equal this one ────────────
+# The whole reason this file exists is that the game and the codex held two
+# different charts for months — 35% agreement, 2 of 20 rows matching — and
+# nothing compared them. Verifying the canon chart in isolation would have
+# caught none of that.
+import re, os
+HTML = open(os.path.join(os.path.dirname(__file__), '..', 'rp7b.html'), encoding='utf-8').read()
+i = HTML.index('const TYPE_STRONG_VS = {')
+code = re.sub(r'//[^\n]*', '', HTML[i:HTML.index('\n};', i)])
+SHIP = {m.group(1): sorted(x.strip().strip("'") for x in m.group(2).split(',') if x.strip())
+        for m in re.finditer(r"\n\s*(\w+):\s*\[([^\]]*)\]", code)}
+print()
+chk(set(SHIP) == set(STRONG), f'the shipped chart covers the same 20 types ({len(SHIP)})')
+drift = [t for t in STRONG if SHIP.get(t) != sorted(STRONG[t])]
+chk(not drift, '★★★ the SHIPPED chart is byte-equal to canon' + (' · drifted: ' + ', '.join(drift) if drift else ''))
+for t in drift[:8]:
+    print(f'         {t:18s} ship {SHIP.get(t)}\n         {"":18s} book {sorted(STRONG[t])}')
+chk('Aquatic' in SHIP and len(SHIP['Aquatic']) == 3,
+    '★ Aquatic is no longer the empty PROVISIONAL row it shipped as for months')
+
 import sys
 sys.exit(1 if fail else 0)

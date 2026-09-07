@@ -45,8 +45,17 @@ const el = () => ({ style: {}, dataset: {}, classList: { add: noop, remove: noop
   removeEventListener: noop, setAttribute: noop, getAttribute: () => null, focus: noop, remove: noop,
   play: () => Promise.resolve(), pause: noop, querySelector: () => el(), querySelectorAll: () => [],
   getBoundingClientRect: () => ({ left: 0, top: 0, width: 960, height: 540 }) });
-global.addEventListener = noop; global.removeEventListener = noop;
-global.document = { getElementById: () => el(), querySelector: () => el(), querySelectorAll: () => [],
+// ★★★ CAPTURE the real keydown listeners so the dispatch can be DRIVEN, not
+// grepped. v0.96.2 shipped a confirm whose handler was wired inside the
+// `scene === 'title'` branch — the one scene where you cannot buy a house — and
+// this suite passed it, because it called the handler directly and then checked
+// the SOURCE for the call. The game froze on the Creator's screen.
+const KEYDOWN = [];
+global.addEventListener = (type, fn) => { if (type === 'keydown' && typeof fn === 'function') KEYDOWN.push(fn); };
+global.removeEventListener = noop;
+const _els = new Map();
+const elFor = id => { if (!_els.has(id)) _els.set(id, el()); return _els.get(id); };
+global.document = { getElementById: id => elFor(id), querySelector: () => el(), querySelectorAll: () => [],
   createElement: () => el(), addEventListener: noop, body: el(), documentElement: el(), head: el(),
   hidden: false, visibilityState: 'visible' };
 global.window = global;
@@ -65,6 +74,7 @@ console.log = () => {};
 console.warn = () => {};
 new Function(src + `;globalThis.__C={ player, game, WORLD_PROPS,
   get homeBuyConfirm(){return homeBuyConfirm}, set homeBuyConfirm(v){homeBuyConfirm=v},
+  drawHomeBuyConfirm, migrateOwnedHomeIds,
   handleHomeBuyConfirmKey, tryPurchaseHome, ownedHomePins, invalidateHomePins,
   drawMinimap, minimapPOIs, minimapVisible, MINIMAP, isPurchasableHomeId, homePriceAt };`)();
 let n = 0;
@@ -72,20 +82,40 @@ while (_Q.length && n < 60) { const f = _Q.shift(); n++; try { f(); } catch (_) 
 console.log = LOG;
 const C = globalThis.__C;
 
+/* ── 0 · ★★★ ONLY HOMES ARE FOR SALE ────────────────────────────────────── */
+//   Creator: "the only purchasable properties are each districts 3 types of
+//   home. not the POIS or landmark or caves"
+const ROUTES = C.WORLD_PROPS.filter(p => p && p.id && typeof p.onInteract === 'function'
+  && /tryPurchaseHome/.test(p.onInteract.toString()));
+const SELLABLE = C.WORLD_PROPS.filter(p => p && p.id && C.isPurchasableHomeId(p.id));
+{
+  t(SELLABLE.length === ROUTES.length && SELLABLE.length === 89,
+    `★★★ EXACTLY the ${ROUTES.length} homes are for sale · nothing else in the world `
+    + `(${SELLABLE.length} pass the guard). This was a DENY-LIST — everything was for `
+    + 'sale unless its id contained one of forty banned words — so it offered '
+    + "`oatheus_cave`, the Tenth Gemlord's sanctum, as a 5,000-coin starter home, "
+    + 'and would have offered every landmark added after it was written');
+  const strays = SELLABLE.filter(p => !ROUTES.includes(p)).map(p => p.id);
+  t(strays.length === 0,
+    '  · no building passes the guard without a door that sells it'
+    + (strays.length ? ` · STRAYS: ${strays.slice(0, 6).join(', ')}` : ''));
+  for (const id of ['oatheus_cave', 'rakoron_cave', 'malezor_seer_hq', 'zarvane_town_hall',
+                    'malezor_academy', 'zarvane_oasis', 'malezor_broadcast_tower'])
+    t(!C.isPurchasableHomeId(id), `  · not for sale · ${id}`);
+  // every district that has homes has its three art variants
+  const byDist = {};
+  for (const p of ROUTES) {
+    const d = (p._doctrineHome) || String(p.id).split('_')[0];
+    (byDist[d] = byDist[d] || new Set()).add(p._homeVariant || String(p.id).replace(/_\d+$/, ''));
+  }
+  const three = Object.entries(byDist).filter(([, v]) => v.size === 3).map(([k]) => k);
+  t(three.length >= 8,
+    `★ ${three.length} districts sell three distinct home types · ${three.sort().join(', ')}`);
+}
+
 /* ── 1 · ★★★ THE SPEND IS NO LONGER SILENT ──────────────────────────────── */
-// ★★ Find a house that REALLY ROUTES to the purchase path, by reading the
-// prop's own onInteract source — not merely one that isPurchasableHomeId()
-// tolerates. Asking the guard instead handed back `oatheus_cave`: that filter
-// is a deny-list, and passing it is not the same as being a house. (The regex
-// was hardened in the same patch; the test still should not have trusted it.)
-const house = C.WORLD_PROPS.find(p => p && p.id && p.tileX != null
-  && typeof p.onInteract === 'function' && /tryPurchaseHome/.test(p.onInteract.toString()));
+const house = ROUTES.find(p => p.tileX != null);
 t(!!house, `a really-purchasable home exists in the world to test against (${house && house.id})`);
-t(!C.isPurchasableHomeId('oatheus_cave') && !C.isPurchasableHomeId('rakoron_cave'),
-  "★★ and a Gemlord's cave is NOT for sale · the deny-list said it was, offering "
-  + 'the Tenth Gemlord\'s sanctum as a 5,000-coin starter home. No door routed a '
-  + 'cave into the purchase path, so nothing was buyable in play — but this list '
-  + 'exists to survive the copy-paste that would, and it did not');
 
 if (house) {
   C.player.items = C.player.items || {};
@@ -114,8 +144,10 @@ if (house) {
     '★ B backs out clean · no coins moved, no deed filed');
 
   // ── confirming ──
+  C.game.scene = 'overworld'; C.game.zphoneOpen = false; C.game.paused = false;
   C.tryPurchaseHome(house.id, house.tileX, house.tileY);
-  const price = C.homeBuyConfirm.price;
+  t(!!C.homeBuyConfirm, '  · and it reopens for the confirm path');
+  const price = C.homeBuyConfirm ? C.homeBuyConfirm.price : -1;
   C.handleHomeBuyConfirmKey('arrowdown');
   t(C.homeBuyConfirm.idx === 1, 'DOWN moves to BUY IT');
   C.handleHomeBuyConfirmKey('arrowdown');
@@ -151,20 +183,89 @@ if (house) {
     + 'stopping the key dispatch from eating the whole game');
 }
 
-/* ── 2 · the dispatch actually reaches it ───────────────────────────────── */
-t(/if \(handleHomeBuyConfirmKey\(k\)\)\{ e\.preventDefault\(\); return; \}/.test(H),
-  '★ the handler is wired into the keydown dispatch · a confirm nobody calls is a '
-  + 'dead overlay, and the function alone would have passed every test above');
+/* ── 2 · ★★★ THE DISPATCH IS DRIVEN, NOT GREPPED ────────────────────────── */
 t(/id="homeBuyConfirm"/.test(H), 'the overlay markup exists');
-// ★ SCOPE THE ORDERING CHECK TO THE DISPATCH. A bare indexOf found the FUNCTION
-// DEFINITION (`function handleHomeBuyConfirmKey(k){`), which sits 13,000 lines
-// above the call site, and reported the priority backwards. Same trap that bit
-// the ZyPhone suite twice: an identifier that occurs more than once.
+t(KEYDOWN.length > 0, `the game registered ${KEYDOWN.length} keydown listeners`);
+// Fire a real event through every registered listener, exactly as the browser
+// would, and see whether the prompt actually responds.
+const press = (key) => {
+  let prevented = false;
+  const ev = { key, repeat: false, preventDefault(){ prevented = true; }, stopPropagation: noop };
+  for (const fn of KEYDOWN){ try { fn(ev); } catch (_) {} }
+  return prevented;
+};
+if (house) {
+  C.player.items.coins = 99999;
+  C.player.ownedHomes = [];
+  C.game.scene = 'overworld';
+  C.game.zphoneOpen = false; C.game.paused = false;
+  C.homeBuyConfirm = null;
+  C.tryPurchaseHome(house.id, house.tileX, house.tileY);
+  t(!!C.homeBuyConfirm, 'standing in a district, the confirm opens');
+  press('ArrowDown');
+  t(C.homeBuyConfirm && C.homeBuyConfirm.idx === 1,
+    '★★★ a REAL ArrowDown through the REAL keydown listener moves the selection · '
+    + 'v0.96.2 wired this dispatch inside the `scene === \'title\'` branch, the one '
+    + 'scene where a house cannot be bought. In a district the prompt opened, owned '
+    + 'the screen, and no handler was reachable — unanswerable, undismissable, and '
+    + 'indistinguishable from a hung game. The Creator hit it within the hour');
+  press('b');
+  t(!C.homeBuyConfirm, '★ and a real B closes it · there is a way out from the keyboard');
+  t(!C.player.ownedHomes.length && C.player.items.coins === 99999, '  · with nothing spent');
+
+  // ★★ and the overworld is not the only place it must work
+  C.tryPurchaseHome(house.id, house.tileX, house.tileY);
+  t(!!C.homeBuyConfirm && press('Escape') && !C.homeBuyConfirm,
+    '★ Escape works too · three ways out, like every other modal in the file');
+}
+// ★★ a modal that cannot be SEEN must not eat input
 {
-  const i = H.indexOf('if (handleNewGameConfirmKey(k)){');
-  const win = H.slice(i, i + 400);
-  t(/handleNewGameConfirmKey\(k\)[\s\S]*handleHomeBuyConfirmKey\(k\)/.test(win),
-    '  · dispatched in the same priority band as the other confirm, immediately after it');
+  C.homeBuyConfirm = { idx: 0, homeId: 'ghost', price: 1, doorX: 0, doorY: 0, dist: 'malezor' };
+  const realGet = global.document.getElementById;
+  global.document.getElementById = (id) => (id === 'homeBuyConfirm' ? null : realGet(id));
+  const swallowed = C.handleHomeBuyConfirmKey('arrowdown');
+  global.document.getElementById = realGet;
+  t(swallowed === false && !C.homeBuyConfirm,
+    '★★ if the overlay cannot be shown the state CLEARS and the key passes through · '
+    + 'an invisible modal holding input hostage is exactly what the freeze looked '
+    + 'like, so the failure mode is now "no prompt" rather than "no game"');
+}
+// ★ and it refuses to open underneath the phone
+{
+  C.game.zphoneOpen = true;
+  C.homeBuyConfirm = null;
+  if (house) C.tryPurchaseHome(house.id, house.tileX, house.tileY);
+  t(!C.homeBuyConfirm,
+    '★ it will not open beneath an open ZyPhone · the touchpad toggle outranks every '
+    + 'other handler by design, so a confirm opened under it would be unreachable again');
+  C.game.zphoneOpen = false;
+}
+
+/* ── 2b · ★★★ THE DEED NAMES A BUILDING THAT EXISTS ─────────────────────── */
+{
+  // The Creator's own save carried `redroof_1` — visible in his ZyPhone message
+  // log — because three families passed tryPurchaseHome() an id no prop used.
+  C.player.ownedHomes = ['redroof_1', 'villager_2', 'veridan_5', 'zarvane_condo_0'];
+  const moved = C.migrateOwnedHomeIds();
+  t(moved === 3, `★★★ ${moved} legacy deeds migrated to real building ids`);
+  t(C.player.ownedHomes.includes('red_roof_home_1')
+    && C.player.ownedHomes.includes('villager_home_2')
+    && C.player.ownedHomes.includes('veridan_home_5'),
+    '★★★ redroof_N → red_roof_home_N, villager_N → villager_home_N, '
+    + '<district>_N → <district>_home_N · 72 of the 89 homes filed a deed under an '
+    + 'id NO PROP CARRIED. _homeIdDoorTile() resolves a deed by matching p.id, so '
+    + 'every one of those purchases bought a Rizer Room that '
+    + 'findNearestOwnedHomeSpawn() could never find — up to 5,000 coins for a house '
+    + 'that never became your respawn point, and no minimap star either');
+  t(C.player.ownedHomes.includes('zarvane_condo_0'),
+    '  · and an id that was ALREADY correct is left alone');
+  t(C.player.ownedHomes.every(id => C.isPurchasableHomeId(id)),
+    '★★ every migrated deed now resolves to a real for-sale building · '
+    + 'checked against the allow-list, not against the regex that produced it');
+  const twice = C.migrateOwnedHomeIds();
+  t(twice === 0 && C.player.ownedHomes.length === 4,
+    '★ running it a second time is a no-op · a migration that is not idempotent '
+    + 'corrupts on every save/load cycle');
 }
 
 /* ── 3 · ★★ THE PURPLE STARS ────────────────────────────────────────────── */

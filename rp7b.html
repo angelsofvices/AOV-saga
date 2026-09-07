@@ -29607,6 +29607,19 @@ addEventListener('keydown', e => {
           else if (landable(player.x + vx, player.y + vy)) dist = 1;
           player.dodgeToX = player.x + vx*dist;
           player.dodgeToY = player.y + vy*dist;
+          // ★★★ v0.96.18 · A ROLL IS MOVEMENT AND MUST LEAVE THE SAME TRAIL.
+          //
+          //   Creator: "I talked to scrapjaw and then did a roll then I f'd again"
+          //
+          // _doorPrevX/_doorPrevY were written ONLY inside tryMove's walking
+          // path. The roll assigns player.x/y directly — that is the whole
+          // reason it also has to sweep its own pickups below — so after any
+          // roll those two held wherever you last WALKED from, which can be the
+          // other side of the district.
+          // ★ v0.96.11's press-only door bounce reads exactly those two and
+          //   teleports you to them. A roll that ends on a door tile would have
+          //   thrown Rizer back to a stale coordinate with no way to predict it.
+          _doorPrevX = player.x; _doorPrevY = player.y;
           player.x = player.dodgeToX;
           player.y = player.dodgeToY;
           // ★★★ v0.95.939 · sweep every tile the roll crossed.  This assignment
@@ -31586,7 +31599,21 @@ function tryMove(dt){
     //   pose that makes both verbs available and is exactly what the Creator is
     //   asking for: you must press something at the door tile.
     if (doorProp && doorProp._pressOnlyDoor){
-      const fromX = _doorPrevX, fromY = _doorPrevY;
+      let fromX = _doorPrevX, fromY = _doorPrevY;
+      // ★★ v0.96.18 · THE BOUNCE MUST BE A STEP, NOT A TELEPORT. Trusting the
+      // remembered tile assumed it was adjacent — true when you walked onto the
+      // door, false after a roll, a warp, or a scene change. If it is not
+      // touching the door, fall back to any open neighbour instead of flinging
+      // the player across the map.
+      if (fromX == null || fromY == null
+          || Math.abs(fromX - player.x) + Math.abs(fromY - player.y) !== 1){
+        fromX = fromY = null;
+        for (const [dx, dy] of [[0,1],[0,-1],[1,0],[-1,0]]){
+          const cx = player.x + dx, cy = player.y + dy;
+          if (typeof walkable === 'function' && walkable(cx, cy)
+              && !_propDoors.has(`${cx},${cy}`)){ fromX = cx; fromY = cy; break; }
+        }
+      }
       if (fromX != null && fromY != null && (fromX !== player.x || fromY !== player.y)
           && typeof walkable === 'function' && walkable(fromX, fromY)){
         const dx = player.x - fromX, dy = player.y - fromY;
@@ -35913,7 +35940,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.17' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.18' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

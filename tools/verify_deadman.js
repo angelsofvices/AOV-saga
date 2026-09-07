@@ -148,5 +148,36 @@ t(rows.some(r=>'why' in r && 'keys' in r && 'dlg' in r),
   '★★ each row carries the freeze reason, the held keys and the speaker · the '
   + 'three things I have had to guess at in all six reports');
 
+/* ── 9 · ★★★ THE CRUMB · the recorder must survive a FORCE-RELOAD ──── */
+{
+  const code = H.replace(/^\s*\/\/.*$/gm,'');
+  t(/localStorage\.setItem\(CRUMB_KEY/.test(code) && /localStorage\.getItem\(CRUMB_KEY\)/.test(code),
+    '★★★ the last breath is written to localStorage and read at boot · an '
+    + 'in-memory ring buffer dies with the page, and reloading is exactly what a '
+    + 'person does when the game locks up. All seven reports were reconstructed '
+    + 'from screenshots for precisely this reason');
+  t(/if \(!force && now - _crumbAt < CRUMB_EVERY_MS\) return;/.test(code),
+    '★★ throttled to once a second · writing a full dump every frame to fix a '
+    + 'freeze would itself be the freeze');
+  t(/localStorage\.removeItem\(CRUMB_KEY\)/.test(code),
+    '★★ and it is CLEARED on read · otherwise one bad session nags at every '
+    + 'boot forever and the warning stops meaning anything');
+  t(/_writeCrumb\(true\)/.test(code),
+    '★ the deadman forces a write immediately · the interesting moment must not '
+    + 'wait for the next throttle window');
+  t(/catch\(_\)\{\}\s*\/\/ quota, private mode/.test(H),
+    '★★ every localStorage touch is swallowed · a full quota or private mode '
+    + 'must never be able to break the frame loop from inside the diagnostic');
+  const bad = /const bad = \(c\.why && c\.why\.length\)/.test(code);
+  t(bad, '★★ it only speaks up when the last breath was taken while something was '
+    + 'WRONG · a crumb from a clean quit is not news');
+}
+
+/* ── 10 · the build names itself where it matters ──────────────────── */
+t(/BLOCKED BY: \$\{b\.why\}/.test(H) && /v\$\{AOV_BUILD\.patch\}/.test(H),
+  '★★ the stuck banner carries the BUILD NUMBER · six of these reports could '
+  + 'not be matched to a build, so a fix and a report were never provably '
+  + 'about the same code');
+
 console.log(`\n  ${pass} passed · ${fail} failed\n`);
 process.exit(fail?1:0);

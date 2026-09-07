@@ -1547,6 +1547,9 @@ window.addEventListener('keydown', (ev) => {
 // most is the moment the game has stopped responding, and a key routed through
 // the normal handler is a key that may never arrive. F10 is unbound everywhere
 // else (grepped for, not assumed).
+// ★ the boot-time read · deferred one tick so showToast exists
+setTimeout(() => { try { _readCrumb(); } catch(_){} }, 0);
+
 window.addEventListener('keydown', (ev) => {
   if (!ev || ev.repeat) return;
   if ((ev.key || '') !== 'F10') return;
@@ -36062,7 +36065,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.18' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.19' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -55936,6 +55939,71 @@ function recordFlight(now, phase, extra){
     if (_flight.n < FLIGHT_N) _flight.n++;
   } catch(_){}
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.18b · THE CRUMB · the recorder has to survive a FORCE-RELOAD.
+//
+//   Creator: "froze after zoryn talk and sprint" — the seventh report.
+//
+// ★★★ The flight recorder is useless in the one situation it exists for. When
+//   the game locks up, what a person actually does is reload — and an in-memory
+//   ring buffer dies with the page. Every one of these seven reports has been
+//   reconstructed from a screenshot for exactly that reason.
+//
+// ★ So a small crumb goes to localStorage roughly once a second: the last
+//   moment the game was known to be running, and WHY it thought the player was
+//   frozen at that moment. On the next boot, if the crumb says movement was
+//   blocked when the page died, the game says so out loud instead of starting
+//   clean and forgetting.
+// ★★ Throttled and tiny on purpose. A full 480-frame dump written every frame
+//   would itself be a frame-killer, which is a comical way to fix a freeze.
+const CRUMB_KEY = 'rp7b_lastbreath';
+const CRUMB_EVERY_MS = 1000;
+let _crumbAt = 0;
+function _writeCrumb(force){
+  const now = performance.now();
+  if (!force && now - _crumbAt < CRUMB_EVERY_MS) return;
+  _crumbAt = now;
+  try {
+    localStorage.setItem(CRUMB_KEY, JSON.stringify({
+      build: (typeof AOV_BUILD !== 'undefined') ? AOV_BUILD.patch : '?',
+      wall: Date.now(),
+      scene: game.scene, x: player.x, y: player.y,
+      why: tryMove._lastReason || '',
+      stuckFor: tryMove._stuckSince ? Math.round(now - tryMove._stuckSince) : 0,
+      badSteps: frame._badStep ? [...frame._badStep] : [],
+      dlg: dialogState ? dialogState.speaker : null,
+      dream: !!_dreamPlaying, death: !!_rizerDeath, fade: !!_sleepFade
+    }));
+  } catch(_){}   // quota, private mode — never let the crumb break the frame
+}
+// ★ Read ONCE at boot, then cleared, so a stale crumb cannot nag forever.
+function _readCrumb(){
+  let c = null;
+  try {
+    const raw = localStorage.getItem(CRUMB_KEY);
+    if (raw) c = JSON.parse(raw);
+    localStorage.removeItem(CRUMB_KEY);
+  } catch(_){}
+  if (!c) return null;
+  // Only interesting if the last breath was taken while something was WRONG.
+  const bad = (c.why && c.why.length) || (c.badSteps && c.badSteps.length)
+           || c.dream || c.death || c.fade;
+  if (!bad) return c;
+  const bits = [];
+  if (c.why)       bits.push(`blocked by: ${c.why}`);
+  if (c.stuckFor)  bits.push(`stuck ${(c.stuckFor/1000).toFixed(1)}s`);
+  if (c.death)     bits.push('death lock held');
+  if (c.dream)     bits.push('dream video playing');
+  if (c.fade)      bits.push('sleep fade held');
+  if (c.badSteps && c.badSteps.length) bits.push(`frame steps failing: ${c.badSteps.join(', ')}`);
+  console.error(`[rp7b] ★★★ LAST BREATH · build ${c.build} · the previous session `
+    + `ended at ${c.scene} (${c.x},${c.y}) with ${bits.join(' · ')}`, c);
+  setTimeout(() => {
+    try { showToast(`⚠ Last session ended frozen · ${bits[0]} · see console`, 9000); } catch(_){}
+  }, 2500);
+  return c;
+}
+
 // ★ Oldest-first, so the dump reads like a timeline instead of a ring.
 function flightRows(){
   const out = [];
@@ -56066,6 +56134,7 @@ function _step(name, fn){
 const DEADMAN_GRACE_MS = 4000;
 function _deadmanClear(label, why){
   console.error(`[rp7b] ★★★ DEADMAN · "${label}" outlived its own deadline · ${why}`);
+  try { _writeCrumb(true); } catch(_){}
   try { showToast(`⚠ ${label} never finished · unfrozen · press F10 to save a recording`, 7000); } catch(_){}
   try { recordFlight(performance.now(), 'deadman', label); } catch(_){}
 }
@@ -56499,7 +56568,7 @@ function _frameBody(now){
     if (!b && !stalled) return;
     const msg = stalled
       ? '\u26a0 FRAME STALLED \u00b7 press F10 to save the flight recorder'
-      : `\u26a0 MOVEMENT BLOCKED BY: ${b.why} \u00b7 F10 saves a recording \u00b7 L2+touchpad 5s to unstick`;
+      : `\u26a0 v${AOV_BUILD.patch} \u00b7 BLOCKED BY: ${b.why} \u00b7 F10 saves a recording \u00b7 L2+touchpad 5s to unstick`;
     ctx.save();
     ctx.font = 'bold 15px monospace';
     const w = Math.min(ctx.canvas.width - 24, ctx.measureText(msg).width + 28);
@@ -56518,6 +56587,7 @@ function _frameBody(now){
   //   is itself the proof the frame completed — that is what _lastBodyDone
   //   means and why frameStalled() can trust it.
   recordFlight(now, 'frame');
+  _writeCrumb(false);
   _lastBodyDone = now;
   // ★ v0.96.4 · the rAF re-request lives in frame()'s `finally` now · see above
 }

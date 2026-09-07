@@ -29347,6 +29347,7 @@ function closeAllOverlaysAndMenus({ closeDev = true, silent = false } = {}){
   settingsPage = 'root';
   zyrexMenuOpen = false;
   dialogState = null;
+  try { clearDialogQueue(); } catch(_){}     // ★ v0.96.16
   game.npcInfoOverlay = null;
   game.expPanelOpen = false;
   game.tvPanelOpen = false;
@@ -30780,19 +30781,36 @@ const DIALOG_FRAMES = {
 Object.values(DIALOG_FRAMES).forEach(f => f.img.src = f.src);
 
 let dialogState = null;
+// ★★★ v0.96.16 · A SECOND showDialog QUEUES · it used to CLOBBER.
+//
+// Found at the Lost Boy reunion, which is where the Creator froze: the parent
+// says six lines, and then grantVengrizz() — called on the very next statement —
+// calls showDialog AGAIN. The second assignment overwrote dialogState wholesale,
+// so Corvan's entire reunion speech, the emotional payload of that quest, was
+// discarded before a single line of it ever drew. Proved by driving the
+// interact: the speaker came out as THE LOST BOY at idx 0.
+//
+// ★ Queueing rather than blocking is the right shape: every one of these call
+//   sites reads as "say this, then that", and none can know if a box is up.
+const _dialogQueue = [];
+const DIALOG_QUEUE_MAX = 8;   // ★ bounded · a runaway loop must not grow forever
 function showDialog(opts){
   const speaker = (opts && opts.speaker) || '';
   const lines   = (opts && opts.lines) || [''];
   const key = speaker.toUpperCase();
   const frame = DIALOG_FRAMES[key] || DIALOG_FRAMES._tpl;
-  dialogState = {
-    speaker, lines,
-    idx: 0,
-    frame,
-    onDone: opts && opts.onDone,
-  };
+  const next = { speaker, lines, idx: 0, frame, onDone: opts && opts.onDone };
+  if (dialogState){
+    if (_dialogQueue.length < DIALOG_QUEUE_MAX) _dialogQueue.push(next);
+    else console.warn('[rp7b] dialogue queue full · dropping a line from', speaker);
+    return;
+  }
+  dialogState = next;
   playSFX('dialog');
 }
+// ★ Anything that force-closes conversation must empty the queue too, or the
+//   next box that opens is a ghost from a scene you already walked out of.
+function clearDialogQueue(){ _dialogQueue.length = 0; }
 // ★★ v0.95.896 · WHICH LINE ENDS A CONVERSATION.  Creator: "'im on it' rvox
 // replace 'see ya' when npc gives a quest/expedition assignment.  overwrite
 // only on newtaskadded."
@@ -30822,6 +30840,13 @@ function advanceDialog(){
   } else {
     const cb = dialogState.onDone;
     dialogState = null;
+    // ★★ v0.96.16 · hand over to whatever was queued behind this one
+    if (_dialogQueue.length){
+      dialogState = _dialogQueue.shift();
+      playSFX('dialog');
+      if (cb){ try { cb(); } catch(err){ console.error('[rp7b] dialog onDone threw', err); } }
+      return;
+    }
     playSFX('menuClose');
     // v0.95.539 · Rizer "see ya later" VO fires when player exits the FINAL
     // dialog line (post-dialogue press).  Exclusive-play whitelist ensures
@@ -30838,7 +30863,9 @@ function advanceDialog(){
         n._resetDirOnDialogClose = null;
       }
     }
-    if (cb) cb();
+    // ★★ v0.96.16 · GUARDED. A throwing onDone used to take the keypress down
+    // with it, and anything it had not yet done stayed undone forever.
+    if (cb){ try { cb(); } catch(err){ console.error('[rp7b] dialog onDone threw', err); } }
   }
 }
 function drawDialogOverlay(){
@@ -31026,10 +31053,19 @@ function handleUiPanelKey(k){
 // ★★ v0.96.4 · the stuck watchdog · see the note inside tryMove()
 const STUCK_WARN_MS = 2500;
 const UNSTICK_HOLD_MS = 5000;   // ★ v0.96.8 · L2 + touchpad, held
+// ★★★ v0.96.16 · ANY KEY COUNTS AS "I AM TRYING TO PLAY".
+//
+// The watchdog only listened for a held DIRECTION. But the freeze the Creator
+// keeps hitting is after a conversation — and a player facing a box that will
+// not close mashes X, not the D-pad. So the one moment he most needed to be
+// told "you are blocked by: dialog" was the one moment nothing was listening.
+const STUCK_KEY_WINDOW_MS = 2000;
 function _movementRequested(){
   try {
-    return !!(keys['w'] || keys['a'] || keys['s'] || keys['d']
-           || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']);
+    if (keys['w'] || keys['a'] || keys['s'] || keys['d']
+     || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']) return true;
+    // ★ or ANY key pressed in the last couple of seconds
+    return (performance.now() - (game._lastKeyAt || 0)) < STUCK_KEY_WINDOW_MS;
   } catch(_){ return false; }
 }
 // ★★★ FORCE UNSTICK · Cmd+Esc, or L2+touchpad held 5 seconds.
@@ -31046,7 +31082,8 @@ function _movementRequested(){
 function forceUnstick(){
   const cleared = [];
   const drop = (label, fn) => { try { if (fn()) cleared.push(label); } catch(_){} };
-  drop('dialog',        () => { if (typeof dialogState !== 'undefined' && dialogState){ dialogState = null; return true; } });
+  drop('dialog',        () => { try { clearDialogQueue(); } catch(_){}
+    if (typeof dialogState !== 'undefined' && dialogState){ dialogState = null; return true; } });
   drop('homeBuyConfirm',() => { if (typeof homeBuyConfirm !== 'undefined' && homeBuyConfirm){ homeBuyConfirm = null; try { drawHomeBuyConfirm(); } catch(_){} return true; } });
   drop('hqPanel',       () => { if (typeof hqPanel !== 'undefined' && hqPanel){ hqPanel = null; try { drawHqPanel(); } catch(_){} return true; } });
   // ★ v0.96.13 · and hide any panel ELEMENT still on screen · clearing the flag
@@ -34210,6 +34247,8 @@ function highlightDevBtn(items, idx){
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if(e.__roomEditHandled)return;
+  // ★ v0.96.16 · the stuck watchdog reads this · see _movementRequested()
+  try { game._lastKeyAt = performance.now(); } catch(_){}
 
   // ═══════════════════════════════════════════════════════════════
   // ★★★ v0.96.3 · HOME PURCHASE CONFIRM · ABOVE EVERYTHING
@@ -35851,7 +35890,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.15' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.16' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

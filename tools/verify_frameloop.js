@@ -72,7 +72,7 @@ new Function(src + `;globalThis.__C={ frame, game, player, NPCS, keys, tryMove, 
   get dialogState(){return dialogState}, set dialogState(v){dialogState=v},
   get homeBuyConfirm(){return homeBuyConfirm}, set homeBuyConfirm(v){homeBuyConfirm=v},
   get settingsMenuOpen(){return settingsMenuOpen},
-  drawMinimap, STUCK_WARN_MS };`)();
+  drawMinimap, STUCK_WARN_MS, showDialog, advanceDialog, clearDialogQueue };`)();
 let n = 0;
 while (_Q.length && n < 80) { const f = _Q.shift(); n++; try { f(); } catch (_) {} }
 console.log = LOG;
@@ -264,6 +264,69 @@ t((H.match(/requestAnimationFrame\(frame\)/g) || []).length === 2,
   t(/drop\('uiPanels'/.test(H),
     '★ the unstick hides stray panel elements too · clearing a flag without '
     + 'hiding the div leaves a picture of a menu you cannot use');
+}
+
+/* ── 7 · ★★★ DIALOGUE QUEUES INSTEAD OF CLOBBERING ──────────────────────── */
+{
+  const C2 = globalThis.__C;
+  C2.dialogState = null;
+  try { C2.clearDialogQueue(); } catch(_){}
+  C2.showDialog({ speaker: 'CORVAN', lines: ['one', 'two'] });
+  C2.showDialog({ speaker: 'THE LOST BOY', lines: ['three'] });
+  t(C2.dialogState && C2.dialogState.speaker === 'CORVAN',
+    `★★★ the FIRST speaker still holds the box (${C2.dialogState && C2.dialogState.speaker}) · a second `
+    + 'showDialog used to overwrite dialogState wholesale. At the Lost Boy '
+    + "reunion — where the Creator froze — grantVengrizz() fires showDialog on "
+    + "the very next statement, so Corvan's entire reunion speech was discarded "
+    + 'before a line of it ever drew');
+  C2.advanceDialog(); C2.advanceDialog();
+  t(C2.dialogState && C2.dialogState.speaker === 'THE LOST BOY',
+    '★★ and finishing the first hands over to the queued second, rather than '
+    + 'closing the box on a conversation that was only half said');
+  C2.advanceDialog();
+  t(!C2.dialogState, '★ then it closes normally');
+
+  // ★ bounded
+  C2.dialogState = null; C2.clearDialogQueue();
+  for (let i = 0; i < 40; i++) C2.showDialog({ speaker: 'X', lines: ['l'] });
+  let depth = 0;
+  while (C2.dialogState && depth < 50){ C2.advanceDialog(); depth++; }
+  t(depth <= 12,
+    `★★ the queue is BOUNDED (${depth} boxes drained of 40 queued) · an unbounded `
+    + 'queue turns one runaway loop into a conversation the player cannot escape, '
+    + 'which is the exact failure this was meant to prevent');
+
+  // ★★ a throwing onDone cannot strand the box
+  C2.dialogState = null; C2.clearDialogQueue();
+  C2.showDialog({ speaker: 'X', lines: ['l'], onDone(){ throw new Error('SYNTHETIC onDone'); } });
+  let threw = false;
+  try { C2.advanceDialog(); } catch (_) { threw = true; }
+  t(!threw && !C2.dialogState,
+    '★★★ a throwing onDone is caught and the box still closes · it used to take '
+    + 'the keypress down with it, and everything it had not yet done stayed '
+    + 'undone forever');
+}
+
+/* ── 8 · ★★ THE WATCHDOG HEARS ANY KEY ──────────────────────────────────── */
+{
+  const C2 = globalThis.__C;
+  t(/const STUCK_KEY_WINDOW_MS = 2000;/.test(H) && /game\._lastKeyAt = performance\.now\(\)/.test(H),
+    '★★★ every keypress is stamped, and the watchdog counts ANY key as "I am '
+    + 'trying to play" · it used to listen only for a held DIRECTION, but a player '
+    + 'facing a box that will not close mashes X. The one moment he most needed '
+    + 'to be told "blocked by: dialog" was the one moment nothing was listening');
+  C2.dialogState = { lines: ['x'], idx: 0 };
+  C2.keys['arrowdown'] = false;                 // NOT holding a direction
+  C2.game._lastKeyAt = T;                       // but just pressed something
+  C2.tryMove._stuckSince = null; C2.tryMove._stuckTold = 0; C2.tryMove._lastReason = '';
+  C2.game._stuckBanner = null;
+  C2.tryMove(16);
+  T += C2.STUCK_WARN_MS + 200;
+  C2.game._lastKeyAt = T;
+  C2.tryMove(16);
+  t(!!C2.game._stuckBanner && /dialog/.test(C2.game._stuckBanner.why),
+    `★★ mashing X at a stuck box now names the blocker ("${C2.game._stuckBanner && C2.game._stuckBanner.why}")`);
+  C2.dialogState = null;
 }
 
 console.log(`\n★ ${pass} passed · ${fail} failed\n`);

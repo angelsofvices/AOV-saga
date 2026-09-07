@@ -211,5 +211,60 @@ t((H.match(/requestAnimationFrame\(frame\)/g) || []).length === 2,
     + 'owns input and is not on that list is a freeze the watchdog cannot name');
 }
 
+/* ── 5 · ★★★ THE DOUBLE-JUMP FREEZE ─────────────────────────────────────── */
+{
+  //   Creator: "look for bug that is freezing game after exiting dialogue or
+  //   prompt text UI and running in overworld after."
+  C.dialogState = null;
+  C.game.scene = 'overworld';
+  C.player.x = 42; C.player.y = 49;
+  C.keys['arrowdown'] = true;
+  C.tryMove._lastReason = '';
+
+  // strand the flag exactly as a lost timer would
+  C.player._doubleJump = { t0: T - 10, dur: 300, fromX: 42, fromY: 49, toX: 42, toY: 51 };
+  C.tryMove(16);
+  t(C.tryMove._lastReason === 'doubleJump',
+    '★ mid-flight the double jump legitimately holds the player still');
+
+  T += 2000;                                  // the jump is long over
+  C.tryMove(16);
+  t(!C.player._doubleJump,
+    '★★★ a double-jump flag that OUTLIVED its jump is cleared by the frame · its '
+    + 'only clear path was a setTimeout scheduled at take-off and guarded by '
+    + '`_doubleJump.t0 !== now`, so anything that reassigns the flag mid-flight '
+    + 'makes that timer return early — and menus do exactly that. Miss the clear '
+    + 'once and the flag outlives the jump FOREVER: the player lands, looks '
+    + 'normal, and simply cannot walk again');
+  t(C.player.jumpUntil === 0 && !C.player.jumpSheet,
+    '  · and the jump animation clocks are cleared with it, not left running');
+
+  // ★★ the OTHER shape this field takes
+  C.player._doubleJump = true;                // three call sites assign booleans
+  C.tryMove(16);
+  t(!C.player._doubleJump,
+    '★★ a BOOLEAN double-jump flag is cleared too · three call sites set this '
+    + 'field to `false` rather than null, so a stale `true` from any future edit '
+    + 'would be a freeze with no timestamp that could ever expire');
+
+  C.keys['arrowdown'] = false;
+}
+
+/* ── 6 · ★★ THE DOM ROUTER CANNOT TAKE THE PAD HOSTAGE ──────────────────── */
+{
+  t(/function uiPanelModalOpen\(\)/.test(H)
+    && /if \(!uiPanelModalOpen\(\)\) \{ _uiNavIdx = 0; return false; \}/.test(H),
+    '★★★ the panel router now needs the GAME\'S OWN modal flags, not just a '
+    + 'visible element · one condition deciding whether the D-pad walks Rizer or '
+    + 'moves a cursor means any panel left visible while the game thinks it is '
+    + 'closed eats the arrows forever, which is indistinguishable from a freeze');
+  t(/freezeReasons\.push\('uiPanelNav'\)/.test(H),
+    '★★ and if it ever DOES swallow, the watchdog can name it · a blocker the '
+    + 'watchdog cannot name is the one that costs an afternoon');
+  t(/drop\('uiPanels'/.test(H),
+    '★ the unstick hides stray panel elements too · clearing a flag without '
+    + 'hiding the div leaves a picture of a menu you cannot use');
+}
+
 console.log(`\n★ ${pass} passed · ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

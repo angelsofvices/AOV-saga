@@ -9811,13 +9811,20 @@ const NPCS = [
       const say = (...lines) => showDialog({ speaker: 'OMNIRIS', lines });
       const bump = (n2) => { player.bonds = player.bonds || {};
         player.bonds.omniris = Math.min(100, (player.bonds.omniris||0) + n2); };
-      const gate = (need) => {
-        if (lvl >= need) return false;
-        say('*does not turn*',
-            `You are Level ${lvl}. Come back at ${need}.`,
-            'Not because I am strict. Because you would not survive understanding it yet.');
-        return true;
-      };
+      // ★★★ v0.96.13 · NO LEVEL CAPS. Creator: "no level caps. just progression."
+      //
+      // These eight trials used to demand Rizer Level 15/18/22/26/32/38/46/55.
+      // That is not progression, it is a WAITING ROOM: the player is told to go
+      // away and grind numbers somewhere else, and comes back to the same
+      // conversation. Worse, it made an ELDER'S TEACHING gate on a stat rather
+      // than on anything he had taught.
+      //
+      // ★ The ladder is already the progression. Each trial requires the one
+      //   before it, and every trial is real work — thirty seconds of absolute
+      //   stillness, a hunt, a fast. What paces Omniris now is Omniris.
+      //   `gate` is kept as a no-op call so the eight branches keep their shape
+      //   and a future condition has an obvious home.
+      const gate = () => false;
 
       // ── s1 · THE WATCHER ON THE RIM ──────────────────────────────────────
       if (!OS.s1){
@@ -9831,7 +9838,7 @@ const NPCS = [
             'There is a cell of them in Malezor still holding a tower that is not theirs.',
             'Break it, and the road behind you becomes a road. Then I will begin.');
         }
-        if (gate(15)) return;
+        if (gate()) return;   // ★ v0.96.13 · was Lv 15
         OS.s1 = true; bump(1);
         try { registerContact('omniris'); } catch(_){}
         try { awardRizerXP(400); } catch(_){}
@@ -9845,7 +9852,7 @@ const NPCS = [
       }
       // ── s2 · STILL WATER · 8 Soulphish landed, lifetime ──────────────────
       if (!OS.s2){
-        if (gate(18)) return;
+        if (gate()) return;
         const caught = player.soulphishCaught || 0;
         if (caught < 8) return say(`Still Water · ${caught}/8 Soulphish landed.`,
           'The fish are not the lesson. The waiting is. Go back to the rim.');
@@ -9858,7 +9865,7 @@ const NPCS = [
       }
       // ── s3 · THE UNBLINKING · the trial that is a refusal ────────────────
       if (!OS.s3){
-        if (gate(22)) return;
+        if (gate()) return;
         if (!player._omnirisStillT0){
           player._omnirisStillT0 = performance.now();
           player._omnirisStillX  = player.x; player._omnirisStillY = player.y;
@@ -9869,7 +9876,7 @@ const NPCS = [
       }
       // ── s4 · READ THE BEAST · 60% bond on any one Zyrex ──────────────────
       if (!OS.s4){
-        if (gate(26)) return;
+        if (gate()) return;
         // ★ `z.bond` is the real field (0-100) · there is no zyrexBondPct() in
         // this build and referencing one would have made this trial
         // permanently uncompletable — the exact dead-flag shape called out
@@ -9886,7 +9893,7 @@ const NPCS = [
       }
       // ── s5 · THE HIDDEN DOOR · no waypoint, on purpose ───────────────────
       if (!OS.s5){
-        if (gate(32)) return;
+        if (gate()) return;
         if (!player.seerHqFound || !player.seerHqFound.zarvane)
           return say('The Hidden Door is still shut to you.',
             'You are looking for a building. Look for the place the road stops being used.');
@@ -9900,7 +9907,7 @@ const NPCS = [
       }
       // ── s6 · SLEEPING SIGHT · Dreamland, which now leaves a mark ─────────
       if (!OS.s6){
-        if (gate(38)) return;
+        if (gate()) return;
         if (!player.dreamlandSeen)
           return say('Sleeping Sight · you have not dreamed yet.',
             'Find a bed. Zarvane keeps beds for travellers who do not know they are travelling.');
@@ -9913,7 +9920,7 @@ const NPCS = [
       }
       // ── s7 · THE PEARL ROAD · the Scrapjaw tower loop, reused ────────────
       if (!OS.s7){
-        if (gate(46)) return;
+        if (gate()) return;
         // ★ towerBatteries is the real record (set at the chest, spent at
         // Scrapjaw). `player.towerNet` was another invention of mine.
         if (!(player.towerBatteries && player.towerBatteries.zarvane) && !(player.towerRestored && player.towerRestored.zarvane))
@@ -9929,7 +9936,7 @@ const NPCS = [
       }
       // ── s8 · THE THIRD EYE OPENS · meditation unlocked ───────────────────
       if (!OS.s8){
-        if (gate(55)) return;
+        if (gate()) return;
         const shards = (player.items && player.items.prismshard) || 0;
         if (shards < 1 && !player.prismshardOwned)
           return say('The Third Eye Opens · bring the Prismshard.',
@@ -24729,32 +24736,76 @@ if (player.mainQuestStep == null) player.mainQuestStep = 0;  // v0.95.1 · index
 
 // v0.95.1 · Main quest chain · tracks progress across districts.
 // Each entry: { town, title, steps[] }.  steps[] rendered as checklist.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.13 · THE OPENING, IN THE ORDER IT ACTUALLY HAPPENS
+//
+//   Creator: "can we clean up the order of the opening events? they should all
+//   fit inside the malezor tutorial side of things with kelthor and dad guiding
+//   you before zarvane. make it flow. no level caps. just progression."
+//
+// ★ WHAT WAS WRONG. The old chain was four chapters and stopped describing the
+//   game around v0.95.5. Chapter 3 was LABELLED ZARVANE but its first three
+//   steps were Malezor content — "talk to Dad", "head south into the Wild Arm",
+//   "defeat 5 Mori" — so the journal told you to leave for a district you had
+//   not finished, and the two teachers the tutorial is built around, DAD and
+//   KELTHOR, appeared in it exactly once between them. Everything shipped since
+//   — the Zysphere loop, Scrapjaw's tower, the Seer HQ, the Lost Boy, the soft
+//   gate that actually opens the road — was missing entirely.
+//
+// ★ WHAT DECIDES THE ORDER. Not taste: dependency. Each step below is gated by
+//   a thing the game really checks, and they are listed so that nothing appears
+//   before the thing that unlocks it. The starter comes before spheres because
+//   the shop is shut until you have one. Kelthor's ladder comes before the
+//   border because his step 8 is the crossing. The commander comes before
+//   Zarvane because districtRoadOpen() says so.
+//
+// ★ AND MALEZOR HOLDS ALL OF IT. Four chapters, all at home, two teachers
+//   alternating — Dad for what a Zyrex IS, Kelthor for what a Rizer DOES —
+//   before the road opens. Zarvane starts at chapter five, and starts clean.
 const MAIN_QUESTS = [
   { town: 'MALEZOR', title: 'Chapter 1 · The Bonder\'s Gift',
     steps: [
-      'Meet Mom in the kitchen',
-      'Visit Dad at the Zyrex Research Facility',
-      'Receive your starter Zyrex',
+      'Wake up · take your Backpack from your room',
+      'Meet Mom in the kitchen · she hands you Dad\'s Notebook',
+      'Take the Notebook to Dad at the Research Facility',
+      'Choose your starter Zyrex · Dad gives you two Zyspheres',
       'Tutorial battle against Dad\'s Zyrex',
     ]},
-  { town: 'MALEZOR', title: 'Chapter 2 · The Neighbor',
+  { town: 'MALEZOR', title: 'Chapter 2 · What a Rizer Does',
     steps: [
-      'Talk to Crazy outside his house',
-      'Enter Rakoron\'s Cave',
-      'Catch your first wild Zyrex',
+      'Meet WARDEN KELTHOR on the north road',
+      'Walk Kelthor\'s bond ladder · he teaches the Zysphere throw',
+      'Bond your first wild Zyrex in the Malezor grass',
+      'Buy more Zyspheres at the shop · it opens once you have a partner',
+      'Enrol at the Academy · Professor Elarion issues your R.A.I.D. card',
     ]},
-  { town: 'ZARVANE', title: 'Chapter 3 · Whispers in the Wild',
+  { town: 'MALEZOR', title: 'Chapter 3 · The Grid Goes Dark',
     steps: [
-      'Talk to Dad about the missing villagers',
-      'Head south into the Wild Arm',
-      'Defeat 5 Mori foot soldiers',
-      'Cross into Zarvane at the sand transition',
+      'Meet SCRAPJAW south of the broken radio tower',
+      'Fetch the SCRAP METAL chest at the tower base',
+      'Clear the Mori squad and the tower boss',
+      'Bring Scrapjaw the battery · Malezor\'s signal comes back',
+      'Contact calls now work · Scrapjaw will walk with you',
+    ]},
+  { town: 'MALEZOR', title: 'Chapter 4 · The Seers Are Here',
+    steps: [
+      'Kelthor sends you to the Malezor SEER HQ',
+      'Take the district key from the vault below',
+      'Beat the SEER COMMANDER on the command floor',
+      'The road east opens · Kelthor points you at Zarvane',
+    ]},
+  { town: 'ZARVANE', title: 'Chapter 5 · The Sight',
+    steps: [
+      'Cross the sand transition into Zarvane',
+      'Find OMNIRIS at the oasis · begin the eight trials',
+      'Earn the SIGHT · meditate to recover while blocking',
       'Report to the Zarvane Town Hall',
     ]},
-  { town: 'ANDRANNOR', title: 'Chapter 4 · Toward Andrannor',
+  { town: 'ANDRANNOR', title: 'Chapter 6 · Toward Andrannor',
     steps: [
+      'Omniris names the road to Andrannor',
       'Cross the Wilds Branch',
-      'Reach the Andrannor NW border stone',
+      'Find the Lost Boy · bring him home to Corvan and Serel',
       'Meet the Andrannor Town Hall keeper',
     ]},
 ];
@@ -30597,7 +30648,29 @@ function _uiPaint(items, idx){
   });
 }
 // Returns true when it consumed the key.
+// ★★★ v0.96.13 · THE GAME'S OWN MODAL STATE IS THE GATE, not DOM visibility.
+//
+// v0.96.10 routed on "is a panel element visible?" alone. That is one condition
+// deciding whether the D-pad walks Rizer or moves a cursor, and if any panel is
+// ever left visible while the game believes it is closed — a close path that
+// forgets one style, an overlay built and not torn down — the arrows are eaten
+// FOREVER and the player simply cannot walk. That is indistinguishable from a
+// freeze, and worse, tryMove's freeze-reason list would have said nothing was
+// blocking them.
+//
+// ★ Now DOM visibility only decides WHICH panel. Whether to route at all is
+//   decided by the game's own flags. Both have to agree, so a stale element
+//   cannot take the controller hostage.
+function uiPanelModalOpen(){
+  if (typeof game !== 'object') return false;
+  return !!(game.expPanelOpen || game.bagPanelOpen || game.walletPanelOpen
+         || game.dockPanelOpen || game.nebulaPanelOpen || game.tvPanelOpen
+         || game.guitarPanelOpen || game.posterViewOpen || game.raidCardOpen
+         || game.weaponShopOpen || game.potionShopOpen || game.zysphereShopOpen
+         || game.sanctuaryOpen  || game.ultrashardPickerOpen);
+}
 function handleUiPanelKey(k){
+  if (!uiPanelModalOpen()) { _uiNavIdx = 0; return false; }
   const el = openUiPanel();
   if (!el) { _uiNavIdx = 0; return false; }
   const items = _uiItems(el);
@@ -30650,6 +30723,20 @@ function forceUnstick(){
   drop('dialog',        () => { if (typeof dialogState !== 'undefined' && dialogState){ dialogState = null; return true; } });
   drop('homeBuyConfirm',() => { if (typeof homeBuyConfirm !== 'undefined' && homeBuyConfirm){ homeBuyConfirm = null; try { drawHomeBuyConfirm(); } catch(_){} return true; } });
   drop('hqPanel',       () => { if (typeof hqPanel !== 'undefined' && hqPanel){ hqPanel = null; try { drawHqPanel(); } catch(_){} return true; } });
+  // ★ v0.96.13 · and hide any panel ELEMENT still on screen · clearing the flag
+  //   without hiding the div leaves a picture of a menu you cannot use.
+  drop('uiPanels', () => {
+    let hid = false;
+    try {
+      for (const id of UI_PANEL_IDS){
+        const el = document.getElementById(id);
+        if (el && el.style && el.style.display && el.style.display !== 'none'){
+          el.style.display = 'none'; hid = true;
+        }
+      }
+    } catch(_){}
+    return hid;
+  });
   drop('newGameConfirm',() => { if (typeof newGameConfirm !== 'undefined' && newGameConfirm){ newGameConfirm = null; return true; } });
   drop('settingsMenu',  () => { if (typeof settingsMenuOpen !== 'undefined' && settingsMenuOpen){ settingsMenuOpen = false; return true; } });
   drop('zyrexMenu',     () => { if (typeof zyrexMenuOpen !== 'undefined' && zyrexMenuOpen){ zyrexMenuOpen = false; return true; } });
@@ -30688,6 +30775,10 @@ function tryMove(dt){
                                     freezeReasons.push('homeBuyConfirm');  // ★ v0.96.4
   if (typeof hqPanel !== 'undefined' && hqPanel)
                                     freezeReasons.push('hqPanel');         // ★ v0.96.5
+  // ★★ v0.96.13 · if the DOM router is live it is eating the D-pad, so it is a
+  // freeze reason like any other modal. A blocker the watchdog cannot NAME is
+  // the one that costs an afternoon.
+  try { if (uiPanelModalOpen() && openUiPanel()) freezeReasons.push('uiPanelNav'); } catch(_){}
   if (game.expPanelOpen)            freezeReasons.push('expPanel');
   if (game.tvPanelOpen)             freezeReasons.push('tvPanel');
   if (game.guitarPanelOpen)         freezeReasons.push('guitarPanel');
@@ -30716,6 +30807,39 @@ function tryMove(dt){
   if (game.dadsNotebookOpen)        freezeReasons.push('dadsNotebook');
   if (game.paused)                  freezeReasons.push('paused');   // v0.95.413 · Options-pause
   if (_rizerDeath)                  freezeReasons.push('rizerDeath');
+  // ★★★ v0.96.13 · THE DOUBLE JUMP CAN NO LONGER STRAND YOU.
+  //
+  //   Creator: "look for bug that is freezing game after exiting dialogue or
+  //   prompt text UI and running in overworld after."
+  //
+  // `player._doubleJump` is a HARD FREEZE REASON — while it is set, tryMove
+  // refuses to move the player at all. Its only clear path was a setTimeout
+  // scheduled at take-off, guarded by `_doubleJump.t0 !== now`. Anything that
+  // reassigns the flag mid-flight makes that timer return early, and menus do
+  // exactly that (the panel-open sweep sets `_doubleJump = false`). Miss the
+  // clear once — a throttled timer while the tab is backgrounded, a menu opened
+  // and closed across the flight, a reassignment racing the callback — and the
+  // flag outlives the jump FOREVER. The player lands, looks normal, and simply
+  // cannot walk again.
+  //
+  // ★ A flag that freezes the world must not depend on a timer nobody re-checks.
+  //   The jump has a known duration, so the frame that notices it has overstayed
+  //   ends it. Self-healing beats correct-if-nothing-goes-wrong.
+  if (player._doubleJump){
+    const _dj = player._doubleJump;
+    const _over = typeof _dj === 'object' && _dj
+      && (performance.now() - (_dj.t0 || 0)) > ((_dj.dur || DOUBLE_JUMP_DUR_MS) + 400);
+    if (_over || typeof _dj !== 'object'){
+      // ★ `typeof !== 'object'` catches the OTHER shape this field takes: three
+      //   call sites set it to the boolean `false`, and one stale `true` from
+      //   any future edit would be a freeze with no timestamp to expire.
+      player._doubleJump = null;
+      player.jumpUntil = 0;
+      player.jumpSheet = null;
+      player.moveCd = 0;
+      console.warn('[rp7b] double-jump flag outlived its jump · cleared by the frame');
+    }
+  }
   if (player._doubleJump)           freezeReasons.push('doubleJump');
   if (game.npcInfoOverlay)          freezeReasons.push('npcInfoOverlay');// v0.95.174 · companion overlay
   const devPanelEl = document.getElementById('devPanel');
@@ -35401,7 +35525,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.12' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.13' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

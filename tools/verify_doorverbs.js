@@ -73,7 +73,8 @@ const LOG = console.log;
 console.log = () => {}; console.warn = noop; console.error = noop;
 new Function(src + `;globalThis.__C={ player, game, WORLD_PROPS, facedCivicDoor,
   enterFacedCivicDoor, civicQuickInteract, civicService, enterCivic, civicSceneId,
-  UI_PANEL_IDS, openUiPanel, handleUiPanelKey, CIVIC_HEAL_COST, interiorConfig };`)();
+  UI_PANEL_IDS, openUiPanel, handleUiPanelKey, uiPanelModalOpen,
+  CIVIC_HEAL_COST, interiorConfig };`)();
 let n = 0; while (_Q.length && n < 80) { const f = _Q.shift(); n++; try { f(); } catch (_) {} }
 console.log = LOG;
 const C = globalThis.__C;
@@ -198,6 +199,15 @@ const C = globalThis.__C;
 
   const exp = elFor('expPanel');
   exp.style.display = 'flex';
+  // ★★★ v0.96.13 · BOTH conditions. The router now needs the game's own modal
+  //    flag as well as a visible element — showing the div alone is exactly the
+  //    stale-panel case that must NOT be able to eat the D-pad.
+  t(C.handleUiPanelKey('arrowdown') === false,
+    '★★★ a VISIBLE panel the game thinks is CLOSED swallows nothing · one '
+    + 'condition deciding whether the D-pad walks Rizer or moves a cursor means '
+    + 'any panel left visible while the game believes it closed eats the arrows '
+    + 'forever, which is indistinguishable from a freeze');
+  C.game.expPanelOpen = true;
   exp._buttons = [mkBtn('craft-a'), mkBtn('craft-b'), mkBtn('craft-c')];
   t(C.openUiPanel() === exp, 'the science bench is found when open');
   CLICKS.length = 0;
@@ -234,6 +244,7 @@ const C = globalThis.__C;
     '★★ disabled controls are skipped · cursoring onto a dead button is a press the '
     + 'player cannot explain');
   exp.style.display = 'none';
+  C.game.expPanelOpen = false;
 }
 
 /* ── 5 · it does not fight the ZyPhone ──────────────────────────────────── */

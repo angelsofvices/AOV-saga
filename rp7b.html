@@ -17109,6 +17109,15 @@ const CIVIC_ROOMS = {
     rug: { x: 5, y: 6, w: 5, h: 3 },
   },
 };
+// ★ v0.96.27 · room kind -> wall band. The two shops share 'shop': they are the
+//   same kind of premises and the Creator's set ships one shop wall, not two.
+const CIVIC_WALL = {
+  'nurse':          'nurse',
+  'zysphere-shop':  'shop',
+  'potion-shop':    'shop',
+  'town-hall':      'town-hall',
+  'cottage-lodge':  'cottage-lodge',
+};
 const CIVIC_CACHE = {};
 function civicSceneId(kind, dist){ return `interior_civic_${kind}_${dist}`; }
 // ★ Built lazily and cached · fifty rooms eagerly constructed at boot would be
@@ -17125,7 +17134,12 @@ function makeCivicInterior(kind, dist){
     spawn: { x: (R.cols >> 1), y: R.rows - 1, dir: 'up' },
     exit:  { x: (R.cols >> 1), y: R.rows - 1 },
     autoExit: true,                       // walk out the way you came in
-    wallImg: 'malezor',
+    // ★★★ v0.96.27 · EACH CIVIC ROOM TAKES ITS OWN WALL. All five shared the
+    //   Malezor house band, which made the infirmary, the shop and the town
+    //   hall read as five rooms in somebody's cottage. The wall is now part of
+    //   the same per-kind vocabulary as the floor, the rug and the counter —
+    //   one data row per room, ten districts deep.
+    wallImg: CIVIC_WALL[kind] || 'malezor',
     blocked: R.blocked.map(t => t.slice()),
     label: `${R.label} · ${String(dist).toUpperCase()}`,
     civic: kind, civicDistrict: dist,
@@ -17277,7 +17291,7 @@ const INTERIOR_HOME = {
   // Decor rug · 3 tiles wide × 1 tall · on row 9 · player enters onto it.
   // v0.95.656 · now draws one of the Creator's 8 doormats (see DOORMAT_KEYS).
   rug: { x: 6, y: 9, w: 3, h: 1, key: pickDoormatKey('interior_home') },
-  wallImg: 'malezor',                           // v0.81 · Malezor upper wall
+  wallImg: 'home',   // ★ v0.96.27 · INTERIOR_HOME · Rizer's house · the wall the Creator named as the model
   // Stairs UP to 2F · v0.60 · upper-LEFT corner · 2 wide x 3 tall visual.
   // v0.64 · pushed up 1 row · top row (visY=-1) sits in the black
   // out-of-bounds zone above the room to symbolize the level transition.
@@ -17353,7 +17367,7 @@ const INTERIOR_HOME_2F = {
     [3,1],                                // v0.95.97 · Skateboard leaning on wall
     [11,9],                               // v0.95.97 · Basketball beside bed
   ],
-  wallImg: 'malezor',
+  wallImg: 'home',   // ★ v0.96.27 · INTERIOR_HOME_2F · Rizer's room · same house, same wall
   rizerRoom: true,                              // v0.95 · label + experiment table
   label: 'RIZER ROOM',
 };
@@ -18490,12 +18504,58 @@ const WALL_TILES_H = 3;
 // band roughly every 5 tiles of wall -- frequent enough to read as ornament,
 // sparse enough not to become wallpaper.  139 was tuned to the old strip.
 const WALL_TEXTURE_SCALE = { seer: 160 };
+// ★ v0.96.27 · the eight new bands are authored at 64 source px per tile, so
+//   one texture is exactly one tile and the crown/field/skirting read at the
+//   size they were drawn. Without an entry here they would fall through to the
+//   old one-copy-per-tile path, which stretches the whole sheet into 48px.
+for (const _k of ['home','shop','nurse','town-hall','cottage-lodge',
+                  'seer-hq','beastwarden-hall','terminal-room']) WALL_TEXTURE_SCALE[_k] = 64;
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.27 · THE INTERIOR WALL SET · eight rooms, one table.
+//
+//   Creator: "new interior wall sheets. wire them just like rizer home. top of
+//   the tile map. learn the folder and apply the walls where necessary"
+//
+// Wired exactly like the Malezor home wall: a key on cfg.wallImg, resolved
+// here, painted across row 0 — the wall band that sits at the top of every
+// interior's tile map.
+//
+// ★★ THE 64px FILES ARE THE ONES THAT SHIP, and that is a measurement rather
+//   than a preference. The folder delivers each wall at 512 AND 64, and the 64s
+//   are NOT downscales — they are separately authored and markedly more
+//   seamless across the horizontal wrap, which is the only seam that matters
+//   because the band is one tile row and repeats sideways forever:
+//
+//        wall            512 L↔R seam     64 L↔R seam
+//        cottage-lodge       49.1             7.9
+//        town-hall           38.8             8.8
+//        terminal-room       31.8             9.3
+//        seer-hq             13.2             4.5
+//
+//   Shipping the 512s would have put a visible vertical join every tile in
+//   three of the eight rooms. The 512s are kept under source-512/ as the
+//   archival masters.
+//
+// ★ Each is a complete band — crown moulding at the top, field in the middle,
+//   skirting at the bottom — so at 64 source px per tile the whole design lands
+//   inside one 48px row and repeats cleanly. That is why every one of these
+//   gets a WALL_TEXTURE_SCALE of 64: the pattern path draws the texture at its
+//   authored size instead of squashing a sheet into a tile.
+// ══════════════════════════════════════════════════════════════════════════
+const INTERIOR_WALL_KEYS = ['home','shop','nurse','town-hall','cottage-lodge',
+                            'seer-hq','beastwarden-hall','terminal-room'];
+const INTERIOR_WALL_IMGS = {};
+for (const _k of INTERIOR_WALL_KEYS){
+  const im = new Image();
+  im.src = `assets/2D%20sprites/tiles/interior-walls/wall-${_k}.png`;
+  INTERIOR_WALL_IMGS[_k] = im;
+}
 const _wallPatternCache = {};
 function wallImageFor(key){
   if (key === 'malezor') return MALEZOR_WALL_IMG;
   if (key === 'lab')     return LAB_WALL_IMG;
   if (key === 'seer')    return SEER_WALL_IMG;
-  return null;
+  return INTERIOR_WALL_IMGS[key] || null;
 }
 
 // WELCOME rug · non-blocking decor placed on interior floors.
@@ -18512,7 +18572,7 @@ const INTERIOR_CRAZY_HOME = {
   exit:  { x: 7, y: 14 },
   // v0.95.656 · front-door mat · Crazy's place is a HOUSE, so it gets one
   rug: { x: 6, y: 14, w: 3, h: 1, key: pickDoormatKey('interior_crazy_home') },
-  wallImg: 'malezor',                           // v0.81 · Malezor upper wall
+  wallImg: 'home',   // ★ v0.96.27 · INTERIOR_CRAZY_HOME · Noot's house · a Malezor home like any other
 };
 INTERIOR_CRAZY_HOME.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
 
@@ -18543,7 +18603,7 @@ const INTERIOR_TRAINING_FARM = {
   tileImg: new Image(),
   spawn: { x: 10, y: 18, dir: 'up' },
   exit:  { x: 10, y: 19 },
-  wallImg: 'malezor',
+  wallImg: 'beastwarden-hall',   // ★ v0.96.27 · INTERIOR_TRAINING_FARM · the beast farm IS the beastwarden hall
   trainingFarm: true,
   blocked: [
     // Practice dummy row along the top (rows 2-3)
@@ -18831,7 +18891,7 @@ const INTERIOR_SEER_HQ_1F = {
   spawn: { x: 17, y: 20, dir: 'up' },
   exit:  { x: 17, y: 21 },
   autoExit: true,                         // ★ walk onto the threshold to leave
-  wallImg: 'seer',
+  wallImg: 'seer-hq',   // ★ v0.96.27 · INTERIOR_SEER_HQ_1F
   blocked: [],
   label: '◈ SEER HQ · 1F',
   overworldDrop: { x: 75, y: 169, dir: 'down' },   // rewritten per district by enterSeerHq
@@ -18880,7 +18940,7 @@ const INTERIOR_SEER_HQ_R2 = {
   spawn: { x: 17, y: 20, dir: 'up' },
   exit:  null,                            // ★ never straight to the overworld from up here
   autoExit: false,
-  wallImg: 'seer',
+  wallImg: 'seer-hq',   // ★ v0.96.27 · INTERIOR_SEER_HQ_R2
   blocked: [],
   label: '◈ SEER HQ · THE LANDING',
   // ★★★ v0.95.980 · THE LANDING HAS NO DOOR.  Creator: *"when I walk in the
@@ -18985,7 +19045,7 @@ const INTERIOR_SEER_HQ_B = {
   spawn: { x: 7, y: 6, dir: 'down' },
   exit:  null,                       // no door to the street — the only way out is up
   autoExit: false,
-  wallImg: 'seer',
+  wallImg: 'seer-hq',   // ★ v0.96.27 · INTERIOR_SEER_HQ_B · the vault
   blocked: [],
   label: '◈ SEER HQ · BASEMENT',
   stairsList: [
@@ -19040,7 +19100,7 @@ const INTERIOR_SEER_HQ_2F = {
   spawn: { x: 12, y: 6, dir: 'down' },
   exit:  null,
   autoExit: false,
-  wallImg: 'seer',
+  wallImg: 'seer-hq',   // ★ v0.96.27 · INTERIOR_SEER_HQ_2F · command
   blocked: [],
   label: '◈ SEER HQ · ATTIC',
   stairsList: [
@@ -19328,7 +19388,7 @@ const INTERIOR_MALEZOR_SCHOOL = {
   spawn: { x: 15, y: 23, dir: 'up' },
   exit:  { x: 15, y: 23 },
   autoExit: true,
-  wallImg: 'malezor',
+  wallImg: 'town-hall',   // ★ v0.96.27 · INTERIOR_MALEZOR_SCHOOL · a civic institution, not a house
   blocked: [],
   label: '◈ MALEZOR ACADEMY',
   overworldDrop: { x: 25, y: 127, dir: 'down' },   // step out below school door
@@ -19342,7 +19402,7 @@ const INTERIOR_TREEHOUSE = {
   autoExit: true,
   // v0.95.656 · treehouse is a dwelling, not an official building · gets a mat
   rug: { x: 14, y: 29, w: 3, h: 1, key: pickDoormatKey('interior_treehouse') },
-  wallImg: 'malezor',
+  wallImg: 'cottage-lodge',   // ★ v0.96.27 · INTERIOR_TREEHOUSE · rough timber · the lodge band is the timber one
   blocked: [],
   label: '◈ TREEHOUSE HIDEOUT · your Zyrex socialize here · walk out to leave',
   overworldDrop: { x: 20, y: -19, dir: 'down' },   // drop 1 tile below the trunk
@@ -19672,7 +19732,7 @@ function buildDevInteriorForProp(prop){
     exit:  { x: 7, y: 9 },
     autoExit: true,
     rug:   { x: 6, y: 9, w: 3, h: 1 },
-    wallImg: 'malezor',
+    wallImg: 'home',   // ★ v0.96.27 · a PURCHASED home · it reuses INTERIOR_HOME's floor, so it takes its wall
     blocked: [],
     label: `◈ ${prop.name || 'HOME'} · walk out the door to leave`,
   } : {
@@ -19681,7 +19741,7 @@ function buildDevInteriorForProp(prop){
     tileImg: INTERIOR_RESEARCH_LAB.tileImg,  // reuse lab floor
     spawn: { x: 10, y: 18, dir: 'up' },
     exit:  { x: 10, y: 19 },
-    wallImg: 'lab',
+    wallImg: 'terminal-room',   // ★ v0.96.27 · the generic dev BUILDING template · reuses the lab floor; the terminal band is the neutral institutional one
     blocked: [],
     label: `◈ ${prop.name || 'BUILDING'} · press X on the door to leave`,
   };
@@ -19718,7 +19778,7 @@ function makeMalezorHomeInterior(sceneId){
     // v0.95.610 · Doormat picked deterministically per home id · 1 of 8
     // rugs from DOORMAT_KEYS · overrides the default RUG_IMG at render time.
     rug:   { x: 6, y: 9, w: 3, h: 1, key: pickDoormatKey(sceneId) },
-    wallImg: 'malezor',
+    wallImg: 'home',   // ★ v0.96.27 · makeMalezorHomeInterior · every generated Malezor house
   };
   cfg.tileImg.src = 'assets/2D%20sprites/tiles/player-home-wood-floor.png';
   MALEZOR_HOME_INTERIORS[sceneId] = cfg;
@@ -30983,53 +31043,35 @@ addEventListener('keyup', e => {
   const prev = {};
   const AXIS_DEAD = 0.35;
   // ══════════════════════════════════════════════════════════════════════
-  // ★★★ v0.96.25 · THE FREEZE. FOUND, WITH EVIDENCE, AT LAST.
+  // ★★★ v0.96.28 · REVERTED. I BROKE PAUSE AND THE PHONE D-PAD.
   //
-  //   Creator: "frozen after talking to elarian and running" — the tenth
-  //   report, and the FIRST one carrying a measurement:
+  //   Creator: "I cannot pause anymore and cannot use dpad in phone. it does
+  //   multiple key clicks for both."
   //
-  //       TILE (28, 134) · overworld · v0.96.24 · 120 fps
+  // ★★★ THAT WAS ME, one build earlier. v0.96.25 made this poller LEVEL-
+  //   triggered: it re-dispatched a keydown whenever the pad said a control was
+  //   held but `keys` disagreed. The hole in that is momentary presses. A
+  //   handler that CONSUMES its key — the pause toggle, the phone's D-pad
+  //   router — clears `keys[k]` as part of doing its job. The very next poll
+  //   then saw "held, but the key is gone", decided it had been lost, and fired
+  //   again. At 120 Hz that is a repeat storm: pause toggling dozens of times a
+  //   second, and one D-pad tap moving the cursor five places.
   //
-  // ★★★ 120 FPS. No freeze reason. No stalled-loop banner. That single number
-  //   killed both theories I had been alternating between for ten rounds: it is
-  //   not a performance collapse (that would read 2-4 fps) and it is not a lock
-  //   (tryMove reaches the end and reports nothing). The game was running
-  //   PERFECTLY and the player still could not move. Which leaves exactly one
-  //   thing: THE INPUT NEVER ARRIVED.
+  // ★★★ AND I SHIPPED IT ON A THEORY I HAD ALREADY DISPROVED. I wrote it
+  //   believing a stuck held-stick was the freeze, on the strength of a tile
+  //   label reading "120 fps"; the Creator's next message — Chrome's "Page
+  //   Unresponsive" — showed that reading was a corpse value and the theory was
+  //   wrong. I kept the change anyway, on the grounds that it was "a real
+  //   latent bug". A speculative fix for a disproved theory is not worth one
+  //   regression, let alone one that stops the player pausing.
   //
-  // ★★★ AND HERE IS WHY. This poller is EDGE-TRIGGERED — it only dispatches a
-  //   keydown on the frame a button or stick STARTS being held. Meanwhile the
-  //   game force-clears `keys` in several places (the _paused gate zeroes every
-  //   key; dispatchKey itself returns early while paused, before it can set
-  //   one). So:
-  //
-  //     1. you are RUNNING · stick held · prev['ax_ArrowDown'] = true
-  //     2. a dialogue or menu opens · every key is zeroed
-  //     3. you are STILL HOLDING THE STICK, so on === true and prev === true
-  //     4. NO EDGE. No keydown is ever dispatched again.
-  //     5. keys['arrowdown'] stays false FOREVER. 120 fps. No freeze reason.
-  //        Rizer will not move.
-  //
-  //   The only cure was to let go of the stick and push it again — which is why
-  //   it read as random, and why it always happened "after talking to an NPC
-  //   while running": you have to be HOLDING a direction when the UI appears.
-  //
-  // ★★ AND IT IS DUALSENSE-ONLY, which is why ten rounds of reading game logic
-  //   found nothing. A keyboard sends real, repeating keydown events, so a
-  //   keyboard player regenerates the state within milliseconds and never sees
-  //   it. Every headless test I wrote drove the game through synthetic keydowns
-  //   and could not reproduce it either.
-  //
-  // ★ THE FIX IS ONE PREDICATE: if the pad says a control is physically held
-  //   but the game's key table disagrees, the poller re-asserts it. Level-
-  //   triggered rather than edge-triggered — the pad is the source of truth for
-  //   what is being held, and it re-states that truth every frame instead of
-  //   once.
+  // ★ EDGE-TRIGGERED IS CORRECT. It matches how a keyboard behaves and how
+  //   every consumer of `keys` in this file expects to be driven. The genuine
+  //   hole it leaves — a stick already held when a menu wipes `keys` stays dead
+  //   until you let go — is real, but it is a one-gesture annoyance, and fixing
+  //   it needs the key-wipe sites to reset `prev` rather than the poller to
+  //   second-guess them. Written down here rather than fixed under pressure.
   // ══════════════════════════════════════════════════════════════════════
-  function _keyLost(key){
-    const k = (key || '').toLowerCase();
-    return typeof keys === 'object' && keys && !keys[k];
-  }
 
   function dispatchKey(type, key){
     // v0.95.460 · PAUSE = hard freeze · only '3' (unpause) survives.  PHONE =
@@ -31197,8 +31239,8 @@ addEventListener('keyup', e => {
         if (i === 17) return;               // ★ v0.95.813 · touchpad has its own chord block above
         const key = BTN[i]; if (!key) return;
         const pressed = b.pressed || b.value > 0.5;
-        // ★★★ v0.96.25 · LEVEL-TRIGGERED, NOT EDGE-TRIGGERED. See _keyLost().
-        if (pressed && (!prev[i] || _keyLost(key))) dispatchKey('keydown', key);
+        // ★★★ v0.96.28 · REVERTED TO EDGE-TRIGGERED. See the block above _keyLost.
+        if (pressed && !prev[i]) dispatchKey('keydown', key);
         else if (!pressed && prev[i]) dispatchKey('keyup', key);
         prev[i] = pressed;
       };
@@ -31215,10 +31257,7 @@ addEventListener('keyup', e => {
       };
       for (const k in axisState){
         const on = axisState[k];
-        // ★★★ v0.96.25 · THE FREEZE. A held stick whose key was cleared behind
-        //   our back must be RE-ASSERTED, or it is dead until you physically
-        //   let go. See _keyLost().
-        if (on && (!prev['ax_'+k] || _keyLost(k))) dispatchKey('keydown', k);
+        if (on && !prev['ax_'+k]) dispatchKey('keydown', k);
         else if (!on && prev['ax_'+k]) dispatchKey('keyup', k);
         prev['ax_'+k] = on;
       }
@@ -36473,7 +36512,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.26' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.28' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

@@ -8,6 +8,9 @@
  *   a red suite or, worse, assert something the harness never actually
  *   exercised, this says what it can prove and stops there.
  *
+ * ★★★ v0.96.28 · THE CHANGE THIS SUITE WAS WRITTEN FOR HAS BEEN REVERTED, and
+ *   the suite now guards the revert. It broke pause and the phone D-pad.
+ *
  * ★★★ AND A CORRECTION THAT MATTERS MORE THAN THE FIX: I built this believing
  *   a stuck held-stick WAS the Creator's freeze, on the strength of a tile
  *   label reading "120 fps". Then he sent Chrome's "Page Unresponsive" dialog,
@@ -26,14 +29,17 @@ const t=(c,m)=>c?ok(m):no(m);
 console.log('\n=== PAD POLLER · a held control must survive a key wipe ===\n');
 const code=H.replace(/<!--[\s\S]*?-->/g,'').replace(/^\s*\/\/.*$/gm,'');
 
-t(/function _keyLost\(key\)/.test(code),
-  '★ there is one predicate for "the pad says held, the key table disagrees"');
-t(/if \(on && \(!prev\['ax_'\+k\] \|\| _keyLost\(k\)\)\)/.test(code),
-  '★★★ the STICK path is level-triggered · edge-only, a stick that was already '
-  + 'held when a menu wiped `keys` produced no new edge (on === true, prev === '
-  + 'true) and its key stayed false until you physically let go');
-t(/if \(pressed && \(!prev\[i\] \|\| _keyLost\(key\)\)\)/.test(code),
-  '★★ the BUTTON path too · sprint is B held down');
+// ★★★ v0.96.28 · THIS SUITE NOW GUARDS THE REVERT, not the change.
+t(!/_keyLost/.test(code),
+  '★★★ the level-trigger is GONE · it re-dispatched a keydown whenever the pad '
+  + 'said held but `keys` disagreed, and a handler that CONSUMES its key (the '
+  + 'pause toggle, the phone D-pad router) clears `keys[k]` as part of doing its '
+  + 'job — so the next poll fired again, at 120 Hz. Pause toggled dozens of '
+  + 'times a second and one D-pad tap moved five places');
+t(/if \(on && !prev\['ax_'\+k\]\) dispatchKey\('keydown', k\);/.test(code),
+  '★★ the stick path is edge-triggered · one press, one keydown');
+t(/if \(pressed && !prev\[i\]\) dispatchKey\('keydown', key\);/.test(code),
+  '★★ and the button path · momentary presses are the whole point of an edge');
 t(/else if \(!on && prev\['ax_'\+k\]\) dispatchKey\('keyup', k\)/.test(code)
   && /else if \(!pressed && prev\[i\]\) dispatchKey\('keyup', key\)/.test(code),
   '★★ release still works · a poller that could not release would weld the '

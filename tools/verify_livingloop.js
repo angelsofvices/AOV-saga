@@ -26,7 +26,7 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 // verify_livingloop · v0.95.804 · ecology rank + journal + rumors + anomalies
 const FS=require('fs');
 try{new Function(FS.readFileSync('/tmp/all.js','utf8')+
-  ';globalThis.__C={player,game,ecologyState,districtEcologyScore,districtEcologyRank,ECOLOGY_RANKS,'+
+  ';globalThis.__C={ATHRENOLOGY_INDEX,player,game,ecologyState,districtEcologyScore,districtEcologyRank,ECOLOGY_RANKS,'+
   'speciesJournalStage,journalCounts,JOURNAL_STAGES,spawnRumor,spawnAnomaly,ecologyTick,ANOMALY_KINDS,'+
   'RUMOR_MAX,ANOMALY_MAX,minimapPOIs,minimapDiscovered,MINIMAP,notebookState,notebookVisit,SPECIES,'+
   'ZYRAXIS_DISTRICTS,WORLD_PROPS,spawnPortals,notebookEntries,awardRizerXP,rizerLifetimeRXP,worldFrozen,'+
@@ -82,7 +82,14 @@ H('2 · ★★ THE FIELD JOURNAL IS DERIVED TOO');
   const jc=C.journalCounts();
   // ★ v0.95.857 · journalCounts reads the ATHRENOLOGY INDEX (roster v1) now:
   // 203 catalogued + 7 theorized, not the implemented-SPECIES table
-  ok(jc.total===203&&jc.theorized===7,`counts cover the full Athrenology index (${jc.total} catalogued + ${jc.theorized} theorized)`);
+  // ★ v0.95.989 · was a hardcoded 203. The Athrenology index GROWS — 16 rows
+  // were added at v0.95.986 alone — so a literal here fails on every legitimate
+  // addition and teaches everyone to ignore the suite. Derive it from the index
+  // itself: what matters is that journalCounts() covers the WHOLE index and
+  // splits the theorized out, not that the index is any particular size.
+  const _cat = C.ATHRENOLOGY_INDEX.filter(e => e.t <= 8).length;
+  const _the = C.ATHRENOLOGY_INDEX.filter(e => e.t >= 9).length;
+  ok(jc.total===_cat&&jc.theorized===_the,`counts cover the full Athrenology index (${jc.total} catalogued + ${jc.theorized} theorized)`);
   ok(jc.mastered===1&&jc.unknown===jc.total-1,'and they add up');
   // ★ BATTLED is deliberately absent, not faked
   ok(C.JOURNAL_STAGES.length===4 && !C.JOURNAL_STAGES.some(s=>s.key==='battled'),

@@ -19976,6 +19976,11 @@ function startNewGame(){
   // started after playing would inherit the old level/items/quest flags and then
   // write them straight into the slot as a "fresh" run.
   try { resetPlayerToPristine(); } catch(err){ console.warn('[rp7b] pristine reset failed', err); }
+  // ★★★ v0.96.21 · A NEW GAME STARTS UNFROZEN, ALWAYS. Belt and braces with
+  // closeAllOverlaysAndMenus: New Game is reachable from the title screen
+  // directly, without ever passing through the panic reset, so it cannot rely
+  // on someone else having cleaned up.
+  try { releaseHardLocks(); } catch(_){}
   stopIntroVideo();                                // v0.93.3 · kill intro on new game
   game.showTitleButtons = false;                   // v0.93.6 · hide DOM buttons
   if (titleBtnsEl) titleBtnsEl.style.display = 'none';
@@ -29430,7 +29435,62 @@ const keys = {};
 
 // Dev-safe UI escape hatch. Keep this centralized so the backtick shortcut
 // and Dev Tools button always clear the exact same collection of overlays.
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.21 · RELEASE EVERY HARD LOCK. THE FREEZE, FOUND.
+//
+//   Creator: "overworld freezes. music still plays. lets fix it because its
+//   ruining the opening story loops. it started happening like early this
+//   morning."
+//
+// ★★★ EVERY WORD OF THAT REPORT IS EXPLAINED BY THIS AND I PROVED IT BY DRIVING
+//   THE GAME:
+//
+//     die → restartToTitleScreen() → startNewGame() → STILL FROZEN
+//     press ` (the documented panic reset)            → STILL FROZEN
+//     a dream lock survives a New Game the same way   → STILL FROZEN
+//
+//   `_rizerDeath`, `_dreamPlaying`, `_voltstormPlaying` and `_tvMoviePlaying`
+//   are hard entries in freezeReasons, and NOTHING in the restart path cleared
+//   them. Not closeAllOverlaysAndMenus — which clears dialogState, _sleepFade
+//   and battleState and stops right there. Not restartToTitleScreen. Not
+//   resetPlayerToPristine. Not startNewGame.
+//
+// ★★★ SO A NEW GAME COULD BE BORN FROZEN. startNewGame calls playBGM('home'),
+//   which is why the music plays over a world that will never move again. And
+//   it lands hardest on THE OPENING STORY LOOPS, because restarting the opening
+//   is exactly when you take this path — over and over.
+//
+// ★★ AND THE ESCAPE HATCH WAS PART OF THE BUG. Backtick is commented as the
+//   "escape hatch for any stuck state". It could not clear the one family of
+//   states most worth escaping, so the only true fix was a page reload — and a
+//   reload is exactly what destroyed the evidence in all seven earlier reports.
+//
+// ★ Named and called from every reset path, so the next lock added has one
+//   obvious place to be released from.
+function releaseHardLocks(){
+  _rizerDeath   = null;
+  _sleepFade    = null;
+  _dreamPlaying = false;
+  if (typeof _voltstormPlaying !== 'undefined') _voltstormPlaying = false;
+  if (typeof _tvMoviePlaying   !== 'undefined') _tvMoviePlaying   = false;
+  // the elements these locks were gating · a paused video left on screen is
+  // its own kind of frozen
+  for (const id of ['dreamVideo','voltstormVideo','tvMovieVideo']){
+    const v = document.getElementById(id);
+    if (v){ try { v.pause(); } catch(_){} v.style.display = 'none'; }
+  }
+  // ★ and the dream's capture-phase skip listeners, which otherwise sit on the
+  //   window swallowing X/Enter/Escape for the rest of the session
+  if (typeof _dreamSkipHandlers !== 'undefined' && _dreamSkipHandlers){
+    try {
+      window.removeEventListener('keydown',     _dreamSkipHandlers.k, true);
+      window.removeEventListener('pointerdown', _dreamSkipHandlers.p, true);
+    } catch(_){}
+    _dreamSkipHandlers = null;
+  }
+}
 function closeAllOverlaysAndMenus({ closeDev = true, silent = false } = {}){
+  releaseHardLocks();   // ★★★ v0.96.21 · the panic reset must actually reset panic
   if(_roomEdit)finishRoomEdit(true);
   settingsMenuOpen = false;
   settingsPage = 'root';
@@ -31244,6 +31304,19 @@ function _movementRequested(){
 function forceUnstick(){
   const cleared = [];
   const drop = (label, fn) => { try { if (fn()) cleared.push(label); } catch(_){} };
+  // ★★★ v0.96.21 · THE HARD LOCKS FIRST. forceUnstick is the last resort a
+  //   player has — L2+touchpad on a console, where there is no keyboard and no
+  //   backtick — and it could not clear a death or a stranded cutscene either.
+  //   Every escape hatch in the game was blind to the same family of states.
+  drop('hardLocks', () => {
+    const was = !!_rizerDeath || !!_dreamPlaying || !!_sleepFade
+      || (typeof _voltstormPlaying !== 'undefined' && _voltstormPlaying)
+      || (typeof _tvMoviePlaying   !== 'undefined' && _tvMoviePlaying);
+    if (!was) return false;
+    releaseHardLocks();
+    try { restoreRizerOnRest(); } catch(_){}
+    return true;
+  });
   drop('dialog',        () => { try { clearDialogQueue(); } catch(_){}
     if (typeof dialogState !== 'undefined' && dialogState){ dialogState = null; return true; } });
   drop('homeBuyConfirm',() => { if (typeof homeBuyConfirm !== 'undefined' && homeBuyConfirm){ homeBuyConfirm = null; try { drawHomeBuyConfirm(); } catch(_){} return true; } });
@@ -33285,7 +33358,15 @@ function drawPlayer(){
     return;
   }
   const src = bundle.img;
-  if (!src || !src.complete) return;
+  // ★★★ v0.96.21 · `complete` IS NOT `loaded`. A failed image load sets
+  // complete = true with naturalWidth 0, and drawImage on one of those throws
+  // InvalidStateError. This is THE PLAYER DRAW, called from drawWorldLayer on
+  // every overworld frame — so a single bad fetch of a Rizer sheet would have
+  // thrown here every frame, stopping the picture while the music carried on.
+  // ★ Found by giving the test harness a canvas that validates its arguments
+  //   the way a browser's does. Every previous shim swallowed drawImage, so
+  //   this entire class of fault was invisible to ~190 suites.
+  if (!src || !src.complete || !src.naturalWidth) return;
 
   // All three sheets are 4x4 · row = direction · col = animation frame.
   // v0.91.8 · during attack, right-facing rows source from left-facing row
@@ -33656,7 +33737,7 @@ function drawRizerSoulShell(){
   const shell=_factionSoulSwitch?.shell;
   if(!shell)return;
   const bundle=rizerBundleForSkin('idle',shell.skin||'normal');
-  if(!bundle?.loaded||!bundle.img?.complete)return;
+  if(!bundle?.loaded||!bundle.img?.complete||!bundle.img?.naturalWidth)return;   // ★ v0.96.21 · see drawRizer
   const row=DIR_ROW[shell.dir]??0;
   const [bx,by,bw,bh]=bundle.bboxes[row][0];
   let maxH=1;
@@ -36107,7 +36188,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.20' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.21' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

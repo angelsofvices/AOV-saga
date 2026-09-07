@@ -1477,6 +1477,23 @@ window.addEventListener('keydown', (ev) => {
   // Bail if no phone in the DOM yet (page still booting)
   const _pnl = document.getElementById('zphonePanel');
   if (!_pnl) return;
+  // ★★ v0.95.979 · THE BANNER IS A BUTTON.  Creator: "press touchpad on it to
+  // go straight to upgrade rizer panel of phone."  While the level-up banner is
+  // on screen the touchpad does not open the phone's HOME page — it opens
+  // RIZER, where the attribute points are spent.
+  // ★ It is caught HERE, in the ultra-early hardline, for the same reason that
+  // handler exists: this must beat every downstream listener, or the normal
+  // touchpad path opens home first and the shortcut never runs.
+  // ★ And it clears the banner, so one press is one navigation — a second tap
+  // behaves like the plain touchpad again.
+  try {
+    if (typeof levelUpBannerUp === 'function' && levelUpBannerUp()){
+      _levelUpBanner = 0;
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      if (typeof openZycellAt === 'function') openZycellAt('rizer');
+      return;
+    }
+  } catch(_){}
   // v0.95.472 · Scene gate · touchpad only works AFTER game start (not on title,
   // not during intro video, not on the NEW GAME / LOAD splash).  In-game only.
   if (typeof game !== 'object' || !game) return;
@@ -9081,6 +9098,15 @@ const NPCS = [
     isEnemy: false,
     _lostBoy: true,
     onInteract: (n) => {
+      // ★★★ v0.95.979 · Creator: "you unlock vengrizz after you bring the lost
+      // boy to his parents in andrannor (I'll make the parents side quest loop
+      // soon)."  So the REWARD is wired and the QUEST is not — the escort loop
+      // is the Creator's to design, and the v0.95.705 note above is explicit
+      // that this NPC must not fake it with a toast pretending something
+      // happened.  What exists now is the door: `grantVengrizz()` below is the
+      // single call the finished quest makes, and until something calls it the
+      // boy says exactly what he has always said.
+      if (player.lostBoyReunited && !player.vengrizzGifted){ grantVengrizz(); return; }
       showToast('◈ THE LOST BOY · he holds the bear tighter and does not answer', 3400);
     },
   },
@@ -14256,10 +14282,6 @@ setTimeout(() => { try {
   try { buildAllTrails(); } catch(err){ console.warn('[rp7b] trail carve failed', err); }
   // ★ v0.95.760 · after the carve, so "at least 6 tiles off the road" is real
   try { scatterWoodChests(); } catch(err){ console.warn('[rp7b] chest scatter failed', err); }
-  // ★ v0.95.977 · roaming enemies · AFTER the carve and the chests, so packs
-  // do not stand on a road or on top of loot, and after the tower/HQ packs
-  // above, because the fill counts what a district already has.
-  try { scatterDistrictEnemies(); } catch(err){ console.warn('[rp7b] enemy scatter failed', err); }
   try { restoreLootedChests(); } catch(err){ console.warn('[rp7b] chest restore failed', err); }
   // ★ v0.95.762 · after the collision bake and the chests, so nothing lands
   // inside a building or on top of a chest
@@ -14295,6 +14317,14 @@ setTimeout(() => { try {
   } catch(err){ console.warn('[rp7b] portal siting failed', err); }
   // v0.95.655 · run AFTER the guards land so they are sanitized too
   try { sanitizeNpcPlacement(); } catch(err){ console.warn('[rp7b] placement sanitize failed', err); }
+  // ★★ v0.95.979 · ROAMING ENEMIES RUN LAST, and that is a fix rather than a
+  // tidy-up.  The pass tops each district up to a TOTAL, so it has to be able
+  // to see everything else that makes an enemy — and at its old position
+  // (right after the chests) thirty per district had not been built yet.  It
+  // read a low `have`, made up too big a difference, and every district
+  // finished at 230 against a target of 200.  A top-up that runs before the
+  // thing it is topping up cannot count.
+  try { scatterDistrictEnemies(); } catch(err){ console.warn('[rp7b] enemy scatter failed', err); }
 } catch(err){ console.warn('[rp7b] tower guard build failed', err); } }, 0);
 
 // v0.95.477 · SCRAPJAW TOWER QUEST · resurrect the 6 tower Mori + the tower-boss
@@ -22039,7 +22069,12 @@ function buildTowerGuardPacks(){
 // ★★ AND THE HP SCALES WITH IT.  A Mori is 125 HP flat everywhere today, so a
 // Korathen Mori at Lv80 dies as fast as a Malezor one at Lv5 — the level was
 // cosmetic. `hpMax` now reads off the band the same way the tower guards' does.
-const DISTRICT_ROAM_TARGET = 130;   // ★ Malezor's own roaming count, minus its posted ~59
+// ★★ v0.95.979 · 130 → 200.  Creator: *"give each district 200 total enemies."*
+// ★ This is a TOTAL, not a top-up quota: the pass counts what a district
+// already holds (its tower ring, its HQ garrison, any hand-placed pack) and
+// makes up only the difference, so 200 is the number you can go and count in
+// the field rather than 200 added on top of whatever was there.
+const DISTRICT_ROAM_TARGET = 200;
 const ROAM_MIN_FROM_TOWN   = 26;    // outside the built-up core · packs live in the country
 const ROAM_PACK            = [3, 5];// pack size range · they travel together, like the Malezor threes
 // The mix, per district, weighted by tier. Values are pack-draw weights.
@@ -24565,6 +24600,52 @@ function applyDepthCamera(){
   if (!g) return;
   g.clearRect(0, 0, W, H);
   g.drawImage(canvas, 0, 0);
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★ v0.95.979 · LEVEL-UP BANNER.  Creator: *"play this banner pop up when we
+// level up. press touchpad on it to go straight to upgrade rizer panel of
+// phone. quick way to people to remember to spend AP. stays on upper center UI
+// screen for 3 seconds this fades out."*
+//
+// ★ THE POINT IS THE AP, NOT THE CELEBRATION.  There is no respec
+// ([[aov-rizer-attribute-system]]) and points only ever go IN, so unspent AP is
+// the one resource in the game that silently does nothing while you carry it.
+// A level-up already plays a sound; what it did not do was tell you there is
+// something to go and DO. The banner is a reminder with a door in it.
+//
+// ★ It is drawn on the CANVAS rather than as a DOM overlay, so it obeys the
+// same letterbox as everything else and cannot drift out of frame on a resize.
+const LEVELUP_BANNER_IMG = new Image();
+LEVELUP_BANNER_IMG.src = 'assets/2D%20sprites/ui/level-up-banner.png';
+const LEVELUP_HOLD_MS = 3000;    // ★ the Creator's three seconds · solid
+const LEVELUP_FADE_MS = 600;     // then out
+let _levelUpBanner = 0;          // performance.now() when it appeared, 0 = down
+function showLevelUpBanner(){ _levelUpBanner = performance.now(); }
+function levelUpBannerUp(){
+  return _levelUpBanner && (performance.now() - _levelUpBanner) < (LEVELUP_HOLD_MS + LEVELUP_FADE_MS);
+}
+function drawLevelUpBanner(){
+  if (!_levelUpBanner) return;
+  const t = performance.now() - _levelUpBanner;
+  if (t > LEVELUP_HOLD_MS + LEVELUP_FADE_MS){ _levelUpBanner = 0; return; }
+  const img = LEVELUP_BANNER_IMG;
+  if (!img.complete || !img.naturalWidth) return;
+  // solid for the hold, then a straight fade — no easing games, the Creator
+  // asked for "3 seconds this fades out" and that is exactly what this is
+  const a = t <= LEVELUP_HOLD_MS ? 1 : 1 - (t - LEVELUP_HOLD_MS) / LEVELUP_FADE_MS;
+  const W = canvas.width, H = canvas.height;
+  // ★ never stretch · fit to a share of the width and keep the native ratio
+  // ([[image-never-stretch-console-fullscreen]])
+  const w = Math.min(W * 0.62, img.naturalWidth);
+  const h = w * (img.naturalHeight / img.naturalWidth);
+  const x = Math.round((W - w) / 2);
+  // ★ a small drop-in on the first 180ms · it arrives rather than blinking on
+  const drop = t < 180 ? (1 - t / 180) * 18 : 0;
+  const y = Math.round(H * 0.045 - drop);
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = Math.max(0, Math.min(1, a));
+  ctx.drawImage(img, x, y, w, h);
+  ctx.globalAlpha = prev;
 }
 // v0.95.4 · Sleep fade overlay · black flash triangle during nap
 function drawSleepFade(){
@@ -32919,6 +33000,15 @@ const ATHRENOLOGY_INDEX = [
   {n:'Abyssiq',t:1,ty:'Aura/Aquatic'},
   {n:'Aetherwing',t:1,ty:'Beast/Aura'},
   {n:'Aurarat',t:1,ty:'Beast/Unknown'},
+  // ★ v0.95.979 · WYNWYRM.  Added because verify_notebook caught its absence:
+  // the Zyredex is built from THIS index, not from SPECIES, so a species that
+  // exists in the world but not here can be caught and never appear in the
+  // player's own dex. The suite found it by taking Object.keys(SPECIES)[0],
+  // which my insertion had made Wynwyrm.
+  {n:'Wynwyrm',t:1,ty:'Creature/Nature'},
+  // ★ v0.95.979 · XYTABYTE · also brand new, so also absent. Filed at T7, which
+  // was an EMPTY TIER until now (the live game had no T7 and still has no T9).
+  {n:'Xytabyte',t:7,ty:'Tech/Creature'},
   {n:'Barkchitter',t:1,ty:'Beast/Nature'},
   {n:'Blazonon',t:1,ty:'Beast/Spirit'},
   {n:'Bogarion',t:1,ty:'Beast/Nature'},
@@ -37092,6 +37182,74 @@ function applyUltrashard(shardKey, partyIdx){
 
 const SPECIES = {
   // ── T1 · Malezor (Beast-dominant) ────────────────────────────────
+  // ★★ v0.95.979 · WYNWYRM · Creator: *"add wynwyrm to the game. tier 1
+  // malezor similar spawns to aetherwing class zyrex."*
+  //
+  // ★ THE STAT LINE IS READ OFF THE ART, which is the only honest place to get
+  // one when the Creator has given a design and not a spreadsheet.  It is a
+  // soft grub with a lure-antenna, heavy sad eyes and a PINK CROSS on its back
+  // — a medic, drawn.  So the 333 goes into staying alive and into the special
+  // bar, not into the mandibles: SDEF 80 is the highest of all eighteen T1
+  // (the field runs 37-60), and ATK 40 is near the floor.
+  // ★ It is the first T1 that is clearly a SUPPORT creature rather than a small
+  // fighter, which is worth having in a starting pool where everything else
+  // wants to bite you.
+  // ★ Pool 63+40+57+33+60+80 = 333 exactly · tier x 333.
+  // ★ NO EVOLUTION DECLARED. Canon is explicit that chains may be incomplete
+  // and that a stage should be plugged in later rather than invented to fill a
+  // slot ([[aov-evolution-type-scaling]]), and nothing about this design tells
+  // me what it becomes.
+  wynwyrm:    { id:'wynwyrm',    name:'Wynwyrm',    tier:1, type:'Creature',      type2:null,
+    baseHP:63, baseATK:40, baseDEF:57, baseSPD:33, baseSATK:60, baseSDEF:80,   // sum 333
+    moves:['Antenna Jab','Chitin Cut','Hivestorm','Endless Brood'] },
+  // ★★ v0.95.979 · TERRALITH · Creator: "add terralith populations to zarvane."
+  // ★ Tier and types are NOT mine to pick — ATHRENOLOGY_INDEX already carries
+  // {n:'Terralith',t:1,ty:'Beast/Crystal'}, so the roster had this creature
+  // named and classified before the art arrived and the entry obeys it.
+  // ★ A rock tortoise, so the 333 is nearly all shell: DEF 90 is second only to
+  // Vulkarmor's 93 among the eighteen T1, and SPD 20 is the slowest in the game.
+  terralith:  { id:'terralith',  name:'Terralith',  tier:1, type:'Beast',        type2:'Crystal',
+    baseHP:63, baseATK:53, baseDEF:90, baseSPD:20, baseSATK:40, baseSDEF:67,   // sum 333
+    moves:['Shardpick','Shardhurl','Facet Barrage','Prism Slam'] },
+  // ★★ v0.95.979 · VAMPELLA · Creator: "add vampella populations to vorashil
+  // and xilnar."  Index says {n:'Vampella',t:2,ty:'Beast/Spirit'} — followed.
+  // ★ A bat: SPD 165 is the fastest T2 in the game (Aurelik held it at 160),
+  // paid for out of a thin 78 DEF.
+  vampella:   { id:'vampella',   name:'Vampella',   tier:2, type:'Beast',        type2:'Spirit',
+    baseHP:90, baseATK:110, baseDEF:78, baseSPD:165, baseSATK:133, baseSDEF:90,   // sum 666
+    moves:['Wraith Touch','Spirit Orb','Soul Rend','Nether Judgment'] },
+  // ★★ v0.95.979 · XYTABYTE · Creator: "xytabyte walking sprite sheet. add to
+  // thardin wilds."  An armoured spider with a gatling gun bolted to its back,
+  // and Thardin is the Mechlands — it belongs there by design, not by placement.
+  // ★ T7, and that is a deliberate choice rather than a guess. The wild level
+  // law is tier x 10, and Thardin's band runs Lv70-83; a T7 wild spawns at
+  // exactly Lv70 and meets its district instead of undercutting it. T7 was also
+  // an EMPTY TIER — the roster had no T7 species at all — so this fills a real
+  // hole in the ladder rather than crowding a full rung.
+  // ★ A gun platform: heavy ATK and DEF, paid for with SPD 210.
+  // ★★ ATK WAS 520 AND CAME DOWN TO 450, because verify_zyrex_damage caught the
+  // consequence: at 520 this single T7 out-damaged the whole T8 tier (231 vs
+  // 216) and broke the ladder's monotonicity. The break was real but the cause
+  // was not overtuning — 520/2331 is 22.3%, inside the normal 13-25% band —
+  // it is that T8 is DEFENSIVELY built (Mealux spends only 12.4% on ATK). Still
+  // fixed here rather than in the test: this stat line is an hour old and T8's
+  // is canon, so the new number yields to the established one. 70 points moved
+  // into HP and DEF, which a siege platform wants anyway.
+  xytabyte:   { id:'xytabyte',   name:'Xytabyte',   tier:7, type:'Tech',         type2:'Creature',
+    baseHP:400, baseATK:450, baseDEF:500, baseSPD:210, baseSATK:451, baseSDEF:320,   // sum 2331
+    moves:['Servo Punch','Zap Circuit','Overload Beam','Meltdown Core'] },
+  // ★★ v0.95.979 · VENGRIZZ · Creator: "you unlock vengrizz after you bring the
+  // lost boy to his parents in andrannor."
+  // ★★★ HE IS THE BEAR. The Lost Boy has stood outside the Andrannor cottage
+  // since v0.95.705, and his one line is *"he holds the bear tighter and does
+  // not answer."* The reward for reuniting him with his parents is the toy he
+  // would not let go of — that was already written into the world, waiting.
+  // ★ Index says {n:'Vengrizz',t:2,ty:'Spirit/Beast'} — followed.
+  // ★ NOT in any wild pool, and that is the point: he is quest-only, the way
+  // Elzebub is starter-only ([[aov-catching-philosophy]]).
+  vengrizz:   { id:'vengrizz',   name:'Vengrizz',   tier:2, type:'Spirit',       type2:'Beast',
+    baseHP:120, baseATK:150, baseDEF:95, baseSPD:140, baseSATK:86, baseSDEF:75,   // sum 666
+    moves:['Wraith Touch','Spirit Orb','Soul Rend','Nether Judgment'] },
   aetherwing: { id:'aetherwing', name:'Aetherwing', tier:1, type:'Creature',      type2:null,
     baseHP:43, baseATK:47, baseDEF:40, baseSPD:80, baseSATK:73, baseSDEF:50,
     evolveTo:'rhinoxis',   evolveLv:20, moves:['Antenna Jab','Chitin Cut','Hivestorm','Endless Brood'] },
@@ -37696,6 +37854,7 @@ const MALEZOR_WILD_POOL = [
   'vipercrow','vipercrow','vipercrow',
   'votimite','votimite','votimite',
   'vulkarmor','vulkarmor','vulkarmor',
+  'wynwyrm','wynwyrm','wynwyrm',       // ★ v0.95.979 · same x3 weight as every other T1
   // T2 x1 each
   'aurelik', 'gravvik',
 ];
@@ -37708,6 +37867,10 @@ const ZARVANE_WILD_POOL = [
   // T2 x3 each · main tier
   'aurelik','aurelik','aurelik',
   'gravvik','gravvik','gravvik',
+  // ★ v0.95.979 · TERRALITH · Creator: "add terralith populations to zarvane."
+  // Weighted x2 like the other T1s in this pool, so it is a common sight in the
+  // sand rather than a rarity — a "population", which is what was asked for.
+  'terralith','terralith',
   // T3 x1 each · rare
   'aureliox', 'gravvox',
 ];
@@ -37744,6 +37907,56 @@ function xpToNextLevel(lv){
 // PP per move slot · user 2026-08-05: 1st=20 · 2nd=15 · 3rd=10 · 4th=5
 const MOVE_PP_BY_SLOT = [20, 15, 10, 5];
 
+// ★★★ v0.95.979 · VENGRIZZ · the reward for reuniting the Lost Boy.
+//
+// ★ HE IS THE BEAR.  The boy has stood outside the Andrannor cottage since
+// v0.95.705 and his only line is that he *holds the bear tighter*.  The gift is
+// the toy he would not let go of, which means the reward was written into the
+// world years of versions before the creature had art.
+//
+// ★ ONE CALL, IDEMPOTENT.  The parents quest can call this from wherever it
+// ends up living; `vengrizzGifted` makes a second call a no-op, so a quest that
+// fires its completion twice cannot hand out two bears.
+// ★ bypassBondGate, like Mom's Elzebub: a creature handed over in a scene must
+// not bounce to the PC because the player's bond ledger is young
+// ([[aov-sanctuary]] · [[aov-bond-tier-gate]]).
+// ★★★ v0.95.979 · VOLCAXOR'S STAMINA RIG · Creator: "tech upgrade from thardin
+// to power its stamina."
+//
+// ★ WIRED AS A GATE, NOT A QUEST — same discipline as the Lost Boy above. The
+// Thardin side of it (who sells it, what it costs) is the Creator's to design;
+// what exists here is the single call that turns it on and the one flag every
+// other system should read. Until something calls it, nothing changes.
+// ★ The effect belongs on the CREATURE, not the player: a bonded Volcaxor that
+// has the rig keeps running without tiring. `volcaxorRigged` is per-save
+// because the upgrade is a thing you bought once, not a thing each bear owns.
+function volcaxorHasStaminaRig(){ return !!player.volcaxorRigged; }
+function grantVolcaxorStaminaRig(){
+  if (player.volcaxorRigged) return false;
+  player.volcaxorRigged = true;
+  try { playSFX('confirm'); } catch(_){}
+  showToast('★ THARDIN RIG FITTED · Volcaxor runs without tiring', 3600);
+  try { saveGame(); } catch(_){}
+  return true;
+}
+function grantVengrizz(){
+  if (player.vengrizzGifted) return null;
+  player.vengrizzGifted = true;
+  const z = (typeof createZyrex === 'function') ? createZyrex('vengrizz', 20) : null;
+  if (z){
+    try { addZyrexToRoster(z, { bypassBondGate: true }); } catch(_){}
+    try { playSFX('confirm'); } catch(_){}
+    showToast('★ VENGRIZZ joined your faction · the boy pressed the bear into your hands', 4200);
+    showDialog({ speaker: 'THE LOST BOY', lines: [
+      '*he is holding his mother with both arms, so the bear is on the ground between you*',
+      '"You can have him."',
+      '*you start to say no*  "He gets loud at night. He was keeping me company."',
+      '*the bear sits up on its own, looks at the boy once, and follows you instead*',
+    ]});
+  }
+  try { saveGame(); } catch(_){}
+  return z;
+}
 function createZyrex(speciesId, level){
   const sp = SPECIES[speciesId];
   if (!sp) return null;
@@ -38345,6 +38558,9 @@ function saveGame(){
         hasBackpack:                !!player.hasBackpack,
         raidCardGifted:             !!player.raidCardGifted,
         depthCam:                   !!player.depthCam,           // ★ v0.95.978 · display preference
+        vengrizzGifted:             !!player.vengrizzGifted,     // ★ v0.95.979 · Lost Boy reward
+        lostBoyReunited:            !!player.lostBoyReunited,    // ★ v0.95.979 · the quest's own flag
+        volcaxorRigged:             !!player.volcaxorRigged,     // ★ v0.95.979 · Thardin stamina rig
         momNotebookGiven:           !!player.momNotebookGiven,   // ★ v0.95.972 · the courier errand
         dadNotebookGifted:          !!player.dadNotebookGifted,
         // ★★ v0.95.972 · PRE-EXISTING BUG, found while wiring the errand:
@@ -43292,6 +43508,119 @@ const SUMMONABLE_SPRITES = {
       ],
     },
   },
+  // ★★ v0.95.979 · WYNWYRM · idle amble, 4x4.
+  // ★ scaleMul 0.55 is Aetherwing's own number, taken because the Creator
+  // asked for an "aetherwing class" spawn and the class is a SIZE as much as a
+  // tier: front-view drawn height 50px against Aetherwing's 47.
+  // ★ The side rows draw at 35px against the front's 50, and that is the
+  // creature rather than a squash — a caterpillar seen side-on IS long and
+  // low, the same foreshortening Elzimir has and Phrenetic could not have.
+  // ★ ONE AUDIT FLAG, reported not hidden: the ground line drifts 6px across
+  // row 0 and 4px across row 1 (rows 2-3 are flat). At this draw scale that is
+  // about 1px on screen — visible as a faint bob while it stands still, and a
+  // redraw is the only real fix since the engine plants each frame on its own
+  // bottom edge.
+  wynwyrm: {
+    src: 'assets/2D%20sprites/zyrex/wynwyrm.png',
+    bboxes: [
+      [[ 77, 58,180,277],[ 53, 54,193,285],[ 38, 53,181,287],[ 32, 54,180,280]],
+      [[ 33, 95,274,195],[  7, 98,289,195],[  3,101,274,193],[-17, 98,278,193]],
+      [[ 29, 54,261,193],[  9, 60,282,190],[  2, 60,269,190],[-18, 60,272,190]],
+      [[ 88,-22,138,293],[ 70,-22,130,293],[ 63,-21,135,290],[ 62,-22,149,291]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.55,   // Aetherwing class · a small grub
+  },
+  // ★★ v0.95.979 · TERRALITH · idle plod, 4x4.
+  // ★ scaleMul 0.62, above Aetherwing's 0.55 · a tortoise should read as a
+  // solid thing you walk around, not as something that could be blown away.
+  // ★ One audit flag, reported: row 0's ground line drifts 8px. At this scale
+  // that is ~2px on screen, and only the front-facing row.
+  terralith: {
+    src: 'assets/2D%20sprites/zyrex/terralith.png',
+    bboxes: [
+      [[ 36, 52,236,258],[ 29, 51,242,255],[ 31, 49,238,265],[ 30, 48,233,265]],
+      [[ 19, 71,279,210],[ 10, 74,282,208],[  9, 75,277,207],[  3, 72,277,208]],
+      [[ 21, 47,281,211],[ 18, 52,279,207],[  8, 55,279,204],[  6, 52,277,206]],
+      [[ 40, 15,230,250],[ 36, 15,232,250],[ 30, 15,230,250],[ 29, 15,231,250]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.62,   // heavier than the bugs · a shell on legs
+  },
+  // ★★ v0.95.979 · VAMPELLA · a WINGBEAT, and the audit hates it for the wrong
+  // reason.
+  // ★ audit_sheet_frames reports TEN size outliers on this sheet — frames 0 and
+  // 3 tall (281px) against frames 1 and 2 short (180px). That check assumes a
+  // walk cycle, where constant size is the law (frame rule 2). This is a flier:
+  // read the WIDTHS beside the heights — 243 / 280 / 348 / 234 — and the cycle
+  // is obvious. Wings up and folded is tall and narrow; wings out is wide and
+  // low. The silhouette changing IS the animation, and the body stays put while
+  // it happens (ground line drifts 5px). Correct art; a rule aimed at walkers.
+  vampella: {
+    src: 'assets/2D%20sprites/zyrex/vampella.png',
+    bboxes: [
+      [[ 40, 21,243,281],[  8,123,280,180],[-21,124,348,183],[ 36, 89,234,213]],
+      [[ 60, 26,163,279],[ 40,108,218,197],[ 37,130,263,174],[ 47, 47,159,257]],
+      [[ 81, 26,172,264],[ 56,101,216,191],[ 16,121,263,172],[ 86, 47,169,242]],
+      [[ 40,  1,242,280],[  8,100,280,181],[-21,100,349,181],[ 36, 66,235,213]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 0.55,   // T2 · about one tile, a bat not a dragon
+  },
+  // ★★ v0.95.979 · XYTABYTE · the cleanest sheet delivered this session:
+  // audit_sheet_frames returns ZERO issues — 16/16 components, flat ground
+  // lines, no dead frames, RIGHT a true mirror of LEFT at 0.97.
+  // ★ scaleMul 1.05 · a T7 siege spider should stand over the Rizer.
+  xytabyte: {
+    src: 'assets/2D%20sprites/zyrex/xytabyte.png',
+    bboxes: [
+      [[ 24, 52,264,265],[ 26, 28,265,289],[ 25, 52,266,265],[ 26, 34,264,281]],
+      [[ 17, 66,272,237],[ 17, 66,273,237],[ 18, 66,273,237],[ 18, 66,274,237]],
+      [[ 21, 66,275,238],[ 22, 67,275,237],[ 22, 67,275,237],[ 23, 66,275,238]],
+      [[ 23, 30,266,273],[ 23, 30,268,273],[ 24, 30,267,273],[ 24, 30,268,274]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 1.05,   // T7 · a walking gun emplacement
+  },
+  // ★★ v0.95.979 · VENGRIZZ · idle + run, and scaled to the BIG CLASS.
+  //
+  // Creator: *"vengrizz idle animation sheet. also remember to scale him to
+  // size of glaciogre and the big class zyrex."*
+  //
+  // ★ THE RUN IS NOW `runSrc`, WHERE IT BELONGS.  It shipped first and had to
+  // act as `src` for one version because a runSrc with no idle to run FROM
+  // resolves to nothing. The idle has landed, so the convention is restored:
+  // src = idle, runSrc = traversal.
+  //
+  // ★★ scaleMul 1.15 puts him at 110px, which IS the big class rather than my
+  // estimate of it — measured off the banks already shipped:
+  //        rakoron 144 · apexaur 134 · voltigrax 118 · snok 113 ·
+  //        mealux 110 · elzoran 110 · volcaxor 106 · phrenetic 104
+  // He was at 69px on the run-only wiring, which read as a toy underfoot. He is
+  // a toy that bites, and at 110 he stands with the Elzoran.
+  //
+  // ★ runRefBh 314 · THE PIN THAT ELZORAN NEEDED (v0.95.968/970).  Both draw
+  // paths normalise a traversal bank against ITS OWN tallest col-0 unless told
+  // otherwise, and the run measures 323 against the idle's 314 — so unpinned he
+  // would shrink 3% the instant he started moving and grow back when he
+  // stopped. Small, constant, and exactly the kind of wrongness nobody can name
+  // while watching it. Declared in BOTH forms because the follower path and the
+  // wild draw read different fields.
+  vengrizz: {
+    src: 'assets/2D%20sprites/zyrex/vengrizz.png',
+    bboxes: [
+      [[ 60, 25,223,314],[ 50, 25,222,314],[ 42, 25,222,314],[ 32, 25,221,314]],
+      [[ 65, 63,181,272],[ 59, 63,181,272],[ 51, 63,181,272],[ 37, 63,180,272]],
+      [[ 78, 50,179,268],[ 69, 50,180,268],[ 60, 50,181,268],[ 50, 50,181,268]],
+      [[ 60, 14,196,265],[ 49, 14,199,266],[ 42, 13,201,266],[ 34, 13,197,266]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 1.15,   // ★ big class · shoulder to shoulder with Elzoran
+    runSrc: 'assets/2D%20sprites/zyrex/vengrizz-run.png',
+    runRefBh: 314,                            // ★ follower path · the idle's yardstick
+    runRowRefBh: [314, 314, 314, 314],        // ★ wild path · same number, per row
+    runBboxes: [
+      [[ 60, 25,228,323],[ 52, 25,223,312],[ 43, 25,226,323],[ 33, 25,225,312]],
+      [[ 63, 58,206,271],[ 42, 61,226,268],[ 45, 59,206,270],[ 29, 60,211,269]],
+      [[ 60, 46,207,267],[ 42, 46,227,267],[ 44, 46,207,267],[ 28, 46,212,267]],
+      [[ 53,  7,206,282],[ 44,  6,208,279],[ 37,  7,212,282],[ 28,  7,212,282]],
+    ],
+  },
   aetherwing: {
     src: 'assets/2D%20sprites/zyrex/aetherwing.png',
     bboxes: [
@@ -46292,6 +46621,67 @@ const MALEZOR_WILD_FIXED = [
 const WILD_PLACEMENT_LIVE = [
   { id: 'aetherwing', at: [42, 49], dist: 'malezor', habitat: 'hub_fringe', temperament: 'Skittish' },
   { id: 'aetherwing', at: [41, 97], dist: 'malezor', habitat: 'meadow', temperament: 'Calm', graze: 4 },
+  // ★★ v0.95.979 · WYNWYRM · "similar spawns to aetherwing class zyrex", so it
+  // gets the same TWO pins in the same two habitats, on its own tiles.
+  // ★ Both Calm.  Aetherwing's fringe pin is Skittish because it can fly off;
+  // a grub that tops out at SPD 33 — the slowest thing in the starting pool —
+  // cannot run from anything, and a creature that flees at a speed you can
+  // stroll past reads as broken rather than as timid.  Standing its ground is
+  // the honest behaviour for this body, and it makes Wynwyrm the T1 a new
+  // player can actually reach with their first Zysphere.
+  { id: 'wynwyrm', at: [35, 54], dist: 'malezor', habitat: 'hub_fringe', temperament: 'Calm' },
+  { id: 'wynwyrm', at: [46, 102], dist: 'malezor', habitat: 'meadow', temperament: 'Calm', graze: 4 },
+  // ★★ v0.95.979 · TERRALITH · ZARVANE.  Creator: "add terralith populations to
+  // zarvane."  Four pins spread across the district rather than one showpiece —
+  // a POPULATION is something you meet repeatedly in different places, and one
+  // pinned individual would have read as a set-piece.
+  // ★ Every tile below was checked against the BOOTED world (district, land,
+  // border, _propBlocked, NPC and wild occupancy). The first Wynwyrm pins I
+  // wrote by eye were both inside props and verify_flocks caught them.
+  // ★ Territorial: it is a walking rock with DEF 90 and SPD 20. It cannot flee,
+  // so it does not — the same reasoning that made Wynwyrm Calm, pointed the
+  // other way by a creature that can afford to stand.
+  { id: 'terralith', at: [154, 278], dist: 'zarvane', habitat: 'meadow',     temperament: 'Territorial', graze: 4 },
+  { id: 'terralith', at: [ 72, 312], dist: 'zarvane', habitat: 'hub_fringe', temperament: 'Territorial' },
+  { id: 'terralith', at: [118, 218], dist: 'zarvane', habitat: 'meadow',     temperament: 'Calm', graze: 4 },
+  { id: 'terralith', at: [159, 335], dist: 'zarvane', habitat: 'wild',       temperament: 'Territorial' },
+  // ★★ v0.95.979 · VAMPELLA · VORASHIL + XILNAR.  Creator: "add vampella
+  // populations to vorashil and xilnar."  Four each, same spread reasoning.
+  // ★ Skittish, and here that IS earned: SPD 165 is the fastest T2 in the game,
+  // so a Vampella that bolts is genuinely hard to follow. Wynwyrm at SPD 33
+  // could not make that behaviour mean anything; this one can.
+  { id: 'vampella', at: [332, 550], dist: 'vorashil', habitat: 'hub_fringe', temperament: 'Skittish' },
+  { id: 'vampella', at: [270, 575], dist: 'vorashil', habitat: 'wild',       temperament: 'Skittish' },
+  { id: 'vampella', at: [304, 506], dist: 'vorashil', habitat: 'meadow',     temperament: 'Wary', graze: 4 },
+  { id: 'vampella', at: [335, 591], dist: 'vorashil', habitat: 'wild',       temperament: 'Wary' },
+  { id: 'vampella', at: [453, 655], dist: 'xilnar',   habitat: 'hub_fringe', temperament: 'Skittish' },
+  { id: 'vampella', at: [389, 680], dist: 'xilnar',   habitat: 'wild',       temperament: 'Skittish' },
+  { id: 'vampella', at: [424, 611], dist: 'xilnar',   habitat: 'meadow',     temperament: 'Wary', graze: 4 },
+  { id: 'vampella', at: [457, 696], dist: 'xilnar',   habitat: 'wild',       temperament: 'Wary' },
+  // ★★ v0.95.979 · XYTABYTE · THARDIN.  Creator: "add to thardin wilds."
+  // ★ Dominant, not Territorial: a T7 with the highest ATK in the game does not
+  // warn you off its patch, it comes over. Tiles verified against the booted
+  // world, same as the rest.
+  { id: 'xytabyte', at: [765, 655], dist: 'thardin', habitat: 'wild',       temperament: 'Dominant' },
+  { id: 'xytabyte', at: [698, 681], dist: 'thardin', habitat: 'hub_fringe', temperament: 'Dominant' },
+  { id: 'xytabyte', at: [735, 609], dist: 'thardin', habitat: 'wild',       temperament: 'Territorial' },
+  { id: 'xytabyte', at: [769, 699], dist: 'thardin', habitat: 'meadow',     temperament: 'Territorial', graze: 4 },
+  // ★★★ v0.95.979 · VOLCAXOR · BAELGOR'S APEX.
+  // ★ Dominant on every pin — an apex predator has no timid variant, and the
+  // three-of-four spread other species get would misrepresent it.
+  // ★ NO `graze`. Grazing is a standing behaviour and this creature does not
+  // stand; leaving it off is what keeps "always running" true in the sim as
+  // well as in the art.
+  // ★★ ONE TENSION, FLAGGED NOT BURIED: the wild level law is tier x 10 with no
+  // caller override ("a law with an escape hatch is a suggestion"), so a T5
+  // spawns at Lv50 — while Baelgor's own band runs Lv62-72. The apex of the
+  // district therefore arrives UNDER it. I have not overridden the law to hide
+  // that; either Volcaxor wants retiering to T7, or the law wants an
+  // apex exception. That is a Creator call, not a silent edit.
+  { id: 'volcaxor', at: [611, 655], dist: 'baelgor', habitat: 'wild',       temperament: 'Dominant' },
+  { id: 'volcaxor', at: [541, 682], dist: 'baelgor', habitat: 'wild',       temperament: 'Dominant' },
+  { id: 'volcaxor', at: [580, 606], dist: 'baelgor', habitat: 'hub_fringe', temperament: 'Dominant' },
+  { id: 'volcaxor', at: [615, 701], dist: 'baelgor', habitat: 'wild',       temperament: 'Dominant' },
   { id: 'mutamech', at: [66, 306], dist: 'zarvane', habitat: 'highland', temperament: 'Territorial' },
   { id: 'mutamech', at: [-15, 273], dist: 'zarvane', habitat: 'cave_mouth', temperament: 'Territorial' },
   { id: 'snok', at: [311, 341], dist: 'andrannor', habitat: 'highland', temperament: 'Territorial' },
@@ -50350,6 +50740,9 @@ function frame(now){
   // ★ v0.95.978 · depth camera · blends the previous frame in HERE, after the
   // world and before the HUD, so the interface never smears with it.
   try { applyDepthCamera(); } catch(_){}
+  // ★ v0.95.979 · level-up banner · drawn AFTER the blur on purpose, so it
+  // stays crisp while the world behind it smears.
+  try { drawLevelUpBanner(); } catch(_){}
   try { tickWildBond(now); } catch(err){ console.warn('[rp7b] wild bond tick', err); }   // ★ v0.95.866
   try { tickZorynCompanion(now); } catch(err){ console.warn('[rp7b] zoryn tick', err); }  // ★ v0.95.906
   try { drawWildBondOverlay(); } catch(err){ console.warn('[rp7b] wild bond draw', err); }
@@ -52232,6 +52625,8 @@ function awardRizerXP(amount){
     try { playSFX('confirm'); } catch(_){}
     // v0.95.540 · Rizer level-up VO fires on EVERY level 1-100
     try { playSFX('levelUp'); } catch(_){}
+    // ★ v0.95.979 · and the banner that points at the unspent AP
+    try { showLevelUpBanner(); } catch(_){}
     // v0.95.713 · every level hands over its share of the 33.3/level pool.
     // The number in the toast is MEASURED from the pool delta, never a literal
     // 33 — floor(L × 33.3) alternates 33/33/33/34, and a toast that claimed a

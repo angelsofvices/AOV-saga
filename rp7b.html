@@ -11614,11 +11614,35 @@ const NPCS = [
     src:   'assets/2D%20sprites/zyrex/apexaur.png',
     // v0.95.306 · Bboxes widened for LEFT (tail-on-right) and RIGHT (tail-on-left)
     // so the tail overflow into adjacent cells isn't cropped · Down/Up rows compact
+    // ★★★ v0.95.982 · THE CUT NOSE.  Creator: *"some of apexaur frames are
+    // cropped... the nose sometimes gets cut."*
+    //
+    // ★ ONE FRAME IN SIXTEEN, and the one it had to be. Re-measuring every cell
+    // by connected component against the shipped table found exactly one that
+    // clipped real art:
+    //        RIGHT f0 · box spanned x -30..280 · art spans x 18..298
+    // The box ended 18px short of the art's right edge — and the RIGHT row
+    // faces right, so the right edge IS the snout. Every other frame was either
+    // exact or roomy, which is why it read as intermittent rather than broken.
+    //
+    // ★★ THE TELL WAS SITTING IN THE SAME OBJECT.  `runBboxes` below already
+    // held the correct measurement for all sixteen — the walk sheet and the
+    // idle sheet are drawn on one rig and measure identically. So the idle
+    // table was the only wrong one, and the right answer was already in the
+    // file, twelve lines down. The old row-2 entries also carried negative
+    // origins as far as -30 with widths up to 343, which is a box drawn around
+    // where the creature ISN'T: it reached back into the previous cell and
+    // still fell short on the side that mattered.
+    //
+    // ★ Replaced wholesale with the measurement rather than nudging the one
+    // frame. A table where fifteen entries are approximately right and one is
+    // wrong is a table nobody can check by eye; now the two banks are
+    // identical, and any future divergence between them is itself the bug report.
     bboxes: [
-      [[44, 62,195,244],[35, 71,194,235],[22, 71,197,235],[22, 71,194,235]],
-      [[30, 86,313,184],[ 0, 86,338,185],[ 8, 84,320,187],[ 6, 85,321,186]],
-      [[-30, 59,311,189],[-23, 59,310,188],[-30, 59,343,188],[-21, 59,287,188]],
-      [[93, 11,192,238],[90, 15,188,236],[86, 15,182,232],[78, 12,187,235]],
+      [[  44,  63, 195, 242],[  36,  71, 193, 235],[  22,  71, 197, 234],[  22,  71, 194, 234]],
+      [[  30,  86, 286, 183],[  23,  87, 285, 183],[   8,  84, 289, 186],[   6,  86, 291, 184]],
+      [[  18,  59, 281, 188],[   7,  59, 280, 188],[   0,  59, 273, 188],[ -21,  59, 287, 188]],
+      [[  94,  12, 191, 237],[  90,  15, 188, 236],[  86,  15, 182, 232],[  79,  12, 186, 235]],
     ],
     cellW: 313, cellH: 313, cols: 4, rows: 4,
     uniformScale: true,
@@ -43689,6 +43713,36 @@ const SUMMONABLE_SPRITES = {
       [[ 53,  7,206,282],[ 44,  6,208,279],[ 37,  7,212,282],[ 28,  7,212,282]],
     ],
   },
+  // ★★★ v0.95.982 · VOLCAXOR · RESTORED.  Creator: "apex beast of baelgor
+  // wilds. always running. tech upgrade from thardin to power its stamina."
+  //
+  // ★★ THIS BANK WAS WRITTEN AT v0.95.979 AND I DELETED IT MYSELF, in the same
+  // session, without noticing. The Vengrizz rewire replaced a block by slicing
+  // `from its own comment TO the next "  aetherwing: {"` — and Volcaxor's bank
+  // had been inserted into exactly that gap an hour earlier. The slice ate it.
+  // It shipped absent in v0.95.979, v0.95.980 and v0.95.981: four wild Apexaur-
+  // class predators pinned in Baelgor with no sprite to draw.
+  //
+  // ★ NOTHING ERRORED. The species existed, the pins existed, the PNG was on
+  // disk — only the lookup between them was gone, and a missing bank draws
+  // nothing rather than throwing. It was caught by the census counting
+  // SUMMONABLE_SPRITES per species, which is the whole argument for checking a
+  // list against the world instead of trusting that an edit did what it said.
+  // ★ THE LESSON IS ABOUT THE EDIT, not about Volcaxor: index-to-index slicing
+  // deletes whatever happens to be in the middle, and "whatever happens to be
+  // in the middle" is invisible in a diff you did not read.
+  //
+  // ★ It has no idle by design — "always running" — so the run sheet is `src`.
+  volcaxor: {
+    src: 'assets/2D%20sprites/zyrex/volcaxor-run.png',
+    bboxes: [
+      [[ 36, 24,303,311],[ 53, 25,237,309],[ 21, 33,256,301],[  8, 34,254,299]],
+      [[ 30, 71,292,218],[ 17, 82,284,203],[  2, 77,292,214],[  3, 77,289,215]],
+      [[ 16, 42,290,208],[ 13, 43,279,205],[-11, 43,285,209],[ -8, 47,271,204]],
+      [[ 66, -9,217,277],[ 52, -2,193,270],[ 45,  3,196,273],[ 23,  2,192,271]],
+    ],
+    cellW: 313, cellH: 313, scaleMul: 1.10,   // T5 apex · bigger than the Rizer
+  },
   aetherwing: {
     src: 'assets/2D%20sprites/zyrex/aetherwing.png',
     bboxes: [
@@ -43766,10 +43820,14 @@ const SUMMONABLE_SPRITES = {
   apexaur: {
     src: 'assets/2D%20sprites/zyrex/apexaur.png',
     bboxes: [
-      [[44, 62,195,244],[35, 71,194,235],[22, 71,197,235],[22, 71,194,235]],
-      [[30, 86,313,184],[ 0, 86,338,185],[ 8, 84,320,187],[ 6, 85,321,186]],
-      [[-30, 59,311,189],[-23, 59,310,188],[-30, 59,343,188],[-21, 59,287,188]],
-      [[93, 11,192,238],[90, 15,188,236],[86, 15,182,232],[78, 12,187,235]],
+      // ★★★ v0.95.982 · THE CUT NOSE, second copy.  This is the SUMMON bank;
+      // the wild Apexaur NPC carries its own duplicate of the same table and
+      // had the identical defect. ★ TWO TABLES FOR ONE CREATURE is the deeper
+      // bug — the fix had to be applied twice, and a future one will too.
+      [[  44,  63, 195, 242],[  36,  71, 193, 235],[  22,  71, 197, 234],[  22,  71, 194, 234]],
+      [[  30,  86, 286, 183],[  23,  87, 285, 183],[   8,  84, 289, 186],[   6,  86, 291, 184]],
+      [[  18,  59, 281, 188],[   7,  59, 280, 188],[   0,  59, 273, 188],[ -21,  59, 287, 188]],
+      [[  94,  12, 191, 237],[  90,  15, 188, 236],[  86,  15, 182, 232],[  79,  12, 186, 235]],
     ],
     cellW: 313, cellH: 313, scaleMul: 1.4,
     // ★★★ v0.95.898 · THE WALK · Creator: "apexaur walking animation.
@@ -46759,6 +46817,23 @@ const WILD_PLACEMENT_LIVE = [
   { id: 'volcaxor', at: [541, 682], dist: 'baelgor', habitat: 'wild',       temperament: 'Dominant' },
   { id: 'volcaxor', at: [580, 606], dist: 'baelgor', habitat: 'hub_fringe', temperament: 'Dominant' },
   { id: 'volcaxor', at: [615, 701], dist: 'baelgor', habitat: 'wild',       temperament: 'Dominant' },
+  // ★★ v0.95.982 · FROSANE · VORASHIL + XILNAR.  Creator: "add frosane
+  // populations to vorashil and xilnar."
+  // ★ Four pins each, on tiles distinct from the Vampella pins already in these
+  // two districts — checked against the booted world, and against each other,
+  // so the two species share the range without sharing a square.
+  // ★ Wary, not Skittish: an ice bird at SPD 43 is quick enough for fleeing to
+  // mean something, but nowhere near Vampella's 165, so it watches rather than
+  // bolts. The two now read as different animals in the same country, which is
+  // the point of putting them in the same country.
+  { id: 'frosane', at: [234, 540], dist: 'vorashil', habitat: 'meadow',     temperament: 'Wary', graze: 4 },
+  { id: 'frosane', at: [363, 513], dist: 'vorashil', habitat: 'wild',       temperament: 'Wary' },
+  { id: 'frosane', at: [279, 624], dist: 'vorashil', habitat: 'hub_fringe', temperament: 'Calm' },
+  { id: 'frosane', at: [285, 525], dist: 'vorashil', habitat: 'meadow',     temperament: 'Calm', graze: 4 },
+  { id: 'frosane', at: [351, 645], dist: 'xilnar',   habitat: 'meadow',     temperament: 'Wary', graze: 4 },
+  { id: 'frosane', at: [486, 618], dist: 'xilnar',   habitat: 'wild',       temperament: 'Wary' },
+  { id: 'frosane', at: [398, 729], dist: 'xilnar',   habitat: 'hub_fringe', temperament: 'Calm' },
+  { id: 'frosane', at: [405, 630], dist: 'xilnar',   habitat: 'meadow',     temperament: 'Calm', graze: 4 },
   { id: 'mutamech', at: [66, 306], dist: 'zarvane', habitat: 'highland', temperament: 'Territorial' },
   { id: 'mutamech', at: [-15, 273], dist: 'zarvane', habitat: 'cave_mouth', temperament: 'Territorial' },
   { id: 'snok', at: [311, 341], dist: 'andrannor', habitat: 'highland', temperament: 'Territorial' },

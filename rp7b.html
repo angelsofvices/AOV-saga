@@ -36421,7 +36421,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.23' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.24' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -56394,6 +56394,24 @@ function _readCrumb(){
   return c;
 }
 
+// ★★ A REAL fps meter, sampled off actual frame completions rather than a
+//    timer — a stalled loop must read LOW, not merely stop updating.
+let _fpsRing = new Float64Array(30), _fpsAt = 0, _fpsPrev = 0;
+function _fpsTick(now){
+  if (_fpsPrev){ _fpsRing[_fpsAt = (_fpsAt + 1) % 30] = now - _fpsPrev; }
+  _fpsPrev = now;
+}
+function _fpsNow(){
+  let sum = 0, n = 0;
+  for (let i = 0; i < 30; i++) if (_fpsRing[i] > 0){ sum += _fpsRing[i]; n++; }
+  if (!n) return 0;
+  // ★ if the last completed frame is already ancient, report THAT, not the
+  //   stale average — a loop that died 4 seconds ago is 0 fps, not 60
+  const since = performance.now() - _fpsPrev;
+  if (since > 400) return Math.max(0, Math.round(1000 / since));
+  return Math.round(1000 / (sum / n));
+}
+
 // ★ Oldest-first, so the dump reads like a timeline instead of a ring.
 function flightRows(){
   const out = [];
@@ -56979,6 +56997,7 @@ function _frameBody(now){
   // ★★★ v0.96.18 · the black box. LAST statement of the body, so reaching it
   //   is itself the proof the frame completed — that is what _lastBodyDone
   //   means and why frameStalled() can trust it.
+  _fpsTick(now);
   recordFlight(now, 'frame');
   _writeCrumb(false);
   _lastBodyDone = now;
@@ -59375,9 +59394,76 @@ function updateHUD(){
     : game.scene === 'interior_crazy_home' ? "crazy's house"
     : game.scene === 'interior_cave'       ? 'cave'
     : game.scene;
-  const s = `TILE (${player.x}, ${player.y}) · ${sceneLabel}`;
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ v0.96.24 · THE LABEL THAT ENDS THE GUESSING.
+  //
+  //   Creator: "none of these fixes have worked so far."
+  //
+  // ★★★ HE IS RIGHT, AND THE REASON IS METHOD, NOT LUCK. Nine reports, nine
+  //   fixes, every one of them a real bug and not one of them HIS bug. I have
+  //   been reasoning from a screenshot to a theory to a patch — and I have
+  //   never once been able to say what BUILD he was running, so a fix and a
+  //   freeze have never been provably about the same code.
+  //
+  // ★★★ AND TWO INCOMPATIBLE THEORIES ARE STILL ALIVE:
+  //     (a) a LOCK · frames still run at 60, the player simply cannot move
+  //     (b) a STALL · frames collapse to 2-3 fps and the picture stops
+  //   Everything else I could see is consistent with both. ONE NUMBER tells
+  //   them apart, and it belongs where I will actually see it: this label is
+  //   already on screen in every screenshot he has ever sent.
+  //
+  // ★ So it now carries the BUILD, the FPS, and any live freeze reason. No
+  //   console, no keypress, no DevTools — just the next screenshot.
+  // ══════════════════════════════════════════════════════════════════════
+  let extra = '';
+  try {
+    const fps = _fpsNow();
+    extra = ` · v${AOV_BUILD.patch} · ${fps} fps`;
+    if (fps > 0 && fps < 20) extra += ' ⚠ STALLING';
+    const why = (typeof tryMove === 'function' && tryMove._lastReason) || '';
+    if (why) extra += ` · ⛔ ${why}`;
+    if (frame._badStep && frame._badStep.size) extra += ` · ✖ ${[...frame._badStep].join('/')}`;
+  } catch(_){}
+  const s = `TILE (${player.x}, ${player.y}) · ${sceneLabel}${extra}`;
   if (s !== _hudLast){ _hudEl.textContent = s; _hudLast = s; }
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.24 · A WATCHDOG THAT DOES NOT LIVE IN THE FRAME LOOP.
+//
+// ★★★ THE FLAW IN EVERY DIAGNOSTIC I HAVE SHIPPED SO FAR: they all run inside
+//   the thing being diagnosed. The stuck banner draws from the frame. The tile
+//   label updates from the frame. The flight recorder records from the frame.
+//   If the frame is what stopped, ALL OF THEM FREEZE WITH IT, showing the last
+//   good value — which is exactly how a stalled game shows "60 fps" forever and
+//   tells you nothing.
+//
+// ★ setInterval is a different clock. It keeps firing when rAF is throttled,
+//   when the loop is slow, and when a frame throws. It writes straight into the
+//   DOM, so it cannot be blocked by a canvas paint that never happens. The only
+//   thing that stops it is a fully blocked main thread — and that case is
+//   distinguishable too, because then the label freezes at a LOW number instead
+//   of a high one.
+setInterval(() => {
+  try {
+    const el = document.getElementById('hud');
+    if (!el) return;
+    const now = performance.now();
+    const since = _lastBodyDone ? (now - _lastBodyDone) : 0;
+    // the loop has not finished a frame in a while → say so, loudly, here
+    if (_lastBodyDone && since > 700){
+      el.textContent = `⚠ FRAME LOOP STOPPED ${(since/1000).toFixed(1)}s AGO`
+        + ` · v${AOV_BUILD.patch} · ${game.scene} (${player.x},${player.y})`
+        + ` · ${tryMove._lastReason ? 'blocked by ' + tryMove._lastReason : 'no freeze reason'}`
+        + (frame._badStep && frame._badStep.size ? ` · ✖ ${[...frame._badStep].join('/')}` : '')
+        + ' · press F10';
+      el.style.background = 'rgba(150,10,20,.92)';
+      el.style.color = '#ffe';
+      return;
+    }
+    el.style.background = ''; el.style.color = '';
+  } catch(_){}
+}, 500);
+
 requestAnimationFrame(now => { last = now; frame(now); });
 
 console.log('[rp7b] skeleton v0.7 ready · map', MAP_COLS + 'x' + MAP_ROWS, '· TILE', TILE, '· props', WORLD_PROPS.length);

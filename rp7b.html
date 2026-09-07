@@ -30794,13 +30794,34 @@ let dialogState = null;
 //   sites reads as "say this, then that", and none can know if a box is up.
 const _dialogQueue = [];
 const DIALOG_QUEUE_MAX = 8;   // ★ bounded · a runaway loop must not grow forever
+const DIALOG_STALE_MS  = 20000;
 function showDialog(opts){
   const speaker = (opts && opts.speaker) || '';
   const lines   = (opts && opts.lines) || [''];
   const key = speaker.toUpperCase();
   const frame = DIALOG_FRAMES[key] || DIALOG_FRAMES._tpl;
-  const next = { speaker, lines, idx: 0, frame, onDone: opts && opts.onDone };
+  const now = performance.now();
+  const next = { speaker, lines, idx: 0, frame, onDone: opts && opts.onDone, at: now };
   if (dialogState){
+    // ★★★ v0.96.17 · THE ESCAPE VALVE I REMOVED IN v0.96.16.
+    //
+    // Before the queue, a second showDialog OVERWROTE the first. That lost
+    // Corvan's speech (why the queue exists) — but it was also self-healing: a
+    // dialogue that somehow got stuck was cleared by the next conversation.
+    // Queueing behind it removed the only way out, so one stale box could make
+    // every NPC afterwards appear to do nothing.
+    //
+    // ★ Both properties now: a FRESH box queues (nothing is lost mid-scene), a
+    //   STALE one is replaced (nothing is permanent). Twenty seconds is longer
+    //   than any real line takes to read and far shorter than being stuck.
+    const age = now - (dialogState.at || now);
+    if (age > DIALOG_STALE_MS){
+      console.warn(`[rp7b] dialogue from ${dialogState.speaker} was stuck for ${(age/1000)|0}s · replacing`);
+      _dialogQueue.length = 0;
+      dialogState = next;
+      playSFX('dialog');
+      return;
+    }
     if (_dialogQueue.length < DIALOG_QUEUE_MAX) _dialogQueue.push(next);
     else console.warn('[rp7b] dialogue queue full · dropping a line from', speaker);
     return;
@@ -30836,6 +30857,7 @@ function advanceDialog(){
   if (!dialogState) return;
   if (dialogState.idx + 1 < dialogState.lines.length){
     dialogState.idx++;
+    dialogState.at = performance.now();   // ★ v0.96.17 · reading keeps it fresh
     playSFX('dialog');
   } else {
     const cb = dialogState.onDone;
@@ -30843,6 +30865,7 @@ function advanceDialog(){
     // ★★ v0.96.16 · hand over to whatever was queued behind this one
     if (_dialogQueue.length){
       dialogState = _dialogQueue.shift();
+      dialogState.at = performance.now();
       playSFX('dialog');
       if (cb){ try { cb(); } catch(err){ console.error('[rp7b] dialog onDone threw', err); } }
       return;
@@ -35890,7 +35913,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.16' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.17' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -56013,24 +56036,60 @@ function _frameBody(now){
   drawLightMode();      // v0.95.175 · night ambient overlay + player lantern punch-out
   drawAuraxionUfoFlight();// S2 piloted UFO · absolute top of world, under UI
   drawNpcInfoOverlay(); // v0.95.174 · companion/bond info panel
-  drawZyrexMenu();      // overlay · touchpad ('2') toggles
-  drawSettingsMenu();   // overlay · Options ('3') toggles
-  try { drawPortalMenu(); } catch(_){}   // ★ v0.95.800 · above the world, below nothing
-  try { drawMinimap(); } catch(_){}      // ★ v0.95.802 · its own canvas · auto-follows the player
-  drawBattleOverlay();  // owns whole screen while battleState is set
-  drawWildBattleOverlay();// wild Zyrex · one-round real-time side fighter
-  drawDialogOverlay();  // shown when dialogState is set (v0.79)
-  drawSleepFade();      // v0.95.4 · black-out overlay while napping in bed
-  try { drawDreamlandOverlay(); } catch(_){}   // v0.95.719 · nap fade + countdown
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ v0.96.17 · ONE OVERLAY MUST NOT KILL THE HUD.
+  //
+  //   Creator: "I keep getting a freeze after talking to NPCs. just happened
+  //   again with Zoryn."
+  //
+  // The tail of this frame was a mix: drawPortalMenu, drawMinimap and
+  // drawDreamlandOverlay were individually guarded, while drawDialogOverlay,
+  // drawBattleOverlay, drawSleepFade and — critically — updateHUD() and
+  // updateRizerHUD() were BARE. Since v0.96.4 the loop survives a throw, so a
+  // failing overlay no longer kills the game outright; it kills EVERYTHING
+  // BELOW IT IN THIS FUNCTION, every frame, forever.
+  //
+  // ★★★ THAT MATCHES THE EVIDENCE. In every freeze screenshot the top-left
+  //   RHUD reads "Lv —" with empty bars while the world is drawn correctly.
+  //   updateRizerHUD() is the second-to-last statement here — a stale HUD is
+  //   the fingerprint of something above it throwing. And drawDialogOverlay,
+  //   which runs immediately before that block, is the one overlay that only
+  //   executes AFTER YOU TALK TO SOMEONE.
+  //
+  // ★ So each is guarded on its own line, and a thrower is NAMED once rather
+  //   than swallowed. Guarding is not hiding: the console says which one, and
+  //   the HUD keeps updating while it does.
+  const _step = (name, fn) => {
+    try { fn(); }
+    catch(err){
+      frame._badStep = frame._badStep || new Set();
+      if (!frame._badStep.has(name)){
+        frame._badStep.add(name);
+        console.error(`[rp7b] ★ frame step "${name}" threw · everything below it used to stop here`, err);
+        try { showToast(`⚠ ${name} failed · recovered · see console`, 8000); } catch(_){}
+      }
+    }
+  };
+  _step('drawZyrexMenu',      drawZyrexMenu);
+  _step('drawSettingsMenu',   drawSettingsMenu);
+  _step('drawPortalMenu',     drawPortalMenu);
+  _step('drawMinimap',        drawMinimap);
+  _step('drawBattleOverlay',  drawBattleOverlay);
+  _step('drawWildBattleOverlay', drawWildBattleOverlay);
+  _step('drawDialogOverlay',  drawDialogOverlay);
+  _step('drawSleepFade',      drawSleepFade);
+  _step('drawDreamlandOverlay', drawDreamlandOverlay);
   // v0.95.129 · red vignette when Rizer takes drain damage
   if ((player._hurtFlashUntil || 0) > performance.now()){
     const rem = (player._hurtFlashUntil - performance.now()) / 220;
     ctx.fillStyle = `rgba(220, 40, 40, ${0.28 * rem})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  updateHUD();          // live tile coordinates in top-left
-  updateRizerHUD();     // Rizer HUD bars + panel refresh (top-right)
-  try { updateZyrexHUD(); } catch(_){}   // v0.95.449 · Active Zyrex HUD · top-left mirror
+  // ★★ THE HUD IS LAST AND MUST BE UNKILLABLE · it is the only thing on screen
+  //    that tells the player the game is still running.
+  _step('updateHUD',      updateHUD);
+  _step('updateRizerHUD', updateRizerHUD);
+  _step('updateZyrexHUD', updateZyrexHUD);
   // ★ v0.96.4 · the rAF re-request lives in frame()'s `finally` now · see above
 }
 

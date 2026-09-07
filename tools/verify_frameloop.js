@@ -72,7 +72,7 @@ new Function(src + `;globalThis.__C={ frame, game, player, NPCS, keys, tryMove, 
   get dialogState(){return dialogState}, set dialogState(v){dialogState=v},
   get homeBuyConfirm(){return homeBuyConfirm}, set homeBuyConfirm(v){homeBuyConfirm=v},
   get settingsMenuOpen(){return settingsMenuOpen},
-  drawMinimap, STUCK_WARN_MS, showDialog, advanceDialog, clearDialogQueue };`)();
+  drawMinimap, STUCK_WARN_MS, showDialog, advanceDialog, clearDialogQueue, DIALOG_STALE_MS };`)();
 let n = 0;
 while (_Q.length && n < 80) { const f = _Q.shift(); n++; try { f(); } catch (_) {} }
 console.log = LOG;
@@ -327,6 +327,44 @@ t((H.match(/requestAnimationFrame\(frame\)/g) || []).length === 2,
   t(!!C2.game._stuckBanner && /dialog/.test(C2.game._stuckBanner.why),
     `★★ mashing X at a stuck box now names the blocker ("${C2.game._stuckBanner && C2.game._stuckBanner.why}")`);
   C2.dialogState = null;
+}
+
+/* ── 9 · ★★★ ONE OVERLAY MUST NOT KILL THE HUD ──────────────────────────── */
+{
+  const CODE = H.replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*\/\/.*$/gm, '');
+  for (const step of ['drawDialogOverlay', 'drawBattleOverlay', 'drawSleepFade',
+                      'updateHUD', 'updateRizerHUD', 'updateZyrexHUD'])
+    t(new RegExp(`_step\\('${step}'`).test(CODE), `  guarded · ${step}`);
+  t(!/^\s*drawDialogOverlay\(\);/m.test(CODE) && !/^\s*updateRizerHUD\(\);/m.test(CODE),
+    '★★★ nothing in the frame tail is called BARE any more · since v0.96.4 the loop '
+    + 'survives a throw, so a failing overlay no longer kills the game outright — it '
+    + 'kills EVERYTHING BELOW IT, every frame, forever. updateRizerHUD() is the '
+    + 'second-to-last statement, and every freeze screenshot shows the RHUD stale at '
+    + '"Lv —" while the world draws fine. That is the fingerprint');
+  t(/frame\._badStep/.test(H),
+    '★★ and a failing step is NAMED once, not swallowed · guarding is not hiding');
+}
+
+/* ── 10 · ★★★ A STALE DIALOGUE IS REPLACED, A FRESH ONE QUEUES ──────────── */
+{
+  const C2 = globalThis.__C;
+  C2.dialogState = null; C2.clearDialogQueue();
+  C2.showDialog({ speaker: 'A', lines: ['1','2'] });
+  C2.showDialog({ speaker: 'B', lines: ['x'] });
+  t(C2.dialogState.speaker === 'A',
+    '★ a FRESH box still queues the next one · nothing is lost mid-scene');
+  // now let it go stale
+  T += C2.DIALOG_STALE_MS + 1000;
+  C2.showDialog({ speaker: 'C', lines: ['y'] });
+  t(C2.dialogState.speaker === 'C',
+    `★★★ but a box stuck for ${C2.DIALOG_STALE_MS/1000}s is REPLACED · v0.96.16's queue removed the `
+    + 'only escape valve there was. Before it, a second showDialog overwrote a '
+    + 'stuck one — that lost Corvan\'s speech, which is why the queue exists, but '
+    + 'it also meant a wedged box cleared itself the next time anyone spoke. '
+    + 'Queueing behind it made one stale dialogue permanent, and every NPC '
+    + 'afterwards would appear to do nothing');
+  C2.advanceDialog();
+  t(!C2.dialogState, '  · and the queue was dropped with it, not left to fire later');
 }
 
 console.log(`\n★ ${pass} passed · ${fail} failed\n`);

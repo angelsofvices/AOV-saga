@@ -153,8 +153,18 @@ const C = globalThis.__C;
 
 /* ── 3b · ★★★ A FOOTSTEP IS NOT A PURCHASE ─────────────────────────────── */
 {
-  t(/_pressOnlyDoor: true/.test(H) && (H.match(/_pressOnlyDoor: true/g) || []).length === 4,
-    '★ all four civic doors are press-only');
+  // ★ Ask the PROPS, not the file. Counting occurrences of the flag broke the
+  //   moment v0.96.12's field workstation became the fifth press-only door —
+  //   an exact-count assertion on a growing family is a test that fails for
+  //   being right.
+  const CIVIC_DOORS = ['malezor_hospital', 'malezor_town_hall',
+                       'malezor_potion_shop', 'malezor_zysphere_shop'];
+  const notPressOnly = CIVIC_DOORS.filter(id => {
+    const p = C.WORLD_PROPS.find(x => x && x.id === id);
+    return !(p && p._pressOnlyDoor);
+  });
+  t(notPressOnly.length === 0,
+    `★ all four civic doors are press-only${notPressOnly.length ? ' · MISSING: ' + notPressOnly.join(', ') : ''}`);
   const i = H.indexOf('if (doorProp && doorProp._pressOnlyDoor){');
   const j = H.indexOf("if (doorProp && typeof doorProp.onInteract === 'function'){",
                       H.indexOf('const doorProp = _propDoors.get(`${player.x},${player.y}`)'));

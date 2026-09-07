@@ -3328,6 +3328,7 @@ const INVENTORY_META = {
   gearbag:          { label: 'Gearbag',                 order: 3  },   // v0.95.279 · Scrapjaw's gift · outfits + cosmetics live inside
   backpack:         { label: 'Backpack',                order: 0.5},   // v0.95.326 · Rizer's first-grab · gates touchpad + house exit
   elzebub_egg:      { label: 'Elzebub Egg',             order: 4  },   // v0.95.295 · rare egg · found near home · Mom nurses it into Elzebub Lv10
+  field_station:    { label: 'Field Workstation',       order: 44 },   // ★ v0.96.12 · the briefcase · 20 scrap at Dad's bench
   scrap_metal:      { label: 'Scrap Metal',             order: 45 },   // v0.95.490 · chest loot outside Radio Tower · trade to Scrapjaw for Phone Battery
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
   life_stone:       { label: 'Life Stone',              order: 47 },   // v0.95.495 · dropped when a life stone shatters · deliver 2 to Nurse Rein to make her a callable healer contact
@@ -3496,6 +3497,7 @@ const ZYCUBE_CAT_OF = Object.freeze({
   berry:'harvest', fruit:'harvest', seed:'harvest', fae:'harvest', fairy:'harvest',
 
   scrap_metal:'mat', life_stone:'mat', tower_battery:'mat', portal_chip:'mat',
+  field_station:'gear',                                   // ★ v0.96.12
   portalkey_broken:'key', portalkey:'key',
 
   coins:'gem', gem:'gem', moon_gem:'gem',
@@ -20663,6 +20665,200 @@ function spawnAstraliteGem(cx, cy, item){
   registerPropCollision(prop);
   return prop;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.12 · DEPLOYING THE FIELD WORKSTATION
+//
+// ★ THE UNFOLD IS THE FEATURE. The Creator delivered EIGHT frames and re-cut
+//   them once to lock the orientation — "latch and operator edge stay at the
+//   bottom, hinges and lid stay at the top, and the equipment never swaps
+//   sides." Art shipped to that standard should not be reduced to two states.
+//   Deploying plays case → unlatch → half → deployed; packing plays it back
+//   through `packing`, so putting it away reads as an action rather than a
+//   disappearance.
+const FS_FRAMES = ['case', 'unlatch', 'half', 'deployed', 'rear', 'scanning', 'crafting', 'packing'];
+const FS_IMGS = {};
+const FS_BBOX = {
+  // measured off the delivered PNGs · each frame is its own silhouette, so the
+  // bbox is the whole image and the sizes differ per state
+  case:[285,244], unlatch:[293,212], half:[326,334], deployed:[395,344],
+  rear:[342,405], scanning:[356,360], crafting:[356,370], packing:[281,311],
+};
+FS_FRAMES.forEach(k => {
+  const im = new Image();
+  im.src = `assets/2D%20sprites/decor/fieldstation/station-${k}.png`;
+  FS_IMGS[k] = im;
+});
+// ★ The queue holds the frames still TO COME. It used to re-list the frame the
+//   prop is already standing on ('case' on deploy, 'deployed' on pack), which
+//   spent a whole 190ms step re-applying the picture that was already on screen
+//   — a visible hitch at the start of both animations.
+const FS_DEPLOY_SEQ = ['unlatch', 'half', 'deployed'];
+const FS_PACK_SEQ   = ['packing', 'case'];
+const FS_STEP_MS    = 190;
+const FS_TILE_W     = 2.2;
+const FS_MAX_HP     = 40;      // ★ WEAK, as asked · a Mori drops it in a few hits
+function _fsApplyFrame(prop, key){
+  const [w, h] = FS_BBOX[key] || FS_BBOX.deployed;
+  prop._fsFrame = key;
+  prop.img  = FS_IMGS[key];
+  prop.src  = `assets/2D%20sprites/decor/fieldstation/station-${key}.png`;
+  prop.bbox = [0, 0, w, h];
+  prop.tileW = FS_TILE_W;
+  prop.tileH = FS_TILE_W * h / w;    // ★ never stretch · height from the art
+}
+function deployedFieldStation(){
+  if (typeof WORLD_PROPS === 'undefined') return null;
+  return WORLD_PROPS.find(p => p && p._fieldStation) || null;
+}
+function deployFieldStation(){
+  if (game.scene !== 'overworld'){
+    showToast('◈ The workstation needs open ground · deploy it outside', 2600);
+    try { playSFX('doorLock'); } catch(_){}
+    return null;
+  }
+  if (((player.items && player.items.field_station) || 0) < 1){
+    showToast(`◈ No Field Workstation · craft one at Dad's bench for ${FIELD_STATION_SCRAP} scrap`, 3200);
+    try { playSFX('doorLock'); } catch(_){}
+    return null;
+  }
+  const live = deployedFieldStation();
+  if (live){
+    showToast('◈ Your workstation is already set up · pack it before making a new camp', 3000);
+    try { playSFX('doorLock'); } catch(_){}
+    return null;
+  }
+  // in front of Rizer, or the nearest open tile beside him
+  let tx = player.x, ty = player.y;
+  if (player.dir === 'up') ty--; else if (player.dir === 'down') ty++;
+  else if (player.dir === 'left') tx--; else if (player.dir === 'right') tx++;
+  let sited = null;
+  for (const [dx, dy] of [[0,0],[0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+    const cx = tx + dx, cy = ty + dy;
+    if (cx === player.x && cy === player.y) continue;    // never under your own feet
+    if (typeof walkable === 'function' && walkable(cx, cy)){ sited = [cx, cy]; break; }
+  }
+  if (!sited){
+    showToast('◈ No room to set up here', 2400);
+    try { playSFX('doorLock'); } catch(_){}
+    return null;
+  }
+  player.items.field_station -= 1;
+  const dist = (typeof districtAt === 'function') ? districtAt(sited[0], sited[1]) : null;
+  const prop = {
+    id: `field_station_${sited[0]},${sited[1]}`,
+    _fieldStation: true,
+    _fsHp: FS_MAX_HP, _fsHpMax: FS_MAX_HP,
+    _fsDist: dist,
+    _fsSeq: FS_DEPLOY_SEQ.slice(), _fsSeqAt: performance.now(),
+    tileX: sited[0], tileY: sited[1],
+    footprint: [[0, 0]],
+    door: [0, 0],                 // ★ X and Square resolve through _propDoors,
+                                  //   the same door-tile map every building uses
+    _pressOnlyDoor: true,         // ★ and a footstep must not fold your bench up
+    onInteract(){ fieldStationUse(prop); },
+    onSquare(){ packFieldStation(prop); },
+  };
+  _fsApplyFrame(prop, 'case');
+  WORLD_PROPS.push(prop);
+  try { registerPropCollision(prop); } catch(_){}
+  try { invalidatePropGrid(); } catch(_){}
+  if (dist){
+    player.camps = player.camps || {};
+    player.camps[dist] = { x: sited[0], y: sited[1], at: Date.now() };
+  }
+  try { playSFX('confirm'); } catch(_){}
+  showToast(`◈ FIELD CAMP · ${String(dist || '').toUpperCase()} · X to craft · SQUARE to pack up`, 4000);
+  return prop;
+}
+// The unfold / fold animation · one tick, both directions.
+function tickFieldStation(){
+  const prop = deployedFieldStation();
+  if (!prop || !prop._fsSeq || !prop._fsSeq.length) return;
+  const now = performance.now();
+  if (now - prop._fsSeqAt < FS_STEP_MS) return;
+  prop._fsSeqAt = now;
+  const next = prop._fsSeq.shift();
+  _fsApplyFrame(prop, next);
+  try { playSFX('cursor'); } catch(_){}
+  if (!prop._fsSeq.length && prop._fsPackWhenDone) _fsFinishPack(prop);
+}
+function fieldStationReady(prop){
+  return !!prop && prop._fsFrame === 'deployed' && !(prop._fsSeq && prop._fsSeq.length);
+}
+// X · craft on the go · the SAME bench panel as home
+function fieldStationUse(prop){
+  if (!fieldStationReady(prop)){
+    showToast('◈ Still setting up...', 1600);
+    return;
+  }
+  // ★ swap to the crafting pose while the panel is open · the art has a frame
+  //   for exactly this and it costs one assignment to use it
+  _fsApplyFrame(prop, 'crafting');
+  try { openExperimentPanel(); } catch(err){ console.warn('[rp7b] field bench panel failed', err); }
+}
+// SQUARE · fold it back into the case
+function packFieldStation(prop){
+  if (!prop) return false;
+  if (prop._fsSeq && prop._fsSeq.length){ showToast('◈ Wait for it to settle', 1600); return false; }
+  prop._fsSeq = FS_PACK_SEQ.slice();
+  prop._fsSeqAt = performance.now();
+  prop._fsPackWhenDone = true;
+  showToast('◈ Packing the workstation...', 1800);
+  return true;
+}
+function _fsRemove(prop){
+  try { unregisterPropCollision(prop); } catch(_){}
+  const i = WORLD_PROPS.indexOf(prop);
+  if (i >= 0) WORLD_PROPS.splice(i, 1);
+  try { invalidatePropGrid(); } catch(_){}
+}
+function _fsFinishPack(prop){
+  _fsRemove(prop);
+  player.items = player.items || {};
+  player.items.field_station = (player.items.field_station || 0) + 1;
+  try { playSFX('itemGain'); } catch(_){}
+  showToast('◈ Workstation stowed · safe in the ZyCube', 2600);
+}
+// ★★★ WEAK, AND THE LOSS IS REAL. Creator: "these metal portable stations can
+//   be destroyed by enemies and are weak. must be stored away in briefcase and
+//   put back into zycube to be safe."
+//   Safety is therefore not a flag — it is the STATE. A packed station is an
+//   item and items cannot be attacked; only the deployed prop has hit points.
+function damageFieldStation(dmg, by){
+  const prop = deployedFieldStation();
+  if (!prop) return false;
+  prop._fsHp = Math.max(0, (prop._fsHp || 0) - (dmg || 1));
+  prop._fsHitAt = performance.now();
+  try { spawnHitFx(prop.tileX, prop.tileY, 'kick'); } catch(_){}
+  if (prop._fsHp > 0){
+    if (!prop._fsWarned && prop._fsHp <= prop._fsHpMax * 0.5){
+      prop._fsWarned = true;
+      showToast('⚠ Your workstation is being wrecked · pack it or defend it', 3200);
+    }
+    return true;
+  }
+  _fsRemove(prop);
+  if (prop._fsDist && player.camps) delete player.camps[prop._fsDist];
+  try { playSFX('boulderCrumble'); } catch(_){}
+  showToast(`✖ FIELD WORKSTATION DESTROYED${by && by.name ? ' by ' + String(by.name).toUpperCase() : ''} · the case is gone`, 4200);
+  return true;
+}
+// Enemies wreck it when they are next to it · they do not need to path to it or
+// know what it is, only to be hostile and adjacent.
+const FS_ENEMY_DPS_MS = 900;
+function tickFieldStationRaid(){
+  const prop = deployedFieldStation();
+  if (!prop || typeof NPCS === 'undefined') return;
+  const now = performance.now();
+  for (const n of NPCS){
+    if (!n || !n.isEnemy || n.scene !== game.scene || n._dying) continue;
+    if (Math.max(Math.abs(n.tileX - prop.tileX), Math.abs(n.tileY - prop.tileY)) > 1) continue;
+    if ((n._fsSwingAt || 0) > now) continue;
+    n._fsSwingAt = now + FS_ENEMY_DPS_MS;
+    damageFieldStation(5, n);
+    if (!deployedFieldStation()) return;
+  }
+}
 // ★★★ v0.95.908 · THE ASTRALCORE · Auraxion's UFO fetch, as a real object.
 //
 // Creator: "same rig as weapons and astralites" — so it is built from the same
@@ -24501,6 +24697,33 @@ if (!player.knownRecipes.find(r => r.id === 'verdant_elixir')){
     output: { verdant_elixir: 1 },
   });
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.12 · THE PORTABLE FIELD WORKSTATION
+//
+//   Creator: "rizer can craft a workstation from 20 scrapmetal parts at his home
+//   science tab. this will allow him to deploy a science table with him in the
+//   wild during expedition and set up mini camps in each district. these metal
+//   portable stations can be destroyed by enemies and are weak. must be stored
+//   away in briefcase and put back into zycube to be safe. rizer deploys it and
+//   it opens up all the way to be interacted with and able to craft on the go.
+//   breaks back down into briefcase to store for travel to new district or new
+//   camp set up."
+//
+// ★ It rides the EXISTING recipe table rather than a bespoke craft button, so
+//   it appears at Dad's bench beside everything else and the whole cost/afford/
+//   craft path is the one already tested.
+const FIELD_STATION_SCRAP = 20;
+if (!player.knownRecipes.find(r => r.id === 'field_station')){
+  player.knownRecipes.push({
+    id: 'field_station',
+    name: 'Portable Field Workstation',
+    effect: 'Deploy a science bench anywhere · craft on expedition · packs back into its case.',
+    ingredients: [`${FIELD_STATION_SCRAP}× Scrap Metal`],
+    costOptions: [ { scrap_metal: FIELD_STATION_SCRAP } ],
+    output: { field_station: 1 },
+  });
+}
+if (player.camps == null) player.camps = {};      // district → last camp site
 if (player.ownedHomes == null)   player.ownedHomes   = [];   // ids of homes the player has bought
 if (player.mainQuestStep == null) player.mainQuestStep = 0;  // v0.95.1 · index into MAIN_QUESTS
 
@@ -35178,7 +35401,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.11' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.12' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -41845,6 +42068,7 @@ function saveGame(){
         // ★ v0.96.5 · THE ESTATE. Without these three the whole feature is a
         // session toy: the deeds survived a reload but the tier you reached,
         // the contact you housed and the perimeter you staffed did not.
+        camps:         Object.assign({}, player.camps        || {}),   // ★ v0.96.12
         estateTier:    Object.assign({}, player.estateTier    || {}),
         homeResidents: Object.assign({}, player.homeResidents || {}),
         homeGuards:    JSON.parse(JSON.stringify(player.homeGuards || {})),
@@ -45472,6 +45696,16 @@ function useZycubeItem(key){
     // ★★ v0.95.801 · TRANSPONDER · Creator: "selecting astralcore transponder
     // in the zycube should spawn ufo near me in the closest appropriate tiles."
     // It used to fall through to the info-only default and just print a count.
+    // ★★ v0.96.12 · THE CASE IS USED BY SETTING IT DOWN. Selecting it in the
+    // ZyCube is how a briefcase becomes a bench — the same shape as the
+    // transponder below, which the Creator already asked to be a spawn rather
+    // than an info line.
+    case 'field_station': {
+      if (qty <= 0){ showToast('◈ No Field Workstation', 1600); playSFX('cancel'); return; }
+      try { closeZphonePanel(); } catch(_){}
+      try { deployFieldStation(); } catch(err){ console.warn('[rp7b] deploy failed', err); }
+      return;
+    }
     case 'astralcore_transponder': {
       if (qty <= 0){ showToast('◈ No Astralcore Transponder', 1600); playSFX('cancel'); return; }
       summonUfoNearPlayer();
@@ -55026,7 +55260,9 @@ function _frameBody(now){
   try { tickHomecoming(); } catch(_){}   // ★ v0.95.998 · bond by travel
   try { tickDistrictAnchors(); } catch(_){}
   try { tickEscortBond(); } catch(_){}      // ★ v0.96.5
-  try { tickScrapjawLoot(); } catch(_){}   // ★ v0.96.5  // ★ v0.96.0 · the ground grows its anchor back
+  try { tickScrapjawLoot(); } catch(_){}   // ★ v0.96.5
+  try { tickFieldStation(); } catch(_){}     // ★ v0.96.12 · the unfold
+  try { tickFieldStationRaid(); } catch(_){} // ★ v0.96.12 · enemies wreck it  // ★ v0.96.0 · the ground grows its anchor back
   try { tickOmnirisStillness(); } catch(_){}  // ★ v0.95.990 · Omniris Trial 3  // ★ v0.95.990 · Omniris' meditation · +1 HP/s while guard is held undisturbed
   try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
   try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted

@@ -34278,10 +34278,56 @@ const _pendingPhoneToasts = [];
 function _phoneToastShowing(){
   try { return !!(toastStackEl && toastStackEl.children.length); } catch(_){ return false; }
 }
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.29 · THE FREEZE. AN INFINITE LOOP, ONE WORD WIDE.
+//
+//   Twelve reports. "overworld freezes, music still plays", "page goes
+//   unresponsive", "freeze after talking to elarian and running".
+//
+// ★★★ THE LOOP ATE ITSELF. `showToast` re-queues its own argument whenever a
+//   card is already on screen (see the `_pendingPhoneToasts.push` below), and
+//   TOAST_STACK_MAX is 1 — so a card is ALWAYS showing after the first one.
+//
+//     iteration 1 · shift A · showToast(A) · A is now on screen
+//     iteration 2 · shift B · showToast(B) · sees the card, PUSHES B BACK
+//     iteration 3 · shift B · showToast(B) · pushes B back ... forever
+//
+//   `_pendingPhoneToasts.length` never reaches zero. The main thread never
+//   returns to the browser. That is the whole bug, and it is why Chrome offered
+//   "Exit Page" rather than a slow frame.
+//
+// ★★★ AND IT FIRES 900 ms AFTER A DIALOGUE CLOSES (the setTimeout in
+//   advanceDialog). Phone toasts only queue WHILE dialogState is set — talking
+//   to an NPC is the one thing that queues them — so the trigger is always a
+//   conversation, and the 900 ms delay is why it always felt like it happened
+//   later, "while running". It needs TWO queued cards; one drains fine. That is
+//   the Creator's "usually". A level-up plus a quest update landing together
+//   makes it certain, which is why three of four screenshots showed a LEVEL UP.
+//
+// ★★★★★ AND WHY NONE OF MY INSTRUMENTATION EVER SAW IT. Every guard I built
+//   this session lives in the frame loop — the try/finally around
+//   requestAnimationFrame, the per-step timing, the flight recorder, the crumb,
+//   the stalled-loop watchdog. A synchronous infinite loop inside a setTimeout
+//   callback NEVER ENTERS _frameBody AT ALL. The frame was healthy right up to
+//   the moment a timer callback ate the thread, which is exactly why the tile
+//   label read a perfectly honest "120 fps" and why I spent eleven builds
+//   reading a corpse.
+//
+// ★★★ AND I HAD THIS LOOP IN MY HANDS. When I "ruled out infinite loops" I
+//   listed all 27 while-loops in the file, saw `while (_pendingPhoneToasts
+//   .length)` among them, and declared the set bounded WITHOUT CHECKING THIS
+//   ONE. A loop whose body calls back into code that can re-fill its own
+//   condition is not bounded, and I never looked.
+//
+// ★ THE FIX IS `if`, NOT `while` — which is what the "one at a time" comment
+//   above already intended. The card-removal handler calls this function back
+//   when the card disappears (see the drain in showToast), so the queue still
+//   empties in order; it empties at the speed the player reads instead of all
+//   at once into a stack that only holds one.
 function _flushPendingPhoneToasts(){
   if (dialogState) return;                // still in a dialog · try again on next close
   if (_phoneToastShowing()) return;       // ★ v0.95.985 · one at a time · wait for the current card
-  while (_pendingPhoneToasts.length){
+  if (_pendingPhoneToasts.length){        // ★★★ v0.96.29 · was `while` · see above
     const { msg, ms, opts } = _pendingPhoneToasts.shift();
     // Re-enter via showToast so all downstream logic (card build + CORSUN cue) runs.
     try { showToast(msg, ms, opts); } catch(_){}
@@ -36512,7 +36558,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.28' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.29' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(

@@ -3146,7 +3146,13 @@ const INVENTORY_META = {
   sapphire_sword:   { label: 'Sapphire Tearsword',          order: 7 },   // v0.95.572 · Silver chest inside treehouse · S1-only · square-only · replaces punch anim · same dmg as S2 punch · durability 100 hits (connect-only, no miss-break) · repair 100 gems
   emerald_axe:      { label: 'Emerald Axe',                order: 9 },   // ★ v0.95.788 · S1-only · Square = 3x3 AOE centred on Rizer · Veridan cosmic chest
   pearlbow:         { label: 'Pearlbow',                   order: 10 },  // ★ v0.95.792 · S1-only · Square = RANGED shot down the facing line · Zarvane cosmic chest
-  portal_chip:      { label: 'Portal Chip',                order: 54 },  // ★ v0.95.800 · Scanobot salvage · 20 to Dad opens the first two rifts (Malezor <-> Zarvane)
+  portal_chip:      { label: 'Portal Chip',                order: 54 },
+  // ★★★ v0.95.984 · THE PORTALKEY · Creator: "bring scrapjaw to your dad with
+  // 40 scrap metal and they will repair your old remote transmitter... this is
+  // a dual companion mechanic. when two companions can work together to grant
+  // rizer new abilities."
+  portalkey_broken: { label: 'Broken Transmitter',        order: 55 },
+  portalkey:        { label: 'PORTALKEY',                 order: 56 },  // ★ v0.95.800 · Scanobot salvage · 20 to Dad opens the first two rifts (Malezor <-> Zarvane)
   life_seed:        { label: 'Life Seed (spoiling)',       order: 55 },  // ★ v0.95.817 · creeper-exposed · 25% HP · spoils 2 min after storing
   life_seed_pure:   { label: 'Pure Life Seed',             order: 56 },  // ★ v0.95.817 · Spirit Tree of Xilnar stock · 25% HP · never spoils
   voltshard:        { label: 'Voltshard · singular relic',  order: 57 },   // ★ class disputed · see RELIC_CLASS_MAP
@@ -3290,6 +3296,7 @@ const ZYCUBE_CAT_OF = Object.freeze({
   berry:'harvest', fruit:'harvest', seed:'harvest', fae:'harvest', fairy:'harvest',
 
   scrap_metal:'mat', life_stone:'mat', tower_battery:'mat', portal_chip:'mat',
+  portalkey_broken:'key', portalkey:'key',
 
   coins:'gem', gem:'gem', moon_gem:'gem',
   gem_red:'gem', gem_blue:'gem', gem_green:'gem', gem_yellow:'gem',
@@ -3963,6 +3970,7 @@ const ITEM_GAIN_SFX_KEYS = new Set([
   // v0.95.507 · Quest items · every retrievable quest pickup now fires the jingle
   'scrap_metal','astralcore','astralcore_transponder','life_stone',
   'ale','potion','sapphire_sword','rubypaw_sword','emerald_axe','pearlbow','portal_chip',
+  'portalkey_broken','portalkey',
 ]);
 function playItemGain(key){
   if (!key || key === 'coins') return;
@@ -7630,6 +7638,26 @@ const WORLD_PROPS = [
           try { awardRizerXP(60); } catch(_){}
           try { pingNextObjective(); } catch(_){}
           showToast(`★ ${spot.label.toUpperCase()} TOWER BATTERY retrieved · bring it to Scrapjaw in Malezor`, 4200);
+          // ★★★ v0.95.984 · THE OLD TRANSMITTER · Creator: "first, you have to
+          // find the old transmitter in a silver zarvane radio tower chest."
+          // ★ It rides the chest that ALREADY EXISTS rather than getting a new
+          // one of its own: the Zarvane tower is the second stop on a network
+          // the player is already walking, so the find lands in a place they
+          // have a reason to be. A quest item in a chest nobody visits is a
+          // quest that starts by accident.
+          if (spot.dist === 'zarvane' && !player.portalkeyFound){
+            player.portalkeyFound = true;
+            player.items.portalkey_broken = (player.items.portalkey_broken || 0) + 1;
+            try { playItemGain('portalkey_broken'); } catch(_){}
+            try { awardRizerXP(120); } catch(_){}
+            showToast('★ BROKEN TRANSMITTER · dead, rusted, and older than the tower', 4600);
+            showDialog({ speaker: 'RIZER', lines: [
+              '*under the battery, wrapped in oilcloth · a handset with a bent antenna*',
+              'This is older than the tower. Older than the Seers being here.',
+              '*a switch clicks and nothing happens · the needle does not move*',
+              'Dad would know what this is. And Scrapjaw would know how to open it.',
+            ]});
+          }
         }
       };
       return chest;
@@ -9607,6 +9635,62 @@ const NPCS = [
       // bond loop (gather tribute -> turn it in -> choose a starter) always
       // owns his dialogue until it is finished, even if Rizer already found
       // Portal Chips while exploring or fighting Scanobots.
+      // ═══════════════════════════════════════════════════════════════════
+      // ★★★ v0.95.984 · THE PORTALKEY · A DUAL-COMPANION REPAIR.
+      //
+      // Creator: *"bring scrapjaw to your dad with 40 scrap metal and they will
+      // repair your old remote transmitter... this is a dual companion
+      // mechanic. when two companions can work together to grant rizer new
+      // abilities."*
+      //
+      // ★ THE GATE IS THREE THINGS AT ONCE, and that is the mechanic rather
+      // than a checklist: the BROKEN TRANSMITTER (found), SCRAPJAW WITH YOU
+      // (earned — 6 of 10 towers relit), and 40 SCRAP (spent). Neither man can
+      // do it alone. Dad knows what the machine IS and cannot open it;
+      // Scrapjaw can open anything and would not know what he was looking at.
+      // ★ Checked BEFORE the portal-chip branch below, because a player who
+      // walks in holding both is here for the bigger thing.
+      if (player.portalkeyFound && !player.portalkeyRepaired
+          && (player.items.portalkey_broken || 0) > 0){
+        const scrap = player.items.scrap_metal || 0;
+        if (!player.scrapjawCompanion){
+          try { playSFX('cursor'); } catch(_){}
+          showDialog({ speaker: 'DAD', lines: [
+            '*turns the handset over twice · finds a seam that will not open*',
+            'I know exactly what this is. That is a district transmitter — the old road, before the gates.',
+            '*sets it down*  And I cannot get into it. Whoever sealed this did it with a tool I do not own.',
+            `The scrapper south of the tower could. Get him walking with you first — he does not do favours by radio.`,
+          ]});
+          return;
+        }
+        if (scrap < PORTALKEY_SCRAP){
+          try { playSFX('cursor'); } catch(_){}
+          showDialog({ speaker: 'DAD', lines: [
+            '*Scrapjaw is already turning the handset over in his good hand*',
+            `SCRAPJAW: "Casing is fused. I can cut it. Rewinding the coil is ${PORTALKEY_SCRAP} scrap and I am not eating my own stock."`,
+            `*Dad nods*  Bring the metal, kid. You are carrying ${scrap}.`,
+          ]});
+          return;
+        }
+        player.items.scrap_metal = scrap - PORTALKEY_SCRAP;
+        player.items.portalkey_broken = Math.max(0, (player.items.portalkey_broken || 1) - 1);
+        player.items.portalkey = (player.items.portalkey || 0) + 1;
+        player.portalkeyRepaired = true;
+        try { playItemGain('portalkey'); } catch(_){}
+        try { playSFX('confirm'); } catch(_){}
+        try { awardRizerXP(500); } catch(_){}
+        try { bumpRizerBond('ally'); } catch(_){}
+        showToast('★ PORTALKEY REPAIRED · open it from your bag to jump to any lit portal', 5600);
+        showDialog({ speaker: 'DAD', lines: [
+          '*Scrapjaw cuts the seam · Dad has the boards out before the casing hits the bench*',
+          'SCRAPJAW: "Told you. Fused, not broken."',
+          '*Dad solders one wire and the needle jumps*  There. It was never listening for a voice.',
+          'It was listening for a GATE. Every rift I light, this thing can already hear.',
+          '*hands it back*  You do not have to walk to a portal any more, kid. You just have to be somewhere.',
+          `SCRAPJAW: "And the more chips you bring the old man, the further it reaches."`,
+        ]});
+        return;
+      }
       if (player.dadStarterQuestComplete && player.starterChosen){
         const held = player.items.portal_chip || 0;
         const tier = portalNextTier();
@@ -20124,8 +20208,71 @@ function spawnPortals(){
   return n;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.984 · THE PORTALKEY · fast travel from anywhere.
+//
+// Creator: *"this will allow you to use the transmitter to teleport to any
+// unlocked portal in a district... keep bringing dad portalchips to unlock more
+// districts to fast travel to. call it the portalkey."*
+//
+// ★ IT REUSES THE PORTAL NETWORK RATHER THAN OWNING A LIST.  The Portalkey has
+// no destinations of its own — it reads exactly what Dad has wired, so bringing
+// him more chips extends the key for free and the two systems cannot drift into
+// disagreeing about where you may go.
+//
+// ★★ THE ONE THING IT CHANGES is the departure, not the arrival: a portal still
+// requires you to walk to it, and the key removes that half. So the fiction and
+// the mechanic say the same thing — *you do not have to walk to a gate any
+// more, you just have to be somewhere.*
+const PORTALKEY_SCRAP = 40;    // ★ the Creator's number
+function hasPortalkey(){
+  return !!player.portalkeyRepaired && (player.items && player.items.portalkey > 0);
+}
+// ★ WHERE IT MAY NOT BE USED, and each exclusion is a rule the game already has
+// rather than a new one invented here.
+function portalkeyBlockedReason(){
+  if (!hasPortalkey()) return 'The transmitter is dead.';
+  if (game.scene !== 'overworld')
+    return '◈ PORTALKEY · no signal indoors · step outside';        // gates are outdoors
+  if (typeof battleState !== 'undefined' && battleState) return '◈ PORTALKEY · not mid-battle';
+  if (typeof wildBattleState !== 'undefined' && wildBattleState) return '◈ PORTALKEY · not mid-battle';
+  // ★ and never out of a fight you started · fast travel is not an escape hatch.
+  // ★★ `rizerInCombat()` is the game's OWN definition of hot — battle open,
+  // hurt in the last 5s, or anything chasing/aggroed in this scene. I first
+  // wrote `combatIsHot()`, which does not exist; the typeof guard meant it
+  // silently did nothing rather than throwing, which is exactly the class of
+  // absence that bit Volcaxor. Named the real one.
+  try { if (typeof rizerInCombat === 'function' && rizerInCombat()) return '◈ PORTALKEY · something is still chasing you'; } catch(_){}
+  return null;
+}
+function portalkeyDestinations(){
+  if (!PORTAL_NETWORK.length) sitePortals();
+  const hereIdx = portalDistrictIndex(worldDistrictAt(player.x, player.y) || '');
+  return PORTAL_NETWORK
+    .map(P => ({ ...P, i: portalDistrictIndex(P.dist) }))
+    .filter(P => P.i >= 0 && P.i < portalDistrictsUnlocked() && P.i !== hereIdx)
+    .sort((a, b) => a.i - b.i);
+}
+function openPortalkey(){
+  const blocked = portalkeyBlockedReason();
+  if (blocked){ try { playSFX('portalLocked'); } catch(_){} showToast(blocked, 2800); return false; }
+  const list = portalkeyDestinations();
+  if (!list.length){
+    try { playSFX('portalLocked'); } catch(_){}
+    const t = portalNextTier();
+    showToast(t
+      ? `◈ PORTALKEY · ${portalDistrictsUnlocked()}/10 gates lit · Dad wants ${t.pieces - portalPiecesSpent()} more Portal Chips`
+      : '◈ PORTALKEY · nowhere else to be right now', 3600);
+    return false;
+  }
+  // ★ reuses the SAME menu the portals themselves open, so one panel, one set
+  // of controls, one place for a bug to live.
+  portalMenu = { list, sel: 0, from: null, viaKey: true };
+  try { playSFX('menuOpen'); } catch(_){}
+  return true;
+}
 // ── TRAVEL ───────────────────────────────────────────────────────────────
-let portalMenu = null;   // { list:[{dist,label,x,y}], sel, from }
+let portalMenu = null;   // { list:[{dist,label,x,y}], sel, from, viaKey }
 function usePortal(dist){
   if (!portalUnlocked(dist)){
     const t = portalNextTier();
@@ -20152,6 +20299,7 @@ function usePortal(dist){
 function portalTravel(){
   if (!portalMenu) return;
   const dest = portalMenu.list[portalMenu.sel];
+  const viaKey = !!portalMenu.viaKey;
   portalMenu = null;
   if (!dest) return;
   // ★ step out ONE TILE SOUTH of the far portal, never onto it — the portal
@@ -20163,7 +20311,14 @@ function portalTravel(){
   player.moveCd = 220;
   try { playSFX('portalOpen'); } catch(_){ try { playSFX('confirm'); } catch(_){} }
   try { notebookVisit(`district:${dest.dist}`); } catch(_){}
-  showToast(`★ PORTAL · stepped through to ${dest.dist.toUpperCase()}`, 2600);
+  // ★★ v0.95.984 · THE FACTION COMES WITH YOU, by the same rule that took them
+  // up the stairs at v0.95.980. A companion left standing in the district you
+  // just left is the exact bug that fix existed for — and fast travel is the
+  // easiest place in the game to strand one.
+  try { carrySummonsTo(game.scene); } catch(_){}
+  showToast(viaKey
+    ? `★ PORTALKEY · signal caught · ${dest.dist.toUpperCase()}`
+    : `★ PORTAL · stepped through to ${dest.dist.toUpperCase()}`, 2600);
 }
 function drawPortalMenu(){
   if (!portalMenu) return;
@@ -38745,6 +38900,8 @@ function saveGame(){
         minimapHidden:              !!player.minimapHidden,          // ★ v0.95.805 · scope on/off · owns the corner
         dadStarterQuestComplete:    !!player.dadStarterQuestComplete,
         scrapjawCompanion:          !!player.scrapjawCompanion,
+        portalkeyFound:             !!player.portalkeyFound,      // ★ v0.95.984
+        portalkeyRepaired:          !!player.portalkeyRepaired,   // ★ v0.95.984
         scrapjawMet:                !!player.scrapjawMet,
         towerQuestStarted:          !!player.towerQuestStarted,
         radioTowerFixed_alias:      !!player.radioTowerFixed,   // already saved above · redundancy safe
@@ -42212,6 +42369,18 @@ function useZycubeItem(key){
     case 'astralcore_transponder': {
       if (qty <= 0){ showToast('◈ No Astralcore Transponder', 1600); playSFX('cancel'); return; }
       summonUfoNearPlayer();
+      return;
+    }
+    // ★ v0.95.984 · the Portalkey opens from the bag · one tap, no sub-menu
+    case 'portalkey': { openPortalkey(); return; }
+    case 'portalkey_broken': {
+      try { playSFX('cancel'); } catch(_){}
+      showDialog({ speaker: 'RIZER', lines: [
+        '*a handset older than the tower it was under · the needle does not move*',
+        player.scrapjawCompanion
+          ? 'Dad knows what it is. Scrapjaw can open it. I need them in the same room.'
+          : 'Dad will know what this is — but he cannot get into it alone.',
+      ]});
       return;
     }
     case 'raidcard': {

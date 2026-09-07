@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description" content="The official macro book for Rizing Power BETA V7.5.16. The world of Zyraxis, the Zyrex systems, combat, the bond, and the journey." />
   <title>The Macro Book · The AOV Saga</title>
 
@@ -468,12 +468,84 @@ footer .col{padding-top:34px;padding-bottom:40px}
 footer p{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:var(--muted);margin:0 0 7px;line-height:2}
 footer .stamp{display:inline-block;font-family:var(--tiny);font-size:.5rem;line-height:1.7;color:var(--gold-hi);border:2px solid var(--gold);background:var(--panel-3);padding:.42rem .55rem;margin-bottom:14px}
 
+/* ══════════════════════════════════════════════════════════════════════
+   ★★★ CHAPTER BAR · the guidebook's persistent table of contents.
+
+     Creator: "make sure the navigate header UI is always there so we can jump
+     to different guidebook chapters. hides when scrolling down but comes back
+     if scroll up."
+
+   On desktop the chapter list is the left rail, pinned, always in view. On
+   mobile that rail collapsed to `position:static` at the very top of the
+   document — so the instant you scrolled into chapter 01 the entire table of
+   contents was gone, and the only way to reach chapter 07 was to scroll all
+   the way back up. A nine-chapter reference book with no persistent index is
+   a very long scroll.
+
+   ★ The bar is horizontally scrollable rather than wrapped, because nine
+     chapters stacked into rows would eat a third of a phone screen. It hides
+     downward and returns on the first upward scroll — reading gets the whole
+     viewport, navigating is one flick away.
+   ══════════════════════════════════════════════════════════════════════ */
+.chapbar{ display:none; }
 @media (max-width:900px){
+  .chapbar{
+    display:block; position:fixed; top:0; left:0; right:0; z-index:140;
+    background:rgba(8,9,14,.96);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    border-bottom:2px solid var(--gold-deep);
+    padding-top:env(safe-area-inset-top);
+    transform:translateY(0); transition:transform .32s cubic-bezier(.2,.8,.2,1);
+  }
+  .chapbar.hid{ transform:translateY(-115%); }
+  .chapbar-scroll{
+    display:flex; gap:0; overflow-x:auto; overflow-y:hidden;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    /* ★ keep the last chip clear of the hamburger at top-right */
+    padding:9px 62px 9px 12px;
+  }
+  .chapbar-scroll::-webkit-scrollbar{ display:none; }
+  .chapbar a{
+    flex:0 0 auto; display:flex; align-items:center; gap:.4rem;
+    font-family:var(--mono); font-size:.62rem; letter-spacing:.07em;
+    text-transform:uppercase; text-decoration:none; white-space:nowrap;
+    color:var(--text-dim); border:1px solid var(--site-border-soft);
+    background:var(--panel-3); padding:.5rem .62rem; margin-right:6px;
+  }
+  .chapbar a .n{ font-weight:700; color:var(--muted); }
+  .chapbar a.on{ color:var(--gold-hi); border-color:var(--gold); background:var(--amethyst-dp); }
+  .chapbar a.on .n{ color:var(--gold-hi); }
+
   .wrap{grid-template-columns:1fr}
-  .rail{position:static;height:auto;border-right:none;border-bottom:3px solid var(--gold-deep);padding:20px 24px 24px}
+  /* ★ the old rail still holds the masthead + build stamp, so it stays — it
+       just no longer pretends to be the navigation. */
+  .rail{position:static;height:auto;border-right:none;border-bottom:3px solid var(--gold-deep);
+        padding:calc(20px + 46px + env(safe-area-inset-top)) 24px 24px}
   .rail nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:0 12px}
-  .col{padding:0 24px}
+  /* ★★ FULL-WIDTH READING. `.col` capped itself at 74ch with 44px of gutter —
+       a measure tuned for a desktop column, which on a 390px phone left the
+       text in a narrow strip with the panel borders far off-screen. */
+  .col{padding:0 16px; max-width:none}
   .slots{grid-template-columns:1fr}
+  /* anchor jumps must clear the fixed bar */
+  section[id], h2[id], h3[id]{ scroll-margin-top:calc(64px + env(safe-area-inset-top)); }
+
+  /* ★★★ NOTHING SCROLLS INSIDE ITSELF.
+       Creator: "all graphs and image container should have full images
+       previewable. no scroll needed in containers."
+       Both wrappers were `overflow-x:auto`, which on a phone meant every table
+       and every diagram was a keyhole you had to drag sideways to read, with
+       no indication there was more to the right. */
+  .tablewrap{ overflow-x:visible; }
+  .tablewrap table{ table-layout:fixed; width:100%; }
+  .tablewrap th, .tablewrap td{
+    font-size:.66rem; line-height:1.5; padding:.5rem .4rem;
+    word-break:break-word; overflow-wrap:anywhere; hyphens:auto;
+  }
+  .figscroll{ overflow-x:visible; }
+  .fig{ padding:12px 10px 14px; }
+  .fig svg{ width:100%; height:auto; max-width:100%; }
+  img, svg, canvas{ max-width:100%; height:auto; }
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.rail a.on .cur{animation:none}}
 
@@ -1322,20 +1394,76 @@ html{scroll-behavior:smooth}
 </div>
 
 <script>
+/* ★★★ THE CHAPTER BAR IS GENERATED FROM #nav, NEVER HAND-COPIED.
+   Nine chapters written out twice is nine chances for the bar and the rail to
+   disagree about what chapter 06 is called — and the one that gets updated is
+   always the one you are looking at. One list, two renderings. */
 (function(){
-  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  var nav = document.getElementById('nav');
+  if (!nav) return;
+  var bar = document.createElement('div');
+  bar.className = 'chapbar';
+  bar.setAttribute('aria-label', 'Chapter navigation');
+  var strip = document.createElement('div');
+  strip.className = 'chapbar-scroll';
+  Array.prototype.forEach.call(nav.querySelectorAll('a'), function(a){
+    var href = a.getAttribute('href') || '';
+    var num  = a.querySelector('.num'), spans = a.querySelectorAll('span');
+    var ttl  = spans.length ? spans[spans.length - 1].textContent : href.slice(1);
+    var c = document.createElement('a');
+    c.href = href;
+    c.innerHTML = '<span class="n">' + (num ? num.textContent : '') + '</span>'
+                + '<span>' + ttl + '</span>';
+    strip.appendChild(c);
+  });
+  bar.appendChild(strip);
+  document.body.insertBefore(bar, document.body.firstChild);
+
+  /* ★★ HIDE ON THE WAY DOWN, RETURN ON THE WAY UP.
+     Guarded three ways, because a naive lastY comparison misbehaves in all
+     three: iOS rubber-band scrolling reports negative offsets and would flap
+     the bar at the top of the page; sub-pixel momentum deltas would fire the
+     transition dozens of times a second; and near the very top the bar should
+     simply always be visible rather than animating. */
+  var lastY = window.pageYOffset || 0, ticking = false;
+  var THRESH = 8, TOP_ZONE = 90;
+  function onScroll(){
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(function(){
+      var y = window.pageYOffset || 0;
+      if (y < 0) y = 0;                                  // iOS overscroll
+      var dy = y - lastY;
+      if (y <= TOP_ZONE)      bar.classList.remove('hid');
+      else if (dy >  THRESH)  bar.classList.add('hid');   // scrolling down
+      else if (dy < -THRESH)  bar.classList.remove('hid'); // scrolling up
+      if (Math.abs(dy) > THRESH) lastY = y;
+      ticking = false;
+    });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  /* the bar is a nav surface, not a reading surface — tapping a chip should
+     always leave it on screen at the destination */
+  strip.addEventListener('click', function(){ bar.classList.remove('hid'); });
+})();
+</script>
+
+<script>
+(function(){
+  // ★ the rail AND the bar both light up · one observer, two renderings
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a, .chapbar a'));
   var map = {};
   links.forEach(function(a){
     var id = a.getAttribute('href').slice(1);
     var el = document.getElementById(id);
-    if (el) map[id] = a;
+    if (el){ (map[id] = map[id] || []).push(a); }
   });
   var sections = Object.keys(map).map(function(id){ return document.getElementById(id); });
   if (!sections.length || !('IntersectionObserver' in window)) {
     if (links[0]) links[0].classList.add('on');
     return;
   }
-  links[0].classList.add('on');
+  if (map[Object.keys(map)[0]]) map[Object.keys(map)[0]].forEach(function(a){ a.classList.add('on'); });
   var visible = {};
   var io = new IntersectionObserver(function(entries){
     entries.forEach(function(e){ visible[e.target.id] = e.isIntersecting ? e.intersectionRatio : 0; });
@@ -1345,7 +1473,15 @@ html{scroll-behavior:smooth}
     });
     if (best) {
       links.forEach(function(a){ a.classList.remove('on'); });
-      map[best].classList.add('on');
+      map[best].forEach(function(a){ a.classList.add('on'); });
+      // ★ keep the active chip in view · a highlight scrolled off the strip
+      //   tells you nothing about where you are
+      var chip = map[best].filter(function(a){ return a.parentNode
+        && a.parentNode.className === 'chapbar-scroll'; })[0];
+      if (chip && chip.scrollIntoView) {
+        try { chip.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); }
+        catch(_){ }
+      }
     }
   }, { rootMargin: '-15% 0px -70% 0px', threshold: [0, 0.02, 0.2, 0.5, 1] });
   sections.forEach(function(s){ io.observe(s); });

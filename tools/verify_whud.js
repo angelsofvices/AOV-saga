@@ -119,8 +119,32 @@ H('5 · ★★ IT IS ACTUALLY CALLED');
   const hud=src.indexOf('function updateRizerHUD');
   ok(/updateWeaponHUD\(\)/.test(src.slice(hud,hud+2500)),
      'the per-frame HUD tick refreshes it');
-  ok(/player\.swordEquipped = !player\.swordEquipped;\s*\n\s*try \{ updateWeaponHUD/.test(src),
-     'toggling the Sapphire repaints it immediately');
+  // ★★★ v0.96.18 · EVERY toggle site must repaint, and the check no longer
+  //   demands the two lines be ADJACENT. The old regex required
+  //   `updateWeaponHUD` on the very next line, which the correct ZyPhone site
+  //   already failed (it clears the axe and bow in between) — so this suite was
+  //   red for a real reason AND for a fake one at the same time, and the fake
+  //   one is why I had it filed as noise. Now: find each toggle, look ahead a
+  //   few lines, and require the repaint somewhere in that window.
+  // ★★★ COMMENTS STRIPPED FIRST. My own rule, and I broke it inside the very
+  //   fix for this check: a ten-line comment explaining the repaint pushed the
+  //   repaint itself outside the look-ahead window, so the suite reported the
+  //   call missing while looking straight at it. An absence check must read
+  //   CODE, never prose.
+  const code = src.replace(/^\s*\/\/.*$/gm, '');
+  const toggles = [...code.matchAll(/player\.swordEquipped = !player\.swordEquipped;/g)];
+  ok(toggles.length >= 2, `${toggles.length} places toggle the Sapphire`);
+  const missing = toggles.filter(m =>
+    !/updateWeaponHUD\(\)/.test(code.slice(m.index, m.index + 500)));
+  ok(missing.length === 0,
+     `every Sapphire toggle repaints the weapon HUD (${toggles.length} sites, `
+     + `${missing.length} silent)`);
+  // ★ and the one-Square-slot rule holds at every one of them
+  const twoHanded = toggles.filter(m =>
+    !/axeEquipped = false; player\.bowEquipped = false;/.test(code.slice(m.index, m.index + 500)));
+  ok(twoHanded.length === 0,
+     `every toggle drops the axe and bow (${twoHanded.length} that don't) · Square `
+     + 'holds exactly one weapon, so a site that skips this leaves you holding two');
   ok(/player\.rubypawEquipped = !player\.rubypawEquipped;\s*\n\s*try \{ updateWeaponHUD/.test(src),
      'and so does toggling the Rubypaw');
   ok(!/intentionally empty/.test(src),'the old no-op stub is gone');

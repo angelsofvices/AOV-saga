@@ -52,9 +52,15 @@ H('2 · ★★★ THE WORLD FREEZE · the gate that owns tickNPC');
      '★★★ and why the half-fix was worse than none · it held him still at point-blank for seventeen seconds');
   // the two guarded ticks must sit behind that same _paused
   const gate = src2.indexOf('const _paused = game.zphoneOpen || game.paused || cinematicPlaying();');
-  const npcTick = src2.indexOf('tickNPC(n, dt)', gate);
+  // ★ v0.96.18 · anchored on the CALL, not on its argument name. This searched
+  //   for the literal `tickNPC(n, dt)`; v0.96.1's distance-LOD renamed the local
+  //   to `_dt`, so from `gate` onward the string no longer existed and indexOf
+  //   returned -1 — a red suite reporting a regression that had never happened.
+  //   The one match left in the file was the function DECLARATION, above the
+  //   gate, which is why it read as "upstream".
+  const npcTick = (src2.slice(gate).match(/tickNPC\(n, *_?dt\)/) || {}).index;
   const projTick = src2.indexOf('tickProjectiles(performance.now())', gate);
-  ok(gate>0 && npcTick>gate,'★★ tickNPC is downstream of it');
+  ok(gate>0 && npcTick != null && npcTick > 0, '★★ tickNPC is downstream of it');
   ok(projTick>gate,'★★ tickProjectiles too · the storm’s own victims cannot shoot you mid-film');
 }
 

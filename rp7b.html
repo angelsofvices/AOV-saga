@@ -1542,6 +1542,18 @@ window.addEventListener('keydown', (ev) => {
   try { setHudLayoutMode(!hudLayoutMode); } catch(err){ console.warn('[rp7b] hud layout', err); }
 }, true);
 
+// ★★★ v0.96.18 · F10 · DUMP THE FLIGHT RECORDER.
+// Early-capture, exactly like F9, and for the same reason: the moment I need it
+// most is the moment the game has stopped responding, and a key routed through
+// the normal handler is a key that may never arrive. F10 is unbound everywhere
+// else (grepped for, not assumed).
+window.addEventListener('keydown', (ev) => {
+  if (!ev || ev.repeat) return;
+  if ((ev.key || '') !== 'F10') return;
+  ev.preventDefault();
+  try { dumpFlight(); } catch(err){ console.warn('[rp7b] flight dump', err); }
+}, true);
+
 // v0.95.439 · ULTRA-EARLY TOUCHPAD HARDLINE · window capture · fires before EVERY
 // other keydown listener on the page.  This is the outermost trap for '2' — the
 // zphone opens/closes even if some downstream handler crashes or gates the event.
@@ -2914,13 +2926,26 @@ function startRizerDeath(){
   // v0.95.565 · Rizer "ugh gyat" death VO fires right when the death anim
   // starts · beats every lesser voice via priority 110.
   try { playSFX('ughGyat'); } catch(_){}
+  // ★★ v0.96.18 · the deadline the frame will enforce if these timers don't.
+  //   See _tickDeadman. Two nested setTimeouts into a video is a chain with
+  //   four ways to break and no way to notice.
+  _rizerDeath.deadline = now + _rizerDeath.dur + 650 + DEADMAN_GRACE_MS;
   setTimeout(() => {
     if (!_rizerDeath || _dreamPlaying) return;
     _sleepFade = { t0: performance.now(), dur: 650 };
     setTimeout(() => {
       if (!_rizerDeath || _dreamPlaying) return;
       const alive = (player.party || []).filter(Boolean);
-      playDreamVideo(alive, { wakeInRoom: true, fromDeath: true });
+      try { playDreamVideo(alive, { wakeInRoom: true, fromDeath: true }); }
+      catch(err){
+        // ★ the dream is the ONLY thing that clears the death lock. If it
+        //   cannot even be started, unfreeze here rather than leaving the
+        //   player stood in the last frame of his own death animation.
+        console.error('[rp7b] dream video failed to start · unfreezing', err);
+        _rizerDeath = null; _sleepFade = null;
+        try { restoreRizerOnRest(); } catch(_){}
+        try { showToast('◈ You wake where you fell.', 3000); } catch(_){}
+      }
     }, 650);
   }, _rizerDeath.dur);
 }
@@ -5160,7 +5185,22 @@ function caveFootprint(halfW){
 // "Cannot access 'RAYGUN_CHEST_AT_X' before initialization", which is the exact
 // temporal-dead-zone trap this file already carries a warning about at
 // DOORMAT_KEYS. Caught by booting it in node rather than by reading it.
-const RAYGUN_CHEST_AT_X = 24, RAYGUN_CHEST_AT_Y = -13;
+// ★★ v0.96.18 · MOVED TO THE FOOT OF THE TREE.
+//
+//   Creator: "make sure the gold chest is somewhere with the raygun in it near
+//   the tree. has to spawn in overworld."
+//
+// It DID spawn in the overworld — that part was already true and I confirmed it
+// by driving the prop rather than reading it: the tile resolves, all four
+// neighbours are walkable, onInteract opens it and the drop lands. What was
+// wrong is the word NEAR. (24,-13) is ELEVEN tiles from the treehouse at
+// (20,-20) — far enough that you would never connect the two, and the whole
+// beat depends on finding it where Noot said he had been.
+// ★ (20,-18) is two tiles directly SOUTH of the treehouse — literally "on the
+//   ground below the treehouse" ([[aov-kid-pals-faction]]), open ground with
+//   three clear approaches, and not inside any prop footprint. Chosen by
+//   scanning every tile within 6 for walkability and elbow room, not picked.
+const RAYGUN_CHEST_AT_X = 20, RAYGUN_CHEST_AT_Y = -18;
 const WORLD_PROPS = [
   ...buildSeerHqProps(),
   {
@@ -16792,12 +16832,41 @@ function pickDoormatKey(seed){
 // SEVEN TILES WIDE, CENTRED, ON ROW 2 — inside the upper third of every room
 // (rows 0-3 of 11, rows 0-4 of 13). One art spec covers all five, and a player
 // who has used one counter knows where the next one is before the room loads.
+// ★★★ v0.96.18 · THE COUNTER ART.
+//
+//   Creator: "counters: farm, nurse, potion shop, townhall, zysphere store.
+//   place at top of floor in respective building"
+//
+// Until now `CIVIC_COUNTER` described a band of BLOCKED TILES and nothing more:
+// the rooms had a barrier you could not walk through and could not see. These
+// five images are that barrier.
+//
+// ★★ artH IS MEASURED, NEVER ASSUMED. The old constant said every counter was
+//   3.5 tiles tall. The delivered art, at the shared 7-tile width, is 3.76,
+//   3.89, 4.04, 4.06 and 5.11 tiles tall — the potion shop's apothecary rack is
+//   half a room taller than the lodge's key board. Forcing all five to 3.5 would
+//   have squashed every one of them by a different amount, which is exactly the
+//   thing [[image-never-stretch-console-fullscreen]] exists to stop. The WIDTH
+//   is the shared pattern the Creator asked for; the height follows the picture.
 const CIVIC_COUNTER = { w: 7, row: 2, artH: 3.5 };
+const COUNTER_MAX_OVERHANG = 1.1;   // tiles a counter may rise above row 0
+const COUNTER_IMGS = {};
+for (const _k of ['nurse','zysphere-shop','potion-shop','town-hall','cottage-lodge']){
+  const im = new Image();
+  im.src = `assets/2D sprites/decor/counters/counter-${_k}.png`;
+  COUNTER_IMGS[_k] = im;
+}
 function civicCounterSlot(kind){
   const R = CIVIC_ROOMS[kind];
   if (!R) return null;
   const x = Math.round((R.cols - CIVIC_COUNTER.w) / 2);
-  return { x, y: CIVIC_COUNTER.row, w: CIVIC_COUNTER.w, artH: CIVIC_COUNTER.artH };
+  // ★ artH from the loaded image when we have it, the constant only as a
+  //   placeholder for the frames before it decodes.
+  const im = COUNTER_IMGS[kind];
+  const artH = (im && im.complete && im.naturalWidth)
+    ? (CIVIC_COUNTER.w * im.naturalHeight / im.naturalWidth)
+    : CIVIC_COUNTER.artH;
+  return { x, y: CIVIC_COUNTER.row, w: CIVIC_COUNTER.w, artH };
 }
 const CIVIC_ROOMS = {
   'nurse': {
@@ -26472,10 +26541,18 @@ function playDreamVideo(alive, opts = {}){
     }
   };
   if (!vid){
+    // ★★★ v0.96.18 · THE LOCK COMES OFF FIRST.
+    // `_rizerDeath` is a HARD FREEZE REASON — while it is set you cannot move,
+    // at all, anywhere. It used to be cleared on the line AFTER
+    // wakeInRizerRoom(), which warps scenes, rebuilds interiors and saves. Any
+    // throw in there and the flag stayed set forever: a permanently frozen
+    // player standing in a fully-drawn world with no recovery and no message.
+    // ★ Releasing a lock must never be contingent on the work that follows it.
+    _rizerDeath = null;
     restoreRizerOnRest();   // v0.95.654 · HP + ◆ SPECIAL + ϟ ENERGY
     (alive || []).forEach(z => { z.hp = z.maxHp; });
-    wakeInRizerRoom();
-    _rizerDeath = null;
+    try { wakeInRizerRoom(); }
+    catch(err){ console.error('[rp7b] wake failed · you are unfrozen anyway', err); }
     saveGame(); playSFX('confirm');
     if (!opts.fromDeath) showToast('◈ Fully rested · HP · ◆ SPECIAL · ϟ ENERGY all restored.', 2200);
     return;
@@ -26502,15 +26579,19 @@ function playDreamVideo(alive, opts = {}){
   tryPlay();
   const finish = (reason) => {
     if (!_dreamPlaying) return;                      // guard against double-fire
+    // ★★★ v0.96.18 · EVERY LOCK OFF, THEN the restoration. Same reasoning as
+    // the no-video path above: three freeze reasons hang off this function and
+    // all three used to be released either side of a scene warp.
     _dreamPlaying = false;
-    vid.pause();
+    _rizerDeath   = null;
+    _sleepFade    = null;
+    try { vid.pause(); } catch(_){}
     vid.style.display = 'none';
     restoreRizerOnRest();   // v0.95.654 · HP + ◆ SPECIAL + ϟ ENERGY
     (alive || (player.party || []).filter(z => z)).forEach(z => { z.hp = z.maxHp; });
-    wakeInRizerRoom();
-    _rizerDeath = null;
-    saveGame();
-    _sleepFade = null;
+    try { wakeInRizerRoom(); }
+    catch(err){ console.error('[rp7b] wake failed · you are unfrozen anyway', err); }
+    try { saveGame(); } catch(err){ console.error('[rp7b] save after wake failed', err); }
     playSFX('confirm');
     if (!opts.fromDeath) showToast(`◈ Fully rested · HP · ◆ SPECIAL · ϟ ENERGY all restored${reason === 'skip' ? ' (skipped)' : ''}.`, 2600);
     if (_dreamSkipHandlers){
@@ -32805,6 +32886,47 @@ function drawInteriorFloor(){
     const dx = rug.x * TILE - _cam.x;
     const dy = rug.y * TILE - _cam.y;
     ctx.drawImage(RUG_IMG, sx, sy, sw, sh, dx, dy, rug.w * TILE, rug.h * TILE);
+  }
+  // ★★★ v0.96.18 · THE CIVIC COUNTER · "place at top of floor in respective
+  //   building". Drawn AFTER the rug and BEFORE the stairs, so it sits on the
+  //   floor the room was decorated with rather than under it.
+  if (cfg && cfg.civic){
+    const _cim = COUNTER_IMGS[cfg.civic];
+    if (_cim && _cim.complete && _cim.naturalWidth){
+      const slot = civicCounterSlot(cfg.civic);
+      if (slot){
+        const natW = _cim.naturalWidth, natH = _cim.naturalHeight;
+        let drawW = slot.w * TILE;
+        let drawH = Math.round(drawW * natH / natW);     // ★ never stretched
+        // ★★★ ONE TILE OF OVERHANG, NO MORE. Row 0 is a single wall band, so a
+        // counter anchored at the bottom of row 2 has about four tiles of
+        // headroom before its top leaves the room entirely. Four of the five
+        // land at roughly row -1, which is the overhang the staircases already
+        // established (`visY = -1`, deliberately in the black zone). The potion
+        // shop's apothecary rack is 5.11 tiles and would have reached row -2.1,
+        // hanging two full tiles above the ceiling in open black.
+        // ★ Measured before capping: nurse -1.04, zysphere -1.06, town hall
+        //   -0.89, lodge -0.76, potion shop -2.11. Only the last is clipped, and
+        //   it is scaled DOWN as a whole rather than cropped — cropping would
+        //   have taken the top shelf off, which is the part that says
+        //   "apothecary". Uniform width was the pattern the Creator asked for;
+        //   one narrower counter is a smaller break than one floating in space.
+        const maxH = (slot.y + 1 + COUNTER_MAX_OVERHANG) * TILE;
+        if (drawH > maxH){
+          drawW = Math.round(drawW * maxH / drawH);
+          drawH = Math.round(maxH);
+        }
+        // ★★ The counter's BOTTOM edge rests on the bottom of its blocked row,
+        //   so the solid tile the player walks up to is the counter FACE, and
+        //   everything above it — shelving, cabinets, banners — overhangs into
+        //   the wall the way it does in the art. Anchoring by the TOP instead
+        //   would have floated the face a tile above the barrier on the two
+        //   tallest counters and left a gap you could see through.
+        const dx = Math.round(slot.x * TILE + (slot.w * TILE - drawW) / 2) - _cam.x;
+        const dy = Math.round((slot.y + 1) * TILE - drawH) - _cam.y;
+        ctx.drawImage(_cim, 0, 0, natW, natH, dx, dy, drawW, drawH);
+      }
+    }
   }
   // Staircase decor · draws the 2x3-tile sprite in the upper corner.
   // 1F-to-2F stairs use the UP art · 2F-to-1F stairs use the DOWN art.
@@ -55770,6 +55892,97 @@ let last = performance.now();
 //   used to end the session now costs one dropped frame and NAMES ITSELF on
 //   screen. Errors are deduplicated by message, because a fault that throws
 //   once throws sixty times a second and would bury its own first occurrence.
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.18 · THE FLIGHT RECORDER
+//
+//   Creator, six times now: "game froze", "I keep going f (fail/freeze after
+//   dialogue...)", "I talked to scrapjaw and then did a roll then I f'd again."
+//
+// ★★★ Six reports and six THEORIES, because I have never once had a recording.
+//   Each time I read a screenshot, guessed a cause, guarded it, and shipped —
+//   and the seventh report arrived anyway. One of those guesses was built on
+//   misreading `Lv —`, a widget that was working correctly.
+//
+// ★ So: the game now keeps a black box. Every frame writes one compact row into
+//   a ring buffer. Nothing is allocated per frame after warm-up, nothing is
+//   logged, nothing is sent anywhere — it costs a handful of field writes.
+//   When the world stops, F10 dumps the last ~8 seconds to a file the Creator
+//   can hand me, and the answer is in it instead of in my imagination.
+// ══════════════════════════════════════════════════════════════════════════
+const FLIGHT_N = 480;                       // ~8s at 60fps
+const _flight  = { buf: new Array(FLIGHT_N), i: 0, n: 0, on: true };
+function recordFlight(now, phase, extra){
+  if (!_flight.on) return;
+  try {
+    let r = _flight.buf[_flight.i];
+    if (!r) r = _flight.buf[_flight.i] = {};
+    r.t     = Math.round(now);
+    r.phase = phase;                        // 'frame' | 'throw' | 'key'
+    r.scene = game.scene;
+    r.x = player.x; r.y = player.y; r.dir = player.dir;
+    r.mvCd = Math.round(player.moveCd || 0);
+    r.moving = !!player.moving;
+    r.dodge = Math.round(player.dodgeUntil || 0);
+    r.atk   = Math.round(player.attackUntil || 0);
+    r.jump  = Math.round(player.jumpUntil || 0);
+    r.dj    = !!player._doubleJump;
+    r.dlg   = dialogState ? dialogState.speaker : null;
+    r.why   = tryMove._lastReason || '';    // ★ the freeze-reason string, per frame
+    r.keys  = (typeof keys === 'object' && keys)
+      ? Object.keys(keys).filter(k => keys[k]).join('+') : '';
+    r.extra = extra || null;
+    _flight.i = (_flight.i + 1) % FLIGHT_N;
+    if (_flight.n < FLIGHT_N) _flight.n++;
+  } catch(_){}
+}
+// ★ Oldest-first, so the dump reads like a timeline instead of a ring.
+function flightRows(){
+  const out = [];
+  const start = (_flight.n < FLIGHT_N) ? 0 : _flight.i;
+  for (let k = 0; k < _flight.n; k++){
+    const r = _flight.buf[(start + k) % FLIGHT_N];
+    if (r) out.push(Object.assign({}, r));
+  }
+  return out;
+}
+// ★★ F10 · hand me the black box. Written as a local file the Creator can
+//    attach — a console dump scrolls away and screenshots of a console are how
+//    we got here.
+function dumpFlight(){
+  const rows = flightRows();
+  const payload = {
+    build: (typeof AOV_BUILD !== 'undefined') ? AOV_BUILD : null,
+    at: new Date().toISOString(),
+    scene: game.scene, x: player.x, y: player.y,
+    stuck: game._stuckBanner || null,
+    badSteps: frame._badStep ? [...frame._badStep] : [],
+    lastFrameError: game._lastFrameError || null,
+    followers: (typeof NPCS !== 'undefined'
+      ? NPCS.filter(n => n && n._following).map(n => n.id) : []),
+    party: (player.party || []).filter(Boolean).map(z => z && (z.speciesId || z.name)),
+    frames: rows
+  };
+  const text = JSON.stringify(payload, null, 1);
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `rp7b-flight-${Date.now()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch(_){}
+  try { console.log('[rp7b] ★ FLIGHT RECORDER · last ' + rows.length + ' frames', payload); } catch(_){}
+  try { showToast(`◈ Flight recorder saved · ${rows.length} frames · send me the .json`, 6000); } catch(_){}
+  return payload;
+}
+// ★★★ THE WORLD-STOPPED DETECTOR. Distinct from the stuck watchdog: that one
+//   asks "why is the player blocked", which assumes frames are still running.
+//   This one asks whether _frameBody COMPLETED at all. If the body has not
+//   finished in 1s while rAF keeps firing, something is throwing at the top and
+//   every screenshot of it looks exactly like a hang.
+let _lastBodyDone = 0;
+function frameStalled(now){ return _lastBodyDone && (now - _lastBodyDone) > 1000; }
+
 function frame(now){
   try { _frameBody(now); }
   catch(err){
@@ -55787,11 +56000,152 @@ function frame(now){
       console.error(`[rp7b] ★ FRAME THREW ${hits}\u00d7 · ` + key);
     }
     game._lastFrameError = { key, hits, at: Date.now() };
+    try { recordFlight(performance.now(), 'throw', String(err && err.message || err)); } catch(_){}
   }
   finally { requestAnimationFrame(frame); }
 }
+// ★★★ v0.96.18 · _step lives at MODULE scope now. v0.96.17 declared it halfway
+// down _frameBody, so it could only ever guard the DRAW TAIL — and the head of
+// the frame, which is where the game actually thinks, stayed bare.
+function _step(name, fn){
+  try { fn(); }
+  catch(err){
+    frame._badStep = frame._badStep || new Set();
+    if (!frame._badStep.has(name)){
+      frame._badStep.add(name);
+      console.error(`[rp7b] ★ frame step "${name}" threw · everything below it used to stop here`, err);
+      // ★ A CRASH DUMP, not just a name. Six freeze reports in and the one thing
+      //   I never had was the state at the moment of the throw.
+      try {
+        console.error('[rp7b] ★ state at throw ·', JSON.stringify({
+          step: name, scene: game.scene, x: player.x, y: player.y, dir: player.dir,
+          moveCd: player.moveCd, moving: player.moving,
+          dodgeUntil: player.dodgeUntil, attackUntil: player.attackUntil,
+          jumpUntil: player.jumpUntil, doubleJump: !!player._doubleJump,
+          dialog: dialogState ? dialogState.speaker : null,
+          battle: !!battleState, wild: !!wildBattleState,
+          followers: (typeof NPCS !== 'undefined'
+            ? NPCS.filter(n => n && n._following).map(n => n.id) : null)
+        }));
+      } catch(_){}
+      try { showToast(`⚠ ${name} failed · recovered · see console`, 8000); } catch(_){}
+    }
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.18 · THE DEADMAN · every timed freeze lock self-heals.
+//
+//   Creator: "it seems to freeze when I leave a dialogue and run or do
+//   something like that" — the sixth report of the same thing.
+//
+// ★★★ THE PATTERN, FINALLY NAMED. I fixed `player._doubleJump` in v0.96.13:
+//   a hard freeze flag whose only clear path was a setTimeout that any menu
+//   could cancel. I fixed the one instance and never asked whether the file
+//   had SIBLINGS. It has four:
+//
+//     _rizerDeath      cleared in exactly 2 places, both downstream of a VIDEO
+//     _dreamPlaying    cleared in exactly 1 place, inside that video's finish()
+//     _sleepFade       cleared by bare setTimeouts
+//     _voltstormPlaying / _tvMoviePlaying   cleared by video callbacks
+//
+//   Every one is a hard entry in `freezeReasons`. Every one is released by a
+//   callback that a browser is free never to run: autoplay policy can refuse
+//   play(), a backgrounded tab throttles timers to once a minute, a missing
+//   or mis-encoded file fires neither `ended` nor sometimes `error`, and a
+//   throw anywhere in the handler skips the rest of it. When any of those
+//   happen the world keeps drawing, the input keeps arriving, and the player
+//   simply cannot move — for the rest of the session.
+//
+// ★ So the frame enforces the deadline. Each lock declares roughly how long it
+//   should live; if it outlives that by DEADMAN_GRACE_MS the frame takes it off
+//   and SAYS SO. Nothing here is a substitute for the real callback — it is the
+//   floor under it, so the worst case is a visible hiccup instead of a dead game.
+// ══════════════════════════════════════════════════════════════════════════
+const DEADMAN_GRACE_MS = 4000;
+function _deadmanClear(label, why){
+  console.error(`[rp7b] ★★★ DEADMAN · "${label}" outlived its own deadline · ${why}`);
+  try { showToast(`⚠ ${label} never finished · unfrozen · press F10 to save a recording`, 7000); } catch(_){}
+  try { recordFlight(performance.now(), 'deadman', label); } catch(_){}
+}
+function _tickDeadman(){
+  const now = performance.now();
+  // ★ A BACKGROUNDED TAB IS NOT A HANG. rAF stops while hidden, so on return
+  //   every deadline looks blown at once. Push them forward by the gap instead
+  //   of unfreezing a player who simply alt-tabbed.
+  const gap = _tickDeadman._last ? (now - _tickDeadman._last) : 0;
+  _tickDeadman._last = now;
+  if (gap > 1500){
+    if (_rizerDeath && _rizerDeath.deadline) _rizerDeath.deadline += gap;
+    if (_dreamPlaying && _tickDeadman._dreamAt) _tickDeadman._dreamAt += gap;
+    if (_tickDeadman._voltAt)  _tickDeadman._voltAt  += gap;
+    if (_tickDeadman._tvAt)    _tickDeadman._tvAt    += gap;
+    return;
+  }
+
+  // ── the death lock ──────────────────────────────────────────────────
+  if (_rizerDeath){
+    if (!_rizerDeath.deadline)
+      _rizerDeath.deadline = (_rizerDeath.t0 || now) + (_rizerDeath.dur || 1800) + 650 + DEADMAN_GRACE_MS;
+    if (now > _rizerDeath.deadline && !_dreamPlaying){
+      _deadmanClear('death', 'the dream that clears it never started');
+      _rizerDeath = null; _sleepFade = null;
+      try { restoreRizerOnRest(); } catch(_){}
+      try { playSFX('confirm'); } catch(_){}
+    }
+  }
+
+  // ── the three cinematics ────────────────────────────────────────────
+  // ★ 6 minutes is longer than anything in the game and short enough that a
+  //   stuck movie is a bad minute rather than a lost save.
+  const CINE_MAX = 360000;
+  const watch = (playing, stampKey, label, stop) => {
+    if (playing){
+      if (!_tickDeadman[stampKey]) _tickDeadman[stampKey] = now;
+      else if (now - _tickDeadman[stampKey] > CINE_MAX){
+        _deadmanClear(label, 'its video never reported ended or error');
+        _tickDeadman[stampKey] = 0;
+        try { stop(); } catch(_){}
+      }
+    } else _tickDeadman[stampKey] = 0;
+  };
+  watch(_dreamPlaying, '_dreamAt', 'dream video', () => {
+    _dreamPlaying = false; _rizerDeath = null; _sleepFade = null;
+    const v = document.getElementById('dreamVideo');
+    if (v){ try { v.pause(); } catch(_){} v.style.display = 'none'; }
+    try { restoreRizerOnRest(); } catch(_){}
+  });
+  watch(typeof _voltstormPlaying !== 'undefined' && _voltstormPlaying,
+        '_voltAt', 'voltstorm video', () => {
+    _voltstormPlaying = false;
+    const v = document.getElementById('voltstormVideo');
+    if (v){ try { v.pause(); } catch(_){} v.style.display = 'none'; }
+  });
+  watch(typeof _tvMoviePlaying !== 'undefined' && _tvMoviePlaying,
+        '_tvAt', 'tv movie', () => {
+    _tvMoviePlaying = false;
+    const v = document.getElementById('tvMovieVideo');
+    if (v){ try { v.pause(); } catch(_){} v.style.display = 'none'; }
+  });
+
+  // ── the sleep fade ──────────────────────────────────────────────────
+  // ★ Purely a visual wipe, and a freeze reason. Its clears are bare
+  //   setTimeouts, so it is the cheapest of these to strand.
+  if (_sleepFade && !_dreamPlaying && !_rizerDeath){
+    const t0 = _sleepFade.t0 || now, dur = _sleepFade.dur || 900;
+    if (now - t0 > dur + 6000){
+      _deadmanClear('sleep fade', 'its timeout never fired');
+      _sleepFade = null;
+    }
+  }
+}
+
 function _frameBody(now){
   const dt = now - last; last = now;
+  // ★★★ v0.96.18 · FIRST, before tryMove reads freezeReasons — a lock that has
+  //   already blown its deadline should never cost the player another frame.
+  try { _tickDeadman(); } catch(_){}
   // ★ v0.95.717 · stamina · drains while sprinting, refills when you stop.
   // Runs BEFORE tryMove so canSprint() sees this frame's value, and inside a
   // try so a stamina fault can never take the whole render loop down.
@@ -55814,9 +56168,25 @@ function _frameBody(now){
   // ★ v0.95.743 · ZyPhone Triangle hold · timed HERE, per frame, because the
   // gamepad sends one keydown per press and no repeats. See zyTriangleHoldTick.
   try { zyTriangleHoldTick(); } catch(_){}
-  tryMove(dt);
-  if(wildBattleState)tickWildBattle(dt,now);
-  tickFootprints(dt);                            // v0.87 · sand-trail decay
+  // ★★★ v0.96.18 · THE FRAME HEAD IS GUARDED TOO.
+  //
+  //   Creator: "I talked to scrapjaw and then did a roll then I f'd again"
+  //
+  // ★★★ tryMove(dt) WAS A BARE CALL. Every tick above it sat in its own try —
+  // and then the biggest, most-exercised function in the game, the one that
+  // owns movement, doors, pickups, stairs and every freeze flag, ran naked. A
+  // throw inside it skipped the NPC tick, the world draw AND the whole tail, so
+  // the canvas held its previous pixels and the game looked STOPPED DEAD while
+  // the loop was still running and still reading input. That is the freeze the
+  // Creator has reported six times, and it is the exact reason the RHUD reads
+  // "Lv —" — ★ WHICH I HAD READ WRONG, see the correction at the tail guard.
+  //
+  // ★ v0.96.17 guarded the DRAW TAIL and I called the hunt narrowed. It wasn't:
+  //   I had guarded the half of the frame that only paints, and left bare the
+  //   half that thinks.
+  _step('tryMove', () => tryMove(dt));
+  if (wildBattleState) _step('tickWildBattle', () => tickWildBattle(dt, now));
+  _step('tickFootprints', () => tickFootprints(dt));   // v0.87 · sand-trail decay
   // v0.93 · Title intro · frame-level hold-X detection to reveal menu
   // (disabled once buttons are already shown to avoid re-trigger spam)
   if (introState === 'playing' && !game.showTitleButtons){
@@ -56076,27 +56446,27 @@ function _frameBody(now){
   // failing overlay no longer kills the game outright; it kills EVERYTHING
   // BELOW IT IN THIS FUNCTION, every frame, forever.
   //
-  // ★★★ THAT MATCHES THE EVIDENCE. In every freeze screenshot the top-left
-  //   RHUD reads "Lv —" with empty bars while the world is drawn correctly.
-  //   updateRizerHUD() is the second-to-last statement here — a stale HUD is
-  //   the fingerprint of something above it throwing. And drawDialogOverlay,
-  //   which runs immediately before that block, is the one overlay that only
-  //   executes AFTER YOU TALK TO SOMEONE.
+  // ★★★ AND THE EVIDENCE I BUILT THIS ON WAS MISREAD · v0.96.18 CORRECTION.
+  //
+  //   I wrote, in v0.96.17: "in every freeze screenshot the top-left HUD reads
+  //   'Lv —' with empty bars — the fingerprint of something above it throwing."
+  //
+  // ★★★ IT IS NOT. `Lv —` is written at exactly ONE site in the whole file, in
+  //   updateZyrexHUD, on the `if (!z)` branch — where `z` is party[0]. It is the
+  //   CORRECT render of an empty leader slot. It says the Creator had no Zyrex
+  //   out. It says nothing whatsoever about a throw, and I read a diagnosis into
+  //   a widget that was working perfectly.
+  //
+  // ★★ I then reasoned FORWARD from that false fingerprint and shipped a build
+  //   around it. The guards below are still worth having — an unguarded draw can
+  //   take the frame down, that part is true — but they were not aimed at
+  //   anything. Six freeze reports in, I had no recorded evidence at all and was
+  //   producing a new theory per report. v0.96.18 stops theorising and adds the
+  //   FLIGHT RECORDER instead, so the seventh report arrives with its own answer.
   //
   // ★ So each is guarded on its own line, and a thrower is NAMED once rather
   //   than swallowed. Guarding is not hiding: the console says which one, and
   //   the HUD keeps updating while it does.
-  const _step = (name, fn) => {
-    try { fn(); }
-    catch(err){
-      frame._badStep = frame._badStep || new Set();
-      if (!frame._badStep.has(name)){
-        frame._badStep.add(name);
-        console.error(`[rp7b] ★ frame step "${name}" threw · everything below it used to stop here`, err);
-        try { showToast(`⚠ ${name} failed · recovered · see console`, 8000); } catch(_){}
-      }
-    }
-  };
   _step('drawZyrexMenu',      drawZyrexMenu);
   _step('drawSettingsMenu',   drawSettingsMenu);
   _step('drawPortalMenu',     drawPortalMenu);
@@ -56115,8 +56485,40 @@ function _frameBody(now){
   // ★★ THE HUD IS LAST AND MUST BE UNKILLABLE · it is the only thing on screen
   //    that tells the player the game is still running.
   _step('updateHUD',      updateHUD);
+  // ★★★ v0.96.18 · DRAW THE STUCK BANNER.
+  //
+  // `game._stuckBanner` has been assigned since v0.96.4 and READ NOWHERE — set
+  // in two places, cleared in two, rendered zero. The watchdog's only visible
+  // output was a toast that fades after six seconds, so by the time the Creator
+  // reached for a screenshot the one line naming the cause was already gone.
+  // That is a diagnostic that exists but does not communicate, which is worse
+  // than none: it made me believe I had observability I did not have.
+  _step('drawStuckBanner', () => {
+    const b = game._stuckBanner;
+    const stalled = frameStalled(now);
+    if (!b && !stalled) return;
+    const msg = stalled
+      ? '\u26a0 FRAME STALLED \u00b7 press F10 to save the flight recorder'
+      : `\u26a0 MOVEMENT BLOCKED BY: ${b.why} \u00b7 F10 saves a recording \u00b7 L2+touchpad 5s to unstick`;
+    ctx.save();
+    ctx.font = 'bold 15px monospace';
+    const w = Math.min(ctx.canvas.width - 24, ctx.measureText(msg).width + 28);
+    const x = Math.round((ctx.canvas.width - w) / 2), y = 12;
+    ctx.fillStyle = 'rgba(120,10,16,.92)';
+    ctx.fillRect(x, y, w, 30);
+    ctx.strokeStyle = '#ff5566'; ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, w - 2, 28);
+    ctx.fillStyle = '#ffe9ec'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(msg, x + w / 2, y + 15);
+    ctx.restore();
+  });
   _step('updateRizerHUD', updateRizerHUD);
   _step('updateZyrexHUD', updateZyrexHUD);
+  // ★★★ v0.96.18 · the black box. LAST statement of the body, so reaching it
+  //   is itself the proof the frame completed — that is what _lastBodyDone
+  //   means and why frameStalled() can trust it.
+  recordFlight(now, 'frame');
+  _lastBodyDone = now;
   // ★ v0.96.4 · the rAF re-request lives in frame()'s `finally` now · see above
 }
 
@@ -58343,7 +58745,18 @@ function _updateWeaponHUD_disabled_v518(){
         return;
       }
       player.swordEquipped = !player.swordEquipped;
+      // ★★★ v0.96.18 · THE ONE-SQUARE-SLOT RULE APPLIES HERE TOO.
+      // The ZyPhone's toggle (v0.95.791) clears the axe and bow when the sword
+      // goes on, because Square holds exactly one weapon. This handler — the one
+      // you hit by clicking the weapon HUD itself, which is the more obvious way
+      // to do it — did neither that nor the repaint, so clicking the slot could
+      // leave you "holding" two weapons and showed you the old art either way.
+      if (player.swordEquipped){ player.axeEquipped = false; player.bowEquipped = false; }
       try { playSFX('confirm'); } catch(_){}
+      // ★ verify_whud has been RED on this exact line, and I had it filed under
+      //   "pre-existing red suites" rather than read. Second time this session a
+      //   red test was holding the answer ([[verify_bondledger]] was the first).
+      try { updateWeaponHUD(); } catch(_){}
       showToast(player.swordEquipped ? '★ Sapphire Tearsword EQUIPPED' : '◇ Sapphire Tearsword UNEQUIPPED', 2000);
     };
     whud.querySelectorAll('.whudSlot').forEach(el => {

@@ -43396,7 +43396,21 @@ let _lastOptionsTapTime = 0;
 // help, not the main gun.
 // ═══════════════════════════════════════════════════════════════════════════
 const STRIKE_BASE_PW = 40;   // every A1 in MOVE_DEX is written around 35-45
-const STRIKE_DIV     = 6;    // the one knob · raise to soften, lower to sharpen
+// ★★★ v0.95.976 · 6 → 10.  Creator: *"zyrex are too powerful. we need to
+// rebalance their damage. they shouldnt feel so much stronger than rizer."*
+//
+// ★ MEASURED FIRST, and the per-hit number turned out not to be the problem.
+// Rizer swings on a ~300ms lock; a companion taps every 700ms, so he already
+// lands 2.3 hits for each of theirs.  One-on-one at DIV 6 they were close:
+//        DPS · Rizer vs ONE companion   T1 111/20 · T3 173/104 · T5 274/261
+// That reads fine.  What does not is that PARTY_MAX is 8 and hold-Triangle
+// summons the whole faction:
+//        DPS · Rizer vs EIGHT           T1 1.4x · T3 4.8x · T5 7.6x · T8 9.5x
+// ★★ The imbalance was MULTIPLICATIVE IN PARTY SIZE, which is why it felt
+// wrong while every individual number looked defensible.  A flat divisor big
+// enough to fix eight would have made one companion useless, so the fix is in
+// two parts: a moderate cut here, and `summonCrowdFalloff()` below.
+const STRIKE_DIV     = 10;   // the one knob · raise to soften, lower to sharpen
 
 // The attack stat, resolved. Prefers the live stat (which carries the level);
 // falls back to the species base scaled the same way, so a creature built by a
@@ -43433,6 +43447,40 @@ function computeZyrexDamage(z){
   const atk = zyrexAttackStat(z);
   if (!atk) return 1;
   return Math.max(1, Math.round(atk * (zyrexDefaultMovePower(z) / STRIKE_BASE_PW) / STRIKE_DIV));
+}
+
+// ★★★ v0.95.976 · THE CROWD FALLOFF · eight allies are not eight times one ally.
+//
+// Summoned damage was scaling LINEARLY with party size, so a full faction hit
+// for eight times a single Zyrex and drowned the protagonist out.  Every
+// individual number was defensible; the sum was not.
+//
+// ★ 1/√N, not 1/N.  Dividing by N would make the total flat — the ninth Zyrex
+// you spent the game bonding would add literally nothing, which punishes the
+// collection the whole game is about.  The square root keeps every addition
+// worth something while bending the curve hard:
+//        N =  1    2    4    8
+//        total ×  1.0  1.4  2.0  2.8   (against a linear 1 / 2 / 4 / 8)
+// So a full deployed faction is about 2.8× one Zyrex — a real force, roughly
+// 1-2× Rizer's own DPS rather than nine times it. He stays the protagonist and
+// they stay worth having.
+//
+// ★ It reads as a fiction, not just a nerf: a crowd of creatures swinging at
+// one target gets in its own way. The same reason the formation is rear-only.
+//
+// ★★ Counted from what is ACTUALLY IN THE FIELD, not from party size — a
+// Zyrex left in the PC or walked home is not crowding anything, and a player
+// who summons one at a time should feel that choice.
+function activeSummonCount(){
+  if (typeof NPCS === 'undefined') return 1;
+  let n = 0;
+  for (const q of NPCS){
+    if (q && q._summoned && q.scene === game.scene && !q._dying) n++;
+  }
+  return Math.max(1, n);
+}
+function summonCrowdFalloff(){
+  return 1 / Math.sqrt(activeSummonCount());
 }
 // v0.95.612 · DUEL MODE (renamed from Aggressive Mode)
 // ★★★ v0.95.974 · DUEL MODE IS GONE · a summoned Zyrex always fights.
@@ -43549,7 +43597,11 @@ function tickAggressiveZyrex(n){
     // Adjacent · strike
     // ★ v0.95.863 · THIS individual earns its own XP · uid first, species as the legacy fallback
     const partyMember = (n._summonUid && findPartyByUid(n._summonUid)) || (player.party || []).find(z => z && z.speciesId === n._summonSpeciesId);
-    const dmg = computeZyrexDamage(partyMember);
+    // ★ v0.95.976 · the crowd falloff applies HERE and only here — to a
+    // summoned companion swinging alongside Rizer.  A hostile wild strikes at
+    // full value (it is alone and it is a threat), and the turn-based battle
+    // has its own formula entirely; neither is what unbalanced the overworld.
+    const dmg = Math.max(1, Math.round(computeZyrexDamage(partyMember) * summonCrowdFalloff()));
     if (best.hp == null) best.hp = best.hpMax || 125;
     best.hp -= dmg;
     const type = (partyMember && (partyMember.type || partyMember.type2)) || 'Beast';

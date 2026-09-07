@@ -30,7 +30,17 @@ H('1 · ★★ THE LEDGER PAYS FOR THE RESCUE');
   const E=C.BOND_EVENTS.zyrexSanctuary;
   ok(!!E,'zyrexSanctuary is a registered bond event');
   ok(E.path==='zyrex','★ it sits on the ZYREX path · saving is something you do WITH a Zyrex');
-  ok(E.pts===1,'base 1 point · the TIER is the multiplier, so the rescue is priced by what it cost');
+  // ★★ v0.95.999 · was 1. Creator: "this can be the most gained bond per action
+  // at 5 bond points for a tier 1 rescue." The TIER is still the multiplier, so
+  // the rescue is still priced by what it cost — only the anchor moved, and the
+  // whole Zyrex half was rescaled beneath it rather than the anchor being
+  // trimmed to fit the old ladder.
+  ok(E.pts===5,'★★★ base 5 points · a T1 rescue is the biggest single bond action in the game');
+  // ★ and the thing that actually makes 5/tier safe: the path cap. A complete
+  // 210-species sanctuary is 3,310 against a 1,665 half — it maxes the Zyrex
+  // path exactly and cannot touch the Rizer path.
+  ok(C.BOND_PATH_CAP === 1665,
+     '★★ the 1665 path cap is what holds it · a full sanctuary is a route to HALF your bond, never all of it');
 }
 
 H('2 · ★★★ FIRST OF A KIND IS WHAT PAYS');

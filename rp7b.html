@@ -33634,7 +33634,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.999' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.0' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -40323,6 +40323,7 @@ function saveGame(){
         // player re-farm the same 5 points on every reload — the one shape of
         // bug that turns a designed route into an exploit.
         homecomings:                Object.assign({}, player.homecomings || {}),
+        anchorNextAt:               Object.assign({}, player.anchorNextAt || {}),
         elderLaddersDone:           Object.assign({}, player.elderLaddersDone || {}),
         kelthorFallen:              !!player.kelthorFallen,
         soulphishCaught:            player.soulphishCaught || 0,
@@ -51283,6 +51284,80 @@ function beginWildHomeward(w){
   }
   return total;
 }
+// ★★★ v0.96.0 · DISTRICT ANCHORS · the population law.
+// Creator: "send me a list of zyrex population locations around zyraxis
+// overworld... include native coordinates for at least one species that will
+// always be around. lets create some good logic on species populations."
+//
+// ★★ THE PROBLEM THE CENSUS EXPOSED. A bonded wild is marked `_gone` and never
+// returns, so every district is a DEPLETING resource. Catch the four Veridrax
+// in Baelgor and Baelgor has no Veridrax again, forever — and the late
+// districts start thin: Korathen ships 7 wilds and Thardin 9, against
+// Malezor's 31. A player who bonds thoroughly can empty a district and leave
+// himself nothing to come back for.
+//
+// ★★★ SO EVERY DISTRICT DECLARES AN ANCHOR: one native species, at a native
+// coordinate, that is guaranteed to be there. If its live count falls under
+// the floor, the ground grows it back — slowly, on a real clock, because a
+// population that refills the moment you turn around is not a population, it
+// is a vending machine.
+//
+// ★ Anchors are the LOWEST-TIER native of each district on purpose. The point
+// is that there is always something here you can actually bond with at the
+// band you arrive in; an anchor you are not allowed to field is scenery.
+// ★ Aetherwing is Malezor's because it already IS — 22 of Malezor's 31 wilds
+// are Aetherwing, which is a monoculture worth naming rather than pretending
+// away. Neuromoo anchors Thardin because Thardin BUILT it.
+const ANCHOR_RESPAWN_MS = 8 * 60 * 1000;   // 8 real minutes per head
+const DISTRICT_ANCHORS = {
+  malezor:   { sp:'aetherwing',  at:[ 42, 49], floor:4, why:'the first wild any Rizer ever sees' },
+  zarvane:   { sp:'terralith',   at:[154,278], floor:3, why:'Beast/Crystal · the Auralands\' ground animal' },
+  andrannor: { sp:'noxiclaw',    at:[255,238], floor:3, why:'the emptiest district needed something to meet' },
+  veridan:   { sp:'veridrax',    at:[503,226], floor:3, why:'a grazing herd belongs in the forest district' },
+  netharion: { sp:'noxiclaw',    at:[442,349], floor:3, why:'its range runs the Andrannor-Netharion seam' },
+  vorashil:  { sp:'frosane',     at:[234,540], floor:3, why:'T1 footing in a district that opens at Lv47' },
+  xilnar:    { sp:'frosane',     at:[351,645], floor:3, why:'shares the Vorashil cold band' },
+  baelgor:   { sp:'veridrax',    at:[500,644], floor:3, why:'the herd\'s southern range' },
+  thardin:   { sp:'neuromoo',    at:[714,714], floor:3, why:'★ Thardin MADE it · livestock on its own soil' },
+  korathen:  { sp:'nimbuscrown', at:[887,692], floor:3, why:'the only species that ever settled the last district' },
+};
+function anchorLiveCount(dist){
+  const A = DISTRICT_ANCHORS[dist]; if (!A) return 0;
+  return (WILD_ZYREX || []).filter(w => w && !w._gone && w.speciesId === A.sp
+    && typeof worldDistrictAt === 'function' && worldDistrictAt(w.tileX, w.tileY) === dist).length;
+}
+// ★ called on the world tick · one head at a time, never a burst
+function tickDistrictAnchors(){
+  if (game.scene !== 'overworld') return;
+  const now = Date.now();
+  player.anchorNextAt = player.anchorNextAt || {};
+  for (const [dist, A] of Object.entries(DISTRICT_ANCHORS)){
+    if (anchorLiveCount(dist) >= A.floor) { player.anchorNextAt[dist] = 0; continue; }
+    if (!player.anchorNextAt[dist]){ player.anchorNextAt[dist] = now + ANCHOR_RESPAWN_MS; continue; }
+    if (now < player.anchorNextAt[dist]) continue;
+    player.anchorNextAt[dist] = 0;
+    // ★★ scatter around the native tile rather than stacking on it — a herd
+    // that respawns on one square reads as a spawner, not as a population.
+    // ★ And the NATIVE TILE IS NOT A VALID FALLBACK: walkable() returns false
+    // on a tile something already stands on, and the native tile is exactly
+    // where the surviving anchor usually is. Falling back to it would drop a
+    // second body on the first. Try real candidates, widen if they fail, and
+    // if the whole neighbourhood is full then the population is not short in
+    // any sense the player can see — so do nothing and try again later.
+    let placed = null;
+    for (let r = 2; r <= 8 && !placed; r += 2){
+      for (let a = 0; a < 12 && !placed; a++){
+        const x = A.at[0] + ((Math.random() * (r * 2 + 1)) | 0) - r;
+        const y = A.at[1] + ((Math.random() * (r * 2 + 1)) | 0) - r;
+        if (typeof worldDistrictAt === 'function' && worldDistrictAt(x, y) !== dist) continue;
+        if (typeof walkable === 'function' && !walkable(x, y)) continue;
+        placed = [x, y];
+      }
+    }
+    if (!placed){ player.anchorNextAt[dist] = now + 60000; continue; }   // retry in a minute
+    try { spawnWildZyrex(A.sp, placed[0], placed[1], { temperament: 'Calm' }); } catch(_){}
+  }
+}
 function spawnWildZyrex(speciesId, tileX, tileY, opts){
   const sp = SPECIES[speciesId]; if (!sp) return null;
   const o = opts || {};
@@ -53278,6 +53353,7 @@ function frame(now){
   try { tickMeditation(dt); } catch(_){}
   try { tickFieldStudy(); } catch(_){}   // ★ v0.95.998 · bond by observation
   try { tickHomecoming(); } catch(_){}   // ★ v0.95.998 · bond by travel
+  try { tickDistrictAnchors(); } catch(_){}  // ★ v0.96.0 · the ground grows its anchor back
   try { tickOmnirisStillness(); } catch(_){}  // ★ v0.95.990 · Omniris Trial 3  // ★ v0.95.990 · Omniris' meditation · +1 HP/s while guard is held undisturbed
   try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
   try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted

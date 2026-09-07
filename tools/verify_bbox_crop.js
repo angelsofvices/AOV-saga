@@ -101,24 +101,55 @@ for (const b of banks){
 console.log(`\n       ${checked} tables measured against their own art\n`);
 if (cuts.length) cuts.slice(0, 40).forEach(c => console.log('         ✂ ' + c));
 
-// ★★★ A RATCHET, NOT A PASS/FAIL — and the distinction is the point.
-// The first run of this check found 158 clipped frames across the roster. They
-// are real (snok's feet are cut 10-15px, otterlin's ears 22px), but they are
-// NOT all safe to auto-fix: these sheets carry 30-60 connected components, and
-// some of those tables were deliberately tightened to EXCLUDE a detached
-// sparkle or VFX bit the artist did not want drawn. Replacing all 158 with the
-// raw measurement would pull every one of those back in.
+// ★★★ A RATCHET, NOT A PASS/FAIL — and now PER SPECIES.
 //
-// ★ So the check asserts the count cannot GROW. A suite that fails on 158
-// known issues every run is a suite everyone learns to ignore, and the next
-// real crop hides inside the noise. This way today's backlog is visible, a new
-// crop breaks the build immediately, and the number only ever ratchets down as
-// they are worked through by eye.
-const CROP_BASELINE = 158;
-t(cuts.length <= CROP_BASELINE,
-  `★★ cropped frames ${cuts.length} · at or under the ${CROP_BASELINE} baseline (no NEW crops)`);
-if (cuts.length < CROP_BASELINE){
-  console.log(`\n  ★ ${CROP_BASELINE - cuts.length} fewer than the baseline — lower CROP_BASELINE to ${cuts.length}\n`);
+// The first run of this check found 158 clipped frames across the roster. They
+// are real (snok's feet are cut 10-15px, otterlin's ears 22px) but NOT all safe
+// to auto-fix: these sheets carry 30-60 connected components and some tables
+// were deliberately tightened to EXCLUDE a detached sparkle. So the check
+// asserts the count cannot GROW — a suite that fails on 158 known issues every
+// run is one everyone learns to ignore, and the next real crop hides in it.
+//
+// ★★ BUT A SINGLE TOTAL COULD NOT ANSWER THE ONE QUESTION THAT MATTERS. At
+// v0.95.988 the count read 163 against a 158 baseline, and "5 more than before"
+// is not a finding — it cannot say WHICH sheet got worse, and adding a new bank
+// legitimately adds frames to measure. I had to dump the whole list by hand to
+// establish that none of the nine sheets added that session contributed a
+// single crop, and that the drift sat entirely in older art.
+//
+// ★ So the baseline is a MAP now. A new species starts at 0 and any crop it
+// ships fails immediately and BY NAME; an existing one can only improve. That
+// is the check the total was always pretending to be.
+const CROP_BASELINE = {
+  // the eight bond-encounter VFX banks · 15 each, unchanged since v0.95.982
+  success_up: 15, success_right: 15, success_left: 15, success_down: 15,
+  fail_up:    15, fail_right:    15, fail_left:    15, fail_down:    15,
+  // ★ real backlog · work these down by eye, then lower the number
+  celestryx: 15, voltigrax: 7, otterlin: 7, zarakai: 4, elzebub: 4,
+  volcaxor: 3, volcanut: 2, anciuxor: 1,
+};
+{
+  const now = {};
+  for (const c of cuts){ const id = c.split('.')[0]; now[id] = (now[id] || 0) + 1; }
+  const worse = [], newly = [], better = [];
+  for (const id of Object.keys(now)){
+    const base = CROP_BASELINE[id];
+    if (base === undefined) newly.push(`${id} (+${now[id]})`);
+    else if (now[id] > base) worse.push(`${id} ${base} → ${now[id]}`);
+    else if (now[id] < base) better.push(`${id} ${base} → ${now[id]}`);
+  }
+  for (const id of Object.keys(CROP_BASELINE)) if (!now[id]) better.push(`${id} ${CROP_BASELINE[id]} → 0`);
+  t(newly.length === 0,
+    '★★★ no sheet that was clean has started cropping'
+    + (newly.length ? ' · ' + newly.join(', ') : ''));
+  t(worse.length === 0,
+    '★★ and no sheet crops MORE than it did'
+    + (worse.length ? ' · ' + worse.join(', ') : ''));
+  if (better.length){
+    console.log('\n  ★ improved — lower these in CROP_BASELINE:');
+    better.forEach(b => console.log('      ' + b));
+  }
+  console.log(`\n       ${cuts.length} cropped frames total across ${Object.keys(now).length} sheet(s)\n`);
 }
 
 /* ── and the specific one the Creator reported ──────────────────────────── */

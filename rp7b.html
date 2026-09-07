@@ -25005,7 +25005,21 @@ function drawLevelUpBanner(){
   const x = Math.round((W - w) / 2);
   // ★ a small drop-in on the first 180ms · it arrives rather than blinking on
   const drop = t < 180 ? (1 - t / 180) * 18 : 0;
-  const y = Math.round(H * 0.045 - drop);
+  // ★★ v0.95.988 · UP TO THE HUD LINE.  Creator: "move the level up banner up a
+  // little more in the viewport header. not touching the border, just up a few
+  // pixels in line with RHUD and ZHUD top margin."
+  // ★ The HUDs are DOM, fixed at top:8px (ZHUD) with RHUD offset so its visible
+  // art lands at ~y=12. The banner was on a FRACTION of the canvas height
+  // (0.045), which is 24px at 540 and drifts with the viewport — so it could
+  // only agree with them at one window size. A fixed 12 matches the thing it is
+  // being lined up against, at every size. ★ When two elements must agree,
+  // measure them in the same units.
+  const LEVELUP_TOP = 12;
+  // ★ and the drop-in is CLAMPED so the slide never carries it into the border:
+  // at 12 a full 18px drop would start at -6, off the top edge. It now starts at
+  // 6 and settles at 12 — a shorter arrival, but "not touching the border" was
+  // the actual instruction and a 6px slide still reads as motion.
+  const y = Math.max(6, Math.round(LEVELUP_TOP - drop));
   const prev = ctx.globalAlpha;
   ctx.globalAlpha = Math.max(0, Math.min(1, a));
   ctx.drawImage(img, x, y, w, h);
@@ -43840,11 +43854,22 @@ const SUMMONABLE_SPRITES = {
     // margin grows. The body then measures smaller relative to its cell, which
     // is TRUE, and runRefBh corrects the draw size. Padding is a lie the
     // measurement can see through; resampling is one it cannot.
-    // ★ runRefBh 246 · the IDLE sheet's own max, so he does not change size the
-    // instant he breaks into a run.
+    // ★★★ runRefBh 201 · THE RUN SHEET'S OWN col-0 max — NOT the idle's.
+    // I filed the idle's number here and on three other banks, reasoning that
+    // "one reference means one size". ★ That is exactly backwards, and this
+    // file already said so at v0.95.890 in a comment about the Key of Mealux:
+    // dividing the run boxes by the IDLE max draws the run art at the ratio
+    // between the two sheets. The draw computes _idleRefBh / runRefBh, so
+    // putting the idle's number in BOTH places cancels to 1 and the run keeps
+    // whatever size its own art happens to be — which, for a sheet padded up
+    // from 1024, is ~85% of the idle. The Creator saw it immediately:
+    // "make voltarun sprint size the same size as his idle scale."
+    // ★ The engine's own default (buildZyrexSprite) measures the RUN sheet's
+    // col-0 max, and the flee path does it explicitly. The convention was
+    // written down in two places and I pinned against neither.
     runSrc: 'assets/2D%20sprites/zyrex/rustbyte-run.png',
-    runRefBh: 246,
-    runRowRefBh: [246, 236, 234, 239],
+    runRefBh: 201,
+    runRowRefBh: [201, 193, 193, 199],
     runBboxes: [
       [[ 78, 82,207,201],[ 67, 82,201,203],[ 46, 85,202,200],[ 30, 85,205,199]],
       [[101, 79,166,193],[ 95, 79,151,194],[ 81, 79,153,195],[ 60, 78,158,194]],
@@ -43886,10 +43911,10 @@ const SUMMONABLE_SPRITES = {
     // ★ A few wisps remain where the shadow TOUCHES a foot and is therefore one
     // component with the body. Separating those means painting, which is
     // editing the art rather than repairing the import, so they stay.
-    // ★ runRefBh 240 · the idle sheet's own max.
+    // ★ runRefBh 201 · the RUN sheet's own col-0 max · see the Rustbyte note.
     runSrc: 'assets/2D%20sprites/zyrex/voltaryn-run.png',
-    runRefBh: 240,
-    runRowRefBh: [238, 240, 239, 235],
+    runRefBh: 201,
+    runRowRefBh: [186, 194, 194, 201],
     runBboxes: [
       [[ 76, 90,183,186],[ 61, 72,189,205],[ 58, 87,186,190],[ 48, 90,181,186]],
       [[ 77, 53,198,194],[ 52, 53,201,194],[ 43, 54,200,192],[ 43, 55,198,193]],
@@ -44370,10 +44395,13 @@ const SUMMONABLE_SPRITES = {
   // motions require, which is the strongest signal both are correct.
   // ★ scaleMul 1.35 · "voltigrax size, maybe a bit smaller" · 113px against
   // Voltigrax's 130.
-  // ★ runRefBh 217 · the GRAZING sheet's own col-0 max, so he does not change
-  // size the moment he breaks into a run (the Elzoran pin at v0.95.968 — and
-  // here it IS the idle's number, unlike an attack bank's refBh, because this
-  // divisor answers a different question).
+  // ★★ runRefBh 219 · the RUN sheet's own col-0 max.
+  // ★ It said 217 — the GRAZE sheet's number — with a comment confidently
+  // explaining that a traversal divisor "answers a different question" from an
+  // attack refBh. It does not. Both divide by THEIR OWN sheet's col-0 body so
+  // the creature stays one size across a frame swap. The error was small here
+  // (217 vs 219, under 1%) which is why it survived; on Voltaryn the same
+  // mistake was 16% and the Creator spotted it on sight.
   // ★★ v0.95.986 · NIMBUSCROWN · an IDLE BOB sheet and nothing else.
   // ★ Every other bank in the game puts the TRAVERSAL sheet in `src` and hangs
   // the idle off `idleSrc`. There is no traversal sheet here, so the bob goes
@@ -44449,12 +44477,11 @@ const SUMMONABLE_SPRITES = {
     // that patrols a forest from above and comes down to brawl is a better
     // creature than one that only does either, and both sheets were drawn that
     // way on purpose.
-    // ★ runRefBh 290 · the IDLE sheet's own max, so it does not change size the
-    // instant it takes off. (An attack bank's refBh answers a different
-    // question and would be the attack sheet's own number — not this.)
+    // ★ runRefBh 305 · the FLY sheet's own col-0 max. (I had the idle's 290
+    // here — the same wrong yardstick as Rustbyte and Voltaryn; see that note.)
     runSrc: 'assets/2D%20sprites/zyrex/talenko-fly.png',
-    runRefBh: 290,
-    runRowRefBh: [290, 281, 276, 269],
+    runRefBh: 305,
+    runRowRefBh: [305, 222, 225, 242],
     runBboxes: [
       [[ 22, 14,298,305],[ 21, 71,295,227],[ 18, 92,290,223],[ 26, 95,263,216]],
       [[ 16, 68,284,222],[  4, 57,280,207],[  7, 50,314,224],[  7, 49,279,241]],
@@ -44537,10 +44564,20 @@ const SUMMONABLE_SPRITES = {
       [[  4, 53,287,179],[  5, 95,287,137],[  5, 58,287,174],[ 17, 95,289,137]],
       [[ 66, 27,165,217],[ 79, 29,157,212],[ 76, 27,160,217],[ 82, 32,156,209]],
     ],
-    cellW: 313, cellH: 313, scaleMul: 1.35,
+    // ★★ v0.95.988 · scaleMul 1.35 → 1.10.  Creator: "veridrax should be a
+    // little smaller across his frames. he is a teen dragon species size, not
+    // apex yet."  Product 293 → 239.
+    // ★ The original 1.35 came from "voltigrax size, maybe a bit smaller" —
+    // sized against a T6 — and then the species turned out to be T1
+    // Beast/Crystal, not the T2/T4 I had invented for it. THE SIZE WAS THE LAST
+    // PIECE OF THAT MISTAKE STILL IN THE FILE: the tier was corrected but the
+    // scale it had been chosen to match was not, so he stayed drawn as
+    // something two bands above what he is. "Teen dragon, not apex yet" is the
+    // same correction arriving from the other direction.
+    cellW: 313, cellH: 313, scaleMul: 1.10,
     runSrc: 'assets/2D%20sprites/zyrex/veridrax-run.png',
-    runRefBh: 217,
-    runRowRefBh: [217, 217, 217, 217],
+    runRefBh: 219,
+    runRowRefBh: [190, 155, 152, 219],
     runBboxes: [
       [[ 59,130,187,190],[ 59,130,187,202],[ 62,134,186,196],[ 61,132,184,197]],
       [[ 29,114,289,155],[ 25,141,282,129],[ 23,115,289,151],[ 15,138,287,133]],
@@ -45282,6 +45319,148 @@ function tickAggressiveZyrex(n){
 //   it attacked.  The draw path divides by refBh so the creature is exactly as
 //   big mid-swing as it is standing still.
 const ZYREX_ATTACK_BANKS = {
+  // ★★ v0.95.988 · VAMPELLA · Creator: "vampella attack animation."
+  // ★ refBh 229 · attack sheet col-0 max.
+  // ★ A3 · Soul Rend: the sheet is a spectral ice-spear, not a bite, and Soul
+  // Rend is the one move in her list that is thrown rather than landed.
+  // ★ Note the two boxes that leave the cell — DOWN f2 at x 0 w 315, and LEFT
+  // f2 at x -4 w 324. That is the spear, and it is SUPPOSED to overhang: the
+  // re-cell keeps a body and its own VFX together as one component precisely
+  // so a weapon can extend past the frame without becoming litter in the
+  // neighbour's ([[aov-sprite-cc-extractor]]).
+  vampella: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_vampella.png',
+    atkType: 'A3', move: 'Soul Rend',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 480, refBh: 229,
+    bboxes: [
+      [[ 59, 43,196,228],[ 61, 87,193,139],[  0, 31,315,252],[ 62, 71,193,172]],
+      [[ 92, 43,130,229],[ 80, 73,154,168],[ -4,103,324,159],[ 93, 53,130,209]],
+      [[ 87, 50,140,216],[ 70, 77,175,162],[ 32, 72,251,171],[ 91, 60,135,196]],
+      [[ 60, 45,193,226],[ 42, 86,230,145],[ 61, 38,206,241],[ 62, 72,193,172]],
+    ],
+  },
+  // ★★★ v0.95.988 · VOLTARYN · Creator: "voltaryn attack animation lightning
+  // claw slash. fit scale to idle size."
+  // ★ refBh 196 · the attack sheet's own col-0 max — which IS "fit scale to
+  // idle size", because the draw computes _idleRefBh / attackRefBh and that
+  // ratio only lands on 1:1 when the divisor is the sheet's own body.
+  // ★★ THE DUST FRAMES ARE THE ANIMATION, and I nearly deleted one. Row 2
+  // frame 3 is impact dust with no creature in it at all; my shadow-stripper
+  // — written an hour earlier for THIS SPECIES' run sheet — ate the whole cell
+  // as "dull detached components" and the re-cell reported 15/16 cells filled.
+  // ★ The warning existed only because I had added a cell count to the tool
+  // when a different sheet came out short. A tool that says how much it did is
+  // how you notice it did the wrong amount. Baked shadow and impact dust are
+  // the same pixels; only the sheet's PURPOSE tells them apart, so the
+  // stripper is for traversal sheets and never for attacks.
+  // ★ A2 · Feral Frenzy: the sheet is a claw arc, not a bolt.
+  voltaryn: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_voltaryn.png',
+    atkType: 'A2', move: 'Feral Frenzy',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 470, refBh: 196,
+    bboxes: [
+      [[ 63, 66,188,182],[ 54, 64,207,186],[ 55, 58,199,198],[ 38, 33,240,248]],
+      [[ 67, 59,179,196],[ 45, 62,224,191],[ 29, 60,258,194],[ 43, 86,230,157]],
+      [[ 67, 60,179,196],[ 41, 63,233,190],[ 29, 61,258,194],[ 63,144,191, 74]],
+      [[ 63, 63,187,190],[ 63, 64,189,189],[ 50, 55,216,207],[ 52, 50,211,216]],
+    ],
+  },
+  // ★★★ v0.95.988 · TALENKO · Creator: "talenko attack animation."
+  // ★★ THIS SHEET BROKE THE KEYER AND THE FAILURE WAS NOT QUIET. Its green is
+  // a lighter lime — (120,239,1) against every previous sheet's (3,249,2) —
+  // and the family test "G dominant, R and B tiny" reads 239 > 120*3 as FALSE.
+  // It matched NOTHING, and then the de-fringe pass ran anyway and rewrote
+  // 683,563 pixels of untouched artwork. The measurement came back as sixteen
+  // perfect 256x256 boxes, which is what a fully opaque sheet looks like.
+  // ★★★ TWO FIXES, and the second matters more than the first: the key colour
+  // is now READ FROM THE CORNER of each sheet instead of assumed, AND the tool
+  // ABORTS without writing if the flood-fill covers under 2% of the image. A
+  // keyer that silently mangles is far more dangerous than one that refuses —
+  // this one produced a clean-looking table full of nonsense.
+  // ★ refBh 198 · attack sheet col-0 max.  A2 · Savage Lunge: it is a brawler
+  // and the sheet is a lunging claw.
+  talenko: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_talenko.png',
+    atkType: 'A2', move: 'Savage Lunge',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 470, refBh: 198,
+    bboxes: [
+      [[ 46, 60,221,193],[ 49, 65,217,183],[ 47, 36,221,241],[ 42, 37,233,240]],
+      [[ 40, 66,234,182],[ 42, 73,230,169],[ 37, 51,242,213],[ 44, 44,229,226]],
+      [[ 40, 66,233,184],[ 42, 72,231,172],[ 42, 58,232,199],[ 43, 59,230,197]],
+      [[ 43, 59,228,198],[ 53, 54,209,208],[ 57, 58,202,200],[ 54, 50,208,217]],
+    ],
+  },
+  // ★★★ v0.95.988 · SMOGRIN · Creator: "smogrin attack animation."
+  // ★ refBh 242 · the COLUMN-0 max, per the rule the Veridrax failure above
+  // forced me to actually go and read.
+  // ★★ 2,640 SEALED POCKETS — an order of magnitude past any other sheet in
+  // the game (Talenko, the previous record, had 511). Smogrin's wings are
+  // drawn as a lattice of membrane cells and every single gap is its own
+  // enclosed hole. A border flood-fill alone would have left this sheet
+  // looking like green lace.
+  // ★ Its baked ground shadows came out for free: they are GREEN-family, so
+  // the Elzimir test at v0.95.985 took them with the key. Voltaryn's needed a
+  // whole separate tool an hour ago only because his were grey.
+  // ★ A3 · Hex Pulse: the sheet is two purple orbs and a detonation.
+  smogrin: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_smogrin.png',
+    atkType: 'A3', move: 'Hex Pulse',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 500, refBh: 242,
+    bboxes: [
+      [[ 33, 58,247,197],[ 34, 59,247,196],[ 34, 59,247,194],[ 34, 60,248,193]],
+      [[ 43, 40,228,234],[ 37, 41,240,233],[ 51, 40,213,235],[ 35, 41,246,233]],
+      [[ 35, 37,243,242],[ 33, 36,249,244],[ 33, 35,249,245],[ 34, 42,248,231]],
+      [[ 39, 37,235,242],[ 45, 41,224,235],[ 52, 49,211,218],[ 72, 56,172,204]],
+    ],
+  },
+  // ★★★ v0.95.988 · VENGRIZZ · Creator: "vengrizz attack animation."
+  // ★★★ refBh IS THE ATTACK SHEET'S COLUMN-0 MAX — not the idle's number, and
+  // not the whole sheet's max either. I got the first half right and the second
+  // half wrong: I filed 258 (the tallest cell anywhere on the sheet) and
+  // verify_zyattack failed Veridrax at 22.4%, which sent me to read the check's
+  // arithmetic instead of nudging a number until it passed. It reads col 0
+  // only, on both sheets, because col 0 is the frame the size is preserved
+  // against. Voltigrax's shipped 300 is its col-0 max, not its 313 overall —
+  // the convention was already in the file, stated by an example rather than a
+  // comment.
+  // ★ This is the Voltigrax trap at v0.95.985 one level deeper. There I had
+  // set it to the IDLE's number by analogy with a runRefBh pin (8.7% off); here
+  // I reached for the attack sheet but took the wrong statistic from it. The two
+  // fields spell the same but answer opposite questions — runRefBh normalises
+  // the TRAVERSAL sheet TO the idle, while refBh here is a MEASUREMENT the draw
+  // divides by (_idleRefBh / attackRefBh). Reading the idle's number into it
+  // scales the attack by the ratio of a thing to itself.
+  // ★ A3 · Nether Judgment: the sheet is an eye-beam, not a swing, and Vengrizz
+  // has exactly one beam in its move list.
+  vengrizz: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_vengrizz.png',
+    atkType: 'A3', move: 'Nether Judgment',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 520, refBh: 257,
+    bboxes: [
+      [[ 65, 28,184,257],[ 66, 28,183,257],[ 66, 28,183,258],[ 67, 28,183,257]],
+      [[ 81, 44,151,227],[ 81, 44,152,227],[ 63, 44,190,227],[ 66, 45,185,225]],
+      [[ 83, 46,148,223],[ 83, 46,149,223],[ 57, 46,202,223],[ 61, 46,194,223]],
+      [[ 74, 48,165,220],[ 74, 48,167,220],[ 74, 47,168,223],[ 76, 48,165,221]],
+    ],
+  },
+  // ★★★ v0.95.988 · VERIDRAX · Creator: "veridrax attack animations."
+  // ★★ THIS SHEET CAME IN ON MAGENTA, the first one that has. The chroma canon
+  // always named both keys ("magenta/neon-green") but every sheet so far was
+  // green, so the keyer only knew one. ★ It failed LOUDLY — a solid magenta
+  // background — which is the only reason it cost minutes instead of shipping.
+  // A key that half-works is far more dangerous than one that does nothing.
+  // ★ A2 · Shardpick: a fire-breath from a Beast/Crystal whelp.
+  veridrax: {
+    src: 'assets/2D%20sprites/zyrex/attacks/attack_veridrax.png',
+    atkType: 'A2', move: 'Shardpick',
+    dirRows: true, cols: 4, cellW: 313, cellH: 313, durMs: 480, refBh: 177,
+    bboxes: [
+      [[ 81, 70,151,173],[ 82, 47,151,219],[ 83, 47,150,220],[ 83, 43,150,228]],
+      [[ 50, 93,233,129],[ 32, 88,251,138],[ 30, 90,256,134],[ 36, 84,245,147]],
+      [[ 35, 93,224,129],[ 29, 53,256,141],[ 30, 92,256,131],[ 30, 86,256,143]],
+      [[ 84, 70,145,177],[ 87, 75,145,174],[ 67, 60,155,197],[ 86, 70,144,176]],
+    ],
+  },
   // ★★ v0.95.907 · AETHERWING · A1 LIGHT HORN STRIKE.  Creator: "attack
   // animation for aethering. regular light horn attack a1."  4x4 directional,
   // canon D/L/R/U rows, col 2 = the lunge (body flattened, horn thrust out).

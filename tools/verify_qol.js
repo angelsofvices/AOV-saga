@@ -17,7 +17,7 @@ global.getComputedStyle=()=>({getPropertyValue:()=>''});
 let CLK=50000; global.performance={now:()=>CLK};
 global.KeyboardEvent=function(t,o){this.type=t;this.key=(o&&o.key)||'';this.preventDefault=noop;this.stopImmediatePropagation=noop;};
 let _dispatched=[];
-try{new Function(src+';globalThis.__C={TURN_FROM_REST_MS,tryMove,flushMeleeBuffer,NPCS,_swapWithOwnFollower,_isOwnFollower,TURN_IN_PLACE_MS,INPUT_BUFFER_MS,TRANSIENT_PLAYER_KEYS,player,game,keys,RIZER,BBOX_FALLBACK,walkable};')();}
+try{new Function(src+';globalThis.__C={ invalidateNpcOccupancy,TURN_FROM_REST_MS,tryMove,flushMeleeBuffer,NPCS,_swapWithOwnFollower,_isOwnFollower,TURN_IN_PLACE_MS,INPUT_BUFFER_MS,TRANSIENT_PLAYER_KEYS,player,game,keys,RIZER,BBOX_FALLBACK,walkable};')();}
 catch(e){console.log('❌ BOOT FAILED:',e.message);process.exit(1);}
 const C=globalThis.__C; let f=0;
 const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m); if(!c)f++;};
@@ -161,6 +161,14 @@ H('8 · ★★★ YOUR OWN TEAM IS NEVER A WALL');
   fol.scene='__off__'; ok0=C.walkable(tx,ty); fol.scene='overworld';
   if (ok0){
     fol.tileX=tx; fol.tileY=ty;
+    // ★★ v0.96.22 · this test hand-mutates tileX and asks the same synchronous
+    //   breath, with no frame boundary in between. walkable() is O(1) now via a
+    //   per-frame occupancy index, and the index is rebuilt at the top of every
+    //   frame and incrementally in stepNPCTo — the funnel every WALKING npc uses.
+    //   A raw teleport (this, and a handful of warps in game code) is one frame
+    //   stale, which in play is a 16 ms overlap nobody can see. In a test there
+    //   is no next frame, so the test says so out loud instead of pretending.
+    try { C.invalidateNpcOccupancy(); } catch(_){}
     ok(C.walkable(tx,ty)===false,'★★ a follower makes the tile unwalkable · same refusal as a wall');
     const px=P2.x, py=P2.y;
     clearKeys(); K['arrowdown']=true;

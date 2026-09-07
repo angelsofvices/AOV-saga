@@ -65,7 +65,7 @@ new Function(src + `;globalThis.__C={ player, game, NPCS, WORLD_PROPS,
   RAYGUN_CHEST_AT_X, RAYGUN_CHEST_AT_Y, tryOpenRaygunChest, spawnBrokenRaygun,
   NOOT_RETURN_BOND, NOOT_RAY_RANGE, NOOT_RAY_DMG, NOOT_RAY_CD_MS,
   nootEscorting, tickNootRaygun, grantFieldStationRecipe, addItems,
-  BROKEN_RAYGUN_ART, tickBrokenRaygun };`)();
+  BROKEN_RAYGUN_ART, WORLD_PROPS, spawnBrokenRaygun };`)();
 let n = 0; while (_Q.length && n < 80) { const f = _Q.shift(); n++; try { f(); } catch (_) {} }
 console.log = LOG;
 const C = globalThis.__C;
@@ -260,14 +260,34 @@ const noot = () => C.NPCS.find(x => x && x.id === 'crazy');
     `  · and the two banks are within 10% (${(n2.runRefBh / Math.max(...idleCol0)).toFixed(3)}) · `
     + 'a wild ratio would mean one of them was measured differently');
 
-  // the drop's four frames
-  t(C.BROKEN_RAYGUN_ART && C.BROKEN_RAYGUN_ART.frames.length === 4,
-    '★ the broken raygun has FOUR frames · calm, spark, arc, spark');
-  const heights = C.BROKEN_RAYGUN_ART.frames.map(f => f[3]);
-  t(Math.max(...heights) > Math.min(...heights),
-    `★★ and they differ in height (${heights.join(', ')}) · the arc reaches above the `
-    + 'casing, which is why the drop derives tileH per frame instead of pulsing '
-    + 'the whole gun bigger and smaller');
+  /* ── the drop is ONE frame that BOBS ───────────────────────────────── */
+  //   Creator: "just use the single frame of it. full frame. add a native bob
+  //   to it. dont play 4x1 animation. just use 1x1 asset with native bob"
+  t(C.BROKEN_RAYGUN_ART && Array.isArray(C.BROKEN_RAYGUN_ART.bbox)
+    && C.BROKEN_RAYGUN_ART.bbox.length === 4 && !C.BROKEN_RAYGUN_ART.frames,
+    '★★★ the broken raygun is a SINGLE bbox, not a frame list');
+  const bb = C.BROKEN_RAYGUN_ART.bbox;
+  t(bb[0] === 30 && bb[1] === 370 && bb[2] === 338 && bb[3] === 200,
+    `★★ it points at frame 0, the gun alone (${bb.join(', ')}) · measured by `
+    + 'COLUMN RUNS off the PNG: the real frames start at x 30, 484, 937 and 1393');
+  // ★★★ the bug this replaced, asserted so it cannot come back
+  const H = require('fs').readFileSync(require('path').join(__dirname,'..','rp7b.html'),'utf8');
+  t(!/frames: \[ \[ 30,370,338,200\], \[ 41,319/.test(H),
+    '★★★ the old frame table is GONE. It listed x = 30, 41, 51, 64 — ALL FOUR '
+    + 'inside frame 0 — so it never animated; it redrew four shifted crops of the '
+    + 'same gun four times a second. Measured per-cell on a strip whose frames are '
+    + 'not on a uniform grid, which hands you the first blob over and over '
+    + '([[aov-sprite-cc-extractor]])');
+  const code = H.replace(/^\s*\/\/.*$/gm,'');
+  t(!/function tickBrokenRaygun/.test(code) && !/tickBrokenRaygun\(\)/.test(code),
+    '★★ the flicker tick is retired, definition AND call · a dead tick still '
+    + 'costs a frame-loop slot and invites someone to re-wire it');
+  // and the prop still bobs
+  const drop = C.WORLD_PROPS.find(p => p && p._brokenRaygun)
+    || (() => { try { return C.spawnBrokenRaygun(20, -17); } catch(_){ return null; } })();
+  if (drop) t(drop._levitate === true,
+    '★★ the drop carries _levitate · the native bob, which it already had — it '
+    + 'has been bobbing AND flickering this whole time');
 }
 
 /* ── 5 · ★ it survives a reload ─────────────────────────────────────────── */

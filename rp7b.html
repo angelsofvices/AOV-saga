@@ -3195,11 +3195,19 @@ function _swapWithOwnFollower(nx, ny){
   // -- without this check a Zyrex parked on a doorway seam would carry Rizer
   // through the wall behind it.  Lift the follower out of the scene, ask the
   // same predicate again, and put it back: the answer is then terrain alone.
+  // ★★★ v0.96.22 · THE INDEX IS KEYED BY SCENE, so lifting the follower out of
+  //   the scene has to lift it out of the index too. Without these two
+  //   invalidations the occupancy map still held the blocker under its old key,
+  //   walkable() still saw it, groundOK came back false and the swap was refused
+  //   — your own follower silently became a wall again. Caught by verify_qol,
+  //   which is the third time today a red suite has been the thing that saved me.
   const _sc = blocker.scene;
   blocker.scene = '__swaptest__';
+  try { invalidateNpcOccupancy(); } catch(_){}
   let groundOK = false;
   try { groundOK = walkable(nx, ny); } catch(_){}
   blocker.scene = _sc;
+  try { invalidateNpcOccupancy(); } catch(_){}
   if (!groundOK) return false;
   // and nothing else may already be standing where the follower is going
   for (const n of NPCS){
@@ -3207,6 +3215,7 @@ function _swapWithOwnFollower(nx, ny){
         && n.tileX === player.x && n.tileY === player.y) return false;
   }
   blocker.tileX = player.x; blocker.tileY = player.y;
+  try { invalidateNpcOccupancy(); } catch(_){}   // ★ v0.96.22
   blocker.moving = false;
   blocker.moveCd = 200;
   return true;
@@ -15723,6 +15732,118 @@ function clearFactionMissionMember(n){
   }
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.22 · AN OCCUPANCY INDEX FOR THE NPC LAYER. THE FREEZE.
+//
+//   Creator: "another random freeze after dialouge. elarian"
+//   Creator: "overworld freezes. music still plays... started early this
+//   morning."
+//
+// ★★★ MEASURED, NOT GUESSED:
+//     npcPathDir()          47.2 ms PER CALL
+//     frame with one NPC walking home   9.17 ms   (baseline 4.96)
+//
+//   `walkable()` scanned ALL OF `NPCS` — twice, once per branch — on EVERY
+//   CALL. `npcPathDir` calls `walkable()` up to NPC_PATH_MAX_NODES (700) times
+//   for a single step. 700 x 2,013 NPCs is 1.4 MILLION iterations to move one
+//   character one tile, and 47 ms is three whole frame budgets.
+//
+// ★★★ AND THAT IS WHY IT STARTED THIS MORNING. v0.96.0 (09:52) — "DISTRICT
+//   ANCHORS · the population law and the full census" — took the world to
+//   2,013 NPCs. Every one of them joined a list that `walkable()` walks from
+//   end to end. Before the census the scan was short enough to hide; after it,
+//   any actor that pathfinds costs more than the frame has.
+//
+// ★★ WHICH IS EXACTLY "FREEZE AFTER DIALOGUE". A conversation ends and someone
+//   starts moving — Yara walking home from Elarion, a follower re-forming, an
+//   enemy re-aggroing — and the frame collapses to a few FPS. The picture
+//   stops. The music, decoded off-thread, does not care. It is not a lock and
+//   not a crash; it is the renderer being starved, which is why seven rounds of
+//   looking for a thrown exception found nothing.
+//
+// ★ REBUILT ONCE PER FRAME, and incrementally in stepNPCTo (the funnel every
+//   walking NPC goes through). Sixty-one other sites assign tileX — teleports,
+//   spawns, deaths — and instrumenting all of them would be its own bug farm,
+//   so those are one frame stale: an actor may briefly overlap a tile something
+//   teleported onto, for 16 ms, and the next frame separates them. That is a
+//   trade I am making deliberately and it is the standard one; the alternative
+//   is a game that runs at three frames a second.
+// ══════════════════════════════════════════════════════════════════════════
+const _npcOcc = new Map();          // "scene|x,y" -> npc
+function _npcOccBlocks(n){
+  // ★ the EXACT conditions the two walkable() scans used · a collision filter
+  //   that drifts from the original is worse than the slow loop it replaces
+  if (!n || n.tileX == null || n.tileY == null) return false;
+  if (n._astralslamHeld || n._astralthrowHeld) return false;
+  // a looted Skellor corpse is scenery, not a wall (v0.95.950)
+  if (n._skellorDead && typeof _skellorLootedIds !== 'undefined'
+      && _skellorLootedIds.has(n.id)) return false;
+  return true;
+}
+// ★ the OTHER two per-call scans · same shape, same cost, same fix. Wild Zyrex
+//   cover a FOOTPRINT rather than a tile (v0.95.902 gave them bodies), so each
+//   one stamps every tile it covers — paid once a frame instead of re-derived
+//   on every one of the 700 walkable() calls a single pathfind makes.
+const _wildOcc = new Map(), _faeOcc = new Map();
+// ★★★ v0.96.22b · SELF-HEALING, because walkable() IS NOT ONLY CALLED FROM THE
+//   FRAME LOOP. Spawn placement, the NPC sanitiser, dev spawns, prop
+//   registration and world generation all call it before or outside
+//   _frameBody — and my first cut rebuilt only at the top of the frame, so
+//   every one of those saw an EMPTY index and happily placed actors on top of
+//   each other.
+// ★★ verify_devspawn and verify_qol caught it immediately ("NOT ONE can be
+//   walked through" and "a follower makes the tile unwalkable" both went red).
+//   A fast collision filter that disagrees with the slow one it replaced is a
+//   far worse bug than the slowness, and this is the second time today a red
+//   suite has been the thing that saved me.
+let _npcOccDirty = true;
+function invalidateNpcOccupancy(){ _npcOccDirty = true; }
+// ★★ ALSO watch the roster SIZE. Summons push, deaths splice, and neither goes
+//   through stepNPCTo — so a structural change invalidates itself without
+//   needing every call site instrumented.
+let _npcOccCount = -1;
+function ensureNpcOccupancy(){
+  if (_npcOccDirty || NPCS.length !== _npcOccCount) rebuildNpcOccupancy();
+}
+function rebuildNpcOccupancy(){
+  _npcOccDirty = false;
+  _npcOccCount = NPCS.length;
+  _npcOcc.clear();
+  for (const n of NPCS){
+    if (!_npcOccBlocks(n)) continue;
+    _npcOcc.set(`${n.scene}|${n.tileX},${n.tileY}`, n);
+  }
+  _wildOcc.clear();
+  if (typeof WILD_ZYREX !== 'undefined'){
+    for (const w of WILD_ZYREX){
+      if (!w || w._gone) continue;
+      let B; try { B = wildBodyFootprint(w.speciesId); } catch(_){ continue; }
+      if (!B) continue;
+      for (let x = w.tileX - B.left; x <= w.tileX + B.right; x++)
+        for (let y = w.tileY - B.depth; y <= w.tileY; y++)
+          _wildOcc.set(`${x},${y}`, w);
+    }
+  }
+  _faeOcc.clear();
+  if (typeof _fae !== 'undefined'){
+    for (const f of _fae){
+      if (!f || f.collected) continue;
+      _faeOcc.set(`${f.x},${f.y}`, f);
+    }
+  }
+}
+function npcBlockingAt(scene, x, y){
+  ensureNpcOccupancy();
+  return _npcOcc.get(`${scene}|${x},${y}`) || null;
+}
+// ★ keep the index honest for the one path that actually walks
+function _npcOccMove(n, ox, oy){
+  if (!n) return;
+  if (ox != null) _npcOcc.delete(`${n.scene}|${ox},${oy}`);
+  if (_npcOccBlocks(n)) _npcOcc.set(`${n.scene}|${n.tileX},${n.tileY}`, n);
+}
+
 function walkable(x, y){
   const cfg = interiorConfig(game.scene);
   if (cfg){
@@ -15766,9 +15887,8 @@ function walkable(x, y){
         && x >= SCHOOL_DESK_TILE.tileX - Math.floor(SCHOOL_DESK_TILE_W / 2)
         && x <= SCHOOL_DESK_TILE.tileX + Math.floor((SCHOOL_DESK_TILE_W - 1) / 2)) return false;
     // NPCs in this interior scene block their tile
-    for (const n of NPCS){
-      if (n.scene === game.scene && !n._astralslamHeld && !n._astralthrowHeld && n.tileX === x && n.tileY === y) return false;
-    }
+    // ★★★ v0.96.22 · was a full scan of all 2,013 NPCs, on every call
+    if (npcBlockingAt(game.scene, x, y)) return false;
     // v0.95.65 · Gaming chair blocks its tile when NOT ridden (in Rizer Room)
     if (cfg.rizerRoom && !player.ridingChair
         && player.chairX === x && player.chairY === y) return false;
@@ -15789,9 +15909,8 @@ function walkable(x, y){
   // v0.95.316 · Elzebub egg blocks its tile until picked up · face + press A to collect
   if (_elzebubEgg && _elzebubEgg.x === x && _elzebubEgg.y === y) return false;
   // v0.91.1 · fae tiles block until collected
-  for (const f of _fae){
-    if (!f.collected && f.x === x && f.y === y) return false;
-  }
+  ensureNpcOccupancy();
+  if (_faeOcc.get(`${x},${y}`)) return false;         // ★ v0.96.22 · was a full scan
   // ★★★ v0.95.895 · EVERY ZYREX HAS A BODY.  Creator: "give collision to all
   // zyrex."  Wild Zyrex were the last actors in the world you could walk
   // THROUGH — an Apexaur the size of a house that Rizer strolled straight
@@ -15802,10 +15921,15 @@ function walkable(x, y){
   // the tile you are FACING, not the tile you are standing on, so blocking the
   // body is exactly how you walk up to one and press X.  A creature you can
   // stand inside is scenery; a creature that stops you is present.
-  for (const w of WILD_ZYREX){
-    if (!w._gone && wildBodyCovers(w, x, y)) return false;   // ★ v0.95.902 · the whole body
-  }
+  if (_wildOcc.get(`${x},${y}`)) return false;        // ★ v0.96.22 · was a full scan + footprint math
   // Overworld NPCs
+  // ★★★ v0.96.22 · O(1) · this scan is the freeze. See the index above.
+  //   The looted-Skellor exception below moved into _npcOccBlocks so the rule
+  //   lives in one place instead of one copy per branch.
+  if (npcBlockingAt('overworld', x, y)) return false;
+  return true;
+}
+function _walkableNpcScan_RETIRED(x, y){
   for (const n of NPCS){
     if (n.scene !== 'overworld' || n._astralslamHeld || n._astralthrowHeld) continue;
     if (n.tileX !== x || n.tileY !== y) continue;
@@ -20987,27 +21111,31 @@ function tickNootRaygun(){
 //    calm frame, a small spark, a big arc, a small spark. That flicker is what
 //    sells "broken but not inert" on a thing lying in the grass, so the drop
 //    cycles them rather than sitting on frame 0.
+// ★★★ v0.96.22 · ONE FRAME, BOBBING. NO ANIMATION.
+//
+//   Creator: "fix the broken raygun asset. just use the single frame of it.
+//   full frame. add a native bob to it. dont play 4x1 animation. just use 1x1
+//   asset with native bob"
+//
+// ★★★ AND THE OLD TABLE WAS WRONG, WHICH IS WHY IT LOOKED BROKEN. The PNG is a
+//   genuine 4-frame strip — measured by column runs, the frames sit at
+//   x 30-367, 484-820, 937-1272 and 1393-1728. My table read
+//   x = 30, 41, 51 and 64: ALL FOUR POINTED INSIDE FRAME 0. So it was never
+//   animating. It was redrawing four crops of the same gun, each shifted a few
+//   pixels and a different height, four times a second — a jitter that reads
+//   exactly like a broken sprite, because it was one.
+//
+// ★ I measured that strip per-cell when I built it instead of by connected
+//   component ([[aov-sprite-cc-extractor]]), and per-cell on a strip whose
+//   frames are not on a uniform grid gives you the first blob over and over.
+//
+// The gun alone is frame 0 (h 200); frames 1-3 add the arc above it. One still
+// frame is what was asked for, and the bob is `_levitate`, which the prop
+// already carried — the drop has been bobbing AND flickering this whole time.
 const BROKEN_RAYGUN_ART = { img: new Image(),
   src: 'assets/2D%20sprites/decor/broken-raygun.png',
-  // measured off the keyed PNG · 4 frames across a 1774x887 strip
-  frames: [ [ 30,370,338,200], [ 41,319,337,251],
-            [ 51,327,336,243], [ 64,328,336,242] ] };
+  bbox: [30, 370, 338, 200] };
 BROKEN_RAYGUN_ART.img.src = BROKEN_RAYGUN_ART.src;
-const RAYGUN_SPARK_MS = 170;
-// The drop's flicker · one tick, driven from the frame loop like every other.
-function tickBrokenRaygun(){
-  const prop = (typeof WORLD_PROPS !== 'undefined')
-    && WORLD_PROPS.find(p => p && p._brokenRaygun);
-  if (!prop) return;
-  const F = BROKEN_RAYGUN_ART.frames;
-  const i = Math.floor(performance.now() / RAYGUN_SPARK_MS) % F.length;
-  if (prop._rgFrame === i) return;          // ★ only touch the prop on a change
-  prop._rgFrame = i;
-  prop.bbox = F[i];
-  // ★ width is fixed and HEIGHT follows the frame, so the sparking frames grow
-  //   upward instead of the whole gun pulsing bigger and smaller
-  prop.tileH = prop.tileW * F[i][3] / F[i][2];
-}
 // The chest sits on the ground BELOW the treehouse (which stands at 20,-20 and
 // blocks its whole canopy), so it is found by walking to the tree, not inside it.
 const RAYGUN_CHEST_AT = [RAYGUN_CHEST_AT_X, RAYGUN_CHEST_AT_Y];
@@ -21027,7 +21155,7 @@ function spawnBrokenRaygun(cx, cy){
   //   PNG is still being drawn — until it lands the prop is invisible but
   //   entirely functional, and the toast names it, so the quest is playable
   //   the moment the file appears with no code change.
-  const bbox = BROKEN_RAYGUN_ART.frames[0].slice();
+  const bbox = BROKEN_RAYGUN_ART.bbox.slice();
   const prop = {
     id: 'broken_raygun_drop',
     _brokenRaygun: true,
@@ -36188,7 +36316,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.21' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.22' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -55327,7 +55455,9 @@ function stepNPCTo(n, nx, ny, newDir){
   if (!walkable(nx, ny)) return false;
   // Also block moving onto player tile
   if (player.x === nx && player.y === ny) return false;
+  const _ox = n.tileX, _oy = n.tileY;      // ★ v0.96.22 · keep the index exact
   n.tileX = nx; n.tileY = ny;
+  try { _npcOccMove(n, _ox, _oy); } catch(_){}
   n.dir = newDir;
   n.moving = true;
   n.animFrame = (n.animFrame + 1) % 4;
@@ -56338,6 +56468,9 @@ function _frameBody(now){
   // ★★★ v0.96.18 · FIRST, before tryMove reads freezeReasons — a lock that has
   //   already blown its deadline should never cost the player another frame.
   try { _tickDeadman(); } catch(_){}
+  // ★★★ v0.96.22 · mark stale once a frame · the rebuild happens on the first
+  //   walkable() that needs it, so a frame that never asks never pays
+  try { invalidateNpcOccupancy(); } catch(_){}
   // ★ v0.95.717 · stamina · drains while sprinting, refills when you stop.
   // Runs BEFORE tryMove so canSprint() sees this frame's value, and inside a
   // try so a stamina fault can never take the whole render loop down.
@@ -56353,7 +56486,7 @@ function _frameBody(now){
   try { tickFieldStation(); } catch(_){}     // ★ v0.96.12 · the unfold
   try { tickFieldStationRaid(); } catch(_){} // ★ v0.96.12 · enemies wreck it
   try { tickNootRaygun(); } catch(_){}       // ★ v0.96.14 · Noot covers you
-  try { tickBrokenRaygun(); } catch(_){}     // ★ v0.96.14 · the dead cell still arcs  // ★ v0.96.0 · the ground grows its anchor back
+  // ★ v0.96.22 · tickBrokenRaygun retired · one frame + _levitate, per the Creator  // ★ v0.96.0 · the ground grows its anchor back
   try { tickOmnirisStillness(); } catch(_){}  // ★ v0.95.990 · Omniris Trial 3  // ★ v0.95.990 · Omniris' meditation · +1 HP/s while guard is held undisturbed
   try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
   try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted

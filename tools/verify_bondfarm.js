@@ -24,7 +24,7 @@ const t = (c, m) => c ? ok(m) : no(m);
 console.log('\n=== BOND FARMS + OBEDIENCE (v0.95.998) ===\n');
 
 /* ── 1 · the four routes exist, are priced, and are REACHABLE ───────────── */
-for (const [k, pts] of [['zyrexStudy',3],['zyrexHomecoming',5],['zyrexSpar',1],['zyrexTrust',0.5]]){
+for (const [k, pts] of [['zyrexStudy',3],['zyrexHomecoming',2],['zyrexSpar',0.5],['zyrexTrust',0.25]]){
   t(new RegExp(k + `:\\s*\\{[^}]*pts:\\s*${pts}\\b`).test(CODE), `${k.padEnd(16)} priced at ${pts}`);
   // ★ THE CHECK THAT MATTERS · an event nothing calls is a dead route, which is
   // the exact shape of the five dead flags elsewhere in this file
@@ -102,6 +102,37 @@ t(/SPAR_COOLDOWN_MS/.test(CODE),
   'and a printer devalues the three routes that cost real effort');
 t(/homecomings:\s*Object\.assign/.test(CODE),
   '★ homecomings PERSIST · once-per-species that forgets on reload is an exploit');
+
+/* ── 7 · ★★★ THE SANCTUARY IS THE TOP SINGLE ACTION ────────────────────── */
+{
+  const ev = {};
+  for (const m of CODE.matchAll(/(\w+):\s*\{\s*path:'(\w+)',\s*pts:([\d.]+)/g))
+    ev[m[1]] = { path: m[2], pts: +m[3] };
+  t(ev.zyrexSanctuary && ev.zyrexSanctuary.pts === 5,
+    '★★★ a T1 rescue is 5 · the Creator\'s anchor number');
+  const zy = Object.entries(ev).filter(([k, v]) => v.path === 'zyrex' && k !== 'zyrexSanctuary');
+  const over = zy.filter(([, v]) => v.pts > 5).map(([k]) => k);
+  t(!over.length,
+    '★★ and NOTHING else on the Zyrex path beats it' + (over.length ? ' · ' + over.join(', ') : '')
+    + ' · everything below moved DOWN to make room rather than the anchor moving up, '
+    + 'because the anchor is the number that was named');
+  // ★ the RIZER half must NOT have been scaled with it
+  t(ev.rizerAlly && ev.rizerAlly.pts === 20 && ev.rizerGemlord && ev.rizerGemlord.pts === 30,
+    '★★★ the RIZER half is UNTOUCHED · scaling it by the same /5 drops it from '
+    + '2,803 to 827, capping total bond at 2,492 — below the 2,997 and 3,330 that '
+    + 'T9 and T10 need. Rescaling both halves "for symmetry" would have made the '
+    + 'last two tiers unreachable.');
+  t(ev.rizerStarter && ev.rizerStarter.pts === 333,
+    '★ and the starter cliff still opens T1 · the documented early-game loop');
+}
+{
+  const i = CODE.indexOf('function donateZyrexToSanctuary');
+  const fn = CODE.slice(i, CODE.indexOf('\n}', CODE.indexOf('showToast', i)));
+  t(/_bond = bumpRizerBond/.test(fn) && /\+\$\{Math\.round\(_bond/.test(fn),
+    '★★ the toast reports the BOND, not the tier multiplier · `gained` is the '
+    + 'TIER, and while pts was 1 those were the same number so the toast was '
+    + 'accidentally right — at pts 5 it under-reported by five times');
+}
 
 console.log(`\n★ ${pass} passed · ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

@@ -14256,6 +14256,10 @@ setTimeout(() => { try {
   try { buildAllTrails(); } catch(err){ console.warn('[rp7b] trail carve failed', err); }
   // ★ v0.95.760 · after the carve, so "at least 6 tiles off the road" is real
   try { scatterWoodChests(); } catch(err){ console.warn('[rp7b] chest scatter failed', err); }
+  // ★ v0.95.977 · roaming enemies · AFTER the carve and the chests, so packs
+  // do not stand on a road or on top of loot, and after the tower/HQ packs
+  // above, because the fill counts what a district already has.
+  try { scatterDistrictEnemies(); } catch(err){ console.warn('[rp7b] enemy scatter failed', err); }
   try { restoreLootedChests(); } catch(err){ console.warn('[rp7b] chest restore failed', err); }
   // ★ v0.95.762 · after the collision bake and the chests, so nothing lands
   // inside a building or on top of a chest
@@ -19131,6 +19135,71 @@ _lifeStoneSpots
     });
   }
 })();
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.977 · STONES IN EVERY DISTRICT.  Creator: *"we need to
+// redistrubute more wild grass, trees, and bushes, and stones... each world
+// should feel full."*
+//
+// ★ A live count says the stone is nearly all in one corner:
+//        malezor 254 · zarvane 85 · every other district 25
+// ★★ AND THE CAUSE IS A SAMPLING BOX, not a density setting.  Both passes
+// above call themselves GLOBAL and then sample
+//        x = WORLD_MIN_COL + rng()*330 · y = WORLD_MIN_ROW + rng()*315
+// on a map that is 1020 x 800.  That rectangle is Malezor's corner plus a bite
+// of Zarvane; the seven districts along the south road are outside it entirely
+// and only collect the handful of curated spots. The same 330x315 box appears
+// in `randomMalezorTile`, which is where it belongs and where it was copied
+// from — a Malezor-shaped constant that outlived Malezor-only content.
+//
+// ★ Rather than widen those two (their spacing rules are tuned against the
+// curated Malezor tables), this pass tops every district up to a target by
+// sampling THE DISTRICT'S OWN ELLIPSE, which cannot go out of bounds by
+// construction and gives each district the same treatment.
+const DISTRICT_STONE_TARGET = 90;    // ★ between Zarvane's 85 and Malezor's 254
+(function addDistrictStones(){
+  if (typeof ZYRAXIS_DISTRICTS === 'undefined' || typeof BOULDERS === 'undefined') return;
+  const rng = _makeWorldRng(0x5701E5);
+  const have = {};
+  for (const b of BOULDERS){
+    const d = worldDistrictAt(b.tileX, b.tileY);
+    if (d) have[d] = (have[d] || 0) + 1;
+  }
+  const placed = [];
+  let made = 0;
+  const perD = {};
+  for (const D of ZYRAXIS_DISTRICTS){
+    const want = Math.max(0, DISTRICT_STONE_TARGET - (have[D.id] || 0));
+    let n = 0, guard = 0;
+    while (n < want && guard < 14000){
+      guard++;
+      const a = rng() * Math.PI * 2, r = 0.15 + rng() * 0.78;
+      const x = Math.round(D.cx + Math.cos(a) * D.rx * r);
+      const y = Math.round(D.cy + Math.sin(a) * D.ry * r);
+      if (worldDistrictAt(x, y) !== D.id) continue;
+      if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) continue;
+      let occupied = false;
+      for (let oy = -1; oy <= 1 && !occupied; oy++)
+        for (let ox = -1; ox <= 1; ox++)
+          if (_propBlocked.has(`${x + ox},${y + oy}`)){ occupied = true; break; }
+      if (occupied) continue;
+      if (_tileHasNpcHalo(x, y, 3)) continue;
+      // ★ keep clear of the curated tables AND of each other, so the top-up
+      // reads as scattered rock rather than a gravel field
+      if (_boulderSpots.some(b => Math.hypot(b.x - x, b.y - y) < 7)) continue;
+      if (_astraliteStoneSpots.some(s => Math.hypot(s.x - x, s.y - y) < 7)) continue;
+      if (placed.some(s => Math.hypot(s.x - x, s.y - y) < 9)) continue;
+      placed.push({ x, y });
+      BOULDERS.push({ tileX: x, tileY: y, hp: BOULDER_MAX_HP, breaking: 0,
+                      gone: false, scene: 'overworld' });
+      n++; made++;
+    }
+    perD[D.id] = n;
+  }
+  if (made){
+    console.log(`[rp7b] v0.95.977 · district stones · +${made} · `
+      + Object.entries(perD).filter(([, v]) => v).map(([d, v]) => `${d}:${v}`).join(' '));
+  }
+})();
 // v0.95.642 · SEER CHEST lookup · the explosive chests are WORLD_PROPS, not
 // boulders, so the throw system needs its own finder.  They were tagged
 // _seerExplosive back in v0.95.510 specifically for this feature.
@@ -21936,6 +22005,137 @@ function buildTowerGuardPacks(){
       }));
       made++;
     }
+  }
+  return made;
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.95.977 · ROAMING ENEMIES IN EVERY DISTRICT
+//
+// Creator: *"we need to place the same amount of enemies in the other
+// districts that are in malezor. scale the enemies to be level capped to the
+// district max cap. enemies should be weighted similar to zyrex in a way
+// based."*
+//
+// ★ A live census of NPCS after the deferred boot tick, which is the only
+// honest way to count this:
+//        malezor 189 · zarvane 177 · andrannor 92 · outer seven 47-55 each
+// The outer seven have their tower ring and their HQ garrison and nothing
+// else — every one of their ~48 is POSTED. There is nothing in the country
+// between the landmarks, which is why they read as scenery rather than
+// territory.
+//
+// ★★ TIER-WEIGHTED, LIKE THE ZYREX.  The Creator asked for enemies weighted
+// "similar to zyrex in a way based", and the Zyrex weighting is by TIER — so
+// the MIX shifts along the road rather than the numbers just going up.
+// Malezor is Mori (T1) with a Daemon or two; Korathen is Vilerok and Morlisk
+// with Mori as the filler. Same ten-district ladder the towers and HQs already
+// climb, so a district's roaming population agrees with its posted one instead
+// of contradicting it.
+//
+// ★ LEVEL IS THE DISTRICT'S OWN CAP, taken from TOWER_NETWORK.moriLv rather
+// than invented here — the ladder already exists (5 → 80) and a second table
+// of levels would be a second thing to keep in step.
+//
+// ★★ AND THE HP SCALES WITH IT.  A Mori is 125 HP flat everywhere today, so a
+// Korathen Mori at Lv80 dies as fast as a Malezor one at Lv5 — the level was
+// cosmetic. `hpMax` now reads off the band the same way the tower guards' does.
+const DISTRICT_ROAM_TARGET = 130;   // ★ Malezor's own roaming count, minus its posted ~59
+const ROAM_MIN_FROM_TOWN   = 26;    // outside the built-up core · packs live in the country
+const ROAM_PACK            = [3, 5];// pack size range · they travel together, like the Malezor threes
+// The mix, per district, weighted by tier. Values are pack-draw weights.
+const DISTRICT_ENEMY_MIX = {
+  malezor:   { mori: 10 },
+  zarvane:   { mori:  9, daemon: 1 },
+  andrannor: { mori:  8, daemon: 2 },
+  veridan:   { mori:  7, daemon: 3 },
+  netharion: { mori:  6, daemon: 3, morlisk: 1 },
+  vorashil:  { mori:  5, daemon: 4, morlisk: 1 },
+  xilnar:    { mori:  4, daemon: 4, morlisk: 2 },
+  baelgor:   { mori:  4, daemon: 4, vilerok: 2 },
+  thardin:   { mori:  3, daemon: 4, morlisk: 3 },
+  korathen:  { mori:  2, daemon: 4, morlisk: 2, vilerok: 2 },
+};
+// tier per enemy kind · mirrors the bestiary the tower bosses already use
+const ROAM_TIER = { mori: 1, daemon: 2, morlisk: 4, vilerok: 5 };
+const ROAM_HP   = { mori: 125, daemon: 250, morlisk: 350, vilerok: 500 };
+function scatterDistrictEnemies(){
+  if (typeof NPCS === 'undefined' || !Array.isArray(NPCS)) return 0;
+  if (game._districtEnemiesScattered) return 0;
+  game._districtEnemiesScattered = true;
+  const pick = (re) => NPCS.find(n => n && n.isEnemy && re.test(n.src || ''));
+  const BASE = {
+    mori:    pick(/enemies\/mori\.png/i),
+    daemon:  pick(/enemies\/daemon\.png/i) || pick(/enemies\/mori\.png/i),
+    morlisk: pick(/enemies\/morlisk/i)     || pick(/enemies\/mori\.png/i),
+    vilerok: pick(/vilerok/i)              || pick(/enemies\/mori\.png/i),
+  };
+  if (!BASE.mori) return 0;
+  const rng = _makeWorldRng(0xE7E31);
+  let made = 0;
+  const perD = {};
+  for (const T of TOWER_NETWORK){
+    const dist = T.dist;
+    // ★ count what this district ALREADY has and only make up the difference,
+    // so Malezor and Zarvane are left alone and nothing is double-populated on
+    // a later pass.
+    const have = NPCS.filter(n => n && n.isEnemy && n.tileX != null
+      && worldDistrictAt(n.tileX, n.tileY) === dist).length;
+    const want = Math.max(0, DISTRICT_ROAM_TARGET - have);
+    if (!want) { perD[dist] = 0; continue; }
+    const mix = DISTRICT_ENEMY_MIX[dist] || { mori: 10 };
+    const bag = [];
+    for (const [k, w] of Object.entries(mix)) for (let i = 0; i < w; i++) bag.push(k);
+    const D = ZYRAXIS_DISTRICT_BY_ID[dist];
+    const town = (typeof _townAnchors === 'function') ? _townAnchors(dist) : [];
+    const legal = (x, y) => {
+      if (worldDistrictAt(x, y) !== dist) return false;
+      if (!isWorldLandTile(x, y) || isWorldBorderTile(x, y)) return false;
+      if (_propBlocked.has(x + ',' + y)) return false;
+      if (NPCS.some(n => n && n.scene === 'overworld' && n.tileX === x && n.tileY === y)) return false;
+      for (const [tx, ty] of town) if (Math.hypot(tx - x, ty - y) < ROAM_MIN_FROM_TOWN) return false;
+      return true;
+    };
+    let placed = 0, guard = 0;
+    while (placed < want && guard < 9000){
+      guard++;
+      // anchor the pack somewhere legal in the district's own ellipse
+      const a = rng() * Math.PI * 2, r = 0.20 + rng() * 0.72;
+      const ax = Math.round(D.cx + Math.cos(a) * D.rx * r);
+      const ay = Math.round(D.cy + Math.sin(a) * D.ry * r);
+      if (!legal(ax, ay)) continue;
+      const kind = bag[Math.floor(rng() * bag.length)];
+      const base = BASE[kind] || BASE.mori;
+      const size = Math.min(want - placed,
+        ROAM_PACK[0] + Math.floor(rng() * (ROAM_PACK[1] - ROAM_PACK[0] + 1)));
+      for (let i = 0; i < size; i++){
+        // members cluster around the anchor rather than stacking on it
+        const mx = ax + Math.round((rng() - 0.5) * 5);
+        const my = ay + Math.round((rng() - 0.5) * 5);
+        if (!legal(mx, my)) continue;
+        const id = `roam_${dist}_${made}`;
+        const tier = ROAM_TIER[kind] || 1;
+        NPCS.push(_cloneEnemyTo(base, id, mx, my, {
+          name: kind === 'mori' ? 'Mori' : kind.charAt(0).toUpperCase() + kind.slice(1),
+          dir: ['up','down','left','right'][Math.floor(rng() * 4)],
+          wanderRadius: 5 + Math.floor(rng() * 4),
+          mode: kind === 'mori' ? 'wander' : 'drainer',
+          isEnemy: true,
+          // ★ the district's own band · not a number invented here
+          level: T.moriLv,
+          tier,
+          // ★ HP now tracks the band, so a Korathen Mori is not a Malezor Mori
+          hpMax: Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40)),
+          hp:    Math.round((ROAM_HP[kind] || 125) * (1 + T.moriLv / 40)),
+          _roamOf: dist,
+        }));
+        made++; placed++;
+      }
+    }
+    perD[dist] = placed;
+  }
+  if (made){
+    console.log(`[rp7b] v0.95.977 · roaming enemies · ${made} placed · `
+      + Object.entries(perD).filter(([, n]) => n).map(([d, n]) => `${d}:${n}`).join(' '));
   }
   return made;
 }

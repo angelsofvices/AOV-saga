@@ -9335,9 +9335,100 @@ const NPCS = [
       // happened.  What exists now is the door: `grantVengrizz()` below is the
       // single call the finished quest makes, and until something calls it the
       // boy says exactly what he has always said.
-      if (player.lostBoyReunited && !player.vengrizzGifted){ grantVengrizz(); return; }
-      showToast('◈ THE LOST BOY · he holds the bear tighter and does not answer', 3400);
+      if (player.lostBoyReunited){
+        showToast('\u25c8 THE LOST BOY · he is home \u00b7 he still does not talk, but he waves', 3200);
+        return;
+      }
+      // ★★ v0.95.996 · HE FOLLOWS NOW. He rides the generic companion system
+      // (player.companion + mode:'follow') rather than a bespoke escort — the
+      // machinery already carries an NPC across scenes and district lines,
+      // which is exactly what a walk from Andrannor to Malezor needs.
+      if (player.companion === 'lost_boy'){
+        showToast('\u25c8 He is following you \u00b7 his parents are somewhere in MALEZOR', 3600);
+        return;
+      }
+      if (player.companion && player.companion !== 'lost_boy'){
+        const _p = findNpcById(player.companion);
+        if (_p) { try { uncompanionize(_p, true); } catch(_){} }
+      }
+      player.companion = 'lost_boy';
+      n.mode = 'follow';
+      n._nativeX = n.homeX; n._nativeY = n.homeY; n._nativeScene = n.homeScene;
+      n.homeX = player.x; n.homeY = player.y;
+      n.scene = game.scene;
+      try { playSFX('confirm'); } catch(_){}
+      showDialog({ speaker: 'THE LOST BOY', lines: [
+        '*he does not answer \u00b7 he takes a fistful of your sleeve*',
+        '*and then he just walks when you walk*',
+      ]});
+      showToast('\u25c8 THE LOST BOY follows \u00b7 find his parents in MALEZOR', 4600);
     },
+  },
+  // ★★★ v0.95.996 · THE LOST BOY'S PARENTS · Creator: "lost boy mom and dad
+  // idle sprites. have them spawn in malezor. you have to bring the boy to
+  // them in order to receive vengrizz."
+  //
+  // ★★ THIS KILLS A DEAD FLAG. `lostBoyReunited` has been read and saved and
+  // NEVER SET since v0.95.979 — grantVengrizz()'s only caller sits behind it,
+  // so VENGRIZZ HAS BEEN UNOBTAINABLE by any path. The reward was wired and the
+  // quest was not, and the boy's own comment says so in as many words. It is
+  // one of five flags in this file with that shape; this is the first one
+  // closed.
+  //
+  // ★★★ AND THE ESCORT CROSSES A BORDER. The boy stands in ANDRANNOR (263,315);
+  // his parents wait in MALEZOR. The original note said "parents in andrannor" —
+  // the Creator moved them, and that turns a fetch into the second
+  // cross-district journey in the game after Kelthor's Soulphish. It is the
+  // shape the whole ten-district plan wants, arrived at from the story side
+  // rather than the systems side.
+  //
+  // ★ They stand ADJACENT and face each other's side of the road, because two
+  // people waiting for a missing child do not stand apart.
+  {
+    id: 'lostboy_dad',
+    name: 'Corvan',
+    sheet: new Image(),
+    src: 'assets/2D%20sprites/npcs/lostboy-dad.png',
+    bboxes: [
+      [[  79,  18, 165, 295],[  71,  18, 163, 295],[  54,  18, 172, 295],[  60,  18, 162, 294]],
+      [[  83,  17, 151, 288],[  77,  17, 150, 288],[  64,  17, 155, 288],[  62,  17, 150, 288]],
+      [[  83,   6, 150, 288],[  73,   6, 151, 289],[  63,   6, 151, 288],[  58,   6, 151, 288]],
+      [[  79,  -1, 156, 282],[  73,  -1, 156, 282],[  60,  -1, 168, 282],[  54,  -1, 156, 282]],
+    ],
+    scaleRefBh: 295, scaleMul: 1.0,
+    tileX: 29, tileY: 74, homeX: 29, homeY: 74,
+    homeScene: 'overworld', scene: 'overworld',
+    wanderRadius: 0,                 // they do not wander · they are waiting
+    dir: 'down',
+    mode: 'stationary',
+    moving: false,
+    animFrame: 0, idleFrame: 0,
+    isEnemy: false,
+    _lostBoyParent: true,
+    onInteract: (n) => { lostBoyReunion(n); },
+  },
+  {
+    id: 'lostboy_mom',
+    name: 'Serel',
+    sheet: new Image(),
+    src: 'assets/2D%20sprites/npcs/lostboy-mom.png',
+    bboxes: [
+      [[  88,  32, 150, 273],[  85,  32, 150, 273],[  81,  32, 149, 273],[  70,  33, 147, 272]],
+      [[  94,  28, 146, 271],[  94,  29, 145, 270],[  92,  30, 142, 269],[  83,  30, 143, 269]],
+      [[  87,  18, 142, 266],[  86,  18, 141, 267],[  80,  18, 141, 267],[  72,  18, 140, 267]],
+      [[  90,   1, 143, 272],[  88,   2, 142, 271],[  84,   3, 141, 270],[  73,   2, 140, 271]],
+    ],
+    scaleRefBh: 273, scaleMul: 1.0,
+    tileX: 30, tileY: 74, homeX: 30, homeY: 74,
+    homeScene: 'overworld', scene: 'overworld',
+    wanderRadius: 0,                 // they do not wander · they are waiting
+    dir: 'down',
+    mode: 'stationary',
+    moving: false,
+    animFrame: 0, idleFrame: 0,
+    isEnemy: false,
+    _lostBoyParent: true,
+    onInteract: (n) => { lostBoyReunion(n); },
   },
   // ── SHARKFIN · MOVE TEACHER · Veridan · teaches ASTRALASER ─────────────
   // v0.95.686 · Second Veridan contact, alongside Foongus.  Foongus teaches
@@ -33539,7 +33630,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.995' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.996' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -39321,6 +39412,58 @@ function grantVolcaxorStaminaRig(){
   try { saveGame(); } catch(_){}
   return true;
 }
+// ★★★ v0.95.996 · THE REUNION · the call that finally sets lostBoyReunited.
+// Either parent can be the one you reach first; they say different things and
+// do the same thing, because which parent you happen to walk up to is not a
+// branch the player should be made to care about.
+function lostBoyReunion(n){
+  const withBoy = (player.companion === 'lost_boy');
+  const dad = n && n.id === 'lostboy_dad';
+  if (player.lostBoyReunited){
+    return showDialog({ speaker: dad ? 'CORVAN' : 'SEREL', lines: dad
+      ? ['*he has not let go of the boy\'s shoulder since you left*',
+         'You did not have to bring him all that way. You did anyway.']
+      : ['*she is still holding the bear, and the boy is holding her*',
+         'Come back through Malezor whenever you like. You have a door here.'] });
+  }
+  if (!withBoy){
+    // ★ they do not hint at Andrannor by name. The Lost Boy is findable and
+    // being told exactly where to go would spend the only search in the quest.
+    return showDialog({ speaker: dad ? 'CORVAN' : 'SEREL', lines: dad
+      ? ['*he checks the road east, then checks it again*',
+         'Our boy went out past the district line and did not come back.',
+         'If you are going that way — east, past the seam — look for a kid with a bear.']
+      : ['*she has not sat down in a long time*',
+         'He is small. He has a bear he will not put down.',
+         'If you find him, he will not talk to you. Just walk. He follows.'] });
+  }
+  // ── the reunion itself ────────────────────────────────────────────────
+  player.lostBoyReunited = true;
+  const boy = (typeof findNpcById === 'function') ? findNpcById('lost_boy') : null;
+  if (boy){
+    // ★ he stops being a companion and starts living here · the whole point is
+    // that he is HOME, so his native anchor moves to his parents rather than
+    // reverting to the Andrannor tile he was lost on.
+    player.companion = null;
+    boy.mode = 'stationary';
+    boy.homeX = 31; boy.homeY = 74; boy.homeScene = 'overworld';
+    boy.tileX = 31; boy.tileY = 74; boy.scene = 'overworld';
+    boy.dir = 'up';
+  }
+  try { playSFX('levelUp'); } catch(_){}
+  try { awardRizerXP(2500); } catch(_){}
+  showToast('\u2605 THE LOST BOY IS HOME', 4200);
+  showDialog({ speaker: dad ? 'CORVAN' : 'SEREL', lines: [
+    '*neither of them looks at you for a while*',
+    'He walked out past the seam and we could not follow \u2014 the road is not ours any more.',
+    'You went anyway.',
+    '*a low sound behind the house \u00b7 something large that has been waiting too*',
+    'It came out of the wilds a week after he vanished and it has not left the yard since.',
+    'It was looking for him. We think it found you instead.',
+  ]});
+  // ★ the reward the flag has been guarding since v0.95.979
+  try { if (!player.vengrizzGifted) grantVengrizz(); } catch(_){}
+}
 function grantVengrizz(){
   if (player.vengrizzGifted) return null;
   player.vengrizzGifted = true;
@@ -39942,6 +40085,7 @@ function saveGame(){
         depthCam:                   !!player.depthCam,           // ★ v0.95.978 · display preference
         vengrizzGifted:             !!player.vengrizzGifted,     // ★ v0.95.979 · Lost Boy reward
         lostBoyReunited:            !!player.lostBoyReunited,    // ★ v0.95.979 · the quest's own flag
+        // ★ v0.95.996 · and it is finally a flag something SETS
         // ★★ v0.95.990 · OMNIRIS' LADDER, PERSISTED. `dadStarterQuestGiven` was
         // missing from this snapshot for months (fixed v0.95.972) and nobody
         // noticed because the bug only shows after a reload. Every flag the

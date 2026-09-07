@@ -3328,6 +3328,7 @@ const INVENTORY_META = {
   gearbag:          { label: 'Gearbag',                 order: 3  },   // v0.95.279 · Scrapjaw's gift · outfits + cosmetics live inside
   backpack:         { label: 'Backpack',                order: 0.5},   // v0.95.326 · Rizer's first-grab · gates touchpad + house exit
   elzebub_egg:      { label: 'Elzebub Egg',             order: 4  },   // v0.95.295 · rare egg · found near home · Mom nurses it into Elzebub Lv10
+  broken_raygun:    { label: 'Broken Raygun',           order: 43 },   // ★ v0.96.14 · Noot's lost toy · unusable, and that is the point
   field_station:    { label: 'Field Workstation',       order: 44 },   // ★ v0.96.12 · the briefcase · 20 scrap at Dad's bench
   scrap_metal:      { label: 'Scrap Metal',             order: 45 },   // v0.95.490 · chest loot outside Radio Tower · trade to Scrapjaw for Phone Battery
   astralcore:       { label: 'Astralcore',              order: 46 },   // v0.95.492 · chest loot in Malezor wild arm · trade to Auraxion to power the UFO · restores 100% SPECIAL on consume
@@ -3498,6 +3499,7 @@ const ZYCUBE_CAT_OF = Object.freeze({
 
   scrap_metal:'mat', life_stone:'mat', tower_battery:'mat', portal_chip:'mat',
   field_station:'gear',                                   // ★ v0.96.12
+  broken_raygun:'key',                                    // ★ v0.96.14 · a QUEST item · never a weapon
   portalkey_broken:'key', portalkey:'key',
 
   coins:'gem', gem:'gem', moon_gem:'gem',
@@ -5151,6 +5153,14 @@ function caveFootprint(halfW){
   }
   return f;
 }
+// ★★★ v0.96.14 · DECLARED ABOVE WORLD_PROPS ON PURPOSE.
+// The raygun chest is a member of this array, so its coordinate must exist
+// BEFORE the array literal is evaluated. Putting the const near the rest of the
+// quest code — 8,000 lines below — killed the whole script at boot with
+// "Cannot access 'RAYGUN_CHEST_AT_X' before initialization", which is the exact
+// temporal-dead-zone trap this file already carries a warning about at
+// DOORMAT_KEYS. Caught by booting it in node rather than by reading it.
+const RAYGUN_CHEST_AT_X = 24, RAYGUN_CHEST_AT_Y = -13;
 const WORLD_PROPS = [
   ...buildSeerHqProps(),
   {
@@ -6641,6 +6651,36 @@ const WORLD_PROPS = [
       };
       return chest;
     });
+  })(),
+  // ── ★★ v0.96.14 · NOOT'S RAYGUN CHEST · gold, under the treehouse ──
+  // Built from the SAME parts as the gold chests above — one closed bbox, one
+  // open bbox, a solid footprint and a door so X opens it when faced. Copying
+  // the rig rather than inventing one is the point: a player who has opened a
+  // gold chest already knows how to open this, and it pays gold like gold.
+  (function(){
+    const _cImg = new Image(); _cImg.src = 'assets/2D%20sprites/decor/gold-chest.png';
+    const _oImg = new Image(); _oImg.src = 'assets/2D%20sprites/decor/chest-open.png';
+    const C_BBOX = [143, 184, 968, 886], O_BBOX = [290, 240, 673, 741];
+    const chest = {
+      id: 'raygun_gold_chest',
+      img: _cImg, src: 'assets/2D%20sprites/decor/gold-chest.png', bbox: C_BBOX,
+      tileX: RAYGUN_CHEST_AT_X, tileY: RAYGUN_CHEST_AT_Y,
+      tileW: 1, tileH: 1,
+      footprint: [[0, 0]],
+      door: [0, 0],
+      _goldChest: true, _raygunChest: true,
+      opened: false, looted: false,
+      _closedImg: _cImg, _openImg: _oImg,
+      _closedBbox: C_BBOX, _openBbox: O_BBOX,
+    };
+    chest.onInteract = () => {
+      if (chest.opened) return;
+      chest.opened = true;
+      chest.img = _oImg; chest.bbox = O_BBOX;
+      try { awardRizerXP(30); } catch(_){}
+      try { tryOpenRaygunChest(); } catch(err){ console.warn('[rp7b] raygun chest failed', err); }
+    };
+    return chest;
   })(),
   // ── v0.95.510 · SEER EXPLOSIVE CHESTS · dark chest w/ blue gem · trap loot ──
   // Set by the Seers in shady corners of Zyraxis · try to open one and it
@@ -9967,8 +10007,10 @@ const NPCS = [
     },
   },
   {
-    id: 'crazy',
-    name: 'Crazy',
+    id: 'crazy',        // ★ ID KEPT · see the rename note at NOOT_RAY_DMG
+    name: 'Noot',       // ★★ v0.96.14 · display rename · was 'Crazy'
+    tier: 3,            // ★ "he is tier 3 so not that strong but reliable"
+    _kidPal: true,      // ★ the first of the kid faction · see KID_PALS
     // Idle sheet (frame 0 per direction)
     sheet: new Image(),
     src:   'assets/2D%20sprites/npcs/crazy.png',
@@ -9987,8 +10029,49 @@ const NPCS = [
       [[103,20,128,208],[ 95,20,129,206],[78,20,127,209],[63,20,128,207]],
       [[108, 0,122,202],[101, 0,123,202],[82, 0,122,202],[67, 0,121,202]],
     ],
+    // ══════════════════════════════════════════════════════════════════════
+    // ★★ v0.96.14 · NOOT'S RUN · the fourth bank, for keeping up with a
+    //    sprinting Rizer. A companion who jogs beside someone running is the
+    //    read that breaks an escort.
+    //
+    // ★★★ runRefBh IS THIS SHEET'S OWN col-0 MAX (224), never the idle's.
+    //    _downScale is measured on the IDLE bank; the run frames are a
+    //    different height, so without its own yardstick Noot would change SIZE
+    //    the instant he broke into a run and pop back when he stopped.
+    //    [[aov-refbh-yardstick-law]] — warned three times, broken four, and it
+    //    is a test now. Measured here, not copied: idle col-0 max is 217, run
+    //    col-0 max is 224.
+    runSheet: (() => { const i = new Image(); i.src = 'assets/2D%20sprites/npcs/noot-run.png'; return i; })(),
+    runSrc:   'assets/2D%20sprites/npcs/noot-run.png',
+    runRefBh: 224,
+    // ★ measured by connected component · the `up` row's cap clears the cell
+    //   top by 20px, which is owned overflow and must stay in the box
+    runBboxes: [
+      [[ 108,  81,124,224],[ 103,  79,130,218],[  71,  83,133,217],[  64,  83,133,217]],
+      [[ 102,  54,152,203],[  99,  53,155,202],[  72,  54,156,203],[  58,  53,157,207]],
+      [[  77,  19,158,202],[  72,  21,158,200],[  48,  21,156,202],[  30,  21,160,198]],
+      [[ 106, -20,120,222],[  98, -20,127,213],[  72, -20,126,222],[  59, -20,128,222]],
+    ],
+    // ★★ v0.96.14 · NOOT'S RAYGUN · the third bank, on the rig the Seer grunts
+    // already use (attackSheet / attackBboxes / _atkUntil / attackCycleMs).
+    // Columns are the shot: 0 hold · 1 charge · 2 FIRE · 3 spark.
+    // ★★★ Bboxes measured by CONNECTED COMPONENT, not by cell. The fire frames'
+    //   beams cross their cell seams — 35px left, 37px right — so a per-cell
+    //   measurement inflated the neighbouring CHARGE frame's box to 279px wide
+    //   and would have drawn a stray beam fragment beside a gun that had not
+    //   fired yet. CC keeps each beam with the gun that owns it, and the boxes
+    //   below legitimately run past their cell ([[aov-sprite-cc-extractor]]).
+    attackSheet: new Image(),
+    attackSrc:   'assets/2D%20sprites/npcs/noot-raygun.png',
+    attackBboxes: [
+      [[  97, 82,130,217],[ 102, 82,118,212],[  83, 82,118,257],[  66, 82,117,212]],
+      [[  73, 58,149,206],[  34, 58,183,206],[ -39, 58,278,206],[  29, 58,179,205]],
+      [[ 102, 21,150,205],[  63, 21,178,205],[  49, 21,274,205],[  63, 21,162,205]],
+      [[ 109,-14,127,218],[  87,-46,116,254],[  74,-62,117,270],[  67,-13,127,217]],
+    ],
+    attackCycleMs: 90,
     cellW: 313, cellH: 313, cols: 4, rows: 4,
-    // Crazy STARTS inside his own house (red home at 32,98 · interior 15x15)
+    // Noot STARTS inside his own house (red home at 32,98 · interior 15x15)
     tileX: 7, tileY: 7,
     homeX: 7, homeY: 7,           // home = center of interior 15x15
     homeScene: 'interior_crazy_home',
@@ -10000,18 +10083,62 @@ const NPCS = [
     animFrame: 0,
     moveCd: 1500 + Math.random() * 1000,
     onInteract: (n) => {
+      // ★★★ v0.96.14 · NOOT TEACHES THE FIELD BENCH. Creator: "he is who teaches
+      // you how to craft a field table using scrap metal." The recipe used to
+      // be granted at boot, which made the most characterful thing in the
+      // crafting tab arrive from nobody. It is his to give.
+      if (!player.nootTaughtBench){
+        player.nootTaughtBench = true;
+        try { grantFieldStationRecipe(); } catch(_){}
+        try { playSFX('levelUp'); } catch(_){}
+        showDialog({ speaker: 'NOOT', lines: [
+          '*spins a wrench on one finger and misses the catch*  Okay okay okay — check it.',
+          `*drags a battered case out from under the bed*  My mom builds these in THARDIN. Real tech companies, real money. She sends me the busted ones.`,
+          `Twenty scrap metal and Dad's bench and you get your OWN. Set it down anywhere. Craft in the middle of nowhere.`,
+          '*taps the empty holster on his hip and his face falls*  ...oh. Right.',
+          '*quiet*  I lost my raygun. My GOOD one. Somewhere out by your treehouse.',
+          '*looks at you strangely*  We were out there together. Hunting scanobots.',
+          '*a beat*  ...you really do not remember that day either, do you.',
+        ]});
+        return;
+      }
+      // ── beat 3 · you bring it back ───────────────────────────────────────
+      if (!player.nootRaygunReturned && (player.items && player.items.broken_raygun)){
+        player.nootRaygunReturned = true;
+        player.items.broken_raygun -= 1;
+        player.bonds = player.bonds || {};
+        player.bonds.crazy = Math.min(100, (player.bonds.crazy || 0) + NOOT_RETURN_BOND);
+        try { bumpRizerBond('rizerAlly'); } catch(_){}
+        try { awardRizerXP(400); } catch(_){}
+        try { playSFX('levelUp'); } catch(_){}
+        showDialog({ speaker: 'NOOT', lines: [
+          '*you hold it out · he does not take it for a second*',
+          '*then he does, with both hands*  The barrel is cracked. It is never firing again.',
+          '*he holds it anyway*  ...you went back out there. For a broken toy.',
+          `*straps it on the empty side of his belt*  Okay. I am coming with you. Bond +${NOOT_RETURN_BOND}.`,
+          '*already walking*  And I still have the OTHER one, so I am not useless. Square me any time.',
+        ]});
+        return;
+      }
       if (n.scene === 'overworld' && n.mode === 'follow'){
-        // Dismiss: send Crazy back home to wander inside his house.
         n.mode = 'wander';
         n.scene = n.homeScene;
         n.tileX = n.homeX; n.tileY = n.homeY;
-        showDialog({ speaker: 'CRAZY', lines: ['Alright, catch you later.'] });
-      } else {
-        // Recruit: mode=follow · if player is inside Crazy's house, he'll
-        // transfer to overworld when player exits (exitInterior handles it).
-        n.mode = 'follow';
-        showDialog({ speaker: 'CRAZY', lines: ["Yo! I got your back.  Let's roll."] });
+        showDialog({ speaker: 'NOOT', lines: ['Alright, catch you later.'] });
+        return;
       }
+      // ★★★ FOLLOWING IS EARNED, not offered. Before the raygun comes back he
+      // is a kid in a house who will talk to you; after it, he is a companion.
+      // That is the whole four-beat template: mention, find, return, walk.
+      if (!player.nootRaygunReturned){
+        showDialog({ speaker: 'NOOT', lines: [
+          '*shrugs*  I would come with you, but I am not going out there without a gun.',
+          '*pokes the empty holster*  Treehouse. Somewhere near your treehouse.',
+        ]});
+        return;
+      }
+      n.mode = 'follow';
+      showDialog({ speaker: 'NOOT', lines: ["Yo! I got your back.  Let's roll."] });
     },
   },
   {
@@ -20673,6 +20800,176 @@ function spawnAstraliteGem(cx, cy, item){
   return prop;
 }
 // ══════════════════════════════════════════════════════════════════════════
+// ★★★ v0.96.14 · NOOT'S LOST RAYGUN · the companion-quest template
+//
+//   Creator: "create a broken raygun chest for group pick up. a gold chest near
+//   the tree house. the broken gun will pop out of the chest. unusable weapon
+//   but looks cool. rizer will find it and bring it to his friend noot who
+//   complained about losing his favorite toy and forgetting where he lost it
+//   near the treehouse when him and rizer were hunting scanobots. for some
+//   reason rizer cant remember it. he finds the gun though and brings it back.
+//   this will increase his bond and he will accompany rizer in expedition.
+//   opening quest for a companion npc."
+//
+// ★★ THIS IS A TEMPLATE, not a one-off. The kid faction is coming — more pals
+//    across the map, each with parents tied into the story — and every one of
+//    them needs the same four beats:
+//      1 the pal MENTIONS a loss (they never ask; you have to listen)
+//      2 the world holds the thing, somewhere they said they had been
+//      3 you carry it back
+//      4 bond rises and they walk with you
+//    Keeping those four in one shape means the second kid costs a data row.
+//
+// ★ Declared UP HERE because WORLD_PROPS is built long before this block and
+//   the chest prop needs the coordinate at construction time.
+// ★ THE FORGETTING IS CANON, not flavour: Noot cannot remember where he lost
+//   it, and RIZER CANNOT REMEMBER THE HUNT AT ALL. Two boys, one missing
+//   afternoon. That is left as a hook, not explained here.
+const NOOT_RETURN_BOND = 25;   // ★ the single largest bond a Malezor kid pays
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ v0.96.14 · THE PERK · "his perk is being able to attack enemies with his
+//    ray blaster. he is tier 3 so not that strong but reliable."
+//
+// ★ RELIABLE, NOT STRONG. Tier 3 sets the damage low and the cadence steady:
+//   he will not carry a fight, but he never stops contributing and he never
+//   misses. That is a different feeling from a summoned Zyrex, and it is the
+//   feeling the brief asks for.
+// ★ He fires on the EXISTING NPC attack rig (_atkUntil + attackBboxes), so the
+//   draw already knows how to show it and no new render path was written.
+const NOOT_RAY_RANGE   = 6;
+const NOOT_RAY_CD_MS   = 1500;
+const NOOT_RAY_DMG     = 8;      // tier 3 · a Mori is 125hp, so ~16 shots alone
+const NOOT_RAY_SHOT_MS = 360;
+function nootEscorting(){
+  if (typeof NPCS === 'undefined') return null;
+  const n = NPCS.find(x => x && x.id === 'crazy');
+  if (!n || n.scene !== game.scene) return null;
+  return (n.mode === 'follow') ? n : null;
+}
+function tickNootRaygun(){
+  const n = nootEscorting();
+  if (!n) return;
+  const now = performance.now();
+  if ((n._rayCd || 0) > now) return;
+  let best = null, bestD = Infinity;
+  for (const e of NPCS){
+    if (!e || !e.isEnemy || e.scene !== n.scene || e._dying) continue;
+    if ((e.hp != null && e.hp <= 0)) continue;
+    const d = Math.hypot(e.tileX - n.tileX, e.tileY - n.tileY);
+    if (d <= NOOT_RAY_RANGE && d < bestD){ bestD = d; best = e; }
+  }
+  if (!best) return;
+  n._rayCd = now + NOOT_RAY_CD_MS;
+  n._atkUntil = now + NOOT_RAY_SHOT_MS;      // ★ the shared attack-bank flag
+  // face the shot · the bank has all four directions and firing sideways at
+  // something behind you is the tell that an attack was bolted on
+  const dx = best.tileX - n.tileX, dy = best.tileY - n.tileY;
+  n.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left')
+                                       : (dy > 0 ? 'down' : 'up');
+  n.moving = false;
+  const maxHp = best.hpMax || 125;
+  if (best.hp == null) best.hp = maxHp;
+  best.hp -= NOOT_RAY_DMG;
+  try { spawnHitFx(best.tileX, best.tileY, 'astral'); } catch(_){}
+  try { playSFX('astralstrike', n); } catch(_){}
+  if (best.hp > 0 && !best._gruntPlayed && best.hp <= maxHp * 0.4){
+    best._gruntPlayed = true; try { playSFX('moriGrunt', best); } catch(_){}
+  }
+  if (best.hp <= 0){
+    try { playSFX('moriDeath', best); } catch(_){}
+    // ★ credited to RIZER · Noot is a friend helping, not a rival farming your
+    //   XP. Every kill in the game goes through this one door.
+    try { creditRizerKill(best, 'punch'); } catch(_){}
+    try { startMoriDeath(best); } catch(_){ best._dying = true; best._deathAt = now; }
+  }
+}
+// ★★ v0.96.14 · FOUR FRAMES · the cell is dead but the casing still ARCS: a
+//    calm frame, a small spark, a big arc, a small spark. That flicker is what
+//    sells "broken but not inert" on a thing lying in the grass, so the drop
+//    cycles them rather than sitting on frame 0.
+const BROKEN_RAYGUN_ART = { img: new Image(),
+  src: 'assets/2D%20sprites/decor/broken-raygun.png',
+  // measured off the keyed PNG · 4 frames across a 1774x887 strip
+  frames: [ [ 30,370,338,200], [ 41,319,337,251],
+            [ 51,327,336,243], [ 64,328,336,242] ] };
+BROKEN_RAYGUN_ART.img.src = BROKEN_RAYGUN_ART.src;
+const RAYGUN_SPARK_MS = 170;
+// The drop's flicker · one tick, driven from the frame loop like every other.
+function tickBrokenRaygun(){
+  const prop = (typeof WORLD_PROPS !== 'undefined')
+    && WORLD_PROPS.find(p => p && p._brokenRaygun);
+  if (!prop) return;
+  const F = BROKEN_RAYGUN_ART.frames;
+  const i = Math.floor(performance.now() / RAYGUN_SPARK_MS) % F.length;
+  if (prop._rgFrame === i) return;          // ★ only touch the prop on a change
+  prop._rgFrame = i;
+  prop.bbox = F[i];
+  // ★ width is fixed and HEIGHT follows the frame, so the sparking frames grow
+  //   upward instead of the whole gun pulsing bigger and smaller
+  prop.tileH = prop.tileW * F[i][3] / F[i][2];
+}
+// The chest sits on the ground BELOW the treehouse (which stands at 20,-20 and
+// blocks its whole canopy), so it is found by walking to the tree, not inside it.
+const RAYGUN_CHEST_AT = [RAYGUN_CHEST_AT_X, RAYGUN_CHEST_AT_Y];
+function spawnBrokenRaygun(cx, cy){
+  if (game.scene !== 'overworld'){
+    addItems({ broken_raygun: 1 });
+    try { playItemGain('broken_raygun'); } catch(_){}
+    return null;
+  }
+  let tx = null, ty = null;
+  for (const [dx, dy] of [[0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+    if (typeof walkable === 'function' && walkable(cx+dx, cy+dy)){ tx = cx+dx; ty = cy+dy; break; }
+  }
+  if (tx == null){ addItems({ broken_raygun: 1 }); return null; }   // walled in · hand it over
+  const im = BROKEN_RAYGUN_ART.img;
+  // ★ bbox from the ART if it has loaded, so the drop is never stretched. The
+  //   PNG is still being drawn — until it lands the prop is invisible but
+  //   entirely functional, and the toast names it, so the quest is playable
+  //   the moment the file appears with no code change.
+  const bbox = BROKEN_RAYGUN_ART.frames[0].slice();
+  const prop = {
+    id: 'broken_raygun_drop',
+    _brokenRaygun: true,
+    img: im, src: BROKEN_RAYGUN_ART.src, bbox,
+    tileX: tx, tileY: ty,
+    tileW: 0.9, tileH: 0.9 * bbox[3] / bbox[2],
+    footprint: [[0, 0]],
+    door: [0, 0],
+    _levitate: true,
+    onInteract(){
+      try { unregisterPropCollision(prop); } catch(_){}
+      const i = WORLD_PROPS.indexOf(prop);
+      if (i >= 0) WORLD_PROPS.splice(i, 1);
+      try { invalidatePropGrid(); } catch(_){}
+      addItems({ broken_raygun: 1 });
+      player.raygunFound = true;
+      try { playItemGain('broken_raygun'); } catch(_){}
+      showDialog({ speaker: 'RIZER', lines: [
+        '*a raygun · the barrel is cracked clean through and the cell is dark*',
+        '*it will never fire again · it is still the coolest thing you have ever held*',
+        "*...you know whose this is. You just cannot remember being here.*",
+      ]});
+    },
+  };
+  WORLD_PROPS.push(prop);
+  try { registerPropCollision(prop); } catch(_){}
+  try { invalidatePropGrid(); } catch(_){}
+  return prop;
+}
+// The gold chest under the treehouse · opened like any other, pays like gold,
+// and coughs up the raygun on top.
+function tryOpenRaygunChest(){
+  if (player.raygunChestOpened) return false;
+  player.raygunChestOpened = true;
+  const [cx, cy] = RAYGUN_CHEST_AT;
+  try { spillChestCoins({ tileX: cx, tileY: cy, id: 'raygun_gold' }, 'gold', 1); } catch(_){}
+  spawnBrokenRaygun(cx, cy);
+  try { playSFX('confirm'); } catch(_){}
+  showToast('★ GOLD CHEST · something small and broken rolls out', 4200);
+  return true;
+}
+// ══════════════════════════════════════════════════════════════════════════
 // ★★★ v0.96.12 · DEPLOYING THE FIELD WORKSTATION
 //
 // ★ THE UNFOLD IS THE FEATURE. The Creator delivered EIGHT frames and re-cut
@@ -24720,16 +25017,27 @@ if (!player.knownRecipes.find(r => r.id === 'verdant_elixir')){
 //   it appears at Dad's bench beside everything else and the whole cost/afford/
 //   craft path is the one already tested.
 const FIELD_STATION_SCRAP = 20;
-if (!player.knownRecipes.find(r => r.id === 'field_station')){
-  player.knownRecipes.push({
-    id: 'field_station',
-    name: 'Portable Field Workstation',
-    effect: 'Deploy a science bench anywhere · craft on expedition · packs back into its case.',
-    ingredients: [`${FIELD_STATION_SCRAP}× Scrap Metal`],
-    costOptions: [ { scrap_metal: FIELD_STATION_SCRAP } ],
-    output: { field_station: 1 },
-  });
+// ★★ v0.96.14 · NOOT TEACHES THIS. It used to be pushed at boot, so the most
+// characterful recipe in the tab arrived from nobody. Now it is a lesson, and
+// the function is idempotent because a lesson can be re-told.
+function grantFieldStationRecipe(){
+  player.knownRecipes = player.knownRecipes || [];
+  if (player.knownRecipes.find(r => r.id === 'field_station')) return false;
+  player.knownRecipes.push(FIELD_STATION_RECIPE);
+  try { showToast('★ RECIPE LEARNED · Portable Field Workstation · '
+        + `${FIELD_STATION_SCRAP} scrap at the bench`, 4200); } catch(_){}
+  return true;
 }
+const FIELD_STATION_RECIPE = {
+  id: 'field_station',
+  name: 'Portable Field Workstation',
+  effect: 'Deploy a science bench anywhere · craft on expedition · packs back into its case.',
+  ingredients: [`${FIELD_STATION_SCRAP}× Scrap Metal`],
+  costOptions: [ { scrap_metal: FIELD_STATION_SCRAP } ],
+  output: { field_station: 1 },
+};
+// ★ a save made before v0.96.14 already knows it · never take a recipe away
+if (player.nootTaughtBench) grantFieldStationRecipe();
 if (player.camps == null) player.camps = {};      // district → last camp site
 if (player.ownedHomes == null)   player.ownedHomes   = [];   // ids of homes the player has bought
 if (player.mainQuestStep == null) player.mainQuestStep = 0;  // v0.95.1 · index into MAIN_QUESTS
@@ -35525,7 +35833,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.13' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.96.14' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -42193,6 +42501,10 @@ function saveGame(){
         // session toy: the deeds survived a reload but the tier you reached,
         // the contact you housed and the perimeter you staffed did not.
         camps:         Object.assign({}, player.camps        || {}),   // ★ v0.96.12
+        nootTaughtBench:    !!player.nootTaughtBench,      // ★ v0.96.14
+        nootRaygunReturned: !!player.nootRaygunReturned,
+        raygunChestOpened:  !!player.raygunChestOpened,
+        raygunFound:        !!player.raygunFound,
         estateTier:    Object.assign({}, player.estateTier    || {}),
         homeResidents: Object.assign({}, player.homeResidents || {}),
         homeGuards:    JSON.parse(JSON.stringify(player.homeGuards || {})),
@@ -55386,7 +55698,9 @@ function _frameBody(now){
   try { tickEscortBond(); } catch(_){}      // ★ v0.96.5
   try { tickScrapjawLoot(); } catch(_){}   // ★ v0.96.5
   try { tickFieldStation(); } catch(_){}     // ★ v0.96.12 · the unfold
-  try { tickFieldStationRaid(); } catch(_){} // ★ v0.96.12 · enemies wreck it  // ★ v0.96.0 · the ground grows its anchor back
+  try { tickFieldStationRaid(); } catch(_){} // ★ v0.96.12 · enemies wreck it
+  try { tickNootRaygun(); } catch(_){}       // ★ v0.96.14 · Noot covers you
+  try { tickBrokenRaygun(); } catch(_){}     // ★ v0.96.14 · the dead cell still arcs  // ★ v0.96.0 · the ground grows its anchor back
   try { tickOmnirisStillness(); } catch(_){}  // ★ v0.95.990 · Omniris Trial 3  // ★ v0.95.990 · Omniris' meditation · +1 HP/s while guard is held undisturbed
   try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
   try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted

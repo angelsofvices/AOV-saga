@@ -172,18 +172,32 @@ new Function(src + `;globalThis.__C={ player, game, WORLD_PROPS, NPCS, FS_FRAMES
   FS_DEPLOY_SEQ, FS_PACK_SEQ, FS_STEP_MS, FS_MAX_HP, FIELD_STATION_SCRAP,
   deployFieldStation, deployedFieldStation, tickFieldStation, fieldStationReady,
   fieldStationUse, packFieldStation, damageFieldStation, tickFieldStationRaid,
-  useZycubeItem, walkable, districtAt };`)();
+  useZycubeItem, walkable, districtAt, grantFieldStationRecipe };`)();
 let n = 0; while (_Q.length && n < 80) { const f = _Q.shift(); n++; try { f(); } catch (_) {} }
 console.log = LOG;
 const C = globalThis.__C;
 
-/* ── 3 · the recipe ─────────────────────────────────────────────────────── */
+/* ── 3 · ★★ THE RECIPE IS NOOT'S TO GIVE ────────────────────────────────── */
 {
+  //   Creator: "he is who teaches you how to craft a field table using scrap
+  //   metal."
+  t(!(C.player.knownRecipes || []).find(x => x.id === 'field_station'),
+    '★★★ a fresh Rizer does NOT know it · it used to be pushed into knownRecipes '
+    + 'at boot, so the most characterful recipe in the tab arrived from nobody');
+  const noot = C.NPCS.find(n => n && n.id === 'crazy');
+  t(!!noot && noot.name === 'Noot', `★ Noot is in the world (${noot && noot.name})`);
+  C.player.nootTaughtBench = false;
+  try { noot.onInteract(noot); } catch (e) { no('Noot threw · ' + e.message); }
   const r = (C.player.knownRecipes || []).find(x => x.id === 'field_station');
-  t(!!r, 'the workstation is a recipe at the bench');
+  t(!!r, '★★★ talking to Noot TEACHES it · the bench comes from a person now');
   t(r && r.costOptions[0].scrap_metal === 20 && C.FIELD_STATION_SCRAP === 20,
     `★ 20 scrap metal, exactly as asked (${r && r.costOptions[0].scrap_metal})`);
   t(r && r.output.field_station === 1, '  · and it yields one case');
+  // ★ idempotent · a lesson can be re-told
+  const n0 = C.player.knownRecipes.length;
+  C.grantFieldStationRecipe();
+  t(C.player.knownRecipes.length === n0,
+    '★★ re-teaching does not duplicate the recipe · the tab would list it twice');
   t(/field_station:    \{ label: 'Field Workstation'/.test(H),
     '★ the case is a real inventory item · an output the bag cannot name is a '
     + 'craft that vanishes');

@@ -1,61 +1,133 @@
-const fs=require('fs');const src=fs.readFileSync('/tmp/all.js','utf8');const noop=()=>{};const pending=[];
-global.setInterval=()=>0;global.setTimeout=(f,m)=>{pending.push({f,m});return 0};global.clearInterval=noop;global.clearTimeout=noop;
-const CTX=new Proxy({},{get:()=>()=>({addColorStop:noop,width:0,height:0,data:[]})});
-const el=()=>({style:{},dataset:{},classList:{add:noop,remove:noop,toggle:noop,contains:()=>false},width:960,height:540,
- value:'',textContent:'',innerHTML:'',children:[],childNodes:[],getContext:()=>CTX,appendChild:noop,removeChild:noop,
- addEventListener:noop,removeEventListener:noop,setAttribute:noop,getAttribute:()=>null,focus:noop,remove:noop,
- play:()=>Promise.resolve(),pause:noop,cloneNode(){return this},currentTime:0,volume:1,
- querySelector:()=>el(),querySelectorAll:()=>[],getBoundingClientRect:()=>({left:0,top:0,width:960,height:540})});
-global.addEventListener=noop;global.removeEventListener=noop;
-global.document={getElementById:()=>el(),querySelector:()=>el(),querySelectorAll:()=>[],createElement:()=>el(),
- addEventListener:noop,body:el(),documentElement:el(),head:el(),hidden:false,visibilityState:'visible'};
-global.window=global;global.localStorage={getItem:()=>null,setItem:noop,removeItem:noop};
-global.Audio=function(){return el()};
-global.Image=function(){return{addEventListener:noop,complete:false,naturalWidth:0,src:''}};
-global.requestAnimationFrame=()=>0;global.cancelAnimationFrame=noop;
-global.matchMedia=()=>({matches:false,addEventListener:noop,addListener:noop});
-global.navigator={userAgent:'node',getGamepads:()=>[],maxTouchPoints:0};
-global.performance={now:()=>Date.now()};global.getComputedStyle=()=>({getPropertyValue:()=>''});
-new Function(src+';globalThis.__C={SPECIES,HUMANOID_ALLIES,HUMANOID_ALLY_IDS,isHumanoidAlly,isValidZyrexTyping,'+
- 'NPCS,isZyrexNpc,contactEligible,DEV_FACTION_ACTORS,astraliteStatPool,canonType,worldDistrictAt};')();
-const C=globalThis.__C;let n=0;while(pending.length&&n++<30){const q=pending.splice(0);q.forEach(t=>{try{t.f();}catch(_){}});}
-let f=0;const ok=(c,m)=>{console.log((c?'  ✅ ':'  ❌ ')+m);if(!c)f++;};
+#!/usr/bin/env node
+/* verify_omniris.js · v0.95.990
+ *
+ *   Creator: "omniris puts you on 8 quests that eventually allows you to unlock
+ *   the ability to meditate and recover health when you are in block animation.
+ *   he will also lead you to andrannor. I also wanna make it that kelthor
+ *   always updates you on what elder or master to find in each district."
+ *
+ * ★★★ THIS SUITE EXISTS BECAUSE I WROTE SEVEN IDENTIFIERS THAT DID NOT EXIST.
+ *   In one feature: zyrexBondPct, soulphishCaught, seerHqFound, player.level,
+ *   player.attacking, player._attackUntil, player.towerNet — and then, in the
+ *   comment correcting them, rizerLevel(). Every one would have compiled,
+ *   shipped, and silently made a trial impossible to finish. That is the exact
+ *   shape of the five dead flags already in this file (malezorBroadcastDone,
+ *   lostBoyReunited, kelthorSeedsFed, kelthorFirstQuestGiven/Complete): a
+ *   reward written before its verifier.
+ *
+ * ★★ So the rule this suite enforces is: EVERY FLAG A TRIAL READS MUST BE SET
+ *   SOMEWHERE, and every flag it sets must be SAVED. A quest that cannot be
+ *   completed and a quest that forgets it was completed are the same bug from
+ *   opposite ends.
+ *
+ * ★ The cheapest detector, and the one that actually found them: grep each
+ *   identifier for its occurrence COUNT. A name that appears exactly once
+ *   appears only where I typed it.
+ */
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.join(__dirname, '..');
+const HTML = fs.readFileSync(path.join(ROOT, 'rp7b.html'), 'utf8');
+// ★ comments stripped for every ABSENCE/PRESENCE test · three suites have been
+// bitten by matching their own explanatory prose
+const CODE = HTML.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
-console.log('\n1 · ★ OFF THE ZYREX ROSTER\n');
-ok(!C.SPECIES.omniris,'omniris is no longer in SPECIES');
-ok(!!C.HUMANOID_ALLIES.omniris,'omniris IS in HUMANOID_ALLIES');
-const O=C.HUMANOID_ALLIES.omniris;
-console.log(`     ${O.name} · T${O.tier} · ${O.type}/${O.type2} · ${O.classification} ${O.tierName}`);
-ok(O.type==='Humanoid'&&O.type2==='Aura','typing is Humanoid-primary / Aura-secondary');
-ok(C.isHumanoidAlly('omniris'),'isHumanoidAlly("omniris") is true');
-ok(!C.DEV_FACTION_ACTORS.omniris,'removed from DEV_FACTION_ACTORS, same as auraxion');
+let pass = 0, fail = 0;
+const ok = (m) => { pass++; console.log('  ok   · ' + m); };
+const no = (m) => { fail++; console.log('  FAIL · ' + m); };
+const t  = (c, m) => c ? ok(m) : no(m);
 
-console.log('\n2 · ★ HE SITS BESIDE AURAXION, NOT BESIDE A ZYREX\n');
-const A=C.HUMANOID_ALLIES.auraxion;
-console.log(`     auraxion  T${A.tier} ${A.type}/${A.type2}`);
-console.log(`     omniris   T${O.tier} ${O.type}/${O.type2}`);
-ok(A.type===O.type&&A.type2===O.type2,'identical typing to Auraxion, the existing precedent');
-ok(Object.keys(C.HUMANOID_ALLIES).length===2,`HUMANOID_ALLIES now holds ${Object.keys(C.HUMANOID_ALLIES).length}`);
+console.log('\n=== OMNIRIS · the eight trials, and can they be finished? ===\n');
 
-console.log('\n3 · ★ THE TYPING RULE AGREES\n');
-ok(C.isValidZyrexTyping(O)===false,'isValidZyrexTyping(omniris) is now FALSE — correctly not a Zyrex');
-ok(C.isValidZyrexTyping(C.SPECIES.elzebub)===true,'and a real Zyrex still passes (elzebub)');
-let bad=0; for(const k of Object.keys(C.SPECIES)) if(!C.isValidZyrexTyping(C.SPECIES[k])) bad++;
-ok(bad===0,`no remaining SPECIES row is Humanoid-primary (${bad})`);
+/* ── 1 · the ladder exists and is sequential ────────────────────────────── */
+const at = CODE.indexOf("id: 'omniris'");
+t(at > 0, 'Omniris NPC exists');
+const blk = CODE.slice(at, at + 12000);
+// ★ Trial 3 is the exception and the exception is correct: you complete The
+// Unblinking by NOT interacting, so its flag is set by the stillness timer
+// rather than by the dialogue. Searching only the NPC block failed it — the
+// right fix was to widen the search, not to move the flag into a conversation
+// the player is forbidden from having mid-trial.
+for (let i = 1; i <= 8; i++){
+  const where = (i === 3) ? CODE : blk;
+  t(new RegExp(`OS\\.s${i} = true`).test(where),
+    `  trial ${i} has a completion that SETS its flag` + (i === 3 ? ' (in the timer, correctly)' : ''));
+}
 
-console.log('\n4 · ★★ HE CAN NOW BE A CONTACT · which is the whole point\n');
-const npc=C.NPCS.find(x=>x&&x.id==='omniris');
-ok(!!npc,'the oasis NPC still exists');
-console.log(`     stands at (${npc.tileX},${npc.tileY}) in ${C.worldDistrictAt(npc.tileX,npc.tileY)}`);
-ok(C.isZyrexNpc(npc)===false,'isZyrexNpc(omniris) is FALSE — he left the SPECIES table, so detection follows');
-ok(C.contactEligible(npc)===true,'contactEligible is TRUE · he can enter the phone book like Kelthor');
-const kel=C.NPCS.find(x=>x&&x.id==='kelthor');
-ok(!!kel&&C.contactEligible(kel)===true,'and Kelthor still is too — same track, same rules');
+/* ── 2 · ★★ EVERY VERIFIER IS A REAL, WRITTEN FIELD ─────────────────────── */
+console.log('\n  ── the check that would have caught all seven ──');
+const NEEDS = {
+  'player.soulphishCaught':      /player\.soulphishCaught\s*=/,
+  'player.seerHqFound':          /player\.seerHqFound\s*=|seerHqFound\[/,
+  'player.dreamlandSeen':        /player\.dreamlandSeen\s*=/,
+  'player.towerBatteries':       /player\.towerBatteries\[|player\.towerBatteries\s*=/,
+  'player.rizerLvl':             /player\.rizerLvl\s*=/,
+  'player.attackUntil':          /player\.attackUntil\s*=/,
+  'z.bond':                      /\.bond\s*=/,
+  'player.meditationUnlocked':   /player\.meditationUnlocked\s*=/,
+  'player.elderLaddersDone':     /player\.elderLaddersDone\s*=|elderLaddersDone\./,
+};
+for (const [name, setter] of Object.entries(NEEDS))
+  t(setter.test(CODE), `${name.padEnd(28)} is WRITTEN somewhere, not just read`);
 
-console.log('\n5 · STATS UNTOUCHED · T6 x 333 still holds\n');
-console.log(`     canonical ${JSON.stringify(O.canonicalStats)} total ${O.canonicalTotal}`);
-ok(O.canonicalTotal===1998,'1998 = tier 6 x 333');
-ok(C.astraliteStatPool(6)===1998,'and astraliteStatPool(6) agrees');
-ok(O.moves.length===4,`his 4 canonical moves survive: ${O.moves.join(', ')}`);
-console.log(f?`\n❌ ${f} failure(s)`:'\n✅ ALL CHECKS PASS');
-process.exit(0);
+// ★ and the inverse: none of the names I invented may come back
+const GHOSTS = ['zyrexBondPct', 'player.towerNet', 'player.attacking', 'player._attackUntil'];
+for (const g of GHOSTS)
+  t(!new RegExp(g.replace('.', '\\.')).test(CODE), `★ "${g}" is gone · an invented name that would compile and never fire`);
+// player.level must not reappear as a bare read (player.levelUp* is fine)
+t(!/player\.level\b/.test(CODE), '★ "player.level" is gone · the field is player.rizerLvl');
+
+/* ── 3 · persisted · a flag that is not saved is a quest you redo ───────── */
+console.log('\n  ── persistence ──');
+for (const f of ['omnirisStep', 'soulphishCaught', 'seerHqFound', 'dreamlandSeen',
+                 'meditationUnlocked', 'elderLaddersDone', 'kelthorFallen'])
+  t(new RegExp(`${f}:\\s*`).test(CODE.slice(CODE.indexOf('lostBoyReunited:'))),
+    `  ${f.padEnd(20)} is in the save snapshot`);
+
+/* ── 4 · ★★ MEDITATION · the reward, and it rides the real block system ─── */
+console.log('\n  ── meditation ──');
+t(/function meditationActive/.test(CODE) && /function tickMeditation/.test(CODE),
+  'meditation exists as its own tick');
+t(/tickMeditation\(dt\)/.test(CODE), '★ and is actually CALLED from the frame loop');
+t(/player\.meditationUnlocked/.test(blk), '★★ it is gated on the ladder · trial 8 is what turns it on');
+{
+  const mi = CODE.indexOf('function meditationActive');
+  const mf = CODE.slice(mi, CODE.indexOf('\n}', mi));
+  t(/player\.blocking/.test(mf), '  · requires the guard to be up');
+  t(/_blockStunUntil/.test(mf), '  · refuses during break-stun');
+  t(/_blockHitFlashUntil/.test(mf),
+    '★★ and ANY hit resets the warm-up · if a chipped guard still healed, the best play would be to tank in a crowd, which is the opposite of the lesson');
+}
+
+/* ── 5 · the stillness trial fails on the right things ──────────────────── */
+console.log('\n  ── the Unblinking ──');
+{
+  const si = CODE.indexOf('function tickOmnirisStillness');
+  t(si > 0, 'the stillness timer exists');
+  const sf = CODE.slice(si, CODE.indexOf('\n}\n', si));
+  t(/_omnirisStillX/.test(sf), '  · fails if you MOVE');
+  t(/attackUntil/.test(sf), '★ fails if you SWING · the instinct to act is the trial');
+  t(!/hurtPlayer|takeDamage/.test(sf),
+    '★★ but NOT if you are hit · being struck while perfectly still is the trial working, not the player failing');
+  t(/tickOmnirisStillness\(\)/.test(CODE), '  · and it is called from the frame loop');
+}
+
+/* ── 6 · ★★★ THE ROUTER · Kelthor reads the table, never his own list ───── */
+console.log('\n  ── Kelthor the router ──');
+{
+  const ri = CODE.indexOf('const _elders =');
+  t(ri > 0, 'the router exists in Kelthor\'s post-ladder branch');
+  const rf = CODE.slice(ri, ri + 2600);
+  t(/DISTRICT_ELDERS/.test(rf),
+    '★★★ he READS DISTRICT_ELDERS · a district becomes routable the moment its elder is filled in, and he can never promise somebody who does not exist');
+  t(/elderLaddersDone/.test(rf), '  · and skips ladders already finished');
+  t(/_unbuilt/.test(rf),
+    '★★ he says so OUT LOUD when a seat is empty · true for 8 of 10 today, and better than silence');
+  t(/kelthorFallen/.test(rf),
+    '★★★ and the death hook is NAMED · canon has him dying in the Invasion, and the router is what makes that cost real — lose him and the map goes quiet');
+}
+t(/omnirisStep/.test(CODE) && /ANDRANNOR/.test(blk),
+  '★ trial 8 points at ANDRANNOR · the handoff DISTRICT_ELDERS still lists as TBD');
+
+console.log(`\n★ ${pass} passed · ${fail} failed\n`);
+process.exit(fail ? 1 : 0);

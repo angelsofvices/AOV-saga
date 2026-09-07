@@ -196,8 +196,16 @@ function afterMom(){
 
 /* ── 7 · persistence · the flags have to be in the snapshot ─────────────── */
 {
+  // ★ v0.95.990 · was a fixed 2000-char window from raidCardGifted. Eight new
+  // fields were added to the save snapshot for the Omniris ladder and that
+  // pushed dadStarterQuestGiven off the end of the slice — the suite went red
+  // reporting a field that was still very much being saved.
+  // ★★ A window measured in CHARACTERS is a window that shrinks every time
+  // somebody adds a line above what it is looking for. Bound it to the end of
+  // the snapshot object instead, so it grows with the thing it is inspecting.
   const snapAt = HTML.indexOf('raidCardGifted:             !!player.raidCardGifted');
-  const snap = HTML.slice(snapAt, snapAt + 2000);
+  const snapEnd = HTML.indexOf('\n      };', snapAt);
+  const snap = HTML.slice(snapAt, snapEnd > snapAt ? snapEnd : snapAt + 8000);
   t(/momNotebookGiven:\s*!!player\.momNotebookGiven/.test(snap),
     'momNotebookGiven is written to the save');
   t(/dadNotebookGifted:\s*!!player\.dadNotebookGifted/.test(snap),

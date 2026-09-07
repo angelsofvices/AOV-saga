@@ -2935,6 +2935,85 @@ function rizerInCombat(){
   }
   return false;
 }
+// ★★★ v0.95.990 · MEDITATION · the payoff of Omniris' eight trials.
+// Creator: "omniris puts you on 8 quests that eventually allows you to unlock
+// the ability to meditate and recover health when you are in block animation."
+//
+// ★★ THE MECHANIC IS THE LESSON. Kelthor's reward is a relic you carry;
+// Omniris' is a thing you can only do by NOT doing anything — you hold guard,
+// you stop swinging, and the stillness itself heals. That is The Sight taught
+// as a verb ([[aov-omniris-zarvane-elder]]: Kelthor asks "will it come when
+// called", Omniris asks "do you know what it wants before it moves").
+//
+// ★ It rides the block system that already exists (v0.95.474) rather than
+// inventing a stance: `player.blocking`, `player.blockStart` and the
+// break-stun are all live. Meditation adds one clause — hold the guard long
+// enough, undisturbed, and HP climbs.
+// ★★ ANY HIT RESETS THE WARM-UP, not just a block break. If a chipped guard
+// still healed, the optimal play would be to stand in a crowd and tank, which
+// is the opposite of what the trials taught. You have to actually be left
+// alone — which in practice means you chose your ground before you needed it.
+// ★ Deliberately the SAME 1 HP/s as Yara's mend and explicitly stacking with
+// it: she is a person who travels with you, this is a discipline you own.
+const MEDITATE_WARMUP_MS = 1200;   // stillness has to be held before it counts
+const MEDITATE_TICK_MS   = 1000;   // +1 HP/s · Yara's rate, on purpose
+let _meditateAcc = 0;
+function meditationActive(){
+  if (!player.meditationUnlocked) return false;
+  if (!player.blocking) return false;
+  const now = performance.now();
+  if ((player._blockStunUntil || 0) > now) return false;
+  // ★ a hit inside the last warm-up window breaks the stillness
+  if ((player._blockHitFlashUntil || 0) + MEDITATE_WARMUP_MS > now) return false;
+  return (now - (player.blockStart || 0)) >= MEDITATE_WARMUP_MS;
+}
+// ★★★ v0.95.990 · THE UNBLINKING · Omniris' third trial, and the only thing
+// in this ladder that needed new code.
+//
+// ★★ Every other quest in the game is "do a thing". This one is "stop doing
+// things" — hold position for 30 real seconds while something dangerous
+// circles, and the instinct to swing is exactly what fails it. That is what
+// "aura" should feel like as a VERB rather than a stat, and it costs a timer,
+// a position check and a fail-on-input.
+// ★ It fails on MOVEMENT or an ATTACK, not on damage. Being hit while standing
+// perfectly still is the trial working, not the player failing it.
+const OMNIRIS_STILL_MS = 30000;
+function tickOmnirisStillness(){
+  const t0 = player._omnirisStillT0;
+  if (!t0) return;
+  const OS = player.omnirisStep;
+  if (!OS || OS.s3){ player._omnirisStillT0 = 0; return; }
+  const fail = (why) => {
+    player._omnirisStillT0 = 0;
+    try { showToast('◈ The Unblinking · broken · ' + why, 3000); playSFX('cancel'); } catch(_){}
+  };
+  if (game.scene !== 'overworld') return fail('you left');
+  if (player.x !== player._omnirisStillX || player.y !== player._omnirisStillY) return fail('you moved');
+  if ((player.attackUntil || 0) > performance.now()) return fail('you swung');
+  if (performance.now() - t0 < OMNIRIS_STILL_MS) return;
+  player._omnirisStillT0 = 0;
+  OS.s3 = true;
+  player.bonds = player.bonds || {};
+  player.bonds.omniris = Math.min(100, (player.bonds.omniris || 0) + 1);
+  try { awardRizerXP(800); } catch(_){}
+  try { showToast('★ Trial 3 · The Unblinking · +1 Bond · return to Omniris', 4200); playSFX('levelUp'); } catch(_){}
+}
+function tickMeditation(dt){
+  if (game.scene === 'title' || game.paused || game.zphoneOpen || cinematicPlaying()) return;
+  if (!meditationActive()){ _meditateAcc = 0; return; }
+  const max = player.hpMax || player.maxHp || 100;
+  if ((player.hp || 0) >= max){ _meditateAcc = 0; return; }
+  _meditateAcc += dt;
+  while (_meditateAcc >= MEDITATE_TICK_MS){
+    _meditateAcc -= MEDITATE_TICK_MS;
+    player.hp = Math.min(max, (player.hp || 0) + 1);
+    if (!player.meditateSeen){
+      player.meditateSeen = true;
+      try { showToast('◈ You are still · and the stillness is working', 3600); } catch(_){}
+      try { playSFX('heal'); } catch(_){}
+    }
+  }
+}
 let _yaraRegenAcc = 0;
 function tickYaraRegen(dt){
   if (!yaraIsWithYou() || game.scene === 'title'){ _yaraRegenAcc = 0; return; }
@@ -4698,7 +4777,7 @@ const DISTRICT_ELDERS = [
     steps:8, built:true,  handoff:'3 Soulphish + enter Zarvane' },
   { dist:'zarvane',   id:'omniris',  name:'Omniris',        being:'Humanoid/Aura',
     teaches:'The Sight', seat:'Zarvane Oasis',       at:[177,230],
-    steps:8, built:false, handoff:'TBD -> Andrannor' },
+    steps:8, built:true,  handoff:'8 trials -> MEDITATION -> Andrannor' },   // ★ v0.95.990
   { dist:'andrannor', id:null,       name:null,             being:null,
     teaches:null,        seat:null,                  at:null,
     steps:8, built:false, handoff:'TBD -> Veridan' },
@@ -9367,14 +9446,191 @@ const NPCS = [
     classification: 'DIVINOID',
     statusEffect: 'Brainlock',
     stats: { hp:366, astralEnergy:333, defense:366, special:333, speed:600, total:1998 },
+    // ★★★ v0.95.990 · THE EIGHT TRIALS OF OMNIRIS · Creator: "omniris puts you
+    // on 8 quests that eventually allows you to unlock the ability to meditate
+    // and recover health when you are in block animation. he will also lead
+    // you to andrannor."
+    //
+    // ★★ Built from data/OMNIRIS_ZARVANE_ELDER_DRAFT.md, which had been sitting
+    // approved-but-unbuilt. Same machinery as Kelthor — strictly sequential,
+    // level-gated, bond total 10 weighted to the back (1,1,1,1,1,1,2,2) — but
+    // deliberately NOT the same shape of task. Kelthor's ladder is eight
+    // errands. Two of these are refusals to act.
+    //
+    // ★★★ EVERY TRIAL CHECKS A SYSTEM THAT ALREADY EXISTS. That was the rule
+    // the draft set for itself and it is the rule that killed five flags
+    // elsewhere in this file: `malezorBroadcastDone`, `lostBoyReunited`,
+    // `kelthorSeedsFed` and two more are read, saved, and NEVER SET, because
+    // somebody wrote the reward before the verifier. Nothing below invents a
+    // counter that nothing increments.
+    //   s1 talk           · this function
+    //   s2 8 Soulphish    · fishForSoulphish (the oasis minigame)
+    //   s3 30s stillness  · new, and small · see _omnirisStillness below
+    //   s4 60% bond       · the bond curve
+    //   s5 find Seer HQ   · SEER_HQ_NETWORK · NO marker given
+    //   s6 dream          · player.dreamlandSeen, which v0.95.990 finally records
+    //   s7 Zarvane tower  · player.towerBatteries.zarvane
+    //   s8 Prismshard     · Kelthor's own step-8 reward, spent here
+    //
+    // ★ s8 unlocks MEDITATION. The ladder that opens with "stop moving" pays
+    // out an ability that only works while you are still.
     onInteract: (n) => {
       if(startFactionSoulSwitch(n))return;
       playSFX('confirm');
-      showDialog({ speaker: 'OMNIRIS', lines: [
-        '*The silent ascetic opens no ordinary eye. Your next thought loosens before it can take form.*',
-        'Urgency belongs to those who have not yet seen the outcome.',
-        'You did not arrive here, Rizer. You merely reached the moment in which you discover that you already had.',
-      ]});
+      player.omnirisStep = player.omnirisStep || {};
+      const OS = player.omnirisStep;
+      // ★★ v0.95.990 · `player.level` DOES NOT EXIST. I wrote it, and it would
+      // have made every gate below read Level 1 forever — the ladder would
+      // have refused the player at trial 1 with "come back at 15" and never
+      // stopped. The real accessor is rizerLevel() over `player.rizerLvl`.
+      // ★ Same check caught `zyrexBondPct`, `soulphishCaught`, `seerHqFound`,
+      // `player.attacking` and `player.towerNet` in this one pass: SIX invented
+      // identifiers in one feature. Grepping each name for its occurrence
+      // COUNT is what found them — a name that appears exactly once appears
+      // only where I typed it.
+      // ★★ And then I wrote rizerLevel() in this very comment as "the real
+      // accessor". There is no such function either. The field is
+      // `player.rizerLvl`, full stop. Seven.
+      const lvl = (player.rizerLvl || 1);
+      const say = (...lines) => showDialog({ speaker: 'OMNIRIS', lines });
+      const bump = (n2) => { player.bonds = player.bonds || {};
+        player.bonds.omniris = Math.min(100, (player.bonds.omniris||0) + n2); };
+      const gate = (need) => {
+        if (lvl >= need) return false;
+        say('*does not turn*',
+            `You are Level ${lvl}. Come back at ${need}.`,
+            'Not because I am strict. Because you would not survive understanding it yet.');
+        return true;
+      };
+
+      // ── s1 · THE WATCHER ON THE RIM ──────────────────────────────────────
+      if (!OS.s1){
+        if (gate(15)) return;
+        OS.s1 = true; bump(1);
+        try { registerContact('omniris'); } catch(_){}
+        try { awardRizerXP(400); } catch(_){}
+        showToast('★ Omniris · Trial 1 · The Watcher on the Rim · +1 Bond', 3600);
+        return say(
+          '*he is already facing you, and you have not made a sound*',
+          'You will ask me about the water. Ask me about the thing behind you first.',
+          'Kelthor taught you to be answered. I will teach you to hear it before it speaks.',
+          'Eight trials. The first one is over — you came, and you were watched, and you did not notice.',
+          'Trial 2 · fish this Oasis until you have landed EIGHT Soulphish. Not for me. For your hands.');
+      }
+      // ── s2 · STILL WATER · 8 Soulphish landed, lifetime ──────────────────
+      if (!OS.s2){
+        if (gate(18)) return;
+        const caught = player.soulphishCaught || 0;
+        if (caught < 8) return say(`Still Water · ${caught}/8 Soulphish landed.`,
+          'The fish are not the lesson. The waiting is. Go back to the rim.');
+        OS.s2 = true; bump(1);
+        try { awardRizerXP(600); } catch(_){}
+        showToast('★ Trial 2 · Still Water · +1 Bond', 3600);
+        return say('*nods once*', 'You stopped watching the water and started watching the line. Good.',
+          'Trial 3 · stand in this oasis and DO NOT MOVE for thirty seconds.',
+          'Something will circle you. Do not swing at it. Swinging is what fails this.');
+      }
+      // ── s3 · THE UNBLINKING · the trial that is a refusal ────────────────
+      if (!OS.s3){
+        if (gate(22)) return;
+        if (!player._omnirisStillT0){
+          player._omnirisStillT0 = performance.now();
+          player._omnirisStillX  = player.x; player._omnirisStillY = player.y;
+          showToast('◈ THE UNBLINKING · hold still · 30s', 3000);
+          return say('*sits*', 'Begin. I will know if you move. So will it.');
+        }
+        return say('The Unblinking is already running. Stand. Wait. Come back when it is done.');
+      }
+      // ── s4 · READ THE BEAST · 60% bond on any one Zyrex ──────────────────
+      if (!OS.s4){
+        if (gate(26)) return;
+        // ★ `z.bond` is the real field (0-100) · there is no zyrexBondPct() in
+        // this build and referencing one would have made this trial
+        // permanently uncompletable — the exact dead-flag shape called out
+        // above. Checked, not assumed.
+        const best = Math.max(0, ...((player.party||[]).filter(Boolean).map(z => z.bond || 0)));
+        if (best < 60) return say(`Read the Beast · your closest bond reads ${Math.round(best)}%. I need 60.`,
+          'Not a stronger Zyrex. A better understood one.');
+        OS.s4 = true; bump(1);
+        try { awardRizerXP(900); } catch(_){}
+        showToast('★ Trial 4 · Read the Beast · +1 Bond', 3600);
+        return say('You know what it wants before it moves. That is the whole of it.',
+          'Trial 5 · the Seers hold a house in this district. I will not mark it for you.',
+          'East, where the road thins. Find it with your eyes.');
+      }
+      // ── s5 · THE HIDDEN DOOR · no waypoint, on purpose ───────────────────
+      if (!OS.s5){
+        if (gate(32)) return;
+        if (!player.seerHqFound || !player.seerHqFound.zarvane)
+          return say('The Hidden Door is still shut to you.',
+            'You are looking for a building. Look for the place the road stops being used.');
+        OS.s5 = true; bump(1);
+        try { awardRizerXP(1200); } catch(_){}
+        showToast('★ Trial 5 · The Hidden Door · +1 Bond', 3600);
+        return say('*the first time he looks pleased, and it is unsettling*',
+          'You found it without being led. Nobody has done that since your father.',
+          'Trial 6 · sleep. In a bed, in Zarvane. Come back having dreamed.',
+          'The place you go is real. It has a name and I will not say it yet.');
+      }
+      // ── s6 · SLEEPING SIGHT · Dreamland, which now leaves a mark ─────────
+      if (!OS.s6){
+        if (gate(38)) return;
+        if (!player.dreamlandSeen)
+          return say('Sleeping Sight · you have not dreamed yet.',
+            'Find a bed. Zarvane keeps beds for travellers who do not know they are travelling.');
+        OS.s6 = true; bump(1);
+        try { awardRizerXP(1600); } catch(_){}
+        showToast('★ Trial 6 · Sleeping Sight · +1 Bond', 3600);
+        return say('You went to the Blue plane and came back with your name. Most do not.',
+          'DREAMLAND. There. It is said.',
+          'Trial 7 · the radio tower north of here is dead. Wake it.');
+      }
+      // ── s7 · THE PEARL ROAD · the Scrapjaw tower loop, reused ────────────
+      if (!OS.s7){
+        if (gate(46)) return;
+        // ★ towerBatteries is the real record (set at the chest, spent at
+        // Scrapjaw). `player.towerNet` was another invention of mine.
+        if (!(player.towerBatteries && player.towerBatteries.zarvane) && !(player.towerRestored && player.towerRestored.zarvane))
+          return say('The Pearl Road is still silent.',
+            'North rim. There is a battery in the chest beneath it, and something large that thinks the chest is his.');
+        OS.s7 = true; bump(2);
+        try { awardRizerXP(2200); } catch(_){}
+        showToast('★ Trial 7 · The Pearl Road · +2 Bond', 3600);
+        return say('Zarvane can hear the rest of the world again. That was never a small thing.',
+          'One trial left. Bring me a PRISMSHARD.',
+          'You already have one. Kelthor put it in your hand and told you it could reshape anything worthy.',
+          'He was right. He did not tell you it could reshape YOU.');
+      }
+      // ── s8 · THE THIRD EYE OPENS · meditation unlocked ───────────────────
+      if (!OS.s8){
+        if (gate(55)) return;
+        const shards = (player.items && player.items.prismshard) || 0;
+        if (shards < 1 && !player.prismshardOwned)
+          return say('The Third Eye Opens · bring the Prismshard.',
+            'If you spent it, earn another. I have waited longer than that.');
+        OS.s8 = true; bump(2);
+        if (player.items && player.items.prismshard > 0) player.items.prismshard -= 1;
+        player.meditationUnlocked = true;
+        // ★ tell the router this seat is done · Kelthor reads this map, so
+        // finishing a ladder anywhere changes what he says in Malezor
+        player.elderLaddersDone = player.elderLaddersDone || {};
+        player.elderLaddersDone.zarvane = true;
+        try { awardRizerXP(4000); } catch(_){}
+        showToast('★★ TRIAL 8 · MEDITATION UNLOCKED · hold guard undisturbed to recover HP', 5200);
+        try { playSFX('levelUp'); } catch(_){}
+        return say(
+          '*sets the shard into the water · it does not sink*',
+          'Hold your guard. Not to survive a blow — to stop needing to answer one.',
+          'When nothing has touched you for a moment, you will mend. That is all meditation is.',
+          'Everyone thinks the Third Eye is for seeing further. It is for stopping.',
+          '*finally turns fully toward you*',
+          'Go to ANDRANNOR. Something is missing there and the district has stopped noticing, which is worse.',
+          'A child, I think. Ask Kelthor which of us waits for you — he keeps that list better than I do.');
+      }
+      // ── post-ladder ──────────────────────────────────────────────────────
+      return say('*watching the water*',
+        'You see it now. There is no more of that to give.',
+        'Andrannor. The child. Go.');
     },
   },
   {
@@ -12674,11 +12930,64 @@ const NPCS = [
           ]});
           return;
         }
-        // Post-ladder · casual banter
+        // ★★★ v0.95.990 · KELTHOR IS THE ROUTER NOW.  Creator: "I also wanna
+        // make it that kelthor always updates you on what elder or master to
+        // find in each district. once you do his main expeditions, you check
+        // back in with him on what to do next district."
+        //
+        // ★★ This is the load-bearing change for the whole ten-district plan.
+        // Before it, finishing Kelthor's ladder ended in "what you build now is
+        // yours" — a warm line that leaves the player with no next name and no
+        // next place. Ten districts of content behind a goodbye.
+        // ★ He READS DISTRICT_ELDERS rather than carrying his own list, so a
+        // district becomes routable the moment its elder is filled in — no
+        // second place to update, and he can never promise somebody who does
+        // not exist. He says so out loud when a seat is empty, which is a
+        // better answer than silence and also happens to be true today for
+        // eight of the ten.
+        // ★★★ AND THIS IS WHERE HIS DEATH WILL LAND. Canon has Kelthor dying in
+        // the Invasion of Malezor ([[aov-story-tightening-pass]]) — the Creator
+        // put it plainly: "until he eventually dies and you have to save ur
+        // family without a teacher or father to help you." The router is what
+        // makes that cost REAL. Take away a mentor who gave you a title and you
+        // lose a friend; take away the one who tells you where to go next and
+        // the map goes quiet. `player.kelthorFallen` is read below and set
+        // nowhere yet — deliberately, because the Invasion is not built. It is
+        // a hook, and it is named so the next pass finds it.
+        const _elders = (typeof DISTRICT_ELDERS !== 'undefined') ? DISTRICT_ELDERS : [];
+        const _next = _elders.find(e => e && e.dist !== 'malezor' && e.id
+                        && !(player.elderLaddersDone && player.elderLaddersDone[e.dist]));
+        const _unbuilt = _elders.find(e => e && e.dist !== 'malezor' && !e.id);
+        if (player.kelthorFallen){
+          showDialog({ speaker: '—', lines: [
+            "*the chair by the hearth is empty · nobody has moved it*",
+            "You will have to know where to go on your own now.",
+          ]});
+          return;
+        }
+        if (_next){
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "*leans on his staff · watches your Zyrex settle*",
+            "Master Bonder. My ladder gave what it could. But you did not come here for a chair.",
+            `Go to ${_next.dist.toUpperCase()}. Find ${_next.name}. ${_next.being} — sits at the ${_next.seat}.`,
+            `They teach ${_next.teaches}, which is not what I taught you, and that is the point.`,
+            "Finish their trials. Then come back and I will tell you the next one.",
+          ]});
+          return;
+        }
+        if (_unbuilt){
+          showDialog({ speaker: 'KELTHOR', lines: [
+            "*long pause · he does not pretend to know*",
+            `${_unbuilt.dist.toUpperCase()} is next. I do not have a name for you there.`,
+            "The Seers have been thorough about elders. Some seats are empty and I will not invent someone to fill one.",
+            "Go anyway. Find out who is left.",
+          ]});
+          return;
+        }
         showDialog({ speaker: 'KELTHOR', lines: [
           "*leans on his staff · watches your Zyrex settle*",
-          "Master Bonder.  My ladder gave what it could.  What you build now is yours.",
-          "Return whenever · Malezor keeps a chair for you.",
+          "Every elder still standing has taught you what they had.",
+          "There is nobody left to send you to, Rizer. That is either a graduation or a warning.",
         ]});
       },
     };
@@ -17730,6 +18039,14 @@ function enterSeerHq(dist){
   const tail = hasSeerKey(dist)
     ? 'the stair to the top floor is open'
     : (seerHqChestOpened(dist) ? 'the vault below stands empty' : 'a stair descends to a sealed vault');
+  // ★ v0.95.990 · finding a Seer HQ is now REMEMBERED, per district. Omniris'
+  // Trial 5 sends you to Zarvane's with no waypoint, and until now nothing
+  // anywhere recorded that a player had ever located one — ten HQs, ten doors,
+  // and no memory of any of them.
+  try {
+    const _d = (typeof worldDistrictAt === 'function') ? worldDistrictAt(player.x, player.y) : null;
+    if (_d){ player.seerHqFound = player.seerHqFound || {}; player.seerHqFound[_d] = true; }
+  } catch(_){}
   enterInterior('interior_seer_hq_1f', INTERIOR_SEER_HQ_1F,
     `◈ ${H.label.toUpperCase()} SEER HQ · 1F · they hold the road to ${H.toward} · ${tail}`);
   return true;
@@ -24800,6 +25117,12 @@ function playDreamVideo(alive, opts = {}){
     return;
   }
   _dreamPlaying = true;
+  // ★ v0.95.990 · Dreamland now RECORDS that it happened. Omniris' sixth trial
+  // asks the player to sleep and come back having dreamed, and until now
+  // nothing anywhere remembered a dream — the scene played and left no trace,
+  // so no quest could ever ask about it ([[aov-dreamland]]).
+  player.dreamlandSeen = true;
+  player.dreamsHad = (player.dreamsHad || 0) + 1;
   _sleepFade = { t0: performance.now(), dur: 900 };
   playSFX('menuOpen');
   vid.style.display = 'block';
@@ -31123,6 +31446,12 @@ function fishForSoulphish(source='water'){
     const rate=source==='river' ? .28 : .14; // Veridan pure source / Zarvane oasis
     if(Math.random()<rate){
       addItems({soulphish:1});
+      // ★ v0.95.990 · a LIFETIME tally, separate from the inventory count.
+      // Omniris' Trial 2 asks for eight LANDED, and `items.soulphish` is spent
+      // (Kelthor's step 8 eats three), so an inventory read would un-complete a
+      // finished trial the moment the player used the fish for anything.
+      // ★ What a quest counts must not be something the player can spend.
+      player.soulphishCaught = (player.soulphishCaught || 0) + 1;
       playSFX('confirm');
       showToast('◈ Fae Net caught a Soulphish! (+1) · consume from bag for +Astral',2600);
     }else{
@@ -33113,7 +33442,7 @@ function closeWalletPanel(){
 // version that lives in exactly one hard-to-see place is a version nobody
 // updates; the internal v0.95.x patch numbers stayed current for 900 revisions
 // precisely because they sit next to the code they describe.
-const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.989' };
+const AOV_BUILD = { game: 7, gamedex: 5, codex: 16, patch: '0.95.990' };
 const AOV_BUILD_TAG = `BETA V${AOV_BUILD.game}.${AOV_BUILD.gamedex}.${AOV_BUILD.codex}`;
 // ★ the offset is an invariant, so it is asserted rather than trusted
 if (AOV_BUILD.codex - AOV_BUILD.gamedex !== 11) console.warn(
@@ -39238,6 +39567,19 @@ function saveGame(){
         depthCam:                   !!player.depthCam,           // ★ v0.95.978 · display preference
         vengrizzGifted:             !!player.vengrizzGifted,     // ★ v0.95.979 · Lost Boy reward
         lostBoyReunited:            !!player.lostBoyReunited,    // ★ v0.95.979 · the quest's own flag
+        // ★★ v0.95.990 · OMNIRIS' LADDER, PERSISTED. `dadStarterQuestGiven` was
+        // missing from this snapshot for months (fixed v0.95.972) and nobody
+        // noticed because the bug only shows after a reload. Every flag the
+        // eight trials read is written here in the same commit that reads it.
+        omnirisStep:                Object.assign({}, player.omnirisStep || {}),
+        elderLaddersDone:           Object.assign({}, player.elderLaddersDone || {}),
+        kelthorFallen:              !!player.kelthorFallen,
+        soulphishCaught:            player.soulphishCaught || 0,
+        seerHqFound:                Object.assign({}, player.seerHqFound || {}),
+        dreamlandSeen:              !!player.dreamlandSeen,
+        dreamsHad:                  player.dreamsHad || 0,
+        meditationUnlocked:         !!player.meditationUnlocked,
+        meditateSeen:               !!player.meditateSeen,
         volcaxorRigged:             !!player.volcaxorRigged,     // ★ v0.95.979 · Thardin stamina rig
         momNotebookGiven:           !!player.momNotebookGiven,   // ★ v0.95.972 · the courier errand
         dadNotebookGifted:          !!player.dadNotebookGifted,
@@ -51999,6 +52341,8 @@ function frame(now){
   try { tickStamina(dt); } catch(_){}
   try { tickDreamland(); } catch(_){}   // v0.95.719 · the nap clock
   try { tickYaraRegen(dt); } catch(_){}  // ★ v0.95.916 · Yara's green-gem mend · +1 HP/s out of combat
+  try { tickMeditation(dt); } catch(_){}
+  try { tickOmnirisStillness(); } catch(_){}  // ★ v0.95.990 · Omniris Trial 3  // ★ v0.95.990 · Omniris' meditation · +1 HP/s while guard is held undisturbed
   try { tickZorynRest(dt); } catch(_){}  // ★ v0.95.923 · he catches his breath · a KO does NOT heal itself
   try { flushMeleeBuffer(); } catch(_){}  // ★ v0.95.917 · release a press made just before the lock lifted
   // ★ v0.95.743 · ZyPhone Triangle hold · timed HERE, per frame, because the
